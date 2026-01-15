@@ -1,0 +1,2 @@
+# SPEC_COV: Using-Path-Item-Public-Err
+public using pkg::Secret

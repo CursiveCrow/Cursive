@@ -1,0 +1,8 @@
+# SPEC_COV: Syn-Call-Err
+# SPEC_COV: Call-ArgType-Err
+public procedure foo(x: i32) -> i32 { 0 }
+public procedure main(ctx: Context) -> i32 {
+  let b: bool = false;
+  let y = foo(b);
+  0
+}

@@ -1,0 +1,70 @@
+# SPEC_COV: T-Dynamic-MethodCall
+procedure close_dir(move d: unique DirIter@Open) -> DirIter@Closed {
+  (move d)~>close()
+}
+
+procedure close_file_read(move f: unique File@Read) -> File@Closed {
+  (move f)~>close()
+}
+
+procedure close_file_write(move f: unique File@Write) -> File@Closed {
+  (move f)~>close()
+}
+
+procedure close_file_append(move f: unique File@Append) -> File@Closed {
+  (move f)~>close()
+}
+
+procedure use_fs(fs: $FileSystem) -> () {
+  let s: string@View = "hi";
+  let arr: [u8; 2] = [1u8, 2u8];
+  let slice: [u8] = arr;
+  let b: bytes@View = bytes::view(slice);
+
+  let _r0 = fs~>open_read(s);
+  let _r1 = fs~>open_write(s);
+  let _r2 = fs~>open_append(s);
+  let _r3 = fs~>create_write(s);
+  let _r4 = fs~>read_file(s);
+  let _r5 = fs~>read_bytes(s);
+  let _r6 = fs~>write_file(s, b);
+  let _r7 = fs~>write_stdout(s);
+  let _r8 = fs~>write_stderr(s);
+  let _r9: bool = fs~>exists(s);
+  let _r10 = fs~>remove(s);
+  let _r11 = fs~>open_dir(s);
+  let _r12 = fs~>create_dir(s);
+  let _r13 = fs~>ensure_dir(s);
+  let _r14 = fs~>kind(s);
+  let _r15 = fs~>restrict(s);
+
+  let d: DirIter@Open = unsafe { transmute::<usize, DirIter@Open>(0usize) };
+  let _dn = d~>next();
+  let _dc = close_dir(move unsafe { transmute::<usize, unique DirIter@Open>(0usize) });
+
+  let f: File@Read = unsafe { transmute::<usize, File@Read>(0usize) };
+  let _fa = f~>read_all();
+  let _fb = f~>read_all_bytes();
+  let _fc = close_file_read(move unsafe { transmute::<usize, unique File@Read>(0usize) });
+
+  let w: File@Write = unsafe { transmute::<usize, File@Write>(0usize) };
+  let _fw = w~>write(b);
+  let _ff = w~>flush();
+  let _fc2 = close_file_write(move unsafe { transmute::<usize, unique File@Write>(0usize) });
+
+  let a: File@Append = unsafe { transmute::<usize, File@Append>(0usize) };
+  let _aw = a~>write(b);
+  let _af = a~>flush();
+  let _ac = close_file_append(move unsafe { transmute::<usize, unique File@Append>(0usize) });
+
+  ()
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let raw: *imm i32 = null;
+  let fs: $FileSystem = unsafe {
+    transmute::<(*imm i32, *imm i32), $FileSystem>((raw, raw))
+  };
+  use_fs(fs);
+  0
+}

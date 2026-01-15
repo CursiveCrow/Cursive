@@ -1,0 +1,13 @@
+# SPEC_COV: SystemMethodSig
+# SPEC_COV: T-Record-MethodCall
+# SPEC_COV: Step-MethodCall
+procedure stop(sys: System) -> ! {
+  let code: i32 = 0i32;
+  sys~>exit(code)
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let key: string@View = "HOME";
+  let _v = ctx.sys~>get_env(key);
+  0
+}

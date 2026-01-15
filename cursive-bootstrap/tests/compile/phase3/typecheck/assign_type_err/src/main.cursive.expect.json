@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-SEM-3133",
+      "severity": "error",
+      "message": "Assignment type mismatch"
+    }
+  ]
+}

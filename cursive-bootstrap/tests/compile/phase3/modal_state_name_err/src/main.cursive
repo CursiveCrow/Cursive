@@ -1,0 +1,2 @@
+# SPEC_COV: Modal-StateName-Err
+modal Mod { @Mod { } }

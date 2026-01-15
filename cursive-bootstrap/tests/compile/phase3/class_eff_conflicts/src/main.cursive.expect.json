@@ -1,0 +1,15 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-UNS-0106",
+      "severity": "error",
+      "message": "Conflicting procedure signatures from multiple classes"
+    },
+    {
+      "code": "E-TYP-2406",
+      "severity": "error",
+      "message": "Conflicting field names from multiple classes"
+    }
+  ]
+}

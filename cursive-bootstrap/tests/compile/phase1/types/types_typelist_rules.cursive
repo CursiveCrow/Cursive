@@ -1,0 +1,6 @@
+# SPEC_COV: Parse-TypeList-Empty
+# SPEC_COV: Parse-TypeList-Cons
+# SPEC_COV: Parse-TypeListTail-End
+# SPEC_COV: Parse-TypeListTail-Comma
+# SPEC_COV: Parse-TypeListTail-TrailingComma
+enum E { A(), B(i32), C(i32, i64), D(i32,) }

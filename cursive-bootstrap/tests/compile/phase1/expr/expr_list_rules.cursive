@@ -1,0 +1,6 @@
+# SPEC_COV: List-Start
+# SPEC_COV: List-Cons
+# SPEC_COV: List-Done
+# SPEC_COV: Parse-ExprList-Cons
+# SPEC_COV: Parse-ExprListTail-End
+let x = [1, 2]

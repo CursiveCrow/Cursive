@@ -1,0 +1,2 @@
+# SPEC_COV: WF-StaticDecl-Ann-Mismatch
+let x: i32 = true

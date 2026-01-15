@@ -1,0 +1,7 @@
+# SPEC_COV: StateMethod-Dup
+modal Mod {
+  @Open {
+    procedure foo() -> i32 { 0 }
+    procedure foo() -> i32 { 1 }
+  }
+}

@@ -1,0 +1,49 @@
+# SPEC_COV: ConstLen-Lit
+# SPEC_COV: ConstLen-Path
+# SPEC_COV: ConstLen-Err
+# SPEC_COV: T-Equiv-Prim
+# SPEC_COV: T-Equiv-Perm
+# SPEC_COV: T-Equiv-Tuple
+# SPEC_COV: T-Equiv-Array
+# SPEC_COV: T-Equiv-Slice
+# SPEC_COV: T-Equiv-Func
+# SPEC_COV: T-Equiv-Union
+# SPEC_COV: T-Equiv-Path
+# SPEC_COV: T-Equiv-ModalState
+# SPEC_COV: T-Equiv-String
+# SPEC_COV: T-Equiv-Bytes
+# SPEC_COV: T-Equiv-Range
+# SPEC_COV: T-Equiv-Ptr
+# SPEC_COV: T-Equiv-RawPtr
+# SPEC_COV: T-Equiv-Dynamic
+record Rec {}
+modal Mod { @State { v: i32 } }
+class Bar {}
+let LEN: usize = 4
+procedure id(move x: i32, y: bool) -> () { }
+public procedure main(ctx: Context) -> i32 {
+  let a: i32 = 0;
+  let b: const i32 = 1;
+  let t: (i32, bool) = (0, false);
+  let arr: [u8; 4] = [1u8, 2u8, 3u8, 4u8];
+  let arr2: [u8; LEN] = [1u8, 2u8, 3u8, 4u8];
+  let sl: [u8] = arr;
+  let f: (move i32, bool) -> () = id;
+  let u: i32 | bool = 0;
+  let p: Rec = Rec();
+  let m: Mod@State = unsafe { transmute::<i32, Mod@State>(0) };
+  let s: string@View = "hi";
+  let len: usize = 0;
+  let raw_u8: *imm u8 = null;
+  let by: bytes@View = unsafe {
+    transmute::<(*imm u8, usize), bytes@View>((raw_u8, len))
+  };
+  let x: i32 = 0;
+  let ptr: Ptr<i32>@Valid = &x;
+  let raw: *imm i32 = null;
+  let dyn: $Bar = unsafe {
+    transmute::<(*imm i32, *imm i32), $Bar>((raw, raw))
+  };
+
+  0
+}

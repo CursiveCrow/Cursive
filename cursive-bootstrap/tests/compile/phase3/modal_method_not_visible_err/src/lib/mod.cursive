@@ -1,0 +1,7 @@
+# SPEC_COV: Modal-Method-NotVisible
+public modal Mod {
+  @Open {
+    v: i32
+    private procedure secret() -> i32 { 0 }
+  }
+}

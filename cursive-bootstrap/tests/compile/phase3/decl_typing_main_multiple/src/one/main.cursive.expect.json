@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-MOD-2430",
+      "severity": "error",
+      "message": "Multiple `main` procedures defined"
+    }
+  ]
+}

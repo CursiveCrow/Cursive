@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-1605",
+      "severity": "error",
+      "message": "Receiver permission incompatible with caller"
+    }
+  ]
+}

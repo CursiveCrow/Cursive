@@ -1,0 +1,11 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-PRJ-0205",
+      "severity": "error",
+      "message": "Assembly selection failed (missing target or target not found)",
+      "span": null
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-MOD-1301",
+      "severity": "error",
+      "message": "Unresolved name: identifier not found in any accessible scope"
+    }
+  ]
+}

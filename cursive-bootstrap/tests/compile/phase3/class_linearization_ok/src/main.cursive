@@ -1,0 +1,22 @@
+# SPEC_COV: Lin-Base
+# SPEC_COV: Lin-Ok
+# SPEC_COV: Merge-Step
+# SPEC_COV: Merge-Empty
+# SPEC_COV: WF-Class
+# SPEC_COV: WF-ClassPath
+# SPEC_COV: WF-Class-Method
+# SPEC_COV: T-Class-Method-Body
+# SPEC_COV: T-Class-Method-Body-Abstract
+class A {
+  procedure foo(~) -> i32;
+}
+
+class B {
+  procedure bar(~) -> i32 { 0 }
+}
+
+class C <: A + B {
+  procedure baz(~) -> i32 { 0 }
+}
+
+public procedure main(ctx: Context) -> i32 { 0 }

@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-UNS-0108",
+      "severity": "error",
+      "message": "Range expression used as index in Cursive0 subset"
+    }
+  ]
+}

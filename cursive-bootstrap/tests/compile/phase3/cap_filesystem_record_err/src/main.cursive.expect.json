@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-2073",
+      "severity": "error",
+      "message": "Record literal whose type is `File@S` or `DirIter@S` for any state `S` in the corresponding modal type"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+[assembly]
+name = "demo"
+kind = "executable"
+root = "src"
+extra = "x"

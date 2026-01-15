@@ -1,0 +1,7 @@
+# SPEC_COV: Transition-NotVisible
+public modal Mod {
+  @Open {
+    v: i32
+    private transition go() -> @Open { Mod@Open { v: 0 } }
+  }
+}

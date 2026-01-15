@@ -1,0 +1,33 @@
+# SPEC_COV: Parse-Type
+# SPEC_COV: Parse-Perm-None
+# SPEC_COV: Parse-Prim-Type
+# SPEC_COV: Parse-Unit-Type
+# SPEC_COV: Parse-TupleTypeElems-Empty
+# SPEC_COV: Parse-Never-Type
+# SPEC_COV: Parse-String-Type
+# SPEC_COV: Parse-StringState-None
+# SPEC_COV: Parse-StringState-Managed
+# SPEC_COV: Parse-StringState-View
+# SPEC_COV: Parse-Bytes-Type
+# SPEC_COV: Parse-BytesState-None
+# SPEC_COV: Parse-BytesState-Managed
+# SPEC_COV: Parse-BytesState-View
+# SPEC_COV: Parse-PtrState-None
+# SPEC_COV: Parse-PtrState-Valid
+# SPEC_COV: Parse-PtrState-Null
+# SPEC_COV: Parse-PtrState-Expired
+# SPEC_COV: Parse-Safe-Pointer-Type
+# SPEC_COV: Parse-Safe-Pointer-Type-ShiftSplit
+# SPEC_COV: Parse-Raw-Pointer-Type
+# SPEC_COV: Parse-Dynamic-Type
+# SPEC_COV: Parse-Modal-State-Type
+# SPEC_COV: Parse-Type-Path
+# SPEC_COV: Parse-UnionTail-None
+# SPEC_COV: Parse-UnionTail-Cons
+# SPEC_COV: Parse-Array-Type
+# SPEC_COV: Parse-Slice-Type
+let a: i32 = 0 let b: () = 0 let c: ! = 0 let d: string = "x" let e: string@Managed = "x" let f: string@View = "x" let g: bytes = "x" let h: bytes@Managed = "x" let i: bytes@View = "x" let p: Ptr<i32> = 0 let q: Ptr<i32>@Valid = 0 let r: Ptr<i32>@Null = 0 let s: Ptr<i32>@Expired = 0 let t: Ptr<Ptr<i32>> = 0 let u: *imm i32 = 0 let v: *mut i32 = 0 let w: $Foo = 0 let x: Foo@State = 0 let y: Foo::Bar = 0 let z: i32 | bool = 0 let aa: [i32; 3] = 0 let ab: [i32] = 0
+
+public procedure main(ctx: Context) -> i32 {
+  0
+}

@@ -1,0 +1,8 @@
+# SPEC_COV: Parse-Statement-Err
+# SPEC_COV: Sync-Stmt-Stop
+# SPEC_COV: Sync-Stmt-Consume
+# SPEC_COV: Sync-Stmt-Advance
+procedure bad() {
+  @;
+  let x = 1;
+}

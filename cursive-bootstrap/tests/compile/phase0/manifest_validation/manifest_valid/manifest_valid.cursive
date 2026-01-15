@@ -1,0 +1,19 @@
+# SPEC_COV: ValidateManifest-Ok
+# SPEC_COV: WF-TopKeys
+# SPEC_COV: WF-Assembly-Table
+# SPEC_COV: WF-Assembly-Keys
+# SPEC_COV: WF-Assembly-Required-Types
+# SPEC_COV: WF-Assembly-Optional-Types
+# SPEC_COV: WF-Assembly-Name
+# SPEC_COV: WF-Assembly-Kind
+# SPEC_COV: WF-Assembly-EmitIR
+# SPEC_COV: WF-Assembly-Root-Path
+# SPEC_COV: WF-Assembly-OutDir-Path
+# SPEC_COV: WF-Assembly-Name-Dup
+# SPEC_COV: WF-RelPath
+# SPEC_COV: Resolve-Canonical
+procedure demo() -> () {}
+
+public procedure main(ctx: Context) -> i32 {
+  0
+}

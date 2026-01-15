@@ -1,0 +1,3 @@
+# SPEC_COV: Main-Signature-Err
+# SPEC_COV: Main-Generic-Err
+public procedure main() -> i32 { 0 }

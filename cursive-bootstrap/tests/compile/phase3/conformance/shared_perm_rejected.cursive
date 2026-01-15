@@ -1,0 +1,3 @@
+# SPEC_COV: Perm-Shared-Unsupported
+# SPEC_COV: Parse-Perm-Shared
+let x: shared i32 = 1 let y: shared i32 = 2

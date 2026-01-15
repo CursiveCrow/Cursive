@@ -1,0 +1,35 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-2503",
+      "severity": "error",
+      "message": "Type does not implement required procedure from class or has incompatible signature"
+    },
+    {
+      "code": "E-TYP-2503",
+      "severity": "error",
+      "message": "Type does not implement required procedure from class or has incompatible signature"
+    },
+    {
+      "code": "E-TYP-2503",
+      "severity": "error",
+      "message": "Type does not implement required procedure from class or has incompatible signature"
+    },
+    {
+      "code": "E-TYP-2501",
+      "severity": "error",
+      "message": "`override` used on abstract procedure implementation"
+    },
+    {
+      "code": "E-TYP-2502",
+      "severity": "error",
+      "message": "Missing `override` on concrete procedure replacement"
+    },
+    {
+      "code": "E-UNS-0105",
+      "severity": "error",
+      "message": "`override` used with no concrete procedure to override"
+    }
+  ]
+}

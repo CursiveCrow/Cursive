@@ -1,0 +1,14 @@
+# SPEC_COV: WF-State-Method
+# SPEC_COV: T-Modal-Method
+# SPEC_COV: T-Modal-Method-Body
+modal Mod {
+  @Open {
+    v: i32
+    procedure get() -> i32 { 0 }
+  }
+}
+public procedure main(ctx: Context) -> i32 {
+  let m = Mod@Open { v: 1 };
+  let x = m~>get();
+  x
+}

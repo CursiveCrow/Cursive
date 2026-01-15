@@ -1,0 +1,4 @@
+# SPEC_COV: WF-Attr-Unsupported
+# SPEC_COV: Parse-Attribute-Unsupported
+[[attr]]
+procedure demo() {}

@@ -1,0 +1,6 @@
+# SPEC_COV: Deref-Expired
+public procedure main(ctx: Context) -> i32 {
+  let p: Ptr<i32>@Expired = unsafe { transmute::<usize, Ptr<i32>@Expired>(0usize) };
+  let v = *p;
+  0
+}

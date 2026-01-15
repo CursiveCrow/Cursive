@@ -1,0 +1,8 @@
+# SPEC_COV: Parse-Item-Err
+# SPEC_COV: ResolveModules-Err-Parse
+# SPEC_COV: Sync-Item-Advance
+# SPEC_COV: Sync-Item-Stop
+# SPEC_COV: Parse-Syntax-Err
+@;
+procedure ok() {}
+@;

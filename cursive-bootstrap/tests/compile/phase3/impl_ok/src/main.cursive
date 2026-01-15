@@ -1,0 +1,26 @@
+# SPEC_COV: Impl-Abstract-Method
+# SPEC_COV: Impl-Concrete-Default
+# SPEC_COV: Impl-Concrete-Override
+# SPEC_COV: Impl-Field
+# SPEC_COV: WF-Impl
+class IFoo {
+  procedure foo(~) -> i32;
+}
+
+class IBar {
+  procedure bar(~) -> i32 { 0 }
+}
+
+class IDef {
+  procedure def(~) -> i32 { 0 }
+}
+
+class IFld { x: i32; }
+
+record R <: IFoo, IBar, IDef, IFld {
+  x: i32,
+  procedure foo(~) -> i32 { 1 },
+  override procedure bar(~) -> i32 { 2 }
+}
+
+public procedure main(ctx: Context) -> i32 { 0 }

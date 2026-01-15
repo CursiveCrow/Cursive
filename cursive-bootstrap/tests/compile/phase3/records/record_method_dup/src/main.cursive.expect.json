@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-SEM-3012",
+      "severity": "error",
+      "message": "Duplicate method name in type"
+    }
+  ]
+}

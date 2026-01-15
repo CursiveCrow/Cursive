@@ -1,0 +1,4 @@
+# SPEC_COV: ValidateManifest-Err
+# SPEC_COV: WF-Assembly-OutDir-Path-Err
+# SPEC_COV: WF-RelPath-Err
+procedure demo() {}

@@ -1,0 +1,8 @@
+# SPEC_COV: Prov-Escape-Err
+public procedure main(ctx: Context) -> i32 {
+  region {
+    var outer = 0;
+    outer = ^1;
+  }
+  0
+}

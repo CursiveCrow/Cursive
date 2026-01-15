@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-2050",
+      "severity": "error",
+      "message": "Modal type declares zero states"
+    }
+  ]
+}

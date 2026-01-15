@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-1906",
+      "severity": "error",
+      "message": "Field visibility exceeds record visibility"
+    }
+  ]
+}

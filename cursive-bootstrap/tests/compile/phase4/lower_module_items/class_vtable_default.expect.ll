@@ -1,0 +1,2 @@
+proc @default_x3a_x3ademo_x3a_x3aSprite_x3a_x3acl_x3a_x3ademo_x3a_x3aRenderable_x3a_x3arender {
+vtable @vtable_x3a_x3ademo_x3a_x3aSprite_x3a_x3acl_x3a_x3ademo_x3a_x3aRenderable

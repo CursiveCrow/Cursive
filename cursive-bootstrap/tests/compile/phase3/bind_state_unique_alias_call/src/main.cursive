@@ -1,0 +1,11 @@
+# SPEC_COV: B-Call
+procedure foo(move a: unique i32, move b: unique i32) -> () {
+  ()
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let x: unique i32 = unsafe { transmute::<i32, unique i32>(0) };
+  let y: unique i32 = unsafe { transmute::<i32, unique i32>(1) };
+  foo(move x, move y);
+  0
+}

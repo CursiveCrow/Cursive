@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-UNS-0107",
+      "severity": "error",
+      "message": "Non-`Bitcopy` place expression used as value"
+    }
+  ]
+}

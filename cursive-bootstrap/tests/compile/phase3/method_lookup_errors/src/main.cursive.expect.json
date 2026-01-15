@@ -1,0 +1,20 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-SEM-2536",
+      "severity": "error",
+      "message": "Method not found for receiver type"
+    },
+    {
+      "code": "E-MOD-1307",
+      "severity": "error",
+      "message": "Ambiguous method resolution; disambiguation required"
+    },
+    {
+      "code": "E-SEM-2536",
+      "severity": "error",
+      "message": "Method not found for receiver type"
+    }
+  ]
+}

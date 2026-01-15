@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-2621",
+      "severity": "error",
+      "message": "Type implements both `Bitcopy` and `Drop`"
+    }
+  ]
+}

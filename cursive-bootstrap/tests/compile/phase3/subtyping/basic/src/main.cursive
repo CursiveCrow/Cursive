@@ -1,0 +1,33 @@
+# SPEC_COV: Perm-Const
+# SPEC_COV: Perm-Unique
+# SPEC_COV: Perm-Unique-Const
+# SPEC_COV: Sub-Perm
+# SPEC_COV: Sub-Never
+# SPEC_COV: Sub-Tuple
+# SPEC_COV: Sub-Array
+# SPEC_COV: Sub-Slice
+# SPEC_COV: Sub-Range
+# SPEC_COV: Sub-Ptr-State
+# SPEC_COV: Sub-Modal-Niche
+# SPEC_COV: Sub-Func
+# SPEC_COV: Sub-Member-Union
+# SPEC_COV: Sub-Union-Width
+modal Mod { @State { v: i32 } }
+class Bar {}
+procedure id(move x: i32) -> i32 { return x; }
+public procedure main(ctx: Context) -> i32 {
+  let u: unique i32 = unsafe { transmute::<i32, unique i32>(0) };
+  let c: const i32 = 0;
+  let t: (i32, bool) = (0, false);
+  let arr: [i32; 4] = [0, 0, 0, 0];
+  let sl: [i32] = arr;
+  let f: (move i32) -> i32 = id;
+  let uni: i32 | bool = 0;
+  let x: i32 = 0;
+  let ptr: Ptr<i32>@Valid = &x;
+  let m: Mod@State = unsafe { transmute::<i32, Mod@State>(0) };
+  let raw: *imm i32 = null;
+  let dyn: $Bar = unsafe { transmute::<(*imm i32, *imm i32), $Bar>((raw, raw)) };
+
+  0
+}

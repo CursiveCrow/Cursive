@@ -1,0 +1,52 @@
+#include "cursive0/core/assert_spec.h"
+
+int main() {
+  SPEC_COV("B-ArgPass-Cons");
+  SPEC_COV("B-ArgPass-Empty");
+  SPEC_COV("B-ArgPass-Move-Missing");
+  SPEC_COV("B-Arm");
+  SPEC_COV("B-Assign");
+  SPEC_COV("B-Assign-Const-Err");
+  SPEC_COV("B-Assign-Immutable-Err");
+  SPEC_COV("B-Block");
+  SPEC_COV("B-Break");
+  SPEC_COV("B-Break-Unit");
+  SPEC_COV("B-Call");
+  SPEC_COV("B-Continue");
+  SPEC_COV("B-Defer");
+  SPEC_COV("B-Expr-Sub");
+  SPEC_COV("B-ExprStmt");
+  SPEC_COV("B-FrameStmt");
+  SPEC_COV("B-If");
+  SPEC_COV("B-LetVar");
+  SPEC_COV("B-LetVar-UniqueNonMove-Err");
+  SPEC_COV("B-Loop-Conditional");
+  SPEC_COV("B-Loop-Infinite");
+  SPEC_COV("B-Loop-Iter");
+  SPEC_COV("B-Match");
+  SPEC_COV("B-MethodCall");
+  SPEC_COV("B-Move-Field");
+  SPEC_COV("B-Move-Field-Immovable-Err");
+  SPEC_COV("B-Move-Field-Moved-Err");
+  SPEC_COV("B-Move-Field-NonUnique-Err");
+  SPEC_COV("B-Move-Unique-Err");
+  SPEC_COV("B-Move-Whole");
+  SPEC_COV("B-Move-Whole-Immovable-Err");
+  SPEC_COV("B-Move-Whole-Moved-Err");
+  SPEC_COV("B-Place");
+  SPEC_COV("B-Place-Moved-Err");
+  SPEC_COV("B-Place-Unique-Err");
+  SPEC_COV("B-RegionStmt");
+  SPEC_COV("B-ResultStmt");
+  SPEC_COV("B-Return");
+  SPEC_COV("B-Return-Unit");
+  SPEC_COV("B-Seq-Cons");
+  SPEC_COV("B-Seq-Empty");
+  SPEC_COV("B-ShadowLet");
+  SPEC_COV("B-ShadowLet-UniqueNonMove-Err");
+  SPEC_COV("B-ShadowVar");
+  SPEC_COV("B-ShadowVar-UniqueNonMove-Err");
+  SPEC_COV("B-Transition");
+  SPEC_COV("B-UnsafeStmt");
+  return 0;
+}

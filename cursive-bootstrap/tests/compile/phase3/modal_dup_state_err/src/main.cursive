@@ -1,0 +1,2 @@
+# SPEC_COV: Modal-DupState-Err
+modal Mod { @State { } @State { } }

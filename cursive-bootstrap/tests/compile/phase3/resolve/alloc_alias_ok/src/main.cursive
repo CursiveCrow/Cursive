@@ -1,0 +1,4 @@
+# SPEC_COV: ResolveExpr-Alloc-Explicit-ByAlias
+public procedure main(ctx: Context) -> i32 { region(1) as r { let x = r ^ 1; } 
+ 0
+}

@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-2063",
+      "severity": "error",
+      "message": "State member visibility exceeds modal visibility"
+    }
+  ]
+}

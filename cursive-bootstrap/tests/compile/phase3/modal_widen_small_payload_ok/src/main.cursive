@@ -1,0 +1,11 @@
+# SPEC_COV: Warn-Widen-Ok
+modal Small {
+  @Tiny { v: u8 }
+  @Empty { }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let m = Small@Tiny { v: 1u8 };
+  let s: Small = widen (move m);
+  0
+}

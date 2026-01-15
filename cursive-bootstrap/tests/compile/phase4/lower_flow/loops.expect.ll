@@ -1,0 +1,2 @@
+bind %i = 0x0
+ret 0x0

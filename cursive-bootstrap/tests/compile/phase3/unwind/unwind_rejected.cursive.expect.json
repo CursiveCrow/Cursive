@@ -1,0 +1,17 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-UNS-0113",
+      "severity": "error",
+      "message": "Attribute syntax used",
+      "span": null
+    },
+    {
+      "code": "E-UNS-0111",
+      "severity": "error",
+      "message": "`[[unwind]]` attribute used",
+      "span": null
+    }
+  ]
+}

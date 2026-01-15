@@ -1,0 +1,20 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-2500",
+      "severity": "error",
+      "message": "Duplicate procedure name in class"
+    },
+    {
+      "code": "E-TYP-2408",
+      "severity": "error",
+      "message": "Duplicate abstract field name in class"
+    },
+    {
+      "code": "E-TYP-2505",
+      "severity": "error",
+      "message": "Name conflict among class members"
+    }
+  ]
+}

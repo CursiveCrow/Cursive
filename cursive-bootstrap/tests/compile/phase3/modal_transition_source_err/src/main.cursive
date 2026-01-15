@@ -1,0 +1,13 @@
+# SPEC_COV: Transition-Source-Err
+modal Mod {
+  @A {
+    v: i32
+    transition to_b() -> @B { Mod@B { v: 0 } }
+  }
+  @B { v: i32 }
+}
+public procedure main(ctx: Context) -> i32 {
+  let m = Mod@A { v: 0 };
+  let n = (move m)~>to_b();
+  0
+}

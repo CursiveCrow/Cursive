@@ -1,0 +1,6 @@
+# SPEC_COV: Modal-Method-NotVisible
+public procedure main(ctx: Context) -> i32 {
+  let m: lib::Mod@Open = unsafe { transmute::<i32, lib::Mod@Open>(0) };
+  let x = m~>secret();
+  0
+}

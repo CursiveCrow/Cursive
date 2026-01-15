@@ -1,0 +1,3 @@
+# SPEC_COV: WF-Import-Unsupported
+# SPEC_COV: Parse-Import-Unsupported
+import foo

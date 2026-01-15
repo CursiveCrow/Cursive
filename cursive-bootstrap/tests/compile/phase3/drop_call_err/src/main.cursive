@@ -1,0 +1,8 @@
+# SPEC_COV: Drop-Call-Err
+record R <: Drop { v: i32, procedure drop(~!) -> () { } }
+
+public procedure main(ctx: Context) -> i32 {
+  let r = R { v: 0 };
+  r~>drop();
+  0
+}

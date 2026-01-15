@@ -1,0 +1,2 @@
+# SPEC_COV: WF-ProcedureDecl-MissingReturnType
+procedure foo() { }

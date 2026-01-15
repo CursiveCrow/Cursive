@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-1505",
+      "severity": "error",
+      "message": "Missing required type annotation at module scope"
+    }
+  ]
+}

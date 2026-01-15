@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-2061",
+      "severity": "error",
+      "message": "Duplicate method name in modal state"
+    }
+  ]
+}

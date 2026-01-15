@@ -1,0 +1,16 @@
+# SPEC_COV: BuiltinSym-HeapAllocator-AllocRaw
+# SPEC_COV: BuiltinSym-HeapAllocator-DeallocRaw
+# SPEC_COV: BuiltinSym-HeapAllocator-WithQuota
+
+public procedure main(ctx: Context) -> i32 {
+  let raw: *imm i32 = null;
+  let heap: $HeapAllocator = unsafe {
+    transmute::<(*imm i32, *imm i32), $HeapAllocator>((raw, raw))
+  };
+  let count: usize = 1;
+  unsafe {
+    let p: *mut i32 = heap~>alloc_raw(count);
+    heap~>dealloc_raw(p, count);
+  };
+  0
+}

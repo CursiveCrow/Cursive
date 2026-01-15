@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-MEM-3005",
+      "severity": "error",
+      "message": "Explicit call to `Drop::drop` method"
+    }
+  ]
+}

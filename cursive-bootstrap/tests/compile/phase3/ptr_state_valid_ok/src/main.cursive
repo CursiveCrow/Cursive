@@ -1,0 +1,10 @@
+# SPEC_COV: T-AddrOf
+# SPEC_COV: Sub-Ptr-State
+# SPEC_COV: Chk-Subsumption
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = 0;
+  let p: Ptr<i32>@Valid = &x;
+  let q: Ptr<i32> = &x;
+
+  0
+}

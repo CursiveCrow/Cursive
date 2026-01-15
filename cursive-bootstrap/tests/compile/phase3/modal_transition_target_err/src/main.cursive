@@ -1,0 +1,7 @@
+# SPEC_COV: Transition-Target-Err
+modal Mod {
+  @A {
+    v: i32
+    transition bad() -> @Missing { Mod@A { v: 0 } }
+  }
+}

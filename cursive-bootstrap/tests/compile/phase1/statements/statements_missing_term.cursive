@@ -1,0 +1,4 @@
+# SPEC_COV: Parse-Statement
+# SPEC_COV: ConsumeTerminatorOpt-Req-No
+# SPEC_COV: Missing-Terminator-Err
+procedure bad() { let x = 1 let y = 2 }

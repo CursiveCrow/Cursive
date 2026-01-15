@@ -1,0 +1,25 @@
+# SPEC_COV: Lower-AddrOf-Ident-Local
+# SPEC_COV: Lower-AddrOf-Deref
+# SPEC_COV: Lower-AddrOf-Field
+# SPEC_COV: Lower-AddrOf-Index
+# SPEC_COV: EvalOrder-AddressOf
+
+record Point { x: i32, y: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+    var p = Point { x: 10, y: 20 };
+    
+    // &Ident (Local)
+    let ptr = &p;
+    
+    // &Field
+    let ptr_x = &p.x;
+    
+    // &Deref (should just be value if type is &T)
+    // let val = *ptr; // Deref read
+    
+    var arr = [1, 2, 3];
+    // &Index
+    let ptr_elem = &arr[0usize];
+    0
+}

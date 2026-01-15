@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-SRC-0103",
+      "severity": "error",
+      "message": "Embedded BOM found after the first position"
+    }
+  ]
+}

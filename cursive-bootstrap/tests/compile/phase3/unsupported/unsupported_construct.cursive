@@ -1,0 +1,4 @@
+# SPEC_COV: Unsupported-Construct
+procedure demo() -> () {
+  comptime { }
+}

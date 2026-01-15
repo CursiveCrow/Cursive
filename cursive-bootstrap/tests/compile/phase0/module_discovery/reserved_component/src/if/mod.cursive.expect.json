@@ -1,0 +1,11 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-MOD-1105",
+      "severity": "error",
+      "message": "Module path component is a reserved keyword",
+      "span": null
+    }
+  ]
+}

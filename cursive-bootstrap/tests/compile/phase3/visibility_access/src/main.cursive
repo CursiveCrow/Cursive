@@ -1,0 +1,6 @@
+# SPEC_COV: Access-Err
+public procedure main(ctx: Context) -> i32 {
+  lib::secret();
+
+  0
+}

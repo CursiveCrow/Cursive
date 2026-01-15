@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-SEM-2534",
+      "severity": "error",
+      "message": "`move` argument required but not provided"
+    }
+  ]
+}

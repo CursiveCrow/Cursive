@@ -1,0 +1,15 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-2402",
+      "severity": "error",
+      "message": "Implementing type missing required field"
+    },
+    {
+      "code": "E-TYP-2404",
+      "severity": "error",
+      "message": "Implementing field has incompatible type"
+    }
+  ]
+}

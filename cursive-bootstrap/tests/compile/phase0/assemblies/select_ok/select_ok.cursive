@@ -1,0 +1,3 @@
+# SPEC_COV: Select-By-Name
+# ASSEMBLY: demo2
+procedure demo() {}

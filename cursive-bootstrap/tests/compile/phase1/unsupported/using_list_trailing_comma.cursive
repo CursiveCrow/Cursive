@@ -1,0 +1,2 @@
+# SPEC_COV: Parse-UsingListTail-TrailingComma
+using mod { Foo, }

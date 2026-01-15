@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-SEM-2536",
+      "severity": "error",
+      "message": "Method not found for receiver type"
+    }
+  ]
+}

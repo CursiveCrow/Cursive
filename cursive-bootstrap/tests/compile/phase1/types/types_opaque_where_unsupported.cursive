@@ -1,0 +1,2 @@
+# SPEC_COV: Parse-Type
+let o: opaque Foo = 0 let w: where = 0

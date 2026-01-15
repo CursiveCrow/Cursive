@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-2055",
+      "severity": "error",
+      "message": "Transition body returns value not matching declared target state"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-MOD-2433",
+      "severity": "error",
+      "message": "Module-scope `var` declaration with `public` visibility"
+    }
+  ]
+}

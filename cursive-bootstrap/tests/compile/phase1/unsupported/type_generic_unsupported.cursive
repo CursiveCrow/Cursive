@@ -1,0 +1,2 @@
+# SPEC_COV: Parse-Type-Generic-Unsupported
+type Alias = Foo<Bar>

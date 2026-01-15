@@ -1,0 +1,8 @@
+# SPEC_COV: Step-Discover
+# SPEC_COV: LoadProject-Ok
+# SPEC_COV: WF-Source-Root
+procedure demo() -> () {}
+
+public procedure main(ctx: Context) -> i32 {
+  0
+}

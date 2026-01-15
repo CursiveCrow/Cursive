@@ -1,0 +1,183 @@
+#pragma once
+
+#include <cstdint>
+#include <string>
+#include <vector>
+
+namespace cursive0::codegen {
+
+// ============================================================================
+// §6.9 Built-ins Runtime Interface
+// ============================================================================
+// RuntimeIfcJudg = {RegionLayout, RegionSym, BuiltinSym}
+
+// ============================================================================
+// §6.9 RegionLayout
+// ============================================================================
+
+struct RegionLayoutField {
+  std::string name;
+  std::uint64_t offset;
+};
+
+struct RegionLayoutInfo {
+  std::uint64_t size;
+  std::uint64_t align;
+  std::vector<RegionLayoutField> fields;
+};
+
+// (RegionLayout)
+// Returns the layout of the Region modal type
+RegionLayoutInfo RegionLayout();
+
+// ============================================================================
+// §6.9 RegionSym - Region method symbols
+// ============================================================================
+
+// (RegionSym-NewScoped)
+// RegionSym(Region::new_scoped) = PathSig(["cursive", "runtime", "region", "new_scoped"])
+std::string RegionSymNewScoped();
+
+// (RegionSym-Alloc)
+// RegionSym(Region::alloc) = PathSig(["cursive", "runtime", "region", "alloc"])
+std::string RegionSymAlloc();
+
+// (RegionSym-ResetUnchecked)
+// RegionSym(Region::reset_unchecked) = PathSig(["cursive", "runtime", "region", "reset_unchecked"])
+std::string RegionSymResetUnchecked();
+
+// (RegionSym-Freeze)
+// RegionSym(Region::freeze) = PathSig(["cursive", "runtime", "region", "freeze"])
+std::string RegionSymFreeze();
+
+// (RegionSym-Thaw)
+// RegionSym(Region::thaw) = PathSig(["cursive", "runtime", "region", "thaw"])
+std::string RegionSymThaw();
+
+// (RegionSym-FreeUnchecked)
+// RegionSym(Region::free_unchecked) = PathSig(["cursive", "runtime", "region", "free_unchecked"])
+std::string RegionSymFreeUnchecked();
+
+// Dispatch function for RegionSym by method name
+std::string RegionSym(const std::string& method);
+
+// ============================================================================
+// §6.9 BuiltinSym - FileSystem capability methods
+// ============================================================================
+
+// (BuiltinSym-FileSystem-OpenRead)
+std::string BuiltinSymFileSystemOpenRead();
+
+// (BuiltinSym-FileSystem-OpenWrite)
+std::string BuiltinSymFileSystemOpenWrite();
+
+// (BuiltinSym-FileSystem-OpenAppend)
+std::string BuiltinSymFileSystemOpenAppend();
+
+// (BuiltinSym-FileSystem-CreateWrite)
+std::string BuiltinSymFileSystemCreateWrite();
+
+// (BuiltinSym-FileSystem-ReadFile)
+std::string BuiltinSymFileSystemReadFile();
+
+// (BuiltinSym-FileSystem-ReadBytes)
+std::string BuiltinSymFileSystemReadBytes();
+
+// (BuiltinSym-FileSystem-WriteFile)
+std::string BuiltinSymFileSystemWriteFile();
+
+// (BuiltinSym-FileSystem-WriteStdout)
+std::string BuiltinSymFileSystemWriteStdout();
+
+// (BuiltinSym-FileSystem-WriteStderr)
+std::string BuiltinSymFileSystemWriteStderr();
+
+// (BuiltinSym-FileSystem-Exists)
+std::string BuiltinSymFileSystemExists();
+
+// (BuiltinSym-FileSystem-Remove)
+std::string BuiltinSymFileSystemRemove();
+
+// (BuiltinSym-FileSystem-OpenDir)
+std::string BuiltinSymFileSystemOpenDir();
+
+// (BuiltinSym-FileSystem-CreateDir)
+std::string BuiltinSymFileSystemCreateDir();
+
+// (BuiltinSym-FileSystem-EnsureDir)
+std::string BuiltinSymFileSystemEnsureDir();
+
+// (BuiltinSym-FileSystem-Kind)
+std::string BuiltinSymFileSystemKind();
+
+// (BuiltinSym-FileSystem-Restrict)
+std::string BuiltinSymFileSystemRestrict();
+
+// ============================================================================
+// §6.9 BuiltinSym - HeapAllocator capability methods
+// ============================================================================
+
+// (BuiltinSym-HeapAllocator-WithQuota)
+std::string BuiltinSymHeapAllocatorWithQuota();
+
+// (BuiltinSym-HeapAllocator-AllocRaw)
+std::string BuiltinSymHeapAllocatorAllocRaw();
+
+// (BuiltinSym-HeapAllocator-DeallocRaw)
+std::string BuiltinSymHeapAllocatorDeallocRaw();
+
+// ============================================================================
+// §6.12.14 String/Bytes builtin symbols
+// ============================================================================
+
+// String builtins
+std::string BuiltinSymStringFrom();
+std::string BuiltinSymStringAsView();
+std::string BuiltinSymStringToManaged();
+std::string BuiltinSymStringCloneWith();
+std::string BuiltinSymStringAppend();
+std::string BuiltinSymStringLength();
+std::string BuiltinSymStringIsEmpty();
+std::string BuiltinSymStringDropManaged();
+
+// Bytes builtins
+std::string BuiltinSymBytesWithCapacity();
+std::string BuiltinSymBytesFromSlice();
+std::string BuiltinSymBytesAsView();
+std::string BuiltinSymBytesToManaged();
+std::string BuiltinSymBytesView();
+std::string BuiltinSymBytesViewString();
+std::string BuiltinSymBytesAppend();
+std::string BuiltinSymBytesLength();
+std::string BuiltinSymBytesIsEmpty();
+std::string BuiltinSymBytesDropManaged();
+
+// ============================================================================
+// §6.8 Panic symbol
+// ============================================================================
+
+// (PanicSym)
+// PanicSym = PathSig(["cursive", "runtime", "panic"])
+std::string RuntimePanicSym();
+
+// ============================================================================
+// §6.12.5 Context initialization symbol
+// ============================================================================
+
+std::string ContextInitSym();
+
+// ============================================================================
+// Dispatch function for BuiltinSym by qualified name
+// ============================================================================
+
+// Returns the mangled symbol for a builtin by its qualified name
+// e.g., "FileSystem::open_read" -> BuiltinSymFileSystemOpenRead()
+std::string BuiltinSym(const std::string& qualified_name);
+
+// ============================================================================
+// Spec Rule Anchors
+// ============================================================================
+
+void AnchorRuntimeInterfaceRules();
+
+}  // namespace cursive0::codegen

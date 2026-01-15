@@ -1,0 +1,10 @@
+# SPEC_COV: T-If-No-Else
+# SPEC_COV: T-Continue
+# SPEC_COV: T-Loop-Iter
+public procedure main(ctx: Context) -> i32 {
+  var arr = [1, 2];
+  loop i in arr {
+    if true { continue; };
+  };
+  return 0;
+}

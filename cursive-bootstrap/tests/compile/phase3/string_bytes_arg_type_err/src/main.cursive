@@ -1,0 +1,6 @@
+# SPEC_COV: Call-ArgType-Err
+public procedure main(ctx: Context) -> i32 {
+  let s: string@View = "hi";
+  let len: usize = bytes::length(s);
+  0
+}

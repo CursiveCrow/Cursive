@@ -1,0 +1,8 @@
+# SPEC_COV: Transition-Dup
+modal Mod {
+  @Open {
+    transition go() -> @Open { Mod@Open { v: 0 } }
+    transition go() -> @Open { Mod@Open { v: 1 } }
+    v: i32
+  }
+}

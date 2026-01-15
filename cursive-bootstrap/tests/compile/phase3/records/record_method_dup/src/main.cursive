@@ -1,0 +1,8 @@
+# SPEC_COV: Record-Method-Dup
+record R {
+  v: i32,
+  procedure foo(~) -> i32 { 0 },
+  procedure foo(~) -> i32 { 1 }
+}
+
+public procedure main(ctx: Context) -> i32 { 0 }

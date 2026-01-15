@@ -1,0 +1,11 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-PRJ-0204",
+      "severity": "error",
+      "message": "`emit_ir` has invalid value or type",
+      "span": null
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+# SPEC_COV: ABI-Prim
+# SPEC_COV: ABI-Perm
+# SPEC_COV: ABI-Tuple
+# SPEC_COV: ABI-Array
+
+record Point { x: i32, y: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  let a: i32 = 0;
+  let b: u64 = 0;
+  let c: bool = true;
+  let t: (i32, i32) = (0, 0);
+  0
+}

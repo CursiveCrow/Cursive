@@ -1,0 +1,27 @@
+# SPEC_COV: BuiltinSym-FileSystem-CreateDir
+# SPEC_COV: BuiltinSym-FileSystem-CreateWrite
+# SPEC_COV: BuiltinSym-FileSystem-EnsureDir
+# SPEC_COV: BuiltinSym-FileSystem-Exists
+# SPEC_COV: BuiltinSym-FileSystem-Kind
+# SPEC_COV: BuiltinSym-FileSystem-OpenAppend
+# SPEC_COV: BuiltinSym-FileSystem-OpenDir
+# SPEC_COV: BuiltinSym-FileSystem-OpenRead
+# SPEC_COV: BuiltinSym-FileSystem-OpenWrite
+# SPEC_COV: BuiltinSym-FileSystem-ReadBytes
+# SPEC_COV: BuiltinSym-FileSystem-ReadFile
+# SPEC_COV: BuiltinSym-FileSystem-Remove
+# SPEC_COV: BuiltinSym-FileSystem-Restrict
+# SPEC_COV: BuiltinSym-FileSystem-WriteFile
+# SPEC_COV: BuiltinSym-FileSystem-WriteStderr
+# SPEC_COV: BuiltinSym-FileSystem-WriteStdout
+
+public procedure main(ctx: Context) -> i32 {
+  let raw: *imm i32 = null;
+  let fs: $FileSystem = unsafe {
+    transmute::<(*imm i32, *imm i32), $FileSystem>((raw, raw))
+  };
+  let s: string@View = "hi";
+  fs~>create_dir(s);
+  let _e: bool = fs~>exists(s);
+  0
+}

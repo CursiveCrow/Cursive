@@ -1,0 +1,2 @@
+# SPEC_COV: Using-List-Dup
+procedure Thing() -> () {}

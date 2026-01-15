@@ -1,0 +1,3 @@
+bind %x = 0xA
+bind %y = %x
+ret 0x0

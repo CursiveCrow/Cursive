@@ -1,0 +1,3 @@
+# SPEC_COV: Main-Bypass-Lib
+procedure helper() -> () {
+}

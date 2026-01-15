@@ -1,0 +1,11 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-PRJ-0101",
+      "severity": "error",
+      "message": "`Cursive.toml` not found at project root",
+      "span": null
+    }
+  ]
+}

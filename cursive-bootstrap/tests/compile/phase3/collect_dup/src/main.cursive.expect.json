@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-MOD-1302",
+      "severity": "error",
+      "message": "Duplicate declaration in module scope"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-2508",
+      "severity": "error",
+      "message": "Cyclic superclass dependency detected"
+    }
+  ]
+}

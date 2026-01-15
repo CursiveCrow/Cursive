@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-2101",
+      "severity": "error",
+      "message": "Dereference of pointer in `@Null` state"
+    }
+  ]
+}

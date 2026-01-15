@@ -1,0 +1,15 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-SRC-0303",
+      "severity": "error",
+      "message": "Invalid character literal"
+    },
+    {
+      "code": "E-SRC-0308",
+      "severity": "error",
+      "message": "Lexically sensitive Unicode character outside `unsafe` block"
+    }
+  ]
+}

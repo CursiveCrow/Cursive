@@ -1,0 +1,23 @@
+# SPEC_COV: CG-Item-Record
+# SPEC_COV: CG-Item-Method
+# SPEC_COV: CG-Item-Modal
+# SPEC_COV: CG-Item-StateMethod
+# SPEC_COV: CG-Item-Transition
+# SPEC_COV: CG-Item-Enum
+
+record Point {
+  x: i32,
+  procedure len(~) -> i32 { 0 }
+}
+
+enum Color { Red }
+
+modal Machine {
+  @Idle {
+    v: i32
+    procedure status() -> i32 { 0 }
+    transition stay() -> @Idle { Machine@Idle { v: 0 } }
+  }
+}
+
+public procedure main(ctx: Context) -> i32 { 0 }

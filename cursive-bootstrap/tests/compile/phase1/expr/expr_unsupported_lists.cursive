@@ -1,0 +1,7 @@
+# SPEC_COV: Parse-ArgTail-TrailingComma
+# SPEC_COV: Parse-ExprList-Empty
+# SPEC_COV: Parse-ExprListTail-TrailingComma
+# SPEC_COV: Parse-TupleExprElems-TrailingComma
+# SPEC_COV: Parse-FieldInitList-Empty
+# SPEC_COV: Parse-FieldInitTail-TrailingComma
+let a = [] let b = [1, 2,] let c = foo(1,) let d = (1,) let e = Rec { } let f = Rec { a: 1, }

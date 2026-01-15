@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-SEM-2533",
+      "severity": "error",
+      "message": "Argument type incompatible with parameter type"
+    }
+  ]
+}

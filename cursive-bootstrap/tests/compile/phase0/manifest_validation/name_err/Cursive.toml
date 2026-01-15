@@ -1,0 +1,4 @@
+[assembly]
+name = "123"
+kind = "executable"
+root = "src"

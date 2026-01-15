@@ -1,0 +1,4 @@
+[assembly]
+name = "demo"
+kind = "bin"
+root = "src"

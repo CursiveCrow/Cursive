@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-MEM-3006",
+      "severity": "error",
+      "message": "Attempt to move from immovable binding (`:=`)"
+    }
+  ]
+}

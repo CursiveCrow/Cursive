@@ -1,0 +1,3 @@
+# SPEC_COV: WF-Module-Path-Reserved
+# SPEC_COV: Disc-Invalid-Component
+procedure demo() {}

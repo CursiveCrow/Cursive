@@ -1,0 +1,20 @@
+# SPEC_COV: Impl-Missing-Method
+# SPEC_COV: Impl-Sig-Err
+# SPEC_COV: Impl-Sig-Err-Concrete
+# SPEC_COV: Override-Abstract-Err
+# SPEC_COV: Override-Missing-Err
+# SPEC_COV: Override-NoConcrete
+class Abs {
+  procedure foo(~) -> i32;
+}
+
+class Def {
+  procedure baz(~) -> i32 { 0 }
+}
+
+record R1 <: Abs { }
+record R2 <: Abs { procedure foo(~) -> bool { true } }
+record R3 <: Def { procedure baz(~) -> bool { true } }
+record R4 <: Abs { override procedure foo(~) -> i32 { 1 } }
+record R5 <: Def { procedure baz(~) -> i32 { 1 } }
+record R6 <: Def { override procedure other(~) -> i32 { 1 } }

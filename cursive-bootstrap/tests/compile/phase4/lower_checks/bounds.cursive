@@ -1,0 +1,11 @@
+# SPEC_COV: Check-Index-Ok
+# SPEC_COV: Check-Index-Err
+# SPEC_COV: Lower-ReadPlace-Index-Scalar
+# SPEC_COV: PanicCheck
+
+public procedure main(ctx: Context) -> i32 {
+   let a = [10, 20];
+   let x = a[0usize];
+   let y = a[1usize]; // Should emit panic check
+   0
+}

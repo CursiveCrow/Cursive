@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-2062",
+      "severity": "error",
+      "message": "Duplicate transition name in modal state"
+    }
+  ]
+}

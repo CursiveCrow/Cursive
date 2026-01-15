@@ -1,0 +1,21 @@
+# SPEC_COV: Recv-Const
+# SPEC_COV: Recv-Explicit
+# SPEC_COV: WF-Record-Method
+# SPEC_COV: T-Record-Method-Body
+# SPEC_COV: WF-Record-Methods
+# SPEC_COV: Args-Empty
+# SPEC_COV: T-Record-MethodCall
+# SPEC_COV: Step-MethodCall
+record R {
+  v: i32,
+  procedure get(~) -> i32 { 0 },
+  procedure id(self: R, x: i32) -> i32 { x }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let r = R { v: 1 };
+  let x = 2;
+  let a = r~>get();
+  let b = r~>id(x);
+  a + b
+}

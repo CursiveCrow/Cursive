@@ -1,0 +1,4 @@
+# SPEC_COV: Parse-Implements-Yes
+# SPEC_COV: Trailing-Comma-Err
+class C {}
+record R <: C, {}

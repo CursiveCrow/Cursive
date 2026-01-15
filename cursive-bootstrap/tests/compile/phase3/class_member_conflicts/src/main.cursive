@@ -1,0 +1,17 @@
+# SPEC_COV: Class-Method-Dup
+# SPEC_COV: Class-AbstractField-Dup
+# SPEC_COV: Class-Name-Conflict
+class DupMethod {
+  procedure foo(~) -> i32;
+  procedure foo(~) -> i32;
+}
+
+class DupField {
+  a: i32;
+  a: i32;
+}
+
+class NameConflict {
+  procedure bar(~) -> i32;
+  bar: i32;
+}

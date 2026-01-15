@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-2071",
+      "severity": "error",
+      "message": "`widen` applied to non-modal type"
+    }
+  ]
+}

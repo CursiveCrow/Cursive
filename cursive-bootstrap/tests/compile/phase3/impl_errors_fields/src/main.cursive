@@ -1,0 +1,6 @@
+# SPEC_COV: Impl-Field-Missing
+# SPEC_COV: Impl-Field-Type-Err
+class IFld { x: i32; }
+
+record R1 <: IFld { }
+record R2 <: IFld { x: bool }

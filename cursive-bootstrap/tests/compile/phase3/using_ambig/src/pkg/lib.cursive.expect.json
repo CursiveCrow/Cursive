@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-MOD-1208",
+      "severity": "error",
+      "message": "Using path is ambiguous between module and item"
+    }
+  ]
+}

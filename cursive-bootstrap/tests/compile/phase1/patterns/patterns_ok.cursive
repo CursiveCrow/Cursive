@@ -1,0 +1,39 @@
+# SPEC_COV: Parse-Pattern
+# SPEC_COV: Parse-Pattern-Err
+# SPEC_COV: Parse-Pattern-Range-None
+# SPEC_COV: Parse-Pattern-Range
+# SPEC_COV: Parse-Pattern-Literal
+# SPEC_COV: Parse-Pattern-Wildcard
+# SPEC_COV: Parse-Pattern-Typed
+# SPEC_COV: Parse-Pattern-Identifier
+# SPEC_COV: Parse-Pattern-Tuple
+# SPEC_COV: Parse-Pattern-Record
+# SPEC_COV: Parse-Pattern-Enum
+# SPEC_COV: Parse-Pattern-Modal
+# SPEC_COV: Parse-PatternList-Empty
+# SPEC_COV: Parse-PatternList-Cons
+# SPEC_COV: Parse-PatternListTail-End
+# SPEC_COV: Parse-PatternListTail-TrailingComma
+# SPEC_COV: Parse-PatternListTail-Comma
+# SPEC_COV: Parse-TuplePatternElems-Empty
+# SPEC_COV: Parse-TuplePatternElems-Single
+# SPEC_COV: Parse-TuplePatternElems-TrailingComma
+# SPEC_COV: Parse-TuplePatternElems-Many
+# SPEC_COV: Parse-FieldPatternList-Empty
+# SPEC_COV: Parse-FieldPatternList-Cons
+# SPEC_COV: Parse-FieldPattern
+# SPEC_COV: Parse-FieldPatternTailOpt-None
+# SPEC_COV: Parse-FieldPatternTailOpt-Yes
+# SPEC_COV: Parse-FieldPatternTail-End
+# SPEC_COV: Parse-FieldPatternTail-TrailingComma
+# SPEC_COV: Parse-FieldPatternTail-Comma
+# SPEC_COV: Parse-EnumPatternPayloadOpt-None
+# SPEC_COV: Parse-EnumPatternPayloadOpt-Tuple
+# SPEC_COV: Parse-EnumPatternPayloadOpt-Record
+# SPEC_COV: Parse-ModalPatternPayloadOpt-None
+# SPEC_COV: Parse-ModalPatternPayloadOpt-Record
+let 1 = x let _ = x let foo = x let foo: i32 = x let () = x let (a;) = x let (a, b, c) = x let Rec { a, b: x } = y let Enum::None = x let Enum::Tuple(a, b) = x let Enum::Record { f, g: x } = x let @State = x let @State { f } = x let a..b = x let a..=b = x
+
+public procedure main(ctx: Context) -> i32 {
+  0
+}

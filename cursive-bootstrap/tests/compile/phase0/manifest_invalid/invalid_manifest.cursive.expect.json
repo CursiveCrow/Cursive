@@ -1,0 +1,11 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-PRJ-0102",
+      "severity": "error",
+      "message": "`Cursive.toml` is not valid TOML",
+      "span": null
+    }
+  ]
+}

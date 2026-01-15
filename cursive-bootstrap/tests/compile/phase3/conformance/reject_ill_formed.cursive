@@ -1,0 +1,3 @@
+# SPEC_COV: Reject-IllFormed
+# Embedded BOM after first position should be rejected.
+﻿let x = 1;

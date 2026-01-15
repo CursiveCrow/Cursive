@@ -1,0 +1,11 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-PRJ-0203",
+      "severity": "error",
+      "message": "`assembly.name` is not a valid identifier",
+      "span": null
+    }
+  ]
+}

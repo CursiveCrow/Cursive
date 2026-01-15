@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-2053",
+      "severity": "error",
+      "message": "Method invocation for method not available in current state"
+    }
+  ]
+}

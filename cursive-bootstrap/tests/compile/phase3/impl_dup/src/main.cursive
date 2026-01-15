@@ -1,0 +1,4 @@
+# SPEC_COV: Impl-Dup
+# SPEC_COV: Impl-Duplicate-Class-Err
+class C { procedure foo(~) -> i32; }
+record R <: C, C { procedure foo(~) -> i32 { 0 } }

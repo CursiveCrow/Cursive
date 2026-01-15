@@ -1,0 +1,11 @@
+# SPEC_COV: Lower-Expr-Ident-Local
+# SPEC_COV: Lower-Expr-Ident-Path
+
+let g: i32 = 1i32
+
+public procedure main(ctx: Context) -> i32 {
+  let local = 2i32;
+  let a = local;
+  let b = g;
+  a + b
+}

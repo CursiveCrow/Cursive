@@ -1,0 +1,4 @@
+# SPEC_COV: ResolveExpr-Ident-Err
+public procedure main(ctx: Context) -> i32 { unsafe { missing; } 
+ 0
+}

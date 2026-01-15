@@ -1,0 +1,2 @@
+# SPEC_COV: WF-StaticDecl-MissingType
+let x = 0

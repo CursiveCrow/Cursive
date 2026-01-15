@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-UNS-0110",
+      "severity": "error",
+      "message": "`import` declaration used"
+    }
+  ]
+}

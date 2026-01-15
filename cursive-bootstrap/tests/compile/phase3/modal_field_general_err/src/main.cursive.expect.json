@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-2057",
+      "severity": "error",
+      "message": "Direct field access on general modal type without pattern matching"
+    }
+  ]
+}

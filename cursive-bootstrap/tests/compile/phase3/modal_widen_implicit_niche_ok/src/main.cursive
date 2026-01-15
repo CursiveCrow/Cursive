@@ -1,0 +1,13 @@
+# SPEC_COV: Sub-Modal-Niche
+# SPEC_COV: Chk-Subsumption
+modal OptPtr {
+  @Some { p: Ptr<i32>@Valid }
+  @None { }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = 0;
+  let a = OptPtr@Some { p: &x };
+  let b: OptPtr = move a;
+  0
+}

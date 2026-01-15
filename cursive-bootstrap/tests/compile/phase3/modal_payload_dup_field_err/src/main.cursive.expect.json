@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-2058",
+      "severity": "error",
+      "message": "Duplicate field name in modal state payload"
+    }
+  ]
+}

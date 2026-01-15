@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-2054",
+      "severity": "error",
+      "message": "State name collides with modal type name"
+    }
+  ]
+}

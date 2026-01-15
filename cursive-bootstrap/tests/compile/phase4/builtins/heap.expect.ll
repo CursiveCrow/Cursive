@@ -1,0 +1,2 @@
+call @cursive_x3a_x3aruntime_x3a_x3aheap_x3a_x3aalloc_x5fraw
+call @cursive_x3a_x3aruntime_x3a_x3aheap_x3a_x3adealloc_x5fraw

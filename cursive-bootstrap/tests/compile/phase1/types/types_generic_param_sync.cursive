@@ -1,0 +1,3 @@
+# SPEC_COV: Parse-Type-Generic-Unsupported
+# SPEC_COV: Sync-Type-Stop
+procedure f(x: Foo<Bar>) {}

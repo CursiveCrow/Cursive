@@ -1,0 +1,32 @@
+# SPEC_COV: T-Array-Literal-List
+# SPEC_COV: T-Index-Array
+# SPEC_COV: T-Index-Array-Perm
+# SPEC_COV: Index-Array-NonConst-Err
+# SPEC_COV: Index-Array-OOB-Err
+# SPEC_COV: Index-Slice-Direct-Err
+# SPEC_COV: Index-Slice-Perm-Direct-Err
+# SPEC_COV: T-Slice-From-Array
+# SPEC_COV: T-Slice-From-Array-Perm
+# SPEC_COV: T-Slice-From-Slice
+# SPEC_COV: T-Slice-From-Slice-Perm
+# SPEC_COV: P-Index-Array
+# SPEC_COV: P-Index-Array-Perm
+# SPEC_COV: P-Slice-From-Array
+# SPEC_COV: P-Slice-From-Array-Perm
+# SPEC_COV: P-Slice-From-Slice
+# SPEC_COV: P-Slice-From-Slice-Perm
+# SPEC_COV: Coerce-Array-Slice
+# SPEC_COV: Index-Array-NonUsize
+# SPEC_COV: Index-NonIndexable
+public procedure main(ctx: Context) -> i32 {
+  let a: [i32; 3] = [1, 2, 3];
+  let b: const [i32; 3] = a;
+  let s: [i32] = a[..];
+  let t: [i32] = s[..];
+  let x: i32 = a[1usize];
+  let y: i32 = b[0usize];
+  var v: [i32; 3] = a;
+  v[2usize] = 4;
+
+  0
+}

@@ -1,0 +1,2 @@
+# SPEC_COV: Modal-Payload-DupField
+modal Mod { @State { v: i32 v: i32 } }

@@ -1,0 +1,106 @@
+# SPEC_COV: BlockProv-Res
+# SPEC_COV: BlockProv-Tail
+# SPEC_COV: BlockProv-Unit
+# SPEC_COV: P-AddrOf
+# SPEC_COV: P-Alloc
+# SPEC_COV: P-Block
+# SPEC_COV: P-Deref
+# SPEC_COV: P-Expr-Sub
+# SPEC_COV: P-Field
+# SPEC_COV: P-If
+# SPEC_COV: P-If-No-Else
+# SPEC_COV: P-Index
+# SPEC_COV: P-Literal
+# SPEC_COV: P-Loop-Conditional
+# SPEC_COV: P-Loop-Infinite
+# SPEC_COV: P-Loop-Iter
+# SPEC_COV: P-Match
+# SPEC_COV: P-Move
+# SPEC_COV: P-Place-Expr
+# SPEC_COV: P-Region-Alloc-Method
+# SPEC_COV: P-Tuple
+# SPEC_COV: Prov-Assign
+# SPEC_COV: Prov-Break
+# SPEC_COV: Prov-Break-Unit
+# SPEC_COV: Prov-CompoundAssign
+# SPEC_COV: Prov-Continue
+# SPEC_COV: Prov-DeferStmt
+# SPEC_COV: Prov-ErrorStmt
+# SPEC_COV: Prov-ExprStmt
+# SPEC_COV: Prov-FrameStmt
+# SPEC_COV: Prov-LetVar
+# SPEC_COV: Prov-RegionStmt
+# SPEC_COV: Prov-ResultStmt
+# SPEC_COV: Prov-Return
+# SPEC_COV: Prov-Return-Unit
+# SPEC_COV: Prov-Seq-Cons
+# SPEC_COV: Prov-Seq-Empty
+# SPEC_COV: Prov-ShadowLet
+# SPEC_COV: Prov-ShadowVar
+# SPEC_COV: Prov-UnsafeStmt
+record Pair { a: i32, b: i32 }
+
+procedure unit_proc() -> () {
+  return;
+}
+
+public procedure main(ctx: Context) -> i32 {
+  region {
+    var base = 1;
+    let seed = 2;
+    {
+      shadow let seed = 3;
+      seed;
+    };
+    {
+      shadow var base = 4;
+      base;
+    };
+
+    var arr = [1, 2];
+    var tup = (1, 2);
+    var pair = Pair { a: 1, b: 2 };
+
+    arr[0usize] = 3;
+    arr[0usize] += 1;
+    pair.a = 3;
+    tup.0 = 5;
+    base = 6;
+
+    let addr = &base;
+    let temp = move seed;
+    let moved = move temp;
+
+    let p: Ptr<i32>@Valid = unsafe {
+      transmute::<usize, Ptr<i32>@Valid>(0usize)
+    };
+    let v = *p;
+
+    let region_val = ^1;
+
+    let block_res = { result 1; };
+    let block_tail = { 2 };
+    let block_unit = { let z = 1; };
+    let block_empty = { };
+
+    1 + 2;
+    if true { 1 } else { 2 };
+    if true { };
+    match 1 { 0 => 1, _ => 2 };
+
+    loop { break; };
+    loop true { break 1; };
+    loop i in arr { if i == 1 { continue; } };
+
+    frame {
+      let f = ^1;
+      f;
+    };
+
+    defer { let d = 0; };
+    unsafe { let u = 0; };
+
+    base;
+  }
+  return 0;
+}

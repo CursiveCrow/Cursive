@@ -1,0 +1,18 @@
+# SPEC_COV: Lower-Loop-Infinite
+# SPEC_COV: Lower-Loop-Conditional
+# SPEC_COV: Execσ-Break
+# SPEC_COV: Execσ-Continue
+# SPEC_COV: EvalOrder-Loop
+
+public procedure main(c: Context) -> i32 {
+    loop {
+       break;
+    }
+    
+    var i: i32 = 0;
+    loop i < 10 {
+       i = i + 1;
+       continue;
+    }
+    0
+}

@@ -1,0 +1,11 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-PRJ-0201",
+      "severity": "error",
+      "message": "`assembly.kind` is not in `{ \"executable\", \"library\" }`",
+      "span": null
+    }
+  ]
+}

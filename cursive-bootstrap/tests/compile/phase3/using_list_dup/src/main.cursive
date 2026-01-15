@@ -1,0 +1,2 @@
+# SPEC_COV: Using-List-Dup
+using pkg {Thing, Thing}

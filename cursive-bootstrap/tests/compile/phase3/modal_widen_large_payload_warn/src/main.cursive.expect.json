@@ -1,0 +1,10 @@
+{
+  "exit_code": 0,
+  "diagnostics": [
+    {
+      "code": "W-SYS-4010",
+      "severity": "warning",
+      "message": "Modal widening involves large payload copy (>256 bytes)"
+    }
+  ]
+}

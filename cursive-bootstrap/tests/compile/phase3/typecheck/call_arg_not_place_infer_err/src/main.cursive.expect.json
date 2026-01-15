@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-1603",
+      "severity": "error",
+      "message": "Non-`move` argument must be a place expression"
+    }
+  ]
+}

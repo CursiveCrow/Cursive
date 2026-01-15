@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-MEM-3020",
+      "severity": "error",
+      "message": "Value with shorter-lived provenance escapes to longer-lived location"
+    }
+  ]
+}

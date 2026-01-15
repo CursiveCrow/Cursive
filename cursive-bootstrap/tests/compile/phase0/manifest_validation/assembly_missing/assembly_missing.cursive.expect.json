@@ -1,0 +1,11 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-PRJ-0103",
+      "severity": "error",
+      "message": "Missing required `assembly` table, empty assembly list, required keys, or required key type",
+      "span": null
+    }
+  ]
+}

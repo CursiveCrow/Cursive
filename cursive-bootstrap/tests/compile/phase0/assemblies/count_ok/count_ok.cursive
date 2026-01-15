@@ -1,0 +1,7 @@
+# SPEC_COV: WF-Assembly-Count
+# SPEC_COV: Select-Only
+procedure demo() -> () {}
+
+public procedure main(ctx: Context) -> i32 {
+  0
+}

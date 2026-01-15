@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-2103",
+      "severity": "error",
+      "message": "Dereference of raw pointer outside `unsafe`"
+    }
+  ]
+}

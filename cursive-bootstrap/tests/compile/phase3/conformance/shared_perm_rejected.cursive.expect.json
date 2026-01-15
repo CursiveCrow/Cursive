@@ -1,0 +1,17 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-1101",
+      "severity": "error",
+      "message": "`shared` permission not supported in Cursive0",
+      "span": null
+    },
+    {
+      "code": "E-TYP-1101",
+      "severity": "error",
+      "message": "`shared` permission not supported in Cursive0",
+      "span": null
+    }
+  ]
+}

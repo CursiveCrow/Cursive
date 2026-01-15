@@ -1,0 +1,9 @@
+# SPEC_COV: ResolveStmt-ShadowLet
+public procedure main(ctx: Context) -> i32 {
+  let alpha = 1;
+  {
+    shadow let alpha = 2;
+    alpha;
+  };
+  0
+}

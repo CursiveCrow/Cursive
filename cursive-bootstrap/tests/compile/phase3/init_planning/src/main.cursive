@@ -1,0 +1,7 @@
+# SPEC_COV: WF-Acyclic-Eager
+# SPEC_COV: Topo-Cycle
+public let a: i32 = pkg::b
+
+public procedure main(ctx: Context) -> i32 {
+  0
+}
