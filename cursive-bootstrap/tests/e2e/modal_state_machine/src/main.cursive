@@ -1,0 +1,53 @@
+# SPEC_COV: Match-Modal-State
+# SPEC_COV: Modal-Widen
+# SPEC_COV: Modal-Transition
+# Tests complex modal state transitions with multiple states and field extraction.
+modal Connection {
+  @Closed {}
+  @Connecting { attempt: i32 }
+  @Connected { id: i32 }
+  @Error { code: i32, retry: bool }
+}
+
+procedure transition(c: Connection) -> Connection {
+  return match move c {
+    @Closed => widen Connection@Connecting { attempt: 1 },
+    @Connecting { attempt } => {
+      if attempt < 3i32 {
+        widen Connection@Connecting { attempt: attempt + 1i32 }
+      } else {
+        widen Connection@Connected { id: 42 }
+      }
+    },
+    @Connected { id } => widen Connection@Error { code: id, retry: true },
+    @Error { code, retry } => {
+      if retry {
+        widen Connection@Closed {}
+      } else {
+        widen Connection@Error { code: code, retry: false }
+      }
+    }
+  };
+}
+
+public procedure main(ctx: Context) -> i32 {
+  var state: Connection = widen Connection@Closed {};
+  state = transition(move state);
+  state = transition(move state);
+  state = transition(move state);
+  state = transition(move state);
+
+  let result: i32 = match move state {
+    @Closed => 0i32,
+    @Connecting { attempt } => attempt,
+    @Connected { id } => id,
+    @Error { code, retry } => code
+  };
+
+  let msg: string@View = if result == 42i32 { "ok" } else { "bad" };
+  let _ = match ctx.fs~>write_stdout(msg) {
+    ok: () => (),
+    err: IoError => ()
+  };
+  return 0i32;
+}

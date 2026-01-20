@@ -1,0 +1,11 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-MEM-3031",
+      "severity": "error",
+      "message": "`transmute` source and target sizes differ",
+      "span": null
+    }
+  ],
+  "exit_code": 1
+}

@@ -1,0 +1,20 @@
+# SPEC_COV: Prim-String-From
+# SPEC_COV: Prim-String-Drop
+# SPEC_COV: HeapAllocator-Alloc
+# Tests heap-allocated string lifecycle: allocation, use, and automatic deallocation.
+public procedure main(ctx: Context) -> i32 {
+  let view: string@View = "hello world";
+  let managed_res = string::from(view, ctx.heap);
+  let msg: string@View = match move managed_res {
+    s: string@Managed => {
+      let len = s~>len();
+      if len == 11usize { "ok" } else { "bad" }
+    },
+    err: AllocationError => "alloc_err"
+  };
+  let _ = match ctx.fs~>write_stdout(msg) {
+    ok: () => (),
+    err: IoError => ()
+  };
+  return 0i32;
+}

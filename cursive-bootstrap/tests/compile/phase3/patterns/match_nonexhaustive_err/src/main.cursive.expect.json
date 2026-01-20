@@ -1,0 +1,11 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-SEM-2705",
+      "severity": "error",
+      "message": "`match` expression is not exhaustive",
+      "span": null
+    }
+  ],
+  "exit_code": 1
+}

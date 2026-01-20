@@ -1,0 +1,7 @@
+# SPEC_COV: Validate-ModulePath-Reserved-Err
+# SPEC_COV: Intro-Reserved-Cursive-Err
+# E-CNF-0402: Reserved namespace `cursive.*` used by user code.
+# User code cannot declare items in the cursive namespace.
+module cursive {
+  public procedure helper() -> () {}
+}

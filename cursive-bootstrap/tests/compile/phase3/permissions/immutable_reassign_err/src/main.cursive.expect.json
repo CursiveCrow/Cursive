@@ -1,0 +1,11 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-MEM-3003",
+      "severity": "error",
+      "message": "Reassignment of immutable binding",
+      "span": null
+    }
+  ],
+  "exit_code": 1
+}

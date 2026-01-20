@@ -1,0 +1,11 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-MEM-3030",
+      "severity": "error",
+      "message": "Unsafe operation outside block",
+      "span": null
+    }
+  ],
+  "exit_code": 1
+}

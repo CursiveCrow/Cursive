@@ -1,0 +1,4 @@
+[assembly]
+name = "nested_drop_order"
+kind = "executable"
+root = "src"

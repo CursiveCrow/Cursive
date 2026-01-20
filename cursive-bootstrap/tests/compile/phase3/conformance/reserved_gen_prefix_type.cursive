@@ -1,0 +1,3 @@
+# SPEC_COV: Intro-Reserved-Gen-Err
+# E-CNF-0406: User type declaration uses `gen_` prefix.
+type gen_MyType = i32

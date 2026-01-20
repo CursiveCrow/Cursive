@@ -1,0 +1,11 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-TYP-1803",
+      "severity": "error",
+      "message": "Tuple arity mismatch in pattern",
+      "span": null
+    }
+  ],
+  "exit_code": 1
+}

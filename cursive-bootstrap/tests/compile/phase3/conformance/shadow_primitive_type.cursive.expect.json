@@ -1,0 +1,11 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-CNF-0403",
+      "severity": "error",
+      "message": "Primitive type name shadowed at module scope",
+      "span": null
+    }
+  ],
+  "exit_code": 1
+}

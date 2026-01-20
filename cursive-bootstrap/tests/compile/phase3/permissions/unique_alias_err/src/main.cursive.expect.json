@@ -1,0 +1,11 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-TYP-1602",
+      "severity": "error",
+      "message": "`unique` exclusion violation",
+      "span": null
+    }
+  ],
+  "exit_code": 1
+}

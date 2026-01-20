@@ -1,0 +1,11 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-CNF-0406",
+      "severity": "error",
+      "message": "User declaration uses `gen_` prefix",
+      "span": null
+    }
+  ],
+  "exit_code": 1
+}

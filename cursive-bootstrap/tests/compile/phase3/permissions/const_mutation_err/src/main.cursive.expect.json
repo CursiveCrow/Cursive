@@ -1,0 +1,11 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-TYP-1601",
+      "severity": "error",
+      "message": "Mutation through `const` path",
+      "span": null
+    }
+  ],
+  "exit_code": 1
+}

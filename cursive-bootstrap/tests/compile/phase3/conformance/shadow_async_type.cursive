@@ -1,0 +1,4 @@
+# SPEC_COV: Validate-Module-Async-Shadow-Err
+# E-CNF-0405: Shadowing of async type aliases at module scope.
+# Cannot shadow Async, Future, Sequence, Stream, Pipe, or Exchange.
+type Future = i32

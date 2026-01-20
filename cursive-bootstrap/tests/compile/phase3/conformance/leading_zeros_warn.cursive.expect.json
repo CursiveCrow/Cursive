@@ -1,0 +1,11 @@
+{
+  "diagnostics": [
+    {
+      "code": "W-SRC-0301",
+      "severity": "warning",
+      "message": "Leading zeros in decimal literal",
+      "span": null
+    }
+  ],
+  "exit_code": 0
+}

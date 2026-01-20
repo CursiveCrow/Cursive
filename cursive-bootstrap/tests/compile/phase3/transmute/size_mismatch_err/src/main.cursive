@@ -1,0 +1,8 @@
+# SPEC_COV: T-Transmute-SizeEq
+# E-MEM-3031: transmute source and target sizes differ.
+# Cannot transmute between types of different sizes.
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = 42;
+  let y: i64 = unsafe { transmute::<i32, i64>(x) };
+  return 0i32;
+}

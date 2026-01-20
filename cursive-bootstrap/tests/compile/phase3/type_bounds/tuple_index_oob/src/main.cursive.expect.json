@@ -1,0 +1,11 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-TYP-1801",
+      "severity": "error",
+      "message": "Tuple index out of bounds",
+      "span": null
+    }
+  ],
+  "exit_code": 1
+}

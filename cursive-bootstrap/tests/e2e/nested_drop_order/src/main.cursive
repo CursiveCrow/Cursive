@@ -1,0 +1,38 @@
+# SPEC_COV: DropAction-Valid
+# SPEC_COV: Cleanup-Start
+# SPEC_COV: Cleanup-Step-Drop-Ok
+# SPEC_COV: Cleanup-Done
+# Tests drop order with nested blocks and records containing droppable fields.
+record Tracer <: Drop {
+  fs: $FileSystem,
+  label: string@View,
+  procedure drop(~!) -> () {
+    let _ = match self.fs~>write_stdout(self.label) {
+      ok: () => (),
+      err: IoError => ()
+    };
+  }
+}
+
+record Container <: Drop {
+  inner: Tracer,
+  procedure drop(~!) -> () {
+    let _ = match self.inner.fs~>write_stdout("C") {
+      ok: () => (),
+      err: IoError => ()
+    };
+  }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  {
+    let outer = Tracer { fs: ctx.fs, label: "O" };
+    {
+      let container = Container {
+        inner: Tracer { fs: ctx.fs, label: "I" }
+      };
+      let middle = Tracer { fs: ctx.fs, label: "M" };
+    }
+  }
+  return 0i32;
+}
