@@ -8,7 +8,7 @@
 #include "cursive0/sema/collect_toplevel.h"
 #include "cursive0/sema/resolver.h"
 #include "cursive0/sema/scopes.h"
-#include "cursive0/semantics/interpreter.h"
+#include "cursive0/interpreter/interpreter.h"
 #include "cursive0/semantics/value.h"
 #include "cursive0/syntax/ast.h"
 

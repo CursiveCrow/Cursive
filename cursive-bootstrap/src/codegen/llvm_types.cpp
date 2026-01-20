@@ -157,6 +157,46 @@ llvm::Type* TaggedABIType(std::uint64_t size,
   return TaggedBlobType(size, align, emitter);
 }
 
+llvm::Type* TaggedStructType(const sema::TypeRef& disc_type,
+                             std::uint64_t payload_size,
+                             std::uint64_t payload_align,
+                             std::uint64_t size,
+                             LLVMEmitter& emitter,
+                             const sema::ScopeContext& scope,
+                             LowerCtx* lower_ctx) {
+  llvm::LLVMContext& ctx = emitter.GetContext();
+  std::vector<llvm::Type*> elems;
+  elems.push_back(emitter.GetLLVMType(disc_type));
+
+  const auto disc_size = SizeOf(scope, disc_type);
+  if (!disc_size.has_value()) {
+    if (lower_ctx) {
+      lower_ctx->ReportCodegenFailure();
+    }
+    return llvm::StructType::get(ctx, elems, /*isPacked=*/false);
+  }
+
+  const std::uint64_t payload_off = AlignUp(*disc_size, payload_align);
+  const std::uint64_t pad_mid = payload_off - *disc_size;
+  AppendPad(elems, ctx, pad_mid);
+
+  llvm::Type* byte = llvm::Type::getInt8Ty(ctx);
+  elems.push_back(llvm::ArrayType::get(byte, payload_size));
+
+  const std::uint64_t payload_end = payload_off + payload_size;
+  std::uint64_t pad_tail = 0;
+  if (size < payload_end) {
+    if (lower_ctx) {
+      lower_ctx->ReportCodegenFailure();
+    }
+  } else {
+    pad_tail = size - payload_end;
+  }
+  AppendPad(elems, ctx, pad_tail);
+
+  return llvm::StructType::get(ctx, elems, /*isPacked=*/false);
+}
+
 std::optional<sema::TypeRef> ModalNichePayloadType(
     const sema::ScopeContext& scope,
     const syntax::ModalDecl& decl) {
@@ -520,9 +560,17 @@ llvm::Type* LLVMEmitter::GetLLVMType(sema::TypeRef type) {
               SPEC_RULE("LLVMTy-Modal-Tagged");
               if (layout->disc_type.has_value()) {
                 const auto payload_align = MaxModalPayloadAlign(*scope_opt, *modal_decl);
-                const std::uint64_t align = std::max(layout->layout.align,
-                                                     payload_align.value_or(1));
-                ll_ty = TaggedABIType(layout->layout.size, align, *this);
+                if (!payload_align.has_value() && current_ctx_) {
+                  current_ctx_->ReportCodegenFailure();
+                }
+                const auto disc_type = sema::MakeTypePrim(*layout->disc_type);
+                ll_ty = TaggedStructType(disc_type,
+                                         layout->payload_size,
+                                         payload_align.value_or(1),
+                                         layout->layout.size,
+                                         *this,
+                                         *scope_opt,
+                                         current_ctx_);
               }
             }
           }

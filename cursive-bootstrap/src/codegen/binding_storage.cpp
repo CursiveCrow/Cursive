@@ -5,6 +5,11 @@
 // LLVM Includes
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/Support/raw_ostream.h"
+
+#include <cstdlib>
+#include <iostream>
+#include <string>
 
 namespace cursive0::codegen {
 
@@ -16,6 +21,7 @@ void LLVMEmitter::EmitBindVar(const IRBindVar& bind) {
     SPEC_RULE("UpdateValid-BindVar");
 
     auto* builder = static_cast<llvm::IRBuilder<>*>(builder_.get());
+    const bool debug_obj = std::getenv("CURSIVE0_DEBUG_OBJ") != nullptr;
 
     llvm::Function* func = builder->GetInsertBlock()->getParent();
     llvm::IRBuilder<> entry_builder(&func->getEntryBlock(), func->getEntryBlock().begin());
@@ -54,6 +60,30 @@ void LLVMEmitter::EmitBindVar(const IRBindVar& bind) {
             if (val->getType()->isPointerTy() && llvm_ty->isPointerTy()) {
                 val = builder->CreateBitCast(val, llvm_ty);
             } else {
+                if (debug_obj) {
+                    std::string expected_str;
+                    llvm::raw_string_ostream expected_os(expected_str);
+                    llvm_ty->print(expected_os);
+                    expected_os.flush();
+
+                    std::string actual_str;
+                    llvm::raw_string_ostream actual_os(actual_str);
+                    val->getType()->print(actual_os);
+                    actual_os.flush();
+
+                    std::string bind_type_str = bind_type ? sema::TypeToString(bind_type) : "<null>";
+                    std::string value_type_str = "<null>";
+                    if (current_ctx_) {
+                        if (auto inferred = current_ctx_->LookupValueType(bind.value)) {
+                            value_type_str = sema::TypeToString(inferred);
+                        }
+                    }
+                    std::cerr << "[cursivec0] bind type mismatch for `" << bind.name << "`\n";
+                    std::cerr << "  bind.type: " << bind_type_str << "\n";
+                    std::cerr << "  value.type: " << value_type_str << "\n";
+                    std::cerr << "  expected llvm: " << expected_str << "\n";
+                    std::cerr << "  actual llvm: " << actual_str << "\n";
+                }
                 if (current_ctx_) {
                     current_ctx_->ReportCodegenFailure();
                 }

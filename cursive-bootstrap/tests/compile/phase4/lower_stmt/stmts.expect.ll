@@ -1,3 +1,31 @@
-bind %x = 0xA
-bind %y = %x
-ret 0x0
+proc @demo_x3a_x3amain {
+  seq {
+    seq {
+      call @cursive_x3a_x3aruntime_x3a_x3ainit_x3a_x3ademo (%__panic)
+      panic_check
+    }
+    block seq {
+      seq {
+        nop
+        bind %x = 0xA
+      }
+      seq {
+        read %x
+        bind %y = %x
+      }
+      seq {
+        nop
+        panic_check
+        ret 0x0
+      }
+    } nop
+  }
+}
+
+proc @cursive_x3a_x3aruntime_x3a_x3ainit_x3a_x3ademo {
+  nop
+}
+
+proc @cursive_x3a_x3aruntime_x3a_x3adeinit_x3a_x3ademo {
+  nop
+}

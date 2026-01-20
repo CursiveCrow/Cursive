@@ -111,13 +111,13 @@ Value IoFailureUnion() {
 
 Value FileClosedValue() {
   RecordVal rec;
-  rec.record_type = sema::MakeTypeModalState({"File"}, "@Closed");
+  rec.record_type = sema::MakeTypeModalState({"File"}, "Closed");
   return Value{rec};
 }
 
 Value DirIterClosedValue() {
   RecordVal rec;
-  rec.record_type = sema::MakeTypeModalState({"DirIter"}, "@Closed");
+  rec.record_type = sema::MakeTypeModalState({"DirIter"}, "Closed");
   return Value{rec};
 }
 
@@ -416,17 +416,19 @@ Value UnitUnionValue() {
 }
 
 Value FileUnionValue(std::string_view state, std::uint64_t handle) {
-  auto type = sema::MakeTypeModalState({"File"}, std::string(state));
+  auto base = sema::MakeTypeModalState({"File"}, std::string(state));
+  auto type = sema::MakeTypePerm(sema::Permission::Unique, base);
   RecordVal rec;
-  rec.record_type = type;
+  rec.record_type = base;
   rec.fields = {{"handle", Value{USizeVal(handle)}}};
   return UnionWrap(type, Value{rec});
 }
 
 Value DirIterUnionValue(std::uint64_t handle) {
-  auto type = sema::MakeTypeModalState({"DirIter"}, "@Open");
+  auto base = sema::MakeTypeModalState({"DirIter"}, "Open");
+  auto type = sema::MakeTypePerm(sema::Permission::Unique, base);
   RecordVal rec;
-  rec.record_type = type;
+  rec.record_type = base;
   rec.fields = {{"handle", Value{USizeVal(handle)}}};
   return UnionWrap(type, Value{rec});
 }
@@ -453,7 +455,11 @@ Value DirEntryUnionValue(const std::string& name,
 
 std::optional<std::string> StringViewPath(const Value& value) {
   const auto* str = std::get_if<StringVal>(&value.node);
-  if (!str || str->state != sema::StringState::View) {
+  if (!str) {
+    return std::nullopt;
+  }
+  if (str->state != sema::StringState::View &&
+      str->state != sema::StringState::Managed) {
     return std::nullopt;
   }
   return std::string(str->bytes.begin(), str->bytes.end());
@@ -461,7 +467,11 @@ std::optional<std::string> StringViewPath(const Value& value) {
 
 std::optional<std::vector<std::uint8_t>> BytesViewData(const Value& value) {
   const auto* bytes = std::get_if<BytesVal>(&value.node);
-  if (!bytes || bytes->state != sema::BytesState::View) {
+  if (!bytes) {
+    return std::nullopt;
+  }
+  if (bytes->state != sema::BytesState::View &&
+      bytes->state != sema::BytesState::Managed) {
     return std::nullopt;
   }
   return bytes->bytes;
@@ -894,7 +904,7 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
       entry.mark = std::nullopt;
       sigma.region_stack.push_back(entry);
       SPEC_RULE("Region-New-Scoped");
-      return RegionValue("@Active", target);
+      return RegionValue("Active", target);
     }
     if (name == "alloc") {
       if (args.size() != 2) {
@@ -934,7 +944,7 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
       }
       RetagRegionEntries(sigma, *handle);
       SPEC_RULE("Region-Reset-Proc");
-      return RegionValue("@Active", *handle);
+      return RegionValue("Active", *handle);
     }
     if (name == "freeze") {
       if (args.size() != 1) {
@@ -949,7 +959,7 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return std::nullopt;
       }
       SPEC_RULE("Region-Freeze-Proc");
-      return RegionValue("@Frozen", *handle);
+      return RegionValue("Frozen", *handle);
     }
     if (name == "thaw") {
       if (args.size() != 1) {
@@ -964,7 +974,7 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return std::nullopt;
       }
       SPEC_RULE("Region-Thaw-Proc");
-      return RegionValue("@Active", *handle);
+      return RegionValue("Active", *handle);
     }
     if (name == "free_unchecked") {
       if (args.size() != 1) {
@@ -980,7 +990,7 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
       }
       RemoveRegionEntries(sigma, *handle);
       SPEC_RULE("Region-Free-Proc");
-      return RegionValue("@Freed", *handle);
+      return RegionValue("Freed", *handle);
     }
     return std::nullopt;
   }
@@ -1468,7 +1478,7 @@ std::optional<Value> PrimCall(const sema::TypePath& owner,
       handle_state.path = resolved->path;
       sigma.fs_state.handles[handle] = handle_state;
       SPEC_RULE("Prim-FS-OpenRead");
-      return FileUnionValue("@Read", handle);
+      return FileUnionValue("Read", handle);
     }
     if (name == "open_write") {
       if (args.size() != 1) {
@@ -1498,7 +1508,7 @@ std::optional<Value> PrimCall(const sema::TypePath& owner,
       handle_state.path = resolved->path;
       sigma.fs_state.handles[handle] = handle_state;
       SPEC_RULE("Prim-FS-OpenWrite");
-      return FileUnionValue("@Write", handle);
+      return FileUnionValue("Write", handle);
     }
     if (name == "open_append") {
       if (args.size() != 1) {
@@ -1528,7 +1538,7 @@ std::optional<Value> PrimCall(const sema::TypePath& owner,
       handle_state.path = resolved->path;
       sigma.fs_state.handles[handle] = handle_state;
       SPEC_RULE("Prim-FS-OpenAppend");
-      return FileUnionValue("@Append", handle);
+      return FileUnionValue("Append", handle);
     }
     if (name == "create_write") {
       if (args.size() != 1) {
@@ -1559,7 +1569,7 @@ std::optional<Value> PrimCall(const sema::TypePath& owner,
       handle_state.path = resolved->path;
       sigma.fs_state.handles[handle] = handle_state;
       SPEC_RULE("Prim-FS-CreateWrite");
-      return FileUnionValue("@Write", handle);
+      return FileUnionValue("Write", handle);
     }
     if (name == "read_file") {
       if (args.size() != 1) {
@@ -1676,9 +1686,11 @@ std::optional<Value> PrimCall(const sema::TypePath& owner,
       if (args.size() != 1) {
         return std::nullopt;
       }
-      if (!StringViewPath(args[0]).has_value()) {
+      const auto text = StringViewPath(args[0]);
+      if (!text.has_value()) {
         return std::nullopt;
       }
+      sigma.stdout_buffer.append(*text);
       SPEC_RULE("Prim-FS-WriteStdout");
       return UnitUnionValue();
     }
@@ -1686,9 +1698,11 @@ std::optional<Value> PrimCall(const sema::TypePath& owner,
       if (args.size() != 1) {
         return std::nullopt;
       }
-      if (!StringViewPath(args[0]).has_value()) {
+      const auto text = StringViewPath(args[0]);
+      if (!text.has_value()) {
         return std::nullopt;
       }
+      sigma.stderr_buffer.append(*text);
       SPEC_RULE("Prim-FS-WriteStderr");
       return UnitUnionValue();
     }

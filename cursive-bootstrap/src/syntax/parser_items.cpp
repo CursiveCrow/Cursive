@@ -13,7 +13,7 @@ ParseElemResult<std::shared_ptr<Type>> ParseTypeAnnotOpt(Parser parser);
 
 namespace {
 void EmitUnsupportedConstruct(Parser& parser) {
-  auto diag = core::MakeDiagnostic("E-UNS-0101");
+  auto diag = core::MakeDiagnostic("E-UNS-0101", TokSpan(parser));
   if (!diag) {
     return;
   }
@@ -914,14 +914,24 @@ ParseElemResult<std::vector<StateMember>> ParseStateMemberList(Parser parser) {
     return {parser, {}};
   }
   SPEC_RULE("Parse-StateMemberList-Cons");
-  ParseElemResult<StateMember> mem = ParseStateMember(parser);
-  ParseElemResult<std::vector<StateMember>> rest =
-      ParseStateMemberList(mem.parser);
   std::vector<StateMember> members;
-  members.reserve(1 + rest.elem.size());
-  members.push_back(mem.elem);
-  members.insert(members.end(), rest.elem.begin(), rest.elem.end());
-  return {rest.parser, members};
+  Parser cur = parser;
+  while (!IsPunc(cur, "}")) {
+    if (IsPunc(cur, ",")) {
+      EmitParseSyntaxErr(cur, TokSpan(cur));
+      Advance(cur);
+      continue;
+    }
+    Parser before = cur;
+    ParseElemResult<StateMember> mem = ParseStateMember(cur);
+    members.push_back(mem.elem);
+    cur = mem.parser;
+    if (cur.tokens == before.tokens && cur.index == before.index) {
+      EmitParseSyntaxErr(cur, TokSpan(cur));
+      cur = AdvanceOrEOF(cur);
+    }
+  }
+  return {cur, members};
 }
 
 ParseElemResult<StateBlock> ParseStateBlock(Parser parser) {

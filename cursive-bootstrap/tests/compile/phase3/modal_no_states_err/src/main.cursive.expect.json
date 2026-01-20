@@ -1,10 +1,17 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-TYP-2050",
       "severity": "error",
-      "message": "Modal type declares zero states"
+      "message": "Modal type declares zero states",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\phase3\\modal_no_states_err\\src\\main.cursive",
+        "start_line": 1,
+        "start_col": 1,
+        "end_line": 1,
+        "end_col": 14
+      }
     }
-  ]
+  ],
+  "exit_code": 1
 }

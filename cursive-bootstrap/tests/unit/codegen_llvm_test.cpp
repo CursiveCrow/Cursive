@@ -490,8 +490,22 @@ void TestLLVMTypeCoverage() {
     assert(emitter.GetLLVMType(MakeTypePath({"Point"})) != nullptr);
     assert(emitter.GetLLVMType(MakeTypePath({"Option"})) != nullptr);
     assert(emitter.GetLLVMType(MakeTypePath({"MaybePtr"})) != nullptr);
-    assert(emitter.GetLLVMType(MakeTypePath({"Mode"})) != nullptr);
     assert(emitter.GetLLVMType(MakeTypePath({"AliasPoint"})) != nullptr);
+
+    llvm::Type* mode_ty = emitter.GetLLVMType(MakeTypePath({"Mode"}));
+    assert(mode_ty != nullptr);
+    auto* mode_struct = llvm::dyn_cast<llvm::StructType>(mode_ty);
+    assert(mode_struct != nullptr);
+    assert(mode_struct->getNumElements() == 3);
+    assert(mode_struct->getElementType(0)->isIntegerTy(8));
+    auto* pad_mid = llvm::dyn_cast<llvm::ArrayType>(mode_struct->getElementType(1));
+    assert(pad_mid != nullptr);
+    assert(pad_mid->getNumElements() == 3);
+    assert(pad_mid->getElementType()->isIntegerTy(8));
+    auto* payload = llvm::dyn_cast<llvm::ArrayType>(mode_struct->getElementType(2));
+    assert(payload != nullptr);
+    assert(payload->getNumElements() == 4);
+    assert(payload->getElementType()->isIntegerTy(8));
     assert(emitter.GetLLVMType(MakeTypeModalState({"MaybePtr"}, "Some")) != nullptr);
 
     // Error path.

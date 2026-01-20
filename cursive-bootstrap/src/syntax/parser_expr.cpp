@@ -17,7 +17,7 @@ namespace {
 
 #include "precedence_table.inc"
 void EmitUnsupportedConstruct(Parser& parser) {
-  auto diag = core::MakeDiagnostic("E-UNS-0101");
+  auto diag = core::MakeDiagnostic("E-UNS-0101", TokSpan(parser));
   if (!diag) {
     return;
   }

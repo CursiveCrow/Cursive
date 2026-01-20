@@ -3122,6 +3122,16 @@ static PlaceTypeResult TypePlaceImpl(const ScopeContext& ctx,
                                      const TypeEnv& env) {
   SpecDefsTypeExpr();
   PlaceTypeResult result;
+  struct PlaceTypeRecorder {
+    const ScopeContext& ctx;
+    const syntax::ExprPtr& expr;
+    PlaceTypeResult& result;
+    ~PlaceTypeRecorder() {
+      if (result.ok && ctx.expr_types && expr) {
+        (*ctx.expr_types)[expr.get()] = result.type;
+      }
+    }
+  } recorder{ctx, expr, result};
 
   if (!expr) {
     return result;

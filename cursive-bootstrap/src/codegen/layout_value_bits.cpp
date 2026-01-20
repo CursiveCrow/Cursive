@@ -671,42 +671,14 @@ bool IsUnitType(const cursive0::sema::TypeRef& type) {
   return false;
 }
 
-std::optional<cursive0::sema::TypeRef> ResolveAliasType(
-    const cursive0::sema::ScopeContext& ctx,
-    const cursive0::sema::TypeRef& type) {
-  const auto* path = std::get_if<cursive0::sema::TypePathType>(&type->node);
-  if (!path) {
-    return std::nullopt;
-  }
-  cursive0::syntax::Path syntax_path;
-  syntax_path.reserve(path->path.size());
-  for (const auto& comp : path->path) {
-    syntax_path.push_back(comp);
-  }
-  const auto it = ctx.sigma.types.find(cursive0::sema::PathKeyOf(syntax_path));
-  if (it == ctx.sigma.types.end()) {
-    return std::nullopt;
-  }
-  const auto* alias = std::get_if<cursive0::syntax::TypeAliasDecl>(&it->second);
-  if (!alias) {
-    return std::nullopt;
-  }
-  return LowerTypeForLayout(ctx, alias->type);
-}
-
 bool IsNicheType(const cursive0::sema::ScopeContext& ctx,
                  const cursive0::sema::TypeRef& type) {
+  (void)ctx;
   if (!type) {
     return false;
   }
-  if (const auto* perm = std::get_if<cursive0::sema::TypePerm>(&type->node)) {
-    return IsNicheType(ctx, perm->base);
-  }
   if (const auto* ptr = std::get_if<cursive0::sema::TypePtr>(&type->node)) {
     return ptr->state == cursive0::sema::PtrState::Valid;
-  }
-  if (const auto alias = ResolveAliasType(ctx, type)) {
-    return IsNicheType(ctx, *alias);
   }
   return false;
 }

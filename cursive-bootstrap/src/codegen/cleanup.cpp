@@ -13,9 +13,11 @@
 #include "cursive0/sema/type_expr.h"
 
 #include <algorithm>
-#include <functional>
 #include <cassert>
 #include <cstdint>
+#include <cstdlib>
+#include <functional>
+#include <iostream>
 #include <unordered_set>
 
 namespace cursive0::codegen {
@@ -1065,29 +1067,33 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
         IRPtr body = EmptyIR();
         const auto fields = CollectModalFields(state, ctx);
         if (fields.has_value()) {
-          std::vector<IRPtr> drops;
-          drops.reserve(fields->size());
-          for (auto rit = fields->rbegin(); rit != fields->rend(); ++rit) {
-            IRValue field_val;
-            field_val.kind = IRValue::Kind::Opaque;
-            field_val.name = value.name + "_" + rit->first;
-            ctx.RegisterValueType(field_val, rit->second);
-            {
-              DerivedValueInfo info;
-              info.kind = DerivedValueInfo::Kind::ModalField;
-              info.base = value;
-              info.modal_state = state.name;
-              info.field = rit->first;
-              ctx.RegisterDerivedValue(field_val, info);
-            }
-            drops.push_back(
-                EmitDropImpl(rit->second,
-                             field_val,
-                             ctx,
-                             allow_drop_glue,
-                             panic_out));
+          const auto state_type =
+              sema::MakeTypeModalState(type_path.path, state.name);
+
+          IRValue state_value = ctx.FreshTempValue("modal_state");
+          ctx.RegisterValueType(state_value, state_type);
+
+          DerivedValueInfo record_info;
+          record_info.kind = DerivedValueInfo::Kind::RecordLit;
+          record_info.fields.reserve(fields->size());
+          for (const auto& field : *fields) {
+            IRValue field_val = ctx.FreshTempValue("modal_field");
+            ctx.RegisterValueType(field_val, field.second);
+            DerivedValueInfo info;
+            info.kind = DerivedValueInfo::Kind::ModalField;
+            info.base = value;
+            info.modal_state = state.name;
+            info.field = field.first;
+            ctx.RegisterDerivedValue(field_val, info);
+            record_info.fields.emplace_back(field.first, field_val);
           }
-          body = SeqWithPanicStop(std::move(drops), ctx);
+          ctx.RegisterDerivedValue(state_value, record_info);
+
+          body = EmitDropImpl(state_type,
+                              state_value,
+                              ctx,
+                              allow_drop_glue,
+                              panic_out);
         }
 
         IRValue unit;
@@ -1419,8 +1425,12 @@ BindValidity GetBindValidity(const std::string& name, LowerCtx& ctx) {
   // Look up binding state from context
   const BindingState* state = ctx.GetBindingState(name);
   if (!state) {
+    const bool debug_obj = std::getenv("CURSIVE0_DEBUG_OBJ") != nullptr;
     if (!ctx.binding_states.empty()) {
       SPEC_RULE("BindValid-Err");
+      if (debug_obj) {
+        std::cerr << "[cursivec0] missing binding state for `" << name << "`\n";
+      }
       ctx.ReportCodegenFailure();
     }
     return BindValidity::Valid;

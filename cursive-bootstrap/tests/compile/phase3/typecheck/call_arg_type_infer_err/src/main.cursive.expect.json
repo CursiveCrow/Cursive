@@ -1,10 +1,17 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-SEM-2533",
       "severity": "error",
-      "message": "Argument type incompatible with parameter type"
+      "message": "Argument type incompatible with parameter type",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\phase3\\typecheck\\call_arg_type_infer_err\\src\\main.cursive",
+        "start_line": 2,
+        "start_col": 44,
+        "end_line": 6,
+        "end_col": 2
+      }
     }
-  ]
+  ],
+  "exit_code": 1
 }

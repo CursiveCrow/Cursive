@@ -1,10 +1,17 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-TYP-1505",
       "severity": "error",
-      "message": "Missing required type annotation at module scope"
+      "message": "Missing required type annotation at module scope",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\phase3\\decl_typing_proc_missing_return\\src\\main.cursive",
+        "start_line": 1,
+        "start_col": 1,
+        "end_line": 1,
+        "end_col": 20
+      }
     }
-  ]
+  ],
+  "exit_code": 1
 }

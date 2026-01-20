@@ -1,0 +1,24 @@
+# SPEC_COV: Lower-Expr-If
+# SPEC_COV: Lower-UnOp-Ok
+# SPEC_COV: T-Modal-Widen
+# SPEC_COV: Match-Modal-General
+# SPEC_COV: Match-Modal-State
+
+modal Status {
+  @Idle { ticks: i32 }
+  @Busy { code: i32 retries: i32 }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let count = 1;
+  let status: Status = if count == 1i32 {
+    widen Status@Idle { ticks: count }
+  } else {
+    widen Status@Busy { code: count, retries: 1 }
+  };
+  let _ = match move status {
+    @Idle { ticks: idle_ticks } => idle_ticks,
+    @Busy { code: busy_code, retries: busy_retries } => busy_code + busy_retries
+  };
+  return 0i32;
+}

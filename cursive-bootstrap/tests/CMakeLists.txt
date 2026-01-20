@@ -498,12 +498,21 @@ add_test(NAME compile_tests
 )
 
 if(WIN32)
-  add_test(NAME e2e_tests
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/harness/run_e2e.py
+  add_test(NAME semantics_oracle_tests
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/harness/run_semantics_oracle.py
       --compiler $<TARGET_FILE:cursivec0>
+      --interpreter $<TARGET_FILE:cursive0_interpreter_cli>
       --tests-root ${CMAKE_CURRENT_SOURCE_DIR}/e2e
   )
 endif()
+
+add_test(NAME spec_coverage_report
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/coverage_report.py
+)
+
+add_test(NAME spec_diag_report
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/diag_check_report.py
+)
 
 add_executable(sema_scopes_lookup_test
   unit/sema_scopes_lookup_test.cpp
@@ -693,7 +702,7 @@ add_executable(semantics_smoke_test
   unit/semantics_smoke_test.cpp
 )
 
-target_link_libraries(semantics_smoke_test PRIVATE cursive0_semantics)
+target_link_libraries(semantics_smoke_test PRIVATE cursive0_interpreter)
 copy_icu_dlls_for_test(semantics_smoke_test)
 
 add_test(NAME semantics_smoke_test COMMAND semantics_smoke_test)
@@ -765,7 +774,7 @@ add_executable(semantics_interpreter_cov_test
   unit/semantics_interpreter_cov_test.cpp
 )
 
-target_link_libraries(semantics_interpreter_cov_test PRIVATE cursive0_semantics cursive0_sema)
+target_link_libraries(semantics_interpreter_cov_test PRIVATE cursive0_interpreter cursive0_sema)
 copy_icu_dlls_for_test(semantics_interpreter_cov_test)
 
 add_test(NAME semantics_interpreter_cov_test COMMAND semantics_interpreter_cov_test)
@@ -856,7 +865,7 @@ add_executable(semantics_interpreter_test
   unit/semantics_interpreter_test.cpp
 )
 
-target_link_libraries(semantics_interpreter_test PRIVATE cursive0_semantics cursive0_sema)
+target_link_libraries(semantics_interpreter_test PRIVATE cursive0_interpreter cursive0_sema)
 copy_icu_dlls_for_test(semantics_interpreter_test)
 
 add_test(NAME semantics_interpreter_test COMMAND semantics_interpreter_test)

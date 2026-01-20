@@ -1,15 +1,29 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-UNS-0101",
       "severity": "error",
-      "message": "Unsupported construct in Cursive0 subset"
+      "message": "Unsupported construct in Cursive0 subset",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\phase1\\types\\types_opaque_where_unsupported.cursive",
+        "start_line": 1,
+        "start_col": 19,
+        "end_line": 1,
+        "end_col": 20
+      }
     },
     {
       "code": "E-UNS-0101",
       "severity": "error",
-      "message": "Unsupported construct in Cursive0 subset"
+      "message": "Unsupported construct in Cursive0 subset",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\phase1\\types\\types_opaque_where_unsupported.cursive",
+        "start_line": 1,
+        "start_col": 36,
+        "end_line": 1,
+        "end_col": 37
+      }
     }
-  ]
+  ],
+  "exit_code": 1
 }

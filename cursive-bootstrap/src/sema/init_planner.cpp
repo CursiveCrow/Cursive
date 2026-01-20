@@ -1162,7 +1162,7 @@ void AddEdges(std::vector<std::set<std::size_t>>& edges,
               const ModuleSet& deps) {
   for (const auto dep : deps) {
     if (dep < edges.size()) {
-      edges[from].insert(dep);
+      edges[dep].insert(from);
     }
   }
 }

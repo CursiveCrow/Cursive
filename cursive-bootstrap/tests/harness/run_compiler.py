@@ -8,6 +8,8 @@ import tempfile
 import tomllib
 from pathlib import Path
 
+from diag_normalize import normalize_diagnostics, normalize_ir_text
+
 
 def _discover_tests(root: Path) -> list[Path]:
     """Discover test files that have corresponding expect files."""
@@ -204,6 +206,7 @@ def _run_one(
     with tempfile.TemporaryDirectory() as tmpdir:
         filtered_path = None
         project_root = None
+        source_root = None
         filtered_root = None
         cleanup_temp_file = False
         try:
@@ -211,7 +214,9 @@ def _run_one(
             output_pipeline = _read_output_pipeline(test_path)
             phase = _phase_dir(test_path, tests_root)
             project_root = _find_project_root(test_path)
-            if _should_isolate(test_path, tests_root, project_root, assembly_target):
+            source_root = project_root
+            is_isolated = _should_isolate(test_path, tests_root, project_root, assembly_target)
+            if is_isolated:
                 filtered_root = Path(tmpdir) / "isolated_project"
                 filtered_path = _write_isolated_project(filtered_root, test_path)
                 project_root = filtered_root
@@ -262,28 +267,23 @@ def _run_one(
                 if proc.returncode != 0:
                     return False, f"{test_path}: compiler failed with exit code {proc.returncode}. Stderr: {stderr}"
                 
-                expected = expect_path.read_text(encoding="utf-8").strip()
-                # Simple normalization: remove trailing whitespace from lines
-                actual_lines = [l.rstrip() for l in stdout.splitlines() if l.strip()]
-                expect_lines = [l.rstrip() for l in expected.splitlines() if l.strip()]
-                
-                # Check line by line containment/equality
-                # For now, let's require that 'expect_lines' logic acts as a substring match or structural match
-                # But to keep it simple and robust, let's just dump exact mismatch if they differ significantly.
-                # Actually, better strategy: Check that every expected line appears in actual output in order.
-                
-                act_idx = 0
-                for exp_line in expect_lines:
-                    found = False
-                    while act_idx < len(actual_lines):
-                        if exp_line in actual_lines[act_idx]:
-                            found = True
-                            act_idx += 1
-                            break
-                        act_idx += 1
-                    
-                    if not found:
-                         return False, f"{test_path}: IR mismatch. Expected line not found after previous matches:\n'{exp_line}'\n\nFull Actual:\n{stdout}"
+                expected = expect_path.read_text(encoding="utf-8")
+                actual_ir = normalize_ir_text(
+                    stdout,
+                    source_root=source_root,
+                    filtered_root=filtered_root,
+                    test_path=test_path,
+                    is_isolated=is_isolated,
+                )
+                expected_ir = normalize_ir_text(
+                    expected,
+                    source_root=source_root,
+                    filtered_root=filtered_root,
+                    test_path=test_path,
+                    is_isolated=is_isolated,
+                )
+                if actual_ir != expected_ir:
+                    return False, f"{test_path}: IR mismatch.\n\nExpected:\n{expected_ir}\n\nActual:\n{actual_ir}"
                 return True, ""
 
             if stderr:
@@ -295,6 +295,14 @@ def _run_one(
             
             actual_path = Path(tmpdir) / "actual.json"
             data["exit_code"] = proc.returncode
+            if "diagnostics" in data:
+                data["diagnostics"] = normalize_diagnostics(
+                    data["diagnostics"],
+                    source_root=source_root,
+                    filtered_root=filtered_root,
+                    test_path=test_path,
+                    is_isolated=is_isolated,
+                )
             actual_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
             check = subprocess.run(
                 [sys.executable, str(expect_script), str(expect_path), str(actual_path)],

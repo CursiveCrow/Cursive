@@ -108,7 +108,68 @@ static void MergeLowerCtxTemps(LowerCtx& base, const LowerCtx& branch) {
   base.temp_counter = std::max(base.temp_counter, branch.temp_counter);
 }
 
+static bool IsNoopIR(const IRPtr& ir) {
+  return !ir || std::holds_alternative<IROpaque>(ir->node);
+}
 
+static bool EndsWithTerminator(const IRPtr& ir) {
+  if (!ir) {
+    return false;
+  }
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, IRReturn> ||
+                      std::is_same_v<T, IRBreak> ||
+                      std::is_same_v<T, IRContinue> ||
+                      std::is_same_v<T, IRResult> ||
+                      std::is_same_v<T, IRLowerPanic>) {
+          return true;
+        } else if constexpr (std::is_same_v<T, IRSeq>) {
+          for (auto it = node.items.rbegin(); it != node.items.rend(); ++it) {
+            if (!IsNoopIR(*it)) {
+              return EndsWithTerminator(*it);
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, IRBlock>) {
+          return EndsWithTerminator(node.body);
+        } else if constexpr (std::is_same_v<T, IRRegion>) {
+          return EndsWithTerminator(node.body);
+        } else if constexpr (std::is_same_v<T, IRFrame>) {
+          return EndsWithTerminator(node.body);
+        } else if constexpr (std::is_same_v<T, IRIf>) {
+          return EndsWithTerminator(node.then_ir) && EndsWithTerminator(node.else_ir);
+        } else if constexpr (std::is_same_v<T, IRMatch>) {
+          for (const auto& arm : node.arms) {
+            if (!EndsWithTerminator(arm.body)) {
+              return false;
+            }
+          }
+          return !node.arms.empty();
+        }
+        return false;
+      },
+      ir->node);
+}
+
+static IRPtr CleanupTemps(const std::vector<TempValue>& temps, LowerCtx& ctx) {
+  if (temps.empty()) {
+    return EmptyIR();
+  }
+
+  CleanupPlan plan;
+  plan.reserve(temps.size());
+  for (auto it = temps.rbegin(); it != temps.rend(); ++it) {
+    CleanupAction action;
+    action.kind = CleanupAction::Kind::DropTemp;
+    action.type = it->type;
+    action.value = it->value;
+    plan.push_back(std::move(action));
+  }
+  CleanupPlan remainder = ComputeCleanupPlanToFunctionRoot(ctx);
+  return EmitCleanupWithRemainder(plan, remainder, ctx);
+}
 
 bool IsPlaceExpr(const syntax::ExprPtr& expr) {
   if (!expr) {
@@ -902,17 +963,47 @@ LowerResult LowerIfExpr(const syntax::IfExpr& expr, LowerCtx& ctx) {
   SPEC_RULE("Lower-Expr-If");
 
   // Lower condition
+  auto* prev_sink = ctx.temp_sink;
+  std::vector<TempValue> cond_temps;
+  ctx.temp_sink = &cond_temps;
+  auto prev_suppress = ctx.suppress_temp_at_depth;
+  ctx.suppress_temp_at_depth = ctx.temp_depth + 1;
   auto cond_result = LowerExpr(*expr.cond, ctx);
+  ctx.suppress_temp_at_depth = prev_suppress;
+  ctx.temp_sink = prev_sink;
+  IRPtr cond_cleanup = CleanupTemps(cond_temps, ctx);
+  if (IsNoopIR(cond_cleanup)) {
+    cond_cleanup = EmptyIR();
+  }
 
   // Lower then branch
   LowerCtx then_ctx = ctx;
+  std::vector<TempValue> then_temps;
+  then_ctx.temp_sink = &then_temps;
+  auto then_prev_suppress = then_ctx.suppress_temp_at_depth;
+  then_ctx.suppress_temp_at_depth = then_ctx.temp_depth + 1;
   auto then_result = LowerExpr(*expr.then_expr, then_ctx);
+  then_ctx.suppress_temp_at_depth = then_prev_suppress;
+  IRPtr then_cleanup = CleanupTemps(then_temps, then_ctx);
+  if (!IsNoopIR(then_cleanup) && !EndsWithTerminator(then_result.ir)) {
+    then_result.ir = SeqIR({then_result.ir, then_cleanup});
+  }
 
   // Lower else branch (if present)
   LowerCtx else_ctx = ctx;
+  else_ctx.temp_counter = std::max(else_ctx.temp_counter, then_ctx.temp_counter);
   LowerResult else_result;
   if (expr.else_expr) {
+    std::vector<TempValue> else_temps;
+    else_ctx.temp_sink = &else_temps;
+    auto else_prev_suppress = else_ctx.suppress_temp_at_depth;
+    else_ctx.suppress_temp_at_depth = else_ctx.temp_depth + 1;
     else_result = LowerExpr(*expr.else_expr, else_ctx);
+    else_ctx.suppress_temp_at_depth = else_prev_suppress;
+    IRPtr else_cleanup = CleanupTemps(else_temps, else_ctx);
+    if (!IsNoopIR(else_cleanup) && !EndsWithTerminator(else_result.ir)) {
+      else_result.ir = SeqIR({else_result.ir, else_cleanup});
+    }
   } else {
     else_result.ir = EmptyIR();
     else_result.value = IRValue{IRValue::Kind::Opaque, "unit", {}};
@@ -935,7 +1026,7 @@ LowerResult LowerIfExpr(const syntax::IfExpr& expr, LowerCtx& ctx) {
   if_ir.else_value = else_result.value;
   if_ir.result = result_value;
 
-  return LowerResult{SeqIR({cond_result.ir, MakeIR(std::move(if_ir))}),
+  return LowerResult{SeqIR({cond_result.ir, cond_cleanup, MakeIR(std::move(if_ir))}),
                      result_value};
 }
 

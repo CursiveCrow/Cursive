@@ -1,15 +1,29 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-SRC-0303",
       "severity": "error",
-      "message": "Invalid character literal"
+      "message": "Invalid character literal",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\phase1\\lex_secure\\lex_secure_unterminated_char.cursive",
+        "start_line": 2,
+        "start_col": 11,
+        "end_line": 2,
+        "end_col": 12
+      }
     },
     {
       "code": "E-SRC-0308",
       "severity": "error",
-      "message": "Lexically sensitive Unicode character outside `unsafe` block"
+      "message": "Lexically sensitive Unicode character outside `unsafe` block",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\phase1\\lex_secure\\lex_secure_unterminated_char.cursive",
+        "start_line": 2,
+        "start_col": 12,
+        "end_line": 2,
+        "end_col": 15
+      }
     }
-  ]
+  ],
+  "exit_code": 1
 }

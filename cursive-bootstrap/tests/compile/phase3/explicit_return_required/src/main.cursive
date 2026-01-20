@@ -1,5 +1,4 @@
 # SPEC_COV: WF-ProcBody-ExplicitReturn-Err
-# Test that procedures with non-unit return types must use explicit return
 procedure implicit_return() -> i32 {
   let x: i32 = 42;
   x

@@ -4,12 +4,12 @@
 modal Mod {
   @A {
     x: i32
-    transition to_b() -> @B { Mod@B { v: 0 } }
+    transition to_b() -> @B { return Mod@B { v: 0 }; }
   }
   @B { v: i32 }
 }
 procedure consume(move m: unique Mod@A) -> Mod@B {
-  (move m)~>to_b()
+  return (move m)~>to_b();
 }
 public procedure main(ctx: Context) -> i32 {
   let n = consume(move unsafe { transmute::<Mod@A, unique Mod@A>(Mod@A { x: 0 }) });

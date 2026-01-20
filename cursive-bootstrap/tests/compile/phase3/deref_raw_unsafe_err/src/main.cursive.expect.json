@@ -1,10 +1,17 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-TYP-2103",
       "severity": "error",
-      "message": "Dereference of raw pointer outside `unsafe`"
+      "message": "Dereference of raw pointer outside `unsafe`",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\phase3\\deref_raw_unsafe_err\\src\\main.cursive",
+        "start_line": 1,
+        "start_col": 44,
+        "end_line": 5,
+        "end_col": 2
+      }
     }
-  ]
+  ],
+  "exit_code": 1
 }

@@ -39,6 +39,48 @@ enum class Responsibility {
   Alias,
 };
 
+enum class PanicReason {
+  ErrorExpr,     // 0x0001
+  ErrorStmt,     // 0x0002
+  DivZero,       // 0x0003
+  Overflow,      // 0x0004
+  Shift,         // 0x0005
+  Bounds,        // 0x0006
+  Cast,          // 0x0007
+  NullDeref,     // 0x0008
+  ExpiredDeref,  // 0x0009
+  InitPanic,     // 0x000A
+  Other,         // 0x00FF
+};
+
+inline std::uint32_t PanicCode(PanicReason reason) {
+  switch (reason) {
+    case PanicReason::ErrorExpr:
+      return 0x0001;
+    case PanicReason::ErrorStmt:
+      return 0x0002;
+    case PanicReason::DivZero:
+      return 0x0003;
+    case PanicReason::Overflow:
+      return 0x0004;
+    case PanicReason::Shift:
+      return 0x0005;
+    case PanicReason::Bounds:
+      return 0x0006;
+    case PanicReason::Cast:
+      return 0x0007;
+    case PanicReason::NullDeref:
+      return 0x0008;
+    case PanicReason::ExpiredDeref:
+      return 0x0009;
+    case PanicReason::InitPanic:
+      return 0x000A;
+    case PanicReason::Other:
+      return 0x00FF;
+  }
+  return 0x00FF;
+}
+
 struct BindState {
   enum class Kind {
     Valid,
@@ -184,6 +226,17 @@ struct FileSystemHandle {
   std::string base;
 };
 
+struct TempValue {
+  sema::TypeRef type;
+  Value value;
+};
+
+struct TempContext {
+  std::vector<TempValue>* sink = nullptr;
+  std::int64_t depth = 0;
+  std::optional<std::int64_t> suppress_depth;
+};
+
 enum class AddrViewKind {
   Field,
   Tuple,
@@ -202,6 +255,7 @@ struct SemanticsContext {
   const sema::NameMapTable* name_maps = nullptr;
   const sema::ModuleNames* module_names = nullptr;
   sema::TypeRef ret_type = nullptr;
+  TempContext* temp_ctx = nullptr;
 };
 
 struct Sigma {
@@ -215,11 +269,24 @@ struct Sigma {
   std::map<Addr, Binding> binding_by_addr;
   std::map<std::pair<sema::PathKey, std::string>, Addr> static_addrs;
   std::map<sema::PathKey, Addr> poison_flags;
+  std::string stdout_buffer;
+  std::string stderr_buffer;
+  std::optional<std::uint32_t> panic_code;
   Addr next_addr = 1;
   ScopeId next_scope_id = 1;
   RegionTag next_region_tag = 1;
   RegionTarget next_region_target = 1;
 };
+
+inline void SetPanicReason(Sigma& sigma, PanicReason reason) {
+  if (!sigma.panic_code.has_value()) {
+    sigma.panic_code = PanicCode(reason);
+  }
+}
+
+inline std::uint32_t PanicCodeOrDefault(const Sigma& sigma) {
+  return sigma.panic_code.value_or(PanicCode(PanicReason::Other));
+}
 
 ScopeEntry ScopeEmpty(ScopeId sid);
 ScopeEntry* CurrentScope(Sigma& sigma);

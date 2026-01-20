@@ -5,6 +5,7 @@
 #include "cursive0/core/int128.h"
 #include "cursive0/sema/collect_toplevel.h"
 #include "cursive0/sema/resolver.h"
+#include "cursive0/sema/type_expr.h"
 #include "cursive0/semantics/cleanup.h"
 #include "cursive0/semantics/eval.h"
 
@@ -48,6 +49,63 @@ Outcome ExitOutcome(const Outcome& out, CleanupStatus status) {
   Control panic_ctrl;
   panic_ctrl.kind = ControlKind::Panic;
   return MakeCtrl(panic_ctrl);
+}
+
+SemanticsContext WithoutTemps(const SemanticsContext& ctx) {
+  SemanticsContext inner = ctx;
+  inner.temp_ctx = nullptr;
+  return inner;
+}
+
+sema::TypeRef BlockResultType(const SemanticsContext& ctx,
+                              const syntax::Block& block) {
+  if (block.tail_opt) {
+    if (ctx.sema && ctx.sema->expr_types) {
+      const auto it = ctx.sema->expr_types->find(block.tail_opt.get());
+      if (it != ctx.sema->expr_types->end()) {
+        return it->second;
+      }
+    }
+    return nullptr;
+  }
+  return sema::MakeTypePrim("()");
+}
+
+CleanupStatus CleanupTemps(const SemanticsContext& ctx,
+                           const std::vector<TempValue>& temps,
+                           Sigma& sigma) {
+  CleanupStatus status = CleanupStatus::Ok;
+  for (auto it = temps.rbegin(); it != temps.rend(); ++it) {
+    const auto drop_status =
+        DropValueOut(ctx, it->type, it->value, {}, sigma);
+    const bool item_panic = drop_status == DropStatus::Panic;
+    if (item_panic) {
+      if (status == CleanupStatus::Panic) {
+        return CleanupStatus::Abort;
+      }
+      status = CleanupStatus::Panic;
+    }
+  }
+  return status;
+}
+
+StmtOut ApplyTempCleanup(const SemanticsContext& ctx,
+                         const StmtOut& out,
+                         CleanupStatus status) {
+  if (status == CleanupStatus::Ok) {
+    return out;
+  }
+  Outcome base;
+  if (std::holds_alternative<Control>(out.node)) {
+    base = MakeCtrl(std::get<Control>(out.node));
+  } else {
+    base = MakeVal(Value{UnitVal{}});
+  }
+  Outcome combined = ExitOutcome(base, status);
+  if (IsCtrl(combined)) {
+    return MakeCtrlOut(std::get<Control>(combined.node));
+  }
+  return MakeOk();
 }
 
 bool IsMoveExpr(const syntax::Expr& expr) {
@@ -313,7 +371,7 @@ IntVal USizeVal(std::uint64_t value) {
 
 Value MakeRegionValue(RegionTarget target) {
   RecordVal record;
-  record.record_type = sema::MakeTypeModalState({"Region"}, "@Active");
+  record.record_type = sema::MakeTypeModalState({"Region"}, "Active");
   record.fields = {{"handle", Value{USizeVal(static_cast<std::uint64_t>(target))}}};
   return Value{record};
 }
@@ -472,11 +530,23 @@ StmtOut ExecSeqSigma(const SemanticsContext& ctx,
 StmtOut ExecSigma(const SemanticsContext& ctx,
                   const syntax::Stmt& stmt,
                   Sigma& sigma) {
-  return std::visit(
+  TempContext temp_state;
+  std::vector<TempValue> temps;
+  temp_state.sink = &temps;
+  temp_state.depth = 0;
+  temp_state.suppress_depth = std::nullopt;
+
+  SemanticsContext stmt_ctx = ctx;
+  stmt_ctx.temp_ctx = &temp_state;
+
+  StmtOut out = std::visit(
       [&](const auto& node) -> StmtOut {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, syntax::LetStmt>) {
-          Outcome init_out = EvalSigma(ctx, *node.binding.init, sigma);
+          auto prev_suppress = temp_state.suppress_depth;
+          temp_state.suppress_depth = temp_state.depth + 1;
+          Outcome init_out = EvalSigma(stmt_ctx, *node.binding.init, sigma);
+          temp_state.suppress_depth = prev_suppress;
           if (IsCtrl(init_out)) {
             SPEC_RULE("ExecSigma-Let-Ctrl");
             SPEC_RULE("Step-Exec-Other-Ctrl");
@@ -484,7 +554,7 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
           }
           const BindInfo info = BindInfoForBinding(node.binding);
           const auto bound =
-              BindPattern(sigma, ctx, *node.binding.pat,
+              BindPattern(sigma, stmt_ctx, *node.binding.pat,
                           std::get<Value>(init_out.node), info);
           if (!bound.ok) {
             return MakeCtrlOut(Control{ControlKind::Panic, std::nullopt});
@@ -493,14 +563,17 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
           SPEC_RULE("Step-Exec-Other-Ok");
           return MakeOk();
         } else if constexpr (std::is_same_v<T, syntax::VarStmt>) {
-          Outcome init_out = EvalSigma(ctx, *node.binding.init, sigma);
+          auto prev_suppress = temp_state.suppress_depth;
+          temp_state.suppress_depth = temp_state.depth + 1;
+          Outcome init_out = EvalSigma(stmt_ctx, *node.binding.init, sigma);
+          temp_state.suppress_depth = prev_suppress;
           if (IsCtrl(init_out)) {
             SPEC_RULE("ExecSigma-Var-Ctrl");
             return MakeCtrlOut(std::get<Control>(init_out.node));
           }
           const BindInfo info = BindInfoForBinding(node.binding);
           const auto bound =
-              BindPattern(sigma, ctx, *node.binding.pat,
+              BindPattern(sigma, stmt_ctx, *node.binding.pat,
                           std::get<Value>(init_out.node), info);
           if (!bound.ok) {
             return MakeCtrlOut(Control{ControlKind::Panic, std::nullopt});
@@ -508,7 +581,10 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
           SPEC_RULE("ExecSigma-Var");
           return MakeOk();
         } else if constexpr (std::is_same_v<T, syntax::ShadowLetStmt>) {
-          Outcome init_out = EvalSigma(ctx, *node.init, sigma);
+          auto prev_suppress = temp_state.suppress_depth;
+          temp_state.suppress_depth = temp_state.depth + 1;
+          Outcome init_out = EvalSigma(stmt_ctx, *node.init, sigma);
+          temp_state.suppress_depth = prev_suppress;
           if (IsCtrl(init_out)) {
             SPEC_RULE("ExecSigma-ShadowLet-Ctrl");
             return MakeCtrlOut(std::get<Control>(init_out.node));
@@ -523,7 +599,10 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
           SPEC_RULE("ExecSigma-ShadowLet");
           return MakeOk();
         } else if constexpr (std::is_same_v<T, syntax::ShadowVarStmt>) {
-          Outcome init_out = EvalSigma(ctx, *node.init, sigma);
+          auto prev_suppress = temp_state.suppress_depth;
+          temp_state.suppress_depth = temp_state.depth + 1;
+          Outcome init_out = EvalSigma(stmt_ctx, *node.init, sigma);
+          temp_state.suppress_depth = prev_suppress;
           if (IsCtrl(init_out)) {
             SPEC_RULE("ExecSigma-ShadowVar-Ctrl");
             return MakeCtrlOut(std::get<Control>(init_out.node));
@@ -538,23 +617,23 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
           SPEC_RULE("ExecSigma-ShadowVar");
           return MakeOk();
         } else if constexpr (std::is_same_v<T, syntax::AssignStmt>) {
-          Outcome val_out = EvalSigma(ctx, *node.value, sigma);
+          Outcome val_out = EvalSigma(stmt_ctx, *node.value, sigma);
           if (IsCtrl(val_out)) {
             SPEC_RULE("ExecSigma-Assign-Ctrl");
             return MakeCtrlOut(std::get<Control>(val_out.node));
           }
           const auto sout =
-              WritePlaceSigma(ctx, *node.place,
+              WritePlaceSigma(stmt_ctx, *node.place,
                               std::get<Value>(val_out.node), sigma);
           SPEC_RULE("ExecSigma-Assign");
           return sout;
         } else if constexpr (std::is_same_v<T, syntax::CompoundAssignStmt>) {
-          Outcome base_out = ReadPlaceSigma(ctx, *node.place, sigma);
+          Outcome base_out = ReadPlaceSigma(stmt_ctx, *node.place, sigma);
           if (IsCtrl(base_out)) {
             SPEC_RULE("ExecSigma-CompoundAssign-Left-Ctrl");
             return MakeCtrlOut(std::get<Control>(base_out.node));
           }
-          Outcome rhs_out = EvalSigma(ctx, *node.value, sigma);
+          Outcome rhs_out = EvalSigma(stmt_ctx, *node.value, sigma);
           if (IsCtrl(rhs_out)) {
             SPEC_RULE("ExecSigma-CompoundAssign-Right-Ctrl");
             return MakeCtrlOut(std::get<Control>(rhs_out.node));
@@ -570,15 +649,21 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
             return MakeCtrlOut(Control{ControlKind::Panic, std::nullopt});
           }
           const auto sout =
-              WritePlaceSigma(ctx, *node.place, *value, sigma);
+              WritePlaceSigma(stmt_ctx, *node.place, *value, sigma);
           SPEC_RULE("ExecSigma-CompoundAssign");
           return sout;
         } else if constexpr (std::is_same_v<T, syntax::ExprStmt>) {
-          Outcome out = EvalSigma(ctx, *node.value, sigma);
+          Outcome out = EvalSigma(stmt_ctx, *node.value, sigma);
           SPEC_RULE("ExecSigma-ExprStmt");
           return StmtOutOf(out);
         } else if constexpr (std::is_same_v<T, syntax::UnsafeBlockStmt>) {
-          Outcome out = EvalBlockSigma(ctx, *node.body, sigma);
+          SemanticsContext inner_ctx = WithoutTemps(stmt_ctx);
+          Outcome out = EvalBlockSigma(inner_ctx, *node.body, sigma);
+          if (temp_state.sink && IsVal(out)) {
+            sema::TypeRef block_type = BlockResultType(stmt_ctx, *node.body);
+            temp_state.sink->push_back(
+                TempValue{block_type, std::get<Value>(out.node)});
+          }
           SPEC_RULE("ExecSigma-UnsafeStmt");
           return StmtOutOf(out);
         } else if constexpr (std::is_same_v<T, syntax::DeferStmt>) {
@@ -591,7 +676,7 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
         } else if constexpr (std::is_same_v<T, syntax::RegionStmt>) {
           std::optional<Value> opts_value;
           if (node.opts_opt) {
-            Outcome opts_out = EvalSigma(ctx, *node.opts_opt, sigma);
+            Outcome opts_out = EvalSigma(stmt_ctx, *node.opts_opt, sigma);
             if (IsCtrl(opts_out)) {
               SPEC_RULE("ExecSigma-Region-Ctrl");
               SPEC_RULE("Step-Exec-Region-Enter-Ctrl");
@@ -606,7 +691,7 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
             call.args = {};
             syntax::Expr opts_expr;
             opts_expr.node = std::move(call);
-            Outcome opts_out = EvalSigma(ctx, opts_expr, sigma);
+            Outcome opts_out = EvalSigma(stmt_ctx, opts_expr, sigma);
             if (IsCtrl(opts_out)) {
               SPEC_RULE("ExecSigma-Region-Ctrl");
               SPEC_RULE("Step-Exec-Region-Enter-Ctrl");
@@ -631,9 +716,15 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
             }
           }
           SPEC_RULE("Step-Exec-Region-Enter");
-          Outcome out = EvalInScopeSigma(ctx, *node.body, scope, sigma);
+          SemanticsContext inner_ctx = WithoutTemps(stmt_ctx);
+          Outcome out = EvalInScopeSigma(inner_ctx, *node.body, scope, sigma);
           SPEC_RULE("Step-Exec-Region-Body");
-          Outcome out2 = RegionRelease(ctx, target, scope, out, sigma);
+          Outcome out2 = RegionRelease(inner_ctx, target, scope, out, sigma);
+          if (temp_state.sink && IsVal(out2)) {
+            sema::TypeRef block_type = BlockResultType(stmt_ctx, *node.body);
+            temp_state.sink->push_back(
+                TempValue{block_type, std::get<Value>(out2.node)});
+          }
           StmtOut sout = StmtOutOf(out2);
           if (std::holds_alternative<Control>(sout.node)) {
             SPEC_RULE("Step-Exec-Region-Exit-Ctrl");
@@ -647,7 +738,7 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
           const bool explicit_target = node.target_opt.has_value();
           if (explicit_target) {
             const auto value =
-                LookupVal(ctx, sigma, *node.target_opt);
+                LookupVal(stmt_ctx, sigma, *node.target_opt);
             if (!value.has_value()) {
               return MakeCtrlOut(Control{ControlKind::Panic, std::nullopt});
             }
@@ -680,9 +771,15 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
           } else {
             SPEC_RULE("Step-Exec-Frame-Enter-Implicit");
           }
-          Outcome out = EvalInScopeSigma(ctx, *node.body, scope, sigma);
+          SemanticsContext inner_ctx = WithoutTemps(stmt_ctx);
+          Outcome out = EvalInScopeSigma(inner_ctx, *node.body, scope, sigma);
           SPEC_RULE("Step-Exec-Frame-Body");
-          Outcome out2 = FrameReset(ctx, target, scope, mark, out, sigma);
+          Outcome out2 = FrameReset(inner_ctx, target, scope, mark, out, sigma);
+          if (temp_state.sink && IsVal(out2)) {
+            sema::TypeRef block_type = BlockResultType(stmt_ctx, *node.body);
+            temp_state.sink->push_back(
+                TempValue{block_type, std::get<Value>(out2.node)});
+          }
           StmtOut sout = StmtOutOf(out2);
           if (std::holds_alternative<Control>(sout.node)) {
             SPEC_RULE("Step-Exec-Frame-Exit-Ctrl");
@@ -698,7 +795,10 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
             SPEC_RULE("ExecSigma-Return-Unit");
             return MakeCtrlOut(ctrl);
           }
-          Outcome out = EvalSigma(ctx, *node.value_opt, sigma);
+          auto prev_suppress = temp_state.suppress_depth;
+          temp_state.suppress_depth = temp_state.depth + 1;
+          Outcome out = EvalSigma(stmt_ctx, *node.value_opt, sigma);
+          temp_state.suppress_depth = prev_suppress;
           if (IsCtrl(out)) {
             SPEC_RULE("ExecSigma-Return-Ctrl");
             return MakeCtrlOut(std::get<Control>(out.node));
@@ -709,7 +809,10 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
           SPEC_RULE("ExecSigma-Return");
           return MakeCtrlOut(ctrl);
         } else if constexpr (std::is_same_v<T, syntax::ResultStmt>) {
-          Outcome out = EvalSigma(ctx, *node.value, sigma);
+          auto prev_suppress = temp_state.suppress_depth;
+          temp_state.suppress_depth = temp_state.depth + 1;
+          Outcome out = EvalSigma(stmt_ctx, *node.value, sigma);
+          temp_state.suppress_depth = prev_suppress;
           if (IsCtrl(out)) {
             SPEC_RULE("ExecSigma-Result-Ctrl");
             return MakeCtrlOut(std::get<Control>(out.node));
@@ -727,7 +830,10 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
             SPEC_RULE("ExecSigma-Break-Unit");
             return MakeCtrlOut(ctrl);
           }
-          Outcome out = EvalSigma(ctx, *node.value_opt, sigma);
+          auto prev_suppress = temp_state.suppress_depth;
+          temp_state.suppress_depth = temp_state.depth + 1;
+          Outcome out = EvalSigma(stmt_ctx, *node.value_opt, sigma);
+          temp_state.suppress_depth = prev_suppress;
           if (IsCtrl(out)) {
             SPEC_RULE("ExecSigma-Break-Ctrl");
             return MakeCtrlOut(std::get<Control>(out.node));
@@ -745,12 +851,16 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
         } else if constexpr (std::is_same_v<T, syntax::ErrorStmt>) {
           Control ctrl;
           ctrl.kind = ControlKind::Panic;
+          SetPanicReason(sigma, PanicReason::ErrorStmt);
           SPEC_RULE("ExecSigma-Error");
           return MakeCtrlOut(ctrl);
         }
         return MakeCtrlOut(Control{ControlKind::Panic, std::nullopt});
       },
       stmt);
+
+  CleanupStatus temp_status = CleanupTemps(stmt_ctx, temps, sigma);
+  return ApplyTempCleanup(stmt_ctx, out, temp_status);
 }
 
 }  // namespace cursive0::semantics

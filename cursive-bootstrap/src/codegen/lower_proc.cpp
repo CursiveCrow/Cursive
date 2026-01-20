@@ -12,6 +12,27 @@ namespace cursive0::codegen {
 
 using namespace syntax;
 
+namespace {
+
+bool IsUnitType(const sema::TypeRef& type) {
+  if (!type) {
+    return false;
+  }
+  if (const auto* prim = std::get_if<sema::TypePrim>(&type->node)) {
+    return prim->name == "()";
+  }
+  return false;
+}
+
+bool BlockEndsWithReturn(const syntax::Block& block) {
+  if (block.stmts.empty()) {
+    return false;
+  }
+  return std::holds_alternative<syntax::ReturnStmt>(block.stmts.back());
+}
+
+}  // namespace
+
 ProcIR LowerProc(const ProcedureDecl& decl,
                  const ModulePath& module_path,
                  LowerCtx& ctx) {
@@ -87,13 +108,18 @@ ProcIR LowerProc(const ProcedureDecl& decl,
   if (body_res.ir) {
     body_seq.push_back(body_res.ir);
   }
-  if (cleanup_ir) {
+  const bool ends_with_return = decl.body && BlockEndsWithReturn(*decl.body);
+  if (cleanup_ir && !ends_with_return) {
     body_seq.push_back(cleanup_ir);
   }
 
-  IRReturn ret;
-  ret.value = body_res.value;
-  body_seq.push_back(MakeIR(std::move(ret)));
+  const bool has_tail = decl.body && decl.body->tail_opt;
+  const bool ret_is_unit = IsUnitType(ir.ret);
+  if (has_tail || (!ends_with_return && ret_is_unit)) {
+    IRReturn ret;
+    ret.value = body_res.value;
+    body_seq.push_back(MakeIR(std::move(ret)));
+  }
 
   ir.body = SeqIR(std::move(body_seq));
 

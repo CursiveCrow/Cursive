@@ -36,10 +36,10 @@ std::vector<std::string> PoisonSetFor(const std::string& module_path,
 
   const std::size_t target = it->second;
   const std::size_t n = ctx.init_modules.size();
-  std::vector<std::vector<std::size_t>> incoming(n);
+  std::vector<std::vector<std::size_t>> outgoing(n);
   for (const auto& edge : ctx.init_eager_edges) {
     if (edge.first < n && edge.second < n) {
-      incoming[edge.second].push_back(edge.first);
+      outgoing[edge.first].push_back(edge.second);
     }
   }
 
@@ -50,10 +50,10 @@ std::vector<std::string> PoisonSetFor(const std::string& module_path,
   while (!stack.empty()) {
     const std::size_t cur = stack.back();
     stack.pop_back();
-    for (const auto pred : incoming[cur]) {
-      if (!visited[pred]) {
-        visited[pred] = true;
-        stack.push_back(pred);
+    for (const auto succ : outgoing[cur]) {
+      if (!visited[succ]) {
+        visited[succ] = true;
+        stack.push_back(succ);
       }
     }
   }

@@ -1,0 +1,35 @@
+# SPEC_COV: DropAction-Valid
+# SPEC_COV: Cleanup-Start
+# SPEC_COV: Cleanup-Step-Drop-Ok
+# SPEC_COV: Cleanup-Done
+# SPEC_COV: T-Modal-Widen
+
+record Trace <: Drop {
+  fs: $FileSystem,
+  label: string@View,
+  procedure drop(~!) -> () {
+    let _ = match self.fs~>write_stdout(self.label) {
+      ok: () => (),
+      err: IoError => ()
+    };
+  }
+}
+
+modal Status {
+  @A {
+    t: Trace
+  }
+  @B {
+    t: Trace
+  }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  {
+    let a_state = Status@A { t: Trace { fs: ctx.fs, label: "A" } };
+    let b_state = Status@B { t: Trace { fs: ctx.fs, label: "B" } };
+    let a: Status = widen move a_state;
+    let b: Status = widen move b_state;
+  }
+  return 0i32;
+}

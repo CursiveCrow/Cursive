@@ -1,10 +1,11 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-SEM-3165",
       "severity": "error",
-      "message": "`return` at module scope"
+      "message": "`return` at module scope",
+      "span": null
     }
-  ]
+  ],
+  "exit_code": 1
 }

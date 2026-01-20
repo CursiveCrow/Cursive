@@ -1,5 +1,4 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-PRJ-0302",
@@ -7,5 +6,6 @@
       "message": "`assembly.root` does not exist or is not a directory",
       "span": null
     }
-  ]
+  ],
+  "exit_code": 1
 }

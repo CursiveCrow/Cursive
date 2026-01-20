@@ -1,0 +1,10 @@
+# SPEC_COV: Parse-Modal
+# SPEC_COV: Parse-StateBlock
+# SPEC_COV: Parse-StateMember-Field
+modal Mod {
+  @Busy { code: i32, retries: i32 }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

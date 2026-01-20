@@ -1,5 +1,7 @@
 #include "cursive0/sema/type_match.h"
 
+#include <cstdlib>
+#include <iostream>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -302,6 +304,16 @@ static IntroResult IntroBinding(const TypeEnv& env,
   }
   if (InOuter(env, key)) {
     SPEC_RULE("Intro-Shadow-Required");
+    if (std::getenv("CURSIVE0_DEBUG_SHADOW")) {
+      std::cerr << "[cursivec0] shadow required for pattern `" << name << "`";
+      for (std::size_t i = 1; i < env.scopes.size(); ++i) {
+        if (env.scopes[i].count(key)) {
+          std::cerr << " (outer scope " << i << ")";
+          break;
+        }
+      }
+      std::cerr << "\n";
+    }
     return {false, "Intro-Shadow-Required", env};
   }
 

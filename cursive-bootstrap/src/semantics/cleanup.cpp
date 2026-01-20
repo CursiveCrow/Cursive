@@ -574,6 +574,10 @@ std::vector<DropChild> DropChildren(const SemanticsContext& ctx,
     }
   }
 
+  if (const auto* perm = std::get_if<sema::TypePerm>(&type->node)) {
+    return DropChildren(ctx, perm->base, value, fields);
+  }
+
   if (const auto* tuple = std::get_if<sema::TypeTuple>(&type->node)) {
     const auto* tuple_val = std::get_if<TupleVal>(&value.node);
     if (!tuple_val) {
@@ -907,7 +911,9 @@ CleanupStatus Cleanup(const SemanticsContext& ctx,
         SPEC_RULE("Cleanup-Cons-DropStatic");
       }
     } else if (const auto* defer = std::get_if<DeferBlock>(&item)) {
-      Outcome out = EvalBlockSigma(ctx, *defer->block, sigma);
+      SemanticsContext inner_ctx = ctx;
+      inner_ctx.temp_ctx = nullptr;
+      Outcome out = EvalBlockSigma(inner_ctx, *defer->block, sigma);
       item_panic = IsCtrl(out) ? IsPanicCtrl(out) : false;
       if (item_panic) {
         SPEC_RULE("Cleanup-Cons-Defer-Panic");
@@ -970,7 +976,9 @@ CleanupStatus CleanupScope(const SemanticsContext& ctx,
         SPEC_RULE("Cleanup-Step-DropStatic-Ok");
       }
     } else if (const auto* defer = std::get_if<DeferBlock>(&item)) {
-      Outcome out = EvalBlockSigma(ctx, *defer->block, sigma);
+      SemanticsContext inner_ctx = ctx;
+      inner_ctx.temp_ctx = nullptr;
+      Outcome out = EvalBlockSigma(inner_ctx, *defer->block, sigma);
       item_panic = IsCtrl(out) ? IsPanicCtrl(out) : false;
       if (item_panic) {
         if (status == CleanupStatus::Panic) {

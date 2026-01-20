@@ -1,10 +1,17 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-TYP-2053",
       "severity": "error",
-      "message": "Method invocation for method not available in current state"
+      "message": "Method invocation for method not available in current state",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\phase3\\modal_method_not_found_err\\src\\main.cursive",
+        "start_line": 2,
+        "start_col": 44,
+        "end_line": 6,
+        "end_col": 2
+      }
     }
-  ]
+  ],
+  "exit_code": 1
 }

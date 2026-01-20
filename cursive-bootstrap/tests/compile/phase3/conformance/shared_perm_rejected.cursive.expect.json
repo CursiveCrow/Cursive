@@ -1,5 +1,4 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-TYP-1101",
@@ -13,5 +12,6 @@
       "message": "`shared` permission not supported in Cursive0",
       "span": null
     }
-  ]
+  ],
+  "exit_code": 1
 }

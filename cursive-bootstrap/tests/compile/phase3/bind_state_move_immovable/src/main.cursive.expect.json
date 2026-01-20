@@ -1,10 +1,17 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-MEM-3006",
       "severity": "error",
-      "message": "Attempt to move from immovable binding (`:=`)"
+      "message": "Attempt to move from immovable binding (`:=`)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\phase3\\bind_state_move_immovable\\src\\main.cursive",
+        "start_line": 3,
+        "start_col": 21,
+        "end_line": 3,
+        "end_col": 22
+      }
     }
-  ]
+  ],
+  "exit_code": 1
 }

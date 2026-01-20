@@ -1,10 +1,17 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-MOD-1208",
       "severity": "error",
-      "message": "Using path is ambiguous between module and item"
+      "message": "Using path is ambiguous between module and item",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\phase3\\using_ambig\\src\\main.cursive",
+        "start_line": 1,
+        "start_col": 1,
+        "end_line": 1,
+        "end_col": 16
+      }
     }
-  ]
+  ],
+  "exit_code": 1
 }

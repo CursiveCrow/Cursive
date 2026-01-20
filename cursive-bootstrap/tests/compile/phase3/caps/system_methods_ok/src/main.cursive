@@ -3,7 +3,7 @@
 # SPEC_COV: Step-MethodCall
 procedure stop(sys: System) -> ! {
   let code: i32 = 0i32;
-  sys~>exit(code)
+  return sys~>exit(code);
 }
 
 public procedure main(ctx: Context) -> i32 {

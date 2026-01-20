@@ -52,6 +52,15 @@ def main() -> int:
 
     expected_diags = expected.get("diagnostics", [])
     actual_diags = actual.get("diagnostics", [])
+    required_keys = {"code", "severity", "message", "span"}
+    for idx, exp in enumerate(expected_diags):
+        if not isinstance(exp, dict):
+            errors.append(f"diag[{idx}]: expected diagnostic is not an object")
+            continue
+        missing = required_keys - set(exp.keys())
+        if missing:
+            missing_list = ", ".join(sorted(missing))
+            errors.append(f"diag[{idx}]: missing required keys in expected: {missing_list}")
     if len(actual_diags) != len(expected_diags):
         errors.append(
             f"diagnostics length mismatch (expected {len(expected_diags)}, got {len(actual_diags)})"

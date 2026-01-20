@@ -1,5 +1,4 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-PRJ-0202",
@@ -7,5 +6,6 @@
       "message": "Duplicate `assembly.name` values",
       "span": null
     }
-  ]
+  ],
+  "exit_code": 1
 }

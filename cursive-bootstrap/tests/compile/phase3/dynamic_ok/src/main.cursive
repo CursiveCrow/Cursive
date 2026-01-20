@@ -2,7 +2,7 @@
 # SPEC_COV: T-Dynamic-MethodCall
 # SPEC_COV: T-MethodCall
 class D { procedure ping(~) -> i32; }
-record R <: D { v: i32, procedure ping(~) -> i32 { 1 } }
+record R <: D { v: i32, procedure ping(~) -> i32 { return 1; } }
 
 public procedure main(ctx: Context) -> i32 {
   let r = R { v: 0 };

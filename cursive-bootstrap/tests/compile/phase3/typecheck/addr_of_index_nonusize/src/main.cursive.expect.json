@@ -1,10 +1,17 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-TYP-1812",
       "severity": "error",
-      "message": "Array index expression has non-`usize` type"
+      "message": "Array index expression has non-`usize` type",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\phase3\\typecheck\\addr_of_index_nonusize\\src\\main.cursive",
+        "start_line": 1,
+        "start_col": 44,
+        "end_line": 7,
+        "end_col": 2
+      }
     }
-  ]
+  ],
+  "exit_code": 1
 }

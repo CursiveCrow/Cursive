@@ -158,6 +158,64 @@ std::string_view StripFloatSuffix(std::string_view lexeme) {
   return lexeme;
 }
 
+std::optional<std::string_view> IntSuffix(const syntax::Token& lit) {
+  if (lit.kind != syntax::TokenKind::IntLiteral) {
+    return std::nullopt;
+  }
+  for (const auto suffix : kIntSuffixes) {
+    if (EndsWith(lit.lexeme, suffix)) {
+      const std::size_t core_len = lit.lexeme.size() - suffix.size();
+      if (core_len == 0) {
+        continue;
+      }
+      return suffix;
+    }
+  }
+  return std::nullopt;
+}
+
+std::optional<std::string_view> FloatSuffix(const syntax::Token& lit) {
+  if (lit.kind != syntax::TokenKind::FloatLiteral) {
+    return std::nullopt;
+  }
+  for (const auto suffix : kFloatSuffixes) {
+    if (EndsWith(lit.lexeme, suffix)) {
+      const std::size_t core_len = lit.lexeme.size() - suffix.size();
+      if (core_len == 0) {
+        continue;
+      }
+      return suffix;
+    }
+  }
+  return std::nullopt;
+}
+
+std::optional<sema::TypeRef> InferLiteralType(const syntax::Token& lit) {
+  switch (lit.kind) {
+    case syntax::TokenKind::IntLiteral: {
+      if (const auto suffix = IntSuffix(lit)) {
+        return sema::MakeTypePrim(std::string(*suffix));
+      }
+      return sema::MakeTypePrim("i32");
+    }
+    case syntax::TokenKind::FloatLiteral: {
+      if (const auto suffix = FloatSuffix(lit)) {
+        return sema::MakeTypePrim(std::string(*suffix));
+      }
+      return sema::MakeTypePrim("f64");
+    }
+    case syntax::TokenKind::BoolLiteral:
+      return sema::MakeTypePrim("bool");
+    case syntax::TokenKind::CharLiteral:
+      return sema::MakeTypePrim("char");
+    case syntax::TokenKind::StringLiteral:
+      return sema::MakeTypeString(sema::StringState::View);
+    default:
+      break;
+  }
+  return std::nullopt;
+}
+
 bool DigitValue(char c, unsigned base, unsigned* out) {
   if (c >= '0' && c <= '9') {
     unsigned digit = static_cast<unsigned>(c - '0');
@@ -1138,6 +1196,66 @@ std::optional<Value> EvalUnOp(std::string_view op, const Value& value) {
   return std::nullopt;
 }
 
+bool IsZeroIntVal(const IntVal& value) {
+  return !value.negative && UInt128IsZero(value.magnitude);
+}
+
+bool IsMinusOneIntVal(const IntVal& value) {
+  if (!value.negative) {
+    return false;
+  }
+  return UInt128Equal(value.magnitude, core::UInt128FromU64(1));
+}
+
+bool IsMinSignedIntVal(const IntVal& value) {
+  if (!value.negative) {
+    return false;
+  }
+  if (!IsSignedIntTypeName(value.type)) {
+    return false;
+  }
+  const auto width = IntWidthBits(value.type);
+  if (!width.has_value()) {
+    return false;
+  }
+  const core::UInt128 sign_bit = Pow2(*width - 1);
+  return UInt128Equal(value.magnitude, sign_bit);
+}
+
+PanicReason UnOpPanicReason(std::string_view op, const Value& value) {
+  if (op == "-") {
+    const auto* int_val = std::get_if<IntVal>(&value.node);
+    if (int_val && IsSignedIntTypeName(int_val->type)) {
+      return PanicReason::Overflow;
+    }
+  }
+  return PanicReason::Other;
+}
+
+PanicReason BinOpPanicReason(std::string_view op,
+                             const Value& lhs,
+                             const Value& rhs) {
+  if (op == "<<" || op == ">>") {
+    return PanicReason::Shift;
+  }
+  const auto* li = std::get_if<IntVal>(&lhs.node);
+  const auto* ri = std::get_if<IntVal>(&rhs.node);
+  if ((op == "/" || op == "%") && li && ri && li->type == ri->type &&
+      IsIntTypeName(li->type)) {
+    if (IsZeroIntVal(*ri)) {
+      return PanicReason::DivZero;
+    }
+    if (IsMinSignedIntVal(*li) && IsMinusOneIntVal(*ri)) {
+      return PanicReason::Overflow;
+    }
+    return PanicReason::Overflow;
+  }
+  if (op == "+" || op == "-" || op == "*" || op == "**") {
+    return PanicReason::Overflow;
+  }
+  return PanicReason::Other;
+}
+
 std::optional<Value> EvalBinOpImpl(std::string_view op,
                                    const Value& lhs,
                                    const Value& rhs) {
@@ -2060,9 +2178,11 @@ Outcome ReadPtrSigmaImpl(const Value& ptr, Sigma& sigma) {
       }
       case sema::PtrState::Null:
         SPEC_RULE("ReadPtr-Null");
+        SetPanicReason(sigma, PanicReason::NullDeref);
         return PanicOutcome();
       case sema::PtrState::Expired:
         SPEC_RULE("ReadPtr-Expired");
+        SetPanicReason(sigma, PanicReason::ExpiredDeref);
         return PanicOutcome();
     }
   }
@@ -2146,6 +2266,7 @@ Outcome ReadPlaceSigmaImpl(const SemanticsContext& ctx,
             const auto slice = SliceValue(base_val, *range);
             if (!slice.has_value()) {
               SPEC_RULE("ReadPlace-Index-Range-OOB");
+              SetPanicReason(sigma, PanicReason::Bounds);
               return PanicOutcome();
             }
             SPEC_RULE("ReadPlace-Index-Range");
@@ -2154,6 +2275,7 @@ Outcome ReadPlaceSigmaImpl(const SemanticsContext& ctx,
           const auto elem = IndexValue(base_val, idx_val);
           if (!elem.has_value()) {
             SPEC_RULE("ReadPlace-Index-OOB");
+            SetPanicReason(sigma, PanicReason::Bounds);
             return PanicOutcome();
           }
           SPEC_RULE("ReadPlace-Index");
@@ -2273,6 +2395,7 @@ AddrResultImpl AddrOfSigmaImpl(const SemanticsContext& ctx,
           const auto idx_num = IndexNum(std::get<Value>(idx_out.node));
           if (!idx_num.has_value() || *idx_num >= *len) {
             SPEC_RULE("AddrOfSigma-Index-OOB");
+            SetPanicReason(sigma, PanicReason::Bounds);
             return PanicCtrl();
           }
           const Addr view = AllocAddr(sigma);
@@ -2297,9 +2420,11 @@ AddrResultImpl AddrOfSigmaImpl(const SemanticsContext& ctx,
                 return p->addr;
               case sema::PtrState::Null:
                 SPEC_RULE("AddrOf-Deref-Null");
+                SetPanicReason(sigma, PanicReason::NullDeref);
                 return PanicCtrl();
               case sema::PtrState::Expired:
                 SPEC_RULE("AddrOf-Deref-Expired");
+                SetPanicReason(sigma, PanicReason::ExpiredDeref);
                 return PanicCtrl();
             }
           }
@@ -2618,9 +2743,11 @@ StmtOut WritePtrSigma(const Value& ptr, const Value& value, Sigma& sigma) {
         return MakeOk();
       case sema::PtrState::Null:
         SPEC_RULE("WritePtr-Null");
+        SetPanicReason(sigma, PanicReason::NullDeref);
         return PanicStmtOut();
       case sema::PtrState::Expired:
         SPEC_RULE("WritePtr-Expired");
+        SetPanicReason(sigma, PanicReason::ExpiredDeref);
         return PanicStmtOut();
     }
   }
@@ -2772,6 +2899,7 @@ StmtOut WritePlaceSigma(const SemanticsContext& ctx,
             const auto bounds = SliceBounds(*range, *len);
             if (!bounds.has_value()) {
               SPEC_RULE("WritePlace-Index-Range-OOB");
+              SetPanicReason(sigma, PanicReason::Bounds);
               return PanicStmtOut();
             }
             const auto slice_len = SliceLen(value);
@@ -2782,6 +2910,7 @@ StmtOut WritePlaceSigma(const SemanticsContext& ctx,
             const auto end = bounds->second;
             if (*slice_len != end - start) {
               SPEC_RULE("WritePlace-Index-Range-Len");
+              SetPanicReason(sigma, PanicReason::Bounds);
               return PanicStmtOut();
             }
             const auto updated = SliceUpdate(base_val, start, value);
@@ -2802,6 +2931,7 @@ StmtOut WritePlaceSigma(const SemanticsContext& ctx,
           }
           if (*idx_num >= *len) {
             SPEC_RULE("WritePlace-Index-OOB");
+            SetPanicReason(sigma, PanicReason::Bounds);
             return PanicStmtOut();
           }
           const auto elem = IndexValue(base_val, *idx_num);
@@ -2936,6 +3066,7 @@ StmtOut WritePlaceSubSigma(const SemanticsContext& ctx,
             if (!bounds.has_value()) {
               SPEC_RULE("WritePlaceSub-Index-Range-OOB");
               SPEC_RULE("WriteSub-Index-Range-OOB");
+              SetPanicReason(sigma, PanicReason::Bounds);
               return PanicStmtOut();
             }
             const auto slice_len = SliceLen(value);
@@ -2947,6 +3078,7 @@ StmtOut WritePlaceSubSigma(const SemanticsContext& ctx,
             if (*slice_len != end - start) {
               SPEC_RULE("WritePlaceSub-Index-Range-Len");
               SPEC_RULE("WriteSub-Index-Range-Len");
+              SetPanicReason(sigma, PanicReason::Bounds);
               return PanicStmtOut();
             }
             const auto updated = SliceUpdate(base_val, start, value);
@@ -2970,6 +3102,7 @@ StmtOut WritePlaceSubSigma(const SemanticsContext& ctx,
           if (*idx_num >= *len) {
             SPEC_RULE("WritePlaceSub-Index-OOB");
             SPEC_RULE("WriteSub-Index-OOB");
+            SetPanicReason(sigma, PanicReason::Bounds);
             return PanicStmtOut();
           }
           const auto updated = IndexUpdate(base_val, *idx_num, value);
@@ -3340,7 +3473,9 @@ Outcome EvalArmBodySigma(const SemanticsContext& ctx,
                          const syntax::Expr& body,
                          Sigma& sigma) {
   if (const auto* block = std::get_if<syntax::BlockExpr>(&body.node)) {
-    Outcome out = EvalBlockSigma(ctx, *block->block, sigma);
+    SemanticsContext inner_ctx = ctx;
+    inner_ctx.temp_ctx = nullptr;
+    Outcome out = EvalBlockSigma(inner_ctx, *block->block, sigma);
     SPEC_RULE("EvalArmBody-Block");
     return out;
   }
@@ -3455,7 +3590,9 @@ Outcome LoopIterExecSigma(const SemanticsContext& ctx,
     SPEC_RULE("LoopIter-Done");
     return MakeVal(Value{UnitVal{}});
   }
-  Outcome out = EvalBlockBindSigma(ctx, pattern, *next.first, body,
+  SemanticsContext inner_ctx = ctx;
+  inner_ctx.temp_ctx = nullptr;
+  Outcome out = EvalBlockBindSigma(inner_ctx, pattern, *next.first, body,
                                    BindInfo{}, sigma);
   if (IsCtrl(out)) {
     const auto& ctrl = std::get<Control>(out.node);
@@ -3870,7 +4007,9 @@ Outcome EvalMatchSigma(const SemanticsContext& ctx,
 Outcome EvalLoopInfiniteSigma(const SemanticsContext& ctx,
                               const syntax::Block& body,
                               Sigma& sigma) {
-  Outcome body_out = EvalBlockSigma(ctx, body, sigma);
+  SemanticsContext inner_ctx = ctx;
+  inner_ctx.temp_ctx = nullptr;
+  Outcome body_out = EvalBlockSigma(inner_ctx, body, sigma);
   if (IsCtrl(body_out)) {
     const auto& ctrl = std::get<Control>(body_out.node);
     if (ctrl.kind == ControlKind::Continue) {
@@ -3911,7 +4050,9 @@ Outcome EvalLoopConditionalSigma(const SemanticsContext& ctx,
     SPEC_RULE("EvalSigma-Loop-Cond-False");
     return MakeVal(Value{UnitVal{}});
   }
-  Outcome body_out = EvalBlockSigma(ctx, body, sigma);
+  SemanticsContext inner_ctx = ctx;
+  inner_ctx.temp_ctx = nullptr;
+  Outcome body_out = EvalBlockSigma(inner_ctx, body, sigma);
   if (IsCtrl(body_out)) {
     const auto& ctrl = std::get<Control>(body_out.node);
     if (ctrl.kind == ControlKind::Continue) {
@@ -3956,12 +4097,29 @@ Outcome EvalLoopIterSigma(const SemanticsContext& ctx,
 Outcome EvalSigma(const SemanticsContext& ctx,
                   const syntax::Expr& expr,
                   Sigma& sigma) {
+  TempContext* temp_ctx = ctx.temp_ctx;
+  bool suppress = false;
+  if (temp_ctx) {
+    temp_ctx->depth += 1;
+    const auto depth = temp_ctx->depth;
+    suppress = temp_ctx->suppress_depth.has_value() &&
+               *temp_ctx->suppress_depth == depth;
+    if (suppress) {
+      temp_ctx->suppress_depth.reset();
+    }
+  }
+
   const auto expr_type = ExprTypeOf(ctx, expr);
-  return std::visit(
+  Outcome out = std::visit(
       [&](const auto& node) -> Outcome {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, syntax::LiteralExpr>) {
-          const auto value = LiteralValue(node.literal, expr_type);
+          auto value = LiteralValue(node.literal, expr_type);
+          if (!value.has_value() && !expr_type) {
+            if (const auto inferred = InferLiteralType(node.literal)) {
+              value = LiteralValue(node.literal, *inferred);
+            }
+          }
           if (!value.has_value()) {
             return PanicOutcome();
           }
@@ -4013,6 +4171,7 @@ Outcome EvalSigma(const SemanticsContext& ctx,
           return PanicOutcome();
         } else if constexpr (std::is_same_v<T, syntax::ErrorExpr>) {
           SPEC_RULE("EvalSigma-ErrorExpr");
+          SetPanicReason(sigma, PanicReason::ErrorExpr);
           return PanicOutcome();
         } else if constexpr (std::is_same_v<T, syntax::UnaryExpr>) {
           Outcome value_out = EvalSigma(ctx, *node.value, sigma);
@@ -4024,6 +4183,8 @@ Outcome EvalSigma(const SemanticsContext& ctx,
               EvalUnOp(node.op, std::get<Value>(value_out.node));
           if (!value.has_value()) {
             SPEC_RULE("EvalSigma-Unary-Panic");
+            SetPanicReason(sigma, UnOpPanicReason(node.op,
+                                                 std::get<Value>(value_out.node)));
             return PanicOutcome();
           }
           SPEC_RULE("EvalSigma-Unary");
@@ -4068,10 +4229,11 @@ Outcome EvalSigma(const SemanticsContext& ctx,
             SPEC_RULE("EvalSigma-Bin-Ctrl-R");
             return rhs_out;
           }
-          const auto value =
-              EvalBinOpImpl(op, lhs_val, std::get<Value>(rhs_out.node));
+          const auto& rhs_val = std::get<Value>(rhs_out.node);
+          const auto value = EvalBinOpImpl(op, lhs_val, rhs_val);
           if (!value.has_value()) {
             SPEC_RULE("EvalSigma-Binary-Panic");
+            SetPanicReason(sigma, BinOpPanicReason(op, lhs_val, rhs_val));
             return PanicOutcome();
           }
           SPEC_RULE("EvalSigma-Binary");
@@ -4113,6 +4275,7 @@ Outcome EvalSigma(const SemanticsContext& ctx,
               EvalCastVal(source_type, expr_type, std::get<Value>(value_out.node));
           if (!value.has_value()) {
             SPEC_RULE("EvalSigma-Cast-Panic");
+            SetPanicReason(sigma, PanicReason::Cast);
             return PanicOutcome();
           }
           SPEC_RULE("EvalSigma-Cast");
@@ -4371,11 +4534,13 @@ Outcome EvalSigma(const SemanticsContext& ctx,
             const auto bounds = SliceBounds(*range, *len);
             if (!bounds.has_value()) {
               SPEC_RULE("EvalSigma-Index-Range-OOB");
+              SetPanicReason(sigma, PanicReason::Bounds);
               return PanicOutcome();
             }
             const auto slice = SliceValue(base_val, *range);
             if (!slice.has_value()) {
               SPEC_RULE("EvalSigma-Index-Range-OOB");
+              SetPanicReason(sigma, PanicReason::Bounds);
               return PanicOutcome();
             }
             SPEC_RULE("EvalSigma-Index-Range");
@@ -4391,6 +4556,7 @@ Outcome EvalSigma(const SemanticsContext& ctx,
           }
           if (*idx_num >= *len) {
             SPEC_RULE("EvalSigma-Index-OOB");
+            SetPanicReason(sigma, PanicReason::Bounds);
             return PanicOutcome();
           }
           const auto elem = IndexValue(base_val, *idx_num);
@@ -4425,7 +4591,9 @@ Outcome EvalSigma(const SemanticsContext& ctx,
           if (!node.block) {
             return PanicOutcome();
           }
-          Outcome out = EvalBlockSigma(ctx, *node.block, sigma);
+          SemanticsContext inner_ctx = ctx;
+          inner_ctx.temp_ctx = nullptr;
+          Outcome out = EvalBlockSigma(inner_ctx, *node.block, sigma);
           SPEC_RULE("EvalSigma-Block");
           SPEC_RULE("StepSigma-Block");
           return out;
@@ -4433,7 +4601,9 @@ Outcome EvalSigma(const SemanticsContext& ctx,
           if (!node.block) {
             return PanicOutcome();
           }
-          Outcome out = EvalBlockSigma(ctx, *node.block, sigma);
+          SemanticsContext inner_ctx = ctx;
+          inner_ctx.temp_ctx = nullptr;
+          Outcome out = EvalBlockSigma(inner_ctx, *node.block, sigma);
           SPEC_RULE("EvalSigma-UnsafeBlock");
           SPEC_RULE("StepSigma-UnsafeBlock");
           return out;
@@ -4460,6 +4630,20 @@ Outcome EvalSigma(const SemanticsContext& ctx,
         }
       },
       expr.node);
+
+  if (temp_ctx) {
+    if (!suppress && temp_ctx->sink && IsVal(out) && !IsPlaceExpr(expr)) {
+      const auto value = std::get<Value>(out.node);
+      sema::TypeRef temp_type = ExprTypeOf(ctx, expr);
+      if (!temp_type) {
+        temp_type = TypeOfValue(value);
+      }
+      temp_ctx->sink->push_back(TempValue{temp_type, value});
+    }
+    temp_ctx->depth -= 1;
+  }
+
+  return out;
 }
 
 }  // namespace cursive0::semantics

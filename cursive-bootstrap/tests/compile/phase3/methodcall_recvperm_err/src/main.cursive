@@ -1,7 +1,7 @@
 # SPEC_COV: MethodCall-RecvPerm-Err
-record R { v: i32, procedure mutate(~!) -> i32 { 0 } }
+record R { v: i32, procedure mutate(~!) -> i32 { return 0; } }
 
 public procedure main(ctx: Context) -> i32 {
   let r = R { v: 0 };
-  r~>mutate()
+  return r~>mutate();
 }

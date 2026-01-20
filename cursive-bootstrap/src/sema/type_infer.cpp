@@ -101,9 +101,18 @@ static ExprTypeResult InferExprImpl(const ScopeContext& ctx,
                          const PlaceTypeFn* type_place,
                          const IdentTypeFn& type_ident,
                          const MatchCheckFn* match_check) {
-  (void)ctx;
   SpecDefsTypeInfer();
   ExprTypeResult result;
+  struct ExprTypeRecorder {
+    const ScopeContext& ctx;
+    const syntax::ExprPtr& expr;
+    ExprTypeResult& result;
+    ~ExprTypeRecorder() {
+      if (result.ok && ctx.expr_types && expr) {
+        (*ctx.expr_types)[expr.get()] = result.type;
+      }
+    }
+  } recorder{ctx, expr, result};
   if (!expr) {
     return result;
   }
@@ -228,13 +237,25 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
                       const MatchCheckFn* match_check) {
   SpecDefsTypeInfer();
   CheckResult result;
+  struct CheckExprRecorder {
+    const ScopeContext& ctx;
+    const syntax::ExprPtr& expr;
+    const TypeRef& expected;
+    CheckResult& result;
+    ~CheckExprRecorder() {
+      if (result.ok && ctx.expr_types && expr && expected) {
+        (*ctx.expr_types)[expr.get()] = expected;
+      }
+    }
+  } recorder{ctx, expr, expected, result};
   if (!expr || !expected) {
     return result;
   }
 
   if (match_check) {
     if (const auto* match = std::get_if<syntax::MatchExpr>(&expr->node)) {
-      return (*match_check)(*match, expected);
+      result = (*match_check)(*match, expected);
+      return result;
     }
   }
 

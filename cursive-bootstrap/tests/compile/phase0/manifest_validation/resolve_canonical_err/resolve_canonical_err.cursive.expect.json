@@ -1,5 +1,4 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-PRJ-0304",
@@ -7,5 +6,6 @@
       "message": "Path canonicalization or module path derivation failed due to filesystem error",
       "span": null
     }
-  ]
+  ],
+  "exit_code": 1
 }

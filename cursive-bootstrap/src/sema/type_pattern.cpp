@@ -884,6 +884,39 @@ bool IrrefutablePattern(const ScopeContext& ctx,
             }
           }
           return true;
+        } else if constexpr (std::is_same_v<T, syntax::ModalPattern>) {
+          const auto* modal_state = std::get_if<TypeModalState>(&base->node);
+          if (!modal_state || !IdEq(modal_state->state, node.state)) {
+            return false;
+          }
+          const auto* decl = LookupModalDecl(ctx, modal_state->path);
+          if (!decl || !HasState(*decl, node.state)) {
+            return false;
+          }
+          const std::vector<syntax::FieldPattern>* fields = nullptr;
+          std::vector<syntax::FieldPattern> empty;
+          if (node.fields_opt.has_value()) {
+            fields = &node.fields_opt->fields;
+          } else {
+            fields = &empty;
+          }
+          for (const auto& field : *fields) {
+            const auto field_type =
+                ModalFieldType(*decl, node.state, ctx, field.name);
+            if (!field_type.has_value()) {
+              return false;
+            }
+            syntax::PatternPtr pat = field.pattern_opt;
+            if (!pat) {
+              auto implicit = std::make_shared<syntax::Pattern>();
+              implicit->node = syntax::IdentifierPattern{field.name};
+              pat = implicit;
+            }
+            if (!IrrefutablePattern(ctx, pat, *field_type)) {
+              return false;
+            }
+          }
+          return true;
         } else {
           return false;
         }

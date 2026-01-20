@@ -1,5 +1,7 @@
 #include "cursive0/syntax/parser.h"
 
+#include <cstdlib>
+#include <iostream>
 #include <string_view>
 
 #include "cursive0/core/assert_spec.h"
@@ -102,6 +104,17 @@ static ParseItemsResult ParseItemsInternal(
 
   SPEC_RULE("ParseItems-Cons");
   ParseItemResult item = ParseItem(cur);
+  if (item.parser.tokens == cur.tokens && item.parser.index == cur.index) {
+    EmitParseSyntaxErr(cur, TokSpan(cur));
+    Parser next = AdvanceOrEOF(cur);
+    ParseItemsResult tail = ParseItemsInternal(next, module_docs);
+    std::vector<ASTItem> items;
+    items.reserve(1 + tail.items.size());
+    items.push_back(ErrorItem{SpanBetween(cur, next)});
+    items.insert(items.end(), tail.items.begin(), tail.items.end());
+    tail.items = std::move(items);
+    return tail;
+  }
   ParseItemsResult tail = ParseItemsInternal(item.parser, module_docs);
 
   std::vector<ASTItem> items;
@@ -118,6 +131,10 @@ ParseItemsResult ParseItems(Parser parser) {
 
 ParseFileResult ParseFile(const core::SourceFile& source) {
   ParseFileResult result;
+  const bool debug_phases = std::getenv("CURSIVE0_DEBUG_PHASES") != nullptr;
+  if (debug_phases) {
+    std::cerr << "[cursivec0] parsefile: tokenize " << source.path << "\n";
+  }
   TokenizeResult tok = Tokenize(source);
   result.diags = tok.diags;
 
@@ -125,10 +142,19 @@ ParseFileResult ParseFile(const core::SourceFile& source) {
     return result;
   }
 
+  if (debug_phases) {
+    std::cerr << "[cursivec0] parsefile: filter-newlines " << source.path << "\n";
+  }
   std::vector<Token> filtered = FilterNewlines(tok.output->tokens);
+  if (debug_phases) {
+    std::cerr << "[cursivec0] parsefile: parse-items " << source.path << "\n";
+  }
   std::vector<core::Span> unsafe_spans = UnsafeSpans(filtered);
   Parser parser = MakeParser(filtered, tok.output->docs, source);
   ParseItemsResult items = ParseItems(parser);
+  if (debug_phases) {
+    std::cerr << "[cursivec0] parsefile: attach-docs " << source.path << "\n";
+  }
   AttachLineDocs(items.items, parser.docs);
   SPEC_RULE("ParseFile-Ok");
 

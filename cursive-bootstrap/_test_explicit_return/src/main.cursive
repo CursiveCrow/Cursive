@@ -1,7 +1,0 @@
-procedure implicit_return() -> i32 {
-  42
-}
-
-public procedure main(ctx: Context) -> i32 {
-  return 0;
-}

@@ -1,11 +1,11 @@
 # SPEC_COV: BitcopyDrop-Ok
 record R <: Bitcopy, Clone {
   v: i32,
-  procedure clone(~) -> Self { R { v: self.v } }
+  procedure clone(~) -> Self { return R { v: self.v }; }
 }
 
 public procedure main(ctx: Context) -> i32 {
   let r = R { v: 1 };
   let c = r~>clone();
-  c.v
+  return c.v;
 }

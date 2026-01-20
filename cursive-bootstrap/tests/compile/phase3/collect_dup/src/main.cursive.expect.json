@@ -1,10 +1,17 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-MOD-1302",
       "severity": "error",
-      "message": "Duplicate declaration in module scope"
+      "message": "Duplicate declaration in module scope",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\phase3\\collect_dup\\src\\main.cursive",
+        "start_line": 2,
+        "start_col": 1,
+        "end_line": 2,
+        "end_col": 25
+      }
     }
-  ]
+  ],
+  "exit_code": 1
 }

@@ -1,8 +1,7 @@
 # SPEC_COV: WF-ProcBody-ExplicitReturn-Err
-# Test that record methods with non-unit return types must use explicit return
 record Counter {
   v: i32,
-  procedure get(~) -> i32 { self.v }
+  procedure get(~) -> i32 { 0 }
 }
 
 public procedure main(ctx: Context) -> i32 {

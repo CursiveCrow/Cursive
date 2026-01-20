@@ -1,5 +1,4 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-PRJ-0104",
@@ -7,5 +6,6 @@
       "message": "Unknown key in `assembly` table or unknown top-level key",
       "span": null
     }
-  ]
+  ],
+  "exit_code": 1
 }

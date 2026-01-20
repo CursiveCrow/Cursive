@@ -1,6 +1,6 @@
 #include <cassert>
 
-#include "cursive0/semantics/interpreter.h"
+#include "cursive0/interpreter/interpreter.h"
 
 int main() {
   cursive0::semantics::Sigma sigma;

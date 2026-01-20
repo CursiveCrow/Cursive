@@ -361,7 +361,6 @@ add_library(cursive0_semantics STATIC
   src/semantics/init.cpp
   src/semantics/apply.cpp
   src/semantics/builtins.cpp
-  src/semantics/interpreter.cpp
 )
 
 target_link_libraries(cursive0_semantics PUBLIC
@@ -377,6 +376,24 @@ target_include_directories(cursive0_semantics PUBLIC
 
 target_compile_features(cursive0_semantics PUBLIC cxx_std_20)
 
+add_library(cursive0_interpreter STATIC
+  src/interpreter/interpreter.cpp
+)
+
+target_link_libraries(cursive0_interpreter PUBLIC
+  cursive0_semantics
+  cursive0_sema
+  cursive0_project
+  cursive0_syntax
+  cursive0_core
+)
+
+target_include_directories(cursive0_interpreter PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_compile_features(cursive0_interpreter PUBLIC cxx_std_20)
+
 add_library(cursive0_frontend STATIC
   src/frontend/parse_modules.cpp
 )
@@ -388,6 +405,21 @@ target_include_directories(cursive0_frontend PUBLIC
 )
 
 target_compile_features(cursive0_frontend PUBLIC cxx_std_20)
+
+add_executable(cursive0_interpreter_cli
+  tools/cursive0_interpreter_main.cpp
+)
+
+target_link_libraries(cursive0_interpreter_cli PRIVATE
+  cursive0_interpreter
+  cursive0_frontend
+)
+
+target_include_directories(cursive0_interpreter_cli PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_compile_features(cursive0_interpreter_cli PRIVATE cxx_std_20)
 
 
 add_executable(cursivec0

@@ -1,18 +1,18 @@
 # SPEC_COV: T-Dynamic-MethodCall
 procedure close_dir(move d: unique DirIter@Open) -> DirIter@Closed {
-  (move d)~>close()
+  return (move d)~>close();
 }
 
 procedure close_file_read(move f: unique File@Read) -> File@Closed {
-  (move f)~>close()
+  return (move f)~>close();
 }
 
 procedure close_file_write(move f: unique File@Write) -> File@Closed {
-  (move f)~>close()
+  return (move f)~>close();
 }
 
 procedure close_file_append(move f: unique File@Append) -> File@Closed {
-  (move f)~>close()
+  return (move f)~>close();
 }
 
 procedure use_fs(fs: $FileSystem) -> () {

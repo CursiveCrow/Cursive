@@ -1,10 +1,11 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-CNF-0404",
       "severity": "error",
-      "message": "Shadowing of `Self`, `Drop`, `Bitcopy`, `Clone`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, or `Context`"
+      "message": "Shadowing of `Self`, `Drop`, `Bitcopy`, `Clone`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, or `Context`",
+      "span": null
     }
-  ]
+  ],
+  "exit_code": 1
 }

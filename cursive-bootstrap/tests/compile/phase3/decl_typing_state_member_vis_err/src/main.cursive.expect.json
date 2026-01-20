@@ -1,10 +1,17 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-TYP-2063",
       "severity": "error",
-      "message": "State member visibility exceeds modal visibility"
+      "message": "State member visibility exceeds modal visibility",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\phase3\\decl_typing_state_member_vis_err\\src\\main.cursive",
+        "start_line": 1,
+        "start_col": 1,
+        "end_line": 1,
+        "end_col": 47
+      }
     }
-  ]
+  ],
+  "exit_code": 1
 }

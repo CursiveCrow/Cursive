@@ -616,12 +616,19 @@ int main(int argc, char** argv) {
   }
 
   DiagnosticStream diags;
+  const bool debug_phases = std::getenv("CURSIVE0_DEBUG_PHASES") != nullptr;
+  const auto log_phase = [&](const char* label) {
+    if (debug_phases) {
+      std::cerr << "[cursivec0] phase: " << label << "\n";
+    }
+  };
   bool phase1_ok = false;
   bool resolve_ok = false;
   bool typecheck_ok = false;
   bool phase4_ok = false;
   bool subset_ok = true;
   const std::filesystem::path input_path = opts->input_path;
+  log_phase("project-load");
   const auto project_root = cursive0::project::FindProjectRoot(input_path);
   const auto project_result = cursive0::project::LoadProject(project_root, opts->assembly_target);
 
@@ -644,6 +651,7 @@ int main(int argc, char** argv) {
     deps.load_source = cursive0::core::LoadSource;
     deps.parse_file = cursive0::syntax::ParseFile;
     deps.inspect_source = InspectC0Subset;
+    log_phase("parse-modules");
     const auto parsed = cursive0::frontend::ParseModulesWithDeps(project.modules,
                                                                  project.source_root,
                                                                  project.assembly.name,
@@ -664,6 +672,7 @@ int main(int argc, char** argv) {
       }
     }
     if (!HasError(diags) && parsed.modules.has_value() && !opts->phase1_only) {
+      log_phase("sema");
       cursive0::sema::ScopeContext ctx;
       ctx.project = &project;
       ctx.sigma.mods = *parsed.modules;
@@ -707,6 +716,7 @@ int main(int argc, char** argv) {
           }
           typecheck_ok = typechecked.ok;
           if (typecheck_ok) {
+            log_phase("codegen");
             cursive0::codegen::LowerCtx lower_ctx;
             lower_ctx.sigma = &ctx.sigma;
 

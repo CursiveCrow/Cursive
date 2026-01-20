@@ -1,10 +1,17 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-TYP-2061",
       "severity": "error",
-      "message": "Duplicate method name in modal state"
+      "message": "Duplicate method name in modal state",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\phase3\\modal_state_method_dup_err\\src\\main.cursive",
+        "start_line": 4,
+        "start_col": 5,
+        "end_line": 4,
+        "end_col": 41
+      }
     }
-  ]
+  ],
+  "exit_code": 1
 }

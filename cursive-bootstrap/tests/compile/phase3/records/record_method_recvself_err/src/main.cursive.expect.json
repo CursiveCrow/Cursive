@@ -1,10 +1,17 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-TYP-1912",
       "severity": "error",
-      "message": "Explicit receiver type must be `Self` for record methods"
+      "message": "Explicit receiver type must be `Self` for record methods",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\phase3\\records\\record_method_recvself_err\\src\\main.cursive",
+        "start_line": 3,
+        "start_col": 3,
+        "end_line": 3,
+        "end_col": 48
+      }
     }
-  ]
+  ],
+  "exit_code": 1
 }

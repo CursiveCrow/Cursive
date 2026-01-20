@@ -237,53 +237,16 @@ static bool EmptyState(const syntax::StateBlock& state) {
   return StateFieldCount(state) == 0;
 }
 
-static const syntax::TypeAliasDecl* LookupTypeAliasDecl(
-    const ScopeContext& ctx,
-    const TypePath& path) {
-  syntax::Path syntax_path;
-  syntax_path.reserve(path.size());
-  for (const auto& comp : path) {
-    syntax_path.push_back(comp);
-  }
-  const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
-  if (it == ctx.sigma.types.end()) {
-    if (path.size() == 1) {
-      const auto ent = ResolveTypeName(ctx, path[0]);
-      if (ent.has_value() && ent->origin_opt.has_value()) {
-        syntax::Path resolved = *ent->origin_opt;
-        resolved.emplace_back(ent->target_opt.value_or(path[0]));
-        const auto resolved_it = ctx.sigma.types.find(PathKeyOf(resolved));
-        if (resolved_it != ctx.sigma.types.end()) {
-          return std::get_if<syntax::TypeAliasDecl>(&resolved_it->second);
-        }
-      }
-    }
-    return nullptr;
-  }
-  return std::get_if<syntax::TypeAliasDecl>(&it->second);
-}
-
 static std::uint64_t NicheCount(const ScopeContext& ctx, const TypeRef& type) {
-  const auto stripped = StripPerm(type);
-  if (!stripped) {
+  (void)ctx;
+  if (!type) {
     return 0;
   }
-  if (const auto* ptr = std::get_if<TypePtr>(&stripped->node)) {
-    if (ptr->state == PtrState::Valid) {
-      return 1;
-    }
+  const auto* ptr = std::get_if<TypePtr>(&type->node);
+  if (!ptr) {
     return 0;
   }
-  if (const auto* path = std::get_if<TypePathType>(&stripped->node)) {
-    if (const auto* alias = LookupTypeAliasDecl(ctx, path->path)) {
-      const auto lowered = LowerType(ctx, alias->type);
-      if (!lowered.ok) {
-        return 0;
-      }
-      return NicheCount(ctx, lowered.type);
-    }
-  }
-  return 0;
+  return ptr->state == PtrState::Valid ? 1 : 0;
 }
 
 }  // namespace

@@ -14,6 +14,17 @@ namespace cursive0::codegen {
 
 namespace {
 
+bool BlockEndsWithReturn(const syntax::Block& block) {
+  if (block.stmts.empty()) {
+    return false;
+  }
+  return std::holds_alternative<syntax::ReturnStmt>(block.stmts.back());
+}
+
+}  // namespace
+
+namespace {
+
 void CollectPatternNames(const syntax::Pattern& pattern,
                          std::vector<std::string>& out) {
   std::visit(
@@ -162,9 +173,10 @@ LowerResult LowerBlock(const syntax::Block& block, LowerCtx& ctx) {
   IRPtr cleanup_ir = EmitCleanupWithRemainder(cleanup_plan, remainder, ctx);
   ctx.PopScope();
 
+  const bool ends_with_return = BlockEndsWithReturn(block);
   IRBlock block_ir;
   block_ir.setup = stmts_ir;
-  block_ir.body = SeqIR({tail_ir, cleanup_ir});
+  block_ir.body = ends_with_return ? tail_ir : SeqIR({tail_ir, cleanup_ir});
   block_ir.value = result_value;
 
   return LowerResult{MakeIR(std::move(block_ir)), result_value};

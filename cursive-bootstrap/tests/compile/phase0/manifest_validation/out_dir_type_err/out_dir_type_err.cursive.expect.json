@@ -1,5 +1,4 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-PRJ-0301",
@@ -7,5 +6,6 @@
       "message": "`assembly.root` or `out_dir` has invalid type, is absolute, or resolves outside root",
       "span": null
     }
-  ]
+  ],
+  "exit_code": 1
 }

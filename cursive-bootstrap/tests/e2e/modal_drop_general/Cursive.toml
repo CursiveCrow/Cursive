@@ -1,0 +1,4 @@
+[assembly]
+name = "modal_drop_general"
+kind = "executable"
+root = "src"

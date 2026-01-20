@@ -1,4 +1,0 @@
-[assembly]
-name = "modal_match"
-kind = "executable"
-root = "src"

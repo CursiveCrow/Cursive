@@ -1,6 +1,8 @@
 #include "cursive0/frontend/parse_modules.h"
 
+#include <cstdlib>
 #include <fstream>
+#include <iostream>
 #include <iterator>
 #include <string>
 #include <string_view>
@@ -112,6 +114,12 @@ ParseModuleResult ParseModuleWithDeps(std::string_view module_path,
                                       std::string_view assembly_name,
                                       const ParseModuleDeps& deps) {
   ParseModuleResult result;
+  const bool debug_phases = std::getenv("CURSIVE0_DEBUG_PHASES") != nullptr;
+  const auto log_phase = [&](const char* label, const std::filesystem::path& path) {
+    if (debug_phases) {
+      std::cerr << "[cursivec0] parse: " << label << " " << path.string() << "\n";
+    }
+  };
 
   SPEC_RULE("Mod-Start");
   const std::filesystem::path module_dir =
@@ -130,6 +138,7 @@ ParseModuleResult ParseModuleWithDeps(std::string_view module_path,
   std::vector<syntax::DocComment> docs;
   std::vector<syntax::UnsafeSpanSet> unsafe_spans;
   for (const auto& file : unit.files) {
+    log_phase("read", file);
     const ReadBytesResult bytes = deps.read_bytes(file);
     AppendDiags(result.diags, bytes.diags);
     if (!bytes.bytes.has_value()) {
@@ -148,6 +157,7 @@ ParseModuleResult ParseModuleWithDeps(std::string_view module_path,
 
     core::DiagnosticStream inspect_diags;
     if (deps.inspect_source) {
+      log_phase("inspect", file);
       const InspectResult inspected = deps.inspect_source(*load.source);
       AppendDiags(inspect_diags, inspected.diags);
       if (!inspected.subset_ok) {
@@ -155,6 +165,7 @@ ParseModuleResult ParseModuleWithDeps(std::string_view module_path,
       }
     }
 
+    log_phase("parse", file);
     const syntax::ParseFileResult parsed = deps.parse_file(*load.source);
     AppendDiags(result.diags, parsed.diags);
     if (parsed.file.has_value()) {

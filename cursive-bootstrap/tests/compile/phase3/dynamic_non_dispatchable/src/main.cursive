@@ -1,5 +1,5 @@
 # SPEC_COV: Dynamic-NonDispatchable
-class ND { procedure bad(~, other: Self) -> i32 { 0 } }
+class ND { procedure bad(~, other: Self) -> i32 { return 0; } }
 record R <: ND { v: i32 }
 
 public procedure main(ctx: Context) -> i32 {

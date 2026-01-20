@@ -1661,12 +1661,9 @@ bool IsInitFunction(LLVMEmitter& emitter, llvm::Function* func) {
   if (!func) {
     return false;
   }
-  LowerCtx* ctx = emitter.GetCurrentCtx();
-  if (!ctx) {
-    return false;
-  }
-  const std::string init_sym = InitFn(ctx->module_path);
-  return func->getName() == init_sym;
+  const std::string prefix =
+      core::Mangle(core::StringOfPath({"cursive", "runtime", "init"}));
+  return func->getName().starts_with(prefix);
 }
 
 std::vector<std::string> PoisonSetForInit(const LowerCtx& ctx) {
@@ -1687,10 +1684,10 @@ std::vector<std::string> PoisonSetForInit(const LowerCtx& ctx) {
   }
 
   const std::size_t n = ctx.init_modules.size();
-  std::vector<std::vector<std::size_t>> incoming(n);
+  std::vector<std::vector<std::size_t>> outgoing(n);
   for (const auto& edge : ctx.init_eager_edges) {
     if (edge.first < n && edge.second < n) {
-      incoming[edge.second].push_back(edge.first);
+      outgoing[edge.first].push_back(edge.second);
     }
   }
 
@@ -1701,10 +1698,10 @@ std::vector<std::string> PoisonSetForInit(const LowerCtx& ctx) {
   while (!stack.empty()) {
     const std::size_t cur = stack.back();
     stack.pop_back();
-    for (const auto pred : incoming[cur]) {
-      if (!visited[pred]) {
-        visited[pred] = true;
-        stack.push_back(pred);
+    for (const auto succ : outgoing[cur]) {
+      if (!visited[succ]) {
+        visited[succ] = true;
+        stack.push_back(succ);
       }
     }
   }
@@ -3750,7 +3747,19 @@ struct IRVisitor {
                                              : payload_layout->offsets[0];
             result = LoadAtOffset(emitter, builder, base_opt->ptr, offset, payload_llvm);
           } else {
-            result = llvm::Constant::getNullValue(payload_llvm);
+            Value unit_payload;
+            unit_payload.node = UnitVal{};
+            auto payload_ptr = std::make_shared<Value>(std::move(unit_payload));
+            Value modal_value;
+            modal_value.node =
+                ModalVal{std::string(modal_state->state), std::move(payload_ptr)};
+            const auto bits = ValueBits(scope,
+                                        sema::MakeTypePath(modal_state->path),
+                                        modal_value);
+            if (!bits.has_value()) {
+              return;
+            }
+            result = ConstBytes(payload_llvm, *bits, emitter, lower_ctx);
           }
         } else {
           if (!modal_layout->disc_type.has_value()) {

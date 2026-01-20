@@ -1,5 +1,4 @@
 {
-  "exit_code": 1,
   "diagnostics": [
     {
       "code": "E-UNS-0113",
@@ -13,5 +12,6 @@
       "message": "`[[unwind]]` attribute used",
       "span": null
     }
-  ]
+  ],
+  "exit_code": 1
 }

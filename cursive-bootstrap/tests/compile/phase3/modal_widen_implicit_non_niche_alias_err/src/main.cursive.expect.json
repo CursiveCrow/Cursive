@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-TYP-2070",
+      "severity": "error",
+      "message": "Implicit widening on non-niche-layout-compatible type",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\phase3\\modal_widen_implicit_non_niche_alias_err\\src\\main.cursive",
+        "start_line": 8,
+        "start_col": 44,
+        "end_line": 12,
+        "end_col": 2
+      }
+    }
+  ],
+  "exit_code": 1
+}

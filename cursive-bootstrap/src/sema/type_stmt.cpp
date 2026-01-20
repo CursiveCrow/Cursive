@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdlib>
+#include <iostream>
 #include <memory>
 #include <optional>
 #include <string>
@@ -345,6 +347,9 @@ static IntroResult IntroBinding(const TypeEnv& env,
   }
   if (InOuter(env, key)) {
     SPEC_RULE("Intro-Shadow-Required");
+    if (std::getenv("CURSIVE0_DEBUG_SHADOW")) {
+      std::cerr << "[cursivec0] shadow required for `" << name << "`\n";
+    }
     return {false, "Intro-Shadow-Required", env};
   }
 

@@ -1,91 +1,63 @@
-// Cursive0 HelloWorld - feature walkthrough
-// Expected output: "Hello, World!"
+// Cursive0 HelloWorld - feature build check
 
-record Counter {
-  value: i32,
+record Counter <: Bitcopy, Clone {
+  value: i32
+  procedure clone(~) -> Self { return Counter { value: self.value }; }
   procedure read(~) -> i32 { return self.value; }
 }
 
-enum Mood { Happy, Sad }
-
 modal Status {
-  @Idle {}
-  @Busy {
-    code: i32
-    procedure code_value() -> i32 { return code; }
-    transition reset() -> @Idle { return Status@Idle { }; }
-  }
+  @Idle { ticks: i32 }
+  @Busy { code: i32 retries: i32 }
 }
 
-procedure sum_to(limit: i32) -> i32 {
-  loop {
-    break;
-  }
-  var acc: i32 = 0;
-  var i: i32 = 0;
-  loop i < limit {
-    acc = acc + i;
-    i = i + 1;
-    continue;
-  }
-  return acc;
-}
-
-procedure classify(m: Mood) -> i32 {
-  return match m {
-    Mood::Happy => 1,
-    Mood::Sad => 0
-  };
-}
-
-procedure status_code(s: Status) -> i32 {
-  return match move s {
-    @Idle => 0,
-    @Busy { code } => code
-  };
+modal OptPtr {
+  @Null { tag: bool }
+  @Valid { ptr: Ptr<i32>@Valid }
 }
 
 public procedure main(ctx: Context) -> i32 {
-  let greeting: string@View = "Hello, World!";
-  let _len: usize = string::length(greeting);
-  let _empty: bool = string::is_empty(greeting);
-  let _managed: string@Managed = string::to_managed(greeting, ctx.heap);
+  let greeting: string@View = "Hello";
+  let greet_len: usize = string::length(greeting);
+  let greet_msg: string@View = if greet_len == 5usize { "greet=len5\n" } else { "greet=len?\n" };
 
-  let count: const i32 = 3;
-  let counter = Counter { value: count };
-  let _read = counter~>read();
+  let b_view: bytes@View = bytes::view_string(greeting);
+  let bytes_msg: string@View = if bytes::length(b_view) == 5usize { "bytes=len5\n" } else { "bytes=len?\n" };
 
-  let mood = Mood::Happy;
-  let _mood_code = classify(mood);
-
-  let status: Status = widen Status@Busy { code: 7 };
-  let _status_code = status_code(move status);
-
-  let _sum = sum_to(5);
-
-  let x: i32 = 42;
-  let _p_valid: Ptr<i32>@Valid = &x;
-  let _p_null: Ptr<i32>@Null = Ptr::null();
-
-  let dir_path: string@View = ".";
-  let dir_res = ctx.fs~>open_dir(dir_path);
-  let _has_entry: bool = match move dir_res {
-    d: unique DirIter@Open => {
-      let next_res = d~>next();
-      let ok = match move next_res {
-        e: DirEntry => true,
-        empty: () => false,
-        err: IoError => false
-      };
-      let _ = (move d)~>close();
-      ok
-    },
-    err: IoError => false
+  let counter = Counter { value: 1 };
+  let next = counter~>clone();
+  let count = next~>read();
+  let status: Status = if count == 2i32 {
+    widen Status@Idle { ticks: count }
+  } else {
+    widen Status@Busy { code: count, retries: 1 }
+  };
+  let status_msg: string@View = match move status {
+    @Idle { ticks: ticks_val } => "status=idle2\n",
+    @Busy { code: code_val, retries: retry_val } => "status=busy_retry\n"
   };
 
-  let _ = match ctx.fs~>write_stdout(greeting) {
-    ok: () => (),
-    err: IoError => ()
+  var x: i32 = count + 5;
+  let p: Ptr<i32>@Valid = &x;
+  let opt: OptPtr = if x > 6i32 {
+    widen OptPtr@Valid { ptr: p }
+  } else {
+    widen OptPtr@Null { tag: false }
   };
+  let ptr_msg: string@View = match move opt {
+    @Valid { ptr: ptr_val } => "ptr=valid\n",
+    @Null { tag: tag_val } => "ptr=null\n"
+  };
+
+  var region_flag: bool = false;
+  region { region_flag = x > 0i32; }
+  let region_msg: string@View = if region_flag { "region=ok\n" } else { "region=skip\n" };
+
+  let _ = match ctx.fs~>write_stdout(greet_msg) { ok: () => (), err: IoError => () };
+  let _ = match ctx.fs~>write_stdout(bytes_msg) { ok: () => (), err: IoError => () };
+  let _ = match ctx.fs~>write_stdout(status_msg) { ok: () => (), err: IoError => () };
+  let _ = match ctx.fs~>write_stdout(ptr_msg) { ok: () => (), err: IoError => () };
+  let _ = match ctx.fs~>write_stdout(region_msg) { ok: () => (), err: IoError => () };
+
   return 0i32;
 }
