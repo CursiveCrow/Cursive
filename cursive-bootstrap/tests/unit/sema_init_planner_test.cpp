@@ -140,6 +140,8 @@ bool HasCode(const DiagnosticStream& diags, std::string_view code) {
 }
 
 void CoverInitPlannerRules() {
+  SPEC_COV("Topo-Ok");
+  SPEC_COV("Topo-Cycle");
   SPEC_COV("AliasExpand-None");
   SPEC_COV("AliasExpand-Yes");
   SPEC_COV("ModulePrefix-Direct");

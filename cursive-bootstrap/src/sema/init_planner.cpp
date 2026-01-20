@@ -1161,7 +1161,9 @@ void AddEdges(std::vector<std::set<std::size_t>>& edges,
               std::size_t from,
               const ModuleSet& deps) {
   for (const auto dep : deps) {
-    edges[from].insert(dep);
+    if (dep < edges.size()) {
+      edges[from].insert(dep);
+    }
   }
 }
 
@@ -1842,21 +1844,26 @@ InitPlanResult BuildInitPlan(const ScopeContext& ctx,
   InitPlanResult result;
 
   std::vector<syntax::ModulePath> modules;
+  std::map<std::string, std::size_t> module_index;
+  auto add_module = [&](const syntax::ModulePath& path) {
+    const std::string key = ModuleKey(path);
+    if (module_index.find(key) != module_index.end()) {
+      return;
+    }
+    module_index.emplace(key, modules.size());
+    modules.push_back(path);
+  };
   if (ctx.project) {
     modules.reserve(ctx.project->modules.size());
     for (const auto& mod : ctx.project->modules) {
-      modules.push_back(SplitModulePath(mod.path));
-    }
-  } else {
-    modules.reserve(ctx.sigma.mods.size());
-    for (const auto& mod : ctx.sigma.mods) {
-      modules.push_back(mod.path);
+      add_module(SplitModulePath(mod.path));
     }
   }
-
-  std::map<std::string, std::size_t> module_index;
-  for (std::size_t i = 0; i < modules.size(); ++i) {
-    module_index.emplace(ModuleKey(modules[i]), i);
+  if (modules.empty()) {
+    modules.reserve(ctx.sigma.mods.size());
+  }
+  for (const auto& mod : ctx.sigma.mods) {
+    add_module(mod.path);
   }
 
   EdgeSets edges;

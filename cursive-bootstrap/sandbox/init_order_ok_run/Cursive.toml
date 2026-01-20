@@ -1,0 +1,4 @@
+[assembly]
+name = "init_order_ok"
+kind = "executable"
+root = "src"

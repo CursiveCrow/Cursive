@@ -1,0 +1,4 @@
+[assembly]
+name = "test"
+kind = "executable"
+root = "src"

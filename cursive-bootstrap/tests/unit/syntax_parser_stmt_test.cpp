@@ -26,11 +26,16 @@ using cursive0::syntax::IdentifierExpr;
 using cursive0::syntax::LetStmt;
 using cursive0::syntax::ParseFile;
 using cursive0::syntax::ProcedureDecl;
+using cursive0::syntax::MakeParser;
+using cursive0::syntax::Parser;
 using cursive0::syntax::RegionStmt;
 using cursive0::syntax::ResultStmt;
 using cursive0::syntax::ReturnStmt;
 using cursive0::syntax::ShadowLetStmt;
 using cursive0::syntax::ShadowVarStmt;
+using cursive0::syntax::SyncStmt;
+using cursive0::syntax::Token;
+using cursive0::syntax::TokenKind;
 using cursive0::syntax::UnsafeBlockStmt;
 using cursive0::syntax::VarStmt;
 
@@ -56,6 +61,13 @@ static SourceFile MakeSourceFile(const std::string& path,
   return s;
 }
 
+static Token MakeToken(TokenKind kind, const char* lexeme) {
+  Token tok;
+  tok.kind = kind;
+  tok.lexeme = std::string(lexeme);
+  return tok;
+}
+
 }  // namespace
 
 int main() {
@@ -66,6 +78,8 @@ int main() {
   SPEC_COV("ParseStmtSeq-TailExpr");
   SPEC_COV("ParseStmtSeq-End");
   SPEC_COV("Parse-Binding-Stmt");
+  SPEC_COV("LetOrVarStmt-Let");
+  SPEC_COV("LetOrVarStmt-Var");
   SPEC_COV("Parse-Shadow-Stmt");
   SPEC_COV("Parse-Return-Stmt");
   SPEC_COV("Parse-Result-Stmt");
@@ -88,6 +102,9 @@ int main() {
   SPEC_COV("ConsumeTerminatorOpt-Req-No");
   SPEC_COV("ConsumeTerminatorOpt-Opt-Yes");
   SPEC_COV("ConsumeTerminatorOpt-Opt-No");
+  SPEC_COV("Sync-Stmt-Advance");
+  SPEC_COV("Sync-Stmt-Consume");
+  SPEC_COV("Sync-Stmt-Stop");
 
   const SourceFile source = MakeSourceFile(
       "stmts.cursive",
@@ -171,6 +188,33 @@ int main() {
     auto result = ParseFile(source);
     assert(result.file.has_value());
     assert(!result.diags.empty());
+  }
+
+  {
+    const SourceFile source = MakeSourceFile("sync_stmt_stop.cursive", "");
+    std::vector<Token> tokens;
+    Parser parser = MakeParser(tokens, source);
+    SyncStmt(parser);
+    assert(parser.index == 0);
+  }
+
+  {
+    const SourceFile source = MakeSourceFile("sync_stmt_consume.cursive", ";");
+    std::vector<Token> tokens;
+    tokens.push_back(MakeToken(TokenKind::Punctuator, ";"));
+    Parser parser = MakeParser(tokens, source);
+    SyncStmt(parser);
+    assert(parser.index == 1);
+  }
+
+  {
+    const SourceFile source = MakeSourceFile("sync_stmt_advance.cursive", "x;");
+    std::vector<Token> tokens;
+    tokens.push_back(MakeToken(TokenKind::Identifier, "x"));
+    tokens.push_back(MakeToken(TokenKind::Punctuator, ";"));
+    Parser parser = MakeParser(tokens, source);
+    SyncStmt(parser);
+    assert(parser.index >= 1);
   }
 
   return 0;

@@ -8,5 +8,5 @@ let y: i32 = 1i32 + 2i32
 let (a, b): (i32, u8) = (3i32, 4u8)
 
 public procedure main(ctx: Context) -> i32 {
-  0i32
+  return 0i32;
 }

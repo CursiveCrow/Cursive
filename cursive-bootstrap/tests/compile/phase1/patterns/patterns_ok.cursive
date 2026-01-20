@@ -35,5 +35,5 @@
 let 1 = x let _ = x let foo = x let foo: i32 = x let () = x let (a;) = x let (a, b, c) = x let Rec { a, b: x } = y let Enum::None = x let Enum::Tuple(a, b) = x let Enum::Record { f, g: x } = x let @State = x let @State { f } = x let a..b = x let a..=b = x
 
 public procedure main(ctx: Context) -> i32 {
-  0
+  return 0;
 }

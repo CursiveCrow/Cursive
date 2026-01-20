@@ -17,5 +17,5 @@ public procedure main(ctx: Context) -> i32 {
   ];
   let m = Big@Huge { v: big };
   let g: Big = widen (move m);
-  0
+  return 0;
 }

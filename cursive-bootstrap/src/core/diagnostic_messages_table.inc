@@ -119,6 +119,7 @@ static const DiagMessageEntry kDiagMessages[] = {
   {"E-TYP-1101", Severity::Error, "`shared` permission not supported in Cursive0"},
   {"E-TYP-1505", Severity::Error, "Missing required type annotation at module scope"},
   {"E-TYP-1506", Severity::Error, "Type alias cycle detected"},
+  {"E-TYP-1507", Severity::Error, "Procedure with non-unit return type requires explicit return statement"},
   {"E-TYP-1530", Severity::Error, "Type inference failed; unable to determine type"},
   {"E-TYP-1601", Severity::Error, "Mutation through `const` path"},
   {"E-TYP-1602", Severity::Error, "`unique` exclusion violation (aliasing or inactive use)"},

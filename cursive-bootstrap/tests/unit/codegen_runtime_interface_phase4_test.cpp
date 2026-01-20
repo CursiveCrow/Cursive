@@ -44,6 +44,10 @@ using cursive0::core::PathSig;
 }  // namespace
 
 int main() {
+  SPEC_COV("DeclAttrsOk");
+  SPEC_COV("RuntimeDeclsCover");
+  SPEC_COV("RuntimeDeclsOk");
+
   SPEC_COV("RegionLayout");
   const auto layout = RegionLayout();
   assert(layout.size == 16);
@@ -159,10 +163,12 @@ int main() {
          PathSig({"cursive", "runtime", "panic"}));
 
   SPEC_COV("StringDropSym-Decl");
+  SPEC_COV("StringDropSym-Err");
   assert(BuiltinSymStringDropManaged() ==
          PathSig({"cursive", "runtime", "string", "drop_managed"}));
 
   SPEC_COV("BytesDropSym-Decl");
+  SPEC_COV("BytesDropSym-Err");
   assert(BuiltinSymBytesDropManaged() ==
          PathSig({"cursive", "runtime", "bytes", "drop_managed"}));
 

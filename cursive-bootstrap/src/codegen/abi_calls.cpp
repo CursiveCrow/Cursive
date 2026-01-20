@@ -394,7 +394,7 @@ std::optional<LowerCallResult> LowerMethodCall(
 
   LowerCallResult result;
   result.ir = SeqIR(std::move(parts));
-  result.value = IRValue{IRValue::Kind::Opaque, "call_result", {}};
+  result.value = lower.FreshTempValue("call");
   return result;
 }
 

@@ -28,7 +28,8 @@ IRPtr LowerBindList(const std::vector<std::shared_ptr<syntax::Pattern>>& pattern
 // Register bindings introduced by a pattern with optional type hints
 void RegisterPatternBindings(const syntax::Pattern& pattern,
                              const sema::TypeRef& type_hint,
-                             LowerCtx& ctx);
+                             LowerCtx& ctx,
+                             bool is_immovable = false);
 
 // §6.6 TagOf - get the discriminant tag
 enum class TagOfKind { Enum, Modal };

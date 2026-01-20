@@ -4,7 +4,12 @@ project(cursive LANGUAGES C CXX)
 
 include(CTest)
 
+# T-LLVM-001: Integration
+include(cmake/LLVM21.cmake)
+
+
 option(CURSIVE_USE_BUNDLED_ICU "Use bundled ICU 72.1 from third_party/icu" ON)
+option(CURSIVE_ENABLE_FUZZING "Build fuzz targets (libFuzzer)" OFF)
 
 set(CURSIVE_ICU_LIBS "")
 if(CURSIVE_USE_BUNDLED_ICU)
@@ -141,8 +146,14 @@ endif()
 if(WIN32)
   if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     message(FATAL_ERROR "Windows builds require MSVC (cl.exe). Use a Visual Studio generator (e.g. \"Visual Studio 17 2022\") and toolset v143.")
+  else()
+    # Fix PDB locking issues with parallel builds
+    add_compile_options(/FS)
   endif()
 endif()
+
+add_subdirectory(runtime)
+
 
 add_library(cursive0_core STATIC
   src/core/span.cpp
@@ -285,9 +296,29 @@ add_library(cursive0_codegen STATIC
   src/codegen/lower_proc.cpp
   src/codegen/lower_module.cpp
   src/codegen/ir_dump.cpp
+  src/codegen/llvm_module.cpp
+  src/codegen/llvm_types.cpp
+  src/codegen/runtime_decls.cpp
+  src/codegen/llvm_attrs.cpp
+  src/codegen/llvm_attrs.cpp
+  src/codegen/literal_emit.cpp
+  src/codegen/llvm_call_abi.cpp
+  src/codegen/ir_lowering.cpp
+  src/codegen/binding_storage.cpp
+  src/codegen/llvm_ub_safe.cpp
+  src/codegen/llvm_mem.cpp
+  src/codegen/vtable_emit.cpp
+  src/codegen/entrypoint.cpp
+  src/codegen/poison_instrument.cpp
 )
 
-target_link_libraries(cursive0_codegen PUBLIC cursive0_sema)
+
+
+
+
+
+target_link_libraries(cursive0_codegen PUBLIC cursive0_sema ${llvm_libs})
+
 
 target_include_directories(cursive0_codegen PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -318,6 +349,34 @@ target_include_directories(cursive0_project PUBLIC
 
 target_compile_features(cursive0_project PUBLIC cxx_std_20)
 
+add_library(cursive0_semantics STATIC
+  src/semantics/value.cpp
+  src/semantics/control.cpp
+  src/semantics/state.cpp
+  src/semantics/address.cpp
+  src/semantics/match.cpp
+  src/semantics/eval.cpp
+  src/semantics/exec.cpp
+  src/semantics/cleanup.cpp
+  src/semantics/init.cpp
+  src/semantics/apply.cpp
+  src/semantics/builtins.cpp
+  src/semantics/interpreter.cpp
+)
+
+target_link_libraries(cursive0_semantics PUBLIC
+  cursive0_core
+  cursive0_syntax
+  cursive0_sema
+  cursive0_project
+)
+
+target_include_directories(cursive0_semantics PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_compile_features(cursive0_semantics PUBLIC cxx_std_20)
+
 add_library(cursive0_frontend STATIC
   src/frontend/parse_modules.cpp
 )
@@ -335,7 +394,7 @@ add_executable(cursivec0
   src/driver/main.cpp
 )
 
-target_link_libraries(cursivec0 PRIVATE cursive0_core cursive0_project cursive0_sema cursive0_codegen cursive0_syntax cursive0_frontend)
+target_link_libraries(cursivec0 PRIVATE cursive0_core cursive0_project cursive0_sema cursive0_codegen cursive0_syntax cursive0_frontend cursive0_semantics)
 
 target_include_directories(cursivec0 PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -357,4 +416,8 @@ endif()
 
 if(BUILD_TESTING)
   add_subdirectory(tests)
+endif()
+
+if(CURSIVE_ENABLE_FUZZING)
+  include(cmake/Fuzzing.cmake)
 endif()

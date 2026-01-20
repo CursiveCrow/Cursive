@@ -1,13 +1,13 @@
 # SPEC_COV: Lower-Args-Cons-Move
 # SPEC_COV: Lower-Args-Cons-Ref
 
-procedure take(move x: i32) -> i32 { 0 }
-procedure borrow(x: i32) -> i32 { 0 }
+procedure take(move x: i32) -> i32 { return 0; }
+procedure borrow(x: i32) -> i32 { return 0; }
 
 public procedure main(ctx: Context) -> i32 {
   let a = 1i32;
   let b = 2i32;
   take(move a);
   borrow(b);
-  0
+  return 0;
 }

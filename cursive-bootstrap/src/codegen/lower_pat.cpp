@@ -4,6 +4,7 @@
 #include "cursive0/codegen/cleanup.h"
 #include "cursive0/codegen/lower_expr.h"
 #include "cursive0/sema/scopes.h"
+#include "cursive0/sema/type_equiv.h"
 #include "cursive0/codegen/layout.h"
 #include "cursive0/core/assert_spec.h"
 
@@ -14,22 +15,30 @@
 
 namespace cursive0::codegen {
 
+namespace {
+
+IRValue BoolImmediate(bool value) {
+  IRValue v;
+  v.kind = IRValue::Kind::Immediate;
+  v.name = value ? "true" : "false";
+  v.bytes = {static_cast<std::uint8_t>(value ? 1 : 0)};
+  return v;
+}
+
+}  // namespace
+
 // ============================================================================
 // §6.6 TagOf - Get discriminant tag
 // ============================================================================
 
-IRValue TagOf(const IRValue& value, TagOfKind kind, LowerCtx& /*ctx*/) {
+IRValue TagOf(const IRValue& value, TagOfKind kind, LowerCtx& ctx) {
   if (kind == TagOfKind::Enum) {
     SPEC_RULE("TagOf-Enum");
   } else {
     SPEC_RULE("TagOf-Modal");
   }
 
-  IRValue tag;
-  tag.kind = IRValue::Kind::Opaque;
-  tag.name = (kind == TagOfKind::Enum ? "enum_tag_" : "modal_tag_") + value.name;
-
-  return tag;
+  return ctx.FreshTempValue(kind == TagOfKind::Enum ? "enum_tag" : "modal_tag");
 }
 
 
@@ -230,7 +239,8 @@ static void MergeMoveStates(LowerCtx& base,
 
 void RegisterPatternBindings(const syntax::Pattern& pattern,
                              const sema::TypeRef& type_hint,
-                             LowerCtx& ctx) {
+                             LowerCtx& ctx,
+                             bool is_immovable) {
   std::function<void(const syntax::Pattern&, sema::TypeRef)> walk =
       [&](const syntax::Pattern& pat, sema::TypeRef hint) {
         std::visit(
@@ -241,14 +251,14 @@ void RegisterPatternBindings(const syntax::Pattern& pattern,
               } else if constexpr (std::is_same_v<T, syntax::LiteralPattern>) {
                 return;
               } else if constexpr (std::is_same_v<T, syntax::IdentifierPattern>) {
-                ctx.RegisterVar(node.name, hint, true, false);
+                ctx.RegisterVar(node.name, hint, true, is_immovable);
                 return;
               } else if constexpr (std::is_same_v<T, syntax::TypedPattern>) {
                 sema::TypeRef typed = LowerSyntaxType(node.type, ctx);
                 if (!typed) {
                   typed = hint;
                 }
-                ctx.RegisterVar(node.name, typed, true, false);
+                ctx.RegisterVar(node.name, typed, true, is_immovable);
                 return;
               } else if constexpr (std::is_same_v<T, syntax::TuplePattern>) {
                 const sema::TypeTuple* tuple_type = nullptr;
@@ -273,7 +283,7 @@ void RegisterPatternBindings(const syntax::Pattern& pattern,
                   if (field.pattern_opt) {
                     walk(*field.pattern_opt, field_type);
                   } else {
-                    ctx.RegisterVar(field.name, field_type, true, false);
+                    ctx.RegisterVar(field.name, field_type, true, is_immovable);
                   }
                 }
                 return;
@@ -306,7 +316,7 @@ void RegisterPatternBindings(const syntax::Pattern& pattern,
                           if (field.pattern_opt) {
                             walk(*field.pattern_opt, field_type);
                           } else {
-                            ctx.RegisterVar(field.name, field_type, true, false);
+                            ctx.RegisterVar(field.name, field_type, true, is_immovable);
                           }
                         }
                       }
@@ -332,7 +342,7 @@ void RegisterPatternBindings(const syntax::Pattern& pattern,
                   if (field.pattern_opt) {
                     walk(*field.pattern_opt, field_type);
                   } else {
-                    ctx.RegisterVar(field.name, field_type, true, false);
+                    ctx.RegisterVar(field.name, field_type, true, is_immovable);
                   }
                 }
                 return;
@@ -360,8 +370,14 @@ IRPtr LowerBindPattern(const syntax::Pattern& pattern,
                        const IRValue& value,
                        LowerCtx& ctx) {
   SPEC_RULE("Lower-Pat-General");
+  auto lookup_bind_type = [&ctx](const std::string& name) -> sema::TypeRef {
+    if (const auto* state = ctx.GetBindingState(name)) {
+      return state->type;
+    }
+    return nullptr;
+  };
   return std::visit(
-      [&value, &ctx](const auto& pat) -> IRPtr {
+      [&value, &ctx, &lookup_bind_type](const auto& pat) -> IRPtr {
         using T = std::decay_t<decltype(pat)>;
 
         if constexpr (std::is_same_v<T, syntax::WildcardPattern>) {
@@ -370,29 +386,76 @@ IRPtr LowerBindPattern(const syntax::Pattern& pattern,
           IRBindVar bind;
           bind.name = pat.name;
           bind.value = value;
+          bind.type = lookup_bind_type(pat.name);
           return MakeIR(std::move(bind));
         } else if constexpr (std::is_same_v<T, syntax::TypedPattern>) {
+          IRValue bind_value = value;
+          if (ctx.sigma) {
+            sema::TypeRef target = LowerSyntaxType(pat.type, ctx);
+            const auto base_type = ctx.LookupValueType(value);
+            if (target && base_type) {
+              sema::TypeRef stripped = base_type;
+              if (const auto* perm = std::get_if<sema::TypePerm>(&stripped->node)) {
+                stripped = perm->base;
+              }
+              if (stripped && std::holds_alternative<sema::TypeUnion>(stripped->node)) {
+                const auto& uni = std::get<sema::TypeUnion>(stripped->node);
+                sema::ScopeContext scope;
+                scope.sigma = *ctx.sigma;
+                scope.current_module = ctx.module_path;
+                if (const auto layout = UnionLayoutOf(scope, uni)) {
+                  const auto& members = layout->member_list;
+                  std::optional<std::size_t> member_index;
+                  for (std::size_t i = 0; i < members.size(); ++i) {
+                    if (sema::TypeEquiv(target, members[i]).equiv) {
+                      member_index = i;
+                      break;
+                    }
+                  }
+                  if (member_index.has_value()) {
+                    IRValue payload = ctx.FreshTempValue("pat_union_payload");
+                    DerivedValueInfo info;
+                    info.kind = DerivedValueInfo::Kind::UnionPayload;
+                    info.base = value;
+                    info.union_index = *member_index;
+                    ctx.RegisterDerivedValue(payload, info);
+                    bind_value = payload;
+                  }
+                }
+              }
+            }
+          }
           IRBindVar bind;
           bind.name = pat.name;
-          bind.value = value;
+          bind.value = bind_value;
+          bind.type = lookup_bind_type(pat.name);
+          if (!bind.type) {
+            bind.type = LowerSyntaxType(pat.type, ctx);
+          }
           return MakeIR(std::move(bind));
         } else if constexpr (std::is_same_v<T, syntax::LiteralPattern>) {
           return EmptyIR();
         } else if constexpr (std::is_same_v<T, syntax::TuplePattern>) {
           std::vector<IRPtr> bindings;
           for (std::size_t i = 0; i < pat.elements.size(); ++i) {
-            IRValue elem;
-            elem.kind = IRValue::Kind::Opaque;
-            elem.name = value.name + "_" + std::to_string(i);
+            IRValue elem = ctx.FreshTempValue("pat_tuple_elem");
+            DerivedValueInfo info;
+            info.kind = DerivedValueInfo::Kind::Tuple;
+            info.base = value;
+            info.tuple_index = i;
+            ctx.RegisterDerivedValue(elem, info);
             bindings.push_back(LowerBindPattern(*pat.elements[i], elem, ctx));
           }
           return SeqIR(std::move(bindings));
         } else if constexpr (std::is_same_v<T, syntax::RecordPattern>) {
           std::vector<IRPtr> bindings;
           for (const auto& field : pat.fields) {
-            IRValue field_val;
-            field_val.kind = IRValue::Kind::Opaque;
-            field_val.name = value.name + "_" + field.name;
+            IRValue field_val = ctx.FreshTempValue("pat_field");
+            DerivedValueInfo info;
+            info.kind = DerivedValueInfo::Kind::Field;
+            info.base = value;
+            info.field = field.name;
+            ctx.RegisterDerivedValue(field_val, info);
             if (field.pattern_opt) {
               bindings.push_back(
                   LowerBindPattern(*field.pattern_opt, field_val, ctx));
@@ -400,6 +463,7 @@ IRPtr LowerBindPattern(const syntax::Pattern& pattern,
               IRBindVar bind;
               bind.name = field.name;
               bind.value = field_val;
+              bind.type = lookup_bind_type(field.name);
               bindings.push_back(MakeIR(std::move(bind)));
             }
           }
@@ -409,14 +473,18 @@ IRPtr LowerBindPattern(const syntax::Pattern& pattern,
             return EmptyIR();
           }
           return std::visit(
-              [&value, &ctx](const auto& payload) -> IRPtr {
+              [&value, &ctx, &pat, &lookup_bind_type](const auto& payload) -> IRPtr {
                 using P = std::decay_t<decltype(payload)>;
                 if constexpr (std::is_same_v<P, syntax::TuplePayloadPattern>) {
                   std::vector<IRPtr> bindings;
                   for (std::size_t i = 0; i < payload.elements.size(); ++i) {
-                    IRValue elem;
-                    elem.kind = IRValue::Kind::Opaque;
-                    elem.name = value.name + "_payload_" + std::to_string(i);
+                    IRValue elem = ctx.FreshTempValue("pat_enum_payload_elem");
+                    DerivedValueInfo info;
+                    info.kind = DerivedValueInfo::Kind::EnumPayloadIndex;
+                    info.base = value;
+                    info.variant = pat.name;
+                    info.tuple_index = i;
+                    ctx.RegisterDerivedValue(elem, info);
                     bindings.push_back(
                         LowerBindPattern(*payload.elements[i], elem, ctx));
                   }
@@ -424,9 +492,13 @@ IRPtr LowerBindPattern(const syntax::Pattern& pattern,
                 } else {
                   std::vector<IRPtr> bindings;
                   for (const auto& field : payload.fields) {
-                    IRValue field_val;
-                    field_val.kind = IRValue::Kind::Opaque;
-                    field_val.name = value.name + "_payload_" + field.name;
+                    IRValue field_val = ctx.FreshTempValue("pat_enum_payload_field");
+                    DerivedValueInfo info;
+                    info.kind = DerivedValueInfo::Kind::EnumPayloadField;
+                    info.base = value;
+                    info.variant = pat.name;
+                    info.field = field.name;
+                    ctx.RegisterDerivedValue(field_val, info);
                     if (field.pattern_opt) {
                       bindings.push_back(
                           LowerBindPattern(*field.pattern_opt, field_val, ctx));
@@ -434,6 +506,7 @@ IRPtr LowerBindPattern(const syntax::Pattern& pattern,
                       IRBindVar bind;
                       bind.name = field.name;
                       bind.value = field_val;
+                      bind.type = lookup_bind_type(field.name);
                       bindings.push_back(MakeIR(std::move(bind)));
                     }
                   }
@@ -447,9 +520,13 @@ IRPtr LowerBindPattern(const syntax::Pattern& pattern,
           }
           std::vector<IRPtr> bindings;
           for (const auto& field : pat.fields_opt->fields) {
-            IRValue field_val;
-            field_val.kind = IRValue::Kind::Opaque;
-            field_val.name = value.name + "_" + field.name;
+            IRValue field_val = ctx.FreshTempValue("pat_modal_field");
+            DerivedValueInfo info;
+            info.kind = DerivedValueInfo::Kind::ModalField;
+            info.base = value;
+            info.modal_state = pat.state;
+            info.field = field.name;
+            ctx.RegisterDerivedValue(field_val, info);
             if (field.pattern_opt) {
               bindings.push_back(
                   LowerBindPattern(*field.pattern_opt, field_val, ctx));
@@ -457,6 +534,7 @@ IRPtr LowerBindPattern(const syntax::Pattern& pattern,
               IRBindVar bind;
               bind.name = field.name;
               bind.value = field_val;
+              bind.type = lookup_bind_type(field.name);
               bindings.push_back(MakeIR(std::move(bind)));
             }
           }
@@ -507,33 +585,27 @@ IRValue PatternCheck(const syntax::Pattern& pattern,
       [&value, &ctx](const auto& pat) -> IRValue {
         using T = std::decay_t<decltype(pat)>;
 
-        IRValue result;
-        result.kind = IRValue::Kind::Opaque;
-
         if constexpr (std::is_same_v<T, syntax::WildcardPattern>) {
           // Wildcard always matches
-          result.name = "true";
+          return BoolImmediate(true);
         } else if constexpr (std::is_same_v<T, syntax::IdentifierPattern>) {
           // Identifier always matches (binds)
-          result.name = "true";
+          return BoolImmediate(true);
         } else if constexpr (std::is_same_v<T, syntax::TypedPattern>) {
           // Typed pattern always matches (binds)
-          result.name = "true";
+          return BoolImmediate(true);
         } else if constexpr (std::is_same_v<T, syntax::LiteralPattern>) {
           // Compare with literal
-          result.name = "literal_match_" + value.name;
+          return ctx.FreshTempValue("pat_literal_match");
         } else if constexpr (std::is_same_v<T, syntax::EnumPattern>) {
           // Compare tag
-          auto tag = TagOf(value, TagOfKind::Enum, ctx);
-          result.name = "tag_match_" + tag.name;
+          (void)TagOf(value, TagOfKind::Enum, ctx);
+          return ctx.FreshTempValue("pat_enum_tag_match");
         } else if constexpr (std::is_same_v<T, syntax::ModalPattern>) {
-          auto tag = TagOf(value, TagOfKind::Modal, ctx);
-          result.name = "tag_match_" + tag.name;
-        } else {
-          result.name = "pattern_check_" + value.name;
+          (void)TagOf(value, TagOfKind::Modal, ctx);
+          return ctx.FreshTempValue("pat_modal_tag_match");
         }
-
-        return result;
+        return ctx.FreshTempValue("pat_check");
       },
       pattern.node);
 }
@@ -556,7 +628,8 @@ LowerResult LowerMatchArm(const syntax::MatchArm& arm,
   auto body_result = LowerExpr(*arm.body, ctx);
 
   CleanupPlan cleanup_plan = ComputeCleanupPlanForCurrentScope(ctx);
-  IRPtr cleanup_ir = EmitCleanup(cleanup_plan, ctx);
+  CleanupPlan remainder = ComputeCleanupPlanRemainder(CleanupTarget::CurrentScope, ctx);
+  IRPtr cleanup_ir = EmitCleanupWithRemainder(cleanup_plan, remainder, ctx);
   ctx.PopScope();
 
   return LowerResult{SeqIR({bind_ir, body_result.ir, cleanup_ir}), body_result.value};
@@ -572,10 +645,18 @@ LowerResult LowerMatch(const syntax::Expr& scrutinee,
   SPEC_RULE("Lower-Match");
 
   // Lower the scrutinee
+  auto prev_suppress = ctx.suppress_temp_at_depth;
+  if (std::holds_alternative<syntax::MoveExpr>(scrutinee.node)) {
+    ctx.suppress_temp_at_depth = ctx.temp_depth + 1;
+  }
   auto scrutinee_result = LowerExpr(scrutinee, ctx);
+  ctx.suppress_temp_at_depth = prev_suppress;
   sema::TypeRef scrutinee_type;
   if (ctx.expr_type) {
     scrutinee_type = ctx.expr_type(scrutinee);
+  }
+  if (scrutinee_type) {
+    ctx.RegisterValueType(scrutinee_result.value, scrutinee_type);
   }
 
   // Create match arms IR
@@ -585,6 +666,27 @@ LowerResult LowerMatch(const syntax::Expr& scrutinee,
   for (const auto& arm : arms) {
     LowerCtx arm_ctx = ctx;
     auto arm_result = LowerMatchArm(arm, scrutinee_result.value, scrutinee_type, arm_ctx);
+    for (const auto& [name, type] : arm_ctx.value_types) {
+      if (!ctx.value_types.count(name)) {
+        ctx.value_types.emplace(name, type);
+      }
+    }
+    for (const auto& [name, info] : arm_ctx.derived_values) {
+      if (!ctx.derived_values.count(name)) {
+        ctx.derived_values.emplace(name, info);
+      }
+    }
+    for (const auto& [name, type] : arm_ctx.static_types) {
+      if (!ctx.static_types.count(name)) {
+        ctx.static_types.emplace(name, type);
+      }
+    }
+    for (const auto& [name, type] : arm_ctx.drop_glue_types) {
+      if (!ctx.drop_glue_types.count(name)) {
+        ctx.drop_glue_types.emplace(name, type);
+      }
+    }
+    ctx.temp_counter = std::max(ctx.temp_counter, arm_ctx.temp_counter);
     IRMatchArm ir_arm;
     ir_arm.pattern = arm.pattern;
     ir_arm.body = arm_result.ir;
@@ -605,11 +707,33 @@ LowerResult LowerMatch(const syntax::Expr& scrutinee,
 
   IRMatch match;
   match.scrutinee = scrutinee_result.value;
+  match.scrutinee_type = scrutinee_type;
   match.arms = std::move(ir_arms);
 
-  IRValue result;
-  result.kind = IRValue::Kind::Opaque;
-  result.name = "match_result";
+  IRValue result = ctx.FreshTempValue("match");
+  match.result = result;
+  if (ctx.expr_type) {
+    sema::TypeRef result_type;
+    for (const auto& arm : arms) {
+      if (!arm.body) {
+        continue;
+      }
+      sema::TypeRef arm_type = ctx.expr_type(*arm.body);
+      if (!arm_type) {
+        continue;
+      }
+      if (!result_type) {
+        result_type = arm_type;
+        continue;
+      }
+      if (!sema::TypeEquiv(result_type, arm_type).equiv) {
+        result_type = arm_type;
+      }
+    }
+    if (result_type) {
+      ctx.RegisterValueType(result, result_type);
+    }
+  }
 
   return LowerResult{SeqIR({scrutinee_result.ir, MakeIR(std::move(match))}),
                      result};

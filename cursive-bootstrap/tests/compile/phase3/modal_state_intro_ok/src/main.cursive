@@ -6,5 +6,5 @@
 modal Mod { @Open { v: i32 } }
 public procedure main(ctx: Context) -> i32 {
   let x = Mod@Open { v: 1 };
-  0
+  return 0;
 }

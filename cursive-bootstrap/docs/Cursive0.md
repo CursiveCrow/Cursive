@@ -63,7 +63,7 @@
     - [7.6. Dynamic Class Objects](#76-dynamic-class-objects)
     - [7.7. FileSystem and File Operations](#77-filesystem-and-file-operations)
   - [8. Appendix A - Diagnostic Codes](#8-appendix-a---diagnostic-codes)
-    - [8.0. DiagId–Code Map](#80-diagidcode-map)
+    - [8.0. DiagIdâ€“Code Map](#80-diagidcode-map)
     - [8.1. E-PRJ (Project)](#81-e-prj-project)
     - [8.2. E-MOD (Module)](#82-e-mod-module)
     - [8.3. E-OUT (Output and Linking)](#83-e-out-output-and-linking)
@@ -94,6 +94,7 @@ $$\text{PhaseStatus} = \{\text{Implemented},\ \text{Deferred},\ \text{InProgress
 **PhaseStatusMap.**
 $$\text{PhaseStatus}(\text{Phase0}) = \text{Implemented}$$
 $$\text{PhaseStatus}(\text{Phase1}) = \text{Implemented}$$
+$$\text{PhaseStatus}(\text{Phase2}) = \text{Deferred}$$
 $$\text{PhaseStatus}(\text{Phase3}) = \text{InProgress}$$
 $$\text{PhaseStatus}(\text{Phase4}) = \text{InProgress}$$
 
@@ -360,7 +361,7 @@ $$\frac{\text{PermSyntax} \in \{\texttt{shared},\ \texttt{~%}\} \quad c = \text{
 **Subset Lexeme Basis.**
 Let $S$ be a source file and let $K$ satisfy $\Gamma \vdash \text{Tokenize}(S) \Downarrow (K,\ \_)$.
 Any use of $\text{PermSyntax}$ or $\text{UnsupportedForm}$ MUST be based on token lexemes in $K$ (and, where specified elsewhere, the AST produced by $\text{ParseFile}(S)$); implementations MUST NOT match substrings inside identifiers.
-See §3.2.2 and §3.2.7.
+See Â§3.2.2 and Â§3.2.7.
 
 $$\text{S0Unsupported} = \{\texttt{derive},\ \texttt{extern},\ \texttt{attribute},\ \texttt{import},\ \texttt{opaque\_type},\ \texttt{refinement\_type},\ \texttt{closure},\ \texttt{pipeline},\ \texttt{async},\ \texttt{parallel},\ \texttt{dispatch},\ \texttt{spawn},\ \texttt{metaprogramming},\ \texttt{Network},\ \texttt{Reactor},\ \texttt{GPUFactory},\ \texttt{CPUFactory},\ \texttt{AsyncRuntime}\}$$
 
@@ -369,7 +370,7 @@ $$\text{S0Unsupported} = \{\texttt{derive},\ \texttt{extern},\ \texttt{attribute
 **BehaviorClass.**
 $$\text{BehaviorClass} = \{\text{Specified}, \text{UVB}\}$$
 
-$$\text{UVBRel} = \{\text{ReadPtrσ}(\text{RawPtr}(q, addr), \sigma),\ \text{WritePtrσ}(\text{RawPtr}(q, addr), v, \sigma)\}$$
+$$\text{UVBRel} = \{\text{ReadPtrSigma}(\text{RawPtr}(q, addr), \sigma),\ \text{WritePtrSigma}(\text{RawPtr}(q, addr), v, \sigma)\}$$
 
 **IllFormed.**
 $$\text{StaticJudgSet} = \text{WFModulePathJudg} \cup \text{LinkJudg} \cup \text{ParseJudgment} \cup \text{ResolvePathJudg} \cup \text{ResolveExprListJudg} \cup \text{ResolveEnumPayloadJudg} \cup \text{ResolveCalleeJudg} \cup \text{ResolveArmJudg} \cup \text{ResolveStmtSeqJudg} \cup \text{TypeEqJudg} \cup \text{ConstLenJudg} \cup \text{SubtypingJudg} \cup \text{PermSubJudg} \cup \text{ArgsOkTJudg} \cup \text{TypeInfJudg} \cup \text{StmtJudg} \cup \text{PatJudg} \cup \text{ExprJudg} \cup \text{MatchJudg} \cup \text{DeclJudg} \cup \text{BJudgment} \cup \text{ArgPassJudg} \cup \text{ProvPlaceJudg} \cup \text{ProvExprJudg} \cup \text{ProvStmtJudg} \cup \text{BlockProvJudg} \cup \text{ArgsOkJudg} \cup \text{TypeWFJudg} \cup \text{StringBytesJudg} \cup \text{BitcopyDropJudg} \cup \text{TypeRefsJudg} \cup \text{ValueRefsJudg} \cup \text{CodegenJudg} \cup \text{LayoutJudg} \cup \text{EncodeConstJudg} \cup \text{ValidValueJudg} \cup \text{RecordLayoutJudg} \cup \text{UnionLayoutJudg} \cup \text{TupleLayoutJudg} \cup \text{RangeLayoutJudg} \cup \text{EnumLayoutJudg} \cup \text{ModalLayoutJudg} \cup \text{DynLayoutJudg} \cup \text{ABITyJudg} \cup \text{ABIParamJudg} \cup \text{ABIRetJudg} \cup \text{ABICallJudg} \cup \text{LowerCallJudg} \cup \text{MangleJudg} \cup \text{LinkageJudg} \cup \text{EvalOrderJudg} \cup \text{LowerExprJudg} \cup \text{LowerStmtJudg} \cup \text{PatternLowerJudg} \cup \text{LowerBindJudg} \cup \text{GlobalsJudg} \cup \text{ConstInitJudg} \cup \text{CleanupJudg} \cup \text{RuntimeIfcJudg} \cup \text{DynDispatchJudg} \cup \text{ChecksJudg} \cup \text{LLVMAttrJudg} \cup \text{RuntimeDeclJudg} \cup \text{LLVMTyJudg} \cup \text{LLVMEmitJudg} \cup \text{LowerIRJudg} \cup \text{BindStorageJudg} \cup \text{LLVMCallJudg} \cup \text{VTableJudg} \cup \text{LiteralEmitJudg} \cup \text{BuiltinSymJudg} \cup \text{DropHookJudg} \cup \text{EntryJudg} \cup \text{PoisonJudg}$$
@@ -495,7 +496,7 @@ $$\text{Token} = \langle \text{kind},\ \text{lexeme},\ \text{span} \rangle$$
 **(Attach-Token-Ok)**
 $$\frac{\Gamma \vdash \text{SpanOf}(S,s,e) \Downarrow \text{sp}}{\Gamma \vdash \text{AttachSpan}(S,\langle k,\ell,s,e \rangle) \Downarrow \langle k,\ell,\text{sp} \rangle}$$
 
-**Token Stream Attachment (Big‑Step)**
+**Token Stream Attachment (Bigâ€‘Step)**
 
 **(Attach-Tokens-Ok)**
 $$\frac{\forall r \in rs,\ \Gamma \vdash \text{AttachSpan}(S,r) \Downarrow t \quad ts = [t \mid r \in rs]}{\Gamma \vdash \text{AttachSpans}(S, rs) \Downarrow ts}$$
@@ -536,7 +537,7 @@ $$\frac{\text{SpecCode}(id) = c}{\Gamma \vdash \text{Code}(id) \Downarrow c}$$
 **(Code-C0)**
 $$\frac{\text{SpecCode}(id) = \bot \quad \text{C0Code}(id) = c}{\Gamma \vdash \text{Code}(id) \Downarrow c}$$
 
-**DiagId–Code Mapping.**
+**DiagIdâ€“Code Mapping.**
 $$\frac{id \text{ emits a diagnostic}}{\Gamma \vdash \text{Emit}(\text{Code}(id))}$$
 $$\Uparrow \equiv \Uparrow \text{Code}(id)$$
 
@@ -601,6 +602,10 @@ $$\frac{\text{Origin}(d)=\text{External}}{\Gamma \vdash d.\text{span} = \bot}$$
 
 ### 1.7. Host Primitives
 
+$$\text{FSPrim} = \{\text{FSOpenRead},\ \text{FSOpenWrite},\ \text{FSOpenAppend},\ \text{FSCreateWrite},\ \text{FSReadFile},\ \text{FSReadBytes},\ \text{FSWriteFile},\ \text{FSWriteStdout},\ \text{FSWriteStderr},\ \text{FSExists},\ \text{FSRemove},\ \text{FSOpenDir},\ \text{FSCreateDir},\ \text{FSEnsureDir},\ \text{FSKind},\ \text{FSRestrict}\}$$
+$$\text{FilePrim} = \{\text{FileReadAll},\ \text{FileReadAllBytes},\ \text{FileWrite},\ \text{FileFlush},\ \text{FileClose}\}$$
+$$\text{DirPrim} = \{\text{DirNext},\ \text{DirClose}\}$$
+
 $$\text{HostPrim} = \{\text{ParseTOML},\ \text{ReadBytes},\ \text{WriteFile},\ \text{ResolveTool},\ \text{ResolveRuntimeLib},\ \text{Invoke},\ \text{AssembleIR},\ \text{InvokeLinker}\} \cup \text{FSPrim} \cup \text{FilePrim} \cup \text{DirPrim}$$
 $$\text{HostPrimDiag} = \{\text{ParseTOML},\ \text{ReadBytes},\ \text{WriteFile},\ \text{ResolveTool},\ \text{ResolveRuntimeLib},\ \text{Invoke},\ \text{AssembleIR},\ \text{InvokeLinker}\}$$
 $$\text{HostPrimRuntime} = \text{FSPrim} \cup \text{FilePrim} \cup \text{DirPrim}$$
@@ -658,6 +663,9 @@ $$\frac{\neg \text{exists}(R/\texttt{Cursive.toml}) \quad c = \text{Code}(\text{
 
 **(Parse-Manifest-Err)**
 $$\frac{\text{ParseTOML}(R/\texttt{Cursive.toml}) \Uparrow \quad c = \text{Code}(\text{Parse-Manifest-Err})}{\Gamma \vdash \text{ParseManifest}(R) \Uparrow c}$$
+
+**Manifest Required (No Single-File Fallback).**
+If $\Gamma \vdash \text{ParseManifest}(R) \Uparrow c$, then $\Gamma \vdash \text{LoadProject}(R,\text{target}) \Uparrow c$ and the implementation MUST NOT attempt any single-file or heuristic fallback project construction.
 
 **Manifest Path Resolution.**
 Manifest lookup MUST use host filesystem path resolution semantics for $R/\texttt{Cursive.toml}$ and MUST NOT perform additional case verification.
@@ -1250,7 +1258,7 @@ $$\frac{\text{Executable}(P) \quad \Gamma \vdash \text{ResolveTool}(\texttt{lld-
 **(Link-Fail)**
 $$\frac{\text{Executable}(P) \quad \Gamma \vdash \text{ResolveTool}(\texttt{lld-link}) \Downarrow t \quad \Gamma \vdash \text{ResolveRuntimeLib}(P) \Downarrow lib \quad \text{LinkArgsOk}(P, \text{Objs} \mathbin{+\!\!+} [lib], \text{ExePath}(P)) \quad \neg \text{MissingRuntimeSym}(t, \text{Objs} \mathbin{+\!\!+} [lib], \text{ExePath}(P)) \quad \Gamma \vdash \text{InvokeLinker}(t, \text{Objs} \mathbin{+\!\!+} [lib], \text{ExePath}(P)) \Uparrow \quad c = \text{Code}(\text{Out-Link-Fail})}{\Gamma \vdash \text{Link}(\text{Objs}, P) \Uparrow c}$$
 
-**Output Pipeline (Big‑Step)**
+**Output Pipeline (Bigâ€‘Step)**
 $$O = \text{OutputRoot}(P)$$
 $$ms = \text{ModuleList}(P)$$
 $$e = P.\text{assembly.emit\_ir}$$
@@ -1533,6 +1541,9 @@ $$\frac{\forall i,\ \text{Prohibited}(T[i]) \Rightarrow \text{ByteOf}(T,i) \in \
 $$\text{NFC}(s) = \text{UnicodeNFC}_{15.0.0}(s)$$
 
 $$\text{CaseFold}(s) = \text{UnicodeCaseFold}_{15.0.0}(s)$$
+
+**Totality.**
+The functions $\text{NFC}$ and $\text{CaseFold}$ are total on sequences of Unicode scalar values. All inputs to $\text{IdKey}$ and $\text{PathKey}$ MUST be Unicode scalar sequences; inputs are produced by $\text{LoadSource}$, which rejects invalid UTF-8.
 
 $$\text{IdKey}(s) = \text{NFC}(s)$$
 $$\text{IdEq}(s_1,s_2) \iff \text{IdKey}(s_1) = \text{IdKey}(s_2)$$
@@ -4293,7 +4304,7 @@ $$\text{KeywordKey}(n) \iff \exists s.\ n = \text{IdKey}(s) \land \text{Keyword}
 $$\text{dom}(S) = \text{keys}(S)$$
 $$\text{Scopes}(\Gamma) = [S_{cur}] \mathbin{+\!\!+} \Gamma_{out}$$
 $$\text{InScope}(S,x) \iff \text{IdKey}(x) \in \text{dom}(S)$$
-$$\text{InOuter}(\Gamma,x) \iff \exists S \in Γ_{out}.\ \text{InScope}(S,x)$$
+$$\text{InOuter}(\Gamma,x) \iff \exists S \in Î“_{out}.\ \text{InScope}(S,x)$$
 
 **(Intro-Ok)**
 $$\frac{\neg \text{InScope}(S_{cur},x) \quad \neg \text{InOuter}(\Gamma,x) \quad \neg \text{ReservedId}(x) \quad (S_{cur} \ne S_{module} \lor x \notin \text{UniverseProtected}) \quad \text{Scopes}(\Gamma') = [S_{cur}[\text{IdKey}(x) \mapsto ent]] \mathbin{+\!+} \Gamma_{out} \quad \text{Project}(\Gamma') = \text{Project}(\Gamma) \quad \text{ResCtx}(\Gamma') = \text{ResCtx}(\Gamma)}{\Gamma \vdash \text{Intro}(x, ent) \Downarrow \Gamma'}$$
@@ -4322,9 +4333,28 @@ $$\frac{\text{ReservedGen}(x) \quad c = \text{Code}(\text{Shadow-Reserved-Gen-Er
 **(Shadow-Reserved-Cursive-Err)**
 $$\frac{\text{ReservedCursive}(x) \quad c = \text{Code}(\text{Shadow-Reserved-Cursive-Err})}{\Gamma \vdash \text{ShadowIntro}(x, ent) \Uparrow c}$$
 
-**Informative (Ambiguity).**
-[AMBIGUOUS: The specification does not define a deterministic priority when multiple Intro/Shadow rules are simultaneously applicable (for example, reserved identifier checks vs. duplicate/shadow checks).]
-[TODO: Content missing from source draft.]
+**Deterministic Rule Priority (Intro / ShadowIntro).**
+
+When multiple Intro/ShadowIntro rules are simultaneously applicable, an implementation MUST apply the first matching clause in the following ordered checks.
+
+**Intro Priority.**
+1. If $\text{ReservedGen}(x)$ then apply **(Intro-Reserved-Gen-Err)**.
+2. Else if $\text{ReservedCursive}(x)$ then apply **(Intro-Reserved-Cursive-Err)**.
+3. Else if $\text{InScope}(S_{cur}, x)$ then apply **(Intro-Dup)**.
+4. Else if $\text{InOuter}(\Gamma, x)$ then apply **(Intro-Shadow-Required)**.
+5. Else if the premises of **(Intro-Ok)** hold then apply **(Intro-Ok)**.
+6. Otherwise, $\Gamma \vdash \text{Intro}(x, ent) \Uparrow$ with no diagnostic code.
+
+**ShadowIntro Priority.**
+1. If $\text{ReservedGen}(x)$ then apply **(Shadow-Reserved-Gen-Err)**.
+2. Else if $\text{ReservedCursive}(x)$ then apply **(Shadow-Reserved-Cursive-Err)**.
+3. Else if $\text{InScope}(S_{cur}, x)$ then $\Gamma \vdash \text{ShadowIntro}(x, ent) \Uparrow$ with no diagnostic code.
+4. Else if $\neg \text{InOuter}(\Gamma, x)$ then apply **(Shadow-Unnecessary)**.
+5. Else if the premises of **(Shadow-Ok)** hold then apply **(Shadow-Ok)**.
+6. Otherwise, $\Gamma \vdash \text{ShadowIntro}(x, ent) \Uparrow$ with no diagnostic code.
+
+**Binding Introduction Selection.**
+If a binding is introduced by a syntactic form without the `shadow` keyword, the implementation MUST invoke $\text{Intro}$ for that binding. If a binding is introduced by a `shadow` form (e.g., `ShadowLetStmt`/`ShadowVarStmt`), the implementation MUST invoke $\text{ShadowIntro}$ for that binding. The implementation MUST NOT substitute the other judgment.
 
 **Module-Scope Name Validation.**
 
@@ -6317,15 +6347,21 @@ $$\text{ProcReturn}(ret\_opt) = \begin{cases}
 ret\_opt & \text{otherwise}
 \end{cases}$$
 $$\text{ReturnAnnOk}(ret\_opt) \iff ret\_opt \ne \bot$$
+
+$$\text{ExplicitReturn}(\text{BlockExpr}(stmts, tail\_opt)) \iff tail\_opt = \bot \land stmts \ne [] \land \text{LastStmt}(stmts) = \text{ReturnStmt}(\_)$$
+
 $$\text{VisRank}(\texttt{public}) = 3 \quad \text{VisRank}(\texttt{internal}) = 2 \quad \text{VisRank}(\texttt{private}) = 1 \quad \text{VisRank}(\texttt{protected}) = 1$$
 $$\text{FieldVisOk}(R) \iff \forall f \in \text{Fields}(R).\ \text{VisRank}(f.\text{vis}) \le \text{VisRank}(R.\text{vis})$$
 $$\text{StateMemberVisOk}(M) \iff \forall S \in \text{States}(M),\ \forall m \in \text{Payload}(M, S) \cup \text{Methods}(S) \cup \text{Transitions}(S).\\ \text{VisRank}(m.\text{vis}) \le \text{VisRank}(M.\text{vis})$$
 
 **(WF-ProcedureDecl)**
-$$\frac{\text{Distinct}(\text{ParamNames}(\text{params})) \quad \text{ReturnAnnOk}(ret\_opt) \quad R = \text{ProcReturn}(ret\_opt) \quad \forall \langle \_, x_i, T_i \rangle \in \text{params},\ \Gamma \vdash T_i\ \text{wf} \quad \Gamma_0 = \text{PushScope}(\Gamma) \quad \text{IntroAll}(\Gamma_0, \text{ParamBinds}(\text{params})) \Downarrow \Gamma_1 \quad \Gamma_1; R; \bot \vdash \text{body} : T_b \quad \Gamma \vdash T_b <: R}{\Gamma \vdash \text{ProcedureDecl} : \text{ok}}$$
+$$\frac{\text{Distinct}(\text{ParamNames}(\text{params})) \quad \text{ReturnAnnOk}(ret\_opt) \quad R = \text{ProcReturn}(ret\_opt) \quad \forall \langle \_, x_i, T_i \rangle \in \text{params},\ \Gamma \vdash T_i\ \text{wf} \quad \Gamma_0 = \text{PushScope}(\Gamma) \quad \text{IntroAll}(\Gamma_0, \text{ParamBinds}(\text{params})) \Downarrow \Gamma_1 \quad \Gamma_1; R; \bot \vdash \text{body} : T_b \quad \Gamma \vdash T_b <: R \quad (R \ne \text{TypePrim}(\texttt{"()"}) \Rightarrow \text{ExplicitReturn}(\text{body}))}{\Gamma \vdash \text{ProcedureDecl} : \text{ok}}$$
 
 **(WF-ProcedureDecl-MissingReturnType)**
 $$\frac{\text{item} = \text{ProcedureDecl}(\_,\_,\_, ret\_opt,\_,\_,\_) \quad \neg \text{ReturnAnnOk}(ret\_opt) \quad c = \text{Code}(\text{WF-ProcedureDecl-MissingReturnType})}{\Gamma \vdash \text{item} \Uparrow c}$$
+
+**(WF-ProcBody-ExplicitReturn-Err)**
+$$\frac{\text{item} = \text{ProcedureDecl}(\_,\_,\_, ret\_opt, body,\_,\_) \quad R = \text{ProcReturn}(ret\_opt) \quad R \ne \text{TypePrim}(\texttt{"()"}) \quad \neg \text{ExplicitReturn}(body) \quad c = \text{Code}(\text{WF-ProcBody-ExplicitReturn-Err})}{\Gamma \vdash \text{item} \Uparrow c}$$
 
 $$\text{StaticVisOk}(vis, mut) \iff \neg (vis = \texttt{public} \land mut = \texttt{var})$$
 
@@ -7114,44 +7150,44 @@ tag & \text{if } target = r \\
 
 $$\text{ProvPlaceJudg} = \{\Gamma; \Omega \vdash p \Downarrow \pi\}$$
 
-$$\frac{\text{Lookup}_\pi(\Sigma_\pi, x) = π}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{Identifier}(x) \Downarrow π}$$
+$$\frac{\text{Lookup}_\pi(\Sigma_\pi, x) = Ï€}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{Identifier}(x) \Downarrow Ï€}$$
 
 **(P-Field)**
-$$\frac{\Gamma; \Omega \vdash p \Downarrow π}{\Gamma; \Omega \vdash \text{FieldAccess}(p, f) \Downarrow π}$$
+$$\frac{\Gamma; \Omega \vdash p \Downarrow Ï€}{\Gamma; \Omega \vdash \text{FieldAccess}(p, f) \Downarrow Ï€}$$
 
 **(P-Tuple)**
-$$\frac{\Gamma; \Omega \vdash p \Downarrow π}{\Gamma; \Omega \vdash \text{TupleAccess}(p, i) \Downarrow π}$$
+$$\frac{\Gamma; \Omega \vdash p \Downarrow Ï€}{\Gamma; \Omega \vdash \text{TupleAccess}(p, i) \Downarrow Ï€}$$
 
 **(P-Index)**
-$$\frac{\Gamma; \Omega \vdash p \Downarrow π}{\Gamma; \Omega \vdash \text{IndexAccess}(p, i) \Downarrow π}$$
+$$\frac{\Gamma; \Omega \vdash p \Downarrow Ï€}{\Gamma; \Omega \vdash \text{IndexAccess}(p, i) \Downarrow Ï€}$$
 
 **(P-Deref)**
-$$\frac{\Gamma; \Omega \vdash e \Downarrow π}{\Gamma; \Omega \vdash \text{Deref}(e) \Downarrow π}$$
+$$\frac{\Gamma; \Omega \vdash e \Downarrow Ï€}{\Gamma; \Omega \vdash \text{Deref}(e) \Downarrow Ï€}$$
 
 **Provenance of Expressions.**
 
 $$\text{ProvExprJudg} = \{\Gamma; \Omega \vdash e \Downarrow \pi\}$$
 
 **(P-Place-Expr)**
-$$\frac{\text{IsPlace}(p) \quad \Gamma; \Omega \vdash p \Downarrow π}{\Gamma; \Omega \vdash p \Downarrow π}$$
+$$\frac{\text{IsPlace}(p) \quad \Gamma; \Omega \vdash p \Downarrow Ï€}{\Gamma; \Omega \vdash p \Downarrow Ï€}$$
 
 **(P-Literal)**
 $$\frac{}{\Gamma; \Omega \vdash \text{Literal}(\_) \Downarrow \bot}$$
 
 **(P-Move)**
-$$\frac{\Gamma; \Omega \vdash p \Downarrow π}{\Gamma; \Omega \vdash \text{MoveExpr}(p) \Downarrow π}$$
+$$\frac{\Gamma; \Omega \vdash p \Downarrow Ï€}{\Gamma; \Omega \vdash \text{MoveExpr}(p) \Downarrow Ï€}$$
 
 **(P-AddrOf)**
-$$\frac{\Gamma; \Omega \vdash p \Downarrow π}{\Gamma; \Omega \vdash \text{AddressOf}(p) \Downarrow π}$$
+$$\frac{\Gamma; \Omega \vdash p \Downarrow Ï€}{\Gamma; \Omega \vdash \text{AddressOf}(p) \Downarrow Ï€}$$
 
 **(P-Alloc)**
-$$\frac{\Gamma; \Omega \vdash e \Downarrow π_e \quad \text{AllocTag}(RS, r\_opt) = tag}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{AllocExpr}(r\_opt, e) \Downarrow \pi_{\text{Region}}(tag)}$$
+$$\frac{\Gamma; \Omega \vdash e \Downarrow Ï€_e \quad \text{AllocTag}(RS, r\_opt) = tag}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{AllocExpr}(r\_opt, e) \Downarrow \pi_{\text{Region}}(tag)}$$
 
 **(P-Region-Alloc-Method)**
 $$\frac{name = \texttt{alloc} \quad (r : T_r) \in \Gamma \quad \text{RegionActiveType}(T_r) \quad \text{AllocTag}(RS, r) = tag}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{MethodCall}(\text{Identifier}(r), name, args) \Downarrow \pi_{\text{Region}}(tag)}$$
 
 **(P-If)**
-$$\frac{\Gamma; \Omega \vdash b_t \Downarrow π_t \quad \Gamma; \Omega \vdash b_f \Downarrow π_f \quad \text{JoinProv}(π_t, π_f) = π}{\Gamma; \Omega \vdash \text{IfExpr}(c, b_t, b_f) \Downarrow π}$$
+$$\frac{\Gamma; \Omega \vdash b_t \Downarrow Ï€_t \quad \Gamma; \Omega \vdash b_f \Downarrow Ï€_f \quad \text{JoinProv}(Ï€_t, Ï€_f) = Ï€}{\Gamma; \Omega \vdash \text{IfExpr}(c, b_t, b_f) \Downarrow Ï€}$$
 
 **(P-If-No-Else)**
 $$\frac{}{\Gamma; \Omega \vdash \text{IfExpr}(\_, b_t, \bot) \Downarrow \bot}$$
@@ -7164,14 +7200,14 @@ $$\text{ArmEnv}(\langle \Sigma_\pi, RS \rangle, pat) = \langle \Sigma_\pi', RS \
 $$\text{ArmProv}(\langle pat,\_,body \rangle) = \pi \iff \text{ArmEnv}(\Omega, pat) = \Omega' \land \text{ArmBodyProv}(body, \Omega') = \pi$$
 
 **(P-Match)**
-$$\frac{\forall i,\ \text{ArmProv}(\text{arm}_i.\text{body}) = π_i \quad \text{JoinAllProv}([π_1,\ldots,π_n]) = π}{\Gamma; \Omega \vdash \text{MatchExpr}(\_, arms) \Downarrow π}$$
+$$\frac{\forall i,\ \text{ArmProv}(\text{arm}_i.\text{body}) = Ï€_i \quad \text{JoinAllProv}([Ï€_1,\ldots,Ï€_n]) = Ï€}{\Gamma; \Omega \vdash \text{MatchExpr}(\_, arms) \Downarrow Ï€}$$
 
 $$\text{ProvExprRules} = \{\text{P-Place-Expr},\ \text{P-Literal},\ \text{P-Move},\ \text{P-AddrOf},\ \text{P-Alloc},\ \text{P-Region-Alloc-Method},\ \text{P-If},\ \text{P-If-No-Else},\ \text{P-Match},\ \text{P-Block},\ \text{P-Loop-Infinite},\ \text{P-Loop-Conditional},\ \text{P-Loop-Iter},\ \text{P-Expr-Sub}\}$$
 
 $$\text{NoSpecificProvExpr}(e) \iff \neg \exists r \in \text{ProvExprRules} \setminus \{\text{P-Expr-Sub}\}.\ \text{PremisesHold}(r, e)$$
 
 **(P-Expr-Sub)**
-$$\frac{\text{NoSpecificProvExpr}(e) \quad \text{Children\_LTR}(e) = [e_1,\ldots,e_n] \quad \forall i,\ \Gamma; \Omega \vdash e_i \Downarrow π_i \quad \text{JoinAllProv}([π_1,\ldots,π_n]) = π}{\Gamma; \Omega \vdash e \Downarrow π}$$
+$$\frac{\text{NoSpecificProvExpr}(e) \quad \text{Children\_LTR}(e) = [e_1,\ldots,e_n] \quad \forall i,\ \Gamma; \Omega \vdash e_i \Downarrow Ï€_i \quad \text{JoinAllProv}([Ï€_1,\ldots,Ï€_n]) = Ï€}{\Gamma; \Omega \vdash e \Downarrow Ï€}$$
 
 **Provenance of Statements.**
 
@@ -7249,16 +7285,16 @@ $$\text{BlockProvJudg} = \{\Gamma; \Omega \vdash \text{BlockProv}(stmts, tail\_o
 $$\Omega_0 = \langle \text{PushScope}_\pi(\Sigma_\pi), RS \rangle$$
 
 **(BlockProv-Res)**
-$$\frac{\Gamma; \Omega_0 \vdash stmts \Rightarrow \Omega_1 \triangleright \langle Res, Brk, BrkVoid \rangle \quad Res \ne [] \quad \text{JoinAllProv}(Res) = π \quad (tail\_opt = e \Rightarrow \Gamma; \Omega_1 \vdash e \Downarrow \pi_t)}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{BlockProv}(stmts, tail\_opt) \Downarrow π}$$
+$$\frac{\Gamma; \Omega_0 \vdash stmts \Rightarrow \Omega_1 \triangleright \langle Res, Brk, BrkVoid \rangle \quad Res \ne [] \quad \text{JoinAllProv}(Res) = Ï€ \quad (tail\_opt = e \Rightarrow \Gamma; \Omega_1 \vdash e \Downarrow \pi_t)}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{BlockProv}(stmts, tail\_opt) \Downarrow Ï€}$$
 
 **(BlockProv-Tail)**
-$$\frac{\Gamma; \Omega_0 \vdash stmts \Rightarrow \Omega_1 \triangleright \langle Res, Brk, BrkVoid \rangle \quad Res = [] \quad tail\_opt = e \quad \Gamma; \Omega_1 \vdash e \Downarrow π}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{BlockProv}(stmts, tail\_opt) \Downarrow π}$$
+$$\frac{\Gamma; \Omega_0 \vdash stmts \Rightarrow \Omega_1 \triangleright \langle Res, Brk, BrkVoid \rangle \quad Res = [] \quad tail\_opt = e \quad \Gamma; \Omega_1 \vdash e \Downarrow Ï€}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{BlockProv}(stmts, tail\_opt) \Downarrow Ï€}$$
 
 **(BlockProv-Unit)**
 $$\frac{\Gamma; \Omega_0 \vdash stmts \Rightarrow \Omega_1 \triangleright \langle Res, Brk, BrkVoid \rangle \quad Res = [] \quad tail\_opt = \bot}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{BlockProv}(stmts, \bot) \Downarrow \bot}$$
 
 **(P-Block)**
-$$\frac{\Gamma; \Omega \vdash \text{BlockProv}(stmts, tail\_opt) \Downarrow π}{\Gamma; \Omega \vdash \text{BlockExpr}(stmts, tail\_opt) \Downarrow π}$$
+$$\frac{\Gamma; \Omega \vdash \text{BlockProv}(stmts, tail\_opt) \Downarrow Ï€}{\Gamma; \Omega \vdash \text{BlockExpr}(stmts, tail\_opt) \Downarrow Ï€}$$
 
 **Loop Provenance.**
 
@@ -7275,13 +7311,13 @@ $$\text{LoopProvFin}(Brk, BrkVoid) = \pi \iff Brk = [\pi_1,\ldots,\pi_n] \land B
 $$\text{ExtendProv}(\langle \Sigma_\pi, RS \rangle, pat, \pi) = \langle \Sigma_\pi', RS \rangle \iff \Gamma \vdash \text{PatNames}(pat) \Downarrow N \land \Sigma_\pi' = \text{IntroAll}_\pi(\Sigma_\pi, N, \pi)$$
 
 **(P-Loop-Infinite)**
-$$\frac{\text{BreakProv}(body, \Omega) = \langle Brk, BrkVoid \rangle \quad \text{LoopProvInf}(Brk, BrkVoid) = π}{\Gamma; \Omega \vdash \text{LoopInfinite}(body) \Downarrow π}$$
+$$\frac{\text{BreakProv}(body, \Omega) = \langle Brk, BrkVoid \rangle \quad \text{LoopProvInf}(Brk, BrkVoid) = Ï€}{\Gamma; \Omega \vdash \text{LoopInfinite}(body) \Downarrow Ï€}$$
 
 **(P-Loop-Conditional)**
-$$\frac{\text{BreakProv}(body, \Omega) = \langle Brk, BrkVoid \rangle \quad \text{LoopProvFin}(Brk, BrkVoid) = π}{\Gamma; \Omega \vdash \text{LoopConditional}(cond, body) \Downarrow π}$$
+$$\frac{\text{BreakProv}(body, \Omega) = \langle Brk, BrkVoid \rangle \quad \text{LoopProvFin}(Brk, BrkVoid) = Ï€}{\Gamma; \Omega \vdash \text{LoopConditional}(cond, body) \Downarrow Ï€}$$
 
 **(P-Loop-Iter)**
-$$\frac{\text{IterElemProv}(iter, \Omega) = π_{\text{elem}} \quad \text{ExtendProv}(\Omega, pat, π_{\text{elem}}) = \Omega' \quad \text{BreakProv}(body, \Omega') = \langle Brk, BrkVoid \rangle \quad \text{LoopProvFin}(Brk, BrkVoid) = π}{\Gamma; \Omega \vdash \text{LoopIter}(pat, ty\_opt, iter, body) \Downarrow π}$$
+$$\frac{\text{IterElemProv}(iter, \Omega) = Ï€_{\text{elem}} \quad \text{ExtendProv}(\Omega, pat, Ï€_{\text{elem}}) = \Omega' \quad \text{BreakProv}(body, \Omega') = \langle Brk, BrkVoid \rangle \quad \text{LoopProvFin}(Brk, BrkVoid) = Ï€}{\Gamma; \Omega \vdash \text{LoopIter}(pat, ty\_opt, iter, body) \Downarrow Ï€}$$
 
 
 $$\text{EscapeOk}(\pi_e, \pi_x) \iff \neg(\pi_e < \pi_x)$$
@@ -7469,7 +7505,7 @@ $$\frac{(r = \text{ReceiverExplicit}(mode\_opt, ty) \Rightarrow \text{SelfTypeCl
 $$\frac{m.\text{body\_opt} = \bot}{\Gamma \vdash m : \text{ClassMethodBodyOK}}$$
 
 **(T-Class-Method-Body)**
-$$\frac{m.\text{body\_opt} = body \quad T_{\text{self}} = \text{RecvType}(\text{SelfVar}, m.\text{receiver}) \quad R_m = \text{ReturnType}_T(\text{SelfVar}, m) \quad \Gamma_0 = \text{PushScope}(\Gamma) \quad \text{IntroAll}(\Gamma_0, [\langle \texttt{self}, T_{\text{self}} \rangle] \mathbin{+\!\!+} \text{ParamBinds}_T(\text{SelfVar}, m.\text{params})) \Downarrow \Gamma_1 \quad \Gamma_1; R_m; \bot \vdash body : T_b \quad \Gamma \vdash T_b <: R_m}{\Gamma \vdash m : \text{ClassMethodBodyOK}}$$
+$$\frac{m.\text{body\_opt} = body \quad T_{\text{self}} = \text{RecvType}(\text{SelfVar}, m.\text{receiver}) \quad R_m = \text{ReturnType}_T(\text{SelfVar}, m) \quad \Gamma_0 = \text{PushScope}(\Gamma) \quad \text{IntroAll}(\Gamma_0, [\langle \texttt{self}, T_{\text{self}} \rangle] \mathbin{+\!\!+} \text{ParamBinds}_T(\text{SelfVar}, m.\text{params})) \Downarrow \Gamma_1 \quad \Gamma_1; R_m; \bot \vdash body : T_b \quad \Gamma \vdash T_b <: R_m \quad (R_m \ne \text{TypePrim}(\texttt{"()"}) \Rightarrow \text{ExplicitReturn}(body))}{\Gamma \vdash m : \text{ClassMethodBodyOK}}$$
 
 **(WF-Class)**
 $$\frac{\text{Distinct}(\text{MethodNames}(Cl)) \quad \text{Distinct}(\text{FieldNames}(Cl)) \quad \text{Disjoint}(\text{MethodNames}(Cl), \text{FieldNames}(Cl)) \quad \text{Distinct}(\text{Supers}(Cl)) \quad \forall S \in \text{Supers}(Cl),\ \Gamma \vdash S : \text{ClassPath} \quad \forall m \in \text{ClassMethods}(Cl),\ \Gamma \vdash m : \text{ClassMethodOK}(Cl) \quad \Gamma \vdash m : \text{ClassMethodBodyOK} \quad \Gamma \vdash \text{Linearize}(Cl) \Downarrow L}{\Gamma \vdash Cl : \text{ClassOk}}$$
@@ -7623,7 +7659,7 @@ $$\text{ParamNames}(\text{params}) = [x \mid \langle \_, x, \_ \rangle \in \text
 $$\frac{\Gamma \vdash r : \text{Recv}(R, P, mode) \quad \text{self} \notin \text{ParamNames}(\text{params}) \quad \text{Distinct}(\text{ParamNames}(\text{params})) \quad \forall \langle \_,\ \_,\ T_i \rangle \in \text{params},\ \Gamma \vdash T_i\ \text{wf} \quad (\text{return\_type}\_opt = \bot \ \lor\ \Gamma \vdash \text{return\_type}\_opt\ \text{wf})}{\Gamma \vdash \langle \text{MethodDecl}, \_, \text{name}, r, \text{params}, \text{return\_type}\_opt, \text{body}, \_, \_ \rangle : \text{MethodOK}(R, P, mode)}$$
 
 **(T-Record-Method-Body)**
-$$\frac{\Gamma \vdash m : \text{MethodOK}(R, P, mode) \quad T_{\text{self}} = \text{RecvType}(\text{Self}_R, m.\text{receiver}) \quad R_m = \text{ReturnType}_T(\text{Self}_R, m) \quad \Gamma_0 = \text{PushScope}(\Gamma) \quad \text{IntroAll}(\Gamma_0, [\langle \texttt{self}, T_{\text{self}} \rangle] \mathbin{+\!\!+} \text{ParamBinds}_T(\text{Self}_R, m.\text{params})) \Downarrow \Gamma_1 \quad \Gamma_1; R_m; \bot \vdash m.\text{body} : T_b \quad \Gamma \vdash T_b <: R_m}{\Gamma \vdash m : \text{MethodBodyOK}(R)}$$
+$$\frac{\Gamma \vdash m : \text{MethodOK}(R, P, mode) \quad T_{\text{self}} = \text{RecvType}(\text{Self}_R, m.\text{receiver}) \quad R_m = \text{ReturnType}_T(\text{Self}_R, m) \quad \Gamma_0 = \text{PushScope}(\Gamma) \quad \text{IntroAll}(\Gamma_0, [\langle \texttt{self}, T_{\text{self}} \rangle] \mathbin{+\!\!+} \text{ParamBinds}_T(\text{Self}_R, m.\text{params})) \Downarrow \Gamma_1 \quad \Gamma_1; R_m; \bot \vdash m.\text{body} : T_b \quad \Gamma \vdash T_b <: R_m \quad (R_m \ne \text{TypePrim}(\texttt{"()"}) \Rightarrow \text{ExplicitReturn}(m.\text{body}))}{\Gamma \vdash m : \text{MethodBodyOK}(R)}$$
 
 $$\text{MethodNames}(R) = [ m.\text{name} \mid m \in \text{Methods}(R) ]$$
 
@@ -7775,7 +7811,9 @@ $$\frac{S_A \ne S_B}{\Gamma \vdash M@S_A \not<: M@S_B \quad \land \quad \Gamma \
 $$[\texttt{"Region"}] \in \text{dom}(\Sigma.\text{Types})$$
 $$\text{States}(\texttt{Region}) = \{\ \texttt{@Active},\ \texttt{@Frozen},\ \texttt{@Freed}\ \}$$
 
-$$\text{Payload}(\texttt{Region}, \texttt{@Active}) = [] \quad \text{Payload}(\texttt{Region}, \texttt{@Frozen}) = [] \quad \text{Payload}(\texttt{Region}, \texttt{@Freed}) = []$$
+$$\text{RegionPayloadFields} = [\langle \texttt{handle}, \text{TypePrim}(\texttt{"usize"}) \rangle]$$
+
+$$\text{Payload}(\texttt{Region}, \texttt{@Active}) = \text{RegionPayloadFields} \quad \text{Payload}(\texttt{Region}, \texttt{@Frozen}) = \text{RegionPayloadFields} \quad \text{Payload}(\texttt{Region}, \texttt{@Freed}) = \text{RegionPayloadFields}$$
 
 $$\text{RegionProcs} = \{\texttt{Region::new\_scoped},\ \texttt{Region::alloc},\ \texttt{Region::reset\_unchecked},\ \texttt{Region::freeze},\ \texttt{Region::thaw},\ \texttt{Region::free\_unchecked}\}$$
 
@@ -7878,7 +7916,7 @@ $$\frac{\Gamma; R; L \vdash e : P_{\text{caller}}\ M@S \quad \text{LookupStateMe
 $$\frac{\Gamma; R; L \vdash e : P_{\text{caller}}\ M@S \quad \text{LookupStateMethod}(S, m) = md \quad \neg \text{StateMemberVisible}(mod, M, md.\text{vis}) \quad c = \text{Code}(\text{Modal-Method-NotVisible})}{\Gamma; R; L \vdash e \mathord{\sim>} m(args) \Uparrow c}$$
 
 **(T-Modal-Method-Body)**
-$$\frac{\Sigma.\text{Types}[p] = \texttt{modal } M \quad S \in \text{States}(M) \quad md \in \text{Methods}(S) \quad md.\text{body} = body \quad \Gamma_0 = \text{PushScope}(\Gamma) \quad \text{IntroAll}(\Gamma_0, [\langle \texttt{self}, \text{TypePerm}(\texttt{const}, \text{TypeModalState}(p, S)) \rangle] \mathbin{+\!\!+} \text{ParamBinds}(md.\text{params})) \Downarrow \Gamma_1 \quad R_m = \text{ReturnType}(md) \quad \Gamma_1; R_m; \bot \vdash body : T_b \quad \Gamma \vdash T_b <: R_m}{\Gamma \vdash md : \text{StateMethodBodyOK}(p, S)}$$
+$$\frac{\Sigma.\text{Types}[p] = \texttt{modal } M \quad S \in \text{States}(M) \quad md \in \text{Methods}(S) \quad md.\text{body} = body \quad \Gamma_0 = \text{PushScope}(\Gamma) \quad \text{IntroAll}(\Gamma_0, [\langle \texttt{self}, \text{TypePerm}(\texttt{const}, \text{TypeModalState}(p, S)) \rangle] \mathbin{+\!\!+} \text{ParamBinds}(md.\text{params})) \Downarrow \Gamma_1 \quad R_m = \text{ReturnType}(md) \quad \Gamma_1; R_m; \bot \vdash body : T_b \quad \Gamma \vdash T_b <: R_m \quad (R_m \ne \text{TypePrim}(\texttt{"()"}) \Rightarrow \text{ExplicitReturn}(body))}{\Gamma \vdash md : \text{StateMethodBodyOK}(p, S)}$$
 
 ### 5.7. Modal Widening (`widen`)
 
@@ -8078,6 +8116,8 @@ $$\text{FileSystemInterface} =
 
 $$\text{Variants}(\texttt{FileKind}) = [\texttt{File},\ \texttt{Dir},\ \texttt{Other}]$$
 
+$$\text{Implements}(\texttt{FileKind}) = [\texttt{Bitcopy}]$$
+
 $$\text{Fields}(\texttt{DirEntry}) = [\langle \texttt{name},\ \text{TypeString}(\texttt{@Managed}) \rangle,\ \langle \texttt{path},\ \text{TypeString}(\texttt{@Managed}) \rangle,\ \langle \texttt{kind},\ \text{TypePath}([\texttt{"FileKind"}]) \rangle]$$
 
 **DirIter Modal Type.**
@@ -8121,6 +8161,8 @@ $$\text{FileStateMembers} =
 
 $$\text{Variants}(\texttt{IoError}) = [\texttt{NotFound},\ \texttt{PermissionDenied},\ \texttt{AlreadyExists},\ \texttt{InvalidPath},\ \texttt{Busy},\ \texttt{IoFailure}]$$
 
+$$\text{Implements}(\texttt{IoError}) = [\texttt{Bitcopy}]$$
+
 **(Record-FileDir-Err)**
 $$\frac{\text{path} \in \{[\texttt{"File"}], [\texttt{"DirIter"}]\} \quad c = \text{Code}(\text{Record-FileDir-Err})}{\Gamma; R; L \vdash \text{RecordExpr}(\text{ModalStateRef}(path, S), fields) \Uparrow c}$$
 
@@ -8130,10 +8172,9 @@ $$\text{HeapAllocatorInterface} =
 \left\{
 \begin{aligned}
 &\langle \texttt{"with\_quota"},\ \texttt{~!},\ [\langle \bot,\ \texttt{size},\ \text{TypePrim}(\texttt{"usize"}) \rangle],\ \text{TypeDynamic}(\texttt{HeapAllocator}) \rangle,\\
-&\langle \texttt{"alloc\_raw"},\ \texttt{~},\ [\langle \bot,\ \texttt{count},\ \text{TypePrim}(\texttt{"usize"}) \rangle],\ \text{TypeRawPtr}(\texttt{mut}, T) \rangle,\\
-&\langle \texttt{"dealloc\_raw"},\ \texttt{~},\ [\langle \bot,\ \texttt{ptr},\ \text{TypeRawPtr}(\texttt{mut}, T) \rangle,\ \langle \bot,\ \texttt{count},\ \text{TypePrim}(\texttt{"usize"}) \rangle],\ \text{TypePrim}(\texttt{"()"}) \rangle
+&\langle \texttt{"alloc\_raw"},\ \texttt{~},\ [\langle \bot,\ \texttt{count},\ \text{TypePrim}(\texttt{"usize"}) \rangle],\ \text{TypeRawPtr}(\texttt{mut}, \text{TypePrim}(\texttt{"u8"})) \rangle,\\
+&\langle \texttt{"dealloc\_raw"},\ \texttt{~},\ [\langle \bot,\ \texttt{ptr},\ \text{TypeRawPtr}(\texttt{mut}, \text{TypePrim}(\texttt{"u8"})) \rangle,\ \langle \bot,\ \texttt{count},\ \text{TypePrim}(\texttt{"usize"}) \rangle],\ \text{TypePrim}(\texttt{"()"}) \rangle
 \end{aligned}
-\;\middle|\; T \in \text{Type}
 \right\}$$
 
 **(AllocRaw-Unsafe-Err)**
@@ -8584,13 +8625,13 @@ $$\forall IR,L.\ \Gamma \vdash \text{LowerIR}(IR) \Downarrow L \Rightarrow \text
 
 $$\text{CodegenJudg} = \{\text{CodegenProject},\ \text{CodegenModule},\ \text{CodegenItem},\ \text{CodegenExpr},\ \text{CodegenStmt},\ \text{CodegenBlock},\ \text{CodegenPlace}\}$$
 
-$$\text{IRDefined}(IR) \iff \forall \sigma.\ \exists out,\sigma'.\ \text{ExecIRσ}(IR, \sigma) \Downarrow (out, \sigma')$$
+$$\text{IRDefined}(IR) \iff \forall \sigma.\ \exists out,\sigma'.\ \text{ExecIRSigma}(IR, \sigma) \Downarrow (out, \sigma')$$
 
-$$\text{CodegenExprValCorrect} \iff \forall e, IR, v, \sigma, v', \sigma'.\ \left(\Gamma \vdash \text{CodegenExpr}(e) \Downarrow \langle IR, v \rangle \land \Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v'), \sigma')\right) \Rightarrow \left(\text{ExecIRσ}(IR, \sigma) \Downarrow (\text{Val}(v'), \sigma') \land v = v'\right)$$
-$$\text{CodegenExprCtrlCorrect} \iff \forall e, IR, v, \sigma, \kappa, \sigma'.\ \left(\Gamma \vdash \text{CodegenExpr}(e) \Downarrow \langle IR, v \rangle \land \Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma')\right) \Rightarrow \left(\text{ExecIRσ}(IR, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma')\right)$$
-$$\text{CodegenStmtCorrect} \iff \forall s, IR, \sigma, sout, \sigma'.\ \left(\Gamma \vdash \text{CodegenStmt}(s) \Downarrow IR \land \Gamma \vdash \text{Execσ}(s, \sigma) \Downarrow (sout, \sigma')\right) \Rightarrow \left(\text{ExecIRσ}(IR, \sigma) \Downarrow (sout, \sigma')\right)$$
-$$\text{CodegenBlockValCorrect} \iff \forall b, IR, v, \sigma, v', \sigma'.\ \left(\Gamma \vdash \text{CodegenBlock}(b) \Downarrow \langle IR, v \rangle \land \Gamma \vdash \text{EvalBlockσ}(b, \sigma) \Downarrow (\text{Val}(v'), \sigma')\right) \Rightarrow \left(\text{ExecIRσ}(IR, \sigma) \Downarrow (\text{Val}(v'), \sigma') \land v = v'\right)$$
-$$\text{CodegenBlockCtrlCorrect} \iff \forall b, IR, v, \sigma, \kappa, \sigma'.\ \left(\Gamma \vdash \text{CodegenBlock}(b) \Downarrow \langle IR, v \rangle \land \Gamma \vdash \text{EvalBlockσ}(b, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma')\right) \Rightarrow \left(\text{ExecIRσ}(IR, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma')\right)$$
+$$\text{CodegenExprValCorrect} \iff \forall e, IR, v, \sigma, v', \sigma'.\ \left(\Gamma \vdash \text{CodegenExpr}(e) \Downarrow \langle IR, v \rangle \land \Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v'), \sigma')\right) \Rightarrow \left(\text{ExecIRSigma}(IR, \sigma) \Downarrow (\text{Val}(v'), \sigma') \land v = v'\right)$$
+$$\text{CodegenExprCtrlCorrect} \iff \forall e, IR, v, \sigma, \kappa, \sigma'.\ \left(\Gamma \vdash \text{CodegenExpr}(e) \Downarrow \langle IR, v \rangle \land \Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma')\right) \Rightarrow \left(\text{ExecIRSigma}(IR, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma')\right)$$
+$$\text{CodegenStmtCorrect} \iff \forall s, IR, \sigma, sout, \sigma'.\ \left(\Gamma \vdash \text{CodegenStmt}(s) \Downarrow IR \land \Gamma \vdash \text{ExecSigma}(s, \sigma) \Downarrow (sout, \sigma')\right) \Rightarrow \left(\text{ExecIRSigma}(IR, \sigma) \Downarrow (sout, \sigma')\right)$$
+$$\text{CodegenBlockValCorrect} \iff \forall b, IR, v, \sigma, v', \sigma'.\ \left(\Gamma \vdash \text{CodegenBlock}(b) \Downarrow \langle IR, v \rangle \land \Gamma \vdash \text{EvalBlockSigma}(b, \sigma) \Downarrow (\text{Val}(v'), \sigma')\right) \Rightarrow \left(\text{ExecIRSigma}(IR, \sigma) \Downarrow (\text{Val}(v'), \sigma') \land v = v'\right)$$
+$$\text{CodegenBlockCtrlCorrect} \iff \forall b, IR, v, \sigma, \kappa, \sigma'.\ \left(\Gamma \vdash \text{CodegenBlock}(b) \Downarrow \langle IR, v \rangle \land \Gamma \vdash \text{EvalBlockSigma}(b, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma')\right) \Rightarrow \left(\text{ExecIRSigma}(IR, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma')\right)$$
 
 $$\text{CodegenCorrect} \iff \text{CodegenExprValCorrect} \land \text{CodegenExprCtrlCorrect} \land \text{CodegenStmtCorrect} \land \text{CodegenBlockValCorrect} \land \text{CodegenBlockCtrlCorrect}$$
 $$\text{CodegenUndefined} \iff \exists e,IR,v.\ \Gamma \vdash \text{CodegenExpr}(e) \Downarrow \langle IR, v \rangle \land \neg \text{IRDefined}(IR)\ \lor\ \exists s,IR.\ \Gamma \vdash \text{CodegenStmt}(s) \Downarrow IR \land \neg \text{IRDefined}(IR)\ \lor\ \exists b,IR,v.\ \Gamma \vdash \text{CodegenBlock}(b) \Downarrow \langle IR, v \rangle \land \neg \text{IRDefined}(IR)$$
@@ -9053,10 +9094,17 @@ $$\text{EmptyState}(M, S) \iff \text{Payload}(M, S) = []$$
 $$\text{PayloadState}(M) = S_p \iff S_p \in \text{States}(M) \land \text{SingleFieldPayload}(M, S_p) = T_p \land \text{NicheCount}(T_p) > 0 \land (\forall S \in \text{States}(M).\ S \ne S_p \Rightarrow \text{EmptyState}(M, S)) \land \text{NicheCount}(T_p) \ge |\text{States}(M)| - 1$$
 $$\text{NicheApplies}(M) \iff \exists S_p.\ \text{PayloadState}(M) = S_p$$
 $$\text{EmptyStates}(M) = [ S \in \text{States}(M) \mid \text{EmptyState}(M, S) ]$$
-$$\text{ModalNicheBits}(M, S, v) = bits \iff \text{NicheApplies}(M) \land \text{PayloadState}(M) = S_p \land \text{SingleFieldPayload}(M, S_p) = T_p \land ((S = S_p \land \text{ValueBits}(T_p, v) = bits \land bits \notin \text{NicheSet}(T_p)) \lor (\exists i.\ \text{EmptyStates}(M)[i] = S \land v = () \land \text{NicheOrder}(T_p)[i] = bits))$$
+$$\text{EmptyRecordVal}(v) \iff \exists tr.\ v = \text{RecordValue}(tr, [])$$
+$$\text{ModalNicheBits}(M, S, v) = bits \iff \text{NicheApplies}(M) \land \text{PayloadState}(M) = S_p \land \text{SingleFieldPayload}(M, S_p) = T_p \land ((S = S_p \land \text{ValueBits}(T_p, v) = bits \land bits \notin \text{NicheSet}(T_p)) \lor (\exists i.\ \text{EmptyStates}(M)[i] = S \land (v = () \lor \text{EmptyRecordVal}(v)) \land \text{NicheOrder}(T_p)[i] = bits))$$
 $$\text{ModalBits}(M, S, v) = bits \iff \text{ModalNicheBits}(M, S, v) = bits \lor \text{ModalTaggedBits}(M, S, v) = bits$$
 
-[TODO: Content missing from source draft. Define ModalTaggedBits.]
+$$\text{ModalPayloadSize}(M) = \max_{S \in \text{States}(M)}(\text{StateSize}(M, S))$$
+$$\text{ModalPayloadAlign}(M) = \max_{S \in \text{States}(M)}(\text{StateAlign}(M, S))$$
+$$\text{StateRecordBits}(M, S, v) = b \iff \text{Payload}(M, S) = fields \land \text{RecordLayout}(fields) \Downarrow \langle size, \_, offsets \rangle \land fields = [\langle f_1, T_1 \rangle,\ldots,\langle f_n, T_n \rangle] \land ((n = 0 \land (v = () \lor \text{EmptyRecordVal}(v)) \land b = []) \lor (n > 0 \land v = \text{RecordValue}(tr, fs) \land (\forall i.\ \text{FieldValue}(\text{RecordValue}(tr, fs), f_i) = v_i) \land \text{StructBits}([T_1,\ldots,T_n], [v_1,\ldots,v_n], offsets, size) = b))$$
+$$\text{ModalPayloadBits}(M, S, v) = bits \iff \text{StateRecordBits}(M, S, v) = b \land \text{PadBytes}(b, \text{ModalPayloadSize}(M)) = bits$$
+
+Modal tagged layout is fully defined; all bytes outside the discriminant and payload ranges MUST be zero.
+$$\text{ModalTaggedBits}(M, S, v) = bits \iff \neg \text{NicheApplies}(M) \land \text{ModalDiscType}(M) = D \land \text{StateIndex}(M, S) = i \land \text{ValueBits}(D, i) = disc\_bits \land \text{ModalPayloadBits}(M, S, v) = payload\_bits \land \text{TaggedBits}(disc\_bits, payload\_bits, \text{sizeof}(D), \text{ModalPayloadSize}(M), \text{ModalPayloadAlign}(M), \text{ModalSize}(M)) = bits \land payload\_off = \text{AlignUp}(\text{sizeof}(D), \text{ModalPayloadAlign}(M)) \land \forall j.\ 0 \le j < |bits| \land j \notin [0,\text{sizeof}(D)) \land j \notin [payload\_off,\ payload\_off + \text{ModalPayloadSize}(M)) \Rightarrow bits[j]=\texttt{0x00}$$
 
 
 
@@ -9627,7 +9675,7 @@ $$\text{OptExprs}(e_1, e_2) = [e_1, e_2]$$
 
 $$\text{LowerExprJudg} = \{\text{LowerExpr},\ \text{LowerUnOp},\ \text{LowerBinOp},\ \text{LowerCast},\ \text{LowerList},\ \text{LowerFieldInits},\ \text{LowerOpt},\ \text{LowerReadPlace},\ \text{LowerWritePlace},\ \text{LowerMovePlace},\ \text{LowerAddrOf},\ \text{LowerPlace}\}$$
 
-**(EvalOrder-Literal)** `Children_LTR(Literal(ℓ)) = []`.
+**(EvalOrder-Literal)** `Children_LTR(Literal(â„“)) = []`.
 
 **(EvalOrder-PtrNull)** `Children_LTR(PtrNullExpr) = []`.
   
@@ -9641,7 +9689,7 @@ $$\text{LowerExprJudg} = \{\text{LowerExpr},\ \text{LowerUnOp},\ \text{LowerBinO
   
 **(EvalOrder-Record)** `Children_LTR(RecordExpr(tr, fields)) = FieldExprs(fields)`.
   
-**(EvalOrder-Enum-Unit)** `Children_LTR(EnumLiteral(path, ⊥)) = []`.
+**(EvalOrder-Enum-Unit)** `Children_LTR(EnumLiteral(path, âŠ¥)) = []`.
   
 **(EvalOrder-Enum-Tuple)** `Children_LTR(EnumLiteral(path, Paren(es))) = es`.
   
@@ -9690,141 +9738,141 @@ $$\text{LowerExprJudg} = \{\text{LowerExpr},\ \text{LowerUnOp},\ \text{LowerBinO
 $$\text{RetType}(\Gamma) = R \iff \text{ProcRet}(\Gamma) = R$$
 
 **(Lower-Expr-Correctness)**
-$$\frac{\forall \sigma,\ \Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (out, \sigma') \Rightarrow \text{ExecIRσ}(IR, \sigma) \Downarrow (out, \sigma')}{\Gamma \vdash \text{LowerExpr}(e) \Downarrow \langle IR, v \rangle}$$
+$$\frac{\forall \sigma,\ \Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (out, \sigma') \Rightarrow \text{ExecIRSigma}(IR, \sigma) \Downarrow (out, \sigma')}{\Gamma \vdash \text{LowerExpr}(e) \Downarrow \langle IR, v \rangle}$$
 
 $$\text{ExprForms0} = \{\text{Literal}(\_),\ \text{PtrNullExpr},\ \text{Identifier}(\_),\ \text{Path}(\_,\_),\ \text{ErrorExpr}(\_),\ \text{TupleExpr}(\_),\ \text{ArrayExpr}(\_),\ \text{RecordExpr}(\_,\_),\ \text{EnumLiteral}(\_,\_),\ \text{FieldAccess}(\_,\_),\ \text{TupleAccess}(\_,\_),\ \text{IndexAccess}(\_,\_),\ \text{Call}(\_,\_),\ \text{MethodCall}(\_,\_,\_),\ \text{Unary}(\_,\_),\ \text{Binary}(\_,\_,\_),\ \text{Cast}(\_,\_),\ \text{TransmuteExpr}(\_,\_,\_),\ \text{Propagate}(\_),\ \text{Range}(\_,\_,\_),\ \text{IfExpr}(\_,\_,\_),\ \text{MatchExpr}(\_,\_),\ \text{LoopInfinite}(\_),\ \text{LoopConditional}(\_,\_),\ \text{LoopIter}(\_,\_,\_,\_),\ \text{BlockExpr}(\_,\_),\ \text{UnsafeBlockExpr}(\_),\ \text{MoveExpr}(\_),\ \text{AddressOf}(\_),\ \text{Deref}(\_),\ \text{AllocExpr}(\_,\_)\}$$
 $$\text{LowerExprTotal}(\Gamma) \iff \forall e.\ e \in \text{ExprForms0} \Rightarrow \exists IR, v.\ \Gamma \vdash \text{LowerExpr}(e) \Downarrow \langle IR, v \rangle$$
 
-$$\text{ExecIRJudg} = \{\text{ExecIRσ},\ \text{MoveStateσ}\}$$
+$$\text{ExecIRJudg} = \{\text{ExecIRSigma},\ \text{MoveStateSigma}\}$$
 
 **(ExecIR-ReadVar)**
-$$\frac{\text{LookupVal}(\sigma, x) = v}{\text{ExecIRσ}(\text{ReadVarIR}(x), \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
+$$\frac{\text{LookupVal}(\sigma, x) = v}{\text{ExecIRSigma}(\text{ReadVarIR}(x), \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
 
 **(ExecIR-ReadPath)**
-$$\frac{\text{LookupValPath}(\sigma, path, name) = v}{\text{ExecIRσ}(\text{ReadPathIR}(path, name), \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
+$$\frac{\text{LookupValPath}(\sigma, path, name) = v}{\text{ExecIRSigma}(\text{ReadPathIR}(path, name), \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
 
 **(ExecIR-StoreVar)**
-$$\frac{\Gamma \vdash \text{WritePlaceσ}(\text{Identifier}(x), v, \sigma) \Downarrow (sout, \sigma')}{\text{ExecIRσ}(\text{StoreVarIR}(x, v), \sigma) \Downarrow (sout, \sigma')}$$
+$$\frac{\Gamma \vdash \text{WritePlaceSigma}(\text{Identifier}(x), v, \sigma) \Downarrow (sout, \sigma')}{\text{ExecIRSigma}(\text{StoreVarIR}(x, v), \sigma) \Downarrow (sout, \sigma')}$$
 
 **(ExecIR-StoreVarNoDrop)**
-$$\frac{\Gamma \vdash \text{WritePlaceSubσ}(\text{Identifier}(x), v, \sigma) \Downarrow (sout, \sigma')}{\text{ExecIRσ}(\text{StoreVarNoDropIR}(x, v), \sigma) \Downarrow (sout, \sigma')}$$
+$$\frac{\Gamma \vdash \text{WritePlaceSubSigma}(\text{Identifier}(x), v, \sigma) \Downarrow (sout, \sigma')}{\text{ExecIRSigma}(\text{StoreVarNoDropIR}(x, v), \sigma) \Downarrow (sout, \sigma')}$$
 
 **(ExecIR-BindVar)**
-$$\frac{\text{BindVal}(\sigma, x, v) \Downarrow (\sigma', b)}{\text{ExecIRσ}(\text{BindVarIR}(x, v), \sigma) \Downarrow (ok, \sigma')}$$
+$$\frac{\text{BindVal}(\sigma, x, v) \Downarrow (\sigma', b)}{\text{ExecIRSigma}(\text{BindVarIR}(x, v), \sigma) \Downarrow (ok, \sigma')}$$
 
 **(ExecIR-ReadPtr)**
-$$\frac{\Gamma \vdash \text{ReadPtrσ}(v_{ptr}, \sigma) \Downarrow (out, \sigma')}{\text{ExecIRσ}(\text{ReadPtrIR}(v_{ptr}), \sigma) \Downarrow (out, \sigma')}$$
+$$\frac{\Gamma \vdash \text{ReadPtrSigma}(v_{ptr}, \sigma) \Downarrow (out, \sigma')}{\text{ExecIRSigma}(\text{ReadPtrIR}(v_{ptr}), \sigma) \Downarrow (out, \sigma')}$$
 
 **(ExecIR-WritePtr)**
-$$\frac{\Gamma \vdash \text{WritePtrσ}(v_{ptr}, v, \sigma) \Downarrow (sout, \sigma')}{\text{ExecIRσ}(\text{WritePtrIR}(v_{ptr}, v), \sigma) \Downarrow (sout, \sigma')}$$
+$$\frac{\Gamma \vdash \text{WritePtrSigma}(v_{ptr}, v, \sigma) \Downarrow (sout, \sigma')}{\text{ExecIRSigma}(\text{WritePtrIR}(v_{ptr}, v), \sigma) \Downarrow (sout, \sigma')}$$
 
 $$\text{AllocTarget}(\sigma, \bot) = \text{ActiveTarget}(\sigma)$$
 $$\text{AllocTarget}(\sigma, r) = \text{ResolveTarget}(\sigma, r)$$
 
 **(ExecIR-Alloc)**
-$$\frac{\text{AllocTarget}(\sigma, r_{opt}) = r \quad \text{RegionAlloc}(\sigma, r, v) \Downarrow (\sigma', v')}{\text{ExecIRσ}(\text{AllocIR}(r_{opt}, v), \sigma) \Downarrow (\text{Val}(v'), \sigma')}$$
+$$\frac{\text{AllocTarget}(\sigma, r_{opt}) = r \quad \text{RegionAlloc}(\sigma, r, v) \Downarrow (\sigma', v')}{\text{ExecIRSigma}(\text{AllocIR}(r_{opt}, v), \sigma) \Downarrow (\text{Val}(v'), \sigma')}$$
 
 **(MoveState-Root)**
-$$\frac{\text{PlaceRoot}(p) = x \quad \text{FieldHead}(p) = \bot \quad \text{LookupBind}(\sigma, x) = b \quad \text{SetState}(\sigma, b, \text{Moved}) \Downarrow \sigma'}{\Gamma \vdash \text{MoveStateσ}(p, \sigma) \Downarrow \sigma'}$$
+$$\frac{\text{PlaceRoot}(p) = x \quad \text{FieldHead}(p) = \bot \quad \text{LookupBind}(\sigma, x) = b \quad \text{SetState}(\sigma, b, \text{Moved}) \Downarrow \sigma'}{\Gamma \vdash \text{MoveStateSigma}(p, \sigma) \Downarrow \sigma'}$$
 
 **(MoveState-Field)**
-$$\frac{\text{PlaceRoot}(p) = x \quad \text{FieldHead}(p) = f \quad \text{LookupBind}(\sigma, x) = b \quad \text{BindState}(\sigma, b) = s \quad \text{PM}(s, f) = s' \quad \text{SetState}(\sigma, b, s') \Downarrow \sigma'}{\Gamma \vdash \text{MoveStateσ}(p, \sigma) \Downarrow \sigma'}$$
+$$\frac{\text{PlaceRoot}(p) = x \quad \text{FieldHead}(p) = f \quad \text{LookupBind}(\sigma, x) = b \quad \text{BindState}(\sigma, b) = s \quad \text{PM}(s, f) = s' \quad \text{SetState}(\sigma, b, s') \Downarrow \sigma'}{\Gamma \vdash \text{MoveStateSigma}(p, \sigma) \Downarrow \sigma'}$$
 
 **(ExecIR-MoveState)**
-$$\frac{\Gamma \vdash \text{MoveStateσ}(p, \sigma) \Downarrow \sigma'}{\text{ExecIRσ}(\text{MoveStateIR}(p), \sigma) \Downarrow (ok, \sigma')}$$
+$$\frac{\Gamma \vdash \text{MoveStateSigma}(p, \sigma) \Downarrow \sigma'}{\text{ExecIRSigma}(\text{MoveStateIR}(p), \sigma) \Downarrow (ok, \sigma')}$$
 
 **(ExecIR-Return)**
-$$\frac{}{ \text{ExecIRσ}(\text{ReturnIR}(v), \sigma) \Downarrow (\text{Ctrl}(\text{Return}(v)), \sigma)}$$
+$$\frac{}{ \text{ExecIRSigma}(\text{ReturnIR}(v), \sigma) \Downarrow (\text{Ctrl}(\text{Return}(v)), \sigma)}$$
 
 **(ExecIR-Result)**
-$$\frac{}{ \text{ExecIRσ}(\text{ResultIR}(v), \sigma) \Downarrow (\text{Ctrl}(\text{Result}(v)), \sigma)}$$
+$$\frac{}{ \text{ExecIRSigma}(\text{ResultIR}(v), \sigma) \Downarrow (\text{Ctrl}(\text{Result}(v)), \sigma)}$$
 
 **(ExecIR-Break)**
-$$\frac{}{ \text{ExecIRσ}(\text{BreakIR}(v_{opt}), \sigma) \Downarrow (\text{Ctrl}(\text{Break}(v_{opt})), \sigma)}$$
+$$\frac{}{ \text{ExecIRSigma}(\text{BreakIR}(v_{opt}), \sigma) \Downarrow (\text{Ctrl}(\text{Break}(v_{opt})), \sigma)}$$
 
 **(ExecIR-Continue)**
-$$\frac{}{ \text{ExecIRσ}(\text{ContinueIR}, \sigma) \Downarrow (\text{Ctrl}(\text{Continue}), \sigma)}$$
+$$\frac{}{ \text{ExecIRSigma}(\text{ContinueIR}, \sigma) \Downarrow (\text{Ctrl}(\text{Continue}), \sigma)}$$
 
 **(ExecIR-Defer)**
-$$\frac{\text{AppendCleanup}(\sigma, \text{DeferBlock}(b)) \Downarrow \sigma'}{\text{ExecIRσ}(\text{DeferIR}(b), \sigma) \Downarrow (ok, \sigma')}$$
+$$\frac{\text{AppendCleanup}(\sigma, \text{DeferBlock}(b)) \Downarrow \sigma'}{\text{ExecIRSigma}(\text{DeferIR}(b), \sigma) \Downarrow (ok, \sigma')}$$
 
-$$\text{ExecBlockBodyIRσ}(IR_s, IR_t, \sigma) \Downarrow (out, \sigma') \iff \text{ExecIRσ}(IR_s, \sigma) \Downarrow (sout, \sigma_1) \land \Big((sout = ok \land IR_t = \epsilon \land out = \text{Val}(()) \land \sigma' = \sigma_1)\ \lor\ (sout = ok \land \text{ExecIRσ}(IR_t, \sigma_1) \Downarrow (out, \sigma'))\ \lor\ (sout = \text{Ctrl}(\text{Result}(v)) \land out = \text{Val}(v) \land \sigma' = \sigma_1)\ \lor\ (sout = \text{Ctrl}(\kappa) \land \kappa \ne \text{Result}(\_) \land out = \text{Ctrl}(\kappa) \land \sigma' = \sigma_1)\Big)$$
-$$\Gamma \vdash \text{ExecInScopeIRσ}(IR_b, \sigma, scope) \Downarrow (out, \sigma') \iff \text{CurrentScopeId}(\sigma) = scope \land \text{ExecIRσ}(IR_b, \sigma) \Downarrow (out, \sigma')$$
-$$\Gamma \vdash \text{ExecBlockBindIRσ}(pat, v, IR_b, \sigma) \Downarrow (out', \sigma'') \iff \text{BindPatternVal}(pat, v) \Downarrow B \land \text{BindOrder}(pat, B) = binds \land \text{BlockEnter}(\sigma, binds) \Downarrow (\sigma_1, scope) \land \text{ExecIRσ}(IR_b, \sigma_1) \Downarrow (out, \sigma_2) \land \text{BlockExit}(\sigma_2, scope, out) \Downarrow (out', \sigma'')$$
+$$\text{ExecBlockBodyIRSigma}(IR_s, IR_t, \sigma) \Downarrow (out, \sigma') \iff \text{ExecIRSigma}(IR_s, \sigma) \Downarrow (sout, \sigma_1) \land \Big((sout = ok \land IR_t = \epsilon \land out = \text{Val}(()) \land \sigma' = \sigma_1)\ \lor\ (sout = ok \land \text{ExecIRSigma}(IR_t, \sigma_1) \Downarrow (out, \sigma'))\ \lor\ (sout = \text{Ctrl}(\text{Result}(v)) \land out = \text{Val}(v) \land \sigma' = \sigma_1)\ \lor\ (sout = \text{Ctrl}(\kappa) \land \kappa \ne \text{Result}(\_) \land out = \text{Ctrl}(\kappa) \land \sigma' = \sigma_1)\Big)$$
+$$\Gamma \vdash \text{ExecInScopeIRSigma}(IR_b, \sigma, scope) \Downarrow (out, \sigma') \iff \text{CurrentScopeId}(\sigma) = scope \land \text{ExecIRSigma}(IR_b, \sigma) \Downarrow (out, \sigma')$$
+$$\Gamma \vdash \text{ExecBlockBindIRSigma}(pat, v, IR_b, \sigma) \Downarrow (out', \sigma'') \iff \text{BindPatternVal}(pat, v) \Downarrow B \land \text{BindOrder}(pat, B) = binds \land \text{BlockEnter}(\sigma, binds) \Downarrow (\sigma_1, scope) \land \text{ExecIRSigma}(IR_b, \sigma_1) \Downarrow (out, \sigma_2) \land \text{BlockExit}(\sigma_2, scope, out) \Downarrow (out', \sigma'')$$
 
 **(ExecIR-If-True)**
-$$\frac{v_c = \text{true} \quad \text{ExecIRσ}(IR_t, \sigma) \Downarrow (out, \sigma')}{\text{ExecIRσ}(\text{IfIR}(v_c, IR_t, v_t, IR_f, v_f), \sigma) \Downarrow (out, \sigma')}$$
+$$\frac{v_c = \text{true} \quad \text{ExecIRSigma}(IR_t, \sigma) \Downarrow (out, \sigma')}{\text{ExecIRSigma}(\text{IfIR}(v_c, IR_t, v_t, IR_f, v_f), \sigma) \Downarrow (out, \sigma')}$$
 
 **(ExecIR-If-False)**
-$$\frac{v_c = \text{false} \quad \text{ExecIRσ}(IR_f, \sigma) \Downarrow (out, \sigma')}{\text{ExecIRσ}(\text{IfIR}(v_c, IR_t, v_t, IR_f, v_f), \sigma) \Downarrow (out, \sigma')}$$
+$$\frac{v_c = \text{false} \quad \text{ExecIRSigma}(IR_f, \sigma) \Downarrow (out, \sigma')}{\text{ExecIRSigma}(\text{IfIR}(v_c, IR_t, v_t, IR_f, v_f), \sigma) \Downarrow (out, \sigma')}$$
 
 **(ExecIR-Block)**
-$$\frac{\text{BlockEnter}(\sigma, []) \Downarrow (\sigma_1, scope) \quad \text{ExecBlockBodyIRσ}(IR_s, IR_t, \sigma_1) \Downarrow (out, \sigma_2) \quad \text{BlockExit}(\sigma_2, scope, out) \Downarrow (out', \sigma_3)}{\text{ExecIRσ}(\text{BlockIR}(IR_s, IR_t, v_t), \sigma) \Downarrow (out', \sigma_3)}$$
+$$\frac{\text{BlockEnter}(\sigma, []) \Downarrow (\sigma_1, scope) \quad \text{ExecBlockBodyIRSigma}(IR_s, IR_t, \sigma_1) \Downarrow (out, \sigma_2) \quad \text{BlockExit}(\sigma_2, scope, out) \Downarrow (out', \sigma_3)}{\text{ExecIRSigma}(\text{BlockIR}(IR_s, IR_t, v_t), \sigma) \Downarrow (out', \sigma_3)}$$
 
 **(ExecIR-Match)**
-$$\frac{\Gamma \vdash \text{MatchArmsσ}(arms, v_s, \sigma) \Downarrow (out, \sigma')}{\text{ExecIRσ}(\text{MatchIR}(v_s, arms), \sigma) \Downarrow (out, \sigma')}$$
+$$\frac{\Gamma \vdash \text{MatchArmsSigma}(arms, v_s, \sigma) \Downarrow (out, \sigma')}{\text{ExecIRSigma}(\text{MatchIR}(v_s, arms), \sigma) \Downarrow (out, \sigma')}$$
 
 **(ExecIR-Loop-Infinite-Step)**
-$$\frac{\text{ExecIRσ}(IR_b, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{ExecIRσ}(\text{LoopIR}(\text{LoopInfinite}, IR_b, v_b), \sigma_1) \Downarrow (out, \sigma_2)}{\text{ExecIRσ}(\text{LoopIR}(\text{LoopInfinite}, IR_b, v_b), \sigma) \Downarrow (out, \sigma_2)}$$
+$$\frac{\text{ExecIRSigma}(IR_b, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{ExecIRSigma}(\text{LoopIR}(\text{LoopInfinite}, IR_b, v_b), \sigma_1) \Downarrow (out, \sigma_2)}{\text{ExecIRSigma}(\text{LoopIR}(\text{LoopInfinite}, IR_b, v_b), \sigma) \Downarrow (out, \sigma_2)}$$
 
 **(ExecIR-Loop-Infinite-Continue)**
-$$\frac{\text{ExecIRσ}(IR_b, \sigma) \Downarrow (\text{Ctrl}(\text{Continue}), \sigma_1) \quad \text{ExecIRσ}(\text{LoopIR}(\text{LoopInfinite}, IR_b, v_b), \sigma_1) \Downarrow (out, \sigma_2)}{\text{ExecIRσ}(\text{LoopIR}(\text{LoopInfinite}, IR_b, v_b), \sigma) \Downarrow (out, \sigma_2)}$$
+$$\frac{\text{ExecIRSigma}(IR_b, \sigma) \Downarrow (\text{Ctrl}(\text{Continue}), \sigma_1) \quad \text{ExecIRSigma}(\text{LoopIR}(\text{LoopInfinite}, IR_b, v_b), \sigma_1) \Downarrow (out, \sigma_2)}{\text{ExecIRSigma}(\text{LoopIR}(\text{LoopInfinite}, IR_b, v_b), \sigma) \Downarrow (out, \sigma_2)}$$
 
 **(ExecIR-Loop-Infinite-Break)**
-$$\frac{\text{ExecIRσ}(IR_b, \sigma) \Downarrow (\text{Ctrl}(\text{Break}(v_{\text{opt}})), \sigma_1) \quad v = \text{BreakVal}(v_{\text{opt}})}{\text{ExecIRσ}(\text{LoopIR}(\text{LoopInfinite}, IR_b, v_b), \sigma) \Downarrow (\text{Val}(v), \sigma_1)}$$
+$$\frac{\text{ExecIRSigma}(IR_b, \sigma) \Downarrow (\text{Ctrl}(\text{Break}(v_{\text{opt}})), \sigma_1) \quad v = \text{BreakVal}(v_{\text{opt}})}{\text{ExecIRSigma}(\text{LoopIR}(\text{LoopInfinite}, IR_b, v_b), \sigma) \Downarrow (\text{Val}(v), \sigma_1)}$$
 
 **(ExecIR-Loop-Infinite-Ctrl)**
-$$\frac{\text{ExecIRσ}(IR_b, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1) \quad \kappa \in \{\text{Return}(\_),\ \text{Panic},\ \text{Abort}\}}{\text{ExecIRσ}(\text{LoopIR}(\text{LoopInfinite}, IR_b, v_b), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+$$\frac{\text{ExecIRSigma}(IR_b, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1) \quad \kappa \in \{\text{Return}(\_),\ \text{Panic},\ \text{Abort}\}}{\text{ExecIRSigma}(\text{LoopIR}(\text{LoopInfinite}, IR_b, v_b), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 **(ExecIR-Loop-Cond-False)**
-$$\frac{\text{ExecIRσ}(IR_c, \sigma) \Downarrow (\text{Val}(\text{false}), \sigma_1)}{\text{ExecIRσ}(\text{LoopIR}(\text{LoopConditional}, IR_c, v_c, IR_b, v_b), \sigma) \Downarrow (\text{Val}(()), \sigma_1)}$$
+$$\frac{\text{ExecIRSigma}(IR_c, \sigma) \Downarrow (\text{Val}(\text{false}), \sigma_1)}{\text{ExecIRSigma}(\text{LoopIR}(\text{LoopConditional}, IR_c, v_c, IR_b, v_b), \sigma) \Downarrow (\text{Val}(()), \sigma_1)}$$
 
 **(ExecIR-Loop-Cond-True-Step)**
-$$\frac{\text{ExecIRσ}(IR_c, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \text{ExecIRσ}(IR_b, \sigma_1) \Downarrow (\text{Val}(v), \sigma_2) \quad \text{ExecIRσ}(\text{LoopIR}(\text{LoopConditional}, IR_c, v_c, IR_b, v_b), \sigma_2) \Downarrow (out, \sigma_3)}{\text{ExecIRσ}(\text{LoopIR}(\text{LoopConditional}, IR_c, v_c, IR_b, v_b), \sigma) \Downarrow (out, \sigma_3)}$$
+$$\frac{\text{ExecIRSigma}(IR_c, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \text{ExecIRSigma}(IR_b, \sigma_1) \Downarrow (\text{Val}(v), \sigma_2) \quad \text{ExecIRSigma}(\text{LoopIR}(\text{LoopConditional}, IR_c, v_c, IR_b, v_b), \sigma_2) \Downarrow (out, \sigma_3)}{\text{ExecIRSigma}(\text{LoopIR}(\text{LoopConditional}, IR_c, v_c, IR_b, v_b), \sigma) \Downarrow (out, \sigma_3)}$$
 
 **(ExecIR-Loop-Cond-Continue)**
-$$\frac{\text{ExecIRσ}(IR_c, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \text{ExecIRσ}(IR_b, \sigma_1) \Downarrow (\text{Ctrl}(\text{Continue}), \sigma_2) \quad \text{ExecIRσ}(\text{LoopIR}(\text{LoopConditional}, IR_c, v_c, IR_b, v_b), \sigma_2) \Downarrow (out, \sigma_3)}{\text{ExecIRσ}(\text{LoopIR}(\text{LoopConditional}, IR_c, v_c, IR_b, v_b), \sigma) \Downarrow (out, \sigma_3)}$$
+$$\frac{\text{ExecIRSigma}(IR_c, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \text{ExecIRSigma}(IR_b, \sigma_1) \Downarrow (\text{Ctrl}(\text{Continue}), \sigma_2) \quad \text{ExecIRSigma}(\text{LoopIR}(\text{LoopConditional}, IR_c, v_c, IR_b, v_b), \sigma_2) \Downarrow (out, \sigma_3)}{\text{ExecIRSigma}(\text{LoopIR}(\text{LoopConditional}, IR_c, v_c, IR_b, v_b), \sigma) \Downarrow (out, \sigma_3)}$$
 
 **(ExecIR-Loop-Cond-Break)**
-$$\frac{\text{ExecIRσ}(IR_c, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \text{ExecIRσ}(IR_b, \sigma_1) \Downarrow (\text{Ctrl}(\text{Break}(v_{\text{opt}})), \sigma_2) \quad v = \text{BreakVal}(v_{\text{opt}})}{\text{ExecIRσ}(\text{LoopIR}(\text{LoopConditional}, IR_c, v_c, IR_b, v_b), \sigma) \Downarrow (\text{Val}(v), \sigma_2)}$$
+$$\frac{\text{ExecIRSigma}(IR_c, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \text{ExecIRSigma}(IR_b, \sigma_1) \Downarrow (\text{Ctrl}(\text{Break}(v_{\text{opt}})), \sigma_2) \quad v = \text{BreakVal}(v_{\text{opt}})}{\text{ExecIRSigma}(\text{LoopIR}(\text{LoopConditional}, IR_c, v_c, IR_b, v_b), \sigma) \Downarrow (\text{Val}(v), \sigma_2)}$$
 
 **(ExecIR-Loop-Cond-Ctrl)**
-$$\frac{\text{ExecIRσ}(IR_c, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\text{ExecIRσ}(\text{LoopIR}(\text{LoopConditional}, IR_c, v_c, IR_b, v_b), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+$$\frac{\text{ExecIRSigma}(IR_c, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\text{ExecIRSigma}(\text{LoopIR}(\text{LoopConditional}, IR_c, v_c, IR_b, v_b), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 **(ExecIR-Loop-Cond-Body-Ctrl)**
-$$\frac{\text{ExecIRσ}(IR_c, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \text{ExecIRσ}(IR_b, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2) \quad \kappa \in \{\text{Return}(\_),\ \text{Panic},\ \text{Abort}\}}{\text{ExecIRσ}(\text{LoopIR}(\text{LoopConditional}, IR_c, v_c, IR_b, v_b), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
+$$\frac{\text{ExecIRSigma}(IR_c, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \text{ExecIRSigma}(IR_b, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2) \quad \kappa \in \{\text{Return}(\_),\ \text{Panic},\ \text{Abort}\}}{\text{ExecIRSigma}(\text{LoopIR}(\text{LoopConditional}, IR_c, v_c, IR_b, v_b), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
 
-$$\text{LoopIterIRJudg} = \{\Gamma \vdash \text{LoopIterExecIRσ}(pat, IR_b, it, \sigma) \Downarrow (out, \sigma')\}$$
+$$\text{LoopIterIRJudg} = \{\Gamma \vdash \text{LoopIterExecIRSigma}(pat, IR_b, it, \sigma) \Downarrow (out, \sigma')\}$$
 
 **(ExecIR-Loop-Iter)**
-$$\frac{\text{ExecIRσ}(IR_i, \sigma) \Downarrow (\text{Val}(v_{\text{iter}}), \sigma_1) \quad \text{IterInit}(v_{\text{iter}}) \Downarrow it \quad \Gamma \vdash \text{LoopIterExecIRσ}(pat, IR_b, it, \sigma_1) \Downarrow (out, \sigma_2)}{\text{ExecIRσ}(\text{LoopIR}(\text{LoopIter}, pat, ty\_opt, IR_i, v_{\text{iter}}, IR_b, v_b), \sigma) \Downarrow (out, \sigma_2)}$$
+$$\frac{\text{ExecIRSigma}(IR_i, \sigma) \Downarrow (\text{Val}(v_{\text{iter}}), \sigma_1) \quad \text{IterInit}(v_{\text{iter}}) \Downarrow it \quad \Gamma \vdash \text{LoopIterExecIRSigma}(pat, IR_b, it, \sigma_1) \Downarrow (out, \sigma_2)}{\text{ExecIRSigma}(\text{LoopIR}(\text{LoopIter}, pat, ty\_opt, IR_i, v_{\text{iter}}, IR_b, v_b), \sigma) \Downarrow (out, \sigma_2)}$$
 
 **(ExecIR-Loop-Iter-Ctrl)**
-$$\frac{\text{ExecIRσ}(IR_i, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\text{ExecIRσ}(\text{LoopIR}(\text{LoopIter}, pat, ty\_opt, IR_i, v_{\text{iter}}, IR_b, v_b), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+$$\frac{\text{ExecIRSigma}(IR_i, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\text{ExecIRSigma}(\text{LoopIR}(\text{LoopIter}, pat, ty\_opt, IR_i, v_{\text{iter}}, IR_b, v_b), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 **(LoopIterIR-Done)**
-$$\frac{\text{IterNext}(it) \Downarrow (\bot, it')}{\Gamma \vdash \text{LoopIterExecIRσ}(pat, IR_b, it, \sigma) \Downarrow (\text{Val}(()), \sigma)}$$
+$$\frac{\text{IterNext}(it) \Downarrow (\bot, it')}{\Gamma \vdash \text{LoopIterExecIRSigma}(pat, IR_b, it, \sigma) \Downarrow (\text{Val}(()), \sigma)}$$
 
 **(LoopIterIR-Step-Val)**
-$$\frac{\text{IterNext}(it) \Downarrow (v, it') \quad \Gamma \vdash \text{ExecBlockBindIRσ}(pat, v, IR_b, \sigma) \Downarrow (\text{Val}(v_b), \sigma_1) \quad \Gamma \vdash \text{LoopIterExecIRσ}(pat, IR_b, it', \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{LoopIterExecIRσ}(pat, IR_b, it, \sigma) \Downarrow (out, \sigma_2)}$$
+$$\frac{\text{IterNext}(it) \Downarrow (v, it') \quad \Gamma \vdash \text{ExecBlockBindIRSigma}(pat, v, IR_b, \sigma) \Downarrow (\text{Val}(v_b), \sigma_1) \quad \Gamma \vdash \text{LoopIterExecIRSigma}(pat, IR_b, it', \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{LoopIterExecIRSigma}(pat, IR_b, it, \sigma) \Downarrow (out, \sigma_2)}$$
 
 **(LoopIterIR-Step-Continue)**
-$$\frac{\text{IterNext}(it) \Downarrow (v, it') \quad \Gamma \vdash \text{ExecBlockBindIRσ}(pat, v, IR_b, \sigma) \Downarrow (\text{Ctrl}(\text{Continue}), \sigma_1) \quad \Gamma \vdash \text{LoopIterExecIRσ}(pat, IR_b, it', \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{LoopIterExecIRσ}(pat, IR_b, it, \sigma) \Downarrow (out, \sigma_2)}$$
+$$\frac{\text{IterNext}(it) \Downarrow (v, it') \quad \Gamma \vdash \text{ExecBlockBindIRSigma}(pat, v, IR_b, \sigma) \Downarrow (\text{Ctrl}(\text{Continue}), \sigma_1) \quad \Gamma \vdash \text{LoopIterExecIRSigma}(pat, IR_b, it', \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{LoopIterExecIRSigma}(pat, IR_b, it, \sigma) \Downarrow (out, \sigma_2)}$$
 
 **(LoopIterIR-Step-Break)**
-$$\frac{\text{IterNext}(it) \Downarrow (v, it') \quad \Gamma \vdash \text{ExecBlockBindIRσ}(pat, v, IR_b, \sigma) \Downarrow (\text{Ctrl}(\text{Break}(v_{\text{opt}})), \sigma_1) \quad v' = \text{BreakVal}(v_{\text{opt}})}{\Gamma \vdash \text{LoopIterExecIRσ}(pat, IR_b, it, \sigma) \Downarrow (\text{Val}(v'), \sigma_1)}$$
+$$\frac{\text{IterNext}(it) \Downarrow (v, it') \quad \Gamma \vdash \text{ExecBlockBindIRSigma}(pat, v, IR_b, \sigma) \Downarrow (\text{Ctrl}(\text{Break}(v_{\text{opt}})), \sigma_1) \quad v' = \text{BreakVal}(v_{\text{opt}})}{\Gamma \vdash \text{LoopIterExecIRSigma}(pat, IR_b, it, \sigma) \Downarrow (\text{Val}(v'), \sigma_1)}$$
 
 **(LoopIterIR-Step-Ctrl)**
-$$\frac{\text{IterNext}(it) \Downarrow (v, it') \quad \Gamma \vdash \text{ExecBlockBindIRσ}(pat, v, IR_b, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1) \quad \kappa \in \{\text{Return}(\_),\ \text{Panic},\ \text{Abort}\}}{\Gamma \vdash \text{LoopIterExecIRσ}(pat, IR_b, it, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+$$\frac{\text{IterNext}(it) \Downarrow (v, it') \quad \Gamma \vdash \text{ExecBlockBindIRSigma}(pat, v, IR_b, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1) \quad \kappa \in \{\text{Return}(\_),\ \text{Panic},\ \text{Abort}\}}{\Gamma \vdash \text{LoopIterExecIRSigma}(pat, IR_b, it, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 **(ExecIR-Region)**
-$$\frac{\text{RegionNew}(\sigma, v_o) \Downarrow (\sigma_1, r, scope) \quad \text{BindRegionAlias}(\sigma_1, alias\_opt, r) \Downarrow \sigma_2 \quad \Gamma \vdash \text{ExecInScopeIRσ}(IR_b, \sigma_2, scope) \Downarrow (out, \sigma_3) \quad \text{RegionRelease}(\sigma_3, r, scope, out) \Downarrow (out', \sigma_4)}{\text{ExecIRσ}(\text{RegionIR}(v_o, alias\_opt, IR_b, v_b), \sigma) \Downarrow (\text{StmtOutOf}(out'), \sigma_4)}$$
+$$\frac{\text{RegionNew}(\sigma, v_o) \Downarrow (\sigma_1, r, scope) \quad \text{BindRegionAlias}(\sigma_1, alias\_opt, r) \Downarrow \sigma_2 \quad \Gamma \vdash \text{ExecInScopeIRSigma}(IR_b, \sigma_2, scope) \Downarrow (out, \sigma_3) \quad \text{RegionRelease}(\sigma_3, r, scope, out) \Downarrow (out', \sigma_4)}{\text{ExecIRSigma}(\text{RegionIR}(v_o, alias\_opt, IR_b, v_b), \sigma) \Downarrow (\text{StmtOutOf}(out'), \sigma_4)}$$
 
 **(ExecIR-Frame-Implicit)**
-$$\frac{\text{ActiveTarget}(\sigma) = r \quad \text{FrameEnter}(\sigma, r) \Downarrow (\sigma_1, F, scope, mark) \quad \Gamma \vdash \text{ExecInScopeIRσ}(IR_b, \sigma_1, scope) \Downarrow (out, \sigma_2) \quad \text{FrameReset}(\sigma_2, r, scope, mark, out) \Downarrow (out', \sigma_3)}{\text{ExecIRσ}(\text{FrameIR}(\bot, IR_b, v_b), \sigma) \Downarrow (\text{StmtOutOf}(out'), \sigma_3)}$$
+$$\frac{\text{ActiveTarget}(\sigma) = r \quad \text{FrameEnter}(\sigma, r) \Downarrow (\sigma_1, F, scope, mark) \quad \Gamma \vdash \text{ExecInScopeIRSigma}(IR_b, \sigma_1, scope) \Downarrow (out, \sigma_2) \quad \text{FrameReset}(\sigma_2, r, scope, mark, out) \Downarrow (out', \sigma_3)}{\text{ExecIRSigma}(\text{FrameIR}(\bot, IR_b, v_b), \sigma) \Downarrow (\text{StmtOutOf}(out'), \sigma_3)}$$
 
 **(ExecIR-Frame-Explicit)**
-$$\frac{\text{FrameEnter}(\sigma, v_r) \Downarrow (\sigma_1, F, scope, mark) \quad \Gamma \vdash \text{ExecInScopeIRσ}(IR_b, \sigma_1, scope) \Downarrow (out, \sigma_2) \quad \text{FrameReset}(\sigma_2, v_r, scope, mark, out) \Downarrow (out', \sigma_3)}{\text{ExecIRσ}(\text{FrameIR}(v_r, IR_b, v_b), \sigma) \Downarrow (\text{StmtOutOf}(out'), \sigma_3)}$$
+$$\frac{\text{RegionHandleOf}(v_r) = h \quad \text{ResolveTarget}(\sigma, h) = r_t \quad \text{FrameEnter}(\sigma, r_t) \Downarrow (\sigma_1, F, scope, mark) \quad \Gamma \vdash \text{ExecInScopeIRSigma}(IR_b, \sigma_1, scope) \Downarrow (out, \sigma_2) \quad \text{FrameReset}(\sigma_2, r_t, scope, mark, out) \Downarrow (out', \sigma_3)}{\text{ExecIRSigma}(\text{FrameIR}(v_r, IR_b, v_b), \sigma) \Downarrow (\text{StmtOutOf}(out'), \sigma_3)}$$
 
 **Lowering Helpers.**
 
@@ -10011,7 +10059,7 @@ $$\frac{\Gamma \vdash \text{LowerExpr}(e) \Downarrow \langle IR, v \rangle \quad
 
 $$\text{PlaceForms0} = \{\text{Identifier}(\_),\ \text{FieldAccess}(\_,\_),\ \text{TupleAccess}(\_,\_),\ \text{IndexAccess}(\_,\_),\ \text{Deref}(\_)\}$$
 $$\text{LowerPlaceTotal}(\Gamma) \iff \forall p.\ p \in \text{PlaceForms0} \Rightarrow \exists l.\ \Gamma \vdash \text{LowerPlace}(p) \Downarrow l$$
-$$\text{LowerPlacePreserve}(\Gamma) \iff \forall p,l.\ \Gamma \vdash \text{LowerPlace}(p) \Downarrow l \Rightarrow (\forall \sigma, out, \sigma'.\ \Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (out, \sigma') \Rightarrow \Gamma \vdash \text{ReadPlaceσ}(l, \sigma) \Downarrow (out, \sigma')) \land (\forall \sigma, v, sout, \sigma'.\ \Gamma \vdash \text{WritePlaceσ}(p, v, \sigma) \Downarrow (sout, \sigma') \Rightarrow \Gamma \vdash \text{WritePlaceσ}(l, v, \sigma) \Downarrow (sout, \sigma'))$$
+$$\text{LowerPlacePreserve}(\Gamma) \iff \forall p,l.\ \Gamma \vdash \text{LowerPlace}(p) \Downarrow l \Rightarrow (\forall \sigma, out, \sigma'.\ \Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (out, \sigma') \Rightarrow \Gamma \vdash \text{ReadPlaceSigma}(l, \sigma) \Downarrow (out, \sigma')) \land (\forall \sigma, v, sout, \sigma'.\ \Gamma \vdash \text{WritePlaceSigma}(p, v, \sigma) \Downarrow (sout, \sigma') \Rightarrow \Gamma \vdash \text{WritePlaceSigma}(l, v, \sigma) \Downarrow (sout, \sigma'))$$
 
 **Place Lowering Rules.**
 
@@ -10163,13 +10211,13 @@ $$\frac{\Gamma \vdash \text{LowerReadPlace}(p) \Downarrow \langle IR_p, v \rangl
 $$\text{LowerStmtJudg} = \{\text{LowerStmt},\ \text{LowerStmtList},\ \text{LowerBlock},\ \text{LowerLoop}\}$$
 
 **(Lower-Stmt-Correctness)**
-$$\frac{\forall \sigma,\ \Gamma \vdash \text{Execσ}(s, \sigma) \Downarrow (sout, \sigma') \Rightarrow \text{ExecIRσ}(IR, \sigma) \Downarrow (sout, \sigma')}{\Gamma \vdash \text{LowerStmt}(s) \Downarrow IR}$$
+$$\frac{\forall \sigma,\ \Gamma \vdash \text{ExecSigma}(s, \sigma) \Downarrow (sout, \sigma') \Rightarrow \text{ExecIRSigma}(IR, \sigma) \Downarrow (sout, \sigma')}{\Gamma \vdash \text{LowerStmt}(s) \Downarrow IR}$$
 
 **(Lower-Block-Correctness)**
-$$\frac{\forall \sigma,\ out,\ \sigma'.\ \Gamma \vdash \text{EvalBlockσ}(b, \sigma) \Downarrow (out, \sigma') \Rightarrow \left(\text{ExecIRσ}(IR, \sigma) \Downarrow (out, \sigma') \land (out=\text{Val}(v') \Rightarrow v=v')\right)}{\Gamma \vdash \text{LowerBlock}(b) \Downarrow \langle IR, v \rangle}$$
+$$\frac{\forall \sigma,\ out,\ \sigma'.\ \Gamma \vdash \text{EvalBlockSigma}(b, \sigma) \Downarrow (out, \sigma') \Rightarrow \left(\text{ExecIRSigma}(IR, \sigma) \Downarrow (out, \sigma') \land (out=\text{Val}(v') \Rightarrow v=v')\right)}{\Gamma \vdash \text{LowerBlock}(b) \Downarrow \langle IR, v \rangle}$$
 
 **(Lower-Loop-Correctness)**
-$$\frac{\forall \sigma,\ \Gamma \vdash \text{Evalσ}(loop, \sigma) \Downarrow (out, \sigma') \Rightarrow \text{ExecIRσ}(IR, \sigma) \Downarrow (out, \sigma')}{\Gamma \vdash \text{LowerLoop}(loop) \Downarrow \langle IR, v \rangle}$$
+$$\frac{\forall \sigma,\ \Gamma \vdash \text{EvalSigma}(loop, \sigma) \Downarrow (out, \sigma') \Rightarrow \text{ExecIRSigma}(IR, \sigma) \Downarrow (out, \sigma')}{\Gamma \vdash \text{LowerLoop}(loop) \Downarrow \langle IR, v \rangle}$$
 
 $$\text{StmtForms0} = \{\text{LetStmt}(\_),\ \text{VarStmt}(\_),\ \text{ShadowLetStmt}(\_,\_,\_),\ \text{ShadowVarStmt}(\_,\_,\_),\ \text{AssignStmt}(\_,\_),\ \text{CompoundAssignStmt}(\_,\_,\_),\ \text{ExprStmt}(\_),\ \text{DeferStmt}(\_),\ \text{RegionStmt}(\_,\_,\_),\ \text{FrameStmt}(\_,\_),\ \text{ReturnStmt}(\_),\ \text{ResultStmt}(\_),\ \text{BreakStmt}(\_),\ \text{ContinueStmt},\ \text{UnsafeBlockStmt}(\_),\ \text{ErrorStmt}(\_)\}$$
 $$\text{LowerStmtTotal}(\Gamma) \iff \forall s.\ s \in \text{StmtForms0} \Rightarrow \exists IR.\ \Gamma \vdash \text{LowerStmt}(s) \Downarrow IR$$
@@ -10290,11 +10338,11 @@ $$\frac{\Gamma \vdash \text{LowerExpr}(iter) \Downarrow \langle IR_i, v_{\text{i
 $$\text{PatternLowerJudg} = \{\text{LowerBindPattern},\ \text{LowerBindList},\ \text{LowerMatch},\ \text{TagOf}\}$$
 
 **(Lower-Pat-Correctness)**
-$$\frac{\forall v,\ \Gamma \vdash \text{MatchPattern}(pat, v) \Downarrow B \Rightarrow \text{ExecIRσ}(IR, \sigma) \Downarrow (ok, \sigma')}{\Gamma \vdash \text{LowerBindPattern}(pat, v) \Downarrow IR}$$
-$$\text{MatchValueCorrect}(\Gamma, scrut, arms, v) \iff \forall \sigma, v', \sigma'.\ \Gamma \vdash \text{Evalσ}(\text{MatchExpr}(scrut, arms), \sigma) \Downarrow (\text{Val}(v'), \sigma') \Rightarrow v = v'$$
+$$\frac{\forall v,\ \Gamma \vdash \text{MatchPattern}(pat, v) \Downarrow B \Rightarrow \text{ExecIRSigma}(IR, \sigma) \Downarrow (ok, \sigma')}{\Gamma \vdash \text{LowerBindPattern}(pat, v) \Downarrow IR}$$
+$$\text{MatchValueCorrect}(\Gamma, scrut, arms, v) \iff \forall \sigma, v', \sigma'.\ \Gamma \vdash \text{EvalSigma}(\text{MatchExpr}(scrut, arms), \sigma) \Downarrow (\text{Val}(v'), \sigma') \Rightarrow v = v'$$
 
 **(Lower-Match-Correctness)**
-$$\frac{\forall \sigma,\ \Gamma \vdash \text{Evalσ}(\text{MatchExpr}(scrut, arms), \sigma) \Downarrow (out, \sigma') \Rightarrow \text{ExecIRσ}(IR, \sigma) \Downarrow (out, \sigma') \quad \text{MatchValueCorrect}(\Gamma, scrut, arms, v)}{\Gamma \vdash \text{LowerMatch}(scrut, arms) \Downarrow \langle IR, v \rangle}$$
+$$\frac{\forall \sigma,\ \Gamma \vdash \text{EvalSigma}(\text{MatchExpr}(scrut, arms), \sigma) \Downarrow (out, \sigma') \Rightarrow \text{ExecIRSigma}(IR, \sigma) \Downarrow (out, \sigma') \quad \text{MatchValueCorrect}(\Gamma, scrut, arms, v)}{\Gamma \vdash \text{LowerMatch}(scrut, arms) \Downarrow \langle IR, v \rangle}$$
 
 $$\text{EnumValuePath}(v) = path \iff v = \text{EnumValue}(path, payload)$$
 $$\text{VariantIndex}(E, name) = i \iff \text{Variants}(E) = [v_0,\ldots,v_k] \land v_i.\text{name} = name$$
@@ -10451,7 +10499,7 @@ $$\text{CleanupJudg} = \{\text{EmitDrop},\ \text{CleanupPlan},\ \text{LowerPanic
 **(CleanupPlan)**
 $$\frac{cs = \text{CleanupList}(scope)}{\Gamma \vdash \text{CleanupPlan}(scope) \Downarrow cs}$$
 
-$$\text{EmitDropSpec}(\Gamma, T, v, IR) \iff \forall \sigma,\ \text{ExecIRσ}(IR, \sigma) \Downarrow (out, \sigma') \land \Gamma \vdash \text{DropValue}(T, v, \emptyset) \Downarrow \sigma'.$$
+$$\text{EmitDropSpec}(\Gamma, T, v, IR) \iff \forall \sigma,\ \text{ExecIRSigma}(IR, \sigma) \Downarrow (out, \sigma') \land \Gamma \vdash \text{DropValue}(T, v, \emptyset) \Downarrow \sigma'.$$
 $$\Gamma \vdash \text{EmitDrop}(T, v) \Downarrow IR \iff \text{EmitDropSpec}(\Gamma, T, v, IR).$$
 
 $$\text{PanicOutAddr}(\sigma) = addr \iff \text{LookupVal}(\sigma, \text{PanicOutName}) = \text{RawPtr}(\texttt{mut}, addr)$$
@@ -10460,7 +10508,7 @@ $$\text{PanicRecordOf}(\sigma) = \langle p, c \rangle \iff \text{PanicOutAddr}(\
 
 $$\text{WritePanicRecord}(\sigma, p, c) \Downarrow \sigma' \iff \text{WriteAddr}(\sigma, \text{FieldAddr}(\text{PanicRecord}, \text{PanicOutAddr}(\sigma), \texttt{"panic"}), p) \Downarrow \sigma_1 \land \text{WriteAddr}(\sigma_1, \text{FieldAddr}(\text{PanicRecord}, \text{PanicOutAddr}(\sigma), \texttt{"code"}), c) \Downarrow \sigma'$$
 
-$$\Gamma \vdash \text{InitPanicHandle}(m) \Downarrow IR \iff \forall \sigma.\ \left(\text{PanicRecordOf}(\sigma) = \langle \text{true}, c \rangle \Rightarrow \exists \sigma'.\ \text{ExecIRσ}(IR, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma') \land \text{ExecIRσ}(\text{SeqIR}(\text{SetPoison}(m), \text{LowerPanic}(\text{InitPanic}(m))), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma')\right) \land \left(\text{PanicRecordOf}(\sigma) = \langle \text{false}, c \rangle \Rightarrow \text{ExecIRσ}(IR, \sigma) \Downarrow (\text{Val}(()), \sigma)\right)$$
+$$\Gamma \vdash \text{InitPanicHandle}(m) \Downarrow IR \iff \forall \sigma.\ \left(\text{PanicRecordOf}(\sigma) = \langle \text{true}, c \rangle \Rightarrow \exists \sigma'.\ \text{ExecIRSigma}(IR, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma') \land \text{ExecIRSigma}(\text{SeqIR}(\text{SetPoison}(m), \text{LowerPanic}(\text{InitPanic}(m))), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma')\right) \land \left(\text{PanicRecordOf}(\sigma) = \langle \text{false}, c \rangle \Rightarrow \text{ExecIRSigma}(IR, \sigma) \Downarrow (\text{Val}(()), \sigma)\right)$$
 
 **(PanicSym)**
 $$\frac{}{ \Gamma \vdash \text{PanicSym} \Downarrow \text{PathSig}([\texttt{"cursive"}, \texttt{"runtime"}, \texttt{"panic"}]) }$$
@@ -10492,11 +10540,11 @@ $$\text{PanicReasonOf}(\text{ErrorStmtSite}(span)) = \text{ErrorStmt}(span)$$
 $$\text{PanicReasonOf}(\text{InitPanicSite}(m)) = \text{InitPanic}(m)$$
 $$\text{PanicReasonOf}(\text{OtherSite}) = \text{Other}$$
 
-$$\Gamma \vdash \text{ClearPanic} \Downarrow IR \iff \forall \sigma,\ \text{ExecIRσ}(IR, \sigma) \Downarrow (out, \sigma') \land \text{WritePanicRecord}(\sigma, \text{false}, 0) \Downarrow \sigma'.$$
+$$\Gamma \vdash \text{ClearPanic} \Downarrow IR \iff \forall \sigma,\ \text{ExecIRSigma}(IR, \sigma) \Downarrow (out, \sigma') \land \text{WritePanicRecord}(\sigma, \text{false}, 0) \Downarrow \sigma'.$$
 
-$$\Gamma \vdash \text{PanicCheck} \Downarrow IR \iff \forall \sigma,\ \left(\text{PanicRecordOf}(\sigma) = \langle \text{true}, c \rangle \Rightarrow \text{ExecIRσ}(IR, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)\right)\ \land\ \left(\text{PanicRecordOf}(\sigma) = \langle \text{false}, c \rangle \Rightarrow \text{ExecIRσ}(IR, \sigma) \Downarrow (\text{Val}(()), \sigma)\right).$$
+$$\Gamma \vdash \text{PanicCheck} \Downarrow IR \iff \forall \sigma,\ \left(\text{PanicRecordOf}(\sigma) = \langle \text{true}, c \rangle \Rightarrow \text{ExecIRSigma}(IR, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)\right)\ \land\ \left(\text{PanicRecordOf}(\sigma) = \langle \text{false}, c \rangle \Rightarrow \text{ExecIRSigma}(IR, \sigma) \Downarrow (\text{Val}(()), \sigma)\right).$$
 
-$$\Gamma \vdash \text{LowerPanic}(reason) \Downarrow IR \iff \forall \sigma.\ \exists \sigma'.\ \text{ExecIRσ}(IR, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma') \land \text{WritePanicRecord}(\sigma, \text{true}, \text{PanicCode}(reason)) \Downarrow \sigma'$$
+$$\Gamma \vdash \text{LowerPanic}(reason) \Downarrow IR \iff \forall \sigma.\ \exists \sigma'.\ \text{ExecIRSigma}(IR, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma') \land \text{WritePanicRecord}(\sigma, \text{true}, \text{PanicCode}(reason)) \Downarrow \sigma'$$
 
 ### 6.9. Built-ins Runtime Interface
 
@@ -10697,7 +10745,7 @@ $$\frac{\text{StripPerm}(T) = \text{TypePtr}(U, s) \quad s \in \{\bot,\ \texttt{
 $$\frac{\text{StripPerm}(T) = \text{TypeRawPtr}(q, U)}{\Gamma \vdash \text{LLVMPtrAttrs}(T) \Downarrow \emptyset}$$
 
 **(LLVM-ArgAttrs-Ptr)**
-$$\text{LLVMArgAttrsPtr}(T) = (\text{PermOf}(T)=\texttt{unique} ? \{\texttt{noalias}\} : \emptyset) \cup (\text{PermOf}(T)=\texttt{const} ? \{\texttt{readonly}\} : \emptyset)$$
+$$\text{LLVMArgAttrsPtr}(T) = (\text{PermOf}(T)=\texttt{unique} Sigma \{\texttt{noalias}\} : \emptyset) \cup (\text{PermOf}(T)=\texttt{const} Sigma \{\texttt{readonly}\} : \emptyset)$$
 $$\frac{\text{StripPerm}(T) \in \{\text{TypePtr}(\_,\_),\ \text{TypeFunc}(\_,\_)\}}{\Gamma \vdash \text{LLVMArgAttrs}(T) \Downarrow \text{LLVMArgAttrsPtr}(T)}$$
 
 **(LLVM-ArgAttrs-RawPtr)**
@@ -10741,7 +10789,7 @@ $$\text{AggMemcpy}(dst, src, n) =
 $$\text{AggZero}(dst, n) = \text{Memset}(dst, 0, n)$$
 $$\text{LifetimeOpt}(T) \subseteq \{\texttt{llvm.lifetime.start}(\text{sizeof}(T)),\ \texttt{llvm.lifetime.end}(\text{sizeof}(T))\}$$
 
-#### 6.12.6. Runtime and Built‑in Declarations
+#### 6.12.6. Runtime and Builtâ€‘in Declarations
 
 $$\text{RuntimeDeclJudg} = \{\text{RuntimeSig}(sym) \Downarrow \langle params, ret \rangle,\ \text{BuiltinSig}(method) \Downarrow \langle params, ret \rangle,\ \text{RuntimeDecls}(S) \Downarrow decls\}$$
 
@@ -11057,7 +11105,7 @@ $$\text{SigOf}(callee) =
 \langle params, ret \rangle & \text{ExprType}(callee) = \text{TypeFunc}(params, ret)\\
 \bot & \text{otherwise}
 \end{cases}$$
-$$\text{LoweredSigOf}(callee) = \langle params', ret \rangle \iff \langle params, ret \rangle = \text{SigOf}(callee) \land params' = ( \text{NeedsPanicOut}(callee) ? params \mathbin{+\!\!+} [\text{PanicOutParam}] : params )$$
+$$\text{LoweredSigOf}(callee) = \langle params', ret \rangle \iff \langle params, ret \rangle = \text{SigOf}(callee) \land params' = ( \text{NeedsPanicOut}(callee) Sigma params \mathbin{+\!\!+} [\text{PanicOutParam}] : params )$$
 
 $$\text{ParamInitIR}(sig, params) = \mathbin{+\!\!+}_{\langle mode, x, T \rangle \in params} \text{ParamInit}(sig, params, x, mode, T)$$
 $$\text{ZeroValue}(T) = \texttt{zeroinitializer} \quad\text{if } \text{sizeof}(T)=0$$
@@ -11071,7 +11119,7 @@ $$\text{ParamOrder}(params) = [x_i \mid \langle mode_i, x_i, T_i \rangle \in par
 $$\text{ParamIndex}(params, x) = i \iff \text{ParamOrder}(params)[i] = x$$
 $$\text{LLVMArgs}(sig) = sig.\text{llvm\_params}$$
 $$\text{LLVMArg}(sig, i) = \text{LLVMArgs}(sig)[i]$$
-$$i' = (\text{sig}.\text{sret?} ? \text{ParamIndex}(params, x) + 1 : \text{ParamIndex}(params, x))$$
+$$i' = (\text{sig}.\text{sretSigma} Sigma \text{ParamIndex}(params, x) + 1 : \text{ParamIndex}(params, x))$$
 $$\text{LLVMParam}(sig, params, x) = \text{LLVMArg}(sig, i')$$
 
 **(LowerIRDecl-Proc-User)**
@@ -11079,7 +11127,7 @@ $$\frac{
 \text{LLVMCallSig}(params, R) \Downarrow sig \quad
 \text{ProcModule}(sym) = m \quad
 IR_p = \text{ParamInitIR}(sig, params) \quad
-IR_0 = (\text{NeedsPanicOut}(sym) ? \text{SeqIR}(\text{ClearPanic}, IR) : IR) \quad
+IR_0 = (\text{NeedsPanicOut}(sym) Sigma \text{SeqIR}(\text{ClearPanic}, IR) : IR) \quad
 IR' = \text{SeqIR}(IR_p, \text{CheckPoison}(m), IR_0) \quad
 \Gamma \vdash \text{LowerIRInstr}(IR') \Downarrow ll
 }{\Gamma \vdash \text{LowerIRDecl}(\text{ProcIR}(sym, params, R, IR)) \Downarrow \text{LLVMDefine}(sym, sig, ll)}$$
@@ -11089,7 +11137,7 @@ $$\frac{
 \text{LLVMCallSig}(params, R) \Downarrow sig \quad
 \text{ProcModule}(sym)\ \text{undefined} \quad
 IR_p = \text{ParamInitIR}(sig, params) \quad
-\Gamma \vdash \text{LowerIRInstr}(\text{SeqIR}(IR_p, (\text{NeedsPanicOut}(sym) ? \text{SeqIR}(\text{ClearPanic}, IR) : IR))) \Downarrow ll
+\Gamma \vdash \text{LowerIRInstr}(\text{SeqIR}(IR_p, (\text{NeedsPanicOut}(sym) Sigma \text{SeqIR}(\text{ClearPanic}, IR) : IR))) \Downarrow ll
 }{\Gamma \vdash \text{LowerIRDecl}(\text{ProcIR}(sym, params, R, IR)) \Downarrow \text{LLVMDefine}(sym, sig, ll)}$$
 
 **(LowerIRDecl-GlobalConst)**
@@ -11233,17 +11281,17 @@ $$\text{SRetAlloc}(R) \Downarrow \langle [\texttt{alloca}\ \text{LLVMTy}(R)], p 
 
 $$\text{CallArgs}(sig, params, args, R) \Downarrow \langle I_a, \vec{a}, p_{ret} \rangle \iff
 \begin{cases}
-I_a = \epsilon \land \vec{a} = args \land p_{ret} = \bot & sig.\text{sret?} = \text{false}\\
-\exists p.\ \text{SRetAlloc}(R) \Downarrow \langle I_s, p \rangle \land I_a = I_s \land \vec{a} = [p] \mathbin{+\!\!+} args \land p_{ret} = p & sig.\text{sret?} = \text{true}
+I_a = \epsilon \land \vec{a} = args \land p_{ret} = \bot & sig.\text{sretSigma} = \text{false}\\
+\exists p.\ \text{SRetAlloc}(R) \Downarrow \langle I_s, p \rangle \land I_a = I_s \land \vec{a} = [p] \mathbin{+\!\!+} args \land p_{ret} = p & sig.\text{sretSigma} = \text{true}
 \end{cases}$$
 
 $$\text{CallInstr}(sig, f, \vec{a}) \Downarrow \langle [\texttt{call}\ sig\ f(\vec{a})], v_c \rangle \iff
-v_c = (\text{sig}.\text{llvm\_ret} = \texttt{void} ? \bot : \text{call\_result})$$
+v_c = (\text{sig}.\text{llvm\_ret} = \texttt{void} Sigma \bot : \text{call\_result})$$
 
 $$\text{CallResult}(sig, R, p_{ret}, v_c) \Downarrow \langle I_r, v \rangle \iff
 \begin{cases}
-I_r = \epsilon \land v = v_c & sig.\text{sret?} = \text{false}\\
-\text{LoadVal}(p_{ret}, R) \Downarrow \langle I_r, v \rangle & sig.\text{sret?} = \text{true}
+I_r = \epsilon \land v = v_c & sig.\text{sretSigma} = \text{false}\\
+\text{LoadVal}(p_{ret}, R) \Downarrow \langle I_r, v \rangle & sig.\text{sretSigma} = \text{true}
 \end{cases}$$
 
 **(Lower-CallIR-Func)**
@@ -11298,8 +11346,8 @@ $$\text{IfLowerForm}(I, v_c, v_t, v_f, v) \iff \text{HasBrCond}(I, v_c) \land ((
 $$\frac{\text{IfLabels}(\Gamma) = \langle l_t,l_f,l_m \rangle \quad \Gamma \vdash \text{LowerIRInstr}(IR_t) \Downarrow \langle I_t, v_t' \rangle \quad \Gamma \vdash \text{LowerIRInstr}(IR_f) \Downarrow \langle I_f, v_f' \rangle \quad v_t'=v_t \quad v_f'=v_f \quad \text{IfPhi}(v_t, v_f, l_t, l_f) \Downarrow \langle I_\phi, v \rangle \quad I = [\text{BrCond}(v_c, l_t, l_f),\ \text{Label}(l_t)] \mathbin{+\!\!+} I_t \mathbin{+\!\!+} [\text{Br}(l_m),\ \text{Label}(l_f)] \mathbin{+\!\!+} I_f \mathbin{+\!\!+} [\text{Br}(l_m),\ \text{Label}(l_m)] \mathbin{+\!\!+} I_\phi \quad \text{IfLowerForm}(I, v_c, v_t, v_f, v)}{\Gamma \vdash \text{LowerIRInstr}(\text{IfIR}(v_c, IR_t, v_t, IR_f, v_f)) \Downarrow \langle I, v \rangle}$$
 
 $$\text{BlockScope}(IR_s, IR_t) = scope$$
-$$\text{BlockScope}(IR_s, IR_t) = scope \iff \left(\exists \sigma,\sigma_1,\sigma_2,out,scope_0.\ \text{BlockEnter}(\sigma, []) \Downarrow (\sigma_1, scope_0) \land \text{ExecBlockBodyIRσ}(IR_s, IR_t, \sigma_1) \Downarrow (out, \sigma_2)\right) \land \left(\forall \sigma,\sigma_1,\sigma_2,out,scope_0.\ \text{BlockEnter}(\sigma, []) \Downarrow (\sigma_1, scope_0) \land \text{ExecBlockBodyIRσ}(IR_s, IR_t, \sigma_1) \Downarrow (out, \sigma_2) \Rightarrow \text{CurrentScope}(\sigma_2) = scope\right)$$
-$$\text{EmitCleanupSpec}(cs, IR) \iff \forall \sigma,\ \Gamma \vdash \text{Cleanup}(cs, \sigma) \Downarrow (c, \sigma') \Rightarrow (\text{ExecIRσ}(IR, \sigma) \Downarrow (out, \sigma') \land ((c=\text{panic}) \Rightarrow out=\text{Ctrl}(\text{Panic})) \land ((c=\text{ok}) \Rightarrow out=\text{Val}(())))$$
+$$\text{BlockScope}(IR_s, IR_t) = scope \iff \left(\exists \sigma,\sigma_1,\sigma_2,out,scope_0.\ \text{BlockEnter}(\sigma, []) \Downarrow (\sigma_1, scope_0) \land \text{ExecBlockBodyIRSigma}(IR_s, IR_t, \sigma_1) \Downarrow (out, \sigma_2)\right) \land \left(\forall \sigma,\sigma_1,\sigma_2,out,scope_0.\ \text{BlockEnter}(\sigma, []) \Downarrow (\sigma_1, scope_0) \land \text{ExecBlockBodyIRSigma}(IR_s, IR_t, \sigma_1) \Downarrow (out, \sigma_2) \Rightarrow \text{CurrentScope}(\sigma_2) = scope\right)$$
+$$\text{EmitCleanupSpec}(cs, IR) \iff \forall \sigma,\ \Gamma \vdash \text{Cleanup}(cs, \sigma) \Downarrow (c, \sigma') \Rightarrow (\text{ExecIRSigma}(IR, \sigma) \Downarrow (out, \sigma') \land ((c=\text{panic}) \Rightarrow out=\text{Ctrl}(\text{Panic})) \land ((c=\text{ok}) \Rightarrow out=\text{Val}(())))$$
 $$\Gamma \vdash \text{EmitCleanup}(cs) \Downarrow IR \iff \text{EmitCleanupSpec}(cs, IR)$$
 
 **(Lower-BlockIR)**
@@ -11445,7 +11493,7 @@ $$\text{LLVMCallJudg} = \{\text{LLVMCallSig}(params, ret) \Downarrow sig,\ \text
 $$\text{SigLLVMParams}(sig) = llvm\_params$$
 $$\text{SigLLVMRet}(sig) = llvm\_ret$$
 $$\text{SigLLVMAttrs}(sig) = attrs$$
-$$\text{SigSRet}(sig) = sret?$$
+$$\text{SigSRet}(sig) = sretSigma$$
 
 **(LLVMArgLower-ByValue-PtrValid)**
 $$\frac{\Gamma \vdash \text{LLVMTy}(T) \Downarrow \tau \quad \text{StripPerm}(T) = \text{TypePtr}(U, \texttt{Valid})}{\Gamma \vdash \text{LLVMArgLower}(x, T, \texttt{ByValue}) \Downarrow \langle \tau, \text{LLVMArgAttrsExt}(x, T) \cup \text{LLVMPtrAttrs}(T) \rangle}$$
@@ -11470,10 +11518,10 @@ $$\text{LLVMArgList}([\langle m_1,x_1,T_1\rangle,\ldots,\langle m_n,x_n,T_n\rang
 $$\text{LLVMAttrList}([\langle m_1,x_1,T_1\rangle,\ldots,\langle m_n,x_n,T_n\rangle],[k_1,\ldots,k_n]) = [A_i \mid \text{ArgInclude}(k_i, T_i) \land \Gamma \vdash \text{LLVMArgLower}(x_i, T_i, k_i) \Downarrow \langle \tau_i, A_i \rangle]$$
 
 **(LLVMCall-ByValue)**
-$$\frac{\langle [k_1,\ldots,k_n], k_r, sret? \rangle = \text{ABICall}([\langle m_1, T_1 \rangle,\ldots,\langle m_n, T_n \rangle], R) \quad k_r = \texttt{ByValue} \quad \forall i,\ \Gamma \vdash \text{LLVMArgLower}(x_i, T_i, k_i) \Downarrow \langle \tau_i, A_i \rangle \quad \Gamma \vdash \text{LLVMRetLower}(R, \texttt{ByValue}) \Downarrow \tau_r}{\Gamma \vdash \text{LLVMCallSig}([\langle m_1,x_1,T_1\rangle,\ldots,\langle m_n,x_n,T_n\rangle], R) \Downarrow \langle \text{LLVMArgList}([\langle m_1,x_1,T_1\rangle,\ldots,\langle m_n,x_n,T_n\rangle],[k_1,\ldots,k_n]), \tau_r, \text{LLVMAttrList}([\langle m_1,x_1,T_1\rangle,\ldots,\langle m_n,x_n,T_n\rangle],[k_1,\ldots,k_n]), \text{false} \rangle}$$
+$$\frac{\langle [k_1,\ldots,k_n], k_r, sretSigma \rangle = \text{ABICall}([\langle m_1, T_1 \rangle,\ldots,\langle m_n, T_n \rangle], R) \quad k_r = \texttt{ByValue} \quad \forall i,\ \Gamma \vdash \text{LLVMArgLower}(x_i, T_i, k_i) \Downarrow \langle \tau_i, A_i \rangle \quad \Gamma \vdash \text{LLVMRetLower}(R, \texttt{ByValue}) \Downarrow \tau_r}{\Gamma \vdash \text{LLVMCallSig}([\langle m_1,x_1,T_1\rangle,\ldots,\langle m_n,x_n,T_n\rangle], R) \Downarrow \langle \text{LLVMArgList}([\langle m_1,x_1,T_1\rangle,\ldots,\langle m_n,x_n,T_n\rangle],[k_1,\ldots,k_n]), \tau_r, \text{LLVMAttrList}([\langle m_1,x_1,T_1\rangle,\ldots,\langle m_n,x_n,T_n\rangle],[k_1,\ldots,k_n]), \text{false} \rangle}$$
 
 **(LLVMCall-SRet)**
-$$\frac{\langle [k_1,\ldots,k_n], k_r, sret? \rangle = \text{ABICall}([\langle m_1, T_1 \rangle,\ldots,\langle m_n, T_n \rangle], R) \quad k_r = \texttt{SRet} \quad sret\_param = \text{LLVMPtrTy}(\text{TypePtr}(\text{TypePerm}(\texttt{unique}, R), \texttt{Valid})) \quad A_{\text{sret}} = \{ \texttt{sret}, \texttt{noalias} \} \cup \text{LLVMPtrAttrs}(\text{TypePtr}(\text{TypePerm}(\texttt{unique}, R), \texttt{Valid})) \quad \forall i,\ \Gamma \vdash \text{LLVMArgLower}(x_i, T_i, k_i) \Downarrow \langle \tau_i, A_i \rangle \quad \Gamma \vdash \text{LLVMRetLower}(R, \texttt{SRet}) \Downarrow \texttt{void}}{\Gamma \vdash \text{LLVMCallSig}([\langle m_1,x_1,T_1\rangle,\ldots,\langle m_n,x_n,T_n\rangle], R) \Downarrow \langle [sret\_param] \mathbin{+\!\!+} \text{LLVMArgList}([\langle m_1,x_1,T_1\rangle,\ldots,\langle m_n,x_n,T_n\rangle],[k_1,\ldots,k_n]), \texttt{void}, [A_{\text{sret}}] \mathbin{+\!\!+} \text{LLVMAttrList}([\langle m_1,x_1,T_1\rangle,\ldots,\langle m_n,x_n,T_n\rangle],[k_1,\ldots,k_n]), \text{true} \rangle}$$
+$$\frac{\langle [k_1,\ldots,k_n], k_r, sretSigma \rangle = \text{ABICall}([\langle m_1, T_1 \rangle,\ldots,\langle m_n, T_n \rangle], R) \quad k_r = \texttt{SRet} \quad sret\_param = \text{LLVMPtrTy}(\text{TypePtr}(\text{TypePerm}(\texttt{unique}, R), \texttt{Valid})) \quad A_{\text{sret}} = \{ \texttt{sret}, \texttt{noalias} \} \cup \text{LLVMPtrAttrs}(\text{TypePtr}(\text{TypePerm}(\texttt{unique}, R), \texttt{Valid})) \quad \forall i,\ \Gamma \vdash \text{LLVMArgLower}(x_i, T_i, k_i) \Downarrow \langle \tau_i, A_i \rangle \quad \Gamma \vdash \text{LLVMRetLower}(R, \texttt{SRet}) \Downarrow \texttt{void}}{\Gamma \vdash \text{LLVMCallSig}([\langle m_1,x_1,T_1\rangle,\ldots,\langle m_n,x_n,T_n\rangle], R) \Downarrow \langle [sret\_param] \mathbin{+\!\!+} \text{LLVMArgList}([\langle m_1,x_1,T_1\rangle,\ldots,\langle m_n,x_n,T_n\rangle],[k_1,\ldots,k_n]), \texttt{void}, [A_{\text{sret}}] \mathbin{+\!\!+} \text{LLVMAttrList}([\langle m_1,x_1,T_1\rangle,\ldots,\langle m_n,x_n,T_n\rangle],[k_1,\ldots,k_n]), \text{true} \rangle}$$
 
 $$\text{ByRefAccess}(T) =
 \begin{cases}
@@ -11507,7 +11555,7 @@ $$\frac{\text{Mangle}(\text{VTableDecl}(T, Cl)) \Downarrow sym}{\Gamma \vdash \t
 
 $$\text{VTableSlots}(T, Cl) = [\text{DispatchSym}(T, Cl, m.\text{name}) \mid m \in \text{VTableEligible}(Cl)]$$
 
-$$\text{DropGlueSpec}(T, IR) \iff \forall \sigma, addr, v.\ \text{LookupVal}(\sigma, \texttt{"data"}) = \text{RawPtr}(\texttt{imm}, addr) \land \text{ReadAddr}(\sigma, addr) = v \Rightarrow (\text{ExecIRσ}(IR, \sigma) \Downarrow (out, \sigma') \land \Gamma \vdash \text{DropValue}(T, v, \emptyset) \Downarrow \sigma')$$
+$$\text{DropGlueSpec}(T, IR) \iff \forall \sigma, addr, v.\ \text{LookupVal}(\sigma, \texttt{"data"}) = \text{RawPtr}(\texttt{imm}, addr) \land \text{ReadAddr}(\sigma, addr) = v \Rightarrow (\text{ExecIRSigma}(IR, \sigma) \Downarrow (out, \sigma') \land \Gamma \vdash \text{DropValue}(T, v, \emptyset) \Downarrow \sigma')$$
 $$\Gamma \vdash \text{DropGlueIR}(T) \Downarrow IR \iff \text{DropGlueSpec}(T, IR)$$
 
 **(EmitDropGlue-Decl)**
@@ -11620,7 +11668,7 @@ $$\frac{}{\Gamma \vdash \text{EntrySym} \Downarrow \text{PathSig}([\texttt{"main
 $$\frac{}{\Gamma \vdash \text{ContextInitSym} \Downarrow \text{PathSig}([\texttt{"cursive"}, \texttt{"runtime"}, \texttt{"context_init"}])}$$
 
 $$\text{PanicRecordInit}(\sigma) \iff \text{PanicRecordOf}(\sigma) = \langle \text{false}, 0 \rangle$$
-$$\text{EntryStubSpec}(P, IR_{\text{entry}}) \iff \text{Executable}(P) \land \exists d,\ main\_sym.\ \text{MainDecls}(P)=[d] \land \Gamma \vdash \text{Mangle}(d) \Downarrow main\_sym \land \forall \sigma.\ \exists ctx,\ ret,\ c,\ \sigma_1,\sigma_2,\sigma_3,\sigma_4.\ \text{ExecIRσ}(\text{CallIR}(\text{ContextInitSym}, []), \sigma) \Downarrow (\text{Val}(ctx), \sigma_1)\ \land\ \text{PanicRecordInit}(\sigma_2)\ \land\ \text{ExecIRσ}(\text{CallIR}(main\_sym, [ctx,\ \text{PanicOutName}]), \sigma_2) \Downarrow (\text{Val}(ret), \sigma_3)\ \land\ \left(\text{PanicRecordOf}(\sigma_3)=\langle \text{true}, c \rangle \Rightarrow \text{ExecIRσ}(\text{CallIR}(\text{PanicSym}, [c]), \sigma_3) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_4)\right)\ \land\ \left(\text{PanicRecordOf}(\sigma_3)=\langle \text{false}, c \rangle \Rightarrow \exists IR_d.\ \Gamma \vdash \text{EmitDeinitPlan}(P) \Downarrow IR_d \land \text{ExecIRσ}(IR_d, \sigma_3) \Downarrow (\text{Val}(()), \sigma_4)\right)\ \land\ \left(\text{PanicRecordOf}(\sigma_3)=\langle \text{true}, c \rangle \Rightarrow \text{ExecIRσ}(IR_{\text{entry}}, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_4)\right)\ \land\ \left(\text{PanicRecordOf}(\sigma_3)=\langle \text{false}, c \rangle \Rightarrow \text{ExecIRσ}(IR_{\text{entry}}, \sigma) \Downarrow (\text{Val}(ret), \sigma_4)\right)$$
+$$\text{EntryStubSpec}(P, IR_{\text{entry}}) \iff \text{Executable}(P) \land \exists d,\ main\_sym.\ \text{MainDecls}(P)=[d] \land \Gamma \vdash \text{Mangle}(d) \Downarrow main\_sym \land \forall \sigma.\ \exists ctx,\ ret,\ c,\ \sigma_1,\sigma_2,\sigma_3,\sigma_4.\ \text{ExecIRSigma}(\text{CallIR}(\text{ContextInitSym}, []), \sigma) \Downarrow (\text{Val}(ctx), \sigma_1)\ \land\ \text{PanicRecordInit}(\sigma_2)\ \land\ \text{ExecIRSigma}(\text{CallIR}(main\_sym, [ctx,\ \text{PanicOutName}]), \sigma_2) \Downarrow (\text{Val}(ret), \sigma_3)\ \land\ \left(\text{PanicRecordOf}(\sigma_3)=\langle \text{true}, c \rangle \Rightarrow \text{ExecIRSigma}(\text{CallIR}(\text{PanicSym}, [c]), \sigma_3) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_4)\right)\ \land\ \left(\text{PanicRecordOf}(\sigma_3)=\langle \text{false}, c \rangle \Rightarrow \exists IR_d.\ \Gamma \vdash \text{EmitDeinitPlan}(P) \Downarrow IR_d \land \text{ExecIRSigma}(IR_d, \sigma_3) \Downarrow (\text{Val}(()), \sigma_4)\right)\ \land\ \left(\text{PanicRecordOf}(\sigma_3)=\langle \text{true}, c \rangle \Rightarrow \text{ExecIRSigma}(IR_{\text{entry}}, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_4)\right)\ \land\ \left(\text{PanicRecordOf}(\sigma_3)=\langle \text{false}, c \rangle \Rightarrow \text{ExecIRSigma}(IR_{\text{entry}}, \sigma) \Downarrow (\text{Val}(ret), \sigma_4)\right)$$
 
 **(EntryStub-Decl)**
 $$\frac{\Gamma \vdash \text{EntrySym} \Downarrow sym \quad \text{EntryStubSpec}(P, IR_{\text{entry}})}{\Gamma \vdash \text{EntryStub}(P) \Downarrow \text{ProcIR}(sym, [], \text{TypePrim}(\texttt{"i32"}), IR_{\text{entry}})}$$
@@ -11645,7 +11693,7 @@ $$\text{StaticType}(\text{PoisonFlag}(m)) = \text{TypePrim}(\texttt{"bool"})$$
 
 **(CheckPoison-Use)**
 $$\frac{\text{PoisonFlag}(m) \Downarrow sym}{\Gamma \vdash \text{CheckPoison}(m) \Downarrow IR}$$
-$$\Gamma \vdash \text{CheckPoison}(m) \Downarrow IR \iff \forall \sigma.\ \left(\text{ReadAddr}(\sigma, \text{AddrOfSym}(\text{PoisonFlag}(m))) \ne 0 \Rightarrow \exists \sigma'.\ \text{ExecIRσ}(IR, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma') \land \text{ExecIRσ}(\text{LowerPanic}(\text{InitPanic}(m)), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma')\right)\ \land\ \left(\text{ReadAddr}(\sigma, \text{AddrOfSym}(\text{PoisonFlag}(m))) = 0 \Rightarrow \text{ExecIRσ}(IR, \sigma) \Downarrow (\text{Val}(()), \sigma)\right)$$
+$$\Gamma \vdash \text{CheckPoison}(m) \Downarrow IR \iff \forall \sigma.\ \left(\text{ReadAddr}(\sigma, \text{AddrOfSym}(\text{PoisonFlag}(m))) \ne 0 \Rightarrow \exists \sigma'.\ \text{ExecIRSigma}(IR, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma') \land \text{ExecIRSigma}(\text{LowerPanic}(\text{InitPanic}(m)), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma')\right)\ \land\ \left(\text{ReadAddr}(\sigma, \text{AddrOfSym}(\text{PoisonFlag}(m))) = 0 \Rightarrow \text{ExecIRSigma}(IR, \sigma) \Downarrow (\text{Val}(()), \sigma)\right)$$
 
 **(SetPoison-OnInitFail)**
 $$\frac{\text{PoisonSet}(m) = \{m_1,\ldots,m_k\} \quad \forall i,\ \text{PoisonFlag}(m_i) \Downarrow sym_i}{\Gamma \vdash \text{SetPoison}(m) \Downarrow \text{SeqIR}(\text{StoreGlobal}(sym_1, 1),\ldots,\text{StoreGlobal}(sym_k, 1))}$$
@@ -11693,8 +11741,8 @@ $$\text{GlobalStaticOrder} = \mathbin{+\!\!+}_{m \in \text{InitOrder}(G_e)} \tex
 
 $$\text{DeinitList}(P) = \text{rev}([\ \text{DropStatic}(path, name)\ \mid\ \langle path, name \rangle \in \text{GlobalStaticOrder} \land \text{StaticBindInfo}(path, name).\text{resp} = \text{resp}\ ])$$
 
-$$\Gamma \vdash \text{Eval}(e, \sigma) \Downarrow v \iff \exists \sigma'.\ \Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma')$$
-$$\Gamma \vdash \text{Eval}(e, \sigma) \Uparrow \text{panic} \iff \exists \sigma'.\ \Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma')$$
+$$\Gamma \vdash \text{Eval}(e, \sigma) \Downarrow v \iff \exists \sigma'.\ \Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma')$$
+$$\Gamma \vdash \text{Eval}(e, \sigma) \Uparrow \text{panic} \iff \exists \sigma'.\ \Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma')$$
 
 **Initialization (Small-Step).**
 
@@ -11706,13 +11754,13 @@ $$\text{InitLen}(L, mi) = k \iff mi < |L| \land L[mi]=m \land |\text{InitList}(m
 $$\frac{}{ \langle \text{InitStart}(G_e, L, \sigma) \rangle \to \langle \text{InitMod}(L, 0, 0, \emptyset, \sigma) \rangle }$$
 
 **(Init-Step)**
-$$\frac{\text{InitItem}(L, mi, ii) = e \quad \Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma')}{\langle \text{InitMod}(L, mi, ii, P, \sigma) \rangle \to \langle \text{InitMod}(L, mi, ii{+}1, P, \sigma') \rangle}$$
+$$\frac{\text{InitItem}(L, mi, ii) = e \quad \Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma')}{\langle \text{InitMod}(L, mi, ii, P, \sigma) \rangle \to \langle \text{InitMod}(L, mi, ii{+}1, P, \sigma') \rangle}$$
 
 **(Init-Next-Module)**
 $$\frac{\text{InitLen}(L, mi) = k \quad ii = k}{\langle \text{InitMod}(L, mi, ii, P, \sigma) \rangle \to \langle \text{InitMod}(L, mi{+}1, 0, P, \sigma) \rangle}$$
 
 **(Init-Panic)**
-$$\frac{\text{InitItem}(L, mi, ii) = e \quad \Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma') \quad L[mi]=m \quad P' = P \cup \{m\} \cup \{x \mid \text{Reachable}(x, m, E_{val}^{eager})\}}{\langle \text{InitMod}(L, mi, ii, P, \sigma) \rangle \to \langle \text{InitPanic}(P', \sigma') \rangle}$$
+$$\frac{\text{InitItem}(L, mi, ii) = e \quad \Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma') \quad L[mi]=m \quad P' = P \cup \{m\} \cup \{x \mid \text{Reachable}(x, m, E_{val}^{eager})\}}{\langle \text{InitMod}(L, mi, ii, P, \sigma) \rangle \to \langle \text{InitPanic}(P', \sigma') \rangle}$$
 
 **(Init-Done)**
 $$\frac{mi = |L|}{ \langle \text{InitMod}(L, mi, ii, P, \sigma) \rangle \to \langle \text{InitDone}(\sigma) \rangle }$$
@@ -11831,9 +11879,9 @@ $$\text{DropStaticAction}(path, name) \Downarrow \sigma' \iff \text{DropStaticAc
 $$\text{RecordType}(T) \iff \exists p.\ T=\text{TypePath}(p) \land \text{RecordDecl}(p)\ \text{defined}$$
 $$\text{DropCall}(T, v, \sigma) \Downarrow (out, \sigma') \ \text{relation}$$
 $$\neg \text{ImplementsDrop}(T) \Rightarrow \text{DropCall}(T, v, \sigma) \Downarrow (\text{Val}(()), \sigma)$$
-$$\text{ImplementsDrop}(T) \land \text{BuiltinDropType}(T) \land T=\text{TypeString}(\texttt{@Managed}) \land \Gamma \vdash \text{StringDropSym} \Downarrow sym \land \text{ExecIRσ}(\text{CallIR}(sym, [v]), \sigma) \Downarrow (out, \sigma') \Rightarrow \text{DropCall}(T, v, \sigma) \Downarrow (out, \sigma')$$
-$$\text{ImplementsDrop}(T) \land \text{BuiltinDropType}(T) \land T=\text{TypeBytes}(\texttt{@Managed}) \land \Gamma \vdash \text{BytesDropSym} \Downarrow sym \land \text{ExecIRσ}(\text{CallIR}(sym, [v]), \sigma) \Downarrow (out, \sigma') \Rightarrow \text{DropCall}(T, v, \sigma) \Downarrow (out, \sigma')$$
-$$\text{ImplementsDrop}(T) \land \neg \text{BuiltinDropType}(T) \land \text{LookupMethod}(\text{StripPerm}(T), \texttt{"drop"}) = m \land \text{BindParams}(\text{MethodParamsDecl}(\text{StripPerm}(T), m), [v]) = binds \land \text{BlockEnter}(\sigma, binds) \Downarrow (\sigma_1, scope) \land \Gamma \vdash \text{EvalBlockBodyσ}(m.\text{body}, \sigma_1) \Downarrow (out_1, \sigma_2) \land \text{BlockExit}(\sigma_2, scope, out_1) \Downarrow (out_2, \sigma_3) \land \text{ReturnOut}(out_2) = out \Rightarrow \text{DropCall}(T, v, \sigma) \Downarrow (out, \sigma_3)$$
+$$\text{ImplementsDrop}(T) \land \text{BuiltinDropType}(T) \land T=\text{TypeString}(\texttt{@Managed}) \land \Gamma \vdash \text{StringDropSym} \Downarrow sym \land \text{ExecIRSigma}(\text{CallIR}(sym, [v]), \sigma) \Downarrow (out, \sigma') \Rightarrow \text{DropCall}(T, v, \sigma) \Downarrow (out, \sigma')$$
+$$\text{ImplementsDrop}(T) \land \text{BuiltinDropType}(T) \land T=\text{TypeBytes}(\texttt{@Managed}) \land \Gamma \vdash \text{BytesDropSym} \Downarrow sym \land \text{ExecIRSigma}(\text{CallIR}(sym, [v]), \sigma) \Downarrow (out, \sigma') \Rightarrow \text{DropCall}(T, v, \sigma) \Downarrow (out, \sigma')$$
+$$\text{ImplementsDrop}(T) \land \neg \text{BuiltinDropType}(T) \land \text{LookupMethod}(\text{StripPerm}(T), \texttt{"drop"}) = m \land \text{BindParams}(\text{MethodParamsDecl}(\text{StripPerm}(T), m), [v]) = binds \land \text{BlockEnter}(\sigma, binds) \Downarrow (\sigma_1, scope) \land \Gamma \vdash \text{EvalBlockBodySigma}(m.\text{body}, \sigma_1) \Downarrow (out_1, \sigma_2) \land \text{BlockExit}(\sigma_2, scope, out_1) \Downarrow (out_2, \sigma_3) \land \text{ReturnOut}(out_2) = out \Rightarrow \text{DropCall}(T, v, \sigma) \Downarrow (out, \sigma_3)$$
 $$\text{ReleaseValue}(T, v, \sigma) \Downarrow \sigma' \ \text{relation}$$
 $$\text{ReleaseValue}(T, v, \sigma) \Downarrow \sigma' \iff \sigma' = \sigma$$
 $$\text{DropChildren}(T, v, F) =
@@ -11899,13 +11947,13 @@ $$\frac{\text{CleanupList}(scope) = rest \mathbin{+\!\!+} [\text{DropStatic}(pat
 $$\frac{\text{CleanupList}(scope) = rest \mathbin{+\!\!+} [\text{DropStatic}(path, name)] \quad \sigma_1 = \text{SetCleanupList}(scope, rest, \sigma) \quad \Gamma \vdash \text{DropStaticActionOut}(path, name) \Downarrow (\text{panic}, \sigma_2) \quad c = \text{panic}}{\langle \text{CleanupLoop}(scope, \sigma, c) \rangle \to \langle \text{Abort} \rangle}$$
 
 **(Cleanup-Step-Defer-Ok)**
-$$\frac{\text{CleanupList}(scope) = rest \mathbin{+\!\!+} [\text{DeferBlock}(b)] \quad \sigma_1 = \text{SetCleanupList}(scope, rest, \sigma) \quad \Gamma \vdash \text{Evalσ}(b, \sigma_1) \Downarrow (\text{Val}(v), \sigma_2)}{\langle \text{CleanupLoop}(scope, \sigma, c) \rangle \to \langle \text{CleanupLoop}(scope, \sigma_2, c) \rangle}$$
+$$\frac{\text{CleanupList}(scope) = rest \mathbin{+\!\!+} [\text{DeferBlock}(b)] \quad \sigma_1 = \text{SetCleanupList}(scope, rest, \sigma) \quad \Gamma \vdash \text{EvalSigma}(b, \sigma_1) \Downarrow (\text{Val}(v), \sigma_2)}{\langle \text{CleanupLoop}(scope, \sigma, c) \rangle \to \langle \text{CleanupLoop}(scope, \sigma_2, c) \rangle}$$
 
 **(Cleanup-Step-Defer-Panic)**
-$$\frac{\text{CleanupList}(scope) = rest \mathbin{+\!\!+} [\text{DeferBlock}(b)] \quad \sigma_1 = \text{SetCleanupList}(scope, rest, \sigma) \quad \Gamma \vdash \text{Evalσ}(b, \sigma_1) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2) \quad c = \text{ok}}{\langle \text{CleanupLoop}(scope, \sigma, c) \rangle \to \langle \text{CleanupLoop}(scope, \sigma_2, \text{panic}) \rangle}$$
+$$\frac{\text{CleanupList}(scope) = rest \mathbin{+\!\!+} [\text{DeferBlock}(b)] \quad \sigma_1 = \text{SetCleanupList}(scope, rest, \sigma) \quad \Gamma \vdash \text{EvalSigma}(b, \sigma_1) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2) \quad c = \text{ok}}{\langle \text{CleanupLoop}(scope, \sigma, c) \rangle \to \langle \text{CleanupLoop}(scope, \sigma_2, \text{panic}) \rangle}$$
 
 **(Cleanup-Step-Defer-Abort)**
-$$\frac{\text{CleanupList}(scope) = rest \mathbin{+\!\!+} [\text{DeferBlock}(b)] \quad \sigma_1 = \text{SetCleanupList}(scope, rest, \sigma) \quad \Gamma \vdash \text{Evalσ}(b, \sigma_1) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2) \quad c = \text{panic}}{\langle \text{CleanupLoop}(scope, \sigma, c) \rangle \to \langle \text{Abort} \rangle}$$
+$$\frac{\text{CleanupList}(scope) = rest \mathbin{+\!\!+} [\text{DeferBlock}(b)] \quad \sigma_1 = \text{SetCleanupList}(scope, rest, \sigma) \quad \Gamma \vdash \text{EvalSigma}(b, \sigma_1) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2) \quad c = \text{panic}}{\langle \text{CleanupLoop}(scope, \sigma, c) \rangle \to \langle \text{Abort} \rangle}$$
 
 **(Cleanup-Done)**
 $$\frac{\text{CleanupList}(scope) = []}{\langle \text{CleanupLoop}(scope, \sigma, c) \rangle \to \langle \text{ExitDone}(c, \sigma) \rangle}$$
@@ -11938,10 +11986,10 @@ $$\frac{\Gamma \vdash \text{DropStaticActionOut}(path, name) \Downarrow (\text{o
 $$\frac{\Gamma \vdash \text{DropStaticActionOut}(path, name) \Downarrow (\text{panic}, \sigma_1) \quad \Gamma \vdash \text{Cleanup}(cs, \sigma_1) \Downarrow (c, \sigma_2)}{\Gamma \vdash \text{Cleanup}(\text{DropStatic}(path, name)::cs, \sigma) \Downarrow (\text{panic}, \sigma_2)}$$
 
 **(Cleanup-Cons-Defer-Ok)**
-$$\frac{\Gamma \vdash \text{Evalσ}(b, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \Gamma \vdash \text{Cleanup}(cs, \sigma_1) \Downarrow (c, \sigma_2)}{\Gamma \vdash \text{Cleanup}(\text{DeferBlock}(b)::cs, \sigma) \Downarrow (c, \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{EvalSigma}(b, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \Gamma \vdash \text{Cleanup}(cs, \sigma_1) \Downarrow (c, \sigma_2)}{\Gamma \vdash \text{Cleanup}(\text{DeferBlock}(b)::cs, \sigma) \Downarrow (c, \sigma_2)}$$
 
 **(Cleanup-Cons-Defer-Panic)**
-$$\frac{\Gamma \vdash \text{Evalσ}(b, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_1) \quad \Gamma \vdash \text{Cleanup}(cs, \sigma_1) \Downarrow (c, \sigma_2)}{\Gamma \vdash \text{Cleanup}(\text{DeferBlock}(b)::cs, \sigma) \Downarrow (\text{panic}, \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{EvalSigma}(b, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_1) \quad \Gamma \vdash \text{Cleanup}(cs, \sigma_1) \Downarrow (c, \sigma_2)}{\Gamma \vdash \text{Cleanup}(\text{DeferBlock}(b)::cs, \sigma) \Downarrow (\text{panic}, \sigma_2)}$$
 
 **Cleanup Scope (Big-Step).**
 
@@ -12059,6 +12107,12 @@ $$\text{RuntimeTag} = \{\text{RegionTag}(tag),\ \text{ScopeTag}(sid)\}$$
 $$\text{RegionStack}(\sigma) \in [\text{RegionEntry}]$$
 $$\text{AddrTags}(\sigma) : \text{Addr} \rightharpoonup \text{RuntimeTag}$$
 
+**Region Values.**
+
+$$\text{RegionValue}(S, h) = \text{RecordValue}(\text{ModalStateRef}([\texttt{Region}], S), [\langle \texttt{handle}, \text{IntVal}(\texttt{"usize"}, h) \rangle])$$
+$$\text{RegionHandleOf}(v) = h \iff v = \text{RecordValue}(\text{ModalStateRef}([\texttt{Region}], S), fs) \land \langle \texttt{handle}, \text{IntVal}(\texttt{"usize"}, h) \rangle \in fs$$
+$$\text{RegionHandleOf}(v)\ \text{undefined} \Rightarrow \text{IllFormed}(\text{RegionHandleOf}(v))$$
+
 $$\text{ResolveEntry}([], r) = \bot$$
 $$\text{ResolveEntry}(e::es, r) = \begin{cases} e & \text{if } \text{RegionTargetOf}(e) = r \\ \text{ResolveEntry}(es, r) & \text{otherwise} \end{cases}$$
 $$\text{ActiveEntry}(\sigma) = e \iff \text{RegionStack}(\sigma) = e :: es$$
@@ -12075,13 +12129,48 @@ $$\text{UpdateRegionStack}(\sigma, rs) = \sigma' \iff \text{RegionStack}(\sigma'
 
 $$\text{RegionNew}(\sigma, opts) \Downarrow (\sigma', r, scope) \iff \text{PushScope}_\sigma(\sigma) \Downarrow (\sigma_1, scope) \land \text{FreshArena}(\sigma) = r \land \text{UpdateRegionStack}(\sigma_1, \langle r, r, scope, \bot \rangle :: \text{RegionStack}(\sigma_1)) = \sigma'$$
 
+$$\text{RegionOpen}(\sigma, opts) \Downarrow (\sigma', r) \iff \text{FreshArena}(\sigma) = r \land \text{UpdateRegionStack}(\sigma, \langle r, r, \text{CurrentScopeId}(\sigma), \bot \rangle :: \text{RegionStack}(\sigma)) = \sigma'$$
+
 $$\text{FrameEnter}(\sigma, r) \Downarrow (\sigma', F, scope, mark) \iff \text{PushScope}_\sigma(\sigma) \Downarrow (\sigma_1, scope) \land F = \text{FreshTag}(\sigma) \land mark = \text{FrameMark}(\sigma_1, r) \land \text{UpdateRegionStack}(\sigma_1, \langle F, r, scope, mark \rangle :: \text{RegionStack}(\sigma_1)) = \sigma'$$
 
 $$\text{BindRegionAlias}(\sigma, \bot, r) \Downarrow \sigma$$
-$$\text{BindRegionAlias}(\sigma, x, r) \Downarrow \sigma' \iff \text{BindVal}(\sigma, x, r) \Downarrow (\sigma', b)$$
+$$\text{BindRegionAlias}(\sigma, x, r) \Downarrow \sigma' \iff \text{BindVal}(\sigma, x, \text{RegionValue}(\texttt{@Active}, r)) \Downarrow (\sigma', b)$$
 
 $$\text{DynPayloadAddr}(v, addr) \iff v = \text{Dyn}(Cl, \text{RawPtr}(\texttt{imm}, addr), T)$$
 $$\text{RegionAlloc}(\sigma, r, v) \Downarrow (\sigma', v') \Rightarrow \left(\text{ResolveTag}(\sigma, r) = tag \land \forall addr.\ \text{DynPayloadAddr}(v', addr) \Rightarrow \text{AddrTags}(\sigma')(addr) = \text{RegionTag}(tag)\right)$$
+
+$$\text{FreshTags}(\sigma, tags) \iff \text{Distinct}(tags) \land \forall tag \in \text{Set}(tags).\ \forall e \in \text{RegionStack}(\sigma).\ \text{RegionTagOf}(e) \ne tag$$
+
+$$\text{RetagRegions}([], r, tags) = [] \iff tags = []$$
+$$\text{RetagRegions}(e::es, r, tags) = \begin{cases} e' :: \text{RetagRegions}(es, r, tags') & \text{if } \text{RegionTargetOf}(e) = r \land tags = tag :: tags' \land e' = \langle tag, \text{RegionTargetOf}(e), \text{RegionScopeOf}(e), \text{RegionMarkOf}(e) \rangle \\ e :: \text{RetagRegions}(es, r, tags) & \text{otherwise} \end{cases}$$
+
+$$\text{RegionReset}(\sigma, r) \Downarrow \sigma' \iff \text{FreshTags}(\sigma, tags) \land \text{RetagRegions}(\text{RegionStack}(\sigma), r, tags) = rs' \land \text{UpdateRegionStack}(\sigma, rs') = \sigma'$$
+
+$$\text{PopRegions}([], r) = []$$
+$$\text{PopRegions}(e::es, r) = \begin{cases} \text{PopRegions}(es, r) & \text{if } \text{RegionTargetOf}(e) = r \\ e :: \text{PopRegions}(es, r) & \text{otherwise} \end{cases}$$
+$$\text{RegionFree}(\sigma, r) \Downarrow \sigma' \iff \text{PopRegions}(\text{RegionStack}(\sigma), r) = rs' \land \text{UpdateRegionStack}(\sigma, rs') = \sigma'$$
+
+**Region Procedures.**
+
+$$\text{RegionProcJudg} = \{\text{RegionNewScoped}(\sigma, opts) \Downarrow (\sigma', v),\ \text{RegionAllocProc}(\sigma, v_r, v) \Downarrow (\sigma', v'),\ \text{RegionResetProc}(\sigma, v_r) \Downarrow (\sigma', v'),\ \text{RegionFreezeProc}(\sigma, v_r) \Downarrow (\sigma', v'),\ \text{RegionThawProc}(\sigma, v_r) \Downarrow (\sigma', v'),\ \text{RegionFreeProc}(\sigma, v_r) \Downarrow (\sigma', v')\}$$
+
+**(Region-New-Scoped)**
+$$\frac{\text{RegionOpen}(\sigma, opts) \Downarrow (\sigma', r) \quad v = \text{RegionValue}(\texttt{@Active}, r)}{\text{RegionNewScoped}(\sigma, opts) \Downarrow (\sigma', v)}$$
+
+**(Region-Alloc-Proc)**
+$$\frac{\text{RegionHandleOf}(v_r) = h \quad \text{ResolveTarget}(\sigma, h) = r_t \quad \text{RegionAlloc}(\sigma, r_t, v) \Downarrow (\sigma', v')}{\text{RegionAllocProc}(\sigma, v_r, v) \Downarrow (\sigma', v')}$$
+
+**(Region-Reset-Proc)**
+$$\frac{\text{RegionHandleOf}(v_r) = h \quad \text{RegionReset}(\sigma, h) \Downarrow \sigma' \quad v' = \text{RegionValue}(\texttt{@Active}, h)}{\text{RegionResetProc}(\sigma, v_r) \Downarrow (\sigma', v')}$$
+
+**(Region-Freeze-Proc)**
+$$\frac{\text{RegionHandleOf}(v_r) = h \quad v' = \text{RegionValue}(\texttt{@Frozen}, h)}{\text{RegionFreezeProc}(\sigma, v_r) \Downarrow (\sigma, v')}$$
+
+**(Region-Thaw-Proc)**
+$$\frac{\text{RegionHandleOf}(v_r) = h \quad v' = \text{RegionValue}(\texttt{@Active}, h)}{\text{RegionThawProc}(\sigma, v_r) \Downarrow (\sigma, v')}$$
+
+**(Region-Free-Proc)**
+$$\frac{\text{RegionHandleOf}(v_r) = h \quad \text{RegionFree}(\sigma, h) \Downarrow \sigma' \quad v' = \text{RegionValue}(\texttt{@Freed}, h)}{\text{RegionFreeProc}(\sigma, v_r) \Downarrow (\sigma', v')}$$
 
 $$\text{PopRegion}([], r) = \bot$$
 $$\text{PopRegion}(e::es, r) = \begin{cases} es & \text{if } \text{RegionTargetOf}(e) = r \\ e :: \text{PopRegion}(es, r) & \text{otherwise} \end{cases}$$
@@ -12111,58 +12200,58 @@ $$\text{ExitOutcome}(out, \text{panic}) = \text{Ctrl}(\text{Panic}) \quad (out \
 
 $$\text{BlockExit}(\sigma, scope, out) \Downarrow (out', \sigma') \iff \Gamma \vdash \text{CleanupScope}(scope, \sigma) \Downarrow (c, \sigma_1) \land out' = \text{ExitOutcome}(out, c) \land ((out' = \text{Ctrl}(\text{Abort}) \land \sigma' = \sigma_1)\ \lor\ (out' \ne \text{Ctrl}(\text{Abort}) \land \text{PopScope}_\sigma(\sigma_1) \Downarrow (\sigma', scope)))$$
 
-$$\text{EvalBlockBodyσ}(\text{BlockExpr}(stmts, tail\_opt), \sigma) \Downarrow (out, \sigma') \iff \Gamma \vdash \text{ExecSeqσ}(stmts, \sigma) \Downarrow (sout, \sigma_1) \land \Big((sout = ok \land tail\_opt = e \land \Gamma \vdash \text{Evalσ}(e, \sigma_1) \Downarrow (out, \sigma')) \ \lor$$
+$$\text{EvalBlockBodySigma}(\text{BlockExpr}(stmts, tail\_opt), \sigma) \Downarrow (out, \sigma') \iff \Gamma \vdash \text{ExecSeqSigma}(stmts, \sigma) \Downarrow (sout, \sigma_1) \land \Big((sout = ok \land tail\_opt = e \land \Gamma \vdash \text{EvalSigma}(e, \sigma_1) \Downarrow (out, \sigma')) \ \lor$$
 $$\qquad (sout = ok \land tail\_opt = \bot \land out = \text{Val}(()) \land \sigma' = \sigma_1) \ \lor\ (sout = \text{Ctrl}(\text{Result}(v)) \land out = \text{Val}(v) \land \sigma' = \sigma_1) \ \lor$$
 $$\qquad (sout = \text{Ctrl}(\kappa) \land \kappa \ne \text{Result}(\_) \land out = \text{Ctrl}(\kappa) \land \sigma' = \sigma_1)\Big)$$
 
-$$\text{EvalBlockσ}(b, \sigma) \Downarrow (out', \sigma'') \iff \text{BlockEnter}(\sigma, []) \Downarrow (\sigma_1, scope) \land \text{EvalBlockBodyσ}(b, \sigma_1) \Downarrow (out, \sigma_2) \land \text{BlockExit}(\sigma_2, scope, out) \Downarrow (out', \sigma'')$$
+$$\text{EvalBlockSigma}(b, \sigma) \Downarrow (out', \sigma'') \iff \text{BlockEnter}(\sigma, []) \Downarrow (\sigma_1, scope) \land \text{EvalBlockBodySigma}(b, \sigma_1) \Downarrow (out, \sigma_2) \land \text{BlockExit}(\sigma_2, scope, out) \Downarrow (out', \sigma'')$$
 
-$$\text{EvalBlockBindσ}(p, v, b, \sigma) \Downarrow (out', \sigma'') \iff \text{BindPatternVal}(p, v) \Downarrow B \land \text{BindOrder}(p, B) = binds \land \text{BlockEnter}(\sigma, binds) \Downarrow (\sigma_1, scope) \land \text{EvalBlockBodyσ}(b, \sigma_1) \Downarrow (out, \sigma_2) \land \text{BlockExit}(\sigma_2, scope, out) \Downarrow (out', \sigma'')$$
+$$\text{EvalBlockBindSigma}(p, v, b, \sigma) \Downarrow (out', \sigma'') \iff \text{BindPatternVal}(p, v) \Downarrow B \land \text{BindOrder}(p, B) = binds \land \text{BlockEnter}(\sigma, binds) \Downarrow (\sigma_1, scope) \land \text{EvalBlockBodySigma}(b, \sigma_1) \Downarrow (out, \sigma_2) \land \text{BlockExit}(\sigma_2, scope, out) \Downarrow (out', \sigma'')$$
 
-$$\text{EvalInScopeσ}(b, \sigma, scope) \Downarrow (out, \sigma') \iff \text{CurrentScopeId}(\sigma) = scope \land \text{EvalBlockBodyσ}(b, \sigma) \Downarrow (out, \sigma')$$
+$$\text{EvalInScopeSigma}(b, \sigma, scope) \Downarrow (out, \sigma') \iff \text{CurrentScopeId}(\sigma) = scope \land \text{EvalBlockBodySigma}(b, \sigma) \Downarrow (out, \sigma')$$
 
 **Place Evaluation Helpers.**
 
 **PlaceJudg.**
-$$\text{PlaceJudg} = \{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (out, \sigma'),\ \Gamma \vdash \text{WritePlaceσ}(p, v, \sigma) \Downarrow (sout, \sigma'),\ \Gamma \vdash \text{WritePlaceSubσ}(p, v, \sigma) \Downarrow (sout, \sigma'),\ \Gamma \vdash \text{MovePlaceσ}(p, \sigma) \Downarrow (out, \sigma')\}$$
+$$\text{PlaceJudg} = \{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (out, \sigma'),\ \Gamma \vdash \text{WritePlaceSigma}(p, v, \sigma) \Downarrow (sout, \sigma'),\ \Gamma \vdash \text{WritePlaceSubSigma}(p, v, \sigma) \Downarrow (sout, \sigma'),\ \Gamma \vdash \text{MovePlaceSigma}(p, \sigma) \Downarrow (out, \sigma')\}$$
 
 $$\text{DropOnAssign}(b) \iff \text{BindInfo}(b).\text{mov} = \text{immov} \land \text{BindInfo}(b).\text{resp} = \text{resp}$$
 
 $$\text{DropOnAssignStatic}(path, name) \iff \text{StaticBindInfo}(path, name).\text{mov} = \text{immov} \land \text{StaticBindInfo}(path, name).\text{resp} = \text{resp}$$
 
-$$\text{RootBinding}(σ, p) = \begin{cases}
-\text{Local}(b) & \text{if } \text{LookupBind}(σ, \text{PlaceRoot}(p)) = b \\
-\text{Static}(path, name) & \text{if } \text{LookupBind}(σ, \text{PlaceRoot}(p))\ \text{undefined} \land \Gamma \vdash \text{ResolveValueName}(\text{PlaceRoot}(p)) \Downarrow ent \land ent.\text{origin\_opt} = mp \land name = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ \text{PlaceRoot}(p)) \land path = \text{PathOfModule}(mp)
+$$\text{RootBinding}(Sigma, p) = \begin{cases}
+\text{Local}(b) & \text{if } \text{LookupBind}(Sigma, \text{PlaceRoot}(p)) = b \\
+\text{Static}(path, name) & \text{if } \text{LookupBind}(Sigma, \text{PlaceRoot}(p))\ \text{undefined} \land \Gamma \vdash \text{ResolveValueName}(\text{PlaceRoot}(p)) \Downarrow ent \land ent.\text{origin\_opt} = mp \land name = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ \text{PlaceRoot}(p)) \land path = \text{PathOfModule}(mp)
 \end{cases}$$
 
-$$\text{DropOnAssignRoot}(σ, p) \iff (\text{RootBinding}(σ, p) = \text{Local}(b) \land \text{DropOnAssign}(b)) \lor (\text{RootBinding}(σ, p) = \text{Static}(path, name) \land \text{DropOnAssignStatic}(path, name))$$
+$$\text{DropOnAssignRoot}(Sigma, p) \iff (\text{RootBinding}(Sigma, p) = \text{Local}(b) \land \text{DropOnAssign}(b)) \lor (\text{RootBinding}(Sigma, p) = \text{Static}(path, name) \land \text{DropOnAssignStatic}(path, name))$$
 
-$$\text{RootMoved}(σ, p) \iff \text{RootBinding}(σ, p) = \text{Local}(b) \land \text{BindState}(σ, b) = \text{Moved}$$
+$$\text{RootMoved}(Sigma, p) \iff \text{RootBinding}(Sigma, p) = \text{Local}(b) \land \text{BindState}(Sigma, b) = \text{Moved}$$
 
 **DropSubvalueJudg.**
 $$\text{DropSubvalueJudg} = \{\Gamma \vdash \text{DropSubvalue}(p, T, v, \sigma) \Downarrow \sigma'\}$$
 
 **(DropSubvalue-Do)**
-$$\frac{\text{DropOnAssignRoot}(σ, p) \quad \neg \text{RootMoved}(σ, p) \quad \Gamma \vdash \text{DropValue}(T, v, \emptyset) \Downarrow σ'}{\Gamma \vdash \text{DropSubvalue}(p, T, v, σ) \Downarrow σ'}$$
+$$\frac{\text{DropOnAssignRoot}(Sigma, p) \quad \neg \text{RootMoved}(Sigma, p) \quad \Gamma \vdash \text{DropValue}(T, v, \emptyset) \Downarrow Sigma'}{\Gamma \vdash \text{DropSubvalue}(p, T, v, Sigma) \Downarrow Sigma'}$$
 
 **(DropSubvalue-Skip)**
-$$\frac{\neg \text{DropOnAssignRoot}(σ, p) \ \lor\ \text{RootMoved}(σ, p)}{\Gamma \vdash \text{DropSubvalue}(p, T, v, σ) \Downarrow σ}$$
+$$\frac{\neg \text{DropOnAssignRoot}(Sigma, p) \ \lor\ \text{RootMoved}(Sigma, p)}{\Gamma \vdash \text{DropSubvalue}(p, T, v, Sigma) \Downarrow Sigma}$$
 
 
 **(ReadPlace-Ident)**
-$$\frac{\text{LookupVal}(\sigma, x) = v}{\Gamma \vdash \text{ReadPlaceσ}(\text{Identifier}(x), \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
+$$\frac{\text{LookupVal}(\sigma, x) = v}{\Gamma \vdash \text{ReadPlaceSigma}(\text{Identifier}(x), \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
 
 **(ReadPlace-Ident-Poison)**
-$$\frac{\text{LookupBind}(\sigma, x)\ \text{undefined} \quad \Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad \text{PoisonedModule}(\sigma, \text{PathOfModule}(mp))}{\Gamma \vdash \text{ReadPlaceσ}(\text{Identifier}(x), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
+$$\frac{\text{LookupBind}(\sigma, x)\ \text{undefined} \quad \Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad \text{PoisonedModule}(\sigma, \text{PathOfModule}(mp))}{\Gamma \vdash \text{ReadPlaceSigma}(\text{Identifier}(x), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
 
 **(WritePlace-Ident)**
-$$\frac{\text{LookupBind}(\sigma, x) = b \quad (\text{DropOnAssign}(b) \Rightarrow \Gamma \vdash \text{DropAction}(b) \Downarrow \sigma_1) \quad (\neg \text{DropOnAssign}(b) \Rightarrow \sigma_1 = \sigma) \quad \text{UpdateVal}(\sigma_1, b, v) \Downarrow \sigma_2 \quad \text{SetState}(\sigma_2, b, \text{Valid}) \Downarrow \sigma_3}{\Gamma \vdash \text{WritePlaceσ}(\text{Identifier}(x), v, \sigma) \Downarrow (ok, \sigma_3)}$$
+$$\frac{\text{LookupBind}(\sigma, x) = b \quad (\text{DropOnAssign}(b) \Rightarrow \Gamma \vdash \text{DropAction}(b) \Downarrow \sigma_1) \quad (\neg \text{DropOnAssign}(b) \Rightarrow \sigma_1 = \sigma) \quad \text{UpdateVal}(\sigma_1, b, v) \Downarrow \sigma_2 \quad \text{SetState}(\sigma_2, b, \text{Valid}) \Downarrow \sigma_3}{\Gamma \vdash \text{WritePlaceSigma}(\text{Identifier}(x), v, \sigma) \Downarrow (ok, \sigma_3)}$$
 
 **(WritePlace-Ident-Path-Poison)**
-$$\frac{\Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad \text{PoisonedModule}(\sigma, \text{PathOfModule}(mp))}{\Gamma \vdash \text{WritePlaceσ}(\text{Identifier}(x), v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
+$$\frac{\Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad \text{PoisonedModule}(\sigma, \text{PathOfModule}(mp))}{\Gamma \vdash \text{WritePlaceSigma}(\text{Identifier}(x), v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
 
 **(WritePlace-Ident-Path)**
-$$\frac{\Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad name = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ x) \quad \text{PathOfModule}(mp) = path \quad \text{StaticAddr}(path, name) = addr \quad (\text{DropOnAssignStatic}(path, name) \Rightarrow \Gamma \vdash \text{DropStaticAction}(path, name) \Downarrow \sigma_1) \quad (\neg \text{DropOnAssignStatic}(path, name) \Rightarrow \sigma_1 = \sigma) \quad \text{WriteAddr}(\sigma_1, addr, v) \Downarrow \sigma'}{\Gamma \vdash \text{WritePlaceσ}(\text{Identifier}(x), v, \sigma) \Downarrow (ok, \sigma')}$$
+$$\frac{\Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad name = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ x) \quad \text{PathOfModule}(mp) = path \quad \text{StaticAddr}(path, name) = addr \quad (\text{DropOnAssignStatic}(path, name) \Rightarrow \Gamma \vdash \text{DropStaticAction}(path, name) \Downarrow \sigma_1) \quad (\neg \text{DropOnAssignStatic}(path, name) \Rightarrow \sigma_1 = \sigma) \quad \text{WriteAddr}(\sigma_1, addr, v) \Downarrow \sigma'}{\Gamma \vdash \text{WritePlaceSigma}(\text{Identifier}(x), v, \sigma) \Downarrow (ok, \sigma')}$$
 
 $$\text{TupleValue}((v_0,\ldots,v_{n-1}), i) = v_i \quad (0 \le i < n)$$
 $$\text{TupleUpdate}((v_0,\ldots,v_{n-1}), i, v') = (v_0,\ldots,v_{i-1}, v', v_{i+1},\ldots,v_{n-1}) \quad (0 \le i < n)$$
@@ -12185,10 +12274,10 @@ $$\text{SliceElem}(v, i) = \text{IndexValue}(v, i) \quad (\text{IndexValue}(v, i
 $$\text{SliceUpdate}(v, start, v_{rhs}) \Downarrow v' \iff n = \text{SliceLen}(v_{rhs}) \land \exists v_0,\ldots,v_n.\ v_0 = v \land \forall i \in [0,n{-}1].\ v_{i+1} = \text{IndexUpdate}(v_i, start+i, \text{SliceElem}(v_{rhs}, i)) \land v' = v_n$$
 
 **PtrAddrJudg.**
-$$\text{PtrAddrJudg} = \{\Gamma \vdash \text{ReadPtrσ}(v_{ptr}, \sigma) \Downarrow (out, \sigma'),\ \Gamma \vdash \text{WritePtrσ}(v_{ptr}, v, \sigma) \Downarrow (sout, \sigma'),\ \Gamma \vdash \text{AddrOfσ}(p, \sigma) \Downarrow (out, \sigma')\}$$
+$$\text{PtrAddrJudg} = \{\Gamma \vdash \text{ReadPtrSigma}(v_{ptr}, \sigma) \Downarrow (out, \sigma'),\ \Gamma \vdash \text{WritePtrSigma}(v_{ptr}, v, \sigma) \Downarrow (sout, \sigma'),\ \Gamma \vdash \text{AddrOfSigma}(p, \sigma) \Downarrow (out, \sigma')\}$$
 
 $$\text{AddrPrimJudg} = \{\text{ReadAddr}(\sigma, addr) = v,\ \text{WriteAddr}(\sigma, addr, v) \Downarrow \sigma',\ \text{FieldAddr}(T, addr, f) = addr',\ \text{TupleAddr}(T, addr, i) = addr',\ \text{IndexAddr}(T_b, addr, i) = addr'\}$$
-$$\text{IndexLen}(σ, addr) = \text{Len}(v) \quad (\text{ReadAddr}(σ, addr) = v \land \text{Len}(v)\ \text{defined})$$
+$$\text{IndexLen}(Sigma, addr) = \text{Len}(v) \quad (\text{ReadAddr}(Sigma, addr) = v \land \text{Len}(v)\ \text{defined})$$
 $$\text{IndexAddr}(T_b, addr, i) = \text{AddrAdd}(addr, i \times \text{sizeof}(\text{ElemType}(T_b))) \quad (\text{ElemType}(T_b)\ \text{defined})$$
 $$\text{IndexAddr}(T_b, addr, v_i) = addr' \iff \text{IndexNum}(v_i)=i \land \text{IndexAddr}(T_b, addr, i) = addr'$$
 $$\text{SliceLenFromAddr}(\sigma, addr) = n \iff \text{ReadAddr}(\sigma, addr) = v \land \text{SliceLen}(v) = n$$
@@ -12200,199 +12289,199 @@ $$\text{PtrAddr}(\text{Ptr@Null}(addr)) = addr$$
 $$\text{PtrAddr}(\text{Ptr@Expired}(addr)) = addr$$
 $$\text{PtrAddr}(\text{RawPtr}(q, addr)) = addr$$
 
-$$\text{AddrTag}(σ, addr) = \begin{cases}
+$$\text{AddrTag}(Sigma, addr) = \begin{cases}
 \text{ScopeTag}(sid) & addr = \text{BindAddr}(\langle sid, bind\_id, x \rangle) \\
-\text{RegionTag}(tag) & \text{AddrTags}(σ)(addr) = \text{RegionTag}(tag) \\
+\text{RegionTag}(tag) & \text{AddrTags}(Sigma)(addr) = \text{RegionTag}(tag) \\
 \bot & \text{otherwise}
 \end{cases}$$
-$$\text{TagActive}(σ, \text{RegionTag}(tag)) \iff \exists e \in \text{RegionStack}(σ).\ \text{RegionTagOf}(e) = tag$$
-$$\text{TagActive}(σ, \text{ScopeTag}(sid)) \iff \exists e \in \text{ScopeStack}(σ).\ \text{ScopeId}(e) = sid$$
-$$\text{PtrState}(σ, \text{Ptr@Null}(\_)) = \texttt{Null}$$
-$$\text{PtrState}(σ, \text{Ptr@Expired}(\_)) = \texttt{Expired}$$
-$$\text{PtrState}(σ, \text{Ptr@Valid}(addr)) = \texttt{Valid}$$
-$$\text{DynAddrState}(σ, addr) = \begin{cases}
-\texttt{Valid} & \text{AddrTag}(σ, addr) = \bot \\
-\texttt{Valid} & \text{AddrTag}(σ, addr) = tag \ne \bot \land \text{TagActive}(σ, tag) \\
-\texttt{Expired} & \text{AddrTag}(σ, addr) = tag \ne \bot \land \neg \text{TagActive}(σ, tag)
+$$\text{TagActive}(Sigma, \text{RegionTag}(tag)) \iff \exists e \in \text{RegionStack}(Sigma).\ \text{RegionTagOf}(e) = tag$$
+$$\text{TagActive}(Sigma, \text{ScopeTag}(sid)) \iff \exists e \in \text{ScopeStack}(Sigma).\ \text{ScopeId}(e) = sid$$
+$$\text{PtrState}(Sigma, \text{Ptr@Null}(\_)) = \texttt{Null}$$
+$$\text{PtrState}(Sigma, \text{Ptr@Expired}(\_)) = \texttt{Expired}$$
+$$\text{PtrState}(Sigma, \text{Ptr@Valid}(addr)) = \texttt{Valid}$$
+$$\text{DynAddrState}(Sigma, addr) = \begin{cases}
+\texttt{Valid} & \text{AddrTag}(Sigma, addr) = \bot \\
+\texttt{Valid} & \text{AddrTag}(Sigma, addr) = tag \ne \bot \land \text{TagActive}(Sigma, tag) \\
+\texttt{Expired} & \text{AddrTag}(Sigma, addr) = tag \ne \bot \land \neg \text{TagActive}(Sigma, tag)
 \end{cases}$$
 $$\text{BindAddr}(\langle sid, bind\_id, x \rangle) \in \text{Addr}$$
 $$\text{AddrOfBind}(b) = \begin{cases}
-addr & \text{BindingValue}(σ, b) = \text{Alias}(addr) \\
-\text{BindAddr}(b) & \text{BindingValue}(σ, b) \ne \text{Alias}(\_)
+addr & \text{BindingValue}(Sigma, b) = \text{Alias}(addr) \\
+\text{BindAddr}(b) & \text{BindingValue}(Sigma, b) \ne \text{Alias}(\_)
 \end{cases}$$
 $$\text{AddrOfBind}(x) = addr \iff \exists b.\ \text{LookupBind}(\sigma, x) = b \land \text{AddrOfBind}(b) = addr$$
 
 **(ReadPtr-Safe)**
-$$\frac{\text{PtrState}(\sigma, v_{ptr}) = \texttt{Valid} \quad \text{PtrAddr}(v_{ptr}) = addr \quad \text{ReadAddr}(\sigma, addr) = v}{\Gamma \vdash \text{ReadPtrσ}(v_{ptr}, \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
+$$\frac{\text{PtrState}(\sigma, v_{ptr}) = \texttt{Valid} \quad \text{PtrAddr}(v_{ptr}) = addr \quad \text{ReadAddr}(\sigma, addr) = v}{\Gamma \vdash \text{ReadPtrSigma}(v_{ptr}, \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
 
 **(WritePtr-Safe)**
-$$\frac{\text{PtrState}(\sigma, v_{ptr}) = \texttt{Valid} \quad \text{PtrAddr}(v_{ptr}) = addr \quad \text{WriteAddr}(\sigma, addr, v) \Downarrow \sigma'}{\Gamma \vdash \text{WritePtrσ}(v_{ptr}, v, \sigma) \Downarrow (ok, \sigma')}$$
+$$\frac{\text{PtrState}(\sigma, v_{ptr}) = \texttt{Valid} \quad \text{PtrAddr}(v_{ptr}) = addr \quad \text{WriteAddr}(\sigma, addr, v) \Downarrow \sigma'}{\Gamma \vdash \text{WritePtrSigma}(v_{ptr}, v, \sigma) \Downarrow (ok, \sigma')}$$
 
 **(ReadPtr-Null)**
-$$\frac{\text{PtrState}(\sigma, v_{ptr}) = \texttt{Null}}{\Gamma \vdash \text{ReadPtrσ}(v_{ptr}, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
+$$\frac{\text{PtrState}(\sigma, v_{ptr}) = \texttt{Null}}{\Gamma \vdash \text{ReadPtrSigma}(v_{ptr}, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
 
 **(ReadPtr-Expired)**
-$$\frac{\text{PtrState}(\sigma, v_{ptr}) = \texttt{Expired}}{\Gamma \vdash \text{ReadPtrσ}(v_{ptr}, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
+$$\frac{\text{PtrState}(\sigma, v_{ptr}) = \texttt{Expired}}{\Gamma \vdash \text{ReadPtrSigma}(v_{ptr}, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
 
 **(WritePtr-Null)**
-$$\frac{\text{PtrState}(\sigma, v_{ptr}) = \texttt{Null}}{\Gamma \vdash \text{WritePtrσ}(v_{ptr}, v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
+$$\frac{\text{PtrState}(\sigma, v_{ptr}) = \texttt{Null}}{\Gamma \vdash \text{WritePtrSigma}(v_{ptr}, v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
 
 **(WritePtr-Expired)**
-$$\frac{\text{PtrState}(\sigma, v_{ptr}) = \texttt{Expired}}{\Gamma \vdash \text{WritePtrσ}(v_{ptr}, v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
+$$\frac{\text{PtrState}(\sigma, v_{ptr}) = \texttt{Expired}}{\Gamma \vdash \text{WritePtrSigma}(v_{ptr}, v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
 
 **(ReadPtr-Raw)**
-$$\frac{v_{ptr} = \text{RawPtr}(q, addr) \quad \text{ReadAddr}(\sigma, addr) = v}{\Gamma \vdash \text{ReadPtrσ}(v_{ptr}, \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
+$$\frac{v_{ptr} = \text{RawPtr}(q, addr) \quad \text{ReadAddr}(\sigma, addr) = v}{\Gamma \vdash \text{ReadPtrSigma}(v_{ptr}, \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
 
 **(WritePtr-Raw)**
-$$\frac{v_{ptr} = \text{RawPtr}(\texttt{mut}, addr) \quad \text{WriteAddr}(\sigma, addr, v) \Downarrow \sigma'}{\Gamma \vdash \text{WritePtrσ}(v_{ptr}, v, \sigma) \Downarrow (ok, \sigma')}$$
+$$\frac{v_{ptr} = \text{RawPtr}(\texttt{mut}, addr) \quad \text{WriteAddr}(\sigma, addr, v) \Downarrow \sigma'}{\Gamma \vdash \text{WritePtrSigma}(v_{ptr}, v, \sigma) \Downarrow (ok, \sigma')}$$
 
-$$\text{ReadPtrσ}(\text{RawPtr}(q, addr), \sigma)\ \text{undefined} \iff \text{ReadAddr}(\sigma, addr)\ \text{undefined}$$
-$$\text{WritePtrσ}(\text{RawPtr}(\texttt{imm}, addr), v, \sigma)\ \text{undefined}$$
-$$\text{DynamicUndefined}(\text{ReadPtrσ}(\text{RawPtr}(q, addr), \sigma)) \iff \text{ReadPtrσ}(\text{RawPtr}(q, addr), \sigma)\ \text{undefined}$$
-$$\text{DynamicUndefined}(\text{WritePtrσ}(\text{RawPtr}(\texttt{imm}, addr), v, \sigma))$$
+$$\text{ReadPtrSigma}(\text{RawPtr}(q, addr), \sigma)\ \text{undefined} \iff \text{ReadAddr}(\sigma, addr)\ \text{undefined}$$
+$$\text{WritePtrSigma}(\text{RawPtr}(\texttt{imm}, addr), v, \sigma)\ \text{undefined}$$
+$$\text{DynamicUndefined}(\text{ReadPtrSigma}(\text{RawPtr}(q, addr), \sigma)) \iff \text{ReadPtrSigma}(\text{RawPtr}(q, addr), \sigma)\ \text{undefined}$$
+$$\text{DynamicUndefined}(\text{WritePtrSigma}(\text{RawPtr}(\texttt{imm}, addr), v, \sigma))$$
 
 
 **(AddrOf-Ident)**
-$$\frac{\text{LookupBind}(\sigma, x) = b \quad \text{AddrOfBind}(b) = addr}{\Gamma \vdash \text{AddrOfσ}(\text{Identifier}(x), \sigma) \Downarrow (\text{Val}(addr), \sigma)}$$
+$$\frac{\text{LookupBind}(\sigma, x) = b \quad \text{AddrOfBind}(b) = addr}{\Gamma \vdash \text{AddrOfSigma}(\text{Identifier}(x), \sigma) \Downarrow (\text{Val}(addr), \sigma)}$$
 
 **(AddrOf-Ident-Path-Poison)**
-$$\frac{\Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad \text{PoisonedModule}(\sigma, \text{PathOfModule}(mp))}{\Gamma \vdash \text{AddrOfσ}(\text{Identifier}(x), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
+$$\frac{\Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad \text{PoisonedModule}(\sigma, \text{PathOfModule}(mp))}{\Gamma \vdash \text{AddrOfSigma}(\text{Identifier}(x), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
 
 **(AddrOf-Ident-Path)**
-$$\frac{\Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad name = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ x) \quad \text{PathOfModule}(mp) = path \quad \text{StaticAddr}(path, name) = addr}{\Gamma \vdash \text{AddrOfσ}(\text{Identifier}(x), \sigma) \Downarrow (\text{Val}(addr), \sigma)}$$
+$$\frac{\Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad name = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ x) \quad \text{PathOfModule}(mp) = path \quad \text{StaticAddr}(path, name) = addr}{\Gamma \vdash \text{AddrOfSigma}(\text{Identifier}(x), \sigma) \Downarrow (\text{Val}(addr), \sigma)}$$
 
 **(AddrOf-Field)**
-$$\frac{\Gamma \vdash \text{AddrOfσ}(p, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad T_b = \text{ExprType}(p) \quad \text{FieldAddr}(T_b, addr, f) = addr'}{\Gamma \vdash \text{AddrOfσ}(\text{FieldAccess}(p, f), \sigma) \Downarrow (\text{Val}(addr'), \sigma_1)}$$
+$$\frac{\Gamma \vdash \text{AddrOfSigma}(p, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad T_b = \text{ExprType}(p) \quad \text{FieldAddr}(T_b, addr, f) = addr'}{\Gamma \vdash \text{AddrOfSigma}(\text{FieldAccess}(p, f), \sigma) \Downarrow (\text{Val}(addr'), \sigma_1)}$$
 
 **(AddrOf-Field-Ctrl)**
-$$\frac{\Gamma \vdash \text{AddrOfσ}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{AddrOfσ}(\text{FieldAccess}(p, f), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+$$\frac{\Gamma \vdash \text{AddrOfSigma}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{AddrOfSigma}(\text{FieldAccess}(p, f), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 **(AddrOf-Tuple)**
-$$\frac{\Gamma \vdash \text{AddrOfσ}(p, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad T_b = \text{ExprType}(p) \quad \text{TupleAddr}(T_b, addr, i) = addr'}{\Gamma \vdash \text{AddrOfσ}(\text{TupleAccess}(p, i), \sigma) \Downarrow (\text{Val}(addr'), \sigma_1)}$$
+$$\frac{\Gamma \vdash \text{AddrOfSigma}(p, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad T_b = \text{ExprType}(p) \quad \text{TupleAddr}(T_b, addr, i) = addr'}{\Gamma \vdash \text{AddrOfSigma}(\text{TupleAccess}(p, i), \sigma) \Downarrow (\text{Val}(addr'), \sigma_1)}$$
 
 **(AddrOf-Tuple-Ctrl)**
-$$\frac{\Gamma \vdash \text{AddrOfσ}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{AddrOfσ}(\text{TupleAccess}(p, i), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+$$\frac{\Gamma \vdash \text{AddrOfSigma}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{AddrOfSigma}(\text{TupleAccess}(p, i), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 **(AddrOf-Index)**
-**(AddrOfσ-Index-Ok)**
-$$\frac{\Gamma \vdash \text{AddrOfσ}(p, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \text{IndexLen}(\sigma_2, addr) = L \quad \Gamma \vdash \text{CheckIndex}(L, v_i) \Downarrow ok \quad T_b = \text{ExprType}(p) \quad \text{IndexAddr}(T_b, addr, v_i) = addr'}{\Gamma \vdash \text{AddrOfσ}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Val}(addr'), \sigma_2)}$$
+**(AddrOfSigma-Index-Ok)**
+$$\frac{\Gamma \vdash \text{AddrOfSigma}(p, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(i, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \text{IndexLen}(\sigma_2, addr) = L \quad \Gamma \vdash \text{CheckIndex}(L, v_i) \Downarrow ok \quad T_b = \text{ExprType}(p) \quad \text{IndexAddr}(T_b, addr, v_i) = addr'}{\Gamma \vdash \text{AddrOfSigma}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Val}(addr'), \sigma_2)}$$
 
-**(AddrOfσ-Index-OOB)**
-$$\frac{\Gamma \vdash \text{AddrOfσ}(p, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \neg(0 \le v_i < \text{IndexLen}(\sigma_2, addr))}{\Gamma \vdash \text{AddrOfσ}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
+**(AddrOfSigma-Index-OOB)**
+$$\frac{\Gamma \vdash \text{AddrOfSigma}(p, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(i, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \neg(0 \le v_i < \text{IndexLen}(\sigma_2, addr))}{\Gamma \vdash \text{AddrOfSigma}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
 
 **(AddrOf-Index-Ctrl-Base)**
-$$\frac{\Gamma \vdash \text{AddrOfσ}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{AddrOfσ}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+$$\frac{\Gamma \vdash \text{AddrOfSigma}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{AddrOfSigma}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 **(AddrOf-Index-Ctrl-Idx)**
-$$\frac{\Gamma \vdash \text{AddrOfσ}(p, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}{\Gamma \vdash \text{AddrOfσ}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{AddrOfSigma}(p, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(i, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}{\Gamma \vdash \text{AddrOfSigma}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
 
 **(AddrOf-Deref-Safe)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_{ptr}), \sigma_1) \quad \text{PtrState}(\sigma_1, v_{ptr}) = \texttt{Valid} \quad \text{PtrAddr}(v_{ptr}) = addr}{\Gamma \vdash \text{AddrOfσ}(\text{Deref}(p), \sigma) \Downarrow (\text{Val}(addr), \sigma_1)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_{ptr}), \sigma_1) \quad \text{PtrState}(\sigma_1, v_{ptr}) = \texttt{Valid} \quad \text{PtrAddr}(v_{ptr}) = addr}{\Gamma \vdash \text{AddrOfSigma}(\text{Deref}(p), \sigma) \Downarrow (\text{Val}(addr), \sigma_1)}$$
 
 **(AddrOf-Deref-Null)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_{ptr}), \sigma_1) \quad \text{PtrState}(\sigma_1, v_{ptr}) = \texttt{Null}}{\Gamma \vdash \text{AddrOfσ}(\text{Deref}(p), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_1)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_{ptr}), \sigma_1) \quad \text{PtrState}(\sigma_1, v_{ptr}) = \texttt{Null}}{\Gamma \vdash \text{AddrOfSigma}(\text{Deref}(p), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_1)}$$
 
 **(AddrOf-Deref-Expired)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_{ptr}), \sigma_1) \quad \text{PtrState}(\sigma_1, v_{ptr}) = \texttt{Expired}}{\Gamma \vdash \text{AddrOfσ}(\text{Deref}(p), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_1)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_{ptr}), \sigma_1) \quad \text{PtrState}(\sigma_1, v_{ptr}) = \texttt{Expired}}{\Gamma \vdash \text{AddrOfSigma}(\text{Deref}(p), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_1)}$$
 
 **(AddrOf-Deref-Raw)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(\text{RawPtr}(q, addr)), \sigma_1)}{\Gamma \vdash \text{AddrOfσ}(\text{Deref}(p), \sigma) \Downarrow (\text{Val}(addr), \sigma_1)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(\text{RawPtr}(q, addr)), \sigma_1)}{\Gamma \vdash \text{AddrOfSigma}(\text{Deref}(p), \sigma) \Downarrow (\text{Val}(addr), \sigma_1)}$$
 
 **(AddrOf-Deref-Ctrl)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{AddrOfσ}(\text{Deref}(p), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{AddrOfSigma}(\text{Deref}(p), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 **(ReadPlace-Field)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \text{FieldValue}(v_p, f) = v_f}{\Gamma \vdash \text{ReadPlaceσ}(\text{FieldAccess}(p, f), \sigma) \Downarrow (\text{Val}(v_f), \sigma_1)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \text{FieldValue}(v_p, f) = v_f}{\Gamma \vdash \text{ReadPlaceSigma}(\text{FieldAccess}(p, f), \sigma) \Downarrow (\text{Val}(v_f), \sigma_1)}$$
 
 **(ReadPlace-Tuple)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \text{TupleValue}(v_p, i) = v_i}{\Gamma \vdash \text{ReadPlaceσ}(\text{TupleAccess}(p, i), \sigma) \Downarrow (\text{Val}(v_i), \sigma_1)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \text{TupleValue}(v_p, i) = v_i}{\Gamma \vdash \text{ReadPlaceSigma}(\text{TupleAccess}(p, i), \sigma) \Downarrow (\text{Val}(v_i), \sigma_1)}$$
 
 **(ReadPlace-Index)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \text{IndexValue}(v_p, v_i) = v_e}{\Gamma \vdash \text{ReadPlaceσ}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Val}(v_e), \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(i, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \text{IndexValue}(v_p, v_i) = v_e}{\Gamma \vdash \text{ReadPlaceSigma}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Val}(v_e), \sigma_2)}$$
 
 **(ReadPlace-Index-OOB)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \neg(0 \le v_i < \text{Len}(v_p))}{\Gamma \vdash \text{ReadPlaceσ}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(i, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \neg(0 \le v_i < \text{Len}(v_p))}{\Gamma \vdash \text{ReadPlaceSigma}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
 
 **(ReadPlace-Index-Range)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceValue}(v_p, v_r) = v_s}{\Gamma \vdash \text{ReadPlaceσ}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Val}(v_s), \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(i, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceValue}(v_p, v_r) = v_s}{\Gamma \vdash \text{ReadPlaceSigma}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Val}(v_s), \sigma_2)}$$
 
 **(ReadPlace-Index-Range-OOB)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceBounds}(v_r, \text{Len}(v_p)) = \bot}{\Gamma \vdash \text{ReadPlaceσ}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(i, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceBounds}(v_r, \text{Len}(v_p)) = \bot}{\Gamma \vdash \text{ReadPlaceSigma}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
 
 **(ReadPlace-Deref)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_{ptr}), \sigma_1) \quad \Gamma \vdash \text{ReadPtrσ}(v_{ptr}, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{ReadPlaceσ}(\text{Deref}(p), \sigma) \Downarrow (out, \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_{ptr}), \sigma_1) \quad \Gamma \vdash \text{ReadPtrSigma}(v_{ptr}, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{ReadPlaceSigma}(\text{Deref}(p), \sigma) \Downarrow (out, \sigma_2)}$$
 
 **(WritePlace-Field)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \text{FieldValue}(v_p, f) = v_f \quad T_f = \text{ExprType}(\text{FieldAccess}(p, f)) \quad \Gamma \vdash \text{DropSubvalue}(p, T_f, v_f, \sigma_1) \Downarrow \sigma_1' \quad \text{FieldUpdate}(v_p, f, v) = v_p' \quad \Gamma \vdash \text{WritePlaceSubσ}(p, v_p', \sigma_1') \Downarrow (sout, \sigma_2)}{\Gamma \vdash \text{WritePlaceσ}(\text{FieldAccess}(p, f), v, \sigma) \Downarrow (sout, \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \text{FieldValue}(v_p, f) = v_f \quad T_f = \text{ExprType}(\text{FieldAccess}(p, f)) \quad \Gamma \vdash \text{DropSubvalue}(p, T_f, v_f, \sigma_1) \Downarrow \sigma_1' \quad \text{FieldUpdate}(v_p, f, v) = v_p' \quad \Gamma \vdash \text{WritePlaceSubSigma}(p, v_p', \sigma_1') \Downarrow (sout, \sigma_2)}{\Gamma \vdash \text{WritePlaceSigma}(\text{FieldAccess}(p, f), v, \sigma) \Downarrow (sout, \sigma_2)}$$
 
 **(WritePlace-Tuple)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \text{TupleValue}(v_p, i) = v_i \quad T_i = \text{ExprType}(\text{TupleAccess}(p, i)) \quad \Gamma \vdash \text{DropSubvalue}(p, T_i, v_i, \sigma_1) \Downarrow \sigma_1' \quad \text{TupleUpdate}(v_p, i, v) = v_p' \quad \Gamma \vdash \text{WritePlaceSubσ}(p, v_p', \sigma_1') \Downarrow (sout, \sigma_2)}{\Gamma \vdash \text{WritePlaceσ}(\text{TupleAccess}(p, i), v, \sigma) \Downarrow (sout, \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \text{TupleValue}(v_p, i) = v_i \quad T_i = \text{ExprType}(\text{TupleAccess}(p, i)) \quad \Gamma \vdash \text{DropSubvalue}(p, T_i, v_i, \sigma_1) \Downarrow \sigma_1' \quad \text{TupleUpdate}(v_p, i, v) = v_p' \quad \Gamma \vdash \text{WritePlaceSubSigma}(p, v_p', \sigma_1') \Downarrow (sout, \sigma_2)}{\Gamma \vdash \text{WritePlaceSigma}(\text{TupleAccess}(p, i), v, \sigma) \Downarrow (sout, \sigma_2)}$$
 
 **(WritePlace-Index)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \text{IndexValue}(v_p, v_i) = v_e \quad T_e = \text{ExprType}(\text{IndexAccess}(p, i)) \quad \Gamma \vdash \text{DropSubvalue}(p, T_e, v_e, \sigma_2) \Downarrow \sigma_2' \quad \text{IndexUpdate}(v_p, v_i, v) = v_p' \quad \Gamma \vdash \text{WritePlaceSubσ}(p, v_p', \sigma_2') \Downarrow (sout, \sigma_3)}{\Gamma \vdash \text{WritePlaceσ}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (sout, \sigma_3)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(i, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \text{IndexValue}(v_p, v_i) = v_e \quad T_e = \text{ExprType}(\text{IndexAccess}(p, i)) \quad \Gamma \vdash \text{DropSubvalue}(p, T_e, v_e, \sigma_2) \Downarrow \sigma_2' \quad \text{IndexUpdate}(v_p, v_i, v) = v_p' \quad \Gamma \vdash \text{WritePlaceSubSigma}(p, v_p', \sigma_2') \Downarrow (sout, \sigma_3)}{\Gamma \vdash \text{WritePlaceSigma}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (sout, \sigma_3)}$$
 
 **(WritePlace-Index-OOB)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \neg(0 \le v_i < \text{Len}(v_p))}{\Gamma \vdash \text{WritePlaceσ}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(i, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \neg(0 \le v_i < \text{Len}(v_p))}{\Gamma \vdash \text{WritePlaceSigma}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
 
 **(WritePlace-Index-Range)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceBounds}(v_r, \text{Len}(v_p)) = (start, end) \quad \text{SliceLen}(v) = n \quad n = end - start \quad \text{SliceUpdate}(v_p, start, v) \Downarrow v_p' \quad \Gamma \vdash \text{WritePlaceSubσ}(p, v_p', \sigma_2) \Downarrow (sout, \sigma_3)}{\Gamma \vdash \text{WritePlaceσ}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (sout, \sigma_3)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(i, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceBounds}(v_r, \text{Len}(v_p)) = (start, end) \quad \text{SliceLen}(v) = n \quad n = end - start \quad \text{SliceUpdate}(v_p, start, v) \Downarrow v_p' \quad \Gamma \vdash \text{WritePlaceSubSigma}(p, v_p', \sigma_2) \Downarrow (sout, \sigma_3)}{\Gamma \vdash \text{WritePlaceSigma}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (sout, \sigma_3)}$$
 
 **(WritePlace-Index-Range-OOB)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceBounds}(v_r, \text{Len}(v_p)) = \bot}{\Gamma \vdash \text{WritePlaceσ}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(i, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceBounds}(v_r, \text{Len}(v_p)) = \bot}{\Gamma \vdash \text{WritePlaceSigma}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
 
 **(WritePlace-Index-Range-Len)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceBounds}(v_r, \text{Len}(v_p)) = (start, end) \quad \text{SliceLen}(v) = n \quad n \ne end - start}{\Gamma \vdash \text{WritePlaceσ}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(i, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceBounds}(v_r, \text{Len}(v_p)) = (start, end) \quad \text{SliceLen}(v) = n \quad n \ne end - start}{\Gamma \vdash \text{WritePlaceSigma}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
 
 **(WritePlace-Deref)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_{ptr}), \sigma_1) \quad \Gamma \vdash \text{WritePtrσ}(v_{ptr}, v, \sigma_1) \Downarrow (sout, \sigma_2)}{\Gamma \vdash \text{WritePlaceσ}(\text{Deref}(p), v, \sigma) \Downarrow (sout, \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_{ptr}), \sigma_1) \quad \Gamma \vdash \text{WritePtrSigma}(v_{ptr}, v, \sigma_1) \Downarrow (sout, \sigma_2)}{\Gamma \vdash \text{WritePlaceSigma}(\text{Deref}(p), v, \sigma) \Downarrow (sout, \sigma_2)}$$
 
 **(WriteSub-Ident)**
-$$\frac{\text{LookupBind}(\sigma, x) = b \quad \text{UpdateVal}(\sigma, b, v) \Downarrow \sigma'}{\Gamma \vdash \text{WritePlaceSubσ}(\text{Identifier}(x), v, \sigma) \Downarrow (ok, \sigma')}$$
+$$\frac{\text{LookupBind}(\sigma, x) = b \quad \text{UpdateVal}(\sigma, b, v) \Downarrow \sigma'}{\Gamma \vdash \text{WritePlaceSubSigma}(\text{Identifier}(x), v, \sigma) \Downarrow (ok, \sigma')}$$
 
 **(WriteSub-Ident-Path-Poison)**
-$$\frac{\Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad \text{PoisonedModule}(\sigma, \text{PathOfModule}(mp))}{\Gamma \vdash \text{WritePlaceSubσ}(\text{Identifier}(x), v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
+$$\frac{\Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad \text{PoisonedModule}(\sigma, \text{PathOfModule}(mp))}{\Gamma \vdash \text{WritePlaceSubSigma}(\text{Identifier}(x), v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
 
 **(WriteSub-Ident-Path)**
-$$\frac{\Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad name = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ x) \quad \text{PathOfModule}(mp) = path \quad \text{StaticAddr}(path, name) = addr \quad \text{WriteAddr}(\sigma, addr, v) \Downarrow \sigma'}{\Gamma \vdash \text{WritePlaceSubσ}(\text{Identifier}(x), v, \sigma) \Downarrow (ok, \sigma')}$$
+$$\frac{\Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad name = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ x) \quad \text{PathOfModule}(mp) = path \quad \text{StaticAddr}(path, name) = addr \quad \text{WriteAddr}(\sigma, addr, v) \Downarrow \sigma'}{\Gamma \vdash \text{WritePlaceSubSigma}(\text{Identifier}(x), v, \sigma) \Downarrow (ok, \sigma')}$$
 
 **(WriteSub-Field)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \text{FieldUpdate}(v_p, f, v) = v_p' \quad \Gamma \vdash \text{WritePlaceSubσ}(p, v_p', \sigma_1) \Downarrow (sout, \sigma_2)}{\Gamma \vdash \text{WritePlaceSubσ}(\text{FieldAccess}(p, f), v, \sigma) \Downarrow (sout, \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \text{FieldUpdate}(v_p, f, v) = v_p' \quad \Gamma \vdash \text{WritePlaceSubSigma}(p, v_p', \sigma_1) \Downarrow (sout, \sigma_2)}{\Gamma \vdash \text{WritePlaceSubSigma}(\text{FieldAccess}(p, f), v, \sigma) \Downarrow (sout, \sigma_2)}$$
 
 **(WriteSub-Tuple)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \text{TupleUpdate}(v_p, i, v) = v_p' \quad \Gamma \vdash \text{WritePlaceSubσ}(p, v_p', \sigma_1) \Downarrow (sout, \sigma_2)}{\Gamma \vdash \text{WritePlaceSubσ}(\text{TupleAccess}(p, i), v, \sigma) \Downarrow (sout, \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \text{TupleUpdate}(v_p, i, v) = v_p' \quad \Gamma \vdash \text{WritePlaceSubSigma}(p, v_p', \sigma_1) \Downarrow (sout, \sigma_2)}{\Gamma \vdash \text{WritePlaceSubSigma}(\text{TupleAccess}(p, i), v, \sigma) \Downarrow (sout, \sigma_2)}$$
 
 **(WriteSub-Index)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \text{IndexUpdate}(v_p, v_i, v) = v_p' \quad \Gamma \vdash \text{WritePlaceSubσ}(p, v_p', \sigma_2) \Downarrow (sout, \sigma_3)}{\Gamma \vdash \text{WritePlaceSubσ}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (sout, \sigma_3)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(i, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \text{IndexUpdate}(v_p, v_i, v) = v_p' \quad \Gamma \vdash \text{WritePlaceSubSigma}(p, v_p', \sigma_2) \Downarrow (sout, \sigma_3)}{\Gamma \vdash \text{WritePlaceSubSigma}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (sout, \sigma_3)}$$
 
 **(WriteSub-Index-OOB)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \neg(0 \le v_i < \text{Len}(v_p))}{\Gamma \vdash \text{WritePlaceSubσ}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(i, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \neg(0 \le v_i < \text{Len}(v_p))}{\Gamma \vdash \text{WritePlaceSubSigma}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
 
 **(WriteSub-Index-Range)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceBounds}(v_r, \text{Len}(v_p)) = (start, end) \quad \text{SliceLen}(v) = n \quad n = end - start \quad \text{SliceUpdate}(v_p, start, v) \Downarrow v_p' \quad \Gamma \vdash \text{WritePlaceSubσ}(p, v_p', \sigma_2) \Downarrow (sout, \sigma_3)}{\Gamma \vdash \text{WritePlaceSubσ}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (sout, \sigma_3)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(i, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceBounds}(v_r, \text{Len}(v_p)) = (start, end) \quad \text{SliceLen}(v) = n \quad n = end - start \quad \text{SliceUpdate}(v_p, start, v) \Downarrow v_p' \quad \Gamma \vdash \text{WritePlaceSubSigma}(p, v_p', \sigma_2) \Downarrow (sout, \sigma_3)}{\Gamma \vdash \text{WritePlaceSubSigma}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (sout, \sigma_3)}$$
 
 **(WriteSub-Index-Range-OOB)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceBounds}(v_r, \text{Len}(v_p)) = \bot}{\Gamma \vdash \text{WritePlaceSubσ}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(i, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceBounds}(v_r, \text{Len}(v_p)) = \bot}{\Gamma \vdash \text{WritePlaceSubSigma}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
 
 **(WriteSub-Index-Range-Len)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceBounds}(v_r, \text{Len}(v_p)) = (start, end) \quad \text{SliceLen}(v) = n \quad n \ne end - start}{\Gamma \vdash \text{WritePlaceSubσ}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(i, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceBounds}(v_r, \text{Len}(v_p)) = (start, end) \quad \text{SliceLen}(v) = n \quad n \ne end - start}{\Gamma \vdash \text{WritePlaceSubSigma}(\text{IndexAccess}(p, i), v, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
 
 **(WriteSub-Deref)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_{ptr}), \sigma_1) \quad \Gamma \vdash \text{WritePtrσ}(v_{ptr}, v, \sigma_1) \Downarrow (sout, \sigma_2)}{\Gamma \vdash \text{WritePlaceSubσ}(\text{Deref}(p), v, \sigma) \Downarrow (sout, \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_{ptr}), \sigma_1) \quad \Gamma \vdash \text{WritePtrSigma}(v_{ptr}, v, \sigma_1) \Downarrow (sout, \sigma_2)}{\Gamma \vdash \text{WritePlaceSubSigma}(\text{Deref}(p), v, \sigma) \Downarrow (sout, \sigma_2)}$$
 
 **(MovePlace-Whole)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{FieldHead}(p) = \bot \quad \text{LookupBind}(\sigma_1, \text{PlaceRoot}(p)) = b \quad \text{BindInfo}(b).\text{mov} = \text{mov} \quad \text{SetState}(\sigma_1, b, \text{Moved}) \Downarrow \sigma_2}{\Gamma \vdash \text{MovePlaceσ}(p, \sigma) \Downarrow (\text{Val}(v), \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{FieldHead}(p) = \bot \quad \text{LookupBind}(\sigma_1, \text{PlaceRoot}(p)) = b \quad \text{BindInfo}(b).\text{mov} = \text{mov} \quad \text{SetState}(\sigma_1, b, \text{Moved}) \Downarrow \sigma_2}{\Gamma \vdash \text{MovePlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v), \sigma_2)}$$
 
 **(MovePlace-Field)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{FieldHead}(p) = f \quad \text{LookupBind}(\sigma_1, \text{PlaceRoot}(p)) = b \quad \text{BindInfo}(b).\text{mov} = \text{mov} \quad \text{BindState}(\sigma_1, b) = s \quad \text{PM}(s, f) = s' \quad \text{SetState}(\sigma_1, b, s') \Downarrow \sigma_2}{\Gamma \vdash \text{MovePlaceσ}(p, \sigma) \Downarrow (\text{Val}(v), \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{FieldHead}(p) = f \quad \text{LookupBind}(\sigma_1, \text{PlaceRoot}(p)) = b \quad \text{BindInfo}(b).\text{mov} = \text{mov} \quad \text{BindState}(\sigma_1, b) = s \quad \text{PM}(s, f) = s' \quad \text{SetState}(\sigma_1, b, s') \Downarrow \sigma_2}{\Gamma \vdash \text{MovePlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v), \sigma_2)}$$
 
 **(MovePlace-Ctrl)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{MovePlaceσ}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{MovePlaceSigma}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 
 **Stateful Expression Evaluation.**
 
 **EvalJudg.**
-$$\text{EvalJudg} = \{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (out, \sigma')\}$$
+$$\text{EvalJudg} = \{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (out, \sigma')\}$$
 
 **Range Helpers.**
 
@@ -12408,25 +12497,25 @@ $$\text{SliceBounds}(r, L) = (start, end) \iff \text{SliceBoundsRaw}(r, L) = (st
 $$\text{SliceBounds}(r, L) = \bot \iff \text{SliceBoundsRaw}(r, L) = \bot \lor (\exists start,end.\ \text{SliceBoundsRaw}(r, L) = (start, end) \land \neg(0 \le start \le end \le L))$$
 
 **EvalOptJudg.**
-$$\text{EvalOptJudg} = \{\Gamma \vdash \text{EvalOptσ}(e\_opt, \sigma) \Downarrow (out, \sigma')\}$$
+$$\text{EvalOptJudg} = \{\Gamma \vdash \text{EvalOptSigma}(e\_opt, \sigma) \Downarrow (out, \sigma')\}$$
 
-**(EvalOptσ-None)**
-$$\frac{}{\Gamma \vdash \text{EvalOptσ}(\bot, \sigma) \Downarrow (\text{Val}(\bot), \sigma)}$$
+**(EvalOptSigma-None)**
+$$\frac{}{\Gamma \vdash \text{EvalOptSigma}(\bot, \sigma) \Downarrow (\text{Val}(\bot), \sigma)}$$
 
-**(EvalOptσ-Some)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1)}{\Gamma \vdash \text{EvalOptσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1)}$$
+**(EvalOptSigma-Some)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1)}{\Gamma \vdash \text{EvalOptSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1)}$$
 
-**(EvalOptσ-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalOptσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalOptSigma-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalOptSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Evalσ-Range)**
-$$\frac{\Gamma \vdash \text{EvalOptσ}(lo\_opt, \sigma_0) \Downarrow (\text{Val}(v_{lo}), \sigma_1) \quad \Gamma \vdash \text{EvalOptσ}(hi\_opt, \sigma_1) \Downarrow (\text{Val}(v_{hi}), \sigma_2) \quad r = \text{RangeVal}(kind, v_{lo}, v_{hi})}{\Gamma \vdash \text{Evalσ}(\text{Range}(kind, lo\_opt, hi\_opt), \sigma_0) \Downarrow (\text{Val}(r), \sigma_2)}$$
+**(EvalSigma-Range)**
+$$\frac{\Gamma \vdash \text{EvalOptSigma}(lo\_opt, \sigma_0) \Downarrow (\text{Val}(v_{lo}), \sigma_1) \quad \Gamma \vdash \text{EvalOptSigma}(hi\_opt, \sigma_1) \Downarrow (\text{Val}(v_{hi}), \sigma_2) \quad r = \text{RangeVal}(kind, v_{lo}, v_{hi})}{\Gamma \vdash \text{EvalSigma}(\text{Range}(kind, lo\_opt, hi\_opt), \sigma_0) \Downarrow (\text{Val}(r), \sigma_2)}$$
 
-**(Evalσ-Range-Ctrl)**
-$$\frac{\Gamma \vdash \text{EvalOptσ}(lo\_opt, \sigma_0) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{Range}(kind, lo\_opt, hi\_opt), \sigma_0) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Range-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalOptSigma}(lo\_opt, \sigma_0) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{Range}(kind, lo\_opt, hi\_opt), \sigma_0) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Evalσ-Range-Ctrl-Hi)**
-$$\frac{\Gamma \vdash \text{EvalOptσ}(lo\_opt, \sigma_0) \Downarrow (\text{Val}(v_{lo}), \sigma_1) \quad \Gamma \vdash \text{EvalOptσ}(hi\_opt, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}{\Gamma \vdash \text{Evalσ}(\text{Range}(kind, lo\_opt, hi\_opt), \sigma_0) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
+**(EvalSigma-Range-Ctrl-Hi)**
+$$\frac{\Gamma \vdash \text{EvalOptSigma}(lo\_opt, \sigma_0) \Downarrow (\text{Val}(v_{lo}), \sigma_1) \quad \Gamma \vdash \text{EvalOptSigma}(hi\_opt, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}{\Gamma \vdash \text{EvalSigma}(\text{Range}(kind, lo\_opt, hi\_opt), \sigma_0) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
 
 **Value Constructors and Accessors.**
 
@@ -12450,25 +12539,25 @@ $$\text{ModalVal}(S, v) = \langle S, v \rangle$$
 $$\text{Value} = \{\text{BoolVal}(b) \mid b \in \{\text{true},\ \text{false}\}\} \cup \{\text{CharVal}(u) \mid u \in \text{UnicodeScalar}\} \cup \{\text{UnitVal}\} \cup \{\text{IntVal}(t, x) \mid \text{IntVal}(t, x)\ \text{defined}\} \cup \{\text{FloatVal}(t, v) \mid \text{FloatVal}(t, v)\ \text{defined}\} \cup \{\text{PtrVal}(s, addr) \mid \text{PtrVal}(s, addr)\ \text{defined}\} \cup \{\text{RawPtr}(q, addr)\} \cup \text{TupleVal} \cup \text{ArrayVal} \cup \{\text{RecordValue}(tr, fs)\} \cup \{\text{EnumValue}(path, payload)\} \cup \text{RangeVal} \cup \{\text{SliceValue}(v, r) \mid \text{SliceValue}(v, r)\ \text{defined}\} \cup \{\text{ModalVal}(S, v)\} \cup \{\text{Dyn}(Cl, \text{RawPtr}(\texttt{imm}, addr), T)\} \cup \texttt{string@Managed} \cup \texttt{string@View} \cup \texttt{bytes@Managed} \cup \texttt{bytes@View}$$
 
 **EvalListJudg.**
-$$\text{EvalListJudg} = \{\Gamma \vdash \text{EvalListσ}(es, \sigma) \Downarrow (out, \sigma'),\ \Gamma \vdash \text{EvalFieldInitsσ}(fields, \sigma) \Downarrow (out, \sigma')\}$$
+$$\text{EvalListJudg} = \{\Gamma \vdash \text{EvalListSigma}(es, \sigma) \Downarrow (out, \sigma'),\ \Gamma \vdash \text{EvalFieldInitsSigma}(fields, \sigma) \Downarrow (out, \sigma')\}$$
 
-**(EvalListσ-Empty)**
-$$\frac{}{\Gamma \vdash \text{EvalListσ}([], \sigma) \Downarrow (\text{Val}([]), \sigma)}$$
+**(EvalListSigma-Empty)**
+$$\frac{}{\Gamma \vdash \text{EvalListSigma}([], \sigma) \Downarrow (\text{Val}([]), \sigma)}$$
 
-**(EvalListσ-Cons)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \Gamma \vdash \text{EvalListσ}(es, \sigma_1) \Downarrow (\text{Val}(\vec{v}), \sigma_2)}{\Gamma \vdash \text{EvalListσ}(e::es, \sigma) \Downarrow (\text{Val}([v] \mathbin{+\!\!+} \vec{v}), \sigma_2)}$$
+**(EvalListSigma-Cons)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \Gamma \vdash \text{EvalListSigma}(es, \sigma_1) \Downarrow (\text{Val}(\vec{v}), \sigma_2)}{\Gamma \vdash \text{EvalListSigma}(e::es, \sigma) \Downarrow (\text{Val}([v] \mathbin{+\!\!+} \vec{v}), \sigma_2)}$$
 
-**(EvalListσ-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalListσ}(e::es, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalListSigma-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalListSigma}(e::es, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(EvalFieldInitsσ-Empty)**
-$$\frac{}{\Gamma \vdash \text{EvalFieldInitsσ}([], \sigma) \Downarrow (\text{Val}([]), \sigma)}$$
+**(EvalFieldInitsSigma-Empty)**
+$$\frac{}{\Gamma \vdash \text{EvalFieldInitsSigma}([], \sigma) \Downarrow (\text{Val}([]), \sigma)}$$
 
-**(EvalFieldInitsσ-Cons)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \Gamma \vdash \text{EvalFieldInitsσ}(fs, \sigma_1) \Downarrow (\text{Val}(\vec{f}), \sigma_2)}{\Gamma \vdash \text{EvalFieldInitsσ}([\langle f, e \rangle] \mathbin{+\!\!+} fs, \sigma) \Downarrow (\text{Val}([\langle f, v \rangle] \mathbin{+\!\!+} \vec{f}), \sigma_2)}$$
+**(EvalFieldInitsSigma-Cons)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \Gamma \vdash \text{EvalFieldInitsSigma}(fs, \sigma_1) \Downarrow (\text{Val}(\vec{f}), \sigma_2)}{\Gamma \vdash \text{EvalFieldInitsSigma}([\langle f, e \rangle] \mathbin{+\!\!+} fs, \sigma) \Downarrow (\text{Val}([\langle f, v \rangle] \mathbin{+\!\!+} \vec{f}), \sigma_2)}$$
 
-**(EvalFieldInitsσ-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalFieldInitsσ}([\langle f, e \rangle] \mathbin{+\!\!+} fs, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalFieldInitsSigma-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalFieldInitsSigma}([\langle f, e \rangle] \mathbin{+\!\!+} fs, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 $$\text{BoolValue}(lit) = \text{true} \iff lit.\text{kind}=\text{BoolLiteral} \land \text{Lexeme}(lit)=\texttt{"true"}$$
 $$\text{BoolValue}(lit) = \text{false} \iff lit.\text{kind}=\text{BoolLiteral} \land \text{Lexeme}(lit)=\texttt{"false"}$$
@@ -12483,92 +12572,92 @@ $$\text{EnumPayloadVal} = \{\bot,\ \text{TuplePayload}(\vec{v}),\ \text{RecordPa
 $$\text{RecordValue}(tr, fs)\ \text{defined}$$
 $$\text{EnumValue}(path, payload)\ \text{defined} \iff payload \in \text{EnumPayloadVal}$$
 
-**(Evalσ-Literal)**
-$$\frac{T = \text{ExprType}(\text{Literal}(\ell)) \quad \text{LiteralValue}(\ell, T) = v}{\Gamma \vdash \text{Evalσ}(\text{Literal}(\ell), \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
+**(EvalSigma-Literal)**
+$$\frac{T = \text{ExprType}(\text{Literal}(\ell)) \quad \text{LiteralValue}(\ell, T) = v}{\Gamma \vdash \text{EvalSigma}(\text{Literal}(\ell), \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
 
-**(Evalσ-Ident-Poison)**
-$$\frac{\text{LookupBind}(\sigma, x)\ \text{undefined} \quad \Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad \text{PoisonedModule}(\sigma, \text{PathOfModule}(mp))}{\Gamma \vdash \text{Evalσ}(\text{Identifier}(x), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
+**(EvalSigma-Ident-Poison)**
+$$\frac{\text{LookupBind}(\sigma, x)\ \text{undefined} \quad \Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad \text{PoisonedModule}(\sigma, \text{PathOfModule}(mp))}{\Gamma \vdash \text{EvalSigma}(\text{Identifier}(x), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
 
-**(Evalσ-Ident-Poison-RecordCtor)**
-$$\frac{\text{LookupBind}(\sigma, x)\ \text{undefined} \quad \Gamma \vdash \text{ResolveValueName}(x) \Uparrow \quad \Gamma \vdash \text{ResolveTypeName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad \text{PoisonedModule}(\sigma, \text{PathOfModule}(mp))}{\Gamma \vdash \text{Evalσ}(\text{Identifier}(x), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
+**(EvalSigma-Ident-Poison-RecordCtor)**
+$$\frac{\text{LookupBind}(\sigma, x)\ \text{undefined} \quad \Gamma \vdash \text{ResolveValueName}(x) \Uparrow \quad \Gamma \vdash \text{ResolveTypeName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad \text{PoisonedModule}(\sigma, \text{PathOfModule}(mp))}{\Gamma \vdash \text{EvalSigma}(\text{Identifier}(x), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
 
-**(Evalσ-Ident)**
-$$\frac{\text{LookupVal}(\sigma, x) = v}{\Gamma \vdash \text{Evalσ}(\text{Identifier}(x), \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
+**(EvalSigma-Ident)**
+$$\frac{\text{LookupVal}(\sigma, x) = v}{\Gamma \vdash \text{EvalSigma}(\text{Identifier}(x), \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
 
-**(Evalσ-Path-Poison)**
-$$\frac{\Gamma \vdash \text{ResolveQualified}(path, name, \text{ValueKind}) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad \text{PoisonedModule}(\sigma, \text{PathOfModule}(mp))}{\Gamma \vdash \text{Evalσ}(\text{Path}(path, name), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
+**(EvalSigma-Path-Poison)**
+$$\frac{\Gamma \vdash \text{ResolveQualified}(path, name, \text{ValueKind}) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad \text{PoisonedModule}(\sigma, \text{PathOfModule}(mp))}{\Gamma \vdash \text{EvalSigma}(\text{Path}(path, name), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
 
-**(Evalσ-Path-Poison-RecordCtor)**
-$$\frac{\Gamma \vdash \text{ResolveQualified}(path, name, \text{ValueKind}) \Uparrow \quad \Gamma \vdash \text{ResolveRecordPath}(path, name) \Downarrow p \quad \text{SplitLast}(p) = (mp, \_) \quad \text{PoisonedModule}(\sigma, mp)}{\Gamma \vdash \text{Evalσ}(\text{Path}(path, name), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
+**(EvalSigma-Path-Poison-RecordCtor)**
+$$\frac{\Gamma \vdash \text{ResolveQualified}(path, name, \text{ValueKind}) \Uparrow \quad \Gamma \vdash \text{ResolveRecordPath}(path, name) \Downarrow p \quad \text{SplitLast}(p) = (mp, \_) \quad \text{PoisonedModule}(\sigma, mp)}{\Gamma \vdash \text{EvalSigma}(\text{Path}(path, name), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
 
-**(Evalσ-Path)**
-$$\frac{\text{LookupValPath}(\sigma, path, name) = v}{\Gamma \vdash \text{Evalσ}(\text{Path}(path, name), \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
+**(EvalSigma-Path)**
+$$\frac{\text{LookupValPath}(\sigma, path, name) = v}{\Gamma \vdash \text{EvalSigma}(\text{Path}(path, name), \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
 
-**(Evalσ-ErrorExpr)**
-$$\frac{}{\Gamma \vdash \text{Evalσ}(\text{ErrorExpr}(\_), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
+**(EvalSigma-ErrorExpr)**
+$$\frac{}{\Gamma \vdash \text{EvalSigma}(\text{ErrorExpr}(\_), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
 
-**(Evalσ-Tuple)**
-$$\frac{\Gamma \vdash \text{EvalListσ}(es, \sigma) \Downarrow (\text{Val}(\vec{v}), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{TupleExpr}(es), \sigma) \Downarrow (\text{Val}((v_1,\ldots,v_n)), \sigma_1)}$$
+**(EvalSigma-Tuple)**
+$$\frac{\Gamma \vdash \text{EvalListSigma}(es, \sigma) \Downarrow (\text{Val}(\vec{v}), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{TupleExpr}(es), \sigma) \Downarrow (\text{Val}((v_1,\ldots,v_n)), \sigma_1)}$$
 
-**(Evalσ-Tuple-Ctrl)**
-$$\frac{\Gamma \vdash \text{EvalListσ}(es, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{TupleExpr}(es), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Tuple-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalListSigma}(es, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{TupleExpr}(es), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Evalσ-Array)**
-$$\frac{\Gamma \vdash \text{EvalListσ}(es, \sigma) \Downarrow (\text{Val}(\vec{v}), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{ArrayExpr}(es), \sigma) \Downarrow (\text{Val}([v_1,\ldots,v_n]), \sigma_1)}$$
+**(EvalSigma-Array)**
+$$\frac{\Gamma \vdash \text{EvalListSigma}(es, \sigma) \Downarrow (\text{Val}(\vec{v}), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{ArrayExpr}(es), \sigma) \Downarrow (\text{Val}([v_1,\ldots,v_n]), \sigma_1)}$$
 
-**(Evalσ-Array-Ctrl)**
-$$\frac{\Gamma \vdash \text{EvalListσ}(es, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{ArrayExpr}(es), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Array-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalListSigma}(es, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{ArrayExpr}(es), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Evalσ-Record)**
-$$\frac{\Gamma \vdash \text{EvalFieldInitsσ}(fields, \sigma) \Downarrow (\text{Val}(\vec{f}), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{RecordExpr}(tr, fields), \sigma) \Downarrow (\text{Val}(\text{RecordValue}(tr, \vec{f})), \sigma_1)}$$
+**(EvalSigma-Record)**
+$$\frac{\Gamma \vdash \text{EvalFieldInitsSigma}(fields, \sigma) \Downarrow (\text{Val}(\vec{f}), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{RecordExpr}(tr, fields), \sigma) \Downarrow (\text{Val}(\text{RecordValue}(tr, \vec{f})), \sigma_1)}$$
 
-**(Evalσ-Record-Ctrl)**
-$$\frac{\Gamma \vdash \text{EvalFieldInitsσ}(fields, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{RecordExpr}(tr, fields), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Record-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalFieldInitsSigma}(fields, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{RecordExpr}(tr, fields), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Evalσ-Enum-Unit)**
-$$\frac{}{\Gamma \vdash \text{Evalσ}(\text{EnumLiteral}(path, \bot), \sigma) \Downarrow (\text{Val}(\text{EnumValue}(path, \bot)), \sigma)}$$
+**(EvalSigma-Enum-Unit)**
+$$\frac{}{\Gamma \vdash \text{EvalSigma}(\text{EnumLiteral}(path, \bot), \sigma) \Downarrow (\text{Val}(\text{EnumValue}(path, \bot)), \sigma)}$$
 
-**(Evalσ-Enum-Tuple)**
-$$\frac{\Gamma \vdash \text{EvalListσ}(es, \sigma) \Downarrow (\text{Val}(\vec{v}), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{EnumLiteral}(path, \text{Paren}(es)), \sigma) \Downarrow (\text{Val}(\text{EnumValue}(path, \text{TuplePayload}(\vec{v}))), \sigma_1)}$$
+**(EvalSigma-Enum-Tuple)**
+$$\frac{\Gamma \vdash \text{EvalListSigma}(es, \sigma) \Downarrow (\text{Val}(\vec{v}), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{EnumLiteral}(path, \text{Paren}(es)), \sigma) \Downarrow (\text{Val}(\text{EnumValue}(path, \text{TuplePayload}(\vec{v}))), \sigma_1)}$$
 
-**(Evalσ-Enum-Tuple-Ctrl)**
-$$\frac{\Gamma \vdash \text{EvalListσ}(es, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{EnumLiteral}(path, \text{Paren}(es)), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Enum-Tuple-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalListSigma}(es, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{EnumLiteral}(path, \text{Paren}(es)), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Evalσ-Enum-Record)**
-$$\frac{\Gamma \vdash \text{EvalFieldInitsσ}(fields, \sigma) \Downarrow (\text{Val}(\vec{f}), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{EnumLiteral}(path, \text{Brace}(fields)), \sigma) \Downarrow (\text{Val}(\text{EnumValue}(path, \text{RecordPayload}(\vec{f}))), \sigma_1)}$$
+**(EvalSigma-Enum-Record)**
+$$\frac{\Gamma \vdash \text{EvalFieldInitsSigma}(fields, \sigma) \Downarrow (\text{Val}(\vec{f}), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{EnumLiteral}(path, \text{Brace}(fields)), \sigma) \Downarrow (\text{Val}(\text{EnumValue}(path, \text{RecordPayload}(\vec{f}))), \sigma_1)}$$
 
-**(Evalσ-Enum-Record-Ctrl)**
-$$\frac{\Gamma \vdash \text{EvalFieldInitsσ}(fields, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{EnumLiteral}(path, \text{Brace}(fields)), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Enum-Record-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalFieldInitsSigma}(fields, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{EnumLiteral}(path, \text{Brace}(fields)), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Evalσ-FieldAccess)**
-$$\frac{\Gamma \vdash \text{Evalσ}(base, \sigma) \Downarrow (\text{Val}(v_b), \sigma_1) \quad \text{FieldValue}(v_b, f) = v_f}{\Gamma \vdash \text{Evalσ}(\text{FieldAccess}(base, f), \sigma) \Downarrow (\text{Val}(v_f), \sigma_1)}$$
+**(EvalSigma-FieldAccess)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(base, \sigma) \Downarrow (\text{Val}(v_b), \sigma_1) \quad \text{FieldValue}(v_b, f) = v_f}{\Gamma \vdash \text{EvalSigma}(\text{FieldAccess}(base, f), \sigma) \Downarrow (\text{Val}(v_f), \sigma_1)}$$
 
-**(Evalσ-FieldAccess-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(base, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{FieldAccess}(base, f), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-FieldAccess-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(base, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{FieldAccess}(base, f), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Evalσ-TupleAccess)**
-$$\frac{\Gamma \vdash \text{Evalσ}(base, \sigma) \Downarrow (\text{Val}(v_b), \sigma_1) \quad \text{TupleValue}(v_b, i) = v_i}{\Gamma \vdash \text{Evalσ}(\text{TupleAccess}(base, i), \sigma) \Downarrow (\text{Val}(v_i), \sigma_1)}$$
+**(EvalSigma-TupleAccess)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(base, \sigma) \Downarrow (\text{Val}(v_b), \sigma_1) \quad \text{TupleValue}(v_b, i) = v_i}{\Gamma \vdash \text{EvalSigma}(\text{TupleAccess}(base, i), \sigma) \Downarrow (\text{Val}(v_i), \sigma_1)}$$
 
-**(Evalσ-TupleAccess-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(base, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{TupleAccess}(base, i), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-TupleAccess-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(base, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{TupleAccess}(base, i), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Evalσ-Index)**
-$$\frac{\Gamma \vdash \text{Evalσ}(base, \sigma) \Downarrow (\text{Val}(v_b), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(idx, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \text{IndexValue}(v_b, v_i) = v_e}{\Gamma \vdash \text{Evalσ}(\text{IndexAccess}(base, idx), \sigma) \Downarrow (\text{Val}(v_e), \sigma_2)}$$
+**(EvalSigma-Index)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(base, \sigma) \Downarrow (\text{Val}(v_b), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(idx, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \text{IndexValue}(v_b, v_i) = v_e}{\Gamma \vdash \text{EvalSigma}(\text{IndexAccess}(base, idx), \sigma) \Downarrow (\text{Val}(v_e), \sigma_2)}$$
 
-**(Evalσ-Index-OOB)**
-$$\frac{\Gamma \vdash \text{Evalσ}(base, \sigma) \Downarrow (\text{Val}(v_b), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(idx, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \text{IndexNum}(v_i)=i \quad \neg(0 \le i < \text{Len}(v_b))}{\Gamma \vdash \text{Evalσ}(\text{IndexAccess}(base, idx), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
+**(EvalSigma-Index-OOB)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(base, \sigma) \Downarrow (\text{Val}(v_b), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(idx, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \text{IndexNum}(v_i)=i \quad \neg(0 \le i < \text{Len}(v_b))}{\Gamma \vdash \text{EvalSigma}(\text{IndexAccess}(base, idx), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
 
-**(Evalσ-Index-Range)**
-$$\frac{\Gamma \vdash \text{Evalσ}(base, \sigma) \Downarrow (\text{Val}(v_b), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(idx, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceValue}(v_b, v_r) = v_s}{\Gamma \vdash \text{Evalσ}(\text{IndexAccess}(base, idx), \sigma) \Downarrow (\text{Val}(v_s), \sigma_2)}$$
+**(EvalSigma-Index-Range)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(base, \sigma) \Downarrow (\text{Val}(v_b), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(idx, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceValue}(v_b, v_r) = v_s}{\Gamma \vdash \text{EvalSigma}(\text{IndexAccess}(base, idx), \sigma) \Downarrow (\text{Val}(v_s), \sigma_2)}$$
 
-**(Evalσ-Index-Range-OOB)**
-$$\frac{\Gamma \vdash \text{Evalσ}(base, \sigma) \Downarrow (\text{Val}(v_b), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(idx, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceBounds}(v_r, \text{Len}(v_b)) = \bot}{\Gamma \vdash \text{Evalσ}(\text{IndexAccess}(base, idx), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
+**(EvalSigma-Index-Range-OOB)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(base, \sigma) \Downarrow (\text{Val}(v_b), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(idx, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceBounds}(v_r, \text{Len}(v_b)) = \bot}{\Gamma \vdash \text{EvalSigma}(\text{IndexAccess}(base, idx), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
 
-**(Evalσ-Index-Ctrl-Base)**
-$$\frac{\Gamma \vdash \text{Evalσ}(base, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{IndexAccess}(base, idx), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Index-Ctrl-Base)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(base, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{IndexAccess}(base, idx), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Evalσ-Index-Ctrl-Idx)**
-$$\frac{\Gamma \vdash \text{Evalσ}(base, \sigma) \Downarrow (\text{Val}(v_b), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(idx, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}{\Gamma \vdash \text{Evalσ}(\text{IndexAccess}(base, idx), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
+**(EvalSigma-Index-Ctrl-Idx)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(base, \sigma) \Downarrow (\text{Val}(v_b), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(idx, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}{\Gamma \vdash \text{EvalSigma}(\text{IndexAccess}(base, idx), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
 
 **Unary, Binary, Cast, Transmute, Propagate.**
 
@@ -12614,38 +12703,38 @@ $$\text{ArithEval}(op, t, v_1, v_2) \Downarrow v \iff t \in \text{FloatTypes} \l
 $$\text{BitEval}(op, t, v_1, v_2) \Downarrow v \iff t \in \text{IntTypes} \land v = \text{BitOp}(op, t, v_1, v_2)$$
 $$\text{ShiftEval}(op, t, v_1, v_2) \Downarrow v \iff t \in \text{IntTypes} \land v = \text{ShiftOp}(op, t, v_1, v_2)$$
 
-**(Evalσ-Unary)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{UnOp}(op, v) \Downarrow v'}{\Gamma \vdash \text{Evalσ}(\text{Unary}(op, e), \sigma) \Downarrow (\text{Val}(v'), \sigma_1)}$$
+**(EvalSigma-Unary)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{UnOp}(op, v) \Downarrow v'}{\Gamma \vdash \text{EvalSigma}(\text{Unary}(op, e), \sigma) \Downarrow (\text{Val}(v'), \sigma_1)}$$
 
-**(Evalσ-Unary-Panic)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{UnOp}(op, v)\ \text{undefined}}{\Gamma \vdash \text{Evalσ}(\text{Unary}(op, e), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_1)}$$
+**(EvalSigma-Unary-Panic)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{UnOp}(op, v)\ \text{undefined}}{\Gamma \vdash \text{EvalSigma}(\text{Unary}(op, e), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_1)}$$
 
-**(Evalσ-Unary-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{Unary}(op, e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Unary-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{Unary}(op, e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Evalσ-Bin-And-False)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e_1, \sigma) \Downarrow (\text{Val}(\text{false}), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{Binary}(\texttt{"&&"}, e_1, e_2), \sigma) \Downarrow (\text{Val}(\text{false}), \sigma_1)}$$
+**(EvalSigma-Bin-And-False)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e_1, \sigma) \Downarrow (\text{Val}(\text{false}), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{Binary}(\texttt{"&&"}, e_1, e_2), \sigma) \Downarrow (\text{Val}(\text{false}), \sigma_1)}$$
 
-**(Evalσ-Bin-And-True)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e_1, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(e_2, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{Evalσ}(\text{Binary}(\texttt{"&&"}, e_1, e_2), \sigma) \Downarrow (out, \sigma_2)}$$
+**(EvalSigma-Bin-And-True)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e_1, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(e_2, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{EvalSigma}(\text{Binary}(\texttt{"&&"}, e_1, e_2), \sigma) \Downarrow (out, \sigma_2)}$$
 
-**(Evalσ-Bin-Or-True)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e_1, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{Binary}(\texttt{"||"}, e_1, e_2), \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1)}$$
+**(EvalSigma-Bin-Or-True)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e_1, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{Binary}(\texttt{"||"}, e_1, e_2), \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1)}$$
 
-**(Evalσ-Bin-Or-False)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e_1, \sigma) \Downarrow (\text{Val}(\text{false}), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(e_2, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{Evalσ}(\text{Binary}(\texttt{"||"}, e_1, e_2), \sigma) \Downarrow (out, \sigma_2)}$$
+**(EvalSigma-Bin-Or-False)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e_1, \sigma) \Downarrow (\text{Val}(\text{false}), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(e_2, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{EvalSigma}(\text{Binary}(\texttt{"||"}, e_1, e_2), \sigma) \Downarrow (out, \sigma_2)}$$
 
-**(Evalσ-Binary)**
-$$\frac{op \notin \{\texttt{"&&"}, \texttt{"||"}\} \quad \Gamma \vdash \text{Evalσ}(e_1, \sigma) \Downarrow (\text{Val}(v_1), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(e_2, \sigma_1) \Downarrow (\text{Val}(v_2), \sigma_2) \quad \text{BinOp}(op, v_1, v_2) \Downarrow v}{\Gamma \vdash \text{Evalσ}(\text{Binary}(op, e_1, e_2), \sigma) \Downarrow (\text{Val}(v), \sigma_2)}$$
+**(EvalSigma-Binary)**
+$$\frac{op \notin \{\texttt{"&&"}, \texttt{"||"}\} \quad \Gamma \vdash \text{EvalSigma}(e_1, \sigma) \Downarrow (\text{Val}(v_1), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(e_2, \sigma_1) \Downarrow (\text{Val}(v_2), \sigma_2) \quad \text{BinOp}(op, v_1, v_2) \Downarrow v}{\Gamma \vdash \text{EvalSigma}(\text{Binary}(op, e_1, e_2), \sigma) \Downarrow (\text{Val}(v), \sigma_2)}$$
 
-**(Evalσ-Binary-Panic)**
-$$\frac{op \notin \{\texttt{"&&"}, \texttt{"||"}\} \quad \Gamma \vdash \text{Evalσ}(e_1, \sigma) \Downarrow (\text{Val}(v_1), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(e_2, \sigma_1) \Downarrow (\text{Val}(v_2), \sigma_2) \quad \text{BinOp}(op, v_1, v_2)\ \text{undefined}}{\Gamma \vdash \text{Evalσ}(\text{Binary}(op, e_1, e_2), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
+**(EvalSigma-Binary-Panic)**
+$$\frac{op \notin \{\texttt{"&&"}, \texttt{"||"}\} \quad \Gamma \vdash \text{EvalSigma}(e_1, \sigma) \Downarrow (\text{Val}(v_1), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(e_2, \sigma_1) \Downarrow (\text{Val}(v_2), \sigma_2) \quad \text{BinOp}(op, v_1, v_2)\ \text{undefined}}{\Gamma \vdash \text{EvalSigma}(\text{Binary}(op, e_1, e_2), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
 
-**(Evalσ-Bin-Ctrl-L)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e_1, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{Binary}(op, e_1, e_2), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Bin-Ctrl-L)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e_1, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{Binary}(op, e_1, e_2), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Evalσ-Bin-Ctrl-R)**
-$$\frac{op \notin \{\texttt{"&&"}, \texttt{"||"}\} \quad \Gamma \vdash \text{Evalσ}(e_1, \sigma) \Downarrow (\text{Val}(v_1), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(e_2, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}{\Gamma \vdash \text{Evalσ}(\text{Binary}(op, e_1, e_2), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
+**(EvalSigma-Bin-Ctrl-R)**
+$$\frac{op \notin \{\texttt{"&&"}, \texttt{"||"}\} \quad \Gamma \vdash \text{EvalSigma}(e_1, \sigma) \Downarrow (\text{Val}(v_1), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(e_2, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}{\Gamma \vdash \text{EvalSigma}(\text{Binary}(op, e_1, e_2), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
 
 $$\text{ExprType} : \text{Expr} \to \text{Type}$$
 $$R = \text{RetType}(\Gamma)$$
@@ -12704,108 +12793,108 @@ $$\frac{S'=\text{StripPerm}(S) \quad T'=\text{StripPerm}(T) \quad S'=\text{TypeP
 **(CastVal-U32-Char)**
 $$\frac{S'=\text{StripPerm}(S) \quad T'=\text{StripPerm}(T) \quad S'=\text{TypePrim}(\texttt{"u32"}) \quad T'=\text{TypePrim}(\texttt{"char"}) \quad v=\text{IntVal}(\texttt{"u32"}, x) \quad \text{IsScalar}(x) \quad v'=\text{CharVal}(\text{CharOf}(x))}{\text{CastVal}(S, T, v) \Downarrow v'}$$
 
-**(Evalσ-Cast)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad S = \text{ExprType}(e) \quad \text{CastVal}(S, T, v) \Downarrow v'}{\Gamma \vdash \text{Evalσ}(\text{Cast}(e, T), \sigma) \Downarrow (\text{Val}(v'), \sigma_1)}$$
+**(EvalSigma-Cast)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad S = \text{ExprType}(e) \quad \text{CastVal}(S, T, v) \Downarrow v'}{\Gamma \vdash \text{EvalSigma}(\text{Cast}(e, T), \sigma) \Downarrow (\text{Val}(v'), \sigma_1)}$$
 
-**(Evalσ-Cast-Panic)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad S = \text{ExprType}(e) \quad \text{CastVal}(S, T, v)\ \text{undefined}}{\Gamma \vdash \text{Evalσ}(\text{Cast}(e, T), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_1)}$$
+**(EvalSigma-Cast-Panic)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad S = \text{ExprType}(e) \quad \text{CastVal}(S, T, v)\ \text{undefined}}{\Gamma \vdash \text{EvalSigma}(\text{Cast}(e, T), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_1)}$$
 
-**(Evalσ-Cast-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{Cast}(e, T), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Cast-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{Cast}(e, T), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 $$\text{TransmuteVal}(S, T, v) \Downarrow v' \iff \text{ValueBits}(S, v) = bits \land \text{ValueBits}(T, v') = bits$$
 
-**(Evalσ-Transmute)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad S = t_1 \quad T = t_2 \quad \text{TransmuteVal}(S, T, v) \Downarrow v'}{\Gamma \vdash \text{Evalσ}(\text{TransmuteExpr}(t_1, t_2, e), \sigma) \Downarrow (\text{Val}(v'), \sigma_1)}$$
+**(EvalSigma-Transmute)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad S = t_1 \quad T = t_2 \quad \text{TransmuteVal}(S, T, v) \Downarrow v'}{\Gamma \vdash \text{EvalSigma}(\text{TransmuteExpr}(t_1, t_2, e), \sigma) \Downarrow (\text{Val}(v'), \sigma_1)}$$
 
-**(Evalσ-Transmute-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{TransmuteExpr}(t_1, t_2, e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Transmute-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{TransmuteExpr}(t_1, t_2, e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 $$\text{UnionCaseJudg} = \{\text{UnionCase}(v) = \langle T, v_T \rangle\}$$
 $$\text{UnionCase}(v) = \langle T, v_T \rangle \iff \exists U,\ bits.\ \text{ValueBits}(\text{TypeUnion}(U), v) = bits \land \text{UnionBits}(U, T, v_T) = bits$$
 
-**(Evalσ-Propagate-Success)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad U = \text{ExprType}(e) \quad \text{SuccessMember}(\text{RetType}(\Gamma), U) = T_s \quad \text{UnionCase}(v) = \langle T_s, v_s \rangle}{\Gamma \vdash \text{Evalσ}(\text{Propagate}(e), \sigma) \Downarrow (\text{Val}(v_s), \sigma_1)}$$
+**(EvalSigma-Propagate-Success)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad U = \text{ExprType}(e) \quad \text{SuccessMember}(\text{RetType}(\Gamma), U) = T_s \quad \text{UnionCase}(v) = \langle T_s, v_s \rangle}{\Gamma \vdash \text{EvalSigma}(\text{Propagate}(e), \sigma) \Downarrow (\text{Val}(v_s), \sigma_1)}$$
 
-**(Evalσ-Propagate-Error)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad U = \text{ExprType}(e) \quad \text{SuccessMember}(\text{RetType}(\Gamma), U) = T_s \quad \text{UnionCase}(v) = \langle T_e, v_e \rangle \quad T_e \ne T_s}{\Gamma \vdash \text{Evalσ}(\text{Propagate}(e), \sigma) \Downarrow (\text{Ctrl}(\text{Return}(v_e)), \sigma_1)}$$
+**(EvalSigma-Propagate-Error)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad U = \text{ExprType}(e) \quad \text{SuccessMember}(\text{RetType}(\Gamma), U) = T_s \quad \text{UnionCase}(v) = \langle T_e, v_e \rangle \quad T_e \ne T_s}{\Gamma \vdash \text{EvalSigma}(\text{Propagate}(e), \sigma) \Downarrow (\text{Ctrl}(\text{Return}(v_e)), \sigma_1)}$$
 
-**(Evalσ-Propagate-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{Propagate}(e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Propagate-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{Propagate}(e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 **Conditionals and Match.**
 
-**(Evalσ-If-True)**
-$$\frac{\Gamma \vdash \text{Evalσ}(cond, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(then\_block, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{Evalσ}(\text{IfExpr}(cond, then\_block, else\_opt), \sigma) \Downarrow (out, \sigma_2)}$$
+**(EvalSigma-If-True)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(cond, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(then\_block, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{EvalSigma}(\text{IfExpr}(cond, then\_block, else\_opt), \sigma) \Downarrow (out, \sigma_2)}$$
 
-**(Evalσ-If-False-None)**
-$$\frac{\Gamma \vdash \text{Evalσ}(cond, \sigma) \Downarrow (\text{Val}(\text{false}), \sigma_1) \quad else\_opt = \bot}{\Gamma \vdash \text{Evalσ}(\text{IfExpr}(cond, then\_block, else\_opt), \sigma) \Downarrow (\text{Val}(()), \sigma_1)}$$
+**(EvalSigma-If-False-None)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(cond, \sigma) \Downarrow (\text{Val}(\text{false}), \sigma_1) \quad else\_opt = \bot}{\Gamma \vdash \text{EvalSigma}(\text{IfExpr}(cond, then\_block, else\_opt), \sigma) \Downarrow (\text{Val}(()), \sigma_1)}$$
 
-**(Evalσ-If-False-Some)**
-$$\frac{\Gamma \vdash \text{Evalσ}(cond, \sigma) \Downarrow (\text{Val}(\text{false}), \sigma_1) \quad else\_opt = e \quad \Gamma \vdash \text{Evalσ}(e, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{Evalσ}(\text{IfExpr}(cond, then\_block, else\_opt), \sigma) \Downarrow (out, \sigma_2)}$$
+**(EvalSigma-If-False-Some)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(cond, \sigma) \Downarrow (\text{Val}(\text{false}), \sigma_1) \quad else\_opt = e \quad \Gamma \vdash \text{EvalSigma}(e, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{EvalSigma}(\text{IfExpr}(cond, then\_block, else\_opt), \sigma) \Downarrow (out, \sigma_2)}$$
 
-**(Evalσ-If-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(cond, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{IfExpr}(cond, then\_block, else\_opt), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-If-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(cond, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{IfExpr}(cond, then\_block, else\_opt), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 $$\text{ArmResult} = \{\text{Match}(out),\ \text{NoMatch}\}$$
-$$\text{MatchArmJudg} = \{\Gamma \vdash \text{MatchArmσ}(arm, v, \sigma) \Downarrow (res, \sigma')\}$$
+$$\text{MatchArmJudg} = \{\Gamma \vdash \text{MatchArmSigma}(arm, v, \sigma) \Downarrow (res, \sigma')\}$$
 
 **(EvalArmBody-Block)**
-$$\frac{body = b \quad \Gamma \vdash \text{EvalBlockσ}(b, \sigma) \Downarrow (out, \sigma')}{\Gamma \vdash \text{EvalArmBodyσ}(body, \sigma) \Downarrow (out, \sigma')}$$
+$$\frac{body = b \quad \Gamma \vdash \text{EvalBlockSigma}(b, \sigma) \Downarrow (out, \sigma')}{\Gamma \vdash \text{EvalArmBodySigma}(body, \sigma) \Downarrow (out, \sigma')}$$
 
 **(EvalArmBody-Expr)**
-$$\frac{body = e \quad \Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (out, \sigma')}{\Gamma \vdash \text{EvalArmBodyσ}(body, \sigma) \Downarrow (out, \sigma')}$$
+$$\frac{body = e \quad \Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (out, \sigma')}{\Gamma \vdash \text{EvalArmBodySigma}(body, \sigma) \Downarrow (out, \sigma')}$$
 
 **(MatchArm-Fail)**
-$$\frac{\Gamma \vdash \text{MatchPattern}(pat, v)\ \text{undefined}}{\Gamma \vdash \text{MatchArmσ}(\langle pat, guard\_opt, body \rangle, v, \sigma) \Downarrow (\text{NoMatch}, \sigma)}$$
+$$\frac{\Gamma \vdash \text{MatchPattern}(pat, v)\ \text{undefined}}{\Gamma \vdash \text{MatchArmSigma}(\langle pat, guard\_opt, body \rangle, v, \sigma) \Downarrow (\text{NoMatch}, \sigma)}$$
 
 **(MatchArm-Guard-False)**
-$$\frac{\Gamma \vdash \text{MatchPattern}(pat, v) \Downarrow B \quad \text{BindOrder}(pat, B) = binds \quad \text{BlockEnter}(\sigma, binds) \Downarrow (\sigma_1, scope) \quad guard\_opt = g \quad \Gamma \vdash \text{Evalσ}(g, \sigma_1) \Downarrow (\text{Val}(\text{false}), \sigma_2) \quad \text{BlockExit}(\sigma_2, scope, \text{Val}(())) \Downarrow (out', \sigma_3)}{\Gamma \vdash \text{MatchArmσ}(\langle pat, guard\_opt, body \rangle, v, \sigma) \Downarrow (\text{NoMatch}, \sigma_3)}$$
+$$\frac{\Gamma \vdash \text{MatchPattern}(pat, v) \Downarrow B \quad \text{BindOrder}(pat, B) = binds \quad \text{BlockEnter}(\sigma, binds) \Downarrow (\sigma_1, scope) \quad guard\_opt = g \quad \Gamma \vdash \text{EvalSigma}(g, \sigma_1) \Downarrow (\text{Val}(\text{false}), \sigma_2) \quad \text{BlockExit}(\sigma_2, scope, \text{Val}(())) \Downarrow (out', \sigma_3)}{\Gamma \vdash \text{MatchArmSigma}(\langle pat, guard\_opt, body \rangle, v, \sigma) \Downarrow (\text{NoMatch}, \sigma_3)}$$
 
 **(MatchArm-Guard-True)**
-$$\frac{\Gamma \vdash \text{MatchPattern}(pat, v) \Downarrow B \quad \text{BindOrder}(pat, B) = binds \quad \text{BlockEnter}(\sigma, binds) \Downarrow (\sigma_1, scope) \quad guard\_opt = g \quad \Gamma \vdash \text{Evalσ}(g, \sigma_1) \Downarrow (\text{Val}(\text{true}), \sigma_2) \quad \Gamma \vdash \text{EvalArmBodyσ}(body, \sigma_2) \Downarrow (out, \sigma_3) \quad \text{BlockExit}(\sigma_3, scope, out) \Downarrow (out', \sigma_4)}{\Gamma \vdash \text{MatchArmσ}(\langle pat, guard\_opt, body \rangle, v, \sigma) \Downarrow (\text{Match}(out'), \sigma_4)}$$
+$$\frac{\Gamma \vdash \text{MatchPattern}(pat, v) \Downarrow B \quad \text{BindOrder}(pat, B) = binds \quad \text{BlockEnter}(\sigma, binds) \Downarrow (\sigma_1, scope) \quad guard\_opt = g \quad \Gamma \vdash \text{EvalSigma}(g, \sigma_1) \Downarrow (\text{Val}(\text{true}), \sigma_2) \quad \Gamma \vdash \text{EvalArmBodySigma}(body, \sigma_2) \Downarrow (out, \sigma_3) \quad \text{BlockExit}(\sigma_3, scope, out) \Downarrow (out', \sigma_4)}{\Gamma \vdash \text{MatchArmSigma}(\langle pat, guard\_opt, body \rangle, v, \sigma) \Downarrow (\text{Match}(out'), \sigma_4)}$$
 
 **(MatchArm-NoGuard)**
-$$\frac{\Gamma \vdash \text{MatchPattern}(pat, v) \Downarrow B \quad \text{BindOrder}(pat, B) = binds \quad \text{BlockEnter}(\sigma, binds) \Downarrow (\sigma_1, scope) \quad guard\_opt = \bot \quad \Gamma \vdash \text{EvalArmBodyσ}(body, \sigma_1) \Downarrow (out, \sigma_2) \quad \text{BlockExit}(\sigma_2, scope, out) \Downarrow (out', \sigma_3)}{\Gamma \vdash \text{MatchArmσ}(\langle pat, guard\_opt, body \rangle, v, \sigma) \Downarrow (\text{Match}(out'), \sigma_3)}$$
+$$\frac{\Gamma \vdash \text{MatchPattern}(pat, v) \Downarrow B \quad \text{BindOrder}(pat, B) = binds \quad \text{BlockEnter}(\sigma, binds) \Downarrow (\sigma_1, scope) \quad guard\_opt = \bot \quad \Gamma \vdash \text{EvalArmBodySigma}(body, \sigma_1) \Downarrow (out, \sigma_2) \quad \text{BlockExit}(\sigma_2, scope, out) \Downarrow (out', \sigma_3)}{\Gamma \vdash \text{MatchArmSigma}(\langle pat, guard\_opt, body \rangle, v, \sigma) \Downarrow (\text{Match}(out'), \sigma_3)}$$
 
 **(MatchArm-Ctrl)**
-$$\frac{\Gamma \vdash \text{MatchPattern}(pat, v) \Downarrow B \quad \text{BindOrder}(pat, B) = binds \quad \text{BlockEnter}(\sigma, binds) \Downarrow (\sigma_1, scope) \quad guard\_opt = g \quad \Gamma \vdash \text{Evalσ}(g, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2) \quad \text{BlockExit}(\sigma_2, scope, \text{Ctrl}(\kappa)) \Downarrow (out', \sigma_3)}{\Gamma \vdash \text{MatchArmσ}(\langle pat, guard\_opt, body \rangle, v, \sigma) \Downarrow (\text{Match}(out'), \sigma_3)}$$
+$$\frac{\Gamma \vdash \text{MatchPattern}(pat, v) \Downarrow B \quad \text{BindOrder}(pat, B) = binds \quad \text{BlockEnter}(\sigma, binds) \Downarrow (\sigma_1, scope) \quad guard\_opt = g \quad \Gamma \vdash \text{EvalSigma}(g, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2) \quad \text{BlockExit}(\sigma_2, scope, \text{Ctrl}(\kappa)) \Downarrow (out', \sigma_3)}{\Gamma \vdash \text{MatchArmSigma}(\langle pat, guard\_opt, body \rangle, v, \sigma) \Downarrow (\text{Match}(out'), \sigma_3)}$$
 
 **(MatchArms-Head)**
-$$\frac{\Gamma \vdash \text{MatchArmσ}(a, v, \sigma) \Downarrow (\text{Match}(out), \sigma_1)}{\Gamma \vdash \text{MatchArmsσ}(a::as, v, \sigma) \Downarrow (out, \sigma_1)}$$
+$$\frac{\Gamma \vdash \text{MatchArmSigma}(a, v, \sigma) \Downarrow (\text{Match}(out), \sigma_1)}{\Gamma \vdash \text{MatchArmsSigma}(a::as, v, \sigma) \Downarrow (out, \sigma_1)}$$
 
 **(MatchArms-Tail)**
-$$\frac{\Gamma \vdash \text{MatchArmσ}(a, v, \sigma) \Downarrow (\text{NoMatch}, \sigma_1) \quad \Gamma \vdash \text{MatchArmsσ}(as, v, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{MatchArmsσ}(a::as, v, \sigma) \Downarrow (out, \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{MatchArmSigma}(a, v, \sigma) \Downarrow (\text{NoMatch}, \sigma_1) \quad \Gamma \vdash \text{MatchArmsSigma}(as, v, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{MatchArmsSigma}(a::as, v, \sigma) \Downarrow (out, \sigma_2)}$$
 
-**(Evalσ-Match)**
-$$\frac{\Gamma \vdash \text{Evalσ}(scrutinee, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \Gamma \vdash \text{MatchArmsσ}(arms, v, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{Evalσ}(\text{MatchExpr}(scrutinee, arms), \sigma) \Downarrow (out, \sigma_2)}$$
+**(EvalSigma-Match)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(scrutinee, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \Gamma \vdash \text{MatchArmsSigma}(arms, v, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{EvalSigma}(\text{MatchExpr}(scrutinee, arms), \sigma) \Downarrow (out, \sigma_2)}$$
 
-**(Evalσ-Match-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(scrutinee, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{MatchExpr}(scrutinee, arms), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Match-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(scrutinee, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{MatchExpr}(scrutinee, arms), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 **Pointer and Move Expressions.**
 
-**(Evalσ-PtrNull)**
-$$\frac{}{\Gamma \vdash \text{Evalσ}(\text{PtrNullExpr}, \sigma) \Downarrow (\text{Val}(\text{Ptr@Null}(0x0)), \sigma)}$$
+**(EvalSigma-PtrNull)**
+$$\frac{}{\Gamma \vdash \text{EvalSigma}(\text{PtrNullExpr}, \sigma) \Downarrow (\text{Val}(\text{Ptr@Null}(0x0)), \sigma)}$$
 
-**(Evalσ-AddressOf)**
-$$\frac{\Gamma \vdash \text{AddrOfσ}(p, \sigma) \Downarrow (\text{Val}(addr), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{AddressOf}(p), \sigma) \Downarrow (\text{Val}(\text{Ptr@Valid}(addr)), \sigma_1)}$$
+**(EvalSigma-AddressOf)**
+$$\frac{\Gamma \vdash \text{AddrOfSigma}(p, \sigma) \Downarrow (\text{Val}(addr), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{AddressOf}(p), \sigma) \Downarrow (\text{Val}(\text{Ptr@Valid}(addr)), \sigma_1)}$$
 
-**(Evalσ-AddressOf-Ctrl)**
-$$\frac{\Gamma \vdash \text{AddrOfσ}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{AddressOf}(p), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-AddressOf-Ctrl)**
+$$\frac{\Gamma \vdash \text{AddrOfSigma}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{AddressOf}(p), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Evalσ-Deref)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v_{ptr}), \sigma_1) \quad \Gamma \vdash \text{ReadPtrσ}(v_{ptr}, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{Evalσ}(\text{Deref}(e), \sigma) \Downarrow (out, \sigma_2)}$$
+**(EvalSigma-Deref)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v_{ptr}), \sigma_1) \quad \Gamma \vdash \text{ReadPtrSigma}(v_{ptr}, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{EvalSigma}(\text{Deref}(e), \sigma) \Downarrow (out, \sigma_2)}$$
 
-**(Evalσ-Deref-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{Deref}(e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Deref-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{Deref}(e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Evalσ-Move)**
-$$\frac{\Gamma \vdash \text{MovePlaceσ}(p, \sigma) \Downarrow (out, \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{MoveExpr}(p), \sigma) \Downarrow (out, \sigma_1)}$$
+**(EvalSigma-Move)**
+$$\frac{\Gamma \vdash \text{MovePlaceSigma}(p, \sigma) \Downarrow (out, \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{MoveExpr}(p), \sigma) \Downarrow (out, \sigma_1)}$$
 
 **Call and Method Application.**
 
-$$\text{CallJudg} = \{\Gamma \vdash \text{EvalArgsσ}(params, args, \sigma) \Downarrow (out, \sigma'),\ \Gamma \vdash \text{EvalRecvσ}(base, mode, \sigma) \Downarrow (out, \sigma'),\ \Gamma \vdash \text{ApplyProcσ}(proc, \vec{v}, \sigma) \Downarrow (out, \sigma'),\ \Gamma \vdash \text{ApplyRecordCtorσ}(p, \sigma) \Downarrow (out, \sigma'),\ \Gamma \vdash \text{ApplyMethodσ}(base, name, v_{\text{self}}, v_{\text{arg}}, \vec{v}, \sigma) \Downarrow (out, \sigma')\}$$
+$$\text{CallJudg} = \{\Gamma \vdash \text{EvalArgsSigma}(params, args, \sigma) \Downarrow (out, \sigma'),\ \Gamma \vdash \text{EvalRecvSigma}(base, mode, \sigma) \Downarrow (out, \sigma'),\ \Gamma \vdash \text{ApplyRegionProc}(name, \vec{v}, \sigma) \Downarrow (out, \sigma'),\ \Gamma \vdash \text{ApplyProcSigma}(proc, \vec{v}, \sigma) \Downarrow (out, \sigma'),\ \Gamma \vdash \text{ApplyRecordCtorSigma}(p, \sigma) \Downarrow (out, \sigma'),\ \Gamma \vdash \text{ApplyMethodSigma}(base, name, v_{\text{self}}, v_{\text{arg}}, \vec{v}, \sigma) \Downarrow (out, \sigma')\}$$
 $$\text{CallTarget}(\text{ProcRef}(proc)) = proc$$
 $$\text{CallTarget}(\text{RecordCtor}(p)) = \text{RecordCtor}(p)$$
 $$\text{MethodTarget}(\text{Dyn}(Cl, \text{RawPtr}(\texttt{imm}, addr), T), name) = \text{Dispatch}(T, Cl, name)$$
@@ -12823,92 +12912,118 @@ $$\text{ReturnOut}(out)=\bot \Rightarrow \text{IllFormed}(\text{ReturnOut}(out))
 $$\text{RecvArgMode}(base) = \texttt{move} \iff \exists p.\ base = \text{MoveExpr}(p)$$
 $$\text{RecvArgMode}(base) = \bot \iff \neg \exists p.\ base = \text{MoveExpr}(p)$$
 
-**(EvalArgsσ-Empty)**
-$$\frac{}{\Gamma \vdash \text{EvalArgsσ}([], [], \sigma) \Downarrow (\text{Val}([]), \sigma)}$$
+**(EvalArgsSigma-Empty)**
+$$\frac{}{\Gamma \vdash \text{EvalArgsSigma}([], [], \sigma) \Downarrow (\text{Val}([]), \sigma)}$$
 
-**(EvalArgsσ-Cons-Move)**
-$$\frac{\Gamma \vdash \text{Evalσ}(\text{MovedArg}(moved, e), \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \Gamma \vdash \text{EvalArgsσ}(ps, as, \sigma_1) \Downarrow (\text{Val}(\vec{v}), \sigma_2)}{\Gamma \vdash \text{EvalArgsσ}([\langle \texttt{move}, x, T_p \rangle] \mathbin{+\!\!+} ps,\ [\langle moved, e, \_ \rangle] \mathbin{+\!\!+} as, \sigma) \Downarrow (\text{Val}([v] \mathbin{+\!\!+} \vec{v}), \sigma_2)}$$
+**(EvalArgsSigma-Cons-Move)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(\text{MovedArg}(moved, e), \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \Gamma \vdash \text{EvalArgsSigma}(ps, as, \sigma_1) \Downarrow (\text{Val}(\vec{v}), \sigma_2)}{\Gamma \vdash \text{EvalArgsSigma}([\langle \texttt{move}, x, T_p \rangle] \mathbin{+\!\!+} ps,\ [\langle moved, e, \_ \rangle] \mathbin{+\!\!+} as, \sigma) \Downarrow (\text{Val}([v] \mathbin{+\!\!+} \vec{v}), \sigma_2)}$$
 
-**(EvalArgsσ-Cons-Ref)**
-$$\frac{\Gamma \vdash \text{AddrOfσ}(e, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad \Gamma \vdash \text{EvalArgsσ}(ps, as, \sigma_1) \Downarrow (\text{Val}(\vec{v}), \sigma_2)}{\Gamma \vdash \text{EvalArgsσ}([\langle \bot, x, T_p \rangle] \mathbin{+\!\!+} ps,\ [\langle moved, e, \_ \rangle] \mathbin{+\!\!+} as, \sigma) \Downarrow (\text{Val}([\text{Alias}(addr)] \mathbin{+\!\!+} \vec{v}), \sigma_2)}$$
+**(EvalArgsSigma-Cons-Ref)**
+$$\frac{\Gamma \vdash \text{AddrOfSigma}(e, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad \Gamma \vdash \text{EvalArgsSigma}(ps, as, \sigma_1) \Downarrow (\text{Val}(\vec{v}), \sigma_2)}{\Gamma \vdash \text{EvalArgsSigma}([\langle \bot, x, T_p \rangle] \mathbin{+\!\!+} ps,\ [\langle moved, e, \_ \rangle] \mathbin{+\!\!+} as, \sigma) \Downarrow (\text{Val}([\text{Alias}(addr)] \mathbin{+\!\!+} \vec{v}), \sigma_2)}$$
 
-**(EvalArgsσ-Ctrl-Move)**
-$$\frac{\Gamma \vdash \text{Evalσ}(\text{MovedArg}(moved, e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalArgsσ}([\langle \texttt{move}, x, T_p \rangle] \mathbin{+\!\!+} ps,\ [\langle moved, e, \_ \rangle] \mathbin{+\!\!+} as, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalArgsSigma-Ctrl-Move)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(\text{MovedArg}(moved, e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalArgsSigma}([\langle \texttt{move}, x, T_p \rangle] \mathbin{+\!\!+} ps,\ [\langle moved, e, \_ \rangle] \mathbin{+\!\!+} as, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(EvalArgsσ-Ctrl-Ref)**
-$$\frac{\Gamma \vdash \text{AddrOfσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalArgsσ}([\langle \bot, x, T_p \rangle] \mathbin{+\!\!+} ps,\ [\langle moved, e, \_ \rangle] \mathbin{+\!\!+} as, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalArgsSigma-Ctrl-Ref)**
+$$\frac{\Gamma \vdash \text{AddrOfSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalArgsSigma}([\langle \bot, x, T_p \rangle] \mathbin{+\!\!+} ps,\ [\langle moved, e, \_ \rangle] \mathbin{+\!\!+} as, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(EvalRecvσ-Move)**
-$$\frac{mode = \texttt{move} \quad \Gamma \vdash \text{Evalσ}(base, \sigma) \Downarrow (\text{Val}(v_{\text{self}}), \sigma_1)}{\Gamma \vdash \text{EvalRecvσ}(base, mode, \sigma) \Downarrow (\text{Val}(\langle v_{\text{self}}, v_{\text{self}} \rangle), \sigma_1)}$$
+**(EvalRecvSigma-Move)**
+$$\frac{mode = \texttt{move} \quad \Gamma \vdash \text{EvalSigma}(base, \sigma) \Downarrow (\text{Val}(v_{\text{self}}), \sigma_1)}{\Gamma \vdash \text{EvalRecvSigma}(base, mode, \sigma) \Downarrow (\text{Val}(\langle v_{\text{self}}, v_{\text{self}} \rangle), \sigma_1)}$$
 
-**(EvalRecvσ-Ref-Dyn)**
-$$\frac{mode = \bot \quad \Gamma \vdash \text{AddrOfσ}(base, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad \text{ReadAddr}(\sigma_1, addr) = \text{Dyn}(Cl, \text{RawPtr}(\texttt{imm}, addr_d), T) \quad \text{DynAddrState}(\sigma_1, addr_d) = \texttt{Valid}}{\Gamma \vdash \text{EvalRecvσ}(base, mode, \sigma) \Downarrow (\text{Val}(\langle \text{Dyn}(Cl, \text{RawPtr}(\texttt{imm}, addr_d), T), \text{Alias}(addr_d) \rangle), \sigma_1)}$$
+**(EvalRecvSigma-Ref-Dyn)**
+$$\frac{mode = \bot \quad \Gamma \vdash \text{AddrOfSigma}(base, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad \text{ReadAddr}(\sigma_1, addr) = \text{Dyn}(Cl, \text{RawPtr}(\texttt{imm}, addr_d), T) \quad \text{DynAddrState}(\sigma_1, addr_d) = \texttt{Valid}}{\Gamma \vdash \text{EvalRecvSigma}(base, mode, \sigma) \Downarrow (\text{Val}(\langle \text{Dyn}(Cl, \text{RawPtr}(\texttt{imm}, addr_d), T), \text{Alias}(addr_d) \rangle), \sigma_1)}$$
 
-**(EvalRecvσ-Ref-Dyn-Expired)**
-$$\frac{mode = \bot \quad \Gamma \vdash \text{AddrOfσ}(base, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad \text{ReadAddr}(\sigma_1, addr) = \text{Dyn}(Cl, \text{RawPtr}(\texttt{imm}, addr_d), T) \quad \text{DynAddrState}(\sigma_1, addr_d) = \texttt{Expired}}{\Gamma \vdash \text{EvalRecvσ}(base, mode, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_1)}$$
+**(EvalRecvSigma-Ref-Dyn-Expired)**
+$$\frac{mode = \bot \quad \Gamma \vdash \text{AddrOfSigma}(base, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad \text{ReadAddr}(\sigma_1, addr) = \text{Dyn}(Cl, \text{RawPtr}(\texttt{imm}, addr_d), T) \quad \text{DynAddrState}(\sigma_1, addr_d) = \texttt{Expired}}{\Gamma \vdash \text{EvalRecvSigma}(base, mode, \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_1)}$$
 
-**(EvalRecvσ-Ref)**
-$$\frac{mode = \bot \quad \Gamma \vdash \text{AddrOfσ}(base, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad \text{ReadAddr}(\sigma_1, addr) = v_{\text{self}} \quad \neg(\exists Cl, addr_d, T.\ v_{\text{self}} = \text{Dyn}(Cl, \text{RawPtr}(\texttt{imm}, addr_d), T))}{\Gamma \vdash \text{EvalRecvσ}(base, mode, \sigma) \Downarrow (\text{Val}(\langle v_{\text{self}}, \text{Alias}(addr) \rangle), \sigma_1)}$$
+**(EvalRecvSigma-Ref)**
+$$\frac{mode = \bot \quad \Gamma \vdash \text{AddrOfSigma}(base, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad \text{ReadAddr}(\sigma_1, addr) = v_{\text{self}} \quad \neg(\exists Cl, addr_d, T.\ v_{\text{self}} = \text{Dyn}(Cl, \text{RawPtr}(\texttt{imm}, addr_d), T))}{\Gamma \vdash \text{EvalRecvSigma}(base, mode, \sigma) \Downarrow (\text{Val}(\langle v_{\text{self}}, \text{Alias}(addr) \rangle), \sigma_1)}$$
 
-**(EvalRecvσ-Ctrl-Move)**
-$$\frac{mode = \texttt{move} \quad \Gamma \vdash \text{Evalσ}(base, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalRecvσ}(base, mode, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalRecvSigma-Ctrl-Move)**
+$$\frac{mode = \texttt{move} \quad \Gamma \vdash \text{EvalSigma}(base, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalRecvSigma}(base, mode, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(EvalRecvσ-Ctrl-Ref)**
-$$\frac{mode = \bot \quad \Gamma \vdash \text{AddrOfσ}(base, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalRecvσ}(base, mode, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalRecvSigma-Ctrl-Ref)**
+$$\frac{mode = \bot \quad \Gamma \vdash \text{AddrOfSigma}(base, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalRecvSigma}(base, mode, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(ApplyProcσ)**
-$$\frac{\text{BindParams}(proc.\text{params}, \vec{v}) = binds \quad \text{BlockEnter}(\sigma, binds) \Downarrow (\sigma_1, scope) \quad \Gamma \vdash \text{EvalBlockBodyσ}(proc.\text{body}, \sigma_1) \Downarrow (out, \sigma_2) \quad \text{BlockExit}(\sigma_2, scope, out) \Downarrow (out', \sigma_3)}{\Gamma \vdash \text{ApplyProcσ}(proc, \vec{v}, \sigma) \Downarrow (\text{ReturnOut}(out'), \sigma_3)}$$
+$$\text{RegionProcParams}(name) = params \iff \text{RegionProcSig}(\texttt{Region::}name) = \langle params, ret \rangle$$
 
-**(ApplyRecordCtorσ)**
-$$\frac{\text{RecordDefaultInits}(p) = fields \quad \Gamma \vdash \text{EvalFieldInitsσ}(fields, \sigma) \Downarrow (\text{Val}(\vec{f}), \sigma_1)}{\Gamma \vdash \text{ApplyRecordCtorσ}(p, \sigma) \Downarrow (\text{Val}(\text{RecordValue}(\text{TypePath}(p), \vec{f})), \sigma_1)}$$
+**(ApplyRegionProc-NewScoped)**
+$$\frac{name = \texttt{new\_scoped} \quad \vec{v} = [opts] \quad \text{RegionNewScoped}(\sigma, opts) \Downarrow (\sigma', v)}{\Gamma \vdash \text{ApplyRegionProc}(name, \vec{v}, \sigma) \Downarrow (\text{Val}(v), \sigma')}$$
 
-**(ApplyRecordCtorσ-Ctrl)**
-$$\frac{\text{RecordDefaultInits}(p) = fields \quad \Gamma \vdash \text{EvalFieldInitsσ}(fields, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{ApplyRecordCtorσ}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(ApplyRegionProc-Alloc)**
+$$\frac{name = \texttt{alloc} \quad \vec{v} = [v_r, v] \quad \text{RegionAllocProc}(\sigma, v_r, v) \Downarrow (\sigma', v')}{\Gamma \vdash \text{ApplyRegionProc}(name, \vec{v}, \sigma) \Downarrow (\text{Val}(v'), \sigma')}$$
 
-**(ApplyMethodσ-Prim)**
-$$\frac{m = \text{MethodTarget}(v_{\text{self}}, name) \quad \text{MethodOwner}(m) = owner \quad \text{MethodName}(m) = name \quad \Gamma \vdash \text{PrimCall}(owner, name, v_{\text{self}}, \vec{v}) \Downarrow v}{\Gamma \vdash \text{ApplyMethodσ}(base, name, v_{\text{self}}, v_{\text{arg}}, \vec{v}, \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
+**(ApplyRegionProc-Reset)**
+$$\frac{name = \texttt{reset\_unchecked} \quad \vec{v} = [v_r] \quad \text{RegionResetProc}(\sigma, v_r) \Downarrow (\sigma', v')}{\Gamma \vdash \text{ApplyRegionProc}(name, \vec{v}, \sigma) \Downarrow (\text{Val}(v'), \sigma')}$$
 
-**(ApplyMethodσ)**
-$$\frac{m = \text{MethodTarget}(v_{\text{self}}, name) \quad \text{BindParams}(\text{RecvParams}(base, name), [v_{\text{arg}}] \mathbin{+\!\!+} \vec{v}) = binds \quad \text{BlockEnter}(\sigma, binds) \Downarrow (\sigma_1, scope) \quad \Gamma \vdash \text{EvalBlockBodyσ}(m.\text{body}, \sigma_1) \Downarrow (out, \sigma_2) \quad \text{BlockExit}(\sigma_2, scope, out) \Downarrow (out', \sigma_3)}{\Gamma \vdash \text{ApplyMethodσ}(base, name, v_{\text{self}}, v_{\text{arg}}, \vec{v}, \sigma) \Downarrow (\text{ReturnOut}(out'), \sigma_3)}$$
+**(ApplyRegionProc-Freeze)**
+$$\frac{name = \texttt{freeze} \quad \vec{v} = [v_r] \quad \text{RegionFreezeProc}(\sigma, v_r) \Downarrow (\sigma', v')}{\Gamma \vdash \text{ApplyRegionProc}(name, \vec{v}, \sigma) \Downarrow (\text{Val}(v'), \sigma')}$$
 
-**(Evalσ-Call-Proc)**
-$$\frac{\Gamma \vdash \text{Evalσ}(callee, \sigma) \Downarrow (\text{Val}(v_c), \sigma_1) \quad proc = \text{CallTarget}(v_c) \quad \Gamma \vdash \text{EvalArgsσ}(proc.\text{params}, args, \sigma_1) \Downarrow (\text{Val}(\vec{v}), \sigma_2) \quad \Gamma \vdash \text{ApplyProcσ}(proc, \vec{v}, \sigma_2) \Downarrow (out, \sigma_3)}{\Gamma \vdash \text{Evalσ}(\text{Call}(callee, args), \sigma) \Downarrow (out, \sigma_3)}$$
+**(ApplyRegionProc-Thaw)**
+$$\frac{name = \texttt{thaw} \quad \vec{v} = [v_r] \quad \text{RegionThawProc}(\sigma, v_r) \Downarrow (\sigma', v')}{\Gamma \vdash \text{ApplyRegionProc}(name, \vec{v}, \sigma) \Downarrow (\text{Val}(v'), \sigma')}$$
 
-**(Evalσ-Call-Record)**
-$$\frac{\Gamma \vdash \text{Evalσ}(callee, \sigma) \Downarrow (\text{Val}(v_c), \sigma_1) \quad \Gamma \vdash \text{EvalArgsσ}([], args, \sigma_1) \Downarrow (\text{Val}(\vec{v}), \sigma_2) \quad \vec{v} = [] \quad \text{RecordCtor}(p) = \text{CallTarget}(v_c) \quad \Gamma \vdash \text{ApplyRecordCtorσ}(p, \sigma_2) \Downarrow (out, \sigma_3)}{\Gamma \vdash \text{Evalσ}(\text{Call}(callee, args), \sigma) \Downarrow (out, \sigma_3)}$$
+**(ApplyRegionProc-Free)**
+$$\frac{name = \texttt{free\_unchecked} \quad \vec{v} = [v_r] \quad \text{RegionFreeProc}(\sigma, v_r) \Downarrow (\sigma', v')}{\Gamma \vdash \text{ApplyRegionProc}(name, \vec{v}, \sigma) \Downarrow (\text{Val}(v'), \sigma')}$$
 
-**(Evalσ-Call-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(callee, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{Call}(callee, args), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(ApplyProcSigma)**
+$$\frac{\text{BindParams}(proc.\text{params}, \vec{v}) = binds \quad \text{BlockEnter}(\sigma, binds) \Downarrow (\sigma_1, scope) \quad \Gamma \vdash \text{EvalBlockBodySigma}(proc.\text{body}, \sigma_1) \Downarrow (out, \sigma_2) \quad \text{BlockExit}(\sigma_2, scope, out) \Downarrow (out', \sigma_3)}{\Gamma \vdash \text{ApplyProcSigma}(proc, \vec{v}, \sigma) \Downarrow (\text{ReturnOut}(out'), \sigma_3)}$$
 
-**(Evalσ-Call-Ctrl-Args)**
-$$\frac{\Gamma \vdash \text{Evalσ}(callee, \sigma) \Downarrow (\text{Val}(v_c), \sigma_1) \quad proc = \text{CallTarget}(v_c) \quad \Gamma \vdash \text{EvalArgsσ}(proc.\text{params}, args, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}{\Gamma \vdash \text{Evalσ}(\text{Call}(callee, args), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
+**(ApplyRecordCtorSigma)**
+$$\frac{\text{RecordDefaultInits}(p) = fields \quad \Gamma \vdash \text{EvalFieldInitsSigma}(fields, \sigma) \Downarrow (\text{Val}(\vec{f}), \sigma_1)}{\Gamma \vdash \text{ApplyRecordCtorSigma}(p, \sigma) \Downarrow (\text{Val}(\text{RecordValue}(\text{TypePath}(p), \vec{f})), \sigma_1)}$$
 
-**(Evalσ-MethodCall)**
-$$\frac{mode = \text{RecvArgMode}(base) \quad \Gamma \vdash \text{EvalRecvσ}(base, mode, \sigma) \Downarrow (\text{Val}(\langle v_{\text{self}}, v_{\text{arg}} \rangle), \sigma_1) \quad m = \text{MethodTarget}(v_{\text{self}}, name) \quad \Gamma \vdash \text{EvalArgsσ}(m.\text{params}, args, \sigma_1) \Downarrow (\text{Val}(\vec{v}), \sigma_2) \quad \Gamma \vdash \text{ApplyMethodσ}(base, name, v_{\text{self}}, v_{\text{arg}}, \vec{v}, \sigma_2) \Downarrow (out, \sigma_3)}{\Gamma \vdash \text{Evalσ}(\text{MethodCall}(base, name, args), \sigma) \Downarrow (out, \sigma_3)}$$
+**(ApplyRecordCtorSigma-Ctrl)**
+$$\frac{\text{RecordDefaultInits}(p) = fields \quad \Gamma \vdash \text{EvalFieldInitsSigma}(fields, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{ApplyRecordCtorSigma}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Evalσ-MethodCall-Ctrl)**
-$$\frac{mode = \text{RecvArgMode}(base) \quad \Gamma \vdash \text{EvalRecvσ}(base, mode, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{MethodCall}(base, name, args), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(ApplyMethodSigma-Prim)**
+$$\frac{m = \text{MethodTarget}(v_{\text{self}}, name) \quad \text{MethodOwner}(m) = owner \quad \text{MethodName}(m) = name \quad \Gamma \vdash \text{PrimCall}(owner, name, v_{\text{self}}, \vec{v}) \Downarrow v}{\Gamma \vdash \text{ApplyMethodSigma}(base, name, v_{\text{self}}, v_{\text{arg}}, \vec{v}, \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
 
-**(Evalσ-MethodCall-Ctrl-Args)**
-$$\frac{mode = \text{RecvArgMode}(base) \quad \Gamma \vdash \text{EvalRecvσ}(base, mode, \sigma) \Downarrow (\text{Val}(\langle v_{\text{self}}, v_{\text{arg}} \rangle), \sigma_1) \quad m = \text{MethodTarget}(v_{\text{self}}, name) \quad \Gamma \vdash \text{EvalArgsσ}(m.\text{params}, args, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}{\Gamma \vdash \text{Evalσ}(\text{MethodCall}(base, name, args), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
+**(ApplyMethodSigma)**
+$$\frac{m = \text{MethodTarget}(v_{\text{self}}, name) \quad \text{BindParams}(\text{RecvParams}(base, name), [v_{\text{arg}}] \mathbin{+\!\!+} \vec{v}) = binds \quad \text{BlockEnter}(\sigma, binds) \Downarrow (\sigma_1, scope) \quad \Gamma \vdash \text{EvalBlockBodySigma}(m.\text{body}, \sigma_1) \Downarrow (out, \sigma_2) \quad \text{BlockExit}(\sigma_2, scope, out) \Downarrow (out', \sigma_3)}{\Gamma \vdash \text{ApplyMethodSigma}(base, name, v_{\text{self}}, v_{\text{arg}}, \vec{v}, \sigma) \Downarrow (\text{ReturnOut}(out'), \sigma_3)}$$
 
-**(Evalσ-Alloc-Implicit)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{ActiveTarget}(\sigma_1) = r \quad \text{RegionAlloc}(\sigma_1, r, v) \Downarrow (\sigma_2, v')}{\Gamma \vdash \text{Evalσ}(\text{AllocExpr}(\bot, e), \sigma) \Downarrow (\text{Val}(v'), \sigma_2)}$$
+**(EvalSigma-Call-RegionProc)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(callee, \sigma) \Downarrow (\text{Val}(\text{ProcRef}([\texttt{Region}], name)), \sigma_1) \quad \text{RegionProcParams}(name) = params \quad \Gamma \vdash \text{EvalArgsSigma}(params, args, \sigma_1) \Downarrow (\text{Val}(\vec{v}), \sigma_2) \quad \Gamma \vdash \text{ApplyRegionProc}(name, \vec{v}, \sigma_2) \Downarrow (out, \sigma_3)}{\Gamma \vdash \text{EvalSigma}(\text{Call}(callee, args), \sigma) \Downarrow (out, \sigma_3)}$$
 
-**(Evalσ-Alloc-Implicit-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{AllocExpr}(\bot, e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Call-RegionProc-Ctrl-Args)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(callee, \sigma) \Downarrow (\text{Val}(\text{ProcRef}([\texttt{Region}], name)), \sigma_1) \quad \text{RegionProcParams}(name) = params \quad \Gamma \vdash \text{EvalArgsSigma}(params, args, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}{\Gamma \vdash \text{EvalSigma}(\text{Call}(callee, args), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
 
-**(Evalσ-Alloc-Explicit)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{LookupVal}(\sigma_1, r) = h \quad \text{ResolveTarget}(\sigma_1, h) = r_t \quad \text{RegionAlloc}(\sigma_1, r_t, v) \Downarrow (\sigma_2, v')}{\Gamma \vdash \text{Evalσ}(\text{AllocExpr}(r, e), \sigma) \Downarrow (\text{Val}(v'), \sigma_2)}$$
+**(EvalSigma-Call-Proc)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(callee, \sigma) \Downarrow (\text{Val}(v_c), \sigma_1) \quad proc = \text{CallTarget}(v_c) \quad \Gamma \vdash \text{EvalArgsSigma}(proc.\text{params}, args, \sigma_1) \Downarrow (\text{Val}(\vec{v}), \sigma_2) \quad \Gamma \vdash \text{ApplyProcSigma}(proc, \vec{v}, \sigma_2) \Downarrow (out, \sigma_3)}{\Gamma \vdash \text{EvalSigma}(\text{Call}(callee, args), \sigma) \Downarrow (out, \sigma_3)}$$
 
-**(Evalσ-Alloc-Explicit-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{AllocExpr}(r, e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Call-Record)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(callee, \sigma) \Downarrow (\text{Val}(v_c), \sigma_1) \quad \Gamma \vdash \text{EvalArgsSigma}([], args, \sigma_1) \Downarrow (\text{Val}(\vec{v}), \sigma_2) \quad \vec{v} = [] \quad \text{RecordCtor}(p) = \text{CallTarget}(v_c) \quad \Gamma \vdash \text{ApplyRecordCtorSigma}(p, \sigma_2) \Downarrow (out, \sigma_3)}{\Gamma \vdash \text{EvalSigma}(\text{Call}(callee, args), \sigma) \Downarrow (out, \sigma_3)}$$
 
-**(Evalσ-Block)**
-$$\frac{\Gamma \vdash \text{EvalBlockσ}(\text{BlockExpr}(stmts, tail\_opt), \sigma) \Downarrow (out, \sigma')}{\Gamma \vdash \text{Evalσ}(\text{BlockExpr}(stmts, tail\_opt), \sigma) \Downarrow (out, \sigma')}$$
+**(EvalSigma-Call-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(callee, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{Call}(callee, args), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Evalσ-UnsafeBlock)**
-$$\frac{\Gamma \vdash \text{EvalBlockσ}(b, \sigma) \Downarrow (out, \sigma')}{\Gamma \vdash \text{Evalσ}(\text{UnsafeBlockExpr}(b), \sigma) \Downarrow (out, \sigma')}$$
+**(EvalSigma-Call-Ctrl-Args)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(callee, \sigma) \Downarrow (\text{Val}(v_c), \sigma_1) \quad proc = \text{CallTarget}(v_c) \quad \Gamma \vdash \text{EvalArgsSigma}(proc.\text{params}, args, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}{\Gamma \vdash \text{EvalSigma}(\text{Call}(callee, args), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
+
+**(EvalSigma-MethodCall)**
+$$\frac{mode = \text{RecvArgMode}(base) \quad \Gamma \vdash \text{EvalRecvSigma}(base, mode, \sigma) \Downarrow (\text{Val}(\langle v_{\text{self}}, v_{\text{arg}} \rangle), \sigma_1) \quad m = \text{MethodTarget}(v_{\text{self}}, name) \quad \Gamma \vdash \text{EvalArgsSigma}(m.\text{params}, args, \sigma_1) \Downarrow (\text{Val}(\vec{v}), \sigma_2) \quad \Gamma \vdash \text{ApplyMethodSigma}(base, name, v_{\text{self}}, v_{\text{arg}}, \vec{v}, \sigma_2) \Downarrow (out, \sigma_3)}{\Gamma \vdash \text{EvalSigma}(\text{MethodCall}(base, name, args), \sigma) \Downarrow (out, \sigma_3)}$$
+
+**(EvalSigma-MethodCall-Ctrl)**
+$$\frac{mode = \text{RecvArgMode}(base) \quad \Gamma \vdash \text{EvalRecvSigma}(base, mode, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{MethodCall}(base, name, args), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+
+**(EvalSigma-MethodCall-Ctrl-Args)**
+$$\frac{mode = \text{RecvArgMode}(base) \quad \Gamma \vdash \text{EvalRecvSigma}(base, mode, \sigma) \Downarrow (\text{Val}(\langle v_{\text{self}}, v_{\text{arg}} \rangle), \sigma_1) \quad m = \text{MethodTarget}(v_{\text{self}}, name) \quad \Gamma \vdash \text{EvalArgsSigma}(m.\text{params}, args, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}{\Gamma \vdash \text{EvalSigma}(\text{MethodCall}(base, name, args), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
+
+**(EvalSigma-Alloc-Implicit)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{ActiveTarget}(\sigma_1) = r \quad \text{RegionAlloc}(\sigma_1, r, v) \Downarrow (\sigma_2, v')}{\Gamma \vdash \text{EvalSigma}(\text{AllocExpr}(\bot, e), \sigma) \Downarrow (\text{Val}(v'), \sigma_2)}$$
+
+**(EvalSigma-Alloc-Implicit-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{AllocExpr}(\bot, e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+
+**(EvalSigma-Alloc-Explicit)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{LookupVal}(\sigma_1, r) = v_r \quad \text{RegionHandleOf}(v_r) = h \quad \text{ResolveTarget}(\sigma_1, h) = r_t \quad \text{RegionAlloc}(\sigma_1, r_t, v) \Downarrow (\sigma_2, v')}{\Gamma \vdash \text{EvalSigma}(\text{AllocExpr}(r, e), \sigma) \Downarrow (\text{Val}(v'), \sigma_2)}$$
+
+**(EvalSigma-Alloc-Explicit-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{AllocExpr}(r, e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+
+**(EvalSigma-Block)**
+$$\frac{\Gamma \vdash \text{EvalBlockSigma}(\text{BlockExpr}(stmts, tail\_opt), \sigma) \Downarrow (out, \sigma')}{\Gamma \vdash \text{EvalSigma}(\text{BlockExpr}(stmts, tail\_opt), \sigma) \Downarrow (out, \sigma')}$$
+
+**(EvalSigma-UnsafeBlock)**
+$$\frac{\Gamma \vdash \text{EvalBlockSigma}(b, \sigma) \Downarrow (out, \sigma')}{\Gamma \vdash \text{EvalSigma}(\text{UnsafeBlockExpr}(b), \sigma) \Downarrow (out, \sigma')}$$
 
 **Loop Iteration Helpers.**
 
@@ -12920,56 +13035,56 @@ $$\text{IterNext}(\langle v, i \rangle) \Downarrow (v_i, \langle v, i+1 \rangle)
 
 $$\text{LoopIterJudg} = \{\Gamma \vdash \text{LoopIterExec}(p, b, it, \sigma) \Downarrow (out, \sigma')\}$$
 
-**(Evalσ-Loop-Infinite-Step)**
-$$\frac{\Gamma \vdash \text{Evalσ}(body, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(\text{LoopInfinite}(body), \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{Evalσ}(\text{LoopInfinite}(body), \sigma) \Downarrow (out, \sigma_2)}$$
+**(EvalSigma-Loop-Infinite-Step)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(body, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(\text{LoopInfinite}(body), \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{EvalSigma}(\text{LoopInfinite}(body), \sigma) \Downarrow (out, \sigma_2)}$$
 
-**(Evalσ-Loop-Infinite-Continue)**
-$$\frac{\Gamma \vdash \text{Evalσ}(body, \sigma) \Downarrow (\text{Ctrl}(\text{Continue}), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(\text{LoopInfinite}(body), \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{Evalσ}(\text{LoopInfinite}(body), \sigma) \Downarrow (out, \sigma_2)}$$
+**(EvalSigma-Loop-Infinite-Continue)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(body, \sigma) \Downarrow (\text{Ctrl}(\text{Continue}), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(\text{LoopInfinite}(body), \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{EvalSigma}(\text{LoopInfinite}(body), \sigma) \Downarrow (out, \sigma_2)}$$
 
-**(Evalσ-Loop-Infinite-Break)**
-$$\frac{\Gamma \vdash \text{Evalσ}(body, \sigma) \Downarrow (\text{Ctrl}(\text{Break}(v\_opt)), \sigma_1) \quad v = \text{BreakVal}(v\_opt)}{\Gamma \vdash \text{Evalσ}(\text{LoopInfinite}(body), \sigma) \Downarrow (\text{Val}(v), \sigma_1)}$$
+**(EvalSigma-Loop-Infinite-Break)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(body, \sigma) \Downarrow (\text{Ctrl}(\text{Break}(v\_opt)), \sigma_1) \quad v = \text{BreakVal}(v\_opt)}{\Gamma \vdash \text{EvalSigma}(\text{LoopInfinite}(body), \sigma) \Downarrow (\text{Val}(v), \sigma_1)}$$
 
-**(Evalσ-Loop-Infinite-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(body, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1) \quad \kappa \in \{\text{Return}(\_),\ \text{Panic},\ \text{Abort}\}}{\Gamma \vdash \text{Evalσ}(\text{LoopInfinite}(body), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Loop-Infinite-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(body, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1) \quad \kappa \in \{\text{Return}(\_),\ \text{Panic},\ \text{Abort}\}}{\Gamma \vdash \text{EvalSigma}(\text{LoopInfinite}(body), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Evalσ-Loop-Cond-False)**
-$$\frac{\Gamma \vdash \text{Evalσ}(cond, \sigma) \Downarrow (\text{Val}(\text{false}), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{LoopConditional}(cond, body), \sigma) \Downarrow (\text{Val}(()), \sigma_1)}$$
+**(EvalSigma-Loop-Cond-False)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(cond, \sigma) \Downarrow (\text{Val}(\text{false}), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{LoopConditional}(cond, body), \sigma) \Downarrow (\text{Val}(()), \sigma_1)}$$
 
-**(Evalσ-Loop-Cond-True-Step)**
-$$\frac{\Gamma \vdash \text{Evalσ}(cond, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(body, \sigma_1) \Downarrow (\text{Val}(v), \sigma_2) \quad \Gamma \vdash \text{Evalσ}(\text{LoopConditional}(cond, body), \sigma_2) \Downarrow (out, \sigma_3)}{\Gamma \vdash \text{Evalσ}(\text{LoopConditional}(cond, body), \sigma) \Downarrow (out, \sigma_3)}$$
+**(EvalSigma-Loop-Cond-True-Step)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(cond, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(body, \sigma_1) \Downarrow (\text{Val}(v), \sigma_2) \quad \Gamma \vdash \text{EvalSigma}(\text{LoopConditional}(cond, body), \sigma_2) \Downarrow (out, \sigma_3)}{\Gamma \vdash \text{EvalSigma}(\text{LoopConditional}(cond, body), \sigma) \Downarrow (out, \sigma_3)}$$
 
-**(Evalσ-Loop-Cond-Continue)**
-$$\frac{\Gamma \vdash \text{Evalσ}(cond, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(body, \sigma_1) \Downarrow (\text{Ctrl}(\text{Continue}), \sigma_2) \quad \Gamma \vdash \text{Evalσ}(\text{LoopConditional}(cond, body), \sigma_2) \Downarrow (out, \sigma_3)}{\Gamma \vdash \text{Evalσ}(\text{LoopConditional}(cond, body), \sigma) \Downarrow (out, \sigma_3)}$$
+**(EvalSigma-Loop-Cond-Continue)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(cond, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(body, \sigma_1) \Downarrow (\text{Ctrl}(\text{Continue}), \sigma_2) \quad \Gamma \vdash \text{EvalSigma}(\text{LoopConditional}(cond, body), \sigma_2) \Downarrow (out, \sigma_3)}{\Gamma \vdash \text{EvalSigma}(\text{LoopConditional}(cond, body), \sigma) \Downarrow (out, \sigma_3)}$$
 
-**(Evalσ-Loop-Cond-Break)**
-$$\frac{\Gamma \vdash \text{Evalσ}(cond, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(body, \sigma_1) \Downarrow (\text{Ctrl}(\text{Break}(v\_opt)), \sigma_2) \quad v = \text{BreakVal}(v\_opt)}{\Gamma \vdash \text{Evalσ}(\text{LoopConditional}(cond, body), \sigma) \Downarrow (\text{Val}(v), \sigma_2)}$$
+**(EvalSigma-Loop-Cond-Break)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(cond, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(body, \sigma_1) \Downarrow (\text{Ctrl}(\text{Break}(v\_opt)), \sigma_2) \quad v = \text{BreakVal}(v\_opt)}{\Gamma \vdash \text{EvalSigma}(\text{LoopConditional}(cond, body), \sigma) \Downarrow (\text{Val}(v), \sigma_2)}$$
 
-**(Evalσ-Loop-Cond-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(cond, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{LoopConditional}(cond, body), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Loop-Cond-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(cond, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{LoopConditional}(cond, body), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Evalσ-Loop-Cond-Body-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(cond, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(body, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2) \quad \kappa \in \{\text{Return}(\_),\ \text{Panic},\ \text{Abort}\}}{\Gamma \vdash \text{Evalσ}(\text{LoopConditional}(cond, body), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
+**(EvalSigma-Loop-Cond-Body-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(cond, \sigma) \Downarrow (\text{Val}(\text{true}), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(body, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2) \quad \kappa \in \{\text{Return}(\_),\ \text{Panic},\ \text{Abort}\}}{\Gamma \vdash \text{EvalSigma}(\text{LoopConditional}(cond, body), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
 
-**(Evalσ-Loop-Iter)**
-$$\frac{\Gamma \vdash \text{Evalσ}(iter, \sigma) \Downarrow (\text{Val}(v\_{\text{iter}}), \sigma_1) \quad \text{IterInit}(v\_{\text{iter}}) \Downarrow it \quad \Gamma \vdash \text{LoopIterExec}(pat, body, it, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{Evalσ}(\text{LoopIter}(pat, ty\_opt, iter, body), \sigma) \Downarrow (out, \sigma_2)}$$
+**(EvalSigma-Loop-Iter)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(iter, \sigma) \Downarrow (\text{Val}(v\_{\text{iter}}), \sigma_1) \quad \text{IterInit}(v\_{\text{iter}}) \Downarrow it \quad \Gamma \vdash \text{LoopIterExec}(pat, body, it, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{EvalSigma}(\text{LoopIter}(pat, ty\_opt, iter, body), \sigma) \Downarrow (out, \sigma_2)}$$
 
-**(Evalσ-Loop-Iter-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(iter, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{LoopIter}(pat, ty\_opt, iter, body), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(EvalSigma-Loop-Iter-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(iter, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(\text{LoopIter}(pat, ty\_opt, iter, body), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 **(LoopIter-Done)**
 $$\frac{\text{IterNext}(it) \Downarrow (\bot, it')}{\Gamma \vdash \text{LoopIterExec}(pat, body, it, \sigma) \Downarrow (\text{Val}(()), \sigma)}$$
 
 **(LoopIter-Step-Val)**
-$$\frac{\text{IterNext}(it) \Downarrow (v, it') \quad \Gamma \vdash \text{EvalBlockBindσ}(pat, v, body, \sigma) \Downarrow (\text{Val}(v_b), \sigma_1) \quad \Gamma \vdash \text{LoopIterExec}(pat, body, it', \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{LoopIterExec}(pat, body, it, \sigma) \Downarrow (out, \sigma_2)}$$
+$$\frac{\text{IterNext}(it) \Downarrow (v, it') \quad \Gamma \vdash \text{EvalBlockBindSigma}(pat, v, body, \sigma) \Downarrow (\text{Val}(v_b), \sigma_1) \quad \Gamma \vdash \text{LoopIterExec}(pat, body, it', \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{LoopIterExec}(pat, body, it, \sigma) \Downarrow (out, \sigma_2)}$$
 
 **(LoopIter-Step-Continue)**
-$$\frac{\text{IterNext}(it) \Downarrow (v, it') \quad \Gamma \vdash \text{EvalBlockBindσ}(pat, v, body, \sigma) \Downarrow (\text{Ctrl}(\text{Continue}), \sigma_1) \quad \Gamma \vdash \text{LoopIterExec}(pat, body, it', \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{LoopIterExec}(pat, body, it, \sigma) \Downarrow (out, \sigma_2)}$$
+$$\frac{\text{IterNext}(it) \Downarrow (v, it') \quad \Gamma \vdash \text{EvalBlockBindSigma}(pat, v, body, \sigma) \Downarrow (\text{Ctrl}(\text{Continue}), \sigma_1) \quad \Gamma \vdash \text{LoopIterExec}(pat, body, it', \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{LoopIterExec}(pat, body, it, \sigma) \Downarrow (out, \sigma_2)}$$
 
 **(LoopIter-Step-Break)**
-$$\frac{\text{IterNext}(it) \Downarrow (v, it') \quad \Gamma \vdash \text{EvalBlockBindσ}(pat, v, body, \sigma) \Downarrow (\text{Ctrl}(\text{Break}(v\_opt)), \sigma_1) \quad v' = \text{BreakVal}(v\_opt)}{\Gamma \vdash \text{LoopIterExec}(pat, body, it, \sigma) \Downarrow (\text{Val}(v'), \sigma_1)}$$
+$$\frac{\text{IterNext}(it) \Downarrow (v, it') \quad \Gamma \vdash \text{EvalBlockBindSigma}(pat, v, body, \sigma) \Downarrow (\text{Ctrl}(\text{Break}(v\_opt)), \sigma_1) \quad v' = \text{BreakVal}(v\_opt)}{\Gamma \vdash \text{LoopIterExec}(pat, body, it, \sigma) \Downarrow (\text{Val}(v'), \sigma_1)}$$
 
 **(LoopIter-Step-Ctrl)**
-$$\frac{\text{IterNext}(it) \Downarrow (v, it') \quad \Gamma \vdash \text{EvalBlockBindσ}(pat, v, body, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1) \quad \kappa \in \{\text{Return}(\_),\ \text{Panic},\ \text{Abort}\}}{\Gamma \vdash \text{LoopIterExec}(pat, body, it, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+$$\frac{\text{IterNext}(it) \Downarrow (v, it') \quad \Gamma \vdash \text{EvalBlockBindSigma}(pat, v, body, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1) \quad \kappa \in \{\text{Return}(\_),\ \text{Panic},\ \text{Abort}\}}{\Gamma \vdash \text{LoopIterExec}(pat, body, it, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 **Stateful Small-Step (Expressions).**
 
@@ -12977,172 +13092,172 @@ $$\text{ExprState} = \{\langle e, \sigma \rangle,\ \langle \text{Val}(v), \sigma
 $$\text{TerminalExpr}(\langle \text{Val}(v), \sigma \rangle)$$
 $$\text{TerminalExpr}(\langle \text{Ctrl}(\kappa), \sigma \rangle)$$
 
-**(Stepσ-Pure)**
+**(StepSigma-Pure)**
 $$\frac{\langle e \rangle \to \langle e' \rangle}{\langle e, \sigma \rangle \to \langle e', \sigma \rangle}$$
 
-**(Stepσ-Alloc-Implicit)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{ActiveTarget}(\sigma_1) = r \quad \text{RegionAlloc}(\sigma_1, r, v) \Downarrow (\sigma_2, v')}{\langle \text{AllocExpr}(\bot, e), \sigma \rangle \to \langle \text{Val}(v'), \sigma_2 \rangle}$$
+**(StepSigma-Alloc-Implicit)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{ActiveTarget}(\sigma_1) = r \quad \text{RegionAlloc}(\sigma_1, r, v) \Downarrow (\sigma_2, v')}{\langle \text{AllocExpr}(\bot, e), \sigma \rangle \to \langle \text{Val}(v'), \sigma_2 \rangle}$$
 
-**(Stepσ-Alloc-Implicit-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\langle \text{AllocExpr}(\bot, e), \sigma \rangle \to \langle \text{Ctrl}(\kappa), \sigma_1 \rangle}$$
+**(StepSigma-Alloc-Implicit-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\langle \text{AllocExpr}(\bot, e), \sigma \rangle \to \langle \text{Ctrl}(\kappa), \sigma_1 \rangle}$$
 
-**(Stepσ-Alloc-Explicit)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{LookupVal}(\sigma_1, r) = h \quad \text{ResolveTarget}(\sigma_1, h) = r_t \quad \text{RegionAlloc}(\sigma_1, r_t, v) \Downarrow (\sigma_2, v')}{\langle \text{AllocExpr}(r, e), \sigma \rangle \to \langle \text{Val}(v'), \sigma_2 \rangle}$$
+**(StepSigma-Alloc-Explicit)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{LookupVal}(\sigma_1, r) = v_r \quad \text{RegionHandleOf}(v_r) = h \quad \text{ResolveTarget}(\sigma_1, h) = r_t \quad \text{RegionAlloc}(\sigma_1, r_t, v) \Downarrow (\sigma_2, v')}{\langle \text{AllocExpr}(r, e), \sigma \rangle \to \langle \text{Val}(v'), \sigma_2 \rangle}$$
 
-**(Stepσ-Alloc-Explicit-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\langle \text{AllocExpr}(r, e), \sigma \rangle \to \langle \text{Ctrl}(\kappa), \sigma_1 \rangle}$$
+**(StepSigma-Alloc-Explicit-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\langle \text{AllocExpr}(r, e), \sigma \rangle \to \langle \text{Ctrl}(\kappa), \sigma_1 \rangle}$$
 
-**(Stepσ-Block)**
-$$\frac{\Gamma \vdash \text{EvalBlockσ}(\text{BlockExpr}(stmts, tail\_opt), \sigma) \Downarrow (out, \sigma')}{\langle \text{BlockExpr}(stmts, tail\_opt), \sigma \rangle \to \langle out, \sigma' \rangle}$$
+**(StepSigma-Block)**
+$$\frac{\Gamma \vdash \text{EvalBlockSigma}(\text{BlockExpr}(stmts, tail\_opt), \sigma) \Downarrow (out, \sigma')}{\langle \text{BlockExpr}(stmts, tail\_opt), \sigma \rangle \to \langle out, \sigma' \rangle}$$
 
-**(Stepσ-UnsafeBlock)**
-$$\frac{\Gamma \vdash \text{EvalBlockσ}(b, \sigma) \Downarrow (out, \sigma')}{\langle \text{UnsafeBlockExpr}(b), \sigma \rangle \to \langle out, \sigma' \rangle}$$
+**(StepSigma-UnsafeBlock)**
+$$\frac{\Gamma \vdash \text{EvalBlockSigma}(b, \sigma) \Downarrow (out, \sigma')}{\langle \text{UnsafeBlockExpr}(b), \sigma \rangle \to \langle out, \sigma' \rangle}$$
 
-**(Stepσ-Loop)**
-$$\frac{\Gamma \vdash \text{Evalσ}(\ell, \sigma) \Downarrow (out, \sigma') \quad \ell \in \{\text{LoopInfinite}(\_),\ \text{LoopConditional}(\_,\_),\ \text{LoopIter}(\_,\_,\_,\_)\}}{\langle \ell, \sigma \rangle \to \langle out, \sigma' \rangle}$$
+**(StepSigma-Loop)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(\ell, \sigma) \Downarrow (out, \sigma') \quad \ell \in \{\text{LoopInfinite}(\_),\ \text{LoopConditional}(\_,\_),\ \text{LoopIter}(\_,\_,\_,\_)\}}{\langle \ell, \sigma \rangle \to \langle out, \sigma' \rangle}$$
 
-**(Stepσ-Stateful-Other)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (out, \sigma') \quad e \notin \{\text{AllocExpr}(\_,\_),\ \text{BlockExpr}(\_,\_),\ \text{UnsafeBlockExpr}(\_),\ \text{LoopInfinite}(\_),\ \text{LoopConditional}(\_,\_),\ \text{LoopIter}(\_,\_,\_,\_)\}}{\langle e, \sigma \rangle \to \langle out, \sigma' \rangle}$$
+**(StepSigma-Stateful-Other)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (out, \sigma') \quad e \notin \{\text{AllocExpr}(\_,\_),\ \text{BlockExpr}(\_,\_),\ \text{UnsafeBlockExpr}(\_),\ \text{LoopInfinite}(\_),\ \text{LoopConditional}(\_,\_),\ \text{LoopIter}(\_,\_,\_,\_)\}}{\langle e, \sigma \rangle \to \langle out, \sigma' \rangle}$$
 
 **Statement Execution (Cursive0).**
 
-$$\text{ExecJudg} = \{\Gamma \vdash \text{Execσ}(s, \sigma) \Downarrow (sout, \sigma'),\ \Gamma \vdash \text{ExecSeqσ}(ss, \sigma) \Downarrow (sout, \sigma')\}$$
+$$\text{ExecJudg} = \{\Gamma \vdash \text{ExecSigma}(s, \sigma) \Downarrow (sout, \sigma'),\ \Gamma \vdash \text{ExecSeqSigma}(ss, \sigma) \Downarrow (sout, \sigma')\}$$
 
 **(ExecSeq-Empty)**
-$$\frac{}{\Gamma \vdash \text{ExecSeqσ}([], \sigma) \Downarrow (ok, \sigma)}$$
+$$\frac{}{\Gamma \vdash \text{ExecSeqSigma}([], \sigma) \Downarrow (ok, \sigma)}$$
 
 **(ExecSeq-Cons-Ok)**
-$$\frac{\Gamma \vdash \text{Execσ}(s, \sigma) \Downarrow (ok, \sigma_1) \quad \Gamma \vdash \text{ExecSeqσ}(ss, \sigma_1) \Downarrow (sout, \sigma_2)}{\Gamma \vdash \text{ExecSeqσ}(s::ss, \sigma) \Downarrow (sout, \sigma_2)}$$
+$$\frac{\Gamma \vdash \text{ExecSigma}(s, \sigma) \Downarrow (ok, \sigma_1) \quad \Gamma \vdash \text{ExecSeqSigma}(ss, \sigma_1) \Downarrow (sout, \sigma_2)}{\Gamma \vdash \text{ExecSeqSigma}(s::ss, \sigma) \Downarrow (sout, \sigma_2)}$$
 
 **(ExecSeq-Cons-Ctrl)**
-$$\frac{\Gamma \vdash \text{Execσ}(s, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{ExecSeqσ}(s::ss, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+$$\frac{\Gamma \vdash \text{ExecSigma}(s, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{ExecSeqSigma}(s::ss, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 $$\text{BindingForm}(binding) = \langle pat, ty\_opt, op, init, \_ \rangle$$
 
-**(Execσ-Let)**
-$$\frac{\text{BindingForm}(binding) = \langle pat, ty\_opt, op, init, \_ \rangle \quad \Gamma \vdash \text{Evalσ}(init, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{BindPattern}(\sigma_1, pat, v) \Downarrow (\sigma_2, bs)}{\Gamma \vdash \text{Execσ}(\text{LetStmt}(binding), \sigma) \Downarrow (ok, \sigma_2)}$$
+**(ExecSigma-Let)**
+$$\frac{\text{BindingForm}(binding) = \langle pat, ty\_opt, op, init, \_ \rangle \quad \Gamma \vdash \text{EvalSigma}(init, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{BindPattern}(\sigma_1, pat, v) \Downarrow (\sigma_2, bs)}{\Gamma \vdash \text{ExecSigma}(\text{LetStmt}(binding), \sigma) \Downarrow (ok, \sigma_2)}$$
 
-**(Execσ-Let-Ctrl)**
-$$\frac{\text{BindingForm}(binding) = \langle pat, ty\_opt, op, init, \_ \rangle \quad \Gamma \vdash \text{Evalσ}(init, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Execσ}(\text{LetStmt}(binding), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(ExecSigma-Let-Ctrl)**
+$$\frac{\text{BindingForm}(binding) = \langle pat, ty\_opt, op, init, \_ \rangle \quad \Gamma \vdash \text{EvalSigma}(init, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{ExecSigma}(\text{LetStmt}(binding), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Execσ-Var)**
-$$\frac{\text{BindingForm}(binding) = \langle pat, ty\_opt, op, init, \_ \rangle \quad \Gamma \vdash \text{Evalσ}(init, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{BindPattern}(\sigma_1, pat, v) \Downarrow (\sigma_2, bs)}{\Gamma \vdash \text{Execσ}(\text{VarStmt}(binding), \sigma) \Downarrow (ok, \sigma_2)}$$
+**(ExecSigma-Var)**
+$$\frac{\text{BindingForm}(binding) = \langle pat, ty\_opt, op, init, \_ \rangle \quad \Gamma \vdash \text{EvalSigma}(init, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{BindPattern}(\sigma_1, pat, v) \Downarrow (\sigma_2, bs)}{\Gamma \vdash \text{ExecSigma}(\text{VarStmt}(binding), \sigma) \Downarrow (ok, \sigma_2)}$$
 
-**(Execσ-Var-Ctrl)**
-$$\frac{\text{BindingForm}(binding) = \langle pat, ty\_opt, op, init, \_ \rangle \quad \Gamma \vdash \text{Evalσ}(init, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Execσ}(\text{VarStmt}(binding), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(ExecSigma-Var-Ctrl)**
+$$\frac{\text{BindingForm}(binding) = \langle pat, ty\_opt, op, init, \_ \rangle \quad \Gamma \vdash \text{EvalSigma}(init, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{ExecSigma}(\text{VarStmt}(binding), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Execσ-ShadowLet)**
-$$\frac{\Gamma \vdash \text{Evalσ}(init, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{BindVal}(\sigma_1, x, v) \Downarrow (\sigma_2, b)}{\Gamma \vdash \text{Execσ}(\text{ShadowLetStmt}(x, ty\_opt, init), \sigma) \Downarrow (ok, \sigma_2)}$$
+**(ExecSigma-ShadowLet)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(init, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{BindVal}(\sigma_1, x, v) \Downarrow (\sigma_2, b)}{\Gamma \vdash \text{ExecSigma}(\text{ShadowLetStmt}(x, ty\_opt, init), \sigma) \Downarrow (ok, \sigma_2)}$$
 
-**(Execσ-ShadowLet-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(init, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Execσ}(\text{ShadowLetStmt}(x, ty\_opt, init), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(ExecSigma-ShadowLet-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(init, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{ExecSigma}(\text{ShadowLetStmt}(x, ty\_opt, init), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Execσ-ShadowVar)**
-$$\frac{\Gamma \vdash \text{Evalσ}(init, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{BindVal}(\sigma_1, x, v) \Downarrow (\sigma_2, b)}{\Gamma \vdash \text{Execσ}(\text{ShadowVarStmt}(x, ty\_opt, init), \sigma) \Downarrow (ok, \sigma_2)}$$
+**(ExecSigma-ShadowVar)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(init, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{BindVal}(\sigma_1, x, v) \Downarrow (\sigma_2, b)}{\Gamma \vdash \text{ExecSigma}(\text{ShadowVarStmt}(x, ty\_opt, init), \sigma) \Downarrow (ok, \sigma_2)}$$
 
-**(Execσ-ShadowVar-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(init, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Execσ}(\text{ShadowVarStmt}(x, ty\_opt, init), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(ExecSigma-ShadowVar-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(init, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{ExecSigma}(\text{ShadowVarStmt}(x, ty\_opt, init), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Execσ-Assign)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \Gamma \vdash \text{WritePlaceσ}(p, v, \sigma_1) \Downarrow (sout, \sigma_2)}{\Gamma \vdash \text{Execσ}(\text{AssignStmt}(p, e), \sigma) \Downarrow (sout, \sigma_2)}$$
+**(ExecSigma-Assign)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \Gamma \vdash \text{WritePlaceSigma}(p, v, \sigma_1) \Downarrow (sout, \sigma_2)}{\Gamma \vdash \text{ExecSigma}(\text{AssignStmt}(p, e), \sigma) \Downarrow (sout, \sigma_2)}$$
 
-**(Execσ-Assign-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Execσ}(\text{AssignStmt}(p, e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(ExecSigma-Assign-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{ExecSigma}(\text{AssignStmt}(p, e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 
-**(Execσ-CompoundAssign)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(e, \sigma_1) \Downarrow (\text{Val}(v_e), \sigma_2) \quad \text{BinOp}(op, v_p, v_e) \Downarrow v \quad \Gamma \vdash \text{WritePlaceσ}(p, v, \sigma_2) \Downarrow (sout, \sigma_3)}{\Gamma \vdash \text{Execσ}(\text{CompoundAssignStmt}(p, op, e), \sigma) \Downarrow (sout, \sigma_3)}$$
+**(ExecSigma-CompoundAssign)**
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(e, \sigma_1) \Downarrow (\text{Val}(v_e), \sigma_2) \quad \text{BinOp}(op, v_p, v_e) \Downarrow v \quad \Gamma \vdash \text{WritePlaceSigma}(p, v, \sigma_2) \Downarrow (sout, \sigma_3)}{\Gamma \vdash \text{ExecSigma}(\text{CompoundAssignStmt}(p, op, e), \sigma) \Downarrow (sout, \sigma_3)}$$
 
-**(Execσ-CompoundAssign-Left-Ctrl)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Execσ}(\text{CompoundAssignStmt}(p, op, e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(ExecSigma-CompoundAssign-Left-Ctrl)**
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{ExecSigma}(\text{CompoundAssignStmt}(p, op, e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Execσ-CompoundAssign-Right-Ctrl)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(e, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}{\Gamma \vdash \text{Execσ}(\text{CompoundAssignStmt}(p, op, e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
+**(ExecSigma-CompoundAssign-Right-Ctrl)**
+$$\frac{\Gamma \vdash \text{ReadPlaceSigma}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{EvalSigma}(e, \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}{\Gamma \vdash \text{ExecSigma}(\text{CompoundAssignStmt}(p, op, e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
 
-**(Execσ-ExprStmt)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (out, \sigma_1)}{\Gamma \vdash \text{Execσ}(\text{ExprStmt}(e), \sigma) \Downarrow (\text{StmtOutOf}(out), \sigma_1)}$$
+**(ExecSigma-ExprStmt)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (out, \sigma_1)}{\Gamma \vdash \text{ExecSigma}(\text{ExprStmt}(e), \sigma) \Downarrow (\text{StmtOutOf}(out), \sigma_1)}$$
 
-**(Execσ-UnsafeStmt)**
-$$\frac{\Gamma \vdash \text{Evalσ}(b, \sigma) \Downarrow (out, \sigma_1)}{\Gamma \vdash \text{Execσ}(\text{UnsafeBlockStmt}(b), \sigma) \Downarrow (\text{StmtOutOf}(out), \sigma_1)}$$
+**(ExecSigma-UnsafeStmt)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(b, \sigma) \Downarrow (out, \sigma_1)}{\Gamma \vdash \text{ExecSigma}(\text{UnsafeBlockStmt}(b), \sigma) \Downarrow (\text{StmtOutOf}(out), \sigma_1)}$$
 
-**(Execσ-Defer)**
-$$\frac{\text{AppendCleanup}(\sigma, \text{DeferBlock}(b)) \Downarrow \sigma'}{\Gamma \vdash \text{Execσ}(\text{DeferStmt}(b), \sigma) \Downarrow (ok, \sigma')}$$
+**(ExecSigma-Defer)**
+$$\frac{\text{AppendCleanup}(\sigma, \text{DeferBlock}(b)) \Downarrow \sigma'}{\Gamma \vdash \text{ExecSigma}(\text{DeferStmt}(b), \sigma) \Downarrow (ok, \sigma')}$$
 
 $$opts = \text{RegionOptsExpr}(opts\_opt)$$
 
-**(Execσ-Region)**
-$$\frac{\Gamma \vdash \text{Evalσ}(opts, \sigma) \Downarrow (\text{Val}(v_o), \sigma_1) \quad \text{RegionNew}(\sigma_1, v_o) \Downarrow (\sigma_2, r, scope) \quad \text{BindRegionAlias}(\sigma_2, alias\_opt, r) \Downarrow \sigma_3 \quad \Gamma \vdash \text{EvalInScopeσ}(b, \sigma_3, scope) \Downarrow (out, \sigma_4) \quad \text{RegionRelease}(\sigma_4, r, scope, out) \Downarrow (out', \sigma_5)}{\Gamma \vdash \text{Execσ}(\text{RegionStmt}(opts\_opt, alias\_opt, b), \sigma) \Downarrow (\text{StmtOutOf}(out'), \sigma_5)}$$
+**(ExecSigma-Region)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(opts, \sigma) \Downarrow (\text{Val}(v_o), \sigma_1) \quad \text{RegionNew}(\sigma_1, v_o) \Downarrow (\sigma_2, r, scope) \quad \text{BindRegionAlias}(\sigma_2, alias\_opt, r) \Downarrow \sigma_3 \quad \Gamma \vdash \text{EvalInScopeSigma}(b, \sigma_3, scope) \Downarrow (out, \sigma_4) \quad \text{RegionRelease}(\sigma_4, r, scope, out) \Downarrow (out', \sigma_5)}{\Gamma \vdash \text{ExecSigma}(\text{RegionStmt}(opts\_opt, alias\_opt, b), \sigma) \Downarrow (\text{StmtOutOf}(out'), \sigma_5)}$$
 
-**(Execσ-Region-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(opts, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Execσ}(\text{RegionStmt}(opts\_opt, alias\_opt, b), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(ExecSigma-Region-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(opts, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{ExecSigma}(\text{RegionStmt}(opts\_opt, alias\_opt, b), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-$$\text{RegionRelease}(σ, r, scope, out) \Downarrow (out', σ') \iff \Gamma \vdash \text{CleanupScope}(scope, σ) \Downarrow (c, σ_1) \land out' = \text{ExitOutcome}(out, c) \land ((out' = \text{Ctrl}(\text{Abort}) \land σ' = σ_1)\ \lor\ (out' \ne \text{Ctrl}(\text{Abort}) \land \text{ReleaseArena}(σ_1, r) \Downarrow σ_2 \land \text{PopScope}_\sigma(σ_2) \Downarrow (σ', scope)))$$
+$$\text{RegionRelease}(Sigma, r, scope, out) \Downarrow (out', Sigma') \iff \Gamma \vdash \text{CleanupScope}(scope, Sigma) \Downarrow (c, Sigma_1) \land out' = \text{ExitOutcome}(out, c) \land ((out' = \text{Ctrl}(\text{Abort}) \land Sigma' = Sigma_1)\ \lor\ (out' \ne \text{Ctrl}(\text{Abort}) \land \text{ReleaseArena}(Sigma_1, r) \Downarrow Sigma_2 \land \text{PopScope}_\sigma(Sigma_2) \Downarrow (Sigma', scope)))$$
 
-**(Execσ-Frame-Implicit)**
-$$\frac{\text{ActiveTarget}(\sigma) = r \quad \text{FrameEnter}(\sigma, r) \Downarrow (\sigma_1, F, scope, mark) \quad \Gamma \vdash \text{EvalInScopeσ}(b, \sigma_1, scope) \Downarrow (out, \sigma_2) \quad \text{FrameReset}(\sigma_2, r, scope, mark, out) \Downarrow (out', \sigma_3)}{\Gamma \vdash \text{Execσ}(\text{FrameStmt}(\bot, b), \sigma) \Downarrow (\text{StmtOutOf}(out'), \sigma_3)}$$
+**(ExecSigma-Frame-Implicit)**
+$$\frac{\text{ActiveTarget}(\sigma) = r \quad \text{FrameEnter}(\sigma, r) \Downarrow (\sigma_1, F, scope, mark) \quad \Gamma \vdash \text{EvalInScopeSigma}(b, \sigma_1, scope) \Downarrow (out, \sigma_2) \quad \text{FrameReset}(\sigma_2, r, scope, mark, out) \Downarrow (out', \sigma_3)}{\Gamma \vdash \text{ExecSigma}(\text{FrameStmt}(\bot, b), \sigma) \Downarrow (\text{StmtOutOf}(out'), \sigma_3)}$$
 
-**(Execσ-Frame-Explicit)**
-$$\frac{\text{LookupVal}(\sigma, r) = h \quad \text{FrameEnter}(\sigma, h) \Downarrow (\sigma_1, F, scope, mark) \quad \Gamma \vdash \text{EvalInScopeσ}(b, \sigma_1, scope) \Downarrow (out, \sigma_2) \quad \text{FrameReset}(\sigma_2, h, scope, mark, out) \Downarrow (out', \sigma_3)}{\Gamma \vdash \text{Execσ}(\text{FrameStmt}(r, b), \sigma) \Downarrow (\text{StmtOutOf}(out'), \sigma_3)}$$
+**(ExecSigma-Frame-Explicit)**
+$$\frac{\text{LookupVal}(\sigma, r) = v_r \quad \text{RegionHandleOf}(v_r) = h \quad \text{ResolveTarget}(\sigma, h) = r_t \quad \text{FrameEnter}(\sigma, r_t) \Downarrow (\sigma_1, F, scope, mark) \quad \Gamma \vdash \text{EvalInScopeSigma}(b, \sigma_1, scope) \Downarrow (out, \sigma_2) \quad \text{FrameReset}(\sigma_2, r_t, scope, mark, out) \Downarrow (out', \sigma_3)}{\Gamma \vdash \text{ExecSigma}(\text{FrameStmt}(r, b), \sigma) \Downarrow (\text{StmtOutOf}(out'), \sigma_3)}$$
 
-$$\text{FrameReset}(σ, r, scope, mark, out) \Downarrow (out', σ') \iff \Gamma \vdash \text{CleanupScope}(scope, σ) \Downarrow (c, σ_1) \land out' = \text{ExitOutcome}(out, c) \land ((out' = \text{Ctrl}(\text{Abort}) \land σ' = σ_1)\ \lor\ (out' \ne \text{Ctrl}(\text{Abort}) \land \text{ResetArena}(σ_1, r, mark) \Downarrow σ_2 \land \text{PopScope}_\sigma(σ_2) \Downarrow (σ', scope)))$$
+$$\text{FrameReset}(Sigma, r, scope, mark, out) \Downarrow (out', Sigma') \iff \Gamma \vdash \text{CleanupScope}(scope, Sigma) \Downarrow (c, Sigma_1) \land out' = \text{ExitOutcome}(out, c) \land ((out' = \text{Ctrl}(\text{Abort}) \land Sigma' = Sigma_1)\ \lor\ (out' \ne \text{Ctrl}(\text{Abort}) \land \text{ResetArena}(Sigma_1, r, mark) \Downarrow Sigma_2 \land \text{PopScope}_\sigma(Sigma_2) \Downarrow (Sigma', scope)))$$
 
-**(Execσ-Return)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1)}{\Gamma \vdash \text{Execσ}(\text{ReturnStmt}(e), \sigma) \Downarrow (\text{Ctrl}(\text{Return}(v)), \sigma_1)}$$
+**(ExecSigma-Return)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1)}{\Gamma \vdash \text{ExecSigma}(\text{ReturnStmt}(e), \sigma) \Downarrow (\text{Ctrl}(\text{Return}(v)), \sigma_1)}$$
 
-**(Execσ-Return-Unit)**
-$$\frac{}{\Gamma \vdash \text{Execσ}(\text{ReturnStmt}(\bot), \sigma) \Downarrow (\text{Ctrl}(\text{Return}(())), \sigma)}$$
+**(ExecSigma-Return-Unit)**
+$$\frac{}{\Gamma \vdash \text{ExecSigma}(\text{ReturnStmt}(\bot), \sigma) \Downarrow (\text{Ctrl}(\text{Return}(())), \sigma)}$$
 
-**(Execσ-Return-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Execσ}(\text{ReturnStmt}(e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(ExecSigma-Return-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{ExecSigma}(\text{ReturnStmt}(e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Execσ-Result)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1)}{\Gamma \vdash \text{Execσ}(\text{ResultStmt}(e), \sigma) \Downarrow (\text{Ctrl}(\text{Result}(v)), \sigma_1)}$$
+**(ExecSigma-Result)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1)}{\Gamma \vdash \text{ExecSigma}(\text{ResultStmt}(e), \sigma) \Downarrow (\text{Ctrl}(\text{Result}(v)), \sigma_1)}$$
 
-**(Execσ-Result-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Execσ}(\text{ResultStmt}(e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(ExecSigma-Result-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{ExecSigma}(\text{ResultStmt}(e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Execσ-Break)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1)}{\Gamma \vdash \text{Execσ}(\text{BreakStmt}(e), \sigma) \Downarrow (\text{Ctrl}(\text{Break}(v)), \sigma_1)}$$
+**(ExecSigma-Break)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1)}{\Gamma \vdash \text{ExecSigma}(\text{BreakStmt}(e), \sigma) \Downarrow (\text{Ctrl}(\text{Break}(v)), \sigma_1)}$$
 
-**(Execσ-Break-Unit)**
-$$\frac{}{\Gamma \vdash \text{Execσ}(\text{BreakStmt}(\bot), \sigma) \Downarrow (\text{Ctrl}(\text{Break}(\bot)), \sigma)}$$
+**(ExecSigma-Break-Unit)**
+$$\frac{}{\Gamma \vdash \text{ExecSigma}(\text{BreakStmt}(\bot), \sigma) \Downarrow (\text{Ctrl}(\text{Break}(\bot)), \sigma)}$$
 
-**(Execσ-Break-Ctrl)**
-$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Execσ}(\text{BreakStmt}(e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+**(ExecSigma-Break-Ctrl)**
+$$\frac{\Gamma \vdash \text{EvalSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{ExecSigma}(\text{BreakStmt}(e), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
-**(Execσ-Continue)**
-$$\frac{}{\Gamma \vdash \text{Execσ}(\text{ContinueStmt}, \sigma) \Downarrow (\text{Ctrl}(\text{Continue}), \sigma)}$$
+**(ExecSigma-Continue)**
+$$\frac{}{\Gamma \vdash \text{ExecSigma}(\text{ContinueStmt}, \sigma) \Downarrow (\text{Ctrl}(\text{Continue}), \sigma)}$$
 
-**(Execσ-Error)**
-$$\frac{}{\Gamma \vdash \text{Execσ}(\text{ErrorStmt}(\_), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
+**(ExecSigma-Error)**
+$$\frac{}{\Gamma \vdash \text{ExecSigma}(\text{ErrorStmt}(\_), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
 
 **Stateful Small-Step (Statements).**
 
 $$\text{ExecState} = \{\text{Exec}(s, \sigma),\ \text{ExecSeq}(ss, \sigma),\ \text{ExecCtrl}(\kappa, \sigma),\ \text{ExecDone}(\sigma),\ \text{RegionBody}(r, scope, b, \sigma),\ \text{RegionExit}(r, scope, out, \sigma),\ \text{FrameBody}(r, scope, mark, b, \sigma),\ \text{FrameExit}(r, scope, mark, out, \sigma)\}$$
 
 **(Step-Exec-Other-Ok)**
-$$\frac{s \notin \{\text{DeferStmt}(\_),\ \text{RegionStmt}(\_,\_,\_),\ \text{FrameStmt}(\_,\_)\} \quad \Gamma \vdash \text{Execσ}(s, \sigma) \Downarrow (ok, \sigma')}{\langle \text{Exec}(s, \sigma) \rangle \to \langle \text{ExecDone}(\sigma') \rangle}$$
+$$\frac{s \notin \{\text{DeferStmt}(\_),\ \text{RegionStmt}(\_,\_,\_),\ \text{FrameStmt}(\_,\_)\} \quad \Gamma \vdash \text{ExecSigma}(s, \sigma) \Downarrow (ok, \sigma')}{\langle \text{Exec}(s, \sigma) \rangle \to \langle \text{ExecDone}(\sigma') \rangle}$$
 
 **(Step-Exec-Other-Ctrl)**
-$$\frac{s \notin \{\text{DeferStmt}(\_),\ \text{RegionStmt}(\_,\_,\_),\ \text{FrameStmt}(\_,\_)\} \quad \Gamma \vdash \text{Execσ}(s, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma')}{\langle \text{Exec}(s, \sigma) \rangle \to \langle \text{ExecCtrl}(\kappa, \sigma') \rangle}$$
+$$\frac{s \notin \{\text{DeferStmt}(\_),\ \text{RegionStmt}(\_,\_,\_),\ \text{FrameStmt}(\_,\_)\} \quad \Gamma \vdash \text{ExecSigma}(s, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma')}{\langle \text{Exec}(s, \sigma) \rangle \to \langle \text{ExecCtrl}(\kappa, \sigma') \rangle}$$
 
 **(Step-ExecSeq-Ok)**
-$$\frac{\Gamma \vdash \text{ExecSeqσ}(ss, \sigma) \Downarrow (ok, \sigma')}{\langle \text{ExecSeq}(ss, \sigma) \rangle \to \langle \text{ExecDone}(\sigma') \rangle}$$
+$$\frac{\Gamma \vdash \text{ExecSeqSigma}(ss, \sigma) \Downarrow (ok, \sigma')}{\langle \text{ExecSeq}(ss, \sigma) \rangle \to \langle \text{ExecDone}(\sigma') \rangle}$$
 
 **(Step-ExecSeq-Ctrl)**
-$$\frac{\Gamma \vdash \text{ExecSeqσ}(ss, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma')}{\langle \text{ExecSeq}(ss, \sigma) \rangle \to \langle \text{ExecCtrl}(\kappa, \sigma') \rangle}$$
+$$\frac{\Gamma \vdash \text{ExecSeqSigma}(ss, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma')}{\langle \text{ExecSeq}(ss, \sigma) \rangle \to \langle \text{ExecCtrl}(\kappa, \sigma') \rangle}$$
 
 **(Step-Exec-Defer)**
 $$\frac{\text{AppendCleanup}(\sigma, \text{DeferBlock}(b)) \Downarrow \sigma'}{\langle \text{Exec}(\text{DeferStmt}(b), \sigma) \rangle \to \langle \text{ExecDone}(\sigma') \rangle}$$
 
 **(Step-Exec-Region-Enter)**
-$$\frac{opts = \text{RegionOptsExpr}(opts\_opt) \quad \Gamma \vdash \text{Evalσ}(opts, \sigma) \Downarrow (\text{Val}(v_o), \sigma_1) \quad \text{RegionNew}(\sigma_1, v_o) \Downarrow (\sigma_2, r, scope) \quad \text{BindRegionAlias}(\sigma_2, alias\_opt, r) \Downarrow \sigma_3}{\langle \text{Exec}(\text{RegionStmt}(opts\_opt, alias\_opt, b), \sigma) \rangle \to \langle \text{RegionBody}(r, scope, b, \sigma_3) \rangle}$$
+$$\frac{opts = \text{RegionOptsExpr}(opts\_opt) \quad \Gamma \vdash \text{EvalSigma}(opts, \sigma) \Downarrow (\text{Val}(v_o), \sigma_1) \quad \text{RegionNew}(\sigma_1, v_o) \Downarrow (\sigma_2, r, scope) \quad \text{BindRegionAlias}(\sigma_2, alias\_opt, r) \Downarrow \sigma_3}{\langle \text{Exec}(\text{RegionStmt}(opts\_opt, alias\_opt, b), \sigma) \rangle \to \langle \text{RegionBody}(r, scope, b, \sigma_3) \rangle}$$
 
 **(Step-Exec-Region-Enter-Ctrl)**
-$$\frac{opts = \text{RegionOptsExpr}(opts\_opt) \quad \Gamma \vdash \text{Evalσ}(opts, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\langle \text{Exec}(\text{RegionStmt}(opts\_opt, alias\_opt, b), \sigma) \rangle \to \langle \text{ExecCtrl}(\kappa, \sigma_1) \rangle}$$
+$$\frac{opts = \text{RegionOptsExpr}(opts\_opt) \quad \Gamma \vdash \text{EvalSigma}(opts, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\langle \text{Exec}(\text{RegionStmt}(opts\_opt, alias\_opt, b), \sigma) \rangle \to \langle \text{ExecCtrl}(\kappa, \sigma_1) \rangle}$$
 
 **(Step-Exec-Region-Body)**
-$$\frac{\Gamma \vdash \text{EvalInScopeσ}(b, \sigma, scope) \Downarrow (out, \sigma_1)}{\langle \text{RegionBody}(r, scope, b, \sigma) \rangle \to \langle \text{RegionExit}(r, scope, out, \sigma_1) \rangle}$$
+$$\frac{\Gamma \vdash \text{EvalInScopeSigma}(b, \sigma, scope) \Downarrow (out, \sigma_1)}{\langle \text{RegionBody}(r, scope, b, \sigma) \rangle \to \langle \text{RegionExit}(r, scope, out, \sigma_1) \rangle}$$
 
 **(Step-Exec-Region-Exit-Ok)**
 $$\frac{\text{RegionRelease}(\sigma, r, scope, out) \Downarrow (out', \sigma') \quad \text{StmtOutOf}(out') = ok}{\langle \text{RegionExit}(r, scope, out, \sigma) \rangle \to \langle \text{ExecDone}(\sigma') \rangle}$$
@@ -13154,10 +13269,10 @@ $$\frac{\text{RegionRelease}(\sigma, r, scope, out) \Downarrow (out', \sigma') \
 $$\frac{\text{ActiveTarget}(\sigma) = r \quad \text{FrameEnter}(\sigma, r) \Downarrow (\sigma_1, F, scope, mark)}{\langle \text{Exec}(\text{FrameStmt}(\bot, b), \sigma) \rangle \to \langle \text{FrameBody}(r, scope, mark, b, \sigma_1) \rangle}$$
 
 **(Step-Exec-Frame-Enter-Explicit)**
-$$\frac{\text{LookupVal}(\sigma, r) = h \quad \text{FrameEnter}(\sigma, h) \Downarrow (\sigma_1, F, scope, mark)}{\langle \text{Exec}(\text{FrameStmt}(r, b), \sigma) \rangle \to \langle \text{FrameBody}(h, scope, mark, b, \sigma_1) \rangle}$$
+$$\frac{\text{LookupVal}(\sigma, r) = v_r \quad \text{RegionHandleOf}(v_r) = h \quad \text{ResolveTarget}(\sigma, h) = r_t \quad \text{FrameEnter}(\sigma, r_t) \Downarrow (\sigma_1, F, scope, mark)}{\langle \text{Exec}(\text{FrameStmt}(r, b), \sigma) \rangle \to \langle \text{FrameBody}(r_t, scope, mark, b, \sigma_1) \rangle}$$
 
 **(Step-Exec-Frame-Body)**
-$$\frac{\Gamma \vdash \text{EvalInScopeσ}(b, \sigma, scope) \Downarrow (out, \sigma_1)}{\langle \text{FrameBody}(r, scope, mark, b, \sigma) \rangle \to \langle \text{FrameExit}(r, scope, mark, out, \sigma_1) \rangle}$$
+$$\frac{\Gamma \vdash \text{EvalInScopeSigma}(b, \sigma, scope) \Downarrow (out, \sigma_1)}{\langle \text{FrameBody}(r, scope, mark, b, \sigma) \rangle \to \langle \text{FrameExit}(r, scope, mark, out, \sigma_1) \rangle}$$
 
 **(Step-Exec-Frame-Exit-Ok)**
 $$\frac{\text{FrameReset}(\sigma, r, scope, mark, out) \Downarrow (out', \sigma') \quad \text{StmtOutOf}(out') = ok}{\langle \text{FrameExit}(r, scope, mark, out, \sigma) \rangle \to \langle \text{ExecDone}(\sigma') \rangle}$$
@@ -13183,16 +13298,20 @@ $$\frac{\text{FieldValue}(v, f) = v_f \quad \Gamma \vdash \text{MatchPattern}(p,
 
 $$\text{StringLiteralVal}(lit) = v \iff \text{LiteralValue}(lit, \text{TypeString}(\texttt{@View})) = v$$
 
+**String Literal Storage.**
+For any string literal `lit`, evaluation MUST allocate `StringBytes(lit)` in static, read-only storage. The resulting `string@View` value MUST reference that storage and MUST have length `|StringBytes(lit)|`. The backing storage MUST have static duration and MUST NOT be deallocated. See Â§6.1.5 for the `string@View` layout.
+<!-- Source: "Literal content is allocated in static, read-only memory at compilation ... A string@View value is constructed with pointer to static memory and byte length ... String literals have static storage duration; backing memory is never deallocated." -->
+
 ### 7.6. Dynamic Class Objects
 
 $$\text{DynValue}(Cl, addr, T) = \text{Dyn}(Cl, \text{RawPtr}(\texttt{imm}, addr), T)$$
 $$\text{DynLayout}(Cl, addr, T) = \langle \text{RawPtr}(\texttt{imm}, addr), \text{VTable}(T, Cl) \rangle$$
 
 **(Eval-Dynamic-Form)**
-$$\frac{\text{IsPlace}(e) \quad \Gamma \vdash \text{AddrOfσ}(e, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad T_e = \text{ExprType}(e) \quad T = \text{StripPerm}(T_e) \quad \Gamma \vdash T <: Cl}{\Gamma \vdash \text{Evalσ}(e\ \texttt{as}\ \text{TypeDynamic}(Cl), \sigma) \Downarrow (\text{Val}(\text{Dyn}(Cl, \text{RawPtr}(\texttt{imm}, addr), T)), \sigma_1)}$$
+$$\frac{\text{IsPlace}(e) \quad \Gamma \vdash \text{AddrOfSigma}(e, \sigma) \Downarrow (\text{Val}(addr), \sigma_1) \quad T_e = \text{ExprType}(e) \quad T = \text{StripPerm}(T_e) \quad \Gamma \vdash T <: Cl}{\Gamma \vdash \text{EvalSigma}(e\ \texttt{as}\ \text{TypeDynamic}(Cl), \sigma) \Downarrow (\text{Val}(\text{Dyn}(Cl, \text{RawPtr}(\texttt{imm}, addr), T)), \sigma_1)}$$
 
 **(Eval-Dynamic-Form-Ctrl)**
-$$\frac{\Gamma \vdash \text{AddrOfσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(e\ \texttt{as}\ \text{TypeDynamic}(Cl), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+$$\frac{\Gamma \vdash \text{AddrOfSigma}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{EvalSigma}(e\ \texttt{as}\ \text{TypeDynamic}(Cl), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
 
 **Dynamic Dispatch.**
 
@@ -13505,9 +13624,30 @@ $$\frac{\text{MethodOwner}(m) = owner \quad \text{MethodName}(m) = name \quad \G
 **(ApplyMethod-Prim-Step)**
 $$\frac{\text{MethodOwner}(m) = owner \quad \text{MethodName}(m) = name \quad \Gamma \vdash \text{PrimCall}(owner, name, v_{self}, \vec{v}) \Downarrow v}{\langle \text{ApplyMethod}(m, v_{self}, \vec{v}) \rangle \to \langle v \rangle}$$
 
+### 7.8. Interpreter Entrypoint (Project-Level)
+
+**Interpreter Judgments.**
+
+$$\text{InterpJudg} = \{ \Gamma \vdash \text{ContextInitSigma}(\sigma) \Downarrow (\text{Val}(v_{ctx}), \sigma'),\ \Gamma \vdash \text{InterpretProject}(P, \sigma) \Downarrow (out, \sigma'),\ \Gamma \vdash \text{InterpretProject}(P, \sigma) \Uparrow \text{panic}(P_s) \}$$
+$$\text{ContextValue}(v) \iff \exists bits.\ \text{ValueBits}(\text{TypePath}([\texttt{"Context"}]), v) = bits$$
+
+**(ContextInitSigma)**
+$$\frac{\text{ContextValue}(v_{ctx})}{\Gamma \vdash \text{ContextInitSigma}(\sigma) \Downarrow (\text{Val}(v_{ctx}), \sigma)}$$
+
+**(Interpret-Project-Ok)**
+$$\frac{\text{Executable}(P) \quad \text{MainDecls}(P)=[d] \quad \text{MainSigOk}(d) \quad \Gamma \vdash \text{ContextInitSigma}(\sigma) \Downarrow (\text{Val}(v_{ctx}), \sigma_0) \quad \Gamma \vdash \text{Init}(G_e, \sigma_0) \Downarrow \sigma_1 \quad \Gamma \vdash \text{ApplyProcSigma}(d, [v_{ctx}], \sigma_1) \Downarrow (\text{Val}(v), \sigma_2) \quad \Gamma \vdash \text{Deinit}(P, \sigma_2) \Downarrow \sigma_3}{\Gamma \vdash \text{InterpretProject}(P, \sigma) \Downarrow (\text{Val}(v), \sigma_3)}$$
+
+**(Interpret-Project-Init-Panic)**
+$$\frac{\text{Executable}(P) \quad \text{MainDecls}(P)=[d] \quad \text{MainSigOk}(d) \quad \Gamma \vdash \text{ContextInitSigma}(\sigma) \Downarrow (\text{Val}(v_{ctx}), \sigma_0) \quad \Gamma \vdash \text{Init}(G_e, \sigma_0) \Uparrow \text{panic}(P_s)}{\Gamma \vdash \text{InterpretProject}(P, \sigma) \Uparrow \text{panic}(P_s)}$$
+
+**(Interpret-Project-Main-Ctrl)**
+$$\frac{\text{Executable}(P) \quad \text{MainDecls}(P)=[d] \quad \text{MainSigOk}(d) \quad \Gamma \vdash \text{ContextInitSigma}(\sigma) \Downarrow (\text{Val}(v_{ctx}), \sigma_0) \quad \Gamma \vdash \text{Init}(G_e, \sigma_0) \Downarrow \sigma_1 \quad \Gamma \vdash \text{ApplyProcSigma}(d, [v_{ctx}], \sigma_1) \Downarrow (\text{Ctrl}(\kappa), \sigma_2) \quad \kappa \in \{\text{Panic},\ \text{Abort}\}}{\Gamma \vdash \text{InterpretProject}(P, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_2)}$$
+
+**(Interpret-Project-Deinit-Panic)**
+$$\frac{\text{Executable}(P) \quad \text{MainDecls}(P)=[d] \quad \text{MainSigOk}(d) \quad \Gamma \vdash \text{ContextInitSigma}(\sigma) \Downarrow (\text{Val}(v_{ctx}), \sigma_0) \quad \Gamma \vdash \text{Init}(G_e, \sigma_0) \Downarrow \sigma_1 \quad \Gamma \vdash \text{ApplyProcSigma}(d, [v_{ctx}], \sigma_1) \Downarrow (\text{Val}(v), \sigma_2) \quad \Gamma \vdash \text{Deinit}(P, \sigma_2) \Uparrow \text{panic}}{\Gamma \vdash \text{InterpretProject}(P, \sigma) \Uparrow \text{panic}}$$
 ## 8. Appendix A - Diagnostic Codes
 
-### 8.0. DiagId–Code Map
+### 8.0. DiagIdâ€“Code Map
 
 $$\text{DiagTable} = \{\texttt{E-PRJ},\ \texttt{E-MOD},\ \texttt{E-OUT},\ \texttt{E-SRC},\ \texttt{E-CNF},\ \texttt{E-UNS},\ \texttt{E-MEM},\ \texttt{W-MOD},\ \texttt{W-SRC},\ \texttt{E-TYP},\ \texttt{W-SYS},\ \texttt{E-SEM},\ \texttt{W-SEM}\}$$
 $$\text{DiagRow} = \langle \text{code},\ \text{sev},\ \text{det},\ \text{cond},\ \text{ids} \rangle$$
@@ -13682,6 +13822,7 @@ $$\text{C0Code}(id) = \bot \iff \neg \exists row \in \text{DiagRows}.\ id \in \t
 | `E-TYP-1505` | Error    | Compile-time | Missing required type annotation at module scope                                                       | WF-StaticDecl-MissingType, WF-ProcedureDecl-MissingReturnType                                                                            |
 | `E-TYP-1530` | Error    | Compile-time | Type inference failed; unable to determine type                                                        | T-LetStmt-Infer-Err, T-VarStmt-Infer-Err, T-ShadowLetStmt-Infer-Err, T-ShadowVarStmt-Infer-Err, PtrNull-Infer-Err, NullLiteral-Infer-Err |
 | `E-TYP-1506` | Error    | Compile-time | Type alias cycle detected                                                                              | TypeAlias-Recursive-Err                                                                                                                  |
+| `E-TYP-1507` | Error    | Compile-time | Procedure with non-unit return type requires explicit return statement                                 | WF-ProcBody-ExplicitReturn-Err                                                                                                           |
 | `E-TYP-1601` | Error    | Compile-time | Mutation through `const` path                                                                          | B-Assign-Const-Err                                                                                                                       |
 | `E-TYP-1602` | Error    | Compile-time | `unique` exclusion violation (aliasing or inactive use)                                                | B-Place-Unique-Err                                                                                                                       |
 | `E-TYP-1603` | Error    | Compile-time | Non-`move` argument must be a place expression                                                         | Call-Arg-NotPlace                                                                                                                        |
@@ -13913,3 +14054,11 @@ $$\text{EmitList}([d] \mathbin{+\!\!+} ds) = (\Gamma \vdash \text{Emit}(d)) \lan
 
 **ArgMax.**
 $$\arg\max_{x \in C} g(x) = x^\ast \iff x^\ast \in C \land \forall y \in C.\ g(x^\ast) \ge g(y) \land (\forall z \in C.\ g(z)=g(x^\ast) \Rightarrow z=x^\ast)$$
+
+
+
+
+
+
+
+

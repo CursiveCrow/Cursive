@@ -9,5 +9,5 @@ procedure stop(sys: System) -> ! {
 public procedure main(ctx: Context) -> i32 {
   let key: string@View = "HOME";
   let _v = ctx.sys~>get_env(key);
-  0
+  return 0;
 }

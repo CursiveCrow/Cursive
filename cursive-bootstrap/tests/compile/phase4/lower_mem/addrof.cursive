@@ -21,5 +21,5 @@ public procedure main(ctx: Context) -> i32 {
     var arr = [1, 2, 3];
     // &Index
     let ptr_elem = &arr[0usize];
-    0
+    return 0;
 }

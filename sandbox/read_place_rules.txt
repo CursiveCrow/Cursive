@@ -1,0 +1,26 @@
+**(ReadPlace-Ident)**
+$$\frac{\text{LookupVal}(\sigma, x) = v}{\Gamma \vdash \text{ReadPlaceσ}(\text{Identifier}(x), \sigma) \Downarrow (\text{Val}(v), \sigma)}$$
+
+**(ReadPlace-Ident-Poison)**
+$$\frac{\text{LookupBind}(\sigma, x)\ \text{undefined} \quad \Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad \text{PoisonedModule}(\sigma, \text{PathOfModule}(mp))}{\Gamma \vdash \text{ReadPlaceσ}(\text{Identifier}(x), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma)}$$
+
+**(ReadPlace-Field)**
+$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \text{FieldValue}(v_p, f) = v_f}{\Gamma \vdash \text{ReadPlaceσ}(\text{FieldAccess}(p, f), \sigma) \Downarrow (\text{Val}(v_f), \sigma_1)}$$
+
+**(ReadPlace-Tuple)**
+$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \text{TupleValue}(v_p, i) = v_i}{\Gamma \vdash \text{ReadPlaceσ}(\text{TupleAccess}(p, i), \sigma) \Downarrow (\text{Val}(v_i), \sigma_1)}$$
+
+**(ReadPlace-Index)**
+$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \text{IndexValue}(v_p, v_i) = v_e}{\Gamma \vdash \text{ReadPlaceσ}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Val}(v_e), \sigma_2)}$$
+
+**(ReadPlace-Index-OOB)**
+$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_i), \sigma_2) \quad \neg(0 \le v_i < \text{Len}(v_p))}{\Gamma \vdash \text{ReadPlaceσ}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
+
+**(ReadPlace-Index-Range)**
+$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceValue}(v_p, v_r) = v_s}{\Gamma \vdash \text{ReadPlaceσ}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Val}(v_s), \sigma_2)}$$
+
+**(ReadPlace-Index-Range-OOB)**
+$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_p), \sigma_1) \quad \Gamma \vdash \text{Evalσ}(i, \sigma_1) \Downarrow (\text{Val}(v_r), \sigma_2) \quad \text{SliceBounds}(v_r, \text{Len}(v_p)) = \bot}{\Gamma \vdash \text{ReadPlaceσ}(\text{IndexAccess}(p, i), \sigma) \Downarrow (\text{Ctrl}(\text{Panic}), \sigma_2)}$$
+
+**(ReadPlace-Deref)**
+$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v_{ptr}), \sigma_1) \quad \Gamma \vdash \text{ReadPtrσ}(v_{ptr}, \sigma_1) \Downarrow (out, \sigma_2)}{\Gamma \vdash \text{ReadPlaceσ}(\text{Deref}(p), \sigma) \Downarrow (out, \sigma_2)}$$

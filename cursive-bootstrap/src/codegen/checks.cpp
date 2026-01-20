@@ -1,12 +1,77 @@
 #include "cursive0/codegen/checks.h"
 #include "cursive0/codegen/layout.h"
 #include "cursive0/codegen/lower_expr.h"
+#include "cursive0/codegen/cleanup.h"
+#include "cursive0/runtime/runtime_interface.h"
 #include "cursive0/core/assert_spec.h"
+#include "cursive0/core/symbols.h"
 
 #include <cassert>
 #include <limits>
+#include <unordered_map>
+#include <vector>
 
 namespace cursive0::codegen {
+namespace {
+
+std::vector<std::string> PoisonSetFor(const std::string& module_path,
+                                      const LowerCtx& ctx) {
+  std::vector<std::string> out;
+  if (ctx.init_modules.empty()) {
+    out.push_back(module_path);
+    return out;
+  }
+
+  std::unordered_map<std::string, std::size_t> index;
+  index.reserve(ctx.init_modules.size());
+  for (std::size_t i = 0; i < ctx.init_modules.size(); ++i) {
+    index.emplace(core::StringOfPath(ctx.init_modules[i]), i);
+  }
+
+  const auto it = index.find(module_path);
+  if (it == index.end()) {
+    out.push_back(module_path);
+    return out;
+  }
+
+  const std::size_t target = it->second;
+  const std::size_t n = ctx.init_modules.size();
+  std::vector<std::vector<std::size_t>> incoming(n);
+  for (const auto& edge : ctx.init_eager_edges) {
+    if (edge.first < n && edge.second < n) {
+      incoming[edge.second].push_back(edge.first);
+    }
+  }
+
+  std::vector<char> visited(n, false);
+  std::vector<std::size_t> stack;
+  visited[target] = true;
+  stack.push_back(target);
+  while (!stack.empty()) {
+    const std::size_t cur = stack.back();
+    stack.pop_back();
+    for (const auto pred : incoming[cur]) {
+      if (!visited[pred]) {
+        visited[pred] = true;
+        stack.push_back(pred);
+      }
+    }
+  }
+
+  out.reserve(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    if (visited[i]) {
+      out.push_back(core::StringOfPath(ctx.init_modules[i]));
+    }
+  }
+  if (out.empty()) {
+    out.push_back(module_path);
+  }
+  return out;
+}
+
+}  // namespace
+
 
 // §6.8 PanicCode mapping
 std::uint16_t PanicCode(PanicReason reason) {
@@ -253,16 +318,18 @@ std::optional<std::pair<std::uint64_t, std::uint64_t>> SliceBounds(
 // §6.8 PanicSym - runtime panic handler symbol
 std::string PanicSym() {
   SPEC_RULE("PanicSym");
-  return "cursive::runtime::panic";
+  return RuntimePanicSym();
 }
 
 // MakeIR is now in lower_expr.h
 
 // §6.8 LowerPanic - emit panic IR
-IRPtr LowerPanic(PanicReason reason, LowerCtx& /*ctx*/) {
+IRPtr LowerPanic(PanicReason reason, LowerCtx& ctx) {
   SPEC_RULE("LowerPanic");
   IRLowerPanic panic_ir;
   panic_ir.reason = PanicReasonString(reason);
+  CleanupPlan cleanup_plan = ComputeCleanupPlanToFunctionRoot(ctx);
+  panic_ir.cleanup_ir = EmitCleanupOnPanic(cleanup_plan, ctx);
   return MakeIR(panic_ir);
 }
 
@@ -273,20 +340,21 @@ IRPtr ClearPanic(LowerCtx& /*ctx*/) {
 }
 
 // §6.8 PanicCheck - emit IR to check panic after call
-IRPtr PanicCheck(LowerCtx& /*ctx*/) {
+IRPtr PanicCheck(LowerCtx& ctx) {
   SPEC_RULE("PanicCheck");
-  return MakeIR(IRPanicCheck{});
+  IRPanicCheck check;
+  CleanupPlan cleanup_plan = ComputeCleanupPlanToFunctionRoot(ctx);
+  check.cleanup_ir = EmitCleanupOnPanic(cleanup_plan, ctx);
+  return MakeIR(check);
 }
 
 // §6.8 InitPanicHandle - module init panic handling
-IRPtr InitPanicHandle(const std::string& module_path, LowerCtx& /*ctx*/) {
+IRPtr InitPanicHandle(const std::string& module_path, LowerCtx& ctx) {
   SPEC_RULE("InitPanicHandle");
-  // Check panic state and if set, emit poison + panic
-  // This is a compound operation that checks the panic record
-  // and either continues or triggers module poison + panic propagation
-  IRCheckPoison check;
-  check.module = module_path;
-  return MakeIR(check);
+  IRInitPanicHandle handle;
+  handle.module = module_path;
+  handle.poison_modules = PoisonSetFor(module_path, ctx);
+  return MakeIR(handle);
 }
 
 // Helper to create a sequence of IR nodes
@@ -368,20 +436,17 @@ LowerResult LowerTransmute(sema::TypeRef from_type,
   }
 
   if (from_size.has_value() && to_size.has_value() && *from_size != *to_size) {
-    IRValue unreachable;
-    unreachable.kind = IRValue::Kind::Opaque;
-    unreachable.name = "unreachable";
+    IRValue unreachable = ctx.FreshTempValue("unreachable");
     return LowerResult{SeqIR({expr_result.ir, LowerPanic(PanicReason::Cast, ctx)}), unreachable};
   }
+
+  IRValue result = ctx.FreshTempValue("transmute");
 
   IRTransmute transmute;
   transmute.from = from_type;
   transmute.to = to_type;
   transmute.value = expr_result.value;
-
-  IRValue result;
-  result.kind = IRValue::Kind::Opaque;
-  result.name = "transmute_result";
+  transmute.result = result;
 
   return LowerResult{SeqIR({expr_result.ir, MakeIR(std::move(transmute))}), result};
 }
@@ -394,15 +459,22 @@ LowerResult LowerRawDeref(const IRValue& ptr_value,
   auto* ptr = std::get_if<sema::TypePtr>(&ptr_type->node);
   auto* raw_ptr = std::get_if<sema::TypeRawPtr>(&ptr_type->node);
 
-  IRValue result;
-  result.kind = IRValue::Kind::Opaque;
-  result.name = "deref_result";
+  sema::TypeRef elem_type;
+  if (raw_ptr != nullptr) {
+    elem_type = raw_ptr->element;
+  } else if (ptr != nullptr) {
+    elem_type = ptr->element;
+  }
+
+  IRValue result = ctx.FreshTempValue("deref");
 
   if (raw_ptr != nullptr) {
     // Lower-RawDeref-Raw: raw pointer dereference (unchecked)
     SPEC_RULE("Lower-RawDeref-Raw");
     IRReadPtr read;
     read.ptr = ptr_value;
+    read.result = result;
+    ctx.RegisterValueType(result, elem_type);
     return LowerResult{MakeIR(read), result};
   }
 
@@ -415,6 +487,8 @@ LowerResult LowerRawDeref(const IRValue& ptr_value,
           {
             IRReadPtr read;
             read.ptr = ptr_value;
+            read.result = result;
+            ctx.RegisterValueType(result, elem_type);
             return LowerResult{MakeIR(read), result};
           }
 
@@ -422,8 +496,7 @@ LowerResult LowerRawDeref(const IRValue& ptr_value,
           // Lower-RawDeref-Null: emit panic
           SPEC_RULE("Lower-RawDeref-Null");
           {
-            result.kind = IRValue::Kind::Opaque;
-            result.name = "unreachable";
+            result = ctx.FreshTempValue("unreachable");
             return LowerResult{LowerPanic(PanicReason::NullDeref, ctx), result};
           }
 
@@ -431,8 +504,7 @@ LowerResult LowerRawDeref(const IRValue& ptr_value,
           // Lower-RawDeref-Expired: emit panic
           SPEC_RULE("Lower-RawDeref-Expired");
           {
-            result.kind = IRValue::Kind::Opaque;
-            result.name = "unreachable";
+            result = ctx.FreshTempValue("unreachable");
             return LowerResult{LowerPanic(PanicReason::ExpiredDeref, ctx),
                                result};
           }
@@ -443,6 +515,8 @@ LowerResult LowerRawDeref(const IRValue& ptr_value,
     SPEC_RULE("Lower-RawDeref-Safe");
     IRReadPtr read;
     read.ptr = ptr_value;
+    read.result = result;
+    ctx.RegisterValueType(result, elem_type);
     return LowerResult{MakeIR(read), result};
   }
 

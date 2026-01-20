@@ -1,0 +1,10 @@
+
+public procedure main(ctx: Context) -> i32 {
+  let init_ok: bool = beta::bx == 42i32;
+  let msg: string@View = if init_ok { "ok" } else { "bad" };
+  let _ = match ctx.fs~>write_stdout(msg) {
+    ok: () => (),
+    err: IoError => ()
+  };
+  0i32
+}

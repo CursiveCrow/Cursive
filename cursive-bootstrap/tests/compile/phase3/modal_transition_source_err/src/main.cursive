@@ -9,5 +9,5 @@ modal Mod {
 public procedure main(ctx: Context) -> i32 {
   let m = Mod@A { v: 0 };
   let n = (move m)~>to_b();
-  0
+  return 0;
 }

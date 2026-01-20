@@ -1,4 +1,4 @@
 # SPEC_COV: ResolveStmt-Let
 public procedure main(ctx: Context) -> i32 { let alpha = 1; let beta = alpha; 
- 0
+ return 0;
 }

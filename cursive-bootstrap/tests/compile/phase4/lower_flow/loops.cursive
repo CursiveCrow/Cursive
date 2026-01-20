@@ -1,7 +1,7 @@
 # SPEC_COV: Lower-Loop-Infinite
 # SPEC_COV: Lower-Loop-Conditional
-# SPEC_COV: Execσ-Break
-# SPEC_COV: Execσ-Continue
+# SPEC_COV: ExecSigma-Break
+# SPEC_COV: ExecSigma-Continue
 # SPEC_COV: EvalOrder-Loop
 
 public procedure main(c: Context) -> i32 {
@@ -14,5 +14,5 @@ public procedure main(c: Context) -> i32 {
        i = i + 1;
        continue;
     }
-    0
+    return 0;
 }

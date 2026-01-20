@@ -6,5 +6,5 @@ public procedure main(ctx: Context) -> i32 {
   };
   let count: usize = 1;
   let p: *mut i32 = heap~>alloc_raw(count);
-  0
+  return 0;
 }

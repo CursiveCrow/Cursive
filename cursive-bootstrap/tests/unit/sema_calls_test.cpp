@@ -6,6 +6,7 @@
 
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/sema/calls.h"
+#include "cursive0/sema/record_methods.h"
 #include "cursive0/sema/scopes.h"
 #include "cursive0/sema/scopes_lookup.h"
 #include "cursive0/sema/types.h"
@@ -21,9 +22,14 @@ using cursive0::sema::ExprTypeFn;
 using cursive0::sema::ExprTypeResult;
 using cursive0::sema::IdKeyOf;
 using cursive0::sema::IsRecordCallee;
+using cursive0::sema::ArgsOk;
+using cursive0::sema::LowerTypeFn;
+using cursive0::sema::LowerTypeResult;
 using cursive0::sema::MakeTypeFunc;
 using cursive0::sema::MakeTypePrim;
 using cursive0::sema::ParamMode;
+using cursive0::sema::PlaceTypeFn;
+using cursive0::sema::PlaceTypeResult;
 using cursive0::sema::PathKeyOf;
 using cursive0::sema::Scope;
 using cursive0::sema::ScopeContext;
@@ -34,10 +40,14 @@ using cursive0::syntax::Arg;
 using cursive0::syntax::IdentifierExpr;
 using cursive0::syntax::LiteralExpr;
 using cursive0::syntax::MoveExpr;
+using cursive0::syntax::Param;
 using cursive0::syntax::Path;
 using cursive0::syntax::RecordDecl;
 using cursive0::syntax::Token;
 using cursive0::syntax::TokenKind;
+using cursive0::syntax::Type;
+using cursive0::syntax::TypePath;
+using cursive0::syntax::TypePathType;
 
 TypeRef Prim(const char* name) { return MakeTypePrim(name); }
 
@@ -49,6 +59,15 @@ cursive0::syntax::ExprPtr MakeExpr(cursive0::syntax::ExprNode node) {
 
 cursive0::syntax::ExprPtr MakeIdent(const char* name) {
   return MakeExpr(IdentifierExpr{std::string(name)});
+}
+
+std::shared_ptr<Type> MakeTypePathType(const char* name) {
+  auto type = std::make_shared<Type>();
+  type->span = {};
+  TypePath path;
+  path.emplace_back(std::string(name));
+  type->node = TypePathType{std::move(path)};
+  return type;
 }
 
 cursive0::syntax::ExprPtr MakeIntLiteral() {
@@ -249,6 +268,94 @@ int main() {
     assert(!result.ok);
     assert(result.record_callee);
     assert(!result.diag_id.has_value());
+  }
+
+  {
+    SPEC_COV("Args-Empty");
+    ScopeContext ctx;
+    TypeEnv env;
+    LowerTypeFn lower_type = [&](const auto&) -> LowerTypeResult {
+      return {true, std::nullopt, Prim("i32")};
+    };
+    PlaceTypeFn place_type = [&](const auto& expr) -> PlaceTypeResult {
+      const auto typed = env.TypeOf(expr);
+      if (!typed.ok) {
+        return {false, typed.diag_id, {}};
+      }
+      return {true, std::nullopt, typed.type};
+    };
+    const auto result = ArgsOk(ctx, {}, {}, [&](const auto& expr) {
+      return env.TypeOf(expr);
+    }, &place_type, lower_type);
+    assert(result.ok);
+  }
+
+  {
+    SPEC_COV("Args-Cons");
+    ScopeContext ctx;
+    TypeEnv env;
+    env.types["x"] = Prim("i32");
+
+    Param param;
+    param.mode = cursive0::syntax::ParamMode::Move;
+    param.name = "x";
+    param.type = MakeTypePathType("i32");
+    param.span = {};
+
+    Arg arg;
+    arg.moved = true;
+    arg.value = MakeIdent("x");
+    arg.span = {};
+
+    LowerTypeFn lower_type = [&](const auto&) -> LowerTypeResult {
+      return {true, std::nullopt, Prim("i32")};
+    };
+    PlaceTypeFn place_type = [&](const auto& expr) -> PlaceTypeResult {
+      const auto typed = env.TypeOf(expr);
+      if (!typed.ok) {
+        return {false, typed.diag_id, {}};
+      }
+      return {true, std::nullopt, typed.type};
+    };
+
+    const auto result = ArgsOk(ctx, {param}, {arg}, [&](const auto& expr) {
+      return env.TypeOf(expr);
+    }, &place_type, lower_type);
+    assert(result.ok);
+  }
+
+  {
+    SPEC_COV("Args-Cons-Ref");
+    ScopeContext ctx;
+    TypeEnv env;
+    env.types["y"] = Prim("i32");
+
+    Param param;
+    param.mode = std::nullopt;
+    param.name = "y";
+    param.type = MakeTypePathType("i32");
+    param.span = {};
+
+    Arg arg;
+    arg.moved = false;
+    arg.value = MakeIdent("y");
+    arg.span = {};
+
+    LowerTypeFn lower_type = [&](const auto&) -> LowerTypeResult {
+      return {true, std::nullopt, Prim("i32")};
+    };
+    PlaceTypeFn place_type = [&](const auto& expr) -> PlaceTypeResult {
+      const auto typed = env.TypeOf(expr);
+      if (!typed.ok) {
+        return {false, typed.diag_id, {}};
+      }
+      return {true, std::nullopt, typed.type};
+    };
+
+    const auto result = ArgsOk(ctx, {param}, {arg}, [&](const auto& expr) {
+      return env.TypeOf(expr);
+    }, &place_type, lower_type);
+    assert(result.ok);
   }
 
   return 0;

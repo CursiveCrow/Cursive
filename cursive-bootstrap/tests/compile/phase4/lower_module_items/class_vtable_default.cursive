@@ -3,15 +3,18 @@
 # SPEC_COV: CG-Item-ClassMethod-Abstract
 # SPEC_COV: VTable-Order
 # SPEC_COV: EmitVTable-Decl
+# SPEC_COV: EmitVTable
+# SPEC_COV: EmitVTable-Header
+# SPEC_COV: EmitVTable-Slots
 
 class AbstractOnly {
   procedure abs(~) -> i32;
 }
 
 class Renderable {
-  procedure render(~) -> i32 { 1 }
+  procedure render(~) -> i32 { return 1; }
 }
 
 record Sprite <: Renderable { v: i32 }
 
-public procedure main(ctx: Context) -> i32 { 0 }
+public procedure main(ctx: Context) -> i32 { return 0; }

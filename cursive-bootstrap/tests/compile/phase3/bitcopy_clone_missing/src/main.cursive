@@ -1,4 +1,4 @@
 # SPEC_COV: Bitcopy-Clone-Missing
 record R <: Bitcopy { v: i32 }
 
-public procedure main(ctx: Context) -> i32 { 0 }
+public procedure main(ctx: Context) -> i32 { return 0; }

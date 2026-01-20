@@ -2115,8 +2115,7 @@ Each identifier MUST be unique within module scope. Because Cursive uses a unifi
 
 **Compilation Unit.** The set of all source files constituting a single module. Each compilation unit defines exactly one module. An empty module (containing only whitespace and comments) is valid.
 
-**Informative.** The specification does not define compiler behavior when a source file in a compilation unit cannot be read or when tokenization fails. 
-[TODO: Specify whether compilation of the containing module must fail and whether later files are skipped.]
+**Normative.** If any source file in a compilation unit cannot be read, loaded, tokenized, or parsed, compilation of the containing module MUST fail. The implementation MUST NOT continue to process later source files in that compilation unit and MUST NOT attempt to parse later modules for that compilation.
 
 
 
@@ -2319,9 +2318,12 @@ A declaration in an inner scope MAY shadow a name from an outer scope:
 
 **Diagnostics:** See Appendix A, codes `E-MOD-1303`, `E-MOD-1306`.
 
-**Informative (Ambiguity).**
-[AMBIGUOUS: The specification does not define a deterministic priority when multiple name-introduction/shadowing constraints apply simultaneously (e.g., reserved identifiers vs. duplicate/shadow checks, or `shadow` in a scope where the name already exists).]
-[TODO: Content missing from source draft.]
+**Deterministic Priority.**
+When multiple name-introduction or shadowing constraints apply to the same declaration, the compiler MUST apply the first matching check in the following order:
+1. Reserved identifier constraints (§2.5.2, §2.5.3).
+2. Duplicate-in-scope constraint (§6.2.1).
+3. Shadow-required constraint (missing `shadow` when a binding exists in an outer scope): `E-MOD-1303`.
+4. Shadow-unnecessary constraint (`shadow` used when no outer binding exists): `E-MOD-1306`.
 
 
 #### 6.2.3 Unqualified Lookup Algorithm
@@ -8476,6 +8478,8 @@ The type of a block expression is determined by:
 2. The type of the final unterminated expression, if present, OR
 3. The unit type `()` if the block is empty or ends with a terminated statement.
 
+**Note:** While tail expressions determine block types, procedure and method bodies with non-`()` return types MUST use explicit `return` statements. Tail expressions MAY provide values for local block expressions (such as `if`/`match` arms), but MUST NOT serve as implicit procedure returns for non-unit types.
+
 **(T-Block-Result)**
 $$\frac{\Gamma \vdash s_1; \ldots; s_n \quad \Gamma \vdash e : T}{\Gamma \vdash \{ s_1; \ldots; s_n;\ e \} : T}$$
 
@@ -8687,6 +8691,7 @@ The `return` statement terminates the current procedure and returns control to t
 2. If no expression is provided, the procedure's return type MUST be `()`.
 3. `return` MUST NOT appear at module scope.
 4. Deferred actions in all scopes between the `return` and procedure entry execute per LIFO semantics (§3.5.2).
+5. Procedures and methods with non-`()` return types MUST terminate with an explicit `return` statement. Tail expressions (unterminated final expressions) MUST NOT serve as implicit returns for non-unit return types.
 
 **`result` Statement**
 
@@ -14655,6 +14660,8 @@ Types implementing `Hash` MUST also implement `Eq`. If `a~>eq(b)` returns `true`
 
 `FileKind` has the following variants: `File`, `Dir`, `Other`.
 
+`FileKind` implements `Bitcopy`.
+
 **DirEntry Record.**
 
 | Field | Type |
@@ -14713,6 +14720,8 @@ State members:
 **IoError.**
 
 `IoError` has the following variants: `NotFound`, `PermissionDenied`, `AlreadyExists`, `InvalidPath`, `Busy`, `IoFailure`.
+
+`IoError` implements `Bitcopy`.
 
 **Static Semantics**
 

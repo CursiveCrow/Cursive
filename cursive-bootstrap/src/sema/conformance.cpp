@@ -333,10 +333,9 @@ SubsetResult CheckC0UnsupportedConstructsTokens(
 
   result.subset_ok = false;
   for (const auto& match : matches) {
-    (void)match;
     SPEC_RULE("Unsupported-Construct");
-    auto diag = cursive0::core::MakeDiagnostic("E-UNS-0101");
-    if (diag) {
+    const auto& tok = tokens[match.index];
+    if (auto diag = cursive0::core::MakeDiagnostic("E-UNS-0101", tok.span)) {
       result.diags = cursive0::core::Emit(result.diags, *diag);
     }
   }

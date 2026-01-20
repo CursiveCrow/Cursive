@@ -40,11 +40,11 @@ static bool IsPlaceExprLite(const syntax::ExprPtr& expr) {
         if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
           return true;
         } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
-          return true;
+          return IsPlaceExprLite(node.base);
         } else if constexpr (std::is_same_v<T, syntax::TupleAccessExpr>) {
-          return true;
+          return IsPlaceExprLite(node.base);
         } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
-          return true;
+          return IsPlaceExprLite(node.base);
         } else if constexpr (std::is_same_v<T, syntax::DerefExpr>) {
           return IsPlaceExprLite(node.value);
         }
@@ -310,16 +310,28 @@ LowerResult LowerReadPlace(const syntax::Expr& place, LowerCtx& ctx) {
         } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
           SPEC_RULE("Lower-ReadPlace-Field");
           auto base_result = LowerReadPlace(*node.base, ctx);
-          IRValue field_value;
-          field_value.kind = IRValue::Kind::Opaque;
-          field_value.name = base_result.value.name + "." + node.name;
+          IRValue field_value = ctx.FreshTempValue("place_field");
+          if (ctx.expr_type) {
+            ctx.RegisterValueType(field_value, ctx.expr_type(place));
+          }
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::Field;
+          info.base = base_result.value;
+          info.field = node.name;
+          ctx.RegisterDerivedValue(field_value, info);
           return LowerResult{base_result.ir, field_value};
         } else if constexpr (std::is_same_v<T, syntax::TupleAccessExpr>) {
           SPEC_RULE("Lower-ReadPlace-Tuple");
           auto base_result = LowerReadPlace(*node.base, ctx);
-          IRValue elem_value;
-          elem_value.kind = IRValue::Kind::Opaque;
-          elem_value.name = base_result.value.name + "." + node.index.lexeme;
+          IRValue elem_value = ctx.FreshTempValue("place_tuple_elem");
+          if (ctx.expr_type) {
+            ctx.RegisterValueType(elem_value, ctx.expr_type(place));
+          }
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::Tuple;
+          info.base = base_result.value;
+          info.tuple_index = static_cast<std::size_t>(std::stoull(node.index.lexeme));
+          ctx.RegisterDerivedValue(elem_value, info);
           return LowerResult{base_result.ir, elem_value};
         } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
           auto base_result = LowerReadPlace(*node.base, ctx);
@@ -333,12 +345,19 @@ LowerResult LowerReadPlace(const syntax::Expr& place, LowerCtx& ctx) {
             check.base = base_result.value;
             check.range = ToIRRange(range_result.value);
 
-            IRValue slice_value;
-            slice_value.kind = IRValue::Kind::Opaque;
-            slice_value.name = base_result.value.name + "[range]";
+            IRValue slice_value = ctx.FreshTempValue("place_slice");
+            if (ctx.expr_type) {
+              ctx.RegisterValueType(slice_value, ctx.expr_type(place));
+            }
+            DerivedValueInfo info;
+            info.kind = DerivedValueInfo::Kind::Slice;
+            info.base = base_result.value;
+            info.range = ToIRRange(range_result.value);
+            ctx.RegisterDerivedValue(slice_value, info);
 
-            return LowerResult{SeqIR({base_result.ir, range_result.ir,
-                                      MakeIR(std::move(check))}),
+            return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir, range_result.ir,
+                                      MakeIR(std::move(check)),
+                                      PanicCheck(ctx)}),
                                slice_value};
           }
 
@@ -349,12 +368,19 @@ LowerResult LowerReadPlace(const syntax::Expr& place, LowerCtx& ctx) {
           check.base = base_result.value;
           check.index = index_result.value;
 
-          IRValue elem_value;
-          elem_value.kind = IRValue::Kind::Opaque;
-          elem_value.name = base_result.value.name + "[idx]";
+          IRValue elem_value = ctx.FreshTempValue("place_index_elem");
+          if (ctx.expr_type) {
+            ctx.RegisterValueType(elem_value, ctx.expr_type(place));
+          }
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::Index;
+          info.base = base_result.value;
+          info.index = index_result.value;
+          ctx.RegisterDerivedValue(elem_value, info);
 
-          return LowerResult{SeqIR({base_result.ir, index_result.ir,
-                                    MakeIR(std::move(check))}),
+          return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir, index_result.ir,
+                                    MakeIR(std::move(check)),
+                                    PanicCheck(ctx)}),
                              elem_value};
         } else if constexpr (std::is_same_v<T, syntax::DerefExpr>) {
           SPEC_RULE("Lower-ReadPlace-Deref");
@@ -365,19 +391,20 @@ LowerResult LowerReadPlace(const syntax::Expr& place, LowerCtx& ctx) {
           }
           if (ptr_type) {
             auto deref_result = LowerRawDeref(ptr_result.value, ptr_type, ctx);
-            return LowerResult{SeqIR({ptr_result.ir, deref_result.ir}),
+            return LowerResult{SeqIR(std::vector<IRPtr>{ptr_result.ir, deref_result.ir}),
                                deref_result.value};
           }
           IRReadPtr read;
           read.ptr = ptr_result.value;
-          IRValue value;
-          value.kind = IRValue::Kind::Opaque;
-          value.name = "deref_result";
-          return LowerResult{SeqIR({ptr_result.ir, MakeIR(std::move(read))}), value};
+          IRValue value = ctx.FreshTempValue("deref");
+          read.result = value;
+          if (ctx.expr_type) {
+            ctx.RegisterValueType(value, ctx.expr_type(place));
+          }
+          return LowerResult{SeqIR(std::vector<IRPtr>{ptr_result.ir, MakeIR(std::move(read))}), value};
         }
 
-        IRValue value;
-        value.kind = IRValue::Kind::Opaque;
+        IRValue value = ctx.FreshTempValue("place_unknown");
         value.name = "place_read";
         return LowerResult{EmptyIR(), value};
       },
@@ -394,6 +421,31 @@ IRPtr LowerWritePlaceImpl(const syntax::Expr& place,
                           const IRValue& value,
                           LowerCtx& ctx,
                           bool allow_drop) {
+  auto register_ptr_type = [&](IRValue& ptr_value,
+                               const sema::TypeRef& elem_type) {
+    if (!elem_type) {
+      return;
+    }
+    auto ptr_type = sema::MakeTypePtr(elem_type, sema::PtrState::Valid);
+    ctx.RegisterValueType(ptr_value, ptr_type);
+  };
+
+  std::function<sema::TypeRef(const sema::TypeRef&)> unwrap_elem_type = [&](const sema::TypeRef& type) -> sema::TypeRef {
+    if (!type) {
+      return nullptr;
+    }
+    if (const auto* perm = std::get_if<sema::TypePerm>(&type->node)) {
+      return unwrap_elem_type(perm->base);
+    }
+    if (const auto* slice = std::get_if<sema::TypeSlice>(&type->node)) {
+      return slice->element;
+    }
+    if (const auto* arr = std::get_if<sema::TypeArray>(&type->node)) {
+      return arr->element;
+    }
+    return nullptr;
+  };
+
   return std::visit(
       [&](const auto& node) -> IRPtr {
         using T = std::decay_t<decltype(node)>;
@@ -403,6 +455,7 @@ IRPtr LowerWritePlaceImpl(const syntax::Expr& place,
             SPEC_RULE(allow_drop ? "Lower-WritePlace-Ident-Local"
                                  : "LowerWriteSub-Ident-Local");
             if (allow_drop) {
+              SPEC_RULE("UpdateValid-StoreVar");
               auto it = ctx.binding_states.find(node.name);
               if (it != ctx.binding_states.end() && !it->second.empty()) {
                 it->second.back().is_moved = false;
@@ -416,6 +469,7 @@ IRPtr LowerWritePlaceImpl(const syntax::Expr& place,
               store.value = value;
               return MakeIR(std::move(store));
             }
+            SPEC_RULE("UpdateValid-StoreVarNoDrop");
             store_nodrop.name = node.name;
             store_nodrop.value = value;
             return MakeIR(std::move(store_nodrop));
@@ -441,11 +495,9 @@ IRPtr LowerWritePlaceImpl(const syntax::Expr& place,
           SPEC_RULE(allow_drop ? "Lower-WritePlace-Ident-Path"
                                : "LowerWriteSub-Ident-Path");
           IRPtr poison_ir = EmptyIR();
-          if (full == ctx.module_path) {
-            IRCheckPoison check;
-            check.module = ModulePathString(full);
-            poison_ir = MakeIR(std::move(check));
-          }
+          IRCheckPoison check;
+          check.module = ModulePathString(full);
+          poison_ir = MakeIR(std::move(check));
 
           IRPtr drop_ir = EmptyIR();
           if (allow_drop) {
@@ -461,7 +513,7 @@ IRPtr LowerWritePlaceImpl(const syntax::Expr& place,
                 IRValue current_value;
                 current_value.kind = IRValue::Kind::Symbol;
                 current_value.name = resolved_name;
-                drop_ir = SeqIR({MakeIR(std::move(read)),
+                drop_ir = SeqIR(std::vector<IRPtr>{MakeIR(std::move(read)),
                                  EmitDrop(static_type, current_value, ctx)});
               }
             }
@@ -478,6 +530,7 @@ IRPtr LowerWritePlaceImpl(const syntax::Expr& place,
           std::vector<IRPtr> parts;
           if (!is_noop(poison_ir)) {
             parts.push_back(poison_ir);
+            parts.push_back(PanicCheck(ctx));
           }
           if (!is_noop(drop_ir)) {
             parts.push_back(drop_ir);
@@ -491,7 +544,17 @@ IRPtr LowerWritePlaceImpl(const syntax::Expr& place,
         } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
           SPEC_RULE(allow_drop ? "Lower-WritePlace-Field"
                                : "LowerWriteSub-Field");
-          auto base_result = LowerReadPlace(*node.base, ctx);
+          auto base_addr = LowerAddrOf(*node.base, ctx);
+
+          IRValue ptr_value = ctx.FreshTempValue("addr_of_field");
+          if (ctx.expr_type) {
+            register_ptr_type(ptr_value, ctx.expr_type(place));
+          }
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::AddrField;
+          info.base = base_addr.value;
+          info.field = node.name;
+          ctx.RegisterDerivedValue(ptr_value, info);
 
           IRPtr drop_ir = EmptyIR();
           if (allow_drop && DropOnAssignRoot(*node.base, ctx)) {
@@ -499,25 +562,45 @@ IRPtr LowerWritePlaceImpl(const syntax::Expr& place,
             if (ctx.expr_type) {
               field_type = ctx.expr_type(place);
             }
-            IRValue field_value;
-            field_value.kind = IRValue::Kind::Opaque;
-            field_value.name = base_result.value.name + "." + node.name;
-            drop_ir = EmitDrop(field_type, field_value, ctx);
+            IRValue field_value = ctx.FreshTempValue("place_field_old");
+            ctx.RegisterValueType(field_value, field_type);
+            IRReadPtr read;
+            read.ptr = ptr_value;
+            read.result = field_value;
+            drop_ir = SeqIR(std::vector<IRPtr>{MakeIR(std::move(read)),
+                             EmitDrop(field_type, field_value, ctx)});
           }
 
-          IRWritePlace write;
-          write.place = LowerPlace(place, ctx);
+          IRAddrOf addr_marker;
+          addr_marker.place = LowerPlace(place, ctx);
+          addr_marker.result = ptr_value;
+
+          IRWritePtr write;
+          write.ptr = ptr_value;
           write.value = value;
 
           if (allow_drop) {
             UpdateBindingAfterFieldAssign(place, ctx);
           }
 
-          return SeqIR({base_result.ir, drop_ir, MakeIR(std::move(write))});
+          return SeqIR(std::vector<IRPtr>{base_addr.ir,
+                        MakeIR(std::move(addr_marker)),
+                        drop_ir,
+                        MakeIR(std::move(write))});
         } else if constexpr (std::is_same_v<T, syntax::TupleAccessExpr>) {
           SPEC_RULE(allow_drop ? "Lower-WritePlace-Tuple"
                                : "LowerWriteSub-Tuple");
-          auto base_result = LowerReadPlace(*node.base, ctx);
+          auto base_addr = LowerAddrOf(*node.base, ctx);
+
+          IRValue ptr_value = ctx.FreshTempValue("addr_of_tuple");
+          if (ctx.expr_type) {
+            register_ptr_type(ptr_value, ctx.expr_type(place));
+          }
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::AddrTuple;
+          info.base = base_addr.value;
+          info.tuple_index = static_cast<std::size_t>(std::stoull(node.index.lexeme));
+          ctx.RegisterDerivedValue(ptr_value, info);
 
           IRPtr drop_ir = EmptyIR();
           if (allow_drop && DropOnAssignRoot(*node.base, ctx)) {
@@ -525,20 +608,40 @@ IRPtr LowerWritePlaceImpl(const syntax::Expr& place,
             if (ctx.expr_type) {
               elem_type = ctx.expr_type(place);
             }
-            IRValue elem_value;
-            elem_value.kind = IRValue::Kind::Opaque;
-            elem_value.name = base_result.value.name + "." +
-                              node.index.lexeme;
-            drop_ir = EmitDrop(elem_type, elem_value, ctx);
+            IRValue elem_value = ctx.FreshTempValue("place_tuple_old");
+            ctx.RegisterValueType(elem_value, elem_type);
+            IRReadPtr read;
+            read.ptr = ptr_value;
+            read.result = elem_value;
+            drop_ir = SeqIR(std::vector<IRPtr>{MakeIR(std::move(read)),
+                             EmitDrop(elem_type, elem_value, ctx)});
           }
 
-          IRWritePlace write;
-          write.place = LowerPlace(place, ctx);
+          IRAddrOf addr_marker;
+          addr_marker.place = LowerPlace(place, ctx);
+          addr_marker.result = ptr_value;
+
+          IRWritePtr write;
+          write.ptr = ptr_value;
           write.value = value;
 
-          return SeqIR({base_result.ir, drop_ir, MakeIR(std::move(write))});
+          return SeqIR(std::vector<IRPtr>{base_addr.ir,
+                        MakeIR(std::move(addr_marker)),
+                        drop_ir,
+                        MakeIR(std::move(write))});
         } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
-          auto base_result = LowerReadPlace(*node.base, ctx);
+          auto base_addr = LowerAddrOf(*node.base, ctx);
+
+          sema::TypeRef base_type;
+          if (ctx.expr_type) {
+            base_type = ctx.expr_type(*node.base);
+          }
+          IRValue base_value = ctx.FreshTempValue("place_index_base");
+          ctx.RegisterValueType(base_value, base_type);
+          IRReadPtr read_base;
+          read_base.ptr = base_addr.value;
+          read_base.result = base_value;
+          IRPtr base_read_ir = MakeIR(std::move(read_base));
 
           if (std::holds_alternative<syntax::RangeExpr>(node.index->node)) {
             SPEC_RULE(allow_drop ? "Lower-WritePlace-Index-Range"
@@ -547,21 +650,39 @@ IRPtr LowerWritePlaceImpl(const syntax::Expr& place,
             auto range_result = LowerRangeExpr(range_node, ctx);
 
             IRCheckRange check;
-            check.base = base_result.value;
+            check.base = base_value;
             check.range = ToIRRange(range_result.value);
 
             IRCheckSliceLen len_check;
-            len_check.base = base_result.value;
+            len_check.base = base_value;
             len_check.range = ToIRRange(range_result.value);
             len_check.value = value;
 
-            IRWritePlace write;
-            write.place = LowerPlace(place, ctx);
+            IRValue ptr_value = ctx.FreshTempValue("addr_of_range");
+            if (ctx.expr_type) {
+              auto elem_type = unwrap_elem_type(ctx.expr_type(place));
+              register_ptr_type(ptr_value, elem_type);
+            }
+            DerivedValueInfo info;
+            info.kind = DerivedValueInfo::Kind::AddrIndex;
+            info.base = base_addr.value;
+            info.range = ToIRRange(range_result.value);
+            ctx.RegisterDerivedValue(ptr_value, info);
+
+            IRWritePtr write;
+            write.ptr = ptr_value;
             write.value = value;
 
-            return SeqIR({base_result.ir, range_result.ir,
+            IRAddrOf addr_marker;
+            addr_marker.place = LowerPlace(place, ctx);
+            addr_marker.result = ptr_value;
+
+            return SeqIR(std::vector<IRPtr>{base_addr.ir, base_read_ir, range_result.ir,
                           MakeIR(std::move(check)),
+                          PanicCheck(ctx),
                           MakeIR(std::move(len_check)),
+                          PanicCheck(ctx),
+                          MakeIR(std::move(addr_marker)),
                           MakeIR(std::move(write))});
           }
 
@@ -570,8 +691,18 @@ IRPtr LowerWritePlaceImpl(const syntax::Expr& place,
           auto index_result = LowerExpr(*node.index, ctx);
 
           IRCheckIndex check;
-          check.base = base_result.value;
+          check.base = base_value;
           check.index = index_result.value;
+
+          IRValue ptr_value = ctx.FreshTempValue("addr_of_index");
+          if (ctx.expr_type) {
+            register_ptr_type(ptr_value, ctx.expr_type(place));
+          }
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::AddrIndex;
+          info.base = base_addr.value;
+          info.index = index_result.value;
+          ctx.RegisterDerivedValue(ptr_value, info);
 
           IRPtr drop_ir = EmptyIR();
           if (allow_drop && DropOnAssignRoot(*node.base, ctx)) {
@@ -579,18 +710,27 @@ IRPtr LowerWritePlaceImpl(const syntax::Expr& place,
             if (ctx.expr_type) {
               elem_type = ctx.expr_type(place);
             }
-            IRValue elem_value;
-            elem_value.kind = IRValue::Kind::Opaque;
-            elem_value.name = base_result.value.name + "[idx]";
-            drop_ir = EmitDrop(elem_type, elem_value, ctx);
+            IRValue elem_value = ctx.FreshTempValue("place_index_old");
+            ctx.RegisterValueType(elem_value, elem_type);
+            IRReadPtr read;
+            read.ptr = ptr_value;
+            read.result = elem_value;
+            drop_ir = SeqIR(std::vector<IRPtr>{MakeIR(std::move(read)),
+                             EmitDrop(elem_type, elem_value, ctx)});
           }
 
-          IRWritePlace write;
-          write.place = LowerPlace(place, ctx);
+          IRAddrOf addr_marker;
+          addr_marker.place = LowerPlace(place, ctx);
+          addr_marker.result = ptr_value;
+
+          IRWritePtr write;
+          write.ptr = ptr_value;
           write.value = value;
 
-          return SeqIR({base_result.ir, index_result.ir,
+          return SeqIR(std::vector<IRPtr>{base_addr.ir, base_read_ir, index_result.ir,
                         MakeIR(std::move(check)),
+                        PanicCheck(ctx),
+                        MakeIR(std::move(addr_marker)),
                         drop_ir,
                         MakeIR(std::move(write))});
         } else if constexpr (std::is_same_v<T, syntax::DerefExpr>) {
@@ -600,7 +740,7 @@ IRPtr LowerWritePlaceImpl(const syntax::Expr& place,
           IRWritePtr write;
           write.ptr = ptr_result.value;
           write.value = value;
-          return SeqIR({ptr_result.ir, MakeIR(std::move(write))});
+          return SeqIR(std::vector<IRPtr>{ptr_result.ir, MakeIR(std::move(write))});
         }
 
         return EmptyIR();
@@ -638,6 +778,18 @@ LowerResult LowerAddrOf(const syntax::Expr& place, LowerCtx& ctx) {
   SPEC_RULE("Lower-AddrOf-Deref-Expired");
   SPEC_RULE("Lower-AddrOf-Deref-Raw");
 
+  auto register_ptr_type = [&](IRValue& value) {
+    if (!ctx.expr_type) {
+      return;
+    }
+    sema::TypeRef base_type = ctx.expr_type(place);
+    if (!base_type) {
+      return;
+    }
+    auto ptr_type = sema::MakeTypePtr(base_type, sema::PtrState::Valid);
+    ctx.RegisterValueType(value, ptr_type);
+  };
+
   return std::visit(
       [&](const auto& node) -> LowerResult {
         using T = std::decay_t<decltype(node)>;
@@ -646,12 +798,16 @@ LowerResult LowerAddrOf(const syntax::Expr& place, LowerCtx& ctx) {
           IRAddrOf addr;
           addr.place = LowerPlace(place, ctx);
 
-          IRValue ptr_value;
-          ptr_value.kind = IRValue::Kind::Opaque;
-          ptr_value.name = "addr_of";
+          IRValue ptr_value = ctx.FreshTempValue("addr_of");
+          register_ptr_type(ptr_value);
+          addr.result = ptr_value;
 
           if (ctx.GetBindingState(node.name)) {
             SPEC_RULE("Lower-AddrOf-Ident-Local");
+            DerivedValueInfo info;
+            info.kind = DerivedValueInfo::Kind::AddrLocal;
+            info.name = node.name;
+            ctx.RegisterDerivedValue(ptr_value, info);
             return LowerResult{MakeIR(std::move(addr)), ptr_value};
           }
           std::vector<std::string> full;
@@ -672,35 +828,111 @@ LowerResult LowerAddrOf(const syntax::Expr& place, LowerCtx& ctx) {
           }
 
           SPEC_RULE("Lower-AddrOf-Ident-Path");
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::AddrStatic;
+          info.static_path = full;
+          info.name = resolved_name;
+          ctx.RegisterDerivedValue(ptr_value, info);
+
           IRPtr poison_ir = EmptyIR();
-          if (full == ctx.module_path) {
-            IRCheckPoison check;
-            check.module = ModulePathString(full);
-            poison_ir = MakeIR(std::move(check));
-          }
+          IRCheckPoison check;
+          check.module = ModulePathString(full);
+          poison_ir = MakeIR(std::move(check));
           if (poison_ir && !std::holds_alternative<IROpaque>(poison_ir->node)) {
-            return LowerResult{SeqIR({poison_ir, MakeIR(std::move(addr))}), ptr_value};
+            return LowerResult{SeqIR(std::vector<IRPtr>{poison_ir,
+                                                        PanicCheck(ctx),
+                                                        MakeIR(std::move(addr))}),
+                               ptr_value};
           }
           return LowerResult{MakeIR(std::move(addr)), ptr_value};
         } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
-          auto base_result = LowerReadPlace(*node.base, ctx);
+          auto base_result = LowerAddrOf(*node.base, ctx);
           IRAddrOf addr;
           addr.place = LowerPlace(place, ctx);
-          IRValue ptr_value{IRValue::Kind::Opaque, "addr_of", {}};
-          return LowerResult{SeqIR({base_result.ir, MakeIR(std::move(addr))}),
+          IRValue ptr_value = ctx.FreshTempValue("addr_of");
+          register_ptr_type(ptr_value);
+          addr.result = ptr_value;
+
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::AddrField;
+          info.base = base_result.value;
+          info.field = node.name;
+          ctx.RegisterDerivedValue(ptr_value, info);
+
+          return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir, MakeIR(std::move(addr))}),
                              ptr_value};
         } else if constexpr (std::is_same_v<T, syntax::TupleAccessExpr>) {
-          auto base_result = LowerReadPlace(*node.base, ctx);
+          auto base_result = LowerAddrOf(*node.base, ctx);
           IRAddrOf addr;
           addr.place = LowerPlace(place, ctx);
-          IRValue ptr_value{IRValue::Kind::Opaque, "addr_of", {}};
-          return LowerResult{SeqIR({base_result.ir, MakeIR(std::move(addr))}),
+          IRValue ptr_value = ctx.FreshTempValue("addr_of");
+          register_ptr_type(ptr_value);
+          addr.result = ptr_value;
+
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::AddrTuple;
+          info.base = base_result.value;
+          info.tuple_index = static_cast<std::size_t>(std::stoull(node.index.lexeme));
+          ctx.RegisterDerivedValue(ptr_value, info);
+
+          return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir, MakeIR(std::move(addr))}),
                              ptr_value};
+        } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
+          auto base_result = LowerAddrOf(*node.base, ctx);
+          IRValue ptr_value = ctx.FreshTempValue("addr_of");
+          register_ptr_type(ptr_value);
+
+          IRAddrOf addr;
+          addr.place = LowerPlace(place, ctx);
+          addr.result = ptr_value;
+
+          if (std::holds_alternative<syntax::RangeExpr>(node.index->node)) {
+            const auto& range_node = std::get<syntax::RangeExpr>(node.index->node);
+            auto range_result = LowerRangeExpr(range_node, ctx);
+
+            IRCheckRange check;
+            check.base = base_result.value;
+            check.range = ToIRRange(range_result.value);
+
+            DerivedValueInfo info;
+            info.kind = DerivedValueInfo::Kind::AddrIndex;
+            info.base = base_result.value;
+            info.range = ToIRRange(range_result.value);
+            ctx.RegisterDerivedValue(ptr_value, info);
+
+            return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir, range_result.ir,
+                                      MakeIR(std::move(check)),
+                                      PanicCheck(ctx),
+                                      MakeIR(std::move(addr))}),
+                               ptr_value};
+          }
+
+          auto index_result = LowerExpr(*node.index, ctx);
+          IRCheckIndex check;
+          check.base = base_result.value;
+          check.index = index_result.value;
+
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::AddrIndex;
+          info.base = base_result.value;
+          info.index = index_result.value;
+          ctx.RegisterDerivedValue(ptr_value, info);
+
+          return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir, index_result.ir,
+                                    MakeIR(std::move(check)),
+                                    PanicCheck(ctx),
+                                    MakeIR(std::move(addr))}),
+                             ptr_value};
+        } else if constexpr (std::is_same_v<T, syntax::DerefExpr>) {
+          auto ptr_result = LowerExpr(*node.value, ctx);
+          return LowerResult{ptr_result.ir, ptr_result.value};
         }
 
         IRAddrOf addr;
         addr.place = LowerPlace(place, ctx);
-        IRValue ptr_value{IRValue::Kind::Opaque, "addr_of", {}};
+        IRValue ptr_value = ctx.FreshTempValue("addr_of");
+        register_ptr_type(ptr_value);
+        addr.result = ptr_value;
         return LowerResult{MakeIR(std::move(addr)), ptr_value};
       },
       place.node);
@@ -727,7 +959,7 @@ LowerResult LowerMovePlace(const syntax::Expr& place, LowerCtx& ctx) {
   IRMoveState move_state;
   move_state.place = ir_place;
 
-  return LowerResult{SeqIR({read_result.ir, MakeIR(std::move(move_state))}),
+  return LowerResult{SeqIR(std::vector<IRPtr>{read_result.ir, MakeIR(std::move(move_state))}),
                      read_result.value};
 }
 

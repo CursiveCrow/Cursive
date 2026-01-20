@@ -8,5 +8,5 @@ public procedure main(ctx: Context) -> i32 {
   let r = R { v: 0 };
   let x = r~>ping();
   let d: $D = r as $D;
-  d~>ping()
+  return d~>ping();
 }

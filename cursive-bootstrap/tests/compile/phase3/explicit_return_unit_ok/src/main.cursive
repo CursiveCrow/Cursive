@@ -1,0 +1,21 @@
+# SPEC_COV: WF-ProcedureDecl
+# Test that procedures with unit return type can omit explicit return
+# The unit type is implicitly returned when the block has no tail expression
+
+procedure unit_proc() -> () {
+  let x = 1;
+}
+
+procedure unit_empty() -> () {
+}
+
+procedure unit_explicit() -> () {
+  return;
+}
+
+public procedure main(ctx: Context) -> i32 {
+  unit_proc();
+  unit_empty();
+  unit_explicit();
+  return 0;
+}

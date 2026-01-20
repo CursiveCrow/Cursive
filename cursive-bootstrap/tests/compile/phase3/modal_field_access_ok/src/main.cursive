@@ -7,5 +7,5 @@ public procedure main(ctx: Context) -> i32 {
   let x = (move a).v;
   let b: const Mod@Open = unsafe { transmute::<i32, const Mod@Open>(0) };
   let y = (move b).v;
-  0
+  return 0;
 }

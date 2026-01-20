@@ -7,5 +7,5 @@ public procedure main(ctx: Context) -> i32 {
   let x: unique i32 = unsafe { transmute::<i32, unique i32>(0) };
   use(x);
   let y: unique i32 = move x;
-  0
+  return 0;
 }

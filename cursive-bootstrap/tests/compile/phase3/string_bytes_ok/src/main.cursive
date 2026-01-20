@@ -52,5 +52,5 @@ procedure use_string_bytes(heap: $HeapAllocator) -> () {
 }
 
 public procedure main(ctx: Context) -> i32 {
-  0
+  return 0;
 }

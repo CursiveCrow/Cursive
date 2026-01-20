@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <source_location>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -52,10 +53,56 @@ struct ScopeInfo {
 // BindingState tracks the state of a binding for cleanup purposes
 struct BindingState {
   sema::TypeRef type;                     // Type of the binding
-  bool has_responsibility = true;         // Does this binding own cleanup?
+  bool has_responsibility = true;         // Does this binding own cleanupSigma
   bool is_immovable = false;             // Immovable binding (:=)
-  bool is_moved = false;                  // Has this binding been moved?
+  bool is_moved = false;                  // Has this binding been movedSigma
   std::vector<std::string> moved_fields;  // Fields that have been moved (for partial moves)
+};
+
+
+// DerivedValueInfo tracks how to materialize an IRValue produced without explicit IR
+struct DerivedValueInfo {
+  enum class Kind {
+    Field,
+    Tuple,
+    Index,
+    Slice,
+    EnumPayloadIndex,
+    EnumPayloadField,
+    ModalField,
+    UnionPayload,
+    TupleLit,
+    ArrayLit,
+    RecordLit,
+    DynLit,
+    DynData,
+    DynVTableDrop,
+    EnumLit,
+    RangeLit,
+    AddrLocal,
+    AddrStatic,
+    AddrField,
+    AddrTuple,
+    AddrIndex,
+    AddrDeref,
+  };
+
+  Kind kind = Kind::Field;
+  IRValue base;
+  std::string field;
+  std::size_t tuple_index = 0;
+  std::size_t union_index = 0;
+  IRValue index;
+  IRRange range;
+  std::vector<IRValue> elements;
+  std::vector<std::pair<std::string, IRValue>> fields;
+  std::string variant;
+  std::string modal_state;
+  std::vector<IRValue> payload_elems;
+  std::vector<std::pair<std::string, IRValue>> payload_fields;
+  std::vector<std::string> static_path;
+  std::string name;
+  std::string vtable_sym;
 };
 
 // LowerCtx - context for lowering operations
@@ -78,14 +125,50 @@ struct LowerCtx {
   
   // Name resolution lookup
   std::function<std::optional<std::vector<std::string>>(const std::string&)> resolve_name;
+  // Type name resolution lookup
+  std::function<std::optional<std::vector<std::string>>(const std::string&)> resolve_type_name;
 
   // Track missing resolution or lowering failures.
   bool resolve_failed = false;
   bool codegen_failed = false;
   std::vector<std::string> resolve_failures;
 
+  // IR value and symbol type tracking.
+  std::unordered_map<std::string, sema::TypeRef> value_types;
+  std::unordered_map<std::string, sema::TypeRef> static_types;
+  std::unordered_map<std::string, sema::TypeRef> drop_glue_types;
+  std::unordered_map<std::string, std::vector<std::string>> static_modules;
+  std::unordered_map<std::string, std::vector<std::string>> record_ctor_paths;
+
+  struct ProcSigInfo {
+    std::vector<IRParam> params;
+    sema::TypeRef ret;
+  };
+  std::unordered_map<std::string, ProcSigInfo> proc_sigs;
+  std::unordered_map<std::string, std::vector<std::string>> proc_modules;
+  std::optional<std::string> main_symbol;
+  std::vector<syntax::ModulePath> init_order;
+  std::vector<syntax::ModulePath> init_modules;
+  std::vector<std::pair<std::size_t, std::size_t>> init_eager_edges;
+
   void ReportResolveFailure(const std::string& name);
-  void ReportCodegenFailure();
+  void ReportCodegenFailure(
+      std::source_location loc = std::source_location::current());
+
+  void RegisterValueType(const IRValue& value, sema::TypeRef type);
+  sema::TypeRef LookupValueType(const IRValue& value) const;
+  void RegisterStaticType(const std::string& sym, sema::TypeRef type);
+  sema::TypeRef LookupStaticType(const std::string& sym) const;
+  void RegisterStaticModule(const std::string& sym, const syntax::ModulePath& module_path);
+  const std::vector<std::string>* LookupStaticModule(const std::string& sym) const;
+  void RegisterDropGlueType(const std::string& sym, sema::TypeRef type);
+  sema::TypeRef LookupDropGlueType(const std::string& sym) const;
+  void RegisterRecordCtor(const std::string& sym, const std::vector<std::string>& path);
+  const std::vector<std::string>* LookupRecordCtor(const std::string& sym) const;
+  void RegisterProcSig(const ProcIR& proc);
+  const ProcSigInfo* LookupProcSig(const std::string& sym) const;
+  void RegisterProcModule(const std::string& sym, const syntax::ModulePath& module_path);
+  const std::vector<std::string>* LookupProcModule(const std::string& sym) const;
   
   // =========================================================================
   // §6.8 Scope tracking for cleanup
@@ -97,10 +180,14 @@ struct LowerCtx {
   // Map from binding name to its state
   std::unordered_map<std::string, std::vector<BindingState>> binding_states;
 
+  // Map from temporary value names to derived value info
+  std::unordered_map<std::string, DerivedValueInfo> derived_values;
+
   // Current temp sink for statement-scoped temporaries
   std::vector<TempValue>* temp_sink = nullptr;
   int temp_depth = 0;
   std::optional<int> suppress_temp_at_depth;
+  std::uint64_t temp_counter = 0;
   
   // Push a new scope
   void PushScope(bool is_loop = false, bool is_region = false);
@@ -139,6 +226,12 @@ struct LowerCtx {
 
   // Register a temporary value for cleanup
   void RegisterTempValue(const IRValue& value, const sema::TypeRef& type);
+
+  void RegisterDerivedValue(const IRValue& value, const DerivedValueInfo& info);
+  const DerivedValueInfo* LookupDerivedValue(const IRValue& value) const;
+
+  // Generate a unique temporary value placeholder.
+  IRValue FreshTempValue(std::string_view prefix);
   
 };
 

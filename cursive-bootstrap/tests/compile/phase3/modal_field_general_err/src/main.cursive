@@ -3,9 +3,9 @@ modal Mod { @Open { v: i32 } }
 
 procedure use(x: Mod) -> i32 {
   let y = (move x).v;
-  0
+  return 0;
 }
 
 public procedure main(ctx: Context) -> i32 {
-  0
+  return 0;
 }

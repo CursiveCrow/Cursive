@@ -145,7 +145,7 @@ ExprTypeResult TypeTransmuteExpr(const ScopeContext& ctx,
                                  const syntax::TransmuteExpr& expr,
                                  const TypeEnv& env);
 
-// Propagate Expression (?)
+// Propagate Expression (Sigma)
 ExprTypeResult TypePropagateExpr(const ScopeContext& ctx,
                                  const StmtTypeContext& type_ctx,
                                  const syntax::PropagateExpr& expr,

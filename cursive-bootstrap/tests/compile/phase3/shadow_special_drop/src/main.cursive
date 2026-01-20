@@ -1,4 +1,4 @@
 # SPEC_COV: Validate-Module-Special-Shadow-Err
 class Drop { }
 
-public procedure main(ctx: Context) -> i32 { 0 }
+public procedure main(ctx: Context) -> i32 { return 0; }

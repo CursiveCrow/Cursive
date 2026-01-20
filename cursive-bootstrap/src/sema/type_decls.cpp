@@ -54,11 +54,24 @@ static void EmitTypecheckDiag(core::DiagnosticStream& diags,
                               const std::optional<core::Span>& span) {
   const auto code = CodeForTypecheckDiag(diag_id);
   if (!code.has_value()) {
+    core::Diagnostic diag;
+    diag.code = std::string(diag_id);
+    diag.severity = core::Severity::Error;
+    diag.message = "Internal error: unknown typecheck diagnostic id";
+    diag.span = span;
+    diags = core::Emit(diags, diag);
     return;
   }
   if (auto diag = core::MakeDiagnostic(*code, span)) {
     diags = core::Emit(diags, *diag);
+    return;
   }
+  core::Diagnostic diag;
+  diag.code = std::string(*code);
+  diag.severity = core::Severity::Error;
+  diag.message = "Internal error: unknown diagnostic code";
+  diag.span = span;
+  diags = core::Emit(diags, diag);
 }
 
 static inline void SpecDefsDeclTyping() {
@@ -535,6 +548,30 @@ static bool SubtypeReturn(const ScopeContext& ctx,
     return false;
   }
   return true;
+}
+
+// Check if a type is a primitive type with the given name.
+static bool IsPrimType(const TypeRef& type, std::string_view name) {
+  if (!type) {
+    return false;
+  }
+  const auto* prim = std::get_if<TypePrim>(&type->node);
+  return prim && prim->name == name;
+}
+
+// Check if a block body has an explicit return statement at the end.
+// Required for procedures/methods with non-unit return types.
+static bool HasExplicitReturn(const syntax::Block& block) {
+  // If there's a tail expression, it's not an explicit return
+  if (block.tail_opt) {
+    return false;
+  }
+  // Check if last statement is a return
+  if (!block.stmts.empty() &&
+      std::holds_alternative<syntax::ReturnStmt>(block.stmts.back())) {
+    return true;
+  }
+  return false;
 }
 
 static bool TypeAliasCycleFrom(const ScopeContext& ctx,
@@ -1111,6 +1148,12 @@ static bool CheckProcedureDecl(const ScopeContext& ctx,
       }
       return false;
     }
+    // Check explicit return requirement for non-unit return types
+    if (!IsPrimType(ret.type, "()") && !HasExplicitReturn(*decl.body)) {
+      SPEC_RULE("WF-ProcBody-ExplicitReturn-Err");
+      EmitTypecheckDiag(diags, "WF-ProcBody-ExplicitReturn-Err", decl.body->span);
+      return false;
+    }
     if (!SubtypeReturn(ctx, typed.type, ret.type, diags, decl.body->span)) {
       return false;
     }
@@ -1276,6 +1319,12 @@ static bool CheckRecordMethod(const ScopeContext& ctx,
       if (typed.diag_id.has_value()) {
         EmitTypecheckDiag(diags, *typed.diag_id, method.body->span);
       }
+      return false;
+    }
+    // Check explicit return requirement for non-unit return types
+    if (!IsPrimType(ret_type, "()") && !HasExplicitReturn(*method.body)) {
+      SPEC_RULE("WF-ProcBody-ExplicitReturn-Err");
+      EmitTypecheckDiag(diags, "WF-ProcBody-ExplicitReturn-Err", method.body->span);
       return false;
     }
     if (!SubtypeReturn(ctx, typed.type, ret_type, diags, method.body->span)) {
@@ -1510,6 +1559,12 @@ static bool CheckStateMethod(const ScopeContext& ctx,
       if (typed.diag_id.has_value()) {
         EmitTypecheckDiag(diags, *typed.diag_id, method.body->span);
       }
+      return false;
+    }
+    // Check explicit return requirement for non-unit return types
+    if (!IsPrimType(ret.type, "()") && !HasExplicitReturn(*method.body)) {
+      SPEC_RULE("WF-ProcBody-ExplicitReturn-Err");
+      EmitTypecheckDiag(diags, "WF-ProcBody-ExplicitReturn-Err", method.body->span);
       return false;
     }
     if (!SubtypeReturn(ctx, typed.type, ret.type, diags, method.body->span)) {
@@ -1778,6 +1833,12 @@ static bool CheckClassMethod(const ScopeContext& ctx,
     if (typed.diag_id.has_value()) {
       EmitTypecheckDiag(diags, *typed.diag_id, method.body_opt->span);
     }
+    return false;
+  }
+  // Check explicit return requirement for non-unit return types
+  if (!IsPrimType(ret.type, "()") && !HasExplicitReturn(*method.body_opt)) {
+    SPEC_RULE("WF-ProcBody-ExplicitReturn-Err");
+    EmitTypecheckDiag(diags, "WF-ProcBody-ExplicitReturn-Err", method.body_opt->span);
     return false;
   }
   if (!SubtypeReturn(ctx, typed.type, ret.type, diags, method.body_opt->span)) {

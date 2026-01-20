@@ -7,5 +7,5 @@ modal Small {
 public procedure main(ctx: Context) -> i32 {
   let m = Small@Tiny { v: 1u8 };
   let s: Small = widen (move m);
-  0
+  return 0;
 }

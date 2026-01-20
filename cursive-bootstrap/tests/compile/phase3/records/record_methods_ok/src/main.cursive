@@ -8,8 +8,8 @@
 # SPEC_COV: Step-MethodCall
 record R {
   v: i32,
-  procedure get(~) -> i32 { 0 },
-  procedure id(self: R, x: i32) -> i32 { x }
+  procedure get(~) -> i32 { return 0; },
+  procedure id(self: R, x: i32) -> i32 { return x; }
 }
 
 public procedure main(ctx: Context) -> i32 {
@@ -17,5 +17,5 @@ public procedure main(ctx: Context) -> i32 {
   let x = 2;
   let a = r~>get();
   let b = r~>id(x);
-  a + b
+  return a + b;
 }

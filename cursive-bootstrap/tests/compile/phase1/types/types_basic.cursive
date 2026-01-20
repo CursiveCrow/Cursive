@@ -29,5 +29,5 @@
 let a: i32 = 0 let b: () = 0 let c: ! = 0 let d: string = "x" let e: string@Managed = "x" let f: string@View = "x" let g: bytes = "x" let h: bytes@Managed = "x" let i: bytes@View = "x" let p: Ptr<i32> = 0 let q: Ptr<i32>@Valid = 0 let r: Ptr<i32>@Null = 0 let s: Ptr<i32>@Expired = 0 let t: Ptr<Ptr<i32>> = 0 let u: *imm i32 = 0 let v: *mut i32 = 0 let w: $Foo = 0 let x: Foo@State = 0 let y: Foo::Bar = 0 let z: i32 | bool = 0 let aa: [i32; 3] = 0 let ab: [i32] = 0
 
 public procedure main(ctx: Context) -> i32 {
-  0
+  return 0;
 }

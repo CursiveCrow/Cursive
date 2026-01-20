@@ -147,6 +147,10 @@ int main() {
   SPEC_COV("Parse-Literal-Expr");
   SPEC_COV("Parse-Primary-Err");
   SPEC_COV("Parse-Null-Ptr");
+  SPEC_COV("Parse-Place-Deref");
+  SPEC_COV("Parse-Place-Postfix");
+  SPEC_COV("Parse-Place-Err");
+  SPEC_COV("Parse-Syntax-Err");
   SPEC_COV("Parse-Postfix");
   SPEC_COV("Parse-PostfixTail-Cons");
   SPEC_COV("Parse-PostfixTail-Stop");

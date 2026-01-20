@@ -1,5 +1,5 @@
 # SPEC_COV: Main-Ok
 # ASSEMBLY: demo2
 public procedure main(ctx: Context) -> i32 {
-  0
+  return 0;
 }

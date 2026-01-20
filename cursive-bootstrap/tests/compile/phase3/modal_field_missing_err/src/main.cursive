@@ -4,5 +4,5 @@ modal Mod { @Open { v: i32 } }
 public procedure main(ctx: Context) -> i32 {
   let m = Mod@Open { v: 1 };
   let x = (move m).missing;
-  0
+  return 0;
 }

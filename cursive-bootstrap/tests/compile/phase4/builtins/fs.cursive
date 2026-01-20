@@ -23,5 +23,5 @@ public procedure main(ctx: Context) -> i32 {
   let s: string@View = "hi";
   fs~>create_dir(s);
   let _e: bool = fs~>exists(s);
-  0
+  return 0;
 }

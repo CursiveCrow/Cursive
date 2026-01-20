@@ -5,5 +5,5 @@ record R <: ND { v: i32 }
 public procedure main(ctx: Context) -> i32 {
   let r = R { v: 0 };
   let d: $ND = r as $ND;
-  0
+  return 0;
 }

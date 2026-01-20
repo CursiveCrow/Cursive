@@ -29,6 +29,8 @@ using cursive0::syntax::Mutability;
 using cursive0::syntax::Param;
 using cursive0::syntax::ParamMode;
 using cursive0::syntax::ParseFile;
+using cursive0::syntax::MakeParser;
+using cursive0::syntax::Parser;
 using cursive0::syntax::Receiver;
 using cursive0::syntax::ReceiverPerm;
 using cursive0::syntax::ReceiverShorthand;
@@ -49,6 +51,9 @@ using cursive0::syntax::VariantDecl;
 using cursive0::syntax::VariantPayload;
 using cursive0::syntax::VariantPayloadRecord;
 using cursive0::syntax::VariantPayloadTuple;
+using cursive0::syntax::SyncItem;
+using cursive0::syntax::Token;
+using cursive0::syntax::TokenKind;
 
 static std::vector<UnicodeScalar> AsScalars(const std::string& text) {
   std::vector<UnicodeScalar> out;
@@ -70,6 +75,13 @@ static SourceFile MakeSourceFile(const std::string& path,
   s.line_starts = LineStarts(s.scalars);
   s.line_count = s.line_starts.size();
   return s;
+}
+
+static Token MakeToken(TokenKind kind, const char* lexeme) {
+  Token tok;
+  tok.kind = kind;
+  tok.lexeme = std::string(lexeme);
+  return tok;
 }
 
 }  // namespace
@@ -206,6 +218,8 @@ int main() {
   SPEC_COV("Parse-VariantTail-TrailingComma");
   SPEC_COV("Parse-Vis-Default");
   SPEC_COV("Parse-Vis-Opt");
+  SPEC_COV("Sync-Item-Advance");
+  SPEC_COV("Sync-Item-Stop");
   SPEC_COV("Sync-Type-Stop");
   SPEC_COV("Sync-Type-Consume");
   SPEC_COV("Sync-Type-Advance");
@@ -415,6 +429,17 @@ int main() {
     auto result = ParseFile(source);
     assert(result.file.has_value());
     assert(!result.diags.empty());
+  }
+
+  {
+    const SourceFile source = MakeSourceFile(
+        "sync_item.cursive", "x procedure");
+    std::vector<Token> tokens;
+    tokens.push_back(MakeToken(TokenKind::Identifier, "x"));
+    tokens.push_back(MakeToken(TokenKind::Keyword, "procedure"));
+    Parser parser = MakeParser(tokens, source);
+    SyncItem(parser);
+    assert(parser.index == 1);
   }
 
   return 0;

@@ -45,5 +45,5 @@ public procedure main(ctx: Context) -> i32 {
     transmute::<(*imm i32, *imm i32), $Bar>((raw, raw))
   };
 
-  0
+  return 0;
 }

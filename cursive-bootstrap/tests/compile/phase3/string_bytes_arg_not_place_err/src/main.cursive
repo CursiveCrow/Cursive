@@ -1,5 +1,5 @@
 # SPEC_COV: Call-Arg-NotPlace
 public procedure main(ctx: Context) -> i32 {
   let len: usize = string::length("hi");
-  0
+  return 0;
 }

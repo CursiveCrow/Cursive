@@ -2,6 +2,7 @@
 #include <optional>
 #include <vector>
 
+#include "cursive0/core/assert_spec.h"
 #include "cursive0/sema/scopes.h"
 #include "cursive0/sema/subtyping.h"
 #include "cursive0/sema/types.h"
@@ -48,40 +49,64 @@ int main() {
     assert(res.ok && !res.subtype);
   }
   {
+    SPEC_COV("Sub-Never");
     const auto res = Subtyping(ctx, Prim("!"), Prim("bool"));
     assert(res.ok && res.subtype);
   }
   {
+    SPEC_COV("Sub-Perm");
+    SPEC_COV("Perm-Const");
+    const auto lhs = MakeTypePerm(Permission::Const, Prim("i32"));
+    const auto rhs = MakeTypePerm(Permission::Const, Prim("i32"));
+    const auto res = Subtyping(ctx, lhs, rhs);
+    assert(res.ok && res.subtype);
+  }
+  {
+    SPEC_COV("Sub-Perm");
+    SPEC_COV("Perm-Unique-Const");
     const auto lhs = MakeTypePerm(Permission::Unique, Prim("i32"));
     const auto rhs = MakeTypePerm(Permission::Const, Prim("i32"));
     const auto res = Subtyping(ctx, lhs, rhs);
     assert(res.ok && res.subtype);
   }
   {
+    SPEC_COV("Sub-Perm");
+    SPEC_COV("Perm-Unique");
+    const auto lhs = MakeTypePerm(Permission::Unique, Prim("i32"));
+    const auto rhs = MakeTypePerm(Permission::Unique, Prim("i32"));
+    const auto res = Subtyping(ctx, lhs, rhs);
+    assert(res.ok && res.subtype);
+  }
+  {
+    SPEC_COV("Sub-Tuple");
     const auto lhs = MakeTypeTuple({Prim("!"), Prim("bool")});
     const auto rhs = MakeTypeTuple({Prim("i32"), Prim("bool")});
     const auto res = Subtyping(ctx, lhs, rhs);
     assert(res.ok && res.subtype);
   }
   {
+    SPEC_COV("Sub-Array");
     const auto lhs = MakeTypeArray(Prim("!"), 4);
     const auto rhs = MakeTypeArray(Prim("i32"), 4);
     const auto res = Subtyping(ctx, lhs, rhs);
     assert(res.ok && res.subtype);
   }
   {
+    SPEC_COV("Sub-Slice");
     const auto lhs = MakeTypeSlice(Prim("!"));
     const auto rhs = MakeTypeSlice(Prim("i32"));
     const auto res = Subtyping(ctx, lhs, rhs);
     assert(res.ok && res.subtype);
   }
   {
+    SPEC_COV("Sub-Ptr-State");
     const auto lhs = MakeTypePtr(Prim("i32"), PtrState::Valid);
     const auto rhs = MakeTypePtr(Prim("i32"), std::nullopt);
     const auto res = Subtyping(ctx, lhs, rhs);
     assert(res.ok && res.subtype);
   }
   {
+    SPEC_COV("Sub-Func");
     std::vector<TypeFuncParam> lhs_params;
     lhs_params.push_back(TypeFuncParam{ParamMode::Move, Prim("i32")});
     std::vector<TypeFuncParam> rhs_params;
@@ -92,17 +117,40 @@ int main() {
     assert(res.ok && res.subtype);
   }
   {
+    SPEC_COV("Sub-Member-Union");
     const auto uni = MakeTypeUnion({Prim("i32"), Prim("bool")});
     const auto res = Subtyping(ctx, Prim("bool"), uni);
     assert(res.ok && res.subtype);
   }
   {
+    SPEC_COV("Sub-Union-Width");
     const auto lhs = MakeTypeUnion({Prim("i32"), Prim("bool")});
     const auto rhs = MakeTypeUnion({Prim("char"), Prim("bool"), Prim("i32")});
     const auto res = Subtyping(ctx, lhs, rhs);
     assert(res.ok && res.subtype);
   }
   {
+    SPEC_COV("Modal-Incomparable");
+    ModalDecl modal{};
+    modal.name = "Modal";
+    StateBlock state_a{};
+    state_a.name = "A";
+    modal.states.push_back(state_a);
+    StateBlock state_b{};
+    state_b.name = "B";
+    modal.states.push_back(state_b);
+
+    Path modal_path = {"Modal"};
+    ctx.sigma.types[PathKeyOf(modal_path)] = modal;
+
+    TypePath tpath = {"Modal"};
+    const auto lhs = MakeTypeModalState(tpath, "A");
+    const auto rhs = MakeTypeModalState(tpath, "B");
+    const auto res = Subtyping(ctx, lhs, rhs);
+    assert(res.ok && !res.subtype);
+  }
+  {
+    SPEC_COV("Sub-Modal-Niche");
     ModalDecl modal{};
     modal.name = "Modal";
     StateBlock state{};
@@ -117,6 +165,13 @@ int main() {
     const auto rhs = MakeTypePath(tpath);
     const auto res = Subtyping(ctx, lhs, rhs);
     assert(res.ok && !res.subtype);
+  }
+  {
+    SPEC_COV("Sub-Range");
+    const auto lhs = cursive0::sema::MakeTypeRange();
+    const auto rhs = cursive0::sema::MakeTypeRange();
+    const auto res = Subtyping(ctx, lhs, rhs);
+    assert(res.ok && res.subtype);
   }
 
   return 0;

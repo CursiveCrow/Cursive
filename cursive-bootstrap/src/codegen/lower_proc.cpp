@@ -2,6 +2,7 @@
 
 #include "cursive0/codegen/abi.h"
 #include "cursive0/codegen/cleanup.h"
+#include "cursive0/codegen/globals.h"
 #include "cursive0/codegen/lower_stmt.h"
 #include "cursive0/codegen/layout.h"
 #include "cursive0/codegen/mangle.h"
@@ -77,6 +78,12 @@ ProcIR LowerProc(const ProcedureDecl& decl,
   ctx.PopScope();
 
   std::vector<IRPtr> body_seq;
+  if (decl.name == "main") {
+    IRPtr init_ir = EmitInitPlan(ctx.init_order, ctx);
+    if (init_ir && !std::holds_alternative<IROpaque>(init_ir->node)) {
+      body_seq.push_back(init_ir);
+    }
+  }
   if (body_res.ir) {
     body_seq.push_back(body_res.ir);
   }

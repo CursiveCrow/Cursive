@@ -252,6 +252,7 @@ static constexpr DiagMapEntry kTypecheckDiagMap[] = {
   {"WF-Module-Path-Collision", "E-MOD-1104"},
   {"WF-Module-Path-Ident-Err", "E-MOD-1106"},
   {"WF-Module-Path-Reserved", "E-MOD-1105"},
+  {"WF-ProcBody-ExplicitReturn-Err", "E-TYP-1507"},
   {"WF-ProcedureDecl-MissingReturnType", "E-TYP-1505"},
   {"WF-Record-DupField", "E-TYP-1901"},
   {"WF-RelPath-Err", "E-PRJ-0301"},

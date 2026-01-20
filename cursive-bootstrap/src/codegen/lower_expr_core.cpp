@@ -3,8 +3,10 @@
 #include "cursive0/codegen/layout.h"
 #include "cursive0/core/assert_spec.h"
 
-#include <cassert>
 #include <algorithm>
+#include <cassert>
+#include <cstdlib>
+#include <iostream>
 #include <memory>
 #include <variant>
 
@@ -381,20 +383,38 @@ std::vector<syntax::ExprPtr> ChildrenLTR(const syntax::Expr& expr) {
 // ============================================================================
 
 // Forward declarations for specialized lowering functions
-LowerResult LowerLiteral(const syntax::LiteralExpr& expr, LowerCtx& /*ctx*/) {
+LowerResult LowerLiteral(const syntax::Expr& expr, const syntax::LiteralExpr& lit, LowerCtx& ctx) {
   SPEC_RULE("Lower-Expr-Literal");
 
   IRValue value;
   value.kind = IRValue::Kind::Immediate;
-  value.name = expr.literal.lexeme;
+  value.name = lit.literal.lexeme;
 
-  if (expr.literal.kind == syntax::TokenKind::IntLiteral) {
-    if (auto parsed = ParseIntLiteralLexeme(expr.literal.lexeme)) {
+  if (lit.literal.kind == syntax::TokenKind::StringLiteral) {
+    SPEC_RULE("StringLiteralVal");
+    if (auto decoded = DecodeStringLiteralBytes(lit.literal.lexeme)) {
+      value.bytes = std::move(*decoded);
+    } else {
+      ctx.ReportCodegenFailure();
+    }
+  }
+
+  if (ctx.expr_type) {
+    const auto lit_type = ctx.expr_type(expr);
+    if (lit_type) {
+      if (auto bytes = EncodeConst(lit_type, lit.literal)) {
+        value.bytes = std::move(*bytes);
+      }
+    }
+  }
+
+  if (value.bytes.empty() && lit.literal.kind == syntax::TokenKind::IntLiteral) {
+    if (auto parsed = ParseIntLiteralLexeme(lit.literal.lexeme)) {
       value.bytes = EncodeU64BE(*parsed);
     }
-  } else if (expr.literal.kind == syntax::TokenKind::BoolLiteral) {
-    value.bytes = {static_cast<std::uint8_t>(expr.literal.lexeme == "true" ? 1 : 0)};
-  } else if (expr.literal.kind == syntax::TokenKind::NullLiteral) {
+  } else if (value.bytes.empty() && lit.literal.kind == syntax::TokenKind::BoolLiteral) {
+    value.bytes = {static_cast<std::uint8_t>(lit.literal.lexeme == "true" ? 1 : 0)};
+  } else if (value.bytes.empty() && lit.literal.kind == syntax::TokenKind::NullLiteral) {
     value.bytes = {0};
   }
 
@@ -503,9 +523,7 @@ LowerResult LowerError(const syntax::ErrorExpr& /*expr*/, LowerCtx& ctx) {
   SPEC_RULE("Lower-Expr-Error");
   
   // Error expressions lower to a panic
-  IRValue value;
-  value.kind = IRValue::Kind::Opaque;
-  value.name = "unreachable";
+  IRValue value = ctx.FreshTempValue("unreachable");
   
   return LowerResult{LowerPanic(PanicReason::ErrorExpr, ctx), value};
 }
@@ -516,9 +534,11 @@ LowerResult LowerTuple(const syntax::TupleExpr& expr, LowerCtx& ctx) {
   
   auto [ir, values] = LowerList(expr.elements, ctx);
   
-  IRValue tuple_value;
-  tuple_value.kind = IRValue::Kind::Opaque;
-  tuple_value.name = "tuple";
+  IRValue tuple_value = ctx.FreshTempValue("tuple");
+  DerivedValueInfo info;
+  info.kind = DerivedValueInfo::Kind::TupleLit;
+  info.elements = values;
+  ctx.RegisterDerivedValue(tuple_value, info);
   
   return LowerResult{ir, tuple_value};
 }
@@ -529,9 +549,11 @@ LowerResult LowerArray(const syntax::ArrayExpr& expr, LowerCtx& ctx) {
   
   auto [ir, values] = LowerList(expr.elements, ctx);
   
-  IRValue array_value;
-  array_value.kind = IRValue::Kind::Opaque;
-  array_value.name = "array";
+  IRValue array_value = ctx.FreshTempValue("array");
+  DerivedValueInfo info;
+  info.kind = DerivedValueInfo::Kind::ArrayLit;
+  info.elements = values;
+  ctx.RegisterDerivedValue(array_value, info);
   
   return LowerResult{ir, array_value};
 }
@@ -542,9 +564,11 @@ LowerResult LowerRecord(const syntax::RecordExpr& expr, LowerCtx& ctx) {
   
   auto [ir, field_values] = LowerFieldInits(expr.fields, ctx);
   
-  IRValue record_value;
-  record_value.kind = IRValue::Kind::Opaque;
-  record_value.name = "record";
+  IRValue record_value = ctx.FreshTempValue("record");
+  DerivedValueInfo info;
+  info.kind = DerivedValueInfo::Kind::RecordLit;
+  info.fields = field_values;
+  ctx.RegisterDerivedValue(record_value, info);
   
   return LowerResult{ir, record_value};
 }
@@ -555,15 +579,17 @@ LowerResult LowerEnumLiteral(const syntax::EnumLiteralExpr& expr, LowerCtx& ctx)
     // Unit variant
     SPEC_RULE("Lower-Expr-Enum-Unit");
     
-    IRValue enum_value;
-    enum_value.kind = IRValue::Kind::Opaque;
-    enum_value.name = "enum_unit";
+    IRValue enum_value = ctx.FreshTempValue("enum_unit");
+    DerivedValueInfo info;
+    info.kind = DerivedValueInfo::Kind::EnumLit;
+    info.variant = expr.path.empty() ? std::string() : expr.path.back();
+    ctx.RegisterDerivedValue(enum_value, info);
     
     return LowerResult{EmptyIR(), enum_value};
   }
   
   return std::visit(
-      [&ctx](const auto& payload) -> LowerResult {
+      [&ctx, &expr](const auto& payload) -> LowerResult {
         using T = std::decay_t<decltype(payload)>;
         
         if constexpr (std::is_same_v<T, syntax::EnumPayloadParen>) {
@@ -572,9 +598,12 @@ LowerResult LowerEnumLiteral(const syntax::EnumLiteralExpr& expr, LowerCtx& ctx)
           
           auto [ir, values] = LowerList(payload.elements, ctx);
           
-          IRValue enum_value;
-          enum_value.kind = IRValue::Kind::Opaque;
-          enum_value.name = "enum_tuple";
+          IRValue enum_value = ctx.FreshTempValue("enum_tuple");
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::EnumLit;
+          info.variant = expr.path.empty() ? std::string() : expr.path.back();
+          info.payload_elems = values;
+          ctx.RegisterDerivedValue(enum_value, info);
           
           return LowerResult{ir, enum_value};
         } else {
@@ -583,9 +612,12 @@ LowerResult LowerEnumLiteral(const syntax::EnumLiteralExpr& expr, LowerCtx& ctx)
           
           auto [ir, field_values] = LowerFieldInits(payload.fields, ctx);
           
-          IRValue enum_value;
-          enum_value.kind = IRValue::Kind::Opaque;
-          enum_value.name = "enum_record";
+          IRValue enum_value = ctx.FreshTempValue("enum_record");
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::EnumLit;
+          info.variant = expr.path.empty() ? std::string() : expr.path.back();
+          info.payload_fields = field_values;
+          ctx.RegisterDerivedValue(enum_value, info);
           
           return LowerResult{ir, enum_value};
         }
@@ -708,7 +740,7 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
         if constexpr (std::is_same_v<T, syntax::ErrorExpr>) {
           return LowerError(node, ctx);
         } else if constexpr (std::is_same_v<T, syntax::LiteralExpr>) {
-          return LowerLiteral(node, ctx);
+          return LowerLiteral(expr, node, ctx);
         } else if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
           return LowerIdentifier(node, ctx);
         } else if constexpr (std::is_same_v<T, syntax::PathExpr>) {
@@ -726,16 +758,22 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
         } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
           SPEC_RULE("Lower-Expr-FieldAccess");
           auto base_result = LowerExpr(*node.base, ctx);
-          IRValue field_value;
-          field_value.kind = IRValue::Kind::Opaque;
-          field_value.name = base_result.value.name + "." + node.name;
+          IRValue field_value = ctx.FreshTempValue("field");
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::Field;
+          info.base = base_result.value;
+          info.field = node.name;
+          ctx.RegisterDerivedValue(field_value, info);
           return LowerResult{base_result.ir, field_value};
         } else if constexpr (std::is_same_v<T, syntax::TupleAccessExpr>) {
           SPEC_RULE("Lower-Expr-TupleAccess");
           auto base_result = LowerExpr(*node.base, ctx);
-          IRValue elem_value;
-          elem_value.kind = IRValue::Kind::Opaque;
-          elem_value.name = base_result.value.name + "." + node.index.lexeme;
+          IRValue elem_value = ctx.FreshTempValue("tuple_elem");
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::Tuple;
+          info.base = base_result.value;
+          info.tuple_index = static_cast<std::size_t>(std::stoull(node.index.lexeme));
+          ctx.RegisterDerivedValue(elem_value, info);
           return LowerResult{base_result.ir, elem_value};
         } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
           auto base_result = LowerExpr(*node.base, ctx);
@@ -746,10 +784,14 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
             IRCheckRange check;
             check.base = base_result.value;
             check.range = ToIRRange(range_result.value);
-            IRValue slice_value;
-            slice_value.kind = IRValue::Kind::Opaque;
-            slice_value.name = base_result.value.name + "[range]";
-            return LowerResult{SeqIR({base_result.ir, range_result.ir, MakeIR(std::move(check))}),
+            IRValue slice_value = ctx.FreshTempValue("slice");
+            DerivedValueInfo info;
+            info.kind = DerivedValueInfo::Kind::Slice;
+            info.base = base_result.value;
+            info.range = ToIRRange(range_result.value);
+            ctx.RegisterDerivedValue(slice_value, info);
+            return LowerResult{SeqIR({base_result.ir, range_result.ir, MakeIR(std::move(check)),
+                                      PanicCheck(ctx)}),
                                slice_value};
           }
           SPEC_RULE("Lower-Expr-Index-Scalar");
@@ -757,10 +799,14 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
           IRCheckIndex check;
           check.base = base_result.value;
           check.index = index_result.value;
-          IRValue elem_value;
-          elem_value.kind = IRValue::Kind::Opaque;
-          elem_value.name = base_result.value.name + "[idx]";
-          return LowerResult{SeqIR({base_result.ir, index_result.ir, MakeIR(std::move(check))}),
+          IRValue elem_value = ctx.FreshTempValue("index_elem");
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::Index;
+          info.base = base_result.value;
+          info.index = index_result.value;
+          ctx.RegisterDerivedValue(elem_value, info);
+          return LowerResult{SeqIR({base_result.ir, index_result.ir, MakeIR(std::move(check)),
+                                    PanicCheck(ctx)}),
                              elem_value};
         } else if constexpr (std::is_same_v<T, syntax::CallExpr>) {
           return LowerCallExpr(node, ctx);
@@ -804,9 +850,11 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
         } else if constexpr (std::is_same_v<T, syntax::RangeExpr>) {
           SPEC_RULE("Lower-Expr-Range");
           auto range_result = LowerRangeExpr(node, ctx);
-          IRValue range_value;
-          range_value.kind = IRValue::Kind::Opaque;
-          range_value.name = "range";
+          IRValue range_value = ctx.FreshTempValue("range");
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::RangeLit;
+          info.range = ToIRRange(range_result.value);
+          ctx.RegisterDerivedValue(range_value, info);
           return LowerResult{range_result.ir, range_value};
         } else if constexpr (std::is_same_v<T, syntax::IfExpr>) {
           return LowerIfExpr(node, ctx);
@@ -845,11 +893,10 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
             auto deref_result = LowerRawDeref(ptr_result.value, ptr_type, ctx);
             return LowerResult{SeqIR({ptr_result.ir, deref_result.ir}), deref_result.value};
           }
+          IRValue value = ctx.FreshTempValue("deref");
           IRReadPtr read;
           read.ptr = ptr_result.value;
-          IRValue value;
-          value.kind = IRValue::Kind::Opaque;
-          value.name = "deref_result";
+          read.result = value;
           return LowerResult{SeqIR({ptr_result.ir, MakeIR(std::move(read))}), value};
         } else if constexpr (std::is_same_v<T, syntax::AllocExpr>) {
           SPEC_RULE("Lower-Expr-Alloc");
@@ -864,20 +911,16 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
             region_expr.node = ident;
             auto region_result = LowerExpr(region_expr, ctx);
             alloc.region = region_result.value;
-            IRValue ptr_value;
-            ptr_value.kind = IRValue::Kind::Opaque;
-            ptr_value.name = "alloc_ptr";
+            IRValue ptr_value = ctx.FreshTempValue("alloc_ptr");
+            alloc.result = ptr_value;
             return LowerResult{SeqIR({value_result.ir, region_result.ir, MakeIR(std::move(alloc))}),
                                ptr_value};
           }
-          IRValue ptr_value;
-          ptr_value.kind = IRValue::Kind::Opaque;
-          ptr_value.name = "alloc_ptr";
+          IRValue ptr_value = ctx.FreshTempValue("alloc_ptr");
+          alloc.result = ptr_value;
           return LowerResult{SeqIR({value_result.ir, MakeIR(std::move(alloc))}), ptr_value};
         } else {
-          IRValue value;
-          value.kind = IRValue::Kind::Opaque;
-          value.name = "unknown_expr";
+          IRValue value = ctx.FreshTempValue("unknown_expr");
           return LowerResult{EmptyIR(), value};
         }
       },
@@ -888,6 +931,10 @@ LowerResult LowerExpr(const syntax::Expr& expr, LowerCtx& ctx) {
   ctx.temp_depth += 1;
   LowerResult result = LowerExprImpl(expr, ctx);
   const int depth = ctx.temp_depth;
+
+  if (ctx.expr_type) {
+    ctx.RegisterValueType(result.value, ctx.expr_type(expr));
+  }
   ctx.temp_depth -= 1;
 
   bool suppress = ctx.suppress_temp_at_depth.has_value() &&
@@ -1002,16 +1049,25 @@ void LowerCtx::RegisterVar(const std::string& name,
 
 void LowerCtx::MarkMoved(const std::string& name) {
   auto it = binding_states.find(name);
-  if (it != binding_states.end() && !it->second.empty()) {
-    it->second.back().is_moved = true;
+  if (it == binding_states.end() || it->second.empty()) {
+    SPEC_RULE("UpdateValid-Err");
+    ReportCodegenFailure();
+    return;
   }
+  SPEC_RULE("UpdateValid-MoveRoot");
+  it->second.back().is_moved = true;
 }
 
 void LowerCtx::MarkFieldMoved(const std::string& name, const std::string& field) {
   auto it = binding_states.find(name);
-  if (it != binding_states.end() && !it->second.empty()) {
-    it->second.back().moved_fields.push_back(field);
+  if (it == binding_states.end() || it->second.empty()) {
+    SPEC_RULE("UpdateValid-Err");
+    ReportCodegenFailure();
+    return;
   }
+  SPEC_RULE("UpdateValid-PartialMove-Init");
+  SPEC_RULE("UpdateValid-PartialMove-Step");
+  it->second.back().moved_fields.push_back(field);
 }
 
 const BindingState* LowerCtx::GetBindingState(const std::string& name) const {
@@ -1041,6 +1097,33 @@ void LowerCtx::RegisterTempValue(const IRValue& value, const sema::TypeRef& type
   temp_sink->push_back(std::move(temp));
 }
 
+
+
+void LowerCtx::RegisterDerivedValue(const IRValue& value, const DerivedValueInfo& info) {
+  if (value.kind != IRValue::Kind::Opaque) {
+    return;
+  }
+  derived_values[value.name] = info;
+}
+
+const DerivedValueInfo* LowerCtx::LookupDerivedValue(const IRValue& value) const {
+  if (value.kind != IRValue::Kind::Opaque) {
+    return nullptr;
+  }
+  auto it = derived_values.find(value.name);
+  if (it == derived_values.end()) {
+    return nullptr;
+  }
+  return &it->second;
+}
+
+IRValue LowerCtx::FreshTempValue(std::string_view prefix) {
+  IRValue value;
+  value.kind = IRValue::Kind::Opaque;
+  value.name = std::string(prefix) + "_" + std::to_string(temp_counter++);
+  return value;
+}
+
 void LowerCtx::ReportResolveFailure(const std::string& name) {
   resolve_failed = true;
   if (std::find(resolve_failures.begin(), resolve_failures.end(), name) ==
@@ -1049,8 +1132,127 @@ void LowerCtx::ReportResolveFailure(const std::string& name) {
   }
 }
 
-void LowerCtx::ReportCodegenFailure() {
+void LowerCtx::ReportCodegenFailure(std::source_location loc) {
   codegen_failed = true;
+  if (std::getenv("CURSIVE0_DEBUG_OBJ")) {
+    std::cerr << "[cursivec0] codegen failure at " << loc.file_name() << ":"
+              << loc.line() << "\n";
+  }
+}
+
+void LowerCtx::RegisterValueType(const IRValue& value, sema::TypeRef type) {
+  if (!type) {
+    return;
+  }
+  if (value.kind != IRValue::Kind::Opaque) {
+    return;
+  }
+  value_types[value.name] = type;
+}
+
+sema::TypeRef LowerCtx::LookupValueType(const IRValue& value) const {
+  if (value.kind == IRValue::Kind::Local) {
+    if (const auto* state = GetBindingState(value.name)) {
+      return state->type;
+    }
+    return nullptr;
+  }
+  if (value.kind == IRValue::Kind::Symbol) {
+    return LookupStaticType(value.name);
+  }
+  if (value.kind != IRValue::Kind::Opaque) {
+    return nullptr;
+  }
+  auto it = value_types.find(value.name);
+  if (it != value_types.end()) {
+    return it->second;
+  }
+  return nullptr;
+}
+
+void LowerCtx::RegisterStaticType(const std::string& sym, sema::TypeRef type) {
+  if (!type) {
+    return;
+  }
+  static_types[sym] = type;
+}
+
+sema::TypeRef LowerCtx::LookupStaticType(const std::string& sym) const {
+  auto it = static_types.find(sym);
+  if (it != static_types.end()) {
+    return it->second;
+  }
+  return nullptr;
+}
+
+void LowerCtx::RegisterStaticModule(const std::string& sym,
+                                    const syntax::ModulePath& module_path) {
+  static_modules[sym] = module_path;
+}
+
+const std::vector<std::string>* LowerCtx::LookupStaticModule(
+    const std::string& sym) const {
+  auto it = static_modules.find(sym);
+  if (it != static_modules.end()) {
+    return &it->second;
+  }
+  return nullptr;
+}
+
+void LowerCtx::RegisterDropGlueType(const std::string& sym, sema::TypeRef type) {
+  if (!type) {
+    return;
+  }
+  drop_glue_types[sym] = type;
+}
+
+sema::TypeRef LowerCtx::LookupDropGlueType(const std::string& sym) const {
+  auto it = drop_glue_types.find(sym);
+  if (it != drop_glue_types.end()) {
+    return it->second;
+  }
+  return nullptr;
+}
+
+void LowerCtx::RegisterRecordCtor(const std::string& sym,
+                                  const std::vector<std::string>& path) {
+  record_ctor_paths[sym] = path;
+}
+
+const std::vector<std::string>* LowerCtx::LookupRecordCtor(
+    const std::string& sym) const {
+  auto it = record_ctor_paths.find(sym);
+  if (it != record_ctor_paths.end()) {
+    return &it->second;
+  }
+  return nullptr;
+}
+
+void LowerCtx::RegisterProcSig(const ProcIR& proc) {
+  ProcSigInfo info;
+  info.params = proc.params;
+  info.ret = proc.ret;
+  proc_sigs[proc.symbol] = std::move(info);
+}
+
+const LowerCtx::ProcSigInfo* LowerCtx::LookupProcSig(const std::string& sym) const {
+  auto it = proc_sigs.find(sym);
+  if (it != proc_sigs.end()) {
+    return &it->second;
+  }
+  return nullptr;
+}
+
+void LowerCtx::RegisterProcModule(const std::string& sym, const syntax::ModulePath& module_path) {
+  proc_modules[sym] = module_path;
+}
+
+const std::vector<std::string>* LowerCtx::LookupProcModule(const std::string& sym) const {
+  auto it = proc_modules.find(sym);
+  if (it != proc_modules.end()) {
+    return &it->second;
+  }
+  return nullptr;
 }
 
 }  // namespace cursive0::codegen

@@ -1,0 +1,654 @@
+#include "cursive0/semantics/apply.h"
+
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "cursive0/core/assert_spec.h"
+#include "cursive0/sema/classes.h"
+#include "cursive0/sema/function_types.h"
+#include "cursive0/sema/record_methods.h"
+#include "cursive0/sema/resolver.h"
+#include "cursive0/sema/type_equiv.h"
+#include "cursive0/sema/type_expr.h"
+#include "cursive0/sema/visibility.h"
+#include "cursive0/semantics/builtins.h"
+#include "cursive0/semantics/cleanup.h"
+#include "cursive0/semantics/exec.h"
+#include "cursive0/semantics/eval.h"
+
+namespace cursive0::semantics {
+
+namespace {
+
+bool IsSystemExit(const sema::TypePath& path, std::string_view name) {
+  return path.size() == 1 && path[0] == "System" && name == "exit";
+}
+
+
+Outcome PanicOutcome() {
+  Control ctrl;
+  ctrl.kind = ControlKind::Panic;
+  ctrl.value = std::nullopt;
+  return MakeCtrl(ctrl);
+}
+
+Outcome ExitOutcome(const Outcome& out, CleanupStatus status) {
+  if (status == CleanupStatus::Abort) {
+    Control ctrl;
+    ctrl.kind = ControlKind::Abort;
+    return MakeCtrl(ctrl);
+  }
+  if (status == CleanupStatus::Ok) {
+    return out;
+  }
+  if (IsCtrl(out)) {
+    const auto& ctrl = std::get<Control>(out.node);
+    if (ctrl.kind == ControlKind::Abort) {
+      return out;
+    }
+    if (ctrl.kind == ControlKind::Panic) {
+      Control abort_ctrl;
+      abort_ctrl.kind = ControlKind::Abort;
+      return MakeCtrl(abort_ctrl);
+    }
+  }
+  Control panic_ctrl;
+  panic_ctrl.kind = ControlKind::Panic;
+  return MakeCtrl(panic_ctrl);
+}
+
+std::optional<ScopeEntry*> MutableScopeById(Sigma& sigma, ScopeId sid) {
+  for (auto& scope : sigma.scope_stack) {
+    if (scope.id == sid) {
+      return &scope;
+    }
+  }
+  return std::nullopt;
+}
+
+Outcome BlockExit(const SemanticsContext& ctx,
+                  ScopeId scope_id,
+                  const Outcome& out,
+                  Sigma& sigma) {
+  auto scope_ptr = MutableScopeById(sigma, scope_id);
+  if (!scope_ptr.has_value()) {
+    return PanicOutcome();
+  }
+  const CleanupStatus cleanup = CleanupScope(ctx, **scope_ptr, sigma);
+  const Outcome out2 = ExitOutcome(out, cleanup);
+  if (IsCtrl(out2)) {
+    const auto& ctrl = std::get<Control>(out2.node);
+    if (ctrl.kind == ControlKind::Abort) {
+      return out2;
+    }
+  }
+  ScopeEntry popped;
+  if (!PopScope(sigma, &popped)) {
+    return PanicOutcome();
+  }
+  return out2;
+}
+
+Outcome ReturnOut(const Outcome& out) {
+  if (!IsCtrl(out)) {
+    return out;
+  }
+  const auto& ctrl = std::get<Control>(out.node);
+  if (ctrl.kind == ControlKind::Return) {
+    if (ctrl.value.has_value()) {
+      return MakeVal(*ctrl.value);
+    }
+    return MakeVal(Value{UnitVal{}});
+  }
+  if (ctrl.kind == ControlKind::Panic || ctrl.kind == ControlKind::Abort) {
+    return out;
+  }
+  return PanicOutcome();
+}
+
+bool ParamIsMove(const syntax::Param& param) {
+  return param.mode.has_value();
+}
+
+BindInfo BindInfoForParam(const syntax::Param& param) {
+  BindInfo info;
+  info.mov = Movability::Mov;
+  info.resp = ParamIsMove(param) ? Responsibility::Resp
+                                 : Responsibility::Alias;
+  return info;
+}
+
+BindInfo BindInfoForRecv(bool move_mode) {
+  BindInfo info;
+  info.mov = Movability::Mov;
+  info.resp = move_mode ? Responsibility::Resp
+                        : Responsibility::Alias;
+  return info;
+}
+
+std::optional<sema::Permission> LowerPermission(syntax::TypePerm perm) {
+  switch (perm) {
+    case syntax::TypePerm::Const:
+      return sema::Permission::Const;
+    case syntax::TypePerm::Unique:
+      return sema::Permission::Unique;
+    case syntax::TypePerm::Shared:
+      return sema::Permission::Shared;
+  }
+  return std::nullopt;
+}
+
+std::optional<sema::RawPtrQual> LowerRawPtrQual(syntax::RawPtrQual qual) {
+  switch (qual) {
+    case syntax::RawPtrQual::Imm:
+      return sema::RawPtrQual::Imm;
+    case syntax::RawPtrQual::Mut:
+      return sema::RawPtrQual::Mut;
+  }
+  return std::nullopt;
+}
+
+std::optional<sema::StringState> LowerStringState(
+    const std::optional<syntax::StringState>& state) {
+  if (!state.has_value()) {
+    return std::nullopt;
+  }
+  switch (*state) {
+    case syntax::StringState::Managed:
+      return sema::StringState::Managed;
+    case syntax::StringState::View:
+      return sema::StringState::View;
+  }
+  return std::nullopt;
+}
+
+std::optional<sema::BytesState> LowerBytesState(
+    const std::optional<syntax::BytesState>& state) {
+  if (!state.has_value()) {
+    return std::nullopt;
+  }
+  switch (*state) {
+    case syntax::BytesState::Managed:
+      return sema::BytesState::Managed;
+    case syntax::BytesState::View:
+      return sema::BytesState::View;
+  }
+  return std::nullopt;
+}
+
+std::optional<sema::PtrState> LowerPtrState(
+    const std::optional<syntax::PtrState>& state) {
+  if (!state.has_value()) {
+    return std::nullopt;
+  }
+  switch (*state) {
+    case syntax::PtrState::Valid:
+      return sema::PtrState::Valid;
+    case syntax::PtrState::Null:
+      return sema::PtrState::Null;
+    case syntax::PtrState::Expired:
+      return sema::PtrState::Expired;
+  }
+  return std::nullopt;
+}
+
+sema::TypePath TypePathOf(const syntax::TypePath& path) {
+  sema::TypePath out;
+  out.reserve(path.size());
+  for (const auto& part : path) {
+    out.push_back(part);
+  }
+  return out;
+}
+
+std::optional<sema::TypePath> ResolveTypePath(const SemanticsContext& ctx,
+                                              const syntax::TypePath& path) {
+  if (!ctx.sema || !ctx.name_maps || !ctx.module_names) {
+    return TypePathOf(path);
+  }
+  sema::ResolveContext resolve_ctx;
+  resolve_ctx.ctx = const_cast<sema::ScopeContext*>(ctx.sema);
+  resolve_ctx.name_maps = ctx.name_maps;
+  resolve_ctx.module_names = ctx.module_names;
+  resolve_ctx.can_access = sema::CanAccess;
+  const auto resolved = sema::ResolveTypePath(resolve_ctx, path);
+  if (!resolved.ok) {
+    return std::nullopt;
+  }
+  return TypePathOf(resolved.value);
+}
+
+std::optional<sema::TypeRef> LowerType(const SemanticsContext& ctx,
+                                       const std::shared_ptr<syntax::Type>& type) {
+  if (!type) {
+    return std::nullopt;
+  }
+  return std::visit(
+      [&](const auto& node) -> std::optional<sema::TypeRef> {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, syntax::TypePrim>) {
+          return sema::MakeTypePrim(node.name);
+        } else if constexpr (std::is_same_v<T, syntax::TypePermType>) {
+          const auto perm = LowerPermission(node.perm);
+          const auto base = LowerType(ctx, node.base);
+          if (!perm.has_value() || !base.has_value()) {
+            return std::nullopt;
+          }
+          return sema::MakeTypePerm(*perm, *base);
+        } else if constexpr (std::is_same_v<T, syntax::TypeUnion>) {
+          std::vector<sema::TypeRef> members;
+          members.reserve(node.types.size());
+          for (const auto& member : node.types) {
+            const auto lowered = LowerType(ctx, member);
+            if (!lowered.has_value()) {
+              return std::nullopt;
+            }
+            members.push_back(*lowered);
+          }
+          return sema::MakeTypeUnion(std::move(members));
+        } else if constexpr (std::is_same_v<T, syntax::TypeFunc>) {
+          std::vector<sema::TypeFuncParam> params;
+          params.reserve(node.params.size());
+          for (const auto& param : node.params) {
+            const auto lowered = LowerType(ctx, param.type);
+            if (!lowered.has_value()) {
+              return std::nullopt;
+            }
+            sema::TypeFuncParam out_param;
+            if (param.mode.has_value()) {
+              out_param.mode = sema::ParamMode::Move;
+            }
+            out_param.type = *lowered;
+            params.push_back(std::move(out_param));
+          }
+          const auto ret = LowerType(ctx, node.ret);
+          if (!ret.has_value()) {
+            return std::nullopt;
+          }
+          return sema::MakeTypeFunc(std::move(params), *ret);
+        } else if constexpr (std::is_same_v<T, syntax::TypeTuple>) {
+          std::vector<sema::TypeRef> elements;
+          elements.reserve(node.elements.size());
+          for (const auto& elem : node.elements) {
+            const auto lowered = LowerType(ctx, elem);
+            if (!lowered.has_value()) {
+              return std::nullopt;
+            }
+            elements.push_back(*lowered);
+          }
+          return sema::MakeTypeTuple(std::move(elements));
+        } else if constexpr (std::is_same_v<T, syntax::TypeArray>) {
+          const auto elem = LowerType(ctx, node.element);
+          if (!elem.has_value() || !ctx.sema) {
+            return std::nullopt;
+          }
+          const auto len = sema::ConstLen(*ctx.sema, node.length);
+          if (!len.ok || !len.value.has_value()) {
+            return std::nullopt;
+          }
+          return sema::MakeTypeArray(*elem, *len.value);
+        } else if constexpr (std::is_same_v<T, syntax::TypeSlice>) {
+          const auto elem = LowerType(ctx, node.element);
+          if (!elem.has_value()) {
+            return std::nullopt;
+          }
+          return sema::MakeTypeSlice(*elem);
+        } else if constexpr (std::is_same_v<T, syntax::TypePtr>) {
+          const auto elem = LowerType(ctx, node.element);
+          if (!elem.has_value()) {
+            return std::nullopt;
+          }
+          return sema::MakeTypePtr(*elem, LowerPtrState(node.state));
+        } else if constexpr (std::is_same_v<T, syntax::TypeRawPtr>) {
+          const auto elem = LowerType(ctx, node.element);
+          const auto qual = LowerRawPtrQual(node.qual);
+          if (!elem.has_value() || !qual.has_value()) {
+            return std::nullopt;
+          }
+          return sema::MakeTypeRawPtr(*qual, *elem);
+        } else if constexpr (std::is_same_v<T, syntax::TypeString>) {
+          return sema::MakeTypeString(LowerStringState(node.state));
+        } else if constexpr (std::is_same_v<T, syntax::TypeBytes>) {
+          return sema::MakeTypeBytes(LowerBytesState(node.state));
+        } else if constexpr (std::is_same_v<T, syntax::TypeDynamic>) {
+          sema::TypePath path(node.path.begin(), node.path.end());
+          return sema::MakeTypeDynamic(std::move(path));
+        } else if constexpr (std::is_same_v<T, syntax::TypeModalState>) {
+          const auto path = ResolveTypePath(ctx, node.path);
+          if (!path.has_value()) {
+            return std::nullopt;
+          }
+          return sema::MakeTypeModalState(*path, node.state);
+        } else if constexpr (std::is_same_v<T, syntax::TypePathType>) {
+          const auto path = ResolveTypePath(ctx, node.path);
+          if (!path.has_value()) {
+            return std::nullopt;
+          }
+          return sema::MakeTypePath(*path);
+        }
+        return std::nullopt;
+      },
+      type->node);
+}
+
+sema::TypeRef ReturnTypeOf(const SemanticsContext& ctx,
+                           const std::shared_ptr<syntax::Type>& type_opt) {
+  if (!type_opt) {
+    return sema::MakeTypePrim("()");
+  }
+  const auto lowered = LowerType(ctx, type_opt);
+  if (lowered.has_value()) {
+    return *lowered;
+  }
+  return sema::MakeTypePrim("()");
+}
+
+sema::TypeRef ProcReturnType(const SemanticsContext& ctx,
+                             const syntax::ProcedureDecl& proc) {
+  if (!ctx.sema) {
+    return ReturnTypeOf(ctx, proc.return_type_opt);
+  }
+  const auto res = sema::ProcType(*ctx.sema, proc);
+  if (!res.ok || !res.type) {
+    return ReturnTypeOf(ctx, proc.return_type_opt);
+  }
+  if (const auto* fn = std::get_if<sema::TypeFunc>(&res.type->node)) {
+    return fn->ret;
+  }
+  return ReturnTypeOf(ctx, proc.return_type_opt);
+}
+
+const syntax::RecordDecl* FindRecordDecl(const sema::ScopeContext& ctx,
+                                         const sema::TypePath& path) {
+  const auto key = sema::PathKeyOf(path);
+  const auto it = ctx.sigma.types.find(key);
+  if (it == ctx.sigma.types.end()) {
+    return nullptr;
+  }
+  return std::get_if<syntax::RecordDecl>(&it->second);
+}
+
+}  // namespace
+
+Outcome ApplyRegionProc(const SemanticsContext& ctx,
+                        std::string_view name,
+                        const std::vector<BindingValue>& args,
+                        Sigma& sigma) {
+  (void)ctx;
+  if (!IsRegionProcName(name)) {
+    return PanicOutcome();
+  }
+  sema::TypePath module_path;
+  module_path.emplace_back("Region");
+  const auto result = BuiltinCall(module_path, name, args, sigma);
+  if (!result.has_value()) {
+    return PanicOutcome();
+  }
+  if (name == "new_scoped") {
+    SPEC_RULE("ApplyRegionProc-NewScoped");
+  } else if (name == "alloc") {
+    SPEC_RULE("ApplyRegionProc-Alloc");
+  } else if (name == "reset_unchecked") {
+    SPEC_RULE("ApplyRegionProc-Reset");
+  } else if (name == "freeze") {
+    SPEC_RULE("ApplyRegionProc-Freeze");
+  } else if (name == "thaw") {
+    SPEC_RULE("ApplyRegionProc-Thaw");
+  } else if (name == "free_unchecked") {
+    SPEC_RULE("ApplyRegionProc-Free");
+  } else {
+    return PanicOutcome();
+  }
+  return MakeVal(*result);
+}
+
+Outcome ApplyProcSigma(const SemanticsContext& ctx,
+                       const syntax::ProcedureDecl& proc,
+                       const std::vector<BindingValue>& args,
+                       Sigma& sigma) {
+  if (proc.params.size() != args.size()) {
+    return PanicOutcome();
+  }
+  ScopeEntry scope;
+  if (!PushScope(sigma, &scope)) {
+    return PanicOutcome();
+  }
+  const ScopeId scope_id = scope.id;
+  for (std::size_t i = 0; i < proc.params.size(); ++i) {
+    const auto& param = proc.params[i];
+    const BindInfo info = BindInfoForParam(param);
+    if (!BindVal(sigma, param.name, args[i], info, nullptr)) {
+      return BlockExit(ctx, scope_id, PanicOutcome(), sigma);
+    }
+  }
+  SemanticsContext inner = ctx;
+  inner.ret_type = ProcReturnType(ctx, proc);
+  Outcome out = EvalBlockBodySigma(inner, *proc.body, sigma);
+  Outcome out2 = BlockExit(inner, scope_id, out, sigma);
+  SPEC_RULE("ApplyProcSigma");
+  return ReturnOut(out2);
+}
+
+Outcome ApplyRecordCtorSigma(const SemanticsContext& ctx,
+                             const sema::TypePath& path,
+                             Sigma& sigma) {
+  if (!ctx.sema) {
+    return PanicOutcome();
+  }
+  const auto key = sema::PathKeyOf(path);
+  const auto it = ctx.sema->sigma.types.find(key);
+  if (it == ctx.sema->sigma.types.end()) {
+    return PanicOutcome();
+  }
+  const auto* record_decl = std::get_if<syntax::RecordDecl>(&it->second);
+  if (!record_decl) {
+    return PanicOutcome();
+  }
+  std::vector<syntax::FieldInit> fields;
+  for (const auto& member : record_decl->members) {
+    const auto* field = std::get_if<syntax::FieldDecl>(&member);
+    if (!field) {
+      continue;
+    }
+    if (!field->init_opt) {
+      return PanicOutcome();
+    }
+    syntax::FieldInit init;
+    init.name = field->name;
+    init.value = field->init_opt;
+    init.span = field->span;
+    fields.push_back(std::move(init));
+  }
+  auto eval_out = EvalFieldInitsSigma(ctx, fields, sigma);
+  if (std::holds_alternative<Control>(eval_out)) {
+    SPEC_RULE("ApplyRecordCtorSigma-Ctrl");
+    return MakeCtrl(std::get<Control>(eval_out));
+  }
+  RecordVal record;
+  record.record_type = sema::MakeTypePath(path);
+  record.fields = std::move(
+      std::get<std::vector<std::pair<std::string, Value>>>(eval_out));
+  SPEC_RULE("ApplyRecordCtorSigma");
+  return MakeVal(Value{record});
+}
+
+Outcome ApplyMethodSigma(const SemanticsContext& ctx,
+                         const syntax::Expr& base,
+                         std::string_view name,
+                         const Value& self_value,
+                         const BindingValue& self_arg,
+                         const std::vector<BindingValue>& args,
+                         const MethodTarget& target,
+                         Sigma& sigma) {
+  (void)base;
+  const syntax::Block* body = nullptr;
+  std::vector<syntax::Param> params;
+  bool recv_move = false;
+  sema::TypeRef ret_type = sema::MakeTypePrim("()");
+
+  if (target.kind == MethodTarget::Kind::Record) {
+    if (!target.record_method) {
+      return PanicOutcome();
+    }
+    const auto& method = *target.record_method;
+    if (const auto* explicit_recv =
+            std::get_if<syntax::ReceiverExplicit>(&method.receiver)) {
+      recv_move = explicit_recv->mode_opt.has_value();
+    }
+    params = method.params;
+    ret_type = ReturnTypeOf(ctx, method.return_type_opt);
+    body = method.body.get();
+  } else if (target.kind == MethodTarget::Kind::State) {
+    if (!target.state_method) {
+      return PanicOutcome();
+    }
+    const auto& method = *target.state_method;
+    params = method.params;
+    ret_type = ReturnTypeOf(ctx, method.return_type_opt);
+    body = method.body.get();
+  } else {
+    if (!target.class_method) {
+      std::vector<Value> arg_values;
+      arg_values.reserve(args.size());
+      for (const auto& arg : args) {
+        if (const auto* val = std::get_if<Value>(&arg)) {
+          arg_values.push_back(*val);
+          continue;
+        }
+        const auto alias = std::get<Alias>(arg);
+        const auto value = ReadAddr(sigma, alias.addr);
+        if (!value.has_value()) {
+          return PanicOutcome();
+        }
+        arg_values.push_back(*value);
+      }
+      if (IsSystemExit(target.owner_class, name)) {
+        Control ctrl;
+        ctrl.kind = ControlKind::Abort;
+        ctrl.value = std::nullopt;
+        SPEC_RULE("ApplyMethodSigma-Prim");
+        SPEC_RULE("ApplyMethod-Prim");
+        SPEC_RULE("ApplyMethod-Prim-Step");
+        return MakeCtrl(ctrl);
+      }
+      const auto prim = PrimCall(target.owner_class, name, self_value, arg_values, sigma);
+      if (!prim.has_value()) {
+        return PanicOutcome();
+      }
+      SPEC_RULE("ApplyMethodSigma-Prim");
+      SPEC_RULE("ApplyMethod-Prim");
+      SPEC_RULE("ApplyMethod-Prim-Step");
+      return MakeVal(*prim);
+    }
+    const auto& method = *target.class_method;
+    if (!method.body_opt) {
+      std::vector<Value> arg_values;
+      arg_values.reserve(args.size());
+      for (const auto& arg : args) {
+        if (const auto* val = std::get_if<Value>(&arg)) {
+          arg_values.push_back(*val);
+          continue;
+        }
+        const auto alias = std::get<Alias>(arg);
+        const auto value = ReadAddr(sigma, alias.addr);
+        if (!value.has_value()) {
+          return PanicOutcome();
+        }
+        arg_values.push_back(*value);
+      }
+      if (IsSystemExit(target.owner_class, name)) {
+        Control ctrl;
+        ctrl.kind = ControlKind::Abort;
+        ctrl.value = std::nullopt;
+        SPEC_RULE("ApplyMethodSigma-Prim");
+        SPEC_RULE("ApplyMethod-Prim");
+        SPEC_RULE("ApplyMethod-Prim-Step");
+        return MakeCtrl(ctrl);
+      }
+      const auto prim = PrimCall(target.owner_class, name, self_value, arg_values, sigma);
+      if (!prim.has_value()) {
+        return PanicOutcome();
+      }
+      SPEC_RULE("ApplyMethodSigma-Prim");
+      SPEC_RULE("ApplyMethod-Prim");
+      SPEC_RULE("ApplyMethod-Prim-Step");
+      return MakeVal(*prim);
+    }
+    if (const auto* explicit_recv =
+            std::get_if<syntax::ReceiverExplicit>(&method.receiver)) {
+      recv_move = explicit_recv->mode_opt.has_value();
+    }
+    params = method.params;
+    ret_type = ReturnTypeOf(ctx, method.return_type_opt);
+    body = method.body_opt.get();
+  }
+
+  if (target.kind == MethodTarget::Kind::State) {
+    const auto* rec = std::get_if<RecordVal>(&self_value.node);
+    const auto* modal = (rec && rec->record_type)
+        ? std::get_if<sema::TypeModalState>(&rec->record_type->node)
+        : nullptr;
+    if (modal && modal->path.size() == 1 &&
+        (modal->path[0] == "File" || modal->path[0] == "DirIter")) {
+      std::vector<Value> arg_values;
+      arg_values.reserve(args.size());
+      for (const auto& arg : args) {
+        if (const auto* val = std::get_if<Value>(&arg)) {
+          arg_values.push_back(*val);
+          continue;
+        }
+        const auto alias = std::get<Alias>(arg);
+        const auto value = ReadAddr(sigma, alias.addr);
+        if (!value.has_value()) {
+          return PanicOutcome();
+        }
+        arg_values.push_back(*value);
+      }
+      const auto prim = PrimCall(modal->path, name, self_value, arg_values, sigma);
+      if (!prim.has_value()) {
+        return PanicOutcome();
+      }
+      SPEC_RULE("ApplyMethodSigma-Prim");
+      SPEC_RULE("ApplyMethod-Prim");
+      SPEC_RULE("ApplyMethod-Prim-Step");
+      return MakeVal(*prim);
+    }
+  }
+
+  if (!body) {
+    return PanicOutcome();
+  }
+
+  if (params.size() != args.size()) {
+    return PanicOutcome();
+  }
+
+  ScopeEntry scope;
+  if (!PushScope(sigma, &scope)) {
+    return PanicOutcome();
+  }
+  const ScopeId scope_id = scope.id;
+  const BindInfo self_info = BindInfoForRecv(recv_move);
+  if (!BindVal(sigma, "self", self_arg, self_info, nullptr)) {
+    return BlockExit(ctx, scope_id, PanicOutcome(), sigma);
+  }
+  for (std::size_t i = 0; i < params.size(); ++i) {
+    const auto& param = params[i];
+    const BindInfo info = BindInfoForParam(param);
+    if (!BindVal(sigma, param.name, args[i], info, nullptr)) {
+      return BlockExit(ctx, scope_id, PanicOutcome(), sigma);
+    }
+  }
+
+  SemanticsContext inner = ctx;
+  inner.ret_type = ret_type;
+  Outcome out = EvalBlockBodySigma(inner, *body, sigma);
+  Outcome out2 = BlockExit(inner, scope_id, out, sigma);
+  SPEC_RULE("ApplyMethodSigma");
+  return ReturnOut(out2);
+}
+
+}  // namespace cursive0::semantics

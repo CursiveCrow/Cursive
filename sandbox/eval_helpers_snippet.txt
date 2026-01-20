@@ -1,0 +1,252 @@
+== MovePlace? occurrences: 0 ==
+== AddrOf? occurrences: 0 ==
+== ReadPtr? occurrences: 0 ==
+== RegionAlloc occurrences: 6 ==
+
+**(ExecIR-Alloc)**
+$$\frac{\text{AllocTarget}(\sigma, r_{opt}) = r \quad \text{RegionAlloc}(\sigma, r, v) \Downarrow (\sigma', v')}{\text{ExecIRσ}(\text{AllocIR}(r_{opt}, v), \sigma) \Downarrow (\text{Val}(v'), \sigma')}$$
+
+**(MoveState-Root)**
+
+
+$$\text{DynPayloadAddr}(v, addr) \iff v = \text{Dyn}(Cl, \text{RawPtr}(\texttt{imm}, addr), T)$$
+$$\text{RegionAlloc}(\sigma, r, v) \Downarrow (\sigma', v') \Rightarrow \left(\text{ResolveTag}(\sigma, r) = tag \land \forall addr.\ \text{DynPayloadAddr}(v', addr) \Rightarrow \text{AddrTags}(\sigma')(addr) = \text{RegionTag}(tag)\right)$$
+
+$$\text{PopRegion}([], r) = \bot$$
+
+
+**(Evalσ-Alloc-Implicit)**
+$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{ActiveTarget}(\sigma_1) = r \quad \text{RegionAlloc}(\sigma_1, r, v) \Downarrow (\sigma_2, v')}{\Gamma \vdash \text{Evalσ}(\text{AllocExpr}(\bot, e), \sigma) \Downarrow (\text{Val}(v'), \sigma_2)}$$
+
+**(Evalσ-Alloc-Implicit-Ctrl)**
+
+
+**(Evalσ-Alloc-Explicit)**
+$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{LookupVal}(\sigma_1, r) = h \quad \text{ResolveTarget}(\sigma_1, h) = r_t \quad \text{RegionAlloc}(\sigma_1, r_t, v) \Downarrow (\sigma_2, v')}{\Gamma \vdash \text{Evalσ}(\text{AllocExpr}(r, e), \sigma) \Downarrow (\text{Val}(v'), \sigma_2)}$$
+
+**(Evalσ-Alloc-Explicit-Ctrl)**
+
+== ResolveTarget occurrences: 5 ==
+
+$$\text{AllocTarget}(\sigma, \bot) = \text{ActiveTarget}(\sigma)$$
+$$\text{AllocTarget}(\sigma, r) = \text{ResolveTarget}(\sigma, r)$$
+
+**(ExecIR-Alloc)**
+
+$$\text{ActiveEntry}(\sigma) = e \iff \text{RegionStack}(\sigma) = e :: es$$
+$$\text{ActiveTarget}(\sigma) = target \iff \text{ActiveEntry}(\sigma) = e \land \text{RegionTargetOf}(e) = target$$
+$$\text{ResolveTarget}(\sigma, r) = target \iff \text{ResolveEntry}(\text{RegionStack}(\sigma), r) = e \land \text{RegionTargetOf}(e) = target$$
+$$\text{ResolveTag}(\sigma, r) = tag \iff \text{ResolveEntry}(\text{RegionStack}(\sigma), r) = e \land \text{RegionTagOf}(e) = tag$$
+$$\text{FreshTag}(\sigma) = tag \Rightarrow \forall e \in \text{RegionStack}(\sigma).\ \text{RegionTagOf}(e) \ne tag$$
+
+
+$$\text{ActiveTarget}(\sigma)\ \text{undefined} \Rightarrow \text{IllFormed}(\text{ActiveTarget}(\sigma))$$
+$$\text{ResolveTarget}(\sigma, r)\ \text{undefined} \Rightarrow \text{IllFormed}(\text{ResolveTarget}(\sigma, r))$$
+
+$$\text{UpdateRegionStack}(\sigma, rs) = \sigma' \iff \text{RegionStack}(\sigma') = rs \land \text{ScopeStack}(\sigma') = \text{ScopeStack}(\sigma) \land \text{AddrTags}(\sigma') = \text{AddrTags}(\sigma) \land \text{PoisonedModules}(\sigma') = \text{PoisonedModules}(\sigma)$$
+
+
+**(Evalσ-Alloc-Explicit)**
+$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{LookupVal}(\sigma_1, r) = h \quad \text{ResolveTarget}(\sigma_1, h) = r_t \quad \text{RegionAlloc}(\sigma_1, r_t, v) \Downarrow (\sigma_2, v')}{\Gamma \vdash \text{Evalσ}(\text{AllocExpr}(r, e), \sigma) \Downarrow (\text{Val}(v'), \sigma_2)}$$
+
+**(Evalσ-Alloc-Explicit-Ctrl)**
+
+== ActiveTarget occurrences: 8 ==
+$$\frac{\Gamma \vdash \text{WritePtrσ}(v_{ptr}, v, \sigma) \Downarrow (sout, \sigma')}{\text{ExecIRσ}(\text{WritePtrIR}(v_{ptr}, v), \sigma) \Downarrow (sout, \sigma')}$$
+
+$$\text{AllocTarget}(\sigma, \bot) = \text{ActiveTarget}(\sigma)$$
+$$\text{AllocTarget}(\sigma, r) = \text{ResolveTarget}(\sigma, r)$$
+
+
+
+**(ExecIR-Frame-Implicit)**
+$$\frac{\text{ActiveTarget}(\sigma) = r \quad \text{FrameEnter}(\sigma, r) \Downarrow (\sigma_1, F, scope, mark) \quad \Gamma \vdash \text{ExecInScopeIRσ}(IR_b, \sigma_1, scope) \Downarrow (out, \sigma_2) \quad \text{FrameReset}(\sigma_2, r, scope, mark, out) \Downarrow (out', \sigma_3)}{\text{ExecIRσ}(\text{FrameIR}(\bot, IR_b, v_b), \sigma) \Downarrow (\text{StmtOutOf}(out'), \sigma_3)}$$
+
+**(ExecIR-Frame-Explicit)**
+
+$$\text{ResolveEntry}(e::es, r) = \begin{cases} e & \text{if } \text{RegionTargetOf}(e) = r \\ \text{ResolveEntry}(es, r) & \text{otherwise} \end{cases}$$
+$$\text{ActiveEntry}(\sigma) = e \iff \text{RegionStack}(\sigma) = e :: es$$
+$$\text{ActiveTarget}(\sigma) = target \iff \text{ActiveEntry}(\sigma) = e \land \text{RegionTargetOf}(e) = target$$
+$$\text{ResolveTarget}(\sigma, r) = target \iff \text{ResolveEntry}(\text{RegionStack}(\sigma), r) = e \land \text{RegionTargetOf}(e) = target$$
+$$\text{ResolveTag}(\sigma, r) = tag \iff \text{ResolveEntry}(\text{RegionStack}(\sigma), r) = e \land \text{RegionTagOf}(e) = tag$$
+
+$$\text{FreshArena}(\sigma) = r \Rightarrow \forall e \in \text{RegionStack}(\sigma).\ \text{RegionTargetOf}(e) \ne r$$
+
+$$\text{ActiveTarget}(\sigma)\ \text{undefined} \Rightarrow \text{IllFormed}(\text{ActiveTarget}(\sigma))$$
+$$\text{ResolveTarget}(\sigma, r)\ \text{undefined} \Rightarrow \text{IllFormed}(\text{ResolveTarget}(\sigma, r))$$
+
+
+== UnionCase occurrences: 8 ==
+
+**(Lower-Expr-Propagate-Success)**
+$$\frac{\Gamma \vdash \text{LowerExpr}(e) \Downarrow \langle IR_e, v \rangle \quad U = \text{ExprType}(e) \quad \text{SuccessMember}(\text{RetType}(\Gamma), U) = T_s \quad \text{UnionCase}(v) = \langle T_s, v_s \rangle}{\Gamma \vdash \text{LowerExpr}(\text{Propagate}(e)) \Downarrow \langle IR_e, v_s \rangle}$$
+
+**(Lower-Expr-Propagate-Return)**
+
+
+**(Lower-Expr-Propagate-Return)**
+$$\frac{\Gamma \vdash \text{LowerExpr}(e) \Downarrow \langle IR_e, v \rangle \quad U = \text{ExprType}(e) \quad \text{SuccessMember}(\text{RetType}(\Gamma), U) = T_s \quad \text{UnionCase}(v) = \langle T_e, v_e \rangle \quad T_e \ne T_s}{\Gamma \vdash \text{LowerExpr}(\text{Propagate}(e)) \Downarrow \langle \text{SeqIR}(IR_e, \text{ReturnIR}(v_e)), v_{\text{unreach}} \rangle}$$
+
+**(Lower-Expr-Range)**
+
+
+**(Match-Typed)**
+$$\frac{\text{UnionCase}(v) = \langle T', v' \rangle}{ \Gamma \vdash \text{MatchPattern}(x : T, v) \Downarrow \{ x \mapsto v' \}\quad \text{if } \Gamma \vdash T' \equiv T \text{ else } \bot }$$
+
+**(Match-Literal)**
+
+[\ \langle T_i, v_i \rangle \mid T=\text{TypeTuple}([T_0,\ldots,T_{n-1}]),\ i \in \text{rev}([0,\ldots,n{-}1]),\ \text{TupleValue}(v,i)=v_i\ ] & T=\text{TypeTuple}(\_)\\
+[\ \langle T_e, v_i \rangle \mid T=\text{TypeArray}(T_e, n),\ i \in \text{rev}([0,\ldots,n{-}1]),\ \text{IndexValue}(v,i)=v_i\ ] & T=\text{TypeArray}(\_,\_)\\
+[\ \langle T', v' \rangle \mid \text{UnionCase}(v)=\langle T', v' \rangle\ ] & T=\text{TypeUnion}(\_)\\
+[\ \langle \text{TypeModalState}(p, S), v_s \rangle \mid v=\langle S, v_s \rangle\ ] & T=\text{TypePath}(p)\ \land\ \Sigma.\text{Types}[p]=\texttt{modal }M\\
+[\ \langle T_i, v_i \rangle \mid \langle f_i, T_i \rangle \in \text{Payload}(M, S),\ \text{FieldValue}(v, f_i)=v_i\ ] & T=\text{TypeModalState}(p,S)\ \land\ \Sigma.\text{Types}[p]=\texttt{modal }M\\
+
+== SuccessMember occurrences: 6 ==
+**Propagation (`?`)**
+
+$$\text{SuccessMember}(R,U) = T_s \iff U=\text{TypeUnion}([T_1,\ldots,T_n]) \land \neg(\Gamma \vdash T_s <: R) \land \forall i \ne s.\ \Gamma \vdash T_i <: R$$
+
+**(T-Propagate)**
+
+
+**(T-Propagate)**
+$$\frac{\Gamma; R; L \vdash e : U \quad \text{SuccessMember}(R, U) = T_s}{\Gamma; R; L \vdash \text{Propagate}(e) : T_s}$$
+
+**Record Literals**
+
+
+**(Lower-Expr-Propagate-Success)**
+$$\frac{\Gamma \vdash \text{LowerExpr}(e) \Downarrow \langle IR_e, v \rangle \quad U = \text{ExprType}(e) \quad \text{SuccessMember}(\text{RetType}(\Gamma), U) = T_s \quad \text{UnionCase}(v) = \langle T_s, v_s \rangle}{\Gamma \vdash \text{LowerExpr}(\text{Propagate}(e)) \Downarrow \langle IR_e, v_s \rangle}$$
+
+**(Lower-Expr-Propagate-Return)**
+
+
+**(Lower-Expr-Propagate-Return)**
+$$\frac{\Gamma \vdash \text{LowerExpr}(e) \Downarrow \langle IR_e, v \rangle \quad U = \text{ExprType}(e) \quad \text{SuccessMember}(\text{RetType}(\Gamma), U) = T_s \quad \text{UnionCase}(v) = \langle T_e, v_e \rangle \quad T_e \ne T_s}{\Gamma \vdash \text{LowerExpr}(\text{Propagate}(e)) \Downarrow \langle \text{SeqIR}(IR_e, \text{ReturnIR}(v_e)), v_{\text{unreach}} \rangle}$$
+
+**(Lower-Expr-Range)**
+
+== RetType occurrences: 11 ==
+$$\text{RecordMethodRecvTypes}(members) = \{ t \mid \exists vis,ov,name,recv,params,ret,body,span,doc.\ \text{MethodDecl}(vis,ov,name,recv,params,ret,body,span,doc) \in members \land t \in \text{RecvTypeSet}(recv) \}$$
+$$\text{RecordMethodParamTypes}(members) = \{ t \mid \exists vis,ov,name,recv,params,ret,body,span,doc.\ \text{MethodDecl}(vis,ov,name,recv,params,ret,body,span,doc) \in members \land t \in \text{ParamTypeSet}(params) \}$$
+$$\text{RecordMethodRetTypes}(members) = \{ t \mid \exists vis,ov,name,recv,params,ret,body,span,doc.\ \text{MethodDecl}(vis,ov,name,recv,params,ret,body,span,doc) \in members \land t \in \text{TypeOptSet}(ret) \}$$
+$$\text{RecordMemberTypeSet}(members) = \text{RecordFieldTypeSet}(members) \cup \text{RecordMethodRecvTypes}(members) \cup \text{RecordMethodParamTypes}(members) \cup \text{RecordMethodRetTypes}(members)$$
+
+
+$$\text{RecordMethodParamTypes}(members) = \{ t \mid \exists vis,ov,name,recv,params,ret,body,span,doc.\ \text{MethodDecl}(vis,ov,name,recv,params,ret,body,span,doc) \in members \land t \in \text{ParamTypeSet}(params) \}$$
+$$\text{RecordMethodRetTypes}(members) = \{ t \mid \exists vis,ov,name,recv,params,ret,body,span,doc.\ \text{MethodDecl}(vis,ov,name,recv,params,ret,body,span,doc) \in members \land t \in \text{TypeOptSet}(ret) \}$$
+$$\text{RecordMemberTypeSet}(members) = \text{RecordFieldTypeSet}(members) \cup \text{RecordMethodRecvTypes}(members) \cup \text{RecordMethodParamTypes}(members) \cup \text{RecordMethodRetTypes}(members)$$
+
+$$\text{ClassFieldTypeSet}(items) = \{ t \mid \exists vis,name,span,doc.\ \text{ClassFieldDecl}(vis,name,t,span,doc) \in items \}$$
+
+$$\text{ClassMethodRecvTypes}(items) = \{ t \mid \exists vis,name,recv,params,ret,body,span,doc.\ \text{ClassMethodDecl}(vis,name,recv,params,ret,body,span,doc) \in items \land t \in \text{RecvTypeSet}(recv) \}$$
+$$\text{ClassMethodParamTypes}(items) = \{ t \mid \exists vis,name,recv,params,ret,body,span,doc.\ \text{ClassMethodDecl}(vis,name,recv,params,ret,body,span,doc) \in items \land t \in \text{ParamTypeSet}(params) \}$$
+$$\text{ClassMethodRetTypes}(items) = \{ t \mid \exists vis,name,recv,params,ret,body,span,doc.\ \text{ClassMethodDecl}(vis,name,recv,params,ret,body,span,doc) \in items \land t \in \text{TypeOptSet}(ret) \}$$
+$$\text{ClassItemTypeSet}(items) = \text{ClassFieldTypeSet}(items) \cup \text{ClassMethodRecvTypes}(items) \cup \text{ClassMethodParamTypes}(items) \cup \text{ClassMethodRetTypes}(items)$$
+
+
+$$\text{ClassMethodParamTypes}(items) = \{ t \mid \exists vis,name,recv,params,ret,body,span,doc.\ \text{ClassMethodDecl}(vis,name,recv,params,ret,body,span,doc) \in items \land t \in \text{ParamTypeSet}(params) \}$$
+$$\text{ClassMethodRetTypes}(items) = \{ t \mid \exists vis,name,recv,params,ret,body,span,doc.\ \text{ClassMethodDecl}(vis,name,recv,params,ret,body,span,doc) \in items \land t \in \text{TypeOptSet}(ret) \}$$
+$$\text{ClassItemTypeSet}(items) = \text{ClassFieldTypeSet}(items) \cup \text{ClassMethodRecvTypes}(items) \cup \text{ClassMethodParamTypes}(items) \cup \text{ClassMethodRetTypes}(items)$$
+
+$$\text{VariantPayloadTypeSet}(\bot) = \emptyset$$
+
+== CastVal occurrences: 27 ==
+$$S' = \text{StripPerm}(S)$$
+$$T' = \text{StripPerm}(T)$$
+$$\text{CastValid}(S,T) \iff (S'=\text{TypePrim}(s) \land T'=\text{TypePrim}(t) \land s,t \in \text{NumericTypes}) \lor (S'=\text{TypePrim}(\texttt{"bool"}) \land T'=\text{TypePrim}(t) \land t \in \text{IntTypes}) \lor (S'=\text{TypePrim}(t) \land t \in \text{IntTypes} \land T'=\text{TypePrim}(\texttt{"bool"})) \lor (S'=\text{TypePrim}(\texttt{"char"}) \land T'=\text{TypePrim}(\texttt{"u32"})) \lor (S'=\text{TypePrim}(\texttt{"u32"}) \land T'=\text{TypePrim}(\texttt{"char"}))$$
+
+**(T-Cast)**
+
+
+**(T-Cast)**
+$$\frac{\Gamma; R; L \vdash e : S \quad \text{CastValid}(S, T)}{\Gamma; R; L \vdash \text{Cast}(e, T) : T}$$
+
+**Address-Of, Dereference, Move**
+
+
+**(Lower-Cast)**
+$$\frac{\Gamma \vdash \text{LowerExpr}(e) \Downarrow \langle IR, v \rangle \quad S = \text{ExprType}(e) \quad \text{CastVal}(S, T, v) \Downarrow v'}{\Gamma \vdash \text{LowerCast}(e, T) \Downarrow \langle IR, v' \rangle}$$
+
+**(Lower-Cast-Panic)**
+
+
+**(Lower-Cast-Panic)**
+$$\frac{\Gamma \vdash \text{LowerExpr}(e) \Downarrow \langle IR, v \rangle \quad S = \text{ExprType}(e) \quad \text{CastVal}(S, T, v)\ \text{undefined} \quad \Gamma \vdash \text{LowerPanic}(\text{Cast}) \Downarrow IR_k}{\Gamma \vdash \text{LowerCast}(e, T) \Downarrow \langle \text{SeqIR}(IR, IR_k), v_{\text{unreach}} \rangle}$$
+
+$$\text{PlaceForms0} = \{\text{Identifier}(\_),\ \text{FieldAccess}(\_,\_),\ \text{TupleAccess}(\_,\_),\ \text{IndexAccess}(\_,\_),\ \text{Deref}(\_)\}$$
+
+== TransmuteVal occurrences: 4 ==
+
+**(Lower-Transmute)**
+$$\frac{\Gamma \vdash \text{LowerExpr}(e) \Downarrow \langle IR_e, v \rangle \quad \text{TransmuteVal}(T_1, T_2, v) \Downarrow v'}{\Gamma \vdash \text{LowerTransmute}(T_1, T_2, e) \Downarrow \langle IR_e, v' \rangle}$$
+
+**(Lower-Transmute-Err)**
+
+
+**(Lower-Transmute-Err)**
+$$\frac{\Gamma \vdash \text{LowerExpr}(e) \Downarrow \langle IR_e, v \rangle \quad \text{TransmuteVal}(T_1, T_2, v)\ \text{undefined}}{\Gamma \vdash \text{LowerTransmute}(T_1, T_2, e) \Uparrow}$$
+
+**Raw Dereference Lowering.**
+
+$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{Evalσ}(\text{Cast}(e, T), \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$
+
+$$\text{TransmuteVal}(S, T, v) \Downarrow v' \iff \text{ValueBits}(S, v) = bits \land \text{ValueBits}(T, v') = bits$$
+
+**(Evalσ-Transmute)**
+
+
+**(Evalσ-Transmute)**
+$$\frac{\Gamma \vdash \text{Evalσ}(e, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad S = t_1 \quad T = t_2 \quad \text{TransmuteVal}(S, T, v) \Downarrow v'}{\Gamma \vdash \text{Evalσ}(\text{TransmuteExpr}(t_1, t_2, e), \sigma) \Downarrow (\text{Val}(v'), \sigma_1)}$$
+
+**(Evalσ-Transmute-Ctrl)**
+
+== UnOp occurrences: 15 ==
+$$\text{OptExprs}(e_1, e_2) = [e_1, e_2]$$
+
+$$\text{LowerExprJudg} = \{\text{LowerExpr},\ \text{LowerUnOp},\ \text{LowerBinOp},\ \text{LowerCast},\ \text{LowerList},\ \text{LowerFieldInits},\ \text{LowerOpt},\ \text{LowerReadPlace},\ \text{LowerWritePlace},\ \text{LowerMovePlace},\ \text{LowerAddrOf},\ \text{LowerPlace}\}$$
+
+**(EvalOrder-Literal)** `Children_LTR(Literal(ℓ)) = []`.
+
+
+**(Lower-Expr-Unary)**
+$$\frac{\Gamma \vdash \text{LowerUnOp}(op, e) \Downarrow \langle IR, v \rangle}{\Gamma \vdash \text{LowerExpr}(\text{Unary}(op, e)) \Downarrow \langle IR, v \rangle}$$
+
+**(Lower-Expr-Bin-And)**
+
+\end{cases}$$
+
+**(Lower-UnOp-Ok)**
+$$\frac{\Gamma \vdash \text{LowerExpr}(e) \Downarrow \langle IR_e, v \rangle \quad \text{UnOp}(op, v) \Downarrow v'}{\Gamma \vdash \text{LowerUnOp}(op, e) \Downarrow \langle IR_e, v' \rangle}$$
+
+
+
+**(Lower-UnOp-Ok)**
+$$\frac{\Gamma \vdash \text{LowerExpr}(e) \Downarrow \langle IR_e, v \rangle \quad \text{UnOp}(op, v) \Downarrow v'}{\Gamma \vdash \text{LowerUnOp}(op, e) \Downarrow \langle IR_e, v' \rangle}$$
+
+**(Lower-UnOp-Panic)**
+
+== BinOp occurrences: 16 ==
+$$\text{OptExprs}(e_1, e_2) = [e_1, e_2]$$
+
+$$\text{LowerExprJudg} = \{\text{LowerExpr},\ \text{LowerUnOp},\ \text{LowerBinOp},\ \text{LowerCast},\ \text{LowerList},\ \text{LowerFieldInits},\ \text{LowerOpt},\ \text{LowerReadPlace},\ \text{LowerWritePlace},\ \text{LowerMovePlace},\ \text{LowerAddrOf},\ \text{LowerPlace}\}$$
+
+**(EvalOrder-Literal)** `Children_LTR(Literal(ℓ)) = []`.
+
+
+**(Lower-Expr-Binary)**
+$$\frac{op \notin \{\texttt{"&&"},\ \texttt{"||"}\} \quad \Gamma \vdash \text{LowerBinOp}(op, e_1, e_2) \Downarrow \langle IR, v \rangle}{\Gamma \vdash \text{LowerExpr}(\text{Binary}(op, e_1, e_2)) \Downarrow \langle IR, v \rangle}$$
+
+**(Lower-Expr-Cast)**
+
+$$\frac{\Gamma \vdash \text{LowerExpr}(e) \Downarrow \langle IR_e, v \rangle \quad \text{UnOp}(op, v)\ \text{undefined} \quad \text{OpPanicReason}(op, v) = r \quad \Gamma \vdash \text{LowerPanic}(r) \Downarrow IR_k}{\Gamma \vdash \text{LowerUnOp}(op, e) \Downarrow \langle \text{SeqIR}(IR_e, IR_k), v_{\text{unreach}} \rangle}$$
+
+**(Lower-BinOp-Ok)**
+$$\frac{\Gamma \vdash \text{LowerExpr}(e_1) \Downarrow \langle IR_1, v_1 \rangle \quad \Gamma \vdash \text{LowerExpr}(e_2) \Downarrow \langle IR_2, v_2 \rangle \quad \text{BinOp}(op, v_1, v_2) \Downarrow v}{\Gamma \vdash \text{LowerBinOp}(op, e_1, e_2) \Downarrow \langle \text{SeqIR}(IR_1, IR_2), v \rangle}$$
+
+
+
+**(Lower-BinOp-Ok)**
+$$\frac{\Gamma \vdash \text{LowerExpr}(e_1) \Downarrow \langle IR_1, v_1 \rangle \quad \Gamma \vdash \text{LowerExpr}(e_2) \Downarrow \langle IR_2, v_2 \rangle \quad \text{BinOp}(op, v_1, v_2) \Downarrow v}{\Gamma \vdash \text{LowerBinOp}(op, e_1, e_2) \Downarrow \langle \text{SeqIR}(IR_1, IR_2), v \rangle}$$
+
+**(Lower-BinOp-Panic)**

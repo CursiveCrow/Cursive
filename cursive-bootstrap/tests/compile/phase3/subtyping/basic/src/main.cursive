@@ -29,5 +29,5 @@ public procedure main(ctx: Context) -> i32 {
   let raw: *imm i32 = null;
   let dyn: $Bar = unsafe { transmute::<(*imm i32, *imm i32), $Bar>((raw, raw)) };
 
-  0
+  return 0;
 }

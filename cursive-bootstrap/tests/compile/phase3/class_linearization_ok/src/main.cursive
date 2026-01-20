@@ -12,11 +12,11 @@ class A {
 }
 
 class B {
-  procedure bar(~) -> i32 { 0 }
+  procedure bar(~) -> i32 { return 0; }
 }
 
 class C <: A + B {
-  procedure baz(~) -> i32 { 0 }
+  procedure baz(~) -> i32 { return 0; }
 }
 
-public procedure main(ctx: Context) -> i32 { 0 }
+public procedure main(ctx: Context) -> i32 { return 0; }

@@ -1,16 +1,21 @@
 #include "cursive0/codegen/cleanup.h"
 
 #include "cursive0/codegen/checks.h"
+#include "cursive0/codegen/abi.h"
 #include "cursive0/codegen/layout.h"
 #include "cursive0/codegen/mangle.h"
 #include "cursive0/codegen/globals.h"
 #include "cursive0/runtime/runtime_interface.h"
 #include "cursive0/core/assert_spec.h"
+#include "cursive0/core/symbols.h"
+#include "cursive0/sema/classes.h"
 #include "cursive0/sema/scopes.h"
+#include "cursive0/sema/type_expr.h"
 
 #include <algorithm>
 #include <functional>
 #include <cassert>
+#include <cstdint>
 #include <unordered_set>
 
 namespace cursive0::codegen {
@@ -156,6 +161,131 @@ CollectModalFields(const syntax::StateBlock& state, LowerCtx& ctx) {
   return fields;
 }
 
+static IRValue BoolImmediate(bool value) {
+  IRValue v;
+  v.kind = IRValue::Kind::Immediate;
+  v.name = value ? "true" : "false";
+  v.bytes = {static_cast<std::uint8_t>(value ? 1 : 0)};
+  return v;
+}
+
+static IRValue U32Immediate(std::uint32_t value) {
+  IRValue v;
+  v.kind = IRValue::Kind::Immediate;
+  v.name = std::to_string(value);
+  v.bytes = {
+      static_cast<std::uint8_t>(value & 0xFFu),
+      static_cast<std::uint8_t>((value >> 8) & 0xFFu),
+      static_cast<std::uint8_t>((value >> 16) & 0xFFu),
+      static_cast<std::uint8_t>((value >> 24) & 0xFFu),
+  };
+  return v;
+}
+
+static IRValue USizeImmediate(std::size_t value) {
+  IRValue v;
+  v.kind = IRValue::Kind::Immediate;
+  v.name = std::to_string(value);
+  const std::uint64_t encoded = static_cast<std::uint64_t>(value);
+  v.bytes = {
+      static_cast<std::uint8_t>(encoded & 0xFFu),
+      static_cast<std::uint8_t>((encoded >> 8) & 0xFFu),
+      static_cast<std::uint8_t>((encoded >> 16) & 0xFFu),
+      static_cast<std::uint8_t>((encoded >> 24) & 0xFFu),
+      static_cast<std::uint8_t>((encoded >> 32) & 0xFFu),
+      static_cast<std::uint8_t>((encoded >> 40) & 0xFFu),
+      static_cast<std::uint8_t>((encoded >> 48) & 0xFFu),
+      static_cast<std::uint8_t>((encoded >> 56) & 0xFFu),
+  };
+  return v;
+}
+
+static IRValue UnitValue() {
+  IRValue v;
+  v.kind = IRValue::Kind::Opaque;
+  v.name = "unit";
+  return v;
+}
+
+static bool IsNoopIR(const IRPtr& ir) {
+  return !ir || std::holds_alternative<IROpaque>(ir->node);
+}
+
+struct PanicAccess {
+  IRValue panic_ptr;
+  IRValue flag_ptr;
+  IRValue code_ptr;
+};
+
+static PanicAccess BuildPanicAccess(LowerCtx& ctx) {
+  IRValue panic_ptr = ctx.FreshTempValue("panic_ptr");
+  DerivedValueInfo base_info;
+  base_info.kind = DerivedValueInfo::Kind::AddrDeref;
+  base_info.base.kind = IRValue::Kind::Local;
+  base_info.base.name = std::string(kPanicOutName);
+  ctx.RegisterDerivedValue(panic_ptr, base_info);
+  ctx.RegisterValueType(panic_ptr, PanicOutType());
+
+  IRValue flag_ptr = ctx.FreshTempValue("panic_flag_ptr");
+  DerivedValueInfo flag_info;
+  flag_info.kind = DerivedValueInfo::Kind::AddrTuple;
+  flag_info.base = panic_ptr;
+  flag_info.tuple_index = 0;
+  ctx.RegisterDerivedValue(flag_ptr, flag_info);
+  ctx.RegisterValueType(flag_ptr,
+                        sema::MakeTypeRawPtr(sema::RawPtrQual::Mut,
+                                             sema::MakeTypePrim("bool")));
+
+  IRValue code_ptr = ctx.FreshTempValue("panic_code_ptr");
+  DerivedValueInfo code_info;
+  code_info.kind = DerivedValueInfo::Kind::AddrTuple;
+  code_info.base = panic_ptr;
+  code_info.tuple_index = 1;
+  ctx.RegisterDerivedValue(code_ptr, code_info);
+  ctx.RegisterValueType(code_ptr,
+                        sema::MakeTypeRawPtr(sema::RawPtrQual::Mut,
+                                             sema::MakeTypePrim("u32")));
+
+  return PanicAccess{panic_ptr, flag_ptr, code_ptr};
+}
+
+struct PanicSnapshot {
+  IRPtr ir;
+  IRValue flag;
+  IRValue code;
+};
+
+static PanicSnapshot ReadPanicRecord(const PanicAccess& access, LowerCtx& ctx) {
+  IRValue flag = ctx.FreshTempValue("panic_flag");
+  ctx.RegisterValueType(flag, sema::MakeTypePrim("bool"));
+  IRReadPtr read_flag;
+  read_flag.ptr = access.flag_ptr;
+  read_flag.result = flag;
+
+  IRValue code = ctx.FreshTempValue("panic_code");
+  ctx.RegisterValueType(code, sema::MakeTypePrim("u32"));
+  IRReadPtr read_code;
+  read_code.ptr = access.code_ptr;
+  read_code.result = code;
+
+  IRPtr ir = SeqIR({MakeIR(std::move(read_flag)), MakeIR(std::move(read_code))});
+  return PanicSnapshot{ir, flag, code};
+}
+
+static IRPtr WritePanicRecord(const PanicAccess& access,
+                              const IRValue& flag,
+                              const IRValue& code) {
+  IRWritePtr write_flag;
+  write_flag.ptr = access.flag_ptr;
+  write_flag.value = flag;
+
+  IRWritePtr write_code;
+  write_code.ptr = access.code_ptr;
+  write_code.value = code;
+
+  return SeqIR({MakeIR(std::move(write_flag)), MakeIR(std::move(write_code))});
+}
+
 // ============================================================================
 // §6.8 CleanupPlan - Compute cleanup actions for a scope
 // ============================================================================
@@ -248,52 +378,60 @@ CleanupPlan ComputeCleanupPlanToFunctionRoot(LowerCtx& ctx) {
   return ComputeCleanupPlanForScopes(ctx, false);
 }
 
-
-// ============================================================================
-// §6.8 EmitCleanup - Emit IR for a cleanup plan
-// ============================================================================
-
-IRPtr EmitCleanup(const CleanupPlan& plan, LowerCtx& ctx) {
-  SPEC_RULE("EmitCleanup");
-
-  if (plan.empty()) {
-    return EmptyIR();
+CleanupPlan ComputeCleanupPlanRemainder(CleanupTarget target, LowerCtx& ctx) {
+  LowerCtx tmp = ctx;
+  switch (target) {
+    case CleanupTarget::CurrentScope: {
+      if (!tmp.scope_stack.empty()) {
+        tmp.PopScope();
+      }
+      return ComputeCleanupPlanToFunctionRoot(tmp);
+    }
+    case CleanupTarget::ToLoopScope: {
+      while (!tmp.scope_stack.empty()) {
+        const bool is_loop = tmp.scope_stack.back().is_loop;
+        tmp.PopScope();
+        if (is_loop) {
+          break;
+        }
+      }
+      return ComputeCleanupPlanToFunctionRoot(tmp);
+    }
+    case CleanupTarget::ToFunctionRoot:
+    default:
+      return {};
   }
+}
 
-  std::vector<IRPtr> cleanup_ir;
-  cleanup_ir.reserve(plan.size());
 
-  for (const auto& action : plan) {
-    switch (action.kind) {
+// ============================================================================
+// A6.8 EmitCleanup - Emit IR for a cleanup plan
+// ============================================================================
+
+static IRPtr EmitCleanupAction(const CleanupAction& action, LowerCtx& ctx) {
+  switch (action.kind) {
     case CleanupAction::Kind::DropVar: {
-      // Read the variable value and drop it
       IRValue var_value;
-      var_value.kind = IRValue::Kind::Opaque;
+      var_value.kind = IRValue::Kind::Local;
       var_value.name = action.name;
 
       if (action.skip_fields.empty()) {
-        cleanup_ir.push_back(EmitDrop(action.type, var_value, ctx));
-      } else {
-        cleanup_ir.push_back(
-            EmitDropFields(action.type, var_value, action.skip_fields, ctx));
+        return EmitDrop(action.type, var_value, ctx);
       }
-      break;
+      return EmitDropFields(action.type, var_value, action.skip_fields, ctx);
     }
-
     case CleanupAction::Kind::DropTemp: {
       if (action.value) {
-        cleanup_ir.push_back(EmitDrop(action.type, *action.value, ctx));
+        return EmitDrop(action.type, *action.value, ctx);
       }
-      break;
+      return EmptyIR();
     }
-
     case CleanupAction::Kind::DropField: {
       if (action.value) {
-        cleanup_ir.push_back(EmitDrop(action.type, *action.value, ctx));
+        return EmitDrop(action.type, *action.value, ctx);
       }
-      break;
+      return EmptyIR();
     }
-
     case CleanupAction::Kind::ReleaseRegion: {
       IRValue region_value;
       if (action.value) {
@@ -307,22 +445,233 @@ IRPtr EmitCleanup(const CleanupPlan& plan, LowerCtx& ctx) {
       call.callee.kind = IRValue::Kind::Symbol;
       call.callee.name = "cursive::runtime::region::free_unchecked";
       call.args.push_back(region_value);
-      cleanup_ir.push_back(MakeIR(std::move(call)));
-      break;
+      return MakeIR(std::move(call));
     }
-
     case CleanupAction::Kind::RunDefer: {
       if (action.defer_ir) {
-        cleanup_ir.push_back(*action.defer_ir);
+        return *action.defer_ir;
       }
-      break;
-    }
+      return EmptyIR();
     }
   }
-
-  return SeqIR(std::move(cleanup_ir));
+  return EmptyIR();
 }
 
+static IRPtr EmitCleanupImpl(const CleanupPlan& plan,
+                             const CleanupPlan& remainder,
+                             LowerCtx& ctx,
+                             bool start_panicking,
+                             bool emit_panic_check) {
+  SPEC_RULE("EmitCleanup");
+
+  if (plan.empty()) {
+    return EmptyIR();
+  }
+
+  const PanicAccess access = BuildPanicAccess(ctx);
+
+  IRValue panicking = BoolImmediate(start_panicking);
+  IRValue panic_code = U32Immediate(0);
+
+  std::vector<IRPtr> parts;
+
+  if (start_panicking) {
+    auto snapshot = ReadPanicRecord(access, ctx);
+    parts.push_back(snapshot.ir);
+    panic_code = snapshot.code;
+  }
+
+  for (const auto& action : plan) {
+    IRPtr action_ir = EmitCleanupAction(action, ctx);
+    if (IsNoopIR(action_ir)) {
+      continue;
+    }
+
+    // Clear panic before running each cleanup action.
+    parts.push_back(MakeIR(IRClearPanic{}));
+    parts.push_back(action_ir);
+
+    // Read panic flag/code after the action.
+    auto snapshot = ReadPanicRecord(access, ctx);
+    parts.push_back(snapshot.ir);
+    IRValue flag = snapshot.flag;
+    IRValue code = snapshot.code;
+
+    // Double panic: abort.
+    IRValue double_cond = ctx.FreshTempValue("double_panic");
+    IRBinaryOp double_and;
+    double_and.op = "&&";
+    double_and.lhs = panicking;
+    double_and.rhs = flag;
+    double_and.result = double_cond;
+    parts.push_back(MakeIR(std::move(double_and)));
+
+    IRCall panic_call;
+    panic_call.callee.kind = IRValue::Kind::Symbol;
+    panic_call.callee.name = RuntimePanicSym();
+    panic_call.args.push_back(code);
+    panic_call.result = ctx.FreshTempValue("panic_abort");
+
+    IRIf if_double;
+    if_double.cond = double_cond;
+    if_double.then_ir = MakeIR(std::move(panic_call));
+    if_double.then_value = UnitValue();
+    if_double.else_ir = EmptyIR();
+    if_double.else_value = UnitValue();
+    if_double.result = ctx.FreshTempValue("panic_double_if");
+    parts.push_back(MakeIR(std::move(if_double)));
+
+    // Restore panic record when continuing cleanup during a panic.
+    IRValue not_flag = ctx.FreshTempValue("panic_clear");
+    IRUnaryOp not_op;
+    not_op.op = "!";
+    not_op.operand = flag;
+    not_op.result = not_flag;
+    parts.push_back(MakeIR(std::move(not_op)));
+
+    IRValue restore_cond = ctx.FreshTempValue("panic_restore");
+    IRBinaryOp restore_and;
+    restore_and.op = "&&";
+    restore_and.lhs = panicking;
+    restore_and.rhs = not_flag;
+    restore_and.result = restore_cond;
+    parts.push_back(MakeIR(std::move(restore_and)));
+
+    IRPtr restore_ir = WritePanicRecord(access, BoolImmediate(true), panic_code);
+    IRIf if_restore;
+    if_restore.cond = restore_cond;
+    if_restore.then_ir = restore_ir;
+    if_restore.then_value = UnitValue();
+    if_restore.else_ir = EmptyIR();
+    if_restore.else_value = UnitValue();
+    if_restore.result = ctx.FreshTempValue("panic_restore_if");
+    parts.push_back(MakeIR(std::move(if_restore)));
+
+    // Update panicking state.
+    IRValue new_panicking = ctx.FreshTempValue("panicking");
+    IRBinaryOp or_op;
+    or_op.op = "||";
+    or_op.lhs = panicking;
+    or_op.rhs = flag;
+    or_op.result = new_panicking;
+    parts.push_back(MakeIR(std::move(or_op)));
+    panicking = new_panicking;
+
+    // Update panic code when a new panic occurs.
+    IRValue new_code = ctx.FreshTempValue("panic_code_sel");
+    IRIf code_if;
+    code_if.cond = flag;
+    code_if.then_ir = EmptyIR();
+    code_if.then_value = code;
+    code_if.else_ir = EmptyIR();
+    code_if.else_value = panic_code;
+    code_if.result = new_code;
+    parts.push_back(MakeIR(std::move(code_if)));
+    panic_code = new_code;
+  }
+
+  if (emit_panic_check) {
+    IRPanicCheck check;
+    check.cleanup_ir =
+        remainder.empty() ? EmptyIR() : EmitCleanupOnPanic(remainder, ctx);
+    parts.push_back(MakeIR(std::move(check)));
+  }
+
+  return SeqIR(std::move(parts));
+}
+
+IRPtr EmitCleanup(const CleanupPlan& plan, LowerCtx& ctx) {
+  return EmitCleanupWithRemainder(plan, {}, ctx);
+}
+
+IRPtr EmitCleanupOnPanic(const CleanupPlan& plan, LowerCtx& ctx) {
+  return EmitCleanupImpl(plan, {}, ctx, true, false);
+}
+
+IRPtr EmitCleanupWithRemainder(const CleanupPlan& plan,
+                               const CleanupPlan& remainder,
+                               LowerCtx& ctx) {
+  return EmitCleanupImpl(plan, remainder, ctx, false, true);
+}
+
+static IRPtr SeqWithPanicStop(std::vector<IRPtr> drops, LowerCtx& ctx) {
+  drops.erase(std::remove_if(drops.begin(), drops.end(), IsNoopIR), drops.end());
+  if (drops.empty()) {
+    return EmptyIR();
+  }
+  if (drops.size() == 1) {
+    return drops.front();
+  }
+
+  const PanicAccess access = BuildPanicAccess(ctx);
+  IRPtr tail = drops.back();
+  for (std::size_t i = drops.size() - 1; i-- > 0;) {
+    IRValue flag = ctx.FreshTempValue("drop_panic_flag");
+    ctx.RegisterValueType(flag, sema::MakeTypePrim("bool"));
+    IRReadPtr read_flag;
+    read_flag.ptr = access.flag_ptr;
+    read_flag.result = flag;
+
+    IRValue no_panic = ctx.FreshTempValue("drop_no_panic");
+    IRUnaryOp not_op;
+    not_op.op = "!";
+    not_op.operand = flag;
+    not_op.result = no_panic;
+
+    IRIf if_ir;
+    if_ir.cond = no_panic;
+    if_ir.then_ir = tail;
+    if_ir.then_value = UnitValue();
+    if_ir.else_ir = EmptyIR();
+    if_ir.else_value = UnitValue();
+    if_ir.result = ctx.FreshTempValue("drop_seq");
+
+    tail = SeqIR({drops[i],
+                  MakeIR(std::move(read_flag)),
+                  MakeIR(std::move(not_op)),
+                  MakeIR(std::move(if_ir))});
+  }
+
+  return tail;
+}
+
+static IRPtr EmitDropMethodCall(const sema::TypeRef& type,
+                                const IRValue& value,
+                                const std::optional<IRValue>& panic_out,
+                                LowerCtx& ctx) {
+  if (!ctx.sigma) {
+    return EmptyIR();
+  }
+
+  sema::TypeRef stripped = sema::StripPerm(type);
+  if (!stripped) {
+    return EmptyIR();
+  }
+
+  sema::ScopeContext scope;
+  scope.sigma = *ctx.sigma;
+  scope.current_module = ctx.module_path;
+
+  syntax::ClassPath drop_path;
+  drop_path.push_back("Drop");
+  if (!sema::TypeImplementsClass(scope, stripped, drop_path)) {
+    return EmptyIR();
+  }
+
+  auto sym = MethodSymbol(scope, stripped, "drop");
+  if (!sym.has_value()) {
+    return EmptyIR();
+  }
+
+  IRCall call;
+  call.callee.kind = IRValue::Kind::Symbol;
+  call.callee.name = *sym;
+  call.args.push_back(value);
+  if (panic_out.has_value() && NeedsPanicOut(*sym)) {
+    call.args.push_back(*panic_out);
+  }
+  return MakeIR(std::move(call));
+}
 // ============================================================================
 // §6.8 EmitDrop - Emit IR to drop a value of a given type
 // ============================================================================
@@ -330,14 +679,19 @@ IRPtr EmitCleanup(const CleanupPlan& plan, LowerCtx& ctx) {
 static IRPtr EmitDropImpl(const sema::TypeRef& type,
                           const IRValue& value,
                           LowerCtx& ctx,
-                          bool allow_drop_glue) {
+                          bool allow_drop_glue,
+                          const std::optional<IRValue>& panic_out) {
   if (!type) {
     return EmptyIR();
   }
 
+  if (value.kind == IRValue::Kind::Opaque) {
+    ctx.RegisterValueType(value, type);
+  }
+
   if (HoldsType<sema::TypePerm>(type)) {
     const auto& perm = GetType<sema::TypePerm>(type);
-    return EmitDropImpl(perm.base, value, ctx, allow_drop_glue);
+    return EmitDropImpl(perm.base, value, ctx, allow_drop_glue, panic_out);
   }
 
   auto call_drop_glue = [&]() -> IRPtr {
@@ -346,6 +700,9 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
     call.callee.kind = IRValue::Kind::Symbol;
     call.callee.name = drop_sym;
     call.args.push_back(value);
+    if (panic_out.has_value() && NeedsPanicOut(drop_sym)) {
+      call.args.push_back(*panic_out);
+    }
     return MakeIR(std::move(call));
   };
 
@@ -377,9 +734,15 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
     const auto& str_type = GetType<sema::TypeString>(type);
     if (str_type.state.has_value() &&
         *str_type.state == sema::StringState::Managed) {
+      const std::string drop_sym = BuiltinSymStringDropManaged();
+      if (drop_sym.empty()) {
+        SPEC_RULE("StringDropSym-Err");
+        ctx.ReportCodegenFailure();
+        return EmptyIR();
+      }
       IRCall call;
       call.callee.kind = IRValue::Kind::Symbol;
-      call.callee.name = BuiltinSymStringDropManaged();
+      call.callee.name = drop_sym;
       call.args.push_back(value);
       return MakeIR(std::move(call));
     }
@@ -390,9 +753,15 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
     const auto& bytes_type = GetType<sema::TypeBytes>(type);
     if (bytes_type.state.has_value() &&
         *bytes_type.state == sema::BytesState::Managed) {
+      const std::string drop_sym = BuiltinSymBytesDropManaged();
+      if (drop_sym.empty()) {
+        SPEC_RULE("BytesDropSym-Err");
+        ctx.ReportCodegenFailure();
+        return EmptyIR();
+      }
       IRCall call;
       call.callee.kind = IRValue::Kind::Symbol;
-      call.callee.name = BuiltinSymBytesDropManaged();
+      call.callee.name = drop_sym;
       call.args.push_back(value);
       return MakeIR(std::move(call));
     }
@@ -404,13 +773,23 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
     std::vector<IRPtr> drops;
 
     for (std::size_t i = arr_type.length; i > 0; --i) {
+      const std::size_t index = i - 1;
       IRValue elem;
       elem.kind = IRValue::Kind::Opaque;
-      elem.name = value.name + "[" + std::to_string(i - 1) + "]";
-      drops.push_back(EmitDropImpl(arr_type.element, elem, ctx, allow_drop_glue));
+      elem.name = value.name + "[" + std::to_string(index) + "]";
+      ctx.RegisterValueType(elem, arr_type.element);
+      {
+        DerivedValueInfo info;
+        info.kind = DerivedValueInfo::Kind::Index;
+        info.base = value;
+        info.index = USizeImmediate(index);
+        ctx.RegisterDerivedValue(elem, info);
+      }
+      drops.push_back(
+          EmitDropImpl(arr_type.element, elem, ctx, allow_drop_glue, panic_out));
     }
 
-    return SeqIR(std::move(drops));
+    return SeqWithPanicStop(std::move(drops), ctx);
   }
 
   if (HoldsType<sema::TypeTuple>(type)) {
@@ -418,16 +797,27 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
     std::vector<IRPtr> drops;
 
     for (std::size_t i = tuple_type.elements.size(); i > 0; --i) {
+      const std::size_t index = i - 1;
       IRValue elem;
       elem.kind = IRValue::Kind::Opaque;
-      elem.name = value.name + "_" + std::to_string(i - 1);
-      drops.push_back(EmitDropImpl(tuple_type.elements[i - 1],
-                                   elem,
-                                   ctx,
-                                   allow_drop_glue));
+      elem.name = value.name + "_" + std::to_string(index);
+      ctx.RegisterValueType(elem, tuple_type.elements[index]);
+      {
+        DerivedValueInfo info;
+        info.kind = DerivedValueInfo::Kind::Tuple;
+        info.base = value;
+        info.tuple_index = index;
+        ctx.RegisterDerivedValue(elem, info);
+      }
+      drops.push_back(
+          EmitDropImpl(tuple_type.elements[index],
+                       elem,
+                       ctx,
+                       allow_drop_glue,
+                       panic_out));
     }
 
-    return SeqIR(std::move(drops));
+    return SeqWithPanicStop(std::move(drops), ctx);
   }
 
   if (HoldsType<sema::TypeUnion>(type)) {
@@ -450,11 +840,20 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
       IRValue case_val;
       case_val.kind = IRValue::Kind::Opaque;
       case_val.name = value.name + "_case_" + std::to_string(i);
+      ctx.RegisterValueType(case_val, uni_type.members[i]);
+      {
+        DerivedValueInfo info;
+        info.kind = DerivedValueInfo::Kind::UnionPayload;
+        info.base = value;
+        info.union_index = i;
+        ctx.RegisterDerivedValue(case_val, info);
+      }
 
       IRPtr body = EmitDropImpl(uni_type.members[i],
                                 case_val,
                                 ctx,
-                                allow_drop_glue);
+                                allow_drop_glue,
+                                panic_out);
 
       IRValue unit;
       unit.kind = IRValue::Kind::Opaque;
@@ -499,31 +898,35 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
       return EmptyIR();
     }
 
+    IRPtr drop_method = EmitDropMethodCall(type, value, panic_out, ctx);
     std::vector<IRPtr> drops;
-    drops.reserve(fields->size());
+    drops.reserve(fields->size() + 1);
+    if (!IsNoopIR(drop_method)) {
+      drops.push_back(drop_method);
+    }
     for (auto rit = fields->rbegin(); rit != fields->rend(); ++rit) {
       IRValue field_val;
       field_val.kind = IRValue::Kind::Opaque;
       field_val.name = value.name + "_" + rit->first;
+      ctx.RegisterValueType(field_val, rit->second);
+      {
+        DerivedValueInfo info;
+        info.kind = DerivedValueInfo::Kind::ModalField;
+        info.base = value;
+        info.modal_state = modal_state.state;
+        info.field = rit->first;
+        ctx.RegisterDerivedValue(field_val, info);
+      }
       drops.push_back(
-          EmitDropImpl(rit->second, field_val, ctx, allow_drop_glue));
+          EmitDropImpl(rit->second, field_val, ctx, allow_drop_glue, panic_out));
     }
-    return SeqIR(std::move(drops));
+    return SeqWithPanicStop(std::move(drops), ctx);
   }
 
   if (HoldsType<sema::TypeDynamic>(type)) {
-    IRValue data_ptr;
-    data_ptr.kind = IRValue::Kind::Opaque;
-    data_ptr.name = value.name + ".data";
-
-    IRValue drop_sym;
-    drop_sym.kind = IRValue::Kind::Opaque;
-    drop_sym.name = value.name + ".vtable.drop";
-
-    IRCall call;
-    call.callee = drop_sym;
-    call.args.push_back(data_ptr);
-    return MakeIR(std::move(call));
+    // Spec: DropValue/DropChildren has no dynamic-specific behavior.
+    // TypeDynamic does not implement Drop and has no children, so drop is a no-op.
+    return EmptyIR();
   }
 
   if (HoldsType<sema::TypePathType>(type)) {
@@ -543,7 +946,7 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
       if (!lowered.has_value()) {
         return EmptyIR();
       }
-      return EmitDropImpl(*lowered, value, ctx, allow_drop_glue);
+      return EmitDropImpl(*lowered, value, ctx, allow_drop_glue, panic_out);
     }
 
     if (allow_drop_glue) {
@@ -551,7 +954,9 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
     }
 
     if (std::holds_alternative<syntax::RecordDecl>(it->second)) {
-      return EmitDropFields(type, value, {}, ctx);
+      IRPtr drop_method = EmitDropMethodCall(type, value, panic_out, ctx);
+      IRPtr field_drops = EmitDropFields(type, value, {}, ctx);
+      return SeqWithPanicStop({drop_method, field_drops}, ctx);
     }
 
     if (const auto* enum_decl = std::get_if<syntax::EnumDecl>(&it->second)) {
@@ -578,12 +983,21 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
               if (!lowered.has_value()) {
                 continue;
               }
+              const std::size_t index = i - 1;
               IRValue elem;
               elem.kind = IRValue::Kind::Opaque;
-              elem.name = value.name + "_payload_" +
-                          std::to_string(i - 1);
+              elem.name = value.name + "_payload_" + std::to_string(index);
+              ctx.RegisterValueType(elem, *lowered);
+              {
+                DerivedValueInfo info;
+                info.kind = DerivedValueInfo::Kind::EnumPayloadIndex;
+                info.base = value;
+                info.variant = variant.name;
+                info.tuple_index = index;
+                ctx.RegisterDerivedValue(elem, info);
+              }
               drops.push_back(
-                  EmitDropImpl(*lowered, elem, ctx, allow_drop_glue));
+                  EmitDropImpl(*lowered, elem, ctx, allow_drop_glue, panic_out));
             }
           } else if (const auto* record_payload =
                          std::get_if<syntax::VariantPayloadRecord>(
@@ -597,11 +1011,24 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
               IRValue field_val;
               field_val.kind = IRValue::Kind::Opaque;
               field_val.name = value.name + "_payload_" + field.name;
+              ctx.RegisterValueType(field_val, *lowered);
+              {
+                DerivedValueInfo info;
+                info.kind = DerivedValueInfo::Kind::EnumPayloadField;
+                info.base = value;
+                info.variant = variant.name;
+                info.field = field.name;
+                ctx.RegisterDerivedValue(field_val, info);
+              }
               drops.push_back(
-                  EmitDropImpl(*lowered, field_val, ctx, allow_drop_glue));
+                  EmitDropImpl(*lowered,
+                               field_val,
+                               ctx,
+                               allow_drop_glue,
+                               panic_out));
             }
           }
-          body = SeqIR(std::move(drops));
+          body = SeqWithPanicStop(std::move(drops), ctx);
         }
 
         IRValue unit;
@@ -618,7 +1045,9 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
       IRMatch match;
       match.scrutinee = value;
       match.arms = std::move(arms);
-      return MakeIR(std::move(match));
+      IRPtr payload_match = MakeIR(std::move(match));
+      IRPtr drop_method = EmitDropMethodCall(type, value, panic_out, ctx);
+      return SeqWithPanicStop({drop_method, payload_match}, ctx);
     }
 
     if (const auto* modal_decl = std::get_if<syntax::ModalDecl>(&it->second)) {
@@ -642,10 +1071,23 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
             IRValue field_val;
             field_val.kind = IRValue::Kind::Opaque;
             field_val.name = value.name + "_" + rit->first;
+            ctx.RegisterValueType(field_val, rit->second);
+            {
+              DerivedValueInfo info;
+              info.kind = DerivedValueInfo::Kind::ModalField;
+              info.base = value;
+              info.modal_state = state.name;
+              info.field = rit->first;
+              ctx.RegisterDerivedValue(field_val, info);
+            }
             drops.push_back(
-                EmitDropImpl(rit->second, field_val, ctx, allow_drop_glue));
+                EmitDropImpl(rit->second,
+                             field_val,
+                             ctx,
+                             allow_drop_glue,
+                             panic_out));
           }
-          body = SeqIR(std::move(drops));
+          body = SeqWithPanicStop(std::move(drops), ctx);
         }
 
         IRValue unit;
@@ -662,7 +1104,9 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
       IRMatch match;
       match.scrutinee = value;
       match.arms = std::move(arms);
-      return MakeIR(std::move(match));
+      IRPtr state_match = MakeIR(std::move(match));
+      IRPtr drop_method = EmitDropMethodCall(type, value, panic_out, ctx);
+      return SeqWithPanicStop({drop_method, state_match}, ctx);
     }
 
     return EmptyIR();
@@ -673,7 +1117,10 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
 
 IRPtr EmitDrop(const sema::TypeRef& type, const IRValue& value, LowerCtx& ctx) {
   SPEC_RULE("EmitDrop");
-  return EmitDropImpl(type, value, ctx, true);
+  IRValue panic_out;
+  panic_out.kind = IRValue::Kind::Local;
+  panic_out.name = std::string(kPanicOutName);
+  return EmitDropImpl(type, value, ctx, true, panic_out);
 }
 
 // ============================================================================
@@ -762,12 +1209,22 @@ IRPtr EmitDropFields(const sema::TypeRef& type,
         field_type = *lowered;
       }
     }
+    if (field_type) {
+      ctx.RegisterValueType(field_val, field_type);
+    }
+    {
+      DerivedValueInfo info;
+      info.kind = DerivedValueInfo::Kind::Field;
+      info.base = value;
+      info.field = field->name;
+      ctx.RegisterDerivedValue(field_val, info);
+    }
 
     // Emit drop for this field
     drops.push_back(EmitDrop(field_type, field_val, ctx));
   }
 
-  return SeqIR(std::move(drops));
+  return SeqWithPanicStop(std::move(drops), ctx);
 }
 
 // ============================================================================
@@ -777,26 +1234,23 @@ IRPtr EmitDropFields(const sema::TypeRef& type,
 std::string DropGlueSym(const sema::TypeRef& type, LowerCtx& ctx) {
   SPEC_RULE("DropGlueSym");
 
-  // DropGlueSym(T) = PathSig(["cursive", "runtime", "drop"] ++ PathOfType(T))
-  // Build manually since PathSig takes initializer_list
-  std::string result = "_Zn7cursive7runtime4drop";
+  std::vector<std::string> path = {"cursive", "runtime", "drop"};
 
   sema::TypeRef drop_type = type;
   if (HoldsType<sema::TypePerm>(drop_type)) {
     drop_type = GetType<sema::TypePerm>(drop_type).base;
   }
 
-  const auto path = PathOfType(drop_type);
-  if (path.empty()) {
-    result += "7unknown";
+  const auto type_path = PathOfType(drop_type);
+  if (type_path.empty()) {
+    path.push_back("unknown");
   } else {
-    for (const auto& seg : path) {
-      result += std::to_string(seg.size()) + seg;
-    }
+    path.insert(path.end(), type_path.begin(), type_path.end());
   }
 
-  result += "E";
-  return result;
+  const std::string sym = core::Mangle(core::StringOfPath(path));
+  ctx.RegisterDropGlueType(sym, drop_type);
+  return sym;
 }
 
 IRPtr DropGlueIR(const sema::TypeRef& type, LowerCtx& ctx) {
@@ -804,7 +1258,7 @@ IRPtr DropGlueIR(const sema::TypeRef& type, LowerCtx& ctx) {
 
   // The drop glue reads the value from the data pointer and drops it
   IRValue data_ptr;
-  data_ptr.kind = IRValue::Kind::Opaque;
+  data_ptr.kind = IRValue::Kind::Local;
   data_ptr.name = "data";
 
   // Read the value from the pointer
@@ -812,11 +1266,15 @@ IRPtr DropGlueIR(const sema::TypeRef& type, LowerCtx& ctx) {
   read.ptr = data_ptr;
 
   IRValue loaded_value;
-  loaded_value.kind = IRValue::Kind::Opaque;
-  loaded_value.name = "loaded";
+  loaded_value = ctx.FreshTempValue("loaded");
+  read.result = loaded_value;
+  ctx.RegisterValueType(loaded_value, type);
 
   // Emit drop for the loaded value
-  IRPtr drop_ir = EmitDropImpl(type, loaded_value, ctx, false);
+  IRValue panic_out;
+  panic_out.kind = IRValue::Kind::Local;
+  panic_out.name = std::string(kPanicOutName);
+  IRPtr drop_ir = EmitDropImpl(type, loaded_value, ctx, false, panic_out);
 
   return SeqIR({MakeIR(std::move(read)), drop_ir});
 }
@@ -846,6 +1304,8 @@ IRPtr DropOnAssign(const std::string& name,
 
   const BindingState* state = ctx.GetBindingState(name);
   if (!state || !state->type) {
+    SPEC_RULE("DropOnAssign-Err");
+    ctx.ReportCodegenFailure();
     return EmptyIR();
   }
 
@@ -864,7 +1324,7 @@ IRPtr DropOnAssign(const std::string& name,
   }
 
   IRValue current_value;
-  current_value.kind = IRValue::Kind::Opaque;
+  current_value.kind = IRValue::Kind::Local;
   current_value.name = name;
 
   if (HoldsType<sema::TypePathType>(state->type)) {
@@ -954,10 +1414,15 @@ bool DropOnAssignRoot(const syntax::Expr& place, LowerCtx& ctx) {
 
 BindValidity GetBindValidity(const std::string& name, LowerCtx& ctx) {
   SPEC_RULE("BindValid");
+  SPEC_RULE("BindValid-Sigma");
 
   // Look up binding state from context
   const BindingState* state = ctx.GetBindingState(name);
   if (!state) {
+    if (!ctx.binding_states.empty()) {
+      SPEC_RULE("BindValid-Err");
+      ctx.ReportCodegenFailure();
+    }
     return BindValidity::Valid;
   }
   

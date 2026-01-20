@@ -2,5 +2,5 @@
 public procedure main(ctx: Context) -> i32 {
   lib::secret();
 
-  0
+  return 0;
 }

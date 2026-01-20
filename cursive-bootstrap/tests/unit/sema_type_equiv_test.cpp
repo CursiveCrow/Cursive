@@ -1,6 +1,7 @@
 #include <cassert>
 #include <vector>
 
+#include "cursive0/core/assert_spec.h"
 #include "cursive0/sema/type_equiv.h"
 #include "cursive0/sema/types.h"
 
@@ -94,38 +95,45 @@ StaticDecl MakeStatic(const char* name, ExprPtr init) {
 
 int main() {
   {
+    SPEC_COV("T-Equiv-Prim");
     const auto res = TypeEquiv(Prim("i32"), Prim("i32"));
     assert(res.ok && res.equiv);
   }
   {
+    SPEC_COV("T-Equiv-Prim");
     const auto res = TypeEquiv(Prim("i32"), Prim("u32"));
     assert(res.ok && !res.equiv);
   }
   {
+    SPEC_COV("T-Equiv-Perm");
     const auto lhs = MakeTypePerm(Permission::Const, Prim("i32"));
     const auto rhs = MakeTypePerm(Permission::Unique, Prim("i32"));
     const auto res = TypeEquiv(lhs, rhs);
     assert(res.ok && !res.equiv);
   }
   {
+    SPEC_COV("T-Equiv-Tuple");
     const auto lhs = MakeTypeTuple({Prim("i32"), Prim("bool")});
     const auto rhs = MakeTypeTuple({Prim("i32"), Prim("bool")});
     const auto res = TypeEquiv(lhs, rhs);
     assert(res.ok && res.equiv);
   }
   {
+    SPEC_COV("T-Equiv-Array");
     const auto lhs = MakeTypeArray(Prim("u8"), 4);
     const auto rhs = MakeTypeArray(Prim("u8"), 8);
     const auto res = TypeEquiv(lhs, rhs);
     assert(res.ok && !res.equiv);
   }
   {
+    SPEC_COV("T-Equiv-Slice");
     const auto lhs = MakeTypeSlice(Prim("u8"));
     const auto rhs = MakeTypeSlice(Prim("u8"));
     const auto res = TypeEquiv(lhs, rhs);
     assert(res.ok && res.equiv);
   }
   {
+    SPEC_COV("T-Equiv-Func");
     std::vector<TypeFuncParam> params;
     params.push_back(TypeFuncParam{ParamMode::Move, Prim("i32")});
     const auto lhs = MakeTypeFunc(std::move(params), Prim("()"));
@@ -136,12 +144,14 @@ int main() {
     assert(res.ok && res.equiv);
   }
   {
+    SPEC_COV("T-Equiv-Union");
     const auto lhs = MakeTypeUnion({Prim("i32"), Prim("bool")});
     const auto rhs = MakeTypeUnion({Prim("bool"), Prim("i32")});
     const auto res = TypeEquiv(lhs, rhs);
     assert(res.ok && res.equiv);
   }
   {
+    SPEC_COV("T-Equiv-Path");
     TypePath path = {"Foo"};
     const auto lhs = MakeTypePath(path);
     const auto rhs = MakeTypePath(path);
@@ -149,6 +159,7 @@ int main() {
     assert(res.ok && res.equiv);
   }
   {
+    SPEC_COV("T-Equiv-ModalState");
     TypePath path = {"Stateful"};
     const auto lhs = MakeTypeModalState(path, "Ready");
     const auto rhs = MakeTypeModalState(path, "Ready");
@@ -156,36 +167,42 @@ int main() {
     assert(res.ok && res.equiv);
   }
   {
+    SPEC_COV("T-Equiv-String");
     const auto lhs = MakeTypeString(StringState::View);
     const auto rhs = MakeTypeString(StringState::View);
     const auto res = TypeEquiv(lhs, rhs);
     assert(res.ok && res.equiv);
   }
   {
+    SPEC_COV("T-Equiv-Bytes");
     const auto lhs = MakeTypeBytes(BytesState::Managed);
     const auto rhs = MakeTypeBytes(BytesState::Managed);
     const auto res = TypeEquiv(lhs, rhs);
     assert(res.ok && res.equiv);
   }
   {
+    SPEC_COV("T-Equiv-Range");
     const auto lhs = MakeTypeRange();
     const auto rhs = MakeTypeRange();
     const auto res = TypeEquiv(lhs, rhs);
     assert(res.ok && res.equiv);
   }
   {
+    SPEC_COV("T-Equiv-Ptr");
     const auto lhs = MakeTypePtr(Prim("i32"), PtrState::Valid);
     const auto rhs = MakeTypePtr(Prim("i32"), PtrState::Null);
     const auto res = TypeEquiv(lhs, rhs);
     assert(res.ok && !res.equiv);
   }
   {
+    SPEC_COV("T-Equiv-RawPtr");
     const auto lhs = MakeTypeRawPtr(RawPtrQual::Imm, Prim("i32"));
     const auto rhs = MakeTypeRawPtr(RawPtrQual::Imm, Prim("i32"));
     const auto res = TypeEquiv(lhs, rhs);
     assert(res.ok && res.equiv);
   }
   {
+    SPEC_COV("T-Equiv-Dynamic");
     TypePath path = {"Dyn"};
     const auto lhs = MakeTypeDynamic(path);
     const auto rhs = MakeTypeDynamic(path);
@@ -201,12 +218,15 @@ int main() {
     ctx.sigma.mods.push_back(mod);
     ctx.current_module = {"main"};
 
+    SPEC_COV("ConstLen-Lit");
     ConstLenResult lit = ConstLen(ctx, MakeIntLit("12"));
     assert(lit.ok && lit.value.has_value() && *lit.value == 12);
 
+    SPEC_COV("ConstLen-Path");
     ConstLenResult path = ConstLen(ctx, MakePathExpr({"main"}, "LEN"));
     assert(path.ok && path.value.has_value() && *path.value == 4);
 
+    SPEC_COV("ConstLen-Err");
     Expr expr;
     expr.span = Span{};
     expr.node = cursive0::syntax::IdentifierExpr{"x"};

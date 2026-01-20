@@ -13,5 +13,5 @@ procedure consume(move m: unique Mod@A) -> Mod@B {
 }
 public procedure main(ctx: Context) -> i32 {
   let n = consume(move unsafe { transmute::<Mod@A, unique Mod@A>(Mod@A { x: 0 }) });
-  0
+  return 0;
 }

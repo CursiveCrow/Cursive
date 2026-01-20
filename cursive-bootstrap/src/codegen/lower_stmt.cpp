@@ -2,6 +2,7 @@
 
 #include "cursive0/codegen/checks.h"
 #include "cursive0/codegen/cleanup.h"
+#include "cursive0/codegen/layout.h"
 #include "cursive0/codegen/lower_expr.h"
 #include "cursive0/codegen/lower_pat.h"
 #include "cursive0/core/assert_spec.h"
@@ -92,6 +93,20 @@ static sema::TypeRef LoopPatternType(const sema::TypeRef& iter_type) {
   return nullptr;
 }
 
+sema::TypeRef LowerBindingType(const std::shared_ptr<syntax::Type>& type_opt,
+                               LowerCtx& ctx) {
+  if (!type_opt || !ctx.sigma) {
+    return nullptr;
+  }
+  sema::ScopeContext scope;
+  scope.sigma = *ctx.sigma;
+  scope.current_module = ctx.module_path;
+  if (const auto lowered = LowerTypeForLayout(scope, type_opt)) {
+    return *lowered;
+  }
+  return nullptr;
+}
+
 }  // namespace
 
 // ============================================================================
@@ -143,7 +158,8 @@ LowerResult LowerBlock(const syntax::Block& block, LowerCtx& ctx) {
 
   // §6.8 Emit cleanup for variables in this scope
   CleanupPlan cleanup_plan = ComputeCleanupPlanForCurrentScope(ctx);
-  IRPtr cleanup_ir = EmitCleanup(cleanup_plan, ctx);
+  CleanupPlan remainder = ComputeCleanupPlanRemainder(CleanupTarget::CurrentScope, ctx);
+  IRPtr cleanup_ir = EmitCleanupWithRemainder(cleanup_plan, remainder, ctx);
   ctx.PopScope();
 
   IRBlock block_ir;
@@ -172,26 +188,23 @@ IRPtr LowerLetStmt(const syntax::LetStmt& stmt, LowerCtx& ctx) {
   ctx.suppress_temp_at_depth = prev_suppress;
 
   IRPtr bind_ir = EmptyIR();
-  std::vector<std::string> names;
 
+  sema::TypeRef var_type;
+  var_type = LowerBindingType(binding.type_opt, ctx);
+  if (!var_type && ctx.expr_type && binding.init) {
+    var_type = ctx.expr_type(*binding.init);
+  }
+  const bool immovable = binding.op.lexeme == ":=";
   if (binding.pat) {
+    RegisterPatternBindings(*binding.pat, var_type, ctx, immovable);
     bind_ir = LowerBindPattern(*binding.pat, init_result.value, ctx);
-    CollectPatternNames(*binding.pat, names);
   } else {
     IRBindVar bind;
     bind.name = "anon_binding";
     bind.value = init_result.value;
+    bind.type = var_type;
     bind_ir = MakeIR(std::move(bind));
-    names.push_back("anon_binding");
-  }
-
-  sema::TypeRef var_type;
-  if (ctx.expr_type && binding.init) {
-    var_type = ctx.expr_type(*binding.init);
-  }
-  const bool immovable = binding.op.lexeme == ":=";
-  for (const auto& name : names) {
-    ctx.RegisterVar(name, var_type, true, immovable);
+    ctx.RegisterVar(bind.name, var_type, true, immovable);
   }
 
   return SeqIR({init_result.ir, bind_ir});
@@ -215,26 +228,23 @@ IRPtr LowerVarStmt(const syntax::VarStmt& stmt, LowerCtx& ctx) {
   ctx.suppress_temp_at_depth = prev_suppress;
 
   IRPtr bind_ir = EmptyIR();
-  std::vector<std::string> names;
 
+  sema::TypeRef var_type;
+  var_type = LowerBindingType(binding.type_opt, ctx);
+  if (!var_type && ctx.expr_type && binding.init) {
+    var_type = ctx.expr_type(*binding.init);
+  }
+  const bool immovable = binding.op.lexeme == ":=";
   if (binding.pat) {
+    RegisterPatternBindings(*binding.pat, var_type, ctx, immovable);
     bind_ir = LowerBindPattern(*binding.pat, init_result.value, ctx);
-    CollectPatternNames(*binding.pat, names);
   } else {
     IRBindVar bind;
     bind.name = "anon_var";
     bind.value = init_result.value;
+    bind.type = var_type;
     bind_ir = MakeIR(std::move(bind));
-    names.push_back("anon_var");
-  }
-
-  sema::TypeRef var_type;
-  if (ctx.expr_type && binding.init) {
-    var_type = ctx.expr_type(*binding.init);
-  }
-  const bool immovable = binding.op.lexeme == ":=";
-  for (const auto& name : names) {
-    ctx.RegisterVar(name, var_type, true, immovable);
+    ctx.RegisterVar(bind.name, var_type, true, immovable);
   }
 
   return SeqIR({init_result.ir, bind_ir});
@@ -272,9 +282,7 @@ IRPtr LowerCompoundAssignStmt(const syntax::CompoundAssignStmt& stmt,
     op.pop_back();
   }
 
-  IRValue new_value;
-  new_value.kind = IRValue::Kind::Opaque;
-  new_value.name = "binop_result";
+  IRValue new_value = ctx.FreshTempValue("binop");
 
   std::vector<IRPtr> op_parts;
   auto panic_reason = [&]() -> std::optional<PanicReason> {
@@ -297,6 +305,7 @@ IRPtr LowerCompoundAssignStmt(const syntax::CompoundAssignStmt& stmt,
     check.lhs = lhs_result.value;
     check.rhs = rhs_result.value;
     op_parts.push_back(MakeIR(std::move(check)));
+    op_parts.push_back(PanicCheck(ctx));
   }
 
   IRBinaryOp binop;
@@ -397,7 +406,8 @@ IRPtr LowerBreakStmt(const syntax::BreakStmt& stmt,
 
   // §6.8 Emit cleanup for variables from current scope to loop scope
   CleanupPlan cleanup_plan = ComputeCleanupPlanToLoopScope(ctx);
-  ir_parts.push_back(EmitCleanup(cleanup_plan, ctx));
+  CleanupPlan remainder = ComputeCleanupPlanRemainder(CleanupTarget::ToLoopScope, ctx);
+  ir_parts.push_back(EmitCleanupWithRemainder(cleanup_plan, remainder, ctx));
 
   // Emit the break
   IRBreak brk;
@@ -424,7 +434,8 @@ IRPtr LowerContinueStmt(const syntax::ContinueStmt& /*stmt*/,
 
   // §6.8 Emit cleanup for variables from current scope to loop scope
   CleanupPlan cleanup_plan = ComputeCleanupPlanToLoopScope(ctx);
-  ir_parts.push_back(EmitCleanup(cleanup_plan, ctx));
+  CleanupPlan remainder = ComputeCleanupPlanRemainder(CleanupTarget::ToLoopScope, ctx);
+  ir_parts.push_back(EmitCleanupWithRemainder(cleanup_plan, remainder, ctx));
 
   // Emit the continue
   IRContinue cont;
@@ -483,11 +494,13 @@ IRPtr LowerStmt(const syntax::Stmt& stmt, LowerCtx& ctx) {
           IRBindVar bind;
           bind.name = node.name;
           bind.value = init_result.value;
-          if (ctx.expr_type) {
-            ctx.RegisterVar(node.name, ctx.expr_type(*node.init), true, false);
-          } else {
-            ctx.RegisterVar(node.name, nullptr, true, false);
+          sema::TypeRef var_type;
+          var_type = LowerBindingType(node.type_opt, ctx);
+          if (!var_type && ctx.expr_type) {
+            var_type = ctx.expr_type(*node.init);
           }
+          bind.type = var_type;
+          ctx.RegisterVar(node.name, var_type, true, false);
           return SeqIR({init_result.ir, MakeIR(std::move(bind))});
         } else if constexpr (std::is_same_v<T, syntax::ShadowVarStmt>) {
           SPEC_RULE("Lower-Stmt-ShadowVar");
@@ -501,11 +514,13 @@ IRPtr LowerStmt(const syntax::Stmt& stmt, LowerCtx& ctx) {
           IRBindVar bind;
           bind.name = node.name;
           bind.value = init_result.value;
-          if (ctx.expr_type) {
-            ctx.RegisterVar(node.name, ctx.expr_type(*node.init), true, false);
-          } else {
-            ctx.RegisterVar(node.name, nullptr, true, false);
+          sema::TypeRef var_type;
+          var_type = LowerBindingType(node.type_opt, ctx);
+          if (!var_type && ctx.expr_type) {
+            var_type = ctx.expr_type(*node.init);
           }
+          bind.type = var_type;
+          ctx.RegisterVar(node.name, var_type, true, false);
           return SeqIR({init_result.ir, MakeIR(std::move(bind))});
         } else if constexpr (std::is_same_v<T, syntax::AssignStmt>) {
           return LowerAssignStmt(node, ctx);
@@ -539,7 +554,20 @@ IRPtr LowerStmt(const syntax::Stmt& stmt, LowerCtx& ctx) {
           }
 
           auto opts_result = LowerExpr(*opts_expr, ctx);
+          if (node.alias_opt.has_value()) {
+            ctx.PushScope(false, true);
+            sema::TypePath region_path;
+            region_path.push_back("Region");
+            const auto region_type = sema::MakeTypeModalState(std::move(region_path),
+                                                              "Active");
+            ctx.RegisterVar(*node.alias_opt, region_type, false, true);
+          }
+
           auto body_result = LowerBlock(*node.body, ctx);
+
+          if (node.alias_opt.has_value()) {
+            ctx.PopScope();
+          }
           if (ctx.temp_sink) {
             ctx.RegisterTempValue(body_result.value, block_result_type(node.body));
           }
@@ -661,9 +689,7 @@ LowerResult LowerLoopInfinite(const syntax::LoopInfiniteExpr& expr,
   loop.body_ir = body_result.ir;
   loop.body_value = body_result.value;
 
-  IRValue result;
-  result.kind = IRValue::Kind::Opaque;
-  result.name = "loop_result";
+  IRValue result = ctx.FreshTempValue("loop");
 
   return LowerResult{MakeIR(std::move(loop)), result};
 }
@@ -692,9 +718,7 @@ LowerResult LowerLoopConditional(const syntax::LoopConditionalExpr& expr,
   loop.body_ir = body_result.ir;
   loop.body_value = body_result.value;
 
-  IRValue result;
-  result.kind = IRValue::Kind::Opaque;
-  result.name = "while_result";
+  IRValue result = ctx.FreshTempValue("while");
 
   return LowerResult{MakeIR(std::move(loop)), result};
 }
@@ -730,9 +754,7 @@ LowerResult LowerLoopIter(const syntax::LoopIterExpr& expr, LowerCtx& ctx) {
   loop.body_ir = body_result.ir;
   loop.body_value = body_result.value;
 
-  IRValue result;
-  result.kind = IRValue::Kind::Opaque;
-  result.name = "for_result";
+  IRValue result = ctx.FreshTempValue("for");
 
   return LowerResult{MakeIR(std::move(loop)), result};
 }
@@ -750,9 +772,7 @@ LowerResult LowerLoop(const syntax::Expr& loop, LowerCtx& ctx) {
           return LowerLoopIter(node, ctx);
         } else {
           // Not a loop expression
-          IRValue error_value;
-          error_value.kind = IRValue::Kind::Opaque;
-          error_value.name = "not_a_loop";
+          IRValue error_value = ctx.FreshTempValue("not_a_loop");
           return LowerResult{EmptyIR(), error_value};
         }
       },
@@ -768,13 +788,17 @@ IRPtr CleanupList(const std::vector<TempValue>& temps, LowerCtx& ctx) {
     return EmptyIR();
   }
 
-  std::vector<IRPtr> drops;
-  drops.reserve(temps.size());
+  CleanupPlan plan;
+  plan.reserve(temps.size());
   for (auto it = temps.rbegin(); it != temps.rend(); ++it) {
-    drops.push_back(EmitDrop(it->type, it->value, ctx));
+    CleanupAction action;
+    action.kind = CleanupAction::Kind::DropTemp;
+    action.type = it->type;
+    action.value = it->value;
+    plan.push_back(std::move(action));
   }
-
-  return SeqIR(std::move(drops));
+  CleanupPlan remainder = ComputeCleanupPlanToFunctionRoot(ctx);
+  return EmitCleanupWithRemainder(plan, remainder, ctx);
 }
 
 // ============================================================================

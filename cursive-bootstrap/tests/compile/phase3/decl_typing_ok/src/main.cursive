@@ -7,7 +7,7 @@
 # SPEC_COV: Main-Ok
 # SPEC_COV: TypeAlias-Ok
 public procedure main(ctx: Context) -> i32 {
-  0
+  return 0;
 }
 procedure helper() -> () { }
 let Val: i32 = 0

@@ -1,0 +1,5 @@
+[assembly]
+name = "drop_unwind_panic"
+kind = "executable"
+emit_ir = "ll"
+root = "src"

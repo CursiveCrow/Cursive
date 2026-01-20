@@ -1801,6 +1801,14 @@
       "table": "E-TYP"
     },
     {
+      "code": "E-TYP-1507",
+      "condition": "Procedure with non-unit return type requires explicit return statement",
+      "detection": "Compile-time",
+      "diag_id": "WF-ProcBody-ExplicitReturn-Err",
+      "severity": "Error",
+      "table": "E-TYP"
+    },
+    {
       "code": "E-TYP-2202",
       "condition": "Direct access on union value without pattern matching",
       "detection": "Compile-time",

@@ -91,5 +91,5 @@
 let r1 = .. let r2 = ..=x let r3 = x.. let r4 = x..y let r5 = x..=y let r6 = ..y let b1 = 1 + 2 * 3 let b2 = 1 << 2 let b3 = 1 & 2 | 3 ^ 4 let b4 = 1 == 2 || 3 != 4 let p = 2 ** 3 ** 4 let c = x as i32 let u1 = !x let u2 = -x let u3 = *x let u4 = &x let u5 = move x let u6 = widen x let u7 = &*x let pf1 = x.y let pf2 = x.0 let pf3 = x[0] let pf4 = x(1) let pf5 = x~>foo(1) let pf6 = x? let n = Ptr::null() let a = ^x let qn = Mod::val let qa = Mod::fun(1) let qb = Mod::Rec { f: 1 } let par = (1 + 2) let tup = (1, 2) let tup1 = (1;) let empty = () let arr = [1, 2] let rec = Rec { a: 1, b } let modal_state = Rec@State { a: 1 } let if1 = if true { } else { } let if2 = if true { } else if false { } let if3 = if true { } let m1 = match x { y => y } let m2 = match x { y if true => y, z => { } } let l1 = loop { } let l2 = loop x { } let l3 = loop x in y { } let blk = { } let un = unsafe { } let tr1 = transmute::<i32, i32>(x) let tr2 = transmute::<i32, i32>>(x) let call0 = foo() let call1 = foo(1) let call2 = foo(1, 2) let callm = foo(move x, y)
 
 public procedure main(ctx: Context) -> i32 {
-  0
+  return 0;
 }

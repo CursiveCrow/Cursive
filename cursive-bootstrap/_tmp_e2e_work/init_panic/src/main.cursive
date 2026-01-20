@@ -1,0 +1,6 @@
+
+let boom: i32 = 1i32 / 0i32
+
+public procedure main(ctx: Context) -> i32 {
+  0i32
+}

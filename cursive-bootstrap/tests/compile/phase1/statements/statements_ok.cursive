@@ -32,5 +32,5 @@
 procedure ok1() -> () { let x = 1; var y = 2; shadow let z = 3; shadow var w = 4; x = 5; x += 1; y; defer { } region { } region(1) as r { } frame { } r.frame { } unsafe { } result 1; break; continue; return; } procedure ok2() -> () { return } procedure ok3() -> () { let b0 = { }; let b1 = { let a = 1; a }; }
 
 public procedure main(ctx: Context) -> i32 {
-  0
+  return 0;
 }

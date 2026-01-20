@@ -1,11 +1,11 @@
 # SPEC_COV: EvalOrder-Tuple
 
-procedure trace(msg: i32) -> i32 { msg }
+procedure trace(msg: i32) -> i32 { return msg; }
 
 public procedure main(ctx: Context) -> i32 {
     let a = 1;
     let b = 2;
     let c = 3;
     let _t = (trace(a), trace(b), trace(c));
-    0
+    return 0;
 }

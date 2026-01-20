@@ -1,5 +1,5 @@
 # SPEC_COV: Record-FileDir-Err
 public procedure main(ctx: Context) -> i32 {
   let f = File@Read { handle: 0 };
-  0
+  return 0;
 }

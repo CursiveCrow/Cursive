@@ -1,6 +1,7 @@
 #include "cursive0/codegen/globals.h"
 
 #include <algorithm>
+#include <set>
 #include <vector>
 
 #include "cursive0/codegen/checks.h"
@@ -28,6 +29,44 @@ std::string ModulePathString(const syntax::ModulePath& path) {
   return out;
 }
 
+bool IsMoveExprLite(const syntax::ExprPtr& expr) {
+  return expr && std::holds_alternative<syntax::MoveExpr>(expr->node);
+}
+
+bool IsPlaceExprLite(const syntax::ExprPtr& expr) {
+  if (!expr) {
+    return false;
+  }
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
+          return true;
+        } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
+          return IsPlaceExprLite(node.base);
+        } else if constexpr (std::is_same_v<T, syntax::TupleAccessExpr>) {
+          return IsPlaceExprLite(node.base);
+        } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
+          return IsPlaceExprLite(node.base);
+        } else if constexpr (std::is_same_v<T, syntax::DerefExpr>) {
+          return IsPlaceExprLite(node.value);
+        }
+        return false;
+      },
+      expr->node);
+}
+
+bool StaticHasResponsibility(const syntax::StaticDecl& item) {
+  const auto& init = item.binding.init;
+  if (!init) {
+    return true;
+  }
+  if (!IsPlaceExprLite(init)) {
+    return true;
+  }
+  return IsMoveExprLite(init);
+}
+
 }  // namespace
 
 // ============================================================================
@@ -50,6 +89,50 @@ static std::vector<T> Rev(const std::vector<T>& vec) {
   SPEC_DEF("Rev", "");
   std::vector<T> result(vec.rbegin(), vec.rend());
   return result;
+}
+
+static std::vector<syntax::ModulePath> TopoOrderFromEdges(
+    const std::vector<syntax::ModulePath>& modules,
+    const std::vector<std::pair<std::size_t, std::size_t>>& edges) {
+  const std::size_t n = modules.size();
+  if (n == 0) {
+    return {};
+  }
+  std::vector<std::vector<std::size_t>> adj(n);
+  std::vector<std::size_t> indeg(n, 0);
+  for (const auto& edge : edges) {
+    if (edge.first >= n || edge.second >= n) {
+      continue;
+    }
+    adj[edge.first].push_back(edge.second);
+    indeg[edge.second] += 1;
+  }
+  std::set<std::size_t> ready;
+  for (std::size_t i = 0; i < n; ++i) {
+    if (indeg[i] == 0) {
+      ready.insert(i);
+    }
+  }
+  std::vector<syntax::ModulePath> order;
+  order.reserve(n);
+  while (!ready.empty()) {
+    const std::size_t u = *ready.begin();
+    ready.erase(ready.begin());
+    order.push_back(modules[u]);
+    for (const auto v : adj[u]) {
+      if (indeg[v] == 0) {
+        continue;
+      }
+      indeg[v] -= 1;
+      if (indeg[v] == 0) {
+        ready.insert(v);
+      }
+    }
+  }
+  if (order.size() != n) {
+    return {};
+  }
+  return order;
 }
 
 // ============================================================================
@@ -175,6 +258,7 @@ IRPtr LowerStaticDeinitNames(const syntax::ModulePath& module_path,
   std::vector<IRPtr> ir_parts;
   ir_parts.reserve(names.size());
 
+  const bool has_resp = StaticHasResponsibility(item);
   const auto bind_types = StaticBindTypes(item.binding, module_path, ctx);
   auto type_for = [&](const std::string& name) -> sema::TypeRef {
     for (const auto& [bind_name, bind_type] : bind_types) {
@@ -186,15 +270,17 @@ IRPtr LowerStaticDeinitNames(const syntax::ModulePath& module_path,
   };
 
   for (const auto& name : names) {
+    if (!has_resp) {
+      SPEC_RULE("Lower-StaticDeinitNames-Cons-NoResp");
+      continue;
+    }
     SPEC_RULE("Lower-StaticDeinitNames-Cons-Resp");
 
     IRReadPath read;
     read.path = module_path;
     read.name = name;
 
-    IRValue loaded_value;
-    loaded_value.kind = IRValue::Kind::Opaque;
-    loaded_value.name = "static_" + name;
+    IRValue loaded_value = ctx.FreshTempValue("static");
 
     sema::TypeRef type = type_for(name);
 
@@ -202,6 +288,9 @@ IRPtr LowerStaticDeinitNames(const syntax::ModulePath& module_path,
     ir_parts.push_back(SeqIR({MakeIR(std::move(read)), drop_ir}));
   }
 
+  if (ir_parts.empty()) {
+    return EmptyIR();
+  }
   return SeqIRList(ir_parts);
 }
 
@@ -331,10 +420,35 @@ IRPtr EmitInitPlan(const std::vector<syntax::ModulePath>& init_order,
   // IR_init = SeqIRList([IR_1,...,IR_k])
   // EmitInitPlan(P) ⇓ IR_init
   
+  std::vector<syntax::ModulePath> order = init_order;
+  if (order.empty()) {
+    if (!ctx.init_modules.empty()) {
+      const auto fallback =
+          TopoOrderFromEdges(ctx.init_modules, ctx.init_eager_edges);
+      if (!fallback.empty()) {
+        order = fallback;
+      } else {
+        order = ctx.init_modules;
+      }
+    } else if (ctx.sigma) {
+      order.reserve(ctx.sigma->mods.size());
+      for (const auto& mod : ctx.sigma->mods) {
+        order.push_back(mod.path);
+      }
+    }
+  } else if (!ctx.init_modules.empty() &&
+             order.size() != ctx.init_modules.size()) {
+    const auto fallback =
+        TopoOrderFromEdges(ctx.init_modules, ctx.init_eager_edges);
+    if (!fallback.empty()) {
+      order = fallback;
+    }
+  }
+
   std::vector<IRPtr> ir_parts;
-  ir_parts.reserve(init_order.size());
+  ir_parts.reserve(order.size());
   
-  for (const auto& module_path : init_order) {
+  for (const auto& module_path : order) {
     ir_parts.push_back(InitCallIR(module_path, ctx));
   }
   
@@ -440,6 +554,17 @@ void AnchorInitRules() {
   SPEC_RULE("EmitInitPlan-Err");
   SPEC_RULE("EmitDeinitPlan");
   SPEC_RULE("EmitDeinitPlan-Err");
+
+  // A7.1 Initialization Order and Poisoning
+  SPEC_RULE("Init-Start");
+  SPEC_RULE("Init-Step");
+  SPEC_RULE("Init-Next-Module");
+  SPEC_RULE("Init-Panic");
+  SPEC_RULE("Init-Done");
+  SPEC_RULE("Init-Ok");
+  SPEC_RULE("Init-Fail");
+  SPEC_RULE("Deinit-Ok");
+  SPEC_RULE("Deinit-Panic");
   
   // Definitions
   SPEC_DEF("InitSym", "");

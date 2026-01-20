@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <sstream>
 #include <unordered_set>
 
 #include "cursive0/core/assert_spec.h"
@@ -114,10 +115,10 @@ std::optional<std::string> AssembleIRDefault(const std::filesystem::path& tool,
   return AssembleIR(tool, ir_text);
 }
 
-bool InvokeLinkerDefault(const std::filesystem::path&,
-                         const std::vector<std::filesystem::path>&,
-                         const std::filesystem::path&) {
-  return false;
+bool InvokeLinkerDefault(const std::filesystem::path& tool,
+                         const std::vector<std::filesystem::path>& inputs,
+                         const std::filesystem::path& exe) {
+  return InvokeLinker(tool, inputs, exe);
 }
 
 std::optional<std::vector<std::string>> LinkerSymsDefault(
@@ -125,6 +126,28 @@ std::optional<std::vector<std::string>> LinkerSymsDefault(
     const std::vector<std::filesystem::path>& inputs,
     const std::filesystem::path& exe) {
   return LinkerSyms(tool, inputs, exe);
+}
+
+std::string JoinList(const std::vector<std::string>& items,
+                     std::string_view sep) {
+  std::ostringstream oss;
+  bool first = true;
+  for (const auto& item : items) {
+    if (!first) {
+      oss << sep;
+    }
+    first = false;
+    oss << item;
+  }
+  return oss.str();
+}
+
+std::string RenderList(const std::vector<std::string>& items) {
+  std::ostringstream oss;
+  oss << "[";
+  oss << JoinList(items, ", ");
+  oss << "]";
+  return oss.str();
 }
 
 }  // namespace
@@ -211,6 +234,70 @@ bool OutputHygiene(const Project& project) {
     }
   }
   return true;
+}
+
+std::vector<std::string> DumpProject(const Project& project, bool dump_files) {
+  std::vector<std::string> out;
+  out.reserve(6 + project.modules.size());
+
+  auto push_kv = [&](std::string_view key, std::string_view value) {
+    std::string line;
+    line.reserve(key.size() + value.size() + 2);
+    line.append(key);
+    line.append(": ");
+    line.append(value);
+    out.push_back(std::move(line));
+  };
+
+  std::vector<std::string> assembly_names;
+  assembly_names.reserve(project.assemblies.size());
+  for (const auto& assembly : project.assemblies) {
+    assembly_names.push_back(assembly.name);
+  }
+
+  std::vector<std::string> module_names;
+  module_names.reserve(project.modules.size());
+  for (const auto& module : project.modules) {
+    module_names.push_back(module.path);
+  }
+
+  push_kv("project_root", project.root.generic_string());
+  push_kv("assemblies", RenderList(assembly_names));
+  push_kv("assembly_name", project.assembly.name);
+  push_kv("source_root", project.source_root.generic_string());
+  push_kv("output_root", project.outputs.root.generic_string());
+  push_kv("module_list", RenderList(module_names));
+
+  const std::string_view emit_ir = EmitIrMode(project);
+  for (const auto& module : project.modules) {
+    std::string line;
+    std::string obj_path = ObjPath(project, module).generic_string();
+    std::string ir_value = "none";
+    if (emit_ir == "ll" || emit_ir == "bc") {
+      ir_value = IRPath(project, module, emit_ir).generic_string();
+    }
+    line.reserve(module.path.size() + obj_path.size() + ir_value.size() + 24);
+    line.append("module: ");
+    line.append(module.path);
+    line.append(" obj: ");
+    line.append(obj_path);
+    line.append(" ir: ");
+    line.append(ir_value);
+    out.push_back(std::move(line));
+  }
+
+  if (dump_files) {
+    for (const auto& module : project.modules) {
+      const auto unit = CompilationUnit(module.dir);
+      for (const auto& file : unit.files) {
+        std::string line = "file:";
+        line.append(file.generic_string());
+        out.push_back(std::move(line));
+      }
+    }
+  }
+
+  return out;
 }
 
 OutputPipelineResult OutputPipelineWithDeps(const Project& project,

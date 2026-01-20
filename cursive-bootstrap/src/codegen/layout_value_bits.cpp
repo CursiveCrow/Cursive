@@ -384,6 +384,104 @@ static std::optional<std::uint32_t> DecodeCharLiteral(std::string_view lexeme) {
   return decoded->first;
 }
 
+}  // namespace
+
+std::optional<std::vector<std::uint8_t>> DecodeStringLiteralBytes(
+    std::string_view lexeme) {
+  if (lexeme.size() < 2 || lexeme.front() != '"' || lexeme.back() != '"') {
+    return std::nullopt;
+  }
+  const std::string_view inner = lexeme.substr(1, lexeme.size() - 2);
+  std::vector<std::uint8_t> bytes;
+  const auto* data = reinterpret_cast<const unsigned char*>(inner.data());
+  std::size_t i = 0;
+  while (i < inner.size()) {
+    const unsigned char c = data[i];
+    if (c == static_cast<unsigned char>('\\')) {
+      if (i + 1 >= inner.size()) {
+        return std::nullopt;
+      }
+      const char esc = inner[i + 1];
+      switch (esc) {
+        case '\\':
+          bytes.push_back(0x5Cu);
+          i += 2;
+          break;
+        case '"':
+          bytes.push_back(0x22u);
+          i += 2;
+          break;
+        case '\'':
+          bytes.push_back(0x27u);
+          i += 2;
+          break;
+        case 'n':
+          bytes.push_back(0x0Au);
+          i += 2;
+          break;
+        case 'r':
+          bytes.push_back(0x0Du);
+          i += 2;
+          break;
+        case 't':
+          bytes.push_back(0x09u);
+          i += 2;
+          break;
+        case '0':
+          bytes.push_back(0x00u);
+          i += 2;
+          break;
+        case 'x': {
+          if (i + 3 >= inner.size()) {
+            return std::nullopt;
+          }
+          unsigned d1 = 0;
+          unsigned d2 = 0;
+          if (!DigitValue(inner[i + 2], 16, &d1) ||
+              !DigitValue(inner[i + 3], 16, &d2)) {
+            return std::nullopt;
+          }
+          bytes.push_back(static_cast<std::uint8_t>((d1 << 4) | d2));
+          i += 4;
+          break;
+        }
+        case 'u': {
+          if (i + 2 >= inner.size() || inner[i + 2] != '{') {
+            return std::nullopt;
+          }
+          const std::size_t start = i + 3;
+          const std::size_t close = inner.find('}', start);
+          if (close == std::string_view::npos) {
+            return std::nullopt;
+          }
+          const auto digits = inner.substr(start, close - start);
+          const auto value = ParseHexScalar(digits);
+          if (!value.has_value()) {
+            return std::nullopt;
+          }
+          const auto utf8 = EncodeUtf8(*value);
+          bytes.insert(bytes.end(), utf8.begin(), utf8.end());
+          i = close + 1;
+          break;
+        }
+        default:
+          return std::nullopt;
+      }
+      continue;
+    }
+    const auto decoded = DecodeUtf8One(data, inner.size(), i);
+    if (!decoded.has_value()) {
+      return std::nullopt;
+    }
+    const std::size_t len = decoded->second;
+    bytes.insert(bytes.end(), inner.begin() + i, inner.begin() + i + len);
+    i += len;
+  }
+  return bytes;
+}
+
+namespace {
+
 static bool ParseIntCore(std::string_view core, core::UInt128& value_out) {
   unsigned base = 10;
   std::string_view digits = core;

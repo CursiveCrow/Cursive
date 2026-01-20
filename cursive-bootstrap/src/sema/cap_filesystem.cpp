@@ -150,12 +150,16 @@ static TypeRef TypeFileKind() {
   return MakeTypePath({"FileKind"});
 }
 
+static TypeRef TypeUnique(TypeRef base) {
+  return MakeTypePerm(Permission::Unique, std::move(base));
+}
+
 static TypeRef TypeFileState(std::string_view state) {
-  return MakeTypeModalState({"File"}, std::string(state));
+  return TypeUnique(MakeTypeModalState({"File"}, std::string(state)));
 }
 
 static TypeRef TypeDirIterState(std::string_view state) {
-  return MakeTypeModalState({"DirIter"}, std::string(state));
+  return TypeUnique(MakeTypeModalState({"DirIter"}, std::string(state)));
 }
 
 static TypeRef TypeDirEntry() {
@@ -444,7 +448,7 @@ syntax::EnumDecl BuildFileKindEnumDecl() {
   syntax::EnumDecl decl{};
   decl.vis = syntax::Visibility::Public;
   decl.name = "FileKind";
-  decl.implements = {};
+  decl.implements = {{"Bitcopy"}};
   decl.span = core::Span{};
   decl.doc = {};
 
@@ -468,7 +472,7 @@ syntax::EnumDecl BuildIoErrorEnumDecl() {
   syntax::EnumDecl decl{};
   decl.vis = syntax::Visibility::Public;
   decl.name = "IoError";
-  decl.implements = {};
+  decl.implements = {{"Bitcopy"}};
   decl.span = core::Span{};
   decl.doc = {};
 

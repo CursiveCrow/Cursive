@@ -16,5 +16,5 @@ public procedure main(ctx: Context) -> i32 {
   use_heap(move unsafe {
     transmute::<(*imm i32, *imm i32), unique $HeapAllocator>((raw, raw))
   });
-  0
+  return 0;
 }

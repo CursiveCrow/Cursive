@@ -114,7 +114,7 @@ def find_spec_rules(root_path: Path) -> Set[str]:
     return find_spec_anchors(
         root_path,
         r"SPEC_RULE",
-        [".cpp", ".h", ".hpp"]
+        [".c", ".cpp", ".h", ".hpp"]
     )
 
 
@@ -204,7 +204,7 @@ def print_report(
         # Group by section
         by_section: Dict[str, List[str]] = {}
         for rule_id in sorted(missing_impl):
-            section = all_rules.get(rule_id, "?")
+            section = all_rules.get(rule_id, "Sigma")
             by_section.setdefault(section, []).append(rule_id)
         
         for section in sorted(by_section.keys()):
@@ -216,7 +216,7 @@ def print_report(
         print(f"\n--- Missing SPEC_COV ({len(missing_test)}) ---")
         by_section: Dict[str, List[str]] = {}
         for rule_id in sorted(missing_test):
-            section = all_rules.get(rule_id, "?")
+            section = all_rules.get(rule_id, "Sigma")
             by_section.setdefault(section, []).append(rule_id)
         
         for section in sorted(by_section.keys()):

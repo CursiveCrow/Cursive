@@ -1,8 +1,10 @@
 #include "cursive0/codegen/ir_dump.h"
 
 #include <algorithm>
+#include <cctype>
 #include <iomanip>
 #include <sstream>
+#include <unordered_map>
 
 namespace cursive0::codegen {
 
@@ -11,6 +13,51 @@ namespace {
 struct Dumper {
   std::ostringstream oss;
   int indent_level = 0;
+  std::unordered_map<std::string, std::string> display_map;
+  std::unordered_map<std::string, std::string> addr_place;
+
+  static std::string NormalizeOpaqueName(const std::string& name) {
+    if (name.empty()) {
+      return name;
+    }
+    const std::size_t underscore = name.rfind('_');
+    if (underscore == std::string::npos || underscore + 1 >= name.size()) {
+      return name;
+    }
+    for (std::size_t i = underscore + 1; i < name.size(); ++i) {
+      if (!std::isdigit(static_cast<unsigned char>(name[i]))) {
+        return name;
+      }
+    }
+    return name.substr(0, underscore);
+  }
+
+  static bool IsSimpleIdent(const std::string& name) {
+    if (name.empty()) {
+      return false;
+    }
+    unsigned char first = static_cast<unsigned char>(name[0]);
+    if (!(std::isalpha(first) || name[0] == '_')) {
+      return false;
+    }
+    for (std::size_t i = 1; i < name.size(); ++i) {
+      unsigned char c = static_cast<unsigned char>(name[i]);
+      if (!(std::isalnum(c) || name[i] == '_')) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static bool ShouldCombineAddrOf(const std::string& place) {
+    if (place.empty()) {
+      return false;
+    }
+    if (place[0] == '*') {
+      return false;
+    }
+    return place.find('.') == std::string::npos;
+  }
 
   void Indent() {
     for (int i = 0; i < indent_level; ++i) oss << "  ";
@@ -19,8 +66,8 @@ struct Dumper {
   void DumpImmediateBytes(const IRValue& v) {
     std::ostringstream hex;
     hex << std::uppercase << std::hex;
-    for (std::uint8_t b : v.bytes) {
-      hex << std::setw(2) << std::setfill('0') << static_cast<int>(b);
+    for (auto it = v.bytes.rbegin(); it != v.bytes.rend(); ++it) {
+      hex << std::setw(2) << std::setfill('0') << static_cast<int>(*it);
     }
     std::string hex_str = hex.str();
     // Strip leading zeros for readability.
@@ -39,7 +86,12 @@ struct Dumper {
         if (v.name.empty()) {
           oss << "opaque";
         } else {
-          oss << v.name;
+          auto it = display_map.find(v.name);
+          if (it != display_map.end()) {
+            oss << it->second;
+          } else {
+            oss << NormalizeOpaqueName(v.name);
+          }
         }
         break;
       case IRValue::Kind::Local:
@@ -100,19 +152,36 @@ struct Dumper {
     std::visit(
         [this](const auto& pat) {
           using T = std::decay_t<decltype(pat)>;
-          if constexpr (std::is_same_v<T, syntax::LiteralPattern>) {
-            oss << "<literal " << pat.literal.lexeme << ">";
-          } else if constexpr (std::is_same_v<T, syntax::WildcardPattern>) {
-            oss << "_";
-          } else if constexpr (std::is_same_v<T, syntax::IdentifierPattern>) {
-            oss << pat.name;
-          } else if constexpr (std::is_same_v<T, syntax::TypedPattern>) {
-            oss << pat.name;
-          } else {
-            oss << "<pattern>";
+        if constexpr (std::is_same_v<T, syntax::LiteralPattern>) {
+          oss << "<literal " << pat.literal.lexeme << ">";
+        } else if constexpr (std::is_same_v<T, syntax::WildcardPattern>) {
+          oss << "_";
+        } else if constexpr (std::is_same_v<T, syntax::IdentifierPattern>) {
+          oss << pat.name;
+        } else if constexpr (std::is_same_v<T, syntax::TypedPattern>) {
+          oss << pat.name;
+        } else if constexpr (std::is_same_v<T, syntax::ModalPattern>) {
+          oss << "@" << pat.state;
+          if (pat.fields_opt) {
+            oss << " {";
+            for (std::size_t i = 0; i < pat.fields_opt->fields.size(); ++i) {
+              const auto& field = pat.fields_opt->fields[i];
+              if (i) {
+                oss << ", ";
+              }
+              oss << field.name;
+              if (field.pattern_opt) {
+                oss << ": ";
+                DumpPattern(*field.pattern_opt);
+              }
+            }
+            oss << "}";
           }
-        },
-        pattern.node);
+        } else {
+          oss << "<pattern>";
+        }
+      },
+      pattern.node);
   }
 
   void DumpCall(const IRCall& call) {
@@ -172,7 +241,15 @@ struct Dumper {
           if (next) {
             if (auto bind = std::get_if<IRBindVar>(&next->node)) {
               const auto& val = bind->value;
-              if (val.kind == IRValue::Kind::Opaque && val.name == "addr_of") {
+              if (val.kind == IRValue::Kind::Opaque &&
+                  NormalizeOpaqueName(val.name) == "addr_of" &&
+                  ShouldCombineAddrOf(addr->place.repr)) {
+                if (addr->result.kind == IRValue::Kind::Opaque && !addr->result.name.empty()) {
+                  display_map[addr->result.name] = "addr_of";
+                  if (!addr->place.repr.empty()) {
+                    addr_place[addr->result.name] = addr->place.repr;
+                  }
+                }
                 Indent();
                 oss << "bind %" << bind->name << " = addr_of";
                 if (!addr->place.repr.empty()) {
@@ -224,6 +301,19 @@ struct Dumper {
   }
 
   void DumpNode(const IRBindVar& b) {
+    if (b.value.kind == IRValue::Kind::Opaque && !b.value.name.empty()) {
+      const std::string norm = NormalizeOpaqueName(b.value.name);
+      if (norm == "addr_of") {
+        auto it = addr_place.find(b.value.name);
+        if (it != addr_place.end() && ShouldCombineAddrOf(it->second)) {
+          oss << "bind %" << b.name << " = addr_of";
+          if (!it->second.empty()) {
+            oss << " " << it->second;
+          }
+          return;
+        }
+      }
+    }
     oss << "bind %" << b.name << " = ";
     Dump(b.value);
   }
@@ -279,6 +369,12 @@ struct Dumper {
   }
 
   void DumpNode(const IRAddrOf& a) {
+    if (a.result.kind == IRValue::Kind::Opaque && !a.result.name.empty()) {
+      display_map[a.result.name] = "addr_of";
+      if (!a.place.repr.empty()) {
+        addr_place[a.result.name] = a.place.repr;
+      }
+    }
     oss << "addr_of";
     if (!a.place.repr.empty()) {
       oss << " " << a.place.repr;
@@ -286,11 +382,33 @@ struct Dumper {
   }
 
   void DumpNode(const IRReadPtr& r) {
+    if (r.ptr.kind == IRValue::Kind::Opaque &&
+        r.result.kind == IRValue::Kind::Opaque &&
+        !r.ptr.name.empty() && !r.result.name.empty()) {
+      auto it = addr_place.find(r.ptr.name);
+      if (it != addr_place.end()) {
+        if (IsSimpleIdent(it->second)) {
+          display_map[r.result.name] = "%" + it->second;
+        } else {
+          display_map[r.result.name] = it->second;
+        }
+      }
+    }
     oss << "load_ptr ";
     Dump(r.ptr);
   }
 
   void DumpNode(const IRWritePtr& w) {
+    if (w.ptr.kind == IRValue::Kind::Opaque && !w.ptr.name.empty()) {
+      auto it = addr_place.find(w.ptr.name);
+      if (it != addr_place.end()) {
+        oss << "rec_update";
+        if (!it->second.empty()) {
+          oss << " " << it->second;
+        }
+        return;
+      }
+    }
     oss << "store_ptr ";
     Dump(w.ptr);
     oss << " = ";
@@ -479,6 +597,18 @@ struct Dumper {
   void DumpNode(const IRClearPanic&) { oss << "clear_panic"; }
 
   void DumpNode(const IRPanicCheck&) { oss << "panic_check"; }
+
+  void DumpNode(const IRInitPanicHandle& h) {
+    oss << "init_panic_handle " << h.module;
+    if (!h.poison_modules.empty()) {
+      oss << " [";
+      for (std::size_t i = 0; i < h.poison_modules.size(); ++i) {
+        if (i) oss << ", ";
+        oss << h.poison_modules[i];
+      }
+      oss << "]";
+    }
+  }
 
   void DumpNode(const IRCheckPoison& c) { oss << "check_poison " << c.module; }
 

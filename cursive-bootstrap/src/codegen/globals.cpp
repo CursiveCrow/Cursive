@@ -206,6 +206,11 @@ EmitGlobalResult EmitGlobal(const syntax::StaticDecl& item,
   if (static_name.has_value()) {
     std::string sym = StaticSym(item, module_path, *static_name);
 
+    if (init_type) {
+      ctx.RegisterStaticType(sym, init_type);
+      ctx.RegisterStaticModule(sym, module_path);
+    }
+
     if (binding.init) {
       if (auto bytes = ConstInit(init_type, *binding.init)) {
         SPEC_RULE("Emit-Static-Const");
@@ -256,6 +261,10 @@ EmitGlobalResult EmitGlobal(const syntax::StaticDecl& item,
         type = bind_type;
         break;
       }
+    }
+    if (type) {
+      ctx.RegisterStaticType(sym, type);
+      ctx.RegisterStaticModule(sym, module_path);
     }
     GlobalZero gz;
     gz.symbol = sym;
@@ -321,6 +330,7 @@ IRDecl EmitStringLit(const std::string& contents) {
 
 IRDecl EmitBytesLit(const std::vector<std::uint8_t>& contents) {
   SPEC_DEF("EmitBytesLit", "ยง6.12.14");
+  SPEC_RULE("EmitLiteral-Bytes");
   
   // Generate a unique symbol for this bytes literal
   std::string sym = MangleLiteral("bytes", contents);

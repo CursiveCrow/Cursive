@@ -1,5 +1,5 @@
 # SPEC_COV: Widen-NonModal
 public procedure main(ctx: Context) -> i32 {
   let x = widen 1;
-  0
+  return 0;
 }

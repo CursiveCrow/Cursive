@@ -1,7 +1,7 @@
 # SPEC_COV: Lower-WritePlace-Ident-Local
 # SPEC_COV: Lower-WritePlace-Field
 # SPEC_COV: Lower-WritePlace-Index-Scalar
-# SPEC_COV: Execσ-Assign
+# SPEC_COV: ExecSigma-Assign
 # SPEC_COV: LowerWriteSub-Ident-Local
 
 record Rec { a: i32 }
@@ -15,5 +15,5 @@ public procedure main(ctx: Context) -> i32 {
     
     var rec = Rec { a: 1 };
     rec.a = 2;
-    0
+    return 0;
 }

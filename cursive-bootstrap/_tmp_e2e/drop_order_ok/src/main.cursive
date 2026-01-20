@@ -1,0 +1,19 @@
+﻿
+record Trace <: Drop {
+  fs: $FileSystem,
+  label: string@View,
+  procedure drop(~!) -> () {
+    let _ = match self.fs~>write_stdout(self.label) {
+      ok: () => (),
+      err: IoError => ()
+    };
+  }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  {
+    let a = Trace { fs: ctx.fs, label: "A" };
+    let b = Trace { fs: ctx.fs, label: "B" };
+  }
+  0i32
+}

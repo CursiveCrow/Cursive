@@ -1,0 +1,7 @@
+# SPEC_COV: T-String-Literal
+
+public procedure main(ctx: Context) -> i32 {
+  let s = "hi";
+  let t: string@View = s;
+  return 0;
+}

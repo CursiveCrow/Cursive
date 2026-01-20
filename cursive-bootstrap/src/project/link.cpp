@@ -6,6 +6,14 @@
 #include <sstream>
 #include <unordered_set>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
+
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/core/diagnostic_messages.h"
 #include "cursive0/core/host_primitives.h"
@@ -152,6 +160,11 @@ bool ParseCoffSymbols(std::string_view bytes,
   }
   const unsigned char* data =
       reinterpret_cast<const unsigned char*>(bytes.data());
+  const uint16_t sig1 = ReadU16(data);
+  const uint16_t sig2 = ReadU16(data + 2);
+  if (sig1 == 0 && sig2 == 0xFFFFu) {
+    return true;
+  }
   const uint32_t sym_table = ReadU32(data + 8);
   const uint32_t sym_count = ReadU32(data + 12);
   if (sym_table == 0 || sym_count == 0) {
@@ -274,11 +287,9 @@ std::optional<std::filesystem::path> ResolveToolDefault(
   return ResolveTool(project, tool);
 }
 
-bool InvokeLinkerDefault(const std::filesystem::path&,
-                         const std::vector<std::filesystem::path>&,
-                         const std::filesystem::path&) {
-  return false;
-}
+bool InvokeLinkerDefault(const std::filesystem::path& tool,
+                         const std::vector<std::filesystem::path>& inputs,
+                         const std::filesystem::path& exe);
 
 }  // namespace
 
@@ -388,12 +399,147 @@ std::optional<std::vector<std::string>> LinkerSyms(
   return LinkerSymsForInputs(inputs);
 }
 
+bool InvokeLinker(const std::filesystem::path& tool,
+                  const std::vector<std::filesystem::path>& inputs,
+                  const std::filesystem::path& exe) {
+#ifdef _WIN32
+  auto quote_arg = [](std::wstring_view arg) -> std::wstring {
+    if (arg.empty()) {
+      return L"\"\"";
+    }
+    bool needs_quotes = false;
+    for (wchar_t c : arg) {
+      if (c == L' ' || c == L'\t' || c == L'\"') {
+        needs_quotes = true;
+        break;
+      }
+    }
+    if (!needs_quotes) {
+      return std::wstring(arg);
+    }
+    std::wstring out;
+    out.push_back(L'\"');
+    int backslashes = 0;
+    for (wchar_t c : arg) {
+      if (c == L'\\') {
+        ++backslashes;
+        continue;
+      }
+      if (c == L'\"') {
+        out.append(backslashes * 2 + 1, L'\\');
+        out.push_back(L'\"');
+        backslashes = 0;
+        continue;
+      }
+      if (backslashes > 0) {
+        out.append(backslashes, L'\\');
+        backslashes = 0;
+      }
+      out.push_back(c);
+    }
+    if (backslashes > 0) {
+      out.append(backslashes * 2, L'\\');
+    }
+    out.push_back(L'\"');
+    return out;
+  };
+
+  std::vector<std::wstring> args;
+  args.reserve(inputs.size() + 5);
+  args.push_back(tool.wstring());
+  args.push_back(L"/OUT:" + exe.wstring());
+  args.push_back(L"/ENTRY:main");
+  args.push_back(L"/SUBSYSTEM:CONSOLE");
+  args.push_back(L"/NODEFAULTLIB");
+  for (const auto& input : inputs) {
+    args.push_back(input.wstring());
+  }
+
+  std::wstring cmd;
+  for (std::size_t i = 0; i < args.size(); ++i) {
+    if (i != 0) {
+      cmd.push_back(L' ');
+    }
+    cmd += quote_arg(args[i]);
+  }
+
+  STARTUPINFOW si;
+  ZeroMemory(&si, sizeof(si));
+  si.cb = sizeof(si);
+  PROCESS_INFORMATION pi;
+  ZeroMemory(&pi, sizeof(pi));
+
+  std::vector<wchar_t> cmd_buf(cmd.begin(), cmd.end());
+  cmd_buf.push_back(L'\0');
+
+  const std::wstring tool_path = tool.wstring();
+  const BOOL ok = CreateProcessW(tool_path.c_str(), cmd_buf.data(), nullptr,
+                                 nullptr, TRUE, CREATE_NO_WINDOW, nullptr,
+                                 nullptr, &si, &pi);
+  if (!ok) {
+    return false;
+  }
+
+  WaitForSingleObject(pi.hProcess, INFINITE);
+  DWORD exit_code = 1;
+  GetExitCodeProcess(pi.hProcess, &exit_code);
+  CloseHandle(pi.hProcess);
+  CloseHandle(pi.hThread);
+  return exit_code == 0;
+#else
+  std::vector<std::string> args;
+  args.reserve(inputs.size() + 5);
+  args.push_back(tool.string());
+  args.push_back("/OUT:" + exe.string());
+  args.push_back("/ENTRY:main");
+  args.push_back("/SUBSYSTEM:CONSOLE");
+  args.push_back("/NODEFAULTLIB");
+  for (const auto& input : inputs) {
+    args.push_back(input.string());
+  }
+
+  std::vector<char*> argv;
+  argv.reserve(args.size() + 1);
+  for (auto& arg : args) {
+    argv.push_back(arg.data());
+  }
+  argv.push_back(nullptr);
+
+  const pid_t pid = fork();
+  if (pid < 0) {
+    return false;
+  }
+  if (pid == 0) {
+    execv(argv[0], argv.data());
+    _exit(127);
+  }
+  int status = 0;
+  if (waitpid(pid, &status, 0) < 0) {
+    return false;
+  }
+  return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+#endif
+}
+
+namespace {
+
+bool InvokeLinkerDefault(const std::filesystem::path& tool,
+                         const std::vector<std::filesystem::path>& inputs,
+                         const std::filesystem::path& exe) {
+  return InvokeLinker(tool, inputs, exe);
+}
+
+}  // namespace
+
 LinkResult LinkWithDeps(const std::vector<std::filesystem::path>& objs,
                         const Project& project,
                         const LinkDeps& deps) {
   LinkResult result;
 
-  const auto tool = deps.resolve_tool(project, "lld-link");
+  auto tool = deps.resolve_tool(project, "lld-link");
+  if (!tool.has_value()) {
+    tool = deps.resolve_tool(project, "link");
+  }
   if (!tool.has_value()) {
     SPEC_RULE("Link-NotFound");
     EmitExternal(result.diags, "E-OUT-0405");

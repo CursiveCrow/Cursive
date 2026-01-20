@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -38,6 +39,7 @@ std::vector<std::filesystem::path> IRPaths(const Project& project,
 
 std::vector<std::filesystem::path> RequiredOutputs(const Project& project);
 bool OutputHygiene(const Project& project);
+std::vector<std::string> DumpProject(const Project& project, bool dump_files);
 
 struct OutputArtifacts {
   std::vector<std::filesystem::path> objs;
@@ -51,26 +53,27 @@ struct OutputPipelineResult {
 };
 
 struct OutputPipelineDeps {
-  bool (*ensure_dir)(const std::filesystem::path& path);
-  std::optional<std::string> (*codegen_obj)(const ModuleInfo& module,
-                                            const Project& project);
-  std::optional<std::string> (*codegen_ir)(const ModuleInfo& module,
+  std::function<bool(const std::filesystem::path& path)> ensure_dir;
+  std::function<std::optional<std::string>(const ModuleInfo& module,
+                                           const Project& project)> codegen_obj;
+  std::function<std::optional<std::string>(const ModuleInfo& module,
                                            const Project& project,
-                                           std::string_view emit_ir);
-  bool (*write_file)(const std::filesystem::path& path, std::string_view bytes);
-  std::optional<std::filesystem::path> (*resolve_tool)(const Project& project,
-                                                       std::string_view tool);
-  std::optional<std::string> (*assemble_ir)(const std::filesystem::path& tool,
-                                            std::string_view ir_text);
-  std::optional<std::filesystem::path> (*resolve_runtime_lib)(
-      const Project& project);
-  bool (*invoke_linker)(const std::filesystem::path& tool,
-                        const std::vector<std::filesystem::path>& inputs,
-                        const std::filesystem::path& exe);
-  std::optional<std::vector<std::string>> (*linker_syms)(
+                                           std::string_view emit_ir)> codegen_ir;
+  std::function<bool(const std::filesystem::path& path,
+                     std::string_view bytes)> write_file;
+  std::function<std::optional<std::filesystem::path>(const Project& project,
+                                                     std::string_view tool)> resolve_tool;
+  std::function<std::optional<std::string>(const std::filesystem::path& tool,
+                                           std::string_view ir_text)> assemble_ir;
+  std::function<std::optional<std::filesystem::path>(const Project& project)>
+      resolve_runtime_lib;
+  std::function<bool(const std::filesystem::path& tool,
+                     const std::vector<std::filesystem::path>& inputs,
+                     const std::filesystem::path& exe)> invoke_linker;
+  std::function<std::optional<std::vector<std::string>>(
       const std::filesystem::path& tool,
       const std::vector<std::filesystem::path>& inputs,
-      const std::filesystem::path& exe);
+      const std::filesystem::path& exe)> linker_syms;
 };
 
 OutputPipelineResult OutputPipelineWithDeps(const Project& project,

@@ -54,8 +54,21 @@ CleanupPlan ComputeCleanupPlanToLoopScope(LowerCtx& ctx);
 // Compute cleanup actions from current scope to function root
 CleanupPlan ComputeCleanupPlanToFunctionRoot(LowerCtx& ctx);
 
+enum class CleanupTarget {
+  CurrentScope,
+  ToLoopScope,
+  ToFunctionRoot,
+};
+
+// Compute cleanup actions for scopes outside the given target.
+CleanupPlan ComputeCleanupPlanRemainder(CleanupTarget target, LowerCtx& ctx);
+
 // §6.8 EmitCleanup - Emit IR for a cleanup plan
 IRPtr EmitCleanup(const CleanupPlan& plan, LowerCtx& ctx);
+IRPtr EmitCleanupOnPanic(const CleanupPlan& plan, LowerCtx& ctx);
+IRPtr EmitCleanupWithRemainder(const CleanupPlan& plan,
+                               const CleanupPlan& remainder,
+                               LowerCtx& ctx);
 
 // ============================================================================
 // §6.8 EmitDrop - Emit IR to drop a value of a given type

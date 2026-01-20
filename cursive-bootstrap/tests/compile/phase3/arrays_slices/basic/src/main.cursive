@@ -28,5 +28,5 @@ public procedure main(ctx: Context) -> i32 {
   var v: [i32; 3] = a;
   v[2usize] = 4;
 
-  0
+  return 0;
 }

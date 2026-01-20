@@ -6,5 +6,5 @@ record Rec {
 public procedure main(ctx: Context) -> i32 {
   let r: unique Rec = unsafe { transmute::<Rec, unique Rec>(Rec { field: 1 }) };
   let f: unique i32 = move r.field;
-  0
+  return 0;
 }

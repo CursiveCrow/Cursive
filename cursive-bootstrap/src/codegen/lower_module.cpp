@@ -351,6 +351,13 @@ IRDecls LowerModule(const syntax::ASTModule& module, LowerCtx& ctx) {
   IRDecls decls;
   ctx.module_path = module.path;
 
+  auto register_proc = [&](const ProcIR& proc, bool user) {
+    ctx.RegisterProcSig(proc);
+    if (user) {
+      ctx.RegisterProcModule(proc.symbol, module.path);
+    }
+  };
+
   for (const auto& item : module.items) {
     std::visit(
         [&](const auto& node) {
@@ -372,14 +379,21 @@ IRDecls LowerModule(const syntax::ASTModule& module, LowerCtx& ctx) {
             } else {
               SPEC_RULE("CG-Item-Procedure");
             }
-            decls.push_back(LowerProc(node, module.path, ctx));
+            auto proc = LowerProc(node, module.path, ctx);
+            register_proc(proc, true);
+            if (node.name == "main") {
+              ctx.main_symbol = proc.symbol;
+            }
+            decls.push_back(std::move(proc));
             return;
           } else if constexpr (std::is_same_v<T, syntax::RecordDecl>) {
             SPEC_RULE("CG-Item-Record");
             for (const auto& member : node.members) {
               if (const auto* method = std::get_if<syntax::MethodDecl>(&member)) {
                 SPEC_RULE("CG-Item-Method");
-                decls.push_back(LowerRecordMethod(node, *method, module.path, ctx));
+                auto proc = LowerRecordMethod(node, *method, module.path, ctx);
+                register_proc(proc, true);
+                decls.push_back(std::move(proc));
               }
             }
             return;
@@ -389,13 +403,17 @@ IRDecls LowerModule(const syntax::ASTModule& module, LowerCtx& ctx) {
               for (const auto& member : state.members) {
                 if (const auto* method = std::get_if<syntax::StateMethodDecl>(&member)) {
                   SPEC_RULE("CG-Item-StateMethod");
-                  decls.push_back(LowerStateMethod(node, state, *method, module.path, ctx));
+                  auto proc = LowerStateMethod(node, state, *method, module.path, ctx);
+                  register_proc(proc, true);
+                  decls.push_back(std::move(proc));
                 }
               }
               for (const auto& member : state.members) {
                 if (const auto* trans = std::get_if<syntax::TransitionDecl>(&member)) {
                   SPEC_RULE("CG-Item-Transition");
-                  decls.push_back(LowerTransition(node, state, *trans, module.path, ctx));
+                  auto proc = LowerTransition(node, state, *trans, module.path, ctx);
+                  register_proc(proc, true);
+                  decls.push_back(std::move(proc));
                 }
               }
             }
@@ -406,6 +424,7 @@ IRDecls LowerModule(const syntax::ASTModule& module, LowerCtx& ctx) {
               if (const auto* method = std::get_if<syntax::ClassMethodDecl>(&item)) {
                 auto procs = LowerClassMethodBody(node, *method, module.path, ctx);
                 for (auto& proc : procs) {
+                  register_proc(proc, true);
                   decls.push_back(std::move(proc));
                 }
               }
@@ -431,9 +450,11 @@ IRDecls LowerModule(const syntax::ASTModule& module, LowerCtx& ctx) {
   }
 
   auto init_fn = EmitModuleInitFn(module.path, module, ctx);
+  register_proc(init_fn, false);
   decls.push_back(init_fn);
 
   auto deinit_fn = EmitModuleDeinitFn(module.path, module, ctx);
+  register_proc(deinit_fn, false);
   decls.push_back(deinit_fn);
 
   return decls;

@@ -10,5 +10,5 @@ public procedure main(ctx: Context) -> i32 {
   let b: u64 = 0;
   let c: bool = true;
   let t: (i32, i32) = (0, 0);
-  0
+  return 0;
 }

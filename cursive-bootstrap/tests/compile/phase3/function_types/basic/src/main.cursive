@@ -5,5 +5,5 @@ procedure foo(move x: i32, y: bool) -> i32 {
 public procedure main(ctx: Context) -> i32 {
   let f: (move i32, bool) -> i32 = foo;
 
-  0
+  return 0;
 }

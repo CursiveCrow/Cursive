@@ -3,5 +3,5 @@ public procedure main(ctx: Context) -> i32 {
   let p: Ptr<i32>@Null = Ptr::null();
   let q: Ptr<i32> = Ptr::null();
 
-  0
+  return 0;
 }

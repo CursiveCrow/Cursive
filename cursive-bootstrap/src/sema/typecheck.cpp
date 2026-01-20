@@ -44,6 +44,9 @@ TypecheckResult TypecheckModules(ScopeContext& ctx,
                           init_plan.diags.begin(),
                           init_plan.diags.end());
     }
+    if (init_plan.ok) {
+      result.init_plan = init_plan.plan;
+    }
   }
 
   if (!core::HasError(result.diags)) {

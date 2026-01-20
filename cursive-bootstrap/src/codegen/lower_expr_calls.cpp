@@ -84,6 +84,30 @@ static void MergeMoveStates(LowerCtx& base,
   }
 }
 
+static void MergeLowerCtxTemps(LowerCtx& base, const LowerCtx& branch) {
+  for (const auto& [name, type] : branch.value_types) {
+    if (!base.value_types.count(name)) {
+      base.value_types.emplace(name, type);
+    }
+  }
+  for (const auto& [name, info] : branch.derived_values) {
+    if (!base.derived_values.count(name)) {
+      base.derived_values.emplace(name, info);
+    }
+  }
+  for (const auto& [name, type] : branch.static_types) {
+    if (!base.static_types.count(name)) {
+      base.static_types.emplace(name, type);
+    }
+  }
+  for (const auto& [name, type] : branch.drop_glue_types) {
+    if (!base.drop_glue_types.count(name)) {
+      base.drop_glue_types.emplace(name, type);
+    }
+  }
+  base.temp_counter = std::max(base.temp_counter, branch.temp_counter);
+}
+
 
 
 bool IsPlaceExpr(const syntax::ExprPtr& expr) {
@@ -191,6 +215,64 @@ std::optional<sema::TypeRef> SuccessMemberType(const sema::ScopeContext& scope,
   return success;
 }
 
+struct RecordCtorInfo {
+  syntax::Path path;
+  const syntax::RecordDecl* record = nullptr;
+};
+
+std::optional<RecordCtorInfo> ResolveRecordCtor(const syntax::ExprPtr& callee,
+                                                const std::vector<syntax::Arg>& args,
+                                                LowerCtx& ctx) {
+  if (!callee || !ctx.sigma || !args.empty()) {
+    return std::nullopt;
+  }
+
+  auto lookup_record = [&](const syntax::Path& path) -> const syntax::RecordDecl* {
+    const auto it = ctx.sigma->types.find(sema::PathKeyOf(path));
+    if (it == ctx.sigma->types.end()) {
+      return nullptr;
+    }
+    return std::get_if<syntax::RecordDecl>(&it->second);
+  };
+
+  auto make_info = [&](syntax::Path path) -> std::optional<RecordCtorInfo> {
+    if (const auto* record = lookup_record(path)) {
+      return RecordCtorInfo{std::move(path), record};
+    }
+    return std::nullopt;
+  };
+
+  return std::visit(
+      [&](const auto& node) -> std::optional<RecordCtorInfo> {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
+          if (node.name == "RegionOptions") {
+            syntax::Path path;
+            path.emplace_back("RegionOptions");
+            if (auto info = make_info(std::move(path))) {
+              return info;
+            }
+          }
+          if (ctx.resolve_type_name) {
+            if (auto resolved = ctx.resolve_type_name(node.name)) {
+              if (!resolved->empty()) {
+                return make_info(*resolved);
+              }
+            }
+          }
+          syntax::Path path = ctx.module_path;
+          path.emplace_back(node.name);
+          return make_info(std::move(path));
+        } else if constexpr (std::is_same_v<T, syntax::PathExpr>) {
+          syntax::Path path = node.path;
+          path.emplace_back(node.name);
+          return make_info(std::move(path));
+        }
+        return std::nullopt;
+      },
+      callee->node);
+}
+
 LowerResult LowerRecvArgExpr(const syntax::Expr& base, LowerCtx& ctx) {
   if (std::holds_alternative<syntax::MoveExpr>(base.node)) {
     SPEC_RULE("Lower-RecvArg-Move");
@@ -257,6 +339,44 @@ LowerResult LowerCallExpr(const syntax::CallExpr& expr, LowerCtx& ctx) {
   SPEC_RULE("Lower-Expr-Call-PanicOut");
   SPEC_RULE("Lower-Expr-Call-NoPanicOut");
 
+  if (auto record_info = ResolveRecordCtor(expr.callee, expr.args, ctx)) {
+    SPEC_RULE("Lower-CallIR-RecordCtor");
+    std::vector<syntax::FieldInit> field_inits;
+    for (const auto& member : record_info->record->members) {
+      const auto* field = std::get_if<syntax::FieldDecl>(&member);
+      if (!field) {
+        continue;
+      }
+      if (!field->init_opt) {
+        ctx.ReportCodegenFailure();
+        IRValue bad = ctx.FreshTempValue("record_ctor_err");
+        return LowerResult{EmptyIR(), bad};
+      }
+      syntax::FieldInit init;
+      init.name = field->name;
+      init.value = field->init_opt;
+      init.span = field->span;
+      field_inits.push_back(std::move(init));
+    }
+
+    std::vector<std::string> saved_module = ctx.module_path;
+    if (!record_info->path.empty()) {
+      ctx.module_path = record_info->path;
+      ctx.module_path.pop_back();
+    }
+
+    auto [ir, field_values] = LowerFieldInits(field_inits, ctx);
+
+    ctx.module_path = std::move(saved_module);
+
+    IRValue record_value = ctx.FreshTempValue("record_ctor");
+    DerivedValueInfo info;
+    info.kind = DerivedValueInfo::Kind::RecordLit;
+    info.fields = std::move(field_values);
+    ctx.RegisterDerivedValue(record_value, info);
+    return LowerResult{ir, record_value};
+  }
+
   auto callee_result = LowerExpr(*expr.callee, ctx);
 
   ParamModeList param_modes;
@@ -273,13 +393,12 @@ LowerResult LowerCallExpr(const syntax::CallExpr& expr, LowerCtx& ctx) {
   }
   auto [args_ir, arg_values] = LowerArgs(param_modes, expr.args, ctx);
 
+  IRValue result_value = ctx.FreshTempValue("call");
+
   IRCall call;
   call.callee = callee_result.value;
   call.args = std::move(arg_values);
-
-  IRValue result_value;
-  result_value.kind = IRValue::Kind::Opaque;
-  result_value.name = "call_result";
+  call.result = result_value;
 
   bool needs_panic_out = true;
   if (call.callee.kind == IRValue::Kind::Symbol) {
@@ -341,13 +460,12 @@ LowerResult LowerMethodCall(const syntax::MethodCallExpr& expr, LowerCtx& ctx) {
         callee_sym = *sym;
       }
 
+      IRValue result_value = ctx.FreshTempValue("method_call");
+
       IRCall call;
       call.callee = IRValue{IRValue::Kind::Symbol, callee_sym, {}};
       call.args = std::move(all_args);
-
-      IRValue result_value;
-      result_value.kind = IRValue::Kind::Opaque;
-      result_value.name = "method_call_result";
+      call.result = result_value;
 
       return LowerResult{SeqIR({recv_result.ir, args_ir, MakeIR(std::move(call))}),
                          result_value};
@@ -423,9 +541,12 @@ LowerResult LowerMethodCall(const syntax::MethodCallExpr& expr, LowerCtx& ctx) {
     }
   }
 
+  IRValue result_value = ctx.FreshTempValue("method_call");
+
   IRCall call;
   call.callee = IRValue{IRValue::Kind::Symbol, callee_sym, {}};
   call.args = std::move(all_args);
+  call.result = result_value;
 
   bool needs_panic_out = NeedsPanicOut(callee_sym);
 
@@ -438,10 +559,6 @@ LowerResult LowerMethodCall(const syntax::MethodCallExpr& expr, LowerCtx& ctx) {
   } else {
     SPEC_RULE("Lower-MethodCall-Static-NoPanicOut");
   }
-
-  IRValue result_value;
-  result_value.kind = IRValue::Kind::Opaque;
-  result_value.name = "method_call_result";
 
   if (needs_panic_out) {
     return LowerResult{
@@ -476,9 +593,7 @@ LowerResult LowerUnOp(const std::string& op,
 
   auto operand_result = LowerExpr(operand, ctx);
 
-  IRValue result_value;
-  result_value.kind = IRValue::Kind::Opaque;
-  result_value.name = "unop_result";
+  IRValue result_value = ctx.FreshTempValue("unop");
 
   std::vector<IRPtr> parts;
   parts.push_back(operand_result.ir);
@@ -490,11 +605,13 @@ LowerResult LowerUnOp(const std::string& op,
     check.reason = PanicReasonString(UnOpPanicReason(op));
     check.lhs = operand_result.value;
     parts.push_back(MakeIR(std::move(check)));
+    parts.push_back(PanicCheck(ctx));
   }
 
   IRUnaryOp unop;
   unop.op = op;
   unop.operand = operand_result.value;
+  unop.result = result_value;
   parts.push_back(MakeIR(std::move(unop)));
 
   return LowerResult{SeqIR(std::move(parts)), result_value};
@@ -529,9 +646,7 @@ LowerResult LowerBinOp(const std::string& op,
   auto lhs_result = LowerExpr(lhs, ctx);
   auto rhs_result = LowerExpr(rhs, ctx);
 
-  IRValue result_value;
-  result_value.kind = IRValue::Kind::Opaque;
-  result_value.name = "binop_result";
+  IRValue result_value = ctx.FreshTempValue("binop");
 
   std::vector<IRPtr> parts;
   parts.push_back(lhs_result.ir);
@@ -548,12 +663,14 @@ LowerResult LowerBinOp(const std::string& op,
     check.lhs = lhs_result.value;
     check.rhs = rhs_result.value;
     parts.push_back(MakeIR(std::move(check)));
+    parts.push_back(PanicCheck(ctx));
   }
 
   IRBinaryOp binop;
   binop.op = op;
   binop.lhs = lhs_result.value;
   binop.rhs = rhs_result.value;
+  binop.result = result_value;
   parts.push_back(MakeIR(std::move(binop)));
 
   return LowerResult{SeqIR(std::move(parts)), result_value};
@@ -568,20 +685,21 @@ LowerResult LowerBinAnd(const syntax::Expr& lhs,
   auto lhs_result = LowerExpr(lhs, ctx);
   LowerCtx rhs_ctx = ctx;
   auto rhs_result = LowerExpr(rhs, rhs_ctx);
+  MergeLowerCtxTemps(ctx, rhs_ctx);
   MergeMoveStates(ctx, {&rhs_ctx});
   MergeFailures(ctx, rhs_ctx);
 
   // Short-circuit: if lhs is false, result is false (don't evaluate rhs)
+
+  IRValue result_value = ctx.FreshTempValue("and");
+
   IRIf if_ir;
   if_ir.cond = lhs_result.value;
   if_ir.then_ir = rhs_result.ir;
   if_ir.then_value = rhs_result.value;
   if_ir.else_ir = EmptyIR();
   if_ir.else_value = BoolImmediate(false);
-
-  IRValue result_value;
-  result_value.kind = IRValue::Kind::Opaque;
-  result_value.name = "and_result";
+  if_ir.result = result_value;
 
   return LowerResult{SeqIR({lhs_result.ir, MakeIR(std::move(if_ir))}),
                      result_value};
@@ -596,20 +714,20 @@ LowerResult LowerBinOr(const syntax::Expr& lhs,
   auto lhs_result = LowerExpr(lhs, ctx);
   LowerCtx rhs_ctx = ctx;
   auto rhs_result = LowerExpr(rhs, rhs_ctx);
+  MergeLowerCtxTemps(ctx, rhs_ctx);
   MergeMoveStates(ctx, {&rhs_ctx});
   MergeFailures(ctx, rhs_ctx);
 
   // Short-circuit: if lhs is true, result is true (don't evaluate rhs)
+  IRValue result_value = ctx.FreshTempValue("or");
+
   IRIf if_ir;
   if_ir.cond = lhs_result.value;
   if_ir.then_ir = EmptyIR();
   if_ir.then_value = BoolImmediate(true);
   if_ir.else_ir = rhs_result.ir;
   if_ir.else_value = rhs_result.value;
-
-  IRValue result_value;
-  result_value.kind = IRValue::Kind::Opaque;
-  result_value.name = "or_result";
+  if_ir.result = result_value;
 
   return LowerResult{SeqIR({lhs_result.ir, MakeIR(std::move(if_ir))}),
                      result_value};
@@ -643,11 +761,44 @@ LowerResult LowerCast(const syntax::Expr& expr,
   SPEC_RULE("Lower-Cast");
   SPEC_RULE("Lower-Cast-Panic");
 
+  if (target_type) {
+    auto stripped_target = sema::StripPerm(target_type);
+    if (stripped_target && std::holds_alternative<sema::TypeDynamic>(stripped_target->node)) {
+      SPEC_RULE("Eval-Dynamic-Form");
+      SPEC_RULE("Eval-Dynamic-Form-Ctrl");
+
+      const auto* dyn = std::get_if<sema::TypeDynamic>(&stripped_target->node);
+      if (!dyn || !ctx.sigma || !ctx.expr_type) {
+        ctx.ReportCodegenFailure();
+        IRValue dyn_value = ctx.FreshTempValue("dyn");
+        return LowerResult{EmptyIR(), dyn_value};
+      }
+
+      sema::TypeRef expr_type = ctx.expr_type(expr);
+      sema::TypeRef stripped_expr = expr_type ? sema::StripPerm(expr_type) : expr_type;
+      const auto class_it = ctx.sigma->classes.find(sema::PathKeyOf(dyn->path));
+      if (!stripped_expr || class_it == ctx.sigma->classes.end()) {
+        ctx.ReportCodegenFailure();
+        IRValue dyn_value = ctx.FreshTempValue("dyn");
+        return LowerResult{EmptyIR(), dyn_value};
+      }
+
+      DynPackResult pack = DynPack(stripped_expr, expr, dyn->path, class_it->second, ctx);
+
+      IRValue dyn_value = ctx.FreshTempValue("dyn");
+      DerivedValueInfo info;
+      info.kind = DerivedValueInfo::Kind::DynLit;
+      info.base = pack.data_ptr;
+      info.vtable_sym = pack.vtable_sym;
+      ctx.RegisterDerivedValue(dyn_value, info);
+
+      return LowerResult{pack.ir, dyn_value};
+    }
+  }
+
   auto expr_result = LowerExpr(expr, ctx);
 
-  IRValue result_value;
-  result_value.kind = IRValue::Kind::Opaque;
-  result_value.name = "cast_result";
+  IRValue result_value = ctx.FreshTempValue("cast");
 
   if (!target_type) {
     return LowerResult{expr_result.ir, result_value};
@@ -660,10 +811,12 @@ LowerResult LowerCast(const syntax::Expr& expr,
   check.target = target_type;
   check.value = expr_result.value;
   parts.push_back(MakeIR(std::move(check)));
+  parts.push_back(PanicCheck(ctx));
 
   IRCast cast;
   cast.target = target_type;
   cast.value = expr_result.value;
+  cast.result = result_value;
   parts.push_back(MakeIR(std::move(cast)));
 
   return LowerResult{SeqIR(std::move(parts)), result_value};
@@ -714,19 +867,10 @@ LowerResult LowerPropagateExpr(const syntax::PropagateExpr& expr,
   }
   std::string tag = success_type ? suffix : "unknown_" + suffix;
 
-  IRValue cond;
-  cond.kind = IRValue::Kind::Opaque;
-  cond.name = "propagate_is_success_" + tag;
-
-  IRValue result_value;
-  result_value.kind = IRValue::Kind::Opaque;
-  result_value.name = "propagate_result";
-
+  IRValue cond = ctx.FreshTempValue("propagate_is_success_" + tag);
+  IRValue result_value = ctx.FreshTempValue("propagate_result");
   IRValue success_value = result_value;
-
-  IRValue error_value;
-  error_value.kind = IRValue::Kind::Opaque;
-  error_value.name = "propagate_error_" + tag;
+  IRValue error_value = ctx.FreshTempValue("propagate_error_" + tag);
 
   std::vector<IRPtr> error_parts;
 
@@ -743,9 +887,7 @@ LowerResult LowerPropagateExpr(const syntax::PropagateExpr& expr,
   if_ir.then_value = success_value;
   if_ir.else_ir = SeqIR(std::move(error_parts));
 
-  IRValue unreach_value;
-  unreach_value.kind = IRValue::Kind::Opaque;
-  unreach_value.name = "propagate_unreach";
+  IRValue unreach_value = ctx.FreshTempValue("propagate_unreach");
   if_ir.else_value = unreach_value;
 
   return LowerResult{SeqIR({inner_result.ir, MakeIR(std::move(if_ir))}),
@@ -776,21 +918,22 @@ LowerResult LowerIfExpr(const syntax::IfExpr& expr, LowerCtx& ctx) {
     else_result.value = IRValue{IRValue::Kind::Opaque, "unit", {}};
   }
 
+  MergeLowerCtxTemps(ctx, then_ctx);
+  MergeLowerCtxTemps(ctx, else_ctx);
   MergeMoveStates(ctx, {&then_ctx, &else_ctx});
   MergeFailures(ctx, then_ctx);
   MergeFailures(ctx, else_ctx);
 
   // Create if IR
+  IRValue result_value = ctx.FreshTempValue("if");
+
   IRIf if_ir;
   if_ir.cond = cond_result.value;
   if_ir.then_ir = then_result.ir;
   if_ir.then_value = then_result.value;
   if_ir.else_ir = else_result.ir;
   if_ir.else_value = else_result.value;
-
-  IRValue result_value;
-  result_value.kind = IRValue::Kind::Opaque;
-  result_value.name = "if_result";
+  if_ir.result = result_value;
 
   return LowerResult{SeqIR({cond_result.ir, MakeIR(std::move(if_ir))}),
                      result_value};

@@ -1,17 +1,21 @@
 #include <cassert>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "cursive0/codegen/llvm_emit.h"
+#include "cursive0/codegen/mangle.h"
 #include "cursive0/codegen/globals.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/core/symbols.h"
 #include "cursive0/sema/types.h"
 #include "cursive0/syntax/ast.h"
 #include "cursive0/syntax/token.h"
+#include "llvm/IR/LLVMContext.h"
 
 namespace {
 
@@ -22,6 +26,8 @@ using cursive0::codegen::GlobalZero;
 using cursive0::codegen::InitSym;
 using cursive0::codegen::DeinitSym;
 using cursive0::codegen::LowerCtx;
+using cursive0::codegen::LLVMEmitter;
+using cursive0::codegen::MangleLiteral;
 using cursive0::core::Mangle;
 using cursive0::core::StringOfPath;
 using cursive0::sema::MakeTypePrim;
@@ -101,6 +107,15 @@ std::shared_ptr<Type> MakeTupleType(std::vector<std::shared_ptr<Type>> elems) {
   return type;
 }
 
+std::vector<std::uint8_t> BytesFromU32(std::uint32_t value) {
+  return {
+      static_cast<std::uint8_t>(value & 0xFF),
+      static_cast<std::uint8_t>((value >> 8) & 0xFF),
+      static_cast<std::uint8_t>((value >> 16) & 0xFF),
+      static_cast<std::uint8_t>((value >> 24) & 0xFF),
+  };
+}
+
 StaticDecl MakeStatic(const char* name,
                       std::shared_ptr<Type> type_opt,
                       std::shared_ptr<Expr> init) {
@@ -126,6 +141,15 @@ int main() {
   SPEC_COV("ConstInit");
   SPEC_COV("InitFn");
   SPEC_COV("DeinitFn");
+  SPEC_COV("Init-Start");
+  SPEC_COV("Init-Step");
+  SPEC_COV("Init-Next-Module");
+  SPEC_COV("Init-Panic");
+  SPEC_COV("Init-Done");
+  SPEC_COV("Init-Ok");
+  SPEC_COV("Init-Fail");
+  SPEC_COV("Deinit-Ok");
+  SPEC_COV("Deinit-Panic");
 
   cursive0::sema::Sigma sigma;
   LowerCtx ctx;
@@ -192,6 +216,64 @@ int main() {
     std::vector<std::string> deinit_path = {"cursive", "runtime", "deinit", "foo", "bar"};
     assert(InitSym(module_path) == Mangle(StringOfPath(init_path)));
     assert(DeinitSym(module_path) == Mangle(StringOfPath(deinit_path)));
+  }
+
+  {
+    SPEC_COV("EmitLiteral-Bytes");
+    auto decl = cursive0::codegen::EmitBytesLit({0x01, 0x02, 0x03});
+    assert(std::holds_alternative<GlobalConst>(decl));
+  }
+
+  {
+    SPEC_COV("EmitLiteral-Char");
+    SPEC_COV("EmitLiteral-Int");
+    SPEC_COV("EmitLiteral-Float");
+    SPEC_COV("LowerIRDecl-GlobalConst");
+    SPEC_COV("LowerIRDecl-GlobalZero");
+
+    LowerCtx ctx;
+    llvm::LLVMContext llvm_ctx;
+
+    std::vector<std::uint8_t> char_bytes = BytesFromU32(0x41);
+    std::vector<std::uint8_t> int_bytes = BytesFromU32(0x2A);
+    std::vector<std::uint8_t> float_bytes = BytesFromU32(0x3F800000);
+
+    const std::string char_sym = MangleLiteral("char", char_bytes);
+    const std::string int_sym = MangleLiteral("int", int_bytes);
+    const std::string float_sym = MangleLiteral("float", float_bytes);
+
+    ctx.RegisterStaticType(char_sym, MakeTypePrim("char"));
+    ctx.RegisterStaticType(int_sym, MakeTypePrim("i32"));
+    ctx.RegisterStaticType(float_sym, MakeTypePrim("f32"));
+    ctx.RegisterStaticType("g_zero", MakeTypePrim("i32"));
+
+    GlobalConst gc_char{char_sym, char_bytes};
+    GlobalConst gc_int{int_sym, int_bytes};
+    GlobalConst gc_float{float_sym, float_bytes};
+    GlobalZero gz;
+    gz.symbol = "g_zero";
+    gz.size = 4;
+
+    LLVMEmitter emitter(llvm_ctx, "literals");
+    cursive0::codegen::IRDecls decls = {gc_char, gc_int, gc_float, gz};
+    llvm::Module* mod = emitter.EmitModule(decls, ctx);
+    assert(mod != nullptr);
+    assert(!ctx.codegen_failed);
+  }
+
+  {
+    SPEC_COV("EmitLiteral-Err");
+    SPEC_COV("LowerIRDecl-Err");
+    LowerCtx ctx;
+    llvm::LLVMContext llvm_ctx;
+    std::vector<std::uint8_t> bad_bytes = {0xAA};
+    const std::string bad_sym = MangleLiteral("int", bad_bytes);
+    ctx.RegisterStaticType(bad_sym, MakeTypePrim("i32"));
+    GlobalConst bad{bad_sym, bad_bytes};
+    LLVMEmitter emitter(llvm_ctx, "literal_err");
+    cursive0::codegen::IRDecls decls = {bad};
+    emitter.EmitModule(decls, ctx);
+    assert(ctx.codegen_failed);
   }
 
   return 0;

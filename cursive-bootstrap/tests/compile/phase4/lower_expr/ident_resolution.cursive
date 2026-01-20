@@ -7,5 +7,5 @@ public procedure main(ctx: Context) -> i32 {
   let local = 2i32;
   let a = local;
   let b = g;
-  a + b
+  return a + b;
 }

@@ -82,6 +82,7 @@ std::optional<HeapAllocatorMethodSig> LookupHeapAllocatorMethodSig(
   if (IdEq(name, "alloc_raw")) {
     sig.recv_perm = Permission::Const;
     sig.params = {MakeParam("count", MakeTypePrimAst("usize"))};
+    sig.ret = MakeTypeRawPtr(RawPtrQual::Mut, MakeTypePrim("u8"));
     sig.kind = HeapAllocatorMethodKind::AllocRaw;
     return sig;
   }

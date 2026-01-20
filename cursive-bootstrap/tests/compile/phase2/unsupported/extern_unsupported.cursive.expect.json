@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-UNS-0112",
+      "severity": "error",
+      "message": "`extern` block or foreign declaration used"
+    }
+  ]
+}

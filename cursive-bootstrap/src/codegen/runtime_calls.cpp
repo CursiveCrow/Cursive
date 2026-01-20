@@ -222,9 +222,14 @@ std::string BuiltinSymStringIsEmpty() {
 
 std::string BuiltinSymStringDropManaged() {
   SPEC_RULE("StringDropSym-Decl");
-  SPEC_DEF("BuiltinSym-string-drop_managed", "§6.12.14");
-  return core::PathSig({"cursive", "runtime", "string", "drop_managed"});
+  SPEC_DEF("BuiltinSym-string-drop_managed", "??6.12.14");
+  std::string sym = core::PathSig({"cursive", "runtime", "string", "drop_managed"});
+  if (sym.empty()) {
+    SPEC_RULE("StringDropSym-Err");
+  }
+  return sym;
 }
+
 
 std::string BuiltinSymBytesWithCapacity() {
   SPEC_DEF("BuiltinSym-bytes-with_capacity", "§6.12.14");
@@ -273,9 +278,14 @@ std::string BuiltinSymBytesIsEmpty() {
 
 std::string BuiltinSymBytesDropManaged() {
   SPEC_RULE("BytesDropSym-Decl");
-  SPEC_DEF("BuiltinSym-bytes-drop_managed", "§6.12.14");
-  return core::PathSig({"cursive", "runtime", "bytes", "drop_managed"});
+  SPEC_DEF("BuiltinSym-bytes-drop_managed", "??6.12.14");
+  std::string sym = core::PathSig({"cursive", "runtime", "bytes", "drop_managed"});
+  if (sym.empty()) {
+    SPEC_RULE("BytesDropSym-Err");
+  }
+  return sym;
 }
+
 
 // ============================================================================
 // §6.8 Panic symbol

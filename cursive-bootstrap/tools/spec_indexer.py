@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 RULE_RE = re.compile(r"^\*\*\(([^)]+)\)\*\*\s*$")
-HEADING_RE = re.compile(r"^#+\s+([0-9]+(?:\.[0-9]+)*)")
+HEADING_RE = re.compile(r"^#+\s+([0-9]+(Sigma:\.[0-9]+)*)")
 
 
 def parse_spec(spec_path: Path):

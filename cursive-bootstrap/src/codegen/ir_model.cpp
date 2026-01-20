@@ -83,7 +83,7 @@ bool ValidateIR(const IR& ir) {
               return false;
             }
           }
-          return true;
+          return ValidateValue(node.result);
         } else if constexpr (std::is_same_v<T, IRCallVTable>) {
           if (!ValidateValue(node.base)) {
             return false;
@@ -93,7 +93,7 @@ bool ValidateIR(const IR& ir) {
               return false;
             }
           }
-          return true;
+          return ValidateValue(node.result);
         } else if constexpr (std::is_same_v<T, IRStoreGlobal>) {
           return !node.symbol.empty() && ValidateValue(node.value);
         } else if constexpr (std::is_same_v<T, IRReadVar>) {
@@ -119,21 +119,23 @@ bool ValidateIR(const IR& ir) {
         } else if constexpr (std::is_same_v<T, IRWritePlace>) {
           return ValidatePlace(node.place) && ValidateValue(node.value);
         } else if constexpr (std::is_same_v<T, IRAddrOf>) {
-          return ValidatePlace(node.place);
+          return ValidatePlace(node.place) && ValidateValue(node.result);
         } else if constexpr (std::is_same_v<T, IRReadPtr>) {
-          return ValidateValue(node.ptr);
+          return ValidateValue(node.ptr) && ValidateValue(node.result);
         } else if constexpr (std::is_same_v<T, IRWritePtr>) {
           return ValidateValue(node.ptr) && ValidateValue(node.value);
         } else if constexpr (std::is_same_v<T, IRUnaryOp>) {
-          return !node.op.empty() && ValidateValue(node.operand);
+          return !node.op.empty() && ValidateValue(node.operand) &&
+                 ValidateValue(node.result);
         } else if constexpr (std::is_same_v<T, IRBinaryOp>) {
           return !node.op.empty() && ValidateValue(node.lhs) &&
-                 ValidateValue(node.rhs);
+                 ValidateValue(node.rhs) && ValidateValue(node.result);
         } else if constexpr (std::is_same_v<T, IRCast>) {
-          return node.target != nullptr && ValidateValue(node.value);
+          return node.target != nullptr && ValidateValue(node.value) &&
+                 ValidateValue(node.result);
         } else if constexpr (std::is_same_v<T, IRTransmute>) {
           return node.from != nullptr && node.to != nullptr &&
-                 ValidateValue(node.value);
+                 ValidateValue(node.value) && ValidateValue(node.result);
         } else if constexpr (std::is_same_v<T, IRCheckIndex>) {
           return ValidateValue(node.base) && ValidateValue(node.index);
         } else if constexpr (std::is_same_v<T, IRCheckRange>) {
@@ -158,7 +160,7 @@ bool ValidateIR(const IR& ir) {
           if (node.region.has_value() && !ValidateValue(*node.region)) {
             return false;
           }
-          return ValidateValue(node.value);
+          return ValidateValue(node.value) && ValidateValue(node.result);
         } else if constexpr (std::is_same_v<T, IRReturn>) {
           return ValidateValue(node.value);
         } else if constexpr (std::is_same_v<T, IRResult>) {
@@ -174,7 +176,7 @@ bool ValidateIR(const IR& ir) {
         } else if constexpr (std::is_same_v<T, IRIf>) {
           return ValidateValue(node.cond) && ValidateIRPtr(node.then_ir) &&
                  ValidateValue(node.then_value) && ValidateIRPtr(node.else_ir) &&
-                 ValidateValue(node.else_value);
+                 ValidateValue(node.else_value) && ValidateValue(node.result);
         } else if constexpr (std::is_same_v<T, IRBlock>) {
           return ValidateIRPtr(node.setup) && ValidateIRPtr(node.body) &&
                  ValidateValue(node.value);
@@ -182,7 +184,8 @@ bool ValidateIR(const IR& ir) {
           if (!node.body_ir) {
             return false;
           }
-          if (!ValidateIRPtr(node.body_ir) || !ValidateValue(node.body_value)) {
+          if (!ValidateIRPtr(node.body_ir) || !ValidateValue(node.body_value) ||
+              !ValidateValue(node.result)) {
             return false;
           }
           switch (node.kind) {
@@ -212,7 +215,7 @@ bool ValidateIR(const IR& ir) {
               return false;
             }
           }
-          return true;
+          return ValidateValue(node.result);
         } else if constexpr (std::is_same_v<T, IRRegion>) {
           return ValidateValue(node.owner) && ValidateIRPtr(node.body) &&
                  ValidateValue(node.value);
@@ -240,10 +243,18 @@ bool ValidateIR(const IR& ir) {
         } else if constexpr (std::is_same_v<T, IRClearPanic>) {
           return true;
         } else if constexpr (std::is_same_v<T, IRPanicCheck>) {
+          if (node.cleanup_ir) {
+            return ValidateIRPtr(node.cleanup_ir);
+          }
+          return true;
+        } else if constexpr (std::is_same_v<T, IRInitPanicHandle>) {
           return true;
         } else if constexpr (std::is_same_v<T, IRCheckPoison>) {
           return true;
         } else if constexpr (std::is_same_v<T, IRLowerPanic>) {
+          if (node.cleanup_ir) {
+            return ValidateIRPtr(node.cleanup_ir);
+          }
           return true;
         } else {
           return false;

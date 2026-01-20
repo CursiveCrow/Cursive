@@ -1,0 +1,2 @@
+call @cursive_x3a_x3aruntime_x3a_x3abytes_x3a_x3adrop_x5fmanaged
+call @cursive_x3a_x3aruntime_x3a_x3astring_x3a_x3adrop_x5fmanaged

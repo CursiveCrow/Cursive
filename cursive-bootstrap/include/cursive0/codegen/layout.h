@@ -184,6 +184,10 @@ std::optional<std::vector<std::uint8_t>> EncodeConst(
     const cursive0::sema::TypeRef& type,
     const cursive0::syntax::Token& lit);
 
+// Decode a string literal lexeme into its UTF-8 byte sequence.
+std::optional<std::vector<std::uint8_t>> DecodeStringLiteralBytes(
+    std::string_view lexeme);
+
 bool ValidValue(const cursive0::sema::ScopeContext& ctx,
                 const cursive0::sema::TypeRef& type,
                 const std::vector<std::uint8_t>& bits);

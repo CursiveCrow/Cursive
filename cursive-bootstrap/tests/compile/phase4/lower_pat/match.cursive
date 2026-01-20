@@ -1,8 +1,8 @@
 # SPEC_COV: Lower-Expr-Match
 
 public procedure main(ctx: Context) -> i32 {
-    match 10 {
+    return match 10 {
         10 => 1,
         _ => 0
-    }
+    };
 }

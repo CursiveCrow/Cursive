@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -20,17 +21,20 @@ enum class LinkStatus {
 };
 
 struct LinkDeps {
-  std::optional<std::filesystem::path> (*resolve_tool)(const Project& project,
-                                                       std::string_view tool);
-  std::optional<std::filesystem::path> (*resolve_runtime_lib)(
-      const Project& project);
-  std::optional<std::vector<std::string>> (*linker_syms)(
+  std::function<std::optional<std::filesystem::path>(const Project& project,
+                                                     std::string_view tool)>
+      resolve_tool;
+  std::function<std::optional<std::filesystem::path>(const Project& project)>
+      resolve_runtime_lib;
+  std::function<std::optional<std::vector<std::string>>(
       const std::filesystem::path& tool,
       const std::vector<std::filesystem::path>& inputs,
-      const std::filesystem::path& exe);
-  bool (*invoke_linker)(const std::filesystem::path& tool,
-                        const std::vector<std::filesystem::path>& inputs,
-                        const std::filesystem::path& exe);
+      const std::filesystem::path& exe)>
+      linker_syms;
+  std::function<bool(const std::filesystem::path& tool,
+                     const std::vector<std::filesystem::path>& inputs,
+                     const std::filesystem::path& exe)>
+      invoke_linker;
 };
 
 struct LinkResult {
@@ -46,6 +50,9 @@ std::optional<std::vector<std::string>> LinkerSyms(
     const std::filesystem::path& tool,
     const std::vector<std::filesystem::path>& inputs,
     const std::filesystem::path& exe);
+bool InvokeLinker(const std::filesystem::path& tool,
+                  const std::vector<std::filesystem::path>& inputs,
+                  const std::filesystem::path& exe);
 
 LinkResult LinkWithDeps(const std::vector<std::filesystem::path>& objs,
                         const Project& project,

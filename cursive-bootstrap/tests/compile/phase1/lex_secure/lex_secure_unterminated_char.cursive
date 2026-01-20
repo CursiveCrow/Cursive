@@ -2,5 +2,5 @@
 # SPEC_COV: LexSecure-Err
 procedure demo() -> i32 {
   let c = '‮
-  0
+  return 0;
 }

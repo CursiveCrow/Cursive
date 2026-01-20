@@ -1,0 +1,19 @@
+﻿
+modal Status {
+  @Idle {}
+  @Busy { code: i32 }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let s: Status = widen Status@Busy { code: 7 };
+  let out: i32 = match move s {
+    @Idle => 0i32,
+    @Busy { code } => code
+  };
+  let msg: string@View = if out == 7i32 { "ok" } else { "bad" };
+  let _ = match ctx.fs~>write_stdout(msg) {
+    ok: () => (),
+    err: IoError => ()
+  };
+  0i32
+}

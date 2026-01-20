@@ -1,0 +1,8 @@
+﻿public procedure main(ctx: Context) -> i32 {
+  let next_res: bool = true;
+  let ok = match next_res {
+    _ => false
+  };
+  let _ = ok;
+  0i32
+}

@@ -658,6 +658,15 @@ ParseElemResult<std::vector<RecordMember>> ParseRecordMemberTail(
     xs.push_back(mem.elem);
     return ParseRecordMemberTail(mem.parser, std::move(xs));
   }
+  // For methods (which end with a block), no comma is required.
+  // Check if the next token starts a new member (procedure, override, or identifier for field).
+  ParseElemResult<Visibility> next_vis = ParseVis(parser);
+  if (IsKw(next_vis.parser, "procedure") || IsKw(next_vis.parser, "override")) {
+    SPEC_RULE("Parse-RecordMemberTail-MethodNoComma");
+    ParseElemResult<RecordMember> mem = ParseRecordMember(parser);
+    xs.push_back(mem.elem);
+    return ParseRecordMemberTail(mem.parser, std::move(xs));
+  }
   EmitParseSyntaxErr(parser, TokSpan(parser));
   return {parser, xs};
 }

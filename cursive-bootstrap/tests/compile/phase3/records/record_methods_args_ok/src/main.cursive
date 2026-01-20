@@ -3,13 +3,13 @@
 # SPEC_COV: Args-Cons-Ref
 record R {
   v: i32,
-  procedure take(~!) -> i32 { 0 },
-  procedure use(~, move x: i32, y: i32) -> i32 { x + y }
+  procedure take(~!) -> i32 { return 0; },
+  procedure use(~, move x: i32, y: i32) -> i32 { return x + y; }
 }
 
 public procedure main(ctx: Context) -> i32 {
   let r = R { v: 0 };
   let a = 1;
   let b = 2;
-  r~>use(move a, b)
+  return r~>use(move a, b);
 }

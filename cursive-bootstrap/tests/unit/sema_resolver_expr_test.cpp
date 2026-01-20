@@ -50,6 +50,10 @@ using cursive0::syntax::Identifier;
 using cursive0::syntax::IdentifierExpr;
 using cursive0::syntax::LiteralExpr;
 using cursive0::syntax::LiteralPattern;
+using cursive0::syntax::LetStmt;
+using cursive0::syntax::ShadowLetStmt;
+using cursive0::syntax::DeferStmt;
+using cursive0::syntax::RegionStmt;
 using cursive0::syntax::LoopIterExpr;
 using cursive0::syntax::MatchArm;
 using cursive0::syntax::MatchExpr;
@@ -74,6 +78,7 @@ using cursive0::syntax::TypeModalState;
 using cursive0::syntax::TypePath;
 using cursive0::syntax::TypePathType;
 using cursive0::syntax::VarStmt;
+using cursive0::syntax::Stmt;
 using cursive0::syntax::ShadowVarStmt;
 using cursive0::syntax::FrameStmt;
 using cursive0::syntax::WildcardPattern;
@@ -719,6 +724,80 @@ int main() {
     assert(empty_seq.ok);
 
     const std::vector<cursive0::syntax::Stmt> stmts = {var_stmt, shadow_stmt, frame_stmt};
+    const auto seq = ResolveStmtSeq(env.res_ctx, stmts);
+    assert(seq.ok);
+  }
+
+  {
+    SPEC_COV("ResolveExpr-Ident-Err");
+    TestEnv env;
+    env.Init();
+    const auto missing = ResolveExpr(env.res_ctx, MakeIdentExpr("missing"));
+    assert(!missing.ok);
+    assert(missing.diag_id ==
+           std::optional<std::string_view>("ResolveExpr-Ident-Err"));
+  }
+
+  {
+    SPEC_COV("ResolveExpr-Alloc-Explicit-ByAlias");
+    TestEnv env;
+    env.Init();
+    AddRegionAlias(env.ctx, "r");
+    BinaryExpr bin;
+    bin.op = "^";
+    bin.lhs = MakeIdentExpr("r");
+    bin.rhs = MakeLiteralExpr(TokenKind::IntLiteral, "1");
+    const auto alloc = ResolveExpr(env.res_ctx, MakeExpr(bin));
+    assert(alloc.ok);
+  }
+
+  {
+    SPEC_COV("ResolveStmt-Let");
+    SPEC_COV("ResolveStmt-ShadowLet");
+    SPEC_COV("ResolveStmt-Defer");
+    SPEC_COV("ResolveStmt-Region");
+    SPEC_COV("ResolveStmt-Frame-Implicit");
+
+    TestEnv env;
+    env.Init();
+    AddOuterValue(env.ctx, "shadowed");
+
+    LetStmt let_stmt;
+    let_stmt.binding.init = MakeLiteralExpr(TokenKind::IntLiteral, "1");
+    let_stmt.binding.type_opt = nullptr;
+    let_stmt.binding.pat = nullptr;
+    let_stmt.binding.span = EmptySpan();
+    let_stmt.span = EmptySpan();
+
+    ShadowLetStmt shadow_stmt;
+    shadow_stmt.name = "shadowed";
+    shadow_stmt.type_opt = nullptr;
+    shadow_stmt.init = MakeLiteralExpr(TokenKind::IntLiteral, "2");
+    shadow_stmt.span = EmptySpan();
+
+    Block empty_block;
+    empty_block.stmts = {};
+    empty_block.tail_opt = nullptr;
+    empty_block.span = EmptySpan();
+    auto block_ptr = std::make_shared<Block>(empty_block);
+
+    DeferStmt defer_stmt;
+    defer_stmt.body = block_ptr;
+    defer_stmt.span = EmptySpan();
+
+    RegionStmt region_stmt;
+    region_stmt.opts_opt = nullptr;
+    region_stmt.alias_opt = std::nullopt;
+    region_stmt.body = block_ptr;
+    region_stmt.span = EmptySpan();
+
+    FrameStmt frame_stmt;
+    frame_stmt.target_opt = std::nullopt;
+    frame_stmt.body = block_ptr;
+    frame_stmt.span = EmptySpan();
+
+    const std::vector<cursive0::syntax::Stmt> stmts = {
+        let_stmt, shadow_stmt, defer_stmt, region_stmt, frame_stmt};
     const auto seq = ResolveStmtSeq(env.res_ctx, stmts);
     assert(seq.ok);
   }

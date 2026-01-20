@@ -2,5 +2,5 @@
 # SPEC_COV: Parse-ClassItem-Method
 # SPEC_COV: Parse-ClassMethodBody-Concrete
 class C {
-  override procedure foo(~) -> i32 { 0 }
+  override procedure foo(~) -> i32 { return 0; }
 }

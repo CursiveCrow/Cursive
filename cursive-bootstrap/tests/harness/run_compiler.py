@@ -146,7 +146,7 @@ def _should_isolate(
     assembly_target: str | None,
 ) -> bool:
     phase = _phase_dir(test_path, tests_root)
-    if phase not in {"phase1", "phase3", "phase4"}:
+    if phase not in {"phase1", "phase2", "phase3", "phase4"}:
         return False
 
     if assembly_target is not None:

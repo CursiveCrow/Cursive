@@ -1,4 +1,4 @@
 # SPEC_COV: Bitcopy-Field-NonBitcopy
 record R <: Bitcopy, Clone { v: unique i32 }
 
-public procedure main(ctx: Context) -> i32 { 0 }
+public procedure main(ctx: Context) -> i32 { return 0; }

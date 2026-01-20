@@ -16,5 +16,5 @@ public procedure main(ctx: Context) -> i32 {
   var v: (i32, bool) = t;
   v.0 = 1;
 
-  0
+  return 0;
 }

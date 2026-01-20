@@ -1,5 +1,5 @@
 # SPEC_COV: Syn-PtrNull-Err
 public procedure main(ctx: Context) -> i32 {
   let p = Ptr::null();
-  0
+  return 0;
 }

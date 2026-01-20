@@ -8,11 +8,11 @@
 record SmallRecord { x: i32, y: i32 }
 record LargeRecord { a: u64, b: u64, c: u64 }
 
-procedure take_small(move s: SmallRecord) -> i32 { 0 }
-procedure borrow_small(s: SmallRecord) -> i32 { 0 }
-procedure take_large(move l: LargeRecord) -> u64 { 0u64 }
-procedure make_small() -> SmallRecord { SmallRecord { x: 1, y: 2 } }
-procedure make_large() -> LargeRecord { LargeRecord { a: 1, b: 2, c: 3 } }
+procedure take_small(move s: SmallRecord) -> i32 { return 0; }
+procedure borrow_small(s: SmallRecord) -> i32 { return 0; }
+procedure take_large(move l: LargeRecord) -> u64 { return 0u64; }
+procedure make_small() -> SmallRecord { return SmallRecord { x: 1, y: 2 }; }
+procedure make_large() -> LargeRecord { return LargeRecord { a: 1, b: 2, c: 3 }; }
 
 public procedure main(ctx: Context) -> i32 {
   let s = SmallRecord { x: 10, y: 20 };
@@ -22,5 +22,5 @@ public procedure main(ctx: Context) -> i32 {
   let _ = take_large(move l);
   let s2 = make_small();
   let l2 = make_large();
-  0
+  return 0;
 }

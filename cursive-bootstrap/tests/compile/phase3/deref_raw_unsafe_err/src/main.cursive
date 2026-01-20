@@ -2,5 +2,5 @@
 public procedure main(ctx: Context) -> i32 {
   let p: *imm i32 = unsafe { transmute::<usize, *imm i32>(0usize) };
   let v = *p;
-  0
+  return 0;
 }

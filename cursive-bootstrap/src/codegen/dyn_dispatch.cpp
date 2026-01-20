@@ -255,7 +255,8 @@ GlobalVTable EmitVTable(const sema::TypeRef& type,
                         const syntax::ClassDecl& class_decl,
                         LowerCtx& ctx) {
   SPEC_DEF("EmitVTable", "");
-  
+  SPEC_RULE("EmitVTable-Decl");
+
   VTableInfo info = VTable(type, class_path, class_decl, ctx);
   
   GlobalVTable gvt;
@@ -345,9 +346,7 @@ LowerResult LowerDynCall(const IRValue& base_ptr,
   
   if (!slot_opt.has_value()) {
     // Method not found - return error result
-    IRValue error_value;
-    error_value.kind = IRValue::Kind::Opaque;
-    error_value.name = "dyncall_error";
+    IRValue error_value = ctx.FreshTempValue("dyncall_error");
     return LowerResult{EmptyIR(), error_value};
   }
   
@@ -358,11 +357,10 @@ LowerResult LowerDynCall(const IRValue& base_ptr,
   call.base = base_ptr;
   call.slot = slot;
   call.args = args;
-  
+
   // Result value
-  IRValue result_value;
-  result_value.kind = IRValue::Kind::Opaque;
-  result_value.name = "dyncall_result";
+  IRValue result_value = ctx.FreshTempValue("dyncall_result");
+  call.result = result_value;
   
   // Sequence: CallVTable + PanicCheck
   std::vector<IRPtr> parts;

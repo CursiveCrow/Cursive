@@ -15,5 +15,5 @@
 procedure demo() -> () {}
 
 public procedure main(ctx: Context) -> i32 {
-  0
+  return 0;
 }

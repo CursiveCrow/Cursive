@@ -5,5 +5,5 @@ public procedure main(ctx: Context) -> i32 {
   let r = R { v: 0 };
   let d: $Drop = r as $Drop;
   d~>drop();
-  0
+  return 0;
 }

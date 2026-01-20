@@ -1,6 +1,9 @@
 #include <cassert>
 
+#include "cursive0/core/assert_spec.h"
+#include "cursive0/sema/string_bytes.h"
 #include "cursive0/sema/types.h"
+#include "cursive0/syntax/ast.h"
 
 namespace {
 
@@ -31,6 +34,8 @@ using cursive0::sema::TypePath;
 using cursive0::sema::TypeToString;
 using cursive0::sema::TypePaths;
 using cursive0::sema::TypeRef;
+using cursive0::sema::LookupStringBytesBuiltinType;
+using cursive0::syntax::ModulePath;
 
 TypeRef Prim(const char* name) {
   return MakeTypePrim(name);
@@ -158,6 +163,40 @@ int main() {
     assert(paths.size() == 2);
     assert(paths[0] == path_a);
     assert(paths[1] == path_b);
+  }
+
+  {
+    SPEC_COV("StringFrom-Ok");
+    SPEC_COV("StringFrom-Err");
+    SPEC_COV("StringAsView-Ok");
+    SPEC_COV("StringToManaged-Ok");
+    SPEC_COV("StringToManaged-Err");
+    SPEC_COV("StringCloneWith-Ok");
+    SPEC_COV("StringCloneWith-Err");
+    SPEC_COV("StringAppend-Ok");
+    SPEC_COV("StringAppend-Err");
+    SPEC_COV("StringLength");
+    SPEC_COV("StringIsEmpty");
+    SPEC_COV("BytesWithCapacity-Ok");
+    SPEC_COV("BytesWithCapacity-Err");
+    SPEC_COV("BytesFromSlice-Ok");
+    SPEC_COV("BytesFromSlice-Err");
+    SPEC_COV("BytesAsView-Ok");
+    SPEC_COV("BytesToManaged-Ok");
+    SPEC_COV("BytesToManaged-Err");
+    SPEC_COV("BytesView-Ok");
+    SPEC_COV("BytesViewString-Ok");
+    SPEC_COV("BytesAppend-Ok");
+    SPEC_COV("BytesAppend-Err");
+    SPEC_COV("BytesLength");
+    SPEC_COV("BytesIsEmpty");
+
+    const auto string_from =
+        LookupStringBytesBuiltinType(ModulePath{"string"}, "from");
+    assert(string_from.has_value());
+    const auto bytes_with_capacity =
+        LookupStringBytesBuiltinType(ModulePath{"bytes"}, "with_capacity");
+    assert(bytes_with_capacity.has_value());
   }
 
   return 0;

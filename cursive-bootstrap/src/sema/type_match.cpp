@@ -461,19 +461,25 @@ static ExprTypeResult TypeArmBody(const ScopeContext& ctx,
     if (!block_expr->block) {
       return {false, std::nullopt, {}};
     }
+    TypeEnv live_env = env;
+    StmtTypeContext arm_ctx = type_ctx;
+    arm_ctx.env_ref = &live_env;
+    auto active_env = [&]() -> const TypeEnv& {
+      return arm_ctx.env_ref ? *arm_ctx.env_ref : env;
+    };
     auto type_expr = [&](const syntax::ExprPtr& inner) {
-      return TypeExpr(ctx, type_ctx, inner, env);
+      return TypeExpr(ctx, arm_ctx, inner, active_env());
     };
     auto type_ident = [&](std::string_view name) -> ExprTypeResult {
       return TypeIdentifierExpr(ctx, syntax::IdentifierExpr{std::string(name)},
-                                env);
+                                active_env());
     };
     auto type_place = [&](const syntax::ExprPtr& inner) {
-      return TypePlace(ctx, type_ctx, inner, env);
+      return TypePlace(ctx, arm_ctx, inner, active_env());
     };
     const auto typed =
-        TypeBlock(ctx, type_ctx, *block_expr->block, env, type_expr,
-                  type_ident, type_place, type_ctx.env_ref);
+        TypeBlock(ctx, arm_ctx, *block_expr->block, env, type_expr,
+                  type_ident, type_place, arm_ctx.env_ref);
     if (!typed.ok) {
       return typed;
     }
@@ -504,19 +510,25 @@ static CheckResult CheckArmBody(const ScopeContext& ctx,
     if (!block_expr->block) {
       return result;
     }
+    TypeEnv live_env = env;
+    StmtTypeContext arm_ctx = type_ctx;
+    arm_ctx.env_ref = &live_env;
+    auto active_env = [&]() -> const TypeEnv& {
+      return arm_ctx.env_ref ? *arm_ctx.env_ref : env;
+    };
     auto type_expr = [&](const syntax::ExprPtr& inner) {
-      return TypeExpr(ctx, type_ctx, inner, env);
+      return TypeExpr(ctx, arm_ctx, inner, active_env());
     };
     auto type_ident = [&](std::string_view name) -> ExprTypeResult {
       return TypeIdentifierExpr(ctx, syntax::IdentifierExpr{std::string(name)},
-                                env);
+                                active_env());
     };
     auto type_place = [&](const syntax::ExprPtr& inner) {
-      return TypePlace(ctx, type_ctx, inner, env);
+      return TypePlace(ctx, arm_ctx, inner, active_env());
     };
     const auto check =
-        CheckBlock(ctx, type_ctx, *block_expr->block, env, expected, type_expr,
-                   type_ident, type_place, type_ctx.env_ref);
+        CheckBlock(ctx, arm_ctx, *block_expr->block, env, expected, type_expr,
+                   type_ident, type_place, arm_ctx.env_ref);
     if (!check.ok) {
       result.diag_id = check.diag_id;
       return result;

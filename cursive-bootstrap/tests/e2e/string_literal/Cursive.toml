@@ -1,0 +1,4 @@
+[assembly]
+name = "string_literal"
+kind = "executable"
+root = "src"

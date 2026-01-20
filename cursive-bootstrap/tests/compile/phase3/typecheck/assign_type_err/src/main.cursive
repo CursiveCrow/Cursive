@@ -4,5 +4,5 @@ public procedure main(ctx: Context) -> i32 {
   var x: i32 = 0;
   x = true;
 
-  0
+  return 0;
 }

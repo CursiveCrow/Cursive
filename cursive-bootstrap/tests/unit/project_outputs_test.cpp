@@ -328,6 +328,22 @@ int main() {
   }
 
   {
+    SPEC_COV("Out-Link-Runtime-Incompatible");
+    SPEC_COV("Link-Runtime-Incompatible");
+    TestConfig cfg;
+    cfg.linker_syms = RuntimeRequiredSyms();
+    if (!cfg.linker_syms.empty()) {
+      cfg.linker_syms.pop_back();
+    }
+    g_cfg = &cfg;
+    const Project project = MakeProject("/root", "executable", std::nullopt, {"main"});
+    const OutputPipelineResult result = OutputPipelineWithDeps(project, MakeDeps());
+    assert(!result.artifacts.has_value());
+    assert(HasError(result.diags));
+    assert(HasCode(result.diags, "E-OUT-0408"));
+  }
+
+  {
     SPEC_COV("Out-Link-Fail");
     SPEC_COV("Link-Fail");
     TestConfig cfg;
@@ -368,6 +384,25 @@ int main() {
     assert(!HasError(result.diags));
     assert(result.artifacts->irs.size() == 1);
     assert(!result.artifacts->exe.has_value());
+  }
+
+  {
+    const Project project =
+        MakeProject("/root", "executable", std::optional<std::string>("ll"), {"main"});
+    const auto lines = cursive0::project::DumpProject(project, false);
+    assert(lines.size() == 7);
+    assert(lines[0] == "project_root: /root");
+    assert(lines[1] == "assemblies: [app]");
+    assert(lines[2] == "assembly_name: app");
+    assert(lines[3] == "source_root: /root/src");
+    assert(lines[4] == "output_root: /root/build");
+    assert(lines[5] == "module_list: [main]");
+    const std::string expected =
+        std::string("module: main obj: ") +
+        cursive0::project::ObjPath(project, project.modules[0]).generic_string() +
+        " ir: " +
+        cursive0::project::IRPath(project, project.modules[0], "ll").generic_string();
+    assert(lines[6] == expected);
   }
 
   return 0;

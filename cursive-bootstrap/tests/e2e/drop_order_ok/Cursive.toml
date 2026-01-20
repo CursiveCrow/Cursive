@@ -1,0 +1,4 @@
+[assembly]
+name = "drop_order_ok"
+kind = "executable"
+root = "src"

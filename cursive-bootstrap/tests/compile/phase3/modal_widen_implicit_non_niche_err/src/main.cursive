@@ -7,5 +7,5 @@ modal OptInt {
 public procedure main(ctx: Context) -> i32 {
   let a = OptInt@Some { v: 1 };
   let b: OptInt = move a;
-  0
+  return 0;
 }

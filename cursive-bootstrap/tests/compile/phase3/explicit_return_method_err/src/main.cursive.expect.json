@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "diagnostics": [
+    {
+      "code": "E-TYP-1507",
+      "severity": "error",
+      "message": "Procedure with non-unit return type requires explicit return statement"
+    }
+  ]
+}

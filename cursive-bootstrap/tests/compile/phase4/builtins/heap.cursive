@@ -12,5 +12,5 @@ public procedure main(ctx: Context) -> i32 {
     let p: *mut i32 = heap~>alloc_raw(count);
     heap~>dealloc_raw(p, count);
   };
-  0
+  return 0;
 }

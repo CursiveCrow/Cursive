@@ -7,7 +7,7 @@
 
 record Point {
   x: i32,
-  procedure len(~) -> i32 { 0 }
+  procedure len(~) -> i32 { return 0; }
 }
 
 enum Color { Red }
@@ -15,9 +15,9 @@ enum Color { Red }
 modal Machine {
   @Idle {
     v: i32
-    procedure status() -> i32 { 0 }
-    transition stay() -> @Idle { Machine@Idle { v: 0 } }
+    procedure status() -> i32 { return 0; }
+    transition stay() -> @Idle { return Machine@Idle { v: 0 }; }
   }
 }
 
-public procedure main(ctx: Context) -> i32 { 0 }
+public procedure main(ctx: Context) -> i32 { return 0; }

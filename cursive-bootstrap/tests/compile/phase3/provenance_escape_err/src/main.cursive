@@ -4,5 +4,5 @@ public procedure main(ctx: Context) -> i32 {
     var outer = 0;
     outer = ^1;
   }
-  0
+  return 0;
 }

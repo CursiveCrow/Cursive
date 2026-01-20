@@ -66,5 +66,5 @@ public procedure main(ctx: Context) -> i32 {
     transmute::<(*imm i32, *imm i32), $FileSystem>((raw, raw))
   };
   use_fs(fs);
-  0
+  return 0;
 }

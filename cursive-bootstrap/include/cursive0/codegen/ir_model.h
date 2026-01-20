@@ -48,12 +48,14 @@ struct IRSeq {
 struct IRCall {
   IRValue callee;
   std::vector<IRValue> args;
+  IRValue result;
 };
 
 struct IRCallVTable {
   IRValue base;
   std::size_t slot = 0;
   std::vector<IRValue> args;
+  IRValue result;
 };
 
 struct IRStoreGlobal {
@@ -73,6 +75,7 @@ struct IRReadPath {
 struct IRBindVar {
   std::string name;
   IRValue value;
+  sema::TypeRef type;
 };
 
 struct IRStoreVar {
@@ -96,10 +99,12 @@ struct IRWritePlace {
 
 struct IRAddrOf {
   IRPlace place;
+  IRValue result;
 };
 
 struct IRReadPtr {
   IRValue ptr;
+  IRValue result;
 };
 
 struct IRWritePtr {
@@ -110,23 +115,27 @@ struct IRWritePtr {
 struct IRUnaryOp {
   std::string op;
   IRValue operand;
+  IRValue result;
 };
 
 struct IRBinaryOp {
   std::string op;
   IRValue lhs;
   IRValue rhs;
+  IRValue result;
 };
 
 struct IRCast {
   sema::TypeRef target;
   IRValue value;
+  IRValue result;
 };
 
 struct IRTransmute {
   sema::TypeRef from;
   sema::TypeRef to;
   IRValue value;
+  IRValue result;
 };
 
 struct IRCheckIndex {
@@ -160,6 +169,7 @@ struct IRCheckCast {
 struct IRAlloc {
   std::optional<IRValue> region;
   IRValue value;
+  IRValue result;
 };
 
 struct IRReturn {
@@ -190,6 +200,7 @@ struct IRIf {
   IRValue then_value;
   IRPtr else_ir;
   IRValue else_value;
+  IRValue result;
 };
 
 struct IRBlock {
@@ -214,6 +225,7 @@ struct IRLoop {
   std::optional<IRValue> cond_value;
   IRPtr body_ir;
   IRValue body_value;
+  IRValue result;
 };
 
 struct IRMatchArm {
@@ -224,7 +236,9 @@ struct IRMatchArm {
 
 struct IRMatch {
   IRValue scrutinee;
+  sema::TypeRef scrutinee_type;
   std::vector<IRMatchArm> arms;
+  IRValue result;
 };
 
 struct IRRegion {
@@ -258,7 +272,15 @@ struct IRPhi {
 };
 
 struct IRClearPanic {};
-struct IRPanicCheck {};
+struct IRPanicCheck {
+  // Optional cleanup IR to run when panic is detected.
+  IRPtr cleanup_ir;
+};
+
+struct IRInitPanicHandle {
+  std::string module;
+  std::vector<std::string> poison_modules;
+};
 
 struct IRCheckPoison {
   std::string module;
@@ -266,6 +288,8 @@ struct IRCheckPoison {
 
 struct IRLowerPanic {
   std::string reason;
+  // Optional cleanup IR to run before returning.
+  IRPtr cleanup_ir;
 };
 
 struct IROpaque {};
@@ -312,6 +336,7 @@ struct IR {
                IRPhi,
                IRClearPanic,
                IRPanicCheck,
+               IRInitPanicHandle,
                IRCheckPoison,
                IRLowerPanic>
       node;

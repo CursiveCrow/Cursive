@@ -1,0 +1,11 @@
+# SPEC_COV: Eval-Dynamic-Form
+# SPEC_COV: Eval-Dynamic-Form-Ctrl
+
+class D { procedure ping(~) -> i32; }
+record R <: D { v: i32, procedure ping(~) -> i32 { return 1; } }
+
+public procedure main(ctx: Context) -> i32 {
+  let r = R { v: 0 };
+  let d: $D = r as $D;
+  return d~>ping();
+}

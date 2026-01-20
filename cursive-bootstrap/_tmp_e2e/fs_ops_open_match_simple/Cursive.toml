@@ -1,0 +1,4 @@
+[assembly]
+name = "fs_ops"
+kind = "executable"
+root = "src"
