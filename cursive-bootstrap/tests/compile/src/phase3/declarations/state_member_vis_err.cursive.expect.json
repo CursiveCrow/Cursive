@@ -1,0 +1,17 @@
+{
+    "diagnostics":  [
+                        {
+                            "code":  "E-TYP-2063",
+                            "severity":  "error",
+                            "message":  "State member visibility exceeds modal visibility",
+                            "span":  {
+                                         "file":  "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\declarations\\state_member_vis_err.cursive",
+                                         "start_line":  1,
+                                         "start_col":  1,
+                                         "end_line":  1,
+                                         "end_col":  47
+                                     }
+                        }
+                    ],
+    "exit_code":  1
+}

@@ -1,0 +1,17 @@
+{
+    "diagnostics":  [
+                        {
+                            "code":  "E-TYP-1507",
+                            "severity":  "error",
+                            "message":  "Procedure with non-unit return type requires explicit return statement",
+                            "span":  {
+                                         "file":  "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\declarations\\explicit_return_method_err.cursive",
+                                         "start_line":  3,
+                                         "start_col":  27,
+                                         "end_line":  3,
+                                         "end_col":  32
+                                     }
+                        }
+                    ],
+    "exit_code":  1
+}

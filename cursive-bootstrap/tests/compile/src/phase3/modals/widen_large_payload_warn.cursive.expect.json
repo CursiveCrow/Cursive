@@ -1,0 +1,17 @@
+{
+    "diagnostics":  [
+                        {
+                            "code":  "W-SYS-4010",
+                            "severity":  "warning",
+                            "message":  "Modal widening involves large payload copy (\u003e256 bytes)",
+                            "span":  {
+                                         "file":  "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\modals\\widen_large_payload_warn.cursive",
+                                         "start_line":  17,
+                                         "start_col":  16,
+                                         "end_line":  17,
+                                         "end_col":  29
+                                     }
+                        }
+                    ],
+    "exit_code":  0
+}

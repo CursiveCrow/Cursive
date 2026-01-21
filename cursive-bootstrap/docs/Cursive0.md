@@ -6920,739 +6920,1070 @@ ConstTupleIndex(i) ⇔ ∃ n ∈ ℤ. i = n
 
 #### 5.2.6. Arrays and Slices
 
-$$\text{ConstIndex}(e) \iff \exists n.\ \Gamma \vdash \text{ConstLen}(e) \Downarrow n$$
+ConstIndex(e) ⇔ ∃ n. Γ ⊢ ConstLen(e) ⇓ n
 
 **(T-Array-Literal-List)**
-$$\frac{\forall i,\ \Gamma \vdash e_i : T}{\Gamma \vdash \text{ArrayExpr}([e_1,\ldots,e_n]) : \text{TypeArray}(T, \text{Literal}(\text{IntLiteral}(n)))}$$
+∀ i, Γ ⊢ e_i : T
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ArrayExpr([e_1, …, e_n]) : TypeArray(T, Literal(IntLiteral(n)))
 
 **(T-Index-Array)**
-$$\frac{\Gamma \vdash e_1 : \text{TypeArray}(T, len) \quad \Gamma \vdash e_2 : \text{TypePrim}(\texttt{"usize"}) \quad \text{ConstIndex}(e_2) \quad \Gamma \vdash \text{ConstLen}(e_2) \Downarrow i \quad \Gamma \vdash \text{ConstLen}(len) \Downarrow n \quad i < n \quad \text{BitcopyType}(T)}{\Gamma \vdash \text{IndexAccess}(e_1, e_2) : T}$$
+Γ ⊢ e_1 : TypeArray(T, len)    Γ ⊢ e_2 : TypePrim("usize")    ConstIndex(e_2)    Γ ⊢ ConstLen(e_2) ⇓ i    Γ ⊢ ConstLen(len) ⇓ n    i < n    BitcopyType(T)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) : T
 
 **(T-Index-Array-Perm)**
-$$\frac{\Gamma \vdash e_1 : \text{TypePerm}(p, \text{TypeArray}(T, len)) \quad \Gamma \vdash e_2 : \text{TypePrim}(\texttt{"usize"}) \quad \text{ConstIndex}(e_2) \quad \Gamma \vdash \text{ConstLen}(e_2) \Downarrow i \quad \Gamma \vdash \text{ConstLen}(len) \Downarrow n \quad i < n \quad \text{BitcopyType}(\text{TypePerm}(p, T))}{\Gamma \vdash \text{IndexAccess}(e_1, e_2) : \text{TypePerm}(p, T)}$$
+Γ ⊢ e_1 : TypePerm(p, TypeArray(T, len))    Γ ⊢ e_2 : TypePrim("usize")    ConstIndex(e_2)    Γ ⊢ ConstLen(e_2) ⇓ i    Γ ⊢ ConstLen(len) ⇓ n    i < n    BitcopyType(TypePerm(p, T))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) : TypePerm(p, T)
 
 **(Index-Array-NonConst-Err)**
-$$\frac{\Gamma \vdash e_1 : \text{TypeArray}(T, \_) \quad \Gamma \vdash e_2 : \text{TypePrim}(\texttt{"usize"}) \quad \neg \text{ConstIndex}(e_2) \quad c = \text{Code}(\text{Index-Array-NonConst-Err})}{\Gamma \vdash \text{IndexAccess}(e_1, e_2) \Uparrow c}$$
+Γ ⊢ e_1 : TypeArray(T, _)    Γ ⊢ e_2 : TypePrim("usize")    ¬ ConstIndex(e_2)    c = Code(Index-Array-NonConst-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) ⇑ c
 
 **(Index-Array-OOB-Err)**
-$$\frac{\Gamma \vdash e_1 : \text{TypeArray}(T, len) \quad \text{ConstIndex}(e_2) \quad \Gamma \vdash \text{ConstLen}(e_2) \Downarrow i \quad \Gamma \vdash \text{ConstLen}(len) \Downarrow n \quad i \ge n \quad c = \text{Code}(\text{Index-Array-OOB-Err})}{\Gamma \vdash \text{IndexAccess}(e_1, e_2) \Uparrow c}$$
+Γ ⊢ e_1 : TypeArray(T, len)    ConstIndex(e_2)    Γ ⊢ ConstLen(e_2) ⇓ i    Γ ⊢ ConstLen(len) ⇓ n    i ≥ n    c = Code(Index-Array-OOB-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) ⇑ c
 
 **(Index-Slice-Direct-Err)**
-$$\frac{\Gamma \vdash e_1 : \text{TypeSlice}(T) \quad \Gamma \vdash e_2 : \text{TypePrim}(\texttt{"usize"}) \quad c = \text{Code}(\text{Index-Slice-Direct-Err})}{\Gamma \vdash \text{IndexAccess}(e_1, e_2) \Uparrow c}$$
+Γ ⊢ e_1 : TypeSlice(T)    Γ ⊢ e_2 : TypePrim("usize")    c = Code(Index-Slice-Direct-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) ⇑ c
 
 **(Index-Slice-Perm-Direct-Err)**
-$$\frac{\Gamma \vdash e_1 : \text{TypePerm}(p, \text{TypeSlice}(T)) \quad \Gamma \vdash e_2 : \text{TypePrim}(\texttt{"usize"}) \quad c = \text{Code}(\text{Index-Slice-Direct-Err})}{\Gamma \vdash \text{IndexAccess}(e_1, e_2) \Uparrow c}$$
+Γ ⊢ e_1 : TypePerm(p, TypeSlice(T))    Γ ⊢ e_2 : TypePrim("usize")    c = Code(Index-Slice-Direct-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) ⇑ c
 
 **(T-Slice-From-Array)**
-$$\frac{\Gamma \vdash e_1 : \text{TypeArray}(T, n) \quad \Gamma; R; L \vdash e_2 : \text{Range} \quad \text{BitcopyType}(\text{TypeSlice}(T))}{\Gamma \vdash \text{IndexAccess}(e_1, e_2) : \text{TypeSlice}(T)}$$
+Γ ⊢ e_1 : TypeArray(T, n)    Γ; R; L ⊢ e_2 : Range    BitcopyType(TypeSlice(T))
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) : TypeSlice(T)
 
 **(T-Slice-From-Array-Perm)**
-$$\frac{\Gamma \vdash e_1 : \text{TypePerm}(p, \text{TypeArray}(T, n)) \quad \Gamma; R; L \vdash e_2 : \text{Range} \quad \text{BitcopyType}(\text{TypePerm}(p, \text{TypeSlice}(T)))}{\Gamma \vdash \text{IndexAccess}(e_1, e_2) : \text{TypePerm}(p, \text{TypeSlice}(T))}$$
+Γ ⊢ e_1 : TypePerm(p, TypeArray(T, n))    Γ; R; L ⊢ e_2 : Range    BitcopyType(TypePerm(p, TypeSlice(T)))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) : TypePerm(p, TypeSlice(T))
 
 **(T-Slice-From-Slice)**
-$$\frac{\Gamma \vdash e_1 : \text{TypeSlice}(T) \quad \Gamma; R; L \vdash e_2 : \text{Range} \quad \text{BitcopyType}(\text{TypeSlice}(T))}{\Gamma \vdash \text{IndexAccess}(e_1, e_2) : \text{TypeSlice}(T)}$$
+Γ ⊢ e_1 : TypeSlice(T)    Γ; R; L ⊢ e_2 : Range    BitcopyType(TypeSlice(T))
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) : TypeSlice(T)
 
 **(T-Slice-From-Slice-Perm)**
-$$\frac{\Gamma \vdash e_1 : \text{TypePerm}(p, \text{TypeSlice}(T)) \quad \Gamma; R; L \vdash e_2 : \text{Range} \quad \text{BitcopyType}(\text{TypePerm}(p, \text{TypeSlice}(T)))}{\Gamma \vdash \text{IndexAccess}(e_1, e_2) : \text{TypePerm}(p, \text{TypeSlice}(T))}$$
+Γ ⊢ e_1 : TypePerm(p, TypeSlice(T))    Γ; R; L ⊢ e_2 : Range    BitcopyType(TypePerm(p, TypeSlice(T)))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) : TypePerm(p, TypeSlice(T))
 
 **(P-Index-Array)**
-$$\frac{\Gamma \vdash e_1 :place \text{TypeArray}(T, len) \quad \Gamma \vdash e_2 : \text{TypePrim}(\texttt{"usize"}) \quad \text{ConstIndex}(e_2) \quad \Gamma \vdash \text{ConstLen}(e_2) \Downarrow i \quad \Gamma \vdash \text{ConstLen}(len) \Downarrow n \quad i < n}{\Gamma \vdash \text{IndexAccess}(e_1, e_2) :place T}$$
+Γ ⊢ e_1 :place TypeArray(T, len)    Γ ⊢ e_2 : TypePrim("usize")    ConstIndex(e_2)    Γ ⊢ ConstLen(e_2) ⇓ i    Γ ⊢ ConstLen(len) ⇓ n    i < n
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) :place T
 
 **(P-Index-Array-Perm)**
-$$\frac{\Gamma \vdash e_1 :place \text{TypePerm}(p, \text{TypeArray}(T, len)) \quad \Gamma \vdash e_2 : \text{TypePrim}(\texttt{"usize"}) \quad \text{ConstIndex}(e_2) \quad \Gamma \vdash \text{ConstLen}(e_2) \Downarrow i \quad \Gamma \vdash \text{ConstLen}(len) \Downarrow n \quad i < n}{\Gamma \vdash \text{IndexAccess}(e_1, e_2) :place \text{TypePerm}(p, T)}$$
+Γ ⊢ e_1 :place TypePerm(p, TypeArray(T, len))    Γ ⊢ e_2 : TypePrim("usize")    ConstIndex(e_2)    Γ ⊢ ConstLen(e_2) ⇓ i    Γ ⊢ ConstLen(len) ⇓ n    i < n
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) :place TypePerm(p, T)
 
 **(P-Slice-From-Array)**
-$$\frac{\Gamma \vdash e_1 :place \text{TypeArray}(T, n) \quad \Gamma; R; L \vdash e_2 : \text{Range}}{\Gamma \vdash \text{IndexAccess}(e_1, e_2) :place \text{TypeSlice}(T)}$$
+Γ ⊢ e_1 :place TypeArray(T, n)    Γ; R; L ⊢ e_2 : Range
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) :place TypeSlice(T)
 
 **(P-Slice-From-Array-Perm)**
-$$\frac{\Gamma \vdash e_1 :place \text{TypePerm}(p, \text{TypeArray}(T, n)) \quad \Gamma; R; L \vdash e_2 : \text{Range}}{\Gamma \vdash \text{IndexAccess}(e_1, e_2) :place \text{TypePerm}(p, \text{TypeSlice}(T))}$$
+Γ ⊢ e_1 :place TypePerm(p, TypeArray(T, n))    Γ; R; L ⊢ e_2 : Range
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) :place TypePerm(p, TypeSlice(T))
 
 **(P-Slice-From-Slice)**
-$$\frac{\Gamma \vdash e_1 :place \text{TypeSlice}(T) \quad \Gamma; R; L \vdash e_2 : \text{Range}}{\Gamma \vdash \text{IndexAccess}(e_1, e_2) :place \text{TypeSlice}(T)}$$
+Γ ⊢ e_1 :place TypeSlice(T)    Γ; R; L ⊢ e_2 : Range
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) :place TypeSlice(T)
 
 **(P-Slice-From-Slice-Perm)**
-$$\frac{\Gamma \vdash e_1 :place \text{TypePerm}(p, \text{TypeSlice}(T)) \quad \Gamma; R; L \vdash e_2 : \text{Range}}{\Gamma \vdash \text{IndexAccess}(e_1, e_2) :place \text{TypePerm}(p, \text{TypeSlice}(T))}$$
+Γ ⊢ e_1 :place TypePerm(p, TypeSlice(T))    Γ; R; L ⊢ e_2 : Range
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) :place TypePerm(p, TypeSlice(T))
 
 **(Coerce-Array-Slice)**
-$$\frac{\Gamma \vdash e : \text{TypePerm}(p, \text{TypeArray}(T, n))}{\Gamma \vdash e : \text{TypePerm}(p, \text{TypeSlice}(T))}$$
+Γ ⊢ e : TypePerm(p, TypeArray(T, n))
+──────────────────────────────────────────────────────────────
+Γ ⊢ e : TypePerm(p, TypeSlice(T))
 
 **(Index-Array-NonUsize)**
-$$\frac{\Gamma \vdash e_1 : \text{TypeArray}(T, \_) \quad \Gamma \vdash e_2 : T_i \quad T_i \ne \text{TypePrim}(\texttt{"usize"}) \quad c = \text{Code}(\text{Index-Array-NonUsize})}{\Gamma \vdash \text{IndexAccess}(e_1, e_2) \Uparrow c}$$
+Γ ⊢ e_1 : TypeArray(T, _)    Γ ⊢ e_2 : T_i    T_i ≠ TypePrim("usize")    c = Code(Index-Array-NonUsize)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) ⇑ c
 
 **(Index-NonIndexable)**
-$$\frac{\Gamma \vdash e_1 : T \quad \text{StripPerm}(T) \notin \{\text{TypeArray}(\_,\_), \text{TypeSlice}(\_)\} \quad c = \text{Code}(\text{Index-NonIndexable})}{\Gamma \vdash \text{IndexAccess}(e_1, e_2) \Uparrow c}$$
+Γ ⊢ e_1 : T    StripPerm(T) ∉ {TypeArray(_, _), TypeSlice(_)}    c = Code(Index-NonIndexable)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) ⇑ c
 
 #### 5.2.7. Union Types
 
-$$\text{Members}(\text{TypeUnion}([T_1,\ldots,T_n])) = [T_1,\ldots,T_n]$$
-$$\text{DistinctMembers}(U) = [T_i \in \text{Members}(U) \mid \forall j < i.\ \neg(\Gamma \vdash T_i \equiv T_j)]$$
-$$\text{SetMembers}(U) = \{ T \mid T \in \text{DistinctMembers}(U) \}$$
+Members(TypeUnion([T_1, …, T_n])) = [T_1, …, T_n]
+DistinctMembers(U) = [T_i ∈ Members(U) | ∀ j < i. ¬(Γ ⊢ T_i ≡ T_j)]
+SetMembers(U) = { T | T ∈ DistinctMembers(U) }
 
 **(T-Union-Intro)**
-$$\frac{\Gamma \vdash e : T \quad \text{Member}(T, U)}{\Gamma \vdash e : U}$$
+Γ ⊢ e : T    Member(T, U)
+──────────────────────────────────────────────
+Γ ⊢ e : U
 
 **(Union-DirectAccess-Err)**
-$$\frac{\Gamma; R; L \vdash e : U \quad \text{StripPerm}(U) = \text{TypeUnion}(\_) \quad c = \text{Code}(\text{Union-DirectAccess-Err})}{\Gamma; R; L \vdash \text{FieldAccess}(e, f) \Uparrow c}$$
+Γ; R; L ⊢ e : U    StripPerm(U) = TypeUnion(_)    c = Code(Union-DirectAccess-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ FieldAccess(e, f) ⇑ c
 
 #### 5.2.8. Default Record Construction
 
-$$\text{Fields}(R) = \text{Fields}_{\S 5.3.2}(R)$$
+Fields(R) = Fields_{§ 5.3.2}(R)
 
-$$\text{InitOk}(f) \iff f = \text{FieldDecl}(vis, name, T_f, \text{init\_opt}, span, doc) \land \big(\text{init\_opt} = \bot\big) \lor \big(\text{init\_opt} = e \land \Gamma; \bot; \bot \vdash e : T \land \Gamma \vdash T <: T_f\big)$$
+InitOk(f) ⇔ f = FieldDecl(vis, name, T_f, init_opt, span, doc) ∧ (init_opt = ⊥) ∨ (init_opt = e ∧ Γ; ⊥; ⊥ ⊢ e : T ∧ Γ ⊢ T <: T_f)
 
 **(WF-Record)**
-$$\frac{\forall f \in \text{Fields}(R),\ \text{InitOk}(f) \quad \forall f_i \ne f_j,\ f_i.\text{name} \ne f_j.\text{name}}{\Gamma \vdash R\ \text{record} \ \text{wf}}$$
+∀ f ∈ Fields(R), InitOk(f)    ∀ f_i ≠ f_j, f_i.name ≠ f_j.name
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ R record wf
 
 **(WF-Record-DupField)**
-$$\frac{\exists f_i \ne f_j.\ f_i.\text{name} = f_j.\text{name} \quad c = \text{Code}(\text{WF-Record-DupField})}{\Gamma \vdash R\ \text{record} \ \text{wf} \Uparrow c}$$
+∃ f_i ≠ f_j. f_i.name = f_j.name    c = Code(WF-Record-DupField)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ R record wf ⇑ c
 
-$$\text{DefaultConstructible}(R) \iff \forall f \in \text{Fields}(R).\ f.\text{init\_opt} \ne \bot$$
-$$\text{RecordPath}(R) = \text{FullPath}(\text{ModuleOf}(R), R.\text{name})$$
-$$\text{RecordCallee}(\text{callee}) = R \iff (\text{callee}=\text{Identifier}(\text{name}) \lor \text{callee}=\text{Path}(\text{path},\text{name})) \land \Gamma \vdash \text{ResolveTypeName}(\text{name}) \Downarrow ent \land ent.\text{origin\_opt} = mp \land name' = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ \text{name}) \land \text{RecordDecl}(\text{FullPath}(\text{PathOfModule}(mp), name')) = R$$
+DefaultConstructible(R) ⇔ ∀ f ∈ Fields(R). f.init_opt ≠ ⊥
+RecordPath(R) = FullPath(ModuleOf(R), R.name)
+RecordCallee(callee) = R ⇔ (callee = Identifier(name) ∨ callee = Path(path, name)) ∧ Γ ⊢ ResolveTypeName(name) ⇓ ent ∧ ent.origin_opt = mp ∧ name' = (ent.target_opt if present, else name) ∧ RecordDecl(FullPath(PathOfModule(mp), name')) = R
 
 **(T-Record-Default)**
-$$\frac{\text{RecordCallee}(callee) = R \quad \Gamma \vdash R\ \text{record wf} \quad \text{DefaultConstructible}(R)}{\Gamma \vdash \text{Call}(callee, []) : \text{TypePath}(\text{RecordPath}(R))}$$
+RecordCallee(callee) = R    Γ ⊢ R record wf    DefaultConstructible(R)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Call(callee, []) : TypePath(RecordPath(R))
 
 **(Record-Default-Init-Err)**
-$$\frac{\text{RecordCallee}(callee) = R \quad \neg \text{DefaultConstructible}(R) \quad c = \text{Code}(\text{Record-Default-Init-Err})}{\Gamma \vdash \text{Call}(callee, []) \Uparrow c}$$
+RecordCallee(callee) = R    ¬ DefaultConstructible(R)    c = Code(Record-Default-Init-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Call(callee, []) ⇑ c
 
 #### 5.2.9. Type Inference (Cursive0)
 
-$$\text{TypeInfJudg} = \{\Rightarrow,\ \Leftarrow,\ \text{Solve}\}$$
+TypeInfJudg = {⇒, ⇐, Solve}
 
-$$\text{Constraint} = \text{Type} \times \text{Type}$$
-$$\text{ConstraintSet} = \mathcal{P}(\text{Constraint})$$
-$$\text{Solve}(C) \Downarrow \text{id} \iff C = \emptyset$$
-$$\text{Solve}(C) \Uparrow \iff C \ne \emptyset$$
-$$\forall \Gamma,R,L,e,T,C.\ \Gamma; R; L \vdash e \Rightarrow T \dashv C \Rightarrow C = \emptyset$$
-$$\forall \Gamma,R,L,e,T,C.\ \Gamma; R; L \vdash e \Leftarrow T \dashv C \Rightarrow C = \emptyset$$
+Constraint = Type × Type
+ConstraintSet = ℘(Constraint)
+Solve(C) ⇓ id ⇔ C = ∅
+Solve(C) ⇑ ⇔ C ≠ ∅
+∀ Γ, R, L, e, T, C. Γ; R; L ⊢ e ⇒ T ⊣ C ⇒ C = ∅
+∀ Γ, R, L, e, T, C. Γ; R; L ⊢ e ⇐ T ⊣ C ⇒ C = ∅
 
 **(Syn-Expr)**
-$$\frac{\Gamma; R; L \vdash e : T}{\Gamma; R; L \vdash e \Rightarrow T \dashv \emptyset}$$
+Γ; R; L ⊢ e : T
+──────────────────────────────────────────────
+Γ; R; L ⊢ e ⇒ T ⊣ ∅
 
 **(Syn-Ident)**
-$$\frac{(x : T) \in \Gamma}{\Gamma; R; L \vdash \text{Identifier}(x) \Rightarrow T \dashv \emptyset}$$
+(x : T) ∈ Γ
+──────────────────────────────────────────────
+Γ; R; L ⊢ Identifier(x) ⇒ T ⊣ ∅
 
 **(Syn-Unit)**
-$$\frac{}{\Gamma; R; L \vdash \text{TupleExpr}([]) \Rightarrow \text{TypePrim}(\texttt{"()"}) \dashv \emptyset}$$
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ TupleExpr([]) ⇒ TypePrim("()") ⊣ ∅
 
 **(Syn-Tuple)**
-$$\frac{n \ge 1 \quad \forall i,\ \Gamma; R; L \vdash e_i \Rightarrow T_i \dashv C_i}{\Gamma; R; L \vdash \text{TupleExpr}([e_1,\ldots,e_n]) \Rightarrow \text{TypeTuple}([T_1,\ldots,T_n]) \dashv \bigcup_i C_i}$$
+n ≥ 1    ∀ i, Γ; R; L ⊢ e_i ⇒ T_i ⊣ C_i
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ TupleExpr([e_1, …, e_n]) ⇒ TypeTuple([T_1, …, T_n]) ⊣ ⋃_i C_i
 
 **(Syn-Call)**
-$$\frac{\Gamma; R; L \vdash callee \Rightarrow \text{TypeFunc}(params, R_c) \dashv C_0 \quad \Gamma; R; L \vdash \text{ArgsOk}_T(params, args)}{\Gamma; R; L \vdash \text{Call}(callee, args) \Rightarrow R_c \dashv C_0}$$
+Γ; R; L ⊢ callee ⇒ TypeFunc(params, R_c) ⊣ C_0    Γ; R; L ⊢ ArgsOk_T(params, args)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Call(callee, args) ⇒ R_c ⊣ C_0
 
 **(Syn-Call-Err)**
-$$\frac{\Gamma; R; L \vdash \text{Call}(callee, args) \Uparrow c}{\Gamma; R; L \vdash \text{Call}(callee, args) \Rightarrow T \dashv C \Uparrow c}$$
+Γ; R; L ⊢ Call(callee, args) ⇑ c
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Call(callee, args) ⇒ T ⊣ C ⇑ c
 
 **(Chk-Subsumption-Modal-NonNiche)**
-$$\frac{\Gamma; R; L \vdash e \Rightarrow S \dashv C \quad \text{StripPerm}(S) = \text{TypeModalState}(p, S_s) \quad \text{StripPerm}(T) = \text{TypePath}(p) \quad \Sigma.\text{Types}[p] = \texttt{modal } M \quad \neg \text{NicheCompatible}(M, S_s) \quad c = \text{Code}(\text{Chk-Subsumption-Modal-NonNiche})}{\Gamma; R; L \vdash e \Leftarrow T \Uparrow c}$$
+Γ; R; L ⊢ e ⇒ S ⊣ C    StripPerm(S) = TypeModalState(p, S_s)    StripPerm(T) = TypePath(p)    Σ.Types[p] = `modal` M    ¬ NicheCompatible(M, S_s)    c = Code(Chk-Subsumption-Modal-NonNiche)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ e ⇐ T ⇑ c
 
 **(Chk-Subsumption)**
-$$\frac{\Gamma; R; L \vdash e \Rightarrow S \dashv C \quad \Gamma \vdash S <: T}{\Gamma; R; L \vdash e \Leftarrow T \dashv C}$$
+Γ; R; L ⊢ e ⇒ S ⊣ C    Γ ⊢ S <: T
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ e ⇐ T ⊣ C
 
 **(Chk-Null-Ptr)**
-$$\frac{T = \text{TypePtr}(U, s) \quad s \in \{\texttt{Null}, \bot\}}{\Gamma; R; L \vdash \text{PtrNullExpr} \Leftarrow T \dashv \emptyset}$$
+T = TypePtr(U, s)    s ∈ {`Null`, ⊥}
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ PtrNullExpr ⇐ T ⊣ ∅
 
-$$\text{PtrNullExpected}(T) \iff T = \text{TypePtr}(U, s) \land s \in \{\texttt{Null}, \bot\}$$
+PtrNullExpected(T) ⇔ T = TypePtr(U, s) ∧ s ∈ {`Null`, ⊥}
 
 **(Syn-PtrNull-Err)**
-$$\frac{c = \text{Code}(\text{PtrNull-Infer-Err})}{\Gamma; R; L \vdash \text{PtrNullExpr} \Rightarrow T \dashv C \Uparrow c}$$
+c = Code(PtrNull-Infer-Err)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ PtrNullExpr ⇒ T ⊣ C ⇑ c
 
 **(Chk-PtrNull-Err)**
-$$\frac{\neg \text{PtrNullExpected}(T) \quad c = \text{Code}(\text{PtrNull-Infer-Err})}{\Gamma; R; L \vdash \text{PtrNullExpr} \Leftarrow T \dashv C \Uparrow c}$$
+¬ PtrNullExpected(T)    c = Code(PtrNull-Infer-Err)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ PtrNullExpr ⇐ T ⊣ C ⇑ c
 
 #### 5.2.10. Literal Expressions (Cursive0)
 
-$$\text{IntTypes} = \{\texttt{i8},\texttt{i16},\texttt{i32},\texttt{i64},\texttt{i128},\texttt{u8},\texttt{u16},\texttt{u32},\texttt{u64},\texttt{u128},\texttt{isize},\texttt{usize}\}$$
-$$\text{FloatTypes} = \{\texttt{f16},\texttt{f32},\texttt{f64}\}$$
-$$\text{FloatFormat}(\texttt{"f16"}) = \texttt{binary16} \quad \text{FloatFormat}(\texttt{"f32"}) = \texttt{binary32} \quad \text{FloatFormat}(\texttt{"f64"}) = \texttt{binary64}$$
-$$\text{FloatBitWidth}(\texttt{"f16"}) = 16 \quad \text{FloatBitWidth}(\texttt{"f32"}) = 32 \quad \text{FloatBitWidth}(\texttt{"f64"}) = 64$$
-$$\text{FloatValueSet}(t) = \{ v \mid v\ \text{is a value representable by IEEE 754-2019 format}\ \text{FloatFormat}(t) \}$$
-$$\text{IEEE754Encode}(t, v) = bits \iff v \in \text{FloatValueSet}(t)\ \land\ bits \in [0, 2^{\text{FloatBitWidth}(t)}{-}1]\ \land\ ((v\ \text{is NaN in IEEE 754-2019 format}\ \text{FloatFormat}(t) \land bits=\text{CanonicalNaNBits}(t)) \lor (v\ \text{is not NaN in IEEE 754-2019 format}\ \text{FloatFormat}(t) \land bits\ \text{is the IEEE 754-2019 encoding of}\ v\ \text{in format}\ \text{FloatFormat}(t)))$$
-$$\text{CanonicalNaNBits}(\texttt{"f16"}) = 0x7E00 \quad \text{CanonicalNaNBits}(\texttt{"f32"}) = 0x7FC00000 \quad \text{CanonicalNaNBits}(\texttt{"f64"}) = 0x7FF8000000000000$$
-$$\text{CanonicalNaN}(t) = v \iff \text{IEEE754Encode}(t, v) = \text{CanonicalNaNBits}(t)$$
-$$\text{NonNaNValueSet}(t) = \{ v \in \text{FloatValueSet}(t) \mid \text{IEEE754Encode}(t, v) \ne \text{CanonicalNaNBits}(t) \}$$
-$$\text{LSB}(n) = n \bmod 2$$
-$$\text{EvenSignificandLSB}(t, v) \iff \text{LSB}(\text{IEEE754Encode}(t, v)) = 0$$
-$$\text{DefaultInt} = \texttt{i32}$$
-$$\text{DefaultFloat} = \texttt{f64}$$
-$$\text{IntValue} : \text{Token} \rightharpoonup \mathbb{Z} \quad \text{FloatValue} : \text{Token} \rightharpoonup \mathbb{R}$$
-$$\text{IntSuffix} : \text{Token} \rightharpoonup \text{IntTypes} \quad \text{FloatSuffix} : \text{Token} \rightharpoonup \text{FloatTypes}$$
-$$\text{IntCore}(s) \iff s\ \text{matches}\ (\texttt{decimal\_integer} \mid \texttt{hex\_integer} \mid \texttt{octal\_integer} \mid \texttt{binary\_integer})$$
-$$\text{FloatCore}(s) \iff s\ \text{matches}\ \texttt{float\_literal}$$
-$$\text{StripIntSuffix}(s) = \langle core, t \rangle \iff s = core \mathbin{+\!\!+} t \land t \in \text{IntSuffixSet} \land \text{IntCore}(core)$$
-$$\text{StripIntSuffix}(s) = \langle s, \bot \rangle \iff \neg \exists t.\ s = core \mathbin{+\!\!+} t \land t \in \text{IntSuffixSet} \land \text{IntCore}(core)$$
-$$\text{StripFloatSuffix}(s) = \langle core, t \rangle \iff s = core \mathbin{+\!\!+} t \land t \in \text{FloatSuffixSet} \land \text{FloatCore}(core)$$
-$$\text{StripFloatSuffix}(s) = \langle s, \bot \rangle \iff \neg \exists t.\ s = core \mathbin{+\!\!+} t \land t \in \text{FloatSuffixSet} \land \text{FloatCore}(core)$$
-$$\text{IntSuffix}(lit) = t \iff lit.\text{kind}=\text{IntLiteral} \land \text{StripIntSuffix}(\text{Lexeme}(lit)) = \langle \_, t \rangle$$
-$$\text{FloatSuffix}(lit) = t \iff lit.\text{kind}=\text{FloatLiteral} \land \text{StripFloatSuffix}(\text{Lexeme}(lit)) = \langle \_, t \rangle$$
-$$\text{IntValueCore}(s) = v \iff (s=\texttt{"0x"} \mathbin{+\!\!+} h \land v=\text{HexValue}(\text{Digits}(h))) \lor (s=\texttt{"0o"} \mathbin{+\!\!+} o \land v=\text{OctValue}(\text{Digits}(o))) \lor (s=\texttt{"0b"} \mathbin{+\!\!+} b \land v=\text{BinValue}(\text{Digits}(b))) \lor (s\ \text{matches}\ \texttt{decimal\_integer} \land v=\text{DecValue}(\text{Digits}(s)))$$
-$$\text{IntValue}(lit) = v \iff lit.\text{kind}=\text{IntLiteral} \land \text{StripIntSuffix}(\text{Lexeme}(lit)) = \langle core,\_ \rangle \land \text{IntValueCore}(core) = v$$
-$$\text{FloatParts}(s) = \langle a,b,e \rangle \iff s = a \mathbin{+\!\!+} \texttt{"."} \mathbin{+\!\!+} b \mathbin{+\!\!+} exp \land (exp=\texttt{"\""} \Rightarrow e=0) \land (exp \ne \texttt{"\""} \Rightarrow exp=\texttt{"e"} \mathbin{+\!\!+} sign \mathbin{+\!\!+} d \lor exp=\texttt{"E"} \mathbin{+\!\!+} sign \mathbin{+\!\!+} d) \land (sign=\texttt{"\""} \Rightarrow e=\text{DecValue}(\text{Digits}(d))) \land (sign=\texttt{"+"} \Rightarrow e=\text{DecValue}(\text{Digits}(d))) \land (sign=\texttt{"-"} \Rightarrow e=-\text{DecValue}(\text{Digits}(d)))$$
-$$\text{FloatValueCore}(s) = v \iff \text{FloatParts}(s) = \langle a,b,e \rangle \land v = (\text{DecValue}(\text{Digits}(a)) \cdot 10^{|\text{Digits}(b)|} + \text{DecValue}(\text{Digits}(b))) \cdot 10^{e-|\text{Digits}(b)|}$$
-$$\text{FloatValue}(lit) = v \iff lit.\text{kind}=\text{FloatLiteral} \land \text{StripFloatSuffix}(\text{Lexeme}(lit)) = \langle core,\_ \rangle \land \text{FloatValueCore}(core) = v$$
-$$\text{InRange}(v, T) \iff v \in \text{RangeOf}(T)$$
-$$\text{RangeOf} : \text{TypePrimName} \to \mathcal{P}(\mathbb{R})$$
-$$\text{RangeOf}(t) = [-2^{w-1},\ 2^{w-1}-1]\ \text{if}\ t \in \text{SignedIntTypes}\ \land\ w=\text{IntWidth}(t)$$
-$$\text{RangeOf}(t) = [0,\ 2^{w}-1]\ \text{if}\ t \in \text{UnsignedIntTypes}\ \land\ w=\text{IntWidth}(t)$$
-$$\text{RangeOf}(t)\ \text{undefined otherwise}$$
+IntTypes = {`i8`, `i16`, `i32`, `i64`, `i128`, `u8`, `u16`, `u32`, `u64`, `u128`, `isize`, `usize`}
+FloatTypes = {`f16`, `f32`, `f64`}
+FloatFormat("f16") = `binary16`    FloatFormat("f32") = `binary32`    FloatFormat("f64") = `binary64`
+FloatBitWidth("f16") = 16    FloatBitWidth("f32") = 32    FloatBitWidth("f64") = 64
+FloatValueSet(t) = { v | v is a value representable by IEEE 754-2019 format FloatFormat(t) }
+IEEE754Encode(t, v) = bits ⇔ v ∈ FloatValueSet(t) ∧ bits ∈ [0, 2^{FloatBitWidth(t)} - 1] ∧ ((v is NaN in IEEE 754-2019 format FloatFormat(t) ∧ bits = CanonicalNaNBits(t)) ∨ (v is not NaN in IEEE 754-2019 format FloatFormat(t) ∧ bits is the IEEE 754-2019 encoding of v in format FloatFormat(t)))
+CanonicalNaNBits("f16") = 0x7E00    CanonicalNaNBits("f32") = 0x7FC00000    CanonicalNaNBits("f64") = 0x7FF8000000000000
+CanonicalNaN(t) = v ⇔ IEEE754Encode(t, v) = CanonicalNaNBits(t)
+NonNaNValueSet(t) = { v ∈ FloatValueSet(t) | IEEE754Encode(t, v) ≠ CanonicalNaNBits(t) }
+LSB(n) = n mod 2
+EvenSignificandLSB(t, v) ⇔ LSB(IEEE754Encode(t, v)) = 0
+DefaultInt = `i32`
+DefaultFloat = `f64`
+IntValue : Token ⇀ ℤ    FloatValue : Token ⇀ ℝ
+IntSuffix : Token ⇀ IntTypes    FloatSuffix : Token ⇀ FloatTypes
+IntCore(s) ⇔ s matches (`decimal_integer` | `hex_integer` | `octal_integer` | `binary_integer`)
+FloatCore(s) ⇔ s matches `float_literal`
+StripIntSuffix(s) = ⟨core, t⟩ ⇔ s = core ++ t ∧ t ∈ IntSuffixSet ∧ IntCore(core)
+StripIntSuffix(s) = ⟨s, ⊥⟩ ⇔ ¬ ∃ t. s = core ++ t ∧ t ∈ IntSuffixSet ∧ IntCore(core)
+StripFloatSuffix(s) = ⟨core, t⟩ ⇔ s = core ++ t ∧ t ∈ FloatSuffixSet ∧ FloatCore(core)
+StripFloatSuffix(s) = ⟨s, ⊥⟩ ⇔ ¬ ∃ t. s = core ++ t ∧ t ∈ FloatSuffixSet ∧ FloatCore(core)
+IntSuffix(lit) = t ⇔ lit.kind = IntLiteral ∧ StripIntSuffix(Lexeme(lit)) = ⟨_, t⟩
+FloatSuffix(lit) = t ⇔ lit.kind = FloatLiteral ∧ StripFloatSuffix(Lexeme(lit)) = ⟨_, t⟩
+IntValueCore(s) = v ⇔ (s = "0x" ++ h ∧ v = HexValue(Digits(h))) ∨ (s = "0o" ++ o ∧ v = OctValue(Digits(o))) ∨ (s = "0b" ++ b ∧ v = BinValue(Digits(b))) ∨ (s matches `decimal_integer` ∧ v = DecValue(Digits(s)))
+IntValue(lit) = v ⇔ lit.kind = IntLiteral ∧ StripIntSuffix(Lexeme(lit)) = ⟨core, _⟩ ∧ IntValueCore(core) = v
+FloatParts(s) = ⟨a, b, e⟩ ⇔ s = a ++ "." ++ b ++ exp ∧ (exp = "" ⇒ e = 0) ∧ (exp ≠ "" ⇒ exp = "e" ++ sign ++ d ∨ exp = "E" ++ sign ++ d) ∧ (sign = "" ⇒ e = DecValue(Digits(d))) ∧ (sign = "+" ⇒ e = DecValue(Digits(d))) ∧ (sign = "-" ⇒ e = -DecValue(Digits(d)))
+FloatValueCore(s) = v ⇔ FloatParts(s) = ⟨a, b, e⟩ ∧ v = (DecValue(Digits(a)) · 10^{|Digits(b)|} + DecValue(Digits(b))) · 10^{e - |Digits(b)|}
+FloatValue(lit) = v ⇔ lit.kind = FloatLiteral ∧ StripFloatSuffix(Lexeme(lit)) = ⟨core, _⟩ ∧ FloatValueCore(core) = v
+InRange(v, T) ⇔ v ∈ RangeOf(T)
+RangeOf : TypePrimName → ℘(ℝ)
+RangeOf(t) = [-2^{w-1}, 2^{w-1} - 1] if t ∈ SignedIntTypes ∧ w = IntWidth(t)
+RangeOf(t) = [0, 2^{w} - 1] if t ∈ UnsignedIntTypes ∧ w = IntWidth(t)
+RangeOf(t) undefined otherwise
 
 **(T-Int-Literal-Suffix)**
-$$\frac{lit.\text{kind} = \text{IntLiteral} \quad \text{IntSuffix}(lit) = t \quad \text{InRange}(\text{IntValue}(lit), t)}{\Gamma \vdash \text{Literal}(lit) : \text{TypePrim}(t)}$$
+lit.kind = IntLiteral    IntSuffix(lit) = t    InRange(IntValue(lit), t)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Literal(lit) : TypePrim(t)
 
 **(T-Int-Literal-Default)**
-$$\frac{lit.\text{kind} = \text{IntLiteral} \quad \text{IntSuffix}(lit) = \bot \quad \text{InRange}(\text{IntValue}(lit), \texttt{i32})}{\Gamma \vdash \text{Literal}(lit) : \text{TypePrim}(\texttt{"i32"})}$$
+lit.kind = IntLiteral    IntSuffix(lit) = ⊥    InRange(IntValue(lit), `i32`)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Literal(lit) : TypePrim("i32")
 
 **(T-Float-Literal-Suffix)**
-$$\frac{lit.\text{kind} = \text{FloatLiteral} \quad \text{FloatSuffix}(lit) = t}{\Gamma \vdash \text{Literal}(lit) : \text{TypePrim}(t)}$$
+lit.kind = FloatLiteral    FloatSuffix(lit) = t
+────────────────────────────────────────────────────────────────
+Γ ⊢ Literal(lit) : TypePrim(t)
 
 **(T-Float-Literal-Default)**
-$$\frac{lit.\text{kind} = \text{FloatLiteral} \quad \text{FloatSuffix}(lit) = \bot}{\Gamma \vdash \text{Literal}(lit) : \text{TypePrim}(\texttt{"f64"})}$$
+lit.kind = FloatLiteral    FloatSuffix(lit) = ⊥
+────────────────────────────────────────────────────────────────
+Γ ⊢ Literal(lit) : TypePrim("f64")
 
 **(T-Bool-Literal)**
-$$\frac{lit.\text{kind} = \text{BoolLiteral}}{\Gamma \vdash \text{Literal}(lit) : \text{TypePrim}(\texttt{"bool"})}$$
+lit.kind = BoolLiteral
+──────────────────────────────────────────────
+Γ ⊢ Literal(lit) : TypePrim("bool")
 
 **(T-Char-Literal)**
-$$\frac{lit.\text{kind} = \text{CharLiteral}}{\Gamma \vdash \text{Literal}(lit) : \text{TypePrim}(\texttt{"char"})}$$
+lit.kind = CharLiteral
+──────────────────────────────────────────────
+Γ ⊢ Literal(lit) : TypePrim("char")
 
 **(T-String-Literal)**
-$$\frac{lit.\text{kind} = \text{StringLiteral}}{\Gamma \vdash \text{Literal}(lit) : \text{TypeString}(\texttt{@View})}$$
+lit.kind = StringLiteral
+──────────────────────────────────────────────────────────────
+Γ ⊢ Literal(lit) : TypeString(`@View`)
 
 **(Syn-Literal)**
-$$\frac{\Gamma \vdash \text{Literal}(lit) : T}{\Gamma; R; L \vdash \text{Literal}(lit) \Rightarrow T \dashv \emptyset}$$
+Γ ⊢ Literal(lit) : T
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Literal(lit) ⇒ T ⊣ ∅
 
-$$\text{NullLiteralExpected}(T) \iff T = \text{TypeRawPtr}(q, U)$$
+NullLiteralExpected(T) ⇔ T = TypeRawPtr(q, U)
 
 **(Chk-Int-Literal)**
-$$\frac{lit.\text{kind} = \text{IntLiteral} \quad T = \text{TypePrim}(t) \quad t \in \text{IntTypes} \quad \text{InRange}(\text{IntValue}(lit), t)}{\Gamma; R; L \vdash \text{Literal}(lit) \Leftarrow T \dashv \emptyset}$$
+lit.kind = IntLiteral    T = TypePrim(t)    t ∈ IntTypes    InRange(IntValue(lit), t)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Literal(lit) ⇐ T ⊣ ∅
 
 **(Chk-Float-Literal)**
-$$\frac{lit.\text{kind} = \text{FloatLiteral} \quad T = \text{TypePrim}(t) \quad t \in \text{FloatTypes}}{\Gamma; R; L \vdash \text{Literal}(lit) \Leftarrow T \dashv \emptyset}$$
+lit.kind = FloatLiteral    T = TypePrim(t)    t ∈ FloatTypes
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Literal(lit) ⇐ T ⊣ ∅
 
 **(Chk-Null-Literal)**
-$$\frac{lit.\text{kind} = \text{NullLiteral} \quad T = \text{TypeRawPtr}(q, U)}{\Gamma; R; L \vdash \text{Literal}(lit) \Leftarrow T \dashv \emptyset}$$
+lit.kind = NullLiteral    T = TypeRawPtr(q, U)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Literal(lit) ⇐ T ⊣ ∅
 
 **(Syn-Null-Literal-Err)**
-$$\frac{lit.\text{kind} = \text{NullLiteral} \quad c = \text{Code}(\text{NullLiteral-Infer-Err})}{\Gamma; R; L \vdash \text{Literal}(lit) \Rightarrow T \dashv C \Uparrow c}$$
+lit.kind = NullLiteral    c = Code(NullLiteral-Infer-Err)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Literal(lit) ⇒ T ⊣ C ⇑ c
 
 **(Chk-Null-Literal-Err)**
-$$\frac{lit.\text{kind} = \text{NullLiteral} \quad \neg \text{NullLiteralExpected}(T) \quad c = \text{Code}(\text{NullLiteral-Infer-Err})}{\Gamma; R; L \vdash \text{Literal}(lit) \Leftarrow T \dashv C \Uparrow c}$$
+lit.kind = NullLiteral    ¬ NullLiteralExpected(T)    c = Code(NullLiteral-Infer-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Literal(lit) ⇐ T ⊣ C ⇑ c
 
 #### 5.2.11. Statement Typing (Cursive0)
 
-$$\text{MutKind} = \{\texttt{let}, \texttt{var}\}$$
-$$\text{Bind} = \{\langle \text{mut}, T \rangle \mid \text{mut} \in \text{MutKind} \land T \in \text{Type}\}$$
-$$\text{BindOf}(\Gamma, x) = \langle \text{mut}, T \rangle \iff \langle \text{mut}, T \rangle\ \text{is the binding for}\ x\ \text{in the nearest scope of}\ \text{Scopes}(\Gamma)$$
-$$(\,x : T\,) \in \Gamma \iff \exists \text{mut}.\ \text{BindOf}(\Gamma, x) = \langle \text{mut}, T \rangle$$
-$$\text{MutOf}(\Gamma, x) = \text{mut} \iff \text{BindOf}(\Gamma, x) = \langle \text{mut}, T \rangle$$
+MutKind = {`let`, `var`}
+Bind = {⟨mut, T⟩ | mut ∈ MutKind ∧ T ∈ Type}
+BindOf(Γ, x) = ⟨mut, T⟩ ⇔ ⟨mut, T⟩ is the binding for x in the nearest scope of Scopes(Γ)
+(x : T) ∈ Γ ⇔ ∃ mut. BindOf(Γ, x) = ⟨mut, T⟩
+MutOf(Γ, x) = mut ⇔ BindOf(Γ, x) = ⟨mut, T⟩
 
-$$\text{StmtJudg} = \{\Gamma; R; L \vdash s \Rightarrow \Gamma' \triangleright \langle Res, Brk, BrkVoid \rangle,\ \Gamma; R; L \vdash ss \Rightarrow \Gamma' \triangleright \langle Res, Brk, BrkVoid \rangle,$$
-$$\Gamma; R; L \vdash e : T,\ \Gamma; R; L \vdash b : T,\ \Gamma; R; L \vdash \text{BlockInfo}(b) \Downarrow \langle T, Brk, BrkVoid \rangle,\ \Gamma \vdash pat \Leftarrow T \dashv B\}$$
+StmtJudg = {Γ; R; L ⊢ s ⇒ Γ' ▷ ⟨Res, Brk, BrkVoid⟩, Γ; R; L ⊢ ss ⇒ Γ' ▷ ⟨Res, Brk, BrkVoid⟩, Γ; R; L ⊢ e : T, Γ; R; L ⊢ b : T, Γ; R; L ⊢ BlockInfo(b) ⇓ ⟨T, Brk, BrkVoid⟩, Γ ⊢ pat ⇐ T ⊣ B}
 
-$$\text{LoopFlag} = \{\bot, \texttt{loop}\}$$
+LoopFlag = {⊥, `loop`}
 
-$$\text{PushScope}(\Gamma) = \Gamma' \iff \text{Scopes}(\Gamma') = [\emptyset] \mathbin{+\!\!+} \text{Scopes}(\Gamma) \land \text{Project}(\Gamma') = \text{Project}(\Gamma) \land \text{ResCtx}(\Gamma') = \text{ResCtx}(\Gamma)$$
-$$\text{PopScope}(\Gamma') = \Gamma \iff \text{Scopes}(\Gamma') = [\_] \mathbin{+\!\!+} \text{Scopes}(\Gamma) \land \text{Project}(\Gamma') = \text{Project}(\Gamma) \land \text{ResCtx}(\Gamma') = \text{ResCtx}(\Gamma)$$
+PushScope(Γ) = Γ' ⇔ Scopes(Γ') = [∅] ++ Scopes(Γ) ∧ Project(Γ') = Project(Γ) ∧ ResCtx(Γ') = ResCtx(Γ)
+PopScope(Γ') = Γ ⇔ Scopes(Γ') = [_] ++ Scopes(Γ) ∧ Project(Γ') = Project(Γ) ∧ ResCtx(Γ') = ResCtx(Γ)
 
-$$\text{IntroEnt} = \langle Value, \bot, \bot, Decl \rangle$$
+IntroEnt = ⟨Value, ⊥, ⊥, Decl⟩
 
 **(IntroAll-Empty)**
-$$\frac{}{\text{IntroAll}(\Gamma, []) \Downarrow \Gamma}$$
+────────────────────────────────────────────────────────────────
+IntroAll(Γ, []) ⇓ Γ
 
 **(IntroAll-Cons)**
-$$\frac{\Gamma \vdash \text{Intro}(x, \text{IntroEnt}) \Downarrow \Gamma_1 \quad \text{IntroAll}(\Gamma_1 \cup \{x \mapsto \langle \texttt{let}, T \rangle\}, rest) \Downarrow \Gamma_2}{\text{IntroAll}(\Gamma, [(x, T)] \mathbin{+\!\!+} rest) \Downarrow \Gamma_2}$$
+Γ ⊢ Intro(x, IntroEnt) ⇓ Γ_1    IntroAll(Γ_1 ∪ {x ↦ ⟨`let`, T⟩}, rest) ⇓ Γ_2
+────────────────────────────────────────────────────────────────────────────────────────────────
+IntroAll(Γ, [(x, T)] ++ rest) ⇓ Γ_2
 
 **(IntroAllVar-Empty)**
-$$\frac{}{\text{IntroAllVar}(\Gamma, []) \Downarrow \Gamma}$$
+────────────────────────────────────────────────────────────────
+IntroAllVar(Γ, []) ⇓ Γ
 
 **(IntroAllVar-Cons)**
-$$\frac{\Gamma \vdash \text{Intro}(x, \text{IntroEnt}) \Downarrow \Gamma_1 \quad \text{IntroAllVar}(\Gamma_1 \cup \{x \mapsto \langle \texttt{var}, T \rangle\}, rest) \Downarrow \Gamma_2}{\text{IntroAllVar}(\Gamma, [(x, T)] \mathbin{+\!\!+} rest) \Downarrow \Gamma_2}$$
+Γ ⊢ Intro(x, IntroEnt) ⇓ Γ_1    IntroAllVar(Γ_1 ∪ {x ↦ ⟨`var`, T⟩}, rest) ⇓ Γ_2
+────────────────────────────────────────────────────────────────────────────────────────────────
+IntroAllVar(Γ, [(x, T)] ++ rest) ⇓ Γ_2
 
 **(ShadowAll-Empty)**
-$$\frac{}{\text{ShadowAll}(\Gamma, []) \Downarrow \Gamma}$$
+────────────────────────────────────────────────────────────────
+ShadowAll(Γ, []) ⇓ Γ
 
 **(ShadowAll-Cons)**
-$$\frac{\Gamma \vdash \text{ShadowIntro}(x, \text{IntroEnt}) \Downarrow \Gamma_1 \quad \text{ShadowAll}(\Gamma_1 \cup \{x \mapsto \langle \texttt{let}, T \rangle\}, rest) \Downarrow \Gamma_2}{\text{ShadowAll}(\Gamma, [(x, T)] \mathbin{+\!\!+} rest) \Downarrow \Gamma_2}$$
+Γ ⊢ ShadowIntro(x, IntroEnt) ⇓ Γ_1    ShadowAll(Γ_1 ∪ {x ↦ ⟨`let`, T⟩}, rest) ⇓ Γ_2
+────────────────────────────────────────────────────────────────────────────────────────────────
+ShadowAll(Γ, [(x, T)] ++ rest) ⇓ Γ_2
 
 **(ShadowAllVar-Empty)**
-$$\frac{}{\text{ShadowAllVar}(\Gamma, []) \Downarrow \Gamma}$$
+────────────────────────────────────────────────────────────────
+ShadowAllVar(Γ, []) ⇓ Γ
 
 **(ShadowAllVar-Cons)**
-$$\frac{\Gamma \vdash \text{ShadowIntro}(x, \text{IntroEnt}) \Downarrow \Gamma_1 \quad \text{ShadowAllVar}(\Gamma_1 \cup \{x \mapsto \langle \texttt{var}, T \rangle\}, rest) \Downarrow \Gamma_2}{\text{ShadowAllVar}(\Gamma, [(x, T)] \mathbin{+\!\!+} rest) \Downarrow \Gamma_2}$$
+Γ ⊢ ShadowIntro(x, IntroEnt) ⇓ Γ_1    ShadowAllVar(Γ_1 ∪ {x ↦ ⟨`var`, T⟩}, rest) ⇓ Γ_2
+────────────────────────────────────────────────────────────────────────────────────────────────
+ShadowAllVar(Γ, [(x, T)] ++ rest) ⇓ Γ_2
 
-$$\text{ResType}([T_1,\ldots,T_n]) = T \iff n \ge 1 \land \forall i.\ \Gamma \vdash T_i \equiv T$$
-$$\text{ResType}([]) = \bot$$
+ResType([T_1, …, T_n]) = T ⇔ n ≥ 1 ∧ ∀ i. Γ ⊢ T_i ≡ T
+ResType([]) = ⊥
 
-$$\text{LoopTypeInf}(Brk, BrkVoid) = \begin{cases}
-\text{TypePrim}(\texttt{"!"}) & \text{if } Brk = [] \land BrkVoid = \text{false} \\
-\text{TypePrim}(\texttt{"()"}) & \text{if } Brk = [] \land BrkVoid = \text{true} \\
-T & \text{if } BrkVoid = \text{false} \land \text{ResType}(Brk) = T \\
-\bot & \text{otherwise}
-\end{cases}$$
+LoopTypeInf(Brk, BrkVoid) =
+  { TypePrim("!")    if Brk = [] ∧ BrkVoid = false
+    TypePrim("()")   if Brk = [] ∧ BrkVoid = true
+    T                if BrkVoid = false ∧ ResType(Brk) = T
+    ⊥                otherwise }
 
-$$\text{LoopTypeFin}(Brk, BrkVoid) = \begin{cases}
-\text{TypePrim}(\texttt{"()"}) & \text{if } Brk = [] \\
-T & \text{if } BrkVoid = \text{false} \land \text{ResType}(Brk) = T \\
-\bot & \text{otherwise}
-\end{cases}$$
+LoopTypeFin(Brk, BrkVoid) =
+  { TypePrim("()")   if Brk = []
+    T                if BrkVoid = false ∧ ResType(Brk) = T
+    ⊥                otherwise }
 
 **Statement Sequences**
 
 **(StmtSeq-Empty)**
-$$\frac{}{\Gamma; R; L \vdash [] \Rightarrow \Gamma \triangleright \langle [], [], \text{false} \rangle}$$
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ [] ⇒ Γ ▷ ⟨[], [], false⟩
 
 **(StmtSeq-Cons)**
-$$\frac{\Gamma; R; L \vdash s \Rightarrow \Gamma_1 \triangleright \langle Res_1, Brk_1, B_1 \rangle \quad \Gamma_1; R; L \vdash ss \Rightarrow \Gamma_2 \triangleright \langle Res_2, Brk_2, B_2 \rangle}{\Gamma; R; L \vdash s::ss \Rightarrow \Gamma_2 \triangleright \langle Res_1 \mathbin{+\!\!+} Res_2,\ Brk_1 \mathbin{+\!\!+} Brk_2,\ B_1 \lor B_2 \rangle}$$
+Γ; R; L ⊢ s ⇒ Γ_1 ▷ ⟨Res_1, Brk_1, B_1⟩    Γ_1; R; L ⊢ ss ⇒ Γ_2 ▷ ⟨Res_2, Brk_2, B_2⟩
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ s :: ss ⇒ Γ_2 ▷ ⟨Res_1 ++ Res_2, Brk_1 ++ Brk_2, B_1 ∨ B_2⟩
 
 **Bindings**
 
-$$\text{binding} = \langle pat,\ ty\_opt,\ op,\ init,\ \_ \rangle$$
+binding = ⟨pat, ty_opt, op, init, _⟩
 
 **(T-LetStmt-Ann)**
-$$\frac{ty\_opt = T_a \quad \Gamma; R; L \vdash init \Leftarrow T_a \dashv \emptyset \quad \Gamma \vdash pat \Leftarrow T_a \dashv B \quad \text{Distinct}(\text{PatNames}(pat)) \quad \text{IntroAll}(\Gamma, B) \Downarrow \Gamma'}{\Gamma; R; L \vdash \text{LetStmt}(binding) \Rightarrow \Gamma' \triangleright \langle [], [], \text{false} \rangle}$$
+ty_opt = T_a    Γ; R; L ⊢ init ⇐ T_a ⊣ ∅    Γ ⊢ pat ⇐ T_a ⊣ B    Distinct(PatNames(pat))    IntroAll(Γ, B) ⇓ Γ'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ LetStmt(binding) ⇒ Γ' ▷ ⟨[], [], false⟩
 
 **(T-LetStmt-Ann-Mismatch)**
-$$\frac{ty\_opt = T_a \quad \Gamma; R; L \vdash init \Rightarrow T_i \dashv C \quad \neg(\Gamma \vdash T_i <: T_a) \quad c = \text{Code}(\text{T-LetStmt-Ann-Mismatch})}{\Gamma; R; L \vdash \text{LetStmt}(binding) \Uparrow c}$$
+ty_opt = T_a    Γ; R; L ⊢ init ⇒ T_i ⊣ C    ¬(Γ ⊢ T_i <: T_a)    c = Code(T-LetStmt-Ann-Mismatch)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ LetStmt(binding) ⇑ c
 
 **(T-LetStmt-Infer)**
-$$\frac{ty\_opt = \bot \quad \Gamma; R; L \vdash init \Rightarrow T_i \dashv C \quad \text{Solve}(C) \Downarrow \theta \quad T_b = \theta(T_i) \quad \Gamma \vdash pat \Leftarrow T_b \dashv B \quad \text{Distinct}(\text{PatNames}(pat)) \quad \text{IntroAll}(\Gamma, B) \Downarrow \Gamma'}{\Gamma; R; L \vdash \text{LetStmt}(binding) \Rightarrow \Gamma' \triangleright \langle [], [], \text{false} \rangle}$$
+ty_opt = ⊥    Γ; R; L ⊢ init ⇒ T_i ⊣ C    Solve(C) ⇓ θ    T_b = θ(T_i)    Γ ⊢ pat ⇐ T_b ⊣ B    Distinct(PatNames(pat))    IntroAll(Γ, B) ⇓ Γ'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ LetStmt(binding) ⇒ Γ' ▷ ⟨[], [], false⟩
 
 **(T-LetStmt-Infer-Err)**
-$$\frac{ty\_opt = \bot \quad \Gamma; R; L \vdash init \Rightarrow T_i \dashv C \quad \text{Solve}(C) \Uparrow \quad c = \text{Code}(\text{T-LetStmt-Infer-Err})}{\Gamma; R; L \vdash \text{LetStmt}(binding) \Uparrow c}$$
+ty_opt = ⊥    Γ; R; L ⊢ init ⇒ T_i ⊣ C    Solve(C) ⇑    c = Code(T-LetStmt-Infer-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ LetStmt(binding) ⇑ c
 
 **(T-VarStmt-Ann)**
-$$\frac{ty\_opt = T_a \quad \Gamma; R; L \vdash init \Leftarrow T_a \dashv \emptyset \quad \Gamma \vdash pat \Leftarrow T_a \dashv B \quad \text{Distinct}(\text{PatNames}(pat)) \quad \text{IntroAllVar}(\Gamma, B) \Downarrow \Gamma'}{\Gamma; R; L \vdash \text{VarStmt}(binding) \Rightarrow \Gamma' \triangleright \langle [], [], \text{false} \rangle}$$
+ty_opt = T_a    Γ; R; L ⊢ init ⇐ T_a ⊣ ∅    Γ ⊢ pat ⇐ T_a ⊣ B    Distinct(PatNames(pat))    IntroAllVar(Γ, B) ⇓ Γ'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ VarStmt(binding) ⇒ Γ' ▷ ⟨[], [], false⟩
 
 **(T-VarStmt-Ann-Mismatch)**
-$$\frac{ty\_opt = T_a \quad \Gamma; R; L \vdash init \Rightarrow T_i \dashv C \quad \neg(\Gamma \vdash T_i <: T_a) \quad c = \text{Code}(\text{T-VarStmt-Ann-Mismatch})}{\Gamma; R; L \vdash \text{VarStmt}(binding) \Uparrow c}$$
+ty_opt = T_a    Γ; R; L ⊢ init ⇒ T_i ⊣ C    ¬(Γ ⊢ T_i <: T_a)    c = Code(T-VarStmt-Ann-Mismatch)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ VarStmt(binding) ⇑ c
 
 **(T-VarStmt-Infer)**
-$$\frac{ty\_opt = \bot \quad \Gamma; R; L \vdash init \Rightarrow T_i \dashv C \quad \text{Solve}(C) \Downarrow \theta \quad T_b = \theta(T_i) \quad \Gamma \vdash pat \Leftarrow T_b \dashv B \quad \text{Distinct}(\text{PatNames}(pat)) \quad \text{IntroAllVar}(\Gamma, B) \Downarrow \Gamma'}{\Gamma; R; L \vdash \text{VarStmt}(binding) \Rightarrow \Gamma' \triangleright \langle [], [], \text{false} \rangle}$$
+ty_opt = ⊥    Γ; R; L ⊢ init ⇒ T_i ⊣ C    Solve(C) ⇓ θ    T_b = θ(T_i)    Γ ⊢ pat ⇐ T_b ⊣ B    Distinct(PatNames(pat))    IntroAllVar(Γ, B) ⇓ Γ'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ VarStmt(binding) ⇒ Γ' ▷ ⟨[], [], false⟩
 
 **(T-VarStmt-Infer-Err)**
-$$\frac{ty\_opt = \bot \quad \Gamma; R; L \vdash init \Rightarrow T_i \dashv C \quad \text{Solve}(C) \Uparrow \quad c = \text{Code}(\text{T-VarStmt-Infer-Err})}{\Gamma; R; L \vdash \text{VarStmt}(binding) \Uparrow c}$$
+ty_opt = ⊥    Γ; R; L ⊢ init ⇒ T_i ⊣ C    Solve(C) ⇑    c = Code(T-VarStmt-Infer-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ VarStmt(binding) ⇑ c
 
 **(T-ShadowLetStmt-Ann)**
-$$\frac{ty\_opt = T_a \quad \Gamma; R; L \vdash init \Leftarrow T_a \dashv \emptyset \quad \text{ShadowAll}(\Gamma, [\langle name, T_a \rangle]) \Downarrow \Gamma'}{\Gamma; R; L \vdash \text{ShadowLetStmt}(name, ty\_opt, init) \Rightarrow \Gamma' \triangleright \langle [], [], \text{false} \rangle}$$
+ty_opt = T_a    Γ; R; L ⊢ init ⇐ T_a ⊣ ∅    ShadowAll(Γ, [⟨name, T_a⟩]) ⇓ Γ'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ShadowLetStmt(name, ty_opt, init) ⇒ Γ' ▷ ⟨[], [], false⟩
 
 **(T-ShadowLetStmt-Ann-Mismatch)**
-$$\frac{ty\_opt = T_a \quad \Gamma; R; L \vdash init \Rightarrow T_i \dashv C \quad \neg(\Gamma \vdash T_i <: T_a) \quad c = \text{Code}(\text{T-ShadowLetStmt-Ann-Mismatch})}{\Gamma; R; L \vdash \text{ShadowLetStmt}(name, ty\_opt, init) \Uparrow c}$$
+ty_opt = T_a    Γ; R; L ⊢ init ⇒ T_i ⊣ C    ¬(Γ ⊢ T_i <: T_a)    c = Code(T-ShadowLetStmt-Ann-Mismatch)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ShadowLetStmt(name, ty_opt, init) ⇑ c
 
 **(T-ShadowLetStmt-Infer)**
-$$\frac{ty\_opt = \bot \quad \Gamma; R; L \vdash init \Rightarrow T_i \dashv C \quad \text{Solve}(C) \Downarrow \theta \quad T_b = \theta(T_i) \quad \text{ShadowAll}(\Gamma, [\langle name, T_b \rangle]) \Downarrow \Gamma'}{\Gamma; R; L \vdash \text{ShadowLetStmt}(name, ty\_opt, init) \Rightarrow \Gamma' \triangleright \langle [], [], \text{false} \rangle}$$
+ty_opt = ⊥    Γ; R; L ⊢ init ⇒ T_i ⊣ C    Solve(C) ⇓ θ    T_b = θ(T_i)    ShadowAll(Γ, [⟨name, T_b⟩]) ⇓ Γ'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ShadowLetStmt(name, ty_opt, init) ⇒ Γ' ▷ ⟨[], [], false⟩
 
 **(T-ShadowLetStmt-Infer-Err)**
-$$\frac{ty\_opt = \bot \quad \Gamma; R; L \vdash init \Rightarrow T_i \dashv C \quad \text{Solve}(C) \Uparrow \quad c = \text{Code}(\text{T-ShadowLetStmt-Infer-Err})}{\Gamma; R; L \vdash \text{ShadowLetStmt}(name, ty\_opt, init) \Uparrow c}$$
+ty_opt = ⊥    Γ; R; L ⊢ init ⇒ T_i ⊣ C    Solve(C) ⇑    c = Code(T-ShadowLetStmt-Infer-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ShadowLetStmt(name, ty_opt, init) ⇑ c
 
 **(T-ShadowVarStmt-Ann)**
-$$\frac{ty\_opt = T_a \quad \Gamma; R; L \vdash init \Leftarrow T_a \dashv \emptyset \quad \text{ShadowAllVar}(\Gamma, [\langle name, T_a \rangle]) \Downarrow \Gamma'}{\Gamma; R; L \vdash \text{ShadowVarStmt}(name, ty\_opt, init) \Rightarrow \Gamma' \triangleright \langle [], [], \text{false} \rangle}$$
+ty_opt = T_a    Γ; R; L ⊢ init ⇐ T_a ⊣ ∅    ShadowAllVar(Γ, [⟨name, T_a⟩]) ⇓ Γ'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ShadowVarStmt(name, ty_opt, init) ⇒ Γ' ▷ ⟨[], [], false⟩
 
 **(T-ShadowVarStmt-Ann-Mismatch)**
-$$\frac{ty\_opt = T_a \quad \Gamma; R; L \vdash init \Rightarrow T_i \dashv C \quad \neg(\Gamma \vdash T_i <: T_a) \quad c = \text{Code}(\text{T-ShadowVarStmt-Ann-Mismatch})}{\Gamma; R; L \vdash \text{ShadowVarStmt}(name, ty\_opt, init) \Uparrow c}$$
+ty_opt = T_a    Γ; R; L ⊢ init ⇒ T_i ⊣ C    ¬(Γ ⊢ T_i <: T_a)    c = Code(T-ShadowVarStmt-Ann-Mismatch)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ShadowVarStmt(name, ty_opt, init) ⇑ c
 
 **(T-ShadowVarStmt-Infer)**
-$$\frac{ty\_opt = \bot \quad \Gamma; R; L \vdash init \Rightarrow T_i \dashv C \quad \text{Solve}(C) \Downarrow \theta \quad T_b = \theta(T_i) \quad \text{ShadowAllVar}(\Gamma, [\langle name, T_b \rangle]) \Downarrow \Gamma'}{\Gamma; R; L \vdash \text{ShadowVarStmt}(name, ty\_opt, init) \Rightarrow \Gamma' \triangleright \langle [], [], \text{false} \rangle}$$
+ty_opt = ⊥    Γ; R; L ⊢ init ⇒ T_i ⊣ C    Solve(C) ⇓ θ    T_b = θ(T_i)    ShadowAllVar(Γ, [⟨name, T_b⟩]) ⇓ Γ'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ShadowVarStmt(name, ty_opt, init) ⇒ Γ' ▷ ⟨[], [], false⟩
 
 **(T-ShadowVarStmt-Infer-Err)**
-$$\frac{ty\_opt = \bot \quad \Gamma; R; L \vdash init \Rightarrow T_i \dashv C \quad \text{Solve}(C) \Uparrow \quad c = \text{Code}(\text{T-ShadowVarStmt-Infer-Err})}{\Gamma; R; L \vdash \text{ShadowVarStmt}(name, ty\_opt, init) \Uparrow c}$$
+ty_opt = ⊥    Γ; R; L ⊢ init ⇒ T_i ⊣ C    Solve(C) ⇑    c = Code(T-ShadowVarStmt-Infer-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ShadowVarStmt(name, ty_opt, init) ⇑ c
 
 **Assignments**
 
-$$\text{PlaceRoot}(\text{Identifier}(x)) = x$$
-$$\text{PlaceRoot}(\text{FieldAccess}(p,\_)) = \text{PlaceRoot}(p)$$
-$$\text{PlaceRoot}(\text{TupleAccess}(p,\_)) = \text{PlaceRoot}(p)$$
-$$\text{PlaceRoot}(\text{IndexAccess}(p,\_)) = \text{PlaceRoot}(p)$$
-$$\text{PlaceRoot}(\text{Deref}(p)) = \text{PlaceRoot}(p)$$
+PlaceRoot(Identifier(x)) = x
+PlaceRoot(FieldAccess(p, _)) = PlaceRoot(p)
+PlaceRoot(TupleAccess(p, _)) = PlaceRoot(p)
+PlaceRoot(IndexAccess(p, _)) = PlaceRoot(p)
+PlaceRoot(Deref(p)) = PlaceRoot(p)
 
 **(T-Assign)**
-$$\frac{\text{IsPlace}(p) \quad \text{PlaceRoot}(p) = x \quad \text{MutOf}(\Gamma, x) = \texttt{var} \quad \Gamma; R; L \vdash p :place T_p \quad \Gamma; R; L \vdash e \Leftarrow T_p \dashv \emptyset}{\Gamma; R; L \vdash \text{AssignStmt}(p, e) \Rightarrow \Gamma \triangleright \langle [], [], \text{false} \rangle}$$
+IsPlace(p)    PlaceRoot(p) = x    MutOf(Γ, x) = `var`    Γ; R; L ⊢ p :place T_p    Γ; R; L ⊢ e ⇐ T_p ⊣ ∅
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ AssignStmt(p, e) ⇒ Γ ▷ ⟨[], [], false⟩
 
 **(T-CompoundAssign)**
-$$\frac{\text{IsPlace}(p) \quad \text{PlaceRoot}(p) = x \quad \text{MutOf}(\Gamma, x) = \texttt{var} \quad \Gamma; R; L \vdash p :place T_p \quad \text{StripPerm}(T_p) = \text{TypePrim}(t) \quad t \in \text{NumericTypes} \quad \Gamma; R; L \vdash e : T_e \quad \Gamma \vdash T_e <: \text{TypePrim}(t)}{\Gamma; R; L \vdash \text{CompoundAssignStmt}(p, op, e) \Rightarrow \Gamma \triangleright \langle [], [], \text{false} \rangle}$$
+IsPlace(p)    PlaceRoot(p) = x    MutOf(Γ, x) = `var`    Γ; R; L ⊢ p :place T_p    StripPerm(T_p) = TypePrim(t)    t ∈ NumericTypes    Γ; R; L ⊢ e : T_e    Γ ⊢ T_e <: TypePrim(t)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ CompoundAssignStmt(p, op, e) ⇒ Γ ▷ ⟨[], [], false⟩
 
 **(Assign-NotPlace)**
-$$\frac{stmt \in \{\text{AssignStmt}(p,e),\ \text{CompoundAssignStmt}(p,op,e)\} \quad \neg \text{IsPlace}(p) \quad c = \text{Code}(\text{Assign-NotPlace})}{\Gamma; R; L \vdash stmt \Uparrow c}$$
+stmt ∈ {AssignStmt(p, e), CompoundAssignStmt(p, op, e)}    ¬ IsPlace(p)    c = Code(Assign-NotPlace)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ stmt ⇑ c
 
 **(Assign-Immutable-Err)**
-$$\frac{stmt \in \{\text{AssignStmt}(p,e),\ \text{CompoundAssignStmt}(p,op,e)\} \quad \text{IsPlace}(p) \quad \text{PlaceRoot}(p) = x \quad \text{MutOf}(\Gamma, x) = \texttt{let} \quad c = \text{Code}(\text{Assign-Immutable-Err})}{\Gamma; R; L \vdash stmt \Uparrow c}$$
+stmt ∈ {AssignStmt(p, e), CompoundAssignStmt(p, op, e)}    IsPlace(p)    PlaceRoot(p) = x    MutOf(Γ, x) = `let`    c = Code(Assign-Immutable-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ stmt ⇑ c
 
 **(Assign-Type-Err)**
-$$\frac{stmt \in \{\text{AssignStmt}(p,e),\ \text{CompoundAssignStmt}(p,op,e)\} \quad \text{IsPlace}(p) \quad \Gamma; R; L \vdash p :place T_p \quad \Gamma; R; L \vdash e \Rightarrow T_e \dashv C \quad ((stmt = \text{AssignStmt}(p,e) \land \neg(\Gamma \vdash T_e <: T_p)) \lor (stmt = \text{CompoundAssignStmt}(p,op,e) \land (\neg(\Gamma \vdash T_e <: \text{StripPerm}(T_p)) \lor \neg \exists t.\ \text{StripPerm}(T_p) = \text{TypePrim}(t) \land t \in \text{NumericTypes}))) \quad c = \text{Code}(\text{Assign-Type-Err})}{\Gamma; R; L \vdash stmt \Uparrow c}$$
+stmt ∈ {AssignStmt(p, e), CompoundAssignStmt(p, op, e)}    IsPlace(p)    Γ; R; L ⊢ p :place T_p    Γ; R; L ⊢ e ⇒ T_e ⊣ C    ((stmt = AssignStmt(p, e) ∧ ¬(Γ ⊢ T_e <: T_p)) ∨ (stmt = CompoundAssignStmt(p, op, e) ∧ (¬(Γ ⊢ T_e <: StripPerm(T_p)) ∨ ¬ ∃ t. StripPerm(T_p) = TypePrim(t) ∧ t ∈ NumericTypes)))    c = Code(Assign-Type-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ stmt ⇑ c
 
 **Const-Qualified Places.**
 
 **(Assign-Const-Err)**
-$$\frac{stmt \in \{\text{AssignStmt}(p,e),\ \text{CompoundAssignStmt}(p,op,e)\} \quad \Gamma; R; L \vdash p : \text{TypePerm}(\texttt{const}, T) \quad c = \text{Code}(\text{Assign-Const-Err})}{\Gamma; R; L \vdash stmt \Uparrow c}$$
+stmt ∈ {AssignStmt(p, e), CompoundAssignStmt(p, op, e)}    Γ; R; L ⊢ p : TypePerm(`const`, T)    c = Code(Assign-Const-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ stmt ⇑ c
 
 **Expression and Unsafe Statements**
 
 **(T-ExprStmt)**
-$$\frac{\Gamma; R; L \vdash e : T}{\Gamma; R; L \vdash \text{ExprStmt}(e) \Rightarrow \Gamma \triangleright \langle [], [], \text{false} \rangle}$$
+Γ; R; L ⊢ e : T
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ExprStmt(e) ⇒ Γ ▷ ⟨[], [], false⟩
 
 **(T-UnsafeStmt)**
-$$\frac{\Gamma; R; L \vdash b : T}{\Gamma; R; L \vdash \text{UnsafeBlockStmt}(b) \Rightarrow \Gamma \triangleright \langle [], [], \text{false} \rangle}$$
+Γ; R; L ⊢ b : T
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ UnsafeBlockStmt(b) ⇒ Γ ▷ ⟨[], [], false⟩
 
 **(T-DeferStmt)**
-$$\frac{\Gamma; R; L \vdash b \Leftarrow \text{TypePrim}(\texttt{"()"}) \dashv \emptyset \quad \text{DeferSafe}(b)}{\Gamma; R; L \vdash \text{DeferStmt}(b) \Rightarrow \Gamma \triangleright \langle [], [], \text{false} \rangle}$$
+Γ; R; L ⊢ b ⇐ TypePrim("()") ⊣ ∅    DeferSafe(b)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ DeferStmt(b) ⇒ Γ ▷ ⟨[], [], false⟩
 
 **(Defer-NonUnit-Err)**
-$$\frac{\Gamma; R; L \vdash b : T_b \quad T_b \ne \text{TypePrim}(\texttt{"()"}) \quad c = \text{Code}(\text{Defer-NonUnit-Err})}{\Gamma; R; L \vdash \text{DeferStmt}(b) \Uparrow c}$$
+Γ; R; L ⊢ b : T_b    T_b ≠ TypePrim("()")    c = Code(Defer-NonUnit-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ DeferStmt(b) ⇑ c
 
 **(Defer-NonLocal-Err)**
-$$\frac{\neg \text{DeferSafe}(b) \quad c = \text{Code}(\text{Defer-NonLocal-Err})}{\Gamma; R; L \vdash \text{DeferStmt}(b) \Uparrow c}$$
+¬ DeferSafe(b)    c = Code(Defer-NonLocal-Err)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ DeferStmt(b) ⇑ c
 
 **(HasNonLocalCtrl-Return)**
-$$\frac{}{\text{HasNonLocalCtrl}(\text{ReturnStmt}(\_), in\_loop)}$$
+────────────────────────────────────────────────────────────────
+HasNonLocalCtrl(ReturnStmt(_), in_loop)
 
 **(HasNonLocalCtrl-Result)**
-$$\frac{}{\text{HasNonLocalCtrl}(\text{ResultStmt}(\_), in\_loop)}$$
+────────────────────────────────────────────────────────────────
+HasNonLocalCtrl(ResultStmt(_), in_loop)
 
 **(HasNonLocalCtrl-Break)**
-$$\frac{in\_loop = \text{false}}{\text{HasNonLocalCtrl}(\text{BreakStmt}(\_), in\_loop)}$$
+in_loop = false
+────────────────────────────────────────────────────────────────
+HasNonLocalCtrl(BreakStmt(_), in_loop)
 
 **(HasNonLocalCtrl-Continue)**
-$$\frac{in\_loop = \text{false}}{\text{HasNonLocalCtrl}(\text{ContinueStmt}, in\_loop)}$$
+in_loop = false
+────────────────────────────────────────────────────────────────
+HasNonLocalCtrl(ContinueStmt, in_loop)
 
 **(HasNonLocalCtrl-LoopInfinite)**
-$$\frac{\text{HasNonLocalCtrl}(body, \text{true})}{\text{HasNonLocalCtrl}(\text{LoopInfinite}(body), in\_loop)}$$
+HasNonLocalCtrl(body, true)
+────────────────────────────────────────────────────────────────
+HasNonLocalCtrl(LoopInfinite(body), in_loop)
 
 **(HasNonLocalCtrl-LoopConditional)**
-$$\frac{\text{HasNonLocalCtrl}(body, \text{true})}{\text{HasNonLocalCtrl}(\text{LoopConditional}(\_, body), in\_loop)}$$
+HasNonLocalCtrl(body, true)
+────────────────────────────────────────────────────────────────
+HasNonLocalCtrl(LoopConditional(_, body), in_loop)
 
 **(HasNonLocalCtrl-LoopIter)**
-$$\frac{\text{HasNonLocalCtrl}(body, \text{true})}{\text{HasNonLocalCtrl}(\text{LoopIter}(\_, \_, \_, body), in\_loop)}$$
+HasNonLocalCtrl(body, true)
+────────────────────────────────────────────────────────────────
+HasNonLocalCtrl(LoopIter(_, _, _, body), in_loop)
 
 **(HasNonLocalCtrl-Child)**
-$$\frac{C \notin \{\text{LoopInfinite},\ \text{LoopConditional},\ \text{LoopIter}\} \quad \exists i.\ \text{HasNonLocalCtrl}(x_i, in\_loop)}{\text{HasNonLocalCtrl}(C(x_1,\ldots,x_n), in\_loop)}$$
+C ∉ {LoopInfinite, LoopConditional, LoopIter}    ∃ i. HasNonLocalCtrl(x_i, in_loop)
+────────────────────────────────────────────────────────────────────────────────────────────────
+HasNonLocalCtrl(C(x_1, …, x_n), in_loop)
 
-$$\text{DeferSafe}(b) \iff \neg \text{HasNonLocalCtrl}(b, \text{false})$$
+DeferSafe(b) ⇔ ¬ HasNonLocalCtrl(b, false)
 
 **(T-RegionStmt)**
-$$\frac{\text{RegionOptsExpr}(opts\_opt) = opts \quad \Gamma; R; L \vdash opts \Leftarrow \text{TypePath}([\texttt{RegionOptions}]) \dashv \emptyset \quad \text{RegionBind}(\Gamma, alias\_opt) = \Gamma_r \quad \Gamma_r; R; L \vdash b : T_b}{\Gamma; R; L \vdash \text{RegionStmt}(opts\_opt, alias\_opt, b) \Rightarrow \Gamma \triangleright \langle [], [], \text{false} \rangle}$$
+RegionOptsExpr(opts_opt) = opts    Γ; R; L ⊢ opts ⇐ TypePath([`RegionOptions`]) ⊣ ∅    RegionBind(Γ, alias_opt) = Γ_r    Γ_r; R; L ⊢ b : T_b
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ RegionStmt(opts_opt, alias_opt, b) ⇒ Γ ▷ ⟨[], [], false⟩
 
 **(T-FrameStmt-Implicit)**
-$$\frac{\text{FrameBind}(\Gamma, \bot) = \Gamma_f \quad \Gamma_f; R; L \vdash b : T_b}{\Gamma; R; L \vdash \text{FrameStmt}(\bot, b) \Rightarrow \Gamma \triangleright \langle [], [], \text{false} \rangle}$$
+FrameBind(Γ, ⊥) = Γ_f    Γ_f; R; L ⊢ b : T_b
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ FrameStmt(⊥, b) ⇒ Γ ▷ ⟨[], [], false⟩
 
 **(T-FrameStmt-Explicit)**
-$$\frac{\text{FrameBind}(\Gamma, r) = \Gamma_f \quad \Gamma_f; R; L \vdash b : T_b}{\Gamma; R; L \vdash \text{FrameStmt}(r, b) \Rightarrow \Gamma \triangleright \langle [], [], \text{false} \rangle}$$
+FrameBind(Γ, r) = Γ_f    Γ_f; R; L ⊢ b : T_b
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ FrameStmt(r, b) ⇒ Γ ▷ ⟨[], [], false⟩
 
 **(Frame-NoActiveRegion-Err)**
-$$\frac{\text{InnermostActiveRegion}(\Gamma)\ \text{undefined} \quad c = \text{Code}(\text{Frame-NoActiveRegion-Err})}{\Gamma; R; L \vdash \text{FrameStmt}(\bot, b) \Uparrow c}$$
+InnermostActiveRegion(Γ) undefined    c = Code(Frame-NoActiveRegion-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ FrameStmt(⊥, b) ⇑ c
 
 **(Frame-Target-NotActive-Err)**
-$$\frac{\Gamma; R; L \vdash \text{Identifier}(r) : T_r \quad \neg \text{RegionActiveType}(T_r) \quad c = \text{Code}(\text{Frame-Target-NotActive-Err})}{\Gamma; R; L \vdash \text{FrameStmt}(r, b) \Uparrow c}$$
+Γ; R; L ⊢ Identifier(r) : T_r    ¬ RegionActiveType(T_r)    c = Code(Frame-Target-NotActive-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ FrameStmt(r, b) ⇑ c
 
 **Control Flow Statements**
 
 **(T-Return-Value)**
-$$\frac{\Gamma; R; L \vdash e \Leftarrow R \dashv \emptyset}{\Gamma; R; L \vdash \text{ReturnStmt}(e) \Rightarrow \Gamma \triangleright \langle [], [], \text{false} \rangle}$$
+Γ; R; L ⊢ e ⇐ R ⊣ ∅
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ReturnStmt(e) ⇒ Γ ▷ ⟨[], [], false⟩
 
 **(T-Return-Unit)**
-$$\frac{R = \text{TypePrim}(\texttt{"()"})}{\Gamma; R; L \vdash \text{ReturnStmt}(\bot) \Rightarrow \Gamma \triangleright \langle [], [], \text{false} \rangle}$$
+R = TypePrim("()")
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ReturnStmt(⊥) ⇒ Γ ▷ ⟨[], [], false⟩
 
 **(Return-Type-Err)**
-$$\frac{\Gamma; R; L \vdash e : T \quad \neg(\Gamma \vdash T <: R) \quad c = \text{Code}(\text{Return-Type-Err})}{\Gamma; R; L \vdash \text{ReturnStmt}(e) \Uparrow c}$$
+Γ; R; L ⊢ e : T    ¬(Γ ⊢ T <: R)    c = Code(Return-Type-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ReturnStmt(e) ⇑ c
 
 **(Return-Unit-Err)**
-$$\frac{R \ne \text{TypePrim}(\texttt{"()"}) \quad c = \text{Code}(\text{Return-Type-Err})}{\Gamma; R; L \vdash \text{ReturnStmt}(\bot) \Uparrow c}$$
+R ≠ TypePrim("()")    c = Code(Return-Type-Err)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ReturnStmt(⊥) ⇑ c
 
 **(T-ResultStmt)**
-$$\frac{\Gamma; R; L \vdash e : T}{\Gamma; R; L \vdash \text{ResultStmt}(e) \Rightarrow \Gamma \triangleright \langle [T], [], \text{false} \rangle}$$
+Γ; R; L ⊢ e : T
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ResultStmt(e) ⇒ Γ ▷ ⟨[T], [], false⟩
 
-$$\text{ResultNotLast}(stmts) \iff \exists pre, rest, e.\ stmts = pre \mathbin{+\!\!+} [\text{ResultStmt}(e)] \mathbin{+\!\!+} rest \land rest \ne []$$
+ResultNotLast(stmts) ⇔ ∃ pre, rest, e. stmts = pre ++ [ResultStmt(e)] ++ rest ∧ rest ≠ []
 
-$$\text{FirstResultSpan}([]) = \bot$$
-$$\text{FirstResultSpan}(\text{ResultStmt}(e) :: rest) = \text{span}(\text{ResultStmt}(e))$$
-$$\text{FirstResultSpan}(s :: rest) = \text{FirstResultSpan}(rest)\ \text{if}\ s \ne \text{ResultStmt}(\_)$$
+FirstResultSpan([]) = ⊥
+FirstResultSpan(ResultStmt(e) :: rest) = span(ResultStmt(e))
+FirstResultSpan(s :: rest) = FirstResultSpan(rest) if s ≠ ResultStmt(_)
 
 **(Warn-Result-Unreachable)**
-$$\frac{\text{ResultNotLast}(stmts) \quad \text{FirstResultSpan}(stmts) = sp \quad \Gamma \vdash \text{Emit}(W\text{-}SEM\text{-}1001, sp)}{\Gamma \vdash \text{WarnResultUnreachable}(stmts) \Downarrow ok}$$
+ResultNotLast(stmts)    FirstResultSpan(stmts) = sp    Γ ⊢ Emit(W-SEM-1001, sp)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ WarnResultUnreachable(stmts) ⇓ ok
 
 **(Warn-Result-Ok)**
-$$\frac{\neg \text{ResultNotLast}(stmts)}{\Gamma \vdash \text{WarnResultUnreachable}(stmts) \Downarrow ok}$$
+¬ ResultNotLast(stmts)
+──────────────────────────────────────────────
+Γ ⊢ WarnResultUnreachable(stmts) ⇓ ok
 
 **(T-Break-Value)**
-$$\frac{L = \texttt{loop} \quad \Gamma; R; L \vdash e : T}{\Gamma; R; L \vdash \text{BreakStmt}(e) \Rightarrow \Gamma \triangleright \langle [], [T], \text{false} \rangle}$$
+L = `loop`    Γ; R; L ⊢ e : T
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ BreakStmt(e) ⇒ Γ ▷ ⟨[], [T], false⟩
 
 **(T-Break-Unit)**
-$$\frac{L = \texttt{loop}}{\Gamma; R; L \vdash \text{BreakStmt}(\bot) \Rightarrow \Gamma \triangleright \langle [], [], \text{true} \rangle}$$
+L = `loop`
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ BreakStmt(⊥) ⇒ Γ ▷ ⟨[], [], true⟩
 
 **(Break-Outside-Loop)**
-$$\frac{L \ne \texttt{loop} \quad c = \text{Code}(\text{Break-Outside-Loop})}{\Gamma; R; L \vdash \text{BreakStmt}(\_) \Uparrow c}$$
+L ≠ `loop`    c = Code(Break-Outside-Loop)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ BreakStmt(_) ⇑ c
 
 **(T-Continue)**
-$$\frac{L = \texttt{loop}}{\Gamma; R; L \vdash \text{ContinueStmt} \Rightarrow \Gamma \triangleright \langle [], [], \text{false} \rangle}$$
+L = `loop`
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ContinueStmt ⇒ Γ ▷ ⟨[], [], false⟩
 
 **(Continue-Outside-Loop)**
-$$\frac{L \ne \texttt{loop} \quad c = \text{Code}(\text{Continue-Outside-Loop})}{\Gamma; R; L \vdash \text{ContinueStmt} \Uparrow c}$$
+L ≠ `loop`    c = Code(Continue-Outside-Loop)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ContinueStmt ⇑ c
 
 **(T-ErrorStmt)**
-$$\frac{}{\Gamma; R; L \vdash \text{ErrorStmt}(\_) \Rightarrow \Gamma \triangleright \langle [], [], \text{false} \rangle}$$
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ErrorStmt(_) ⇒ Γ ▷ ⟨[], [], false⟩
 
 **Block Expressions**
 
-$$\text{LastStmt}([]) = \bot$$
-$$\text{LastStmt}([s_1,\ldots,s_n]) = s_n \quad (n \ge 1)$$
+LastStmt([]) = ⊥
+LastStmt([s_1, …, s_n]) = s_n    (n ≥ 1)
 
 **(BlockInfo-Res)**
-$$\frac{\Gamma_0 = \text{PushScope}(\Gamma) \quad \Gamma_0; R; L \vdash stmts \Rightarrow \Gamma_1 \triangleright \langle Res, Brk, BrkVoid \rangle \quad \Gamma \vdash \text{WarnResultUnreachable}(stmts) \Downarrow ok \quad \text{ResType}(Res) = T \quad (tail\_opt = e \Rightarrow \Gamma_1; R; L \vdash e : T_e)}{\Gamma; R; L \vdash \text{BlockInfo}(\text{BlockExpr}(stmts, tail\_opt)) \Downarrow \langle T, Brk, BrkVoid \rangle}$$
+Γ_0 = PushScope(Γ)    Γ_0; R; L ⊢ stmts ⇒ Γ_1 ▷ ⟨Res, Brk, BrkVoid⟩    Γ ⊢ WarnResultUnreachable(stmts) ⇓ ok    ResType(Res) = T    (tail_opt = e ⇒ Γ_1; R; L ⊢ e : T_e)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ BlockInfo(BlockExpr(stmts, tail_opt)) ⇓ ⟨T, Brk, BrkVoid⟩
 
 **(BlockInfo-Res-Err)**
-$$\frac{\Gamma_0 = \text{PushScope}(\Gamma) \quad \Gamma_0; R; L \vdash stmts \Rightarrow \Gamma_1 \triangleright \langle Res, Brk, BrkVoid \rangle \quad Res \ne [] \quad \neg \exists T.\ \text{ResType}(Res) = T \quad c = \text{Code}(\text{BlockInfo-Res-Err})}{\Gamma; R; L \vdash \text{BlockInfo}(\text{BlockExpr}(stmts, tail\_opt)) \Uparrow c}$$
+Γ_0 = PushScope(Γ)    Γ_0; R; L ⊢ stmts ⇒ Γ_1 ▷ ⟨Res, Brk, BrkVoid⟩    Res ≠ []    ¬ ∃ T. ResType(Res) = T    c = Code(BlockInfo-Res-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ BlockInfo(BlockExpr(stmts, tail_opt)) ⇑ c
 
 **(BlockInfo-Tail)**
-$$\frac{\Gamma_0 = \text{PushScope}(\Gamma) \quad \Gamma_0; R; L \vdash stmts \Rightarrow \Gamma_1 \triangleright \langle Res, Brk, BrkVoid \rangle \quad \Gamma \vdash \text{WarnResultUnreachable}(stmts) \Downarrow ok \quad \text{ResType}(Res) = \bot \quad tail\_opt = e \quad \Gamma_1; R; L \vdash e : T}{\Gamma; R; L \vdash \text{BlockInfo}(\text{BlockExpr}(stmts, tail\_opt)) \Downarrow \langle T, Brk, BrkVoid \rangle}$$
+Γ_0 = PushScope(Γ)    Γ_0; R; L ⊢ stmts ⇒ Γ_1 ▷ ⟨Res, Brk, BrkVoid⟩    Γ ⊢ WarnResultUnreachable(stmts) ⇓ ok    ResType(Res) = ⊥    tail_opt = e    Γ_1; R; L ⊢ e : T
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ BlockInfo(BlockExpr(stmts, tail_opt)) ⇓ ⟨T, Brk, BrkVoid⟩
 
 **(BlockInfo-ReturnTail)**
-$$\frac{\Gamma_0 = \text{PushScope}(\Gamma) \quad \Gamma_0; R; L \vdash stmts \Rightarrow \Gamma_1 \triangleright \langle Res, Brk, BrkVoid \rangle \quad \Gamma \vdash \text{WarnResultUnreachable}(stmts) \Downarrow ok \quad \text{ResType}(Res) = \bot \quad tail\_opt = \bot \quad \text{LastStmt}(stmts) = \text{ReturnStmt}(\_)}{\Gamma; R; L \vdash \text{BlockInfo}(\text{BlockExpr}(stmts, \bot)) \Downarrow \langle \text{TypePrim}(\texttt{"!"}), Brk, BrkVoid \rangle}$$
+Γ_0 = PushScope(Γ)    Γ_0; R; L ⊢ stmts ⇒ Γ_1 ▷ ⟨Res, Brk, BrkVoid⟩    Γ ⊢ WarnResultUnreachable(stmts) ⇓ ok    ResType(Res) = ⊥    tail_opt = ⊥    LastStmt(stmts) = ReturnStmt(_)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ BlockInfo(BlockExpr(stmts, ⊥)) ⇓ ⟨TypePrim("!"), Brk, BrkVoid⟩
 
 **(BlockInfo-Unit)**
-$$\frac{\Gamma_0 = \text{PushScope}(\Gamma) \quad \Gamma_0; R; L \vdash stmts \Rightarrow \Gamma_1 \triangleright \langle Res, Brk, BrkVoid \rangle \quad \Gamma \vdash \text{WarnResultUnreachable}(stmts) \Downarrow ok \quad \text{ResType}(Res) = \bot \quad tail\_opt = \bot \quad \text{LastStmt}(stmts) \ne \text{ReturnStmt}(\_)}{\Gamma; R; L \vdash \text{BlockInfo}(\text{BlockExpr}(stmts, \bot)) \Downarrow \langle \text{TypePrim}(\texttt{"()"}), Brk, BrkVoid \rangle}$$
+Γ_0 = PushScope(Γ)    Γ_0; R; L ⊢ stmts ⇒ Γ_1 ▷ ⟨Res, Brk, BrkVoid⟩    Γ ⊢ WarnResultUnreachable(stmts) ⇓ ok    ResType(Res) = ⊥    tail_opt = ⊥    LastStmt(stmts) ≠ ReturnStmt(_)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ BlockInfo(BlockExpr(stmts, ⊥)) ⇓ ⟨TypePrim("()"), Brk, BrkVoid⟩
 
 **(T-Block)**
-$$\frac{\Gamma; R; L \vdash \text{BlockInfo}(b) \Downarrow \langle T, \_, \_ \rangle}{\Gamma; R; L \vdash b : T}$$
+Γ; R; L ⊢ BlockInfo(b) ⇓ ⟨T, _, _⟩
+──────────────────────────────────────────────
+Γ; R; L ⊢ b : T
 
 **(Chk-Block-Tail)**
-$$\frac{\Gamma_0 = \text{PushScope}(\Gamma) \quad \Gamma_0; R; L \vdash stmts \Rightarrow \Gamma_1 \triangleright \langle Res, Brk, BrkVoid \rangle \quad \Gamma \vdash \text{WarnResultUnreachable}(stmts) \Downarrow ok \quad \text{ResType}(Res) = \bot \quad tail\_opt = e \quad \Gamma_1; R; L \vdash e \Leftarrow T \dashv \emptyset}{\Gamma; R; L \vdash \text{BlockExpr}(stmts, tail\_opt) \Leftarrow T \dashv \emptyset}$$
+Γ_0 = PushScope(Γ)    Γ_0; R; L ⊢ stmts ⇒ Γ_1 ▷ ⟨Res, Brk, BrkVoid⟩    Γ ⊢ WarnResultUnreachable(stmts) ⇓ ok    ResType(Res) = ⊥    tail_opt = e    Γ_1; R; L ⊢ e ⇐ T ⊣ ∅
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ BlockExpr(stmts, tail_opt) ⇐ T ⊣ ∅
 
 **(Chk-Block-Return)**
-$$\frac{\Gamma_0 = \text{PushScope}(\Gamma) \quad \Gamma_0; R; L \vdash stmts \Rightarrow \Gamma_1 \triangleright \langle Res, Brk, BrkVoid \rangle \quad \Gamma \vdash \text{WarnResultUnreachable}(stmts) \Downarrow ok \quad \text{ResType}(Res) = \bot \quad tail\_opt = \bot \quad \text{LastStmt}(stmts) = \text{ReturnStmt}(\_)}{\Gamma; R; L \vdash \text{BlockExpr}(stmts, \bot) \Leftarrow T \dashv \emptyset}$$
+Γ_0 = PushScope(Γ)    Γ_0; R; L ⊢ stmts ⇒ Γ_1 ▷ ⟨Res, Brk, BrkVoid⟩    Γ ⊢ WarnResultUnreachable(stmts) ⇓ ok    ResType(Res) = ⊥    tail_opt = ⊥    LastStmt(stmts) = ReturnStmt(_)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ BlockExpr(stmts, ⊥) ⇐ T ⊣ ∅
 
 **(Chk-Block-Unit)**
-$$\frac{\Gamma_0 = \text{PushScope}(\Gamma) \quad \Gamma_0; R; L \vdash stmts \Rightarrow \Gamma_1 \triangleright \langle Res, Brk, BrkVoid \rangle \quad \Gamma \vdash \text{WarnResultUnreachable}(stmts) \Downarrow ok \quad \text{ResType}(Res) = \bot \quad tail\_opt = \bot \quad \text{LastStmt}(stmts) \ne \text{ReturnStmt}(\_) \quad T = \text{TypePrim}(\texttt{"()"})}{\Gamma; R; L \vdash \text{BlockExpr}(stmts, \bot) \Leftarrow T \dashv \emptyset}$$
+Γ_0 = PushScope(Γ)    Γ_0; R; L ⊢ stmts ⇒ Γ_1 ▷ ⟨Res, Brk, BrkVoid⟩    Γ ⊢ WarnResultUnreachable(stmts) ⇓ ok    ResType(Res) = ⊥    tail_opt = ⊥    LastStmt(stmts) ≠ ReturnStmt(_)    T = TypePrim("()")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ BlockExpr(stmts, ⊥) ⇐ T ⊣ ∅
 
 **(T-Unsafe-Expr)**
-$$\frac{\Gamma; R; L \vdash b : T}{\Gamma; R; L \vdash \text{UnsafeBlockExpr}(b) : T}$$
+Γ; R; L ⊢ b : T
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ UnsafeBlockExpr(b) : T
 
 **(Chk-Unsafe-Expr)**
-$$\frac{\Gamma; R; L \vdash b \Leftarrow T \dashv \emptyset}{\Gamma; R; L \vdash \text{UnsafeBlockExpr}(b) \Leftarrow T \dashv \emptyset}$$
+Γ; R; L ⊢ b ⇐ T ⊣ ∅
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ UnsafeBlockExpr(b) ⇐ T ⊣ ∅
 
 **Loop Expressions**
 
 **(T-Loop-Infinite)**
-$$\frac{\Gamma; R; \texttt{loop} \vdash \text{BlockInfo}(body) \Downarrow \langle T_b, Brk, BrkVoid \rangle \quad \text{LoopTypeInf}(Brk, BrkVoid) = T}{\Gamma \vdash \text{LoopInfinite}(body) : T}$$
+Γ; R; `loop` ⊢ BlockInfo(body) ⇓ ⟨T_b, Brk, BrkVoid⟩    LoopTypeInf(Brk, BrkVoid) = T
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LoopInfinite(body) : T
 
 **(T-Loop-Conditional)**
-$$\frac{\Gamma; R; L \vdash cond : \text{TypePrim}(\texttt{"bool"}) \quad \Gamma; R; \texttt{loop} \vdash \text{BlockInfo}(body) \Downarrow \langle T_b, Brk, BrkVoid \rangle \quad \text{LoopTypeFin}(Brk, BrkVoid) = T}{\Gamma \vdash \text{LoopConditional}(cond, body) : T}$$
+Γ; R; L ⊢ cond : TypePrim("bool")    Γ; R; `loop` ⊢ BlockInfo(body) ⇓ ⟨T_b, Brk, BrkVoid⟩    LoopTypeFin(Brk, BrkVoid) = T
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LoopConditional(cond, body) : T
 
 **(T-Loop-Iter)**
-$$\frac{\Gamma; R; L \vdash iter : \text{TypePerm}(p, \text{TypeSlice}(T)) \lor \Gamma; R; L \vdash iter : \text{TypeSlice}(T) \lor \Gamma; R; L \vdash iter : \text{TypePerm}(p, \text{TypeArray}(T, n)) \lor \Gamma; R; L \vdash iter : \text{TypeArray}(T, n) \quad ty\_opt = \bot \Rightarrow T_p = T \quad ty\_opt = T_a \Rightarrow \Gamma \vdash T <: T_a \land T_p = T_a \quad \Gamma \vdash pat \Leftarrow T_p \dashv B \quad \text{Distinct}(\text{PatNames}(pat)) \quad \Gamma_0 = \text{PushScope}(\Gamma) \quad \text{IntroAll}(\Gamma_0, B) \Downarrow \Gamma_1 \quad \Gamma_1; R; \texttt{loop} \vdash \text{BlockInfo}(body) \Downarrow \langle T_b, Brk, BrkVoid \rangle \quad \text{LoopTypeFin}(Brk, BrkVoid) = T_r}{\Gamma \vdash \text{LoopIter}(pat, ty\_opt, iter, body) : T_r}$$
+(Γ; R; L ⊢ iter : TypePerm(p, TypeSlice(T)) ∨ Γ; R; L ⊢ iter : TypeSlice(T) ∨ Γ; R; L ⊢ iter : TypePerm(p, TypeArray(T, n)) ∨ Γ; R; L ⊢ iter : TypeArray(T, n))    (ty_opt = ⊥ ⇒ T_p = T)    (ty_opt = T_a ⇒ Γ ⊢ T <: T_a ∧ T_p = T_a)    Γ ⊢ pat ⇐ T_p ⊣ B    Distinct(PatNames(pat))    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, B) ⇓ Γ_1    Γ_1; R; `loop` ⊢ BlockInfo(body) ⇓ ⟨T_b, Brk, BrkVoid⟩    LoopTypeFin(Brk, BrkVoid) = T_r
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LoopIter(pat, ty_opt, iter, body) : T_r
 
 **Irrefutable Binding Patterns**
 
-$$\text{PatJudg} = \{\Gamma \vdash pat \Leftarrow T \dashv B\}$$
+PatJudg = {Γ ⊢ pat ⇐ T ⊣ B}
 
 **(Pat-Dup-Err)**
-$$\frac{\neg \text{Distinct}(\text{PatNames}(pat)) \quad c = \text{Code}(\text{Pat-Dup-Err})}{\Gamma \vdash pat \Leftarrow T \Uparrow c}$$
+¬ Distinct(PatNames(pat))    c = Code(Pat-Dup-Err)
+────────────────────────────────────────────────────────────────
+Γ ⊢ pat ⇐ T ⇑ c
 
 **(Pat-Wildcard)**
-$$\frac{}{\Gamma \vdash \_ \Leftarrow T \dashv \emptyset}$$
+──────────────────────────────────────────────
+Γ ⊢ _ ⇐ T ⊣ ∅
 
 **(Pat-Ident)**
-$$\frac{}{\Gamma \vdash x \Leftarrow T \dashv \{x \mapsto T\}}$$
+──────────────────────────────────────────────
+Γ ⊢ x ⇐ T ⊣ {x ↦ T}
 
 **(Pat-Unit)**
-$$\frac{T = \text{TypePrim}(\texttt{"()"})}{\Gamma \vdash () \Leftarrow T \dashv \emptyset}$$
+T = TypePrim("()")
+──────────────────────────────────────────────
+Γ ⊢ () ⇐ T ⊣ ∅
 
 **(Pat-Tuple-Arity-Err)**
-$$\frac{T = \text{TypeTuple}([T_1,\ldots,T_n]) \quad ps = [p_1,\ldots,p_m] \quad m \ne n \quad c = \text{Code}(\text{Pat-Tuple-Arity-Err})}{\Gamma \vdash (p_1,\ldots,p_m) \Leftarrow T \Uparrow c}$$
+T = TypeTuple([T_1, …, T_n])    ps = [p_1, …, p_m]    m ≠ n    c = Code(Pat-Tuple-Arity-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ (p_1, …, p_m) ⇐ T ⇑ c
 
 **(Pat-Tuple)**
-$$\frac{T = \text{TypeTuple}([T_1,\ldots,T_n]) \quad \forall i,\ \Gamma \vdash p_i \Leftarrow T_i \dashv B_i \quad B = \biguplus_i B_i}{\Gamma \vdash (p_1,\ldots,p_n) \Leftarrow T \dashv B}$$
+T = TypeTuple([T_1, …, T_n])    ∀ i, Γ ⊢ p_i ⇐ T_i ⊣ B_i    B = ⊎_i B_i
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ (p_1, …, p_n) ⇐ T ⊣ B
 
 **(Pat-Record)**
-$$\text{RecordDecl}(p) = R \iff \text{RecordPath}(R) = p$$
-$$\text{FieldType}(R, f) = T_f \iff \langle \_, f, T_f, \_, \_, \_ \rangle \in \text{Fields}(R)$$
-$$\text{FieldName}(\langle f,\ \_,\ \_ \rangle) = f$$
-$$\text{PatOf}(\langle f,\ \bot,\ \_ \rangle) = \text{IdentifierPattern}(f)$$
-$$\text{PatOf}(\langle f,\ p,\ \_ \rangle) = p \quad \text{if } p \ne \bot$$
+RecordDecl(p) = R ⇔ RecordPath(R) = p
+FieldType(R, f) = T_f ⇔ ⟨_, f, T_f, _, _, _⟩ ∈ Fields(R)
+FieldName(⟨f, _, _⟩) = f
+PatOf(⟨f, ⊥, _⟩) = IdentifierPattern(f)
+PatOf(⟨f, p, _⟩) = p    if p ≠ ⊥
 
-$$\frac{T = \text{TypePath}(p) \quad \text{RecordDecl}(p) = R \quad \forall fp \in fs,\ \text{FieldType}(R, \text{FieldName}(fp)) = T_f \land \text{FieldVisible}(m, R, \text{FieldName}(fp)) \land \Gamma \vdash \text{PatOf}(fp) \Leftarrow T_f \dashv B_f \quad B = \biguplus_{fp \in fs} B_f}{\Gamma \vdash p\{fs\} \Leftarrow T \dashv B}$$
+T = TypePath(p)    RecordDecl(p) = R    ∀ fp ∈ fs, FieldType(R, FieldName(fp)) = T_f ∧ FieldVisible(m, R, FieldName(fp)) ∧ Γ ⊢ PatOf(fp) ⇐ T_f ⊣ B_f    B = ⊎_{fp ∈ fs} B_f
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ p{fs} ⇐ T ⊣ B
 
 **(RecordPattern-UnknownField-Bind)**
-$$\frac{T = \text{TypePath}(p) \quad \text{RecordDecl}(p) = R \quad \exists fp \in fs.\ \text{FieldName}(fp) \notin \text{FieldNameSet}(R) \quad c = \text{Code}(\text{RecordPattern-UnknownField})}{\Gamma \vdash p\{fs\} \Leftarrow T \Uparrow c}$$
+T = TypePath(p)    RecordDecl(p) = R    ∃ fp ∈ fs. FieldName(fp) ∉ FieldNameSet(R)    c = Code(RecordPattern-UnknownField)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ p{fs} ⇐ T ⇑ c
 
 **(Let-Refutable-Pattern-Err)**
-$$\frac{pat \in \{\text{TypedPattern}(\_,\_),\ \text{LiteralPattern}(\_),\ \text{EnumPattern}(\_,\_,\_),\ \text{ModalPattern}(\_,\_),\ \text{RangePattern}(\_,\_,\_)\} \quad c = \text{Code}(\text{Let-Refutable-Pattern-Err})}{\Gamma \vdash pat \Leftarrow T \Uparrow c}$$
+pat ∈ {TypedPattern(_, _), LiteralPattern(_), EnumPattern(_, _, _), ModalPattern(_, _), RangePattern(_, _, _)}    c = Code(Let-Refutable-Pattern-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ pat ⇐ T ⇑ c
 
 #### 5.2.12. Expression Typing (Cursive0)
 
-$$\text{UnresolvedExpr} = \{\text{QualifiedName}(\_,\_),\ \text{QualifiedApply}(\_,\_,\_)\}$$
+UnresolvedExpr = {QualifiedName(_, _), QualifiedApply(_, _, _)}
 
 **(Expr-Unresolved-Err)**
-$$\frac{e \in \text{UnresolvedExpr} \quad c = \text{Code}(\text{ResolveExpr-Ident-Err})}{\Gamma; R; L \vdash e \Uparrow c}$$
+e ∈ UnresolvedExpr    c = Code(ResolveExpr-Ident-Err)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ e ⇑ c
 
-$$\text{ExprJudg} = \{\Gamma; R; L \vdash e : T,\ \Gamma; R; L \vdash e \Leftarrow T \dashv C,\ \Gamma; R; L \vdash p :place T,\ \Gamma; R; L \vdash p \Leftarrow_{\text{place}} T,\ \Gamma; R; L \vdash r : \text{Range}\}$$
+ExprJudg = {Γ; R; L ⊢ e : T, Γ; R; L ⊢ e ⇐ T ⊣ C, Γ; R; L ⊢ p :place T, Γ; R; L ⊢ p ⇐_place T, Γ; R; L ⊢ r : Range}
 
 **(Lift-Expr)**
-$$\frac{\Gamma \vdash e : T}{\Gamma; R; L \vdash e : T}$$
+Γ ⊢ e : T
+──────────────────────────────────────────────
+Γ; R; L ⊢ e : T
 
 **(Place-Check)**
-$$\frac{\Gamma; R; L \vdash p :place S \quad \Gamma \vdash S <: T}{\Gamma; R; L \vdash p \Leftarrow_{\text{place}} T}$$
+Γ; R; L ⊢ p :place S    Γ ⊢ S <: T
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ p ⇐_place T
 
-$$\text{StripPerm}(T) = \begin{cases}
-T_0 & \text{if } T = \text{TypePerm}(p, T_0) \\
-T & \text{otherwise}
-\end{cases}$$
-$$\text{BitcopyType}(T) \iff \text{BitcopyTypeCore}(T)$$
-$$\text{SignedIntTypes} = \{i8,i16,i32,i64,i128,isize\}$$
-$$\text{NumericTypes} = \text{IntTypes} \cup \text{FloatTypes}$$
-$$\text{EqType}(T) \iff \big(\text{StripPerm}(T) = \text{TypePrim}(t) \land t \in \text{NumericTypes} \cup \{\texttt{"bool"}, \texttt{"char"}\}\big) \lor \text{StripPerm}(T) = \text{TypePtr}(U, s)$$
-$$\phantom{\text{EqType}(T) \iff}\ \lor\ \text{StripPerm}(T) = \text{TypeRawPtr}(q, U) \lor \text{StripPerm}(T) = \text{TypeString}(st) \lor \text{StripPerm}(T) = \text{TypeBytes}(st)$$
-$$\text{OrdType}(T) \iff \text{StripPerm}(T) = \text{TypePrim}(t) \land t \in \text{IntTypes} \cup \text{FloatTypes} \cup \{\texttt{"char"}\}$$
-$$\text{ValuePathType} : \text{Path} \times \text{Ident} \rightharpoonup \text{Type}$$
-$$\text{ValuePathType}(path, name) = \text{StaticType}(path, name)\ \text{if}\ \text{StaticType}(path, name)\ \text{defined}$$
-$$\text{ValuePathType}(path, name) = \text{TypeFunc}([\langle mode, T \rangle \mid \langle mode, x, T \rangle \in params],\ \text{ProcReturn}(ret\_opt))\ \text{if}\ \text{DeclOf}(path, name)=\text{ProcedureDecl}(\_, name, params, ret\_opt, \_, \_, \_)$$
-$$\text{ValuePathType}(path, name)\ \text{undefined otherwise}$$
-$$\text{UnsafeSpan}(span) \iff \exists U,K,D,K',i.\ \text{ParseInputs}(U,K,D,K') \land \text{SourceOf}(K'_i).\text{path} = span.\text{file} \land \exists sp \in \text{UnsafeSpans}(K'_i).\ span \subseteq sp$$
+StripPerm(T) =
+  { T_0   if T = TypePerm(p, T_0)
+    T     otherwise }
+BitcopyType(T) ⇔ BitcopyTypeCore(T)
+SignedIntTypes = {i8, i16, i32, i64, i128, isize}
+NumericTypes = IntTypes ∪ FloatTypes
+EqType(T) ⇔ (StripPerm(T) = TypePrim(t) ∧ t ∈ NumericTypes ∪ {`bool`, `char`}) ∨ StripPerm(T) = TypePtr(U, s) ∨ StripPerm(T) = TypeRawPtr(q, U) ∨ StripPerm(T) = TypeString(st) ∨ StripPerm(T) = TypeBytes(st)
+OrdType(T) ⇔ StripPerm(T) = TypePrim(t) ∧ t ∈ IntTypes ∪ FloatTypes ∪ {`char`}
+ValuePathType : Path × Ident ⇀ Type
+ValuePathType(path, name) = StaticType(path, name) if StaticType(path, name) defined
+ValuePathType(path, name) = TypeFunc([⟨mode, T⟩ | ⟨mode, x, T⟩ ∈ params], ProcReturn(ret_opt)) if DeclOf(path, name) = ProcedureDecl(_, name, params, ret_opt, _, _, _)
+ValuePathType(path, name) undefined otherwise
+UnsafeSpan(span) ⇔ ∃ U, K, D, K', i. ParseInputs(U, K, D, K') ∧ SourceOf(K'_i).path = span.file ∧ ∃ sp ∈ UnsafeSpans(K'_i). span ⊆ sp
 
 
 **Identifiers and Paths**
 
 **(T-Ident)**
-$$\frac{(x : T) \in \Gamma \quad \text{BitcopyType}(T)}{\Gamma; R; L \vdash \text{Identifier}(x) : T}$$
+(x : T) ∈ Γ    BitcopyType(T)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Identifier(x) : T
 
 **(T-Path-Value)**
-$$\frac{\text{ValuePathType}(path, name) = T}{\Gamma; R; L \vdash \text{Path}(path, name) : T}$$
+ValuePathType(path, name) = T
+──────────────────────────────────────────────
+Γ; R; L ⊢ Path(path, name) : T
 
 **Place Typing**
 
 **(P-Ident)**
-$$\frac{(x : T) \in \Gamma}{\Gamma; R; L \vdash \text{Identifier}(x) :place T}$$
+(x : T) ∈ Γ
+──────────────────────────────────────────────
+Γ; R; L ⊢ Identifier(x) :place T
 
 **Record Field Access**
 
-$$\text{FieldVis}(R, f) = vis \iff \langle vis, f, T_f, \_ \rangle \in \text{Fields}(R)$$
-$$\text{FieldVisible}(m, R, f) \iff \text{FieldVis}(R, f) \in \{\texttt{public}, \texttt{internal}\}$$
-$$\phantom{\text{FieldVisible}(m, R, f) \iff}\ \lor\ \big(\text{FieldVis}(R, f) \in \{\texttt{private}, \texttt{protected}\} \land \text{ModuleOfPath}(\text{RecordPath}(R)) = m\big)$$
+FieldVis(R, f) = vis ⇔ ⟨vis, f, T_f, _⟩ ∈ Fields(R)
+FieldVisible(m, R, f) ⇔ FieldVis(R, f) ∈ {`public`, `internal`} ∨ (FieldVis(R, f) ∈ {`private`, `protected`} ∧ ModuleOfPath(RecordPath(R)) = m)
 
 **(T-Field-Record)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePath}(p) \quad \text{RecordDecl}(p) = R \quad \text{FieldType}(R, f) = T_f \quad \text{FieldVisible}(m, R, f) \quad \text{BitcopyType}(T_f)}{\Gamma; R; L \vdash \text{FieldAccess}(e, f) : T_f}$$
+Γ; R; L ⊢ e : TypePath(p)    RecordDecl(p) = R    FieldType(R, f) = T_f    FieldVisible(m, R, f)    BitcopyType(T_f)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ FieldAccess(e, f) : T_f
 
 **(T-Field-Record-Perm)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePerm}(p, \text{TypePath}(q)) \quad \text{RecordDecl}(q) = R \quad \text{FieldType}(R, f) = T_f \quad \text{FieldVisible}(m, R, f) \quad \text{BitcopyType}(\text{TypePerm}(p, T_f))}{\Gamma; R; L \vdash \text{FieldAccess}(e, f) : \text{TypePerm}(p, T_f)}$$
+Γ; R; L ⊢ e : TypePerm(p, TypePath(q))    RecordDecl(q) = R    FieldType(R, f) = T_f    FieldVisible(m, R, f)    BitcopyType(TypePerm(p, T_f))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ FieldAccess(e, f) : TypePerm(p, T_f)
 
 **(P-Field-Record)**
-$$\frac{\Gamma; R; L \vdash e :place \text{TypePath}(p) \quad \text{RecordDecl}(p) = R \quad \text{FieldType}(R, f) = T_f \quad \text{FieldVisible}(m, R, f)}{\Gamma; R; L \vdash \text{FieldAccess}(e, f) :place T_f}$$
+Γ; R; L ⊢ e :place TypePath(p)    RecordDecl(p) = R    FieldType(R, f) = T_f    FieldVisible(m, R, f)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ FieldAccess(e, f) :place T_f
 
 **(P-Field-Record-Perm)**
-$$\frac{\Gamma; R; L \vdash e :place \text{TypePerm}(p, \text{TypePath}(q)) \quad \text{RecordDecl}(q) = R \quad \text{FieldType}(R, f) = T_f \quad \text{FieldVisible}(m, R, f)}{\Gamma; R; L \vdash \text{FieldAccess}(e, f) :place \text{TypePerm}(p, T_f)}$$
+Γ; R; L ⊢ e :place TypePerm(p, TypePath(q))    RecordDecl(q) = R    FieldType(R, f) = T_f    FieldVisible(m, R, f)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ FieldAccess(e, f) :place TypePerm(p, T_f)
 
 **(FieldAccess-Unknown)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePath}(p) \quad \text{RecordDecl}(p) = R \quad f \notin \text{FieldNameSet}(R) \quad c = \text{Code}(\text{FieldAccess-Unknown})}{\Gamma; R; L \vdash \text{FieldAccess}(e, f) \Uparrow c}$$
+Γ; R; L ⊢ e : TypePath(p)    RecordDecl(p) = R    f ∉ FieldNameSet(R)    c = Code(FieldAccess-Unknown)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ FieldAccess(e, f) ⇑ c
 
 **(FieldAccess-NotVisible)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePath}(p) \quad \text{RecordDecl}(p) = R \quad f \in \text{FieldNameSet}(R) \quad \neg \text{FieldVisible}(m, R, f) \quad c = \text{Code}(\text{FieldAccess-NotVisible})}{\Gamma; R; L \vdash \text{FieldAccess}(e, f) \Uparrow c}$$
+Γ; R; L ⊢ e : TypePath(p)    RecordDecl(p) = R    f ∈ FieldNameSet(R)    ¬ FieldVisible(m, R, f)    c = Code(FieldAccess-NotVisible)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ FieldAccess(e, f) ⇑ c
 
 **(FieldAccess-Enum)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePath}(p) \quad \text{EnumDecl}(p) = E \quad c = \text{Code}(\text{FieldAccess-Unknown})}{\Gamma; R; L \vdash \text{FieldAccess}(e, f) \Uparrow c}$$
+Γ; R; L ⊢ e : TypePath(p)    EnumDecl(p) = E    c = Code(FieldAccess-Unknown)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ FieldAccess(e, f) ⇑ c
 
 **(ValueUse-NonBitcopyPlace)**
-$$\frac{\text{IsPlace}(e) \quad \neg \text{BitcopyType}(\text{ExprType}(e)) \quad c = \text{Code}(\text{ValueUse-NonBitcopyPlace})}{\Gamma; R; L \vdash e \Uparrow c}$$
+IsPlace(e)    ¬ BitcopyType(ExprType(e))    c = Code(ValueUse-NonBitcopyPlace)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ e ⇑ c
 
 **Error Expression**
 
 **(T-ErrorExpr)**
-$$\frac{}{\Gamma; R; L \vdash \text{ErrorExpr}(\_) : \text{TypePrim}(\texttt{"!"})}$$
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ErrorExpr(_) : TypePrim("!")
 
 **Range Expressions**
 
-$$\Gamma; R; L \vdash r : \text{Range} \Rightarrow \text{ExprType}(r) = \text{TypeRange}$$
+Γ; R; L ⊢ r : Range ⇒ ExprType(r) = TypeRange
 
 **(Range-Full)**
-$$\frac{}{\Gamma; R; L \vdash \text{Range}(\texttt{Full}, \bot, \bot) : \text{Range}}$$
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Range(`Full`, ⊥, ⊥) : Range
 
 **(Range-To)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePrim}(\texttt{"usize"})}{\Gamma; R; L \vdash \text{Range}(\texttt{To}, \bot, e) : \text{Range}}$$
+Γ; R; L ⊢ e : TypePrim("usize")
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Range(`To`, ⊥, e) : Range
 
 **(Range-ToInclusive)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePrim}(\texttt{"usize"})}{\Gamma; R; L \vdash \text{Range}(\texttt{ToInclusive}, \bot, e) : \text{Range}}$$
+Γ; R; L ⊢ e : TypePrim("usize")
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Range(`ToInclusive`, ⊥, e) : Range
 
 **(Range-From)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePrim}(\texttt{"usize"})}{\Gamma; R; L \vdash \text{Range}(\texttt{From}, e, \bot) : \text{Range}}$$
+Γ; R; L ⊢ e : TypePrim("usize")
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Range(`From`, e, ⊥) : Range
 
 **(Range-Exclusive)**
-$$\frac{\Gamma; R; L \vdash e_1 : \text{TypePrim}(\texttt{"usize"}) \quad \Gamma; R; L \vdash e_2 : \text{TypePrim}(\texttt{"usize"})}{\Gamma; R; L \vdash \text{Range}(\texttt{Exclusive}, e_1, e_2) : \text{Range}}$$
+Γ; R; L ⊢ e_1 : TypePrim("usize")    Γ; R; L ⊢ e_2 : TypePrim("usize")
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Range(`Exclusive`, e_1, e_2) : Range
 
 **(Range-Inclusive)**
-$$\frac{\Gamma; R; L \vdash e_1 : \text{TypePrim}(\texttt{"usize"}) \quad \Gamma; R; L \vdash e_2 : \text{TypePrim}(\texttt{"usize"})}{\Gamma; R; L \vdash \text{Range}(\texttt{Inclusive}, e_1, e_2) : \text{Range}}$$
+Γ; R; L ⊢ e_1 : TypePrim("usize")    Γ; R; L ⊢ e_2 : TypePrim("usize")
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Range(`Inclusive`, e_1, e_2) : Range
 
 **(Range-NonIndex-Err)**
-$$\frac{e = \text{Range}(kind, lo\_opt, hi\_opt) \quad c = \text{Code}(\text{Range-NonIndex-Err})}{\Gamma; R; L \vdash e \Uparrow c}$$
+e = Range(kind, lo_opt, hi_opt)    c = Code(Range-NonIndex-Err)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ e ⇑ c
 
 **If Expressions**
 
 **(T-If)**
-$$\frac{\Gamma; R; L \vdash c : \text{TypePrim}(\texttt{"bool"}) \quad \Gamma; R; L \vdash b_t : T \quad \Gamma; R; L \vdash b_f : T}{\Gamma; R; L \vdash \text{IfExpr}(c, b_t, b_f) : T}$$
+Γ; R; L ⊢ c : TypePrim("bool")    Γ; R; L ⊢ b_t : T    Γ; R; L ⊢ b_f : T
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ IfExpr(c, b_t, b_f) : T
 
 **(T-If-No-Else)**
-$$\frac{\Gamma; R; L \vdash c : \text{TypePrim}(\texttt{"bool"}) \quad \Gamma; R; L \vdash b_t : \text{TypePrim}(\texttt{"()"})}{\Gamma; R; L \vdash \text{IfExpr}(c, b_t, \bot) : \text{TypePrim}(\texttt{"()"})}$$
+Γ; R; L ⊢ c : TypePrim("bool")    Γ; R; L ⊢ b_t : TypePrim("()")
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ IfExpr(c, b_t, ⊥) : TypePrim("()")
 
 **(Chk-If)**
-$$\frac{\Gamma; R; L \vdash c : \text{TypePrim}(\texttt{"bool"}) \quad \Gamma; R; L \vdash b_t \Leftarrow T \dashv \emptyset \quad \Gamma; R; L \vdash b_f \Leftarrow T \dashv \emptyset}{\Gamma; R; L \vdash \text{IfExpr}(c, b_t, b_f) \Leftarrow T \dashv \emptyset}$$
+Γ; R; L ⊢ c : TypePrim("bool")    Γ; R; L ⊢ b_t ⇐ T ⊣ ∅    Γ; R; L ⊢ b_f ⇐ T ⊣ ∅
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ IfExpr(c, b_t, b_f) ⇐ T ⊣ ∅
 
 **(Chk-If-No-Else)**
-$$\frac{\Gamma; R; L \vdash c : \text{TypePrim}(\texttt{"bool"}) \quad T = \text{TypePrim}(\texttt{"()"}) \quad \Gamma; R; L \vdash b_t \Leftarrow T \dashv \emptyset}{\Gamma; R; L \vdash \text{IfExpr}(c, b_t, \bot) \Leftarrow T \dashv \emptyset}$$
+Γ; R; L ⊢ c : TypePrim("bool")    T = TypePrim("()")    Γ; R; L ⊢ b_t ⇐ T ⊣ ∅
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ IfExpr(c, b_t, ⊥) ⇐ T ⊣ ∅
 
 **Unary Operators**
 
 **(T-Not-Bool)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePrim}(\texttt{"bool"})}{\Gamma; R; L \vdash \text{Unary}(\texttt{"!"}, e) : \text{TypePrim}(\texttt{"bool"})}$$
+Γ; R; L ⊢ e : TypePrim("bool")
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Unary("!", e) : TypePrim("bool")
 
 **(T-Not-Int)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePrim}(t) \quad t \in \text{IntTypes}}{\Gamma; R; L \vdash \text{Unary}(\texttt{"!"}, e) : \text{TypePrim}(t)}$$
+Γ; R; L ⊢ e : TypePrim(t)    t ∈ IntTypes
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Unary("!", e) : TypePrim(t)
 
 **(T-Neg)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePrim}(t) \quad t \in \text{SignedIntTypes} \cup \text{FloatTypes}}{\Gamma; R; L \vdash \text{Unary}(\texttt{"-"}, e) : \text{TypePrim}(t)}$$
+Γ; R; L ⊢ e : TypePrim(t)    t ∈ SignedIntTypes ∪ FloatTypes
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Unary("-", e) : TypePrim(t)
 
 **Binary Operators**
 
-$$\text{ArithOps} = \{\texttt{"+"},\ \texttt{"-"},\ \texttt{"*"},\ \texttt{"/"},\ \texttt{"%"},\ \texttt{"**"}\}$$
-$$\text{BitOps} = \{\texttt{"&"},\ \texttt{"|"},\ \texttt{"^"}\}$$
-$$\text{ShiftOps} = \{\texttt{"<<"},\ \texttt{">>"}\}$$
-$$\text{CmpOps} = \{\texttt{"=="},\ \texttt{"!="},\ \texttt{"<"},\ \texttt{"<="},\ \texttt{">"},\ \texttt{">="}\}$$
-$$\text{LogicOps} = \{\texttt{"&&"},\ \texttt{"||"}\}$$
+ArithOps = {"+", "-", "*", "/", "%", "**"}
+BitOps = {"&", "|", "^"}
+ShiftOps = {"<<", ">>"}
+CmpOps = {"==", "!=", "<", "<=", ">", ">="}
+LogicOps = {"&&", "||"}
 
 **(T-Arith)**
-$$\frac{\Gamma; R; L \vdash e_1 : T \quad \Gamma; R; L \vdash e_2 : T \quad \text{StripPerm}(T) = \text{TypePrim}(t) \quad t \in \text{NumericTypes} \quad op \in \text{ArithOps}}{\Gamma; R; L \vdash \text{Binary}(op, e_1, e_2) : \text{TypePrim}(t)}$$
+Γ; R; L ⊢ e_1 : T    Γ; R; L ⊢ e_2 : T    StripPerm(T) = TypePrim(t)    t ∈ NumericTypes    op ∈ ArithOps
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Binary(op, e_1, e_2) : TypePrim(t)
 
 **(T-Bitwise)**
-$$\frac{\Gamma; R; L \vdash e_1 : T \quad \Gamma; R; L \vdash e_2 : T \quad \text{StripPerm}(T) = \text{TypePrim}(t) \quad t \in \text{IntTypes} \quad op \in \text{BitOps}}{\Gamma; R; L \vdash \text{Binary}(op, e_1, e_2) : \text{TypePrim}(t)}$$
+Γ; R; L ⊢ e_1 : T    Γ; R; L ⊢ e_2 : T    StripPerm(T) = TypePrim(t)    t ∈ IntTypes    op ∈ BitOps
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Binary(op, e_1, e_2) : TypePrim(t)
 
 **(T-Shift)**
-$$\frac{\Gamma; R; L \vdash e_1 : T_1 \quad \Gamma; R; L \vdash e_2 : \text{TypePrim}(\texttt{"u32"}) \quad \text{StripPerm}(T_1) = \text{TypePrim}(t) \quad t \in \text{IntTypes} \quad op \in \text{ShiftOps}}{\Gamma; R; L \vdash \text{Binary}(op, e_1, e_2) : \text{TypePrim}(t)}$$
+Γ; R; L ⊢ e_1 : T_1    Γ; R; L ⊢ e_2 : TypePrim("u32")    StripPerm(T_1) = TypePrim(t)    t ∈ IntTypes    op ∈ ShiftOps
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Binary(op, e_1, e_2) : TypePrim(t)
 
 **(T-Compare-Eq)**
-$$\frac{\Gamma; R; L \vdash e_1 : T \quad \Gamma; R; L \vdash e_2 : T \quad \text{EqType}(T) \quad op \in \{\texttt{"=="}, \texttt{"!="}\}}{\Gamma; R; L \vdash \text{Binary}(op, e_1, e_2) : \text{TypePrim}(\texttt{"bool"})}$$
+Γ; R; L ⊢ e_1 : T    Γ; R; L ⊢ e_2 : T    EqType(T)    op ∈ {"==", "!="}
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Binary(op, e_1, e_2) : TypePrim("bool")
 
 **(T-Compare-Ord)**
-$$\frac{\Gamma; R; L \vdash e_1 : T \quad \Gamma; R; L \vdash e_2 : T \quad \text{OrdType}(T) \quad op \in \{\texttt{"<"}, \texttt{"<="}, \texttt{">"}, \texttt{">="}\}}{\Gamma; R; L \vdash \text{Binary}(op, e_1, e_2) : \text{TypePrim}(\texttt{"bool"})}$$
+Γ; R; L ⊢ e_1 : T    Γ; R; L ⊢ e_2 : T    OrdType(T)    op ∈ {"<", "<=", ">", ">="}
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Binary(op, e_1, e_2) : TypePrim("bool")
 
 **(T-Logical)**
-$$\frac{\Gamma; R; L \vdash e_1 : \text{TypePrim}(\texttt{"bool"}) \quad \Gamma; R; L \vdash e_2 : \text{TypePrim}(\texttt{"bool"}) \quad op \in \text{LogicOps}}{\Gamma; R; L \vdash \text{Binary}(op, e_1, e_2) : \text{TypePrim}(\texttt{"bool"})}$$
+Γ; R; L ⊢ e_1 : TypePrim("bool")    Γ; R; L ⊢ e_2 : TypePrim("bool")    op ∈ LogicOps
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Binary(op, e_1, e_2) : TypePrim("bool")
 
 **Casts**
 
-$$S' = \text{StripPerm}(S)$$
-$$T' = \text{StripPerm}(T)$$
-$$\text{CastValid}(S,T) \iff (S'=\text{TypePrim}(s) \land T'=\text{TypePrim}(t) \land s,t \in \text{NumericTypes}) \lor (S'=\text{TypePrim}(\texttt{"bool"}) \land T'=\text{TypePrim}(t) \land t \in \text{IntTypes}) \lor (S'=\text{TypePrim}(t) \land t \in \text{IntTypes} \land T'=\text{TypePrim}(\texttt{"bool"})) \lor (S'=\text{TypePrim}(\texttt{"char"}) \land T'=\text{TypePrim}(\texttt{"u32"})) \lor (S'=\text{TypePrim}(\texttt{"u32"}) \land T'=\text{TypePrim}(\texttt{"char"}))$$
+S' = StripPerm(S)
+T' = StripPerm(T)
+CastValid(S, T) ⇔ (S' = TypePrim(s) ∧ T' = TypePrim(t) ∧ s, t ∈ NumericTypes) ∨ (S' = TypePrim("bool") ∧ T' = TypePrim(t) ∧ t ∈ IntTypes) ∨ (S' = TypePrim(t) ∧ t ∈ IntTypes ∧ T' = TypePrim("bool")) ∨ (S' = TypePrim("char") ∧ T' = TypePrim("u32")) ∨ (S' = TypePrim("u32") ∧ T' = TypePrim("char"))
 
 **(T-Cast)**
-$$\frac{\Gamma; R; L \vdash e : S \quad \text{CastValid}(S, T)}{\Gamma; R; L \vdash \text{Cast}(e, T) : T}$$
+Γ; R; L ⊢ e : S    CastValid(S, T)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Cast(e, T) : T
 
 **Address-Of, Dereference, Move**
 
-$$\text{AddrOfOk}(p) \iff \text{IsPlace}(p) \land (p=\text{IndexAccess}(\_,idx) \Rightarrow \Gamma; R; L \vdash idx : T_i \land \text{StripPerm}(T_i) = \text{TypePrim}(\texttt{"usize"}))$$
+AddrOfOk(p) ⇔ IsPlace(p) ∧ (p = IndexAccess(_, idx) ⇒ Γ; R; L ⊢ idx : T_i ∧ StripPerm(T_i) = TypePrim("usize"))
 
 **(T-AddrOf)**
-$$\frac{\Gamma; R; L \vdash p :place T \quad \text{AddrOfOk}(p)}{\Gamma; R; L \vdash \text{AddressOf}(p) : \text{TypePtr}(T, \texttt{Valid})}$$
+Γ; R; L ⊢ p :place T    AddrOfOk(p)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ AddressOf(p) : TypePtr(T, `Valid`)
 
 **(T-Alloc-Explicit)**
-$$\frac{\Gamma; R; L \vdash e : T \quad \Gamma; R; L \vdash \text{Identifier}(r) : T_r \quad \text{RegionActiveType}(T_r)}{\Gamma; R; L \vdash \text{AllocExpr}(r, e) : T}$$
+Γ; R; L ⊢ e : T    Γ; R; L ⊢ Identifier(r) : T_r    RegionActiveType(T_r)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ AllocExpr(r, e) : T
 
 **(T-Alloc-Implicit)**
-$$\frac{\text{InnermostActiveRegion}(\Gamma) = r \quad \Gamma; R; L \vdash e : T}{\Gamma; R; L \vdash \text{AllocExpr}(\bot, e) : T}$$
+InnermostActiveRegion(Γ) = r    Γ; R; L ⊢ e : T
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ AllocExpr(⊥, e) : T
 
 **(Alloc-Region-NotFound-Err)**
 $$\frac{e = \text{AllocExpr}(r, \_) \quad r \ne \bot \quad \Gamma; R; L \vdash \text{Identifier}(r) : T_r \quad \neg \text{RegionActiveType}(T_r) \quad c = \text{Code}(\text{Alloc-Region-NotFound-Err})}{\Gamma; R; L \vdash e \Uparrow c}$$
@@ -7661,105 +7992,157 @@ $$\frac{e = \text{AllocExpr}(r, \_) \quad r \ne \bot \quad \Gamma; R; L \vdash \
 $$\frac{e = \text{AllocExpr}(\bot, \_) \quad \text{InnermostActiveRegion}(\Gamma)\ \text{undefined} \quad c = \text{Code}(\text{Alloc-Implicit-NoRegion-Err})}{\Gamma; R; L \vdash e \Uparrow c}$$
 
 **(T-Deref-Ptr)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePtr}(T, \texttt{Valid}) \quad \text{BitcopyType}(T)}{\Gamma; R; L \vdash \text{Deref}(e) : T}$$
+Γ; R; L ⊢ e : TypePtr(T, `Valid`)    BitcopyType(T)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Deref(e) : T
 
 **(T-Deref-Raw)**
-$$\frac{\text{UnsafeSpan}(\text{span}(\text{Deref}(e))) \quad \Gamma; R; L \vdash e : \text{TypeRawPtr}(q, T) \quad \text{BitcopyType}(T)}{\Gamma; R; L \vdash \text{Deref}(e) : T}$$
+UnsafeSpan(span(Deref(e)))    Γ; R; L ⊢ e : TypeRawPtr(q, T)    BitcopyType(T)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Deref(e) : T
 
 **(P-Deref-Ptr)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePtr}(T, \texttt{Valid})}{\Gamma; R; L \vdash \text{Deref}(e) :place T}$$
+Γ; R; L ⊢ e : TypePtr(T, `Valid`)
+──────────────────────────────────────────────
+Γ; R; L ⊢ Deref(e) :place T
 
 **(P-Deref-Raw-Imm)**
-$$\frac{\text{UnsafeSpan}(\text{span}(\text{Deref}(e))) \quad \Gamma; R; L \vdash e : \text{TypeRawPtr}(\texttt{imm}, T)}{\Gamma; R; L \vdash \text{Deref}(e) :place \text{TypePerm}(\texttt{const}, T)}$$
+UnsafeSpan(span(Deref(e)))    Γ; R; L ⊢ e : TypeRawPtr(`imm`, T)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Deref(e) :place TypePerm(`const`, T)
 
 **(P-Deref-Raw-Mut)**
-$$\frac{\text{UnsafeSpan}(\text{span}(\text{Deref}(e))) \quad \Gamma; R; L \vdash e : \text{TypeRawPtr}(\texttt{mut}, T)}{\Gamma; R; L \vdash \text{Deref}(e) :place \text{TypePerm}(\texttt{unique}, T)}$$
+UnsafeSpan(span(Deref(e)))    Γ; R; L ⊢ e : TypeRawPtr(`mut`, T)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Deref(e) :place TypePerm(`unique`, T)
 
 **(T-Move)**
-$$\frac{\Gamma; R; L \vdash p :place T}{\Gamma; R; L \vdash \text{MoveExpr}(p) : T}$$
+Γ; R; L ⊢ p :place T
+──────────────────────────────────────────────
+Γ; R; L ⊢ MoveExpr(p) : T
 
 **(AddrOf-NonPlace)**
-$$\frac{\neg \text{IsPlace}(e) \quad c = \text{Code}(\text{AddrOf-NonPlace})}{\Gamma; R; L \vdash \text{AddressOf}(e) \Uparrow c}$$
+¬ IsPlace(e)    c = Code(AddrOf-NonPlace)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ AddressOf(e) ⇑ c
 
 **(AddrOf-Index-Array-NonUsize)**
-$$\frac{p = \text{IndexAccess}(base, idx) \quad \Gamma; R; L \vdash base : \text{TypeArray}(T, n) \quad \Gamma; R; L \vdash idx : T_i \quad \text{StripPerm}(T_i) \ne \text{TypePrim}(\texttt{"usize"}) \quad c = \text{Code}(\text{Index-Array-NonUsize})}{\Gamma; R; L \vdash \text{AddressOf}(p) \Uparrow c}$$
+p = IndexAccess(base, idx)    Γ; R; L ⊢ base : TypeArray(T, n)    Γ; R; L ⊢ idx : T_i    StripPerm(T_i) ≠ TypePrim("usize")    c = Code(Index-Array-NonUsize)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ AddressOf(p) ⇑ c
 
 **(AddrOf-Index-Slice-NonUsize)**
-$$\frac{p = \text{IndexAccess}(base, idx) \quad \Gamma; R; L \vdash base : \text{TypeSlice}(T, n) \quad \Gamma; R; L \vdash idx : T_i \quad \text{StripPerm}(T_i) \ne \text{TypePrim}(\texttt{"usize"}) \quad c = \text{Code}(\text{Index-Slice-NonUsize})}{\Gamma; R; L \vdash \text{AddressOf}(p) \Uparrow c}$$
+p = IndexAccess(base, idx)    Γ; R; L ⊢ base : TypeSlice(T, n)    Γ; R; L ⊢ idx : T_i    StripPerm(T_i) ≠ TypePrim("usize")    c = Code(Index-Slice-NonUsize)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ AddressOf(p) ⇑ c
 
 **(Deref-Null)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePtr}(T, \texttt{Null}) \quad c = \text{Code}(\text{Deref-Null})}{\Gamma; R; L \vdash \text{Deref}(e) \Uparrow c}$$
+Γ; R; L ⊢ e : TypePtr(T, `Null`)    c = Code(Deref-Null)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Deref(e) ⇑ c
 
 **(Deref-Expired)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePtr}(T, \texttt{Expired}) \quad c = \text{Code}(\text{Deref-Expired})}{\Gamma; R; L \vdash \text{Deref}(e) \Uparrow c}$$
+Γ; R; L ⊢ e : TypePtr(T, `Expired`)    c = Code(Deref-Expired)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Deref(e) ⇑ c
 
 **(Deref-Raw-Unsafe)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypeRawPtr}(q, T) \quad \neg \text{UnsafeSpan}(\text{span}(\text{Deref}(e))) \quad c = \text{Code}(\text{Deref-Raw-Unsafe})}{\Gamma; R; L \vdash \text{Deref}(e) \Uparrow c}$$
+Γ; R; L ⊢ e : TypeRawPtr(q, T)    ¬ UnsafeSpan(span(Deref(e)))    c = Code(Deref-Raw-Unsafe)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Deref(e) ⇑ c
 
 **Transmute**
 
 **(T-Transmute-SizeEq)**
-$$\frac{\Gamma \vdash \text{sizeof}(t_1) = \text{sizeof}(t_2)}{\Gamma \vdash \text{TransmuteSizeOk}(t_1, t_2)}$$
+Γ ⊢ sizeof(t_1) = sizeof(t_2)
+────────────────────────────────────────────────────────────────
+Γ ⊢ TransmuteSizeOk(t_1, t_2)
 
 **(T-Transmute-AlignEq)**
-$$\frac{\Gamma \vdash \text{alignof}(t_1) = \text{alignof}(t_2)}{\Gamma \vdash \text{TransmuteAlignOk}(t_1, t_2)}$$
+Γ ⊢ alignof(t_1) = alignof(t_2)
+────────────────────────────────────────────────────────────────
+Γ ⊢ TransmuteAlignOk(t_1, t_2)
 
 **(T-Transmute)**
-$$\frac{\text{UnsafeSpan}(\text{span}(\text{TransmuteExpr}(t_1,t_2,e))) \quad \Gamma \vdash t_1\ \text{wf} \quad \Gamma \vdash t_2\ \text{wf} \quad \Gamma \vdash \text{TransmuteSizeOk}(t_1, t_2) \quad \Gamma \vdash \text{TransmuteAlignOk}(t_1, t_2) \quad \Gamma; R; L \vdash e : t_1}{\Gamma; R; L \vdash \text{TransmuteExpr}(t_1, t_2, e) : t_2}$$
+UnsafeSpan(span(TransmuteExpr(t_1, t_2, e)))    Γ ⊢ t_1 wf    Γ ⊢ t_2 wf    Γ ⊢ TransmuteSizeOk(t_1, t_2)    Γ ⊢ TransmuteAlignOk(t_1, t_2)    Γ; R; L ⊢ e : t_1
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ TransmuteExpr(t_1, t_2, e) : t_2
 
 **(Transmute-Unsafe-Err)**
-$$\frac{\neg \text{UnsafeSpan}(\text{span}(\text{TransmuteExpr}(t_1,t_2,e))) \quad c = \text{Code}(\text{Transmute-Unsafe-Err})}{\Gamma; R; L \vdash \text{TransmuteExpr}(t_1,t_2,e) \Uparrow c}$$
+¬ UnsafeSpan(span(TransmuteExpr(t_1, t_2, e)))    c = Code(Transmute-Unsafe-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ TransmuteExpr(t_1, t_2, e) ⇑ c
 
 **Propagation (`?`)**
 
-$$\text{SuccessMember}(R,U) = T_s \iff U=\text{TypeUnion}([T_1,\ldots,T_n]) \land \neg(\Gamma \vdash T_s <: R) \land \forall i \ne s.\ \Gamma \vdash T_i <: R$$
+SuccessMember(R, U) = T_s ⇔ U = TypeUnion([T_1, …, T_n]) ∧ ¬(Γ ⊢ T_s <: R) ∧ ∀ i ≠ s. Γ ⊢ T_i <: R
 
 **(T-Propagate)**
-$$\frac{\Gamma; R; L \vdash e : U \quad \text{SuccessMember}(R, U) = T_s}{\Gamma; R; L \vdash \text{Propagate}(e) : T_s}$$
+Γ; R; L ⊢ e : U    SuccessMember(R, U) = T_s
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Propagate(e) : T_s
 
 **Record Literals**
 
-$$\text{FieldNames}(R) = [ f.\text{name} \mid f \in \text{Fields}(R) ]$$
-$$\text{FieldInitNames}(\text{fields}) = [ f \mid \langle f,\_ \rangle \in \text{fields} ]$$
-$$\text{Set}(xs) = \{ x \mid x \in xs \}$$
-$$\text{FieldNameSet}(R) = \text{Set}(\text{FieldNames}(R))$$
-$$\text{FieldInitSet}(\text{fields}) = \text{Set}(\text{FieldInitNames}(\text{fields}))$$
+FieldNames(R) = [ f.name | f ∈ Fields(R) ]
+FieldInitNames(fields) = [ f | ⟨f, _⟩ ∈ fields ]
+Set(xs) = { x | x ∈ xs }
+FieldNameSet(R) = Set(FieldNames(R))
+FieldInitSet(fields) = Set(FieldInitNames(fields))
 
 **(T-Record-Literal)**
-$$\frac{\text{RecordDecl}(p) = R \quad \text{Distinct}(\text{FieldInitNames}(fields)) \quad \text{FieldInitSet}(fields) = \text{FieldNameSet}(R) \quad \forall \langle f, e \rangle \in fields,\ \text{FieldType}(R, f) = T_f \land \text{FieldVisible}(m, R, f) \land \Gamma; R; L \vdash e \Leftarrow T_f \dashv \emptyset}{\Gamma; R; L \vdash \text{RecordExpr}(\text{TypePath}(p), fields) : \text{TypePath}(p)}$$
+RecordDecl(p) = R    Distinct(FieldInitNames(fields))    FieldInitSet(fields) = FieldNameSet(R)    ∀ ⟨f, e⟩ ∈ fields, FieldType(R, f) = T_f ∧ FieldVisible(m, R, f) ∧ Γ; R; L ⊢ e ⇐ T_f ⊣ ∅
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ RecordExpr(TypePath(p), fields) : TypePath(p)
 
 **(Record-FieldInit-Dup)**
-$$\frac{\text{RecordDecl}(p) = R \quad \neg \text{Distinct}(\text{FieldInitNames}(fields)) \quad c = \text{Code}(\text{Record-FieldInit-Dup})}{\Gamma; R; L \vdash \text{RecordExpr}(\text{TypePath}(p), fields) \Uparrow c}$$
+RecordDecl(p) = R    ¬ Distinct(FieldInitNames(fields))    c = Code(Record-FieldInit-Dup)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ RecordExpr(TypePath(p), fields) ⇑ c
 
 **(Record-FieldInit-Missing)**
-$$\frac{\text{RecordDecl}(p) = R \quad \text{FieldInitSet}(fields) \ne \text{FieldNameSet}(R) \quad c = \text{Code}(\text{Record-FieldInit-Missing})}{\Gamma; R; L \vdash \text{RecordExpr}(\text{TypePath}(p), fields) \Uparrow c}$$
+RecordDecl(p) = R    FieldInitSet(fields) ≠ FieldNameSet(R)    c = Code(Record-FieldInit-Missing)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ RecordExpr(TypePath(p), fields) ⇑ c
 
 **(Record-Field-Unknown)**
-$$\frac{\text{RecordDecl}(p) = R \quad \exists \langle f, e \rangle \in fields.\ f \notin \text{FieldNameSet}(R) \quad c = \text{Code}(\text{Record-Field-Unknown})}{\Gamma; R; L \vdash \text{RecordExpr}(\text{TypePath}(p), fields) \Uparrow c}$$
+RecordDecl(p) = R    ∃ ⟨f, e⟩ ∈ fields. f ∉ FieldNameSet(R)    c = Code(Record-Field-Unknown)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ RecordExpr(TypePath(p), fields) ⇑ c
 
 **(Record-Field-NotVisible)**
-$$\frac{\text{RecordDecl}(p) = R \quad \exists \langle f, e \rangle \in fields.\ \neg \text{FieldVisible}(m, R, f) \quad c = \text{Code}(\text{Record-Field-NotVisible})}{\Gamma; R; L \vdash \text{RecordExpr}(\text{TypePath}(p), fields) \Uparrow c}$$
+RecordDecl(p) = R    ∃ ⟨f, e⟩ ∈ fields. ¬ FieldVisible(m, R, f)    c = Code(Record-Field-NotVisible)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ RecordExpr(TypePath(p), fields) ⇑ c
 
 **(Record-Field-NonBitcopy-Move)**
-$$\frac{\text{RecordDecl}(p) = R \quad \exists \langle f, e \rangle \in fields.\ \text{FieldType}(R, f) = T_f \land \neg \text{BitcopyType}(T_f) \land \text{IsPlace}(e) \land e \ne \text{MoveExpr}(\_) \quad c = \text{Code}(\text{Record-Field-NonBitcopy-Move})}{\Gamma; R; L \vdash \text{RecordExpr}(\text{TypePath}(p), fields) \Uparrow c}$$
+RecordDecl(p) = R    ∃ ⟨f, e⟩ ∈ fields. FieldType(R, f) = T_f ∧ ¬ BitcopyType(T_f) ∧ IsPlace(e) ∧ e ≠ MoveExpr(_)    c = Code(Record-Field-NonBitcopy-Move)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ RecordExpr(TypePath(p), fields) ⇑ c
 
 **Enum Literals**
 
-$$\text{EnumDecl}(p) = E \iff \text{EnumPathOf}(E) = p$$
-$$\text{VariantPayload}(E, v) = payload\_opt \iff \exists disc, span, doc.\ \text{VariantDecl}(v, payload\_opt, disc, span, doc) \in E.\text{variants}$$
-$$\text{VariantFieldNames}(fs) = [ f \mid \text{FieldDecl}(\_, f, \_, \_, \_, \_) \in fs ]$$
-$$\text{VariantFieldNameSet}(fs) = \text{Set}(\text{VariantFieldNames}(fs))$$
+EnumDecl(p) = E ⇔ EnumPathOf(E) = p
+VariantPayload(E, v) = payload_opt ⇔ ∃ disc, span, doc. VariantDecl(v, payload_opt, disc, span, doc) ∈ E.variants
+VariantFieldNames(fs) = [ f | FieldDecl(_, f, _, _, _, _) ∈ fs ]
+VariantFieldNameSet(fs) = Set(VariantFieldNames(fs))
 
-$$\text{EnumFieldType}(E,v,f) = T_f \iff \text{VariantPayload}(E,v)=\text{RecordPayload}(fs) \land \langle \_, f, T_f, \_, \_, \_ \rangle \in fs$$
+EnumFieldType(E, v, f) = T_f ⇔ VariantPayload(E, v) = RecordPayload(fs) ∧ ⟨_, f, T_f, _, _, _⟩ ∈ fs
 
 **(T-Enum-Lit-Unit)**
-$$\frac{\text{EnumDecl}(\text{EnumPath}(path)) = E \quad v = \text{VariantName}(path) \quad \text{VariantPayload}(E, v) = \bot}{\Gamma; R; L \vdash \text{EnumLiteral}(path, \bot) : \text{TypePath}(\text{EnumPath}(path))}$$
+EnumDecl(EnumPath(path)) = E    v = VariantName(path)    VariantPayload(E, v) = ⊥
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ EnumLiteral(path, ⊥) : TypePath(EnumPath(path))
 
 **(T-Enum-Lit-Tuple)**
-$$\frac{\text{EnumDecl}(\text{EnumPath}(path)) = E \quad v = \text{VariantName}(path) \quad \text{VariantPayload}(E, v) = \text{TuplePayload}([T_1,\ldots,T_n]) \quad \forall i,\ \Gamma; R; L \vdash e_i \Leftarrow T_i \dashv \emptyset}{\Gamma; R; L \vdash \text{EnumLiteral}(path, \text{Paren}([e_1,\ldots,e_n])) : \text{TypePath}(\text{EnumPath}(path))}$$
+EnumDecl(EnumPath(path)) = E    v = VariantName(path)    VariantPayload(E, v) = TuplePayload([T_1, …, T_n])    ∀ i, Γ; R; L ⊢ e_i ⇐ T_i ⊣ ∅
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ EnumLiteral(path, Paren([e_1, …, e_n])) : TypePath(EnumPath(path))
 
 **(T-Enum-Lit-Record)**
-$$\frac{\text{EnumDecl}(\text{EnumPath}(path)) = E \quad v = \text{VariantName}(path) \quad \text{VariantPayload}(E, v) = \text{RecordPayload}(fs) \quad \text{Distinct}(\text{FieldInitNames}(fields)) \quad \text{FieldInitSet}(fields) = \text{VariantFieldNameSet}(fs) \quad \forall \langle f, e \rangle \in fields,\ \Gamma; R; L \vdash e \Leftarrow \text{EnumFieldType}(E, v, f) \dashv \emptyset}{\Gamma; R; L \vdash \text{EnumLiteral}(path, \text{Brace}(fields)) : \text{TypePath}(\text{EnumPath}(path))}$$
+EnumDecl(EnumPath(path)) = E    v = VariantName(path)    VariantPayload(E, v) = RecordPayload(fs)    Distinct(FieldInitNames(fields))    FieldInitSet(fields) = VariantFieldNameSet(fs)    ∀ ⟨f, e⟩ ∈ fields, Γ; R; L ⊢ e ⇐ EnumFieldType(E, v, f) ⊣ ∅
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ EnumLiteral(path, Brace(fields)) : TypePath(EnumPath(path))
 
 #### 5.2.13. Pattern Matching (Cursive0)
 

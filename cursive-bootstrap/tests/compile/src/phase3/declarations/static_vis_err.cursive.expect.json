@@ -1,0 +1,17 @@
+{
+    "diagnostics":  [
+                        {
+                            "code":  "E-MOD-2433",
+                            "severity":  "error",
+                            "message":  "Module-scope `var` declaration with `public` visibility",
+                            "span":  {
+                                         "file":  "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\declarations\\static_vis_err.cursive",
+                                         "start_line":  1,
+                                         "start_col":  1,
+                                         "end_line":  1,
+                                         "end_col":  22
+                                     }
+                        }
+                    ],
+    "exit_code":  1
+}

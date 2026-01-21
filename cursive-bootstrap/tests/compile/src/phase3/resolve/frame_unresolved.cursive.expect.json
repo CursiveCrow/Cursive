@@ -1,0 +1,17 @@
+{
+    "diagnostics":  [
+                        {
+                            "code":  "E-MOD-1301",
+                            "severity":  "error",
+                            "message":  "Unresolved name: identifier not found in any accessible scope",
+                            "span":  {
+                                         "file":  "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\resolve\\frame_unresolved.cursive",
+                                         "start_line":  1,
+                                         "start_col":  54,
+                                         "end_line":  1,
+                                         "end_col":  61
+                                     }
+                        }
+                    ],
+    "exit_code":  1
+}

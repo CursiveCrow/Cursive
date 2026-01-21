@@ -1,0 +1,17 @@
+{
+    "diagnostics":  [
+                        {
+                            "code":  "E-TYP-2057",
+                            "severity":  "error",
+                            "message":  "Direct field access on general modal type without pattern matching",
+                            "span":  {
+                                         "file":  "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\modals\\field_general_err.cursive",
+                                         "start_line":  3,
+                                         "start_col":  30,
+                                         "end_line":  6,
+                                         "end_col":  2
+                                     }
+                        }
+                    ],
+    "exit_code":  1
+}
