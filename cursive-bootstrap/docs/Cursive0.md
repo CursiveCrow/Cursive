@@ -9800,136 +9800,194 @@ m' ∈ Methods(T)    m'.override = true    ¬ ∃ Cl ∈ Implements(T). ∃ m �
 Γ ⊢ T : ImplementsOk ⇑ c
 
 **(Impl-Field)**
-$$\frac{f : T_c \in \text{ClassFieldTable}(Cl) \quad f : T_i \in \text{Fields}(T) \quad T_i <: T_c}{\Gamma \vdash T \text{ satisfies field } f}$$
+f : T_c ∈ ClassFieldTable(Cl)    f : T_i ∈ Fields(T)    T_i <: T_c
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T satisfies field f
 
 **(Impl-Field-Missing)**
-$$\frac{f : T_c \in \text{ClassFieldTable}(Cl) \quad \neg \exists T_i.\ f : T_i \in \text{Fields}(T) \quad c = \text{Code}(\text{Impl-Field-Missing})}{\Gamma \vdash T : \text{ImplementsOk} \Uparrow c}$$
+f : T_c ∈ ClassFieldTable(Cl)    ¬ ∃ T_i. f : T_i ∈ Fields(T)    c = Code(Impl-Field-Missing)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T : ImplementsOk ⇑ c
 
 **(Impl-Field-Type-Err)**
-$$\frac{f : T_c \in \text{ClassFieldTable}(Cl) \quad f : T_i \in \text{Fields}(T) \quad \neg(\Gamma \vdash T_i <: T_c) \quad c = \text{Code}(\text{Impl-Field-Type-Err})}{\Gamma \vdash T : \text{ImplementsOk} \Uparrow c}$$
+f : T_c ∈ ClassFieldTable(Cl)    f : T_i ∈ Fields(T)    ¬(Γ ⊢ T_i <: T_c)    c = Code(Impl-Field-Type-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T : ImplementsOk ⇑ c
 
 **(WF-Impl)**
-$$\frac{\forall Cl \in \text{Implements}(T),\ \Gamma \vdash Cl : \text{ClassOk} \quad \text{Distinct}(\text{Implements}(T)) \quad \Gamma \vdash T : \text{BitcopyDropOk} \quad \forall Cl \in \text{Implements}(T),\ \forall m \in \text{ClassMethodTable}(Cl),\ (\Gamma \vdash T \text{ implements abstract } m \ \lor\ \Gamma \vdash T \text{ overrides } m \ \lor\ \Gamma \vdash T \text{ uses default } m) \quad \forall Cl \in \text{Implements}(T),\ \forall f \in \text{ClassFieldTable}(Cl),\ \Gamma \vdash T \text{ satisfies field } f}{\Gamma \vdash T : \text{ImplementsOk}}$$
+∀ Cl ∈ Implements(T), Γ ⊢ Cl : ClassOk    Distinct(Implements(T))    Γ ⊢ T : BitcopyDropOk    ∀ Cl ∈ Implements(T), ∀ m ∈ ClassMethodTable(Cl), (Γ ⊢ T implements abstract m ∨ Γ ⊢ T overrides m ∨ Γ ⊢ T uses default m)    ∀ Cl ∈ Implements(T), ∀ f ∈ ClassFieldTable(Cl), Γ ⊢ T satisfies field f
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T : ImplementsOk
 
 **(Impl-Dup)**
-$$\frac{\neg \text{Distinct}(\text{Implements}(T)) \quad c = \text{Code}(\text{Impl-Dup})}{\Gamma \vdash T : \text{ImplementsOk} \Uparrow c}$$
+¬ Distinct(Implements(T))    c = Code(Impl-Dup)
+────────────────────────────────────────────────────────────────
+Γ ⊢ T : ImplementsOk ⇑ c
 
-$$\Gamma \vdash T <: Cl \iff Cl \in \text{Implements}(T) \land \Gamma \vdash T : \text{ImplementsOk}$$
+Γ ⊢ T <: Cl ⇔ Cl ∈ Implements(T) ∧ Γ ⊢ T : ImplementsOk
 
 **Superclass Closure.**
-$$\frac{S \in \text{Supers}(Cl) \ \lor\ (S \in \text{Linearize}(Cl) \land S \ne Cl)}{\Gamma \vdash Cl <: S}$$
-$$\frac{\Gamma \vdash T <: Cl \quad \Gamma \vdash Cl <: S}{\Gamma \vdash T <: S}$$
+S ∈ Supers(Cl) ∨ (S ∈ Linearize(Cl) ∧ S ≠ Cl)
+──────────────────────────────────────────────
+Γ ⊢ Cl <: S
+
+Γ ⊢ T <: Cl    Γ ⊢ Cl <: S
+──────────────────────────────────────────────
+Γ ⊢ T <: S
 
 **Dynamic Class Types.**
 
 **(T-Dynamic-Form)**
-$$\frac{\Gamma; R; L \vdash e :place T \quad \text{IsPlace}(e) \quad \text{AddrOfOk}(e) \quad \Gamma \vdash Cl : \text{ClassPath} \quad \Gamma \vdash \text{StripPerm}(T) <: Cl \quad \text{dispatchable}(Cl)}{\Gamma; R; L \vdash e \ \texttt{as}\ \text{TypeDynamic}(Cl) : \text{TypeDynamic}(Cl)}$$
+Γ; R; L ⊢ e :place T    IsPlace(e)    AddrOfOk(e)    Γ ⊢ Cl : ClassPath    Γ ⊢ StripPerm(T) <: Cl    dispatchable(Cl)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ e `as` TypeDynamic(Cl) : TypeDynamic(Cl)
 
 **(Dynamic-NonDispatchable)**
-$$\frac{\Gamma; R; L \vdash e :place T \quad \text{IsPlace}(e) \quad \Gamma \vdash Cl : \text{ClassPath} \quad \Gamma \vdash \text{StripPerm}(T) <: Cl \quad \neg \text{dispatchable}(Cl) \quad c = \text{Code}(\text{Dynamic-NonDispatchable})}{\Gamma; R; L \vdash e \ \texttt{as}\ \text{TypeDynamic}(Cl) \Uparrow c}$$
+Γ; R; L ⊢ e :place T    IsPlace(e)    Γ ⊢ Cl : ClassPath    Γ ⊢ StripPerm(T) <: Cl    ¬ dispatchable(Cl)    c = Code(Dynamic-NonDispatchable)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ e `as` TypeDynamic(Cl) ⇑ c
 
 **Method Lookup for Concrete Types.**
 
-$$\text{ClassDefaults}(T,\text{name}) = \{ m \mid \exists Cl \in \text{Implements}(T).\ m \in \text{ClassMethodTable}(Cl) \land m.\text{name}=\text{name} \land m.\text{body} \ne \bot \}$$
-$$\text{LookupMethod}(T,\text{name}) = m \iff \text{MethodByName}(T,\text{name}) = m$$
-$$\text{LookupMethod}(T,\text{name}) = m \iff \text{MethodByName}(T,\text{name}) = \bot \land |\text{ClassDefaults}(T,\text{name})| = 1 \land m \in \text{ClassDefaults}(T,\text{name})$$
-$$\text{LookupMethod}(T,\text{name}) = \bot \iff \text{MethodByName}(T,\text{name}) = \bot \land (|\text{ClassDefaults}(T,\text{name})| = 0 \lor |\text{ClassDefaults}(T,\text{name})| > 1)$$
+ClassDefaults(T, name) = { m | ∃ Cl ∈ Implements(T). m ∈ ClassMethodTable(Cl) ∧ m.name = name ∧ m.body ≠ ⊥ }
+LookupMethod(T, name) = m ⇔ MethodByName(T, name) = m
+LookupMethod(T, name) = m ⇔ MethodByName(T, name) = ⊥ ∧ |ClassDefaults(T, name)| = 1 ∧ m ∈ ClassDefaults(T, name)
+LookupMethod(T, name) = ⊥ ⇔ MethodByName(T, name) = ⊥ ∧ (|ClassDefaults(T, name)| = 0 ∨ |ClassDefaults(T, name)| > 1)
 
 **(LookupMethod-NotFound)**
-$$\frac{\Gamma; R; L \vdash base : T_b \quad \text{MethodByName}(\text{StripPerm}(T_b), name) = \bot \quad \text{ClassDefaults}(\text{StripPerm}(T_b), name) = \emptyset \quad c = \text{Code}(\text{LookupMethod-NotFound})}{\Gamma; R; L \vdash \text{MethodCall}(base, name, args) \Uparrow c}$$
+Γ; R; L ⊢ base : T_b    MethodByName(StripPerm(T_b), name) = ⊥    ClassDefaults(StripPerm(T_b), name) = ∅    c = Code(LookupMethod-NotFound)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MethodCall(base, name, args) ⇑ c
 
 **(LookupMethod-Ambig)**
-$$\frac{\Gamma; R; L \vdash base : T_b \quad \text{MethodByName}(\text{StripPerm}(T_b), name) = \bot \quad |\text{ClassDefaults}(\text{StripPerm}(T_b), name)| > 1 \quad c = \text{Code}(\text{LookupMethod-Ambig})}{\Gamma; R; L \vdash \text{MethodCall}(base, name, args) \Uparrow c}$$
+Γ; R; L ⊢ base : T_b    MethodByName(StripPerm(T_b), name) = ⊥    |ClassDefaults(StripPerm(T_b), name)| > 1    c = Code(LookupMethod-Ambig)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MethodCall(base, name, args) ⇑ c
 
 **(Drop-Call-Err)**
-$$\frac{\Gamma; R; L \vdash base : T_b \quad \text{LookupMethod}(\text{StripPerm}(T_b), name) = m \quad \text{MethodOwner}(m) = \texttt{Drop} \quad \text{MethodName}(m) = \texttt{"drop"} \quad c = \text{Code}(\text{Drop-Call-Err})}{\Gamma; R; L \vdash \text{MethodCall}(base, name, args) \Uparrow c}$$
+Γ; R; L ⊢ base : T_b    LookupMethod(StripPerm(T_b), name) = m    MethodOwner(m) = `Drop`    MethodName(m) = `drop`    c = Code(Drop-Call-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MethodCall(base, name, args) ⇑ c
 
 **(Drop-Call-Err-Dyn)**
-$$\frac{\Gamma; R; L \vdash base : \text{TypeDynamic}(Cl) \quad \text{LookupClassMethod}(Cl, name) = m \quad \text{MethodOwner}(m) = \texttt{Drop} \quad \text{MethodName}(m) = \texttt{"drop"} \quad c = \text{Code}(\text{Drop-Call-Err-Dyn})}{\Gamma; R; L \vdash \text{MethodCall}(base, name, args) \Uparrow c}$$
+Γ; R; L ⊢ base : TypeDynamic(Cl)    LookupClassMethod(Cl, name) = m    MethodOwner(m) = `Drop`    MethodName(m) = `drop`    c = Code(Drop-Call-Err-Dyn)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MethodCall(base, name, args) ⇑ c
 
 **(T-MethodCall)**
-$$\frac{\text{RecvBaseType}(base, \text{RecvMode}(m.\text{receiver})) = P_{\text{caller}}\ T \quad \text{LookupMethod}(T, name) = m \quad \text{RecvPerm}(T, m.\text{receiver}) = P_{\text{method}} \quad \text{PermSub}(P_{\text{caller}}, P_{\text{method}}) \quad \text{RecvArgOk}(base, \text{RecvMode}(m.\text{receiver})) \quad \Gamma; R; L \vdash \text{ArgsOk}(m.\text{params}, args)}{\Gamma; R; L \vdash \text{MethodCall}(base, name, args) : \text{ReturnType}(m)}$$
+RecvBaseType(base, RecvMode(m.receiver)) = P_caller T    LookupMethod(T, name) = m    RecvPerm(T, m.receiver) = P_method    PermSub(P_caller, P_method)    RecvArgOk(base, RecvMode(m.receiver))    Γ; R; L ⊢ ArgsOk(m.params, args)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MethodCall(base, name, args) : ReturnType(m)
 
 **(MethodCall-RecvPerm-Err)**
-$$\frac{\text{RecvBaseType}(base, \text{RecvMode}(m.\text{receiver})) = P_{\text{caller}}\ T \quad \text{LookupMethod}(T, name) = m \quad \text{RecvPerm}(T, m.\text{receiver}) = P_{\text{method}} \quad \neg \text{PermSub}(P_{\text{caller}}, P_{\text{method}}) \quad c = \text{Code}(\text{MethodCall-RecvPerm-Err})}{\Gamma; R; L \vdash \text{MethodCall}(base, name, args) \Uparrow c}$$
+RecvBaseType(base, RecvMode(m.receiver)) = P_caller T    LookupMethod(T, name) = m    RecvPerm(T, m.receiver) = P_method    ¬ PermSub(P_caller, P_method)    c = Code(MethodCall-RecvPerm-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MethodCall(base, name, args) ⇑ c
 **(T-Dynamic-MethodCall)**
-$$\frac{\text{RecvBaseType}(base, \text{RecvMode}(m.\text{receiver})) = P_{\text{caller}}\ \text{TypeDynamic}(Cl) \quad \text{LookupClassMethod}(Cl, name) = m \quad \text{RecvPerm}(\text{SelfVar}, m.\text{receiver}) = P_{\text{method}} \quad \text{PermSub}(P_{\text{caller}}, P_{\text{method}}) \quad \text{RecvArgOk}(base, \text{RecvMode}(m.\text{receiver})) \quad \Gamma; R; L \vdash \text{ArgsOk}(m.\text{params}, args)}{\Gamma; R; L \vdash \text{MethodCall}(base, name, args) : \text{ReturnType}(m)}$$
+RecvBaseType(base, RecvMode(m.receiver)) = P_caller TypeDynamic(Cl)    LookupClassMethod(Cl, name) = m    RecvPerm(SelfVar, m.receiver) = P_method    PermSub(P_caller, P_method)    RecvArgOk(base, RecvMode(m.receiver))    Γ; R; L ⊢ ArgsOk(m.params, args)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MethodCall(base, name, args) : ReturnType(m)
 
 **(LookupClassMethod-NotFound)**
-$$\frac{\Gamma; R; L \vdash base : \text{TypeDynamic}(Cl) \quad \text{LookupClassMethod}(Cl, name)\ \text{undefined} \quad c = \text{Code}(\text{LookupMethod-NotFound})}{\Gamma; R; L \vdash \text{MethodCall}(base, name, args) \Uparrow c}$$
+Γ; R; L ⊢ base : TypeDynamic(Cl)    LookupClassMethod(Cl, name) undefined    c = Code(LookupMethod-NotFound)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MethodCall(base, name, args) ⇑ c
 
 
 #### 5.3.2. Record Methods (Cursive0)
 
 **Definitions.**
 
-$$\text{Fields}(R) = [ f \mid f \in R.\text{members} \land \exists vis,name,ty,init,span,doc.\ f=\text{FieldDecl}(vis,name,ty,init,span,doc) ]$$
-$$\text{Methods}(R) = [ m \mid m \in R.\text{members} \land \exists vis,override,name,recv,params,ret,body,span,doc.\ m=\text{MethodDecl}(vis,override,name,recv,params,ret,body,span,doc) ]$$
-$$\text{Self}_R = \text{TypePath}(\text{RecordPath}(R))$$
-$$\text{SelfType}(R, ty) \iff ty = \text{Self}_R \lor \exists p.\ ty = \text{TypePerm}(p,\ \text{Self}_R)$$
+Fields(R) = [ f | f ∈ R.members ∧ ∃ vis, name, ty, init, span, doc. f = FieldDecl(vis, name, ty, init, span, doc) ]
+Methods(R) = [ m | m ∈ R.members ∧ ∃ vis, override, name, recv, params, ret, body, span, doc. m = MethodDecl(vis, override, name, recv, params, ret, body, span, doc) ]
+Self_R = TypePath(RecordPath(R))
+SelfType(R, ty) ⇔ ty = Self_R ∨ ∃ p. ty = TypePerm(p, Self_R)
 
 **Static Semantics**
 
 **(Recv-Explicit)**
-$$\frac{\text{SelfType}(R, ty)}{\Gamma \vdash \text{ReceiverExplicit}(mode\_opt, ty) : \text{Recv}(R, \text{PermOf}(ty), mode\_opt)}$$
+SelfType(R, ty)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ReceiverExplicit(mode_opt, ty) : Recv(R, PermOf(ty), mode_opt)
 
 **(Record-Method-RecvSelf-Err)**
-$$\frac{\neg \text{SelfType}(R, ty) \quad c = \text{Code}(\text{Record-Method-RecvSelf-Err})}{\Gamma \vdash \text{ReceiverExplicit}(mode\_opt, ty) \Uparrow c}$$
+¬ SelfType(R, ty)    c = Code(Record-Method-RecvSelf-Err)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ReceiverExplicit(mode_opt, ty) ⇑ c
 
 **(Recv-Const)**
-$$\frac{}{\Gamma \vdash \text{ReceiverShorthand}(\texttt{const}) : \text{Recv}(R, \texttt{const}, \bot)}$$
+────────────────────────────────────────────────────────────────
+Γ ⊢ ReceiverShorthand(`const`) : Recv(R, `const`, ⊥)
 
 **(Recv-Unique)**
-$$\frac{}{\Gamma \vdash \text{ReceiverShorthand}(\texttt{unique}) : \text{Recv}(R, \texttt{unique}, \bot)}$$
+────────────────────────────────────────────────────────────────
+Γ ⊢ ReceiverShorthand(`unique`) : Recv(R, `unique`, ⊥)
 
-$$\text{ParamNames}(\text{params}) = [x \mid \langle \_, x, \_ \rangle \in \text{params}]$$
+ParamNames(params) = [x | ⟨_, x, _⟩ ∈ params]
 
 **(WF-Record-Method)**
-$$\frac{\Gamma \vdash r : \text{Recv}(R, P, mode) \quad \text{self} \notin \text{ParamNames}(\text{params}) \quad \text{Distinct}(\text{ParamNames}(\text{params})) \quad \forall \langle \_,\ \_,\ T_i \rangle \in \text{params},\ \Gamma \vdash T_i\ \text{wf} \quad (\text{return\_type}\_opt = \bot \ \lor\ \Gamma \vdash \text{return\_type}\_opt\ \text{wf})}{\Gamma \vdash \langle \text{MethodDecl}, \_, \text{name}, r, \text{params}, \text{return\_type}\_opt, \text{body}, \_, \_ \rangle : \text{MethodOK}(R, P, mode)}$$
+Γ ⊢ r : Recv(R, P, mode)    self ∉ ParamNames(params)    Distinct(ParamNames(params))    ∀ ⟨_, _, T_i⟩ ∈ params, Γ ⊢ T_i wf    (return_type_opt = ⊥ ∨ Γ ⊢ return_type_opt wf)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ⟨MethodDecl, _, name, r, params, return_type_opt, body, _, _⟩ : MethodOK(R, P, mode)
 
 **(T-Record-Method-Body)**
-$$\frac{\Gamma \vdash m : \text{MethodOK}(R, P, mode) \quad T_{\text{self}} = \text{RecvType}(\text{Self}_R, m.\text{receiver}) \quad R_m = \text{ReturnType}_T(\text{Self}_R, m) \quad \Gamma_0 = \text{PushScope}(\Gamma) \quad \text{IntroAll}(\Gamma_0, [\langle \texttt{self}, T_{\text{self}} \rangle] \mathbin{+\!\!+} \text{ParamBinds}_T(\text{Self}_R, m.\text{params})) \Downarrow \Gamma_1 \quad \Gamma_1; R_m; \bot \vdash m.\text{body} : T_b \quad \Gamma \vdash T_b <: R_m \quad (R_m \ne \text{TypePrim}(\texttt{"()"}) \Rightarrow \text{ExplicitReturn}(m.\text{body}))}{\Gamma \vdash m : \text{MethodBodyOK}(R)}$$
+Γ ⊢ m : MethodOK(R, P, mode)    T_self = RecvType(Self_R, m.receiver)    R_m = ReturnType_T(Self_R, m)    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, [⟨`self`, T_self⟩] ++ ParamBinds_T(Self_R, m.params)) ⇓ Γ_1    Γ_1; R_m; ⊥ ⊢ m.body : T_b    Γ ⊢ T_b <: R_m    (R_m ≠ TypePrim("()") ⇒ ExplicitReturn(m.body))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ m : MethodBodyOK(R)
 
-$$\text{MethodNames}(R) = [ m.\text{name} \mid m \in \text{Methods}(R) ]$$
+MethodNames(R) = [ m.name | m ∈ Methods(R) ]
 
 **(WF-Record-Methods)**
-$$\frac{\text{Distinct}(\text{MethodNames}(R)) \quad \forall m \in \text{Methods}(R),\ \Gamma \vdash m : \text{MethodOK}(R, \_, \_) \quad \Gamma \vdash m : \text{MethodBodyOK}(R)}{\Gamma \vdash \text{Methods}(R) : \text{ok}}$$
+Distinct(MethodNames(R))    ∀ m ∈ Methods(R), Γ ⊢ m : MethodOK(R, _, _)    Γ ⊢ m : MethodBodyOK(R)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Methods(R) : ok
 
 **(Record-Method-Dup)**
-$$\frac{\neg \text{Distinct}(\text{MethodNames}(R)) \quad c = \text{Code}(\text{Record-Method-Dup})}{\Gamma \vdash \text{Methods}(R) \Uparrow c}$$
+¬ Distinct(MethodNames(R))    c = Code(Record-Method-Dup)
+────────────────────────────────────────────────────────────────
+Γ ⊢ Methods(R) ⇑ c
 
 **Method Lookup.**
 
-$$\text{LookupMethodRules} = \text{RulesIn}(\{\texttt{"5.3.1"}\})$$
+LookupMethodRules = RulesIn({"5.3.1"})
 
 **Argument Compatibility.**
 
-$$\text{ArgsOkJudg} = \{\Gamma; R; L \vdash \text{ArgsOk}(params, args)\}$$
+ArgsOkJudg = {Γ; R; L ⊢ ArgsOk(params, args)}
 
-$$\text{RecvBaseType}(base, mode) = P\ T \iff (mode = \bot \land \Gamma; R; L \vdash base :place P\ T) \lor (mode = \texttt{move} \land \Gamma; R; L \vdash base : P\ T)$$
+RecvBaseType(base, mode) = P T ⇔ (mode = ⊥ ∧ Γ; R; L ⊢ base :place P T) ∨ (mode = `move` ∧ Γ; R; L ⊢ base : P T)
 
 **(Args-Empty)**
-$$\frac{}{\Gamma; R; L \vdash \text{ArgsOk}([], [])}$$
+──────────────────────────────────────────────
+Γ; R; L ⊢ ArgsOk([], [])
 
 **(Args-Cons)**
-$$\frac{\Gamma; R; L \vdash \text{MovedArg}(moved, e) \Leftarrow T_p \dashv \emptyset \quad moved = \text{true} \quad \Gamma; R; L \vdash \text{ArgsOk}(ps, as)}{\Gamma; R; L \vdash \text{ArgsOk}([\langle \texttt{move}, x, T_p \rangle] \mathbin{+\!\!+} ps,\ [\langle moved, e, \_ \rangle] \mathbin{+\!\!+} as)}$$
+Γ; R; L ⊢ MovedArg(moved, e) ⇐ T_p ⊣ ∅    moved = true    Γ; R; L ⊢ ArgsOk(ps, as)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ArgsOk([⟨`move`, x, T_p⟩] ++ ps, [⟨moved, e, _⟩] ++ as)
 
 **(Args-Cons-Ref)**
-$$\frac{\Gamma; R; L \vdash e \Leftarrow_{\text{place}} T_p \quad \text{AddrOfOk}(e) \quad moved = \text{false} \quad \Gamma; R; L \vdash \text{ArgsOk}(ps, as)}{\Gamma; R; L \vdash \text{ArgsOk}([\langle \bot, x, T_p \rangle] \mathbin{+\!\!+} ps,\ [\langle moved, e, \_ \rangle] \mathbin{+\!\!+} as)}$$
+Γ; R; L ⊢ e ⇐_place T_p    AddrOfOk(e)    moved = false    Γ; R; L ⊢ ArgsOk(ps, as)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ArgsOk([⟨⊥, x, T_p⟩] ++ ps, [⟨moved, e, _⟩] ++ as)
 
-$$\text{RecvArgOk}(base, mode) \iff (mode = \bot \land \text{AddrOfOk}(base)) \lor (mode = \texttt{move} \land \exists p.\ base = \text{MoveExpr}(p))$$
-$$\text{ArgsOkDiagRules} = \text{RulesIn}(\{\texttt{"5.2.4"}\})$$
+RecvArgOk(base, mode) ⇔ (mode = ⊥ ∧ AddrOfOk(base)) ∨ (mode = `move` ∧ ∃ p. base = MoveExpr(p))
+ArgsOkDiagRules = RulesIn({"5.2.4"})
 
 **(T-Record-MethodCall)**
-$$\frac{\text{RecvBaseType}(base, \text{RecvMode}(m.\text{receiver})) = P_{\text{caller}}\ R_{\text{rec}} \quad \text{LookupMethod}(R_{\text{rec}}, name) = m \quad \text{RecvPerm}(R_{\text{rec}}, m.\text{receiver}) = P_{\text{method}} \quad \text{PermSub}(P_{\text{caller}}, P_{\text{method}}) \quad \text{RecvArgOk}(base, \text{RecvMode}(m.\text{receiver})) \quad \Gamma; R; L \vdash \text{ArgsOk}(m.\text{params}, args)}{\Gamma; R; L \vdash \text{MethodCall}(base, name, args) : \text{ReturnType}(m)}$$
+RecvBaseType(base, RecvMode(m.receiver)) = P_caller R_rec    LookupMethod(R_rec, name) = m    RecvPerm(R_rec, m.receiver) = P_method    PermSub(P_caller, P_method)    RecvArgOk(base, RecvMode(m.receiver))    Γ; R; L ⊢ ArgsOk(m.params, args)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MethodCall(base, name, args) : ReturnType(m)
 
-$$\text{BindParams}(m, v_{\text{self}}, \vec{v}) = \{\texttt{self} \mapsto v_{\text{self}}\} \cup \{ x_i \mapsto v_i \mid m.\text{params} = [\langle \_, x_i, \_ \rangle],\ \vec{v} = [v_i] \}$$
-$$\text{BindStmt}(x, e) = \text{LetStmt}(\langle \text{IdentifierPattern}(x),\ \bot,\ \text{Operator}(\texttt{"="}),\ e,\ \bot \rangle)$$
-$$\text{BindStmts}(m, v_{\text{self}}, \vec{v}) = [\text{BindStmt}(\texttt{self}, v_{\text{self}})] \mathbin{+\!\!+} [\text{BindStmt}(x_i, v_i) \mid m.\text{params} = [\langle \_, x_i, \_ \rangle],\ \vec{v} = [v_i]]$$
-$$\text{ApplyMethod}(m, v_{\text{self}}, \vec{v}) = \text{BlockExpr}(bs \mathbin{+\!\!+} ss, t) \iff \text{BindStmts}(m, v_{\text{self}}, \vec{v}) = bs \land m.\text{body} = \text{BlockExpr}(ss, t)$$
+BindParams(m, v_self, vecv) = {`self` ↦ v_self} ∪ { x_i ↦ v_i | m.params = [⟨_, x_i, _⟩], vecv = [v_i] }
+BindStmt(x, e) = LetStmt(⟨IdentifierPattern(x), ⊥, Operator("="), e, ⊥⟩)
+BindStmts(m, v_self, vecv) = [BindStmt(`self`, v_self)] ++ [BindStmt(x_i, v_i) | m.params = [⟨_, x_i, _⟩], vecv = [v_i]]
+ApplyMethod(m, v_self, vecv) = BlockExpr(bs ++ ss, t) ⇔ BindStmts(m, v_self, vecv) = bs ∧ m.body = BlockExpr(ss, t)
 
 **(Step-MethodCall)**
-$$\frac{\Gamma \vdash v_{\text{self}} : P_{\text{caller}}\ R \quad \text{LookupMethod}(R, name) = m}{\langle \text{MethodCall}(v_{\text{self}}, name, \vec{v}) \rangle \to \langle \text{ApplyMethod}(m, v_{\text{self}}, \vec{v}) \rangle}$$
+Γ ⊢ v_self : P_caller R    LookupMethod(R, name) = m
+────────────────────────────────────────────────────────────────
+⟨MethodCall(v_self, name, vecv)⟩ → ⟨ApplyMethod(m, v_self, vecv)⟩
 
 
 ### 5.4. Modal Types (Definitions)
