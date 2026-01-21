@@ -4,7 +4,7 @@
 
 #include "cursive0/codegen/ir_model.h"
 #include "cursive0/core/assert_spec.h"
-#include "cursive0/sema/types.h"
+#include "cursive0/analysis/types/types.h"
 
 namespace {
 
@@ -27,7 +27,7 @@ using cursive0::codegen::ProcIR;
 using cursive0::codegen::ValidateDecl;
 using cursive0::codegen::ValidateIR;
 using cursive0::codegen::ValidateModuleIR;
-using cursive0::sema::MakeTypePrim;
+using cursive0::analysis::MakeTypePrim;
 
 IRPtr MakeOpaque() {
   auto ir = std::make_shared<IR>();

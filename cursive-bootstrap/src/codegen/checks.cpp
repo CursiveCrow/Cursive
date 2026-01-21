@@ -1,6 +1,6 @@
 #include "cursive0/codegen/checks.h"
-#include "cursive0/codegen/layout.h"
-#include "cursive0/codegen/lower_expr.h"
+#include "cursive0/codegen/layout/layout.h"
+#include "cursive0/codegen/lower/lower_expr.h"
 #include "cursive0/codegen/cleanup.h"
 #include "cursive0/runtime/runtime_interface.h"
 #include "cursive0/core/assert_spec.h"
@@ -409,8 +409,8 @@ LowerRangeResult LowerRangeExpr(const syntax::RangeExpr& expr, LowerCtx& ctx) {
 
 // §6.11 Lower-Transmute
 
-LowerResult LowerTransmute(sema::TypeRef from_type,
-                           sema::TypeRef to_type,
+LowerResult LowerTransmute(analysis::TypeRef from_type,
+                           analysis::TypeRef to_type,
                            const syntax::Expr& expr,
                            LowerCtx& ctx) {
   SPEC_RULE("Lower-Transmute");
@@ -429,7 +429,7 @@ LowerResult LowerTransmute(sema::TypeRef from_type,
   std::optional<std::uint64_t> from_size;
   std::optional<std::uint64_t> to_size;
   if (ctx.sigma && from_type && to_type) {
-    sema::ScopeContext scope;
+    analysis::ScopeContext scope;
     scope.sigma = *ctx.sigma;
     from_size = SizeOf(scope, from_type);
     to_size = SizeOf(scope, to_type);
@@ -453,13 +453,13 @@ LowerResult LowerTransmute(sema::TypeRef from_type,
 
 // §6.11 Lower-RawDeref
 LowerResult LowerRawDeref(const IRValue& ptr_value,
-                          sema::TypeRef ptr_type,
+                          analysis::TypeRef ptr_type,
                           LowerCtx& ctx) {
   // Determine pointer state from type
-  auto* ptr = std::get_if<sema::TypePtr>(&ptr_type->node);
-  auto* raw_ptr = std::get_if<sema::TypeRawPtr>(&ptr_type->node);
+  auto* ptr = std::get_if<analysis::TypePtr>(&ptr_type->node);
+  auto* raw_ptr = std::get_if<analysis::TypeRawPtr>(&ptr_type->node);
 
-  sema::TypeRef elem_type;
+  analysis::TypeRef elem_type;
   if (raw_ptr != nullptr) {
     elem_type = raw_ptr->element;
   } else if (ptr != nullptr) {
@@ -481,7 +481,7 @@ LowerResult LowerRawDeref(const IRValue& ptr_value,
   if (ptr != nullptr) {
     if (ptr->state.has_value()) {
       switch (*ptr->state) {
-        case sema::PtrState::Valid:
+        case analysis::PtrState::Valid:
           // Lower-RawDeref-Safe: valid pointer
           SPEC_RULE("Lower-RawDeref-Safe");
           {
@@ -492,7 +492,7 @@ LowerResult LowerRawDeref(const IRValue& ptr_value,
             return LowerResult{MakeIR(read), result};
           }
 
-        case sema::PtrState::Null:
+        case analysis::PtrState::Null:
           // Lower-RawDeref-Null: emit panic
           SPEC_RULE("Lower-RawDeref-Null");
           {
@@ -500,7 +500,7 @@ LowerResult LowerRawDeref(const IRValue& ptr_value,
             return LowerResult{LowerPanic(PanicReason::NullDeref, ctx), result};
           }
 
-        case sema::PtrState::Expired:
+        case analysis::PtrState::Expired:
           // Lower-RawDeref-Expired: emit panic
           SPEC_RULE("Lower-RawDeref-Expired");
           {

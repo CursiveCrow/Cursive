@@ -5,13 +5,13 @@
 #include <utility>
 #include <vector>
 
-#include "cursive0/semantics/control.h"
-#include "cursive0/semantics/match.h"
-#include "cursive0/semantics/state.h"
-#include "cursive0/semantics/value.h"
+#include "cursive0/eval/control.h"
+#include "cursive0/eval/match.h"
+#include "cursive0/eval/state.h"
+#include "cursive0/eval/value.h"
 #include "cursive0/syntax/ast.h"
 
-namespace cursive0::semantics {
+namespace cursive0::eval {
 
 struct BindResult {
   bool ok = false;
@@ -62,4 +62,4 @@ StmtOut ExecSeqSigma(const SemanticsContext& ctx,
                      const std::vector<syntax::Stmt>& stmts,
                      Sigma& sigma);
 
-}  // namespace cursive0::semantics
+}  // namespace cursive0::eval

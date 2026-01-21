@@ -7,11 +7,11 @@
 #include <variant>
 #include <vector>
 
-#include "cursive0/semantics/control.h"
-#include "cursive0/semantics/state.h"
+#include "cursive0/eval/control.h"
+#include "cursive0/eval/state.h"
 #include "cursive0/syntax/ast.h"
 
-namespace cursive0::semantics {
+namespace cursive0::eval {
 
 using EvalOptResult = std::variant<std::optional<Value>, Control>;
 using EvalListResult = std::variant<std::vector<Value>, Control>;
@@ -71,4 +71,4 @@ EvalFieldInitsResult EvalFieldInitsSigma(
     const std::vector<syntax::FieldInit>& fields,
     Sigma& sigma);
 
-}  // namespace cursive0::semantics
+}  // namespace cursive0::eval

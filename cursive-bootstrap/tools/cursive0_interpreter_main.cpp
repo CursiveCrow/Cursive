@@ -11,16 +11,16 @@
 #include "cursive0/core/diagnostics.h"
 #include "cursive0/core/int128.h"
 #include "cursive0/core/source_load.h"
-#include "cursive0/frontend/parse_modules.h"
-#include "cursive0/interpreter/interpreter.h"
+#include "cursive0/syntax/parse_modules.h"
+#include "cursive0/eval/interpreter.h"
 #include "cursive0/project/module_discovery.h"
 #include "cursive0/project/project.h"
-#include "cursive0/sema/collect_toplevel.h"
-#include "cursive0/sema/conformance.h"
-#include "cursive0/sema/resolver.h"
-#include "cursive0/sema/scopes_lookup.h"
-#include "cursive0/sema/typecheck.h"
-#include "cursive0/sema/visibility.h"
+#include "cursive0/analysis/resolve/collect_toplevel.h"
+#include "cursive0/analysis/types/conformance.h"
+#include "cursive0/analysis/resolve/resolver.h"
+#include "cursive0/analysis/resolve/scopes_lookup.h"
+#include "cursive0/analysis/types/typecheck.h"
+#include "cursive0/analysis/resolve/visibility.h"
 #include "cursive0/syntax/lexer.h"
 #include "cursive0/syntax/parser.h"
 
@@ -31,13 +31,13 @@ using cursive0::core::Emit;
 using cursive0::core::HasError;
 using cursive0::core::Render;
 using cursive0::frontend::InspectResult;
-using cursive0::sema::CheckC0AttrSyntaxUnsupportedTokens;
-using cursive0::sema::CheckC0SubsetPermTokens;
-using cursive0::sema::CheckC0UnwindAttrUnsupportedTokens;
-using cursive0::sema::CheckC0UnsupportedConstructsTokens;
-using cursive0::sema::ConformanceInput;
-using cursive0::sema::PhaseOrderResult;
-using cursive0::sema::RejectIllFormed;
+using cursive0::analysis::CheckC0AttrSyntaxUnsupportedTokens;
+using cursive0::analysis::CheckC0SubsetPermTokens;
+using cursive0::analysis::CheckC0UnwindAttrUnsupportedTokens;
+using cursive0::analysis::CheckC0UnsupportedConstructsTokens;
+using cursive0::analysis::ConformanceInput;
+using cursive0::analysis::PhaseOrderResult;
+using cursive0::analysis::RejectIllFormed;
 
 struct CliOptions {
   bool show_help = false;
@@ -146,8 +146,8 @@ static std::string EscapeJson(std::string_view value) {
   return out;
 }
 
-static std::optional<int> ExitCodeFromValue(const cursive0::semantics::Value& value) {
-  const auto* int_val = std::get_if<cursive0::semantics::IntVal>(&value.node);
+static std::optional<int> ExitCodeFromValue(const cursive0::eval::Value& value) {
+  const auto* int_val = std::get_if<cursive0::eval::IntVal>(&value.node);
   if (!int_val || int_val->type != "i32") {
     return std::nullopt;
   }
@@ -190,8 +190,8 @@ int main(int argc, char** argv) {
       project_result.project;
 
   std::optional<std::vector<cursive0::syntax::ASTModule>> modules_opt;
-  cursive0::sema::ScopeContext ctx;
-  std::optional<cursive0::sema::TypecheckResult> typechecked;
+  cursive0::analysis::ScopeContext ctx;
+  std::optional<cursive0::analysis::TypecheckResult> typechecked;
 
   if (!HasError(diags) && project_opt.has_value()) {
     const auto& project = *project_opt;
@@ -215,34 +215,34 @@ int main(int argc, char** argv) {
     if (!HasError(diags) && modules_opt.has_value()) {
       ctx.project = &project;
       ctx.sigma.mods = *modules_opt;
-      ctx.scopes = {cursive0::sema::Scope{},
-                    cursive0::sema::Scope{},
-                    cursive0::sema::Scope{}};
+      ctx.scopes = {cursive0::analysis::Scope{},
+                    cursive0::analysis::Scope{},
+                    cursive0::analysis::Scope{}};
       for (const auto& module : *modules_opt) {
         ctx.current_module = module.path;
         const auto vis_diags =
-            cursive0::sema::CheckModuleVisibility(ctx, module);
+            cursive0::analysis::CheckModuleVisibility(ctx, module);
         AppendDiags(diags, vis_diags);
       }
-      const auto name_maps = cursive0::sema::CollectNameMaps(ctx);
+      const auto name_maps = cursive0::analysis::CollectNameMaps(ctx);
       AppendDiags(diags, name_maps.diags);
       if (!HasError(diags)) {
-        cursive0::sema::PopulateSigma(ctx);
-        const auto module_names = cursive0::sema::ModuleNamesOf(project);
-        cursive0::sema::ResolveContext res_ctx;
+        cursive0::analysis::PopulateSigma(ctx);
+        const auto module_names = cursive0::analysis::ModuleNamesOf(project);
+        cursive0::analysis::ResolveContext res_ctx;
         res_ctx.ctx = &ctx;
         res_ctx.name_maps = &name_maps.name_maps;
         res_ctx.module_names = &module_names;
-        res_ctx.can_access = cursive0::sema::CanAccess;
-        const auto resolved = cursive0::sema::ResolveModules(res_ctx);
+        res_ctx.can_access = cursive0::analysis::CanAccess;
+        const auto resolved = cursive0::analysis::ResolveModules(res_ctx);
         resolve_ok = resolved.ok;
         AppendDiags(diags, resolved.diags);
         if (resolved.ok) {
           ctx.sigma.mods = resolved.modules;
-          cursive0::sema::PopulateSigma(ctx);
+          cursive0::analysis::PopulateSigma(ctx);
         }
         if (!HasError(diags) && resolve_ok) {
-          typechecked = cursive0::sema::TypecheckModules(ctx, ctx.sigma.mods);
+          typechecked = cursive0::analysis::TypecheckModules(ctx, ctx.sigma.mods);
           AppendDiags(diags, typechecked->diags);
           typecheck_ok = typechecked->ok;
           if (typecheck_ok) {
@@ -273,19 +273,19 @@ int main(int argc, char** argv) {
     return 2;
   }
 
-  cursive0::semantics::Sigma sigma;
+  cursive0::eval::Sigma sigma;
   const auto result =
-      cursive0::semantics::InterpretProject(*project_opt, sigma, ctx);
+      cursive0::eval::InterpretProject(*project_opt, sigma, ctx);
 
   int exit_code = 0;
   if (result.has_value) {
     exit_code = ExitCodeFromValue(result.value).value_or(0);
   } else if (result.has_control &&
-             (result.control.kind == cursive0::semantics::ControlKind::Panic ||
-              result.control.kind == cursive0::semantics::ControlKind::Abort)) {
-    exit_code = static_cast<int>(cursive0::semantics::PanicCodeOrDefault(sigma));
+             (result.control.kind == cursive0::eval::ControlKind::Panic ||
+              result.control.kind == cursive0::eval::ControlKind::Abort)) {
+    exit_code = static_cast<int>(cursive0::eval::PanicCodeOrDefault(sigma));
   } else {
-    exit_code = static_cast<int>(cursive0::semantics::PanicCodeOrDefault(sigma));
+    exit_code = static_cast<int>(cursive0::eval::PanicCodeOrDefault(sigma));
   }
 
   std::cout << "{"

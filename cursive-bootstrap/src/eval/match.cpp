@@ -1,4 +1,4 @@
-#include "cursive0/semantics/match.h"
+#include "cursive0/eval/match.h"
 
 #include <array>
 #include <cstdint>
@@ -13,11 +13,11 @@
 
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/core/int128.h"
-#include "cursive0/sema/scopes.h"
-#include "cursive0/sema/type_equiv.h"
-#include "cursive0/sema/types.h"
+#include "cursive0/analysis/resolve/scopes.h"
+#include "cursive0/analysis/types/type_equiv.h"
+#include "cursive0/analysis/types/types.h"
 
-namespace cursive0::semantics {
+namespace cursive0::eval {
 
 namespace {
 
@@ -644,27 +644,27 @@ std::optional<std::uint32_t> DecodeCharLiteral(std::string_view lexeme) {
   return decoded->first;
 }
 
-std::optional<sema::TypeRef> PatType(const syntax::LiteralPattern& lit) {
+std::optional<analysis::TypeRef> PatType(const syntax::LiteralPattern& lit) {
   const auto& tok = lit.literal;
   switch (tok.kind) {
     case syntax::TokenKind::IntLiteral: {
       if (const auto suffix = IntSuffix(tok)) {
-        return sema::MakeTypePrim(std::string(*suffix));
+        return analysis::MakeTypePrim(std::string(*suffix));
       }
-      return sema::MakeTypePrim("i32");
+      return analysis::MakeTypePrim("i32");
     }
     case syntax::TokenKind::FloatLiteral: {
       if (const auto suffix = FloatSuffix(tok)) {
-        return sema::MakeTypePrim(std::string(*suffix));
+        return analysis::MakeTypePrim(std::string(*suffix));
       }
-      return sema::MakeTypePrim("f64");
+      return analysis::MakeTypePrim("f64");
     }
     case syntax::TokenKind::BoolLiteral:
-      return sema::MakeTypePrim("bool");
+      return analysis::MakeTypePrim("bool");
     case syntax::TokenKind::CharLiteral:
-      return sema::MakeTypePrim("char");
+      return analysis::MakeTypePrim("char");
     case syntax::TokenKind::StringLiteral:
-      return sema::MakeTypeString(sema::StringState::View);
+      return analysis::MakeTypeString(analysis::StringState::View);
     case syntax::TokenKind::NullLiteral:
     case syntax::TokenKind::Identifier:
     case syntax::TokenKind::Keyword:
@@ -678,11 +678,11 @@ std::optional<sema::TypeRef> PatType(const syntax::LiteralPattern& lit) {
 }
 
 std::optional<Value> LiteralValue(const syntax::Token& lit,
-                                  const sema::TypeRef& type) {
+                                  const analysis::TypeRef& type) {
   if (!type) {
     return std::nullopt;
   }
-  if (const auto* prim = std::get_if<sema::TypePrim>(&type->node)) {
+  if (const auto* prim = std::get_if<analysis::TypePrim>(&type->node)) {
     if (prim->name == "bool" && lit.kind == syntax::TokenKind::BoolLiteral) {
       BoolVal v;
       v.value = lit.lexeme == "true";
@@ -719,21 +719,21 @@ std::optional<Value> LiteralValue(const syntax::Token& lit,
       return Value{v};
     }
   }
-  if (const auto* str = std::get_if<sema::TypeString>(&type->node)) {
+  if (const auto* str = std::get_if<analysis::TypeString>(&type->node)) {
     if (lit.kind == syntax::TokenKind::StringLiteral &&
         str->state.has_value() &&
-        *str->state == sema::StringState::View) {
+        *str->state == analysis::StringState::View) {
       const auto bytes = DecodeStringLiteralBytes(lit.lexeme);
       if (!bytes.has_value()) {
         return std::nullopt;
       }
       StringVal v;
-      v.state = sema::StringState::View;
+      v.state = analysis::StringState::View;
       v.bytes = *bytes;
       return Value{v};
     }
   }
-  if (const auto* raw = std::get_if<sema::TypeRawPtr>(&type->node)) {
+  if (const auto* raw = std::get_if<analysis::TypeRawPtr>(&type->node)) {
     if (lit.kind == syntax::TokenKind::NullLiteral) {
       RawPtrVal v;
       v.qual = raw->qual;
@@ -772,125 +772,125 @@ std::optional<Value> FieldValueFromList(
     const std::vector<std::pair<std::string, Value>>& fields,
     std::string_view name) {
   for (const auto& [field_name, value] : fields) {
-    if (sema::IdEq(field_name, name)) {
+    if (analysis::IdEq(field_name, name)) {
       return value;
     }
   }
   return std::nullopt;
 }
 
-bool PathEq(const sema::TypePath& lhs, const syntax::TypePath& rhs) {
+bool PathEq(const analysis::TypePath& lhs, const syntax::TypePath& rhs) {
   if (lhs.size() != rhs.size()) {
     return false;
   }
   for (std::size_t i = 0; i < lhs.size(); ++i) {
-    if (!sema::IdEq(lhs[i], rhs[i])) {
+    if (!analysis::IdEq(lhs[i], rhs[i])) {
       return false;
     }
   }
   return true;
 }
 
-std::optional<sema::TypePath> EnumPathOf(const sema::TypePath& path) {
+std::optional<analysis::TypePath> EnumPathOf(const analysis::TypePath& path) {
   if (path.empty()) {
     return std::nullopt;
   }
-  sema::TypePath out(path.begin(), path.end() - 1);
+  analysis::TypePath out(path.begin(), path.end() - 1);
   return out;
 }
 
-std::optional<std::string> VariantNameOf(const sema::TypePath& path) {
+std::optional<std::string> VariantNameOf(const analysis::TypePath& path) {
   if (path.empty()) {
     return std::nullopt;
   }
   return path.back();
 }
 
-std::optional<sema::Permission> LowerPermission(syntax::TypePerm perm) {
+std::optional<analysis::Permission> LowerPermission(syntax::TypePerm perm) {
   switch (perm) {
     case syntax::TypePerm::Const:
-      return sema::Permission::Const;
+      return analysis::Permission::Const;
     case syntax::TypePerm::Unique:
-      return sema::Permission::Unique;
+      return analysis::Permission::Unique;
     case syntax::TypePerm::Shared:
-      return sema::Permission::Shared;
+      return analysis::Permission::Shared;
   }
   return std::nullopt;
 }
 
-std::optional<sema::RawPtrQual> LowerRawPtrQual(syntax::RawPtrQual qual) {
+std::optional<analysis::RawPtrQual> LowerRawPtrQual(syntax::RawPtrQual qual) {
   switch (qual) {
     case syntax::RawPtrQual::Imm:
-      return sema::RawPtrQual::Imm;
+      return analysis::RawPtrQual::Imm;
     case syntax::RawPtrQual::Mut:
-      return sema::RawPtrQual::Mut;
+      return analysis::RawPtrQual::Mut;
   }
   return std::nullopt;
 }
 
-std::optional<sema::StringState> LowerStringState(
+std::optional<analysis::StringState> LowerStringState(
     const std::optional<syntax::StringState>& state) {
   if (!state.has_value()) {
     return std::nullopt;
   }
   switch (*state) {
     case syntax::StringState::Managed:
-      return sema::StringState::Managed;
+      return analysis::StringState::Managed;
     case syntax::StringState::View:
-      return sema::StringState::View;
+      return analysis::StringState::View;
   }
   return std::nullopt;
 }
 
-std::optional<sema::BytesState> LowerBytesState(
+std::optional<analysis::BytesState> LowerBytesState(
     const std::optional<syntax::BytesState>& state) {
   if (!state.has_value()) {
     return std::nullopt;
   }
   switch (*state) {
     case syntax::BytesState::Managed:
-      return sema::BytesState::Managed;
+      return analysis::BytesState::Managed;
     case syntax::BytesState::View:
-      return sema::BytesState::View;
+      return analysis::BytesState::View;
   }
   return std::nullopt;
 }
 
-std::optional<sema::PtrState> LowerPtrState(
+std::optional<analysis::PtrState> LowerPtrState(
     const std::optional<syntax::PtrState>& state) {
   if (!state.has_value()) {
     return std::nullopt;
   }
   switch (*state) {
     case syntax::PtrState::Valid:
-      return sema::PtrState::Valid;
+      return analysis::PtrState::Valid;
     case syntax::PtrState::Null:
-      return sema::PtrState::Null;
+      return analysis::PtrState::Null;
     case syntax::PtrState::Expired:
-      return sema::PtrState::Expired;
+      return analysis::PtrState::Expired;
   }
   return std::nullopt;
 }
 
-std::optional<sema::TypeRef> LowerSyntaxType(const SemanticsContext& ctx,
+std::optional<analysis::TypeRef> LowerSyntaxType(const SemanticsContext& ctx,
                                              const std::shared_ptr<syntax::Type>& type) {
   if (!type) {
     return std::nullopt;
   }
   return std::visit(
-      [&](const auto& node) -> std::optional<sema::TypeRef> {
+      [&](const auto& node) -> std::optional<analysis::TypeRef> {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, syntax::TypePrim>) {
-          return sema::MakeTypePrim(node.name);
+          return analysis::MakeTypePrim(node.name);
         } else if constexpr (std::is_same_v<T, syntax::TypePermType>) {
           const auto perm = LowerPermission(node.perm);
           const auto base = LowerSyntaxType(ctx, node.base);
           if (!perm.has_value() || !base.has_value()) {
             return std::nullopt;
           }
-          return sema::MakeTypePerm(*perm, *base);
+          return analysis::MakeTypePerm(*perm, *base);
         } else if constexpr (std::is_same_v<T, syntax::TypeUnion>) {
-          std::vector<sema::TypeRef> members;
+          std::vector<analysis::TypeRef> members;
           members.reserve(node.types.size());
           for (const auto& member : node.types) {
             const auto lowered = LowerSyntaxType(ctx, member);
@@ -899,14 +899,14 @@ std::optional<sema::TypeRef> LowerSyntaxType(const SemanticsContext& ctx,
             }
             members.push_back(*lowered);
           }
-          return sema::MakeTypeUnion(std::move(members));
+          return analysis::MakeTypeUnion(std::move(members));
         } else if constexpr (std::is_same_v<T, syntax::TypeFunc>) {
-          std::vector<sema::TypeFuncParam> params;
+          std::vector<analysis::TypeFuncParam> params;
           params.reserve(node.params.size());
           for (const auto& param : node.params) {
-            sema::TypeFuncParam out_param;
+            analysis::TypeFuncParam out_param;
             if (param.mode.has_value()) {
-              out_param.mode = sema::ParamMode::Move;
+              out_param.mode = analysis::ParamMode::Move;
             }
             const auto lowered = LowerSyntaxType(ctx, param.type);
             if (!lowered.has_value()) {
@@ -919,9 +919,9 @@ std::optional<sema::TypeRef> LowerSyntaxType(const SemanticsContext& ctx,
           if (!ret.has_value()) {
             return std::nullopt;
           }
-          return sema::MakeTypeFunc(std::move(params), *ret);
+          return analysis::MakeTypeFunc(std::move(params), *ret);
         } else if constexpr (std::is_same_v<T, syntax::TypeTuple>) {
-          std::vector<sema::TypeRef> elements;
+          std::vector<analysis::TypeRef> elements;
           elements.reserve(node.elements.size());
           for (const auto& elem : node.elements) {
             const auto lowered = LowerSyntaxType(ctx, elem);
@@ -930,49 +930,49 @@ std::optional<sema::TypeRef> LowerSyntaxType(const SemanticsContext& ctx,
             }
             elements.push_back(*lowered);
           }
-          return sema::MakeTypeTuple(std::move(elements));
+          return analysis::MakeTypeTuple(std::move(elements));
         } else if constexpr (std::is_same_v<T, syntax::TypeArray>) {
           const auto elem = LowerSyntaxType(ctx, node.element);
           if (!elem.has_value() || !ctx.sema) {
             return std::nullopt;
           }
-          const auto len = sema::ConstLen(*ctx.sema, node.length);
+          const auto len = analysis::ConstLen(*ctx.sema, node.length);
           if (!len.ok || !len.value.has_value()) {
             return std::nullopt;
           }
-          return sema::MakeTypeArray(*elem, *len.value);
+          return analysis::MakeTypeArray(*elem, *len.value);
         } else if constexpr (std::is_same_v<T, syntax::TypeSlice>) {
           const auto elem = LowerSyntaxType(ctx, node.element);
           if (!elem.has_value()) {
             return std::nullopt;
           }
-          return sema::MakeTypeSlice(*elem);
+          return analysis::MakeTypeSlice(*elem);
         } else if constexpr (std::is_same_v<T, syntax::TypePtr>) {
           const auto elem = LowerSyntaxType(ctx, node.element);
           if (!elem.has_value()) {
             return std::nullopt;
           }
-          return sema::MakeTypePtr(*elem, LowerPtrState(node.state));
+          return analysis::MakeTypePtr(*elem, LowerPtrState(node.state));
         } else if constexpr (std::is_same_v<T, syntax::TypeRawPtr>) {
           const auto elem = LowerSyntaxType(ctx, node.element);
           const auto qual = LowerRawPtrQual(node.qual);
           if (!elem.has_value() || !qual.has_value()) {
             return std::nullopt;
           }
-          return sema::MakeTypeRawPtr(*qual, *elem);
+          return analysis::MakeTypeRawPtr(*qual, *elem);
         } else if constexpr (std::is_same_v<T, syntax::TypeString>) {
-          return sema::MakeTypeString(LowerStringState(node.state));
+          return analysis::MakeTypeString(LowerStringState(node.state));
         } else if constexpr (std::is_same_v<T, syntax::TypeBytes>) {
-          return sema::MakeTypeBytes(LowerBytesState(node.state));
+          return analysis::MakeTypeBytes(LowerBytesState(node.state));
         } else if constexpr (std::is_same_v<T, syntax::TypeDynamic>) {
-          sema::TypePath path(node.path.begin(), node.path.end());
-          return sema::MakeTypeDynamic(std::move(path));
+          analysis::TypePath path(node.path.begin(), node.path.end());
+          return analysis::MakeTypeDynamic(std::move(path));
         } else if constexpr (std::is_same_v<T, syntax::TypeModalState>) {
-          sema::TypePath path(node.path.begin(), node.path.end());
-          return sema::MakeTypeModalState(std::move(path), node.state);
+          analysis::TypePath path(node.path.begin(), node.path.end());
+          return analysis::MakeTypeModalState(std::move(path), node.state);
         } else if constexpr (std::is_same_v<T, syntax::TypePathType>) {
-          sema::TypePath path(node.path.begin(), node.path.end());
-          return sema::MakeTypePath(std::move(path));
+          analysis::TypePath path(node.path.begin(), node.path.end());
+          return analysis::MakeTypePath(std::move(path));
         }
         return std::nullopt;
       },
@@ -1073,7 +1073,7 @@ std::optional<BindEnv> MatchPattern(const SemanticsContext& ctx,
           if (!uni || !uni->member || !uni->value) {
             return std::nullopt;
           }
-          const auto equiv = sema::TypeEquiv(uni->member, *lowered);
+          const auto equiv = analysis::TypeEquiv(uni->member, *lowered);
           if (!equiv.ok || !equiv.equiv) {
             return std::nullopt;
           }
@@ -1145,7 +1145,7 @@ std::optional<BindEnv> MatchPattern(const SemanticsContext& ctx,
             return std::nullopt;
           }
           if (!PathEq(*enum_path, node.path) ||
-              !sema::IdEq(*variant_name, node.name)) {
+              !analysis::IdEq(*variant_name, node.name)) {
             return std::nullopt;
           }
           if (!node.payload_opt.has_value()) {
@@ -1206,7 +1206,7 @@ std::optional<BindEnv> MatchPattern(const SemanticsContext& ctx,
               *node.payload_opt);
         } else if constexpr (std::is_same_v<T, syntax::ModalPattern>) {
           if (const auto* modal_val = std::get_if<ModalVal>(&value.node)) {
-            if (!sema::IdEq(modal_val->state, node.state)) {
+            if (!analysis::IdEq(modal_val->state, node.state)) {
               return std::nullopt;
             }
             if (!modal_val->payload) {
@@ -1266,4 +1266,4 @@ std::optional<BindEnv> MatchPattern(const SemanticsContext& ctx,
       pattern.node);
 }
 
-}  // namespace cursive0::semantics
+}  // namespace cursive0::eval

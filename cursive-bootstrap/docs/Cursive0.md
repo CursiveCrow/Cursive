@@ -8146,1140 +8146,1364 @@ EnumDecl(EnumPath(path)) = E    v = VariantName(path)    VariantPayload(E, v) = 
 
 #### 5.2.13. Pattern Matching (Cursive0)
 
-$$\text{MatchJudg} = \{\Gamma \vdash pat \triangleleft T \dashv B,\ \Gamma; R; L \vdash \text{ArmBody}(body) : T,\ \Gamma; R; L \vdash \text{ArmBody}(body) \Leftarrow T\}$$
+MatchJudg = {Γ ⊢ pat ◁ T ⊣ B, Γ; R; L ⊢ ArmBody(body) : T, Γ; R; L ⊢ ArmBody(body) ⇐ T}
 
-$$\text{PermWrap}(T, B) = \begin{cases}
-\{ x \mapsto \text{TypePerm}(p, T_x) \mid x \mapsto T_x \in B \} & \text{if } T = \text{TypePerm}(p, U) \\
-B & \text{otherwise}
-\end{cases}$$
+PermWrap(T, B) =
+  { { x ↦ TypePerm(p, T_x) | x ↦ T_x ∈ B }    if T = TypePerm(p, U)
+    B                                      otherwise }
 
 **(Pat-StripPerm)**
-$$\frac{\Gamma \vdash pat \triangleleft \text{StripPerm}(T) \dashv B}{\Gamma \vdash pat \triangleleft T \dashv \text{PermWrap}(T, B)}$$
+Γ ⊢ pat ◁ StripPerm(T) ⊣ B
+──────────────────────────────────────────────
+Γ ⊢ pat ◁ T ⊣ PermWrap(T, B)
 
-$$\text{PatternEffectRules} = \text{RulesIn}(\{\texttt{"5.2.15"}\})$$
+PatternEffectRules = RulesIn({"5.2.15"})
 
-$$\text{ConstPatInt}(p) = n \iff p = \text{LiteralPattern}(\text{IntLiteral}(n))$$
+ConstPatInt(p) = n ⇔ p = LiteralPattern(IntLiteral(n))
 
 **(ArmBody-Expr)**
-$$\frac{\Gamma; R; L \vdash e : T}{\Gamma; R; L \vdash \text{ArmBody}(e) : T}$$
+Γ; R; L ⊢ e : T
+──────────────────────────────────────────────
+Γ; R; L ⊢ ArmBody(e) : T
 
 **(ArmBody-Block)**
-$$\frac{\Gamma; R; L \vdash b : T}{\Gamma; R; L \vdash \text{ArmBody}(b) : T}$$
+Γ; R; L ⊢ b : T
+──────────────────────────────────────────────
+Γ; R; L ⊢ ArmBody(b) : T
 
 **(ArmBody-Expr-Chk)**
-$$\frac{\Gamma; R; L \vdash e \Leftarrow T \dashv \emptyset}{\Gamma; R; L \vdash \text{ArmBody}(e) \Leftarrow T}$$
+Γ; R; L ⊢ e ⇐ T ⊣ ∅
+──────────────────────────────────────────────
+Γ; R; L ⊢ ArmBody(e) ⇐ T
 
 **(ArmBody-Block-Chk)**
-$$\frac{\Gamma; R; L \vdash b \Leftarrow T \dashv \emptyset}{\Gamma; R; L \vdash \text{ArmBody}(b) \Leftarrow T}$$
+Γ; R; L ⊢ b ⇐ T ⊣ ∅
+──────────────────────────────────────────────
+Γ; R; L ⊢ ArmBody(b) ⇐ T
 
 **(Pat-Dup-R-Err)**
-$$\frac{\neg \text{Distinct}(\text{PatNames}(pat)) \quad c = \text{Code}(\text{Pat-Dup-Err})}{\Gamma \vdash pat \triangleleft T \Uparrow c}$$
+¬ Distinct(PatNames(pat))    c = Code(Pat-Dup-Err)
+────────────────────────────────────────────────────────────────
+Γ ⊢ pat ◁ T ⇑ c
 
 **(Pat-Wildcard-R)**
-$$\frac{}{\Gamma \vdash \_ \triangleleft T \dashv \emptyset}$$
+──────────────────────────────────────────────
+Γ ⊢ _ ◁ T ⊣ ∅
 
 **(Pat-Ident-R)**
-$$\frac{}{\Gamma \vdash x \triangleleft T \dashv \{x \mapsto T\}}$$
+──────────────────────────────────────────────
+Γ ⊢ x ◁ T ⊣ {x ↦ T}
 
 **(Pat-Literal-R)**
-$$\frac{\Gamma \vdash \text{Literal}(lit) : T_l \quad \Gamma \vdash T_l <: T}{\Gamma \vdash \text{LiteralPattern}(lit) \triangleleft T \dashv \emptyset}$$
+Γ ⊢ Literal(lit) : T_l    Γ ⊢ T_l <: T
+────────────────────────────────────────────────────────────────
+Γ ⊢ LiteralPattern(lit) ◁ T ⊣ ∅
 
 **(Pat-Tuple-R-Arity-Err)**
-$$\frac{\text{StripPerm}(T) = \text{TypeTuple}([T_1,\ldots,T_n]) \quad ps = [p_1,\ldots,p_m] \quad m \ne n \quad c = \text{Code}(\text{Pat-Tuple-Arity-Err})}{\Gamma \vdash \text{TuplePattern}(ps) \triangleleft T \Uparrow c}$$
+StripPerm(T) = TypeTuple([T_1, …, T_n])    ps = [p_1, …, p_m]    m ≠ n    c = Code(Pat-Tuple-Arity-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ TuplePattern(ps) ◁ T ⇑ c
 
 **(Pat-Tuple-R)**
-$$\frac{\text{StripPerm}(T) = \text{TypeTuple}([T_1,\ldots,T_n]) \quad \forall i,\ \Gamma \vdash p_i \triangleleft T_i \dashv B_i \quad B = \biguplus_i B_i}{\Gamma \vdash \text{TuplePattern}([p_1,\ldots,p_n]) \triangleleft T \dashv B}$$
+StripPerm(T) = TypeTuple([T_1, …, T_n])    ∀ i, Γ ⊢ p_i ◁ T_i ⊣ B_i    B = ⊎_i B_i
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ TuplePattern([p_1, …, p_n]) ◁ T ⊣ B
 
 **(Pat-Record-R)**
-$$\frac{\text{StripPerm}(T) = \text{TypePath}(p) \quad \text{RecordDecl}(p) = R \quad \forall fp \in fs,\ \text{FieldType}(R, \text{FieldName}(fp)) = T_f \land \text{FieldVisible}(m, R, \text{FieldName}(fp)) \land \Gamma \vdash \text{PatOf}(fp) \triangleleft T_f \dashv B_f \quad B = \biguplus_{fp \in fs} B_f}{\Gamma \vdash \text{RecordPattern}(p, fs) \triangleleft T \dashv B}$$
+StripPerm(T) = TypePath(p)    RecordDecl(p) = R    ∀ fp ∈ fs, FieldType(R, FieldName(fp)) = T_f ∧ FieldVisible(m, R, FieldName(fp)) ∧ Γ ⊢ PatOf(fp) ◁ T_f ⊣ B_f    B = ⊎_{fp ∈ fs} B_f
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ RecordPattern(p, fs) ◁ T ⊣ B
 
 **(RecordPattern-UnknownField)**
-$$\frac{\text{StripPerm}(T) = \text{TypePath}(p) \quad \text{RecordDecl}(p) = R \quad \exists fp \in fs.\ \text{FieldName}(fp) \notin \text{FieldNameSet}(R) \quad c = \text{Code}(\text{RecordPattern-UnknownField})}{\Gamma \vdash \text{RecordPattern}(p, fs) \triangleleft T \Uparrow c}$$
+StripPerm(T) = TypePath(p)    RecordDecl(p) = R    ∃ fp ∈ fs. FieldName(fp) ∉ FieldNameSet(R)    c = Code(RecordPattern-UnknownField)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ RecordPattern(p, fs) ◁ T ⇑ c
 
 **(Pat-Enum-Unit-R)**
-$$\frac{\text{StripPerm}(T) = \text{TypePath}(p) \quad \text{EnumDecl}(p) = E \quad \text{VariantPayload}(E, v) = \bot}{\Gamma \vdash \text{EnumPattern}(p, v, \bot) \triangleleft T \dashv \emptyset}$$
+StripPerm(T) = TypePath(p)    EnumDecl(p) = E    VariantPayload(E, v) = ⊥
+────────────────────────────────────────────────────────────────
+Γ ⊢ EnumPattern(p, v, ⊥) ◁ T ⊣ ∅
 
 **(Pat-Enum-Tuple-R)**
-$$\frac{\text{StripPerm}(T) = \text{TypePath}(p) \quad \text{EnumDecl}(p) = E \quad \text{VariantPayload}(E, v) = \text{TuplePayload}([T_1,\ldots,T_n]) \quad \forall i,\ \Gamma \vdash p_i \triangleleft T_i \dashv B_i \quad B = \biguplus_i B_i}{\Gamma \vdash \text{EnumPattern}(p, v, \text{TuplePayloadPattern}([p_1,\ldots,p_n])) \triangleleft T \dashv B}$$
+StripPerm(T) = TypePath(p)    EnumDecl(p) = E    VariantPayload(E, v) = TuplePayload([T_1, …, T_n])    ∀ i, Γ ⊢ p_i ◁ T_i ⊣ B_i    B = ⊎_i B_i
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EnumPattern(p, v, TuplePayloadPattern([p_1, …, p_n])) ◁ T ⊣ B
 
 **(Pat-Enum-Record-R)**
-$$\frac{\text{StripPerm}(T) = \text{TypePath}(p) \quad \text{EnumDecl}(p) = E \quad \text{VariantPayload}(E, v) = \text{RecordPayload}(fs') \quad \forall fp \in fs,\ \text{EnumFieldType}(E, v, \text{FieldName}(fp)) = T_f \land \Gamma \vdash \text{PatOf}(fp) \triangleleft T_f \dashv B_f \quad B = \biguplus_{fp \in fs} B_f}{\Gamma \vdash \text{EnumPattern}(p, v, \text{RecordPayloadPattern}(fs)) \triangleleft T \dashv B}$$
+StripPerm(T) = TypePath(p)    EnumDecl(p) = E    VariantPayload(E, v) = RecordPayload(fs')    ∀ fp ∈ fs, EnumFieldType(E, v, FieldName(fp)) = T_f ∧ Γ ⊢ PatOf(fp) ◁ T_f ⊣ B_f    B = ⊎_{fp ∈ fs} B_f
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EnumPattern(p, v, RecordPayloadPattern(fs)) ◁ T ⊣ B
 
 **(Pat-Modal-R)**
-$$\frac{\text{StripPerm}(T) = \text{TypePath}(p) \quad \Sigma.\text{Types}[p] = \texttt{modal } M \quad S \in \text{States}(M) \quad \forall fp \in fs,\ \text{PayloadMap}(M, S)(\text{FieldName}(fp)) = T_f \land \Gamma \vdash \text{PatOf}(fp) \triangleleft T_f \dashv B_f \quad B = \biguplus_{fp \in fs} B_f}{\Gamma \vdash \text{ModalPattern}(S, fs) \triangleleft T \dashv B}$$
+StripPerm(T) = TypePath(p)    Σ.Types[p] = `modal` M    S ∈ States(M)    ∀ fp ∈ fs, PayloadMap(M, S)(FieldName(fp)) = T_f ∧ Γ ⊢ PatOf(fp) ◁ T_f ⊣ B_f    B = ⊎_{fp ∈ fs} B_f
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ModalPattern(S, fs) ◁ T ⊣ B
 
 **(Pat-Modal-State-R)**
-$$\frac{\text{StripPerm}(T) = \text{TypeModalState}(p, S) \quad \Sigma.\text{Types}[p] = \texttt{modal } M \quad \forall fp \in fs,\ \text{PayloadMap}(M, S)(\text{FieldName}(fp)) = T_f \land \Gamma \vdash \text{PatOf}(fp) \triangleleft T_f \dashv B_f \quad B = \biguplus_{fp \in fs} B_f}{\Gamma \vdash \text{ModalPattern}(S, fs) \triangleleft T \dashv B}$$
+StripPerm(T) = TypeModalState(p, S)    Σ.Types[p] = `modal` M    ∀ fp ∈ fs, PayloadMap(M, S)(FieldName(fp)) = T_f ∧ Γ ⊢ PatOf(fp) ◁ T_f ⊣ B_f    B = ⊎_{fp ∈ fs} B_f
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ModalPattern(S, fs) ◁ T ⊣ B
 
 **(Pat-Range-R)**
-$$\frac{\text{StripPerm}(T) = \text{TypePrim}(t) \quad t \in \text{IntTypes} \quad \text{ConstPatInt}(p_l) = n_l \quad \text{ConstPatInt}(p_h) = n_h \quad (kind = \texttt{".."} \Rightarrow n_l < n_h) \quad (kind = \texttt{"..="} \Rightarrow n_l \le n_h)}{\Gamma \vdash \text{RangePattern}(kind, p_l, p_h) \triangleleft T \dashv \emptyset}$$
+StripPerm(T) = TypePrim(t)    t ∈ IntTypes    ConstPatInt(p_l) = n_l    ConstPatInt(p_h) = n_h    (kind = ".." ⇒ n_l < n_h)    (kind = "..=" ⇒ n_l ≤ n_h)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ RangePattern(kind, p_l, p_h) ◁ T ⊣ ∅
 
 **(RangePattern-NonConst)**
-$$\frac{(\text{ConstPatInt}(p_l)\ \text{undefined} \ \lor\ \text{ConstPatInt}(p_h)\ \text{undefined}) \quad c = \text{Code}(\text{RangePattern-NonConst})}{\Gamma \vdash \text{RangePattern}(kind, p_l, p_h) \triangleleft T \Uparrow c}$$
+(ConstPatInt(p_l) undefined ∨ ConstPatInt(p_h) undefined)    c = Code(RangePattern-NonConst)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ RangePattern(kind, p_l, p_h) ◁ T ⇑ c
 
 **(RangePattern-Empty)**
-$$\frac{\text{ConstPatInt}(p_l) = n_l \quad \text{ConstPatInt}(p_h) = n_h \quad ((kind = \texttt{".."}) \Rightarrow n_l \ge n_h) \quad ((kind = \texttt{"..="}) \Rightarrow n_l > n_h) \quad c = \text{Code}(\text{RangePattern-Empty})}{\Gamma \vdash \text{RangePattern}(kind, p_l, p_h) \triangleleft T \Uparrow c}$$
+ConstPatInt(p_l) = n_l    ConstPatInt(p_h) = n_h    ((kind = "..") ⇒ n_l ≥ n_h)    ((kind = "..=") ⇒ n_l > n_h)    c = Code(RangePattern-Empty)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ RangePattern(kind, p_l, p_h) ◁ T ⇑ c
 
-$$\text{AllEq}_\Gamma([T_1,\ldots,T_n]) \iff \forall i.\ \Gamma \vdash T_i \equiv T_1$$
-$$\text{Irrefutable}(\text{pat},T) \iff \text{pat}=\text{WildcardPattern} \lor \text{pat}=\text{IdentifierPattern}(\_) \lor (\text{pat}=\text{TuplePattern}([p_1,\ldots,p_n]) \land \text{StripPerm}(T)=\text{TypeTuple}([T_1,\ldots,T_n]) \land \forall i.\ \text{Irrefutable}(p_i,T_i)) \lor (\text{pat}=\text{RecordPattern}(p,fs) \land \text{StripPerm}(T)=\text{TypePath}(p) \land \text{RecordDecl}(p)=R \land \forall fp \in fs.\ \text{Irrefutable}(\text{PatOf}(fp),\ \text{FieldType}(R,\ \text{FieldName}(fp))))$$
-$$\text{HasIrrefutableArm}(\text{arms},T) \iff \exists \text{arm} \in \text{arms}.\ \exists p,g,b.\ \text{arm}=\langle p,g,b\rangle \land \text{Irrefutable}(p,T)$$
+AllEq_Γ([T_1, …, T_n]) ⇔ ∀ i. Γ ⊢ T_i ≡ T_1
+Irrefutable(pat, T) ⇔ pat = WildcardPattern ∨ pat = IdentifierPattern(_) ∨ (pat = TuplePattern([p_1, …, p_n]) ∧ StripPerm(T) = TypeTuple([T_1, …, T_n]) ∧ ∀ i. Irrefutable(p_i, T_i)) ∨ (pat = RecordPattern(p, fs) ∧ StripPerm(T) = TypePath(p) ∧ RecordDecl(p) = R ∧ ∀ fp ∈ fs. Irrefutable(PatOf(fp), FieldType(R, FieldName(fp))))
+HasIrrefutableArm(arms, T) ⇔ ∃ arm ∈ arms. ∃ p, g, b. arm = ⟨p, g, b⟩ ∧ Irrefutable(p, T)
 
 **Enum Match**
 
-$$\text{VariantNames}(E) = [ v.\text{name} \mid v \in E.\text{variants} ]$$
-$$\text{ArmVariants}(\text{arms}) = \{ v \mid \exists p,g,b.\ \langle p,g,b\rangle \in \text{arms} \land p=\text{EnumPattern}(\_,v,\_) \}$$
+VariantNames(E) = [ v.name | v ∈ E.variants ]
+ArmVariants(arms) = { v | ∃ p, g, b. ⟨p, g, b⟩ ∈ arms ∧ p = EnumPattern(_, v, _) }
 
 **(T-Match-Enum)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePath}(p) \quad \text{EnumDecl}(p) = E \quad \forall i,\ \text{arm}_i = \langle p_i, g_i, b_i \rangle \quad \Gamma \vdash p_i \triangleleft \text{TypePath}(p) \dashv B_i \quad \text{Distinct}(\text{PatNames}(p_i)) \quad \Gamma_i = \text{IntroAll}(\Gamma, B_i) \quad (g_i \ne \bot \Rightarrow \Gamma_i; R; L \vdash g_i : \text{TypePrim}(\texttt{"bool"})) \quad \Gamma_i; R; L \vdash \text{ArmBody}(b_i) : T_i \quad \text{AllEq}_\Gamma([T_1,\ldots,T_k]) \quad (\text{HasIrrefutableArm}(arms, \text{TypePath}(p)) \lor \text{ArmVariants}(arms) = \text{VariantNames}(E))}{\Gamma; R; L \vdash \text{MatchExpr}(e, arms) : T_1}$$
+Γ; R; L ⊢ e : TypePath(p)    EnumDecl(p) = E    ∀ i, arm_i = ⟨p_i, g_i, b_i⟩    Γ ⊢ p_i ◁ TypePath(p) ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    (g_i ≠ ⊥ ⇒ Γ_i; R; L ⊢ g_i : TypePrim("bool"))    Γ_i; R; L ⊢ ArmBody(b_i) : T_i    AllEq_Γ([T_1, …, T_k])    (HasIrrefutableArm(arms, TypePath(p)) ∨ ArmVariants(arms) = VariantNames(E))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MatchExpr(e, arms) : T_1
 
 **Modal Match**
 
-$$\text{StateNames}(M) = \text{States}(M)$$
-$$\text{ArmStates}(\text{arms}) = \{ s \mid \exists p,g,b.\ \langle p,g,b\rangle \in \text{arms} \land p=\text{ModalPattern}(\_,s) \}$$
+StateNames(M) = States(M)
+ArmStates(arms) = { s | ∃ p, g, b. ⟨p, g, b⟩ ∈ arms ∧ p = ModalPattern(_, s) }
 
 **(T-Match-Modal)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePath}(p) \quad \Sigma.\text{Types}[p] = \texttt{modal } M \quad \forall i,\ \text{arm}_i = \langle p_i, g_i, b_i \rangle \quad \Gamma \vdash p_i \triangleleft \text{TypePath}(p) \dashv B_i \quad \text{Distinct}(\text{PatNames}(p_i)) \quad \Gamma_i = \text{IntroAll}(\Gamma, B_i) \quad (g_i \ne \bot \Rightarrow \Gamma_i; R; L \vdash g_i : \text{TypePrim}(\texttt{"bool"})) \quad \Gamma_i; R; L \vdash \text{ArmBody}(b_i) : T_i \quad \text{AllEq}_\Gamma([T_1,\ldots,T_k]) \quad (\text{HasIrrefutableArm}(arms, \text{TypePath}(p)) \lor \text{ArmStates}(arms) = \text{StateNames}(M))}{\Gamma; R; L \vdash \text{MatchExpr}(e, arms) : T_1}$$
+Γ; R; L ⊢ e : TypePath(p)    Σ.Types[p] = `modal` M    ∀ i, arm_i = ⟨p_i, g_i, b_i⟩    Γ ⊢ p_i ◁ TypePath(p) ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    (g_i ≠ ⊥ ⇒ Γ_i; R; L ⊢ g_i : TypePrim("bool"))    Γ_i; R; L ⊢ ArmBody(b_i) : T_i    AllEq_Γ([T_1, …, T_k])    (HasIrrefutableArm(arms, TypePath(p)) ∨ ArmStates(arms) = StateNames(M))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MatchExpr(e, arms) : T_1
 
 **(Match-Modal-NonExhaustive)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePath}(p) \quad \Sigma.\text{Types}[p] = \texttt{modal } M \quad \neg(\text{HasIrrefutableArm}(arms, \text{TypePath}(p)) \lor \text{ArmStates}(arms) = \text{StateNames}(M)) \quad c = \text{Code}(\text{Match-Modal-NonExhaustive})}{\Gamma; R; L \vdash \text{MatchExpr}(e, arms) \Uparrow c}$$
+Γ; R; L ⊢ e : TypePath(p)    Σ.Types[p] = `modal` M    ¬(HasIrrefutableArm(arms, TypePath(p)) ∨ ArmStates(arms) = StateNames(M))    c = Code(Match-Modal-NonExhaustive)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MatchExpr(e, arms) ⇑ c
 
 **Union Match**
 
-$$\text{UnionTypes}(U) = [T_1,\ldots,T_n] \iff U=\text{TypeUnion}([T_1,\ldots,T_n])$$
-$$\text{ArmUnionTypes}(\text{arms}) = \{ T \mid \exists p,g,b.\ \langle p,g,b\rangle \in \text{arms} \land p=\text{Pat-Union}(T,\_) \}$$
-$$\text{UnionTypesExhaustive}(\text{arms},\text{types}) \iff \forall T \in \text{types}.\ \exists \text{arm} \in \text{arms}.\ \exists p,g,b.\ \text{arm}=\langle p,g,b\rangle \land p=\text{Pat-Union}(T,\_)$$
+UnionTypes(U) = [T_1, …, T_n] ⇔ U = TypeUnion([T_1, …, T_n])
+ArmUnionTypes(arms) = { T | ∃ p, g, b. ⟨p, g, b⟩ ∈ arms ∧ p = Pat-Union(T, _) }
+UnionTypesExhaustive(arms, types) ⇔ ∀ T ∈ types. ∃ arm ∈ arms. ∃ p, g, b. arm = ⟨p, g, b⟩ ∧ p = Pat-Union(T, _)
 
 **(T-Match-Union)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypeUnion}([T_1,\ldots,T_n]) \quad \forall i,\ \text{arm}_i = \langle p_i, g_i, b_i \rangle \quad \Gamma \vdash p_i \triangleleft \text{TypeUnion}([T_1,\ldots,T_n]) \dashv B_i \quad \text{Distinct}(\text{PatNames}(p_i)) \quad \Gamma_i = \text{IntroAll}(\Gamma, B_i) \quad (g_i \ne \bot \Rightarrow \Gamma_i; R; L \vdash g_i : \text{TypePrim}(\texttt{"bool"})) \quad \Gamma_i; R; L \vdash \text{ArmBody}(b_i) : T_i' \quad \text{AllEq}_\Gamma([T_1',\ldots,T_k']) \quad (\text{HasIrrefutableArm}(arms, \text{TypeUnion}([T_1,\ldots,T_n])) \lor \text{UnionTypesExhaustive}(arms, [T_1,\ldots,T_n]))}{\Gamma; R; L \vdash \text{MatchExpr}(e, arms) : T_1'}$$
+Γ; R; L ⊢ e : TypeUnion([T_1, …, T_n])    ∀ i, arm_i = ⟨p_i, g_i, b_i⟩    Γ ⊢ p_i ◁ TypeUnion([T_1, …, T_n]) ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    (g_i ≠ ⊥ ⇒ Γ_i; R; L ⊢ g_i : TypePrim("bool"))    Γ_i; R; L ⊢ ArmBody(b_i) : T_i'    AllEq_Γ([T_1', …, T_k'])    (HasIrrefutableArm(arms, TypeUnion([T_1, …, T_n])) ∨ UnionTypesExhaustive(arms, [T_1, …, T_n]))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MatchExpr(e, arms) : T_1'
 
 **(Match-Union-NonExhaustive)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypeUnion}([T_1,\ldots,T_n]) \quad \neg(\text{HasIrrefutableArm}(arms, \text{TypeUnion}([T_1,\ldots,T_n])) \lor \text{UnionTypesExhaustive}(arms, [T_1,\ldots,T_n])) \quad c = \text{Code}(\text{Match-Union-NonExhaustive})}{\Gamma; R; L \vdash \text{MatchExpr}(e, arms) \Uparrow c}$$
+Γ; R; L ⊢ e : TypeUnion([T_1, …, T_n])    ¬(HasIrrefutableArm(arms, TypeUnion([T_1, …, T_n])) ∨ UnionTypesExhaustive(arms, [T_1, …, T_n]))    c = Code(Match-Union-NonExhaustive)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MatchExpr(e, arms) ⇑ c
 
 **(Chk-Match-Union)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypeUnion}([T_1,\ldots,T_n]) \quad \forall i,\ \text{arm}_i = \langle p_i, g_i, b_i \rangle \quad \Gamma \vdash p_i \triangleleft \text{TypeUnion}([T_1,\ldots,T_n]) \dashv B_i \quad \text{Distinct}(\text{PatNames}(p_i)) \quad \Gamma_i = \text{IntroAll}(\Gamma, B_i) \quad (g_i \ne \bot \Rightarrow \Gamma_i; R; L \vdash g_i : \text{TypePrim}(\texttt{"bool"})) \quad \Gamma_i; R; L \vdash \text{ArmBody}(b_i) \Leftarrow T \quad (\text{HasIrrefutableArm}(arms, \text{TypeUnion}([T_1,\ldots,T_n])) \lor \text{UnionTypesExhaustive}(arms, [T_1,\ldots,T_n]))}{\Gamma; R; L \vdash \text{MatchExpr}(e, arms) \Leftarrow T \dashv \emptyset}$$
+Γ; R; L ⊢ e : TypeUnion([T_1, …, T_n])    ∀ i, arm_i = ⟨p_i, g_i, b_i⟩    Γ ⊢ p_i ◁ TypeUnion([T_1, …, T_n]) ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    (g_i ≠ ⊥ ⇒ Γ_i; R; L ⊢ g_i : TypePrim("bool"))    Γ_i; R; L ⊢ ArmBody(b_i) ⇐ T    (HasIrrefutableArm(arms, TypeUnion([T_1, …, T_n])) ∨ UnionTypesExhaustive(arms, [T_1, …, T_n]))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MatchExpr(e, arms) ⇐ T ⊣ ∅
 
 **Other Matches**
 
 **(T-Match-Other)**
-$$\frac{\Gamma; R; L \vdash e : T \quad \forall i,\ \text{arm}_i = \langle p_i, g_i, b_i \rangle \quad \Gamma \vdash p_i \triangleleft T \dashv B_i \quad \text{Distinct}(\text{PatNames}(p_i)) \quad \Gamma_i = \text{IntroAll}(\Gamma, B_i) \quad (g_i \ne \bot \Rightarrow \Gamma_i; R; L \vdash g_i : \text{TypePrim}(\texttt{"bool"})) \quad \Gamma_i; R; L \vdash \text{ArmBody}(b_i) : T_i \quad \text{AllEq}_\Gamma([T_1,\ldots,T_k]) \quad \text{HasIrrefutableArm}(arms, T)}{\Gamma; R; L \vdash \text{MatchExpr}(e, arms) : T_1}$$
+Γ; R; L ⊢ e : T    ∀ i, arm_i = ⟨p_i, g_i, b_i⟩    Γ ⊢ p_i ◁ T ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    (g_i ≠ ⊥ ⇒ Γ_i; R; L ⊢ g_i : TypePrim("bool"))    Γ_i; R; L ⊢ ArmBody(b_i) : T_i    AllEq_Γ([T_1, …, T_k])    HasIrrefutableArm(arms, T)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MatchExpr(e, arms) : T_1
 
 **(Chk-Match-Enum)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePath}(p) \quad \text{EnumDecl}(p) = E \quad \forall i,\ \text{arm}_i = \langle p_i, g_i, b_i \rangle \quad \Gamma \vdash p_i \triangleleft \text{TypePath}(p) \dashv B_i \quad \text{Distinct}(\text{PatNames}(p_i)) \quad \Gamma_i = \text{IntroAll}(\Gamma, B_i) \quad (g_i \ne \bot \Rightarrow \Gamma_i; R; L \vdash g_i : \text{TypePrim}(\texttt{"bool"})) \quad \Gamma_i; R; L \vdash \text{ArmBody}(b_i) \Leftarrow T \quad (\text{HasIrrefutableArm}(arms, \text{TypePath}(p)) \lor \text{ArmVariants}(arms) = \text{VariantNames}(E))}{\Gamma; R; L \vdash \text{MatchExpr}(e, arms) \Leftarrow T \dashv \emptyset}$$
+Γ; R; L ⊢ e : TypePath(p)    EnumDecl(p) = E    ∀ i, arm_i = ⟨p_i, g_i, b_i⟩    Γ ⊢ p_i ◁ TypePath(p) ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    (g_i ≠ ⊥ ⇒ Γ_i; R; L ⊢ g_i : TypePrim("bool"))    Γ_i; R; L ⊢ ArmBody(b_i) ⇐ T    (HasIrrefutableArm(arms, TypePath(p)) ∨ ArmVariants(arms) = VariantNames(E))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MatchExpr(e, arms) ⇐ T ⊣ ∅
 
 **(Chk-Match-Modal)**
-$$\frac{\Gamma; R; L \vdash e : \text{TypePath}(p) \quad \Sigma.\text{Types}[p] = \texttt{modal } M \quad \forall i,\ \text{arm}_i = \langle p_i, g_i, b_i \rangle \quad \Gamma \vdash p_i \triangleleft \text{TypePath}(p) \dashv B_i \quad \text{Distinct}(\text{PatNames}(p_i)) \quad \Gamma_i = \text{IntroAll}(\Gamma, B_i) \quad (g_i \ne \bot \Rightarrow \Gamma_i; R; L \vdash g_i : \text{TypePrim}(\texttt{"bool"})) \quad \Gamma_i; R; L \vdash \text{ArmBody}(b_i) \Leftarrow T \quad (\text{HasIrrefutableArm}(arms, \text{TypePath}(p)) \lor \text{ArmStates}(arms) = \text{StateNames}(M))}{\Gamma; R; L \vdash \text{MatchExpr}(e, arms) \Leftarrow T \dashv \emptyset}$$
+Γ; R; L ⊢ e : TypePath(p)    Σ.Types[p] = `modal` M    ∀ i, arm_i = ⟨p_i, g_i, b_i⟩    Γ ⊢ p_i ◁ TypePath(p) ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    (g_i ≠ ⊥ ⇒ Γ_i; R; L ⊢ g_i : TypePrim("bool"))    Γ_i; R; L ⊢ ArmBody(b_i) ⇐ T    (HasIrrefutableArm(arms, TypePath(p)) ∨ ArmStates(arms) = StateNames(M))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MatchExpr(e, arms) ⇐ T ⊣ ∅
 
 **(Chk-Match-Other)**
-$$\frac{\Gamma; R; L \vdash e : T_s \quad \forall i,\ \text{arm}_i = \langle p_i, g_i, b_i \rangle \quad \Gamma \vdash p_i \triangleleft T_s \dashv B_i \quad \text{Distinct}(\text{PatNames}(p_i)) \quad \Gamma_i = \text{IntroAll}(\Gamma, B_i) \quad (g_i \ne \bot \Rightarrow \Gamma_i; R; L \vdash g_i : \text{TypePrim}(\texttt{"bool"})) \quad \Gamma_i; R; L \vdash \text{ArmBody}(b_i) \Leftarrow T \quad \text{HasIrrefutableArm}(arms, T_s)}{\Gamma; R; L \vdash \text{MatchExpr}(e, arms) \Leftarrow T \dashv \emptyset}$$
+Γ; R; L ⊢ e : T_s    ∀ i, arm_i = ⟨p_i, g_i, b_i⟩    Γ ⊢ p_i ◁ T_s ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    (g_i ≠ ⊥ ⇒ Γ_i; R; L ⊢ g_i : TypePrim("bool"))    Γ_i; R; L ⊢ ArmBody(b_i) ⇐ T    HasIrrefutableArm(arms, T_s)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MatchExpr(e, arms) ⇐ T ⊣ ∅
 
 #### 5.2.14. Declaration Typing (Cursive0)
 
-$$\text{DeclJudg} = \{\Gamma \vdash \text{ProcedureDecl} : \text{ok},\ \Gamma \vdash \text{StaticDecl} : \text{ok},\ \Gamma \vdash \text{RecordDecl} : \text{ok},\ \Gamma \vdash \text{EnumDecl} : \text{ok},\ \Gamma \vdash \text{ModalDecl} : \text{ok},\ \Gamma \vdash \text{ClassDecl} : \text{ok}\}$$
+DeclJudg = {Γ ⊢ ProcedureDecl : ok, Γ ⊢ StaticDecl : ok, Γ ⊢ RecordDecl : ok, Γ ⊢ EnumDecl : ok, Γ ⊢ ModalDecl : ok, Γ ⊢ ClassDecl : ok}
 
 **DeclTyping.**
-$$\text{DeclTyping}(Ms) \Downarrow ok \iff \forall M \in Ms.\ \Gamma \vdash \text{DeclTypingMod}(M) \Downarrow ok$$
-$$\text{DeclTypingMod}(M) \Downarrow ok \iff \forall it \in M.\text{items}.\ \Gamma \vdash \text{DeclTypingItem}(M.\text{path}, it) \Downarrow ok$$
+DeclTyping(Ms) ⇓ ok ⇔ ∀ M ∈ Ms. Γ ⊢ DeclTypingMod(M) ⇓ ok
+DeclTypingMod(M) ⇓ ok ⇔ ∀ it ∈ M.items. Γ ⊢ DeclTypingItem(M.path, it) ⇓ ok
 
-$$\text{ProvBindCheck}(\text{params}, body) \Downarrow ok \iff body=\text{BlockExpr}(stmts, tail\_opt) \land \exists \vec{\pi}.\ |\vec{\pi}|=|\text{params}| \land \Gamma; \text{InitProvEnv}(\text{params}, \vec{\pi}, []) \vdash \text{BlockProv}(stmts, tail\_opt) \Downarrow \pi$$
+ProvBindCheck(params, body) ⇓ ok ⇔ body = BlockExpr(stmts, tail_opt) ∧ ∃ vec{π}. |vec{π}| = |params| ∧ Γ; InitProvEnv(params, vec{π}, []) ⊢ BlockProv(stmts, tail_opt) ⇓ π
 
-$$\text{DeclTypingItem}(m, \text{UsingDecl}(\_)) \Downarrow ok$$
-$$\text{DeclTypingItem}(m, \text{StaticDecl}(\_,\_,\_,\_,\_)) \Downarrow ok \iff \Gamma \vdash \text{StaticDecl} : \text{ok}$$
-$$\text{DeclTypingItem}(m, \text{TypeAliasDecl}(\_, name,\_,\_,\_)) \Downarrow ok \iff \Gamma \vdash \text{FullPath}(m, name) : \text{TypeAliasOk}$$
-$$\text{DeclTypingItem}(m, \text{ProcedureDecl}(\_,\_,params,\_,body,\_,\_) = item) \Downarrow ok \iff \Gamma \vdash \text{ProcedureDecl} : \text{ok} \land \text{ProcBindCheck}(m, item) \Downarrow ok \land \text{ProvBindCheck}(params, body) \Downarrow ok$$
-$$\text{DeclTypingItem}(m, R) \Downarrow ok \iff R=\text{RecordDecl}(\_,\_,\_,\_,\_,\_) \land \Gamma \vdash R\ \text{record} : \text{ok} \land \forall md \in \text{Methods}(R).\ \text{MethodBindCheck}(m, \text{TypePath}(\text{RecordPath}(R)), md) \Downarrow ok \land \text{ProvBindCheck}(\text{MethodParamsDecl}(\text{TypePath}(\text{RecordPath}(R)), md), md.\text{body}) \Downarrow ok$$
-$$\text{DeclTypingItem}(m, E) \Downarrow ok \iff E=\text{EnumDecl}(\_,\_,\_,\_,\_,\_) \land \Gamma \vdash E\ \text{enum} : \text{ok}$$
-$$\text{DeclTypingItem}(m, M) \Downarrow ok \iff M=\text{ModalDecl}(\_,\_,\_,\_,\_,\_) \land \Gamma \vdash M\ \text{modal} : \text{ok} \land \forall S \in \text{States}(M),\ \forall md \in \text{Methods}(S).\ \text{StateMethodBindCheck}(m, M, S, md) \Downarrow ok \land \text{ProvBindCheck}(\text{StateMethodParams}(M, S, md), md.\text{body}) \Downarrow ok \land \forall tr \in \text{Transitions}(S).\ \text{TransitionBindCheck}(m, M, S, tr) \Downarrow ok \land \text{ProvBindCheck}(\text{TransitionParams}(M, S, tr), tr.\text{body}) \Downarrow ok$$
-$$\text{DeclTypingItem}(m, Cl) \Downarrow ok \iff Cl=\text{ClassDecl}(\_,\_,\_,\_,\_) \land \Gamma \vdash Cl : \text{ok} \land \forall md \in \text{ClassMethods}(Cl).\ (md.\text{body\_opt}=\bot \ \lor\ (\text{ClassMethodBindCheck}(m, Cl, md) \Downarrow ok \land \text{ProvBindCheck}(\text{ClassMethodParams}(Cl, md), md.\text{body\_opt}) \Downarrow ok))$$
+DeclTypingItem(m, UsingDecl(_)) ⇓ ok
+DeclTypingItem(m, StaticDecl(_, _, _, _, _)) ⇓ ok ⇔ Γ ⊢ StaticDecl : ok
+DeclTypingItem(m, TypeAliasDecl(_, name, _, _, _)) ⇓ ok ⇔ Γ ⊢ FullPath(m, name) : TypeAliasOk
+DeclTypingItem(m, ProcedureDecl(_, _, params, _, body, _, _) = item) ⇓ ok ⇔ Γ ⊢ ProcedureDecl : ok ∧ ProcBindCheck(m, item) ⇓ ok ∧ ProvBindCheck(params, body) ⇓ ok
+DeclTypingItem(m, R) ⇓ ok ⇔ R = RecordDecl(_, _, _, _, _, _) ∧ Γ ⊢ R record : ok ∧ ∀ md ∈ Methods(R). MethodBindCheck(m, TypePath(RecordPath(R)), md) ⇓ ok ∧ ProvBindCheck(MethodParamsDecl(TypePath(RecordPath(R)), md), md.body) ⇓ ok
+DeclTypingItem(m, E) ⇓ ok ⇔ E = EnumDecl(_, _, _, _, _, _) ∧ Γ ⊢ E enum : ok
+DeclTypingItem(m, M) ⇓ ok ⇔ M = ModalDecl(_, _, _, _, _, _) ∧ Γ ⊢ M modal : ok ∧ ∀ S ∈ States(M), ∀ md ∈ Methods(S). StateMethodBindCheck(m, M, S, md) ⇓ ok ∧ ProvBindCheck(StateMethodParams(M, S, md), md.body) ⇓ ok ∧ ∀ tr ∈ Transitions(S). TransitionBindCheck(m, M, S, tr) ⇓ ok ∧ ProvBindCheck(TransitionParams(M, S, tr), tr.body) ⇓ ok
+DeclTypingItem(m, Cl) ⇓ ok ⇔ Cl = ClassDecl(_, _, _, _, _) ∧ Γ ⊢ Cl : ok ∧ ∀ md ∈ ClassMethods(Cl). (md.body_opt = ⊥ ∨ (ClassMethodBindCheck(m, Cl, md) ⇓ ok ∧ ProvBindCheck(ClassMethodParams(Cl, md), md.body_opt) ⇓ ok))
 
-$$\text{ParamBinds}(\text{params}) = [\langle x, T \rangle \mid \langle \_, x, T \rangle \in \text{params}]$$
-$$\text{ProcReturn}(ret\_opt) = \begin{cases}
-\text{TypePrim}(\texttt{"()"}) & \text{if } ret\_opt = \bot \\
-ret\_opt & \text{otherwise}
-\end{cases}$$
-$$\text{ReturnAnnOk}(ret\_opt) \iff ret\_opt \ne \bot$$
+ParamBinds(params) = [⟨x, T⟩ | ⟨_, x, T⟩ ∈ params]
+ProcReturn(ret_opt) =
+  { TypePrim("()")   if ret_opt = ⊥
+    ret_opt          otherwise }
+ReturnAnnOk(ret_opt) ⇔ ret_opt ≠ ⊥
 
-$$\text{ExplicitReturn}(\text{BlockExpr}(stmts, tail\_opt)) \iff tail\_opt = \bot \land stmts \ne [] \land \text{LastStmt}(stmts) = \text{ReturnStmt}(\_)$$
+ExplicitReturn(BlockExpr(stmts, tail_opt)) ⇔ tail_opt = ⊥ ∧ stmts ≠ [] ∧ LastStmt(stmts) = ReturnStmt(_)
 
-$$\text{VisRank}(\texttt{public}) = 3 \quad \text{VisRank}(\texttt{internal}) = 2 \quad \text{VisRank}(\texttt{private}) = 1 \quad \text{VisRank}(\texttt{protected}) = 1$$
-$$\text{FieldVisOk}(R) \iff \forall f \in \text{Fields}(R).\ \text{VisRank}(f.\text{vis}) \le \text{VisRank}(R.\text{vis})$$
-$$\text{StateMemberVisOk}(M) \iff \forall S \in \text{States}(M),\ \forall m \in \text{Payload}(M, S) \cup \text{Methods}(S) \cup \text{Transitions}(S).\\ \text{VisRank}(m.\text{vis}) \le \text{VisRank}(M.\text{vis})$$
+VisRank(`public`) = 3    VisRank(`internal`) = 2    VisRank(`private`) = 1    VisRank(`protected`) = 1
+FieldVisOk(R) ⇔ ∀ f ∈ Fields(R). VisRank(f.vis) ≤ VisRank(R.vis)
+StateMemberVisOk(M) ⇔ ∀ S ∈ States(M), ∀ m ∈ Payload(M, S) ∪ Methods(S) ∪ Transitions(S). VisRank(m.vis) ≤ VisRank(M.vis)
 
 **(WF-ProcedureDecl)**
-$$\frac{\text{Distinct}(\text{ParamNames}(\text{params})) \quad \text{ReturnAnnOk}(ret\_opt) \quad R = \text{ProcReturn}(ret\_opt) \quad \forall \langle \_, x_i, T_i \rangle \in \text{params},\ \Gamma \vdash T_i\ \text{wf} \quad \Gamma_0 = \text{PushScope}(\Gamma) \quad \text{IntroAll}(\Gamma_0, \text{ParamBinds}(\text{params})) \Downarrow \Gamma_1 \quad \Gamma_1; R; \bot \vdash \text{body} : T_b \quad \Gamma \vdash T_b <: R \quad (R \ne \text{TypePrim}(\texttt{"()"}) \Rightarrow \text{ExplicitReturn}(\text{body}))}{\Gamma \vdash \text{ProcedureDecl} : \text{ok}}$$
+Distinct(ParamNames(params))    ReturnAnnOk(ret_opt)    R = ProcReturn(ret_opt)    ∀ ⟨_, x_i, T_i⟩ ∈ params, Γ ⊢ T_i wf    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, ParamBinds(params)) ⇓ Γ_1    Γ_1; R; ⊥ ⊢ body : T_b    Γ ⊢ T_b <: R    (R ≠ TypePrim("()") ⇒ ExplicitReturn(body))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ProcedureDecl : ok
 
 **(WF-ProcedureDecl-MissingReturnType)**
-$$\frac{\text{item} = \text{ProcedureDecl}(\_,\_,\_, ret\_opt,\_,\_,\_) \quad \neg \text{ReturnAnnOk}(ret\_opt) \quad c = \text{Code}(\text{WF-ProcedureDecl-MissingReturnType})}{\Gamma \vdash \text{item} \Uparrow c}$$
+item = ProcedureDecl(_, _, _, ret_opt, _, _, _)    ¬ ReturnAnnOk(ret_opt)    c = Code(WF-ProcedureDecl-MissingReturnType)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ item ⇑ c
 
 **(WF-ProcBody-ExplicitReturn-Err)**
-$$\frac{\text{item} = \text{ProcedureDecl}(\_,\_,\_, ret\_opt, body,\_,\_) \quad R = \text{ProcReturn}(ret\_opt) \quad R \ne \text{TypePrim}(\texttt{"()"}) \quad \neg \text{ExplicitReturn}(body) \quad c = \text{Code}(\text{WF-ProcBody-ExplicitReturn-Err})}{\Gamma \vdash \text{item} \Uparrow c}$$
+item = ProcedureDecl(_, _, _, ret_opt, body, _, _)    R = ProcReturn(ret_opt)    R ≠ TypePrim("()")    ¬ ExplicitReturn(body)    c = Code(WF-ProcBody-ExplicitReturn-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ item ⇑ c
 
-$$\text{StaticVisOk}(vis, mut) \iff \neg (vis = \texttt{public} \land mut = \texttt{var})$$
+StaticVisOk(vis, mut) ⇔ ¬ (vis = `public` ∧ mut = `var`)
 
 **(WF-StaticDecl)**
-$$\frac{\text{binding} = \langle pat, ty\_opt, op, init, \_ \rangle \quad \text{StaticVisOk}(vis, mut) \quad ty\_opt = T_a \quad \Gamma; \bot; \bot \vdash init \Leftarrow T_a \dashv \emptyset \quad \Gamma \vdash pat \Leftarrow T_a \dashv B \quad \text{Distinct}(\text{PatNames}(pat))}{\Gamma \vdash \text{StaticDecl} : \text{ok}}$$
+binding = ⟨pat, ty_opt, op, init, _⟩    StaticVisOk(vis, mut)    ty_opt = T_a    Γ; ⊥; ⊥ ⊢ init ⇐ T_a ⊣ ∅    Γ ⊢ pat ⇐ T_a ⊣ B    Distinct(PatNames(pat))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ StaticDecl : ok
 
 **(WF-StaticDecl-Ann-Mismatch)**
-$$\frac{\text{item} = \text{StaticDecl}(vis, mut, \langle pat, ty\_opt, op, init, \_ \rangle, \_, \_) \quad ty\_opt = T_a \quad \Gamma; \bot; \bot \vdash init \Rightarrow T_i \dashv C \quad \text{Solve}(C) \Downarrow \theta \quad \neg(\Gamma \vdash \theta(T_i) <: T_a) \quad c = \text{Code}(\text{WF-StaticDecl-Ann-Mismatch})}{\Gamma \vdash \text{item} \Uparrow c}$$
+item = StaticDecl(vis, mut, ⟨pat, ty_opt, op, init, _⟩, _, _)    ty_opt = T_a    Γ; ⊥; ⊥ ⊢ init ⇒ T_i ⊣ C    Solve(C) ⇓ θ    ¬(Γ ⊢ θ(T_i) <: T_a)    c = Code(WF-StaticDecl-Ann-Mismatch)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ item ⇑ c
 
 **(WF-StaticDecl-MissingType)**
-$$\frac{\text{item} = \text{StaticDecl}(\_, \_, \langle pat, ty\_opt, op, init, \_ \rangle, \_, \_) \quad ty\_opt = \bot \quad c = \text{Code}(\text{WF-StaticDecl-MissingType})}{\Gamma \vdash \text{item} \Uparrow c}$$
+item = StaticDecl(_, _, ⟨pat, ty_opt, op, init, _⟩, _, _)    ty_opt = ⊥    c = Code(WF-StaticDecl-MissingType)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ item ⇑ c
 
 **(StaticVisOk-Err)**
-$$\frac{\text{item} = \text{StaticDecl}(vis, mut, \_, \_, \_) \quad \neg \text{StaticVisOk}(vis, mut) \quad c = \text{Code}(\text{StaticVisOk-Err})}{\Gamma \vdash \text{item} \Uparrow c}$$
+item = StaticDecl(vis, mut, _, _, _)    ¬ StaticVisOk(vis, mut)    c = Code(StaticVisOk-Err)
+────────────────────────────────────────────────────────────────
+Γ ⊢ item ⇑ c
 
 **(WF-RecordDecl)**
-$$\frac{\forall f \in \text{Fields}(R),\ \Gamma \vdash f.\text{type}\ \text{wf} \quad \text{FieldVisOk}(R) \quad \Gamma \vdash R\ \text{record wf} \quad \Gamma \vdash \text{Methods}(R) : \text{ok} \quad \Gamma \vdash \text{TypePath}(\text{RecordPath}(R)) : \text{ImplementsOk}}{\Gamma \vdash R\ \text{record} : \text{ok}}$$
+∀ f ∈ Fields(R), Γ ⊢ f.type wf    FieldVisOk(R)    Γ ⊢ R record wf    Γ ⊢ Methods(R) : ok    Γ ⊢ TypePath(RecordPath(R)) : ImplementsOk
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ R record : ok
 
 **(FieldVisOk-Err)**
-$$\frac{R = \text{RecordDecl}(\_,\_,\_,\_,\_,\_) \quad \neg \text{FieldVisOk}(R) \quad c = \text{Code}(\text{FieldVisOk-Err})}{\Gamma \vdash R \Uparrow c}$$
+R = RecordDecl(_, _, _, _, _, _)    ¬ FieldVisOk(R)    c = Code(FieldVisOk-Err)
+────────────────────────────────────────────────────────────────
+Γ ⊢ R ⇑ c
 
-$$\text{EnumPathOf}(E) = \text{FullPath}(\text{ModuleOf}(E), E.\text{name})$$
+EnumPathOf(E) = FullPath(ModuleOf(E), E.name)
 
 **Enum Variant Visibility.**
 
-$$\text{VariantVis}(E, v) = \text{Vis}(E)$$
-$$\text{VariantVisible}(m, E, v) \iff \Gamma \vdash \text{CanAccess}(m, E) \Downarrow ok$$
+VariantVis(E, v) = Vis(E)
+VariantVisible(m, E, v) ⇔ Γ ⊢ CanAccess(m, E) ⇓ ok
 
 **(WF-EnumDecl)**
-$$\frac{\text{variants} \ne [] \quad \text{Distinct}([v.\text{name} \mid v \in \text{variants}]) \quad \forall v \in \text{variants},\ \Gamma \vdash v.\text{payload\_opt}\ \text{wf} \quad \text{EnumDiscriminants}(E) \Downarrow \_ \quad \Gamma \vdash \text{TypePath}(\text{EnumPathOf}(E)) : \text{ImplementsOk}}{\Gamma \vdash E\ \text{enum} : \text{ok}}$$
+variants ≠ []    Distinct([v.name | v ∈ variants])    ∀ v ∈ variants, Γ ⊢ v.payload_opt wf    EnumDiscriminants(E) ⇓ _    Γ ⊢ TypePath(EnumPathOf(E)) : ImplementsOk
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ E enum : ok
 
-$$\text{PayloadOptWF}(\bot)$$
-$$\text{PayloadOptWF}(\text{TuplePayload}([T_1,\ldots,T_n])) \iff \forall i.\ \Gamma \vdash T_i\ \text{wf}$$
-$$\text{PayloadOptWF}(\text{RecordPayload}([\langle f_1, T_1 \rangle,\ldots,\langle f_k, T_k \rangle])) \iff \text{Distinct}([f_1,\ldots,f_k]) \land \forall i.\ \Gamma \vdash T_i\ \text{wf}$$
+PayloadOptWF(⊥)
+PayloadOptWF(TuplePayload([T_1, …, T_n])) ⇔ ∀ i. Γ ⊢ T_i wf
+PayloadOptWF(RecordPayload([⟨f_1, T_1⟩, …, ⟨f_k, T_k⟩])) ⇔ Distinct([f_1, …, f_k]) ∧ ∀ i. Γ ⊢ T_i wf
 
-$$\Gamma \vdash payload\_opt\ \text{wf} \iff \text{PayloadOptWF}(payload\_opt)$$
+Γ ⊢ payload_opt wf ⇔ PayloadOptWF(payload_opt)
 
-$$\text{ModalPath}(M) = \text{FullPath}(\text{ModuleOf}(M), M.\text{name})$$
+ModalPath(M) = FullPath(ModuleOf(M), M.name)
 
 **(WF-ModalDecl)**
-$$\frac{p = \text{ModalPath}(M) \quad \Gamma \vdash \texttt{modal } M\ \text{wf} \quad \text{StateMemberVisOk}(M) \quad \Gamma \vdash \text{TypePath}(p) : \text{ImplementsOk} \quad \forall S \in \text{States}(M),\ \forall md \in \text{Methods}(S),\ \Gamma \vdash md : \text{StateMethodOK}(M, S) \quad \Gamma \vdash md : \text{StateMethodBodyOK}(p, S) \quad \forall tr \in \text{Transitions}(S),\ \Gamma \vdash tr : \text{TransitionOK}(M, S) \quad \Gamma \vdash tr : \text{TransitionBodyOK}(p, S)}{\Gamma \vdash M\ \text{modal} : \text{ok}}$$
+p = ModalPath(M)    Γ ⊢ `modal` M wf    StateMemberVisOk(M)    Γ ⊢ TypePath(p) : ImplementsOk    ∀ S ∈ States(M), ∀ md ∈ Methods(S), Γ ⊢ md : StateMethodOK(M, S)    Γ ⊢ md : StateMethodBodyOK(p, S)    ∀ tr ∈ Transitions(S), Γ ⊢ tr : TransitionOK(M, S)    Γ ⊢ tr : TransitionBodyOK(p, S)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ M modal : ok
 
 **(StateMemberVisOk-Err)**
-$$\frac{M = \text{ModalDecl}(\_,\_,\_,\_,\_,\_) \quad \neg \text{StateMemberVisOk}(M) \quad c = \text{Code}(\text{StateMemberVisOk-Err})}{\Gamma \vdash M \Uparrow c}$$
+M = ModalDecl(_, _, _, _, _, _)    ¬ StateMemberVisOk(M)    c = Code(StateMemberVisOk-Err)
+────────────────────────────────────────────────────────────────
+Γ ⊢ M ⇑ c
 
 **(WF-ClassDecl)**
-$$\frac{\Gamma \vdash Cl : \text{ClassOk}}{\Gamma \vdash Cl : \text{ok}}$$
+Γ ⊢ Cl : ClassOk
+──────────────────────────────────────────────
+Γ ⊢ Cl : ok
 
 **Program Entry Point (Cursive0).**
 
-$$\text{MainDecls}(P) = [\ d \mid m \in P.\text{modules},\ d \in \text{ASTModule}(P, m).\text{items},\ d = \text{ProcedureDecl}(vis,\ name,\ params,\ ret\_opt,\ body,\ span,\ doc),\ name = \texttt{"main"}\ ]$$
+MainDecls(P) = [ d | m ∈ P.modules, d ∈ ASTModule(P, m).items, d = ProcedureDecl(vis, name, params, ret_opt, body, span, doc), name = `main` ]
 
-$$\text{TypeParams}(\text{ProcedureDecl}(\_)) = []$$
-$$\text{MainGeneric}(d) \iff \text{TypeParams}(d) \ne []$$
+TypeParams(ProcedureDecl(_)) = []
+MainGeneric(d) ⇔ TypeParams(d) ≠ []
 
-$$\text{MainSigOk}(d) \iff d = \text{ProcedureDecl}(vis, \texttt{"main"}, params, ret\_opt, \_, \_, \_) \land vis = \texttt{public} \land params = [\langle mode,\ name,\ ty \rangle] \land mode \in \{\bot, \texttt{move}\} \land ty = \text{TypePath}([\texttt{"Context"}]) \land \text{BuiltInContext}(\text{TypePath}([\texttt{"Context"}])) \land ret\_opt = \text{TypePrim}(\texttt{"i32"})$$
-$$\text{MainConsumesContext}(d) \iff \text{MainSigOk}(d) \land \exists mode.\ d.\text{params}=[\langle mode,\_,\_\rangle] \land mode=\texttt{move}$$
-$$\text{MainRetainsContext}(d) \iff \text{MainSigOk}(d) \land \exists mode.\ d.\text{params}=[\langle mode,\_,\_\rangle] \land mode=\bot$$
+MainSigOk(d) ⇔ d = ProcedureDecl(vis, `main`, params, ret_opt, _, _, _) ∧ vis = `public` ∧ params = [⟨mode, name, ty⟩] ∧ mode ∈ {⊥, `move`} ∧ ty = TypePath([`Context`]) ∧ BuiltInContext(TypePath([`Context`])) ∧ ret_opt = TypePrim("i32")
+MainConsumesContext(d) ⇔ MainSigOk(d) ∧ ∃ mode. d.params = [⟨mode, _, _⟩] ∧ mode = `move`
+MainRetainsContext(d) ⇔ MainSigOk(d) ∧ ∃ mode. d.params = [⟨mode, _, _⟩] ∧ mode = ⊥
 
-$$\text{MainCheck} : \text{Project} \rightharpoonup \text{ok}$$
+MainCheck : Project ⇀ ok
 
 **(Main-Ok)**
-$$\frac{\text{Executable}(P) \quad \text{MainDecls}(P) = [d] \quad \neg \text{MainGeneric}(d) \quad \text{MainSigOk}(d)}{\Gamma \vdash \text{MainCheck}(P) \Downarrow ok}$$
+Executable(P)    MainDecls(P) = [d]    ¬ MainGeneric(d)    MainSigOk(d)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ MainCheck(P) ⇓ ok
 
 **(Main-Bypass-Lib)**
-$$\frac{\neg \text{Executable}(P)}{\Gamma \vdash \text{MainCheck}(P) \Downarrow ok}$$
+¬ Executable(P)
+──────────────────────────────────────────────
+Γ ⊢ MainCheck(P) ⇓ ok
 
 **(Main-Multiple)**
-$$\frac{\text{Executable}(P) \quad |\text{MainDecls}(P)| > 1 \quad c = \text{Code}(\text{Main-Multiple})}{\Gamma \vdash \text{MainCheck}(P) \Uparrow c}$$
+Executable(P)    |MainDecls(P)| > 1    c = Code(Main-Multiple)
+────────────────────────────────────────────────────────────────
+Γ ⊢ MainCheck(P) ⇑ c
 
 **(Main-Generic-Err)**
-$$\frac{\text{Executable}(P) \quad \text{MainDecls}(P) = [d] \quad \text{MainGeneric}(d) \quad c = \text{Code}(\text{Main-Generic-Err})}{\Gamma \vdash \text{MainCheck}(P) \Uparrow c}$$
+Executable(P)    MainDecls(P) = [d]    MainGeneric(d)    c = Code(Main-Generic-Err)
+────────────────────────────────────────────────────────────────
+Γ ⊢ MainCheck(P) ⇑ c
 
 **(Main-Signature-Err)**
-$$\frac{\text{Executable}(P) \quad \text{MainDecls}(P) = [d] \quad \neg \text{MainSigOk}(d) \quad c = \text{Code}(\text{Main-Signature-Err})}{\Gamma \vdash \text{MainCheck}(P) \Uparrow c}$$
+Executable(P)    MainDecls(P) = [d]    ¬ MainSigOk(d)    c = Code(Main-Signature-Err)
+────────────────────────────────────────────────────────────────
+Γ ⊢ MainCheck(P) ⇑ c
 
 **(Main-Missing)**
-$$\frac{\text{Executable}(P) \quad \text{MainDecls}(P) = [] \quad c = \text{Code}(\text{Main-Missing})}{\Gamma \vdash \text{MainCheck}(P) \Uparrow c}$$
+Executable(P)    MainDecls(P) = []    c = Code(Main-Missing)
+────────────────────────────────────────────────────────────────
+Γ ⊢ MainCheck(P) ⇑ c
 
-$$\text{MainDiagRefs} = \{\texttt{"8.2"}\}$$
+MainDiagRefs = {"8.2"}
 
-$$\text{Phase3Checks}(P, Ms) = [\Gamma \vdash \text{ResolveModules}(P) \Downarrow Ms,\ \Gamma \vdash \text{DeclTyping}(Ms) \Downarrow ok,\ \Gamma \vdash \text{MainCheck}(P) \Downarrow ok]$$
-$$\text{Phase3Order}(P) \iff \exists Ms.\ \text{FirstFail}(\text{Phase3Checks}(P, Ms)) = \bot$$
+Phase3Checks(P, Ms) = [Γ ⊢ ResolveModules(P) ⇓ Ms, Γ ⊢ DeclTyping(Ms) ⇓ ok, Γ ⊢ MainCheck(P) ⇓ ok]
+Phase3Order(P) ⇔ ∃ Ms. FirstFail(Phase3Checks(P, Ms)) = ⊥
 
 #### 5.2.15. Binding and Permission State (Cursive0)
 
 **Binding State.**
 
-$$\text{BindingState} ::= \text{Valid} \mid \text{Moved} \mid \text{PartiallyMoved}(F)\quad (F \subseteq \text{Name})$$
+BindingState ::= Valid | Moved | PartiallyMoved(F)    (F ⊆ Name)
 
 **Binding Metadata.**
 
-$$\text{Movability} ::= \text{mov} \mid \text{immov}$$
-$$\text{Responsibility} ::= \text{resp} \mid \text{alias}$$
-$$\text{Mutability} = \{\texttt{let}, \texttt{var}\}$$
-$$\text{BindInfo} ::= \langle \text{state},\ \text{mov},\ \text{mut},\ \text{resp} \rangle\quad (\text{mut} \in \text{Mutability})$$
+Movability ::= mov | immov
+Responsibility ::= resp | alias
+Mutability = {`let`, `var`}
+BindInfo ::= ⟨state, mov, mut, resp⟩    (mut ∈ Mutability)
 
 **Binding Environment.**
 
-$$\text{BindScope} = \text{Map}(\text{Identifier}, \text{BindInfo})$$
-$$\mathcal{B} = [\text{BindScope}]$$
+BindScope = Map(Identifier, BindInfo)
+𝔅 = [BindScope]
 
-$$\text{PushScope}_B(\mathcal{B}) = [\emptyset] \mathbin{+\!\!+} \mathcal{B}$$
-$$\text{PopScope}_B([\_]\mathbin{+\!\!+}\mathcal{B}) = \mathcal{B}$$
+PushScope_B(𝔅) = [∅] ++ 𝔅
+PopScope_B([_] ++ 𝔅) = 𝔅
 
-$$\text{Lookup}_B([\sigma] \mathbin{+\!\!+} \mathcal{B}', x) = \begin{cases}
-\sigma[x] & \text{if } x \in \text{dom}(\sigma)\\
-\text{Lookup}_B(\mathcal{B}', x) & \text{otherwise}
-\end{cases}$$
-$$\text{Lookup}_B([], x) = \bot$$
+Lookup_B([σ] ++ 𝔅', x) =
+  { σ[x]                if x ∈ dom(σ)
+    Lookup_B(𝔅', x)     otherwise }
+Lookup_B([], x) = ⊥
 
-$$\text{Update}_B([\sigma] \mathbin{+\!\!+} \mathcal{B}', x, info) = \begin{cases}
-[\sigma[x \mapsto info]] \mathbin{+\!\!+} \mathcal{B}' & \text{if } x \in \text{dom}(\sigma)\\
-[\sigma] \mathbin{+\!\!+} \text{Update}_B(\mathcal{B}', x, info) & \text{otherwise}
-\end{cases}$$
-$$\text{Update}_B([], x, info) = \bot$$
+Update_B([σ] ++ 𝔅', x, info) =
+  { [σ[x ↦ info]] ++ 𝔅'            if x ∈ dom(σ)
+    [σ] ++ Update_B(𝔅', x, info)   otherwise }
+Update_B([], x, info) = ⊥
 
-$$\text{Intro}_B([\sigma] \mathbin{+\!\!+} \mathcal{B}', x, info) = [\sigma[x \mapsto info]] \mathbin{+\!\!+} \mathcal{B}'$$
-$$\text{ShadowIntro}_B(\mathcal{B}, x, info) = \text{Update}_B(\mathcal{B}, x, info)$$
+Intro_B([σ] ++ 𝔅', x, info) = [σ[x ↦ info]] ++ 𝔅'
+ShadowIntro_B(𝔅, x, info) = Update_B(𝔅, x, info)
 
 **Permission of a Type.**
 
-$$\text{PermOf}(\text{TypePerm}(p, T)) = p$$
-$$\text{PermOf}(T) = \texttt{const} \quad \text{if } T \ne \text{TypePerm}(\_,\_)$$
+PermOf(TypePerm(p, T)) = p
+PermOf(T) = `const`    if T ≠ TypePerm(_, _)
 
 **Permission State.**
 
-$$\text{ActiveState} ::= \text{Active} \mid \text{Inactive}$$
+ActiveState ::= Active | Inactive
 
-$$\text{PermKey} = \text{Identifier} \times \text{FieldPath}$$
-$$\text{PermScope} = \text{Map}(\text{PermKey}, \text{ActiveState})$$
-$$\Pi = [\text{PermScope}]$$
+PermKey = Identifier × FieldPath
+PermScope = Map(PermKey, ActiveState)
+Π = [PermScope]
 
-$$\text{PushScope}_\Pi(\Pi) = [\emptyset] \mathbin{+\!\!+} \Pi$$
-$$\text{PopScope}_\Pi([\_]\mathbin{+\!\!+}\Pi) = \Pi$$
+PushScope_Π(Π) = [∅] ++ Π
+PopScope_Π([_] ++ Π) = Π
 
-$$\text{Lookup}_\Pi([\sigma] \mathbin{+\!\!+} \Pi', k) = \begin{cases}
-\text{Inactive} & \text{if } k \in \text{dom}(\sigma) \land \sigma[k] = \text{Inactive}\\
-\text{Lookup}_\Pi(\Pi', k) & \text{otherwise}
-\end{cases}$$
-$$\text{Lookup}_\Pi([], k) = \text{Active}$$
+Lookup_Π([σ] ++ Π', k) =
+  { Inactive             if k ∈ dom(σ) ∧ σ[k] = Inactive
+    Lookup_Π(Π', k)      otherwise }
+Lookup_Π([], k) = Active
 
-$$\text{Update}_\Pi([\sigma] \mathbin{+\!\!+} \Pi', k, s) = [\sigma[k \mapsto s]] \mathbin{+\!\!+} \Pi'$$
+Update_Π([σ] ++ Π', k, s) = [σ[k ↦ s]] ++ Π'
 
 **Join at Control-Flow Merge.**
 
-$$\text{JoinState}(\text{Moved}, s) = \text{Moved}$$
-$$\text{JoinState}(s, \text{Moved}) = \text{Moved}$$
-$$\text{JoinState}(\text{PartiallyMoved}(F_1), \text{PartiallyMoved}(F_2)) = \text{PartiallyMoved}(F_1 \cup F_2)$$
-$$\text{JoinState}(\text{Valid}, \text{PartiallyMoved}(F)) = \text{PartiallyMoved}(F)$$
-$$\text{JoinState}(\text{PartiallyMoved}(F), \text{Valid}) = \text{PartiallyMoved}(F)$$
-$$\text{JoinState}(\text{Valid}, \text{Valid}) = \text{Valid}$$
+JoinState(Moved, s) = Moved
+JoinState(s, Moved) = Moved
+JoinState(PartiallyMoved(F_1), PartiallyMoved(F_2)) = PartiallyMoved(F_1 ∪ F_2)
+JoinState(Valid, PartiallyMoved(F)) = PartiallyMoved(F)
+JoinState(PartiallyMoved(F), Valid) = PartiallyMoved(F)
+JoinState(Valid, Valid) = Valid
 
-$$\text{JoinBindInfo}(\langle s_1, mv_1, mut_1, resp_1 \rangle,\ \langle s_2, mv_2, mut_2, resp_2 \rangle) =
-\begin{cases}
-\langle \text{JoinState}(s_1,s_2),\ mv_1,\ mut_1,\ resp_1 \rangle & \text{if } mv_1=mv_2 \land mut_1=mut_2 \land resp_1=resp_2\\
-\bot & \text{otherwise}
-\end{cases}$$
+JoinBindInfo(⟨s_1, mv_1, mut_1, resp_1⟩, ⟨s_2, mv_2, mut_2, resp_2⟩) =
+  { ⟨JoinState(s_1, s_2), mv_1, mut_1, resp_1⟩   if mv_1 = mv_2 ∧ mut_1 = mut_2 ∧ resp_1 = resp_2
+    ⊥                                            otherwise }
 
-$$\text{JoinScope}_B(B_1,B_2) =
-\begin{cases}
-\{ x \mapsto \text{JoinBindInfo}(B_1[x], B_2[x]) \mid x \in \text{dom}(B_1) \} & \text{if } \text{dom}(B_1)=\text{dom}(B_2) \land \forall x \in \text{dom}(B_1).\ \text{JoinBindInfo}(B_1[x], B_2[x]) \ne \bot\\
-\bot & \text{otherwise}
-\end{cases}$$
+JoinScope_B(B_1, B_2) =
+  { { x ↦ JoinBindInfo(B_1[x], B_2[x]) | x ∈ dom(B_1) }    if dom(B_1) = dom(B_2) ∧ ∀ x ∈ dom(B_1). JoinBindInfo(B_1[x], B_2[x]) ≠ ⊥
+    ⊥                                                      otherwise }
 
-$$\text{Join}_B([], []) = []$$
-$$\text{Join}_B(B_1::\mathcal{B}_1,\ B_2::\mathcal{B}_2) =
-\begin{cases}
-\text{JoinScope}_B(B_1,B_2) :: \text{Join}_B(\mathcal{B}_1,\mathcal{B}_2) & \text{if } \text{JoinScope}_B(B_1,B_2) \ne \bot \land \text{Join}_B(\mathcal{B}_1,\mathcal{B}_2) \ne \bot\\
-\bot & \text{otherwise}
-\end{cases}$$
-$$\text{Join}_B(\mathcal{B}_1,\mathcal{B}_2) = \bot \quad \text{if } |\mathcal{B}_1| \ne |\mathcal{B}_2|$$
+Join_B([], []) = []
+Join_B(B_1 :: 𝔅_1, B_2 :: 𝔅_2) =
+  { JoinScope_B(B_1, B_2) :: Join_B(𝔅_1, 𝔅_2)    if JoinScope_B(B_1, B_2) ≠ ⊥ ∧ Join_B(𝔅_1, 𝔅_2) ≠ ⊥
+    ⊥                                           otherwise }
+Join_B(𝔅_1, 𝔅_2) = ⊥    if |𝔅_1| ≠ |𝔅_2|
 
-$$\text{JoinPermState}(\text{Active},\text{Active}) = \text{Active}$$
-$$\text{JoinPermState}(\_,\_) = \text{Inactive} \quad \text{otherwise}$$
+JoinPermState(Active, Active) = Active
+JoinPermState(_, _) = Inactive    otherwise
 
-$$\text{PermAt}(B,x) =
-\begin{cases}
-B[x] & \text{if } x \in \text{dom}(B)\\
-\text{Active} & \text{otherwise}
-\end{cases}$$
+PermAt(B, x) =
+  { B[x]     if x ∈ dom(B)
+    Active   otherwise }
 
-$$\text{JoinScope}_\Pi(B_1,B_2) = \{ x \mapsto \text{JoinPermState}(\text{PermAt}(B_1,x), \text{PermAt}(B_2,x)) \mid x \in \text{dom}(B_1) \cup \text{dom}(B_2) \}$$
+JoinScope_Π(B_1, B_2) = { x ↦ JoinPermState(PermAt(B_1, x), PermAt(B_2, x)) | x ∈ dom(B_1) ∪ dom(B_2) }
 
-$$\text{JoinPerm}([], []) = []$$
-$$\text{JoinPerm}(B_1::\Pi_1,\ B_2::\Pi_2) =
-\begin{cases}
-\text{JoinScope}_\Pi(B_1,B_2) :: \text{JoinPerm}(\Pi_1,\Pi_2) & \text{if } \text{JoinScope}_\Pi(B_1,B_2) \ne \bot \land \text{JoinPerm}(\Pi_1,\Pi_2) \ne \bot\\
-\bot & \text{otherwise}
-\end{cases}$$
-$$\text{JoinPerm}(\Pi_1,\Pi_2) = \bot \quad \text{if } |\Pi_1| \ne |\Pi_2|$$
+JoinPerm([], []) = []
+JoinPerm(B_1 :: Π_1, B_2 :: Π_2) =
+  { JoinScope_Π(B_1, B_2) :: JoinPerm(Π_1, Π_2)    if JoinScope_Π(B_1, B_2) ≠ ⊥ ∧ JoinPerm(Π_1, Π_2) ≠ ⊥
+    ⊥                                             otherwise }
+JoinPerm(Π_1, Π_2) = ⊥    if |Π_1| ≠ |Π_2|
 
 **Place Roots and Field Heads.**
 
-$$\text{FieldHead}(\text{Identifier}(x)) = \bot$$
-$$\text{FieldHead}(\text{FieldAccess}(p,f)) = \begin{cases}
-f & \text{if }\text{FieldHead}(p) = \bot\\
-\text{FieldHead}(p) & \text{otherwise}
-\end{cases}$$
-$$\text{FieldHead}(\text{TupleAccess}(p,\_)) = \text{FieldHead}(p)$$
-$$\text{FieldHead}(\text{IndexAccess}(p,\_)) = \text{FieldHead}(p)$$
-$$\text{FieldHead}(\text{Deref}(p)) = \bot$$
+FieldHead(Identifier(x)) = ⊥
+FieldHead(FieldAccess(p, f)) =
+  { f                if FieldHead(p) = ⊥
+    FieldHead(p)     otherwise }
+FieldHead(TupleAccess(p, _)) = FieldHead(p)
+FieldHead(IndexAccess(p, _)) = FieldHead(p)
+FieldHead(Deref(p)) = ⊥
 
 **Access Legality.**
 
-$$\text{AccessStateOk}(\text{Valid}, p) = \text{true}$$
-$$\text{AccessStateOk}(\text{PartiallyMoved}(F), p) = (\text{FieldHead}(p)=f \land f \notin F)$$
-$$\text{AccessStateOk}(\text{Moved}, p) = \text{false}$$
+AccessStateOk(Valid, p) = true
+AccessStateOk(PartiallyMoved(F), p) = (FieldHead(p) = f ∧ f ∉ F)
+AccessStateOk(Moved, p) = false
 
-$$\text{AccessOk}_B(\mathcal{B}, p) \iff x=\text{PlaceRoot}(p) \land \text{Lookup}_B(\mathcal{B}, x)=\langle s,\_,\_,\_ \rangle \land \text{AccessStateOk}(s,p)$$
+AccessOk_B(𝔅, p) ⇔ x = PlaceRoot(p) ∧ Lookup_B(𝔅, x) = ⟨s, _, _, _⟩ ∧ AccessStateOk(s, p)
 
-$$\text{AccessOk}_\Pi(\Pi, p) \iff (\text{PermOf}(\text{ExprType}(p)) \ne \texttt{unique}) \lor \text{AccessPathOk}(\Pi,p)$$
+AccessOk_Π(Π, p) ⇔ (PermOf(ExprType(p)) ≠ `unique`) ∨ AccessPathOk(Π, p)
 
-$$\text{AccessOk}(\mathcal{B}, \Pi, p) \iff \text{AccessOk}_B(\mathcal{B}, p) \land \text{AccessOk}_\Pi(\Pi, p)$$
+AccessOk(𝔅, Π, p) ⇔ AccessOk_B(𝔅, p) ∧ AccessOk_Π(Π, p)
 
 **Binding Introduction.**
 
-$$\text{MovOf}("=") = \text{mov}$$
-$$\text{MovOf}(":=") = \text{immov}$$
+MovOf("=") = mov
+MovOf(":=") = immov
 
-$$\text{IsMoveExpr}(\text{MoveExpr}(\_)) = \text{true}$$
-$$\text{IsMoveExpr}(\_) = \text{false} \quad \text{otherwise}$$
+IsMoveExpr(MoveExpr(_)) = true
+IsMoveExpr(_) = false    otherwise
 
-$$\text{RespOfInit}(init) = \begin{cases}
-\text{resp} & \text{if } \neg \text{IsPlace}(init)\\
-\text{resp} & \text{if } \text{IsMoveExpr}(init)\\
-\text{alias} & \text{otherwise}
-\end{cases}$$
+RespOfInit(init) =
+  { resp    if ¬ IsPlace(init)
+    resp    if IsMoveExpr(init)
+    alias   otherwise }
 
 **Temporary Lifetime.**
 
-$$\text{InitExpr}(\langle \_,\_,\_, init,\_ \rangle) = init$$
+InitExpr(⟨_, _, _, init, _⟩) = init
 
-$$\text{BindInitScope}(e) = \text{BindScope}(s) \iff
-\big(s=\text{LetStmt}(binding) \land \text{InitExpr}(binding)=e\big)\ \lor\
-\big(s=\text{VarStmt}(binding) \land \text{InitExpr}(binding)=e\big)\ \lor\
-\big(s=\text{ShadowLetStmt}(\_,\_,e)\big)\ \lor\
-\big(s=\text{ShadowVarStmt}(\_,\_,e)\big)$$
+BindInitScope(e) = BindScope(s) ⇔
+  (s = LetStmt(binding) ∧ InitExpr(binding) = e) ∨
+  (s = VarStmt(binding) ∧ InitExpr(binding) = e) ∨
+  (s = ShadowLetStmt(_, _, e)) ∨
+  (s = ShadowVarStmt(_, _, e))
 
-$$\text{TempScope}(e) =
-\begin{cases}
-\text{BindInitScope}(e) & \text{if } \text{BindInitScope}(e) \ne \bot\\
-\text{StmtScope}(\text{EnclosingStmt}(e)) & \text{otherwise}
-\end{cases}$$
+TempScope(e) =
+  { BindInitScope(e)                  if BindInitScope(e) ≠ ⊥
+    StmtScope(EnclosingStmt(e))       otherwise }
 
-$$\text{TempValue}(e) \iff \neg \text{IsPlace}(e)$$
+TempValue(e) ⇔ ¬ IsPlace(e)
 
-$$\text{TempOrderList}([]) = []$$
-$$\text{TempOrderList}([e] \mathbin{+\!\!+} es) = \text{TempOrder}(e) \mathbin{+\!\!+} \text{TempOrderList}(es)$$
+TempOrderList([]) = []
+TempOrderList([e] ++ es) = TempOrder(e) ++ TempOrderList(es)
 
-$$\text{TempOrder}(e) =
-\begin{cases}
-\text{TempOrderList}(\text{Children}_{\text{LTR}}(e)) \mathbin{+\!\!+} [e] & \text{if } \text{TempValue}(e)\\
-\text{TempOrderList}(\text{Children}_{\text{LTR}}(e)) & \text{otherwise}
-\end{cases}$$
+TempOrder(e) =
+  { TempOrderList(Children_LTR(e)) ++ [e]    if TempValue(e)
+    TempOrderList(Children_LTR(e))          otherwise }
 
-$$\text{TempOrderStmt}(s) = \text{TempOrderList}(\text{StmtExprs}(s))$$
+TempOrderStmt(s) = TempOrderList(StmtExprs(s))
 
-$$\text{ControlExpr}(\text{ReturnStmt}(e)) = e \quad \text{ControlExpr}(\text{ResultStmt}(e)) = e \quad \text{ControlExpr}(\text{BreakStmt}(e)) = e$$
-$$\text{ControlExpr}(s) = \bot \quad \text{if } s \notin \{\text{ReturnStmt}(\_),\ \text{ResultStmt}(\_),\ \text{BreakStmt}(\_)\}$$
+ControlExpr(ReturnStmt(e)) = e    ControlExpr(ResultStmt(e)) = e    ControlExpr(BreakStmt(e)) = e
+ControlExpr(s) = ⊥    if s ∉ {ReturnStmt(_), ResultStmt(_), BreakStmt(_)}
 
-$$\text{TempStmtList}(s) = [\,e \in \text{TempOrderStmt}(s)\mid \text{TempScope}(e) = \text{StmtScope}(s)\ \land\ e \ne \text{ControlExpr}(s)\,]$$
-$$\text{TempDropOrder}(s) = \text{Rev}(\text{TempStmtList}(s))$$
+TempStmtList(s) = [ e ∈ TempOrderStmt(s) | TempScope(e) = StmtScope(s) ∧ e ≠ ControlExpr(s) ]
+TempDropOrder(s) = Rev(TempStmtList(s))
 
 **Judgments.**
 
-$$\text{BJudgment} = \{\Gamma;\mathcal{B};\Pi \vdash e \Rightarrow \mathcal{B}' \triangleright \Pi',\ \Gamma;\mathcal{B};\Pi \vdash s \Rightarrow \mathcal{B}' \triangleright \Pi'\}$$
+BJudgment = {Γ; 𝔅; Π ⊢ e ⇒ 𝔅' ▷ Π', Γ; 𝔅; Π ⊢ s ⇒ 𝔅' ▷ Π'}
 
-$$\text{ExprType}(e) = T \iff \Gamma;R;L \vdash e : T$$
-$$\text{ExprType}(p) = T \iff \text{IsPlace}(p) \land \Gamma;R;L \vdash p :place T$$
+ExprType(e) = T ⇔ Γ; R; L ⊢ e : T
+ExprType(p) = T ⇔ IsPlace(p) ∧ Γ; R; L ⊢ p :place T
 
-$$\text{BindType}(\langle pat, ty\_opt, op, init, \_ \rangle) = T \iff ty\_opt = T$$
-$$\text{BindType}(\langle pat, \bot, op, init, \_ \rangle) = \theta(T_i) \iff \Gamma;R;L \vdash init \Rightarrow T_i \dashv C \land \text{Solve}(C) \Downarrow \theta$$
-$$\text{BindType}(\text{ShadowLetStmt}(\_, ty\_opt, init)) = T \iff ty\_opt = T$$
-$$\text{BindType}(\text{ShadowLetStmt}(\_, \bot, init)) = \theta(T_i) \iff \Gamma;R;L \vdash init \Rightarrow T_i \dashv C \land \text{Solve}(C) \Downarrow \theta$$
-$$\text{BindType}(\text{ShadowVarStmt}(\_, ty\_opt, init)) = T \iff ty\_opt = T$$
-$$\text{BindType}(\text{ShadowVarStmt}(\_, \bot, init)) = \theta(T_i) \iff \Gamma;R;L \vdash init \Rightarrow T_i \dashv C \land \text{Solve}(C) \Downarrow \theta$$
+BindType(⟨pat, ty_opt, op, init, _⟩) = T ⇔ ty_opt = T
+BindType(⟨pat, ⊥, op, init, _⟩) = θ(T_i) ⇔ Γ; R; L ⊢ init ⇒ T_i ⊣ C ∧ Solve(C) ⇓ θ
+BindType(ShadowLetStmt(_, ty_opt, init)) = T ⇔ ty_opt = T
+BindType(ShadowLetStmt(_, ⊥, init)) = θ(T_i) ⇔ Γ; R; L ⊢ init ⇒ T_i ⊣ C ∧ Solve(C) ⇓ θ
+BindType(ShadowVarStmt(_, ty_opt, init)) = T ⇔ ty_opt = T
+BindType(ShadowVarStmt(_, ⊥, init)) = θ(T_i) ⇔ Γ; R; L ⊢ init ⇒ T_i ⊣ C ∧ Solve(C) ⇓ θ
 
-$$\text{MapUnion}(M_1, M_2) = \{ x \mapsto (M_2[x] \ \text{if } x \in \text{dom}(M_2)\ \text{else } M_1[x]) \mid x \in \text{dom}(M_1) \cup \text{dom}(M_2) \}$$
+MapUnion(M_1, M_2) = { x ↦ (M_2[x] if x ∈ dom(M_2) else M_1[x]) | x ∈ dom(M_1) ∪ dom(M_2) }
 
-$$\text{IntroAll}_B([\sigma] \mathbin{+\!\!+} \mathcal{B}', B) = [\text{MapUnion}(\sigma, B)] \mathbin{+\!\!+} \mathcal{B}'$$
+IntroAll_B([σ] ++ 𝔅', B) = [MapUnion(σ, B)] ++ 𝔅'
 
-$$\text{ShadowAll}_B(\mathcal{B}, B) = \text{ShadowAll}_B(\mathcal{B}, \text{Entries}(B))$$
-$$\text{ShadowAll}_B(\mathcal{B}, []) = \mathcal{B}$$
-$$\text{ShadowAll}_B(\mathcal{B}, [\langle x, info \rangle] \mathbin{+\!\!+} xs) = \text{ShadowAll}_B(\text{ShadowIntro}_B(\mathcal{B}, x, info), xs)$$
+ShadowAll_B(𝔅, B) = ShadowAll_B(𝔅, Entries(B))
+ShadowAll_B(𝔅, []) = 𝔅
+ShadowAll_B(𝔅, [⟨x, info⟩] ++ xs) = ShadowAll_B(ShadowIntro_B(𝔅, x, info), xs)
 
-$$\text{BindInfoMap}(f, B, mv, mut) = \{ x \mapsto \langle \text{Valid}, \text{MovEff}(mv, f(B[x])), mut, f(B[x]) \rangle \mid x \in \text{dom}(B) \}$$
+BindInfoMap(f, B, mv, mut) = { x ↦ ⟨Valid, MovEff(mv, f(B[x])), mut, f(B[x])⟩ | x ∈ dom(B) }
 
-$$\text{MovEff}(mv, \text{resp}) = mv \quad\quad \text{MovEff}(mv, \text{alias}) = \text{immov}$$
+MovEff(mv, resp) = mv    MovEff(mv, alias) = immov
 
-$$T_{\text{Region}} = \text{TypeModalState}([\texttt{Region}], \texttt{Active})$$
-$$\text{RegionBindName}(\Gamma, alias\_opt) = \begin{cases}
-alias\_opt & \text{if } alias\_opt \ne \bot\\
-\text{FreshRegion}(\Gamma) & \text{otherwise}
-\end{cases}$$
-$$\text{RegionBindMap}(\Gamma, alias\_opt) = \{ r \mapsto T_{\text{Region}} \mid r = \text{RegionBindName}(\Gamma, alias\_opt) \}$$
-$$\text{RegionBindInfo}(\Gamma, alias\_opt) = \text{BindInfoMap}(\lambda U.\ \text{resp}, \text{RegionBindMap}(\Gamma, alias\_opt), \text{mov}, \texttt{let})$$
-$$\text{FrameBindInfo}(\Gamma) = \text{RegionBindInfo}(\Gamma, \bot)$$
+T_Region = TypeModalState([`Region`], `Active`)
+RegionBindName(Γ, alias_opt) =
+  { alias_opt         if alias_opt ≠ ⊥
+    FreshRegion(Γ)    otherwise }
+RegionBindMap(Γ, alias_opt) = { r ↦ T_Region | r = RegionBindName(Γ, alias_opt) }
+RegionBindInfo(Γ, alias_opt) = BindInfoMap(λ U. resp, RegionBindMap(Γ, alias_opt), mov, `let`)
+FrameBindInfo(Γ) = RegionBindInfo(Γ, ⊥)
 
-$$\text{Names}(B) = \text{dom}(B)$$
+Names(B) = dom(B)
 
-$$\text{JoinAll}_B([]) = \bot$$
-$$\text{JoinAll}_B([\mathcal{B}]) = \mathcal{B}$$
-$$\text{JoinAll}_B(\mathcal{B}_1::\mathcal{B}_2::rest) = \text{JoinAll}_B([\text{Join}_B(\mathcal{B}_1,\mathcal{B}_2)] \mathbin{+\!\!+} rest)$$
+JoinAll_B([]) = ⊥
+JoinAll_B([𝔅]) = 𝔅
+JoinAll_B(𝔅_1 :: 𝔅_2 :: rest) = JoinAll_B([Join_B(𝔅_1, 𝔅_2)] ++ rest)
 
-$$\text{JoinAllPerm}([]) = \bot$$
-$$\text{JoinAllPerm}([\Pi]) = \Pi$$
-$$\text{JoinAllPerm}(\Pi_1::\Pi_2::rest) = \text{JoinAllPerm}([\text{JoinPerm}(\Pi_1,\Pi_2)] \mathbin{+\!\!+} rest)$$
+JoinAllPerm([]) = ⊥
+JoinAllPerm([Π]) = Π
+JoinAllPerm(Π_1 :: Π_2 :: rest) = JoinAllPerm([JoinPerm(Π_1, Π_2)] ++ rest)
 
-$$\text{Top}([\sigma] \mathbin{+\!\!+} \Pi') = \sigma$$
+Top([σ] ++ Π') = σ
 
-$$\text{SetTop}([\sigma] \mathbin{+\!\!+} \Pi', \sigma') = [\sigma'] \mathbin{+\!\!+} \Pi'$$
+SetTop([σ] ++ Π', σ') = [σ'] ++ Π'
 
-$$\text{InactivateScope}(\sigma, K) = \{ x \mapsto (\text{Inactive}\ \text{if } x \in K\ \text{else } \sigma[x]) \mid x \in \text{dom}(\sigma) \cup K \}$$
+InactivateScope(σ, K) = { x ↦ (Inactive if x ∈ K else σ[x]) | x ∈ dom(σ) ∪ K }
 
-$$\text{Roots}(\Pi_2, \Pi_1) = \{ k \mid \text{Top}(\Pi_2)[k] = \text{Inactive} \land \text{Lookup}_\Pi(\Pi_1, k) = \text{Active} \}$$
+Roots(Π_2, Π_1) = { k | Top(Π_2)[k] = Inactive ∧ Lookup_Π(Π_1, k) = Active }
 
-$$\text{ConsumeOnMove}(\mathcal{B}, e) =
-\begin{cases}
-\text{Update}_B(\mathcal{B}, x, \langle \text{Moved}, mv, mut, resp \rangle) & \text{if } \text{IsMoveExpr}(e) \land x=\text{PlaceRoot}(\text{MoveInner}(e)) \land \text{Lookup}_B(\mathcal{B}, x)=\langle s, mv, mut, resp \rangle\\
-\mathcal{B} & \text{otherwise}
-\end{cases}$$
+ConsumeOnMove(𝔅, e) =
+  { Update_B(𝔅, x, ⟨Moved, mv, mut, resp⟩)    if IsMoveExpr(e) ∧ x = PlaceRoot(MoveInner(e)) ∧ Lookup_B(𝔅, x) = ⟨s, mv, mut, resp⟩
+    𝔅                                         otherwise }
 
-$$\text{MoveInner}(\text{MoveExpr}(p)) = p$$
+MoveInner(MoveExpr(p)) = p
 
-$$\text{OptList}(\bot) = []$$
-$$\text{OptList}(e) = [e] \quad \text{if } e \ne \bot$$
+OptList(⊥) = []
+OptList(e) = [e]    if e ≠ ⊥
 
 $$\text{StmtExprs}(\text{LetStmt}(\langle \_,\_,\_, init,\_ \rangle)) = [init]$$
 $$\text{StmtExprs}(\text{VarStmt}(\langle \_,\_,\_, init,\_ \rangle)) = [init]$$
 $$\text{StmtExprs}(\text{ShadowLetStmt}(\_,\_,init)) = [init]$$
-$$\text{StmtExprs}(\text{ShadowVarStmt}(\_,\_,init)) = [init]$$
-$$\text{StmtExprs}(\text{AssignStmt}(p,e)) = [e,p]$$
-$$\text{StmtExprs}(\text{CompoundAssignStmt}(p,\_,e)) = [p,e]$$
-$$\text{StmtExprs}(\text{ExprStmt}(e)) = [e]$$
-$$\text{StmtExprs}(\text{ReturnStmt}(e\_opt)) = \text{OptList}(e\_opt)$$
-$$\text{StmtExprs}(\text{ResultStmt}(e)) = [e]$$
-$$\text{StmtExprs}(\text{BreakStmt}(e\_opt)) = \text{OptList}(e\_opt)$$
-$$\text{StmtExprs}(\text{ContinueStmt}) = []$$
-$$\text{StmtExprs}(\text{DeferStmt}(\_)) = []$$
-$$\text{StmtExprs}(\text{UnsafeBlockStmt}(b)) = [b]$$
-$$\text{StmtExprs}(\text{RegionStmt}(opts\_opt,\_, b)) = [\text{RegionOptsExpr}(opts\_opt), b]$$
-$$\text{StmtExprs}(\text{FrameStmt}(\_, b)) = [b]$$
-$$\text{StmtExprs}(\text{ErrorStmt}(\_)) = []$$
+StmtExprs(ShadowVarStmt(_, _, init)) = [init]
+StmtExprs(AssignStmt(p, e)) = [e, p]
+StmtExprs(CompoundAssignStmt(p, _, e)) = [p, e]
+StmtExprs(ExprStmt(e)) = [e]
+StmtExprs(ReturnStmt(e_opt)) = OptList(e_opt)
+StmtExprs(ResultStmt(e)) = [e]
+StmtExprs(BreakStmt(e_opt)) = OptList(e_opt)
+StmtExprs(ContinueStmt) = []
+StmtExprs(DeferStmt(_)) = []
+StmtExprs(UnsafeBlockStmt(b)) = [b]
+StmtExprs(RegionStmt(opts_opt, _, b)) = [RegionOptsExpr(opts_opt), b]
+StmtExprs(FrameStmt(_, b)) = [b]
+StmtExprs(ErrorStmt(_)) = []
 
-$$\text{StmtScope}(s) = s$$
-$$\text{BindScope}(s) = \text{BlockOfStmt}(s)$$
-$$\text{EnclosingStmt}(e) = s \iff e \in \text{SubExprs}(s) \land \forall s' \in \text{SubStmts}(s).\ e \notin \text{SubExprs}(s')$$
-$$\text{BlockOfStmt}(s) = b \iff s \in \text{BlockStmts}(b) \land \forall b' \in \text{SubBlocks}(b).\ s \notin \text{BlockStmts}(b')$$
+StmtScope(s) = s
+BindScope(s) = BlockOfStmt(s)
+EnclosingStmt(e) = s ⇔ e ∈ SubExprs(s) ∧ ∀ s' ∈ SubStmts(s). e ∉ SubExprs(s')
+BlockOfStmt(s) = b ⇔ s ∈ BlockStmts(b) ∧ ∀ b' ∈ SubBlocks(b). s ∉ BlockStmts(b')
 
-$$\text{BlockStmts}(\text{BlockExpr}(stmts,\_)) = stmts$$
+BlockStmts(BlockExpr(stmts, _)) = stmts
 
-$$\text{StmtBlocks}(\text{UnsafeBlockStmt}(b)) = [b]$$
-$$\text{StmtBlocks}(\text{DeferStmt}(b)) = [b]$$
-$$\text{StmtBlocks}(\text{RegionStmt}(\_,\_,b)) = [b]$$
-$$\text{StmtBlocks}(\text{FrameStmt}(\_,b)) = [b]$$
-$$\text{StmtBlocks}(s) = [] \quad \text{if } s \notin \{\text{UnsafeBlockStmt}(\_),\ \text{DeferStmt}(\_),\ \text{RegionStmt}(\_,\_,\_),\ \text{FrameStmt}(\_,\_)\}$$
+StmtBlocks(UnsafeBlockStmt(b)) = [b]
+StmtBlocks(DeferStmt(b)) = [b]
+StmtBlocks(RegionStmt(_, _, b)) = [b]
+StmtBlocks(FrameStmt(_, b)) = [b]
+StmtBlocks(s) = []    if s ∉ {UnsafeBlockStmt(_), DeferStmt(_), RegionStmt(_, _, _), FrameStmt(_, _)}
 
-$$\text{SubExprs}(s) = \text{SubExprsList}(\text{StmtExprs}(s))$$
-$$\text{SubExprsList}([]) = \emptyset$$
-$$\text{SubExprsList}([e] \mathbin{+\!\!+} es) = \{e\} \cup \text{SubExprsList}(\text{Children}_{\text{LTR}}(e)) \cup \text{SubExprsList}(es)$$
+SubExprs(s) = SubExprsList(StmtExprs(s))
+SubExprsList([]) = ∅
+SubExprsList([e] ++ es) = {e} ∪ SubExprsList(Children_LTR(e)) ∪ SubExprsList(es)
 
-$$\text{SubStmts}(s) = \text{SubStmtsList}(\text{StmtBlocks}(s))$$
-$$\text{SubStmtsList}([]) = \emptyset$$
-$$\text{SubStmtsList}([b] \mathbin{+\!\!+} bs) = \text{BlockStmts}(b) \cup \text{SubStmtsSeq}(\text{BlockStmts}(b)) \cup \text{SubStmtsList}(bs)$$
-$$\text{SubStmtsSeq}([]) = \emptyset$$
-$$\text{SubStmtsSeq}([s] \mathbin{+\!\!+} ss) = \text{SubStmts}(s) \cup \text{SubStmtsSeq}(ss)$$
+SubStmts(s) = SubStmtsList(StmtBlocks(s))
+SubStmtsList([]) = ∅
+SubStmtsList([b] ++ bs) = BlockStmts(b) ∪ SubStmtsSeq(BlockStmts(b)) ∪ SubStmtsList(bs)
+SubStmtsSeq([]) = ∅
+SubStmtsSeq([s] ++ ss) = SubStmts(s) ∪ SubStmtsSeq(ss)
 
-$$\text{SubBlocks}(b) = \text{SubBlocksSeq}(\text{BlockStmts}(b))$$
-$$\text{SubBlocksSeq}([]) = \emptyset$$
-$$\text{SubBlocksSeq}([s] \mathbin{+\!\!+} ss) = \text{StmtBlocks}(s) \cup \bigcup_{b' \in \text{StmtBlocks}(s)} \text{SubBlocks}(b') \cup \text{SubBlocksSeq}(ss)$$
+SubBlocks(b) = SubBlocksSeq(BlockStmts(b))
+SubBlocksSeq([]) = ∅
+SubBlocksSeq([s] ++ ss) = StmtBlocks(s) ∪ (⋃_{b' ∈ StmtBlocks(s)} SubBlocks(b')) ∪ SubBlocksSeq(ss)
 
-$$\text{Entries}(B) = [\langle x_1, B[x_1] \rangle,\ldots,\langle x_n, B[x_n] \rangle] \iff [x_1,\ldots,x_n]\ \text{enumerates}\ \text{dom}(B)\ \text{without repetition}$$
+Entries(B) = [⟨x_1, B[x_1]⟩, …, ⟨x_n, B[x_n]⟩] ⇔ [x_1, …, x_n] enumerates dom(B) without repetition
 
-$$\text{SynthParams}([\langle m_1, T_1 \rangle,\ldots,\langle m_n, T_n \rangle]) = [\langle m_1, \bot, T_1 \rangle,\ldots,\langle m_n, \bot, T_n \rangle]$$
+SynthParams([⟨m_1, T_1⟩, …, ⟨m_n, T_n⟩]) = [⟨m_1, ⊥, T_1⟩, …, ⟨m_n, ⊥, T_n⟩]
 
-$$\text{CalleeProc}(\text{Identifier}(x)) = proc \iff \Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \land ent.\text{origin\_opt} = mp \land name = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ x) \land \text{DeclOf}(mp, name) = proc \land proc = \text{ProcedureDecl}(\_)$$
-$$\text{CalleeProc}(\text{Path}(path, name)) = proc \iff \Gamma \vdash \text{ResolveQualified}(path, name, \text{ValueKind}) \Downarrow ent \land ent.\text{origin\_opt} = mp \land name' = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ name) \land \text{DeclOf}(mp, name') = proc \land proc = \text{ProcedureDecl}(\_)$$
+CalleeProc(Identifier(x)) = proc ⇔ Γ ⊢ ResolveValueName(x) ⇓ ent ∧ ent.origin_opt = mp ∧ name = (ent.target_opt if present, else x) ∧ DeclOf(mp, name) = proc ∧ proc = ProcedureDecl(_)
+CalleeProc(Path(path, name)) = proc ⇔ Γ ⊢ ResolveQualified(path, name, ValueKind) ⇓ ent ∧ ent.origin_opt = mp ∧ name' = (ent.target_opt if present, else name) ∧ DeclOf(mp, name') = proc ∧ proc = ProcedureDecl(_)
 
-$$\text{Params}(\text{Call}(callee, args)) =
-\begin{cases}
-proc.\text{params} & \text{if } \text{CalleeProc}(callee) = proc\\
-\text{SynthParams}(params) & \text{if } \text{ExprType}(callee) = \text{TypeFunc}(params, \_)\\
-\bot & \text{otherwise}
-\end{cases}$$
+Params(Call(callee, args)) =
+  { proc.params            if CalleeProc(callee) = proc
+    SynthParams(params)    if ExprType(callee) = TypeFunc(params, _)
+    ⊥                      otherwise }
 
-$$\text{MethodOf}(base, name) = m \iff \text{LookupMethod}(\text{StripPerm}(\text{ExprType}(base)), name) = m$$
-$$\text{RecvBase}(base, name) = T \iff \text{MethodOf}(base, name) = m \land T = \text{StripPerm}(\text{ExprType}(base))$$
+MethodOf(base, name) = m ⇔ LookupMethod(StripPerm(ExprType(base)), name) = m
+RecvBase(base, name) = T ⇔ MethodOf(base, name) = m ∧ T = StripPerm(ExprType(base))
 
-$$\text{RecvParams}(base, name) = [\langle \text{RecvMode}(m.\text{receiver}), \texttt{self}, \text{RecvType}(T, m.\text{receiver}) \rangle] \mathbin{+\!\!+} m.\text{params} \iff \text{MethodOf}(base, name) = m \land \text{RecvBase}(base, name) = T$$
+RecvParams(base, name) = [⟨RecvMode(m.receiver), `self`, RecvType(T, m.receiver)⟩] ++ m.params ⇔ MethodOf(base, name) = m ∧ RecvBase(base, name) = T
 
 **Static Binding Maps (Module Scope).**
 
-$$\text{StaticBindTypesMod}(P, m) = \mathbin{+\!\!+}_{\text{item} \in \text{ASTModule}(P, m).\text{items},\ \text{item}=\text{StaticDecl}(\_,\_,binding,\_,\_)} \text{StaticBindTypes}(binding)$$
+StaticBindTypesMod(P, m) = ++_{item ∈ ASTModule(P, m).items, item = StaticDecl(_, _, binding, _, _)} StaticBindTypes(binding)
 
-$$\text{StaticBindInfo}(\text{item}) = \text{BindInfoMap}(\lambda U.\ \text{RespOfInit}(init),\ \text{StaticBindTypes}(binding),\ \text{MovOf}(op),\ mut)\ \iff\ \text{item}=\text{StaticDecl}(\_, mut, binding, \_, \_) \land binding = \langle \_, \_, op, init, \_ \rangle$$
+StaticBindInfo(item) = BindInfoMap(λ U. RespOfInit(init), StaticBindTypes(binding), MovOf(op), mut) ⇔ item = StaticDecl(_, mut, binding, _, _) ∧ binding = ⟨_, _, op, init, _⟩
 
-$$\text{StaticBindMap}(P, m) = \mathbin{+\!\!+}_{\text{item} \in \text{ASTModule}(P, m).\text{items},\ \text{item}=\text{StaticDecl}(\_,\_,\_,\_,\_)} \text{StaticBindInfo}(\text{item})$$
+StaticBindMap(P, m) = ++_{item ∈ ASTModule(P, m).items, item = StaticDecl(_, _, _, _, _)} StaticBindInfo(item)
 
 **Procedure Entry.**
 
-$$\mathcal{B}_{\text{global}} = \text{IntroAll}_B(\text{PushScope}_B(\mathcal{B}), \text{StaticBindMap}(\text{Project}(\Gamma), m))$$
-$$\mathcal{B}_{\text{proc}} = \text{IntroAll}_B(\text{PushScope}_B(\mathcal{B}_{\text{global}}), \text{ParamBindMap}(params))$$
+𝔅_global = IntroAll_B(PushScope_B(𝔅), StaticBindMap(Project(Γ), m))
+𝔅_proc = IntroAll_B(PushScope_B(𝔅_global), ParamBindMap(params))
 
-$$\text{ParamBindMap}([]) = \emptyset$$
-$$\text{ParamBindMap}([\langle mode, x, T \rangle] \mathbin{+\!\!+} ps) = \text{MapUnion}(\text{ParamBindMap}(ps), \{ x \mapsto \langle \text{Valid}, \text{ParamMov}(mode), \texttt{let}, \text{ParamResp}(mode) \rangle \})$$
-$$\text{MethodParamBindMap}(base, name) = \text{ParamBindMap}(\text{RecvParams}(base, name))$$
+ParamBindMap([]) = ∅
+ParamBindMap([⟨mode, x, T⟩] ++ ps) = MapUnion(ParamBindMap(ps), { x ↦ ⟨Valid, ParamMov(mode), `let`, ParamResp(mode)⟩ })
+MethodParamBindMap(base, name) = ParamBindMap(RecvParams(base, name))
 
-$$\text{ParamTypeMap}([]) = \emptyset$$
-$$\text{ParamTypeMap}([\langle mode, x, T \rangle] \mathbin{+\!\!+} ps) = \text{MapUnion}(\text{ParamTypeMap}(ps), \{ x \mapsto T \})$$
+ParamTypeMap([]) = ∅
+ParamTypeMap([⟨mode, x, T⟩] ++ ps) = MapUnion(ParamTypeMap(ps), { x ↦ T })
 
-$$\text{ParamMov}(\texttt{move}) = \text{mov} \quad\quad \text{ParamMov}(\bot) = \text{immov}$$
-$$\text{ParamResp}(\texttt{move}) = \text{resp} \quad\quad \text{ParamResp}(\bot) = \text{alias}$$
+ParamMov(`move`) = mov    ParamMov(⊥) = immov
+ParamResp(`move`) = resp    ParamResp(⊥) = alias
 
-$$B_{\text{params}} = \text{ParamTypeMap}(params)$$
-$$B_{\text{static}} = \text{StaticBindTypesMod}(\text{Project}(\Gamma), m)$$
-$$\Pi_{\text{global}} = [\{ x \mapsto \text{Active} \mid (x:T) \in B_{\text{static}} \land \text{PermOf}(T)=\texttt{unique} \}]$$
-$$\Pi_{\text{proc}} = [\{ x \mapsto \text{Active} \mid (x:T) \in B_{\text{params}} \land \text{PermOf}(T)=\texttt{unique} \}] \mathbin{+\!\!+} \Pi_{\text{global}}$$
+B_params = ParamTypeMap(params)
+B_static = StaticBindTypesMod(Project(Γ), m)
+Π_global = [{ x ↦ Active | (x:T) ∈ B_static ∧ PermOf(T) = `unique` }]
+Π_proc = [{ x ↦ Active | (x:T) ∈ B_params ∧ PermOf(T) = `unique` }] ++ Π_global
 
 **Expression Rules (Selected).**
 
 **(B-Place)**
-$$\frac{\text{IsPlace}(p) \quad \text{AccessOk}(\mathcal{B}, \Pi, p)}{\Gamma; \mathcal{B}; \Pi \vdash p \Rightarrow \mathcal{B} \triangleright \Pi}$$
+IsPlace(p)    AccessOk(𝔅, Π, p)
+──────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ p ⇒ 𝔅 ▷ Π
 
 **(B-Place-Unique-Err)**
-$$\frac{\text{IsPlace}(p) \quad \Gamma; R; L \vdash p : T_p \quad \text{PermOf}(T_p)=\texttt{unique} \quad \neg \text{AccessPathOk}(\Pi, p) \quad c = \text{Code}(\text{B-Place-Unique-Err})}{\Gamma; \mathcal{B}; \Pi \vdash p \Uparrow c}$$
+IsPlace(p)    Γ; R; L ⊢ p : T_p    PermOf(T_p) = `unique`    ¬ AccessPathOk(Π, p)    c = Code(B-Place-Unique-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ p ⇑ c
 
 **(B-Place-Moved-Err)**
-$$\frac{\text{IsPlace}(p) \quad \Gamma; R; L \vdash p : T_p \quad x = \text{PlaceRoot}(p) \quad \text{Lookup}_B(\mathcal{B}, x)=\langle s, \_, \_, \_ \rangle \quad (s=\text{Moved} \ \lor\ (s=\text{PartiallyMoved}(F) \land (\text{FieldHead}(p)=\bot \ \lor\ \text{FieldHead}(p) \in F))) \quad (\text{PermOf}(T_p) \ne \texttt{unique} \ \lor\ \text{AccessPathOk}(\Pi, p)) \quad c = \text{Code}(\text{B-Place-Moved-Err})}{\Gamma; \mathcal{B}; \Pi \vdash p \Uparrow c}$$
+IsPlace(p)    Γ; R; L ⊢ p : T_p    x = PlaceRoot(p)    Lookup_B(𝔅, x) = ⟨s, _, _, _⟩    (s = Moved ∨ (s = PartiallyMoved(F) ∧ (FieldHead(p) = ⊥ ∨ FieldHead(p) ∈ F)))    (PermOf(T_p) ≠ `unique` ∨ AccessPathOk(Π, p))    c = Code(B-Place-Moved-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ p ⇑ c
 
 **(B-Move-Whole)**
-$$\frac{\text{IsPlace}(p) \quad x=\text{PlaceRoot}(p) \quad \text{FieldHead}(p)=\bot \quad \text{Lookup}_B(\mathcal{B}, x)=\langle \text{Valid}, mv, m, r \rangle \quad mv=\text{mov}}{\Gamma; \mathcal{B}; \Pi \vdash \text{MoveExpr}(p) \Rightarrow \text{Update}_B(\mathcal{B}, x, \langle \text{Moved}, \text{mov}, m, r \rangle) \triangleright \Pi}$$
+IsPlace(p)    x = PlaceRoot(p)    FieldHead(p) = ⊥    Lookup_B(𝔅, x) = ⟨Valid, mv, m, r⟩    mv = mov
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ MoveExpr(p) ⇒ Update_B(𝔅, x, ⟨Moved, mov, m, r⟩) ▷ Π
 
 **(B-Move-Field)**
-$$\frac{\text{IsPlace}(p) \quad x=\text{PlaceRoot}(p) \quad \text{FieldHead}(p)=f \quad \Gamma; R; L \vdash p : T_p \quad \text{PermOf}(T_p)=\texttt{unique} \quad \text{Lookup}_B(\mathcal{B}, x)=\langle s, mv, m, r \rangle \quad mv=\text{mov}}{\Gamma; \mathcal{B}; \Pi \vdash \text{MoveExpr}(p) \Rightarrow \text{Update}_B(\mathcal{B}, x, \langle \text{PM}(s,f), \text{mov}, m, r \rangle) \triangleright \Pi}$$
+IsPlace(p)    x = PlaceRoot(p)    FieldHead(p) = f    Γ; R; L ⊢ p : T_p    PermOf(T_p) = `unique`    Lookup_B(𝔅, x) = ⟨s, mv, m, r⟩    mv = mov
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ MoveExpr(p) ⇒ Update_B(𝔅, x, ⟨PM(s, f), mov, m, r⟩) ▷ Π
 
-$$\text{PM}(\text{Valid}, f) = \text{PartiallyMoved}(\{f\})$$
-$$\text{PM}(\text{PartiallyMoved}(F), f) = \text{PartiallyMoved}(F \cup \{f\})$$
-$$\text{PM}(\text{Moved}, f) = \bot$$
+PM(Valid, f) = PartiallyMoved({f})
+PM(PartiallyMoved(F), f) = PartiallyMoved(F ∪ {f})
+PM(Moved, f) = ⊥
 
 **(B-Move-Whole-Moved-Err)**
-$$\frac{\text{IsPlace}(p) \quad \text{FieldHead}(p)=\bot \quad x = \text{PlaceRoot}(p) \quad \text{Lookup}_B(\mathcal{B}, x)=\langle s, mv, \_, \_ \rangle \quad s \ne \text{Valid} \quad mv=\text{mov} \quad c = \text{Code}(\text{B-Move-Whole-Moved-Err})}{\Gamma; \mathcal{B}; \Pi \vdash \text{MoveExpr}(p) \Uparrow c}$$
+IsPlace(p)    FieldHead(p) = ⊥    x = PlaceRoot(p)    Lookup_B(𝔅, x) = ⟨s, mv, _, _⟩    s ≠ Valid    mv = mov    c = Code(B-Move-Whole-Moved-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ MoveExpr(p) ⇑ c
 
 **(B-Move-Field-Moved-Err)**
-$$\frac{\text{IsPlace}(p) \quad \text{FieldHead}(p)=f \quad x = \text{PlaceRoot}(p) \quad \Gamma; R; L \vdash p : T_p \quad \text{PermOf}(T_p)=\texttt{unique} \quad \text{Lookup}_B(\mathcal{B}, x)=\langle s, mv, \_, \_ \rangle \quad (s=\text{Moved} \ \lor\ (s=\text{PartiallyMoved}(F) \land f \in F)) \quad mv=\text{mov} \quad c = \text{Code}(\text{B-Move-Field-Moved-Err})}{\Gamma; \mathcal{B}; \Pi \vdash \text{MoveExpr}(p) \Uparrow c}$$
+IsPlace(p)    FieldHead(p) = f    x = PlaceRoot(p)    Γ; R; L ⊢ p : T_p    PermOf(T_p) = `unique`    Lookup_B(𝔅, x) = ⟨s, mv, _, _⟩    (s = Moved ∨ (s = PartiallyMoved(F) ∧ f ∈ F))    mv = mov    c = Code(B-Move-Field-Moved-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ MoveExpr(p) ⇑ c
 
 **(B-Move-Field-NonUnique-Err)**
-$$\frac{\text{IsPlace}(p) \quad \text{FieldHead}(p)=f \quad x = \text{PlaceRoot}(p) \quad \Gamma; R; L \vdash p : T_p \quad \text{PermOf}(T_p)\ne\texttt{unique} \quad \text{Lookup}_B(\mathcal{B}, x)=\langle \_, mv, \_, \_ \rangle \quad mv=\text{mov} \quad c = \text{Code}(\text{B-Move-Field-NonUnique-Err})}{\Gamma; \mathcal{B}; \Pi \vdash \text{MoveExpr}(p) \Uparrow c}$$
+IsPlace(p)    FieldHead(p) = f    x = PlaceRoot(p)    Γ; R; L ⊢ p : T_p    PermOf(T_p) ≠ `unique`    Lookup_B(𝔅, x) = ⟨_, mv, _, _⟩    mv = mov    c = Code(B-Move-Field-NonUnique-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ MoveExpr(p) ⇑ c
 
 **(B-Move-Whole-Immovable-Err)**
-$$\frac{\text{IsPlace}(p) \quad \text{FieldHead}(p)=\bot \quad x = \text{PlaceRoot}(p) \quad \text{Lookup}_B(\mathcal{B}, x)=\langle \_, mv, \_, \_ \rangle \quad mv=\text{immov} \quad c = \text{Code}(\text{B-Move-Whole-Immovable-Err})}{\Gamma; \mathcal{B}; \Pi \vdash \text{MoveExpr}(p) \Uparrow c}$$
+IsPlace(p)    FieldHead(p) = ⊥    x = PlaceRoot(p)    Lookup_B(𝔅, x) = ⟨_, mv, _, _⟩    mv = immov    c = Code(B-Move-Whole-Immovable-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ MoveExpr(p) ⇑ c
 
 **(B-Move-Field-Immovable-Err)**
-$$\frac{\text{IsPlace}(p) \quad \text{FieldHead}(p)=f \quad x = \text{PlaceRoot}(p) \quad \text{Lookup}_B(\mathcal{B}, x)=\langle \_, mv, \_, \_ \rangle \quad mv=\text{immov} \quad c = \text{Code}(\text{B-Move-Field-Immovable-Err})}{\Gamma; \mathcal{B}; \Pi \vdash \text{MoveExpr}(p) \Uparrow c}$$
+IsPlace(p)    FieldHead(p) = f    x = PlaceRoot(p)    Lookup_B(𝔅, x) = ⟨_, mv, _, _⟩    mv = immov    c = Code(B-Move-Field-Immovable-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ MoveExpr(p) ⇑ c
 
-$$\text{BExprRules} = \{\text{B-Place},\ \text{B-Move-Whole},\ \text{B-Move-Field},\ \text{B-Call},\ \text{B-MethodCall},\ \text{B-Transition},\ \text{B-Expr-Sub}\}$$
+BExprRules = {B-Place, B-Move-Whole, B-Move-Field, B-Call, B-MethodCall, B-Transition, B-Expr-Sub}
 
-$$\text{NoSpecificBExpr}(e) \iff \neg \exists r \in \text{BExprRules} \setminus \{\text{B-Expr-Sub}\}.\ \text{PremisesHold}(r, e)$$
+NoSpecificBExpr(e) ⇔ ¬ ∃ r ∈ BExprRules \ {B-Expr-Sub}. PremisesHold(r, e)
 
 **(B-Expr-Sub)**
-$$\frac{\text{NoSpecificBExpr}(e) \quad \text{Children}_{\text{LTR}}(e) = [e_1,\ldots,e_n] \quad \Gamma;\mathcal{B}_0;\Pi_0 \vdash e_1 \Rightarrow \mathcal{B}_1 \triangleright \Pi_1 \ \cdots\ \Gamma;\mathcal{B}_{n-1};\Pi_{n-1} \vdash e_n \Rightarrow \mathcal{B}_n \triangleright \Pi_n}{\Gamma;\mathcal{B}_0;\Pi_0 \vdash e \Rightarrow \mathcal{B}_n \triangleright \Pi_n}$$
+NoSpecificBExpr(e)    Children_LTR(e) = [e_1, …, e_n]    Γ; 𝔅_0; Π_0 ⊢ e_1 ⇒ 𝔅_1 ▷ Π_1  …  Γ; 𝔅_{n-1}; Π_{n-1} ⊢ e_n ⇒ 𝔅_n ▷ Π_n
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅_0; Π_0 ⊢ e ⇒ 𝔅_n ▷ Π_n
 
 **Call and Method Argument Passing.**
 
 **Field-Path Permission Tracking.**
 
-$$\text{FieldPath} = [\text{Name}]$$
+FieldPath = [Name]
 
-$$\text{FieldPathOf}(\text{Identifier}(x)) = []$$
-$$\text{FieldPathOf}(\text{FieldAccess}(p,f)) = \text{FieldPathOf}(p) \mathbin{+\!\!+} [f]$$
-$$\text{FieldPathOf}(\text{TupleAccess}(p,\_)) = \text{FieldPathOf}(p)$$
-$$\text{FieldPathOf}(\text{IndexAccess}(p,\_)) = \text{FieldPathOf}(p)$$
-$$\text{FieldPathOf}(\text{Deref}(p)) = []$$
+FieldPathOf(Identifier(x)) = []
+FieldPathOf(FieldAccess(p, f)) = FieldPathOf(p) ++ [f]
+FieldPathOf(TupleAccess(p, _)) = FieldPathOf(p)
+FieldPathOf(IndexAccess(p, _)) = FieldPathOf(p)
+FieldPathOf(Deref(p)) = []
 
-$$\text{PlacePath}(p) = \begin{cases}
-(\text{PlaceRoot}(p), []) & \text{if } p = \text{Identifier}(x) \\
-(\text{PlaceRoot}(p), \text{FieldPathOf}(p)) & \text{otherwise}
-\end{cases}$$
+PlacePath(p) =
+  { (PlaceRoot(p), [])            if p = Identifier(x)
+    (PlaceRoot(p), FieldPathOf(p))    otherwise }
 
-$$\text{Prefixes}([]) = [[]]$$
-$$\text{Prefixes}([f] \mathbin{+\!\!+} fs) = [[]] \cup \{ [f] \mathbin{+\!\!+} p \mid p \in \text{Prefixes}(fs) \}$$
-$$\text{AncPaths}(p) = \{ (\text{PlaceRoot}(p), fp) \mid fp \in \text{Prefixes}(\text{FieldPathOf}(p)) \}$$
+Prefixes([]) = [[]]
+Prefixes([f] ++ fs) = [[]] ∪ { [f] ++ p | p ∈ Prefixes(fs) }
+AncPaths(p) = { (PlaceRoot(p), fp) | fp ∈ Prefixes(FieldPathOf(p)) }
 
-$$\text{AccessPathOk}(\Pi, p) \iff \forall k \in \text{AncPaths}(p).\ \text{Lookup}_\Pi(\Pi, k) = \text{Active}$$
+AccessPathOk(Π, p) ⇔ ∀ k ∈ AncPaths(p). Lookup_Π(Π, k) = Active
 
-$$\text{DowngradeUniquePath}(\Pi, mode, p) = \begin{cases}
-\text{SetTop}(\Pi, \text{InactivateScope}(\text{Top}(\Pi), \text{AncPaths}(p))) & \text{if } mode = \bot \land \text{IsPlace}(p) \land \text{PermOf}(\text{ExprType}(p)) = \texttt{unique} \\
-\Pi & \text{otherwise}
-\end{cases}$$
+DowngradeUniquePath(Π, mode, p) =
+  { SetTop(Π, InactivateScope(Top(Π), AncPaths(p)))    if mode = ⊥ ∧ IsPlace(p) ∧ PermOf(ExprType(p)) = `unique`
+    Π                                                 otherwise }
 
-$$\text{DowngradeUnique}(\Pi, mode, e) = \begin{cases}
-\text{DowngradeUniquePath}(\Pi, mode, e) & \text{if } \text{IsPlace}(e) \\
-\Pi & \text{otherwise}
-\end{cases}$$
+DowngradeUnique(Π, mode, e) =
+  { DowngradeUniquePath(Π, mode, e)    if IsPlace(e)
+    Π                                 otherwise }
 
-$$\text{DowngradeUniqueBind}(\Pi, init, T_b) = \begin{cases}
-\text{DowngradeUniquePath}(\Pi, \bot, init) & \text{if } \text{IsPlace}(init) \land \text{PermOf}(\text{ExprType}(init)) = \texttt{unique} \land \text{PermOf}(T_b) = \texttt{const} \\
-\Pi & \text{otherwise}
-\end{cases}$$
+DowngradeUniqueBind(Π, init, T_b) =
+  { DowngradeUniquePath(Π, ⊥, init)    if IsPlace(init) ∧ PermOf(ExprType(init)) = `unique` ∧ PermOf(T_b) = `const`
+    Π                                  otherwise }
 
-$$\text{RemoveKeys}(\sigma, D) = \{ k \mapsto \sigma[k] \mid k \in \text{dom}(\sigma) \land k \notin D \}$$
-$$\text{Reactivate}([\sigma] \mathbin{+\!\!+} \Pi', D) = [\text{RemoveKeys}(\sigma, D)] \mathbin{+\!\!+} \Pi'$$
+RemoveKeys(σ, D) = { k ↦ σ[k] | k ∈ dom(σ) ∧ k ∉ D }
+Reactivate([σ] ++ Π', D) = [RemoveKeys(σ, D)] ++ Π'
 
-$$\text{ArgPassExpr}(mode, moved, e) =
-\begin{cases}
-\text{MovedArg}(moved, e) & \text{if } mode = \texttt{move} \land moved = \text{true} \\
-e & \text{otherwise}
-\end{cases}$$
+ArgPassExpr(mode, moved, e) =
+  { MovedArg(moved, e)    if mode = `move` ∧ moved = true
+    e                     otherwise }
 
-$$\text{ArgPassJudg} = \{\Gamma; \mathcal{B}; \Pi \vdash \text{ArgPass}(params, args) \Rightarrow \mathcal{B}' \triangleright \Pi', D\}$$
+ArgPassJudg = {Γ; 𝔅; Π ⊢ ArgPass(params, args) ⇒ 𝔅' ▷ Π', D}
 
 **(B-ArgPass-Empty)**
-$$\frac{}{\Gamma; \mathcal{B}; \Pi \vdash \text{ArgPass}([], []) \Rightarrow \mathcal{B} \triangleright \Pi,\ \emptyset}$$
+────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ ArgPass([], []) ⇒ 𝔅 ▷ Π, ∅
 
 **(B-ArgPass-Move-Missing)**
-$$\frac{params = [\langle \texttt{move},\_,T_p\rangle]\mathbin{+\!\!+}ps \quad args = [\langle moved, e, \_ \rangle]\mathbin{+\!\!+}as \quad moved = \text{false} \quad c = \text{Code}(\text{B-ArgPass-Move-Missing})}{\Gamma; \mathcal{B}; \Pi \vdash \text{ArgPass}(params, args) \Uparrow c}$$
+params = [⟨`move`, _, T_p⟩] ++ ps    args = [⟨moved, e, _⟩] ++ as    moved = false    c = Code(B-ArgPass-Move-Missing)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ ArgPass(params, args) ⇑ c
 
 **(B-ArgPass-Cons)**
-$$\frac{\Gamma;\mathcal{B};\Pi \vdash \text{ArgPassExpr}(mode, moved, e) \Rightarrow \mathcal{B}_1 \triangleright \Pi_1 \quad (mode = \bot \Rightarrow \text{IsPlace}(e)) \quad \Pi_2 = \text{DowngradeUnique}(\Pi_1, mode, e) \quad \Gamma;\mathcal{B}_1;\Pi_2 \vdash \text{ArgPass}(ps, as) \Rightarrow \mathcal{B}_2 \triangleright \Pi_3,\ D}{\Gamma;\mathcal{B};\Pi \vdash \text{ArgPass}([\langle mode,\_,T_p\rangle]\mathbin{+\!\!+}ps,\ [\langle moved,e,\_\rangle]\mathbin{+\!\!+}as) \Rightarrow \mathcal{B}_2 \triangleright \Pi_3,\ D \cup \text{Roots}(\Pi_2,\Pi_1)}$$
+Γ; 𝔅; Π ⊢ ArgPassExpr(mode, moved, e) ⇒ 𝔅_1 ▷ Π_1    (mode = ⊥ ⇒ IsPlace(e))    Π_2 = DowngradeUnique(Π_1, mode, e)    Γ; 𝔅_1; Π_2 ⊢ ArgPass(ps, as) ⇒ 𝔅_2 ▷ Π_3, D
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ ArgPass([⟨mode, _, T_p⟩] ++ ps, [⟨moved, e, _⟩] ++ as) ⇒ 𝔅_2 ▷ Π_3, D ∪ Roots(Π_2, Π_1)
 
 **(B-Call)**
-$$\frac{\Gamma;\mathcal{B};\Pi \vdash f \Rightarrow \mathcal{B}_1 \triangleright \Pi_1 \quad \Gamma;\mathcal{B}_1;\Pi_1 \vdash \text{ArgPass}(\text{Params}(\text{Call}(f,args)), args) \Rightarrow \mathcal{B}_2 \triangleright \Pi_2,\ D \quad \Pi_3 = \text{Reactivate}(\Pi_2, D)}{\Gamma;\mathcal{B};\Pi \vdash \text{Call}(f, args) \Rightarrow \mathcal{B}_2 \triangleright \Pi_3}$$
+Γ; 𝔅; Π ⊢ f ⇒ 𝔅_1 ▷ Π_1    Γ; 𝔅_1; Π_1 ⊢ ArgPass(Params(Call(f, args)), args) ⇒ 𝔅_2 ▷ Π_2, D    Π_3 = Reactivate(Π_2, D)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ Call(f, args) ⇒ 𝔅_2 ▷ Π_3
 
 **(B-MethodCall)**
-$$\frac{\Gamma;\mathcal{B};\Pi \vdash base \Rightarrow \mathcal{B}_1 \triangleright \Pi_1 \quad \Gamma;\mathcal{B}_1;\Pi_1 \vdash \text{ArgPass}(\text{RecvParams}(base, name), args) \Rightarrow \mathcal{B}_2 \triangleright \Pi_2,\ D \quad \Pi_3 = \text{Reactivate}(\Pi_2, D)}{\Gamma;\mathcal{B};\Pi \vdash \text{MethodCall}(base, name, args) \Rightarrow \mathcal{B}_2 \triangleright \Pi_3}$$
+Γ; 𝔅; Π ⊢ base ⇒ 𝔅_1 ▷ Π_1    Γ; 𝔅_1; Π_1 ⊢ ArgPass(RecvParams(base, name), args) ⇒ 𝔅_2 ▷ Π_2, D    Π_3 = Reactivate(Π_2, D)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ MethodCall(base, name, args) ⇒ 𝔅_2 ▷ Π_3
 
 **(B-Transition)**
-$$\frac{\Gamma;\mathcal{B};\Pi \vdash e_{self} \Rightarrow \mathcal{B}_0 \triangleright \Pi_0 \quad x = \text{PlaceRoot}(e_{self}) \quad \text{Lookup}_B(\mathcal{B}_0, x) = \langle Valid, mov, m, r \rangle \quad mov = mov \quad \mathcal{B}_1 = \text{Update}_B(\mathcal{B}_0, x, \langle Moved, mov, m, r \rangle) \quad \Gamma;\mathcal{B}_1;\Pi_0 \vdash \text{ArgPass}(tr.params, args) \Rightarrow \mathcal{B}_2 \triangleright \Pi_1,\ D}{\Gamma;\mathcal{B};\Pi \vdash e_{self} \twoheadrightarrow t(args) \Rightarrow \mathcal{B}_2 \triangleright \text{Reactivate}(\Pi_1, D)}$$
+Γ; 𝔅; Π ⊢ e_self ⇒ 𝔅_0 ▷ Π_0    x = PlaceRoot(e_self)    Lookup_B(𝔅_0, x) = ⟨Valid, mov, m, r⟩    mov = mov    𝔅_1 = Update_B(𝔅_0, x, ⟨Moved, mov, m, r⟩)    Γ; 𝔅_1; Π_0 ⊢ ArgPass(tr.params, args) ⇒ 𝔅_2 ▷ Π_1, D
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ e_self ↠ t(args) ⇒ 𝔅_2 ▷ Reactivate(Π_1, D)
 
 **Statement Rules (Selected).**
 
 **(B-Seq-Empty)**
-$$\frac{}{\Gamma;\mathcal{B};\Pi \vdash [] \Rightarrow \mathcal{B} \triangleright \Pi}$$
+──────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ [] ⇒ 𝔅 ▷ Π
 
 **(B-Seq-Cons)**
-$$\frac{\Gamma;\mathcal{B};\Pi \vdash s \Rightarrow \mathcal{B}_1 \triangleright \Pi_1 \quad \Gamma;\mathcal{B}_1;\Pi_1 \vdash ss \Rightarrow \mathcal{B}_2 \triangleright \Pi_2}{\Gamma;\mathcal{B};\Pi \vdash s::ss \Rightarrow \mathcal{B}_2 \triangleright \Pi_2}$$
+Γ; 𝔅; Π ⊢ s ⇒ 𝔅_1 ▷ Π_1    Γ; 𝔅_1; Π_1 ⊢ ss ⇒ 𝔅_2 ▷ Π_2
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ s :: ss ⇒ 𝔅_2 ▷ Π_2
 
 **(B-LetVar-UniqueNonMove-Err)**
-$$\frac{T_b = \text{BindType}(\langle pat, ty\_opt, op, init, \_\rangle) \quad \text{PermOf}(T_b) = \texttt{unique} \quad \text{IsPlace}(init) \quad \neg \text{IsMoveExpr}(init) \quad c = \text{Code}(\text{B-LetVar-UniqueNonMove-Err})}{\Gamma;\mathcal{B};\Pi \vdash \text{LetOrVarStmt}(\langle pat, ty\_opt, op, init, \_\rangle) \Uparrow c}$$
+T_b = BindType(⟨pat, ty_opt, op, init, _⟩)    PermOf(T_b) = `unique`    IsPlace(init)    ¬ IsMoveExpr(init)    c = Code(B-LetVar-UniqueNonMove-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ LetOrVarStmt(⟨pat, ty_opt, op, init, _⟩) ⇑ c
 
 **(B-LetVar)**
-$$\frac{\Gamma; \mathcal{B}; \Pi \vdash init \Rightarrow \mathcal{B}_1 \triangleright \Pi_1 \quad T_b = \text{BindType}(\langle pat, ty\_opt, op, init, \_\rangle) \quad \Pi_2 = \text{DowngradeUniqueBind}(\Pi_1, init, T_b) \quad \mathcal{B}_2 = \text{ConsumeOnMove}(\mathcal{B}_1, init) \quad \Gamma \vdash pat \Leftarrow T_b \dashv B \quad \mathcal{B}_3 = \text{IntroAll}_B(\mathcal{B}_2, \text{BindInfoMap}(\lambda U.\ \text{RespOfInit}(init), B, \text{MovOf}(op), mut))}{\Gamma;\mathcal{B};\Pi \vdash \text{LetOrVarStmt}(\langle pat, ty\_opt, op, init, \_\rangle) \Rightarrow \mathcal{B}_3 \triangleright \Pi_2}$$
+Γ; 𝔅; Π ⊢ init ⇒ 𝔅_1 ▷ Π_1    T_b = BindType(⟨pat, ty_opt, op, init, _⟩)    Π_2 = DowngradeUniqueBind(Π_1, init, T_b)    𝔅_2 = ConsumeOnMove(𝔅_1, init)    Γ ⊢ pat ⇐ T_b ⊣ B    𝔅_3 = IntroAll_B(𝔅_2, BindInfoMap(λ U. RespOfInit(init), B, MovOf(op), mut))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ LetOrVarStmt(⟨pat, ty_opt, op, init, _⟩) ⇒ 𝔅_3 ▷ Π_2
 
 **(B-ShadowLet-UniqueNonMove-Err)**
-$$\frac{T_b = \text{BindType}(\text{ShadowLetStmt}(x, ty\_opt, init)) \quad \text{PermOf}(T_b) = \texttt{unique} \quad \text{IsPlace}(init) \quad \neg \text{IsMoveExpr}(init) \quad c = \text{Code}(\text{B-ShadowLet-UniqueNonMove-Err})}{\Gamma;\mathcal{B};\Pi \vdash \text{ShadowLetStmt}(x, ty\_opt, init) \Uparrow c}$$
+T_b = BindType(ShadowLetStmt(x, ty_opt, init))    PermOf(T_b) = `unique`    IsPlace(init)    ¬ IsMoveExpr(init)    c = Code(B-ShadowLet-UniqueNonMove-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ ShadowLetStmt(x, ty_opt, init) ⇑ c
 
 **(B-ShadowLet)**
-$$\frac{\Gamma; \mathcal{B}; \Pi \vdash init \Rightarrow \mathcal{B}_1 \triangleright \Pi_1 \quad T_b = \text{BindType}(\text{ShadowLetStmt}(x, ty\_opt, init)) \quad \Pi_2 = \text{DowngradeUniqueBind}(\Pi_1, init, T_b) \quad \mathcal{B}_2 = \text{ConsumeOnMove}(\mathcal{B}_1, init) \quad B = \{ x \mapsto T_b \} \quad \mathcal{B}_3 = \text{ShadowAll}_B(\mathcal{B}_2, \text{BindInfoMap}(\lambda U.\ \text{RespOfInit}(init), B, \text{MovOf}("="), \texttt{let}))}{\Gamma;\mathcal{B};\Pi \vdash \text{ShadowLetStmt}(x, ty\_opt, init) \Rightarrow \mathcal{B}_3 \triangleright \Pi_2}$$
+Γ; 𝔅; Π ⊢ init ⇒ 𝔅_1 ▷ Π_1    T_b = BindType(ShadowLetStmt(x, ty_opt, init))    Π_2 = DowngradeUniqueBind(Π_1, init, T_b)    𝔅_2 = ConsumeOnMove(𝔅_1, init)    B = { x ↦ T_b }    𝔅_3 = ShadowAll_B(𝔅_2, BindInfoMap(λ U. RespOfInit(init), B, MovOf("="), `let`))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ ShadowLetStmt(x, ty_opt, init) ⇒ 𝔅_3 ▷ Π_2
 
 **(B-ShadowVar-UniqueNonMove-Err)**
-$$\frac{T_b = \text{BindType}(\text{ShadowVarStmt}(x, ty\_opt, init)) \quad \text{PermOf}(T_b) = \texttt{unique} \quad \text{IsPlace}(init) \quad \neg \text{IsMoveExpr}(init) \quad c = \text{Code}(\text{B-ShadowVar-UniqueNonMove-Err})}{\Gamma;\mathcal{B};\Pi \vdash \text{ShadowVarStmt}(x, ty\_opt, init) \Uparrow c}$$
+T_b = BindType(ShadowVarStmt(x, ty_opt, init))    PermOf(T_b) = `unique`    IsPlace(init)    ¬ IsMoveExpr(init)    c = Code(B-ShadowVar-UniqueNonMove-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ ShadowVarStmt(x, ty_opt, init) ⇑ c
 
 **(B-ShadowVar)**
-$$\frac{\Gamma; \mathcal{B}; \Pi \vdash init \Rightarrow \mathcal{B}_1 \triangleright \Pi_1 \quad T_b = \text{BindType}(\text{ShadowVarStmt}(x, ty\_opt, init)) \quad \Pi_2 = \text{DowngradeUniqueBind}(\Pi_1, init, T_b) \quad \mathcal{B}_2 = \text{ConsumeOnMove}(\mathcal{B}_1, init) \quad B = \{ x \mapsto T_b \} \quad \mathcal{B}_3 = \text{ShadowAll}_B(\mathcal{B}_2, \text{BindInfoMap}(\lambda U.\ \text{RespOfInit}(init), B, \text{MovOf}("="), \texttt{var}))}{\Gamma;\mathcal{B};\Pi \vdash \text{ShadowVarStmt}(x, ty\_opt, init) \Rightarrow \mathcal{B}_3 \triangleright \Pi_2}$$
+Γ; 𝔅; Π ⊢ init ⇒ 𝔅_1 ▷ Π_1    T_b = BindType(ShadowVarStmt(x, ty_opt, init))    Π_2 = DowngradeUniqueBind(Π_1, init, T_b)    𝔅_2 = ConsumeOnMove(𝔅_1, init)    B = { x ↦ T_b }    𝔅_3 = ShadowAll_B(𝔅_2, BindInfoMap(λ U. RespOfInit(init), B, MovOf("="), `var`))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ ShadowVarStmt(x, ty_opt, init) ⇒ 𝔅_3 ▷ Π_2
 
 **(B-ExprStmt)**
-$$\frac{\Gamma;\mathcal{B};\Pi \vdash e \Rightarrow \mathcal{B}_1 \triangleright \Pi_1}{\Gamma;\mathcal{B};\Pi \vdash \text{ExprStmt}(e) \Rightarrow \mathcal{B}_1 \triangleright \Pi_1}$$
+Γ; 𝔅; Π ⊢ e ⇒ 𝔅_1 ▷ Π_1
+────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ ExprStmt(e) ⇒ 𝔅_1 ▷ Π_1
 
 **(B-ResultStmt)**
-$$\frac{\Gamma;\mathcal{B};\Pi \vdash e \Rightarrow \mathcal{B}_1 \triangleright \Pi_1}{\Gamma;\mathcal{B};\Pi \vdash \text{ResultStmt}(e) \Rightarrow \mathcal{B}_1 \triangleright \Pi_1}$$
+Γ; 𝔅; Π ⊢ e ⇒ 𝔅_1 ▷ Π_1
+────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ ResultStmt(e) ⇒ 𝔅_1 ▷ Π_1
 
 **(B-UnsafeStmt)**
-$$\frac{\Gamma;\mathcal{B};\Pi \vdash b \Rightarrow \mathcal{B}_1 \triangleright \Pi_1}{\Gamma;\mathcal{B};\Pi \vdash \text{UnsafeBlockStmt}(b) \Rightarrow \mathcal{B}_1 \triangleright \Pi_1}$$
+Γ; 𝔅; Π ⊢ b ⇒ 𝔅_1 ▷ Π_1
+──────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ UnsafeBlockStmt(b) ⇒ 𝔅_1 ▷ Π_1
 
 **(B-Defer)**
-$$\frac{\Gamma;\mathcal{B};\Pi \vdash b \Rightarrow \mathcal{B}_1 \triangleright \Pi_1 \quad \mathcal{B}_1 = \mathcal{B} \quad \Pi_1 = \Pi}{\Gamma;\mathcal{B};\Pi \vdash \text{DeferStmt}(b) \Rightarrow \mathcal{B} \triangleright \Pi}$$
+Γ; 𝔅; Π ⊢ b ⇒ 𝔅_1 ▷ Π_1    𝔅_1 = 𝔅    Π_1 = Π
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ DeferStmt(b) ⇒ 𝔅 ▷ Π
 
 **(B-RegionStmt)**
-$$\frac{(opts\_opt = \bot \Rightarrow \mathcal{B}_0 = \mathcal{B} \land \Pi_0 = \Pi)\ \land\ (opts\_opt = e \Rightarrow \Gamma;\mathcal{B};\Pi \vdash e \Rightarrow \mathcal{B}_0 \triangleright \Pi_0)\quad \mathcal{B}_1 = \text{PushScope}_B(\mathcal{B}_0) \quad \Pi_1 = \text{PushScope}_\Pi(\Pi_0) \quad \mathcal{B}_2 = \text{IntroAll}_B(\mathcal{B}_1, \text{RegionBindInfo}(\Gamma, alias\_opt)) \quad \Gamma;\mathcal{B}_2;\Pi_1 \vdash b \Rightarrow \mathcal{B}_3 \triangleright \Pi_2}{\Gamma;\mathcal{B};\Pi \vdash \text{RegionStmt}(opts\_opt, alias\_opt, b) \Rightarrow \text{PopScope}_B(\mathcal{B}_3) \triangleright \text{PopScope}_\Pi(\Pi_2)}$$
+(opts_opt = ⊥ ⇒ 𝔅_0 = 𝔅 ∧ Π_0 = Π) ∧ (opts_opt = e ⇒ Γ; 𝔅; Π ⊢ e ⇒ 𝔅_0 ▷ Π_0)    𝔅_1 = PushScope_B(𝔅_0)    Π_1 = PushScope_Π(Π_0)    𝔅_2 = IntroAll_B(𝔅_1, RegionBindInfo(Γ, alias_opt))    Γ; 𝔅_2; Π_1 ⊢ b ⇒ 𝔅_3 ▷ Π_2
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ RegionStmt(opts_opt, alias_opt, b) ⇒ PopScope_B(𝔅_3) ▷ PopScope_Π(Π_2)
 
 **(B-FrameStmt)**
-$$\frac{\mathcal{B}_1 = \text{PushScope}_B(\mathcal{B}) \quad \Pi_1 = \text{PushScope}_\Pi(\Pi) \quad \mathcal{B}_2 = \text{IntroAll}_B(\mathcal{B}_1, \text{FrameBindInfo}(\Gamma)) \quad \Gamma;\mathcal{B}_2;\Pi_1 \vdash b \Rightarrow \mathcal{B}_3 \triangleright \Pi_2}{\Gamma;\mathcal{B};\Pi \vdash \text{FrameStmt}(r\_opt, b) \Rightarrow \text{PopScope}_B(\mathcal{B}_3) \triangleright \text{PopScope}_\Pi(\Pi_2)}$$
+𝔅_1 = PushScope_B(𝔅)    Π_1 = PushScope_Π(Π)    𝔅_2 = IntroAll_B(𝔅_1, FrameBindInfo(Γ))    Γ; 𝔅_2; Π_1 ⊢ b ⇒ 𝔅_3 ▷ Π_2
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ FrameStmt(r_opt, b) ⇒ PopScope_B(𝔅_3) ▷ PopScope_Π(Π_2)
 
 **(B-Assign-Immutable-Err)**
-$$\frac{stmt \in \{\text{AssignStmt}(p,e),\ \text{CompoundAssignStmt}(p,op,e)\} \quad \text{IsPlace}(p) \quad \text{PlaceRoot}(p)=x \quad \text{Lookup}_B(\mathcal{B}, x)=\langle \_, \_, \texttt{let}, \_ \rangle \quad c = \text{Code}(\text{B-Assign-Immutable-Err})}{\Gamma;\mathcal{B};\Pi \vdash stmt \Uparrow c}$$
+stmt ∈ {AssignStmt(p, e), CompoundAssignStmt(p, op, e)}    IsPlace(p)    PlaceRoot(p) = x    Lookup_B(𝔅, x) = ⟨_, _, `let`, _⟩    c = Code(B-Assign-Immutable-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ stmt ⇑ c
 
 **(B-Assign)**
-$$\frac{\text{IsPlace}(p) \quad \text{PlaceRoot}(p)=x \quad \text{Lookup}_B(\mathcal{B},x)=\langle s, mov, \texttt{var}, r \rangle \quad \Gamma;\mathcal{B};\Pi \vdash e \Rightarrow \mathcal{B}_1 \triangleright \Pi_1}{\Gamma;\mathcal{B};\Pi \vdash \text{AssignStmt}(p,e) \Rightarrow \text{Update}_B(\mathcal{B}_1, x, \langle \text{Valid}, mov, \texttt{var}, r \rangle) \triangleright \Pi_1}$$
+IsPlace(p)    PlaceRoot(p) = x    Lookup_B(𝔅, x) = ⟨s, mov, `var`, r⟩    Γ; 𝔅; Π ⊢ e ⇒ 𝔅_1 ▷ Π_1
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ AssignStmt(p, e) ⇒ Update_B(𝔅_1, x, ⟨Valid, mov, `var`, r⟩) ▷ Π_1
 
 **(B-Assign-Const-Err)**
-$$\frac{stmt \in \{\text{AssignStmt}(p,e),\ \text{CompoundAssignStmt}(p,op,e)\} \quad \Gamma; R; L \vdash p : \text{TypePerm}(\texttt{const}, T) \quad c = \text{Code}(\text{B-Assign-Const-Err})}{\Gamma;\mathcal{B};\Pi \vdash stmt \Uparrow c}$$
+stmt ∈ {AssignStmt(p, e), CompoundAssignStmt(p, op, e)}    Γ; R; L ⊢ p : TypePerm(`const`, T)    c = Code(B-Assign-Const-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ stmt ⇑ c
 
 **(B-If)**
-$$\frac{\Gamma;\mathcal{B};\Pi \vdash c \Rightarrow \mathcal{B}_c \triangleright \Pi_c \quad \Gamma;\mathcal{B}_c;\Pi_c \vdash b_t \Rightarrow \mathcal{B}_t \triangleright \Pi_t \quad \Gamma;\mathcal{B}_c;\Pi_c \vdash b_f \Rightarrow \mathcal{B}_f \triangleright \Pi_f}{\Gamma;\mathcal{B};\Pi \vdash \text{IfExpr}(c,b_t,b_f) \Rightarrow \text{Join}_B(\mathcal{B}_t,\mathcal{B}_f) \triangleright \text{JoinPerm}(\Pi_t,\Pi_f)}$$
+Γ; 𝔅; Π ⊢ c ⇒ 𝔅_c ▷ Π_c    Γ; 𝔅_c; Π_c ⊢ b_t ⇒ 𝔅_t ▷ Π_t    Γ; 𝔅_c; Π_c ⊢ b_f ⇒ 𝔅_f ▷ Π_f
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ IfExpr(c, b_t, b_f) ⇒ Join_B(𝔅_t, 𝔅_f) ▷ JoinPerm(Π_t, Π_f)
 
 **(B-Match)**
-$$\frac{\Gamma;\mathcal{B};\Pi \vdash e \Rightarrow \mathcal{B}_0 \triangleright \Pi_0 \quad \Gamma;R;L \vdash e : T \quad moved = \text{IsMoveExpr}(e) \quad \mathcal{B}_1 = \text{ConsumeOnMove}(\mathcal{B}_0, e) \quad \forall i,\ \Gamma;\text{PushScope}_B(\mathcal{B}_1);\text{PushScope}_\Pi(\Pi_0) \vdash \text{Arm}(moved, p_i, g_i, b_i) \Rightarrow \mathcal{B}_i \triangleright \Pi_i}{\Gamma;\mathcal{B};\Pi \vdash \text{MatchExpr}(e, arms) \Rightarrow \text{JoinAll}_B([\mathcal{B}_i]) \triangleright \text{JoinAllPerm}([\Pi_i])}$$
+Γ; 𝔅; Π ⊢ e ⇒ 𝔅_0 ▷ Π_0    Γ; R; L ⊢ e : T    moved = IsMoveExpr(e)    𝔅_1 = ConsumeOnMove(𝔅_0, e)    ∀ i, Γ; PushScope_B(𝔅_1); PushScope_Π(Π_0) ⊢ Arm(moved, p_i, g_i, b_i) ⇒ 𝔅_i ▷ Π_i
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ MatchExpr(e, arms) ⇒ JoinAll_B([𝔅_i]) ▷ JoinAllPerm([Π_i])
 
-$$\text{RespOfScrutinee}(\text{true}) = \text{resp}$$
-$$\text{RespOfScrutinee}(\text{false}) = \text{alias}$$
+RespOfScrutinee(true) = resp
+RespOfScrutinee(false) = alias
 
 **(B-Arm)**
-$$\frac{\Gamma \vdash p \Uparrow T \dashv B \quad \mathcal{B}_0 = \text{IntroAll}_B(\mathcal{B}, \text{BindInfoMap}(\lambda U.\ \text{RespOfScrutinee}(moved), B, \text{mov}, \texttt{let})) \quad (g \ne \bot \Rightarrow \Gamma;\mathcal{B}_0;\Pi \vdash g \Rightarrow \mathcal{B}_1 \triangleright \Pi_1) \quad (g = \bot \Rightarrow \mathcal{B}_1 = \mathcal{B}_0 \land \Pi_1 = \Pi) \quad \Gamma;\mathcal{B}_1;\Pi_1 \vdash b \Rightarrow \mathcal{B}_2 \triangleright \Pi_2}{\Gamma;\mathcal{B};\Pi \vdash \text{Arm}(moved, p, g, b) \Rightarrow \mathcal{B}_2 \triangleright \Pi_2}$$
+Γ ⊢ p ⇑ T ⊣ B    𝔅_0 = IntroAll_B(𝔅, BindInfoMap(λ U. RespOfScrutinee(moved), B, mov, `let`))    (g ≠ ⊥ ⇒ Γ; 𝔅_0; Π ⊢ g ⇒ 𝔅_1 ▷ Π_1)    (g = ⊥ ⇒ 𝔅_1 = 𝔅_0 ∧ Π_1 = Π)    Γ; 𝔅_1; Π_1 ⊢ b ⇒ 𝔅_2 ▷ Π_2
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ Arm(moved, p, g, b) ⇒ 𝔅_2 ▷ Π_2
 
 
 **(B-Block)**
-$$\frac{\Gamma; \text{PushScope}_B(\mathcal{B}); \text{PushScope}_\Pi(\Pi) \vdash stmts \Rightarrow \mathcal{B}_1 \triangleright \Pi_1}{\Gamma;\mathcal{B};\Pi \vdash \text{BlockExpr}(stmts, tail\_opt) \Rightarrow \text{PopScope}_B(\mathcal{B}_1) \triangleright \text{PopScope}_\Pi(\Pi_1)}$$
+Γ; PushScope_B(𝔅); PushScope_Π(Π) ⊢ stmts ⇒ 𝔅_1 ▷ Π_1
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ BlockExpr(stmts, tail_opt) ⇒ PopScope_B(𝔅_1) ▷ PopScope_Π(Π_1)
 
 **Loop Fixpoint.**
 
-$$\text{Moved} <_B \text{PartiallyMoved}(F) <_B \text{Valid}$$
-$$\text{PartiallyMoved}(F_1) <_B \text{PartiallyMoved}(F_2) \iff F_1 \supseteq F_2$$
-$$x \le_B y \iff x <_B y \lor x = y$$
-$$\text{Active} <_\Pi \text{Inactive}$$
-$$x \le_\Pi y \iff x <_\Pi y \lor x = y$$
-$$\mathcal{B}_1 \le \mathcal{B}_2 \iff \forall i.\ \mathcal{B}_1[i] \le_B \mathcal{B}_2[i]$$
-$$\Pi_1 \le_\Pi \Pi_2 \iff \forall i.\ \Pi_1[i] \le_\Pi \Pi_2[i]$$
+Moved <_B PartiallyMoved(F) <_B Valid
+PartiallyMoved(F_1) <_B PartiallyMoved(F_2) ⇔ F_1 ⊇ F_2
+x ≤_B y ⇔ x <_B y ∨ x = y
+Active <_Π Inactive
+x ≤_Π y ⇔ x <_Π y ∨ x = y
+𝔅_1 ≤ 𝔅_2 ⇔ ∀ i. 𝔅_1[i] ≤_B 𝔅_2[i]
+Π_1 ≤_Π Π_2 ⇔ ∀ i. Π_1[i] ≤_Π Π_2[i]
 
-$$\text{LoopStep} : (\mathcal{B},\Pi) \to (\mathcal{B},\Pi)$$
-$$F(\mathcal{B},\Pi) = (\text{Join}_B(\mathcal{B}_0,\mathcal{B}'),\ \text{JoinPerm}(\Pi_0,\Pi')) \ \text{where } (\mathcal{B}',\Pi')=\text{LoopStep}(\mathcal{B},\Pi)$$
-$$(\mathcal{B}_0,\Pi_0) = (\mathcal{B}_{\text{init}},\Pi_{\text{init}})$$
-$$(\mathcal{B}_{k+1},\Pi_{k+1}) = F(\mathcal{B}_k,\Pi_k)$$
-$$n = \min\{ k \mid (\mathcal{B}_k,\Pi_k) = (\mathcal{B}_{k+1},\Pi_{k+1}) \}$$
-$$\text{LoopFix}(\mathcal{B}_{\text{init}},\Pi_{\text{init}},\text{LoopStep}) = (\mathcal{B}_n,\Pi_n)$$
+LoopStep : (𝔅, Π) → (𝔅, Π)
+F(𝔅, Π) = (Join_B(𝔅_0, 𝔅'), JoinPerm(Π_0, Π')) where (𝔅', Π') = LoopStep(𝔅, Π)
+(𝔅_0, Π_0) = (𝔅_init, Π_init)
+(𝔅_{k+1}, Π_{k+1}) = F(𝔅_k, Π_k)
+n = min{ k | (𝔅_k, Π_k) = (𝔅_{k+1}, Π_{k+1}) }
+LoopFix(𝔅_init, Π_init, LoopStep) = (𝔅_n, Π_n)
 
 **(B-Loop-Infinite)**
-$$\frac{\text{LoopStep}(\mathcal{B},\Pi) = (\mathcal{B}_b,\Pi_b)\ \text{where}\ \Gamma;\mathcal{B};\Pi \vdash body \Rightarrow \mathcal{B}_b \triangleright \Pi_b \quad (\mathcal{B}',\Pi') = \text{LoopFix}(\mathcal{B},\Pi,\text{LoopStep})}{\Gamma;\mathcal{B};\Pi \vdash \text{LoopInfinite}(body) \Rightarrow \mathcal{B}' \triangleright \Pi'}$$
+LoopStep(𝔅, Π) = (𝔅_b, Π_b) where Γ; 𝔅; Π ⊢ body ⇒ 𝔅_b ▷ Π_b    (𝔅', Π') = LoopFix(𝔅, Π, LoopStep)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ LoopInfinite(body) ⇒ 𝔅' ▷ Π'
 
 **(B-Loop-Conditional)**
-$$\frac{\text{LoopStep}(\mathcal{B},\Pi) = (\mathcal{B}_b,\Pi_b)\ \text{where}\ \Gamma;\mathcal{B};\Pi \vdash cond \Rightarrow \mathcal{B}_c \triangleright \Pi_c \ \land\ \Gamma;\mathcal{B}_c;\Pi_c \vdash body \Rightarrow \mathcal{B}_b \triangleright \Pi_b \quad (\mathcal{B}',\Pi') = \text{LoopFix}(\mathcal{B},\Pi,\text{LoopStep})}{\Gamma;\mathcal{B};\Pi \vdash \text{LoopConditional}(cond, body) \Rightarrow \mathcal{B}' \triangleright \Pi'}$$
+LoopStep(𝔅, Π) = (𝔅_b, Π_b) where Γ; 𝔅; Π ⊢ cond ⇒ 𝔅_c ▷ Π_c ∧ Γ; 𝔅_c; Π_c ⊢ body ⇒ 𝔅_b ▷ Π_b    (𝔅', Π') = LoopFix(𝔅, Π, LoopStep)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ LoopConditional(cond, body) ⇒ 𝔅' ▷ Π'
 
 **(B-Loop-Iter)**
-$$\frac{\Gamma;\mathcal{B};\Pi \vdash iter \Rightarrow \mathcal{B}_0 \triangleright \Pi_0 \quad \Gamma \vdash pat \Leftarrow T_p \dashv B \quad \text{LoopStep}(\mathcal{B},\Pi) = (\mathcal{B}_b,\Pi_b)\ \text{where}\ \mathcal{B}_1 = \text{PushScope}_B(\mathcal{B})\ \land\ \mathcal{B}_2 = \text{IntroAll}_B(\mathcal{B}_1, \text{BindInfoMap}(\lambda U.\ \text{resp}, B, \text{mov}, \texttt{let}))\ \land\ \Pi_1 = \text{PushScope}_\Pi(\Pi)\ \land\ \Gamma;\mathcal{B}_2;\Pi_1 \vdash body \Rightarrow \mathcal{B}_3 \triangleright \Pi_2\ \land\ \mathcal{B}_b = \text{PopScope}_B(\mathcal{B}_3) \ \land\ \Pi_b = \text{PopScope}_\Pi(\Pi_2) \quad (\mathcal{B}',\Pi') = \text{LoopFix}(\mathcal{B}_0,\Pi_0,\text{LoopStep})}{\Gamma;\mathcal{B};\Pi \vdash \text{LoopIter}(pat, ty\_opt, iter, body) \Rightarrow \mathcal{B}' \triangleright \Pi'}$$
+Γ; 𝔅; Π ⊢ iter ⇒ 𝔅_0 ▷ Π_0    Γ ⊢ pat ⇐ T_p ⊣ B    LoopStep(𝔅, Π) = (𝔅_b, Π_b) where 𝔅_1 = PushScope_B(𝔅) ∧ 𝔅_2 = IntroAll_B(𝔅_1, BindInfoMap(λ U. resp, B, mov, `let`)) ∧ Π_1 = PushScope_Π(Π) ∧ Γ; 𝔅_2; Π_1 ⊢ body ⇒ 𝔅_3 ▷ Π_2 ∧ 𝔅_b = PopScope_B(𝔅_3) ∧ Π_b = PopScope_Π(Π_2)    (𝔅', Π') = LoopFix(𝔅_0, Π_0, LoopStep)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ LoopIter(pat, ty_opt, iter, body) ⇒ 𝔅' ▷ Π'
 
 **(B-Return)**
-$$\frac{\Gamma;\mathcal{B};\Pi \vdash e \Rightarrow \mathcal{B}_1 \triangleright \Pi_1}{\Gamma;\mathcal{B};\Pi \vdash \text{ReturnStmt}(e) \Rightarrow \mathcal{B}_1 \triangleright \Pi_1}$$
+Γ; 𝔅; Π ⊢ e ⇒ 𝔅_1 ▷ Π_1
+────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ ReturnStmt(e) ⇒ 𝔅_1 ▷ Π_1
 
 **(B-Return-Unit)**
-$$\frac{}{\Gamma;\mathcal{B};\Pi \vdash \text{ReturnStmt}(\bot) \Rightarrow \mathcal{B} \triangleright \Pi}$$
+──────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ ReturnStmt(⊥) ⇒ 𝔅 ▷ Π
 
 **(B-Break)**
-$$\frac{\Gamma;\mathcal{B};\Pi \vdash e \Rightarrow \mathcal{B}_1 \triangleright \Pi_1}{\Gamma;\mathcal{B};\Pi \vdash \text{BreakStmt}(e) \Rightarrow \mathcal{B}_1 \triangleright \Pi_1}$$
+Γ; 𝔅; Π ⊢ e ⇒ 𝔅_1 ▷ Π_1
+────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ BreakStmt(e) ⇒ 𝔅_1 ▷ Π_1
 
 **(B-Break-Unit)**
-$$\frac{}{\Gamma;\mathcal{B};\Pi \vdash \text{BreakStmt}(\bot) \Rightarrow \mathcal{B} \triangleright \Pi}$$
+──────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ BreakStmt(⊥) ⇒ 𝔅 ▷ Π
 
 **(B-Continue)**
-$$\frac{}{\Gamma;\mathcal{B};\Pi \vdash \text{ContinueStmt} \Rightarrow \mathcal{B} \triangleright \Pi}$$
+──────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ ContinueStmt ⇒ 𝔅 ▷ Π
 
 **(B-Move-Unique-Err)**
-$$\frac{\text{IsPlace}(p) \quad \Gamma; R; L \vdash p : T_p \quad \text{PermOf}(T_p)=\texttt{unique} \quad \neg \text{AccessPathOk}(\Pi, p) \quad c = \text{Code}(\text{B-Place-Unique-Err})}{\Gamma;\mathcal{B};\Pi \vdash \text{MoveExpr}(p) \Uparrow c}$$
+IsPlace(p)    Γ; R; L ⊢ p : T_p    PermOf(T_p) = `unique`    ¬ AccessPathOk(Π, p)    c = Code(B-Place-Unique-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ MoveExpr(p) ⇑ c
 
 **Procedure/Method Binding-Check.**
 
-$$\text{Init}_B(m, params) = \text{IntroAll}_B(\text{PushScope}_B(\text{IntroAll}_B(\text{PushScope}_B([]), \text{StaticBindMap}(\text{Project}(\Gamma), m))), \text{ParamBindMap}(params))$$
-$$\text{Init}_\Pi(m, params) = [\{ x \mapsto \text{Active} \mid (x:T) \in \text{ParamTypeMap}(params) \land \text{PermOf}(T)=\texttt{unique} \}] \mathbin{+\!\!+} [\{ x \mapsto \text{Active} \mid (x:T) \in \text{StaticBindTypesMod}(\text{Project}(\Gamma), m) \land \text{PermOf}(T)=\texttt{unique} \}]$$
+Init_B(m, params) = IntroAll_B(PushScope_B(IntroAll_B(PushScope_B([]), StaticBindMap(Project(Γ), m))), ParamBindMap(params))
+Init_Π(m, params) = [{ x ↦ Active | (x:T) ∈ ParamTypeMap(params) ∧ PermOf(T) = `unique` }] ++ [{ x ↦ Active | (x:T) ∈ StaticBindTypesMod(Project(Γ), m) ∧ PermOf(T) = `unique` }]
 
-$$\text{BindCheck}(m, params, body) \Downarrow ok \iff \Gamma; \text{Init}_B(m, params);\ \text{Init}_\Pi(m, params) \vdash body \Rightarrow \mathcal{B}' \triangleright \Pi'$$
+BindCheck(m, params, body) ⇓ ok ⇔ Γ; Init_B(m, params); Init_Π(m, params) ⊢ body ⇒ 𝔅' ▷ Π'
 
-$$\text{ProcBindCheck}(m, \text{ProcedureDecl}(\_,\_,params,\_,body,\_,\_)) \Downarrow ok \iff \text{BindCheck}(m, params, body) \Downarrow ok$$
+ProcBindCheck(m, ProcedureDecl(_, _, params, _, body, _, _)) ⇓ ok ⇔ BindCheck(m, params, body) ⇓ ok
 
-$$\text{MethodParamsDecl}(T, m) = [\langle \text{RecvMode}(m.\text{receiver}), \texttt{self}, \text{RecvType}(T, m.\text{receiver}) \rangle] \mathbin{+\!\!+} m.\text{params}$$
-$$\text{MethodBindCheck}(m, T, md) \Downarrow ok \iff md.\text{body}=body \land \text{BindCheck}(m, \text{MethodParamsDecl}(T, md), body) \Downarrow ok$$
-$$\text{ClassMethodBindCheck}(m, Cl, md) \Downarrow ok \iff md.\text{body\_opt}=body \land \text{BindCheck}(m, \text{ClassMethodParams}(Cl, md), body) \Downarrow ok$$
-$$\text{StateMethodBindCheck}(m, M, S, md) \Downarrow ok \iff md.\text{body}=body \land \text{BindCheck}(m, \text{StateMethodParams}(M, S, md), body) \Downarrow ok$$
-$$\text{TransitionBindCheck}(m, M, S, tr) \Downarrow ok \iff tr.\text{body}=body \land \text{BindCheck}(m, \text{TransitionParams}(M, S, tr), body) \Downarrow ok$$
+MethodParamsDecl(T, m) = [⟨RecvMode(m.receiver), `self`, RecvType(T, m.receiver)⟩] ++ m.params
+MethodBindCheck(m, T, md) ⇓ ok ⇔ md.body = body ∧ BindCheck(m, MethodParamsDecl(T, md), body) ⇓ ok
+ClassMethodBindCheck(m, Cl, md) ⇓ ok ⇔ md.body_opt = body ∧ BindCheck(m, ClassMethodParams(Cl, md), body) ⇓ ok
+StateMethodBindCheck(m, M, S, md) ⇓ ok ⇔ md.body = body ∧ BindCheck(m, StateMethodParams(M, S, md), body) ⇓ ok
+TransitionBindCheck(m, M, S, tr) ⇓ ok ⇔ tr.body = body ∧ BindCheck(m, TransitionParams(M, S, tr), body) ⇓ ok
 
-$$\text{BindDiagRefs} = \{\texttt{"8.2"},\ \texttt{"8.7"},\ \texttt{"8.10"}\}$$
+BindDiagRefs = {"8.2", "8.7", "8.10"}
 
 #### 5.2.16. Safe Pointer Types (Cursive0)
 
-$$\text{PtrState} = \{\texttt{Valid},\ \texttt{Null},\ \texttt{Expired}\}$$
+PtrState = {`Valid`, `Null`, `Expired`}
 
-$$\text{Ptr<T>} = \text{TypePtr}(T, \bot)$$
-$$\text{Ptr<T>@s} = \text{TypePtr}(T, s) \quad (s \ne \bot)$$
+Ptr<T> = TypePtr(T, ⊥)
+Ptr<T>@s = TypePtr(T, s)    (s ≠ ⊥)
 
 **Static Semantics**
 
-$$\text{BitcopyType}(\text{TypePtr}(T, s))$$
-$$\text{CloneType}(\text{TypePtr}(T, s))$$
-$$\neg \text{DropType}(\text{TypePtr}(T, s))$$
+BitcopyType(TypePtr(T, s))
+CloneType(TypePtr(T, s))
+¬ DropType(TypePtr(T, s))
 
-$$\text{sizeof}(\texttt{Ptr<T>}) = \text{sizeof}(\texttt{usize}) \quad\quad \text{alignof}(\texttt{Ptr<T>}) = \text{alignof}(\texttt{usize})$$
-$$\text{PtrDiagRefs} = \{\texttt{"8.10"}\}$$
+sizeof(`Ptr<T>`) = sizeof(`usize`)    alignof(`Ptr<T>`) = alignof(`usize`)
+PtrDiagRefs = {"8.10"}
 
 #### 5.2.17. Regions, Frames, and Provenance (Cursive0)
 
 **Built-in Record Type `RegionOptions`.**
 
-$$\text{RegionOptionsFields} = [
-\langle \texttt{public},\ \texttt{stack\_size},\ \text{TypePrim}(\texttt{"usize"}),\ \text{Literal}(\text{IntLiteral}(0)),\ \bot,\ \bot \rangle,\ 
-\langle \texttt{public},\ \texttt{name},\ \text{TypeString}(\bot),\ \text{Literal}(\text{StringLiteral}(\texttt{"\""})),\ \bot,\ \bot \rangle
-]$$
+RegionOptionsFields = [
+  ⟨`public`, `stack_size`, TypePrim("usize"), Literal(IntLiteral(0)), ⊥, ⊥⟩,
+  ⟨`public`, `name`, TypeString(⊥), Literal(StringLiteral("\"")), ⊥, ⊥⟩
+]
 
-$$\text{RegionOptionsDecl} = \text{RecordDecl}(\texttt{public},\ \texttt{RegionOptions},\ [],\ \text{RegionOptionsFields},\ \bot,\ \bot)$$
+RegionOptionsDecl = RecordDecl(`public`, `RegionOptions`, [], RegionOptionsFields, ⊥, ⊥)
 
-$$\Sigma.\text{Types}[\texttt{RegionOptions}] = \text{RegionOptionsDecl}$$
+Σ.Types[`RegionOptions`] = RegionOptionsDecl
 
-$$\text{RegionPrealloc}(opts) = opts.\text{stack\_size}$$
-$$\text{NoPrealloc}(opts) \iff \text{RegionPrealloc}(opts) = 0$$
+RegionPrealloc(opts) = opts.stack_size
+NoPrealloc(opts) ⇔ RegionPrealloc(opts) = 0
 
 **Region/Frame Helpers.**
 
-$$\text{RegionActiveType}(T) \iff \text{StripPerm}(T) = \text{TypeModalState}([\texttt{Region}], \texttt{Active})$$
+RegionActiveType(T) ⇔ StripPerm(T) = TypeModalState([`Region`], `Active`)
 
-$$\text{FreshRegion}(\Gamma) \in \text{Name} \setminus \text{dom}(\Gamma)$$
+FreshRegion(Γ) ∈ Name \ dom(Γ)
 
-$$\text{RegionOptsExpr}(\bot) = \text{Call}(\text{Identifier}(\texttt{RegionOptions}), [])$$
-$$\text{RegionOptsExpr}(e) = e \quad \text{if } e \ne \bot$$
+RegionOptsExpr(⊥) = Call(Identifier(`RegionOptions`), [])
+RegionOptsExpr(e) = e    if e ≠ ⊥
 
-$$\text{RegionBind}(\Gamma, alias\_opt) = \Gamma_r \iff r = \begin{cases}
-alias\_opt & \text{if } alias\_opt \ne \bot\\
-\text{FreshRegion}(\Gamma) & \text{otherwise}
-\end{cases} \land \text{IntroAll}(\Gamma, [\langle r,\ \text{TypeModalState}([\texttt{Region}], \texttt{Active}) \rangle]) \Downarrow \Gamma_r$$
+RegionBind(Γ, alias_opt) = Γ_r ⇔ r =
+  { alias_opt           if alias_opt ≠ ⊥
+    FreshRegion(Γ)      otherwise } ∧ IntroAll(Γ, [⟨r, TypeModalState([`Region`], `Active`)⟩]) ⇓ Γ_r
 
-$$\text{InnermostActiveRegion}([]) = \bot$$
-$$\text{InnermostActiveRegion}([\sigma] \mathbin{+\!\!+} \Gamma') = \begin{cases}
-r & \text{if } \exists r.\ r \in \text{dom}(\sigma) \land \text{RegionActiveType}(\sigma[r])\\
-\text{InnermostActiveRegion}(\Gamma') & \text{otherwise}
-\end{cases}$$
+InnermostActiveRegion([]) = ⊥
+InnermostActiveRegion([σ] ++ Γ') =
+  { r                         if ∃ r. r ∈ dom(σ) ∧ RegionActiveType(σ[r])
+    InnermostActiveRegion(Γ')  otherwise }
 
-$$\text{FrameBind}(\Gamma, target\_opt) = \Gamma_f \iff r = \begin{cases}
-\text{InnermostActiveRegion}(\Gamma) & \text{if } target\_opt = \bot\\
-target\_opt & \text{if } target\_opt \ne \bot \land \Gamma; R; L \vdash \text{Identifier}(target\_opt) : T_r \land \text{RegionActiveType}(T_r)
-\end{cases} \land F = \text{FreshRegion}(\Gamma) \land \text{IntroAll}(\Gamma, [\langle F,\ \text{TypeModalState}([\texttt{Region}], \texttt{Active}) \rangle]) \Downarrow \Gamma_f$$
+FrameBind(Γ, target_opt) = Γ_f ⇔ r =
+  { InnermostActiveRegion(Γ)    if target_opt = ⊥
+    target_opt                  if target_opt ≠ ⊥ ∧ Γ; R; L ⊢ Identifier(target_opt) : T_r ∧ RegionActiveType(T_r) } ∧ F = FreshRegion(Γ) ∧ IntroAll(Γ, [⟨F, TypeModalState([`Region`], `Active`)⟩]) ⇓ Γ_f
 
 **Provenance Tags.**
 
-$$\pi ::= \pi_{\text{Global}} \mid \pi_{\text{Stack}}(S) \mid \pi_{\text{Heap}} \mid \pi_{\text{Region}}(r) \mid \bot$$
+π ::= π_Global | π_Stack(S) | π_Heap | π_Region(r) | ⊥
 
 **Lifetime Order.**
 
-$$\pi_1 < \pi_2 \iff (\pi_1 = \pi_{\text{Region}}(r_{\text{inner}}) \land \pi_2 = \pi_{\text{Region}}(r_{\text{outer}}) \land \text{RegionNesting}(r_{\text{inner}}, r_{\text{outer}})) \ \lor\ (\pi_1 = \pi_{\text{Region}}(r) \land \pi_2 = \pi_{\text{Stack}}(S)) \ \lor\ (\pi_1 = \pi_{\text{Stack}}(S) \land \pi_2 = \pi_{\text{Heap}}) \ \lor\ (\pi_1 = \pi_{\text{Heap}} \land \pi_2 = \pi_{\text{Global}}) \ \lor\ (\pi_1 = \pi_{\text{Global}} \land \pi_2 = \bot)$$
+π_1 < π_2 ⇔ (π_1 = π_Region(r_inner) ∧ π_2 = π_Region(r_outer) ∧ RegionNesting(r_inner, r_outer)) ∨ (π_1 = π_Region(r) ∧ π_2 = π_Stack(S)) ∨ (π_1 = π_Stack(S) ∧ π_2 = π_Heap) ∨ (π_1 = π_Heap ∧ π_2 = π_Global) ∨ (π_1 = π_Global ∧ π_2 = ⊥)
 
-$$\pi_1 \le \pi_2 \iff \pi_1 = \pi_2 \ \lor\ (\pi_1 < \pi_2) \ \lor\ \exists \pi.\ (\pi_1 < \pi \land \pi \le \pi_2)$$
+π_1 ≤ π_2 ⇔ π_1 = π_2 ∨ (π_1 < π_2) ∨ ∃ π. (π_1 < π ∧ π ≤ π_2)
 
-$$\text{FrameTargetRel}(F, r) \iff \text{FrameTarget}(\Gamma, F) = r$$
-$$\text{FrameTargetRel}(F, r) \Rightarrow \pi_{\text{Region}}(F) < \pi_{\text{Region}}(r)$$
+FrameTargetRel(F, r) ⇔ FrameTarget(Γ, F) = r
+FrameTargetRel(F, r) ⇒ π_Region(F) < π_Region(r)
 
-$$\text{JoinProv}(\pi_1, \pi_2) = \begin{cases}
-\pi_1 & \text{if } \pi_1 \le \pi_2\\
-\pi_2 & \text{if } \pi_2 \le \pi_1\\
-\bot & \text{otherwise}
-\end{cases}$$
+JoinProv(π_1, π_2) =
+  { π_1    if π_1 ≤ π_2
+    π_2    if π_2 ≤ π_1
+    ⊥      otherwise }
 
-$$\text{JoinAllProv}([]) = \bot$$
-$$\text{JoinAllProv}([\pi]) = \pi$$
-$$\text{JoinAllProv}([\pi_1,\pi_2] \mathbin{+\!\!+} ps) = \text{JoinAllProv}([\text{JoinProv}(\pi_1,\pi_2)] \mathbin{+\!\!+} ps)$$
+JoinAllProv([]) = ⊥
+JoinAllProv([π]) = π
+JoinAllProv([π_1, π_2] ++ ps) = JoinAllProv([JoinProv(π_1, π_2)] ++ ps)
 
 **Provenance Environment.**
 
-$$\Omega = \langle \Sigma_\pi, RS \rangle$$
-$$\text{Scope}_\pi = \langle S, M \rangle \ \text{where}\ M : \text{Ident} \rightharpoonup \pi$$
-$$\Sigma_\pi \in [\text{Scope}_\pi]$$
-$$\text{RegionEntry}_\pi = \langle tag, target \rangle$$
-$$RS \in [\text{RegionEntry}_\pi]$$
+Ω = ⟨Σ_π, RS⟩
+Scope_π = ⟨S, M⟩ where M : Ident ⇀ π
+Σ_π ∈ [Scope_π]
+RegionEntry_π = ⟨tag, target⟩
+RS ∈ [RegionEntry_π]
 
-$$\text{ScopeId}(\langle S, M \rangle) = S$$
-$$\text{ScopeMap}(\langle S, M \rangle) = M$$
-$$\text{TopScopeId}([\langle S, M \rangle] \mathbin{+\!\!+} \Sigma_\pi) = S$$
-$$\text{StackProv}(\Sigma_\pi) = \pi_{\text{Stack}}(\text{TopScopeId}(\Sigma_\pi))$$
+ScopeId(⟨S, M⟩) = S
+ScopeMap(⟨S, M⟩) = M
+TopScopeId([⟨S, M⟩] ++ Σ_π) = S
+StackProv(Σ_π) = π_Stack(TopScopeId(Σ_π))
 
-$$\text{PushScope}_\pi(\Sigma_\pi) = [\langle S, \emptyset \rangle] \mathbin{+\!\!+} \Sigma_\pi \quad (S\ \text{fresh})$$
-$$\text{PopScope}_\pi([\_]\mathbin{+\!\!+}\Sigma_\pi) = \Sigma_\pi$$
+PushScope_π(Σ_π) = [⟨S, ∅⟩] ++ Σ_π    (S fresh)
+PopScope_π([_] ++ Σ_π) = Σ_π
 
-$$\text{Lookup}_\pi([\langle S, M \rangle] \mathbin{+\!\!+} \Sigma_\pi, x) = \begin{cases}
-M[x] & \text{if } x \in \text{dom}(M) \\
-\text{Lookup}_\pi(\Sigma_\pi, x) & \text{otherwise}
-\end{cases}$$
+Lookup_π([⟨S, M⟩] ++ Σ_π, x) =
+  { M[x]                if x ∈ dom(M)
+    Lookup_π(Σ_π, x)     otherwise }
 
-$$\text{Intro}_\pi([\langle S, M \rangle] \mathbin{+\!\!+} \Sigma_\pi, x, \pi) = [\langle S, M[x \mapsto \pi] \rangle] \mathbin{+\!\!+} \Sigma_\pi$$
+Intro_π([⟨S, M⟩] ++ Σ_π, x, π) = [⟨S, M[x ↦ π]⟩] ++ Σ_π
 
-$$\text{ShadowIntro}_\pi(\Sigma_\pi, x, \pi) = \begin{cases}
-[\langle S, M[x \mapsto \pi] \rangle] \mathbin{+\!\!+} \Sigma_\pi' & \text{if } \Sigma_\pi = [\langle S, M \rangle] \mathbin{+\!\!+} \Sigma_\pi' \land x \in \text{dom}(M) \\
-[\langle S, M \rangle] \mathbin{+\!\!+} \text{ShadowIntro}_\pi(\Sigma_\pi', x, \pi) & \text{if } \Sigma_\pi = [\langle S, M \rangle] \mathbin{+\!\!+} \Sigma_\pi' \land x \notin \text{dom}(M) \\
-\bot & \text{if } \Sigma_\pi = []
-\end{cases}$$
+ShadowIntro_π(Σ_π, x, π) =
+  { [⟨S, M[x ↦ π]⟩] ++ Σ_π'                    if Σ_π = [⟨S, M⟩] ++ Σ_π' ∧ x ∈ dom(M)
+    [⟨S, M⟩] ++ ShadowIntro_π(Σ_π', x, π)     if Σ_π = [⟨S, M⟩] ++ Σ_π' ∧ x ∉ dom(M)
+    ⊥                                         if Σ_π = [] }
 
-$$\text{IntroAll}_\pi(\Sigma_\pi, [], \pi) = \Sigma_\pi$$
-$$\text{IntroAll}_\pi(\Sigma_\pi, [x] \mathbin{+\!\!+} xs, \pi) = \text{IntroAll}_\pi(\text{Intro}_\pi(\Sigma_\pi, x, \pi), xs, \pi)$$
+IntroAll_π(Σ_π, [], π) = Σ_π
+IntroAll_π(Σ_π, [x] ++ xs, π) = IntroAll_π(Intro_π(Σ_π, x, π), xs, π)
 
-$$\text{ShadowAll}_\pi(\Sigma_\pi, [], \pi) = \Sigma_\pi$$
-$$\text{ShadowAll}_\pi(\Sigma_\pi, [x] \mathbin{+\!\!+} xs, \pi) = \text{ShadowAll}_\pi(\text{ShadowIntro}_\pi(\Sigma_\pi, x, \pi), xs, \pi)$$
+ShadowAll_π(Σ_π, [], π) = Σ_π
+ShadowAll_π(Σ_π, [x] ++ xs, π) = ShadowAll_π(ShadowIntro_π(Σ_π, x, π), xs, π)
 
-$$\text{ParamProvMap}(\text{params}, \vec{\pi}) = \{ x_i \mapsto \pi_i \mid \text{params} = [\langle \_, x_i, \_ \rangle],\ \vec{\pi} = [\pi_i] \}$$
-$$\text{InitProvEnv}(\text{params}, \vec{\pi}, RS) = \langle [\langle S, \text{ParamProvMap}(\text{params}, \vec{\pi}) \rangle], RS \rangle \quad (S\ \text{fresh})$$
+ParamProvMap(params, vecπ) = { x_i ↦ π_i | params = [⟨_, x_i, _⟩], vecπ = [π_i] }
+InitProvEnv(params, vecπ, RS) = ⟨[⟨S, ParamProvMap(params, vecπ)⟩], RS⟩    (S fresh)
 
-$$\text{AllocTag}([], r) = \bot$$
-$$\text{AllocTag}([\langle tag, target \rangle] \mathbin{+\!\!+} RS, \bot) = tag$$
-$$\text{AllocTag}([\langle tag, target \rangle] \mathbin{+\!\!+} RS, r) = \begin{cases}
-tag & \text{if } target = r \\
-\text{AllocTag}(RS, r) & \text{otherwise}
-\end{cases}$$
+AllocTag([], r) = ⊥
+AllocTag([⟨tag, target⟩] ++ RS, ⊥) = tag
+AllocTag([⟨tag, target⟩] ++ RS, r) =
+  { tag              if target = r
+    AllocTag(RS, r)  otherwise }
 
 **Provenance of Places.**
 
-$$\text{ProvPlaceJudg} = \{\Gamma; \Omega \vdash p \Downarrow \pi\}$$
+ProvPlaceJudg = {Γ; Ω ⊢ p ⇓ π}
 
-$$\frac{\text{Lookup}_\pi(\Sigma_\pi, x) = Ï€}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{Identifier}(x) \Downarrow Ï€}$$
+Lookup_π(Σ_π, x) = π
+────────────────────────────────────────────────────────────────
+Γ; ⟨Σ_π, RS⟩ ⊢ Identifier(x) ⇓ π
 
 **(P-Field)**
-$$\frac{\Gamma; \Omega \vdash p \Downarrow Ï€}{\Gamma; \Omega \vdash \text{FieldAccess}(p, f) \Downarrow Ï€}$$
+Γ; Ω ⊢ p ⇓ π
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ FieldAccess(p, f) ⇓ π
 
 **(P-Tuple)**
-$$\frac{\Gamma; \Omega \vdash p \Downarrow Ï€}{\Gamma; \Omega \vdash \text{TupleAccess}(p, i) \Downarrow Ï€}$$
+Γ; Ω ⊢ p ⇓ π
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ TupleAccess(p, i) ⇓ π
 
 **(P-Index)**
-$$\frac{\Gamma; \Omega \vdash p \Downarrow Ï€}{\Gamma; \Omega \vdash \text{IndexAccess}(p, i) \Downarrow Ï€}$$
+Γ; Ω ⊢ p ⇓ π
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ IndexAccess(p, i) ⇓ π
 
 **(P-Deref)**
-$$\frac{\Gamma; \Omega \vdash e \Downarrow Ï€}{\Gamma; \Omega \vdash \text{Deref}(e) \Downarrow Ï€}$$
+Γ; Ω ⊢ e ⇓ π
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ Deref(e) ⇓ π
 
 **Provenance of Expressions.**
 
-$$\text{ProvExprJudg} = \{\Gamma; \Omega \vdash e \Downarrow \pi\}$$
+ProvExprJudg = {Γ; Ω ⊢ e ⇓ π}
 
 **(P-Place-Expr)**
-$$\frac{\text{IsPlace}(p) \quad \Gamma; \Omega \vdash p \Downarrow Ï€}{\Gamma; \Omega \vdash p \Downarrow Ï€}$$
+IsPlace(p)    Γ; Ω ⊢ p ⇓ π
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ p ⇓ π
 
 **(P-Literal)**
-$$\frac{}{\Gamma; \Omega \vdash \text{Literal}(\_) \Downarrow \bot}$$
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ Literal(_) ⇓ ⊥
 
 **(P-Move)**
-$$\frac{\Gamma; \Omega \vdash p \Downarrow Ï€}{\Gamma; \Omega \vdash \text{MoveExpr}(p) \Downarrow Ï€}$$
+Γ; Ω ⊢ p ⇓ π
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ MoveExpr(p) ⇓ π
 
 **(P-AddrOf)**
-$$\frac{\Gamma; \Omega \vdash p \Downarrow Ï€}{\Gamma; \Omega \vdash \text{AddressOf}(p) \Downarrow Ï€}$$
+Γ; Ω ⊢ p ⇓ π
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ AddressOf(p) ⇓ π
 
 **(P-Alloc)**
-$$\frac{\Gamma; \Omega \vdash e \Downarrow Ï€_e \quad \text{AllocTag}(RS, r\_opt) = tag}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{AllocExpr}(r\_opt, e) \Downarrow \pi_{\text{Region}}(tag)}$$
+Γ; Ω ⊢ e ⇓ π_e    AllocTag(RS, r_opt) = tag
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; ⟨Σ_π, RS⟩ ⊢ AllocExpr(r_opt, e) ⇓ π_Region(tag)
 
 **(P-Region-Alloc-Method)**
-$$\frac{name = \texttt{alloc} \quad (r : T_r) \in \Gamma \quad \text{RegionActiveType}(T_r) \quad \text{AllocTag}(RS, r) = tag}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{MethodCall}(\text{Identifier}(r), name, args) \Downarrow \pi_{\text{Region}}(tag)}$$
+name = `alloc`    (r : T_r) ∈ Γ    RegionActiveType(T_r)    AllocTag(RS, r) = tag
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; ⟨Σ_π, RS⟩ ⊢ MethodCall(Identifier(r), name, args) ⇓ π_Region(tag)
 
 **(P-If)**
-$$\frac{\Gamma; \Omega \vdash b_t \Downarrow Ï€_t \quad \Gamma; \Omega \vdash b_f \Downarrow Ï€_f \quad \text{JoinProv}(Ï€_t, Ï€_f) = Ï€}{\Gamma; \Omega \vdash \text{IfExpr}(c, b_t, b_f) \Downarrow Ï€}$$
+Γ; Ω ⊢ b_t ⇓ π_t    Γ; Ω ⊢ b_f ⇓ π_f    JoinProv(π_t, π_f) = π
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ IfExpr(c, b_t, b_f) ⇓ π
 
 **(P-If-No-Else)**
-$$\frac{}{\Gamma; \Omega \vdash \text{IfExpr}(\_, b_t, \bot) \Downarrow \bot}$$
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ IfExpr(_, b_t, ⊥) ⇓ ⊥
 
-$$\text{ArmBodyProv}(e, \Omega) = \pi \iff \Gamma; \Omega \vdash e \Downarrow \pi$$
-$$\text{ArmBodyProv}(b, \Omega) = \pi \iff \Gamma; \Omega \vdash b \Downarrow \pi$$
+ArmBodyProv(e, Ω) = π ⇔ Γ; Ω ⊢ e ⇓ π
+ArmBodyProv(b, Ω) = π ⇔ Γ; Ω ⊢ b ⇓ π
 
-$$\text{ArmEnv}(\langle \Sigma_\pi, RS \rangle, pat) = \langle \Sigma_\pi', RS \rangle \iff \Gamma \vdash \text{PatNames}(pat) \Downarrow N \land \pi_b = \text{BindProv}(\langle \Sigma_\pi, RS \rangle, \bot) \land \Sigma_\pi' = \text{IntroAll}_\pi(\Sigma_\pi, N, \pi_b)$$
+ArmEnv(⟨Σ_π, RS⟩, pat) = ⟨Σ_π', RS⟩ ⇔ Γ ⊢ PatNames(pat) ⇓ N ∧ π_b = BindProv(⟨Σ_π, RS⟩, ⊥) ∧ Σ_π' = IntroAll_π(Σ_π, N, π_b)
 
-$$\text{ArmProv}(\langle pat,\_,body \rangle) = \pi \iff \text{ArmEnv}(\Omega, pat) = \Omega' \land \text{ArmBodyProv}(body, \Omega') = \pi$$
+ArmProv(⟨pat, _, body⟩) = π ⇔ ArmEnv(Ω, pat) = Ω' ∧ ArmBodyProv(body, Ω') = π
 
 **(P-Match)**
-$$\frac{\forall i,\ \text{ArmProv}(\text{arm}_i.\text{body}) = Ï€_i \quad \text{JoinAllProv}([Ï€_1,\ldots,Ï€_n]) = Ï€}{\Gamma; \Omega \vdash \text{MatchExpr}(\_, arms) \Downarrow Ï€}$$
+∀ i, ArmProv(arm_i.body) = π_i    JoinAllProv([π_1, …, π_n]) = π
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ MatchExpr(_, arms) ⇓ π
 
-$$\text{ProvExprRules} = \{\text{P-Place-Expr},\ \text{P-Literal},\ \text{P-Move},\ \text{P-AddrOf},\ \text{P-Alloc},\ \text{P-Region-Alloc-Method},\ \text{P-If},\ \text{P-If-No-Else},\ \text{P-Match},\ \text{P-Block},\ \text{P-Loop-Infinite},\ \text{P-Loop-Conditional},\ \text{P-Loop-Iter},\ \text{P-Expr-Sub}\}$$
+ProvExprRules = {P-Place-Expr, P-Literal, P-Move, P-AddrOf, P-Alloc, P-Region-Alloc-Method, P-If, P-If-No-Else, P-Match, P-Block, P-Loop-Infinite, P-Loop-Conditional, P-Loop-Iter, P-Expr-Sub}
 
-$$\text{NoSpecificProvExpr}(e) \iff \neg \exists r \in \text{ProvExprRules} \setminus \{\text{P-Expr-Sub}\}.\ \text{PremisesHold}(r, e)$$
+NoSpecificProvExpr(e) ⇔ ¬ ∃ r ∈ ProvExprRules \ {P-Expr-Sub}. PremisesHold(r, e)
 
 **(P-Expr-Sub)**
-$$\frac{\text{NoSpecificProvExpr}(e) \quad \text{Children\_LTR}(e) = [e_1,\ldots,e_n] \quad \forall i,\ \Gamma; \Omega \vdash e_i \Downarrow Ï€_i \quad \text{JoinAllProv}([Ï€_1,\ldots,Ï€_n]) = Ï€}{\Gamma; \Omega \vdash e \Downarrow Ï€}$$
+NoSpecificProvExpr(e)    Children_LTR(e) = [e_1, …, e_n]    ∀ i, Γ; Ω ⊢ e_i ⇓ π_i    JoinAllProv([π_1, …, π_n]) = π
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ e ⇓ π
 
 **Provenance of Statements.**
 
-$$\text{ProvStmtJudg} = \{\Gamma; \Omega \vdash s \Rightarrow \Omega' \triangleright \langle Res, Brk, BrkVoid \rangle,\ \Gamma; \Omega \vdash ss \Rightarrow \Omega' \triangleright \langle Res, Brk, BrkVoid \rangle\}$$
+ProvStmtJudg = {Γ; Ω ⊢ s ⇒ Ω' ▷ ⟨Res, Brk, BrkVoid⟩, Γ; Ω ⊢ ss ⇒ Ω' ▷ ⟨Res, Brk, BrkVoid⟩}
 
-$$\text{LetOrVarStmt}(binding) \in \{\text{LetStmt}(binding),\ \text{VarStmt}(binding)\}$$
+LetOrVarStmt(binding) ∈ {LetStmt(binding), VarStmt(binding)}
 
 **(Prov-Seq-Empty)**
-$$\frac{}{\Gamma; \Omega \vdash [] \Rightarrow \Omega \triangleright \langle [], [], \text{false} \rangle}$$
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ [] ⇒ Ω ▷ ⟨[], [], false⟩
 
 **(Prov-Seq-Cons)**
-$$\frac{\Gamma; \Omega \vdash s \Rightarrow \Omega_1 \triangleright \langle Res_1, Brk_1, B_1 \rangle \quad \Gamma; \Omega_1 \vdash ss \Rightarrow \Omega_2 \triangleright \langle Res_2, Brk_2, B_2 \rangle}{\Gamma; \Omega \vdash s::ss \Rightarrow \Omega_2 \triangleright \langle Res_1 \mathbin{+\!\!+} Res_2,\ Brk_1 \mathbin{+\!\!+} Brk_2,\ B_1 \lor B_2 \rangle}$$
+Γ; Ω ⊢ s ⇒ Ω_1 ▷ ⟨Res_1, Brk_1, B_1⟩    Γ; Ω_1 ⊢ ss ⇒ Ω_2 ▷ ⟨Res_2, Brk_2, B_2⟩
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ s :: ss ⇒ Ω_2 ▷ ⟨Res_1 ++ Res_2, Brk_1 ++ Brk_2, B_1 ∨ B_2⟩
 
 **(Prov-LetVar)**
-$$\frac{\text{binding}=\langle pat, \_, \_, init, \_ \rangle \quad \Gamma; \Omega \vdash init \Downarrow \pi_{\text{init}} \quad \Gamma \vdash \text{PatNames}(pat) \Downarrow N \quad \pi_{\text{bind}}=\text{BindProv}(\Omega, \pi_{\text{init}}) \quad \Sigma_\pi'=\text{IntroAll}_\pi(\Sigma_\pi, N, \pi_{\text{bind}})}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{LetOrVarStmt}(binding) \Rightarrow \langle \Sigma_\pi', RS \rangle \triangleright \langle [], [], \text{false} \rangle}$$
+binding = ⟨pat, _, _, init, _⟩    Γ; Ω ⊢ init ⇓ π_init    Γ ⊢ PatNames(pat) ⇓ N    π_bind = BindProv(Ω, π_init)    Σ_π' = IntroAll_π(Σ_π, N, π_bind)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; ⟨Σ_π, RS⟩ ⊢ LetOrVarStmt(binding) ⇒ ⟨Σ_π', RS⟩ ▷ ⟨[], [], false⟩
 
 **(Prov-ShadowLet)**
-$$\frac{\Gamma; \Omega \vdash init \Downarrow \pi_{\text{init}} \quad \pi_{\text{bind}}=\text{BindProv}(\Omega, \pi_{\text{init}}) \quad \Sigma_\pi'=\text{ShadowAll}_\pi(\Sigma_\pi, [x], \pi_{\text{bind}})}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{ShadowLetStmt}(x, \_, init) \Rightarrow \langle \Sigma_\pi', RS \rangle \triangleright \langle [], [], \text{false} \rangle}$$
+Γ; Ω ⊢ init ⇓ π_init    π_bind = BindProv(Ω, π_init)    Σ_π' = ShadowAll_π(Σ_π, [x], π_bind)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; ⟨Σ_π, RS⟩ ⊢ ShadowLetStmt(x, _, init) ⇒ ⟨Σ_π', RS⟩ ▷ ⟨[], [], false⟩
 
 **(Prov-ShadowVar)**
-$$\frac{\Gamma; \Omega \vdash init \Downarrow \pi_{\text{init}} \quad \pi_{\text{bind}}=\text{BindProv}(\Omega, \pi_{\text{init}}) \quad \Sigma_\pi'=\text{ShadowAll}_\pi(\Sigma_\pi, [x], \pi_{\text{bind}})}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{ShadowVarStmt}(x, \_, init) \Rightarrow \langle \Sigma_\pi', RS \rangle \triangleright \langle [], [], \text{false} \rangle}$$
+Γ; Ω ⊢ init ⇓ π_init    π_bind = BindProv(Ω, π_init)    Σ_π' = ShadowAll_π(Σ_π, [x], π_bind)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; ⟨Σ_π, RS⟩ ⊢ ShadowVarStmt(x, _, init) ⇒ ⟨Σ_π', RS⟩ ▷ ⟨[], [], false⟩
 
 **(Prov-Assign)**
-$$\frac{\Gamma; \Omega \vdash p \Downarrow \pi_x \quad \Gamma; \Omega \vdash e \Downarrow \pi_e \quad \neg (\pi_e < \pi_x)}{\Gamma; \Omega \vdash \text{AssignStmt}(p,e) \Rightarrow \Omega \triangleright \langle [], [], \text{false} \rangle}$$
+Γ; Ω ⊢ p ⇓ π_x    Γ; Ω ⊢ e ⇓ π_e    ¬(π_e < π_x)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ AssignStmt(p, e) ⇒ Ω ▷ ⟨[], [], false⟩
 
 **(Prov-CompoundAssign)**
-$$\frac{\Gamma; \Omega \vdash p \Downarrow \pi_x \quad \Gamma; \Omega \vdash e \Downarrow \pi_e \quad \neg (\pi_e < \pi_x)}{\Gamma; \Omega \vdash \text{CompoundAssignStmt}(p,\_,e) \Rightarrow \Omega \triangleright \langle [], [], \text{false} \rangle}$$
+Γ; Ω ⊢ p ⇓ π_x    Γ; Ω ⊢ e ⇓ π_e    ¬(π_e < π_x)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ CompoundAssignStmt(p, _, e) ⇒ Ω ▷ ⟨[], [], false⟩
 
 **(Prov-Escape-Err)**
-$$\frac{stmt \in \{\text{AssignStmt}(p,e),\ \text{CompoundAssignStmt}(p,\_,e)\} \quad \Gamma; \Omega \vdash p \Downarrow \pi_x \quad \Gamma; \Omega \vdash e \Downarrow \pi_e \quad \pi_e < \pi_x \quad c = \text{Code}(\text{Prov-Escape-Err})}{\Gamma; \Omega \vdash stmt \Uparrow c}$$
+stmt ∈ {AssignStmt(p, e), CompoundAssignStmt(p, _, e)}    Γ; Ω ⊢ p ⇓ π_x    Γ; Ω ⊢ e ⇓ π_e    π_e < π_x    c = Code(Prov-Escape-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ stmt ⇑ c
 
 **(Prov-ExprStmt)**
-$$\frac{\Gamma; \Omega \vdash e \Downarrow \pi}{\Gamma; \Omega \vdash \text{ExprStmt}(e) \Rightarrow \Omega \triangleright \langle [], [], \text{false} \rangle}$$
+Γ; Ω ⊢ e ⇓ π
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ ExprStmt(e) ⇒ Ω ▷ ⟨[], [], false⟩
 
 **(Prov-ResultStmt)**
-$$\frac{\Gamma; \Omega \vdash e \Downarrow \pi}{\Gamma; \Omega \vdash \text{ResultStmt}(e) \Rightarrow \Omega \triangleright \langle [\pi], [], \text{false} \rangle}$$
+Γ; Ω ⊢ e ⇓ π
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ ResultStmt(e) ⇒ Ω ▷ ⟨[π], [], false⟩
 
 **(Prov-Return)**
-$$\frac{\Gamma; \Omega \vdash e \Downarrow \pi}{\Gamma; \Omega \vdash \text{ReturnStmt}(e) \Rightarrow \Omega \triangleright \langle [\pi], [], \text{false} \rangle}$$
+Γ; Ω ⊢ e ⇓ π
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ ReturnStmt(e) ⇒ Ω ▷ ⟨[π], [], false⟩
 
 **(Prov-Return-Unit)**
-$$\frac{}{\Gamma; \Omega \vdash \text{ReturnStmt}(\bot) \Rightarrow \Omega \triangleright \langle [], [], \text{false} \rangle}$$
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ ReturnStmt(⊥) ⇒ Ω ▷ ⟨[], [], false⟩
 
 **(Prov-Break)**
-$$\frac{\Gamma; \Omega \vdash e \Downarrow \pi}{\Gamma; \Omega \vdash \text{BreakStmt}(e) \Rightarrow \Omega \triangleright \langle [], [\pi], \text{false} \rangle}$$
+Γ; Ω ⊢ e ⇓ π
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ BreakStmt(e) ⇒ Ω ▷ ⟨[], [π], false⟩
 
 **(Prov-Break-Unit)**
-$$\frac{}{\Gamma; \Omega \vdash \text{BreakStmt}(\bot) \Rightarrow \Omega \triangleright \langle [], [], \text{true} \rangle}$$
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ BreakStmt(⊥) ⇒ Ω ▷ ⟨[], [], true⟩
 
 **(Prov-Continue)**
-$$\frac{}{\Gamma; \Omega \vdash \text{ContinueStmt} \Rightarrow \Omega \triangleright \langle [], [], \text{false} \rangle}$$
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ ContinueStmt ⇒ Ω ▷ ⟨[], [], false⟩
 
 **(Prov-UnsafeStmt)**
-$$\frac{\Gamma; \Omega \vdash b \Downarrow \pi}{\Gamma; \Omega \vdash \text{UnsafeBlockStmt}(b) \Rightarrow \Omega \triangleright \langle [], [], \text{false} \rangle}$$
+Γ; Ω ⊢ b ⇓ π
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ UnsafeBlockStmt(b) ⇒ Ω ▷ ⟨[], [], false⟩
 
 **(Prov-DeferStmt)**
-$$\frac{\Gamma; \Omega \vdash b \Downarrow \pi}{\Gamma; \Omega \vdash \text{DeferStmt}(b) \Rightarrow \Omega \triangleright \langle [], [], \text{false} \rangle}$$
+Γ; Ω ⊢ b ⇓ π
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ DeferStmt(b) ⇒ Ω ▷ ⟨[], [], false⟩
 
-$$\text{FrameTarget}(\Gamma, \bot) = r \iff \text{InnermostActiveRegion}(\Gamma) = r$$
-$$\text{FrameTarget}(\Gamma, r) = r \iff \Gamma; R; L \vdash \text{Identifier}(r) : T_r \land \text{RegionActiveType}(T_r)$$
+FrameTarget(Γ, ⊥) = r ⇔ InnermostActiveRegion(Γ) = r
+FrameTarget(Γ, r) = r ⇔ Γ; R; L ⊢ Identifier(r) : T_r ∧ RegionActiveType(T_r)
 
 **(Prov-RegionStmt)**
-$$\frac{\text{RegionOptsExpr}(opts\_opt) = opts \quad \Gamma; \Omega \vdash opts \Downarrow \pi_{opts} \quad r = \text{RegionBindName}(\Gamma, alias\_opt) \quad \Sigma_\pi^0 = \text{PushScope}_\pi(\Sigma_\pi) \quad \pi_r = \text{BindProv}(\langle \Sigma_\pi^0, RS \rangle, \bot) \quad \Sigma_\pi'=\text{Intro}_\pi(\Sigma_\pi^0, r, \pi_r) \quad RS' = \langle r, r \rangle :: RS \quad \Gamma; \langle \Sigma_\pi', RS' \rangle \vdash b \Downarrow \pi_b}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{RegionStmt}(opts\_opt, alias\_opt, b) \Rightarrow \langle \Sigma_\pi, RS \rangle \triangleright \langle [], [], \text{false} \rangle}$$
+RegionOptsExpr(opts_opt) = opts    Γ; Ω ⊢ opts ⇓ π_opts    r = RegionBindName(Γ, alias_opt)    Σ_π^0 = PushScope_π(Σ_π)    π_r = BindProv(⟨Σ_π^0, RS⟩, ⊥)    Σ_π' = Intro_π(Σ_π^0, r, π_r)    RS' = ⟨r, r⟩ :: RS    Γ; ⟨Σ_π', RS'⟩ ⊢ b ⇓ π_b
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; ⟨Σ_π, RS⟩ ⊢ RegionStmt(opts_opt, alias_opt, b) ⇒ ⟨Σ_π, RS⟩ ▷ ⟨[], [], false⟩
 
 **(Prov-FrameStmt)**
-$$\frac{\text{FrameTarget}(\Gamma, target\_opt) = r \quad F = \text{FreshRegion}(\Gamma) \quad \Sigma_\pi^0 = \text{PushScope}_\pi(\Sigma_\pi) \quad \pi_F = \text{BindProv}(\langle \Sigma_\pi^0, RS \rangle, \bot) \quad \Sigma_\pi'=\text{Intro}_\pi(\Sigma_\pi^0, F, \pi_F) \quad RS' = \langle F, r \rangle :: RS \quad \Gamma; \langle \Sigma_\pi', RS' \rangle \vdash b \Downarrow \pi_b}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{FrameStmt}(target\_opt, b) \Rightarrow \langle \Sigma_\pi, RS \rangle \triangleright \langle [], [], \text{false} \rangle}$$
+FrameTarget(Γ, target_opt) = r    F = FreshRegion(Γ)    Σ_π^0 = PushScope_π(Σ_π)    π_F = BindProv(⟨Σ_π^0, RS⟩, ⊥)    Σ_π' = Intro_π(Σ_π^0, F, π_F)    RS' = ⟨F, r⟩ :: RS    Γ; ⟨Σ_π', RS'⟩ ⊢ b ⇓ π_b
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; ⟨Σ_π, RS⟩ ⊢ FrameStmt(target_opt, b) ⇒ ⟨Σ_π, RS⟩ ▷ ⟨[], [], false⟩
 
 **(Prov-ErrorStmt)**
-$$\frac{}{\Gamma; \Omega \vdash \text{ErrorStmt}(\_) \Rightarrow \Omega \triangleright \langle [], [], \text{false} \rangle}$$
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ ErrorStmt(_) ⇒ Ω ▷ ⟨[], [], false⟩
 
 **Block Provenance.**
 
-$$\text{BlockProvJudg} = \{\Gamma; \Omega \vdash \text{BlockProv}(stmts, tail\_opt) \Downarrow \pi\}$$
+BlockProvJudg = {Γ; Ω ⊢ BlockProv(stmts, tail_opt) ⇓ π}
 
-$$\Omega_0 = \langle \text{PushScope}_\pi(\Sigma_\pi), RS \rangle$$
+Ω_0 = ⟨PushScope_π(Σ_π), RS⟩
 
 **(BlockProv-Res)**
-$$\frac{\Gamma; \Omega_0 \vdash stmts \Rightarrow \Omega_1 \triangleright \langle Res, Brk, BrkVoid \rangle \quad Res \ne [] \quad \text{JoinAllProv}(Res) = Ï€ \quad (tail\_opt = e \Rightarrow \Gamma; \Omega_1 \vdash e \Downarrow \pi_t)}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{BlockProv}(stmts, tail\_opt) \Downarrow Ï€}$$
+Γ; Ω_0 ⊢ stmts ⇒ Ω_1 ▷ ⟨Res, Brk, BrkVoid⟩    Res ≠ []    JoinAllProv(Res) = π    (tail_opt = e ⇒ Γ; Ω_1 ⊢ e ⇓ π_t)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; ⟨Σ_π, RS⟩ ⊢ BlockProv(stmts, tail_opt) ⇓ π
 
 **(BlockProv-Tail)**
-$$\frac{\Gamma; \Omega_0 \vdash stmts \Rightarrow \Omega_1 \triangleright \langle Res, Brk, BrkVoid \rangle \quad Res = [] \quad tail\_opt = e \quad \Gamma; \Omega_1 \vdash e \Downarrow Ï€}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{BlockProv}(stmts, tail\_opt) \Downarrow Ï€}$$
+Γ; Ω_0 ⊢ stmts ⇒ Ω_1 ▷ ⟨Res, Brk, BrkVoid⟩    Res = []    tail_opt = e    Γ; Ω_1 ⊢ e ⇓ π
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; ⟨Σ_π, RS⟩ ⊢ BlockProv(stmts, tail_opt) ⇓ π
 
 **(BlockProv-Unit)**
-$$\frac{\Gamma; \Omega_0 \vdash stmts \Rightarrow \Omega_1 \triangleright \langle Res, Brk, BrkVoid \rangle \quad Res = [] \quad tail\_opt = \bot}{\Gamma; \langle \Sigma_\pi, RS \rangle \vdash \text{BlockProv}(stmts, \bot) \Downarrow \bot}$$
+Γ; Ω_0 ⊢ stmts ⇒ Ω_1 ▷ ⟨Res, Brk, BrkVoid⟩    Res = []    tail_opt = ⊥
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; ⟨Σ_π, RS⟩ ⊢ BlockProv(stmts, ⊥) ⇓ ⊥
 
 **(P-Block)**
-$$\frac{\Gamma; \Omega \vdash \text{BlockProv}(stmts, tail\_opt) \Downarrow Ï€}{\Gamma; \Omega \vdash \text{BlockExpr}(stmts, tail\_opt) \Downarrow Ï€}$$
+Γ; Ω ⊢ BlockProv(stmts, tail_opt) ⇓ π
+────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ BlockExpr(stmts, tail_opt) ⇓ π
 
 **Loop Provenance.**
 
-$$\text{BreakProv}(body, \Omega) = \langle Brk, BrkVoid \rangle \iff body = \text{BlockExpr}(stmts, tail\_opt) \land \Omega_0 = \langle \text{PushScope}_\pi(\Sigma_\pi), RS \rangle \land \Gamma; \Omega_0 \vdash stmts \Rightarrow \Omega_1 \triangleright \langle Res, Brk, BrkVoid \rangle \land (tail\_opt = e \Rightarrow \Gamma; \Omega_1 \vdash e \Downarrow \pi_t)$$
+BreakProv(body, Ω) = ⟨Brk, BrkVoid⟩ ⇔ body = BlockExpr(stmts, tail_opt) ∧ Ω_0 = ⟨PushScope_π(Σ_π), RS⟩ ∧ Γ; Ω_0 ⊢ stmts ⇒ Ω_1 ▷ ⟨Res, Brk, BrkVoid⟩ ∧ (tail_opt = e ⇒ Γ; Ω_1 ⊢ e ⇓ π_t)
 
-$$\text{IterElemProv}(iter, \Omega) = \pi \iff \Gamma; \Omega \vdash iter \Downarrow \pi$$
+IterElemProv(iter, Ω) = π ⇔ Γ; Ω ⊢ iter ⇓ π
 
-$$\text{LoopProvInf}(Brk, BrkVoid) = \bot \iff Brk = []$$
-$$\text{LoopProvInf}(Brk, BrkVoid) = \pi \iff Brk = [\pi_1,\ldots,\pi_n] \land BrkVoid = \text{false} \land \text{JoinAllProv}([\pi_1,\ldots,\pi_n]) = \pi$$
+LoopProvInf(Brk, BrkVoid) = ⊥ ⇔ Brk = []
+LoopProvInf(Brk, BrkVoid) = π ⇔ Brk = [π_1, …, π_n] ∧ BrkVoid = false ∧ JoinAllProv([π_1, …, π_n]) = π
 
-$$\text{LoopProvFin}(Brk, BrkVoid) = \bot \iff Brk = []$$
-$$\text{LoopProvFin}(Brk, BrkVoid) = \pi \iff Brk = [\pi_1,\ldots,\pi_n] \land BrkVoid = \text{false} \land \text{JoinAllProv}([\pi_1,\ldots,\pi_n]) = \pi$$
+LoopProvFin(Brk, BrkVoid) = ⊥ ⇔ Brk = []
+LoopProvFin(Brk, BrkVoid) = π ⇔ Brk = [π_1, …, π_n] ∧ BrkVoid = false ∧ JoinAllProv([π_1, …, π_n]) = π
 
-$$\text{ExtendProv}(\langle \Sigma_\pi, RS \rangle, pat, \pi) = \langle \Sigma_\pi', RS \rangle \iff \Gamma \vdash \text{PatNames}(pat) \Downarrow N \land \Sigma_\pi' = \text{IntroAll}_\pi(\Sigma_\pi, N, \pi)$$
+ExtendProv(⟨Σ_π, RS⟩, pat, π) = ⟨Σ_π', RS⟩ ⇔ Γ ⊢ PatNames(pat) ⇓ N ∧ Σ_π' = IntroAll_π(Σ_π, N, π)
 
 **(P-Loop-Infinite)**
-$$\frac{\text{BreakProv}(body, \Omega) = \langle Brk, BrkVoid \rangle \quad \text{LoopProvInf}(Brk, BrkVoid) = Ï€}{\Gamma; \Omega \vdash \text{LoopInfinite}(body) \Downarrow Ï€}$$
+BreakProv(body, Ω) = ⟨Brk, BrkVoid⟩    LoopProvInf(Brk, BrkVoid) = π
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ LoopInfinite(body) ⇓ π
 
 **(P-Loop-Conditional)**
-$$\frac{\text{BreakProv}(body, \Omega) = \langle Brk, BrkVoid \rangle \quad \text{LoopProvFin}(Brk, BrkVoid) = Ï€}{\Gamma; \Omega \vdash \text{LoopConditional}(cond, body) \Downarrow Ï€}$$
+BreakProv(body, Ω) = ⟨Brk, BrkVoid⟩    LoopProvFin(Brk, BrkVoid) = π
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ LoopConditional(cond, body) ⇓ π
 
 **(P-Loop-Iter)**
-$$\frac{\text{IterElemProv}(iter, \Omega) = Ï€_{\text{elem}} \quad \text{ExtendProv}(\Omega, pat, Ï€_{\text{elem}}) = \Omega' \quad \text{BreakProv}(body, \Omega') = \langle Brk, BrkVoid \rangle \quad \text{LoopProvFin}(Brk, BrkVoid) = Ï€}{\Gamma; \Omega \vdash \text{LoopIter}(pat, ty\_opt, iter, body) \Downarrow Ï€}$$
+IterElemProv(iter, Ω) = π_elem    ExtendProv(Ω, pat, π_elem) = Ω'    BreakProv(body, Ω') = ⟨Brk, BrkVoid⟩    LoopProvFin(Brk, BrkVoid) = π
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ LoopIter(pat, ty_opt, iter, body) ⇓ π
 
 
-$$\text{EscapeOk}(\pi_e, \pi_x) \iff \neg(\pi_e < \pi_x)$$
+EscapeOk(π_e, π_x) ⇔ ¬(π_e < π_x)
 
-$$\text{BindProv}(\langle \Sigma_\pi, RS \rangle, \pi_{\text{init}}) = \begin{cases}
-\text{StackProv}(\Sigma_\pi) & \text{if } \pi_{\text{init}} = \bot \\
-\pi_{\text{init}} & \text{otherwise}
-\end{cases}$$
+BindProv(⟨Σ_π, RS⟩, π_init) =
+  { StackProv(Σ_π)    if π_init = ⊥
+    π_init            otherwise }
 
-$$\text{StaticBindProv} = \pi_{\text{Global}}$$
+StaticBindProv = π_Global
 
-$$\text{AssignProvOk}(\Omega, p, e) \iff \Gamma; \Omega \vdash p \Downarrow \pi_x \land \Gamma; \Omega \vdash e \Downarrow \pi_e \land \text{EscapeOk}(\pi_e, \pi_x)$$
+AssignProvOk(Ω, p, e) ⇔ Γ; Ω ⊢ p ⇓ π_x ∧ Γ; Ω ⊢ e ⇓ π_e ∧ EscapeOk(π_e, π_x)
 
 ### 5.3. Classes and Record Methods (Cursive0)
 
@@ -9287,238 +9511,293 @@ $$\text{AssignProvOk}(\Omega, p, e) \iff \Gamma; \Omega \vdash p \Downarrow \pi_
 
 **Common Method-Signature Definitions.**
 
-$$\text{Distinct}(xs) \iff \forall i \ne j.\ xs[i] \ne xs[j]$$
-$$\text{Disjoint}(xs, ys) \iff \forall x \in xs.\ x \notin ys$$
+Distinct(xs) ⇔ ∀ i ≠ j. xs[i] ≠ xs[j]
+Disjoint(xs, ys) ⇔ ∀ x ∈ xs. x ∉ ys
 
-$$\text{ReturnType}(m) = \begin{cases}
-m.\text{return\_type}\_opt & \text{if } m.\text{return\_type}\_opt \ne \bot \\
-\text{TypePrim}(\texttt{"()"}) & \text{if } m.\text{return\_type}\_opt = \bot
-\end{cases}$$
+ReturnType(m) =
+  { m.return_type_opt        if m.return_type_opt ≠ ⊥
+    TypePrim("()")           if m.return_type_opt = ⊥ }
 
-$$\text{SelfVar} = \text{TypePath}([\texttt{Self}])$$
+SelfVar = TypePath([`Self`])
 
-$$\text{SubstSelf}(T, \text{TypePath}([\texttt{Self}])) = T$$
-$$\text{SubstSelf}(T, \text{TypePerm}(p, ty)) = \text{TypePerm}(p, \text{SubstSelf}(T, ty))$$
-$$\text{SubstSelf}(T, \text{TypeTuple}([t_1,\ldots,t_n])) = \text{TypeTuple}([\text{SubstSelf}(T,t_1),\ldots,\text{SubstSelf}(T,t_n)])$$
-$$\text{SubstSelf}(T, \text{TypeArray}(ty, e)) = \text{TypeArray}(\text{SubstSelf}(T, ty), e)$$
-$$\text{SubstSelf}(T, \text{TypeSlice}(ty)) = \text{TypeSlice}(\text{SubstSelf}(T, ty))$$
-$$\text{SubstSelf}(T, \text{TypeUnion}([t_1,\ldots,t_n])) = \text{TypeUnion}([\text{SubstSelf}(T,t_1),\ldots,\text{SubstSelf}(T,t_n)])$$
-$$\text{SubstSelf}(T, \text{TypeFunc}([\langle m_1, t_1 \rangle,\ldots,\langle m_n, t_n \rangle], r)) = \text{TypeFunc}([\langle m_1, \text{SubstSelf}(T,t_1) \rangle,\ldots,\langle m_n, \text{SubstSelf}(T,t_n) \rangle], \text{SubstSelf}(T, r))$$
-$$\text{SubstSelf}(T, \text{TypePtr}(ty, s)) = \text{TypePtr}(\text{SubstSelf}(T, ty), s)$$
-$$\text{SubstSelf}(T, \text{TypeRawPtr}(q, ty)) = \text{TypeRawPtr}(q, \text{SubstSelf}(T, ty))$$
-$$\text{SubstSelf}(T, \text{TypeString}(state\_opt)) = \text{TypeString}(state\_opt)$$
-$$\text{SubstSelf}(T, \text{TypeBytes}(state\_opt)) = \text{TypeBytes}(state\_opt)$$
-$$\text{SubstSelf}(T, \text{TypeModalState}(p, S)) = \text{TypeModalState}(p, S)$$
-$$\text{SubstSelf}(T, \text{TypeDynamic}(p)) = \text{TypeDynamic}(p)$$
-$$\text{SubstSelf}(T, \text{TypePrim}(n)) = \text{TypePrim}(n)$$
-$$\text{SubstSelf}(T, \text{TypePath}(p)) = \text{TypePath}(p) \quad \text{if } p \ne [\texttt{Self}]$$
+SubstSelf(T, TypePath([`Self`])) = T
+SubstSelf(T, TypePerm(p, ty)) = TypePerm(p, SubstSelf(T, ty))
+SubstSelf(T, TypeTuple([t_1, …, t_n])) = TypeTuple([SubstSelf(T, t_1), …, SubstSelf(T, t_n)])
+SubstSelf(T, TypeArray(ty, e)) = TypeArray(SubstSelf(T, ty), e)
+SubstSelf(T, TypeSlice(ty)) = TypeSlice(SubstSelf(T, ty))
+SubstSelf(T, TypeUnion([t_1, …, t_n])) = TypeUnion([SubstSelf(T, t_1), …, SubstSelf(T, t_n)])
+SubstSelf(T, TypeFunc([⟨m_1, t_1⟩, …, ⟨m_n, t_n⟩], r)) = TypeFunc([⟨m_1, SubstSelf(T, t_1)⟩, …, ⟨m_n, SubstSelf(T, t_n)⟩], SubstSelf(T, r))
+SubstSelf(T, TypePtr(ty, s)) = TypePtr(SubstSelf(T, ty), s)
+SubstSelf(T, TypeRawPtr(q, ty)) = TypeRawPtr(q, SubstSelf(T, ty))
+SubstSelf(T, TypeString(state_opt)) = TypeString(state_opt)
+SubstSelf(T, TypeBytes(state_opt)) = TypeBytes(state_opt)
+SubstSelf(T, TypeModalState(p, S)) = TypeModalState(p, S)
+SubstSelf(T, TypeDynamic(p)) = TypeDynamic(p)
+SubstSelf(T, TypePrim(n)) = TypePrim(n)
+SubstSelf(T, TypePath(p)) = TypePath(p)    if p ≠ [`Self`]
 
-$$\text{RecvType}(T, \text{ReceiverShorthand}(\texttt{const})) = \text{TypePerm}(\texttt{const}, T)$$
-$$\text{RecvType}(T, \text{ReceiverShorthand}(\texttt{unique})) = \text{TypePerm}(\texttt{unique}, T)$$
-$$\text{RecvType}(T, \text{ReceiverExplicit}(mode\_opt, ty)) = \text{SubstSelf}(T, ty)$$
+RecvType(T, ReceiverShorthand(`const`)) = TypePerm(`const`, T)
+RecvType(T, ReceiverShorthand(`unique`)) = TypePerm(`unique`, T)
+RecvType(T, ReceiverExplicit(mode_opt, ty)) = SubstSelf(T, ty)
 
-$$\text{RecvMode}(\text{ReceiverShorthand}(\_)) = \bot$$
-$$\text{RecvMode}(\text{ReceiverExplicit}(mode\_opt, \_)) = mode\_opt$$
+RecvMode(ReceiverShorthand(_)) = ⊥
+RecvMode(ReceiverExplicit(mode_opt, _)) = mode_opt
 
-$$\text{PermOf}(\text{TypePerm}(p, \_)) = p$$
-$$\text{PermOf}(ty) = \texttt{const}\ \text{otherwise}$$
+PermOf(TypePerm(p, _)) = p
+PermOf(ty) = `const`    otherwise
 
-$$\text{RecvPerm}(T,r) = \text{PermOf}(\text{RecvType}(T,r))$$
+RecvPerm(T, r) = PermOf(RecvType(T, r))
 
-$$\text{ParamSig}_T(T,\text{params}) = [\langle mode,\ \text{SubstSelf}(T, ty) \rangle \mid \langle mode,\ name,\ ty \rangle \in \text{params}]$$
-$$\text{ParamBinds}_T(T,\text{params}) = [\langle x_1,\ \text{SubstSelf}(T, T_1) \rangle,\ldots,\langle x_n,\ \text{SubstSelf}(T, T_n) \rangle]$$
-$$\text{ReturnType}_T(T,m) = \text{SubstSelf}(T,\ \text{ReturnType}(m))$$
+ParamSig_T(T, params) = [⟨mode, SubstSelf(T, ty)⟩ | ⟨mode, name, ty⟩ ∈ params]
+ParamBinds_T(T, params) = [⟨x_1, SubstSelf(T, T_1)⟩, …, ⟨x_n, SubstSelf(T, T_n)⟩]
+ReturnType_T(T, m) = SubstSelf(T, ReturnType(m))
 
-$$\text{Sig}_T(T, m) = \langle \text{RecvType}(T, m.\text{receiver}),\ \text{ParamSig}_T(T, m.\text{params}),\ \text{SubstSelf}(T, \text{ReturnType}(m)) \rangle$$
+Sig_T(T, m) = ⟨RecvType(T, m.receiver), ParamSig_T(T, m.params), SubstSelf(T, ReturnType(m))⟩
 
-$$\text{SigSelf}(m) = \text{Sig}_T(\text{SelfVar}, m)$$
+SigSelf(m) = Sig_T(SelfVar, m)
 
 **Class Declarations.**
 
-$$\text{ClassItems}(Cl) = Cl.\text{items}$$
-$$\text{ClassMethods}(Cl) = [ m \mid m \in \text{ClassItems}(Cl) \land \exists vis,name,recv,params,ret,body,span,doc.\ m=\text{ClassMethodDecl}(vis,name,recv,params,ret,body,span,doc)]$$
-$$\text{ClassFields}(Cl) = [ f \mid f \in \text{ClassItems}(Cl) \land \exists vis,name,ty,span,doc.\ f=\text{ClassFieldDecl}(vis,name,ty,span,doc)]$$
-$$\text{MethodNames}(Cl) = [ m.\text{name} \mid m \in \text{ClassMethods}(Cl) ]$$
-$$\text{FieldNames}(Cl) = [ f.\text{name} \mid f \in \text{ClassFields}(Cl) ]$$
+ClassItems(Cl) = Cl.items
+ClassMethods(Cl) = [ m | m ∈ ClassItems(Cl) ∧ ∃ vis, name, recv, params, ret, body, span, doc. m = ClassMethodDecl(vis, name, recv, params, ret, body, span, doc) ]
+ClassFields(Cl) = [ f | f ∈ ClassItems(Cl) ∧ ∃ vis, name, ty, span, doc. f = ClassFieldDecl(vis, name, ty, span, doc) ]
+MethodNames(Cl) = [ m.name | m ∈ ClassMethods(Cl) ]
+FieldNames(Cl) = [ f.name | f ∈ ClassFields(Cl) ]
 
 **Class Path Well-Formedness.**
 
 **(WF-ClassPath)**
-$$\frac{p \in \text{dom}(\Sigma.\text{Classes})}{\Gamma \vdash p : \text{ClassPath}}$$
+p ∈ dom(Σ.Classes)
+──────────────────────────────────────────────
+Γ ⊢ p : ClassPath
 
 **(WF-ClassPath-Err)**
-$$\frac{p \notin \text{dom}(\Sigma.\text{Classes}) \quad c = \text{Code}(\text{Superclass-Undefined})}{\Gamma \vdash p : \text{ClassPath} \Uparrow c}$$
+p ∉ dom(Σ.Classes)    c = Code(Superclass-Undefined)
+────────────────────────────────────────────────────────────────
+Γ ⊢ p : ClassPath ⇑ c
 
 **Superclass Linearization (C3).**
 
-$$\text{Supers}(Cl) = [S_1,\ldots,S_n]$$
+Supers(Cl) = [S_1, …, S_n]
 
 **(Lin-Base)**
-$$\frac{\text{Supers}(Cl) = []}{\Gamma \vdash \text{Linearize}(Cl) \Downarrow [Cl]}$$
+Supers(Cl) = []
+──────────────────────────────────────────────
+Γ ⊢ Linearize(Cl) ⇓ [Cl]
 
-$$\text{Head}(h::t) = h$$
-$$\text{Tail}([]) = []$$
-$$\text{Tail}(h::t) = t$$
-$$\text{HeadOk}(h, Ls) \iff \exists L \in Ls.\ L = h::t \land \forall L' \in Ls.\ h \notin \text{Tail}(L')$$
-$$\text{SelectHead}(Ls) = h \iff Ls = [L_1,\ldots,L_n] \land L_i = h::t \land \text{HeadOk}(h,Ls) \land \forall j < i.\ \neg \text{HeadOk}(\text{Head}(L_j),Ls)$$
-$$\text{SelectHead}(Ls) = \bot \iff \neg \exists h.\ \text{HeadOk}(h, Ls)$$
-$$\text{PopHead}(h, L) = t \iff L = h::t$$
-$$\text{PopHead}(h, L) = L \iff \neg (L = h::t)$$
-$$\text{PopAll}(h, Ls) = [\text{PopHead}(h,L) \mid L \in Ls]$$
+Head(h :: t) = h
+Tail([]) = []
+Tail(h :: t) = t
+HeadOk(h, Ls) ⇔ ∃ L ∈ Ls. L = h :: t ∧ ∀ L' ∈ Ls. h ∉ Tail(L')
+SelectHead(Ls) = h ⇔ Ls = [L_1, …, L_n] ∧ L_i = h :: t ∧ HeadOk(h, Ls) ∧ ∀ j < i. ¬ HeadOk(Head(L_j), Ls)
+SelectHead(Ls) = ⊥ ⇔ ¬ ∃ h. HeadOk(h, Ls)
+PopHead(h, L) = t ⇔ L = h :: t
+PopHead(h, L) = L ⇔ ¬(L = h :: t)
+PopAll(h, Ls) = [PopHead(h, L) | L ∈ Ls]
 
 **(Merge-Empty)**
-$$\frac{\forall L \in Ls,\ L = []}{\Gamma \vdash \text{Merge}(Ls) \Downarrow []}$$
+∀ L ∈ Ls, L = []
+──────────────────────────────────────────────
+Γ ⊢ Merge(Ls) ⇓ []
 
 **(Merge-Step)**
-$$\frac{\text{SelectHead}(Ls) = h \quad \Gamma \vdash \text{Merge}(\text{PopAll}(h, Ls)) \Downarrow L}{\Gamma \vdash \text{Merge}(Ls) \Downarrow [h] \mathbin{+\!\!+} L}$$
+SelectHead(Ls) = h    Γ ⊢ Merge(PopAll(h, Ls)) ⇓ L
+────────────────────────────────────────────────────────────────
+Γ ⊢ Merge(Ls) ⇓ [h] ++ L
 
 **(Merge-Fail)**
-$$\frac{\neg \exists h.\ \text{HeadOk}(h, Ls)}{\Gamma \vdash \text{Merge}(Ls) \Uparrow}$$
+¬ ∃ h. HeadOk(h, Ls)
+──────────────────────────────────────────────
+Γ ⊢ Merge(Ls) ⇑
 
 **(Lin-Ok)**
-$$\frac{\Gamma \vdash \text{Merge}([\text{Linearize}(S_1),\ldots,\text{Linearize}(S_n), [S_1,\ldots,S_n]]) \Downarrow L}{\Gamma \vdash \text{Linearize}(Cl) \Downarrow [Cl] \mathbin{+\!\!+} L}$$
+Γ ⊢ Merge([Linearize(S_1), …, Linearize(S_n), [S_1, …, S_n]]) ⇓ L
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Linearize(Cl) ⇓ [Cl] ++ L
 
 **(Lin-Fail)**
-$$\frac{\Gamma \vdash \text{Merge}(\cdots) \Uparrow}{\Gamma \vdash \text{Linearize}(Cl) \Uparrow}$$
+Γ ⊢ Merge(⋯) ⇑
+──────────────────────────────────────────────
+Γ ⊢ Linearize(Cl) ⇑
 
 **(Superclass-Cycle)**
-$$\frac{\Gamma \vdash \text{Linearize}(Cl) \Uparrow \quad c = \text{Code}(\text{Superclass-Cycle})}{\Gamma \vdash Cl \Uparrow c}$$
+Γ ⊢ Linearize(Cl) ⇑    c = Code(Superclass-Cycle)
+────────────────────────────────────────────────────────────────
+Γ ⊢ Cl ⇑ c
 
 **Effective Method Set.**
 
-$$\text{Linearize}(Cl) = [C_0, C_1, \ldots, C_k] \land C_0 = Cl$$
+Linearize(Cl) = [C_0, C_1, …, C_k] ∧ C_0 = Cl
 
-$$\text{EffMethods}(Cl) = \text{FirstByName}\Big(\mathbin{+\!\!+}_{i=0}^{k} \text{ClassMethods}(C_i)\Big)$$
+EffMethods(Cl) = FirstByName(++_{i=0..k} ClassMethods(C_i))
 
-$$\text{FirstByName}(ms) = \text{FirstByName}(ms,\emptyset)$$
+FirstByName(ms) = FirstByName(ms, ∅)
 
-$$\text{FirstByName}([], Seen) = []$$
-$$\text{FirstByName}(m::ms, Seen) = \begin{cases}
-m :: \text{FirstByName}(ms, Seen \cup \{m.\text{name} \mapsto \text{SigSelf}(m)\}) & \text{if } m.\text{name} \notin \text{dom}(Seen) \\
-\text{FirstByName}(ms, Seen) & \text{if } Seen[m.\text{name}] = \text{SigSelf}(m) \\
-\Uparrow & \text{otherwise}
-\end{cases}$$
+FirstByName([], Seen) = []
+FirstByName(m :: ms, Seen) =
+  { m :: FirstByName(ms, Seen ∪ { m.name ↦ SigSelf(m) })    if m.name ∉ dom(Seen)
+    FirstByName(ms, Seen)                                  if Seen[m.name] = SigSelf(m)
+    ⇑                                                      otherwise }
 
 **(EffMethods-Conflict)**
-$$\frac{\text{FirstByName}(ms) \Uparrow \quad c = \text{Code}(\text{EffMethods-Conflict})}{\Gamma \vdash \text{Emit}(c)}$$
+FirstByName(ms) ⇑    c = Code(EffMethods-Conflict)
+────────────────────────────────────────────────────────────────
+Γ ⊢ Emit(c)
 
 **Effective Field Set.**
 
-$$\text{FieldSig}(f) = \text{SubstSelf}(\text{SelfVar}, f.\text{type})$$
+FieldSig(f) = SubstSelf(SelfVar, f.type)
 
-$$\text{EffFields}(Cl) = \text{FirstFieldByName}\Big(\mathbin{+\!\!+}_{i=0}^{k} \text{ClassFields}(C_i)\Big)$$
+EffFields(Cl) = FirstFieldByName(++_{i=0..k} ClassFields(C_i))
 
-$$\text{FirstFieldByName}(fs) = \text{FirstFieldByName}(fs,\emptyset)$$
+FirstFieldByName(fs) = FirstFieldByName(fs, ∅)
 
-$$\text{FirstFieldByName}([], Seen) = []$$
-$$\text{FirstFieldByName}(f::fs, Seen) = \begin{cases}
-f :: \text{FirstFieldByName}(fs, Seen \cup \{f.\text{name} \mapsto \text{FieldSig}(f)\}) & \text{if } f.\text{name} \notin \text{dom}(Seen) \\
-\text{FirstFieldByName}(fs, Seen) & \text{if } Seen[f.\text{name}] = \text{FieldSig}(f) \\
-\Uparrow & \text{otherwise}
-\end{cases}$$
+FirstFieldByName([], Seen) = []
+FirstFieldByName(f :: fs, Seen) =
+  { f :: FirstFieldByName(fs, Seen ∪ { f.name ↦ FieldSig(f) })    if f.name ∉ dom(Seen)
+    FirstFieldByName(fs, Seen)                                   if Seen[f.name] = FieldSig(f)
+    ⇑                                                            otherwise }
 
 **(EffFields-Conflict)**
-$$\frac{\text{FirstFieldByName}(fs) \Uparrow \quad c = \text{Code}(\text{EffFields-Conflict})}{\Gamma \vdash \text{Emit}(c)}$$
+FirstFieldByName(fs) ⇑    c = Code(EffFields-Conflict)
+────────────────────────────────────────────────────────────────
+Γ ⊢ Emit(c)
 
 **Dispatchability.**
 
-$$\text{SelfOccurs}(\text{TypePath}([\texttt{Self}])) = \text{true}$$
-$$\text{SelfOccurs}(\text{TypePerm}(p, ty)) = \text{SelfOccurs}(ty)$$
-$$\text{SelfOccurs}(\text{TypeTuple}([t_1,\ldots,t_n])) = \bigvee_i \text{SelfOccurs}(t_i)$$
-$$\text{SelfOccurs}(\text{TypeArray}(ty, e)) = \text{SelfOccurs}(ty)$$
-$$\text{SelfOccurs}(\text{TypeSlice}(ty)) = \text{SelfOccurs}(ty)$$
-$$\text{SelfOccurs}(\text{TypeUnion}([t_1,\ldots,t_n])) = \bigvee_i \text{SelfOccurs}(t_i)$$
-$$\text{SelfOccurs}(\text{TypeFunc}([\langle m_1, t_1 \rangle,\ldots,\langle m_n, t_n \rangle], r)) = \Big(\bigvee_i \text{SelfOccurs}(t_i)\Big) \lor \text{SelfOccurs}(r)$$
-$$\text{SelfOccurs}(\text{TypePtr}(ty, s)) = \text{SelfOccurs}(ty)$$
-$$\text{SelfOccurs}(\text{TypeRawPtr}(q, ty)) = \text{SelfOccurs}(ty)$$
-$$\text{SelfOccurs}(\text{TypeString}(state\_opt)) = \text{false}$$
-$$\text{SelfOccurs}(\text{TypeBytes}(state\_opt)) = \text{false}$$
-$$\text{SelfOccurs}(\text{TypeModalState}(p, S)) = \text{false}$$
-$$\text{SelfOccurs}(\text{TypeDynamic}(p)) = \text{false}$$
-$$\text{SelfOccurs}(\text{TypePrim}(n)) = \text{false}$$
-$$\text{SelfOccurs}(\text{TypePath}(p)) = \text{false} \quad \text{if } p \ne [\texttt{Self}]$$
+SelfOccurs(TypePath([`Self`])) = true
+SelfOccurs(TypePerm(p, ty)) = SelfOccurs(ty)
+SelfOccurs(TypeTuple([t_1, …, t_n])) = ∨_i SelfOccurs(t_i)
+SelfOccurs(TypeArray(ty, e)) = SelfOccurs(ty)
+SelfOccurs(TypeSlice(ty)) = SelfOccurs(ty)
+SelfOccurs(TypeUnion([t_1, …, t_n])) = ∨_i SelfOccurs(t_i)
+SelfOccurs(TypeFunc([⟨m_1, t_1⟩, …, ⟨m_n, t_n⟩], r)) = (∨_i SelfOccurs(t_i)) ∨ SelfOccurs(r)
+SelfOccurs(TypePtr(ty, s)) = SelfOccurs(ty)
+SelfOccurs(TypeRawPtr(q, ty)) = SelfOccurs(ty)
+SelfOccurs(TypeString(state_opt)) = false
+SelfOccurs(TypeBytes(state_opt)) = false
+SelfOccurs(TypeModalState(p, S)) = false
+SelfOccurs(TypeDynamic(p)) = false
+SelfOccurs(TypePrim(n)) = false
+SelfOccurs(TypePath(p)) = false    if p ≠ [`Self`]
 
-$$\text{SelfOccurs}(m) \iff \text{SelfOccurs}(\text{ReturnType}(m)) \lor \exists \langle \_,\_,ty \rangle \in m.\text{params}.\ \text{SelfOccurs}(ty)$$
-$$\text{HasReceiver}(m) \iff m.\text{receiver} \ne \bot$$
-$$\text{vtable\_eligible}(m) \iff \text{HasReceiver}(m) \land \neg \text{SelfOccurs}(m)$$
+SelfOccurs(m) ⇔ SelfOccurs(ReturnType(m)) ∨ ∃ ⟨_, _, ty⟩ ∈ m.params. SelfOccurs(ty)
+HasReceiver(m) ⇔ m.receiver ≠ ⊥
+vtable_eligible(m) ⇔ HasReceiver(m) ∧ ¬ SelfOccurs(m)
 
-$$\text{dispatchable}(Cl) \iff \forall m \in \text{EffMethods}(Cl).\ \text{vtable\_eligible}(m)$$
+dispatchable(Cl) ⇔ ∀ m ∈ EffMethods(Cl). vtable_eligible(m)
 
 **Class Method Well-Formedness.**
 
-$$\text{SelfTypeClass}(ty) \iff ty = \text{SelfVar} \lor \exists p.\ ty = \text{TypePerm}(p,\ \text{SelfVar})$$
+SelfTypeClass(ty) ⇔ ty = SelfVar ∨ ∃ p. ty = TypePerm(p, SelfVar)
 
 **(WF-Class-Method)**
-$$\frac{(r = \text{ReceiverExplicit}(mode\_opt, ty) \Rightarrow \text{SelfTypeClass}(ty)) \quad (r = \text{ReceiverShorthand}(\_) \Rightarrow \text{true}) \quad \Gamma \vdash \text{RecvType}(\text{SelfVar}, r)\ \text{wf} \quad \text{self} \notin \text{ParamNames}(\text{params}) \quad \text{Distinct}(\text{ParamNames}(\text{params})) \quad \forall \langle \_,\ \_,\ T_i \rangle \in \text{params},\ \Gamma \vdash T_i\ \text{wf} \quad (\text{return\_type}\_opt = \bot \ \lor\ \Gamma \vdash \text{return\_type}\_opt\ \text{wf})}{\Gamma \vdash \langle \text{ClassMethodDecl}, \_, \text{name}, r, \text{params}, \text{return\_type}\_opt, \text{body}\_opt, \_, \_ \rangle : \text{ClassMethodOK}(Cl)}$$
+(r = ReceiverExplicit(mode_opt, ty) ⇒ SelfTypeClass(ty))    (r = ReceiverShorthand(_) ⇒ true)    Γ ⊢ RecvType(SelfVar, r) wf    self ∉ ParamNames(params)    Distinct(ParamNames(params))    ∀ ⟨_, _, T_i⟩ ∈ params, Γ ⊢ T_i wf    (return_type_opt = ⊥ ∨ Γ ⊢ return_type_opt wf)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ⟨ClassMethodDecl, _, name, r, params, return_type_opt, body_opt, _, _⟩ : ClassMethodOK(Cl)
 
 **(T-Class-Method-Body-Abstract)**
-$$\frac{m.\text{body\_opt} = \bot}{\Gamma \vdash m : \text{ClassMethodBodyOK}}$$
+m.body_opt = ⊥
+──────────────────────────────────────────────
+Γ ⊢ m : ClassMethodBodyOK
 
 **(T-Class-Method-Body)**
-$$\frac{m.\text{body\_opt} = body \quad T_{\text{self}} = \text{RecvType}(\text{SelfVar}, m.\text{receiver}) \quad R_m = \text{ReturnType}_T(\text{SelfVar}, m) \quad \Gamma_0 = \text{PushScope}(\Gamma) \quad \text{IntroAll}(\Gamma_0, [\langle \texttt{self}, T_{\text{self}} \rangle] \mathbin{+\!\!+} \text{ParamBinds}_T(\text{SelfVar}, m.\text{params})) \Downarrow \Gamma_1 \quad \Gamma_1; R_m; \bot \vdash body : T_b \quad \Gamma \vdash T_b <: R_m \quad (R_m \ne \text{TypePrim}(\texttt{"()"}) \Rightarrow \text{ExplicitReturn}(body))}{\Gamma \vdash m : \text{ClassMethodBodyOK}}$$
+m.body_opt = body    T_self = RecvType(SelfVar, m.receiver)    R_m = ReturnType_T(SelfVar, m)    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, [⟨`self`, T_self⟩] ++ ParamBinds_T(SelfVar, m.params)) ⇓ Γ_1    Γ_1; R_m; ⊥ ⊢ body : T_b    Γ ⊢ T_b <: R_m    (R_m ≠ TypePrim("()") ⇒ ExplicitReturn(body))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ m : ClassMethodBodyOK
 
 **(WF-Class)**
-$$\frac{\text{Distinct}(\text{MethodNames}(Cl)) \quad \text{Distinct}(\text{FieldNames}(Cl)) \quad \text{Disjoint}(\text{MethodNames}(Cl), \text{FieldNames}(Cl)) \quad \text{Distinct}(\text{Supers}(Cl)) \quad \forall S \in \text{Supers}(Cl),\ \Gamma \vdash S : \text{ClassPath} \quad \forall m \in \text{ClassMethods}(Cl),\ \Gamma \vdash m : \text{ClassMethodOK}(Cl) \quad \Gamma \vdash m : \text{ClassMethodBodyOK} \quad \Gamma \vdash \text{Linearize}(Cl) \Downarrow L}{\Gamma \vdash Cl : \text{ClassOk}}$$
+Distinct(MethodNames(Cl))    Distinct(FieldNames(Cl))    Disjoint(MethodNames(Cl), FieldNames(Cl))    Distinct(Supers(Cl))    ∀ S ∈ Supers(Cl), Γ ⊢ S : ClassPath    ∀ m ∈ ClassMethods(Cl), Γ ⊢ m : ClassMethodOK(Cl)    Γ ⊢ m : ClassMethodBodyOK    Γ ⊢ Linearize(Cl) ⇓ L
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Cl : ClassOk
 
 **(Class-Method-Dup)**
-$$\frac{\neg \text{Distinct}(\text{MethodNames}(Cl)) \quad c = \text{Code}(\text{Class-Method-Dup})}{\Gamma \vdash Cl \Uparrow c}$$
+¬ Distinct(MethodNames(Cl))    c = Code(Class-Method-Dup)
+────────────────────────────────────────────────────────────────
+Γ ⊢ Cl ⇑ c
 
 **(Class-AbstractField-Dup)**
-$$\frac{\neg \text{Distinct}(\text{FieldNames}(Cl)) \quad c = \text{Code}(\text{Class-AbstractField-Dup})}{\Gamma \vdash Cl \Uparrow c}$$
+¬ Distinct(FieldNames(Cl))    c = Code(Class-AbstractField-Dup)
+────────────────────────────────────────────────────────────────
+Γ ⊢ Cl ⇑ c
 
 **(Class-Name-Conflict)**
-$$\frac{\neg \text{Disjoint}(\text{MethodNames}(Cl), \text{FieldNames}(Cl)) \quad c = \text{Code}(\text{Class-Name-Conflict})}{\Gamma \vdash Cl \Uparrow c}$$
+¬ Disjoint(MethodNames(Cl), FieldNames(Cl))    c = Code(Class-Name-Conflict)
+────────────────────────────────────────────────────────────────
+Γ ⊢ Cl ⇑ c
 
 **(Superclass-Undefined)**
-$$\frac{S \in \text{Supers}(Cl) \quad \neg(\Gamma \vdash S : \text{ClassPath}) \quad c = \text{Code}(\text{Superclass-Undefined})}{\Gamma \vdash Cl \Uparrow c}$$
+S ∈ Supers(Cl)    ¬(Γ ⊢ S : ClassPath)    c = Code(Superclass-Undefined)
+────────────────────────────────────────────────────────────────
+Γ ⊢ Cl ⇑ c
 
 **Class Implementation.**
 
-$$\text{Implements}(T) = \text{impls} \iff T=\text{RecordDecl}(\_,\_,\text{impls},\_,\_,\_) \lor T=\text{EnumDecl}(\_,\_,\text{impls},\_,\_,\_) \lor T=\text{ModalDecl}(\_,\_,\text{impls},\_,\_,\_) \lor T=\text{ClassDecl}(\_,\_,\text{impls},\_,\_)$$
+Implements(T) = impls ⇔ T = RecordDecl(_, _, impls, _, _, _) ∨ T = EnumDecl(_, _, impls, _, _, _) ∨ T = ModalDecl(_, _, impls, _, _, _) ∨ T = ClassDecl(_, _, impls, _, _)
 
 **Implements Clause Constraints.**
-$$\text{NoDefaultMethods}(Cl) \iff \forall m \in \text{ClassMethods}(Cl).\ m.\text{body} = \bot$$
-$$\text{BitcopyImpliesClone}(T) \iff (\texttt{Bitcopy} \in \text{Implements}(T)) \Rightarrow (\text{Clone} \in \text{Implements}(T))$$
-$$\text{AbstractsImplemented}(T) \iff \forall Cl \in \text{Implements}(T).\ \forall m \in \text{ClassMethodTable}(Cl).\ (m.\text{body}=\bot \Rightarrow \text{MethodByName}(T,m.\text{name}) \ne \bot)$$
+NoDefaultMethods(Cl) ⇔ ∀ m ∈ ClassMethods(Cl). m.body = ⊥
+BitcopyImpliesClone(T) ⇔ (`Bitcopy` ∈ Implements(T)) ⇒ (Clone ∈ Implements(T))
+AbstractsImplemented(T) ⇔ ∀ Cl ∈ Implements(T). ∀ m ∈ ClassMethodTable(Cl). (m.body = ⊥ ⇒ MethodByName(T, m.name) ≠ ⊥)
 
 **(Impl-Duplicate-Class-Err)**
-$$\frac{\neg \text{Distinct}(\text{Implements}(T)) \quad c = \text{Code}(\text{Impl-Duplicate-Class-Err})}{\Gamma \vdash T : \text{ImplementsOk} \Uparrow c}$$
+¬ Distinct(Implements(T))    c = Code(Impl-Duplicate-Class-Err)
+────────────────────────────────────────────────────────────────
+Γ ⊢ T : ImplementsOk ⇑ c
 
-$$\text{Fields}(T) = \text{Fields}(R) \iff T=\text{TypePath}(p) \land \text{RecordDecl}(p)=R$$
-$$\text{Methods}(T) = \text{Methods}(R) \iff T=\text{TypePath}(p) \land \text{RecordDecl}(p)=R$$
-$$\text{Fields}(T) = [] \iff T=\text{TypePath}(p) \land (\text{EnumDecl}(p)=E \lor \Sigma.\text{Types}[p]=\texttt{modal } M)$$
-$$\text{Methods}(T) = [] \iff T=\text{TypePath}(p) \land (\text{EnumDecl}(p)=E \lor \Sigma.\text{Types}[p]=\texttt{modal } M)$$
-$$\text{MethodByName}(T,\text{name}) = m' \iff m' \in \text{Methods}(T) \land m'.\text{name}=\text{name}$$
-$$\text{MethodByName}(T,\text{name}) = \bot \iff \neg \exists m' \in \text{Methods}(T).\ m'.\text{name}=\text{name}$$
-$$\text{ClassMethodTable}(Cl) = \text{EffMethods}(Cl)$$
-$$\text{ClassFieldTable}(Cl) = \text{EffFields}(Cl)$$
+Fields(T) = Fields(R) ⇔ T = TypePath(p) ∧ RecordDecl(p) = R
+Methods(T) = Methods(R) ⇔ T = TypePath(p) ∧ RecordDecl(p) = R
+Fields(T) = [] ⇔ T = TypePath(p) ∧ (EnumDecl(p) = E ∨ Σ.Types[p] = `modal` M)
+Methods(T) = [] ⇔ T = TypePath(p) ∧ (EnumDecl(p) = E ∨ Σ.Types[p] = `modal` M)
+MethodByName(T, name) = m' ⇔ m' ∈ Methods(T) ∧ m'.name = name
+MethodByName(T, name) = ⊥ ⇔ ¬ ∃ m' ∈ Methods(T). m'.name = name
+ClassMethodTable(Cl) = EffMethods(Cl)
+ClassFieldTable(Cl) = EffFields(Cl)
 
 **(Impl-Abstract-Method)**
-$$\frac{m \in \text{ClassMethodTable}(Cl) \quad m.\text{body} = \bot \quad \text{MethodByName}(T, m.\text{name}) = m' \quad \text{Sig}_T(T, m') = \text{Sig}_T(T, m) \quad m'.\text{override} = \text{false}}{\Gamma \vdash T \text{ implements abstract } m}$$
+m ∈ ClassMethodTable(Cl)    m.body = ⊥    MethodByName(T, m.name) = m'    Sig_T(T, m') = Sig_T(T, m)    m'.override = false
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T implements abstract m
 
 **(Impl-Missing-Method)**
-$$\frac{m \in \text{ClassMethodTable}(Cl) \quad m.\text{body} = \bot \quad \text{MethodByName}(T, m.\text{name}) = \bot \quad c = \text{Code}(\text{Impl-Missing-Method})}{\Gamma \vdash T : \text{ImplementsOk} \Uparrow c}$$
+m ∈ ClassMethodTable(Cl)    m.body = ⊥    MethodByName(T, m.name) = ⊥    c = Code(Impl-Missing-Method)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T : ImplementsOk ⇑ c
 
 **(Impl-Sig-Err)**
-$$\frac{m \in \text{ClassMethodTable}(Cl) \quad m.\text{body} = \bot \quad \text{MethodByName}(T, m.\text{name}) = m' \quad \text{Sig}_T(T, m') \ne \text{Sig}_T(T, m) \quad c = \text{Code}(\text{Impl-Missing-Method})}{\Gamma \vdash T : \text{ImplementsOk} \Uparrow c}$$
+m ∈ ClassMethodTable(Cl)    m.body = ⊥    MethodByName(T, m.name) = m'    Sig_T(T, m') ≠ Sig_T(T, m)    c = Code(Impl-Missing-Method)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T : ImplementsOk ⇑ c
 
 **(Override-Abstract-Err)**
-$$\frac{m \in \text{ClassMethodTable}(Cl) \quad m.\text{body} = \bot \quad \text{MethodByName}(T, m.\text{name}) = m' \quad \text{Sig}_T(T, m') = \text{Sig}_T(T, m) \quad m'.\text{override} = \text{true} \quad c = \text{Code}(\text{Override-Abstract-Err})}{\Gamma \vdash T : \text{ImplementsOk} \Uparrow c}$$
+m ∈ ClassMethodTable(Cl)    m.body = ⊥    MethodByName(T, m.name) = m'    Sig_T(T, m') = Sig_T(T, m)    m'.override = true    c = Code(Override-Abstract-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T : ImplementsOk ⇑ c
 
 **(Impl-Concrete-Default)**
-$$\frac{m \in \text{ClassMethodTable}(Cl) \quad m.\text{body} \ne \bot \quad \text{MethodByName}(T, m.\text{name}) = \bot}{\Gamma \vdash T \text{ uses default } m}$$
+m ∈ ClassMethodTable(Cl)    m.body ≠ ⊥    MethodByName(T, m.name) = ⊥
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T uses default m
 
 **(Impl-Concrete-Override)**
-$$\frac{m \in \text{ClassMethodTable}(Cl) \quad m.\text{body} \ne \bot \quad \text{MethodByName}(T, m.\text{name}) = m' \quad \text{Sig}_T(T, m') = \text{Sig}_T(T, m) \quad m'.\text{override} = \text{true}}{\Gamma \vdash T \text{ overrides } m}$$
+m ∈ ClassMethodTable(Cl)    m.body ≠ ⊥    MethodByName(T, m.name) = m'    Sig_T(T, m') = Sig_T(T, m)    m'.override = true
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T overrides m
 
 **(Override-Missing-Err)**
-$$\frac{m \in \text{ClassMethodTable}(Cl) \quad m.\text{body} \ne \bot \quad \text{MethodByName}(T, m.\text{name}) = m' \quad \text{Sig}_T(T, m') = \text{Sig}_T(T, m) \quad m'.\text{override} = \text{false} \quad c = \text{Code}(\text{Override-Missing-Err})}{\Gamma \vdash T : \text{ImplementsOk} \Uparrow c}$$
+m ∈ ClassMethodTable(Cl)    m.body ≠ ⊥    MethodByName(T, m.name) = m'    Sig_T(T, m') = Sig_T(T, m)    m'.override = false    c = Code(Override-Missing-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T : ImplementsOk ⇑ c
 
 **(Impl-Sig-Err-Concrete)**
-$$\frac{m \in \text{ClassMethodTable}(Cl) \quad m.\text{body} \ne \bot \quad \text{MethodByName}(T, m.\text{name}) = m' \quad \text{Sig}_T(T, m') \ne \text{Sig}_T(T, m) \quad c = \text{Code}(\text{Impl-Missing-Method})}{\Gamma \vdash T : \text{ImplementsOk} \Uparrow c}$$
+m ∈ ClassMethodTable(Cl)    m.body ≠ ⊥    MethodByName(T, m.name) = m'    Sig_T(T, m') ≠ Sig_T(T, m)    c = Code(Impl-Missing-Method)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T : ImplementsOk ⇑ c
 
 **(Override-NoConcrete)**
-$$\frac{m' \in \text{Methods}(T) \quad m'.\text{override} = \text{true} \quad \neg \exists Cl \in \text{Implements}(T).\ \exists m \in \text{ClassMethodTable}(Cl).\ m.\text{name} = m'.\text{name} \land m.\text{body} \ne \bot \quad c = \text{Code}(\text{Override-NoConcrete})}{\Gamma \vdash T : \text{ImplementsOk} \Uparrow c}$$
+m' ∈ Methods(T)    m'.override = true    ¬ ∃ Cl ∈ Implements(T). ∃ m ∈ ClassMethodTable(Cl). m.name = m'.name ∧ m.body ≠ ⊥    c = Code(Override-NoConcrete)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T : ImplementsOk ⇑ c
 
 **(Impl-Field)**
 $$\frac{f : T_c \in \text{ClassFieldTable}(Cl) \quad f : T_i \in \text{Fields}(T) \quad T_i <: T_c}{\Gamma \vdash T \text{ satisfies field } f}$$

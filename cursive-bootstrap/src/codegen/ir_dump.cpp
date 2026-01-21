@@ -430,13 +430,13 @@ struct Dumper {
   void DumpNode(const IRCast& c) {
     oss << "cast ";
     Dump(c.value);
-    oss << " to " << (c.target ? sema::TypeToString(c.target) : "<unknown>");
+    oss << " to " << (c.target ? analysis::TypeToString(c.target) : "<unknown>");
   }
 
   void DumpNode(const IRTransmute& t) {
     oss << "transmute ";
     Dump(t.value);
-    oss << " to " << (t.to ? sema::TypeToString(t.to) : "<unknown>");
+    oss << " to " << (t.to ? analysis::TypeToString(t.to) : "<unknown>");
   }
 
   void DumpNode(const IRCheckIndex& c) {
@@ -474,7 +474,7 @@ struct Dumper {
   void DumpNode(const IRCheckCast& c) {
     oss << "check_cast ";
     Dump(c.value);
-    oss << " to " << (c.target ? sema::TypeToString(c.target) : "<unknown>");
+    oss << " to " << (c.target ? analysis::TypeToString(c.target) : "<unknown>");
   }
 
   void DumpNode(const IRAlloc& a) {
@@ -591,7 +591,7 @@ struct Dumper {
   }
 
   void DumpNode(const IRPhi& p) {
-    oss << "phi " << (p.type ? sema::TypeToString(p.type) : "<unknown>");
+    oss << "phi " << (p.type ? analysis::TypeToString(p.type) : "<unknown>");
   }
 
   void DumpNode(const IRClearPanic&) { oss << "clear_panic"; }

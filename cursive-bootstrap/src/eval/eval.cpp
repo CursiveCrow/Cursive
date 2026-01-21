@@ -1,5 +1,5 @@
 
-#include "cursive0/semantics/eval.h"
+#include "cursive0/eval/eval.h"
 
 #include <array>
 #include <cmath>
@@ -16,32 +16,32 @@
 
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/core/int128.h"
-#include "cursive0/sema/cap_system.h"
-#include "cursive0/sema/cap_heap.h"
-#include "cursive0/sema/cap_filesystem.h"
-#include "cursive0/sema/classes.h"
-#include "cursive0/sema/collect_toplevel.h"
-#include "cursive0/sema/modal.h"
-#include "cursive0/sema/modal_transitions.h"
-#include "cursive0/sema/record_methods.h"
-#include "cursive0/sema/resolve_qual.h"
-#include "cursive0/sema/resolver.h"
-#include "cursive0/sema/scopes.h"
-#include "cursive0/sema/scopes_lookup.h"
-#include "cursive0/sema/string_bytes.h"
-#include "cursive0/sema/subtyping.h"
-#include "cursive0/sema/type_equiv.h"
-#include "cursive0/sema/type_expr.h"
-#include "cursive0/sema/types.h"
-#include "cursive0/sema/visibility.h"
-#include "cursive0/semantics/cleanup.h"
-#include "cursive0/semantics/apply.h"
-#include "cursive0/semantics/exec.h"
-#include "cursive0/semantics/builtins.h"
-#include "cursive0/semantics/match.h"
+#include "cursive0/analysis/caps/cap_system.h"
+#include "cursive0/analysis/caps/cap_heap.h"
+#include "cursive0/analysis/caps/cap_filesystem.h"
+#include "cursive0/analysis/composite/classes.h"
+#include "cursive0/analysis/resolve/collect_toplevel.h"
+#include "cursive0/analysis/modal/modal.h"
+#include "cursive0/analysis/modal/modal_transitions.h"
+#include "cursive0/analysis/composite/record_methods.h"
+#include "cursive0/analysis/resolve/resolve_qual.h"
+#include "cursive0/analysis/resolve/resolver.h"
+#include "cursive0/analysis/resolve/scopes.h"
+#include "cursive0/analysis/resolve/scopes_lookup.h"
+#include "cursive0/analysis/memory/string_bytes.h"
+#include "cursive0/analysis/types/subtyping.h"
+#include "cursive0/analysis/types/type_equiv.h"
+#include "cursive0/analysis/types/type_expr.h"
+#include "cursive0/analysis/types/types.h"
+#include "cursive0/analysis/resolve/visibility.h"
+#include "cursive0/eval/cleanup.h"
+#include "cursive0/eval/apply.h"
+#include "cursive0/eval/exec.h"
+#include "cursive0/eval/builtins.h"
+#include "cursive0/eval/match.h"
 #include "cursive0/syntax/token.h"
 
-namespace cursive0::semantics {
+namespace cursive0::eval {
 
 namespace {
 
@@ -190,26 +190,26 @@ std::optional<std::string_view> FloatSuffix(const syntax::Token& lit) {
   return std::nullopt;
 }
 
-std::optional<sema::TypeRef> InferLiteralType(const syntax::Token& lit) {
+std::optional<analysis::TypeRef> InferLiteralType(const syntax::Token& lit) {
   switch (lit.kind) {
     case syntax::TokenKind::IntLiteral: {
       if (const auto suffix = IntSuffix(lit)) {
-        return sema::MakeTypePrim(std::string(*suffix));
+        return analysis::MakeTypePrim(std::string(*suffix));
       }
-      return sema::MakeTypePrim("i32");
+      return analysis::MakeTypePrim("i32");
     }
     case syntax::TokenKind::FloatLiteral: {
       if (const auto suffix = FloatSuffix(lit)) {
-        return sema::MakeTypePrim(std::string(*suffix));
+        return analysis::MakeTypePrim(std::string(*suffix));
       }
-      return sema::MakeTypePrim("f64");
+      return analysis::MakeTypePrim("f64");
     }
     case syntax::TokenKind::BoolLiteral:
-      return sema::MakeTypePrim("bool");
+      return analysis::MakeTypePrim("bool");
     case syntax::TokenKind::CharLiteral:
-      return sema::MakeTypePrim("char");
+      return analysis::MakeTypePrim("char");
     case syntax::TokenKind::StringLiteral:
-      return sema::MakeTypeString(sema::StringState::View);
+      return analysis::MakeTypeString(analysis::StringState::View);
     default:
       break;
   }
@@ -641,11 +641,11 @@ std::optional<std::uint32_t> DecodeCharLiteral(std::string_view lexeme) {
 }
 
 std::optional<Value> LiteralValue(const syntax::Token& lit,
-                                  const sema::TypeRef& type) {
+                                  const analysis::TypeRef& type) {
   if (!type) {
     return std::nullopt;
   }
-  if (const auto* prim = std::get_if<sema::TypePrim>(&type->node)) {
+  if (const auto* prim = std::get_if<analysis::TypePrim>(&type->node)) {
     if (prim->name == "bool" && lit.kind == syntax::TokenKind::BoolLiteral) {
       BoolVal v;
       v.value = lit.lexeme == "true";
@@ -683,20 +683,20 @@ std::optional<Value> LiteralValue(const syntax::Token& lit,
       return Value{v};
     }
   }
-  if (const auto* str = std::get_if<sema::TypeString>(&type->node)) {
+  if (const auto* str = std::get_if<analysis::TypeString>(&type->node)) {
     if (lit.kind == syntax::TokenKind::StringLiteral &&
-        (!str->state.has_value() || *str->state == sema::StringState::View)) {
+        (!str->state.has_value() || *str->state == analysis::StringState::View)) {
       const auto bytes = DecodeStringLiteralBytes(lit.lexeme);
       if (!bytes.has_value()) {
         return std::nullopt;
       }
       StringVal v;
-      v.state = sema::StringState::View;
+      v.state = analysis::StringState::View;
       v.bytes = *bytes;
       return Value{v};
     }
   }
-  if (const auto* raw = std::get_if<sema::TypeRawPtr>(&type->node)) {
+  if (const auto* raw = std::get_if<analysis::TypeRawPtr>(&type->node)) {
     if (lit.kind == syntax::TokenKind::NullLiteral) {
       RawPtrVal v;
       v.qual = raw->qual;
@@ -1383,18 +1383,18 @@ std::optional<Value> EvalBinOpImpl(std::string_view op,
   return std::nullopt;
 }
 
-std::optional<Value> EvalCastVal(const sema::TypeRef& source,
-                                 const sema::TypeRef& target,
+std::optional<Value> EvalCastVal(const analysis::TypeRef& source,
+                                 const analysis::TypeRef& target,
                                  const Value& value) {
   if (!source || !target) {
     return std::nullopt;
   }
-  const auto src = sema::StripPerm(source);
-  const auto dst = sema::StripPerm(target);
+  const auto src = analysis::StripPerm(source);
+  const auto dst = analysis::StripPerm(target);
   if (!src || !dst) {
     return std::nullopt;
   }
-  const auto equiv = sema::TypeEquiv(src, dst);
+  const auto equiv = analysis::TypeEquiv(src, dst);
   if (!equiv.ok) {
     return std::nullopt;
   }
@@ -1402,8 +1402,8 @@ std::optional<Value> EvalCastVal(const sema::TypeRef& source,
     SPEC_RULE("CastVal-Id");
     return value;
   }
-  const auto* src_prim = std::get_if<sema::TypePrim>(&src->node);
-  const auto* dst_prim = std::get_if<sema::TypePrim>(&dst->node);
+  const auto* src_prim = std::get_if<analysis::TypePrim>(&src->node);
+  const auto* dst_prim = std::get_if<analysis::TypePrim>(&dst->node);
   if (!src_prim || !dst_prim) {
     return std::nullopt;
   }
@@ -1526,26 +1526,26 @@ std::optional<Value> EvalCastVal(const sema::TypeRef& source,
   return std::nullopt;
 }
 
-std::optional<Value> EvalTransmuteVal(const sema::TypeRef& source,
-                                      const sema::TypeRef& target,
+std::optional<Value> EvalTransmuteVal(const analysis::TypeRef& source,
+                                      const analysis::TypeRef& target,
                                       const Value& value) {
   if (!source || !target) {
     return std::nullopt;
   }
-  const auto src = sema::StripPerm(source);
-  const auto dst = sema::StripPerm(target);
+  const auto src = analysis::StripPerm(source);
+  const auto dst = analysis::StripPerm(target);
   if (!src || !dst) {
     return std::nullopt;
   }
-  const auto equiv = sema::TypeEquiv(src, dst);
+  const auto equiv = analysis::TypeEquiv(src, dst);
   if (!equiv.ok) {
     return std::nullopt;
   }
   if (equiv.equiv) {
     return value;
   }
-  const auto* src_prim = std::get_if<sema::TypePrim>(&src->node);
-  const auto* dst_prim = std::get_if<sema::TypePrim>(&dst->node);
+  const auto* src_prim = std::get_if<analysis::TypePrim>(&src->node);
+  const auto* dst_prim = std::get_if<analysis::TypePrim>(&dst->node);
   if (!src_prim || !dst_prim) {
     return std::nullopt;
   }
@@ -1584,23 +1584,23 @@ std::optional<Value> EvalTransmuteVal(const sema::TypeRef& source,
   return std::nullopt;
 }
 
-std::optional<sema::TypeRef> SuccessMemberType(const SemanticsContext& ctx,
-                                               const sema::TypeRef& ret_type,
-                                               const sema::TypeRef& expr_type) {
+std::optional<analysis::TypeRef> SuccessMemberType(const SemanticsContext& ctx,
+                                               const analysis::TypeRef& ret_type,
+                                               const analysis::TypeRef& expr_type) {
   if (!ctx.sema || !ret_type || !expr_type) {
     return std::nullopt;
   }
-  const auto stripped = sema::StripPerm(expr_type);
+  const auto stripped = analysis::StripPerm(expr_type);
   if (!stripped) {
     return std::nullopt;
   }
-  const auto* uni = std::get_if<sema::TypeUnion>(&stripped->node);
+  const auto* uni = std::get_if<analysis::TypeUnion>(&stripped->node);
   if (!uni) {
     return std::nullopt;
   }
-  std::optional<sema::TypeRef> success;
+  std::optional<analysis::TypeRef> success;
   for (const auto& member : uni->members) {
-    const auto sub = sema::Subtyping(*ctx.sema, member, ret_type);
+    const auto sub = analysis::Subtyping(*ctx.sema, member, ret_type);
     if (!sub.ok) {
       return std::nullopt;
     }
@@ -1618,7 +1618,7 @@ std::optional<sema::TypeRef> SuccessMemberType(const SemanticsContext& ctx,
     if (member == *success) {
       continue;
     }
-    const auto sub = sema::Subtyping(*ctx.sema, member, ret_type);
+    const auto sub = analysis::Subtyping(*ctx.sema, member, ret_type);
     if (!sub.ok || !sub.subtype) {
       return std::nullopt;
     }
@@ -1626,7 +1626,7 @@ std::optional<sema::TypeRef> SuccessMemberType(const SemanticsContext& ctx,
   return success;
 }
 
-std::optional<std::pair<sema::TypeRef, Value>> UnionCaseOf(const Value& value) {
+std::optional<std::pair<analysis::TypeRef, Value>> UnionCaseOf(const Value& value) {
   const auto* uni = std::get_if<UnionVal>(&value.node);
   if (!uni || !uni->value) {
     return std::nullopt;
@@ -2031,8 +2031,8 @@ std::optional<Value> SliceValue(const Value& value, const RangeVal& range) {
   return std::nullopt;
 }
 
-sema::TypePath TypePathOf(const syntax::TypePath& path) {
-  sema::TypePath out;
+analysis::TypePath TypePathOf(const syntax::TypePath& path) {
+  analysis::TypePath out;
   out.reserve(path.size());
   for (const auto& part : path) {
     out.push_back(part);
@@ -2040,24 +2040,24 @@ sema::TypePath TypePathOf(const syntax::TypePath& path) {
   return out;
 }
 
-sema::ResolveTypePathResult ResolveTypePathAdapter(
-    const sema::ScopeContext& ctx,
-    const sema::NameMapTable& name_maps,
-    const sema::ModuleNames& module_names,
+analysis::ResolveTypePathResult ResolveTypePathAdapter(
+    const analysis::ScopeContext& ctx,
+    const analysis::NameMapTable& name_maps,
+    const analysis::ModuleNames& module_names,
     const syntax::TypePath& path) {
-  sema::ResolveContext resolve_ctx;
-  resolve_ctx.ctx = const_cast<sema::ScopeContext*>(&ctx);
+  analysis::ResolveContext resolve_ctx;
+  resolve_ctx.ctx = const_cast<analysis::ScopeContext*>(&ctx);
   resolve_ctx.name_maps = &name_maps;
   resolve_ctx.module_names = &module_names;
-  resolve_ctx.can_access = sema::CanAccess;
-  const auto resolved = sema::ResolveTypePath(resolve_ctx, path);
+  resolve_ctx.can_access = analysis::CanAccess;
+  const auto resolved = analysis::ResolveTypePath(resolve_ctx, path);
   if (!resolved.ok) {
     return {false, resolved.diag_id, {}};
   }
   return {true, std::nullopt, resolved.value};
 }
 
-sema::TypeRef ExprTypeOf(const SemanticsContext& ctx,
+analysis::TypeRef ExprTypeOf(const SemanticsContext& ctx,
                          const syntax::Expr& expr) {
   if (!ctx.sema || !ctx.sema->expr_types) {
     return nullptr;
@@ -2074,7 +2074,7 @@ bool PoisonedModulePath(const Sigma& sigma,
   if (!path_opt.has_value()) {
     return false;
   }
-  const auto key = sema::PathKeyOf(*path_opt);
+  const auto key = analysis::PathKeyOf(*path_opt);
   return PoisonedModule(sigma, key);
 }
 
@@ -2086,9 +2086,9 @@ Outcome EvalPathPoison(const SemanticsContext& ctx,
     return MakeVal(Value{UnitVal{}});
   }
   const auto resolved =
-      sema::ResolveQualified(*ctx.sema, *ctx.name_maps, *ctx.module_names,
-                             path, name, sema::EntityKind::Value,
-                             sema::CanAccess);
+      analysis::ResolveQualified(*ctx.sema, *ctx.name_maps, *ctx.module_names,
+                             path, name, analysis::EntityKind::Value,
+                             analysis::CanAccess);
   if (resolved.ok && resolved.entity.has_value() &&
       resolved.entity->origin_opt.has_value()) {
     if (PoisonedModulePath(sigma, resolved.entity->origin_opt)) {
@@ -2096,15 +2096,15 @@ Outcome EvalPathPoison(const SemanticsContext& ctx,
       return PanicOutcome();
     }
   } else {
-    sema::ResolveQualContext qual_ctx;
+    analysis::ResolveQualContext qual_ctx;
     qual_ctx.ctx = ctx.sema;
     qual_ctx.name_maps = ctx.name_maps;
     qual_ctx.module_names = ctx.module_names;
     qual_ctx.resolve_type_path = ResolveTypePathAdapter;
-    qual_ctx.can_access = sema::CanAccess;
-    const auto record = sema::ResolveRecordPath(qual_ctx, path, name);
+    qual_ctx.can_access = analysis::CanAccess;
+    const auto record = analysis::ResolveRecordPath(qual_ctx, path, name);
     if (record.ok) {
-      const auto key = sema::PathKeyOf(record.path);
+      const auto key = analysis::PathKeyOf(record.path);
       if (!key.empty()) {
         auto module_key = key;
         module_key.pop_back();
@@ -2168,7 +2168,7 @@ std::optional<std::string> FieldHeadImpl(const syntax::Expr& expr) {
 Outcome ReadPtrSigmaImpl(const Value& ptr, Sigma& sigma) {
   if (const auto* p = std::get_if<PtrVal>(&ptr.node)) {
     switch (p->state) {
-      case sema::PtrState::Valid: {
+      case analysis::PtrState::Valid: {
         const auto value = ReadAddr(sigma, p->addr);
         if (!value.has_value()) {
           return PanicOutcome();
@@ -2176,11 +2176,11 @@ Outcome ReadPtrSigmaImpl(const Value& ptr, Sigma& sigma) {
         SPEC_RULE("ReadPtr-Safe");
         return MakeVal(*value);
       }
-      case sema::PtrState::Null:
+      case analysis::PtrState::Null:
         SPEC_RULE("ReadPtr-Null");
         SetPanicReason(sigma, PanicReason::NullDeref);
         return PanicOutcome();
-      case sema::PtrState::Expired:
+      case analysis::PtrState::Expired:
         SPEC_RULE("ReadPtr-Expired");
         SetPanicReason(sigma, PanicReason::ExpiredDeref);
         return PanicOutcome();
@@ -2206,7 +2206,7 @@ Outcome ReadPlaceSigmaImpl(const SemanticsContext& ctx,
         if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
           const auto binding = LookupBind(sigma, node.name);
           if (!binding.has_value() && ctx.sema) {
-            const auto ent = sema::ResolveValueName(*ctx.sema, node.name);
+            const auto ent = analysis::ResolveValueName(*ctx.sema, node.name);
             if (ent.has_value() && ent->origin_opt.has_value()) {
               if (PoisonedModulePath(sigma, ent->origin_opt)) {
                 SPEC_RULE("ReadPlace-Ident-Poison");
@@ -2316,13 +2316,13 @@ AddrResultImpl AddrOfSigmaImpl(const SemanticsContext& ctx,
             }
           }
           if (ctx.sema) {
-            const auto ent = sema::ResolveValueName(*ctx.sema, node.name);
+            const auto ent = analysis::ResolveValueName(*ctx.sema, node.name);
             if (ent.has_value() && ent->origin_opt.has_value()) {
               if (PoisonedModulePath(sigma, ent->origin_opt)) {
                 SPEC_RULE("AddrOf-Ident-Path-Poison");
                 return PanicCtrl();
               }
-              const auto path_key = sema::PathKeyOf(*ent->origin_opt);
+              const auto path_key = analysis::PathKeyOf(*ent->origin_opt);
               const std::string resolved_name =
                   ent->target_opt.has_value() ? *ent->target_opt : node.name;
               const auto it =
@@ -2415,14 +2415,14 @@ AddrResultImpl AddrOfSigmaImpl(const SemanticsContext& ctx,
           const auto ptr = std::get<Value>(base_out.node);
           if (const auto* p = std::get_if<PtrVal>(&ptr.node)) {
             switch (p->state) {
-              case sema::PtrState::Valid:
+              case analysis::PtrState::Valid:
                 SPEC_RULE("AddrOf-Deref-Safe");
                 return p->addr;
-              case sema::PtrState::Null:
+              case analysis::PtrState::Null:
                 SPEC_RULE("AddrOf-Deref-Null");
                 SetPanicReason(sigma, PanicReason::NullDeref);
                 return PanicCtrl();
-              case sema::PtrState::Expired:
+              case analysis::PtrState::Expired:
                 SPEC_RULE("AddrOf-Deref-Expired");
                 SetPanicReason(sigma, PanicReason::ExpiredDeref);
                 return PanicCtrl();
@@ -2529,16 +2529,16 @@ std::optional<RegionTarget> RegionTargetOfImpl(const Value& value) {
   if (!record || !record->record_type) {
     return std::nullopt;
   }
-  const auto* modal = std::get_if<sema::TypeModalState>(&record->record_type->node);
-  if (!modal || modal->path.size() != 1 || !sema::IdEq(modal->path[0], "Region")) {
+  const auto* modal = std::get_if<analysis::TypeModalState>(&record->record_type->node);
+  if (!modal || modal->path.size() != 1 || !analysis::IdEq(modal->path[0], "Region")) {
     return std::nullopt;
   }
   for (const auto& [field_name, field_value] : record->fields) {
-    if (!sema::IdEq(field_name, "handle")) {
+    if (!analysis::IdEq(field_name, "handle")) {
       continue;
     }
     const auto* iv = std::get_if<IntVal>(&field_value.node);
-    if (!iv || iv->negative || !sema::IdEq(iv->type, "usize") ||
+    if (!iv || iv->negative || !analysis::IdEq(iv->type, "usize") ||
         !core::UInt128FitsU64(iv->magnitude)) {
       return std::nullopt;
     }
@@ -2681,13 +2681,13 @@ Responsibility RespOfInit(const syntax::Expr& expr) {
 }
 
 std::optional<BindInfo> StaticBindInfo(const SemanticsContext& ctx,
-                                       const sema::PathKey& path,
+                                       const analysis::PathKey& path,
                                        std::string_view name) {
   if (!ctx.sema) {
     return std::nullopt;
   }
   for (const auto& mod : ctx.sema->sigma.mods) {
-    if (sema::PathKeyOf(mod.path) != path) {
+    if (analysis::PathKeyOf(mod.path) != path) {
       continue;
     }
     for (const auto& item : mod.items) {
@@ -2695,7 +2695,7 @@ std::optional<BindInfo> StaticBindInfo(const SemanticsContext& ctx,
       if (!decl) {
         continue;
       }
-      const auto names = sema::PatNames(*decl->binding.pat);
+      const auto names = analysis::PatNames(*decl->binding.pat);
       bool matches = false;
       for (const auto& n : names) {
         if (n == name) {
@@ -2720,7 +2720,7 @@ std::optional<BindInfo> StaticBindInfo(const SemanticsContext& ctx,
 }
 
 bool DropOnAssignStatic(const SemanticsContext& ctx,
-                        const sema::PathKey& path,
+                        const analysis::PathKey& path,
                         std::string_view name) {
   const auto info = StaticBindInfo(ctx, path, name);
   if (!info.has_value()) {
@@ -2735,24 +2735,24 @@ bool DropOnAssignStatic(const SemanticsContext& ctx,
 StmtOut WritePtrSigma(const Value& ptr, const Value& value, Sigma& sigma) {
   if (const auto* p = std::get_if<PtrVal>(&ptr.node)) {
     switch (p->state) {
-      case sema::PtrState::Valid:
+      case analysis::PtrState::Valid:
         if (!WriteAddr(sigma, p->addr, value)) {
           return PanicStmtOut();
         }
         SPEC_RULE("WritePtr-Safe");
         return MakeOk();
-      case sema::PtrState::Null:
+      case analysis::PtrState::Null:
         SPEC_RULE("WritePtr-Null");
         SetPanicReason(sigma, PanicReason::NullDeref);
         return PanicStmtOut();
-      case sema::PtrState::Expired:
+      case analysis::PtrState::Expired:
         SPEC_RULE("WritePtr-Expired");
         SetPanicReason(sigma, PanicReason::ExpiredDeref);
         return PanicStmtOut();
     }
   }
   if (const auto* raw = std::get_if<RawPtrVal>(&ptr.node)) {
-    if (raw->qual != sema::RawPtrQual::Mut) {
+    if (raw->qual != analysis::RawPtrQual::Mut) {
       return PanicStmtOut();
     }
     if (!WriteAddr(sigma, raw->addr, value)) {
@@ -2795,7 +2795,7 @@ StmtOut WritePlaceSigma(const SemanticsContext& ctx,
           if (!ctx.sema) {
             return PanicStmtOut();
           }
-          const auto ent = sema::ResolveValueName(*ctx.sema, node.name);
+          const auto ent = analysis::ResolveValueName(*ctx.sema, node.name);
           if (!ent.has_value() || !ent->origin_opt.has_value()) {
             return PanicStmtOut();
           }
@@ -2806,7 +2806,7 @@ StmtOut WritePlaceSigma(const SemanticsContext& ctx,
           }
           const std::string resolved_name =
               ent->target_opt.has_value() ? *ent->target_opt : node.name;
-          const auto key = sema::PathKeyOf(module_path);
+          const auto key = analysis::PathKeyOf(module_path);
           const auto it = sigma.static_addrs.find({key, resolved_name});
           if (it == sigma.static_addrs.end()) {
             return PanicStmtOut();
@@ -2987,7 +2987,7 @@ StmtOut WritePlaceSubSigma(const SemanticsContext& ctx,
           if (!ctx.sema) {
             return PanicStmtOut();
           }
-          const auto ent = sema::ResolveValueName(*ctx.sema, node.name);
+          const auto ent = analysis::ResolveValueName(*ctx.sema, node.name);
           if (!ent.has_value() || !ent->origin_opt.has_value()) {
             return PanicStmtOut();
           }
@@ -2998,7 +2998,7 @@ StmtOut WritePlaceSubSigma(const SemanticsContext& ctx,
           }
           const std::string resolved_name =
               ent->target_opt.has_value() ? *ent->target_opt : node.name;
-          const auto key = sema::PathKeyOf(*ent->origin_opt);
+          const auto key = analysis::PathKeyOf(*ent->origin_opt);
           const auto it = sigma.static_addrs.find({key, resolved_name});
           if (it == sigma.static_addrs.end()) {
             return PanicStmtOut();
@@ -3156,6 +3156,12 @@ EvalListResult EvalListSigma(const SemanticsContext& ctx,
   std::vector<Value> values;
   values.reserve(exprs.size());
   for (const auto& expr : exprs) {
+    // Element values are consumed by the parent aggregate (tuple/array), so
+    // they should not be tracked as temporaries requiring cleanup.
+    TempContext* temp_ctx = ctx.temp_ctx;
+    if (temp_ctx) {
+      temp_ctx->suppress_depth = temp_ctx->depth + 1;
+    }
     Outcome out = EvalSigma(ctx, *expr, sigma);
     if (IsCtrl(out)) {
       SPEC_RULE("EvalListSigma-Ctrl");
@@ -3178,6 +3184,14 @@ EvalFieldInitsResult EvalFieldInitsSigma(
   std::vector<std::pair<std::string, Value>> out;
   out.reserve(fields.size());
   for (const auto& field : fields) {
+    // Field initializer values are moved into the record, so they should not
+    // be tracked as temporaries requiring cleanup. Suppress temp tracking for
+    // the result of each field initializer expression (but not for temps
+    // created within the expression itself).
+    TempContext* temp_ctx = ctx.temp_ctx;
+    if (temp_ctx) {
+      temp_ctx->suppress_depth = temp_ctx->depth + 1;
+    }
     Outcome value_out = EvalSigma(ctx, *field.value, sigma);
     if (IsCtrl(value_out)) {
       SPEC_RULE("EvalFieldInitsSigma-Ctrl");
@@ -3285,57 +3299,57 @@ BindInfo BindInfoForRecv(bool move_mode) {
 }
 
 
-sema::TypeRef TypeOfValue(const Value& value) {
+analysis::TypeRef TypeOfValue(const Value& value) {
   return std::visit(
-      [&](const auto& node) -> sema::TypeRef {
+      [&](const auto& node) -> analysis::TypeRef {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, BoolVal>) {
-          return sema::MakeTypePrim("bool");
+          return analysis::MakeTypePrim("bool");
         } else if constexpr (std::is_same_v<T, CharVal>) {
-          return sema::MakeTypePrim("char");
+          return analysis::MakeTypePrim("char");
         } else if constexpr (std::is_same_v<T, UnitVal>) {
-          return sema::MakeTypePrim("()");
+          return analysis::MakeTypePrim("()");
         } else if constexpr (std::is_same_v<T, IntVal>) {
-          return sema::MakeTypePrim(node.type);
+          return analysis::MakeTypePrim(node.type);
         } else if constexpr (std::is_same_v<T, FloatVal>) {
-          return sema::MakeTypePrim(node.type);
+          return analysis::MakeTypePrim(node.type);
         } else if constexpr (std::is_same_v<T, PtrVal>) {
-          return sema::MakeTypePtr(nullptr, node.state);
+          return analysis::MakeTypePtr(nullptr, node.state);
         } else if constexpr (std::is_same_v<T, RawPtrVal>) {
-          return sema::MakeTypeRawPtr(node.qual, nullptr);
+          return analysis::MakeTypeRawPtr(node.qual, nullptr);
         } else if constexpr (std::is_same_v<T, TupleVal>) {
-          std::vector<sema::TypeRef> elems;
+          std::vector<analysis::TypeRef> elems;
           elems.reserve(node.elements.size());
           for (const auto& elem : node.elements) {
             elems.push_back(TypeOfValue(elem));
           }
-          return sema::MakeTypeTuple(std::move(elems));
+          return analysis::MakeTypeTuple(std::move(elems));
         } else if constexpr (std::is_same_v<T, ArrayVal>) {
-          sema::TypeRef elem_ty = nullptr;
+          analysis::TypeRef elem_ty = nullptr;
           if (!node.elements.empty()) {
             elem_ty = TypeOfValue(node.elements.front());
           }
-          return sema::MakeTypeArray(elem_ty, node.elements.size());
+          return analysis::MakeTypeArray(elem_ty, node.elements.size());
         } else if constexpr (std::is_same_v<T, RecordVal>) {
           return node.record_type;
         } else if constexpr (std::is_same_v<T, EnumVal>) {
-          return sema::MakeTypePath(node.path);
+          return analysis::MakeTypePath(node.path);
         } else if constexpr (std::is_same_v<T, ModalVal>) {
           return nullptr;
         } else if constexpr (std::is_same_v<T, UnionVal>) {
           return node.member;
         } else if constexpr (std::is_same_v<T, DynamicVal>) {
-          return sema::MakeTypeDynamic(node.class_path);
+          return analysis::MakeTypeDynamic(node.class_path);
         } else if constexpr (std::is_same_v<T, StringVal>) {
-          return sema::MakeTypeString(node.state);
+          return analysis::MakeTypeString(node.state);
         } else if constexpr (std::is_same_v<T, BytesVal>) {
-          return sema::MakeTypeBytes(node.state);
+          return analysis::MakeTypeBytes(node.state);
         } else if constexpr (std::is_same_v<T, ProcRefVal>) {
           return nullptr;
         } else if constexpr (std::is_same_v<T, RecordCtorVal>) {
           return nullptr;
         } else if constexpr (std::is_same_v<T, RangeVal>) {
-          return sema::MakeTypeRange();
+          return analysis::MakeTypeRange();
         }
         return nullptr;
       },
@@ -3361,14 +3375,14 @@ struct MethodCallInfo {
   MethodTarget target;
   std::vector<syntax::Param> params;
   const syntax::TransitionDecl* transition = nullptr;
-  sema::TypePath modal_path;
+  analysis::TypePath modal_path;
 };
 
-const syntax::ProcedureDecl* FindProcedureDecl(const sema::ScopeContext& ctx,
-                                               const sema::TypePath& module,
+const syntax::ProcedureDecl* FindProcedureDecl(const analysis::ScopeContext& ctx,
+                                               const analysis::TypePath& module,
                                                std::string_view name) {
   for (const auto& mod : ctx.sigma.mods) {
-    if (sema::PathKeyOf(mod.path) != module) {
+    if (analysis::PathKeyOf(mod.path) != module) {
       continue;
     }
     for (const auto& item : mod.items) {
@@ -3376,7 +3390,7 @@ const syntax::ProcedureDecl* FindProcedureDecl(const sema::ScopeContext& ctx,
       if (!proc) {
         continue;
       }
-      if (sema::IdEq(proc->name, name)) {
+      if (analysis::IdEq(proc->name, name)) {
         return proc;
       }
     }
@@ -3401,6 +3415,12 @@ EvalArgsResult EvalArgsSigma(const SemanticsContext& ctx,
     const auto& param = params[i];
     const auto& arg = args[i];
     if (param.mode.has_value()) {
+      // Move argument values are consumed by the callee, so they should not
+      // be tracked as temporaries requiring cleanup.
+      TempContext* temp_ctx = ctx.temp_ctx;
+      if (temp_ctx) {
+        temp_ctx->suppress_depth = temp_ctx->depth + 1;
+      }
       Outcome out;
       if (arg.moved && arg.value && IsPlaceExpr(*arg.value)) {
         out = MovePlaceSigmaImpl(ctx, *arg.value, sigma);
@@ -3436,6 +3456,12 @@ EvalRecvResult EvalRecvSigma(const SemanticsContext& ctx,
                              bool move_mode,
                              Sigma& sigma) {
   if (move_mode) {
+    // Move receiver values are consumed by the method call, so they should not
+    // be tracked as temporaries requiring cleanup.
+    TempContext* temp_ctx = ctx.temp_ctx;
+    if (temp_ctx) {
+      temp_ctx->suppress_depth = temp_ctx->depth + 1;
+    }
     Outcome out = EvalSigma(ctx, base, sigma);
     if (IsCtrl(out)) {
       SPEC_RULE("EvalRecvSigma-Ctrl-Move");
@@ -3617,13 +3643,13 @@ Outcome LoopIterExecSigma(const SemanticsContext& ctx,
 }
 
 Outcome ApplyTransitionSigma(const SemanticsContext& ctx,
-                             const sema::TypePath& modal_path,
+                             const analysis::TypePath& modal_path,
                              const syntax::TransitionDecl& transition,
                              const Value& self_value,
                              const BindingValue& self_arg,
                              const std::vector<BindingValue>& args,
                              Sigma& sigma) {
-  if (sema::IdEq(transition.name, "close") &&
+  if (analysis::IdEq(transition.name, "close") &&
       modal_path.size() == 1 &&
       (modal_path[0] == "File" || modal_path[0] == "DirIter")) {
     const auto prim = PrimCall(modal_path, transition.name, self_value, {}, sigma);
@@ -3654,7 +3680,7 @@ Outcome ApplyTransitionSigma(const SemanticsContext& ctx,
   }
 
   SemanticsContext inner = ctx;
-  inner.ret_type = sema::MakeTypeModalState(modal_path,
+  inner.ret_type = analysis::MakeTypeModalState(modal_path,
                                             transition.target_state);
   Outcome out = EvalBlockBodySigma(inner, *transition.body, sigma);
   Outcome out2 = BlockExit(inner, scope_id, out, sigma);
@@ -3663,7 +3689,7 @@ Outcome ApplyTransitionSigma(const SemanticsContext& ctx,
 
 std::optional<MethodCallInfo> ResolveMethodCallInfo(
     const SemanticsContext& ctx,
-    const sema::TypeRef& recv_type,
+    const analysis::TypeRef& recv_type,
     const Value& self_value,
     std::string_view name) {
   if (!ctx.sema) {
@@ -3673,10 +3699,10 @@ std::optional<MethodCallInfo> ResolveMethodCallInfo(
   
   if (const auto* dyn = std::get_if<DynamicVal>(&self_value.node)) {
     const auto* class_method =
-        sema::LookupClassMethod(*ctx.sema, dyn->class_path, name);
+        analysis::LookupClassMethod(*ctx.sema, dyn->class_path, name);
     if (!class_method) {
-      if (dyn->class_path.size() == 1 && sema::IdEq(dyn->class_path[0], "FileSystem")) {
-        const auto sig = sema::LookupFileSystemMethodSig(name);
+      if (dyn->class_path.size() == 1 && analysis::IdEq(dyn->class_path[0], "FileSystem")) {
+        const auto sig = analysis::LookupFileSystemMethodSig(name);
         if (!sig.has_value()) {
           return std::nullopt;
         }
@@ -3686,8 +3712,8 @@ std::optional<MethodCallInfo> ResolveMethodCallInfo(
         info.params = sig->params;
         return info;
       }
-      if (dyn->class_path.size() == 1 && sema::IdEq(dyn->class_path[0], "HeapAllocator")) {
-        const auto sig = sema::LookupHeapAllocatorMethodSig(name);
+      if (dyn->class_path.size() == 1 && analysis::IdEq(dyn->class_path[0], "HeapAllocator")) {
+        const auto sig = analysis::LookupHeapAllocatorMethodSig(name);
         if (!sig.has_value()) {
           return std::nullopt;
         }
@@ -3699,10 +3725,10 @@ std::optional<MethodCallInfo> ResolveMethodCallInfo(
       }
       return std::nullopt;
     }
-    const auto stripped = sema::StripPerm(dyn->concrete_type);
+    const auto stripped = analysis::StripPerm(dyn->concrete_type);
     const auto lookup =
-        stripped ? sema::LookupMethodStatic(*ctx.sema, stripped, name)
-                 : sema::StaticMethodLookup{};
+        stripped ? analysis::LookupMethodStatic(*ctx.sema, stripped, name)
+                 : analysis::StaticMethodLookup{};
     if (lookup.record_method) {
       info.kind = MethodCallInfo::Kind::Method;
       info.target.kind = MethodTarget::Kind::Record;
@@ -3718,22 +3744,22 @@ std::optional<MethodCallInfo> ResolveMethodCallInfo(
     return info;
   }
 
-  sema::TypeRef base_type = recv_type;
+  analysis::TypeRef base_type = recv_type;
   if (!base_type) {
     base_type = TypeOfValue(self_value);
   }
-  const auto stripped = sema::StripPerm(base_type);
+  const auto stripped = analysis::StripPerm(base_type);
   if (!stripped) {
     return std::nullopt;
   }
 
-  if (const auto* modal = std::get_if<sema::TypeModalState>(&stripped->node)) {
-    const auto* decl = sema::LookupModalDecl(*ctx.sema, modal->path);
+  if (const auto* modal = std::get_if<analysis::TypeModalState>(&stripped->node)) {
+    const auto* decl = analysis::LookupModalDecl(*ctx.sema, modal->path);
     if (!decl) {
       return std::nullopt;
     }
     if (const auto* transition =
-            sema::LookupTransitionDecl(*decl, modal->state, name)) {
+            analysis::LookupTransitionDecl(*decl, modal->state, name)) {
       info.kind = MethodCallInfo::Kind::Transition;
       info.transition = transition;
       info.params = transition->params;
@@ -3741,7 +3767,7 @@ std::optional<MethodCallInfo> ResolveMethodCallInfo(
       return info;
     }
     if (const auto* method =
-            sema::LookupStateMethodDecl(*decl, modal->state, name)) {
+            analysis::LookupStateMethodDecl(*decl, modal->state, name)) {
       info.kind = MethodCallInfo::Kind::Method;
       info.target.kind = MethodTarget::Kind::State;
       info.target.state_method = method;
@@ -3752,9 +3778,9 @@ std::optional<MethodCallInfo> ResolveMethodCallInfo(
   }
 
 
-  if (const auto* path = std::get_if<sema::TypePathType>(&stripped->node)) {
-    if (path->path.size() == 1 && sema::IdEq(path->path[0], "System")) {
-      const auto sig = sema::LookupSystemMethodSig(name);
+  if (const auto* path = std::get_if<analysis::TypePathType>(&stripped->node)) {
+    if (path->path.size() == 1 && analysis::IdEq(path->path[0], "System")) {
+      const auto sig = analysis::LookupSystemMethodSig(name);
       if (!sig.has_value()) {
         return std::nullopt;
       }
@@ -3766,7 +3792,7 @@ std::optional<MethodCallInfo> ResolveMethodCallInfo(
     }
   }
 
-  const auto lookup = sema::LookupMethodStatic(*ctx.sema, stripped, name);
+  const auto lookup = analysis::LookupMethodStatic(*ctx.sema, stripped, name);
   if (!lookup.ok) {
     return std::nullopt;
   }
@@ -3789,7 +3815,7 @@ std::optional<MethodCallInfo> ResolveMethodCallInfo(
 }
 
 std::optional<std::vector<syntax::Param>> BuiltinParams(
-    const sema::TypePath& module_path,
+    const analysis::TypePath& module_path,
     std::string_view name) {
   auto make_param = [](bool move) {
     syntax::Param param{};
@@ -3808,8 +3834,8 @@ std::optional<std::vector<syntax::Param>> BuiltinParams(
     return params;
   };
   if (module_path.size() == 1 &&
-      sema::IdEq(module_path[0], "string") &&
-      sema::IsStringBuiltinName(name)) {
+      analysis::IdEq(module_path[0], "string") &&
+      analysis::IsStringBuiltinName(name)) {
     if (name == "from") return make_params({true, true});
     if (name == "as_view") return make_params({true});
     if (name == "to_managed") return make_params({true, true});
@@ -3819,8 +3845,8 @@ std::optional<std::vector<syntax::Param>> BuiltinParams(
     if (name == "is_empty") return make_params({true});
   }
   if (module_path.size() == 1 &&
-      sema::IdEq(module_path[0], "bytes") &&
-      sema::IsBytesBuiltinName(name)) {
+      analysis::IdEq(module_path[0], "bytes") &&
+      analysis::IsBytesBuiltinName(name)) {
     if (name == "with_capacity") return make_params({true, true});
     if (name == "from_slice") return make_params({true, true});
     if (name == "as_view") return make_params({true});
@@ -3832,7 +3858,7 @@ std::optional<std::vector<syntax::Param>> BuiltinParams(
     if (name == "is_empty") return make_params({true});
   }
   if (module_path.size() == 1 &&
-      sema::IdEq(module_path[0], "Region") &&
+      analysis::IdEq(module_path[0], "Region") &&
       IsRegionProcName(name)) {
     if (name == "new_scoped") return make_params({false});
     if (name == "alloc") return make_params({false, false});
@@ -3862,7 +3888,7 @@ Outcome EvalCallSigma(const SemanticsContext& ctx,
     if (builtin_params.has_value()) {
       const bool is_region_proc =
           proc_ref->module_path.size() == 1 &&
-          sema::IdEq(proc_ref->module_path[0], "Region") &&
+          analysis::IdEq(proc_ref->module_path[0], "Region") &&
           IsRegionProcName(proc_ref->name);
       auto args_out = EvalArgsSigma(ctx, *builtin_params, args, sigma);
       if (std::holds_alternative<Control>(args_out)) {
@@ -4128,21 +4154,21 @@ Outcome EvalSigma(const SemanticsContext& ctx,
           return MakeVal(*value);
         } else if constexpr (std::is_same_v<T, syntax::PtrNullExpr>) {
           PtrVal ptr;
-          ptr.state = sema::PtrState::Null;
+          ptr.state = analysis::PtrState::Null;
           ptr.addr = 0;
           SPEC_RULE("EvalSigma-PtrNull");
           return MakeVal(Value{ptr});
         } else if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
           const auto binding = LookupBind(sigma, node.name);
           if (!binding.has_value() && ctx.sema) {
-            const auto ent = sema::ResolveValueName(*ctx.sema, node.name);
+            const auto ent = analysis::ResolveValueName(*ctx.sema, node.name);
             if (ent.has_value() && ent->origin_opt.has_value()) {
               if (PoisonedModulePath(sigma, ent->origin_opt)) {
                 SPEC_RULE("EvalSigma-Ident-Poison");
                 return PanicOutcome();
               }
             } else {
-              const auto type_ent = sema::ResolveTypeName(*ctx.sema, node.name);
+              const auto type_ent = analysis::ResolveTypeName(*ctx.sema, node.name);
               if (type_ent.has_value() && type_ent->origin_opt.has_value() &&
                   PoisonedModulePath(sigma, type_ent->origin_opt)) {
                 SPEC_RULE("EvalSigma-Ident-Poison-RecordCtor");
@@ -4162,7 +4188,7 @@ Outcome EvalSigma(const SemanticsContext& ctx,
           if (IsCtrl(poison_out)) {
             return poison_out;
           }
-          const auto path_key = sema::PathKeyOf(node.path);
+          const auto path_key = analysis::PathKeyOf(node.path);
           const auto value = LookupValPath(ctx, sigma, path_key, node.name);
           if (value.has_value()) {
             SPEC_RULE("EvalSigma-Path");
@@ -4174,6 +4200,11 @@ Outcome EvalSigma(const SemanticsContext& ctx,
           SetPanicReason(sigma, PanicReason::ErrorExpr);
           return PanicOutcome();
         } else if constexpr (std::is_same_v<T, syntax::UnaryExpr>) {
+          // The operand value is consumed by the unary operator, so it should
+          // not be tracked as a temporary.
+          if (temp_ctx) {
+            temp_ctx->suppress_depth = temp_ctx->depth + 1;
+          }
           Outcome value_out = EvalSigma(ctx, *node.value, sigma);
           if (IsCtrl(value_out)) {
             SPEC_RULE("EvalSigma-Unary-Ctrl");
@@ -4241,7 +4272,7 @@ Outcome EvalSigma(const SemanticsContext& ctx,
         
         } else if constexpr (std::is_same_v<T, syntax::CastExpr>) {
           if (expr_type) {
-            if (const auto* dyn = std::get_if<sema::TypeDynamic>(&expr_type->node)) {
+            if (const auto* dyn = std::get_if<analysis::TypeDynamic>(&expr_type->node)) {
               if (node.value && IsPlaceExpr(*node.value)) {
                 AddrResult addr_out = AddrOfSigmaImpl(ctx, *node.value, sigma);
                 if (IsAddrCtrl(addr_out)) {
@@ -4249,12 +4280,12 @@ Outcome EvalSigma(const SemanticsContext& ctx,
                   return MakeCtrl(std::get<Control>(addr_out));
                 }
                 const auto source_type = ExprTypeOf(ctx, *node.value);
-                const auto stripped = sema::StripPerm(source_type);
+                const auto stripped = analysis::StripPerm(source_type);
                 if (!stripped) {
                   return PanicOutcome();
                 }
                 RawPtrVal raw;
-                raw.qual = sema::RawPtrQual::Imm;
+                raw.qual = analysis::RawPtrQual::Imm;
                 raw.addr = std::get<Addr>(addr_out);
                 DynamicVal dyn_val;
                 dyn_val.class_path = dyn->path;
@@ -4308,7 +4339,7 @@ Outcome EvalSigma(const SemanticsContext& ctx,
           if (!success.has_value() || !uni_case.has_value()) {
             return PanicOutcome();
           }
-          const auto equiv = sema::TypeEquiv(*success, uni_case->first);
+          const auto equiv = analysis::TypeEquiv(*success, uni_case->first);
           if (!equiv.ok) {
             return PanicOutcome();
           }
@@ -4328,7 +4359,7 @@ Outcome EvalSigma(const SemanticsContext& ctx,
             return MakeCtrl(std::get<Control>(addr_out));
           }
           PtrVal ptr;
-          ptr.state = sema::PtrState::Valid;
+          ptr.state = analysis::PtrState::Valid;
           ptr.addr = std::get<Addr>(addr_out);
           SPEC_RULE("EvalSigma-AddressOf");
           return MakeVal(Value{ptr});
@@ -4437,11 +4468,11 @@ Outcome EvalSigma(const SemanticsContext& ctx,
             record.record_type = expr_type;
           } else if (const auto* path =
                          std::get_if<syntax::TypePath>(&node.target)) {
-            record.record_type = sema::MakeTypePath(TypePathOf(*path));
+            record.record_type = analysis::MakeTypePath(TypePathOf(*path));
           } else if (const auto* modal =
                          std::get_if<syntax::ModalStateRef>(&node.target)) {
             record.record_type =
-                sema::MakeTypeModalState(TypePathOf(modal->path), modal->state);
+                analysis::MakeTypeModalState(TypePathOf(modal->path), modal->state);
           }
           record.fields = std::move(
               std::get<std::vector<std::pair<std::string, Value>>>(fields_out));
@@ -4634,7 +4665,7 @@ Outcome EvalSigma(const SemanticsContext& ctx,
   if (temp_ctx) {
     if (!suppress && temp_ctx->sink && IsVal(out) && !IsPlaceExpr(expr)) {
       const auto value = std::get<Value>(out.node);
-      sema::TypeRef temp_type = ExprTypeOf(ctx, expr);
+      analysis::TypeRef temp_type = ExprTypeOf(ctx, expr);
       if (!temp_type) {
         temp_type = TypeOfValue(value);
       }
@@ -4646,7 +4677,7 @@ Outcome EvalSigma(const SemanticsContext& ctx,
   return out;
 }
 
-}  // namespace cursive0::semantics
+}  // namespace cursive0::eval
 
 
 

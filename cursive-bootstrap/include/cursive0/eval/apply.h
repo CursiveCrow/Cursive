@@ -4,13 +4,13 @@
 #include <string_view>
 #include <vector>
 
-#include "cursive0/sema/types.h"
-#include "cursive0/semantics/control.h"
-#include "cursive0/semantics/state.h"
-#include "cursive0/semantics/value.h"
+#include "cursive0/analysis/types/types.h"
+#include "cursive0/eval/control.h"
+#include "cursive0/eval/state.h"
+#include "cursive0/eval/value.h"
 #include "cursive0/syntax/ast.h"
 
-namespace cursive0::semantics {
+namespace cursive0::eval {
 
 struct MethodTarget {
   enum class Kind {
@@ -22,7 +22,7 @@ struct MethodTarget {
   const syntax::MethodDecl* record_method = nullptr;
   const syntax::ClassMethodDecl* class_method = nullptr;
   const syntax::StateMethodDecl* state_method = nullptr;
-  sema::TypePath owner_class;
+  analysis::TypePath owner_class;
 };
 
 Outcome ApplyProcSigma(const SemanticsContext& ctx,
@@ -36,7 +36,7 @@ Outcome ApplyRegionProc(const SemanticsContext& ctx,
                         Sigma& sigma);
 
 Outcome ApplyRecordCtorSigma(const SemanticsContext& ctx,
-                             const sema::TypePath& path,
+                             const analysis::TypePath& path,
                              Sigma& sigma);
 
 Outcome ApplyMethodSigma(const SemanticsContext& ctx,
@@ -48,4 +48,4 @@ Outcome ApplyMethodSigma(const SemanticsContext& ctx,
                          const MethodTarget& target,
                          Sigma& sigma);
 
-}  // namespace cursive0::semantics
+}  // namespace cursive0::eval

@@ -1,4 +1,4 @@
-#include "cursive0/semantics/value.h"
+#include "cursive0/eval/value.h"
 
 #include "cursive0/core/symbols.h"
 
@@ -9,7 +9,7 @@
 #include <type_traits>
 #include <string_view>
 
-namespace cursive0::semantics {
+namespace cursive0::eval {
 
 namespace {
 
@@ -249,43 +249,43 @@ std::string BytesHex(const std::vector<std::uint8_t>& bytes) {
   return out;
 }
 
-std::string PtrStateName(sema::PtrState state) {
+std::string PtrStateName(analysis::PtrState state) {
   switch (state) {
-    case sema::PtrState::Valid:
+    case analysis::PtrState::Valid:
       return "valid";
-    case sema::PtrState::Null:
+    case analysis::PtrState::Null:
       return "null";
-    case sema::PtrState::Expired:
+    case analysis::PtrState::Expired:
       return "expired";
   }
   return "unknown";
 }
 
-std::string RawPtrQualName(sema::RawPtrQual qual) {
+std::string RawPtrQualName(analysis::RawPtrQual qual) {
   switch (qual) {
-    case sema::RawPtrQual::Imm:
+    case analysis::RawPtrQual::Imm:
       return "const";
-    case sema::RawPtrQual::Mut:
+    case analysis::RawPtrQual::Mut:
       return "mut";
   }
   return "unknown";
 }
 
-std::string StringStateName(sema::StringState state) {
+std::string StringStateName(analysis::StringState state) {
   switch (state) {
-    case sema::StringState::View:
+    case analysis::StringState::View:
       return "View";
-    case sema::StringState::Managed:
+    case analysis::StringState::Managed:
       return "Managed";
   }
   return "Unknown";
 }
 
-std::string BytesStateName(sema::BytesState state) {
+std::string BytesStateName(analysis::BytesState state) {
   switch (state) {
-    case sema::BytesState::View:
+    case analysis::BytesState::View:
       return "View";
-    case sema::BytesState::Managed:
+    case analysis::BytesState::Managed:
       return "Managed";
   }
   return "Unknown";
@@ -372,7 +372,7 @@ std::string ValueToStringImpl(const Value& value) {
             fields.push_back(field.first + "=" + ValueToStringImpl(field.second));
           }
           const std::string type_str = node.record_type
-              ? sema::TypeToString(node.record_type)
+              ? analysis::TypeToString(node.record_type)
               : std::string("<unknown>");
           return "record(" + type_str + "){" + JoinParts(fields, ", ") + "}";
         } else if constexpr (std::is_same_v<T, EnumVal>) {
@@ -402,7 +402,7 @@ std::string ValueToStringImpl(const Value& value) {
           return "modal(" + node.state + "," + payload + ")";
         } else if constexpr (std::is_same_v<T, UnionVal>) {
           const std::string member = node.member
-              ? sema::TypeToString(node.member)
+              ? analysis::TypeToString(node.member)
               : std::string("<unknown>");
           const auto payload = node.value ? ValueToStringImpl(*node.value) : "_";
           return "union(" + member + "," + payload + ")";
@@ -425,14 +425,14 @@ std::string ValueToStringImpl(const Value& value) {
 
 }  // namespace
 
-bool TypeEqual(const sema::TypeRef& lhs, const sema::TypeRef& rhs) {
+bool TypeEqual(const analysis::TypeRef& lhs, const analysis::TypeRef& rhs) {
   if (lhs == rhs) {
     return true;
   }
   if (!lhs || !rhs) {
     return false;
   }
-  return sema::TypeKeyEqual(sema::TypeKeyOf(lhs), sema::TypeKeyOf(rhs));
+  return analysis::TypeKeyEqual(analysis::TypeKeyOf(lhs), analysis::TypeKeyOf(rhs));
 }
 
 bool ValueEqual(const Value& lhs, const Value& rhs) {
@@ -493,4 +493,4 @@ std::string ValueToString(const Value& value) {
   return ValueToStringImpl(value);
 }
 
-}  // namespace cursive0::semantics
+}  // namespace cursive0::eval

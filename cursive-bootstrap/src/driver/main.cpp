@@ -19,24 +19,24 @@
 #include "cursive0/core/diagnostics.h"
 #include "cursive0/core/host_primitives.h"
 #include "cursive0/core/symbols.h"
-#include "cursive0/frontend/parse_modules.h"
+#include "cursive0/syntax/parse_modules.h"
 #include "cursive0/project/ir_assembly.h"
 #include "cursive0/project/link.h"
 #include "cursive0/project/project.h"
 #include "cursive0/project/outputs.h"
 #include "cursive0/project/tool_resolution.h"
-#include "cursive0/codegen/llvm_emit.h"
-#include "cursive0/sema/conformance.h"
-#include "cursive0/sema/collect_toplevel.h"
-#include "cursive0/sema/resolver.h"
-#include "cursive0/sema/scopes_lookup.h"
-#include "cursive0/sema/typecheck.h"
-#include "cursive0/sema/visibility.h"
+#include "cursive0/codegen/llvm/llvm_emit.h"
+#include "cursive0/analysis/types/conformance.h"
+#include "cursive0/analysis/resolve/collect_toplevel.h"
+#include "cursive0/analysis/resolve/resolver.h"
+#include "cursive0/analysis/resolve/scopes_lookup.h"
+#include "cursive0/analysis/types/typecheck.h"
+#include "cursive0/analysis/resolve/visibility.h"
 #include "cursive0/syntax/keyword_policy.h"
 #include "cursive0/syntax/lexer.h"
 #include "cursive0/syntax/lexer.h"
 #include "cursive0/syntax/parser.h"
-#include "cursive0/codegen/lower_module.h"
+#include "cursive0/codegen/lower/lower_module.h"
 #include "cursive0/codegen/ir_dump.h"
 
 #include "llvm/ADT/SmallVector.h"
@@ -62,13 +62,13 @@ using cursive0::core::HasError;
 using cursive0::core::Render;
 using cursive0::core::Severity;
 using cursive0::frontend::InspectResult;
-using cursive0::sema::ConformanceInput;
-using cursive0::sema::CheckC0SubsetPermTokens;
-using cursive0::sema::CheckC0AttrSyntaxUnsupportedTokens;
-using cursive0::sema::CheckC0UnwindAttrUnsupportedTokens;
-using cursive0::sema::CheckC0UnsupportedConstructsTokens;
-using cursive0::sema::PhaseOrderResult;
-using cursive0::sema::RejectIllFormed;
+using cursive0::analysis::ConformanceInput;
+using cursive0::analysis::CheckC0SubsetPermTokens;
+using cursive0::analysis::CheckC0AttrSyntaxUnsupportedTokens;
+using cursive0::analysis::CheckC0UnwindAttrUnsupportedTokens;
+using cursive0::analysis::CheckC0UnsupportedConstructsTokens;
+using cursive0::analysis::PhaseOrderResult;
+using cursive0::analysis::RejectIllFormed;
 
 struct CliOptions {
   bool diag_json = false;
@@ -308,10 +308,10 @@ struct ModuleCodegen {
   cursive0::syntax::ModulePath path;
   std::string path_key;
   cursive0::codegen::IRDecls decls;
-  std::unordered_map<std::string, cursive0::sema::TypeRef> value_types;
+  std::unordered_map<std::string, cursive0::analysis::TypeRef> value_types;
   std::unordered_map<std::string, cursive0::codegen::DerivedValueInfo> derived_values;
   std::uint64_t temp_counter = 0;
-  std::unordered_map<std::string, cursive0::sema::TypeRef> drop_glue_types;
+  std::unordered_map<std::string, cursive0::analysis::TypeRef> drop_glue_types;
   std::optional<std::string> main_symbol;
 };
 
@@ -486,16 +486,16 @@ static std::optional<std::string> EmitObjForModule(
 
 static std::shared_ptr<CodegenCache> BuildCodegenCache(
     const cursive0::project::Project& project,
-    const cursive0::sema::ScopeContext& sema_ctx,
-    const cursive0::sema::NameMapBuildResult& name_maps,
-    const cursive0::sema::TypecheckResult& typechecked) {
+    const cursive0::analysis::ScopeContext& sema_ctx,
+    const cursive0::analysis::NameMapBuildResult& name_maps,
+    const cursive0::analysis::TypecheckResult& typechecked) {
   auto cache = std::make_shared<CodegenCache>();
   cache->ctx.sigma = &sema_ctx.sigma;
 
   const auto* expr_types = &typechecked.expr_types;
   cache->ctx.expr_type =
       [expr_types](const cursive0::syntax::Expr& expr)
-          -> cursive0::sema::TypeRef {
+          -> cursive0::analysis::TypeRef {
         if (!expr_types) {
           return nullptr;
         }
@@ -509,17 +509,17 @@ static std::shared_ptr<CodegenCache> BuildCodegenCache(
   cache->ctx.resolve_name =
       [&](const std::string& name)
           -> std::optional<std::vector<std::string>> {
-        const auto module_key = cursive0::sema::PathKeyOf(cache->ctx.module_path);
+        const auto module_key = cursive0::analysis::PathKeyOf(cache->ctx.module_path);
         const auto map_it = name_maps.name_maps.find(module_key);
         if (map_it == name_maps.name_maps.end()) {
           return std::nullopt;
         }
-        const auto ent_it = map_it->second.find(cursive0::sema::IdKeyOf(name));
+        const auto ent_it = map_it->second.find(cursive0::analysis::IdKeyOf(name));
         if (ent_it == map_it->second.end()) {
           return std::nullopt;
         }
         const auto& ent = ent_it->second;
-        if (ent.kind != cursive0::sema::EntityKind::Value ||
+        if (ent.kind != cursive0::analysis::EntityKind::Value ||
             !ent.origin_opt.has_value()) {
           return std::nullopt;
         }
@@ -531,17 +531,17 @@ static std::shared_ptr<CodegenCache> BuildCodegenCache(
   cache->ctx.resolve_type_name =
       [&](const std::string& name)
           -> std::optional<std::vector<std::string>> {
-        const auto module_key = cursive0::sema::PathKeyOf(cache->ctx.module_path);
+        const auto module_key = cursive0::analysis::PathKeyOf(cache->ctx.module_path);
         const auto map_it = name_maps.name_maps.find(module_key);
         if (map_it == name_maps.name_maps.end()) {
           return std::nullopt;
         }
-        const auto ent_it = map_it->second.find(cursive0::sema::IdKeyOf(name));
+        const auto ent_it = map_it->second.find(cursive0::analysis::IdKeyOf(name));
         if (ent_it == map_it->second.end()) {
           return std::nullopt;
         }
         const auto& ent = ent_it->second;
-        if (ent.kind != cursive0::sema::EntityKind::Type ||
+        if (ent.kind != cursive0::analysis::EntityKind::Type ||
             !ent.origin_opt.has_value()) {
           return std::nullopt;
         }
@@ -673,44 +673,44 @@ int main(int argc, char** argv) {
     }
     if (!HasError(diags) && parsed.modules.has_value() && !opts->phase1_only) {
       log_phase("sema");
-      cursive0::sema::ScopeContext ctx;
+      cursive0::analysis::ScopeContext ctx;
       ctx.project = &project;
       ctx.sigma.mods = *parsed.modules;
-      ctx.scopes = {cursive0::sema::Scope{},
-                    cursive0::sema::Scope{},
-                    cursive0::sema::Scope{}};
+      ctx.scopes = {cursive0::analysis::Scope{},
+                    cursive0::analysis::Scope{},
+                    cursive0::analysis::Scope{}};
       for (const auto& module : *parsed.modules) {
         ctx.current_module = module.path;
         const auto vis_diags =
-            cursive0::sema::CheckModuleVisibility(ctx, module);
+            cursive0::analysis::CheckModuleVisibility(ctx, module);
         for (const auto& diag : vis_diags) {
           diags = Emit(diags, diag);
         }
       }
-      const auto name_maps = cursive0::sema::CollectNameMaps(ctx);
+      const auto name_maps = cursive0::analysis::CollectNameMaps(ctx);
       for (const auto& diag : name_maps.diags) {
         diags = Emit(diags, diag);
       }
       if (!HasError(diags)) {
-        cursive0::sema::PopulateSigma(ctx);
-        const auto module_names = cursive0::sema::ModuleNamesOf(project);
-        cursive0::sema::ResolveContext res_ctx;
+        cursive0::analysis::PopulateSigma(ctx);
+        const auto module_names = cursive0::analysis::ModuleNamesOf(project);
+        cursive0::analysis::ResolveContext res_ctx;
         res_ctx.ctx = &ctx;
         res_ctx.name_maps = &name_maps.name_maps;
         res_ctx.module_names = &module_names;
-        res_ctx.can_access = cursive0::sema::CanAccess;
-        const auto resolved = cursive0::sema::ResolveModules(res_ctx);
+        res_ctx.can_access = cursive0::analysis::CanAccess;
+        const auto resolved = cursive0::analysis::ResolveModules(res_ctx);
         resolve_ok = resolved.ok;
         for (const auto& diag : resolved.diags) {
           diags = Emit(diags, diag);
         }
         if (resolved.ok) {
           ctx.sigma.mods = resolved.modules;
-          cursive0::sema::PopulateSigma(ctx);
+          cursive0::analysis::PopulateSigma(ctx);
         }
         if (!HasError(diags) && resolve_ok) {
           const auto typechecked =
-              cursive0::sema::TypecheckModules(ctx, ctx.sigma.mods);
+              cursive0::analysis::TypecheckModules(ctx, ctx.sigma.mods);
           for (const auto& diag : typechecked.diags) {
             diags = Emit(diags, diag);
           }
@@ -723,7 +723,7 @@ int main(int argc, char** argv) {
             const auto* expr_types = &typechecked.expr_types;
             lower_ctx.expr_type =
                 [expr_types](const cursive0::syntax::Expr& expr)
-                    -> cursive0::sema::TypeRef {
+                    -> cursive0::analysis::TypeRef {
               if (!expr_types) {
                 return nullptr;
               }
@@ -738,17 +738,17 @@ int main(int argc, char** argv) {
                 [&](const std::string& name)
                     -> std::optional<std::vector<std::string>> {
               const auto module_key =
-                  cursive0::sema::PathKeyOf(lower_ctx.module_path);
+                  cursive0::analysis::PathKeyOf(lower_ctx.module_path);
               const auto map_it = name_maps.name_maps.find(module_key);
               if (map_it == name_maps.name_maps.end()) {
                 return std::nullopt;
               }
-              const auto ent_it = map_it->second.find(cursive0::sema::IdKeyOf(name));
+              const auto ent_it = map_it->second.find(cursive0::analysis::IdKeyOf(name));
               if (ent_it == map_it->second.end()) {
                 return std::nullopt;
               }
               const auto& ent = ent_it->second;
-              if (ent.kind != cursive0::sema::EntityKind::Value ||
+              if (ent.kind != cursive0::analysis::EntityKind::Value ||
                   !ent.origin_opt.has_value()) {
                 return std::nullopt;
               }
@@ -761,17 +761,17 @@ int main(int argc, char** argv) {
                 [&](const std::string& name)
                     -> std::optional<std::vector<std::string>> {
               const auto module_key =
-                  cursive0::sema::PathKeyOf(lower_ctx.module_path);
+                  cursive0::analysis::PathKeyOf(lower_ctx.module_path);
               const auto map_it = name_maps.name_maps.find(module_key);
               if (map_it == name_maps.name_maps.end()) {
                 return std::nullopt;
               }
-              const auto ent_it = map_it->second.find(cursive0::sema::IdKeyOf(name));
+              const auto ent_it = map_it->second.find(cursive0::analysis::IdKeyOf(name));
               if (ent_it == map_it->second.end()) {
                 return std::nullopt;
               }
               const auto& ent = ent_it->second;
-              if (ent.kind != cursive0::sema::EntityKind::Type ||
+              if (ent.kind != cursive0::analysis::EntityKind::Type ||
                   !ent.origin_opt.has_value()) {
                 return std::nullopt;
               }

@@ -5,12 +5,12 @@
 #include <string>
 #include <vector>
 
-#include "cursive0/codegen/layout.h"
-#include "cursive0/codegen/llvm_emit.h"
+#include "cursive0/codegen/layout/layout.h"
+#include "cursive0/codegen/llvm/llvm_emit.h"
 #include "cursive0/codegen/mangle.h"
-#include "cursive0/codegen/lower_expr.h"
+#include "cursive0/codegen/lower/lower_expr.h"
 #include "cursive0/core/assert_spec.h"
-#include "cursive0/sema/types.h"
+#include "cursive0/analysis/types/types.h"
 
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/LLVMContext.h"
@@ -22,8 +22,8 @@ using cursive0::codegen::IRValue;
 using cursive0::codegen::LLVMEmitter;
 using cursive0::codegen::LowerCtx;
 using cursive0::codegen::MangleLiteral;
-using cursive0::sema::MakeTypeString;
-using cursive0::sema::StringState;
+using cursive0::analysis::MakeTypeString;
+using cursive0::analysis::StringState;
 
 int main() {
   SPEC_COV("StringLiteralVal");

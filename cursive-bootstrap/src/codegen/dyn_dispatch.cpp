@@ -5,11 +5,11 @@
 #include "cursive0/codegen/checks.h"
 #include "cursive0/codegen/cleanup.h"
 #include "cursive0/codegen/mangle.h"
-#include "cursive0/codegen/layout.h"
+#include "cursive0/codegen/layout/layout.h"
 #include "cursive0/core/assert_spec.h"
-#include "cursive0/sema/classes.h"
-#include "cursive0/sema/record_methods.h"
-#include "cursive0/sema/type_expr.h"
+#include "cursive0/analysis/composite/classes.h"
+#include "cursive0/analysis/composite/record_methods.h"
+#include "cursive0/analysis/types/type_expr.h"
 
 namespace cursive0::codegen {
 
@@ -169,29 +169,29 @@ std::vector<std::string> VTableEligible(const syntax::ClassDecl& class_decl) {
 // §6.10 DispatchSym - Symbol resolution for vtable slots
 // ============================================================================
 
-std::string DispatchSym(const sema::TypeRef& type,
-                        const sema::TypePath& class_path,
+std::string DispatchSym(const analysis::TypeRef& type,
+                        const analysis::TypePath& class_path,
                         const std::string& method_name,
                         const syntax::ClassDecl& class_decl,
                         LowerCtx& ctx) {
-  sema::ScopeContext scope;
+  analysis::ScopeContext scope;
   if (ctx.sigma) {
     scope.sigma = *ctx.sigma;
     scope.current_module = ctx.module_path;
   }
 
   // Find the class method declaration
-  const auto* class_method = sema::LookupClassMethod(scope, class_path, method_name);
+  const auto* class_method = analysis::LookupClassMethod(scope, class_path, method_name);
   if (!class_method) {
     return "";
   }
 
-  const auto stripped = sema::StripPerm(type);
-  const auto lookup = sema::LookupMethodStatic(scope, stripped, method_name);
+  const auto stripped = analysis::StripPerm(type);
+  const auto lookup = analysis::LookupMethodStatic(scope, stripped, method_name);
 
   // (DispatchSym-Impl): Type implements the method
   if (lookup.record_method) {
-    const auto* path_type = stripped ? std::get_if<sema::TypePathType>(&stripped->node) : nullptr;
+    const auto* path_type = stripped ? std::get_if<analysis::TypePathType>(&stripped->node) : nullptr;
     if (!path_type) {
       return "";
     }
@@ -212,8 +212,8 @@ std::string DispatchSym(const sema::TypeRef& type,
 // §6.10 VTable - Vtable generation
 // ============================================================================
 
-VTableInfo VTable(const sema::TypeRef& type,
-                  const sema::TypePath& class_path,
+VTableInfo VTable(const analysis::TypeRef& type,
+                  const analysis::TypePath& class_path,
                   const syntax::ClassDecl& class_decl,
                   LowerCtx& ctx) {
   SPEC_RULE("VTable-Order");
@@ -225,7 +225,7 @@ VTableInfo VTable(const sema::TypeRef& type,
   
   // Get type size and alignment
   // Use layout helpers when available
-  sema::ScopeContext scope;
+  analysis::ScopeContext scope;
   if (ctx.sigma) {
     scope.sigma = *ctx.sigma;
     scope.current_module = ctx.module_path;
@@ -250,8 +250,8 @@ VTableInfo VTable(const sema::TypeRef& type,
   return info;
 }
 
-GlobalVTable EmitVTable(const sema::TypeRef& type,
-                        const sema::TypePath& class_path,
+GlobalVTable EmitVTable(const analysis::TypeRef& type,
+                        const analysis::TypePath& class_path,
                         const syntax::ClassDecl& class_decl,
                         LowerCtx& ctx) {
   SPEC_DEF("EmitVTable", "");
@@ -297,9 +297,9 @@ std::optional<std::size_t> VSlot(const syntax::ClassDecl& class_decl,
 // §6.10 DynPack - Fat pointer creation
 // ============================================================================
 
-DynPackResult DynPack(const sema::TypeRef& type,
+DynPackResult DynPack(const analysis::TypeRef& type,
                       const syntax::Expr& expr,
-                      const sema::TypePath& class_path,
+                      const analysis::TypePath& class_path,
                       const syntax::ClassDecl& class_decl,
                       LowerCtx& ctx) {
   SPEC_RULE("Lower-Dynamic-Form");

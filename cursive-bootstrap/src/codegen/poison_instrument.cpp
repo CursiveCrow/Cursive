@@ -1,11 +1,11 @@
-#include "cursive0/codegen/llvm_emit.h"
+#include "cursive0/codegen/llvm/llvm_emit.h"
 #include "cursive0/codegen/checks.h"
-#include "cursive0/codegen/abi.h"
-#include "cursive0/codegen/layout.h"
+#include "cursive0/codegen/abi/abi.h"
+#include "cursive0/codegen/layout/layout.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/core/symbols.h"
 #include "cursive0/runtime/runtime_interface.h"
-#include "cursive0/sema/types.h"
+#include "cursive0/analysis/types/types.h"
 
 // LLVM Includes
 #include "llvm/IR/Constants.h"
@@ -22,8 +22,8 @@ namespace cursive0::codegen {
 
 namespace {
 
-sema::ScopeContext BuildScope(const LowerCtx* ctx) {
-  sema::ScopeContext scope;
+analysis::ScopeContext BuildScope(const LowerCtx* ctx) {
+  analysis::ScopeContext scope;
   if (ctx && ctx->sigma) {
     scope.sigma = *ctx->sigma;
     scope.current_module = ctx->module_path;
@@ -65,7 +65,7 @@ static llvm::GlobalVariable* GetOrCreatePoisonFlag(LLVMEmitter& emitter,
   if (LowerCtx* ctx = emitter.GetCurrentCtx()) {
     define_flag = (core::StringOfPath(ctx->module_path) == module_name);
   }
-  auto* bool_ty = emitter.GetLLVMType(sema::MakeTypePrim("bool"));
+  auto* bool_ty = emitter.GetLLVMType(analysis::MakeTypePrim("bool"));
   auto* init = define_flag ? llvm::Constant::getNullValue(bool_ty) : nullptr;
   auto* flag = new llvm::GlobalVariable(
       emitter.GetModule(),
@@ -121,9 +121,9 @@ void StorePanicRecord(LLVMEmitter& emitter,
     return;
   }
   const auto scope = BuildScope(ctx);
-  std::vector<sema::TypeRef> fields;
-  fields.push_back(sema::MakeTypePrim("bool"));
-  fields.push_back(sema::MakeTypePrim("u32"));
+  std::vector<analysis::TypeRef> fields;
+  fields.push_back(analysis::MakeTypePrim("bool"));
+  fields.push_back(analysis::MakeTypePrim("u32"));
   const auto layout = RecordLayoutOf(scope, fields);
   if (!layout.has_value() || layout->offsets.size() < 2) {
     return;
@@ -160,7 +160,7 @@ void LLVMEmitter::EmitPoisonCheck(const std::string& module_name) {
   llvm::Function* func = current->getParent();
   if (!func) return;
 
-  llvm::Type* bool_ty = GetLLVMType(sema::MakeTypePrim("bool"));
+  llvm::Type* bool_ty = GetLLVMType(analysis::MakeTypePrim("bool"));
   llvm::Value* flag_val = builder->CreateLoad(bool_ty, flag);
   llvm::Value* poisoned = builder->CreateICmpNE(
       flag_val, llvm::Constant::getNullValue(flag_val->getType()));
@@ -184,7 +184,7 @@ void EmitSetPoison(LLVMEmitter& emitter, const std::string& module_name, bool va
   llvm::GlobalVariable* flag = GetOrCreatePoisonFlag(emitter, module_name);
 
   auto* builder = static_cast<llvm::IRBuilder<>*>(emitter.GetBuilderRaw());
-  llvm::Type* bool_ty = emitter.GetLLVMType(sema::MakeTypePrim("bool"));
+  llvm::Type* bool_ty = emitter.GetLLVMType(analysis::MakeTypePrim("bool"));
   llvm::Value* val = llvm::ConstantInt::get(bool_ty, value ? 1 : 0);
   builder->CreateStore(val, flag);
 }

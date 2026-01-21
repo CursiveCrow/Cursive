@@ -4,7 +4,7 @@
 
 #include "cursive0/codegen/checks.h"
 #include "cursive0/codegen/ir_dump.h"
-#include "cursive0/codegen/lower_expr.h"
+#include "cursive0/codegen/lower/lower_expr.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/syntax/ast.h"
 

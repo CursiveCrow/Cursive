@@ -4,9 +4,9 @@
 #include <variant>
 
 #include "cursive0/codegen/mangle.h"
-#include "cursive0/codegen/layout.h"
+#include "cursive0/codegen/layout/layout.h"
 #include "cursive0/core/symbols.h"
-#include "cursive0/sema/type_pattern.h"
+#include "cursive0/analysis/types/type_pattern.h"
 #include "cursive0/core/assert_spec.h"
 
 namespace cursive0::codegen {
@@ -16,7 +16,7 @@ namespace cursive0::codegen {
 // ============================================================================
 
 // Helpers moved to lower_expr.h
-static std::optional<std::vector<std::uint8_t>> ConstInit(sema::TypeRef type,
+static std::optional<std::vector<std::uint8_t>> ConstInit(analysis::TypeRef type,
                                                           const syntax::Expr& expr) {
   if (!type) {
     return std::nullopt;
@@ -103,7 +103,7 @@ std::vector<std::string> StaticBindList(const syntax::Binding& binding) {
   return names;
 }
 // StaticBindTypes(binding) = B when BindType(binding) matches pattern
-std::vector<std::pair<std::string, sema::TypeRef>> StaticBindTypes(
+std::vector<std::pair<std::string, analysis::TypeRef>> StaticBindTypes(
     const syntax::Binding& binding,
     const syntax::ModulePath& module_path,
     LowerCtx& ctx) {
@@ -112,12 +112,12 @@ std::vector<std::pair<std::string, sema::TypeRef>> StaticBindTypes(
     return {};
   }
 
-  sema::TypeRef bind_type;
+  analysis::TypeRef bind_type;
   if (binding.init && ctx.expr_type) {
     bind_type = ctx.expr_type(*binding.init);
   }
   if (!bind_type && binding.type_opt && ctx.sigma) {
-    sema::ScopeContext scope;
+    analysis::ScopeContext scope;
     scope.sigma = *ctx.sigma;
     scope.current_module = module_path;
     if (auto lowered = LowerTypeForLayout(scope, binding.type_opt)) {
@@ -128,12 +128,12 @@ std::vector<std::pair<std::string, sema::TypeRef>> StaticBindTypes(
     return {};
   }
 
-  sema::ScopeContext scope;
+  analysis::ScopeContext scope;
   if (ctx.sigma) {
     scope.sigma = *ctx.sigma;
     scope.current_module = module_path;
   }
-  const auto match = sema::TypeMatchPattern(scope, binding.pat, bind_type);
+  const auto match = analysis::TypeMatchPattern(scope, binding.pat, bind_type);
   if (!match.ok) {
     return {};
   }
@@ -183,12 +183,12 @@ EmitGlobalResult EmitGlobal(const syntax::StaticDecl& item,
   const auto& binding = item.binding;
   auto static_name = StaticName(binding);
 
-  sema::TypeRef init_type;
+  analysis::TypeRef init_type;
   if (binding.init && ctx.expr_type) {
     init_type = ctx.expr_type(*binding.init);
   }
   if (!init_type && binding.type_opt && ctx.sigma) {
-    sema::ScopeContext scope;
+    analysis::ScopeContext scope;
     scope.sigma = *ctx.sigma;
     scope.current_module = module_path;
     if (auto lowered = LowerTypeForLayout(scope, binding.type_opt)) {
@@ -196,7 +196,7 @@ EmitGlobalResult EmitGlobal(const syntax::StaticDecl& item,
     }
   }
 
-  sema::ScopeContext layout_scope;
+  analysis::ScopeContext layout_scope;
   if (ctx.sigma) {
     layout_scope.sigma = *ctx.sigma;
     layout_scope.current_module = module_path;
@@ -255,7 +255,7 @@ EmitGlobalResult EmitGlobal(const syntax::StaticDecl& item,
   auto bind_types = StaticBindTypes(binding, module_path, ctx);
   for (const auto& name : names) {
     std::string sym = StaticSym(item, module_path, name);
-    sema::TypeRef type;
+    analysis::TypeRef type;
     for (const auto& [bind_name, bind_type] : bind_types) {
       if (bind_name == name) {
         type = bind_type;

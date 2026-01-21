@@ -2,17 +2,17 @@
 
 #include <set>
 
-#include "cursive0/semantics/state.h"
-#include "cursive0/semantics/cleanup.h"
+#include "cursive0/eval/state.h"
+#include "cursive0/eval/cleanup.h"
 
-namespace cursive0::semantics {
+namespace cursive0::eval {
 
 struct InitResult {
   bool ok = false;
-  std::set<sema::PathKey> poisoned;
+  std::set<analysis::PathKey> poisoned;
 };
 
 InitResult Init(const SemanticsContext& ctx, Sigma& sigma);
 CleanupStatus Deinit(const SemanticsContext& ctx, Sigma& sigma);
 
-}  // namespace cursive0::semantics
+}  // namespace cursive0::eval

@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "cursive0/codegen/ir_model.h"
-#include "cursive0/sema/types.h"
+#include "cursive0/analysis/types/types.h"
 #include "cursive0/syntax/ast.h"
 
 namespace cursive0::codegen {
@@ -73,15 +73,15 @@ LowerRangeResult LowerRangeExpr(const syntax::RangeExpr& expr, LowerCtx& ctx);
 
 // §6.11 Lower-Transmute / Lower-Transmute-Err
 // Lowers a transmute expression, checking size compatibility
-LowerResult LowerTransmute(sema::TypeRef from_type,
-                           sema::TypeRef to_type,
+LowerResult LowerTransmute(analysis::TypeRef from_type,
+                           analysis::TypeRef to_type,
                            const syntax::Expr& expr,
                            LowerCtx& ctx);
 
 // §6.11 Lower-RawDeref-Safe/Raw/Null/Expired
 // Lowers a raw pointer dereference with appropriate checks
 LowerResult LowerRawDeref(const IRValue& ptr_value,
-                          sema::TypeRef ptr_type,
+                          analysis::TypeRef ptr_type,
                           LowerCtx& ctx);
 
 // §6.8 LowerPanic - emit panic IR for a given reason

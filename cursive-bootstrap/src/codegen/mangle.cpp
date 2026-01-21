@@ -13,21 +13,21 @@ namespace {
 // TypeStateName per §6.3.1:
 //   TypeStateName(View) = "view"
 //   TypeStateName(Managed) = "managed"
-std::string TypeStateName(sema::StringState state) {
+std::string TypeStateName(analysis::StringState state) {
   switch (state) {
-    case sema::StringState::View:
+    case analysis::StringState::View:
       return "view";
-    case sema::StringState::Managed:
+    case analysis::StringState::Managed:
       return "managed";
   }
   return "";
 }
 
-std::string TypeStateName(sema::BytesState state) {
+std::string TypeStateName(analysis::BytesState state) {
   switch (state) {
-    case sema::BytesState::View:
+    case analysis::BytesState::View:
       return "view";
-    case sema::BytesState::Managed:
+    case analysis::BytesState::Managed:
       return "managed";
   }
   return "";
@@ -72,7 +72,7 @@ std::vector<std::string> ItemPathProc(const syntax::ModulePath& module_path,
   return path;
 }
 
-std::vector<std::string> ItemPathMethod(const sema::TypePath& record_path,
+std::vector<std::string> ItemPathMethod(const analysis::TypePath& record_path,
                                         const syntax::MethodDecl& method) {
   SPEC_DEF("ItemPath", "6.3.1");
   SPEC_DEF("RecordPath", "5.3.1");
@@ -82,7 +82,7 @@ std::vector<std::string> ItemPathMethod(const sema::TypePath& record_path,
   return path;
 }
 
-std::vector<std::string> ItemPathClassMethod(const sema::TypePath& class_path,
+std::vector<std::string> ItemPathClassMethod(const analysis::TypePath& class_path,
                                              const syntax::ClassMethodDecl& method) {
   SPEC_DEF("ItemPath", "6.3.1");
   SPEC_DEF("ClassPath", "5.4.1");
@@ -92,7 +92,7 @@ std::vector<std::string> ItemPathClassMethod(const sema::TypePath& class_path,
   return path;
 }
 
-std::vector<std::string> ItemPathStateMethod(const sema::TypePath& modal_path,
+std::vector<std::string> ItemPathStateMethod(const analysis::TypePath& modal_path,
                                              const std::string& state,
                                              const syntax::StateMethodDecl& method) {
   SPEC_DEF("ItemPath", "6.3.1");
@@ -104,7 +104,7 @@ std::vector<std::string> ItemPathStateMethod(const sema::TypePath& modal_path,
   return path;
 }
 
-std::vector<std::string> ItemPathTransition(const sema::TypePath& modal_path,
+std::vector<std::string> ItemPathTransition(const analysis::TypePath& modal_path,
                                             const std::string& state,
                                             const syntax::TransitionDecl& trans) {
   SPEC_DEF("ItemPath", "6.3.1");
@@ -138,8 +138,8 @@ std::vector<std::string> ItemPathStaticBinding(const syntax::ModulePath& module_
   return path;
 }
 
-std::vector<std::string> ItemPathVTable(const sema::TypeRef& type,
-                                        const sema::TypePath& class_path) {
+std::vector<std::string> ItemPathVTable(const analysis::TypeRef& type,
+                                        const analysis::TypePath& class_path) {
   SPEC_DEF("ItemPath", "6.3.1");
   SPEC_DEF("VTableDecl", "6.3.1");
 
@@ -156,8 +156,8 @@ std::vector<std::string> ItemPathVTable(const sema::TypeRef& type,
   return path;
 }
 
-std::vector<std::string> ItemPathDefaultImpl(const sema::TypeRef& type,
-                                             const sema::TypePath& class_path,
+std::vector<std::string> ItemPathDefaultImpl(const analysis::TypeRef& type,
+                                             const analysis::TypePath& class_path,
                                              const std::string& method_name) {
   SPEC_DEF("ItemPath", "6.3.1");
   SPEC_DEF("DefaultImpl", "6.3.1");
@@ -181,7 +181,7 @@ std::vector<std::string> ItemPathDefaultImpl(const sema::TypeRef& type,
 // PathOfType
 // =============================================================================
 
-std::vector<std::string> PathOfType(const sema::TypeRef& type) {
+std::vector<std::string> PathOfType(const analysis::TypeRef& type) {
   SPEC_DEF("PathOfType", "6.3.1");
   SPEC_DEF("TypeStateName", "6.3.1");
 
@@ -190,12 +190,12 @@ std::vector<std::string> PathOfType(const sema::TypeRef& type) {
   }
 
   // PathOfType(TypePrim(name)) = ["prim", name]
-  if (const auto* prim = std::get_if<sema::TypePrim>(&type->node)) {
+  if (const auto* prim = std::get_if<analysis::TypePrim>(&type->node)) {
     return {"prim", prim->name};
   }
 
   // PathOfType(TypeString(st)) = ["string", TypeStateName(st)]
-  if (const auto* str = std::get_if<sema::TypeString>(&type->node)) {
+  if (const auto* str = std::get_if<analysis::TypeString>(&type->node)) {
     if (str->state.has_value()) {
       return {"string", TypeStateName(*str->state)};
     }
@@ -204,7 +204,7 @@ std::vector<std::string> PathOfType(const sema::TypeRef& type) {
   }
 
   // PathOfType(TypeBytes(st)) = ["bytes", TypeStateName(st)]
-  if (const auto* bytes = std::get_if<sema::TypeBytes>(&type->node)) {
+  if (const auto* bytes = std::get_if<analysis::TypeBytes>(&type->node)) {
     if (bytes->state.has_value()) {
       return {"bytes", TypeStateName(*bytes->state)};
     }
@@ -212,12 +212,12 @@ std::vector<std::string> PathOfType(const sema::TypeRef& type) {
   }
 
   // PathOfType(TypePath(p)) = p
-  if (const auto* path_type = std::get_if<sema::TypePathType>(&type->node)) {
+  if (const auto* path_type = std::get_if<analysis::TypePathType>(&type->node)) {
     return path_type->path;
   }
 
   // PathOfType(TypeModalState(p, S)) = p ++ [S]
-  if (const auto* modal_state = std::get_if<sema::TypeModalState>(&type->node)) {
+  if (const auto* modal_state = std::get_if<analysis::TypeModalState>(&type->node)) {
     std::vector<std::string> result = modal_state->path;
     result.push_back(modal_state->state);
     return result;
@@ -255,21 +255,21 @@ std::string MangleProc(const syntax::ModulePath& module_path,
   return ScopedSym(ItemPathProc(module_path, proc));
 }
 
-std::string MangleMethod(const sema::TypePath& record_path,
+std::string MangleMethod(const analysis::TypePath& record_path,
                          const syntax::MethodDecl& method) {
   SPEC_RULE("Mangle-Record-Method");
 
   return ScopedSym(ItemPathMethod(record_path, method));
 }
 
-std::string MangleClassMethod(const sema::TypePath& class_path,
+std::string MangleClassMethod(const analysis::TypePath& class_path,
                               const syntax::ClassMethodDecl& method) {
   SPEC_RULE("Mangle-Class-Method");
 
   return ScopedSym(ItemPathClassMethod(class_path, method));
 }
 
-std::string MangleStateMethod(const sema::TypePath& modal_path,
+std::string MangleStateMethod(const analysis::TypePath& modal_path,
                               const std::string& state,
                               const syntax::StateMethodDecl& method) {
   SPEC_RULE("Mangle-State-Method");
@@ -277,7 +277,7 @@ std::string MangleStateMethod(const sema::TypePath& modal_path,
   return ScopedSym(ItemPathStateMethod(modal_path, state, method));
 }
 
-std::string MangleTransition(const sema::TypePath& modal_path,
+std::string MangleTransition(const analysis::TypePath& modal_path,
                              const std::string& state,
                              const syntax::TransitionDecl& trans) {
   SPEC_RULE("Mangle-Transition");
@@ -299,8 +299,8 @@ std::string MangleStaticBinding(const syntax::ModulePath& module_path,
   return ScopedSym(ItemPathStaticBinding(module_path, binding_name));
 }
 
-std::string MangleVTable(const sema::TypeRef& type,
-                         const sema::TypePath& class_path) {
+std::string MangleVTable(const analysis::TypeRef& type,
+                         const analysis::TypePath& class_path) {
   SPEC_RULE("Mangle-VTable");
 
   return ScopedSym(ItemPathVTable(type, class_path));
@@ -316,8 +316,8 @@ std::string MangleLiteral(const std::string& kind,
   return ScopedSym({"cursive", "runtime", "literal", literal_id});
 }
 
-std::string MangleDefaultImpl(const sema::TypeRef& type,
-                              const sema::TypePath& class_path,
+std::string MangleDefaultImpl(const analysis::TypeRef& type,
+                              const analysis::TypePath& class_path,
                               const std::string& method_name) {
   SPEC_RULE("Mangle-DefaultImpl");
 

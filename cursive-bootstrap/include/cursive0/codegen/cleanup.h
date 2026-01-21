@@ -6,8 +6,8 @@
 #include <vector>
 
 #include "cursive0/codegen/ir_model.h"
-#include "cursive0/codegen/lower_expr.h"
-#include "cursive0/sema/types.h"
+#include "cursive0/codegen/lower/lower_expr.h"
+#include "cursive0/analysis/types/types.h"
 
 namespace cursive0::codegen {
 
@@ -28,7 +28,7 @@ struct CleanupAction {
 
   Kind kind = Kind::DropVar;
   std::string name;                    // Variable or temp name
-  sema::TypeRef type;                  // Type to drop
+  analysis::TypeRef type;                  // Type to drop
   std::optional<IRValue> value;        // Value to drop (if already computed)
   std::optional<IRPtr> defer_ir;       // Defer block IR (for Kind::RunDefer)
   std::vector<std::string> skip_fields; // Fields to skip (for partial moves)
@@ -75,10 +75,10 @@ IRPtr EmitCleanupWithRemainder(const CleanupPlan& plan,
 // ============================================================================
 
 // §6.8 EmitDrop(T, v) - Emit IR that correctly drops a value of type T
-IRPtr EmitDrop(const sema::TypeRef& type, const IRValue& value, LowerCtx& ctx);
+IRPtr EmitDrop(const analysis::TypeRef& type, const IRValue& value, LowerCtx& ctx);
 
 // §6.8 EmitDropFields - Emit IR to drop specific fields of a record
-IRPtr EmitDropFields(const sema::TypeRef& type,
+IRPtr EmitDropFields(const analysis::TypeRef& type,
                      const IRValue& value,
                      const std::vector<std::string>& skip_fields,
                      LowerCtx& ctx);
@@ -88,13 +88,13 @@ IRPtr EmitDropFields(const sema::TypeRef& type,
 // ============================================================================
 
 // §6.12.13 DropGlueSym(T) - Symbol for drop glue function
-std::string DropGlueSym(const sema::TypeRef& type, LowerCtx& ctx);
+std::string DropGlueSym(const analysis::TypeRef& type, LowerCtx& ctx);
 
 // §6.12.13 DropGlueIR(T) - IR for drop glue function body
-IRPtr DropGlueIR(const sema::TypeRef& type, LowerCtx& ctx);
+IRPtr DropGlueIR(const analysis::TypeRef& type, LowerCtx& ctx);
 
 // §6.12.13 EmitDropGlue(T) - Emit drop glue function declaration
-IRPtr EmitDropGlue(const sema::TypeRef& type, LowerCtx& ctx);
+IRPtr EmitDropGlue(const analysis::TypeRef& type, LowerCtx& ctx);
 
 // ============================================================================
 // §6.8 DropOnAssign - Drop value before assignment

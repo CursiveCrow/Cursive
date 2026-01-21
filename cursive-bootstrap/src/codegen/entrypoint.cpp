@@ -1,7 +1,7 @@
-#include "cursive0/codegen/llvm_emit.h"
-#include "cursive0/codegen/abi.h"
+#include "cursive0/codegen/llvm/llvm_emit.h"
+#include "cursive0/codegen/abi/abi.h"
 #include "cursive0/codegen/globals.h"
-#include "cursive0/codegen/layout.h"
+#include "cursive0/codegen/layout/layout.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/runtime/runtime_interface.h"
 
@@ -24,8 +24,8 @@ namespace cursive0::codegen {
 
 namespace {
 
-sema::ScopeContext BuildScope(const LowerCtx* ctx) {
-  sema::ScopeContext scope;
+analysis::ScopeContext BuildScope(const LowerCtx* ctx) {
+  analysis::ScopeContext scope;
   if (ctx && ctx->sigma) {
     scope.sigma = *ctx->sigma;
     scope.current_module = ctx->module_path;
@@ -150,9 +150,9 @@ void LLVMEmitter::EmitEntryPoint() {
 
   // Inspect panic record
   const auto scope = BuildScope(ctx);
-  std::vector<sema::TypeRef> fields;
-  fields.push_back(sema::MakeTypePrim("bool"));
-  fields.push_back(sema::MakeTypePrim("u32"));
+  std::vector<analysis::TypeRef> fields;
+  fields.push_back(analysis::MakeTypePrim("bool"));
+  fields.push_back(analysis::MakeTypePrim("u32"));
   const auto layout = RecordLayoutOf(scope, fields);
   if (!layout.has_value() || layout->offsets.size() < 2) {
     ctx->ReportCodegenFailure();
@@ -161,8 +161,8 @@ void LLVMEmitter::EmitEntryPoint() {
     return;
   }
 
-  llvm::Type* bool_ty = GetLLVMType(sema::MakeTypePrim("bool"));
-  llvm::Type* u32_ty = GetLLVMType(sema::MakeTypePrim("u32"));
+  llvm::Type* bool_ty = GetLLVMType(analysis::MakeTypePrim("bool"));
+  llvm::Type* u32_ty = GetLLVMType(analysis::MakeTypePrim("u32"));
   llvm::Value* flag = LoadAtOffset(*this, builder, panic_record,
                                    layout->offsets[0], bool_ty);
   llvm::Value* code = LoadAtOffset(*this, builder, panic_record,

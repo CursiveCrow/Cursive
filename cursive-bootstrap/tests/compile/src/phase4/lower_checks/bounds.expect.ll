@@ -7,13 +7,10 @@ proc @demo_x3a_x3amain {
     block seq {
       seq {
         seq {
-          seq {
-            nop
-            nop
-          }
-          bind %a = array
+          nop
+          nop
         }
-        panic_check
+        bind %a = array
       }
       seq {
         seq {

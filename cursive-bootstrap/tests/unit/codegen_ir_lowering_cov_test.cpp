@@ -4,16 +4,16 @@
 #include <string>
 #include <vector>
 
-#include "cursive0/codegen/abi.h"
+#include "cursive0/codegen/abi/abi.h"
 #include "cursive0/codegen/cleanup.h"
 #include "cursive0/codegen/globals.h"
-#include "cursive0/codegen/llvm_emit.h"
-#include "cursive0/codegen/lower_expr.h"
+#include "cursive0/codegen/llvm/llvm_emit.h"
+#include "cursive0/codegen/lower/lower_expr.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/core/symbols.h"
-#include "cursive0/sema/context.h"
-#include "cursive0/sema/scopes.h"
-#include "cursive0/sema/types.h"
+#include "cursive0/analysis/types/context.h"
+#include "cursive0/analysis/resolve/scopes.h"
+#include "cursive0/analysis/types/types.h"
 #include "cursive0/syntax/ast.h"
 
 #include "llvm/IR/Constants.h"
@@ -67,18 +67,18 @@ using cursive0::codegen::LLVMEmitter;
 using cursive0::codegen::ProcIR;
 using cursive0::core::Mangle;
 using cursive0::core::StringOfPath;
-using cursive0::sema::MakeTypeArray;
-using cursive0::sema::MakeTypeModalState;
-using cursive0::sema::MakeTypePath;
-using cursive0::sema::MakeTypePerm;
-using cursive0::sema::MakeTypePrim;
-using cursive0::sema::MakeTypePtr;
-using cursive0::sema::MakeTypeRawPtr;
-using cursive0::sema::MakeTypeTuple;
-using cursive0::sema::Permission;
-using cursive0::sema::PtrState;
-using cursive0::sema::RawPtrQual;
-using cursive0::sema::TypeRef;
+using cursive0::analysis::MakeTypeArray;
+using cursive0::analysis::MakeTypeModalState;
+using cursive0::analysis::MakeTypePath;
+using cursive0::analysis::MakeTypePerm;
+using cursive0::analysis::MakeTypePrim;
+using cursive0::analysis::MakeTypePtr;
+using cursive0::analysis::MakeTypeRawPtr;
+using cursive0::analysis::MakeTypeTuple;
+using cursive0::analysis::Permission;
+using cursive0::analysis::PtrState;
+using cursive0::analysis::RawPtrQual;
+using cursive0::analysis::TypeRef;
 using cursive0::syntax::Expr;
 using cursive0::syntax::IdentifierExpr;
 using cursive0::syntax::ModalDecl;
@@ -148,8 +148,8 @@ Expr MakeIdentExpr(const char* name) {
   return expr;
 }
 
-sema::Sigma BuildSigma() {
-  sema::Sigma sigma;
+analysis::Sigma BuildSigma() {
+  analysis::Sigma sigma;
 
   RecordDecl rec;
   rec.vis = Visibility::Public;
@@ -158,7 +158,7 @@ sema::Sigma BuildSigma() {
   rec.implements = {};
   rec.span = {};
   rec.doc = {};
-  sigma.types[cursive0::sema::PathKeyOf({"test", "Rec"})] = rec;
+  sigma.types[cursive0::analysis::PathKeyOf({"test", "Rec"})] = rec;
 
   RecordDecl opts;
   opts.vis = Visibility::Public;
@@ -167,7 +167,7 @@ sema::Sigma BuildSigma() {
   opts.implements = {};
   opts.span = {};
   opts.doc = {};
-  sigma.types[cursive0::sema::PathKeyOf({"RegionOptions"})] = opts;
+  sigma.types[cursive0::analysis::PathKeyOf({"RegionOptions"})] = opts;
 
   StateBlock active;
   active.name = "Active";
@@ -188,7 +188,7 @@ sema::Sigma BuildSigma() {
   region.states = {active, frozen};
   region.span = {};
   region.doc = {};
-  sigma.types[cursive0::sema::PathKeyOf({"Region"})] = region;
+  sigma.types[cursive0::analysis::PathKeyOf({"Region"})] = region;
 
   return sigma;
 }
@@ -256,7 +256,7 @@ void DefinePanicSlot(LowerHarness& h) {
 
 void TestRecordCtorLowering() {
   SPEC_COV("Lower-CallIR-RecordCtor");
-  sema::Sigma sigma;
+  analysis::Sigma sigma;
   RecordDecl rec;
   rec.vis = Visibility::Public;
   rec.name = "Rec";
@@ -264,7 +264,7 @@ void TestRecordCtorLowering() {
   rec.implements = {};
   rec.span = {};
   rec.doc = {};
-  sigma.types[cursive0::sema::PathKeyOf({"Rec"})] = rec;
+  sigma.types[cursive0::analysis::PathKeyOf({"Rec"})] = rec;
 
   LowerCtx ctx;
   ctx.sigma = &sigma;
@@ -332,7 +332,7 @@ void TestIRLoweringSuccess() {
   SPEC_COV("SetPoison-Err");
   SPEC_COV("PoisonFlag-Err");
 
-  sema::Sigma sigma = BuildSigma();
+  analysis::Sigma sigma = BuildSigma();
   LowerHarness h;
   h.ctx.sigma = &sigma;
   h.ctx.module_path = {"test"};
@@ -340,7 +340,7 @@ void TestIRLoweringSuccess() {
   const std::string callee_sym = Mangle(StringOfPath({"test", "callee"}));
   ProcIR callee_sig;
   callee_sig.symbol = callee_sym;
-  callee_sig.params = {{cursive0::sema::ParamMode::Move, "x", MakeTypePrim("i32")}};
+  callee_sig.params = {{cursive0::analysis::ParamMode::Move, "x", MakeTypePrim("i32")}};
   callee_sig.ret = MakeTypePrim("i32");
   callee_sig.body = MakeOpaque();
   h.ctx.RegisterProcSig(callee_sig);

@@ -170,134 +170,134 @@ target_link_libraries(syntax_keyword_policy_test PRIVATE cursive0_syntax)
 
 add_test(NAME syntax_keyword_policy_test COMMAND syntax_keyword_policy_test)
 
-add_executable(sema_scopes_test
-  unit/sema_scopes_test.cpp
+add_executable(analysis_scopes_test
+  unit/analysis_scopes_test.cpp
 )
 
-target_link_libraries(sema_scopes_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_scopes_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_scopes_test COMMAND sema_scopes_test)
+add_test(NAME analysis_scopes_test COMMAND analysis_scopes_test)
 
-add_executable(sema_scopes_intro_test
-  unit/sema_scopes_intro_test.cpp
+add_executable(analysis_scopes_intro_test
+  unit/analysis_scopes_intro_test.cpp
 )
 
-target_link_libraries(sema_scopes_intro_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_scopes_intro_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_scopes_intro_test COMMAND sema_scopes_intro_test)
+add_test(NAME analysis_scopes_intro_test COMMAND analysis_scopes_intro_test)
 
-add_executable(sema_types_test
-  unit/sema_types_test.cpp
+add_executable(analysis_types_test
+  unit/analysis_types_test.cpp
 )
 
-target_link_libraries(sema_types_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_types_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_types_test COMMAND sema_types_test)
+add_test(NAME analysis_types_test COMMAND analysis_types_test)
 
-add_executable(sema_type_equiv_test
-  unit/sema_type_equiv_test.cpp
+add_executable(analysis_type_equiv_test
+  unit/analysis_type_equiv_test.cpp
 )
 
-add_executable(sema_subtyping_test
-  unit/sema_subtyping_test.cpp
+add_executable(analysis_subtyping_test
+  unit/analysis_subtyping_test.cpp
 )
 
-target_link_libraries(sema_type_equiv_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_type_equiv_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_type_equiv_test COMMAND sema_type_equiv_test)
+add_test(NAME analysis_type_equiv_test COMMAND analysis_type_equiv_test)
 
-target_link_libraries(sema_subtyping_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_subtyping_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_subtyping_test COMMAND sema_subtyping_test)
+add_test(NAME analysis_subtyping_test COMMAND analysis_subtyping_test)
 
-add_executable(sema_borrow_bind_test
-  unit/sema_borrow_bind_test.cpp
+add_executable(analysis_borrow_bind_test
+  unit/analysis_borrow_bind_test.cpp
 )
 
-target_link_libraries(sema_borrow_bind_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_borrow_bind_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_borrow_bind_test COMMAND sema_borrow_bind_test)
+add_test(NAME analysis_borrow_bind_test COMMAND analysis_borrow_bind_test)
 
-add_executable(sema_calls_test
-  unit/sema_calls_test.cpp
+add_executable(analysis_calls_test
+  unit/analysis_calls_test.cpp
 )
 
-target_link_libraries(sema_calls_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_calls_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_calls_test COMMAND sema_calls_test)
+add_test(NAME analysis_calls_test COMMAND analysis_calls_test)
 
-add_executable(sema_tuples_test
-  unit/sema_tuples_test.cpp
+add_executable(analysis_tuples_test
+  unit/analysis_tuples_test.cpp
 )
 
-target_link_libraries(sema_tuples_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_tuples_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_tuples_test COMMAND sema_tuples_test)
+add_test(NAME analysis_tuples_test COMMAND analysis_tuples_test)
 
-add_executable(sema_arrays_slices_test
-  unit/sema_arrays_slices_test.cpp
+add_executable(analysis_arrays_slices_test
+  unit/analysis_arrays_slices_test.cpp
 )
 
-target_link_libraries(sema_arrays_slices_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_arrays_slices_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_arrays_slices_test COMMAND sema_arrays_slices_test)
+add_test(NAME analysis_arrays_slices_test COMMAND analysis_arrays_slices_test)
 
-add_executable(sema_enum_disc_test
-  unit/sema_enum_disc_test.cpp
+add_executable(analysis_enum_disc_test
+  unit/analysis_enum_disc_test.cpp
 )
 
-target_link_libraries(sema_enum_disc_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_enum_disc_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_enum_disc_test COMMAND sema_enum_disc_test)
+add_test(NAME analysis_enum_disc_test COMMAND analysis_enum_disc_test)
 
-add_executable(sema_unions_test
-  unit/sema_unions_test.cpp
+add_executable(analysis_unions_test
+  unit/analysis_unions_test.cpp
 )
 
-target_link_libraries(sema_unions_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_unions_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_unions_test COMMAND sema_unions_test)
+add_test(NAME analysis_unions_test COMMAND analysis_unions_test)
 
 
-add_executable(sema_records_test
-  unit/sema_records_test.cpp
+add_executable(analysis_records_test
+  unit/analysis_records_test.cpp
 )
 
-target_link_libraries(sema_records_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_records_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_records_test COMMAND sema_records_test)
+add_test(NAME analysis_records_test COMMAND analysis_records_test)
 
-add_executable(sema_type_infer_test
-  unit/sema_type_infer_test.cpp
+add_executable(analysis_type_infer_test
+  unit/analysis_type_infer_test.cpp
 )
 
-add_executable(sema_type_stmt_test
-  unit/sema_type_stmt_test.cpp
+add_executable(analysis_type_stmt_test
+  unit/analysis_type_stmt_test.cpp
 )
 
-target_link_libraries(sema_type_infer_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_type_infer_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_type_infer_test COMMAND sema_type_infer_test)
+add_test(NAME analysis_type_infer_test COMMAND analysis_type_infer_test)
 
-target_link_libraries(sema_type_stmt_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_type_stmt_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_type_stmt_test COMMAND sema_type_stmt_test)
+add_test(NAME analysis_type_stmt_test COMMAND analysis_type_stmt_test)
 
-add_executable(sema_collect_toplevel_test
-  unit/sema_collect_toplevel_test.cpp
+add_executable(analysis_collect_toplevel_test
+  unit/analysis_collect_toplevel_test.cpp
 )
 
-target_link_libraries(sema_collect_toplevel_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_collect_toplevel_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_collect_toplevel_test COMMAND sema_collect_toplevel_test)
+add_test(NAME analysis_collect_toplevel_test COMMAND analysis_collect_toplevel_test)
 
-add_executable(sema_resolve_qual_test
-  unit/sema_resolve_qual_test.cpp
+add_executable(analysis_resolve_qual_test
+  unit/analysis_resolve_qual_test.cpp
 )
 
-target_link_libraries(sema_resolve_qual_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_resolve_qual_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_resolve_qual_test COMMAND sema_resolve_qual_test)
+add_test(NAME analysis_resolve_qual_test COMMAND analysis_resolve_qual_test)
 
 add_executable(core_diagnostics_emit_test
   unit/core_diagnostics_emit_test.cpp
@@ -464,30 +464,30 @@ target_link_libraries(project_ir_assembly_test PRIVATE cursive0_project)
 
 add_test(NAME project_ir_assembly_test COMMAND project_ir_assembly_test)
 
-add_executable(frontend_parse_modules_test
-  unit/frontend_parse_modules_test.cpp
+add_executable(syntax_parse_modules_test
+  unit/syntax_parse_modules_test.cpp
 )
 
-target_link_libraries(frontend_parse_modules_test PRIVATE cursive0_frontend)
+target_link_libraries(syntax_parse_modules_test PRIVATE cursive0_frontend)
 
-add_test(NAME frontend_parse_modules_test COMMAND frontend_parse_modules_test)
+add_test(NAME syntax_parse_modules_test COMMAND syntax_parse_modules_test)
 
 
-add_executable(sema_conformance_test
-  unit/sema_conformance_test.cpp
+add_executable(analysis_conformance_test
+  unit/analysis_conformance_test.cpp
 )
 
-target_link_libraries(sema_conformance_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_conformance_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_conformance_test COMMAND sema_conformance_test)
+add_test(NAME analysis_conformance_test COMMAND analysis_conformance_test)
 
-add_executable(sema_conformance_subset_unicode_test
-  unit/sema_conformance_subset_unicode_test.cpp
+add_executable(analysis_conformance_subset_unicode_test
+  unit/analysis_conformance_subset_unicode_test.cpp
 )
 
-target_link_libraries(sema_conformance_subset_unicode_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_conformance_subset_unicode_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_conformance_subset_unicode_test COMMAND sema_conformance_subset_unicode_test)
+add_test(NAME analysis_conformance_subset_unicode_test COMMAND analysis_conformance_subset_unicode_test)
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
@@ -498,8 +498,8 @@ add_test(NAME compile_tests
 )
 
 if(WIN32)
-  add_test(NAME semantics_oracle_tests
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/harness/run_semantics_oracle.py
+  add_test(NAME eval_oracle_tests
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/harness/run_eval_oracle.py
       --compiler $<TARGET_FILE:cursivec0>
       --interpreter $<TARGET_FILE:cursive0_interpreter_cli>
       --tests-root ${CMAKE_CURRENT_SOURCE_DIR}/e2e
@@ -514,76 +514,76 @@ add_test(NAME spec_diag_report
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/diag_check_report.py
 )
 
-add_executable(sema_scopes_lookup_test
-  unit/sema_scopes_lookup_test.cpp
+add_executable(analysis_scopes_lookup_test
+  unit/analysis_scopes_lookup_test.cpp
 )
 
-target_link_libraries(sema_scopes_lookup_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_scopes_lookup_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_scopes_lookup_test COMMAND sema_scopes_lookup_test)
+add_test(NAME analysis_scopes_lookup_test COMMAND analysis_scopes_lookup_test)
 
-add_executable(sema_resolver_expr_test
-  unit/sema_resolver_expr_test.cpp
+add_executable(analysis_resolver_expr_test
+  unit/analysis_resolver_expr_test.cpp
 )
 
-target_link_libraries(sema_resolver_expr_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_resolver_expr_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_resolver_expr_test COMMAND sema_resolver_expr_test)
+add_test(NAME analysis_resolver_expr_test COMMAND analysis_resolver_expr_test)
 
-add_executable(sema_resolver_items_test
-  unit/sema_resolver_items_test.cpp
+add_executable(analysis_resolver_items_test
+  unit/analysis_resolver_items_test.cpp
 )
 
-target_link_libraries(sema_resolver_items_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_resolver_items_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_resolver_items_test COMMAND sema_resolver_items_test)
+add_test(NAME analysis_resolver_items_test COMMAND analysis_resolver_items_test)
 
-add_executable(sema_visibility_test
-  unit/sema_visibility_test.cpp
+add_executable(analysis_visibility_test
+  unit/analysis_visibility_test.cpp
 )
 
-target_link_libraries(sema_visibility_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_visibility_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_visibility_test COMMAND sema_visibility_test)
+add_test(NAME analysis_visibility_test COMMAND analysis_visibility_test)
 
-add_executable(sema_literals_test
-  unit/sema_literals_test.cpp
+add_executable(analysis_literals_test
+  unit/analysis_literals_test.cpp
 )
 
-target_link_libraries(sema_literals_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_literals_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_literals_test COMMAND sema_literals_test)
+add_test(NAME analysis_literals_test COMMAND analysis_literals_test)
 
-add_executable(sema_type_expr_test
-  unit/sema_type_expr_test.cpp
+add_executable(analysis_type_expr_test
+  unit/analysis_type_expr_test.cpp
 )
 
-target_link_libraries(sema_type_expr_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_type_expr_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_type_expr_test COMMAND sema_type_expr_test)
+add_test(NAME analysis_type_expr_test COMMAND analysis_type_expr_test)
 
-add_executable(sema_type_wf_test
-  unit/sema_type_wf_test.cpp
+add_executable(analysis_type_wf_test
+  unit/analysis_type_wf_test.cpp
 )
 
-target_link_libraries(sema_type_wf_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_type_wf_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_type_wf_test COMMAND sema_type_wf_test)
+add_test(NAME analysis_type_wf_test COMMAND analysis_type_wf_test)
 
-add_executable(sema_type_match_test
-  unit/sema_type_match_test.cpp
+add_executable(analysis_type_match_test
+  unit/analysis_type_match_test.cpp
 )
 
-target_link_libraries(sema_type_match_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_type_match_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_type_match_test COMMAND sema_type_match_test)
-add_executable(sema_init_planner_test
-  unit/sema_init_planner_test.cpp
+add_test(NAME analysis_type_match_test COMMAND analysis_type_match_test)
+add_executable(analysis_init_planner_test
+  unit/analysis_init_planner_test.cpp
 )
 
-target_link_libraries(sema_init_planner_test PRIVATE cursive0_sema)
+target_link_libraries(analysis_init_planner_test PRIVATE cursive0_analysis)
 
-add_test(NAME sema_init_planner_test COMMAND sema_init_planner_test)
+add_test(NAME analysis_init_planner_test COMMAND analysis_init_planner_test)
 
 add_executable(codegen_ir_model_test
   unit/codegen_ir_model_test.cpp
@@ -698,174 +698,174 @@ copy_icu_dlls_for_test(codegen_string_literal_test)
 
 add_test(NAME codegen_string_literal_test COMMAND codegen_string_literal_test)
 
-add_executable(semantics_smoke_test
-  unit/semantics_smoke_test.cpp
+add_executable(eval_smoke_test
+  unit/eval_smoke_test.cpp
 )
 
-target_link_libraries(semantics_smoke_test PRIVATE cursive0_interpreter)
-copy_icu_dlls_for_test(semantics_smoke_test)
+target_link_libraries(eval_smoke_test PRIVATE cursive0_interpreter)
+copy_icu_dlls_for_test(eval_smoke_test)
 
-add_test(NAME semantics_smoke_test COMMAND semantics_smoke_test)
+add_test(NAME eval_smoke_test COMMAND eval_smoke_test)
 
-add_executable(semantics_state_test
-  unit/semantics_state_test.cpp
+add_executable(eval_state_test
+  unit/eval_state_test.cpp
 )
 
-target_link_libraries(semantics_state_test PRIVATE cursive0_semantics)
-copy_icu_dlls_for_test(semantics_state_test)
+target_link_libraries(eval_state_test PRIVATE cursive0_eval)
+copy_icu_dlls_for_test(eval_state_test)
 
-add_test(NAME semantics_state_test COMMAND semantics_state_test)
+add_test(NAME eval_state_test COMMAND eval_state_test)
 
-add_executable(semantics_match_test
-  unit/semantics_match_test.cpp
+add_executable(eval_match_test
+  unit/eval_match_test.cpp
 )
 
-target_link_libraries(semantics_match_test PRIVATE cursive0_semantics)
-copy_icu_dlls_for_test(semantics_match_test)
+target_link_libraries(eval_match_test PRIVATE cursive0_eval)
+copy_icu_dlls_for_test(eval_match_test)
 
-add_test(NAME semantics_match_test COMMAND semantics_match_test)
+add_test(NAME eval_match_test COMMAND eval_match_test)
 
-add_executable(semantics_eval_test
-  unit/semantics_eval_test.cpp
+add_executable(eval_eval_test
+  unit/eval_eval_test.cpp
 )
 
-target_link_libraries(semantics_eval_test PRIVATE cursive0_semantics cursive0_sema)
-copy_icu_dlls_for_test(semantics_eval_test)
+target_link_libraries(eval_eval_test PRIVATE cursive0_eval cursive0_analysis)
+copy_icu_dlls_for_test(eval_eval_test)
 
-add_test(NAME semantics_eval_test COMMAND semantics_eval_test)
+add_test(NAME eval_eval_test COMMAND eval_eval_test)
 
-add_executable(semantics_apply_cov_test
-  unit/semantics_apply_cov_test.cpp
+add_executable(eval_apply_cov_test
+  unit/eval_apply_cov_test.cpp
 )
 
-target_link_libraries(semantics_apply_cov_test PRIVATE cursive0_semantics cursive0_sema)
-copy_icu_dlls_for_test(semantics_apply_cov_test)
+target_link_libraries(eval_apply_cov_test PRIVATE cursive0_eval cursive0_analysis)
+copy_icu_dlls_for_test(eval_apply_cov_test)
 
-add_test(NAME semantics_apply_cov_test COMMAND semantics_apply_cov_test)
+add_test(NAME eval_apply_cov_test COMMAND eval_apply_cov_test)
 
-add_executable(semantics_cast_cov_test
-  unit/semantics_cast_cov_test.cpp
+add_executable(eval_cast_cov_test
+  unit/eval_cast_cov_test.cpp
 )
 
-target_link_libraries(semantics_cast_cov_test PRIVATE cursive0_semantics cursive0_sema)
-copy_icu_dlls_for_test(semantics_cast_cov_test)
+target_link_libraries(eval_cast_cov_test PRIVATE cursive0_eval cursive0_analysis)
+copy_icu_dlls_for_test(eval_cast_cov_test)
 
-add_test(NAME semantics_cast_cov_test COMMAND semantics_cast_cov_test)
+add_test(NAME eval_cast_cov_test COMMAND eval_cast_cov_test)
 
-add_executable(semantics_exec_cov_test
-  unit/semantics_exec_cov_test.cpp
+add_executable(eval_exec_cov_test
+  unit/eval_exec_cov_test.cpp
 )
 
-target_link_libraries(semantics_exec_cov_test PRIVATE cursive0_semantics)
-copy_icu_dlls_for_test(semantics_exec_cov_test)
+target_link_libraries(eval_exec_cov_test PRIVATE cursive0_eval)
+copy_icu_dlls_for_test(eval_exec_cov_test)
 
-add_test(NAME semantics_exec_cov_test COMMAND semantics_exec_cov_test)
+add_test(NAME eval_exec_cov_test COMMAND eval_exec_cov_test)
 
-add_executable(semantics_cleanup_cov_test
-  unit/semantics_cleanup_cov_test.cpp
+add_executable(eval_cleanup_cov_test
+  unit/eval_cleanup_cov_test.cpp
 )
 
-target_link_libraries(semantics_cleanup_cov_test PRIVATE cursive0_semantics cursive0_sema)
-copy_icu_dlls_for_test(semantics_cleanup_cov_test)
+target_link_libraries(eval_cleanup_cov_test PRIVATE cursive0_eval cursive0_analysis)
+copy_icu_dlls_for_test(eval_cleanup_cov_test)
 
-add_test(NAME semantics_cleanup_cov_test COMMAND semantics_cleanup_cov_test)
+add_test(NAME eval_cleanup_cov_test COMMAND eval_cleanup_cov_test)
 
-add_executable(semantics_interpreter_cov_test
-  unit/semantics_interpreter_cov_test.cpp
+add_executable(eval_interpreter_cov_test
+  unit/eval_interpreter_cov_test.cpp
 )
 
-target_link_libraries(semantics_interpreter_cov_test PRIVATE cursive0_interpreter cursive0_sema)
-copy_icu_dlls_for_test(semantics_interpreter_cov_test)
+target_link_libraries(eval_interpreter_cov_test PRIVATE cursive0_interpreter cursive0_analysis)
+copy_icu_dlls_for_test(eval_interpreter_cov_test)
 
-add_test(NAME semantics_interpreter_cov_test COMMAND semantics_interpreter_cov_test)
+add_test(NAME eval_interpreter_cov_test COMMAND eval_interpreter_cov_test)
 
-add_executable(semantics_eval_call_cov_test
-  unit/semantics_eval_call_cov_test.cpp
+add_executable(eval_eval_call_cov_test
+  unit/eval_eval_call_cov_test.cpp
 )
 
-target_link_libraries(semantics_eval_call_cov_test PRIVATE cursive0_semantics cursive0_sema)
-copy_icu_dlls_for_test(semantics_eval_call_cov_test)
+target_link_libraries(eval_eval_call_cov_test PRIVATE cursive0_eval cursive0_analysis)
+copy_icu_dlls_for_test(eval_eval_call_cov_test)
 
-add_test(NAME semantics_eval_call_cov_test COMMAND semantics_eval_call_cov_test)
+add_test(NAME eval_eval_call_cov_test COMMAND eval_eval_call_cov_test)
 
-add_executable(semantics_control_flow_cov_test
-  unit/semantics_control_flow_cov_test.cpp
+add_executable(eval_control_flow_cov_test
+  unit/eval_control_flow_cov_test.cpp
 )
 
-target_link_libraries(semantics_control_flow_cov_test PRIVATE cursive0_semantics cursive0_sema)
-copy_icu_dlls_for_test(semantics_control_flow_cov_test)
+target_link_libraries(eval_control_flow_cov_test PRIVATE cursive0_eval cursive0_analysis)
+copy_icu_dlls_for_test(eval_control_flow_cov_test)
 
-add_test(NAME semantics_control_flow_cov_test COMMAND semantics_control_flow_cov_test)
+add_test(NAME eval_control_flow_cov_test COMMAND eval_control_flow_cov_test)
 
-add_executable(semantics_exec_flow_cov_test
-  unit/semantics_exec_flow_cov_test.cpp
+add_executable(eval_exec_flow_cov_test
+  unit/eval_exec_flow_cov_test.cpp
 )
 
-target_link_libraries(semantics_exec_flow_cov_test PRIVATE cursive0_semantics cursive0_sema)
-copy_icu_dlls_for_test(semantics_exec_flow_cov_test)
+target_link_libraries(eval_exec_flow_cov_test PRIVATE cursive0_eval cursive0_analysis)
+copy_icu_dlls_for_test(eval_exec_flow_cov_test)
 
-add_test(NAME semantics_exec_flow_cov_test COMMAND semantics_exec_flow_cov_test)
+add_test(NAME eval_exec_flow_cov_test COMMAND eval_exec_flow_cov_test)
 
-add_executable(semantics_lookup_cov_test
-  unit/semantics_lookup_cov_test.cpp
+add_executable(eval_lookup_cov_test
+  unit/eval_lookup_cov_test.cpp
 )
 
-target_link_libraries(semantics_lookup_cov_test PRIVATE cursive0_semantics cursive0_sema)
-copy_icu_dlls_for_test(semantics_lookup_cov_test)
+target_link_libraries(eval_lookup_cov_test PRIVATE cursive0_eval cursive0_analysis)
+copy_icu_dlls_for_test(eval_lookup_cov_test)
 
-add_test(NAME semantics_lookup_cov_test COMMAND semantics_lookup_cov_test)
+add_test(NAME eval_lookup_cov_test COMMAND eval_lookup_cov_test)
 
-add_executable(semantics_write_cov_test
-  unit/semantics_write_cov_test.cpp
+add_executable(eval_write_cov_test
+  unit/eval_write_cov_test.cpp
 )
 
-target_link_libraries(semantics_write_cov_test PRIVATE cursive0_semantics cursive0_sema)
-copy_icu_dlls_for_test(semantics_write_cov_test)
+target_link_libraries(eval_write_cov_test PRIVATE cursive0_eval cursive0_analysis)
+copy_icu_dlls_for_test(eval_write_cov_test)
 
-add_test(NAME semantics_write_cov_test COMMAND semantics_write_cov_test)
+add_test(NAME eval_write_cov_test COMMAND eval_write_cov_test)
 
-add_executable(semantics_unwind_cov_test
-  unit/semantics_unwind_cov_test.cpp
+add_executable(eval_unwind_cov_test
+  unit/eval_unwind_cov_test.cpp
 )
 
-target_link_libraries(semantics_unwind_cov_test PRIVATE cursive0_semantics cursive0_sema)
-copy_icu_dlls_for_test(semantics_unwind_cov_test)
+target_link_libraries(eval_unwind_cov_test PRIVATE cursive0_eval cursive0_analysis)
+copy_icu_dlls_for_test(eval_unwind_cov_test)
 
-add_test(NAME semantics_unwind_cov_test COMMAND semantics_unwind_cov_test)
+add_test(NAME eval_unwind_cov_test COMMAND eval_unwind_cov_test)
 
 
-add_executable(semantics_value_test
-  unit/semantics_value_test.cpp
+add_executable(eval_value_test
+  unit/eval_value_test.cpp
 )
 
-target_link_libraries(semantics_value_test PRIVATE cursive0_semantics)
-copy_icu_dlls_for_test(semantics_value_test)
+target_link_libraries(eval_value_test PRIVATE cursive0_eval)
+copy_icu_dlls_for_test(eval_value_test)
 
-add_test(NAME semantics_value_test COMMAND semantics_value_test)
+add_test(NAME eval_value_test COMMAND eval_value_test)
 
-add_executable(semantics_init_test
-  unit/semantics_init_test.cpp
+add_executable(eval_init_test
+  unit/eval_init_test.cpp
 )
 
-target_link_libraries(semantics_init_test PRIVATE cursive0_semantics cursive0_sema)
-copy_icu_dlls_for_test(semantics_init_test)
+target_link_libraries(eval_init_test PRIVATE cursive0_eval cursive0_analysis)
+copy_icu_dlls_for_test(eval_init_test)
 
-add_test(NAME semantics_init_test COMMAND semantics_init_test)
+add_test(NAME eval_init_test COMMAND eval_init_test)
 
-add_executable(semantics_builtins_test
-  unit/semantics_builtins_test.cpp
+add_executable(eval_builtins_test
+  unit/eval_builtins_test.cpp
 )
 
-target_link_libraries(semantics_builtins_test PRIVATE cursive0_semantics)
-copy_icu_dlls_for_test(semantics_builtins_test)
+target_link_libraries(eval_builtins_test PRIVATE cursive0_eval)
+copy_icu_dlls_for_test(eval_builtins_test)
 
-add_test(NAME semantics_builtins_test COMMAND semantics_builtins_test)
+add_test(NAME eval_builtins_test COMMAND eval_builtins_test)
 
-add_executable(semantics_interpreter_test
-  unit/semantics_interpreter_test.cpp
+add_executable(eval_interpreter_test
+  unit/eval_interpreter_test.cpp
 )
 
-target_link_libraries(semantics_interpreter_test PRIVATE cursive0_interpreter cursive0_sema)
-copy_icu_dlls_for_test(semantics_interpreter_test)
+target_link_libraries(eval_interpreter_test PRIVATE cursive0_interpreter cursive0_analysis)
+copy_icu_dlls_for_test(eval_interpreter_test)
 
-add_test(NAME semantics_interpreter_test COMMAND semantics_interpreter_test)
+add_test(NAME eval_interpreter_test COMMAND eval_interpreter_test)

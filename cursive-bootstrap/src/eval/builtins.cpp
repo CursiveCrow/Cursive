@@ -1,4 +1,4 @@
-#include "cursive0/semantics/builtins.h"
+#include "cursive0/eval/builtins.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -12,17 +12,17 @@
 #include "cursive0/core/int128.h"
 #include "cursive0/core/path.h"
 #include "cursive0/core/unicode.h"
-#include "cursive0/sema/scopes.h"
-#include "cursive0/sema/string_bytes.h"
-#include "cursive0/sema/types.h"
-#include "cursive0/semantics/eval.h"
-#include "cursive0/semantics/state.h"
+#include "cursive0/analysis/resolve/scopes.h"
+#include "cursive0/analysis/memory/string_bytes.h"
+#include "cursive0/analysis/types/types.h"
+#include "cursive0/eval/eval.h"
+#include "cursive0/eval/state.h"
 
-namespace cursive0::semantics {
+namespace cursive0::eval {
 
 namespace {
 
-bool PathEq(const sema::TypePath& path, std::initializer_list<std::string_view> parts) {
+bool PathEq(const analysis::TypePath& path, std::initializer_list<std::string_view> parts) {
   if (path.size() != parts.size()) {
     return false;
   }
@@ -91,7 +91,7 @@ void RemoveRegionEntries(Sigma& sigma, RegionTarget target) {
               stack.end());
 }
 
-Value UnionWrap(const sema::TypeRef& member, Value value) {
+Value UnionWrap(const analysis::TypeRef& member, Value value) {
   UnionVal uni;
   uni.member = member;
   uni.value = std::make_shared<Value>(std::move(value));
@@ -106,18 +106,18 @@ Value IoFailureUnion() {
   EnumVal err;
   err.path = {"IoError", "IoFailure"};
   Value err_val{err};
-  return UnionWrap(sema::MakeTypePath({"IoError"}), std::move(err_val));
+  return UnionWrap(analysis::MakeTypePath({"IoError"}), std::move(err_val));
 }
 
 Value FileClosedValue() {
   RecordVal rec;
-  rec.record_type = sema::MakeTypeModalState({"File"}, "Closed");
+  rec.record_type = analysis::MakeTypeModalState({"File"}, "Closed");
   return Value{rec};
 }
 
 Value DirIterClosedValue() {
   RecordVal rec;
-  rec.record_type = sema::MakeTypeModalState({"DirIter"}, "Closed");
+  rec.record_type = analysis::MakeTypeModalState({"DirIter"}, "Closed");
   return Value{rec};
 }
 
@@ -126,7 +126,7 @@ std::optional<std::string_view> ModalStateOf(const Value& value) {
   if (!rec || !rec->record_type) {
     return std::nullopt;
   }
-  const auto* modal = std::get_if<sema::TypeModalState>(&rec->record_type->node);
+  const auto* modal = std::get_if<analysis::TypeModalState>(&rec->record_type->node);
   if (!modal) {
     return std::nullopt;
   }
@@ -147,7 +147,7 @@ IntVal USizeVal(std::uint64_t value) {
 
 Value RegionValue(std::string_view state, RegionTarget handle) {
   RecordVal rec;
-  rec.record_type = sema::MakeTypeModalState({"Region"}, std::string(state));
+  rec.record_type = analysis::MakeTypeModalState({"Region"}, std::string(state));
   rec.fields = {{"handle", Value{USizeVal(handle)}}};
   return Value{rec};
 }
@@ -162,7 +162,7 @@ Value AllocErrorValue(std::uint64_t size) {
 }
 
 Value AllocErrorUnion(std::uint64_t size) {
-  return UnionWrap(sema::MakeTypePath({"AllocationError"}),
+  return UnionWrap(analysis::MakeTypePath({"AllocationError"}),
                    AllocErrorValue(size));
 }
 
@@ -212,7 +212,7 @@ std::optional<std::vector<std::uint8_t>> BytesBytesOf(const Value& value) {
 
 std::optional<std::uint8_t> U8OfValue(const Value& value) {
   const auto* int_val = std::get_if<IntVal>(&value.node);
-  if (!int_val || int_val->negative || !sema::IdEq(int_val->type, "u8")) {
+  if (!int_val || int_val->negative || !analysis::IdEq(int_val->type, "u8")) {
     return std::nullopt;
   }
   if (!core::UInt128FitsU64(int_val->magnitude)) {
@@ -227,7 +227,7 @@ std::optional<std::uint8_t> U8OfValue(const Value& value) {
 
 std::optional<std::uint64_t> USizeOfValue(const Value& value) {
   const auto* int_val = std::get_if<IntVal>(&value.node);
-  if (!int_val || int_val->negative || !sema::IdEq(int_val->type, "usize")) {
+  if (!int_val || int_val->negative || !analysis::IdEq(int_val->type, "usize")) {
     return std::nullopt;
   }
   if (!core::UInt128FitsU64(int_val->magnitude)) {
@@ -368,7 +368,7 @@ Value IoErrorUnion(IoErrorKind kind) {
   EnumVal err;
   err.path = {"IoError", std::string(IoErrorName(kind))};
   Value err_val{err};
-  return UnionWrap(sema::MakeTypePath({"IoError"}), std::move(err_val));
+  return UnionWrap(analysis::MakeTypePath({"IoError"}), std::move(err_val));
 }
 
 Value FileKindValue(FsEntryKind kind) {
@@ -389,35 +389,35 @@ Value FileKindValue(FsEntryKind kind) {
 
 Value StringManagedValue(const std::vector<std::uint8_t>& bytes) {
   StringVal out;
-  out.state = sema::StringState::Managed;
+  out.state = analysis::StringState::Managed;
   out.bytes = bytes;
   return Value{out};
 }
 
 Value BytesManagedValue(const std::vector<std::uint8_t>& bytes) {
   BytesVal out;
-  out.state = sema::BytesState::Managed;
+  out.state = analysis::BytesState::Managed;
   out.bytes = bytes;
   return Value{out};
 }
 
 Value StringUnionManaged(const std::vector<std::uint8_t>& bytes) {
-  return UnionWrap(sema::MakeTypeString(sema::StringState::Managed),
+  return UnionWrap(analysis::MakeTypeString(analysis::StringState::Managed),
                    StringManagedValue(bytes));
 }
 
 Value BytesUnionManaged(const std::vector<std::uint8_t>& bytes) {
-  return UnionWrap(sema::MakeTypeBytes(sema::BytesState::Managed),
+  return UnionWrap(analysis::MakeTypeBytes(analysis::BytesState::Managed),
                    BytesManagedValue(bytes));
 }
 
 Value UnitUnionValue() {
-  return UnionWrap(sema::MakeTypePrim("()"), UnitValue());
+  return UnionWrap(analysis::MakeTypePrim("()"), UnitValue());
 }
 
 Value FileUnionValue(std::string_view state, std::uint64_t handle) {
-  auto base = sema::MakeTypeModalState({"File"}, std::string(state));
-  auto type = sema::MakeTypePerm(sema::Permission::Unique, base);
+  auto base = analysis::MakeTypeModalState({"File"}, std::string(state));
+  auto type = analysis::MakeTypePerm(analysis::Permission::Unique, base);
   RecordVal rec;
   rec.record_type = base;
   rec.fields = {{"handle", Value{USizeVal(handle)}}};
@@ -425,8 +425,8 @@ Value FileUnionValue(std::string_view state, std::uint64_t handle) {
 }
 
 Value DirIterUnionValue(std::uint64_t handle) {
-  auto base = sema::MakeTypeModalState({"DirIter"}, "Open");
-  auto type = sema::MakeTypePerm(sema::Permission::Unique, base);
+  auto base = analysis::MakeTypeModalState({"DirIter"}, "Open");
+  auto type = analysis::MakeTypePerm(analysis::Permission::Unique, base);
   RecordVal rec;
   rec.record_type = base;
   rec.fields = {{"handle", Value{USizeVal(handle)}}};
@@ -437,7 +437,7 @@ Value DirEntryValue(const std::string& name,
                     const std::string& path,
                     FsEntryKind kind) {
   RecordVal rec;
-  rec.record_type = sema::MakeTypePath({"DirEntry"});
+  rec.record_type = analysis::MakeTypePath({"DirEntry"});
   rec.fields = {
       {"name", StringManagedValue(std::vector<std::uint8_t>(name.begin(), name.end()))},
       {"path", StringManagedValue(std::vector<std::uint8_t>(path.begin(), path.end()))},
@@ -449,7 +449,7 @@ Value DirEntryValue(const std::string& name,
 Value DirEntryUnionValue(const std::string& name,
                          const std::string& path,
                          FsEntryKind kind) {
-  return UnionWrap(sema::MakeTypePath({"DirEntry"}),
+  return UnionWrap(analysis::MakeTypePath({"DirEntry"}),
                    DirEntryValue(name, path, kind));
 }
 
@@ -458,8 +458,8 @@ std::optional<std::string> StringViewPath(const Value& value) {
   if (!str) {
     return std::nullopt;
   }
-  if (str->state != sema::StringState::View &&
-      str->state != sema::StringState::Managed) {
+  if (str->state != analysis::StringState::View &&
+      str->state != analysis::StringState::Managed) {
     return std::nullopt;
   }
   return std::string(str->bytes.begin(), str->bytes.end());
@@ -470,8 +470,8 @@ std::optional<std::vector<std::uint8_t>> BytesViewData(const Value& value) {
   if (!bytes) {
     return std::nullopt;
   }
-  if (bytes->state != sema::BytesState::View &&
-      bytes->state != sema::BytesState::Managed) {
+  if (bytes->state != analysis::BytesState::View &&
+      bytes->state != analysis::BytesState::Managed) {
     return std::nullopt;
   }
   return bytes->bytes;
@@ -755,7 +755,7 @@ std::optional<std::uint64_t> RecordHandleOf(const Value& value) {
     return std::nullopt;
   }
   for (const auto& [name, field_value] : rec->fields) {
-    if (sema::IdEq(name, "handle")) {
+    if (analysis::IdEq(name, "handle")) {
       return USizeOfValue(field_value);
     }
   }
@@ -880,7 +880,7 @@ bool IsRegionProcName(std::string_view name) {
          name == "thaw" || name == "free_unchecked";
 }
 
-std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
+std::optional<Value> BuiltinCall(const analysis::TypePath& module_path,
                                  std::string_view name,
                                  const std::vector<BindingValue>& args,
                                  Sigma& sigma) {
@@ -995,7 +995,7 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
     return std::nullopt;
   }
   if (PathEq(module_path, {"string"})) {
-    if (!sema::IsStringBuiltinName(name)) {
+    if (!analysis::IsStringBuiltinName(name)) {
       return std::nullopt;
     }
     if (name == "from") {
@@ -1008,7 +1008,7 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return std::nullopt;
       }
       const auto* source = std::get_if<StringVal>(&source_val->node);
-      if (!source || source->state != sema::StringState::View) {
+      if (!source || source->state != analysis::StringState::View) {
         return std::nullopt;
       }
       if (!HeapValid(*heap_val, sigma)) {
@@ -1016,10 +1016,10 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return AllocErrorUnion(static_cast<std::uint64_t>(source->bytes.size()));
       }
       StringVal out;
-      out.state = sema::StringState::Managed;
+      out.state = analysis::StringState::Managed;
       out.bytes = source->bytes;
       SPEC_RULE("StringFrom-Ok");
-      return UnionWrap(sema::MakeTypeString(sema::StringState::Managed), Value{out});
+      return UnionWrap(analysis::MakeTypeString(analysis::StringState::Managed), Value{out});
     }
     if (name == "as_view") {
       if (args.size() != 1) {
@@ -1030,11 +1030,11 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return std::nullopt;
       }
       const auto* self = std::get_if<StringVal>(&self_val->node);
-      if (!self || self->state != sema::StringState::Managed) {
+      if (!self || self->state != analysis::StringState::Managed) {
         return std::nullopt;
       }
       StringVal out;
-      out.state = sema::StringState::View;
+      out.state = analysis::StringState::View;
       out.bytes = self->bytes;
       SPEC_RULE("StringAsView-Ok");
       return Value{out};
@@ -1049,7 +1049,7 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return std::nullopt;
       }
       const auto* self = std::get_if<StringVal>(&self_val->node);
-      if (!self || self->state != sema::StringState::View) {
+      if (!self || self->state != analysis::StringState::View) {
         return std::nullopt;
       }
       if (!HeapValid(*heap_val, sigma)) {
@@ -1057,10 +1057,10 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return AllocErrorUnion(static_cast<std::uint64_t>(self->bytes.size()));
       }
       StringVal out;
-      out.state = sema::StringState::Managed;
+      out.state = analysis::StringState::Managed;
       out.bytes = self->bytes;
       SPEC_RULE("StringToManaged-Ok");
-      return UnionWrap(sema::MakeTypeString(sema::StringState::Managed), Value{out});
+      return UnionWrap(analysis::MakeTypeString(analysis::StringState::Managed), Value{out});
     }
     if (name == "clone_with") {
       if (args.size() != 2) {
@@ -1072,7 +1072,7 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return std::nullopt;
       }
       const auto* self = std::get_if<StringVal>(&self_val->node);
-      if (!self || self->state != sema::StringState::Managed) {
+      if (!self || self->state != analysis::StringState::Managed) {
         return std::nullopt;
       }
       if (!HeapValid(*heap_val, sigma)) {
@@ -1080,10 +1080,10 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return AllocErrorUnion(static_cast<std::uint64_t>(self->bytes.size()));
       }
       StringVal out;
-      out.state = sema::StringState::Managed;
+      out.state = analysis::StringState::Managed;
       out.bytes = self->bytes;
       SPEC_RULE("StringCloneWith-Ok");
-      return UnionWrap(sema::MakeTypeString(sema::StringState::Managed), Value{out});
+      return UnionWrap(analysis::MakeTypeString(analysis::StringState::Managed), Value{out});
     }
     if (name == "append") {
       if (args.size() != 3) {
@@ -1097,8 +1097,8 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
       }
       const auto* self = std::get_if<StringVal>(&self_val->node);
       const auto* data = std::get_if<StringVal>(&data_val->node);
-      if (!self || self->state != sema::StringState::Managed || !data ||
-          data->state != sema::StringState::View) {
+      if (!self || self->state != analysis::StringState::Managed || !data ||
+          data->state != analysis::StringState::View) {
         return std::nullopt;
       }
       if (!HeapValid(*heap_val, sigma)) {
@@ -1110,14 +1110,14 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return std::nullopt;
       }
       StringVal updated;
-      updated.state = sema::StringState::Managed;
+      updated.state = analysis::StringState::Managed;
       updated.bytes = self->bytes;
       updated.bytes.insert(updated.bytes.end(), data->bytes.begin(), data->bytes.end());
       if (!WriteAddr(sigma, *addr, Value{updated})) {
         return std::nullopt;
       }
       SPEC_RULE("StringAppend-Ok");
-      return UnionWrap(sema::MakeTypePrim("()"), UnitValue());
+      return UnionWrap(analysis::MakeTypePrim("()"), UnitValue());
     }
     if (name == "length") {
       if (args.size() != 1) {
@@ -1128,7 +1128,7 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return std::nullopt;
       }
       const auto* self = std::get_if<StringVal>(&self_val->node);
-      if (!self || self->state != sema::StringState::View) {
+      if (!self || self->state != analysis::StringState::View) {
         return std::nullopt;
       }
       IntVal len = USizeVal(static_cast<std::uint64_t>(self->bytes.size()));
@@ -1144,7 +1144,7 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return std::nullopt;
       }
       const auto* self = std::get_if<StringVal>(&self_val->node);
-      if (!self || self->state != sema::StringState::View) {
+      if (!self || self->state != analysis::StringState::View) {
         return std::nullopt;
       }
       BoolVal out;
@@ -1155,7 +1155,7 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
   }
 
   if (PathEq(module_path, {"bytes"})) {
-    if (!sema::IsBytesBuiltinName(name)) {
+    if (!analysis::IsBytesBuiltinName(name)) {
       return std::nullopt;
     }
     if (name == "with_capacity") {
@@ -1168,7 +1168,7 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return std::nullopt;
       }
       const auto* cap = std::get_if<IntVal>(&cap_val->node);
-      if (!cap || cap->negative || !sema::IdEq(cap->type, "usize") ||
+      if (!cap || cap->negative || !analysis::IdEq(cap->type, "usize") ||
           !core::UInt128FitsU64(cap->magnitude)) {
         return std::nullopt;
       }
@@ -1178,11 +1178,11 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return AllocErrorUnion(cap_size);
       }
       BytesVal out;
-      out.state = sema::BytesState::Managed;
+      out.state = analysis::BytesState::Managed;
       out.bytes.clear();
       out.bytes.reserve(static_cast<std::size_t>(cap_size));
       SPEC_RULE("BytesWithCapacity-Ok");
-      return UnionWrap(sema::MakeTypeBytes(sema::BytesState::Managed), Value{out});
+      return UnionWrap(analysis::MakeTypeBytes(analysis::BytesState::Managed), Value{out});
     }
     if (name == "from_slice") {
       if (args.size() != 2) {
@@ -1202,10 +1202,10 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return AllocErrorUnion(static_cast<std::uint64_t>(bytes->size()));
       }
       BytesVal out;
-      out.state = sema::BytesState::Managed;
+      out.state = analysis::BytesState::Managed;
       out.bytes = *bytes;
       SPEC_RULE("BytesFromSlice-Ok");
-      return UnionWrap(sema::MakeTypeBytes(sema::BytesState::Managed), Value{out});
+      return UnionWrap(analysis::MakeTypeBytes(analysis::BytesState::Managed), Value{out});
     }
     if (name == "as_view") {
       if (args.size() != 1) {
@@ -1216,11 +1216,11 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return std::nullopt;
       }
       const auto* self = std::get_if<BytesVal>(&self_val->node);
-      if (!self || self->state != sema::BytesState::Managed) {
+      if (!self || self->state != analysis::BytesState::Managed) {
         return std::nullopt;
       }
       BytesVal out;
-      out.state = sema::BytesState::View;
+      out.state = analysis::BytesState::View;
       out.bytes = self->bytes;
       SPEC_RULE("BytesAsView-Ok");
       return Value{out};
@@ -1235,7 +1235,7 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return std::nullopt;
       }
       const auto* self = std::get_if<BytesVal>(&self_val->node);
-      if (!self || self->state != sema::BytesState::View) {
+      if (!self || self->state != analysis::BytesState::View) {
         return std::nullopt;
       }
       if (!HeapValid(*heap_val, sigma)) {
@@ -1243,10 +1243,10 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return AllocErrorUnion(static_cast<std::uint64_t>(self->bytes.size()));
       }
       BytesVal out;
-      out.state = sema::BytesState::Managed;
+      out.state = analysis::BytesState::Managed;
       out.bytes = self->bytes;
       SPEC_RULE("BytesToManaged-Ok");
-      return UnionWrap(sema::MakeTypeBytes(sema::BytesState::Managed), Value{out});
+      return UnionWrap(analysis::MakeTypeBytes(analysis::BytesState::Managed), Value{out});
     }
     if (name == "view") {
       if (args.size() != 1) {
@@ -1261,7 +1261,7 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return std::nullopt;
       }
       BytesVal out;
-      out.state = sema::BytesState::View;
+      out.state = analysis::BytesState::View;
       out.bytes = *bytes;
       SPEC_RULE("BytesView-Ok");
       return Value{out};
@@ -1275,11 +1275,11 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return std::nullopt;
       }
       const auto* data = std::get_if<StringVal>(&data_val->node);
-      if (!data || data->state != sema::StringState::View) {
+      if (!data || data->state != analysis::StringState::View) {
         return std::nullopt;
       }
       BytesVal out;
-      out.state = sema::BytesState::View;
+      out.state = analysis::BytesState::View;
       out.bytes = data->bytes;
       SPEC_RULE("BytesViewString-Ok");
       return Value{out};
@@ -1296,8 +1296,8 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
       }
       const auto* self = std::get_if<BytesVal>(&self_val->node);
       const auto* data = std::get_if<BytesVal>(&data_val->node);
-      if (!self || self->state != sema::BytesState::Managed || !data ||
-          data->state != sema::BytesState::View) {
+      if (!self || self->state != analysis::BytesState::Managed || !data ||
+          data->state != analysis::BytesState::View) {
         return std::nullopt;
       }
       if (!HeapValid(*heap_val, sigma)) {
@@ -1309,14 +1309,14 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return std::nullopt;
       }
       BytesVal updated;
-      updated.state = sema::BytesState::Managed;
+      updated.state = analysis::BytesState::Managed;
       updated.bytes = self->bytes;
       updated.bytes.insert(updated.bytes.end(), data->bytes.begin(), data->bytes.end());
       if (!WriteAddr(sigma, *addr, Value{updated})) {
         return std::nullopt;
       }
       SPEC_RULE("BytesAppend-Ok");
-      return UnionWrap(sema::MakeTypePrim("()"), UnitValue());
+      return UnionWrap(analysis::MakeTypePrim("()"), UnitValue());
     }
     if (name == "length") {
       if (args.size() != 1) {
@@ -1327,7 +1327,7 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return std::nullopt;
       }
       const auto* self = std::get_if<BytesVal>(&self_val->node);
-      if (!self || self->state != sema::BytesState::View) {
+      if (!self || self->state != analysis::BytesState::View) {
         return std::nullopt;
       }
       IntVal len = USizeVal(static_cast<std::uint64_t>(self->bytes.size()));
@@ -1343,7 +1343,7 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
         return std::nullopt;
       }
       const auto* self = std::get_if<BytesVal>(&self_val->node);
-      if (!self || self->state != sema::BytesState::View) {
+      if (!self || self->state != analysis::BytesState::View) {
         return std::nullopt;
       }
       BoolVal out;
@@ -1356,7 +1356,7 @@ std::optional<Value> BuiltinCall(const sema::TypePath& module_path,
   return std::nullopt;
 }
 
-std::optional<Value> PrimCall(const sema::TypePath& owner,
+std::optional<Value> PrimCall(const analysis::TypePath& owner,
                               std::string_view name,
                               const Value& self,
                               const std::vector<Value>& args,
@@ -1420,7 +1420,7 @@ std::optional<Value> PrimCall(const sema::TypePath& owner,
       }
       sigma.fs_handles[addr] = FileSystemHandle{*fs_addr, *base};
       RawPtrVal raw;
-      raw.qual = sema::RawPtrQual::Imm;
+      raw.qual = analysis::RawPtrQual::Imm;
       raw.addr = addr;
       DynamicVal dyn;
       dyn.class_path = {"FileSystem"};
@@ -1802,7 +1802,7 @@ std::optional<Value> PrimCall(const sema::TypePath& owner,
       }
       const FsEntryKind kind = EntryKindOf(sigma.fs_state, resolved->path);
       SPEC_RULE("Prim-FS-Kind");
-      return UnionWrap(sema::MakeTypePath({"FileKind"}), FileKindValue(kind));
+      return UnionWrap(analysis::MakeTypePath({"FileKind"}), FileKindValue(kind));
     }
     return IoErrorUnion(IoErrorKind::IoFailure);
   }
@@ -1957,7 +1957,7 @@ std::optional<Value> PrimCall(const sema::TypePath& owner,
       const Addr addr = AllocAddr(sigma);
       WriteAddr(sigma, addr, Value{UnitVal{}});
       RawPtrVal raw;
-      raw.qual = sema::RawPtrQual::Mut;
+      raw.qual = analysis::RawPtrQual::Mut;
       raw.addr = addr;
       return Value{raw};
     }
@@ -1984,7 +1984,7 @@ std::optional<Value> PrimCall(const sema::TypePath& owner,
       if (args.size() != 1) {
         return std::nullopt;
       }
-      return UnionWrap(sema::MakeTypePrim("()"), UnitValue());
+      return UnionWrap(analysis::MakeTypePrim("()"), UnitValue());
     }
     if (name == "exit") {
       if (args.size() != 1) {
@@ -2000,4 +2000,4 @@ std::optional<Value> PrimCall(const sema::TypePath& owner,
 }
 
 
-}  // namespace cursive0::semantics
+}  // namespace cursive0::eval

@@ -8,8 +8,8 @@
 #include <vector>
 
 #include "cursive0/codegen/ir_model.h"
-#include "cursive0/codegen/lower_expr.h"
-#include "cursive0/sema/types.h"
+#include "cursive0/codegen/lower/lower_expr.h"
+#include "cursive0/analysis/types/types.h"
 #include "cursive0/syntax/ast.h"
 
 namespace cursive0::codegen {
@@ -36,7 +36,7 @@ std::optional<std::string> StaticName(const syntax::Binding& binding);
 std::vector<std::string> StaticBindList(const syntax::Binding& binding);
 
 // StaticBindTypes(binding) - Map bound names to their types
-std::vector<std::pair<std::string, sema::TypeRef>> StaticBindTypes(
+std::vector<std::pair<std::string, analysis::TypeRef>> StaticBindTypes(
     const syntax::Binding& binding,
     const syntax::ModulePath& module_path,
     LowerCtx& ctx);

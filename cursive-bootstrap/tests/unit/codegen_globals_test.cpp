@@ -7,12 +7,12 @@
 #include <utility>
 #include <vector>
 
-#include "cursive0/codegen/llvm_emit.h"
+#include "cursive0/codegen/llvm/llvm_emit.h"
 #include "cursive0/codegen/mangle.h"
 #include "cursive0/codegen/globals.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/core/symbols.h"
-#include "cursive0/sema/types.h"
+#include "cursive0/analysis/types/types.h"
 #include "cursive0/syntax/ast.h"
 #include "cursive0/syntax/token.h"
 #include "llvm/IR/LLVMContext.h"
@@ -30,7 +30,7 @@ using cursive0::codegen::LLVMEmitter;
 using cursive0::codegen::MangleLiteral;
 using cursive0::core::Mangle;
 using cursive0::core::StringOfPath;
-using cursive0::sema::MakeTypePrim;
+using cursive0::analysis::MakeTypePrim;
 using cursive0::syntax::Binding;
 using cursive0::syntax::BinaryExpr;
 using cursive0::syntax::Expr;
@@ -151,7 +151,7 @@ int main() {
   SPEC_COV("Deinit-Ok");
   SPEC_COV("Deinit-Panic");
 
-  cursive0::sema::Sigma sigma;
+  cursive0::analysis::Sigma sigma;
   LowerCtx ctx;
   ctx.sigma = &sigma;
 

@@ -12,9 +12,9 @@
 #include <vector>
 
 #include "cursive0/core/assert_spec.h"
-#include "cursive0/sema/scopes_lookup.h"
-#include "cursive0/semantics/address.h"
-#include "cursive0/semantics/value.h"
+#include "cursive0/analysis/resolve/scopes_lookup.h"
+#include "cursive0/eval/address.h"
+#include "cursive0/eval/value.h"
 
 namespace cursive0 {
 namespace syntax {
@@ -22,7 +22,7 @@ struct Block;
 }  // namespace syntax
 }  // namespace cursive0
 
-namespace cursive0::semantics {
+namespace cursive0::eval {
 
 using ScopeId = std::uint64_t;
 using BindId = std::uint64_t;
@@ -114,7 +114,7 @@ struct DropBinding {
 };
 
 struct DropStatic {
-  sema::PathKey path;
+  analysis::PathKey path;
   std::string name;
 };
 
@@ -227,7 +227,7 @@ struct FileSystemHandle {
 };
 
 struct TempValue {
-  sema::TypeRef type;
+  analysis::TypeRef type;
   Value value;
 };
 
@@ -251,10 +251,10 @@ struct AddrView {
 };
 
 struct SemanticsContext {
-  const sema::ScopeContext* sema = nullptr;
-  const sema::NameMapTable* name_maps = nullptr;
-  const sema::ModuleNames* module_names = nullptr;
-  sema::TypeRef ret_type = nullptr;
+  const analysis::ScopeContext* sema = nullptr;
+  const analysis::NameMapTable* name_maps = nullptr;
+  const analysis::ModuleNames* module_names = nullptr;
+  analysis::TypeRef ret_type = nullptr;
   TempContext* temp_ctx = nullptr;
 };
 
@@ -267,8 +267,8 @@ struct Sigma {
   FsState fs_state;
   std::map<Addr, FileSystemHandle> fs_handles;
   std::map<Addr, Binding> binding_by_addr;
-  std::map<std::pair<sema::PathKey, std::string>, Addr> static_addrs;
-  std::map<sema::PathKey, Addr> poison_flags;
+  std::map<std::pair<analysis::PathKey, std::string>, Addr> static_addrs;
+  std::map<analysis::PathKey, Addr> poison_flags;
   std::string stdout_buffer;
   std::string stderr_buffer;
   std::optional<std::uint32_t> panic_code;
@@ -311,7 +311,7 @@ std::optional<Value> LookupVal(const SemanticsContext& ctx,
                                std::string_view name);
 std::optional<Value> LookupValPath(const SemanticsContext& ctx,
                                    const Sigma& sigma,
-                                   const sema::PathKey& path,
+                                   const analysis::PathKey& path,
                                    std::string_view name);
 
 std::optional<Value> BindingValueOf(const Sigma& sigma,
@@ -340,7 +340,7 @@ bool BindVal(Sigma& sigma,
 std::optional<RuntimeTag> AddrTag(const Sigma& sigma, Addr addr);
 bool TagActive(const Sigma& sigma, const RuntimeTag& tag);
 
-bool PoisonedModule(const Sigma& sigma, const sema::PathKey& path);
-std::set<sema::PathKey> PoisonedModules(const Sigma& sigma);
+bool PoisonedModule(const Sigma& sigma, const analysis::PathKey& path);
+std::set<analysis::PathKey> PoisonedModules(const Sigma& sigma);
 
-}  // namespace cursive0::semantics
+}  // namespace cursive0::eval

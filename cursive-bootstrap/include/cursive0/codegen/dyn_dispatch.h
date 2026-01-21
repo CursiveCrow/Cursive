@@ -6,9 +6,9 @@
 #include <vector>
 
 #include "cursive0/codegen/ir_model.h"
-#include "cursive0/codegen/lower_expr.h"
+#include "cursive0/codegen/lower/lower_expr.h"
 #include "cursive0/codegen/cleanup.h"
-#include "cursive0/sema/types.h"
+#include "cursive0/analysis/types/types.h"
 #include "cursive0/syntax/ast.h"
 
 namespace cursive0::codegen {
@@ -39,8 +39,8 @@ bool IsVTableEligible(const syntax::ClassMethodDecl& method);
 // (DispatchSym-Impl): Type implements method → use type's method symbol
 // (DispatchSym-Default-None): No implementation → use default impl symbol
 // (DispatchSym-Default-Mismatch): Signature mismatch → use default impl symbol
-std::string DispatchSym(const sema::TypeRef& type,
-                        const sema::TypePath& class_path,
+std::string DispatchSym(const analysis::TypeRef& type,
+                        const analysis::TypePath& class_path,
                         const std::string& method_name,
                         const syntax::ClassDecl& class_decl,
                         LowerCtx& ctx);
@@ -62,14 +62,14 @@ struct VTableInfo {
 // VTableEligible(Cl) = [m_1,...,m_k]
 // ∀i, DispatchSym(T, Cl, m_i.name) = sym_i
 // VTable(T, Cl) ⇓ [sym_1,...,sym_k]
-VTableInfo VTable(const sema::TypeRef& type,
-                  const sema::TypePath& class_path,
+VTableInfo VTable(const analysis::TypeRef& type,
+                  const analysis::TypePath& class_path,
                   const syntax::ClassDecl& class_decl,
                   LowerCtx& ctx);
 
 // Generate the vtable IR declaration
-GlobalVTable EmitVTable(const sema::TypeRef& type,
-                        const sema::TypePath& class_path,
+GlobalVTable EmitVTable(const analysis::TypeRef& type,
+                        const analysis::TypePath& class_path,
                         const syntax::ClassDecl& class_decl,
                         LowerCtx& ctx);
 
@@ -101,9 +101,9 @@ struct DynPackResult {
 // T_e = ExprType(e), T = StripPerm(T_e)
 // T <: Cl
 // DynPack(T, e) ⇓ ⟨RawPtr(imm, addr), VTable(T, Cl)⟩
-DynPackResult DynPack(const sema::TypeRef& type,
+DynPackResult DynPack(const analysis::TypeRef& type,
                       const syntax::Expr& expr,
-                      const sema::TypePath& class_path,
+                      const analysis::TypePath& class_path,
                       const syntax::ClassDecl& class_decl,
                       LowerCtx& ctx);
 

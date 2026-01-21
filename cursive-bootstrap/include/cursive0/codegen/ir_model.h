@@ -8,7 +8,7 @@
 #include <variant>
 #include <vector>
 
-#include "cursive0/sema/types.h"
+#include "cursive0/analysis/types/types.h"
 #include "cursive0/syntax/ast.h"
 
 namespace cursive0::codegen {
@@ -75,7 +75,7 @@ struct IRReadPath {
 struct IRBindVar {
   std::string name;
   IRValue value;
-  sema::TypeRef type;
+  analysis::TypeRef type;
 };
 
 struct IRStoreVar {
@@ -126,14 +126,14 @@ struct IRBinaryOp {
 };
 
 struct IRCast {
-  sema::TypeRef target;
+  analysis::TypeRef target;
   IRValue value;
   IRValue result;
 };
 
 struct IRTransmute {
-  sema::TypeRef from;
-  sema::TypeRef to;
+  analysis::TypeRef from;
+  analysis::TypeRef to;
   IRValue value;
   IRValue result;
 };
@@ -162,7 +162,7 @@ struct IRCheckOp {
 };
 
 struct IRCheckCast {
-  sema::TypeRef target;
+  analysis::TypeRef target;
   IRValue value;
 };
 
@@ -236,7 +236,7 @@ struct IRMatchArm {
 
 struct IRMatch {
   IRValue scrutinee;
-  sema::TypeRef scrutinee_type;
+  analysis::TypeRef scrutinee_type;
   std::vector<IRMatchArm> arms;
   IRValue result;
 };
@@ -266,7 +266,7 @@ struct IRIncoming {
 };
 
 struct IRPhi {
-  cursive0::sema::TypeRef type;
+  cursive0::analysis::TypeRef type;
   std::vector<IRIncoming> incoming;
   IRValue value;
 };
@@ -343,15 +343,15 @@ struct IR {
 };
 
 struct IRParam {
-  std::optional<cursive0::sema::ParamMode> mode;
+  std::optional<cursive0::analysis::ParamMode> mode;
   std::string name;
-  cursive0::sema::TypeRef type;
+  cursive0::analysis::TypeRef type;
 };
 
 struct ProcIR {
   std::string symbol;
   std::vector<IRParam> params;
-  cursive0::sema::TypeRef ret;
+  cursive0::analysis::TypeRef ret;
   IRPtr body;
 };
 

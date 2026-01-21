@@ -17,7 +17,6 @@ proc @demo_x3a_x3aMachine_x3a_x3aIdle_x3a_x3astatus {
 proc @demo_x3a_x3aMachine_x3a_x3aIdle_x3a_x3astay {
   block seq {
     nop
-    panic_check
     seq {
       clear_panic
       call @cursive_x3a_x3aruntime_x3a_x3adrop_x3a_x3ademo_x3a_x3aMachine_x3a_x3aIdle (%self, %__panic)

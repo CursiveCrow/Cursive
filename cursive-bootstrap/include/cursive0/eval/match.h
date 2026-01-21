@@ -5,10 +5,10 @@
 #include <string>
 #include <vector>
 
-#include "cursive0/semantics/state.h"
+#include "cursive0/eval/state.h"
 #include "cursive0/syntax/ast.h"
 
-namespace cursive0::semantics {
+namespace cursive0::eval {
 
 using BindEnv = std::map<std::string, Value>;
 
@@ -24,4 +24,4 @@ std::optional<BindEnv> MatchModal(const SemanticsContext& ctx,
                                   const syntax::ModalPattern& pattern,
                                   const Value& value);
 
-}  // namespace cursive0::semantics
+}  // namespace cursive0::eval

@@ -28,28 +28,25 @@ proc @demo_x3a_x3amain {
       seq {
         seq {
           seq {
-            seq {
-              read @demo::trace
-              addr_of a
-              call @trace (addr_of, %__panic)
-              panic_check
-            }
-            seq {
-              read @demo::trace
-              addr_of b
-              call @trace (addr_of, %__panic)
-              panic_check
-            }
-            seq {
-              read @demo::trace
-              addr_of c
-              call @trace (addr_of, %__panic)
-              panic_check
-            }
+            read @demo::trace
+            addr_of a
+            call @trace (addr_of, %__panic)
+            panic_check
           }
-          bind %_t = tuple
+          seq {
+            read @demo::trace
+            addr_of b
+            call @trace (addr_of, %__panic)
+            panic_check
+          }
+          seq {
+            read @demo::trace
+            addr_of c
+            call @trace (addr_of, %__panic)
+            panic_check
+          }
         }
-        panic_check
+        bind %_t = tuple
       }
       seq {
         nop

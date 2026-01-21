@@ -5,15 +5,15 @@
 #include <string>
 #include <vector>
 
-#include "cursive0/sema/context.h"
-#include "cursive0/sema/types.h"
+#include "cursive0/analysis/types/context.h"
+#include "cursive0/analysis/types/types.h"
 #include "cursive0/syntax/ast.h"
 
 namespace cursive0::codegen {
 
 // MangleContext provides the scope context needed for symbol mangling.
 struct MangleContext {
-  const sema::ScopeContext* scope_ctx = nullptr;
+  const analysis::ScopeContext* scope_ctx = nullptr;
 };
 
 // =============================================================================
@@ -25,20 +25,20 @@ std::vector<std::string> ItemPathProc(const syntax::ModulePath& module_path,
                                       const syntax::ProcedureDecl& proc);
 
 // ItemPath(method) = RecordPath(R) ++ [method.name]
-std::vector<std::string> ItemPathMethod(const sema::TypePath& record_path,
+std::vector<std::string> ItemPathMethod(const analysis::TypePath& record_path,
                                         const syntax::MethodDecl& method);
 
 // ItemPath(class_method) = ClassPath(Cl) ++ [method.name]
-std::vector<std::string> ItemPathClassMethod(const sema::TypePath& class_path,
+std::vector<std::string> ItemPathClassMethod(const analysis::TypePath& class_path,
                                              const syntax::ClassMethodDecl& method);
 
 // ItemPath(state_method) = ModalPath(M) ++ [S] ++ [method.name]
-std::vector<std::string> ItemPathStateMethod(const sema::TypePath& modal_path,
+std::vector<std::string> ItemPathStateMethod(const analysis::TypePath& modal_path,
                                              const std::string& state,
                                              const syntax::StateMethodDecl& method);
 
 // ItemPath(transition) = ModalPath(M) ++ [S] ++ [trans.name]
-std::vector<std::string> ItemPathTransition(const sema::TypePath& modal_path,
+std::vector<std::string> ItemPathTransition(const analysis::TypePath& modal_path,
                                             const std::string& state,
                                             const syntax::TransitionDecl& trans);
 
@@ -51,12 +51,12 @@ std::vector<std::string> ItemPathStaticBinding(const syntax::ModulePath& module_
                                                const std::string& binding_name);
 
 // ItemPath(VTableDecl(T, Cl)) = ["vtable"] ++ PathOfType(T) ++ ["cl"] ++ ClassPath(Cl)
-std::vector<std::string> ItemPathVTable(const sema::TypeRef& type,
-                                        const sema::TypePath& class_path);
+std::vector<std::string> ItemPathVTable(const analysis::TypeRef& type,
+                                        const analysis::TypePath& class_path);
 
 // ItemPath(DefaultImpl(T, m)) = ["default"] ++ PathOfType(T) ++ ["cl"] ++ ClassPath(Cl) ++ [m.name]
-std::vector<std::string> ItemPathDefaultImpl(const sema::TypeRef& type,
-                                             const sema::TypePath& class_path,
+std::vector<std::string> ItemPathDefaultImpl(const analysis::TypeRef& type,
+                                             const analysis::TypePath& class_path,
                                              const std::string& method_name);
 
 // =============================================================================
@@ -70,7 +70,7 @@ std::vector<std::string> ItemPathDefaultImpl(const sema::TypeRef& type,
 //   PathOfType(TypePath(p)) = p
 //   PathOfType(TypeModalState(p, S)) = p ++ [S]
 //   PathOfType(T) = ⊥ otherwise
-std::vector<std::string> PathOfType(const sema::TypeRef& type);
+std::vector<std::string> PathOfType(const analysis::TypeRef& type);
 
 // =============================================================================
 // Mangle Functions (§6.3.1 Rules)
@@ -85,20 +85,20 @@ std::string MangleProc(const syntax::ModulePath& module_path,
                        const syntax::ProcedureDecl& proc);
 
 // (Mangle-Record-Method): Mangle record method
-std::string MangleMethod(const sema::TypePath& record_path,
+std::string MangleMethod(const analysis::TypePath& record_path,
                          const syntax::MethodDecl& method);
 
 // (Mangle-Class-Method): Mangle class method declaration
-std::string MangleClassMethod(const sema::TypePath& class_path,
+std::string MangleClassMethod(const analysis::TypePath& class_path,
                               const syntax::ClassMethodDecl& method);
 
 // (Mangle-State-Method): Mangle modal state method
-std::string MangleStateMethod(const sema::TypePath& modal_path,
+std::string MangleStateMethod(const analysis::TypePath& modal_path,
                               const std::string& state,
                               const syntax::StateMethodDecl& method);
 
 // (Mangle-Transition): Mangle modal transition
-std::string MangleTransition(const sema::TypePath& modal_path,
+std::string MangleTransition(const analysis::TypePath& modal_path,
                              const std::string& state,
                              const syntax::TransitionDecl& trans);
 
@@ -111,8 +111,8 @@ std::string MangleStaticBinding(const syntax::ModulePath& module_path,
                                 const std::string& binding_name);
 
 // (Mangle-VTable): Mangle vtable symbol
-std::string MangleVTable(const sema::TypeRef& type,
-                         const sema::TypePath& class_path);
+std::string MangleVTable(const analysis::TypeRef& type,
+                         const analysis::TypePath& class_path);
 
 // (Mangle-Literal): Mangle literal data symbol
 // Per §6.3.1:
@@ -121,8 +121,8 @@ std::string MangleLiteral(const std::string& kind,
                           std::span<const std::uint8_t> contents);
 
 // (Mangle-DefaultImpl): Mangle default implementation symbol
-std::string MangleDefaultImpl(const sema::TypeRef& type,
-                              const sema::TypePath& class_path,
+std::string MangleDefaultImpl(const analysis::TypeRef& type,
+                              const analysis::TypePath& class_path,
                               const std::string& method_name);
 
 // =============================================================================

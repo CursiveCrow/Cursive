@@ -2,9 +2,9 @@
 
 #include "cursive0/codegen/checks.h"
 #include "cursive0/codegen/cleanup.h"
-#include "cursive0/codegen/lower_expr.h"
+#include "cursive0/codegen/lower/lower_expr.h"
 #include "cursive0/core/assert_spec.h"
-#include "cursive0/sema/types.h"
+#include "cursive0/analysis/types/types.h"
 #include "cursive0/syntax/ast.h"
 
 namespace {
@@ -25,12 +25,12 @@ using cursive0::codegen::IRStoreVar;
 using cursive0::codegen::IRStoreVarNoDrop;
 using cursive0::codegen::LowerWritePlace;
 using cursive0::codegen::LowerWritePlaceSub;
-using cursive0::sema::MakeTypeArray;
-using cursive0::sema::MakeTypePath;
-using cursive0::sema::MakeTypeString;
-using cursive0::sema::MakeTypeTuple;
-using cursive0::sema::MakeTypePrim;
-using cursive0::sema::StringState;
+using cursive0::analysis::MakeTypeArray;
+using cursive0::analysis::MakeTypePath;
+using cursive0::analysis::MakeTypeString;
+using cursive0::analysis::MakeTypeTuple;
+using cursive0::analysis::MakeTypePrim;
+using cursive0::analysis::StringState;
 using cursive0::syntax::Expr;
 using cursive0::syntax::IdentifierExpr;
 

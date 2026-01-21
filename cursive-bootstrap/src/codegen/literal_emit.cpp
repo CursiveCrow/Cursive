@@ -1,9 +1,9 @@
-#include "cursive0/codegen/llvm_emit.h"
-#include "cursive0/codegen/layout.h"
+#include "cursive0/codegen/llvm/llvm_emit.h"
+#include "cursive0/codegen/layout/layout.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/core/symbols.h"
-#include "cursive0/sema/scopes.h"
-#include "cursive0/sema/types.h"
+#include "cursive0/analysis/resolve/scopes.h"
+#include "cursive0/analysis/types/types.h"
 
 // LLVM Includes
 #include "llvm/ADT/APInt.h"
@@ -21,8 +21,8 @@ namespace cursive0::codegen {
 
 namespace {
 
-sema::ScopeContext BuildScope(const LowerCtx* ctx) {
-  sema::ScopeContext scope;
+analysis::ScopeContext BuildScope(const LowerCtx* ctx) {
+  analysis::ScopeContext scope;
   if (ctx && ctx->sigma) {
     scope.sigma = *ctx->sigma;
     scope.current_module = ctx->module_path;
@@ -30,11 +30,11 @@ sema::ScopeContext BuildScope(const LowerCtx* ctx) {
   return scope;
 }
 
-sema::TypeRef StripPerm(const sema::TypeRef& type) {
+analysis::TypeRef StripPerm(const analysis::TypeRef& type) {
   if (!type) {
     return type;
   }
-  if (const auto* perm = std::get_if<sema::TypePerm>(&type->node)) {
+  if (const auto* perm = std::get_if<analysis::TypePerm>(&type->node)) {
     return StripPerm(perm->base);
   }
   return type;
@@ -135,14 +135,14 @@ llvm::Constant* ConstBytes(llvm::Type* ty,
   return llvm::Constant::getNullValue(ty);
 }
 
-sema::TypeRef StaticTypeForConst(const GlobalConst& global, const LowerCtx* ctx) {
+analysis::TypeRef StaticTypeForConst(const GlobalConst& global, const LowerCtx* ctx) {
   if (ctx) {
     auto type = ctx->LookupStaticType(global.symbol);
     if (type) {
       return type;
     }
   }
-  return sema::MakeTypeArray(sema::MakeTypePrim("u8"), global.bytes.size());
+  return analysis::MakeTypeArray(analysis::MakeTypePrim("u8"), global.bytes.size());
 }
 
 bool IsLiteralSymbol(const std::string& symbol) {
@@ -161,7 +161,7 @@ void LLVMEmitter::EmitGlobalConst(const GlobalConst& global) {
   SPEC_RULE("LowerIRDecl-GlobalConst");
 
   const auto scope = BuildScope(current_ctx_);
-  sema::TypeRef type = StaticTypeForConst(global, current_ctx_);
+  analysis::TypeRef type = StaticTypeForConst(global, current_ctx_);
   type = StripPerm(type);
   const bool was_failed = current_ctx_ && current_ctx_->codegen_failed;
   llvm::Type* llvm_ty = GetLLVMType(type);
@@ -172,7 +172,7 @@ void LLVMEmitter::EmitGlobalConst(const GlobalConst& global) {
 
   const bool is_literal = IsLiteralSymbol(global.symbol);
   if (is_literal && type) {
-    if (const auto* prim = std::get_if<sema::TypePrim>(&type->node)) {
+    if (const auto* prim = std::get_if<analysis::TypePrim>(&type->node)) {
       if (prim->name == "char") {
         SPEC_RULE("EmitLiteral-Char");
       } else if (IsIntTypeName(prim->name)) {
@@ -207,12 +207,12 @@ void LLVMEmitter::EmitGlobalZero(const GlobalZero& global) {
   SPEC_RULE("LowerIRDecl-GlobalZero");
   const auto scope = BuildScope(current_ctx_);
 
-  sema::TypeRef type;
+  analysis::TypeRef type;
   if (current_ctx_) {
     type = current_ctx_->LookupStaticType(global.symbol);
   }
   if (!type) {
-    type = sema::MakeTypeArray(sema::MakeTypePrim("u8"), global.size);
+    type = analysis::MakeTypeArray(analysis::MakeTypePrim("u8"), global.size);
   }
 
   llvm::Type* llvm_ty = GetLLVMType(type);

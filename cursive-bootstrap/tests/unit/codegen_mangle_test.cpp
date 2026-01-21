@@ -6,7 +6,7 @@
 #include "cursive0/codegen/mangle.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/core/symbols.h"
-#include "cursive0/sema/types.h"
+#include "cursive0/analysis/types/types.h"
 #include "cursive0/syntax/ast.h"
 
 namespace {
@@ -35,10 +35,10 @@ using cursive0::codegen::PathOfType;
 using cursive0::codegen::ScopedSym;
 using cursive0::core::Mangle;
 using cursive0::core::StringOfPath;
-using cursive0::sema::MakeTypePath;
-using cursive0::sema::MakeTypePrim;
-using cursive0::sema::MakeTypeString;
-using cursive0::sema::StringState;
+using cursive0::analysis::MakeTypePath;
+using cursive0::analysis::MakeTypePrim;
+using cursive0::analysis::MakeTypeString;
+using cursive0::analysis::StringState;
 using cursive0::syntax::ProcedureDecl;
 using cursive0::syntax::Visibility;
 

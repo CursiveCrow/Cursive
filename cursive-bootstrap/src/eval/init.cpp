@@ -1,4 +1,4 @@
-#include "cursive0/semantics/init.h"
+#include "cursive0/eval/init.h"
 
 #include <optional>
 #include <set>
@@ -6,12 +6,12 @@
 #include <utility>
 #include <vector>
 
-#include "cursive0/sema/collect_toplevel.h"
-#include "cursive0/sema/init_planner.h"
-#include "cursive0/semantics/exec.h"
-#include "cursive0/semantics/eval.h"
+#include "cursive0/analysis/resolve/collect_toplevel.h"
+#include "cursive0/analysis/memory/init_planner.h"
+#include "cursive0/eval/exec.h"
+#include "cursive0/eval/eval.h"
 
-namespace cursive0::semantics {
+namespace cursive0::eval {
 
 namespace {
 
@@ -80,7 +80,7 @@ bool StaticHasResp(const syntax::StaticDecl& decl) {
   return info.resp == Responsibility::Resp;
 }
 
-void EnsurePoisonFlag(Sigma& sigma, const sema::PathKey& path) {
+void EnsurePoisonFlag(Sigma& sigma, const analysis::PathKey& path) {
   if (sigma.poison_flags.find(path) != sigma.poison_flags.end()) {
     return;
   }
@@ -91,7 +91,7 @@ void EnsurePoisonFlag(Sigma& sigma, const sema::PathKey& path) {
   WriteAddr(sigma, addr, Value{value});
 }
 
-void SetPoisonFlag(Sigma& sigma, const sema::PathKey& path) {
+void SetPoisonFlag(Sigma& sigma, const analysis::PathKey& path) {
   EnsurePoisonFlag(sigma, path);
   const auto it = sigma.poison_flags.find(path);
   if (it == sigma.poison_flags.end()) {
@@ -103,7 +103,7 @@ void SetPoisonFlag(Sigma& sigma, const sema::PathKey& path) {
 }
 
 void EnsureStaticAddr(Sigma& sigma,
-                      const sema::PathKey& path,
+                      const analysis::PathKey& path,
                       std::string_view name) {
   const auto key = std::make_pair(path, std::string(name));
   if (sigma.static_addrs.find(key) != sigma.static_addrs.end()) {
@@ -115,33 +115,33 @@ void EnsureStaticAddr(Sigma& sigma,
 }
 
 std::optional<const syntax::ASTModule*> FindModule(
-    const sema::ScopeContext& ctx,
+    const analysis::ScopeContext& ctx,
     const syntax::ModulePath& path) {
   for (const auto& mod : ctx.sigma.mods) {
-    if (sema::PathKeyOf(mod.path) == sema::PathKeyOf(path)) {
+    if (analysis::PathKeyOf(mod.path) == analysis::PathKeyOf(path)) {
       return &mod;
     }
   }
   return std::nullopt;
 }
 
-std::set<sema::PathKey> PoisonSetForInit(
-    const sema::InitPlan& plan,
+std::set<analysis::PathKey> PoisonSetForInit(
+    const analysis::InitPlan& plan,
     const syntax::ModulePath& module_path) {
-  std::set<sema::PathKey> out;
+  std::set<analysis::PathKey> out;
   if (plan.graph.modules.empty()) {
-    out.insert(sema::PathKeyOf(module_path));
+    out.insert(analysis::PathKeyOf(module_path));
     return out;
   }
   std::size_t target = plan.graph.modules.size();
   for (std::size_t i = 0; i < plan.graph.modules.size(); ++i) {
-    if (sema::PathKeyOf(plan.graph.modules[i]) == sema::PathKeyOf(module_path)) {
+    if (analysis::PathKeyOf(plan.graph.modules[i]) == analysis::PathKeyOf(module_path)) {
       target = i;
       break;
     }
   }
   if (target == plan.graph.modules.size()) {
-    out.insert(sema::PathKeyOf(module_path));
+    out.insert(analysis::PathKeyOf(module_path));
     return out;
   }
   const std::size_t n = plan.graph.modules.size();
@@ -167,11 +167,11 @@ std::set<sema::PathKey> PoisonSetForInit(
   }
   for (std::size_t i = 0; i < n; ++i) {
     if (visited[i]) {
-      out.insert(sema::PathKeyOf(plan.graph.modules[i]));
+      out.insert(analysis::PathKeyOf(plan.graph.modules[i]));
     }
   }
   if (out.empty()) {
-    out.insert(sema::PathKeyOf(module_path));
+    out.insert(analysis::PathKeyOf(module_path));
   }
   return out;
 }
@@ -183,7 +183,7 @@ InitResult Init(const SemanticsContext& ctx, Sigma& sigma) {
   if (!ctx.sema || !ctx.name_maps) {
     return result;
   }
-  const auto plan_result = sema::BuildInitPlan(*ctx.sema, *ctx.name_maps);
+  const auto plan_result = analysis::BuildInitPlan(*ctx.sema, *ctx.name_maps);
   if (!plan_result.ok || !plan_result.plan.topo_ok) {
     return result;
   }
@@ -191,17 +191,17 @@ InitResult Init(const SemanticsContext& ctx, Sigma& sigma) {
   SPEC_RULE("Init-Start");
 
   for (const auto& module_path : plan.graph.modules) {
-    EnsurePoisonFlag(sigma, sema::PathKeyOf(module_path));
+    EnsurePoisonFlag(sigma, analysis::PathKeyOf(module_path));
   }
 
   for (const auto& mod : ctx.sema->sigma.mods) {
-    const auto module_key = sema::PathKeyOf(mod.path);
+    const auto module_key = analysis::PathKeyOf(mod.path);
     for (const auto& item : mod.items) {
       const auto* decl = std::get_if<syntax::StaticDecl>(&item);
       if (!decl) {
         continue;
       }
-      const auto names = sema::PatNames(*decl->binding.pat);
+      const auto names = analysis::PatNames(*decl->binding.pat);
       for (const auto& name : names) {
         EnsureStaticAddr(sigma, module_key, name);
       }
@@ -216,7 +216,7 @@ InitResult Init(const SemanticsContext& ctx, Sigma& sigma) {
       continue;
     }
     const auto& mod = **mod_opt;
-    const auto module_key = sema::PathKeyOf(mod.path);
+    const auto module_key = analysis::PathKeyOf(mod.path);
     for (const auto& item : mod.items) {
       const auto* decl = std::get_if<syntax::StaticDecl>(&item);
       if (!decl || !decl->binding.init) {
@@ -275,7 +275,7 @@ CleanupStatus Deinit(const SemanticsContext& ctx, Sigma& sigma) {
     SPEC_RULE("Deinit-Ok");
     return CleanupStatus::Ok;
   }
-  const auto plan_result = sema::BuildInitPlan(*ctx.sema, *ctx.name_maps);
+  const auto plan_result = analysis::BuildInitPlan(*ctx.sema, *ctx.name_maps);
   if (!plan_result.ok || !plan_result.plan.topo_ok) {
     SPEC_RULE("Deinit-Panic");
     return CleanupStatus::Panic;
@@ -289,7 +289,7 @@ CleanupStatus Deinit(const SemanticsContext& ctx, Sigma& sigma) {
       continue;
     }
     const auto& mod = **mod_opt;
-    const auto module_key = sema::PathKeyOf(mod.path);
+    const auto module_key = analysis::PathKeyOf(mod.path);
     for (auto item_it = mod.items.rbegin(); item_it != mod.items.rend(); ++item_it) {
       const auto* decl = std::get_if<syntax::StaticDecl>(&*item_it);
       if (!decl) {
@@ -298,7 +298,7 @@ CleanupStatus Deinit(const SemanticsContext& ctx, Sigma& sigma) {
       if (!StaticHasResp(*decl)) {
         continue;
       }
-      auto names = sema::PatNames(*decl->binding.pat);
+      auto names = analysis::PatNames(*decl->binding.pat);
       for (auto name_it = names.rbegin(); name_it != names.rend(); ++name_it) {
         items.push_back(DropStatic{module_key, std::string(*name_it)});
       }
@@ -314,4 +314,4 @@ CleanupStatus Deinit(const SemanticsContext& ctx, Sigma& sigma) {
                                      : CleanupStatus::Panic;
 }
 
-}  // namespace cursive0::semantics
+}  // namespace cursive0::eval

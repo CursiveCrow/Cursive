@@ -1,6 +1,6 @@
-#include "cursive0/semantics/control.h"
+#include "cursive0/eval/control.h"
 
-namespace cursive0::semantics {
+namespace cursive0::eval {
 
 Outcome MakeVal(Value value) {
   Outcome out;
@@ -69,4 +69,4 @@ std::string ControlToString(const Control& ctrl) {
   return kind;
 }
 
-}  // namespace cursive0::semantics
+}  // namespace cursive0::eval

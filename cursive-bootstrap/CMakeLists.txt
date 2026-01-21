@@ -210,104 +210,115 @@ target_include_directories(cursive0_syntax PUBLIC
 target_compile_features(cursive0_syntax PUBLIC cxx_std_20)
 
 
-add_library(cursive0_sema STATIC
-  src/sema/conformance.cpp
-  src/sema/class_linearization.cpp
-  src/sema/classes.cpp
-  src/sema/modal.cpp
-  src/sema/modal_fields.cpp
-  src/sema/modal_transitions.cpp
-  src/sema/modal_widen.cpp
-  src/sema/string_bytes.cpp
-  src/sema/cap_filesystem.cpp
-  src/sema/cap_heap.cpp
-  src/sema/cap_system.cpp
-  src/sema/enums.cpp
-  src/sema/region_type.cpp
-  src/sema/types.cpp
-  src/sema/safe_ptr.cpp
-  src/sema/scopes.cpp
-  src/sema/scopes_intro.cpp
-  src/sema/scopes_lookup.cpp
-  src/sema/collect_toplevel.cpp
-  src/sema/resolve_qual.cpp
-  src/sema/resolver_expr.cpp
-  src/sema/resolver_items.cpp
-  src/sema/resolver_modules.cpp
-  src/sema/resolver_pat.cpp
-  src/sema/resolver_types.cpp
-  src/sema/type_equiv.cpp
-  src/sema/subtyping.cpp
-  src/sema/visibility.cpp
-  src/sema/function_types.cpp
-  src/sema/calls.cpp
-  src/sema/tuples.cpp
-  src/sema/arrays_slices.cpp
-  src/sema/records.cpp
-  src/sema/record_methods.cpp
-  src/sema/unions.cpp
-  src/sema/literals.cpp
-  src/sema/type_infer.cpp
-  src/sema/type_stmt.cpp
-  src/sema/regions.cpp
-  src/sema/type_expr.cpp
-  src/sema/type_pattern.cpp
-  src/sema/type_match.cpp
-  src/sema/borrow_bind.cpp
-  src/sema/type_decls.cpp
-  src/sema/typecheck.cpp
-  src/sema/init_planner.cpp
+add_library(cursive0_analysis STATIC
+  # resolve/
+  src/analysis/resolve/scopes.cpp
+  src/analysis/resolve/scopes_intro.cpp
+  src/analysis/resolve/scopes_lookup.cpp
+  src/analysis/resolve/collect_toplevel.cpp
+  src/analysis/resolve/resolve_qual.cpp
+  src/analysis/resolve/resolver_expr.cpp
+  src/analysis/resolve/resolver_items.cpp
+  src/analysis/resolve/resolver_modules.cpp
+  src/analysis/resolve/resolver_pat.cpp
+  src/analysis/resolve/resolver_types.cpp
+  src/analysis/resolve/visibility.cpp
+  # types/
+  src/analysis/types/types.cpp
+  src/analysis/types/type_expr.cpp
+  src/analysis/types/type_stmt.cpp
+  src/analysis/types/type_pattern.cpp
+  src/analysis/types/type_decls.cpp
+  src/analysis/types/type_equiv.cpp
+  src/analysis/types/type_match.cpp
+  src/analysis/types/type_infer.cpp
+  src/analysis/types/subtyping.cpp
+  src/analysis/types/typecheck.cpp
+  src/analysis/types/conformance.cpp
+  src/analysis/types/literals.cpp
+  # composite/
+  src/analysis/composite/arrays_slices.cpp
+  src/analysis/composite/tuples.cpp
+  src/analysis/composite/unions.cpp
+  src/analysis/composite/records.cpp
+  src/analysis/composite/record_methods.cpp
+  src/analysis/composite/enums.cpp
+  src/analysis/composite/function_types.cpp
+  src/analysis/composite/classes.cpp
+  src/analysis/composite/class_linearization.cpp
+  # modal/
+  src/analysis/modal/modal.cpp
+  src/analysis/modal/modal_fields.cpp
+  src/analysis/modal/modal_transitions.cpp
+  src/analysis/modal/modal_widen.cpp
+  # memory/
+  src/analysis/memory/borrow_bind.cpp
+  src/analysis/memory/regions.cpp
+  src/analysis/memory/region_type.cpp
+  src/analysis/memory/safe_ptr.cpp
+  src/analysis/memory/string_bytes.cpp
+  src/analysis/memory/calls.cpp
+  src/analysis/memory/init_planner.cpp
+  # caps/
+  src/analysis/caps/cap_system.cpp
+  src/analysis/caps/cap_heap.cpp
+  src/analysis/caps/cap_filesystem.cpp
 )
 
-target_link_libraries(cursive0_sema PUBLIC cursive0_core cursive0_syntax cursive0_project)
+target_link_libraries(cursive0_analysis PUBLIC cursive0_core cursive0_syntax cursive0_project)
 
-target_include_directories(cursive0_sema PUBLIC
+target_include_directories(cursive0_analysis PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_compile_features(cursive0_sema PUBLIC cxx_std_20)
+target_compile_features(cursive0_analysis PUBLIC cxx_std_20)
 
 add_library(cursive0_codegen STATIC
+  # abi/
+  src/codegen/abi/abi_types.cpp
+  src/codegen/abi/abi_params.cpp
+  src/codegen/abi/abi_calls.cpp
+  # layout/
+  src/codegen/layout/layout_primitives.cpp
+  src/codegen/layout/layout_dispatch.cpp
+  src/codegen/layout/layout_records.cpp
+  src/codegen/layout/layout_unions.cpp
+  src/codegen/layout/layout_aggregates.cpp
+  src/codegen/layout/layout_modal.cpp
+  src/codegen/layout/layout_dynobj.cpp
+  src/codegen/layout/layout_value_bits.cpp
+  # lower/
+  src/codegen/lower/lower_expr_core.cpp
+  src/codegen/lower/lower_expr_calls.cpp
+  src/codegen/lower/lower_expr_places.cpp
+  src/codegen/lower/lower_stmt.cpp
+  src/codegen/lower/lower_pat.cpp
+  src/codegen/lower/lower_proc.cpp
+  src/codegen/lower/lower_module.cpp
+  # llvm/
+  src/codegen/llvm/llvm_module.cpp
+  src/codegen/llvm/llvm_types.cpp
+  src/codegen/llvm/llvm_attrs.cpp
+  src/codegen/llvm/llvm_call_abi.cpp
+  src/codegen/llvm/llvm_ub_safe.cpp
+  src/codegen/llvm/llvm_mem.cpp
+  # runtime/
+  src/codegen/runtime/runtime_calls.cpp
+  src/codegen/runtime/runtime_decls.cpp
+  # top-level
   src/codegen/ir_model.cpp
-  src/codegen/layout_primitives.cpp
-  src/codegen/layout_dispatch.cpp
-  src/codegen/layout_records.cpp
-  src/codegen/layout_unions.cpp
-  src/codegen/layout_aggregates.cpp
-  src/codegen/layout_modal.cpp
-  src/codegen/layout_dynobj.cpp
-  src/codegen/layout_value_bits.cpp
-  src/codegen/abi_types.cpp
-  src/codegen/abi_params.cpp
-  src/codegen/abi_calls.cpp
+  src/codegen/ir_dump.cpp
+  src/codegen/ir_lowering.cpp
   src/codegen/mangle.cpp
   src/codegen/linkage.cpp
   src/codegen/checks.cpp
-  src/codegen/lower_expr_core.cpp
-  src/codegen/lower_expr_calls.cpp
-  src/codegen/lower_expr_places.cpp
-  src/codegen/lower_stmt.cpp
-  src/codegen/lower_pat.cpp
   src/codegen/cleanup.cpp
   src/codegen/globals.cpp
   src/codegen/init.cpp
-  src/codegen/runtime_calls.cpp
   src/codegen/dyn_dispatch.cpp
-  src/codegen/lower_proc.cpp
-  src/codegen/lower_module.cpp
-  src/codegen/ir_dump.cpp
-  src/codegen/llvm_module.cpp
-  src/codegen/llvm_types.cpp
-  src/codegen/runtime_decls.cpp
-  src/codegen/llvm_attrs.cpp
-  src/codegen/llvm_attrs.cpp
-  src/codegen/literal_emit.cpp
-  src/codegen/llvm_call_abi.cpp
-  src/codegen/ir_lowering.cpp
-  src/codegen/binding_storage.cpp
-  src/codegen/llvm_ub_safe.cpp
-  src/codegen/llvm_mem.cpp
   src/codegen/vtable_emit.cpp
+  src/codegen/literal_emit.cpp
+  src/codegen/binding_storage.cpp
   src/codegen/entrypoint.cpp
   src/codegen/poison_instrument.cpp
 )
@@ -317,7 +328,7 @@ add_library(cursive0_codegen STATIC
 
 
 
-target_link_libraries(cursive0_codegen PUBLIC cursive0_sema ${llvm_libs})
+target_link_libraries(cursive0_codegen PUBLIC cursive0_analysis ${llvm_libs})
 
 
 target_include_directories(cursive0_codegen PUBLIC
@@ -349,40 +360,40 @@ target_include_directories(cursive0_project PUBLIC
 
 target_compile_features(cursive0_project PUBLIC cxx_std_20)
 
-add_library(cursive0_semantics STATIC
-  src/semantics/value.cpp
-  src/semantics/control.cpp
-  src/semantics/state.cpp
-  src/semantics/address.cpp
-  src/semantics/match.cpp
-  src/semantics/eval.cpp
-  src/semantics/exec.cpp
-  src/semantics/cleanup.cpp
-  src/semantics/init.cpp
-  src/semantics/apply.cpp
-  src/semantics/builtins.cpp
+add_library(cursive0_eval STATIC
+  src/eval/value.cpp
+  src/eval/control.cpp
+  src/eval/state.cpp
+  src/eval/address.cpp
+  src/eval/match.cpp
+  src/eval/eval.cpp
+  src/eval/exec.cpp
+  src/eval/cleanup.cpp
+  src/eval/init.cpp
+  src/eval/apply.cpp
+  src/eval/builtins.cpp
 )
 
-target_link_libraries(cursive0_semantics PUBLIC
+target_link_libraries(cursive0_eval PUBLIC
   cursive0_core
   cursive0_syntax
-  cursive0_sema
+  cursive0_analysis
   cursive0_project
 )
 
-target_include_directories(cursive0_semantics PUBLIC
+target_include_directories(cursive0_eval PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_compile_features(cursive0_semantics PUBLIC cxx_std_20)
+target_compile_features(cursive0_eval PUBLIC cxx_std_20)
 
 add_library(cursive0_interpreter STATIC
-  src/interpreter/interpreter.cpp
+  src/eval/interpreter.cpp
 )
 
 target_link_libraries(cursive0_interpreter PUBLIC
-  cursive0_semantics
-  cursive0_sema
+  cursive0_eval
+  cursive0_analysis
   cursive0_project
   cursive0_syntax
   cursive0_core
@@ -395,10 +406,10 @@ target_include_directories(cursive0_interpreter PUBLIC
 target_compile_features(cursive0_interpreter PUBLIC cxx_std_20)
 
 add_library(cursive0_frontend STATIC
-  src/frontend/parse_modules.cpp
+  src/syntax/parse_modules.cpp
 )
 
-target_link_libraries(cursive0_frontend PUBLIC cursive0_core cursive0_project cursive0_syntax cursive0_sema)
+target_link_libraries(cursive0_frontend PUBLIC cursive0_core cursive0_project cursive0_syntax cursive0_analysis)
 
 target_include_directories(cursive0_frontend PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -426,7 +437,7 @@ add_executable(cursivec0
   src/driver/main.cpp
 )
 
-target_link_libraries(cursivec0 PRIVATE cursive0_core cursive0_project cursive0_sema cursive0_codegen cursive0_syntax cursive0_frontend cursive0_semantics)
+target_link_libraries(cursivec0 PRIVATE cursive0_core cursive0_project cursive0_analysis cursive0_codegen cursive0_syntax cursive0_frontend cursive0_eval)
 
 target_include_directories(cursivec0 PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include

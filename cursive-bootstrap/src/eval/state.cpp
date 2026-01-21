@@ -1,18 +1,18 @@
-#include "cursive0/semantics/state.h"
+#include "cursive0/eval/state.h"
 
 #include <algorithm>
 #include <type_traits>
 
 #include "cursive0/core/int128.h"
-#include "cursive0/sema/resolver.h"
-#include "cursive0/sema/resolve_qual.h"
-#include "cursive0/sema/scopes.h"
-#include "cursive0/sema/string_bytes.h"
-#include "cursive0/sema/visibility.h"
-#include "cursive0/semantics/builtins.h"
+#include "cursive0/analysis/resolve/resolver.h"
+#include "cursive0/analysis/resolve/resolve_qual.h"
+#include "cursive0/analysis/resolve/scopes.h"
+#include "cursive0/analysis/memory/string_bytes.h"
+#include "cursive0/analysis/resolve/visibility.h"
+#include "cursive0/eval/builtins.h"
 #include "cursive0/syntax/ast.h"
 
-namespace cursive0::semantics {
+namespace cursive0::eval {
 
 namespace {
 
@@ -35,11 +35,11 @@ ScopeEntry* FindScopeById(std::vector<ScopeEntry>& stack, ScopeId sid) {
   return nullptr;
 }
 
-const syntax::ProcedureDecl* FindProcedureDecl(const sema::ScopeContext& ctx,
-                                               const sema::PathKey& module,
+const syntax::ProcedureDecl* FindProcedureDecl(const analysis::ScopeContext& ctx,
+                                               const analysis::PathKey& module,
                                                std::string_view name) {
   for (const auto& mod : ctx.sigma.mods) {
-    if (sema::PathKeyOf(mod.path) != module) {
+    if (analysis::PathKeyOf(mod.path) != module) {
       continue;
     }
     for (const auto& item : mod.items) {
@@ -53,17 +53,17 @@ const syntax::ProcedureDecl* FindProcedureDecl(const sema::ScopeContext& ctx,
   return nullptr;
 }
 
-sema::ResolveTypePathResult ResolveTypePathAdapter(
-    const sema::ScopeContext& ctx,
-    const sema::NameMapTable& name_maps,
-    const sema::ModuleNames& module_names,
+analysis::ResolveTypePathResult ResolveTypePathAdapter(
+    const analysis::ScopeContext& ctx,
+    const analysis::NameMapTable& name_maps,
+    const analysis::ModuleNames& module_names,
     const syntax::TypePath& path) {
-  sema::ResolveContext resolve_ctx;
-  resolve_ctx.ctx = const_cast<sema::ScopeContext*>(&ctx);
+  analysis::ResolveContext resolve_ctx;
+  resolve_ctx.ctx = const_cast<analysis::ScopeContext*>(&ctx);
   resolve_ctx.name_maps = &name_maps;
   resolve_ctx.module_names = &module_names;
-  resolve_ctx.can_access = sema::CanAccess;
-  const auto resolved = sema::ResolveTypePath(resolve_ctx, path);
+  resolve_ctx.can_access = analysis::CanAccess;
+  const auto resolved = analysis::ResolveTypePath(resolve_ctx, path);
   if (!resolved.ok) {
     return {false, resolved.diag_id, {}};
   }
@@ -76,7 +76,7 @@ std::optional<Value> FieldValue(const Value& value, std::string_view name) {
     return std::nullopt;
   }
   for (const auto& [field_name, field_value] : record->fields) {
-    if (sema::IdEq(field_name, name)) {
+    if (analysis::IdEq(field_name, name)) {
       return field_value;
     }
   }
@@ -197,7 +197,7 @@ bool UpdateField(Value& value,
     return false;
   }
   for (auto& [field_name, elem] : record->fields) {
-    if (sema::IdEq(field_name, name)) {
+    if (analysis::IdEq(field_name, name)) {
       elem = field_value;
       return true;
     }
@@ -620,7 +620,7 @@ bool TagActive(const Sigma& sigma, const RuntimeTag& tag) {
   return false;
 }
 
-bool PoisonedModule(const Sigma& sigma, const sema::PathKey& path) {
+bool PoisonedModule(const Sigma& sigma, const analysis::PathKey& path) {
   const auto it = sigma.poison_flags.find(path);
   if (it == sigma.poison_flags.end()) {
     return false;
@@ -632,8 +632,8 @@ bool PoisonedModule(const Sigma& sigma, const sema::PathKey& path) {
   return IsNonZero(*value);
 }
 
-std::set<sema::PathKey> PoisonedModules(const Sigma& sigma) {
-  std::set<sema::PathKey> out;
+std::set<analysis::PathKey> PoisonedModules(const Sigma& sigma) {
+  std::set<analysis::PathKey> out;
   for (const auto& [path, addr] : sigma.poison_flags) {
     const auto value = ReadAddr(sigma, addr);
     if (value.has_value() && IsNonZero(*value)) {
@@ -671,10 +671,10 @@ std::optional<Value> LookupVal(const SemanticsContext& ctx,
     return std::nullopt;
   }
 
-  const auto ent = sema::ResolveValueName(*ctx.sema, name);
+  const auto ent = analysis::ResolveValueName(*ctx.sema, name);
   if (ent.has_value() && ent->origin_opt.has_value()) {
     const auto& module_path = *ent->origin_opt;
-    const auto key = sema::PathKeyOf(module_path);
+    const auto key = analysis::PathKeyOf(module_path);
     if (PoisonedModule(sigma, key)) {
       return std::nullopt;
     }
@@ -688,18 +688,18 @@ std::optional<Value> LookupVal(const SemanticsContext& ctx,
     return value;
   }
 
-  const auto type_ent = sema::ResolveTypeName(*ctx.sema, name);
+  const auto type_ent = analysis::ResolveTypeName(*ctx.sema, name);
   if (!type_ent.has_value() || !type_ent->origin_opt.has_value()) {
     return std::nullopt;
   }
-  const auto module_key = sema::PathKeyOf(*type_ent->origin_opt);
+  const auto module_key = analysis::PathKeyOf(*type_ent->origin_opt);
   if (PoisonedModule(sigma, module_key)) {
     return std::nullopt;
   }
   const std::string resolved_name =
       type_ent->target_opt.has_value() ? *type_ent->target_opt
                                        : std::string(name);
-  sema::PathKey full_path = module_key;
+  analysis::PathKey full_path = module_key;
   full_path.push_back(resolved_name);
   const auto it = ctx.sema->sigma.types.find(full_path);
   if (it == ctx.sema->sigma.types.end()) {
@@ -714,20 +714,20 @@ std::optional<Value> LookupVal(const SemanticsContext& ctx,
 
 std::optional<Value> LookupValPath(const SemanticsContext& ctx,
                                    const Sigma& sigma,
-                                   const sema::PathKey& path,
+                                   const analysis::PathKey& path,
                                    std::string_view name) {
   if (!ctx.sema || !ctx.name_maps || !ctx.module_names) {
     return std::nullopt;
   }
   syntax::ModulePath module_path = path;
   const auto resolved =
-      sema::ResolveQualified(*ctx.sema, *ctx.name_maps, *ctx.module_names,
-                             module_path, name, sema::EntityKind::Value,
-                             sema::CanAccess);
+      analysis::ResolveQualified(*ctx.sema, *ctx.name_maps, *ctx.module_names,
+                             module_path, name, analysis::EntityKind::Value,
+                             analysis::CanAccess);
   if (resolved.ok && resolved.entity.has_value() &&
       resolved.entity->origin_opt.has_value()) {
     const auto& origin = *resolved.entity->origin_opt;
-    const auto key = sema::PathKeyOf(origin);
+    const auto key = analysis::PathKeyOf(origin);
     if (PoisonedModule(sigma, key)) {
       return std::nullopt;
     }
@@ -754,36 +754,36 @@ std::optional<Value> LookupValPath(const SemanticsContext& ctx,
   }
 
   if (path.size() == 1) {
-    if (sema::IdEq(path[0], "string") &&
-        sema::IsStringBuiltinName(name)) {
+    if (analysis::IdEq(path[0], "string") &&
+        analysis::IsStringBuiltinName(name)) {
       SPEC_RULE("LookupValPath-Proc");
       return Value{ProcRefVal{path, std::string(name)}};
     }
-    if (sema::IdEq(path[0], "bytes") &&
-        sema::IsBytesBuiltinName(name)) {
+    if (analysis::IdEq(path[0], "bytes") &&
+        analysis::IsBytesBuiltinName(name)) {
       SPEC_RULE("LookupValPath-Proc");
       return Value{ProcRefVal{path, std::string(name)}};
     }
-    if (sema::IdEq(path[0], "Region") && IsRegionProcName(name)) {
+    if (analysis::IdEq(path[0], "Region") && IsRegionProcName(name)) {
       SPEC_RULE("LookupValPath-Proc");
       return Value{ProcRefVal{path, std::string(name)}};
     }
   }
 
-  sema::ResolveQualContext qual_ctx;
+  analysis::ResolveQualContext qual_ctx;
   qual_ctx.ctx = ctx.sema;
   qual_ctx.name_maps = ctx.name_maps;
   qual_ctx.module_names = ctx.module_names;
-  qual_ctx.can_access = sema::CanAccess;
+  qual_ctx.can_access = analysis::CanAccess;
   qual_ctx.resolve_type_path = ResolveTypePathAdapter;
-  const auto record = sema::ResolveRecordPath(qual_ctx, module_path, name);
+  const auto record = analysis::ResolveRecordPath(qual_ctx, module_path, name);
   if (!record.ok) {
     return std::nullopt;
   }
   const auto& record_path = record.path;
-  sema::PathKey record_key = sema::PathKeyOf(record_path);
+  analysis::PathKey record_key = analysis::PathKeyOf(record_path);
   if (!record_key.empty()) {
-    sema::PathKey module_key = record_key;
+    analysis::PathKey module_key = record_key;
     module_key.pop_back();
     if (PoisonedModule(sigma, module_key)) {
       return std::nullopt;
@@ -793,4 +793,4 @@ std::optional<Value> LookupValPath(const SemanticsContext& ctx,
   return Value{RecordCtorVal{record_key}};
 }
 
-}  // namespace cursive0::semantics
+}  // namespace cursive0::eval

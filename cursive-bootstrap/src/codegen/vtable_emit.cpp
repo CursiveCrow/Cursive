@@ -1,5 +1,5 @@
-#include "cursive0/codegen/llvm_emit.h"
-#include "cursive0/codegen/layout.h"
+#include "cursive0/codegen/llvm/llvm_emit.h"
+#include "cursive0/codegen/layout/layout.h"
 #include "cursive0/core/assert_spec.h"
 
 // LLVM Includes
@@ -19,7 +19,7 @@ void LLVMEmitter::EmitVTable(const GlobalVTable& vtable) {
   SPEC_RULE("EmitVTable-Slots");
   SPEC_RULE("LowerIRDecl-VTable");
 
-  llvm::Type* usize_ty = GetLLVMType(sema::MakeTypePrim("usize"));
+  llvm::Type* usize_ty = GetLLVMType(analysis::MakeTypePrim("usize"));
   llvm::Type* ptr_ty = GetOpaquePtr();
   if (!usize_ty || !ptr_ty) {
     SPEC_RULE("EmitVTable-Err");

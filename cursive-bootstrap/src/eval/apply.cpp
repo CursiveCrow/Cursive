@@ -1,4 +1,4 @@
-#include "cursive0/semantics/apply.h"
+#include "cursive0/eval/apply.h"
 
 #include <optional>
 #include <string>
@@ -7,23 +7,23 @@
 #include <vector>
 
 #include "cursive0/core/assert_spec.h"
-#include "cursive0/sema/classes.h"
-#include "cursive0/sema/function_types.h"
-#include "cursive0/sema/record_methods.h"
-#include "cursive0/sema/resolver.h"
-#include "cursive0/sema/type_equiv.h"
-#include "cursive0/sema/type_expr.h"
-#include "cursive0/sema/visibility.h"
-#include "cursive0/semantics/builtins.h"
-#include "cursive0/semantics/cleanup.h"
-#include "cursive0/semantics/exec.h"
-#include "cursive0/semantics/eval.h"
+#include "cursive0/analysis/composite/classes.h"
+#include "cursive0/analysis/composite/function_types.h"
+#include "cursive0/analysis/composite/record_methods.h"
+#include "cursive0/analysis/resolve/resolver.h"
+#include "cursive0/analysis/types/type_equiv.h"
+#include "cursive0/analysis/types/type_expr.h"
+#include "cursive0/analysis/resolve/visibility.h"
+#include "cursive0/eval/builtins.h"
+#include "cursive0/eval/cleanup.h"
+#include "cursive0/eval/exec.h"
+#include "cursive0/eval/eval.h"
 
-namespace cursive0::semantics {
+namespace cursive0::eval {
 
 namespace {
 
-bool IsSystemExit(const sema::TypePath& path, std::string_view name) {
+bool IsSystemExit(const analysis::TypePath& path, std::string_view name) {
   return path.size() == 1 && path[0] == "System" && name == "exit";
 }
 
@@ -129,74 +129,74 @@ BindInfo BindInfoForRecv(bool move_mode) {
   return info;
 }
 
-std::optional<sema::Permission> LowerPermission(syntax::TypePerm perm) {
+std::optional<analysis::Permission> LowerPermission(syntax::TypePerm perm) {
   switch (perm) {
     case syntax::TypePerm::Const:
-      return sema::Permission::Const;
+      return analysis::Permission::Const;
     case syntax::TypePerm::Unique:
-      return sema::Permission::Unique;
+      return analysis::Permission::Unique;
     case syntax::TypePerm::Shared:
-      return sema::Permission::Shared;
+      return analysis::Permission::Shared;
   }
   return std::nullopt;
 }
 
-std::optional<sema::RawPtrQual> LowerRawPtrQual(syntax::RawPtrQual qual) {
+std::optional<analysis::RawPtrQual> LowerRawPtrQual(syntax::RawPtrQual qual) {
   switch (qual) {
     case syntax::RawPtrQual::Imm:
-      return sema::RawPtrQual::Imm;
+      return analysis::RawPtrQual::Imm;
     case syntax::RawPtrQual::Mut:
-      return sema::RawPtrQual::Mut;
+      return analysis::RawPtrQual::Mut;
   }
   return std::nullopt;
 }
 
-std::optional<sema::StringState> LowerStringState(
+std::optional<analysis::StringState> LowerStringState(
     const std::optional<syntax::StringState>& state) {
   if (!state.has_value()) {
     return std::nullopt;
   }
   switch (*state) {
     case syntax::StringState::Managed:
-      return sema::StringState::Managed;
+      return analysis::StringState::Managed;
     case syntax::StringState::View:
-      return sema::StringState::View;
+      return analysis::StringState::View;
   }
   return std::nullopt;
 }
 
-std::optional<sema::BytesState> LowerBytesState(
+std::optional<analysis::BytesState> LowerBytesState(
     const std::optional<syntax::BytesState>& state) {
   if (!state.has_value()) {
     return std::nullopt;
   }
   switch (*state) {
     case syntax::BytesState::Managed:
-      return sema::BytesState::Managed;
+      return analysis::BytesState::Managed;
     case syntax::BytesState::View:
-      return sema::BytesState::View;
+      return analysis::BytesState::View;
   }
   return std::nullopt;
 }
 
-std::optional<sema::PtrState> LowerPtrState(
+std::optional<analysis::PtrState> LowerPtrState(
     const std::optional<syntax::PtrState>& state) {
   if (!state.has_value()) {
     return std::nullopt;
   }
   switch (*state) {
     case syntax::PtrState::Valid:
-      return sema::PtrState::Valid;
+      return analysis::PtrState::Valid;
     case syntax::PtrState::Null:
-      return sema::PtrState::Null;
+      return analysis::PtrState::Null;
     case syntax::PtrState::Expired:
-      return sema::PtrState::Expired;
+      return analysis::PtrState::Expired;
   }
   return std::nullopt;
 }
 
-sema::TypePath TypePathOf(const syntax::TypePath& path) {
-  sema::TypePath out;
+analysis::TypePath TypePathOf(const syntax::TypePath& path) {
+  analysis::TypePath out;
   out.reserve(path.size());
   for (const auto& part : path) {
     out.push_back(part);
@@ -204,42 +204,42 @@ sema::TypePath TypePathOf(const syntax::TypePath& path) {
   return out;
 }
 
-std::optional<sema::TypePath> ResolveTypePath(const SemanticsContext& ctx,
+std::optional<analysis::TypePath> ResolveTypePath(const SemanticsContext& ctx,
                                               const syntax::TypePath& path) {
   if (!ctx.sema || !ctx.name_maps || !ctx.module_names) {
     return TypePathOf(path);
   }
-  sema::ResolveContext resolve_ctx;
-  resolve_ctx.ctx = const_cast<sema::ScopeContext*>(ctx.sema);
+  analysis::ResolveContext resolve_ctx;
+  resolve_ctx.ctx = const_cast<analysis::ScopeContext*>(ctx.sema);
   resolve_ctx.name_maps = ctx.name_maps;
   resolve_ctx.module_names = ctx.module_names;
-  resolve_ctx.can_access = sema::CanAccess;
-  const auto resolved = sema::ResolveTypePath(resolve_ctx, path);
+  resolve_ctx.can_access = analysis::CanAccess;
+  const auto resolved = analysis::ResolveTypePath(resolve_ctx, path);
   if (!resolved.ok) {
     return std::nullopt;
   }
   return TypePathOf(resolved.value);
 }
 
-std::optional<sema::TypeRef> LowerType(const SemanticsContext& ctx,
+std::optional<analysis::TypeRef> LowerType(const SemanticsContext& ctx,
                                        const std::shared_ptr<syntax::Type>& type) {
   if (!type) {
     return std::nullopt;
   }
   return std::visit(
-      [&](const auto& node) -> std::optional<sema::TypeRef> {
+      [&](const auto& node) -> std::optional<analysis::TypeRef> {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, syntax::TypePrim>) {
-          return sema::MakeTypePrim(node.name);
+          return analysis::MakeTypePrim(node.name);
         } else if constexpr (std::is_same_v<T, syntax::TypePermType>) {
           const auto perm = LowerPermission(node.perm);
           const auto base = LowerType(ctx, node.base);
           if (!perm.has_value() || !base.has_value()) {
             return std::nullopt;
           }
-          return sema::MakeTypePerm(*perm, *base);
+          return analysis::MakeTypePerm(*perm, *base);
         } else if constexpr (std::is_same_v<T, syntax::TypeUnion>) {
-          std::vector<sema::TypeRef> members;
+          std::vector<analysis::TypeRef> members;
           members.reserve(node.types.size());
           for (const auto& member : node.types) {
             const auto lowered = LowerType(ctx, member);
@@ -248,18 +248,18 @@ std::optional<sema::TypeRef> LowerType(const SemanticsContext& ctx,
             }
             members.push_back(*lowered);
           }
-          return sema::MakeTypeUnion(std::move(members));
+          return analysis::MakeTypeUnion(std::move(members));
         } else if constexpr (std::is_same_v<T, syntax::TypeFunc>) {
-          std::vector<sema::TypeFuncParam> params;
+          std::vector<analysis::TypeFuncParam> params;
           params.reserve(node.params.size());
           for (const auto& param : node.params) {
             const auto lowered = LowerType(ctx, param.type);
             if (!lowered.has_value()) {
               return std::nullopt;
             }
-            sema::TypeFuncParam out_param;
+            analysis::TypeFuncParam out_param;
             if (param.mode.has_value()) {
-              out_param.mode = sema::ParamMode::Move;
+              out_param.mode = analysis::ParamMode::Move;
             }
             out_param.type = *lowered;
             params.push_back(std::move(out_param));
@@ -268,9 +268,9 @@ std::optional<sema::TypeRef> LowerType(const SemanticsContext& ctx,
           if (!ret.has_value()) {
             return std::nullopt;
           }
-          return sema::MakeTypeFunc(std::move(params), *ret);
+          return analysis::MakeTypeFunc(std::move(params), *ret);
         } else if constexpr (std::is_same_v<T, syntax::TypeTuple>) {
-          std::vector<sema::TypeRef> elements;
+          std::vector<analysis::TypeRef> elements;
           elements.reserve(node.elements.size());
           for (const auto& elem : node.elements) {
             const auto lowered = LowerType(ctx, elem);
@@ -279,91 +279,91 @@ std::optional<sema::TypeRef> LowerType(const SemanticsContext& ctx,
             }
             elements.push_back(*lowered);
           }
-          return sema::MakeTypeTuple(std::move(elements));
+          return analysis::MakeTypeTuple(std::move(elements));
         } else if constexpr (std::is_same_v<T, syntax::TypeArray>) {
           const auto elem = LowerType(ctx, node.element);
           if (!elem.has_value() || !ctx.sema) {
             return std::nullopt;
           }
-          const auto len = sema::ConstLen(*ctx.sema, node.length);
+          const auto len = analysis::ConstLen(*ctx.sema, node.length);
           if (!len.ok || !len.value.has_value()) {
             return std::nullopt;
           }
-          return sema::MakeTypeArray(*elem, *len.value);
+          return analysis::MakeTypeArray(*elem, *len.value);
         } else if constexpr (std::is_same_v<T, syntax::TypeSlice>) {
           const auto elem = LowerType(ctx, node.element);
           if (!elem.has_value()) {
             return std::nullopt;
           }
-          return sema::MakeTypeSlice(*elem);
+          return analysis::MakeTypeSlice(*elem);
         } else if constexpr (std::is_same_v<T, syntax::TypePtr>) {
           const auto elem = LowerType(ctx, node.element);
           if (!elem.has_value()) {
             return std::nullopt;
           }
-          return sema::MakeTypePtr(*elem, LowerPtrState(node.state));
+          return analysis::MakeTypePtr(*elem, LowerPtrState(node.state));
         } else if constexpr (std::is_same_v<T, syntax::TypeRawPtr>) {
           const auto elem = LowerType(ctx, node.element);
           const auto qual = LowerRawPtrQual(node.qual);
           if (!elem.has_value() || !qual.has_value()) {
             return std::nullopt;
           }
-          return sema::MakeTypeRawPtr(*qual, *elem);
+          return analysis::MakeTypeRawPtr(*qual, *elem);
         } else if constexpr (std::is_same_v<T, syntax::TypeString>) {
-          return sema::MakeTypeString(LowerStringState(node.state));
+          return analysis::MakeTypeString(LowerStringState(node.state));
         } else if constexpr (std::is_same_v<T, syntax::TypeBytes>) {
-          return sema::MakeTypeBytes(LowerBytesState(node.state));
+          return analysis::MakeTypeBytes(LowerBytesState(node.state));
         } else if constexpr (std::is_same_v<T, syntax::TypeDynamic>) {
-          sema::TypePath path(node.path.begin(), node.path.end());
-          return sema::MakeTypeDynamic(std::move(path));
+          analysis::TypePath path(node.path.begin(), node.path.end());
+          return analysis::MakeTypeDynamic(std::move(path));
         } else if constexpr (std::is_same_v<T, syntax::TypeModalState>) {
           const auto path = ResolveTypePath(ctx, node.path);
           if (!path.has_value()) {
             return std::nullopt;
           }
-          return sema::MakeTypeModalState(*path, node.state);
+          return analysis::MakeTypeModalState(*path, node.state);
         } else if constexpr (std::is_same_v<T, syntax::TypePathType>) {
           const auto path = ResolveTypePath(ctx, node.path);
           if (!path.has_value()) {
             return std::nullopt;
           }
-          return sema::MakeTypePath(*path);
+          return analysis::MakeTypePath(*path);
         }
         return std::nullopt;
       },
       type->node);
 }
 
-sema::TypeRef ReturnTypeOf(const SemanticsContext& ctx,
+analysis::TypeRef ReturnTypeOf(const SemanticsContext& ctx,
                            const std::shared_ptr<syntax::Type>& type_opt) {
   if (!type_opt) {
-    return sema::MakeTypePrim("()");
+    return analysis::MakeTypePrim("()");
   }
   const auto lowered = LowerType(ctx, type_opt);
   if (lowered.has_value()) {
     return *lowered;
   }
-  return sema::MakeTypePrim("()");
+  return analysis::MakeTypePrim("()");
 }
 
-sema::TypeRef ProcReturnType(const SemanticsContext& ctx,
+analysis::TypeRef ProcReturnType(const SemanticsContext& ctx,
                              const syntax::ProcedureDecl& proc) {
   if (!ctx.sema) {
     return ReturnTypeOf(ctx, proc.return_type_opt);
   }
-  const auto res = sema::ProcType(*ctx.sema, proc);
+  const auto res = analysis::ProcType(*ctx.sema, proc);
   if (!res.ok || !res.type) {
     return ReturnTypeOf(ctx, proc.return_type_opt);
   }
-  if (const auto* fn = std::get_if<sema::TypeFunc>(&res.type->node)) {
+  if (const auto* fn = std::get_if<analysis::TypeFunc>(&res.type->node)) {
     return fn->ret;
   }
   return ReturnTypeOf(ctx, proc.return_type_opt);
 }
 
-const syntax::RecordDecl* FindRecordDecl(const sema::ScopeContext& ctx,
-                                         const sema::TypePath& path) {
-  const auto key = sema::PathKeyOf(path);
+const syntax::RecordDecl* FindRecordDecl(const analysis::ScopeContext& ctx,
+                                         const analysis::TypePath& path) {
+  const auto key = analysis::PathKeyOf(path);
   const auto it = ctx.sigma.types.find(key);
   if (it == ctx.sigma.types.end()) {
     return nullptr;
@@ -381,7 +381,7 @@ Outcome ApplyRegionProc(const SemanticsContext& ctx,
   if (!IsRegionProcName(name)) {
     return PanicOutcome();
   }
-  sema::TypePath module_path;
+  analysis::TypePath module_path;
   module_path.emplace_back("Region");
   const auto result = BuiltinCall(module_path, name, args, sigma);
   if (!result.has_value()) {
@@ -433,12 +433,12 @@ Outcome ApplyProcSigma(const SemanticsContext& ctx,
 }
 
 Outcome ApplyRecordCtorSigma(const SemanticsContext& ctx,
-                             const sema::TypePath& path,
+                             const analysis::TypePath& path,
                              Sigma& sigma) {
   if (!ctx.sema) {
     return PanicOutcome();
   }
-  const auto key = sema::PathKeyOf(path);
+  const auto key = analysis::PathKeyOf(path);
   const auto it = ctx.sema->sigma.types.find(key);
   if (it == ctx.sema->sigma.types.end()) {
     return PanicOutcome();
@@ -468,7 +468,7 @@ Outcome ApplyRecordCtorSigma(const SemanticsContext& ctx,
     return MakeCtrl(std::get<Control>(eval_out));
   }
   RecordVal record;
-  record.record_type = sema::MakeTypePath(path);
+  record.record_type = analysis::MakeTypePath(path);
   record.fields = std::move(
       std::get<std::vector<std::pair<std::string, Value>>>(eval_out));
   SPEC_RULE("ApplyRecordCtorSigma");
@@ -487,7 +487,7 @@ Outcome ApplyMethodSigma(const SemanticsContext& ctx,
   const syntax::Block* body = nullptr;
   std::vector<syntax::Param> params;
   bool recv_move = false;
-  sema::TypeRef ret_type = sema::MakeTypePrim("()");
+  analysis::TypeRef ret_type = analysis::MakeTypePrim("()");
 
   if (target.kind == MethodTarget::Kind::Record) {
     if (!target.record_method) {
@@ -589,7 +589,7 @@ Outcome ApplyMethodSigma(const SemanticsContext& ctx,
   if (target.kind == MethodTarget::Kind::State) {
     const auto* rec = std::get_if<RecordVal>(&self_value.node);
     const auto* modal = (rec && rec->record_type)
-        ? std::get_if<sema::TypeModalState>(&rec->record_type->node)
+        ? std::get_if<analysis::TypeModalState>(&rec->record_type->node)
         : nullptr;
     if (modal && modal->path.size() == 1 &&
         (modal->path[0] == "File" || modal->path[0] == "DirIter")) {
@@ -651,4 +651,4 @@ Outcome ApplyMethodSigma(const SemanticsContext& ctx,
   return ReturnOut(out2);
 }
 
-}  // namespace cursive0::semantics
+}  // namespace cursive0::eval

@@ -1,15 +1,15 @@
-#include "cursive0/semantics/exec.h"
+#include "cursive0/eval/exec.h"
 #include <memory>
 #include <utility>
 
 #include "cursive0/core/int128.h"
-#include "cursive0/sema/collect_toplevel.h"
-#include "cursive0/sema/resolver.h"
-#include "cursive0/sema/type_expr.h"
-#include "cursive0/semantics/cleanup.h"
-#include "cursive0/semantics/eval.h"
+#include "cursive0/analysis/resolve/collect_toplevel.h"
+#include "cursive0/analysis/resolve/resolver.h"
+#include "cursive0/analysis/types/type_expr.h"
+#include "cursive0/eval/cleanup.h"
+#include "cursive0/eval/eval.h"
 
-namespace cursive0::semantics {
+namespace cursive0::eval {
 
 namespace {
 
@@ -57,7 +57,7 @@ SemanticsContext WithoutTemps(const SemanticsContext& ctx) {
   return inner;
 }
 
-sema::TypeRef BlockResultType(const SemanticsContext& ctx,
+analysis::TypeRef BlockResultType(const SemanticsContext& ctx,
                               const syntax::Block& block) {
   if (block.tail_opt) {
     if (ctx.sema && ctx.sema->expr_types) {
@@ -68,7 +68,7 @@ sema::TypeRef BlockResultType(const SemanticsContext& ctx,
     }
     return nullptr;
   }
-  return sema::MakeTypePrim("()");
+  return analysis::MakeTypePrim("()");
 }
 
 CleanupStatus CleanupTemps(const SemanticsContext& ctx,
@@ -371,7 +371,7 @@ IntVal USizeVal(std::uint64_t value) {
 
 Value MakeRegionValue(RegionTarget target) {
   RecordVal record;
-  record.record_type = sema::MakeTypeModalState({"Region"}, "Active");
+  record.record_type = analysis::MakeTypeModalState({"Region"}, "Active");
   record.fields = {{"handle", Value{USizeVal(static_cast<std::uint64_t>(target))}}};
   return Value{record};
 }
@@ -387,7 +387,7 @@ std::optional<BindEnv> BindPatternVal(const SemanticsContext& ctx,
 BindListInput BindOrder(const syntax::Pattern& pattern,
                         const BindEnv& env) {
   BindListInput out;
-  const auto names = sema::PatNames(pattern);
+  const auto names = analysis::PatNames(pattern);
   out.reserve(names.size());
   for (const auto& name : names) {
     const auto it = env.find(name);
@@ -660,7 +660,7 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
           SemanticsContext inner_ctx = WithoutTemps(stmt_ctx);
           Outcome out = EvalBlockSigma(inner_ctx, *node.body, sigma);
           if (temp_state.sink && IsVal(out)) {
-            sema::TypeRef block_type = BlockResultType(stmt_ctx, *node.body);
+            analysis::TypeRef block_type = BlockResultType(stmt_ctx, *node.body);
             temp_state.sink->push_back(
                 TempValue{block_type, std::get<Value>(out.node)});
           }
@@ -721,7 +721,7 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
           SPEC_RULE("Step-Exec-Region-Body");
           Outcome out2 = RegionRelease(inner_ctx, target, scope, out, sigma);
           if (temp_state.sink && IsVal(out2)) {
-            sema::TypeRef block_type = BlockResultType(stmt_ctx, *node.body);
+            analysis::TypeRef block_type = BlockResultType(stmt_ctx, *node.body);
             temp_state.sink->push_back(
                 TempValue{block_type, std::get<Value>(out2.node)});
           }
@@ -776,7 +776,7 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
           SPEC_RULE("Step-Exec-Frame-Body");
           Outcome out2 = FrameReset(inner_ctx, target, scope, mark, out, sigma);
           if (temp_state.sink && IsVal(out2)) {
-            sema::TypeRef block_type = BlockResultType(stmt_ctx, *node.body);
+            analysis::TypeRef block_type = BlockResultType(stmt_ctx, *node.body);
             temp_state.sink->push_back(
                 TempValue{block_type, std::get<Value>(out2.node)});
           }
@@ -863,4 +863,4 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
   return ApplyTempCleanup(stmt_ctx, out, temp_status);
 }
 
-}  // namespace cursive0::semantics
+}  // namespace cursive0::eval

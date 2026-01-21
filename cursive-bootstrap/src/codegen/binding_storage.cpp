@@ -1,4 +1,4 @@
-#include "cursive0/codegen/llvm_emit.h"
+#include "cursive0/codegen/llvm/llvm_emit.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/codegen/ir_model.h"
 
@@ -26,7 +26,7 @@ void LLVMEmitter::EmitBindVar(const IRBindVar& bind) {
     llvm::Function* func = builder->GetInsertBlock()->getParent();
     llvm::IRBuilder<> entry_builder(&func->getEntryBlock(), func->getEntryBlock().begin());
 
-    sema::TypeRef bind_type = bind.type;
+    analysis::TypeRef bind_type = bind.type;
     if (current_ctx_) {
         if (!bind_type) {
             if (const auto* state = current_ctx_->GetBindingState(bind.name)) {
@@ -71,11 +71,11 @@ void LLVMEmitter::EmitBindVar(const IRBindVar& bind) {
                     val->getType()->print(actual_os);
                     actual_os.flush();
 
-                    std::string bind_type_str = bind_type ? sema::TypeToString(bind_type) : "<null>";
+                    std::string bind_type_str = bind_type ? analysis::TypeToString(bind_type) : "<null>";
                     std::string value_type_str = "<null>";
                     if (current_ctx_) {
                         if (auto inferred = current_ctx_->LookupValueType(bind.value)) {
-                            value_type_str = sema::TypeToString(inferred);
+                            value_type_str = analysis::TypeToString(inferred);
                         }
                     }
                     std::cerr << "[cursivec0] bind type mismatch for `" << bind.name << "`\n";
@@ -122,7 +122,7 @@ void EmitClearMoved(LLVMEmitter& emitter, const std::string& name) {
     // For bootstrap, this is a no-op
 }
 
-void EmitDropIfValid(LLVMEmitter& emitter, const std::string& name, sema::TypeRef type) {
+void EmitDropIfValid(LLVMEmitter& emitter, const std::string& name, analysis::TypeRef type) {
     SPEC_RULE("BindValid-DropIfValid");
     // For bootstrap, always emit drop (conservative)
     // A full implementation would check validity flag first

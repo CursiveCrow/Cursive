@@ -24,14 +24,11 @@ proc @demo_x3a_x3amain {
       }
       seq {
         seq {
-          seq {
-            nop
-            nop
-            nop
-          }
-          bind %arr = array
+          nop
+          nop
+          nop
         }
-        panic_check
+        bind %arr = array
       }
       seq {
         seq {

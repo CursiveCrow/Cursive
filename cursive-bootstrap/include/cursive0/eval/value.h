@@ -10,10 +10,10 @@
 
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/core/int128.h"
-#include "cursive0/sema/types.h"
-#include "cursive0/semantics/address.h"
+#include "cursive0/analysis/types/types.h"
+#include "cursive0/eval/address.h"
 
-namespace cursive0::semantics {
+namespace cursive0::eval {
 
 struct Value;
 
@@ -43,12 +43,12 @@ struct FloatVal {
 };
 
 struct PtrVal {
-  sema::PtrState state = sema::PtrState::Valid;
+  analysis::PtrState state = analysis::PtrState::Valid;
   Addr addr = 0;
 };
 
 struct RawPtrVal {
-  sema::RawPtrQual qual = sema::RawPtrQual::Imm;
+  analysis::RawPtrQual qual = analysis::RawPtrQual::Imm;
   Addr addr = 0;
 };
 
@@ -81,7 +81,7 @@ struct SliceVal {
 };
 
 struct RecordVal {
-  sema::TypeRef record_type;
+  analysis::TypeRef record_type;
   std::vector<std::pair<std::string, Value>> fields;
 };
 
@@ -97,7 +97,7 @@ using EnumPayloadVal =
     std::variant<EnumPayloadTupleVal, EnumPayloadRecordVal>;
 
 struct EnumVal {
-  sema::TypePath path;
+  analysis::TypePath path;
   std::optional<EnumPayloadVal> payload;
 };
 
@@ -107,33 +107,33 @@ struct ModalVal {
 };
 
 struct UnionVal {
-  sema::TypeRef member;
+  analysis::TypeRef member;
   std::shared_ptr<Value> value;
 };
 
 struct DynamicVal {
-  sema::TypePath class_path;
+  analysis::TypePath class_path;
   RawPtrVal data;
-  sema::TypeRef concrete_type;
+  analysis::TypeRef concrete_type;
 };
 
 struct StringVal {
-  sema::StringState state = sema::StringState::View;
+  analysis::StringState state = analysis::StringState::View;
   std::vector<std::uint8_t> bytes;
 };
 
 struct BytesVal {
-  sema::BytesState state = sema::BytesState::View;
+  analysis::BytesState state = analysis::BytesState::View;
   std::vector<std::uint8_t> bytes;
 };
 
 struct ProcRefVal {
-  sema::TypePath module_path;
+  analysis::TypePath module_path;
   std::string name;
 };
 
 struct RecordCtorVal {
-  sema::TypePath path;
+  analysis::TypePath path;
 };
 
 struct Value {
@@ -161,8 +161,8 @@ struct Value {
   Variant node;
 };
 
-bool TypeEqual(const sema::TypeRef& lhs, const sema::TypeRef& rhs);
+bool TypeEqual(const analysis::TypeRef& lhs, const analysis::TypeRef& rhs);
 bool ValueEqual(const Value& lhs, const Value& rhs);
 std::string ValueToString(const Value& value);
 
-}  // namespace cursive0::semantics
+}  // namespace cursive0::eval

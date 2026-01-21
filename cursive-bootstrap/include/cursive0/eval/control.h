@@ -3,9 +3,9 @@
 #include <optional>
 #include <variant>
 
-#include "cursive0/semantics/value.h"
+#include "cursive0/eval/value.h"
 
-namespace cursive0::semantics {
+namespace cursive0::eval {
 
 enum class ControlKind {
   Return,
@@ -39,4 +39,4 @@ bool IsCtrl(const Outcome& out);
 Value BreakVal(const std::optional<Value>& value_opt);
 std::string ControlToString(const Control& ctrl);
 
-}  // namespace cursive0::semantics
+}  // namespace cursive0::eval

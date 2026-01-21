@@ -5,11 +5,11 @@
 #include <vector>
 
 #include "cursive0/codegen/checks.h"
-#include "cursive0/codegen/abi.h"
+#include "cursive0/codegen/abi/abi.h"
 #include "cursive0/codegen/cleanup.h"
-#include "cursive0/codegen/lower_expr.h"
-#include "cursive0/codegen/lower_pat.h"
-#include "cursive0/codegen/layout.h"
+#include "cursive0/codegen/lower/lower_expr.h"
+#include "cursive0/codegen/lower/lower_pat.h"
+#include "cursive0/codegen/layout/layout.h"
 #include "cursive0/codegen/mangle.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/core/symbols.h"
@@ -260,7 +260,7 @@ IRPtr LowerStaticDeinitNames(const syntax::ModulePath& module_path,
 
   const bool has_resp = StaticHasResponsibility(item);
   const auto bind_types = StaticBindTypes(item.binding, module_path, ctx);
-  auto type_for = [&](const std::string& name) -> sema::TypeRef {
+  auto type_for = [&](const std::string& name) -> analysis::TypeRef {
     for (const auto& [bind_name, bind_type] : bind_types) {
       if (bind_name == name) {
         return bind_type;
@@ -282,7 +282,7 @@ IRPtr LowerStaticDeinitNames(const syntax::ModulePath& module_path,
 
     IRValue loaded_value = ctx.FreshTempValue("static");
 
-    sema::TypeRef type = type_for(name);
+    analysis::TypeRef type = type_for(name);
 
     IRPtr drop_ir = EmitDrop(type, loaded_value, ctx);
     ir_parts.push_back(SeqIR({MakeIR(std::move(read)), drop_ir}));
@@ -491,13 +491,13 @@ ProcIR EmitModuleInitFn(const syntax::ModulePath& module_path,
   
   // Init function takes a panic out parameter
   IRParam panic_param;
-  panic_param.mode = sema::ParamMode::Move;
+  panic_param.mode = analysis::ParamMode::Move;
   panic_param.name = std::string(kPanicOutName);
   panic_param.type = PanicOutType();
   proc.params.push_back(std::move(panic_param));
   
   // Return type is unit
-  proc.ret = sema::MakeTypePrim("()");
+  proc.ret = analysis::MakeTypePrim("()");
   
   // Body is the static init lowering
   proc.body = LowerStaticInit(module_path, module, ctx);
@@ -515,13 +515,13 @@ ProcIR EmitModuleDeinitFn(const syntax::ModulePath& module_path,
   
   // Deinit function takes a panic out parameter
   IRParam panic_param;
-  panic_param.mode = sema::ParamMode::Move;
+  panic_param.mode = analysis::ParamMode::Move;
   panic_param.name = std::string(kPanicOutName);
   panic_param.type = PanicOutType();
   proc.params.push_back(std::move(panic_param));
   
   // Return type is unit
-  proc.ret = sema::MakeTypePrim("()");
+  proc.ret = analysis::MakeTypePrim("()");
   
   // Body is the static deinit lowering
   proc.body = LowerStaticDeinit(module_path, module, ctx);

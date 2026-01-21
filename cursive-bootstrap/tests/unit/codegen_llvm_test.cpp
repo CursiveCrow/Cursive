@@ -7,11 +7,11 @@
 #include <vector>
 
 #include "cursive0/codegen/ir_model.h"
-#include "cursive0/codegen/llvm_emit.h"
+#include "cursive0/codegen/llvm/llvm_emit.h"
 #include "cursive0/core/assert_spec.h"
-#include "cursive0/sema/context.h"
-#include "cursive0/sema/scopes.h"
-#include "cursive0/sema/types.h"
+#include "cursive0/analysis/types/context.h"
+#include "cursive0/analysis/resolve/scopes.h"
+#include "cursive0/analysis/types/types.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -26,7 +26,7 @@
 
 using namespace cursive0;
 using namespace cursive0::codegen;
-using namespace cursive0::sema;
+using namespace cursive0::analysis;
 
 static cursive0::core::Span EmptySpan() {
     return {};
@@ -182,20 +182,20 @@ void TestTypes() {
     std::unique_ptr<LLVMEmitter> emitter = std::make_unique<LLVMEmitter>(ctx, "test_types");
     
     // i32
-    auto i32_node = std::make_shared<sema::Type>();
-    i32_node->node = sema::TypePrim{"i32"};
+    auto i32_node = std::make_shared<analysis::Type>();
+    i32_node->node = analysis::TypePrim{"i32"};
     llvm::Type* t_i32 = emitter->GetLLVMType(i32_node);
     assert(t_i32->isIntegerTy(32));
     
     // bool
-    auto bool_node = std::make_shared<sema::Type>();
-    bool_node->node = sema::TypePrim{"bool"};
+    auto bool_node = std::make_shared<analysis::Type>();
+    bool_node->node = analysis::TypePrim{"bool"};
     llvm::Type* t_bool = emitter->GetLLVMType(bool_node);
     assert(t_bool->isIntegerTy(8));
     
     // void / unit - maps to empty struct (zero-sized) in value contexts, not LLVM void
-    auto unit_node = std::make_shared<sema::Type>();
-    unit_node->node = sema::TypePrim{"()"};
+    auto unit_node = std::make_shared<analysis::Type>();
+    unit_node->node = analysis::TypePrim{"()"};
     llvm::Type* t_unit = emitter->GetLLVMType(unit_node);
     // Unit type is represented as empty struct for value representation
     assert(t_unit->isStructTy() && static_cast<llvm::StructType*>(t_unit)->getNumElements() == 0);
@@ -210,21 +210,21 @@ void TestOpaquePointers() {
     std::unique_ptr<LLVMEmitter> emitter = std::make_unique<LLVMEmitter>(ctx, "test_ptr");
     
     // *i32
-    auto i32_node = std::make_shared<sema::Type>();
-    i32_node->node = sema::TypePrim{"i32"};
+    auto i32_node = std::make_shared<analysis::Type>();
+    i32_node->node = analysis::TypePrim{"i32"};
     
-    auto ptr_node = std::make_shared<sema::Type>();
+    auto ptr_node = std::make_shared<analysis::Type>();
     // Fix: TypePtr has element and state only.
-    ptr_node->node = sema::TypePtr{i32_node, sema::PtrState::Valid};
+    ptr_node->node = analysis::TypePtr{i32_node, analysis::PtrState::Valid};
     
     llvm::Type* t_ptr = emitter->GetLLVMType(ptr_node);
     assert(t_ptr->isPointerTy());
 
     
     // raw ptr
-    auto raw_node = std::make_shared<sema::Type>();
+    auto raw_node = std::make_shared<analysis::Type>();
     // Fix: TypeRawPtr has qual and element.
-    raw_node->node = sema::TypeRawPtr{sema::RawPtrQual::Imm, i32_node};
+    raw_node->node = analysis::TypeRawPtr{analysis::RawPtrQual::Imm, i32_node};
     llvm::Type* t_raw = emitter->GetLLVMType(raw_node);
     assert(t_raw->isPointerTy());
     
@@ -238,8 +238,8 @@ void TestABI() {
     std::unique_ptr<LLVMEmitter> emitter = std::make_unique<LLVMEmitter>(ctx, "test_abi");
     
     // Check return mapping for i32
-    auto i32_node = std::make_shared<sema::Type>();
-    i32_node->node = sema::TypePrim{"i32"};
+    auto i32_node = std::make_shared<analysis::Type>();
+    i32_node->node = analysis::TypePrim{"i32"};
     
     std::vector<IRParam> params; 
     ABICallResult res = emitter->ComputeCallABI(params, i32_node);
@@ -444,12 +444,12 @@ void TestLLVMTypeCoverage() {
     LLVMEmitter emitter(ctx, "llvm_types");
     LowerCtx lower;
 
-    sema::Sigma sigma;
-    sigma.types[sema::PathKeyOf({"Point"})] = MakeRecordDecl("Point");
-    sigma.types[sema::PathKeyOf({"Option"})] = MakeEnumDecl("Option");
-    sigma.types[sema::PathKeyOf({"MaybePtr"})] = MakeModalDeclNiche("MaybePtr");
-    sigma.types[sema::PathKeyOf({"Mode"})] = MakeModalDeclTagged("Mode");
-    sigma.types[sema::PathKeyOf({"AliasPoint"})] = MakeAliasDecl("AliasPoint", "Point");
+    analysis::Sigma sigma;
+    sigma.types[analysis::PathKeyOf({"Point"})] = MakeRecordDecl("Point");
+    sigma.types[analysis::PathKeyOf({"Option"})] = MakeEnumDecl("Option");
+    sigma.types[analysis::PathKeyOf({"MaybePtr"})] = MakeModalDeclNiche("MaybePtr");
+    sigma.types[analysis::PathKeyOf({"Mode"})] = MakeModalDeclTagged("Mode");
+    sigma.types[analysis::PathKeyOf({"AliasPoint"})] = MakeAliasDecl("AliasPoint", "Point");
 
     lower.sigma = &sigma;
     lower.module_path = {"main"};
@@ -469,11 +469,11 @@ void TestLLVMTypeCoverage() {
     assert(emitter.GetLLVMType(MakeTypeFunc({}, MakeTypePrim("i32"))) != nullptr);
 
     // String/bytes and dynamic types.
-    assert(emitter.GetLLVMType(MakeTypeString(sema::StringState::View)) != nullptr);
-    assert(emitter.GetLLVMType(MakeTypeString(sema::StringState::Managed)) != nullptr);
+    assert(emitter.GetLLVMType(MakeTypeString(analysis::StringState::View)) != nullptr);
+    assert(emitter.GetLLVMType(MakeTypeString(analysis::StringState::Managed)) != nullptr);
     assert(emitter.GetLLVMType(MakeTypeString(std::nullopt)) != nullptr);
-    assert(emitter.GetLLVMType(MakeTypeBytes(sema::BytesState::View)) != nullptr);
-    assert(emitter.GetLLVMType(MakeTypeBytes(sema::BytesState::Managed)) != nullptr);
+    assert(emitter.GetLLVMType(MakeTypeBytes(analysis::BytesState::View)) != nullptr);
+    assert(emitter.GetLLVMType(MakeTypeBytes(analysis::BytesState::Managed)) != nullptr);
     assert(emitter.GetLLVMType(MakeTypeBytes(std::nullopt)) != nullptr);
     assert(emitter.GetLLVMType(MakeTypeDynamic({"HeapAllocator"})) != nullptr);
 

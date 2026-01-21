@@ -11,16 +11,16 @@
 #include "cursive0/codegen/dyn_dispatch.h"
 #include "cursive0/codegen/globals.h"
 #include "cursive0/codegen/ir_model.h"
-#include "cursive0/codegen/llvm_emit.h"
-#include "cursive0/codegen/lower_expr.h"
-#include "cursive0/codegen/lower_pat.h"
-#include "cursive0/codegen/lower_stmt.h"
+#include "cursive0/codegen/llvm/llvm_emit.h"
+#include "cursive0/codegen/lower/lower_expr.h"
+#include "cursive0/codegen/lower/lower_pat.h"
+#include "cursive0/codegen/lower/lower_stmt.h"
 #include "cursive0/codegen/mangle.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/core/symbols.h"
-#include "cursive0/sema/context.h"
-#include "cursive0/sema/scopes.h"
-#include "cursive0/sema/types.h"
+#include "cursive0/analysis/types/context.h"
+#include "cursive0/analysis/resolve/scopes.h"
+#include "cursive0/analysis/types/types.h"
 #include "cursive0/syntax/ast.h"
 #include "cursive0/syntax/token.h"
 
@@ -398,8 +398,8 @@ cursive0::syntax::PatternPtr MakeRangePattern(cursive0::syntax::RangeKind kind,
 }
 
 struct ExprTypeEnv {
-  std::unordered_map<const cursive0::syntax::Expr*, cursive0::sema::TypeRef> types;
-  cursive0::sema::TypeRef operator()(const cursive0::syntax::Expr& expr) const {
+  std::unordered_map<const cursive0::syntax::Expr*, cursive0::analysis::TypeRef> types;
+  cursive0::analysis::TypeRef operator()(const cursive0::syntax::Expr& expr) const {
     auto it = types.find(&expr);
     if (it == types.end()) {
       return nullptr;
@@ -410,7 +410,7 @@ struct ExprTypeEnv {
 
 void SetExprType(ExprTypeEnv& env,
                  const cursive0::syntax::ExprPtr& expr,
-                 cursive0::sema::TypeRef type) {
+                 cursive0::analysis::TypeRef type) {
   env.types[expr.get()] = std::move(type);
 }
 
@@ -510,12 +510,12 @@ cursive0::syntax::ClassDecl MakeDrawableClass(bool with_body) {
   return decl;
 }
 
-cursive0::sema::Sigma BuildSigma() {
-  cursive0::sema::Sigma sigma;
-  sigma.types[cursive0::sema::PathKeyOf({"Point"})] = MakePointRecord();
-  sigma.types[cursive0::sema::PathKeyOf({"Option"})] = MakeOptionEnum();
-  sigma.types[cursive0::sema::PathKeyOf({"Region"})] = MakeRegionModal();
-  sigma.classes[cursive0::sema::PathKeyOf({"Drawable"})] = MakeDrawableClass(true);
+cursive0::analysis::Sigma BuildSigma() {
+  cursive0::analysis::Sigma sigma;
+  sigma.types[cursive0::analysis::PathKeyOf({"Point"})] = MakePointRecord();
+  sigma.types[cursive0::analysis::PathKeyOf({"Option"})] = MakeOptionEnum();
+  sigma.types[cursive0::analysis::PathKeyOf({"Region"})] = MakeRegionModal();
+  sigma.classes[cursive0::analysis::PathKeyOf({"Drawable"})] = MakeDrawableClass(true);
   return sigma;
 }
 
@@ -530,14 +530,14 @@ std::vector<const cursive0::syntax::StaticDecl*> StaticItems(const cursive0::syn
 }
 
 cursive0::codegen::LowerCtx MakeLowerCtx(
-    cursive0::sema::Sigma& sigma,
+    cursive0::analysis::Sigma& sigma,
     ExprTypeEnv& env,
     std::unordered_map<std::string, std::vector<std::string>>* name_map = nullptr,
     std::unordered_map<std::string, std::vector<std::string>>* type_map = nullptr) {
   cursive0::codegen::LowerCtx ctx;
   ctx.sigma = &sigma;
   ctx.module_path = {"main"};
-  ctx.proc_ret_type = cursive0::sema::MakeTypePrim("i32");
+  ctx.proc_ret_type = cursive0::analysis::MakeTypePrim("i32");
   ctx.expr_type = [&env](const cursive0::syntax::Expr& expr) { return env(expr); };
   if (name_map) {
     ctx.resolve_name = [name_map](const std::string& name)
@@ -629,12 +629,12 @@ void TestDynDispatchAndVTable() {
   SPEC_COV("VSlot-Entry");
   SPEC_COV("VTable-Order");
 
-  cursive0::sema::Sigma sigma = BuildSigma();
+  cursive0::analysis::Sigma sigma = BuildSigma();
   ExprTypeEnv env;
   auto ctx = MakeLowerCtx(sigma, env);
 
   const auto class_with_default = MakeDrawableClass(true);
-  const auto type_point = cursive0::sema::MakeTypePath({"Point"});
+  const auto type_point = cursive0::analysis::MakeTypePath({"Point"});
 
   (void)cursive0::codegen::DispatchSym(type_point, {"Drawable"}, "draw",
                                       class_with_default, ctx);
@@ -796,7 +796,7 @@ void TestLowerExprAndPlaces() {
   SPEC_COV("OptExprs-Lo");
   SPEC_COV("OptExprs-None");
 
-  cursive0::sema::Sigma sigma = BuildSigma();
+  cursive0::analysis::Sigma sigma = BuildSigma();
   ExprTypeEnv env;
   std::unordered_map<std::string, std::vector<std::string>> name_map;
   std::unordered_map<std::string, std::vector<std::string>> type_map;
@@ -804,13 +804,13 @@ void TestLowerExprAndPlaces() {
   type_map["Point"] = {"Point"};
   auto ctx = MakeLowerCtx(sigma, env, &name_map, &type_map);
   ctx.PushScope(false, false);
-  ctx.RegisterVar("local", cursive0::sema::MakeTypePrim("i32"), true, false);
-  ctx.RegisterVar("self", cursive0::sema::MakeTypePath({"Point"}), true, false);
+  ctx.RegisterVar("local", cursive0::analysis::MakeTypePrim("i32"), true, false);
+  ctx.RegisterVar("self", cursive0::analysis::MakeTypePath({"Point"}), true, false);
 
   auto lit_i32 = MakeLiteralExpr(cursive0::syntax::TokenKind::IntLiteral, "1");
   auto lit_bool = MakeLiteralExpr(cursive0::syntax::TokenKind::BoolLiteral, "true");
-  SetExprType(env, lit_i32, cursive0::sema::MakeTypePrim("i32"));
-  SetExprType(env, lit_bool, cursive0::sema::MakeTypePrim("bool"));
+  SetExprType(env, lit_i32, cursive0::analysis::MakeTypePrim("i32"));
+  SetExprType(env, lit_bool, cursive0::analysis::MakeTypePrim("bool"));
 
   auto id_local = MakeIdentifierExpr("local");
   auto id_path = MakeIdentifierExpr("global");
@@ -903,8 +903,8 @@ void TestLowerExprAndPlaces() {
 
   (void)cursive0::codegen::LowerList({}, ctx);
   (void)cursive0::codegen::LowerList({lit_i32, lit_bool}, ctx);
-  (void)cursive0::codegen::LowerFieldInits({}, ctx);
-  (void)cursive0::codegen::LowerFieldInits({MakeFieldInit("x", lit_i32)}, ctx);
+  (void)cursive0::codegen::LowerFieldInits({}, ctx, false);
+  (void)cursive0::codegen::LowerFieldInits({MakeFieldInit("x", lit_i32)}, ctx, false);
   (void)cursive0::codegen::LowerOpt(nullptr, ctx);
   (void)cursive0::codegen::LowerOpt(lit_i32, ctx);
 
@@ -917,7 +917,7 @@ void TestLowerExprAndPlaces() {
 
   (void)cursive0::codegen::LowerUnOp("-", *lit_i32, ctx);
   (void)cursive0::codegen::LowerBinOp("+", *lit_i32, *lit_i32, ctx);
-  (void)cursive0::codegen::LowerCast(*lit_i32, cursive0::sema::MakeTypePrim("i64"), ctx);
+  (void)cursive0::codegen::LowerCast(*lit_i32, cursive0::analysis::MakeTypePrim("i64"), ctx);
 }
 
 void TestLowerStmtAndBlock() {
@@ -950,14 +950,14 @@ void TestLowerStmtAndBlock() {
   SPEC_COV("Lower-StmtList-Cons");
   SPEC_COV("Lower-StmtList-Empty");
 
-  cursive0::sema::Sigma sigma = BuildSigma();
+  cursive0::analysis::Sigma sigma = BuildSigma();
   ExprTypeEnv env;
   auto ctx = MakeLowerCtx(sigma, env);
   ctx.PushScope(false, false);
-  ctx.RegisterVar("local", cursive0::sema::MakeTypePrim("i32"), true, false);
+  ctx.RegisterVar("local", cursive0::analysis::MakeTypePrim("i32"), true, false);
 
   auto lit_i32 = MakeLiteralExpr(cursive0::syntax::TokenKind::IntLiteral, "1");
-  SetExprType(env, lit_i32, cursive0::sema::MakeTypePrim("i32"));
+  SetExprType(env, lit_i32, cursive0::analysis::MakeTypePrim("i32"));
 
   cursive0::syntax::Binding binding;
   binding.pat = MakeIdentPattern("x");
@@ -1112,13 +1112,13 @@ void TestPatternLowering() {
   SPEC_COV("TagOf-Enum");
   SPEC_COV("TagOf-Modal");
 
-  cursive0::sema::Sigma sigma = BuildSigma();
+  cursive0::analysis::Sigma sigma = BuildSigma();
   ExprTypeEnv env;
   auto ctx = MakeLowerCtx(sigma, env);
   ctx.PushScope(false, false);
 
   auto lit_i32 = MakeLiteralExpr(cursive0::syntax::TokenKind::IntLiteral, "1");
-  SetExprType(env, lit_i32, cursive0::sema::MakeTypePrim("i32"));
+  SetExprType(env, lit_i32, cursive0::analysis::MakeTypePrim("i32"));
 
   cursive0::codegen::IRValue scrut;
   scrut.kind = cursive0::codegen::IRValue::Kind::Local;
@@ -1163,7 +1163,7 @@ void TestPatternLowering() {
   arm.guard_opt = nullptr;
   arm.body = lit_i32;
   (void)cursive0::codegen::LowerMatchArm(arm, scrut,
-                                         cursive0::sema::MakeTypePrim("i32"), ctx);
+                                         cursive0::analysis::MakeTypePrim("i32"), ctx);
 
   (void)cursive0::codegen::LowerMatch(*lit_i32, {arm}, ctx);
 }
@@ -1193,7 +1193,7 @@ void TestGlobalsAndInit() {
   SPEC_COV("Lower-StaticInitItems-Empty");
   SPEC_COV("CleanupPlan");
 
-  cursive0::sema::Sigma sigma = BuildSigma();
+  cursive0::analysis::Sigma sigma = BuildSigma();
   ExprTypeEnv env;
   auto ctx = MakeLowerCtx(sigma, env);
 
@@ -1209,7 +1209,7 @@ void TestGlobalsAndInit() {
   decl.mut = cursive0::syntax::Mutability::Let;
   decl.binding = binding;
 
-  SetExprType(env, lit_i32, cursive0::sema::MakeTypePrim("i32"));
+  SetExprType(env, lit_i32, cursive0::analysis::MakeTypePrim("i32"));
   (void)cursive0::codegen::EmitGlobal(decl, {"main"}, ctx);
 
   cursive0::syntax::ASTModule module;
@@ -1266,12 +1266,12 @@ void TestChecksAndRanges() {
   range_bad.hi = MakeImmU32(6);
   assert(!cursive0::codegen::CheckRange(4, range_bad));
 
-  cursive0::sema::Sigma sigma = BuildSigma();
+  cursive0::analysis::Sigma sigma = BuildSigma();
   ExprTypeEnv env;
   auto ctx = MakeLowerCtx(sigma, env);
 
   auto lit_i32 = MakeLiteralExpr(cursive0::syntax::TokenKind::IntLiteral, "1");
-  SetExprType(env, lit_i32, cursive0::sema::MakeTypePrim("i32"));
+  SetExprType(env, lit_i32, cursive0::analysis::MakeTypePrim("i32"));
 
   (void)cursive0::codegen::LowerRangeExpr({cursive0::syntax::RangeKind::Exclusive, lit_i32, lit_i32}, ctx);
   (void)cursive0::codegen::LowerRangeExpr({cursive0::syntax::RangeKind::Inclusive, lit_i32, lit_i32}, ctx);
@@ -1280,31 +1280,31 @@ void TestChecksAndRanges() {
   (void)cursive0::codegen::LowerRangeExpr({cursive0::syntax::RangeKind::ToInclusive, nullptr, lit_i32}, ctx);
   (void)cursive0::codegen::LowerRangeExpr({cursive0::syntax::RangeKind::Full, nullptr, nullptr}, ctx);
 
-  (void)cursive0::codegen::LowerTransmute(cursive0::sema::MakeTypePrim("i32"),
-                                          cursive0::sema::MakeTypePrim("i32"),
+  (void)cursive0::codegen::LowerTransmute(cursive0::analysis::MakeTypePrim("i32"),
+                                          cursive0::analysis::MakeTypePrim("i32"),
                                           *lit_i32, ctx);
-  (void)cursive0::codegen::LowerTransmute(cursive0::sema::MakeTypePrim("i32"),
-                                          cursive0::sema::MakeTypePrim("i64"),
+  (void)cursive0::codegen::LowerTransmute(cursive0::analysis::MakeTypePrim("i32"),
+                                          cursive0::analysis::MakeTypePrim("i64"),
                                           *lit_i32, ctx);
 
   cursive0::codegen::IRValue ptr_value;
   ptr_value.kind = cursive0::codegen::IRValue::Kind::Local;
   ptr_value.name = "ptr";
   (void)cursive0::codegen::LowerRawDeref(ptr_value,
-                                        cursive0::sema::MakeTypePtr(cursive0::sema::MakeTypePrim("i32"),
-                                                                    cursive0::sema::PtrState::Valid),
+                                        cursive0::analysis::MakeTypePtr(cursive0::analysis::MakeTypePrim("i32"),
+                                                                    cursive0::analysis::PtrState::Valid),
                                         ctx);
   (void)cursive0::codegen::LowerRawDeref(ptr_value,
-                                        cursive0::sema::MakeTypePtr(cursive0::sema::MakeTypePrim("i32"),
-                                                                    cursive0::sema::PtrState::Null),
+                                        cursive0::analysis::MakeTypePtr(cursive0::analysis::MakeTypePrim("i32"),
+                                                                    cursive0::analysis::PtrState::Null),
                                         ctx);
   (void)cursive0::codegen::LowerRawDeref(ptr_value,
-                                        cursive0::sema::MakeTypePtr(cursive0::sema::MakeTypePrim("i32"),
-                                                                    cursive0::sema::PtrState::Expired),
+                                        cursive0::analysis::MakeTypePtr(cursive0::analysis::MakeTypePrim("i32"),
+                                                                    cursive0::analysis::PtrState::Expired),
                                         ctx);
   (void)cursive0::codegen::LowerRawDeref(ptr_value,
-                                        cursive0::sema::MakeTypeRawPtr(cursive0::sema::RawPtrQual::Imm,
-                                                                       cursive0::sema::MakeTypePrim("i32")),
+                                        cursive0::analysis::MakeTypeRawPtr(cursive0::analysis::RawPtrQual::Imm,
+                                                                       cursive0::analysis::MakeTypePrim("i32")),
                                         ctx);
 }
 

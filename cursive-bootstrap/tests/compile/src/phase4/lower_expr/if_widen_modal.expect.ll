@@ -42,22 +42,6 @@ proc @demo_x3a_x3amain {
               } else nop
               binop || 0x0, panic_flag
               if panic_flag then nop else nop
-              clear_panic
-              call @cursive_x3a_x3aruntime_x3a_x3adrop_x3a_x3ademo_x3a_x3aStatus_x3a_x3aIdle (record, %__panic)
-              seq {
-                load_ptr panic_flag_ptr
-                load_ptr panic_code_ptr
-              }
-              binop && panicking, panic_flag
-              if double_panic then call @cursive_x3a_x3aruntime_x3a_x3apanic (panic_code) else nop
-              unop ! panic_flag
-              binop && panicking, panic_clear
-              if panic_restore then seq {
-                store_ptr panic_flag_ptr = 0x1
-                store_ptr panic_code_ptr = panic_code_sel
-              } else nop
-              binop || panicking, panic_flag
-              if panic_flag then nop else nop
               panic_check
             }
           } else seq {
@@ -87,22 +71,6 @@ proc @demo_x3a_x3amain {
                 store_ptr panic_code_ptr = 0x0
               } else nop
               binop || 0x0, panic_flag
-              if panic_flag then nop else nop
-              clear_panic
-              call @cursive_x3a_x3aruntime_x3a_x3adrop_x3a_x3ademo_x3a_x3aStatus_x3a_x3aBusy (record, %__panic)
-              seq {
-                load_ptr panic_flag_ptr
-                load_ptr panic_code_ptr
-              }
-              binop && panicking, panic_flag
-              if double_panic then call @cursive_x3a_x3aruntime_x3a_x3apanic (panic_code) else nop
-              unop ! panic_flag
-              binop && panicking, panic_clear
-              if panic_restore then seq {
-                store_ptr panic_flag_ptr = 0x1
-                store_ptr panic_code_ptr = panic_code_sel
-              } else nop
-              binop || panicking, panic_flag
               if panic_flag then nop else nop
               panic_check
             }

@@ -1,16 +1,16 @@
 #include "cursive0/codegen/cleanup.h"
 
 #include "cursive0/codegen/checks.h"
-#include "cursive0/codegen/abi.h"
-#include "cursive0/codegen/layout.h"
+#include "cursive0/codegen/abi/abi.h"
+#include "cursive0/codegen/layout/layout.h"
 #include "cursive0/codegen/mangle.h"
 #include "cursive0/codegen/globals.h"
 #include "cursive0/runtime/runtime_interface.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/core/symbols.h"
-#include "cursive0/sema/classes.h"
-#include "cursive0/sema/scopes.h"
-#include "cursive0/sema/type_expr.h"
+#include "cursive0/analysis/composite/classes.h"
+#include "cursive0/analysis/resolve/scopes.h"
+#include "cursive0/analysis/types/type_expr.h"
 
 #include <algorithm>
 #include <cassert>
@@ -30,12 +30,12 @@ namespace cursive0::codegen {
 
 // Helper to check if a TypeRef holds a specific type
 template <typename T>
-static bool HoldsType(const sema::TypeRef& type) {
+static bool HoldsType(const analysis::TypeRef& type) {
   return type && std::holds_alternative<T>(type->node);
 }
 
 template <typename T>
-static const T& GetType(const sema::TypeRef& type) {
+static const T& GetType(const analysis::TypeRef& type) {
   return std::get<T>(type->node);
 }
 
@@ -81,7 +81,7 @@ static std::optional<StaticBindFlags> StaticBindFlagsFor(
 
   const syntax::ASTModule* module = nullptr;
   for (const auto& mod : ctx.sigma->mods) {
-    if (sema::PathEq(mod.path, module_path)) {
+    if (analysis::PathEq(mod.path, module_path)) {
       module = &mod;
       break;
     }
@@ -114,19 +114,19 @@ static std::optional<StaticBindFlags> StaticBindFlagsFor(
 
 
 
-static std::optional<sema::TypeRef> LowerTypeForDrop(
+static std::optional<analysis::TypeRef> LowerTypeForDrop(
     const std::shared_ptr<syntax::Type>& type,
     LowerCtx& ctx) {
   if (!type || !ctx.sigma) {
     return std::nullopt;
   }
-  sema::ScopeContext scope;
+  analysis::ScopeContext scope;
   scope.sigma = *ctx.sigma;
   scope.current_module = ctx.module_path;
   return LowerTypeForLayout(scope, type);
 }
 
-static syntax::Path ToSyntaxPath(const sema::TypePath& path) {
+static syntax::Path ToSyntaxPath(const analysis::TypePath& path) {
   syntax::Path out;
   out.reserve(path.size());
   for (const auto& seg : path) {
@@ -139,16 +139,16 @@ static const syntax::StateBlock* FindModalState(
     const syntax::ModalDecl& decl,
     std::string_view name) {
   for (const auto& state : decl.states) {
-    if (sema::IdEq(state.name, name)) {
+    if (analysis::IdEq(state.name, name)) {
       return &state;
     }
   }
   return nullptr;
 }
 
-static std::optional<std::vector<std::pair<std::string, sema::TypeRef>>>
+static std::optional<std::vector<std::pair<std::string, analysis::TypeRef>>>
 CollectModalFields(const syntax::StateBlock& state, LowerCtx& ctx) {
-  std::vector<std::pair<std::string, sema::TypeRef>> fields;
+  std::vector<std::pair<std::string, analysis::TypeRef>> fields;
   for (const auto& member : state.members) {
     const auto* field = std::get_if<syntax::StateFieldDecl>(&member);
     if (!field) {
@@ -235,8 +235,8 @@ static PanicAccess BuildPanicAccess(LowerCtx& ctx) {
   flag_info.tuple_index = 0;
   ctx.RegisterDerivedValue(flag_ptr, flag_info);
   ctx.RegisterValueType(flag_ptr,
-                        sema::MakeTypeRawPtr(sema::RawPtrQual::Mut,
-                                             sema::MakeTypePrim("bool")));
+                        analysis::MakeTypeRawPtr(analysis::RawPtrQual::Mut,
+                                             analysis::MakeTypePrim("bool")));
 
   IRValue code_ptr = ctx.FreshTempValue("panic_code_ptr");
   DerivedValueInfo code_info;
@@ -245,8 +245,8 @@ static PanicAccess BuildPanicAccess(LowerCtx& ctx) {
   code_info.tuple_index = 1;
   ctx.RegisterDerivedValue(code_ptr, code_info);
   ctx.RegisterValueType(code_ptr,
-                        sema::MakeTypeRawPtr(sema::RawPtrQual::Mut,
-                                             sema::MakeTypePrim("u32")));
+                        analysis::MakeTypeRawPtr(analysis::RawPtrQual::Mut,
+                                             analysis::MakeTypePrim("u32")));
 
   return PanicAccess{panic_ptr, flag_ptr, code_ptr};
 }
@@ -259,13 +259,13 @@ struct PanicSnapshot {
 
 static PanicSnapshot ReadPanicRecord(const PanicAccess& access, LowerCtx& ctx) {
   IRValue flag = ctx.FreshTempValue("panic_flag");
-  ctx.RegisterValueType(flag, sema::MakeTypePrim("bool"));
+  ctx.RegisterValueType(flag, analysis::MakeTypePrim("bool"));
   IRReadPtr read_flag;
   read_flag.ptr = access.flag_ptr;
   read_flag.result = flag;
 
   IRValue code = ctx.FreshTempValue("panic_code");
-  ctx.RegisterValueType(code, sema::MakeTypePrim("u32"));
+  ctx.RegisterValueType(code, analysis::MakeTypePrim("u32"));
   IRReadPtr read_code;
   read_code.ptr = access.code_ptr;
   read_code.result = code;
@@ -609,7 +609,7 @@ static IRPtr SeqWithPanicStop(std::vector<IRPtr> drops, LowerCtx& ctx) {
   IRPtr tail = drops.back();
   for (std::size_t i = drops.size() - 1; i-- > 0;) {
     IRValue flag = ctx.FreshTempValue("drop_panic_flag");
-    ctx.RegisterValueType(flag, sema::MakeTypePrim("bool"));
+    ctx.RegisterValueType(flag, analysis::MakeTypePrim("bool"));
     IRReadPtr read_flag;
     read_flag.ptr = access.flag_ptr;
     read_flag.result = flag;
@@ -637,7 +637,7 @@ static IRPtr SeqWithPanicStop(std::vector<IRPtr> drops, LowerCtx& ctx) {
   return tail;
 }
 
-static IRPtr EmitDropMethodCall(const sema::TypeRef& type,
+static IRPtr EmitDropMethodCall(const analysis::TypeRef& type,
                                 const IRValue& value,
                                 const std::optional<IRValue>& panic_out,
                                 LowerCtx& ctx) {
@@ -645,18 +645,18 @@ static IRPtr EmitDropMethodCall(const sema::TypeRef& type,
     return EmptyIR();
   }
 
-  sema::TypeRef stripped = sema::StripPerm(type);
+  analysis::TypeRef stripped = analysis::StripPerm(type);
   if (!stripped) {
     return EmptyIR();
   }
 
-  sema::ScopeContext scope;
+  analysis::ScopeContext scope;
   scope.sigma = *ctx.sigma;
   scope.current_module = ctx.module_path;
 
   syntax::ClassPath drop_path;
   drop_path.push_back("Drop");
-  if (!sema::TypeImplementsClass(scope, stripped, drop_path)) {
+  if (!analysis::TypeImplementsClass(scope, stripped, drop_path)) {
     return EmptyIR();
   }
 
@@ -678,7 +678,7 @@ static IRPtr EmitDropMethodCall(const sema::TypeRef& type,
 // §6.8 EmitDrop - Emit IR to drop a value of a given type
 // ============================================================================
 
-static IRPtr EmitDropImpl(const sema::TypeRef& type,
+static IRPtr EmitDropImpl(const analysis::TypeRef& type,
                           const IRValue& value,
                           LowerCtx& ctx,
                           bool allow_drop_glue,
@@ -691,8 +691,8 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
     ctx.RegisterValueType(value, type);
   }
 
-  if (HoldsType<sema::TypePerm>(type)) {
-    const auto& perm = GetType<sema::TypePerm>(type);
+  if (HoldsType<analysis::TypePerm>(type)) {
+    const auto& perm = GetType<analysis::TypePerm>(type);
     return EmitDropImpl(perm.base, value, ctx, allow_drop_glue, panic_out);
   }
 
@@ -708,34 +708,34 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
     return MakeIR(std::move(call));
   };
 
-  if (HoldsType<sema::TypePrim>(type)) {
+  if (HoldsType<analysis::TypePrim>(type)) {
     return EmptyIR();
   }
 
-  if (HoldsType<sema::TypeRawPtr>(type)) {
+  if (HoldsType<analysis::TypeRawPtr>(type)) {
     return EmptyIR();
   }
 
-  if (HoldsType<sema::TypePtr>(type)) {
+  if (HoldsType<analysis::TypePtr>(type)) {
     return EmptyIR();
   }
 
-  if (HoldsType<sema::TypeRange>(type)) {
+  if (HoldsType<analysis::TypeRange>(type)) {
     return EmptyIR();
   }
 
-  if (HoldsType<sema::TypeFunc>(type)) {
+  if (HoldsType<analysis::TypeFunc>(type)) {
     return EmptyIR();
   }
 
-  if (HoldsType<sema::TypeSlice>(type)) {
+  if (HoldsType<analysis::TypeSlice>(type)) {
     return EmptyIR();
   }
 
-  if (HoldsType<sema::TypeString>(type)) {
-    const auto& str_type = GetType<sema::TypeString>(type);
+  if (HoldsType<analysis::TypeString>(type)) {
+    const auto& str_type = GetType<analysis::TypeString>(type);
     if (str_type.state.has_value() &&
-        *str_type.state == sema::StringState::Managed) {
+        *str_type.state == analysis::StringState::Managed) {
       const std::string drop_sym = BuiltinSymStringDropManaged();
       if (drop_sym.empty()) {
         SPEC_RULE("StringDropSym-Err");
@@ -751,10 +751,10 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
     return EmptyIR();
   }
 
-  if (HoldsType<sema::TypeBytes>(type)) {
-    const auto& bytes_type = GetType<sema::TypeBytes>(type);
+  if (HoldsType<analysis::TypeBytes>(type)) {
+    const auto& bytes_type = GetType<analysis::TypeBytes>(type);
     if (bytes_type.state.has_value() &&
-        *bytes_type.state == sema::BytesState::Managed) {
+        *bytes_type.state == analysis::BytesState::Managed) {
       const std::string drop_sym = BuiltinSymBytesDropManaged();
       if (drop_sym.empty()) {
         SPEC_RULE("BytesDropSym-Err");
@@ -770,8 +770,8 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
     return EmptyIR();
   }
 
-  if (HoldsType<sema::TypeArray>(type)) {
-    const auto& arr_type = GetType<sema::TypeArray>(type);
+  if (HoldsType<analysis::TypeArray>(type)) {
+    const auto& arr_type = GetType<analysis::TypeArray>(type);
     std::vector<IRPtr> drops;
 
     for (std::size_t i = arr_type.length; i > 0; --i) {
@@ -794,8 +794,8 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
     return SeqWithPanicStop(std::move(drops), ctx);
   }
 
-  if (HoldsType<sema::TypeTuple>(type)) {
-    const auto& tuple_type = GetType<sema::TypeTuple>(type);
+  if (HoldsType<analysis::TypeTuple>(type)) {
+    const auto& tuple_type = GetType<analysis::TypeTuple>(type);
     std::vector<IRPtr> drops;
 
     for (std::size_t i = tuple_type.elements.size(); i > 0; --i) {
@@ -822,8 +822,8 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
     return SeqWithPanicStop(std::move(drops), ctx);
   }
 
-  if (HoldsType<sema::TypeUnion>(type)) {
-    const auto& uni_type = GetType<sema::TypeUnion>(type);
+  if (HoldsType<analysis::TypeUnion>(type)) {
+    const auto& uni_type = GetType<analysis::TypeUnion>(type);
     if (uni_type.members.empty()) {
       return EmptyIR();
     }
@@ -874,16 +874,16 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
     return MakeIR(std::move(match));
   }
 
-  if (HoldsType<sema::TypeModalState>(type)) {
+  if (HoldsType<analysis::TypeModalState>(type)) {
     if (allow_drop_glue) {
       return call_drop_glue();
     }
     if (!ctx.sigma) {
       return EmptyIR();
     }
-    const auto& modal_state = GetType<sema::TypeModalState>(type);
+    const auto& modal_state = GetType<analysis::TypeModalState>(type);
     const auto syntax_path = ToSyntaxPath(modal_state.path);
-    const auto it = ctx.sigma->types.find(sema::PathKeyOf(syntax_path));
+    const auto it = ctx.sigma->types.find(analysis::PathKeyOf(syntax_path));
     if (it == ctx.sigma->types.end()) {
       return EmptyIR();
     }
@@ -925,20 +925,20 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
     return SeqWithPanicStop(std::move(drops), ctx);
   }
 
-  if (HoldsType<sema::TypeDynamic>(type)) {
+  if (HoldsType<analysis::TypeDynamic>(type)) {
     // Spec: DropValue/DropChildren has no dynamic-specific behavior.
     // TypeDynamic does not implement Drop and has no children, so drop is a no-op.
     return EmptyIR();
   }
 
-  if (HoldsType<sema::TypePathType>(type)) {
+  if (HoldsType<analysis::TypePathType>(type)) {
     if (!ctx.sigma) {
       return EmptyIR();
     }
 
-    const auto& type_path = GetType<sema::TypePathType>(type);
+    const auto& type_path = GetType<analysis::TypePathType>(type);
     const auto syntax_path = ToSyntaxPath(type_path.path);
-    const auto it = ctx.sigma->types.find(sema::PathKeyOf(syntax_path));
+    const auto it = ctx.sigma->types.find(analysis::PathKeyOf(syntax_path));
     if (it == ctx.sigma->types.end()) {
       return EmptyIR();
     }
@@ -1068,7 +1068,7 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
         const auto fields = CollectModalFields(state, ctx);
         if (fields.has_value()) {
           const auto state_type =
-              sema::MakeTypeModalState(type_path.path, state.name);
+              analysis::MakeTypeModalState(type_path.path, state.name);
 
           IRValue state_value = ctx.FreshTempValue("modal_state");
           ctx.RegisterValueType(state_value, state_type);
@@ -1121,7 +1121,7 @@ static IRPtr EmitDropImpl(const sema::TypeRef& type,
   return EmptyIR();
 }
 
-IRPtr EmitDrop(const sema::TypeRef& type, const IRValue& value, LowerCtx& ctx) {
+IRPtr EmitDrop(const analysis::TypeRef& type, const IRValue& value, LowerCtx& ctx) {
   SPEC_RULE("EmitDrop");
   IRValue panic_out;
   panic_out.kind = IRValue::Kind::Local;
@@ -1133,7 +1133,7 @@ IRPtr EmitDrop(const sema::TypeRef& type, const IRValue& value, LowerCtx& ctx) {
 // §6.8 EmitDropFields - Emit IR to drop specific fields of a record
 // ============================================================================
 
-IRPtr EmitDropFields(const sema::TypeRef& type,
+IRPtr EmitDropFields(const analysis::TypeRef& type,
                      const IRValue& value,
                      const std::vector<std::string>& skip_fields,
                      LowerCtx& ctx) {
@@ -1144,12 +1144,12 @@ IRPtr EmitDropFields(const sema::TypeRef& type,
   }
 
   // Only applicable to TypePathType (records)
-  if (!HoldsType<sema::TypePathType>(type)) {
+  if (!HoldsType<analysis::TypePathType>(type)) {
     return EmptyIR();
   }
 
   // Get type path
-  const auto& type_path = GetType<sema::TypePathType>(type);
+  const auto& type_path = GetType<analysis::TypePathType>(type);
 
   // Look up RecordDecl from sigma
   if (!ctx.sigma) {
@@ -1163,7 +1163,7 @@ IRPtr EmitDropFields(const sema::TypeRef& type,
     syntax_path.push_back(seg);
   }
 
-  const auto path_key = sema::PathKeyOf(syntax_path);
+  const auto path_key = analysis::PathKeyOf(syntax_path);
   const auto it = ctx.sigma->types.find(path_key);
   if (it == ctx.sigma->types.end()) {
     return EmptyIR();
@@ -1207,8 +1207,8 @@ IRPtr EmitDropFields(const sema::TypeRef& type,
     field_val.kind = IRValue::Kind::Opaque;
     field_val.name = value.name + "." + field->name;
 
-    // Lower field type from syntax::Type to sema::TypeRef
-    sema::TypeRef field_type;
+    // Lower field type from syntax::Type to analysis::TypeRef
+    analysis::TypeRef field_type;
     if (field->type) {
       auto lowered = LowerTypeForDrop(field->type, ctx);
       if (lowered.has_value()) {
@@ -1237,14 +1237,14 @@ IRPtr EmitDropFields(const sema::TypeRef& type,
 // §6.12.13 Drop Glue
 // ============================================================================
 
-std::string DropGlueSym(const sema::TypeRef& type, LowerCtx& ctx) {
+std::string DropGlueSym(const analysis::TypeRef& type, LowerCtx& ctx) {
   SPEC_RULE("DropGlueSym");
 
   std::vector<std::string> path = {"cursive", "runtime", "drop"};
 
-  sema::TypeRef drop_type = type;
-  if (HoldsType<sema::TypePerm>(drop_type)) {
-    drop_type = GetType<sema::TypePerm>(drop_type).base;
+  analysis::TypeRef drop_type = type;
+  if (HoldsType<analysis::TypePerm>(drop_type)) {
+    drop_type = GetType<analysis::TypePerm>(drop_type).base;
   }
 
   const auto type_path = PathOfType(drop_type);
@@ -1259,7 +1259,7 @@ std::string DropGlueSym(const sema::TypeRef& type, LowerCtx& ctx) {
   return sym;
 }
 
-IRPtr DropGlueIR(const sema::TypeRef& type, LowerCtx& ctx) {
+IRPtr DropGlueIR(const analysis::TypeRef& type, LowerCtx& ctx) {
   SPEC_RULE("DropGlueIR");
 
   // The drop glue reads the value from the data pointer and drops it
@@ -1285,7 +1285,7 @@ IRPtr DropGlueIR(const sema::TypeRef& type, LowerCtx& ctx) {
   return SeqIR({MakeIR(std::move(read)), drop_ir});
 }
 
-IRPtr EmitDropGlue(const sema::TypeRef& type, LowerCtx& ctx) {
+IRPtr EmitDropGlue(const analysis::TypeRef& type, LowerCtx& ctx) {
   SPEC_RULE("EmitDropGlue-Decl");
 
   // Return the drop glue body IR
@@ -1318,12 +1318,12 @@ IRPtr DropOnAssign(const std::string& name,
   BindValidity validity = GetBindValidity(name, ctx);
 
   if (validity == BindValidity::Moved) {
-    if (HoldsType<sema::TypePathType>(state->type)) {
+    if (HoldsType<analysis::TypePathType>(state->type)) {
       SPEC_RULE("DropOnAssign-Record-Moved");
-    } else if (HoldsType<sema::TypeArray>(state->type) ||
-               HoldsType<sema::TypeTuple>(state->type) ||
-               HoldsType<sema::TypeUnion>(state->type) ||
-               HoldsType<sema::TypeModalState>(state->type)) {
+    } else if (HoldsType<analysis::TypeArray>(state->type) ||
+               HoldsType<analysis::TypeTuple>(state->type) ||
+               HoldsType<analysis::TypeUnion>(state->type) ||
+               HoldsType<analysis::TypeModalState>(state->type)) {
       SPEC_RULE("DropOnAssign-Aggregate-Moved");
     }
     return EmptyIR();
@@ -1333,7 +1333,7 @@ IRPtr DropOnAssign(const std::string& name,
   current_value.kind = IRValue::Kind::Local;
   current_value.name = name;
 
-  if (HoldsType<sema::TypePathType>(state->type)) {
+  if (HoldsType<analysis::TypePathType>(state->type)) {
     if (validity == BindValidity::PartiallyMoved) {
       SPEC_RULE("DropOnAssign-Record-Partial");
       std::vector<std::string> moved = GetMovedFields(name, ctx);
@@ -1343,10 +1343,10 @@ IRPtr DropOnAssign(const std::string& name,
     return EmitDrop(state->type, current_value, ctx);
   }
 
-  if (HoldsType<sema::TypeArray>(state->type) ||
-      HoldsType<sema::TypeTuple>(state->type) ||
-      HoldsType<sema::TypeUnion>(state->type) ||
-      HoldsType<sema::TypeModalState>(state->type)) {
+  if (HoldsType<analysis::TypeArray>(state->type) ||
+      HoldsType<analysis::TypeTuple>(state->type) ||
+      HoldsType<analysis::TypeUnion>(state->type) ||
+      HoldsType<analysis::TypeModalState>(state->type)) {
     SPEC_RULE("DropOnAssign-Aggregate-Ok");
     return EmitDrop(state->type, current_value, ctx);
   }

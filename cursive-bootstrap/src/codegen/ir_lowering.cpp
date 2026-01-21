@@ -1,17 +1,17 @@
-#include "cursive0/codegen/llvm_emit.h"
+#include "cursive0/codegen/llvm/llvm_emit.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/runtime/runtime_interface.h"
 
 #include "cursive0/codegen/checks.h"
 #include "cursive0/codegen/globals.h"
 #include "cursive0/codegen/cleanup.h"
-#include "cursive0/codegen/layout.h"
+#include "cursive0/codegen/layout/layout.h"
 #include "cursive0/codegen/mangle.h"
 #include "cursive0/core/symbols.h"
-#include "cursive0/sema/enums.h"
-#include "cursive0/sema/modal_widen.h"
-#include "cursive0/sema/scopes.h"
-#include "cursive0/sema/type_equiv.h"
+#include "cursive0/analysis/composite/enums.h"
+#include "cursive0/analysis/modal/modal_widen.h"
+#include "cursive0/analysis/resolve/scopes.h"
+#include "cursive0/analysis/types/type_equiv.h"
 
 // LLVM Includes
 #include "llvm/ADT/APFloat.h"
@@ -30,16 +30,16 @@
 
 namespace cursive0::codegen {
 
-static const syntax::ModalDecl* LookupModalDecl(const sema::ScopeContext& scope,
-                                                const sema::TypePath& path);
+static const syntax::ModalDecl* LookupModalDecl(const analysis::ScopeContext& scope,
+                                                const analysis::TypePath& path);
 static const syntax::StateBlock* LookupModalState(const syntax::ModalDecl& decl,
                                                   std::string_view state);
 
 
 namespace {
 
-sema::ScopeContext BuildScope(const LowerCtx* ctx) {
-  sema::ScopeContext scope;
+analysis::ScopeContext BuildScope(const LowerCtx* ctx) {
+  analysis::ScopeContext scope;
   if (ctx && ctx->sigma) {
     scope.sigma = *ctx->sigma;
     scope.current_module = ctx->module_path;
@@ -131,11 +131,11 @@ llvm::Constant* ConstBytes(llvm::Type* ty,
   return llvm::Constant::getNullValue(ty);
 }
 
-sema::TypeRef StripPerm(const sema::TypeRef& type) {
+analysis::TypeRef StripPerm(const analysis::TypeRef& type) {
   if (!type) {
     return type;
   }
-  if (const auto* perm = std::get_if<sema::TypePerm>(&type->node)) {
+  if (const auto* perm = std::get_if<analysis::TypePerm>(&type->node)) {
     return StripPerm(perm->base);
   }
   return type;
@@ -147,37 +147,37 @@ bool IsUnsignedPrim(std::string_view name) {
          name == "bool";
 }
 
-bool IsUnsignedType(const sema::TypeRef& type) {
+bool IsUnsignedType(const analysis::TypeRef& type) {
   auto stripped = StripPerm(type);
   if (!stripped) {
     return false;
   }
-  if (const auto* prim = std::get_if<sema::TypePrim>(&stripped->node)) {
+  if (const auto* prim = std::get_if<analysis::TypePrim>(&stripped->node)) {
     return IsUnsignedPrim(prim->name);
   }
   return false;
 }
 
-bool IsUnitType(const sema::TypeRef& type) {
+bool IsUnitType(const analysis::TypeRef& type) {
   auto stripped = StripPerm(type);
   if (!stripped) {
     return false;
   }
-  if (const auto* prim = std::get_if<sema::TypePrim>(&stripped->node)) {
+  if (const auto* prim = std::get_if<analysis::TypePrim>(&stripped->node)) {
     return prim->name == "()";
   }
   return false;
 }
 
-sema::TypeRef PtrElementType(const sema::TypeRef& type) {
+analysis::TypeRef PtrElementType(const analysis::TypeRef& type) {
   auto stripped = StripPerm(type);
   if (!stripped) {
     return nullptr;
   }
-  if (const auto* ptr = std::get_if<sema::TypePtr>(&stripped->node)) {
+  if (const auto* ptr = std::get_if<analysis::TypePtr>(&stripped->node)) {
     return ptr->element;
   }
-  if (const auto* raw = std::get_if<sema::TypeRawPtr>(&stripped->node)) {
+  if (const auto* raw = std::get_if<analysis::TypeRawPtr>(&stripped->node)) {
     return raw->element;
   }
   return nullptr;
@@ -267,14 +267,14 @@ std::string ResolvePathSymbol(const std::vector<std::string>& path,
 
 struct FieldInfo {
   std::uint64_t offset = 0;
-  sema::TypeRef type;
+  analysis::TypeRef type;
 };
 
-std::optional<std::pair<std::vector<std::string>, std::vector<sema::TypeRef>>>
-CollectRecordFields(const sema::ScopeContext& scope,
+std::optional<std::pair<std::vector<std::string>, std::vector<analysis::TypeRef>>>
+CollectRecordFields(const analysis::ScopeContext& scope,
                     const syntax::RecordDecl& record) {
   std::vector<std::string> names;
-  std::vector<sema::TypeRef> types;
+  std::vector<analysis::TypeRef> types;
   for (const auto& member : record.members) {
     const auto* field = std::get_if<syntax::FieldDecl>(&member);
     if (!field) {
@@ -293,11 +293,11 @@ CollectRecordFields(const sema::ScopeContext& scope,
   return std::make_pair(std::move(names), std::move(types));
 }
 
-std::optional<std::pair<std::vector<std::string>, std::vector<sema::TypeRef>>>
-CollectModalStateFields(const sema::ScopeContext& scope,
+std::optional<std::pair<std::vector<std::string>, std::vector<analysis::TypeRef>>>
+CollectModalStateFields(const analysis::ScopeContext& scope,
                         const syntax::StateBlock& state) {
   std::vector<std::string> names;
-  std::vector<sema::TypeRef> types;
+  std::vector<analysis::TypeRef> types;
   for (const auto& member : state.members) {
     const auto* field = std::get_if<syntax::StateFieldDecl>(&member);
     if (!field) {
@@ -316,8 +316,8 @@ CollectModalStateFields(const sema::ScopeContext& scope,
   return std::make_pair(std::move(names), std::move(types));
 }
 
-std::optional<FieldInfo> LookupRecordField(const sema::ScopeContext& scope,
-                                           const sema::TypePathType& path_type,
+std::optional<FieldInfo> LookupRecordField(const analysis::ScopeContext& scope,
+                                           const analysis::TypePathType& path_type,
                                            const std::string& field_name) {
   const auto& sigma = scope.sigma;
   syntax::Path syntax_path;
@@ -325,7 +325,7 @@ std::optional<FieldInfo> LookupRecordField(const sema::ScopeContext& scope,
   for (const auto& seg : path_type.path) {
     syntax_path.push_back(seg);
   }
-  const auto it = sigma.types.find(sema::PathKeyOf(syntax_path));
+  const auto it = sigma.types.find(analysis::PathKeyOf(syntax_path));
   if (it == sigma.types.end()) {
     return std::nullopt;
   }
@@ -351,8 +351,8 @@ std::optional<FieldInfo> LookupRecordField(const sema::ScopeContext& scope,
   return std::nullopt;
 }
 
-std::optional<FieldInfo> LookupTupleField(const sema::ScopeContext& scope,
-                                          const sema::TypeTuple& tuple,
+std::optional<FieldInfo> LookupTupleField(const analysis::ScopeContext& scope,
+                                          const analysis::TypeTuple& tuple,
                                           std::size_t index) {
   if (index >= tuple.elements.size()) {
     return std::nullopt;
@@ -453,7 +453,7 @@ RangeCalc ComputeRangeBounds(const IRRange& range,
 llvm::Value* SliceLenFromValue(LLVMEmitter& emitter,
                                llvm::IRBuilder<>* builder,
                                const IRValue& value,
-                               const sema::TypeRef& type) {
+                               const analysis::TypeRef& type) {
   auto stripped = StripPerm(type);
   if (!stripped) {
     return nullptr;
@@ -461,13 +461,13 @@ llvm::Value* SliceLenFromValue(LLVMEmitter& emitter,
   llvm::LLVMContext& ctx = emitter.GetContext();
   auto* usize_ty = llvm::Type::getInt64Ty(ctx);
 
-  if (const auto* arr = std::get_if<sema::TypeArray>(&stripped->node)) {
+  if (const auto* arr = std::get_if<analysis::TypeArray>(&stripped->node)) {
     return llvm::ConstantInt::get(usize_ty, arr->length);
   }
 
-  if (std::holds_alternative<sema::TypeSlice>(stripped->node) ||
-      std::holds_alternative<sema::TypeString>(stripped->node) ||
-      std::holds_alternative<sema::TypeBytes>(stripped->node)) {
+  if (std::holds_alternative<analysis::TypeSlice>(stripped->node) ||
+      std::holds_alternative<analysis::TypeString>(stripped->node) ||
+      std::holds_alternative<analysis::TypeBytes>(stripped->node)) {
     llvm::Value* val = emitter.EvaluateIRValue(value);
     if (!val) {
       return nullptr;
@@ -484,34 +484,34 @@ llvm::Value* SliceLenFromValue(LLVMEmitter& emitter,
 
 struct BaseAddress {
   llvm::Value* ptr = nullptr;
-  sema::TypeRef type;
+  analysis::TypeRef type;
 };
 
 std::optional<BaseAddress> GetBaseAddress(LLVMEmitter& emitter,
                                           llvm::IRBuilder<>* builder,
                                           const IRValue& base,
-                                          sema::TypeRef base_type) {
+                                          analysis::TypeRef base_type) {
   auto stripped = StripPerm(base_type);
   if (!stripped) {
     return std::nullopt;
   }
-  if (const auto* ptr = std::get_if<sema::TypePtr>(&stripped->node)) {
+  if (const auto* ptr = std::get_if<analysis::TypePtr>(&stripped->node)) {
     llvm::Value* addr = emitter.EvaluateIRValue(base);
     if (!addr) {
       return std::nullopt;
     }
-    sema::TypeRef elem = ptr->element;
+    analysis::TypeRef elem = ptr->element;
     if (const auto stripped_elem = StripPerm(elem)) {
       elem = stripped_elem;
     }
     return BaseAddress{addr, elem};
   }
-  if (const auto* raw = std::get_if<sema::TypeRawPtr>(&stripped->node)) {
+  if (const auto* raw = std::get_if<analysis::TypeRawPtr>(&stripped->node)) {
     llvm::Value* addr = emitter.EvaluateIRValue(base);
     if (!addr) {
       return std::nullopt;
     }
-    sema::TypeRef elem = raw->element;
+    analysis::TypeRef elem = raw->element;
     if (const auto stripped_elem = StripPerm(elem)) {
       elem = stripped_elem;
     }
@@ -580,7 +580,7 @@ llvm::Value* MaterializeDerivedAddress(LLVMEmitter& emitter,
         return nullptr;
       }
       auto base = *base_opt;
-      if (auto* path = std::get_if<sema::TypePathType>(&base.type->node)) {
+      if (auto* path = std::get_if<analysis::TypePathType>(&base.type->node)) {
         auto field_info = LookupRecordField(scope, *path, info.field);
         if (!field_info.has_value()) {
           return nullptr;
@@ -598,7 +598,7 @@ llvm::Value* MaterializeDerivedAddress(LLVMEmitter& emitter,
         return nullptr;
       }
       auto base = *base_opt;
-      if (auto* tuple = std::get_if<sema::TypeTuple>(&base.type->node)) {
+      if (auto* tuple = std::get_if<analysis::TypeTuple>(&base.type->node)) {
         auto field_info = LookupTupleField(scope, *tuple, info.tuple_index);
         if (!field_info.has_value()) {
           return nullptr;
@@ -618,26 +618,26 @@ llvm::Value* MaterializeDerivedAddress(LLVMEmitter& emitter,
       auto base = *base_opt;
       llvm::Value* data_ptr = nullptr;
       llvm::Value* len_val = nullptr;
-      sema::TypeRef elem_type;
+      analysis::TypeRef elem_type;
 
-      if (const auto* arr = std::get_if<sema::TypeArray>(&base.type->node)) {
+      if (const auto* arr = std::get_if<analysis::TypeArray>(&base.type->node)) {
         elem_type = arr->element;
         data_ptr = base.ptr;
         len_val = llvm::ConstantInt::get(llvm::Type::getInt64Ty(emitter.GetContext()), arr->length);
-      } else if (const auto* slice = std::get_if<sema::TypeSlice>(&base.type->node)) {
+      } else if (const auto* slice = std::get_if<analysis::TypeSlice>(&base.type->node)) {
         elem_type = slice->element;
         llvm::Type* slice_ty = emitter.GetLLVMType(base.type);
         llvm::Value* slice_val = builder->CreateLoad(slice_ty, base.ptr);
         data_ptr = ExtractSlicePtr(emitter, builder, slice_val);
         len_val = ExtractSliceLen(emitter, builder, slice_val);
-      } else if (const auto* str = std::get_if<sema::TypeString>(&base.type->node)) {
-        elem_type = sema::MakeTypePrim("u8");
+      } else if (const auto* str = std::get_if<analysis::TypeString>(&base.type->node)) {
+        elem_type = analysis::MakeTypePrim("u8");
         llvm::Type* str_ty = emitter.GetLLVMType(base.type);
         llvm::Value* str_val = builder->CreateLoad(str_ty, base.ptr);
         data_ptr = ExtractSlicePtr(emitter, builder, str_val);
         len_val = ExtractSliceLen(emitter, builder, str_val);
-      } else if (const auto* bytes = std::get_if<sema::TypeBytes>(&base.type->node)) {
-        elem_type = sema::MakeTypePrim("u8");
+      } else if (const auto* bytes = std::get_if<analysis::TypeBytes>(&base.type->node)) {
+        elem_type = analysis::MakeTypePrim("u8");
         llvm::Type* bytes_ty = emitter.GetLLVMType(base.type);
         llvm::Value* bytes_val = builder->CreateLoad(bytes_ty, base.ptr);
         data_ptr = ExtractSlicePtr(emitter, builder, bytes_val);
@@ -691,7 +691,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
   }
   const auto scope = BuildScope(ctx);
 
-  auto load_typed = [&](llvm::Value* addr, const sema::TypeRef& ty) -> llvm::Value* {
+  auto load_typed = [&](llvm::Value* addr, const analysis::TypeRef& ty) -> llvm::Value* {
     if (!addr || !ty) {
       return nullptr;
     }
@@ -707,7 +707,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
         return nullptr;
       }
       auto base = *base_opt;
-      if (auto* path = std::get_if<sema::TypePathType>(&base.type->node)) {
+      if (auto* path = std::get_if<analysis::TypePathType>(&base.type->node)) {
         auto field_info = LookupRecordField(scope, *path, info.field);
         if (!field_info.has_value()) {
           return nullptr;
@@ -726,7 +726,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
         return nullptr;
       }
       auto base = *base_opt;
-      if (auto* tuple = std::get_if<sema::TypeTuple>(&base.type->node)) {
+      if (auto* tuple = std::get_if<analysis::TypeTuple>(&base.type->node)) {
         auto field_info = LookupTupleField(scope, *tuple, info.tuple_index);
         if (!field_info.has_value()) {
           return nullptr;
@@ -746,22 +746,22 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       }
       auto base = *base_opt;
       llvm::Value* data_ptr = nullptr;
-      sema::TypeRef elem_type;
-      if (const auto* arr = std::get_if<sema::TypeArray>(&base.type->node)) {
+      analysis::TypeRef elem_type;
+      if (const auto* arr = std::get_if<analysis::TypeArray>(&base.type->node)) {
         elem_type = arr->element;
         data_ptr = base.ptr;
-      } else if (const auto* slice = std::get_if<sema::TypeSlice>(&base.type->node)) {
+      } else if (const auto* slice = std::get_if<analysis::TypeSlice>(&base.type->node)) {
         elem_type = slice->element;
         llvm::Type* slice_ty = emitter.GetLLVMType(base.type);
         llvm::Value* slice_val = builder->CreateLoad(slice_ty, base.ptr);
         data_ptr = ExtractSlicePtr(emitter, builder, slice_val);
-      } else if (const auto* str = std::get_if<sema::TypeString>(&base.type->node)) {
-        elem_type = sema::MakeTypePrim("u8");
+      } else if (const auto* str = std::get_if<analysis::TypeString>(&base.type->node)) {
+        elem_type = analysis::MakeTypePrim("u8");
         llvm::Type* str_ty = emitter.GetLLVMType(base.type);
         llvm::Value* str_val = builder->CreateLoad(str_ty, base.ptr);
         data_ptr = ExtractSlicePtr(emitter, builder, str_val);
-      } else if (const auto* bytes = std::get_if<sema::TypeBytes>(&base.type->node)) {
-        elem_type = sema::MakeTypePrim("u8");
+      } else if (const auto* bytes = std::get_if<analysis::TypeBytes>(&base.type->node)) {
+        elem_type = analysis::MakeTypePrim("u8");
         llvm::Type* bytes_ty = emitter.GetLLVMType(base.type);
         llvm::Value* bytes_val = builder->CreateLoad(bytes_ty, base.ptr);
         data_ptr = ExtractSlicePtr(emitter, builder, bytes_val);
@@ -793,25 +793,25 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       auto base = *base_opt;
       llvm::Value* data_ptr = nullptr;
       llvm::Value* len_val = nullptr;
-      sema::TypeRef elem_type;
-      if (const auto* arr = std::get_if<sema::TypeArray>(&base.type->node)) {
+      analysis::TypeRef elem_type;
+      if (const auto* arr = std::get_if<analysis::TypeArray>(&base.type->node)) {
         elem_type = arr->element;
         data_ptr = base.ptr;
         len_val = llvm::ConstantInt::get(llvm::Type::getInt64Ty(emitter.GetContext()), arr->length);
-      } else if (const auto* slice = std::get_if<sema::TypeSlice>(&base.type->node)) {
+      } else if (const auto* slice = std::get_if<analysis::TypeSlice>(&base.type->node)) {
         elem_type = slice->element;
         llvm::Type* slice_ty = emitter.GetLLVMType(base.type);
         llvm::Value* slice_val = builder->CreateLoad(slice_ty, base.ptr);
         data_ptr = ExtractSlicePtr(emitter, builder, slice_val);
         len_val = ExtractSliceLen(emitter, builder, slice_val);
-      } else if (const auto* str = std::get_if<sema::TypeString>(&base.type->node)) {
-        elem_type = sema::MakeTypePrim("u8");
+      } else if (const auto* str = std::get_if<analysis::TypeString>(&base.type->node)) {
+        elem_type = analysis::MakeTypePrim("u8");
         llvm::Type* str_ty = emitter.GetLLVMType(base.type);
         llvm::Value* str_val = builder->CreateLoad(str_ty, base.ptr);
         data_ptr = ExtractSlicePtr(emitter, builder, str_val);
         len_val = ExtractSliceLen(emitter, builder, str_val);
-      } else if (const auto* bytes = std::get_if<sema::TypeBytes>(&base.type->node)) {
-        elem_type = sema::MakeTypePrim("u8");
+      } else if (const auto* bytes = std::get_if<analysis::TypeBytes>(&base.type->node)) {
+        elem_type = analysis::MakeTypePrim("u8");
         llvm::Type* bytes_ty = emitter.GetLLVMType(base.type);
         llvm::Value* bytes_val = builder->CreateLoad(bytes_ty, base.ptr);
         data_ptr = ExtractSlicePtr(emitter, builder, bytes_val);
@@ -835,7 +835,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       llvm::Value* slice_ptr = ByteGEP(emitter, builder, data_ptr, offset);
       llvm::Value* slice_len = builder->CreateSub(end, start);
 
-      sema::TypeRef slice_type = ctx->LookupValueType(value);
+      analysis::TypeRef slice_type = ctx->LookupValueType(value);
       llvm::Type* slice_ty = emitter.GetLLVMType(slice_type);
       auto* alloca = CreateEntryAlloca(emitter, builder, slice_ty, "slice");
       if (!alloca) {
@@ -843,8 +843,8 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       }
       builder->CreateStore(llvm::Constant::getNullValue(slice_ty), alloca);
 
-      const auto layout = RecordLayoutOf(scope, {sema::MakeTypeRawPtr(sema::RawPtrQual::Imm, sema::MakeTypePrim("()")),
-                                                 sema::MakeTypePrim("usize")});
+      const auto layout = RecordLayoutOf(scope, {analysis::MakeTypeRawPtr(analysis::RawPtrQual::Imm, analysis::MakeTypePrim("()")),
+                                                 analysis::MakeTypePrim("usize")});
       if (!layout.has_value() || layout->offsets.size() < 2) {
         return nullptr;
       }
@@ -857,7 +857,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
     case DerivedValueInfo::Kind::EnumPayloadField: {
       auto base_type = ctx->LookupValueType(info.base);
       auto stripped = StripPerm(base_type);
-      auto* path = stripped ? std::get_if<sema::TypePathType>(&stripped->node) : nullptr;
+      auto* path = stripped ? std::get_if<analysis::TypePathType>(&stripped->node) : nullptr;
       if (!path) {
         return nullptr;
       }
@@ -866,7 +866,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       for (const auto& seg : path->path) {
         syntax_path.push_back(seg);
       }
-      const auto it = scope.sigma.types.find(sema::PathKeyOf(syntax_path));
+      const auto it = scope.sigma.types.find(analysis::PathKeyOf(syntax_path));
       if (it == scope.sigma.types.end()) {
         return nullptr;
       }
@@ -893,7 +893,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       if (!enum_layout.has_value()) {
         return nullptr;
       }
-      const auto disc_type = sema::MakeTypePrim(enum_layout->disc_type);
+      const auto disc_type = analysis::MakeTypePrim(enum_layout->disc_type);
       const auto disc_size = SizeOf(scope, disc_type).value_or(0);
       const std::uint64_t payload_offset = AlignUp(disc_size, enum_layout->payload_align);
 
@@ -904,7 +904,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
         if (info.tuple_index >= tup->elements.size()) {
           return nullptr;
         }
-        std::vector<sema::TypeRef> elems;
+        std::vector<analysis::TypeRef> elems;
         elems.reserve(tup->elements.size());
         for (const auto& elem : tup->elements) {
           const auto lowered = LowerTypeForLayout(scope, elem);
@@ -930,7 +930,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
         return nullptr;
       }
       std::vector<std::string> names;
-      std::vector<sema::TypeRef> types;
+      std::vector<analysis::TypeRef> types;
       names.reserve(rec->fields.size());
       types.reserve(rec->fields.size());
       for (const auto& field : rec->fields) {
@@ -965,24 +965,24 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       }
       const syntax::ModalDecl* decl = nullptr;
       std::string state_name = info.modal_state;
-      if (const auto* path = std::get_if<sema::TypePathType>(&stripped->node)) {
+      if (const auto* path = std::get_if<analysis::TypePathType>(&stripped->node)) {
         syntax::Path syntax_path;
         syntax_path.reserve(path->path.size());
         for (const auto& seg : path->path) {
           syntax_path.push_back(seg);
         }
-        const auto it = scope.sigma.types.find(sema::PathKeyOf(syntax_path));
+        const auto it = scope.sigma.types.find(analysis::PathKeyOf(syntax_path));
         if (it == scope.sigma.types.end()) {
           return nullptr;
         }
         decl = std::get_if<syntax::ModalDecl>(&it->second);
-      } else if (const auto* modal_state = std::get_if<sema::TypeModalState>(&stripped->node)) {
+      } else if (const auto* modal_state = std::get_if<analysis::TypeModalState>(&stripped->node)) {
         syntax::Path syntax_path;
         syntax_path.reserve(modal_state->path.size());
         for (const auto& seg : modal_state->path) {
           syntax_path.push_back(seg);
         }
-        const auto it = scope.sigma.types.find(sema::PathKeyOf(syntax_path));
+        const auto it = scope.sigma.types.find(analysis::PathKeyOf(syntax_path));
         if (it == scope.sigma.types.end()) {
           return nullptr;
         }
@@ -995,7 +995,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
 
       const syntax::StateBlock* state = nullptr;
       for (const auto& st : decl->states) {
-        if (sema::IdEq(st.name, state_name)) {
+        if (analysis::IdEq(st.name, state_name)) {
           state = &st;
           break;
         }
@@ -1005,7 +1005,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       }
 
       std::vector<std::string> names;
-      std::vector<sema::TypeRef> types;
+      std::vector<analysis::TypeRef> types;
       for (const auto& member : state->members) {
         const auto* field = std::get_if<syntax::StateFieldDecl>(&member);
         if (!field) {
@@ -1034,7 +1034,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       }
 
       std::uint64_t payload_offset = 0;
-      if (std::holds_alternative<sema::TypePathType>(stripped->node)) {
+      if (std::holds_alternative<analysis::TypePathType>(stripped->node)) {
         const auto modal_layout = ModalLayoutOf(scope, *decl);
         if (!modal_layout.has_value()) {
           return nullptr;
@@ -1042,7 +1042,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
         if (!modal_layout->niche && modal_layout->disc_type.has_value()) {
           std::uint64_t payload_align = 1;
           for (const auto& st : decl->states) {
-            std::vector<sema::TypeRef> st_types;
+            std::vector<analysis::TypeRef> st_types;
             for (const auto& member : st.members) {
               const auto* field = std::get_if<syntax::StateFieldDecl>(&member);
               if (!field) {
@@ -1060,7 +1060,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
             }
             payload_align = std::max(payload_align, st_layout->layout.align);
           }
-          const auto disc_type = sema::MakeTypePrim(*modal_layout->disc_type);
+          const auto disc_type = analysis::MakeTypePrim(*modal_layout->disc_type);
           const auto disc_size = SizeOf(scope, disc_type).value_or(0);
           payload_offset = AlignUp(disc_size, payload_align);
         }
@@ -1084,7 +1084,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       if (!stripped) {
         return nullptr;
       }
-      const auto* uni = std::get_if<sema::TypeUnion>(&stripped->node);
+      const auto* uni = std::get_if<analysis::TypeUnion>(&stripped->node);
       if (!uni) {
         return nullptr;
       }
@@ -1103,7 +1103,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       auto base = *base_opt;
       std::uint64_t payload_offset = 0;
       if (!layout->niche && layout->disc_type.has_value()) {
-        const auto disc_type = sema::MakeTypePrim(*layout->disc_type);
+        const auto disc_type = analysis::MakeTypePrim(*layout->disc_type);
         const auto disc_size = SizeOf(scope, disc_type).value_or(0);
         payload_offset = AlignUp(disc_size, layout->payload_align);
       }
@@ -1122,7 +1122,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       if (!stripped) {
         return nullptr;
       }
-      auto* tuple = std::get_if<sema::TypeTuple>(&stripped->node);
+      auto* tuple = std::get_if<analysis::TypeTuple>(&stripped->node);
       if (!tuple) {
         return nullptr;
       }
@@ -1155,7 +1155,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       if (!stripped) {
         return nullptr;
       }
-      auto* arr = std::get_if<sema::TypeArray>(&stripped->node);
+      auto* arr = std::get_if<analysis::TypeArray>(&stripped->node);
       if (!arr) {
         return nullptr;
       }
@@ -1185,15 +1185,15 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       if (!stripped) {
         return nullptr;
       }
-      std::optional<std::pair<std::vector<std::string>, std::vector<sema::TypeRef>>> fields_opt;
-      if (auto* path = std::get_if<sema::TypePathType>(&stripped->node)) {
-        fields_opt = [&]() -> std::optional<std::pair<std::vector<std::string>, std::vector<sema::TypeRef>>> {
+      std::optional<std::pair<std::vector<std::string>, std::vector<analysis::TypeRef>>> fields_opt;
+      if (auto* path = std::get_if<analysis::TypePathType>(&stripped->node)) {
+        fields_opt = [&]() -> std::optional<std::pair<std::vector<std::string>, std::vector<analysis::TypeRef>>> {
           syntax::Path syntax_path;
           syntax_path.reserve(path->path.size());
           for (const auto& seg : path->path) {
             syntax_path.push_back(seg);
           }
-          const auto it = scope.sigma.types.find(sema::PathKeyOf(syntax_path));
+          const auto it = scope.sigma.types.find(analysis::PathKeyOf(syntax_path));
           if (it == scope.sigma.types.end()) {
             return std::nullopt;
           }
@@ -1203,7 +1203,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
           }
           return CollectRecordFields(scope, *record);
         }();
-      } else if (auto* modal = std::get_if<sema::TypeModalState>(&stripped->node)) {
+      } else if (auto* modal = std::get_if<analysis::TypeModalState>(&stripped->node)) {
         const auto* decl = LookupModalDecl(scope, modal->path);
         if (!decl) {
           return nullptr;
@@ -1252,7 +1252,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
     case DerivedValueInfo::Kind::DynLit: {
       auto value_type = ctx->LookupValueType(value);
       auto stripped = StripPerm(value_type);
-      if (!stripped || !std::holds_alternative<sema::TypeDynamic>(stripped->node)) {
+      if (!stripped || !std::holds_alternative<analysis::TypeDynamic>(stripped->node)) {
         return nullptr;
       }
       llvm::Type* llvm_ty = emitter.GetLLVMType(stripped);
@@ -1314,7 +1314,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
     case DerivedValueInfo::Kind::EnumLit: {
       auto value_type = ctx->LookupValueType(value);
       auto stripped = StripPerm(value_type);
-      auto* path = stripped ? std::get_if<sema::TypePathType>(&stripped->node) : nullptr;
+      auto* path = stripped ? std::get_if<analysis::TypePathType>(&stripped->node) : nullptr;
       if (!path) {
         return nullptr;
       }
@@ -1323,7 +1323,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       for (const auto& seg : path->path) {
         syntax_path.push_back(seg);
       }
-      const auto it = scope.sigma.types.find(sema::PathKeyOf(syntax_path));
+      const auto it = scope.sigma.types.find(analysis::PathKeyOf(syntax_path));
       if (it == scope.sigma.types.end()) {
         return nullptr;
       }
@@ -1331,7 +1331,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       if (!enum_decl) {
         return nullptr;
       }
-      const auto discs = sema::EnumDiscriminants(*enum_decl);
+      const auto discs = analysis::EnumDiscriminants(*enum_decl);
       if (!discs.ok || discs.discs.size() != enum_decl->variants.size()) {
         return nullptr;
       }
@@ -1349,7 +1349,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       if (!enum_layout.has_value()) {
         return nullptr;
       }
-      const auto disc_type = sema::MakeTypePrim(enum_layout->disc_type);
+      const auto disc_type = analysis::MakeTypePrim(enum_layout->disc_type);
       const auto disc_size = SizeOf(scope, disc_type).value_or(0);
       const std::uint64_t payload_offset = AlignUp(disc_size, enum_layout->payload_align);
 
@@ -1367,7 +1367,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       const auto& variant = enum_decl->variants[*variant_index];
       if (variant.payload_opt.has_value()) {
         if (const auto* tup = std::get_if<syntax::VariantPayloadTuple>(&*variant.payload_opt)) {
-          std::vector<sema::TypeRef> elems;
+          std::vector<analysis::TypeRef> elems;
           elems.reserve(tup->elements.size());
           for (const auto& elem : tup->elements) {
             const auto lowered = LowerTypeForLayout(scope, elem);
@@ -1393,7 +1393,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
           }
         } else if (const auto* rec = std::get_if<syntax::VariantPayloadRecord>(&*variant.payload_opt)) {
           std::vector<std::string> names;
-          std::vector<sema::TypeRef> types;
+          std::vector<analysis::TypeRef> types;
           names.reserve(rec->fields.size());
           types.reserve(rec->fields.size());
           for (const auto& field : rec->fields) {
@@ -1471,10 +1471,10 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
         hi_val = llvm::ConstantInt::get(usize_ty, 0);
       }
 
-      std::vector<sema::TypeRef> fields;
-      fields.push_back(sema::MakeTypePrim("u8"));
-      fields.push_back(sema::MakeTypePrim("usize"));
-      fields.push_back(sema::MakeTypePrim("usize"));
+      std::vector<analysis::TypeRef> fields;
+      fields.push_back(analysis::MakeTypePrim("u8"));
+      fields.push_back(analysis::MakeTypePrim("usize"));
+      fields.push_back(analysis::MakeTypePrim("usize"));
       const auto layout = RecordLayoutOf(scope, fields);
       if (!layout.has_value() || layout->offsets.size() < 3) {
         return nullptr;
@@ -1538,9 +1538,9 @@ void StorePanicRecord(LLVMEmitter& emitter,
     return;
   }
   const auto scope = BuildScope(ctx);
-  std::vector<sema::TypeRef> fields;
-  fields.push_back(sema::MakeTypePrim("bool"));
-  fields.push_back(sema::MakeTypePrim("u32"));
+  std::vector<analysis::TypeRef> fields;
+  fields.push_back(analysis::MakeTypePrim("bool"));
+  fields.push_back(analysis::MakeTypePrim("u32"));
   const auto layout = RecordLayoutOf(scope, fields);
   if (!layout.has_value() || layout->offsets.size() < 2) {
     return;
@@ -1563,9 +1563,9 @@ void ClearPanicRecord(LLVMEmitter& emitter,
     return;
   }
   const auto scope = BuildScope(ctx);
-  std::vector<sema::TypeRef> fields;
-  fields.push_back(sema::MakeTypePrim("bool"));
-  fields.push_back(sema::MakeTypePrim("u32"));
+  std::vector<analysis::TypeRef> fields;
+  fields.push_back(analysis::MakeTypePrim("bool"));
+  fields.push_back(analysis::MakeTypePrim("u32"));
   const auto layout = RecordLayoutOf(scope, fields);
   if (!layout.has_value() || layout->offsets.size() < 2) {
     return;
@@ -1620,7 +1620,7 @@ llvm::GlobalVariable* GetOrCreatePoisonFlag(LLVMEmitter& emitter,
   if (ctx) {
     define_flag = (ctx->module_path == module_path);
   }
-  auto* bool_ty = emitter.GetLLVMType(sema::MakeTypePrim("bool"));
+  auto* bool_ty = emitter.GetLLVMType(analysis::MakeTypePrim("bool"));
   if (!bool_ty) {
     SPEC_RULE("PoisonFlag-Err");
     if (ctx) {
@@ -1732,7 +1732,7 @@ void StoreInitPanicRecord(LLVMEmitter& emitter,
 
   const auto poison = PoisonSetForInit(*ctx);
   if (!poison.empty()) {
-    llvm::Type* bool_ty = emitter.GetLLVMType(sema::MakeTypePrim("bool"));
+    llvm::Type* bool_ty = emitter.GetLLVMType(analysis::MakeTypePrim("bool"));
     llvm::Value* val = llvm::ConstantInt::get(bool_ty, 1);
     for (const auto& module_name : poison) {
       const auto path = SplitModulePathString(module_name);
@@ -1751,9 +1751,9 @@ void StoreInitPanicRecord(LLVMEmitter& emitter,
     return;
   }
   const auto scope = BuildScope(ctx);
-  std::vector<sema::TypeRef> fields;
-  fields.push_back(sema::MakeTypePrim("bool"));
-  fields.push_back(sema::MakeTypePrim("u32"));
+  std::vector<analysis::TypeRef> fields;
+  fields.push_back(analysis::MakeTypePrim("bool"));
+  fields.push_back(analysis::MakeTypePrim("u32"));
   const auto layout = RecordLayoutOf(scope, fields);
   if (!layout.has_value() || layout->offsets.size() < 2) {
     return;
@@ -1854,7 +1854,7 @@ llvm::Value* LLVMEmitter::EvaluateIRValue(const IRValue& val) {
 
   if (val.kind == IRValue::Kind::Immediate) {
     llvm::Type* llvm_ty = nullptr;
-    sema::TypeRef value_type;
+    analysis::TypeRef value_type;
     if (ctx) {
       value_type = ctx->LookupValueType(val);
       if (value_type) {
@@ -1863,13 +1863,13 @@ llvm::Value* LLVMEmitter::EvaluateIRValue(const IRValue& val) {
     }
     if (!value_type && !val.name.empty() && val.name.size() >= 2 &&
         val.name.front() == '"' && val.name.back() == '"') {
-      value_type = sema::MakeTypeString(sema::StringState::View);
+      value_type = analysis::MakeTypeString(analysis::StringState::View);
       llvm_ty = GetLLVMType(value_type);
     }
     if (value_type) {
-      if (const auto* str = std::get_if<sema::TypeString>(&value_type->node)) {
+      if (const auto* str = std::get_if<analysis::TypeString>(&value_type->node)) {
         if (str->state.has_value() &&
-            *str->state == sema::StringState::View &&
+            *str->state == analysis::StringState::View &&
             llvm_ty) {
           SPEC_RULE("EmitLiteral-String");
           const std::string sym = MangleLiteral("string", val.bytes);
@@ -1884,7 +1884,7 @@ llvm::Value* LLVMEmitter::EvaluateIRValue(const IRValue& val) {
             return nullptr;
           }
           llvm::Type* ptr_ty = GetOpaquePtr();
-          llvm::Type* usize_ty = GetLLVMType(sema::MakeTypePrim("usize"));
+          llvm::Type* usize_ty = GetLLVMType(analysis::MakeTypePrim("usize"));
           auto* zero = llvm::ConstantInt::get(usize_ty, 0);
           llvm::Constant* idxs[] = {zero, zero};
           auto* gep = llvm::ConstantExpr::getInBoundsGetElementPtr(
@@ -1908,7 +1908,7 @@ llvm::Value* LLVMEmitter::EvaluateIRValue(const IRValue& val) {
 
   if (val.kind == IRValue::Kind::Opaque) {
     if (val.name == "unit" || val.name == "()") {
-      llvm::Type* unit_ty = GetLLVMType(sema::MakeTypePrim("()"));
+      llvm::Type* unit_ty = GetLLVMType(analysis::MakeTypePrim("()"));
       return llvm::Constant::getNullValue(unit_ty);
     }
     if (ctx) {
@@ -1943,18 +1943,18 @@ llvm::Value* LLVMEmitter::EvaluateIRValue(const IRValue& val) {
 
 struct MatchValue {
   llvm::Value* addr = nullptr;
-  sema::TypeRef type;
+  analysis::TypeRef type;
 };
 
 static std::optional<MatchValue> MakeMatchValue(LLVMEmitter& emitter,
                                                 llvm::IRBuilder<>* builder,
                                                 LowerCtx* ctx,
                                                 const IRValue& value,
-                                                const sema::TypeRef& type_hint) {
+                                                const analysis::TypeRef& type_hint) {
   if (!ctx) {
     return std::nullopt;
   }
-  sema::TypeRef type = type_hint ? type_hint : ctx->LookupValueType(value);
+  analysis::TypeRef type = type_hint ? type_hint : ctx->LookupValueType(value);
   if (!type) {
     if (std::getenv("CURSIVE0_DEBUG_OBJ")) {
       std::cerr << "[cursivec0] match scrutinee type missing for "
@@ -1992,28 +1992,28 @@ static llvm::Value* LoadMatchValue(LLVMEmitter& emitter,
   return builder->CreateLoad(llvm_ty, value.addr);
 }
 
-static const syntax::EnumDecl* LookupEnumDecl(const sema::ScopeContext& scope,
-                                              const sema::TypePathType& path_type) {
+static const syntax::EnumDecl* LookupEnumDecl(const analysis::ScopeContext& scope,
+                                              const analysis::TypePathType& path_type) {
   syntax::Path syntax_path;
   syntax_path.reserve(path_type.path.size());
   for (const auto& seg : path_type.path) {
     syntax_path.push_back(seg);
   }
-  const auto it = scope.sigma.types.find(sema::PathKeyOf(syntax_path));
+  const auto it = scope.sigma.types.find(analysis::PathKeyOf(syntax_path));
   if (it == scope.sigma.types.end()) {
     return nullptr;
   }
   return std::get_if<syntax::EnumDecl>(&it->second);
 }
 
-static const syntax::ModalDecl* LookupModalDecl(const sema::ScopeContext& scope,
-                                                const sema::TypePath& path) {
+static const syntax::ModalDecl* LookupModalDecl(const analysis::ScopeContext& scope,
+                                                const analysis::TypePath& path) {
   syntax::Path syntax_path;
   syntax_path.reserve(path.size());
   for (const auto& seg : path) {
     syntax_path.push_back(seg);
   }
-  const auto it = scope.sigma.types.find(sema::PathKeyOf(syntax_path));
+  const auto it = scope.sigma.types.find(analysis::PathKeyOf(syntax_path));
   if (it == scope.sigma.types.end()) {
     return nullptr;
   }
@@ -2023,17 +2023,17 @@ static const syntax::ModalDecl* LookupModalDecl(const sema::ScopeContext& scope,
 static const syntax::StateBlock* LookupModalState(const syntax::ModalDecl& decl,
                                                   std::string_view state) {
   for (const auto& st : decl.states) {
-    if (sema::IdEq(st.name, state)) {
+    if (analysis::IdEq(st.name, state)) {
       return &st;
     }
   }
   return nullptr;
 }
 
-static std::optional<std::vector<sema::TypeRef>> ModalStateFieldTypes(
-    const sema::ScopeContext& scope,
+static std::optional<std::vector<analysis::TypeRef>> ModalStateFieldTypes(
+    const analysis::ScopeContext& scope,
     const syntax::StateBlock& state) {
-  std::vector<sema::TypeRef> types;
+  std::vector<analysis::TypeRef> types;
   for (const auto& member : state.members) {
     const auto* field = std::get_if<syntax::StateFieldDecl>(&member);
     if (!field) {
@@ -2048,7 +2048,7 @@ static std::optional<std::vector<sema::TypeRef>> ModalStateFieldTypes(
   return types;
 }
 
-static std::optional<std::uint64_t> ModalPayloadAlign(const sema::ScopeContext& scope,
+static std::optional<std::uint64_t> ModalPayloadAlign(const analysis::ScopeContext& scope,
                                                       const syntax::ModalDecl& decl) {
   std::uint64_t max_align = 1;
   for (const auto& state : decl.states) {
@@ -2067,13 +2067,13 @@ static std::optional<std::uint64_t> ModalPayloadAlign(const sema::ScopeContext& 
 
 static std::optional<MatchValue> RecordFieldValue(LLVMEmitter& emitter,
                                                   llvm::IRBuilder<>* builder,
-                                                  const sema::ScopeContext& scope,
+                                                  const analysis::ScopeContext& scope,
                                                   const MatchValue& base,
                                                   std::string_view field) {
   if (!base.type) {
     return std::nullopt;
   }
-  const auto* path = std::get_if<sema::TypePathType>(&base.type->node);
+  const auto* path = std::get_if<analysis::TypePathType>(&base.type->node);
   if (!path) {
     return std::nullopt;
   }
@@ -2092,13 +2092,13 @@ static std::optional<MatchValue> RecordFieldValue(LLVMEmitter& emitter,
 
 static std::optional<MatchValue> TupleElementValue(LLVMEmitter& emitter,
                                                    llvm::IRBuilder<>* builder,
-                                                   const sema::ScopeContext& scope,
+                                                   const analysis::ScopeContext& scope,
                                                    const MatchValue& base,
                                                    std::size_t index) {
   if (!base.type) {
     return std::nullopt;
   }
-  const auto* tuple = std::get_if<sema::TypeTuple>(&base.type->node);
+  const auto* tuple = std::get_if<analysis::TypeTuple>(&base.type->node);
   if (!tuple) {
     return std::nullopt;
   }
@@ -2117,7 +2117,7 @@ static std::optional<MatchValue> TupleElementValue(LLVMEmitter& emitter,
 
 static std::optional<MatchValue> EnumPayloadIndexValue(LLVMEmitter& emitter,
                                                        llvm::IRBuilder<>* builder,
-                                                       const sema::ScopeContext& scope,
+                                                       const analysis::ScopeContext& scope,
                                                        const MatchValue& base,
                                                        const syntax::EnumDecl& decl,
                                                        const syntax::VariantDecl& variant,
@@ -2129,7 +2129,7 @@ static std::optional<MatchValue> EnumPayloadIndexValue(LLVMEmitter& emitter,
   if (!layout.has_value()) {
     return std::nullopt;
   }
-  const auto disc_type = sema::MakeTypePrim(layout->disc_type);
+  const auto disc_type = analysis::MakeTypePrim(layout->disc_type);
   const auto disc_size = SizeOf(scope, disc_type).value_or(0);
   const std::uint64_t payload_offset = AlignUp(disc_size, layout->payload_align);
 
@@ -2138,7 +2138,7 @@ static std::optional<MatchValue> EnumPayloadIndexValue(LLVMEmitter& emitter,
   if (!tuple_payload || index >= tuple_payload->elements.size()) {
     return std::nullopt;
   }
-  std::vector<sema::TypeRef> elems;
+  std::vector<analysis::TypeRef> elems;
   elems.reserve(tuple_payload->elements.size());
   for (const auto& elem : tuple_payload->elements) {
     const auto lowered = LowerTypeForLayout(scope, elem);
@@ -2161,7 +2161,7 @@ static std::optional<MatchValue> EnumPayloadIndexValue(LLVMEmitter& emitter,
 
 static std::optional<MatchValue> EnumPayloadFieldValue(LLVMEmitter& emitter,
                                                        llvm::IRBuilder<>* builder,
-                                                       const sema::ScopeContext& scope,
+                                                       const analysis::ScopeContext& scope,
                                                        const MatchValue& base,
                                                        const syntax::EnumDecl& decl,
                                                        const syntax::VariantDecl& variant,
@@ -2173,7 +2173,7 @@ static std::optional<MatchValue> EnumPayloadFieldValue(LLVMEmitter& emitter,
   if (!layout.has_value()) {
     return std::nullopt;
   }
-  const auto disc_type = sema::MakeTypePrim(layout->disc_type);
+  const auto disc_type = analysis::MakeTypePrim(layout->disc_type);
   const auto disc_size = SizeOf(scope, disc_type).value_or(0);
   const std::uint64_t payload_offset = AlignUp(disc_size, layout->payload_align);
 
@@ -2183,7 +2183,7 @@ static std::optional<MatchValue> EnumPayloadFieldValue(LLVMEmitter& emitter,
     return std::nullopt;
   }
   std::vector<std::string> names;
-  std::vector<sema::TypeRef> types;
+  std::vector<analysis::TypeRef> types;
   names.reserve(record_payload->fields.size());
   types.reserve(record_payload->fields.size());
   for (const auto& f : record_payload->fields) {
@@ -2213,7 +2213,7 @@ static std::optional<MatchValue> EnumPayloadFieldValue(LLVMEmitter& emitter,
 
 static std::optional<MatchValue> ModalFieldValue(LLVMEmitter& emitter,
                                                  llvm::IRBuilder<>* builder,
-                                                 const sema::ScopeContext& scope,
+                                                 const analysis::ScopeContext& scope,
                                                  const MatchValue& base,
                                                  const syntax::ModalDecl& decl,
                                                  std::string_view state_name,
@@ -2223,7 +2223,7 @@ static std::optional<MatchValue> ModalFieldValue(LLVMEmitter& emitter,
     return std::nullopt;
   }
   std::vector<std::string> names;
-  std::vector<sema::TypeRef> types;
+  std::vector<analysis::TypeRef> types;
   for (const auto& member : state->members) {
     const auto* field = std::get_if<syntax::StateFieldDecl>(&member);
     if (!field) {
@@ -2252,7 +2252,7 @@ static std::optional<MatchValue> ModalFieldValue(LLVMEmitter& emitter,
   }
 
   std::uint64_t payload_offset = 0;
-  if (std::holds_alternative<sema::TypePathType>(base.type->node)) {
+  if (std::holds_alternative<analysis::TypePathType>(base.type->node)) {
     const auto modal_layout = ModalLayoutOf(scope, decl);
     if (!modal_layout.has_value()) {
       return std::nullopt;
@@ -2262,7 +2262,7 @@ static std::optional<MatchValue> ModalFieldValue(LLVMEmitter& emitter,
       if (!payload_align.has_value()) {
         return std::nullopt;
       }
-      const auto disc_type = sema::MakeTypePrim(*modal_layout->disc_type);
+      const auto disc_type = analysis::MakeTypePrim(*modal_layout->disc_type);
       const auto disc_size = SizeOf(scope, disc_type).value_or(0);
       payload_offset = AlignUp(disc_size, *payload_align);
     }
@@ -2278,7 +2278,7 @@ static std::optional<MatchValue> ModalFieldValue(LLVMEmitter& emitter,
 
 static llvm::Value* LiteralConstValue(LLVMEmitter& emitter,
                                       LowerCtx* ctx,
-                                      const sema::TypeRef& type,
+                                      const analysis::TypeRef& type,
                                       const syntax::Token& lit) {
   if (!type) {
     return nullptr;
@@ -2328,7 +2328,7 @@ static void LowerMatchIR(LLVMEmitter& emitter,
       std::getenv("CURSIVE0_DEBUG_MATCH_FAIL_VAL") != nullptr;
 
   std::vector<std::pair<llvm::Value*, llvm::BasicBlock*>> incoming;
-  sema::TypeRef result_type = ctx ? ctx->LookupValueType(match.result) : nullptr;
+  analysis::TypeRef result_type = ctx ? ctx->LookupValueType(match.result) : nullptr;
   llvm::Type* result_llvm_ty = result_type ? emitter.GetLLVMType(result_type) : nullptr;
   bool result_is_zst = false;
   if (result_type) {
@@ -2357,7 +2357,7 @@ static void LowerMatchIR(LLVMEmitter& emitter,
               builder->CreateBr(no_match_bb);
               return;
             }
-            const auto* uni = std::get_if<sema::TypeUnion>(&value.type->node);
+            const auto* uni = std::get_if<analysis::TypeUnion>(&value.type->node);
             if (!uni) {
               builder->CreateBr(no_match_bb);
               return;
@@ -2369,13 +2369,13 @@ static void LowerMatchIR(LLVMEmitter& emitter,
             }
             const auto& members = layout->member_list;
             std::optional<std::size_t> member_index;
-            std::optional<sema::TypeRef> target;
+            std::optional<analysis::TypeRef> target;
             if (node.type) {
               target = LowerTypeForLayout(scope, node.type);
             }
             if (target.has_value()) {
               for (std::size_t i = 0; i < members.size(); ++i) {
-                if (sema::TypeEquiv(*target, members[i]).equiv) {
+                if (analysis::TypeEquiv(*target, members[i]).equiv) {
                   member_index = i;
                   break;
                 }
@@ -2441,7 +2441,7 @@ static void LowerMatchIR(LLVMEmitter& emitter,
               builder->CreateBr(no_match_bb);
               return;
             }
-            const auto disc_type = sema::MakeTypePrim(*layout->disc_type);
+            const auto disc_type = analysis::MakeTypePrim(*layout->disc_type);
             llvm::Type* disc_ty = emitter.GetLLVMType(disc_type);
             llvm::Value* disc =
                 LoadAtOffset(emitter, builder, value.addr, 0, disc_ty);
@@ -2478,9 +2478,9 @@ static void LowerMatchIR(LLVMEmitter& emitter,
                        val->getType()->isPointerTy()) {
               cond = builder->CreateICmpEQ(val, lit);
             } else if (const auto* str =
-                           std::get_if<sema::TypeString>(&value.type->node)) {
+                           std::get_if<analysis::TypeString>(&value.type->node)) {
               if (str->state.has_value() &&
-                  *str->state == sema::StringState::View &&
+                  *str->state == analysis::StringState::View &&
                   val->getType()->isStructTy()) {
                 llvm::Value* ptr_a = builder->CreateExtractValue(val, {0});
                 llvm::Value* len_a = builder->CreateExtractValue(val, {1});
@@ -2491,9 +2491,9 @@ static void LowerMatchIR(LLVMEmitter& emitter,
                 cond = builder->CreateAnd(eq_ptr, eq_len);
               }
             } else if (const auto* bytes =
-                           std::get_if<sema::TypeBytes>(&value.type->node)) {
+                           std::get_if<analysis::TypeBytes>(&value.type->node)) {
               if (bytes->state.has_value() &&
-                  *bytes->state == sema::BytesState::View &&
+                  *bytes->state == analysis::BytesState::View &&
                   val->getType()->isStructTy()) {
                 llvm::Value* ptr_a = builder->CreateExtractValue(val, {0});
                 llvm::Value* len_a = builder->CreateExtractValue(val, {1});
@@ -2568,7 +2568,7 @@ static void LowerMatchIR(LLVMEmitter& emitter,
               return;
             }
             const auto* path =
-                std::get_if<sema::TypePathType>(&value.type->node);
+                std::get_if<analysis::TypePathType>(&value.type->node);
             if (!path) {
               builder->CreateBr(no_match_bb);
               return;
@@ -2580,7 +2580,7 @@ static void LowerMatchIR(LLVMEmitter& emitter,
             }
             const syntax::VariantDecl* variant = nullptr;
             for (const auto& v : enum_decl->variants) {
-              if (sema::IdEq(v.name, node.name)) {
+              if (analysis::IdEq(v.name, node.name)) {
                 variant = &v;
                 break;
               }
@@ -2589,14 +2589,14 @@ static void LowerMatchIR(LLVMEmitter& emitter,
               builder->CreateBr(no_match_bb);
               return;
             }
-            const auto discs = sema::EnumDiscriminants(*enum_decl);
+            const auto discs = analysis::EnumDiscriminants(*enum_decl);
             if (!discs.ok || discs.discs.size() != enum_decl->variants.size()) {
               builder->CreateBr(no_match_bb);
               return;
             }
             std::optional<std::size_t> variant_index;
             for (std::size_t i = 0; i < enum_decl->variants.size(); ++i) {
-              if (sema::IdEq(enum_decl->variants[i].name, node.name)) {
+              if (analysis::IdEq(enum_decl->variants[i].name, node.name)) {
                 variant_index = i;
                 break;
               }
@@ -2610,7 +2610,7 @@ static void LowerMatchIR(LLVMEmitter& emitter,
               builder->CreateBr(no_match_bb);
               return;
             }
-            const auto disc_type = sema::MakeTypePrim(layout->disc_type);
+            const auto disc_type = analysis::MakeTypePrim(layout->disc_type);
             llvm::Type* disc_ty = emitter.GetLLVMType(disc_type);
             llvm::Value* disc =
                 LoadAtOffset(emitter, builder, value.addr, 0, disc_ty);
@@ -2726,13 +2726,13 @@ static void LowerMatchIR(LLVMEmitter& emitter,
             const syntax::ModalDecl* decl = nullptr;
             bool is_state_specific = false;
             if (const auto* path =
-                    std::get_if<sema::TypePathType>(&value.type->node)) {
+                    std::get_if<analysis::TypePathType>(&value.type->node)) {
               decl = LookupModalDecl(scope, path->path);
             } else if (const auto* state =
-                           std::get_if<sema::TypeModalState>(&value.type->node)) {
+                           std::get_if<analysis::TypeModalState>(&value.type->node)) {
               decl = LookupModalDecl(scope, state->path);
               is_state_specific = true;
-              if (!sema::IdEq(state->state, node.state)) {
+              if (!analysis::IdEq(state->state, node.state)) {
                 builder->CreateBr(no_match_bb);
                 return;
               }
@@ -2763,7 +2763,7 @@ static void LowerMatchIR(LLVMEmitter& emitter,
                 return;
               }
               if (layout->niche) {
-                const auto payload_state = sema::PayloadState(scope, *decl);
+                const auto payload_state = analysis::PayloadState(scope, *decl);
                 if (!payload_state.has_value()) {
                   builder->CreateBr(no_match_bb);
                   return;
@@ -2776,7 +2776,7 @@ static void LowerMatchIR(LLVMEmitter& emitter,
                 }
                 std::optional<std::string_view> empty_state;
                 for (const auto& st : decl->states) {
-                  if (!sema::IdEq(st.name, *payload_state)) {
+                  if (!analysis::IdEq(st.name, *payload_state)) {
                     empty_state = st.name;
                     break;
                   }
@@ -2797,10 +2797,10 @@ static void LowerMatchIR(LLVMEmitter& emitter,
                     payload_val,
                     llvm::ConstantPointerNull::get(
                         llvm::cast<llvm::PointerType>(payload_val->getType())));
-                if (sema::IdEq(node.state, *payload_state)) {
+                if (analysis::IdEq(node.state, *payload_state)) {
                   state_cond = builder->CreateNot(is_null);
                 } else if (empty_state.has_value() &&
-                           sema::IdEq(node.state, *empty_state)) {
+                           analysis::IdEq(node.state, *empty_state)) {
                   state_cond = is_null;
                 } else {
                   state_cond = llvm::ConstantInt::getFalse(emitter.GetContext());
@@ -2813,7 +2813,7 @@ static void LowerMatchIR(LLVMEmitter& emitter,
                 std::size_t index = 0;
                 bool found = false;
                 for (std::size_t i = 0; i < decl->states.size(); ++i) {
-                  if (sema::IdEq(decl->states[i].name, node.state)) {
+                  if (analysis::IdEq(decl->states[i].name, node.state)) {
                     index = i;
                     found = true;
                     break;
@@ -2823,7 +2823,7 @@ static void LowerMatchIR(LLVMEmitter& emitter,
                   builder->CreateBr(no_match_bb);
                   return;
                 }
-                const auto disc_type = sema::MakeTypePrim(*layout->disc_type);
+                const auto disc_type = analysis::MakeTypePrim(*layout->disc_type);
                 llvm::Type* disc_ty = emitter.GetLLVMType(disc_type);
                 llvm::Value* disc =
                     LoadAtOffset(emitter, builder, value.addr, 0, disc_ty);
@@ -2991,26 +2991,26 @@ static void LowerMatchIR(LLVMEmitter& emitter,
         if (scrut.addr && scrut.type) {
           auto stripped = StripPerm(scrut.type);
           if (stripped) {
-            if (const auto* uni = std::get_if<sema::TypeUnion>(&stripped->node)) {
+            if (const auto* uni = std::get_if<analysis::TypeUnion>(&stripped->node)) {
               if (const auto layout = UnionLayoutOf(scope, *uni)) {
                 if (layout->disc_type.has_value()) {
-                  const auto disc_type = sema::MakeTypePrim(*layout->disc_type);
+                  const auto disc_type = analysis::MakeTypePrim(*layout->disc_type);
                   llvm::Type* disc_ty = emitter.GetLLVMType(disc_type);
                   disc_val = LoadAtOffset(emitter, builder, scrut.addr, 0, disc_ty);
                 }
               }
             } else if (const auto* path =
-                           std::get_if<sema::TypePathType>(&stripped->node)) {
+                           std::get_if<analysis::TypePathType>(&stripped->node)) {
               syntax::Path syntax_path;
               syntax_path.reserve(path->path.size());
               for (const auto& seg : path->path) {
                 syntax_path.push_back(seg);
               }
-              const auto it = scope.sigma.types.find(sema::PathKeyOf(syntax_path));
+              const auto it = scope.sigma.types.find(analysis::PathKeyOf(syntax_path));
               if (it != scope.sigma.types.end()) {
                 if (const auto* enum_decl = std::get_if<syntax::EnumDecl>(&it->second)) {
                   if (const auto layout = EnumLayoutOf(scope, *enum_decl)) {
-                    const auto disc_type = sema::MakeTypePrim(layout->disc_type);
+                    const auto disc_type = analysis::MakeTypePrim(layout->disc_type);
                     llvm::Type* disc_ty = emitter.GetLLVMType(disc_type);
                     disc_val = LoadAtOffset(emitter, builder, scrut.addr, 0, disc_ty);
                   }
@@ -3145,7 +3145,7 @@ struct IRVisitor {
     if (!v) {
       return nullptr;
     }
-    llvm::Type* bool_ty = emitter.GetLLVMType(sema::MakeTypePrim("bool"));
+    llvm::Type* bool_ty = emitter.GetLLVMType(analysis::MakeTypePrim("bool"));
     if (v->getType() == bool_ty) {
       return v;
     }
@@ -3197,7 +3197,7 @@ struct IRVisitor {
     return v;
   }
 
-  sema::TypeRef ValueType(const IRValue& value) const {
+  analysis::TypeRef ValueType(const IRValue& value) const {
     if (!ctx) {
       return nullptr;
     }
@@ -3241,7 +3241,7 @@ struct IRVisitor {
           SPEC_RULE("BindSlot-Static");
           slot = emitter.GetGlobal(sym);
           if (!slot) {
-            sema::TypeRef ty = ctx->LookupStaticType(sym);
+            analysis::TypeRef ty = ctx->LookupStaticType(sym);
             llvm::Type* llvm_ty = ty ? emitter.GetLLVMType(ty) : nullptr;
             if (llvm_ty) {
               auto* gv = new llvm::GlobalVariable(
@@ -3280,7 +3280,7 @@ struct IRVisitor {
         dst_ty = gv->getValueType();
       }
       if (!dst_ty) {
-        sema::TypeRef ty = nullptr;
+        analysis::TypeRef ty = nullptr;
         if (ctx) {
           if (const auto* state = ctx->GetBindingState(store.name)) {
             ty = state->type;
@@ -3313,7 +3313,7 @@ struct IRVisitor {
       return;
     }
     if (slot->getType()->isPointerTy()) {
-      sema::TypeRef ty = ctx ? ctx->LookupValueType(store.value) : nullptr;
+      analysis::TypeRef ty = ctx ? ctx->LookupValueType(store.value) : nullptr;
       llvm::Type* dst_ty = ty ? emitter.GetLLVMType(ty) : val->getType();
       val = CoerceToType(val, dst_ty, is_unsigned);
       builder->CreateStore(val, slot);
@@ -3381,7 +3381,7 @@ struct IRVisitor {
           ctx->ReportCodegenFailure();
           return;
         }
-        llvm::Type* bool_ty = emitter.GetLLVMType(sema::MakeTypePrim("bool"));
+        llvm::Type* bool_ty = emitter.GetLLVMType(analysis::MakeTypePrim("bool"));
         if (!bool_ty) {
           SPEC_RULE("CheckPoison-Err");
           ctx->ReportCodegenFailure();
@@ -3435,8 +3435,8 @@ struct IRVisitor {
           continue;
         }
         bool is_unsigned = IsUnsignedType(sig->params[i].type);
-        sema::TypeRef param_type = sig->params[i].type;
-        sema::TypeRef arg_type = ValueType(call.args[i]);
+        analysis::TypeRef param_type = sig->params[i].type;
+        analysis::TypeRef arg_type = ValueType(call.args[i]);
         const bool param_is_ptr = PtrElementType(param_type) != nullptr;
         bool arg_is_ptr = PtrElementType(arg_type) != nullptr;
         if (!arg_is_ptr && arg && arg->getType()->isPointerTy()) {
@@ -3456,11 +3456,11 @@ struct IRVisitor {
           continue;
         }
         if (abi.param_kinds[i] == PassKind::ByRef) {
-          sema::TypeRef arg_elem = PtrElementType(arg_type);
+          analysis::TypeRef arg_elem = PtrElementType(arg_type);
           if (arg_elem && param_type) {
-            sema::TypeRef arg_base = StripPerm(arg_elem);
-            sema::TypeRef param_base = StripPerm(param_type);
-            const auto equiv = sema::TypeEquiv(arg_base ? arg_base : arg_elem,
+            analysis::TypeRef arg_base = StripPerm(arg_elem);
+            analysis::TypeRef param_base = StripPerm(param_type);
+            const auto equiv = analysis::TypeEquiv(arg_base ? arg_base : arg_elem,
                                                param_base ? param_base : param_type);
             if (equiv.ok && equiv.equiv) {
               llvm::Value* ptr_arg = arg;
@@ -3510,9 +3510,9 @@ struct IRVisitor {
       std::vector<llvm::Type*> arg_tys;
       arg_tys.reserve(arg_values.size());
       for (auto* arg : arg_values) {
-        arg_tys.push_back(arg ? arg->getType() : emitter.GetLLVMType(sema::MakeTypePrim("()")));
+        arg_tys.push_back(arg ? arg->getType() : emitter.GetLLVMType(analysis::MakeTypePrim("()")));
       }
-      sema::TypeRef ret_type = ValueType(call.result);
+      analysis::TypeRef ret_type = ValueType(call.result);
       llvm::Type* ret_ty = ret_type ? emitter.GetLLVMType(ret_type)
                                     : llvm::Type::getVoidTy(emitter.GetContext());
       llvm::FunctionType* ft = llvm::FunctionType::get(ret_ty, arg_tys, false);
@@ -3556,7 +3556,7 @@ struct IRVisitor {
       args.push_back(emitter.EvaluateIRValue(arg));
     }
 
-    sema::TypeRef ret_type = ValueType(call.result);
+    analysis::TypeRef ret_type = ValueType(call.result);
     llvm::Type* ret_ty = ret_type ? emitter.GetLLVMType(ret_type)
                                   : llvm::Type::getVoidTy(emitter.GetContext());
     llvm::FunctionType* ft = llvm::FunctionType::get(ret_ty, {}, false);
@@ -3634,15 +3634,15 @@ struct IRVisitor {
         return;
       }
       const auto scope = BuildScope(lower_ctx);
-      sema::TypeRef operand_type = lower_ctx->LookupValueType(op.operand);
-      sema::TypeRef result_type = lower_ctx->LookupValueType(op.result);
+      analysis::TypeRef operand_type = lower_ctx->LookupValueType(op.operand);
+      analysis::TypeRef result_type = lower_ctx->LookupValueType(op.result);
       auto stripped_operand = StripPerm(operand_type);
       auto stripped_result = StripPerm(result_type);
       if (!stripped_operand) {
         return;
       }
 
-      auto widen_string_bytes = [&](bool managed, const sema::TypeRef& out_type) -> llvm::Value* {
+      auto widen_string_bytes = [&](bool managed, const analysis::TypeRef& out_type) -> llvm::Value* {
         llvm::Type* out_ty = out_type ? emitter.GetLLVMType(out_type) : nullptr;
         if (!out_ty) {
           return nullptr;
@@ -3653,7 +3653,7 @@ struct IRVisitor {
         }
         llvm::Value* base_ptr = base_opt->ptr;
         llvm::Type* ptr_ty = emitter.GetOpaquePtr();
-        llvm::Type* usize_ty = emitter.GetLLVMType(sema::MakeTypePrim("usize"));
+        llvm::Type* usize_ty = emitter.GetLLVMType(analysis::MakeTypePrim("usize"));
         llvm::Value* ptr_val = LoadAtOffset(emitter, builder, base_ptr, 0, ptr_ty);
         llvm::Value* len_val = LoadAtOffset(emitter, builder, base_ptr, kPtrSize, usize_ty);
         llvm::Value* cap_val = managed
@@ -3668,7 +3668,7 @@ struct IRVisitor {
         }
         builder->CreateStore(llvm::Constant::getNullValue(out_ty), alloca);
 
-        llvm::Type* disc_ty = emitter.GetLLVMType(sema::MakeTypePrim("u8"));
+        llvm::Type* disc_ty = emitter.GetLLVMType(analysis::MakeTypePrim("u8"));
         llvm::Value* disc_val = llvm::ConstantInt::get(disc_ty, managed ? 0 : 1);
         StoreAtOffset(emitter, builder, alloca, 0, disc_val);
         const std::uint64_t payload_offset = AlignUp(1, kPtrAlign);
@@ -3678,32 +3678,32 @@ struct IRVisitor {
         return builder->CreateLoad(out_ty, alloca);
       };
 
-      if (const auto* str = std::get_if<sema::TypeString>(&stripped_operand->node)) {
+      if (const auto* str = std::get_if<analysis::TypeString>(&stripped_operand->node)) {
         if (str->state.has_value() && stripped_result &&
-            std::holds_alternative<sema::TypeString>(stripped_result->node)) {
-          const auto* out_str = std::get_if<sema::TypeString>(&stripped_result->node);
+            std::holds_alternative<analysis::TypeString>(stripped_result->node)) {
+          const auto* out_str = std::get_if<analysis::TypeString>(&stripped_result->node);
           if (out_str && !out_str->state.has_value()) {
-            sema::TypeRef out_type = result_type ? result_type : stripped_result;
+            analysis::TypeRef out_type = result_type ? result_type : stripped_result;
             if (!out_type) {
-              out_type = sema::MakeTypeString(std::nullopt);
+              out_type = analysis::MakeTypeString(std::nullopt);
             }
-            result = widen_string_bytes(*str->state == sema::StringState::Managed, out_type);
+            result = widen_string_bytes(*str->state == analysis::StringState::Managed, out_type);
           }
         }
-      } else if (const auto* bytes = std::get_if<sema::TypeBytes>(&stripped_operand->node)) {
+      } else if (const auto* bytes = std::get_if<analysis::TypeBytes>(&stripped_operand->node)) {
         if (bytes->state.has_value() && stripped_result &&
-            std::holds_alternative<sema::TypeBytes>(stripped_result->node)) {
-          const auto* out_bytes = std::get_if<sema::TypeBytes>(&stripped_result->node);
+            std::holds_alternative<analysis::TypeBytes>(stripped_result->node)) {
+          const auto* out_bytes = std::get_if<analysis::TypeBytes>(&stripped_result->node);
           if (out_bytes && !out_bytes->state.has_value()) {
-            sema::TypeRef out_type = result_type ? result_type : stripped_result;
+            analysis::TypeRef out_type = result_type ? result_type : stripped_result;
             if (!out_type) {
-              out_type = sema::MakeTypeBytes(std::nullopt);
+              out_type = analysis::MakeTypeBytes(std::nullopt);
             }
-            result = widen_string_bytes(*bytes->state == sema::BytesState::Managed, out_type);
+            result = widen_string_bytes(*bytes->state == analysis::BytesState::Managed, out_type);
           }
         }
       } else if (const auto* modal_state =
-                     std::get_if<sema::TypeModalState>(&stripped_operand->node)) {
+                     std::get_if<analysis::TypeModalState>(&stripped_operand->node)) {
         const auto* decl = LookupModalDecl(scope, modal_state->path);
         if (!decl) {
           return;
@@ -3718,7 +3718,7 @@ struct IRVisitor {
         }
 
         if (modal_layout->niche) {
-          const auto payload_state = sema::PayloadState(scope, *decl);
+          const auto payload_state = analysis::PayloadState(scope, *decl);
           if (!payload_state.has_value()) {
             return;
           }
@@ -3735,9 +3735,9 @@ struct IRVisitor {
             return;
           }
 
-          const sema::TypeRef payload_type = (*payload_types)[0];
+          const analysis::TypeRef payload_type = (*payload_types)[0];
           llvm::Type* payload_llvm = emitter.GetLLVMType(payload_type);
-          if (sema::IdEq(modal_state->state, *payload_state)) {
+          if (analysis::IdEq(modal_state->state, *payload_state)) {
             auto base_opt = GetBaseAddress(emitter, builder, op.operand, operand_type);
             if (!base_opt) {
               return;
@@ -3754,7 +3754,7 @@ struct IRVisitor {
             modal_value.node =
                 ModalVal{std::string(modal_state->state), std::move(payload_ptr)};
             const auto bits = ValueBits(scope,
-                                        sema::MakeTypePath(modal_state->path),
+                                        analysis::MakeTypePath(modal_state->path),
                                         modal_value);
             if (!bits.has_value()) {
               return;
@@ -3766,7 +3766,7 @@ struct IRVisitor {
             return;
           }
           llvm::Type* out_ty = result_type ? emitter.GetLLVMType(result_type)
-                                           : emitter.GetLLVMType(sema::MakeTypePath(modal_state->path));
+                                           : emitter.GetLLVMType(analysis::MakeTypePath(modal_state->path));
           if (!out_ty) {
             return;
           }
@@ -3779,7 +3779,7 @@ struct IRVisitor {
           std::size_t state_index = 0;
           bool found = false;
           for (std::size_t i = 0; i < decl->states.size(); ++i) {
-            if (sema::IdEq(decl->states[i].name, modal_state->state)) {
+            if (analysis::IdEq(decl->states[i].name, modal_state->state)) {
               state_index = i;
               found = true;
               break;
@@ -3788,7 +3788,7 @@ struct IRVisitor {
           if (!found) {
             return;
           }
-          const auto disc_type = sema::MakeTypePrim(*modal_layout->disc_type);
+          const auto disc_type = analysis::MakeTypePrim(*modal_layout->disc_type);
           llvm::Type* disc_ty = emitter.GetLLVMType(disc_type);
           llvm::Value* disc_val = llvm::ConstantInt::get(disc_ty, state_index);
           StoreAtOffset(emitter, builder, alloca, 0, disc_val);
@@ -3926,8 +3926,8 @@ struct IRVisitor {
     llvm::Value* result = nullptr;
 
     if (target->isIntegerTy(8) && cast.target &&
-        std::holds_alternative<sema::TypePrim>(cast.target->node) &&
-        std::get<sema::TypePrim>(cast.target->node).name == "bool") {
+        std::holds_alternative<analysis::TypePrim>(cast.target->node) &&
+        std::get<analysis::TypePrim>(cast.target->node).name == "bool") {
       result = AsBool(val);
     } else {
       result = CoerceToType(val, target, is_unsigned);
@@ -3975,18 +3975,18 @@ struct IRVisitor {
       return;
     }
 
-    sema::TypeRef ptr_type = ValueType(read.ptr);
+    analysis::TypeRef ptr_type = ValueType(read.ptr);
     if (ptr_type) {
       auto stripped = StripPerm(ptr_type);
       if (stripped) {
-        if (std::holds_alternative<sema::TypePtr>(stripped->node)) {
+        if (std::holds_alternative<analysis::TypePtr>(stripped->node)) {
           SPEC_RULE("Lower-ReadPtrIR");
-        } else if (std::holds_alternative<sema::TypeRawPtr>(stripped->node)) {
+        } else if (std::holds_alternative<analysis::TypeRawPtr>(stripped->node)) {
           SPEC_RULE("Lower-ReadPtrIR-Raw");
         }
       }
     }
-    sema::TypeRef elem_type = PtrElementType(ptr_type);
+    analysis::TypeRef elem_type = PtrElementType(ptr_type);
     if (!elem_type || IsUnitType(elem_type)) {
       elem_type = ValueType(read.result);
     }
@@ -4005,23 +4005,23 @@ struct IRVisitor {
       return;
     }
 
-    sema::TypeRef ptr_type = ValueType(write.ptr);
-    sema::TypeRef elem_type = PtrElementType(ptr_type);
-    sema::TypeRef val_type = ValueType(write.value);
+    analysis::TypeRef ptr_type = ValueType(write.ptr);
+    analysis::TypeRef elem_type = PtrElementType(ptr_type);
+    analysis::TypeRef val_type = ValueType(write.value);
 
     if (ptr_type) {
       auto stripped = StripPerm(ptr_type);
       if (!stripped) {
         return;
       }
-      if (const auto* ptr_info = std::get_if<sema::TypePtr>(&stripped->node)) {
-        if (ptr_info->state == sema::PtrState::Null) {
+      if (const auto* ptr_info = std::get_if<analysis::TypePtr>(&stripped->node)) {
+        if (ptr_info->state == analysis::PtrState::Null) {
           SPEC_RULE("Lower-WritePtrIR-Null");
           StorePanicRecord(emitter, builder, PanicCode(PanicReason::NullDeref));
           EmitReturn(emitter, builder);
           return;
         }
-        if (ptr_info->state == sema::PtrState::Expired) {
+        if (ptr_info->state == analysis::PtrState::Expired) {
           SPEC_RULE("Lower-WritePtrIR-Expired");
           StorePanicRecord(emitter, builder, PanicCode(PanicReason::ExpiredDeref));
           EmitReturn(emitter, builder);
@@ -4029,8 +4029,8 @@ struct IRVisitor {
         }
         SPEC_RULE("Lower-WritePtrIR");
       }
-      if (const auto* raw_info = std::get_if<sema::TypeRawPtr>(&stripped->node)) {
-        if (raw_info->qual == sema::RawPtrQual::Imm) {
+      if (const auto* raw_info = std::get_if<analysis::TypeRawPtr>(&stripped->node)) {
+        if (raw_info->qual == analysis::RawPtrQual::Imm) {
           SPEC_RULE("Lower-WritePtrIR-Raw-Err");
           if (ctx) {
             ctx->ReportCodegenFailure();
@@ -4047,13 +4047,13 @@ struct IRVisitor {
 
     if (val_type) {
       auto stripped = StripPerm(val_type);
-      if (std::holds_alternative<sema::TypeSlice>(stripped->node) ||
-          std::holds_alternative<sema::TypeString>(stripped->node) ||
-          std::holds_alternative<sema::TypeBytes>(stripped->node)) {
+      if (std::holds_alternative<analysis::TypeSlice>(stripped->node) ||
+          std::holds_alternative<analysis::TypeString>(stripped->node) ||
+          std::holds_alternative<analysis::TypeBytes>(stripped->node)) {
         needs_memmove = true;
         src_ptr = ExtractSlicePtr(emitter, builder, val);
         len_val = ExtractSliceLen(emitter, builder, val);
-      } else if (const auto* arr = std::get_if<sema::TypeArray>(&stripped->node)) {
+      } else if (const auto* arr = std::get_if<analysis::TypeArray>(&stripped->node)) {
         needs_memmove = true;
         llvm::Type* llvm_ty = emitter.GetLLVMType(stripped);
         llvm::Function* func = builder->GetInsertBlock()->getParent();
@@ -4125,7 +4125,7 @@ struct IRVisitor {
 
     builder->SetInsertPoint(merge_bb);
     if (then_val && else_val && then_end && else_end) {
-      sema::TypeRef result_type = ctx ? ctx->LookupValueType(if_node.result) : nullptr;
+      analysis::TypeRef result_type = ctx ? ctx->LookupValueType(if_node.result) : nullptr;
       llvm::Type* phi_ty = result_type ? emitter.GetLLVMType(result_type)
                                        : then_val->getType();
       bool is_unsigned = IsUnsignedType(result_type);
@@ -4257,11 +4257,11 @@ struct IRVisitor {
       if (auto* prev = emitter.GetLocal(alias)) {
         prior_alias = prev;
       }
-      sema::TypeRef alias_type;
+      analysis::TypeRef alias_type;
       if (const auto* state = ctx->GetBindingState(alias)) {
         alias_type = state->type;
       } else {
-        alias_type = sema::MakeTypeModalState({"Region"}, "Active");
+        alias_type = analysis::MakeTypeModalState({"Region"}, "Active");
       }
       llvm::Type* llvm_ty = emitter.GetLLVMType(alias_type);
       if (llvm_ty) {
@@ -4327,7 +4327,7 @@ struct IRVisitor {
     if (!ptr) {
       return;
     }
-    llvm::Type* bool_ty = emitter.GetLLVMType(sema::MakeTypePrim("bool"));
+    llvm::Type* bool_ty = emitter.GetLLVMType(analysis::MakeTypePrim("bool"));
     llvm::Value* flag = LoadAtOffset(emitter, builder, ptr, 0, bool_ty);
     if (!flag) {
       return;
@@ -4358,7 +4358,7 @@ struct IRVisitor {
     if (!ptr) {
       return;
     }
-    llvm::Type* bool_ty = emitter.GetLLVMType(sema::MakeTypePrim("bool"));
+    llvm::Type* bool_ty = emitter.GetLLVMType(analysis::MakeTypePrim("bool"));
     llvm::Value* flag = LoadAtOffset(emitter, builder, ptr, 0, bool_ty);
     if (!flag) {
       return;
@@ -4428,7 +4428,7 @@ struct IRVisitor {
       }
       return;
     }
-    llvm::Type* bool_ty = emitter.GetLLVMType(sema::MakeTypePrim("bool"));
+    llvm::Type* bool_ty = emitter.GetLLVMType(analysis::MakeTypePrim("bool"));
     if (!bool_ty) {
       SPEC_RULE("CheckPoison-Err");
       if (ctx) {
@@ -4458,7 +4458,7 @@ struct IRVisitor {
 
   void operator()(const IRCheckIndex& check) {
     SPEC_RULE("LowerIR-CheckIndex");
-    sema::TypeRef base_type = ValueType(check.base);
+    analysis::TypeRef base_type = ValueType(check.base);
     llvm::Value* len = SliceLenFromValue(emitter, builder, check.base, base_type);
     if (!len) {
       return;
@@ -4474,7 +4474,7 @@ struct IRVisitor {
 
   void operator()(const IRCheckRange& check) {
     SPEC_RULE("LowerIR-CheckRange");
-    sema::TypeRef base_type = ValueType(check.base);
+    analysis::TypeRef base_type = ValueType(check.base);
     llvm::Value* len = SliceLenFromValue(emitter, builder, check.base, base_type);
     if (!len) {
       return;
@@ -4485,8 +4485,8 @@ struct IRVisitor {
 
   void operator()(const IRCheckSliceLen& check) {
     SPEC_RULE("LowerIR-CheckSliceLen");
-    sema::TypeRef base_type = ValueType(check.base);
-    sema::TypeRef val_type = ValueType(check.value);
+    analysis::TypeRef base_type = ValueType(check.base);
+    analysis::TypeRef val_type = ValueType(check.value);
     llvm::Value* len = SliceLenFromValue(emitter, builder, check.base, base_type);
     llvm::Value* val_len = SliceLenFromValue(emitter, builder, check.value, val_type);
     if (!len || !val_len) {
@@ -4561,8 +4561,8 @@ struct IRVisitor {
 
   void operator()(const IRCheckCast& check) {
     SPEC_RULE("LowerIR-CheckCast");
-    sema::TypeRef src_type = ValueType(check.value);
-    sema::TypeRef dst_type = check.target;
+    analysis::TypeRef src_type = ValueType(check.value);
+    analysis::TypeRef dst_type = check.target;
     if (!src_type || !dst_type) {
       return;
     }
@@ -4573,8 +4573,8 @@ struct IRVisitor {
       return;
     }
 
-    auto* src_prim = std::get_if<sema::TypePrim>(&stripped_src->node);
-    auto* dst_prim = std::get_if<sema::TypePrim>(&stripped_dst->node);
+    auto* src_prim = std::get_if<analysis::TypePrim>(&stripped_src->node);
+    auto* dst_prim = std::get_if<analysis::TypePrim>(&stripped_dst->node);
     if (!src_prim || !dst_prim) {
       return;
     }
@@ -4679,7 +4679,7 @@ struct IRVisitor {
       if (builtin.empty() && ctx->sigma) {
         syntax::Path record_path = read.path;
         record_path.push_back(read.name);
-        const auto it = ctx->sigma->types.find(sema::PathKeyOf(record_path));
+        const auto it = ctx->sigma->types.find(analysis::PathKeyOf(record_path));
         if (it != ctx->sigma->types.end() &&
             std::holds_alternative<syntax::RecordDecl>(it->second)) {
           SPEC_RULE("Lower-ReadPathIR-Record");
@@ -4690,7 +4690,7 @@ struct IRVisitor {
             ctx->ReportCodegenFailure();
             return;
           }
-          llvm::Type* bool_ty = emitter.GetLLVMType(sema::MakeTypePrim("bool"));
+          llvm::Type* bool_ty = emitter.GetLLVMType(analysis::MakeTypePrim("bool"));
           if (!bool_ty) {
             SPEC_RULE("CheckPoison-Err");
             ctx->ReportCodegenFailure();
@@ -4713,7 +4713,7 @@ struct IRVisitor {
             ctx->ReportCodegenFailure();
             return;
           }
-          llvm::Type* bool_ty = emitter.GetLLVMType(sema::MakeTypePrim("bool"));
+          llvm::Type* bool_ty = emitter.GetLLVMType(analysis::MakeTypePrim("bool"));
           if (!bool_ty) {
             SPEC_RULE("CheckPoison-Err");
             ctx->ReportCodegenFailure();
@@ -4734,7 +4734,7 @@ struct IRVisitor {
           ctx->ReportCodegenFailure();
           return;
         }
-        llvm::Type* bool_ty = emitter.GetLLVMType(sema::MakeTypePrim("bool"));
+        llvm::Type* bool_ty = emitter.GetLLVMType(analysis::MakeTypePrim("bool"));
         if (!bool_ty) {
           SPEC_RULE("CheckPoison-Err");
           ctx->ReportCodegenFailure();
