@@ -1,0 +1,6 @@
+# SPEC_COV: AddrOf-NonPlace
+// E-TYP-2104: Address-of applied to non-place expression
+public procedure main(ctx: Context) -> i32 {
+  let p: Ptr<i32>@Valid = &(1 + 2);
+  return 0;
+}

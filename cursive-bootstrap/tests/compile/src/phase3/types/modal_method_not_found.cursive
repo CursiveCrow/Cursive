@@ -1,0 +1,14 @@
+# SPEC_COV: Modal-Method-NotFound
+// E-TYP-2053: Method invocation for method not available in current state
+modal M {
+  state A {
+    procedure foo(~) -> () {}
+  }
+  state B {}
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let m: M@B = M@B {};
+  m~>foo();
+  return 0;
+}

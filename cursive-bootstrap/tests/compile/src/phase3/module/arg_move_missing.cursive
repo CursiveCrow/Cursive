@@ -1,0 +1,11 @@
+# SPEC_COV: B-ArgPass-Move-Missing
+// E-MOD-2411: Move argument missing on call to move parameter
+record R { v: i32 }
+
+procedure consume(move r: R) -> () {}
+
+public procedure main(ctx: Context) -> i32 {
+  let r: R = R { v: 1 };
+  consume(r);
+  return 0;
+}

@@ -1,0 +1,6 @@
+# SPEC_COV: T-LetStmt-Infer-Err
+// E-TYP-1530: Type inference failed
+public procedure main(ctx: Context) -> i32 {
+  let x = Ptr::null();
+  return 0;
+}

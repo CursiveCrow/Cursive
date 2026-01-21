@@ -1,0 +1,15 @@
+# SPEC_COV: EffFields-Conflict
+// E-TYP-2406: Conflicting field names from multiple classes
+class A {
+  x: i32
+}
+
+class B {
+  x: bool
+}
+
+record R : A, B {}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

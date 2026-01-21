@@ -27,7 +27,7 @@ static const DiagMessageEntry kDiagMessages[] = {
   {"E-MOD-1204", Severity::Error, "Using path does not resolve to a module or item"},
   {"E-MOD-1205", Severity::Error, "Attempt to `public using` a non-public item"},
   {"E-MOD-1206", Severity::Error, "Duplicate item in a `using` list"},
-  {"E-MOD-1207", Severity::Error, "Cannot access a `protected` item from this scope"},
+  {"E-MOD-1207", Severity::Error, "Cannot access a non-public item from this scope"},
   {"E-MOD-1208", Severity::Error, "Using path is ambiguous between module and item"},
   {"E-MOD-1301", Severity::Error, "Unresolved name: identifier not found in any accessible scope"},
   {"E-MOD-1302", Severity::Error, "Duplicate declaration in module scope"},

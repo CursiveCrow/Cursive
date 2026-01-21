@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase1\\types\\types_parse_err.cursive",
+        "start_line": 1,
+        "start_col": 17,
+        "end_line": 1,
+        "end_col": 18
+      }
+    }
+  ],
+  "exit_code": 1
+}

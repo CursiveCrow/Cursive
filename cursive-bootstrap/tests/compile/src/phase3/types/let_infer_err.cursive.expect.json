@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-TYP-1530",
+      "severity": "error",
+      "message": "Type inference failed; unable to determine type",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\types\\let_infer_err.cursive",
+        "start_line": 2,
+        "start_col": 44,
+        "end_line": 5,
+        "end_col": 2
+      }
+    }
+  ],
+  "exit_code": 1
+}

@@ -1,0 +1,7 @@
+# SPEC_COV: Deref-Raw-Unsafe
+// E-TYP-2103: Dereference of raw pointer outside unsafe
+public procedure main(ctx: Context) -> i32 {
+  let p: *imm i32 = null;
+  let x: i32 = *p;
+  return 0;
+}

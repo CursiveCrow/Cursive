@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-MOD-1205",
+      "severity": "error",
+      "message": "Attempt to `public using` a non-public item",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\projects\\phase3\\using_list_public_err\\src\\main.cursive",
+        "start_line": 2,
+        "start_col": 1,
+        "end_line": 2,
+        "end_col": 35
+      }
+    }
+  ],
+  "exit_code": 1
+}

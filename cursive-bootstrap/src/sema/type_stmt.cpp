@@ -1466,6 +1466,7 @@ BlockInfoResult TypeBlockInfo(const ScopeContext& ctx,
   WarnResultUnreachable(ctx, type_ctx, block.stmts);
 
   const auto res_type = ResType(ctx, stmts_typed.flow.results);
+  std::optional<ExprTypeResult> tail_type;
   if (block.tail_opt) {
     if (type_ctx.env_ref) {
       *type_ctx.env_ref = stmts_typed.env;
@@ -1473,12 +1474,13 @@ BlockInfoResult TypeBlockInfo(const ScopeContext& ctx,
     if (env_ref) {
       *env_ref = stmts_typed.env;
     }
-    const auto tail_type =
+    const auto typed =
         TypeExprWithEnv(ctx, stmts_typed.env, type_expr, block.tail_opt);
-    if (!tail_type.ok) {
-      result.diag_id = tail_type.diag_id;
+    if (!typed.ok) {
+      result.diag_id = typed.diag_id;
       return result;
     }
+    tail_type = typed;
   }
 
   if (res_type.has_value()) {
@@ -1497,15 +1499,18 @@ BlockInfoResult TypeBlockInfo(const ScopeContext& ctx,
   }
 
   if (block.tail_opt) {
-    const auto tail_type =
-        TypeExprWithEnv(ctx, stmts_typed.env, type_expr, block.tail_opt);
-    if (!tail_type.ok) {
-      result.diag_id = tail_type.diag_id;
-      return result;
+    if (!tail_type.has_value()) {
+      const auto typed =
+          TypeExprWithEnv(ctx, stmts_typed.env, type_expr, block.tail_opt);
+      if (!typed.ok) {
+        result.diag_id = typed.diag_id;
+        return result;
+      }
+      tail_type = typed;
     }
     SPEC_RULE("BlockInfo-Tail");
     result.ok = true;
-    result.type = tail_type.type;
+    result.type = tail_type->type;
     result.breaks = std::move(stmts_typed.flow.breaks);
     result.break_void = stmts_typed.flow.break_void;
     return result;

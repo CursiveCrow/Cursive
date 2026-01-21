@@ -1,0 +1,12 @@
+# SPEC_COV: Modal-Field-Missing
+// E-TYP-2052: Field access for field not present in current state
+modal M {
+  state A { x: i32 }
+  state B { y: bool }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let m: M@B = M@B { y: true };
+  let x: i32 = m.x;
+  return 0;
+}

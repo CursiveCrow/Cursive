@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-TYP-2622",
+      "severity": "error",
+      "message": "`Bitcopy` type has non-`Bitcopy` field",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\bitcopy_field_nonbitcopy\\main.cursive",
+        "start_line": 1,
+        "start_col": 30,
+        "end_line": 1,
+        "end_col": 43
+      }
+    }
+  ],
+  "exit_code": 1
+}

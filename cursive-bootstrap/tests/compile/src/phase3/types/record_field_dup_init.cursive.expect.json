@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-TYP-1903",
+      "severity": "error",
+      "message": "Duplicate field initializer in record literal",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\types\\record_field_dup_init.cursive",
+        "start_line": 6,
+        "start_col": 44,
+        "end_line": 9,
+        "end_col": 2
+      }
+    }
+  ],
+  "exit_code": 1
+}

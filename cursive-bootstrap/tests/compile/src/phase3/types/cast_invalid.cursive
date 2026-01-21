@@ -1,0 +1,9 @@
+# SPEC_COV: T-Cast-Invalid
+// E-TYP-2903: Invalid cast
+record R { x: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  let r: R = R { x: 1 };
+  let x: bool = r as bool;
+  return 0;
+}

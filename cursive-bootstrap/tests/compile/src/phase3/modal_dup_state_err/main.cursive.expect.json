@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-TYP-2051",
+      "severity": "error",
+      "message": "Duplicate state name within modal type",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\modal_dup_state_err\\main.cursive",
+        "start_line": 1,
+        "start_col": 24,
+        "end_line": 1,
+        "end_col": 34
+      }
+    }
+  ],
+  "exit_code": 1
+}

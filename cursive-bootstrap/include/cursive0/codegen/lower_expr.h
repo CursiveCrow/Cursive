@@ -264,7 +264,7 @@ std::pair<IRPtr, std::vector<IRValue>> LowerList(
 
 // §6.4 LowerFieldInits - lower field initializers (LTR order)
 std::pair<IRPtr, std::vector<std::pair<std::string, IRValue>>> LowerFieldInits(
-    const std::vector<syntax::FieldInit>& fields, LowerCtx& ctx);
+    const std::vector<syntax::FieldInit>& fields, LowerCtx& ctx, bool suppress_temps);
 
 // §6.4 LowerOpt - lower an optional expression
 std::pair<IRPtr, std::optional<IRValue>> LowerOpt(

@@ -1,0 +1,7 @@
+# SPEC_COV: Method-Context-Err
+// E-SEM-3011: Method receiver outside type context
+procedure method_at_module(~) -> () {}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

@@ -1,0 +1,7 @@
+# SPEC_COV: Widen-NonModal
+// E-TYP-2071: widen applied to non-modal type
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = 1;
+  let y: i32 = widen x;
+  return 0;
+}

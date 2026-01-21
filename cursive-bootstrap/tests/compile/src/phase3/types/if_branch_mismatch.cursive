@@ -1,0 +1,6 @@
+# SPEC_COV: T-IfExpr-Branch-Mismatch
+// E-TYP-2804: If branches must have compatible types
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = if true { 1 } else { true };
+  return 0;
+}

@@ -1,0 +1,6 @@
+# SPEC_COV: Continue-Outside-Loop
+// E-SEM-3163: continue statement outside loop
+public procedure main(ctx: Context) -> i32 {
+  continue;
+  return 0;
+}

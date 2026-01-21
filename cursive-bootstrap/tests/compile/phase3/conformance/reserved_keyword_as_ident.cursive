@@ -1,4 +1,0 @@
-# SPEC_COV: Validate-Module-Keyword-Err
-# E-CNF-0401: Reserved keyword used as identifier.
-# The keyword 'let' cannot be used as an identifier.
-type let = i32

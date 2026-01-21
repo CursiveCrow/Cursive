@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-TYP-2508",
+      "severity": "error",
+      "message": "Cyclic superclass dependency detected",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\class_linearization_fail\\main.cursive",
+        "start_line": 6,
+        "start_col": 1,
+        "end_line": 6,
+        "end_col": 20
+      }
+    }
+  ],
+  "exit_code": 1
+}

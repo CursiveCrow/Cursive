@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-MEM-1207",
+      "severity": "error",
+      "message": "`frame` used with no active region in scope",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\memory\\frame_no_active_region.cursive",
+        "start_line": 2,
+        "start_col": 44,
+        "end_line": 7,
+        "end_col": 2
+      }
+    }
+  ],
+  "exit_code": 1
+}

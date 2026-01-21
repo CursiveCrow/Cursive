@@ -1,0 +1,11 @@
+# SPEC_COV: Record-FieldInit-Missing
+// E-TYP-1902: Missing field initializer in record literal
+record R {
+  x: i32,
+  y: bool
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let r: R = R { x: 1 };
+  return 0;
+}

@@ -1,0 +1,149 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\types\\class_linearization_err.cursive",
+        "start_line": 3,
+        "start_col": 9,
+        "end_line": 3,
+        "end_col": 10
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\types\\class_linearization_err.cursive",
+        "start_line": 3,
+        "start_col": 9,
+        "end_line": 3,
+        "end_col": 10
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\types\\class_linearization_err.cursive",
+        "start_line": 3,
+        "start_col": 14,
+        "end_line": 3,
+        "end_col": 15
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\types\\class_linearization_err.cursive",
+        "start_line": 4,
+        "start_col": 9,
+        "end_line": 4,
+        "end_col": 10
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\types\\class_linearization_err.cursive",
+        "start_line": 4,
+        "start_col": 9,
+        "end_line": 4,
+        "end_col": 10
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\types\\class_linearization_err.cursive",
+        "start_line": 4,
+        "start_col": 14,
+        "end_line": 4,
+        "end_col": 15
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\types\\class_linearization_err.cursive",
+        "start_line": 5,
+        "start_col": 9,
+        "end_line": 5,
+        "end_col": 10
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\types\\class_linearization_err.cursive",
+        "start_line": 5,
+        "start_col": 9,
+        "end_line": 5,
+        "end_col": 10
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\types\\class_linearization_err.cursive",
+        "start_line": 5,
+        "start_col": 17,
+        "end_line": 5,
+        "end_col": 18
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\types\\class_linearization_err.cursive",
+        "start_line": 7,
+        "start_col": 10,
+        "end_line": 7,
+        "end_col": 11
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\types\\class_linearization_err.cursive",
+        "start_line": 7,
+        "start_col": 10,
+        "end_line": 7,
+        "end_col": 11
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\types\\class_linearization_err.cursive",
+        "start_line": 7,
+        "start_col": 15,
+        "end_line": 7,
+        "end_col": 16
+      }
+    }
+  ],
+  "exit_code": 1
+}

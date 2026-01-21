@@ -1,0 +1,9 @@
+# SPEC_COV: Return-Type-Err
+// E-SEM-3161: Return type mismatch
+procedure returns_int() -> i32 {
+  return true;
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

@@ -1,0 +1,13 @@
+# SPEC_COV: Impl-Field-Missing
+// E-TYP-2402: Implementing type missing required field
+class C {
+  x: i32
+}
+
+record R : C {
+  y: bool
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

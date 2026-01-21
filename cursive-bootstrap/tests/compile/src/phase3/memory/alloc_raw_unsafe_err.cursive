@@ -1,0 +1,11 @@
+# SPEC_COV: AllocRaw-Unsafe-Err
+// E-MEM-3030: Raw heap allocation outside unsafe block
+public procedure main(ctx: Context) -> i32 {
+  let raw: *imm i32 = null;
+  let heap: $HeapAllocator = unsafe {
+    transmute::<(*imm i32, *imm i32), $HeapAllocator>((raw, raw))
+  };
+  let count: usize = 1;
+  let p: *mut i32 = heap~>alloc_raw(count);
+  return 0;
+}

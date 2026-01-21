@@ -1,0 +1,9 @@
+# SPEC_COV: WF-ProcBody-ExplicitReturn-Err
+// E-TYP-1507: Non-unit procedure requires explicit return
+procedure returns_int() -> i32 {
+  1
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

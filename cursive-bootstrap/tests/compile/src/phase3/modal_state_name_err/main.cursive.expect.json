@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-TYP-2054",
+      "severity": "error",
+      "message": "State name collides with modal type name",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\modal_state_name_err\\main.cursive",
+        "start_line": 1,
+        "start_col": 13,
+        "end_line": 1,
+        "end_col": 21
+      }
+    }
+  ],
+  "exit_code": 1
+}

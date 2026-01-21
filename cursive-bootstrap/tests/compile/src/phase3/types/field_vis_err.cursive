@@ -1,0 +1,9 @@
+# SPEC_COV: FieldVisOk-Err
+// E-TYP-1906: Field visibility exceeds record visibility
+record R {
+  public x: i32
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

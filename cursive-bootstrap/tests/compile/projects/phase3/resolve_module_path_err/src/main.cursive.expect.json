@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-MOD-1204",
+      "severity": "error",
+      "message": "Using path does not resolve to a module or item",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\projects\\phase3\\resolve_module_path_err\\src\\main.cursive",
+        "start_line": 2,
+        "start_col": 1,
+        "end_line": 2,
+        "end_col": 26
+      }
+    }
+  ],
+  "exit_code": 1
+}

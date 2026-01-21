@@ -1,0 +1,4 @@
+# SPEC_COV: Intro-Reserved-Cursive-Err
+// E-CNF-0402: Reserved namespace `cursive.*` used by user code.
+// User code cannot declare items named "cursive" - this name is reserved.
+procedure cursive() -> () {}

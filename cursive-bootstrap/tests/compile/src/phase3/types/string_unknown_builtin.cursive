@@ -1,0 +1,7 @@
+# SPEC_COV: StringBuiltin-Unknown
+// E-TYP-3101: Unknown string builtin
+public procedure main(ctx: Context) -> i32 {
+  let s: string@View = "hello";
+  let x: i32 = cursive::runtime::string::unknown(s);
+  return 0;
+}

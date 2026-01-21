@@ -1,0 +1,9 @@
+# SPEC_COV: LookupMethod-NotFound
+// E-TYP-3001: Method not found
+record R { x: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  let r: R = R { x: 1 };
+  r~>unknown();
+  return 0;
+}

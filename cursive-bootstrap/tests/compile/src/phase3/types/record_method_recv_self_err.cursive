@@ -1,0 +1,10 @@
+# SPEC_COV: Record-Method-RecvSelf-Err
+// E-TYP-1912: Explicit receiver type must be Self for record methods
+record R {
+  v: i32,
+  procedure method(r: R) -> () {}
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

@@ -1,0 +1,6 @@
+# SPEC_COV: Shadow-Unnecessary
+// E-MOD-1306: Unnecessary shadow keyword (no outer binding)
+public procedure main(ctx: Context) -> i32 {
+  shadow let x: i32 = 1;
+  return 0;
+}

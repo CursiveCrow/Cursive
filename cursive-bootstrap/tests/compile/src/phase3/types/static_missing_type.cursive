@@ -1,0 +1,7 @@
+# SPEC_COV: WF-StaticDecl-MissingType
+// E-TYP-1505: Missing required type annotation at module scope
+static x = 1;
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

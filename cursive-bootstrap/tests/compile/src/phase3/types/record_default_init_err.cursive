@@ -1,0 +1,10 @@
+# SPEC_COV: Record-Default-Init-Err
+// E-TYP-1911: Default record construction requires default initializer for every field
+record R {
+  x: i32
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let r: R = R();
+  return 0;
+}

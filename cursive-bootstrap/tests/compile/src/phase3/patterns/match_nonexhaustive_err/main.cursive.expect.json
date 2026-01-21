@@ -1,0 +1,77 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\patterns\\match_nonexhaustive_err\\main.cursive",
+        "start_line": 4,
+        "start_col": 7,
+        "end_line": 4,
+        "end_col": 13
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\patterns\\match_nonexhaustive_err\\main.cursive",
+        "start_line": 4,
+        "start_col": 7,
+        "end_line": 4,
+        "end_col": 13
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\patterns\\match_nonexhaustive_err\\main.cursive",
+        "start_line": 4,
+        "start_col": 7,
+        "end_line": 4,
+        "end_col": 13
+      }
+    },
+    {
+      "code": "E-SRC-0510",
+      "severity": "error",
+      "message": "Missing statement terminator",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\patterns\\match_nonexhaustive_err\\main.cursive",
+        "start_line": 5,
+        "start_col": 3,
+        "end_line": 5,
+        "end_col": 6
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\patterns\\match_nonexhaustive_err\\main.cursive",
+        "start_line": 7,
+        "start_col": 4,
+        "end_line": 7,
+        "end_col": 5
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\patterns\\match_nonexhaustive_err\\main.cursive",
+        "start_line": 9,
+        "start_col": 1,
+        "end_line": 9,
+        "end_col": 2
+      }
+    }
+  ],
+  "exit_code": 1
+}

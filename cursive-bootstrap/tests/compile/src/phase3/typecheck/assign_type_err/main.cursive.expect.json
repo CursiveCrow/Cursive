@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-SEM-3133",
+      "severity": "error",
+      "message": "Assignment type mismatch",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\typecheck\\assign_type_err\\main.cursive",
+        "start_line": 1,
+        "start_col": 44,
+        "end_line": 6,
+        "end_col": 2
+      }
+    }
+  ],
+  "exit_code": 1
+}

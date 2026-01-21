@@ -102,7 +102,24 @@ def _phase_dir(test_path: Path, tests_root: Path) -> str | None:
         rel = test_path.resolve().relative_to(tests_root.resolve())
     except ValueError:
         return None
-    return rel.parts[0] if rel.parts else None
+    for part in rel.parts:
+        if part in {"phase0", "phase1", "phase2", "phase3", "phase4"}:
+            return part
+    return None
+
+
+def _is_shared_project_test(
+    test_path: Path,
+    tests_root: Path,
+    project_root: Path | None,
+) -> bool:
+    if project_root is None or project_root != tests_root:
+        return False
+    try:
+        test_path.resolve().relative_to((tests_root / "src").resolve())
+        return True
+    except ValueError:
+        return False
 
 
 def _load_manifest(manifest_path: Path) -> dict | None:
@@ -163,14 +180,23 @@ def _should_isolate(
         return True
 
 
+def _has_main_procedure(content: str) -> bool:
+    """Check if the source content has a public main procedure."""
+    # Simple heuristic: look for 'public procedure main'
+    import re
+    return bool(re.search(r'\bpublic\s+procedure\s+main\b', content))
+
+
 def _write_isolated_project(dst_root: Path, test_path: Path) -> Path:
     src_dir = dst_root / "src"
     src_dir.mkdir(parents=True, exist_ok=True)
+    filtered_src = _strip_spec_cov_lines(test_path)
+    # Use "library" for tests without main, "executable" for tests with main
+    kind = "executable" if _has_main_procedure(filtered_src) else "library"
     (dst_root / "Cursive.toml").write_text(
-        "[assembly]\nname = \"demo\"\nkind = \"executable\"\nroot = \"src\"\n",
+        f"[assembly]\nname = \"demo\"\nkind = \"{kind}\"\nroot = \"src\"\n",
         encoding="utf-8",
     )
-    filtered_src = _strip_spec_cov_lines(test_path)
     out_path = src_dir / test_path.name
     out_path.write_text(filtered_src, encoding="utf-8")
     return out_path
@@ -211,6 +237,12 @@ def _regen_one(
             phase = _phase_dir(test_path, tests_root)
             project_root = _find_project_root(test_path)
             source_root = project_root
+            if phase == "phase0" and project_root == tests_root:
+                project_root = None
+                source_root = None
+            if _is_shared_project_test(test_path, tests_root, project_root):
+                project_root = None
+                source_root = None
             is_isolated = _should_isolate(test_path, tests_root, project_root, assembly_target)
             if is_isolated:
                 filtered_root = Path(tmpdir) / "isolated_project"
@@ -222,11 +254,14 @@ def _regen_one(
                 filtered_path = filtered_root / test_path.relative_to(project_root)
             else:
                 filtered_src = _strip_spec_cov_lines(test_path)
+                # For phase0 tests, create temp file in tmpdir to prevent manifest discovery
+                # Otherwise the compiler walks up and finds tests/compile/Cursive.toml
+                temp_dir = tmpdir if phase == "phase0" else test_path.parent
                 with tempfile.NamedTemporaryFile(
                     mode="w",
                     encoding="utf-8",
                     delete=False,
-                    dir=test_path.parent,
+                    dir=temp_dir,
                     suffix=test_path.suffix + ".tmp",
                 ) as tmp_src:
                     tmp_src.write(filtered_src)
@@ -305,6 +340,11 @@ def main() -> int:
         print(f"compiler not found: {compiler}")
         return 2
 
+    # Canonical compile tests root - always used for phase detection and isolation logic
+    # This separates "where to discover tests" from "how to categorize tests"
+    compile_tests_root = repo_root / "tests" / "compile"
+
+    # tests_root is only used for discovery/filtering
     tests_root = repo_root / args.tests_root
     test_paths = [Path(p) for p in args.test] if args.test else _discover_tests(tests_root)
 
@@ -317,7 +357,8 @@ def main() -> int:
             failures += 1
             continue
         mode = "ir" if expect_ll.exists() else "diag"
-        ok, msg = _regen_one(compiler, test_path, tests_root, mode)
+        # Use compile_tests_root for categorization (phase detection, isolation)
+        ok, msg = _regen_one(compiler, test_path, compile_tests_root, mode)
         if not ok:
             print(msg)
             failures += 1

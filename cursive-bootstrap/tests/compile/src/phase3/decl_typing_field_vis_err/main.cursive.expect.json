@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-TYP-1906",
+      "severity": "error",
+      "message": "Field visibility exceeds record visibility",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\decl_typing_field_vis_err\\main.cursive",
+        "start_line": 1,
+        "start_col": 1,
+        "end_line": 1,
+        "end_col": 37
+      }
+    }
+  ],
+  "exit_code": 1
+}

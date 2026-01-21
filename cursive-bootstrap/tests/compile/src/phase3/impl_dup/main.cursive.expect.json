@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-TYP-2506",
+      "severity": "error",
+      "message": "Coherence violation: duplicate class implementation",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\impl_dup\\main.cursive",
+        "start_line": 2,
+        "start_col": 1,
+        "end_line": 2,
+        "end_col": 59
+      }
+    }
+  ],
+  "exit_code": 1
+}

@@ -1,0 +1,8 @@
+# SPEC_COV: Names-Step-Dup
+// E-MOD-1302: Duplicate declaration at module scope (record variant)
+record R { v: i32 }
+record R { w: bool }
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

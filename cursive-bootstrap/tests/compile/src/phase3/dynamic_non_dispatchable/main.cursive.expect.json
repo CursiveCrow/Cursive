@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-TYP-2541",
+      "severity": "error",
+      "message": "Dynamic class type created from non-dispatchable class",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\dynamic_non_dispatchable\\main.cursive",
+        "start_line": 4,
+        "start_col": 44,
+        "end_line": 8,
+        "end_col": 2
+      }
+    }
+  ],
+  "exit_code": 1
+}

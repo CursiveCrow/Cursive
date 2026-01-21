@@ -1,0 +1,7 @@
+# SPEC_COV: Modal-NoStates-Err
+// E-TYP-2050: Modal type declares zero states
+modal M {}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

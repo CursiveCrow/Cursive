@@ -1,0 +1,9 @@
+# SPEC_COV: Enum-Disc-NotInt
+// E-TYP-1920: Enum discriminant is not an integer literal
+enum E {
+  A = "hello"
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

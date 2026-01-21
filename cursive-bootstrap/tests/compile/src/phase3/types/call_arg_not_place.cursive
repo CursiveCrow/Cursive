@@ -1,0 +1,8 @@
+# SPEC_COV: Call-Arg-NotPlace
+// E-TYP-1603: Non-move argument must be a place expression
+procedure takes_ref(x: i32) -> () {}
+
+public procedure main(ctx: Context) -> i32 {
+  takes_ref(1 + 2);
+  return 0;
+}

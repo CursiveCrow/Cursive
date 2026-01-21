@@ -1,0 +1,6 @@
+# SPEC_COV: Perm-Shared-Unsupported
+// E-TYP-1101: shared permission not supported in Cursive0
+public procedure main(ctx: Context) -> i32 {
+  let x: shared i32 = 1;
+  return 0;
+}

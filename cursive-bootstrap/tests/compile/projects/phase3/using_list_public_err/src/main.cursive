@@ -1,0 +1,7 @@
+# SPEC_COV: Using-List-Public-Err
+// E-MOD-1205: public using list contains non-public item
+public using pkg {visible, secret}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

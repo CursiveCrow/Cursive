@@ -1,4 +1,0 @@
-[assembly]
-name = "function_types"
-kind = "executable"
-root = "src"

@@ -1,0 +1,7 @@
+# SPEC_COV: WF-StaticDecl-Ann-Mismatch
+// E-MOD-2402: Static annotation type mismatch
+static x: i32 = true;
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

@@ -1,0 +1,10 @@
+# SPEC_COV: WF-Record-DupField
+// E-TYP-1901: Duplicate field name in record declaration
+record R {
+  x: i32,
+  x: bool
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

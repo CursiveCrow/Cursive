@@ -1,0 +1,8 @@
+# SPEC_COV: B-Assign-Const-Err
+// E-TYP-1601: Mutation through const path.
+// Cannot assign through a const-typed place.
+public procedure main(ctx: Context) -> i32 {
+  var x: const i32 = 42;
+  x = 100;
+  return 0i32;
+}

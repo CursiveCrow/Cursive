@@ -1,0 +1,4 @@
+# SPEC_COV: Validate-Module-Prim-Shadow-Err
+// E-CNF-0403: Primitive type name shadowed at module scope.
+// Cannot shadow primitive types at module level.
+type i32 = i64

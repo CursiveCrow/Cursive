@@ -1,0 +1,7 @@
+# SPEC_COV: ConstLen-Err
+// E-TYP-1810: Array length is not a compile-time constant
+public procedure main(ctx: Context) -> i32 {
+  let n: usize = 5;
+  let arr: [i32; n] = [0; n];
+  return 0;
+}

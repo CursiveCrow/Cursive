@@ -1,0 +1,10 @@
+# SPEC_COV: B-ShadowVar-UniqueNonMove-Err
+// E-MEM-3007: Shadow var unique without move
+record R {
+  f: i32
+}
+public procedure main(ctx: Context) -> i32 {
+  var x: unique R = R { f: 1 };
+  shadow var x: unique R = x;
+  return 0;
+}

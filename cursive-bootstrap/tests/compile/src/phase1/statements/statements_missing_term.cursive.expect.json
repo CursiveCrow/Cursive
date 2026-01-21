@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-SRC-0510",
+      "severity": "error",
+      "message": "Missing statement terminator",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase1\\statements\\statements_missing_term.cursive",
+        "start_line": 1,
+        "start_col": 29,
+        "end_line": 1,
+        "end_col": 32
+      }
+    }
+  ],
+  "exit_code": 1
+}

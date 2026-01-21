@@ -62,8 +62,9 @@
     - [7.5. String Literal Semantics](#75-string-literal-semantics)
     - [7.6. Dynamic Class Objects](#76-dynamic-class-objects)
     - [7.7. FileSystem and File Operations](#77-filesystem-and-file-operations)
+    - [7.8. Interpreter Entrypoint (Project-Level)](#78-interpreter-entrypoint-project-level)
   - [8. Appendix A - Diagnostic Codes](#8-appendix-a---diagnostic-codes)
-    - [8.0. DiagIdâ€“Code Map](#80-diagidcode-map)
+    - [8.0. DiagIdâ€“Code Map](#80-diagidâcode-map)
     - [8.1. E-PRJ (Project)](#81-e-prj-project)
     - [8.2. E-MOD (Module)](#82-e-mod-module)
     - [8.3. E-OUT (Output and Linking)](#83-e-out-output-and-linking)
@@ -86,366 +87,379 @@
 ### 0.1. Status and Scope (Bootstrap, Informative)
 
 **Phase.**
-$$\text{Phase} = \{\text{Phase0},\ \text{Phase1},\ \text{Phase2},\ \text{Phase3},\ \text{Phase4}\}$$
+Phase = {Phase0, Phase1, Phase2, Phase3, Phase4}
 
 **PhaseStatus.**
-$$\text{PhaseStatus} = \{\text{Implemented},\ \text{Deferred},\ \text{InProgress}\}$$
+PhaseStatus = {Implemented, Deferred, InProgress}
 
 **PhaseStatusMap.**
-$$\text{PhaseStatus}(\text{Phase0}) = \text{Implemented}$$
-$$\text{PhaseStatus}(\text{Phase1}) = \text{Implemented}$$
-$$\text{PhaseStatus}(\text{Phase2}) = \text{Deferred}$$
-$$\text{PhaseStatus}(\text{Phase3}) = \text{InProgress}$$
-$$\text{PhaseStatus}(\text{Phase4}) = \text{InProgress}$$
+PhaseStatus(Phase0) = Implemented
+PhaseStatus(Phase1) = Implemented
+PhaseStatus(Phase2) = Deferred
+PhaseStatus(Phase3) = InProgress
+PhaseStatus(Phase4) = InProgress
 
 **PhaseSection.**
-$$\text{PhaseSection}(\text{Phase0}) = 2$$
-$$\text{PhaseSection}(\text{Phase1}) = 3$$
-$$\text{PhaseSection}(\text{Phase2}) = 4$$
-$$\text{PhaseSection}(\text{Phase3}) = 5$$
-$$\text{PhaseSection}(\text{Phase4}) = 6$$
+PhaseSection(Phase0) = 2
+PhaseSection(Phase1) = 3
+PhaseSection(Phase2) = 4
+PhaseSection(Phase3) = 5
+PhaseSection(Phase4) = 6
 
 ### 0.2. Deviations from the Root Specification (Cursive0)
 
 **DeviationId.**
-$$\text{DeviationId} = \{\text{D\_BootstrapEquivalence},\ \text{D\_SourceNormalization},\ \text{D\_ModuleOrdering},\ \text{D\_KeywordReservation},\ \text{D\_GenericTokenization},\ \text{D\_UnsafeSpanClassification},\ \text{D\_GroupingTrailingCommas},\ \text{D\_UnsupportedGrammarFamilies},\ \text{D\_SingleAssemblyVisibility},\ \text{D\_OverloadingScope},\ \text{D\_Permissions},\ \text{D\_ParamPassing},\ \text{D\_PointerAddressOf},\ \text{D\_RegionOptionsSyntax},\ \text{D\_TypeInference},\ \text{D\_RecordUpdate},\ \text{D\_RangeExpressions},\ \text{D\_RangePatterns},\ \text{D\_FieldVisibilityDefault},\ \text{D\_EnumDiscriminantControls},\ \text{D\_UnionLayout},\ \text{D\_LayoutAttributes},\ \text{D\_CallingConventionToolchain},\ \text{D\_SymbolVisibilityMechanism},\ \text{D\_FileSystemSemantics}\}$$
+DeviationId = {D_BootstrapEquivalence, D_SourceNormalization, D_ModuleOrdering, D_KeywordReservation, D_GenericTokenization, D_UnsafeSpanClassification, D_GroupingTrailingCommas, D_UnsupportedGrammarFamilies, D_SingleAssemblyVisibility, D_OverloadingScope, D_Permissions, D_ParamPassing, D_PointerAddressOf, D_RegionOptionsSyntax, D_TypeInference, D_RecordUpdate, D_RangeExpressions, D_RangePatterns, D_FieldVisibilityDefault, D_EnumDiscriminantControls, D_UnionLayout, D_LayoutAttributes, D_CallingConventionToolchain, D_SymbolVisibilityMechanism, D_FileSystemSemantics}
 
 - `System` in Cursive0 omits `time()` and `get_env` returns `string | ()`; this is a bootstrap restriction.
 
 **DeviationRef.**
-$$\text{DeviationRef}(\text{D\_BootstrapEquivalence}) = \{\texttt{"0.3.2"}\}$$
-$$\text{DeviationRef}(\text{D\_SourceNormalization}) = \{\texttt{"3.1.1"}\}$$
-$$\text{DeviationRef}(\text{D\_ModuleOrdering}) = \{\texttt{"2.3.1"},\ \texttt{"2.3.2"},\ \texttt{"2.3.3"}\}$$
-$$\text{DeviationRef}(\text{D\_KeywordReservation}) = \{\texttt{"3.2.3"}\}$$
-$$\text{DeviationRef}(\text{D\_GenericTokenization}) = \{\texttt{"3.2.9"}\}$$
-$$\text{DeviationRef}(\text{D\_UnsafeSpanClassification}) = \{\texttt{"3.2.12"}\}$$
-$$\text{DeviationRef}(\text{D\_GroupingTrailingCommas}) = \{\texttt{"3.3.4"}\}$$
-$$\text{DeviationRef}(\text{D\_UnsupportedGrammarFamilies}) = \{\texttt{"3.3.2.7"}\}$$
-$$\text{DeviationRef}(\text{D\_SingleAssemblyVisibility}) = \{\texttt{"5.1.4"}\}$$
-$$\text{DeviationRef}(\text{D\_OverloadingScope}) = \{\texttt{"5.1.5"},\ \texttt{"5.3"}\}$$
-$$\text{DeviationRef}(\text{D\_Permissions}) = \{\texttt{"1.1.1"},\ \texttt{"5.2.2"}\}$$
-$$\text{DeviationRef}(\text{D\_ParamPassing}) = \{\texttt{"5.2.4"},\ \texttt{"5.3.2"},\ \texttt{"5.2.15"}\}$$
-$$\text{DeviationRef}(\text{D\_PointerAddressOf}) = \{\texttt{"1.1.1"},\ \texttt{"5.2.12"},\ \texttt{"5.2.16"}\}$$
-$$\text{DeviationRef}(\text{D\_RegionOptionsSyntax}) = \{\texttt{"3.3.4"},\ \texttt{"5.2.17"}\}$$
-$$\text{DeviationRef}(\text{D\_TypeInference}) = \{\texttt{"5.2.9"}\}$$
-$$\text{DeviationRef}(\text{D\_RecordUpdate}) = \{\texttt{"3.3.4"}\}$$
-$$\text{DeviationRef}(\text{D\_RangeExpressions}) = \{\texttt{"5.2.12"}\}$$
-$$\text{DeviationRef}(\text{D\_RangePatterns}) = \{\texttt{"5.2.13"}\}$$
-$$\text{DeviationRef}(\text{D\_FieldVisibilityDefault}) = \{\texttt{"5.2.2"},\ \texttt{"5.3.2"}\}$$
-$$\text{DeviationRef}(\text{D\_EnumDiscriminantControls}) = \{\texttt{"5.10"},\ \texttt{"6.1.4"}\}$$
-$$\text{DeviationRef}(\text{D\_UnionLayout}) = \{\texttt{"6.1.4"},\ \texttt{"6.1.4.1"}\}$$
-$$\text{DeviationRef}(\text{D\_LayoutAttributes}) = \{\texttt{"6.1.3"}\}$$
-$$\text{DeviationRef}(\text{D\_CallingConventionToolchain}) = \{\texttt{"6.2.1"},\ \texttt{"6.2.3"}\}$$
-$$\text{DeviationRef}(\text{D\_SymbolVisibilityMechanism}) = \{\texttt{"6.3.4"}\}$$
-$$\text{DeviationRef}(\text{D\_FileSystemSemantics}) = \{\texttt{"7.7"}\}$$
+DeviationRef(D_BootstrapEquivalence) = {"0.3.2"}
+DeviationRef(D_SourceNormalization) = {"3.1.1"}
+DeviationRef(D_ModuleOrdering) = {"2.3.1", "2.3.2", "2.3.3"}
+DeviationRef(D_KeywordReservation) = {"3.2.3"}
+DeviationRef(D_GenericTokenization) = {"3.2.9"}
+DeviationRef(D_UnsafeSpanClassification) = {"3.2.12"}
+DeviationRef(D_GroupingTrailingCommas) = {"3.3.4"}
+DeviationRef(D_UnsupportedGrammarFamilies) = {"3.3.2.7"}
+DeviationRef(D_SingleAssemblyVisibility) = {"5.1.4"}
+DeviationRef(D_OverloadingScope) = {"5.1.5", "5.3"}
+DeviationRef(D_Permissions) = {"1.1.1", "5.2.2"}
+DeviationRef(D_ParamPassing) = {"5.2.4", "5.3.2", "5.2.15"}
+DeviationRef(D_PointerAddressOf) = {"1.1.1", "5.2.12", "5.2.16"}
+DeviationRef(D_RegionOptionsSyntax) = {"3.3.4", "5.2.17"}
+DeviationRef(D_TypeInference) = {"5.2.9"}
+DeviationRef(D_RecordUpdate) = {"3.3.4"}
+DeviationRef(D_RangeExpressions) = {"5.2.12"}
+DeviationRef(D_RangePatterns) = {"5.2.13"}
+DeviationRef(D_FieldVisibilityDefault) = {"5.2.2", "5.3.2"}
+DeviationRef(D_EnumDiscriminantControls) = {"5.10", "6.1.4"}
+DeviationRef(D_UnionLayout) = {"6.1.4", "6.1.4.1"}
+DeviationRef(D_LayoutAttributes) = {"6.1.3"}
+DeviationRef(D_CallingConventionToolchain) = {"6.2.1", "6.2.3"}
+DeviationRef(D_SymbolVisibilityMechanism) = {"6.3.4"}
+DeviationRef(D_FileSystemSemantics) = {"7.7"}
 
 ### 0.3. Bootstrap Milestones and Equivalence
 
 #### 0.3.1. Bootstrap Milestones and Invariants
 
 **BootstrapCompiler.**
-$$\text{BootstrapCompiler} = \{\text{cursivec0},\ \text{cursivec1},\ \text{cursivec2}\}$$
+BootstrapCompiler = {cursivec0, cursivec1, cursivec2}
 
 **BootstrapName.**
-$$\text{BootstrapName}(\text{cursivec0}) = \texttt{"cursivec0"}$$
-$$\text{BootstrapName}(\text{cursivec1}) = \texttt{"cursivec1"}$$
-$$\text{BootstrapName}(\text{cursivec2}) = \texttt{"cursivec2"}$$
+BootstrapName(cursivec0) = "cursivec0"
+BootstrapName(cursivec1) = "cursivec1"
+BootstrapName(cursivec2) = "cursivec2"
 
 **BootstrapImpl.**
-$$\text{BootstrapImpl}(\text{cursivec0}) = \{\texttt{"C++"},\ \texttt{"LLVM"}\}$$
-$$\text{BootstrapImpl}(\text{cursivec1}) = \{\texttt{"Cursive"}\}$$
-$$\text{BootstrapImpl}(\text{cursivec2}) = \{\texttt{"Cursive"}\}$$
+BootstrapImpl(cursivec0) = {"C++", "LLVM"}
+BootstrapImpl(cursivec1) = {"Cursive"}
+BootstrapImpl(cursivec2) = {"Cursive"}
 
 **CompilerSourceProject.**
-$$\text{CompilerSource} \in \text{Project}$$
+CompilerSource ∈ Project
 
 **ProducesCompiler.**
-$$\text{ProducesCompiler} : \text{BootstrapCompiler} \times \text{Project} \rightharpoonup \text{BootstrapCompiler}$$
+ProducesCompiler : BootstrapCompiler × Project ⇀ BootstrapCompiler
 
 **Milestone Invariants.**
-$$\text{M0} \iff \text{Status}(\text{cursivec0},\ \text{CompilerSource}) = \text{ok} \land \text{Subset}(\text{CompilerSource}, S0)$$
-$$\text{M1} \iff \text{Status}(\text{cursivec1},\ \text{CompilerSource}) = \text{ok} \land \text{ProducesCompiler}(\text{cursivec1},\ \text{CompilerSource}) = \text{cursivec2}$$
-$$\text{M2} \iff \forall P \in \text{Project}.\ \text{BootstrapEq}(\text{cursivec1},\ \text{cursivec2},\ P)$$
+M0 ⇔ Status(cursivec0, CompilerSource) = ok ∧ Subset(CompilerSource, S0)
+M1 ⇔ Status(cursivec1, CompilerSource) = ok ∧ ProducesCompiler(cursivec1, CompilerSource) = cursivec2
+M2 ⇔ ∀ P ∈ Project. BootstrapEq(cursivec1, cursivec2, P)
 
 #### 0.3.2. Observable Behavior Equivalence for Bootstrap
 
 **Compiler Observable Behavior.**
 
-$$\text{Under}(p,O) \iff \text{prefix}(\text{Normalize}(p),\ \text{Normalize}(O))$$
-$$\text{IsFile}(p) \iff \text{FSKind}(p) = \text{File}$$
+Under(p, O) ⇔ prefix(Normalize(p), Normalize(O))
+IsFile(p) ⇔ FSKind(p) = File
 
-$$\text{DiagObs}(d) = \langle d.\text{code},\ d.\text{severity},\ d.\text{message},\ d.\text{span} \rangle$$
-$$\text{DiagStream}(C,P) = [\text{DiagObs}(d_1),\ \ldots,\ \text{DiagObs}(d_k)]$$
-$$\text{Status}(C,P) = \text{ok} \iff \forall d \in \text{DiagStream}(C,P).\ d.\text{severity} \ne \text{Error}$$
-$$\text{Status}(C,P) = \text{fail} \iff \exists d \in \text{DiagStream}(C,P).\ d.\text{severity} = \text{Error}$$
-$$\text{ExitCode}(C,P) = 0 \iff \text{Status}(C,P) = \text{ok}$$
-$$\text{ExitCode}(C,P) = 1 \iff \text{Status}(C,P) = \text{fail}$$
-$$\text{Executable}(P) \iff P.\text{assembly.kind} = \texttt{executable}$$
-$$\text{IRSet}(P) = \{\text{IRPath}(P,m,e) \mid m \in \text{ModuleList}(P)\} \ \text{if}\ P.\text{assembly.emit\_ir} = e \in \{\texttt{"ll"},\ \texttt{"bc"}\}$$
-$$\text{IRSet}(P) = \emptyset \ \text{if}\ P.\text{assembly.emit\_ir} \notin \{\texttt{"ll"},\ \texttt{"bc"}\}$$
-$$\text{ExeSet}(P) = \begin{cases}
-\{\text{ExePath}(P)\} & \text{if }\text{Executable}(P)\\
-\emptyset & \text{otherwise}
-\end{cases}$$
-$$\text{RequiredOutputs}(P) = \{\text{ObjPath}(P,m) \mid m \in \text{ModuleList}(P)\} \cup \text{IRSet}(P) \cup \text{ExeSet}(P)$$
-$$\text{Artifacts}(C,P) = \text{RequiredOutputs}(P) \iff \text{Status}(C,P) = \text{ok}$$
-$$\text{Artifacts}(C,P) = \emptyset \iff \text{Status}(C,P) = \text{fail}$$
+DiagObs(d) = ⟨d.code, d.severity, d.message, d.span⟩
+DiagStream(C, P) = [DiagObs(d_1), …, DiagObs(d_k)]
+Status(C, P) = ok ⇔ ∀ d ∈ DiagStream(C, P). d.severity ≠ Error
+Status(C, P) = fail ⇔ ∃ d ∈ DiagStream(C, P). d.severity = Error
+ExitCode(C, P) = 0 ⇔ Status(C, P) = ok
+ExitCode(C, P) = 1 ⇔ Status(C, P) = fail
+Executable(P) ⇔ P.assembly.kind = `executable`
+IRSet(P) = {IRPath(P, m, e) | m ∈ ModuleList(P)} if P.assembly.emit_ir = e ∈ {"ll", "bc"}
+IRSet(P) = ∅ if P.assembly.emit_ir ∉ {"ll", "bc"}
+ExeSet(P) =
+ {ExePath(P)}  if Executable(P)
+ ∅             otherwise
+RequiredOutputs(P) = {ObjPath(P, m) | m ∈ ModuleList(P)} ∪ IRSet(P) ∪ ExeSet(P)
+Artifacts(C, P) = RequiredOutputs(P) ⇔ Status(C, P) = ok
+Artifacts(C, P) = ∅ ⇔ Status(C, P) = fail
 
-$$\text{ObsComp}(C,P) = \langle \text{Status}(C,P),\ \text{ExitCode}(C,P),\ \text{DiagStream}(C,P),\ \text{Artifacts}(C,P) \rangle$$
+ObsComp(C, P) = ⟨Status(C, P), ExitCode(C, P), DiagStream(C, P), Artifacts(C, P)⟩
 
 **Bootstrap Equivalence.**
-$$\text{BootstrapEq}(C_a, C_b, P) \iff \text{ObsComp}(C_a,P) = \text{ObsComp}(C_b,P) \land (\text{Status}(C_a,P)=\text{ok} \Rightarrow \text{Artifacts}(C_a,P)=\text{RequiredOutputs}(P))$$
+BootstrapEq(C_a, C_b, P) ⇔ ObsComp(C_a, P) = ObsComp(C_b, P) ∧ (Status(C_a, P) = ok ⇒ Artifacts(C_a, P) = RequiredOutputs(P))
 
 ### 0.4. Document Conventions
 
 **NormativeKeywords.**
-$$\text{NormativeKeywords} = \{\texttt{MUST}, \texttt{MUST NOT}, \texttt{SHOULD}, \texttt{SHOULD NOT}, \texttt{MAY}\}$$
+NormativeKeywords = {`MUST`, `MUST NOT`, `SHOULD`, `SHOULD NOT`, `MAY`}
 
 **DocScope.**
-$$\text{DocScope} = \{\text{ConformanceTarget}, \text{SupportedSubset}, \text{RequiredBehavior}(\texttt{cursivec0})\}$$
+DocScope = {ConformanceTarget, SupportedSubset, RequiredBehavior(`cursivec0`)}
 
 **DiagnosticCodeFormat.**
-$$\text{DiagPrefix} = \{E,\ W,\ I\}$$
-$$\text{DiagCategory} = [A\text{-}Z]^{3}$$
-$$\text{DiagDigits} = [0\text{-}9]^{4}$$
-$$\text{DiagCode} = \text{DiagPrefix} \mathbin{+\!\!+} \texttt{"-"} \mathbin{+\!\!+} \text{DiagCategory} \mathbin{+\!\!+} \texttt{"-"} \mathbin{+\!\!+} \text{DiagDigits}$$
-$$\text{Bucket}(\text{Digits}) = \text{Digits}[0..1]$$
-$$\text{Seq}(\text{Digits}) = \text{Digits}[2..3]$$
+DiagPrefix = {E, W, I}
+DiagCategory = [A-Z]^3
+DiagDigits = [0-9]^4
+DiagCode = DiagPrefix ++ "-" ++ DiagCategory ++ "-" ++ DiagDigits
+Bucket(Digits) = Digits[0..1]
+Seq(Digits) = Digits[2..3]
 
 ## 1. Foundations
 
 ### 1.1. Conformance
 
 **C0Conforming.**
-$$\text{C0Conforming}(P) \iff \text{WF}(P) \land \text{Subset}(P,S0)$$
+C0Conforming(P) ⇔ WF(P) ∧ Subset(P, S0)
 
 **WF.**
-$$\text{WF}(P) \iff \exists \Gamma.\ \text{Project}(\Gamma)=P \land \forall j \in \text{ReqJudgments}(P).\ \Gamma \vdash j \Downarrow ok$$
+WF(P) ⇔ ∃ Γ. Project(Γ) = P ∧ ∀ j ∈ ReqJudgments(P). Γ ⊢ j ⇓ ok
 
 **ReqJudgments.**
-$$\text{ReqJudgments}(P) = [\text{Phase1Order}(P),\ \text{Phase3Order}(P),\ \text{Phase4Order}(P)]$$
+ReqJudgments(P) = [Phase1Order(P), Phase3Order(P), Phase4Order(P)]
 
 **Phase1Order.**
-$$\Gamma \vdash \text{Phase1Order}(P) \Downarrow ok \iff \exists Ms.\ \Gamma \vdash \text{ParseModules}(P) \Downarrow Ms$$
+Γ ⊢ Phase1Order(P) ⇓ ok ⇔ ∃ Ms. Γ ⊢ ParseModules(P) ⇓ Ms
 
 **Phase4Order.**
-$$\Gamma \vdash \text{Phase4Order}(P) \Downarrow ok \iff \exists \text{Objs},\ \text{IRs},\ \text{Exe}.\ \Gamma \vdash \text{OutputPipeline}(P) \Downarrow (\text{Objs},\ \text{IRs},\ \text{Exe})$$
+Γ ⊢ Phase4Order(P) ⇓ ok ⇔ ∃ Objs, IRs, Exe. Γ ⊢ OutputPipeline(P) ⇓ (Objs, IRs, Exe)
 
 **Constructs.**
-$$\text{TypeNodes}(P,m) = \{ t \mid t \in \text{Type} \land \text{Subnode}(\text{ASTModule}(P,m), t) \}$$
-$$\text{StmtNodes}(P,m) = \{ s \mid s \in \text{Stmt} \land \text{Subnode}(\text{ASTModule}(P,m), s) \}$$
+TypeNodes(P, m) = { t | t ∈ Type ∧ Subnode(ASTModule(P, m), t) }
+StmtNodes(P, m) = { s | s ∈ Stmt ∧ Subnode(ASTModule(P, m), s) }
 
-$$\text{ItemKind}(\text{UsingDecl}(\_)) = \texttt{using\_decl}$$
-$$\text{ItemKind}(\text{ProcedureDecl}(\_,\_,\_,\_,\_,\_,\_)) = \texttt{procedure}$$
-$$\text{ItemKind}(\text{RecordDecl}(\_,\_,\_,\_,\_,\_)) = \texttt{record}$$
-$$\text{ItemKind}(\text{EnumDecl}(\_,\_,\_,\_,\_,\_)) = \texttt{enum}$$
-$$\text{ItemKind}(\text{ModalDecl}(\_,\_,\_,\_,\_,\_)) = \texttt{modal}$$
-$$\text{ItemKind}(\text{ClassDecl}(\_,\_,\_,\_,\_)) = \texttt{class}$$
-$$\text{ItemKind}(\text{TypeAliasDecl}(\_,\_,\_,\_,\_)) = \texttt{type\_alias}$$
-$$\text{ItemKind}(\text{StaticDecl}(\_,\_,\_,\_,\_)) = \texttt{static\_decl}$$
-$$\text{ItemKind}(\_) = \bot$$
+ItemKind(UsingDecl(_)) = `using_decl`
+ItemKind(ProcedureDecl(_, _, _, _, _, _, _)) = `procedure`
+ItemKind(RecordDecl(_, _, _, _, _, _)) = `record`
+ItemKind(EnumDecl(_, _, _, _, _, _)) = `enum`
+ItemKind(ModalDecl(_, _, _, _, _, _)) = `modal`
+ItemKind(ClassDecl(_, _, _, _, _)) = `class`
+ItemKind(TypeAliasDecl(_, _, _, _, _)) = `type_alias`
+ItemKind(StaticDecl(_, _, _, _, _)) = `static_decl`
+ItemKind(_) = ⊥
 
-$$\text{TopDeclConstructs}(P) = \{ \text{ItemKind}(it) \mid m \in P.\text{modules} \land it \in \text{ASTModule}(P,m).\text{items} \land \text{ItemKind}(it) \ne \bot \}$$
+TopDeclConstructs(P) = { ItemKind(it) | m ∈ P.modules ∧ it ∈ ASTModule(P, m).items ∧ ItemKind(it) ≠ ⊥ }
 
-$$\text{TypeCtor}(\text{TypePerm}(\_, base)) = \text{TypeCtor}(base)$$
-$$\text{TypeCtor}(\text{TypePrim}(name)) = \{name\}$$
-$$\text{TypeCtor}(\text{TypeTuple}(elems)) = \{\texttt{tuple}\} \cup \bigcup_{t \in elems} \text{TypeCtor}(t)$$
-$$\text{TypeCtor}(\text{TypeArray}(elem, \_)) = \{\texttt{array}\} \cup \text{TypeCtor}(elem)$$
-$$\text{TypeCtor}(\text{TypeSlice}(elem)) = \{\texttt{slice}\} \cup \text{TypeCtor}(elem)$$
-$$\text{TypeCtor}(\text{TypeUnion}(members)) = \{\texttt{union}\} \cup \bigcup_{t \in members} \text{TypeCtor}(t)$$
-$$\text{TypeCtor}(\text{TypeFunc}(params, ret)) = \{\texttt{function}\} \cup \bigcup_{\langle \_, t \rangle \in params} \text{TypeCtor}(t) \cup \text{TypeCtor}(ret)$$
-$$\text{TypeCtor}(\text{TypePtr}(elem, \_)) = \{\texttt{ptr}\} \cup \text{TypeCtor}(elem)$$
-$$\text{TypeCtor}(\text{TypeRawPtr}(\_, elem)) = \{\texttt{rawptr}\} \cup \text{TypeCtor}(elem)$$
-$$\text{TypeCtor}(\text{TypeString}(\_)) = \{\texttt{string}\}$$
-$$\text{TypeCtor}(\text{TypeBytes}(\_)) = \{\texttt{bytes}\}$$
-$$\text{TypeCtor}(\text{TypeDynamic}(\_)) = \{\texttt{dyn\_class}\}$$
-$$\text{TypeCtor}(\text{TypeModalState}(\_,\_)) = \{\texttt{modal}\}$$
-$$\text{TypeCtor}(\text{TypePath}([\texttt{"Region"}])) = \{\texttt{region}\}$$
-$$\text{TypeCtor}(\text{TypePath}([\texttt{"RegionOptions"}])) = \{\texttt{region\_options}\}$$
-$$\text{TypeCtor}(\text{TypePath}(p)) = \{\texttt{record}\} \ \text{if } \text{RecordDecl}(p)\ \text{defined}$$
-$$\text{TypeCtor}(\text{TypePath}(p)) = \{\texttt{enum}\} \ \text{if } \text{EnumDecl}(p)\ \text{defined}$$
-$$\text{TypeCtor}(\_) = \emptyset$$
+TypeCtor(TypePerm(_, base)) = TypeCtor(base)
+TypeCtor(TypePrim(name)) = {name}
+TypeCtor(TypeTuple(elems)) = {`tuple`} ∪ ⋃_{t ∈ elems} TypeCtor(t)
+TypeCtor(TypeArray(elem, _)) = {`array`} ∪ TypeCtor(elem)
+TypeCtor(TypeSlice(elem)) = {`slice`} ∪ TypeCtor(elem)
+TypeCtor(TypeUnion(members)) = {`union`} ∪ ⋃_{t ∈ members} TypeCtor(t)
+TypeCtor(TypeFunc(params, ret)) = {`function`} ∪ ⋃_{⟨_, t⟩ ∈ params} TypeCtor(t) ∪ TypeCtor(ret)
+TypeCtor(TypePtr(elem, _)) = {`ptr`} ∪ TypeCtor(elem)
+TypeCtor(TypeRawPtr(_, elem)) = {`rawptr`} ∪ TypeCtor(elem)
+TypeCtor(TypeString(_)) = {`string`}
+TypeCtor(TypeBytes(_)) = {`bytes`}
+TypeCtor(TypeDynamic(_)) = {`dyn_class`}
+TypeCtor(TypeModalState(_, _)) = {`modal`}
+TypeCtor(TypePath(["Region"])) = {`region`}
+TypeCtor(TypePath(["RegionOptions"])) = {`region_options`}
+TypeCtor(TypePath(p)) = {`record`} if RecordDecl(p) defined
+TypeCtor(TypePath(p)) = {`enum`} if EnumDecl(p) defined
+TypeCtor(_) = ∅
 
-$$\text{TypeConstructs}(P) = \bigcup_{m \in P.\text{modules}} \bigcup_{t \in \text{TypeNodes}(P,m)} \text{TypeCtor}(t)$$
+TypeConstructs(P) = ⋃_{m ∈ P.modules} ⋃_{t ∈ TypeNodes(P, m)} TypeCtor(t)
 
-$$\text{PermOfType}(\text{TypePerm}(p,\_)) = \{p\}$$
-$$\text{PermOfType}(\_) = \emptyset$$
-$$\text{RecvPerms}(members) = \{ p \mid \exists vis,ov,name,recv,params,ret,body,span,doc.\ \text{MethodDecl}(vis,ov,name,recv,params,ret,body,span,doc) \in members \land recv = \text{ReceiverShorthand}(p) \}$$
-$$\text{ClassRecvPerms}(items) = \{ p \mid \exists vis,name,recv,params,ret,body,span,doc.\ \text{ClassMethodDecl}(vis,name,recv,params,ret,body,span,doc) \in items \land recv = \text{ReceiverShorthand}(p) \}$$
-$$\text{PermConstructs}(P) = \bigcup_{m \in P.\text{modules}} \bigcup_{t \in \text{TypeNodes}(P,m)} \text{PermOfType}(t) \cup \bigcup_{m \in P.\text{modules}} \bigcup_{\text{RecordDecl}(\_,\_,\_,members,\_,\_) \in \text{ASTModule}(P,m).\text{items}} \text{RecvPerms}(members) \cup \bigcup_{m \in P.\text{modules}} \bigcup_{\text{ClassDecl}(\_,\_,\_,items,\_) \in \text{ASTModule}(P,m).\text{items}} \text{ClassRecvPerms}(items)$$
+PermOfType(TypePerm(p, _)) = {p}
+PermOfType(_) = ∅
+RecvPerms(members) = { p | ∃ vis, ov, name, recv, params, ret, body, span, doc. MethodDecl(vis, ov, name, recv, params, ret, body, span, doc) ∈ members ∧ recv = ReceiverShorthand(p) }
+ClassRecvPerms(items) = { p | ∃ vis, name, recv, params, ret, body, span, doc. ClassMethodDecl(vis, name, recv, params, ret, body, span, doc) ∈ items ∧ recv = ReceiverShorthand(p) }
+PermConstructs(P) = ⋃_{m ∈ P.modules} ⋃_{t ∈ TypeNodes(P, m)} PermOfType(t) ∪ ⋃_{m ∈ P.modules} ⋃_{RecordDecl(_, _, _, members, _, _) ∈ ASTModule(P, m).items} RecvPerms(members) ∪ ⋃_{m ∈ P.modules} ⋃_{ClassDecl(_, _, _, items, _) ∈ ASTModule(P, m).items} ClassRecvPerms(items)
 
-$$\text{ExprKind}(\text{Literal}(\_)) = \texttt{literal}$$
-$$\text{ExprKind}(\text{Identifier}(\_)) = \texttt{identifier}$$
-$$\text{ExprKind}(\text{FieldAccess}(\_,\_)) = \texttt{field\_access}$$
-$$\text{ExprKind}(\text{TupleAccess}(\_,\_)) = \texttt{tuple\_index}$$
-$$\text{ExprKind}(\text{IndexAccess}(\_,\_)) = \texttt{index}$$
-$$\text{ExprKind}(\text{IfExpr}(\_,\_,\_)) = \texttt{if}$$
-$$\text{ExprKind}(\text{MatchExpr}(\_,\_)) = \texttt{match}$$
-$$\text{ExprKind}(\text{LoopInfinite}(\_)) = \texttt{loop}$$
-$$\text{ExprKind}(\text{LoopConditional}(\_,\_)) = \texttt{loop}$$
-$$\text{ExprKind}(\text{LoopIter}(\_,\_,\_,\_)) = \texttt{loop}$$
-$$\text{ExprKind}(\text{MoveExpr}(\_)) = \texttt{move}$$
-$$\text{ExprKind}(\text{Unary}(\texttt{"widen"},\_)) = \texttt{widen}$$
-$$\text{ExprKind}(\text{TransmuteExpr}(\_,\_,\_)) = \texttt{transmute}$$
-$$\text{ExprKind}(\text{UnsafeBlockExpr}(\_)) = \texttt{unsafe}$$
-$$\text{ExprKind}(\text{AllocExpr}(\_,\_)) = \texttt{region\_alloc}$$
-$$\text{ExprKind}(\text{MethodCall}(\_,\_,\_)) = \texttt{method\_call}$$
-$$\text{ExprKind}(\text{Propagate}(\_)) = \texttt{union\_propagate}$$
-$$\text{ExprKind}(\_) = \bot$$
+ExprKind(Literal(_)) = `literal`
+ExprKind(Identifier(_)) = `identifier`
+ExprKind(FieldAccess(_, _)) = `field_access`
+ExprKind(TupleAccess(_, _)) = `tuple_index`
+ExprKind(IndexAccess(_, _)) = `index`
+ExprKind(IfExpr(_, _, _)) = `if`
+ExprKind(MatchExpr(_, _)) = `match`
+ExprKind(LoopInfinite(_)) = `loop`
+ExprKind(LoopConditional(_, _)) = `loop`
+ExprKind(LoopIter(_, _, _, _)) = `loop`
+ExprKind(MoveExpr(_)) = `move`
+ExprKind(Unary(`"widen"`, _)) = `widen`
+ExprKind(TransmuteExpr(_, _, _)) = `transmute`
+ExprKind(UnsafeBlockExpr(_)) = `unsafe`
+ExprKind(AllocExpr(_, _)) = `region_alloc`
+ExprKind(MethodCall(_, _, _)) = `method_call`
+ExprKind(Propagate(_)) = `union_propagate`
+ExprKind(_) = ⊥
 
-$$\text{StmtKind}(\text{LetStmt}(\_)) = \texttt{let}$$
-$$\text{StmtKind}(\text{VarStmt}(\_)) = \texttt{var}$$
-$$\text{StmtKind}(\text{ShadowLetStmt}(\_,\_,\_)) = \texttt{shadow}$$
-$$\text{StmtKind}(\text{ShadowVarStmt}(\_,\_,\_)) = \texttt{shadow}$$
-$$\text{StmtKind}(\text{AssignStmt}(\_,\_)) = \texttt{assign}$$
-$$\text{StmtKind}(\text{CompoundAssignStmt}(\_,\_,\_)) = \texttt{compound\_assign}$$
-$$\text{StmtKind}(\text{DeferStmt}(\_)) = \texttt{defer}$$
-$$\text{StmtKind}(\text{RegionStmt}(\_,\_,\_)) = \texttt{region}$$
-$$\text{StmtKind}(\text{FrameStmt}(\_,\_)) = \texttt{frame}$$
-$$\text{StmtKind}(\text{ReturnStmt}(\_)) = \texttt{return}$$
-$$\text{StmtKind}(\text{ResultStmt}(\_)) = \texttt{result}$$
-$$\text{StmtKind}(\text{BreakStmt}(\_)) = \texttt{break}$$
-$$\text{StmtKind}(\text{ContinueStmt}) = \texttt{continue}$$
-$$\text{StmtKind}(\text{UnsafeBlockStmt}(\_)) = \texttt{unsafe}$$
-$$\text{StmtKind}(\_) = \bot$$
+StmtKind(LetStmt(_)) = `let`
+StmtKind(VarStmt(_)) = `var`
+StmtKind(ShadowLetStmt(_, _, _)) = `shadow`
+StmtKind(ShadowVarStmt(_, _, _)) = `shadow`
+StmtKind(AssignStmt(_, _)) = `assign`
+StmtKind(CompoundAssignStmt(_, _, _)) = `compound_assign`
+StmtKind(DeferStmt(_)) = `defer`
+StmtKind(RegionStmt(_, _, _)) = `region`
+StmtKind(FrameStmt(_, _)) = `frame`
+StmtKind(ReturnStmt(_)) = `return`
+StmtKind(ResultStmt(_)) = `result`
+StmtKind(BreakStmt(_)) = `break`
+StmtKind(ContinueStmt) = `continue`
+StmtKind(UnsafeBlockStmt(_)) = `unsafe`
+StmtKind(_) = ⊥
 
-$$\text{ExprStmtConstructs}(P) = \{ \text{ExprKind}(e) \mid m \in P.\text{modules} \land e \in \text{ExprNodes}(P,m) \land \text{ExprKind}(e) \ne \bot \} \cup \{ \text{StmtKind}(s) \mid m \in P.\text{modules} \land s \in \text{StmtNodes}(P,m) \land \text{StmtKind}(s) \ne \bot \}$$
+ExprStmtConstructs(P) = { ExprKind(e) | m ∈ P.modules ∧ e ∈ ExprNodes(P, m) ∧ ExprKind(e) ≠ ⊥ } ∪ { StmtKind(s) | m ∈ P.modules ∧ s ∈ StmtNodes(P, m) ∧ StmtKind(s) ≠ ⊥ }
 
-$$\text{CapConstructs}(P) = \{ c \mid c \in \{\texttt{Context},\ \texttt{FileSystem},\ \texttt{HeapAllocator}\} \land \exists m,t.\ m \in P.\text{modules} \land t \in \text{TypeNodes}(P,m) \land t = \text{TypePath}([c]) \}$$
+CapConstructs(P) = { c | c ∈ {`Context`, `FileSystem`, `HeapAllocator`} ∧ ∃ m, t. m ∈ P.modules ∧ t ∈ TypeNodes(P, m) ∧ t = TypePath([c]) }
 
-$$\text{Constructs}(P) = \text{TopDeclConstructs}(P) \cup \text{TypeConstructs}(P) \cup \text{PermConstructs}(P) \cup \text{ExprStmtConstructs}(P) \cup \text{CapConstructs}(P)$$
+Constructs(P) = TopDeclConstructs(P) ∪ TypeConstructs(P) ∪ PermConstructs(P) ∪ ExprStmtConstructs(P) ∪ CapConstructs(P)
 
 **Subset.**
-$$\text{Subset}(P,S0) \iff \text{Constructs}(P) \subseteq S0$$
+Subset(P, S0) ⇔ Constructs(P) ⊆ S0
 
 **(Reject-IllFormed)**
-$$\frac{\neg \text{C0Conforming}(P)}{\Gamma \vdash \text{Reject}(P)}$$
+¬ C0Conforming(P)
+─────────────────
+Γ ⊢ Reject(P)
 
 **TranslationPhases.**
 
-$$\text{TranslationPhases} = [\text{Phase1},\ \text{Phase2},\ \text{Phase3},\ \text{Phase4}]$$
+TranslationPhases = [Phase1, Phase2, Phase3, Phase4]
 
 #### 1.1.1. Cursive0 Subset (S0)
 
-$$S0 = S_{\text{Lex}} \cup S_{\text{Modules}} \cup S_{\text{TopDecl}} \cup S_{\text{Types}} \cup S_{\text{Perms}} \cup S_{\text{ExprStmt}} \cup S_{\text{Caps}}$$
+S0 = S_Lex ∪ S_Modules ∪ S_TopDecl ∪ S_Types ∪ S_Perms ∪ S_ExprStmt ∪ S_Caps
 
 **S_Lex.**
-$$S_{\text{Lex}} = \text{RulesIn}(\{\texttt{"3.1"},\ \texttt{"3.2"},\ \texttt{"3.3"}\})$$
+S_Lex = RulesIn({"3.1", "3.2", "3.3"})
 
 **S_Modules.**
-$$S_{\text{Modules}} = \text{RulesIn}(\{\texttt{"2"},\ \texttt{"3.3.6.3"},\ \texttt{"5.1"}\})$$
+S_Modules = RulesIn({"2", "3.3.6.3", "5.1"})
 
 **S_TopDecl.**
-$$S_{\text{TopDecl}} = \{\texttt{using\_decl},\ \texttt{procedure},\ \texttt{record},\ \texttt{enum},\ \texttt{modal},\ \texttt{class},\ \texttt{type\_alias},\ \texttt{static\_decl}\}$$
+S_TopDecl = {`using_decl`, `procedure`, `record`, `enum`, `modal`, `class`, `type_alias`, `static_decl`}
 
 **S_Types.**
-$$\text{PrimTypes}_{C0} = \text{IntTypes} \cup \text{FloatTypes} \cup \{\texttt{bool},\ \texttt{char},\ \texttt{()},\ \texttt{!}\}$$
-$$\text{TypeCtors}_{C0} = \{\texttt{tuple},\ \texttt{array},\ \texttt{slice},\ \texttt{record},\ \texttt{enum},\ \texttt{union},\ \texttt{function},\ \texttt{ptr},\ \texttt{rawptr},\ \texttt{string},\ \texttt{bytes},\ \texttt{region\_options},\ \texttt{region},\ \texttt{dyn\_class}\}$$
-$$S_{\text{Types}} = \text{PrimTypes}_{C0} \cup \text{TypeCtors}_{C0}$$
+PrimTypes_C0 = IntTypes ∪ FloatTypes ∪ {`bool`, `char`, `()`, `!`}
+TypeCtors_C0 = {`tuple`, `array`, `slice`, `record`, `enum`, `union`, `function`, `ptr`, `rawptr`, `string`, `bytes`, `region_options`, `region`, `dyn_class`}
+S_Types = PrimTypes_C0 ∪ TypeCtors_C0
 
 **S_Perms.**
-$$S_{\text{Perms}} = \text{PermSet}_{C0}$$
+S_Perms = PermSet_C0
 
 **S_ExprStmt.**
-$$S_{\text{ExprStmt}} = \{\texttt{literal},\ \texttt{identifier},\ \texttt{field\_access},\ \texttt{tuple\_index},\ \texttt{index},\ \texttt{if},\ \texttt{loop},\ \texttt{match},\ \texttt{break},\ \texttt{continue},\ \texttt{return},\ \texttt{result},\ \texttt{defer},\ \texttt{region},\ \texttt{frame},\ \texttt{union\_propagate},\ \texttt{let},\ \texttt{var},\ \texttt{shadow},\ \texttt{assign},\ \texttt{compound\_assign},\ \texttt{move},\ \texttt{widen},\ \texttt{transmute},\ \texttt{unsafe},\ \texttt{region\_alloc},\ \texttt{method\_call}\}$$
+S_ExprStmt = {`literal`, `identifier`, `field_access`, `tuple_index`, `index`, `if`, `loop`, `match`, `break`, `continue`, `return`, `result`, `defer`, `region`, `frame`, `union_propagate`, `let`, `var`, `shadow`, `assign`, `compound_assign`, `move`, `widen`, `transmute`, `unsafe`, `region_alloc`, `method_call`}
 
 **S_Caps.**
-$$S_{\text{Caps}} = \{\texttt{Context},\ \texttt{FileSystem},\ \texttt{HeapAllocator}\}$$
+S_Caps = {`Context`, `FileSystem`, `HeapAllocator`}
   
 **PermSet (Cursive0).**
-$$\text{PermSet}_{C0} = \{\texttt{const}, \texttt{unique}\}$$
+PermSet_C0 = {`const`, `unique`}
 
 **(Perm-Shared-Unsupported)**
-$$\frac{\text{PermSyntax} \in \{\texttt{shared},\ \texttt{~%}\} \quad c = \text{Code}(\text{Perm-Shared-Unsupported})}{\Gamma \vdash \text{Emit}(c)}$$
+PermSyntax ∈ {`shared`, `~%`}    c = Code(Perm-Shared-Unsupported)
+───────────────────────────────────────────────────────────────
+Γ ⊢ Emit(c)
 
 **Subset Lexeme Basis.**
-Let $S$ be a source file and let $K$ satisfy $\Gamma \vdash \text{Tokenize}(S) \Downarrow (K,\ \_)$.
-Any use of $\text{PermSyntax}$ or $\text{UnsupportedForm}$ MUST be based on token lexemes in $K$ (and, where specified elsewhere, the AST produced by $\text{ParseFile}(S)$); implementations MUST NOT match substrings inside identifiers.
+Let S be a source file and let K satisfy Γ ⊢ Tokenize(S) ⇓ (K, _).
+Any use of PermSyntax or UnsupportedForm MUST be based on token lexemes in K (and, where specified elsewhere, the AST produced by ParseFile(S)); implementations MUST NOT match substrings inside identifiers.
 See Â§3.2.2 and Â§3.2.7.
 
-$$\text{S0Unsupported} = \{\texttt{derive},\ \texttt{extern},\ \texttt{attribute},\ \texttt{import},\ \texttt{opaque\_type},\ \texttt{refinement\_type},\ \texttt{closure},\ \texttt{pipeline},\ \texttt{async},\ \texttt{parallel},\ \texttt{dispatch},\ \texttt{spawn},\ \texttt{metaprogramming},\ \texttt{Network},\ \texttt{Reactor},\ \texttt{GPUFactory},\ \texttt{CPUFactory},\ \texttt{AsyncRuntime}\}$$
+S0Unsupported = {`derive`, `extern`, `attribute`, `import`, `opaque_type`, `refinement_type`, `closure`, `pipeline`, `async`, `parallel`, `dispatch`, `spawn`, `metaprogramming`, `Network`, `Reactor`, `GPUFactory`, `CPUFactory`, `AsyncRuntime`}
 
 ### 1.2. Behavior Types
 
 **BehaviorClass.**
-$$\text{BehaviorClass} = \{\text{Specified}, \text{UVB}\}$$
+BehaviorClass = {Specified, UVB}
 
-$$\text{UVBRel} = \{\text{ReadPtrSigma}(\text{RawPtr}(q, addr), \sigma),\ \text{WritePtrSigma}(\text{RawPtr}(q, addr), v, \sigma)\}$$
+UVBRel = {ReadPtrSigma(RawPtr(q, addr), σ), WritePtrSigma(RawPtr(q, addr), v, σ)}
 
 **IllFormed.**
-$$\text{StaticJudgSet} = \text{WFModulePathJudg} \cup \text{LinkJudg} \cup \text{ParseJudgment} \cup \text{ResolvePathJudg} \cup \text{ResolveExprListJudg} \cup \text{ResolveEnumPayloadJudg} \cup \text{ResolveCalleeJudg} \cup \text{ResolveArmJudg} \cup \text{ResolveStmtSeqJudg} \cup \text{TypeEqJudg} \cup \text{ConstLenJudg} \cup \text{SubtypingJudg} \cup \text{PermSubJudg} \cup \text{ArgsOkTJudg} \cup \text{TypeInfJudg} \cup \text{StmtJudg} \cup \text{PatJudg} \cup \text{ExprJudg} \cup \text{MatchJudg} \cup \text{DeclJudg} \cup \text{BJudgment} \cup \text{ArgPassJudg} \cup \text{ProvPlaceJudg} \cup \text{ProvExprJudg} \cup \text{ProvStmtJudg} \cup \text{BlockProvJudg} \cup \text{ArgsOkJudg} \cup \text{TypeWFJudg} \cup \text{StringBytesJudg} \cup \text{BitcopyDropJudg} \cup \text{TypeRefsJudg} \cup \text{ValueRefsJudg} \cup \text{CodegenJudg} \cup \text{LayoutJudg} \cup \text{EncodeConstJudg} \cup \text{ValidValueJudg} \cup \text{RecordLayoutJudg} \cup \text{UnionLayoutJudg} \cup \text{TupleLayoutJudg} \cup \text{RangeLayoutJudg} \cup \text{EnumLayoutJudg} \cup \text{ModalLayoutJudg} \cup \text{DynLayoutJudg} \cup \text{ABITyJudg} \cup \text{ABIParamJudg} \cup \text{ABIRetJudg} \cup \text{ABICallJudg} \cup \text{LowerCallJudg} \cup \text{MangleJudg} \cup \text{LinkageJudg} \cup \text{EvalOrderJudg} \cup \text{LowerExprJudg} \cup \text{LowerStmtJudg} \cup \text{PatternLowerJudg} \cup \text{LowerBindJudg} \cup \text{GlobalsJudg} \cup \text{ConstInitJudg} \cup \text{CleanupJudg} \cup \text{RuntimeIfcJudg} \cup \text{DynDispatchJudg} \cup \text{ChecksJudg} \cup \text{LLVMAttrJudg} \cup \text{RuntimeDeclJudg} \cup \text{LLVMTyJudg} \cup \text{LLVMEmitJudg} \cup \text{LowerIRJudg} \cup \text{BindStorageJudg} \cup \text{LLVMCallJudg} \cup \text{VTableJudg} \cup \text{LiteralEmitJudg} \cup \text{BuiltinSymJudg} \cup \text{DropHookJudg} \cup \text{EntryJudg} \cup \text{PoisonJudg}$$
-$$\text{StaticRuleSet} = \{ r \mid \text{Conclusion}(r) \in \text{StaticJudgSet} \}$$
-$$\text{Conclusion}(r) = J \quad (r\ \text{is written}\ \frac{\pi_1\ \ldots\ \pi_k}{J})$$
-$$\text{Premises}(r) = [\pi_1,\ldots,\pi_k] \quad (r\ \text{is written}\ \frac{\pi_1\ \ldots\ \pi_k}{\_})$$
-$$\text{Subject}(\Gamma \vdash j) = j_0\ \text{where } j_0\ \text{is the leftmost term to the right of }\vdash$$
-$$\text{EnvOf}(\Gamma \vdash j) = \Gamma$$
-$$\theta\ \text{ranges over substitutions of metavariables in }r$$
-$$\text{Applies}(r,x) \iff \exists \theta.\ \text{Subject}(\text{Conclusion}(r)[\theta]) = x$$
-$$\text{PremisesHold}(r, x) \iff \exists \theta.\ \text{Subject}(\text{Conclusion}(r)[\theta]) = x \land \Gamma_r = \text{EnvOf}(\text{Conclusion}(r)[\theta]) \land \forall \pi \in \text{Premises}(r)[\theta].\ \pi \ne \bot \land (\pi\ \text{is a judgment} \Rightarrow \Gamma_r \vdash \pi)$$
-$$\text{IllFormed}(x) \iff \exists r \in \text{StaticRuleSet}.\ \text{Applies}(r,x) \land \neg \text{PremisesHold}(r,x)$$
+StaticJudgSet = WFModulePathJudg ∪ LinkJudg ∪ ParseJudgment ∪ ResolvePathJudg ∪ ResolveExprListJudg ∪ ResolveEnumPayloadJudg ∪ ResolveCalleeJudg ∪ ResolveArmJudg ∪ ResolveStmtSeqJudg ∪ TypeEqJudg ∪ ConstLenJudg ∪ SubtypingJudg ∪ PermSubJudg ∪ ArgsOkTJudg ∪ TypeInfJudg ∪ StmtJudg ∪ PatJudg ∪ ExprJudg ∪ MatchJudg ∪ DeclJudg ∪ BJudgment ∪ ArgPassJudg ∪ ProvPlaceJudg ∪ ProvExprJudg ∪ ProvStmtJudg ∪ BlockProvJudg ∪ ArgsOkJudg ∪ TypeWFJudg ∪ StringBytesJudg ∪ BitcopyDropJudg ∪ TypeRefsJudg ∪ ValueRefsJudg ∪ CodegenJudg ∪ LayoutJudg ∪ EncodeConstJudg ∪ ValidValueJudg ∪ RecordLayoutJudg ∪ UnionLayoutJudg ∪ TupleLayoutJudg ∪ RangeLayoutJudg ∪ EnumLayoutJudg ∪ ModalLayoutJudg ∪ DynLayoutJudg ∪ ABITyJudg ∪ ABIParamJudg ∪ ABIRetJudg ∪ ABICallJudg ∪ LowerCallJudg ∪ MangleJudg ∪ LinkageJudg ∪ EvalOrderJudg ∪ LowerExprJudg ∪ LowerStmtJudg ∪ PatternLowerJudg ∪ LowerBindJudg ∪ GlobalsJudg ∪ ConstInitJudg ∪ CleanupJudg ∪ RuntimeIfcJudg ∪ DynDispatchJudg ∪ ChecksJudg ∪ LLVMAttrJudg ∪ RuntimeDeclJudg ∪ LLVMTyJudg ∪ LLVMEmitJudg ∪ LowerIRJudg ∪ BindStorageJudg ∪ LLVMCallJudg ∪ VTableJudg ∪ LiteralEmitJudg ∪ BuiltinSymJudg ∪ DropHookJudg ∪ EntryJudg ∪ PoisonJudg
+StaticRuleSet = { r | Conclusion(r) ∈ StaticJudgSet }
+Conclusion(r) = J    (r is written (π_1 … π_k) / J)
+Premises(r) = [π_1, …, π_k]    (r is written (π_1 … π_k) / _)
+Subject(Γ ⊢ j) = j_0 where j_0 is the leftmost term to the right of ⊢
+EnvOf(Γ ⊢ j) = Γ
+θ ranges over substitutions of metavariables in r
+Applies(r, x) ⇔ ∃ θ. Subject(Conclusion(r)[θ]) = x
+PremisesHold(r, x) ⇔ ∃ θ. Subject(Conclusion(r)[θ]) = x ∧ Γ_r = EnvOf(Conclusion(r)[θ]) ∧ ∀ π ∈ Premises(r)[θ]. π ≠ ⊥ ∧ (π is a judgment ⇒ Γ_r ⊢ π)
+IllFormed(x) ⇔ ∃ r ∈ StaticRuleSet. Applies(r, x) ∧ ¬ PremisesHold(r, x)
 
 **Undefinedness Policy.**
-$$\text{StaticUndefined}(J) \iff \exists r.\ \text{Conclusion}(r)=J \land \exists \pi \in \text{Premises}(r).\ \pi = \bot$$
-$$\text{DynamicUndefined}(R) \iff R \in \text{UVBRel} \land R\ \text{undefined}$$
-$$\text{Behavior}(R) = \text{Specified} \iff \neg \text{DynamicUndefined}(R)$$
-$$\text{Behavior}(R) = \text{UVB} \iff \text{DynamicUndefined}(R)$$
+StaticUndefined(J) ⇔ ∃ r. Conclusion(r) = J ∧ ∃ π ∈ Premises(r). π = ⊥
+DynamicUndefined(R) ⇔ R ∈ UVBRel ∧ R undefined
+Behavior(R) = Specified ⇔ ¬ DynamicUndefined(R)
+Behavior(R) = UVB ⇔ DynamicUndefined(R)
 
-$$\text{RuleId}(r) = id \iff r\ \text{is labeled}\ \textbf{(}id\textbf{)}$$
-$$\text{DiagIdOf}(J) = id \iff \exists r.\ \text{Conclusion}(r)=J \land \text{RuleId}(r)=id$$
-$$\text{DiagIdOf}(J) = \bot \iff \neg \exists r.\ \text{Conclusion}(r)=J \land \text{RuleId}(r)\ \text{defined}$$
+RuleId(r) = id ⇔ r is labeled (id)
+DiagIdOf(J) = id ⇔ ∃ r. Conclusion(r) = J ∧ RuleId(r) = id
+DiagIdOf(J) = ⊥ ⇔ ¬ ∃ r. Conclusion(r) = J ∧ RuleId(r) defined
 
 **(Static-Undefined)**
-$$\frac{\text{StaticUndefined}(J) \quad \text{Code}(\text{DiagIdOf}(J)) = c}{\Gamma \vdash J \Uparrow c}$$
+StaticUndefined(J)    Code(DiagIdOf(J)) = c
+───────────────────────────────────────
+Γ ⊢ J ⇑ c
 
 **(Static-Undefined-NoCode)**
-$$\frac{\text{StaticUndefined}(J) \quad \text{Code}(\text{DiagIdOf}(J)) = \bot}{\Gamma \vdash J \Uparrow}$$
+StaticUndefined(J)    Code(DiagIdOf(J)) = ⊥
+────────────────────────────────────────
+Γ ⊢ J ⇑
 
 **(Dynamic-Undefined-UVB)**
-$$\frac{\text{DynamicUndefined}(R)}{\Gamma \vdash \text{Behavior}(R) = \text{UVB}}$$
+DynamicUndefined(R)
+────────────────────────────
+Γ ⊢ Behavior(R) = UVB
 
 **Static vs. Runtime Checks.**
 
-$$\text{CheckKind} = \{\text{PatternExhaustiveness},\ \text{TypeCompatibility},\ \text{PermissionViolations},\ \text{ProvenanceEscape},\ \text{ArrayBounds},\ \text{SafePointerValidity},\ \text{IntegerOverflow},\ \text{SliceBounds},\ \text{IntDivisionByZero}\}$$
+CheckKind = {PatternExhaustiveness, TypeCompatibility, PermissionViolations, ProvenanceEscape, ArrayBounds, SafePointerValidity, IntegerOverflow, SliceBounds, IntDivisionByZero}
 
-$$\text{StaticCheck} = \{\text{PatternExhaustiveness},\ \text{TypeCompatibility},\ \text{PermissionViolations},\ \text{ProvenanceEscape},\ \text{ArrayBounds},\ \text{SafePointerValidity}\}$$
-$$\text{RuntimeCheck} = \{\text{IntegerOverflow},\ \text{SliceBounds},\ \text{IntDivisionByZero}\}$$
+StaticCheck = {PatternExhaustiveness, TypeCompatibility, PermissionViolations, ProvenanceEscape, ArrayBounds, SafePointerValidity}
+RuntimeCheck = {IntegerOverflow, SliceBounds, IntDivisionByZero}
 
-$$\text{RuntimeBehavior}(\text{IntegerOverflow}) = \text{Panic}$$
-$$\text{RuntimeBehavior}(\text{SliceBounds}) = \text{Panic}$$
-$$\text{RuntimeBehavior}(\text{IntDivisionByZero}) = \text{Panic}$$
+RuntimeBehavior(IntegerOverflow) = Panic
+RuntimeBehavior(SliceBounds) = Panic
+RuntimeBehavior(IntDivisionByZero) = Panic
 
-$$\text{ResourceExhaustion} \Rightarrow \text{OutsideConformance}$$
+ResourceExhaustion ⇒ OutsideConformance
 
 **Error Recovery (Cursive0).**
-$$\text{LexRecovery} = \text{SkipToNextTokenStart}$$
-$$\text{ParseRecovery} = \text{SyncSet}(\{\texttt{;},\ \texttt{\}},\ \texttt{EOF}\})$$
-$$\text{TypeRecovery} = \text{ContinueDecls}$$
-$$\text{MaxErrorCount} \in \mathbb{N} \cup \{\infty\}$$
-$$\text{SuggestedMaxErrorCount} = 100$$
-$$\text{AbortOnErrorCount}(n) \iff n \ge \text{MaxErrorCount}$$
+LexRecovery = SkipToNextTokenStart
+ParseRecovery = SyncSet({`;`, `}`, `EOF`})
+TypeRecovery = ContinueDecls
+MaxErrorCount ∈ ℕ ∪ {∞}
+SuggestedMaxErrorCount = 100
+AbortOnErrorCount(n) ⇔ n ≥ MaxErrorCount
 
 ### 1.4. Unsupported Constructs Policy
 
 **UnsupportedConstruct.**
-$$\text{UnsupportedConstruct} = \{\texttt{key\_system},\ \texttt{attribute\_syntax},\ \texttt{extern\_block},\ \texttt{foreign\_decl},\ \texttt{class\_generics},\ \texttt{class\_where\_clause},\ \texttt{associated\_type},\ \texttt{modal\_class},\ \texttt{class\_contract}\}$$
+UnsupportedConstruct = {`key_system`, `attribute_syntax`, `extern_block`, `foreign_decl`, `class_generics`, `class_where_clause`, `associated_type`, `modal_class`, `class_contract`}
 
 **(WF-Attr-Unsupported)**
-$$\frac{\texttt{[[...]]} \in M}{\Gamma \vdash \text{Emit}(\text{Code}(\text{WF-Attr-Unsupported}))}$$
+`[[...]]` ∈ M
+───────────────────────────────────────────────
+Γ ⊢ Emit(Code(WF-Attr-Unsupported))
 
-$$\text{UnsupportedForm} = \text{UnsupportedConstruct} \cup \text{S0Unsupported} \cup \text{UnsupportedGrammarFamily} \cup \text{UnsupportedClassItem} \cup \text{UnsupportedWhereClause} \cup \text{ComptimeForm}$$
+UnsupportedForm = UnsupportedConstruct ∪ S0Unsupported ∪ UnsupportedGrammarFamily ∪ UnsupportedClassItem ∪ UnsupportedWhereClause ∪ ComptimeForm
 
 **(Unsupported-Construct)**
-$$\frac{f \in \text{UnsupportedForm}}{\Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}$$
+f ∈ UnsupportedForm
+──────────────────────────────────────────────
+Γ ⊢ Emit(Code(Unsupported-Construct))
 
 ### 1.5. Target and ABI Assumptions
 
-$$\text{TargetArch} = \text{Win64}$$
-$$\text{Endianness} = \text{Little}$$
-$$\text{PtrSizeBytes} = \text{PtrSize}$$
-$$\text{LayoutSpec} = \text{RulesIn}(\{\texttt{"6.1.1"},\ \texttt{"6.1.2"},\ \texttt{"6.1.3"},\ \texttt{"6.1.4"},\ \texttt{"6.1.5"},\ \texttt{"6.1.6"}\})$$
+TargetArch = Win64
+Endianness = Little
+PtrSizeBytes = PtrSize
+LayoutSpec = RulesIn({"6.1.1", "6.1.2", "6.1.3", "6.1.4", "6.1.5", "6.1.6"})
 
-$$\text{Target} = \texttt{"x86_64-pc-windows-msvc"}$$
-$$\text{Win64} = \text{Target}$$
+Target = "x86_64-pc-windows-msvc"
+Win64 = Target
 
 ### 1.6. Diagnostics Infrastructure
 
@@ -453,971 +467,1140 @@ $$\text{Win64} = \text{Target}$$
 
 **SourceLocation.**
 
-$$\text{SourceLocation} = \langle \text{file},\ \text{offset},\ \text{line},\ \text{column} \rangle$$
+SourceLocation = ⟨file, offset, line, column⟩
 
 **Span.**
 
-$$\text{Span} = \langle \text{file},\ \text{start\_offset},\ \text{end\_offset},\ \text{start\_line},\ \text{start\_col},\ \text{end\_line},\ \text{end\_col} \rangle$$
+Span = ⟨file, start_offset, end_offset, start_line, start_col, end_line, end_col⟩
 
-$$\text{SpanRange}(\text{sp}) = [\text{sp.start\_offset},\ \text{sp.end\_offset})$$
+SpanRange(sp) = [sp.start_offset, sp.end_offset)
 
 **(WF-Location)**
-$$\frac{0 \le o \quad \Gamma \vdash \text{Locate}(S,o) \Downarrow \elloc}{\Gamma \vdash \elloc : \text{LocationOk}}$$
+0 ≤ o    Γ ⊢ Locate(S, o) ⇓ ℓ_loc
+────────────────────────────────
+Γ ⊢ ℓ_loc : LocationOk
 
 **(WF-Span)**
-$$\frac{0 \le s \le e \le S.\text{byte\_len} \quad \Gamma \vdash \text{Locate}(S,s) \Downarrow \ell_s \quad \Gamma \vdash \text{Locate}(S,e) \Downarrow \ell_e}{\Gamma \vdash \langle S.\text{path}, s, e, \ell_s.\text{line}, \ell_s.\text{column}, \ell_e.\text{line}, \ell_e.\text{column} \rangle : \text{SpanOk}}$$
+0 ≤ s ≤ e ≤ S.byte_len    Γ ⊢ Locate(S, s) ⇓ ℓ_s    Γ ⊢ Locate(S, e) ⇓ ℓ_e
+──────────────────────────────────────────────────────────────────────────
+Γ ⊢ ⟨S.path, s, e, ℓ_s.line, ℓ_s.column, ℓ_e.line, ℓ_e.column⟩ : SpanOk
 
 **Span Construction**
 
-$$\text{ClampSpan}(S,s,e) = (s',e')$$
-$$s' = \min(s,\ S.\text{byte\_len})$$
-$$e' = \min(\max(e,\ s'),\ S.\text{byte\_len})$$
+ClampSpan(S, s, e) = (s', e')
+s' = min(s, S.byte_len)
+e' = min(max(e, s'), S.byte_len)
 
 **(Span-Of)**
-$$\frac{\Gamma \vdash \text{ClampSpan}(S,s,e) \Downarrow (s',e') \quad \Gamma \vdash \langle S.\text{path}, s', e', \text{line}_s, \text{col}_s, \text{line}_e, \text{col}_e \rangle : \text{SpanOk}}{\Gamma \vdash \text{SpanOf}(S,s,e) \Downarrow \langle S.\text{path}, s', e', \text{line}_s, \text{col}_s, \text{line}_e, \text{col}_e \rangle}$$
+Γ ⊢ ClampSpan(S, s, e) ⇓ (s', e')    Γ ⊢ ⟨S.path, s', e', line_s, col_s, line_e, col_e⟩ : SpanOk
+────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ SpanOf(S, s, e) ⇓ ⟨S.path, s', e', line_s, col_s, line_e, col_e⟩
 
 #### 1.6.2. Token Spans
 
 **TokenKind.**
 
-$$\text{TokenKind}_{C0} = \text{TokenKind}_{\S 3.2.4} \cup \{\text{Unknown}\}$$
+TokenKind_C0 = TokenKind_(§ 3.2.4) ∪ {Unknown}
 
 **(No-Unknown-Ok)**
-$$\frac{\forall t \in K.\ t.\text{kind} \ne \text{Unknown}}{\Gamma \vdash K : \text{TokenStreamOk}}$$
+∀ t ∈ K. t.kind ≠ Unknown
+─────────────────────────
+Γ ⊢ K : TokenStreamOk
 
 **RawToken.**
 
-$$\text{RawToken} = \langle \text{kind},\ \text{lexeme},\ s,\ e \rangle$$
+RawToken = ⟨kind, lexeme, s, e⟩
 
 **Token.**
 
-$$\text{Token} = \langle \text{kind},\ \text{lexeme},\ \text{span} \rangle$$
+Token = ⟨kind, lexeme, span⟩
 
 **(Attach-Token-Ok)**
-$$\frac{\Gamma \vdash \text{SpanOf}(S,s,e) \Downarrow \text{sp}}{\Gamma \vdash \text{AttachSpan}(S,\langle k,\ell,s,e \rangle) \Downarrow \langle k,\ell,\text{sp} \rangle}$$
+Γ ⊢ SpanOf(S, s, e) ⇓ sp
+───────────────────────────────────────────────
+Γ ⊢ AttachSpan(S, ⟨k, ℓ, s, e⟩) ⇓ ⟨k, ℓ, sp⟩
 
 **Token Stream Attachment (Bigâ€‘Step)**
 
 **(Attach-Tokens-Ok)**
-$$\frac{\forall r \in rs,\ \Gamma \vdash \text{AttachSpan}(S,r) \Downarrow t \quad ts = [t \mid r \in rs]}{\Gamma \vdash \text{AttachSpans}(S, rs) \Downarrow ts}$$
+∀ r ∈ rs, Γ ⊢ AttachSpan(S, r) ⇓ t    ts = [t | r ∈ rs]
+──────────────────────────────────────────────────────────────
+Γ ⊢ AttachSpans(S, rs) ⇓ ts
 
 #### 1.6.3. Diagnostics: Records and Emission
 
 **Diagnostic.**
 
-$$\text{Severity} = \{\text{Error},\ \text{Warning}\}$$
+Severity = {Error, Warning}
 
 **Diagnostic Stream.**
-$$\Delta = [d_1,\ldots,d_n]$$
+Δ = [d_1, …, d_n]
 
 **(Emit-Append)**
-$$\frac{}{ \Gamma \vdash \text{Emit}(\Delta, d) \Downarrow (\Delta \mathbin{+\!\!+} [d]) }$$
+────────────────────────────────────────────
+Γ ⊢ Emit(Δ, d) ⇓ (Δ ++ [d])
 
 **Emit (Implicit).**
-$$\text{Emit}(c) = \text{Emit}(\Delta,\ \langle c,\ \text{Severity}(c),\ \text{Message}(c),\ \bot \rangle)$$
-$$\text{Emit}(c,\ sp) = \text{Emit}(\Delta,\ \langle c,\ \text{Severity}(c),\ \text{Message}(c),\ sp \rangle)$$
+Emit(c) = Emit(Δ, ⟨c, Severity(c), Message(c), ⊥⟩)
+Emit(c, sp) = Emit(Δ, ⟨c, Severity(c), Message(c), sp⟩)
 
-$$\text{Severity}(c) = \text{SeverityColumn}(c)$$
-$$\text{Message}(c) = \text{ConditionColumn}(c)$$
+Severity(c) = SeverityColumn(c)
+Message(c) = ConditionColumn(c)
 
-$$\text{CompileStatus}(\Delta) = \begin{cases}
-\text{fail} & \text{if } \text{HasError}(\Delta) \\
-\text{ok} & \text{otherwise}
-\end{cases}$$
+CompileStatus(Δ) =
+ fail  if HasError(Δ)
+ ok    otherwise
 
 #### 1.6.4. Diagnostic Code Selection
 
-$$\text{SpecCode} : \text{DiagId} \rightharpoonup \text{DiagCode}$$
-$$\text{SpecCode}(id) = \bot$$
-$$\text{C0Code} : \text{DiagId} \rightharpoonup \text{DiagCode}$$
+SpecCode : DiagId ⇀ DiagCode
+SpecCode(id) = ⊥
+C0Code : DiagId ⇀ DiagCode
 
 **(Code-Spec)**
-$$\frac{\text{SpecCode}(id) = c}{\Gamma \vdash \text{Code}(id) \Downarrow c}$$
+SpecCode(id) = c
+────────────────────────────
+Γ ⊢ Code(id) ⇓ c
 
 **(Code-C0)**
-$$\frac{\text{SpecCode}(id) = \bot \quad \text{C0Code}(id) = c}{\Gamma \vdash \text{Code}(id) \Downarrow c}$$
+SpecCode(id) = ⊥    C0Code(id) = c
+────────────────────────────────
+Γ ⊢ Code(id) ⇓ c
 
 **DiagIdâ€“Code Mapping.**
-$$\frac{id \text{ emits a diagnostic}}{\Gamma \vdash \text{Emit}(\text{Code}(id))}$$
-$$\Uparrow \equiv \Uparrow \text{Code}(id)$$
+id emits a diagnostic
+────────────────────────────
+Γ ⊢ Emit(Code(id))
+⇑ ≡ ⇑ Code(id)
 
 **Resolution Failure.**
-$$\text{NoDiag}(\uparrow)$$
+NoDiag(↑)
 
 #### 1.6.5. Diagnostic Ordering
 
 **(Order)**
-$$\frac{\Delta = [d_1, d_2, \ldots, d_n]}{\Gamma \vdash \text{Order}(\Delta) \Downarrow [d_1, d_2, \ldots, d_n]}$$
+Δ = [d_1, d_2, …, d_n]
+──────────────────────────────────────────────────
+Γ ⊢ Order(Δ) ⇓ [d_1, d_2, …, d_n]
 
 #### 1.6.6. Diagnostic Rendering
 
-$$\text{Render}(d) = \begin{cases}
-\text{code} \mathbin{+\!\!+} \texttt{" ("} \mathbin{+\!\!+} \text{sev} \mathbin{+\!\!+} \texttt{")"} \mathbin{+\!\!+} \text{msg} \mathbin{+\!\!+} \texttt{" @"} \mathbin{+\!\!+} \text{loc} & \text{if } d.\text{span} \ne \bot \\
-\text{code} \mathbin{+\!\!+} \texttt{" ("} \mathbin{+\!\!+} \text{sev} \mathbin{+\!\!+} \texttt{")"} \mathbin{+\!\!+} \text{msg} & \text{if } d.\text{span} = \bot
-\end{cases}$$
+Render(d) =
+ code ++ " (" ++ sev ++ ")" ++ msg ++ " @" ++ loc  if d.span ≠ ⊥
+ code ++ " (" ++ sev ++ ")" ++ msg                if d.span = ⊥
 
-$$\text{code} = d.\text{code}$$
-$$\text{sev} = \begin{cases}\texttt{"error"} & d.\text{severity}=\text{Error} \\ \texttt{"warning"} & d.\text{severity}=\text{Warning}\end{cases}$$
-$$\text{msg} = \begin{cases}\texttt{"\""} & d.\text{message}=\texttt{"\""} \\ \texttt{": "} \mathbin{+\!\!+} d.\text{message} & \text{otherwise}\end{cases}$$
-$$\text{loc} = d.\text{span.file} \mathbin{+\!\!+} \texttt{":"} \mathbin{+\!\!+} d.\text{span.start\_line} \mathbin{+\!\!+} \texttt{":"} \mathbin{+\!\!+} d.\text{span.start\_col}$$
-$$\text{PermLexeme}(\texttt{const}) = \texttt{"const"}$$
-$$\text{PermLexeme}(\texttt{unique}) = \texttt{"unique"}$$
-$$\text{PermLexeme}(\texttt{shared}) = \texttt{"shared"}$$
-$$\text{QualLexeme}(\texttt{imm}) = \texttt{"imm"}$$
-$$\text{QualLexeme}(\texttt{mut}) = \texttt{"mut"}$$
-$$\text{PtrStateSuffix}(\bot) = \texttt{""}$$
-$$\text{PtrStateSuffix}(\texttt{Valid}) = \texttt{"@Valid"}$$
-$$\text{PtrStateSuffix}(\texttt{Null}) = \texttt{"@Null"}$$
-$$\text{PtrStateSuffix}(\texttt{Expired}) = \texttt{"@Expired"}$$
-$$\text{StringStateSuffix}(\bot) = \texttt{""}$$
-$$\text{StringStateSuffix}(\texttt{View}) = \texttt{"@View"}$$
-$$\text{StringStateSuffix}(\texttt{Managed}) = \texttt{"@Managed"}$$
-$$\text{BytesStateSuffix}(\bot) = \texttt{""}$$
-$$\text{BytesStateSuffix}(\texttt{View}) = \texttt{"@View"}$$
-$$\text{BytesStateSuffix}(\texttt{Managed}) = \texttt{"@Managed"}$$
-$$\text{ParamRender}(\langle \bot, T \rangle) = \text{TypeRender}(T)$$
-$$\text{ParamRender}(\langle \texttt{move}, T \rangle) = \texttt{"move "} \mathbin{+\!\!+} \text{TypeRender}(T)$$
-$$\text{TypeRender}(\text{TypePrim}(name)) = name$$
-$$\text{TypeRender}(\text{TypeRange}) = \texttt{"TypeRange"}$$
-$$\text{TypeRender}(\text{TypePerm}(p, T)) = \text{PermLexeme}(p) \mathbin{+\!\!+} \texttt{" "} \mathbin{+\!\!+} \text{TypeRender}(T)$$
-$$\text{TypeRender}(\text{TypeUnion}([T_1,\ldots,T_n])) = \text{Join}(\texttt{" | "}, [\text{TypeRender}(T_1),\ldots,\text{TypeRender}(T_n)])$$
-$$\text{TypeRender}(\text{TypeFunc}([\langle m_1,T_1\rangle,\ldots,\langle m_n,T_n\rangle], R)) = \texttt{"("} \mathbin{+\!\!+} \text{Join}(\texttt{", "}, [\text{ParamRender}(\langle m_1,T_1\rangle),\ldots,\text{ParamRender}(\langle m_n,T_n\rangle)]) \mathbin{+\!\!+} \texttt{") -> "} \mathbin{+\!\!+} \text{TypeRender}(R)$$
-$$\text{TypeRender}(\text{TypeTuple}([])) = \texttt{"()"}$$
-$$\text{TypeRender}(\text{TypeTuple}([T])) = \texttt{"("} \mathbin{+\!\!+} \text{TypeRender}(T) \mathbin{+\!\!+} \texttt{";)"}$$
-$$\text{TypeRender}(\text{TypeTuple}([T_1,\ldots,T_n])) = \texttt{"("} \mathbin{+\!\!+} \text{Join}(\texttt{", "}, [\text{TypeRender}(T_1),\ldots,\text{TypeRender}(T_n)]) \mathbin{+\!\!+} \texttt{")"}$$
-$$\text{TypeRender}(\text{TypeArray}(T, e)) = \texttt{"["} \mathbin{+\!\!+} \text{TypeRender}(T) \mathbin{+\!\!+} \texttt{"; "} \mathbin{+\!\!+} \text{ArrayLen}(e) \mathbin{+\!\!+} \texttt{"]"}$$
-$$\text{TypeRender}(\text{TypeSlice}(T)) = \texttt{"["} \mathbin{+\!\!+} \text{TypeRender}(T) \mathbin{+\!\!+} \texttt{"]"}$$
-$$\text{TypeRender}(\text{TypePtr}(T, s)) = \texttt{"Ptr<"} \mathbin{+\!\!+} \text{TypeRender}(T) \mathbin{+\!\!+} \texttt{">"} \mathbin{+\!\!+} \text{PtrStateSuffix}(s)$$
-$$\text{TypeRender}(\text{TypeRawPtr}(q, T)) = \texttt{"* "} \mathbin{+\!\!+} \text{QualLexeme}(q) \mathbin{+\!\!+} \texttt{" "} \mathbin{+\!\!+} \text{TypeRender}(T)$$
-$$\text{TypeRender}(\text{TypeString}(st)) = \texttt{"string"} \mathbin{+\!\!+} \text{StringStateSuffix}(st)$$
-$$\text{TypeRender}(\text{TypeBytes}(st)) = \texttt{"bytes"} \mathbin{+\!\!+} \text{BytesStateSuffix}(st)$$
-$$\text{TypeRender}(\text{TypeDynamic}(p)) = \texttt{"$"} \mathbin{+\!\!+} \text{StringOfPath}(p)$$
-$$\text{TypeRender}(\text{TypeModalState}(p, S)) = \text{StringOfPath}(p) \mathbin{+\!\!+} \texttt{"@"} \mathbin{+\!\!+} S$$
-$$\text{TypeRender}(\text{TypePath}(p)) = \text{StringOfPath}(p)$$
+code = d.code
+sev =
+ "error"   if d.severity = Error
+ "warning" if d.severity = Warning
+msg =
+ "\""      if d.message = "\""
+ ": " ++ d.message  otherwise
+loc = d.span.file ++ ":" ++ d.span.start_line ++ ":" ++ d.span.start_col
+PermLexeme(const) = "const"
+PermLexeme(unique) = "unique"
+PermLexeme(shared) = "shared"
+QualLexeme(imm) = "imm"
+QualLexeme(mut) = "mut"
+PtrStateSuffix(⊥) = ""
+PtrStateSuffix(Valid) = "@Valid"
+PtrStateSuffix(Null) = "@Null"
+PtrStateSuffix(Expired) = "@Expired"
+StringStateSuffix(⊥) = ""
+StringStateSuffix(View) = "@View"
+StringStateSuffix(Managed) = "@Managed"
+BytesStateSuffix(⊥) = ""
+BytesStateSuffix(View) = "@View"
+BytesStateSuffix(Managed) = "@Managed"
+ParamRender(⟨⊥, T⟩) = TypeRender(T)
+ParamRender(⟨move, T⟩) = "move " ++ TypeRender(T)
+TypeRender(TypePrim(name)) = name
+TypeRender(TypeRange) = "TypeRange"
+TypeRender(TypePerm(p, T)) = PermLexeme(p) ++ " " ++ TypeRender(T)
+TypeRender(TypeUnion([T_1, …, T_n])) = Join(" | ", [TypeRender(T_1), …, TypeRender(T_n)])
+TypeRender(TypeFunc([⟨m_1, T_1⟩, …, ⟨m_n, T_n⟩], R)) = "(" ++ Join(", ", [ParamRender(⟨m_1, T_1⟩), …, ParamRender(⟨m_n, T_n⟩)]) ++ ") -> " ++ TypeRender(R)
+TypeRender(TypeTuple([])) = "()"
+TypeRender(TypeTuple([T])) = "(" ++ TypeRender(T) ++ ";)"
+TypeRender(TypeTuple([T_1, …, T_n])) = "(" ++ Join(", ", [TypeRender(T_1), …, TypeRender(T_n)]) ++ ")"
+TypeRender(TypeArray(T, e)) = "[" ++ TypeRender(T) ++ "; " ++ ArrayLen(e) ++ "]"
+TypeRender(TypeSlice(T)) = "[" ++ TypeRender(T) ++ "]"
+TypeRender(TypePtr(T, s)) = "Ptr<" ++ TypeRender(T) ++ ">" ++ PtrStateSuffix(s)
+TypeRender(TypeRawPtr(q, T)) = "* " ++ QualLexeme(q) ++ " " ++ TypeRender(T)
+TypeRender(TypeString(st)) = "string" ++ StringStateSuffix(st)
+TypeRender(TypeBytes(st)) = "bytes" ++ BytesStateSuffix(st)
+TypeRender(TypeDynamic(p)) = "$" ++ StringOfPath(p)
+TypeRender(TypeModalState(p, S)) = StringOfPath(p) ++ "@" ++ S
+TypeRender(TypePath(p)) = StringOfPath(p)
 
 #### 1.6.7. Diagnostics without Source Spans
 
 **(NoSpan-External)**
-$$\frac{\text{Origin}(d)=\text{External}}{\Gamma \vdash d.\text{span} = \bot}$$
+Origin(d) = External
+──────────────────────
+Γ ⊢ d.span = ⊥
 
 ### 1.7. Host Primitives
 
-$$\text{FSPrim} = \{\text{FSOpenRead},\ \text{FSOpenWrite},\ \text{FSOpenAppend},\ \text{FSCreateWrite},\ \text{FSReadFile},\ \text{FSReadBytes},\ \text{FSWriteFile},\ \text{FSWriteStdout},\ \text{FSWriteStderr},\ \text{FSExists},\ \text{FSRemove},\ \text{FSOpenDir},\ \text{FSCreateDir},\ \text{FSEnsureDir},\ \text{FSKind},\ \text{FSRestrict}\}$$
-$$\text{FilePrim} = \{\text{FileReadAll},\ \text{FileReadAllBytes},\ \text{FileWrite},\ \text{FileFlush},\ \text{FileClose}\}$$
-$$\text{DirPrim} = \{\text{DirNext},\ \text{DirClose}\}$$
+FSPrim = {FSOpenRead, FSOpenWrite, FSOpenAppend, FSCreateWrite, FSReadFile, FSReadBytes, FSWriteFile, FSWriteStdout, FSWriteStderr, FSExists, FSRemove, FSOpenDir, FSCreateDir, FSEnsureDir, FSKind, FSRestrict}
+FilePrim = {FileReadAll, FileReadAllBytes, FileWrite, FileFlush, FileClose}
+DirPrim = {DirNext, DirClose}
 
-$$\text{HostPrim} = \{\text{ParseTOML},\ \text{ReadBytes},\ \text{WriteFile},\ \text{ResolveTool},\ \text{ResolveRuntimeLib},\ \text{Invoke},\ \text{AssembleIR},\ \text{InvokeLinker}\} \cup \text{FSPrim} \cup \text{FilePrim} \cup \text{DirPrim}$$
-$$\text{HostPrimDiag} = \{\text{ParseTOML},\ \text{ReadBytes},\ \text{WriteFile},\ \text{ResolveTool},\ \text{ResolveRuntimeLib},\ \text{Invoke},\ \text{AssembleIR},\ \text{InvokeLinker}\}$$
-$$\text{HostPrimRuntime} = \text{FSPrim} \cup \text{FilePrim} \cup \text{DirPrim}$$
-$$\text{MapsToDiagOrRuntime}(p) \iff p \in \text{HostPrimDiag} \cup \text{HostPrimRuntime}$$
-$$\text{HostPrimFail}(p) \iff p \in \text{HostPrim} \land \exists args.\ \Gamma \vdash p(args) \Uparrow$$
+HostPrim = {ParseTOML, ReadBytes, WriteFile, ResolveTool, ResolveRuntimeLib, Invoke, AssembleIR, InvokeLinker} ∪ FSPrim ∪ FilePrim ∪ DirPrim
+HostPrimDiag = {ParseTOML, ReadBytes, WriteFile, ResolveTool, ResolveRuntimeLib, Invoke, AssembleIR, InvokeLinker}
+HostPrimRuntime = FSPrim ∪ FilePrim ∪ DirPrim
+MapsToDiagOrRuntime(p) ⇔ p ∈ HostPrimDiag ∪ HostPrimRuntime
+HostPrimFail(p) ⇔ p ∈ HostPrim ∧ ∃ args. Γ ⊢ p(args) ⇑
 
-$$\text{HostPrimFail}(p) \land \neg \text{MapsToDiagOrRuntime}(p) \Rightarrow \text{IllFormed}(p)$$
+HostPrimFail(p) ∧ ¬ MapsToDiagOrRuntime(p) ⇒ IllFormed(p)
 
 ## 2. Phase 0: Build/Project Model
 
 **Assembly Kind.**
-$$\text{AssemblyKind} = \{\texttt{executable},\ \texttt{library}\}$$
+AssemblyKind = {`executable`, `library`}
 
 **Assembly Record.**
-$$\text{Assembly} = \langle \text{name},\ \text{kind},\ \text{root},\ \text{out\_dir},\ \text{emit\_ir},\ \text{source\_root},\ \text{outputs},\ \text{modules} \rangle$$
+Assembly = ⟨name, kind, root, out_dir, emit_ir, source_root, outputs, modules⟩
 
 **Project Record.**
-$$\text{Project} = \langle \text{root},\ \text{assemblies},\ \text{assembly},\ \text{source\_root},\ \text{outputs},\ \text{modules} \rangle$$
-$$\text{Assemblies}(P) = P.\text{assemblies}$$
-$$\text{Assembly}(P) = P.\text{assembly}$$
-$$\text{AsmNames}(P) = [A.\text{name} \mid A \in \text{Assemblies}(P)]$$
-$$\text{AsmByName}(P,n) = A \iff A \in \text{Assemblies}(P) \land A.\text{name}=n \land (\forall B \in \text{Assemblies}(P).\ B.\text{name}=n \Rightarrow B=A)$$
+Project = ⟨root, assemblies, assembly, source_root, outputs, modules⟩
+Assemblies(P) = P.assemblies
+Assembly(P) = P.assembly
+AsmNames(P) = [A.name | A ∈ Assemblies(P)]
+AsmByName(P, n) = A ⇔ A ∈ Assemblies(P) ∧ A.name = n ∧ (∀ B ∈ Assemblies(P). B.name = n ⇒ B = A)
 
 **Build/Project Validation Scope.**
-$$\text{Phase0Checks} = \text{RulesIn}(\{\texttt{"2"}\})$$
-$$\text{SourceChecks} = \text{RulesIn}(\{\texttt{"3"},\ \texttt{"4"},\ \texttt{"5"},\ \texttt{"6"}\})$$
-$$\text{Phase0Checks} \cap \text{SourceChecks} = \emptyset$$
+Phase0Checks = RulesIn({"2"})
+SourceChecks = RulesIn({"3", "4", "5", "6"})
+Phase0Checks ∩ SourceChecks = ∅
 
 **Command-Line Output.**
-$$\text{DumpProject}(P,\text{dump}) = \begin{cases}
-\text{ProjectSummary}(P) \mathbin{+\!\!+} \text{OutputSummary}(P) & \text{if } \text{dump} = \text{false} \\
-\text{ProjectSummary}(P) \mathbin{+\!\!+} \text{OutputSummary}(P) \mathbin{+\!\!+} [\texttt{"file:"} \mathbin{+\!\!+} f \mid d \in \text{Modules}(P.\text{source\_root}),\ f \in \text{CompilationUnit}(d)] & \text{if } \text{dump} = \text{true}
-\end{cases}$$
+DumpProject(P, dump) =
+ ProjectSummary(P) ++ OutputSummary(P)  if dump = false
+ ProjectSummary(P) ++ OutputSummary(P) ++ ["file:" ++ f | d ∈ Modules(P.source_root), f ∈ CompilationUnit(d)]  if dump = true
 
-$$\text{ProjectSummary}(P) = [\langle \texttt{project\_root}, P.\text{root} \rangle,\ \langle \texttt{assemblies}, \text{AsmNames}(P) \rangle,\ \langle \texttt{assembly\_name}, P.\text{assembly.name} \rangle,\ \langle \texttt{source\_root}, P.\text{source\_root} \rangle,\ \langle \texttt{output\_root}, \text{OutputRoot}(P) \rangle,\ \langle \texttt{module\_list}, \text{ModuleList}(P) \rangle]$$
+ProjectSummary(P) = [⟨`project_root`, P.root⟩, ⟨`assemblies`, AsmNames(P)⟩, ⟨`assembly_name`, P.assembly.name⟩, ⟨`source_root`, P.source_root⟩, ⟨`output_root`, OutputRoot(P)⟩, ⟨`module_list`, ModuleList(P)⟩]
 
-$$\text{OutputSummary}(P) = [\langle \texttt{module}, m,\ \texttt{obj}, \text{ObjPath}(P,m),\ \texttt{ir}, \text{IROpt}(P,m)\rangle \mid m \in \text{ModuleList}(P)]$$
+OutputSummary(P) = [⟨`module`, m, `obj`, ObjPath(P, m), `ir`, IROpt(P, m)⟩ | m ∈ ModuleList(P)]
 
-$$\text{IROpt}(P,m) = \begin{cases}
-\text{IRPath}(P,m,P.\text{assembly.emit\_ir}) & \text{if } P.\text{assembly.emit\_ir} \ne \texttt{none} \\
-\bot & \text{if } P.\text{assembly.emit\_ir} = \texttt{none}
-\end{cases}$$
+IROpt(P, m) =
+ IRPath(P, m, P.assembly.emit_ir)  if P.assembly.emit_ir ≠ `none`
+ ⊥                                if P.assembly.emit_ir = `none`
 
 ### 2.1. Project Root and Manifest
 
 **Manifest Parsing (Big-Step)**
 
-$$\text{ParseTOML} : \text{Path} \rightharpoonup \text{TOMLTable}$$
+ParseTOML : Path ⇀ TOMLTable
 
 **(Parse-Manifest-Ok)**
-$$\frac{\text{ParseTOML}(R/\texttt{Cursive.toml}) \Downarrow T}{\Gamma \vdash \text{ParseManifest}(R) \Downarrow T}$$
+ParseTOML(R/`Cursive.toml`) ⇓ T
+────────────────────────────────
+Γ ⊢ ParseManifest(R) ⇓ T
 
 **(Parse-Manifest-Missing)**
-$$\frac{\neg \text{exists}(R/\texttt{Cursive.toml}) \quad c = \text{Code}(\text{Parse-Manifest-Missing})}{\Gamma \vdash \text{ParseManifest}(R) \Uparrow c}$$
+¬ exists(R/`Cursive.toml`)    c = Code(Parse-Manifest-Missing)
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseManifest(R) ⇑ c
 
 **(Parse-Manifest-Err)**
-$$\frac{\text{ParseTOML}(R/\texttt{Cursive.toml}) \Uparrow \quad c = \text{Code}(\text{Parse-Manifest-Err})}{\Gamma \vdash \text{ParseManifest}(R) \Uparrow c}$$
+ParseTOML(R/`Cursive.toml`) ⇑    c = Code(Parse-Manifest-Err)
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseManifest(R) ⇑ c
 
 **Manifest Required (No Single-File Fallback).**
-If $\Gamma \vdash \text{ParseManifest}(R) \Uparrow c$, then $\Gamma \vdash \text{LoadProject}(R,\text{target}) \Uparrow c$ and the implementation MUST NOT attempt any single-file or heuristic fallback project construction.
+If Γ ⊢ ParseManifest(R) ⇑ c, then Γ ⊢ LoadProject(R, target) ⇑ c and the implementation MUST NOT attempt any single-file or heuristic fallback project construction.
 
 **Manifest Path Resolution.**
-Manifest lookup MUST use host filesystem path resolution semantics for $R/\texttt{Cursive.toml}$ and MUST NOT perform additional case verification.
+Manifest lookup MUST use host filesystem path resolution semantics for R/`Cursive.toml` and MUST NOT perform additional case verification.
 
 **Manifest Schema (Cursive0)**
 
-$$n = t.\text{name}$$
-$$k = t.\text{kind}$$
-$$r = t.\text{root}$$
-$$o = t.\text{out\_dir}$$
-$$e = t.\text{emit\_ir}$$
+n = t.name
+k = t.kind
+r = t.root
+o = t.out_dir
+e = t.emit_ir
 
 **(WF-Assembly-Name)**
-$$\frac{\Gamma \vdash n : \text{Identifier} \quad \Gamma \vdash n : \text{NotKeyword}}{\Gamma \vdash n : \text{Name}}$$
+Γ ⊢ n : Identifier    Γ ⊢ n : NotKeyword
+────────────────────────────────────────
+Γ ⊢ n : Name
 
 **(WF-Assembly-Name-Err)**
-$$\frac{\neg(\Gamma \vdash n : \text{Identifier} \land \Gamma \vdash n : \text{NotKeyword}) \quad c = \text{Code}(\text{WF-Assembly-Name-Err})}{\Gamma \vdash n : \text{Name} \Uparrow c}$$
+¬(Γ ⊢ n : Identifier ∧ Γ ⊢ n : NotKeyword)    c = Code(WF-Assembly-Name-Err)
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ n : Name ⇑ c
 
 **(WF-Assembly-Kind)**
-$$\frac{k \in \text{AssemblyKind}}{\Gamma \vdash k : \text{Kind}}$$
+k ∈ AssemblyKind
+──────────────────
+Γ ⊢ k : Kind
 
 **(WF-Assembly-Kind-Err)**
-$$\frac{k \notin \text{AssemblyKind} \quad c = \text{Code}(\text{WF-Assembly-Kind-Err})}{\Gamma \vdash k : \text{Kind} \Uparrow c}$$
+k ∉ AssemblyKind    c = Code(WF-Assembly-Kind-Err)
+──────────────────────────────────────────────────
+Γ ⊢ k : Kind ⇑ c
 
 **(WF-Assembly-Root-Path)**
-$$\frac{\Gamma \vdash r : \text{RelPath}}{\Gamma \vdash r : \text{RootPath}}$$
+Γ ⊢ r : RelPath
+────────────────
+Γ ⊢ r : RootPath
 
 **(WF-Assembly-Root-Path-Err)**
-$$\frac{\neg(\Gamma \vdash r : \text{RelPath}) \quad c = \text{Code}(\text{WF-Assembly-Root-Path-Err})}{\Gamma \vdash r : \text{RootPath} \Uparrow c}$$
+¬(Γ ⊢ r : RelPath)    c = Code(WF-Assembly-Root-Path-Err)
+────────────────────────────────────────────────────────
+Γ ⊢ r : RootPath ⇑ c
 
 **(WF-Assembly-OutDir-Path)**
-$$\frac{o = \bot \ \lor\ \Gamma \vdash o : \text{RelPath}}{\Gamma \vdash o : \text{OutDirPath}}$$
+o = ⊥ ∨ Γ ⊢ o : RelPath
+────────────────────────
+Γ ⊢ o : OutDirPath
 
 **(WF-Assembly-OutDir-Path-Err)**
-$$\frac{o \ne \bot \quad \neg(\Gamma \vdash o : \text{RelPath}) \quad c = \text{Code}(\text{WF-Assembly-OutDir-Path-Err})}{\Gamma \vdash o : \text{OutDirPath} \Uparrow c}$$
+o ≠ ⊥    ¬(Γ ⊢ o : RelPath)    c = Code(WF-Assembly-OutDir-Path-Err)
+────────────────────────────────────────────────────────────────────
+Γ ⊢ o : OutDirPath ⇑ c
 
 **(WF-Assembly-EmitIR)**
-$$\frac{e \in \{\bot,\ \texttt{none},\ \texttt{ll},\ \texttt{bc}\}}{\Gamma \vdash e : \text{EmitIR}}$$
+e ∈ {⊥, `none`, `ll`, `bc`}
+───────────────────────────
+Γ ⊢ e : EmitIR
 
 **(WF-Assembly-EmitIR-Err)**
-$$\frac{e \notin \{\bot,\ \texttt{none},\ \texttt{ll},\ \texttt{bc}\} \quad c = \text{Code}(\text{WF-Assembly-EmitIR-Err})}{\Gamma \vdash e : \text{EmitIR} \Uparrow c}$$
+e ∉ {⊥, `none`, `ll`, `bc`}    c = Code(WF-Assembly-EmitIR-Err)
+─────────────────────────────────────────────────────────────────
+Γ ⊢ e : EmitIR ⇑ c
 
 **Manifest Validation (Big-Step)**
 
-$$\text{Keys}(T) = \text{Dom}(T)$$
-$$\text{AsmField}(T) = T[\texttt{assembly}]$$
-$$\text{AsmTables}(T) = \begin{cases}
-[\text{AsmField}(T)] & \text{if }\text{IsTable}(\text{AsmField}(T))\\
-\text{AsmField}(T) & \text{if }\text{IsArrayTable}(\text{AsmField}(T))\\
-\bot & \text{otherwise}
-\end{cases}$$
+Keys(T) = Dom(T)
+AsmField(T) = T[`assembly`]
+AsmTables(T) =
+ [AsmField(T)]  if IsTable(AsmField(T))
+ AsmField(T)    if IsArrayTable(AsmField(T))
+ ⊥              otherwise
 
 **(WF-TopKeys)**
-$$\frac{\text{Keys}(T) \subseteq \{\texttt{assembly}\}}{\Gamma \vdash T : \text{TopKeys}}$$
+Keys(T) ⊆ {`assembly`}
+────────────────────────
+Γ ⊢ T : TopKeys
 
 **(WF-TopKeys-Err)**
-$$\frac{\neg(\text{Keys}(T) \subseteq \{\texttt{assembly}\}) \quad c = \text{Code}(\text{WF-TopKeys-Err})}{\Gamma \vdash T : \text{TopKeys} \Uparrow c}$$
+¬(Keys(T) ⊆ {`assembly`})    c = Code(WF-TopKeys-Err)
+──────────────────────────────────────────────────────
+Γ ⊢ T : TopKeys ⇑ c
 
 **(WF-Assembly-Table)**
-$$\frac{\text{AsmTables}(T) \ne \bot}{\Gamma \vdash T : \text{AssemblyTable}}$$
+AsmTables(T) ≠ ⊥
+────────────────────────
+Γ ⊢ T : AssemblyTable
 
 **(WF-Assembly-Table-Err)**
-$$\frac{\text{AsmTables}(T) = \bot \quad c = \text{Code}(\text{WF-Assembly-Table-Err})}{\Gamma \vdash T : \text{AssemblyTable} \Uparrow c}$$
+AsmTables(T) = ⊥    c = Code(WF-Assembly-Table-Err)
+────────────────────────────────────────────────────
+Γ ⊢ T : AssemblyTable ⇑ c
 
 **(WF-Assembly-Count)**
-$$\frac{\text{AsmTables}(T) = Ts \quad |Ts| \ge 1}{\Gamma \vdash T : \text{AssemblyCount}}$$
+AsmTables(T) = Ts    |Ts| ≥ 1
+────────────────────────────────
+Γ ⊢ T : AssemblyCount
 
 **(WF-Assembly-Count-Err)**
-$$\frac{\text{AsmTables}(T) = Ts \quad |Ts| = 0 \quad c = \text{Code}(\text{WF-Assembly-Count-Err})}{\Gamma \vdash T : \text{AssemblyCount} \Uparrow c}$$
+AsmTables(T) = Ts    |Ts| = 0    c = Code(WF-Assembly-Count-Err)
+───────────────────────────────────────────────────────────────
+Γ ⊢ T : AssemblyCount ⇑ c
 
 **(WF-Assembly-Name-Dup)**
-$$\frac{\text{AsmTables}(T) = Ts \quad \text{Distinct}([t.\text{name} \mid t \in Ts])}{\Gamma \vdash T : \text{AssemblyNames}}$$
+AsmTables(T) = Ts    Distinct([t.name | t ∈ Ts])
+────────────────────────────────────────────────
+Γ ⊢ T : AssemblyNames
 
 **(WF-Assembly-Name-Dup-Err)**
-$$\frac{\text{AsmTables}(T) = Ts \quad \neg \text{Distinct}([t.\text{name} \mid t \in Ts]) \quad c = \text{Code}(\text{WF-Assembly-Name-Dup})}{\Gamma \vdash T : \text{AssemblyNames} \Uparrow c}$$
+AsmTables(T) = Ts    ¬ Distinct([t.name | t ∈ Ts])    c = Code(WF-Assembly-Name-Dup)
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T : AssemblyNames ⇑ c
 
-$$\text{Req} = \{\texttt{name},\ \texttt{kind},\ \texttt{root}\}$$
-$$\text{Opt} = \{\texttt{out\_dir},\ \texttt{emit\_ir}\}$$
+Req = {`name`, `kind`, `root`}
+Opt = {`out_dir`, `emit_ir`}
 
 **(WF-Assembly-Keys)**
-$$\frac{\text{Keys}(t) \subseteq (\text{Req} \cup \text{Opt})}{\Gamma \vdash t : \text{KnownKeys}}$$
+Keys(t) ⊆ (Req ∪ Opt)
+──────────────────────
+Γ ⊢ t : KnownKeys
 
 **(WF-Assembly-Keys-Err)**
-$$\frac{\neg(\text{Keys}(t) \subseteq (\text{Req} \cup \text{Opt})) \quad c = \text{Code}(\text{WF-Assembly-Keys-Err})}{\Gamma \vdash t : \text{KnownKeys} \Uparrow c}$$
+¬(Keys(t) ⊆ (Req ∪ Opt))    c = Code(WF-Assembly-Keys-Err)
+───────────────────────────────────────────────────────────
+Γ ⊢ t : KnownKeys ⇑ c
 
 **(WF-Assembly-Required-Types)**
-$$\frac{\forall k \in \text{Req}.\ \text{IsString}(t[k])}{\Gamma \vdash t : \text{ReqTypes}}$$
+∀ k ∈ Req. IsString(t[k])
+──────────────────────────
+Γ ⊢ t : ReqTypes
 
 **(WF-Assembly-Required-Types-Err)**
-$$\frac{\exists k \in \text{Req}.\ t[k]=\bot \ \lor\ \neg \text{IsString}(t[k]) \quad c = \text{Code}(\text{WF-Assembly-Required-Types-Err})}{\Gamma \vdash t : \text{ReqTypes} \Uparrow c}$$
+∃ k ∈ Req. t[k] = ⊥ ∨ ¬ IsString(t[k])    c = Code(WF-Assembly-Required-Types-Err)
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ t : ReqTypes ⇑ c
 
 **(WF-Assembly-Optional-Types)**
-$$\frac{t[\texttt{out\_dir}] \in \{\text{string}, \bot\}}{\Gamma \vdash t : \text{OutDirType}}$$
+t[`out_dir`] ∈ {string, ⊥}
+──────────────────────────
+Γ ⊢ t : OutDirType
 
 **(WF-Assembly-OutDirType-Err)**
-$$\frac{t[\texttt{out\_dir}] \notin \{\text{string}, \bot\} \quad c = \text{Code}(\text{WF-Assembly-OutDirType-Err})}{\Gamma \vdash t : \text{OutDirType} \Uparrow c}$$
+t[`out_dir`] ∉ {string, ⊥}    c = Code(WF-Assembly-OutDirType-Err)
+──────────────────────────────────────────────────────────────────
+Γ ⊢ t : OutDirType ⇑ c
 
-$$\frac{t[\texttt{emit\_ir}] \in \{\text{string}, \bot\}}{\Gamma \vdash t : \text{EmitIRType}}$$
+t[`emit_ir`] ∈ {string, ⊥}
+──────────────────────────
+Γ ⊢ t : EmitIRType
 
 **(WF-Assembly-EmitIRType-Err)**
-$$\frac{t[\texttt{emit\_ir}] \notin \{\text{string}, \bot\} \quad c = \text{Code}(\text{WF-Assembly-EmitIRType-Err})}{\Gamma \vdash t : \text{EmitIRType} \Uparrow c}$$
+t[`emit_ir`] ∉ {string, ⊥}    c = Code(WF-Assembly-EmitIRType-Err)
+──────────────────────────────────────────────────────────────────
+Γ ⊢ t : EmitIRType ⇑ c
 
 **Path Resolution**
-$$\text{WinSep} = \{\texttt{"\\"},\ \texttt{"/"}\}$$
-$$\text{AsciiLetter}(c) \iff (c \in \{\texttt{"A"},\ldots,\texttt{"Z"}\} \lor c \in \{\texttt{"a"},\ldots,\texttt{"z"}\})$$
-$$\text{DriveRooted}(p) \iff |p|\ge 3 \land \text{AsciiLetter}(\text{At}(p,0)) \land \text{At}(p,1)=\texttt{":"} \land \text{At}(p,2)\in \text{WinSep}$$
-$$\text{UNC}(p) \iff \text{StartsWith}(p,\texttt{"//"}) \lor \text{StartsWith}(p,\texttt{"\\\\"})$$
-$$\text{RootRelative}(p) \iff (\text{StartsWith}(p,\texttt{"/"}) \lor \text{StartsWith}(p,\texttt{"\\"})) \land \neg \text{UNC}(p) \land \neg \text{DriveRooted}(p)$$
-$$\text{RootTag}(p) =
-\begin{cases}
-p[0..2) & \text{if }\text{DriveRooted}(p)\\
-\texttt{"//"} & \text{if }\text{UNC}(p)\\
-\texttt{"/"} & \text{if }\text{RootRelative}(p)\\
-\texttt{"\""} & \text{otherwise}
-\end{cases}$$
-$$\text{Tail}(p) =
-\begin{cases}
-p[3..|p|) & \text{if }\text{DriveRooted}(p)\\
-p[2..|p|) & \text{if }\text{UNC}(p)\\
-p[1..|p|) & \text{if }\text{RootRelative}(p)\\
-p & \text{otherwise}
-\end{cases}$$
-$$\text{Segs}(p) = [\ p[i..j)\ \mid\ 0 \le i < j \le |p| \land (\forall k\in[i,j).\ \text{At}(p,k)\notin\text{WinSep}) \land (i=0 \lor \text{At}(p,i-1)\in\text{WinSep}) \land (j=|p| \lor \text{At}(p,j)\in\text{WinSep})\ ]$$
-$$\text{PathComps}(p) = \begin{cases}
-\text{Segs}(p) & \text{RootTag}(p)=\texttt{"\""}\\
-[\text{RootTag}(p)] \mathbin{+\!\!+} \text{Segs}(\text{Tail}(p)) & \text{otherwise}
-\end{cases}$$
-$$\text{JoinComp}([]) = \texttt{"\""}$$
-$$\text{JoinComp}([c]) = c$$
-$$\text{JoinComp}(c::cs) = \begin{cases}
-c \mathbin{+\!\!+} \text{JoinComp}(cs) & c \in \{\texttt{"/"},\texttt{"//"}\}\\
-c \mathbin{+\!\!+} \texttt{"/"} \mathbin{+\!\!+} \text{JoinComp}(cs) & \text{DriveRooted}(c \mathbin{+\!\!+} \texttt{"/"})\\
-c \mathbin{+\!\!+} \texttt{"/"} \mathbin{+\!\!+} \text{JoinComp}(cs) & \text{otherwise}
-\end{cases}$$
-$$\text{Join}(a,b) = \begin{cases}
-b & \text{if }\text{AbsPath}(b)\\
-\text{JoinComp}(\text{PathComps}(a) \mathbin{+\!\!+} \text{PathComps}(b)) & \text{otherwise}
-\end{cases}$$
+WinSep = {"\\", "/"}
+AsciiLetter(c) ⇔ (c ∈ {"A", …, "Z"} ∨ c ∈ {"a", …, "z"})
+DriveRooted(p) ⇔ |p| ≥ 3 ∧ AsciiLetter(At(p, 0)) ∧ At(p, 1) = ":" ∧ At(p, 2) ∈ WinSep
+UNC(p) ⇔ StartsWith(p, "//") ∨ StartsWith(p, "\\\\")
+RootRelative(p) ⇔ (StartsWith(p, "/") ∨ StartsWith(p, "\\")) ∧ ¬ UNC(p) ∧ ¬ DriveRooted(p)
+RootTag(p) =
+ p[0..2)  if DriveRooted(p)
+ "//"     if UNC(p)
+ "/"      if RootRelative(p)
+ "\""     otherwise
+Tail(p) =
+ p[3..|p|)  if DriveRooted(p)
+ p[2..|p|)  if UNC(p)
+ p[1..|p|)  if RootRelative(p)
+ p         otherwise
+Segs(p) = [ p[i..j) | 0 ≤ i < j ≤ |p| ∧ (∀ k ∈ [i, j). At(p, k) ∉ WinSep) ∧ (i = 0 ∨ At(p, i-1) ∈ WinSep) ∧ (j = |p| ∨ At(p, j) ∈ WinSep) ]
+PathComps(p) =
+ Segs(p)  if RootTag(p) = "\""
+ [RootTag(p)] ++ Segs(Tail(p))  otherwise
+JoinComp([]) = "\""
+JoinComp([c]) = c
+JoinComp(c::cs) =
+ c ++ JoinComp(cs)          if c ∈ {"/", "//"}
+ c ++ "/" ++ JoinComp(cs)   if DriveRooted(c ++ "/")
+ c ++ "/" ++ JoinComp(cs)   otherwise
+Join(a, b) =
+ b  if AbsPath(b)
+ JoinComp(PathComps(a) ++ PathComps(b))  otherwise
 
-$$\text{AbsPath}(p) \iff \text{DriveRooted}(p) \lor \text{UNC}(p) \lor \text{RootRelative}(p)$$
-$$\text{is\_relative}(p) \iff \neg \text{AbsPath}(p)$$
-$$\text{Join} : \text{Path} \times \text{Path} \to \text{Path}$$
-$$\text{Normalize} : \text{Path} \to \text{Path}$$
-$$\text{Canon} : \text{Path} \rightharpoonup \text{Path}$$
-$$\text{prefix}(p,q) \iff \text{PathPrefix}(\text{PathComps}(q),\ \text{PathComps}(p))$$
-$$\text{Normalize}(p) = \text{JoinComp}([\ c \mid c \in \text{PathComps}(p) \land c \ne \texttt{"."}\ ])$$
-$$\text{Canon}(p) = \bot \iff \exists c \in \text{PathComps}(\text{Normalize}(p)).\ c=\texttt{".."}$$
-$$\text{Canon}(p) = \text{Normalize}(p) \iff \neg \exists c \in \text{PathComps}(\text{Normalize}(p)).\ c=\texttt{".."}$$
-$$\text{Drop}(0, xs) = xs \quad \text{Drop}(n, []) = [] \quad \text{Drop}(n, x::xs) = \text{Drop}(n-1, xs)\ (n>0)$$
-$$\text{relative}(p, base) = rel \iff \text{Canon}(p)=p' \land \text{Canon}(base)=b' \land \text{PathPrefix}(\text{PathComps}(b'), \text{PathComps}(p')) \land rel = \text{JoinComp}(\text{Drop}(|\text{PathComps}(b')|, \text{PathComps}(p')))$$
-$$\text{Basename}(p) = \begin{cases}
-\texttt{"\""} & |\text{PathComps}(p)|=0\\
-\text{last}(\text{PathComps}(p)) & \text{otherwise}
-\end{cases}$$
-$$\text{last}([x])=x \quad \text{last}(x::xs)=\text{last}(xs)\ (|xs|>0)$$
+AbsPath(p) ⇔ DriveRooted(p) ∨ UNC(p) ∨ RootRelative(p)
+is_relative(p) ⇔ ¬ AbsPath(p)
+Join : Path × Path → Path
+Normalize : Path → Path
+Canon : Path ⇀ Path
+prefix(p, q) ⇔ PathPrefix(PathComps(q), PathComps(p))
+Normalize(p) = JoinComp([ c | c ∈ PathComps(p) ∧ c ≠ "." ])
+Canon(p) = ⊥ ⇔ ∃ c ∈ PathComps(Normalize(p)). c = ".."
+Canon(p) = Normalize(p) ⇔ ¬ ∃ c ∈ PathComps(Normalize(p)). c = ".."
+Drop(0, xs) = xs    Drop(n, []) = []    Drop(n, x::xs) = Drop(n-1, xs) (n > 0)
+relative(p, base) = rel ⇔ Canon(p) = p' ∧ Canon(base) = b' ∧ PathPrefix(PathComps(b'), PathComps(p')) ∧ rel = JoinComp(Drop(|PathComps(b')|, PathComps(p')))
+Basename(p) =
+ "\""  if |PathComps(p)| = 0
+ last(PathComps(p))  otherwise
+last([x]) = x    last(x::xs) = last(xs) (|xs| > 0)
 
-$$b = \text{Basename}(p)$$
-$$D = \{ j \mid 0 \le j < |b| \land b[j] = \texttt{"."} \}$$
-$$\text{FileExt}(p) = \begin{cases}
-\texttt{"\""} & D = \emptyset\\
-\texttt{"\""} & D \ne \emptyset \land \max(D) = 0\\
-b[\max(D)..|b|) & D \ne \emptyset \land \max(D) > 0
-\end{cases}$$
+b = Basename(p)
+D = { j | 0 ≤ j < |b| ∧ b[j] = "." }
+FileExt(p) =
+ "\""  if D = ∅
+ "\""  if D ≠ ∅ ∧ max(D) = 0
+ b[max(D)..|b|)  if D ≠ ∅ ∧ max(D) > 0
 
 **(Resolve-Canonical)**
-$$\frac{p' = \text{Normalize}(\text{Join}(R,p)) \quad \text{Canon}(R) = R' \quad \text{Canon}(p') = p''}{\Gamma \vdash \text{Resolve}(R,p) \Downarrow (R', p'')}$$
+p' = Normalize(Join(R, p))    Canon(R) = R'    Canon(p') = p''
+─────────────────────────────────────────────────────────────
+Γ ⊢ Resolve(R, p) ⇓ (R', p'')
 
 **(Resolve-Canonical-Err)**
-$$\frac{p' = \text{Normalize}(\text{Join}(R,p)) \quad (\text{Canon}(R)=\bot \ \lor\ \text{Canon}(p')=\bot) \quad c = \text{Code}(\text{Resolve-Canonical-Err})}{\Gamma \vdash \text{Resolve}(R,p) \Uparrow c}$$
+p' = Normalize(Join(R, p))    (Canon(R) = ⊥ ∨ Canon(p') = ⊥)    c = Code(Resolve-Canonical-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Resolve(R, p) ⇑ c
 
 **(WF-RelPath)**
-$$\frac{\text{is\_relative}(p) \quad \Gamma \vdash \text{Resolve}(R,p) \Downarrow (R',p'') \quad \text{prefix}(p'', R')}{\Gamma \vdash p : \text{RelPath}}$$
+is_relative(p)    Γ ⊢ Resolve(R, p) ⇓ (R', p'')    prefix(p'', R')
+──────────────────────────────────────────────────────────────────────
+Γ ⊢ p : RelPath
 
 **(WF-RelPath-Err)**
-$$\frac{\neg \text{is\_relative}(p) \ \lor\ (\Gamma \vdash \text{Resolve}(R,p) \Downarrow (R',p'') \land \neg \text{prefix}(p'', R')) \quad c = \text{Code}(\text{WF-RelPath-Err})}{\Gamma \vdash p : \text{RelPath} \Uparrow c}$$
+¬ is_relative(p) ∨ (Γ ⊢ Resolve(R, p) ⇓ (R', p'') ∧ ¬ prefix(p'', R'))    c = Code(WF-RelPath-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ p : RelPath ⇑ c
 
-$$\text{Project}(\Gamma) = P \iff \Gamma.\text{project} = P$$
+Project(Γ) = P ⇔ Γ.project = P
 
 **Project Load (Small-Step)**
 
-$$\text{AssemblyTarget} = \text{Name} \cup \{\bot\}$$
-$$\text{ProjLoadState} = \{\text{Start}(R,\text{target}),\ \text{Parsed}(R,\text{target},T),\ \text{Validated}(R,\text{target},T),\ \text{ProjAsmScan}(R,\text{target},T,Ts,As),\ \text{Discovered}(P),\ \text{Error}(code)\}$$
+AssemblyTarget = Name ∪ {⊥}
+ProjLoadState = {Start(R, target), Parsed(R, target, T), Validated(R, target, T), ProjAsmScan(R, target, T, Ts, As), Discovered(P), Error(code)}
 
 **(Step-Parse)**
-$$\frac{\Gamma \vdash \text{ParseManifest}(R) \Downarrow T}{\langle \text{Start}(R,\text{target}) \rangle \to \langle \text{Parsed}(R,\text{target},T) \rangle}$$
+Γ ⊢ ParseManifest(R) ⇓ T
+────────────────────────────────────────────────────────
+⟨Start(R, target)⟩ → ⟨Parsed(R, target, T)⟩
 
 **(Step-Parse-Err)**
-$$\frac{\Gamma \vdash \text{ParseManifest}(R) \Uparrow c}{\langle \text{Start}(R,\text{target}) \rangle \to \langle \text{Error}(c) \rangle}$$
+Γ ⊢ ParseManifest(R) ⇑ c
+──────────────────────────────────────────────
+⟨Start(R, target)⟩ → ⟨Error(c)⟩
 
 **(Step-Validate)**
-$$\frac{\Gamma \vdash \text{ValidateManifest}(T) \Downarrow \text{ok}}{\langle \text{Parsed}(R,\text{target},T) \rangle \to \langle \text{Validated}(R,\text{target},T) \rangle}$$
+Γ ⊢ ValidateManifest(T) ⇓ ok
+──────────────────────────────────────────────────────────
+⟨Parsed(R, target, T)⟩ → ⟨Validated(R, target, T)⟩
 
 **(Step-Validate-Err)**
-$$\frac{\Gamma \vdash \text{ValidateManifest}(T) \Uparrow c}{\langle \text{Parsed}(R,\text{target},T) \rangle \to \langle \text{Error}(c) \rangle}$$
+Γ ⊢ ValidateManifest(T) ⇑ c
+───────────────────────────────────────────────
+⟨Parsed(R, target, T)⟩ → ⟨Error(c)⟩
 
 **Manifest Validation (Deterministic).**
 
-$$\text{ChecksAsm}(t) = [\Gamma \vdash t : \text{KnownKeys},\ \Gamma \vdash t : \text{ReqTypes},\ \Gamma \vdash t : \text{OutDirType},\ \Gamma \vdash t : \text{EmitIRType},\ \Gamma \vdash t.\text{name} : \text{Name},\ \Gamma \vdash t.\text{kind} : \text{Kind},\ \Gamma \vdash t.\text{emit\_ir} : \text{EmitIR},\ \Gamma \vdash t.\text{root} : \text{RootPath},\ \Gamma \vdash t.\text{out\_dir} : \text{OutDirPath}]$$
-$$\text{BaseChecks}(T) = [\Gamma \vdash T : \text{TopKeys},\ \Gamma \vdash T : \text{AssemblyTable},\ \Gamma \vdash T : \text{AssemblyCount},\ \Gamma \vdash T : \text{AssemblyNames}]$$
-$$\text{AsmChecks}(T) = \begin{cases}
-[] & \text{if }\text{AsmTables}(T)=\bot\\
-\mathbin{+\!\!+}_{t \in \text{AsmTables}(T)} \text{ChecksAsm}(t) & \text{otherwise}
-\end{cases}$$
-$$\text{Checks}(T) = \text{BaseChecks}(T) \mathbin{+\!\!+} \text{AsmChecks}(T)$$
+ChecksAsm(t) = [Γ ⊢ t : KnownKeys, Γ ⊢ t : ReqTypes, Γ ⊢ t : OutDirType, Γ ⊢ t : EmitIRType, Γ ⊢ t.name : Name, Γ ⊢ t.kind : Kind, Γ ⊢ t.emit_ir : EmitIR, Γ ⊢ t.root : RootPath, Γ ⊢ t.out_dir : OutDirPath]
+BaseChecks(T) = [Γ ⊢ T : TopKeys, Γ ⊢ T : AssemblyTable, Γ ⊢ T : AssemblyCount, Γ ⊢ T : AssemblyNames]
+AsmChecks(T) =
+ []  if AsmTables(T) = ⊥
+ ++_{t ∈ AsmTables(T)} ChecksAsm(t)  otherwise
+Checks(T) = BaseChecks(T) ++ AsmChecks(T)
 
-$$\text{FirstFail}([]) = \bot$$
-$$\text{FirstFail}(J::Js) = c \iff \Gamma \vdash J \Uparrow c$$
-$$\text{FirstFail}(J::Js) = \text{FirstFail}(Js) \iff \Gamma \vdash J \Downarrow ok$$
+FirstFail([]) = ⊥
+FirstFail(J::Js) = c ⇔ Γ ⊢ J ⇑ c
+FirstFail(J::Js) = FirstFail(Js) ⇔ Γ ⊢ J ⇓ ok
 
 **(ValidateManifest-Ok)**
-$$\frac{\text{FirstFail}(\text{Checks}(T)) = \bot}{\Gamma \vdash \text{ValidateManifest}(T) \Downarrow \text{ok}}$$
+FirstFail(Checks(T)) = ⊥
+────────────────────────────────────
+Γ ⊢ ValidateManifest(T) ⇓ ok
 
 **(ValidateManifest-Err)**
-$$\frac{\text{FirstFail}(\text{Checks}(T)) = c}{\Gamma \vdash \text{ValidateManifest}(T) \Uparrow c}$$
+FirstFail(Checks(T)) = c
+───────────────────────────────────
+Γ ⊢ ValidateManifest(T) ⇑ c
 
 **(Step-Asm-Init)**
-$$\frac{Ts = \text{AsmTables}(T)}{\langle \text{Validated}(R,\text{target},T) \rangle \to \langle \text{ProjAsmScan}(R,\text{target},T,Ts,[]) \rangle}$$
+Ts = AsmTables(T)
+──────────────────────────────────────────────────────────
+⟨Validated(R, target, T)⟩ → ⟨ProjAsmScan(R, target, T, Ts, [])⟩
 
 **(Step-Asm-Cons)**
-$$\frac{\Gamma \vdash \text{BuildAssembly}(R,t_0) \Downarrow A}{\langle \text{ProjAsmScan}(R,\text{target},T,t_0::ts,As) \rangle \to \langle \text{ProjAsmScan}(R,\text{target},T,ts,As \mathbin{+\!\!+} [A]) \rangle}$$
+Γ ⊢ BuildAssembly(R, t_0) ⇓ A
+────────────────────────────────────────────────────────────────────────────────────────────
+⟨ProjAsmScan(R, target, T, t_0::ts, As)⟩ → ⟨ProjAsmScan(R, target, T, ts, As ++ [A])⟩
 
 **(Step-Asm-Err)**
-$$\frac{\Gamma \vdash \text{BuildAssembly}(R,t_0) \Uparrow c}{\langle \text{ProjAsmScan}(R,\text{target},T,t_0::ts,As) \rangle \to \langle \text{Error}(c) \rangle}$$
+Γ ⊢ BuildAssembly(R, t_0) ⇑ c
+──────────────────────────────────────────────────────────────
+⟨ProjAsmScan(R, target, T, t_0::ts, As)⟩ → ⟨Error(c)⟩
 
 **(Step-Asm-Done)**
-$$\frac{\Gamma \vdash \text{SelectAssembly}(As, \text{target}) \Downarrow A_0 \quad P = \langle \text{root}=R,\ \text{assemblies}=As,\ \text{assembly}=A_0,\ \text{source\_root}=A_0.\text{source\_root},\ \text{outputs}=A_0.\text{outputs},\ \text{modules}=A_0.\text{modules} \rangle}{\langle \text{ProjAsmScan}(R,\text{target},T,[],As) \rangle \to \langle \text{Discovered}(P) \rangle}$$
+Γ ⊢ SelectAssembly(As, target) ⇓ A_0    P = ⟨root = R, assemblies = As, assembly = A_0, source_root = A_0.source_root, outputs = A_0.outputs, modules = A_0.modules⟩
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨ProjAsmScan(R, target, T, [], As)⟩ → ⟨Discovered(P)⟩
 
 **(Step-Asm-Done-Err)**
-$$\frac{\Gamma \vdash \text{SelectAssembly}(As, \text{target}) \Uparrow c}{\langle \text{ProjAsmScan}(R,\text{target},T,[],As) \rangle \to \langle \text{Error}(c) \rangle}$$
+Γ ⊢ SelectAssembly(As, target) ⇑ c
+───────────────────────────────────────────────
+⟨ProjAsmScan(R, target, T, [], As)⟩ → ⟨Error(c)⟩
 
 **Assembly Selection**
 
 **(Select-Only)**
-$$\frac{|As|=1 \quad \text{target}=\bot \quad As=[A_0]}{\Gamma \vdash \text{SelectAssembly}(As, \text{target}) \Downarrow A_0}$$
+|As| = 1    target = ⊥    As = [A_0]
+──────────────────────────────────────────────
+Γ ⊢ SelectAssembly(As, target) ⇓ A_0
 
 **(Select-By-Name)**
-$$\frac{\text{target} \ne \bot \quad A \in As \quad A.\text{name}=\text{target}}{\Gamma \vdash \text{SelectAssembly}(As, \text{target}) \Downarrow A}$$
+target ≠ ⊥    A ∈ As    A.name = target
+──────────────────────────────────────────────
+Γ ⊢ SelectAssembly(As, target) ⇓ A
 
 **(Select-Err)**
-$$\frac{(\text{target}=\bot \land |As| \ne 1) \ \lor\ (\text{target} \ne \bot \land \neg \exists A \in As.\ A.\text{name}=\text{target}) \quad c = \text{Code}(\text{Assembly-Select-Err})}{\Gamma \vdash \text{SelectAssembly}(As, \text{target}) \Uparrow c}$$
+(target = ⊥ ∧ |As| ≠ 1) ∨ (target ≠ ⊥ ∧ ¬ ∃ A ∈ As. A.name = target)    c = Code(Assembly-Select-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ SelectAssembly(As, target) ⇑ c
 
 **Assembly Build (Big-Step)**
 
 **(BuildAssembly-Ok)**
-$$\frac{\Gamma \vdash \text{Resolve}(R,t.\texttt{root}) \Downarrow (R',S) \quad \Gamma \vdash S : \text{SourceRoot} \quad \Gamma \vdash \text{Modules}(S, t.\text{name}) \Downarrow M \quad L = \text{sort}_{\prec_{mod}}(M) \quad A = \langle \text{name}=t.\text{name},\ \text{kind}=t.\text{kind},\ \text{root}=t.\text{root},\ \text{out\_dir}=t.\text{out\_dir},\ \text{emit\_ir}=t.\text{emit\_ir},\ \text{source\_root}=S,\ \text{outputs}=\text{OutputPaths}(R,t),\ \text{modules}=L \rangle}{\Gamma \vdash \text{BuildAssembly}(R,t) \Downarrow A}$$
+Γ ⊢ Resolve(R, t.root) ⇓ (R', S)    Γ ⊢ S : SourceRoot    Γ ⊢ Modules(S, t.name) ⇓ M    L = sort_{≺_mod}(M)    A = ⟨name = t.name, kind = t.kind, root = t.root, out_dir = t.out_dir, emit_ir = t.emit_ir, source_root = S, outputs = OutputPaths(R, t), modules = L⟩
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ BuildAssembly(R, t) ⇓ A
 
 **(BuildAssembly-Err-Resolve)**
-$$\frac{\Gamma \vdash \text{Resolve}(R,t.\texttt{root}) \Uparrow c}{\Gamma \vdash \text{BuildAssembly}(R,t) \Uparrow c}$$
+Γ ⊢ Resolve(R, t.root) ⇑ c
+─────────────────────────────────
+Γ ⊢ BuildAssembly(R, t) ⇑ c
 
 **(BuildAssembly-Err-Root)**
-$$\frac{\Gamma \vdash \text{Resolve}(R,t.\texttt{root}) \Downarrow (R',S) \quad \Gamma \vdash S : \text{SourceRoot} \Uparrow c}{\Gamma \vdash \text{BuildAssembly}(R,t) \Uparrow c}$$
+Γ ⊢ Resolve(R, t.root) ⇓ (R', S)    Γ ⊢ S : SourceRoot ⇑ c
+─────────────────────────────────────────────────────────────
+Γ ⊢ BuildAssembly(R, t) ⇑ c
 
 **(BuildAssembly-Err-Modules)**
-$$\frac{\Gamma \vdash \text{Resolve}(R,t.\texttt{root}) \Downarrow (R',S) \quad \Gamma \vdash S : \text{SourceRoot} \quad \Gamma \vdash \text{Modules}(S, t.\text{name}) \Uparrow c}{\Gamma \vdash \text{BuildAssembly}(R,t) \Uparrow c}$$
+Γ ⊢ Resolve(R, t.root) ⇓ (R', S)    Γ ⊢ S : SourceRoot    Γ ⊢ Modules(S, t.name) ⇑ c
+────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ BuildAssembly(R, t) ⇑ c
 
 **Project Load (Big-Step)**
 
 **(LoadProject-Ok)**
-$$\frac{\Gamma \vdash \text{ParseManifest}(R) \Downarrow T \quad \Gamma \vdash \text{ValidateManifest}(T) \Downarrow ok \quad \text{AsmTables}(T) = [t_1,\ldots,t_n] \quad \forall i,\ \Gamma \vdash \text{BuildAssembly}(R,t_i) \Downarrow A_i \quad As = [A_1,\ldots,A_n] \quad \Gamma \vdash \text{SelectAssembly}(As, \text{target}) \Downarrow A_0 \quad P = \langle \text{root}=R,\ \text{assemblies}=As,\ \text{assembly}=A_0,\ \text{source\_root}=A_0.\text{source\_root},\ \text{outputs}=A_0.\text{outputs},\ \text{modules}=A_0.\text{modules} \rangle}{\Gamma \vdash \text{LoadProject}(R, \text{target}) \Downarrow P}$$
+Γ ⊢ ParseManifest(R) ⇓ T    Γ ⊢ ValidateManifest(T) ⇓ ok    AsmTables(T) = [t_1, …, t_n]    ∀ i, Γ ⊢ BuildAssembly(R, t_i) ⇓ A_i    As = [A_1, …, A_n]    Γ ⊢ SelectAssembly(As, target) ⇓ A_0    P = ⟨root = R, assemblies = As, assembly = A_0, source_root = A_0.source_root, outputs = A_0.outputs, modules = A_0.modules⟩
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LoadProject(R, target) ⇓ P
 
 **(LoadProject-Err)**
-$$\frac{\Gamma \vdash \text{LoadProject}(R, \text{target}) \to^* \langle \text{Error}(c) \rangle}{\Gamma \vdash \text{LoadProject}(R, \text{target}) \Uparrow c}$$
+Γ ⊢ LoadProject(R, target) →* ⟨Error(c)⟩
+────────────────────────────────────────────
+Γ ⊢ LoadProject(R, target) ⇑ c
 
 **Well-Formed Project Root**
 
 **(WF-Project-Root)**
-$$\frac{\text{exists}(\texttt{Cursive.toml} \text{ at } R)}{\vdash R : \text{ProjectRoot}}$$
+exists(`Cursive.toml` at R)
+───────────────────────────
+⊢ R : ProjectRoot
 
 ### 2.2. Assemblies
 
-$$\frac{A_0.\text{kind} \in \text{AssemblyKind}}{\Gamma \vdash A_0 : \text{Assembly}}$$
+A_0.kind ∈ AssemblyKind
+────────────────────────
+Γ ⊢ A_0 : Assembly
 
 
 ### 2.3. Deterministic Ordering and Case Folding
 
 #### 2.3.1. Module File Processing Order
-$$\text{FoldPath}(r) = \text{JoinComp}([\text{CaseFold}(\text{NFC}(c)) \mid c \in \text{PathComps}(r)])$$
+FoldPath(r) = JoinComp([CaseFold(NFC(c)) | c ∈ PathComps(r)])
 
-$$\text{FileKey}(f,d) = \begin{cases}
-\langle \text{FoldPath}(rel),\ rel \rangle & \text{if } \text{relative}(f,d) \Downarrow rel \\
-\langle \bot,\ \text{Basename}(f) \rangle & \text{if } \text{relative}(f,d) \Uparrow
-\end{cases}$$
+FileKey(f, d) =
+ ⟨FoldPath(rel), rel⟩  if relative(f, d) ⇓ rel
+ ⟨⊥, Basename(f)⟩      if relative(f, d) ⇑
 
-$$f_1 \prec_{\text{file}} f_2 \iff \text{Utf8LexLess}(\text{FileKey}(f_1,d),\ \text{FileKey}(f_2,d))$$
+f_1 ≺_file f_2 ⇔ Utf8LexLess(FileKey(f_1, d), FileKey(f_2, d))
 
 **(FileOrder-Rel-Fail)**
-$$\frac{\text{relative}(f,d) \Uparrow \quad c = \text{Code}(\text{FileOrder-Rel-Fail})}{\Gamma \vdash \text{Emit}(c)}$$
+relative(f, d) ⇑    c = Code(FileOrder-Rel-Fail)
+────────────────────────────────────────────────
+Γ ⊢ Emit(c)
 
 #### 2.3.2. Module Path Case-Folding Algorithm
 
 **Fold.**
-$$\text{Fold}(p) = [\text{CaseFold}(\text{NFC}(c)) \mid c \in p]$$
+Fold(p) = [CaseFold(NFC(c)) | c ∈ p]
 
 #### 2.3.3. Directory Enumeration Order
 
-$$\text{DirKey}(d,S) = \begin{cases}
-\langle \text{FoldPath}(rel),\ rel \rangle & \text{if } \text{relative}(d,S) \Downarrow rel \\
-\langle \bot,\ \text{Basename}(d) \rangle & \text{if } \text{relative}(d,S) \Uparrow
-\end{cases}$$
+DirKey(d, S) =
+ ⟨FoldPath(rel), rel⟩  if relative(d, S) ⇓ rel
+ ⟨⊥, Basename(d)⟩      if relative(d, S) ⇑
 
-$$d_1 \prec_{\text{dir}} d_2 \iff \text{Utf8LexLess}(\text{DirKey}(d_1,S),\ \text{DirKey}(d_2,S))$$
+d_1 ≺_dir d_2 ⇔ Utf8LexLess(DirKey(d_1, S), DirKey(d_2, S))
 
-$$\text{DirSeq}(S) = \text{sort}_{\prec_{\text{dir}}}(\text{Dirs}(S))$$
+DirSeq(S) = sort_{≺_dir}(Dirs(S))
 
 **(DirSeq-Read-Err)**
-$$\frac{\text{Dirs}(S) \Uparrow \quad c = \text{Code}(\text{DirSeq-Read-Err})}{\Gamma \vdash \text{Emit}(c)}$$
+Dirs(S) ⇑    c = Code(DirSeq-Read-Err)
+──────────────────────────────────────
+Γ ⊢ Emit(c)
 
 **(DirSeq-Rel-Fail)**
-$$\frac{\text{relative}(d,S) \Uparrow \quad c = \text{Code}(\text{DirSeq-Rel-Fail})}{\Gamma \vdash \text{Emit}(c)}$$
+relative(d, S) ⇑    c = Code(DirSeq-Rel-Fail)
+──────────────────────────────────────────────
+Γ ⊢ Emit(c)
 
 ### 2.4. Module Discovery
 
 **Dirs.**
-$$\text{Dirs}(S) = \{ d \mid \text{is\_dir}(d) \land \text{relative}(d,S) \Downarrow r \}$$
-$$S \in \text{Dirs}(S)$$
+Dirs(S) = { d | is_dir(d) ∧ relative(d, S) ⇓ r }
+S ∈ Dirs(S)
 
 **(WF-Source-Root)**
-$$\frac{\text{is\_dir}(S)}{\Gamma \vdash S : \text{SourceRoot}}$$
+is_dir(S)
+──────────────
+Γ ⊢ S : SourceRoot
 
 **(WF-Source-Root-Err)**
-$$\frac{\neg \text{is\_dir}(S) \quad c = \text{Code}(\text{WF-Source-Root-Err})}{\Gamma \vdash S : \text{SourceRoot} \Uparrow c}$$
+¬ is_dir(S)    c = Code(WF-Source-Root-Err)
+───────────────────────────────────────────
+Γ ⊢ S : SourceRoot ⇑ c
 
 **(Module-Dir)**
-$$\frac{\exists f \in \text{Files}(d) : \text{FileExt}(f) = \texttt{.cursive}}{\Gamma \vdash d : \text{ModuleDir}}$$
+∃ f ∈ Files(d) : FileExt(f) = ".cursive"
+─────────────────────────────────────────
+Γ ⊢ d : ModuleDir
 
-$$\text{Modules}(S) = \{ d \in \text{Dirs}(S) \mid \Gamma \vdash d : \text{ModuleDir} \}$$
+Modules(S) = { d ∈ Dirs(S) | Γ ⊢ d : ModuleDir }
 
 **Module Discovery (Big-Step)**
 
 **(Modules-Ok)**
-$$\frac{\langle \text{DiscStart}(S, A) \rangle \to^* \langle \text{DiscDone}(M) \rangle}{\Gamma \vdash \text{Modules}(S, A) \Downarrow M}$$
+⟨DiscStart(S, A)⟩ →* ⟨DiscDone(M)⟩
+──────────────────────────────────
+Γ ⊢ Modules(S, A) ⇓ M
 
 **(Modules-Err)**
-$$\frac{\langle \text{DiscStart}(S, A) \rangle \to^* \langle \text{Error}(c) \rangle}{\Gamma \vdash \text{Modules}(S, A) \Uparrow c}$$
+⟨DiscStart(S, A)⟩ →* ⟨Error(c)⟩
+─────────────────────────────────
+Γ ⊢ Modules(S, A) ⇑ c
 
-$$\text{Files}(d) = \{ f \mid f \in d \land \text{FileExt}(f) = \texttt{.cursive} \}$$
+Files(d) = { f | f ∈ d ∧ FileExt(f) = ".cursive" }
 
-$$\text{CompilationUnit}(d) = \text{sort}_{\prec_{\text{file}}}(\text{Files}(d))$$
+CompilationUnit(d) = sort_{≺_file}(Files(d))
 
 **(CompilationUnit-Rel-Fail)**
-$$\frac{\exists f \in \text{Files}(d).\ \text{relative}(f,d) \Uparrow \quad c = \text{Code}(\text{FileOrder-Rel-Fail})}{\Gamma \vdash \text{CompilationUnit}(d) \Uparrow c}$$
+∃ f ∈ Files(d). relative(f, d) ⇑    c = Code(FileOrder-Rel-Fail)
+─────────────────────────────────────────────────────────────────
+Γ ⊢ CompilationUnit(d) ⇑ c
 
 
 **Module Path.**
 
 **(Module-Path-Root)**
-$$\frac{\text{relative}(d,S) = \epsilon}{\Gamma \vdash \text{ModulePath}(d,S,A) = A}$$
+relative(d, S) = ε
+────────────────────────────
+Γ ⊢ ModulePath(d, S, A) = A
 
 **(Module-Path-Rel)**
-$$\frac{\text{relative}(d,S) = c_1 / \cdots / c_n}{\Gamma \vdash \text{ModulePath}(d,S,A) = c_1 \mathbin{::} \cdots \mathbin{::} c_n}$$
+relative(d, S) = c_1 / … / c_n
+──────────────────────────────────────────────
+Γ ⊢ ModulePath(d, S, A) = c_1 :: … :: c_n
 
 **(Module-Path-Rel-Fail)**
-$$\frac{\text{relative}(d,S) \Uparrow}{\Gamma \vdash \text{ModulePath}(d,S,A) \Uparrow}$$
+relative(d, S) ⇑
+────────────────────────────────
+Γ ⊢ ModulePath(d, S, A) ⇑
 
-$$\text{WFModulePathJudg} = \{\text{WF-Module-Path}\}$$
+WFModulePathJudg = {WF-Module-Path}
 
 **(WF-Module-Path-Ok)**
-$$\frac{\forall comp \in p,\ (\Gamma \vdash comp : \text{Identifier}) \land \neg \text{Keyword}(comp)}{\Gamma \vdash \text{WF-Module-Path}(p) \Downarrow ok}$$
+∀ comp ∈ p, (Γ ⊢ comp : Identifier) ∧ ¬ Keyword(comp)
+────────────────────────────────────────────────────────
+Γ ⊢ WF-Module-Path(p) ⇓ ok
 
 **(WF-Module-Path-Reserved)**
-$$\frac{\exists comp \in p.\ \text{Keyword}(comp) \quad c = \text{Code}(\text{WF-Module-Path-Reserved})}{\Gamma \vdash \text{WF-Module-Path}(p) \Uparrow c}$$
+∃ comp ∈ p. Keyword(comp)    c = Code(WF-Module-Path-Reserved)
+────────────────────────────────────────────────────────────────
+Γ ⊢ WF-Module-Path(p) ⇑ c
 
 **(WF-Module-Path-Ident-Err)**
-$$\frac{\exists comp \in p.\ \neg(\Gamma \vdash comp : \text{Identifier}) \quad c = \text{Code}(\text{WF-Module-Path-Ident-Err})}{\Gamma \vdash \text{WF-Module-Path}(p) \Uparrow c}$$
+∃ comp ∈ p. ¬(Γ ⊢ comp : Identifier)    c = Code(WF-Module-Path-Ident-Err)
+──────────────────────────────────────────────────────────────────────────
+Γ ⊢ WF-Module-Path(p) ⇑ c
 
 **(WF-Module-Path-Collision)**
-$$\frac{p_1 \neq p_2 \quad \text{Fold}(p_1) = \text{Fold}(p_2)}{\Gamma \vdash \text{Emit}(\text{Code}(\text{WF-Module-Path-Collision})) \quad \Gamma \vdash \text{Emit}(W\text{-}MOD\text{-}1101,\ \bot)}$$
+p_1 ≠ p_2    Fold(p_1) = Fold(p_2)
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Emit(Code(WF-Module-Path-Collision))    Γ ⊢ Emit(W-MOD-1101, ⊥)
 
 **Module Discovery (Small-Step)**
-$$\text{DiscState} = \{\text{DiscStart}(S,A),\ \text{DiscScan}(S,A,Pending,M,Seen),\ \text{DiscDone}(M),\ \text{Error}(code)\}$$
+DiscState = {DiscStart(S, A), DiscScan(S, A, Pending, M, Seen), DiscDone(M), Error(code)}
 
 **(Disc-Start)**
-$$\frac{}{\langle \text{DiscStart}(S, A) \rangle \to \langle \text{DiscScan}(S, A, \text{DirSeq}(S), [], \emptyset) \rangle}$$
+────────────────────────────────────────────────────────────────────────────
+⟨DiscStart(S, A)⟩ → ⟨DiscScan(S, A, DirSeq(S), [], ∅)⟩
 
 **(Disc-Skip)**
-$$\frac{\Gamma \nvdash d : \text{ModuleDir}}{\langle \text{DiscScan}(S, A, d::ds, M, Seen) \rangle \to \langle \text{DiscScan}(S, A, ds, M, Seen) \rangle}$$
+Γ ⊬ d : ModuleDir
+────────────────────────────────────────────────────────────
+⟨DiscScan(S, A, d::ds, M, Seen)⟩ → ⟨DiscScan(S, A, ds, M, Seen)⟩
 
 **(Disc-Add)**
-$$\frac{\Gamma \vdash d : \text{ModuleDir} \quad \Gamma \vdash \text{ModulePath}(d,S,A) = p \quad \Gamma \vdash \text{WF-Module-Path}(p) \Downarrow ok \quad \text{Fold}(p) \notin \text{dom}(Seen)}{\langle \text{DiscScan}(S, A, d::ds, M, Seen) \rangle \to \langle \text{DiscScan}(S, A, ds, M \mathbin{+\!\!+} [p], Seen \cup \{\text{Fold}(p) \mapsto p\}) \rangle}$$
+Γ ⊢ d : ModuleDir    Γ ⊢ ModulePath(d, S, A) = p    Γ ⊢ WF-Module-Path(p) ⇓ ok    Fold(p) ∉ dom(Seen)
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨DiscScan(S, A, d::ds, M, Seen)⟩ → ⟨DiscScan(S, A, ds, M ++ [p], Seen ∪ {Fold(p) ↦ p})⟩
 
 **(Disc-Collision)**
-$$\frac{\Gamma \vdash d : \text{ModuleDir} \quad \Gamma \vdash \text{ModulePath}(d,S,A) = p \quad \Gamma \vdash \text{WF-Module-Path}(p) \Downarrow ok \quad \text{Fold}(p) \in \text{dom}(Seen) \quad Seen[\text{Fold}(p)] \neq p}{\langle \text{DiscScan}(S, A, d::ds, M, Seen) \rangle \to \langle \text{Error}(\text{Code}(\text{Disc-Collision})) \rangle}$$
+Γ ⊢ d : ModuleDir    Γ ⊢ ModulePath(d, S, A) = p    Γ ⊢ WF-Module-Path(p) ⇓ ok    Fold(p) ∈ dom(Seen)    Seen[Fold(p)] ≠ p
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨DiscScan(S, A, d::ds, M, Seen)⟩ → ⟨Error(Code(Disc-Collision))⟩
 
 **(Disc-Invalid-Component)**
-$$\frac{\Gamma \vdash d : \text{ModuleDir} \quad \Gamma \vdash \text{ModulePath}(d,S,A) = p \quad \Gamma \vdash \text{WF-Module-Path}(p) \Uparrow c}{\langle \text{DiscScan}(S, A, d::ds, M, Seen) \rangle \to \langle \text{Error}(c) \rangle}$$
+Γ ⊢ d : ModuleDir    Γ ⊢ ModulePath(d, S, A) = p    Γ ⊢ WF-Module-Path(p) ⇑ c
+────────────────────────────────────────────────────────────────────────────────────────────────
+⟨DiscScan(S, A, d::ds, M, Seen)⟩ → ⟨Error(c)⟩
 
 **(Disc-Rel-Fail)**
-$$\frac{\Gamma \vdash d : \text{ModuleDir} \quad \text{relative}(d,S) \Uparrow}{\langle \text{DiscScan}(S, A, d::ds, M, Seen) \rangle \to \langle \text{Error}(\text{Code}(\text{Disc-Rel-Fail})) \rangle}$$
+Γ ⊢ d : ModuleDir    relative(d, S) ⇑
+────────────────────────────────────────────────────────────────────────────
+⟨DiscScan(S, A, d::ds, M, Seen)⟩ → ⟨Error(Code(Disc-Rel-Fail))⟩
 
 **(Disc-Done)**
-$$\frac{}{\langle \text{DiscScan}(S, A, [], M, Seen) \rangle \to \langle \text{DiscDone}(M) \rangle}$$
+──────────────────────────────────────────────────────────────
+⟨DiscScan(S, A, [], M, Seen)⟩ → ⟨DiscDone(M)⟩
 
 **(WF-Import-Unsupported)**
-$$\frac{\text{import\_decl} \in M}{\Gamma \vdash \text{Emit}(\text{Code}(\text{WF-Import-Unsupported}))}$$
+import_decl ∈ M
+────────────────────────────────────────────────
+Γ ⊢ Emit(Code(WF-Import-Unsupported))
 
 ### 2.5. Output Artifacts and Linking
 
 **Output Root.**
 
-$$O = \text{OutputRoot}(P) = \begin{cases}
-P.\text{root}/P.\text{assembly.out\_dir} & \text{if provided} \\
-P.\text{root}/\texttt{build} & \text{otherwise}
-\end{cases}$$
+O = OutputRoot(P) =
+ P.root/P.assembly.out_dir  if provided
+ P.root/`build`             otherwise
 
 **Output Hygiene (Cursive0).**
-$$\text{OutputHygiene}(P) \iff \forall p \in \text{RequiredOutputs}(P).\ \text{Under}(p,\ \text{OutputRoot}(P))$$
+OutputHygiene(P) ⇔ ∀ p ∈ RequiredOutputs(P). Under(p, OutputRoot(P))
 
-$$\text{OutputPaths}(R,A).\text{root} = \begin{cases}
-R/A.\text{out\_dir} & \text{if provided} \\
-R/\texttt{build} & \text{otherwise}
-\end{cases}$$
-$$\text{OutputPaths}(R,A).\text{obj\_dir} = \text{OutputPaths}(R,A).\text{root}/\texttt{obj}$$
-$$\text{OutputPaths}(R,A).\text{ir\_dir} = \text{OutputPaths}(R,A).\text{root}/\texttt{ir}$$
-$$\text{OutputPaths}(R,A).\text{bin\_dir} = \text{OutputPaths}(R,A).\text{root}/\texttt{bin}$$
+OutputPaths(R, A).root =
+ R/A.out_dir  if provided
+ R/`build`    otherwise
+OutputPaths(R, A).obj_dir = OutputPaths(R, A).root/`obj`
+OutputPaths(R, A).ir_dir = OutputPaths(R, A).root/`ir`
+OutputPaths(R, A).bin_dir = OutputPaths(R, A).root/`bin`
 
-$$P.\text{outputs} = P.\text{assembly.outputs}$$
+P.outputs = P.assembly.outputs
 
 **Object File Naming**
 
-$$\text{PathToPrefix}(s) = \text{Concat}([\text{BMap}(b) \mid b \in \text{Utf8}(\text{NFC}(s))])$$
-$$\text{BMap}(b) = \begin{cases}
-\text{chr}(b) & \text{if } b \in [0\text{-}9A\text{-}Za\text{-}z] \\
-\texttt{\"_x\"} \mathbin{+\!\!+} \text{Hex2}(b) & \text{otherwise}
-\end{cases}$$
+PathToPrefix(s) = Concat([BMap(b) | b ∈ Utf8(NFC(s))])
+BMap(b) =
+ chr(b)           if b ∈ [0-9A-Za-z]
+ "_x" ++ Hex2(b)  otherwise
 
-$$\text{mangle}(s) = \text{PathToPrefix}(s)$$
-$$\text{MangleModulePath}(p) = \text{mangle}(\text{PathString}(\text{PathKey}(p)))$$
+mangle(s) = PathToPrefix(s)
+MangleModulePath(p) = mangle(PathString(PathKey(p)))
 
-$$\text{obj}(m) = O / \texttt{obj} / (\text{MangleModulePath}(p) \mathbin{+\!\!+} \texttt{".obj"})$$
+obj(m) = O / `obj` / (MangleModulePath(p) ++ ".obj")
 
 **Executable Naming**
 
-$$\text{exe} = O / \texttt{bin} / (\text{assembly\_name} \mathbin{+\!\!+} \texttt{".exe"})$$
+exe = O / `bin` / (assembly_name ++ ".exe")
 
 **Output and Linking Semantics (Formal Rules)**
 
-$$\text{path}(m) = m.\text{path}$$
-$$S = P.\text{source\_root}$$
+path(m) = m.path
+S = P.source_root
 
 **Module Emission Order.**
 
-$$m_1 \prec_{mod} m_2 \iff \text{Utf8LexLess}(\text{Fold}(\text{path}(m_1)),\ \text{Fold}(\text{path}(m_2))) \ \lor\ (\text{Fold}(\text{path}(m_1)) = \text{Fold}(\text{path}(m_2)) \land \text{Utf8LexLess}(\text{path}(m_1),\ \text{path}(m_2)))$$
+m_1 ≺_mod m_2 ⇔ Utf8LexLess(Fold(path(m_1)), Fold(path(m_2))) ∨ (Fold(path(m_1)) = Fold(path(m_2)) ∧ Utf8LexLess(path(m_1), path(m_2)))
 
-$$\text{Utf8LexLess}(a,b) \iff \text{LexBytes}(\text{Utf8}(a),\ \text{Utf8}(b))$$
+Utf8LexLess(a, b) ⇔ LexBytes(Utf8(a), Utf8(b))
 
 **(ModuleList-Ok)**
-$$\frac{\Gamma \vdash \text{Modules}(S, P.\text{assembly.name}) \Downarrow M \quad L = \text{sort}_{\prec_{mod}}(M)}{\Gamma \vdash \text{ModuleList}(P) \Downarrow L}$$
+Γ ⊢ Modules(S, P.assembly.name) ⇓ M    L = sort_{≺_mod}(M)
+───────────────────────────────────────────────────────────
+Γ ⊢ ModuleList(P) ⇓ L
 
 **(ModuleList-Err)**
-$$\frac{\Gamma \vdash \text{Modules}(S, P.\text{assembly.name}) \Uparrow c}{\Gamma \vdash \text{ModuleList}(P) \Uparrow c}$$
+Γ ⊢ Modules(S, P.assembly.name) ⇑ c
+────────────────────────────────────
+Γ ⊢ ModuleList(P) ⇑ c
 
 **Output Paths.**
-$$O = \text{OutputRoot}(P)$$
-$$\text{assembly\_name} = P.\text{assembly.name}$$
-$$\text{ext}(e) = \begin{cases}
-\texttt{".ll"} & \text{if } e=\texttt{ll} \\
-\texttt{".bc"} & \text{if } e=\texttt{bc}
-\end{cases}$$
+O = OutputRoot(P)
+assembly_name = P.assembly.name
+ext(e) =
+ ".ll"  if e = `ll`
+ ".bc"  if e = `bc`
 
-$$\text{ObjPath}(P,m) = O / \texttt{obj} / (\text{MangleModulePath}(\text{path}(m)) \mathbin{+\!\!+} \texttt{".obj"})$$
-$$\text{IRPath}(P,m,e) = O / \texttt{ir} / (\text{MangleModulePath}(\text{path}(m)) \mathbin{+\!\!+} \text{ext}(e))$$
-$$\text{ExePath}(P) = \begin{cases}
-O / \texttt{bin} / (\text{assembly\_name} \mathbin{+\!\!+} \texttt{".exe"}) & \text{if }\text{Executable}(P)\\
-\bot & \text{otherwise}
-\end{cases}$$
+ObjPath(P, m) = O / `obj` / (MangleModulePath(path(m)) ++ ".obj")
+IRPath(P, m, e) = O / `ir` / (MangleModulePath(path(m)) ++ ext(e))
+ExePath(P) =
+ O / `bin` / (assembly_name ++ ".exe")  if Executable(P)
+ ⊥                                     otherwise
 
-$$\text{ObjPaths}(P, ms) = [\text{ObjPath}(P,m) \mid m \in ms]$$
-$$\text{IRPaths}(P, ms, e) = [\text{IRPath}(P,m,e) \mid m \in ms]$$
+ObjPaths(P, ms) = [ObjPath(P, m) | m ∈ ms]
+IRPaths(P, ms, e) = [IRPath(P, m, e) | m ∈ ms]
 
 **Module Index and Symbol Name.**
-$$\text{ModuleList}(P) = [m_1, \ldots, m_n]$$
-$$\text{Index}(P, m_i) = i$$
-$$\text{pad4}(i) = \text{PadLeft}(\text{Decimal}(i),\ \texttt{'0'},\ 4)$$
-$$\text{SymbolName}(P, m) = \begin{cases}
-\texttt{main} & \text{if } \text{path}(m) = P.\text{assembly.name} \\
-\texttt{mod} \mathbin{+\!\!+} \text{pad4}(\text{Index}(P,m)) & \text{otherwise}
-\end{cases}$$
+ModuleList(P) = [m_1, …, m_n]
+Index(P, m_i) = i
+pad4(i) = PadLeft(Decimal(i), '0', 4)
+SymbolName(P, m) =
+ "main"  if path(m) = P.assembly.name
+ "mod" ++ pad4(Index(P, m))  otherwise
 
-$$\text{trunc8}(s) = \text{PadRight}(\text{Take}(\text{Utf8}(s), 8),\ 8,\ 0x00)$$
+trunc8(s) = PadRight(Take(Utf8(s), 8), 8, 0x00)
 
 **LLVM Target Constants.**
-$$\text{LLVMTriple} = \texttt{"x86_64-pc-windows-msvc"}$$
-$$\text{LLVMDataLayout} = \texttt{"e-m:w-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"}$$
+LLVMTriple = "x86_64-pc-windows-msvc"
+LLVMDataLayout = "e-m:w-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 
-$$\text{IsRootModule}(P, m) \iff \text{path}(m) = P.\text{assembly.name}$$
+IsRootModule(P, m) ⇔ path(m) = P.assembly.name
 
-$$\text{WithEntry}(P,m,IR) = \begin{cases}
-IR \mathbin{+\!\!+} [\text{EntryStub}(P)] & \text{if } \text{Executable}(P) \land \text{IsRootModule}(P,m)\\
-IR & \text{otherwise}
-\end{cases}$$
+WithEntry(P, m, IR) =
+ IR ++ [EntryStub(P)]  if Executable(P) ∧ IsRootModule(P, m)
+ IR                    otherwise
 
 **(CodegenObj-LLVM)**
-$$\frac{Project(\Gamma) = P \quad \Gamma \vdash \text{CodegenModule}(m) \Downarrow IR \quad IR' = \text{WithEntry}(P,m,IR) \quad \Gamma \vdash \text{LowerIR}(IR') \Downarrow L \quad \Gamma \vdash \text{EmitObj}(L) \Downarrow b}{\Gamma \vdash \text{CodegenObj}(m) \Downarrow b}$$
+Project(Γ) = P    Γ ⊢ CodegenModule(m) ⇓ IR    IR' = WithEntry(P, m, IR)    Γ ⊢ LowerIR(IR') ⇓ L    Γ ⊢ EmitObj(L) ⇓ b
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ CodegenObj(m) ⇓ b
 
 **(CodegenIR-LLVM)**
-$$\frac{Project(\Gamma) = P \quad e \in \{\texttt{ll},\texttt{bc}\} \quad \Gamma \vdash \text{CodegenModule}(m) \Downarrow IR \quad IR' = \text{WithEntry}(P,m,IR) \quad \Gamma \vdash \text{LowerIR}(IR') \Downarrow L \quad \Gamma \vdash \text{EmitLLVM}(L) \Downarrow b}{\Gamma \vdash \text{CodegenIR}(m, e) \Downarrow b}$$
+Project(Γ) = P    e ∈ {`ll`, `bc`}    Γ ⊢ CodegenModule(m) ⇓ IR    IR' = WithEntry(P, m, IR)    Γ ⊢ LowerIR(IR') ⇓ L    Γ ⊢ EmitLLVM(L) ⇓ b
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ CodegenIR(m, e) ⇓ b
 
 **File Emission.**
-$$\text{WriteFileOk}(p,b) \Rightarrow \text{Overwrites}(p,b)$$
+WriteFileOk(p, b) ⇒ Overwrites(p, b)
 
 **Directory Creation.**
-$$\text{EnsureDir}(p) \Downarrow ok \Rightarrow \text{IsDir}(p)$$
+EnsureDir(p) ⇓ ok ⇒ IsDir(p)
 
 **Emit Objects**
 
 **(Emit-Objects-Empty)**
-$$\frac{}{ \Gamma \vdash \text{EmitObjects}([], P) \Downarrow [] }$$
+────────────────────────────────────────
+Γ ⊢ EmitObjects([], P) ⇓ []
 
 **(Emit-Objects-Cons)**
-$$\frac{
-    \Gamma \vdash \text{CodegenObj}(m) \Downarrow b \quad
-    \Gamma \vdash \text{WriteFile}(\text{ObjPath}(P,m), b) \Downarrow ok \quad
-    \Gamma \vdash \text{EmitObjects}(ms, P) \Downarrow L
-}{
-    \Gamma \vdash \text{EmitObjects}(m::ms, P) \Downarrow \text{ObjPath}(P,m)::L
-}$$
+Γ ⊢ CodegenObj(m) ⇓ b    Γ ⊢ WriteFile(ObjPath(P, m), b) ⇓ ok    Γ ⊢ EmitObjects(ms, P) ⇓ L
+────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EmitObjects(m::ms, P) ⇓ ObjPath(P, m)::L
 
 **Emit IR**
 
 **(Emit-IR-None)**
-$$\frac{e = \texttt{none}}{\Gamma \vdash \text{EmitIR}(ms, P, e) \Downarrow []}$$
+e = `none`
+───────────────────────────────
+Γ ⊢ EmitIR(ms, P, e) ⇓ []
 
 **(Emit-IR-Cons-LL)**
-$$\frac{
-    e = \texttt{ll} \quad
-    \Gamma \vdash \text{CodegenIR}(m, e) \Downarrow b \quad
-    \Gamma \vdash \text{WriteFile}(\text{IRPath}(P,m,e), b) \Downarrow ok \quad
-    \Gamma \vdash \text{EmitIR}(ms, P, e) \Downarrow L
-}{
-    \Gamma \vdash \text{EmitIR}(m::ms, P, e) \Downarrow \text{IRPath}(P,m,e)::L
-}$$
+e = `ll`    Γ ⊢ CodegenIR(m, e) ⇓ b    Γ ⊢ WriteFile(IRPath(P, m, e), b) ⇓ ok    Γ ⊢ EmitIR(ms, P, e) ⇓ L
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EmitIR(m::ms, P, e) ⇓ IRPath(P, m, e)::L
 
 **(Emit-IR-Cons-BC)**
-$$\frac{
-    e = \texttt{bc} \quad
-    \Gamma \vdash \text{CodegenIR}(m, \texttt{ll}) \Downarrow t \quad
-    \Gamma \vdash \text{ResolveTool}(\texttt{llvm-as}) \Downarrow a \quad
-    \Gamma \vdash \text{AssembleIR}(a, t) \Downarrow b \quad
-    \Gamma \vdash \text{WriteFile}(\text{IRPath}(P,m,e), b) \Downarrow ok \quad
-    \Gamma \vdash \text{EmitIR}(ms, P, e) \Downarrow L
-}{
-    \Gamma \vdash \text{EmitIR}(m::ms, P, e) \Downarrow \text{IRPath}(P,m,e)::L
-}$$
+e = `bc`    Γ ⊢ CodegenIR(m, `ll`) ⇓ t    Γ ⊢ ResolveTool(`llvm-as`) ⇓ a    Γ ⊢ AssembleIR(a, t) ⇓ b    Γ ⊢ WriteFile(IRPath(P, m, e), b) ⇓ ok    Γ ⊢ EmitIR(ms, P, e) ⇓ L
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EmitIR(m::ms, P, e) ⇓ IRPath(P, m, e)::L
 
-$$\text{EmitIRFail}(m,P,\texttt{ll}) \iff \Gamma \vdash \text{CodegenIR}(m,\texttt{ll}) \Uparrow \ \lor\ (\exists b.\ \Gamma \vdash \text{CodegenIR}(m,\texttt{ll}) \Downarrow b \land \Gamma \vdash \text{WriteFile}(\text{IRPath}(P,m,\texttt{ll}), b) \Uparrow)$$
-$$\text{EmitIRFail}(m,P,\texttt{bc}) \iff \Gamma \vdash \text{CodegenIR}(m,\texttt{ll}) \Uparrow \ \lor\ (\exists t.\ \Gamma \vdash \text{CodegenIR}(m,\texttt{ll}) \Downarrow t \land \Gamma \vdash \text{ResolveTool}(\texttt{llvm-as}) \Uparrow) \ \lor\ (\exists t,a.\ \Gamma \vdash \text{CodegenIR}(m,\texttt{ll}) \Downarrow t \land \Gamma \vdash \text{ResolveTool}(\texttt{llvm-as}) \Downarrow a \land \Gamma \vdash \text{AssembleIR}(a, t) \Uparrow) \ \lor\ (\exists t,a,b.\ \Gamma \vdash \text{CodegenIR}(m,\texttt{ll}) \Downarrow t \land \Gamma \vdash \text{ResolveTool}(\texttt{llvm-as}) \Downarrow a \land \Gamma \vdash \text{AssembleIR}(a,t) \Downarrow b \land \Gamma \vdash \text{WriteFile}(\text{IRPath}(P,m,\texttt{bc}), b) \Uparrow)$$
+EmitIRFail(m, P, `ll`) ⇔ Γ ⊢ CodegenIR(m, `ll`) ⇑ ∨ (∃ b. Γ ⊢ CodegenIR(m, `ll`) ⇓ b ∧ Γ ⊢ WriteFile(IRPath(P, m, `ll`), b) ⇑)
+EmitIRFail(m, P, `bc`) ⇔
+ Γ ⊢ CodegenIR(m, `ll`) ⇑ ∨
+ (∃ t. Γ ⊢ CodegenIR(m, `ll`) ⇓ t ∧ Γ ⊢ ResolveTool(`llvm-as`) ⇑) ∨
+ (∃ t, a. Γ ⊢ CodegenIR(m, `ll`) ⇓ t ∧ Γ ⊢ ResolveTool(`llvm-as`) ⇓ a ∧ Γ ⊢ AssembleIR(a, t) ⇑) ∨
+ (∃ t, a, b. Γ ⊢ CodegenIR(m, `ll`) ⇓ t ∧ Γ ⊢ ResolveTool(`llvm-as`) ⇓ a ∧ Γ ⊢ AssembleIR(a, t) ⇓ b ∧ Γ ⊢ WriteFile(IRPath(P, m, `bc`), b) ⇑)
 
 **(Emit-IR-Err)**
-$$\frac{\text{EmitIRFail}(m,P,e) \quad c = \text{Code}(\text{Out-IR-Err})}{\Gamma \vdash \text{EmitIR}(m::ms, P, e) \Uparrow c}$$
+EmitIRFail(m, P, e)    c = Code(Out-IR-Err)
+────────────────────────────────────────────
+Γ ⊢ EmitIR(m::ms, P, e) ⇑ c
 
-$$\text{LinkJudg} = \{\text{ResolveRuntimeLib},\ \text{Link}\}$$
-$$\text{RuntimeLibName} = \texttt{"cursive0\_rt.lib"}$$
-$$\text{RuntimeLibPath}(P) = P.\text{root} / \texttt{runtime} / \text{RuntimeLibName}$$
+LinkJudg = {ResolveRuntimeLib, Link}
+RuntimeLibName = "cursive0_rt.lib"
+RuntimeLibPath(P) = P.root / `runtime` / RuntimeLibName
 
 **(ResolveRuntimeLib-Ok)**
-$$\frac{\Gamma \vdash \text{ReadBytes}(\text{RuntimeLibPath}(P)) \Downarrow \_}{\Gamma \vdash \text{ResolveRuntimeLib}(P) \Downarrow \text{RuntimeLibPath}(P)}$$
+Γ ⊢ ReadBytes(RuntimeLibPath(P)) ⇓ _
+──────────────────────────────────────────────
+Γ ⊢ ResolveRuntimeLib(P) ⇓ RuntimeLibPath(P)
 
 **(ResolveRuntimeLib-Err)**
-$$\frac{\Gamma \vdash \text{ReadBytes}(\text{RuntimeLibPath}(P)) \Uparrow}{\Gamma \vdash \text{ResolveRuntimeLib}(P) \Uparrow}$$
+Γ ⊢ ReadBytes(RuntimeLibPath(P)) ⇑
+─────────────────────────────────
+Γ ⊢ ResolveRuntimeLib(P) ⇑
 
-$$\text{LinkerSyms} : \text{Path} \times \text{List}(\text{Path}) \times \text{Path} \rightharpoonup \mathcal{P}(\text{Symbol})$$
-$$\text{RuntimeRequiredSyms} = \text{RuntimeSyms}$$
-$$\text{MissingRuntimeSym}(t, L, exe) \iff \text{RuntimeRequiredSyms} \nsubseteq \text{LinkerSyms}(t, L, exe)$$
+LinkerSyms : Path × List(Path) × Path ⇀ ℘(Symbol)
+RuntimeRequiredSyms = RuntimeSyms
+MissingRuntimeSym(t, L, exe) ⇔ RuntimeRequiredSyms ⊈ LinkerSyms(t, L, exe)
 
-$$\text{LinkObjs}(P) = \text{ObjPaths}(P, \text{ModuleList}(P))$$
-$$\text{LinkInputs}(P) = \text{LinkObjs}(P) \mathbin{+\!\!+} [\text{RuntimeLibPath}(P)]$$
-$$\text{LinkFlags}(P) = [\texttt{"/OUT:"} \mathbin{+\!\!+} \text{ExePath}(P),\ \texttt{"/ENTRY:main"},\ \texttt{"/SUBSYSTEM:CONSOLE"},\ \texttt{"/NODEFAULTLIB"}]$$
-$$\text{LinkArgsOk}(P, L, exe) \iff L = \text{LinkInputs}(P) \land exe = \text{ExePath}(P) \land \text{LinkFlags}(P) = [\texttt{"/OUT:"} \mathbin{+\!\!+} \text{ExePath}(P),\ \texttt{"/ENTRY:main"},\ \texttt{"/SUBSYSTEM:CONSOLE"},\ \texttt{"/NODEFAULTLIB"}]$$
+LinkObjs(P) = ObjPaths(P, ModuleList(P))
+LinkInputs(P) = LinkObjs(P) ++ [RuntimeLibPath(P)]
+LinkFlags(P) = ["/OUT:" ++ ExePath(P), "/ENTRY:main", "/SUBSYSTEM:CONSOLE", "/NODEFAULTLIB"]
+LinkArgsOk(P, L, exe) ⇔ L = LinkInputs(P) ∧ exe = ExePath(P) ∧ LinkFlags(P) = ["/OUT:" ++ ExePath(P), "/ENTRY:main", "/SUBSYSTEM:CONSOLE", "/NODEFAULTLIB"]
 
 **(Link-Ok)**
-$$\frac{
-    \text{Executable}(P) \quad
-    \Gamma \vdash \text{ResolveTool}(\texttt{lld-link}) \Downarrow t \quad
-    \Gamma \vdash \text{ResolveRuntimeLib}(P) \Downarrow lib \quad
-    \text{LinkArgsOk}(P, \text{Objs} \mathbin{+\!\!+} [lib], \text{ExePath}(P)) \quad
-    \Gamma \vdash \text{InvokeLinker}(t, \text{Objs} \mathbin{+\!\!+} [lib], \text{ExePath}(P)) \Downarrow ok
-}{
-    \Gamma \vdash \text{Link}(\text{Objs}, P) \Downarrow ok
-}$$
+Executable(P)    Γ ⊢ ResolveTool(`lld-link`) ⇓ t    Γ ⊢ ResolveRuntimeLib(P) ⇓ lib    LinkArgsOk(P, Objs ++ [lib], ExePath(P))    Γ ⊢ InvokeLinker(t, Objs ++ [lib], ExePath(P)) ⇓ ok
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Link(Objs, P) ⇓ ok
 
 **(Link-NotFound)**
-$$\frac{\text{Executable}(P) \quad \Gamma \vdash \text{ResolveTool}(\texttt{lld-link}) \Uparrow \quad c = \text{Code}(\text{Out-Link-NotFound})}{\Gamma \vdash \text{Link}(\text{Objs}, P) \Uparrow c}$$
+Executable(P)    Γ ⊢ ResolveTool(`lld-link`) ⇑    c = Code(Out-Link-NotFound)
+─────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Link(Objs, P) ⇑ c
 
 **(Link-Runtime-Missing)**
-$$\frac{\text{Executable}(P) \quad \Gamma \vdash \text{ResolveTool}(\texttt{lld-link}) \Downarrow t \quad \Gamma \vdash \text{ResolveRuntimeLib}(P) \Uparrow \quad c = \text{Code}(\text{Out-Link-Runtime-Missing})}{\Gamma \vdash \text{Link}(\text{Objs}, P) \Uparrow c}$$
+Executable(P)    Γ ⊢ ResolveTool(`lld-link`) ⇓ t    Γ ⊢ ResolveRuntimeLib(P) ⇑    c = Code(Out-Link-Runtime-Missing)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Link(Objs, P) ⇑ c
 
 **(Link-Runtime-Incompatible)**
-$$\frac{\text{Executable}(P) \quad \Gamma \vdash \text{ResolveTool}(\texttt{lld-link}) \Downarrow t \quad \Gamma \vdash \text{ResolveRuntimeLib}(P) \Downarrow lib \quad \text{LinkArgsOk}(P, \text{Objs} \mathbin{+\!\!+} [lib], \text{ExePath}(P)) \quad \text{MissingRuntimeSym}(t, \text{Objs} \mathbin{+\!\!+} [lib], \text{ExePath}(P)) \quad c = \text{Code}(\text{Out-Link-Runtime-Incompatible})}{\Gamma \vdash \text{Link}(\text{Objs}, P) \Uparrow c}$$
+Executable(P)    Γ ⊢ ResolveTool(`lld-link`) ⇓ t    Γ ⊢ ResolveRuntimeLib(P) ⇓ lib    LinkArgsOk(P, Objs ++ [lib], ExePath(P))    MissingRuntimeSym(t, Objs ++ [lib], ExePath(P))    c = Code(Out-Link-Runtime-Incompatible)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Link(Objs, P) ⇑ c
 
 **(Link-Fail)**
-$$\frac{\text{Executable}(P) \quad \Gamma \vdash \text{ResolveTool}(\texttt{lld-link}) \Downarrow t \quad \Gamma \vdash \text{ResolveRuntimeLib}(P) \Downarrow lib \quad \text{LinkArgsOk}(P, \text{Objs} \mathbin{+\!\!+} [lib], \text{ExePath}(P)) \quad \neg \text{MissingRuntimeSym}(t, \text{Objs} \mathbin{+\!\!+} [lib], \text{ExePath}(P)) \quad \Gamma \vdash \text{InvokeLinker}(t, \text{Objs} \mathbin{+\!\!+} [lib], \text{ExePath}(P)) \Uparrow \quad c = \text{Code}(\text{Out-Link-Fail})}{\Gamma \vdash \text{Link}(\text{Objs}, P) \Uparrow c}$$
+Executable(P)    Γ ⊢ ResolveTool(`lld-link`) ⇓ t    Γ ⊢ ResolveRuntimeLib(P) ⇓ lib    LinkArgsOk(P, Objs ++ [lib], ExePath(P))    ¬ MissingRuntimeSym(t, Objs ++ [lib], ExePath(P))    Γ ⊢ InvokeLinker(t, Objs ++ [lib], ExePath(P)) ⇑    c = Code(Out-Link-Fail)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Link(Objs, P) ⇑ c
 
-**Output Pipeline (Bigâ€‘Step)**
-$$O = \text{OutputRoot}(P)$$
-$$ms = \text{ModuleList}(P)$$
-$$e = P.\text{assembly.emit\_ir}$$
+**Output Pipeline (Big-Step)**
+O = OutputRoot(P)
+ms = ModuleList(P)
+e = P.assembly.emit_ir
 
 **(Output-Pipeline)**
-$$\frac{
-    \text{Executable}(P) \quad
-    \Gamma \vdash \text{EnsureDir}(O) \Downarrow ok \quad
-    \Gamma \vdash \text{EnsureDir}(O / \texttt{obj}) \Downarrow ok \quad
-    \Gamma \vdash \text{EnsureDir}(O / \texttt{bin}) \Downarrow ok \quad
-    (e = \texttt{none} \lor \Gamma \vdash \text{EnsureDir}(O / \texttt{ir}) \Downarrow ok) \quad
-    \Gamma \vdash \text{EmitObjects}(ms, P) \Downarrow \text{Objs} \quad
-    \Gamma \vdash \text{EmitIR}(ms, P, e) \Downarrow \text{IRs} \quad
-    \Gamma \vdash \text{Link}(\text{Objs}, P) \Downarrow ok
-}{
-    \Gamma \vdash \text{OutputPipeline}(P) \Downarrow (\text{Objs}, \text{IRs}, \text{ExePath}(P))
-}$$
+Executable(P)    Γ ⊢ EnsureDir(O) ⇓ ok    Γ ⊢ EnsureDir(O / `obj`) ⇓ ok    Γ ⊢ EnsureDir(O / `bin`) ⇓ ok    (e = `none` ∨ Γ ⊢ EnsureDir(O / `ir`) ⇓ ok)    Γ ⊢ EmitObjects(ms, P) ⇓ Objs    Γ ⊢ EmitIR(ms, P, e) ⇓ IRs    Γ ⊢ Link(Objs, P) ⇓ ok
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ OutputPipeline(P) ⇓ (Objs, IRs, ExePath(P))
 
 **(Output-Pipeline-Lib)**
-$$\frac{
-    \neg \text{Executable}(P) \quad
-    \Gamma \vdash \text{EnsureDir}(O) \Downarrow ok \quad
-    \Gamma \vdash \text{EnsureDir}(O / \texttt{obj}) \Downarrow ok \quad
-    (e = \texttt{none} \lor \Gamma \vdash \text{EnsureDir}(O / \texttt{ir}) \Downarrow ok) \quad
-    \Gamma \vdash \text{EmitObjects}(ms, P) \Downarrow \text{Objs} \quad
-    \Gamma \vdash \text{EmitIR}(ms, P, e) \Downarrow \text{IRs}
-}{
-    \Gamma \vdash \text{OutputPipeline}(P) \Downarrow (\text{Objs}, \text{IRs}, \bot)
-}$$
+¬ Executable(P)    Γ ⊢ EnsureDir(O) ⇓ ok    Γ ⊢ EnsureDir(O / `obj`) ⇓ ok    (e = `none` ∨ Γ ⊢ EnsureDir(O / `ir`) ⇓ ok)    Γ ⊢ EmitObjects(ms, P) ⇓ Objs    Γ ⊢ EmitIR(ms, P, e) ⇓ IRs
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ OutputPipeline(P) ⇓ (Objs, IRs, ⊥)
 
 **(Output-Pipeline-Err)**
-$$\frac{\langle \text{OutStart}(P) \rangle \to^* \langle \text{Error}(c) \rangle}{\Gamma \vdash \text{OutputPipeline}(P) \Uparrow c}$$
+⟨OutStart(P)⟩ →* ⟨Error(c)⟩
+────────────────────────────────
+Γ ⊢ OutputPipeline(P) ⇑ c
 
 **Output Pipeline (Small-Step)**
-$$\text{OutState} = \{\text{OutStart}(P),\ \text{OutDirs}(P),\ \text{OutObjs}(P,ms,Objs),\ \text{OutIR}(P,ms,Objs,IRs,e),\ \text{OutLink}(P,Objs,IRs),\ \text{OutDone}(Objs,IRs,Exe),\ \text{Error}(code)\}$$
-$$O = \text{OutputRoot}(P)$$
-$$ms = \text{ModuleList}(P)$$
-$$e = P.\text{assembly.emit\_ir}$$
+OutState = {OutStart(P), OutDirs(P), OutObjs(P, ms, Objs), OutIR(P, ms, Objs, IRs, e), OutLink(P, Objs, IRs), OutDone(Objs, IRs, Exe), Error(code)}
+O = OutputRoot(P)
+ms = ModuleList(P)
+e = P.assembly.emit_ir
 
 **(Out-Start)**
-$$\frac{}{\langle \text{OutStart}(P) \rangle \to \langle \text{OutDirs}(P) \rangle}$$
+────────────────────────────────────────
+⟨OutStart(P)⟩ → ⟨OutDirs(P)⟩
 
 **(Out-Dirs-Ok)**
-$$\frac{
-    \Gamma \vdash \text{EnsureDir}(O) \Downarrow ok \quad
-    \Gamma \vdash \text{EnsureDir}(O / \texttt{obj}) \Downarrow ok \quad
-    (\neg \text{Executable}(P) \ \lor\ \Gamma \vdash \text{EnsureDir}(O / \texttt{bin}) \Downarrow ok) \quad
-    (e = \texttt{none} \lor \Gamma \vdash \text{EnsureDir}(O / \texttt{ir}) \Downarrow ok)
-}{
-    \langle \text{OutDirs}(P) \rangle \to \langle \text{OutObjs}(P, ms, []) \rangle
-}$$
+Γ ⊢ EnsureDir(O) ⇓ ok    Γ ⊢ EnsureDir(O / `obj`) ⇓ ok    (¬ Executable(P) ∨ Γ ⊢ EnsureDir(O / `bin`) ⇓ ok)    (e = `none` ∨ Γ ⊢ EnsureDir(O / `ir`) ⇓ ok)
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨OutDirs(P)⟩ → ⟨OutObjs(P, ms, [])⟩
 
 **(Out-Dirs-Err)**
-$$\frac{\Gamma \vdash \text{EnsureDir}(O) \Uparrow \ \lor\ \Gamma \vdash \text{EnsureDir}(O / \texttt{obj}) \Uparrow \ \lor\ (\text{Executable}(P) \land \Gamma \vdash \text{EnsureDir}(O / \texttt{bin}) \Uparrow) \ \lor\ (e \in \{\texttt{ll},\ \texttt{bc}\} \land \Gamma \vdash \text{EnsureDir}(O / \texttt{ir}) \Uparrow)}{\langle \text{OutDirs}(P) \rangle \to \langle \text{Error}(\text{Code}(\text{Out-Dirs-Err})) \rangle}$$
+Γ ⊢ EnsureDir(O) ⇑ ∨ Γ ⊢ EnsureDir(O / `obj`) ⇑ ∨ (Executable(P) ∧ Γ ⊢ EnsureDir(O / `bin`) ⇑) ∨ (e ∈ {`ll`, `bc`} ∧ Γ ⊢ EnsureDir(O / `ir`) ⇑)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨OutDirs(P)⟩ → ⟨Error(Code(Out-Dirs-Err))⟩
 
 **(Out-Obj-Collision)**
-$$\frac{\neg \text{Distinct}(L \mathbin{+\!\!+} \text{ObjPaths}(P, ms))}{\langle \text{OutObjs}(P, ms, L) \rangle \to \langle \text{Error}(\text{Code}(\text{Out-Obj-Collision})) \rangle}$$
+¬ Distinct(L ++ ObjPaths(P, ms))
+──────────────────────────────────────────────
+⟨OutObjs(P, ms, L)⟩ → ⟨Error(Code(Out-Obj-Collision))⟩
 
 **(Out-Obj-Cons)**
-$$\frac{
-    \Gamma \vdash \text{CodegenObj}(m) \Downarrow b \quad
-    \Gamma \vdash \text{WriteFile}(\text{ObjPath}(P,m), b) \Downarrow ok
-}{
-    \langle \text{OutObjs}(P, m::ms, L) \rangle \to \langle \text{OutObjs}(P, ms, L \mathbin{+\!\!+} [\text{ObjPath}(P,m)]) \rangle
-}$$
+Γ ⊢ CodegenObj(m) ⇓ b    Γ ⊢ WriteFile(ObjPath(P, m), b) ⇓ ok
+─────────────────────────────────────────────────────────────────────────────
+⟨OutObjs(P, m::ms, L)⟩ → ⟨OutObjs(P, ms, L ++ [ObjPath(P, m)])⟩
 
 **(Out-Obj-Err)**
-$$\frac{\Gamma \vdash \text{CodegenObj}(m) \Uparrow \ \lor\ (\Gamma \vdash \text{CodegenObj}(m) \Downarrow b \land \Gamma \vdash \text{WriteFile}(\text{ObjPath}(P,m), b) \Uparrow)}{\langle \text{OutObjs}(P, m::ms, L) \rangle \to \langle \text{Error}(\text{Code}(\text{Out-Obj-Err})) \rangle}$$
+Γ ⊢ CodegenObj(m) ⇑ ∨ (Γ ⊢ CodegenObj(m) ⇓ b ∧ Γ ⊢ WriteFile(ObjPath(P, m), b) ⇑)
+──────────────────────────────────────────────────────────────────────────────────────────────
+⟨OutObjs(P, m::ms, L)⟩ → ⟨Error(Code(Out-Obj-Err))⟩
 
 **(Out-Obj-Done)**
-$$\frac{}{\langle \text{OutObjs}(P, [], L) \rangle \to \langle \text{OutIR}(P, \text{ModuleList}(P), L, [], e) \rangle}$$
+────────────────────────────────────────────────────────────────────
+⟨OutObjs(P, [], L)⟩ → ⟨OutIR(P, ModuleList(P), L, [], e)⟩
 
 **(Out-IR-None)**
-$$\frac{e = \texttt{none} \quad \text{Executable}(P)}{\langle \text{OutIR}(P, ms, \text{Objs}, \text{IRs}, e) \rangle \to \langle \text{OutLink}(P, \text{Objs}, \text{IRs}) \rangle}$$
+e = `none`    Executable(P)
+─────────────────────────────────────────────────────────────────────
+⟨OutIR(P, ms, Objs, IRs, e)⟩ → ⟨OutLink(P, Objs, IRs)⟩
 
 **(Out-IR-None-NoLink)**
-$$\frac{e = \texttt{none} \quad \neg \text{Executable}(P)}{\langle \text{OutIR}(P, ms, \text{Objs}, \text{IRs}, e) \rangle \to \langle \text{OutDone}(\text{Objs}, \text{IRs}, \bot) \rangle}$$
+e = `none`    ¬ Executable(P)
+────────────────────────────────────────────────────────────────────────
+⟨OutIR(P, ms, Objs, IRs, e)⟩ → ⟨OutDone(Objs, IRs, ⊥)⟩
 
 **(Out-IR-Collision)**
-$$\frac{e \in \{\texttt{ll}, \texttt{bc}\} \quad \neg \text{Distinct}(\text{IRs} \mathbin{+\!\!+} \text{IRPaths}(P, ms, e))}{\langle \text{OutIR}(P, ms, \text{Objs}, \text{IRs}, e) \rangle \to \langle \text{Error}(\text{Code}(\text{Out-IR-Collision})) \rangle}$$
+e ∈ {`ll`, `bc`}    ¬ Distinct(IRs ++ IRPaths(P, ms, e))
+──────────────────────────────────────────────────────────────────────────────
+⟨OutIR(P, ms, Objs, IRs, e)⟩ → ⟨Error(Code(Out-IR-Collision))⟩
 
 **(Out-IR-Cons-LL)**
-$$\frac{
-    e = \texttt{ll} \quad
-    \Gamma \vdash \text{CodegenIR}(m, e) \Downarrow b \quad
-    \Gamma \vdash \text{WriteFile}(\text{IRPath}(P,m,e), b) \Downarrow ok
-}{
-    \langle \text{OutIR}(P, m::ms, \text{Objs}, \text{IRs}, e) \rangle \to \langle \text{OutIR}(P, ms, \text{Objs}, \text{IRs} \mathbin{+\!\!+} [\text{IRPath}(P,m,e)], e) \rangle
-}$$
+e = `ll`    Γ ⊢ CodegenIR(m, e) ⇓ b    Γ ⊢ WriteFile(IRPath(P, m, e), b) ⇓ ok
+────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨OutIR(P, m::ms, Objs, IRs, e)⟩ → ⟨OutIR(P, ms, Objs, IRs ++ [IRPath(P, m, e)], e)⟩
 
 **(Out-IR-Cons-BC)**
-$$\frac{
-    e = \texttt{bc} \quad
-    \Gamma \vdash \text{CodegenIR}(m, \texttt{ll}) \Downarrow t \quad
-    \Gamma \vdash \text{ResolveTool}(\texttt{llvm-as}) \Downarrow a \quad
-    \Gamma \vdash \text{AssembleIR}(a, t) \Downarrow b \quad
-    \Gamma \vdash \text{WriteFile}(\text{IRPath}(P,m,e), b) \Downarrow ok
-}{
-    \langle \text{OutIR}(P, m::ms, \text{Objs}, \text{IRs}, e) \rangle \to \langle \text{OutIR}(P, ms, \text{Objs}, \text{IRs} \mathbin{+\!\!+} [\text{IRPath}(P,m,e)], e) \rangle
-}$$
+e = `bc`    Γ ⊢ CodegenIR(m, `ll`) ⇓ t    Γ ⊢ ResolveTool(`llvm-as`) ⇓ a    Γ ⊢ AssembleIR(a, t) ⇓ b    Γ ⊢ WriteFile(IRPath(P, m, e), b) ⇓ ok
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨OutIR(P, m::ms, Objs, IRs, e)⟩ → ⟨OutIR(P, ms, Objs, IRs ++ [IRPath(P, m, e)], e)⟩
 
 **(Out-IR-Err)**
-$$\frac{(e = \texttt{ll} \land (\Gamma \vdash \text{CodegenIR}(m, e) \Uparrow \ \lor\ (\Gamma \vdash \text{CodegenIR}(m, e) \Downarrow b \land \Gamma \vdash \text{WriteFile}(\text{IRPath}(P,m,e), b) \Uparrow))) \ \lor\ (e = \texttt{bc} \land (\Gamma \vdash \text{CodegenIR}(m, \texttt{ll}) \Uparrow \ \lor\ (\Gamma \vdash \text{CodegenIR}(m, \texttt{ll}) \Downarrow t \land \Gamma \vdash \text{ResolveTool}(\texttt{llvm-as}) \Uparrow) \ \lor\ (\Gamma \vdash \text{CodegenIR}(m, \texttt{ll}) \Downarrow t \land \Gamma \vdash \text{ResolveTool}(\texttt{llvm-as}) \Downarrow a \land \Gamma \vdash \text{AssembleIR}(a, t) \Uparrow) \ \lor\ (\Gamma \vdash \text{CodegenIR}(m, \texttt{ll}) \Downarrow t \land \Gamma \vdash \text{ResolveTool}(\texttt{llvm-as}) \Downarrow a \land \Gamma \vdash \text{AssembleIR}(a, t) \Downarrow b \land \Gamma \vdash \text{WriteFile}(\text{IRPath}(P,m,e), b) \Uparrow)))}{\langle \text{OutIR}(P, m::ms, \text{Objs}, \text{IRs}, e) \rangle \to \langle \text{Error}(\text{Code}(\text{Out-IR-Err})) \rangle}$$
+(e = `ll` ∧ (Γ ⊢ CodegenIR(m, e) ⇑ ∨ (Γ ⊢ CodegenIR(m, e) ⇓ b ∧ Γ ⊢ WriteFile(IRPath(P, m, e), b) ⇑))) ∨
+(e = `bc` ∧ (Γ ⊢ CodegenIR(m, `ll`) ⇑ ∨ (Γ ⊢ CodegenIR(m, `ll`) ⇓ t ∧ Γ ⊢ ResolveTool(`llvm-as`) ⇑) ∨ (Γ ⊢ CodegenIR(m, `ll`) ⇓ t ∧ Γ ⊢ ResolveTool(`llvm-as`) ⇓ a ∧ Γ ⊢ AssembleIR(a, t) ⇑) ∨ (Γ ⊢ CodegenIR(m, `ll`) ⇓ t ∧ Γ ⊢ ResolveTool(`llvm-as`) ⇓ a ∧ Γ ⊢ AssembleIR(a, t) ⇓ b ∧ Γ ⊢ WriteFile(IRPath(P, m, e), b) ⇑)))
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨OutIR(P, m::ms, Objs, IRs, e)⟩ → ⟨Error(Code(Out-IR-Err))⟩
 
 **(Out-IR-Done)**
-$$\frac{e \in \{\texttt{ll}, \texttt{bc}\} \quad ms = [] \quad \text{Executable}(P)}{\langle \text{OutIR}(P, ms, \text{Objs}, \text{IRs}, e) \rangle \to \langle \text{OutLink}(P, \text{Objs}, \text{IRs}) \rangle}$$
+e ∈ {`ll`, `bc`}    ms = []    Executable(P)
+─────────────────────────────────────────────────────────────────────────────
+⟨OutIR(P, ms, Objs, IRs, e)⟩ → ⟨OutLink(P, Objs, IRs)⟩
 
 **(Out-IR-Done-NoLink)**
-$$\frac{e \in \{\texttt{ll}, \texttt{bc}\} \quad ms = [] \quad \neg \text{Executable}(P)}{\langle \text{OutIR}(P, ms, \text{Objs}, \text{IRs}, e) \rangle \to \langle \text{OutDone}(\text{Objs}, \text{IRs}, \bot) \rangle}$$
+e ∈ {`ll`, `bc`}    ms = []    ¬ Executable(P)
+────────────────────────────────────────────────────────────────────────────────
+⟨OutIR(P, ms, Objs, IRs, e)⟩ → ⟨OutDone(Objs, IRs, ⊥)⟩
 
 **(Out-Link-Ok)**
-$$\frac{
-    \text{Executable}(P) \quad
-    \Gamma \vdash \text{ResolveTool}(\texttt{lld-link}) \Downarrow t \quad
-    \Gamma \vdash \text{ResolveRuntimeLib}(P) \Downarrow lib \quad
-    \Gamma \vdash \text{InvokeLinker}(t, \text{Objs} \mathbin{+\!\!+} [lib], \text{ExePath}(P)) \Downarrow ok
-}{
-    \langle \text{OutLink}(P, \text{Objs}, \text{IRs}) \rangle \to \langle \text{OutDone}(\text{Objs}, \text{IRs}, \text{ExePath}(P)) \rangle
-}$$
+Executable(P)    Γ ⊢ ResolveTool(`lld-link`) ⇓ t    Γ ⊢ ResolveRuntimeLib(P) ⇓ lib    Γ ⊢ InvokeLinker(t, Objs ++ [lib], ExePath(P)) ⇓ ok
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨OutLink(P, Objs, IRs)⟩ → ⟨OutDone(Objs, IRs, ExePath(P))⟩
 
 **(Out-Link-NotFound)**
-$$\frac{\text{Executable}(P) \quad \Gamma \vdash \text{ResolveTool}(\texttt{lld-link}) \Uparrow}{\langle \text{OutLink}(P, \text{Objs}, \text{IRs}) \rangle \to \langle \text{Error}(\text{Code}(\text{Out-Link-NotFound})) \rangle}$$
+Executable(P)    Γ ⊢ ResolveTool(`lld-link`) ⇑
+────────────────────────────────────────────────────────────────────────────
+⟨OutLink(P, Objs, IRs)⟩ → ⟨Error(Code(Out-Link-NotFound))⟩
 
 **(Out-Link-Runtime-Missing)**
-$$\frac{\text{Executable}(P) \quad \Gamma \vdash \text{ResolveRuntimeLib}(P) \Uparrow}{\langle \text{OutLink}(P, \text{Objs}, \text{IRs}) \rangle \to \langle \text{Error}(\text{Code}(\text{Out-Link-Runtime-Missing})) \rangle}$$
+Executable(P)    Γ ⊢ ResolveRuntimeLib(P) ⇑
+──────────────────────────────────────────────────────────────────────────────
+⟨OutLink(P, Objs, IRs)⟩ → ⟨Error(Code(Out-Link-Runtime-Missing))⟩
 
 **(Out-Link-Runtime-Incompatible)**
-$$\frac{\text{Executable}(P) \quad \Gamma \vdash \text{ResolveTool}(\texttt{lld-link}) \Downarrow t \quad \Gamma \vdash \text{ResolveRuntimeLib}(P) \Downarrow lib \quad \text{MissingRuntimeSym}(t, \text{Objs} \mathbin{+\!\!+} [lib], \text{ExePath}(P))}{\langle \text{OutLink}(P, \text{Objs}, \text{IRs}) \rangle \to \langle \text{Error}(\text{Code}(\text{Out-Link-Runtime-Incompatible})) \rangle}$$
+Executable(P)    Γ ⊢ ResolveTool(`lld-link`) ⇓ t    Γ ⊢ ResolveRuntimeLib(P) ⇓ lib    MissingRuntimeSym(t, Objs ++ [lib], ExePath(P))
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨OutLink(P, Objs, IRs)⟩ → ⟨Error(Code(Out-Link-Runtime-Incompatible))⟩
 
 **(Out-Link-Fail)**
-$$\frac{\text{Executable}(P) \quad \Gamma \vdash \text{ResolveTool}(\texttt{lld-link}) \Downarrow t \quad \Gamma \vdash \text{ResolveRuntimeLib}(P) \Downarrow lib \quad \neg \text{MissingRuntimeSym}(t, \text{Objs} \mathbin{+\!\!+} [lib], \text{ExePath}(P)) \quad \Gamma \vdash \text{InvokeLinker}(t, \text{Objs} \mathbin{+\!\!+} [lib], \text{ExePath}(P)) \Uparrow}{\langle \text{OutLink}(P, \text{Objs}, \text{IRs}) \rangle \to \langle \text{Error}(\text{Code}(\text{Out-Link-Fail})) \rangle}$$
+Executable(P)    Γ ⊢ ResolveTool(`lld-link`) ⇓ t    Γ ⊢ ResolveRuntimeLib(P) ⇓ lib    ¬ MissingRuntimeSym(t, Objs ++ [lib], ExePath(P))    Γ ⊢ InvokeLinker(t, Objs ++ [lib], ExePath(P)) ⇑
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨OutLink(P, Objs, IRs)⟩ → ⟨Error(Code(Out-Link-Fail))⟩
 
 ### 2.6. Tool Resolution and IR Assembly Inputs
 
-$$\text{SearchDirs}(P) = \begin{cases}
-[\text{Env}(\texttt{C0\_LLVM\_BIN})] & \text{if } \text{Env}(\texttt{C0\_LLVM\_BIN}) \ne \bot \land \text{Env}(\texttt{C0\_LLVM\_BIN}) \ne \texttt{"\""} \\
-[P.\text{root}/\texttt{llvm/llvm-21.1.8-x86_64/bin}] & \text{if } \text{RepoLLVM}(P) \\
-\text{PATHDirs} & \text{otherwise}
-\end{cases}$$
+SearchDirs(P) =
+ [Env(`C0_LLVM_BIN`)]  if Env(`C0_LLVM_BIN`) ≠ ⊥ ∧ Env(`C0_LLVM_BIN`) ≠ ""
+ [P.root/`llvm/llvm-21.1.8-x86_64/bin`]  if RepoLLVM(P)
+ PATHDirs  otherwise
 
 **(ResolveTool-Ok)**
-$$\frac{\text{Project}(\Gamma) = P \quad \text{SearchDirs}(P) \text{ contains }x \text{ at }t}{\Gamma \vdash \text{ResolveTool}(x) \Downarrow t}$$
+Project(Γ) = P    SearchDirs(P) contains x at t
+───────────────────────────────────────────────
+Γ ⊢ ResolveTool(x) ⇓ t
 
 **(ResolveTool-Err-Linker)**
-$$\frac{\text{Project}(\Gamma) = P \quad x = \texttt{lld-link} \quad \text{SearchDirs}(P) \text{ does not contain }x}{\Gamma \vdash \text{ResolveTool}(x) \Uparrow}$$
+Project(Γ) = P    x = `lld-link`    SearchDirs(P) does not contain x
+─────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveTool(x) ⇑
 
 **(ResolveTool-Err-IR)**
-$$\frac{\text{Project}(\Gamma) = P \quad x = \texttt{llvm-as} \quad \text{SearchDirs}(P) \text{ does not contain }x}{\Gamma \vdash \text{ResolveTool}(x) \Uparrow}$$
+Project(Γ) = P    x = `llvm-as`    SearchDirs(P) does not contain x
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveTool(x) ⇑
 
 **(AssembleIR-Ok)**
-$$\frac{\text{Invoke}(a, t) \Downarrow b}{\Gamma \vdash \text{AssembleIR}(a, t) \Downarrow b}$$
+Invoke(a, t) ⇓ b
+────────────────────────
+Γ ⊢ AssembleIR(a, t) ⇓ b
 
 **(AssembleIR-Err)**
-$$\frac{\text{Invoke}(a, t) \Uparrow}{\Gamma \vdash \text{AssembleIR}(a, t) \Uparrow}$$
+Invoke(a, t) ⇑
+────────────────────────
+Γ ⊢ AssembleIR(a, t) ⇑
 
 ### 2.7. Unwind and FFI Surface
 
 **(WF-Unwind-Unsupported)**
-$$\frac{\texttt{[[unwind]]} \in M}{\Gamma \vdash \text{Emit}(\text{Code}(\text{WF-Unwind-Unsupported}))}$$
+`[[unwind]]` ∈ M
+──────────────────────────────────────────────
+Γ ⊢ Emit(Code(WF-Unwind-Unsupported))
 
 ## 3. Phase 1: Source Loading, Lexing, Parsing
 
@@ -1425,405 +1608,467 @@ $$\frac{\texttt{[[unwind]]} \in M}{\Gamma \vdash \text{Emit}(\text{Code}(\text{W
 
 **Source File Record.**
 
-$$\text{SourceFile} = \langle \text{path},\ \text{bytes},\ \text{scalars},\ \text{text},\ \text{byte\_len},\ \text{line\_starts},\ \text{line\_count} \rangle$$
+SourceFile = ⟨path, bytes, scalars, text, byte_len, line_starts, line_count⟩
 
-$$S.\text{text} = \text{EncodeUTF8}(S.\text{scalars})$$
-$$S.\text{byte\_len} = \text{ByteLen}(S.\text{text})$$
-$$S.\text{line\_count} = |S.\text{line\_starts}|$$
+S.text = EncodeUTF8(S.scalars)
+S.byte_len = ByteLen(S.text)
+S.line_count = |S.line_starts|
 
 **Unicode Scalars and UTF-8.**
-$$\text{Byte} = \{ n \in \mathbb{N} \mid 0 \le n \le 255 \}$$
-$$\text{Bytes} = [\text{Byte}]$$
-$$\text{UnicodeScalar} = \{ u \in \mathbb{N} \mid 0 \le u \le \texttt{0x10FFFF} \land u \notin [\texttt{0xD800},\texttt{0xDFFF}] \}$$
-$$\text{Scalars} = [\text{UnicodeScalar}]$$
-$$\text{String} = \text{Scalars}$$
-$$\text{Utf8Len}(u) =
-\begin{cases}
-1 & 0 \le u \le \texttt{0x7F}\\
-2 & \texttt{0x80} \le u \le \texttt{0x7FF}\\
-3 & \texttt{0x800} \le u \le \texttt{0xFFFF}\\
-4 & \texttt{0x10000} \le u \le \texttt{0x10FFFF}
-\end{cases}$$
-$$\text{EncodeUTF8}(u) =
-\begin{cases}
-[u] & 0 \le u \le \texttt{0x7F}\\
-[\texttt{0xC0} \lor (u \gg 6),\ \texttt{0x80} \lor (u \mathbin{\&} \texttt{0x3F})] & \texttt{0x80} \le u \le \texttt{0x7FF}\\
-[\texttt{0xE0} \lor (u \gg 12),\ \texttt{0x80} \lor ((u \gg 6) \mathbin{\&} \texttt{0x3F}),\ \texttt{0x80} \lor (u \mathbin{\&} \texttt{0x3F})] & \texttt{0x800} \le u \le \texttt{0xFFFF}\\
-[\texttt{0xF0} \lor (u \gg 18),\ \texttt{0x80} \lor ((u \gg 12) \mathbin{\&} \texttt{0x3F}),\ \texttt{0x80} \lor ((u \gg 6) \mathbin{\&} \texttt{0x3F}),\ \texttt{0x80} \lor (u \mathbin{\&} \texttt{0x3F})] & \texttt{0x10000} \le u \le \texttt{0x10FFFF}
-\end{cases}$$
-$$\text{EncodeUTF8}([]) = []$$
-$$\text{EncodeUTF8}(u::U) = \text{EncodeUTF8}(u) \mathbin{+\!\!+} \text{EncodeUTF8}(U)$$
-$$\text{DecodeUTF8}(B) = U \iff \text{EncodeUTF8}(U) = B$$
-$$\text{Utf8Valid}(B) \iff \exists U.\ \text{DecodeUTF8}(B) = U$$
-$$\text{Utf8}(s) = \text{EncodeUTF8}(s)$$
+Byte = { n ∈ ℕ | 0 ≤ n ≤ 255 }
+Bytes = [Byte]
+UnicodeScalar = { u ∈ ℕ | 0 ≤ u ≤ 0x10FFFF ∧ u ∉ [0xD800, 0xDFFF] }
+Scalars = [UnicodeScalar]
+String = Scalars
+Utf8Len(u) =
+ 1  if 0 ≤ u ≤ 0x7F
+ 2  if 0x80 ≤ u ≤ 0x7FF
+ 3  if 0x800 ≤ u ≤ 0xFFFF
+ 4  if 0x10000 ≤ u ≤ 0x10FFFF
+EncodeUTF8(u) =
+ [u]  if 0 ≤ u ≤ 0x7F
+ [0xC0 ∨ (u >> 6), 0x80 ∨ (u & 0x3F)]  if 0x80 ≤ u ≤ 0x7FF
+ [0xE0 ∨ (u >> 12), 0x80 ∨ ((u >> 6) & 0x3F), 0x80 ∨ (u & 0x3F)]  if 0x800 ≤ u ≤ 0xFFFF
+ [0xF0 ∨ (u >> 18), 0x80 ∨ ((u >> 12) & 0x3F), 0x80 ∨ ((u >> 6) & 0x3F), 0x80 ∨ (u & 0x3F)]  if 0x10000 ≤ u ≤ 0x10FFFF
+EncodeUTF8([]) = []
+EncodeUTF8(u::U) = EncodeUTF8(u) ++ EncodeUTF8(U)
+DecodeUTF8(B) = U ⇔ EncodeUTF8(U) = B
+Utf8Valid(B) ⇔ ∃ U. DecodeUTF8(B) = U
+Utf8(s) = EncodeUTF8(s)
 
 
 #### 3.1.1. Unicode Normalization Outside Identifiers
 
-$$\text{NormalizeOutsideIdentifiers} : \text{Scalars} \to \text{Scalars}$$
-$$\text{NormalizeOutsideIdentifiers}(T) = T$$
+NormalizeOutsideIdentifiers : Scalars → Scalars
+NormalizeOutsideIdentifiers(T) = T
 
 #### 3.1.2. Lexically Sensitive Unicode Enforcement
-$$T = S.\text{scalars}$$
-$$\text{LexSensitivePos}(S) = [\ p\ \mid\ 0 \le p < |T| \land \text{Sensitive}(T[p]) \land \neg \text{InsideLiteralOrComment}(p)\ ]$$
-$$\Gamma \vdash \text{LexSecure}(S,K,\text{LexSensitivePos}(S)) \Downarrow ok$$
+T = S.scalars
+LexSensitivePos(S) = [ p | 0 ≤ p < |T| ∧ Sensitive(T[p]) ∧ ¬ InsideLiteralOrComment(p) ]
+Γ ⊢ LexSecure(S, K, LexSensitivePos(S)) ⇓ ok
 #### 3.1.3. UTF-8 Decoding and BOM Handling
 
 
 **(Decode-Ok)**
-$$\frac{\text{DecodeUTF8}(B) \Downarrow U}{\Gamma \vdash \text{Decode}(B) \Downarrow U}$$
+DecodeUTF8(B) ⇓ U
+────────────────────────
+Γ ⊢ Decode(B) ⇓ U
 
 **(Decode-Err)**
-$$\frac{\text{DecodeUTF8}(B) \Uparrow}{\Gamma \vdash \text{Decode}(B) \Uparrow}$$
+DecodeUTF8(B) ⇑
+────────────────────────
+Γ ⊢ Decode(B) ⇑
 
-$$\text{StripLeadBOM}([]) = []$$
-$$\text{StripLeadBOM}(\text{U+FEFF}::U) = U$$
-$$\text{StripLeadBOM}(u::U) = u::U \ \text{if } u \ne \text{U+FEFF}$$
+StripLeadBOM([]) = []
+StripLeadBOM(U+FEFF::U) = U
+StripLeadBOM(u::U) = u::U  if u ≠ U+FEFF
 
 **(StripBOM-Empty)**
-$$\frac{}{\Gamma \vdash \text{StripBOM}([]) \Downarrow ([], false, \bot)}$$
+────────────────────────────────────────
+Γ ⊢ StripBOM([]) ⇓ ([], false, ⊥)
 
 **(StripBOM-None)**
-$$\frac{U = u_0::u_1::\ldots \quad u_0 \ne \text{U+FEFF} \quad \forall i>0,\ u_i \ne \text{U+FEFF}}{\Gamma \vdash \text{StripBOM}(U) \Downarrow (U, false, \bot)}$$
+U = u_0::u_1::…    u_0 ≠ U+FEFF    ∀ i > 0, u_i ≠ U+FEFF
+────────────────────────────────────────────────────────────
+Γ ⊢ StripBOM(U) ⇓ (U, false, ⊥)
 
 **(StripBOM-Start)**
-$$\frac{U = \text{U+FEFF}::U_1 \quad \forall i,\ U_1[i] \ne \text{U+FEFF}}{\Gamma \vdash \text{StripBOM}(U) \Downarrow (U_1, true, \bot)}$$
+U = U+FEFF::U_1    ∀ i, U_1[i] ≠ U+FEFF
+────────────────────────────────────────────
+Γ ⊢ StripBOM(U) ⇓ (U_1, true, ⊥)
 
 **(StripBOM-Embedded)**
-$$\frac{U' = \text{StripLeadBOM}(U) \quad b = (U \ne [] \land U[0] = \text{U+FEFF}) \quad i = \min\{ p \mid 0 \le p < |U'| \land U'[p] = \text{U+FEFF} \}}{\Gamma \vdash \text{StripBOM}(U) \Downarrow (U', b, i)}$$
+U' = StripLeadBOM(U)    b = (U ≠ [] ∧ U[0] = U+FEFF)    i = min{ p | 0 ≤ p < |U'| ∧ U'[p] = U+FEFF }
+──────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ StripBOM(U) ⇓ (U', b, i)
 
 #### 3.1.4. Line Ending Normalization and Logical Lines
 
-$$\text{CR} = \text{U+000D}$$
-$$\text{LF} = \text{U+000A}$$
+CR = U+000D
+LF = U+000A
 
 **(Norm-Empty)**
-$$\frac{}{ \Gamma \vdash \text{NormalizeLF}([]) \Downarrow [] }$$
+────────────────────────────────────────
+Γ ⊢ NormalizeLF([]) ⇓ []
 
 **(Norm-CRLF)**
-$$\frac{\Gamma \vdash \text{NormalizeLF}(U) \Downarrow V}{\Gamma \vdash \text{NormalizeLF}([\text{CR},\text{LF}] \mathbin{+\!\!+} U) \Downarrow [\text{LF}] \mathbin{+\!\!+} V}$$
+Γ ⊢ NormalizeLF(U) ⇓ V
+────────────────────────────────────────────────────────
+Γ ⊢ NormalizeLF([CR, LF] ++ U) ⇓ [LF] ++ V
 
 **(Norm-CR)**
-$$\frac{U = [] \ \lor\ U[0] \ne \text{LF} \quad \Gamma \vdash \text{NormalizeLF}(U) \Downarrow V}{\Gamma \vdash \text{NormalizeLF}([\text{CR}] \mathbin{+\!\!+} U) \Downarrow [\text{LF}] \mathbin{+\!\!+} V}$$
+U = [] ∨ U[0] ≠ LF    Γ ⊢ NormalizeLF(U) ⇓ V
+──────────────────────────────────────────────────────────
+Γ ⊢ NormalizeLF([CR] ++ U) ⇓ [LF] ++ V
 
 **(Norm-LF)**
-$$\frac{\Gamma \vdash \text{NormalizeLF}(U) \Downarrow V}{\Gamma \vdash \text{NormalizeLF}([\text{LF}] \mathbin{+\!\!+} U) \Downarrow [\text{LF}] \mathbin{+\!\!+} V}$$
+Γ ⊢ NormalizeLF(U) ⇓ V
+────────────────────────────────────────────
+Γ ⊢ NormalizeLF([LF] ++ U) ⇓ [LF] ++ V
 
 **(Norm-Other)**
-$$\frac{c \ne \text{CR} \quad c \ne \text{LF} \quad \Gamma \vdash \text{NormalizeLF}(U) \Downarrow V}{\Gamma \vdash \text{NormalizeLF}([c] \mathbin{+\!\!+} U) \Downarrow [c] \mathbin{+\!\!+} V}$$
+c ≠ CR    c ≠ LF    Γ ⊢ NormalizeLF(U) ⇓ V
+────────────────────────────────────────────
+Γ ⊢ NormalizeLF([c] ++ U) ⇓ [c] ++ V
 
 **Logical Line Map.**
 
-$$\text{Utf8Offsets}([]) = [0]$$
-$$\text{Utf8Offsets}(c::cs) = [0] \mathbin{+\!\!+} [o + \text{Utf8Len}(c) \mid o \in \text{Utf8Offsets}(cs)]$$
+Utf8Offsets([]) = [0]
+Utf8Offsets(c::cs) = [0] ++ [o + Utf8Len(c) | o ∈ Utf8Offsets(cs)]
 
-$$\text{LineStarts}(T) = [0] \mathbin{+\!\!+} [\text{Utf8Offsets}(T)[i] + 1 \mid 0 \le i < |T| \land T[i] = \text{LF}]$$
-$$\text{LineCount}(T) = |\text{LineStarts}(T)|$$
+LineStarts(T) = [0] ++ [Utf8Offsets(T)[i] + 1 | 0 ≤ i < |T| ∧ T[i] = LF]
+LineCount(T) = |LineStarts(T)|
 
 **Locate (Line/Column).**
-$$L = S.\text{line\_starts}$$
-$$o' = \min(o,\ S.\text{byte\_len})$$
-$$k = \max\{ j \mid L[j] \le o' \}$$
+L = S.line_starts
+o' = min(o, S.byte_len)
+k = max{ j | L[j] ≤ o' }
 
-$$\Gamma \vdash \text{Locate}(S,o) \Downarrow \langle \text{file}=S.\text{path},\ \text{offset}=o',\ \text{line}=k+1,\ \text{col}=o' - L[k] + 1 \rangle$$
+Γ ⊢ Locate(S, o) ⇓ ⟨file = S.path, offset = o', line = k + 1, col = o' - L[k] + 1⟩
 
 #### 3.1.5. Prohibited Code Points
 
-$$\text{Prohibited}(c) \iff \text{General\_Category}(c) = \text{Cc} \land c \notin \{\text{U+0009}, \text{U+000A}, \text{U+000C}, \text{U+000D}\}$$
+Prohibited(c) ⇔ General_Category(c) = Cc ∧ c ∉ {U+0009, U+000A, U+000C, U+000D}
 
-$$\text{LiteralSpan}(T) = \bigcup \{ [\text{ByteOf}(T,i),\ \text{ByteOf}(T,j)) \mid \text{StringRange}(T,i,j) \lor \text{CharRange}(T,i,j) \}$$
+LiteralSpan(T) = ⋃ { [ByteOf(T, i), ByteOf(T, j)) | StringRange(T, i, j) ∨ CharRange(T, i, j) }
 
 **(WF-Prohibited)**
-$$\frac{\forall i,\ \text{Prohibited}(T[i]) \Rightarrow \text{ByteOf}(T,i) \in \text{LiteralSpan}(T)}{\Gamma \vdash T : \text{NoProhibited}}$$
+∀ i, Prohibited(T[i]) ⇒ ByteOf(T, i) ∈ LiteralSpan(T)
+───────────────────────────────────────────────────────
+Γ ⊢ T : NoProhibited
 
 #### 3.1.6. NFC Normalization for Identifiers and Module Paths
 
-$$\text{NFC}(s) = \text{UnicodeNFC}_{15.0.0}(s)$$
+NFC(s) = UnicodeNFC_{15.0.0}(s)
 
-$$\text{CaseFold}(s) = \text{UnicodeCaseFold}_{15.0.0}(s)$$
+CaseFold(s) = UnicodeCaseFold_{15.0.0}(s)
 
 **Totality.**
-The functions $\text{NFC}$ and $\text{CaseFold}$ are total on sequences of Unicode scalar values. All inputs to $\text{IdKey}$ and $\text{PathKey}$ MUST be Unicode scalar sequences; inputs are produced by $\text{LoadSource}$, which rejects invalid UTF-8.
+The functions NFC and CaseFold are total on sequences of Unicode scalar values. All inputs to IdKey and PathKey MUST be Unicode scalar sequences; inputs are produced by LoadSource, which rejects invalid UTF-8.
 
-$$\text{IdKey}(s) = \text{NFC}(s)$$
-$$\text{IdEq}(s_1,s_2) \iff \text{IdKey}(s_1) = \text{IdKey}(s_2)$$
+IdKey(s) = NFC(s)
+IdEq(s_1, s_2) ⇔ IdKey(s_1) = IdKey(s_2)
 
-$$\text{PathKey}(p) = [\text{NFC}(c_1), \ldots, \text{NFC}(c_n)]$$
-$$\text{PathEq}(p,q) \iff \text{PathKey}(p) = \text{PathKey}(q)$$
+PathKey(p) = [NFC(c_1), …, NFC(c_n)]
+PathEq(p, q) ⇔ PathKey(p) = PathKey(q)
 
 #### 3.1.7. Newline Tokens and Statement Termination
 
-$$\text{Tokenize} : \text{SourceFile} \rightharpoonup (\text{Token}^\ast \times \text{DocComment}^\ast)$$
-$$\text{Tokenize}(S) = (K,D) \Rightarrow \text{LexNewline}(K,S) \land \text{LexNoComments}(K,S)$$
+Tokenize : SourceFile ⇀ (Token* × DocComment*)
+Tokenize(S) = (K, D) ⇒ LexNewline(K, S) ∧ LexNoComments(K, S)
 
-$$\text{Depth}(K,0) = 0$$
-$$\text{Depth}(K,i+1) = \text{Depth}(K,i) + \delta(K[i])$$
-$$\delta(t) = \begin{cases}
-1 & \text{if } t \in \{\text{Punctuator}(\texttt{"("}),\ \text{Punctuator}(\texttt{"["}),\ \text{Punctuator}(\texttt{"{"})\} \\
--1 & \text{if } t \in \{\text{Punctuator}(\texttt{")"}),\ \text{Punctuator}(\texttt{"]"}),\ \text{Punctuator}(\texttt{"}"})\} \\
-0 & \text{otherwise}
-\end{cases}$$
+Depth(K, 0) = 0
+Depth(K, i+1) = Depth(K, i) + δ(K[i])
+δ(t) =
+ 1   if t ∈ {Punctuator("("), Punctuator("["), Punctuator("{")}
+ -1  if t ∈ {Punctuator(")"), Punctuator("]"), Punctuator("}")}
+ 0   otherwise
 
-$$\text{Prev}(K,i) = \bot \iff \{ j \mid j < i \land K[j].\text{kind} \ne \text{newline} \land \forall k.\ j < k < i \Rightarrow K[k].\text{kind} \ne \text{newline} \} = \emptyset$$
-$$\text{Prev}(K,i) = K[j] \iff j = \max\{ j \mid j < i \land K[j].\text{kind} \ne \text{newline} \land \forall k.\ j < k < i \Rightarrow K[k].\text{kind} \ne \text{newline} \}$$
-$$\text{Next}(K,i) = \bot \iff \{ j \mid j > i \land K[j].\text{kind} \ne \text{newline} \} = \emptyset$$
-$$\text{Next}(K,i) = K[j] \iff j = \min\{ j \mid j > i \land K[j].\text{kind} \ne \text{newline} \}$$
+Prev(K, i) = ⊥ ⇔ { j | j < i ∧ K[j].kind ≠ newline ∧ ∀ k. j < k < i ⇒ K[k].kind ≠ newline } = ∅
+Prev(K, i) = K[j] ⇔ j = max{ j | j < i ∧ K[j].kind ≠ newline ∧ ∀ k. j < k < i ⇒ K[k].kind ≠ newline }
+Next(K, i) = ⊥ ⇔ { j | j > i ∧ K[j].kind ≠ newline } = ∅
+Next(K, i) = K[j] ⇔ j = min{ j | j > i ∧ K[j].kind ≠ newline }
 
-$$\text{Ambig} = \{ \texttt{"+"},\ \texttt{"-"},\ \texttt{"*"},\ \texttt{"&"},\ \texttt{"|"} \}$$
-$$\text{BeginsOperand}(t) \iff t.\text{kind} \in \{\text{Identifier},\ \text{IntLiteral},\ \text{FloatLiteral},\ \text{StringLiteral},\ \text{CharLiteral},\ \text{BoolLiteral},\ \text{NullLiteral}\} \ \lor\ (t.\text{kind}=\text{Punctuator} \land t.\text{lexeme} \in \{\texttt{"("},\ \texttt{"["},\ \texttt{"{"}\}) \ \lor\ (t.\text{kind}=\text{Operator} \land t.\text{lexeme} \in \{\texttt{"!"},\ \texttt{"-"},\ \texttt{"&"},\ \texttt{"*"},\ \texttt{"^"}\}) \ \lor\ (t.\text{kind}=\text{Keyword} \land t.\text{lexeme} \in \{\texttt{"if"},\ \texttt{"match"},\ \texttt{"loop"},\ \texttt{"unsafe"},\ \texttt{"move"},\ \texttt{"transmute"},\ \texttt{"widen"}\})$$
-$$\text{UnaryOnly} = \{\texttt{"!"},\ \texttt{"~"},\ \texttt{"?"}\}$$
+Ambig = {"+", "-", "*", "&", "|"}
+BeginsOperand(t) ⇔ t.kind ∈ {Identifier, IntLiteral, FloatLiteral, StringLiteral, CharLiteral, BoolLiteral, NullLiteral} ∨ (t.kind = Punctuator ∧ t.lexeme ∈ {"(", "[", "{"}) ∨ (t.kind = Operator ∧ t.lexeme ∈ {"!", "-", "&", "*", "^"}) ∨ (t.kind = Keyword ∧ t.lexeme ∈ {"if", "match", "loop", "unsafe", "move", "transmute", "widen"})
+UnaryOnly = {"!", "~", "?"}
 
-$$\text{Continue}(K,i) \iff \text{Depth}(K,i) > 0 \ \lor\ (\exists t.\ \text{Prev}(K,i)=t \land (t.\text{lexeme}=\texttt{","} \lor (t.\text{kind}=\text{Operator} \land ((t.\text{lexeme} \in \text{Ambig} \land \exists u.\ \text{Next}(K,i)=u \land \text{BeginsOperand}(u)) \lor t.\text{lexeme} \notin \text{UnaryOnly})))) \ \lor\ (\exists u.\ \text{Next}(K,i)=u \land u.\text{lexeme} \in \{\texttt{"."},\ \texttt{"::"},\ \texttt{"~>"}\})$$
+Continue(K, i) ⇔ Depth(K, i) > 0 ∨ (∃ t. Prev(K, i) = t ∧ (t.lexeme = "," ∨ (t.kind = Operator ∧ ((t.lexeme ∈ Ambig ∧ ∃ u. Next(K, i) = u ∧ BeginsOperand(u)) ∨ t.lexeme ∉ UnaryOnly)))) ∨ (∃ u. Next(K, i) = u ∧ u.lexeme ∈ {".", "::", "~>"})
 
-$$\text{Filter}(K) = [\, K[i] \mid K[i].\text{kind} \ne \text{newline} \ \lor\ \neg \text{Continue}(K,i) \,]$$
+Filter(K) = [ K[i] | K[i].kind ≠ newline ∨ ¬ Continue(K, i) ]
 
-$$\text{IsTerminator}(t) \iff t = \text{Punctuator}(\texttt{";"}) \ \lor\ t.\text{kind} = \text{newline}$$
-$$\text{BoundaryTokens}(K,i) = \{ t \mid t = K[i] \lor t = \text{Prev}(K,i) \lor t = \text{Next}(K,i) \} \setminus \{\bot\}$$
-$$\text{HasTerminator}(F,i) \iff \exists t \in \text{BoundaryTokens}(F,i).\ \text{IsTerminator}(t)$$
-$$\text{RequiredTerminator} : \text{Token}^\ast \times \mathbb{N} \to \text{Bool}$$
-$$\text{ContinuesLine} : \text{Token}^\ast \times \mathbb{N} \to \text{Bool}$$
-$$\text{ContinuesLine}(K,i) \iff K[i].\text{kind}=\text{newline} \land \text{Continue}(K,i)$$
-$$\text{RequiredTerminator}(K,i) \iff K[i].\text{kind}=\text{newline} \land \neg \text{ContinuesLine}(K,i)$$
+IsTerminator(t) ⇔ t = Punctuator(";") ∨ t.kind = newline
+BoundaryTokens(K, i) = { t | t = K[i] ∨ t = Prev(K, i) ∨ t = Next(K, i) } \ {⊥}
+HasTerminator(F, i) ⇔ ∃ t ∈ BoundaryTokens(F, i). IsTerminator(t)
+RequiredTerminator : Token* × ℕ → Bool
+ContinuesLine : Token* × ℕ → Bool
+ContinuesLine(K, i) ⇔ K[i].kind = newline ∧ Continue(K, i)
+RequiredTerminator(K, i) ⇔ K[i].kind = newline ∧ ¬ ContinuesLine(K, i)
 
 **(Missing-Terminator-Err)**
-$$\frac{\text{RequiredTerminator}(K,i) \quad \neg \text{HasTerminator}(\text{Filter}(K), i) \quad c = \text{Code}(\text{Missing-Terminator-Err})}{\Gamma \vdash \text{Emit}(c)}$$
+RequiredTerminator(K, i)    ¬ HasTerminator(Filter(K), i)    c = Code(Missing-Terminator-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Emit(c)
 
 
 #### 3.1.8. Source Loading Pipeline (Small-Step and Big-Step)
 
-$$\text{SourceLoadState} = \{\text{Start}(f,B),\ \text{Sized}(f,B),\ \text{Decoded}(f,B,U),\ \text{BomStripped}(f,B,U,b,j),\ \text{Normalized}(f,B,T,j),\ \text{LineMapped}(f,B,T,L),\ \text{Validated}(S),\ \text{Error}(code)\}$$
-$$B \in \text{Bytes}$$
-$$U \in \text{Scalars}$$
-$$T \in \text{Scalars}$$
-$$L = \text{LineStarts}(T)$$
-$$j \in \mathbb{N} \cup \{\bot\}$$
+SourceLoadState = {Start(f, B), Sized(f, B), Decoded(f, B, U), BomStripped(f, B, U, b, j), Normalized(f, B, T, j), LineMapped(f, B, T, L), Validated(S), Error(code)}
+B ∈ Bytes
+U ∈ Scalars
+T ∈ Scalars
+L = LineStarts(T)
+j ∈ ℕ ∪ {⊥}
 
 **(Step-Size)**
-$$\frac{}{\langle \text{Start}(f,B) \rangle \to \langle \text{Sized}(f,B) \rangle}$$
+────────────────────────────────────────
+⟨Start(f, B)⟩ → ⟨Sized(f, B)⟩
 
 **(Step-Decode)**
-$$\frac{\Gamma \vdash \text{Decode}(B) \Downarrow U}{\langle \text{Sized}(f,B) \rangle \to \langle \text{Decoded}(f,B,U) \rangle}$$
+Γ ⊢ Decode(B) ⇓ U
+────────────────────────────────────────────
+⟨Sized(f, B)⟩ → ⟨Decoded(f, B, U)⟩
 
 **(Step-Decode-Err)**
-$$\frac{\Gamma \vdash \text{Decode}(B) \Uparrow}{\langle \text{Sized}(f,B) \rangle \to \langle \text{Error}(\text{Code}(\text{Step-Decode-Err})) \rangle}$$
+Γ ⊢ Decode(B) ⇑
+───────────────────────────────────────────────────────────
+⟨Sized(f, B)⟩ → ⟨Error(Code(Step-Decode-Err))⟩
 
 **(Step-BOM)**
-$$\frac{\Gamma \vdash \text{StripBOM}(U) \Downarrow (U', b, j)}{\langle \text{Decoded}(f,B,U) \rangle \to \langle \text{BomStripped}(f,B,U',b,j) \rangle}$$
+Γ ⊢ StripBOM(U) ⇓ (U', b, j)
+────────────────────────────────────────────────
+⟨Decoded(f, B, U)⟩ → ⟨BomStripped(f, B, U', b, j)⟩
 
 **(Step-Norm)**
-$$\frac{T = \text{NormalizeOutsideIdentifiers}(U) \quad \Gamma \vdash \text{NormalizeLF}(T) \Downarrow V}{\langle \text{BomStripped}(f,B,U,b,j) \rangle \to \langle \text{Normalized}(f,B,V,j) \rangle}$$
+T = NormalizeOutsideIdentifiers(U)    Γ ⊢ NormalizeLF(T) ⇓ V
+─────────────────────────────────────────────────────────────
+⟨BomStripped(f, B, U, b, j)⟩ → ⟨Normalized(f, B, V, j)⟩
 
 **(Step-EmbeddedBOM-Err)**
-$$\frac{j \ne \bot}{\langle \text{Normalized}(f,B,T,j) \rangle \to \langle \text{Error}(\text{Code}(\text{Step-EmbeddedBOM-Err})) \rangle}$$
+j ≠ ⊥
+───────────────────────────────────────────────────────────
+⟨Normalized(f, B, T, j)⟩ → ⟨Error(Code(Step-EmbeddedBOM-Err))⟩
 
 **(Step-LineMap)**
-$$\frac{j = \bot \quad L = \text{LineStarts}(T)}{\langle \text{Normalized}(f,B,T,j) \rangle \to \langle \text{LineMapped}(f,B,T,L) \rangle}$$
+j = ⊥    L = LineStarts(T)
+────────────────────────────────────────────────────────────
+⟨Normalized(f, B, T, j)⟩ → ⟨LineMapped(f, B, T, L)⟩
 
 **(Step-Prohibited)**
-$$\frac{\Gamma \vdash T : \text{NoProhibited} \quad S = \langle \text{path}=f,\ \text{bytes}=B,\ \text{scalars}=T,\ \text{text}=\text{EncodeUTF8}(T),\ \text{byte\_len}=\text{ByteLen}(T),\ \text{line\_starts}=L,\ \text{line\_count}=|L| \rangle}{\langle \text{LineMapped}(f,B,T,L) \rangle \to \langle \text{Validated}(S) \rangle}$$
+Γ ⊢ T : NoProhibited    S = ⟨path = f, bytes = B, scalars = T, text = EncodeUTF8(T), byte_len = ByteLen(T), line_starts = L, line_count = |L|⟩
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨LineMapped(f, B, T, L)⟩ → ⟨Validated(S)⟩
 
 **(Step-Prohibited-Err)**
-$$\frac{\Gamma \vdash T \not: \text{NoProhibited}}{\langle \text{LineMapped}(f,B,T,L) \rangle \to \langle \text{Error}(\text{Code}(\text{Step-Prohibited-Err})) \rangle}$$
+Γ ⊬ T : NoProhibited
+────────────────────────────────────────────────────────────
+⟨LineMapped(f, B, T, L)⟩ → ⟨Error(Code(Step-Prohibited-Err))⟩
 
 **Source Load (Big-Step)**
 
 **(LoadSource-Ok)**
-$$\frac{\Gamma \vdash \text{Decode}(B) \Downarrow U \quad \Gamma \vdash \text{StripBOM}(U) \Downarrow (U', b, \bot) \quad \Gamma \vdash \text{NormalizeLF}(\text{NormalizeOutsideIdentifiers}(U')) \Downarrow T \quad L = \text{LineStarts}(T) \quad \Gamma \vdash T : \text{NoProhibited} \quad S = \langle \text{path}=f,\ \text{bytes}=B,\ \text{scalars}=T,\ \text{text}=\text{EncodeUTF8}(T),\ \text{byte\_len}=\text{ByteLen}(T),\ \text{line\_starts}=L,\ \text{line\_count}=|L| \rangle}{\Gamma \vdash \text{LoadSource}(f,B) \Downarrow S}$$
+Γ ⊢ Decode(B) ⇓ U    Γ ⊢ StripBOM(U) ⇓ (U', b, ⊥)    Γ ⊢ NormalizeLF(NormalizeOutsideIdentifiers(U')) ⇓ T    L = LineStarts(T)    Γ ⊢ T : NoProhibited    S = ⟨path = f, bytes = B, scalars = T, text = EncodeUTF8(T), byte_len = ByteLen(T), line_starts = L, line_count = |L|⟩
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LoadSource(f, B) ⇓ S
 
 **(LoadSource-Err)**
-$$\frac{\Gamma \vdash \text{LoadSource}(f,B) \to^* \langle \text{Error}(c) \rangle}{\Gamma \vdash \text{LoadSource}(f,B) \Uparrow c}$$
+Γ ⊢ LoadSource(f, B) →* ⟨Error(c)⟩
+──────────────────────────────────────
+Γ ⊢ LoadSource(f, B) ⇑ c
 
 #### 3.1.9. Diagnostic Spans for Source Loading
 
-$$S_{\text{tmp}} = \langle \text{path}=f,\ \text{bytes}=B,\ \text{text}=\text{EncodeUTF8}(T),\ \text{byte\_len}=\text{ByteLen}(T),\ \text{line\_starts}=\text{LineStarts}(T),\ \text{line\_count}=|\text{LineStarts}(T)| \rangle$$
+S_tmp = ⟨path = f, bytes = B, text = EncodeUTF8(T), byte_len = ByteLen(T), line_starts = LineStarts(T), line_count = |LineStarts(T)|⟩
 
-$$O = \text{Utf8Offsets}(T)$$
-$$O[|T|] = \text{ByteLen}(T)$$
+O = Utf8Offsets(T)
+O[|T|] = ByteLen(T)
 
-$$\text{SpanAtIndex}(T,i) = \text{SpanOf}(S_{\text{tmp}},\ O[i],\ O[i+1])$$
+SpanAtIndex(T, i) = SpanOf(S_tmp, O[i], O[i+1])
 
-$$\text{SpanAtLineStart}(T,k) = \text{SpanOf}(S_{\text{tmp}},\ s,\ e)$$
-$$s = \begin{cases}
-\text{LineStarts}(T)[k] & \text{if } k < |\text{LineStarts}(T)| \\
-\text{ByteLen}(T) & \text{otherwise}
-\end{cases}$$
-$$e = \min(s+1,\ \text{ByteLen}(T))$$
+SpanAtLineStart(T, k) = SpanOf(S_tmp, s, e)
+s =
+ LineStarts(T)[k]  if k < |LineStarts(T)|
+ ByteLen(T)        otherwise
+e = min(s + 1, ByteLen(T))
 
-If $b = \text{true}$, the warning $W\text{-}SRC\text{-}0101$ MUST be emitted even if $\text{LoadSource}$ ultimately fails.
+If b = true, the warning W-SRC-0101 MUST be emitted even if LoadSource ultimately fails.
 
 
 **(Span-BOM-Warn)**
-$$\frac{b = \text{true} \quad e = \min(1,\ \text{ByteLen}(T))}{\Gamma \vdash \text{Emit}(W\text{-}SRC\text{-}0101,\ \text{SpanOf}(S_{\text{tmp}}, 0, e))}$$
+b = true    e = min(1, ByteLen(T))
+──────────────────────────────────────────────
+Γ ⊢ Emit(W-SRC-0101, SpanOf(S_tmp, 0, e))
 
 **(Span-BOM-Embedded)**
-$$\frac{j \ne \bot \quad i = \min\{ p \mid 0 \le p < |T| \land T[p] = \text{U+FEFF} \}}{\Gamma \vdash \text{Emit}(E\text{-}SRC\text{-}0103,\ \text{SpanAtIndex}(T,i))}$$
+j ≠ ⊥    i = min{ p | 0 ≤ p < |T| ∧ T[p] = U+FEFF }
+───────────────────────────────────────────────────────────────────
+Γ ⊢ Emit(E-SRC-0103, SpanAtIndex(T, i))
 
 **(Span-Prohibited)**
-$$\frac{i = \min\{ p \mid 0 \le p < |T| \land \text{Prohibited}(T[p]) \land O[p] \notin \text{LiteralSpan}(T) \}}{\Gamma \vdash \text{Emit}(E\text{-}SRC\text{-}0104,\ \text{SpanAtIndex}(T,i))}$$
+i = min{ p | 0 ≤ p < |T| ∧ Prohibited(T[p]) ∧ O[p] ∉ LiteralSpan(T) }
+─────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Emit(E-SRC-0104, SpanAtIndex(T, i))
 
 **(NoSpan-Decode)**
-$$\frac{}{\Gamma \vdash \text{Emit}(E\text{-}SRC\text{-}0101,\ \bot)}$$
+────────────────────────────────────────
+Γ ⊢ Emit(E-SRC-0101, ⊥)
 
 ### 3.2. Lexical Analysis
 
 #### 3.2.1. Inputs, Outputs, and Records
 
 **LexerInput.**
-$$T = S.\text{scalars}$$
-$$B = S.\text{text}$$
-$$n = S.\text{byte\_len}$$
-$$\text{LexerInput}(S) = \langle T,\ B,\ n \rangle$$
+T = S.scalars
+B = S.text
+n = S.byte_len
+LexerInput(S) = ⟨T, B, n⟩
 
 **LexerOutput.**
-$$\text{LexerOutput}(S) = \langle K,\ D \rangle$$
-$$K \in \text{Token}^\ast \quad D \in \text{DocComment}^\ast$$
+LexerOutput(S) = ⟨K, D⟩
+K ∈ Token*    D ∈ DocComment*
 
 **EOF Token.**
-$$\text{EOFSpan}(S) = \text{SpanOfText}(S,\ |T|,\ |T|)$$
-$$\text{TokenEOF}(S) = \langle \text{EOF},\ \epsilon,\ \text{EOFSpan}(S) \rangle$$
+EOFSpan(S) = SpanOfText(S, |T|, |T|)
+TokenEOF(S) = ⟨EOF, ε, EOFSpan(S)⟩
 
 **LexemeBinding.**
-$$\text{TokenRange}(S,t) = (i,j) \iff t.\text{span} = \text{SpanOfText}(S,i,j)$$
-$$\text{LexemeBinding}(S,T,K) \iff \forall t \in K.\ \exists i,j.\ \text{TokenRange}(S,t)=(i,j) \land t.\text{lexeme} = \text{Lexeme}(T,i,j)$$
+TokenRange(S, t) = (i, j) ⇔ t.span = SpanOfText(S, i, j)
+LexemeBinding(S, T, K) ⇔ ∀ t ∈ K. ∃ i, j. TokenRange(S, t) = (i, j) ∧ t.lexeme = Lexeme(T, i, j)
 
 **DocComment.**
 
-$$\text{DocComment} = \langle \text{kind},\ \text{text},\ \text{span} \rangle$$
+DocComment = ⟨kind, text, span⟩
 
-$$\text{DocKind} = \{\text{LineDoc},\ \text{ModuleDoc}\}$$
-$$\text{StripLeadingSpace}(s) = \begin{cases}
-s[1..|s|) & |s|>0 \land \text{At}(s,0)=\text{U+0020} \\
-s & \text{otherwise}
-\end{cases}$$
-$$\text{DocBody}(T,i,j) = \text{StripLeadingSpace}(T[i+3..j))$$
-$$\text{DocMarker}(T,i) = \begin{cases}\text{LineDoc} & T[i..i+3]=\texttt{"///"} \\ \text{ModuleDoc} & T[i..i+3]=\texttt{"//!"} \\ \bot & \text{otherwise}\end{cases}$$
+DocKind = {LineDoc, ModuleDoc}
+StripLeadingSpace(s) =
+ s[1..|s|)  if |s| > 0 ∧ At(s, 0) = U+0020
+ s          otherwise
+DocBody(T, i, j) = StripLeadingSpace(T[i+3..j))
+DocMarker(T, i) =
+ LineDoc    if T[i..i+3] = "///"
+ ModuleDoc  if T[i..i+3] = "//!"
+ ⊥          otherwise
 
 **Newline Tokens.**
-$$\text{NewlineTokenAt}(S,T,i) \iff T[i]=\text{LF} \land \neg \text{InsideLiteralOrComment}(i)$$
-$$\text{LexNewline}(K,S) \iff \forall i.\ \text{NewlineTokenAt}(S,T,i) \Rightarrow \exists t \in K.\ t.\text{kind}=\text{Newline} \land \text{TokenRange}(S,t)=(i,i+1)$$
-$$\text{TokenInComment}(S,t) \iff \exists i,j,a,b.\ \text{TokenRange}(S,t)=(i,j) \land (\text{LineCommentRange}(T,a,b) \lor \text{BlockCommentRange}(T,a,b)) \land a \le i \land j \le b$$
-$$\text{LexNoComments}(K,S) \iff \forall t \in K.\ \neg \text{TokenInComment}(S,t)$$
+NewlineTokenAt(S, T, i) ⇔ T[i] = LF ∧ ¬ InsideLiteralOrComment(i)
+LexNewline(K, S) ⇔ ∀ i. NewlineTokenAt(S, T, i) ⇒ ∃ t ∈ K. t.kind = Newline ∧ TokenRange(S, t) = (i, i+1)
+TokenInComment(S, t) ⇔ ∃ i, j, a, b. TokenRange(S, t) = (i, j) ∧ (LineCommentRange(T, a, b) ∨ BlockCommentRange(T, a, b)) ∧ a ≤ i ∧ j ≤ b
+LexNoComments(K, S) ⇔ ∀ t ∈ K. ¬ TokenInComment(S, t)
 
 **Indices and Lexemes.**
-$$T = S.\text{scalars}$$
-$$O = \text{Utf8Offsets}(T)$$
-$$\text{ScalarIndex}(T) = \{i \mid 0 \le i \le |T|\}$$
+T = S.scalars
+O = Utf8Offsets(T)
+ScalarIndex(T) = { i | 0 ≤ i ≤ |T| }
 
-$$\text{ByteOf}(T,i) = O[i]$$
+ByteOf(T, i) = O[i]
 
-$$\text{SpanOfText}(S,i,j) = \text{SpanOf}(S,\ \text{ByteOf}(T,i),\ \text{ByteOf}(T,j))$$
+SpanOfText(S, i, j) = SpanOf(S, ByteOf(T, i), ByteOf(T, j))
 
-$$\text{Lexeme}(T,i,j) = T[i..j)$$
+Lexeme(T, i, j) = T[i..j)
 
 #### 3.2.2. Character Classes
 
-$$c \in \text{UnicodeScalar}$$
+c ∈ UnicodeScalar
 
 **Whitespace.**
 
-$$\text{Whitespace}(c) \iff c \in \{\text{U+0020},\ \text{U+0009},\ \text{U+000C}\}$$
+Whitespace(c) ⇔ c ∈ {U+0020, U+0009, U+000C}
 
 **Line Feed.**
 
-$$\text{LineFeed}(c) \iff c = \text{U+000A}$$
+LineFeed(c) ⇔ c = U+000A
 
 **Identifier Characters.**
-$$\text{XID\_Start} : \text{UnicodeScalar} \to \text{Bool}$$
-$$\text{XID\_Continue} : \text{UnicodeScalar} \to \text{Bool}$$
+XID_Start : UnicodeScalar → Bool
+XID_Continue : UnicodeScalar → Bool
 
-$$\text{IdentStart}(c) \iff c = \texttt{'_'} \lor \text{XID\_Start}(c)$$
-$$\text{IdentContinue}(c) \iff c = \texttt{'_'} \lor \text{XID\_Continue}(c)$$
+IdentStart(c) ⇔ c = '_' ∨ XID_Start(c)
+IdentContinue(c) ⇔ c = '_' ∨ XID_Continue(c)
 
-$$\text{XIDVersion} = \texttt{"15.0.0"}$$
-$$\text{XID\_Start}(c) \iff c \in \text{UAX31\_XID\_Start}_{15.0.0}$$
-$$\text{XID\_Continue}(c) \iff c \in \text{UAX31\_XID\_Continue}_{15.0.0}$$
+XIDVersion = "15.0.0"
+XID_Start(c) ⇔ c ∈ UAX31_XID_Start_{15.0.0}
+XID_Continue(c) ⇔ c ∈ UAX31_XID_Continue_{15.0.0}
 
 **Non-Characters.**
 
-$$\text{NonCharacter}(c) \iff c \in [\text{U+FDD0},\text{U+FDEF}] \lor (c \mathbin{\&} \texttt{0xFFFF}) \in \{\texttt{0xFFFE},\ \texttt{0xFFFF}\}$$
+NonCharacter(c) ⇔ c ∈ [U+FDD0, U+FDEF] ∨ (c & 0xFFFF) ∈ {0xFFFE, 0xFFFF}
 
 **Digits.**
 
-$$\text{DecDigit}(c) \iff c \in \{\texttt{'0'} \ldots \texttt{'9'}\}$$
-$$\text{HexDigit}(c) \iff \text{DecDigit}(c) \lor c \in \{\texttt{'a'}\ldots\texttt{'f'},\ \texttt{'A'}\ldots\texttt{'F'}\}$$
-$$\text{OctDigit}(c) \iff c \in \{\texttt{'0'}\ldots\texttt{'7'}\}$$
-$$\text{BinDigit}(c) \iff c \in \{\texttt{'0'},\ \texttt{'1'}\}$$
+DecDigit(c) ⇔ c ∈ {'0' … '9'}
+HexDigit(c) ⇔ DecDigit(c) ∨ c ∈ {'a' … 'f', 'A' … 'F'}
+OctDigit(c) ⇔ c ∈ {'0' … '7'}
+BinDigit(c) ⇔ c ∈ {'0', '1'}
 
 **Lexically Sensitive Characters.**
 
-$$\text{Sensitive}(c) \iff c \in \{\text{U+202A} \ldots \text{U+202E},\ \text{U+2066} \ldots \text{U+2069},\ \text{U+200C},\ \text{U+200D}\}$$
+Sensitive(c) ⇔ c ∈ {U+202A … U+202E, U+2066 … U+2069, U+200C, U+200D}
 
 #### 3.2.3. Reserved Lexemes
 
 **Reserved.**
-$$\text{Reserved} = \{\texttt{"as"},\ \texttt{"break"},\ \texttt{"class"},\ \texttt{"continue"},\ \texttt{"else"},\ \texttt{"enum"},\ \texttt{"false"},\ \texttt{"defer"},\ \texttt{"frame"},\ \texttt{"if"},\ \texttt{"imm"},\ \texttt{"import"},\ \texttt{"internal"},\ \texttt{"let"},\ \texttt{"loop"},\ \texttt{"match"},\ \texttt{"modal"},\ \texttt{"move"},\ \texttt{"mut"},\ \texttt{"null"},\ \texttt{"private"},\ \texttt{"procedure"},\ \texttt{"protected"},\ \texttt{"public"},\ \texttt{"record"},\ \texttt{"region"},\ \texttt{"result"},\ \texttt{"return"},\ \texttt{"shadow"},\ \texttt{"shared"},\ \texttt{"transition"},\ \texttt{"transmute"},\ \texttt{"true"},\ \texttt{"type"},\ \texttt{"unique"},\ \texttt{"unsafe"},\ \texttt{"var"},\ \texttt{"widen"},\ \texttt{"using"},\ \texttt{"const"},\ \texttt{"override"}\}$$
+Reserved = {`as`, `break`, `class`, `continue`, `else`, `enum`, `false`, `defer`, `frame`, `if`, `imm`, `import`, `internal`, `let`, `loop`, `match`, `modal`, `move`, `mut`, `null`, `private`, `procedure`, `protected`, `public`, `record`, `region`, `result`, `return`, `shadow`, `shared`, `transition`, `transmute`, `true`, `type`, `unique`, `unsafe`, `var`, `widen`, `using`, `const`, `override`}
 
-$$\text{FutureReserved} = \emptyset$$
+FutureReserved = ∅
 
 **Keyword Predicate.**
-$$\text{Keyword}(s) \iff s \in \text{Reserved}$$
+Keyword(s) ⇔ s ∈ Reserved
 
 **Reserved Namespaces.**
-$$\text{ReservedNamespacePrefix} = \{\texttt{"cursive."}\}$$
-$$\text{ReservedIdentPrefix} = \{\texttt{"gen\_"}\}$$
-$$\text{ReservedNamespacePhase} = \text{Phase3}$$
+ReservedNamespacePrefix = {`cursive.`}
+ReservedIdentPrefix = {`gen_`}
+ReservedNamespacePhase = Phase3
 
 **Universe-Protected Bindings.**
-$$\text{UniverseProtected} = \{\texttt{"i8"},\ \texttt{"i16"},\ \texttt{"i32"},\ \texttt{"i64"},\ \texttt{"i128"},\ \texttt{"u8"},\ \texttt{"u16"},\ \texttt{"u32"},\ \texttt{"u64"},\ \texttt{"u128"},\ \texttt{"f16"},\ \texttt{"f32"},\ \texttt{"f64"},\ \texttt{"bool"},\ \texttt{"char"},\ \texttt{"usize"},\ \texttt{"isize"},\ \texttt{"Self"},\ \texttt{"Drop"},\ \texttt{"Bitcopy"},\ \texttt{"Clone"},\ \texttt{"string"},\ \texttt{"bytes"},\ \texttt{"Modal"},\ \texttt{"Region"},\ \texttt{"RegionOptions"},\ \texttt{"Context"},\ \texttt{"System"},\ \texttt{"Async"},\ \texttt{"Future"},\ \texttt{"Sequence"},\ \texttt{"Stream"},\ \texttt{"Pipe"},\ \texttt{"Exchange"}\}$$
-$$\text{UniverseProtectedPhase} = \text{Phase3}$$
+UniverseProtected = {`i8`, `i16`, `i32`, `i64`, `i128`, `u8`, `u16`, `u32`, `u64`, `u128`, `f16`, `f32`, `f64`, `bool`, `char`, `usize`, `isize`, `Self`, `Drop`, `Bitcopy`, `Clone`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, `Context`, `System`, `Async`, `Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`}
+UniverseProtectedPhase = Phase3
 
 #### 3.2.4. Token Kinds
 
-$$\text{TokenKind} \in \{\text{Identifier},\ \text{Keyword}(k),\ \text{IntLiteral},\ \text{FloatLiteral},\ \text{StringLiteral},\ \text{CharLiteral},\ \text{BoolLiteral},\ \text{NullLiteral},\ \text{Operator}(o),\ \text{Punctuator}(p),\ \text{Newline},\ \text{Unknown}\}$$
+TokenKind ∈ {Identifier, Keyword(k), IntLiteral, FloatLiteral, StringLiteral, CharLiteral, BoolLiteral, NullLiteral, Operator(o), Punctuator(p), Newline, Unknown}
 
 **Operator Set.**
-$$\text{OperatorSet} = \{\texttt{"+"},\ \texttt{"-"},\ \texttt{"*"},\ \texttt{"/"},\ \texttt{"%"},\ \texttt{"**"},\ \texttt{"=="},\ \texttt{"!="},\ \texttt{"<"},\ \texttt{"<="},\ \texttt{">"},\ \texttt{">="},\ \texttt{"&&"},\ \texttt{"||"},\ \texttt{"!"},\ \texttt{"&"},\ \texttt{"|"},\ \texttt{"^"},\ \texttt{"<<"},\ \texttt{">>"},\ \texttt{"="},\ \texttt{"+="},\ \texttt{"-="},\ \texttt{"*="},\ \texttt{"/="},\ \texttt{"%="},\ \texttt{"&="},\ \texttt{"|="},\ \texttt{"^="},\ \texttt{"<<="},\ \texttt{">>="},\ \texttt{":="},\ \texttt{"<:"},\ \texttt{".."},\ \texttt{"..="},\ \texttt{"=>"},\ \texttt{"->"},\ \texttt{"::"},\ \texttt{"~"},\ \texttt{"~>"},\ \texttt{"~!"},\ \texttt{"?"},\ \texttt{"#"},\ \texttt{"@"},\ \texttt{"$"}\}$$
+OperatorSet = {"+", "-", "*", "/", "%", "**", "==", "!=", "<", "<=", ">", ">=", "&&", "||", "!", "&", "|", "^", "<<", ">>", "=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", ":=", "<:", "..", "..=", "=>", "->", "::", "~", "~>", "~!", "?", "#", "@", "$"}
 
 **Punctuator Set.**
-$$\text{PunctuatorSet} = \{\texttt{"("},\ \texttt{")"},\ \texttt{"["},\ \texttt{"]"},\ \texttt{"{"},\ \texttt{"}"},\ \texttt{","},\ \texttt{":"},\ \texttt{";"},\ \texttt{"."}\}$$
+PunctuatorSet = {"(", ")", "[", "]", "{", "}", ",", ":", ";", "."}
 
-$$\text{OperatorSet} \cap \text{PunctuatorSet} = \emptyset$$
+OperatorSet ∩ PunctuatorSet = ∅
 
 #### 3.2.5. Comment and Whitespace Scanning
 
-$$T = S.\text{scalars}$$
+T = S.scalars
 
 **Line Comment Scan.**
 
 **(Scan-Line-Comment)**
-$$\frac{T[i]=\texttt{'/'} \quad T[i+1]=\texttt{'/'} \quad j = \min\{p \mid i \le p \land (p = |T| \lor T[p]=\text{LF})\}}{\Gamma \vdash \text{ScanLineComment}(T,i) \Downarrow j}$$
+T[i] = '/'    T[i+1] = '/'    j = min{ p | i ≤ p ∧ (p = |T| ∨ T[p] = LF) }
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ScanLineComment(T, i) ⇓ j
 
 **Doc Comment Classification.**
-$$\text{kind} = \text{DocMarker}(T,i)$$
-$$\text{body} = \text{DocBody}(T,i,j)$$
+kind = DocMarker(T, i)
+body = DocBody(T, i, j)
 
 **(Doc-Comment)**
-$$\frac{\Gamma \vdash \text{ScanLineComment}(T,i) \Downarrow j \quad \text{kind} \ne \bot}{\Gamma \vdash \text{DocComment}(T,i) \Downarrow \langle \text{kind},\ \text{body},\ \text{SpanOfText}(S,i,j) \rangle}$$
+Γ ⊢ ScanLineComment(T, i) ⇓ j    kind ≠ ⊥
+──────────────────────────────────────────────────────────────
+Γ ⊢ DocComment(T, i) ⇓ ⟨kind, body, SpanOfText(S, i, j)⟩
 
-$$\text{LineCommentTokens}(T,i) = []$$
-$$\text{LineCommentNext}(T,i) = j \ \text{where}\ \Gamma \vdash \text{ScanLineComment}(T,i) \Downarrow j$$
+LineCommentTokens(T, i) = []
+LineCommentNext(T, i) = j where Γ ⊢ ScanLineComment(T, i) ⇓ j
 
 **Block Comment Scan (Nested).**
-$$\text{BlockState} = \{ \text{BlockScan}(T,i,d,i_0) \mid 0 \le i_0 \le i \le |T| \land d \in \mathbb{N} \} \cup \{ \text{BlockDone}(j) \mid 0 \le j \le |T| \}$$
+BlockState = { BlockScan(T, i, d, i_0) | 0 ≤ i_0 ≤ i ≤ |T| ∧ d ∈ ℕ } ∪ { BlockDone(j) | 0 ≤ j ≤ |T| }
 
 **(Block-Start)**
-$$\frac{T[i]=\texttt{'/'} \quad T[i+1]=\texttt{'*'}}{\langle \text{BlockScan}(T,i,d,i_0) \rangle \to \langle \text{BlockScan}(T,i+2,d+1,i_0) \rangle}$$
+T[i] = '/'    T[i+1] = '*'
+───────────────────────────────────────────────────────────
+⟨BlockScan(T, i, d, i_0)⟩ → ⟨BlockScan(T, i+2, d+1, i_0)⟩
 
 **(Block-End)**
-$$\frac{T[i]=\texttt{'*'} \quad T[i+1]=\texttt{'/'} \quad d>1}{\langle \text{BlockScan}(T,i,d,i_0) \rangle \to \langle \text{BlockScan}(T,i+2,d-1,i_0) \rangle}$$
+T[i] = '*'    T[i+1] = '/'    d > 1
+───────────────────────────────────────────────────────────
+⟨BlockScan(T, i, d, i_0)⟩ → ⟨BlockScan(T, i+2, d-1, i_0)⟩
 
 **(Block-Done)**
-$$\frac{T[i]=\texttt{'*'} \quad T[i+1]=\texttt{'/'} \quad d=1}{\langle \text{BlockScan}(T,i,d,i_0) \rangle \to \langle \text{BlockDone}(i+2) \rangle}$$
+T[i] = '*'    T[i+1] = '/'    d = 1
+───────────────────────────────────────────────────────
+⟨BlockScan(T, i, d, i_0)⟩ → ⟨BlockDone(i+2)⟩
 
 **(Block-Step)**
-$$\frac{T[i..i+2] \ne "/*" \quad T[i..i+2] \ne "*/"}{\langle \text{BlockScan}(T,i,d,i_0) \rangle \to \langle \text{BlockScan}(T,i+1,d,i_0) \rangle}$$
+T[i..i+2] ≠ "/*"    T[i..i+2] ≠ "*/"
+───────────────────────────────────────────────────────────
+⟨BlockScan(T, i, d, i_0)⟩ → ⟨BlockScan(T, i+1, d, i_0)⟩
 
 **(Block-Comment-Unterminated)**
-$$\frac{\langle \text{BlockScan}(T,i,d,i_0) \rangle \to^\ast \langle \text{BlockScan}(T,|T|,d,i_0) \rangle \quad d > 0 \quad c = \text{Code}(\text{Block-Comment-Unterminated})}{\Gamma \vdash \text{Emit}(c,\ \text{SpanOfText}(S,i_0,i_0+2))}$$
+⟨BlockScan(T, i, d, i_0)⟩ →* ⟨BlockScan(T, |T|, d, i_0)⟩    d > 0    c = Code(Block-Comment-Unterminated)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Emit(c, SpanOfText(S, i_0, i_0+2))
 
 #### 3.2.6. Literal Lexing
 
-$$T = S.\text{scalars}$$
+T = S.scalars
 
 **Syntax.**
 
@@ -1851,691 +2096,748 @@ null_literal ::= "null"
 ```
 
 **Escape Validity.**
-$$\text{SimpleEscape} = \{\texttt{"\\\\"},\ \texttt{"\\\""},\ \texttt{"\\'"},\ \texttt{"\\n"},\ \texttt{"\\r"},\ \texttt{"\\t"},\ \texttt{"\\0"}\}$$
-$$\text{EscapeOk}(\texttt{"\\\\"}) \land \text{EscapeOk}(\texttt{"\\\""}) \land \text{EscapeOk}(\texttt{"\\'"}) \land \text{EscapeOk}(\texttt{"\\n"}) \land \text{EscapeOk}(\texttt{"\\r"}) \land \text{EscapeOk}(\texttt{"\\t"}) \land \text{EscapeOk}(\texttt{"\\0"})$$
-$$\text{EscapeOk}(\texttt{"\\x"}h_1h_2) \iff \text{HexDigit}(h_1) \land \text{HexDigit}(h_2)$$
-$$\text{EscapeOk}(\texttt{"\\u\{"}h_1\ldots h_n\texttt{"\}"}) \iff 1 \le n \le 6 \land \text{UnicodeScalar}(\text{HexValue}(h_1\ldots h_n))$$
+SimpleEscape = {`\\`, `\"`, `\'`, `\n`, `\r`, `\t`, `\0`}
+EscapeOk(`\\`) ∧ EscapeOk(`\"`) ∧ EscapeOk(`\'`) ∧ EscapeOk(`\n`) ∧ EscapeOk(`\r`) ∧ EscapeOk(`\t`) ∧ EscapeOk(`\0`)
+EscapeOk("\\x" h_1 h_2) ⇔ HexDigit(h_1) ∧ HexDigit(h_2)
+EscapeOk("\\u{" h_1 … h_n "}") ⇔ 1 ≤ n ≤ 6 ∧ UnicodeScalar(HexValue(h_1 … h_n))
 
-$$\text{StringChar}(c) \iff \text{UnicodeScalar}(c) \land c \ne \texttt{"\""} \land c \ne \texttt{"\\"} \land c \ne \text{U+000A}$$
-$$\text{CharContent}(c) \iff \text{UnicodeScalar}(c) \land c \ne \texttt{"'"} \land c \ne \texttt{"\\"} \land c \ne \text{U+000A}$$
-$$\text{string\_char\_unit} = \{ c \mid \text{StringChar}(c) \}$$
-$$\text{char\_content\_unit} = \{ c \mid \text{CharContent}(c) \}$$
+StringChar(c) ⇔ UnicodeScalar(c) ∧ c ≠ "\"" ∧ c ≠ "\\" ∧ c ≠ U+000A
+CharContent(c) ⇔ UnicodeScalar(c) ∧ c ≠ "'" ∧ c ≠ "\\" ∧ c ≠ U+000A
+string_char_unit = { c | StringChar(c) }
+char_content_unit = { c | CharContent(c) }
 
 **Underscore Constraints.**
-$$\text{BasePrefix} = \{\texttt{"0x"},\ \texttt{"0o"},\ \texttt{"0b"}\}$$
-$$\text{IntSuffixSet} = \{\texttt{"i8"},\ \texttt{"i16"},\ \texttt{"i32"},\ \texttt{"i64"},\ \texttt{"i128"},\ \texttt{"u8"},\ \texttt{"u16"},\ \texttt{"u32"},\ \texttt{"u64"},\ \texttt{"u128"},\ \texttt{"isize"},\ \texttt{"usize"}\}$$
-$$\text{FloatSuffixSet} = \{\texttt{"f16"},\ \texttt{"f32"},\ \texttt{"f64"}\}$$
-$$\text{NumSuffix} = \text{IntSuffixSet} \cup \text{FloatSuffixSet}$$
-$$\text{StartsWithUnderscore}(s) \iff \text{At}(s,0)=\texttt{"\_"}$$
-$$\text{EndsWithUnderscore}(s) \iff \text{At}(s,|s|-1)=\texttt{"\_"}$$
-$$\text{AfterBasePrefixUnderscore}(s) \iff \exists p \in \text{BasePrefix}.\ \text{StartsWith}(s,\ \text{Concat}(p,\ \texttt{"\_"}))$$
-$$\text{AdjacentExponentUnderscore}(s) \iff \exists i.\ \text{At}(s,i)=\texttt{"\_"} \land ((i>0 \land \text{At}(s,i-1)\in\{\texttt{"e"},\texttt{"E"}\}) \lor (i+1<|s| \land \text{At}(s,i+1)\in\{\texttt{"e"},\texttt{"E"}\}))$$
-$$\text{BeforeSuffixUnderscore}(s) \iff \exists suf \in \text{NumSuffix}.\ \text{EndsWith}(s,\ \text{Concat}(\texttt{"\_"},\ suf))$$
-$$\text{NumericUnderscoreOk}(s) \iff \neg \text{StartsWithUnderscore}(s) \land \neg \text{EndsWithUnderscore}(s) \land \neg \text{AfterBasePrefixUnderscore}(s) \land \neg \text{AdjacentExponentUnderscore}(s) \land \neg \text{BeforeSuffixUnderscore}(s)$$
+BasePrefix = {"0x", "0o", "0b"}
+IntSuffixSet = {"i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128", "isize", "usize"}
+FloatSuffixSet = {"f16", "f32", "f64"}
+NumSuffix = IntSuffixSet ∪ FloatSuffixSet
+StartsWithUnderscore(s) ⇔ At(s, 0) = "_"
+EndsWithUnderscore(s) ⇔ At(s, |s|-1) = "_"
+AfterBasePrefixUnderscore(s) ⇔ ∃ p ∈ BasePrefix. StartsWith(s, Concat(p, "_"))
+AdjacentExponentUnderscore(s) ⇔ ∃ i. At(s, i) = "_" ∧ ((i > 0 ∧ At(s, i-1) ∈ {"e", "E"}) ∨ (i+1 < |s| ∧ At(s, i+1) ∈ {"e", "E"}))
+BeforeSuffixUnderscore(s) ⇔ ∃ suf ∈ NumSuffix. EndsWith(s, Concat("_", suf))
+NumericUnderscoreOk(s) ⇔ ¬ StartsWithUnderscore(s) ∧ ¬ EndsWithUnderscore(s) ∧ ¬ AfterBasePrefixUnderscore(s) ∧ ¬ AdjacentExponentUnderscore(s) ∧ ¬ BeforeSuffixUnderscore(s)
 
 **Numeric Scan (Maximal Prefix).**
 
-$$\text{DecRun}(T,i) = \max(\{i\} \cup \{ j \mid i < j \le |T| \land \forall k \in [i,j).\ (\text{DecDigit}(T[k]) \lor T[k]=\texttt{"_"}) \})$$
-$$\text{HexRun}(T,i) = \max(\{i\} \cup \{ j \mid i < j \le |T| \land \forall k \in [i,j).\ (\text{HexDigit}(T[k]) \lor T[k]=\texttt{"_"}) \})$$
-$$\text{OctRun}(T,i) = \max(\{i\} \cup \{ j \mid i < j \le |T| \land \forall k \in [i,j).\ (\text{OctDigit}(T[k]) \lor T[k]=\texttt{"_"}) \})$$
-$$\text{BinRun}(T,i) = \max(\{i\} \cup \{ j \mid i < j \le |T| \land \forall k \in [i,j).\ (\text{BinDigit}(T[k]) \lor T[k]=\texttt{"_"}) \})$$
+DecRun(T, i) = max({i} ∪ { j | i < j ≤ |T| ∧ ∀ k ∈ [i, j). (DecDigit(T[k]) ∨ T[k] = "_") })
+HexRun(T, i) = max({i} ∪ { j | i < j ≤ |T| ∧ ∀ k ∈ [i, j). (HexDigit(T[k]) ∨ T[k] = "_") })
+OctRun(T, i) = max({i} ∪ { j | i < j ≤ |T| ∧ ∀ k ∈ [i, j). (OctDigit(T[k]) ∨ T[k] = "_") })
+BinRun(T, i) = max({i} ∪ { j | i < j ≤ |T| ∧ ∀ k ∈ [i, j). (BinDigit(T[k]) ∨ T[k] = "_") })
 
-$$\text{SuffixMatch}(T,i,U) = \max(\{i\} \cup \{ j \mid i < j \le |T| \land \text{Lexeme}(T,i,j) \in U \})$$
+SuffixMatch(T, i, U) = max({i} ∪ { j | i < j ≤ |T| ∧ Lexeme(T, i, j) ∈ U })
 
-$$\text{ExpSignEnd}(T,i) = \begin{cases}
- i+1 & i<|T| \land T[i] \in \{\texttt{"+"},\texttt{"-"}\} \\
- i & \text{otherwise}
-\end{cases}$$
+ExpSignEnd(T, i) =
+ i+1  if i < |T| ∧ T[i] ∈ {"+", "-"}
+ i    otherwise
 
-$$\text{ExpEnd}(T,i) = \begin{cases}
-\text{DecRun}(T,\text{ExpSignEnd}(T,i+1)) & i<|T| \land T[i] \in \{\texttt{"e"},\texttt{"E"}\} \\
- i & \text{otherwise}
-\end{cases}$$
+ExpEnd(T, i) =
+ DecRun(T, ExpSignEnd(T, i+1))  if i < |T| ∧ T[i] ∈ {"e", "E"}
+ i                              otherwise
 
-$$\text{DecCoreEnd}(T,i) = \begin{cases}
-\text{ExpEnd}(T,q) & p=\text{DecRun}(T,i) \land p<|T| \land T[p]=\texttt{"."} \land q=\text{DecRun}(T,p+1) \\
-\text{ExpEnd}(T,p) & p=\text{DecRun}(T,i) \land (p \ge |T| \lor T[p] \ne \texttt{"."})
-\end{cases}$$
+DecCoreEnd(T, i) =
+ ExpEnd(T, q)  if p = DecRun(T, i) ∧ p < |T| ∧ T[p] = "." ∧ q = DecRun(T, p+1)
+ ExpEnd(T, p)  if p = DecRun(T, i) ∧ (p ≥ |T| ∨ T[p] ≠ ".")
 
-$$\text{NumericCoreEnd}(T,i) = \begin{cases}
-\text{HexRun}(T,i+2) & T[i..i+2]=\texttt{"0x"} \\
-\text{OctRun}(T,i+2) & T[i..i+2]=\texttt{"0o"} \\
-\text{BinRun}(T,i+2) & T[i..i+2]=\texttt{"0b"} \\
-\text{DecCoreEnd}(T,i) & \text{otherwise}
-\end{cases}$$
+NumericCoreEnd(T, i) =
+ HexRun(T, i+2)  if T[i..i+2] = "0x"
+ OctRun(T, i+2)  if T[i..i+2] = "0o"
+ BinRun(T, i+2)  if T[i..i+2] = "0b"
+ DecCoreEnd(T, i)  otherwise
 
-$$\text{NumericScanEnd}(T,i) = \text{SuffixMatch}(T,\text{NumericCoreEnd}(T,i),\text{NumSuffix})$$
+NumericScanEnd(T, i) = SuffixMatch(T, NumericCoreEnd(T, i), NumSuffix)
 
-$$\text{HasDot}(T,i,j) \iff \exists p.\ i \le p < j \land T[p]=\texttt{"."}$$
-$$\text{HasExp}(T,i,j) \iff \exists p.\ i \le p < j \land T[p] \in \{\texttt{"e"},\texttt{"E"}\}$$
+HasDot(T, i, j) ⇔ ∃ p. i ≤ p < j ∧ T[p] = "."
+HasExp(T, i, j) ⇔ ∃ p. i ≤ p < j ∧ T[p] ∈ {"e", "E"}
 
-$$\text{NumericKind}(T,i) = \begin{cases}
-\text{FloatLiteral} & \text{SuffixMatch}(T,\text{NumericCoreEnd}(T,i),\text{FloatSuffixSet}) > \text{NumericCoreEnd}(T,i) \\
-\text{FloatLiteral} & \text{HasDot}(T,i,\text{NumericCoreEnd}(T,i)) \lor \text{HasExp}(T,i,\text{NumericCoreEnd}(T,i)) \\
-\text{IntLiteral} & \text{otherwise}
-\end{cases}$$
+NumericKind(T, i) =
+ FloatLiteral  if SuffixMatch(T, NumericCoreEnd(T, i), FloatSuffixSet) > NumericCoreEnd(T, i)
+ FloatLiteral  if HasDot(T, i, NumericCoreEnd(T, i)) ∨ HasExp(T, i, NumericCoreEnd(T, i))
+ IntLiteral    otherwise
 
 **(Lex-Int)**
-$$\frac{\text{DecDigit}(T[i]) \quad j=\text{NumericScanEnd}(T,i) \quad \text{NumericKind}(T,i)=\text{IntLiteral}}{\Gamma \vdash \text{IntLiteral}(T,i) \Downarrow j}$$
+DecDigit(T[i])    j = NumericScanEnd(T, i)    NumericKind(T, i) = IntLiteral
+───────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IntLiteral(T, i) ⇓ j
 
 **(Lex-Float)**
-$$\frac{\text{DecDigit}(T[i]) \quad j=\text{NumericScanEnd}(T,i) \quad \text{NumericKind}(T,i)=\text{FloatLiteral}}{\Gamma \vdash \text{FloatLiteral}(T,i) \Downarrow j}$$
+DecDigit(T[i])    j = NumericScanEnd(T, i)    NumericKind(T, i) = FloatLiteral
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ FloatLiteral(T, i) ⇓ j
 
-$$\text{NumericLexemeOk}(T,i,j) \iff (\text{Lexeme}(T,i,j)\ \text{matches}\ \text{integer\_literal} \lor \text{Lexeme}(T,i,j)\ \text{matches}\ \text{float\_literal}) \land \text{NumericUnderscoreOk}(\text{Lexeme}(T,i,j))$$
-$$\text{NumericLexemeBad}(T,i,j) \iff \neg \text{NumericLexemeOk}(T,i,j)$$
+NumericLexemeOk(T, i, j) ⇔ (Lexeme(T, i, j) matches integer_literal ∨ Lexeme(T, i, j) matches float_literal) ∧ NumericUnderscoreOk(Lexeme(T, i, j))
+NumericLexemeBad(T, i, j) ⇔ ¬ NumericLexemeOk(T, i, j)
 
 **(Lex-Numeric-Err)**
-$$\frac{\text{DecDigit}(T[i]) \quad j=\text{NumericScanEnd}(T,i) \quad \text{NumericLexemeBad}(T,i,j) \quad c = \text{Code}(\text{Lex-Numeric-Err})}{\Gamma \vdash \text{Emit}(c,\ \text{SpanOfText}(S,i,j))}$$
+DecDigit(T[i])    j = NumericScanEnd(T, i)    NumericLexemeBad(T, i, j)    c = Code(Lex-Numeric-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Emit(c, SpanOfText(S, i, j))
 
 **Leading Zeros.**
-$$\text{Digits}(s) = \text{Remove}(s,\ \texttt{"\_"})$$
-$$\text{DecimalLeadingZero}(T,i,j) \iff \text{Lexeme}(T,i,j)\ \text{matches}\ \text{decimal\_integer} \land |\text{Digits}(\text{Lexeme}(T,i,j))| > 1 \land \text{At}(\text{Digits}(\text{Lexeme}(T,i,j)),0)=\texttt{'0'}$$
+Digits(s) = Remove(s, "_")
+DecimalLeadingZero(T, i, j) ⇔ Lexeme(T, i, j) matches decimal_integer ∧ |Digits(Lexeme(T, i, j))| > 1 ∧ At(Digits(Lexeme(T, i, j)), 0) = '0'
 
-$$\frac{\text{DecimalLeadingZero}(T,i,j)}{\Gamma \vdash \text{Emit}(W\text{-}SRC\text{-}0301,\ \text{SpanOfText}(S,i,j))}$$
+DecimalLeadingZero(T, i, j)
+──────────────────────────────────────────────
+Γ ⊢ Emit(W-SRC-0301, SpanOfText(S, i, j))
 
 **EscapeSequences.**
-$$\text{EscapeValue}(\texttt{"\\\\"}) = \texttt{0x5C}$$
-$$\text{EscapeValue}(\texttt{"\\\""}) = \texttt{0x22}$$
-$$\text{EscapeValue}(\texttt{"\\'"}) = \texttt{0x27}$$
-$$\text{EscapeValue}(\texttt{"\\n"}) = \texttt{0x0A}$$
-$$\text{EscapeValue}(\texttt{"\\r"}) = \texttt{0x0D}$$
-$$\text{EscapeValue}(\texttt{"\\t"}) = \texttt{0x09}$$
-$$\text{EscapeValue}(\texttt{"\\0"}) = \texttt{0x00}$$
-$$\text{EscapeValue}(\texttt{"\\x"}h_1h_2) = \text{HexValue}(h_1h_2)$$
-$$\text{EscapeValue}(\texttt{"\\u\{"}h_1\ldots h_n\texttt{"\}"}) = \text{EncodeUTF8}(\text{HexValue}(h_1\ldots h_n))$$
+EscapeValue(`\\`) = 0x5C
+EscapeValue(`\"`) = 0x22
+EscapeValue(`\'`) = 0x27
+EscapeValue(`\n`) = 0x0A
+EscapeValue(`\r`) = 0x0D
+EscapeValue(`\t`) = 0x09
+EscapeValue(`\0`) = 0x00
+EscapeValue("\\x" h_1 h_2) = HexValue(h_1 h_2)
+EscapeValue("\\u{" h_1 … h_n "}") = EncodeUTF8(HexValue(h_1 … h_n))
 
 **(Lex-String)**
-$$\frac{\text{Lexeme}(T,i,j) \text{ matches } \text{string\_literal}}{\Gamma \vdash \text{StringLiteral}(T,i) \Downarrow j}$$
+Lexeme(T, i, j) matches string_literal
+────────────────────────────────────────────
+Γ ⊢ StringLiteral(T, i) ⇓ j
 
-$$\text{BackslashCount}(T,p) = \max\{k \mid 0 \le k \le p \land \forall r \in [p-k,p).\ T[r]=\texttt{"\\"}\}$$
-$$\text{UnescapedQuote}(T,p) \iff T[p]=\texttt{"\""} \land \text{BackslashCount}(T,p)\bmod 2 = 0$$
-$$\text{StringTerminator}(T,i) = \min\{q \mid q>i \land (\text{UnescapedQuote}(T,q) \lor T[q]=\text{LF} \lor q=|T|)\}$$
-$$\text{LineFeedOrEOFBeforeClose}(T,i) \iff \text{StringTerminator}(T,i)=|T| \lor T[\text{StringTerminator}(T,i)]=\text{LF}$$
-$$\text{EscapeMatch}(T,p,q) \iff \text{Lexeme}(T,p,q)\ \text{matches}\ \text{escape\_sequence} \land \text{EscapeOk}(\text{Lexeme}(T,p,q))$$
-$$\text{BadEscapeAt}(T,p) \iff T[p]=\texttt{"\\"} \land \neg \exists q.\ \text{EscapeMatch}(T,p,q)$$
-$$\text{FirstBadEscape}(T,i) = \min\{p \mid i < p < \text{StringTerminator}(T,i) \land \text{BadEscapeAt}(T,p)\}$$
+BackslashCount(T, p) = max{ k | 0 ≤ k ≤ p ∧ ∀ r ∈ [p-k, p). T[r] = "\\" }
+UnescapedQuote(T, p) ⇔ T[p] = "\"" ∧ BackslashCount(T, p) mod 2 = 0
+StringTerminator(T, i) = min{ q | q > i ∧ (UnescapedQuote(T, q) ∨ T[q] = LF ∨ q = |T|) }
+LineFeedOrEOFBeforeClose(T, i) ⇔ StringTerminator(T, i) = |T| ∨ T[StringTerminator(T, i)] = LF
+EscapeMatch(T, p, q) ⇔ Lexeme(T, p, q) matches escape_sequence ∧ EscapeOk(Lexeme(T, p, q))
+BadEscapeAt(T, p) ⇔ T[p] = "\\" ∧ ¬ ∃ q. EscapeMatch(T, p, q)
+FirstBadEscape(T, i) = min{ p | i < p < StringTerminator(T, i) ∧ BadEscapeAt(T, p) }
 
 **(Lex-String-Unterminated)**
-$$\frac{\text{LineFeedOrEOFBeforeClose}(T,i) \quad c = \text{Code}(\text{Lex-String-Unterminated})}{\Gamma \vdash \text{Emit}(c,\ \text{SpanOfText}(S,i,i+1))}$$
+LineFeedOrEOFBeforeClose(T, i)    c = Code(Lex-String-Unterminated)
+────────────────────────────────────────────────────────────────────
+Γ ⊢ Emit(c, SpanOfText(S, i, i+1))
 
 **(Lex-String-BadEscape)**
-$$\frac{\text{FirstBadEscape}(T,i) = p \quad c = \text{Code}(\text{Lex-String-BadEscape})}{\Gamma \vdash \text{Emit}(c,\ \text{SpanOfText}(S,p,p+1))}$$
+FirstBadEscape(T, i) = p    c = Code(Lex-String-BadEscape)
+───────────────────────────────────────────────────────────────
+Γ ⊢ Emit(c, SpanOfText(S, p, p+1))
 
 **(Lex-Char)**
-$$\frac{\text{Lexeme}(T,i,j) \text{ matches } \text{char\_literal}}{\Gamma \vdash \text{CharLiteral}(T,i) \Downarrow j}$$
+Lexeme(T, i, j) matches char_literal
+─────────────────────────────────────────
+Γ ⊢ CharLiteral(T, i) ⇓ j
 
 **Character Literal Encoding.**
-$$\text{CharValueRange} = \{x \mid 0 \le x \le \texttt{0x10FFFF} \land x \notin [\texttt{0xD800},\ \texttt{0xDFFF}]\}$$
-$$\text{CharRepr} = \texttt{u32}$$
-$$\text{SizeOf}(\texttt{char}) = 4$$
-$$\text{AlignOf}(\texttt{char}) = 4$$
+CharValueRange = { x | 0 ≤ x ≤ 0x10FFFF ∧ x ∉ [0xD800, 0xDFFF] }
+CharRepr = `u32`
+SizeOf(`char`) = 4
+AlignOf(`char`) = 4
 
-$$\text{UnescapedApostrophe}(T,p) \iff T[p]=\texttt{"'"} \land \text{BackslashCount}(T,p)\bmod 2 = 0$$
-$$\text{CharTerminator}(T,i) = \min\{q \mid q>i \land (\text{UnescapedApostrophe}(T,q) \lor T[q]=\text{LF} \lor q=|T|)\}$$
-$$\text{CharLiteralInvalid}(T,i) \iff \text{CharScalarCount}(T,i) \ne 1$$
-$$\text{CharScalarCountFrom}(T,p,q) = 0 \iff p \ge q$$
-$$\text{CharScalarCountFrom}(T,p,q) = 1 + \text{CharScalarCountFrom}(T,p+1,q) \iff p < q \land T[p] \ne \texttt{"\\"}$$
-$$\text{CharScalarCountFrom}(T,p,q) = 1 + \text{CharScalarCountFrom}(T,r,q) \iff p < q \land T[p]=\texttt{"\\"} \land \text{EscapeMatch}(T,p,r)$$
-$$\text{CharScalarCountFrom}(T,p,q) = 1 + \text{CharScalarCountFrom}(T,p+1,q) \iff p < q \land T[p]=\texttt{"\\"} \land \neg \exists r.\ \text{EscapeMatch}(T,p,r)$$
-$$\text{CharScalarCount}(T,i) = \text{CharScalarCountFrom}(T,i+1,\text{CharTerminator}(T,i))$$
+UnescapedApostrophe(T, p) ⇔ T[p] = "'" ∧ BackslashCount(T, p) mod 2 = 0
+CharTerminator(T, i) = min{ q | q > i ∧ (UnescapedApostrophe(T, q) ∨ T[q] = LF ∨ q = |T|) }
+CharLiteralInvalid(T, i) ⇔ CharScalarCount(T, i) ≠ 1
+CharScalarCountFrom(T, p, q) = 0 ⇔ p ≥ q
+CharScalarCountFrom(T, p, q) = 1 + CharScalarCountFrom(T, p+1, q) ⇔ p < q ∧ T[p] ≠ "\\"
+CharScalarCountFrom(T, p, q) = 1 + CharScalarCountFrom(T, r, q) ⇔ p < q ∧ T[p] = "\\" ∧ EscapeMatch(T, p, r)
+CharScalarCountFrom(T, p, q) = 1 + CharScalarCountFrom(T, p+1, q) ⇔ p < q ∧ T[p] = "\\" ∧ ¬ ∃ r. EscapeMatch(T, p, r)
+CharScalarCount(T, i) = CharScalarCountFrom(T, i+1, CharTerminator(T, i))
 
 **(Lex-Char-Unterminated)**
-$$\frac{\text{LineFeedOrEOFBeforeClose}(T,i) \quad c = \text{Code}(\text{Lex-Char-Unterminated})}{\Gamma \vdash \text{Emit}(c,\ \text{SpanOfText}(S,i,i+1))}$$
+LineFeedOrEOFBeforeClose(T, i)    c = Code(Lex-Char-Unterminated)
+─────────────────────────────────────────────────────────────────
+Γ ⊢ Emit(c, SpanOfText(S, i, i+1))
 
 **(Lex-Char-BadEscape)**
-$$\frac{\text{FirstBadEscape}(T,i) = p \quad c = \text{Code}(\text{Lex-Char-BadEscape})}{\Gamma \vdash \text{Emit}(c,\ \text{SpanOfText}(S,p,p+1))}$$
+FirstBadEscape(T, i) = p    c = Code(Lex-Char-BadEscape)
+─────────────────────────────────────────────────────────
+Γ ⊢ Emit(c, SpanOfText(S, p, p+1))
 
 **(Lex-Char-Invalid)**
-$$\frac{\text{CharLiteralInvalid}(T,i) \quad c = \text{Code}(\text{Lex-Char-Invalid})}{\Gamma \vdash \text{Emit}(c,\ \text{SpanOfText}(S,i,i+1))}$$
+CharLiteralInvalid(T, i)    c = Code(Lex-Char-Invalid)
+────────────────────────────────────────────────────────
+Γ ⊢ Emit(c, SpanOfText(S, i, i+1))
 
 **Literal Tokenization Helpers.**
 
-$$\text{StringTok}(T,i) = \{ (\text{StringLiteral},j) \mid \text{StringLiteral}(T,i) \Downarrow j \}$$
-$$\text{CharTok}(T,i) = \{ (\text{CharLiteral},j) \mid \text{CharLiteral}(T,i) \Downarrow j \}$$
-$$\text{IntTok}(T,i) = \{ (\text{IntLiteral},j) \mid \text{IntLiteral}(T,i) \Downarrow j \}$$
-$$\text{FloatTok}(T,i) = \{ (\text{FloatLiteral},j) \mid \text{FloatLiteral}(T,i) \Downarrow j \}$$
+StringTok(T, i) = { (StringLiteral, j) | StringLiteral(T, i) ⇓ j }
+CharTok(T, i) = { (CharLiteral, j) | CharLiteral(T, i) ⇓ j }
+IntTok(T, i) = { (IntLiteral, j) | IntLiteral(T, i) ⇓ j }
+FloatTok(T, i) = { (FloatLiteral, j) | FloatLiteral(T, i) ⇓ j }
 
 #### 3.2.7. Identifier and Keyword Lexing
 
-$$T = S.\text{scalars}$$
+T = S.scalars
 
 **Identifier Scan.**
-$$\text{IdentScanEnd}(T,i) = \min\{j \mid j>i \land (\neg \text{IdentContinue}(T[j]) \lor j=|T|) \land \forall k \in (i,j).\ \text{IdentContinue}(T[k])\}$$
+IdentScanEnd(T, i) = min{ j | j > i ∧ (¬ IdentContinue(T[j]) ∨ j = |T|) ∧ ∀ k ∈ (i, j). IdentContinue(T[k]) }
 
 **(Lex-Identifier)**
-$$\frac{\text{IdentStart}(T[i]) \quad j=\text{IdentScanEnd}(T,i) \quad s=\text{Lexeme}(T,i,j)}{\Gamma \vdash \text{Ident}(T,i) \Downarrow (s,j)}$$
+IdentStart(T[i])    j = IdentScanEnd(T, i)    s = Lexeme(T, i, j)
+────────────────────────────────────────────────────────────────
+Γ ⊢ Ident(T, i) ⇓ (s, j)
 
 **(Lex-Ident-InvalidUnicode)**
-$$\frac{k = \min\{p \mid i \le p < j \land \text{NonCharacter}(T[p])\} \quad c = \text{Code}(\text{Lex-Ident-InvalidUnicode})}{\Gamma \vdash \text{Emit}(c,\ \text{SpanOfText}(S,k,k+1))}$$
+k = min{ p | i ≤ p < j ∧ NonCharacter(T[p]) }    c = Code(Lex-Ident-InvalidUnicode)
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Emit(c, SpanOfText(S, k, k+1))
 
 **(Lex-Ident-Token)**
-$$\frac{\Gamma \vdash \text{Ident}(T,i) \Downarrow (s,j) \quad \Gamma \vdash \text{ClassifyIdent}(s) \Downarrow k}{\Gamma \vdash \text{IdentToken}(T,i) \Downarrow (k,j)}$$
+Γ ⊢ Ident(T, i) ⇓ (s, j)    Γ ⊢ ClassifyIdent(s) ⇓ k
+──────────────────────────────────────────────────────────────
+Γ ⊢ IdentToken(T, i) ⇓ (k, j)
 
 **Keyword Classification.**
-$$\text{ClassifyIdent}(s) = \begin{cases}
-\text{BoolLiteral} & s \in \{\texttt{"true"},\ \texttt{"false"}\} \\
-\text{NullLiteral} & s = \texttt{"null"} \\
-\text{Keyword}(s) & \text{Keyword}(s) \\
-\text{Identifier} & \text{otherwise}
-\end{cases}$$
+ClassifyIdent(s) =
+ BoolLiteral  if s ∈ {"true", "false"}
+ NullLiteral  if s = "null"
+ Keyword(s)   if Keyword(s)
+ Identifier   otherwise
 
 #### 3.2.8. Operator and Punctuator Lexing
 
-$$\text{OpSet} = \text{OperatorSet}$$
-$$\text{PuncSet} = \text{PunctuatorSet}$$
+OpSet = OperatorSet
+PuncSet = PunctuatorSet
 
-$$\text{OpMatch}(T,i) = \{ (o,j) \mid o \in \text{OpSet} \land \text{Lexeme}(T,i,j) = o \}$$
-$$\text{PuncMatch}(T,i) = \{ (p,j) \mid p \in \text{PuncSet} \land \text{Lexeme}(T,i,j) = p \}$$
+OpMatch(T, i) = { (o, j) | o ∈ OpSet ∧ Lexeme(T, i, j) = o }
+PuncMatch(T, i) = { (p, j) | p ∈ PuncSet ∧ Lexeme(T, i, j) = p }
 
-$$\text{OpTok}(T,i) = \{ (\text{Operator}(o),j) \mid (o,j) \in \text{OpMatch}(T,i) \}$$
-$$\text{PuncTok}(T,i) = \{ (\text{Punctuator}(p),j) \mid (p,j) \in \text{PuncMatch}(T,i) \}$$
+OpTok(T, i) = { (Operator(o), j) | (o, j) ∈ OpMatch(T, i) }
+PuncTok(T, i) = { (Punctuator(p), j) | (p, j) ∈ PuncMatch(T, i) }
 
 #### 3.2.9. Maximal-Munch Rule
 
-$$T = S.\text{scalars}$$
+T = S.scalars
 
-$$\text{IsQuote}(c) \iff c \in \{\texttt{"\""},\ \texttt{"'"}\}$$
-$$\text{Candidates}(T,i) = \begin{cases}
-\text{StringTok}(T,i) \cup \text{CharTok}(T,i) & \text{IsQuote}(T[i]) \\
-\text{FloatTok}(T,i) \cup \text{IntTok}(T,i) & \text{DecDigit}(T[i]) \\
-\text{IdentToken}(T,i) & \text{IdentStart}(T[i]) \\
-\text{OpTok}(T,i) \cup \text{PuncTok}(T,i) & \text{OpTok}(T,i)\ne \varnothing \lor \text{PuncTok}(T,i)\ne \varnothing \\
-\varnothing & \text{otherwise}
-\end{cases}$$
+IsQuote(c) ⇔ c ∈ {"\"", "'"}
+Candidates(T, i) =
+ StringTok(T, i) ∪ CharTok(T, i)  if IsQuote(T[i])
+ FloatTok(T, i) ∪ IntTok(T, i)    if DecDigit(T[i])
+ IdentToken(T, i)                 if IdentStart(T[i])
+ OpTok(T, i) ∪ PuncTok(T, i)       if OpTok(T, i) ≠ ∅ ∨ PuncTok(T, i) ≠ ∅
+ ∅                                otherwise
 
-$$\text{Longest}(C) = \{ (k,j) \in C \mid \forall (k',j') \in C,\ j \ge j' \}$$
+Longest(C) = { (k, j) ∈ C | ∀ (k', j') ∈ C, j ≥ j' }
 
-$$\text{KindPriority}(\text{IntLiteral}) = 3$$
-$$\text{KindPriority}(\text{FloatLiteral}) = 3$$
-$$\text{KindPriority}(\text{StringLiteral}) = 3$$
-$$\text{KindPriority}(\text{CharLiteral}) = 3$$
-$$\text{KindPriority}(\text{BoolLiteral}) = 3$$
-$$\text{KindPriority}(\text{NullLiteral}) = 3$$
-$$\text{KindPriority}(\text{Identifier}) = 2$$
-$$\text{KindPriority}(\text{Keyword}(\_)) = 2$$
-$$\text{KindPriority}(\text{Operator}(\_)) = 1$$
-$$\text{KindPriority}(\text{Punctuator}(\_)) = 0$$
+KindPriority(IntLiteral) = 3
+KindPriority(FloatLiteral) = 3
+KindPriority(StringLiteral) = 3
+KindPriority(CharLiteral) = 3
+KindPriority(BoolLiteral) = 3
+KindPriority(NullLiteral) = 3
+KindPriority(Identifier) = 2
+KindPriority(Keyword(_)) = 2
+KindPriority(Operator(_)) = 1
+KindPriority(Punctuator(_)) = 0
 
-$$\text{PickLongest}(C) = \arg\max_{(k,j)\in C}\ \langle j,\ \text{KindPriority}(k)\rangle$$
+PickLongest(C) = argmax_{(k, j) ∈ C} ⟨j, KindPriority(k)⟩
 
 **(Max-Munch)**
-$$\frac{\text{PickLongest}(C) = (k,j)}{\Gamma \vdash \text{NextToken}(T,i) \Downarrow (k,j)}$$
+PickLongest(C) = (k, j)
+──────────────────────────────
+Γ ⊢ NextToken(T, i) ⇓ (k, j)
 
 **(Max-Munch-Err)**
-$$\frac{\text{Candidates}(T,i)=\varnothing \quad c = \text{Code}(\text{Max-Munch-Err})}{\Gamma \vdash \text{NextToken}(T,i) \Uparrow c}$$
+Candidates(T, i) = ∅    c = Code(Max-Munch-Err)
+────────────────────────────────────────────────
+Γ ⊢ NextToken(T, i) ⇑ c
 
-$$\text{SpanOfErr}(\text{Max-Munch-Err},S,i) = \text{SpanOfText}(S,i,i+1)$$
+SpanOfErr(Max-Munch-Err, S, i) = SpanOfText(S, i, i+1)
 
-$$\text{GenericCloseException} = \text{false}$$
+GenericCloseException = false
 
 #### 3.2.10. Lexical Security
 
-$$T = S.\text{scalars}$$
-$$O = \text{Utf8Offsets}(T)$$
+T = S.scalars
+O = Utf8Offsets(T)
 
 **Literal/Comment Ranges.**
-$$\text{LineCommentRange}(T,i,j) \iff \Gamma \vdash \text{ScanLineComment}(T,i) \Downarrow j$$
-$$\text{BlockCommentRange}(T,i,j) \iff T[i..i+2]=\texttt{"/*"} \land \langle \text{BlockScan}(T,i,0,i) \rangle \to^\ast \langle \text{BlockDone}(j) \rangle$$
-$$\text{StringRange}(T,i,j) \iff \Gamma \vdash \text{StringLiteral}(T,i) \Downarrow j$$
-$$\text{CharRange}(T,i,j) \iff \Gamma \vdash \text{CharLiteral}(T,i) \Downarrow j$$
-$$\text{InsideLiteralOrComment}(i) \iff \exists a,b.\ a \le i < b \land (\text{LineCommentRange}(T,a,b) \lor \text{BlockCommentRange}(T,a,b) \lor \text{StringRange}(T,a,b) \lor \text{CharRange}(T,a,b))$$
+LineCommentRange(T, i, j) ⇔ Γ ⊢ ScanLineComment(T, i) ⇓ j
+BlockCommentRange(T, i, j) ⇔ T[i..i+2] = "/*" ∧ ⟨BlockScan(T, i, 0, i)⟩ →* ⟨BlockDone(j)⟩
+StringRange(T, i, j) ⇔ Γ ⊢ StringLiteral(T, i) ⇓ j
+CharRange(T, i, j) ⇔ Γ ⊢ CharLiteral(T, i) ⇓ j
+InsideLiteralOrComment(i) ⇔ ∃ a, b. a ≤ i < b ∧ (LineCommentRange(T, a, b) ∨ BlockCommentRange(T, a, b) ∨ StringRange(T, a, b) ∨ CharRange(T, a, b))
 
 **Sensitive Positions in a Span.**
 
-$$\text{SensitiveInSpan}(T,i,j) = [\ p\ \mid\ i \le p < j \land \text{Sensitive}(T[p])\ ]$$
+SensitiveInSpan(T, i, j) = [ p | i ≤ p < j ∧ Sensitive(T[p]) ]
 
 **Unsafe Spans (Token-Only).**
 
-$$\text{IsLBrace}(t) \iff t.\text{kind} = \text{Punctuator}(\texttt{"{"})$$
-$$\text{IsRBrace}(t) \iff t.\text{kind} = \text{Punctuator}(\texttt{"}"})$$
+IsLBrace(t) ⇔ t.kind = Punctuator("{")
+IsRBrace(t) ⇔ t.kind = Punctuator("}")
 
-$$\text{NextNonNewline}(K,i) = \bot \iff \{ j \mid j \ge i \land K[j].\text{kind} \ne \text{Newline} \} = \emptyset$$
-$$\text{NextNonNewline}(K,i) = j \iff j = \min\{ j \mid j \ge i \land K[j].\text{kind} \ne \text{Newline} \}$$
+NextNonNewline(K, i) = ⊥ ⇔ { j | j ≥ i ∧ K[j].kind ≠ Newline } = ∅
+NextNonNewline(K, i) = j ⇔ j = min{ j | j ≥ i ∧ K[j].kind ≠ Newline }
 
-$$\text{MatchBrace}(K,j) = \min\{k \mid k>j \land \text{Balance}(j,k)=0 \land \forall m \in (j,k),\ \text{Balance}(j,m) > 0\}$$
+MatchBrace(K, j) = min{ k | k > j ∧ Balance(j, k) = 0 ∧ ∀ m ∈ (j, k), Balance(j, m) > 0 }
 
-$$\text{Balance}(K,j,m) = |\{x \mid j \le x \le m \land \text{IsLBrace}(K[x])\}| - |\{x \mid j \le x \le m \land \text{IsRBrace}(K[x])\}|$$
-$$\text{MatchBrace}(K,j) = \bot \iff \{k \mid k>j \land \text{Balance}(K,j,k)=0 \land \forall m \in (j,k).\ \text{Balance}(K,j,m) > 0\} = \emptyset$$
+Balance(K, j, m) = |{ x | j ≤ x ≤ m ∧ IsLBrace(K[x]) }| - |{ x | j ≤ x ≤ m ∧ IsRBrace(K[x]) }|
+MatchBrace(K, j) = ⊥ ⇔ { k | k > j ∧ Balance(K, j, k) = 0 ∧ ∀ m ∈ (j, k). Balance(K, j, m) > 0 } = ∅
 
-$$\text{SpanFrom}(t_a,t_b) = \langle t_a.\text{span.file},\ t_a.\text{span.start\_offset},\ t_b.\text{span.end\_offset},\ t_a.\text{span.start\_line},\ t_a.\text{span.start\_col},\ t_b.\text{span.end\_line},\ t_b.\text{span.end\_col} \rangle$$
+SpanFrom(t_a, t_b) = ⟨t_a.span.file, t_a.span.start_offset, t_b.span.end_offset, t_a.span.start_line, t_a.span.start_col, t_b.span.end_line, t_b.span.end_col⟩
 
-$$\text{UnsafeSpans}(K) = \{\ \text{SpanFrom}(K[j],K[k])\ \mid\ K[i].\text{kind}=\text{Keyword}(\texttt{"unsafe"}),\ j=\text{NextNonNewline}(K,i+1),\ K[j].\text{kind}=\text{Punctuator}(\texttt{"{"}),\ k=\text{MatchBrace}(K,j),\ k \ne \bot\ \}$$
+UnsafeSpans(K) = { SpanFrom(K[j], K[k]) | K[i].kind = Keyword("unsafe"), j = NextNonNewline(K, i+1), K[j].kind = Punctuator("{"), k = MatchBrace(K, j), k ≠ ⊥ }
 
-$$\text{UnsafeAtByte}(b) \iff \exists sp \in \text{UnsafeSpans}(K).\ b \in \text{SpanRange}(sp)$$
+UnsafeAtByte(b) ⇔ ∃ sp ∈ UnsafeSpans(K). b ∈ SpanRange(sp)
 
-$$\text{UnsafeSpanMode} = \text{TokenOnly}$$
+UnsafeSpanMode = TokenOnly
 
 **Lexical Security Check.**
-$$\text{Sens} = [\ p\ \mid\ \text{Sensitive}(T[p]) \land \neg \text{InsideLiteralOrComment}(p)\ ]$$
+Sens = [ p | Sensitive(T[p]) ∧ ¬ InsideLiteralOrComment(p) ]
 
 **(LexSecure-Err)**
-$$\frac{i = \min\{p \mid p \in \text{Sens} \land \neg \text{UnsafeAtByte}(\text{ByteOf}(T,p))\} \quad c = \text{Code}(\text{LexSecure-Err})}{\Gamma \vdash \text{LexSecure}(S,K,\text{Sens}) \Uparrow c}$$
+i = min{ p | p ∈ Sens ∧ ¬ UnsafeAtByte(ByteOf(T, p)) }    c = Code(LexSecure-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LexSecure(S, K, Sens) ⇑ c
 
 **(LexSecure-Warn)**
-$$\frac{\forall p \in \text{Sens},\ \text{UnsafeAtByte}(\text{ByteOf}(T,p)) \quad \Gamma \vdash \text{EmitList}(\text{LexSecureWarns}(S,\text{Sens}))}{\Gamma \vdash \text{LexSecure}(S,K,\text{Sens}) \Downarrow ok}$$
+∀ p ∈ Sens, UnsafeAtByte(ByteOf(T, p))    Γ ⊢ EmitList(LexSecureWarns(S, Sens))
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LexSecure(S, K, Sens) ⇓ ok
 
-$$\text{LexSecureWarns}(S,\text{Sens}) = [\ \langle W\text{-}SRC\text{-}0308,\ \text{SpanOfText}(S,p,p+1)\rangle\ \mid\ p \in \text{Sens}\ ]$$
-$$\text{LexSecureErrSpan}(S,i) = \text{SpanOfText}(S,i,i+1)$$
+LexSecureWarns(S, Sens) = [ ⟨W-SRC-0308, SpanOfText(S, p, p+1)⟩ | p ∈ Sens ]
+LexSecureErrSpan(S, i) = SpanOfText(S, i, i+1)
 
 #### 3.2.11. Tokenization (Small-Step)
 
-$$\text{LexState} = \{\text{LexStart}(S),\ \text{LexScan}(S,i,K,D,Sens),\ \text{LexDone}(K,D,Sens),\ \text{LexError}(code)\}$$
-$$T = S.\text{scalars}$$
-$$|T| = \text{len}(T)$$
+LexState = {LexStart(S), LexScan(S, i, K, D, Sens), LexDone(K, D, Sens), LexError(code)}
+T = S.scalars
+|T| = len(T)
 
 **(Lex-Start)**
-$$\frac{}{ \langle \text{LexStart}(S) \rangle \to \langle \text{LexScan}(S,0,[],[],[]) \rangle }$$
+────────────────────────────────────────────
+⟨LexStart(S)⟩ → ⟨LexScan(S, 0, [], [], [])⟩
 
 **(Lex-End)**
-$$\frac{i \ge |T|}{\langle \text{LexScan}(S,i,K,D,\text{Sens}) \rangle \to \langle \text{LexDone}(K,D,\text{Sens}) \rangle}$$
+i ≥ |T|
+──────────────────────────────────────────────
+⟨LexScan(S, i, K, D, Sens)⟩ → ⟨LexDone(K, D, Sens)⟩
 
 **(Lex-Whitespace)**
-$$\frac{\text{Whitespace}(T[i])}{\langle \text{LexScan}(S,i,K,D,\text{Sens}) \rangle \to \langle \text{LexScan}(S,i+1,K,D,\text{Sens}) \rangle}$$
+Whitespace(T[i])
+───────────────────────────────────────────────
+⟨LexScan(S, i, K, D, Sens)⟩ → ⟨LexScan(S, i+1, K, D, Sens)⟩
 
 **(Lex-Newline)**
-$$\frac{T[i]=\text{LF}}{\langle \text{LexScan}(S,i,K,D,\text{Sens}) \rangle \to \langle \text{LexScan}(S,i+1,K\mathbin{+\!\!+}[\langle\text{newline},\text{Lexeme}(T,i,i+1),\text{SpanOfText}(S,i,i+1)\rangle],D,\text{Sens}) \rangle}$$
+T[i] = LF
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨LexScan(S, i, K, D, Sens)⟩ → ⟨LexScan(S, i+1, K ++ [⟨newline, Lexeme(T, i, i+1), SpanOfText(S, i, i+1)⟩], D, Sens)⟩
 
 **(Lex-Line-Comment)**
-$$\frac{T[i..i+2]="//" \quad T[i..i+3]\notin\{"///","//!"\} \quad \Gamma \vdash \text{ScanLineComment}(T,i) \Downarrow j}{\langle \text{LexScan}(S,i,K,D,\text{Sens}) \rangle \to \langle \text{LexScan}(S,j,K,D,\text{Sens}) \rangle}$$
+T[i..i+2] = "//"    T[i..i+3] ∉ {"///", "//!"}    Γ ⊢ ScanLineComment(T, i) ⇓ j
+──────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨LexScan(S, i, K, D, Sens)⟩ → ⟨LexScan(S, j, K, D, Sens)⟩
 
 **(Lex-Doc-Comment)**
-$$\frac{T[i..i+3]\in\{"///","//!"\} \quad \Gamma \vdash \text{ScanLineComment}(T,i) \Downarrow j \quad \Gamma \vdash \text{DocComment}(T,i) \Downarrow d}{\langle \text{LexScan}(S,i,K,D,\text{Sens}) \rangle \to \langle \text{LexScan}(S,j,K,D \mathbin{+\!\!+}[d],\text{Sens}) \rangle}$$
+T[i..i+3] ∈ {"///", "//!"}    Γ ⊢ ScanLineComment(T, i) ⇓ j    Γ ⊢ DocComment(T, i) ⇓ d
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨LexScan(S, i, K, D, Sens)⟩ → ⟨LexScan(S, j, K, D ++ [d], Sens)⟩
 
 **(Lex-Block-Comment)**
-$$\frac{T[i..i+2]="/*" \quad \langle \text{BlockScan}(T,i,0,i) \rangle \to^* \langle \text{BlockDone}(j) \rangle}{\langle \text{LexScan}(S,i,K,D,\text{Sens}) \rangle \to \langle \text{LexScan}(S,j,K,D,\text{Sens}) \rangle}$$
+T[i..i+2] = "/*"    ⟨BlockScan(T, i, 0, i)⟩ →* ⟨BlockDone(j)⟩
+──────────────────────────────────────────────────────────────────────────────
+⟨LexScan(S, i, K, D, Sens)⟩ → ⟨LexScan(S, j, K, D, Sens)⟩
 
 **(Lex-String-Unterminated-Recover)**
-$$\frac{T[i]=\texttt{"\""} \quad \text{LineFeedOrEOFBeforeClose}(T,i) \quad c = \text{Code}(\text{Lex-String-Unterminated}) \quad \Gamma \vdash \text{Emit}(c,\ \text{SpanOfText}(S,i,i+1)) \quad j = \text{StringTerminator}(T,i)}{\langle \text{LexScan}(S,i,K,D,\text{Sens}) \rangle \to \langle \text{LexScan}(S,j,K,D,\text{Sens}) \rangle}$$
+T[i] = "\""    LineFeedOrEOFBeforeClose(T, i)    c = Code(Lex-String-Unterminated)    Γ ⊢ Emit(c, SpanOfText(S, i, i+1))    j = StringTerminator(T, i)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨LexScan(S, i, K, D, Sens)⟩ → ⟨LexScan(S, j, K, D, Sens)⟩
 
 **(Lex-Char-Unterminated-Recover)**
-$$\frac{T[i]=\texttt{"'"} \quad \text{LineFeedOrEOFBeforeClose}(T,i) \quad c = \text{Code}(\text{Lex-Char-Unterminated}) \quad \Gamma \vdash \text{Emit}(c,\ \text{SpanOfText}(S,i,i+1)) \quad j = \text{CharTerminator}(T,i)}{\langle \text{LexScan}(S,i,K,D,\text{Sens}) \rangle \to \langle \text{LexScan}(S,j,K,D,\text{Sens}) \rangle}$$
+T[i] = "'"    LineFeedOrEOFBeforeClose(T, i)    c = Code(Lex-Char-Unterminated)    Γ ⊢ Emit(c, SpanOfText(S, i, i+1))    j = CharTerminator(T, i)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨LexScan(S, i, K, D, Sens)⟩ → ⟨LexScan(S, j, K, D, Sens)⟩
 
 **(Lex-Sensitive)**
-$$\frac{\text{Sensitive}(T[i])}{\langle \text{LexScan}(S,i,K,D,\text{Sens}) \rangle \to \langle \text{LexScan}(S,i+1,K,D,\text{Sens}\mathbin{+\!\!+}[i]) \rangle}$$
+Sensitive(T[i])
+────────────────────────────────────────────────────────────────────
+⟨LexScan(S, i, K, D, Sens)⟩ → ⟨LexScan(S, i+1, K, D, Sens ++ [i])⟩
 
-$$\text{SensitiveTok}(T,i,j,k) = \begin{cases}
-[] & \text{if } k \in \{\text{StringLiteral},\ \text{CharLiteral}\} \\
-\text{SensitiveInSpan}(T,i,j) & \text{otherwise}
-\end{cases}$$
+SensitiveTok(T, i, j, k) =
+ []                    if k ∈ {StringLiteral, CharLiteral}
+ SensitiveInSpan(T, i, j)  otherwise
 
 **(Lex-Token)**
-$$\frac{\neg \text{Whitespace}(T[i]) \quad T[i] \ne \text{LF} \quad T[i..i+2]\notin\{"//","/*"\} \quad \neg \text{Sensitive}(T[i]) \quad \Gamma \vdash \text{NextToken}(T,i) \Downarrow (k,j)}{\langle \text{LexScan}(S,i,K,D,\text{Sens}) \rangle \to \langle \text{LexScan}(S,j,K \mathbin{+\!\!+} [\langle k,\ \text{Lexeme}(T,i,j),\ \text{SpanOfText}(S,i,j)\rangle],D,\text{Sens}\mathbin{+\!\!+}\text{SensitiveTok}(T,i,j,k)) \rangle}$$
+¬ Whitespace(T[i])    T[i] ≠ LF    T[i..i+2] ∉ {"//", "/*"}    ¬ Sensitive(T[i])    Γ ⊢ NextToken(T, i) ⇓ (k, j)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨LexScan(S, i, K, D, Sens)⟩ → ⟨LexScan(S, j, K ++ [⟨k, Lexeme(T, i, j), SpanOfText(S, i, j)⟩], D, Sens ++ SensitiveTok(T, i, j, k))⟩
 
 **(Lex-Token-Err)**
-$$\frac{\neg \text{Whitespace}(T[i]) \quad T[i] \ne \text{LF} \quad T[i..i+2]\notin\{"//","/*"\} \quad \neg (T[i]=\texttt{"\""} \land \text{LineFeedOrEOFBeforeClose}(T,i)) \quad \neg (T[i]=\texttt{"'"} \land \text{LineFeedOrEOFBeforeClose}(T,i)) \quad \neg \text{Sensitive}(T[i]) \quad \Gamma \vdash \text{NextToken}(T,i) \Uparrow c}{\langle \text{LexScan}(S,i,K,D,\text{Sens}) \rangle \to \langle \text{LexError}(c) \rangle}$$
+¬ Whitespace(T[i])    T[i] ≠ LF    T[i..i+2] ∉ {"//", "/*"}    ¬ (T[i] = "\"" ∧ LineFeedOrEOFBeforeClose(T, i))    ¬ (T[i] = "'" ∧ LineFeedOrEOFBeforeClose(T, i))    ¬ Sensitive(T[i])    Γ ⊢ NextToken(T, i) ⇑ c
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨LexScan(S, i, K, D, Sens)⟩ → ⟨LexError(c)⟩
 
 #### 3.2.12. Tokenize (Big-Step)
 
 **(Tokenize-Ok)**
-$$\frac{\langle \text{LexStart}(S) \rangle \to^* \langle \text{LexDone}(K,D,\text{Sens}) \rangle \quad \Gamma \vdash \text{LexSecure}(S,K,\text{Sens}) \Downarrow ok}{\Gamma \vdash \text{Tokenize}(S) \Downarrow (K,D)}$$
+⟨LexStart(S)⟩ →* ⟨LexDone(K, D, Sens)⟩    Γ ⊢ LexSecure(S, K, Sens) ⇓ ok
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Tokenize(S) ⇓ (K, D)
 
 **(Tokenize-Secure-Err)**
-$$\frac{\langle \text{LexStart}(S) \rangle \to^* \langle \text{LexDone}(K,D,\text{Sens}) \rangle \quad \Gamma \vdash \text{LexSecure}(S,K,\text{Sens}) \Uparrow c}{\Gamma \vdash \text{Tokenize}(S) \Uparrow c}$$
+⟨LexStart(S)⟩ →* ⟨LexDone(K, D, Sens)⟩    Γ ⊢ LexSecure(S, K, Sens) ⇑ c
+─────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Tokenize(S) ⇑ c
 
 **(Tokenize-Err)**
-$$\frac{\langle \text{LexStart}(S) \rangle \to^* \langle \text{LexError}(c) \rangle}{\Gamma \vdash \text{Tokenize}(S) \Uparrow c}$$
+⟨LexStart(S)⟩ →* ⟨LexError(c)⟩
+────────────────────────────────────
+Γ ⊢ Tokenize(S) ⇑ c
 
-$$\text{Phase1LexDiagRefs} = \{\texttt{"8.4"},\ \texttt{"8.5"},\ \texttt{"8.8"}\}$$
+Phase1LexDiagRefs = {"8.4", "8.5", "8.8"}
 
 ### 3.3. Grammar, Parsing, and AST Construction
 
 #### 3.3.1. Inputs, Outputs, and Invariants
 
 **Inputs.**
-$$\text{ParseInputs}(U,K,D,K') \iff U = [S_1,\ldots,S_n] \land K = [K_1,\ldots,K_n] \land D = [D_1,\ldots,D_n] \land (\forall i.\ \Gamma \vdash \text{Tokenize}(S_i) \Downarrow (K_i,D_i)) \land K' = [\text{Filter}(K_i) \mid 1 \le i \le n]$$
-$$\text{ParseUnitSources}(U) \iff \exists d,\ f_1,\ldots,f_n,\ B_1,\ldots,B_n.\ \text{CompilationUnit}(d) = [f_1,\ldots,f_n] \land U = [S_1,\ldots,S_n] \land \bigwedge_{i=1}^n (\Gamma \vdash \text{ReadBytes}(f_i) \Downarrow B_i \land \Gamma \vdash \text{LoadSource}(f_i,B_i) \Downarrow S_i)$$
+ParseInputs(U, K, D, K') ⇔ U = [S_1, …, S_n] ∧ K = [K_1, …, K_n] ∧ D = [D_1, …, D_n] ∧ (∀ i. Γ ⊢ Tokenize(S_i) ⇓ (K_i, D_i)) ∧ K' = [Filter(K_i) | 1 ≤ i ≤ n]
+ParseUnitSources(U) ⇔ ∃ d, f_1, …, f_n, B_1, …, B_n. CompilationUnit(d) = [f_1, …, f_n] ∧ U = [S_1, …, S_n] ∧ ∧_{i=1}^n (Γ ⊢ ReadBytes(f_i) ⇓ B_i ∧ Γ ⊢ LoadSource(f_i, B_i) ⇓ S_i)
 
 **Outputs.**
-$$\text{ParseOutputs}(U,F) \iff \Gamma \vdash \text{ParseUnit}(U) \Downarrow F$$
-$$F = [F_1,\ldots,F_n]$$
+ParseOutputs(U, F) ⇔ Γ ⊢ ParseUnit(U) ⇓ F
+F = [F_1, …, F_n]
 
-$$\text{ModuleAggregationRef} = \{\texttt{"3.4.1"},\ \texttt{"3.4.2"}\}$$
+ModuleAggregationRef = {"3.4.1", "3.4.2"}
 
 **Parsing Phase Invariants.**
 
 **(Phase1-Complete)**
-$$\frac{\forall i,\ \Gamma \vdash \text{ParseFile}(S_i) \Downarrow F_i}{\Gamma \vdash \text{ParseUnit}(U) \Downarrow [F_1,\ldots,F_n]}$$
+∀ i, Γ ⊢ ParseFile(S_i) ⇓ F_i
+────────────────────────────────────────
+Γ ⊢ ParseUnit(U) ⇓ [F_1, …, F_n]
 
-$$\text{PhaseExec}(\text{Phase1},U) \iff \Gamma \vdash \text{ParseUnit}(U) \Downarrow F$$
-$$\forall p \in \{\text{Phase2},\text{Phase3},\text{Phase4}\}.\ \text{PhaseExec}(p,U) \Rightarrow \text{PhaseExec}(\text{Phase1},U)$$
+PhaseExec(Phase1, U) ⇔ Γ ⊢ ParseUnit(U) ⇓ F
+∀ p ∈ {Phase2, Phase3, Phase4}. PhaseExec(p, U) ⇒ PhaseExec(Phase1, U)
 
 **(Phase1-Declarations)**
-$$\frac{\Gamma \vdash \text{ParseUnit}(U) \Downarrow [F_1,\ldots,F_n] \quad \forall i,\ F_i.\text{items} = I_i}{\Gamma \vdash \text{AllDecls}(U) = I_1 \mathbin{+\!\!+} \cdots \mathbin{+\!\!+} I_n}$$
+Γ ⊢ ParseUnit(U) ⇓ [F_1, …, F_n]    ∀ i, F_i.items = I_i
+──────────────────────────────────────────────────────────────
+Γ ⊢ AllDecls(U) = I_1 ++ … ++ I_n
 
 **(Phase1-Forward-Refs)**
-$$\frac{}{\Gamma \vdash \text{ParsePhase}(U) \Downarrow \text{NoResolutionConstraints}}$$
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParsePhase(U) ⇓ NoResolutionConstraints
 
 #### 3.3.2. AST Node Catalog (Cursive0 Subset)
 
-$$\text{ASTNode} = \text{ASTItem} \cup \text{ASTExpr} \cup \text{ASTPattern} \cup \text{ASTType} \cup \text{ASTStmt}$$
-$$\text{SpanOfNode} : \text{ASTNode} \to \text{Span}$$
-$$\text{DocOf} : \text{ASTNode} \to (\text{DocList} \cup \{\bot\})$$
+ASTNode = ASTItem ∪ ASTExpr ∪ ASTPattern ∪ ASTType ∪ ASTStmt
+SpanOfNode : ASTNode → Span
+DocOf : ASTNode → (DocList ∪ {⊥})
 
-$$\text{SpanDefault}(P,P') = \text{SpanBetween}(P,P')$$
-$$\text{DocDefault} = []$$
-$$\text{DocOptDefault} = \bot$$
-$$\text{FillSpan}(n,P,P') = \begin{cases}
-n[\text{span} := \text{SpanDefault}(P,P')] & \text{if } \text{SpanMissing}(n)\\
-n & \text{otherwise}
-\end{cases}$$
-$$\text{FillDoc}(n) = \begin{cases}
-n[\text{doc} := \text{DocDefault}] & \text{if } \text{DocMissing}(n)\\
-n & \text{otherwise}
-\end{cases}$$
-$$\text{FillDocOpt}(n) = \begin{cases}
-n[\text{doc\_opt} := \text{DocOptDefault}] & \text{if } \text{DocOptMissing}(n)\\
-n & \text{otherwise}
-\end{cases}$$
-$$\text{ParseCtor}(n,P,P') = \text{FillDocOpt}(\text{FillDoc}(\text{FillSpan}(n,P,P')))$$
-$$\text{DocAssociationRef} = \{\texttt{"3.3.11"}\}$$
+SpanDefault(P, P') = SpanBetween(P, P')
+DocDefault = []
+DocOptDefault = ⊥
+FillSpan(n, P, P') =
+ n[span := SpanDefault(P, P')]  if SpanMissing(n)
+ n                             otherwise
+FillDoc(n) =
+ n[doc := DocDefault]  if DocMissing(n)
+ n                     otherwise
+FillDocOpt(n) =
+ n[doc_opt := DocOptDefault]  if DocOptMissing(n)
+ n                            otherwise
+ParseCtor(n, P, P') = FillDocOpt(FillDoc(FillSpan(n, P, P')))
+DocAssociationRef = {"3.3.11"}
 
 **Doc Lists.**
 
-$$\text{DocList} = [\text{DocComment}]$$
-$$\text{DocCommentRef} = \{\texttt{"3.2.1"}\}$$
+DocList = [DocComment]
+DocCommentRef = {"3.2.1"}
 
 **Paths.**
 
-$$\text{Path} = [\text{identifier}]$$
-$$\text{ModulePath} = \text{Path}$$
-$$\text{TypePath} = \text{Path}$$
-$$\text{ClassPath} = \text{Path}$$
-$$\text{PathString}(p) = \text{StringOfPath}(p)$$
-$$\text{StringOfPathRef} = \{\texttt{"3.4.1"}\}$$
+Path = [identifier]
+ModulePath = Path
+TypePath = Path
+ClassPath = Path
+PathString(p) = StringOfPath(p)
+StringOfPathRef = {"3.4.1"}
 
 ##### 3.3.2.1. Module and Files
 
 **ASTModule.**
 
-$$\text{ASTModule} = \langle \text{path},\ \text{items},\ \text{module\_doc} \rangle$$
-$$\text{ASTModule}.\text{path} \in \text{Path}$$
-$$\text{ASTModule}.\text{items} \in [\text{ASTItem}]$$
-$$\text{ASTModule}.\text{module\_doc} \in \text{DocList}$$
+ASTModule = ⟨path, items, module_doc⟩
+ASTModule.path ∈ Path
+ASTModule.items ∈ [ASTItem]
+ASTModule.module_doc ∈ DocList
 
 **ASTFile.**
 
-$$\text{ASTFile} = \langle \text{path},\ \text{items},\ \text{module\_doc} \rangle$$
-$$\text{ASTFile}.\text{path} \in \text{Path}$$
-$$\text{ASTFile}.\text{items} \in [\text{ASTItem}]$$
-$$\text{ASTFile}.\text{module\_doc} \in \text{DocList}$$
+ASTFile = ⟨path, items, module_doc⟩
+ASTFile.path ∈ Path
+ASTFile.items ∈ [ASTItem]
+ASTFile.module_doc ∈ DocList
 
 ##### 3.3.2.2. Items
 
-$$\text{ASTItem} \in \{\text{UsingDecl},\ \text{StaticDecl},\ \text{ProcedureDecl},\ \text{RecordDecl},\ \text{EnumDecl},\ \text{ModalDecl},\ \text{ClassDecl},\ \text{TypeAliasDecl},\ \text{ErrorItem}\}$$
+ASTItem ∈ {UsingDecl, StaticDecl, ProcedureDecl, RecordDecl, EnumDecl, ModalDecl, ClassDecl, TypeAliasDecl, ErrorItem}
 
 **UsingDecl.**
 
-$$\text{UsingDecl} = \langle \text{vis},\ \text{clause},\ \text{span},\ \text{doc} \rangle$$
+UsingDecl = ⟨vis, clause, span, doc⟩
 
 **UsingClause.**
 
-$$\text{UsingClause} \in \{\text{UsingPath} = \langle \text{path},\ \text{alias}\_opt \rangle,\ \text{UsingList} = \langle \text{module\_path},\ \text{specs} \rangle\}$$
+UsingClause ∈ {UsingPath = ⟨path, alias_opt⟩, UsingList = ⟨module_path, specs⟩}
 
-$$\text{UsingSpec} = \langle \text{name},\ \text{alias}\_opt \rangle$$
+UsingSpec = ⟨name, alias_opt⟩
 
 **StaticDecl.**
 
-$$\text{StaticDecl} = \langle \text{vis},\ \text{mut},\ \text{binding},\ \text{span},\ \text{doc} \rangle$$
+StaticDecl = ⟨vis, mut, binding, span, doc⟩
 
-$$\text{mut} \in \{\texttt{let},\ \texttt{var}\}$$
+mut ∈ {`let`, `var`}
 
 **ProcedureDecl.**
 
-$$\text{ProcedureDecl} = \langle \text{vis},\ \text{name},\ \text{params},\ \text{return\_type}\_opt,\ \text{body},\ \text{span},\ \text{doc} \rangle$$
+ProcedureDecl = ⟨vis, name, params, return_type_opt, body, span, doc⟩
 
 **RecordDecl.**
 
-$$\text{RecordDecl} = \langle \text{vis},\ \text{name},\ \text{implements},\ \text{members},\ \text{span},\ \text{doc} \rangle$$
+RecordDecl = ⟨vis, name, implements, members, span, doc⟩
 
-$$\text{RecordDecl}.\text{implements} \in [\text{ClassPath}]$$
+RecordDecl.implements ∈ [ClassPath]
 
-$$\text{RecordMember} \in \{\text{FieldDecl} = \langle \text{vis},\ \text{name},\ \text{type},\ \text{init}\_opt,\ \text{span},\ \text{doc}\_opt \rangle,\ \text{MethodDecl} = \langle \text{vis},\ \text{override},\ \text{name},\ \text{receiver},\ \text{params},\ \text{return\_type}\_opt,\ \text{body},\ \text{span},\ \text{doc}\_opt \rangle\}$$
-$$\text{Receiver} \in \{\text{ReceiverShorthand}(\text{perm}),\ \text{ReceiverExplicit}(\text{mode\_opt},\ \text{type})\}$$
-$$\text{perm} \in \{\texttt{const},\ \texttt{unique},\ \texttt{shared}\}$$
-$$\text{mode\_opt} \in \{\texttt{move},\ \bot\}$$
+RecordMember ∈ {FieldDecl = ⟨vis, name, type, init_opt, span, doc_opt⟩, MethodDecl = ⟨vis, override, name, receiver, params, return_type_opt, body, span, doc_opt⟩}
+Receiver ∈ {ReceiverShorthand(perm), ReceiverExplicit(mode_opt, type)}
+perm ∈ {`const`, `unique`, `shared`}
+mode_opt ∈ {`move`, ⊥}
 
 **EnumDecl.**
 
-$$\text{EnumDecl} = \langle \text{vis},\ \text{name},\ \text{implements},\ \text{variants},\ \text{span},\ \text{doc} \rangle$$
+EnumDecl = ⟨vis, name, implements, variants, span, doc⟩
 
-$$\text{EnumDecl}.\text{implements} \in [\text{ClassPath}]$$
+EnumDecl.implements ∈ [ClassPath]
 
-$$\text{VariantDecl} = \langle \text{name},\ \text{payload}\_opt,\ \text{discriminant}\_opt,\ \text{span},\ \text{doc}\_opt \rangle$$
+VariantDecl = ⟨name, payload_opt, discriminant_opt, span, doc_opt⟩
 
-$$\text{VariantPayload} \in \{\text{TuplePayload} = [\text{Type}],\ \text{RecordPayload} = [\text{FieldDecl}]\}$$
-$$\forall f \in \text{RecordPayload}.\ f.\text{init}\_opt = \bot$$
+VariantPayload ∈ {TuplePayload = [Type], RecordPayload = [FieldDecl]}
+∀ f ∈ RecordPayload. f.init_opt = ⊥
 
 **ModalDecl.**
 
-$$\text{ModalDecl} = \langle \text{vis},\ \text{name},\ \text{implements},\ \text{states},\ \text{span},\ \text{doc} \rangle$$
+ModalDecl = ⟨vis, name, implements, states, span, doc⟩
 
-$$\text{ModalDecl}.\text{implements} \in [\text{ClassPath}]$$
+ModalDecl.implements ∈ [ClassPath]
 
-$$\text{StateBlock} = \langle \text{name},\ \text{members},\ \text{span},\ \text{doc}\_opt \rangle$$
+StateBlock = ⟨name, members, span, doc_opt⟩
 
-$$\text{StateMember} \in \{\text{StateFieldDecl} = \langle \text{vis},\ \text{name},\ \text{type},\ \text{span},\ \text{doc}\_opt \rangle,\ \text{StateMethodDecl} = \langle \text{vis},\ \text{name},\ \text{params},\ \text{return\_type}\_opt,\ \text{body},\ \text{span},\ \text{doc}\_opt \rangle,\ \text{TransitionDecl} = \langle \text{vis},\ \text{name},\ \text{params},\ \text{target\_state},\ \text{body},\ \text{span},\ \text{doc}\_opt \rangle\}$$
+StateMember ∈ {StateFieldDecl = ⟨vis, name, type, span, doc_opt⟩, StateMethodDecl = ⟨vis, name, params, return_type_opt, body, span, doc_opt⟩, TransitionDecl = ⟨vis, name, params, target_state, body, span, doc_opt⟩}
 
 **ClassDecl.**
 
-$$\text{ClassDecl} = \langle \text{vis},\ \text{name},\ \text{supers},\ \text{items},\ \text{span},\ \text{doc} \rangle$$
+ClassDecl = ⟨vis, name, supers, items, span, doc⟩
 
-$$\text{ClassDecl}.\text{supers} \in [\text{ClassPath}]$$
+ClassDecl.supers ∈ [ClassPath]
 
-$$\text{ClassItem} \in \{\text{ClassFieldDecl} = \langle \text{vis},\ \text{name},\ \text{type},\ \text{span},\ \text{doc}\_opt \rangle,\ \text{ClassMethodDecl} = \langle \text{vis},\ \text{name},\ \text{receiver},\ \text{params},\ \text{return\_type}\_opt,\ \text{body}\_opt,\ \text{span},\ \text{doc}\_opt \rangle\}$$
-$$\text{AbstractClassMethod}(m) \iff \exists vis,name,recv,params,ret,span,doc.\ m = \text{ClassMethodDecl}(vis,name,recv,params,ret,\bot,span,doc)$$
-$$\text{ConcreteClassMethod}(m) \iff \exists vis,name,recv,params,ret,body,span,doc.\ m = \text{ClassMethodDecl}(vis,name,recv,params,ret,body,span,doc) \land body \ne \bot$$
+ClassItem ∈ {ClassFieldDecl = ⟨vis, name, type, span, doc_opt⟩, ClassMethodDecl = ⟨vis, name, receiver, params, return_type_opt, body_opt, span, doc_opt⟩}
+AbstractClassMethod(m) ⇔ ∃ vis, name, recv, params, ret, span, doc. m = ClassMethodDecl(vis, name, recv, params, ret, ⊥, span, doc)
+ConcreteClassMethod(m) ⇔ ∃ vis, name, recv, params, ret, body, span, doc. m = ClassMethodDecl(vis, name, recv, params, ret, body, span, doc) ∧ body ≠ ⊥
 
 **TypeAliasDecl.**
 
-$$\text{TypeAliasDecl} = \langle \text{vis},\ \text{name},\ \text{type},\ \text{span},\ \text{doc} \rangle$$
-$$\text{AliasBodyRef} = \{\texttt{"6.1.4"}\}$$
-$$\text{AliasStep}(\text{TypePath}(p)) = \text{AliasBody}(p)\ \text{if defined; otherwise }\text{TypePath}(p)$$
-$$\text{AliasStep}(T) = T\ \text{if } T \notin \{\text{TypePath}(p)\}$$
-$$\text{AliasNorm}(T) = \begin{cases}
-\text{TypePerm}(\text{perm}, \text{AliasNorm}(base)) & T = \text{TypePerm}(\text{perm}, base) \\
-\text{TypeTuple}([\text{AliasNorm}(t)\mid t \in \text{elems}]) & T = \text{TypeTuple}(\text{elems}) \\
-\text{TypeArray}(\text{AliasNorm}(elem), size\_expr) & T = \text{TypeArray}(elem, size\_expr) \\
-\text{TypeSlice}(\text{AliasNorm}(elem)) & T = \text{TypeSlice}(elem) \\
-\text{TypeUnion}([\text{AliasNorm}(t)\mid t \in \text{members}]) & T = \text{TypeUnion}(\text{members}) \\
-\text{TypeFunc}([\langle m,\ \text{AliasNorm}(t)\rangle \mid \langle m,t\rangle \in \text{params}],\ \text{AliasNorm}(ret)) & T = \text{TypeFunc}(\text{params}, ret) \\
-\text{TypeDynamic}(\text{AliasPath}(path)) & T = \text{TypeDynamic}(path) \\
-\text{TypeModalState}(\text{AliasPath}(path), state) & T = \text{TypeModalState}(path, state) \\
-\text{TypePtr}(\text{AliasNorm}(elem), ptr\_state\_opt) & T = \text{TypePtr}(elem, ptr\_state\_opt) \\
-\text{TypeRawPtr}(qual, \text{AliasNorm}(elem)) & T = \text{TypeRawPtr}(qual, elem) \\
-\text{AliasNorm}(\text{AliasStep}(T)) & T = \text{TypePath}(p) \\
-T & \text{otherwise}
-\end{cases}$$
-$$\text{AliasPath}(p) = p\ \text{if } \text{AliasBody}(p)\ \text{undefined}$$
-$$\text{AliasPath}(p) = \text{AliasPath}(p')\ \text{if } \text{AliasBody}(p) = \text{TypePath}(p')$$
-$$\text{AliasTransparent}(T,U) \iff \text{AliasNorm}(T) = \text{AliasNorm}(U)$$
-$$\text{AliasGraph} = \{ \langle p,q \rangle \mid \text{AliasBody}(p) = T \land q \in \text{TypePaths}(T) \}$$
-$$\text{TypePaths}(\text{TypePrim}(\_)) = \emptyset$$
-$$\text{TypePaths}(\text{TypeRange}) = \emptyset$$
-$$\text{TypePaths}(\text{TypePerm}(\_, T)) = \text{TypePaths}(T)$$
-$$\text{TypePaths}(\text{TypeTuple}([T_1,\ldots,T_n])) = \bigcup_{i=1}^{n} \text{TypePaths}(T_i)$$
-$$\text{TypePaths}(\text{TypeArray}(T,\_)) = \text{TypePaths}(T)$$
-$$\text{TypePaths}(\text{TypeSlice}(T)) = \text{TypePaths}(T)$$
-$$\text{TypePaths}(\text{TypeUnion}([T_1,\ldots,T_n])) = \bigcup_{i=1}^{n} \text{TypePaths}(T_i)$$
-$$\text{TypePaths}(\text{TypeFunc}([\langle \_,T_1\rangle,\ldots,\langle \_,T_n\rangle], R)) = \left(\bigcup_{i=1}^{n} \text{TypePaths}(T_i)\right) \cup \text{TypePaths}(R)$$
-$$\text{TypePaths}(\text{TypePtr}(T,\_)) = \text{TypePaths}(T)$$
-$$\text{TypePaths}(\text{TypeRawPtr}(\_,T)) = \text{TypePaths}(T)$$
-$$\text{TypePaths}(\text{TypeString}(\_)) = \emptyset$$
-$$\text{TypePaths}(\text{TypeBytes}(\_)) = \emptyset$$
-$$\text{TypePaths}(\text{TypeDynamic}(p)) = \{p\}$$
-$$\text{TypePaths}(\text{TypeModalState}(p,\_)) = \{p\}$$
-$$\text{TypePaths}(\text{TypePath}(p)) = \{p\}$$
-$$\text{AliasCycle}(p) \iff p \in \text{Reach}^+(\text{AliasGraph}, p)$$
+TypeAliasDecl = ⟨vis, name, type, span, doc⟩
+AliasBodyRef = {"6.1.4"}
+AliasStep(TypePath(p)) = AliasBody(p) if defined; otherwise TypePath(p)
+AliasStep(T) = T if T ∉ {TypePath(p)}
+AliasNorm(T) =
+ TypePerm(perm, AliasNorm(base))  if T = TypePerm(perm, base)
+ TypeTuple([AliasNorm(t) | t ∈ elems])  if T = TypeTuple(elems)
+ TypeArray(AliasNorm(elem), size_expr)  if T = TypeArray(elem, size_expr)
+ TypeSlice(AliasNorm(elem))  if T = TypeSlice(elem)
+ TypeUnion([AliasNorm(t) | t ∈ members])  if T = TypeUnion(members)
+ TypeFunc([⟨m, AliasNorm(t)⟩ | ⟨m, t⟩ ∈ params], AliasNorm(ret))  if T = TypeFunc(params, ret)
+ TypeDynamic(AliasPath(path))  if T = TypeDynamic(path)
+ TypeModalState(AliasPath(path), state)  if T = TypeModalState(path, state)
+ TypePtr(AliasNorm(elem), ptr_state_opt)  if T = TypePtr(elem, ptr_state_opt)
+ TypeRawPtr(qual, AliasNorm(elem))  if T = TypeRawPtr(qual, elem)
+ AliasNorm(AliasStep(T))  if T = TypePath(p)
+ T  otherwise
+AliasPath(p) = p if AliasBody(p) undefined
+AliasPath(p) = AliasPath(p') if AliasBody(p) = TypePath(p')
+AliasTransparent(T, U) ⇔ AliasNorm(T) = AliasNorm(U)
+AliasGraph = { ⟨p, q⟩ | AliasBody(p) = T ∧ q ∈ TypePaths(T) }
+TypePaths(TypePrim(_)) = ∅
+TypePaths(TypeRange) = ∅
+TypePaths(TypePerm(_, T)) = TypePaths(T)
+TypePaths(TypeTuple([T_1, …, T_n])) = ⋃_{i=1}^n TypePaths(T_i)
+TypePaths(TypeArray(T, _)) = TypePaths(T)
+TypePaths(TypeSlice(T)) = TypePaths(T)
+TypePaths(TypeUnion([T_1, …, T_n])) = ⋃_{i=1}^n TypePaths(T_i)
+TypePaths(TypeFunc([⟨_, T_1⟩, …, ⟨_, T_n⟩], R)) = (⋃_{i=1}^n TypePaths(T_i)) ∪ TypePaths(R)
+TypePaths(TypePtr(T, _)) = TypePaths(T)
+TypePaths(TypeRawPtr(_, T)) = TypePaths(T)
+TypePaths(TypeString(_)) = ∅
+TypePaths(TypeBytes(_)) = ∅
+TypePaths(TypeDynamic(p)) = {p}
+TypePaths(TypeModalState(p, _)) = {p}
+TypePaths(TypePath(p)) = {p}
+AliasCycle(p) ⇔ p ∈ Reach^+(AliasGraph, p)
 **(TypeAlias-Recursive-Err)**
-$$\frac{\text{AliasCycle}(p) \quad c = \text{Code}(\text{TypeAlias-Recursive-Err})}{\Gamma \vdash p : \text{TypeAliasOk} \Uparrow c}$$
+AliasCycle(p)    c = Code(TypeAlias-Recursive-Err)
+────────────────────────────────────────────────────
+Γ ⊢ p : TypeAliasOk ⇑ c
 **(TypeAlias-Ok)**
-$$\frac{\neg \text{AliasCycle}(p)}{\Gamma \vdash p : \text{TypeAliasOk}}$$
+¬ AliasCycle(p)
+────────────────────────
+Γ ⊢ p : TypeAliasOk
 
 **ErrorItem.**
 
-$$\text{ErrorItem} = \langle \text{span} \rangle$$
-$$\text{IsDecl}(\text{ErrorItem}(\_)) = \text{false}$$
+ErrorItem = ⟨span⟩
+IsDecl(ErrorItem(_)) = false
 
 ##### 3.3.2.3. Types
 
 **Type.**
-$$\text{Type} = \{\text{TypePerm}(perm, base),\ \text{TypePrim}(name),\ \text{TypeTuple}(elems),\ \text{TypeArray}(elem, size\_expr),\ \text{TypeSlice}(elem),\ \text{TypeUnion}(members),\ \text{TypeFunc}(params, ret),\ \text{TypePath}(path),\ \text{TypeDynamic}(path),\ \text{TypeString}(string\_state\_opt),\ \text{TypeBytes}(bytes\_state\_opt),\ \text{TypeModalState}(path, state),\ \text{TypePtr}(elem, ptr\_state\_opt),\ \text{TypeRawPtr}(qual, elem),\ \text{TypeRange}\}$$
+Type = {TypePerm(perm, base), TypePrim(name), TypeTuple(elems), TypeArray(elem, size_expr), TypeSlice(elem), TypeUnion(members), TypeFunc(params, ret), TypePath(path), TypeDynamic(path), TypeString(string_state_opt), TypeBytes(bytes_state_opt), TypeModalState(path, state), TypePtr(elem, ptr_state_opt), TypeRawPtr(qual, elem), TypeRange}
 
-$$\text{Perm} = \{\texttt{const},\ \texttt{unique},\ \texttt{shared}\}$$
-$$\text{Qual} = \{\texttt{imm},\ \texttt{mut}\}$$
-$$\text{PtrStateOpt} = \{\bot,\ \texttt{Valid},\ \texttt{Null},\ \texttt{Expired}\}$$
-$$\text{StringStateOpt} = \{\bot,\ \texttt{@Managed},\ \texttt{@View}\}$$
-$$\text{BytesStateOpt} = \{\bot,\ \texttt{@Managed},\ \texttt{@View}\}$$
-$$\text{Name} \in \text{PrimTypes}_{C0}$$
+Perm = {`const`, `unique`, `shared`}
+Qual = {`imm`, `mut`}
+PtrStateOpt = {⊥, `Valid`, `Null`, `Expired`}
+StringStateOpt = {⊥, `@Managed`, `@View`}
+BytesStateOpt = {⊥, `@Managed`, `@View`}
+Name ∈ PrimTypes_C0
 
-$$\text{ParamMode} = \{\texttt{move},\ \bot\}$$
-$$\text{ParamType} = \langle \text{mode},\ \text{type} \rangle \ \text{where}\ \text{mode} \in \text{ParamMode} \land \text{type} \in \text{Type}$$
+ParamMode = {`move`, ⊥}
+ParamType = ⟨mode, type⟩ where mode ∈ ParamMode ∧ type ∈ Type
 
-$$\text{TypeRangeSyntax} = \bot$$
+TypeRangeSyntax = ⊥
 
 **Range Record.**
-$$\text{RangeFieldType}(\texttt{kind}) = \texttt{u8}$$
-$$\text{RangeFieldType}(\texttt{lo}) = \texttt{usize}$$
-$$\text{RangeFieldType}(\texttt{hi}) = \texttt{usize}$$
+RangeFieldType(`kind`) = `u8`
+RangeFieldType(`lo`) = `usize`
+RangeFieldType(`hi`) = `usize`
 
 ##### 3.3.2.4. Expressions
 
 **Literal Tokens.**
-$$\text{LiteralKind} = \{\text{IntLiteral},\ \text{FloatLiteral},\ \text{StringLiteral},\ \text{CharLiteral},\ \text{BoolLiteral},\ \text{NullLiteral}\}$$
-$$\text{LiteralToken} = \{ t \in \text{Token} \mid t.\text{kind} \in \text{LiteralKind} \}$$
+LiteralKind = {IntLiteral, FloatLiteral, StringLiteral, CharLiteral, BoolLiteral, NullLiteral}
+LiteralToken = { t ∈ Token | t.kind ∈ LiteralKind }
 
 **Expr.**
-$$\text{RangeKind} = \{\texttt{To},\ \texttt{ToInclusive},\ \texttt{Full},\ \texttt{From},\ \texttt{Exclusive},\ \texttt{Inclusive}\}$$
-$$\text{Expr} = \{\text{Literal}(lit),\ \text{PtrNullExpr},\ \text{Identifier}(name),\ \text{QualifiedName}(path, name),\ \text{QualifiedApply}(path, name, form),\ \text{Path}(path, name),\ \text{ErrorExpr}(span),\ \text{TupleExpr}(elems),\ \text{ArrayExpr}(elems),\ \text{RecordExpr}(type\_ref, fields),\ \text{EnumLiteral}(path, payload\_opt),\ \text{FieldAccess}(base, name),\ \text{TupleAccess}(base, index),\ \text{IndexAccess}(base, index\_expr),\ \text{Call}(callee, args),\ \text{MethodCall}(base, name, args),\ \text{Unary}(op, expr),\ \text{Binary}(op, left, right),\ \text{Cast}(expr, type),\ \text{Range}(kind, lo\_opt, hi\_opt),\ \text{IfExpr}(cond, then\_block, else\_opt),\ \text{MatchExpr}(scrutinee, arms),\ \text{LoopInfinite}(body),\ \text{LoopConditional}(cond, body),\ \text{LoopIter}(pattern, type\_opt, iter, body),\ \text{BlockExpr}(stmts, tail\_opt),\ \text{UnsafeBlockExpr}(body),\ \text{MoveExpr}(place),\ \text{TransmuteExpr}(src\_type, dst\_type, expr),\ \text{AllocExpr}(region\_opt, expr),\ \text{Propagate}(expr),\ \text{AddressOf}(place),\ \text{Deref}(expr)\}$$
-$$\text{ExprSpan} : \text{Expr} \to \text{Span}$$
+RangeKind = {`To`, `ToInclusive`, `Full`, `From`, `Exclusive`, `Inclusive`}
+Expr = {Literal(lit), PtrNullExpr, Identifier(name), QualifiedName(path, name), QualifiedApply(path, name, form), Path(path, name), ErrorExpr(span), TupleExpr(elems), ArrayExpr(elems), RecordExpr(type_ref, fields), EnumLiteral(path, payload_opt), FieldAccess(base, name), TupleAccess(base, index), IndexAccess(base, index_expr), Call(callee, args), MethodCall(base, name, args), Unary(op, expr), Binary(op, left, right), Cast(expr, type), Range(kind, lo_opt, hi_opt), IfExpr(cond, then_block, else_opt), MatchExpr(scrutinee, arms), LoopInfinite(body), LoopConditional(cond, body), LoopIter(pattern, type_opt, iter, body), BlockExpr(stmts, tail_opt), UnsafeBlockExpr(body), MoveExpr(place), TransmuteExpr(src_type, dst_type, expr), AllocExpr(region_opt, expr), Propagate(expr), AddressOf(place), Deref(expr)}
+ExprSpan : Expr → Span
 
-$$\text{TypeRef} = \{\text{TypePath}(path),\ \text{ModalStateRef}(path, state)\}$$
+TypeRef = {TypePath(path), ModalStateRef(path, state)}
 
 **Qualified Expressions.**
-$$\text{ParenForm} = \{\text{Paren}(args) \mid args \in \text{Arg}^\ast\}$$
-$$\text{BraceForm} = \{\text{Brace}(fields) \mid fields \in \text{FieldInit}^\ast\}$$
-$$\text{QualForm} = \text{ParenForm} \cup \text{BraceForm}$$
-$$\forall P, P', e.\ (\Gamma \vdash \text{ParseExpr}(P) \Downarrow (P', e)) \Rightarrow e \notin \{\text{Path}(\_,\_),\ \text{EnumLiteral}(\_,\_)\}$$
+ParenForm = {Paren(args) | args ∈ Arg*}
+BraceForm = {Brace(fields) | fields ∈ FieldInit*}
+QualForm = ParenForm ∪ BraceForm
+∀ P, P', e. (Γ ⊢ ParseExpr(P) ⇓ (P', e)) ⇒ e ∉ {Path(_, _), EnumLiteral(_, _)}
 
 **Argument.**
-$$\text{Arg} = \langle \text{moved},\ \text{expr},\ \text{span} \rangle \ \text{where}\ \text{moved} \in \{\text{true},\text{false}\}$$
+Arg = ⟨moved, expr, span⟩ where moved ∈ {true, false}
 
-$$\text{MovedArg}(moved, e) =
-\begin{cases}
-\text{MoveExpr}(e) & \text{if } moved = \text{true} \land \text{IsPlace}(e) \\
-e & \text{otherwise}
-\end{cases}$$
+MovedArg(moved, e) =
+ MoveExpr(e)  if moved = true ∧ IsPlace(e)
+ e            otherwise
 
 **Field Initializer.**
-$$\text{FieldInit} = \langle \text{name},\ \text{expr} \rangle$$
+FieldInit = ⟨name, expr⟩
 
 ##### 3.3.2.5. Patterns
 
-$$\text{Pattern} = \{\text{LiteralPattern}(lit),\ \text{WildcardPattern},\ \text{IdentifierPattern}(name),\ \text{TypedPattern}(name, type),\ \text{TuplePattern}(elems),\ \text{RecordPattern}(type\_path, fields),\ \text{EnumPattern}(type\_path, name, payload\_opt),\ \text{ModalPattern}(state\_name, fields\_opt),\ \text{RangePattern}(kind, lo, hi)\}$$
-$$\text{PatternSpan} : \text{Pattern} \to \text{Span}$$
+Pattern = {LiteralPattern(lit), WildcardPattern, IdentifierPattern(name), TypedPattern(name, type), TuplePattern(elems), RecordPattern(type_path, fields), EnumPattern(type_path, name, payload_opt), ModalPattern(state_name, fields_opt), RangePattern(kind, lo, hi)}
+PatternSpan : Pattern → Span
 
-$$\text{FieldPattern} = \langle \text{name},\ \text{pattern}\_opt,\ \text{span} \rangle$$
+FieldPattern = ⟨name, pattern_opt, span⟩
 
-$$\text{EnumPayloadPattern} = \{\text{TuplePayloadPattern}([Pattern]),\ \text{RecordPayloadPattern}([FieldPattern])\}$$
+EnumPayloadPattern = {TuplePayloadPattern([Pattern]), RecordPayloadPattern([FieldPattern])}
 
-$$\text{ModalPayloadPattern} = \{\text{ModalRecordPayload}([FieldPattern])\}$$
+ModalPayloadPattern = {ModalRecordPayload([FieldPattern])}
 
 ##### 3.3.2.6. Statements
 
-$$\text{Stmt} = \{\text{LetStmt}(binding),\ \text{VarStmt}(binding),\ \text{ErrorStmt}(span),\ \text{ShadowLetStmt}(name, type\_opt, init),\ \text{ShadowVarStmt}(name, type\_opt, init),\ \text{AssignStmt}(place, expr),\ \text{CompoundAssignStmt}(place, op, expr),\ \text{ExprStmt}(expr),\ \text{DeferStmt}(block),\ \text{RegionStmt}(opts\_opt, alias\_opt, block),\ \text{FrameStmt}(target\_opt, block),\ \text{ReturnStmt}(expr\_opt),\ \text{ResultStmt}(expr),\ \text{BreakStmt}(expr\_opt),\ \text{ContinueStmt},\ \text{UnsafeBlockStmt}(block)\}$$
+Stmt = {LetStmt(binding), VarStmt(binding), ErrorStmt(span), ShadowLetStmt(name, type_opt, init), ShadowVarStmt(name, type_opt, init), AssignStmt(place, expr), CompoundAssignStmt(place, op, expr), ExprStmt(expr), DeferStmt(block), RegionStmt(opts_opt, alias_opt, block), FrameStmt(target_opt, block), ReturnStmt(expr_opt), ResultStmt(expr), BreakStmt(expr_opt), ContinueStmt, UnsafeBlockStmt(block)}
 
-$$\text{binding} = \langle \text{pattern},\ \text{type}\_opt,\ \text{op},\ \text{init},\ \text{span} \rangle$$
-$$\text{opts\_opt} \in \{\bot\} \cup \text{Expr} \quad \text{alias\_opt} \in \{\bot\} \cup \text{Identifier}$$
-$$\text{target\_opt} \in \{\bot\} \cup \text{Identifier}$$
+binding = ⟨pattern, type_opt, op, init, span⟩
+opts_opt ∈ {⊥} ∪ Expr    alias_opt ∈ {⊥} ∪ Identifier
+target_opt ∈ {⊥} ∪ Identifier
 
 ##### 3.3.2.7. Unsupported Grammar Families (Cursive0 Decision)
 
-$$\text{UnsupportedGrammarFamily} = \{\texttt{attributes},\ \texttt{extern\_ffi},\ \texttt{generics},\ \texttt{contracts},\ \texttt{keys},\ \texttt{concurrency},\ \texttt{async},\ \texttt{metaprogramming}\}$$
-$$\text{UnsupportedGrammarFamily} \subseteq \text{UnsupportedForm}$$
+UnsupportedGrammarFamily = {`attributes`, `extern_ffi`, `generics`, `contracts`, `keys`, `concurrency`, `async`, `metaprogramming`}
+UnsupportedGrammarFamily ⊆ UnsupportedForm
 
 #### 3.3.3. Parser State and Judgments
 
 **Parser State.**
 
-$$\text{PState} = \langle K,\ i,\ D,\ j,\ d,\ \Delta \rangle$$
+PState = ⟨K, i, D, j, d, Δ⟩
 
-$$\text{TokStream}(P) = K$$
-$$\text{TokIndex}(P) = i$$
-$$\text{DocStream}(P) = D$$
-$$\text{DocIndex}(P) = j$$
-$$\text{Depth}(P) = d$$
-$$\text{DiagStream}(P) = \Delta$$
+TokStream(P) = K
+TokIndex(P) = i
+DocStream(P) = D
+DocIndex(P) = j
+Depth(P) = d
+DiagStream(P) = Δ
 
 **Helper Functions.**
 
-$$\text{Tok}(P) = \begin{cases}
-K[i] & i < |K| \\
-\langle \text{EOF},\ \epsilon,\ \text{EOFSpan}(K) \rangle & i = |K|
-\end{cases}$$
+Tok(P) =
+ K[i]                        if i < |K|
+ ⟨EOF, ε, EOFSpan(K)⟩         if i = |K|
 
-$$\text{SourceOf}(K) = S \iff \Gamma \vdash \text{Tokenize}(S) \Downarrow (K_{\text{raw}}, D) \land K = \text{Filter}(K_{\text{raw}})$$
-$$\text{EOFSpan}(K) = \text{EOFSpan}(\text{SourceOf}(K))$$
+SourceOf(K) = S ⇔ Γ ⊢ Tokenize(S) ⇓ (K_raw, D) ∧ K = Filter(K_raw)
+EOFSpan(K) = EOFSpan(SourceOf(K))
 
-$$\text{Advance}(P) = \langle K,\ i+1,\ D,\ j,\ d,\ \Delta \rangle$$
-$$\text{Clone}(P) = \langle K,\ i,\ D,\ j,\ d,\ [] \rangle$$
-$$\text{MergeDiag}(P_b, P_d, P_s) = \langle \text{TokStream}(P_s),\ \text{TokIndex}(P_s),\ \text{DocStream}(P_s),\ \text{DocIndex}(P_s),\ \text{Depth}(P_s),\ \text{DiagStream}(P_b) \mathbin{+\!\!+} \text{DiagStream}(P_d) \rangle$$
+Advance(P) = ⟨K, i+1, D, j, d, Δ⟩
+Clone(P) = ⟨K, i, D, j, d, []⟩
+MergeDiag(P_b, P_d, P_s) = ⟨TokStream(P_s), TokIndex(P_s), DocStream(P_s), DocIndex(P_s), Depth(P_s), DiagStream(P_b) ++ DiagStream(P_d)⟩
 
 **Parser Index Invariant.**
-$$\text{PStateOk}(P) \iff 0 \le i \le |K|$$
+PStateOk(P) ⇔ 0 ≤ i ≤ |K|
 
-$$\text{AdvanceOrEOF}(P) = \begin{cases}
-\text{Advance}(P) & i < |K| \\
-P & i = |K|
-\end{cases}$$
+AdvanceOrEOF(P) =
+ Advance(P)  if i < |K|
+ P           if i = |K|
 
-$$\text{LastConsumed}(P,P') = \begin{cases}
-K[i'-1] & i' > i \\
-\text{Tok}(P) & i' = i
-\end{cases}$$
-$$\text{SpanBetween}(P,P') = \text{SpanFrom}(\text{Tok}(P),\ \text{LastConsumed}(P,P'))$$
+LastConsumed(P, P') =
+ K[i'-1]  if i' > i
+ Tok(P)   if i' = i
+SpanBetween(P, P') = SpanFrom(Tok(P), LastConsumed(P, P'))
 
-$$\text{SplitSpan2}(\text{sp}) = (\text{sp}_L,\ \text{sp}_R) \ \text{where}$$
-$$\text{sp}_L.\text{file}=\text{sp.file}\ \land\ \text{sp}_R.\text{file}=\text{sp.file}$$
-$$\text{sp}_L.\text{start\_offset}=\text{sp.start\_offset}\ \land\ \text{sp}_L.\text{end\_offset}=\text{sp.start\_offset}+1$$
-$$\text{sp}_R.\text{start\_offset}=\text{sp.start\_offset}+1\ \land\ \text{sp}_R.\text{end\_offset}=\text{sp.start\_offset}+2$$
-$$\text{sp}_L.\text{start\_line}=\text{sp.start\_line}\ \land\ \text{sp}_L.\text{end\_line}=\text{sp.start\_line}$$
-$$\text{sp}_R.\text{start\_line}=\text{sp.start\_line}\ \land\ \text{sp}_R.\text{end\_line}=\text{sp.start\_line}$$
-$$\text{sp}_L.\text{start\_col}=\text{sp.start\_col}\ \land\ \text{sp}_L.\text{end\_col}=\text{sp.start\_col}+1$$
-$$\text{sp}_R.\text{start\_col}=\text{sp.start\_col}+1\ \land\ \text{sp}_R.\text{end\_col}=\text{sp.start\_col}+2$$
+SplitSpan2(sp) = (sp_L, sp_R) where
+ sp_L.file = sp.file ∧ sp_R.file = sp.file
+ sp_L.start_offset = sp.start_offset ∧ sp_L.end_offset = sp.start_offset + 1
+ sp_R.start_offset = sp.start_offset + 1 ∧ sp_R.end_offset = sp.start_offset + 2
+ sp_L.start_line = sp.start_line ∧ sp_L.end_line = sp.start_line
+ sp_R.start_line = sp.start_line ∧ sp_R.end_line = sp.start_line
+ sp_L.start_col = sp.start_col ∧ sp_L.end_col = sp.start_col + 1
+ sp_R.start_col = sp.start_col + 1 ∧ sp_R.end_col = sp.start_col + 2
 
-$$\text{SplitShiftR}(P) = \langle K',\ i,\ D,\ j,\ d,\ \Delta \rangle$$
-$$\text{where } \text{Tok}(P)=\langle \text{Operator}(\texttt{">>"}),\ \texttt{">>"},\ \text{sp} \rangle \land (\text{sp}_L,\text{sp}_R)=\text{SplitSpan2}(\text{sp})$$
-$$K' = K[0..i) \mathbin{+\!\!+} [\langle \text{Operator}(\texttt{">"}),\ \texttt{">"},\ \text{sp}_L \rangle,\ \langle \text{Operator}(\texttt{">"}),\ \texttt{">"},\ \text{sp}_R \rangle] \mathbin{+\!\!+} K[i+1..]$$
+SplitShiftR(P) = ⟨K', i, D, j, d, Δ⟩
+where Tok(P) = ⟨Operator(">>"), ">>", sp⟩ ∧ (sp_L, sp_R) = SplitSpan2(sp)
+K' = K[0..i) ++ [⟨Operator(">"), ">", sp_L⟩, ⟨Operator(">"), ">", sp_R⟩] ++ K[i+1..]
 
 **Judgments (Big-Step).**
-$$\text{ParseJudgment} = \{\text{ParseFile},\ \text{ParseModule},\ \text{ParseItem},\ \text{ParseStmt},\ \text{ParseExpr},\ \text{ParsePattern},\ \text{ParseType}\}$$
+ParseJudgment = {ParseFile, ParseModule, ParseItem, ParseStmt, ParseExpr, ParsePattern, ParseType}
 
 #### 3.3.4. Grammar Subset and Cursive0 Lexeme Policy
 
 **Lexeme Predicates.**
-$$\text{IsIdent}(t) \iff t.\text{kind}=\text{Identifier}$$
-$$\text{IsKw}(t,s) \iff t.\text{kind}=\text{Keyword}(s)$$
-$$\text{IsOp}(t,s) \iff t.\text{kind}=\text{Operator}(s)$$
-$$\text{IsPunc}(t,s) \iff t.\text{kind}=\text{Punctuator}(s)$$
-$$\text{Lexeme}(t) = t.\text{lexeme}$$
+IsIdent(t) ⇔ t.kind = Identifier
+IsKw(t, s) ⇔ t.kind = Keyword(s)
+IsOp(t, s) ⇔ t.kind = Operator(s)
+IsPunc(t, s) ⇔ t.kind = Punctuator(s)
+Lexeme(t) = t.lexeme
 
 **Contextual Keywords.**
-$$\text{CtxKeyword} = \{\texttt{"in"}\}$$
-$$\text{Ctx}(t,s) \iff \text{IsIdent}(t) \land \text{Lexeme}(t)=s \land s \in \text{CtxKeyword}$$
-$$\neg \text{Ctx}(t,\texttt{"as"}) \land \neg \text{Ctx}(t,\texttt{"move"})$$
+CtxKeyword = {"in"}
+Ctx(t, s) ⇔ IsIdent(t) ∧ Lexeme(t) = s ∧ s ∈ CtxKeyword
+¬ Ctx(t, "as") ∧ ¬ Ctx(t, "move")
 
 **Cursive0 Declaration Keywords.**
-$$\text{UsingKeyword} = \texttt{"using"}$$
-$$\text{Keyword}(\texttt{"use"}) = \text{false}$$
+UsingKeyword = "using"
+Keyword("use") = false
 
 **Union Propagation.**
-$$\text{UnionPropTok}(t) \iff \text{IsOp}(t,\texttt{"?"})$$
-$$\text{UnionPropForm}(e) \iff \exists e_0.\ e=\text{Propagate}(e_0)$$
+UnionPropTok(t) ⇔ IsOp(t, "?")
+UnionPropForm(e) ⇔ ∃ e_0. e = Propagate(e_0)
 
 **Cursive0 Type Restrictions.**
-$$\text{TypeWhereTok}(t) \iff \text{IsIdent}(t) \land \text{Lexeme}(t)=\texttt{"where"}$$
-$$\text{OpaqueTypeTok}(t) \iff \text{IsIdent}(t) \land \text{Lexeme}(t)=\texttt{"opaque"}$$
-$$\text{TypeArgsUnsupported}(P) \iff \Gamma \vdash \text{ParseTypePath}(P) \Downarrow (P_1, path) \land \text{IsOp}(\text{Tok}(P_1), \texttt{"<"}) \land path \ne [\texttt{Ptr}]$$
-$$\text{C0TypeRestricted}(P) \iff \text{TypeArgsUnsupported}(P) \lor \text{TypeWhereTok}(\text{Tok}(P)) \lor \text{OpaqueTypeTok}(\text{Tok}(P))$$
+TypeWhereTok(t) ⇔ IsIdent(t) ∧ Lexeme(t) = "where"
+OpaqueTypeTok(t) ⇔ IsIdent(t) ∧ Lexeme(t) = "opaque"
+TypeArgsUnsupported(P) ⇔ Γ ⊢ ParseTypePath(P) ⇓ (P_1, path) ∧ IsOp(Tok(P_1), "<") ∧ path ≠ [`Ptr`]
+C0TypeRestricted(P) ⇔ TypeArgsUnsupported(P) ∨ TypeWhereTok(Tok(P)) ∨ OpaqueTypeTok(Tok(P))
 
 **Syntax (Cursive0 Subset).**
 
@@ -2744,1499 +3046,2263 @@ const_expression    ::= expression
 
 **Method Context (Cursive0).**
 
-$$\text{RecordMembers}(M) = \{\ m \mid m\ \text{occurs as RecordMember in}\ M\ \}$$
-$$\text{ClassItems}(M) = \{\ m \mid m\ \text{occurs as ClassItem in}\ M\ \}$$
-$$\text{MethodDecls}(M) = \{\ m \mid m=\text{MethodDecl}(\ldots)\ \land\ m\ \text{occurs in}\ M\ \}$$
-$$\text{ClassMethodDecls}(M) = \{\ m \mid m=\text{ClassMethodDecl}(\ldots)\ \land\ m\ \text{occurs in}\ M\ \}$$
-$$\text{MethodContextOk}(M) \iff \text{MethodDecls}(M) \subseteq \text{RecordMembers}(M) \land \text{ClassMethodDecls}(M) \subseteq \text{ClassItems}(M)$$
+RecordMembers(M) = { m | m occurs as RecordMember in M }
+ClassItems(M) = { m | m occurs as ClassItem in M }
+MethodDecls(M) = { m | m = MethodDecl(…) ∧ m occurs in M }
+ClassMethodDecls(M) = { m | m = ClassMethodDecl(…) ∧ m occurs in M }
+MethodContextOk(M) ⇔ MethodDecls(M) ⊆ RecordMembers(M) ∧ ClassMethodDecls(M) ⊆ ClassItems(M)
 
 **(Method-Context-Err)**
-$$\frac{\neg \text{MethodContextOk}(M) \quad c = \text{Code}(\text{Method-Context-Err})}{\Gamma \vdash \text{Emit}(c)}$$
+¬ MethodContextOk(M)    c = Code(Method-Context-Err)
+────────────────────────────────────────────────────
+Γ ⊢ Emit(c)
 
 #### 3.3.5. Token Consumption (Small-Step, Success-Only)
 
-$$\text{ConsumeState} = \{\text{Consume}(P,k),\ \text{ConsumeDone}(P)\}$$
-$$\text{ParseRejectRules} = \emptyset$$
+ConsumeState = {Consume(P, k), ConsumeDone(P)}
+ParseRejectRules = ∅
 
 **(Tok-Consume-Kind)**
-$$\frac{\text{Tok}(P).\text{kind} = k}{\langle \text{Consume}(P,k) \rangle \to \langle \text{ConsumeDone}(\text{Advance}(P)) \rangle}$$
+Tok(P).kind = k
+────────────────────────────────────────────────
+⟨Consume(P, k)⟩ → ⟨ConsumeDone(Advance(P))⟩
 
 **(Tok-Consume-Keyword)**
-$$\frac{\text{IsKw}(\text{Tok}(P), s)}{\langle \text{Consume}(P, \text{Keyword}(s)) \rangle \to \langle \text{ConsumeDone}(\text{Advance}(P)) \rangle}$$
+IsKw(Tok(P), s)
+────────────────────────────────────────────────────────────
+⟨Consume(P, Keyword(s))⟩ → ⟨ConsumeDone(Advance(P))⟩
 
 **(Tok-Consume-Operator)**
-$$\frac{\text{IsOp}(\text{Tok}(P), s)}{\langle \text{Consume}(P, \text{Operator}(s)) \rangle \to \langle \text{ConsumeDone}(\text{Advance}(P)) \rangle}$$
+IsOp(Tok(P), s)
+────────────────────────────────────────────────────────────
+⟨Consume(P, Operator(s))⟩ → ⟨ConsumeDone(Advance(P))⟩
 
 **(Tok-Consume-Punct)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), s)}{\langle \text{Consume}(P, \text{Punctuator}(s)) \rangle \to \langle \text{ConsumeDone}(\text{Advance}(P)) \rangle}$$
+IsPunc(Tok(P), s)
+────────────────────────────────────────────────────────────
+⟨Consume(P, Punctuator(s))⟩ → ⟨ConsumeDone(Advance(P))⟩
 
 **List Parsing (Small-Step)**
 
-$$\text{ListState} = \{\text{ListStart}(P),\ \text{ListScan}(P,xs),\ \text{ListDone}(P,xs)\}$$
+ListState = {ListStart(P), ListScan(P, xs), ListDone(P, xs)}
 
 **(List-Start)**
-$$\frac{}{\langle \text{ListStart}(P) \rangle \to \langle \text{ListScan}(P, []) \rangle}$$
+────────────────────────────────────────
+⟨ListStart(P)⟩ → ⟨ListScan(P, [])⟩
 
 **(List-Cons)**
-$$\frac{\Gamma \vdash \text{ParseElem}(P) \Downarrow (P', x)}{\langle \text{ListScan}(P, xs) \rangle \to \langle \text{ListScan}(P', xs \mathbin{+\!\!+} [x]) \rangle}$$
+Γ ⊢ ParseElem(P) ⇓ (P', x)
+──────────────────────────────────────────────────────
+⟨ListScan(P, xs)⟩ → ⟨ListScan(P', xs ++ [x])⟩
 
 **(List-Done)**
-$$\frac{\text{Tok}(P) \in \text{EndSet}}{\langle \text{ListScan}(P, xs) \rangle \to \langle \text{ListDone}(P, xs) \rangle}$$
+Tok(P) ∈ EndSet
+──────────────────────────────────────
+⟨ListScan(P, xs)⟩ → ⟨ListDone(P, xs)⟩
 
-$$\text{EndSet} \subseteq \text{TokenKind}$$
-$$\text{TrailingComma}(P,\text{EndSet}) \iff \text{IsPunc}(\text{Tok}(P),\texttt{","}) \land \text{Tok}(\text{Advance}(P)) \in \text{EndSet}$$
+EndSet ⊆ TokenKind
+TrailingComma(P, EndSet) ⇔ IsPunc(Tok(P), ",") ∧ Tok(Advance(P)) ∈ EndSet
 
 **(Trailing-Comma-Err)**
-$$\frac{\text{TrailingComma}(P,\text{EndSet}) \quad c = \text{Code}(\text{Unsupported-Construct})}{\Gamma \vdash \text{Emit}(c,\ \text{Tok}(P).\text{span})}$$
+TrailingComma(P, EndSet)    c = Code(Unsupported-Construct)
+─────────────────────────────────────────────────────────────
+Γ ⊢ Emit(c, Tok(P).span)
 
 #### 3.3.6. Module and Item Parsing
 
 **ParseFile (Big-Step).**
-$$\Gamma \vdash \text{Tokenize}(S) \Downarrow (K_{\text{raw}}, D)$$
-$$K = \text{Filter}(K_{\text{raw}})$$
-$$P_0 = \langle K,\ 0,\ D,\ 0,\ 0,\ [] \rangle$$
+Γ ⊢ Tokenize(S) ⇓ (K_raw, D)
+K = Filter(K_raw)
+P_0 = ⟨K, 0, D, 0, 0, []⟩
 
 **(ParseFile-Ok)**
-$$\frac{\Gamma \vdash \text{ParseItems}(P_0) \Downarrow (P_1, I, MDoc)}{\Gamma \vdash \text{ParseFile}(S) \Downarrow \langle S.\text{path}, I, MDoc \rangle}$$
+Γ ⊢ ParseItems(P_0) ⇓ (P_1, I, MDoc)
+────────────────────────────────────────────────
+Γ ⊢ ParseFile(S) ⇓ ⟨S.path, I, MDoc⟩
 
-$$\text{ParseModule} \in \text{RulesIn}(\{\texttt{"3.4.1"},\ \texttt{"3.4.2"}\})$$
+ParseModule ∈ RulesIn({"3.4.1", "3.4.2"})
 
 **Item Sequence (Big-Step).**
 
 **(ParseItems-Empty)**
-$$\frac{\text{Tok}(P) = \text{EOF}}{\Gamma \vdash \text{ParseItems}(P) \Downarrow (P, [], [])}$$
+Tok(P) = EOF
+──────────────────────────────────────
+Γ ⊢ ParseItems(P) ⇓ (P, [], [])
 
 **(ParseItems-Cons)**
-$$\frac{\text{Tok}(P) \neq \text{EOF} \quad \Gamma \vdash \text{ParseItem}(P) \Downarrow (P_1, it) \quad \Gamma \vdash \text{ParseItems}(P_1) \Downarrow (P_2, I, M)}{\Gamma \vdash \text{ParseItems}(P) \Downarrow (P_2, [it] \mathbin{+\!\!+} I, M)}$$
+Tok(P) ≠ EOF    Γ ⊢ ParseItem(P) ⇓ (P_1, it)    Γ ⊢ ParseItems(P_1) ⇓ (P_2, I, M)
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItems(P) ⇓ (P_2, [it] ++ I, M)
 
-$$\text{TopLevelItem} \subseteq \texttt{item}$$
+TopLevelItem ⊆ item
 
 ##### 3.3.6.1. Identifiers and Paths
 
 **(Parse-Ident)**
-$$\frac{\text{IsIdent}(\text{Tok}(P))}{\Gamma \vdash \text{ParseIdent}(P) \Downarrow (\text{Advance}(P), \text{Lexeme}(\text{Tok}(P)))}$$
+IsIdent(Tok(P))
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseIdent(P) ⇓ (Advance(P), Lexeme(Tok(P)))
 
 **(Parse-Ident-Err)**
-$$\frac{\neg \text{IsIdent}(\text{Tok}(P)) \quad c = \text{Code}(\text{Parse-Syntax-Err}) \quad \Gamma \vdash \text{Emit}(c,\ \text{Tok}(P).\text{span})}{\Gamma \vdash \text{ParseIdent}(P) \Downarrow (P,\ \texttt{"_"})}$$
+¬ IsIdent(Tok(P))    c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P).span)
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseIdent(P) ⇓ (P, "_")
 
 **(Parse-ModulePath)**
-$$\frac{\Gamma \vdash \text{ParseIdent}(P) \Downarrow (P_1, id) \quad \Gamma \vdash \text{ParseModulePathTail}(P_1, [id]) \Downarrow (P_2, path)}{\Gamma \vdash \text{ParseModulePath}(P) \Downarrow (P_2, path)}$$
+Γ ⊢ ParseIdent(P) ⇓ (P_1, id)    Γ ⊢ ParseModulePathTail(P_1, [id]) ⇓ (P_2, path)
+───────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseModulePath(P) ⇓ (P_2, path)
 
 **(Parse-ModulePathTail-End)**
-$$\frac{\neg \text{IsOp}(\text{Tok}(P), \texttt{"::"})}{\Gamma \vdash \text{ParseModulePathTail}(P, xs) \Downarrow (P, xs)}$$
+¬ IsOp(Tok(P), "::")
+──────────────────────────────────────────────
+Γ ⊢ ParseModulePathTail(P, xs) ⇓ (P, xs)
 
 **(Parse-ModulePathTail-Cons)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"::"}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P)) \Downarrow (P_1, id) \quad \Gamma \vdash \text{ParseModulePathTail}(P_1, xs \mathbin{+\!\!+} [id]) \Downarrow (P_2, ys)}{\Gamma \vdash \text{ParseModulePathTail}(P, xs) \Downarrow (P_2, ys)}$$
+IsOp(Tok(P), "::")    Γ ⊢ ParseIdent(Advance(P)) ⇓ (P_1, id)    Γ ⊢ ParseModulePathTail(P_1, xs ++ [id]) ⇓ (P_2, ys)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseModulePathTail(P, xs) ⇓ (P_2, ys)
 
 ##### 3.3.6.2. Visibility Parsing
 
 **(Parse-Vis-Opt)**
-$$\frac{\text{IsKw}(\text{Tok}(P), v) \quad v \in \{\texttt{public},\texttt{internal},\texttt{private},\texttt{protected}\}}{\Gamma \vdash \text{ParseVis}(P) \Downarrow (\text{Advance}(P), v)}$$
+IsKw(Tok(P), v)    v ∈ {`public`, `internal`, `private`, `protected`}
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseVis(P) ⇓ (Advance(P), v)
 
 **(Parse-Vis-Default)**
-$$\frac{\neg(\text{IsKw}(\text{Tok}(P), v))}{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P, \texttt{internal})}$$
+¬ IsKw(Tok(P), v)
+──────────────────────────────────────────
+Γ ⊢ ParseVis(P) ⇓ (P, `internal`)
 
 ##### 3.3.6.3. Using Declarations
 
 **(Parse-Using-Path)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_1, vis) \quad \text{IsKw}(\text{Tok}(P_1), \texttt{using}) \quad \Gamma \vdash \text{ParseModulePath}(\text{Advance}(P_1)) \Downarrow (P_2, path) \quad \Gamma \vdash \text{ParseAliasOpt}(P_2) \Downarrow (P_3, alias\_opt)}{\Gamma \vdash \text{ParseItem}(P) \Downarrow (P_3, \langle \text{UsingDecl}, vis, \langle \text{UsingPath}, path, alias\_opt \rangle, \text{SpanBetween}(P,P_3), [] \rangle)}$$
+Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    IsKw(Tok(P_1), `using`)    Γ ⊢ ParseModulePath(Advance(P_1)) ⇓ (P_2, path)    Γ ⊢ ParseAliasOpt(P_2) ⇓ (P_3, alias_opt)
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_3, ⟨UsingDecl, vis, ⟨UsingPath, path, alias_opt⟩, SpanBetween(P, P_3), []⟩)
 
 **(Parse-Using-List)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_1, vis) \quad \text{IsKw}(\text{Tok}(P_1), \texttt{using}) \quad \Gamma \vdash \text{ParseModulePath}(\text{Advance}(P_1)) \Downarrow (P_2, mp) \quad \text{IsPunc}(\text{Tok}(P_2), \texttt{"{"}) \quad \Gamma \vdash \text{ParseUsingList}(\text{Advance}(P_2)) \Downarrow (P_3, specs)}{\Gamma \vdash \text{ParseItem}(P) \Downarrow (P_3, \langle \text{UsingDecl}, vis, \langle \text{UsingList}, mp, specs \rangle, \text{SpanBetween}(P,P_3), [] \rangle)}$$
+Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    IsKw(Tok(P_1), `using`)    Γ ⊢ ParseModulePath(Advance(P_1)) ⇓ (P_2, mp)    IsPunc(Tok(P_2), "{")    Γ ⊢ ParseUsingList(Advance(P_2)) ⇓ (P_3, specs)
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_3, ⟨UsingDecl, vis, ⟨UsingList, mp, specs⟩, SpanBetween(P, P_3), []⟩)
 
 ##### 3.3.6.4. Static Declarations
 
 **(Parse-Static-Decl)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_1, vis) \quad \text{Tok}(P_1) = \text{Keyword}(kw) \quad kw \in \{\texttt{let},\ \texttt{var}\} \quad \text{mut} = kw \quad \Gamma \vdash \text{ParseBindingAfterLetVar}(P_1) \Downarrow (P_2, bind)}{\Gamma \vdash \text{ParseItem}(P) \Downarrow (P_2, \langle \text{StaticDecl}, vis, mut, bind, \text{SpanBetween}(P,P_2), [] \rangle)}$$
+Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    Tok(P_1) = Keyword(kw)    kw ∈ {`let`, `var`}    mut = kw    Γ ⊢ ParseBindingAfterLetVar(P_1) ⇓ (P_2, bind)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_2, ⟨StaticDecl, vis, mut, bind, SpanBetween(P, P_2), []⟩)
 
 ##### 3.3.6.5. Procedure Declarations
 
 **(Parse-Procedure)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_1, vis) \quad \text{IsKw}(\text{Tok}(P_1), \texttt{procedure}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P_1)) \Downarrow (P_2, name) \quad \Gamma \vdash \text{ParseSignature}(P_2) \Downarrow (P_3, params, ret\_opt) \quad \Gamma \vdash \text{ParseBlock}(P_3) \Downarrow (P_4, body)}{\Gamma \vdash \text{ParseItem}(P) \Downarrow (P_4, \langle \text{ProcedureDecl}, vis, name, params, ret\_opt, body, \text{SpanBetween}(P,P_4), [] \rangle)}$$
+Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    IsKw(Tok(P_1), `procedure`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseSignature(P_2) ⇓ (P_3, params, ret_opt)    Γ ⊢ ParseBlock(P_3) ⇓ (P_4, body)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_4, ⟨ProcedureDecl, vis, name, params, ret_opt, body, SpanBetween(P, P_4), []⟩)
 
 ##### 3.3.6.6. Record Declarations
 
 **(Parse-Record)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_1, vis) \quad \text{IsKw}(\text{Tok}(P_1), \texttt{record}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P_1)) \Downarrow (P_2, name) \quad \Gamma \vdash \text{ParseImplementsOpt}(P_2) \Downarrow (P_3, impls) \quad \Gamma \vdash \text{ParseRecordBody}(P_3) \Downarrow (P_4, members)}{\Gamma \vdash \text{ParseItem}(P) \Downarrow (P_4, \langle \text{RecordDecl}, vis, name, impls, members, \text{SpanBetween}(P,P_4), [] \rangle)}$$
+Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    IsKw(Tok(P_1), `record`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseImplementsOpt(P_2) ⇓ (P_3, impls)    Γ ⊢ ParseRecordBody(P_3) ⇓ (P_4, members)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_4, ⟨RecordDecl, vis, name, impls, members, SpanBetween(P, P_4), []⟩)
 
 ##### 3.3.6.7. Enum Declarations
 
 **(Parse-Enum)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_1, vis) \quad \text{IsKw}(\text{Tok}(P_1), \texttt{enum}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P_1)) \Downarrow (P_2, name) \quad \Gamma \vdash \text{ParseImplementsOpt}(P_2) \Downarrow (P_3, impls) \quad \Gamma \vdash \text{ParseEnumBody}(P_3) \Downarrow (P_4, variants)}{\Gamma \vdash \text{ParseItem}(P) \Downarrow (P_4, \langle \text{EnumDecl}, vis, name, impls, variants, \text{SpanBetween}(P,P_4), [] \rangle)}$$
+Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    IsKw(Tok(P_1), `enum`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseImplementsOpt(P_2) ⇓ (P_3, impls)    Γ ⊢ ParseEnumBody(P_3) ⇓ (P_4, variants)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_4, ⟨EnumDecl, vis, name, impls, variants, SpanBetween(P, P_4), []⟩)
 
 ##### 3.3.6.8. Modal Declarations
 
 **(Parse-Modal)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_1, vis) \quad \text{IsKw}(\text{Tok}(P_1), \texttt{modal}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P_1)) \Downarrow (P_2, name) \quad \Gamma \vdash \text{ParseImplementsOpt}(P_2) \Downarrow (P_3, impls) \quad \Gamma \vdash \text{ParseModalBody}(P_3) \Downarrow (P_4, states)}{\Gamma \vdash \text{ParseItem}(P) \Downarrow (P_4, \langle \text{ModalDecl}, vis, name, impls, states, \text{SpanBetween}(P,P_4), [] \rangle)}$$
+Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    IsKw(Tok(P_1), `modal`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseImplementsOpt(P_2) ⇓ (P_3, impls)    Γ ⊢ ParseModalBody(P_3) ⇓ (P_4, states)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_4, ⟨ModalDecl, vis, name, impls, states, SpanBetween(P, P_4), []⟩)
 
 **(Parse-Class)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_1, vis) \quad \text{IsKw}(\text{Tok}(P_1), \texttt{class}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P_1)) \Downarrow (P_2, name) \quad \Gamma \vdash \text{ParseSuperclassOpt}(P_2) \Downarrow (P_3, supers) \quad \Gamma \vdash \text{ParseClassBody}(P_3) \Downarrow (P_4, items)}{\Gamma \vdash \text{ParseItem}(P) \Downarrow (P_4, \langle \text{ClassDecl}, vis, name, supers, items, \text{SpanBetween}(P,P_4), [] \rangle)}$$
+Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    IsKw(Tok(P_1), `class`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseSuperclassOpt(P_2) ⇓ (P_3, supers)    Γ ⊢ ParseClassBody(P_3) ⇓ (P_4, items)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_4, ⟨ClassDecl, vis, name, supers, items, SpanBetween(P, P_4), []⟩)
 
 **(Parse-ModalBody)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"{"}) \quad \Gamma \vdash \text{ParseStateBlockList}(\text{Advance}(P)) \Downarrow (P_1, states) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"}"})}{\Gamma \vdash \text{ParseModalBody}(P) \Downarrow (\text{Advance}(P_1), states)}$$
+IsPunc(Tok(P), "{")    Γ ⊢ ParseStateBlockList(Advance(P)) ⇓ (P_1, states)    IsPunc(Tok(P_1), "}")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseModalBody(P) ⇓ (Advance(P_1), states)
 
 **(Parse-StateBlock)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"@"}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P)) \Downarrow (P_1, name) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"{"}) \quad \Gamma \vdash \text{ParseStateMemberList}(\text{Advance}(P_1)) \Downarrow (P_2, members) \quad \text{IsPunc}(\text{Tok}(P_2), \texttt{"}"})}{\Gamma \vdash \text{ParseStateBlock}(P) \Downarrow (\text{Advance}(P_2), \langle name, members, \text{SpanBetween}(P,P_2), [] \rangle)}$$
+IsOp(Tok(P), "@")    Γ ⊢ ParseIdent(Advance(P)) ⇓ (P_1, name)    IsPunc(Tok(P_1), "{")    Γ ⊢ ParseStateMemberList(Advance(P_1)) ⇓ (P_2, members)    IsPunc(Tok(P_2), "}")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStateBlock(P) ⇓ (Advance(P_2), ⟨name, members, SpanBetween(P, P_2), []⟩)
 
 **(Parse-StateMember-Field)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_1, vis) \quad \Gamma \vdash \text{ParseIdent}(P_1) \Downarrow (P_2, name) \quad \text{IsPunc}(\text{Tok}(P_2), \texttt{":"}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(P_2)) \Downarrow (P_3, ty)}{\Gamma \vdash \text{ParseStateMember}(P) \Downarrow (P_3, \langle \text{StateFieldDecl}, vis, name, ty, \text{SpanBetween}(P,P_3), [] \rangle)}$$
+Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    Γ ⊢ ParseIdent(P_1) ⇓ (P_2, name)    IsPunc(Tok(P_2), ":")    Γ ⊢ ParseType(Advance(P_2)) ⇓ (P_3, ty)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStateMember(P) ⇓ (P_3, ⟨StateFieldDecl, vis, name, ty, SpanBetween(P, P_3), []⟩)
 
 **(Parse-StateMember-Method)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_0, vis) \quad \text{IsKw}(\text{Tok}(P_0), \texttt{procedure}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P_0)) \Downarrow (P_1, name) \quad \Gamma \vdash \text{ParseSignature}(P_1) \Downarrow (P_2, params, ret\_opt) \quad \Gamma \vdash \text{ParseBlock}(P_2) \Downarrow (P_3, body)}{\Gamma \vdash \text{ParseStateMember}(P) \Downarrow (P_3, \langle \text{StateMethodDecl}, vis, name, params, ret\_opt, body, \text{SpanBetween}(P,P_3), [] \rangle)}$$
+Γ ⊢ ParseVis(P) ⇓ (P_0, vis)    IsKw(Tok(P_0), `procedure`)    Γ ⊢ ParseIdent(Advance(P_0)) ⇓ (P_1, name)    Γ ⊢ ParseSignature(P_1) ⇓ (P_2, params, ret_opt)    Γ ⊢ ParseBlock(P_2) ⇓ (P_3, body)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStateMember(P) ⇓ (P_3, ⟨StateMethodDecl, vis, name, params, ret_opt, body, SpanBetween(P, P_3), []⟩)
 
 **(Parse-StateMember-Transition)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_0, vis) \quad \text{IsKw}(\text{Tok}(P_0), \texttt{transition}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P_0)) \Downarrow (P_1, name) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"("}) \quad \Gamma \vdash \text{ParseParamList}(\text{Advance}(P_1)) \Downarrow (P_2, params) \quad \text{IsPunc}(\text{Tok}(P_2), \texttt{")"}) \quad P_2' = \text{Advance}(P_2) \quad \text{IsOp}(\text{Tok}(P_2'), \texttt{"->"}) \quad \text{IsOp}(\text{Tok}(\text{Advance}(P_2')), \texttt{"@"}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(\text{Advance}(P_2'))) \Downarrow (P_3, target) \quad \Gamma \vdash \text{ParseBlock}(P_3) \Downarrow (P_4, body)}{\Gamma \vdash \text{ParseStateMember}(P) \Downarrow (P_4, \langle \text{TransitionDecl}, vis, name, params, target, body, \text{SpanBetween}(P,P_4), [] \rangle)}$$
+Γ ⊢ ParseVis(P) ⇓ (P_0, vis)    IsKw(Tok(P_0), `transition`)    Γ ⊢ ParseIdent(Advance(P_0)) ⇓ (P_1, name)    IsPunc(Tok(P_1), "(")    Γ ⊢ ParseParamList(Advance(P_1)) ⇓ (P_2, params)    IsPunc(Tok(P_2), ")")    P_2' = Advance(P_2)    IsOp(Tok(P_2'), "->")    IsOp(Tok(Advance(P_2')), "@")    Γ ⊢ ParseIdent(Advance(Advance(P_2'))) ⇓ (P_3, target)    Γ ⊢ ParseBlock(P_3) ⇓ (P_4, body)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStateMember(P) ⇓ (P_4, ⟨TransitionDecl, vis, name, params, target, body, SpanBetween(P, P_4), []⟩)
 
 ##### 3.3.6.9. Implements Clauses
 
 **(Parse-Implements-None)**
-$$\frac{\neg \text{IsOp}(\text{Tok}(P), \texttt{"<:"})}{\Gamma \vdash \text{ParseImplementsOpt}(P) \Downarrow (P, [])}$$
+¬ IsOp(Tok(P), "<:")
+──────────────────────────────────────────────
+Γ ⊢ ParseImplementsOpt(P) ⇓ (P, [])
 
 **(Parse-Implements-Yes)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"<:"}) \quad \Gamma \vdash \text{ParseClassList}(\text{Advance}(P)) \Downarrow (P_1, cls)}{\Gamma \vdash \text{ParseImplementsOpt}(P) \Downarrow (P_1, cls)}$$
+IsOp(Tok(P), "<:")    Γ ⊢ ParseClassList(Advance(P)) ⇓ (P_1, cls)
+───────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseImplementsOpt(P) ⇓ (P_1, cls)
 
 **(Parse-ClassList-Cons)**
-$$\frac{\Gamma \vdash \text{ParseClassPath}(P) \Downarrow (P_1, c_0) \quad \Gamma \vdash \text{ParseClassListTail}(P_1, [c_0]) \Downarrow (P_2, cs)}{\Gamma \vdash \text{ParseClassList}(P) \Downarrow (P_2, cs)}$$
+Γ ⊢ ParseClassPath(P) ⇓ (P_1, c_0)    Γ ⊢ ParseClassListTail(P_1, [c_0]) ⇓ (P_2, cs)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClassList(P) ⇓ (P_2, cs)
 
 **(Parse-ClassListTail-End)**
-$$\frac{\neg \text{IsPunc}(\text{Tok}(P), \texttt{","})}{\Gamma \vdash \text{ParseClassListTail}(P, cs) \Downarrow (P, cs)}$$
+¬ IsPunc(Tok(P), ",")
+──────────────────────────────────────────────
+Γ ⊢ ParseClassListTail(P, cs) ⇓ (P, cs)
 
 **(Parse-ClassListTail-Comma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \Gamma \vdash \text{ParseClassPath}(\text{Advance}(P)) \Downarrow (P_1, c) \quad \Gamma \vdash \text{ParseClassListTail}(P_1, cs \mathbin{+\!\!+} [c]) \Downarrow (P_2, cs')}{\Gamma \vdash \text{ParseClassListTail}(P, cs) \Downarrow (P_2, cs')}$$
+IsPunc(Tok(P), ",")    Γ ⊢ ParseClassPath(Advance(P)) ⇓ (P_1, c)    Γ ⊢ ParseClassListTail(P_1, cs ++ [c]) ⇓ (P_2, cs')
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClassListTail(P, cs) ⇓ (P_2, cs')
 
 
 ##### 3.3.6.10. Class Declarations
 
 **(Parse-Superclass-None)**
-$$\frac{\neg \text{IsOp}(\text{Tok}(P), \texttt{"<:"})}{\Gamma \vdash \text{ParseSuperclassOpt}(P) \Downarrow (P, [])}$$
+¬ IsOp(Tok(P), "<:")
+──────────────────────────────────────────────
+Γ ⊢ ParseSuperclassOpt(P) ⇓ (P, [])
 
 **(Parse-Superclass-Yes)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"<:"}) \quad \Gamma \vdash \text{ParseSuperclassBounds}(\text{Advance}(P)) \Downarrow (P_1, supers)}{\Gamma \vdash \text{ParseSuperclassOpt}(P) \Downarrow (P_1, supers)}$$
+IsOp(Tok(P), "<:")    Γ ⊢ ParseSuperclassBounds(Advance(P)) ⇓ (P_1, supers)
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseSuperclassOpt(P) ⇓ (P_1, supers)
 
 **(Parse-SuperclassBounds-Cons)**
-$$\frac{\Gamma \vdash \text{ParseClassPath}(P) \Downarrow (P_1, c_0) \quad \Gamma \vdash \text{ParseSuperclassBoundsTail}(P_1, [c_0]) \Downarrow (P_2, cs)}{\Gamma \vdash \text{ParseSuperclassBounds}(P) \Downarrow (P_2, cs)}$$
+Γ ⊢ ParseClassPath(P) ⇓ (P_1, c_0)    Γ ⊢ ParseSuperclassBoundsTail(P_1, [c_0]) ⇓ (P_2, cs)
+──────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseSuperclassBounds(P) ⇓ (P_2, cs)
 
 **(Parse-SuperclassBoundsTail-End)**
-$$\frac{\neg \text{IsOp}(\text{Tok}(P), \texttt{"+"})}{\Gamma \vdash \text{ParseSuperclassBoundsTail}(P, cs) \Downarrow (P, cs)}$$
+¬ IsOp(Tok(P), "+")
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseSuperclassBoundsTail(P, cs) ⇓ (P, cs)
 
 **(Parse-SuperclassBoundsTail-Plus)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"+"}) \quad \Gamma \vdash \text{ParseClassPath}(\text{Advance}(P)) \Downarrow (P_1, c) \quad \Gamma \vdash \text{ParseSuperclassBoundsTail}(P_1, cs \mathbin{+\!\!+} [c]) \Downarrow (P_2, cs')}{\Gamma \vdash \text{ParseSuperclassBoundsTail}(P, cs) \Downarrow (P_2, cs')}$$
+IsOp(Tok(P), "+")    Γ ⊢ ParseClassPath(Advance(P)) ⇓ (P_1, c)    Γ ⊢ ParseSuperclassBoundsTail(P_1, cs ++ [c]) ⇓ (P_2, cs')
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseSuperclassBoundsTail(P, cs) ⇓ (P_2, cs')
 
 **(Parse-ClassBody)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"{"}) \quad \Gamma \vdash \text{ParseClassItemList}(\text{Advance}(P)) \Downarrow (P_1, items) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"}"})}{\Gamma \vdash \text{ParseClassBody}(P) \Downarrow (\text{Advance}(P_1), items)}$$
+IsPunc(Tok(P), "{")    Γ ⊢ ParseClassItemList(Advance(P)) ⇓ (P_1, items)    IsPunc(Tok(P_1), "}")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClassBody(P) ⇓ (Advance(P_1), items)
 
 **(Parse-ClassItemList-End)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"}"})}{\Gamma \vdash \text{ParseClassItemList}(P) \Downarrow (P, [])}$$
+IsPunc(Tok(P), "}")
+────────────────────────────────────────────
+Γ ⊢ ParseClassItemList(P) ⇓ (P, [])
 
 **(Parse-ClassItemList-Cons)**
-$$\frac{\neg \text{IsPunc}(\text{Tok}(P), \texttt{"}"}) \quad \Gamma \vdash \text{ParseClassItem}(P) \Downarrow (P_1, it) \quad \Gamma \vdash \text{ParseClassItemList}(P_1) \Downarrow (P_2, rest)}{\Gamma \vdash \text{ParseClassItemList}(P) \Downarrow (P_2, [it] \mathbin{+\!\!+} rest)}$$
+¬ IsPunc(Tok(P), "}")    Γ ⊢ ParseClassItem(P) ⇓ (P_1, it)    Γ ⊢ ParseClassItemList(P_1) ⇓ (P_2, rest)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClassItemList(P) ⇓ (P_2, [it] ++ rest)
 
 **(Parse-ClassItem-Method)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_0, vis) \quad \text{IsKw}(\text{Tok}(P_0), \texttt{procedure}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P_0)) \Downarrow (P_1, name) \quad \Gamma \vdash \text{ParseMethodSignature}(P_1) \Downarrow (P_2, receiver, params, ret\_opt) \quad \Gamma \vdash \text{ParseClassMethodBody}(P_2) \Downarrow (P_3, body\_opt)}{\Gamma \vdash \text{ParseClassItem}(P) \Downarrow (P_3, \langle \text{ClassMethodDecl}, vis, name, receiver, params, ret\_opt, body\_opt, \text{SpanBetween}(P,P_3), [] \rangle)}$$
+Γ ⊢ ParseVis(P) ⇓ (P_0, vis)    IsKw(Tok(P_0), `procedure`)    Γ ⊢ ParseIdent(Advance(P_0)) ⇓ (P_1, name)    Γ ⊢ ParseMethodSignature(P_1) ⇓ (P_2, receiver, params, ret_opt)    Γ ⊢ ParseClassMethodBody(P_2) ⇓ (P_3, body_opt)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClassItem(P) ⇓ (P_3, ⟨ClassMethodDecl, vis, name, receiver, params, ret_opt, body_opt, SpanBetween(P, P_3), []⟩)
 
 **(Parse-ClassItem-Field)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_0, vis) \quad \Gamma \vdash \text{ParseIdent}(P_0) \Downarrow (P_1, name) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{":"}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(P_1)) \Downarrow (P_2, ty) \quad \Gamma \vdash \text{ConsumeTerminatorReq}(P_2) \Downarrow P_3}{\Gamma \vdash \text{ParseClassItem}(P) \Downarrow (P_3, \langle \text{ClassFieldDecl}, vis, name, ty, \text{SpanBetween}(P,P_3), [] \rangle)}$$
+Γ ⊢ ParseVis(P) ⇓ (P_0, vis)    Γ ⊢ ParseIdent(P_0) ⇓ (P_1, name)    IsPunc(Tok(P_1), ":")    Γ ⊢ ParseType(Advance(P_1)) ⇓ (P_2, ty)    Γ ⊢ ConsumeTerminatorReq(P_2) ⇓ P_3
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClassItem(P) ⇓ (P_3, ⟨ClassFieldDecl, vis, name, ty, SpanBetween(P, P_3), []⟩)
 
 **(Parse-ClassMethodBody-Concrete)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"{"}) \quad \Gamma \vdash \text{ParseBlock}(P) \Downarrow (P_1, body)}{\Gamma \vdash \text{ParseClassMethodBody}(P) \Downarrow (P_1, body)}$$
+IsPunc(Tok(P), "{")    Γ ⊢ ParseBlock(P) ⇓ (P_1, body)
+──────────────────────────────────────────────────────────
+Γ ⊢ ParseClassMethodBody(P) ⇓ (P_1, body)
 
 **(Parse-ClassMethodBody-Abstract)**
-$$\frac{\neg \text{IsPunc}(\text{Tok}(P), \texttt{"{"}) \quad \Gamma \vdash \text{ConsumeTerminatorReq}(P) \Downarrow P_1}{\Gamma \vdash \text{ParseClassMethodBody}(P) \Downarrow (P_1, \bot)}$$
+¬ IsPunc(Tok(P), "{")    Γ ⊢ ConsumeTerminatorReq(P) ⇓ P_1
+──────────────────────────────────────────────────────────
+Γ ⊢ ParseClassMethodBody(P) ⇓ (P_1, ⊥)
 
-$$\text{UnsupportedClassItem} = \{\texttt{modal\_class},\ \texttt{type\_item},\ \texttt{abstract\_state},\ \texttt{override\_in\_class}\}$$
-$$\text{UnsupportedClassItem} \subseteq \text{UnsupportedForm}$$
+UnsupportedClassItem = {`modal_class`, `type_item`, `abstract_state`, `override_in_class`}
+UnsupportedClassItem ⊆ UnsupportedForm
 
 ##### 3.3.6.11. Type Alias Declarations
 
 **(Parse-Type-Alias)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_1, vis) \quad \text{IsKw}(\text{Tok}(P_1), \texttt{type}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P_1)) \Downarrow (P_2, name) \quad \text{IsOp}(\text{Tok}(P_2), \texttt{"="}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(P_2)) \Downarrow (P_3, ty)}{\Gamma \vdash \text{ParseItem}(P) \Downarrow (P_3, \langle \text{TypeAliasDecl}, vis, name, ty, \text{SpanBetween}(P,P_3), [] \rangle)}$$
+Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    IsKw(Tok(P_1), `type`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    IsOp(Tok(P_2), "=")    Γ ⊢ ParseType(Advance(P_2)) ⇓ (P_3, ty)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_3, ⟨TypeAliasDecl, vis, name, ty, SpanBetween(P, P_3), []⟩)
 
-$$\text{UnsupportedWhereClause} = \{\texttt{where\_clause}\}$$
-$$\text{UnsupportedWhereClause} \subseteq \text{UnsupportedForm}$$
+UnsupportedWhereClause = {`where_clause`}
+UnsupportedWhereClause ⊆ UnsupportedForm
 
 ##### 3.3.6.13. Item Helper Parsing Rules
 
 **Type Paths.**
 
 **(Parse-TypePath)**
-$$\frac{\Gamma \vdash \text{ParseIdent}(P) \Downarrow (P_1, id) \quad \Gamma \vdash \text{ParseTypePathTail}(P_1, [id]) \Downarrow (P_2, path)}{\Gamma \vdash \text{ParseTypePath}(P) \Downarrow (P_2, path)}$$
+Γ ⊢ ParseIdent(P) ⇓ (P_1, id)    Γ ⊢ ParseTypePathTail(P_1, [id]) ⇓ (P_2, path)
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseTypePath(P) ⇓ (P_2, path)
 
 
 **(Parse-ClassPath)**
-$$\frac{\Gamma \vdash \text{ParseTypePath}(P) \Downarrow (P_1, path)}{\Gamma \vdash \text{ParseClassPath}(P) \Downarrow (P_1, path)}$$
+Γ ⊢ ParseTypePath(P) ⇓ (P_1, path)
+────────────────────────────────────────────
+Γ ⊢ ParseClassPath(P) ⇓ (P_1, path)
 
 **(Parse-TypePathTail-End)**
-$$\frac{\neg \text{IsOp}(\text{Tok}(P), \texttt{"::"})}{\Gamma \vdash \text{ParseTypePathTail}(P, xs) \Downarrow (P, xs)}$$
+¬ IsOp(Tok(P), "::")
+────────────────────────────────────────────
+Γ ⊢ ParseTypePathTail(P, xs) ⇓ (P, xs)
 
 **(Parse-TypePathTail-Cons)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"::"}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P)) \Downarrow (P_1, id) \quad \Gamma \vdash \text{ParseTypePathTail}(P_1, xs \mathbin{+\!\!+} [id]) \Downarrow (P_2, ys)}{\Gamma \vdash \text{ParseTypePathTail}(P, xs) \Downarrow (P_2, ys)}$$
+IsOp(Tok(P), "::")    Γ ⊢ ParseIdent(Advance(P)) ⇓ (P_1, id)    Γ ⊢ ParseTypePathTail(P_1, xs ++ [id]) ⇓ (P_2, ys)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseTypePathTail(P, xs) ⇓ (P_2, ys)
 
 **Qualified Head.**
 
 
 **(Parse-QualifiedHead)**
-$$\frac{\Gamma \vdash \text{ParseIdent}(P) \Downarrow (P_1, id_0) \quad \text{IsOp}(\text{Tok}(P_1), \texttt{"::"}) \quad \Gamma \vdash \text{ParseModulePathTail}(P_1, [id_0]) \Downarrow (P_2, xs) \quad xs = ys \mathbin{+\!\!+} [name] \quad |xs| \ge 2}{\Gamma \vdash \text{ParseQualifiedHead}(P) \Downarrow (P_2, ys, name)}$$
+Γ ⊢ ParseIdent(P) ⇓ (P_1, id_0)    IsOp(Tok(P_1), "::")    Γ ⊢ ParseModulePathTail(P_1, [id_0]) ⇓ (P_2, xs)    xs = ys ++ [name]    |xs| ≥ 2
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseQualifiedHead(P) ⇓ (P_2, ys, name)
 
 **Using Lists.**
 
 
 **(Parse-UsingSpec)**
-$$\frac{\Gamma \vdash \text{ParseIdent}(P) \Downarrow (P_1, name) \quad \Gamma \vdash \text{ParseAliasOpt}(P_1) \Downarrow (P_2, alias\_opt)}{\Gamma \vdash \text{ParseUsingSpec}(P) \Downarrow (P_2, \langle name, alias\_opt \rangle)}$$
+Γ ⊢ ParseIdent(P) ⇓ (P_1, name)    Γ ⊢ ParseAliasOpt(P_1) ⇓ (P_2, alias_opt)
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseUsingSpec(P) ⇓ (P_2, ⟨name, alias_opt⟩)
 
 **Bindings.**
 
 **(Parse-BindingAfterLetVar)**
-$$\frac{\text{Tok}(P) = kw \in \{\text{Keyword}(\texttt{let}),\ \text{Keyword}(\texttt{var})\} \quad \Gamma \vdash \text{ParsePattern}(\text{Advance}(P)) \Downarrow (P_1, pat) \quad \Gamma \vdash \text{ParseTypeAnnotOpt}(P_1) \Downarrow (P_2, ty\_opt) \quad \text{Tok}(P_2) \in \{\text{Operator}(\texttt{"="}),\ \text{Operator}(\texttt{":="})\} \quad op = \text{Tok}(P_2) \quad \Gamma \vdash \text{ParseExpr}(\text{Advance}(P_2)) \Downarrow (P_3, init)}{\Gamma \vdash \text{ParseBindingAfterLetVar}(P) \Downarrow (P_3, \langle pat, ty\_opt, op, init, \text{SpanBetween}(P,P_3) \rangle)}$$
+Tok(P) = kw ∈ {Keyword(`let`), Keyword(`var`)}    Γ ⊢ ParsePattern(Advance(P)) ⇓ (P_1, pat)    Γ ⊢ ParseTypeAnnotOpt(P_1) ⇓ (P_2, ty_opt)    Tok(P_2) ∈ {Operator("="), Operator(":=")}    op = Tok(P_2)    Γ ⊢ ParseExpr(Advance(P_2)) ⇓ (P_3, init)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseBindingAfterLetVar(P) ⇓ (P_3, ⟨pat, ty_opt, op, init, SpanBetween(P, P_3)⟩)
 
 **(Parse-ShadowBinding)**
-$$\frac{\text{Tok}(P) = kw \in \{\text{Keyword}(\texttt{let}),\ \text{Keyword}(\texttt{var})\} \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P)) \Downarrow (P_1, name) \quad \Gamma \vdash \text{ParseTypeAnnotOpt}(P_1) \Downarrow (P_2, ty\_opt) \quad \text{IsOp}(\text{Tok}(P_2), \texttt{"="}) \quad \Gamma \vdash \text{ParseExpr}(\text{Advance}(P_2)) \Downarrow (P_3, init) \quad s = (\text{ShadowLetStmt}(name, ty\_opt, init)\ \text{if}\ kw = \text{Keyword}(\texttt{let})\ \text{else}\ \text{ShadowVarStmt}(name, ty\_opt, init))}{\Gamma \vdash \text{ParseShadowBinding}(P) \Downarrow (P_3, s)}$$
+Tok(P) = kw ∈ {Keyword(`let`), Keyword(`var`)}    Γ ⊢ ParseIdent(Advance(P)) ⇓ (P_1, name)    Γ ⊢ ParseTypeAnnotOpt(P_1) ⇓ (P_2, ty_opt)    IsOp(Tok(P_2), "=")    Γ ⊢ ParseExpr(Advance(P_2)) ⇓ (P_3, init)    s = (ShadowLetStmt(name, ty_opt, init) if kw = Keyword(`let`) else ShadowVarStmt(name, ty_opt, init))
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseShadowBinding(P) ⇓ (P_3, s)
 
 **Record Bodies.**
 
 **(Parse-RecordBody)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"{"}) \quad \Gamma \vdash \text{ParseRecordMemberList}(\text{Advance}(P)) \Downarrow (P_1, members) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"}"})}{\Gamma \vdash \text{ParseRecordBody}(P) \Downarrow (\text{Advance}(P_1), members)}$$
+IsPunc(Tok(P), "{")    Γ ⊢ ParseRecordMemberList(Advance(P)) ⇓ (P_1, members)    IsPunc(Tok(P_1), "}")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRecordBody(P) ⇓ (Advance(P_1), members)
 
 **Record Member Lists.**
 
 **(Parse-RecordMemberList-End)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"}"})}{\Gamma \vdash \text{ParseRecordMemberList}(P) \Downarrow (P, [])}$$
+IsPunc(Tok(P), "}")
+────────────────────────────────────────────
+Γ ⊢ ParseRecordMemberList(P) ⇓ (P, [])
 
 **(Parse-RecordMemberList-Cons)**
-$$\frac{\Gamma \vdash \text{ParseRecordMember}(P) \Downarrow (P_1, m) \quad \Gamma \vdash \text{ParseRecordMemberTail}(P_1, [m]) \Downarrow (P_2, ms)}{\Gamma \vdash \text{ParseRecordMemberList}(P) \Downarrow (P_2, ms)}$$
+Γ ⊢ ParseRecordMember(P) ⇓ (P_1, m)    Γ ⊢ ParseRecordMemberTail(P_1, [m]) ⇓ (P_2, ms)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRecordMemberList(P) ⇓ (P_2, ms)
 
 **(Parse-RecordMemberTail-End)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"}"})}{\Gamma \vdash \text{ParseRecordMemberTail}(P, xs) \Downarrow (P, xs)}$$
+IsPunc(Tok(P), "}")
+──────────────────────────────────────────────
+Γ ⊢ ParseRecordMemberTail(P, xs) ⇓ (P, xs)
 
 **(Parse-RecordMemberTail-TrailingComma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P)), \texttt{"}"}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseRecordMemberTail}(P, xs) \Downarrow (\text{Advance}(P), xs)}$$
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    Γ ⊢ Emit(Code(Unsupported-Construct))
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRecordMemberTail(P, xs) ⇓ (Advance(P), xs)
 
 **(Parse-RecordMemberTail-Comma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \Gamma \vdash \text{ParseRecordMember}(\text{Advance}(P)) \Downarrow (P_1, m) \quad \Gamma \vdash \text{ParseRecordMemberTail}(P_1, xs \mathbin{+\!\!+} [m]) \Downarrow (P_2, ys)}{\Gamma \vdash \text{ParseRecordMemberTail}(P, xs) \Downarrow (P_2, ys)}$$
+IsPunc(Tok(P), ",")    Γ ⊢ ParseRecordMember(Advance(P)) ⇓ (P_1, m)    Γ ⊢ ParseRecordMemberTail(P_1, xs ++ [m]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRecordMemberTail(P, xs) ⇓ (P_2, ys)
 
 **Record Members.**
 
 **(Parse-RecordMember-Method)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_1, vis) \quad \text{IsKw}(\text{Tok}(P_1), \texttt{procedure}) \quad \Gamma \vdash \text{ParseMethodDefAfterVis}(P_1, vis) \Downarrow (P_2, m)}{\Gamma \vdash \text{ParseRecordMember}(P) \Downarrow (P_2, m)}$$
+Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    IsKw(Tok(P_1), `procedure`)    Γ ⊢ ParseMethodDefAfterVis(P_1, vis) ⇓ (P_2, m)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRecordMember(P) ⇓ (P_2, m)
 
 **(Parse-RecordMember-Field)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_1, vis) \quad \neg \text{IsKw}(\text{Tok}(P_1), \texttt{procedure}) \quad \Gamma \vdash \text{ParseRecordFieldDeclAfterVis}(P_1, vis) \Downarrow (P_2, f)}{\Gamma \vdash \text{ParseRecordMember}(P) \Downarrow (P_2, f)}$$
+Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    ¬ IsKw(Tok(P_1), `procedure`)    Γ ⊢ ParseRecordFieldDeclAfterVis(P_1, vis) ⇓ (P_2, f)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRecordMember(P) ⇓ (P_2, f)
 
 **Record Method Definitions.**
 
 **(Parse-MethodDefAfterVis)**
-$$\frac{\Gamma \vdash \text{ParseOverrideOpt}(P) \Downarrow (P_0, ov) \quad \text{IsKw}(\text{Tok}(P_0), \texttt{procedure}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P_0)) \Downarrow (P_1, name) \quad \Gamma \vdash \text{ParseMethodSignature}(P_1) \Downarrow (P_2, receiver, params, ret\_opt) \quad \Gamma \vdash \text{ParseBlock}(P_2) \Downarrow (P_3, body)}{\Gamma \vdash \text{ParseMethodDefAfterVis}(P, vis) \Downarrow (P_3, \langle \text{MethodDecl}, vis, ov, name, receiver, params, ret\_opt, body, \text{SpanBetween}(P,P_3), [] \rangle)}$$
+Γ ⊢ ParseOverrideOpt(P) ⇓ (P_0, ov)    IsKw(Tok(P_0), `procedure`)    Γ ⊢ ParseIdent(Advance(P_0)) ⇓ (P_1, name)    Γ ⊢ ParseMethodSignature(P_1) ⇓ (P_2, receiver, params, ret_opt)    Γ ⊢ ParseBlock(P_2) ⇓ (P_3, body)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseMethodDefAfterVis(P, vis) ⇓ (P_3, ⟨MethodDecl, vis, ov, name, receiver, params, ret_opt, body, SpanBetween(P, P_3), []⟩)
 
 **(Parse-Override-Yes)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{override})}{\Gamma \vdash \text{ParseOverrideOpt}(P) \Downarrow (\text{Advance}(P), \text{true})}$$
+IsKw(Tok(P), `override`)
+────────────────────────────────────────────
+Γ ⊢ ParseOverrideOpt(P) ⇓ (Advance(P), true)
 
 **(Parse-Override-No)**
-$$\frac{\neg \text{IsKw}(\text{Tok}(P), \texttt{override})}{\Gamma \vdash \text{ParseOverrideOpt}(P) \Downarrow (P, \text{false})}$$
+¬ IsKw(Tok(P), `override`)
+──────────────────────────────────────────
+Γ ⊢ ParseOverrideOpt(P) ⇓ (P, false)
 
 
 **(Parse-MethodSignature)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"("}) \quad \Gamma \vdash \text{ParseReceiver}(\text{Advance}(P)) \Downarrow (P_1, r) \quad \Gamma \vdash \text{ParseMethodParams}(P_1) \Downarrow (P_2, params) \quad \text{IsPunc}(\text{Tok}(P_2), \texttt{")"}) \quad \Gamma \vdash \text{ParseReturnOpt}(\text{Advance}(P_2)) \Downarrow (P_3, ret\_opt)}{\Gamma \vdash \text{ParseMethodSignature}(P) \Downarrow (P_3, r, params, ret\_opt)}$$
+IsPunc(Tok(P), "(")    Γ ⊢ ParseReceiver(Advance(P)) ⇓ (P_1, r)    Γ ⊢ ParseMethodParams(P_1) ⇓ (P_2, params)    IsPunc(Tok(P_2), ")")    Γ ⊢ ParseReturnOpt(Advance(P_2)) ⇓ (P_3, ret_opt)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseMethodSignature(P) ⇓ (P_3, r, params, ret_opt)
 
 **(Parse-MethodParams-None)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{")"})}{\Gamma \vdash \text{ParseMethodParams}(P) \Downarrow (P, [])}$$
+IsPunc(Tok(P), ")")
+────────────────────────────────────────────
+Γ ⊢ ParseMethodParams(P) ⇓ (P, [])
 
 **(Parse-MethodParams-Comma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \Gamma \vdash \text{ParseParamList}(\text{Advance}(P)) \Downarrow (P_1, params)}{\Gamma \vdash \text{ParseMethodParams}(P) \Downarrow (P_1, params)}$$
+IsPunc(Tok(P), ",")    Γ ⊢ ParseParamList(Advance(P)) ⇓ (P_1, params)
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseMethodParams(P) ⇓ (P_1, params)
 
 **Receiver Parsing.**
 
 **(Parse-Receiver-Short-Const)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"~"})}{\Gamma \vdash \text{ParseReceiver}(P) \Downarrow (\text{Advance}(P), \text{ReceiverShorthand}(\texttt{const}))}$$
+IsOp(Tok(P), "~")
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseReceiver(P) ⇓ (Advance(P), ReceiverShorthand(`const`))
 
 **(Parse-Receiver-Short-Unique)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"~!"})}{\Gamma \vdash \text{ParseReceiver}(P) \Downarrow (\text{Advance}(P), \text{ReceiverShorthand}(\texttt{unique}))}$$
+IsOp(Tok(P), "~!")
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseReceiver(P) ⇓ (Advance(P), ReceiverShorthand(`unique`))
 
 **(Parse-Receiver-Explicit)**
-$$\frac{\Gamma \vdash \text{ParseParamModeOpt}(P) \Downarrow (P_1, mode) \quad \text{IsIdent}(\text{Tok}(P_1)) \quad \text{Lexeme}(\text{Tok}(P_1)) = \texttt{self} \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P_1)), \texttt{":"}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(\text{Advance}(P_1))) \Downarrow (P_2, ty)}{\Gamma \vdash \text{ParseReceiver}(P) \Downarrow (P_2, \text{ReceiverExplicit}(mode, ty))}$$
+Γ ⊢ ParseParamModeOpt(P) ⇓ (P_1, mode)    IsIdent(Tok(P_1))    Lexeme(Tok(P_1)) = `self`    IsPunc(Tok(Advance(P_1)), ":")    Γ ⊢ ParseType(Advance(Advance(P_1))) ⇓ (P_2, ty)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseReceiver(P) ⇓ (P_2, ReceiverExplicit(mode, ty))
 
 **State Block Lists.**
 
 **(Parse-StateBlockList-Empty)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"}"})}{\Gamma \vdash \text{ParseStateBlockList}(P) \Downarrow (P, [])}$$
+IsPunc(Tok(P), "}")
+───────────────────────────────────────────────
+Γ ⊢ ParseStateBlockList(P) ⇓ (P, [])
 
 **(Parse-StateBlockList-Cons)**
-$$\frac{\Gamma \vdash \text{ParseStateBlock}(P) \Downarrow (P_1, st) \quad \Gamma \vdash \text{ParseStateBlockList}(P_1) \Downarrow (P_2, sts)}{\Gamma \vdash \text{ParseStateBlockList}(P) \Downarrow (P_2, [st] \mathbin{+\!\!+} sts)}$$
+Γ ⊢ ParseStateBlock(P) ⇓ (P_1, st)    Γ ⊢ ParseStateBlockList(P_1) ⇓ (P_2, sts)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStateBlockList(P) ⇓ (P_2, [st] ++ sts)
 
 **State Member Lists.**
 
 **(Parse-StateMemberList-End)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"}"})}{\Gamma \vdash \text{ParseStateMemberList}(P) \Downarrow (P, [])}$$
+IsPunc(Tok(P), "}")
+───────────────────────────────────────────────
+Γ ⊢ ParseStateMemberList(P) ⇓ (P, [])
 
 **(Parse-StateMemberList-Cons)**
-$$\frac{\Gamma \vdash \text{ParseStateMember}(P) \Downarrow (P_1, m) \quad \Gamma \vdash \text{ParseStateMemberList}(P_1) \Downarrow (P_2, ms)}{\Gamma \vdash \text{ParseStateMemberList}(P) \Downarrow (P_2, [m] \mathbin{+\!\!+} ms)}$$
+Γ ⊢ ParseStateMember(P) ⇓ (P_1, m)    Γ ⊢ ParseStateMemberList(P_1) ⇓ (P_2, ms)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStateMemberList(P) ⇓ (P_2, [m] ++ ms)
 
 
 **Enum Bodies.**
 
 **(Parse-EnumBody)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"{"}) \quad \Gamma \vdash \text{ParseVariantList}(\text{Advance}(P)) \Downarrow (P_1, vars) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"}"})}{\Gamma \vdash \text{ParseEnumBody}(P) \Downarrow (\text{Advance}(P_1), vars)}$$
+IsPunc(Tok(P), "{")    Γ ⊢ ParseVariantList(Advance(P)) ⇓ (P_1, vars)    IsPunc(Tok(P_1), "}")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseEnumBody(P) ⇓ (Advance(P_1), vars)
 
 **Parameters and Returns.**
 
 **(Parse-ParamList-Empty)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{")"})}{\Gamma \vdash \text{ParseParamList}(P) \Downarrow (P, [])}$$
+IsPunc(Tok(P), ")")
+────────────────────────────────────────────
+Γ ⊢ ParseParamList(P) ⇓ (P, [])
 
 **(Parse-ParamList-Cons)**
-$$\frac{\Gamma \vdash \text{ParseParam}(P) \Downarrow (P_1, param) \quad \Gamma \vdash \text{ParseParamTail}(P_1, [param]) \Downarrow (P_2, params)}{\Gamma \vdash \text{ParseParamList}(P) \Downarrow (P_2, params)}$$
+Γ ⊢ ParseParam(P) ⇓ (P_1, param)    Γ ⊢ ParseParamTail(P_1, [param]) ⇓ (P_2, params)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseParamList(P) ⇓ (P_2, params)
 
 **(Parse-ReturnOpt-None)**
-$$\frac{\neg \text{IsOp}(\text{Tok}(P), \texttt{"->"})}{\Gamma \vdash \text{ParseReturnOpt}(P) \Downarrow (P, \bot)}$$
+¬ IsOp(Tok(P), "->")
+─────────────────────────────────────────────
+Γ ⊢ ParseReturnOpt(P) ⇓ (P, ⊥)
 
 **(Parse-ReturnOpt-Arrow)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"->"}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(P)) \Downarrow (P_1, ty)}{\Gamma \vdash \text{ParseReturnOpt}(P) \Downarrow (P_1, ty)}$$
+IsOp(Tok(P), "->")    Γ ⊢ ParseType(Advance(P)) ⇓ (P_1, ty)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseReturnOpt(P) ⇓ (P_1, ty)
 
 **(Parse-AliasOpt-None)**
-$$\frac{\neg \text{IsKw}(\text{Tok}(P), \texttt{as})}{\Gamma \vdash \text{ParseAliasOpt}(P) \Downarrow (P, \bot)}$$
+¬ IsKw(Tok(P), `as`)
+───────────────────────────────────────────
+Γ ⊢ ParseAliasOpt(P) ⇓ (P, ⊥)
 
 **(Parse-AliasOpt-Yes)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{as}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P)) \Downarrow (P_1, id)}{\Gamma \vdash \text{ParseAliasOpt}(P) \Downarrow (P_1, id)}$$
+IsKw(Tok(P), `as`)    Γ ⊢ ParseIdent(Advance(P)) ⇓ (P_1, id)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAliasOpt(P) ⇓ (P_1, id)
 
 **(Parse-TypeAnnotOpt-None)**
-$$\frac{\neg \text{IsPunc}(\text{Tok}(P), \texttt{":"})}{\Gamma \vdash \text{ParseTypeAnnotOpt}(P) \Downarrow (P, \bot)}$$
+¬ IsPunc(Tok(P), ":")
+─────────────────────────────────────────────
+Γ ⊢ ParseTypeAnnotOpt(P) ⇓ (P, ⊥)
 
 **(Parse-TypeAnnotOpt-Yes)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{":"}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(P)) \Downarrow (P_1, ty)}{\Gamma \vdash \text{ParseTypeAnnotOpt}(P) \Downarrow (P_1, ty)}$$
+IsPunc(Tok(P), ":")    Γ ⊢ ParseType(Advance(P)) ⇓ (P_1, ty)
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseTypeAnnotOpt(P) ⇓ (P_1, ty)
 
 **(Parse-UsingList-Empty)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"}"}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseUsingList}(P) \Downarrow (\text{Advance}(P), [])}$$
+IsPunc(Tok(P), "}")    Γ ⊢ Emit(Code(Unsupported-Construct))
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseUsingList(P) ⇓ (Advance(P), [])
 
 **(Parse-UsingList-Cons)**
-$$\frac{\Gamma \vdash \text{ParseUsingSpec}(P) \Downarrow (P_1, s) \quad \Gamma \vdash \text{ParseUsingListTail}(P_1, [s]) \Downarrow (P_2, specs) \quad \text{IsPunc}(\text{Tok}(P_2), \texttt{"}"})}{\Gamma \vdash \text{ParseUsingList}(P) \Downarrow (\text{Advance}(P_2), specs)}$$
+Γ ⊢ ParseUsingSpec(P) ⇓ (P_1, s)    Γ ⊢ ParseUsingListTail(P_1, [s]) ⇓ (P_2, specs)    IsPunc(Tok(P_2), "}")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseUsingList(P) ⇓ (Advance(P_2), specs)
 
 **(Parse-UsingListTail-End)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"}"})}{\Gamma \vdash \text{ParseUsingListTail}(P, xs) \Downarrow (P, xs)}$$
+IsPunc(Tok(P), "}")
+──────────────────────────────────────────────
+Γ ⊢ ParseUsingListTail(P, xs) ⇓ (P, xs)
 
 **(Parse-UsingListTail-TrailingComma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P)), \texttt{"}"}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseUsingListTail}(P, xs) \Downarrow (\text{Advance}(P), xs)}$$
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    Γ ⊢ Emit(Code(Unsupported-Construct))
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseUsingListTail(P, xs) ⇓ (Advance(P), xs)
 
 **(Parse-UsingListTail-Comma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \Gamma \vdash \text{ParseUsingSpec}(\text{Advance}(P)) \Downarrow (P_1, s) \quad \Gamma \vdash \text{ParseUsingListTail}(P_1, xs \mathbin{+\!\!+} [s]) \Downarrow (P_2, ys)}{\Gamma \vdash \text{ParseUsingListTail}(P, xs) \Downarrow (P_2, ys)}$$
+IsPunc(Tok(P), ",")    Γ ⊢ ParseUsingSpec(Advance(P)) ⇓ (P_1, s)    Γ ⊢ ParseUsingListTail(P_1, xs ++ [s]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseUsingListTail(P, xs) ⇓ (P_2, ys)
 
 **(Parse-RecordFieldDeclList-Empty)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"}"})}{\Gamma \vdash \text{ParseRecordFieldDeclList}(P) \Downarrow (P, [])}$$
+IsPunc(Tok(P), "}")
+──────────────────────────────────────────────────
+Γ ⊢ ParseRecordFieldDeclList(P) ⇓ (P, [])
 
 **(Parse-RecordFieldDeclList-Cons)**
-$$\frac{\Gamma \vdash \text{ParseRecordFieldDecl}(P) \Downarrow (P_1, f) \quad \Gamma \vdash \text{ParseRecordFieldDeclTail}(P_1, [f]) \Downarrow (P_2, fields)}{\Gamma \vdash \text{ParseRecordFieldDeclList}(P) \Downarrow (P_2, fields)}$$
+Γ ⊢ ParseRecordFieldDecl(P) ⇓ (P_1, f)    Γ ⊢ ParseRecordFieldDeclTail(P_1, [f]) ⇓ (P_2, fields)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRecordFieldDeclList(P) ⇓ (P_2, fields)
 
 **(Parse-RecordFieldDecl)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_1, vis) \quad \Gamma \vdash \text{ParseRecordFieldDeclAfterVis}(P_1, vis) \Downarrow (P_2, f)}{\Gamma \vdash \text{ParseRecordFieldDecl}(P) \Downarrow (P_2, f)}$$
+Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    Γ ⊢ ParseRecordFieldDeclAfterVis(P_1, vis) ⇓ (P_2, f)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRecordFieldDecl(P) ⇓ (P_2, f)
 
 **(Parse-RecordFieldDeclAfterVis)**
-$$\frac{\Gamma \vdash \text{ParseIdent}(P) \Downarrow (P_1, name) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{":"}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(P_1)) \Downarrow (P_2, ty) \quad \Gamma \vdash \text{ParseRecordFieldInitOpt}(P_2) \Downarrow (P_3, init\_opt)}{\Gamma \vdash \text{ParseRecordFieldDeclAfterVis}(P, vis) \Downarrow (P_3, \langle vis, name, ty, init\_opt \rangle)}$$
+Γ ⊢ ParseIdent(P) ⇓ (P_1, name)    IsPunc(Tok(P_1), ":")    Γ ⊢ ParseType(Advance(P_1)) ⇓ (P_2, ty)    Γ ⊢ ParseRecordFieldInitOpt(P_2) ⇓ (P_3, init_opt)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRecordFieldDeclAfterVis(P, vis) ⇓ (P_3, ⟨vis, name, ty, init_opt⟩)
 
 **(Parse-RecordFieldInitOpt-None)**
-$$\frac{\neg \text{IsOp}(\text{Tok}(P), \texttt{"="})}{\Gamma \vdash \text{ParseRecordFieldInitOpt}(P) \Downarrow (P, \bot)}$$
+¬ IsOp(Tok(P), "=")
+────────────────────────────────────────────────
+Γ ⊢ ParseRecordFieldInitOpt(P) ⇓ (P, ⊥)
 
 **(Parse-RecordFieldInitOpt-Yes)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"="}) \quad \Gamma \vdash \text{ParseExpr}(\text{Advance}(P)) \Downarrow (P_1, e)}{\Gamma \vdash \text{ParseRecordFieldInitOpt}(P) \Downarrow (P_1, e)}$$
+IsOp(Tok(P), "=")    Γ ⊢ ParseExpr(Advance(P)) ⇓ (P_1, e)
+────────────────────────────────────────────────────────────
+Γ ⊢ ParseRecordFieldInitOpt(P) ⇓ (P_1, e)
 
 **(Parse-RecordFieldDeclTail-End)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"}"})}{\Gamma \vdash \text{ParseRecordFieldDeclTail}(P, xs) \Downarrow (P, xs)}$$
+IsPunc(Tok(P), "}")
+────────────────────────────────────────────────────
+Γ ⊢ ParseRecordFieldDeclTail(P, xs) ⇓ (P, xs)
 
 **(Parse-RecordFieldDeclTail-TrailingComma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P)), \texttt{"}"}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseRecordFieldDeclTail}(P, xs) \Downarrow (\text{Advance}(P), xs)}$$
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    Γ ⊢ Emit(Code(Unsupported-Construct))
+──────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRecordFieldDeclTail(P, xs) ⇓ (Advance(P), xs)
 
 **(Parse-RecordFieldDeclTail-Comma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \Gamma \vdash \text{ParseRecordFieldDecl}(\text{Advance}(P)) \Downarrow (P_1, f) \quad \Gamma \vdash \text{ParseRecordFieldDeclTail}(P_1, xs \mathbin{+\!\!+} [f]) \Downarrow (P_2, ys)}{\Gamma \vdash \text{ParseRecordFieldDeclTail}(P, xs) \Downarrow (P_2, ys)}$$
+IsPunc(Tok(P), ",")    Γ ⊢ ParseRecordFieldDecl(Advance(P)) ⇓ (P_1, f)    Γ ⊢ ParseRecordFieldDeclTail(P_1, xs ++ [f]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRecordFieldDeclTail(P, xs) ⇓ (P_2, ys)
 
 **(Parse-FieldDeclList-Empty)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"}"})}{\Gamma \vdash \text{ParseFieldDeclList}(P) \Downarrow (P, [])}$$
+IsPunc(Tok(P), "}")
+──────────────────────────────────────────────
+Γ ⊢ ParseFieldDeclList(P) ⇓ (P, [])
 
 **(Parse-FieldDeclList-Cons)**
-$$\frac{\Gamma \vdash \text{ParseFieldDecl}(P) \Downarrow (P_1, f) \quad \Gamma \vdash \text{ParseFieldDeclTail}(P_1, [f]) \Downarrow (P_2, fields)}{\Gamma \vdash \text{ParseFieldDeclList}(P) \Downarrow (P_2, fields)}$$
+Γ ⊢ ParseFieldDecl(P) ⇓ (P_1, f)    Γ ⊢ ParseFieldDeclTail(P_1, [f]) ⇓ (P_2, fields)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseFieldDeclList(P) ⇓ (P_2, fields)
 
 **(Parse-FieldDecl)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_1, vis) \quad \Gamma \vdash \text{ParseIdent}(P_1) \Downarrow (P_2, name) \quad \text{IsPunc}(\text{Tok}(P_2), \texttt{":"}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(P_2)) \Downarrow (P_3, ty)}{\Gamma \vdash \text{ParseFieldDecl}(P) \Downarrow (P_3, \langle vis, name, ty, \bot \rangle)}$$
+Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    Γ ⊢ ParseIdent(P_1) ⇓ (P_2, name)    IsPunc(Tok(P_2), ":")    Γ ⊢ ParseType(Advance(P_2)) ⇓ (P_3, ty)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseFieldDecl(P) ⇓ (P_3, ⟨vis, name, ty, ⊥⟩)
 
 **(Parse-FieldDeclTail-End)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"}"})}{\Gamma \vdash \text{ParseFieldDeclTail}(P, xs) \Downarrow (P, xs)}$$
+IsPunc(Tok(P), "}")
+──────────────────────────────────────────────────
+Γ ⊢ ParseFieldDeclTail(P, xs) ⇓ (P, xs)
 
 **(Parse-FieldDeclTail-TrailingComma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P)), \texttt{"}"}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseFieldDeclTail}(P, xs) \Downarrow (\text{Advance}(P), xs)}$$
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    Γ ⊢ Emit(Code(Unsupported-Construct))
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseFieldDeclTail(P, xs) ⇓ (Advance(P), xs)
 
 **(Parse-FieldDeclTail-Comma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \Gamma \vdash \text{ParseFieldDecl}(\text{Advance}(P)) \Downarrow (P_1, f) \quad \Gamma \vdash \text{ParseFieldDeclTail}(P_1, xs \mathbin{+\!\!+} [f]) \Downarrow (P_2, ys)}{\Gamma \vdash \text{ParseFieldDeclTail}(P, xs) \Downarrow (P_2, ys)}$$
+IsPunc(Tok(P), ",")    Γ ⊢ ParseFieldDecl(Advance(P)) ⇓ (P_1, f)    Γ ⊢ ParseFieldDeclTail(P_1, xs ++ [f]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseFieldDeclTail(P, xs) ⇓ (P_2, ys)
 
 **(Parse-VariantList-Empty)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"}"})}{\Gamma \vdash \text{ParseVariantList}(P) \Downarrow (P, [])}$$
+IsPunc(Tok(P), "}")
+────────────────────────────────────────────
+Γ ⊢ ParseVariantList(P) ⇓ (P, [])
 
 **(Parse-VariantList-Cons)**
-$$\frac{\Gamma \vdash \text{ParseVariant}(P) \Downarrow (P_1, v) \quad \Gamma \vdash \text{ParseVariantTail}(P_1, [v]) \Downarrow (P_2, vs)}{\Gamma \vdash \text{ParseVariantList}(P) \Downarrow (P_2, vs)}$$
+Γ ⊢ ParseVariant(P) ⇓ (P_1, v)    Γ ⊢ ParseVariantTail(P_1, [v]) ⇓ (P_2, vs)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseVariantList(P) ⇓ (P_2, vs)
 
 **(Parse-Variant)**
-$$\frac{\Gamma \vdash \text{ParseIdent}(P) \Downarrow (P_1, name) \quad \Gamma \vdash \text{ParseVariantPayloadOpt}(P_1) \Downarrow (P_2, payload\_opt) \quad \Gamma \vdash \text{ParseVariantDiscriminantOpt}(P_2) \Downarrow (P_3, disc\_opt)}{\Gamma \vdash \text{ParseVariant}(P) \Downarrow (P_3, \langle name, payload\_opt, disc\_opt \rangle)}$$
+Γ ⊢ ParseIdent(P) ⇓ (P_1, name)    Γ ⊢ ParseVariantPayloadOpt(P_1) ⇓ (P_2, payload_opt)    Γ ⊢ ParseVariantDiscriminantOpt(P_2) ⇓ (P_3, disc_opt)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseVariant(P) ⇓ (P_3, ⟨name, payload_opt, disc_opt⟩)
 
 **(Parse-VariantPayloadOpt-None)**
-$$\frac{\text{Tok}(P) \notin \{\text{Punctuator}(\texttt{"("}),\ \text{Punctuator}(\texttt{"{"})\}}{\Gamma \vdash \text{ParseVariantPayloadOpt}(P) \Downarrow (P, \bot)}$$
+Tok(P) ∉ {Punctuator("("), Punctuator("{")}
+────────────────────────────────────────────────────────────
+Γ ⊢ ParseVariantPayloadOpt(P) ⇓ (P, ⊥)
 
 **(Parse-VariantPayloadOpt-Tuple)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"("}) \quad \Gamma \vdash \text{ParseTypeList}(\text{Advance}(P)) \Downarrow (P_1, ts) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{")"})}{\Gamma \vdash \text{ParseVariantPayloadOpt}(P) \Downarrow (\text{Advance}(P_1), \text{TuplePayload}(ts))}$$
+IsPunc(Tok(P), "(")    Γ ⊢ ParseTypeList(Advance(P)) ⇓ (P_1, ts)    IsPunc(Tok(P_1), ")")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseVariantPayloadOpt(P) ⇓ (Advance(P_1), TuplePayload(ts))
 
 **(Parse-VariantPayloadOpt-Record)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"{"}) \quad \Gamma \vdash \text{ParseFieldDeclList}(\text{Advance}(P)) \Downarrow (P_1, fs) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"}"})}{\Gamma \vdash \text{ParseVariantPayloadOpt}(P) \Downarrow (\text{Advance}(P_1), \text{RecordPayload}(fs))}$$
+IsPunc(Tok(P), "{")    Γ ⊢ ParseFieldDeclList(Advance(P)) ⇓ (P_1, fs)    IsPunc(Tok(P_1), "}")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseVariantPayloadOpt(P) ⇓ (Advance(P_1), RecordPayload(fs))
 
 **(Parse-VariantDiscriminantOpt-None)**
-$$\frac{\neg \text{IsOp}(\text{Tok}(P), \texttt{"="})}{\Gamma \vdash \text{ParseVariantDiscriminantOpt}(P) \Downarrow (P, \bot)}$$
+¬ IsOp(Tok(P), "=")
+─────────────────────────────────────────────────────────────
+Γ ⊢ ParseVariantDiscriminantOpt(P) ⇓ (P, ⊥)
 
 **(Parse-VariantDiscriminantOpt-Yes)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"="}) \quad t = \text{Tok}(\text{Advance}(P)) \quad t.\text{kind} = \text{IntLiteral}}{\Gamma \vdash \text{ParseVariantDiscriminantOpt}(P) \Downarrow (\text{Advance}(\text{Advance}(P)), t)}$$
+IsOp(Tok(P), "=")    t = Tok(Advance(P))    t.kind = IntLiteral
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseVariantDiscriminantOpt(P) ⇓ (Advance(Advance(P)), t)
 **(Parse-VariantTail-End)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"}"})}{\Gamma \vdash \text{ParseVariantTail}(P, xs) \Downarrow (P, xs)}$$
+IsPunc(Tok(P), "}")
+────────────────────────────────────────────
+Γ ⊢ ParseVariantTail(P, xs) ⇓ (P, xs)
 
 **(Parse-VariantTail-TrailingComma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P)), \texttt{"}"}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseVariantTail}(P, xs) \Downarrow (\text{Advance}(P), xs)}$$
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    Γ ⊢ Emit(Code(Unsupported-Construct))
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseVariantTail(P, xs) ⇓ (Advance(P), xs)
 
 **(Parse-VariantTail-Comma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \Gamma \vdash \text{ParseVariant}(\text{Advance}(P)) \Downarrow (P_1, v) \quad \Gamma \vdash \text{ParseVariantTail}(P_1, xs \mathbin{+\!\!+} [v]) \Downarrow (P_2, ys)}{\Gamma \vdash \text{ParseVariantTail}(P, xs) \Downarrow (P_2, ys)}$$
+IsPunc(Tok(P), ",")    Γ ⊢ ParseVariant(Advance(P)) ⇓ (P_1, v)    Γ ⊢ ParseVariantTail(P_1, xs ++ [v]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseVariantTail(P, xs) ⇓ (P_2, ys)
 
 **(Parse-Param)**
-$$\frac{\Gamma \vdash \text{ParseParamModeOpt}(P) \Downarrow (P_1, mode) \quad \Gamma \vdash \text{ParseIdent}(P_1) \Downarrow (P_2, name) \quad \text{IsPunc}(\text{Tok}(P_2), \texttt{":"}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(P_2)) \Downarrow (P_3, ty)}{\Gamma \vdash \text{ParseParam}(P) \Downarrow (P_3, \langle mode, name, ty \rangle)}$$
+Γ ⊢ ParseParamModeOpt(P) ⇓ (P_1, mode)    Γ ⊢ ParseIdent(P_1) ⇓ (P_2, name)    IsPunc(Tok(P_2), ":")    Γ ⊢ ParseType(Advance(P_2)) ⇓ (P_3, ty)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseParam(P) ⇓ (P_3, ⟨mode, name, ty⟩)
 
 **(Parse-ParamMode-None)**
-$$\frac{\neg \text{IsKw}(\text{Tok}(P), \texttt{move})}{\Gamma \vdash \text{ParseParamModeOpt}(P) \Downarrow (P, \bot)}$$
+¬ IsKw(Tok(P), `move`)
+──────────────────────────────────────────────
+Γ ⊢ ParseParamModeOpt(P) ⇓ (P, ⊥)
 
 **(Parse-ParamMode-Move)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{move})}{\Gamma \vdash \text{ParseParamModeOpt}(P) \Downarrow (\text{Advance}(P), \texttt{move})}$$
+IsKw(Tok(P), `move`)
+─────────────────────────────────────────────────
+Γ ⊢ ParseParamModeOpt(P) ⇓ (Advance(P), `move`)
 
 **(Parse-ParamTail-End)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{")"})}{\Gamma \vdash \text{ParseParamTail}(P, xs) \Downarrow (P, xs)}$$
+IsPunc(Tok(P), ")")
+────────────────────────────────────────────
+Γ ⊢ ParseParamTail(P, xs) ⇓ (P, xs)
 
 **(Parse-ParamTail-TrailingComma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P)), \texttt{")"}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseParamTail}(P, xs) \Downarrow (\text{Advance}(P), xs)}$$
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), ")")    Γ ⊢ Emit(Code(Unsupported-Construct))
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseParamTail(P, xs) ⇓ (Advance(P), xs)
 
 **(Parse-ParamTail-Comma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \Gamma \vdash \text{ParseParam}(\text{Advance}(P)) \Downarrow (P_1, p) \quad \Gamma \vdash \text{ParseParamTail}(P_1, xs \mathbin{+\!\!+} [p]) \Downarrow (P_2, ys)}{\Gamma \vdash \text{ParseParamTail}(P, xs) \Downarrow (P_2, ys)}$$
+IsPunc(Tok(P), ",")    Γ ⊢ ParseParam(Advance(P)) ⇓ (P_1, p)    Γ ⊢ ParseParamTail(P_1, xs ++ [p]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseParamTail(P, xs) ⇓ (P_2, ys)
 **(Parse-Signature)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"("}) \quad \Gamma \vdash \text{ParseParamList}(\text{Advance}(P)) \Downarrow (P_1, params) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{")"}) \quad \Gamma \vdash \text{ParseReturnOpt}(\text{Advance}(P_1)) \Downarrow (P_2, ret\_opt)}{\Gamma \vdash \text{ParseSignature}(P) \Downarrow (P_2, params, ret\_opt)}$$
+IsPunc(Tok(P), "(")    Γ ⊢ ParseParamList(Advance(P)) ⇓ (P_1, params)    IsPunc(Tok(P_1), ")")    Γ ⊢ ParseReturnOpt(Advance(P_1)) ⇓ (P_2, ret_opt)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseSignature(P) ⇓ (P_2, params, ret_opt)
 
 
 
 ##### 3.3.6.14. Unsupported Constructs (Parsing)
 
 **(Parse-Import-Unsupported)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{import}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{WF-Import-Unsupported}))}{\Gamma \vdash \text{ParseItem}(P) \Downarrow (\text{SyncItem}(\text{Advance}(P)), \text{ErrorItem}(\text{SpanBetween}(P,\text{Advance}(P))))}$$
+IsKw(Tok(P), `import`)    Γ ⊢ Emit(Code(WF-Import-Unsupported))
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (SyncItem(Advance(P)), ErrorItem(SpanBetween(P, Advance(P))))
 
 **(Parse-Attribute-Unsupported)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"["}) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P)), \texttt{"["}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{WF-Attr-Unsupported})) \quad \Gamma \vdash \text{SyncItem}(P) \Downarrow P_1}{\Gamma \vdash \text{ParseItem}(P) \Downarrow (P_1, \text{ErrorItem}(\text{SpanBetween}(P,P_1)))}$$
+IsPunc(Tok(P), "[")    IsPunc(Tok(Advance(P)), "[")    Γ ⊢ Emit(Code(WF-Attr-Unsupported))    Γ ⊢ SyncItem(P) ⇓ P_1
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_1, ErrorItem(SpanBetween(P, P_1)))
 
 **(Parse-Modal-Class-Unsupported)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{modal}) \quad \text{IsKw}(\text{Tok}(\text{Advance}(P)), \texttt{class}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseItem}(P) \Downarrow (\text{SyncItem}(\text{Advance}(\text{Advance}(P))), \text{ErrorItem}(\text{SpanBetween}(P,\text{Advance}(\text{Advance}(P)))))}
-$$
+IsKw(Tok(P), `modal`)    IsKw(Tok(Advance(P)), `class`)    Γ ⊢ Emit(Code(Unsupported-Construct))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (SyncItem(Advance(Advance(P))), ErrorItem(SpanBetween(P, Advance(Advance(P)))))
 
 **(Parse-Extern-Unsupported)**
-$$\frac{\text{IsIdent}(\text{Tok}(P)) \quad \text{Lexeme}(\text{Tok}(P)) = \texttt{extern} \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Parse-Extern-Unsupported}))}{\Gamma \vdash \text{ParseItem}(P) \Downarrow (\text{SyncItem}(\text{Advance}(P)), \text{ErrorItem}(\text{SpanBetween}(P,\text{Advance}(P))))}$$
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `extern`    Γ ⊢ Emit(Code(Parse-Extern-Unsupported))
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (SyncItem(Advance(P)), ErrorItem(SpanBetween(P, Advance(P))))
 
 **(Parse-Use-Unsupported)**
-$$\frac{\text{IsIdent}(\text{Tok}(P)) \quad \text{Lexeme}(\text{Tok}(P)) = \texttt{use} \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseItem}(P) \Downarrow (\text{SyncItem}(\text{Advance}(P)), \text{ErrorItem}(\text{SpanBetween}(P,\text{Advance}(P))))}$$
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `use`    Γ ⊢ Emit(Code(Unsupported-Construct))
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (SyncItem(Advance(P)), ErrorItem(SpanBetween(P, Advance(P))))
 
 **(Return-At-Module-Err)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{return}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Return-At-Module-Err}))}{\Gamma \vdash \text{ParseItem}(P) \Downarrow (\text{SyncItem}(\text{Advance}(P)), \text{ErrorItem}(\text{SpanBetween}(P,\text{Advance}(P))))}$$
+IsKw(Tok(P), `return`)    Γ ⊢ Emit(Code(Return-At-Module-Err))
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (SyncItem(Advance(P)), ErrorItem(SpanBetween(P, Advance(P))))
 
 **Generic Syntax Rejection.**
-$$\text{AngleDelta}(\text{Operator}(\texttt{"<"})) = 1$$
-$$\text{AngleDelta}(\text{Operator}(\texttt{">"})) = -1$$
-$$\text{AngleDelta}(\text{Operator}(\texttt{">>"})) = -2$$
-$$\text{AngleDelta}(t) = 0 \ \text{if } t.\text{kind} \notin \{\text{Operator}(\texttt{"<"}),\text{Operator}(\texttt{">"}),\text{Operator}(\texttt{">>"})\}$$
+AngleDelta(Operator("<")) = 1
+AngleDelta(Operator(">")) = -1
+AngleDelta(Operator(">>")) = -2
+AngleDelta(t) = 0 if t.kind ∉ {Operator("<"), Operator(">"), Operator(">>")}
 
-$$\text{AngleStep}(P,d) = \langle \text{Advance}(P),\ d + \text{AngleDelta}(\text{Tok}(P)) \rangle$$
-$$\text{AngleScan}(P_0,P,d) \Downarrow P'$$
-$$\frac{\text{Tok}(P)=\text{EOF}}{\text{AngleScan}(P_0,P,d) \Downarrow P_0}$$
-$$\frac{\text{Tok}(P)\ne \text{EOF} \quad \text{AngleStep}(P,d) = \langle P_1, d_1 \rangle \quad d_1 \ne 0 \quad \text{AngleScan}(P_0,P_1,d_1) \Downarrow P'}{\text{AngleScan}(P_0,P,d) \Downarrow P'}$$
-$$\frac{\text{Tok}(P)\ne \text{EOF} \quad \text{AngleStep}(P,d) = \langle P_1, d_1 \rangle \quad d_1 = 0}{\text{AngleScan}(P_0,P,d) \Downarrow P_1}$$
+AngleStep(P, d) = ⟨Advance(P), d + AngleDelta(Tok(P))⟩
+AngleScan(P_0, P, d) ⇓ P'
+Tok(P) = EOF
+────────────────────────────────────────
+AngleScan(P_0, P, d) ⇓ P_0
+Tok(P) ≠ EOF    AngleStep(P, d) = ⟨P_1, d_1⟩    d_1 ≠ 0    AngleScan(P_0, P_1, d_1) ⇓ P'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+AngleScan(P_0, P, d) ⇓ P'
+Tok(P) ≠ EOF    AngleStep(P, d) = ⟨P_1, d_1⟩    d_1 = 0
+────────────────────────────────────────────────────────────────────────
+AngleScan(P_0, P, d) ⇓ P_1
 
-$$\text{SkipAngles}(P_0) \Downarrow P' \iff \text{AngleScan}(P_0,P_0,0) \Downarrow P'$$
+SkipAngles(P_0) ⇓ P' ⇔ AngleScan(P_0, P_0, 0) ⇓ P'
 
 **(Parse-Generic-Header-Unsupported)**
-$$\frac{\Gamma \vdash \text{ParseVis}(P) \Downarrow (P_1, vis) \quad \text{Tok}(P_1) = \text{Keyword}(kw) \quad kw \in \{\texttt{procedure},\texttt{record},\texttt{enum},\texttt{class},\texttt{modal},\texttt{type}\} \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P_1)) \Downarrow (P_2, name) \quad \text{IsOp}(\text{Tok}(P_2), \texttt{"<"}) \quad P_2' = \text{SkipAngles}(P_2) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct})) \quad \Gamma \vdash \text{SyncItem}(P_2') \Downarrow P_3}{\Gamma \vdash \text{ParseItem}(P) \Downarrow (P_3, \text{ErrorItem}(\text{SpanBetween}(P,P_3)))}$$
+Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    Tok(P_1) = Keyword(kw)    kw ∈ {`procedure`, `record`, `enum`, `class`, `modal`, `type`}    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    IsOp(Tok(P_2), "<")    P_2' = SkipAngles(P_2)    Γ ⊢ Emit(Code(Unsupported-Construct))    Γ ⊢ SyncItem(P_2') ⇓ P_3
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_3, ErrorItem(SpanBetween(P, P_3)))
 
 
 **(Parse-Item-Err)**
-$$\frac{c = \text{Code}(\text{Parse-Syntax-Err}) \quad \Gamma \vdash \text{Emit}(c,\ \text{Tok}(P).\text{span}) \quad P_1 = \text{AdvanceOrEOF}(P) \quad \Gamma \vdash \text{SyncItem}(P_1) \Downarrow P_2}{\Gamma \vdash \text{ParseItem}(P) \Downarrow (P_2,\ \text{ErrorItem}(\text{SpanBetween}(P,P_2)))}$$
+c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P).span)    P_1 = AdvanceOrEOF(P)    Γ ⊢ SyncItem(P_1) ⇓ P_2
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_2, ErrorItem(SpanBetween(P, P_2)))
 
 #### 3.3.7. Type Parsing (C0 Subset)
 
 **Type Start Predicate.**
-$$\text{TypeStart}(t) \iff \text{IsKw}(t,\texttt{const}) \lor \text{IsKw}(t,\texttt{unique}) \lor \text{IsKw}(t,\texttt{shared}) \lor \text{Lexeme}(t) \in \text{PrimTypes}_{C0} \lor \text{IsPunc}(t,\texttt{"("}) \lor \text{IsPunc}(t,\texttt{"["}) \lor \text{IsOp}(t,\texttt{"*"}) \lor \text{IsOp}(t,\texttt{"$"}) \lor \text{Lexeme}(t) \in \{\texttt{string},\ \texttt{Ptr}\} \lor \text{IsIdent}(t)$$
+TypeStart(t) ⇔ IsKw(t, `const`) ∨ IsKw(t, `unique`) ∨ IsKw(t, `shared`) ∨ Lexeme(t) ∈ PrimTypes_C0 ∨ IsPunc(t, "(") ∨ IsPunc(t, "[") ∨ IsOp(t, "*") ∨ IsOp(t, "$") ∨ Lexeme(t) ∈ {`string`, `Ptr`} ∨ IsIdent(t)
 
 **(Parse-Type)**
-$$\frac{\Gamma \vdash \text{ParsePermOpt}(P) \Downarrow (P_1, perm\_opt) \quad \Gamma \vdash \text{ParseNonPermType}(P_1) \Downarrow (P_2, base) \quad \Gamma \vdash \text{ParseUnionTail}(P_2) \Downarrow (P_3, ts) \quad base' = (base\ \text{if}\ ts = []\ \text{else}\ \text{TypeUnion}([base] \mathbin{+\!\!+} ts)) \quad ty = (base'\ \text{if}\ perm\_opt = \bot\ \text{else}\ \text{TypePerm}(perm\_opt, base'))}{\Gamma \vdash \text{ParseType}(P) \Downarrow (P_3, ty)}$$
+Γ ⊢ ParsePermOpt(P) ⇓ (P_1, perm_opt)    Γ ⊢ ParseNonPermType(P_1) ⇓ (P_2, base)    Γ ⊢ ParseUnionTail(P_2) ⇓ (P_3, ts)    base' = (base if ts = [] else TypeUnion([base] ++ ts))    ty = (base' if perm_opt = ⊥ else TypePerm(perm_opt, base'))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseType(P) ⇓ (P_3, ty)
 
 **(Parse-Type-Err)**
-$$\frac{\Gamma \vdash \text{ParsePermOpt}(P) \Downarrow (P_1, perm\_opt) \quad c = \text{Code}(\text{Parse-Syntax-Err}) \quad \Gamma \vdash \text{Emit}(c,\ \text{Tok}(P_1).\text{span}) \quad base = \text{TypePrim}(\texttt{"!"}) \quad ty = (base\ \text{if}\ perm\_opt = \bot\ \text{else}\ \text{TypePerm}(perm\_opt, base))}{\Gamma \vdash \text{ParseType}(P) \Downarrow (P_1, ty)}$$
+Γ ⊢ ParsePermOpt(P) ⇓ (P_1, perm_opt)    c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P_1).span)    base = TypePrim("!")    ty = (base if perm_opt = ⊥ else TypePerm(perm_opt, base))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseType(P) ⇓ (P_1, ty)
 
 
 **(Parse-Perm-Const)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{const})}{\Gamma \vdash \text{ParsePermOpt}(P) \Downarrow (\text{Advance}(P), \texttt{const})}$$
+IsKw(Tok(P), `const`)
+──────────────────────────────────────────────
+Γ ⊢ ParsePermOpt(P) ⇓ (Advance(P), `const`)
 
 **(Parse-Perm-Unique)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{unique})}{\Gamma \vdash \text{ParsePermOpt}(P) \Downarrow (\text{Advance}(P), \texttt{unique})}$$
+IsKw(Tok(P), `unique`)
+──────────────────────────────────────────────
+Γ ⊢ ParsePermOpt(P) ⇓ (Advance(P), `unique`)
 
 **(Parse-Perm-Shared)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{shared})}{\Gamma \vdash \text{ParsePermOpt}(P) \Downarrow (\text{Advance}(P), \texttt{shared})}$$
+IsKw(Tok(P), `shared`)
+──────────────────────────────────────────────
+Γ ⊢ ParsePermOpt(P) ⇓ (Advance(P), `shared`)
 
 **(Parse-Perm-None)**
-$$\frac{\neg(\text{IsKw}(\text{Tok}(P), \texttt{const}) \lor \text{IsKw}(\text{Tok}(P), \texttt{unique}) \lor \text{IsKw}(\text{Tok}(P), \texttt{shared}))}{\Gamma \vdash \text{ParsePermOpt}(P) \Downarrow (P, \bot)}$$
+¬ (IsKw(Tok(P), `const`) ∨ IsKw(Tok(P), `unique`) ∨ IsKw(Tok(P), `shared`))
+────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePermOpt(P) ⇓ (P, ⊥)
 
 **(Parse-UnionTail-None)**
-$$\frac{\neg \text{IsOp}(\text{Tok}(P), \texttt{"|"})}{\Gamma \vdash \text{ParseUnionTail}(P) \Downarrow (P, [])}$$
+¬ IsOp(Tok(P), "|")
+──────────────────────────────────────────────
+Γ ⊢ ParseUnionTail(P) ⇓ (P, [])
 
 **(Parse-UnionTail-Cons)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"|"}) \quad \Gamma \vdash \text{ParseNonPermType}(\text{Advance}(P)) \Downarrow (P_1, t_1) \quad \Gamma \vdash \text{ParseUnionTail}(P_1) \Downarrow (P_2, ts)} {\Gamma \vdash \text{ParseUnionTail}(P) \Downarrow (P_2, [t_1] \mathbin{+\!\!+} ts)}$$
+IsOp(Tok(P), "|")    Γ ⊢ ParseNonPermType(Advance(P)) ⇓ (P_1, t_1)    Γ ⊢ ParseUnionTail(P_1) ⇓ (P_2, ts)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseUnionTail(P) ⇓ (P_2, [t_1] ++ ts)
 
 
 **Non-Permission Types.**
 
-$$\text{PrimLexemeSet} = \text{PrimTypes}_{C0} \setminus \{\texttt{"()"},\ \texttt{"!"}\}$$
-$$\text{BuiltinTypePath}(path) \iff (|path|=1 \land path[0] \in \text{PrimLexemeSet}) \lor path=[\texttt{"string"}] \lor path=[\texttt{"bytes"}]$$
+PrimLexemeSet = PrimTypes_C0 \ {"()", "!"}
+BuiltinTypePath(path) ⇔ (|path| = 1 ∧ path[0] ∈ PrimLexemeSet) ∨ path = ["string"] ∨ path = ["bytes"]
 
 **(Parse-Prim-Type)**
-$$\frac{\text{IsIdent}(\text{Tok}(P)) \quad \text{Lexeme}(\text{Tok}(P)) \in \text{PrimLexemeSet}}{\Gamma \vdash \text{ParseNonPermType}(P) \Downarrow (\text{Advance}(P), \text{TypePrim}(\text{Lexeme}(\text{Tok}(P))))}$$
+IsIdent(Tok(P))    Lexeme(Tok(P)) ∈ PrimLexemeSet
+────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (Advance(P), TypePrim(Lexeme(Tok(P))))
 
 **(Parse-Unit-Type)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"("}) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P)), \texttt{")"})}{\Gamma \vdash \text{ParseNonPermType}(P) \Downarrow (\text{Advance}(\text{Advance}(P)), \text{TypePrim}(\texttt{"()"}))}$$
+IsPunc(Tok(P), "(")    IsPunc(Tok(Advance(P)), ")")
+──────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (Advance(Advance(P)), TypePrim("()"))
 
 **(Parse-Never-Type)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"!"})}{\Gamma \vdash \text{ParseNonPermType}(P) \Downarrow (\text{Advance}(P), \text{TypePrim}(\texttt{"!"}))}$$
+IsOp(Tok(P), "!")
+────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (Advance(P), TypePrim("!"))
 
 **(Parse-Func-Type)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"("}) \quad \Gamma \vdash \text{ParseParamTypeList}(\text{Advance}(P)) \Downarrow (P_1, params) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{")"}) \quad \text{IsOp}(\text{Tok}(\text{Advance}(P_1)), \texttt{"->"}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(\text{Advance}(P_1))) \Downarrow (P_2, ret)}{\Gamma \vdash \text{ParseNonPermType}(P) \Downarrow (P_2, \text{TypeFunc}(params, ret))}$$
+IsPunc(Tok(P), "(")    Γ ⊢ ParseParamTypeList(Advance(P)) ⇓ (P_1, params)    IsPunc(Tok(P_1), ")")    IsOp(Tok(Advance(P_1)), "->")    Γ ⊢ ParseType(Advance(Advance(P_1))) ⇓ (P_2, ret)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (P_2, TypeFunc(params, ret))
 
 **(Parse-Tuple-Type)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"("}) \quad \Gamma \vdash \text{ParseTupleTypeElems}(\text{Advance}(P)) \Downarrow (P_1, elems) \quad elems \ne [] \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{")"})}{\Gamma \vdash \text{ParseNonPermType}(P) \Downarrow (\text{Advance}(P_1), \text{TypeTuple}(elems))}$$
+IsPunc(Tok(P), "(")    Γ ⊢ ParseTupleTypeElems(Advance(P)) ⇓ (P_1, elems)    elems ≠ []    IsPunc(Tok(P_1), ")")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (Advance(P_1), TypeTuple(elems))
 
 **(Parse-Array-Type)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"["}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(P)) \Downarrow (P_1, t) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{";"}) \quad \Gamma \vdash \text{ParseExpr}(\text{Advance}(P_1)) \Downarrow (P_2, e) \quad \text{IsPunc}(\text{Tok}(P_2), \texttt{"]"})}{\Gamma \vdash \text{ParseNonPermType}(P) \Downarrow (\text{Advance}(P_2), \text{TypeArray}(t,e))}$$
+IsPunc(Tok(P), "[")    Γ ⊢ ParseType(Advance(P)) ⇓ (P_1, t)    IsPunc(Tok(P_1), ";")    Γ ⊢ ParseExpr(Advance(P_1)) ⇓ (P_2, e)    IsPunc(Tok(P_2), "]")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (Advance(P_2), TypeArray(t, e))
 
 **(Parse-Slice-Type)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"["}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(P)) \Downarrow (P_1, t) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"]"})}{\Gamma \vdash \text{ParseNonPermType}(P) \Downarrow (\text{Advance}(P_1), \text{TypeSlice}(t))}$$
+IsPunc(Tok(P), "[")    Γ ⊢ ParseType(Advance(P)) ⇓ (P_1, t)    IsPunc(Tok(P_1), "]")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (Advance(P_1), TypeSlice(t))
 
 **(Parse-Safe-Pointer-Type-ShiftSplit)**
-$$\frac{\text{IsIdent}(\text{Tok}(P)) \quad \text{Lexeme}(\text{Tok}(P)) = \texttt{Ptr} \quad \text{IsOp}(\text{Tok}(\text{Advance}(P)), \texttt{"<"}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(\text{Advance}(P))) \Downarrow (P_1, t) \quad \text{IsOp}(\text{Tok}(P_1), \texttt{">>"}) \quad P_1' = \text{SplitShiftR}(P_1) \quad \Gamma \vdash \text{ParsePtrState}(\text{Advance}(P_1')) \Downarrow (P_2, st\_opt)}{\Gamma \vdash \text{ParseNonPermType}(P) \Downarrow (P_2, \text{TypePtr}(t, st\_opt))}$$
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `Ptr`    IsOp(Tok(Advance(P)), "<")    Γ ⊢ ParseType(Advance(Advance(P))) ⇓ (P_1, t)    IsOp(Tok(P_1), ">>")    P_1' = SplitShiftR(P_1)    Γ ⊢ ParsePtrState(Advance(P_1')) ⇓ (P_2, st_opt)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (P_2, TypePtr(t, st_opt))
 
 **(Parse-Safe-Pointer-Type)**
-$$\frac{\text{IsIdent}(\text{Tok}(P)) \quad \text{Lexeme}(\text{Tok}(P)) = \texttt{Ptr} \quad \text{IsOp}(\text{Tok}(\text{Advance}(P)), \texttt{"<"}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(\text{Advance}(P))) \Downarrow (P_1, t) \quad \text{IsOp}(\text{Tok}(P_1), \texttt{">"}) \quad \Gamma \vdash \text{ParsePtrState}(\text{Advance}(P_1)) \Downarrow (P_2, st\_opt)}{\Gamma \vdash \text{ParseNonPermType}(P) \Downarrow (P_2, \text{TypePtr}(t, st\_opt))}$$
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `Ptr`    IsOp(Tok(Advance(P)), "<")    Γ ⊢ ParseType(Advance(Advance(P))) ⇓ (P_1, t)    IsOp(Tok(P_1), ">")    Γ ⊢ ParsePtrState(Advance(P_1)) ⇓ (P_2, st_opt)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (P_2, TypePtr(t, st_opt))
 
 **(Parse-Raw-Pointer-Type)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"*"}) \quad \text{IsKw}(\text{Tok}(\text{Advance}(P)), q) \quad q \in \{\texttt{imm},\texttt{mut}\} \quad \Gamma \vdash \text{ParseType}(\text{Advance}(\text{Advance}(P))) \Downarrow (P_1, t)}{\Gamma \vdash \text{ParseNonPermType}(P) \Downarrow (P_1, \text{TypeRawPtr}(q, t))}$$
+IsOp(Tok(P), "*")    IsKw(Tok(Advance(P)), q)    q ∈ {`imm`, `mut`}    Γ ⊢ ParseType(Advance(Advance(P))) ⇓ (P_1, t)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (P_1, TypeRawPtr(q, t))
 
 **(Parse-String-Type)**
-$$\frac{\text{IsIdent}(\text{Tok}(P)) \quad \text{Lexeme}(\text{Tok}(P)) = \texttt{string} \quad \Gamma \vdash \text{ParseStringState}(\text{Advance}(P)) \Downarrow (P_1, st\_opt)}{\Gamma \vdash \text{ParseNonPermType}(P) \Downarrow (P_1, \text{TypeString}(st\_opt))}$$
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `string`    Γ ⊢ ParseStringState(Advance(P)) ⇓ (P_1, st_opt)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (P_1, TypeString(st_opt))
 
 **(Parse-Bytes-Type)**
-$$\frac{\text{IsIdent}(\text{Tok}(P)) \quad \text{Lexeme}(\text{Tok}(P)) = \texttt{bytes} \quad \Gamma \vdash \text{ParseBytesState}(\text{Advance}(P)) \Downarrow (P_1, st\_opt)}{\Gamma \vdash \text{ParseNonPermType}(P) \Downarrow (P_1, \text{TypeBytes}(st\_opt))}$$
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `bytes`    Γ ⊢ ParseBytesState(Advance(P)) ⇓ (P_1, st_opt)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (P_1, TypeBytes(st_opt))
 
 **(Parse-Dynamic-Type)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"$"}) \quad \Gamma \vdash \text{ParseTypePath}(\text{Advance}(P)) \Downarrow (P_1, path)}{\Gamma \vdash \text{ParseNonPermType}(P) \Downarrow (P_1, \text{TypeDynamic}(path))}$$
+IsOp(Tok(P), "$")    Γ ⊢ ParseTypePath(Advance(P)) ⇓ (P_1, path)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (P_1, TypeDynamic(path))
 
 **(Parse-Modal-State-Type)**
-$$\frac{\Gamma \vdash \text{ParseTypePath}(P) \Downarrow (P_1, path) \quad \text{IsOp}(\text{Tok}(P_1), \texttt{"@"}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P_1)) \Downarrow (P_2, state)}{\Gamma \vdash \text{ParseNonPermType}(P) \Downarrow (P_2, \text{TypeModalState}(path, state))}$$
+Γ ⊢ ParseTypePath(P) ⇓ (P_1, path)    IsOp(Tok(P_1), "@")    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, state)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (P_2, TypeModalState(path, state))
 
 **(Parse-Type-Generic-Unsupported)**
-$$\frac{\Gamma \vdash \text{ParseTypePath}(P) \Downarrow (P_1, path) \quad \text{IsOp}(\text{Tok}(P_1), \texttt{"<"}) \quad path \ne [\texttt{Ptr}] \quad P_1' = \text{SkipAngles}(P_1) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct})) \quad \Gamma \vdash \text{SyncType}(P_1') \Downarrow P_2}{\Gamma \vdash \text{ParseNonPermType}(P) \Downarrow (P_2, \text{TypePath}(path))}$$
+Γ ⊢ ParseTypePath(P) ⇓ (P_1, path)    IsOp(Tok(P_1), "<")    path ≠ [`Ptr`]    P_1' = SkipAngles(P_1)    Γ ⊢ Emit(Code(Unsupported-Construct))    Γ ⊢ SyncType(P_1') ⇓ P_2
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (P_2, TypePath(path))
 
 **(Parse-Type-Path)**
-$$\frac{\Gamma \vdash \text{ParseTypePath}(P) \Downarrow (P_1, path) \quad \neg \text{IsOp}(\text{Tok}(P_1), \texttt{"@"}) \quad \neg \text{IsOp}(\text{Tok}(P_1), \texttt{"<"} ) \quad \neg \text{BuiltinTypePath}(path)}{\Gamma \vdash \text{ParseNonPermType}(P) \Downarrow (P_1, \text{TypePath}(path))}$$
+Γ ⊢ ParseTypePath(P) ⇓ (P_1, path)    ¬ IsOp(Tok(P_1), "@")    ¬ IsOp(Tok(P_1), "<")    ¬ BuiltinTypePath(path)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (P_1, TypePath(path))
 
 ##### 3.3.7.1. Type Helper Parsing Rules
 
 **Tuple Type Elements.**
 
 **(Parse-TupleTypeElems-Empty)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{")"})}{\Gamma \vdash \text{ParseTupleTypeElems}(P) \Downarrow (P, [])}$$
+IsPunc(Tok(P), ")")
+──────────────────────────────────────────────
+Γ ⊢ ParseTupleTypeElems(P) ⇓ (P, [])
 
 **(Parse-TupleTypeElems-One)**
-$$\frac{\Gamma \vdash \text{ParseType}(P) \Downarrow (P_1, t) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{";"})}{\Gamma \vdash \text{ParseTupleTypeElems}(P) \Downarrow (\text{Advance}(P_1), [t])}$$
+Γ ⊢ ParseType(P) ⇓ (P_1, t)    IsPunc(Tok(P_1), ";")
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseTupleTypeElems(P) ⇓ (Advance(P_1), [t])
 
 **(Parse-TupleTypeElems-TrailingComma)**
-$$\frac{\Gamma \vdash \text{ParseType}(P) \Downarrow (P_1, t) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{","}) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P_1)), \texttt{")"}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseTupleTypeElems}(P) \Downarrow (\text{Advance}(P_1), [t])}$$
+Γ ⊢ ParseType(P) ⇓ (P_1, t)    IsPunc(Tok(P_1), ",")    IsPunc(Tok(Advance(P_1)), ")")    Γ ⊢ Emit(Code(Unsupported-Construct))
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseTupleTypeElems(P) ⇓ (Advance(P_1), [t])
 
 **(Parse-TupleTypeElems-Many)**
-$$\frac{\Gamma \vdash \text{ParseType}(P) \Downarrow (P_1, t_1) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{","}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(P_1)) \Downarrow (P_2, t_2) \quad \Gamma \vdash \text{ParseTypeListTail}(P_2, [t_2]) \Downarrow (P_3, ts)}{\Gamma \vdash \text{ParseTupleTypeElems}(P) \Downarrow (P_3, [t_1] \mathbin{+\!\!+} ts)}$$
+Γ ⊢ ParseType(P) ⇓ (P_1, t_1)    IsPunc(Tok(P_1), ",")    Γ ⊢ ParseType(Advance(P_1)) ⇓ (P_2, t_2)    Γ ⊢ ParseTypeListTail(P_2, [t_2]) ⇓ (P_3, ts)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseTupleTypeElems(P) ⇓ (P_3, [t_1] ++ ts)
 
 **Param Type Lists.**
 
 **(Parse-ParamTypeList-Empty)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{")"})}{\Gamma \vdash \text{ParseParamTypeList}(P) \Downarrow (P, [])}$$
+IsPunc(Tok(P), ")")
+──────────────────────────────────────────────
+Γ ⊢ ParseParamTypeList(P) ⇓ (P, [])
 
 **(Parse-ParamTypeList-Cons)**
-$$\frac{\Gamma \vdash \text{ParseParamType}(P) \Downarrow (P_1, pt) \quad \Gamma \vdash \text{ParseParamTypeListTail}(P_1, [pt]) \Downarrow (P_2, pts)}{\Gamma \vdash \text{ParseParamTypeList}(P) \Downarrow (P_2, pts)}$$
+Γ ⊢ ParseParamType(P) ⇓ (P_1, pt)    Γ ⊢ ParseParamTypeListTail(P_1, [pt]) ⇓ (P_2, pts)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseParamTypeList(P) ⇓ (P_2, pts)
 
 **(Parse-ParamTypeListTail-End)**
-$$\frac{\neg \text{IsPunc}(\text{Tok}(P), \texttt{","})}{\Gamma \vdash \text{ParseParamTypeListTail}(P, ps) \Downarrow (P, ps)}$$
+¬ IsPunc(Tok(P), ",")
+────────────────────────────────────────────────────
+Γ ⊢ ParseParamTypeListTail(P, ps) ⇓ (P, ps)
 
 **(Parse-ParamTypeListTail-Comma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \Gamma \vdash \text{ParseParamType}(\text{Advance}(P)) \Downarrow (P_1, pt) \quad \Gamma \vdash \text{ParseParamTypeListTail}(P_1, ps \mathbin{+\!\!+} [pt]) \Downarrow (P_2, ps')}{\Gamma \vdash \text{ParseParamTypeListTail}(P, ps) \Downarrow (P_2, ps')}$$
+IsPunc(Tok(P), ",")    Γ ⊢ ParseParamType(Advance(P)) ⇓ (P_1, pt)    Γ ⊢ ParseParamTypeListTail(P_1, ps ++ [pt]) ⇓ (P_2, ps')
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseParamTypeListTail(P, ps) ⇓ (P_2, ps')
 
 **Param Types.**
 
 **(Parse-ParamType-Move)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{move}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(P)) \Downarrow (P_1, ty)}{\Gamma \vdash \text{ParseParamType}(P) \Downarrow (P_1, \langle \texttt{move}, ty \rangle)}$$
+IsKw(Tok(P), `move`)    Γ ⊢ ParseType(Advance(P)) ⇓ (P_1, ty)
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseParamType(P) ⇓ (P_1, ⟨`move`, ty⟩)
 
 **(Parse-ParamType-Plain)**
-$$\frac{\neg \text{IsKw}(\text{Tok}(P), \texttt{move}) \quad \Gamma \vdash \text{ParseType}(P) \Downarrow (P_1, ty)}{\Gamma \vdash \text{ParseParamType}(P) \Downarrow (P_1, \langle \bot, ty \rangle)}$$
+¬ IsKw(Tok(P), `move`)    Γ ⊢ ParseType(P) ⇓ (P_1, ty)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseParamType(P) ⇓ (P_1, ⟨⊥, ty⟩)
 
 **String State.**
 
 **(Parse-StringState-None)**
-$$\frac{\neg \text{IsOp}(\text{Tok}(P), \texttt{"@"})}{\Gamma \vdash \text{ParseStringState}(P) \Downarrow (P, \bot)}$$
+¬ IsOp(Tok(P), "@")
+───────────────────────────────────────────────
+Γ ⊢ ParseStringState(P) ⇓ (P, ⊥)
 
 **(Parse-StringState-Managed)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"@"}) \quad \text{IsIdent}(\text{Tok}(\text{Advance}(P))) \quad \text{Lexeme}(\text{Tok}(\text{Advance}(P))) = \texttt{Managed}}{\Gamma \vdash \text{ParseStringState}(P) \Downarrow (\text{Advance}(\text{Advance}(P)), \texttt{Managed})}$$
+IsOp(Tok(P), "@")    IsIdent(Tok(Advance(P)))    Lexeme(Tok(Advance(P))) = `Managed`
+────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStringState(P) ⇓ (Advance(Advance(P)), `Managed`)
 
 **(Parse-StringState-View)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"@"}) \quad \text{IsIdent}(\text{Tok}(\text{Advance}(P))) \quad \text{Lexeme}(\text{Tok}(\text{Advance}(P))) = \texttt{View}}{\Gamma \vdash \text{ParseStringState}(P) \Downarrow (\text{Advance}(\text{Advance}(P)), \texttt{View})}$$
+IsOp(Tok(P), "@")    IsIdent(Tok(Advance(P)))    Lexeme(Tok(Advance(P))) = `View`
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStringState(P) ⇓ (Advance(Advance(P)), `View`)
 
 **Bytes State.**
 
 **(Parse-BytesState-None)**
-$$\frac{\neg \text{IsOp}(\text{Tok}(P), \texttt{"@"})}{\Gamma \vdash \text{ParseBytesState}(P) \Downarrow (P, \bot)}$$
+¬ IsOp(Tok(P), "@")
+───────────────────────────────────────────────
+Γ ⊢ ParseBytesState(P) ⇓ (P, ⊥)
 
 **(Parse-BytesState-Managed)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"@"}) \quad \text{IsIdent}(\text{Tok}(\text{Advance}(P))) \quad \text{Lexeme}(\text{Tok}(\text{Advance}(P))) = \texttt{Managed}}{\Gamma \vdash \text{ParseBytesState}(P) \Downarrow (\text{Advance}(\text{Advance}(P)), \texttt{Managed})}$$
+IsOp(Tok(P), "@")    IsIdent(Tok(Advance(P)))    Lexeme(Tok(Advance(P))) = `Managed`
+────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseBytesState(P) ⇓ (Advance(Advance(P)), `Managed`)
 
 **(Parse-BytesState-View)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"@"}) \quad \text{IsIdent}(\text{Tok}(\text{Advance}(P))) \quad \text{Lexeme}(\text{Tok}(\text{Advance}(P))) = \texttt{View}}{\Gamma \vdash \text{ParseBytesState}(P) \Downarrow (\text{Advance}(\text{Advance}(P)), \texttt{View})}$$
+IsOp(Tok(P), "@")    IsIdent(Tok(Advance(P)))    Lexeme(Tok(Advance(P))) = `View`
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseBytesState(P) ⇓ (Advance(Advance(P)), `View`)
 
 **Pointer State.**
 
 **(Parse-PtrState-None)**
-$$\frac{\neg \text{IsOp}(\text{Tok}(P), \texttt{"@"})}{\Gamma \vdash \text{ParsePtrState}(P) \Downarrow (P, \bot)}$$
+¬ IsOp(Tok(P), "@")
+──────────────────────────────────────────────
+Γ ⊢ ParsePtrState(P) ⇓ (P, ⊥)
 
 **(Parse-PtrState-Valid)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"@"}) \quad \text{IsIdent}(\text{Tok}(\text{Advance}(P))) \quad \text{Lexeme}(\text{Tok}(\text{Advance}(P))) = \texttt{Valid}}{\Gamma \vdash \text{ParsePtrState}(P) \Downarrow (\text{Advance}(\text{Advance}(P)), \texttt{Valid})}$$
+IsOp(Tok(P), "@")    IsIdent(Tok(Advance(P)))    Lexeme(Tok(Advance(P))) = `Valid`
+────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePtrState(P) ⇓ (Advance(Advance(P)), `Valid`)
 
 **(Parse-PtrState-Null)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"@"}) \quad \text{IsIdent}(\text{Tok}(\text{Advance}(P))) \quad \text{Lexeme}(\text{Tok}(\text{Advance}(P))) = \texttt{Null}}{\Gamma \vdash \text{ParsePtrState}(P) \Downarrow (\text{Advance}(\text{Advance}(P)), \texttt{Null})}$$
+IsOp(Tok(P), "@")    IsIdent(Tok(Advance(P)))    Lexeme(Tok(Advance(P))) = `Null`
+──────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePtrState(P) ⇓ (Advance(Advance(P)), `Null`)
 
 **(Parse-PtrState-Expired)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"@"}) \quad \text{IsIdent}(\text{Tok}(\text{Advance}(P))) \quad \text{Lexeme}(\text{Tok}(\text{Advance}(P))) = \texttt{Expired}}{\Gamma \vdash \text{ParsePtrState}(P) \Downarrow (\text{Advance}(\text{Advance}(P)), \texttt{Expired})}$$
+IsOp(Tok(P), "@")    IsIdent(Tok(Advance(P)))    Lexeme(Tok(Advance(P))) = `Expired`
+──────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePtrState(P) ⇓ (Advance(Advance(P)), `Expired`)
 
 **Type Lists.**
 
 **(Parse-TypeList-Empty)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{")"})}{\Gamma \vdash \text{ParseTypeList}(P) \Downarrow (P, [])}$$
+IsPunc(Tok(P), ")")
+──────────────────────────────────────────────
+Γ ⊢ ParseTypeList(P) ⇓ (P, [])
 
 **(Parse-TypeList-Cons)**
-$$\frac{\Gamma \vdash \text{ParseType}(P) \Downarrow (P_1, t) \quad \Gamma \vdash \text{ParseTypeListTail}(P_1, [t]) \Downarrow (P_2, ts)}{\Gamma \vdash \text{ParseTypeList}(P) \Downarrow (P_2, ts)}$$
+Γ ⊢ ParseType(P) ⇓ (P_1, t)    Γ ⊢ ParseTypeListTail(P_1, [t]) ⇓ (P_2, ts)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseTypeList(P) ⇓ (P_2, ts)
 
 **(Parse-TypeListTail-End)**
-$$\frac{\text{Tok}(P) \in \{\text{Punctuator}(\texttt{")"}),\ \text{Punctuator}(\texttt{"}"})\}}{\Gamma \vdash \text{ParseTypeListTail}(P, xs) \Downarrow (P, xs)}$$
+Tok(P) ∈ {Punctuator(")"), Punctuator("}")}
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseTypeListTail(P, xs) ⇓ (P, xs)
 
 **(Parse-TypeListTail-TrailingComma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \text{Tok}(\text{Advance}(P)) \in \{\text{Punctuator}(\texttt{")"}),\ \text{Punctuator}(\texttt{"}"})\} \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseTypeListTail}(P, xs) \Downarrow (\text{Advance}(P), xs)}$$
+IsPunc(Tok(P), ",")    Tok(Advance(P)) ∈ {Punctuator(")"), Punctuator("}")}    Γ ⊢ Emit(Code(Unsupported-Construct))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseTypeListTail(P, xs) ⇓ (Advance(P), xs)
 
 **(Parse-TypeListTail-Comma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(P)) \Downarrow (P_1, t) \quad \Gamma \vdash \text{ParseTypeListTail}(P_1, xs \mathbin{+\!\!+} [t]) \Downarrow (P_2, ys)}{\Gamma \vdash \text{ParseTypeListTail}(P, xs) \Downarrow (P_2, ys)}$$
+IsPunc(Tok(P), ",")    Γ ⊢ ParseType(Advance(P)) ⇓ (P_1, t)    Γ ⊢ ParseTypeListTail(P_1, xs ++ [t]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseTypeListTail(P, xs) ⇓ (P_2, ys)
 
 #### 3.3.8. Expression Parsing and Precedence
 
 **Operator Sets.**
-$$\text{LogicalOrOps} = \{\texttt{"||"}\}$$
-$$\text{LogicalAndOps} = \{\texttt{"&&"}\}$$
-$$\text{ComparisonOps} = \{\texttt{"=="},\ \texttt{"!="},\ \texttt{"<"},\ \texttt{"<="},\ \texttt{">"},\ \texttt{">="}\}$$
-$$\text{BitOrOps} = \{\texttt{"|"}\}$$
-$$\text{BitXorOps} = \{\texttt{"^"}\}$$
-$$\text{BitAndOps} = \{\texttt{"&"}\}$$
-$$\text{AddOps} = \{\texttt{"+"},\ \texttt{"-"}\}$$
-$$\text{MulOps} = \{\texttt{"*"},\ \texttt{"/"},\ \texttt{"%"}\}$$
+LogicalOrOps = {"||"}
+LogicalAndOps = {"&&"}
+ComparisonOps = {"==", "!=", "<", "<=", ">", ">="}
+BitOrOps = {"|"}
+BitXorOps = {"^"}
+BitAndOps = {"&"}
+AddOps = {"+", "-"}
+MulOps = {"*", "/", "%"}
 
 **(Parse-Expr)**
-$$\frac{\Gamma \vdash \text{ParseRange}(P) \Downarrow (P_1, e)}{\Gamma \vdash \text{ParseExpr}(P) \Downarrow (P_1, e)}$$
+Γ ⊢ ParseRange(P) ⇓ (P_1, e)
+──────────────────────────────────────────────
+Γ ⊢ ParseExpr(P) ⇓ (P_1, e)
 
 ##### 3.3.8.1. Range Expressions
 
-$$\text{ExprStart}(t) \iff \text{IsIdent}(t)\ \lor\ (t \in \text{LiteralToken})\ \lor\ \text{IsPunc}(t,\texttt{"("})\ \lor\ \text{IsPunc}(t,\texttt{"["})\ \lor\ \text{IsPunc}(t,\texttt{"{"})$$
-$$\phantom{\text{ExprStart}(t) \iff}\ \lor\ \text{IsOp}(t,\texttt{"!"})\ \lor\ \text{IsOp}(t,\texttt{"-"})\ \lor\ \text{IsOp}(t,\texttt{"&"})\ \lor\ \text{IsOp}(t,\texttt{"*"})\ \lor\ \text{IsOp}(t,\texttt{"^"})$$
-$$\phantom{\text{ExprStart}(t) \iff}\ \lor\ \text{IsKw}(t,\texttt{if})\ \lor\ \text{IsKw}(t,\texttt{match})\ \lor\ \text{IsKw}(t,\texttt{loop})\ \lor\ \text{IsKw}(t,\texttt{unsafe})\ \lor\ \text{IsKw}(t,\texttt{move})\ \lor\ \text{IsKw}(t,\texttt{transmute})\ \lor\ \text{IsKw}(t,\texttt{widen})$$
+ExprStart(t) ⇔ IsIdent(t) ∨ (t ∈ LiteralToken) ∨ IsPunc(t, "(") ∨ IsPunc(t, "[") ∨ IsPunc(t, "{")
+              ∨ IsOp(t, "!") ∨ IsOp(t, "-") ∨ IsOp(t, "&") ∨ IsOp(t, "*") ∨ IsOp(t, "^")
+              ∨ IsKw(t, `if`) ∨ IsKw(t, `match`) ∨ IsKw(t, `loop`) ∨ IsKw(t, `unsafe`) ∨ IsKw(t, `move`) ∨ IsKw(t, `transmute`) ∨ IsKw(t, `widen`)
 
 **(Parse-Range-To)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{".."}) \quad \Gamma \vdash \text{ParseLogicalOr}(\text{Advance}(P)) \Downarrow (P_1, e)}{\Gamma \vdash \text{ParseRange}(P) \Downarrow (P_1, \text{Range}({\tt To}, \bot, e))}$$
+IsOp(Tok(P), "..")    Γ ⊢ ParseLogicalOr(Advance(P)) ⇓ (P_1, e)
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRange(P) ⇓ (P_1, Range(To, ⊥, e))
 
 **(Parse-Range-ToInc)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"..="}) \quad \Gamma \vdash \text{ParseLogicalOr}(\text{Advance}(P)) \Downarrow (P_1, e)}{\Gamma \vdash \text{ParseRange}(P) \Downarrow (P_1, \text{Range}({\tt ToInclusive}, \bot, e))}$$
+IsOp(Tok(P), "..=")    Γ ⊢ ParseLogicalOr(Advance(P)) ⇓ (P_1, e)
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRange(P) ⇓ (P_1, Range(ToInclusive, ⊥, e))
 
 **(Parse-Range-Full)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{".."}) \quad \text{Tok}(\text{Advance}(P)) \notin \text{ExprStart}}{\Gamma \vdash \text{ParseRange}(P) \Downarrow (\text{Advance}(P), \text{Range}({\tt Full}, \bot, \bot))}$$
+IsOp(Tok(P), "..")    Tok(Advance(P)) ∉ ExprStart
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRange(P) ⇓ (Advance(P), Range(Full, ⊥, ⊥))
 
 **(Parse-Range-Lhs)**
-$$\frac{\Gamma \vdash \text{ParseLogicalOr}(P) \Downarrow (P_1, e_0) \quad \Gamma \vdash \text{ParseRangeTail}(P_1, e_0) \Downarrow (P_2, e)}{\Gamma \vdash \text{ParseRange}(P) \Downarrow (P_2, e)}$$
+Γ ⊢ ParseLogicalOr(P) ⇓ (P_1, e_0)    Γ ⊢ ParseRangeTail(P_1, e_0) ⇓ (P_2, e)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRange(P) ⇓ (P_2, e)
 
 **(Parse-RangeTail-None)**
-$$\frac{\neg(\text{IsOp}(\text{Tok}(P), \texttt{".."}) \lor \text{IsOp}(\text{Tok}(P), \texttt{"..="}))}{\Gamma \vdash \text{ParseRangeTail}(P, e) \Downarrow (P, e)}$$
+¬ (IsOp(Tok(P), "..") ∨ IsOp(Tok(P), "..="))
+───────────────────────────────────────────────────────────────
+Γ ⊢ ParseRangeTail(P, e) ⇓ (P, e)
 
 **(Parse-RangeTail-From)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{".."}) \quad \text{Tok}(\text{Advance}(P)) \notin \text{ExprStart}}{\Gamma \vdash \text{ParseRangeTail}(P, e_0) \Downarrow (\text{Advance}(P), \text{Range}({\tt From}, e_0, \bot))}$$
+IsOp(Tok(P), "..")    Tok(Advance(P)) ∉ ExprStart
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRangeTail(P, e_0) ⇓ (Advance(P), Range(From, e_0, ⊥))
 
 **(Parse-RangeTail-Excl)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{".."}) \quad \text{Tok}(\text{Advance}(P)) \in \text{ExprStart} \quad \Gamma \vdash \text{ParseLogicalOr}(\text{Advance}(P)) \Downarrow (P_1, e_1)}{\Gamma \vdash \text{ParseRangeTail}(P, e_0) \Downarrow (P_1, \text{Range}({\tt Exclusive}, e_0, e_1))}$$
+IsOp(Tok(P), "..")    Tok(Advance(P)) ∈ ExprStart    Γ ⊢ ParseLogicalOr(Advance(P)) ⇓ (P_1, e_1)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRangeTail(P, e_0) ⇓ (P_1, Range(Exclusive, e_0, e_1))
 
 **(Parse-RangeTail-Incl)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"..="}) \quad \Gamma \vdash \text{ParseLogicalOr}(\text{Advance}(P)) \Downarrow (P_1, e_1)}{\Gamma \vdash \text{ParseRangeTail}(P, e_0) \Downarrow (P_1, \text{Range}({\tt Inclusive}, e_0, e_1))}$$
+IsOp(Tok(P), "..=")    Γ ⊢ ParseLogicalOr(Advance(P)) ⇓ (P_1, e_1)
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRangeTail(P, e_0) ⇓ (P_1, Range(Inclusive, e_0, e_1))
 
 ##### 3.3.8.2. Binary Operator Chains
 
-$$\Gamma \vdash \text{ParseLogicalOr}(P) \Downarrow (P', e) \iff \Gamma \vdash \text{ParseLeftChain}(P, \text{LogicalOrOps}, \text{ParseLogicalAnd}) \Downarrow (P', e)$$
-$$\Gamma \vdash \text{ParseLogicalAnd}(P) \Downarrow (P', e) \iff \Gamma \vdash \text{ParseLeftChain}(P, \text{LogicalAndOps}, \text{ParseComparison}) \Downarrow (P', e)$$
-$$\Gamma \vdash \text{ParseComparison}(P) \Downarrow (P', e) \iff \Gamma \vdash \text{ParseLeftChain}(P, \text{ComparisonOps}, \text{ParseBitOr}) \Downarrow (P', e)$$
-$$\Gamma \vdash \text{ParseBitOr}(P) \Downarrow (P', e) \iff \Gamma \vdash \text{ParseLeftChain}(P, \text{BitOrOps}, \text{ParseBitXor}) \Downarrow (P', e)$$
-$$\Gamma \vdash \text{ParseBitXor}(P) \Downarrow (P', e) \iff \Gamma \vdash \text{ParseLeftChain}(P, \text{BitXorOps}, \text{ParseBitAnd}) \Downarrow (P', e)$$
-$$\Gamma \vdash \text{ParseBitAnd}(P) \Downarrow (P', e) \iff \Gamma \vdash \text{ParseLeftChain}(P, \text{BitAndOps}, \text{ParseShift}) \Downarrow (P', e)$$
-$$\Gamma \vdash \text{ParseShift}(P) \Downarrow (P', e) \iff \Gamma \vdash \text{ParseLeftChain}(P, \text{ShiftOps}, \text{ParseAdd}) \Downarrow (P', e)$$
-$$\Gamma \vdash \text{ParseAdd}(P) \Downarrow (P', e) \iff \Gamma \vdash \text{ParseLeftChain}(P, \text{AddOps}, \text{ParseMul}) \Downarrow (P', e)$$
-$$\Gamma \vdash \text{ParseMul}(P) \Downarrow (P', e) \iff \Gamma \vdash \text{ParseLeftChain}(P, \text{MulOps}, \text{ParsePower}) \Downarrow (P', e)$$
+Γ ⊢ ParseLogicalOr(P) ⇓ (P', e) ⇔ Γ ⊢ ParseLeftChain(P, LogicalOrOps, ParseLogicalAnd) ⇓ (P', e)
+Γ ⊢ ParseLogicalAnd(P) ⇓ (P', e) ⇔ Γ ⊢ ParseLeftChain(P, LogicalAndOps, ParseComparison) ⇓ (P', e)
+Γ ⊢ ParseComparison(P) ⇓ (P', e) ⇔ Γ ⊢ ParseLeftChain(P, ComparisonOps, ParseBitOr) ⇓ (P', e)
+Γ ⊢ ParseBitOr(P) ⇓ (P', e) ⇔ Γ ⊢ ParseLeftChain(P, BitOrOps, ParseBitXor) ⇓ (P', e)
+Γ ⊢ ParseBitXor(P) ⇓ (P', e) ⇔ Γ ⊢ ParseLeftChain(P, BitXorOps, ParseBitAnd) ⇓ (P', e)
+Γ ⊢ ParseBitAnd(P) ⇓ (P', e) ⇔ Γ ⊢ ParseLeftChain(P, BitAndOps, ParseShift) ⇓ (P', e)
+Γ ⊢ ParseShift(P) ⇓ (P', e) ⇔ Γ ⊢ ParseLeftChain(P, ShiftOps, ParseAdd) ⇓ (P', e)
+Γ ⊢ ParseAdd(P) ⇓ (P', e) ⇔ Γ ⊢ ParseLeftChain(P, AddOps, ParseMul) ⇓ (P', e)
+Γ ⊢ ParseMul(P) ⇓ (P', e) ⇔ Γ ⊢ ParseLeftChain(P, MulOps, ParsePower) ⇓ (P', e)
 
 **(Parse-LeftChain)**
-$$\frac{\Gamma \vdash \text{ParseHigher}(P) \Downarrow (P_1, e_0) \quad \Gamma \vdash \text{ParseLeftChainTail}(P_1, e_0, OpSet, ParseHigher) \Downarrow (P_2, e)}{\Gamma \vdash \text{ParseLeftChain}(P, OpSet, ParseHigher) \Downarrow (P_2, e)}$$
+Γ ⊢ ParseHigher(P) ⇓ (P_1, e_0)    Γ ⊢ ParseLeftChainTail(P_1, e_0, OpSet, ParseHigher) ⇓ (P_2, e)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseLeftChain(P, OpSet, ParseHigher) ⇓ (P_2, e)
 
 **(Parse-LeftChain-Stop)**
-$$\frac{\text{Tok}(P) \notin OpSet}{\Gamma \vdash \text{ParseLeftChainTail}(P, e, OpSet, ParseHigher) \Downarrow (P, e)}$$
+Tok(P) ∉ OpSet
+──────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseLeftChainTail(P, e, OpSet, ParseHigher) ⇓ (P, e)
 
 **(Parse-LeftChain-Cons)**
-$$\frac{\text{Tok}(P) = op \in OpSet \quad \Gamma \vdash \text{ParseHigher}(\text{Advance}(P)) \Downarrow (P_1, e_1) \quad e' = \text{Binary}(op, e, e_1) \quad \Gamma \vdash \text{ParseLeftChainTail}(P_1, e', OpSet, ParseHigher) \Downarrow (P_2, e'')}{\Gamma \vdash \text{ParseLeftChainTail}(P, e, OpSet, ParseHigher) \Downarrow (P_2, e'')}$$
+Tok(P) = op ∈ OpSet    Γ ⊢ ParseHigher(Advance(P)) ⇓ (P_1, e_1)    e' = Binary(op, e, e_1)    Γ ⊢ ParseLeftChainTail(P_1, e', OpSet, ParseHigher) ⇓ (P_2, e'')
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseLeftChainTail(P, e, OpSet, ParseHigher) ⇓ (P_2, e'')
 
 
 ##### 3.3.8.3. Power (Right-Associative)
 
 **(Parse-Power)**
-$$\frac{\Gamma \vdash \text{ParseCast}(P) \Downarrow (P_1, e_0) \quad \Gamma \vdash \text{ParsePowerTail}(P_1, e_0) \Downarrow (P_2, e)}{\Gamma \vdash \text{ParsePower}(P) \Downarrow (P_2, e)}$$
+Γ ⊢ ParseCast(P) ⇓ (P_1, e_0)    Γ ⊢ ParsePowerTail(P_1, e_0) ⇓ (P_2, e)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePower(P) ⇓ (P_2, e)
 
 **(Parse-PowerTail-None)**
-$$\frac{\neg \text{IsOp}(\text{Tok}(P), \texttt{"**"})}{\Gamma \vdash \text{ParsePowerTail}(P, e) \Downarrow (P, e)}$$
+¬ IsOp(Tok(P), "**")
+──────────────────────────────────────────────
+Γ ⊢ ParsePowerTail(P, e) ⇓ (P, e)
 
 **(Parse-PowerTail-Cons)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"**"}) \quad \Gamma \vdash \text{ParsePower}(\text{Advance}(P)) \Downarrow (P_1, e_1)}{\Gamma \vdash \text{ParsePowerTail}(P, e_0) \Downarrow (P_1, \text{Binary}(\texttt{"**"}, e_0, e_1))}$$
+IsOp(Tok(P), "**")    Γ ⊢ ParsePower(Advance(P)) ⇓ (P_1, e_1)
+────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePowerTail(P, e_0) ⇓ (P_1, Binary("**", e_0, e_1))
 
 ##### 3.3.8.4. Cast Expressions
 
 **(Parse-Cast)**
-$$\frac{\Gamma \vdash \text{ParseUnary}(P) \Downarrow (P_1, e) \quad \Gamma \vdash \text{ParseCastTail}(P_1, e) \Downarrow (P_2, e')} {\Gamma \vdash \text{ParseCast}(P) \Downarrow (P_2, e')}$$
+Γ ⊢ ParseUnary(P) ⇓ (P_1, e)    Γ ⊢ ParseCastTail(P_1, e) ⇓ (P_2, e')
+────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseCast(P) ⇓ (P_2, e')
 
 **(Parse-CastTail-None)**
-$$\frac{\neg \text{IsKw}(\text{Tok}(P), \texttt{as})}{\Gamma \vdash \text{ParseCastTail}(P, e) \Downarrow (P, e)}$$
+¬ IsKw(Tok(P), `as`)
+──────────────────────────────────────────────
+Γ ⊢ ParseCastTail(P, e) ⇓ (P, e)
 
 **(Parse-CastTail-As)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{as}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(P)) \Downarrow (P_1, t)}{\Gamma \vdash \text{ParseCastTail}(P, e) \Downarrow (P_1, \text{Cast}(e,t))}$$
+IsKw(Tok(P), `as`)    Γ ⊢ ParseType(Advance(P)) ⇓ (P_1, t)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseCastTail(P, e) ⇓ (P_1, Cast(e, t))
 
 ##### 3.3.8.5. Unary and Postfix
 
 **(Parse-Unary-Prefix)**
-$$\frac{\text{Tok}(P) = op \in \{\texttt{"!"}, \texttt{"-"}\} \quad \Gamma \vdash \text{ParseUnary}(\text{Advance}(P)) \Downarrow (P_1, e)}{\Gamma \vdash \text{ParseUnary}(P) \Downarrow (P_1, \text{Unary}(op,e))}$$
+Tok(P) = op ∈ {"!", "-"}    Γ ⊢ ParseUnary(Advance(P)) ⇓ (P_1, e)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseUnary(P) ⇓ (P_1, Unary(op, e))
 
 **(Parse-Unary-Deref)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"*"}) \quad \Gamma \vdash \text{ParseUnary}(\text{Advance}(P)) \Downarrow (P_1, e)}{\Gamma \vdash \text{ParseUnary}(P) \Downarrow (P_1, \text{Deref}(e))}$$
+IsOp(Tok(P), "*")    Γ ⊢ ParseUnary(Advance(P)) ⇓ (P_1, e)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseUnary(P) ⇓ (P_1, Deref(e))
 
 **(Parse-Unary-AddressOf)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"&"}) \quad \Gamma \vdash \text{ParsePlace}(\text{Advance}(P)) \Downarrow (P_1, p)}{\Gamma \vdash \text{ParseUnary}(P) \Downarrow (P_1, \text{AddressOf}(p))}$$
+IsOp(Tok(P), "&")    Γ ⊢ ParsePlace(Advance(P)) ⇓ (P_1, p)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseUnary(P) ⇓ (P_1, AddressOf(p))
 
 **(Parse-Unary-Move)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{move}) \quad \Gamma \vdash \text{ParsePlace}(\text{Advance}(P)) \Downarrow (P_1, p)}{\Gamma \vdash \text{ParseUnary}(P) \Downarrow (P_1, \text{MoveExpr}(p))}$$
+IsKw(Tok(P), `move`)    Γ ⊢ ParsePlace(Advance(P)) ⇓ (P_1, p)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseUnary(P) ⇓ (P_1, MoveExpr(p))
 
 **(Parse-Unary-Widen)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{widen}) \quad \Gamma \vdash \text{ParseUnary}(\text{Advance}(P)) \Downarrow (P_1, e)}{\Gamma \vdash \text{ParseUnary}(P) \Downarrow (P_1, \text{Unary}(\texttt{"widen"}, e))}$$
+IsKw(Tok(P), `widen`)    Γ ⊢ ParseUnary(Advance(P)) ⇓ (P_1, e)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseUnary(P) ⇓ (P_1, Unary(`widen`, e))
 
 **(Parse-Unary-Postfix)**
-$$\frac{\Gamma \vdash \text{ParsePostfix}(P) \Downarrow (P_1, e)}{\Gamma \vdash \text{ParseUnary}(P) \Downarrow (P_1, e)}$$
+Γ ⊢ ParsePostfix(P) ⇓ (P_1, e)
+──────────────────────────────────────────────
+Γ ⊢ ParseUnary(P) ⇓ (P_1, e)
 
 **(Parse-Postfix)**
-$$\frac{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (P_1, e_0) \quad \Gamma \vdash \text{ParsePostfixTail}(P_1, e_0) \Downarrow (P_2, e)}{\Gamma \vdash \text{ParsePostfix}(P) \Downarrow (P_2, e)}$$
+Γ ⊢ ParsePrimary(P) ⇓ (P_1, e_0)    Γ ⊢ ParsePostfixTail(P_1, e_0) ⇓ (P_2, e)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePostfix(P) ⇓ (P_2, e)
 
 ##### 3.3.8.6. Primary Expressions
 
 **(Parse-Comptime-Unsupported)**
-$$\frac{\text{IsIdent}(\text{Tok}(P)) \quad \text{Lexeme}(\text{Tok}(P)) = \texttt{comptime} \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P)), \texttt{"{"}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct})) \quad \Gamma \vdash \text{SyncStmt}(P) \Downarrow P_1}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (P_1, \text{ErrorExpr}(\text{SpanBetween}(P,P_1)))}$$
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `comptime`    IsPunc(Tok(Advance(P)), "{")    Γ ⊢ Emit(Code(Unsupported-Construct))    Γ ⊢ SyncStmt(P) ⇓ P_1
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (P_1, ErrorExpr(SpanBetween(P, P_1)))
 
 **(Parse-Literal-Expr)**
-$$\frac{\text{Tok}(P).\text{kind} \in \{\text{IntLiteral},\text{FloatLiteral},\text{StringLiteral},\text{CharLiteral},\text{BoolLiteral},\text{NullLiteral}\}}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (\text{Advance}(P), \text{Literal}(\text{Tok}(P)))}$$
+Tok(P).kind ∈ {IntLiteral, FloatLiteral, StringLiteral, CharLiteral, BoolLiteral, NullLiteral}
+───────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(P), Literal(Tok(P)))
 
 **(Parse-Null-Ptr)**
-$$\frac{\text{IsIdent}(\text{Tok}(P)) \quad \text{Lexeme}(\text{Tok}(P)) = \texttt{Ptr} \quad \text{IsOp}(\text{Tok}(\text{Advance}(P)), \texttt{"::"}) \quad \text{Tok}(\text{Advance}(\text{Advance}(P))).\text{kind} = \text{NullLiteral} \quad \text{IsPunc}(\text{Tok}(\text{Advance}(\text{Advance}(\text{Advance}(P)))), \texttt{"("}) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(\text{Advance}(\text{Advance}(\text{Advance}(P))))), \texttt{")"})}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (\text{Advance}(\text{Advance}(\text{Advance}(\text{Advance}(\text{Advance}(P))))), \text{PtrNullExpr})}$$
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `Ptr`    IsOp(Tok(Advance(P)), "::")    Tok(Advance(Advance(P))).kind = NullLiteral    IsPunc(Tok(Advance(Advance(Advance(P)))), "(")    IsPunc(Tok(Advance(Advance(Advance(Advance(P))))), ")")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(Advance(Advance(Advance(Advance(P))))), PtrNullExpr)
 
 **(Parse-Alloc-Implicit)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"^"}) \quad \Gamma \vdash \text{ParseExpr}(\text{Advance}(P)) \Downarrow (P_1, e)}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (P_1, \text{AllocExpr}(\bot, e))}$$
+IsOp(Tok(P), "^")    Γ ⊢ ParseExpr(Advance(P)) ⇓ (P_1, e)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (P_1, AllocExpr(⊥, e))
 
 
 **(Parse-Identifier-Expr)**
-$$\frac{\text{IsIdent}(\text{Tok}(P)) \quad \neg \text{IsOp}(\text{Tok}(\text{Advance}(P)), \texttt{"::"}) \quad \neg \text{IsOp}(\text{Tok}(\text{Advance}(P)), \texttt{"@"}) \quad \neg \text{IsPunc}(\text{Tok}(\text{Advance}(P)), \texttt{"{"})}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (\text{Advance}(P), \text{Identifier}(\text{Lexeme}(\text{Tok}(P))))}$$
+IsIdent(Tok(P))    ¬ IsOp(Tok(Advance(P)), "::")    ¬ IsOp(Tok(Advance(P)), "@")    ¬ IsPunc(Tok(Advance(P)), "{")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(P), Identifier(Lexeme(Tok(P))))
 
 **(Parse-Qualified-Generic-Unsupported)**
-$$\frac{\Gamma \vdash \text{ParseQualifiedHead}(P) \Downarrow (P_1, path, name) \quad \text{IsOp}(\text{Tok}(P_1), \texttt{"<"}) \quad P_1' = \text{SkipAngles}(P_1) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct})) \quad \Gamma \vdash \text{SyncStmt}(P_1') \Downarrow P_2}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (P_2, \text{ErrorExpr}(\text{SpanBetween}(P,P_2)))}$$
+Γ ⊢ ParseQualifiedHead(P) ⇓ (P_1, path, name)    IsOp(Tok(P_1), "<")    P_1' = SkipAngles(P_1)    Γ ⊢ Emit(Code(Unsupported-Construct))    Γ ⊢ SyncStmt(P_1') ⇓ P_2
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (P_2, ErrorExpr(SpanBetween(P, P_2)))
 
 **(Parse-Qualified-Name)**
-$$\frac{\Gamma \vdash \text{ParseQualifiedHead}(P) \Downarrow (P_1, path, name) \quad \text{Tok}(P_1) \notin \{\text{Punctuator}(\texttt{"("}),\ \text{Punctuator}(\texttt{"{"})\} \quad \neg \text{IsOp}(\text{Tok}(P_1), \texttt{"@"})}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (P_1, \text{QualifiedName}(path, name))}$$
+Γ ⊢ ParseQualifiedHead(P) ⇓ (P_1, path, name)    Tok(P_1) ∉ {Punctuator("("), Punctuator("{")}    ¬ IsOp(Tok(P_1), "@")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (P_1, QualifiedName(path, name))
 
 **(Parse-Qualified-Apply-Paren)**
-$$\frac{\Gamma \vdash \text{ParseQualifiedHead}(P) \Downarrow (P_1, path, name) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"("}) \quad \Gamma \vdash \text{ParseArgList}(\text{Advance}(P_1)) \Downarrow (P_2, args) \quad \text{IsPunc}(\text{Tok}(P_2), \texttt{")"})}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (\text{Advance}(P_2), \text{QualifiedApply}(path, name, \text{Paren}(args)))}$$
+Γ ⊢ ParseQualifiedHead(P) ⇓ (P_1, path, name)    IsPunc(Tok(P_1), "(")    Γ ⊢ ParseArgList(Advance(P_1)) ⇓ (P_2, args)    IsPunc(Tok(P_2), ")")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_2), QualifiedApply(path, name, Paren(args)))
 
 **(Parse-Qualified-Apply-Brace)**
-$$\frac{\Gamma \vdash \text{ParseQualifiedHead}(P) \Downarrow (P_1, path, name) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"{"}) \quad \Gamma \vdash \text{ParseFieldInitList}(\text{Advance}(P_1)) \Downarrow (P_2, fields) \quad \text{IsPunc}(\text{Tok}(P_2), \texttt{"}"})}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (\text{Advance}(P_2), \text{QualifiedApply}(path, name, \text{Brace}(fields)))}$$
+Γ ⊢ ParseQualifiedHead(P) ⇓ (P_1, path, name)    IsPunc(Tok(P_1), "{")    Γ ⊢ ParseFieldInitList(Advance(P_1)) ⇓ (P_2, fields)    IsPunc(Tok(P_2), "}")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_2), QualifiedApply(path, name, Brace(fields)))
 
 **(Parse-Parenthesized-Expr)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"("}) \quad \neg \text{TupleParen}(P) \quad \Gamma \vdash \text{ParseExpr}(\text{Advance}(P)) \Downarrow (P_1, e) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{")"})}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (\text{Advance}(P_1), e)}$$
+IsPunc(Tok(P), "(")    ¬ TupleParen(P)    Γ ⊢ ParseExpr(Advance(P)) ⇓ (P_1, e)    IsPunc(Tok(P_1), ")")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_1), e)
 
 **(Parse-Tuple-Literal)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"("}) \quad \text{TupleParen}(P) \quad \Gamma \vdash \text{ParseTupleExprElems}(\text{Advance}(P)) \Downarrow (P_1, elems) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{")"})}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (\text{Advance}(P_1), \text{TupleExpr}(elems))}$$
+IsPunc(Tok(P), "(")    TupleParen(P)    Γ ⊢ ParseTupleExprElems(Advance(P)) ⇓ (P_1, elems)    IsPunc(Tok(P_1), ")")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_1), TupleExpr(elems))
 
 **(Parse-Array-Literal)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"["}) \quad \Gamma \vdash \text{ParseExprList}(\text{Advance}(P)) \Downarrow (P_1, elems) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"]"})}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (\text{Advance}(P_1), \text{ArrayExpr}(elems))}$$
+IsPunc(Tok(P), "[")    Γ ⊢ ParseExprList(Advance(P)) ⇓ (P_1, elems)    IsPunc(Tok(P_1), "]")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_1), ArrayExpr(elems))
 
 **(Parse-Record-Literal-ModalState)**
-$$\frac{\Gamma \vdash \text{ParseTypePath}(P) \Downarrow (P_1, path) \quad \text{IsOp}(\text{Tok}(P_1), \texttt{"@"}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P_1)) \Downarrow (P_2, state) \quad \text{IsPunc}(\text{Tok}(P_2), \texttt{"{"}) \quad \Gamma \vdash \text{ParseFieldInitList}(\text{Advance}(P_2)) \Downarrow (P_3, fields) \quad \text{IsPunc}(\text{Tok}(P_3), \texttt{"}"})}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (\text{Advance}(P_3), \text{RecordExpr}(\text{ModalStateRef}(path, state), fields))}$$
+Γ ⊢ ParseTypePath(P) ⇓ (P_1, path)    IsOp(Tok(P_1), "@")    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, state)    IsPunc(Tok(P_2), "{")    Γ ⊢ ParseFieldInitList(Advance(P_2)) ⇓ (P_3, fields)    IsPunc(Tok(P_3), "}")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_3), RecordExpr(ModalStateRef(path, state), fields))
 
 **(Parse-Record-Literal)**
-$$\frac{\Gamma \vdash \text{ParseTypePath}(P) \Downarrow (P_1, path) \quad |path| = 1 \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"{"}) \quad \Gamma \vdash \text{ParseFieldInitList}(\text{Advance}(P_1)) \Downarrow (P_2, fields) \quad \text{IsPunc}(\text{Tok}(P_2), \texttt{"}"})}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (\text{Advance}(P_2), \text{RecordExpr}(\text{TypePath}(path), fields))}$$
+Γ ⊢ ParseTypePath(P) ⇓ (P_1, path)    |path| = 1    IsPunc(Tok(P_1), "{")    Γ ⊢ ParseFieldInitList(Advance(P_1)) ⇓ (P_2, fields)    IsPunc(Tok(P_2), "}")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_2), RecordExpr(TypePath(path), fields))
 
 
-$$\text{RuleSet}(\text{ParsePrimary\_NoBrace}) = \text{RuleSet}(\text{ParsePrimary}) \setminus \{\text{Parse-Record-Literal},\ \text{Parse-Record-Literal-ModalState},\ \text{Parse-Qualified-Apply-Brace}\}$$
-$$\text{RuleSet}(\text{ParsePostfix\_NoBrace}) = \text{RuleSet}(\text{ParsePostfix})\ \text{with}\ \text{ParsePrimary}\ \text{replaced by}\ \text{ParsePrimary\_NoBrace}$$
-$$\text{RuleSet}(\text{ParseUnary\_NoBrace}) = \text{RuleSet}(\text{ParseUnary})\ \text{with}\ \text{ParsePostfix}\ \text{replaced by}\ \text{ParsePostfix\_NoBrace}$$
-$$\text{RuleSet}(\text{ParseLogicalOr\_NoBrace}) = \text{RuleSet}(\text{ParseLogicalOr})\ \text{with}\ \text{ParseLogicalAnd}\ \text{replaced by}\ \text{ParseLogicalAnd\_NoBrace}$$
-$$\text{RuleSet}(\text{ParseLogicalAnd\_NoBrace}) = \text{RuleSet}(\text{ParseLogicalAnd})\ \text{with}\ \text{ParseComparison}\ \text{replaced by}\ \text{ParseComparison\_NoBrace}$$
-$$\text{RuleSet}(\text{ParseComparison\_NoBrace}) = \text{RuleSet}(\text{ParseComparison})\ \text{with}\ \text{ParseBitOr}\ \text{replaced by}\ \text{ParseBitOr\_NoBrace}$$
-$$\text{RuleSet}(\text{ParseBitOr\_NoBrace}) = \text{RuleSet}(\text{ParseBitOr})\ \text{with}\ \text{ParseBitXor}\ \text{replaced by}\ \text{ParseBitXor\_NoBrace}$$
-$$\text{RuleSet}(\text{ParseBitXor\_NoBrace}) = \text{RuleSet}(\text{ParseBitXor})\ \text{with}\ \text{ParseBitAnd}\ \text{replaced by}\ \text{ParseBitAnd\_NoBrace}$$
-$$\text{RuleSet}(\text{ParseBitAnd\_NoBrace}) = \text{RuleSet}(\text{ParseBitAnd})\ \text{with}\ \text{ParseShift}\ \text{replaced by}\ \text{ParseShift\_NoBrace}$$
-$$\text{RuleSet}(\text{ParseShift\_NoBrace}) = \text{RuleSet}(\text{ParseShift})\ \text{with}\ \text{ParseAdd}\ \text{replaced by}\ \text{ParseAdd\_NoBrace}$$
-$$\text{RuleSet}(\text{ParseAdd\_NoBrace}) = \text{RuleSet}(\text{ParseAdd})\ \text{with}\ \text{ParseMul}\ \text{replaced by}\ \text{ParseMul\_NoBrace}$$
-$$\text{RuleSet}(\text{ParseMul\_NoBrace}) = \text{RuleSet}(\text{ParseMul})\ \text{with}\ \text{ParsePower}\ \text{replaced by}\ \text{ParsePower\_NoBrace}$$
-$$\text{RuleSet}(\text{ParseRange\_NoBrace}) = \text{RuleSet}(\text{ParseRange})\ \text{with}\ \text{ParseLogicalOr}\ \text{replaced by}\ \text{ParseLogicalOr\_NoBrace}$$
-$$\text{RuleSet}(\text{ParseExpr\_NoBrace}) = \text{RuleSet}(\text{ParseExpr})\ \text{with}\ \text{ParseRange}\ \text{replaced by}\ \text{ParseRange\_NoBrace}$$
+RuleSet(ParsePrimary_NoBrace) = RuleSet(ParsePrimary) \ {Parse-Record-Literal, Parse-Record-Literal-ModalState, Parse-Qualified-Apply-Brace}
+RuleSet(ParsePostfix_NoBrace) = RuleSet(ParsePostfix) with ParsePrimary replaced by ParsePrimary_NoBrace
+RuleSet(ParseUnary_NoBrace) = RuleSet(ParseUnary) with ParsePostfix replaced by ParsePostfix_NoBrace
+RuleSet(ParseLogicalOr_NoBrace) = RuleSet(ParseLogicalOr) with ParseLogicalAnd replaced by ParseLogicalAnd_NoBrace
+RuleSet(ParseLogicalAnd_NoBrace) = RuleSet(ParseLogicalAnd) with ParseComparison replaced by ParseComparison_NoBrace
+RuleSet(ParseComparison_NoBrace) = RuleSet(ParseComparison) with ParseBitOr replaced by ParseBitOr_NoBrace
+RuleSet(ParseBitOr_NoBrace) = RuleSet(ParseBitOr) with ParseBitXor replaced by ParseBitXor_NoBrace
+RuleSet(ParseBitXor_NoBrace) = RuleSet(ParseBitXor) with ParseBitAnd replaced by ParseBitAnd_NoBrace
+RuleSet(ParseBitAnd_NoBrace) = RuleSet(ParseBitAnd) with ParseShift replaced by ParseShift_NoBrace
+RuleSet(ParseShift_NoBrace) = RuleSet(ParseShift) with ParseAdd replaced by ParseAdd_NoBrace
+RuleSet(ParseAdd_NoBrace) = RuleSet(ParseAdd) with ParseMul replaced by ParseMul_NoBrace
+RuleSet(ParseMul_NoBrace) = RuleSet(ParseMul) with ParsePower replaced by ParsePower_NoBrace
+RuleSet(ParseRange_NoBrace) = RuleSet(ParseRange) with ParseLogicalOr replaced by ParseLogicalOr_NoBrace
+RuleSet(ParseExpr_NoBrace) = RuleSet(ParseExpr) with ParseRange replaced by ParseRange_NoBrace
 
-$$\frac{\Gamma \vdash \text{ParseRange\_NoBrace}(P) \Downarrow (P_1, e)}{\Gamma \vdash \text{ParseExpr\_NoBrace}(P) \Downarrow (P_1, e)}$$
+Γ ⊢ ParseRange_NoBrace(P) ⇓ (P_1, e)
+───────────────────────────────────────────────
+Γ ⊢ ParseExpr_NoBrace(P) ⇓ (P_1, e)
 
 **(Parse-If-Expr)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{if}) \quad \Gamma \vdash \text{ParseExpr\_NoBrace}(\text{Advance}(P)) \Downarrow (P_1, c) \quad \Gamma \vdash \text{ParseBlock}(P_1) \Downarrow (P_2, b1) \quad \Gamma \vdash \text{ParseElseOpt}(P_2) \Downarrow (P_3, b2)}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (P_3, \text{IfExpr}(c,b1,b2))}$$
+IsKw(Tok(P), `if`)    Γ ⊢ ParseExpr_NoBrace(Advance(P)) ⇓ (P_1, c)    Γ ⊢ ParseBlock(P_1) ⇓ (P_2, b1)    Γ ⊢ ParseElseOpt(P_2) ⇓ (P_3, b2)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (P_3, IfExpr(c, b1, b2))
 
 **(Parse-Match-Expr)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{match}) \quad \Gamma \vdash \text{ParseExpr\_NoBrace}(\text{Advance}(P)) \Downarrow (P_1, e) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"{"}) \quad \Gamma \vdash \text{ParseMatchArms}(\text{Advance}(P_1)) \Downarrow (P_2, arms) \quad \text{IsPunc}(\text{Tok}(P_2), \texttt{"}"})}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (\text{Advance}(P_2), \text{MatchExpr}(e, arms))}$$
+IsKw(Tok(P), `match`)    Γ ⊢ ParseExpr_NoBrace(Advance(P)) ⇓ (P_1, e)    IsPunc(Tok(P_1), "{")    Γ ⊢ ParseMatchArms(Advance(P_1)) ⇓ (P_2, arms)    IsPunc(Tok(P_2), "}")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_2), MatchExpr(e, arms))
 
 **(Parse-Loop-Expr)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{loop}) \quad \Gamma \vdash \text{ParseLoopTail}(\text{Advance}(P)) \Downarrow (P_1, loop)}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (P_1, loop)}$$
+IsKw(Tok(P), `loop`)    Γ ⊢ ParseLoopTail(Advance(P)) ⇓ (P_1, loop)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (P_1, loop)
 
 **(Parse-Block-Expr)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"{"}) \quad \Gamma \vdash \text{ParseBlock}(P) \Downarrow (P_1, b)}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (P_1, b)}$$
+IsPunc(Tok(P), "{")    Γ ⊢ ParseBlock(P) ⇓ (P_1, b)
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (P_1, b)
 
 **(Parse-Unsafe-Expr)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{unsafe}) \quad \Gamma \vdash \text{ParseBlock}(\text{Advance}(P)) \Downarrow (P_1, b)}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (P_1, \text{UnsafeBlockExpr}(b))}$$
+IsKw(Tok(P), `unsafe`)    Γ ⊢ ParseBlock(Advance(P)) ⇓ (P_1, b)
+──────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (P_1, UnsafeBlockExpr(b))
 
 **(Parse-Transmute-Expr-ShiftSplit)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{transmute}) \quad \text{IsOp}(\text{Tok}(\text{Advance}(P)), \texttt{"::"}) \quad \text{IsOp}(\text{Tok}(\text{Advance}(\text{Advance}(P))), \texttt{"<"}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(\text{Advance}(\text{Advance}(P)))) \Downarrow (P_1, t1) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{","}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(P_1)) \Downarrow (P_2, t2) \quad \text{IsOp}(\text{Tok}(P_2), \texttt{">>"}) \quad P_2' = \text{SplitShiftR}(P_2) \quad \text{IsOp}(\text{Tok}(P_2'), \texttt{">"}) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P_2')), \texttt{"("}) \quad \Gamma \vdash \text{ParseExpr}(\text{Advance}(\text{Advance}(P_2'))) \Downarrow (P_3, e) \quad \text{IsPunc}(\text{Tok}(P_3), \texttt{")"})}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (\text{Advance}(P_3), \text{TransmuteExpr}(t1, t2, e))}$$
+IsKw(Tok(P), `transmute`)    IsOp(Tok(Advance(P)), "::")    IsOp(Tok(Advance(Advance(P))), "<")    Γ ⊢ ParseType(Advance(Advance(Advance(P)))) ⇓ (P_1, t1)    IsPunc(Tok(P_1), ",")    Γ ⊢ ParseType(Advance(P_1)) ⇓ (P_2, t2)    IsOp(Tok(P_2), ">>")    P_2' = SplitShiftR(P_2)    IsOp(Tok(P_2'), ">")    IsPunc(Tok(Advance(P_2')), "(")    Γ ⊢ ParseExpr(Advance(Advance(P_2'))) ⇓ (P_3, e)    IsPunc(Tok(P_3), ")")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_3), TransmuteExpr(t1, t2, e))
 
 **(Parse-Transmute-Expr)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{transmute}) \quad \text{IsOp}(\text{Tok}(\text{Advance}(P)), \texttt{"::"}) \quad \text{IsOp}(\text{Tok}(\text{Advance}(\text{Advance}(P))), \texttt{"<"}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(\text{Advance}(\text{Advance}(P)))) \Downarrow (P_1, t1) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{","}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(P_1)) \Downarrow (P_2, t2) \quad \text{IsOp}(\text{Tok}(P_2), \texttt{">"}) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P_2)), \texttt{"("}) \quad \Gamma \vdash \text{ParseExpr}(\text{Advance}(\text{Advance}(P_2))) \Downarrow (P_3, e) \quad \text{IsPunc}(\text{Tok}(P_3), \texttt{")"})}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (\text{Advance}(P_3), \text{TransmuteExpr}(t1, t2, e))}$$
+IsKw(Tok(P), `transmute`)    IsOp(Tok(Advance(P)), "::")    IsOp(Tok(Advance(Advance(P))), "<")    Γ ⊢ ParseType(Advance(Advance(Advance(P)))) ⇓ (P_1, t1)    IsPunc(Tok(P_1), ",")    Γ ⊢ ParseType(Advance(P_1)) ⇓ (P_2, t2)    IsOp(Tok(P_2), ">")    IsPunc(Tok(Advance(P_2)), "(")    Γ ⊢ ParseExpr(Advance(Advance(P_2))) ⇓ (P_3, e)    IsPunc(Tok(P_3), ")")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_3), TransmuteExpr(t1, t2, e))
 
 
 **(Parse-Primary-Err)**
-$$\frac{c = \text{Code}(\text{Parse-Syntax-Err}) \quad \Gamma \vdash \text{Emit}(c,\ \text{Tok}(P).\text{span}) \quad P_1 = \text{AdvanceOrEOF}(P) \quad \Gamma \vdash \text{SyncStmt}(P_1) \Downarrow P_2}{\Gamma \vdash \text{ParsePrimary}(P) \Downarrow (P_2,\ \text{ErrorExpr}(\text{SpanBetween}(P, P_2)))}$$
+c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P).span)    P_1 = AdvanceOrEOF(P)    Γ ⊢ SyncStmt(P_1) ⇓ P_2
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (P_2, ErrorExpr(SpanBetween(P, P_2)))
 
 ##### 3.3.8.7. Expression Helper Parsing Rules
 
 **Postfix Tail.**
 
 **(Parse-PostfixTail-Stop)**
-$$\frac{\text{Tok}(P) \notin \text{PostfixStart}}{\Gamma \vdash \text{ParsePostfixTail}(P, e) \Downarrow (P, e)}$$
+Tok(P) ∉ PostfixStart
+──────────────────────────────────────────────
+Γ ⊢ ParsePostfixTail(P, e) ⇓ (P, e)
 
 **(Parse-PostfixTail-Cons)**
-$$\frac{\text{Tok}(P) \in \text{PostfixStart} \quad \Gamma \vdash \text{PostfixStep}(P, e) \Downarrow (P_1, e_1) \quad \Gamma \vdash \text{ParsePostfixTail}(P_1, e_1) \Downarrow (P_2, e_2)}{\Gamma \vdash \text{ParsePostfixTail}(P, e) \Downarrow (P_2, e_2)}$$
+Tok(P) ∈ PostfixStart    Γ ⊢ PostfixStep(P, e) ⇓ (P_1, e_1)    Γ ⊢ ParsePostfixTail(P_1, e_1) ⇓ (P_2, e_2)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePostfixTail(P, e) ⇓ (P_2, e_2)
 
-$$\text{PostfixStart} = \{\text{Punctuator}(\texttt{"."}),\ \text{Punctuator}(\texttt{"["}),\ \text{Punctuator}(\texttt{"("}),\ \text{Operator}(\texttt{"~>"}),\ \text{Operator}(\texttt{"?"})\}$$
+PostfixStart = {Punctuator("."), Punctuator("["), Punctuator("("), Operator("~>"), Operator("?")}
 
 **(Postfix-Field)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"."}) \quad \text{IsIdent}(\text{Tok}(\text{Advance}(P))) \quad name = \text{Lexeme}(\text{Tok}(\text{Advance}(P)))}{\Gamma \vdash \text{PostfixStep}(P, e) \Downarrow (\text{Advance}(\text{Advance}(P)), \text{FieldAccess}(e,name))}$$
+IsPunc(Tok(P), ".")    IsIdent(Tok(Advance(P)))    name = Lexeme(Tok(Advance(P)))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PostfixStep(P, e) ⇓ (Advance(Advance(P)), FieldAccess(e, name))
 
 **(Postfix-TupleIndex)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"."}) \quad t = \text{Tok}(\text{Advance}(P)) \quad t.\text{kind} = \text{IntLiteral} \quad idx = \text{IntValue}(t)}{\Gamma \vdash \text{PostfixStep}(P, e) \Downarrow (\text{Advance}(\text{Advance}(P)), \text{TupleAccess}(e, idx))}$$
+IsPunc(Tok(P), ".")    t = Tok(Advance(P))    t.kind = IntLiteral    idx = IntValue(t)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PostfixStep(P, e) ⇓ (Advance(Advance(P)), TupleAccess(e, idx))
 
 **(Postfix-Index)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"["}) \quad \Gamma \vdash \text{ParseExpr}(\text{Advance}(P)) \Downarrow (P_1, idx) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"]"})}{\Gamma \vdash \text{PostfixStep}(P, e) \Downarrow (\text{Advance}(P_1), \text{IndexAccess}(e, idx))}$$
+IsPunc(Tok(P), "[")    Γ ⊢ ParseExpr(Advance(P)) ⇓ (P_1, idx)    IsPunc(Tok(P_1), "]")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PostfixStep(P, e) ⇓ (Advance(P_1), IndexAccess(e, idx))
 
 **(Postfix-Call)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"("}) \quad \Gamma \vdash \text{ParseArgList}(\text{Advance}(P)) \Downarrow (P_1, args) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{")"})}{\Gamma \vdash \text{PostfixStep}(P, e) \Downarrow (\text{Advance}(P_1), \text{Call}(e, args))}$$
+IsPunc(Tok(P), "(")    Γ ⊢ ParseArgList(Advance(P)) ⇓ (P_1, args)    IsPunc(Tok(P_1), ")")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PostfixStep(P, e) ⇓ (Advance(P_1), Call(e, args))
 
 **(Postfix-MethodCall)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"~>"}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P)) \Downarrow (P_1, name) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"("}) \quad \Gamma \vdash \text{ParseArgList}(\text{Advance}(P_1)) \Downarrow (P_2, args) \quad \text{IsPunc}(\text{Tok}(P_2), \texttt{")"})}{\Gamma \vdash \text{PostfixStep}(P, e) \Downarrow (\text{Advance}(P_2), \text{MethodCall}(e, name, args))}$$
+IsOp(Tok(P), "~>")    Γ ⊢ ParseIdent(Advance(P)) ⇓ (P_1, name)    IsPunc(Tok(P_1), "(")    Γ ⊢ ParseArgList(Advance(P_1)) ⇓ (P_2, args)    IsPunc(Tok(P_2), ")")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PostfixStep(P, e) ⇓ (Advance(P_2), MethodCall(e, name, args))
 
 **(Postfix-Propagate)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"?"})}{\Gamma \vdash \text{PostfixStep}(P, e) \Downarrow (\text{Advance}(P), \text{Propagate}(e))}$$
+IsOp(Tok(P), "?")
+──────────────────────────────────────────────────────────────
+Γ ⊢ PostfixStep(P, e) ⇓ (Advance(P), Propagate(e))
 
 **Argument Lists.**
 
 **(Parse-ArgList-Empty)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{")"})}{\Gamma \vdash \text{ParseArgList}(P) \Downarrow (P, [])}$$
+IsPunc(Tok(P), ")")
+──────────────────────────────────────────────
+Γ ⊢ ParseArgList(P) ⇓ (P, [])
 
 **(Parse-ArgList-Cons)**
-$$\frac{\Gamma \vdash \text{ParseArg}(P) \Downarrow (P_1, a) \quad \Gamma \vdash \text{ParseArgTail}(P_1, [a]) \Downarrow (P_2, args)}{\Gamma \vdash \text{ParseArgList}(P) \Downarrow (P_2, args)}$$
+Γ ⊢ ParseArg(P) ⇓ (P_1, a)    Γ ⊢ ParseArgTail(P_1, [a]) ⇓ (P_2, args)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseArgList(P) ⇓ (P_2, args)
 
 **(Parse-Arg)**
-$$\frac{\Gamma \vdash \text{ParseArgMoveOpt}(P) \Downarrow (P_1, moved) \quad \Gamma \vdash \text{ParseExpr}(P_1) \Downarrow (P_2, e)}{\Gamma \vdash \text{ParseArg}(P) \Downarrow (P_2, \langle moved, e, \text{SpanBetween}(P,P_2) \rangle)}$$
+Γ ⊢ ParseArgMoveOpt(P) ⇓ (P_1, moved)    Γ ⊢ ParseExpr(P_1) ⇓ (P_2, e)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseArg(P) ⇓ (P_2, ⟨moved, e, SpanBetween(P, P_2)⟩)
 
 **(Parse-ArgMoveOpt-None)**
-$$\frac{\neg \text{IsKw}(\text{Tok}(P), \texttt{move})}{\Gamma \vdash \text{ParseArgMoveOpt}(P) \Downarrow (P, \text{false})}$$
+¬ IsKw(Tok(P), `move`)
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseArgMoveOpt(P) ⇓ (P, false)
 
 **(Parse-ArgMoveOpt-Yes)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{move})}{\Gamma \vdash \text{ParseArgMoveOpt}(P) \Downarrow (\text{Advance}(P), \text{true})}$$
+IsKw(Tok(P), `move`)
+──────────────────────────────────────────────────────
+Γ ⊢ ParseArgMoveOpt(P) ⇓ (Advance(P), true)
 
 **Expression Lists.**
 
 **(Parse-ExprList-Cons)**
-$$\frac{\Gamma \vdash \text{ParseExpr}(P) \Downarrow (P_1, e) \quad \Gamma \vdash \text{ParseExprListTail}(P_1, [e]) \Downarrow (P_2, es)}{\Gamma \vdash \text{ParseExprList}(P) \Downarrow (P_2, es)}$$
+Γ ⊢ ParseExpr(P) ⇓ (P_1, e)    Γ ⊢ ParseExprListTail(P_1, [e]) ⇓ (P_2, es)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseExprList(P) ⇓ (P_2, es)
 
 **(Parse-ExprList-Empty)**
-$$\frac{\text{Tok}(P) \in \{\text{Punctuator}(\texttt{")"}),\ \text{Punctuator}(\texttt{"]"})\} \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseExprList}(P) \Downarrow (P, [])}$$
+Tok(P) ∈ {Punctuator(")"), Punctuator("]")}    Γ ⊢ Emit(Code(Unsupported-Construct))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseExprList(P) ⇓ (P, [])
 
 **Tuple Expression Elements.**
 
 **(Parse-TupleExprElems-Empty)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{")"})}{\Gamma \vdash \text{ParseTupleExprElems}(P) \Downarrow (P, [])}$$
+IsPunc(Tok(P), ")")
+──────────────────────────────────────────────
+Γ ⊢ ParseTupleExprElems(P) ⇓ (P, [])
 
 **(Parse-TupleExprElems-Single)**
-$$\frac{\Gamma \vdash \text{ParseExpr}(P) \Downarrow (P_1, e) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{";"})}{\Gamma \vdash \text{ParseTupleExprElems}(P) \Downarrow (\text{Advance}(P_1), [e])}$$
+Γ ⊢ ParseExpr(P) ⇓ (P_1, e)    IsPunc(Tok(P_1), ";")
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseTupleExprElems(P) ⇓ (Advance(P_1), [e])
 
 **(Parse-TupleExprElems-TrailingComma)**
-$$\frac{\Gamma \vdash \text{ParseExpr}(P) \Downarrow (P_1, e) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{","}) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P_1)), \texttt{")"}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseTupleExprElems}(P) \Downarrow (\text{Advance}(P_1), [e])}$$
+Γ ⊢ ParseExpr(P) ⇓ (P_1, e)    IsPunc(Tok(P_1), ",")    IsPunc(Tok(Advance(P_1)), ")")    Γ ⊢ Emit(Code(Unsupported-Construct))
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseTupleExprElems(P) ⇓ (Advance(P_1), [e])
 
 **(Parse-TupleExprElems-Many)**
-$$\frac{\Gamma \vdash \text{ParseExpr}(P) \Downarrow (P_1, e_1) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{","}) \quad \Gamma \vdash \text{ParseExpr}(\text{Advance}(P_1)) \Downarrow (P_2, e_2) \quad \Gamma \vdash \text{ParseExprListTail}(P_2, [e_2]) \Downarrow (P_3, es)}{\Gamma \vdash \text{ParseTupleExprElems}(P) \Downarrow (P_3, [e_1] \mathbin{+\!\!+} es)}$$
+Γ ⊢ ParseExpr(P) ⇓ (P_1, e_1)    IsPunc(Tok(P_1), ",")    Γ ⊢ ParseExpr(Advance(P_1)) ⇓ (P_2, e_2)    Γ ⊢ ParseExprListTail(P_2, [e_2]) ⇓ (P_3, es)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseTupleExprElems(P) ⇓ (P_3, [e_1] ++ es)
 
 **Tuple vs Parenthesized Disambiguation.**
-$$\text{ParenDelta}(\text{Punctuator}(\texttt{"("})) = 1$$
-$$\text{ParenDelta}(\text{Punctuator}(\texttt{")"})) = -1$$
-$$\text{ParenDelta}(t) = 0 \ \text{if } t.\text{kind} \notin \{\text{Punctuator}(\texttt{"("}),\ \text{Punctuator}(\texttt{")"})\}$$
+ParenDelta(Punctuator("(")) = 1
+ParenDelta(Punctuator(")")) = -1
+ParenDelta(t) = 0 if t.kind ∉ {Punctuator("("), Punctuator(")")}
 
-$$\text{TupleScan}(P,d) \Downarrow b$$
-$$\frac{\text{Tok}(P)=\text{EOF}}{\text{TupleScan}(P,d) \Downarrow \text{false}}$$
-$$\frac{\text{Tok}(P)=\text{Punctuator}(\texttt{")"}) \land d=1}{\text{TupleScan}(P,d) \Downarrow \text{false}}$$
-$$\frac{\text{Tok}(P)\in\{\text{Punctuator}(\texttt{","}),\ \text{Punctuator}(\texttt{";"})\} \land d=1}{\text{TupleScan}(P,d) \Downarrow \text{true}}$$
-$$\frac{\text{Tok}(P)\notin\{\text{Punctuator}(\texttt{")"}),\ \text{Punctuator}(\texttt{","}),\ \text{Punctuator}(\texttt{";"})\} \quad \text{TupleScan}(\text{Advance}(P), d+\text{ParenDelta}(\text{Tok}(P))) \Downarrow b}{\text{TupleScan}(P,d) \Downarrow b}$$
+TupleScan(P, d) ⇓ b
+Tok(P) = EOF
+────────────────────────────────────────
+TupleScan(P, d) ⇓ false
+Tok(P) = Punctuator(")") ∧ d = 1
+────────────────────────────────────────────
+TupleScan(P, d) ⇓ false
+Tok(P) ∈ {Punctuator(","), Punctuator(";")} ∧ d = 1
+──────────────────────────────────────────────
+TupleScan(P, d) ⇓ true
+Tok(P) ∉ {Punctuator(")"), Punctuator(","), Punctuator(";")}    TupleScan(Advance(P), d + ParenDelta(Tok(P))) ⇓ b
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+TupleScan(P, d) ⇓ b
 
-$$\text{TupleParen}(P) \iff \text{IsPunc}(\text{Tok}(P),\texttt{"("}) \land \left(\text{IsPunc}(\text{Tok}(\text{Advance}(P)),\texttt{")"}) \lor \text{TupleScan}(\text{Advance}(P),1)\Downarrow \text{true}\right)$$
+TupleParen(P) ⇔ IsPunc(Tok(P), "(") ∧ (IsPunc(Tok(Advance(P)), ")") ∨ TupleScan(Advance(P), 1) ⇓ true)
 **Field Initializers.**
 
 **(Parse-FieldInitList-Empty)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"}"}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseFieldInitList}(P) \Downarrow (P, [])}$$
+IsPunc(Tok(P), "}")    Γ ⊢ Emit(Code(Unsupported-Construct))
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseFieldInitList(P) ⇓ (P, [])
 
 **(Parse-FieldInitList-Cons)**
-$$\frac{\Gamma \vdash \text{ParseFieldInit}(P) \Downarrow (P_1, f) \quad \Gamma \vdash \text{ParseFieldInitTail}(P_1, [f]) \Downarrow (P_2, fs)}{\Gamma \vdash \text{ParseFieldInitList}(P) \Downarrow (P_2, fs)}$$
+Γ ⊢ ParseFieldInit(P) ⇓ (P_1, f)    Γ ⊢ ParseFieldInitTail(P_1, [f]) ⇓ (P_2, fs)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseFieldInitList(P) ⇓ (P_2, fs)
 
 
 **(Parse-FieldInit-Explicit)**
-$$\frac{\Gamma \vdash \text{ParseIdent}(P) \Downarrow (P_1, name) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{":"}) \quad \Gamma \vdash \text{ParseExpr}(\text{Advance}(P_1)) \Downarrow (P_2, e)}{\Gamma \vdash \text{ParseFieldInit}(P) \Downarrow (P_2, \langle name, e \rangle)}$$
+Γ ⊢ ParseIdent(P) ⇓ (P_1, name)    IsPunc(Tok(P_1), ":")    Γ ⊢ ParseExpr(Advance(P_1)) ⇓ (P_2, e)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseFieldInit(P) ⇓ (P_2, ⟨name, e⟩)
 
 **(Parse-FieldInit-Shorthand)**
-$$\frac{\Gamma \vdash \text{ParseIdent}(P) \Downarrow (P_1, name) \quad \neg \text{IsPunc}(\text{Tok}(P_1), \texttt{":"})}{\Gamma \vdash \text{ParseFieldInit}(P) \Downarrow (P_1, \langle name, \text{Identifier}(name) \rangle)}$$
+Γ ⊢ ParseIdent(P) ⇓ (P_1, name)    ¬ IsPunc(Tok(P_1), ":")
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseFieldInit(P) ⇓ (P_1, ⟨name, Identifier(name)⟩)
 
 **Match Arms.**
 
 **(Parse-MatchArms-Cons)**
-$$\frac{\Gamma \vdash \text{ParseMatchArm}(P) \Downarrow (P_1, a) \quad \Gamma \vdash \text{ParseMatchArmsTail}(P_1, [a]) \Downarrow (P_2, arms)}{\Gamma \vdash \text{ParseMatchArms}(P) \Downarrow (P_2, arms)}$$
+Γ ⊢ ParseMatchArm(P) ⇓ (P_1, a)    Γ ⊢ ParseMatchArmsTail(P_1, [a]) ⇓ (P_2, arms)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseMatchArms(P) ⇓ (P_2, arms)
 
 **(Parse-MatchArm)**
-$$\frac{\Gamma \vdash \text{ParsePattern}(P) \Downarrow (P_1, pat) \quad \Gamma \vdash \text{ParseGuardOpt}(P_1) \Downarrow (P_2, guard\_opt) \quad \text{IsOp}(\text{Tok}(P_2), \texttt{"=>"}) \quad \Gamma \vdash \text{ParseArmBody}(\text{Advance}(P_2)) \Downarrow (P_3, body)}{\Gamma \vdash \text{ParseMatchArm}(P) \Downarrow (P_3, \langle pat, guard\_opt, body \rangle)}$$
+Γ ⊢ ParsePattern(P) ⇓ (P_1, pat)    Γ ⊢ ParseGuardOpt(P_1) ⇓ (P_2, guard_opt)    IsOp(Tok(P_2), "=>")    Γ ⊢ ParseArmBody(Advance(P_2)) ⇓ (P_3, body)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseMatchArm(P) ⇓ (P_3, ⟨pat, guard_opt, body⟩)
 
 **(Parse-MatchArmsTail-End)**
-$$\frac{\text{Tok}(P) = \text{Punctuator}(\texttt{"}"})}{\Gamma \vdash \text{ParseMatchArmsTail}(P, xs) \Downarrow (P, xs)}$$
+Tok(P) = Punctuator("}")
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseMatchArmsTail(P, xs) ⇓ (P, xs)
 
 **(Parse-MatchArmsTail-Comma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \Gamma \vdash \text{ParseMatchArm}(\text{Advance}(P)) \Downarrow (P_1, a) \quad \Gamma \vdash \text{ParseMatchArmsTail}(P_1, xs \mathbin{+\!\!+} [a]) \Downarrow (P_2, ys)}{\Gamma \vdash \text{ParseMatchArmsTail}(P, xs) \Downarrow (P_2, ys)}$$
+IsPunc(Tok(P), ",")    Γ ⊢ ParseMatchArm(Advance(P)) ⇓ (P_1, a)    Γ ⊢ ParseMatchArmsTail(P_1, xs ++ [a]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseMatchArmsTail(P, xs) ⇓ (P_2, ys)
 
 **(Parse-GuardOpt-None)**
-$$\frac{\neg \text{IsKw}(\text{Tok}(P), \texttt{if})}{\Gamma \vdash \text{ParseGuardOpt}(P) \Downarrow (P, \bot)}$$
+¬ IsKw(Tok(P), `if`)
+──────────────────────────────────────────────
+Γ ⊢ ParseGuardOpt(P) ⇓ (P, ⊥)
 
 **(Parse-GuardOpt-Yes)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{if}) \quad \Gamma \vdash \text{ParseExpr}(\text{Advance}(P)) \Downarrow (P_1, e)}{\Gamma \vdash \text{ParseGuardOpt}(P) \Downarrow (P_1, e)}$$
+IsKw(Tok(P), `if`)    Γ ⊢ ParseExpr(Advance(P)) ⇓ (P_1, e)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseGuardOpt(P) ⇓ (P_1, e)
 
 **(Parse-ArmBody-Block)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"{"}) \quad \Gamma \vdash \text{ParseBlock}(P) \Downarrow (P_1, b)}{\Gamma \vdash \text{ParseArmBody}(P) \Downarrow (P_1, b)}$$
+IsPunc(Tok(P), "{")    Γ ⊢ ParseBlock(P) ⇓ (P_1, b)
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseArmBody(P) ⇓ (P_1, b)
 
 **(Parse-ArmBody-Expr)**
-$$\frac{\Gamma \vdash \text{ParseExpr}(P) \Downarrow (P_1, e)}{\Gamma \vdash \text{ParseArmBody}(P) \Downarrow (P_1, e)}$$
+Γ ⊢ ParseExpr(P) ⇓ (P_1, e)
+──────────────────────────────────────────────
+Γ ⊢ ParseArmBody(P) ⇓ (P_1, e)
 
 **Argument and Expression Tail Lists.**
 
 **(Parse-ArgTail-End)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{")"})}{\Gamma \vdash \text{ParseArgTail}(P, xs) \Downarrow (P, xs)}$$
+IsPunc(Tok(P), ")")
+───────────────────────────────────────────
+Γ ⊢ ParseArgTail(P, xs) ⇓ (P, xs)
 
 **(Parse-ArgTail-TrailingComma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P)), \texttt{")"}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseArgTail}(P, xs) \Downarrow (\text{Advance}(P), xs)}$$
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), ")")    Γ ⊢ Emit(Code(Unsupported-Construct))
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseArgTail(P, xs) ⇓ (Advance(P), xs)
 
 **(Parse-ArgTail-Comma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \Gamma \vdash \text{ParseArg}(\text{Advance}(P)) \Downarrow (P_1, a) \quad \Gamma \vdash \text{ParseArgTail}(P_1, xs \mathbin{+\!\!+} [a]) \Downarrow (P_2, ys)}{\Gamma \vdash \text{ParseArgTail}(P, xs) \Downarrow (P_2, ys)}$$
+IsPunc(Tok(P), ",")    Γ ⊢ ParseArg(Advance(P)) ⇓ (P_1, a)    Γ ⊢ ParseArgTail(P_1, xs ++ [a]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseArgTail(P, xs) ⇓ (P_2, ys)
 
 **(Parse-ExprListTail-End)**
-$$\frac{\text{Tok}(P) \in \{\text{Punctuator}(\texttt{")"}),\ \text{Punctuator}(\texttt{"]"}),\ \text{Punctuator}(\texttt{"}"})\}}{\Gamma \vdash \text{ParseExprListTail}(P, xs) \Downarrow (P, xs)}$$
+Tok(P) ∈ {Punctuator(")"), Punctuator("]"), Punctuator("}")}
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseExprListTail(P, xs) ⇓ (P, xs)
 
 **(Parse-ExprListTail-TrailingComma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \text{Tok}(\text{Advance}(P)) \in \{\text{Punctuator}(\texttt{")"}),\ \text{Punctuator}(\texttt{"]"}),\ \text{Punctuator}(\texttt{"}"})\} \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseExprListTail}(P, xs) \Downarrow (\text{Advance}(P), xs)}$$
+IsPunc(Tok(P), ",")    Tok(Advance(P)) ∈ {Punctuator(")"), Punctuator("]"), Punctuator("}")}    Γ ⊢ Emit(Code(Unsupported-Construct))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseExprListTail(P, xs) ⇓ (Advance(P), xs)
 
 **(Parse-ExprListTail-Comma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \Gamma \vdash \text{ParseExpr}(\text{Advance}(P)) \Downarrow (P_1, e) \quad \Gamma \vdash \text{ParseExprListTail}(P_1, xs \mathbin{+\!\!+} [e]) \Downarrow (P_2, ys)}{\Gamma \vdash \text{ParseExprListTail}(P, xs) \Downarrow (P_2, ys)}$$
+IsPunc(Tok(P), ",")    Γ ⊢ ParseExpr(Advance(P)) ⇓ (P_1, e)    Γ ⊢ ParseExprListTail(P_1, xs ++ [e]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseExprListTail(P, xs) ⇓ (P_2, ys)
 
 **(Parse-FieldInitTail-End)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"}"})}{\Gamma \vdash \text{ParseFieldInitTail}(P, xs) \Downarrow (P, xs)}$$
+IsPunc(Tok(P), "}")
+──────────────────────────────────────────────
+Γ ⊢ ParseFieldInitTail(P, xs) ⇓ (P, xs)
 
 **(Parse-FieldInitTail-TrailingComma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P)), \texttt{"}"}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseFieldInitTail}(P, xs) \Downarrow (\text{Advance}(P), xs)}$$
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    Γ ⊢ Emit(Code(Unsupported-Construct))
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseFieldInitTail(P, xs) ⇓ (Advance(P), xs)
 
 **(Parse-FieldInitTail-Comma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \Gamma \vdash \text{ParseFieldInit}(\text{Advance}(P)) \Downarrow (P_1, f) \quad \Gamma \vdash \text{ParseFieldInitTail}(P_1, xs \mathbin{+\!\!+} [f]) \Downarrow (P_2, ys)}{\Gamma \vdash \text{ParseFieldInitTail}(P, xs) \Downarrow (P_2, ys)}$$
+IsPunc(Tok(P), ",")    Γ ⊢ ParseFieldInit(Advance(P)) ⇓ (P_1, f)    Γ ⊢ ParseFieldInitTail(P_1, xs ++ [f]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseFieldInitTail(P, xs) ⇓ (P_2, ys)
 **Loop Tail.**
 
 **(Parse-LoopTail-Infinite)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"{"}) \quad \Gamma \vdash \text{ParseBlock}(P) \Downarrow (P_1, b)}{\Gamma \vdash \text{ParseLoopTail}(P) \Downarrow (P_1, \text{LoopInfinite}(b))}$$
+IsPunc(Tok(P), "{")    Γ ⊢ ParseBlock(P) ⇓ (P_1, b)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseLoopTail(P) ⇓ (P_1, LoopInfinite(b))
 
 **(Parse-LoopTail-Iter)**
-$$\frac{\Gamma \vdash \text{TryParsePatternIn}(P) \Downarrow (P_1, pat) \quad \Gamma \vdash \text{ParseTypeAnnotOpt}(P_1) \Downarrow (P_2, ty\_opt) \quad \text{IsIdent}(\text{Tok}(P_2)) \quad \text{Lexeme}(\text{Tok}(P_2)) = \texttt{in} \quad \Gamma \vdash \text{ParseExpr\_NoBrace}(\text{Advance}(P_2)) \Downarrow (P_3, iter) \quad \Gamma \vdash \text{ParseBlock}(P_3) \Downarrow (P_4, body)}{\Gamma \vdash \text{ParseLoopTail}(P) \Downarrow (P_4, \text{LoopIter}(pat, ty\_opt, iter, body))}$$
+Γ ⊢ TryParsePatternIn(P) ⇓ (P_1, pat)    Γ ⊢ ParseTypeAnnotOpt(P_1) ⇓ (P_2, ty_opt)    IsIdent(Tok(P_2))    Lexeme(Tok(P_2)) = `in`    Γ ⊢ ParseExpr_NoBrace(Advance(P_2)) ⇓ (P_3, iter)    Γ ⊢ ParseBlock(P_3) ⇓ (P_4, body)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseLoopTail(P) ⇓ (P_4, LoopIter(pat, ty_opt, iter, body))
 
 **(Parse-LoopTail-Cond)**
-$$\frac{\Gamma \vdash \text{ParseExpr\_NoBrace}(P) \Downarrow (P_1, cond) \quad \Gamma \vdash \text{ParseBlock}(P_1) \Downarrow (P_2, body)}{\Gamma \vdash \text{ParseLoopTail}(P) \Downarrow (P_2, \text{LoopConditional}(cond, body))}$$
+Γ ⊢ ParseExpr_NoBrace(P) ⇓ (P_1, cond)    Γ ⊢ ParseBlock(P_1) ⇓ (P_2, body)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseLoopTail(P) ⇓ (P_2, LoopConditional(cond, body))
 
 **(TryParsePatternIn-Ok)**
-$$\frac{P_c = \text{Clone}(P) \quad \Gamma \vdash \text{ParsePattern}(P_c) \Downarrow (P_1, pat) \quad \Gamma \vdash \text{ParseTypeAnnotOpt}(P_1) \Downarrow (P_2, ty\_opt) \quad \text{IsIdent}(\text{Tok}(P_2)) \quad \text{Lexeme}(\text{Tok}(P_2)) = \texttt{in} \quad P' = \text{MergeDiag}(P, P_2, P_1)}{\Gamma \vdash \text{TryParsePatternIn}(P) \Downarrow (P', pat)}$$
+P_c = Clone(P)    Γ ⊢ ParsePattern(P_c) ⇓ (P_1, pat)    Γ ⊢ ParseTypeAnnotOpt(P_1) ⇓ (P_2, ty_opt)    IsIdent(Tok(P_2))    Lexeme(Tok(P_2)) = `in`    P' = MergeDiag(P, P_2, P_1)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ TryParsePatternIn(P) ⇓ (P', pat)
 
 **(TryParsePatternIn-Fail)**
-$$\frac{P_c = \text{Clone}(P) \quad \neg(\Gamma \vdash \text{ParsePattern}(P_c) \Downarrow (P_1, pat) \land \Gamma \vdash \text{ParseTypeAnnotOpt}(P_1) \Downarrow (P_2, ty\_opt) \land \text{IsIdent}(\text{Tok}(P_2)) \land \text{Lexeme}(\text{Tok}(P_2)) = \texttt{in})}{\Gamma \vdash \text{TryParsePatternIn}(P) \uparrow}$$
+P_c = Clone(P)    ¬ (Γ ⊢ ParsePattern(P_c) ⇓ (P_1, pat) ∧ Γ ⊢ ParseTypeAnnotOpt(P_1) ⇓ (P_2, ty_opt) ∧ IsIdent(Tok(P_2)) ∧ Lexeme(Tok(P_2)) = `in`)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ TryParsePatternIn(P) ↑
 
 **Else Clause.**
 
 **(Parse-ElseOpt-None)**
-$$\frac{\neg \text{IsKw}(\text{Tok}(P), \texttt{else})}{\Gamma \vdash \text{ParseElseOpt}(P) \Downarrow (P, \bot)}$$
+¬ IsKw(Tok(P), `else`)
+──────────────────────────────────────────────
+Γ ⊢ ParseElseOpt(P) ⇓ (P, ⊥)
 
 **(Parse-ElseOpt-If)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{else}) \quad \text{IsKw}(\text{Tok}(\text{Advance}(P)), \texttt{if}) \quad \Gamma \vdash \text{ParsePrimary}(\text{Advance}(P)) \Downarrow (P_1, e)}{\Gamma \vdash \text{ParseElseOpt}(P) \Downarrow (P_1, e)}$$
+IsKw(Tok(P), `else`)    IsKw(Tok(Advance(P)), `if`)    Γ ⊢ ParsePrimary(Advance(P)) ⇓ (P_1, e)
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseElseOpt(P) ⇓ (P_1, e)
 
 **(Parse-ElseOpt-Block)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{else}) \quad \Gamma \vdash \text{ParseBlock}(\text{Advance}(P)) \Downarrow (P_1, b)}{\Gamma \vdash \text{ParseElseOpt}(P) \Downarrow (P_1, b)}$$
+IsKw(Tok(P), `else`)    Γ ⊢ ParseBlock(Advance(P)) ⇓ (P_1, b)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseElseOpt(P) ⇓ (P_1, b)
 
 **Optional Expression.**
 
 **(Parse-ExprOpt-None)**
-$$\frac{\text{Tok}(P) \in \{\text{Punctuator}(\texttt{";"}),\ \text{Punctuator}(\texttt{"}"}),\ \text{Newline},\ \text{EOF}\}}{\Gamma \vdash \text{ParseExprOpt}(P) \Downarrow (P, \bot)}$$
+Tok(P) ∈ {Punctuator(";"), Punctuator("}"), Newline, EOF}
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseExprOpt(P) ⇓ (P, ⊥)
 
 **(Parse-ExprOpt-Yes)**
-$$\frac{\text{Tok}(P) \notin \{\text{Punctuator}(\texttt{";"}),\ \text{Punctuator}(\texttt{"}"}),\ \text{Newline},\ \text{EOF}\} \quad \Gamma \vdash \text{ParseExpr}(P) \Downarrow (P_1, e)}{\Gamma \vdash \text{ParseExprOpt}(P) \Downarrow (P_1, e)}$$
+Tok(P) ∉ {Punctuator(";"), Punctuator("}"), Newline, EOF}    Γ ⊢ ParseExpr(P) ⇓ (P_1, e)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseExprOpt(P) ⇓ (P_1, e)
 
 **Place Expressions.**
 
-$$\text{IsPlace}(e) \iff e \in \{\text{Identifier}(\_),\ \text{FieldAccess}(\_,\_),\ \text{TupleAccess}(\_,\_),\ \text{IndexAccess}(\_,\_)\} \ \lor\ (\exists p.\ e = \text{Deref}(p) \land \text{IsPlace}(p))$$
-$$\text{PlaceExprParseErr} = \text{Parse-Syntax-Err}$$
+IsPlace(e) ⇔ e ∈ {Identifier(_), FieldAccess(_, _), TupleAccess(_, _), IndexAccess(_, _)} ∨ (∃ p. e = Deref(p) ∧ IsPlace(p))
+PlaceExprParseErr = Parse-Syntax-Err
 
 **(Parse-Place-Deref)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"*"}) \quad \Gamma \vdash \text{ParsePlace}(\text{Advance}(P)) \Downarrow (P_1, p)}{\Gamma \vdash \text{ParsePlace}(P) \Downarrow (P_1, \text{Deref}(p))}$$
+IsOp(Tok(P), "*")    Γ ⊢ ParsePlace(Advance(P)) ⇓ (P_1, p)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePlace(P) ⇓ (P_1, Deref(p))
 
 **(Parse-Place-Postfix)**
-$$\frac{\Gamma \vdash \text{ParsePostfix}(P) \Downarrow (P_1, e) \quad \text{IsPlace}(e)}{\Gamma \vdash \text{ParsePlace}(P) \Downarrow (P_1, e)}$$
+Γ ⊢ ParsePostfix(P) ⇓ (P_1, e)    IsPlace(e)
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParsePlace(P) ⇓ (P_1, e)
 
 **(Parse-Place-Err)**
-$$\frac{\Gamma \vdash \text{ParsePostfix}(P) \Downarrow (P_1, e) \quad \neg \text{IsPlace}(e) \quad c = \text{Code}(\text{PlaceExprParseErr}) \quad \Gamma \vdash \text{Emit}(c,\ \text{Tok}(P).\text{span}) \quad \Gamma \vdash \text{SyncStmt}(P_1) \Downarrow P_2}{\Gamma \vdash \text{ParsePlace}(P) \Downarrow (P_2, \text{ErrorExpr}(\text{SpanBetween}(P,P_2)))}$$
+Γ ⊢ ParsePostfix(P) ⇓ (P_1, e)    ¬ IsPlace(e)    c = Code(PlaceExprParseErr)    Γ ⊢ Emit(c, Tok(P).span)    Γ ⊢ SyncStmt(P_1) ⇓ P_2
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePlace(P) ⇓ (P_2, ErrorExpr(SpanBetween(P, P_2)))
 
 #### 3.3.9. Pattern Parsing
 
 **(Parse-Pattern)**
-$$\frac{\Gamma \vdash \text{ParsePatternRange}(P) \Downarrow (P_1, pat)}{\Gamma \vdash \text{ParsePattern}(P) \Downarrow (P_1, pat)}$$
+Γ ⊢ ParsePatternRange(P) ⇓ (P_1, pat)
+───────────────────────────────────────────────
+Γ ⊢ ParsePattern(P) ⇓ (P_1, pat)
 
 **(Parse-Pattern-Err)**
-$$\frac{c = \text{Code}(\text{Parse-Syntax-Err}) \quad \Gamma \vdash \text{Emit}(c,\ \text{Tok}(P).\text{span})}{\Gamma \vdash \text{ParsePattern}(P) \Downarrow (P,\ \text{WildcardPattern})}$$
+c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P).span)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePattern(P) ⇓ (P, WildcardPattern)
 
 **(Parse-Pattern-Range-None)**
-$$\frac{\Gamma \vdash \text{ParsePatternAtom}(P) \Downarrow (P_1, p) \quad \neg(\text{IsOp}(\text{Tok}(P_1), \texttt{".."}) \lor \text{IsOp}(\text{Tok}(P_1), \texttt{"..="}))}{\Gamma \vdash \text{ParsePatternRange}(P) \Downarrow (P_1, p)}$$
+Γ ⊢ ParsePatternAtom(P) ⇓ (P_1, p)    ¬ (IsOp(Tok(P_1), "..") ∨ IsOp(Tok(P_1), "..="))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePatternRange(P) ⇓ (P_1, p)
 
 **(Parse-Pattern-Range)**
-$$\frac{\Gamma \vdash \text{ParsePatternAtom}(P) \Downarrow (P_1, p_0) \quad \text{Tok}(P_1) = op \in \{\texttt{".."}, \texttt{"..="}\} \quad \Gamma \vdash \text{ParsePatternAtom}(\text{Advance}(P_1)) \Downarrow (P_2, p_1) \quad kind = (\texttt{Exclusive}\ \text{if}\ op=\texttt{".."}\ \text{else}\ \texttt{Inclusive})}{\Gamma \vdash \text{ParsePatternRange}(P) \Downarrow (P_2, \text{RangePattern}(kind, p_0, p_1))}$$
+Γ ⊢ ParsePatternAtom(P) ⇓ (P_1, p_0)    Tok(P_1) = op ∈ {"..", "..="}    Γ ⊢ ParsePatternAtom(Advance(P_1)) ⇓ (P_2, p_1)    kind = (`Exclusive` if op = ".." else `Inclusive`)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePatternRange(P) ⇓ (P_2, RangePattern(kind, p_0, p_1))
 
 **(Parse-Pattern-Literal)**
-$$\frac{\text{Tok}(P).\text{kind} \in \{\text{IntLiteral},\text{FloatLiteral},\text{StringLiteral},\text{CharLiteral},\text{BoolLiteral},\text{NullLiteral}\}}{\Gamma \vdash \text{ParsePatternAtom}(P) \Downarrow (\text{Advance}(P), \text{LiteralPattern}(\text{Tok}(P)))}$$
+Tok(P).kind ∈ {IntLiteral, FloatLiteral, StringLiteral, CharLiteral, BoolLiteral, NullLiteral}
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePatternAtom(P) ⇓ (Advance(P), LiteralPattern(Tok(P)))
 
 **(Parse-Pattern-Wildcard)**
-$$\frac{\text{IsIdent}(\text{Tok}(P)) \quad \text{Lexeme}(\text{Tok}(P)) = \texttt{"_"}}{\Gamma \vdash \text{ParsePatternAtom}(P) \Downarrow (\text{Advance}(P), \text{WildcardPattern})}$$
+IsIdent(Tok(P))    Lexeme(Tok(P)) = "_"
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParsePatternAtom(P) ⇓ (Advance(P), WildcardPattern)
 
 **(Parse-Pattern-Typed)**
-$$\frac{\text{IsIdent}(\text{Tok}(P)) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P)), \texttt{":"}) \quad \Gamma \vdash \text{ParseType}(\text{Advance}(\text{Advance}(P))) \Downarrow (P_1, ty)}{\Gamma \vdash \text{ParsePatternAtom}(P) \Downarrow (P_1, \text{TypedPattern}(\text{Lexeme}(\text{Tok}(P)), ty))}$$
+IsIdent(Tok(P))    IsPunc(Tok(Advance(P)), ":")    Γ ⊢ ParseType(Advance(Advance(P))) ⇓ (P_1, ty)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePatternAtom(P) ⇓ (P_1, TypedPattern(Lexeme(Tok(P)), ty))
 
 **(Parse-Pattern-Identifier)**
-$$\frac{\text{IsIdent}(\text{Tok}(P))}{\Gamma \vdash \text{ParsePatternAtom}(P) \Downarrow (\text{Advance}(P), \text{IdentifierPattern}(\text{Lexeme}(\text{Tok}(P))))}$$
+IsIdent(Tok(P))
+────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePatternAtom(P) ⇓ (Advance(P), IdentifierPattern(Lexeme(Tok(P))))
 
 **(Parse-Pattern-Tuple)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"("}) \quad \Gamma \vdash \text{ParseTuplePatternElems}(\text{Advance}(P)) \Downarrow (P_1, elems) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{")"})}{\Gamma \vdash \text{ParsePatternAtom}(P) \Downarrow (\text{Advance}(P_1), \text{TuplePattern}(elems))}$$
+IsPunc(Tok(P), "(")    Γ ⊢ ParseTuplePatternElems(Advance(P)) ⇓ (P_1, elems)    IsPunc(Tok(P_1), ")")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePatternAtom(P) ⇓ (Advance(P_1), TuplePattern(elems))
 
 **(Parse-Pattern-Record)**
-$$\frac{\Gamma \vdash \text{ParseTypePath}(P) \Downarrow (P_1, path) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"{"}) \quad \Gamma \vdash \text{ParseFieldPatternList}(\text{Advance}(P_1)) \Downarrow (P_2, fields) \quad \text{IsPunc}(\text{Tok}(P_2), \texttt{"}"})}{\Gamma \vdash \text{ParsePatternAtom}(P) \Downarrow (\text{Advance}(P_2), \text{RecordPattern}(path, fields))}$$
+Γ ⊢ ParseTypePath(P) ⇓ (P_1, path)    IsPunc(Tok(P_1), "{")    Γ ⊢ ParseFieldPatternList(Advance(P_1)) ⇓ (P_2, fields)    IsPunc(Tok(P_2), "}")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePatternAtom(P) ⇓ (Advance(P_2), RecordPattern(path, fields))
 
 **(Parse-Pattern-Enum)**
-$$\frac{\Gamma \vdash \text{ParseTypePath}(P) \Downarrow (P_1, path) \quad \text{IsOp}(\text{Tok}(P_1), \texttt{"::"}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P_1)) \Downarrow (P_2, name) \quad \Gamma \vdash \text{ParseEnumPatternPayloadOpt}(P_2) \Downarrow (P_3, payload\_opt)}{\Gamma \vdash \text{ParsePatternAtom}(P) \Downarrow (P_3, \text{EnumPattern}(path, name, payload\_opt))}$$
+Γ ⊢ ParseTypePath(P) ⇓ (P_1, path)    IsOp(Tok(P_1), "::")    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseEnumPatternPayloadOpt(P_2) ⇓ (P_3, payload_opt)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePatternAtom(P) ⇓ (P_3, EnumPattern(path, name, payload_opt))
 
 **(Parse-Pattern-Modal)**
-$$\frac{\text{IsOp}(\text{Tok}(P), \texttt{"@"}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P)) \Downarrow (P_1, name) \quad \Gamma \vdash \text{ParseModalPatternPayloadOpt}(P_1) \Downarrow (P_2, fields\_opt)}{\Gamma \vdash \text{ParsePatternAtom}(P) \Downarrow (P_2, \text{ModalPattern}(name, fields\_opt))}$$
+IsOp(Tok(P), "@")    Γ ⊢ ParseIdent(Advance(P)) ⇓ (P_1, name)    Γ ⊢ ParseModalPatternPayloadOpt(P_1) ⇓ (P_2, fields_opt)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePatternAtom(P) ⇓ (P_2, ModalPattern(name, fields_opt))
 
 ##### 3.3.9.1. Pattern Helper Parsing Rules
 
 **Pattern Lists.**
 
 **(Parse-PatternList-Empty)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{")"})}{\Gamma \vdash \text{ParsePatternList}(P) \Downarrow (P, [])}$$
+IsPunc(Tok(P), ")")
+──────────────────────────────────────────────
+Γ ⊢ ParsePatternList(P) ⇓ (P, [])
 
 **(Parse-PatternList-Cons)**
-$$\frac{\Gamma \vdash \text{ParsePattern}(P) \Downarrow (P_1, p) \quad \Gamma \vdash \text{ParsePatternListTail}(P_1, [p]) \Downarrow (P_2, ps)}{\Gamma \vdash \text{ParsePatternList}(P) \Downarrow (P_2, ps)}$$
+Γ ⊢ ParsePattern(P) ⇓ (P_1, p)    Γ ⊢ ParsePatternListTail(P_1, [p]) ⇓ (P_2, ps)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePatternList(P) ⇓ (P_2, ps)
 
 **(Parse-PatternListTail-End)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{")"})}{\Gamma \vdash \text{ParsePatternListTail}(P, xs) \Downarrow (P, xs)}$$
+IsPunc(Tok(P), ")")
+──────────────────────────────────────────────
+Γ ⊢ ParsePatternListTail(P, xs) ⇓ (P, xs)
 
 **(Parse-PatternListTail-TrailingComma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P)), \texttt{")"}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParsePatternListTail}(P, xs) \Downarrow (\text{Advance}(P), xs)}$$
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), ")")    Γ ⊢ Emit(Code(Unsupported-Construct))
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePatternListTail(P, xs) ⇓ (Advance(P), xs)
 
 **(Parse-PatternListTail-Comma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \Gamma \vdash \text{ParsePattern}(\text{Advance}(P)) \Downarrow (P_1, p) \quad \Gamma \vdash \text{ParsePatternListTail}(P_1, xs \mathbin{+\!\!+} [p]) \Downarrow (P_2, ys)}{\Gamma \vdash \text{ParsePatternListTail}(P, xs) \Downarrow (P_2, ys)}$$
+IsPunc(Tok(P), ",")    Γ ⊢ ParsePattern(Advance(P)) ⇓ (P_1, p)    Γ ⊢ ParsePatternListTail(P_1, xs ++ [p]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePatternListTail(P, xs) ⇓ (P_2, ys)
 
 **Tuple Pattern Elements.**
 
 **(Parse-TuplePatternElems-Empty)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{")"})}{\Gamma \vdash \text{ParseTuplePatternElems}(P) \Downarrow (P, [])}$$
+IsPunc(Tok(P), ")")
+──────────────────────────────────────────────
+Γ ⊢ ParseTuplePatternElems(P) ⇓ (P, [])
 
 **(Parse-TuplePatternElems-Single)**
-$$\frac{\Gamma \vdash \text{ParsePattern}(P) \Downarrow (P_1, p) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{";"})}{\Gamma \vdash \text{ParseTuplePatternElems}(P) \Downarrow (\text{Advance}(P_1), [p])}$$
+Γ ⊢ ParsePattern(P) ⇓ (P_1, p)    IsPunc(Tok(P_1), ";")
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseTuplePatternElems(P) ⇓ (Advance(P_1), [p])
 
 **(Parse-TuplePatternElems-TrailingComma)**
-$$\frac{\Gamma \vdash \text{ParsePattern}(P) \Downarrow (P_1, p) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{","}) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P_1)), \texttt{")"}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseTuplePatternElems}(P) \Downarrow (\text{Advance}(P_1), [p])}$$
+Γ ⊢ ParsePattern(P) ⇓ (P_1, p)    IsPunc(Tok(P_1), ",")    IsPunc(Tok(Advance(P_1)), ")")    Γ ⊢ Emit(Code(Unsupported-Construct))
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseTuplePatternElems(P) ⇓ (Advance(P_1), [p])
 
 **(Parse-TuplePatternElems-Many)**
-$$\frac{\Gamma \vdash \text{ParsePattern}(P) \Downarrow (P_1, p_1) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{","}) \quad \Gamma \vdash \text{ParsePattern}(\text{Advance}(P_1)) \Downarrow (P_2, p_2) \quad \Gamma \vdash \text{ParsePatternListTail}(P_2, [p_2]) \Downarrow (P_3, ps)}{\Gamma \vdash \text{ParseTuplePatternElems}(P) \Downarrow (P_3, [p_1] \mathbin{+\!\!+} ps)}$$
+Γ ⊢ ParsePattern(P) ⇓ (P_1, p_1)    IsPunc(Tok(P_1), ",")    Γ ⊢ ParsePattern(Advance(P_1)) ⇓ (P_2, p_2)    Γ ⊢ ParsePatternListTail(P_2, [p_2]) ⇓ (P_3, ps)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseTuplePatternElems(P) ⇓ (P_3, [p_1] ++ ps)
 
 **Field Pattern Lists.**
 
 **(Parse-FieldPatternList-Empty)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"}"})}{\Gamma \vdash \text{ParseFieldPatternList}(P) \Downarrow (P, [])}$$
+IsPunc(Tok(P), "}")
+────────────────────────────────────────────────
+Γ ⊢ ParseFieldPatternList(P) ⇓ (P, [])
 
 **(Parse-FieldPatternList-Cons)**
-$$\frac{\Gamma \vdash \text{ParseFieldPattern}(P) \Downarrow (P_1, f) \quad \Gamma \vdash \text{ParseFieldPatternTail}(P_1, [f]) \Downarrow (P_2, fs)}{\Gamma \vdash \text{ParseFieldPatternList}(P) \Downarrow (P_2, fs)}$$
+Γ ⊢ ParseFieldPattern(P) ⇓ (P_1, f)    Γ ⊢ ParseFieldPatternTail(P_1, [f]) ⇓ (P_2, fs)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseFieldPatternList(P) ⇓ (P_2, fs)
 
 **(Parse-FieldPattern)**
-$$\frac{\Gamma \vdash \text{ParseIdent}(P) \Downarrow (P_1, name) \quad \Gamma \vdash \text{ParseFieldPatternTailOpt}(P_1, name) \Downarrow (P_2, pat\_opt)}{\Gamma \vdash \text{ParseFieldPattern}(P) \Downarrow (P_2, \langle name, pat\_opt, \text{SpanBetween}(P,P_2) \rangle)}$$
+Γ ⊢ ParseIdent(P) ⇓ (P_1, name)    Γ ⊢ ParseFieldPatternTailOpt(P_1, name) ⇓ (P_2, pat_opt)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseFieldPattern(P) ⇓ (P_2, ⟨name, pat_opt, SpanBetween(P, P_2)⟩)
 
 **(Parse-FieldPatternTailOpt-None)**
-$$\frac{\neg \text{IsPunc}(\text{Tok}(P), \texttt{":"})}{\Gamma \vdash \text{ParseFieldPatternTailOpt}(P, name) \Downarrow (P, \bot)}$$
+¬ IsPunc(Tok(P), ":")
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseFieldPatternTailOpt(P, name) ⇓ (P, ⊥)
 
 **(Parse-FieldPatternTailOpt-Yes)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{":"}) \quad \Gamma \vdash \text{ParsePattern}(\text{Advance}(P)) \Downarrow (P_1, pat)}{\Gamma \vdash \text{ParseFieldPatternTailOpt}(P, name) \Downarrow (P_1, pat)}$$
+IsPunc(Tok(P), ":")    Γ ⊢ ParsePattern(Advance(P)) ⇓ (P_1, pat)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseFieldPatternTailOpt(P, name) ⇓ (P_1, pat)
 
 **(Parse-FieldPatternTail-End)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"}"})}{\Gamma \vdash \text{ParseFieldPatternTail}(P, xs) \Downarrow (P, xs)}$$
+IsPunc(Tok(P), "}")
+────────────────────────────────────────────────
+Γ ⊢ ParseFieldPatternTail(P, xs) ⇓ (P, xs)
 
 **(Parse-FieldPatternTail-TrailingComma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P)), \texttt{"}"}) \quad \Gamma \vdash \text{Emit}(\text{Code}(\text{Unsupported-Construct}))}{\Gamma \vdash \text{ParseFieldPatternTail}(P, xs) \Downarrow (\text{Advance}(P), xs)}$$
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    Γ ⊢ Emit(Code(Unsupported-Construct))
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseFieldPatternTail(P, xs) ⇓ (Advance(P), xs)
 
 **(Parse-FieldPatternTail-Comma)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{","}) \quad \Gamma \vdash \text{ParseFieldPattern}(\text{Advance}(P)) \Downarrow (P_1, f) \quad \Gamma \vdash \text{ParseFieldPatternTail}(P_1, xs \mathbin{+\!\!+} [f]) \Downarrow (P_2, ys)}{\Gamma \vdash \text{ParseFieldPatternTail}(P, xs) \Downarrow (P_2, ys)}$$
+IsPunc(Tok(P), ",")    Γ ⊢ ParseFieldPattern(Advance(P)) ⇓ (P_1, f)    Γ ⊢ ParseFieldPatternTail(P_1, xs ++ [f]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseFieldPatternTail(P, xs) ⇓ (P_2, ys)
 **Enum Pattern Payload.**
 
 **(Parse-EnumPatternPayloadOpt-None)**
-$$\frac{\text{Tok}(P) \notin \{\text{Punctuator}(\texttt{"("}),\ \text{Punctuator}(\texttt{"{"})\}}{\Gamma \vdash \text{ParseEnumPatternPayloadOpt}(P) \Downarrow (P, \bot)}$$
+Tok(P) ∉ {Punctuator("("), Punctuator("{")}
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseEnumPatternPayloadOpt(P) ⇓ (P, ⊥)
 
 **(Parse-EnumPatternPayloadOpt-Tuple)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"("}) \quad \Gamma \vdash \text{ParseTuplePatternElems}(\text{Advance}(P)) \Downarrow (P_1, ps) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{")"})}{\Gamma \vdash \text{ParseEnumPatternPayloadOpt}(P) \Downarrow (\text{Advance}(P_1), \text{TuplePayloadPattern}(ps))}$$
+IsPunc(Tok(P), "(")    Γ ⊢ ParseTuplePatternElems(Advance(P)) ⇓ (P_1, ps)    IsPunc(Tok(P_1), ")")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseEnumPatternPayloadOpt(P) ⇓ (Advance(P_1), TuplePayloadPattern(ps))
 
 **(Parse-EnumPatternPayloadOpt-Record)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"{"}) \quad \Gamma \vdash \text{ParseFieldPatternList}(\text{Advance}(P)) \Downarrow (P_1, fs) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"}"})}{\Gamma \vdash \text{ParseEnumPatternPayloadOpt}(P) \Downarrow (\text{Advance}(P_1), \text{RecordPayloadPattern}(fs))}$$
+IsPunc(Tok(P), "{")    Γ ⊢ ParseFieldPatternList(Advance(P)) ⇓ (P_1, fs)    IsPunc(Tok(P_1), "}")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseEnumPatternPayloadOpt(P) ⇓ (Advance(P_1), RecordPayloadPattern(fs))
 
 **Modal Pattern Payload.**
 
 **(Parse-ModalPatternPayloadOpt-None)**
-$$\frac{\neg \text{IsPunc}(\text{Tok}(P), \texttt{"{"})}{\Gamma \vdash \text{ParseModalPatternPayloadOpt}(P) \Downarrow (P, \bot)}$$
+¬ IsPunc(Tok(P), "{")
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseModalPatternPayloadOpt(P) ⇓ (P, ⊥)
 
 **(Parse-ModalPatternPayloadOpt-Record)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"{"}) \quad \Gamma \vdash \text{ParseFieldPatternList}(\text{Advance}(P)) \Downarrow (P_1, fs) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"}"})}{\Gamma \vdash \text{ParseModalPatternPayloadOpt}(P) \Downarrow (\text{Advance}(P_1), \text{ModalRecordPayload}(fs))}$$
+IsPunc(Tok(P), "{")    Γ ⊢ ParseFieldPatternList(Advance(P)) ⇓ (P_1, fs)    IsPunc(Tok(P_1), "}")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseModalPatternPayloadOpt(P) ⇓ (Advance(P_1), ModalRecordPayload(fs))
 
 #### 3.3.10. Statement and Block Parsing
 
 **Statement Terminators.**
-$$\text{StmtTerm} = \{\text{Punctuator}(\texttt{";"}),\ \text{Newline}\}$$
-$$\text{Terminates}(t) \iff t \in \text{StmtTerm}$$
+StmtTerm = {Punctuator(";"), Newline}
+Terminates(t) ⇔ t ∈ StmtTerm
 
 **(Parse-Statement)**
-$$\frac{\Gamma \vdash \text{ParseStmtCore}(P) \Downarrow (P_1, s) \quad \Gamma \vdash \text{ConsumeTerminatorOpt}(P_1, s) \Downarrow P_2}{\Gamma \vdash \text{ParseStmt}(P) \Downarrow (P_2, s)}$$
+Γ ⊢ ParseStmtCore(P) ⇓ (P_1, s)    Γ ⊢ ConsumeTerminatorOpt(P_1, s) ⇓ P_2
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStmt(P) ⇓ (P_2, s)
 
 **(Parse-Statement-Err)**
-$$\frac{c = \text{Code}(\text{Parse-Syntax-Err}) \quad \Gamma \vdash \text{Emit}(c,\ \text{Tok}(P).\text{span}) \quad P_1 = \text{AdvanceOrEOF}(P) \quad \Gamma \vdash \text{SyncStmt}(P_1) \Downarrow P_2}{\Gamma \vdash \text{ParseStmt}(P) \Downarrow (P_2,\ \text{ErrorStmt}(\text{SpanBetween}(P,P_2)))}$$
+c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P).span)    P_1 = AdvanceOrEOF(P)    Γ ⊢ SyncStmt(P_1) ⇓ P_2
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStmt(P) ⇓ (P_2, ErrorStmt(SpanBetween(P, P_2)))
 
 
 **(Parse-Binding-Stmt)**
-$$\frac{\text{Tok}(P) \in \{\text{Keyword}(\texttt{let}),\ \text{Keyword}(\texttt{var})\} \quad \Gamma \vdash \text{ParseBindingAfterLetVar}(P) \Downarrow (P_1, bind)}{\Gamma \vdash \text{ParseStmtCore}(P) \Downarrow (P_1, \text{LetOrVarStmt}(P, bind))}$$
+Tok(P) ∈ {Keyword(`let`), Keyword(`var`)}    Γ ⊢ ParseBindingAfterLetVar(P) ⇓ (P_1, bind)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStmtCore(P) ⇓ (P_1, LetOrVarStmt(P, bind))
 
 **(Parse-Shadow-Stmt)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{shadow}) \quad \text{Tok}(\text{Advance}(P)) \in \{\text{Keyword}(\texttt{let}),\ \text{Keyword}(\texttt{var})\} \quad \Gamma \vdash \text{ParseShadowBinding}(\text{Advance}(P)) \Downarrow (P_1, s)}{\Gamma \vdash \text{ParseStmtCore}(P) \Downarrow (P_1, s)}$$
+IsKw(Tok(P), `shadow`)    Tok(Advance(P)) ∈ {Keyword(`let`), Keyword(`var`)}    Γ ⊢ ParseShadowBinding(Advance(P)) ⇓ (P_1, s)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStmtCore(P) ⇓ (P_1, s)
 
 **(Parse-Assign-Stmt)**
-$$\frac{\Gamma \vdash \text{ParsePlace}(P) \Downarrow (P_1, p) \quad \text{Tok}(P_1) \in \{\text{Operator}(\texttt{"="}),\ \text{Operator}(\texttt{"+="}),\ \text{Operator}(\texttt{"-="}),\ \text{Operator}(\texttt{"*="}),\ \text{Operator}(\texttt{"/="}),\ \text{Operator}(\texttt{"%="})\} \quad \Gamma \vdash \text{ParseExpr}(\text{Advance}(P_1)) \Downarrow (P_2, e)}{\Gamma \vdash \text{ParseStmtCore}(P) \Downarrow (P_2, \text{AssignOrCompound}(P_1, p, e))}$$
+Γ ⊢ ParsePlace(P) ⇓ (P_1, p)    Tok(P_1) ∈ {Operator("="), Operator("+="), Operator("-="), Operator("*="), Operator("/="), Operator("%=")}    Γ ⊢ ParseExpr(Advance(P_1)) ⇓ (P_2, e)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStmtCore(P) ⇓ (P_2, AssignOrCompound(P_1, p, e))
 
 **(Parse-Return-Stmt)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{return}) \quad \Gamma \vdash \text{ParseExprOpt}(\text{Advance}(P)) \Downarrow (P_1, e\_opt)}{\Gamma \vdash \text{ParseStmtCore}(P) \Downarrow (P_1, \text{ReturnStmt}(e\_opt))}$$
+IsKw(Tok(P), `return`)    Γ ⊢ ParseExprOpt(Advance(P)) ⇓ (P_1, e_opt)
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseStmtCore(P) ⇓ (P_1, ReturnStmt(e_opt))
 
 **(Parse-Result-Stmt)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{result}) \quad \Gamma \vdash \text{ParseExpr}(\text{Advance}(P)) \Downarrow (P_1, e)}{\Gamma \vdash \text{ParseStmtCore}(P) \Downarrow (P_1, \text{ResultStmt}(e))}$$
+IsKw(Tok(P), `result`)    Γ ⊢ ParseExpr(Advance(P)) ⇓ (P_1, e)
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseStmtCore(P) ⇓ (P_1, ResultStmt(e))
 
 **(Parse-Break-Stmt)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{break}) \quad \Gamma \vdash \text{ParseExprOpt}(\text{Advance}(P)) \Downarrow (P_1, e\_opt)}{\Gamma \vdash \text{ParseStmtCore}(P) \Downarrow (P_1, \text{BreakStmt}(e\_opt))}$$
+IsKw(Tok(P), `break`)    Γ ⊢ ParseExprOpt(Advance(P)) ⇓ (P_1, e_opt)
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseStmtCore(P) ⇓ (P_1, BreakStmt(e_opt))
 
 **(Parse-Continue-Stmt)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{continue})}{\Gamma \vdash \text{ParseStmtCore}(P) \Downarrow (\text{Advance}(P), \text{ContinueStmt})}$$
+IsKw(Tok(P), `continue`)
+──────────────────────────────────────────────
+Γ ⊢ ParseStmtCore(P) ⇓ (Advance(P), ContinueStmt)
 
 **(Parse-Unsafe-Block)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{unsafe}) \quad \Gamma \vdash \text{ParseBlock}(\text{Advance}(P)) \Downarrow (P_1, b)}{\Gamma \vdash \text{ParseStmtCore}(P) \Downarrow (P_1, \text{UnsafeBlockStmt}(b))}$$
+IsKw(Tok(P), `unsafe`)    Γ ⊢ ParseBlock(Advance(P)) ⇓ (P_1, b)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStmtCore(P) ⇓ (P_1, UnsafeBlockStmt(b))
 
 **(Parse-Defer-Stmt)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{defer}) \quad \Gamma \vdash \text{ParseBlock}(\text{Advance}(P)) \Downarrow (P_1, b)}{\Gamma \vdash \text{ParseStmtCore}(P) \Downarrow (P_1, \text{DeferStmt}(b))}$$
+IsKw(Tok(P), `defer`)    Γ ⊢ ParseBlock(Advance(P)) ⇓ (P_1, b)
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseStmtCore(P) ⇓ (P_1, DeferStmt(b))
 
 **(Parse-Region-Opts-None)**
-$$\frac{\neg \text{IsPunc}(\text{Tok}(P), \texttt{"("})}{\Gamma \vdash \text{ParseRegionOptsOpt}(P) \Downarrow (P, \bot)}$$
+¬ IsPunc(Tok(P), "(")
+────────────────────────────────────────────────
+Γ ⊢ ParseRegionOptsOpt(P) ⇓ (P, ⊥)
 
 **(Parse-Region-Opts-Some)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"("}) \quad \Gamma \vdash \text{ParseExpr}(\text{Advance}(P)) \Downarrow (P_1, e) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{")"})}{\Gamma \vdash \text{ParseRegionOptsOpt}(P) \Downarrow (\text{Advance}(P_1), e)}$$
+IsPunc(Tok(P), "(")    Γ ⊢ ParseExpr(Advance(P)) ⇓ (P_1, e)    IsPunc(Tok(P_1), ")")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRegionOptsOpt(P) ⇓ (Advance(P_1), e)
 
 **(Parse-Region-Alias-None)**
-$$\frac{\neg \text{IsKw}(\text{Tok}(P), \texttt{as})}{\Gamma \vdash \text{ParseRegionAliasOpt}(P) \Downarrow (P, \bot)}$$
+¬ IsKw(Tok(P), `as`)
+──────────────────────────────────────────────
+Γ ⊢ ParseRegionAliasOpt(P) ⇓ (P, ⊥)
 
 **(Parse-Region-Alias-Some)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{as}) \quad \Gamma \vdash \text{ParseIdent}(\text{Advance}(P)) \Downarrow (P_1, name)}{\Gamma \vdash \text{ParseRegionAliasOpt}(P) \Downarrow (P_1, name)}$$
+IsKw(Tok(P), `as`)    Γ ⊢ ParseIdent(Advance(P)) ⇓ (P_1, name)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRegionAliasOpt(P) ⇓ (P_1, name)
 
 **(Parse-Region-Stmt)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{region}) \quad \Gamma \vdash \text{ParseRegionOptsOpt}(\text{Advance}(P)) \Downarrow (P_1, opts\_opt) \quad \Gamma \vdash \text{ParseRegionAliasOpt}(P_1) \Downarrow (P_2, alias\_opt) \quad \Gamma \vdash \text{ParseBlock}(P_2) \Downarrow (P_3, b)}{\Gamma \vdash \text{ParseStmtCore}(P) \Downarrow (P_3, \text{RegionStmt}(opts\_opt, alias\_opt, b))}$$
+IsKw(Tok(P), `region`)    Γ ⊢ ParseRegionOptsOpt(Advance(P)) ⇓ (P_1, opts_opt)    Γ ⊢ ParseRegionAliasOpt(P_1) ⇓ (P_2, alias_opt)    Γ ⊢ ParseBlock(P_2) ⇓ (P_3, b)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStmtCore(P) ⇓ (P_3, RegionStmt(opts_opt, alias_opt, b))
 
 **(Parse-Frame-Stmt)**
-$$\frac{\text{IsKw}(\text{Tok}(P), \texttt{frame}) \quad \Gamma \vdash \text{ParseBlock}(\text{Advance}(P)) \Downarrow (P_1, b)}{\Gamma \vdash \text{ParseStmtCore}(P) \Downarrow (P_1, \text{FrameStmt}(\bot, b))}$$
+IsKw(Tok(P), `frame`)    Γ ⊢ ParseBlock(Advance(P)) ⇓ (P_1, b)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStmtCore(P) ⇓ (P_1, FrameStmt(⊥, b))
 
 **(Parse-Frame-Explicit)**
-$$\frac{\text{IsIdent}(\text{Tok}(P)) \quad \text{IsPunc}(\text{Tok}(\text{Advance}(P)), \texttt{"."}) \quad \text{IsKw}(\text{Tok}(\text{Advance}(\text{Advance}(P))), \texttt{frame}) \quad name = \text{Lexeme}(\text{Tok}(P)) \quad \Gamma \vdash \text{ParseBlock}(\text{Advance}(\text{Advance}(\text{Advance}(P)))) \Downarrow (P_1, b)}{\Gamma \vdash \text{ParseStmtCore}(P) \Downarrow (P_1, \text{FrameStmt}(name, b))}$$
+IsIdent(Tok(P))    IsPunc(Tok(Advance(P)), ".")    IsKw(Tok(Advance(Advance(P))), `frame`)    name = Lexeme(Tok(P))    Γ ⊢ ParseBlock(Advance(Advance(Advance(P)))) ⇓ (P_1, b)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStmtCore(P) ⇓ (P_1, FrameStmt(name, b))
 
 **(Parse-Expr-Stmt)**
-$$\frac{\Gamma \vdash \text{ParseExpr}(P) \Downarrow (P_1, e)}{\Gamma \vdash \text{ParseStmtCore}(P) \Downarrow (P_1, \text{ExprStmt}(e))}$$
+Γ ⊢ ParseExpr(P) ⇓ (P_1, e)
+──────────────────────────────────────────────
+Γ ⊢ ParseStmtCore(P) ⇓ (P_1, ExprStmt(e))
 
 **Block Parsing.**
 
 **(Parse-Block)**
-$$\frac{\text{IsPunc}(\text{Tok}(P), \texttt{"{"}) \quad \Gamma \vdash \text{ParseStmtSeq}(\text{Advance}(P)) \Downarrow (P_1, stmts, tail) \quad \text{IsPunc}(\text{Tok}(P_1), \texttt{"}"})}{\Gamma \vdash \text{ParseBlock}(P) \Downarrow (\text{Advance}(P_1), \text{BlockExpr}(stmts, tail))}$$
+IsPunc(Tok(P), "{")    Γ ⊢ ParseStmtSeq(Advance(P)) ⇓ (P_1, stmts, tail)    IsPunc(Tok(P_1), "}")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseBlock(P) ⇓ (Advance(P_1), BlockExpr(stmts, tail))
 
 ##### 3.3.10.1. Statement Helper Parsing Rules
 **Terminator Consumption.**
 
-$$\text{ReqTerm}(s) \iff s \in \{\text{LetStmt}(\_),\ \text{VarStmt}(\_),\ \text{ShadowLetStmt}(\_),\ \text{ShadowVarStmt}(\_),\ \text{AssignStmt}(\_,\_),\ \text{CompoundAssignStmt}(\_,\_,\_),\ \text{ExprStmt}(\_)\}$$
+ReqTerm(s) ⇔ s ∈ {LetStmt(_), VarStmt(_), ShadowLetStmt(_), ShadowVarStmt(_), AssignStmt(_, _), CompoundAssignStmt(_, _, _), ExprStmt(_)}
 
 **(ConsumeTerminatorOpt-Req-Yes)**
-$$\frac{\text{ReqTerm}(s) \quad \text{IsTerm}(\text{Tok}(P))}{\Gamma \vdash \text{ConsumeTerminatorOpt}(P, s) \Downarrow \text{Advance}(P)}$$
+ReqTerm(s)    IsTerm(Tok(P))
+──────────────────────────────────────────────
+Γ ⊢ ConsumeTerminatorOpt(P, s) ⇓ Advance(P)
 
 **(ConsumeTerminatorOpt-Req-No)**
-$$\frac{\text{ReqTerm}(s) \quad \neg \text{IsTerm}(\text{Tok}(P)) \quad \text{Emit}(\text{Code}(\text{Missing-Terminator-Err}),\ \text{Span}=\text{Tok}(P).\text{span}) \quad \Gamma \vdash \text{SyncStmt}(P) \Downarrow P_1}{\Gamma \vdash \text{ConsumeTerminatorOpt}(P, s) \Downarrow P_1}$$
+ReqTerm(s)    ¬ IsTerm(Tok(P))    Emit(Code(Missing-Terminator-Err), Span = Tok(P).span)    Γ ⊢ SyncStmt(P) ⇓ P_1
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ConsumeTerminatorOpt(P, s) ⇓ P_1
 
 **(ConsumeTerminatorOpt-Opt-Yes)**
-$$\frac{\neg \text{ReqTerm}(s) \quad \text{IsTerm}(\text{Tok}(P))}{\Gamma \vdash \text{ConsumeTerminatorOpt}(P, s) \Downarrow \text{Advance}(P)}$$
+¬ ReqTerm(s)    IsTerm(Tok(P))
+──────────────────────────────────────────────
+Γ ⊢ ConsumeTerminatorOpt(P, s) ⇓ Advance(P)
 
 **(ConsumeTerminatorOpt-Opt-No)**
-$$\frac{\neg \text{ReqTerm}(s) \quad \neg \text{IsTerm}(\text{Tok}(P))}{\Gamma \vdash \text{ConsumeTerminatorOpt}(P, s) \Downarrow P}$$
+¬ ReqTerm(s)    ¬ IsTerm(Tok(P))
+──────────────────────────────────────────────
+Γ ⊢ ConsumeTerminatorOpt(P, s) ⇓ P
 
 **(ConsumeTerminatorReq-Yes)**
-$$\frac{\text{Tok}(P) \in \{\text{Punctuator}(\texttt{";"}),\ \text{Newline}\}}{\Gamma \vdash \text{ConsumeTerminatorReq}(P) \Downarrow \text{Advance}(P)}$$
+Tok(P) ∈ {Punctuator(";"), Newline}
+──────────────────────────────────────────────
+Γ ⊢ ConsumeTerminatorReq(P) ⇓ Advance(P)
 
 **(ConsumeTerminatorReq-No)**
-$$\frac{\text{Tok}(P) \notin \{\text{Punctuator}(\texttt{";"}),\ \text{Newline}\} \quad c = \text{Code}(\text{Missing-Terminator-Err}) \quad \Gamma \vdash \text{Emit}(c,\ \text{Tok}(P).\text{span}) \quad \Gamma \vdash \text{SyncStmt}(P) \Downarrow P_1}{\Gamma \vdash \text{ConsumeTerminatorReq}(P) \Downarrow P_1}$$
+Tok(P) ∉ {Punctuator(";"), Newline}    c = Code(Missing-Terminator-Err)    Γ ⊢ Emit(c, Tok(P).span)    Γ ⊢ SyncStmt(P) ⇓ P_1
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ConsumeTerminatorReq(P) ⇓ P_1
 
 **Let/Var Statements.**
 
 **(LetOrVarStmt-Let)**
-$$\frac{\text{Tok}(P) = \text{Keyword}(\texttt{let})}{\Gamma \vdash \text{LetOrVarStmt}(P, bind) \Downarrow \text{LetStmt}(bind)}$$
+Tok(P) = Keyword(`let`)
+──────────────────────────────────────────────
+Γ ⊢ LetOrVarStmt(P, bind) ⇓ LetStmt(bind)
 
 **(LetOrVarStmt-Var)**
-$$\frac{\text{Tok}(P) = \text{Keyword}(\texttt{var})}{\Gamma \vdash \text{LetOrVarStmt}(P, bind) \Downarrow \text{VarStmt}(bind)}$$
+Tok(P) = Keyword(`var`)
+──────────────────────────────────────────────
+Γ ⊢ LetOrVarStmt(P, bind) ⇓ VarStmt(bind)
 
 **Assignments.**
 
 **(AssignOrCompound-Assign)**
-$$\frac{\text{Tok}(P_1) = \text{Operator}(\texttt{"="})}{\Gamma \vdash \text{AssignOrCompound}(P_1, p, e) \Downarrow \text{AssignStmt}(p, e)}$$
+Tok(P_1) = Operator("=")
+──────────────────────────────────────────────
+Γ ⊢ AssignOrCompound(P_1, p, e) ⇓ AssignStmt(p, e)
 
 **(AssignOrCompound-Compound)**
-$$\frac{\text{Tok}(P_1) = \text{Operator}(op) \quad op \in \{\texttt{"+="},\texttt{"-="},\texttt{"*="},\texttt{"/="},\texttt{"%="}\}}{\Gamma \vdash \text{AssignOrCompound}(P_1, p, e) \Downarrow \text{CompoundAssignStmt}(p, op, e)}$$
+Tok(P_1) = Operator(op)    op ∈ {"+=", "-=", "*=", "/=", "%="}
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ AssignOrCompound(P_1, p, e) ⇓ CompoundAssignStmt(p, op, e)
 
 **Statement Sequences.**
 
 **(ParseStmtSeq-End)**
-$$\frac{\text{Tok}(P) = \text{Punctuator}(\texttt{"}"})}{\Gamma \vdash \text{ParseStmtSeq}(P) \Downarrow (P, [], \bot)}$$
+Tok(P) = Punctuator("}")
+──────────────────────────────────────────────
+Γ ⊢ ParseStmtSeq(P) ⇓ (P, [], ⊥)
 
 **(ParseStmtSeq-TailExpr)**
-$$\frac{\text{Tok}(P) \notin \{\text{Punctuator}(\texttt{"}"})\} \quad \Gamma \vdash \text{ParseExpr}(P) \Downarrow (P_1, e) \quad \text{Tok}(P_1) = \text{Punctuator}(\texttt{"}"})}{\Gamma \vdash \text{ParseStmtSeq}(P) \Downarrow (P_1, [], e)}$$
+Tok(P) ∉ {Punctuator("}")}    Γ ⊢ ParseExpr(P) ⇓ (P_1, e)    Tok(P_1) = Punctuator("}")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStmtSeq(P) ⇓ (P_1, [], e)
 
 **(ParseStmtSeq-Cons)**
-$$\frac{\Gamma \vdash \text{ParseStmt}(P) \Downarrow (P_1, s) \quad \Gamma \vdash \text{ParseStmtSeq}(P_1) \Downarrow (P_2, ss, tail)}{\Gamma \vdash \text{ParseStmtSeq}(P) \Downarrow (P_2, [s] \mathbin{+\!\!+} ss, tail)}$$
+Γ ⊢ ParseStmt(P) ⇓ (P_1, s)    Γ ⊢ ParseStmtSeq(P_1) ⇓ (P_2, ss, tail)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStmtSeq(P) ⇓ (P_2, [s] ++ ss, tail)
 
 #### 3.3.11. Doc Comment Association (Phase 1)
 
-$$\text{DocSeq}(D) = D$$
-$$\text{ItemSeq}(Items) = Items$$
+DocSeq(D) = D
+ItemSeq(Items) = Items
 
 **(Attach-Doc-Line)**
-$$\frac{d.\text{kind} = \text{LineDoc} \quad Items = [i_1,\ldots,i_k] \quad j = \min\{ t \mid d.\text{span}.\text{end\_offset} \le i_t.\text{span}.\text{start\_offset} \}}{\Gamma \vdash \text{AttachDoc}(d, i_j)}$$
-$$\text{LineDocTarget}(d, Items) = i_j \iff \Gamma \vdash \text{AttachDoc}(d,i_j)$$
-$$\text{LineDocsFor}(i, D, Items) = [d \in D \mid d.\text{kind}=\text{LineDoc} \land \text{LineDocTarget}(d,Items)=i]$$
+d.kind = LineDoc    Items = [i_1, …, i_k]    j = min{ t | d.span.end_offset ≤ i_t.span.start_offset }
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ AttachDoc(d, i_j)
+LineDocTarget(d, Items) = i_j ⇔ Γ ⊢ AttachDoc(d, i_j)
+LineDocsFor(i, D, Items) = [d ∈ D | d.kind = LineDoc ∧ LineDocTarget(d, Items) = i]
 
 **(Attach-Doc-Module)**
-$$\frac{d.\text{kind} = \text{ModuleDoc}}{\Gamma \vdash \text{AttachModuleDoc}(d)}$$
+d.kind = ModuleDoc
+──────────────────────────────────────────────
+Γ ⊢ AttachModuleDoc(d)
 
-$$\text{ModuleDocs}(D) = [d \in D \mid d.\text{kind}=\text{ModuleDoc}]$$
+ModuleDocs(D) = [d ∈ D | d.kind = ModuleDoc]
 
 #### 3.3.12. Error Recovery and Synchronization
 
 **Statement Synchronization Set.**
 
-$$\text{SyncStmt} = \{\text{Punctuator}(\texttt{";"}),\ \text{Newline},\ \text{Punctuator}(\texttt{"}"}),\ \text{EOF}\}$$
+SyncStmt = {Punctuator(";"), Newline, Punctuator("}"), EOF}
 
 **Item Synchronization Set.**
 
-$$\text{SyncItem} = \{\text{Keyword}(\texttt{procedure}),\ \text{Keyword}(\texttt{record}),\ \text{Keyword}(\texttt{enum}),\ \text{Keyword}(\texttt{modal}),\ \text{Keyword}(\texttt{class}),\ \text{Keyword}(\texttt{type}),\ \text{Keyword}(\texttt{using}),\ \text{Keyword}(\texttt{let}),\ \text{Keyword}(\texttt{var}),\ \text{Punctuator}(\texttt{"}"}),\ \text{EOF}\}$$
+SyncItem = {Keyword(`procedure`), Keyword(`record`), Keyword(`enum`), Keyword(`modal`), Keyword(`class`), Keyword(`type`), Keyword(`using`), Keyword(`let`), Keyword(`var`), Punctuator("}"), EOF}
 
 **Type Synchronization Set.**
 
-$$\text{SyncType} = \{\text{Punctuator}(\texttt{","}),\ \text{Punctuator}(\texttt{";"}),\ \text{Newline},\ \text{Punctuator}(\texttt{")"}),\ \text{Punctuator}(\texttt{"]"}),\ \text{Punctuator}(\texttt{"}"}),\ \text{EOF}\}$$
+SyncType = {Punctuator(","), Punctuator(";"), Newline, Punctuator(")"), Punctuator("]"), Punctuator("}"), EOF}
 
 **(Sync-Stmt-Stop)**
-$$\frac{\text{Tok}(P) \in \{\text{Punctuator}(\texttt{"}"}),\ \text{EOF}\}}{\Gamma \vdash \text{SyncStmt}(P) \Downarrow P}$$
+Tok(P) ∈ {Punctuator("}"), EOF}
+──────────────────────────────────────────────
+Γ ⊢ SyncStmt(P) ⇓ P
 
 **(Sync-Stmt-Consume)**
-$$\frac{\text{Tok}(P) \in \{\text{Punctuator}(\texttt{";"}),\ \text{Newline}\}}{\Gamma \vdash \text{SyncStmt}(P) \Downarrow \text{Advance}(P)}$$
+Tok(P) ∈ {Punctuator(";"), Newline}
+──────────────────────────────────────────────
+Γ ⊢ SyncStmt(P) ⇓ Advance(P)
 
 **(Sync-Stmt-Advance)**
-$$\frac{\text{Tok}(P) \notin \text{SyncStmt}}{\Gamma \vdash \text{SyncStmt}(P) \Downarrow \text{SyncStmt}(\text{Advance}(P))}$$
+Tok(P) ∉ SyncStmt
+──────────────────────────────────────────────
+Γ ⊢ SyncStmt(P) ⇓ SyncStmt(Advance(P))
 
 **(Sync-Item-Stop)**
-$$\frac{\text{Tok}(P) \in \text{SyncItem}}{\Gamma \vdash \text{SyncItem}(P) \Downarrow P}$$
+Tok(P) ∈ SyncItem
+──────────────────────────────────────────────
+Γ ⊢ SyncItem(P) ⇓ P
 
 **(Sync-Item-Advance)**
-$$\frac{\text{Tok}(P) \notin \text{SyncItem}}{\Gamma \vdash \text{SyncItem}(P) \Downarrow \text{SyncItem}(\text{Advance}(P))}$$
+Tok(P) ∉ SyncItem
+──────────────────────────────────────────────
+Γ ⊢ SyncItem(P) ⇓ SyncItem(Advance(P))
 
 **(Sync-Type-Stop)**
-$$\frac{\text{Tok}(P) \in \{\text{Punctuator}(\texttt{")"}),\ \text{Punctuator}(\texttt{"]"}),\ \text{Punctuator}(\texttt{"}"}),\ \text{EOF}\}}{\Gamma \vdash \text{SyncType}(P) \Downarrow P}$$
+Tok(P) ∈ {Punctuator(")"), Punctuator("]"), Punctuator("}"), EOF}
+──────────────────────────────────────────────
+Γ ⊢ SyncType(P) ⇓ P
 
 **(Sync-Type-Consume)**
-$$\frac{\text{Tok}(P) \in \{\text{Punctuator}(\texttt{","}),\ \text{Punctuator}(\texttt{";"}),\ \text{Newline}\}}{\Gamma \vdash \text{SyncType}(P) \Downarrow \text{Advance}(P)}$$
+Tok(P) ∈ {Punctuator(","), Punctuator(";"), Newline}
+──────────────────────────────────────────────
+Γ ⊢ SyncType(P) ⇓ Advance(P)
 
 **(Sync-Type-Advance)**
-$$\frac{\text{Tok}(P) \notin \text{SyncType}}{\Gamma \vdash \text{SyncType}(P) \Downarrow \text{SyncType}(\text{Advance}(P))}$$
+Tok(P) ∉ SyncType
+──────────────────────────────────────────────
+Γ ⊢ SyncType(P) ⇓ SyncType(Advance(P))
 
-$$\text{StmtParseErrRule} = \text{Parse-Statement-Err}$$
-$$\text{ItemParseErrRule} = \text{Parse-Item-Err}$$
+StmtParseErrRule = Parse-Statement-Err
+ItemParseErrRule = Parse-Item-Err
 
 #### 3.3.13. Diagnostics (Phase 1)
 
-$$\text{Phase1DiagRules} = \{\text{Unsupported-Construct},\ \text{Missing-Terminator-Err},\ \text{Parse-Syntax-Err}\}$$
+Phase1DiagRules = {Unsupported-Construct, Missing-Terminator-Err, Parse-Syntax-Err}
 
 **(Parse-Syntax-Err)**
-$$\text{GenericParseRules} = \{\text{Parse-Ident-Err},\ \text{Parse-Type-Err},\ \text{Parse-Pattern-Err},\ \text{Parse-Primary-Err},\ \text{Parse-Statement-Err},\ \text{Parse-Item-Err}\}$$
+GenericParseRules = {Parse-Ident-Err, Parse-Type-Err, Parse-Pattern-Err, Parse-Primary-Err, Parse-Statement-Err, Parse-Item-Err}
 
-$$\frac{r \in \text{GenericParseRules} \quad \text{PremisesHold}(r, P)}{\Gamma \vdash \text{Emit}(\text{Code}(\text{Parse-Syntax-Err}))}$$
+r ∈ GenericParseRules    PremisesHold(r, P)
+────────────────────────────────────────────────
+Γ ⊢ Emit(Code(Parse-Syntax-Err))
 
 ### 3.4. Module Aggregation
 
 #### 3.4.1. Inputs, Outputs, and Invariants
 
-$$\text{ModuleAggInputs}(P) = \langle P.\text{modules},\ P.\text{source\_root},\ \{ \text{CompilationUnit}(\text{DirOf}(p,P.\text{source\_root})) \mid p \in P.\text{modules} \} \rangle$$
-$$\text{ModuleAggOutputs}(P) = \langle \{ \text{ParseModule}(p,P.\text{source\_root}) \mid p \in P.\text{modules} \},\ \{ \text{NameMap}(P, p) \mid p \in P.\text{modules} \},\ G,\ \text{InitOrder},\ \text{InitPlan} \rangle$$
-$$\text{ModuleMap}(P, p) = M \iff \Gamma \vdash \text{ParseModules}(P) \Downarrow Ms \land M \in Ms \land M.\text{path} = p$$
-$$\text{PathOfModule}(p) = [c_1,\ldots,c_n] \iff p = c_1 \mathbin{::} \cdots \mathbin{::} c_n$$
-$$\text{StringOfPath}([c_1,\ldots,c_n]) = \text{Join}(\texttt{"::"}, [c_1,\ldots,c_n])$$
-$$\text{NameCollectAfterParse}(P) \iff \Gamma \vdash \text{ParseModules}(P) \Downarrow Ms \land \forall M \in Ms.\ \exists N.\ \Gamma \vdash \text{CollectNames}(M) \Downarrow N$$
-$$\text{NameCollectOrderIndepRef} = \{\texttt{"5.1.5"}\}$$
-$$\text{ForwardRefOrderRef} = \{\texttt{"5.12"}\}$$
+ModuleAggInputs(P) = ⟨P.modules, P.source_root, { CompilationUnit(DirOf(p, P.source_root)) | p ∈ P.modules }⟩
+ModuleAggOutputs(P) = ⟨{ ParseModule(p, P.source_root) | p ∈ P.modules }, { NameMap(P, p) | p ∈ P.modules }, G, InitOrder, InitPlan⟩
+ModuleMap(P, p) = M ⇔ Γ ⊢ ParseModules(P) ⇓ Ms ∧ M ∈ Ms ∧ M.path = p
+PathOfModule(p) = [c_1, …, c_n] ⇔ p = c_1 :: ··· :: c_n
+StringOfPath([c_1, …, c_n]) = Join("::", [c_1, …, c_n])
+NameCollectAfterParse(P) ⇔ Γ ⊢ ParseModules(P) ⇓ Ms ∧ ∀ M ∈ Ms. ∃ N. Γ ⊢ CollectNames(M) ⇓ N
+NameCollectOrderIndepRef = {"5.1.5"}
+ForwardRefOrderRef = {"5.12"}
 
 #### 3.4.2. Module Aggregation (`ParseModule`)
 
 **Module Directory of a Module Path.**
 
 **(DirOf-Root)**
-$$\frac{p = A}{\Gamma \vdash \text{DirOf}(p,S) = S}$$
+p = A
+──────────────────────────────────────────────
+Γ ⊢ DirOf(p, S) = S
 
 **(DirOf-Rel)**
-$$\frac{p = c_1 :: \cdots :: c_n \quad n \ge 1}{\Gamma \vdash \text{DirOf}(p,S) = S / c_1 / \cdots / c_n}$$
+p = c_1 :: ··· :: c_n    n ≥ 1
+──────────────────────────────────────────────────────────────
+Γ ⊢ DirOf(p, S) = S / c_1 / ··· / c_n
 
-$$A = P.\text{assembly.name}$$
+A = P.assembly.name
 
 **ParseModule (Big-Step).**
-$$U = \text{CompilationUnit}(\text{DirOf}(p,S))$$
-$$U = [f_1,\ldots,f_n]$$
-$$\text{ReadBytes} : \text{Path} \rightharpoonup \text{Bytes}$$
+U = CompilationUnit(DirOf(p, S))
+U = [f_1, …, f_n]
+ReadBytes : Path ⇀ Bytes
 
 **(ReadBytes-Ok)**
-$$\frac{\text{read\_ok}(f) = B}{\Gamma \vdash \text{ReadBytes}(f) \Downarrow B}$$
+read_ok(f) = B
+──────────────────────────────────────────────
+Γ ⊢ ReadBytes(f) ⇓ B
 
 **(ReadBytes-Err)**
-$$\frac{\text{read\_ok}(f) \Uparrow \quad c = \text{Code}(\text{ReadBytes-Err})}{\Gamma \vdash \text{ReadBytes}(f) \Uparrow c}$$
+read_ok(f) ⇑    c = Code(ReadBytes-Err)
+──────────────────────────────────────────────
+Γ ⊢ ReadBytes(f) ⇑ c
 
-$$\text{Bytes}(f) = B \iff \Gamma \vdash \text{ReadBytes}(f) \Downarrow B$$
+Bytes(f) = B ⇔ Γ ⊢ ReadBytes(f) ⇓ B
 
 **(ParseModule-Ok)**
-$$\frac{
-    \forall i,\ \Gamma \vdash \text{ReadBytes}(f_i) \Downarrow B_i \quad
-    \Gamma \vdash \text{LoadSource}(f_i, B_i) \Downarrow S_i \quad
-    \Gamma \vdash \text{ParseFile}(S_i) \Downarrow F_i
-}{
-    \Gamma \vdash \text{ParseModule}(p,S) \Downarrow
-    \langle p,\ F_1.\text{items} \mathbin{+\!\!+} \cdots \mathbin{+\!\!+} F_n.\text{items},\ F_1.\text{module\_doc} \mathbin{+\!\!+} \cdots \mathbin{+\!\!+} F_n.\text{module\_doc} \rangle
-}$$
+∀ i, Γ ⊢ ReadBytes(f_i) ⇓ B_i    Γ ⊢ LoadSource(f_i, B_i) ⇓ S_i    Γ ⊢ ParseFile(S_i) ⇓ F_i
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseModule(p, S) ⇓ ⟨p, F_1.items ++ ··· ++ F_n.items, F_1.module_doc ++ ··· ++ F_n.module_doc⟩
 
 **(ParseModule-Err-Read)**
-$$\frac{\exists i,\ \Gamma \vdash \text{ReadBytes}(f_i) \Uparrow c}{\Gamma \vdash \text{ParseModule}(p,S) \Uparrow c}$$
+∃ i, Γ ⊢ ReadBytes(f_i) ⇑ c
+──────────────────────────────────────────────
+Γ ⊢ ParseModule(p, S) ⇑ c
 
 **(ParseModule-Err-Load)**
-$$\frac{\exists i,\ \Gamma \vdash \text{ReadBytes}(f_i) \Downarrow B_i \quad \Gamma \vdash \text{LoadSource}(f_i, B_i) \Uparrow c}{\Gamma \vdash \text{ParseModule}(p,S) \Uparrow c}$$
+∃ i, Γ ⊢ ReadBytes(f_i) ⇓ B_i    Γ ⊢ LoadSource(f_i, B_i) ⇑ c
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseModule(p, S) ⇑ c
 
 **LoadSource Short-Circuit.**
-If $\Gamma \vdash \text{LoadSource}(f,B) \Uparrow c$ for any file in a compilation unit, $\text{ParseModule}$ MUST NOT invoke $\text{Tokenize}$, $\text{ParseFile}$, or subset checks for that file.
+If Γ ⊢ LoadSource(f, B) ⇑ c for any file in a compilation unit, ParseModule MUST NOT invoke Tokenize, ParseFile, or subset checks for that file.
 
 **(ParseModule-Err-Unit)**
-$$\frac{\Gamma \vdash \text{CompilationUnit}(\text{DirOf}(p,S)) \Uparrow c}{\Gamma \vdash \text{ParseModule}(p,S) \Uparrow c}$$
+Γ ⊢ CompilationUnit(DirOf(p, S)) ⇑ c
+──────────────────────────────────────────────
+Γ ⊢ ParseModule(p, S) ⇑ c
 
 **(ParseModule-Err-Parse)**
-$$\frac{\exists i,\ \Gamma \vdash \text{ReadBytes}(f_i) \Downarrow B_i \quad \Gamma \vdash \text{LoadSource}(f_i, B_i) \Downarrow S_i \quad \Gamma \vdash \text{ParseFile}(S_i) \Uparrow c}{\Gamma \vdash \text{ParseModule}(p,S) \Uparrow c}$$
+∃ i, Γ ⊢ ReadBytes(f_i) ⇓ B_i    Γ ⊢ LoadSource(f_i, B_i) ⇓ S_i    Γ ⊢ ParseFile(S_i) ⇑ c
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseModule(p, S) ⇑ c
 
-$$\text{ParseFileBestEffort}(S) \iff \exists F.\ \Gamma \vdash \text{ParseFile}(S) \Downarrow F$$
-$$\text{ParseFileOk}(S) \iff \text{ParseFileBestEffort}(S) \land \neg \text{HasError}(\text{ParseFileDiag}(S))$$
-$$\text{ParseFileDiag}(S) = \Delta \iff \Gamma \vdash \text{Tokenize}(S) \Downarrow (K_{\text{raw}}, D) \land K = \text{Filter}(K_{\text{raw}}) \land P_0 = \langle K, 0, D, 0, 0, [] \rangle \land \Gamma \vdash \text{ParseItems}(P_0) \Downarrow (P_1, I, MDoc) \land \text{DiagStream}(P_1)=\Delta$$
-$$\text{HasError}(\Delta) \iff \exists d \in \Delta.\ d.\text{severity} = \text{Error}$$
+ParseFileBestEffort(S) ⇔ ∃ F. Γ ⊢ ParseFile(S) ⇓ F
+ParseFileOk(S) ⇔ ParseFileBestEffort(S) ∧ ¬ HasError(ParseFileDiag(S))
+ParseFileDiag(S) = Δ ⇔ Γ ⊢ Tokenize(S) ⇓ (K_raw, D) ∧ K = Filter(K_raw) ∧ P_0 = ⟨K, 0, D, 0, 0, []⟩ ∧ Γ ⊢ ParseItems(P_0) ⇓ (P_1, I, MDoc) ∧ DiagStream(P_1) = Δ
+HasError(Δ) ⇔ ∃ d ∈ Δ. d.severity = Error
 
 **ParseModule (Small-Step).**
-$$\text{ModState} = \{\text{ModStart}(p,S),\ \text{ModScan}(p,S,U,items,docs),\ \text{ModDone}(M),\ \text{Error}(code)\}$$
+ModState = {ModStart(p, S), ModScan(p, S, U, items, docs), ModDone(M), Error(code)}
 
 **(Mod-Start)**
-$$\frac{U = \text{CompilationUnit}(\text{DirOf}(p,S))}{\langle \text{ModStart}(p,S) \rangle \to \langle \text{ModScan}(p,S,U,[],[]) \rangle}$$
+U = CompilationUnit(DirOf(p, S))
+──────────────────────────────────────────────
+⟨ModStart(p, S)⟩ → ⟨ModScan(p, S, U, [], [])⟩
 
 **(Mod-Start-Err-Unit)**
-$$\frac{\Gamma \vdash \text{CompilationUnit}(\text{DirOf}(p,S)) \Uparrow c}{\langle \text{ModStart}(p,S) \rangle \to \langle \text{Error}(c) \rangle}$$
+Γ ⊢ CompilationUnit(DirOf(p, S)) ⇑ c
+──────────────────────────────────────────────
+⟨ModStart(p, S)⟩ → ⟨Error(c)⟩
 
 **(Mod-Scan)**
-$$\frac{U = f::fs \quad \Gamma \vdash \text{ReadBytes}(f) \Downarrow B \quad \Gamma \vdash \text{LoadSource}(f,B) \Downarrow S_f \quad \Gamma \vdash \text{ParseFile}(S_f) \Downarrow F}{\langle \text{ModScan}(p,S,f::fs,items,docs) \rangle \to \langle \text{ModScan}(p,S,fs,items \mathbin{+\!\!+} F.\text{items},docs \mathbin{+\!\!+} F.\text{module\_doc}) \rangle}$$
+U = f :: fs    Γ ⊢ ReadBytes(f) ⇓ B    Γ ⊢ LoadSource(f, B) ⇓ S_f    Γ ⊢ ParseFile(S_f) ⇓ F
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨ModScan(p, S, f :: fs, items, docs)⟩ → ⟨ModScan(p, S, fs, items ++ F.items, docs ++ F.module_doc)⟩
 
 **(Mod-Scan-Err-Read)**
-$$\frac{U = f::fs \quad \Gamma \vdash \text{ReadBytes}(f) \Uparrow c}{\langle \text{ModScan}(p,S,f::fs,items,docs) \rangle \to \langle \text{Error}(c) \rangle}$$
+U = f :: fs    Γ ⊢ ReadBytes(f) ⇑ c
+──────────────────────────────────────────────────────────────
+⟨ModScan(p, S, f :: fs, items, docs)⟩ → ⟨Error(c)⟩
 
 **(Mod-Scan-Err-Load)**
-$$\frac{U = f::fs \quad \Gamma \vdash \text{ReadBytes}(f) \Downarrow B \quad \Gamma \vdash \text{LoadSource}(f,B) \Uparrow c}{\langle \text{ModScan}(p,S,f::fs,items,docs) \rangle \to \langle \text{Error}(c) \rangle}$$
+U = f :: fs    Γ ⊢ ReadBytes(f) ⇓ B    Γ ⊢ LoadSource(f, B) ⇑ c
+──────────────────────────────────────────────────────────────────────────────
+⟨ModScan(p, S, f :: fs, items, docs)⟩ → ⟨Error(c)⟩
 
 **(Mod-Scan-Err-Parse)**
-$$\frac{U = f::fs \quad \Gamma \vdash \text{ReadBytes}(f) \Downarrow B \quad \Gamma \vdash \text{LoadSource}(f,B) \Downarrow S_f \quad \Gamma \vdash \text{ParseFile}(S_f) \Uparrow c}{\langle \text{ModScan}(p,S,f::fs,items,docs) \rangle \to \langle \text{Error}(c) \rangle}$$
+U = f :: fs    Γ ⊢ ReadBytes(f) ⇓ B    Γ ⊢ LoadSource(f, B) ⇓ S_f    Γ ⊢ ParseFile(S_f) ⇑ c
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨ModScan(p, S, f :: fs, items, docs)⟩ → ⟨Error(c)⟩
 
 **(Mod-Done)**
-$$\frac{}{ \langle \text{ModScan}(p,S,[],items,docs) \rangle \to \langle \text{ModDone}(\langle p, items, docs \rangle) \rangle }$$
+──────────────────────────────────────────────────────────────────────────────
+⟨ModScan(p, S, [], items, docs)⟩ → ⟨ModDone(⟨p, items, docs⟩)⟩
 
 **ParseModules (Big-Step).**
 
-$$P.\text{modules} = [p_1,\ldots,p_k]$$
+P.modules = [p_1, …, p_k]
 
 **(ParseModules-Ok)**
-$$\frac{\forall i,\ \Gamma \vdash \text{ParseModule}(p_i, P.\text{source\_root}) \Downarrow M_i}{\Gamma \vdash \text{ParseModules}(P) \Downarrow [M_1,\ldots,M_k]}$$
+∀ i, Γ ⊢ ParseModule(p_i, P.source_root) ⇓ M_i
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseModules(P) ⇓ [M_1, …, M_k]
 
 **(ParseModules-Err)**
-$$\frac{\exists i,\ \Gamma \vdash \text{ParseModule}(p_i, P.\text{source\_root}) \Uparrow c}{\Gamma \vdash \text{ParseModules}(P) \Uparrow c}$$
+∃ i, Γ ⊢ ParseModule(p_i, P.source_root) ⇑ c
+──────────────────────────────────────────────
+Γ ⊢ ParseModules(P) ⇑ c
 
 ## 4. Phase 2: Compile-Time Execution (Deferred in Cursive0)
 
-$$\text{ComptimeForm} = \{\texttt{comptime}\}$$
-$$\text{ComptimeForm} \subseteq \text{UnsupportedForm}$$
+ComptimeForm = {`comptime`}
+ComptimeForm ⊆ UnsupportedForm
 
 ## 5. Phase 3: Name Resolution + Type Checking
 
@@ -4244,1112 +5310,1613 @@ $$\text{ComptimeForm} \subseteq \text{UnsupportedForm}$$
 
 #### 5.1.1. Scope Context and Identifiers
 
-$$\text{IdKeyRef} = \{\texttt{"3.1.6"}\}$$
-$$\text{ScopeKey}(S) \iff \text{dom}(S) \subseteq \{\text{IdKey}(x) \mid x \in \text{Identifier}\}$$
+IdKeyRef = {"3.1.6"}
+ScopeKey(S) ⇔ dom(S) ⊆ {IdKey(x) | x ∈ Identifier}
 
-$$\Sigma = \langle \Sigma.\text{Mods},\ \Sigma.\text{Types},\ \Sigma.\text{Classes} \rangle$$
-$$\Sigma.\text{Mods} \in [\text{ASTModule}]$$
-$$\Sigma.\text{Types} : \text{Path} \rightharpoonup \text{TypeDecl}$$
-$$\Sigma.\text{Classes} : \text{Path} \rightharpoonup \text{ClassDecl}$$
+Σ = ⟨Σ.Mods, Σ.Types, Σ.Classes⟩
+Σ.Mods ∈ [ASTModule]
+Σ.Types : Path ⇀ TypeDecl
+Σ.Classes : Path ⇀ ClassDecl
 
-$$\Gamma = \langle P,\ \Sigma,\ m,\ S \rangle$$
-$$\text{Project}(\Gamma) = P$$
-$$\text{ResCtx}(\Gamma) = \langle \Sigma,\ m \rangle$$
-$$\text{CurrentModule}(\Gamma) = m$$
-$$\text{Scopes}(\Gamma) = S$$
+Γ = ⟨P, Σ, m, S⟩
+Project(Γ) = P
+ResCtx(Γ) = ⟨Σ, m⟩
+CurrentModule(Γ) = m
+Scopes(Γ) = S
 
-$$\text{EntityKind} = \{\text{Value},\ \text{Type},\ \text{Class},\ \text{ModuleAlias}\}$$
-$$\text{EntitySource} = \{\text{Decl},\ \text{Using},\ \text{RegionAlias}\}$$
-$$\text{Entity} = \langle \text{kind},\ \text{origin\_opt},\ \text{target\_opt},\ \text{source} \rangle$$
-$$\text{origin\_opt} \in \text{ModulePath} \cup \{\bot\} \quad \text{target\_opt} \in \text{Identifier} \cup \{\bot\}$$
+EntityKind = {Value, Type, Class, ModuleAlias}
+EntitySource = {Decl, Using, RegionAlias}
+Entity = ⟨kind, origin_opt, target_opt, source⟩
+origin_opt ∈ ModulePath ∪ {⊥}    target_opt ∈ Identifier ∪ {⊥}
 
 **Unified Namespace.**
 
-$$S : \text{IdKey} \rightharpoonup \text{Entity}$$
+S : IdKey ⇀ Entity
 
-$$\text{Scopes}(\Gamma) = [S_1,\ldots,S_k,S_\text{proc},S_\text{module},S_\text{universe}] \quad (k \ge 0)$$
+Scopes(Γ) = [S_1, …, S_k, S_proc, S_module, S_universe]    (k ≥ 0)
 
-$$\text{LocalScopes}(\Gamma) = [S_1,\ldots,S_k]$$
-$$\text{ProcScope}(\Gamma) = S_\text{proc}$$
-$$\text{ModuleScope}(\Gamma) = S_\text{module}$$
-$$\text{UniverseScope}(\Gamma) = S_\text{universe}$$
+LocalScopes(Γ) = [S_1, …, S_k]
+ProcScope(Γ) = S_proc
+ModuleScope(Γ) = S_module
+UniverseScope(Γ) = S_universe
 
-$$\text{UniverseProtectedRef} = \{\texttt{"3.2.3"}\}$$
+UniverseProtectedRef = {"3.2.3"}
 
-$$\text{UniverseBindings} = \{ \text{IdKey}(x) \mapsto \langle \text{Type}, \bot, \bot, \text{Decl} \rangle \mid x \in \text{UniverseProtected} \} \cup \{ \text{IdKey}(\texttt{"cursive"}) \mapsto \langle \text{ModuleAlias}, \texttt{"cursive"}, \bot, \text{Decl} \rangle \}$$
-$$S_\text{universe} = \text{UniverseBindings}$$
+UniverseBindings = { IdKey(x) ↦ ⟨Type, ⊥, ⊥, Decl⟩ | x ∈ UniverseProtected } ∪ { IdKey(`cursive`) ↦ ⟨ModuleAlias, `cursive`, ⊥, Decl⟩ }
+S_universe = UniverseBindings
 
-$$\text{BytePrefix}(p,s) \iff \exists r.\ s = p \mathbin{+\!\!+} r$$
-$$\text{Prefix}(s,p) \iff \text{BytePrefix}(p,s)$$
+BytePrefix(p, s) ⇔ ∃ r. s = p ++ r
+Prefix(s, p) ⇔ BytePrefix(p, s)
 
-$$\text{ReservedGen}(x) \iff \text{Prefix}(\text{IdKey}(x), \text{IdKey}(\texttt{"gen\_"}))$$
-$$\text{ReservedCursive}(x) \iff \text{IdEq}(x,\texttt{"cursive"})$$
-$$\text{ReservedId}(x) \iff \text{ReservedGen}(x) \lor \text{ReservedCursive}(x)$$
-$$\text{ReservedModulePath}(path) \iff (|path| \ge 1 \land \text{IdEq}(path[0],\texttt{"cursive"})) \lor (\exists i.\ \text{ReservedGen}(path[i]))$$
+ReservedGen(x) ⇔ Prefix(IdKey(x), IdKey(`gen_`))
+ReservedCursive(x) ⇔ IdEq(x, `cursive`)
+ReservedId(x) ⇔ ReservedGen(x) ∨ ReservedCursive(x)
+ReservedModulePath(path) ⇔ (|path| ≥ 1 ∧ IdEq(path[0], `cursive`)) ∨ (∃ i. ReservedGen(path[i]))
 
 <!-- Source: "The `cursive.*` namespace prefix is reserved for specification-defined features. User programs and vendor extensions MUST NOT use this namespace." -->
 
-$$\text{PrimTypeNames} = \{\texttt{"i8"},\texttt{"i16"},\texttt{"i32"},\texttt{"i64"},\texttt{"i128"},\texttt{"u8"},\texttt{"u16"},\texttt{"u32"},\texttt{"u64"},\texttt{"u128"},\texttt{"f16"},\texttt{"f32"},\texttt{"f64"},\texttt{"bool"},\texttt{"char"},\texttt{"usize"},\texttt{"isize"}\}$$
-$$\text{SpecialTypeNames} = \{\texttt{"Self"},\texttt{"Drop"},\texttt{"Bitcopy"},\texttt{"Clone"},\texttt{"string"},\texttt{"bytes"},\texttt{"Modal"},\texttt{"Region"},\texttt{"RegionOptions"},\texttt{"Context"},\texttt{"System"}\}$$
-$$\text{AsyncTypeNames} = \{\texttt{"Async"},\texttt{"Future"},\texttt{"Sequence"},\texttt{"Stream"},\texttt{"Pipe"},\texttt{"Exchange"}\}$$
+PrimTypeNames = {`i8`, `i16`, `i32`, `i64`, `i128`, `u8`, `u16`, `u32`, `u64`, `u128`, `f16`, `f32`, `f64`, `bool`, `char`, `usize`, `isize`}
+SpecialTypeNames = {`Self`, `Drop`, `Bitcopy`, `Clone`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, `Context`, `System`}
+AsyncTypeNames = {`Async`, `Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`}
 
-$$\text{PrimTypeKeys} = \{\text{IdKey}(x) \mid x \in \text{PrimTypeNames}\}$$
-$$\text{SpecialTypeKeys} = \{\text{IdKey}(x) \mid x \in \text{SpecialTypeNames}\}$$
-$$\text{AsyncTypeKeys} = \{\text{IdKey}(x) \mid x \in \text{AsyncTypeNames}\}$$
+PrimTypeKeys = {IdKey(x) | x ∈ PrimTypeNames}
+SpecialTypeKeys = {IdKey(x) | x ∈ SpecialTypeNames}
+AsyncTypeKeys = {IdKey(x) | x ∈ AsyncTypeNames}
 
-$$\text{KeywordKey}(n) \iff \exists s.\ n = \text{IdKey}(s) \land \text{Keyword}(s)$$
+KeywordKey(n) ⇔ ∃ s. n = IdKey(s) ∧ Keyword(s)
 
 #### 5.1.2. Name Introduction and Shadowing
 
-$$\text{dom}(S) = \text{keys}(S)$$
-$$\text{Scopes}(\Gamma) = [S_{cur}] \mathbin{+\!\!+} \Gamma_{out}$$
-$$\text{InScope}(S,x) \iff \text{IdKey}(x) \in \text{dom}(S)$$
-$$\text{InOuter}(\Gamma,x) \iff \exists S \in Î“_{out}.\ \text{InScope}(S,x)$$
+dom(S) = keys(S)
+Scopes(Γ) = [S_cur] ++ Γ_out
+InScope(S, x) ⇔ IdKey(x) ∈ dom(S)
+InOuter(Γ, x) ⇔ ∃ S ∈ Γ_out. InScope(S, x)
 
 **(Intro-Ok)**
-$$\frac{\neg \text{InScope}(S_{cur},x) \quad \neg \text{InOuter}(\Gamma,x) \quad \neg \text{ReservedId}(x) \quad (S_{cur} \ne S_{module} \lor x \notin \text{UniverseProtected}) \quad \text{Scopes}(\Gamma') = [S_{cur}[\text{IdKey}(x) \mapsto ent]] \mathbin{+\!+} \Gamma_{out} \quad \text{Project}(\Gamma') = \text{Project}(\Gamma) \quad \text{ResCtx}(\Gamma') = \text{ResCtx}(\Gamma)}{\Gamma \vdash \text{Intro}(x, ent) \Downarrow \Gamma'}$$
+¬ InScope(S_cur, x)    ¬ InOuter(Γ, x)    ¬ ReservedId(x)    (S_cur ≠ S_module ∨ x ∉ UniverseProtected)    Scopes(Γ') = [S_cur[IdKey(x) ↦ ent]] ++ Γ_out    Project(Γ') = Project(Γ)    ResCtx(Γ') = ResCtx(Γ)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Intro(x, ent) ⇓ Γ'
 
 **(Intro-Dup)**
-$$\frac{\text{InScope}(S_{cur},x)}{\Gamma \vdash \text{Intro}(x, ent) \Uparrow}$$
+InScope(S_cur, x)
+──────────────────────────────────────────────
+Γ ⊢ Intro(x, ent) ⇑
 
 **(Intro-Shadow-Required)**
-$$\frac{\neg \text{InScope}(S_{cur},x) \quad \text{InOuter}(\Gamma,x) \quad c = \text{Code}(\text{Intro-Shadow-Required})}{\Gamma \vdash \text{Intro}(x, ent) \Uparrow c}$$
+¬ InScope(S_cur, x)    InOuter(Γ, x)    c = Code(Intro-Shadow-Required)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Intro(x, ent) ⇑ c
 
 **(Shadow-Ok)**
-$$\frac{\neg \text{InScope}(S_{cur},x) \quad \text{InOuter}(\Gamma,x) \quad \neg \text{ReservedId}(x) \quad (S_{cur} \ne S_{module} \lor x \notin \text{UniverseProtected}) \quad \text{Scopes}(\Gamma') = [S_{cur}[\text{IdKey}(x) \mapsto ent]] \mathbin{+\!+} \Gamma_{out} \quad \text{Project}(\Gamma') = \text{Project}(\Gamma) \quad \text{ResCtx}(\Gamma') = \text{ResCtx}(\Gamma)}{\Gamma \vdash \text{ShadowIntro}(x, ent) \Downarrow \Gamma'}$$
+¬ InScope(S_cur, x)    InOuter(Γ, x)    ¬ ReservedId(x)    (S_cur ≠ S_module ∨ x ∉ UniverseProtected)    Scopes(Γ') = [S_cur[IdKey(x) ↦ ent]] ++ Γ_out    Project(Γ') = Project(Γ)    ResCtx(Γ') = ResCtx(Γ)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ShadowIntro(x, ent) ⇓ Γ'
 
 **(Shadow-Unnecessary)**
-$$\frac{\neg \text{InScope}(S_{cur},x) \quad \neg \text{InOuter}(\Gamma,x) \quad c = \text{Code}(\text{Shadow-Unnecessary})}{\Gamma \vdash \text{ShadowIntro}(x, ent) \Uparrow c}$$
+¬ InScope(S_cur, x)    ¬ InOuter(Γ, x)    c = Code(Shadow-Unnecessary)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ShadowIntro(x, ent) ⇑ c
 
 **(Intro-Reserved-Gen-Err)**
-$$\frac{\text{ReservedGen}(x) \quad c = \text{Code}(\text{Intro-Reserved-Gen-Err})}{\Gamma \vdash \text{Intro}(x, ent) \Uparrow c}$$
+ReservedGen(x)    c = Code(Intro-Reserved-Gen-Err)
+──────────────────────────────────────────────────────
+Γ ⊢ Intro(x, ent) ⇑ c
 
 **(Intro-Reserved-Cursive-Err)**
-$$\frac{\text{ReservedCursive}(x) \quad c = \text{Code}(\text{Intro-Reserved-Cursive-Err})}{\Gamma \vdash \text{Intro}(x, ent) \Uparrow c}$$
+ReservedCursive(x)    c = Code(Intro-Reserved-Cursive-Err)
+──────────────────────────────────────────────────────────
+Γ ⊢ Intro(x, ent) ⇑ c
 
 **(Shadow-Reserved-Gen-Err)**
-$$\frac{\text{ReservedGen}(x) \quad c = \text{Code}(\text{Shadow-Reserved-Gen-Err})}{\Gamma \vdash \text{ShadowIntro}(x, ent) \Uparrow c}$$
+ReservedGen(x)    c = Code(Shadow-Reserved-Gen-Err)
+────────────────────────────────────────────────────────
+Γ ⊢ ShadowIntro(x, ent) ⇑ c
 
 **(Shadow-Reserved-Cursive-Err)**
-$$\frac{\text{ReservedCursive}(x) \quad c = \text{Code}(\text{Shadow-Reserved-Cursive-Err})}{\Gamma \vdash \text{ShadowIntro}(x, ent) \Uparrow c}$$
+ReservedCursive(x)    c = Code(Shadow-Reserved-Cursive-Err)
+────────────────────────────────────────────────────────────
+Γ ⊢ ShadowIntro(x, ent) ⇑ c
 
 **Deterministic Rule Priority (Intro / ShadowIntro).**
 
 When multiple Intro/ShadowIntro rules are simultaneously applicable, an implementation MUST apply the first matching clause in the following ordered checks.
 
 **Intro Priority.**
-1. If $\text{ReservedGen}(x)$ then apply **(Intro-Reserved-Gen-Err)**.
-2. Else if $\text{ReservedCursive}(x)$ then apply **(Intro-Reserved-Cursive-Err)**.
-3. Else if $\text{InScope}(S_{cur}, x)$ then apply **(Intro-Dup)**.
-4. Else if $\text{InOuter}(\Gamma, x)$ then apply **(Intro-Shadow-Required)**.
+1. If ReservedGen(x) then apply **(Intro-Reserved-Gen-Err)**.
+2. Else if ReservedCursive(x) then apply **(Intro-Reserved-Cursive-Err)**.
+3. Else if InScope(S_cur, x) then apply **(Intro-Dup)**.
+4. Else if InOuter(Γ, x) then apply **(Intro-Shadow-Required)**.
 5. Else if the premises of **(Intro-Ok)** hold then apply **(Intro-Ok)**.
-6. Otherwise, $\Gamma \vdash \text{Intro}(x, ent) \Uparrow$ with no diagnostic code.
+6. Otherwise, Γ ⊢ Intro(x, ent) ⇑ with no diagnostic code.
 
 **ShadowIntro Priority.**
-1. If $\text{ReservedGen}(x)$ then apply **(Shadow-Reserved-Gen-Err)**.
-2. Else if $\text{ReservedCursive}(x)$ then apply **(Shadow-Reserved-Cursive-Err)**.
-3. Else if $\text{InScope}(S_{cur}, x)$ then $\Gamma \vdash \text{ShadowIntro}(x, ent) \Uparrow$ with no diagnostic code.
-4. Else if $\neg \text{InOuter}(\Gamma, x)$ then apply **(Shadow-Unnecessary)**.
+1. If ReservedGen(x) then apply **(Shadow-Reserved-Gen-Err)**.
+2. Else if ReservedCursive(x) then apply **(Shadow-Reserved-Cursive-Err)**.
+3. Else if InScope(S_cur, x) then Γ ⊢ ShadowIntro(x, ent) ⇑ with no diagnostic code.
+4. Else if ¬ InOuter(Γ, x) then apply **(Shadow-Unnecessary)**.
 5. Else if the premises of **(Shadow-Ok)** hold then apply **(Shadow-Ok)**.
-6. Otherwise, $\Gamma \vdash \text{ShadowIntro}(x, ent) \Uparrow$ with no diagnostic code.
+6. Otherwise, Γ ⊢ ShadowIntro(x, ent) ⇑ with no diagnostic code.
 
 **Binding Introduction Selection.**
-If a binding is introduced by a syntactic form without the `shadow` keyword, the implementation MUST invoke $\text{Intro}$ for that binding. If a binding is introduced by a `shadow` form (e.g., `ShadowLetStmt`/`ShadowVarStmt`), the implementation MUST invoke $\text{ShadowIntro}$ for that binding. The implementation MUST NOT substitute the other judgment.
+If a binding is introduced by a syntactic form without the `shadow` keyword, the implementation MUST invoke Intro for that binding. If a binding is introduced by a `shadow` form (e.g., `ShadowLetStmt`/`ShadowVarStmt`), the implementation MUST invoke ShadowIntro for that binding. The implementation MUST NOT substitute the other judgment.
 
 **Module-Scope Name Validation.**
 
-$$\text{Names}(N) = \text{dom}(N)$$
+Names(N) = dom(N)
 
 **(Validate-Module-Ok)**
-$$\frac{\forall n \in \text{Names}(N).\ \neg \text{KeywordKey}(n) \land n \notin \text{PrimTypeKeys} \land n \notin \text{SpecialTypeKeys} \land n \notin \text{AsyncTypeKeys}}{\Gamma \vdash \text{ValidateModuleNames}(N) \Downarrow ok}$$
+∀ n ∈ Names(N). ¬ KeywordKey(n) ∧ n ∉ PrimTypeKeys ∧ n ∉ SpecialTypeKeys ∧ n ∉ AsyncTypeKeys
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ValidateModuleNames(N) ⇓ ok
 
 **(Validate-Module-Keyword-Err)**
-$$\frac{\exists n \in \text{Names}(N).\ \text{KeywordKey}(n) \quad c = \text{Code}(\text{Validate-Module-Keyword-Err})}{\Gamma \vdash \text{ValidateModuleNames}(N) \Uparrow c}$$
+∃ n ∈ Names(N). KeywordKey(n)    c = Code(Validate-Module-Keyword-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ValidateModuleNames(N) ⇑ c
 
 **(Validate-Module-Prim-Shadow-Err)**
-$$\frac{\exists n \in \text{Names}(N).\ n \in \text{PrimTypeKeys} \quad c = \text{Code}(\text{Validate-Module-Prim-Shadow-Err})}{\Gamma \vdash \text{ValidateModuleNames}(N) \Uparrow c}$$
+∃ n ∈ Names(N). n ∈ PrimTypeKeys    c = Code(Validate-Module-Prim-Shadow-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ValidateModuleNames(N) ⇑ c
 
 **(Validate-Module-Special-Shadow-Err)**
-$$\frac{\exists n \in \text{Names}(N).\ n \in \text{SpecialTypeKeys} \quad c = \text{Code}(\text{Validate-Module-Special-Shadow-Err})}{\Gamma \vdash \text{ValidateModuleNames}(N) \Uparrow c}$$
+∃ n ∈ Names(N). n ∈ SpecialTypeKeys    c = Code(Validate-Module-Special-Shadow-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ValidateModuleNames(N) ⇑ c
 
 **(Validate-Module-Async-Shadow-Err)**
-$$\frac{\exists n \in \text{Names}(N).\ n \in \text{AsyncTypeKeys} \quad c = \text{Code}(\text{Validate-Module-Async-Shadow-Err})}{\Gamma \vdash \text{ValidateModuleNames}(N) \Uparrow c}$$
+∃ n ∈ Names(N). n ∈ AsyncTypeKeys    c = Code(Validate-Module-Async-Shadow-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ValidateModuleNames(N) ⇑ c
 
 #### 5.1.3. Lookup
 
 **Unqualified Lookup.**
 
-$$\text{Scopes}(\Gamma) = [S_1,\ldots,S_n]$$
-$$i = \min\{j \mid \text{IdKey}(x) \in \text{dom}(S_j)\}$$
+Scopes(Γ) = [S_1, …, S_n]
+i = min{j | IdKey(x) ∈ dom(S_j)}
 
 **(Lookup-Unqualified)**
-$$\frac{i\ \text{defined}}{\Gamma \vdash \text{Lookup}(x) \Downarrow S_i[\text{IdKey}(x)]}$$
+i defined
+──────────────────────────────────────────────
+Γ ⊢ Lookup(x) ⇓ S_i[IdKey(x)]
 
 **(Lookup-Unqualified-None)**
-$$\frac{i\ \text{undefined}}{\Gamma \vdash \text{Lookup}(x) \uparrow}$$
+i undefined
+──────────────────────────────────────────────
+Γ ⊢ Lookup(x) ↑
 
 **Kind Filtering.**
-$$\text{ValueKind}(ent) \iff ent.\text{kind} = \text{Value}$$
-$$\text{TypeKind}(ent) \iff ent.\text{kind} = \text{Type}$$
-$$\text{ClassKind}(ent) \iff ent.\text{kind} = \text{Class}$$
-$$\text{ModuleKind}(ent) \iff ent.\text{kind} = \text{ModuleAlias}$$
-$$\text{RegionAlias}(ent) \iff ent.\text{source} = \text{RegionAlias}$$
+ValueKind(ent) ⇔ ent.kind = Value
+TypeKind(ent) ⇔ ent.kind = Type
+ClassKind(ent) ⇔ ent.kind = Class
+ModuleKind(ent) ⇔ ent.kind = ModuleAlias
+RegionAlias(ent) ⇔ ent.source = RegionAlias
 
-$$\text{RegionAliasName}(\Gamma, x) \iff \Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent \land \text{RegionAlias}(ent)$$
+RegionAliasName(Γ, x) ⇔ Γ ⊢ ResolveValueName(x) ⇓ ent ∧ RegionAlias(ent)
 
 **(Resolve-Value-Name)**
-$$\frac{\Gamma \vdash \text{Lookup}(x) \Downarrow ent \quad \text{ValueKind}(ent)}{\Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent}$$
+Γ ⊢ Lookup(x) ⇓ ent    ValueKind(ent)
+──────────────────────────────────────────────
+Γ ⊢ ResolveValueName(x) ⇓ ent
 
 **(Resolve-Type-Name)**
-$$\frac{\Gamma \vdash \text{Lookup}(x) \Downarrow ent \quad \text{TypeKind}(ent)}{\Gamma \vdash \text{ResolveTypeName}(x) \Downarrow ent}$$
+Γ ⊢ Lookup(x) ⇓ ent    TypeKind(ent)
+──────────────────────────────────────────────
+Γ ⊢ ResolveTypeName(x) ⇓ ent
 
 **(Resolve-Class-Name)**
-$$\frac{\Gamma \vdash \text{Lookup}(x) \Downarrow ent \quad \text{ClassKind}(ent)}{\Gamma \vdash \text{ResolveClassName}(x) \Downarrow ent}$$
+Γ ⊢ Lookup(x) ⇓ ent    ClassKind(ent)
+──────────────────────────────────────────────
+Γ ⊢ ResolveClassName(x) ⇓ ent
 
 **(Resolve-Module-Name)**
-$$\frac{\Gamma \vdash \text{Lookup}(x) \Downarrow ent \quad \text{ModuleKind}(ent)}{\Gamma \vdash \text{ResolveModuleName}(x) \Downarrow ent}$$
+Γ ⊢ Lookup(x) ⇓ ent    ModuleKind(ent)
+──────────────────────────────────────────────
+Γ ⊢ ResolveModuleName(x) ⇓ ent
 
 **Qualified Lookup.**
-$$P = Project(\Gamma)$$
-$$m = \text{CurrentModule}(\Gamma)$$
-$$\text{ModulePaths} = \{ p \mid p \in P.\text{modules} \}$$
-$$\text{Alias} = \text{AliasMap}(m)$$
+P = Project(Γ)
+m = CurrentModule(Γ)
+ModulePaths = { p | p ∈ P.modules }
+Alias = AliasMap(m)
 
 **(Resolve-ModulePath)**
-$$\frac{\Gamma \vdash \text{AliasExpand}(path, Alias) \Downarrow path' \quad \text{StringOfPath}(path') \in \text{ModuleNames}}{\Gamma \vdash \text{ResolveModulePath}(path, Alias, \text{ModuleNames}) \Downarrow path'}$$
+Γ ⊢ AliasExpand(path, Alias) ⇓ path'    StringOfPath(path') ∈ ModuleNames
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveModulePath(path, Alias, ModuleNames) ⇓ path'
 
 **(ResolveModulePath-Err)**
-$$\frac{\Gamma \vdash \text{AliasExpand}(path, Alias) \Downarrow path' \quad \text{StringOfPath}(path') \notin \text{ModuleNames} \quad c = \text{Code}(\text{ResolveModulePath-Err})}{\Gamma \vdash \text{ResolveModulePath}(path, Alias, \text{ModuleNames}) \Uparrow c}$$
+Γ ⊢ AliasExpand(path, Alias) ⇓ path'    StringOfPath(path') ∉ ModuleNames    c = Code(ResolveModulePath-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveModulePath(path, Alias, ModuleNames) ⇑ c
 
 **(Resolve-Qualified)**
-$$\frac{\Gamma \vdash \text{ResolveModulePath}(path, Alias, \text{ModuleNames}) \Downarrow mp \quad \text{NameMap}(P, mp)[\text{IdKey}(name)] = ent \quad \Gamma \vdash \text{CanAccess}(m, \text{DeclOf}(mp,name)) \Downarrow ok \quad K(ent)}{\Gamma \vdash \text{ResolveQualified}(path,name,K) \Downarrow ent}$$
+Γ ⊢ ResolveModulePath(path, Alias, ModuleNames) ⇓ mp    NameMap(P, mp)[IdKey(name)] = ent    Γ ⊢ CanAccess(m, DeclOf(mp, name)) ⇓ ok    K(ent)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveQualified(path, name, K) ⇓ ent
 
-$$K \in \{\text{ValueKind},\ \text{TypeKind},\ \text{ClassKind},\ \text{ModuleKind}\}$$
+K ∈ {ValueKind, TypeKind, ClassKind, ModuleKind}
 
 #### 5.1.4. Visibility and Accessibility
 
-$$\text{DeclOf}(mp,name) = it \iff \text{ModuleOf}(it)=mp \land \text{IdKey}(name) \in \text{dom}(\text{ItemBindings}(it, mp))$$
-$$\text{ModuleOf}(it) = p \iff it \in \text{ASTModule}(P, p).\text{items}$$
-$$\text{ModuleOfPath}(\text{path}) = mp \iff \text{SplitLast}(\text{path}) = (mp,\ name)$$
-$$\text{Vis}(it) = it.\text{vis}$$
+DeclOf(mp, name) = it ⇔ ModuleOf(it) = mp ∧ IdKey(name) ∈ dom(ItemBindings(it, mp))
+ModuleOf(it) = p ⇔ it ∈ ASTModule(P, p).items
+ModuleOfPath(path) = mp ⇔ SplitLast(path) = (mp, name)
+Vis(it) = it.vis
 
 **(Access-Public)**
-$$\frac{\text{Vis}(it) = \texttt{public}}{\Gamma \vdash \text{CanAccess}(m, it) \Downarrow ok}$$
+Vis(it) = `public`
+──────────────────────────────────────────────
+Γ ⊢ CanAccess(m, it) ⇓ ok
 
 **(Access-Internal)**
-$$\frac{\text{Vis}(it) = \texttt{internal}}{\Gamma \vdash \text{CanAccess}(m, it) \Downarrow ok}$$
+Vis(it) = `internal`
+──────────────────────────────────────────────
+Γ ⊢ CanAccess(m, it) ⇓ ok
 
 **(Access-Private)**
-$$\frac{\text{Vis}(it) = \texttt{private} \quad \text{ModuleOf}(it) = m}{\Gamma \vdash \text{CanAccess}(m, it) \Downarrow ok}$$
+Vis(it) = `private`    ModuleOf(it) = m
+──────────────────────────────────────────────────────────────
+Γ ⊢ CanAccess(m, it) ⇓ ok
 
 **(Access-Protected)**
-$$\frac{\text{Vis}(it) = \texttt{protected} \quad \text{ModuleOf}(it) = m}{\Gamma \vdash \text{CanAccess}(m, it) \Downarrow ok}$$
+Vis(it) = `protected`    ModuleOf(it) = m
+──────────────────────────────────────────────────────────────
+Γ ⊢ CanAccess(m, it) ⇓ ok
 
 **(Access-Err)**
-$$\frac{\text{Vis}(it) \in \{\texttt{private},\texttt{protected}\} \quad \text{ModuleOf}(it) \ne m \quad c = \text{Code}(\text{Access-Err})}{\Gamma \vdash \text{CanAccess}(m, it) \Uparrow c}$$
+Vis(it) ∈ {`private`, `protected`}    ModuleOf(it) ≠ m    c = Code(Access-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ CanAccess(m, it) ⇑ c
 
 **Top-Level `protected`.**
 
-$$\text{TopLevelDecl}(it) \iff it \in \text{ASTModule}(P, \text{ModuleOf}(it)).\text{items}$$
+TopLevelDecl(it) ⇔ it ∈ ASTModule(P, ModuleOf(it)).items
 
 **(Protected-TopLevel-Ok)**
-$$\frac{\text{Vis}(it) \ne \texttt{protected}}{\Gamma \vdash \text{TopLevelVis}(it) \Downarrow ok}$$
+Vis(it) ≠ `protected`
+──────────────────────────────────────────────
+Γ ⊢ TopLevelVis(it) ⇓ ok
 
 **(Protected-TopLevel-Err)**
-$$\frac{\text{Vis}(it) = \texttt{protected} \quad \text{TopLevelDecl}(it) \quad c = \text{Code}(\text{Protected-TopLevel-Err})}{\Gamma \vdash \text{TopLevelVis}(it) \Uparrow c}$$
+Vis(it) = `protected`    TopLevelDecl(it)    c = Code(Protected-TopLevel-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ TopLevelVis(it) ⇑ c
 
 #### 5.1.5. Top-Level Name Collection (Order Independence)
 
 **Order Independence.**
-$$\forall items'.\ \text{Permutation}(items', items) \land \Gamma \vdash \text{CollectNames}(items, p, \emptyset) \Downarrow N \Rightarrow \Gamma \vdash \text{CollectNames}(items', p, \emptyset) \Downarrow N$$
+∀ items'. Permutation(items', items) ∧ Γ ⊢ CollectNames(items, p, ∅) ⇓ N ⇒ Γ ⊢ CollectNames(items', p, ∅) ⇓ N
 
 **Binding Kinds.**
 
-$$\text{BindKind} = \{\text{Value},\ \text{Type},\ \text{Class},\ \text{ModuleAlias}\}$$
-$$\text{BindSource} = \{\text{Decl},\ \text{Using}\}$$
-$$\text{NameInfo} = \langle \text{kind},\ \text{origin},\ \text{target\_opt},\ \text{source} \rangle$$
-$$P = \text{Project}(\Gamma)$$
-$$\text{NameMap}(P, mp) = N \iff \text{ModuleMap}(P, mp) = M \land \Gamma \vdash \text{CollectNames}(M) \Downarrow N$$
-$$\text{AliasMap}(m) = \{ n \mapsto \text{origin} \mid \text{NameMap}(P, m)[n].\text{kind} = \text{ModuleAlias} \}$$
-$$\text{UsingMap}(m) = \{ n \mapsto \langle k,\ \text{origin},\ \text{target\_opt} \rangle \mid \text{NameMap}(P, m)[n].\text{source} = \text{Using} \land \text{NameMap}(P, m)[n].\text{kind} = k \land k \in \{\text{Value},\text{Type},\text{Class}\} \}$$
-$$\text{UsingValueMap}(m) = \{ n \mapsto \text{origin} \mid \text{NameMap}(P, m)[n].\text{source} = \text{Using} \land \text{NameMap}(P, m)[n].\text{kind} = \text{Value} \}$$
-$$\text{UsingTypeMap}(m) = \{ n \mapsto \text{origin} \mid \text{NameMap}(P, m)[n].\text{source} = \text{Using} \land \text{NameMap}(P, m)[n].\text{kind} \in \{\text{Type},\text{Class}\} \}$$
-$$\text{TypeMap}(m) = \{ n \mapsto \text{origin} \mid \text{NameMap}(P, m)[n].\text{kind} = \text{Type} \}$$
-$$\text{ClassMap}(m) = \{ n \mapsto \text{origin} \mid \text{NameMap}(P, m)[n].\text{kind} = \text{Class} \}$$
+BindKind = {Value, Type, Class, ModuleAlias}
+BindSource = {Decl, Using}
+NameInfo = ⟨kind, origin, target_opt, source⟩
+P = Project(Γ)
+NameMap(P, mp) = N ⇔ ModuleMap(P, mp) = M ∧ Γ ⊢ CollectNames(M) ⇓ N
+AliasMap(m) = { n ↦ origin | NameMap(P, m)[n].kind = ModuleAlias }
+UsingMap(m) = { n ↦ ⟨k, origin, target_opt⟩ | NameMap(P, m)[n].source = Using ∧ NameMap(P, m)[n].kind = k ∧ k ∈ {Value, Type, Class} }
+UsingValueMap(m) = { n ↦ origin | NameMap(P, m)[n].source = Using ∧ NameMap(P, m)[n].kind = Value }
+UsingTypeMap(m) = { n ↦ origin | NameMap(P, m)[n].source = Using ∧ NameMap(P, m)[n].kind ∈ {Type, Class} }
+TypeMap(m) = { n ↦ origin | NameMap(P, m)[n].kind = Type }
+ClassMap(m) = { n ↦ origin | NameMap(P, m)[n].kind = Class }
 
 **Pattern Name Extraction.**
 
-$$\frac{}{\Gamma \vdash \text{PatNames}(\text{IdentifierPattern}(x)) \Downarrow [x]}$$
+──────────────────────────────────────────────
+Γ ⊢ PatNames(IdentifierPattern(x)) ⇓ [x]
 
 **(Pat-Typed)**
-$$\frac{}{\Gamma \vdash \text{PatNames}(\text{TypedPattern}(x, \_)) \Downarrow [x]}$$
+──────────────────────────────────────────────
+Γ ⊢ PatNames(TypedPattern(x, _)) ⇓ [x]
 
 **(Pat-Wild)**
-$$\frac{}{\Gamma \vdash \text{PatNames}(\text{WildcardPattern}) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ PatNames(WildcardPattern) ⇓ []
 
 **(Pat-Lit)**
-$$\frac{}{\Gamma \vdash \text{PatNames}(\text{LiteralPattern}(lit)) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ PatNames(LiteralPattern(lit)) ⇓ []
 
-$$\frac{\forall i,\ \Gamma \vdash \text{PatNames}(p_i) \Downarrow N_i}{\Gamma \vdash \text{PatNames}(\text{TuplePattern}([p_1,\ldots,p_n])) \Downarrow N_1 \mathbin{+\!\!+} \cdots \mathbin{+\!\!+} N_n}$$
+∀ i, Γ ⊢ PatNames(p_i) ⇓ N_i
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PatNames(TuplePattern([p_1, …, p_n])) ⇓ N_1 ++ ··· ++ N_n
 
 **(Pat-Record-Field-Explicit)**
-$$\frac{\Gamma \vdash \text{PatNames}(p) \Downarrow N}{\Gamma \vdash \text{PatNames}(\langle \text{name},\ \text{pattern\_opt}=p,\ \text{span} \rangle) \Downarrow N}$$
+Γ ⊢ PatNames(p) ⇓ N
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PatNames(⟨name, pattern_opt = p, span⟩) ⇓ N
 
 **(Pat-Record-Field-Implicit)**
-$$\frac{}{\Gamma \vdash \text{PatNames}(\langle \text{name},\ \text{pattern\_opt}=\bot,\ \text{span} \rangle) \Downarrow [\text{name}]}$$
+──────────────────────────────────────────────
+Γ ⊢ PatNames(⟨name, pattern_opt = ⊥, span⟩) ⇓ [name]
 
-$$\frac{\forall i,\ \Gamma \vdash \text{PatNames}(f_i) \Downarrow N_i}{\Gamma \vdash \text{PatNames}(\text{RecordPattern}(\_, [f_1,\ldots,f_n])) \Downarrow N_1 \mathbin{+\!\!+} \cdots \mathbin{+\!\!+} N_n}$$
+∀ i, Γ ⊢ PatNames(f_i) ⇓ N_i
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PatNames(RecordPattern(_, [f_1, …, f_n])) ⇓ N_1 ++ ··· ++ N_n
 
 **(Pat-Enum-None)**
-$$\frac{}{\Gamma \vdash \text{PatNames}(\text{EnumPattern}(\_, \_, \bot)) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ PatNames(EnumPattern(_, _, ⊥)) ⇓ []
 
 **(Pat-Enum-Tuple)**
-$$\frac{\forall i,\ \Gamma \vdash \text{PatNames}(p_i) \Downarrow N_i}{\Gamma \vdash \text{PatNames}(\text{EnumPattern}(\_, \_, \text{TuplePayloadPattern}([p_1,\ldots,p_n]))) \Downarrow N_1 \mathbin{+\!\!+} \cdots \mathbin{+\!\!+} N_n}$$
+∀ i, Γ ⊢ PatNames(p_i) ⇓ N_i
+──────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PatNames(EnumPattern(_, _, TuplePayloadPattern([p_1, …, p_n]))) ⇓ N_1 ++ ··· ++ N_n
 
 **(Pat-Enum-Record)**
-$$\frac{\forall i,\ \Gamma \vdash \text{PatNames}(f_i) \Downarrow N_i}{\Gamma \vdash \text{PatNames}(\text{EnumPattern}(\_, \_, \text{RecordPayloadPattern}([f_1,\ldots,f_n]))) \Downarrow N_1 \mathbin{+\!\!+} \cdots \mathbin{+\!\!+} N_n}$$
+∀ i, Γ ⊢ PatNames(f_i) ⇓ N_i
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PatNames(EnumPattern(_, _, RecordPayloadPattern([f_1, …, f_n]))) ⇓ N_1 ++ ··· ++ N_n
 
 **(Pat-Range)**
-$$\frac{\Gamma \vdash \text{PatNames}(p_l) \Downarrow N_l \quad \Gamma \vdash \text{PatNames}(p_h) \Downarrow N_h}{\Gamma \vdash \text{PatNames}(\text{RangePattern}(\_, p_l, p_h)) \Downarrow N_l \mathbin{+\!\!+} N_h}$$
+Γ ⊢ PatNames(p_l) ⇓ N_l    Γ ⊢ PatNames(p_h) ⇓ N_h
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PatNames(RangePattern(_, p_l, p_h)) ⇓ N_l ++ N_h
 
 **Using Bindings.**
-$$\text{ModuleNames} = \{ \text{StringOfPath}(p) \mid p \in \text{ModulePaths} \}$$
-$$\text{Last}([c_1,\ldots,c_n]) = c_n \ \text{if } n \ge 1$$
-$$\text{IsModulePath}(\text{path}) \iff \text{StringOfPath}(\text{path}) \in \text{ModuleNames}$$
-$$\text{SplitLast}(\text{path}) = (mp, name) \iff \text{path} = mp \mathbin{+\!\!+} [name] \land |\text{path}| \ge 2$$
-$$\text{ModuleByPath}(P,p) = m \iff \text{ASTModule}(P,p) = m$$
+ModuleNames = { StringOfPath(p) | p ∈ ModulePaths }
+Last([c_1, …, c_n]) = c_n if n ≥ 1
+IsModulePath(path) ⇔ StringOfPath(path) ∈ ModuleNames
+SplitLast(path) = (mp, name) ⇔ path = mp ++ [name] ∧ |path| ≥ 2
+ModuleByPath(P, p) = m ⇔ ASTModule(P, p) = m
 
 **Item Names.**
-$$\text{ItemNames}(mp) = \{ n \mid \text{NameMap}(P, mp)[n].\text{kind} \in \{\text{Value},\ \text{Type},\ \text{Class}\} \}$$
+ItemNames(mp) = { n | NameMap(P, mp)[n].kind ∈ {Value, Type, Class} }
 
 **Using Spec Names.**
-$$\text{UsingSpecName}(\langle name,\ \text{alias\_opt} \rangle) = name$$
-$$\text{UsingSpecNames}([s_1,\ldots,s_n]) = [\text{UsingSpecName}(s_1),\ldots,\text{UsingSpecName}(s_n)]$$
+UsingSpecName(⟨name, alias_opt⟩) = name
+UsingSpecNames([s_1, …, s_n]) = [UsingSpecName(s_1), …, UsingSpecName(s_n)]
 
 **Declared Names (Non-Using).**
 
 **(DeclNames-Empty)**
-$$\frac{}{\Gamma \vdash \text{DeclNames}([], p) \Downarrow \emptyset}$$
+──────────────────────────────────────────────
+Γ ⊢ DeclNames([], p) ⇓ ∅
 
 **(DeclNames-Using)**
-$$\frac{\Gamma \vdash \text{DeclNames}(rest, p) \Downarrow D}{\Gamma \vdash \text{DeclNames}(\langle \text{UsingDecl},\ \_,\ \_,\ \_,\ \_ \rangle :: rest, p) \Downarrow D}$$
+Γ ⊢ DeclNames(rest, p) ⇓ D
+────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ DeclNames(⟨UsingDecl, _, _, _, _⟩ :: rest, p) ⇓ D
 
 **(DeclNames-Item)**
-$$\frac{it \ne \langle \text{UsingDecl},\ \_,\ \_,\ \_,\ \_ \rangle \quad \Gamma \vdash \text{ItemBindings}(it, p) \Downarrow B \quad \Gamma \vdash \text{DeclNames}(rest, p) \Downarrow D}{\Gamma \vdash \text{DeclNames}(it :: rest, p) \Downarrow \text{Names}(B) \cup D}$$
+it ≠ ⟨UsingDecl, _, _, _, _⟩    Γ ⊢ ItemBindings(it, p) ⇓ B    Γ ⊢ DeclNames(rest, p) ⇓ D
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ DeclNames(it :: rest, p) ⇓ Names(B) ∪ D
 
-$$\text{DeclNames}(m) = \text{DeclNames}(m.\text{items},\ m.\text{path})$$
+DeclNames(m) = DeclNames(m.items, m.path)
 
 **Item-Path Resolution.**
 
 **(ItemOfPath)**
-$$\frac{|path| \ge 2 \quad \text{SplitLast}(path) = (mp, name) \quad \text{IsModulePath}(mp) \quad m = \text{ModuleByPath}(P, mp) \quad \text{IdKey}(name) \in \text{ItemNames}(mp)}{\Gamma \vdash \text{ItemOfPath}(path) \Downarrow (mp, name)}$$
+|path| ≥ 2    SplitLast(path) = (mp, name)    IsModulePath(mp)    m = ModuleByPath(P, mp)    IdKey(name) ∈ ItemNames(mp)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ItemOfPath(path) ⇓ (mp, name)
 
 **(ItemOfPath-None)**
-$$\frac{\neg(|path| \ge 2 \land \text{SplitLast}(path) = (mp, name) \land \text{IsModulePath}(mp) \land m = \text{ModuleByPath}(P, mp) \land \text{IdKey}(name) \in \text{ItemNames}(mp))}{\Gamma \vdash \text{ItemOfPath}(path) \uparrow}$$
+¬ (|path| ≥ 2 ∧ SplitLast(path) = (mp, name) ∧ IsModulePath(mp) ∧ m = ModuleByPath(P, mp) ∧ IdKey(name) ∈ ItemNames(mp))
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ItemOfPath(path) ↑
 
 **Using Path Resolution.**
 
 **(Resolve-Using-Item)**
-$$\frac{\Gamma \vdash \text{ItemOfPath}(path) \Downarrow (mp, name) \quad \neg \text{IsModulePath}(path)}{\Gamma \vdash \text{ResolveUsingPath}(path) \Downarrow \langle \text{Item}, mp, name \rangle}$$
+Γ ⊢ ItemOfPath(path) ⇓ (mp, name)    ¬ IsModulePath(path)
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveUsingPath(path) ⇓ ⟨Item, mp, name⟩
 
 **(Resolve-Using-Module)**
-$$\frac{\text{IsModulePath}(path) \quad \Gamma \vdash \text{ItemOfPath}(path) \uparrow}{\Gamma \vdash \text{ResolveUsingPath}(path) \Downarrow \langle \text{Module}, path \rangle}$$
+IsModulePath(path)    Γ ⊢ ItemOfPath(path) ↑
+────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveUsingPath(path) ⇓ ⟨Module, path⟩
 
 **(Resolve-Using-Ambig)**
-$$\frac{\text{IsModulePath}(path) \quad \Gamma \vdash \text{ItemOfPath}(path) \Downarrow (mp, name) \quad c = \text{Code}(\text{Resolve-Using-Ambig})}{\Gamma \vdash \text{ResolveUsingPath}(path) \Uparrow c}$$
+IsModulePath(path)    Γ ⊢ ItemOfPath(path) ⇓ (mp, name)    c = Code(Resolve-Using-Ambig)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveUsingPath(path) ⇑ c
 
 **(Resolve-Using-None)**
-$$\frac{\neg \text{IsModulePath}(path) \quad \Gamma \vdash \text{ItemOfPath}(path) \uparrow \quad c = \text{Code}(\text{Resolve-Using-None})}{\Gamma \vdash \text{ResolveUsingPath}(path) \Uparrow c}$$
+¬ IsModulePath(path)    Γ ⊢ ItemOfPath(path) ↑    c = Code(Resolve-Using-None)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveUsingPath(path) ⇑ c
 
 **(Using-Path-Item)**
-$$\frac{\text{u} = \langle \text{UsingDecl},\ vis,\ \langle \text{UsingPath}, path, alias\_opt \rangle,\ \_,\ \_ \rangle \quad \Gamma \vdash \text{ResolveUsingPath}(path) \Downarrow \langle \text{Item}, mp, item \rangle \quad \Gamma \vdash \text{CanAccess}(m, \text{DeclOf}(mp,item)) \Downarrow ok \quad (vis = \texttt{public} \Rightarrow \text{Vis}(\text{DeclOf}(mp,item)) = \texttt{public}) \quad \text{NameMap}(P, mp)[\text{IdKey}(item)] = \langle k,\ \_,\ \_,\ \_ \rangle \quad k \in \{\text{Value},\text{Type},\text{Class}\} \quad name = \text{alias\_opt} \ \text{if present, else}\ item}{\Gamma \vdash \text{UsingNames}(u) \Downarrow [(name, \langle k,\ mp,\ item,\ \text{Using} \rangle)]}$$
+u = ⟨UsingDecl, vis, ⟨UsingPath, path, alias_opt⟩, _, _⟩    Γ ⊢ ResolveUsingPath(path) ⇓ ⟨Item, mp, item⟩    Γ ⊢ CanAccess(m, DeclOf(mp, item)) ⇓ ok    (vis = `public` ⇒ Vis(DeclOf(mp, item)) = `public`)    NameMap(P, mp)[IdKey(item)] = ⟨k, _, _, _⟩    k ∈ {Value, Type, Class}    name = alias_opt if present, else item
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ UsingNames(u) ⇓ [(name, ⟨k, mp, item, Using⟩)]
 
 **(Using-Path-Item-Public-Err)**
-$$\frac{\text{u} = \langle \text{UsingDecl},\ \texttt{public},\ \langle \text{UsingPath}, path, \_ \rangle,\ \_,\ \_ \rangle \quad \Gamma \vdash \text{ResolveUsingPath}(path) \Downarrow \langle \text{Item}, mp, item \rangle \quad \text{Vis}(\text{DeclOf}(mp,item)) \ne \texttt{public} \quad c = \text{Code}(\text{Using-Path-Item-Public-Err})}{\Gamma \vdash \text{UsingNames}(u) \Uparrow c}$$
+u = ⟨UsingDecl, `public`, ⟨UsingPath, path, _⟩, _, _⟩    Γ ⊢ ResolveUsingPath(path) ⇓ ⟨Item, mp, item⟩    Vis(DeclOf(mp, item)) ≠ `public`    c = Code(Using-Path-Item-Public-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ UsingNames(u) ⇑ c
 
 **(Using-Path-Module)**
-$$\frac{\text{u} = \langle \text{UsingDecl},\ \_,\ \langle \text{UsingPath}, path, alias\_opt \rangle,\ \_,\ \_ \rangle \quad \Gamma \vdash \text{ResolveUsingPath}(path) \Downarrow \langle \text{Module}, path \rangle \quad name = \text{alias\_opt} \ \text{if present, else}\ \text{Last}(path)}{\Gamma \vdash \text{UsingNames}(u) \Downarrow [(name, \langle \text{ModuleAlias}, path,\ \bot,\ \text{Using} \rangle)]}$$
+u = ⟨UsingDecl, _, ⟨UsingPath, path, alias_opt⟩, _, _⟩    Γ ⊢ ResolveUsingPath(path) ⇓ ⟨Module, path⟩    name = alias_opt if present, else Last(path)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ UsingNames(u) ⇓ [(name, ⟨ModuleAlias, path, ⊥, Using⟩)]
 
 **(Using-List)**
-$$\frac{\text{u} = \langle \text{UsingDecl},\ vis,\ \langle \text{UsingList}, mp, [s_1,\ldots,s_n] \rangle,\ \_,\ \_ \rangle \quad \text{Distinct}(\text{UsingSpecNames}([s_1,\ldots,s_n])) \quad \forall i,\ s_i = \langle name_i, alias_i \rangle \quad \text{NameMap}(P, mp)[\text{IdKey}(name_i)] = \langle k_i,\ \_,\ \_,\ \_ \rangle \quad k_i \in \{\text{Value},\text{Type},\text{Class}\} \quad \Gamma \vdash \text{CanAccess}(m, \text{DeclOf}(mp,name_i)) \Downarrow ok \quad (vis = \texttt{public} \Rightarrow \text{Vis}(\text{DeclOf}(mp,name_i)) = \texttt{public}) \quad bind_i = \langle (\text{alias}_i\ \text{if present else}\ name_i),\ \langle k_i,\ mp,\ name_i,\ \text{Using} \rangle \rangle}{\Gamma \vdash \text{UsingNames}(u) \Downarrow [bind_1,\ldots,bind_n]}$$
+u = ⟨UsingDecl, vis, ⟨UsingList, mp, [s_1, …, s_n]⟩, _, _⟩    Distinct(UsingSpecNames([s_1, …, s_n]))    ∀ i, s_i = ⟨name_i, alias_i⟩    NameMap(P, mp)[IdKey(name_i)] = ⟨k_i, _, _, _⟩    k_i ∈ {Value, Type, Class}    Γ ⊢ CanAccess(m, DeclOf(mp, name_i)) ⇓ ok    (vis = `public` ⇒ Vis(DeclOf(mp, name_i)) = `public`)    bind_i = ⟨(alias_i if present else name_i), ⟨k_i, mp, name_i, Using⟩⟩
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ UsingNames(u) ⇓ [bind_1, …, bind_n]
 
 **(Using-List-Dup)**
-$$\frac{\text{u} = \langle \text{UsingDecl},\ \_,\ \langle \text{UsingList},\ \_,\ specs \rangle,\ \_,\ \_ \rangle \quad \neg \text{Distinct}(\text{UsingSpecNames}(specs)) \quad c = \text{Code}(\text{Using-List-Dup})}{\Gamma \vdash \text{UsingNames}(u) \Uparrow c}$$
+u = ⟨UsingDecl, _, ⟨UsingList, _, specs⟩, _, _⟩    ¬ Distinct(UsingSpecNames(specs))    c = Code(Using-List-Dup)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ UsingNames(u) ⇑ c
 
 **(Using-List-Public-Err)**
-$$\frac{\text{u} = \langle \text{UsingDecl},\ \texttt{public},\ \langle \text{UsingList}, mp, [s_1,\ldots,s_n] \rangle,\ \_,\ \_ \rangle \quad \exists i.\ s_i = \langle name_i,\ \_ \rangle \land \text{Vis}(\text{DeclOf}(mp,name_i)) \ne \texttt{public} \quad c = \text{Code}(\text{Using-List-Public-Err})}{\Gamma \vdash \text{UsingNames}(u) \Uparrow c}$$
+u = ⟨UsingDecl, `public`, ⟨UsingList, mp, [s_1, …, s_n]⟩, _, _⟩    ∃ i. s_i = ⟨name_i, _⟩ ∧ Vis(DeclOf(mp, name_i)) ≠ `public`    c = Code(Using-List-Public-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ UsingNames(u) ⇑ c
 
 **Item Bindings.**
 
 **(Bind-Procedure)**
-$$\frac{}{\Gamma \vdash \text{ItemBindings}(\langle \text{ProcedureDecl},\ \_,\ name,\ \_,\ \_,\ \_,\ \_,\ \_ \rangle, p) \Downarrow [(name, \langle \text{Value}, p, \bot, \text{Decl} \rangle)]}$$
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ItemBindings(⟨ProcedureDecl, _, name, _, _, _, _, _⟩, p) ⇓ [(name, ⟨Value, p, ⊥, Decl⟩)]
 
 **(Bind-Record)**
-$$\frac{}{\Gamma \vdash \text{ItemBindings}(\langle \text{RecordDecl},\ \_,\ name,\ \_,\ \_,\ \_,\ \_ \rangle, p) \Downarrow [(name, \langle \text{Type}, p, \bot, \text{Decl} \rangle)]}$$
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ItemBindings(⟨RecordDecl, _, name, _, _, _, _⟩, p) ⇓ [(name, ⟨Type, p, ⊥, Decl⟩)]
 
 **(Bind-Enum)**
-$$\frac{}{\Gamma \vdash \text{ItemBindings}(\langle \text{EnumDecl},\ \_,\ name,\ \_,\ \_,\ \_,\ \_ \rangle, p) \Downarrow [(name, \langle \text{Type}, p, \bot, \text{Decl} \rangle)]}$$
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ItemBindings(⟨EnumDecl, _, name, _, _, _, _⟩, p) ⇓ [(name, ⟨Type, p, ⊥, Decl⟩)]
 
 **(Bind-Class)**
-$$\frac{}{\Gamma \vdash \text{ItemBindings}(\langle \text{ClassDecl},\ \_,\ name,\ \_,\ \_,\ \_,\ \_ \rangle, p) \Downarrow [(name, \langle \text{Class}, p, \bot, \text{Decl} \rangle)]}$$
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ItemBindings(⟨ClassDecl, _, name, _, _, _, _⟩, p) ⇓ [(name, ⟨Class, p, ⊥, Decl⟩)]
 
 **(Bind-TypeAlias)**
-$$\frac{}{\Gamma \vdash \text{ItemBindings}(\langle \text{TypeAliasDecl},\ \_,\ name,\ \_,\ \_,\ \_ \rangle, p) \Downarrow [(name, \langle \text{Type}, p, \bot, \text{Decl} \rangle)]}$$
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ItemBindings(⟨TypeAliasDecl, _, name, _, _, _⟩, p) ⇓ [(name, ⟨Type, p, ⊥, Decl⟩)]
 
 **(Bind-Static)**
-$$\frac{\Gamma \vdash \text{PatNames}(pat) \Downarrow N}{\Gamma \vdash \text{ItemBindings}(\langle \text{StaticDecl},\ \_,\ \_,\ \langle pat,\ \_,\ \_,\ \_,\ \_ \rangle,\ \_,\ \_ \rangle, p) \Downarrow [ (n, \langle \text{Value}, p, \bot, \text{Decl} \rangle) \mid n \in N ]}$$
+Γ ⊢ PatNames(pat) ⇓ N
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ItemBindings(⟨StaticDecl, _, _, ⟨pat, _, _, _, _⟩, _, _⟩, p) ⇓ [(n, ⟨Value, p, ⊥, Decl⟩) | n ∈ N]
 
 **(Bind-Using)**
-$$\frac{\Gamma \vdash \text{UsingNames}(u) \Downarrow B}{\Gamma \vdash \text{ItemBindings}(u, p) \Downarrow B}$$
+Γ ⊢ UsingNames(u) ⇓ B
+──────────────────────────────────────────────
+Γ ⊢ ItemBindings(u, p) ⇓ B
 
 **(Bind-Using-Err)**
-$$\frac{\Gamma \vdash \text{UsingNames}(u) \Uparrow c}{\Gamma \vdash \text{ItemBindings}(u, p) \Uparrow c}$$
+Γ ⊢ UsingNames(u) ⇑ c
+──────────────────────────────────────────────
+Γ ⊢ ItemBindings(u, p) ⇑ c
 
 **(Bind-ErrorItem)**
-$$\frac{}{\Gamma \vdash \text{ItemBindings}(\text{ErrorItem}(\_), p) \Downarrow []}$$
+──────────────────────────────────────────────────────────────
+Γ ⊢ ItemBindings(ErrorItem(_), p) ⇓ []
 
 **CollectNames (Big-Step).**
 
 **(Collect-Ok)**
-$$\frac{\Gamma \vdash \text{CollectNames}(items, p, \emptyset) \Downarrow N}{\Gamma \vdash \text{CollectNames}(M) \Downarrow N}$$
+Γ ⊢ CollectNames(items, p, ∅) ⇓ N
+──────────────────────────────────────────────
+Γ ⊢ CollectNames(M) ⇓ N
 
 **(Collect-Scan)**
-$$\frac{\Gamma \vdash \text{ItemBindings}(it, p) \Downarrow B \quad \text{DisjointNames}(B, N) \quad \text{NoDup}(B) \quad \Gamma \vdash \text{CollectNames}(rest, p, N \cup B) \Downarrow N'}{\Gamma \vdash \text{CollectNames}(it::rest, p, N) \Downarrow N'}$$
+Γ ⊢ ItemBindings(it, p) ⇓ B    DisjointNames(B, N)    NoDup(B)    Γ ⊢ CollectNames(rest, p, N ∪ B) ⇓ N'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ CollectNames(it :: rest, p, N) ⇓ N'
 
 **(Collect-Dup)**
-$$\frac{\Gamma \vdash \text{ItemBindings}(it, p) \Downarrow B \quad (\neg \text{DisjointNames}(B, N) \ \lor\ \neg \text{NoDup}(B)) \quad c = \text{Code}(\text{Collect-Dup})}{\Gamma \vdash \text{CollectNames}(it::rest, p, N) \Uparrow c}$$
+Γ ⊢ ItemBindings(it, p) ⇓ B    (¬ DisjointNames(B, N) ∨ ¬ NoDup(B))    c = Code(Collect-Dup)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ CollectNames(it :: rest, p, N) ⇑ c
 
 **(Collect-Err)**
-$$\frac{\Gamma \vdash \text{ItemBindings}(it, p) \Uparrow c}{\Gamma \vdash \text{CollectNames}(it::rest, p, N) \Uparrow c}$$
+Γ ⊢ ItemBindings(it, p) ⇑ c
+────────────────────────────────────────────────────────────────
+Γ ⊢ CollectNames(it :: rest, p, N) ⇑ c
 
-$$\text{Names}(B) = \{ n \mid (n,\_) \in B \}$$
-$$\text{NoDup}(B) \iff \text{Distinct}(\text{Names}(B))$$
-$$\text{DisjointNames}(B,N) \iff \text{Names}(B) \cap \text{dom}(N) = \emptyset$$
-$$N \cup B = \{ (n,v) \mid (n,v) \in N \lor (n,v) \in B \}$$
+Names(B) = { n | (n, _) ∈ B }
+NoDup(B) ⇔ Distinct(Names(B))
+DisjointNames(B, N) ⇔ Names(B) ∩ dom(N) = ∅
+N ∪ B = { (n, v) | (n, v) ∈ N ∨ (n, v) ∈ B }
 
 **CollectNames (Small-Step).**
-$$\text{NamesState} = \{\text{NamesStart}(M),\ \text{NamesScan}(items,p,N),\ \text{NamesDone}(N),\ \text{Error}(code)\}$$
+NamesState = {NamesStart(M), NamesScan(items, p, N), NamesDone(N), Error(code)}
 
 **(Names-Start)**
-$$\frac{}{\langle \text{NamesStart}(M) \rangle \to \langle \text{NamesScan}(M.\text{items}, M.\text{path}, \emptyset) \rangle}$$
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨NamesStart(M)⟩ → ⟨NamesScan(M.items, M.path, ∅)⟩
 
 **(Names-Step)**
-$$\frac{\Gamma \vdash \text{ItemBindings}(it, p) \Downarrow B \quad \text{DisjointNames}(B,N) \quad \text{NoDup}(B)}{\langle \text{NamesScan}(it::rest, p, N) \rangle \to \langle \text{NamesScan}(rest, p, N \cup B) \rangle}$$
+Γ ⊢ ItemBindings(it, p) ⇓ B    DisjointNames(B, N)    NoDup(B)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨NamesScan(it :: rest, p, N)⟩ → ⟨NamesScan(rest, p, N ∪ B)⟩
 
 **(Names-Step-Dup)**
-$$\frac{\Gamma \vdash \text{ItemBindings}(it, p) \Downarrow B \quad (\neg \text{DisjointNames}(B,N) \ \lor\ \neg \text{NoDup}(B))}{\langle \text{NamesScan}(it::rest, p, N) \rangle \to \langle \text{Error}(\text{Code}(\text{Names-Step-Dup})) \rangle}$$
+Γ ⊢ ItemBindings(it, p) ⇓ B    (¬ DisjointNames(B, N) ∨ ¬ NoDup(B))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨NamesScan(it :: rest, p, N)⟩ → ⟨Error(Code(Names-Step-Dup))⟩
 
 **(Names-Step-Err)**
-$$\frac{\Gamma \vdash \text{ItemBindings}(it, p) \Uparrow c}{\langle \text{NamesScan}(it::rest, p, N) \rangle \to \langle \text{Error}(c) \rangle}$$
+Γ ⊢ ItemBindings(it, p) ⇑ c
+────────────────────────────────────────────────────────────────
+⟨NamesScan(it :: rest, p, N)⟩ → ⟨Error(c)⟩
 
 **(Names-Done)**
-$$\frac{}{\langle \text{NamesScan}([], p, N) \rangle \to \langle \text{NamesDone}(N) \rangle}$$
+──────────────────────────────────────────────────────────────
+⟨NamesScan([], p, N)⟩ → ⟨NamesDone(N)⟩
 
 
 #### 5.1.6. Qualified Disambiguation (Resolution-Time)
 
-$$\text{ResolveQualifiedForm} : \text{Expr} \rightharpoonup \text{Expr}$$
+ResolveQualifiedForm : Expr ⇀ Expr
 
-$$\text{ResolveArgs} : [\text{Arg}] \rightharpoonup [\text{Arg}]$$
-$$\text{ResolveFieldInits} : [\text{FieldInit}] \rightharpoonup [\text{FieldInit}]$$
-$$\text{ResolveRecordPath} : \text{Path} \times \text{Identifier} \rightharpoonup \text{Path}$$
-$$\text{ResolveEnumUnit} : \text{Path} \times \text{Identifier} \rightharpoonup \text{Path}$$
-$$\text{ResolveEnumTuple} : \text{Path} \times \text{Identifier} \rightharpoonup \text{Path}$$
-$$\text{ResolveEnumRecord} : \text{Path} \times \text{Identifier} \rightharpoonup \text{Path}$$
+ResolveArgs : [Arg] ⇀ [Arg]
+ResolveFieldInits : [FieldInit] ⇀ [FieldInit]
+ResolveRecordPath : Path × Identifier ⇀ Path
+ResolveEnumUnit : Path × Identifier ⇀ Path
+ResolveEnumTuple : Path × Identifier ⇀ Path
+ResolveEnumRecord : Path × Identifier ⇀ Path
 
 **(ResolveArgs-Empty)**
-$$\frac{}{\Gamma \vdash \text{ResolveArgs}([]) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolveArgs([]) ⇓ []
 
 **(ResolveArgs-Cons)**
-$$\frac{\Gamma \vdash \text{ResolveExpr}(e) \Downarrow e' \quad \Gamma \vdash \text{ResolveArgs}(rest) \Downarrow rest'}{\Gamma \vdash \text{ResolveArgs}([\langle moved, e, span \rangle] \mathbin{+\!\!+} rest) \Downarrow [\langle moved, e', span \rangle] \mathbin{+\!\!+} rest'}$$
+Γ ⊢ ResolveExpr(e) ⇓ e'    Γ ⊢ ResolveArgs(rest) ⇓ rest'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveArgs([⟨moved, e, span⟩] ++ rest) ⇓ [⟨moved, e', span⟩] ++ rest'
 
 **(ResolveFieldInits-Empty)**
-$$\frac{}{\Gamma \vdash \text{ResolveFieldInits}([]) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolveFieldInits([]) ⇓ []
 
 **(ResolveFieldInits-Cons)**
-$$\frac{\Gamma \vdash \text{ResolveExpr}(e) \Downarrow e' \quad \Gamma \vdash \text{ResolveFieldInits}(rest) \Downarrow rest'}{\Gamma \vdash \text{ResolveFieldInits}([\langle f, e \rangle] \mathbin{+\!\!+} rest) \Downarrow [\langle f, e' \rangle] \mathbin{+\!\!+} rest'}$$
+Γ ⊢ ResolveExpr(e) ⇓ e'    Γ ⊢ ResolveFieldInits(rest) ⇓ rest'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveFieldInits([⟨f, e⟩] ++ rest) ⇓ [⟨f, e'⟩] ++ rest'
 
-$$\text{ResolvePathJudg} = \{\text{ResolveRecordPath},\ \text{ResolveEnumUnit},\ \text{ResolveEnumTuple},\ \text{ResolveEnumRecord}\}$$
+ResolvePathJudg = {ResolveRecordPath, ResolveEnumUnit, ResolveEnumTuple, ResolveEnumRecord}
 
 **(Resolve-RecordPath)**
-$$\frac{\Gamma \vdash \text{ResolveTypePath}(path \mathbin{+\!\!+} [name]) \Downarrow p \quad \text{RecordDecl}(p) = R}{\Gamma \vdash \text{ResolveRecordPath}(path, name) \Downarrow p}$$
+Γ ⊢ ResolveTypePath(path ++ [name]) ⇓ p    RecordDecl(p) = R
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveRecordPath(path, name) ⇓ p
 
 **(Resolve-EnumUnit)**
-$$\frac{\Gamma \vdash \text{ResolveTypePath}(path) \Downarrow p \quad \text{EnumDecl}(p) = E \quad \text{VariantPayload}(E, name) = \bot}{\Gamma \vdash \text{ResolveEnumUnit}(path, name) \Downarrow p}$$
+Γ ⊢ ResolveTypePath(path) ⇓ p    EnumDecl(p) = E    VariantPayload(E, name) = ⊥
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveEnumUnit(path, name) ⇓ p
 
 **(Resolve-EnumTuple)**
-$$\frac{\Gamma \vdash \text{ResolveTypePath}(path) \Downarrow p \quad \text{EnumDecl}(p) = E \quad \text{VariantPayload}(E, name) = \text{TuplePayload}(\_)}{\Gamma \vdash \text{ResolveEnumTuple}(path, name) \Downarrow p}$$
+Γ ⊢ ResolveTypePath(path) ⇓ p    EnumDecl(p) = E    VariantPayload(E, name) = TuplePayload(_)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveEnumTuple(path, name) ⇓ p
 
 **(Resolve-EnumRecord)**
-$$\frac{\Gamma \vdash \text{ResolveTypePath}(path) \Downarrow p \quad \text{EnumDecl}(p) = E \quad \text{VariantPayload}(E, name) = \text{RecordPayload}(\_)}{\Gamma \vdash \text{ResolveEnumRecord}(path, name) \Downarrow p}$$
+Γ ⊢ ResolveTypePath(path) ⇓ p    EnumDecl(p) = E    VariantPayload(E, name) = RecordPayload(_)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveEnumRecord(path, name) ⇓ p
 
 **(ResolveQual-Name-Value)**
-$$\frac{\Gamma \vdash \text{ResolveQualified}(path, name, \text{ValueKind}) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad name' = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ name) \quad \text{PathOfModule}(mp) = path'}{\Gamma \vdash \text{ResolveQualifiedForm}(\text{QualifiedName}(path, name)) \Downarrow \text{Path}(path', name')}$$
+Γ ⊢ ResolveQualified(path, name, ValueKind) ⇓ ent    ent.origin_opt = mp    name' = (ent.target_opt if present, else name)    PathOfModule(mp) = path'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveQualifiedForm(QualifiedName(path, name)) ⇓ Path(path', name')
 
 **(ResolveQual-Name-Record)**
-$$\frac{\Gamma \vdash \text{ResolveRecordPath}(path, name) \Downarrow p \quad \text{SplitLast}(p) = (mp, name')}{\Gamma \vdash \text{ResolveQualifiedForm}(\text{QualifiedName}(path, name)) \Downarrow \text{Path}(mp, name')}$$
+Γ ⊢ ResolveRecordPath(path, name) ⇓ p    SplitLast(p) = (mp, name')
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveQualifiedForm(QualifiedName(path, name)) ⇓ Path(mp, name')
 
 **(ResolveQual-Name-Enum)**
-$$\frac{\Gamma \vdash \text{ResolveQualified}(path, name, \text{ValueKind}) \uparrow \quad \Gamma \vdash \text{ResolveRecordPath}(path, name) \uparrow \quad \Gamma \vdash \text{ResolveEnumUnit}(path, name) \Downarrow p}{\Gamma \vdash \text{ResolveQualifiedForm}(\text{QualifiedName}(path, name)) \Downarrow \text{EnumLiteral}(\text{FullPath}(p, name), \bot)}$$
+Γ ⊢ ResolveQualified(path, name, ValueKind) ↑    Γ ⊢ ResolveRecordPath(path, name) ↑    Γ ⊢ ResolveEnumUnit(path, name) ⇓ p
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveQualifiedForm(QualifiedName(path, name)) ⇓ EnumLiteral(FullPath(p, name), ⊥)
 
 **(ResolveQual-Name-Err)**
-$$\frac{\Gamma \vdash \text{ResolveQualified}(path, name, \text{ValueKind}) \uparrow \quad \Gamma \vdash \text{ResolveRecordPath}(path, name) \uparrow \quad \Gamma \vdash \text{ResolveEnumUnit}(path, name) \uparrow \quad c = \text{Code}(\text{ResolveExpr-Ident-Err})}{\Gamma \vdash \text{ResolveQualifiedForm}(\text{QualifiedName}(path, name)) \Uparrow c}$$
+Γ ⊢ ResolveQualified(path, name, ValueKind) ↑    Γ ⊢ ResolveRecordPath(path, name) ↑    Γ ⊢ ResolveEnumUnit(path, name) ↑    c = Code(ResolveExpr-Ident-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveQualifiedForm(QualifiedName(path, name)) ⇑ c
 
 **(ResolveQual-Apply-Value)**
-$$\frac{\Gamma \vdash \text{ResolveArgs}(args) \Downarrow args' \quad \Gamma \vdash \text{ResolveQualified}(path, name, \text{ValueKind}) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad name' = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ name) \quad \text{PathOfModule}(mp) = path'}{\Gamma \vdash \text{ResolveQualifiedForm}(\text{QualifiedApply}(path, name, \text{Paren}(args))) \Downarrow \text{Call}(\text{Path}(path', name'), args')}$$
+Γ ⊢ ResolveArgs(args) ⇓ args'    Γ ⊢ ResolveQualified(path, name, ValueKind) ⇓ ent    ent.origin_opt = mp    name' = (ent.target_opt if present, else name)    PathOfModule(mp) = path'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveQualifiedForm(QualifiedApply(path, name, Paren(args))) ⇓ Call(Path(path', name'), args')
 
 **(ResolveQual-Apply-Record)**
-$$\frac{\Gamma \vdash \text{ResolveArgs}(args) \Downarrow args' \quad \Gamma \vdash \text{ResolveRecordPath}(path, name) \Downarrow p \quad \text{SplitLast}(p) = (mp, name')}{\Gamma \vdash \text{ResolveQualifiedForm}(\text{QualifiedApply}(path, name, \text{Paren}(args))) \Downarrow \text{Call}(\text{Path}(mp, name'), args')}$$
+Γ ⊢ ResolveArgs(args) ⇓ args'    Γ ⊢ ResolveRecordPath(path, name) ⇓ p    SplitLast(p) = (mp, name')
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveQualifiedForm(QualifiedApply(path, name, Paren(args))) ⇓ Call(Path(mp, name'), args')
 
 **(ResolveQual-Apply-Enum-Tuple)**
-$$\frac{\Gamma \vdash \text{ResolveArgs}(args) \Downarrow args' \quad \Gamma \vdash \text{ResolveQualified}(path, name, \text{ValueKind}) \uparrow \quad \Gamma \vdash \text{ResolveRecordPath}(path, name) \uparrow \quad \Gamma \vdash \text{ResolveEnumTuple}(path, name) \Downarrow p}{\Gamma \vdash \text{ResolveQualifiedForm}(\text{QualifiedApply}(path, name, \text{Paren}(args))) \Downarrow \text{EnumLiteral}(\text{FullPath}(p, name), \text{Paren}(\text{ArgsExprs}(args')))}$$
+Γ ⊢ ResolveArgs(args) ⇓ args'    Γ ⊢ ResolveQualified(path, name, ValueKind) ↑    Γ ⊢ ResolveRecordPath(path, name) ↑    Γ ⊢ ResolveEnumTuple(path, name) ⇓ p
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveQualifiedForm(QualifiedApply(path, name, Paren(args))) ⇓ EnumLiteral(FullPath(p, name), Paren(ArgsExprs(args')))
 
 **(ResolveQual-Apply-Err)**
-$$\frac{\Gamma \vdash \text{ResolveArgs}(args) \Downarrow args' \quad \Gamma \vdash \text{ResolveQualified}(path, name, \text{ValueKind}) \uparrow \quad \Gamma \vdash \text{ResolveRecordPath}(path, name) \uparrow \quad \Gamma \vdash \text{ResolveEnumTuple}(path, name) \uparrow \quad c = \text{Code}(\text{ResolveExpr-Ident-Err})}{\Gamma \vdash \text{ResolveQualifiedForm}(\text{QualifiedApply}(path, name, \text{Paren}(args))) \Uparrow c}$$
+Γ ⊢ ResolveArgs(args) ⇓ args'    Γ ⊢ ResolveQualified(path, name, ValueKind) ↑    Γ ⊢ ResolveRecordPath(path, name) ↑    Γ ⊢ ResolveEnumTuple(path, name) ↑    c = Code(ResolveExpr-Ident-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveQualifiedForm(QualifiedApply(path, name, Paren(args))) ⇑ c
 
 **Qualified Apply (Brace).**
 
 **(ResolveQual-Apply-RecordLit)**
-$$\frac{\Gamma \vdash \text{ResolveFieldInits}(fields) \Downarrow fields' \quad \Gamma \vdash \text{ResolveRecordPath}(path, name) \Downarrow p}{\Gamma \vdash \text{ResolveQualifiedForm}(\text{QualifiedApply}(path, name, \text{Brace}(fields))) \Downarrow \text{RecordExpr}(\text{TypePath}(p), fields')}$$
+Γ ⊢ ResolveFieldInits(fields) ⇓ fields'    Γ ⊢ ResolveRecordPath(path, name) ⇓ p
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveQualifiedForm(QualifiedApply(path, name, Brace(fields))) ⇓ RecordExpr(TypePath(p), fields')
 
 **(ResolveQual-Apply-Enum-Record)**
-$$\frac{\Gamma \vdash \text{ResolveFieldInits}(fields) \Downarrow fields' \quad \Gamma \vdash \text{ResolveRecordPath}(path, name) \uparrow \quad \Gamma \vdash \text{ResolveEnumRecord}(path, name) \Downarrow p}{\Gamma \vdash \text{ResolveQualifiedForm}(\text{QualifiedApply}(path, name, \text{Brace}(fields))) \Downarrow \text{EnumLiteral}(\text{FullPath}(p, name), \text{Brace}(fields'))}$$
+Γ ⊢ ResolveFieldInits(fields) ⇓ fields'    Γ ⊢ ResolveRecordPath(path, name) ↑    Γ ⊢ ResolveEnumRecord(path, name) ⇓ p
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveQualifiedForm(QualifiedApply(path, name, Brace(fields))) ⇓ EnumLiteral(FullPath(p, name), Brace(fields'))
 
 **(ResolveQual-Apply-Brace-Err)**
-$$\frac{\Gamma \vdash \text{ResolveFieldInits}(fields) \Downarrow fields' \quad \Gamma \vdash \text{ResolveRecordPath}(path, name) \uparrow \quad \Gamma \vdash \text{ResolveEnumRecord}(path, name) \uparrow \quad c = \text{Code}(\text{ResolveExpr-Ident-Err})}{\Gamma \vdash \text{ResolveQualifiedForm}(\text{QualifiedApply}(path, name, \text{Brace}(fields))) \Uparrow c}$$
+Γ ⊢ ResolveFieldInits(fields) ⇓ fields'    Γ ⊢ ResolveRecordPath(path, name) ↑    Γ ⊢ ResolveEnumRecord(path, name) ↑    c = Code(ResolveExpr-Ident-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveQualifiedForm(QualifiedApply(path, name, Brace(fields))) ⇑ c
 
 #### 5.1.7. Resolution Pass (Big-Step and Small-Step)
 
 $$P = \text{Project}(\Gamma)$$
 $$m = \text{CurrentModule}(\Gamma)$$
 $$M = \text{ASTModule}(P, m)$$
-$$\text{ResolveInputs} = \langle M,\ \text{ModulePaths},\ \{ \text{NameMap}(P, p) \mid p \in \text{ModulePaths} \} \rangle$$
-$$\text{ResolveOutputs} = \langle M' \rangle$$
-$$\text{PathOfModuleRef} = \{\texttt{"3.4.1"}\}$$
+ResolveInputs = ⟨M, ModulePaths, { NameMap(P, p) | p ∈ ModulePaths }⟩
+ResolveOutputs = ⟨M'⟩
+PathOfModuleRef = {"3.4.1"}
 
 **(Validate-ModulePath-Ok)**
-$$\frac{\neg \text{ReservedModulePath}(\text{PathOfModule}(p))}{\Gamma \vdash \text{ValidateModulePath}(p) \Downarrow ok}$$
+¬ ReservedModulePath(PathOfModule(p))
+──────────────────────────────────────────────
+Γ ⊢ ValidateModulePath(p) ⇓ ok
 
 **(Validate-ModulePath-Reserved-Err)**
-$$\frac{\text{ReservedModulePath}(\text{PathOfModule}(p)) \quad c = \text{Code}(\text{Validate-ModulePath-Reserved-Err})}{\Gamma \vdash \text{ValidateModulePath}(p) \Uparrow c}$$
+ReservedModulePath(PathOfModule(p))    c = Code(Validate-ModulePath-Reserved-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ValidateModulePath(p) ⇑ c
 
 **(ResolveModule-Ok)**
-$$\frac{\Gamma \vdash \text{CollectNames}(M) \Downarrow N \quad \Gamma \vdash \text{ValidateModulePath}(M.\text{path}) \Downarrow ok \quad \Gamma \vdash \text{ValidateModuleNames}(N) \Downarrow ok \quad S_{module} = N \quad \Gamma_N = [S_{module}, S_{universe}] \quad \Gamma_N \vdash \text{ResolveItems}(M.\text{items}) \Downarrow items'}{\Gamma \vdash \text{ResolveModule}(M) \Downarrow \langle M.\text{path}, items', M.\text{module\_doc} \rangle}$$
+Γ ⊢ CollectNames(M) ⇓ N    Γ ⊢ ValidateModulePath(M.path) ⇓ ok    Γ ⊢ ValidateModuleNames(N) ⇓ ok    S_module = N    Γ_N = [S_module, S_universe]    Γ_N ⊢ ResolveItems(M.items) ⇓ items'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveModule(M) ⇓ ⟨M.path, items', M.module_doc⟩
 
 **(ResolveItems-Empty)**
-$$\frac{}{\Gamma \vdash \text{ResolveItems}([]) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolveItems([]) ⇓ []
 
 **(ResolveItems-Cons)**
-$$\frac{\Gamma \vdash \text{TopLevelVis}(it) \Downarrow ok \quad \Gamma \vdash \text{ResolveItem}(it) \Downarrow it' \quad \Gamma \vdash \text{ResolveItems}(rest) \Downarrow rest'}{\Gamma \vdash \text{ResolveItems}(it::rest) \Downarrow it'::rest'}$$
+Γ ⊢ TopLevelVis(it) ⇓ ok    Γ ⊢ ResolveItem(it) ⇓ it'    Γ ⊢ ResolveItems(rest) ⇓ rest'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveItems(it :: rest) ⇓ it' :: rest'
 
 **(ResolveItem-Static)**
-$$\frac{\Gamma \vdash \text{ResolvePattern}(pat) \Downarrow pat' \quad \Gamma \vdash \text{ResolveExpr}(init) \Downarrow init' \quad \Gamma \vdash \text{ResolveTypeOpt}(ty\_opt) \Downarrow ty\_opt'}{\Gamma \vdash \text{ResolveItem}(\text{StaticDecl}(vis, mut, \langle pat, ty\_opt, op, init, span \rangle, span', doc)) \Downarrow \text{StaticDecl}(vis, mut, \langle pat', ty\_opt', op, init', span \rangle, span', doc)}$$
+Γ ⊢ ResolvePattern(pat) ⇓ pat'    Γ ⊢ ResolveExpr(init) ⇓ init'    Γ ⊢ ResolveTypeOpt(ty_opt) ⇓ ty_opt'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveItem(StaticDecl(vis, mut, ⟨pat, ty_opt, op, init, span⟩, span', doc)) ⇓ StaticDecl(vis, mut, ⟨pat', ty_opt', op, init', span⟩, span', doc)
 
 **(ResolveItem-Procedure)**
-$$\frac{S_{proc} = \{ \text{IdKey}(p.\text{name}) \mapsto \langle \text{Value}, \bot, \bot, \text{Decl} \rangle \mid p \in params \} \quad \Gamma_p = [S_{proc}, S_{module}, S_{universe}] \quad \Gamma_p \vdash \text{ResolveParams}(params) \Downarrow params' \quad \Gamma_p \vdash \text{ResolveTypeOpt}(ret\_opt) \Downarrow ret\_opt' \quad \Gamma_p \vdash \text{ResolveExpr}(body) \Downarrow body'}{\Gamma \vdash \text{ResolveItem}(\text{ProcedureDecl}(vis, name, params, ret\_opt, body, span, doc)) \Downarrow \text{ProcedureDecl}(vis, name, params', ret\_opt', body', span, doc)}$$
+S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ_p = [S_proc, S_module, S_universe]    Γ_p ⊢ ResolveParams(params) ⇓ params'    Γ_p ⊢ ResolveTypeOpt(ret_opt) ⇓ ret_opt'    Γ_p ⊢ ResolveExpr(body) ⇓ body'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveItem(ProcedureDecl(vis, name, params, ret_opt, body, span, doc)) ⇓ ProcedureDecl(vis, name, params', ret_opt', body', span, doc)
 
 **(ResolveItem-Using)**
-$$\frac{}{\Gamma \vdash \text{ResolveItem}(\text{UsingDecl}(vis, clause, span, doc)) \Downarrow \text{UsingDecl}(vis, clause, span, doc)}$$
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveItem(UsingDecl(vis, clause, span, doc)) ⇓ UsingDecl(vis, clause, span, doc)
 
 **(ResolveItem-TypeAlias)**
-$$\frac{\Gamma \vdash \text{ResolveType}(ty) \Downarrow ty'}{\Gamma \vdash \text{ResolveItem}(\text{TypeAliasDecl}(vis, name, ty, span, doc)) \Downarrow \text{TypeAliasDecl}(vis, name, ty', span, doc)}$$
+Γ ⊢ ResolveType(ty) ⇓ ty'
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveItem(TypeAliasDecl(vis, name, ty, span, doc)) ⇓ TypeAliasDecl(vis, name, ty', span, doc)
 
 **(ResolveItem-Record)**
-$$\frac{R = \text{RecordDecl}(vis, name, impls, members, span, doc) \quad \Gamma \vdash \text{ResolveClassPathList}(impls) \Downarrow impls' \quad \Gamma \vdash \text{ResolveRecordMemberList}(R, members) \Downarrow members'}{\Gamma \vdash \text{ResolveItem}(R) \Downarrow \text{RecordDecl}(vis, name, impls', members', span, doc)}$$
+R = RecordDecl(vis, name, impls, members, span, doc)    Γ ⊢ ResolveClassPathList(impls) ⇓ impls'    Γ ⊢ ResolveRecordMemberList(R, members) ⇓ members'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveItem(R) ⇓ RecordDecl(vis, name, impls', members', span, doc)
 
 **(ResolveItem-Enum)**
-$$\frac{\Gamma \vdash \text{ResolveClassPathList}(impls) \Downarrow impls' \quad \Gamma \vdash \text{ResolveVariantList}(vars) \Downarrow vars'}{\Gamma \vdash \text{ResolveItem}(\text{EnumDecl}(vis, name, impls, vars, span, doc)) \Downarrow \text{EnumDecl}(vis, name, impls', vars', span, doc)}$$
+Γ ⊢ ResolveClassPathList(impls) ⇓ impls'    Γ ⊢ ResolveVariantList(vars) ⇓ vars'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveItem(EnumDecl(vis, name, impls, vars, span, doc)) ⇓ EnumDecl(vis, name, impls', vars', span, doc)
 
 **(ResolveItem-Modal)**
-$$\frac{\Gamma \vdash \text{ResolveClassPathList}(impls) \Downarrow impls' \quad \Gamma \vdash \text{ResolveStateBlockList}(states) \Downarrow states'}{\Gamma \vdash \text{ResolveItem}(\text{ModalDecl}(vis, name, impls, states, span, doc)) \Downarrow \text{ModalDecl}(vis, name, impls', states', span, doc)}$$
+Γ ⊢ ResolveClassPathList(impls) ⇓ impls'    Γ ⊢ ResolveStateBlockList(states) ⇓ states'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveItem(ModalDecl(vis, name, impls, states, span, doc)) ⇓ ModalDecl(vis, name, impls', states', span, doc)
 
 **(ResolveItem-Class)**
-$$\frac{\Gamma \vdash \text{ResolveClassPathList}(supers) \Downarrow supers' \quad \Gamma \vdash \text{ResolveClassItemList}(items) \Downarrow items'}{\Gamma \vdash \text{ResolveItem}(\text{ClassDecl}(vis, name, supers, items, span, doc)) \Downarrow \text{ClassDecl}(vis, name, supers', items', span, doc)}$$
+Γ ⊢ ResolveClassPathList(supers) ⇓ supers'    Γ ⊢ ResolveClassItemList(items) ⇓ items'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveItem(ClassDecl(vis, name, supers, items, span, doc)) ⇓ ClassDecl(vis, name, supers', items', span, doc)
 
 **Self Binding for Methods.**
 
 **(BindSelf-Record)**
-$$\frac{\text{RecordPath}(R) = p \quad \text{SplitLast}(p) = (mp, name) \quad S_{proc}' = S_{proc}[\text{IdKey}(\texttt{"Self"}) \mapsto \langle \text{Type}, mp, name, \text{Decl} \rangle]}{\Gamma \vdash \text{BindSelfRecord}(R, S_{proc}) \Downarrow S_{proc}'}$$
+RecordPath(R) = p    SplitLast(p) = (mp, name)    S_proc' = S_proc[IdKey(`Self`) ↦ ⟨Type, mp, name, Decl⟩]
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ BindSelfRecord(R, S_proc) ⇓ S_proc'
 
 **(BindSelf-Class)**
-$$\frac{S_{proc}' = S_{proc}[\text{IdKey}(\texttt{"Self"}) \mapsto \langle \text{Type}, \bot, \bot, \text{Decl} \rangle]}{\Gamma \vdash \text{BindSelfClass}(S_{proc}) \Downarrow S_{proc}'}$$
+S_proc' = S_proc[IdKey(`Self`) ↦ ⟨Type, ⊥, ⊥, Decl⟩]
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ BindSelfClass(S_proc) ⇓ S_proc'
 
 **(ResolveReceiver-Shorthand)**
-$$\frac{}{\Gamma \vdash \text{ResolveReceiver}(\text{ReceiverShorthand}(\text{perm})) \Downarrow \text{ReceiverShorthand}(\text{perm})}$$
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveReceiver(ReceiverShorthand(perm)) ⇓ ReceiverShorthand(perm)
 
 **(ResolveReceiver-Explicit)**
-$$\frac{\Gamma \vdash \text{ResolveType}(ty) \Downarrow ty'}{\Gamma \vdash \text{ResolveReceiver}(\text{ReceiverExplicit}(mode\_opt, ty)) \Downarrow \text{ReceiverExplicit}(mode\_opt, ty')}$$
+Γ ⊢ ResolveType(ty) ⇓ ty'
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveReceiver(ReceiverExplicit(mode_opt, ty)) ⇓ ReceiverExplicit(mode_opt, ty')
 
 **(ResolveClassPathList-Empty)**
-$$\frac{}{\Gamma \vdash \text{ResolveClassPathList}([]) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolveClassPathList([]) ⇓ []
 
 **(ResolveClassPathList-Cons)**
-$$\frac{\Gamma \vdash \text{ResolveClassPath}(p) \Downarrow p' \quad \Gamma \vdash \text{ResolveClassPathList}(ps) \Downarrow ps'}{\Gamma \vdash \text{ResolveClassPathList}(p::ps) \Downarrow p'::ps'}$$
+Γ ⊢ ResolveClassPath(p) ⇓ p'    Γ ⊢ ResolveClassPathList(ps) ⇓ ps'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveClassPathList(p :: ps) ⇓ p' :: ps'
 
 **(ResolveTypeList-Empty)**
-$$\frac{}{\Gamma \vdash \text{ResolveTypeList}([]) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolveTypeList([]) ⇓ []
 
 **(ResolveTypeList-Cons)**
-$$\frac{\Gamma \vdash \text{ResolveType}(t) \Downarrow t' \quad \Gamma \vdash \text{ResolveTypeList}(ts) \Downarrow ts'}{\Gamma \vdash \text{ResolveTypeList}(t::ts) \Downarrow t'::ts'}$$
+Γ ⊢ ResolveType(t) ⇓ t'    Γ ⊢ ResolveTypeList(ts) ⇓ ts'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveTypeList(t :: ts) ⇓ t' :: ts'
 
 **(ResolveFieldDecl)**
-$$\frac{\Gamma \vdash \text{ResolveType}(ty) \Downarrow ty' \quad \Gamma \vdash \text{ResolveExprOpt}(init\_opt) \Downarrow init\_opt'}{\Gamma \vdash \text{ResolveFieldDecl}(\text{FieldDecl}(vis,name,ty,init\_opt,span,doc\_opt)) \Downarrow \text{FieldDecl}(vis,name,ty',init\_opt',span,doc\_opt)}$$
+Γ ⊢ ResolveType(ty) ⇓ ty'    Γ ⊢ ResolveExprOpt(init_opt) ⇓ init_opt'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveFieldDecl(FieldDecl(vis, name, ty, init_opt, span, doc_opt)) ⇓ FieldDecl(vis, name, ty', init_opt', span, doc_opt)
 
 **(ResolveFieldDeclList-Empty)**
-$$\frac{}{\Gamma \vdash \text{ResolveFieldDeclList}([]) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolveFieldDeclList([]) ⇓ []
 
 **(ResolveFieldDeclList-Cons)**
-$$\frac{\Gamma \vdash \text{ResolveFieldDecl}(f) \Downarrow f' \quad \Gamma \vdash \text{ResolveFieldDeclList}(fs) \Downarrow fs'}{\Gamma \vdash \text{ResolveFieldDeclList}(f::fs) \Downarrow f'::fs'}$$
+Γ ⊢ ResolveFieldDecl(f) ⇓ f'    Γ ⊢ ResolveFieldDeclList(fs) ⇓ fs'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveFieldDeclList(f :: fs) ⇓ f' :: fs'
 
 **(ResolveRecordMember-Field)**
-$$\frac{\Gamma \vdash \text{ResolveFieldDecl}(f) \Downarrow f'}{\Gamma \vdash \text{ResolveRecordMember}(R, f) \Downarrow f'}$$
+Γ ⊢ ResolveFieldDecl(f) ⇓ f'
+──────────────────────────────────────────────
+Γ ⊢ ResolveRecordMember(R, f) ⇓ f'
 
 **(ResolveRecordMember-Method)**
-$$\frac{S_{proc} = \{ \text{IdKey}(p.\text{name}) \mapsto \langle \text{Value}, \bot, \bot, \text{Decl} \rangle \mid p \in params \} \quad \Gamma \vdash \text{BindSelfRecord}(R, S_{proc}) \Downarrow S_{proc}' \quad \Gamma_m = [S_{proc}', S_{module}, S_{universe}] \quad \Gamma_m \vdash \text{ResolveReceiver}(recv) \Downarrow recv' \quad \Gamma_m \vdash \text{ResolveParams}(params) \Downarrow params' \quad \Gamma_m \vdash \text{ResolveTypeOpt}(ret\_opt) \Downarrow ret\_opt' \quad \Gamma_m \vdash \text{ResolveExpr}(body) \Downarrow body'}{\Gamma \vdash \text{ResolveRecordMember}(R, \text{MethodDecl}(vis, override, name, recv, params, ret\_opt, body, span, doc\_opt)) \Downarrow \text{MethodDecl}(vis, override, name, recv', params', ret\_opt', body', span, doc\_opt)}$$
+S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ ⊢ BindSelfRecord(R, S_proc) ⇓ S_proc'    Γ_m = [S_proc', S_module, S_universe]    Γ_m ⊢ ResolveReceiver(recv) ⇓ recv'    Γ_m ⊢ ResolveParams(params) ⇓ params'    Γ_m ⊢ ResolveTypeOpt(ret_opt) ⇓ ret_opt'    Γ_m ⊢ ResolveExpr(body) ⇓ body'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveRecordMember(R, MethodDecl(vis, override, name, recv, params, ret_opt, body, span, doc_opt)) ⇓ MethodDecl(vis, override, name, recv', params', ret_opt', body', span, doc_opt)
 
 **(ResolveRecordMemberList-Empty)**
-$$\frac{}{\Gamma \vdash \text{ResolveRecordMemberList}(R, []) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolveRecordMemberList(R, []) ⇓ []
 
 **(ResolveRecordMemberList-Cons)**
-$$\frac{\Gamma \vdash \text{ResolveRecordMember}(R, m) \Downarrow m' \quad \Gamma \vdash \text{ResolveRecordMemberList}(R, ms) \Downarrow ms'}{\Gamma \vdash \text{ResolveRecordMemberList}(R, m::ms) \Downarrow m'::ms'}$$
+Γ ⊢ ResolveRecordMember(R, m) ⇓ m'    Γ ⊢ ResolveRecordMemberList(R, ms) ⇓ ms'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveRecordMemberList(R, m :: ms) ⇓ m' :: ms'
 
 **(ResolveClassItem-Field)**
-$$\frac{\Gamma \vdash \text{ResolveType}(ty) \Downarrow ty'}{\Gamma \vdash \text{ResolveClassItem}(\text{ClassFieldDecl}(vis,name,ty,span,doc\_opt)) \Downarrow \text{ClassFieldDecl}(vis,name,ty',span,doc\_opt)}$$
+Γ ⊢ ResolveType(ty) ⇓ ty'
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveClassItem(ClassFieldDecl(vis, name, ty, span, doc_opt)) ⇓ ClassFieldDecl(vis, name, ty', span, doc_opt)
 
 **(ResolveClassItem-Method-Abstract)**
-$$\frac{S_{proc} = \{ \text{IdKey}(p.\text{name}) \mapsto \langle \text{Value}, \bot, \bot, \text{Decl} \rangle \mid p \in params \} \quad \Gamma \vdash \text{BindSelfClass}(S_{proc}) \Downarrow S_{proc}' \quad \Gamma_m = [S_{proc}', S_{module}, S_{universe}] \quad \Gamma_m \vdash \text{ResolveReceiver}(recv) \Downarrow recv' \quad \Gamma_m \vdash \text{ResolveParams}(params) \Downarrow params' \quad \Gamma_m \vdash \text{ResolveTypeOpt}(ret\_opt) \Downarrow ret\_opt'}{\Gamma \vdash \text{ResolveClassItem}(\text{ClassMethodDecl}(vis,name,recv,params,ret\_opt,\bot,span,doc\_opt)) \Downarrow \text{ClassMethodDecl}(vis,name,recv',params',ret\_opt',\bot,span,doc\_opt)}$$
+S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ ⊢ BindSelfClass(S_proc) ⇓ S_proc'    Γ_m = [S_proc', S_module, S_universe]    Γ_m ⊢ ResolveReceiver(recv) ⇓ recv'    Γ_m ⊢ ResolveParams(params) ⇓ params'    Γ_m ⊢ ResolveTypeOpt(ret_opt) ⇓ ret_opt'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveClassItem(ClassMethodDecl(vis, name, recv, params, ret_opt, ⊥, span, doc_opt)) ⇓ ClassMethodDecl(vis, name, recv', params', ret_opt', ⊥, span, doc_opt)
 
 **(ResolveClassItem-Method-Concrete)**
-$$\frac{S_{proc} = \{ \text{IdKey}(p.\text{name}) \mapsto \langle \text{Value}, \bot, \bot, \text{Decl} \rangle \mid p \in params \} \quad \Gamma \vdash \text{BindSelfClass}(S_{proc}) \Downarrow S_{proc}' \quad \Gamma_m = [S_{proc}', S_{module}, S_{universe}] \quad \Gamma_m \vdash \text{ResolveReceiver}(recv) \Downarrow recv' \quad \Gamma_m \vdash \text{ResolveParams}(params) \Downarrow params' \quad \Gamma_m \vdash \text{ResolveTypeOpt}(ret\_opt) \Downarrow ret\_opt' \quad \Gamma_m \vdash \text{ResolveExpr}(body) \Downarrow body'}{\Gamma \vdash \text{ResolveClassItem}(\text{ClassMethodDecl}(vis,name,recv,params,ret\_opt,body,span,doc\_opt)) \Downarrow \text{ClassMethodDecl}(vis,name,recv',params',ret\_opt',body',span,doc\_opt)}$$
+S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ ⊢ BindSelfClass(S_proc) ⇓ S_proc'    Γ_m = [S_proc', S_module, S_universe]    Γ_m ⊢ ResolveReceiver(recv) ⇓ recv'    Γ_m ⊢ ResolveParams(params) ⇓ params'    Γ_m ⊢ ResolveTypeOpt(ret_opt) ⇓ ret_opt'    Γ_m ⊢ ResolveExpr(body) ⇓ body'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveClassItem(ClassMethodDecl(vis, name, recv, params, ret_opt, body, span, doc_opt)) ⇓ ClassMethodDecl(vis, name, recv', params', ret_opt', body', span, doc_opt)
 
 **(ResolveClassItemList-Empty)**
-$$\frac{}{\Gamma \vdash \text{ResolveClassItemList}([]) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolveClassItemList([]) ⇓ []
 
 **(ResolveClassItemList-Cons)**
-$$\frac{\Gamma \vdash \text{ResolveClassItem}(it) \Downarrow it' \quad \Gamma \vdash \text{ResolveClassItemList}(its) \Downarrow its'}{\Gamma \vdash \text{ResolveClassItemList}(it::its) \Downarrow it'::its'}$$
+Γ ⊢ ResolveClassItem(it) ⇓ it'    Γ ⊢ ResolveClassItemList(its) ⇓ its'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveClassItemList(it :: its) ⇓ it' :: its'
 
 **(ResolveVariantPayloadOpt-None)**
-$$\frac{}{\Gamma \vdash \text{ResolveVariantPayloadOpt}(\bot) \Downarrow \bot}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolveVariantPayloadOpt(⊥) ⇓ ⊥
 
 **(ResolveVariantPayloadOpt-Tuple)**
-$$\frac{\Gamma \vdash \text{ResolveTypeList}(ts) \Downarrow ts'}{\Gamma \vdash \text{ResolveVariantPayloadOpt}(\text{TuplePayload}(ts)) \Downarrow \text{TuplePayload}(ts')}$$
+Γ ⊢ ResolveTypeList(ts) ⇓ ts'
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveVariantPayloadOpt(TuplePayload(ts)) ⇓ TuplePayload(ts')
 
 **(ResolveVariantPayloadOpt-Record)**
-$$\frac{\Gamma \vdash \text{ResolveFieldDeclList}(fs) \Downarrow fs'}{\Gamma \vdash \text{ResolveVariantPayloadOpt}(\text{RecordPayload}(fs)) \Downarrow \text{RecordPayload}(fs')}$$
+Γ ⊢ ResolveFieldDeclList(fs) ⇓ fs'
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveVariantPayloadOpt(RecordPayload(fs)) ⇓ RecordPayload(fs')
 
 **(ResolveVariant)**
-$$\frac{\Gamma \vdash \text{ResolveVariantPayloadOpt}(payload\_opt) \Downarrow payload\_opt' \quad \Gamma \vdash \text{ResolveExprOpt}(disc\_opt) \Downarrow disc\_opt'}{\Gamma \vdash \text{ResolveVariant}(\text{VariantDecl}(name,payload\_opt,disc\_opt,span,doc\_opt)) \Downarrow \text{VariantDecl}(name,payload\_opt',disc\_opt',span,doc\_opt)}$$
+Γ ⊢ ResolveVariantPayloadOpt(payload_opt) ⇓ payload_opt'    Γ ⊢ ResolveExprOpt(disc_opt) ⇓ disc_opt'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveVariant(VariantDecl(name, payload_opt, disc_opt, span, doc_opt)) ⇓ VariantDecl(name, payload_opt', disc_opt', span, doc_opt)
 
 **(ResolveVariantList-Empty)**
-$$\frac{}{\Gamma \vdash \text{ResolveVariantList}([]) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolveVariantList([]) ⇓ []
 
 **(ResolveVariantList-Cons)**
-$$\frac{\Gamma \vdash \text{ResolveVariant}(v) \Downarrow v' \quad \Gamma \vdash \text{ResolveVariantList}(vs) \Downarrow vs'}{\Gamma \vdash \text{ResolveVariantList}(v::vs) \Downarrow v'::vs'}$$
+Γ ⊢ ResolveVariant(v) ⇓ v'    Γ ⊢ ResolveVariantList(vs) ⇓ vs'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveVariantList(v :: vs) ⇓ v' :: vs'
 
 **(ResolveStateMember-Field)**
-$$\frac{\Gamma \vdash \text{ResolveType}(ty) \Downarrow ty'}{\Gamma \vdash \text{ResolveStateMember}(\text{StateFieldDecl}(vis,name,ty,span,doc\_opt)) \Downarrow \text{StateFieldDecl}(vis,name,ty',span,doc\_opt)}$$
+Γ ⊢ ResolveType(ty) ⇓ ty'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveStateMember(StateFieldDecl(vis, name, ty, span, doc_opt)) ⇓ StateFieldDecl(vis, name, ty', span, doc_opt)
 
 **(ResolveStateMember-Method)**
-$$\frac{S_{proc} = \{ \text{IdKey}(p.\text{name}) \mapsto \langle \text{Value}, \bot, \bot, \text{Decl} \rangle \mid p \in params \} \quad \Gamma_m = [S_{proc}, S_{module}, S_{universe}] \quad \Gamma_m \vdash \text{ResolveParams}(params) \Downarrow params' \quad \Gamma_m \vdash \text{ResolveTypeOpt}(ret\_opt) \Downarrow ret\_opt' \quad \Gamma_m \vdash \text{ResolveExpr}(body) \Downarrow body'}{\Gamma \vdash \text{ResolveStateMember}(\text{StateMethodDecl}(vis,name,params,ret\_opt,body,span,doc\_opt)) \Downarrow \text{StateMethodDecl}(vis,name,params',ret\_opt',body',span,doc\_opt)}$$
+S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ_m = [S_proc, S_module, S_universe]    Γ_m ⊢ ResolveParams(params) ⇓ params'    Γ_m ⊢ ResolveTypeOpt(ret_opt) ⇓ ret_opt'    Γ_m ⊢ ResolveExpr(body) ⇓ body'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveStateMember(StateMethodDecl(vis, name, params, ret_opt, body, span, doc_opt)) ⇓ StateMethodDecl(vis, name, params', ret_opt', body', span, doc_opt)
 
 **(ResolveStateMember-Transition)**
-$$\frac{S_{proc} = \{ \text{IdKey}(p.\text{name}) \mapsto \langle \text{Value}, \bot, \bot, \text{Decl} \rangle \mid p \in params \} \quad \Gamma_m = [S_{proc}, S_{module}, S_{universe}] \quad \Gamma_m \vdash \text{ResolveParams}(params) \Downarrow params' \quad \Gamma_m \vdash \text{ResolveExpr}(body) \Downarrow body'}{\Gamma \vdash \text{ResolveStateMember}(\text{TransitionDecl}(vis,name,params,target\_state,body,span,doc\_opt)) \Downarrow \text{TransitionDecl}(vis,name,params',target\_state,body',span,doc\_opt)}$$
+S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ_m = [S_proc, S_module, S_universe]    Γ_m ⊢ ResolveParams(params) ⇓ params'    Γ_m ⊢ ResolveExpr(body) ⇓ body'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveStateMember(TransitionDecl(vis, name, params, target_state, body, span, doc_opt)) ⇓ TransitionDecl(vis, name, params', target_state, body', span, doc_opt)
 
 **(ResolveStateMemberList-Empty)**
-$$\frac{}{\Gamma \vdash \text{ResolveStateMemberList}([]) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolveStateMemberList([]) ⇓ []
 
 **(ResolveStateMemberList-Cons)**
-$$\frac{\Gamma \vdash \text{ResolveStateMember}(m) \Downarrow m' \quad \Gamma \vdash \text{ResolveStateMemberList}(ms) \Downarrow ms'}{\Gamma \vdash \text{ResolveStateMemberList}(m::ms) \Downarrow m'::ms'}$$
+Γ ⊢ ResolveStateMember(m) ⇓ m'    Γ ⊢ ResolveStateMemberList(ms) ⇓ ms'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveStateMemberList(m :: ms) ⇓ m' :: ms'
 
 **(ResolveStateBlock)**
-$$\frac{\Gamma \vdash \text{ResolveStateMemberList}(members) \Downarrow members'}{\Gamma \vdash \text{ResolveStateBlock}(\text{StateBlock}(name,members,span,doc\_opt)) \Downarrow \text{StateBlock}(name,members',span,doc\_opt)}$$
+Γ ⊢ ResolveStateMemberList(members) ⇓ members'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveStateBlock(StateBlock(name, members, span, doc_opt)) ⇓ StateBlock(name, members', span, doc_opt)
 
 **(ResolveStateBlockList-Empty)**
-$$\frac{}{\Gamma \vdash \text{ResolveStateBlockList}([]) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolveStateBlockList([]) ⇓ []
 
 **(ResolveStateBlockList-Cons)**
-$$\frac{\Gamma \vdash \text{ResolveStateBlock}(b) \Downarrow b' \quad \Gamma \vdash \text{ResolveStateBlockList}(bs) \Downarrow bs'}{\Gamma \vdash \text{ResolveStateBlockList}(b::bs) \Downarrow b'::bs'}$$
+Γ ⊢ ResolveStateBlock(b) ⇓ b'    Γ ⊢ ResolveStateBlockList(bs) ⇓ bs'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveStateBlockList(b :: bs) ⇓ b' :: bs'
 
 **(ResolveTypeOpt-None)**
-$$\frac{}{\Gamma \vdash \text{ResolveTypeOpt}(\bot) \Downarrow \bot}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolveTypeOpt(⊥) ⇓ ⊥
 
 **(ResolveTypeOpt-Some)**
-$$\frac{\Gamma \vdash \text{ResolveType}(ty) \Downarrow ty'}{\Gamma \vdash \text{ResolveTypeOpt}(ty) \Downarrow ty'}$$
+Γ ⊢ ResolveType(ty) ⇓ ty'
+──────────────────────────────────────────────
+Γ ⊢ ResolveTypeOpt(ty) ⇓ ty'
 
 **(ResolveExprOpt-None)**
-$$\frac{}{\Gamma \vdash \text{ResolveExprOpt}(\bot) \Downarrow \bot}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolveExprOpt(⊥) ⇓ ⊥
 
 **(ResolveExprOpt-Some)**
-$$\frac{\Gamma \vdash \text{ResolveExpr}(e) \Downarrow e'}{\Gamma \vdash \text{ResolveExprOpt}(e) \Downarrow e'}$$
+Γ ⊢ ResolveExpr(e) ⇓ e'
+──────────────────────────────────────────────
+Γ ⊢ ResolveExprOpt(e) ⇓ e'
 
 **(ResolveTypePath-Ident)**
-$$\frac{|path| = 1 \quad \Gamma \vdash \text{ResolveTypeName}(path[0]) \Downarrow ent \quad ent.\text{origin\_opt} = p \quad name = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ path[0])}{\Gamma \vdash \text{ResolveTypePath}(path) \Downarrow \text{FullPath}(\text{PathOfModule}(p), name)}$$
+|path| = 1    Γ ⊢ ResolveTypeName(path[0]) ⇓ ent    ent.origin_opt = p    name = (ent.target_opt if present, else path[0])
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveTypePath(path) ⇓ FullPath(PathOfModule(p), name)
 
 **(ResolveTypePath-Ident-Local)**
-$$\frac{|path| = 1 \quad \Gamma \vdash \text{ResolveTypeName}(path[0]) \Downarrow ent \quad ent.\text{origin\_opt} = \bot \quad name = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ path[0])}{\Gamma \vdash \text{ResolveTypePath}(path) \Downarrow [name]}$$
+|path| = 1    Γ ⊢ ResolveTypeName(path[0]) ⇓ ent    ent.origin_opt = ⊥    name = (ent.target_opt if present, else path[0])
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveTypePath(path) ⇓ [name]
 
 **(ResolveTypePath-Qual)**
-$$\frac{|path| \ge 2 \quad path = p \mathbin{+\!\!+} [name] \quad \Gamma \vdash \text{ResolveQualified}(p, name, \text{TypeKind}) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad name' = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ name)}{\Gamma \vdash \text{ResolveTypePath}(path) \Downarrow \text{FullPath}(\text{PathOfModule}(mp), name')}$$
+|path| ≥ 2    path = p ++ [name]    Γ ⊢ ResolveQualified(p, name, TypeKind) ⇓ ent    ent.origin_opt = mp    name' = (ent.target_opt if present, else name)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveTypePath(path) ⇓ FullPath(PathOfModule(mp), name')
 
-$$\text{LocalTypePath}(path) \iff |path|=1 \land \Gamma \vdash \text{ResolveTypeName}(path[0]) \Downarrow ent \land ent.\text{origin\_opt} = \bot$$
+LocalTypePath(path) ⇔ |path| = 1 ∧ Γ ⊢ ResolveTypeName(path[0]) ⇓ ent ∧ ent.origin_opt = ⊥
 
 **(ResolveClassPath-Ident)**
-$$\frac{|path| = 1 \quad \Gamma \vdash \text{ResolveClassName}(path[0]) \Downarrow ent \quad ent.\text{origin\_opt} = p \quad name = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ path[0])}{\Gamma \vdash \text{ResolveClassPath}(path) \Downarrow \text{FullPath}(\text{PathOfModule}(p), name)}$$
+|path| = 1    Γ ⊢ ResolveClassName(path[0]) ⇓ ent    ent.origin_opt = p    name = (ent.target_opt if present, else path[0])
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveClassPath(path) ⇓ FullPath(PathOfModule(p), name)
 
 **(ResolveClassPath-Qual)**
-$$\frac{|path| \ge 2 \quad path = p \mathbin{+\!\!+} [name] \quad \Gamma \vdash \text{ResolveQualified}(p, name, \text{ClassKind}) \Downarrow ent \quad ent.\text{origin\_opt} = mp \quad name' = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ name)}{\Gamma \vdash \text{ResolveClassPath}(path) \Downarrow \text{FullPath}(\text{PathOfModule}(mp), name')}$$
+|path| ≥ 2    path = p ++ [name]    Γ ⊢ ResolveQualified(p, name, ClassKind) ⇓ ent    ent.origin_opt = mp    name' = (ent.target_opt if present, else name)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveClassPath(path) ⇓ FullPath(PathOfModule(mp), name')
 
 **(ResolveType-Path)**
-$$\frac{\Gamma \vdash \text{ResolveTypePath}(path) \Downarrow path'}{\Gamma \vdash \text{ResolveType}(\text{TypePath}(path)) \Downarrow \text{TypePath}(path')}$$
+Γ ⊢ ResolveTypePath(path) ⇓ path'
+──────────────────────────────────────────────
+Γ ⊢ ResolveType(TypePath(path)) ⇓ TypePath(path')
 
 **(ResolveType-Dynamic)**
-$$\frac{\Gamma \vdash \text{ResolveClassPath}(path) \Downarrow path'}{\Gamma \vdash \text{ResolveType}(\text{TypeDynamic}(path)) \Downarrow \text{TypeDynamic}(path')}$$
+Γ ⊢ ResolveClassPath(path) ⇓ path'
+──────────────────────────────────────────────
+Γ ⊢ ResolveType(TypeDynamic(path)) ⇓ TypeDynamic(path')
 
 **(ResolveType-ModalState)**
-$$\frac{\Gamma \vdash \text{ResolveTypePath}(path) \Downarrow path'}{\Gamma \vdash \text{ResolveType}(\text{TypeModalState}(path, state)) \Downarrow \text{TypeModalState}(path', state)}$$
+Γ ⊢ ResolveTypePath(path) ⇓ path'
+──────────────────────────────────────────────────────────────
+Γ ⊢ ResolveType(TypeModalState(path, state)) ⇓ TypeModalState(path', state)
 
 **(ResolveTypeRef-Path)**
-$$\frac{\Gamma \vdash \text{ResolveTypePath}(path) \Downarrow path'}{\Gamma \vdash \text{ResolveTypeRef}(\text{TypePath}(path)) \Downarrow \text{TypePath}(path')}$$
+Γ ⊢ ResolveTypePath(path) ⇓ path'
+──────────────────────────────────────────────
+Γ ⊢ ResolveTypeRef(TypePath(path)) ⇓ TypePath(path')
 
 **(ResolveTypeRef-ModalState)**
-$$\frac{\Gamma \vdash \text{ResolveTypePath}(path) \Downarrow path'}{\Gamma \vdash \text{ResolveTypeRef}(\text{ModalStateRef}(path, state)) \Downarrow \text{ModalStateRef}(path', state)}$$
+Γ ⊢ ResolveTypePath(path) ⇓ path'
+──────────────────────────────────────────────────────────────
+Γ ⊢ ResolveTypeRef(ModalStateRef(path, state)) ⇓ ModalStateRef(path', state)
 
 **(ResolveType-Hom)**
-$$\frac{\forall i,\ \Gamma \vdash \text{ResolveType}(t_i) \Downarrow t_i'}{\Gamma \vdash \text{ResolveType}(C(t_1,\ldots,t_n)) \Downarrow C(t_1',\ldots,t_n')}$$
+∀ i, Γ ⊢ ResolveType(t_i) ⇓ t_i'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveType(C(t_1, …, t_n)) ⇓ C(t_1', …, t_n')
 
 **(ResolveParam)**
-$$\frac{\Gamma \vdash \text{ResolveType}(p.\text{type}) \Downarrow ty'}{\Gamma \vdash \text{ResolveParam}(p) \Downarrow p[\text{type}=ty']}$$
+Γ ⊢ ResolveType(p.type) ⇓ ty'
+──────────────────────────────────────────────
+Γ ⊢ ResolveParam(p) ⇓ p[type = ty']
 
 **(ResolveParams-Empty)**
-$$\frac{}{\Gamma \vdash \text{ResolveParams}([]) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolveParams([]) ⇓ []
 
 **(ResolveParams-Cons)**
-$$\frac{\Gamma \vdash \text{ResolveParam}(p) \Downarrow p' \quad \Gamma \vdash \text{ResolveParams}(ps) \Downarrow ps'}{\Gamma \vdash \text{ResolveParams}(p::ps) \Downarrow p'::ps'}$$
+Γ ⊢ ResolveParam(p) ⇓ p'    Γ ⊢ ResolveParams(ps) ⇓ ps'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveParams(p :: ps) ⇓ p' :: ps'
 
-$$\text{ResolvePattern} : \text{Pattern} \rightharpoonup \text{Pattern}$$
+ResolvePattern : Pattern ⇀ Pattern
 
 **(ResolvePat-Wild)**
-$$\frac{}{\Gamma \vdash \text{ResolvePattern}(\text{WildcardPattern}) \Downarrow \text{WildcardPattern}}$$
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolvePattern(WildcardPattern) ⇓ WildcardPattern
 
 **(ResolvePat-Ident)**
-$$\frac{}{\Gamma \vdash \text{ResolvePattern}(\text{IdentifierPattern}(x)) \Downarrow \text{IdentifierPattern}(x)}$$
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolvePattern(IdentifierPattern(x)) ⇓ IdentifierPattern(x)
 
 **(ResolvePat-Literal)**
-$$\frac{}{\Gamma \vdash \text{ResolvePattern}(\text{LiteralPattern}(lit)) \Downarrow \text{LiteralPattern}(lit)}$$
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolvePattern(LiteralPattern(lit)) ⇓ LiteralPattern(lit)
 
 **(ResolvePat-Typed)**
-$$\frac{\Gamma \vdash \text{ResolveType}(ty) \Downarrow ty'}{\Gamma \vdash \text{ResolvePattern}(\text{TypedPattern}(x, ty)) \Downarrow \text{TypedPattern}(x, ty')}$$
+Γ ⊢ ResolveType(ty) ⇓ ty'
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolvePattern(TypedPattern(x, ty)) ⇓ TypedPattern(x, ty')
 
 **(ResolvePat-Tuple)**
-$$\frac{\Gamma \vdash \text{ResolvePatternList}(ps) \Downarrow ps'}{\Gamma \vdash \text{ResolvePattern}(\text{TuplePattern}(ps)) \Downarrow \text{TuplePattern}(ps')}$$
+Γ ⊢ ResolvePatternList(ps) ⇓ ps'
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolvePattern(TuplePattern(ps)) ⇓ TuplePattern(ps')
 
 **(ResolvePat-Record)**
-$$\frac{\Gamma \vdash \text{ResolveTypePath}(tp) \Downarrow tp' \quad \Gamma \vdash \text{ResolveFieldPatternList}(fs) \Downarrow fs'}{\Gamma \vdash \text{ResolvePattern}(\text{RecordPattern}(tp, fs)) \Downarrow \text{RecordPattern}(tp', fs')}$$
+Γ ⊢ ResolveTypePath(tp) ⇓ tp'    Γ ⊢ ResolveFieldPatternList(fs) ⇓ fs'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolvePattern(RecordPattern(tp, fs)) ⇓ RecordPattern(tp', fs')
 
 **(ResolvePat-Enum-Record-Fallback)**
-$$\frac{\Gamma \vdash \text{ResolveTypePath}(tp) \Downarrow tp_e \quad \text{EnumDecl}(tp_e) \uparrow \quad \Gamma \vdash \text{ResolveTypePath}(tp \mathbin{+\!\!+} [name]) \Downarrow tp_r \quad \Gamma \vdash \text{ResolveFieldPatternList}(fs) \Downarrow fs'}{\Gamma \vdash \text{ResolvePattern}(\text{EnumPattern}(tp, name, \text{RecordPayloadPattern}(fs))) \Downarrow \text{RecordPattern}(tp_r, fs')}$$
+Γ ⊢ ResolveTypePath(tp) ⇓ tp_e    EnumDecl(tp_e) ↑    Γ ⊢ ResolveTypePath(tp ++ [name]) ⇓ tp_r    Γ ⊢ ResolveFieldPatternList(fs) ⇓ fs'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolvePattern(EnumPattern(tp, name, RecordPayloadPattern(fs))) ⇓ RecordPattern(tp_r, fs')
 
 **(ResolvePat-Enum)**
-$$\frac{\Gamma \vdash \text{ResolveTypePath}(tp) \Downarrow tp' \quad \Gamma \vdash \text{ResolveEnumPayloadPattern}(payload\_opt) \Downarrow payload\_opt'}{\Gamma \vdash \text{ResolvePattern}(\text{EnumPattern}(tp, name, payload\_opt)) \Downarrow \text{EnumPattern}(tp', name, payload\_opt')}$$
+Γ ⊢ ResolveTypePath(tp) ⇓ tp'    Γ ⊢ ResolveEnumPayloadPattern(payload_opt) ⇓ payload_opt'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolvePattern(EnumPattern(tp, name, payload_opt)) ⇓ EnumPattern(tp', name, payload_opt')
 
 **(ResolvePat-Modal)**
-$$\frac{\Gamma \vdash \text{ResolveFieldPatternListOpt}(fields\_opt) \Downarrow fields\_opt'}{\Gamma \vdash \text{ResolvePattern}(\text{ModalPattern}(state, fields\_opt)) \Downarrow \text{ModalPattern}(state, fields\_opt')}$$
+Γ ⊢ ResolveFieldPatternListOpt(fields_opt) ⇓ fields_opt'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolvePattern(ModalPattern(state, fields_opt)) ⇓ ModalPattern(state, fields_opt')
 
 **(ResolvePat-Range)**
-$$\frac{\Gamma \vdash \text{ResolvePattern}(p_l) \Downarrow p_l' \quad \Gamma \vdash \text{ResolvePattern}(p_h) \Downarrow p_h'}{\Gamma \vdash \text{ResolvePattern}(\text{RangePattern}(kind, p_l, p_h)) \Downarrow \text{RangePattern}(kind, p_l', p_h')}$$
+Γ ⊢ ResolvePattern(p_l) ⇓ p_l'    Γ ⊢ ResolvePattern(p_h) ⇓ p_h'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolvePattern(RangePattern(kind, p_l, p_h)) ⇓ RangePattern(kind, p_l', p_h')
 
 **(ResolvePatternList-Empty)**
-$$\frac{}{\Gamma \vdash \text{ResolvePatternList}([]) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolvePatternList([]) ⇓ []
 
 **(ResolvePatternList-Cons)**
-$$\frac{\Gamma \vdash \text{ResolvePattern}(p) \Downarrow p' \quad \Gamma \vdash \text{ResolvePatternList}(ps) \Downarrow ps'}{\Gamma \vdash \text{ResolvePatternList}(p::ps) \Downarrow p'::ps'}$$
+Γ ⊢ ResolvePattern(p) ⇓ p'    Γ ⊢ ResolvePatternList(ps) ⇓ ps'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolvePatternList(p :: ps) ⇓ p' :: ps'
 
 **(ResolveFieldPattern-Implicit)**
-$$\frac{}{\Gamma \vdash \text{ResolveFieldPattern}(\langle name, \bot, span \rangle) \Downarrow \langle name, \bot, span \rangle}$$
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveFieldPattern(⟨name, ⊥, span⟩) ⇓ ⟨name, ⊥, span⟩
 
 **(ResolveFieldPattern-Explicit)**
-$$\frac{\Gamma \vdash \text{ResolvePattern}(p) \Downarrow p'}{\Gamma \vdash \text{ResolveFieldPattern}(\langle name, p, span \rangle) \Downarrow \langle name, p', span \rangle}$$
+Γ ⊢ ResolvePattern(p) ⇓ p'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveFieldPattern(⟨name, p, span⟩) ⇓ ⟨name, p', span⟩
 
 **(ResolveFieldPatternList-Empty)**
-$$\frac{}{\Gamma \vdash \text{ResolveFieldPatternList}([]) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolveFieldPatternList([]) ⇓ []
 
 **(ResolveFieldPatternList-Cons)**
-$$\frac{\Gamma \vdash \text{ResolveFieldPattern}(f) \Downarrow f' \quad \Gamma \vdash \text{ResolveFieldPatternList}(fs) \Downarrow fs'}{\Gamma \vdash \text{ResolveFieldPatternList}(f::fs) \Downarrow f'::fs'}$$
+Γ ⊢ ResolveFieldPattern(f) ⇓ f'    Γ ⊢ ResolveFieldPatternList(fs) ⇓ fs'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveFieldPatternList(f :: fs) ⇓ f' :: fs'
 
 **(ResolveEnumPayloadPattern-None)**
-$$\frac{}{\Gamma \vdash \text{ResolveEnumPayloadPattern}(\bot) \Downarrow \bot}$$
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveEnumPayloadPattern(⊥) ⇓ ⊥
 
 **(ResolveEnumPayloadPattern-Tuple)**
-$$\frac{\Gamma \vdash \text{ResolvePatternList}(ps) \Downarrow ps'}{\Gamma \vdash \text{ResolveEnumPayloadPattern}(\text{TuplePayloadPattern}(ps)) \Downarrow \text{TuplePayloadPattern}(ps')}$$
+Γ ⊢ ResolvePatternList(ps) ⇓ ps'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveEnumPayloadPattern(TuplePayloadPattern(ps)) ⇓ TuplePayloadPattern(ps')
 
 **(ResolveEnumPayloadPattern-Record)**
-$$\frac{\Gamma \vdash \text{ResolveFieldPatternList}(fs) \Downarrow fs'}{\Gamma \vdash \text{ResolveEnumPayloadPattern}(\text{RecordPayloadPattern}(fs)) \Downarrow \text{RecordPayloadPattern}(fs')}$$
+Γ ⊢ ResolveFieldPatternList(fs) ⇓ fs'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveEnumPayloadPattern(RecordPayloadPattern(fs)) ⇓ RecordPayloadPattern(fs')
 
 **(ResolveFieldPatternListOpt-None)**
-$$\frac{}{\Gamma \vdash \text{ResolveFieldPatternListOpt}(\bot) \Downarrow \bot}$$
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveFieldPatternListOpt(⊥) ⇓ ⊥
 
 **(ResolveFieldPatternListOpt-Some)**
-$$\frac{\Gamma \vdash \text{ResolveFieldPatternList}(fs) \Downarrow fs'}{\Gamma \vdash \text{ResolveFieldPatternListOpt}(fs) \Downarrow fs'}$$
+Γ ⊢ ResolveFieldPatternList(fs) ⇓ fs'
+────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveFieldPatternListOpt(fs) ⇓ fs'
 
 **(ResolveExpr-Ident)**
-$$\frac{\Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent}{\Gamma \vdash \text{ResolveExpr}(\text{Identifier}(x)) \Downarrow \text{Identifier}(x)}$$
+Γ ⊢ ResolveValueName(x) ⇓ ent
+────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExpr(Identifier(x)) ⇓ Identifier(x)
 
 **(ResolveExpr-Ident-Err)**
-$$\frac{\Gamma \vdash \text{ResolveValueName}(x) \Uparrow \quad c = \text{Code}(\text{ResolveExpr-Ident-Err})}{\Gamma \vdash \text{ResolveExpr}(\text{Identifier}(x)) \Uparrow c}$$
+Γ ⊢ ResolveValueName(x) ⇑    c = Code(ResolveExpr-Ident-Err)
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExpr(Identifier(x)) ⇑ c
 
 **(ResolveExpr-Qualified)**
-$$\frac{\Gamma \vdash \text{ResolveQualifiedForm}(e) \Downarrow e'}{\Gamma \vdash \text{ResolveExpr}(e) \Downarrow e'}$$
+Γ ⊢ ResolveQualifiedForm(e) ⇓ e'
+──────────────────────────────────────────────
+Γ ⊢ ResolveExpr(e) ⇓ e'
 
-$$\text{ResolveArgsRef} = \{\texttt{"5.1.6"}\}$$
-$$\text{ResolveFieldInitsRef} = \{\texttt{"5.1.6"}\}$$
+ResolveArgsRef = {"5.1.6"}
+ResolveFieldInitsRef = {"5.1.6"}
 
-$$\text{ResolveExprListJudg} = \{\text{ResolveExprList}\}$$
+ResolveExprListJudg = {ResolveExprList}
 
 **(ResolveExprList-Empty)**
-$$\frac{}{\Gamma \vdash \text{ResolveExprList}([]) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolveExprList([]) ⇓ []
 
 **(ResolveExprList-Cons)**
-$$\frac{\Gamma \vdash \text{ResolveExpr}(e) \Downarrow e' \quad \Gamma \vdash \text{ResolveExprList}(es) \Downarrow es'}{\Gamma \vdash \text{ResolveExprList}(e::es) \Downarrow e'::es'}$$
+Γ ⊢ ResolveExpr(e) ⇓ e'    Γ ⊢ ResolveExprList(es) ⇓ es'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExprList(e :: es) ⇓ e' :: es'
 
-$$\text{ResolveEnumPayloadJudg} = \{\text{ResolveEnumPayload}\}$$
+ResolveEnumPayloadJudg = {ResolveEnumPayload}
 
 **(ResolveEnumPayload-None)**
-$$\frac{}{\Gamma \vdash \text{ResolveEnumPayload}(\bot) \Downarrow \bot}$$
+────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveEnumPayload(⊥) ⇓ ⊥
 
 **(ResolveEnumPayload-Tuple)**
-$$\frac{\Gamma \vdash \text{ResolveExprList}(es) \Downarrow es'}{\Gamma \vdash \text{ResolveEnumPayload}(\text{Paren}(es)) \Downarrow \text{Paren}(es')}$$
+Γ ⊢ ResolveExprList(es) ⇓ es'
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveEnumPayload(Paren(es)) ⇓ Paren(es')
 
 **(ResolveEnumPayload-Record)**
-$$\frac{\Gamma \vdash \text{ResolveFieldInits}(fields) \Downarrow fields'}{\Gamma \vdash \text{ResolveEnumPayload}(\text{Brace}(fields)) \Downarrow \text{Brace}(fields')}$$
+Γ ⊢ ResolveFieldInits(fields) ⇓ fields'
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveEnumPayload(Brace(fields)) ⇓ Brace(fields')
 
-$$\text{ResolveCalleeJudg} = \{\text{ResolveCallee}\}$$
+ResolveCalleeJudg = {ResolveCallee}
 
 **(ResolveCallee-Ident-Value)**
-$$\frac{\Gamma \vdash \text{ResolveValueName}(x) \Downarrow ent}{\Gamma \vdash \text{ResolveCallee}(\text{Identifier}(x), args) \Downarrow \text{Identifier}(x)}$$
+Γ ⊢ ResolveValueName(x) ⇓ ent
+────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveCallee(Identifier(x), args) ⇓ Identifier(x)
 
 **(ResolveCallee-Ident-Record)**
-$$\frac{\Gamma \vdash \text{ResolveValueName}(x) \Uparrow \quad args = [] \quad \Gamma \vdash \text{ResolveTypeName}(x) \Downarrow ent \quad ent.\text{origin\_opt} = p \quad name = (\text{ent}.\text{target\_opt}\ \text{if present, else}\ x) \quad \text{RecordDecl}(\text{FullPath}(\text{PathOfModule}(p), name)) = R}{\Gamma \vdash \text{ResolveCallee}(\text{Identifier}(x), args) \Downarrow \text{Identifier}(x)}$$
+Γ ⊢ ResolveValueName(x) ⇑    args = []    Γ ⊢ ResolveTypeName(x) ⇓ ent    ent.origin_opt = p    name = (ent.target_opt if present, else x)    RecordDecl(FullPath(PathOfModule(p), name)) = R
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveCallee(Identifier(x), args) ⇓ Identifier(x)
 
 **(ResolveCallee-Path-Value)**
-$$\frac{\Gamma \vdash \text{ResolveQualified}(path, name, \text{ValueKind}) \Downarrow ent}{\Gamma \vdash \text{ResolveCallee}(\text{Path}(path,name), args) \Downarrow \text{Path}(path,name)}$$
+Γ ⊢ ResolveQualified(path, name, ValueKind) ⇓ ent
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveCallee(Path(path, name), args) ⇓ Path(path, name)
 
 **(ResolveCallee-Path-Record)**
-$$\frac{\Gamma \vdash \text{ResolveRecordPath}(path, name) \Downarrow p \quad args = []}{\Gamma \vdash \text{ResolveCallee}(\text{Path}(path,name), args) \Downarrow \text{Path}(path,name)}$$
+Γ ⊢ ResolveRecordPath(path, name) ⇓ p    args = []
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveCallee(Path(path, name), args) ⇓ Path(path, name)
 
 **(ResolveCallee-Other)**
-$$\frac{\Gamma \vdash \text{ResolveExpr}(callee) \Downarrow callee'}{\Gamma \vdash \text{ResolveCallee}(callee, args) \Downarrow callee'}$$
+Γ ⊢ ResolveExpr(callee) ⇓ callee'
+──────────────────────────────────────────────────────────────
+Γ ⊢ ResolveCallee(callee, args) ⇓ callee'
 
 **(ResolveExpr-Call)**
-$$\frac{\Gamma \vdash \text{ResolveArgs}(args) \Downarrow args' \quad \Gamma \vdash \text{ResolveCallee}(callee, args') \Downarrow callee'}{\Gamma \vdash \text{ResolveExpr}(\text{Call}(callee, args)) \Downarrow \text{Call}(callee', args')}$$
+Γ ⊢ ResolveArgs(args) ⇓ args'    Γ ⊢ ResolveCallee(callee, args') ⇓ callee'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExpr(Call(callee, args)) ⇓ Call(callee', args')
 
 **(ResolveExpr-RecordExpr)**
-$$\frac{\Gamma \vdash \text{ResolveTypeRef}(tr) \Downarrow tr' \quad \Gamma \vdash \text{ResolveFieldInits}(fields) \Downarrow fields'}{\Gamma \vdash \text{ResolveExpr}(\text{RecordExpr}(tr, fields)) \Downarrow \text{RecordExpr}(tr', fields')}$$
+Γ ⊢ ResolveTypeRef(tr) ⇓ tr'    Γ ⊢ ResolveFieldInits(fields) ⇓ fields'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExpr(RecordExpr(tr, fields)) ⇓ RecordExpr(tr', fields')
 
 **(ResolveExpr-EnumLiteral)**
-$$\frac{\Gamma \vdash \text{ResolveEnumPayload}(payload\_opt) \Downarrow payload\_opt'}{\Gamma \vdash \text{ResolveExpr}(\text{EnumLiteral}(path, payload\_opt)) \Downarrow \text{EnumLiteral}(path, payload\_opt')}$$
+Γ ⊢ ResolveEnumPayload(payload_opt) ⇓ payload_opt'
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExpr(EnumLiteral(path, payload_opt)) ⇓ EnumLiteral(path, payload_opt')
 
-$$\text{ResolveArmJudg} = \{\text{ResolveArm},\ \text{ResolveArms}\}$$
+ResolveArmJudg = {ResolveArm, ResolveArms}
 
 **(ResolveArm)**
-$$\frac{\Gamma_0 = \text{PushScope}(\Gamma) \quad \Gamma_0 \vdash \text{ResolvePattern}(p) \Downarrow p' \quad \Gamma_0 \vdash \text{BindPattern}(p') \Downarrow \Gamma_1 \quad \Gamma_1 \vdash \text{ResolveExprOpt}(g) \Downarrow g' \quad \Gamma_1 \vdash \text{ResolveExpr}(b) \Downarrow b'}{\Gamma \vdash \text{ResolveArm}(\langle p, g, b \rangle) \Downarrow \langle p', g', b' \rangle}$$
+Γ_0 = PushScope(Γ)    Γ_0 ⊢ ResolvePattern(p) ⇓ p'    Γ_0 ⊢ BindPattern(p') ⇓ Γ_1    Γ_1 ⊢ ResolveExprOpt(g) ⇓ g'    Γ_1 ⊢ ResolveExpr(b) ⇓ b'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveArm(⟨p, g, b⟩) ⇓ ⟨p', g', b'⟩
 
 **(ResolveArms-Empty)**
-$$\frac{}{\Gamma \vdash \text{ResolveArms}([]) \Downarrow []}$$
+──────────────────────────────────────────────
+Γ ⊢ ResolveArms([]) ⇓ []
 
 **(ResolveArms-Cons)**
-$$\frac{\Gamma \vdash \text{ResolveArm}(a) \Downarrow a' \quad \Gamma \vdash \text{ResolveArms}(as) \Downarrow as'}{\Gamma \vdash \text{ResolveArms}(a::as) \Downarrow a'::as'}$$
+Γ ⊢ ResolveArm(a) ⇓ a'    Γ ⊢ ResolveArms(as) ⇓ as'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveArms(a :: as) ⇓ a' :: as'
 
 **(ResolveExpr-Match)**
-$$\frac{\Gamma \vdash \text{ResolveExpr}(scrutinee) \Downarrow scrutinee' \quad \Gamma \vdash \text{ResolveArms}(arms) \Downarrow arms'}{\Gamma \vdash \text{ResolveExpr}(\text{MatchExpr}(scrutinee, arms)) \Downarrow \text{MatchExpr}(scrutinee', arms')}$$
+Γ ⊢ ResolveExpr(scrutinee) ⇓ scrutinee'    Γ ⊢ ResolveArms(arms) ⇓ arms'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExpr(MatchExpr(scrutinee, arms)) ⇓ MatchExpr(scrutinee', arms')
 
 **(ResolveExpr-LoopIter)**
-$$\frac{\Gamma \vdash \text{ResolvePattern}(pat) \Downarrow pat' \quad \Gamma \vdash \text{ResolveTypeOpt}(ty\_opt) \Downarrow ty\_opt' \quad \Gamma \vdash \text{ResolveExpr}(iter) \Downarrow iter' \quad \Gamma_0 = \text{PushScope}(\Gamma) \quad \Gamma_0 \vdash \text{BindPattern}(pat') \Downarrow \Gamma_1 \quad \Gamma_1 \vdash \text{ResolveExpr}(body) \Downarrow body'}{\Gamma \vdash \text{ResolveExpr}(\text{LoopIter}(pat, ty\_opt, iter, body)) \Downarrow \text{LoopIter}(pat', ty\_opt', iter', body')}$$
+Γ ⊢ ResolvePattern(pat) ⇓ pat'    Γ ⊢ ResolveTypeOpt(ty_opt) ⇓ ty_opt'    Γ ⊢ ResolveExpr(iter) ⇓ iter'    Γ_0 = PushScope(Γ)    Γ_0 ⊢ BindPattern(pat') ⇓ Γ_1    Γ_1 ⊢ ResolveExpr(body) ⇓ body'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExpr(LoopIter(pat, ty_opt, iter, body)) ⇓ LoopIter(pat', ty_opt', iter', body')
 
 **(ResolveExpr-Alloc-Explicit-ByAlias)**
-$$\frac{\Gamma \vdash \text{ResolveValueName}(r) \Downarrow ent \quad \text{RegionAlias}(ent) \quad \Gamma \vdash \text{ResolveExpr}(e) \Downarrow e'}{\Gamma \vdash \text{ResolveExpr}(\text{Binary}(\texttt{"^"}, \text{Identifier}(r), e)) \Downarrow \text{AllocExpr}(r, e')}$$
+Γ ⊢ ResolveValueName(r) ⇓ ent    RegionAlias(ent)    Γ ⊢ ResolveExpr(e) ⇓ e'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExpr(Binary("^", Identifier(r), e)) ⇓ AllocExpr(r, e')
 
-$$\text{ResolveExprRules} = \{\text{ResolveExpr-Ident},\ \text{ResolveExpr-Qualified},\ \text{ResolveExpr-Call},\ \text{ResolveExpr-RecordExpr},\ \text{ResolveExpr-EnumLiteral},\ \text{ResolveExpr-Match},\ \text{ResolveExpr-LoopIter},\ \text{ResolveExpr-Alloc-Explicit-ByAlias},\ \text{ResolveExpr-Hom},\ \text{ResolveExpr-Alloc-Implicit},\ \text{ResolveExpr-Alloc-Explicit},\ \text{ResolveExpr-Block}\}$$
+ResolveExprRules = {ResolveExpr-Ident, ResolveExpr-Qualified, ResolveExpr-Call, ResolveExpr-RecordExpr, ResolveExpr-EnumLiteral, ResolveExpr-Match, ResolveExpr-LoopIter, ResolveExpr-Alloc-Explicit-ByAlias, ResolveExpr-Hom, ResolveExpr-Alloc-Implicit, ResolveExpr-Alloc-Explicit, ResolveExpr-Block}
 
-$$\text{NoSpecificResolveExpr}(e) \iff \neg \exists r \in \text{ResolveExprRules} \setminus \{\text{ResolveExpr-Hom}\}.\ \text{PremisesHold}(r, e)$$
+NoSpecificResolveExpr(e) ⇔ ¬ ∃ r ∈ ResolveExprRules \ {ResolveExpr-Hom}. PremisesHold(r, e)
 
 **(ResolveExpr-Hom)**
-$$\frac{\text{NoSpecificResolveExpr}(C(e_1,\ldots,e_n)) \quad \forall i,\ \Gamma \vdash \text{ResolveExpr}(e_i) \Downarrow e_i'}{\Gamma \vdash \text{ResolveExpr}(C(e_1,\ldots,e_n)) \Downarrow C(e_1',\ldots,e_n')}$$
+NoSpecificResolveExpr(C(e_1, …, e_n))    ∀ i, Γ ⊢ ResolveExpr(e_i) ⇓ e_i'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExpr(C(e_1, …, e_n)) ⇓ C(e_1', …, e_n')
 
 **(ResolveExpr-Alloc-Implicit)**
-$$\frac{\Gamma \vdash \text{ResolveExpr}(e) \Downarrow e'}{\Gamma \vdash \text{ResolveExpr}(\text{AllocExpr}(\bot, e)) \Downarrow \text{AllocExpr}(\bot, e')}$$
+Γ ⊢ ResolveExpr(e) ⇓ e'
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExpr(AllocExpr(⊥, e)) ⇓ AllocExpr(⊥, e')
 
 **(ResolveExpr-Alloc-Explicit)**
-$$\frac{\Gamma \vdash \text{ResolveValueName}(r) \Downarrow ent \quad \Gamma \vdash \text{ResolveExpr}(e) \Downarrow e'}{\Gamma \vdash \text{ResolveExpr}(\text{AllocExpr}(r, e)) \Downarrow \text{AllocExpr}(r, e')}$$
+Γ ⊢ ResolveValueName(r) ⇓ ent    Γ ⊢ ResolveExpr(e) ⇓ e'
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExpr(AllocExpr(r, e)) ⇓ AllocExpr(r, e')
 
-$$\text{ResolveStmtSeqJudg} = \{\text{ResolveStmtSeq}\}$$
+ResolveStmtSeqJudg = {ResolveStmtSeq}
 
 **(ResolveStmtSeq-Empty)**
-$$\frac{}{\Gamma \vdash \text{ResolveStmtSeq}([]) \Downarrow (\Gamma, [])}$$
+────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveStmtSeq([]) ⇓ (Γ, [])
 
 **(ResolveStmtSeq-Cons)**
-$$\frac{\Gamma \vdash \text{ResolveStmt}(s) \Downarrow (\Gamma_1, s') \quad \Gamma_1 \vdash \text{ResolveStmtSeq}(ss) \Downarrow (\Gamma_2, ss')}{\Gamma \vdash \text{ResolveStmtSeq}(s::ss) \Downarrow (\Gamma_2, s'::ss')}$$
+Γ ⊢ ResolveStmt(s) ⇓ (Γ_1, s')    Γ_1 ⊢ ResolveStmtSeq(ss) ⇓ (Γ_2, ss')
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveStmtSeq(s :: ss) ⇓ (Γ_2, s' :: ss')
 
 **(ResolveExpr-Block)**
-$$\frac{\Gamma_0 = \text{PushScope}(\Gamma) \quad \Gamma_0 \vdash \text{ResolveStmtSeq}(stmts) \Downarrow (\Gamma_1, stmts') \quad (tail\_opt = \bot \Rightarrow tail\_opt' = \bot) \quad (tail\_opt = e \Rightarrow \Gamma_1 \vdash \text{ResolveExpr}(e) \Downarrow e' \land tail\_opt' = e')}{\Gamma \vdash \text{ResolveExpr}(\text{BlockExpr}(stmts, tail\_opt)) \Downarrow \text{BlockExpr}(stmts', tail\_opt')}$$
+Γ_0 = PushScope(Γ)    Γ_0 ⊢ ResolveStmtSeq(stmts) ⇓ (Γ_1, stmts')    (tail_opt = ⊥ ⇒ tail_opt' = ⊥)    (tail_opt = e ⇒ Γ_1 ⊢ ResolveExpr(e) ⇓ e' ∧ tail_opt' = e')
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExpr(BlockExpr(stmts, tail_opt)) ⇓ BlockExpr(stmts', tail_opt')
 
 **(BindNames-Empty)**
-$$\frac{}{\Gamma \vdash \text{BindNames}([]) \Downarrow \Gamma}$$
+──────────────────────────────────────────────
+Γ ⊢ BindNames([]) ⇓ Γ
 
 **(BindNames-Cons)**
-$$\frac{\Gamma \vdash \text{Intro}(x, \langle \text{Value}, \bot, \bot, \text{Decl} \rangle) \Downarrow \Gamma_1 \quad \Gamma_1 \vdash \text{BindNames}(xs) \Downarrow \Gamma_2}{\Gamma \vdash \text{BindNames}(x::xs) \Downarrow \Gamma_2}$$
+Γ ⊢ Intro(x, ⟨Value, ⊥, ⊥, Decl⟩) ⇓ Γ_1    Γ_1 ⊢ BindNames(xs) ⇓ Γ_2
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ BindNames(x :: xs) ⇓ Γ_2
 
 **(BindPattern)**
-$$\frac{\Gamma \vdash \text{PatNames}(p) \Downarrow ns \quad \Gamma \vdash \text{BindNames}(ns) \Downarrow \Gamma'}{\Gamma \vdash \text{BindPattern}(p) \Downarrow \Gamma'}$$
+Γ ⊢ PatNames(p) ⇓ ns    Γ ⊢ BindNames(ns) ⇓ Γ'
+────────────────────────────────────────────────────────────────
+Γ ⊢ BindPattern(p) ⇓ Γ'
 
 **(ResolveStmt-Let)**
-$$\frac{\Gamma \vdash \text{ResolveExpr}(init) \Downarrow init' \quad \Gamma \vdash \text{ResolveTypeOpt}(ty\_opt) \Downarrow ty\_opt' \quad \Gamma \vdash \text{ResolvePattern}(pat) \Downarrow pat' \quad \Gamma \vdash \text{BindPattern}(pat') \Downarrow \Gamma'}{\Gamma \vdash \text{ResolveStmt}(\text{LetStmt}(\langle pat, ty\_opt, op, init, span \rangle)) \Downarrow (\Gamma', \text{LetStmt}(\langle pat', ty\_opt', op, init', span \rangle))}$$
+Γ ⊢ ResolveExpr(init) ⇓ init'    Γ ⊢ ResolveTypeOpt(ty_opt) ⇓ ty_opt'    Γ ⊢ ResolvePattern(pat) ⇓ pat'    Γ ⊢ BindPattern(pat') ⇓ Γ'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveStmt(LetStmt(⟨pat, ty_opt, op, init, span⟩)) ⇓ (Γ', LetStmt(⟨pat', ty_opt', op, init', span⟩))
 
 **(ResolveStmt-Var)**
-$$\frac{\Gamma \vdash \text{ResolveExpr}(init) \Downarrow init' \quad \Gamma \vdash \text{ResolveTypeOpt}(ty\_opt) \Downarrow ty\_opt' \quad \Gamma \vdash \text{ResolvePattern}(pat) \Downarrow pat' \quad \Gamma \vdash \text{BindPattern}(pat') \Downarrow \Gamma'}{\Gamma \vdash \text{ResolveStmt}(\text{VarStmt}(\langle pat, ty\_opt, op, init, span \rangle)) \Downarrow (\Gamma', \text{VarStmt}(\langle pat', ty\_opt', op, init', span \rangle))}$$
+Γ ⊢ ResolveExpr(init) ⇓ init'    Γ ⊢ ResolveTypeOpt(ty_opt) ⇓ ty_opt'    Γ ⊢ ResolvePattern(pat) ⇓ pat'    Γ ⊢ BindPattern(pat') ⇓ Γ'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveStmt(VarStmt(⟨pat, ty_opt, op, init, span⟩)) ⇓ (Γ', VarStmt(⟨pat', ty_opt', op, init', span⟩))
 
 **(ResolveStmt-ShadowLet)**
-$$\frac{\Gamma \vdash \text{ResolveExpr}(init) \Downarrow init' \quad \Gamma \vdash \text{ResolveTypeOpt}(ty\_opt) \Downarrow ty\_opt' \quad \Gamma \vdash \text{ShadowIntro}(x, \langle \text{Value}, \bot, \bot, \text{Decl} \rangle) \Downarrow \Gamma'}{\Gamma \vdash \text{ResolveStmt}(\text{ShadowLetStmt}(x, ty\_opt, init)) \Downarrow (\Gamma', \text{ShadowLetStmt}(x, ty\_opt', init'))}$$
+Γ ⊢ ResolveExpr(init) ⇓ init'    Γ ⊢ ResolveTypeOpt(ty_opt) ⇓ ty_opt'    Γ ⊢ ShadowIntro(x, ⟨Value, ⊥, ⊥, Decl⟩) ⇓ Γ'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveStmt(ShadowLetStmt(x, ty_opt, init)) ⇓ (Γ', ShadowLetStmt(x, ty_opt', init'))
 
 **(ResolveStmt-ShadowVar)**
-$$\frac{\Gamma \vdash \text{ResolveExpr}(init) \Downarrow init' \quad \Gamma \vdash \text{ResolveTypeOpt}(ty\_opt) \Downarrow ty\_opt' \quad \Gamma \vdash \text{ShadowIntro}(x, \langle \text{Value}, \bot, \bot, \text{Decl} \rangle) \Downarrow \Gamma'}{\Gamma \vdash \text{ResolveStmt}(\text{ShadowVarStmt}(x, ty\_opt, init)) \Downarrow (\Gamma', \text{ShadowVarStmt}(x, ty\_opt', init'))}$$
+Γ ⊢ ResolveExpr(init) ⇓ init'    Γ ⊢ ResolveTypeOpt(ty_opt) ⇓ ty_opt'    Γ ⊢ ShadowIntro(x, ⟨Value, ⊥, ⊥, Decl⟩) ⇓ Γ'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveStmt(ShadowVarStmt(x, ty_opt, init)) ⇓ (Γ', ShadowVarStmt(x, ty_opt', init'))
 
 **(ResolveStmt-Defer)**
-$$\frac{\Gamma \vdash \text{ResolveExpr}(b) \Downarrow b'}{\Gamma \vdash \text{ResolveStmt}(\text{DeferStmt}(b)) \Downarrow (\Gamma, \text{DeferStmt}(b'))}$$
+Γ ⊢ ResolveExpr(b) ⇓ b'
+────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveStmt(DeferStmt(b)) ⇓ (Γ, DeferStmt(b'))
 
 **(ResolveStmt-Frame-Implicit)**
-$$\frac{\Gamma \vdash \text{ResolveExpr}(b) \Downarrow b'}{\Gamma \vdash \text{ResolveStmt}(\text{FrameStmt}(\bot, b)) \Downarrow (\Gamma, \text{FrameStmt}(\bot, b'))}$$
+Γ ⊢ ResolveExpr(b) ⇓ b'
+────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveStmt(FrameStmt(⊥, b)) ⇓ (Γ, FrameStmt(⊥, b'))
 
 **(ResolveStmt-Frame-Explicit)**
-$$\frac{\Gamma \vdash \text{ResolveValueName}(r) \Downarrow ent \quad \Gamma \vdash \text{ResolveExpr}(b) \Downarrow b'}{\Gamma \vdash \text{ResolveStmt}(\text{FrameStmt}(r, b)) \Downarrow (\Gamma, \text{FrameStmt}(r, b'))}$$
+Γ ⊢ ResolveValueName(r) ⇓ ent    Γ ⊢ ResolveExpr(b) ⇓ b'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveStmt(FrameStmt(r, b)) ⇓ (Γ, FrameStmt(r, b'))
 
 **(ResolveStmt-Region)**
-$$\frac{\Gamma \vdash \text{ResolveExprOpt}(opts\_opt) \Downarrow opts\_opt' \quad (alias\_opt = \bot \Rightarrow \Gamma_r = \Gamma) \quad (alias\_opt = r \Rightarrow \Gamma \vdash \text{Intro}(r, \langle \text{Value}, \bot, \bot, \text{RegionAlias} \rangle) \Downarrow \Gamma_r) \quad \Gamma_r \vdash \text{ResolveExpr}(b) \Downarrow b'}{\Gamma \vdash \text{ResolveStmt}(\text{RegionStmt}(opts\_opt, alias\_opt, b)) \Downarrow (\Gamma, \text{RegionStmt}(opts\_opt', alias\_opt, b'))}$$
+Γ ⊢ ResolveExprOpt(opts_opt) ⇓ opts_opt'    (alias_opt = ⊥ ⇒ Γ_r = Γ)    (alias_opt = r ⇒ Γ ⊢ Intro(r, ⟨Value, ⊥, ⊥, RegionAlias⟩) ⇓ Γ_r)    Γ_r ⊢ ResolveExpr(b) ⇓ b'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveStmt(RegionStmt(opts_opt, alias_opt, b)) ⇓ (Γ, RegionStmt(opts_opt', alias_opt, b'))
 
-$$\text{ResolveExprOpt}(\bot) = \bot$$
-$$\text{ResolveExprOpt}(e) = e' \iff \Gamma \vdash \text{ResolveExpr}(e) \Downarrow e'$$
+ResolveExprOpt(⊥) = ⊥
+ResolveExprOpt(e) = e' ⇔ Γ ⊢ ResolveExpr(e) ⇓ e'
 
-$$\text{ResState} = \{\text{ResStart}(M),\ \text{ResNames}(M,N),\ \text{ResItems}(M,N),\ \text{ResDone}(M'),\ \text{Error}(code)\}$$
+ResState = {ResStart(M), ResNames(M, N), ResItems(M, N), ResDone(M'), Error(code)}
 
 **(Res-Start)**
-$$\frac{}{\langle \text{ResStart}(M) \rangle \to \langle \text{ResNames}(M,\_) \rangle}$$
+──────────────────────────────────────────────
+⟨ResStart(M)⟩ → ⟨ResNames(M, _)⟩
 
 **(Res-Names)**
-$$\frac{\Gamma \vdash \text{CollectNames}(M) \Downarrow N}{\langle \text{ResNames}(M,\_) \rangle \to \langle \text{ResItems}(M,N) \rangle}$$
+Γ ⊢ CollectNames(M) ⇓ N
+──────────────────────────────────────────────────────────────
+⟨ResNames(M, _)⟩ → ⟨ResItems(M, N)⟩
 
 **(Res-Items)**
-$$\frac{\Gamma \vdash \text{ResolveModule}(M) \Downarrow M'}{\langle \text{ResItems}(M,N) \rangle \to \langle \text{ResDone}(M') \rangle}$$
+Γ ⊢ ResolveModule(M) ⇓ M'
+──────────────────────────────────────────────────────────────
+⟨ResItems(M, N)⟩ → ⟨ResDone(M')⟩
 
 **ResolveModules (Big-Step).**
 
 **(ResolveModules-Ok)**
-$$\frac{\Gamma \vdash \text{ParseModules}(P) \Downarrow [M_1,\ldots,M_k] \quad \forall i,\ \Gamma \vdash \text{ResolveModule}(M_i) \Downarrow M_i'}{\Gamma \vdash \text{ResolveModules}(P) \Downarrow [M_1',\ldots,M_k']}$$
+Γ ⊢ ParseModules(P) ⇓ [M_1, …, M_k]    ∀ i, Γ ⊢ ResolveModule(M_i) ⇓ M_i'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveModules(P) ⇓ [M_1', …, M_k']
 
 **(ResolveModules-Err-Parse)**
-$$\frac{\Gamma \vdash \text{ParseModules}(P) \Uparrow c}{\Gamma \vdash \text{ResolveModules}(P) \Uparrow c}$$
+Γ ⊢ ParseModules(P) ⇑ c
+──────────────────────────────────────────────────────────────
+Γ ⊢ ResolveModules(P) ⇑ c
 
 **(ResolveModules-Err-Resolve)**
-$$\frac{\Gamma \vdash \text{ParseModules}(P) \Downarrow [M_1,\ldots,M_k] \quad \exists i.\ \Gamma \vdash \text{ResolveModule}(M_i) \Uparrow c}{\Gamma \vdash \text{ResolveModules}(P) \Uparrow c}$$
+Γ ⊢ ParseModules(P) ⇓ [M_1, …, M_k]    ∃ i. Γ ⊢ ResolveModule(M_i) ⇑ c
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveModules(P) ⇑ c
 
 ### 5.2. Type System Core (Cursive0)
 
 #### 5.2.1. Type Equivalence
 
-$$\text{TypeEqJudg} = \{\equiv\}$$
-$$\text{ConstLenJudg} = \{\text{ConstLen}\}$$
+TypeEqJudg = {≡}
+ConstLenJudg = {ConstLen}
 
 **(ConstLen-Lit)**
-$$\frac{e = \text{Literal}(lit) \quad lit.\text{kind} = \text{IntLiteral} \quad \text{InRange}(\text{IntValue}(lit), \texttt{"usize"}) \quad n = \text{IntValue}(lit)}{\Gamma \vdash \text{ConstLen}(e) \Downarrow n}$$
+e = Literal(lit)    lit.kind = IntLiteral    InRange(IntValue(lit), "usize")    n = IntValue(lit)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ConstLen(e) ⇓ n
 
 **(ConstLen-Path)**
-$$\frac{e = \text{Path}(path, name) \quad \text{ValuePathType}(path, name) = T \quad \text{StaticDecl}(\_,\_,\langle \text{IdentPattern}(name),\_,\texttt{"="},init,\_ \rangle,\_,\_) \in \Gamma \quad \Gamma \vdash \text{ConstLen}(init) \Downarrow n}{\Gamma \vdash \text{ConstLen}(e) \Downarrow n}$$
+e = Path(path, name)    ValuePathType(path, name) = T    StaticDecl(_, _, ⟨IdentPattern(name), _, "=", init, _⟩, _, _) ∈ Γ    Γ ⊢ ConstLen(init) ⇓ n
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ConstLen(e) ⇓ n
 
 **(ConstLen-Err)**
-$$\frac{\neg \exists n.\ \Gamma \vdash \text{ConstLen}(e) \Downarrow n \quad c = \text{Code}(\text{ConstLen-Err})}{\Gamma \vdash \text{ConstLen}(e) \Uparrow c}$$
+¬ ∃ n. Γ ⊢ ConstLen(e) ⇓ n    c = Code(ConstLen-Err)
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ConstLen(e) ⇑ c
 
-$$\text{MembersEq}([T_1,\ldots,T_n],[U_1,\ldots,U_n]) \iff \exists U'.\ \text{Permutation}(U', [U_1,\ldots,U_n]) \land \forall i.\ 0 \le i < n \Rightarrow \Gamma \vdash T_i \equiv U'[i]$$
+MembersEq([T_1, …, T_n], [U_1, …, U_n]) ⇔ ∃ U'. Permutation(U', [U_1, …, U_n]) ∧ ∀ i. 0 ≤ i < n ⇒ Γ ⊢ T_i ≡ U'[i]
 
 **(T-Equiv-Prim)**
-$$\frac{T = \text{TypePrim}(n) \quad U = \text{TypePrim}(n)}{\Gamma \vdash T \equiv U}$$
+T = TypePrim(n)    U = TypePrim(n)
+──────────────────────────────────────────────
+Γ ⊢ T ≡ U
 
 **(T-Equiv-Perm)**
-$$\frac{T = \text{TypePerm}(p, T_0) \quad U = \text{TypePerm}(p, U_0) \quad \Gamma \vdash T_0 \equiv U_0}{\Gamma \vdash T \equiv U}$$
+T = TypePerm(p, T_0)    U = TypePerm(p, U_0)    Γ ⊢ T_0 ≡ U_0
+────────────────────────────────────────────────────────────────
+Γ ⊢ T ≡ U
 
 **(T-Equiv-Tuple)**
-$$\frac{T = \text{TypeTuple}([T_1,\ldots,T_n]) \quad U = \text{TypeTuple}([U_1,\ldots,U_n]) \quad \forall i,\ \Gamma \vdash T_i \equiv U_i}{\Gamma \vdash T \equiv U}$$
+T = TypeTuple([T_1, …, T_n])    U = TypeTuple([U_1, …, U_n])    ∀ i, Γ ⊢ T_i ≡ U_i
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T ≡ U
 
 **(T-Equiv-Array)**
-$$\frac{T = \text{TypeArray}(T_0, e_0) \quad U = \text{TypeArray}(U_0, e_1) \quad \Gamma \vdash \text{ConstLen}(e_0) \Downarrow n \quad \Gamma \vdash \text{ConstLen}(e_1) \Downarrow n \quad \Gamma \vdash T_0 \equiv U_0}{\Gamma \vdash T \equiv U}$$
+T = TypeArray(T_0, e_0)    U = TypeArray(U_0, e_1)    Γ ⊢ ConstLen(e_0) ⇓ n    Γ ⊢ ConstLen(e_1) ⇓ n    Γ ⊢ T_0 ≡ U_0
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T ≡ U
 
 **(T-Equiv-Slice)**
-$$\frac{T = \text{TypeSlice}(T_0) \quad U = \text{TypeSlice}(U_0) \quad \Gamma \vdash T_0 \equiv U_0}{\Gamma \vdash T \equiv U}$$
+T = TypeSlice(T_0)    U = TypeSlice(U_0)    Γ ⊢ T_0 ≡ U_0
+────────────────────────────────────────────────────────────────
+Γ ⊢ T ≡ U
 
 **(T-Equiv-Func)**
-$$\frac{T = \text{TypeFunc}([\langle m_1, T_1 \rangle,\ldots,\langle m_n, T_n \rangle], R) \quad U = \text{TypeFunc}([\langle m_1, U_1 \rangle,\ldots,\langle m_n, U_n \rangle], S) \quad \forall i,\ \Gamma \vdash T_i \equiv U_i \quad \Gamma \vdash R \equiv S}{\Gamma \vdash T \equiv U}$$
+T = TypeFunc([⟨m_1, T_1⟩, …, ⟨m_n, T_n⟩], R)    U = TypeFunc([⟨m_1, U_1⟩, …, ⟨m_n, U_n⟩], S)    ∀ i, Γ ⊢ T_i ≡ U_i    Γ ⊢ R ≡ S
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T ≡ U
 
 **(T-Equiv-Union)**
-$$\frac{T = \text{TypeUnion}([T_1,\ldots,T_n]) \quad U = \text{TypeUnion}([U_1,\ldots,U_n]) \quad \text{MembersEq}([T_1,\ldots,T_n],[U_1,\ldots,U_n])}{\Gamma \vdash T \equiv U}$$
+T = TypeUnion([T_1, …, T_n])    U = TypeUnion([U_1, …, U_n])    MembersEq([T_1, …, T_n], [U_1, …, U_n])
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T ≡ U
 
 **(T-Equiv-Path)**
-$$\frac{T = \text{TypePath}(p) \quad U = \text{TypePath}(p)}{\Gamma \vdash T \equiv U}$$
+T = TypePath(p)    U = TypePath(p)
+──────────────────────────────────────────────
+Γ ⊢ T ≡ U
 
 **(T-Equiv-ModalState)**
-$$\frac{T = \text{TypeModalState}(p, S) \quad U = \text{TypeModalState}(p, S)}{\Gamma \vdash T \equiv U}$$
+T = TypeModalState(p, S)    U = TypeModalState(p, S)
+──────────────────────────────────────────────────────────────
+Γ ⊢ T ≡ U
 
 **(T-Equiv-String)**
-$$\frac{T = \text{TypeString}(st) \quad U = \text{TypeString}(st)}{\Gamma \vdash T \equiv U}$$
+T = TypeString(st)    U = TypeString(st)
+──────────────────────────────────────────────
+Γ ⊢ T ≡ U
 
 **(T-Equiv-Bytes)**
-$$\frac{T = \text{TypeBytes}(st) \quad U = \text{TypeBytes}(st)}{\Gamma \vdash T \equiv U}$$
+T = TypeBytes(st)    U = TypeBytes(st)
+──────────────────────────────────────────────
+Γ ⊢ T ≡ U
 
 **(T-Equiv-Range)**
-$$\frac{T = \text{TypeRange} \quad U = \text{TypeRange}}{\Gamma \vdash T \equiv U}$$
+T = TypeRange    U = TypeRange
+──────────────────────────────────────────────
+Γ ⊢ T ≡ U
 
 **(T-Equiv-Ptr)**
-$$\frac{T = \text{TypePtr}(T_0, s) \quad U = \text{TypePtr}(U_0, s) \quad \Gamma \vdash T_0 \equiv U_0}{\Gamma \vdash T \equiv U}$$
+T = TypePtr(T_0, s)    U = TypePtr(U_0, s)    Γ ⊢ T_0 ≡ U_0
+────────────────────────────────────────────────────────────────
+Γ ⊢ T ≡ U
 
 **(T-Equiv-RawPtr)**
-$$\frac{T = \text{TypeRawPtr}(q, T_0) \quad U = \text{TypeRawPtr}(q, U_0) \quad \Gamma \vdash T_0 \equiv U_0}{\Gamma \vdash T \equiv U}$$
+T = TypeRawPtr(q, T_0)    U = TypeRawPtr(q, U_0)    Γ ⊢ T_0 ≡ U_0
+────────────────────────────────────────────────────────────────
+Γ ⊢ T ≡ U
 
 **(T-Equiv-Dynamic)**
-$$\frac{T = \text{TypeDynamic}(p) \quad U = \text{TypeDynamic}(p)}{\Gamma \vdash T \equiv U}$$
+T = TypeDynamic(p)    U = TypeDynamic(p)
+──────────────────────────────────────────────
+Γ ⊢ T ≡ U
 
 #### 5.2.2. Subtyping
 
-$$\text{SubtypingJudg} = \{<:\}$$
+SubtypingJudg = {<:}
 
-$$\forall T,U \in \text{IntTypes}.\ T \ne U \Rightarrow \neg(\Gamma \vdash T <: U)$$
+∀ T, U ∈ IntTypes. T ≠ U ⇒ ¬(Γ ⊢ T <: U)
 
-$$\forall T,U \in \text{FloatTypes}.\ T \ne U \Rightarrow \neg(\Gamma \vdash T <: U)$$
+∀ T, U ∈ FloatTypes. T ≠ U ⇒ ¬(Γ ⊢ T <: U)
 
-$$\text{PermSubJudg} = \{\text{PermSub}\}$$
+PermSubJudg = {PermSub}
 
 **(Perm-Const)**
-$$\frac{}{\texttt{const} \;\text{PermSub}\; \texttt{const}}$$
+──────────────────────────────────────────────
+`const` PermSub `const`
 
 **(Perm-Unique)**
-$$\frac{}{\texttt{unique} \;\text{PermSub}\; \texttt{unique}}$$
+──────────────────────────────────────────────
+`unique` PermSub `unique`
 
 **(Perm-Unique-Const)**
-$$\frac{}{\texttt{unique} \;\text{PermSub}\; \texttt{const}}$$
+──────────────────────────────────────────────
+`unique` PermSub `const`
 
 **(Sub-Perm)**
-$$\frac{T = \text{TypePerm}(p, T_0) \quad U = \text{TypePerm}(q, U_0) \quad \text{PermSub}(p, q) \quad \Gamma \vdash T_0 <: U_0}{\Gamma \vdash T <: U}$$
+T = TypePerm(p, T_0)    U = TypePerm(q, U_0)    PermSub(p, q)    Γ ⊢ T_0 <: U_0
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T <: U
 
 **(Sub-Never)**
-$$\frac{T \in \mathcal{T}}{\Gamma \vdash \text{TypePrim}(\texttt{"!"}) <: T}$$
+T ∈ 𝒯
+──────────────────────────────────────────────────────────────
+Γ ⊢ TypePrim("!") <: T
 
 **(Sub-Tuple)**
-$$\frac{T = \text{TypeTuple}([T_1,\ldots,T_n]) \quad U = \text{TypeTuple}([U_1,\ldots,U_n]) \quad \forall i,\ \Gamma \vdash T_i <: U_i}{\Gamma \vdash T <: U}$$
+T = TypeTuple([T_1, …, T_n])    U = TypeTuple([U_1, …, U_n])    ∀ i, Γ ⊢ T_i <: U_i
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T <: U
 
 **(Sub-Array)**
-$$\frac{T = \text{TypeArray}(T_0, e_0) \quad U = \text{TypeArray}(U_0, e_1) \quad \Gamma \vdash \text{ConstLen}(e_0) \Downarrow n \quad \Gamma \vdash \text{ConstLen}(e_1) \Downarrow n \quad \Gamma \vdash T_0 <: U_0}{\Gamma \vdash T <: U}$$
+T = TypeArray(T_0, e_0)    U = TypeArray(U_0, e_1)    Γ ⊢ ConstLen(e_0) ⇓ n    Γ ⊢ ConstLen(e_1) ⇓ n    Γ ⊢ T_0 <: U_0
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T <: U
 
 **(Sub-Slice)**
-$$\frac{T = \text{TypeSlice}(T_0) \quad U = \text{TypeSlice}(U_0) \quad \Gamma \vdash T_0 <: U_0}{\Gamma \vdash T <: U}$$
+T = TypeSlice(T_0)    U = TypeSlice(U_0)    Γ ⊢ T_0 <: U_0
+────────────────────────────────────────────────────────────────
+Γ ⊢ T <: U
 
 **(Sub-Range)**
-$$\frac{T = \text{TypeRange} \quad U = \text{TypeRange}}{\Gamma \vdash T <: U}$$
+T = TypeRange    U = TypeRange
+──────────────────────────────────────────────
+Γ ⊢ T <: U
 
 **(Sub-Ptr-State)**
-$$\frac{s \in \{\texttt{Valid}, \texttt{Null}\}}{\Gamma \vdash \text{TypePtr}(T, s) <: \text{TypePtr}(T, \bot)}$$
+s ∈ {`Valid`, `Null`}
+──────────────────────────────────────────────────────────────
+Γ ⊢ TypePtr(T, s) <: TypePtr(T, ⊥)
 
 **(Sub-Modal-Niche)**
-$$\frac{\Sigma.\text{Types}[p] = \texttt{modal } M \quad S \in \text{States}(M) \quad \text{NicheCompatible}(M,S)}{\Gamma \vdash \text{TypeModalState}(p, S) <: \text{TypePath}(p)}$$
+Σ.Types[p] = `modal` M    S ∈ States(M)    NicheCompatible(M, S)
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ TypeModalState(p, S) <: TypePath(p)
 
 **(Sub-Func)**
-$$\frac{T = \text{TypeFunc}([\langle m_1, T_1 \rangle,\ldots,\langle m_n, T_n \rangle], R) \quad U = \text{TypeFunc}([\langle m_1, U_1 \rangle,\ldots,\langle m_n, U_n \rangle], S) \quad \forall i,\ \Gamma \vdash U_i <: T_i \quad \Gamma \vdash R <: S}{\Gamma \vdash T <: U}$$
+T = TypeFunc([⟨m_1, T_1⟩, …, ⟨m_n, T_n⟩], R)    U = TypeFunc([⟨m_1, U_1⟩, …, ⟨m_n, U_n⟩], S)    ∀ i, Γ ⊢ U_i <: T_i    Γ ⊢ R <: S
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T <: U
 
-$$\text{Member}(T,U) \iff U = \text{TypeUnion}([U_1,\ldots,U_n]) \land \exists i.\ \Gamma \vdash T \equiv U_i$$
+Member(T, U) ⇔ U = TypeUnion([U_1, …, U_n]) ∧ ∃ i. Γ ⊢ T ≡ U_i
 
 **(Sub-Member-Union)**
-$$\frac{\text{Member}(T, U)}{\Gamma \vdash T <: U}$$
+Member(T, U)
+──────────────────────────────────────────────
+Γ ⊢ T <: U
 
 **(Sub-Union-Width)**
-$$\frac{U_1 = \text{TypeUnion}([T_1,\ldots,T_n]) \quad U_2 = \text{TypeUnion}([U_1',\ldots,U_m']) \quad \forall i,\ \text{Member}(T_i, U_2)}{\Gamma \vdash U_1 <: U_2}$$
+U_1 = TypeUnion([T_1, …, T_n])    U_2 = TypeUnion([U_1', …, U_m'])    ∀ i, Member(T_i, U_2)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ U_1 <: U_2
 
-$$\text{SubtypingRules} = \text{RulesIn}(\{\texttt{"5.2.2"},\ \texttt{"5.3.1"},\ \texttt{"5.7"},\ \texttt{"5.8"}\})$$
+SubtypingRules = RulesIn({"5.2.2", "5.3.1", "5.7", "5.8"})
 
 #### 5.2.3. Function Types
 
 **(T-Proc-As-Value)**
-$$\frac{\text{procedure } f(m_1\ x_1 : T_1, \ldots, m_n\ x_n : T_n) \to R\ \text{declared}}{\Gamma \vdash f : \text{TypeFunc}([\langle m_1, T_1 \rangle,\ldots,\langle m_n, T_n \rangle], R)}$$
+procedure f(m_1 x_1 : T_1, …, m_n x_n : T_n) -> R declared
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ f : TypeFunc([⟨m_1, T_1⟩, …, ⟨m_n, T_n⟩], R)
 
-$$\text{FuncTypeRules} = \text{RulesIn}(\{\texttt{"5.2.1"},\ \texttt{"5.2.2"}\})$$
+FuncTypeRules = RulesIn({"5.2.1", "5.2.2"})
 
 #### 5.2.4. Procedure Calls
 
-$$\text{ArgsOkTJudg} = \{\text{ArgsOk}_T\}$$
-$$\text{ParamMode}(\langle mode,\ T\rangle) = mode$$
-$$\text{ParamType}(\langle mode,\ T\rangle) = T$$
-$$\text{ArgMoved}(\langle moved,\ e,\ span\rangle) = moved$$
-$$\text{ArgExpr}(\langle moved,\ e,\ span\rangle) = e$$
-$$\text{PlaceType}(p) = T \iff \Gamma; R; L \vdash p :place T$$
-$$\text{ArgType}(a) =
-\begin{cases}
-\text{ExprType}(\text{MovedArg}(\text{ArgMoved}(a), \text{ArgExpr}(a))) & \text{if } \text{ArgMoved}(a) = \text{true} \
-\text{PlaceType}(\text{ArgExpr}(a)) & \text{if } \text{ArgMoved}(a) = \text{false}
-\end{cases}$$
+ArgsOkTJudg = {ArgsOk_T}
+ParamMode(⟨mode, T⟩) = mode
+ParamType(⟨mode, T⟩) = T
+ArgMoved(⟨moved, e, span⟩) = moved
+ArgExpr(⟨moved, e, span⟩) = e
+PlaceType(p) = T ⇔ Γ; R; L ⊢ p :place T
+ArgType(a) =
+  { ExprType(MovedArg(ArgMoved(a), ArgExpr(a)))  if ArgMoved(a) = true
+    PlaceType(ArgExpr(a))                        if ArgMoved(a) = false }
 
 **(ArgsT-Empty)**
-$$\frac{}{\Gamma; R; L \vdash \text{ArgsOk}_T([], [])}$$
+──────────────────────────────────────────────
+Γ; R; L ⊢ ArgsOk_T([], [])
 
 **(ArgsT-Cons)**
-$$\frac{\Gamma; R; L \vdash \text{MovedArg}(moved, e) \Leftarrow T_p \dashv \emptyset \quad moved = \text{true} \quad \Gamma; R; L \vdash \text{ArgsOk}_T(ps, as)}{\Gamma; R; L \vdash \text{ArgsOk}_T([\langle \texttt{move}, T_p \rangle] \mathbin{+\!\!+} ps,\ [\langle moved, e, \_ \rangle] \mathbin{+\!\!+} as)}$$
+Γ; R; L ⊢ MovedArg(moved, e) ⇐ T_p ⊣ ∅    moved = true    Γ; R; L ⊢ ArgsOk_T(ps, as)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ArgsOk_T([⟨`move`, T_p⟩] ++ ps, [⟨moved, e, _⟩] ++ as)
 
 **(ArgsT-Cons-Ref)**
-$$\frac{\Gamma; R; L \vdash e \Leftarrow_{\text{place}} T_p \quad \text{AddrOfOk}(e) \quad moved = \text{false} \quad \Gamma; R; L \vdash \text{ArgsOk}_T(ps, as)}{\Gamma; R; L \vdash \text{ArgsOk}_T([\langle \bot, T_p \rangle] \mathbin{+\!\!+} ps,\ [\langle moved, e, \_ \rangle] \mathbin{+\!\!+} as)}$$
+Γ; R; L ⊢ e ⇐_place T_p    AddrOfOk(e)    moved = false    Γ; R; L ⊢ ArgsOk_T(ps, as)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ArgsOk_T([⟨⊥, T_p⟩] ++ ps, [⟨moved, e, _⟩] ++ as)
 
 **(T-Call)**
-$$\frac{\Gamma; R; L \vdash callee : \text{TypeFunc}(params, R_c) \quad \Gamma; R; L \vdash \text{ArgsOk}_T(params, args)}{\Gamma; R; L \vdash \text{Call}(callee, args) : R_c}$$
+Γ; R; L ⊢ callee : TypeFunc(params, R_c)    Γ; R; L ⊢ ArgsOk_T(params, args)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Call(callee, args) : R_c
 
 **(Call-Callee-NotFunc)**
-$$\frac{\Gamma; R; L \vdash callee : T \quad T \ne \text{TypeFunc}(\_,\_) \quad \neg(\text{RecordCallee}(callee) \land args = []) \quad c = \text{Code}(\text{Call-Callee-NotFunc})}{\Gamma; R; L \vdash \text{Call}(callee, args) \Uparrow c}$$
+Γ; R; L ⊢ callee : T    T ≠ TypeFunc(_, _)    ¬(RecordCallee(callee) ∧ args = [])    c = Code(Call-Callee-NotFunc)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Call(callee, args) ⇑ c
 
 **(Call-ArgCount-Err)**
-$$\frac{\Gamma; R; L \vdash callee : \text{TypeFunc}(params, \_) \quad |\text{params}| \ne |\text{args}| \quad c = \text{Code}(\text{Call-ArgCount-Err})}{\Gamma; R; L \vdash \text{Call}(callee, args) \Uparrow c}$$
+Γ; R; L ⊢ callee : TypeFunc(params, _)    |params| ≠ |args|    c = Code(Call-ArgCount-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Call(callee, args) ⇑ c
 
 **(Call-ArgType-Err)**
-$$\frac{\Gamma; R; L \vdash callee : \text{TypeFunc}(params, \_) \quad \exists i.\ \neg(\Gamma; R; L \vdash \text{ArgType}(args[i]) <: \text{ParamType}(params[i])) \quad c = \text{Code}(\text{Call-ArgType-Err})}{\Gamma; R; L \vdash \text{Call}(callee, args) \Uparrow c}$$
+Γ; R; L ⊢ callee : TypeFunc(params, _)    ∃ i. ¬(Γ; R; L ⊢ ArgType(args[i]) <: ParamType(params[i]))    c = Code(Call-ArgType-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Call(callee, args) ⇑ c
 
 **(Call-Move-Missing)**
-$$\frac{\Gamma; R; L \vdash callee : \text{TypeFunc}(params, \_) \quad \exists i.\ \text{ParamMode}(params[i]) = \texttt{move} \land \text{ArgMoved}(args[i]) = \text{false} \quad c = \text{Code}(\text{Call-Move-Missing})}{\Gamma; R; L \vdash \text{Call}(callee, args) \Uparrow c}$$
+Γ; R; L ⊢ callee : TypeFunc(params, _)    ∃ i. ParamMode(params[i]) = `move` ∧ ArgMoved(args[i]) = false    c = Code(Call-Move-Missing)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Call(callee, args) ⇑ c
 
 **(Call-Move-Unexpected)**
-$$\frac{\Gamma; R; L \vdash callee : \text{TypeFunc}(params, \_) \quad \exists i.\ \text{ParamMode}(params[i]) = \bot \land \text{ArgMoved}(args[i]) = \text{true} \quad c = \text{Code}(\text{Call-Move-Unexpected})}{\Gamma; R; L \vdash \text{Call}(callee, args) \Uparrow c}$$
+Γ; R; L ⊢ callee : TypeFunc(params, _)    ∃ i. ParamMode(params[i]) = ⊥ ∧ ArgMoved(args[i]) = true    c = Code(Call-Move-Unexpected)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Call(callee, args) ⇑ c
 
 **(Call-Arg-NotPlace)**
-$$\frac{\Gamma; R; L \vdash callee : \text{TypeFunc}(params, \_) \quad \exists i.\ \text{ParamMode}(params[i]) = \bot \land \neg \text{IsPlace}(\text{ArgExpr}(args[i])) \quad c = \text{Code}(\text{Call-Arg-NotPlace})}{\Gamma; R; L \vdash \text{Call}(callee, args) \Uparrow c}$$
+Γ; R; L ⊢ callee : TypeFunc(params, _)    ∃ i. ParamMode(params[i]) = ⊥ ∧ ¬ IsPlace(ArgExpr(args[i]))    c = Code(Call-Arg-NotPlace)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Call(callee, args) ⇑ c
 
 #### 5.2.5. Tuples
 
 **(T-Unit-Literal)**
-$$\frac{}{\Gamma \vdash \text{TupleExpr}([]) : \text{TypePrim}(\texttt{"()"})}$$
+────────────────────────────────────────────────────────────────
+Γ ⊢ TupleExpr([]) : TypePrim("()")
 
 **(T-Tuple-Literal)**
-$$\frac{n \ge 1 \quad \forall i,\ \Gamma \vdash e_i : T_i}{\Gamma \vdash \text{TupleExpr}([e_1,\ldots,e_n]) : \text{TypeTuple}([T_1,\ldots,T_n])}$$
+n ≥ 1    ∀ i, Γ ⊢ e_i : T_i
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ TupleExpr([e_1, …, e_n]) : TypeTuple([T_1, …, T_n])
 
 **(T-Tuple-Index)**
-$$\frac{\Gamma \vdash e : \text{TypeTuple}([T_0,\ldots,T_{n-1}]) \quad 0 \le i < n \quad \text{BitcopyType}(T_i)}{\Gamma \vdash \text{TupleAccess}(e, i) : T_i}$$
+Γ ⊢ e : TypeTuple([T_0, …, T_{n-1}])    0 ≤ i < n    BitcopyType(T_i)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ TupleAccess(e, i) : T_i
 
 **(T-Tuple-Index-Perm)**
-$$\frac{\Gamma \vdash e : \text{TypePerm}(p, \text{TypeTuple}([T_0,\ldots,T_{n-1}])) \quad 0 \le i < n \quad \text{BitcopyType}(\text{TypePerm}(p, T_i))}{\Gamma \vdash \text{TupleAccess}(e, i) : \text{TypePerm}(p, T_i)}$$
+Γ ⊢ e : TypePerm(p, TypeTuple([T_0, …, T_{n-1}]))    0 ≤ i < n    BitcopyType(TypePerm(p, T_i))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ TupleAccess(e, i) : TypePerm(p, T_i)
 
 **(P-Tuple-Index)**
-$$\frac{\Gamma \vdash e :place \text{TypeTuple}([T_0,\ldots,T_{n-1}]) \quad 0 \le i < n}{\Gamma \vdash \text{TupleAccess}(e, i) :place T_i}$$
+Γ ⊢ e :place TypeTuple([T_0, …, T_{n-1}])    0 ≤ i < n
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ TupleAccess(e, i) :place T_i
 
 **(P-Tuple-Index-Perm)**
-$$\frac{\Gamma \vdash e :place \text{TypePerm}(p, \text{TypeTuple}([T_0,\ldots,T_{n-1}])) \quad 0 \le i < n}{\Gamma \vdash \text{TupleAccess}(e, i) :place \text{TypePerm}(p, T_i)}$$
+Γ ⊢ e :place TypePerm(p, TypeTuple([T_0, …, T_{n-1}]))    0 ≤ i < n
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ TupleAccess(e, i) :place TypePerm(p, T_i)
 
-$$\text{ConstTupleIndex}(i) \iff \exists n \in \mathbb{Z}.\ i = n$$
+ConstTupleIndex(i) ⇔ ∃ n ∈ ℤ. i = n
 
 **(TupleIndex-NonConst)**
-$$\frac{\neg \text{ConstTupleIndex}(i) \quad c = \text{Code}(\text{TupleIndex-NonConst})}{\Gamma \vdash \text{TupleAccess}(e, i) \Uparrow c}$$
+¬ ConstTupleIndex(i)    c = Code(TupleIndex-NonConst)
+────────────────────────────────────────────────────────────────
+Γ ⊢ TupleAccess(e, i) ⇑ c
 
 **(TupleIndex-OOB)**
-$$\frac{\Gamma \vdash e : \text{TypeTuple}([T_0,\ldots,T_{n-1}]) \quad (i < 0 \ \lor\ i \ge n) \quad c = \text{Code}(\text{TupleIndex-OOB})}{\Gamma \vdash \text{TupleAccess}(e, i) \Uparrow c}$$
+Γ ⊢ e : TypeTuple([T_0, …, T_{n-1}])    (i < 0 ∨ i ≥ n)    c = Code(TupleIndex-OOB)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ TupleAccess(e, i) ⇑ c
 
 **(TupleAccess-NotTuple)**
-$$\frac{\Gamma \vdash e : T \quad \text{StripPerm}(T) \ne \text{TypeTuple}(\_) \quad c = \text{Code}(\text{TupleAccess-NotTuple})}{\Gamma \vdash \text{TupleAccess}(e, i) \Uparrow c}$$
+Γ ⊢ e : T    StripPerm(T) ≠ TypeTuple(_)    c = Code(TupleAccess-NotTuple)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ TupleAccess(e, i) ⇑ c
 
 #### 5.2.6. Arrays and Slices
 
@@ -13692,7 +15259,7 @@ $$\text{C0Code}(id) = \bot \iff \neg \exists row \in \text{DiagRows}.\ id \in \t
 | `E-MOD-1204` | Error    | Compile-time | Using path does not resolve to a module or item                 | Resolve-Using-None                                                                                                                     |
 | `E-MOD-1205` | Error    | Compile-time | Attempt to `public using` a non-public item                     | Using-Path-Item-Public-Err, Using-List-Public-Err                                                                                      |
 | `E-MOD-1206` | Error    | Compile-time | Duplicate item in a `using` list                                | Using-List-Dup                                                                                                                         |
-| `E-MOD-1207` | Error    | Compile-time | Cannot access a `protected` item from this scope                | Access-Err                                                                                                                             |
+| `E-MOD-1207` | Error    | Compile-time | Cannot access a non-public item from this scope                 | Access-Err                                                                                                                             |
 | `E-MOD-1208` | Error    | Compile-time | Using path is ambiguous between module and item                 | Resolve-Using-Ambig                                                                                                                    |
 | `E-MOD-1301` | Error    | Compile-time | Unresolved name: identifier not found in any accessible scope   | ResolveExpr-Ident-Err, ResolveQual-Name-Err, ResolveQual-Apply-Err, ResolveQual-Apply-Brace-Err, Expr-Unresolved-Err                   |
 | `E-MOD-1302` | Error    | Compile-time | Duplicate declaration in module scope                           | Collect-Dup, Names-Step-Dup                                                                                                            |

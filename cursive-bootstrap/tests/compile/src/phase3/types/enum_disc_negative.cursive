@@ -1,0 +1,9 @@
+# SPEC_COV: Enum-Disc-Negative
+// E-TYP-1922: Enum discriminant must be non-negative
+enum E {
+  A = -1
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

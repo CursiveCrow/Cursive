@@ -17,7 +17,8 @@ record Tracer <: Drop {
 record Container <: Drop {
   inner: Tracer,
   procedure drop(~!) -> () {
-    let _ = match self.inner.fs~>write_stdout("C") {
+    let label_c: string@View = "C";
+    let _ = match self.inner.fs~>write_stdout(label_c) {
       ok: () => (),
       err: IoError => ()
     };

@@ -1,0 +1,6 @@
+# SPEC_COV: T-LetStmt-Ann-Mismatch
+// E-MOD-2402: Let annotation type mismatch
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = true;
+  return 0;
+}

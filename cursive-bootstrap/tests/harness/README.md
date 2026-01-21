@@ -15,13 +15,26 @@ Tests should encode **spec-required behavior**, not current compiler quirks.
 - IR tests (`*.expect.ll`) are **exact-match** after deterministic normalization
   (line endings + trailing whitespace; temp paths normalized).
 
+## Compile suite layout
+
+The compile suite is split into:
+
+- `tests/compile/src/phase1..phase4/`: single-module cases inside one shared
+  project (`tests/compile/Cursive.toml`).
+- `tests/compile/phase0/`: per-case manifest tests (missing/invalid manifests
+  are allowed and expected).
+- `tests/compile/projects/`: multi-module compile tests that require their own
+  `Cursive.toml`.
+
+Single-module cases should **not** carry a per-case `Cursive.toml`.
+
 ## Semantics-oracle suite
 
 The semantics-oracle suite compares **compiler output vs interpreter output**
 for the same test project, using the interpreter as the spec-truth oracle.
 
-- Harness: `tests/harness/run_semantics_oracle.py`
-- Test root: `tests/e2e` (semantics-oracle projects)
+- Harness: `cursive-bootstrap/tests/harness/run_semantics_oracle.py`
+- Test root: `cursive-bootstrap/tests/e2e` (semantics-oracle projects)
 - CTest target: `semantics_oracle_tests` (hard-gated)
 - Interpreter runner: `cursive0_interpreter_cli` (CMake target)
 - Outputs compared: `stdout`, `stderr`, `exit_code`
@@ -32,7 +45,7 @@ for the same test project, using the interpreter as the spec-truth oracle.
 Use the regeneration helper to update `*.expect.json` files from compiler output:
 
 ```
-python tests/harness/regen_expect.py --compiler build/Release/cursivec0.exe --tests-root tests/compile
+python cursive-bootstrap/tests/harness/regen_expect.py --compiler build/Release/cursivec0.exe --tests-root cursive-bootstrap/tests/compile
 ```
 
 This will normalize spans to original test paths so expectations remain stable.
@@ -40,7 +53,7 @@ This will normalize spans to original test paths so expectations remain stable.
 To regenerate **semantics-oracle** `expect.json` files from interpreter output:
 
 ```
-python tests/harness/regen_semantics_oracle.py --interpreter build/Release/cursive0_interpreter_cli.exe --tests-root tests/e2e
+python cursive-bootstrap/tests/harness/regen_semantics_oracle.py --interpreter build/Release/cursive0_interpreter_cli.exe --tests-root cursive-bootstrap/tests/e2e
 ```
 
 ## Spec coverage reporting

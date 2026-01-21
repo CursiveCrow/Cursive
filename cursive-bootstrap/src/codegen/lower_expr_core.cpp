@@ -215,7 +215,7 @@ std::pair<IRPtr, std::vector<IRValue>> LowerList(
 // ============================================================================
 
 std::pair<IRPtr, std::vector<std::pair<std::string, IRValue>>> LowerFieldInits(
-    const std::vector<syntax::FieldInit>& fields, LowerCtx& ctx) {
+    const std::vector<syntax::FieldInit>& fields, LowerCtx& ctx, bool suppress_temps) {
   SPEC_RULE("LowerFieldInits-Empty");
   SPEC_RULE("LowerFieldInits-Cons");
   
@@ -227,7 +227,12 @@ std::pair<IRPtr, std::vector<std::pair<std::string, IRValue>>> LowerFieldInits(
   std::vector<std::pair<std::string, IRValue>> field_values;
   
   for (const auto& field : fields) {
+    auto prev_suppress = ctx.suppress_temp_at_depth;
+    if (suppress_temps) {
+      ctx.suppress_temp_at_depth = ctx.temp_depth + 1;
+    }
     auto result = LowerExpr(*field.value, ctx);
+    ctx.suppress_temp_at_depth = prev_suppress;
     ir_parts.push_back(result.ir);
     field_values.emplace_back(field.name, result.value);
   }
@@ -562,7 +567,8 @@ LowerResult LowerArray(const syntax::ArrayExpr& expr, LowerCtx& ctx) {
 LowerResult LowerRecord(const syntax::RecordExpr& expr, LowerCtx& ctx) {
   SPEC_RULE("Lower-Expr-Record");
   
-  auto [ir, field_values] = LowerFieldInits(expr.fields, ctx);
+  const bool suppress_temps = std::holds_alternative<syntax::TypePath>(expr.target);
+  auto [ir, field_values] = LowerFieldInits(expr.fields, ctx, suppress_temps);
   
   IRValue record_value = ctx.FreshTempValue("record");
   DerivedValueInfo info;
@@ -610,7 +616,7 @@ LowerResult LowerEnumLiteral(const syntax::EnumLiteralExpr& expr, LowerCtx& ctx)
           // Record variant
           SPEC_RULE("Lower-Expr-Enum-Record");
           
-          auto [ir, field_values] = LowerFieldInits(payload.fields, ctx);
+          auto [ir, field_values] = LowerFieldInits(payload.fields, ctx, true);
           
           IRValue enum_value = ctx.FreshTempValue("enum_record");
           DerivedValueInfo info;

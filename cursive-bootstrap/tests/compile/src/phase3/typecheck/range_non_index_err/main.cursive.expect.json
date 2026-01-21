@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-UNS-0108",
+      "severity": "error",
+      "message": "Range expression used as index in Cursive0 subset",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\typecheck\\range_non_index_err\\main.cursive",
+        "start_line": 1,
+        "start_col": 44,
+        "end_line": 5,
+        "end_col": 2
+      }
+    }
+  ],
+  "exit_code": 1
+}

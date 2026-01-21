@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-UNS-0101",
+      "severity": "error",
+      "message": "Unsupported construct in Cursive0 subset",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase1\\unsupported\\use_unsupported.cursive",
+        "start_line": 1,
+        "start_col": 1,
+        "end_line": 1,
+        "end_col": 4
+      }
+    }
+  ],
+  "exit_code": 1
+}

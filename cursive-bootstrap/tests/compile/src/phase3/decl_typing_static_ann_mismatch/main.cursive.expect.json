@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-MOD-2402",
+      "severity": "error",
+      "message": "Type annotation incompatible with inferred type",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\decl_typing_static_ann_mismatch\\main.cursive",
+        "start_line": 1,
+        "start_col": 1,
+        "end_line": 1,
+        "end_col": 18
+      }
+    }
+  ],
+  "exit_code": 1
+}

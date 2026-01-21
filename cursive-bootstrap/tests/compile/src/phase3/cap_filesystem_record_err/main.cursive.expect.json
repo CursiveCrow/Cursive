@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-TYP-2073",
+      "severity": "error",
+      "message": "Record literal whose type is `File@S` or `DirIter@S` for any state `S` in the corresponding modal type",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\cap_filesystem_record_err\\main.cursive",
+        "start_line": 1,
+        "start_col": 44,
+        "end_line": 4,
+        "end_col": 2
+      }
+    }
+  ],
+  "exit_code": 1
+}

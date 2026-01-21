@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-SEM-3163",
+      "severity": "error",
+      "message": "`continue` outside `loop`",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\semantics\\continue_outside_loop.cursive",
+        "start_line": 2,
+        "start_col": 44,
+        "end_line": 5,
+        "end_col": 2
+      }
+    }
+  ],
+  "exit_code": 1
+}

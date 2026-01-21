@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-TYP-1505",
+      "severity": "error",
+      "message": "Missing required type annotation at module scope",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\decl_typing_static_missing_type\\main.cursive",
+        "start_line": 1,
+        "start_col": 1,
+        "end_line": 1,
+        "end_col": 10
+      }
+    }
+  ],
+  "exit_code": 1
+}

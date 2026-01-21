@@ -1,9 +1,0 @@
-# SPEC_COV: B-Place-Unique-Err
-# E-TYP-1602: unique exclusion violation (aliasing).
-# Cannot create two unique pointers to the same location.
-public procedure main(ctx: Context) -> i32 {
-  var x: i32 = 42;
-  let p1: unique ^i32 = ^x;
-  let p2: unique ^i32 = ^x;
-  return 0i32;
-}

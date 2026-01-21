@@ -472,3 +472,396 @@
 
   </agent_system_instruction>
 </domain_knowledge>
+
+
+## C0 TRAINING
+  
+> Always terminate statements correctly (newline or `;`), and never use trailing commas in lists.  
+> If a return type is not `()`, the procedure body must end with an explicit `return <expr>` and may not use a trailing expression.  
+> Use `~>` for method calls, `.` only for field access / tuple index.  
+> When inference could fail (e.g., `Ptr::null()` / `null` raw pointers / top‑level statics), add explicit type annotations.  
+> Prefer simple, explicit constructs over clever ones.  
+> If unsure about a construct, do not use it; use a more explicit alternative that is clearly in C0.
+
+---
+
+## 3. Lexical and formatting rules (generation-critical)
+
+### 3.1. Comments
+Cursive0 supports:
+- line comments `// ...`
+- nested block comments `/* ... */`
+- doc comments `/// ...` and `/** ... */` (module docs and item docs)
+
+**Guidance:** You may emit `//` comments freely; avoid doc comments unless the user requests documentation.
+
+### 3.2. Identifiers, Unicode, and “LexSecure”
+Identifiers use Unicode identifier rules and are NFC‑normalized for equality. The spec also defines **lexically sensitive Unicode characters** (Bidi controls and ZWJ/ZWNJ) that are **disallowed outside `unsafe { ... }`**.
+
+**Guidance for LLM output:**
+- Use ASCII identifiers (`snake_case` and `UpperCamelCase`) exclusively.
+- Do not emit any Bidi control characters or ZWJ/ZWNJ.
+- Only emit `unsafe { ... }` when required by an unsafe operation (e.g., raw allocation, transmute); do not use it as a blanket workaround.
+
+### 3.3. Reserved lexemes and names
+Do not use reserved keywords/operators/punctuators as identifiers. Also avoid:
+- the reserved module namespaces: `cursive`, `cursive::runtime`, `cursive::core`, `cursive::intrinsics`, `cursive::builtin`, and `std`
+- the reserved identifier prefix: `gen_`
+- shadowing reserved “special” names at module scope (e.g., primitive type names, `Self`, `Drop`, `Bitcopy`, `Clone`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, `Context`, etc.)
+
+**Guidance:** Use distinct, application‑specific names; avoid `cursive*`, `std*`, and `gen_*`.
+
+---
+
+## 4. Statement termination and commas (major source of parse failures)
+
+### 4.1. Terminators
+Many statements require a terminator:
+- **Terminator** is newline or `;`.
+- `return`, `result`, `break`, `continue` permit an optional terminator, but using a newline is still recommended.
+
+**Guidance (recommended style):**
+- End **every** statement with a newline.
+- Use `;` only when a statement must be on the same line (rare), or for the single‑element tuple form `(e;)`.
+
+### 4.2. Trailing commas are unsupported
+Lists (arguments, tuple elements, record fields, enum variants, match arms lists, etc.) do **not** allow trailing commas in C0.
+
+**Guidance:** Never emit trailing commas. Write:
+- `f(a, b)` not `f(a, b,)`
+- `Point{ x: 1, y: 2 }` not `Point{ x: 1, y: 2, }`
+
+---
+
+## 5. Project and module model (when you need “real” programs)
+
+### 5.1. Project root and `Cursive.toml`
+A Cursive project is rooted by a `Cursive.toml` manifest. Assemblies are declared there (name/kind/root/build/emit).
+
+**Guidance:** If the user asks for a full project, generate:
+- `Cursive.toml`
+- a root module file containing `public procedure main(...) -> i32 { ... }` for executables
+
+### 5.2. Modules and `using`
+C0 uses `using` declarations (not `import`, not `use`):
+- `using <path>`
+- `using <path> as <alias>`
+- `using <path>::{a, b, c}`
+- `using <path>::*`
+
+**Guidance:** Prefer explicit imports (`using foo::{bar, baz}`) over globs.
+
+---
+
+## 6. Top-level declarations (C0)
+
+C0 supports these top-level items:
+- `procedure`
+- `record`
+- `enum`
+- `modal`
+- `class` (with restricted class items)
+- `type` (type alias)
+- `static`
+- `using`
+- optional `module` declaration and module doc comments
+
+Unsupported at top level in C0 includes `extern` blocks, attributes, and `import`.
+
+---
+
+## 7. Procedures
+
+### 7.1. Always write an explicit return type
+Although the grammar permits omission, C0 requires a return type annotation for procedures.
+
+**Guidance:** Always use:
+```cursive
+procedure foo(x: i32) -> i32 {
+  return x
+}
+```
+
+### 7.2. Non-unit procedures must end with an explicit `return`
+For any procedure with return type **not equal to `()`**, the body must:
+- have **no trailing expression**, and
+- end with a `return <expr>` statement.
+
+**Guidance:** Do not rely on implicit return or tail expressions in a procedure body.
+
+### 7.3. `main` signature (executables)
+Executable projects require:
+```cursive
+public procedure main(move ctx: Context) -> i32 {
+  return 0
+}
+```
+Notes:
+- `main` must be `public`
+- It takes exactly one `Context` parameter (optionally `move`)
+- It returns `i32`
+
+### 7.4. Parameter passing and `move`
+Parameters can be annotated with `move`:
+```cursive
+procedure consume(move x: unique Foo) -> () { ... }
+```
+
+Call arguments can be prefixed with `move` to pass ownership:
+```cursive
+consume(move f)
+```
+
+**Guidance:**
+- Use `move` on a parameter when the callee consumes it.
+- When calling such a procedure, supply `move` on the argument and do not use the moved binding afterwards.
+
+---
+
+## 8. Types
+
+### 8.1. Primitive types
+C0 includes (at minimum) the usual primitives: integer types, float types, `bool`, `char`, `usize`, `isize`, `()`, and `!`.
+
+### 8.2. Permissions: `const` and `unique` only
+C0 permission qualifiers are:
+- `const T`
+- `unique T`
+
+`shared` exists in the broader language but is **not supported in C0**.
+
+**Guidance:** Never emit `shared`.
+
+### 8.3. Core type constructors (C0)
+Supported type constructors include:
+- tuples: `(T1, T2, ...)`
+- arrays: `[T; n]` (where `n` is a compile-time constant)
+- slices: `[T]`
+- records and enums via type paths: `MyRecord`, `MyEnum`
+- unions: `T1 | T2 | ...`
+- function types: `procedure (T1, T2) -> R`
+- safe pointers: `Ptr<T>` with optional state suffix `@Valid | @Null | @Expired`
+- raw pointers: `*imm T` and `*mut T`
+- `string` and `bytes` with states (notably `@View` and `@Managed`)
+- capability/dynamic types: `$SomeClass` (used for e.g. `$HeapAllocator`, `$FileSystem`)
+- modal state types: `MyModal@State`
+
+### 8.4. Nulls
+Two different null constructs exist:
+- safe pointer null: `Ptr::null()` (requires an expected pointer type; add a type annotation)
+- raw pointer null: `null` (requires an expected raw pointer type; add a type annotation)
+
+**Guidance:** Always annotate:
+```cursive
+let p: Ptr<i32>@Null = Ptr::null()
+let rp: *imm u8 = null
+```
+
+---
+
+## 9. Expressions and operators (what to generate)
+
+### 9.1. Method calls use `~>`
+Method call syntax:
+```cursive
+receiver ~> method(arg1, arg2)
+```
+Do not use `.` for method calls.
+
+### 9.2. Field access and tuple access use `.`
+- record field: `p.x`
+- tuple index: `t.0`
+
+### 9.3. Calls
+- function/procedure call: `f(a, b)`
+- qualified call: `SomeModule::f(a)`
+
+### 9.4. `if` and `match` are expressions
+You can write:
+```cursive
+let x: i32 = if cond { 1 } else { 2 }
+```
+and:
+```cursive
+let y: i32 = match u {
+  v: i32 => { v }
+  b: bool => { if b { 1 } else { 0 } }
+}
+```
+
+### 9.5. `loop` is an expression family
+Supported forms include:
+- infinite: `loop { ... }`
+- conditional: `loop cond { ... }`
+- iterator-style: `loop pat in expr { ... }`
+
+`break` may optionally carry a value (for loops that produce a value).
+
+### 9.6. `unsafe { ... }`
+Unsafe blocks exist and are required for unsafe operations. Avoid them unless necessary.
+
+### 9.7. Union propagation operator `?`
+`expr?` is defined only when:
+- `expr` has a **union type** `U`
+- all union members except exactly one are subtypes of the current procedure return type `R`
+- the remaining member is the result type of `expr?`
+
+Operationally, on a non-success union case it **returns early** from the current procedure.
+
+**Guidance:**
+- Use `?` only when you are certain it type-checks and the enclosing procedure return type is intended to accept the propagated cases.
+- Otherwise use `match`.
+
+---
+
+## 10. Patterns
+
+### 10.1. Let/var patterns must be irrefutable
+In `let`/`var` bindings, patterns may not be refutable (no typed patterns, literals, enum/modal patterns, range patterns).
+
+**Guidance:** For bindings, use:
+- `_`
+- identifiers
+- tuple/record destructuring where all subpatterns are irrefutable
+
+Use `match` for refutable deconstruction.
+
+### 10.2. Union matching
+Union types are typically deconstructed with **typed patterns**:
+```cursive
+match u {
+  v: i32 => { ... }
+  w: bool => { ... }
+}
+```
+Ensure the match is exhaustive.
+
+---
+
+## 11. Ownership, moves, and mutation (LLM “gotchas”)
+
+### 11.1. `let` vs `var`
+- `let` creates an immutable binding (assignment to it is an error).
+- `var` creates a mutable binding (assignment is permitted subject to permission rules).
+
+### 11.2. `:=` creates an immovable binding
+Bindings created with `:=` cannot be moved-from.
+
+**Guidance:** Use `=` unless you specifically want to prohibit moves.
+
+### 11.3. Explicit move is required in several places
+Common cases:
+- passing to a `move` parameter requires `move` at the argument site
+- creating a `unique` binding from a place expression may require explicit `move`
+
+---
+
+## 12. Memory, regions, and pointers (C0)
+
+### 12.1. Regions and frames
+C0 includes:
+- `region` statements: create a scoped region, optionally with options and an alias
+- `frame` statements: create a new frame within an active region (implicit or `r.frame`)
+
+### 12.2. Allocation operator `^`
+`^expr` performs region allocation into the current active region.
+`r ^ expr` allocates into the specific region alias `r` (resolved specially).
+
+Region allocation outside a region scope is an error.
+
+### 12.3. Address-of and dereference
+- `&place` produces a `Ptr<T>@Valid` (type depends on the place’s permission)
+- `*ptr` dereferences; value-deref requires `T` to be bitcopy; place-deref can be used for assignment when permissions allow.
+
+### 12.4. Raw allocation and `transmute`
+Raw allocation and transmute are unsafe operations and must appear inside `unsafe { ... }`.
+
+---
+
+## 13. Built-in runtime interfaces (C0)
+
+### 13.1. `Context` and capabilities
+`Context` is a built-in record that carries capabilities (e.g., filesystem and heap allocator). Typical signatures use dynamic/capability types like `$HeapAllocator` and `$FileSystem`.
+
+### 13.2. `string` and `bytes` states and builtins
+Both `string` and `bytes` have `@View` and `@Managed` state subtypes, and builtins such as:
+- `string::from`, `string::to_managed`, `string::append`, `string::length`, `string::is_empty`
+- `bytes::with_capacity`, `bytes::from_slice`, `bytes::append`, etc.
+
+**Guidance:** Follow the builtin signatures exactly; pay attention to `const` vs `unique` receiver parameters and required `$HeapAllocator` parameters.
+
+---
+
+## 14. Canonical templates and examples
+
+### 14.1. Minimal executable entrypoint
+```cursive
+public procedure main(move ctx: Context) -> i32 {
+  return 0
+}
+```
+
+### 14.2. Using declarations
+```cursive
+using cursive::runtime::string
+using cursive::runtime::bytes
+```
+
+### 14.3. Union handling with `match`
+```cursive
+procedure classify(u: i32 | bool) -> i32 {
+  return match u {
+    v: i32 => { v }
+    b: bool => { if b { 1 } else { 0 } }
+  }
+}
+```
+
+### 14.4. Safe pointer example
+```cursive
+procedure bump() -> i32 {
+  var x: i32 = 10
+  let p: Ptr<unique i32>@Valid = &x
+  *p = 11
+  return x
+}
+```
+
+### 14.5. String allocation (match-based)
+```cursive
+procedure make_managed(view: string@View, heap: $HeapAllocator) -> string@Managed | AllocationError {
+  return cursive::runtime::string::from(view, heap)
+}
+```
+
+---
+
+## 15. Spec-correctness checklist (for an evaluator)
+
+Use this checklist to validate generated code:
+
+1. **Subset compliance**
+   - No `import`, no `extern`, no attributes, no `shared`, no generics/type parameters, no class contracts/where clauses.
+2. **Names**
+   - No reserved keywords used as identifiers.
+   - No `gen_` prefix in user-defined names.
+   - No user module paths under `cursive.*` or `std`.
+3. **Terminators**
+   - Every statement is terminated (newline or `;`) as required.
+   - No trailing commas in any list.
+4. **Procedures**
+   - Every procedure has a return type annotation.
+   - Every non-unit procedure body ends with `return <expr>` and has no trailing expression.
+   - `main` (if present) is `public` with `(move)? ctx: Context` and returns `i32`.
+5. **Types**
+   - Only `const`/`unique` permissions used; no `shared`.
+   - `Ptr::null()` and `null` used only with sufficient type context.
+6. **Ownership**
+   - `move` arguments used for `move` parameters.
+   - No use-after-move.
+   - No moves from `:=` immovable bindings.
+7. **Memory/safety**
+   - `^` used only inside `region`.
+   - Unsafe operations only inside `unsafe { ... }`.
+
+---

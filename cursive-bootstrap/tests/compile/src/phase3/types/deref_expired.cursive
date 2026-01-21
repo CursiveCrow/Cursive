@@ -1,0 +1,7 @@
+# SPEC_COV: Deref-Expired
+// E-TYP-2102: Dereference of pointer in @Expired state
+public procedure main(ctx: Context) -> i32 {
+  let p: Ptr<i32>@Expired = unsafe { transmute::<i32, Ptr<i32>@Expired>(0) };
+  let x: i32 = *p;
+  return 0;
+}

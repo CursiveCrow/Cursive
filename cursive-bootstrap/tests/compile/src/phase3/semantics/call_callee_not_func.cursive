@@ -1,0 +1,7 @@
+# SPEC_COV: Call-Callee-NotFunc
+// E-SEM-2531: Calling a non-function value
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = 42;
+  let y: i32 = x();
+  return 0;
+}

@@ -1,0 +1,9 @@
+# SPEC_COV: Call-Move-Unexpected
+// E-SEM-2535: `move` keyword on non-move parameter
+procedure takes_copy(a: i32) -> () {}
+
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = 1;
+  takes_copy(move x);
+  return 0;
+}

@@ -1,0 +1,10 @@
+# SPEC_COV: B-Move-Field-Immovable-Err
+// E-MEM-3006: Field move from immovable binding
+record R {
+  f: i32
+}
+public procedure main(ctx: Context) -> i32 {
+  let r := R { f: 1 };
+  let x: i32 = move r.f;
+  return 0;
+}

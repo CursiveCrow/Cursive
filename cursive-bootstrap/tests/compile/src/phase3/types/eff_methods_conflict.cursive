@@ -1,0 +1,17 @@
+# SPEC_COV: EffMethods-Conflict
+// E-TYP-2409: Conflicting method signatures from multiple classes
+class A {
+  procedure foo(~) -> i32
+}
+
+class B {
+  procedure foo(~) -> bool
+}
+
+record R : A, B {
+  v: i32
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

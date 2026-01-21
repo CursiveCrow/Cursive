@@ -1,0 +1,8 @@
+# SPEC_COV: TupleIndex-OOB
+// E-TYP-1801: Tuple index out of bounds.
+// Accessing index 3 on a 3-element tuple (valid indices: 0, 1, 2).
+public procedure main(ctx: Context) -> i32 {
+  let t: (i32, i32, i32) = (1, 2, 3);
+  let x = t.3;
+  return 0i32;
+}

@@ -21,7 +21,7 @@ def _strip_spec_cov_lines(path: Path) -> str:
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     out: list[str] = []
     for line in lines:
-        if line.startswith("# SPEC_COV:"):
+        if line.startswith("#"):
             continue
         out.append(line)
     return "\n".join(out)

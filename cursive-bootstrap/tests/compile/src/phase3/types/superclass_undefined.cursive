@@ -1,0 +1,7 @@
+# SPEC_COV: Class-Superclass-Undefined
+// E-TYP-2412: Superclass not defined
+record R : Undefined {}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

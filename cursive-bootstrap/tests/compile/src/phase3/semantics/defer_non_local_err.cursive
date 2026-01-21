@@ -1,0 +1,8 @@
+# SPEC_COV: Defer-NonLocal-Err
+// E-SEM-3152: Non-local control flow in defer block
+public procedure main(ctx: Context) -> i32 {
+  defer {
+    return;
+  }
+  return 0;
+}

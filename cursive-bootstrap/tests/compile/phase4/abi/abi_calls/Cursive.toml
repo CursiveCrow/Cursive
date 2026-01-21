@@ -1,4 +1,0 @@
-[assembly]
-name = "abi_calls"
-kind = "executable"
-root = "src"

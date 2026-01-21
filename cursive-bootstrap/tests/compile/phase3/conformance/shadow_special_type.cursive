@@ -1,4 +1,0 @@
-# SPEC_COV: Validate-Module-Special-Shadow-Err
-# E-CNF-0404: Shadowing of special types at module scope.
-# Cannot shadow Self, Drop, Bitcopy, Clone, string, bytes, Modal, Region, RegionOptions, or Context.
-type Drop = i32

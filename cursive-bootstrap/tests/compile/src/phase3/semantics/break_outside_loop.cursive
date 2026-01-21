@@ -1,0 +1,6 @@
+# SPEC_COV: Break-Outside-Loop
+// E-SEM-3162: break statement outside loop
+public procedure main(ctx: Context) -> i32 {
+  break;
+  return 0;
+}

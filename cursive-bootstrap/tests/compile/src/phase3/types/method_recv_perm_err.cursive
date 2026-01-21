@@ -1,0 +1,12 @@
+# SPEC_COV: MethodCall-RecvPerm-Err
+// E-TYP-1605: Receiver permission incompatible with caller
+record R {
+  v: i32,
+  procedure mutate(~!) -> () { }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let r: R = R { v: 1 };
+  r~>mutate();
+  return 0;
+}

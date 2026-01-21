@@ -1,0 +1,8 @@
+# SPEC_COV: T-Loop-Iter-NonIter
+// E-TYP-2802: Loop iterator must be iterable
+public procedure main(ctx: Context) -> i32 {
+  loop x in 42 {
+    break;
+  }
+  return 0;
+}

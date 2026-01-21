@@ -45,8 +45,8 @@ enum class PassKind {
   SRet,
 };
 
-// ByValMax = 2 × PtrSize (16 bytes on Win64)
-constexpr std::uint64_t kByValMax = 2 * kPtrSize;
+// ByValMax = PtrSize (8 bytes on Win64)
+constexpr std::uint64_t kByValMax = kPtrSize;
 
 // ByValAlign = PtrAlign (8 bytes on Win64)
 constexpr std::uint64_t kByValAlign = kPtrAlign;

@@ -1,4 +1,0 @@
-[assembly]
-name = "abi_types"
-kind = "executable"
-root = "src"

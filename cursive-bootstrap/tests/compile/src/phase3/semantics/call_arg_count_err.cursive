@@ -1,0 +1,8 @@
+# SPEC_COV: Call-ArgCount-Err
+// E-SEM-2532: Wrong number of arguments in function call
+procedure takes_one(a: i32) -> () {}
+
+public procedure main(ctx: Context) -> i32 {
+  takes_one(1, 2);
+  return 0;
+}

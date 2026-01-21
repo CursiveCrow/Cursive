@@ -5,6 +5,8 @@
 #include "cursive0/codegen/layout.h"
 #include "cursive0/codegen/cleanup.h"
 #include "cursive0/core/assert_spec.h"
+#include "cursive0/core/symbols.h"
+#include "cursive0/runtime/runtime_interface.h"
 #include "cursive0/sema/classes.h"
 #include "cursive0/sema/modal.h"
 #include "cursive0/sema/modal_transitions.h"
@@ -426,7 +428,7 @@ LowerResult LowerCallExpr(const syntax::CallExpr& expr, LowerCtx& ctx) {
       ctx.module_path.pop_back();
     }
 
-    auto [ir, field_values] = LowerFieldInits(field_inits, ctx);
+    auto [ir, field_values] = LowerFieldInits(field_inits, ctx, true);
 
     ctx.module_path = std::move(saved_module);
 
@@ -464,6 +466,45 @@ LowerResult LowerCallExpr(const syntax::CallExpr& expr, LowerCtx& ctx) {
   bool needs_panic_out = true;
   if (call.callee.kind == IRValue::Kind::Symbol) {
     needs_panic_out = NeedsPanicOut(call.callee.name);
+    if (needs_panic_out) {
+      auto check_builtin = [&](const std::vector<std::string>& full_path,
+                               const std::vector<std::string>& container_path) {
+        if (full_path.empty()) {
+          return;
+        }
+        const std::string qualified = core::StringOfPath(full_path);
+        const std::string builtin = BuiltinSym(qualified);
+        const bool is_string_bytes =
+            container_path.size() == 1 &&
+            (sema::IdEq(container_path[0], "string") ||
+             sema::IdEq(container_path[0], "bytes"));
+        if (!builtin.empty() || is_string_bytes) {
+          needs_panic_out = false;
+        }
+      };
+      if (const auto* path_expr =
+              std::get_if<syntax::PathExpr>(&expr.callee->node)) {
+        std::vector<std::string> full = path_expr->path;
+        full.push_back(path_expr->name);
+        check_builtin(full, path_expr->path);
+      } else if (const auto* qname =
+                     std::get_if<syntax::QualifiedNameExpr>(&expr.callee->node)) {
+        std::vector<std::string> full = qname->path;
+        full.push_back(qname->name);
+        check_builtin(full, qname->path);
+      } else if (const auto* ident =
+                     std::get_if<syntax::IdentifierExpr>(&expr.callee->node)) {
+        if (ctx.resolve_name) {
+          if (auto resolved = ctx.resolve_name(ident->name)) {
+            std::vector<std::string> container = *resolved;
+            if (!container.empty()) {
+              container.pop_back();
+            }
+            check_builtin(*resolved, container);
+          }
+        }
+      }
+    }
   }
 
   if (needs_panic_out) {

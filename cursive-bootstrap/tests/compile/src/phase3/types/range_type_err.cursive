@@ -1,0 +1,6 @@
+# SPEC_COV: T-Range-Type-Err
+// E-TYP-2904: Range bounds type mismatch
+public procedure main(ctx: Context) -> i32 {
+  let r: Range<i32> = 1..true;
+  return 0;
+}

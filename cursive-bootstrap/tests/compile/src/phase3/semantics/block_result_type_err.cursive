@@ -1,0 +1,8 @@
+# SPEC_COV: BlockInfo-Res-Err
+// E-SEM-3164: Block result type mismatch
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = {
+    result true;
+  };
+  return 0;
+}

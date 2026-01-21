@@ -1,8 +1,0 @@
-# SPEC_COV: B-Assign-Immutable-Err
-# E-MEM-3003: Reassignment of immutable binding.
-# Cannot reassign a let binding.
-public procedure main(ctx: Context) -> i32 {
-  let x: i32 = 42;
-  x = 100;
-  return 0i32;
-}

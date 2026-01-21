@@ -136,6 +136,20 @@ ValidateModuleNamesResult ValidateModuleNames(const Scope& names) {
   }
   std::sort(keys.begin(), keys.end());
 
+  // Check for reserved gen_ prefix (Intro-Reserved-Gen-Err at module scope)
+  for (const auto& key : keys) {
+    if (ReservedGen(key)) {
+      SPEC_RULE("Intro-Reserved-Gen-Err");
+      return {false, "Intro-Reserved-Gen-Err"};
+    }
+  }
+  // Check for reserved cursive namespace prefix
+  for (const auto& key : keys) {
+    if (ReservedCursive(key)) {
+      SPEC_RULE("Intro-Reserved-Cursive-Err");
+      return {false, "Intro-Reserved-Cursive-Err"};
+    }
+  }
   for (const auto& key : keys) {
     if (KeywordKey(key)) {
       SPEC_RULE("Validate-Module-Keyword-Err");

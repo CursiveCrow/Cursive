@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-MOD-1207",
+      "severity": "error",
+      "message": "Cannot access a `protected` item from this scope",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\projects\\phase3\\visibility_access\\src\\main.cursive",
+        "start_line": 2,
+        "start_col": 3,
+        "end_line": 2,
+        "end_col": 16
+      }
+    }
+  ],
+  "exit_code": 1
+}

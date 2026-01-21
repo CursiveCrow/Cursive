@@ -1,0 +1,13 @@
+# SPEC_COV: Let-Refutable-Pattern-Err
+// E-SEM-2711: Refutable pattern in irrefutable context (let).
+// Cannot use a literal pattern in a let binding.
+enum Status {
+  Ok(),
+  Err()
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let s: Status = Status::Ok();
+  let Status::Ok() = s;
+  return 0i32;
+}

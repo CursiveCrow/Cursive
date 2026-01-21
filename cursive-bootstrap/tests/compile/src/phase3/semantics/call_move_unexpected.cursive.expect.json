@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-SEM-2535",
+      "severity": "error",
+      "message": "`move` argument provided but parameter is not `move`",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\semantics\\call_move_unexpected.cursive",
+        "start_line": 4,
+        "start_col": 44,
+        "end_line": 8,
+        "end_col": 2
+      }
+    }
+  ],
+  "exit_code": 1
+}

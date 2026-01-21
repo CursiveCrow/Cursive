@@ -1,0 +1,12 @@
+# SPEC_COV: RecordPattern-UnknownField
+// E-SEM-2731: Unknown field in record pattern
+record R {
+  x: i32
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let r: R = R { x: 1 };
+  match r {
+    R { unknown: _ } => { return 1; }
+  }
+}

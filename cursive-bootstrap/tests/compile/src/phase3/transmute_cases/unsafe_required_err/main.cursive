@@ -1,0 +1,8 @@
+# SPEC_COV: Transmute-Unsafe-Err
+// E-MEM-3030: Unsafe operation outside block.
+// transmute requires an unsafe block.
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = 42;
+  let y: u32 = transmute::<i32, u32>(x);
+  return 0i32;
+}

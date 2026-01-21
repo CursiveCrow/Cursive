@@ -1,0 +1,10 @@
+# SPEC_COV: Modal-DupState-Err
+// E-TYP-2051: Duplicate state name within modal type
+modal M {
+  state A {}
+  state A {}
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0;
+}

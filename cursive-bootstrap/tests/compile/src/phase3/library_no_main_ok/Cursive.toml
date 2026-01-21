@@ -1,0 +1,4 @@
+[assembly]
+name = "demo"
+kind = "library"
+root = "."

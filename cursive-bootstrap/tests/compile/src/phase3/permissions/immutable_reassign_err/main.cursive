@@ -1,0 +1,8 @@
+# SPEC_COV: Assign-Immutable-Err
+// E-MOD-2401: Reassignment of immutable `let` binding.
+// Cannot reassign a let binding.
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = 42;
+  x = 100;
+  return 0i32;
+}

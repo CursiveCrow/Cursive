@@ -1,0 +1,11 @@
+# SPEC_COV: FieldAccess-Unknown
+// E-TYP-1904: Access to nonexistent field
+record R {
+  x: i32
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let r: R = R { x: 1 };
+  let y: i32 = r.unknown;
+  return 0;
+}
