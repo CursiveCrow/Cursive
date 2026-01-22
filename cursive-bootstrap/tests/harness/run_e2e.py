@@ -182,7 +182,7 @@ def _run_test(compiler: Path, test_root: Path, repo_root: Path) -> tuple[bool, s
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--compiler", required=False)
-    parser.add_argument("--tests-root", default="tests/e2e")
+    parser.add_argument("--tests-root", default="tests/semantics_oracle")
     parser.add_argument("--test", action="append", default=[])
     args = parser.parse_args()
 
@@ -206,9 +206,9 @@ def main() -> int:
             failures += 1
 
     if failures:
-        print(f"{failures} e2e test(s) failed")
+        print(f"{failures} runtime test(s) failed")
         return 1
-    print("all e2e tests passed")
+    print("all runtime tests passed")
     return 0
 
 

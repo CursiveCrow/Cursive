@@ -1,0 +1,4 @@
+[assembly]
+name = "spec_verifier"
+kind = "executable"
+root = "src"

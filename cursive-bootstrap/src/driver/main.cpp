@@ -18,6 +18,7 @@
 #include "cursive0/core/diagnostic_render.h"
 #include "cursive0/core/diagnostics.h"
 #include "cursive0/core/host_primitives.h"
+#include "cursive0/core/spec_trace.h"
 #include "cursive0/core/symbols.h"
 #include "cursive0/syntax/parse_modules.h"
 #include "cursive0/project/ir_assembly.h"
@@ -77,6 +78,7 @@ struct CliOptions {
   bool no_output = false;
   bool dump_project = false;
   bool dump_ast = false;
+  std::optional<std::string> spec_trace_path;
   std::optional<std::string> assembly_target;
   std::string input_path;
   bool emit_ir = false;
@@ -108,6 +110,13 @@ static std::optional<CliOptions> ParseArgs(int argc, char** argv) {
     }
     if (arg == "--diag-json") {
       opts.diag_json = true;
+      continue;
+    }
+    if (arg == "--spec-trace") {
+      if (i + 1 >= argc) {
+        return std::nullopt;
+      }
+      opts.spec_trace_path = std::string(argv[++i]);
       continue;
     }
     if (arg == "--dump") {
@@ -144,6 +153,10 @@ static std::optional<CliOptions> ParseArgs(int argc, char** argv) {
     }
     if (StartsWith(arg, "--assembly=")) {
       opts.assembly_target = std::string(arg.substr(std::string_view("--assembly=").size()));
+      continue;
+    }
+    if (StartsWith(arg, "--spec-trace=")) {
+      opts.spec_trace_path = std::string(arg.substr(std::string_view("--spec-trace=").size()));
       continue;
     }
     if (arg == "--emit-ir") {
@@ -607,12 +620,16 @@ int main(int argc, char** argv) {
 
   const auto opts = ParseArgs(argc, argv);
   if (!opts.has_value()) {
-    std::cerr << "usage: cursivec0 build <file> [--assembly <name>] [--diag-json] [--dump]\n";
+    std::cerr << "usage: cursivec0 build <file> [--assembly <name>] [--diag-json] [--dump] [--spec-trace <path>]\n";
     return 2;
   }
   if (opts->show_help) {
-    std::cout << "cursivec0 build <file> [--assembly <name>] [--diag-json] [--dump]\n";
+    std::cout << "cursivec0 build <file> [--assembly <name>] [--diag-json] [--dump] [--spec-trace <path>]\n";
     return 0;
+  }
+
+  if (opts->spec_trace_path.has_value()) {
+    cursive0::core::SpecTrace::Init(*opts->spec_trace_path, "compile");
   }
 
   DiagnosticStream diags;
@@ -630,6 +647,9 @@ int main(int argc, char** argv) {
   const std::filesystem::path input_path = opts->input_path;
   log_phase("project-load");
   const auto project_root = cursive0::project::FindProjectRoot(input_path);
+  if (opts->spec_trace_path.has_value()) {
+    cursive0::core::SpecTrace::SetRoot(project_root.string());
+  }
   const auto project_result = cursive0::project::LoadProject(project_root, opts->assembly_target);
 
   for (const auto& diag : project_result.diags) {
@@ -652,6 +672,7 @@ int main(int argc, char** argv) {
     deps.parse_file = cursive0::syntax::ParseFile;
     deps.inspect_source = InspectC0Subset;
     log_phase("parse-modules");
+    cursive0::core::SpecTrace::SetPhase("parse");
     const auto parsed = cursive0::frontend::ParseModulesWithDeps(project.modules,
                                                                  project.source_root,
                                                                  project.assembly.name,
@@ -673,6 +694,7 @@ int main(int argc, char** argv) {
     }
     if (!HasError(diags) && parsed.modules.has_value() && !opts->phase1_only) {
       log_phase("sema");
+      cursive0::core::SpecTrace::SetPhase("resolve");
       cursive0::analysis::ScopeContext ctx;
       ctx.project = &project;
       ctx.sigma.mods = *parsed.modules;
@@ -709,6 +731,7 @@ int main(int argc, char** argv) {
           cursive0::analysis::PopulateSigma(ctx);
         }
         if (!HasError(diags) && resolve_ok) {
+          cursive0::core::SpecTrace::SetPhase("typecheck");
           const auto typechecked =
               cursive0::analysis::TypecheckModules(ctx, ctx.sigma.mods);
           for (const auto& diag : typechecked.diags) {
@@ -717,6 +740,7 @@ int main(int argc, char** argv) {
           typecheck_ok = typechecked.ok;
           if (typecheck_ok) {
             log_phase("codegen");
+            cursive0::core::SpecTrace::SetPhase("codegen");
             cursive0::codegen::LowerCtx lower_ctx;
             lower_ctx.sigma = &ctx.sigma;
 

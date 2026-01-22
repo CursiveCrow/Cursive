@@ -602,6 +602,7 @@ C0Union_File_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fread(
     const C0DynObject* self,
     const C0StringView* path) {
   SPEC_RULE("Prim-FS-OpenRead");
+  c0_trace_emit_rule("Prim-FS-OpenRead");
   C0FsState* fs = c0_fs_state(self);
   uint8_t* canon = NULL;
   uint32_t canon_len = 0;
@@ -631,6 +632,7 @@ C0Union_File_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fwrite(
     const C0DynObject* self,
     const C0StringView* path) {
   SPEC_RULE("Prim-FS-OpenWrite");
+  c0_trace_emit_rule("Prim-FS-OpenWrite");
   C0FsState* fs = c0_fs_state(self);
   uint8_t* canon = NULL;
   uint32_t canon_len = 0;
@@ -660,6 +662,7 @@ C0Union_File_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fappend(
     const C0DynObject* self,
     const C0StringView* path) {
   SPEC_RULE("Prim-FS-OpenAppend");
+  c0_trace_emit_rule("Prim-FS-OpenAppend");
   C0FsState* fs = c0_fs_state(self);
   uint8_t* canon = NULL;
   uint32_t canon_len = 0;
@@ -689,6 +692,7 @@ C0Union_File_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3acreate_x5fwrite(
     const C0DynObject* self,
     const C0StringView* path) {
   SPEC_RULE("Prim-FS-CreateWrite");
+  c0_trace_emit_rule("Prim-FS-CreateWrite");
   C0FsState* fs = c0_fs_state(self);
   uint8_t* canon = NULL;
   uint32_t canon_len = 0;
@@ -718,6 +722,7 @@ void cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aread_x5ffile(
     const C0DynObject* self,
     const C0StringView* path) {
   SPEC_RULE("Prim-FS-ReadFile");
+  c0_trace_emit_rule("Prim-FS-ReadFile");
   if (!out) {
     return;
   }
@@ -737,6 +742,7 @@ void cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aread_x5fbytes(
     const C0DynObject* self,
     const C0StringView* path) {
   SPEC_RULE("Prim-FS-ReadBytes");
+  c0_trace_emit_rule("Prim-FS-ReadBytes");
   if (!out) {
     return;
   }
@@ -756,6 +762,7 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3awrite_x5ffile(
     const C0StringView* path,
     const C0BytesView* data) {
   SPEC_RULE("Prim-FS-WriteFile");
+  c0_trace_emit_rule("Prim-FS-WriteFile");
   C0FsState* fs = c0_fs_state(self);
   uint8_t* canon = NULL;
   uint32_t canon_len = 0;
@@ -810,6 +817,7 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3awrite_x5fstdout(
     const C0DynObject* self,
     const C0StringView* data) {
   SPEC_RULE("Prim-FS-WriteStdout");
+  c0_trace_emit_rule("Prim-FS-WriteStdout");
   (void)self;
   uint64_t len = data ? data->len : 0;
   HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -838,6 +846,7 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3awrite_x5fstderr(
     const C0DynObject* self,
     const C0StringView* data) {
   SPEC_RULE("Prim-FS-WriteStderr");
+  c0_trace_emit_rule("Prim-FS-WriteStderr");
   (void)self;
   HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
   if (!h || h == INVALID_HANDLE_VALUE) {
@@ -866,6 +875,7 @@ uint8_t cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aexists(
     const C0DynObject* self,
     const C0StringView* path) {
   SPEC_RULE("Prim-FS-Exists");
+  c0_trace_emit_rule("Prim-FS-Exists");
   C0FsState* fs = c0_fs_state(self);
   uint8_t* canon = NULL;
   uint32_t canon_len = 0;
@@ -889,6 +899,7 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aremove(
     const C0DynObject* self,
     const C0StringView* path) {
   SPEC_RULE("Prim-FS-Remove");
+  c0_trace_emit_rule("Prim-FS-Remove");
   C0FsState* fs = c0_fs_state(self);
   uint8_t* canon = NULL;
   uint32_t canon_len = 0;
@@ -1041,6 +1052,7 @@ C0Union_DirIter_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fdir(
     const C0DynObject* self,
     const C0StringView* path) {
   SPEC_RULE("Prim-FS-OpenDir");
+  c0_trace_emit_rule("Prim-FS-OpenDir");
   C0FsState* fs = c0_fs_state(self);
   uint8_t* canon = NULL;
   uint32_t canon_len = 0;
@@ -1281,6 +1293,7 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3acreate_x5fdir(
     const C0DynObject* self,
     const C0StringView* path) {
   SPEC_RULE("Prim-FS-CreateDir");
+  c0_trace_emit_rule("Prim-FS-CreateDir");
   C0FsState* fs = c0_fs_state(self);
   uint8_t* canon = NULL;
   uint32_t canon_len = 0;
@@ -1306,6 +1319,7 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aensure_x5fdir(
     const C0DynObject* self,
     const C0StringView* path) {
   SPEC_RULE("Prim-FS-EnsureDir");
+  c0_trace_emit_rule("Prim-FS-EnsureDir");
   HANDLE dbg = CreateFileA("fs_ensure.bin",
                            FILE_APPEND_DATA,
                            FILE_SHARE_READ,
@@ -1414,6 +1428,7 @@ C0Union_FileKind_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3akind(
     const C0DynObject* self,
     const C0StringView* path) {
   SPEC_RULE("Prim-FS-Kind");
+  c0_trace_emit_rule("Prim-FS-Kind");
   C0FsState* fs = c0_fs_state(self);
   uint8_t* canon = NULL;
   uint32_t canon_len = 0;
@@ -1448,6 +1463,7 @@ C0DynObject cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3arestrict(
     const C0DynObject* self,
     const C0StringView* path) {
   SPEC_RULE("Prim-FS-Restrict");
+  c0_trace_emit_rule("Prim-FS-Restrict");
   C0DynObject out;
   out.data = NULL;
   out.vtable = self ? self->vtable : NULL;

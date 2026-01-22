@@ -13,6 +13,8 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 
+#include <string_view>
+
 namespace cursive0::codegen {
 
 // T-LLVM-015: Entrypoint and Context Construction
@@ -52,6 +54,26 @@ llvm::Value* LoadAtOffset(LLVMEmitter& emitter,
   }
   llvm::Value* ptr = offset == 0 ? base_ptr : ByteGEP(emitter, builder, base_ptr, offset);
   return builder->CreateLoad(value_ty, ptr);
+}
+
+IRValue StringImmediate(std::string_view text) {
+  IRValue value;
+  value.kind = IRValue::Kind::Immediate;
+  value.name = "\"" + std::string(text) + "\"";
+  value.bytes.assign(text.begin(), text.end());
+  return value;
+}
+
+IRPtr EmitRuntimeTrace(std::string_view rule_id) {
+  if (rule_id.empty()) {
+    return EmptyIR();
+  }
+  IRCall call;
+  call.callee.kind = IRValue::Kind::Symbol;
+  call.callee.name = RuntimeSpecTraceEmitSym();
+  call.args.push_back(StringImmediate(rule_id));
+  call.args.push_back(StringImmediate(""));
+  return MakeIR(std::move(call));
 }
 
 }  // namespace
@@ -119,10 +141,14 @@ void LLVMEmitter::EmitEntryPoint() {
   builder->CreateStore(panic_record, panic_slot);
   SetLocal(std::string(kPanicOutName), panic_slot);
 
+  EmitIR(EmitRuntimeTrace("EntryStub-Decl"));
+
   // Call runtime context_init to construct Context
   IRValue ctx_value;
   ctx_value.kind = IRValue::Kind::Opaque;
   ctx_value.name = "__entry_ctx";
+
+  EmitIR(EmitRuntimeTrace("ContextInitSym-Decl"));
 
   IRCall init_call;
   init_call.callee.kind = IRValue::Kind::Symbol;

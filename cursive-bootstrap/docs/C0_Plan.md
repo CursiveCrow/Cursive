@@ -1,4 +1,4 @@
-﻿# Cursive0 bootstrap compiler implementation plan
+# Cursive0 bootstrap compiler implementation plan
 
 This document is an implementation plan for **`cursivec0`**, the Cursive0 bootstrap compiler written in **C++** and using **LLVM 21.1.8** (toolchain) for IR/object emission and linking. The plan is structured to directly implement the **definitions and rules** in the Cursive0 specification and to enforce **rule-level implementation + rule-level test coverage** as a CI gate. 
 
@@ -333,7 +333,7 @@ cursivec0/
       phase1/
       phase3/
       phase4/
-    e2e/
+    semantics_oracle/
       programs/
       expected_output/
 ```
@@ -349,7 +349,7 @@ cursivec0/
   * `tests/compile/phase1/parser/...`
   * `tests/compile/phase3/typecheck/...`
   * `tests/codegen/...` (IR checks)
-  * `tests/e2e/...` (compile+run, Windows CI)
+* `tests/semantics_oracle/...` (compile+run, Windows CI)
 
 ---
 
@@ -2955,7 +2955,7 @@ Each task below includes:
 **Tests:**
 * IR tests verifying correct drop emission order for nested scopes.
 * IR tests verifying panic record writes with correct `PanicCode` values.
-* E2E tests that trigger panics and verify cleanup execution.
+* Semantics-oracle tests that trigger panics and verify cleanup execution.
 * `SPEC_COV("CleanupPlan")`, `SPEC_COV("EmitDrop")`, `SPEC_COV("LowerPanic")`, `SPEC_COV("PanicSym")`, `SPEC_COV("ClearPanic")`, `SPEC_COV("PanicCheck")`.
 
 **Implementation Notes (2026-01-13):**
@@ -3251,7 +3251,7 @@ Each task below includes:
 
 * `src/codegen/entrypoint.cpp`
 **Tests:**
-* E2E tests verifying executable initializes context and calls `main` correctly.
+* Semantics-oracle tests verifying executable initializes context and calls `main` correctly.
 * `SPEC_COV("<RuleId>")`.
 
 **Implementation Notes (2026-01-17):**
@@ -3295,12 +3295,12 @@ Each task below includes:
 **Implementation Notes (2026-01-16):**
 * PARTIAL - Codegen wiring present; runtime init path exists; poisoning observability still limited to unit/IR tests.
 * Verified codegen pieces in `src/codegen/init.cpp`, `src/codegen/checks.cpp`, `src/codegen/poison_instrument.cpp`, and `src/codegen/lower_expr_places.cpp` (Init/Panic/Poison rules anchored in `AnchorInitRules`).
-* Tests: unit test exists at `tests/unit/codegen_init_poison_test.cpp` with `SPEC_COV` for Init/Deinit rules; E2E harness `tests/harness/run_e2e.py` covers `tests/e2e/init_order_ok` (init order) and `tests/e2e/init_panic` (init-time panic).
+* Tests: unit test exists at `tests/unit/codegen_init_poison_test.cpp` with `SPEC_COV` for Init/Deinit rules; semantics-oracle harness `tests/harness/run_runtime.py` covers `tests/semantics_oracle/init_order_ok` (init order) and `tests/semantics_oracle/init_panic` (init-time panic).
 * Runtime context implementation lives in `runtime/src/context.c`.
 
 **Implementation Notes (2026-01-19):**
-* Added E2E test `tests/e2e/poison_read` that sets `cursive::runtime::poison::demo = true` via a user module and reads `demo::value` to trigger `CheckPoison` at runtime (exit code 10).
-* SPEC_COV anchors added for `PoisonFlag-Decl` and `CheckPoison-Use` in `tests/e2e/poison_read/src/main.cursive`.
+* Added semantics-oracle test `tests/semantics_oracle/poison_read` that sets `cursive::runtime::poison::demo = true` via a user module and reads `demo::value` to trigger `CheckPoison` at runtime (exit code 10).
+* SPEC_COV anchors added for `PoisonFlag-Decl` and `CheckPoison-Use` in `tests/semantics_oracle/poison_read/src/main.cursive`.
 
 #### T-DYN-002 Modal pattern matching semantics
 
@@ -3312,14 +3312,14 @@ Each task below includes:
 * `src/codegen/lower_pat.cpp`
 * `src/runtime/region.cpp` if needed
 **Tests:**
-* E2E tests verifying behavior on modal states.
+* Semantics-oracle tests verifying behavior on modal states.
 * `SPEC_COV("<RuleId>")`.
 
 **Implementation Notes (2026-01-16):**
-* IMPLEMENTED (codegen + compile fixtures + E2E coverage).
+* IMPLEMENTED (codegen + compile fixtures + semantics-oracle coverage).
 * Verified match lowering anchors in `src/codegen/ir_lowering.cpp` for all A7.3 `Match-*` rules.
 * Compile fixture exists at `tests/compile/phase4/lower_pat/modal_match.cursive` with `tests/compile/phase4/lower_pat/modal_match.expect.ll`.
-* Tests: `tests/unit/codegen_phase4_lower_missing_cov_test.cpp` includes `SPEC_COV` anchors for A7.3 rules; E2E `tests/e2e/modal_match`.
+* Tests: `tests/unit/codegen_phase4_lower_missing_cov_test.cpp` includes `SPEC_COV` anchors for A7.3 rules; semantics-oracle `tests/semantics_oracle/modal_match`.
 
 #### T-DYN-003 Deterministic destruction and unwinding
 
@@ -3337,7 +3337,7 @@ Each task below includes:
 * `runtime/src/panic.cpp`
 **Tests:**
 * IR tests for structured cleanup blocks
-* E2E tests for destructor order in normal return and panic/unwind
+* Semantics-oracle tests for destructor order in normal return and panic/unwind
 * Coverage discipline:
 
   * Use rule prefix partitioning in tests (e.g., `SPEC_COV("<RuleIdPattern>")` is not allowed; must cover each actual rule ID using `coverage_check.py` to map exact IDs)
@@ -3348,12 +3348,12 @@ Each task below includes:
 * `src/codegen/checks.cpp` - `LowerPanic`/`PanicCheck` now run cleanup in panic mode.
 * `src/codegen/lower_stmt.cpp` - Block/break/continue cleanup uses remainder-aware cleanup; temp cleanup now emits `DropTemp` actions with remainder.
 * `src/codegen/lower_pat.cpp` - Match-arm cleanup uses remainder-aware cleanup.
-* Tests: unit coverage exists in `tests/unit/codegen_panic_cleanup_test.cpp` (LowerPanic/PanicCheck with cleanup); E2E coverage in `tests/e2e/drop_order_ok` (normal order) and `tests/e2e/drop_unwind_panic` (panic path).
+* Tests: unit coverage exists in `tests/unit/codegen_panic_cleanup_test.cpp` (LowerPanic/PanicCheck with cleanup); semantics-oracle coverage in `tests/semantics_oracle/drop_order_ok` (normal order) and `tests/semantics_oracle/drop_unwind_panic` (panic path).
 * Runtime panic entry point implemented in `runtime/src/panic.c`.
 
 **Implementation Notes (2026-01-17):**
 * `src/codegen/cleanup.cpp` - `TypeDynamic` drop is now a no-op (no vtable drop). This aligns with DropValue/DropCall rules since `TypeDynamic` does not implement `Drop` and has no children; fixes null-vtable crashes when dropping `Context` capability fields.
-* E2E verification: `tests/e2e/drop_order_ok` and `tests/e2e/drop_unwind_panic` pass after the change.
+* Semantics-oracle verification: `tests/semantics_oracle/drop_order_ok` and `tests/semantics_oracle/drop_unwind_panic` pass after the change.
 
 **Implementation Notes (2026-01-19):**
 * Unwind behavior is implemented via `LowerPanic`/`PanicCheck` + `EmitCleanupOnPanic` in `src/codegen/checks.cpp` and `src/codegen/cleanup.cpp` (panic-triggered cleanup with double-panic abort via `RuntimePanicSym`); no separate `unwind.cpp` is required.
@@ -3365,14 +3365,14 @@ Each task below includes:
 
 * Vtable layout + dispatch correctness at runtime.
 **Tests:**
-* E2E dynamic dispatch tests.
+* Semantics-oracle dynamic dispatch tests.
 * `SPEC_COV("<RuleId>")`.
 
 **Implementation Notes (2026-01-16):**
-* IMPLEMENTED (codegen + compile fixtures + E2E coverage).
+* IMPLEMENTED (codegen + compile fixtures + semantics-oracle coverage).
 * Codegen present in `src/codegen/dyn_dispatch.cpp`, `src/codegen/vtable_emit.cpp`, and `src/codegen/layout_dynobj.cpp`.
 * Compile fixtures: `tests/compile/phase4/lower_calls/dynamic_dispatch.cursive` and `tests/compile/phase4/lower_module_items/class_vtable_default.expect.ll`.
-* Tests: E2E `tests/e2e/dyn_dispatch`.
+* Tests: semantics-oracle `tests/semantics_oracle/dyn_dispatch`.
 
 #### T-DYN-005 FileSystem and file operations
 
@@ -3384,14 +3384,14 @@ Each task below includes:
 * Codegen: call built-in interface defined in Â§6.12.9 runtime symbols set 
 * Addendum (CORE-010): keep FS/File/Dir primitive implementations aligned with HostPrim runtime classification (`FSPrim`, `FilePrim`, `DirPrim`).
 **Tests:**
-* E2E tests using temporary directories/files, validating error paths.
+* Semantics-oracle tests using temporary directories/files, validating error paths.
 * `SPEC_COV("<RuleId>")`.
 
 **Implementation Notes (2026-01-16):**
 * IMPLEMENTED (runtime). Windows API implementation in `runtime/src/filesystem.c` covering path canonicalization, restriction, file ops, and dir iteration ordering.
 * Sema: `src/sema/cap_filesystem.cpp` implements `FileSystemInterface` and builtin types.
 * Codegen: `src/codegen/runtime_calls.cpp` and `src/codegen/runtime_decls.cpp` provide `BuiltinSym` wiring; compile fixture at `tests/compile/phase4/builtins/fs.cursive`.
-* Tests: E2E `tests/e2e/fs_ops` covers `Prim-FS-EnsureDir`, `Prim-FS-WriteFile`, `Prim-FS-Exists`, `Prim-FS-Kind`, `Prim-FS-OpenDir`, `Prim-Dir-Next`, `Prim-Dir-Close`.
+* Tests: semantics-oracle `tests/semantics_oracle/fs_ops` covers `Prim-FS-EnsureDir`, `Prim-FS-WriteFile`, `Prim-FS-Exists`, `Prim-FS-Kind`, `Prim-FS-OpenDir`, `Prim-Dir-Next`, `Prim-Dir-Close`.
 
 #### T-DYN-006 String literal semantics
 
@@ -3404,13 +3404,13 @@ Each task below includes:
 **Tests:**
 * Compile tests verifying string literal type inference yields `string@View`.
 * IR tests verifying correct static data emission for string literals.
-* E2E tests using string literals and validating runtime behavior.
+* Semantics-oracle tests using string literals and validating runtime behavior.
 * `SPEC_COV("StringLiteralVal")`.
 
 **Implementation Notes (2026-01-16):**
-* IMPLEMENTED (codegen + unit/compile fixtures + E2E coverage).
+* IMPLEMENTED (codegen + unit/compile fixtures + semantics-oracle coverage).
 * Codegen: `src/codegen/lower_expr_core.cpp` handles `StringLiteralVal`; `src/codegen/ir_lowering.cpp` emits static backing globals for `string@View`.
-* Tests: unit test `tests/unit/codegen_string_literal_test.cpp`; compile fixture `tests/compile/phase4/lower_expr/string_literal.cursive`; E2E `tests/e2e/string_literal`.
+* Tests: unit test `tests/unit/codegen_string_literal_test.cpp`; compile fixture `tests/compile/phase4/lower_expr/string_literal.cursive`; semantics-oracle `tests/semantics_oracle/string_literal`.
 
 ---
 
@@ -3445,7 +3445,7 @@ Each task below includes:
 * Runtime sources added under `runtime/src/` (`mem.c`, `panic.c`, `context.c`, `region.c`, `heap.c`, `string_bytes.c`, `filesystem.c`).
 * CMake: `runtime/CMakeLists.txt` builds `cursive0_rt.lib` and root `CMakeLists.txt` adds `add_subdirectory(runtime)`.
 * Codegen: panic decl updated to pass `u32` by value (`src/codegen/runtime_decls.cpp`).
-* E2E runtime coverage added via `tests/e2e/*` (init order/panic, drop order/panic, dyn dispatch, fs ops, string literal).
+* Semantics-oracle runtime coverage added via `tests/semantics_oracle/*` (init order/panic, drop order/panic, dyn dispatch, fs ops, string literal).
 
 **Implementation Notes (2026-01-19):**
 * Added output-pipeline test coverage for missing runtime symbols: `tests/unit/project_outputs_test.cpp` now exercises `Out-Link-Runtime-Incompatible` when `LinkerSyms` omits a required runtime symbol.
@@ -3635,7 +3635,7 @@ Each task below includes:
 * **IR tests**: compile â†’ LLVM text; verify patterns + forbidden constructs; ensure LLVM 21.1.8 acceptance.
 * **Property tests** (recommended): determinism checks (module ordering, output naming, diag order identity) across randomized but controlled inputs.
 * **Fuzz tests** (recommended where practical): lexer and parser fuzzing with sanitizers enabled (treat crashes or hangs as failures).
-* **E2E tests**: compile â†’ link â†’ run; validate stdout/stderr/exit code (Windows CI baseline).
+* **Semantics-oracle tests**: compile â†’ link â†’ run; validate stdout/stderr/exit code (Windows CI baseline).
 
 ### 6.2 Golden formats
 
@@ -3666,7 +3666,7 @@ The harness extracts these tags and feeds them into `coverage_check.py`.
 1. **Build + unit tests** (Linux and Windows)
 
    * Linux: build `cursivec0` and run unit + compile + IR tests (no running Windows executables).
-   * Windows: build `cursivec0` + `runtime/cursive0_rt.lib` and run the full suite including E2E execution.
+   * Windows: build `cursivec0` + `runtime/cursive0_rt.lib` and run the full suite including semantics-oracle execution.
 
 2. **Spec sync checks**
 
@@ -3716,7 +3716,7 @@ The harness extracts these tags and feeds them into `coverage_check.py`.
 ### Tests
 
 * Unit tests across all subsystems
-* Compile/IR/e2e suites with rule-level coverage tags
+* Compile/IR/semantics-oracle suites with rule-level coverage tags
 
 ---
 
@@ -4027,7 +4027,7 @@ src/semantics/
 **Implementation notes (2026-01-18):**
 * Fixed missing closing braces in `cursive-bootstrap/src/semantics/cleanup.cpp` (LowerType visitor) and `cursive-bootstrap/src/semantics/eval.cpp` (EvalExprSigma visitor default case).
 * Build: `cmake --build cursive-bootstrap/build` succeeded; MSVC warning C4566 for unicode sigma in `cursive-bootstrap/src/semantics/eval.cpp` and `cursive-bootstrap/tests/unit/semantics_eval_test.cpp`.
-* Tests: `ctest --test-dir cursive-bootstrap/build -C Debug --output-on-failure` passed 87/87 (compile_tests and e2e_tests included).
+* Tests: `ctest --test-dir cursive-bootstrap/build -C Debug --output-on-failure` passed 87/87 (compile_tests and semantics_oracle_tests included).
 
 
 #### T-REF-010 Coverage completion and integration
@@ -4042,7 +4042,7 @@ src/semantics/
 **Files:**
 * `tests/unit/semantics_*`
 * `tests/compile/phase4/semantics_*`
-* `tests/e2e/semantics_*` (if needed)
+* `tests/semantics_oracle/semantics_*` (if needed)
 
 
 

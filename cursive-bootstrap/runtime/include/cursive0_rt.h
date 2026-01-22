@@ -200,6 +200,11 @@ typedef struct C0Union_DirEntry_Unit_IoError {
 // Panic
 void cursive_x3a_x3aruntime_x3a_x3apanic(uint32_t code);
 
+// Spec trace
+void cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x5femit(
+  const C0StringView* rule_id,
+  const C0StringView* payload);
+
 // Context initialization
 void cursive_x3a_x3aruntime_x3a_x3acontext_x5finit(C0Context* out);
 

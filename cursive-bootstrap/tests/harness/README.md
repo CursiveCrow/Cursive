@@ -34,7 +34,7 @@ The semantics-oracle suite compares **compiler output vs interpreter output**
 for the same test project, using the interpreter as the spec-truth oracle.
 
 - Harness: `cursive-bootstrap/tests/harness/run_semantics_oracle.py`
-- Test root: `cursive-bootstrap/tests/e2e` (semantics-oracle projects)
+- Test root: `cursive-bootstrap/tests/semantics_oracle` (semantics-oracle projects)
 - CTest target: `semantics_oracle_tests` (hard-gated)
 - Interpreter runner: `cursive0_interpreter_cli` (CMake target)
 - Outputs compared: `stdout`, `stderr`, `exit_code`
@@ -53,7 +53,7 @@ This will normalize spans to original test paths so expectations remain stable.
 To regenerate **semantics-oracle** `expect.json` files from interpreter output:
 
 ```
-python cursive-bootstrap/tests/harness/regen_semantics_oracle.py --interpreter build/Release/cursive0_interpreter_cli.exe --tests-root cursive-bootstrap/tests/e2e
+python cursive-bootstrap/tests/harness/regen_semantics_oracle.py --interpreter build/Release/cursive0_interpreter_cli.exe --tests-root cursive-bootstrap/tests/semantics_oracle
 ```
 
 ## Spec coverage reporting

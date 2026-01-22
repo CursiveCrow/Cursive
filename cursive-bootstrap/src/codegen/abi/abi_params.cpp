@@ -19,6 +19,8 @@ const std::unordered_set<std::string_view>& RuntimeSymbols() {
       "cursive::runtime::panic",
       // ContextInitSym
       "cursive::runtime::context_init",
+      // SpecTraceSym
+      "cursive::runtime::spec_trace::emit",
       // StringDropSym
       "cursive::runtime::string::drop_managed",
       // BytesDropSym

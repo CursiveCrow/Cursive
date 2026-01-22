@@ -168,6 +168,7 @@ add_library(cursive0_core STATIC
   src/core/unicode.cpp
   src/core/symbols.cpp
   src/core/hash.cpp
+  src/core/spec_trace.cpp
 )
 
 target_include_directories(cursive0_core PUBLIC
@@ -456,6 +457,32 @@ if(WIN32 AND CURSIVE_USE_BUNDLED_ICU AND DEFINED CURSIVE_ICU_DLLS)
     )
   endforeach()
 endif()
+
+set(SPEC_VERIFIER_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/spec_verifier")
+set(SPEC_VERIFIER_BOOTSTRAP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bootstrap")
+set(SPEC_VERIFIER_BOOTSTRAP_COMPILER "${SPEC_VERIFIER_BOOTSTRAP_DIR}/cursivec0.exe")
+set(SPEC_VERIFIER_BOOTSTRAP_RUNTIME "${SPEC_VERIFIER_BOOTSTRAP_DIR}/cursive0_rt.lib")
+set(SPEC_VERIFIER_OUTPUT
+  "${SPEC_VERIFIER_ROOT}/build/bin/spec_verifier${CMAKE_EXECUTABLE_SUFFIX}"
+)
+
+add_custom_command(
+  OUTPUT "${SPEC_VERIFIER_OUTPUT}"
+  COMMAND ${CMAKE_COMMAND} -E make_directory
+          "${SPEC_VERIFIER_ROOT}/runtime"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          "${SPEC_VERIFIER_BOOTSTRAP_RUNTIME}"
+          "${SPEC_VERIFIER_ROOT}/runtime/cursive0_rt.lib"
+  COMMAND "${SPEC_VERIFIER_BOOTSTRAP_COMPILER}" build "src/main.cursive"
+  WORKING_DIRECTORY "${SPEC_VERIFIER_ROOT}"
+  DEPENDS
+          "${SPEC_VERIFIER_BOOTSTRAP_COMPILER}"
+          "${SPEC_VERIFIER_BOOTSTRAP_RUNTIME}"
+          "${SPEC_VERIFIER_ROOT}/Cursive.toml"
+          "${SPEC_VERIFIER_ROOT}/src/main.cursive"
+)
+
+add_custom_target(spec_verifier_build DEPENDS "${SPEC_VERIFIER_OUTPUT}")
 
 if(BUILD_TESTING)
   add_subdirectory(tests)

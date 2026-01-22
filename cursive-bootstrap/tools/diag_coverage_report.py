@@ -80,13 +80,13 @@ def extract_tested_diag_codes(tests_path: Path) -> Set[str]:
         except (json.JSONDecodeError, Exception):
             pass
 
-    # Also check E2E expect.json files (they have different structure)
+    # Also check semantics-oracle expect.json files (they have different structure)
     for expect_file in tests_path.rglob("expect.json"):
         try:
             with open(expect_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            # E2E tests don't typically have diagnostic codes, skip
+            # Semantics-oracle tests don't typically have diagnostic codes, skip
         except Exception:
             pass
 

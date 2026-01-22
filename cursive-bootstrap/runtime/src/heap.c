@@ -10,6 +10,7 @@ static C0HeapState* c0_heap_state(const C0DynObject* heap) {
 C0DynObject cursive_x3a_x3aruntime_x3a_x3aheap_x3a_x3awith_x5fquota(
     const C0DynObject* self,
     const uint64_t* size) {
+  c0_trace_emit_rule("BuiltinSym-HeapAllocator-WithQuota");
   C0DynObject out;
   out.data = NULL;
   out.vtable = self ? self->vtable : NULL;
@@ -30,6 +31,7 @@ C0DynObject cursive_x3a_x3aruntime_x3a_x3aheap_x3a_x3awith_x5fquota(
 void* cursive_x3a_x3aruntime_x3a_x3aheap_x3a_x3aalloc_x5fraw(
     const C0DynObject* self,
     const uint64_t* count) {
+  c0_trace_emit_rule("BuiltinSym-HeapAllocator-AllocRaw");
   const uint64_t size = count ? *count : 0;
   if (size == 0) {
     return NULL;
@@ -56,6 +58,7 @@ void cursive_x3a_x3aruntime_x3a_x3aheap_x3a_x3adealloc_x5fraw(
     const C0DynObject* self,
     void** ptr,
     const uint64_t* count) {
+  c0_trace_emit_rule("BuiltinSym-HeapAllocator-DeallocRaw");
   if (!ptr || !*ptr) {
     return;
   }

@@ -13,7 +13,7 @@ tests/
 │   │   ├── phase3/       # Type checking and semantic analysis tests
 │   │   └── phase4/       # Code generation tests
 │   └── projects/         # Multi-module tests (own manifests)
-├── e2e/                  # Runtime tests (project dirs with expect.json)
+├── semantics_oracle/     # Runtime tests (project dirs with expect.json)
 ├── unit/                 # C++ unit tests
 ├── fuzz/                 # Fuzzing tests
 └── harness/              # Python test runners and utilities
@@ -37,9 +37,9 @@ Use for tests that require multiple modules or a custom project structure:
 - Include a `Cursive.toml` manifest
 - Use standard project layout with `src/` directory
 
-### E2E Runtime Tests (`e2e/`)
+### Semantics-Oracle Runtime Tests (`semantics_oracle/`)
 
-Use for tests that verify runtime behavior:
+Use for tests that verify runtime behavior against the interpreter oracle:
 
 - Create a project directory with `Cursive.toml`
 - Include `expect.json` at project root with expected `stdout`, `stderr`, `exit_code`
@@ -135,7 +135,7 @@ modals/
 
 LLVM IR output for phase4 code generation tests. Exact match after normalization.
 
-### E2E Output (`expect.json`)
+### Semantics-Oracle Output (`expect.json`)
 
 ```json
 {
@@ -170,7 +170,7 @@ To disable a test:
 ## Canonical Harness Entrypoints
 
 - `harness/run_compiler.py` - Run compiler diagnostic tests
-- `harness/run_e2e.py` - Run end-to-end runtime tests
+- `harness/run_runtime.py` - Run runtime tests against `expect.json`
 - `harness/run_semantics_oracle.py` - Compare compiler vs interpreter output
 
 ## Regenerating Expectations
@@ -181,8 +181,8 @@ Update `*.expect.json` files from compiler output:
 python tests/harness/regen_expect.py --compiler build/cursivec0 --tests-root tests/compile
 ```
 
-Regenerate E2E `expect.json` from interpreter output:
+Regenerate semantics-oracle `expect.json` from interpreter output:
 
 ```bash
-python tests/harness/regen_semantics_oracle.py --interpreter build/cursive0_interpreter_cli --tests-root tests/e2e
+python tests/harness/regen_semantics_oracle.py --interpreter build/cursive0_interpreter_cli --tests-root tests/semantics_oracle
 ```

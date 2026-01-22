@@ -112,6 +112,27 @@ def _normalize_output(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n").strip()
 
 
+def _spec_verifier_path(repo_root: Path) -> Path:
+    exe = "spec_verifier.exe" if os.name == "nt" else "spec_verifier"
+    return repo_root / "spec_verifier" / "build" / "bin" / exe
+
+
+def _run_spec_verifier(repo_root: Path) -> tuple[bool, str]:
+    verifier = _spec_verifier_path(repo_root)
+    if not verifier.exists():
+        return False, f"spec_verifier not found: {verifier}"
+    proc = subprocess.run(
+        [str(verifier)],
+        capture_output=True,
+        text=True,
+        cwd=repo_root,
+    )
+    if proc.returncode != 0:
+        message = proc.stdout.strip() or proc.stderr.strip() or "verification failed"
+        return False, f"spec_verifier failed: {message}"
+    return True, ""
+
+
 def _run_interpreter(interpreter: Path, entry: Path) -> tuple[dict | None, str]:
     proc = subprocess.run(
         [str(interpreter), str(entry)],
@@ -135,7 +156,13 @@ def _run_interpreter(interpreter: Path, entry: Path) -> tuple[dict | None, str]:
     return payload, ""
 
 
-def _run_compiled(compiler: Path, entry: Path, manifest: dict, project_root: Path) -> tuple[dict | None, str]:
+def _run_compiled(
+    compiler: Path,
+    entry: Path,
+    manifest: dict,
+    project_root: Path,
+    repo_root: Path,
+) -> tuple[dict | None, str]:
     proc = subprocess.run(
         [str(compiler), str(entry)],
         capture_output=True,
@@ -153,7 +180,15 @@ def _run_compiled(compiler: Path, entry: Path, manifest: dict, project_root: Pat
     if not exe_path.exists():
         return None, f"exe not found: {exe_path}"
 
-    run = subprocess.run([str(exe_path)], capture_output=True, text=True)
+    env = os.environ.copy()
+    env["CURSIVE_SPEC_TRACE_RUNTIME"] = str(repo_root / "spec" / "trace_current.tsv")
+    run = subprocess.run(
+        [str(exe_path)],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=repo_root,
+    )
     return {
         "stdout": run.stdout,
         "stderr": run.stderr,
@@ -201,7 +236,7 @@ def _run_test(
         if oracle is None:
             return False, f"{test_root}: {msg}"
 
-        compiled, msg = _run_compiled(compiler, entry, manifest, temp_root)
+        compiled, msg = _run_compiled(compiler, entry, manifest, temp_root, repo_root)
         if compiled is None:
             return False, f"{test_root}: {msg}"
 
@@ -258,6 +293,10 @@ def _run_test(
                 f"actual:   {exp_exit}"
             )
 
+        ok, msg = _run_spec_verifier(repo_root)
+        if not ok:
+            return False, f"{test_root}: {msg}"
+
     return True, ""
 
 
@@ -265,7 +304,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--compiler", required=False)
     parser.add_argument("--interpreter", required=True)
-    parser.add_argument("--tests-root", default="tests/e2e")
+    parser.add_argument("--tests-root", default="tests/semantics_oracle")
     parser.add_argument("--test", action="append", default=[])
     args = parser.parse_args()
 

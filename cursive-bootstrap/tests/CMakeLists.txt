@@ -498,11 +498,11 @@ add_test(NAME compile_tests
 )
 
 if(WIN32)
-  add_test(NAME eval_oracle_tests
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/harness/run_eval_oracle.py
+  add_test(NAME semantics_oracle_tests
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/harness/run_semantics_oracle.py
       --compiler $<TARGET_FILE:cursivec0>
       --interpreter $<TARGET_FILE:cursive0_interpreter_cli>
-      --tests-root ${CMAKE_CURRENT_SOURCE_DIR}/e2e
+      --tests-root ${CMAKE_CURRENT_SOURCE_DIR}/semantics_oracle
   )
 endif()
 

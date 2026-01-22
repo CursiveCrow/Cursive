@@ -126,6 +126,30 @@ static __inline size_t c0_wcslen(const wchar_t* s) {
   return n;
 }
 
+static __inline uint64_t c0_cstr_len(const char* s) {
+  uint64_t n = 0;
+  if (!s) {
+    return 0;
+  }
+  while (s[n] != 0) {
+    ++n;
+  }
+  return n;
+}
+
+static __inline void c0_trace_emit_rule(const char* rule_id) {
+  if (!rule_id) {
+    return;
+  }
+  C0StringView rule_view;
+  rule_view.data = (const uint8_t*)rule_id;
+  rule_view.len = c0_cstr_len(rule_id);
+  C0StringView payload;
+  payload.data = NULL;
+  payload.len = 0;
+  cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x5femit(&rule_view, &payload);
+}
+
 static __inline int c0_utf8_has_null(const uint8_t* data, uint64_t len) {
   for (uint64_t i = 0; i < len; ++i) {
     if (data[i] == 0) {

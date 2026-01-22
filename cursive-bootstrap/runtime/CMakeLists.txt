@@ -2,6 +2,7 @@ add_library(cursive0_rt STATIC
   src/mem.c
   src/rtc_stubs.c
   src/panic.c
+  src/spec_trace.c
   src/context.c
   src/region.c
   src/heap.c

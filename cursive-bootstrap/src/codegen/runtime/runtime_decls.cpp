@@ -158,6 +158,16 @@ void LLVMEmitter::DeclareRuntime() {
     declare_fn(ContextInitSym(), params, TypePath({"Context"}), false);
   }
 
+  // Spec trace emit
+  {
+    std::vector<IRParam> params;
+    params.push_back(MakeParam("rule_id", std::nullopt,
+                               analysis::MakeTypeString(analysis::StringState::View)));
+    params.push_back(MakeParam("payload", std::nullopt,
+                               analysis::MakeTypeString(analysis::StringState::View)));
+    declare_fn(RuntimeSpecTraceEmitSym(), params, TypePrim("()"), false);
+  }
+
   // String/Bytes drop
   {
     std::vector<IRParam> params;

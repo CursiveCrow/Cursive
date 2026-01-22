@@ -34,6 +34,834 @@ This extension also does not attempt to fully restate **Async/Stream** semantics
 
 ---
 
+# Appendix H: Contracts and Verification (Normative)
+
+The following section is incorporated from the original design and is normative for C0X.
+
+*[REF: Procedure declarations, methods, and overloading are defined in Cursive0.md. This appendix specifies contracts, invariants, verification logic, behavioral subtyping, and foreign contract clauses.]*
+
+## 14. Procedures and Contracts
+
+### 14.4 Contract Syntax
+
+#### 14.4.1 Contract Clause Position
+
+**Contract.** A specification attached to a procedure declaration that asserts logical predicates over program state. Contracts govern logical validity through preconditions (caller obligations) and postconditions (callee guarantees).
+
+A contract C is a pair (P_pre, P_post) where:
+- P_pre is a conjunction of boolean predicates representing preconditions
+- P_post is a conjunction of boolean predicates representing postconditions
+
+**Syntax**
+
+```ebnf
+contract_clause    ::= "|=" contract_body
+contract_body      ::= precondition_expr
+                     | precondition_expr "=>" postcondition_expr
+                     | "=>" postcondition_expr
+
+precondition_expr  ::= predicate_expr
+postcondition_expr ::= predicate_expr
+predicate_expr     ::= logical_or_expr
+contract_intrinsic ::= "@result" | "@entry" "(" expression ")"
+```
+
+A contract clause (`|=`) MUST appear after the return type annotation (or after the parameter list if no return type) and before the procedure body.
+
+```cursive
+procedure divide(a: i32, b: i32) -> i32
+    |= b != 0 => @result * b == a
+{ a / b }
+```
+
+```cursive
+procedure abs(x: i32) -> i32
+    |= => @result >= 0 && (@result == x || @result == -x)
+{ if x >= 0 { x } else { -x } }
+```
+
+```cursive
+record Counter { value: i32 }
+procedure increment(~!)
+    |= self.value >= 0 => self.value == @entry(self.value) + 1
+{ self.value += 1 }
+```
+
+**Static Semantics**
+
+**(WF-Contract)**
+
+Γ_pre ⊢ P_pre : `bool`    pure(P_pre)
+Γ_post ⊢ P_post : `bool`    pure(P_post)
+────────────────────────────────────────────────────────────
+Γ ⊢ `|=` P_pre ⇒ P_post : WF
+
+**Logical Operators**
+
+Predicates use standard boolean operators with precedence (highest to lowest):
+1. `!` (logical NOT) — right-associative
+2. `&&` (logical AND) — left-associative, short-circuit
+3. `||` (logical OR) — left-associative, short-circuit
+
+
+#### 14.4.2 Purity Constraints
+
+**Pure Expression.** An expression whose evaluation produces no observable side effects. All expressions within a contract MUST be pure.
+
+**Static Semantics**
+
+An expression e satisfies pure(e) iff:
+1. e MUST NOT invoke any procedure that accepts capability parameters
+2. e MUST NOT mutate state observable outside the expression's evaluation
+3. Built-in operators on primitive types and `comptime` procedures are always pure
+
+
+#### 14.4.3 Evaluation Contexts
+
+**Evaluation Context.** Defines the set of bindings available for reference within a predicate expression.
+
+**Static Semantics**
+
+**Precondition Evaluation Context (Γ_pre)**
+
+Includes:
+- All procedure parameters at their entry state
+- The receiver binding (if present)
+- All bindings visible in the enclosing scope accessible without side effects
+
+MUST NOT include:
+- The `@result` intrinsic
+- The `@entry` operator
+- Any binding introduced within the procedure body
+
+**Postcondition Evaluation Context (Γ_post)**
+
+Includes:
+- All procedure parameters:
+  - Immutable parameters (`const`, `~`): same value as at entry
+  - Mutable parameters (`unique`, `shared`): post-state value
+- The receiver binding (post-state for mutable receivers)
+- The `@result` intrinsic
+- The `@entry` operator
+- All bindings visible in the enclosing scope
+
+**Mutable Parameter State Semantics**
+
+| Location in Contract          | State Referenced |
+| :---------------------------- | :--------------- |
+| Left of `=>`                  | Entry state      |
+| Right of `=>` (bare)          | Post-state       |
+| Right of `=>` with `@entry()` | Entry state      |
+
+
+### 14.5 Pre/Postconditions
+
+#### 14.5.1 Precondition Syntax (`|=`)
+
+**Precondition.** The logical expression appearing to the left of `=>` in a `|=` contract clause, or the entire expression if `=>` is absent. The caller MUST ensure this expression evaluates to `true` prior to the call.
+
+**Static Semantics**
+
+**(Pre-Satisfied)**
+
+Γ ⊢ f : (T_1, …, T_n) → R    precondition(f) = P_pre    StaticProof(Γ_S, P_pre)
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ f(a_1, …, a_n) @ S : valid
+
+Failure to satisfy a precondition is diagnosed at the **caller**. The diagnostic MUST identify the call site.
+
+**Elision Rules**
+
+| Contract Form        | Precondition              |
+| :------------------- | :------------------------ |
+| `|= P`              | P                         |
+| `|= P => Q`         | P                         |
+| `|= => Q`           | `true` (always satisfied) |
+| (no contract clause) | `true` (always satisfied) |
+
+
+#### 14.5.2 Postcondition Syntax (`=>`)
+
+**Postcondition.** The logical expression appearing to the right of `=>` in a `|=` contract clause. The callee MUST ensure this expression evaluates to `true` immediately before returning.
+
+**Static Semantics**
+
+**(Post-Valid)**
+
+postcondition(f) = P_post    ∀ r ∈ ReturnPoints(f). Γ_r ⊢ P_post : satisfied
+───────────────────────────────────────────────────────────────────────────
+f : postcondition-valid
+
+Failure to satisfy a postcondition is diagnosed at the **callee**. The diagnostic MUST identify the return point.
+
+**Elision Rules**
+
+| Contract Form        | Postcondition             |
+| :------------------- | :------------------------ |
+| `|= P`              | `true` (no postcondition) |
+| `|= P => Q`         | Q                         |
+| `|= => Q`           | Q                         |
+| (no contract clause) | `true` (always satisfied) |
+
+
+#### 14.5.3 `@result` Binding in Postconditions
+
+**@result Intrinsic.** Refers to the return value in postcondition expressions.
+
+**Static Semantics**
+
+| Property     | Specification                                  |
+| :----------- | :--------------------------------------------- |
+| Availability | Postcondition expressions only (right of `=>`) |
+| Type         | The return type of the enclosing procedure     |
+| Value        | The value being returned from the procedure    |
+| Unit Returns | If procedure returns `()`, `@result` has `()`  |
+
+**Constraints**
+
+Use of `@result` outside postcondition expressions is ill-formed (`E-SEM-2806`).
+
+**Dynamic Semantics**
+
+At each return point r with returned value v_r, postconditions are evaluated with `@result` bound to v_r.
+
+
+#### 14.5.4 `@entry()` Expression
+
+**@entry Operator.** Evaluates `expr` in the entry state of the procedure.
+
+**Static Semantics**
+
+| Property              | Specification                                             |
+| :-------------------- | :-------------------------------------------------------- |
+| Availability          | Postcondition expressions only (right of `=>`)            |
+| Semantics             | Evaluates `expr` in entry state of the procedure          |
+| Evaluation Point      | After parameter binding, before body execution            |
+| Expression Constraint | `expr` MUST be pure                                       |
+| Expression Scope      | `expr` MUST reference only parameters and receiver        |
+| Type Constraint       | Result type of `expr` MUST implement `Bitcopy` or `Clone` |
+
+**(Entry-Type)**
+
+Γ_post ⊢ e : T    (T <: `Bitcopy` ∨ T <: `Clone`)
+────────────────────────────────────────────────────────
+Γ_post ⊢ @entry(e) : T
+
+**Dynamic Semantics**
+
+**Capture Semantics**
+
+When `@entry(expr)` appears in a postcondition:
+1. The implementation evaluates `expr` immediately after parameter binding
+2. The result is captured: `Bitcopy` types use bitwise copy; `Clone` types invoke `clone()`
+3. In the postcondition, `@entry(expr)` refers to this captured value
+
+**Constraints**
+
+If the result type of `expr` does not implement `Bitcopy` or `Clone`, the program is ill-formed (`E-SEM-2805`).
+
+
+### 14.6 Invariants
+
+#### 14.6.1 Type Invariants
+
+**Type Invariant.** A `where` clause attached to a `record`, `enum`, or `modal` type declaration. The invariant constrains all instances of the type.
+
+**Syntax**
+
+```ebnf
+type_invariant ::= "where" "{" predicate_expr "}"
+```
+
+```cursive
+record BoundedCounter { value: u32, max: u32 }
+where { self.value <= self.max }
+```
+
+**Static Semantics**
+
+**Invariant Predicate Context**
+
+Within a type invariant predicate:
+- `self` refers to an instance of the type being defined
+- Field access on `self` is permitted
+- Method calls on `self` are permitted if the method is pure
+
+**Enforcement Points**
+
+| Enforcement Point   | Description                                       |
+| :------------------ | :------------------------------------------------ |
+| Post-Construction   | After constructor or literal initialization       |
+| Pre-Call (Public)   | Before any public procedure with receiver         |
+| Post-Call (Mutator) | Before any procedure taking `unique self` returns |
+
+**Public Field Constraint**
+
+Types with type invariants MUST NOT declare public mutable fields.
+
+**Private Procedure Exemption**
+
+Private procedures (`internal` or less) are exempt from the Pre-Call enforcement point. The type invariant MUST be verified when a private procedure returns to a public caller.
+
+
+#### 14.6.2 Loop Invariants
+
+**Loop Invariant.** A `where` clause attached to a `loop` expression. The invariant specifies a predicate that MUST hold at the beginning of every iteration and after termination.
+
+**Syntax**
+
+```ebnf
+loop_expression ::= "loop" loop_condition? loop_invariant? block_expr
+loop_condition  ::= expression
+loop_invariant  ::= "where" "{" predicate_expr "}"
+```
+
+```cursive
+var sum = 0
+var i = 0
+loop i < n where { sum == i * (i - 1) / 2 && i <= n } {
+    sum += i
+    i += 1
+}
+```
+
+**Static Semantics**
+
+**Enforcement Points**
+
+| Point          | Description                               | Formal                                                 |
+| :------------- | :---------------------------------------- | :----------------------------------------------------- |
+| Initialization | Before the first iteration begins         | Γ_0 ⊢ Inv                                              |
+| Maintenance    | At the start of each subsequent iteration | Γ_i ⊢ Inv ⇒ Γ_(i+1) ⊢ Inv                               |
+| Termination    | Immediately after loop terminates         | Γ_exit ⊢ Inv                                           |
+
+**Verification Fact Generation**
+
+Upon successful verification at the Termination point, the implementation generates a Verification Fact F(Inv, L_exit) for use as a postcondition of the loop.
+
+
+#### 14.6.3 Invariant Verification
+
+**Static Semantics**
+
+Invariant verification follows the same rules as contract verification (§14.7):
+- Static verification required by default
+- `[[dynamic]]` attribute permits runtime verification when static proof fails
+
+
+### 14.7 Verification Logic
+
+#### 14.7.1 Contract Verification Modes
+
+**Contract Verification.** Determines how predicates are ensured to hold. By default, **static verification is required**. The `[[dynamic]]` attribute permits runtime verification as an explicit opt-in.
+
+**Static Semantics**
+
+**Default: Static Verification Required**
+
+**(Contract-Static-OK)**
+
+StaticProof(Γ_S, P)
+──────────────────────────────────────────────
+P : verified (no runtime check)
+
+**(Contract-Static-Fail)**
+
+¬ StaticProof(Γ_S, P)    ¬ InDynamicContext
+──────────────────────────────────────────────
+program is ill-formed (E-SEM-2801)
+
+**With `[[dynamic]]`: Runtime Verification Permitted**
+
+**(Contract-Dynamic-Elide)**
+
+StaticProof(Γ_S, P)
+──────────────────────────────────────────────
+P : verified (no runtime check)
+
+**(Contract-Dynamic-Check)**
+
+¬ StaticProof(Γ_S, P)    InDynamicContext
+────────────────────────────────────────────────────
+emit runtime check ContractCheck(P, k, s, ρ)
+
+Here k is the ContractKind at verification location s, and ρ is the corresponding contract environment.
+
+**Mandatory Proof Techniques**
+
+| Technique                | Description                                        |
+| :----------------------- | :------------------------------------------------- |
+| Constant propagation     | Evaluate expressions with compile-time constants   |
+| Linear integer reasoning | Prove inequalities over bounded integer arithmetic |
+| Boolean algebra          | Simplify and prove boolean expressions             |
+| Control flow analysis    | Track predicates established by conditionals       |
+| Type-derived bounds      | Use type constraints (e.g., `usize >= 0`)          |
+| Verification facts       | Use facts established by prior checks (§14.7.2)    |
+
+**StaticProof Definition**
+
+Let FactsAt(S) = { P | F(P, L) ∈ Facts ∧ L dom S }.
+
+Define Decidable(P) as the smallest set closed under:
+
+1. `true`, `false`
+2. Comparisons of linear integer expressions over literals and variables
+3. Syntactic equality (up to alpha-renaming) between identifiers and literal constants
+4. Boolean combinations of decidable predicates using `!`, `&&`, `||`
+
+Define entailment FactsAt(S) ⊢ P by the rules:
+
+**(Ent-True)**
+P ≡ `true`
+──────────────────────────────
+FactsAt(S) ⊢ P
+
+**(Ent-Fact)**
+P ∈ FactsAt(S)
+──────────────────────────────
+FactsAt(S) ⊢ P
+
+**(Ent-And)**
+FactsAt(S) ⊢ P    FactsAt(S) ⊢ Q
+────────────────────────────────────────
+FactsAt(S) ⊢ P ∧ Q
+
+**(Ent-Or-L)**  
+FactsAt(S) ⊢ P
+────────────────────────
+FactsAt(S) ⊢ P ∨ Q
+
+**(Ent-Or-R)**  
+FactsAt(S) ⊢ Q
+────────────────────────
+FactsAt(S) ⊢ P ∨ Q
+
+**(Ent-Linear)**
+LinearEntails(FactsAt(S), P)
+─────────────────────────────
+FactsAt(S) ⊢ P
+
+**Linear Integer Entailment**
+
+Let LinExpr be expressions of the form ∑_i a_i x_i + c where a_i, c ∈ ℤ and each x_i is an integer-typed variable. Let LinPred be predicates comparing two LinExpr with `==`, `!=`, `<`, `<=`, `>`, or `>=`.
+
+Define LinFactsAt(S) = { P ∈ FactsAt(S) | P ∈ LinPred }.
+
+Then:
+
+LinearEntails(FactsAt(S), P) ⇔ P ∈ LinPred ∧ ⋀ LinFactsAt(S) ⊨_ℤ P
+
+Implementations MAY use any sound decision procedure; they MUST be complete for LinPred entailment.
+
+Then:
+
+StaticProof(Γ_S, P) ⇔ Decidable(P) ∧ FactsAt(S) ⊢ P
+
+where S is the verification location for P (Table §14.7.1), and Γ_S is the typing environment at S.
+
+**Satisfaction Judgment**
+
+Γ_S ⊢ P : satisfied ⇔ StaticProof(Γ_S, P)
+
+**Verification Location**
+
+| Contract Type  | Verified Where    | `[[dynamic]]` Context Determined By  |
+| :------------- | :---------------- | :----------------------------------- |
+| Precondition   | Call site         | The call expression's context        |
+| Postcondition  | Definition site   | The procedure's `[[dynamic]]` status |
+| Type invariant | Enforcement point | The expression's context             |
+| Loop invariant | Enforcement point | The enclosing scope's context        |
+
+**Dynamic Semantics**
+
+**Runtime Check Failure**
+
+When a runtime-checked predicate evaluates to `false`:
+1. The runtime MUST trigger a Panic
+2. The panic payload MUST include predicate text, source location, and contract type
+3. Normal panic propagation rules apply
+
+**Diagnostics:** See Appendix H, Table H.1 (`P-SEM-2850`).
+
+
+#### 14.7.2 Verification Facts
+
+**Verification Fact.** A static guarantee that a predicate P holds at program location L. Used for static analysis, contract elision, and type narrowing.
+
+A Verification Fact is a triple F(P, L, S) where:
+- P is a predicate expression
+- L is a program location (CFG node)
+- S is the source of the fact (control flow, runtime check, or assumption)
+
+**Static Semantics**
+
+**Zero-Size Property**
+
+Verification Facts:
+- Have zero runtime size
+- Have no runtime representation
+- MUST NOT be stored in variables, passed as parameters, or returned
+
+**Fact Dominance**
+
+**(Fact-Dominate)**
+
+F(P, L) ∈ Facts    L dom S    L ≠ S
+────────────────────────────────────
+P satisfied at S
+
+**Fact Generation Rules**
+
+| Construct                    | Generated Fact                  | Location             |
+| :--------------------------- | :------------------------------ | :------------------- |
+| `if P { ... }`               | F(P, _)                | Entry of then-branch |
+| `if !P { } else { ... }`     | F(P, _)                | Entry of else-branch |
+| `match x { Pat => ... }`     | F(x matches Pat, _)    | Entry of match arm   |
+| Runtime check for P          | F(P, _)                | After check          |
+| Loop invariant Inv at exit   | F(Inv, _)              | After loop           |
+
+
+#### 14.7.3 Fact Propagation
+
+**Static Semantics**
+
+**Type Narrowing**
+
+When a Verification Fact F(P, L) is active for binding x at location L:
+
+typeof(x) -[F(P, L)]-> typeof(x) `where` {P}
+
+**Dynamic Semantics**
+
+**Dynamic Fact Injection**
+
+When a `[[dynamic]]` scope requires a runtime check and no static fact dominates:
+
+1. Identify requirement P at program point S
+2. Construct check block: `if !P { panic("Contract violation: {P}") }`
+3. Insert check into CFG such that it dominates S
+4. Successful execution establishes F(P, exit(C))
+
+
+#### 14.7.4 Small-Step and Big-Step Semantics
+
+At each verification location (Table §14.7.1), any required runtime check is elaborated to `ContractCheck(P, k, s, ρ)` (with ρ determined by ContractKind) and inserted so that it dominates the guarded program point.
+
+**Definitions**
+
+Let `ContractKind = Pre | Post | TypeInv | LoopInv | ForeignPre | ForeignPost`.
+
+Define the meta-expression:
+
+ContractCheck(P, k, s, ρ) = `if` !P[ρ] { `panic`(ContractViolation(k, P, s)) }
+
+where `P[ρ]` denotes capture-by-value substitution of `@result` and `@entry(expr)` with values in ρ. If `P` contains an intrinsic not bound in ρ, the program is ill-formed. `ContractViolation(k, P, s)` packages the predicate text, source location `s`, and contract kind `k`. The payload representation is Implementation-Defined but MUST include these fields.
+
+**Contract Environments**
+
+Let ρ_emptyset = ∅.
+
+Let EntryCapture(f, σ_entry) be a map from each syntactically distinct `@entry(expr)` in `postcondition(f)` to its captured value, where each `expr` is evaluated in the entry state σ_entry using Γ_pre; if any capture panics, the panic propagates.
+
+`EntryCapture` is computed once per procedure invocation and reused for all postcondition checks in that invocation.
+
+For a procedure return at point r with returned value v_r:
+
+- ρ_post = EntryCapture(f, σ_entry) ∪ {`@result` ↦ v_r}
+- ρ_foreign_post = {`@result` ↦ v_r}
+
+Then use the following environments:
+
+| ContractKind | Environment |
+| :----------- | :---------- |
+| `Pre`        | ρ_emptyset |
+| `Post`       | ρ_post |
+| `TypeInv`    | ρ_emptyset |
+| `LoopInv`    | ρ_emptyset |
+| `ForeignPre` | ρ_emptyset |
+| `ForeignPost`| ρ_foreign_post |
+
+**Small-Step (Contract Check Machine)**
+
+CheckState = {CheckStart(P, k, s, ρ, σ), CheckDone(σ), CheckPanic(σ)}
+
+**(Check-True)**
+Γ ⊢ EvalSigma(P[ρ], σ) ⇓ (Val(true), σ')
+──────────────────────────────────────────────────────────────────────────────
+⟨CheckStart(P, k, s, ρ, σ)⟩ → ⟨CheckDone(σ')⟩
+
+**(Check-False)**
+Γ ⊢ EvalSigma(P[ρ], σ) ⇓ (Val(false), σ')
+───────────────────────────────────────────────────────────────────────────────
+⟨CheckStart(P, k, s, ρ, σ)⟩ → ⟨CheckPanic(σ')⟩
+
+**(Check-Panic)**
+Γ ⊢ EvalSigma(P[ρ], σ) ⇓ (Ctrl(Panic), σ')
+──────────────────────────────────────────────────────────────────────────────
+⟨CheckStart(P, k, s, ρ, σ)⟩ → ⟨CheckPanic(σ')⟩
+
+`CheckPanic` denotes a panic with payload `ContractViolation(k, P, s)` when the predicate evaluates to `false`, and it propagates any inner panic produced by evaluating `P`.
+
+**Big-Step**
+
+**(Check-Ok)**
+⟨CheckStart(P, k, s, ρ, σ)⟩ →* ⟨CheckDone(σ')⟩
+───────────────────────────────────────────────────────────────────────
+Γ ⊢ ContractCheck(P, k, s, ρ, σ) ⇓ σ'
+
+**(Check-Fail)**
+⟨CheckStart(P, k, s, ρ, σ)⟩ →* ⟨CheckPanic(σ')⟩
+───────────────────────────────────────────────────────────────────────
+Γ ⊢ ContractCheck(P, k, s, ρ, σ) ⇑ panic
+
+
+### 14.8 Behavioral Subtyping
+
+#### 14.8.1 Liskov Substitution Principle
+
+**Liskov Substitution.** When a type implements a class, procedure implementations MUST adhere to the Liskov Substitution Principle with respect to class-defined contracts.
+
+**Static Semantics**
+
+**Precondition Weakening**
+
+An implementation MAY weaken (require less than) the preconditions defined in the class. An implementation MUST NOT strengthen (require more than) the preconditions.
+
+**Postcondition Strengthening**
+
+An implementation MAY strengthen (guarantee more than) the postconditions defined in the class. An implementation MUST NOT weaken (guarantee less than) the postconditions.
+
+**Verification Strategy**
+
+Behavioral subtyping constraints are verified **statically at compile-time**:
+
+1. **Precondition Check**: Verify that the implementation's precondition logically implies the class's precondition
+2. **Postcondition Check**: Verify that the class's postcondition logically implies the implementation's postcondition
+
+No runtime checks are generated for behavioral subtyping; violations are structural errors.
+
+
+#### 14.8.2 Contract Inheritance
+
+*[REF: Behavioral subtyping constraints in §14.8.1 govern contract inheritance.]*
+
+
+## 21. Foreign Function Interface
+
+### 21.4 Foreign Contracts
+
+#### 21.4.1 Foreign Preconditions
+
+**Foreign Preconditions.** Conditions that callers must satisfy before invoking foreign procedures, specified using the `@foreign_assumes` clause.
+
+**Syntax**
+
+```ebnf
+ffi_verification_attr ::= "[[" ffi_verification_mode "]]"
+ffi_verification_mode ::= "static" | "dynamic" | "assume" | "trust"
+
+foreign_contract ::= "|=" "@foreign_assumes" "(" predicate_list ")"
+
+predicate_list   ::= predicate ("," predicate)*
+
+predicate        ::= comparison_expr | null_check | range_check
+
+null_check       ::= expression "!=" null_literal | expression "==" null_literal
+
+range_check      ::= expression "in" range_expression
+```
+
+```cursive
+extern "C" {
+    procedure write(fd: c_int, buf: *imm u8, count: usize) -> isize
+        |= @foreign_assumes(fd >= 0, buf != null, count > 0);
+}
+```
+
+**Static Semantics**
+
+**Predicate Context**
+
+Predicates may reference:
+
+- Parameter names from the procedure signature
+- Literal constants
+- Pure functions and operators
+- Fields of parameter values (for record types)
+
+Predicates MUST NOT reference:
+
+- Global mutable state
+- Values not in scope at the call site
+- Effectful operations
+
+**Verification Modes**
+
+| Mode                   | Behavior                                                   |
+| :--------------------- | :--------------------------------------------------------- |
+| `[[static]]` (default) | Caller must prove predicates at compile time               |
+| `[[dynamic]]`          | Runtime checks inserted before `unsafe` call               |
+| `[[assume]]`           | Predicates assumed true without checks (optimization only) |
+
+`[[static]]` uses `StaticProof` as defined in §14.7.1. `[[dynamic]]` inserts `ContractCheck(P, ForeignPre, s, ρ_emptyset)` immediately before the foreign call.
+
+**Dynamic Semantics**
+
+A failed `ForeignPre` check triggers a panic (`P-SEM-2860`).
+
+
+#### 21.4.2 Foreign Postconditions
+
+**Foreign Postconditions.** Conditions that foreign code guarantees upon successful return, specified using the `@foreign_ensures` clause. These are trusted assertions about foreign behavior.
+
+**Syntax**
+
+```ebnf
+foreign_ensures ::= "@foreign_ensures" "(" ensures_predicate_list ")"
+
+ensures_predicate_list ::= ensures_predicate ("," ensures_predicate)*
+
+ensures_predicate ::= predicate
+                    | "@error" ":" predicate
+                    | "@null_result" ":" predicate
+```
+
+```cursive
+extern "C" {
+    procedure malloc(size: usize) -> *mut opaque c_void
+        |= @foreign_assumes(size > 0)
+        |= @foreign_ensures(@result != null implies aligned(@result, 16));
+
+    procedure read(fd: c_int, buf: *mut opaque c_void, count: usize) -> isize
+        |= @foreign_assumes(fd >= 0, buf != null)
+        |= @foreign_ensures(@result >= -1, @result <= count as isize);
+}
+```
+
+**Static Semantics**
+
+**Predicate Bindings**
+
+Postcondition predicates may reference:
+
+- `@result`: The return value of the foreign procedure
+- Parameter names (for checking output parameters)
+- `@error`: Predicates that hold when the call fails
+- `@null_result`: Predicates that hold when result is null
+
+**Success, Error, and Null Classification**
+
+Let U be the set of unconditional predicates, E the list of `@error` predicates, and N the list of `@null_result` predicates.
+
+Define:
+
+ErrCond =
+ ⋀_(P ∈ E) P    if E ≠ ∅
+ `false`        otherwise
+
+NullCond = (`@result` == `null`)
+
+SuccessCond = ¬ ErrCond
+
+The foreign call is classified as an error iff `ErrCond` holds; otherwise it is classified as success.
+
+Then the foreign postcondition obligations are:
+
+1. For each P ∈ U, require SuccessCond ⇒ P
+2. For each P ∈ E, require ErrCond ⇒ P
+3. For each P ∈ N, require NullCond ⇒ P
+
+`@null_result` predicates are well-formed only when the return type is a nullable pointer type; otherwise they are invalid (`E-SEM-2853`). A nullable pointer type is one of:
+1. `Ptr<T>@Null`
+2. `*imm T`
+3. `*mut T`
+
+`@error` predicates are well-formed only when the return type is not `()`. Using `@error` on a void-returning foreign procedure is ill-formed (`E-SEM-2855`).
+
+**Verification Modes**
+
+| Mode                   | Behavior                                                      |
+| :--------------------- | :------------------------------------------------------------ |
+| `[[static]]` (default) | Postconditions available as assumptions for downstream proofs |
+| `[[dynamic]]`          | Runtime assertions after foreign call returns                 |
+| `[[assume]]`           | Postconditions assumed without checks (optimization only)     |
+| `[[trust]]`            | Postconditions trusted without runtime checks (audited code)  |
+
+`[[static]]` uses `StaticProof` as defined in §14.7.1 with `SuccessCond` and `ErrCond` gating the obligations.
+
+**Dynamic Semantics**
+
+In `[[dynamic]]` mode, the implementation MUST evaluate `ErrCond` and `NullCond` in left-to-right predicate order and insert runtime checks enforcing the implications above immediately after the foreign call returns. Each inserted check is `ContractCheck(P, ForeignPost, s, ρ_foreign_post)`. A failed runtime check triggers a panic with payload `ContractViolation(ForeignPost, P, s)` at the call site (`P-SEM-2861`).
+
+
+#### 21.4.3 Trust Boundaries
+
+**Trust Boundaries.** Verification behavior definitions for foreign contracts, controlling the trade-off between safety guarantees and performance.
+
+**Syntax**
+
+```cursive
+[[trust]]
+extern "C" {
+    procedure optimized_memcpy(dest: *mut u8, src: *imm u8, n: usize) -> *mut u8
+        |= @foreign_assumes(dest != null, src != null)
+        |= @foreign_ensures(@result == dest);
+}
+```
+
+**Static Semantics**
+
+**Trust Annotation**
+
+The `[[trust]]` attribute on an extern block suppresses runtime checks for all contracts within that block. Postconditions are assumed true without verification.
+
+**Safety Implications**
+
+Incorrect postconditions under `[[trust]]` constitute Unverifiable Behavior (UVB). The programmer asserts that the foreign code satisfies declared contracts.
+
+**Verification Hierarchy**
+
+| Level         | Precondition Check | Postcondition Check      |
+| :------------ | :----------------- | :----------------------- |
+| `[[static]]`  | Compile-time proof | Available as assumptions |
+| `[[dynamic]]` | Runtime assertion  | Runtime assertion        |
+| `[[assume]]`  | No check           | No check                 |
+| `[[trust]]`   | No check           | No check (trusted)       |
+
+
+### H.1 Contract and Refinement Diagnostic Tables
+
+| Code         | Severity | Detection    | Condition                                                   | Source  |
+| ------------ | -------- | ------------ | ----------------------------------------------------------- | ------- |
+| `E-TYP-1953` | Error    | Compile-time | Refinement not provable outside `[[dynamic]]` scope         | §13.7.3 |
+| `E-TYP-1954` | Error    | Compile-time | Impure expression in refinement predicate                   | §13.7.2 |
+| `E-TYP-1955` | Error    | Compile-time | Predicate does not evaluate to `bool`                       | §13.7.2 |
+| `E-TYP-1956` | Error    | Compile-time | `self` used in inline parameter constraint                  | §13.7.2 |
+| `E-TYP-1957` | Error    | Compile-time | Circular type dependency in refinement predicate            | §13.7.2 |
+| `E-SEM-2801` | Error    | Compile-time | Contract predicate not provable outside `[[dynamic]]` scope | §14.7.1 |
+| `E-SEM-2802` | Error    | Compile-time | Impure expression in contract predicate                     | §14.4.2 |
+| `E-SEM-2803` | Error    | Compile-time | Implementation strengthens class precondition               | §14.8.1 |
+| `E-SEM-2804` | Error    | Compile-time | Implementation weakens class postcondition                  | §14.8.1 |
+| `E-SEM-2805` | Error    | Compile-time | `@entry()` result type not `Bitcopy` or `Clone`             | §14.5.4 |
+| `E-SEM-2806` | Error    | Compile-time | `@result` used outside postcondition                        | §14.5.3 |
+| `E-SEM-2820` | Error    | See §14.7    | Type invariant violated at construction                     | §14.5.1 |
+| `E-SEM-2821` | Error    | See §14.7    | Type invariant violated at public entry                     | §14.5.1 |
+| `E-SEM-2822` | Error    | See §14.7    | Type invariant violated at mutator return                   | §14.5.1 |
+| `E-SEM-2823` | Error    | See §14.7    | Type invariant violated at private-to-public return         | §14.5.1 |
+| `E-SEM-2824` | Error    | Compile-time | Public mutable field on type with invariant                 | §14.5.1 |
+| `E-SEM-2830` | Error    | See §14.7    | Loop invariant not established at initialization            | §14.8.1 |
+| `E-SEM-2831` | Error    | See §14.7    | Loop invariant not maintained across iteration              | §14.8.1 |
+| `E-SEM-2850` | Error    | Compile-time | Cannot prove `@foreign_assumes` predicate                   | §21.4.1 |
+| `E-SEM-2851` | Error    | Compile-time | Invalid predicate in foreign contract                       | §21.4.1 |
+| `E-SEM-2852` | Error    | Compile-time | Predicate references out-of-scope value                     | §21.4.1 |
+| `E-SEM-2853` | Error    | Compile-time | Invalid predicate in `@foreign_ensures`                     | §21.4.2 |
+| `E-SEM-2854` | Error    | Compile-time | `@result` used in non-return context                        | §21.4.2 |
+| `E-SEM-2855` | Error    | Compile-time | `@error` predicate on void-returning procedure              | §21.4.2 |
+| `E-SEM-3004` | Error    | Compile-time | Impure expression in contract clause                        | §14.4.2 |
+| `P-SEM-2850` | Panic    | Runtime      | Contract predicate failed at runtime                        | §14.7.1 |
+| `P-TYP-1953` | Panic    | Runtime      | Refinement predicate failed at runtime                      | §13.7.3 |
+| `P-SEM-2860` | Panic    | Runtime      | Foreign precondition failed at runtime                      | §21.4.1 |
+| `P-SEM-2861` | Panic    | Runtime      | Foreign postcondition failed at runtime                     | §21.4.2 |
 ## 1. Lexical additions
 
 ### 1.1 Reserved keywords
@@ -165,6 +993,7 @@ class_method_decl ::=
     "procedure" identifier generic_params?
     "(" receiver ("," param)* ")"
     ("->" type)?
+    contract_clause?
     (block_expr | terminator)
 
 associated_type_decl ::=
@@ -262,6 +1091,35 @@ reduce_op         ::= "+" | "*" | "min" | "max" | "and" | "or" | identifier
 
 `spawn_expr`, `dispatch_expr`, and `wait_expr` are expressions (and thus may occur wherever an expression may occur), but are constrained by well-formedness rules (§6.2).
 
+### 2.8 Contracts and invariants
+
+```ebnf
+contract_clause    ::= "|=" contract_body
+contract_body      ::= precondition_expr
+                     | precondition_expr "=>" postcondition_expr
+                     | "=>" postcondition_expr
+
+precondition_expr  ::= predicate_expr
+postcondition_expr ::= predicate_expr
+predicate_expr     ::= logical_or_expr
+contract_intrinsic ::= "@result" | "@entry" "(" expression ")"
+```
+
+Contract clauses MUST appear after the return type annotation (or after the parameter list if no return type) and before the procedure body.
+
+```ebnf
+type_invariant ::= "where" "{" predicate_expr "}"
+loop_invariant ::= "where" "{" predicate_expr "}"
+```
+
+Loop expressions admit an optional `loop_invariant` between any loop condition and the loop body:
+
+```ebnf
+loop_expression ::= "loop" loop_condition? loop_invariant? block_expr
+```
+
+Type invariants appear immediately after a `record`, `enum`, or `modal` declaration.
+
 ---
 
 ## 3. Abstract syntax
@@ -329,6 +1187,26 @@ Add expression forms:
 - `DispatchExpr(pat: Pattern, range: Expr, key_clause: (KeyPathExpr, KeyMode)?, opts: [DispatchOpt], body: BlockExpr)`
 - `WaitExpr(handle: Expr)`
 
+### 3.6 Contracts and invariants
+
+Define:
+
+- `ContractClause ::= (pre: Expr, post: Expr)`
+- `Invariant ::= Expr`
+
+Extend:
+
+- `ProcedureDecl` with `contract: ContractClause?`
+- `RecordDecl`, `EnumDecl`, `ModalDecl` with `invariant: Invariant?`
+- `LoopExpr` with `invariant: Invariant?`
+
+Normalization:
+
+- Absent contract clause desugars to `pre = true`, `post = true`.
+- `|= P` desugars to `pre = P`, `post = true`.
+- `|= P => Q` desugars to `pre = P`, `post = Q`.
+- `|= => Q` desugars to `pre = true`, `post = Q`.
+
 ---
 
 ## 4. Permission system extension: `shared`
@@ -357,7 +1235,9 @@ Let `TypePerm(p, T)` denote the permission-qualified type in the C0 baseline (Cu
 
 Define:
 
-$$\frac{p \ \text{PermSub} \ q}{p\ T \ <: \ q\ T}\quad (T-Perm-Sub)$$
+p PermSub q
+────────────────────────────
+p T <: q T    (T-Perm-Sub)
 
 All other subtyping rules are inherited from Cursive0.md.
 
@@ -365,7 +1245,7 @@ All other subtyping rules are inherited from Cursive0.md.
 
 A method declared with receiver permission `p_m` is callable through a path with permission `p_c` iff:
 
-$$p_c \ \text{PermSub} \ p_m$$
+p_c PermSub p_m
 
 In particular:
 
@@ -398,14 +1278,14 @@ An implementation MUST maintain a registry of supported attributes.
 
 Define judgment:
 
-$$\Gamma \vdash \text{AttrList}(A) \ \text{wf}@\tau$$
+Γ ⊢ AttrList(A) wf@τ
 
-meaning: attribute list `A` is well-formed for attachment target kind `\tau` (declaration kind or expression kind).
+meaning: attribute list `A` is well-formed for attachment target kind τ (declaration kind or expression kind).
 
 Well-formedness requires:
 
 1. Every attribute name in `A` is registered.
-2. The target kind `\tau` is permitted for the attribute.
+2. The target kind τ is permitted for the attribute.
 3. Attribute arguments are syntactically valid and satisfy the attribute’s argument schema.
 
 Unknown attribute names are a hard error.
@@ -452,18 +1332,18 @@ C0X introduces generics via monomorphization (compile-time specialization).
 
 ### 6.1 Generic environments
 
-Let `\Delta` be a type-parameter environment mapping type parameter identifiers to `(bounds, default, variance)`.
+Let Δ be a type-parameter environment mapping type parameter identifiers to `(bounds, default, variance)`.
 
-Typing judgments are extended to carry `\Delta` implicitly (or explicitly, depending on the baseline judgment form):
+Typing judgments are extended to carry Δ implicitly (or explicitly, depending on the baseline judgment form):
 
-- When type-checking inside a generic item, `\Delta` includes that item’s type parameters.
-- `where` predicates introduce additional bounds constraints into `\Delta`.
+- When type-checking inside a generic item, Δ includes that item’s type parameters.
+- `where` predicates introduce additional bounds constraints into Δ.
 
 ### 6.2 Well-formedness of generic parameter lists
 
 Judgment:
 
-$$\Gamma \vdash \text{GenParams}(G) \ \text{wf} \triangleright \Delta$$
+Γ ⊢ GenParams(G) wf ▷ Δ
 
 Rules:
 
@@ -476,23 +1356,23 @@ Rules:
 
 Judgment:
 
-$$\Gamma;\Delta \vdash \text{GenArgs}(A) \ \text{ok for} \ G \triangleright \theta$$
+Γ; Δ ⊢ GenArgs(A) ok for G ▷ θ
 
-Where `\theta` is a substitution mapping each parameter name in `G` to a concrete type.
+Where θ is a substitution mapping each parameter name in `G` to a concrete type.
 
 Rules:
 
-1. If `A` provides an argument for each parameter, `\theta` is the pointwise mapping.
+1. If `A` provides an argument for each parameter, θ is the pointwise mapping.
 2. If fewer arguments are provided, missing arguments are filled by defaults; if any missing parameter lacks a default, the instantiation is ill-formed.
-3. For each parameter `X` with bounds `B`, `\theta(X)` MUST satisfy all bounds (see §6.4).
+3. For each parameter `X` with bounds `B`, θ(X) MUST satisfy all bounds (see §6.4).
 
 ### 6.4 Bound satisfaction
 
-Let `Implements(\Gamma, T, Cl)` denote the class-implementation judgment already present in the C0 baseline for classes.
+Let Implements(Γ, T, Cl) denote the class-implementation judgment already present in the C0 baseline for classes.
 
 Define:
 
-$$\Gamma \vdash T \models (Cl_1 + \ldots + Cl_n) \iff \forall i.\ \text{Implements}(\Gamma, T, Cl_i)$$
+Γ ⊢ T ⊨ (Cl_1 + … + Cl_n) ⇔ ∀ i. Implements(Γ, T, Cl_i)
 
 ### 6.5 Variance
 
@@ -537,7 +1417,9 @@ Combining contributions:
 
 For a nominal type constructor `C` with type arguments `A_i` and `B_i`:
 
-$$\frac{\forall i.\ \text{Var}(C,i)=+ \Rightarrow A_i <: B_i \ \ \ \text{Var}(C,i)=- \Rightarrow B_i <: A_i \ \ \ \text{Var}(C,i)== \Rightarrow A_i = B_i}{C\langle A_1,\ldots,A_n\rangle <: C\langle B_1,\ldots,B_n\rangle} \ \ (T-Gen-Sub)$$
+∀ i. Var(C, i) = + ⇒ A_i <: B_i    Var(C, i) = - ⇒ B_i <: A_i    Var(C, i) == ⇒ A_i = B_i
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+C⟨A_1, …, A_n⟩ <: C⟨B_1, …, B_n⟩    (T-Gen-Sub)
 
 Where `Var(C,i)` is selected by permission view:
 
@@ -550,9 +1432,9 @@ This captures the design property that `const` enables covariance for otherwise 
 
 C0X defines generics by elaboration to a monomorphic program.
 
-Let `Instantiate(d, \theta)` denote substitution of type parameters in a declaration `d`.
+Let `Instantiate(d, θ)` denote substitution of type parameters in a declaration `d`.
 
-**Instantiation graph.** The compiler maintains a set `Inst` of demanded instantiations `(d, \theta)` discovered from:
+**Instantiation graph.** The compiler maintains a set `Inst` of demanded instantiations `(d, θ)` discovered from:
 
 - Type applications `N<...>`
 - Procedure calls with explicit generic args (turbofish)
@@ -561,8 +1443,8 @@ Let `Instantiate(d, \theta)` denote substitution of type parameters in a declara
 **Algorithm (normative):**
 
 1. Initialize `Inst` with all concrete uses from the program’s entry module.
-2. While `Inst` has an unprocessed pair `(d, \theta)`:
-   1. Produce `d' = Instantiate(d, \theta)`.
+2. While `Inst` has an unprocessed pair `(d, θ)`:
+   1. Produce `d' = Instantiate(d, θ)`.
    2. Type-check `d'` with no remaining type parameters.
    3. Scan `d'` for further generic uses and add them to `Inst`.
 3. The final monomorphic program is the set of all produced `d'`.
@@ -579,7 +1461,7 @@ C0X adopts the Key System from the original design, with minor alignment to the 
 
 A **key** is a triple:
 
-$$K = (P, M, S)$$
+K = (P, M, S)
 
 - `P` is a key path
 - `M ∈ {Read, Write}` is a mode
@@ -591,7 +1473,7 @@ Key paths are derived from place expressions over `shared` values.
 
 A key path is a sequence of segments:
 
-$$P = (r, s_1, \ldots, s_k)$$
+P = (r, s_1, …, s_k)
 
 where `r` is a root identifier (or boundary root) and each segment is either:
 
@@ -602,19 +1484,19 @@ A segment may be **marked** by the coarsening marker `#`, which truncates the ke
 
 ### 7.3 Key contexts
 
-A task carries a key context `\mathcal{K}` (set of held keys).
+A task carries a key context 𝒦 (set of held keys).
 
 Define:
 
-- `Covers(\mathcal{K}, (P, Read))` iff `\mathcal{K}` contains a key `(P', M', S')` such that `P'` is a prefix of `P` and `M'` is at least `Read`.
-- `Covers(\mathcal{K}, (P, Write))` iff `\mathcal{K}` contains `(P', Write, S')` with `P'` prefix of `P`.
+- `Covers(𝒦, (P, Read))` iff 𝒦 contains a key `(P', M', S')` such that `P'` is a prefix of `P` and `M'` is at least `Read`.
+- `Covers(𝒦, (P, Write))` iff 𝒦 contains `(P', Write, S')` with `P'` prefix of `P`.
 
 ### 7.4 Implicit acquisition
 
 When evaluating a `shared` access requiring `(P, M)`, the runtime:
 
-- If `Covers(\mathcal{K}, (P, M))`, no action is taken.
-- Otherwise, acquires key `(P, M, S_current)` and adds it to `\mathcal{K}`.
+- If `Covers(𝒦, (P, M))`, no action is taken.
+- Otherwise, acquires key `(P, M, S_current)` and adds it to 𝒦.
 
 The compiler MUST ensure (statically or via runtime synchronization in `[[dynamic]]` scope) that concurrent tasks do not acquire conflicting keys.
 
@@ -622,7 +1504,7 @@ The compiler MUST ensure (statically or via runtime synchronization in `[[dynami
 
 Two path-mode pairs conflict if they overlap and at least one is a write:
 
-$$Conflict((P_1,M_1),(P_2,M_2)) \iff Overlap(P_1,P_2) \land (M_1=Write \lor M_2=Write)$$
+Conflict((P_1, M_1), (P_2, M_2)) ⇔ Overlap(P_1, P_2) ∧ (M_1 = Write ∨ M_2 = Write)
 
 `Overlap` is defined by prefix overlap on normalized paths, with type-level boundaries (§7.8) treated as root separators.
 
@@ -704,7 +1586,7 @@ C0X extends classes beyond the C0 baseline by adding:
 
 Judgment:
 
-$$\Gamma \vdash \text{ClassDecl}(Cl) \ \text{wf}$$
+Γ ⊢ ClassDecl(Cl) wf
 
 A class declaration is well-formed iff:
 
@@ -797,9 +1679,11 @@ C0X adopts structured parallelism semantics with Key System integration.
 
 Typing rule:
 
-$$\frac{\Gamma \vdash D : \$ExecutionDomain \quad \Gamma_P \vdash B : T}{\Gamma \vdash \texttt{parallel } D\ \{B\} : T} \ (T-Parallel)$$
+Γ ⊢ D : `$ExecutionDomain`    Γ_P ⊢ B : T
+────────────────────────────────────────────────
+Γ ⊢ `parallel` D {B} : T    (T-Parallel)
 
-where `\Gamma_P` extends `\Gamma` with the parallel context.
+where Γ_P extends Γ with the parallel context.
 
 Within a parallel block:
 
@@ -810,7 +1694,9 @@ Within a parallel block:
 
 Typing:
 
-$$\frac{\Gamma[parallel\_context]=D \quad \Gamma_{cap} \vdash e : T}{\Gamma \vdash \texttt{spawn }\{e\} : SpawnHandle\langle T\rangle} \ (T-Spawn)$$
+Γ[parallel_context] = D    Γ_cap ⊢ e : T
+──────────────────────────────────────────────────────
+Γ ⊢ `spawn` {e} : SpawnHandle⟨T⟩    (T-Spawn)
 
 `SpawnHandle<T>` is a modal type with states `@Pending` and `@Ready`.
 
@@ -818,7 +1704,9 @@ $$\frac{\Gamma[parallel\_context]=D \quad \Gamma_{cap} \vdash e : T}{\Gamma \vda
 
 Typing:
 
-$$\frac{\Gamma \vdash h : SpawnHandle\langle T\rangle}{\Gamma \vdash \texttt{wait } h : T} \ (T-Wait)$$
+Γ ⊢ h : SpawnHandle⟨T⟩
+──────────────────────────────────────────
+Γ ⊢ `wait` h : T    (T-Wait)
 
 **Key restriction.** No keys may be held across a `wait` suspension point. Therefore, `wait` is well-formed only when the current key context is empty.
 
@@ -826,11 +1714,15 @@ $$\frac{\Gamma \vdash h : SpawnHandle\langle T\rangle}{\Gamma \vdash \texttt{wai
 
 Typing without reduction:
 
-$$\frac{\Gamma \vdash range : Range\langle I\rangle \quad \Gamma,i:I \vdash B : T}{\Gamma \vdash \texttt{dispatch } i \texttt{ in range }\{B\} : ()} \ (T-Dispatch)$$
+Γ ⊢ range : Range⟨I⟩    Γ, i:I ⊢ B : T
+──────────────────────────────────────────────────────────
+Γ ⊢ `dispatch` i `in range` {B} : ()    (T-Dispatch)
 
 Typing with reduction:
 
-$$\frac{\Gamma \vdash range : Range\langle I\rangle \quad \Gamma,i:I \vdash B : T \quad \Gamma \vdash \oplus : (T,T)\to T}{\Gamma \vdash \texttt{dispatch } i \texttt{ in range [reduce: }\oplus\texttt{] }\{B\} : T} \ (T-Dispatch-Reduce)$$
+Γ ⊢ range : Range⟨I⟩    Γ, i:I ⊢ B : T    Γ ⊢ ⊕ : (T, T) → T
+─────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ `dispatch` i `in range [reduce: ⊕]` {B} : T    (T-Dispatch-Reduce)
 
 Parallelism is determined by key disjointness; where static disjointness cannot be proven, dynamic synchronization may be used only under `[[dynamic]]`.
 
@@ -861,6 +1753,12 @@ A `parallel` block:
 3. Executes the block body, enqueuing work on `spawn`/`dispatch`.
 4. Joins at block end, propagating panics as specified.
 
+### 11.4 Contracts and invariants
+
+- Contract and invariant predicates are verified statically by default.
+- Within `[[dynamic]]` scopes, runtime checks are inserted per Appendix H (§14.7).
+- Runtime checks are elaborated into ordinary control flow; dynamic semantics follow the Cursive0 evaluation rules for the inserted constructs.
+
 ---
 
 ## 12. Conformance checklist
@@ -874,12 +1772,15 @@ An implementation conforms to C0X iff:
 - It supports full classes with associated types and abstract states (§8).
 - It supports `import` and full `using` semantics (§9).
 - It supports `parallel`, `spawn`, `dispatch`, and `wait` semantics (§10) with Key System interaction.
+- It supports procedure contracts, type invariants, and loop invariants with static verification and `[[dynamic]]` runtime checks (Appendix H, §§14.4–14.7).
+- It supports refinement types and refinement verification (Appendix E, §13.7).
+- It supports foreign contract clauses and verification modes for `extern` procedures when FFI is used (Appendix H, §21.4).
 
 ---
 
 # Appendices: Full Formalization Extracts
 
-The main body of this document integrates C0X into the C0 baseline and provides the consolidated grammars for the added constructs. The appendices below provide **complete, formal, and normative** definitions (judgements, inference rules, and semantics) for the requested feature areas, aligned with the original design document.
+The main body of this document integrates C0X into the C0 baseline and provides the consolidated grammars for the added constructs. The appendices below provide **complete, formal, and normative** definitions (judgements, inference rules, and semantics) for the requested feature areas, aligned with the original design document. Appendix H (Contracts and Verification) appears immediately after §0.3; Appendices A–G follow below.
 
 If any statement in the main body conflicts with an appendix, the appendix is authoritative.
 
@@ -969,19 +1870,15 @@ Brings all accessible (public or internal, depending on assembly relationship) i
 
 **(WF-Using-Item)**
 
-$$\frac{
-    \Gamma \vdash \text{resolve\_item}(\text{path}::i) \Rightarrow \text{item} \quad \Gamma \vdash \text{can\_access}(\text{item}) \quad \text{name} \notin \text{dom}(\Gamma)
-}{
-    \Gamma \vdash \text{using path}::i \text{ as name}: WF
-}$$
+Γ ⊢ resolve_item(path::i) ⇒ item    Γ ⊢ can_access(item)    name ∉ dom(Γ)
+───────────────────────────────────────────────────────────────────────────────
+Γ ⊢ using path::i as name : WF
 
 **(WF-Using-Wildcard)**
 
-$$\frac{
-    \Gamma \vdash \text{resolve\_module}(\text{path}) \Rightarrow m \quad \forall i \in \text{accessible}(m), \text{name}(i) \notin \text{dom}(\Gamma)
-}{
-    \Gamma \vdash \text{using path}::*: WF
-}$$
+Γ ⊢ resolve_module(path) ⇒ m    ∀ i ∈ accessible(m), name(i) ∉ dom(Γ)
+───────────────────────────────────────────────────────────────────────────────
+Γ ⊢ using path::* : WF
 
 **Diagnostics:** See Appendix A, codes `E-MOD-1204`, `E-MOD-1206`, `W-MOD-1201`.
 
@@ -1006,11 +1903,9 @@ A `public using` declaration:
 
 **(WF-Using-Public)**
 
-$$\frac{
-    \Gamma \vdash \text{using path}::i \text{ as name}: WF \quad \text{visibility}(\text{item}) = \text{public}
-}{
-    \Gamma \vdash \text{public using path}::i \text{ as name}: WF
-}$$
+Γ ⊢ using path::i as name : WF    visibility(item) = public
+───────────────────────────────────────────────────────────────────────────────
+Γ ⊢ public using path::i as name : WF
 
 **Diagnostics:** See Appendix A, code `E-MOD-1205`.
 
@@ -1036,15 +1931,15 @@ Names introduced by `import as` or `using` declarations MUST NOT conflict with e
 
 **Attribute.** A compile-time annotation attached to a declaration or expression that influences code generation, memory layout, diagnostics, verification strategies, and interoperability.
 
-An attribute $A$ is defined by:
+An attribute A is defined by:
 
-$$A = (\text{Name}, \text{Args})$$
+A = (Name, Args)
 
-where $\text{Name}$ is an identifier and $\text{Args}$ is a (possibly empty) sequence of arguments.
+where Name is an identifier and Args is a (possibly empty) sequence of arguments.
 
 An **attribute list** is a sequence of one or more attributes:
 
-$$\text{AttributeList} = \langle A_1, A_2, \ldots, A_n \rangle$$
+AttributeList = ⟨A_1, A_2, …, A_n⟩
 
 **Syntax**
 
@@ -1091,15 +1986,15 @@ This appendix defines the attribute syntax and the semantics of non-comptime att
 
 **Attribute.** A compile-time annotation attached to a declaration or expression that influences code generation, memory layout, diagnostics, verification strategies, and interoperability.
 
-An attribute $A$ is defined by:
+An attribute A is defined by:
 
-$$A = (\text{Name}, \text{Args})$$
+A = (Name, Args)
 
-where $\text{Name}$ is an identifier and $\text{Args}$ is a (possibly empty) sequence of arguments.
+where Name is an identifier and Args is a (possibly empty) sequence of arguments.
 
 An **attribute list** is a sequence of one or more attributes:
 
-$$\text{AttributeList} = \langle A_1, A_2, \ldots, A_n \rangle$$
+AttributeList = ⟨A_1, A_2, …, A_n⟩
 
 **Syntax**
 
@@ -1138,21 +2033,21 @@ The order of attribute application within equivalent forms is Unspecified Behavi
 
 #### 7.1.2 Attribute Categories
 
-**Attribute Registry.** The set ($\mathcal{R}$) of all attributes recognized by a conforming implementation:
+**Attribute Registry.** The set (𝓡) of all attributes recognized by a conforming implementation:
 
-$$\mathcal{R} = \mathcal{R}_{\text{spec}} \uplus \mathcal{R}_{\text{vendor}}$$
+𝓡 = 𝓡_spec ⊎ 𝓡_vendor
 
-where $\mathcal{R}_{\text{spec}}$ contains specification-defined attributes and $\mathcal{R}_{\text{vendor}}$ contains vendor-defined extensions.
+where 𝓡_spec contains specification-defined attributes and 𝓡_vendor contains vendor-defined extensions.
 
 **Static Semantics**
 
 **Attribute Processing**
 
-For each attribute $A$ applied to declaration $D$:
+For each attribute A applied to declaration D:
 
-1. The implementation MUST verify $A.\text{Name} \in \mathcal{R}$
-2. The implementation MUST verify $D$ is a valid target for $A$
-3. The implementation MUST verify $A.\text{Args}$ conforms to the argument specification
+1. The implementation MUST verify A.Name ∈ 𝓡
+2. The implementation MUST verify D is a valid target for A
+3. The implementation MUST verify A.Args conforms to the argument specification
 4. If all verifications succeed, the implementation applies the defined effect
 
 **Attribute Target Matrix**
@@ -1186,7 +2081,7 @@ The matrix below enumerates all specification-defined attributes that may appear
 
 #### 7.1.3 Custom Attributes
 
-**Vendor-Defined Attributes.** Attributes in $\mathcal{R}_{\text{vendor}}$ that extend the specification-defined set.
+**Vendor-Defined Attributes.** Attributes in 𝓡_vendor that extend the specification-defined set.
 
 **Static Semantics**
 
@@ -1194,7 +2089,7 @@ The matrix below enumerates all specification-defined attributes that may appear
 2. The `cursive.*` namespace is reserved
 3. Vendor-defined attributes are Implementation-Defined Behavior (IDB)
 
-An implementation encountering an unknown attribute (not in $\mathcal{R}$) MUST diagnose error `E-MOD-2451`.
+An implementation encountering an unknown attribute (not in 𝓡) MUST diagnose error `E-MOD-2451`.
 
 
 ### 7.2 Layout Attributes (`[[layout]]`)
@@ -1269,9 +2164,9 @@ Taking a reference to a packed field is Unverifiable Behavior (UVB); such operat
 
 **Static Semantics**
 
-1. $N$ MUST be a positive integer that is a power of two
-2. Effective alignment is $\max(N, \text{natural alignment})$
-3. If $N < \text{natural alignment}$, natural alignment is used (warning emitted)
+1. N MUST be a positive integer that is a power of two
+2. Effective alignment is max(N, natural alignment)
+3. If N < natural alignment, natural alignment is used (warning emitted)
 4. Type size is padded to a multiple of the effective alignment
 
 **Diagnostics:** See Appendix A, codes `E-MOD-2453`, `W-MOD-2451`.
@@ -1289,9 +2184,9 @@ Taking a reference to a packed field is Unverifiable Behavior (UVB); such operat
 | :------------------------- | :------- | :-------------------------------------- |
 | `layout(C)`                | Valid    | C-compatible layout                     |
 | `layout(packed)`           | Valid    | Packed layout (records only)            |
-| `layout(align(N))`         | Valid    | Minimum alignment $N$                   |
+| `layout(align(N))`         | Valid    | Minimum alignment N                     |
 | `layout(C, packed)`        | Valid    | C-compatible packed layout              |
-| `layout(C, align(N))`      | Valid    | C-compatible with minimum alignment $N$ |
+| `layout(C, align(N))`      | Valid    | C-compatible with minimum alignment N   |
 | `layout(u8)` (enum)        | Valid    | 8-bit unsigned discriminant             |
 | `layout(packed, align(N))` | Invalid  | Conflicting directives                  |
 
@@ -1418,9 +2313,9 @@ dynamic_attribute ::= "[[" "dynamic" "]]"
 
 **Scope Determination:**
 
-An expression $e$ is within a `[[dynamic]]` scope if and only if:
-1. $e$ is syntactically enclosed in a declaration marked `[[dynamic]]`, OR
-2. $e$ is syntactically enclosed in an expression marked `[[dynamic]]`
+An expression e is within a `[[dynamic]]` scope if and only if:
+1. e is syntactically enclosed in a declaration marked `[[dynamic]]`, OR
+2. e is syntactically enclosed in an expression marked `[[dynamic]]`
 
 **Propagation:**
 
@@ -1444,7 +2339,7 @@ Within a `[[dynamic]]` scope, if a refinement predicate cannot be proven statica
 
 Even within a `[[dynamic]]` scope, if a property is statically provable, no runtime code is generated.
 
-**Diagnostics:** See Appendix A, codes `E-CON-0410`–`E-CON-0412`, `E-SEM-2801`, `E-TYP-1953`, `W-CON-0401`. For `E-CON-0020` (key safety outside `[[dynamic]]` scope), see §17.6.1.
+**Diagnostics:** See Cursive0 Appendix A for `E-CON-0410`–`E-CON-0412` and `W-CON-0401`. See Appendix H, Table H.1 for `E-SEM-2801`, `E-TYP-1953`, `P-SEM-2850`, and `P-TYP-1953`. For `E-CON-0020` (key safety outside `[[dynamic]]` scope), see §17.6.1.
 
 
 #### 7.4.4 `[[static_dispatch_only]]`
@@ -1461,15 +2356,15 @@ static_dispatch_attr ::= "[[" "static_dispatch_only" "]]"
 
 **VTable Eligibility:**
 
-A procedure $p$ in a class is vtable-eligible if:
+A procedure p in a class is vtable-eligible if:
 
-$$\text{vtable\_eligible}(p) \iff \text{has\_receiver}(p) \land \neg\text{is\_generic}(p) \land \text{compatible\_signature}(p)$$
+vtable_eligible(p) ⇔ has_receiver(p) ∧ ¬ is_generic(p) ∧ compatible_signature(p)
 
 **Dispatchability (Dynamic Dispatch Safety):**
 
 A class is **dispatchable** (usable as a dynamic class type `$Class`) if every procedure is either vtable-eligible or has `[[static_dispatch_only]]`:
 
-$$\text{dispatchable}(C) \iff \forall p \in \text{procedures}(C).\ \text{vtable\_eligible}(p) \lor \text{has\_static\_dispatch\_attr}(p)$$
+dispatchable(C) ⇔ ∀ p ∈ procedures(C). vtable_eligible(p) ∨ has_static_dispatch_attr(p)
 
 **Call Resolution:**
 
@@ -1502,6 +2397,20 @@ stale_ok_attribute ::= "[[" "stale_ok" "]]"
 The attribute does not alter key acquisition, release, or program behavior.
 
 **Diagnostics:** See Appendix A, code `E-MOD-2465`.
+
+
+#### 7.4.6 Verification-mode attributes (`[[static]]`, `[[assume]]`, `[[trust]]`)
+
+**Syntax**
+
+```ebnf
+ffi_verification_attr ::= "[[" ffi_verification_mode "]]"
+ffi_verification_mode ::= "static" | "dynamic" | "assume" | "trust"
+```
+
+**Static Semantics**
+
+Verification-mode attributes are interpreted only in foreign-contract contexts. The semantics of each mode are defined in Appendix H (§21.4). The `dynamic` mode reuses `[[dynamic]]` as defined in §7.4.3.
 
 
 ### 7.5 FFI Attributes
@@ -1654,7 +2563,7 @@ A concrete type that implements a class is a subtype of that class. See §13.3 f
 
 The following subtyping relationships are defined in their respective sections:
 
-- Modal widening ($M@S <: M$, where $M$ is the general modal type): §12.1
+- Modal widening (M@S <: M, where M is the general modal type): §12.1
 - Union member subtyping: §11.8
 - Refinement type subtyping: §13.7
 - Permission subtyping: §10.3
@@ -1664,18 +2573,18 @@ The following subtyping relationships are defined in their respective sections:
 
 ### 9.3 Variance
 
-**Variance.** Specifies how subtyping of type arguments relates to subtyping of parameterized types. For a generic type constructor $F$ with parameter $T$, variance determines whether $F[A] <: F[B]$ when $A <: B$, when $B <: A$, both, or neither.
+**Variance.** Specifies how subtyping of type arguments relates to subtyping of parameterized types. For a generic type constructor F with parameter T, variance determines whether F[A] <: F[B] when A <: B, when B <: A, both, or neither.
 
 **Static Semantics**
 
 **Variance Classifications**
 
-| Variance      | Symbol | Condition for $F[A] <: F[B]$ | Position Requirement                              |
+| Variance      | Symbol | Condition for F[A] <: F[B] | Position Requirement                              |
 | :------------ | :----- | :--------------------------- | :------------------------------------------------ |
-| Covariant     | $+$    | $A <: B$                     | Output positions (return types, immutable fields) |
-| Contravariant | $-$    | $B <: A$                     | Input positions (parameter types)                 |
-| Invariant     | $=$    | $A \equiv B$                 | Both input and output, or mutable storage         |
-| Bivariant     | $\pm$  | Always (parameter unused)    | Parameter does not appear in type structure       |
+| Covariant     | `+`    | A <: B                       | Output positions (return types, immutable fields) |
+| Contravariant | `-`    | B <: A                       | Input positions (parameter types)                 |
+| Invariant     | `=`    | A ≡ B                        | Both input and output, or mutable storage         |
+| Bivariant     | `±`    | Always (parameter unused)    | Parameter does not appear in type structure       |
 
 **Generic Subtyping Rule**
 
@@ -1718,8 +2627,8 @@ When a type parameter has invariant variance, the implementation MUST require ex
 
 | Judgment                        | Name      | Meaning                                                  |
 | :------------------------------ | :-------- | :------------------------------------------------------- |
-| $\Gamma \vdash e \Rightarrow T$ | Synthesis | Type $T$ is derived from the structure of expression $e$ |
-| $\Gamma \vdash e \Leftarrow T$  | Checking  | Expression $e$ is validated against expected type $T$    |
+| Γ ⊢ e ⇒ T | Synthesis | Type T is derived from the structure of expression e |
+| Γ ⊢ e ⇐ T | Checking  | Expression e is validated against expected type T    |
 
 In synthesis mode, the type flows outward from the expression. In checking mode, an expected type flows inward from context to guide type derivation for subexpressions.
 
@@ -1812,11 +2721,11 @@ let x = cfg.value
 
 **Static Semantics**
 
-Let $\mathcal{P}$ denote the set of permissions:
+Let 𝒫 denote the set of permissions:
 
-$$\mathcal{P} = \{\texttt{const}, \texttt{unique}, \texttt{shared}\}$$
+𝒫 = {`const`, `unique`, `shared`}
 
-A **permission-qualified type** is a pair $(P, T)$ where $P \in \mathcal{P}$ and $T$ is a base type. The notation $P\ T$ denotes this qualification.
+A **permission-qualified type** is a pair (P, T) where P ∈ 𝒫 and T is a base type. The notation P T denotes this qualification.
 
 **Operations Permitted:**
 
@@ -1835,7 +2744,7 @@ A **permission-qualified type** is a pair $(P, T)$ where $P \in \mathcal{P}$ and
 
 **Exclusivity Invariant:**
 
-$$\forall p_1, p_2 \in \text{Paths}.\ (\text{perm}(p_1) = \texttt{unique} \land \text{overlaps}(p_1, p_2)) \implies p_1 = p_2$$
+∀ p_1, p_2 ∈ Paths. (perm(p_1) = `unique` ∧ overlaps(p_1, p_2)) ⇒ p_1 = p_2
 
 **Operations Permitted:**
 
@@ -1882,7 +2791,7 @@ The `shared` permission does **not** imply cleanup responsibility.
 
 **Static Semantics**
 
-$$\texttt{unique} <: \texttt{shared} <: \texttt{const}$$
+`unique` <: `shared` <: `const`
 
 **Lattice Diagram:**
 
@@ -1897,24 +2806,28 @@ $$\texttt{unique} <: \texttt{shared} <: \texttt{const}$$
 
 ### 10.2 Exclusivity and Aliasing Rules
 
-**Aliasing.** Two paths alias when they refer to overlapping storage locations: $\text{aliases}(p_1, p_2) \iff \text{storage}(p_1) \cap \text{storage}(p_2) \neq \emptyset$.
+**Aliasing.** Two paths alias when they refer to overlapping storage locations: aliases(p_1, p_2) ⇔ storage(p_1) ∩ storage(p_2) ≠ ∅.
 
 **Binding State Machine**
 
-A binding $b$ with `unique` permission exists in one of two states:
+A binding b with `unique` permission exists in one of two states:
 
 | State    | Definition                                        | Operations Permitted         |
 | :------- | :------------------------------------------------ | :--------------------------- |
-| Active   | No downgraded references to $b$ are live          | Read, write, move, downgrade |
-| Inactive | One or more downgraded references to $b$ are live | No operations                |
+| Active   | No downgraded references to b are live          | Read, write, move, downgrade |
+| Inactive | One or more downgraded references to b are live | No operations                |
 
 **Static Semantics**
 
 **(Inactive-Enter)**
-$$\frac{b : \texttt{unique}\ T \quad b\ \text{is Active} \quad \text{downgrade to}\ P\ \text{where}\ P \in \{\texttt{const}, \texttt{shared}\}}{b\ \text{becomes Inactive}}$$
+b : `unique` T    b is Active    downgrade to P where P ∈ {`const`, `shared`}
+──────────────────────────────────────────────────────────────────────────────
+b becomes Inactive
 
 **(Inactive-Exit)**
-$$\frac{b\ \text{is Inactive} \quad \text{all downgraded references to}\ b\ \text{go out of scope}}{b\ \text{becomes Active with}\ \texttt{unique}\ \text{permission restored}}$$
+b is Inactive    all downgraded references to b go out of scope
+──────────────────────────────────────────────────────────────────────────────
+b becomes Active with `unique` permission restored
 
 **Constraints**
 
@@ -1949,9 +2862,9 @@ Permissions coerce implicitly in one direction only: from stronger to weaker. Up
 
 *[REF: Shorthand syntax (`~`, `~!`, `~%`) is defined in §14.2.2.]*
 
-A method with receiver permission $P_{\text{method}}$ is callable through a path with permission $P_{\text{caller}}$ iff:
+A method with receiver permission P_method is callable through a path with permission P_caller iff:
 
-$$P_{\text{caller}} <: P_{\text{method}}$$
+P_caller <: P_method
 
 | Caller Permission | May Call `~` | May Call `~%` | May Call `~!` |
 | :---------------- | :----------- | :------------ | :------------ |
@@ -2003,24 +2916,24 @@ $$P_{\text{caller}} <: P_{\text{method}}$$
 
 **Generic Declaration.** Introduces one or more **type parameters** that serve as placeholders for concrete types supplied at instantiation.
 
-A generic declaration $D$ is defined by:
+A generic declaration D is defined by:
 
-$$D = (\text{Name}, \text{Params}, \text{Body})$$
-
-where:
-- $\text{Name}$ is the declaration's identifier
-- $\text{Params} = \langle P_1, P_2, \ldots, P_n \rangle$ is an ordered sequence of type parameters
-- $\text{Body}$ is the declaration body (type definition or procedure body)
-
-Each type parameter $P_i$ is defined by:
-
-$$P_i = (\text{name}_i, \text{Bounds}_i)$$
+D = (Name, Params, Body)
 
 where:
-- $\text{name}_i$ is an identifier serving as the parameter name
-- $\text{Bounds}_i \subseteq \mathcal{T}_{\text{class}}$ is a (possibly empty) set of class bounds
+- Name is the declaration's identifier
+- Params = ⟨P_1, P_2, …, P_n⟩ is an ordered sequence of type parameters
+- Body is the declaration body (type definition or procedure body)
 
-A type parameter with $\text{Bounds}_i = \emptyset$ is **unconstrained**. A type parameter with $\text{Bounds}_i \neq \emptyset$ is **constrained**; only types implementing all classes in $\text{Bounds}_i$ may be substituted.
+Each type parameter P_i is defined by:
+
+P_i = (name_i, Bounds_i)
+
+where:
+- name_i is an identifier serving as the parameter name
+- Bounds_i ⊆ 𝒯_class is a (possibly empty) set of class bounds
+
+A type parameter with Bounds_i = ∅ is **unconstrained**. A type parameter with Bounds_i ≠ ∅ is **constrained**; only types implementing all classes in Bounds_i may be substituted.
 
 **Syntax**
 
@@ -2046,21 +2959,15 @@ record Pair<K; V> { key: K, value: V }
 
 **(WF-Generic-Param)**
 
-$$\frac{
-    \forall i \neq j,\ \text{name}_i \neq \text{name}_j \quad
-    \forall i,\ \forall B \in \text{Bounds}_i,\ \Gamma \vdash B : \text{Class}
-}{
-    \Gamma \vdash \langle P_1; \ldots; P_n \rangle\ \text{wf}
-}$$
+∀ i ≠ j, name_i ≠ name_j    ∀ i, ∀ B ∈ Bounds_i, Γ ⊢ B : Class
+──────────────────────────────────────────────────────────────────────────
+Γ ⊢ ⟨P_1; …; P_n⟩ wf
 
 **(WF-Generic-Type)**
 
-$$\frac{
-    \Gamma \vdash \langle P_1, \ldots, P_n \rangle\ \text{wf} \quad
-    \Gamma, T_1 : P_1, \ldots, T_n : P_n \vdash \text{Body}\ \text{wf}
-}{
-    \Gamma \vdash \texttt{type}\ \textit{Name}\langle P_1, \ldots, P_n \rangle\ \text{Body}\ \text{wf}
-}$$
+Γ ⊢ ⟨P_1, …, P_n⟩ wf    Γ, T_1 : P_1, …, T_n : P_n ⊢ Body wf
+──────────────────────────────────────────────────────────────────────────
+Γ ⊢ `type` Name⟨P_1, …, P_n⟩ Body wf
 
 **Constraints**
 
@@ -2091,26 +2998,17 @@ procedure swap<T>(a: unique T, b: unique T) { ... }
 
 **(WF-Generic-Proc)**
 
-$$\frac{
-    \Gamma \vdash \langle P_1, \ldots, P_n \rangle\ \text{wf} \quad
-    \Gamma' = \Gamma, T_1 : P_1, \ldots, T_n : P_n \quad
-    \Gamma' \vdash \text{signature}\ \text{wf} \quad
-    \Gamma' \vdash \text{body}\ \text{wf}
-}{
-    \Gamma \vdash \texttt{procedure}\ f\langle P_1, \ldots, P_n \rangle(\ldots) \to R\ \{\ldots\}\ \text{wf}
-}$$
+Γ ⊢ ⟨P_1, …, P_n⟩ wf    Γ' = Γ, T_1 : P_1, …, T_n : P_n    Γ' ⊢ signature wf    Γ' ⊢ body wf
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ `procedure` f⟨P_1, …, P_n⟩(...) → R {…} wf
 
 **(T-Generic-Call)**
 
-$$\frac{
-    \begin{gathered}
-    f\langle T_1, \ldots, T_n \rangle(x_1 : S_1, \ldots, x_m : S_m) \to R\ \text{declared} \\
-    \forall i \in 1..n,\ \Gamma \vdash A_i\ \text{satisfies}\ \text{Bounds}(T_i) \\
-    \forall j \in 1..m,\ \Gamma \vdash e_j : S_j[A_1/T_1, \ldots, A_n/T_n]
-    \end{gathered}
-}{
-    \Gamma \vdash f\langle A_1, \ldots, A_n \rangle(e_1, \ldots, e_m) : R[A_1/T_1, \ldots, A_n/T_n]
-}$$
+f⟨T_1, …, T_n⟩(x_1 : S_1, …, x_m : S_m) → R declared
+∀ i ∈ 1..n, Γ ⊢ A_i satisfies Bounds(T_i)
+∀ j ∈ 1..m, Γ ⊢ e_j : S_j[A_1/T_1, …, A_n/T_n]
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ f⟨A_1, …, A_n⟩(e_1, …, e_m) : R[A_1/T_1, …, A_n/T_n]
 
 **Type Argument Inference**
 
@@ -2146,20 +3044,15 @@ procedure sort<T>(arr: unique [T]) where T <: Ord { ... }
 
 **(T-Constraint-Sat)**
 
-$$\frac{
-    \forall B \in \text{Bounds},\ \Gamma \vdash A <: B
-}{
-    \Gamma \vdash A\ \text{satisfies}\ \text{Bounds}
-}$$
+∀ B ∈ Bounds, Γ ⊢ A <: B
+─────────────────────────────────────
+Γ ⊢ A satisfies Bounds
 
 **(T-Generic-Inst)**
 
-$$\frac{
-    \text{Name}\langle P_1, \ldots, P_n \rangle\ \text{declared} \quad
-    \forall i \in 1..n,\ \Gamma \vdash A_i\ \text{satisfies}\ \text{Bounds}(P_i)
-}{
-    \Gamma \vdash \text{Name}\langle A_1, \ldots, A_n \rangle\ \text{wf}
-}$$
+Name⟨P_1, …, P_n⟩ declared    ∀ i ∈ 1..n, Γ ⊢ A_i satisfies Bounds(P_i)
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Name⟨A_1, …, A_n⟩ wf
 
 When both inline bounds and a `where` clause specify constraints for the same parameter, the effective constraint is the conjunction of all bounds.
 
@@ -2176,13 +3069,13 @@ When both inline bounds and a `where` clause specify constraints for the same pa
 
 **Monomorphization.** The process of generating specialized code for each concrete instantiation of a generic type or procedure.
 
-Given a generic declaration $D\langle T_1, \ldots, T_n \rangle$ and concrete type arguments $A_1, \ldots, A_n$, monomorphization produces a specialized declaration $D[A_1/T_1, \ldots, A_n/T_n]$ where each occurrence of $T_i$ in the body is replaced with $A_i$.
+Given a generic declaration D⟨T_1, …, T_n⟩ and concrete type arguments A_1, …, A_n, monomorphization produces a specialized declaration D[A_1/T_1, …, A_n/T_n] where each occurrence of T_i in the body is replaced with A_i.
 
 **Static Semantics**
 
 **Monomorphization Requirements**
 
-1. **Specialization:** For each instantiation $D\langle A_1, \ldots, A_n \rangle$, produce code equivalent to substituting each type argument for its corresponding parameter throughout the declaration body.
+1. **Specialization:** For each instantiation D⟨A_1, …, A_n⟩, produce code equivalent to substituting each type argument for its corresponding parameter throughout the declaration body.
 
 2. **Zero Overhead:** Calls to generic procedures MUST compile to direct static calls to the specialized instantiation. Virtual dispatch is prohibited for static polymorphism.
 
@@ -2202,9 +3095,9 @@ The variance of each type parameter is determined by its usage within the type d
 
 Each monomorphized instantiation has an independent memory layout:
 
-$$\text{sizeof}(\text{Name}\langle A_1, \ldots, A_n \rangle) = \text{sizeof}(\text{Name}[A_1/T_1, \ldots, A_n/T_n])$$
+sizeof(Name⟨A_1, …, A_n⟩) = sizeof(Name[A_1/T_1, …, A_n/T_n])
 
-$$\text{alignof}(\text{Name}\langle A_1, \ldots, A_n \rangle) = \text{alignof}(\text{Name}[A_1/T_1, \ldots, A_n/T_n])$$
+alignof(Name⟨A_1, …, A_n⟩) = alignof(Name[A_1/T_1, …, A_n/T_n])
 
 **Constraints**
 
@@ -2218,26 +3111,26 @@ $$\text{alignof}(\text{Name}\langle A_1, \ldots, A_n \rangle) = \text{alignof}(\
 
 **Class.** A named declaration that defines an abstract interface consisting of procedure signatures, associated type declarations, abstract fields, and abstract states.
 
-A class $Cl$ is defined as a tuple:
+A class Cl is defined as a tuple:
 
-$$Cl = (N, G, S, P_{abs}, P_{con}, A_{abs}, A_{con}, F, St)$$
+Cl = (N, G, S, P_abs, P_con, A_abs, A_con, F, St)
 
 where:
-- $N$ is the class name
-- $G$ is the (possibly empty) set of generic type parameters
-- $S$ is the (possibly empty) set of superclass bounds
-- $P_{abs}$ is the set of abstract procedure signatures
-- $P_{con}$ is the set of concrete procedure definitions (default implementations)
-- $A_{abs}$ is the set of abstract associated type declarations
-- $A_{con}$ is the set of concrete associated type bindings
-- $F$ is the (possibly empty) set of abstract field declarations
-- $St$ is the (possibly empty) set of abstract state declarations
+- N is the class name
+- G is the (possibly empty) set of generic type parameters
+- S is the (possibly empty) set of superclass bounds
+- P_abs is the set of abstract procedure signatures
+- P_con is the set of concrete procedure definitions (default implementations)
+- A_abs is the set of abstract associated type declarations
+- A_con is the set of concrete associated type bindings
+- F is the (possibly empty) set of abstract field declarations
+- St is the (possibly empty) set of abstract state declarations
 
-A class with $St \neq \emptyset$ is a **modal class**. Only modal types may implement modal classes.
+A class with St ≠ ∅ is a **modal class**. Only modal types may implement modal classes.
 
-A type $T$ **implements** class $Cl$ (written $T <: Cl$) when:
+A type T **implements** class Cl (written T <: Cl) when:
 
-$$T <: Cl \iff \forall p \in P_{abs}.\ T \text{ defines } p\ \land\ \forall a \in A_{abs}.\ T \text{ binds } a\ \land\ \forall f \in F.\ T \text{ has } f\ \land\ \forall s \in St.\ T \text{ has } s$$
+T <: Cl ⇔ ∀ p ∈ P_abs. T defines p ∧ ∀ a ∈ A_abs. T binds a ∧ ∀ f ∈ F. T has f ∧ ∀ s ∈ St. T has s
 
 **Syntax**
 
@@ -2275,18 +3168,15 @@ class Printable {
 
 **(WF-Class)**
 
-$$\frac{
-  \text{unique}(N) \quad
-  \forall p \in P.\ \Gamma, \text{Self} : \text{Type} \vdash p\ \text{wf} \quad
-  \neg\text{cyclic}(S) \quad
-  \text{names\_disjoint}(P, A, F, St)
-}{
-  \Gamma \vdash \text{class } N\ [<: S]\ \{P, A, F, St\}\ \text{wf}
-}$$
+unique(N)    ∀ p ∈ P. Γ, Self : Type ⊢ p wf    ¬ cyclic(S)    names_disjoint(P, A, F, St)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ class N [<: S] {P, A, F, St} wf
 
 **(T-Superclass)**
 
-$$\frac{\text{class } A <: B \quad T <: A}{\Gamma \vdash T <: B}$$
+class A <: B    T <: A
+────────────────────────
+Γ ⊢ T <: B
 
 Within a class declaration, `Self` denotes the (unknown) implementing type.
 
@@ -2305,7 +3195,9 @@ Within a class declaration, `Self` denotes the (unknown) implementing type.
 
 **(WF-Class-Self)**
 
-$$\frac{\Gamma, \text{Self} : \text{Type} \vdash \text{body} : \text{ok}}{\Gamma \vdash \text{class } T\ \{\ \text{body}\ \} : \text{Class}}$$
+Γ, Self : Type ⊢ body : ok
+──────────────────────────────────────────
+Γ ⊢ class T { body } : Class
 
 
 #### 13.2.3 Associated Types
@@ -2328,7 +3220,9 @@ Generic class parameters (`class Foo<T>`) are specified at use-site. Associated 
 
 **Class Alias Equivalence (T-Alias-Equiv)**
 
-$$\frac{\text{type } Alias = A + B}{\Gamma \vdash T <: Alias \iff \Gamma \vdash T <: A \land \Gamma \vdash T <: B}$$
+type Alias = A + B
+──────────────────────────────────────────────────────────────
+Γ ⊢ T <: Alias ⇔ Γ ⊢ T <: A ∧ Γ ⊢ T <: B
 
 
 ### 13.3 Class Implementation
@@ -2361,25 +3255,15 @@ record Point { x: f64, y: f64 } <: Display {
 
 **(T-Impl-Complete)**
 
-$$\frac{
-  T <: Cl \quad
-  \forall p \in P_{abs}(Cl).\ T \text{ defines } p \quad
-  \forall a \in A_{abs}(Cl).\ T \text{ binds } a \quad
-  \forall f \in F(Cl).\ T \text{ has } f \quad
-  \forall s \in St(Cl).\ T \text{ has } s
-}{
-  \Gamma \vdash T \text{ implements } Cl
-}$$
+T <: Cl    ∀ p ∈ P_abs(Cl). T defines p    ∀ a ∈ A_abs(Cl). T binds a    ∀ f ∈ F(Cl). T has f    ∀ s ∈ St(Cl). T has s
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T implements Cl
 
 **(WF-Impl)**
 
-$$\frac{
-  \Gamma \vdash T\ \text{wf} \quad
-  \Gamma \vdash Cl\ \text{wf} \quad
-  St(Cl) \neq \emptyset \implies T \text{ is modal}
-}{
-  \Gamma \vdash T <: Cl\ \text{wf}
-}$$
+Γ ⊢ T wf    Γ ⊢ Cl wf    St(Cl) ≠ ∅ ⇒ T is modal
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T <: Cl wf
 
 **Override Semantics**
 
@@ -2396,23 +3280,15 @@ For `T <: Cl`, at least one of `T` or `Cl` MUST be defined in the current assemb
 
 **(T-Field-Compat)**
 
-$$\frac{
-  f : T_c \in F(Cl) \quad
-  f : T_i \in \text{fields}(R) \quad
-  T_i <: T_c
-}{
-  R \vdash f\ \text{present}
-}$$
+f : T_c ∈ F(Cl)    f : T_i ∈ fields(R)    T_i <: T_c
+──────────────────────────────────────────────────────────────
+R ⊢ f present
 
 **(T-Modal-Class)**
 
-$$\frac{
-  St(Cl) \neq \emptyset \quad
-  T <: Cl \quad
-  T \text{ is not a modal type}
-}{
-  \text{ill-formed: E-TYP-2401}
-}$$
+St(Cl) ≠ ∅    T <: Cl    T is not a modal type
+────────────────────────────────────────────────────
+ill-formed: E-TYP-2401
 
 **Constraints**
 
@@ -2480,7 +3356,9 @@ class_path   ::= type_path
 
 **(T-Dynamic-Form)**
 
-$$\frac{\Gamma \vdash v : T \quad \Gamma \vdash T <: Cl \quad \text{dispatchable}(Cl)}{\Gamma \vdash v : \$Cl}$$
+Γ ⊢ v : T    Γ ⊢ T <: Cl    dispatchable(Cl)
+──────────────────────────────────────────────
+Γ ⊢ v : $Cl
 
 **Dispatchability**
 
@@ -2498,7 +3376,7 @@ A procedure is **vtable-eligible** if ALL of the following are true:
 
 **Formal Definition**
 
-$$\text{dispatchable}(Cl) \iff \forall p \in \text{procedures}(Cl).\ \text{vtable\_eligible}(p) \lor \text{has\_static\_dispatch\_attr}(p)$$
+dispatchable(Cl) ⇔ ∀ p ∈ procedures(Cl). vtable_eligible(p) ∨ has_static_dispatch_attr(p)
 
 **Dynamic Semantics**
 
@@ -2511,13 +3389,9 @@ $$\text{dispatchable}(Cl) \iff \forall p \in \text{procedures}(Cl).\ \text{vtabl
 
 **(E-Dynamic-Form)**
 
-$$\frac{
-  \Gamma \vdash v : T \quad
-  T <: Cl \quad
-  \text{dispatchable}(Cl)
-}{
-  v \Rightarrow_{\$} (\text{ptr}(v), \text{vtable}(T, Cl))
-}$$
+Γ ⊢ v : T    T <: Cl    dispatchable(Cl)
+────────────────────────────────────────
+v ⇒_$ (ptr(v), vtable(T, Cl))
 
 **Memory Layout**
 
@@ -2551,13 +3425,9 @@ A procedure call `w~>method(args)` on dynamic class type `w: $Cl` executes as fo
 
 **(E-Dynamic-Dispatch)**
 
-$$\frac{
-  w = (dp, vt) \quad
-  \text{method} \in \text{interface}(Cl) \quad
-  vt[\text{offset}(\text{method})] = fp
-}{
-  w\text{\textasciitilde>method}(args) \to fp(dp, args)
-}$$
+w = (dp, vt)    method ∈ interface(Cl)    vt[offset(method)] = fp
+────────────────────────────────────────────────────────────────────────────
+w~>method(args) → fp(dp, args)
 
 **VTable Layout (Stable ABI)**
 
@@ -2603,24 +3473,17 @@ procedure get_iterator() -> opaque Iterator {
 
 **(T-Opaque-Return)**
 
-$$\frac{
-  \Gamma \vdash \text{body} : T \quad
-  \Gamma \vdash T <: Cl \quad
-  \text{return\_type}(f) = \text{opaque } Cl
-}{
-  \Gamma \vdash f : () \to \text{opaque } Cl
-}$$
+Γ ⊢ body : T    Γ ⊢ T <: Cl    return_type(f) = opaque Cl
+───────────────────────────────────────────────────────────────────
+Γ ⊢ f : () → opaque Cl
 
 **(T-Opaque-Project)**
 
 At call sites, the opaque type is treated as an existential; callers may invoke only class methods:
 
-$$\frac{
-  \Gamma \vdash f() : \text{opaque } Cl \quad
-  m \in \text{interface}(Cl)
-}{
-  \Gamma \vdash f()\text{~>}m(args) : R_m
-}$$
+Γ ⊢ f() : opaque Cl    m ∈ interface(Cl)
+────────────────────────────────────────────
+Γ ⊢ f()~>m(args) : R_m
 
 **Type Encapsulation**
 
@@ -2640,11 +3503,9 @@ For a procedure returning `opaque Class`:
 
 Two opaque types `opaque Cl` are equivalent if and only if they originate from the same procedure definition:
 
-$$\frac{
-  f \neq g
-}{
-  \text{typeof}(f()) \neq \text{typeof}(g())
-}$$
+f ≠ g
+──────────────────────────────
+typeof(f()) ≠ typeof(g())
 
 **Zero Overhead**
 
@@ -2662,15 +3523,15 @@ Opaque types MUST incur zero runtime overhead. The returned value is the concret
 
 **Refinement Type.** A type constructed by attaching a predicate constraint to a base type. The refinement type `T where { P }` denotes the subset of values of type `T` for which predicate `P` evaluates to `true`.
 
-A refinement type $R$ is defined by:
+A refinement type R is defined by:
 
-$$R = (T_{\text{base}}, P)$$
+R = (T_base, P)
 
 where:
-- $T_{\text{base}} \in \mathcal{T}$ is the base type being refined
-- $P : T_{\text{base}} \to \texttt{bool}$ is a pure predicate constraining the value set
+- T_base ∈ 𝒯 is the base type being refined
+- P : T_base → `bool` is a pure predicate constraining the value set
 
-$$\text{Values}(T \text{ where } \{P\}) = \{ v \in \text{Values}(T) \mid P(v) = \texttt{true} \}$$
+Values(T where {P}) = { v ∈ Values(T) | P(v) = `true` }
 
 A refinement type is a **proper subtype** of its base type.
 
@@ -2696,45 +3557,33 @@ Within standalone refinement types, `self` refers to the constrained value. In p
 
 **(WF-Refine-Type)**
 
-$$\frac{
-    \Gamma \vdash T\ \text{wf} \quad
-    \Gamma, \texttt{self} : T \vdash P : \texttt{bool} \quad
-    \text{Pure}(P)
-}{
-    \Gamma \vdash (T \text{ where } \{P\})\ \text{wf}
-}$$
+Γ ⊢ T wf    Γ, `self` : T ⊢ P : `bool`    Pure(P)
+──────────────────────────────────────────────────────────────
+Γ ⊢ (T where {P}) wf
 
 **(T-Refine-Intro)**
 
-$$\frac{
-    \Gamma \vdash e : T \quad
-    \Gamma \vdash F(P[e/\texttt{self}], L) \quad
-    L \text{ dominates current location}
-}{
-    \Gamma \vdash e : T \text{ where } \{P\}
-}$$
+Γ ⊢ e : T    Γ ⊢ F(P[e/`self`], L)    L dominates current location
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ e : T where {P}
 
 **(T-Refine-Elim)**
 
-$$\frac{
-    \Gamma \vdash e : T \text{ where } \{P\}
-}{
-    \Gamma \vdash e : T
-}$$
+Γ ⊢ e : T where {P}
+────────────────────
+Γ ⊢ e : T
 
 **Subtyping Rules**
 
-$$\Gamma \vdash (T \text{ where } \{P\}) <: T$$
+Γ ⊢ (T where {P}) <: T
 
-$$\frac{
-    \Gamma \vdash P \implies Q
-}{
-    \Gamma \vdash (T \text{ where } \{P\}) <: (T \text{ where } \{Q\})
-}$$
+Γ ⊢ P ⇒ Q
+──────────────────────────────────────────────────
+Γ ⊢ (T where {P}) <: (T where {Q})
 
 **Nested Refinements**
 
-$$(T \text{ where } \{P\}) \text{ where } \{Q\} \equiv T \text{ where } \{P \land Q\}$$
+(T where {P}) where {Q} ≡ T where {P ∧ Q}
 
 **Decidable Predicate Subset**
 
@@ -2754,22 +3603,24 @@ Refinement predicates require static proof by default:
 
 1. Implementation attempts static verification
 2. If verification succeeds, no runtime code is generated
-3. If verification fails and not in `[[dynamic]]` scope: ill-formed (`E-TYP-1953`)
+3. If verification fails and not in `[[dynamic]]` scope: ill-formed (E-TYP-1953)
 4. If verification fails in `[[dynamic]]` scope: runtime check is generated
 
 **Dynamic Semantics**
 
 **Representation**
 
-$$\text{sizeof}(T \text{ where } \{P\}) = \text{sizeof}(T)$$
+sizeof(T where {P}) = sizeof(T)
 
-$$\text{alignof}(T \text{ where } \{P\}) = \text{alignof}(T)$$
+alignof(T where {P}) = alignof(T)
 
 The predicate is a compile-time and runtime constraint only; it does not affect physical representation.
 
 **Constraints**
 
-**Diagnostics:** See Appendix A, codes `E-TYP-1954`–`E-TYP-1957`.
+Failed runtime checks trigger a panic (`P-TYP-1953`).
+
+**Diagnostics:** See Appendix H, Table H.1.
 
 
 ### 13.8 Capability Classes
@@ -2932,10 +3783,10 @@ Keys are a compile-time verification mechanism. Key state is tracked during type
 
 **Key Invariants**
 
-1. **Path-specificity:** A key to path $P$ grants access only to $P$ and paths for which $P$ is a prefix.
+1. **Path-specificity:** A key to path P grants access only to P and paths for which P is a prefix.
 2. **Implicit acquisition:** Accessing a `shared` path logically acquires the necessary key.
 3. **Scoped lifetime:** Keys are valid for a bounded lexical scope and become invalid when that scope exits.
-4. **Reentrancy:** If a key covering path $P$ is already held, nested access to $P$ or any path prefixed by $P$ succeeds without conflict.
+4. **Reentrancy:** If a key covering path P is already held, nested access to P or any path prefixed by P succeeds without conflict.
 5. **Task locality:** Keys are associated with tasks. A key held by a task remains valid until its scope exits.
 
 
@@ -2974,12 +3825,9 @@ Key analysis is performed if and only if the path's root has `shared` permission
 **Static Semantics**
 
 **(K-Mode-Read)**
-$$\frac{
-    \Gamma \vdash e : \texttt{shared}\ T \quad
-    \text{ReadContext}(e)
-}{
-    \text{RequiredMode}(e) = \text{Read}
-}$$
+Γ ⊢ e : `shared` T    ReadContext(e)
+────────────────────────────────────
+RequiredMode(e) = Read
 
 **Read Context Classification**
 
@@ -3000,12 +3848,9 @@ $$\frac{
 **Static Semantics**
 
 **(K-Mode-Write)**
-$$\frac{
-    \Gamma \vdash e : \texttt{shared}\ T \quad
-    \text{WriteContext}(e)
-}{
-    \text{RequiredMode}(e) = \text{Write}
-}$$
+Γ ⊢ e : `shared` T    WriteContext(e)
+─────────────────────────────────────
+RequiredMode(e) = Write
 
 **Write Context Classification**
 
@@ -3023,11 +3868,11 @@ If an expression appears in multiple contexts, the more restrictive context (Wri
 
 **Mode Ordering**
 
-$$\text{Read} < \text{Write}$$
+Read < Write
 
 A held mode is sufficient for a required mode when:
 
-$$\text{ModeSufficient}(M_{\text{held}}, M_{\text{required}}) \iff M_{\text{required}} \leq M_{\text{held}}$$
+ModeSufficient(M_held, M_required) ⇔ M_required ≤ M_held
 
 **Constraints**
 
@@ -3036,44 +3881,44 @@ $$\text{ModeSufficient}(M_{\text{held}}, M_{\text{required}}) \iff M_{\text{requ
 
 #### 17.1.5 Key State Context
 
-**Key State Context.** A mapping $\Gamma_{\text{keys}} : \text{ProgramPoint} \to \mathcal{P}(\text{Key})$ that associates each program point with the set of keys logically held at that point.
+**Key State Context.** A mapping Γ_keys : ProgramPoint → ℘(Key) that associates each program point with the set of keys logically held at that point.
 
 **Static Semantics**
 
 **Key Set Operations**
 
-Let $\Gamma_{\text{keys}}$ be the current key set, a collection of $(P, M, S)$ triples.
+Let Γ_keys be the current key set, a collection of (P, M, S) triples.
 
 **(Acquire)**
-$$\text{Acquire}(P, M, S, \Gamma_{\text{keys}}) = \Gamma_{\text{keys}} \cup \{(P, M, S)\}$$
+Acquire(P, M, S, Γ_keys) = Γ_keys ∪ {(P, M, S)}
 
 **(Release)**
-$$\text{Release}(P, \Gamma_{\text{keys}}) = \Gamma_{\text{keys}} \setminus \{(P, M, S) : (P, M, S) \in \Gamma_{\text{keys}}\}$$
+Release(P, Γ_keys) = Γ_keys \ {(P, M, S) : (P, M, S) ∈ Γ_keys}
 
 **(Release by Scope)**
-$$\text{ReleaseScope}(S, \Gamma_{\text{keys}}) = \Gamma_{\text{keys}} \setminus \{(P, M, S') : S' = S\}$$
+ReleaseScope(S, Γ_keys) = Γ_keys \ {(P, M, S') : S' = S}
 
 **(Mode Transition)**
-$$\text{ModeTransition}(P, M_{\text{new}}, \Gamma_{\text{keys}}) = (\Gamma_{\text{keys}} \setminus \{(P, M_{\text{old}}, S)\}) \cup \{(P, M_{\text{new}}, S)\}$$
+ModeTransition(P, M_new, Γ_keys) = (Γ_keys \ {(P, M_old, S)}) ∪ {(P, M_new, S)}
 
 **Panic Release Semantics**
 
-$$\text{PanicRelease}(S, \Gamma_{\text{keys}}) = \Gamma_{\text{keys}} \setminus \{(P, M, S') : S' \leq_{\text{nest}} S\}$$
+PanicRelease(S, Γ_keys) = Γ_keys \ {(P, M, S') : S' ≤_nest S}
 
 All keys held by the panicking scope and its nested scopes are released atomically before panic unwinding proceeds.
 
 
 #### 17.1.6 Held Predicate
 
-**Held Predicate.** A key is held at a program point if it is a member of the key state context at that point: $\text{Held}(P, M, S, \Gamma_{\text{keys}}, p) \iff (P, M, S) \in \Gamma_{\text{keys}}(p)$.
+**Held Predicate.** A key is held at a program point if it is a member of the key state context at that point: Held(P, M, S, Γ_keys, p) ⇔ (P, M, S) ∈ Γ_keys(p).
 
 **Static Semantics**
 
 **Key Compatibility**
 
-Two keys $K_1 = (P_1, M_1, S_1)$ and $K_2 = (P_2, M_2, S_2)$ are **compatible** if and only if:
+Two keys K_1 = (P_1, M_1, S_1) and K_2 = (P_2, M_2, S_2) are **compatible** if and only if:
 
-$$\text{Compatible}(K_1, K_2) \iff \text{Disjoint}(P_1, P_2) \lor (M_1 = \text{Read} \land M_2 = \text{Read})$$
+Compatible(K_1, K_2) ⇔ Disjoint(P_1, P_2) ∨ (M_1 = Read ∧ M_2 = Read)
 
 **Compatibility Matrix**
 
@@ -3091,49 +3936,45 @@ $$\text{Compatible}(K_1, K_2) \iff \text{Disjoint}(P_1, P_2) \lor (M_1 = \text{R
 
 Implementations MUST guarantee eventual progress: any task blocked waiting for a key MUST eventually acquire that key, provided the holder eventually releases it.
 
-$$\text{Blocked}(t, K) \land \text{Held}(K, t') \land \Diamond\text{Released}(K, t') \implies \Diamond\text{Acquired}(K, t)$$
+Blocked(t, K) ∧ Held(K, t') ∧ ◇ Released(K, t') ⇒ ◇ Acquired(K, t)
 
 
 #### 17.1.7 Key Roots and Key Path Formation
 
-**Key Root.** The base storage location from which a key path is derived. Key roots arise from: (1) **Lexical roots**: identifiers bound in the current scope; (2) **Boundary roots**: runtime object identities created at key boundaries (pointer indirection and type-level boundaries). For any place expression $e$ with `shared` permission, the **key path** $\text{KeyPath}(e)$ is the normalized `key_path_expr` used for key acquisition and conflict analysis.
+**Key Root.** The base storage location from which a key path is derived. Key roots arise from: (1) **Lexical roots**: identifiers bound in the current scope; (2) **Boundary roots**: runtime object identities created at key boundaries (pointer indirection and type-level boundaries). For any place expression e with `shared` permission, the **key path** KeyPath(e) is the normalized `key_path_expr` used for key acquisition and conflict analysis.
 
 **Static Semantics**
 
 **Path Root Extraction**
 
-Define $\text{Root}(e)$ for place expressions (§3.4.2) recursively:
+Define Root(e) for place expressions (§3.4.2) recursively:
+Root(e) =
+ x                 if e = x
+ Root(e')          if e = e'.f
+ Root(e')          if e = e'[i]
+ Root(e')          if e = e' ~> m(...)
+ ⊥_boundary        if e = (*e')
 
-$$\text{Root}(e) ::= \begin{cases}
-x & \text{if } e = x \\
-\text{Root}(e') & \text{if } e = e'.f \\
-\text{Root}(e') & \text{if } e = e'[i] \\
-\text{Root}(e') & \text{if } e = e' \mathord{\sim>} m(\ldots) \\
-\bot_{\text{boundary}} & \text{if } e = (*e')
-\end{cases}$$
-
-where $\bot_{\text{boundary}}$ indicates a **key boundary** introduced by pointer dereference.
+where ⊥_boundary indicates a **key boundary** introduced by pointer dereference.
 
 **Object Identity**
 
-The **identity** of a reference or pointer $r$, written $\text{id}(r)$, is a unique runtime value denoting the storage location referred to by $r$.
+The **identity** of a reference or pointer r, written id(r), is a unique runtime value denoting the storage location referred to by r.
 
 Implementations MUST ensure:
-1. **Uniqueness:** $\text{id}(r_1) = \text{id}(r_2)$ iff $r_1$ and $r_2$ refer to overlapping storage.
-2. **Stability:** $\text{id}(r)$ remains constant for the lifetime of the referent.
+1. **Uniqueness:** id(r_1) = id(r_2) iff r_1 and r_2 refer to overlapping storage.
+2. **Stability:** id(r) remains constant for the lifetime of the referent.
 3. **Opacity:** identities are not directly observable except through key semantics.
 
 **KeyPath Formation**
 
-Let $e$ be a place expression accessing `shared` data and let $e$’s field/index tail be $p_2.\ldots.p_n$.
+Let e be a place expression accessing `shared` data and let e’s field/index tail be p_2 … p_n.
 
-- **Lexical root case:** If $\text{Root}(e) = x$, then
+- **Lexical root case:** If Root(e) = x, then
+  KeyPath(e) = x.p_2 … p_n truncated by any type-level boundary.
 
-  $$\text{KeyPath}(e) = x.p_2.\ldots.p_n\ \text{truncated by any type-level boundary}.$$
-
-- **Boundary root case:** If $\text{Root}(e) = \bot_{\text{boundary}}$ and $e = (*e').p_2.\ldots.p_n$, then
-
-  $$\text{KeyPath}(e) = \text{id}(*e').p_2.\ldots.p_n\ \text{truncated by any type-level boundary}.$$
+- **Boundary root case:** If Root(e) = ⊥_boundary and e = (*e').p_2 … p_n, then
+  KeyPath(e) = id(*e').p_2 … p_n truncated by any type-level boundary.
 
 Type-level boundaries are defined in §17.2.4.
 
@@ -3142,8 +3983,8 @@ Type-level boundaries are defined in §17.2.4.
 A pointer dereference establishes a new key boundary. Key paths do not extend across pointer indirections.
 
 For `(*e').p` where `e' : shared Ptr<T>@Valid`:
-1. Dereferencing `e'` requires a key to $\text{KeyPath}(e')$ in Read mode.
-2. Accessing `.p` on the dereferenced value uses a fresh key rooted at $\text{id}(*e')$.
+1. Dereferencing `e'` requires a key to KeyPath(e') in Read mode.
+2. Accessing `.p` on the dereferenced value uses a fresh key rooted at id(*e').
 
 **Constraints**
 
@@ -3166,37 +4007,28 @@ For `(*e').p` where `e' : shared Ptr<T>@Valid`:
 
 **Covered Predicate**
 
-An access to path $Q$ requiring mode $M_Q$ is covered by the current key state if:
+An access to path Q requiring mode M_Q is covered by the current key state if:
 
-$$\text{Covered}(Q, M_Q, \Gamma_{\text{keys}}) \iff \exists (P, M_P, S) \in \Gamma_{\text{keys}} : \text{Prefix}(P, Q) \land \text{ModeSufficient}(M_P, M_Q)$$
+Covered(Q, M_Q, Γ_keys) ⇔ ∃ (P, M_P, S) ∈ Γ_keys : Prefix(P, Q) ∧ ModeSufficient(M_P, M_Q)
 
 **Acquisition Rules**
 
 **(K-Acquire-New)**
-$$\frac{
-    \Gamma \vdash P : \texttt{shared}\ T \quad
-    M = \text{RequiredMode}(P) \quad
-    \neg\text{Covered}(P, M, \Gamma_{\text{keys}}) \quad
-    S = \text{CurrentScope}
-}{
-    \Gamma'_{\text{keys}} = \Gamma_{\text{keys}} \cup \{(P, M, S)\}
-}$$
+Γ ⊢ P : `shared` T    M = RequiredMode(P)    ¬ Covered(P, M, Γ_keys)    S = CurrentScope
+──────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ'_keys = Γ_keys ∪ {(P, M, S)}
 
 **(K-Acquire-Covered)**
-$$\frac{
-    \Gamma \vdash P : \texttt{shared}\ T \quad
-    M = \text{RequiredMode}(P) \quad
-    \text{Covered}(P, M, \Gamma_{\text{keys}})
-}{
-    \Gamma'_{\text{keys}} = \Gamma_{\text{keys}}
-}$$
+Γ ⊢ P : `shared` T    M = RequiredMode(P)    Covered(P, M, Γ_keys)
+──────────────────────────────────────────────────────────────
+Γ'_keys = Γ_keys
 
 **Evaluation Order**
 
 Subexpressions are evaluated left-to-right, depth-first. Key acquisition follows evaluation order.
 
 **(K-Eval-Order)**
-$$\text{eval}(e_1 \oplus e_2) \longrightarrow \text{eval}(e_1);\ \text{eval}(e_2);\ \text{apply}(\oplus)$$
+eval(e_1 ⊕ e_2) → eval(e_1); eval(e_2); apply(⊕)
 
 **Constraints**
 
@@ -3210,11 +4042,9 @@ $$\text{eval}(e_1 \oplus e_2) \longrightarrow \text{eval}(e_1);\ \text{eval}(e_2
 **Static Semantics**
 
 **(K-Release-Scope)**
-$$\frac{
-    \text{ScopeExit}(S)
-}{
-    \Gamma'_{\text{keys}} = \Gamma_{\text{keys}} \setminus \{(P, M, S') : S' = S\}
-}$$
+ScopeExit(S)
+──────────────────────────────────────────────────────────────────
+Γ'_keys = Γ_keys \ {(P, M, S') : S' = S}
 
 **(K-Release-Order)**
 
@@ -3281,23 +4111,14 @@ release_modifier ::= "release" ("write" | "read")
 **Static Semantics**
 
 **(K-Block-Acquire)**
-$$\frac{
-    \Gamma \vdash P_1, \ldots, P_m : \texttt{shared}\ T_i \quad
-    M = \text{BlockMode}(B) \quad
-    (Q_1, \ldots, Q_m) = \text{CanonicalSort}(P_1, \ldots, P_m) \quad
-    S = \text{NewScope}
-}{
-    \Gamma_{\text{keys}}' = \Gamma_{\text{keys}} \cup \{(Q_i, M, S) : i \in 1..m\}
-}$$
+Γ ⊢ P_1, …, P_m : `shared` T_i    M = BlockMode(B)    (Q_1, …, Q_m) = CanonicalSort(P_1, …, P_m)    S = NewScope
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ'_keys = Γ_keys ∪ {(Q_i, M, S) : i ∈ 1..m}
 
 **(K-Read-Block-No-Write)**
-$$\frac{
-    \text{BlockMode}(B) = \text{Read} \quad
-    P \in \text{KeyedPaths}(B) \quad
-    \text{WriteOf}(P) \in \text{Body}(B)
-}{
-    \text{Emit}(\texttt{E-CON-0070})
-}$$
+BlockMode(B) = Read    P ∈ KeyedPaths(B)    WriteOf(P) ∈ Body(B)
+──────────────────────────────────────────────────────────────────────────────
+Emit(`E-CON-0070`)
 
 **Dynamic Semantics**
 
@@ -3335,13 +4156,9 @@ coarsened_path  ::= path_segment* "#" path_segment+
 **Static Semantics**
 
 **(K-Coarsen-Inline)**
-$$\frac{
-    P = p_1.\ldots.p_{k-1}.\#p_k.\ldots.p_n \quad
-    \Gamma \vdash P : \texttt{shared}\ T \quad
-    M = \text{RequiredMode}(P)
-}{
-    \text{AcquireKey}(p_1.\ldots.p_k, M, \Gamma_{\text{keys}})
-}$$
+P = p_1 … p_(k-1).#p_k … p_n    Γ ⊢ P : `shared` T    M = RequiredMode(P)
+────────────────────────────────────────────────────────────────────────────
+AcquireKey(p_1 … p_k, M, Γ_keys)
 
 **Type-Level Key Boundary**
 
@@ -3352,13 +4169,9 @@ key_field_decl      ::= "#"? visibility? identifier ":" type
 ```
 
 **(K-Type-Boundary)**
-$$\frac{
-    \Gamma \vdash r : R \quad
-    R.\text{fields} \ni (\#f : U) \quad
-    P = r.f.q_1.\ldots.q_n
-}{
-    \text{KeyPath}(P) = r.f
-}$$
+Γ ⊢ r : R    R.fields ∋ (#f : U)    P = r.f.q_1 … q_n
+────────────────────────────────────────────────────────────
+KeyPath(P) = r.f
 
 **Constraints**
 
@@ -3371,7 +4184,7 @@ $$\frac{
 
 **Classification**
 
-A closure expression $C$ is **local** if it appears only in:
+A closure expression C is **local** if it appears only in:
 1. Argument position of an immediate procedure or method call
 2. The body of a `spawn` expression
 3. The body of a `dispatch` expression
@@ -3382,7 +4195,7 @@ A closure is **escaping** if it is:
 2. Returned from a procedure
 3. Stored into a record or enum field
 
-Let $\text{SharedCaptures}(C)$ be the set of captured bindings with `shared` permission.
+Let SharedCaptures(C) be the set of captured bindings with `shared` permission.
 
 **Static Semantics**
 
@@ -3390,7 +4203,7 @@ Let $\text{SharedCaptures}(C)$ be the set of captured bindings with `shared` per
 
 For a local closure, key analysis treats the closure body as if it executed in the defining scope. Any access `x.p` where `x ∈ SharedCaptures(C)` uses lexical rooting (§17.1.7):
 
-$$\text{KeyPath}(C, x.p) = \text{KeyPath}(x.p)$$
+KeyPath(C, x.p) = KeyPath(x.p)
 
 Keys are acquired at invocation, not at definition.
 
@@ -3399,12 +4212,9 @@ Keys are acquired at invocation, not at definition.
 An escaping closure that captures `shared` bindings MUST carry a shared dependency set in its closure type (§12.4.3):
 
 **(K-Closure-Escape-Type)**
-$$\frac{
-    C\ \text{is escaping} \quad
-    \text{SharedCaptures}(C) = \{x_1, \ldots, x_n\}
-}{
-    \text{Type}(C) = |\vec{T}| \to R\ [\texttt{shared}: \{x_1 : \texttt{shared}\ T_1, \ldots, x_n : \texttt{shared}\ T_n\}]
-}$$
+C is escaping    SharedCaptures(C) = {x_1, …, x_n}
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Type(C) = |vec_T| → R [`shared`: {x_1 : `shared` T_1, …, x_n : `shared` T_n}]
 
 The dependency set MAY be inferred when the closure is assigned to a binding with an expected closure type; otherwise it MUST be written explicitly.
 
@@ -3413,14 +4223,11 @@ The dependency set MAY be inferred when the closure is assigned to a binding wit
 For an escaping closure, key paths are rooted at runtime identities of captured references:
 
 **(K-Closure-Escape-Keys)**
-$$\frac{
-    C : |\vec{T}| \to R\ [\texttt{shared}: \{x : \texttt{shared}\ T\}] \quad
-    \text{Access}(x.p, M) \in C.\text{body}
-}{
-    \text{KeyPath}(C, x.p) = \text{id}(C.x).p \quad \text{KeyMode} = M
-}$$
+C : |vec_T| → R [`shared`: {x : `shared` T}]    Access(x.p, M) ∈ C.body
+─────────────────────────────────────────────────────────────────────────────
+KeyPath(C, x.p) = id(C.x).p    KeyMode = M
 
-where $C.x$ denotes the captured reference to $x$ stored in the closure environment.
+where C.x denotes the captured reference to x stored in the closure environment.
 
 **Lifetime Constraint**
 
@@ -3437,8 +4244,8 @@ An escaping closure MUST NOT outlive any captured `shared` binding. Implementati
 
 **Escaping Closure Invocation**
 
-1. For each dependency $(x : shared\ T)$ in the closure type, let $r = C.x$.
-2. Acquire required keys for paths rooted at $\text{id}(r)$.
+1. For each dependency (x : shared T) in the closure type, let r = C.x.
+2. Acquire required keys for paths rooted at id(r).
 3. Execute the closure body.
 4. Release keys at the end of the invocation.
 
@@ -3457,14 +4264,12 @@ An escaping closure MUST NOT outlive any captured `shared` binding. Implementati
 
 A dynamic class object type may be qualified with `shared` permission only if every vtable-eligible procedure in the class (including inherited ones) has a `const` receiver (`~`):
 
-Let $\text{DynMethods}(Cl)$ denote the set of procedures callable via vtable dispatch on `$Cl` (i.e., vtable‑eligible and not marked `[[static_dispatch_only]]`).
+Let DynMethods(Cl) denote the set of procedures callable via vtable dispatch on `$Cl` (i.e., vtable‑eligible and not marked `[[static_dispatch_only]]`).
 
 **(K-Witness-Shared-WF)**
-$$\frac{
-    \forall m \in \text{DynMethods}(Cl).\ m.\text{receiver} = \texttt{\sim}
-}{
-    \Gamma \vdash \texttt{shared}\ \$Cl\ \text{wf}
-}$$
+∀ m ∈ DynMethods(Cl). m.receiver = `~`
+──────────────────────────────────────────────
+Γ ⊢ `shared` $Cl wf
 
 If any method requires `shared` (`~%`) or `unique` (`~!`) receiver permission, `shared $Cl` is ill‑formed. Such methods may still exist on `Cl` if they are excluded from dynamic dispatch via `[[static_dispatch_only]]`.
 
@@ -3472,7 +4277,7 @@ If any method requires `shared` (`~%`) or `unique` (`~!`) receiver permission, `
 
 For a call `e~>m(args)` where `e : shared $Cl`, the key mode is Read and the key path is the root of `e`:
 
-$$\text{KeyPath}(e~>m(\ldots)) = \text{Root}(e) \quad \text{KeyMode} = \text{Read}$$
+KeyPath(e~>m(...)) = Root(e)    KeyMode = Read
 
 **Constraints**
 
@@ -3490,23 +4295,23 @@ $$\text{KeyPath}(e~>m(\ldots)) = \text{Root}(e) \quad \text{KeyMode} = \text{Rea
 
 **Path Prefix**
 
-Path $P$ is a prefix of path $Q$ (written $\text{Prefix}(P, Q)$) if $P$ is an initial subsequence of $Q$:
+Path P is a prefix of path Q (written Prefix(P, Q)) if P is an initial subsequence of Q:
 
-$$\text{Prefix}(p_1.\ldots.p_m,\ q_1.\ldots.q_n) \iff m \leq n \land \forall i \in 1..m,\ p_i \equiv_{\text{seg}} q_i$$
+Prefix(p_1 … p_m, q_1 … q_n) ⇔ m ≤ n ∧ ∀ i ∈ 1..m, p_i ≡_seg q_i
 
 **Path Disjointness**
 
-Two paths $P$ and $Q$ are disjoint (written $\text{Disjoint}(P, Q)$) if neither is a prefix of the other:
+Two paths P and Q are disjoint (written Disjoint(P, Q)) if neither is a prefix of the other:
 
-$$\text{Disjoint}(P, Q) \iff \neg\text{Prefix}(P, Q) \land \neg\text{Prefix}(Q, P)$$
+Disjoint(P, Q) ⇔ ¬ Prefix(P, Q) ∧ ¬ Prefix(Q, P)
 
 **Segment Equivalence**
 
-$$p_i \equiv_{\text{seg}} q_i \iff \text{name}(p_i) = \text{name}(q_i) \land \text{IndexEquiv}(p_i, q_i)$$
+p_i ≡_seg q_i ⇔ name(p_i) = name(q_i) ∧ IndexEquiv(p_i, q_i)
 
 **Index Expression Equivalence**
 
-Two index expressions $e_1$ and $e_2$ are provably equivalent ($e_1 \equiv_{\text{idx}} e_2$) if:
+Two index expressions e_1 and e_2 are provably equivalent (e_1 ≡_idx e_2) if:
 
 1. Both are the same integer literal
 2. Both are references to the same `const` binding
@@ -3517,20 +4322,16 @@ Two index expressions $e_1$ and $e_2$ are provably equivalent ($e_1 \equiv_{\tex
 **Disjointness for Static Safety**
 
 **(K-Disjoint-Safe)**
-$$\frac{
-    \text{Disjoint}(P, Q)
-}{
-    \text{ConcurrentAccess}(P, Q) \text{ is statically safe}
-}$$
+Disjoint(P, Q)
+──────────────────────────────────────────────────
+ConcurrentAccess(P, Q) is statically safe
 
 **Prefix for Coverage**
 
 **(K-Prefix-Coverage)**
-$$\frac{
-    \text{Prefix}(P, Q) \quad \text{Held}(P, M, \Gamma_{\text{keys}})
-}{
-    \text{Covers}((P, M), Q)
-}$$
+Prefix(P, Q)    Held(P, M, Γ_keys)
+──────────────────────────────────
+Covers((P, M), Q)
 
 
 #### 17.3.2 Static Conflict Analysis
@@ -3541,25 +4342,20 @@ $$\frac{
 
 **Provable Disjointness for Indices**
 
-Two index expressions are provably disjoint ($\text{ProvablyDisjoint}(e_1, e_2)$) if:
+Two index expressions are provably disjoint (ProvablyDisjoint(e_1, e_2)) if:
 
 1. **Static Disjointness:** Both are statically resolvable with different values
-2. **Control Flow Facts:** A Verification Fact establishes $e_1 \neq e_2$
-3. **Contract-Based:** A precondition asserts $e_1 \neq e_2$
+2. **Control Flow Facts:** A Verification Fact establishes e_1 ≠ e_2
+3. **Contract-Based:** A precondition asserts e_1 ≠ e_2
 4. **Refinement Types:** An index has a refinement type constraining its relationship
 5. **Algebraic Offset:** Expressions share a common base but differ by constant offsets
 6. **Dispatch Iteration:** Within a `dispatch` block, accesses indexed by the iteration variable are automatically disjoint
 7. **Disjoint Loop Ranges:** Iteration variables from loops with non-overlapping ranges
 
 **(K-Dynamic-Index-Conflict)**
-$$\frac{
-    P_1 = a[e_1] \quad P_2 = a[e_2] \quad
-    \text{SameStatement}(P_1, P_2) \quad
-    (\text{Dynamic}(e_1) \lor \text{Dynamic}(e_2)) \quad
-    \neg\text{ProvablyDisjoint}(e_1, e_2)
-}{
-    \text{Emit}(\texttt{E-CON-0010})
-}$$
+P_1 = a[e_1]    P_2 = a[e_2]    SameStatement(P_1, P_2)    (Dynamic(e_1) ∨ Dynamic(e_2))    ¬ ProvablyDisjoint(e_1, e_2)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Emit(`E-CON-0010`)
 
 **Constraints**
 
@@ -3574,25 +4370,17 @@ $$\frac{
 
 **Formal Definition**
 
-$$\text{ReadThenWrite}(P, S) \iff \exists e_r, e_w \in \text{Subexpressions}(S) : \text{ReadsPath}(e_r, P) \land \text{WritesPath}(e_w, P)$$
+ReadThenWrite(P, S) ⇔ ∃ e_r, e_w ∈ Subexpressions(S) : ReadsPath(e_r, P) ∧ WritesPath(e_w, P)
 
 **(K-Read-Write-Reject)**
-$$\frac{
-    \Gamma \vdash P : \texttt{shared}\ T \quad
-    \text{ReadThenWrite}(P, S) \quad
-    \neg\exists (Q, \text{Write}, S') \in \Gamma_{\text{keys}} : \text{Prefix}(Q, P)
-}{
-    \text{Emit}(\texttt{E-CON-0060})
-}$$
+Γ ⊢ P : `shared` T    ReadThenWrite(P, S)    ¬ ∃ (Q, Write, S') ∈ Γ_keys : Prefix(Q, P)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Emit(`E-CON-0060`)
 
 **(K-RMW-Permitted)**
-$$\frac{
-    \Gamma \vdash P : \texttt{shared}\ T \quad
-    \text{ReadThenWrite}(P, S) \quad
-    \exists (Q, \text{Write}, S') \in \Gamma_{\text{keys}} : \text{Prefix}(Q, P)
-}{
-    \text{Permitted}
-}$$
+Γ ⊢ P : `shared` T    ReadThenWrite(P, S)    ∃ (Q, Write, S') ∈ Γ_keys : Prefix(Q, P)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Permitted
 
 **Pattern Classification**
 
@@ -3627,16 +4415,14 @@ The `release` modifier enables mode transitions in nested blocks:
 **Static Semantics**
 
 **(K-Nested-Same-Path)**
-$$\frac{
-    \text{Held}(P, M_{\text{outer}}, \Gamma_{\text{keys}}) \quad
-    \#P\ M_{\text{inner}}\ \{\ \ldots\ \}
-}{
-    \begin{cases}
-    \text{Covered (no acquisition)} & \text{if } M_{\text{inner}} = M_{\text{outer}} \\
-    \text{Release-and-Reacquire per §17.4.1} & \text{if } M_{\text{inner}} \neq M_{\text{outer}} \land \texttt{release} \in \text{modifiers} \\
-    \text{Emit}(\texttt{E-CON-0012}) & \text{if } M_{\text{inner}} \neq M_{\text{outer}} \land \texttt{release} \notin \text{modifiers}
-    \end{cases}
-}$$
+Held(P, M_outer, Γ_keys)    #P M_inner { ... }
+──────────────────────────────────────────────────────────────
+if M_inner = M_outer:
+ Covered (no acquisition)
+otherwise if M_inner ≠ M_outer ∧ `release` ∈ modifiers:
+ Release-and-Reacquire per §17.4.1
+otherwise:
+ Emit(`E-CON-0012`)
 
 **Dynamic Semantics**
 
@@ -3651,18 +4437,13 @@ When entering `#path release <target> { body }`:
 5. **Reacquire:** Acquire the outer mode key for the enclosing block's remaining scope
 
 **(K-Release-Sequence)**
-$$\frac{
-    \text{Held}(P, M_{\text{outer}}, S_{\text{outer}}) \quad
-    \#P\ \texttt{release}\ M_{\text{inner}}\ \{\ B\ \}
-}{
-    \begin{array}{l}
-    \text{Release}(P, \Gamma_{\text{keys}});\
-    \text{Acquire}(P, M_{\text{inner}}, S_{\text{inner}});\
-    \text{Eval}(B);\ \\
-    \text{Release}(P, \Gamma_{\text{keys}});\
-    \text{Acquire}(P, M_{\text{outer}}, S_{\text{outer}})
-    \end{array}
-}$$
+Held(P, M_outer, S_outer)    #P `release` M_inner { B }
+────────────────────────────────────────────────────────────
+Release(P, Γ_keys);
+Acquire(P, M_inner, S_inner);
+Eval(B);
+Release(P, Γ_keys);
+Acquire(P, M_outer, S_outer)
 
 **Interleaving Windows**
 
@@ -3684,24 +4465,17 @@ Between steps 1 and 2 (entry), and between steps 4 and 5 (exit), other tasks MAY
 **Static Semantics**
 
 **(K-Reentrant)**
-$$\frac{
-    \text{Held}(P, M, \Gamma_{\text{keys}}) \quad
-    \text{Prefix}(P, Q) \quad
-    \text{CalleeAccesses}(Q)
-}{
-    \text{CalleeCovered}(Q)
-}$$
+Held(P, M, Γ_keys)    Prefix(P, Q)    CalleeAccesses(Q)
+──────────────────────────────────────────────────────────
+CalleeCovered(Q)
 
 **(K-Procedure-Boundary)**
 
 Passing a `shared` value as a procedure argument does not constitute key acquisition:
 
-$$\frac{
-    \Gamma \vdash f : (\texttt{shared}\ T) \to R \quad
-    \Gamma \vdash v : \texttt{shared}\ T
-}{
-    \text{call}(f, v) \longrightarrow \text{no key acquisition at call site}
-}$$
+Γ ⊢ f : (`shared` T) → R    Γ ⊢ v : `shared` T
+──────────────────────────────────────────────────────────────
+call(f, v) → no key acquisition at call site
 
 **Constraints**
 
@@ -3724,19 +4498,14 @@ speculative_block ::= "#" path_list "speculative" "write" block
 **Static Semantics**
 
 **(K-Spec-Write-Required)**
-$$\frac{
-    \#P\ \texttt{speculative}\ M\ \{B\} \quad M \neq \texttt{write}
-}{
-    \text{Emit}(\texttt{E-CON-0095})
-}$$
+#P `speculative` M {B}    M ≠ `write`
+────────────────────────────────────────
+Emit(`E-CON-0095`)
 
 **(K-Spec-Pure-Body)**
-$$\frac{
-    \#P\ \texttt{speculative write}\ \{B\} \quad
-    \text{Writes}(B) \not\subseteq \text{CoveredPaths}(P)
-}{
-    \text{Emit}(\texttt{E-CON-0091})
-}$$
+#P `speculative write` {B}    Writes(B) ⊄ CoveredPaths(P)
+──────────────────────────────────────────────────────────
+Emit(`E-CON-0091`)
 
 **Permitted Operations**
 
@@ -3754,33 +4523,30 @@ $$\frac{
 - `defer` statements
 
 **(K-Spec-No-Nested-Key)**
-$$\frac{
-    \#P\ \texttt{speculative write}\ \{B\} \quad
-    \#Q\ \_\ \{\ldots\} \in \text{Subexpressions}(B)
-}{
-    \text{Emit}(\texttt{E-CON-0090})
-}$$
+#P `speculative write` {B}    #Q _ {…} ∈ Subexpressions(B)
+──────────────────────────────────────────────────────────
+Emit(`E-CON-0090`)
 
 
 #### 17.5.2 Snapshot-Execute-Commit Cycle
 
-**Speculative Commit.** $\text{SpeculativeCommit}(R, W) \iff \text{Atomic}\left(\bigwedge_{(p,v) \in R} p = v \implies \bigwedge_{(q,w) \in W} q := w\right)$
+**Speculative Commit.** SpeculativeCommit(R, W) ⇔ Atomic(⋀_((p, v) ∈ R) p = v ⇒ ⋀_((q, w) ∈ W) q := w)
 
 **Dynamic Semantics**
 
 **Execution Model**
 
-1. **Initialize**: Set $\text{retries} := 0$
-2. **Snapshot**: Read all paths in the keyed set, recording $(path, value)$ pairs in read set $R$
-3. **Execute**: Evaluate $body$, collecting writes in write set $W$
-4. **Commit**: Atomically verify $\bigwedge_{(p,v) \in R} (\text{current}(p) = v)$ and, if true, apply all writes in $W$
-5. **On success**: Return the value of $body$
-6. **On failure**: Increment $\text{retries}$; if below limit, goto step 2; otherwise fallback
-7. **Fallback**: Acquire a blocking Write key, execute $body$, release key, return value
+1. **Initialize**: Set retries := 0
+2. **Snapshot**: Read all paths in the keyed set, recording (path, value) pairs in read set R
+3. **Execute**: Evaluate body, collecting writes in write set W
+4. **Commit**: Atomically verify ⋀_((p, v) ∈ R) (current(p) = v) and, if true, apply all writes in W
+5. **On success**: Return the value of body
+6. **On failure**: Increment retries; if below limit, goto step 2; otherwise fallback
+7. **Fallback**: Acquire a blocking Write key, execute body, release key, return value
 
 **Retry Limit**
 
-$\text{MAX\_SPECULATIVE\_RETRIES}$ is IDB.
+`MAX_SPECULATIVE_RETRIES` is IDB.
 
 **Interaction with Blocking Keys**
 
@@ -3803,7 +4569,7 @@ The snapshot step (2) MUST be observationally equivalent to an atomic snapshot o
 
 If a panic occurs during execution (step 3):
 
-1. The write set $W$ is discarded (no writes are committed)
+1. The write set W is discarded (no writes are committed)
 2. No key is held (nothing to release)
 3. The panic propagates normally
 
@@ -3839,28 +4605,19 @@ If a panic occurs during execution (step 3):
 | **Speculative-only**   | All accesses within speculative blocks with fallback        | K-SS-6 |
 
 **(K-Static-Safe)**
-$$\frac{
-    \text{Access}(P, M) \quad
-    \text{StaticallySafe}(P)
-}{
-    \text{NoRuntimeSync}(P)
-}$$
+Access(P, M)    StaticallySafe(P)
+────────────────────────────────
+NoRuntimeSync(P)
 
 **(K-Static-Required)**
-$$\frac{
-    \neg\text{StaticallySafe}(P) \quad
-    \neg\text{InDynamicContext}
-}{
-    \text{Emit}(\texttt{E-CON-0020})
-}$$
+¬ StaticallySafe(P)    ¬ InDynamicContext
+──────────────────────────────────────────
+Emit(`E-CON-0020`)
 
 **(K-Dynamic-Permitted)**
-$$\frac{
-    \neg\text{StaticallySafe}(P) \quad
-    \text{InDynamicContext}
-}{
-    \text{EmitRuntimeSync}(P)
-}$$
+¬ StaticallySafe(P)    InDynamicContext
+────────────────────────────────────────
+EmitRuntimeSync(P)
 
 **Constraints**
 
@@ -3884,7 +4641,7 @@ When runtime synchronization is required:
 
 A canonical order on paths defines deterministic acquisition order:
 
-$$P <_{\text{canon}} Q \iff \exists k \geq 1 : (\forall i < k,\ p_i =_{\text{seg}} q_i) \land (p_k <_{\text{seg}} q_k \lor (k > m \land m < n))$$
+P <_canon Q ⇔ ∃ k ≥ 1 : (∀ i < k, p_i =_seg q_i) ∧ (p_k <_seg q_k ∨ (k > m ∧ m < n))
 
 **Segment Ordering**
 
@@ -3896,15 +4653,15 @@ $$P <_{\text{canon}} Q \iff \exists k \geq 1 : (\forall i < k,\ p_i =_{\text{seg
 
 Within `[[dynamic]]` scope, incomparable dynamic indices require runtime ordering satisfying:
 
-1. **Totality**: For distinct paths $P$ and $Q$, exactly one of $\text{DynOrder}(P, Q)$ or $\text{DynOrder}(Q, P)$ holds
-2. **Antisymmetry**: $\text{DynOrder}(P, Q) \land \text{DynOrder}(Q, P) \implies P = Q$
-3. **Transitivity**: $\text{DynOrder}(P, Q) \land \text{DynOrder}(Q, R) \implies \text{DynOrder}(P, R)$
+1. **Totality**: For distinct paths P and Q, exactly one of DynOrder(P, Q) or DynOrder(Q, P) holds
+2. **Antisymmetry**: DynOrder(P, Q) ∧ DynOrder(Q, P) ⇒ P = Q
+3. **Transitivity**: DynOrder(P, Q) ∧ DynOrder(Q, R) ⇒ DynOrder(P, R)
 4. **Cross-Task Consistency**: All tasks compute the same ordering
 5. **Value-Determinism**: Ordering depends only on runtime values, not timing
 
 **Observational Equivalence**
 
-$$\forall P : \text{Observable}(\text{StaticSafe}(P)) = \text{Observable}(\text{RuntimeSync}(P))$$
+∀ P : Observable(StaticSafe(P)) = Observable(RuntimeSync(P))
 
 **Constraints**
 
@@ -3985,7 +4742,7 @@ fence(seq_cst)
 
 #### 18.1.1 `parallel` Block Syntax
 
-**Parallel Block.** A scope within which work executes concurrently across multiple workers. A parallel block $P$ is defined as $P = (D, A, B)$ where $D$ is the execution domain expression, $A$ is the set of block options, and $B$ is the block body.
+**Parallel Block.** A scope within which work executes concurrently across multiple workers. A parallel block P is defined as P = (D, A, B) where D is the execution domain expression, A is the set of block options, and B is the block body.
 
 **Syntax**
 
@@ -4011,13 +4768,9 @@ block             ::= "{" statement* "}"
 
 **Typing Rule**
 
-$$\frac{
-  \Gamma \vdash D : \text{\$ExecutionDomain} \quad
-  \Gamma_P = \Gamma[\text{parallel\_context} \mapsto D] \quad
-  \Gamma_P \vdash B : T
-}{
-  \Gamma \vdash \texttt{parallel } D\ \{B\} : T
-} \quad \text{(T-Parallel)}$$
+Γ ⊢ D : `$ExecutionDomain`    Γ_P = Γ[parallel_context ↦ D]    Γ_P ⊢ B : T
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ `parallel` D {B} : T    (T-Parallel)
 
 **Well-Formedness**
 
@@ -4035,16 +4788,16 @@ A parallel block is well-formed if and only if:
 
 #### 18.1.2 Fork-Join Semantics
 
-**Structured Concurrency Invariant.** Let $\mathcal{W}$ denote the set of work items spawned within a parallel block $P$: $\forall w \in \mathcal{W}.\ \text{lifetime}(w) \subseteq \text{lifetime}(P)$. A **work item** is a unit of computation queued for execution by a worker (created by `spawn` and `dispatch` expressions). A **worker** is an execution context that executes work items. A **task** is the runtime representation of a work item during execution; tasks may suspend and resume, and are associated with key state per §17.1.
+**Structured Concurrency Invariant.** Let 𝒲 denote the set of work items spawned within a parallel block P: ∀ w ∈ 𝒲. lifetime(w) ⊆ lifetime(P). A **work item** is a unit of computation queued for execution by a worker (created by `spawn` and `dispatch` expressions). A **worker** is an execution context that executes work items. A **task** is the runtime representation of a work item during execution; tasks may suspend and resume, and are associated with key state per §17.1.
 
 **Dynamic Semantics**
 
 Evaluation of `parallel D [opts] { B }`:
 
-1. Evaluate domain expression $D$ to obtain $d$.
-2. Initialize the worker pool according to $d$'s configuration.
+1. Evaluate domain expression D to obtain d.
+2. Initialize the worker pool according to d's configuration.
 3. If the `cancel` option is present, associate its token with the block.
-4. Evaluate statements in $B$ sequentially; `spawn` and `dispatch` expressions enqueue work items.
+4. Evaluate statements in B sequentially; `spawn` and `dispatch` expressions enqueue work items.
 5. Block at the closing brace until all enqueued work items complete.
 6. If any work item panicked, propagate the first panic (by completion order) after all work settles.
 7. Release workers back to the domain.
@@ -4064,29 +4817,24 @@ Work items complete in Unspecified order. The parallel block guarantees only tha
 | Block Contents                     | Result Type          |
 | :--------------------------------- | :------------------- |
 | No `spawn` or `dispatch`           | `()`                 |
-| Single `spawn { e }` where $e : T$ | $T$                  |
-| Multiple spawns $e_1, \ldots, e_n$ | $(T_1, \ldots, T_n)$ |
-| `dispatch` without `[reduce]`      | `()`                 |
-| `dispatch ... [reduce: op] { e }`  | $T$ where $e : T$    |
+| Single `spawn { e }` where e : T | T                   |
+| Multiple spawns e_1, …, e_n     | (T_1, …, T_n)        |
+| `dispatch` without `[reduce]`    | `()`                 |
+| `dispatch ... [reduce: op] { e }`| T where e : T        |
 | Mixed spawns and reducing dispatch | Tuple of all results |
 
 **Typing Rules**
 
-$$\frac{
-  \Gamma \vdash \texttt{parallel } D\ \{\}\ : ()
-}{} \quad \text{(T-Parallel-Empty)}$$
+────────────────────────────────────────────
+Γ ⊢ `parallel` D {} : ()    (T-Parallel-Empty)
 
-$$\frac{
-  \Gamma \vdash \texttt{spawn } \{e\} : \text{SpawnHandle}\langle T \rangle
-}{
-  \Gamma \vdash \texttt{parallel } D\ \{\texttt{spawn } \{e\}\} : T
-} \quad \text{(T-Parallel-Single)}$$
+Γ ⊢ `spawn` {e} : SpawnHandle⟨T⟩
+────────────────────────────────────────────────────────
+Γ ⊢ `parallel` D {`spawn` {e}} : T    (T-Parallel-Single)
 
-$$\frac{
-  \Gamma \vdash \texttt{spawn } \{e_i\} : \text{SpawnHandle}\langle T_i \rangle \quad \forall i \in 1..n
-}{
-  \Gamma \vdash \texttt{parallel } D\ \{\texttt{spawn } \{e_1\}; \ldots; \texttt{spawn } \{e_n\}\} : (T_1, \ldots, T_n)
-} \quad \text{(T-Parallel-Multi)}$$
+Γ ⊢ `spawn` {e_i} : SpawnHandle⟨T_i⟩    ∀ i ∈ 1..n
+──────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ `parallel` D {`spawn` {e_1}; …; `spawn` {e_n}} : (T_1, …, T_n)    (T-Parallel-Multi)
 
 
 ### 18.2 Execution Domains
@@ -4126,7 +4874,7 @@ ctx.inline()
 
 **Dynamic Semantics**
 
-- `spawn { e }` evaluates $e$ immediately and blocks until complete.
+- `spawn { e }` evaluates e immediately and blocks until complete.
 - `dispatch i in range { e }` executes as a sequential loop.
 - No actual parallelism occurs.
 - All capture rules and permission requirements remain enforced.
@@ -4211,12 +4959,9 @@ spawn_option       ::= "name" ":" string_literal
 
 **Typing Rule**
 
-$$\frac{
-  \Gamma[\text{parallel\_context}] = D \quad
-  \Gamma_{\text{capture}} \vdash e : T
-}{
-  \Gamma \vdash \texttt{spawn}\ \{e\} : \text{SpawnHandle}\langle T \rangle
-} \quad \text{(T-Spawn)}$$
+Γ[parallel_context] = D    Γ_capture ⊢ e : T
+────────────────────────────────────────────────────────────
+Γ ⊢ `spawn` {e} : SpawnHandle⟨T⟩    (T-Spawn)
 
 **Constraints**
 
@@ -4239,10 +4984,10 @@ modal SpawnHandle<T> {
 Evaluation of `spawn [attrs] { e }`:
 
 1. Capture free variables from enclosing scope per §18.3.
-2. Package the captured environment with expression $e$ into a work item.
+2. Package the captured environment with expression e into a work item.
 3. Enqueue the work item to the parallel block's worker pool.
 4. Return `SpawnHandle<T>@Pending` immediately (non-blocking).
-5. A worker eventually dequeues and evaluates $e$.
+5. A worker eventually dequeues and evaluates e.
 6. Upon completion, the handle transitions to `@Ready` with the result value.
 
 
@@ -4299,22 +5044,15 @@ reduce_op       ::= "+" | "*" | "min" | "max" | "and" | "or" | identifier
 
 **Typing Rule (Without Reduction)**
 
-$$\frac{
-  \Gamma \vdash \text{range} : \text{Range}\langle I \rangle \quad
-  \Gamma, i : I \vdash B : T
-}{
-  \Gamma \vdash \texttt{dispatch } i \texttt{ in range } \{B\} : ()
-} \quad \text{(T-Dispatch)}$$
+Γ ⊢ range : Range⟨I⟩    Γ, i : I ⊢ B : T
+──────────────────────────────────────────────────────────
+Γ ⊢ `dispatch` i `in range` {B} : ()    (T-Dispatch)
 
 **Typing Rule (With Reduction)**
 
-$$\frac{
-  \Gamma \vdash \text{range} : \text{Range}\langle I \rangle \quad
-  \Gamma, i : I \vdash B : T \quad
-  \Gamma \vdash \oplus : (T, T) \to T
-}{
-  \Gamma \vdash \texttt{dispatch } i \texttt{ in range [reduce: } \oplus \texttt{] } \{B\} : T
-} \quad \text{(T-Dispatch-Reduce)}$$
+Γ ⊢ range : Range⟨I⟩    Γ, i : I ⊢ B : T    Γ ⊢ ⊕ : (T, T) → T
+─────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ `dispatch` i `in range [reduce: ⊕]` {B} : T    (T-Dispatch-Reduce)
 
 **Constraints**
 
@@ -4327,7 +5065,7 @@ $$\frac{
 
 Evaluation of `dispatch i in range [attrs] { B }`:
 
-1. Evaluate `range` to determine iteration count $n$.
+1. Evaluate `range` to determine iteration count n.
 2. Analyze key patterns to partition iterations into conflict-free groups.
 3. For each group, enqueue iterations as work items to the worker pool.
 4. Workers execute iterations, acquiring keys as needed per §17.2.
@@ -4339,7 +5077,7 @@ Evaluation of `dispatch i in range [attrs] { B }`:
 
 Reduction operators MUST be associative:
 
-$$\forall a, b, c.\ (a \oplus b) \oplus c = a \oplus (b \oplus c)$$
+∀ a, b, c. (a ⊕ b) ⊕ c = a ⊕ (b ⊕ c)
 
 For non-associative operations, the `[ordered]` attribute is required, which forces sequential execution.
 
@@ -4370,19 +5108,17 @@ When no key clause is provided, the body is analyzed to infer key paths and mode
 
 **Disjointness Guarantee**
 
-$$\frac{
-  \texttt{dispatch}\ v\ \texttt{in}\ r\ \{\ \ldots\ a[v]\ \ldots\ \}
-}{
-  \forall v_1, v_2 \in r,\ v_1 \neq v_2 \implies \text{ProvablyDisjoint}(a[v_1], a[v_2])
-} \quad \text{(K-Disjoint-Dispatch)}$$
+`dispatch` v `in` r { … a[v] … }
+────────────────────────────────────────────────────────────
+∀ v_1, v_2 ∈ r, v_1 ≠ v_2 ⇒ ProvablyDisjoint(a[v_1], a[v_2])    (K-Disjoint-Dispatch)
 
 **Parallelism Determination**
 
 | Key Pattern   | Keys Generated      | Parallelism Degree    |
 | :------------ | :------------------ | :-------------------- |
-| `data[i]`     | $n$ distinct keys   | Full parallel         |
-| `data[i / 2]` | $n/2$ distinct keys | Pairs serialize       |
-| `data[i % k]` | $k$ distinct keys   | $k$-way parallel      |
+| `data[i]`     | n distinct keys     | Full parallel         |
+| `data[i / 2]` | n/2 distinct keys   | Pairs serialize       |
+| `data[i % k]` | k distinct keys     | k-way parallel        |
 | `data[f(i)]`  | Unknown at compile  | Runtime serialization |
 
 

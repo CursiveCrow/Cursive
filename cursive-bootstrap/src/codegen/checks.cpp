@@ -70,6 +70,26 @@ std::vector<std::string> PoisonSetFor(const std::string& module_path,
   return out;
 }
 
+IRValue StringImmediate(std::string_view text) {
+  IRValue value;
+  value.kind = IRValue::Kind::Immediate;
+  value.name = "\"" + std::string(text) + "\"";
+  value.bytes.assign(text.begin(), text.end());
+  return value;
+}
+
+IRPtr EmitRuntimeTrace(std::string_view rule_id) {
+  if (rule_id.empty()) {
+    return EmptyIR();
+  }
+  IRCall call;
+  call.callee.kind = IRValue::Kind::Symbol;
+  call.callee.name = RuntimeSpecTraceEmitSym();
+  call.args.push_back(StringImmediate(rule_id));
+  call.args.push_back(StringImmediate(""));
+  return MakeIR(std::move(call));
+}
+
 }  // namespace
 
 
@@ -330,7 +350,9 @@ IRPtr LowerPanic(PanicReason reason, LowerCtx& ctx) {
   panic_ir.reason = PanicReasonString(reason);
   CleanupPlan cleanup_plan = ComputeCleanupPlanToFunctionRoot(ctx);
   panic_ir.cleanup_ir = EmitCleanupOnPanic(cleanup_plan, ctx);
-  return MakeIR(panic_ir);
+  IRPtr trace_ir = EmitRuntimeTrace("LowerPanic");
+  IRPtr panic_node = MakeIR(panic_ir);
+  return SeqIR({trace_ir, panic_node});
 }
 
 // §6.8 ClearPanic - emit IR to clear panic flag
@@ -345,7 +367,9 @@ IRPtr PanicCheck(LowerCtx& ctx) {
   IRPanicCheck check;
   CleanupPlan cleanup_plan = ComputeCleanupPlanToFunctionRoot(ctx);
   check.cleanup_ir = EmitCleanupOnPanic(cleanup_plan, ctx);
-  return MakeIR(check);
+  IRPtr trace_ir = EmitRuntimeTrace("PanicCheck");
+  IRPtr check_node = MakeIR(check);
+  return SeqIR({trace_ir, check_node});
 }
 
 // §6.8 InitPanicHandle - module init panic handling
@@ -354,7 +378,9 @@ IRPtr InitPanicHandle(const std::string& module_path, LowerCtx& ctx) {
   IRInitPanicHandle handle;
   handle.module = module_path;
   handle.poison_modules = PoisonSetFor(module_path, ctx);
-  return MakeIR(handle);
+  IRPtr trace_ir = EmitRuntimeTrace("InitPanicHandle");
+  IRPtr handle_node = MakeIR(handle);
+  return SeqIR({trace_ir, handle_node});
 }
 
 // Helper to create a sequence of IR nodes

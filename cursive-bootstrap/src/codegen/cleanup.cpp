@@ -71,6 +71,53 @@ static bool IsPlaceExprLite(const syntax::ExprPtr& expr) {
       expr->node);
 }
 
+struct CleanupTraceIds {
+  const char* ok;
+  const char* panic;
+  const char* abort;
+};
+
+static std::optional<CleanupTraceIds> CleanupTraceIdsFor(const CleanupAction& action) {
+  switch (action.kind) {
+    case CleanupAction::Kind::RunDefer:
+      return CleanupTraceIds{
+          "Cleanup-Step-Defer-Ok",
+          "Cleanup-Step-Defer-Panic",
+          "Cleanup-Step-Defer-Abort",
+      };
+    case CleanupAction::Kind::DropVar:
+    case CleanupAction::Kind::DropTemp:
+    case CleanupAction::Kind::DropField:
+    case CleanupAction::Kind::ReleaseRegion:
+      return CleanupTraceIds{
+          "Cleanup-Step-Drop-Ok",
+          "Cleanup-Step-Drop-Panic",
+          "Cleanup-Step-Drop-Abort",
+      };
+  }
+  return std::nullopt;
+}
+
+static IRValue StringImmediate(std::string_view text) {
+  IRValue value;
+  value.kind = IRValue::Kind::Immediate;
+  value.name = "\"" + std::string(text) + "\"";
+  value.bytes.assign(text.begin(), text.end());
+  return value;
+}
+
+static IRPtr EmitRuntimeTrace(std::string_view rule_id) {
+  if (rule_id.empty()) {
+    return EmptyIR();
+  }
+  IRCall call;
+  call.callee.kind = IRValue::Kind::Symbol;
+  call.callee.name = RuntimeSpecTraceEmitSym();
+  call.args.push_back(StringImmediate(rule_id));
+  call.args.push_back(StringImmediate(""));
+  return MakeIR(std::move(call));
+}
+
 static std::optional<StaticBindFlags> StaticBindFlagsFor(
     const syntax::ModulePath& module_path,
     const std::string& name,
@@ -467,7 +514,7 @@ static IRPtr EmitCleanupImpl(const CleanupPlan& plan,
   SPEC_RULE("EmitCleanup");
 
   if (plan.empty()) {
-    return EmptyIR();
+    return EmitRuntimeTrace("Cleanup-Empty");
   }
 
   const PanicAccess access = BuildPanicAccess(ctx);
@@ -483,11 +530,14 @@ static IRPtr EmitCleanupImpl(const CleanupPlan& plan,
     panic_code = snapshot.code;
   }
 
+  parts.push_back(EmitRuntimeTrace("Cleanup-Start"));
+
   for (const auto& action : plan) {
     IRPtr action_ir = EmitCleanupAction(action, ctx);
     if (IsNoopIR(action_ir)) {
       continue;
     }
+    const auto trace_ids = CleanupTraceIdsFor(action);
 
     // Clear panic before running each cleanup action.
     parts.push_back(MakeIR(IRClearPanic{}));
@@ -498,6 +548,14 @@ static IRPtr EmitCleanupImpl(const CleanupPlan& plan,
     parts.push_back(snapshot.ir);
     IRValue flag = snapshot.flag;
     IRValue code = snapshot.code;
+    IRPtr abort_trace = EmptyIR();
+    IRPtr panic_trace = EmptyIR();
+    IRPtr ok_trace = EmptyIR();
+    if (trace_ids.has_value()) {
+      abort_trace = EmitRuntimeTrace(trace_ids->abort);
+      panic_trace = EmitRuntimeTrace(trace_ids->panic);
+      ok_trace = EmitRuntimeTrace(trace_ids->ok);
+    }
 
     // Double panic: abort.
     IRValue double_cond = ctx.FreshTempValue("double_panic");
@@ -516,12 +574,43 @@ static IRPtr EmitCleanupImpl(const CleanupPlan& plan,
 
     IRIf if_double;
     if_double.cond = double_cond;
-    if_double.then_ir = MakeIR(std::move(panic_call));
+    IRPtr panic_ir = MakeIR(std::move(panic_call));
+    if (IsNoopIR(abort_trace)) {
+      if_double.then_ir = panic_ir;
+    } else {
+      if_double.then_ir = SeqIR({abort_trace, panic_ir});
+    }
     if_double.then_value = UnitValue();
     if_double.else_ir = EmptyIR();
     if_double.else_value = UnitValue();
     if_double.result = ctx.FreshTempValue("panic_double_if");
     parts.push_back(MakeIR(std::move(if_double)));
+
+    if (!IsNoopIR(panic_trace)) {
+      IRValue not_panicking = ctx.FreshTempValue("panic_not_panicking");
+      IRUnaryOp not_panicking_op;
+      not_panicking_op.op = "!";
+      not_panicking_op.operand = panicking;
+      not_panicking_op.result = not_panicking;
+      parts.push_back(MakeIR(std::move(not_panicking_op)));
+
+      IRValue panic_cond = ctx.FreshTempValue("cleanup_panic");
+      IRBinaryOp panic_and;
+      panic_and.op = "&&";
+      panic_and.lhs = flag;
+      panic_and.rhs = not_panicking;
+      panic_and.result = panic_cond;
+      parts.push_back(MakeIR(std::move(panic_and)));
+
+      IRIf if_panic;
+      if_panic.cond = panic_cond;
+      if_panic.then_ir = panic_trace;
+      if_panic.then_value = UnitValue();
+      if_panic.else_ir = EmptyIR();
+      if_panic.else_value = UnitValue();
+      if_panic.result = ctx.FreshTempValue("cleanup_panic_if");
+      parts.push_back(MakeIR(std::move(if_panic)));
+    }
 
     // Restore panic record when continuing cleanup during a panic.
     IRValue not_flag = ctx.FreshTempValue("panic_clear");
@@ -530,6 +619,17 @@ static IRPtr EmitCleanupImpl(const CleanupPlan& plan,
     not_op.operand = flag;
     not_op.result = not_flag;
     parts.push_back(MakeIR(std::move(not_op)));
+
+    if (!IsNoopIR(ok_trace)) {
+      IRIf if_ok;
+      if_ok.cond = not_flag;
+      if_ok.then_ir = ok_trace;
+      if_ok.then_value = UnitValue();
+      if_ok.else_ir = EmptyIR();
+      if_ok.else_value = UnitValue();
+      if_ok.result = ctx.FreshTempValue("cleanup_ok_if");
+      parts.push_back(MakeIR(std::move(if_ok)));
+    }
 
     IRValue restore_cond = ctx.FreshTempValue("panic_restore");
     IRBinaryOp restore_and;
@@ -571,6 +671,8 @@ static IRPtr EmitCleanupImpl(const CleanupPlan& plan,
     parts.push_back(MakeIR(std::move(code_if)));
     panic_code = new_code;
   }
+
+  parts.push_back(EmitRuntimeTrace("Cleanup-Done"));
 
   if (emit_panic_check) {
     IRPanicCheck check;

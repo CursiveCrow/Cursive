@@ -109,7 +109,7 @@ def _regen_test(interpreter: Path, test_root: Path) -> tuple[bool, str]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--interpreter", required=True)
-    parser.add_argument("--tests-root", default="tests/e2e")
+    parser.add_argument("--tests-root", default="tests/semantics_oracle")
     parser.add_argument("--test", action="append", default=[])
     args = parser.parse_args()
 

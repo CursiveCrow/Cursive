@@ -307,6 +307,14 @@ std::string ContextInitSym() {
 }
 
 // ============================================================================
+// Spec trace emission symbol
+// ============================================================================
+
+std::string RuntimeSpecTraceEmitSym() {
+  return core::PathSig({"cursive", "runtime", "spec_trace", "emit"});
+}
+
+// ============================================================================
 // Dispatch function for BuiltinSym by qualified name
 // ============================================================================
 
