@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <functional>
 #include <iostream>
+#include <string_view>
 #include <unordered_set>
 
 namespace cursive0::codegen {

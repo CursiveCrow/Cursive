@@ -506,6 +506,15 @@ if(WIN32)
   )
 endif()
 
+add_test(NAME spec_verifier_build
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target spec_verifier_build
+)
+set_tests_properties(spec_verifier_build PROPERTIES FIXTURES_SETUP SpecVerifier)
+set_tests_properties(compile_tests PROPERTIES FIXTURES_REQUIRED SpecVerifier)
+if(WIN32)
+  set_tests_properties(semantics_oracle_tests PROPERTIES FIXTURES_REQUIRED SpecVerifier)
+endif()
+
 add_test(NAME spec_coverage_report
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/coverage_report.py
 )

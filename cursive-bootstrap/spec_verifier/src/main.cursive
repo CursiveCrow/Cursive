@@ -187,6 +187,46 @@ procedure check_trace_header(trace: [u8]) -> bool {
   return slices_equal(header, lit_slice);
 }
 
+procedure detect_trace_domain(trace: [u8]) -> bytes@View {
+  var idx: usize = 0usize;
+  var line_index: usize = 0usize;
+  var field_index: usize = 0usize;
+  var field_start: usize = 0usize;
+  var domain_start: usize = 0usize;
+  var domain_end: usize = 0usize;
+
+  loop b in trace {
+    let is_tab: bool = b == 9u8;
+    let is_nl: bool = b == 10u8;
+    if is_tab || is_nl {
+      let field_end: usize = idx;
+      if field_index == 0usize {
+        domain_start = field_start;
+        domain_end = field_end;
+      }
+      field_index = field_index + 1usize;
+      field_start = idx + 1usize;
+
+      if is_nl {
+        if line_index > 0usize {
+          if domain_end > domain_start {
+            let domain_slice: [u8] = trace[domain_start..domain_end];
+            return bytes::view(domain_slice);
+          }
+        }
+        line_index = line_index + 1usize;
+        field_index = 0usize;
+        field_start = idx + 1usize;
+        domain_start = 0usize;
+        domain_end = 0usize;
+      }
+    }
+    idx = idx + 1usize;
+  }
+
+  return bytes::view_string("");
+}
+
 procedure scan_trace_for_rule(trace: [u8],
                               domain: [u8],
                               rule_id: [u8],
@@ -294,7 +334,10 @@ procedure scan_trace_for_rule(trace: [u8],
   return RuleScan { count: count, payload_ok: payload_ok };
 }
 
-procedure verify_rules(fs: $FileSystem, rules: [u8], trace: [u8]) -> usize {
+procedure verify_rules(fs: $FileSystem,
+                       rules: [u8],
+                       trace: [u8],
+                       trace_domain: [u8]) -> usize {
   var failures: usize = 0usize;
   var idx: usize = 0usize;
   var line_start: usize = 0usize;
@@ -350,7 +393,11 @@ procedure verify_rules(fs: $FileSystem, rules: [u8], trace: [u8]) -> usize {
               let max_slice: [u8] = rules[max_start..max_end];
               let keys_slice: [u8] = rules[keys_start..keys_end];
 
-              if slice_is_empty(rule_slice) {
+              if !slice_is_empty(trace_domain) &&
+                 !slice_is_empty(domain_slice) &&
+                 !slices_equal(domain_slice, trace_domain) {
+                // Rule domain doesn't apply to this trace.
+              } else if slice_is_empty(rule_slice) {
                 write_fail(fs, "RuleParse", "missing_rule_id");
                 failures = failures + 1usize;
               } else {
@@ -427,7 +474,11 @@ procedure verify_rules(fs: $FileSystem, rules: [u8], trace: [u8]) -> usize {
         let max_slice: [u8] = rules[max_start..max_end];
         let keys_slice: [u8] = rules[keys_start..keys_end];
 
-        if !slice_is_empty(rule_slice) {
+        if !slice_is_empty(trace_domain) &&
+           !slice_is_empty(domain_slice) &&
+           !slices_equal(domain_slice, trace_domain) {
+          // Rule domain doesn't apply to this trace.
+        } else if !slice_is_empty(rule_slice) {
           var min_val: usize = 0usize;
           if !slice_is_empty(min_slice) && !slice_is_dash(min_slice) {
             let min_parsed: ParseUsizeResult = parse_usize(min_slice);
@@ -567,7 +618,10 @@ procedure check_edge_order(trace: [u8],
   return !violation;
 }
 
-procedure verify_edges(fs: $FileSystem, edges: [u8], trace: [u8]) -> usize {
+procedure verify_edges(fs: $FileSystem,
+                       edges: [u8],
+                       trace: [u8],
+                       trace_domain: [u8]) -> usize {
   var failures: usize = 0usize;
   var idx: usize = 0usize;
   var line_start: usize = 0usize;
@@ -617,7 +671,11 @@ procedure verify_edges(fs: $FileSystem, edges: [u8], trace: [u8]) -> usize {
               let domain_slice: [u8] = edges[domain_start..domain_end];
               let group_slice: [u8] = edges[group_start..group_end];
 
-              if !slice_is_empty(group_slice) && !slice_is_dash(group_slice) {
+              if !slice_is_empty(trace_domain) &&
+                 !slice_is_empty(domain_slice) &&
+                 !slices_equal(domain_slice, trace_domain) {
+                // Edge domain doesn't apply to this trace.
+              } else if !slice_is_empty(group_slice) && !slice_is_dash(group_slice) {
                 write_fail(fs, string_from_slice(before_slice), "edge_group_by_unsupported");
                 failures = failures + 1usize;
               } else {
@@ -659,7 +717,11 @@ procedure verify_edges(fs: $FileSystem, edges: [u8], trace: [u8]) -> usize {
         let domain_slice: [u8] = edges[domain_start..domain_end];
         let group_slice: [u8] = edges[group_start..group_end];
 
-        if !slice_is_empty(group_slice) && !slice_is_dash(group_slice) {
+        if !slice_is_empty(trace_domain) &&
+           !slice_is_empty(domain_slice) &&
+           !slices_equal(domain_slice, trace_domain) {
+          // Edge domain doesn't apply to this trace.
+        } else if !slice_is_empty(group_slice) && !slice_is_dash(group_slice) {
           write_fail(fs, string_from_slice(before_slice), "edge_group_by_unsupported");
           failures = failures + 1usize;
         } else {
@@ -769,8 +831,11 @@ public procedure main(move ctx: Context) -> i32 {
   let diag_slice: [u8] = slice_from_bytes(diag_view);
 
   var failures: usize = 0usize;
-  failures = failures + verify_rules(fs, rules_slice, trace_slice);
-  failures = failures + verify_edges(fs, edges_slice, trace_slice);
+  let trace_domain_view: bytes@View = detect_trace_domain(trace_slice);
+  let trace_domain_slice: [u8] = slice_from_bytes(trace_domain_view);
+
+  failures = failures + verify_rules(fs, rules_slice, trace_slice, trace_domain_slice);
+  failures = failures + verify_edges(fs, edges_slice, trace_slice, trace_domain_slice);
   failures = failures + verify_diag(fs, diag_slice);
 
   if failures == 0usize {

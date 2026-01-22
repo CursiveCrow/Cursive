@@ -8,6 +8,7 @@
 
 #include <cassert>
 #include <limits>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
