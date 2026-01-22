@@ -1,10 +1,23 @@
 # Find LLVM 21.1.8 in third_party
 # This script sets up LLVM_INCLUDE_DIRS, LLVM_LIBRARY_DIRS, and LLVM_DEFINITIONS,
 # and defines the necessary imported targets.
+#
+# Supports both x64 and ARM64 architectures.
 
-set(LLVM_ROOT "${CMAKE_CURRENT_LIST_DIR}/../third_party/llvm/llvm-21.1.8-x86_64")
+# Determine LLVM directory based on target architecture
+if(CMAKE_GENERATOR_PLATFORM STREQUAL "ARM64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "ARM64")
+  set(LLVM_ARCH_DIR "llvm-21.1.8-aarch64")
+  set(LLVM_DIA_ARCH "arm64")
+else()
+  set(LLVM_ARCH_DIR "llvm-21.1.8-x86_64")
+  set(LLVM_DIA_ARCH "amd64")
+endif()
+
+set(LLVM_ROOT "${CMAKE_CURRENT_LIST_DIR}/../third_party/llvm/${LLVM_ARCH_DIR}")
 
 if(EXISTS "${LLVM_ROOT}")
+  message(STATUS "Using LLVM from: ${LLVM_ROOT}")
+  
   # Point CMake to the config file
   set(LLVM_DIR "${LLVM_ROOT}/lib/cmake/llvm")
   
@@ -44,7 +57,6 @@ if(EXISTS "${LLVM_ROOT}")
   )
   
   # On Windows, we need to link against the .lib files in lib/
-  # On Windows, we need to link against the .lib files in lib/
   link_directories("${LLVM_ROOT}/lib")
 
   if(MSVC)
@@ -54,15 +66,27 @@ if(EXISTS "${LLVM_ROOT}")
     add_link_options("/NODEFAULTLIB:\"C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Professional\\DIA SDK\\lib\\amd64\\diaguids.lib\"")
     add_link_options("/NODEFAULTLIB:diaguids.lib")
     
-    # And link the correct one found in the current environment
-    if(EXISTS "C:/Program Files/Microsoft Visual Studio/2022/Community/DIA SDK/lib/amd64/diaguids.lib")
-      link_libraries("C:/Program Files/Microsoft Visual Studio/2022/Community/DIA SDK/lib/amd64/diaguids.lib")
+    # Find VS2022 DIA SDK for the correct architecture
+    set(DIA_SDK_PATH "C:/Program Files/Microsoft Visual Studio/2022/Community/DIA SDK/lib/${LLVM_DIA_ARCH}/diaguids.lib")
+    if(EXISTS "${DIA_SDK_PATH}")
+      link_libraries("${DIA_SDK_PATH}")
     else()
-      message(WARNING "VS2022 diaguids.lib not found at expected path. Linker errors may occur.")
+      # Try Enterprise edition path
+      set(DIA_SDK_PATH "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/DIA SDK/lib/${LLVM_DIA_ARCH}/diaguids.lib")
+      if(EXISTS "${DIA_SDK_PATH}")
+        link_libraries("${DIA_SDK_PATH}")
+      else()
+        # Try Professional edition path
+        set(DIA_SDK_PATH "C:/Program Files/Microsoft Visual Studio/2022/Professional/DIA SDK/lib/${LLVM_DIA_ARCH}/diaguids.lib")
+        if(EXISTS "${DIA_SDK_PATH}")
+          link_libraries("${DIA_SDK_PATH}")
+        else()
+          message(WARNING "VS2022 diaguids.lib not found for ${LLVM_DIA_ARCH}. Linker errors may occur.")
+        endif()
+      endif()
     endif()
   endif()
 
-
 else()
-  message(FATAL_ERROR "LLVM 21.1.8 not found in third_party/llvm/llvm-21.1.8-x86_64. Please ensure the dependency is present.")
+  message(FATAL_ERROR "LLVM 21.1.8 not found in third_party/llvm/${LLVM_ARCH_DIR}. Please run setup_third_party.ps1 with the correct -Arch parameter.")
 endif()

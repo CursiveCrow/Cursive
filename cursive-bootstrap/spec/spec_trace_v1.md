@@ -25,10 +25,20 @@ domain<TAB>phase<TAB>rule_id<TAB>file<TAB>start_line<TAB>start_col<TAB>end_line<
 - Percent-encode these characters: `\t`, `\n`, `%`, `;`, `=`
 - Use `%09` for TAB, `%0A` for LF, `%25` for `%`, `%3B` for `;`, `%3D` for `=`
 
+## Diagnostic events
+
+- Diagnostics are emitted with `rule_id = Diag-Emit`.
+- Payload keys:
+  - `code`: diagnostic code (e.g., `E-TYP-1101`)
+  - `severity`: `error` or `warning`
+  - `message`: diagnostic message text
+- If a diagnostic has a span, the `file` and span fields are populated; otherwise `file = -` and all span positions are `0`.
+
 ## Example
 
 ```
 spec_trace_v1
 compile	typecheck	T-TC-012	main.cursive	12	5	12	18	entity=let;type=i32
 runtime	runtime	Cleanup-Step-Drop-Ok	main.cursive	19	5	19	21	scope_id=3;order=1
+compile	parse	Diag-Emit	main.cursive	3	3	3	7	code=E-TYP-1101;severity=error;message=`shared` permission not supported in Cursive0
 ```

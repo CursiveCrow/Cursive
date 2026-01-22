@@ -14,11 +14,25 @@ option(CURSIVE_ENABLE_FUZZING "Build fuzz targets (libFuzzer)" OFF)
 set(CURSIVE_ICU_LIBS "")
 if(CURSIVE_USE_BUNDLED_ICU)
   if(WIN32)
-    # Windows: Use pre-built MSVC binaries from third_party/icu/win64
-    set(ICU_WIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/icu/win64")
+    # Windows: Use pre-built MSVC binaries from third_party/icu
+    # Select directory based on target architecture
+    if(CMAKE_GENERATOR_PLATFORM STREQUAL "ARM64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "ARM64")
+      set(ICU_WIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/icu/winarm64")
+      set(ICU_ARCH_DESC "ARM64")
+    else()
+      set(ICU_WIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/icu/win64")
+      set(ICU_ARCH_DESC "x64")
+    endif()
+    message(STATUS "Using ICU for ${ICU_ARCH_DESC} from: ${ICU_WIN_DIR}")
     set(ICU_INCLUDE_DIR "${ICU_WIN_DIR}/include")
-    set(ICU_LIB_DIR "${ICU_WIN_DIR}/lib64")
-    set(ICU_BIN_DIR "${ICU_WIN_DIR}/bin64")
+    # ICU uses different directory names for ARM64 vs x64
+    if(CMAKE_GENERATOR_PLATFORM STREQUAL "ARM64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "ARM64")
+      set(ICU_LIB_DIR "${ICU_WIN_DIR}/libARM64")
+      set(ICU_BIN_DIR "${ICU_WIN_DIR}/binARM64")
+    else()
+      set(ICU_LIB_DIR "${ICU_WIN_DIR}/lib64")
+      set(ICU_BIN_DIR "${ICU_WIN_DIR}/bin64")
+    endif()
 
     set(ICU_WIN_PREBUILT TRUE)
     if(NOT EXISTS "${ICU_INCLUDE_DIR}/unicode/utypes.h")
@@ -35,7 +49,7 @@ if(CURSIVE_USE_BUNDLED_ICU)
     endif()
 
     if(NOT ICU_WIN_PREBUILT)
-      message(FATAL_ERROR "Bundled ICU Windows binaries not found. Extract icu4c-72_1-Win64-MSVC2019.zip into third_party/icu/win64/")
+      message(FATAL_ERROR "Bundled ICU Windows binaries for ${ICU_ARCH_DESC} not found. Run setup_third_party.ps1 -Arch ${ICU_ARCH_DESC} to download.")
     endif()
 
     add_library(ICU::uc SHARED IMPORTED)
@@ -461,7 +475,17 @@ endif()
 set(SPEC_VERIFIER_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/spec_verifier")
 set(SPEC_VERIFIER_BOOTSTRAP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bootstrap")
 set(SPEC_VERIFIER_BOOTSTRAP_COMPILER "${SPEC_VERIFIER_BOOTSTRAP_DIR}/cursivec0.exe")
+set(SPEC_VERIFIER_BOOTSTRAP_COMPILER_DEP "${SPEC_VERIFIER_BOOTSTRAP_COMPILER}")
 set(SPEC_VERIFIER_BOOTSTRAP_RUNTIME "${SPEC_VERIFIER_BOOTSTRAP_DIR}/cursive0_rt.lib")
+set(SPEC_VERIFIER_BOOTSTRAP_RUNTIME_DEP "${SPEC_VERIFIER_BOOTSTRAP_RUNTIME}")
+if(NOT EXISTS "${SPEC_VERIFIER_BOOTSTRAP_COMPILER}")
+  set(SPEC_VERIFIER_BOOTSTRAP_COMPILER "$<TARGET_FILE:cursivec0>")
+  set(SPEC_VERIFIER_BOOTSTRAP_COMPILER_DEP cursivec0)
+endif()
+if(NOT EXISTS "${SPEC_VERIFIER_BOOTSTRAP_RUNTIME}")
+  set(SPEC_VERIFIER_BOOTSTRAP_RUNTIME "${CMAKE_CURRENT_SOURCE_DIR}/runtime/cursive0_rt.lib")
+  set(SPEC_VERIFIER_BOOTSTRAP_RUNTIME_DEP "${SPEC_VERIFIER_BOOTSTRAP_RUNTIME}")
+endif()
 set(SPEC_VERIFIER_OUTPUT
   "${SPEC_VERIFIER_ROOT}/build/bin/spec_verifier${CMAKE_EXECUTABLE_SUFFIX}"
 )
@@ -473,11 +497,11 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
           "${SPEC_VERIFIER_BOOTSTRAP_RUNTIME}"
           "${SPEC_VERIFIER_ROOT}/runtime/cursive0_rt.lib"
-  COMMAND "${SPEC_VERIFIER_BOOTSTRAP_COMPILER}" build "src/main.cursive"
+  COMMAND "${SPEC_VERIFIER_BOOTSTRAP_COMPILER}" build "${SPEC_VERIFIER_ROOT}/src/main.cursive"
   WORKING_DIRECTORY "${SPEC_VERIFIER_ROOT}"
   DEPENDS
-          "${SPEC_VERIFIER_BOOTSTRAP_COMPILER}"
-          "${SPEC_VERIFIER_BOOTSTRAP_RUNTIME}"
+          ${SPEC_VERIFIER_BOOTSTRAP_COMPILER_DEP}
+          "${SPEC_VERIFIER_BOOTSTRAP_RUNTIME_DEP}"
           "${SPEC_VERIFIER_ROOT}/Cursive.toml"
           "${SPEC_VERIFIER_ROOT}/src/main.cursive"
 )

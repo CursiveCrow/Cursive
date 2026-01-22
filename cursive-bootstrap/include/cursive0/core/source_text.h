@@ -6,8 +6,6 @@
 #include <string>
 #include <vector>
 
-#include "cursive0/core/assert_spec.h"
-
 namespace cursive0::core {
 
 using UnicodeScalar = std::uint32_t;

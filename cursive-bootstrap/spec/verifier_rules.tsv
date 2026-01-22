@@ -1,1 +1,4 @@
 # rule_id	domain	min_count	max_count	payload_keys
+Diag-Emit	-	0	-	code;severity;message
+Lex-Start	compile	0	-	-
+Lex-End	compile	0	-	-

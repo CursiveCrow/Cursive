@@ -10,9 +10,32 @@ static inline void SpecDefsDiagnosticTypes() {
   SPEC_DEF("DiagnosticStream", "1.6.3");
 }
 
+static std::string SeverityLabel(Severity severity) {
+  if (severity == Severity::Warning) {
+    return "warning";
+  }
+  return "error";
+}
+
+static std::string DiagPayload(const Diagnostic& diag) {
+  std::string payload;
+  payload.reserve(diag.code.size() + diag.message.size() + 32);
+  payload += "code=";
+  payload += diag.code;
+  payload += ";severity=";
+  payload += SeverityLabel(diag.severity);
+  payload += ";message=";
+  payload += diag.message;
+  return payload;
+}
+
 DiagnosticStream Emit(const DiagnosticStream& stream, const Diagnostic& diag) {
   SPEC_RULE("Emit-Append");
   SpecDefsDiagnosticTypes();
+  if (SpecTrace::Enabled()) {
+    const std::string payload = DiagPayload(diag);
+    SpecTrace::Record("Diag-Emit", diag.span, payload);
+  }
   DiagnosticStream out = stream;
   out.push_back(diag);
   return out;
