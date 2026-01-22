@@ -1,0 +1,8 @@
+[package]
+name = "c0x_nested_calls"
+version = "0.1.0"
+
+[[assembly]]
+name = "c0x_nested_calls"
+kind = "executable"
+root = "src/main.cursive"

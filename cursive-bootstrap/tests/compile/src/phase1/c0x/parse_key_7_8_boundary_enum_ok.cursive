@@ -1,0 +1,12 @@
+# SPEC_COV: C0X-7.8-BoundaryEnum-Parse
+// §7.8: Type-level boundary marker # on enum payload field
+
+enum Maybe {
+  Some { #value: InnerData }
+  None
+}
+record InnerData { val: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

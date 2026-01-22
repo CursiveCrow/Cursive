@@ -1118,7 +1118,10 @@ static PermEnv DowngradeUniqueBind(const ScopeContext& ctx,
   if (PermOfType(*init_type) != Permission::Unique) {
     return perms;
   }
-  if (PermOfType(bind_type) != Permission::Const) {
+  // C0X Extension: unique -> shared or unique -> const both trigger downgrade
+  // Permission lattice: unique <: shared <: const
+  const auto bind_perm = PermOfType(bind_type);
+  if (bind_perm != Permission::Const && bind_perm != Permission::Shared) {
     return perms;
   }
   return DowngradeUniquePath(ctx, env, perms, std::nullopt, init);
@@ -2456,6 +2459,27 @@ static BindResult BindStmt(const ScopeContext& ctx,
           out.perms = PopScope_Pi(out.perms);
           out.env = PopScope(out.env);
           SPEC_RULE("B-FrameStmt");
+          return OkResult(out);
+        } else if constexpr (std::is_same_v<T, syntax::KeyBlockStmt>) {
+          // C0X Extension: Key block statement
+          // Key blocks introduce a new scope for permission tracking
+          SPEC_RULE("B-KeyBlockStmt");
+          
+          BindStateBundle scoped = in;
+          scoped.binds = PushScope_B(scoped.binds);
+          scoped.perms = PushScope_Pi(scoped.perms);
+          scoped.env = PushScope(scoped.env);
+          
+          // Process the body with the key scope
+          const auto body = BindBlock(ctx, *node.body, scoped);
+          if (!body.ok) {
+            return body;
+          }
+          
+          BindStateBundle out = body.state;
+          out.binds = PopScope_B(out.binds);
+          out.perms = PopScope_Pi(out.perms);
+          out.env = PopScope(out.env);
           return OkResult(out);
         } else if constexpr (std::is_same_v<T, syntax::ErrorStmt>) {
           return OkResult(in);

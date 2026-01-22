@@ -1,0 +1,10 @@
+# SPEC_COV: C0X-6.1-TypeParam
+# SPEC_COV: TypeParam-WF
+// §6.1: Generic type parameter declaration.
+
+record Box<T> { value: T }
+
+public procedure main(ctx: Context) -> i32 {
+  var b: Box<i32> = Box<i32> { value: 42 }
+  return b.value
+}

@@ -1,0 +1,15 @@
+# SPEC_COV: C0X-14.7.1-DynamicVerification
+# SPEC_COV: Contract-Dynamic-Check
+// §14.7.1: [[dynamic]] permits runtime verification when static proof fails.
+
+[[dynamic]]
+procedure runtime_checked(x: i32) -> i32
+  |= x > 0 => @result > 0
+{
+  return x
+}
+
+public procedure main(ctx: Context) -> i32 {
+  var a: i32 = 5
+  return runtime_checked(a)
+}

@@ -1,0 +1,9 @@
+# SPEC_COV: C0X-14.6.1-TypeInvariant-Parse
+// §14.6.1: Type invariant where { predicate } syntax
+
+record Bounded { value: i32, max: i32 }
+where { self.value <= self.max }
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

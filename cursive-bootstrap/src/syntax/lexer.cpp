@@ -307,9 +307,20 @@ std::vector<Token> LexNewlines(const core::SourceFile& source,
 
 std::vector<Token> FilterNewlines(const std::vector<Token>& tokens) {
   const std::size_t n = tokens.size();
-  std::vector<int> depth(n + 1, 0);
+  
+  // Track depths separately: parentheses/brackets are expression contexts (filter newlines),
+  // braces are block contexts (keep newlines as statement terminators)
+  std::vector<int> paren_depth(n + 1, 0);   // ( )
+  std::vector<int> bracket_depth(n + 1, 0); // [ ]
   for (std::size_t i = 0; i < n; ++i) {
-    depth[i + 1] = depth[i] + DeltaDepth(tokens[i]);
+    paren_depth[i + 1] = paren_depth[i];
+    bracket_depth[i + 1] = bracket_depth[i];
+    if (tokens[i].kind == TokenKind::Punctuator) {
+      if (tokens[i].lexeme == "(") paren_depth[i + 1]++;
+      else if (tokens[i].lexeme == ")") paren_depth[i + 1]--;
+      else if (tokens[i].lexeme == "[") bracket_depth[i + 1]++;
+      else if (tokens[i].lexeme == "]") bracket_depth[i + 1]--;
+    }
   }
 
   std::vector<std::size_t> prev_index(n, static_cast<std::size_t>(-1));
@@ -339,10 +350,14 @@ std::vector<Token> FilterNewlines(const std::vector<Token>& tokens) {
     }
 
     bool cont = false;
-    if (depth[i] > 0) {
+    
+    // Inside parentheses or brackets: filter newlines (expression context)
+    // Inside braces: keep newlines (statement context)
+    if (paren_depth[i] > 0 || bracket_depth[i] > 0) {
       cont = true;
     }
 
+    // After comma: continuation (allows multi-line argument lists, etc.)
     if (!cont && prev_index[i] != static_cast<std::size_t>(-1)) {
       const Token& prev = tokens[prev_index[i]];
       if (IsPunc(prev, ",")) {
@@ -361,6 +376,7 @@ std::vector<Token> FilterNewlines(const std::vector<Token>& tokens) {
       }
     }
 
+    // Before `.`, `::`, `~>`: continuation (method chaining, qualified names)
     if (!cont && next_index[i] != static_cast<std::size_t>(-1)) {
       const Token& next = tokens[next_index[i]];
       if (next.lexeme == "." || next.lexeme == "::" || next.lexeme == "~>") {

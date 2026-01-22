@@ -1,0 +1,11 @@
+# SPEC_COV: C0X-Key-SharedAccess
+# SPEC_COV: C0X-Key-ImplicitAcquire
+// Tests implicit key acquisition on shared data access.
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { value: 42 }
+  // Implicit key acquisition for read
+  return d.value
+}

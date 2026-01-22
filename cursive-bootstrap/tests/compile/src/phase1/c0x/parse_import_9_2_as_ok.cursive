@@ -1,0 +1,8 @@
+# SPEC_COV: C0X-9.2-ImportAs-Parse
+// §9.2: import with alias
+
+import cursive::runtime as rt
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

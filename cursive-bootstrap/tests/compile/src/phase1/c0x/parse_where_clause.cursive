@@ -1,0 +1,19 @@
+# SPEC_COV: Parse-WhereClause
+# SPEC_COV: Parse-WherePredicate
+// Tests parsing of where clauses on declarations.
+
+record Bounded<T>
+where T <: Bitcopy
+{
+  value: T
+}
+
+procedure generic_fn<T>(x: T) -> T
+where T <: Clone
+{
+  return x
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

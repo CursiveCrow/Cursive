@@ -1,0 +1,10 @@
+# SPEC_COV: Parse-Attribute
+# SPEC_COV: Parse-AttributeList
+// Tests parsing of attribute syntax [[...]].
+
+[[dynamic]]
+procedure with_dynamic() -> () { }
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

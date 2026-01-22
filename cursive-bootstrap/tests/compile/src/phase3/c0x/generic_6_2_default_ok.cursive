@@ -1,0 +1,10 @@
+# SPEC_COV: C0X-6.2-Default
+# SPEC_COV: TypeParam-Default
+// §6.2: Type parameters may have defaults.
+
+record Container<T = i32> { value: T }
+
+public procedure main(ctx: Context) -> i32 {
+  var c: Container<> = Container<> { value: 42 }
+  return c.value
+}

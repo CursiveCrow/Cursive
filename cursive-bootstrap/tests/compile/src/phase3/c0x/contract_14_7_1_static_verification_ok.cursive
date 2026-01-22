@@ -1,0 +1,13 @@
+# SPEC_COV: C0X-14.7.1-StaticVerification
+# SPEC_COV: Contract-Static-OK
+// §14.7.1: Default is static verification. StaticProof(Γ_S, P) => verified.
+
+procedure always_positive() -> i32
+  |= => @result > 0
+{
+  return 42
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return always_positive()
+}

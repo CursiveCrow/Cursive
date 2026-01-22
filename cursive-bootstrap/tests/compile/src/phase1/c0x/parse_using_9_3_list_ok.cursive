@@ -1,0 +1,8 @@
+# SPEC_COV: C0X-9.3-UsingList-Parse
+// §9.3: using list
+
+using cursive::runtime::{string, bytes}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

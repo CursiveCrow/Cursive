@@ -329,6 +329,154 @@ ParseStmtCoreResult ParseStmtCore(Parser parser) {
     return {block.parser, stmt, true};
   }
 
+  // C0X Extension: Key block statement parsing
+  // key_block_stmt ::= "#" key_path_list key_block_mod* key_mode? block_expr
+  if (IsOp(parser, "#")) {
+    SPEC_RULE("Parse-Key-Block-Stmt");
+    Parser next = parser;
+    Advance(next);  // consume #
+    
+    // Parse key path list
+    std::vector<KeyPathExpr> paths;
+    Parser path_start = next;
+    // Parse root identifier
+    if (const Token* root_tok = Tok(next); root_tok && IsIdentTok(*root_tok)) {
+      KeyPathExpr path_expr;
+      path_expr.root = root_tok->lexeme;
+      path_expr.span = root_tok->span;
+      Advance(next);
+      
+      // Parse key segments
+      while (true) {
+        if (IsPunc(next, ".")) {
+          // Field segment
+          Parser after_dot = next;
+          Advance(after_dot);
+          bool marked = false;
+          if (IsOp(after_dot, "#")) {
+            marked = true;
+            Advance(after_dot);
+          }
+          if (const Token* field_tok = Tok(after_dot); field_tok && IsIdentTok(*field_tok)) {
+            KeySegField seg;
+            seg.marked = marked;
+            seg.name = field_tok->lexeme;
+            path_expr.segs.push_back(seg);
+            path_expr.span = SpanBetween(path_start, after_dot);
+            Advance(after_dot);
+            next = after_dot;
+          } else {
+            break;
+          }
+        } else if (IsPunc(next, "[")) {
+          // Index segment
+          Parser after_bracket = next;
+          Advance(after_bracket);
+          bool marked = false;
+          if (IsOp(after_bracket, "#")) {
+            marked = true;
+            Advance(after_bracket);
+          }
+          ParseElemResult<ExprPtr> index_expr = ParseExpr(after_bracket);
+          if (IsPunc(index_expr.parser, "]")) {
+            Advance(index_expr.parser);
+            KeySegIndex seg;
+            seg.marked = marked;
+            seg.expr = index_expr.elem;
+            path_expr.segs.push_back(seg);
+            path_expr.span = SpanBetween(path_start, index_expr.parser);
+            next = index_expr.parser;
+          } else {
+            break;
+          }
+        } else {
+          break;
+        }
+      }
+      paths.push_back(std::move(path_expr));
+      
+      // Parse additional paths separated by comma
+      while (IsPunc(next, ",")) {
+        Advance(next);
+        if (const Token* root = Tok(next); root && IsIdentTok(*root)) {
+          KeyPathExpr additional_path;
+          additional_path.root = root->lexeme;
+          additional_path.span = root->span;
+          Advance(next);
+          // Parse segments for additional path (similar to above)
+          while (IsPunc(next, ".") || IsPunc(next, "[")) {
+            if (IsPunc(next, ".")) {
+              Parser after_dot = next;
+              Advance(after_dot);
+              bool marked = IsOp(after_dot, "#");
+              if (marked) Advance(after_dot);
+              if (const Token* field_tok = Tok(after_dot); field_tok && IsIdentTok(*field_tok)) {
+                KeySegField seg;
+                seg.marked = marked;
+                seg.name = field_tok->lexeme;
+                additional_path.segs.push_back(seg);
+                Advance(after_dot);
+                next = after_dot;
+              } else break;
+            } else if (IsPunc(next, "[")) {
+              Parser after_bracket = next;
+              Advance(after_bracket);
+              bool marked = IsOp(after_bracket, "#");
+              if (marked) Advance(after_bracket);
+              ParseElemResult<ExprPtr> idx = ParseExpr(after_bracket);
+              if (IsPunc(idx.parser, "]")) {
+                Advance(idx.parser);
+                KeySegIndex seg;
+                seg.marked = marked;
+                seg.expr = idx.elem;
+                additional_path.segs.push_back(seg);
+                next = idx.parser;
+              } else break;
+            }
+          }
+          paths.push_back(std::move(additional_path));
+        } else {
+          break;
+        }
+      }
+    }
+    
+    // Parse key block modifiers: dynamic, speculative, release
+    std::vector<KeyBlockMod> mods;
+    while (IsKw(next, "dynamic") || IsKw(next, "speculative") || IsKw(next, "release")) {
+      const Token* mod_tok = Tok(next);
+      if (mod_tok->lexeme == "dynamic") {
+        mods.push_back(KeyBlockMod::Dynamic);
+      } else if (mod_tok->lexeme == "speculative") {
+        mods.push_back(KeyBlockMod::Speculative);
+      } else if (mod_tok->lexeme == "release") {
+        mods.push_back(KeyBlockMod::Release);
+      }
+      Advance(next);
+    }
+    
+    // Parse key mode: read or write
+    std::optional<KeyMode> mode;
+    if (IsKw(next, "read")) {
+      mode = KeyMode::Read;
+      Advance(next);
+    } else if (IsKw(next, "write")) {
+      mode = KeyMode::Write;
+      Advance(next);
+    }
+    
+    // Parse block body
+    ParseElemResult<std::shared_ptr<Block>> block = ParseBlock(next);
+    
+    KeyBlockStmt stmt;
+    stmt.paths = std::move(paths);
+    stmt.mods = std::move(mods);
+    stmt.mode = mode;
+    stmt.body = block.elem;
+    stmt.span = SpanBetween(start, block.parser);
+    return {block.parser, stmt, true};
+  }
+
   if (tok->kind == TokenKind::Identifier) {
     Parser after_name = parser;
     Advance(after_name);
@@ -394,6 +542,11 @@ ParseStmtCoreResult ParseStmtCore(Parser parser) {
 }
 
 ParseStmtSeqResult ParseStmtSeq(Parser parser) {
+  // Skip leading newlines
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
+  
   if (IsPunc(parser, "}")) {
     SPEC_RULE("ParseStmtSeq-End");
     return {parser, {}, nullptr};
@@ -528,6 +681,10 @@ ParseElemResult<Stmt> ParseStmt(Parser parser) {
 }
 
 ParseElemResult<std::shared_ptr<Block>> ParseBlock(Parser parser) {
+  // Skip newlines before opening brace (C0X: allows where clause on separate line)
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
   Parser start = parser;
   if (!IsPunc(parser, "{")) {
     EmitParseSyntaxErr(parser, TokSpan(parser));

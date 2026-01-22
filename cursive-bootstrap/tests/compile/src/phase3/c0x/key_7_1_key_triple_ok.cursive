@@ -1,0 +1,14 @@
+# SPEC_COV: C0X-7.1-KeyTriple
+# SPEC_COV: Key-Definition
+// §7.1: A key is a triple K = (P, M, S) where P is path, M is mode, S is scope.
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { value: 42 }
+  // Key is (d, Read, main_scope)
+  # d {
+    return d.value
+  }
+  return 0
+}

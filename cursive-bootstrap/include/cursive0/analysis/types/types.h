@@ -117,6 +117,7 @@ struct TypeModalState {
 
 struct TypePathType {
   TypePath path;
+  std::vector<TypeRef> generic_args;  // C0X Extension: Foo<T, U>
 };
 
 using TypeNode = std::variant<TypePrim,

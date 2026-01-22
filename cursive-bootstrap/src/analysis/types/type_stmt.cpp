@@ -855,6 +855,13 @@ static bool HasNonLocalCtrlStmt(const syntax::Stmt& stmt, bool in_loop) {
             return true;
           }
           return false;
+        } else if constexpr (std::is_same_v<T, syntax::KeyBlockStmt>) {
+          // C0X Extension: Key block statement
+          if (node.body && HasNonLocalCtrlBlock(*node.body, in_loop)) {
+            SPEC_RULE("HasNonLocalCtrl-Child");
+            return true;
+          }
+          return false;
         } else {
           return false;
         }
@@ -2339,6 +2346,21 @@ StmtTypeResult TypeStmt(const ScopeContext& ctx,
             return {false, "Continue-Outside-Loop", {}, {}};
           }
           SPEC_RULE("T-Continue");
+          return {true, std::nullopt, env, {}};
+        } else if constexpr (std::is_same_v<T, syntax::KeyBlockStmt>) {
+          // C0X Extension: Key block statement type checking
+          if (!node.body) {
+            return {false, std::nullopt, {}, {}};
+          }
+          StmtTypeContext key_ctx = type_ctx;
+          // Key blocks use the same type checking as regular blocks
+          const auto typed = TypeBlock(ctx, key_ctx, *node.body, env, type_expr,
+                                       type_ident, type_place,
+                                       env_ref ? env_ref : key_ctx.env_ref);
+          if (!typed.ok) {
+            return {false, typed.diag_id, {}, {}};
+          }
+          SPEC_RULE("T-KeyBlockStmt");
           return {true, std::nullopt, env, {}};
         } else if constexpr (std::is_same_v<T, syntax::ErrorStmt>) {
           SPEC_RULE("T-ErrorStmt");

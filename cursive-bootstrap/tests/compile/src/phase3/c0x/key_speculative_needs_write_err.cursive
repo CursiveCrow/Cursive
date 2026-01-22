@@ -1,0 +1,14 @@
+# SPEC_COV: C0X-Key-Speculative-NeedsWrite
+# SPEC_COV: E-CON-0095
+// Tests that speculative requires write modifier.
+// Expected diagnostic: E-CON-0095
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { value: 42 }
+  # d speculative {
+    // Error: speculative without write
+  }
+  return d.value
+}

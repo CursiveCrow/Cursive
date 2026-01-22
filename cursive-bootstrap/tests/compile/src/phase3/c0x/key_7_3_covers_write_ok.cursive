@@ -1,0 +1,14 @@
+# SPEC_COV: C0X-7.3-CoversWrite
+# SPEC_COV: Covers-Write
+// §7.3: Covers(𝒦, (P, Write)) iff 𝒦 contains (P', Write, S') with P' prefix of P.
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { value: 42 }
+  # d write {
+    // Key (d, Write) covers (d.value, Write)
+    d.value = 100
+  }
+  return d.value
+}

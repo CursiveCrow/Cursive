@@ -124,17 +124,9 @@ static std::vector<PermSyntaxMatch> FindPermSyntaxMatches(
 
 static std::vector<AttrSyntaxMatch> FindAttrSyntaxMatches(
     const std::vector<syntax::Token>& tokens) {
-  std::vector<AttrSyntaxMatch> matches;
-  if (tokens.size() < 2) {
-    return matches;
-  }
-  for (std::size_t i = 0; i + 1 < tokens.size(); ++i) {
-    if (IsPuncTok(tokens[i], "[") && IsPuncTok(tokens[i + 1], "[") &&
-        IsAdjacent(tokens[i], tokens[i + 1])) {
-      matches.push_back(AttrSyntaxMatch{i});
-    }
-  }
-  return matches;
+  // C0X Extension: Attributes are now supported, so don't flag them as unsupported
+  (void)tokens;
+  return {};
 }
 
 static std::vector<UnwindAttrMatch> FindUnwindAttrMatches(
@@ -163,23 +155,20 @@ static std::vector<UnsupportedMatch> FindUnsupportedConstructMatches(
       matches.push_back(UnsupportedMatch{i});
       continue;
     }
-    if (IsIdentOrKeywordTok(tok, "modal") && i + 1 < tokens.size() &&
-        IsIdentOrKeywordTok(tokens[i + 1], "class")) {
-      matches.push_back(UnsupportedMatch{i});
-    }
+    // C0X Extension: modal class is now supported, so don't flag it
+    // if (IsIdentOrKeywordTok(tok, "modal") && i + 1 < tokens.size() &&
+    //     IsIdentOrKeywordTok(tokens[i + 1], "class")) {
+    //   matches.push_back(UnsupportedMatch{i});
+    // }
   }
   return matches;
 }
 
 static std::vector<WhereClauseMatch> FindWhereClauseMatches(
     const std::vector<syntax::Token>& tokens) {
-  std::vector<WhereClauseMatch> matches;
-  for (std::size_t i = 0; i < tokens.size(); ++i) {
-    if (IsIdentOrKeywordTok(tokens[i], "where")) {
-      matches.push_back(WhereClauseMatch{i});
-    }
-  }
-  return matches;
+  // C0X Extension: where clauses are now supported, so don't flag them as unsupported
+  (void)tokens;
+  return {};
 }
 
 static bool SpanContains(const core::Span& outer, const core::Span& inner) {
@@ -236,22 +225,11 @@ bool RejectIllFormed(const ConformanceInput& input) {
 SubsetResult CheckC0SubsetPermTokens(const std::vector<syntax::Token>& tokens) {
   SpecDefsSubsetPerms();
 
+  // C0X Extension: shared permission is now supported
+  // The permission lattice is: unique <: shared <: const
+  // We no longer reject shared/~% syntax
+  (void)tokens;
   SubsetResult result;
-  const auto matches = FindPermSyntaxMatches(tokens);
-  if (matches.empty()) {
-    return result;
-  }
-
-  result.subset_ok = false;
-  for (const auto& match : matches) {
-    (void)match;
-    SPEC_RULE("Perm-Shared-Unsupported");
-    auto diag = cursive0::core::MakeDiagnostic("E-TYP-1101");
-    if (diag) {
-      result.diags = cursive0::core::Emit(result.diags, *diag);
-    }
-  }
-
   return result;
 }
 

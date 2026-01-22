@@ -1,0 +1,11 @@
+# SPEC_COV: C0X-Generics-TypeParam
+# SPEC_COV: C0X-Generics-Syntax
+// Tests generic type parameter declaration and parsing.
+
+record Wrapper<T> {
+  value: T
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

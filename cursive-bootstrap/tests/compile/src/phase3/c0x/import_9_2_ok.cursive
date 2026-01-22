@@ -1,0 +1,10 @@
+# SPEC_COV: C0X-9.2-Import
+# SPEC_COV: Import-Decl
+// §9.2: import establishes dependency, makes namespace available for qualified access.
+
+import cursive::runtime
+
+public procedure main(ctx: Context) -> i32 {
+  // Access via qualified path
+  return 0
+}

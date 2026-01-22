@@ -1,0 +1,19 @@
+# SPEC_COV: C0X-8.3-OverrideAbstract
+# SPEC_COV: E-SEM-2614
+// §8.3: Implementing abstract procedure: override MUST NOT be used.
+// Expected diagnostic: E-SEM-2614
+
+class Abstract {
+  procedure method(~) -> i32
+}
+
+record BadOverride { value: i32 }
+
+BadOverride <: Abstract {
+  // Cannot use override for abstract method
+  override procedure method(~) -> i32 { return self.value }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

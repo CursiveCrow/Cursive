@@ -1,0 +1,14 @@
+# SPEC_COV: C0X-7.6-BlockModeDefaultRead
+# SPEC_COV: KeyBlock-Mode
+// §7.6: Key block without explicit mode defaults to Read.
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { value: 42 }
+  # d {
+    // Mode is Read by default
+    return d.value
+  }
+  return 0
+}

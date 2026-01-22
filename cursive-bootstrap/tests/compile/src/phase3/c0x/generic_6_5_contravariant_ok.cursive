@@ -1,0 +1,14 @@
+# SPEC_COV: C0X-6.5-Contravariant
+# SPEC_COV: Variance-Contravariant
+// §6.5: Type parameter in parameter type position contributes Contravariant.
+
+// procedure (Child) -> R <: procedure (Parent) -> R when Parent <: Child
+
+procedure accept_fn(f: procedure (i32) -> i32, x: i32) -> i32 {
+  return f(x)
+}
+
+public procedure main(ctx: Context) -> i32 {
+  procedure identity(n: i32) -> i32 { return n }
+  return accept_fn(identity, 42)
+}

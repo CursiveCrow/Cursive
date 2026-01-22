@@ -1,0 +1,19 @@
+# SPEC_COV: C0X-8.4-Coherence
+# SPEC_COV: Coherence-WF
+// §8.4: T may implement Cl at most once. At least one of T or Cl MUST be local.
+
+class LocalClass {
+  procedure method(~) -> i32
+}
+
+record LocalType { value: i32 }
+
+// Both LocalClass and LocalType are local, coherence satisfied
+LocalType <: LocalClass {
+  procedure method(~) -> i32 { return self.value }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  var t: LocalType = LocalType { value: 42 }
+  return t ~> method()
+}

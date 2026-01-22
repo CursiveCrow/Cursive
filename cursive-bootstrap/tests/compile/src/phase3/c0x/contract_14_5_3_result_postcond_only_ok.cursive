@@ -1,0 +1,14 @@
+# SPEC_COV: C0X-14.5.3-ResultPostcondOnly
+# SPEC_COV: Result-Availability
+// §14.5.3: @result available in postcondition expressions only (right of =>).
+
+procedure returns_positive(x: i32) -> i32
+  |= x > 0 => @result > 0
+{
+  return x
+}
+
+public procedure main(ctx: Context) -> i32 {
+  var a: i32 = 5
+  return returns_positive(a)
+}

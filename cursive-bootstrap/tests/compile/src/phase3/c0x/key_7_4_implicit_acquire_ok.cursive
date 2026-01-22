@@ -1,0 +1,11 @@
+# SPEC_COV: C0X-7.4-ImplicitAcquire
+# SPEC_COV: Implicit-Acquire
+// §7.4: When evaluating shared access, if not Covered, acquire key.
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { value: 42 }
+  // Implicit acquisition of (d.value, Read) key
+  return d.value
+}

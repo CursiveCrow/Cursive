@@ -1,0 +1,11 @@
+# SPEC_COV: C0X-Class-Coherence
+# SPEC_COV: E-TYP-1970
+// Tests orphan rule: implementation must be in same module as T or Cl.
+// Expected diagnostic: E-TYP-1970
+
+// Assuming ForeignClass and ForeignType are from external modules
+// this would be an orphan implementation error
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

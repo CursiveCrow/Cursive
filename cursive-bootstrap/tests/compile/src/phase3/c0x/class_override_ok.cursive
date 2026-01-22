@@ -1,0 +1,19 @@
+# SPEC_COV: C0X-Class-Override
+# SPEC_COV: C0X-Class-OverrideKeyword
+// Tests override keyword for overriding concrete methods.
+
+class Counter {
+  procedure get(~) -> i32 {
+    return 0
+  }
+}
+
+record MyCounter { value: i32 } <: Counter
+
+override procedure MyCounter::get(~) -> i32 {
+  return self.value
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

@@ -1,5 +1,9 @@
 #include "rt_internal.h"
-#include "cursive0/core/assert_spec.h"
+
+// C-compatible SPEC_RULE macro (no-op, tracing done via c0_trace_emit_rule)
+#ifndef SPEC_RULE
+#define SPEC_RULE(id) ((void)0)
+#endif
 
 static int c0_is_sep(uint8_t c) {
   return c == '/' || c == '\\';

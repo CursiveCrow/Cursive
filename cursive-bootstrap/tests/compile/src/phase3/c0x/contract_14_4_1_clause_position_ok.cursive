@@ -1,0 +1,14 @@
+# SPEC_COV: C0X-14.4.1-ContractClausePosition
+# SPEC_COV: WF-Contract
+// §14.4.1: Contract clause MUST appear after return type annotation and before procedure body.
+
+procedure with_contract(x: i32) -> i32
+  |= x > 0 => @result > 0
+{
+  return x
+}
+
+public procedure main(ctx: Context) -> i32 {
+  var a: i32 = 5
+  return with_contract(a)
+}

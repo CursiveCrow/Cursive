@@ -1,0 +1,8 @@
+# SPEC_COV: C0X-9.4-PublicUsing-Parse
+// §9.4: public using for re-export
+
+public using cursive::runtime::string
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

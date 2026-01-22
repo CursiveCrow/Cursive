@@ -1,0 +1,13 @@
+# SPEC_COV: C0X-7.6-BlockModeWrite
+# SPEC_COV: KeyBlock-Mode
+// §7.6: Explicit write mode in key block.
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { value: 42 }
+  # d write {
+    d.value = 100
+  }
+  return d.value
+}

@@ -25,7 +25,177 @@ bool IsWhereTok(const Parser& parser) {
   return tok && IsIdentTok(*tok) && tok->lexeme == "where";
 }
 
+// Forward declarations for helper functions used by generic parsing
+bool IsKw(const Parser& parser, std::string_view kw);
+bool IsOp(const Parser& parser, std::string_view op);
+bool IsPunc(const Parser& parser, std::string_view p);
+
+// C0X Extension: Generic parameter parsing
+
+// Parse type bounds: <: Class1 + Class2
+ParseElemResult<std::vector<TypeBound>> ParseTypeBounds(Parser parser) {
+  std::vector<TypeBound> bounds;
+  if (!IsOp(parser, "<:")) {
+    return {parser, bounds};
+  }
+  Parser next = parser;
+  Advance(next);  // consume <:
+  
+  // Parse first bound
+  ParseElemResult<Identifier> first_name = ParseIdent(next);
+  TypeBound first_bound;
+  first_bound.class_path.push_back(first_name.elem);
+  bounds.push_back(first_bound);
+  next = first_name.parser;
+  
+  // Parse additional bounds separated by +
+  while (IsOp(next, "+")) {
+    Advance(next);
+    ParseElemResult<Identifier> bound_name = ParseIdent(next);
+    TypeBound bound;
+    bound.class_path.push_back(bound_name.elem);
+    bounds.push_back(bound);
+    next = bound_name.parser;
+  }
+  
+  return {next, bounds};
+}
+
+// Parse a single type parameter: T <: Bound = DefaultType
+ParseElemResult<TypeParam> ParseTypeParam(Parser parser) {
+  Parser start = parser;
+  
+  // Parse name
+  ParseElemResult<Identifier> name = ParseIdent(parser);
+  
+  // Parse optional bounds
+  ParseElemResult<std::vector<TypeBound>> bounds = ParseTypeBounds(name.parser);
+  
+  // Parse optional default type
+  std::shared_ptr<Type> default_type;
+  Parser after_bounds = bounds.parser;
+  if (IsOp(after_bounds, "=")) {
+    Advance(after_bounds);
+    ParseElemResult<std::shared_ptr<Type>> ty = ParseType(after_bounds);
+    default_type = ty.elem;
+    after_bounds = ty.parser;
+  }
+  
+  TypeParam param;
+  param.name = name.elem;
+  param.bounds = bounds.elem;
+  param.default_type = default_type;
+  param.span = SpanBetween(start, after_bounds);
+  
+  return {after_bounds, param};
+}
+
+// Parse generic parameters: <T; U <: Clone>
+ParseElemResult<std::optional<GenericParams>> ParseGenericParamsOpt(Parser parser) {
+  if (!IsOp(parser, "<")) {
+    return {parser, std::nullopt};
+  }
+  
+  SPEC_RULE("Parse-Generic-Params");
+  Parser start = parser;
+  Parser next = parser;
+  Advance(next);  // consume <
+  
+  GenericParams params;
+  
+  // Parse first type param
+  ParseElemResult<TypeParam> first = ParseTypeParam(next);
+  params.params.push_back(first.elem);
+  next = first.parser;
+  
+  // Parse additional params separated by ;
+  while (IsPunc(next, ";")) {
+    Advance(next);
+    ParseElemResult<TypeParam> param = ParseTypeParam(next);
+    params.params.push_back(param.elem);
+    next = param.parser;
+  }
+  
+  // Expect >
+  if (!IsOp(next, ">")) {
+    EmitParseSyntaxErr(next, TokSpan(next));
+  } else {
+    Advance(next);
+  }
+  
+  params.span = SpanBetween(start, next);
+  return {next, params};
+}
+
+// Parse where clause: where T <: Ord, U <: Clone
+ParseElemResult<std::optional<WhereClause>> ParseWhereClauseOpt(Parser parser) {
+  // Skip any newlines before where
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
+  if (!IsKw(parser, "where")) {
+    return {parser, std::nullopt};
+  }
+  
+  SPEC_RULE("Parse-Where-Clause");
+  Parser start = parser;
+  Parser next = parser;
+  Advance(next);  // consume where
+  
+  // Skip newlines after where
+  while (Tok(next) && Tok(next)->kind == TokenKind::Newline) {
+    Advance(next);
+  }
+  
+  WhereClause clause;
+  
+  // Parse first predicate
+  ParseElemResult<Identifier> first_name = ParseIdent(next);
+  ParseElemResult<std::vector<TypeBound>> first_bounds = ParseTypeBounds(first_name.parser);
+  WherePredicate first_pred;
+  first_pred.type_param = first_name.elem;
+  first_pred.bounds = first_bounds.elem;
+  first_pred.span = SpanBetween(next, first_bounds.parser);
+  clause.predicates.push_back(first_pred);
+  next = first_bounds.parser;
+  
+  // Parse additional predicates after newline/terminator
+  // For simplicity, just check for another identifier after consuming optional terminator
+  const Token* tok = Tok(next);
+  while (tok && (tok->kind == TokenKind::Newline || tok->lexeme == ";")) {
+    Parser after_term = next;
+    Advance(after_term);
+    const Token* next_tok = Tok(after_term);
+    if (next_tok && IsIdentTok(*next_tok) && 
+        !IsPunc(after_term, "{") && !IsKw(after_term, "where")) {
+      // Check if followed by <: (indicates another predicate)
+      Parser probe = after_term;
+      Advance(probe);
+      if (IsOp(probe, "<:")) {
+        next = after_term;
+        ParseElemResult<Identifier> pred_name = ParseIdent(next);
+        ParseElemResult<std::vector<TypeBound>> pred_bounds = ParseTypeBounds(pred_name.parser);
+        WherePredicate pred;
+        pred.type_param = pred_name.elem;
+        pred.bounds = pred_bounds.elem;
+        pred.span = SpanBetween(next, pred_bounds.parser);
+        clause.predicates.push_back(pred);
+        next = pred_bounds.parser;
+        tok = Tok(next);
+        continue;
+      }
+    }
+    break;
+  }
+  
+  clause.span = SpanBetween(start, next);
+  return {next, clause};
+}
+
+// Legacy reject function - now just returns error without blocking
 ParseItemResult RejectWhereClause(Parser start, Parser parser) {
+  // C0X Extension: Where clauses are now supported, this function should not be called
+  // If we get here, it means there's a where clause in an unexpected context
   SPEC_RULE("Unsupported-Construct");
   EmitUnsupportedConstruct(parser);
   Parser next = parser;
@@ -78,12 +248,137 @@ void EmitImportUnsupported(Parser& parser) {
   parser.diags = core::Emit(parser.diags, *diag);
 }
 
-void EmitAttrUnsupported(Parser& parser) {
-  auto diag = core::MakeDiagnostic("E-UNS-0113");
-  if (!diag) {
-    return;
+// C0X Extension: Attribute parsing
+
+// Parse single attribute item: attr_name or attr_name(args)
+// Note: Attribute names can be keywords (like "dynamic") or identifiers
+ParseElemResult<AttributeItem> ParseAttributeItem(Parser parser) {
+  AttributeItem item;
+  const Token* tok = Tok(parser);
+  if (!tok) {
+    EmitParseSyntaxErr(parser, TokSpan(parser));
+    return {parser, item};
   }
-  parser.diags = core::Emit(parser.diags, *diag);
+  
+  // Accept both identifiers and keywords as attribute names
+  if (tok->kind != TokenKind::Identifier && tok->kind != TokenKind::Keyword) {
+    EmitParseSyntaxErr(parser, TokSpan(parser));
+    return {parser, item};
+  }
+  
+  item.name = std::string(tok->lexeme);
+  Parser next = parser;
+  Advance(next);
+  
+  // Check for arguments in parentheses
+  if (IsPunc(next, "(")) {
+    Advance(next);  // consume (
+    // For now, skip to closing paren - full arg parsing can be added later
+    int depth = 1;
+    while (depth > 0 && Tok(next)) {
+      if (IsPunc(next, "(")) depth++;
+      else if (IsPunc(next, ")")) depth--;
+      if (depth > 0) Advance(next);
+    }
+    if (IsPunc(next, ")")) Advance(next);
+  }
+  
+  item.span = SpanBetween(parser, next);
+  return {next, item};
+}
+
+// Parse attribute list: [[item, item, ...]]
+// Returns empty list if no attributes
+ParseElemResult<AttributeList> ParseAttributeListOpt(Parser parser) {
+  AttributeList attrs;
+  
+  while (IsPunc(parser, "[")) {
+    Parser probe = parser;
+    Advance(probe);
+    if (!IsPunc(probe, "[")) {
+      break;  // Not an attribute
+    }
+    
+    // Consume [[
+    Parser next = parser;
+    Advance(next);
+    Advance(next);
+    
+    SPEC_RULE("Parse-Attribute");
+    
+    // Parse items
+    ParseElemResult<AttributeItem> first = ParseAttributeItem(next);
+    attrs.push_back(first.elem);
+    next = first.parser;
+    
+    while (IsPunc(next, ",")) {
+      Advance(next);
+      ParseElemResult<AttributeItem> item = ParseAttributeItem(next);
+      attrs.push_back(item.elem);
+      next = item.parser;
+    }
+    
+    // Expect ]]
+    if (!IsPunc(next, "]")) {
+      EmitParseSyntaxErr(next, TokSpan(next));
+    } else {
+      Advance(next);
+    }
+    if (!IsPunc(next, "]")) {
+      EmitParseSyntaxErr(next, TokSpan(next));
+    } else {
+      Advance(next);
+    }
+    
+    parser = next;
+  }
+  
+  return {parser, attrs};
+}
+
+// C0X Extension: Contract clause parsing
+
+// Parse contract clause: |= pre => post
+ParseElemResult<std::optional<ContractClause>> ParseContractClauseOpt(Parser parser) {
+  // Skip any newlines before contract
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
+  if (!IsOp(parser, "|=")) {
+    return {parser, std::nullopt};
+  }
+  
+  SPEC_RULE("Parse-Contract-Clause");
+  Parser start = parser;
+  Parser next = parser;
+  Advance(next);  // consume |=
+  
+  ContractClause clause;
+  
+  // Check for => (postcondition only case)
+  if (IsOp(next, "=>")) {
+    Advance(next);
+    ParseElemResult<ExprPtr> post = ParseExpr(next);
+    clause.postcondition = post.elem;
+    clause.span = SpanBetween(start, post.parser);
+    return {post.parser, clause};
+  }
+  
+  // Parse precondition
+  ParseElemResult<ExprPtr> pre = ParseExpr(next);
+  clause.precondition = pre.elem;
+  next = pre.parser;
+  
+  // Check for => postcondition
+  if (IsOp(next, "=>")) {
+    Advance(next);
+    ParseElemResult<ExprPtr> post = ParseExpr(next);
+    clause.postcondition = post.elem;
+    next = post.parser;
+  }
+  
+  clause.span = SpanBetween(start, next);
+  return {next, clause};
 }
 
 void EmitExternUnsupported(Parser& parser) {
@@ -312,6 +607,13 @@ ParseElemResult<Receiver> ParseReceiver(Parser parser) {
     Advance(next);
     return {next, ReceiverShorthand{ReceiverPerm::Unique}};
   }
+  // C0X Extension: shared receiver shorthand
+  if (IsOp(parser, "~%")) {
+    SPEC_RULE("Parse-Receiver-Short-Shared");
+    Parser next = parser;
+    Advance(next);
+    return {next, ReceiverShorthand{ReceiverPerm::Shared}};
+  }
 
   SPEC_RULE("Parse-Receiver-Explicit");
   Parser start = parser;
@@ -467,6 +769,15 @@ ParseElemResult<FieldDecl> ParseRecordFieldDeclAfterVis(Parser parser,
                                                        Visibility vis) {
   SPEC_RULE("Parse-RecordFieldDeclAfterVis");
   Parser start = parser;
+  
+  // C0X Extension: Check for key boundary marker (#)
+  bool key_boundary = false;
+  if (IsOp(parser, "#")) {
+    SPEC_RULE("Parse-KeyBoundary");
+    key_boundary = true;
+    Advance(parser);
+  }
+  
   ParseElemResult<Identifier> name = ParseIdent(parser);
   if (!IsPunc(name.parser, ":")) {
     EmitParseSyntaxErr(name.parser, TokSpan(name.parser));
@@ -477,6 +788,7 @@ ParseElemResult<FieldDecl> ParseRecordFieldDeclAfterVis(Parser parser,
   RecordFieldInitOptResult init = ParseRecordFieldInitOpt(ty.parser);
   FieldDecl field;
   field.vis = vis;
+  field.key_boundary = key_boundary;  // C0X Extension
   field.name = name.elem;
   field.type = ty.elem;
   field.init_opt = init.init_opt;
@@ -641,6 +953,11 @@ ParseElemResult<RecordMember> ParseRecordMember(Parser parser) {
 ParseElemResult<std::vector<RecordMember>> ParseRecordMemberTail(
     Parser parser,
     std::vector<RecordMember> xs) {
+  // Skip any newline terminators
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
+  
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-RecordMemberTail-End");
     return {parser, xs};
@@ -648,6 +965,10 @@ ParseElemResult<std::vector<RecordMember>> ParseRecordMemberTail(
   if (IsPunc(parser, ",")) {
     Parser after = parser;
     Advance(after);
+    // Skip newlines after comma
+    while (Tok(after) && Tok(after)->kind == TokenKind::Newline) {
+      Advance(after);
+    }
     if (IsPunc(after, "}")) {
       SPEC_RULE("Parse-RecordMemberTail-TrailingComma");
       EmitUnsupportedConstruct(after);
@@ -658,11 +979,19 @@ ParseElemResult<std::vector<RecordMember>> ParseRecordMemberTail(
     xs.push_back(mem.elem);
     return ParseRecordMemberTail(mem.parser, std::move(xs));
   }
-  // For methods (which end with a block), no comma is required.
+  // Newlines work as separators between members (no comma required)
   // Check if the next token starts a new member (procedure, override, or identifier for field).
   ParseElemResult<Visibility> next_vis = ParseVis(parser);
   if (IsKw(next_vis.parser, "procedure") || IsKw(next_vis.parser, "override")) {
     SPEC_RULE("Parse-RecordMemberTail-MethodNoComma");
+    ParseElemResult<RecordMember> mem = ParseRecordMember(parser);
+    xs.push_back(mem.elem);
+    return ParseRecordMemberTail(mem.parser, std::move(xs));
+  }
+  // Check if it's a field (identifier followed by : or # for key boundary)
+  const Token* tok = Tok(next_vis.parser);
+  if (tok && (tok->kind == TokenKind::Identifier || IsOp(next_vis.parser, "#"))) {
+    SPEC_RULE("Parse-RecordMemberTail-FieldNoComma");
     ParseElemResult<RecordMember> mem = ParseRecordMember(parser);
     xs.push_back(mem.elem);
     return ParseRecordMemberTail(mem.parser, std::move(xs));
@@ -672,6 +1001,10 @@ ParseElemResult<std::vector<RecordMember>> ParseRecordMemberTail(
 }
 
 ParseElemResult<std::vector<RecordMember>> ParseRecordMemberList(Parser parser) {
+  // Skip leading newlines
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-RecordMemberList-End");
     return {parser, {}};
@@ -685,6 +1018,10 @@ ParseElemResult<std::vector<RecordMember>> ParseRecordMemberList(Parser parser) 
 
 ParseElemResult<std::vector<RecordMember>> ParseRecordBody(Parser parser) {
   SPEC_RULE("Parse-RecordBody");
+  // Skip newlines before opening brace
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
   if (!IsPunc(parser, "{")) {
     EmitParseSyntaxErr(parser, TokSpan(parser));
     return {parser, {}};
@@ -817,6 +1154,10 @@ ParseElemResult<std::vector<VariantDecl>> ParseVariantList(Parser parser) {
 
 ParseElemResult<std::vector<VariantDecl>> ParseEnumBody(Parser parser) {
   SPEC_RULE("Parse-EnumBody");
+  // Skip newlines before opening brace
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
   if (!IsPunc(parser, "{")) {
     EmitParseSyntaxErr(parser, TokSpan(parser));
     return {parser, {}};
@@ -988,6 +1329,10 @@ ParseElemResult<std::vector<StateBlock>> ParseStateBlockList(Parser parser) {
 
 ParseElemResult<std::vector<StateBlock>> ParseModalBody(Parser parser) {
   SPEC_RULE("Parse-ModalBody");
+  // Skip newlines before opening brace
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
   if (!IsPunc(parser, "{")) {
     EmitParseSyntaxErr(parser, TokSpan(parser));
     return {parser, {}};
@@ -1093,6 +1438,10 @@ ParseElemResult<std::vector<ClassItem>> ParseClassItemList(Parser parser) {
 
 ParseElemResult<std::vector<ClassItem>> ParseClassBody(Parser parser) {
   SPEC_RULE("Parse-ClassBody");
+  // Skip newlines before opening brace
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
   if (!IsPunc(parser, "{")) {
     EmitParseSyntaxErr(parser, TokSpan(parser));
     return {parser, {}};
@@ -1206,23 +1555,37 @@ ParseElemResult<std::shared_ptr<Type>> ParseTypeAnnotOpt(Parser parser) {
 
 ParseItemResult ParseItem(Parser parser) {
   Parser start = parser;
+  
+  // C0X Extension: Parse optional attributes first
+  ParseElemResult<AttributeList> attrs = ParseAttributeListOpt(parser);
+  parser = attrs.parser;
+  
+  // Skip newlines after attributes
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
+  
   if (IsWhereTok(parser)) {
-    return RejectWhereClause(start, parser);
+    // Stray where clause at top level is an error
+    SPEC_RULE("Parse-Stray-Where");
+    EmitParseSyntaxErr(parser, TokSpan(parser));
+    Parser next = parser;
+    SyncItem(next);
+    return {next, ErrorItem{SpanBetween(start, next)}};
   }
   if (IsKw(parser, "import")) {
-    SPEC_RULE("Parse-Import-Unsupported");
-    EmitImportUnsupported(parser);
+    // C0X Extension: Import declarations - parse them
+    SPEC_RULE("Parse-Import");
     Parser next = parser;
-    Advance(next);
-    SyncItem(next);
-    return {next, ErrorItem{SpanBetween(start, next)}};
-  }
-  if (IsPunc(parser, "[") && IsPunc(AdvanceOrEOF(parser), "[")) {
-    SPEC_RULE("Parse-Attribute-Unsupported");
-    EmitAttrUnsupported(parser);
-    Parser next = parser;
-    SyncItem(next);
-    return {next, ErrorItem{SpanBetween(start, next)}};
+    Advance(next);  // consume import
+    ParseElemResult<ModulePath> path = ParseModulePath(next);
+    ParseElemResult<std::optional<Identifier>> alias = ParseAliasOpt(path.parser);
+    ImportDecl decl;
+    decl.vis = Visibility::Private;  // imports are private by default
+    decl.path = path.elem;
+    decl.alias = alias.elem;
+    decl.span = SpanBetween(start, alias.parser);
+    return {alias.parser, decl};
   }
   if (IsKw(parser, "modal")) {
     Parser after_modal = parser;
@@ -1230,12 +1593,26 @@ ParseItemResult ParseItem(Parser parser) {
     const Token* next_tok = Tok(after_modal);
     if (IsKw(after_modal, "class") ||
         (next_tok && IsIdentTok(*next_tok) && next_tok->lexeme == "class")) {
-      SPEC_RULE("Parse-Modal-Class-Unsupported");
-      EmitUnsupportedConstruct(parser);
+      // C0X Extension: Modal class - parse it
+      SPEC_RULE("Parse-Modal-Class");
       Parser next = after_modal;
-      Advance(next);
-      SyncItem(next);
-      return {next, ErrorItem{SpanBetween(start, next)}};
+      Advance(next);  // consume class
+      ParseElemResult<Identifier> name = ParseIdent(next);
+      ParseElemResult<std::optional<GenericParams>> gen_params = ParseGenericParamsOpt(name.parser);
+      ParseElemResult<std::vector<ClassPath>> supers = ParseSuperclassOpt(gen_params.parser);
+      ParseElemResult<std::optional<WhereClause>> where_clause = ParseWhereClauseOpt(supers.parser);
+      ParseElemResult<std::vector<ClassItem>> items = ParseClassBody(where_clause.parser);
+      ClassDecl decl;
+      decl.vis = Visibility::Private;
+      decl.modal = true;
+      decl.name = name.elem;
+      decl.generic_params = gen_params.elem;
+      decl.supers = std::move(supers.elem);
+      decl.where_clause = where_clause.elem;
+      decl.items = std::move(items.elem);
+      decl.span = SpanBetween(start, items.parser);
+      decl.doc = {};
+      return {items.parser, decl};
     }
   }
   if (const Token* tok = Tok(parser);
@@ -1267,26 +1644,6 @@ ParseItemResult ParseItem(Parser parser) {
 
   ParseElemResult<Visibility> vis = ParseVis(parser);
   Parser cur = vis.parser;
-  if (IsWhereTok(cur)) {
-    return RejectWhereClause(start, cur);
-  }
-
-  if (const Token* tok = Tok(cur); tok && tok->kind == TokenKind::Keyword) {
-    const std::string_view kw = tok->lexeme;
-    if (kw == "procedure" || kw == "record" || kw == "enum" ||
-        kw == "class" || kw == "modal" || kw == "type") {
-      Parser after_kw = cur;
-      Advance(after_kw);
-      ParseElemResult<Identifier> name = ParseIdent(after_kw);
-      if (IsOp(name.parser, "<")) {
-        SPEC_RULE("Parse-Generic-Header-Unsupported");
-        Parser skip = SkipAngles(name.parser);
-        EmitUnsupportedConstruct(skip);
-        SyncItem(skip);
-        return {skip, ErrorItem{SpanBetween(start, skip)}};
-      }
-    }
-  }
 
   if (IsKw(cur, "using")) {
     Parser next = cur;
@@ -1332,16 +1689,23 @@ ParseItemResult ParseItem(Parser parser) {
     Parser next = cur;
     Advance(next);
     ParseElemResult<Identifier> name = ParseIdent(next);
-    SignatureResult sig = ParseSignature(name.parser);
-    if (IsWhereTok(sig.parser)) {
-      return RejectWhereClause(start, sig.parser);
-    }
-    ParseElemResult<std::shared_ptr<Block>> body = ParseBlock(sig.parser);
+    // C0X Extension: Parse optional generic parameters
+    ParseElemResult<std::optional<GenericParams>> gen_params = ParseGenericParamsOpt(name.parser);
+    SignatureResult sig = ParseSignature(gen_params.parser);
+    // C0X Extension: Parse optional where clause
+    ParseElemResult<std::optional<WhereClause>> where_clause = ParseWhereClauseOpt(sig.parser);
+    // C0X Extension: Parse optional contract clause
+    ParseElemResult<std::optional<ContractClause>> contract = ParseContractClauseOpt(where_clause.parser);
+    ParseElemResult<std::shared_ptr<Block>> body = ParseBlock(contract.parser);
     ProcedureDecl decl;
+    decl.attrs = attrs.elem;  // C0X Extension
     decl.vis = vis.elem;
     decl.name = name.elem;
+    decl.generic_params = gen_params.elem;  // C0X Extension
     decl.params = sig.params;
     decl.return_type_opt = sig.return_type_opt;
+    decl.where_clause = where_clause.elem;  // C0X Extension
+    decl.contract = contract.elem;  // C0X Extension
     decl.body = body.elem;
     decl.span = SpanBetween(start, body.parser);
     decl.doc = {};
@@ -1353,15 +1717,19 @@ ParseItemResult ParseItem(Parser parser) {
     Parser next = cur;
     Advance(next);
     ParseElemResult<Identifier> name = ParseIdent(next);
-    ParseElemResult<std::vector<ClassPath>> impls = ParseImplementsOpt(name.parser);
-    if (IsWhereTok(impls.parser)) {
-      return RejectWhereClause(start, impls.parser);
-    }
-    ParseElemResult<std::vector<RecordMember>> members = ParseRecordBody(impls.parser);
+    // C0X Extension: Parse optional generic parameters
+    ParseElemResult<std::optional<GenericParams>> gen_params = ParseGenericParamsOpt(name.parser);
+    ParseElemResult<std::vector<ClassPath>> impls = ParseImplementsOpt(gen_params.parser);
+    // C0X Extension: Parse optional where clause
+    ParseElemResult<std::optional<WhereClause>> where_clause = ParseWhereClauseOpt(impls.parser);
+    ParseElemResult<std::vector<RecordMember>> members = ParseRecordBody(where_clause.parser);
     RecordDecl decl;
+    decl.attrs = attrs.elem;  // C0X Extension
     decl.vis = vis.elem;
     decl.name = name.elem;
+    decl.generic_params = gen_params.elem;  // C0X Extension
     decl.implements = std::move(impls.elem);
+    decl.where_clause = where_clause.elem;  // C0X Extension
     decl.members = std::move(members.elem);
     decl.span = SpanBetween(start, members.parser);
     decl.doc = {};
@@ -1373,15 +1741,19 @@ ParseItemResult ParseItem(Parser parser) {
     Parser next = cur;
     Advance(next);
     ParseElemResult<Identifier> name = ParseIdent(next);
-    ParseElemResult<std::vector<ClassPath>> impls = ParseImplementsOpt(name.parser);
-    if (IsWhereTok(impls.parser)) {
-      return RejectWhereClause(start, impls.parser);
-    }
-    ParseElemResult<std::vector<VariantDecl>> vars = ParseEnumBody(impls.parser);
+    // C0X Extension: Parse optional generic parameters
+    ParseElemResult<std::optional<GenericParams>> gen_params = ParseGenericParamsOpt(name.parser);
+    ParseElemResult<std::vector<ClassPath>> impls = ParseImplementsOpt(gen_params.parser);
+    // C0X Extension: Parse optional where clause
+    ParseElemResult<std::optional<WhereClause>> where_clause = ParseWhereClauseOpt(impls.parser);
+    ParseElemResult<std::vector<VariantDecl>> vars = ParseEnumBody(where_clause.parser);
     EnumDecl decl;
+    decl.attrs = attrs.elem;  // C0X Extension
     decl.vis = vis.elem;
     decl.name = name.elem;
+    decl.generic_params = gen_params.elem;  // C0X Extension
     decl.implements = std::move(impls.elem);
+    decl.where_clause = where_clause.elem;  // C0X Extension
     decl.variants = std::move(vars.elem);
     decl.span = SpanBetween(start, vars.parser);
     decl.doc = {};
@@ -1393,15 +1765,18 @@ ParseItemResult ParseItem(Parser parser) {
     Parser next = cur;
     Advance(next);
     ParseElemResult<Identifier> name = ParseIdent(next);
-    ParseElemResult<std::vector<ClassPath>> impls = ParseImplementsOpt(name.parser);
-    if (IsWhereTok(impls.parser)) {
-      return RejectWhereClause(start, impls.parser);
-    }
-    ParseElemResult<std::vector<StateBlock>> states = ParseModalBody(impls.parser);
+    // C0X Extension: Parse optional generic parameters
+    ParseElemResult<std::optional<GenericParams>> gen_params = ParseGenericParamsOpt(name.parser);
+    ParseElemResult<std::vector<ClassPath>> impls = ParseImplementsOpt(gen_params.parser);
+    // C0X Extension: Parse optional where clause
+    ParseElemResult<std::optional<WhereClause>> where_clause = ParseWhereClauseOpt(impls.parser);
+    ParseElemResult<std::vector<StateBlock>> states = ParseModalBody(where_clause.parser);
     ModalDecl decl;
     decl.vis = vis.elem;
     decl.name = name.elem;
+    decl.generic_params = gen_params.elem;  // C0X Extension
     decl.implements = std::move(impls.elem);
+    decl.where_clause = where_clause.elem;  // C0X Extension
     decl.states = std::move(states.elem);
     decl.span = SpanBetween(start, states.parser);
     decl.doc = {};
@@ -1413,15 +1788,19 @@ ParseItemResult ParseItem(Parser parser) {
     Parser next = cur;
     Advance(next);
     ParseElemResult<Identifier> name = ParseIdent(next);
-    ParseElemResult<std::vector<ClassPath>> supers = ParseSuperclassOpt(name.parser);
-    if (IsWhereTok(supers.parser)) {
-      return RejectWhereClause(start, supers.parser);
-    }
-    ParseElemResult<std::vector<ClassItem>> items = ParseClassBody(supers.parser);
+    // C0X Extension: Parse optional generic parameters
+    ParseElemResult<std::optional<GenericParams>> gen_params = ParseGenericParamsOpt(name.parser);
+    ParseElemResult<std::vector<ClassPath>> supers = ParseSuperclassOpt(gen_params.parser);
+    // C0X Extension: Parse optional where clause
+    ParseElemResult<std::optional<WhereClause>> where_clause = ParseWhereClauseOpt(supers.parser);
+    ParseElemResult<std::vector<ClassItem>> items = ParseClassBody(where_clause.parser);
     ClassDecl decl;
     decl.vis = vis.elem;
+    decl.modal = false;
     decl.name = name.elem;
+    decl.generic_params = gen_params.elem;  // C0X Extension
     decl.supers = std::move(supers.elem);
+    decl.where_clause = where_clause.elem;  // C0X Extension
     decl.items = std::move(items.elem);
     decl.span = SpanBetween(start, items.parser);
     decl.doc = {};
@@ -1433,22 +1812,23 @@ ParseItemResult ParseItem(Parser parser) {
     Parser next = cur;
     Advance(next);
     ParseElemResult<Identifier> name = ParseIdent(next);
-    if (!IsOp(name.parser, "=")) {
-      EmitParseSyntaxErr(name.parser, TokSpan(name.parser));
+    // C0X Extension: Parse optional generic parameters
+    ParseElemResult<std::optional<GenericParams>> gen_params = ParseGenericParamsOpt(name.parser);
+    if (!IsOp(gen_params.parser, "=")) {
+      EmitParseSyntaxErr(gen_params.parser, TokSpan(gen_params.parser));
     } else {
-      Advance(name.parser);
+      Advance(gen_params.parser);
     }
-    ParseElemResult<std::shared_ptr<Type>> ty = ParseType(name.parser);
-    if (IsWhereTok(ty.parser)) {
-      return RejectWhereClause(start, ty.parser);
-    }
+    ParseElemResult<std::shared_ptr<Type>> ty = ParseType(gen_params.parser);
+    // C0X Extension: Parse optional where clause
+    ParseElemResult<std::optional<WhereClause>> where_clause = ParseWhereClauseOpt(ty.parser);
     TypeAliasDecl decl;
     decl.vis = vis.elem;
     decl.name = name.elem;
     decl.type = ty.elem;
-    decl.span = SpanBetween(start, ty.parser);
+    decl.span = SpanBetween(start, where_clause.parser);
     decl.doc = {};
-    return {ty.parser, decl};
+    return {where_clause.parser, decl};
   }
 
   SPEC_RULE("Parse-Item-Err");

@@ -1,0 +1,20 @@
+# SPEC_COV: C0X-8.1-WFGeneric
+# SPEC_COV: ClassDecl-WF
+// §8.1: Class declaration well-formed with generic params and where clause.
+
+class Container<T> where T <: Bitcopy {
+  procedure get(~) -> T
+  procedure set(~!, value: T)
+}
+
+record MyContainer { value: i32 }
+
+MyContainer <: Container<i32> {
+  procedure get(~) -> i32 { return self.value }
+  procedure set(~!, value: i32) { self.value = value }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  var c: MyContainer = MyContainer { value: 42 }
+  return c ~> get()
+}

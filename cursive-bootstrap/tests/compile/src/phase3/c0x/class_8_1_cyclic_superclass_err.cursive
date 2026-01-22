@@ -1,0 +1,11 @@
+# SPEC_COV: C0X-8.1-CyclicSuperclass
+# SPEC_COV: E-SEM-2611
+// §8.1: Cyclic superclass bound is ill-formed.
+// Expected diagnostic: E-SEM-2611
+
+class A <: B { }
+class B <: A { }
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

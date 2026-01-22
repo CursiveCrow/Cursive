@@ -127,13 +127,16 @@ static std::uint64_t TagKeyOf(const TypeNode& node) {
 }
 
 static std::uint64_t PermKeyOf(Permission perm) {
+  // C0X Extension: Permission lattice includes shared
+  // Key ordering: const=0, unique=1, shared=2
   if (perm == Permission::Const) {
     return 0;
   }
   if (perm == Permission::Unique) {
     return 1;
   }
-  SPEC_RULE("Perm-Shared-Unsupported");
+  // Permission::Shared
+  SPEC_RULE("Perm-Shared");
   return 2;
 }
 
@@ -328,7 +331,10 @@ static std::string BytesStateString(BytesState state) {
 
 bool IsPermInC0(Permission perm) {
   SpecDefsPermissionSets();
-  return perm != Permission::Shared;
+  // C0X Extension: shared permission is now supported
+  // Permission lattice: unique <: shared <: const
+  (void)perm;
+  return true;
 }
 
 std::optional<Permission> ParsePermissionKeyword(std::string_view token) {

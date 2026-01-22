@@ -1,0 +1,13 @@
+# SPEC_COV: C0X-7.7-MemoryOrdering-Parse
+// §7.7: Memory ordering attributes for key blocks
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { value: 42 }
+  [[seqcst]]
+  # d write {
+    d.value = 100
+  }
+  return d.value
+}

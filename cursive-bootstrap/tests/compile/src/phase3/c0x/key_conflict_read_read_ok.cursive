@@ -1,0 +1,16 @@
+# SPEC_COV: C0X-Key-Conflict-ReadRead
+# SPEC_COV: C0X-Key-NoConflict
+// Tests that multiple read keys on overlapping paths do not conflict.
+
+record Data { x: i32, y: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { x: 1, y: 2 }
+  # d.x {
+    # d.y {
+      // Read-read on different fields: no conflict
+      return d.x + d.y
+    }
+  }
+  return 0
+}

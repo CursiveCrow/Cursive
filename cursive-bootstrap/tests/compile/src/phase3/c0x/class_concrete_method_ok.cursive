@@ -1,0 +1,15 @@
+# SPEC_COV: C0X-Class-ConcreteMethod
+# SPEC_COV: C0X-Class-DefaultImpl
+// Tests class with concrete method (has body, can be overridden).
+
+class Counter {
+  procedure increment(~!) -> ()
+  
+  procedure reset(~!) -> () {
+    // Default implementation
+  }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

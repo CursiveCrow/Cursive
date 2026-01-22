@@ -1,0 +1,16 @@
+# SPEC_COV: C0X-14.4.3-PreContext
+# SPEC_COV: Gamma-pre
+// §14.4.3: Precondition context includes parameters and receiver at entry state.
+
+record Counter { value: i32 }
+
+procedure Counter::check(~) -> bool
+  |= self.value >= 0
+{
+  return self.value >= 0
+}
+
+public procedure main(ctx: Context) -> i32 {
+  var c: Counter = Counter { value: 10 }
+  if c ~> check() { return 1 } else { return 0 }
+}

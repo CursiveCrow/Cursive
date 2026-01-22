@@ -1,0 +1,16 @@
+# SPEC_COV: C0X-8-Impl-Parse
+// §8.2: Class implementation syntax
+
+class Printable {
+  procedure print(~) -> i32
+}
+
+record MyType { value: i32 }
+
+MyType <: Printable {
+  procedure print(~) -> i32 { return self.value }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

@@ -170,6 +170,14 @@ target_link_libraries(syntax_keyword_policy_test PRIVATE cursive0_syntax)
 
 add_test(NAME syntax_keyword_policy_test COMMAND syntax_keyword_policy_test)
 
+add_executable(syntax_c0x_parser_test
+  unit/syntax_c0x_parser_test.cpp
+)
+
+target_link_libraries(syntax_c0x_parser_test PRIVATE cursive0_syntax)
+
+add_test(NAME syntax_c0x_parser_test COMMAND syntax_c0x_parser_test)
+
 add_executable(analysis_scopes_test
   unit/analysis_scopes_test.cpp
 )
@@ -209,6 +217,14 @@ add_test(NAME analysis_type_equiv_test COMMAND analysis_type_equiv_test)
 target_link_libraries(analysis_subtyping_test PRIVATE cursive0_analysis)
 
 add_test(NAME analysis_subtyping_test COMMAND analysis_subtyping_test)
+
+add_executable(analysis_c0x_features_test
+  unit/analysis_c0x_features_test.cpp
+)
+
+target_link_libraries(analysis_c0x_features_test PRIVATE cursive0_analysis)
+
+add_test(NAME analysis_c0x_features_test COMMAND analysis_c0x_features_test)
 
 add_executable(analysis_borrow_bind_test
   unit/analysis_borrow_bind_test.cpp

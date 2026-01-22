@@ -1,0 +1,21 @@
+# SPEC_COV: C0X-Class-OverrideMissing
+# SPEC_COV: E-TYP-1942
+// Tests that override keyword is required when overriding concrete method.
+// Expected diagnostic: E-TYP-1942
+
+class Counter {
+  procedure get(~) -> i32 {
+    return 0
+  }
+}
+
+record MyCounter { value: i32 } <: Counter
+
+// Missing 'override' keyword
+procedure MyCounter::get(~) -> i32 {
+  return self.value
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

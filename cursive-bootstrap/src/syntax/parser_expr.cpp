@@ -1341,6 +1341,10 @@ ParseElemResult<std::vector<FieldInit>> ParseFieldInitTail(Parser parser,
 }
 
 MatchArmsResult ParseMatchArms(Parser parser) {
+  // Skip leading newlines
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
   SPEC_RULE("Parse-MatchArms-Cons");
   SPEC_RULE("Parse-MatchArm");
   ParseElemResult<std::shared_ptr<Pattern>> pat = ParsePattern(parser);
@@ -1365,6 +1369,11 @@ MatchArmsResult ParseMatchArms(Parser parser) {
 }
 
 MatchArmsResult ParseMatchArmsTail(Parser parser, std::vector<MatchArm> xs) {
+  // Skip newlines (they act as arm separators)
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
+  
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-MatchArmsTail-End");
     return {parser, xs};
@@ -1380,6 +1389,10 @@ MatchArmsResult ParseMatchArmsTail(Parser parser, std::vector<MatchArm> xs) {
     SPEC_RULE("Parse-MatchArm");
     Parser after = parser;
     Advance(after);
+    // Skip newlines after comma
+    while (Tok(after) && Tok(after)->kind == TokenKind::Newline) {
+      Advance(after);
+    }
     ParseElemResult<std::shared_ptr<Pattern>> pat = ParsePattern(after);
     GuardOptResult guard = ParseGuardOpt(pat.parser);
     if (!IsOp(guard.parser, "=>")) {
@@ -1396,6 +1409,36 @@ MatchArmsResult ParseMatchArmsTail(Parser parser, std::vector<MatchArm> xs) {
     arm.guard_opt = guard.guard_opt;
     arm.body = body.body;
     arm.span = SpanBetween(after, body.parser);
+    xs.push_back(arm);
+    return ParseMatchArmsTail(body.parser, std::move(xs));
+  }
+  // No comma - check if next token starts a new arm (pattern)
+  // Patterns start with: identifier, @, literal, (, [, _
+  const Token* tok = Tok(parser);
+  if (tok && (tok->kind == TokenKind::Identifier ||
+              tok->lexeme == "@" || tok->lexeme == "_" ||
+              tok->lexeme == "(" || tok->lexeme == "[" ||
+              tok->kind == TokenKind::IntLiteral ||
+              tok->kind == TokenKind::StringLiteral ||
+              tok->kind == TokenKind::BoolLiteral)) {
+    SPEC_RULE("Parse-MatchArmsTail-Newline");
+    SPEC_RULE("Parse-MatchArm");
+    ParseElemResult<std::shared_ptr<Pattern>> pat = ParsePattern(parser);
+    GuardOptResult guard = ParseGuardOpt(pat.parser);
+    if (!IsOp(guard.parser, "=>")) {
+      EmitParseSyntaxErr(guard.parser, TokSpan(guard.parser));
+      Parser sync = guard.parser;
+      SyncStmt(sync);
+      return {sync, xs};
+    }
+    Parser after_arrow = guard.parser;
+    Advance(after_arrow);
+    ArmBodyResult body = ParseArmBody(after_arrow);
+    MatchArm arm;
+    arm.pattern = pat.elem;
+    arm.guard_opt = guard.guard_opt;
+    arm.body = body.body;
+    arm.span = SpanBetween(parser, body.parser);
     xs.push_back(arm);
     return ParseMatchArmsTail(body.parser, std::move(xs));
   }

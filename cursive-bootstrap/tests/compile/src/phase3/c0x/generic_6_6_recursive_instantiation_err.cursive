@@ -1,0 +1,10 @@
+# SPEC_COV: C0X-6.6-RecursiveInstantiation
+# SPEC_COV: E-SEM-2602
+// §6.6: Non-terminating type-level recursion is ill-formed.
+// Expected diagnostic: E-SEM-2602
+
+record Recurse<T> { next: Recurse<Recurse<T>> }
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

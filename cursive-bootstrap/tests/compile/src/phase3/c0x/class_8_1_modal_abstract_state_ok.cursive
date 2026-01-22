@@ -1,0 +1,26 @@
+# SPEC_COV: C0X-8.1-ModalAbstractState
+# SPEC_COV: ClassDecl-ModalState
+// §8.1: Modal class may have abstract states; non-modal class MUST NOT.
+
+modal class Lifecycle {
+  @Created { }
+  @Running { }
+  @Stopped { }
+  
+  procedure start(~!)
+  procedure stop(~!)
+}
+
+modal MyService {
+  @Idle { }
+  @Active { data: i32 }
+}
+
+MyService <: Lifecycle {
+  procedure start(~!) { }
+  procedure stop(~!) { }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

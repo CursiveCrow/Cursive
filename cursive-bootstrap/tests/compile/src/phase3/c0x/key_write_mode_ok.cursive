@@ -1,0 +1,14 @@
+# SPEC_COV: C0X-Key-WriteMode
+# SPEC_COV: C0X-Key-ModeCheck
+// Tests write mode key block allows writes.
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { value: 42 }
+  # d write {
+    // Write mode permits mutation
+    d.value = 100
+  }
+  return d.value
+}

@@ -17936,22 +17936,22 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 
 ### 8.1. E-PRJ (Project)
 
-| Code         | Severity | Detection    | Condition                                                                            | DiagId                                                                                             |
-| ------------ | -------- | ------------ | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `E-PRJ-0101` | Error    | Compile-time | `Cursive.toml` not found at project root                                             | Parse-Manifest-Missing                                                                             |
-| `E-PRJ-0102` | Error    | Compile-time | `Cursive.toml` is not valid TOML                                                     | Parse-Manifest-Err                                                                                 |
+| Code         | Severity | Detection    | Condition                                                                                   | DiagId                                                                                             |
+| ------------ | -------- | ------------ | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `E-PRJ-0101` | Error    | Compile-time | `Cursive.toml` not found at project root                                                    | Parse-Manifest-Missing                                                                             |
+| `E-PRJ-0102` | Error    | Compile-time | `Cursive.toml` is not valid TOML                                                            | Parse-Manifest-Err                                                                                 |
 | `E-PRJ-0103` | Error    | Compile-time | Missing required `assembly` table, empty assembly list, required keys, or required key type | WF-Assembly-Table-Err, WF-Assembly-Count-Err, WF-Assembly-Required-Types-Err                       |
-| `E-PRJ-0104` | Error    | Compile-time | Unknown key in `assembly` table or unknown top-level key                             | WF-Assembly-Keys-Err, WF-TopKeys-Err                                                               |
-| `E-PRJ-0201` | Error    | Compile-time | `assembly.kind` is not in `{ "executable", "library" }`                              | WF-Assembly-Kind-Err                                                                               |
-| `E-PRJ-0202` | Error    | Compile-time | Duplicate `assembly.name` values                                                     | WF-Assembly-Name-Dup                                                                               |
-| `E-PRJ-0203` | Error    | Compile-time | `assembly.name` is not a valid identifier                                            | WF-Assembly-Name-Err                                                                               |
-| `E-PRJ-0204` | Error    | Compile-time | `emit_ir` has invalid value or type                                                  | WF-Assembly-EmitIR-Err, WF-Assembly-EmitIRType-Err                                                 |
-| `E-PRJ-0205` | Error    | Compile-time | Assembly selection failed (missing target or target not found)                       | Assembly-Select-Err                                                                                |
-| `E-PRJ-0301` | Error    | Compile-time | `assembly.root` or `out_dir` has invalid type, is absolute, or resolves outside root | WF-Assembly-Root-Path-Err, WF-Assembly-OutDir-Path-Err, WF-Assembly-OutDirType-Err, WF-RelPath-Err |
-| `E-PRJ-0302` | Error    | Compile-time | `assembly.root` does not exist or is not a directory                                 | WF-Source-Root-Err                                                                                 |
-| `E-PRJ-0303` | Error    | Compile-time | Relative path derivation failed during deterministic ordering (file or directory)    | FileOrder-Rel-Fail, DirSeq-Rel-Fail                                                                |
-| `E-PRJ-0304` | Error    | Compile-time | Path canonicalization or module path derivation failed due to filesystem error       | Disc-Rel-Fail, Resolve-Canonical-Err                                                               |
-| `E-PRJ-0305` | Error    | Compile-time | Directory enumeration failed during module discovery                                 | DirSeq-Read-Err                                                                                    |
+| `E-PRJ-0104` | Error    | Compile-time | Unknown key in `assembly` table or unknown top-level key                                    | WF-Assembly-Keys-Err, WF-TopKeys-Err                                                               |
+| `E-PRJ-0201` | Error    | Compile-time | `assembly.kind` is not in `{ "executable", "library" }`                                     | WF-Assembly-Kind-Err                                                                               |
+| `E-PRJ-0202` | Error    | Compile-time | Duplicate `assembly.name` values                                                            | WF-Assembly-Name-Dup                                                                               |
+| `E-PRJ-0203` | Error    | Compile-time | `assembly.name` is not a valid identifier                                                   | WF-Assembly-Name-Err                                                                               |
+| `E-PRJ-0204` | Error    | Compile-time | `emit_ir` has invalid value or type                                                         | WF-Assembly-EmitIR-Err, WF-Assembly-EmitIRType-Err                                                 |
+| `E-PRJ-0205` | Error    | Compile-time | Assembly selection failed (missing target or target not found)                              | Assembly-Select-Err                                                                                |
+| `E-PRJ-0301` | Error    | Compile-time | `assembly.root` or `out_dir` has invalid type, is absolute, or resolves outside root        | WF-Assembly-Root-Path-Err, WF-Assembly-OutDir-Path-Err, WF-Assembly-OutDirType-Err, WF-RelPath-Err |
+| `E-PRJ-0302` | Error    | Compile-time | `assembly.root` does not exist or is not a directory                                        | WF-Source-Root-Err                                                                                 |
+| `E-PRJ-0303` | Error    | Compile-time | Relative path derivation failed during deterministic ordering (file or directory)           | FileOrder-Rel-Fail, DirSeq-Rel-Fail                                                                |
+| `E-PRJ-0304` | Error    | Compile-time | Path canonicalization or module path derivation failed due to filesystem error              | Disc-Rel-Fail, Resolve-Canonical-Err                                                               |
+| `E-PRJ-0305` | Error    | Compile-time | Directory enumeration failed during module discovery                                        | DirSeq-Read-Err                                                                                    |
 
 ### 8.2. E-MOD (Module)
 
@@ -18025,14 +18025,14 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 
 ### 8.5. E-CNF (Conformance / Limits)
 
-| Code         | Severity | Detection    | Condition                                                                                   | DiagId                                                                                    |
-| ------------ | -------- | ------------ | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `E-CNF-0401` | Error    | Compile-time | Reserved keyword used as identifier                                                         | Validate-Module-Keyword-Err                                                               |
-| `E-CNF-0402` | Error    | Compile-time | Reserved namespace `cursive.*` used by user code                                            | Validate-ModulePath-Reserved-Err, Intro-Reserved-Cursive-Err, Shadow-Reserved-Cursive-Err |
-| `E-CNF-0403` | Error    | Compile-time | Primitive type name shadowed at module scope                                                | Validate-Module-Prim-Shadow-Err                                                           |
-| `E-CNF-0404` | Error    | Compile-time | Shadowing of `Self`, `Drop`, `Bitcopy`, `Clone`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, or `Context`    | Validate-Module-Special-Shadow-Err                                                        |
-| `E-CNF-0405` | Error    | Compile-time | Shadowing of async type alias (`Async`, `Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`) | Validate-Module-Async-Shadow-Err                                                          |
-| `E-CNF-0406` | Error    | Compile-time | User declaration uses `gen_` prefix                                                         | Intro-Reserved-Gen-Err, Shadow-Reserved-Gen-Err                                           |
+| Code         | Severity | Detection    | Condition                                                                                                            | DiagId                                                                                    |
+| ------------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `E-CNF-0401` | Error    | Compile-time | Reserved keyword used as identifier                                                                                  | Validate-Module-Keyword-Err                                                               |
+| `E-CNF-0402` | Error    | Compile-time | Reserved namespace `cursive.*` used by user code                                                                     | Validate-ModulePath-Reserved-Err, Intro-Reserved-Cursive-Err, Shadow-Reserved-Cursive-Err |
+| `E-CNF-0403` | Error    | Compile-time | Primitive type name shadowed at module scope                                                                         | Validate-Module-Prim-Shadow-Err                                                           |
+| `E-CNF-0404` | Error    | Compile-time | Shadowing of `Self`, `Drop`, `Bitcopy`, `Clone`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, or `Context` | Validate-Module-Special-Shadow-Err                                                        |
+| `E-CNF-0405` | Error    | Compile-time | Shadowing of async type alias (`Async`, `Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`)                          | Validate-Module-Async-Shadow-Err                                                          |
+| `E-CNF-0406` | Error    | Compile-time | User declaration uses `gen_` prefix                                                                                  | Intro-Reserved-Gen-Err, Shadow-Reserved-Gen-Err                                           |
 
 ### 8.6. E-UNS (Unsupported Constructs)
 
@@ -18159,7 +18159,7 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 | `E-TYP-2541` | Error    | Compile-time | Dynamic class type created from non-dispatchable class                                                 | Dynamic-NonDispatchable                                                                                                                  |
 | `E-TYP-2621` | Error    | Compile-time | Type implements both `Bitcopy` and `Drop`                                                              | BitcopyDrop-Conflict                                                                                                                     |
 | `E-TYP-2622` | Error    | Compile-time | `Bitcopy` type has non-`Bitcopy` field                                                                 | Bitcopy-Field-NonBitcopy                                                                                                                 |
-| `E-TYP-2623` | Error    | Compile-time | Type implementing `Bitcopy` does not implement `Clone`                                                              | Bitcopy-Clone-Missing                                                                                                                    |
+| `E-TYP-2623` | Error    | Compile-time | Type implementing `Bitcopy` does not implement `Clone`                                                 | Bitcopy-Clone-Missing                                                                                                                    |
 
 ### 8.11. W-SYS (System Warnings)
 

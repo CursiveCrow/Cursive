@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "cursive0/core/assert_spec.h"
+// Note: assert_spec.h is NOT included here to avoid circular dependency with span.h
 
 namespace cursive0::core {
 

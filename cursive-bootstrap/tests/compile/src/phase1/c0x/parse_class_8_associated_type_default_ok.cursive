@@ -1,0 +1,11 @@
+# SPEC_COV: C0X-8-AssociatedTypeDefault-Parse
+// §8: Associated type with default
+
+class Result {
+  type Error = ()
+  type Value
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

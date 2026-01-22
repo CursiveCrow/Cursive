@@ -3476,6 +3476,20 @@ struct IRVisitor {
               continue;
             }
           }
+          // If arg is already a pointer (e.g., address of a place expression),
+          // pass it directly for true pass-by-reference semantics
+          if (arg->getType()->isPointerTy()) {
+            llvm::Value* ptr_arg = arg;
+            llvm::Type* target_ty = abi.param_types[idx];
+            if (ptr_arg && target_ty && ptr_arg->getType() != target_ty) {
+              if (target_ty->isPointerTy()) {
+                ptr_arg = builder->CreateBitCast(ptr_arg, target_ty);
+              }
+            }
+            call_args[idx] = ptr_arg;
+            continue;
+          }
+          // Fallback: create a byref slot for non-pointer values
           llvm::Type* elem_ty = emitter.GetLLVMType(sig->params[i].type);
           llvm::AllocaInst* slot = CreateEntryAlloca(emitter, builder, elem_ty, "byref_arg");
           if (slot) {

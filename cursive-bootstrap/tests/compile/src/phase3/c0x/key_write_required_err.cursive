@@ -1,0 +1,13 @@
+# SPEC_COV: C0X-Key-WriteRequired
+# SPEC_COV: E-CON-0005
+// Tests that write access requires write key mode.
+// Expected diagnostic: E-CON-0005
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { value: 42 }
+  // Implicit read key
+  d.value = 100  // Error: write requires write key
+  return d.value
+}

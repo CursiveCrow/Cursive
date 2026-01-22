@@ -1,0 +1,9 @@
+# SPEC_COV: C0X-9.4-Reexport
+# SPEC_COV: Reexport-Public
+// §9.4: public using re-exports items. Only public items can be re-exported.
+
+public using cursive::runtime::string
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

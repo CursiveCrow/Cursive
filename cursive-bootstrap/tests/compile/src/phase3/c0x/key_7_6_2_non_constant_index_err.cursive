@@ -1,0 +1,14 @@
+# SPEC_COV: C0X-7.6.2-NonConstantIndexErr
+# SPEC_COV: E-SEM-2703
+// §7.6.2: Outside Dynamic scope, non-constant index is compile-time error.
+// Expected diagnostic: E-SEM-2703
+
+public procedure main(ctx: Context) -> i32 {
+  var arr: shared [i32; 10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  var idx: usize = 5
+  # arr[idx] {
+    // Non-constant index without dynamic modifier
+    return arr[idx]
+  }
+  return 0
+}

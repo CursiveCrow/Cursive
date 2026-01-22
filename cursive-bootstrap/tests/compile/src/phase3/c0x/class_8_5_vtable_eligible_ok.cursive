@@ -1,0 +1,20 @@
+# SPEC_COV: C0X-8.5-VtableEligible
+# SPEC_COV: Vtable-Eligible
+// §8.5: Procedure vtable-eligible: has receiver, no generic params, no Self by value.
+
+class Dispatchable {
+  procedure method(~) -> i32
+  procedure another(~, x: i32) -> i32
+}
+
+record MyImpl { value: i32 }
+
+MyImpl <: Dispatchable {
+  procedure method(~) -> i32 { return self.value }
+  procedure another(~, x: i32) -> i32 { return self.value + x }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  var obj: $Dispatchable = MyImpl { value: 40 } as $Dispatchable
+  return obj ~> another(2)
+}

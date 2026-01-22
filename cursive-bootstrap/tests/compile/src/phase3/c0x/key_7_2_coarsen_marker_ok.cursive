@@ -1,0 +1,15 @@
+# SPEC_COV: C0X-7.2-CoarsenMarker
+# SPEC_COV: KeyPath-Coarsen
+// §7.2: Segment may be marked by #, which truncates key path at that segment.
+
+record Inner { val: i32 }
+record Outer { inner: Inner }
+
+public procedure main(ctx: Context) -> i32 {
+  var o: shared Outer = Outer { inner: Inner { val: 42 } }
+  // # at .inner truncates path to (o, .#inner) covering all of inner
+  # o.#inner {
+    return o.inner.val
+  }
+  return 0
+}

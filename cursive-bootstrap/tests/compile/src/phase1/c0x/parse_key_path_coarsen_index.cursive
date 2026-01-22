@@ -1,0 +1,15 @@
+# SPEC_COV: Parse-KeyPath
+# SPEC_COV: Parse-KeyPath-Coarsen-Index
+# SPEC_COV: Parse-KeyMarker
+// Tests parsing of key path with coarsening marker on index.
+
+record Container { data: [i32; 3] }
+
+public procedure main(ctx: Context) -> i32 {
+  var c: shared Container = Container { data: [1, 2, 3] }
+  // Coarsen at [#0] - key at index 0 covers element
+  # c.data[#0] {
+    return c.data[0]
+  }
+  return 0
+}

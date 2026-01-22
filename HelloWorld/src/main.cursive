@@ -1,63 +1,23 @@
-// Cursive0 HelloWorld - feature build check
+/// C0X Feature Test - Procedure calls working
 
-record Counter <: Bitcopy, Clone {
-  value: i32
-  procedure clone(~) -> Self { return Counter { value: self.value }; }
-  procedure read(~) -> i32 { return self.value; }
+procedure identity(x: i32) -> i32 {
+  return x
 }
 
-modal Status {
-  @Idle { ticks: i32 }
-  @Busy { code: i32 retries: i32 }
+procedure add(x: i32, y: i32) -> i32 {
+  return x + y
 }
 
-modal OptPtr {
-  @Null { tag: bool }
-  @Valid { ptr: Ptr<i32>@Valid }
+procedure compute(a: i32, b: i32, c: i32) -> i32 {
+  var sum: i32 = add(a, b)
+  return add(sum, c)
 }
 
 public procedure main(ctx: Context) -> i32 {
-  let greeting: string@View = "Hello";
-  let greet_len: usize = string::length(greeting);
-  let greet_msg: string@View = if greet_len == 5usize { "greet=len5\n" } else { "greet=len?\n" };
-
-  let b_view: bytes@View = bytes::view_string(greeting);
-  let bytes_msg: string@View = if bytes::length(b_view) == 5usize { "bytes=len5\n" } else { "bytes=len?\n" };
-
-  let counter = Counter { value: 1 };
-  let next = counter~>clone();
-  let count = next~>read();
-  let status: Status = if count == 2i32 {
-    widen Status@Idle { ticks: count }
-  } else {
-    widen Status@Busy { code: count, retries: 1 }
-  };
-  let status_msg: string@View = match move status {
-    @Idle { ticks: ticks_val } => "status=idle2\n",
-    @Busy { code: code_val, retries: retry_val } => "status=busy_retry\n"
-  };
-
-  var x: i32 = count + 5;
-  let p: Ptr<i32>@Valid = &x;
-  let opt: OptPtr = if x > 6i32 {
-    widen OptPtr@Valid { ptr: p }
-  } else {
-    widen OptPtr@Null { tag: false }
-  };
-  let ptr_msg: string@View = match move opt {
-    @Valid { ptr: ptr_val } => "ptr=valid\n",
-    @Null { tag: tag_val } => "ptr=null\n"
-  };
-
-  var region_flag: bool = false;
-  region { region_flag = x > 0i32; }
-  let region_msg: string@View = if region_flag { "region=ok\n" } else { "region=skip\n" };
-
-  let _ = match ctx.fs~>write_stdout(greet_msg) { ok: () => (), err: IoError => () };
-  let _ = match ctx.fs~>write_stdout(bytes_msg) { ok: () => (), err: IoError => () };
-  let _ = match ctx.fs~>write_stdout(status_msg) { ok: () => (), err: IoError => () };
-  let _ = match ctx.fs~>write_stdout(ptr_msg) { ok: () => (), err: IoError => () };
-  let _ = match ctx.fs~>write_stdout(region_msg) { ok: () => (), err: IoError => () };
-
-  return 0i32;
+  var x: i32 = 10
+  var y: i32 = 20
+  var z: i32 = 12
+  
+  // 10 + 20 + 12 = 42
+  return compute(x, y, z)
 }

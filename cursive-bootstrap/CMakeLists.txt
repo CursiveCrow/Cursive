@@ -264,6 +264,19 @@ add_library(cursive0_analysis STATIC
   src/analysis/caps/cap_system.cpp
   src/analysis/caps/cap_heap.cpp
   src/analysis/caps/cap_filesystem.cpp
+  # keys/ (C0X Extension)
+  src/analysis/keys/key_context.cpp
+  src/analysis/keys/key_conflict.cpp
+  # generics/ (C0X Extension)
+  src/analysis/generics/monomorphize.cpp
+  src/analysis/types/variance.cpp
+  # contracts/ (C0X Extension)
+  src/analysis/contracts/contract_check.cpp
+  src/analysis/contracts/verification.cpp
+  # attributes/ (C0X Extension)
+  src/analysis/attributes/attribute_registry.cpp
+  # imports/ (C0X Extension)
+  src/analysis/resolve/imports.cpp
 )
 
 target_link_libraries(cursive0_analysis PUBLIC cursive0_core cursive0_syntax cursive0_project)

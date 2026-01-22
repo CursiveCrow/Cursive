@@ -55,4 +55,43 @@ bool TypeImplementsClass(const ScopeContext& ctx,
                          const TypeRef& type,
                          const syntax::ClassPath& path);
 
+// C0X Extension: Full classes
+
+// Get associated types from a class
+std::vector<const syntax::AssociatedTypeDecl*> ClassAssociatedTypes(
+    const syntax::ClassDecl& decl);
+
+// Get abstract states from a modal class
+std::vector<const syntax::AbstractStateDecl*> ClassAbstractStates(
+    const syntax::ClassDecl& decl);
+
+// Check if class is a modal class
+bool IsModalClass(const syntax::ClassDecl& decl);
+
+// Check if method is vtable-eligible
+bool VTableEligible(const syntax::ClassMethodDecl& method);
+
+// Check if class is dispatchable (for dynamic dispatch)
+bool Dispatchable(const ScopeContext& ctx, const syntax::ClassDecl& decl);
+
+// Implementation completeness check
+struct CompletenessResult {
+  bool ok = true;
+  std::optional<std::string_view> diag_id;
+  std::vector<std::string> missing_methods;
+  std::vector<std::string> missing_types;
+  std::vector<std::string> missing_states;
+};
+
+CompletenessResult CheckImplCompleteness(
+    const ScopeContext& ctx,
+    const syntax::ClassPath& class_path,
+    const syntax::RecordDecl& impl);
+
+// Orphan rule check
+bool CheckOrphanRule(const ScopeContext& ctx,
+                     const TypePath& type_path,
+                     const syntax::ClassPath& class_path,
+                     const syntax::ModulePath& current_module);
+
 }  // namespace cursive0::analysis

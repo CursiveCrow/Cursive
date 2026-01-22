@@ -1,0 +1,13 @@
+# SPEC_COV: C0X-Class-AssociatedType
+# SPEC_COV: C0X-Class-Syntax
+// Tests associated type declaration in class.
+
+class Container {
+  type Element
+  
+  procedure get(~) -> Self::Element
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

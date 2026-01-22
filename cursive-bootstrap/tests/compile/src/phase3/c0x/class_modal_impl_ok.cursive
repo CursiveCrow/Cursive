@@ -1,0 +1,17 @@
+# SPEC_COV: C0X-Class-ModalImpl
+# SPEC_COV: C0X-Class-ModalOnly
+// Tests that only modal types can implement modal classes.
+
+modal class StateMachine {
+  @Idle { }
+  @Running { ticks: i32 }
+}
+
+modal Processor {
+  @Idle { }
+  @Running { count: i32 }
+} <: StateMachine
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

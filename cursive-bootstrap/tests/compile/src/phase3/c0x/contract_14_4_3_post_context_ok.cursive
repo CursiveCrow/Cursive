@@ -1,0 +1,15 @@
+# SPEC_COV: C0X-14.4.3-PostContext
+# SPEC_COV: Gamma-post
+// §14.4.3: Postcondition context includes @result, @entry, and mutable params at post-state.
+
+procedure modify(move x: unique i32) -> i32
+  |= => @result == @entry(x) + 1
+{
+  x = x + 1
+  return x
+}
+
+public procedure main(ctx: Context) -> i32 {
+  var val: i32 = 10
+  return modify(move val)
+}

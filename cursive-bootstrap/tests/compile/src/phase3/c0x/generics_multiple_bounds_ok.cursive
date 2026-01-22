@@ -1,0 +1,13 @@
+# SPEC_COV: C0X-Generics-MultipleBounds
+# SPEC_COV: C0X-Generics-BoundConjunction
+// Tests multiple bounds on a type parameter (T <: A + B).
+
+record Wrapper<T>
+where T <: Bitcopy + Clone
+{
+  value: T
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

@@ -1,0 +1,22 @@
+# SPEC_COV: C0X-8.2-ImplComplete
+# SPEC_COV: Impl-Complete
+// §8.2: T <: Cl requires providing all abstract procedures, types, fields, states.
+
+class Sizeable {
+  type Element
+  procedure size(~) -> usize
+  procedure get(~, idx: usize) -> Self::Element
+}
+
+record IntArray { data: [i32; 5] }
+
+IntArray <: Sizeable {
+  type Element = i32
+  procedure size(~) -> usize { return 5 }
+  procedure get(~, idx: usize) -> i32 { return self.data[idx] }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  var arr: IntArray = IntArray { data: [1, 2, 3, 4, 5] }
+  return arr ~> get(2)
+}

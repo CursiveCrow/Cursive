@@ -1,0 +1,17 @@
+# SPEC_COV: C0X-Generics-BoundSatisfaction
+# SPEC_COV: C0X-Generics-Implements
+// Tests that type arguments satisfy declared bounds.
+
+record Copyable <: Bitcopy { value: i32 }
+
+record Container<T>
+where T <: Bitcopy
+{
+  item: T
+}
+
+public procedure main(ctx: Context) -> i32 {
+  // Copyable <: Bitcopy, so this should work
+  var c: Container<Copyable> = Container { item: Copyable { value: 42 } }
+  return c.item.value
+}

@@ -1,0 +1,11 @@
+# SPEC_COV: C0X-7.6-KeyBlockDynamic-Parse
+// §7.6.2: Key block with dynamic modifier
+
+public procedure main(ctx: Context) -> i32 {
+  var arr: shared [i32; 5] = [1, 2, 3, 4, 5]
+  var idx: usize = 2
+  # arr[idx] dynamic {
+    return arr[idx]
+  }
+  return 0
+}

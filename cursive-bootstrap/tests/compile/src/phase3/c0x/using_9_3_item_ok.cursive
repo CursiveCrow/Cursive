@@ -1,0 +1,9 @@
+# SPEC_COV: C0X-9.3-UsingItem
+# SPEC_COV: Using-Item
+// §9.3: Item using introduces single name.
+
+using cursive::runtime::string
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

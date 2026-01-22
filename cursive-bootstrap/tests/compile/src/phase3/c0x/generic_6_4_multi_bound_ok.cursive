@@ -1,0 +1,21 @@
+# SPEC_COV: C0X-6.4-MultiBound
+# SPEC_COV: Bound-Multi
+// §6.4: Multiple bounds combined with +.
+
+class Printable { procedure print(~) -> i32 }
+class Cloneable { procedure clone(~) -> Self }
+
+procedure dup<T>(x: T) -> (T, T) where T <: Printable + Cloneable {
+  return (x ~> clone(), x ~> clone())
+}
+
+record MyType { value: i32 }
+
+MyType <: Printable { procedure print(~) -> i32 { return self.value } }
+MyType <: Cloneable { procedure clone(~) -> MyType { return MyType { value: self.value } } }
+
+public procedure main(ctx: Context) -> i32 {
+  var m: MyType = MyType { value: 21 }
+  var (a, b): (MyType, MyType) = dup<MyType>(m)
+  return a.value + b.value
+}

@@ -1,0 +1,19 @@
+# SPEC_COV: C0X-8.3-MissingOverride
+# SPEC_COV: E-SEM-2615
+// §8.3: Overriding concrete without override keyword is ill-formed.
+// Expected diagnostic: E-SEM-2615
+
+class WithDefault {
+  procedure value(~) -> i32 { return 0 }
+}
+
+record MissingOverride { v: i32 }
+
+MissingOverride <: WithDefault {
+  // Missing override keyword
+  procedure value(~) -> i32 { return self.v }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

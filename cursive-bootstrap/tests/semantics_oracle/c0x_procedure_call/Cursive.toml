@@ -1,0 +1,8 @@
+[package]
+name = "c0x_procedure_call"
+version = "0.1.0"
+
+[[assembly]]
+name = "c0x_procedure_call"
+kind = "executable"
+root = "src/main.cursive"

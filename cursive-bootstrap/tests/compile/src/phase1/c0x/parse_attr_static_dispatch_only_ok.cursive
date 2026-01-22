@@ -1,0 +1,11 @@
+# SPEC_COV: C0X-Attr-StaticDispatchOnly-Parse
+// Attribute [[static_dispatch_only]] on method
+
+class WithGeneric {
+  [[static_dispatch_only]]
+  procedure generic_method<T>(~, x: T) -> T
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

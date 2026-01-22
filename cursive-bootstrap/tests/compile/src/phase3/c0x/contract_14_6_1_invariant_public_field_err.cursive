@@ -1,0 +1,11 @@
+# SPEC_COV: C0X-14.6.1-InvariantPublicField
+# SPEC_COV: E-SEM-2821
+// §14.6.1: Types with invariants MUST NOT declare public mutable fields.
+// Expected diagnostic: E-SEM-2821
+
+record BadInvariant { public value: i32 }
+where { self.value >= 0 }
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

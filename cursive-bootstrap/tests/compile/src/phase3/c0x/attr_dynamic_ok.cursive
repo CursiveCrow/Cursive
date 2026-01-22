@@ -1,0 +1,13 @@
+# SPEC_COV: C0X-Attr-Dynamic
+# SPEC_COV: C0X-Attr-Syntax
+// Tests [[dynamic]] attribute parsing on procedure declarations.
+
+[[dynamic]]
+procedure may_fail(x: i32) -> i32 {
+  return x + 1
+}
+
+public procedure main(ctx: Context) -> i32 {
+  var a: i32 = 5
+  return may_fail(a)
+}

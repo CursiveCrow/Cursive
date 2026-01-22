@@ -1,0 +1,15 @@
+# SPEC_COV: C0X-Key-NonSharedErr
+# SPEC_COV: E-CON-0032
+// Tests that key block on non-shared path is an error.
+// Expected diagnostic: E-CON-0032
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: unique Data = Data { value: 42 }
+  # d {
+    // Error: path is not shared
+    return d.value
+  }
+  return 0
+}

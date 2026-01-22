@@ -349,7 +349,42 @@ ResolveResult<std::vector<syntax::ClassItem>> ResolveClassItemList(
             out.type = resolved_type.value;
             SPEC_RULE("ResolveClassItem-Field");
             return {true, std::nullopt, std::nullopt, out};
+          } else if constexpr (std::is_same_v<T, syntax::AssociatedTypeDecl>) {
+            // C0X Extension: Associated type declaration
+            auto out = node;
+            if (node.default_type) {
+              const auto resolved_default = ResolveType(ctx, node.default_type);
+              if (!resolved_default.ok) {
+                return {false, resolved_default.diag_id, resolved_default.span, {}};
+              }
+              out.default_type = resolved_default.value;
+            }
+            SPEC_RULE("ResolveClassItem-AssociatedType");
+            return {true, std::nullopt, std::nullopt, out};
+          } else if constexpr (std::is_same_v<T, syntax::AbstractFieldDecl>) {
+            // C0X Extension: Abstract field declaration
+            auto out = node;
+            const auto resolved_type = ResolveType(ctx, node.type);
+            if (!resolved_type.ok) {
+              return {false, resolved_type.diag_id, resolved_type.span, {}};
+            }
+            out.type = resolved_type.value;
+            SPEC_RULE("ResolveClassItem-AbstractField");
+            return {true, std::nullopt, std::nullopt, out};
+          } else if constexpr (std::is_same_v<T, syntax::AbstractStateDecl>) {
+            // C0X Extension: Abstract state declaration
+            auto out = node;
+            for (auto& field : out.fields) {
+              const auto resolved_type = ResolveType(ctx, field.type);
+              if (!resolved_type.ok) {
+                return {false, resolved_type.diag_id, resolved_type.span, {}};
+              }
+              field.type = resolved_type.value;
+            }
+            SPEC_RULE("ResolveClassItem-AbstractState");
+            return {true, std::nullopt, std::nullopt, out};
           } else {
+            // ClassMethodDecl
             auto out = node;
             ScopeContext proc_ctx;
             proc_ctx.project = ctx.ctx->project;

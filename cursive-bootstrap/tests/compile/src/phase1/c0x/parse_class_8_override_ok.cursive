@@ -1,0 +1,16 @@
+# SPEC_COV: C0X-8.3-Override-Parse
+// §8.3: override keyword for concrete method
+
+class WithDefault {
+  procedure value(~) -> i32 { return 0 }
+}
+
+record Custom { v: i32 }
+
+Custom <: WithDefault {
+  override procedure value(~) -> i32 { return self.v }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

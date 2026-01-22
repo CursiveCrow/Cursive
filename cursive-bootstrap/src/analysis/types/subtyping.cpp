@@ -74,6 +74,9 @@ static bool IsNeverType(const TypeRef& type) {
 
 static bool PermSub(Permission lhs, Permission rhs) {
   SpecDefsSubtyping();
+  // C0X Extension: Permission lattice with shared
+  // Lattice: unique <: shared <: const
+  // Reflexivity:
   if (lhs == Permission::Const && rhs == Permission::Const) {
     SPEC_RULE("Perm-Const");
     return true;
@@ -82,8 +85,21 @@ static bool PermSub(Permission lhs, Permission rhs) {
     SPEC_RULE("Perm-Unique");
     return true;
   }
+  if (lhs == Permission::Shared && rhs == Permission::Shared) {
+    SPEC_RULE("Perm-Shared");
+    return true;
+  }
+  // Transitivity: unique <: shared <: const
   if (lhs == Permission::Unique && rhs == Permission::Const) {
     SPEC_RULE("Perm-Unique-Const");
+    return true;
+  }
+  if (lhs == Permission::Unique && rhs == Permission::Shared) {
+    SPEC_RULE("Perm-Unique-Shared");
+    return true;
+  }
+  if (lhs == Permission::Shared && rhs == Permission::Const) {
+    SPEC_RULE("Perm-Shared-Const");
     return true;
   }
   return false;

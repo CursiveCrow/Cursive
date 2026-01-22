@@ -1,0 +1,20 @@
+# SPEC_COV: C0X-8.2-ImplIncomplete
+# SPEC_COV: E-SEM-2613
+// §8.2: Missing abstract procedure implementation is ill-formed.
+// Expected diagnostic: E-SEM-2613
+
+class WithTwoMethods {
+  procedure method_a(~) -> i32
+  procedure method_b(~) -> i32
+}
+
+record PartialImpl { value: i32 }
+
+PartialImpl <: WithTwoMethods {
+  // Missing method_b
+  procedure method_a(~) -> i32 { return self.value }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

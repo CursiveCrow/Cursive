@@ -1,0 +1,16 @@
+# SPEC_COV: C0X-Class-ImplMissingMethod
+# SPEC_COV: E-TYP-1940
+// Tests that implementing type must implement all abstract methods.
+// Expected diagnostic: E-TYP-1940
+
+class Printable {
+  procedure to_string(~) -> string@View
+}
+
+record Incomplete { value: i32 } <: Printable
+
+// Missing: procedure Incomplete::to_string(~) -> string@View
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

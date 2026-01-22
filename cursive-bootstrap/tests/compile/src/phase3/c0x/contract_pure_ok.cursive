@@ -1,0 +1,15 @@
+# SPEC_COV: C0X-Contract-Pure
+# SPEC_COV: C0X-Contract-Purity
+// Tests that contract predicates must be pure expressions.
+
+procedure safe_div(a: i32, b: i32) -> i32
+  |= b != 0 => @result == a / b
+{
+  return a / b
+}
+
+public procedure main(ctx: Context) -> i32 {
+  var x: i32 = 10
+  var y: i32 = 2
+  return safe_div(x, y)
+}

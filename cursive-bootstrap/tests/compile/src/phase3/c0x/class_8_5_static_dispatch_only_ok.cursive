@@ -1,0 +1,23 @@
+# SPEC_COV: C0X-8.5-StaticDispatchOnly
+# SPEC_COV: StaticDispatchOnly
+// §8.5: [[static_dispatch_only]] makes method non-vtable-eligible.
+// Class can still be dispatchable if all methods are vtable-eligible or marked.
+
+class MixedClass {
+  procedure dispatchable(~) -> i32
+  [[static_dispatch_only]]
+  procedure static_only<T>(~, x: T) -> T
+}
+
+record MixedImpl { value: i32 }
+
+MixedImpl <: MixedClass {
+  procedure dispatchable(~) -> i32 { return self.value }
+  [[static_dispatch_only]]
+  procedure static_only<T>(~, x: T) -> T { return x }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  var obj: $MixedClass = MixedImpl { value: 42 } as $MixedClass
+  return obj ~> dispatchable()
+}

@@ -1,0 +1,14 @@
+# SPEC_COV: C0X-Generics-Nested
+# SPEC_COV: C0X-Generics-Instantiation
+// Tests nested generic type instantiation.
+
+record Box<T> { value: T }
+record Pair<A; B> { first: A, second: B }
+
+public procedure main(ctx: Context) -> i32 {
+  // Box<Pair<i32; bool>>
+  var nested: Box<Pair<i32; bool>> = Box { 
+    value: Pair { first: 42, second: true }
+  }
+  return nested.value.first
+}

@@ -1,0 +1,12 @@
+# SPEC_COV: C0X-Attr-Multiple-Parse
+// Multiple attributes on same declaration
+
+[[dynamic]]
+[[acqrel]]
+procedure with_attrs(x: i32) -> i32 {
+  return x
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

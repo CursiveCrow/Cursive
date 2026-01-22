@@ -1,0 +1,14 @@
+# SPEC_COV: C0X-7.8-BoundaryEnum
+# SPEC_COV: TypeLevel-Boundary-Enum
+// §7.8: Type-level boundary can be on enum payload field.
+
+enum Container {
+  Some { #payload: InnerData }
+  None
+}
+record InnerData { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var c: shared Container = Container::Some { payload: InnerData { value: 42 } }
+  return 0
+}

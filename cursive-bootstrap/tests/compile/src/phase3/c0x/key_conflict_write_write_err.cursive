@@ -1,0 +1,17 @@
+# SPEC_COV: C0X-Key-Conflict-WriteWrite
+# SPEC_COV: E-CON-0010
+// Tests that conflicting write keys on overlapping paths is an error.
+// Expected diagnostic: E-CON-0010
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { value: 42 }
+  # d write {
+    # d write {
+      // Error: write-write conflict on same path
+      d.value = 100
+    }
+  }
+  return d.value
+}

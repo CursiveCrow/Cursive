@@ -76,11 +76,10 @@ bool BuiltinTypePath(const TypePath& path) {
 }
 
 bool TypeArgsUnsupported(const TypePath& path, const Parser& parser) {
-  const Token* tok = Tok(parser);
-  if (!tok || !IsOpTok(*tok, "<")) {
-    return false;
-  }
-  return !(path.size() == 1 && path[0] == "Ptr");
+  // C0X Extension: Generic type arguments are now supported on all types
+  (void)path;
+  (void)parser;
+  return false;
 }
 
 bool C0TypeRestricted(const Token* tok, const TypePath& path, const Parser& parser) {
@@ -590,6 +589,40 @@ ParseElemResult<std::shared_ptr<Type>> ParseNonPermType(Parser parser) {
       modal.path = std::move(path.elem);
       modal.state = state.elem;
       return {state.parser, MakeTypeNode(SpanBetween(start, state.parser), modal)};
+    }
+
+    // C0X Extension: Parse generic type arguments if present
+    if (next && IsOpTok(*next, "<")) {
+      SPEC_RULE("Parse-Type-Generic-Args");
+      Parser after_lt = path.parser;
+      Advance(after_lt);  // consume <
+      
+      std::vector<std::shared_ptr<Type>> args;
+      
+      // Parse first type arg
+      ParseElemResult<std::shared_ptr<Type>> first_arg = ParseType(after_lt);
+      args.push_back(first_arg.elem);
+      Parser cur = first_arg.parser;
+      
+      // Parse additional args separated by ; or ,
+      while (IsPunc(cur, ";") || IsPunc(cur, ",")) {
+        Advance(cur);
+        ParseElemResult<std::shared_ptr<Type>> arg = ParseType(cur);
+        args.push_back(arg.elem);
+        cur = arg.parser;
+      }
+      
+      // Expect >
+      if (!IsOp(cur, ">")) {
+        EmitParseSyntaxErr(cur, TokSpan(cur));
+      } else {
+        Advance(cur);
+      }
+      
+      TypePathType ty_path;
+      ty_path.path = std::move(path.elem);
+      ty_path.generic_args = std::move(args);
+      return {cur, MakeTypeNode(SpanBetween(start, cur), ty_path)};
     }
 
     if (!next || (!IsOpTok(*next, "@") && !IsOpTok(*next, "<") &&

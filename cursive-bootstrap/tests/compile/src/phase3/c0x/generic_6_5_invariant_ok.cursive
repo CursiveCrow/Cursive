@@ -1,0 +1,13 @@
+# SPEC_COV: C0X-6.5-Invariant
+# SPEC_COV: Variance-Invariant
+// §6.5: Both covariant and contravariant occurrences => Invariant.
+
+record Mutable<T> { value: T }
+
+// Mutable<A> is invariant in T (both read and write positions)
+
+public procedure main(ctx: Context) -> i32 {
+  var m: Mutable<i32> = Mutable<i32> { value: 42 }
+  m.value = 100
+  return m.value
+}

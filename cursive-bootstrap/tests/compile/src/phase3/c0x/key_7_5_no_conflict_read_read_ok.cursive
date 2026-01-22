@@ -1,0 +1,16 @@
+# SPEC_COV: C0X-7.5-NoConflictReadRead
+# SPEC_COV: Conflict-Definition
+// §7.5: Two Read keys on overlapping paths do NOT conflict.
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { value: 42 }
+  # d {
+    # d {
+      // d (Read) and d (Read) overlap but neither is Write => no conflict
+      return d.value
+    }
+  }
+  return 0
+}

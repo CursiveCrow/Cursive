@@ -1,0 +1,11 @@
+# SPEC_COV: C0X-8-AssociatedType-Parse
+// §8: Class with associated type
+
+class Container {
+  type Element
+  procedure get(~, idx: usize) -> Self::Element
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

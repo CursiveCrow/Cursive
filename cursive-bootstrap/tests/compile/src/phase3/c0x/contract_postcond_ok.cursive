@@ -1,0 +1,14 @@
+# SPEC_COV: C0X-Contract-Postcondition
+# SPEC_COV: C0X-Contract-AtResult
+// Tests procedure postcondition with @result intrinsic.
+
+procedure double(x: i32) -> i32
+  |= x >= 0 => @result >= x
+{
+  return x * 2
+}
+
+public procedure main(ctx: Context) -> i32 {
+  var val: i32 = 10
+  return double(val)
+}

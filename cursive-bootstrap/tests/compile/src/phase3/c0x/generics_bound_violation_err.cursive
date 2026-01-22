@@ -1,0 +1,18 @@
+# SPEC_COV: C0X-Generics-BoundViolation
+# SPEC_COV: E-TYP-1951
+// Tests that type argument not satisfying bound is an error.
+// Expected diagnostic: E-TYP-1951
+
+record NonCopyable { ptr: *imm i32 }
+
+record Container<T>
+where T <: Bitcopy
+{
+  item: T
+}
+
+public procedure main(ctx: Context) -> i32 {
+  // NonCopyable does not implement Bitcopy
+  var c: Container<NonCopyable> = Container { item: NonCopyable { ptr: null } }
+  return 0
+}

@@ -1,0 +1,13 @@
+# SPEC_COV: C0X-7.6-Speculative
+# SPEC_COV: KeyBlock-Speculative
+// Speculative execution for potentially failing key acquisition.
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { value: 42 }
+  # d speculative write {
+    d.value = 100
+  }
+  return d.value
+}

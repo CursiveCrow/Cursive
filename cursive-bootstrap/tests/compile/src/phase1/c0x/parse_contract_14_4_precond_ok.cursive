@@ -1,0 +1,12 @@
+# SPEC_COV: C0X-14.4-ContractPre-Parse
+// §14.4: Contract clause |= P (precondition only)
+
+procedure pre_only(x: i32) -> i32
+  |= x > 0
+{
+  return x
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

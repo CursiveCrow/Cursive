@@ -1,0 +1,8 @@
+# SPEC_COV: C0X-6.2-GenericDefault-Parse
+// §6.2: Type parameter with default
+
+record Container<T = i32> { value: T }
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

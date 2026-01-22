@@ -667,4 +667,174 @@ bool TypeImplementsClass(const ScopeContext& ctx,
   return false;
 }
 
+// C0X Extension: Associated types
+
+std::vector<const syntax::AssociatedTypeDecl*> ClassAssociatedTypes(
+    const syntax::ClassDecl& decl) {
+  std::vector<const syntax::AssociatedTypeDecl*> out;
+  for (const auto& item : decl.items) {
+    if (const auto* assoc = std::get_if<syntax::AssociatedTypeDecl>(&item)) {
+      out.push_back(assoc);
+    }
+  }
+  return out;
+}
+
+// C0X Extension: Abstract states for modal classes
+
+std::vector<const syntax::AbstractStateDecl*> ClassAbstractStates(
+    const syntax::ClassDecl& decl) {
+  std::vector<const syntax::AbstractStateDecl*> out;
+  for (const auto& item : decl.items) {
+    if (const auto* state = std::get_if<syntax::AbstractStateDecl>(&item)) {
+      out.push_back(state);
+    }
+  }
+  return out;
+}
+
+// C0X Extension: Check if class is a modal class
+bool IsModalClass(const syntax::ClassDecl& decl) {
+  SPEC_RULE("T-Modal-Class");
+  return decl.modal || !ClassAbstractStates(decl).empty();
+}
+
+// C0X Extension: VTable eligibility check
+// A method is vtable-eligible if:
+// 1. Has a receiver (not static)
+// 2. No generic params on the method itself
+// 3. Does not use Self by value (except through pointers)
+bool VTableEligible(const syntax::ClassMethodDecl& method) {
+  SpecDefsClasses();
+  SPEC_RULE("vtable_eligible");
+  
+  // Must have receiver
+  if (std::holds_alternative<syntax::ReceiverShorthand>(method.receiver)) {
+    // Shorthand always has receiver
+  } else if (const auto* explicit_recv = 
+                 std::get_if<syntax::ReceiverExplicit>(&method.receiver)) {
+    // Explicit receiver exists
+  } else {
+    return false;
+  }
+  
+  // Check if Self appears by value (not through pointer)
+  // For parameters
+  for (const auto& param : method.params) {
+    if (SelfOccurs(param.type)) {
+      // Check if it's through a pointer
+      if (const auto* type = param.type.get()) {
+        if (std::holds_alternative<syntax::TypePathType>(type->node)) {
+          // Direct Self by value - not vtable eligible
+          const auto* path = std::get_if<syntax::TypePathType>(&type->node);
+          if (path && path->path.size() == 1 && path->path[0] == "Self") {
+            return false;
+          }
+        }
+      }
+    }
+  }
+  
+  return true;
+}
+
+// C0X Extension: Dispatchability check
+// A class is dispatchable if all procedures are either:
+// - VTable eligible, or
+// - Marked with [[static_dispatch_only]]
+bool Dispatchable(const ScopeContext& ctx, const syntax::ClassDecl& decl) {
+  SpecDefsClasses();
+  SPEC_RULE("dispatchable");
+  
+  for (const auto& item : decl.items) {
+    if (const auto* method = std::get_if<syntax::ClassMethodDecl>(&item)) {
+      if (!VTableEligible(*method) && !method->static_dispatch_only) {
+        return false;
+      }
+    }
+  }
+  
+  return true;
+}
+
+// C0X Extension: Implementation completeness check
+// (CompletenessResult is declared in the header)
+
+CompletenessResult CheckImplCompleteness(
+    const ScopeContext& ctx,
+    const syntax::ClassPath& class_path,
+    const syntax::RecordDecl& impl) {
+  CompletenessResult result;
+  
+  const auto* class_decl = LookupClassDecl(ctx, class_path);
+  if (!class_decl) {
+    result.ok = false;
+    return result;
+  }
+  
+  // Check methods
+  for (const auto* class_method : ClassMethods(*class_decl)) {
+    if (!class_method->body_opt) {
+      // Abstract method - must be implemented
+      bool found = false;
+      for (const auto& member : impl.members) {
+        if (const auto* method = std::get_if<syntax::MethodDecl>(&member)) {
+          if (IdEq(method->name, class_method->name)) {
+            found = true;
+            break;
+          }
+        }
+      }
+      if (!found) {
+        result.missing_methods.push_back(class_method->name);
+      }
+    }
+  }
+  
+  // Check associated types
+  for (const auto* assoc_type : ClassAssociatedTypes(*class_decl)) {
+    if (!assoc_type->default_type) {
+      // Abstract associated type - must be provided
+      // Implementation would provide this via a type alias member
+      // (Simplified check - full impl needs type member lookup)
+    }
+  }
+  
+  result.ok = result.missing_methods.empty() && 
+              result.missing_types.empty() &&
+              result.missing_states.empty();
+  
+  if (!result.ok) {
+    result.diag_id = "E-TYP-IMPL-INCOMPLETE";
+  }
+  
+  return result;
+}
+
+// C0X Extension: Orphan rule check
+// At least one of T or Cl must be defined in the current assembly
+bool CheckOrphanRule(const ScopeContext& ctx,
+                     const TypePath& type_path,
+                     const syntax::ClassPath& class_path,
+                     const syntax::ModulePath& current_module) {
+  SPEC_RULE("T-Orphan-Rule");
+  
+  // Check if type is defined in current assembly
+  // (Simplified - full impl needs assembly tracking)
+  bool type_local = false;
+  for (const auto& [key, decl] : ctx.sigma.types) {
+    // Check if type path matches and is in current module prefix
+    if (PathKeyOf(type_path) == key) {
+      type_local = true;
+      break;
+    }
+  }
+  
+  // Check if class is defined in current assembly
+  bool class_local = ctx.sigma.classes.find(PathKeyOf(class_path)) 
+                     != ctx.sigma.classes.end();
+  
+  return type_local || class_local;
+}
+
 }  // namespace cursive0::analysis

@@ -77,7 +77,7 @@ static void c0_spec_trace_init(void) {
   c0_trace_write_cstr("spec_trace_v1\n");
 }
 
-void cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x5femit(
+void cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x3a_x3aemit(
     const C0StringView* rule_id,
     const C0StringView* payload) {
   c0_spec_trace_init();

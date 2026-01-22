@@ -1,0 +1,13 @@
+# SPEC_COV: Parse-KeyBlock
+# SPEC_COV: Parse-KeyPathList
+// Tests parsing of key block with multiple paths.
+
+record Data { x: i32, y: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { x: 1, y: 2 }
+  # d.x, d.y {
+    return d.x + d.y
+  }
+  return 0
+}

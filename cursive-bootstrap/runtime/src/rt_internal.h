@@ -147,7 +147,7 @@ static __inline void c0_trace_emit_rule(const char* rule_id) {
   C0StringView payload;
   payload.data = NULL;
   payload.len = 0;
-  cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x5femit(&rule_view, &payload);
+  cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x3a_x3aemit(&rule_view, &payload);
 }
 
 static __inline int c0_utf8_has_null(const uint8_t* data, uint64_t len) {

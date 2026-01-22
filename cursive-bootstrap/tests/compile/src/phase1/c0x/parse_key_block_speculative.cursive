@@ -1,0 +1,13 @@
+# SPEC_COV: Parse-KeyBlock
+# SPEC_COV: Parse-KeyBlockMod-Speculative
+// Tests parsing of key block with speculative modifier.
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { value: 42 }
+  # d speculative write {
+    d.value = 100
+  }
+  return d.value
+}

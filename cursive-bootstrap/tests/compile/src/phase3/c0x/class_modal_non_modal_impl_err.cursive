@@ -1,0 +1,16 @@
+# SPEC_COV: C0X-Class-ModalNonModalErr
+# SPEC_COV: E-TYP-2401
+// Tests that non-modal type cannot implement modal class.
+// Expected diagnostic: E-TYP-2401
+
+modal class StateMachine {
+  @Idle { }
+  @Running { ticks: i32 }
+}
+
+// Error: record is not modal
+record SimpleData { value: i32 } <: StateMachine
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

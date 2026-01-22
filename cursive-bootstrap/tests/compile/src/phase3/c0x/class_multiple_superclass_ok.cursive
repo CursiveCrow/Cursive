@@ -1,0 +1,19 @@
+# SPEC_COV: C0X-Class-MultipleSuperclass
+# SPEC_COV: C0X-Class-Linearization
+// Tests class with multiple superclasses.
+
+class Readable {
+  procedure read(~) -> i32
+}
+
+class Writable {
+  procedure write(~!, value: i32) -> ()
+}
+
+class ReadWritable <: Readable + Writable {
+  // Combines both interfaces
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

@@ -1,0 +1,10 @@
+# SPEC_COV: C0X-6-GenericProc-Parse
+// Generic procedure
+
+procedure identity<T>(x: T) -> T {
+  return x
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return identity<i32>(42)
+}

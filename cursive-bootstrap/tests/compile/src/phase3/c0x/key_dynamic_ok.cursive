@@ -1,0 +1,15 @@
+# SPEC_COV: C0X-Key-Dynamic
+# SPEC_COV: C0X-Key-RuntimeSync
+// Tests dynamic key block with runtime synchronization.
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { value: 42 }
+  var idx: usize = 0
+  // Dynamic: index not statically known
+  # d dynamic write {
+    d.value = 100
+  }
+  return d.value
+}

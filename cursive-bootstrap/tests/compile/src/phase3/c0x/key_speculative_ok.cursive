@@ -1,0 +1,14 @@
+# SPEC_COV: C0X-Key-Speculative
+# SPEC_COV: C0X-Key-SpeculativeExec
+// Tests speculative key block for optimistic execution.
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { value: 42 }
+  # d speculative write {
+    // Speculative execution - may be rolled back
+    d.value = 100
+  }
+  return d.value
+}

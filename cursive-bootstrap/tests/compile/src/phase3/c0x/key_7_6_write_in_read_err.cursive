@@ -1,0 +1,15 @@
+# SPEC_COV: C0X-7.6-WriteInReadErr
+# SPEC_COV: E-SEM-2702
+// §7.6: Cannot write to shared data in Read mode key block.
+// Expected diagnostic: E-SEM-2702
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { value: 42 }
+  # d {
+    // Read mode, but attempting write
+    d.value = 100
+  }
+  return 0
+}

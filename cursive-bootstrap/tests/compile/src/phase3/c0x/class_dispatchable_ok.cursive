@@ -1,0 +1,15 @@
+# SPEC_COV: C0X-Class-Dispatchable
+# SPEC_COV: C0X-Class-ObjectSafety
+// Tests dispatchable class (all methods vtable-eligible).
+
+class Describable {
+  procedure describe(~) -> i32
+}
+
+procedure use_dynamic(obj: $Describable) -> i32 {
+  return obj ~> describe()
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

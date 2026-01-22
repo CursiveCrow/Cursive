@@ -1272,6 +1272,8 @@ static bool CheckRecordMethod(const ScopeContext& ctx,
         SPEC_RULE("Recv-Const");
       } else if (shorthand->perm == syntax::ReceiverPerm::Unique) {
         SPEC_RULE("Recv-Unique");
+      } else if (shorthand->perm == syntax::ReceiverPerm::Shared) {
+        SPEC_RULE("Recv-Shared");
       }
     }
     const auto recv = RecvTypeForReceiver(ctx, base, method.receiver, lower_type);

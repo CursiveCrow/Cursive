@@ -1,0 +1,18 @@
+# SPEC_COV: C0X-Perm-Subtype
+# SPEC_COV: C0X-Perm-Lattice
+// Tests permission subtyping: unique <: shared <: const
+// A unique binding should be usable where shared is expected.
+
+record Data {
+  value: i32
+}
+
+procedure read_shared(data: const Data) -> i32 {
+  return data.value
+}
+
+public procedure main(ctx: Context) -> i32 {
+  var d: unique Data = Data { value: 42 }
+  // unique <: const should allow this call
+  return read_shared(d)
+}

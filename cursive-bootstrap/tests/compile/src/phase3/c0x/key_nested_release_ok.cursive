@@ -1,0 +1,19 @@
+# SPEC_COV: C0X-Key-NestedRelease
+# SPEC_COV: C0X-Key-Release
+// Tests nested key block with release modifier.
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  var d: shared Data = Data { value: 42 }
+  # d write {
+    d.value = 50
+    # d release write {
+      // Write key released; can do read here
+      var temp: i32 = d.value
+    }
+    // Write key reacquired after release block
+    d.value = 100
+  }
+  return d.value
+}

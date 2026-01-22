@@ -1,0 +1,13 @@
+# SPEC_COV: C0X-Key-OutsideScope
+# SPEC_COV: E-CON-0031
+// Tests that key block path must be in scope.
+// Expected diagnostic: E-CON-0031
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  # nonexistent {
+    // Error: 'nonexistent' not in scope
+  }
+  return 0
+}

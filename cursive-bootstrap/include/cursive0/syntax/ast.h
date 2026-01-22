@@ -51,6 +51,24 @@ enum class BytesState {
   View,
 };
 
+// C0X Extension: Attribute System AST nodes
+
+// Attribute argument value
+struct AttributeArg {
+  std::optional<Identifier> key;  // Named arg: key = value
+  std::variant<Token, ExprPtr> value;  // Token literal or expression
+};
+
+// Single attribute: [[name]] or [[name(args)]]
+struct AttributeItem {
+  Identifier name;
+  std::vector<AttributeArg> args;
+  core::Span span;
+};
+
+// Attribute list (multiple attributes)
+using AttributeList = std::vector<AttributeItem>;
+
 enum class PtrState {
   Valid,
   Null,
@@ -122,6 +140,7 @@ struct TypeModalState {
 
 struct TypePathType {
   TypePath path;
+  std::vector<std::shared_ptr<Type>> generic_args;  // C0X Extension: Foo<T, U>
 };
 
 using TypeNode = std::variant<TypePrim,
@@ -430,6 +449,16 @@ struct PropagateExpr {
   ExprPtr value;
 };
 
+// C0X Extension: Contract intrinsic expressions (@result, @entry)
+struct ResultExpr {
+  // @result - represents the return value in postconditions
+};
+
+struct EntryExpr {
+  // @entry(expr) - represents value at procedure entry
+  ExprPtr expr;
+};
+
 using ExprNode = std::variant<ErrorExpr,
                               LiteralExpr,
                               IdentifierExpr,
@@ -462,7 +491,9 @@ using ExprNode = std::variant<ErrorExpr,
                               IndexAccessExpr,
                               CallExpr,
                               MethodCallExpr,
-                              PropagateExpr>;
+                              PropagateExpr,
+                              ResultExpr,
+                              EntryExpr>;
 
 struct Expr {
   core::Span span;
@@ -565,6 +596,44 @@ struct ErrorStmt {
   core::Span span;
 };
 
+// C0X Extension: Key System AST nodes
+enum class KeyMode {
+  Read,
+  Write,
+};
+
+enum class KeyBlockMod {
+  Dynamic,
+  Speculative,
+  Release,
+};
+
+struct KeySegField {
+  bool marked;  // # boundary marker
+  Identifier name;
+};
+
+struct KeySegIndex {
+  bool marked;  // # boundary marker
+  ExprPtr expr;
+};
+
+using KeySeg = std::variant<KeySegField, KeySegIndex>;
+
+struct KeyPathExpr {
+  Identifier root;
+  std::vector<KeySeg> segs;
+  core::Span span;
+};
+
+struct KeyBlockStmt {
+  std::vector<KeyPathExpr> paths;
+  std::vector<KeyBlockMod> mods;
+  std::optional<KeyMode> mode;
+  std::shared_ptr<Block> body;
+  core::Span span;
+};
+
 using Stmt = std::variant<LetStmt,
                           VarStmt,
                           ShadowLetStmt,
@@ -580,6 +649,7 @@ using Stmt = std::variant<LetStmt,
                           BreakStmt,
                           ContinueStmt,
                           UnsafeBlockStmt,
+                          KeyBlockStmt,
                           ErrorStmt>;
 
 struct Block {
@@ -648,6 +718,19 @@ struct UsingDecl {
   DocList doc;
 };
 
+// C0X Extension: Import declaration for cross-assembly imports
+// import path;
+// import path as alias;
+// import path::{item1, item2};
+struct ImportDecl {
+  Visibility vis;
+  Path path;
+  std::optional<Identifier> alias;  // import path as alias
+  std::vector<Identifier> items;    // import path::{items} (empty = import all)
+  core::Span span;
+  DocList doc;
+};
+
 struct StaticDecl {
   Visibility vis;
   Mutability mut;
@@ -656,18 +739,103 @@ struct StaticDecl {
   DocList doc;
 };
 
+// C0X Extension: Generics AST nodes
+// Variance of a type parameter
+enum class Variance {
+  Covariant,      // +
+  Contravariant,  // -
+  Invariant,      // neither + nor -
+  Bivariant,      // both + and -
+};
+
+// Type bound (e.g., T <: Clone + Ord)
+struct TypeBound {
+  ClassPath class_path;
+};
+
+// Type parameter declaration (e.g., T <: Clone = DefaultType)
+struct TypeParam {
+  Identifier name;
+  std::vector<TypeBound> bounds;  // <: bound list
+  std::shared_ptr<Type> default_type;  // optional = default
+  core::Span span;
+};
+
+// Generic parameters list <T; U <: Class>
+struct GenericParams {
+  std::vector<TypeParam> params;
+  core::Span span;
+};
+
+// Generic arguments list <Foo, Bar>
+struct GenericArgs {
+  std::vector<std::shared_ptr<Type>> args;
+  core::Span span;
+};
+
+// Where clause predicate (e.g., T <: Ord)
+struct WherePredicate {
+  Identifier type_param;
+  std::vector<TypeBound> bounds;
+  core::Span span;
+};
+
+// Where clause
+struct WhereClause {
+  std::vector<WherePredicate> predicates;
+  core::Span span;
+};
+
+// C0X Extension: Contract System AST nodes
+
+// Contract clause: |= pre => post
+struct ContractClause {
+  ExprPtr precondition;   // pre (may be null for => post form)
+  ExprPtr postcondition;  // post (may be null for |= pre form)
+  core::Span span;
+};
+
+// Contract intrinsic: @result or @entry(expr)
+enum class ContractIntrinsicKind {
+  Result,  // @result - the return value
+  Entry,   // @entry(expr) - value at procedure entry
+};
+
+struct ContractIntrinsicExpr {
+  ContractIntrinsicKind kind;
+  ExprPtr expr;  // only for @entry(expr)
+};
+
+// Type invariant: where { predicate }
+struct TypeInvariant {
+  ExprPtr predicate;
+  core::Span span;
+};
+
+// Loop invariant: where { predicate }
+struct LoopInvariant {
+  ExprPtr predicate;
+  core::Span span;
+};
+
 struct ProcedureDecl {
+  AttributeList attrs;  // C0X Extension
   Visibility vis;
   Identifier name;
+  std::optional<GenericParams> generic_params;  // C0X Extension
   std::vector<Param> params;
   std::shared_ptr<Type> return_type_opt;
+  std::optional<WhereClause> where_clause;  // C0X Extension
+  std::optional<ContractClause> contract;  // C0X Extension
   std::shared_ptr<Block> body;
   core::Span span;
   DocList doc;
 };
 
 struct FieldDecl {
+  AttributeList attrs;  // C0X Extension
   Visibility vis;
+  bool key_boundary = false;  // C0X Extension: # boundary marker for key system
   Identifier name;
   std::shared_ptr<Type> type;
   std::shared_ptr<Expr> init_opt;
@@ -676,12 +844,14 @@ struct FieldDecl {
 };
 
 struct MethodDecl {
+  AttributeList attrs;  // C0X Extension
   Visibility vis;
   bool override_flag = false;
   Identifier name;
   Receiver receiver;
   std::vector<Param> params;
   std::shared_ptr<Type> return_type_opt;
+  std::optional<ContractClause> contract;  // C0X Extension
   std::shared_ptr<Block> body;
   core::Span span;
   std::optional<DocList> doc_opt;
@@ -690,9 +860,13 @@ struct MethodDecl {
 using RecordMember = std::variant<FieldDecl, MethodDecl>;
 
 struct RecordDecl {
+  AttributeList attrs;  // C0X Extension
   Visibility vis;
   Identifier name;
+  std::optional<GenericParams> generic_params;  // C0X Extension
   std::vector<ClassPath> implements;
+  std::optional<WhereClause> where_clause;  // C0X Extension
+  std::optional<TypeInvariant> invariant;  // C0X Extension
   std::vector<RecordMember> members;
   core::Span span;
   DocList doc;
@@ -717,9 +891,13 @@ struct VariantDecl {
 };
 
 struct EnumDecl {
+  AttributeList attrs;  // C0X Extension
   Visibility vis;
   Identifier name;
+  std::optional<GenericParams> generic_params;  // C0X Extension
   std::vector<ClassPath> implements;
+  std::optional<WhereClause> where_clause;  // C0X Extension
+  std::optional<TypeInvariant> invariant;  // C0X Extension
   std::vector<VariantDecl> variants;
   core::Span span;
   DocList doc;
@@ -727,6 +905,7 @@ struct EnumDecl {
 
 struct StateFieldDecl {
   Visibility vis;
+  bool key_boundary = false;  // C0X Extension: # boundary marker for key system
   Identifier name;
   std::shared_ptr<Type> type;
   core::Span span;
@@ -765,7 +944,9 @@ struct StateBlock {
 struct ModalDecl {
   Visibility vis;
   Identifier name;
+  std::optional<GenericParams> generic_params;  // C0X Extension
   std::vector<ClassPath> implements;
+  std::optional<WhereClause> where_clause;  // C0X Extension
   std::vector<StateBlock> states;
   core::Span span;
   DocList doc;
@@ -773,6 +954,7 @@ struct ModalDecl {
 
 struct ClassFieldDecl {
   Visibility vis;
+  bool key_boundary = false;  // C0X Extension: # boundary marker for key system
   Identifier name;
   std::shared_ptr<Type> type;
   core::Span span;
@@ -781,6 +963,7 @@ struct ClassFieldDecl {
 
 struct ClassMethodDecl {
   Visibility vis;
+  bool static_dispatch_only = false;  // C0X Extension: [[static_dispatch_only]]
   Identifier name;
   Receiver receiver;
   std::vector<Param> params;
@@ -790,12 +973,45 @@ struct ClassMethodDecl {
   std::optional<DocList> doc_opt;
 };
 
-using ClassItem = std::variant<ClassFieldDecl, ClassMethodDecl>;
+// C0X Extension: Associated type declaration in class
+struct AssociatedTypeDecl {
+  Visibility vis;
+  Identifier name;
+  std::shared_ptr<Type> default_type;  // optional default
+  core::Span span;
+  std::optional<DocList> doc_opt;
+};
+
+// C0X Extension: Abstract field declaration for modal classes
+struct AbstractFieldDecl {
+  Visibility vis;
+  bool key_boundary = false;
+  Identifier name;
+  std::shared_ptr<Type> type;
+  core::Span span;
+  std::optional<DocList> doc_opt;
+};
+
+// C0X Extension: Abstract state declaration for modal classes
+struct AbstractStateDecl {
+  Visibility vis;
+  Identifier name;
+  std::vector<AbstractFieldDecl> fields;
+  core::Span span;
+  std::optional<DocList> doc_opt;
+};
+
+using ClassItem = std::variant<ClassFieldDecl, ClassMethodDecl, 
+                               AssociatedTypeDecl, AbstractFieldDecl,
+                               AbstractStateDecl>;
 
 struct ClassDecl {
   Visibility vis;
+  bool modal = false;  // C0X Extension: modal class flag
   Identifier name;
+  std::optional<GenericParams> generic_params;  // C0X Extension
   std::vector<ClassPath> supers;
+  std::optional<WhereClause> where_clause;  // C0X Extension
   std::vector<ClassItem> items;
   core::Span span;
   DocList doc;
@@ -814,6 +1030,7 @@ struct ErrorItem {
 };
 
 using ASTItem = std::variant<UsingDecl,
+                             ImportDecl,  // C0X Extension
                              StaticDecl,
                              ProcedureDecl,
                              RecordDecl,

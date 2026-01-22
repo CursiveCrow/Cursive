@@ -1,0 +1,20 @@
+# SPEC_COV: C0X-7.9-SharedClassReceiverOnly
+# SPEC_COV: SharedClass-WF
+// §7.9: shared $Cl well-formed iff all DynMethods callable with receiver ~ only.
+
+class Readable {
+  procedure read(~) -> i32
+}
+
+record MyReader { value: i32 }
+
+MyReader <: Readable {
+  procedure read(~) -> i32 {
+    return self.value
+  }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  var r: shared $Readable = MyReader { value: 42 } as shared $Readable
+  return r ~> read()
+}

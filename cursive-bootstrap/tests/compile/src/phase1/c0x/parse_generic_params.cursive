@@ -1,0 +1,10 @@
+# SPEC_COV: Parse-GenericParams
+# SPEC_COV: Parse-TypeParam
+// Tests parsing of generic type parameters.
+
+record Single<T> { value: T }
+record Multi<A; B; C> { a: A, b: B, c: C }
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

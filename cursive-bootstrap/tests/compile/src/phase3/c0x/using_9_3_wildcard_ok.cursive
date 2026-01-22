@@ -1,0 +1,9 @@
+# SPEC_COV: C0X-9.3-UsingWildcard
+# SPEC_COV: Using-Wildcard
+// §9.3: Wildcard using imports all public names.
+
+using cursive::runtime::*
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}
