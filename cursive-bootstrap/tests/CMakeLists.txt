@@ -496,14 +496,15 @@ add_test(NAME compile_tests
     --compiler $<TARGET_FILE:cursivec0>
     --tests-root ${CMAKE_CURRENT_SOURCE_DIR}/compile
 )
+set_tests_properties(compile_tests PROPERTIES RUN_SERIAL TRUE)
 
 if(WIN32)
   add_test(NAME semantics_oracle_tests
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/harness/run_semantics_oracle.py
       --compiler $<TARGET_FILE:cursivec0>
-      --interpreter $<TARGET_FILE:cursive0_interpreter_cli>
       --tests-root ${CMAKE_CURRENT_SOURCE_DIR}/semantics_oracle
   )
+  set_tests_properties(semantics_oracle_tests PROPERTIES RUN_SERIAL TRUE)
 endif()
 
 add_test(NAME spec_verifier_build
@@ -517,6 +518,10 @@ endif()
 
 add_test(NAME spec_coverage_report
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/coverage_report.py
+)
+
+add_test(NAME spec_verifier_coverage_report
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/verifier_coverage_report.py
 )
 
 add_test(NAME spec_diag_report

@@ -1494,6 +1494,7 @@ C0DynObject cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3arestrict(
 C0Union_StringManaged_IoError File_x3a_x3aRead_x3a_x3aread_x5fall(
     const C0FileHandle* self) {
   SPEC_RULE("Prim-File-ReadAll");
+  c0_trace_emit_rule("Prim-File-ReadAll");
   if (!self) {
     return c0_string_io_err(C0_IO_FAILURE);
   }
@@ -1504,6 +1505,7 @@ C0Union_StringManaged_IoError File_x3a_x3aRead_x3a_x3aread_x5fall(
 C0Union_BytesManaged_IoError File_x3a_x3aRead_x3a_x3aread_x5fall_x5fbytes(
     const C0FileHandle* self) {
   SPEC_RULE("Prim-File-ReadAllBytes");
+  c0_trace_emit_rule("Prim-File-ReadAllBytes");
   if (!self) {
     return c0_bytes_io_err(C0_IO_FAILURE);
   }
@@ -1513,6 +1515,7 @@ C0Union_BytesManaged_IoError File_x3a_x3aRead_x3a_x3aread_x5fall_x5fbytes(
 
 void File_x3a_x3aRead_x3a_x3aclose(C0FileHandle self) {
   SPEC_RULE("Prim-File-Close-Read");
+  c0_trace_emit_rule("Prim-File-Close-Read");
   HANDLE h = (HANDLE)(uintptr_t)self.handle;
   if (h && h != INVALID_HANDLE_VALUE) {
     CloseHandle(h);
@@ -1547,6 +1550,7 @@ C0Union_Unit_IoError File_x3a_x3aWrite_x3a_x3awrite(
     C0FileHandle* self,
     const C0BytesView* data) {
   SPEC_RULE("Prim-File-Write");
+  c0_trace_emit_rule("Prim-File-Write");
   if (!self) {
     return c0_unit_err(C0_IO_FAILURE);
   }
@@ -1557,6 +1561,7 @@ C0Union_Unit_IoError File_x3a_x3aWrite_x3a_x3awrite(
 C0Union_Unit_IoError File_x3a_x3aWrite_x3a_x3aflush(
     C0FileHandle* self) {
   SPEC_RULE("Prim-File-Flush");
+  c0_trace_emit_rule("Prim-File-Flush");
   if (!self) {
     return c0_unit_err(C0_IO_FAILURE);
   }
@@ -1572,6 +1577,7 @@ C0Union_Unit_IoError File_x3a_x3aWrite_x3a_x3aflush(
 
 void File_x3a_x3aWrite_x3a_x3aclose(C0FileHandle self) {
   SPEC_RULE("Prim-File-Close-Write");
+  c0_trace_emit_rule("Prim-File-Close-Write");
   HANDLE h = (HANDLE)(uintptr_t)self.handle;
   if (h && h != INVALID_HANDLE_VALUE) {
     CloseHandle(h);
@@ -1582,6 +1588,7 @@ C0Union_Unit_IoError File_x3a_x3aAppend_x3a_x3awrite(
     C0FileHandle* self,
     const C0BytesView* data) {
   SPEC_RULE("Prim-File-Write-Append");
+  c0_trace_emit_rule("Prim-File-Write-Append");
   if (!self) {
     return c0_unit_err(C0_IO_FAILURE);
   }
@@ -1592,6 +1599,7 @@ C0Union_Unit_IoError File_x3a_x3aAppend_x3a_x3awrite(
 C0Union_Unit_IoError File_x3a_x3aAppend_x3a_x3aflush(
     C0FileHandle* self) {
   SPEC_RULE("Prim-File-Flush-Append");
+  c0_trace_emit_rule("Prim-File-Flush-Append");
   if (!self) {
     return c0_unit_err(C0_IO_FAILURE);
   }
@@ -1607,6 +1615,7 @@ C0Union_Unit_IoError File_x3a_x3aAppend_x3a_x3aflush(
 
 void File_x3a_x3aAppend_x3a_x3aclose(C0FileHandle self) {
   SPEC_RULE("Prim-File-Close-Append");
+  c0_trace_emit_rule("Prim-File-Close-Append");
   HANDLE h = (HANDLE)(uintptr_t)self.handle;
   if (h && h != INVALID_HANDLE_VALUE) {
     CloseHandle(h);
@@ -1615,6 +1624,7 @@ void File_x3a_x3aAppend_x3a_x3aclose(C0FileHandle self) {
 C0Union_DirEntry_Unit_IoError DirIter_x3a_x3aOpen_x3a_x3anext(
     C0DirIterHandle* self) {
   SPEC_RULE("Prim-Dir-Next");
+  c0_trace_emit_rule("Prim-Dir-Next");
   C0Union_DirEntry_Unit_IoError out;
   if (!self) {
     out.disc = 2;
@@ -1729,6 +1739,7 @@ C0Union_DirEntry_Unit_IoError DirIter_x3a_x3aOpen_x3a_x3anext(
 
 void DirIter_x3a_x3aOpen_x3a_x3aclose(C0DirIterHandle self) {
   SPEC_RULE("Prim-Dir-Close");
+  c0_trace_emit_rule("Prim-Dir-Close");
   C0DirIterState* state = c0_dir_state(self.handle);
   if (!state) {
     return;

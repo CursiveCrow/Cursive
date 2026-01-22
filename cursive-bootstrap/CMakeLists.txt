@@ -466,8 +466,11 @@ set(SPEC_VERIFIER_OUTPUT
   "${SPEC_VERIFIER_ROOT}/build/bin/spec_verifier${CMAKE_EXECUTABLE_SUFFIX}"
 )
 
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
 add_custom_command(
   OUTPUT "${SPEC_VERIFIER_OUTPUT}"
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/verify_bootstrap_hashes.py
   COMMAND ${CMAKE_COMMAND} -E make_directory
           "${SPEC_VERIFIER_ROOT}/runtime"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different

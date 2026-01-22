@@ -303,6 +303,7 @@ std::vector<std::string> RuntimeRequiredSyms() {
   syms.push_back(core::PathSig({"cursive", "runtime", "string", "drop_managed"}));
   syms.push_back(core::PathSig({"cursive", "runtime", "bytes", "drop_managed"}));
   syms.push_back(core::PathSig({"cursive", "runtime", "context_init"}));
+  syms.push_back(core::PathSig({"cursive", "runtime", "spec_trace", "emit"}));
 
   const std::string_view region_procs[] = {
       "new_scoped",

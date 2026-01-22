@@ -39,11 +39,14 @@ Use for tests that require multiple modules or a custom project structure:
 
 ### Semantics-Oracle Runtime Tests (`semantics_oracle/`)
 
-Use for tests that verify runtime behavior against the interpreter oracle:
+Use for runtime behavior validated by the spec verifier (interpreter is debug-only):
 
 - Create a project directory with `Cursive.toml`
 - Include `expect.json` at project root with expected `stdout`, `stderr`, `exit_code`
 - Source files go in `src/`
+- Runtime traces are verified by `spec_verifier` during the harness run
+- The harness writes per-test verifier inputs to `spec/verifier_rules_current.tsv`
+  and `spec/verifier_edges_current.tsv`
 
 ## Phase3 Category Reference
 
@@ -171,7 +174,7 @@ To disable a test:
 
 - `harness/run_compiler.py` - Run compiler diagnostic tests
 - `harness/run_runtime.py` - Run runtime tests against `expect.json`
-- `harness/run_semantics_oracle.py` - Compare compiler vs interpreter output
+- `harness/run_semantics_oracle.py` - Run spec-verified runtime tests
 
 ## Regenerating Expectations
 
@@ -181,8 +184,8 @@ Update `*.expect.json` files from compiler output:
 python tests/harness/regen_expect.py --compiler build/cursivec0 --tests-root tests/compile
 ```
 
-Regenerate semantics-oracle `expect.json` from interpreter output:
+Regenerate semantics-oracle `expect.json` from compiled output:
 
 ```bash
-python tests/harness/regen_semantics_oracle.py --interpreter build/cursive0_interpreter_cli --tests-root tests/semantics_oracle
+python tests/harness/regen_semantics_oracle.py --compiler build/cursivec0 --tests-root tests/semantics_oracle
 ```

@@ -3744,14 +3744,14 @@ A workable sequencing that preserves correctness and keeps the system testable a
 
 ## 10. Reference interpreter plan (dynamic semantics)
 
-This plan adds a reference interpreter that directly implements the dynamic semantics in Spec Section 7. The interpreter is the source of truth for behavior and is used by tests to validate compiler output. This is required to implement all remaining rules in Sigma7.* without guessing or mapping them to codegen heuristics.
+This plan adds a reference interpreter that directly implements the dynamic semantics in Spec Section 7. The interpreter is **debug-only** and **not** in the oracle chain; the spec verifier (trace-based) is the oracle for compiler/runtime conformance. The interpreter exists to support investigation and differential analysis without becoming a second compiler.
 
 ### 10.1 Goals and scope
 
 **Goal:** Implement a deterministic, spec-faithful reference interpreter that covers every rule in Sigma7.1, Sigma7.3, Sigma7.4, Sigma7.5, and Sigma7.7, with one or more SPEC_RULE anchors per rule and SPEC_COV tests for each rule.
 
 **Non-goals:**
-* This interpreter is not the production runtime. It is a test oracle and conformance engine.
+* This interpreter is not the production runtime or the oracle; it is a debug tool.
 * It should not drive codegen or linking; it should operate on typed AST and semantic artifacts.
 
 ### 10.2 Architecture and file layout

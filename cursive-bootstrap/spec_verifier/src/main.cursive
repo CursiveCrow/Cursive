@@ -76,11 +76,24 @@ procedure slice_is_empty(slice: [u8]) -> bool {
   return slice_len(slice) == 0usize;
 }
 
+procedure slice_trim_cr(slice: [u8]) -> [u8] {
+  let len: usize = slice_len(slice);
+  if len == 0usize {
+    return slice;
+  }
+  let last: u8 = byte_at(slice, len - 1usize);
+  if last == 13u8 {
+    return slice[0usize..(len - 1usize)];
+  }
+  return slice;
+}
+
 procedure slice_is_dash(slice: [u8]) -> bool {
-  if slice_len(slice) != 1usize {
+  let trimmed: [u8] = slice_trim_cr(slice);
+  if slice_len(trimmed) != 1usize {
     return false;
   }
-  return byte_at(slice, 0usize) == 45u8;
+  return byte_at(trimmed, 0usize) == 45u8;
 }
 
 procedure parse_usize(slice: [u8]) -> ParseUsizeResult {
@@ -387,11 +400,11 @@ procedure verify_rules(fs: $FileSystem,
           if line_len != 0usize {
             let first: u8 = byte_at(line_slice, 0usize);
             if first != 35u8 {
-              let rule_slice: [u8] = rules[rule_start..rule_end];
-              let domain_slice: [u8] = rules[domain_start..domain_end];
-              let min_slice: [u8] = rules[min_start..min_end];
-              let max_slice: [u8] = rules[max_start..max_end];
-              let keys_slice: [u8] = rules[keys_start..keys_end];
+              let rule_slice: [u8] = slice_trim_cr(rules[rule_start..rule_end]);
+              let domain_slice: [u8] = slice_trim_cr(rules[domain_start..domain_end]);
+              let min_slice: [u8] = slice_trim_cr(rules[min_start..min_end]);
+              let max_slice: [u8] = slice_trim_cr(rules[max_start..max_end]);
+              let keys_slice: [u8] = slice_trim_cr(rules[keys_start..keys_end]);
 
               if !slice_is_empty(trace_domain) &&
                  !slice_is_empty(domain_slice) &&
@@ -468,11 +481,11 @@ procedure verify_rules(fs: $FileSystem,
     if line_len != 0usize {
       let first: u8 = byte_at(line_slice, 0usize);
       if first != 35u8 {
-        let rule_slice: [u8] = rules[rule_start..rule_end];
-        let domain_slice: [u8] = rules[domain_start..domain_end];
-        let min_slice: [u8] = rules[min_start..min_end];
-        let max_slice: [u8] = rules[max_start..max_end];
-        let keys_slice: [u8] = rules[keys_start..keys_end];
+        let rule_slice: [u8] = slice_trim_cr(rules[rule_start..rule_end]);
+        let domain_slice: [u8] = slice_trim_cr(rules[domain_start..domain_end]);
+        let min_slice: [u8] = slice_trim_cr(rules[min_start..min_end]);
+        let max_slice: [u8] = slice_trim_cr(rules[max_start..max_end]);
+        let keys_slice: [u8] = slice_trim_cr(rules[keys_start..keys_end]);
 
         if !slice_is_empty(trace_domain) &&
            !slice_is_empty(domain_slice) &&
@@ -666,10 +679,10 @@ procedure verify_edges(fs: $FileSystem,
           if line_len != 0usize {
             let first: u8 = byte_at(line_slice, 0usize);
             if first != 35u8 {
-              let before_slice: [u8] = edges[before_start..before_end];
-              let after_slice: [u8] = edges[after_start..after_end];
-              let domain_slice: [u8] = edges[domain_start..domain_end];
-              let group_slice: [u8] = edges[group_start..group_end];
+              let before_slice: [u8] = slice_trim_cr(edges[before_start..before_end]);
+              let after_slice: [u8] = slice_trim_cr(edges[after_start..after_end]);
+              let domain_slice: [u8] = slice_trim_cr(edges[domain_start..domain_end]);
+              let group_slice: [u8] = slice_trim_cr(edges[group_start..group_end]);
 
               if !slice_is_empty(trace_domain) &&
                  !slice_is_empty(domain_slice) &&
@@ -712,10 +725,10 @@ procedure verify_edges(fs: $FileSystem,
     if line_len != 0usize {
       let first: u8 = byte_at(line_slice, 0usize);
       if first != 35u8 {
-        let before_slice: [u8] = edges[before_start..before_end];
-        let after_slice: [u8] = edges[after_start..after_end];
-        let domain_slice: [u8] = edges[domain_start..domain_end];
-        let group_slice: [u8] = edges[group_start..group_end];
+        let before_slice: [u8] = slice_trim_cr(edges[before_start..before_end]);
+        let after_slice: [u8] = slice_trim_cr(edges[after_start..after_end]);
+        let domain_slice: [u8] = slice_trim_cr(edges[domain_start..domain_end]);
+        let group_slice: [u8] = slice_trim_cr(edges[group_start..group_end]);
 
         if !slice_is_empty(trace_domain) &&
            !slice_is_empty(domain_slice) &&
@@ -738,20 +751,82 @@ procedure verify_edges(fs: $FileSystem,
   return failures;
 }
 
-procedure verify_diag(fs: $FileSystem, diag: [u8]) -> usize {
+procedure diag_map_has_code(diag_map: [u8], code: [u8]) -> bool {
   var idx: usize = 0usize;
   var line_start: usize = 0usize;
-  loop b in diag {
+  var field_start: usize = 0usize;
+  var field_index: usize = 0usize;
+  var code_start: usize = 0usize;
+  var code_end: usize = 0usize;
+
+  loop b in diag_map {
+    let is_tab: bool = b == 9u8;
+    let is_nl: bool = b == 10u8;
+    if is_tab || is_nl {
+      let field_end: usize = idx;
+      if field_index == 0usize {
+        code_start = field_start;
+        code_end = field_end;
+      }
+      field_index = field_index + 1usize;
+      field_start = idx + 1usize;
+
+      if is_nl {
+        let line_end: usize = idx;
+        if line_end > line_start {
+          let line_slice: [u8] = diag_map[line_start..line_end];
+          if slice_len(line_slice) != 0usize {
+            let first: u8 = byte_at(line_slice, 0usize);
+            if first != 35u8 {
+              if code_end > code_start {
+                let map_code: [u8] = diag_map[code_start..code_end];
+                if slices_equal(map_code, code) {
+                  return true;
+                }
+              }
+            }
+          }
+        }
+        line_start = idx + 1usize;
+        field_index = 0usize;
+        field_start = idx + 1usize;
+        code_start = 0usize;
+        code_end = 0usize;
+      }
+    }
+    idx = idx + 1usize;
+  }
+
+  if idx > line_start {
+    let line_slice: [u8] = diag_map[line_start..idx];
+    if slice_len(line_slice) != 0usize {
+      let first: u8 = byte_at(line_slice, 0usize);
+      if first != 35u8 {
+        if code_end > code_start {
+          let map_code: [u8] = diag_map[code_start..code_end];
+          if slices_equal(map_code, code) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+procedure diag_map_has_entries(diag_map: [u8]) -> bool {
+  var idx: usize = 0usize;
+  var line_start: usize = 0usize;
+  loop b in diag_map {
     if b == 10u8 {
       let line_end: usize = idx;
       if line_end > line_start {
-        let line_slice: [u8] = diag[line_start..line_end];
-        let line_len: usize = slice_len(line_slice);
-        if line_len != 0usize {
+        let line_slice: [u8] = diag_map[line_start..line_end];
+        if slice_len(line_slice) != 0usize {
           let first: u8 = byte_at(line_slice, 0usize);
           if first != 35u8 {
-            write_fail(fs, "DiagVerify", "unimplemented");
-            return 1usize;
+            return true;
           }
         }
       }
@@ -760,17 +835,61 @@ procedure verify_diag(fs: $FileSystem, diag: [u8]) -> usize {
     idx = idx + 1usize;
   }
   if idx > line_start {
-    let line_slice: [u8] = diag[line_start..idx];
+    let line_slice: [u8] = diag_map[line_start..idx];
+    if slice_len(line_slice) != 0usize {
+      let first: u8 = byte_at(line_slice, 0usize);
+      if first != 35u8 {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+procedure verify_diag(fs: $FileSystem, diag_map: [u8], diag_codes: [u8]) -> usize {
+  if slice_is_empty(diag_codes) {
+    return 0usize;
+  }
+  if !diag_map_has_entries(diag_map) {
+    return 0usize;
+  }
+  var idx: usize = 0usize;
+  var line_start: usize = 0usize;
+  var failures: usize = 0usize;
+  loop b in diag_codes {
+    if b == 10u8 {
+      let line_end: usize = idx;
+      if line_end > line_start {
+        let line_slice: [u8] = diag_codes[line_start..line_end];
+        let line_len: usize = slice_len(line_slice);
+        if line_len != 0usize {
+          let first: u8 = byte_at(line_slice, 0usize);
+          if first != 35u8 {
+            if !diag_map_has_code(diag_map, line_slice) {
+              write_fail(fs, string_from_slice(line_slice), "diag_unmapped");
+              failures = failures + 1usize;
+            }
+          }
+        }
+      }
+      line_start = idx + 1usize;
+    }
+    idx = idx + 1usize;
+  }
+  if idx > line_start {
+    let line_slice: [u8] = diag_codes[line_start..idx];
     let line_len: usize = slice_len(line_slice);
     if line_len != 0usize {
       let first: u8 = byte_at(line_slice, 0usize);
       if first != 35u8 {
-        write_fail(fs, "DiagVerify", "unimplemented");
-        return 1usize;
+        if !diag_map_has_code(diag_map, line_slice) {
+          write_fail(fs, string_from_slice(line_slice), "diag_unmapped");
+          failures = failures + 1usize;
+        }
       }
     }
   }
-  return 0usize;
+  return failures;
 }
 
 public procedure main(move ctx: Context) -> i32 {
@@ -779,6 +898,8 @@ public procedure main(move ctx: Context) -> i32 {
   let trace_path: string@View = "spec/trace_current.tsv";
   let rules_path: string@View = "spec/verifier_rules.tsv";
   let edges_path: string@View = "spec/verifier_edges.tsv";
+  let rules_current_path: string@View = "spec/verifier_rules_current.tsv";
+  let edges_current_path: string@View = "spec/verifier_edges_current.tsv";
   let diag_path: string@View = "spec/verifier_diag.tsv";
 
   let trace_res = fs~>read_bytes(trace_path);
@@ -797,23 +918,35 @@ public procedure main(move ctx: Context) -> i32 {
     return 1i32;
   }
 
-  let rules_res = fs~>read_bytes(rules_path);
+  let rules_res = fs~>read_bytes(rules_current_path);
   let rules_data: bytes@Managed = match move rules_res {
     data: bytes@Managed => data,
     err: IoError => {
-      write_fail(fs, "RulesRead", rules_path);
-      return 1i32;
+      let fallback = fs~>read_bytes(rules_path);
+      match move fallback {
+        data: bytes@Managed => data,
+        err: IoError => {
+          write_fail(fs, "RulesRead", rules_path);
+          return 1i32;
+        }
+      }
     }
   };
   let rules_view: bytes@View = bytes::as_view(rules_data);
   let rules_slice: [u8] = slice_from_bytes(rules_view);
 
-  let edges_res = fs~>read_bytes(edges_path);
+  let edges_res = fs~>read_bytes(edges_current_path);
   let edges_data: bytes@Managed = match move edges_res {
     data: bytes@Managed => data,
     err: IoError => {
-      write_fail(fs, "EdgesRead", edges_path);
-      return 1i32;
+      let fallback = fs~>read_bytes(edges_path);
+      match move fallback {
+        data: bytes@Managed => data,
+        err: IoError => {
+          write_fail(fs, "EdgesRead", edges_path);
+          return 1i32;
+        }
+      }
     }
   };
   let edges_view: bytes@View = bytes::as_view(edges_data);
@@ -830,13 +963,30 @@ public procedure main(move ctx: Context) -> i32 {
   let diag_view: bytes@View = bytes::as_view(diag_data);
   let diag_slice: [u8] = slice_from_bytes(diag_view);
 
+  let diag_codes_path: string@View = "spec/diag_current.tsv";
+  let diag_codes_res = fs~>read_bytes(diag_codes_path);
+  let diag_codes_opt: bytes@Managed | () = match move diag_codes_res {
+    data: bytes@Managed => data,
+    err: IoError => ()
+  };
+  let diag_codes_slice: [u8] = match move diag_codes_opt {
+    data: bytes@Managed => {
+      let view: bytes@View = bytes::as_view(data);
+      slice_from_bytes(view)
+    },
+    empty: () => {
+      let view: bytes@View = bytes::view_string("");
+      slice_from_bytes(view)
+    }
+  };
+
   var failures: usize = 0usize;
   let trace_domain_view: bytes@View = detect_trace_domain(trace_slice);
   let trace_domain_slice: [u8] = slice_from_bytes(trace_domain_view);
 
   failures = failures + verify_rules(fs, rules_slice, trace_slice, trace_domain_slice);
   failures = failures + verify_edges(fs, edges_slice, trace_slice, trace_domain_slice);
-  failures = failures + verify_diag(fs, diag_slice);
+  failures = failures + verify_diag(fs, diag_slice, diag_codes_slice);
 
   if failures == 0usize {
     write_stdout(fs, "OK\n");

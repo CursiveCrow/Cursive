@@ -28,17 +28,30 @@ The compile suite is split into:
 
 Single-module cases should **not** carry a per-case `Cursive.toml`.
 
+Compile tests emit verifier inputs at:
+- `spec/trace_current.tsv`
+- `spec/diag_current.tsv`
+- `spec/verifier_rules_current.tsv`
+- `spec/verifier_edges_current.tsv`
+
+`spec/verifier_rules.tsv` and `spec/verifier_edges.tsv` can be generated from
+`docs/Cursive0.md` using:
+```
+python cursive-bootstrap/tools/verifier_indexer.py
+```
+
 ## Semantics-oracle suite
 
-The semantics-oracle suite compares **compiler output vs interpreter output**
-for the same test project, using the interpreter as the spec-truth oracle.
+The semantics-oracle suite validates **compiled runtime output** against
+`expect.json` and checks runtime traces with the Cursive `spec_verifier`.
+The interpreter is debug-only and not in the oracle chain.
 
 - Harness: `cursive-bootstrap/tests/harness/run_semantics_oracle.py`
 - Test root: `cursive-bootstrap/tests/semantics_oracle` (semantics-oracle projects)
 - CTest target: `semantics_oracle_tests` (hard-gated)
-- Interpreter runner: `cursive0_interpreter_cli` (CMake target)
 - Outputs compared: `stdout`, `stderr`, `exit_code`
-- `expect.json` must match the interpreter output (acts as documentation)
+- `expect.json` must match the compiled runtime output
+- Runtime traces are written to `spec/trace_current.tsv`
 
 ## Regenerating expectations
 
@@ -50,10 +63,10 @@ python cursive-bootstrap/tests/harness/regen_expect.py --compiler build/Release/
 
 This will normalize spans to original test paths so expectations remain stable.
 
-To regenerate **semantics-oracle** `expect.json` files from interpreter output:
+To regenerate **semantics-oracle** `expect.json` files from compiled output:
 
 ```
-python cursive-bootstrap/tests/harness/regen_semantics_oracle.py --interpreter build/Release/cursive0_interpreter_cli.exe --tests-root cursive-bootstrap/tests/semantics_oracle
+python cursive-bootstrap/tests/harness/regen_semantics_oracle.py --compiler build/Release/cursivec0.exe --tests-root cursive-bootstrap/tests/semantics_oracle
 ```
 
 ## Spec coverage reporting
@@ -65,3 +78,6 @@ coverage/consistency checks:
 - `diag_check_report.py`: verifies spec diagnostic index matches the spec tables
 
 These are integrated into CTest as non-gating informational checks.
+
+`tools/verifier_coverage_report.py` is a **gating** check for verifier metadata
+coverage (rules/edges/diag entries vs spec indexes).

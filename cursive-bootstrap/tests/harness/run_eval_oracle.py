@@ -133,27 +133,21 @@ def _run_spec_verifier(repo_root: Path) -> tuple[bool, str]:
     return True, ""
 
 
-def _run_interpreter(interpreter: Path, entry: Path) -> tuple[dict | None, str]:
-    proc = subprocess.run(
-        [str(interpreter), str(entry)],
-        capture_output=True,
-        text=True,
-        env=os.environ.copy(),
-    )
-    if proc.returncode != 0:
-        return None, f"interpreter failed: {proc.stderr.strip() or proc.stdout.strip()}"
-    if proc.stderr.strip():
-        return None, f"interpreter stderr not empty: {proc.stderr.strip()}"
-    try:
-        payload = json.loads(proc.stdout.strip())
-    except Exception as exc:
-        return None, f"interpreter JSON parse failed: {exc}"
-    if not isinstance(payload, dict):
-        return None, "interpreter JSON is not an object"
-    for key in ("stdout", "stderr", "exit_code"):
-        if key not in payload:
-            return None, f"interpreter JSON missing key: {key}"
-    return payload, ""
+def _clear_diag_codes(repo_root: Path) -> None:
+    (repo_root / "spec" / "diag_current.tsv").write_text("", encoding="utf-8")
+
+
+def _write_rules_current(repo_root: Path, cov: list[str], domain: str) -> None:
+    path = repo_root / "spec" / "verifier_rules_current.tsv"
+    lines = ["# rule_id\tdomain\tmin_count\tmax_count\tpayload_keys"]
+    for rule_id in cov:
+        lines.append(f"{rule_id}\t{domain}\t1\t-\t-")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _write_edges_current(repo_root: Path) -> None:
+    path = repo_root / "spec" / "verifier_edges_current.tsv"
+    path.write_text("# before_rule\tafter_rule\tdomain\tgroup_by\n", encoding="utf-8")
 
 
 def _run_compiled(
@@ -198,12 +192,17 @@ def _run_compiled(
 
 def _run_test(
     compiler: Path,
-    interpreter: Path,
     test_root: Path,
     repo_root: Path,
 ) -> tuple[bool, str]:
     if not _has_any_spec_cov(test_root):
         return False, f"{test_root}: missing SPEC_COV tag in .cursive sources"
+
+    cov: list[str] = []
+    for path in test_root.rglob("*.cursive"):
+        cov.extend(_read_spec_cov(path))
+    _write_rules_current(repo_root, cov, "runtime")
+    _write_edges_current(repo_root)
 
     manifest = _load_manifest(test_root / "Cursive.toml")
     if manifest is None:
@@ -232,67 +231,38 @@ def _run_test(
         if entry is None:
             return False, f"{test_root}: no .cursive files found"
 
-        oracle, msg = _run_interpreter(interpreter, entry)
-        if oracle is None:
-            return False, f"{test_root}: {msg}"
-
         compiled, msg = _run_compiled(compiler, entry, manifest, temp_root, repo_root)
         if compiled is None:
             return False, f"{test_root}: {msg}"
-
-        oracle_stdout = _normalize_output(str(oracle.get("stdout", "")))
-        oracle_stderr = _normalize_output(str(oracle.get("stderr", "")))
-        try:
-            oracle_exit = int(oracle.get("exit_code", 0))
-        except Exception:
-            return False, f"{test_root}: interpreter exit_code not an int"
 
         comp_stdout = _normalize_output(str(compiled.get("stdout", "")))
         comp_stderr = _normalize_output(str(compiled.get("stderr", "")))
         comp_exit = int(compiled.get("exit_code", 0))
 
-        if comp_stdout != oracle_stdout:
-            return False, (
-                f"{test_root}: stdout mismatch vs interpreter\n"
-                f"expected: {oracle_stdout!r}\n"
-                f"actual:   {comp_stdout!r}"
-            )
-        if comp_stderr != oracle_stderr:
-            return False, (
-                f"{test_root}: stderr mismatch vs interpreter\n"
-                f"expected: {oracle_stderr!r}\n"
-                f"actual:   {comp_stderr!r}"
-            )
-        if comp_exit != oracle_exit:
-            return False, (
-                f"{test_root}: exit_code mismatch vs interpreter\n"
-                f"expected: {oracle_exit}\n"
-                f"actual:   {comp_exit}"
-            )
-
         exp_stdout = _normalize_output(str(expect.get("stdout", "")))
         exp_stderr = _normalize_output(str(expect.get("stderr", "")))
         exp_exit = int(expect.get("exit_code", 0))
 
-        if exp_stdout != oracle_stdout:
+        if exp_stdout != comp_stdout:
             return False, (
-                f"{test_root}: expect.json stdout mismatch vs interpreter\n"
-                f"expected: {oracle_stdout!r}\n"
-                f"actual:   {exp_stdout!r}"
+                f"{test_root}: stdout mismatch\n"
+                f"expected: {exp_stdout!r}\n"
+                f"actual:   {comp_stdout!r}"
             )
-        if exp_stderr != oracle_stderr:
+        if exp_stderr != comp_stderr:
             return False, (
-                f"{test_root}: expect.json stderr mismatch vs interpreter\n"
-                f"expected: {oracle_stderr!r}\n"
-                f"actual:   {exp_stderr!r}"
+                f"{test_root}: stderr mismatch\n"
+                f"expected: {exp_stderr!r}\n"
+                f"actual:   {comp_stderr!r}"
             )
-        if exp_exit != oracle_exit:
+        if exp_exit != comp_exit:
             return False, (
-                f"{test_root}: expect.json exit_code mismatch vs interpreter\n"
-                f"expected: {oracle_exit}\n"
-                f"actual:   {exp_exit}"
+                f"{test_root}: exit_code mismatch\n"
+                f"expected: {exp_exit}\n"
+                f"actual:   {comp_exit}"
             )
 
+        _clear_diag_codes(repo_root)
         ok, msg = _run_spec_verifier(repo_root)
         if not ok:
             return False, f"{test_root}: {msg}"
@@ -303,7 +273,6 @@ def _run_test(
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--compiler", required=False)
-    parser.add_argument("--interpreter", required=True)
     parser.add_argument("--tests-root", default="tests/semantics_oracle")
     parser.add_argument("--test", action="append", default=[])
     args = parser.parse_args()
@@ -313,11 +282,6 @@ def main() -> int:
     if not compiler.exists():
         print(f"compiler not found: {compiler}")
         return 2
-    interpreter = Path(args.interpreter)
-    if not interpreter.exists():
-        print(f"interpreter not found: {interpreter}")
-        return 2
-
     tests_root = repo_root / args.tests_root
     if args.test:
         test_paths = [Path(p) for p in args.test]
@@ -326,7 +290,7 @@ def main() -> int:
 
     failures = 0
     for test_root in test_paths:
-        ok, msg = _run_test(compiler, interpreter, test_root, repo_root)
+        ok, msg = _run_test(compiler, test_root, repo_root)
         if not ok:
             print(msg)
             failures += 1

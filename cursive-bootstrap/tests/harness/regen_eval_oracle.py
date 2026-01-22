@@ -2,8 +2,10 @@
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import tempfile
+import tomllib
 from pathlib import Path
 
 
@@ -54,46 +56,85 @@ def _normalize_output(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n").strip()
 
 
-def _run_interpreter(interpreter: Path, entry: Path) -> tuple[dict | None, str]:
-    proc = subprocess.run(
-        [str(interpreter), str(entry)],
-        capture_output=True,
-        text=True,
-        env=os.environ.copy(),
-    )
-    if proc.returncode != 0:
-        return None, f"interpreter failed: {proc.stderr.strip() or proc.stdout.strip()}"
-    if proc.stderr.strip():
-        return None, f"interpreter stderr not empty: {proc.stderr.strip()}"
+def _load_manifest(manifest_path: Path) -> dict | None:
     try:
-        payload = json.loads(proc.stdout.strip())
-    except Exception as exc:
-        return None, f"interpreter JSON parse failed: {exc}"
-    if not isinstance(payload, dict):
-        return None, "interpreter JSON is not an object"
-    return payload, ""
+        return tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
 
 
-def _regen_test(interpreter: Path, test_root: Path) -> tuple[bool, str]:
+def _select_assembly(manifest: dict, target: str | None) -> dict | None:
+    assemblies = manifest.get("assembly") or manifest.get("assemblies")
+    if isinstance(assemblies, dict):
+        assemblies = [assemblies]
+    if not isinstance(assemblies, list):
+        return None
+    if target is None:
+        return assemblies[0] if len(assemblies) == 1 else None
+    for asm in assemblies:
+        if asm.get("name") == target:
+            return asm
+    return None
+
+
+def _exe_path(project_root: Path, manifest: dict) -> Path | None:
+    assembly = _select_assembly(manifest, None)
+    if assembly is None:
+        return None
+    name = assembly.get("name")
+    kind = assembly.get("kind")
+    if not isinstance(name, str) or not isinstance(kind, str):
+        return None
+    if kind != "executable":
+        return None
+    out_dir = assembly.get("out_dir")
+    root = project_root / out_dir if isinstance(out_dir, str) else project_root / "build"
+    return root / "bin" / f"{name}.exe"
+
+
+def _regen_test(compiler: Path, test_root: Path, repo_root: Path) -> tuple[bool, str]:
+    manifest = _load_manifest(test_root / "Cursive.toml")
+    if manifest is None:
+        return False, f"{test_root}: failed to parse Cursive.toml"
+
+    runtime_lib = repo_root / "runtime" / "cursive0_rt.lib"
+    if not runtime_lib.exists():
+        return False, f"runtime library not found: {runtime_lib}"
+
     with tempfile.TemporaryDirectory() as tmpdir:
         temp_root = Path(tmpdir) / "project"
         temp_root.mkdir(parents=True, exist_ok=True)
         _copy_filtered_project(test_root, temp_root)
 
+        runtime_dir = temp_root / "runtime"
+        runtime_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(runtime_lib, runtime_dir / "cursive0_rt.lib")
+
         entry = _find_entry_file(temp_root)
         if entry is None:
             return False, f"{test_root}: no .cursive files found"
 
-        payload, msg = _run_interpreter(interpreter, entry)
-        if payload is None:
-            return False, f"{test_root}: {msg}"
+        proc = subprocess.run(
+            [str(compiler), str(entry)],
+            capture_output=True,
+            text=True,
+            env=os.environ.copy(),
+        )
+        if proc.returncode != 0:
+            return False, f"{test_root}: compiler failed: {proc.stderr.strip()}"
+        if proc.stderr.strip():
+            return False, f"{test_root}: compiler stderr not empty: {proc.stderr.strip()}"
 
-        stdout = _normalize_output(str(payload.get("stdout", "")))
-        stderr = _normalize_output(str(payload.get("stderr", "")))
-        try:
-            exit_code = int(payload.get("exit_code", 0))
-        except Exception:
-            return False, f"{test_root}: interpreter exit_code not an int"
+        exe_path = _exe_path(temp_root, manifest)
+        if exe_path is None:
+            return False, f"{test_root}: unable to determine exe path"
+        if not exe_path.exists():
+            return False, f"{test_root}: exe not found: {exe_path}"
+
+        run = subprocess.run([str(exe_path)], capture_output=True, text=True)
+        stdout = _normalize_output(str(run.stdout))
+        stderr = _normalize_output(str(run.stderr))
+        exit_code = run.returncode
 
         out = {
             "stdout": stdout,
@@ -108,15 +149,15 @@ def _regen_test(interpreter: Path, test_root: Path) -> tuple[bool, str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--interpreter", required=True)
+    parser.add_argument("--compiler", required=True)
     parser.add_argument("--tests-root", default="tests/semantics_oracle")
     parser.add_argument("--test", action="append", default=[])
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parents[2]
-    interpreter = Path(args.interpreter)
-    if not interpreter.exists():
-        print(f"interpreter not found: {interpreter}")
+    compiler = Path(args.compiler)
+    if not compiler.exists():
+        print(f"compiler not found: {compiler}")
         return 2
 
     tests_root = repo_root / args.tests_root
@@ -127,7 +168,7 @@ def main() -> int:
 
     failures = 0
     for test_root in test_paths:
-        ok, msg = _regen_test(interpreter, test_root)
+        ok, msg = _regen_test(compiler, test_root, repo_root)
         if not ok:
             print(msg)
             failures += 1

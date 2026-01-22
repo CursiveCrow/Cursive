@@ -112,9 +112,53 @@ def _normalize_output(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n").strip()
 
 
+def _spec_verifier_path(repo_root: Path) -> Path:
+    exe = "spec_verifier.exe" if os.name == "nt" else "spec_verifier"
+    return repo_root / "spec_verifier" / "build" / "bin" / exe
+
+
+def _run_spec_verifier(repo_root: Path) -> tuple[bool, str]:
+    verifier = _spec_verifier_path(repo_root)
+    if not verifier.exists():
+        return False, f"spec_verifier not found: {verifier}"
+    proc = subprocess.run(
+        [str(verifier)],
+        capture_output=True,
+        text=True,
+        cwd=repo_root,
+    )
+    if proc.returncode != 0:
+        message = proc.stdout.strip() or proc.stderr.strip() or "verification failed"
+        return False, f"spec_verifier failed: {message}"
+    return True, ""
+
+
+def _clear_diag_codes(repo_root: Path) -> None:
+    (repo_root / "spec" / "diag_current.tsv").write_text("", encoding="utf-8")
+
+
+def _write_rules_current(repo_root: Path, cov: list[str], domain: str) -> None:
+    path = repo_root / "spec" / "verifier_rules_current.tsv"
+    lines = ["# rule_id\tdomain\tmin_count\tmax_count\tpayload_keys"]
+    for rule_id in cov:
+        lines.append(f"{rule_id}\t{domain}\t1\t-\t-")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _write_edges_current(repo_root: Path) -> None:
+    path = repo_root / "spec" / "verifier_edges_current.tsv"
+    path.write_text("# before_rule\tafter_rule\tdomain\tgroup_by\n", encoding="utf-8")
+
+
 def _run_test(compiler: Path, test_root: Path, repo_root: Path) -> tuple[bool, str]:
     if not _has_any_spec_cov(test_root):
         return False, f"{test_root}: missing SPEC_COV tag in .cursive sources"
+
+    cov: list[str] = []
+    for path in test_root.rglob("*.cursive"):
+        cov.extend(_read_spec_cov(path))
+    _write_rules_current(repo_root, cov, "runtime")
+    _write_edges_current(repo_root)
 
     manifest = _load_manifest(test_root / "Cursive.toml")
     if manifest is None:
@@ -160,7 +204,15 @@ def _run_test(compiler: Path, test_root: Path, repo_root: Path) -> tuple[bool, s
         if not exe_path.exists():
             return False, f"{test_root}: exe not found: {exe_path}"
 
-        run = subprocess.run([str(exe_path)], capture_output=True, text=True)
+        env = os.environ.copy()
+        env["CURSIVE_SPEC_TRACE_RUNTIME"] = str(repo_root / "spec" / "trace_current.tsv")
+        run = subprocess.run(
+            [str(exe_path)],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=repo_root,
+        )
         stdout = _normalize_output(run.stdout)
         stderr = _normalize_output(run.stderr)
         exit_code = run.returncode
@@ -175,6 +227,11 @@ def _run_test(compiler: Path, test_root: Path, repo_root: Path) -> tuple[bool, s
             return False, f"{test_root}: stderr mismatch\nexpected: {exp_stderr!r}\nactual:   {stderr!r}"
         if exit_code != exp_exit:
             return False, f"{test_root}: exit_code mismatch\nexpected: {exp_exit}\nactual:   {exit_code}"
+
+        _clear_diag_codes(repo_root)
+        ok, msg = _run_spec_verifier(repo_root)
+        if not ok:
+            return False, f"{test_root}: {msg}"
 
     return True, ""
 

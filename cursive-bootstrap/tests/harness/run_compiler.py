@@ -242,6 +242,35 @@ def _run_spec_verifier(repo_root: Path) -> tuple[bool, str]:
     return True, ""
 
 
+def _write_diag_codes(repo_root: Path, data: dict) -> None:
+    codes: list[str] = []
+    diags = data.get("diagnostics") if isinstance(data, dict) else None
+    if isinstance(diags, list):
+        for diag in diags:
+            if isinstance(diag, dict):
+                code = diag.get("code")
+                if isinstance(code, str):
+                    codes.append(code)
+    out_path = repo_root / "spec" / "diag_current.tsv"
+    if codes:
+        out_path.write_text("\n".join(codes) + "\n", encoding="utf-8")
+    else:
+        out_path.write_text("", encoding="utf-8")
+
+
+def _write_rules_current(repo_root: Path, cov: list[str], domain: str) -> None:
+    path = repo_root / "spec" / "verifier_rules_current.tsv"
+    lines = ["# rule_id\tdomain\tmin_count\tmax_count\tpayload_keys"]
+    for rule_id in cov:
+        lines.append(f"{rule_id}\t{domain}\t1\t-\t-")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _write_edges_current(repo_root: Path) -> None:
+    path = repo_root / "spec" / "verifier_edges_current.tsv"
+    path.write_text("# before_rule\tafter_rule\tdomain\tgroup_by\n", encoding="utf-8")
+
+
 def _run_one(
     compiler: Path,
     test_path: Path,
@@ -343,6 +372,7 @@ def _run_one(
                 )
                 if actual_ir != expected_ir:
                     return False, f"{test_path}: IR mismatch.\n\nExpected:\n{expected_ir}\n\nActual:\n{actual_ir}"
+                _write_diag_codes(repo_root, {})
                 ok, msg = _run_spec_verifier(repo_root)
                 if not ok:
                     return False, f"{test_path}: {msg}"
@@ -355,6 +385,7 @@ def _run_one(
             except json.JSONDecodeError as exc:
                 return False, f"{test_path}: invalid JSON output: {exc}"
             
+            _write_diag_codes(repo_root, data)
             actual_path = Path(tmpdir) / "actual.json"
             data["exit_code"] = proc.returncode
             if "diagnostics" in data:
@@ -432,6 +463,8 @@ def main() -> int:
             continue
 
         # Use compile_tests_root for categorization (phase detection, isolation)
+        _write_rules_current(repo_root, cov, "compile")
+        _write_edges_current(repo_root)
         ok, msg = _run_one(
             compiler,
             test_path,
