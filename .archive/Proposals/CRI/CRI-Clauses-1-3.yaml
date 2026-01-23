@@ -1,0 +1,1309 @@
+# Comprehensive Reference Index (CRI)
+# Cursive Language Specification - Clauses 1-3
+# Lines 0-1999 (approximately)
+
+terminology_registry:
+  - term: "Conforming Implementation"
+    definition: "A translator (compiler, interpreter, or hybrid) that satisfies all normative requirements of this specification applicable to implementations"
+    defined_in: "§1.1"
+    variants: []
+
+  - term: "Conforming Program"
+    definition: "A Cursive source program that satisfies all normative requirements of this specification applicable to programs"
+    defined_in: "§1.1"
+    variants: ["Well-formed Program"]
+
+  - term: "Well-formed Program"
+    definition: "A program satisfying all lexical, syntactic, and static-semantic constraints"
+    defined_in: "§1.1"
+    variants: ["Conforming Program"]
+
+  - term: "Ill-formed Program"
+    definition: "A program that violates a static-semantic rule of the language"
+    defined_in: "§1.2.1"
+    variants: []
+
+  - term: "IFNDR (Ill-Formed, No Diagnostic Required)"
+    definition: "A program that violates a static-semantic rule but detection is computationally undecidable or infeasible, so no diagnostic is required"
+    defined_in: "§1.2.1"
+    variants: []
+
+  - term: "Conformance Dossier"
+    definition: "A machine-readable JSON document conforming to schema in Appendix C that documents implementation-defined behaviors"
+    defined_in: "§1.1"
+    variants: []
+
+  - term: "Defined Behavior"
+    definition: "Program behavior for which the specification prescribes exactly one permitted outcome"
+    defined_in: "§1.2"
+    variants: []
+
+  - term: "Implementation-Defined Behavior (IDB)"
+    definition: "Behavior where the specification permits multiple valid outcomes and requires the implementation to document which outcome it chooses"
+    defined_in: "§1.2"
+    variants: ["IDB"]
+
+  - term: "Unspecified Behavior (USB)"
+    definition: "Behavior where the specification permits a set of valid outcomes but does not require the implementation to document which outcome is chosen"
+    defined_in: "§1.2"
+    variants: ["USB"]
+
+  - term: "Unverifiable Behavior (UVB)"
+    definition: "Operations whose runtime correctness depends on properties external to the language's semantic model, permitted only within unsafe blocks and FFI calls"
+    defined_in: "§1.2"
+    variants: ["UVB"]
+
+  - term: "Reserved Identifier"
+    definition: "An identifier that is reserved for use by the specification or by implementations and must not be used as a user-defined identifier"
+    defined_in: "§1.3"
+    variants: []
+
+  - term: "Reserved Keyword"
+    definition: "A lexeme that has special meaning in the language grammar and must not be used where an identifier is expected"
+    defined_in: "§2.6"
+    variants: []
+
+  - term: "Universe-Protected Binding"
+    definition: "An identifier that is pre-declared in the implicit universal scope and must not be shadowed by user declarations at module scope"
+    defined_in: "§1.3"
+    variants: []
+
+  - term: "Implementation Limits"
+    definition: "Minimum guaranteed capacities that all conforming implementations must support"
+    defined_in: "§1.4"
+    variants: []
+
+  - term: "Feature Stability Classes"
+    definition: "Classification system for language features: Stable, Preview, or Experimental"
+    defined_in: "§1.5"
+    variants: []
+
+  - term: "Program Point"
+    definition: "A unique location in the abstract control flow representation of a procedure body at which the compiler tracks state"
+    defined_in: "§1.6"
+    variants: []
+
+  - term: "Lexical Scope"
+    definition: "A contiguous region of source text that defines a lifetime boundary for bindings, keys, and deferred actions"
+    defined_in: "§1.6"
+    variants: []
+
+  - term: "Source Text"
+    definition: "A sequence of Unicode scalar values that constitutes the input to the Cursive translation pipeline"
+    defined_in: "§2.1"
+    variants: []
+
+  - term: "Source Byte Stream"
+    definition: "The raw sequence of bytes read from a file or other input source before decoding"
+    defined_in: "§2.1"
+    variants: []
+
+  - term: "Normalized Source File"
+    definition: "The Unicode scalar sequence obtained from a source byte stream after the preprocessing pipeline has successfully completed"
+    defined_in: "§2.1"
+    variants: []
+
+  - term: "Logical Line"
+    definition: "A sequence of Unicode scalar values terminated by a line feed character (U+000A) or end-of-file"
+    defined_in: "§2.2"
+    variants: []
+
+  - term: "Line Ending Normalization"
+    definition: "The transformation that converts all platform-specific line ending sequences to a single canonical line feed character"
+    defined_in: "§2.2"
+    variants: []
+
+  - term: "Preprocessing Pipeline"
+    definition: "The mandatory sequence of transformations applied to a source byte stream to produce a normalized source file suitable for tokenization"
+    defined_in: "§2.3"
+    variants: []
+
+  - term: "Token"
+    definition: "The atomic unit of lexical analysis, a triple of (kind, lexeme, span)"
+    defined_in: "§2.4"
+    variants: []
+
+  - term: "Identifier"
+    definition: "A sequence of Unicode scalar values that names a declaration, binding, type, or other program entity, following UAX #31"
+    defined_in: "§2.5"
+    variants: []
+
+  - term: "Keyword"
+    definition: "A reserved lexeme that has special meaning in the language grammar"
+    defined_in: "§2.6"
+    variants: ["Reserved Keyword"]
+
+  - term: "Operator"
+    definition: "A symbol or symbol sequence denoting an operation"
+    defined_in: "§2.7"
+    variants: []
+
+  - term: "Punctuator"
+    definition: "A symbol or symbol sequence used for syntactic structure"
+    defined_in: "§2.7"
+    variants: []
+
+  - term: "Literal"
+    definition: "A token representing a compile-time constant value"
+    defined_in: "§2.8"
+    variants: []
+
+  - term: "Whitespace"
+    definition: "Code points that serve as token separators"
+    defined_in: "§2.9"
+    variants: []
+
+  - term: "Comment"
+    definition: "Lexical constructs for human-readable annotations that do not contribute to the token stream"
+    defined_in: "§2.9"
+    variants: []
+
+  - term: "Lexically Sensitive Characters"
+    definition: "Unicode code points that may alter the visual appearance of source code without changing its tokenization"
+    defined_in: "§2.10"
+    variants: []
+
+  - term: "Statement Terminator"
+    definition: "A marker (explicit ';' or implicit newline) that marks the end of a statement"
+    defined_in: "§2.11"
+    variants: []
+
+  - term: "Translation Phase"
+    definition: "A discrete stage in the compilation pipeline"
+    defined_in: "§2.12"
+    variants: []
+
+  - term: "Compilation Unit"
+    definition: "A unit of compilation as defined in §8.1"
+    defined_in: "§2.12"
+    variants: []
+
+  - term: "Block Nesting Depth"
+    definition: "The count of lexically nested block statements"
+    defined_in: "§2.13"
+    variants: []
+
+  - term: "Expression Nesting Depth"
+    definition: "The count of lexically nested expressions"
+    defined_in: "§2.13"
+    variants: []
+
+  - term: "Liveness"
+    definition: "The property that all pointers and bindings refer to allocated, initialized memory"
+    defined_in: "§3.1"
+    variants: []
+
+  - term: "Aliasing"
+    definition: "The property that shared or reentrant access to the same memory location does not violate data integrity"
+    defined_in: "§3.1"
+    variants: []
+
+  - term: "Memory-Safe"
+    definition: "A program satisfying both the Liveness property and the Aliasing property"
+    defined_in: "§3.1"
+    variants: []
+
+  - term: "Object"
+    definition: "The fundamental unit of typed storage in Cursive, defined by quadruple (Storage, Type, Lifetime, Value)"
+    defined_in: "§3.2"
+    variants: []
+
+  - term: "Storage Duration"
+    definition: "Classification of an object's lifetime based on when and how its storage is allocated and deallocated: Static, Automatic, Region(R), or Dynamic"
+    defined_in: "§3.2"
+    variants: []
+
+  - term: "Provenance Tag"
+    definition: "A compile-time annotation attached to every pointer and reference type, indicating the origin of the address"
+    defined_in: "§3.3"
+    variants: []
+
+  - term: "Binding"
+    definition: "A named association between an identifier and an object, introduced by let/var declarations, pattern matching, or procedure parameters"
+    defined_in: "§3.4"
+    variants: []
+
+  - term: "Responsible Binding"
+    definition: "A binding that manages the lifecycle of its associated object, triggering destruction when it goes out of scope"
+    defined_in: "§3.4"
+    variants: []
+
+  - term: "Movable Binding"
+    definition: "A binding established with the = operator where responsibility may be transferred via move"
+    defined_in: "§3.4"
+    variants: []
+
+  - term: "Immovable Binding"
+    definition: "A binding established with the := operator where responsibility cannot be transferred"
+    defined_in: "§3.4"
+    variants: []
+
+  - term: "Binding State"
+    definition: "The state of a binding: Uninitialized, Valid, Moved, or PartiallyMoved"
+    defined_in: "§3.4"
+    variants: []
+
+  - term: "Temporary Value"
+    definition: "An object resulting from expression evaluation that is not immediately bound to a named identifier"
+    defined_in: "§3.4"
+    variants: []
+
+  - term: "Move"
+    definition: "An operation that transfers responsibility for an object from one binding to another"
+    defined_in: "§3.5"
+    variants: []
+
+  - term: "Transferring Parameter"
+    definition: "A parameter declared with the move modifier where the callee assumes responsibility"
+    defined_in: "§3.5"
+    variants: []
+
+  - term: "Non-Transferring Parameter"
+    definition: "A parameter declared without move where the callee receives a view and responsibility remains with the caller"
+    defined_in: "§3.5"
+    variants: []
+
+  - term: "RAII (Resource Acquisition Is Initialization)"
+    definition: "Pattern where resources are acquired during object initialization and released during object destruction"
+    defined_in: "§3.6"
+    variants: ["Deterministic Destruction"]
+
+  - term: "Drop Order"
+    definition: "Bindings must be destroyed in strict LIFO order relative to their declaration within a scope"
+    defined_in: "§3.6"
+    variants: []
+
+  - term: "Region"
+    definition: "A lexical scope that provides arena-style memory allocation with deterministic bulk deallocation"
+    defined_in: "§3.7"
+    variants: []
+
+  - term: "Unsafe Block"
+    definition: "A lexical scope in which the compiler suspends specific memory safety enforcement mechanisms"
+    defined_in: "§3.8"
+    variants: []
+
+  - term: "Permission"
+    definition: "A type qualifier that governs how data referenced by a binding may be accessed, mutated, and aliased"
+    defined_in: "§4.5.1"
+    variants: []
+
+  - term: "Permission-Qualified Type"
+    definition: "A pair (P, T) where P is a permission and T is a base type"
+    defined_in: "§4.5.1"
+    variants: []
+
+  - term: "Subtype"
+    definition: "Type S is a subtype of type T (written S <: T) if a value of type S may be safely used in any context requiring type T"
+    defined_in: "§4.2"
+    variants: []
+
+  - term: "Coercion"
+    definition: "The implicit conversion that occurs when an expression of a subtype is used in a context expecting a supertype"
+    defined_in: "§4.2"
+    variants: []
+
+  - term: "Variance"
+    definition: "Specifies how subtyping of type arguments relates to subtyping of parameterized types"
+    defined_in: "§4.3"
+    variants: []
+
+  - term: "Type Inference"
+    definition: "The process by which the compiler derives type information not explicitly annotated in the source program"
+    defined_in: "§4.4"
+    variants: []
+
+  - term: "Bidirectional Type Inference"
+    definition: "Type inference combining two complementary modes: synthesis (type flows outward) and checking (type flows inward)"
+    defined_in: "§4.4"
+    variants: []
+
+diagnostic_codes:
+  # Clause 1 - Conformance and General Principles
+  - code: "E-CNF-0101"
+    severity: "Error"
+    condition: "Program is ill-formed due to syntactic or static-semantic violation"
+    section: "§1.1"
+
+  - code: "E-CNF-0102"
+    severity: "Error"
+    condition: "Conformance Dossier generation failed"
+    section: "§1.1"
+
+  - code: "E-CNF-0301"
+    severity: "Error"
+    condition: "Implementation limit exceeded"
+    section: "§1.4"
+
+  - code: "E-CNF-0401"
+    severity: "Error"
+    condition: "Reserved keyword used as identifier"
+    section: "§1.3"
+
+  - code: "E-CNF-0402"
+    severity: "Error"
+    condition: "Reserved namespace cursive.* used by user code"
+    section: "§1.3"
+
+  - code: "E-CNF-0403"
+    severity: "Error"
+    condition: "Primitive type name shadowed at module scope"
+    section: "§1.3"
+
+  - code: "E-CNF-0404"
+    severity: "Error"
+    condition: "Shadowing of Self, string, or Modal"
+    section: "§1.3"
+
+  - code: "E-CNF-0405"
+    severity: "Error"
+    condition: "Shadowing of async type alias (Async, Future, Sequence, Stream, Pipe, Exchange)"
+    section: "§1.3"
+
+  - code: "E-CNF-0406"
+    severity: "Error"
+    condition: "User declaration uses gen_ prefix"
+    section: "§1.3"
+
+  - code: "W-CNF-0401"
+    severity: "Warning"
+    condition: "Implementation-reserved pattern used"
+    section: "§1.3"
+
+  - code: "E-CNF-0601"
+    severity: "Error"
+    condition: "Declared MAJOR version not supported by implementation"
+    section: "§1.5"
+
+  - code: "E-CNF-0602"
+    severity: "Error"
+    condition: "Unknown feature flag"
+    section: "§1.5"
+
+  - code: "E-CNF-0603"
+    severity: "Error"
+    condition: "Feature requires flag that is not enabled"
+    section: "§1.5"
+
+  - code: "E-CNF-0604"
+    severity: "Error"
+    condition: "Edition mixing within compilation unit"
+    section: "§1.5"
+
+  - code: "W-CNF-0601"
+    severity: "Warning"
+    condition: "Use of deprecated feature"
+    section: "§1.5"
+
+  - code: "E-CNF-0605"
+    severity: "Error"
+    condition: "Use of removed feature"
+    section: "§1.5"
+
+  # Clause 2 - Lexical Structure
+  - code: "E-SRC-0101"
+    severity: "Error"
+    condition: "Invalid UTF-8 byte sequence"
+    section: "§2.1"
+
+  - code: "E-SRC-0102"
+    severity: "Error"
+    condition: "Source file exceeds maximum size"
+    section: "§2.2"
+
+  - code: "E-SRC-0103"
+    severity: "Error"
+    condition: "Embedded BOM found after the first position"
+    section: "§2.1"
+
+  - code: "E-SRC-0104"
+    severity: "Error"
+    condition: "Forbidden control character or null byte"
+    section: "§2.1"
+
+  - code: "W-SRC-0101"
+    severity: "Warning"
+    condition: "UTF-8 BOM present at the start of the file"
+    section: "§2.1"
+
+  - code: "E-SRC-0105"
+    severity: "Error"
+    condition: "Maximum logical line count exceeded"
+    section: "§2.2"
+
+  - code: "E-SRC-0106"
+    severity: "Error"
+    condition: "Maximum line length exceeded"
+    section: "§2.2"
+
+  - code: "E-SRC-0301"
+    severity: "Error"
+    condition: "Unterminated string literal"
+    section: "§2.8"
+
+  - code: "E-SRC-0302"
+    severity: "Error"
+    condition: "Invalid escape sequence"
+    section: "§2.8"
+
+  - code: "E-SRC-0303"
+    severity: "Error"
+    condition: "Invalid character literal"
+    section: "§2.8"
+
+  - code: "E-SRC-0304"
+    severity: "Error"
+    condition: "Malformed numeric literal"
+    section: "§2.8"
+
+  - code: "W-SRC-0301"
+    severity: "Warning"
+    condition: "Leading zeros in decimal literal"
+    section: "§2.8"
+
+  - code: "E-SRC-0306"
+    severity: "Error"
+    condition: "Unterminated block comment"
+    section: "§2.9"
+
+  - code: "E-SRC-0307"
+    severity: "Error"
+    condition: "Invalid Unicode in identifier"
+    section: "§2.5"
+
+  - code: "W-SRC-0308"
+    severity: "Warning"
+    condition: "Lexically sensitive Unicode character (Permissive mode)"
+    section: "§2.10"
+
+  - code: "E-SRC-0308"
+    severity: "Error"
+    condition: "Lexically sensitive Unicode character (Strict mode)"
+    section: "§2.10"
+
+  - code: "E-SRC-0309"
+    severity: "Error"
+    condition: "Unclassifiable character sequence in source"
+    section: "§2.4"
+
+  - code: "E-SYN-0101"
+    severity: "Error"
+    condition: "Block nesting depth exceeded"
+    section: "§2.13"
+
+  - code: "E-SYN-0102"
+    severity: "Error"
+    condition: "Expression nesting depth exceeded"
+    section: "§2.13"
+
+  - code: "E-SYN-0110"
+    severity: "Error"
+    condition: "Missing statement terminator"
+    section: "§2.11"
+
+  - code: "E-SYN-0111"
+    severity: "Error"
+    condition: "Line continuation used where none of the continuation conditions apply"
+    section: "§2.11"
+
+  - code: "E-NAM-1301"
+    severity: "Error"
+    condition: "Unresolved symbol reference"
+    section: "§2.12"
+
+  # Clause 3 - Object and Memory Model
+  - code: "E-MEM-3001"
+    severity: "Error"
+    condition: "Access to a binding in Moved or PartiallyMoved state"
+    section: "§3.5"
+
+  - code: "E-MEM-3002"
+    severity: "Error"
+    condition: "Access to binding in Uninitialized state"
+    section: "§3.4"
+
+  - code: "E-MEM-3003"
+    severity: "Error"
+    condition: "Reassignment of immutable binding"
+    section: "§3.4"
+
+  - code: "E-MEM-3004"
+    severity: "Error"
+    condition: "Partial move from const binding"
+    section: "§3.5"
+
+  - code: "E-MEM-3005"
+    severity: "Error"
+    condition: "Explicit call to Drop::drop method"
+    section: "§3.6"
+
+  - code: "E-MEM-3006"
+    severity: "Error"
+    condition: "Attempt to move from immovable binding (:=)"
+    section: "§3.5"
+
+  - code: "E-MEM-3020"
+    severity: "Error"
+    condition: "Value with shorter-lived provenance escapes to longer-lived location"
+    section: "§3.3"
+
+  - code: "E-MEM-3030"
+    severity: "Error"
+    condition: "Unsafe operation outside block"
+    section: "§3.8"
+
+  - code: "E-MEM-3031"
+    severity: "Error"
+    condition: "Transmute size mismatch"
+    section: "§3.8"
+
+  - code: "E-DEC-2411"
+    severity: "Error"
+    condition: "Missing move keyword at call site for consuming parameter"
+    section: "§3.5"
+
+  - code: "E-REG-1205"
+    severity: "Error"
+    condition: "^ with no named region in scope"
+    section: "§3.7"
+
+  - code: "E-REG-1206"
+    severity: "Error"
+    condition: "Named region not found for prefixed allocation"
+    section: "§3.7"
+
+  # Clause 4 - Type System Foundations
+  - code: "E-TYP-1501"
+    severity: "Error"
+    condition: "Type mismatch in expression or assignment"
+    section: "§4.1"
+
+  - code: "E-TYP-1502"
+    severity: "Error"
+    condition: "No valid type derivable for expression"
+    section: "§4.1"
+
+  - code: "E-TYP-1503"
+    severity: "Error"
+    condition: "Operation not supported for operand type"
+    section: "§4.1"
+
+  - code: "E-TYP-1505"
+    severity: "Error"
+    condition: "Missing required type annotation at module scope"
+    section: "§4.1, §4.4"
+
+  - code: "E-TYP-1510"
+    severity: "Error"
+    condition: "Source type is not a subtype of target type"
+    section: "§4.2"
+
+  - code: "E-TYP-1511"
+    severity: "Error"
+    condition: "Implicit permission upgrade attempted"
+    section: "§4.2, §4.5.4"
+
+  - code: "E-TYP-1512"
+    severity: "Error"
+    condition: "Coercion between incompatible sibling permissions"
+    section: "§4.2"
+
+  - code: "E-TYP-1520"
+    severity: "Error"
+    condition: "Variance violation in generic type instantiation"
+    section: "§4.3"
+
+  - code: "E-TYP-1521"
+    severity: "Error"
+    condition: "Invariant type parameter requires exact type match"
+    section: "§4.3"
+
+  - code: "E-TYP-1530"
+    severity: "Error"
+    condition: "Type inference failed; unable to determine type"
+    section: "§4.4"
+
+  - code: "E-TYP-1604"
+    severity: "Error"
+    condition: "Field mutation through shared path forbidden (type has no shared-compatible methods)"
+    section: "§4.5.4"
+    notes: "Referenced in example code; actual diagnostic code location may vary"
+
+  - code: "E-TYP-1605"
+    severity: "Error"
+    condition: "Method not callable through given permission path"
+    section: "§4.5.5"
+
+grammar_productions:
+  # Clause 2 - Lexical Structure
+  - nonterminal: "source_file"
+    production: "<normalized_line>*"
+    section: "§2.2"
+
+  - nonterminal: "normalized_line"
+    production: "<code_point>* <line_terminator>?"
+    section: "§2.2"
+
+  - nonterminal: "line_terminator"
+    production: "U+000A"
+    section: "§2.2"
+
+  - nonterminal: "identifier"
+    production: "<ident_start> <ident_continue>*"
+    section: "§2.5"
+
+  - nonterminal: "ident_start"
+    production: "/* Unicode XID_Start */ | \"_\""
+    section: "§2.5"
+
+  - nonterminal: "ident_continue"
+    production: "/* Unicode XID_Continue */ | \"_\""
+    section: "§2.5"
+
+  - nonterminal: "integer_literal"
+    production: "<decimal_integer> | <hex_integer> | <octal_integer> | <binary_integer>"
+    section: "§2.8"
+
+  - nonterminal: "decimal_integer"
+    production: "<dec_digit> (\"_\"* <dec_digit>)*"
+    section: "§2.8"
+
+  - nonterminal: "hex_integer"
+    production: "\"0x\" <hex_digit> (\"_\"* <hex_digit>)*"
+    section: "§2.8"
+
+  - nonterminal: "octal_integer"
+    production: "\"0o\" <oct_digit> (\"_\"* <oct_digit>)*"
+    section: "§2.8"
+
+  - nonterminal: "binary_integer"
+    production: "\"0b\" <bin_digit> (\"_\"* <bin_digit>)*"
+    section: "§2.8"
+
+  - nonterminal: "float_literal"
+    production: "<decimal_integer> \".\" <decimal_integer>? <exponent>? <suffix>?"
+    section: "§2.8"
+
+  - nonterminal: "exponent"
+    production: "(\"e\" | \"E\") (\"+\" | \"-\")? <decimal_integer>"
+    section: "§2.8"
+
+  - nonterminal: "suffix"
+    production: "\"f16\" | \"f32\" | \"f64\""
+    section: "§2.8"
+
+  - nonterminal: "string_literal"
+    production: "'\"' (<string_char> | <escape_sequence>)* '\"'"
+    section: "§2.8"
+
+  - nonterminal: "escape_sequence"
+    production: "\"\\n\" | \"\\r\" | \"\\t\" | \"\\\\\" | \"\\\"\" | \"\\'\" | \"\\0\" | \"\\x\" <hex_digit> <hex_digit> | \"\\u{\" <hex_digit>+ \"}\""
+    section: "§2.8"
+
+  - nonterminal: "char_literal"
+    production: "\"'\" (<char_content> | <escape_sequence>) \"'\""
+    section: "§2.8"
+
+  # Clause 3 - Memory Model
+  - nonterminal: "binding_decl"
+    production: "<let_decl> | <var_decl>"
+    section: "§3.4"
+
+  - nonterminal: "binding_op"
+    production: "\"=\" | \":=\""
+    section: "§3.4"
+
+  - nonterminal: "let_decl"
+    production: "\"let\" <pattern> (\":\" <type>)? <binding_op> <expression>"
+    section: "§3.4"
+
+  - nonterminal: "var_decl"
+    production: "\"var\" <pattern> (\":\" <type>)? <binding_op> <expression>"
+    section: "§3.4"
+
+  - nonterminal: "move_expr"
+    production: "\"move\" <place_expr>"
+    section: "§3.5"
+
+  - nonterminal: "partial_move"
+    production: "\"move\" <place_expr> \".\" <identifier>"
+    section: "§3.5"
+
+  - nonterminal: "region_stmt"
+    production: "\"region\" <region_options>? <region_alias>? <block>"
+    section: "§3.7"
+
+  - nonterminal: "region_options"
+    production: "<region_option>*"
+    section: "§3.7"
+
+  - nonterminal: "region_option"
+    production: "\".\" \"stack_size\" \"(\" <expr> \")\" | \".\" \"name\" \"(\" <expr> \")\""
+    section: "§3.7"
+
+  - nonterminal: "region_alias"
+    production: "\"as\" <identifier>"
+    section: "§3.7"
+
+  - nonterminal: "alloc_expr"
+    production: "<identifier>? \"^\" <expression>"
+    section: "§3.7"
+
+  - nonterminal: "named_alloc"
+    production: "<identifier> \"^\" <expression>"
+    section: "§3.7"
+
+  - nonterminal: "unsafe_block"
+    production: "\"unsafe\" <block>"
+    section: "§3.8"
+
+  - nonterminal: "transmute_expr"
+    production: "\"transmute\" \"::\" \"<\" <type> \",\" <type> \">\" \"(\" <expr> \")\""
+    section: "§3.8"
+
+  # Clause 4 - Permission Types
+  - nonterminal: "permission"
+    production: "\"const\" | \"unique\" | \"shared\""
+    section: "§4.5.3"
+
+  - nonterminal: "permission_type"
+    production: "[permission] type"
+    section: "§4.5.3"
+
+cross_references:
+  - from_section: "§1.1"
+    to_section: "§1.2.1"
+    context: "Well-formed programs must not be ill-formed except IFNDR"
+
+  - from_section: "§1.1"
+    to_section: "Appendix C"
+    context: "Conformance Dossier schema definition"
+
+  - from_section: "§1.1"
+    to_section: "§1.2.1"
+    context: "IFNDR instances must be recorded per §1.2.1"
+
+  - from_section: "§1.2"
+    to_section: "Appendix I"
+    context: "Complete IDB index"
+
+  - from_section: "§1.2"
+    to_section: "Appendix I"
+    context: "Complete USB index"
+
+  - from_section: "§1.2"
+    to_section: "Appendix I"
+    context: "Complete UVB index"
+
+  - from_section: "§1.2"
+    to_section: "Appendix B.4"
+    context: "Diagnostic conflict resolution rules"
+
+  - from_section: "§1.2"
+    to_section: "Clause 4"
+    context: "Type system enforces Safety Invariant"
+
+  - from_section: "§1.2"
+    to_section: "§4.5"
+    context: "Permission system enforces Safety Invariant"
+
+  - from_section: "§1.2"
+    to_section: "Clause 6"
+    context: "Module system enforces Safety Invariant"
+
+  - from_section: "§1.3"
+    to_section: "§2.6"
+    context: "Reserved keywords listed in keyword table"
+
+  - from_section: "§1.3"
+    to_section: "§4.2"
+    context: "Self is the type-relative self-reference"
+
+  - from_section: "§1.3"
+    to_section: "§6.2"
+    context: "string is a modal type"
+
+  - from_section: "§1.3"
+    to_section: "§6.1"
+    context: "Modal is the metatype for modal declarations"
+
+  - from_section: "§1.3"
+    to_section: "§15.3"
+    context: "Async type aliases defined"
+
+  - from_section: "§1.4"
+    to_section: "Appendix J"
+    context: "Minimum guaranteed limits defined"
+
+  - from_section: "§2.1"
+    to_section: "§2.8"
+    context: "Prohibited code points allowed in string and character literals"
+
+  - from_section: "§2.1"
+    to_section: "§2.3"
+    context: "Unicode normalization occurs during preprocessing pipeline"
+
+  - from_section: "§2.2"
+    to_section: "§1.4"
+    context: "Source file size, line count, and line length limits enforced"
+
+  - from_section: "§2.3"
+    to_section: "§2.4–§2.9"
+    context: "Tokenization step failure diagnostics defined in these sections"
+
+  - from_section: "§2.7"
+    to_section: "§7.1"
+    context: "Semicolon use in generic parameters and where predicates"
+
+  - from_section: "§2.7"
+    to_section: "§7.1"
+    context: "Comma use in generic parameter constraints"
+
+  - from_section: "§2.12"
+    to_section: "§8.1"
+    context: "Compilation Unit defined in Module System Architecture"
+
+  - from_section: "§3.1"
+    to_section: "§3.6"
+    context: "Liveness enforced through RAII and deterministic destruction"
+
+  - from_section: "§3.1"
+    to_section: "§6.3"
+    context: "Liveness enforced through modal pointer states"
+
+  - from_section: "§3.1"
+    to_section: "§3.3"
+    context: "Liveness enforced through region escape analysis"
+
+  - from_section: "§3.1"
+    to_section: "§4.5"
+    context: "Aliasing enforced through permission types"
+
+  - from_section: "§3.1"
+    to_section: "§13"
+    context: "Aliasing enforced through key-based concurrency model"
+
+  - from_section: "§3.2"
+    to_section: "Clause 5"
+    context: "Universal layout principles defined in Data Types"
+
+  - from_section: "§3.2"
+    to_section: "§7.2.1"
+    context: "[[layout(...)]] attribute specification"
+
+  - from_section: "§3.2"
+    to_section: "§9.7"
+    context: "Drop class defines custom destruction logic"
+
+  - from_section: "§3.4"
+    to_section: "§4.5"
+    context: "Binding mutability orthogonal to data permission"
+
+  - from_section: "§3.4"
+    to_section: "§3.5"
+    context: "Responsibility transfer mechanics via move"
+
+  - from_section: "§3.5"
+    to_section: "§3.4"
+    context: "Immovable bindings defined"
+
+  - from_section: "§3.7"
+    to_section: "§13.3"
+    context: "Parallel block execution modifiers specified"
+
+  - from_section: "§3.8"
+    to_section: "§6.3"
+    context: "Raw pointer types defined"
+
+  - from_section: "§3.8"
+    to_section: "§1.2"
+    context: "UVB permitted only in unsafe blocks"
+
+  - from_section: "§4.1"
+    to_section: "§5.3"
+    context: "Record types are nominal"
+
+  - from_section: "§4.1"
+    to_section: "§5.4"
+    context: "Enum types are nominal"
+
+  - from_section: "§4.1"
+    to_section: "§6.1"
+    context: "Modal types are nominal"
+
+  - from_section: "§4.1"
+    to_section: "§5.2.1"
+    context: "Tuple types are structural"
+
+  - from_section: "§4.1"
+    to_section: "§5.5"
+    context: "Anonymous union types are structural"
+
+  - from_section: "§4.1"
+    to_section: "§6.4"
+    context: "Function types are structural; extended equivalence defined"
+
+  - from_section: "§4.1"
+    to_section: "§5.2.2, §5.2.3"
+    context: "Array and slice types are structural"
+
+  - from_section: "§4.1"
+    to_section: "§4.5"
+    context: "Complete permission system definition"
+
+  - from_section: "§4.1"
+    to_section: "§4.4"
+    context: "Local bindings may omit type annotations when inferable"
+
+  - from_section: "§4.2"
+    to_section: "§4.5"
+    context: "Permission subtyping lattice defined"
+
+  - from_section: "§4.2"
+    to_section: "§9.3"
+    context: "Class implementation subtyping (Sub-Class rule)"
+
+  - from_section: "§4.2"
+    to_section: "§6.1"
+    context: "Modal widening subtyping with storage cost documentation"
+
+  - from_section: "§4.2"
+    to_section: "§5.5"
+    context: "Union member subtyping"
+
+  - from_section: "§4.2"
+    to_section: "§7.3"
+    context: "Refinement type subtyping"
+
+  - from_section: "§4.3"
+    to_section: "§4.5.3"
+    context: "const permission semantics guarantee immutability"
+
+  - from_section: "§4.4"
+    to_section: "§7.1"
+    context: "Turbofish syntax for explicit type arguments"
+
+  - from_section: "§4.5.3"
+    to_section: "§13.1.2"
+    context: "Key modes (Read, Write) defined"
+
+  - from_section: "§4.5.3"
+    to_section: "§13.2"
+    context: "# coarsening annotation for explicit key scope control"
+
+  - from_section: "§4.5.4"
+    to_section: "§4.5.2"
+    context: "Permission subtyping lattice formalized"
+
+  - from_section: "§4.5.4"
+    to_section: "§4.2"
+    context: "Implicit upgrade rejection diagnostic"
+
+  - from_section: "§4.5.5"
+    to_section: "§9.3"
+    context: "Complete method dispatch semantics including class-based polymorphism"
+
+behavior_classifications:
+  idb_instances:
+    - instance: "Unicode normalization of source text outside identifiers and module-path components"
+      section: "§2.1"
+      requirement: "Implementations must normalize identifiers and module-path components to NFC"
+
+    - instance: "Implementation-reserved identifier patterns"
+      section: "§1.3"
+      requirement: "Should follow common conventions to avoid collision with user code"
+
+    - instance: "Default enforcement mode for lexically sensitive characters"
+      section: "§2.10"
+      requirement: "Implementations must provide mechanism to select Permissive or Strict mode"
+
+  usb_instances:
+    - instance: "Observable effects of executing an IFNDR program"
+      section: "§1.2.1"
+      constraint: "Must not exhibit UVB in safe code; may result in compilation failure, deterministic panic, or non-deterministic but safe execution"
+
+    - instance: "Choice of outcome when specification permits multiple valid outcomes"
+      section: "§1.2"
+      constraint: "USB in safe code must not introduce memory unsafety or data races"
+
+  uvb_instances:
+    - instance: "Operations within unsafe blocks"
+      section: "§1.2, §3.8"
+      constraint: "Permitted only within unsafe blocks and FFI calls; programmer asserts responsibility for upholding external contract"
+
+    - instance: "Raw pointer dereference"
+      section: "§3.8"
+      constraint: "Permitted only within unsafe block"
+
+    - instance: "Transmute with invalid bit pattern"
+      section: "§3.8"
+      constraint: "Creating invalid value constitutes UVB"
+
+    - instance: "Pointer arithmetic"
+      section: "§3.8"
+      constraint: "Permitted only within unsafe block"
+
+    - instance: "Deallocating heap storage stored in global provenance binding"
+      section: "§3.3"
+      constraint: "Constitutes UVB in unsafe code"
+
+constraints_and_limits:
+  minimum_guaranteed_limits:
+    - limit: "Nesting Depth"
+      value: 256
+      unit: "levels"
+      context: "Block, control-flow, and expression nesting"
+      section: "§1.4"
+
+    - limit: "Identifier Length"
+      value: 1023
+      unit: "characters"
+      context: "Maximum identifier length implementations must accept"
+      section: "§1.4, §2.5"
+
+    - limit: "Parameters per Procedure"
+      value: 255
+      unit: "parameters"
+      context: "Maximum procedure parameters"
+      section: "§1.4"
+
+    - limit: "Block Nesting Depth"
+      value: 256
+      unit: "levels"
+      context: "Lexically nested block statements"
+      section: "§2.13"
+
+    - limit: "Expression Nesting Depth"
+      value: 256
+      unit: "levels"
+      context: "Lexically nested expressions"
+      section: "§2.13"
+
+  numeric_constraints:
+    - constraint: "Transmute size equality"
+      requirement: "sizeof(S) must equal sizeof(T)"
+      section: "§3.8"
+
+    - constraint: "Provenance partial order"
+      requirement: "πRegion(Inner) < πRegion(Outer) < πStack(S) < πHeap ≤ πGlobal"
+      section: "§3.3"
+
+  prohibited_code_points:
+    - category: "Control characters"
+      definition: "GeneralCategory(c) = Cc except U+0009, U+000A, U+000C, U+000D"
+      location: "Outside string and character literals"
+      section: "§2.1"
+
+  lexically_sensitive_characters:
+    - category: "Bidirectional Control"
+      range: "U+202A–U+202E"
+      section: "§2.10"
+
+    - category: "Bidirectional Formatting"
+      range: "U+2066–U+2069"
+      section: "§2.10"
+
+    - category: "Zero-Width Joiners"
+      codes: "U+200C, U+200D"
+      section: "§2.10"
+
+potential_issues:
+  consistency_concerns:
+    - issue: "Diagnostic code E-TYP-1604 referenced in example but formal diagnostic table location not specified"
+      location: "§4.5.4 example code"
+      severity: "minor"
+      recommendation: "Verify diagnostic code E-TYP-1604 is formally defined in later clauses or add to diagnostic table"
+
+    - issue: "§4.1 (T-Equiv-Func) notes that extended function type identity is in §6.4, but rule only covers abstract calling signature"
+      location: "§4.1"
+      severity: "minor"
+      recommendation: "Ensure §6.4 provides complete T-Equiv-Func-Extended rule as promised"
+
+  ambiguity_flags:
+    - issue: "IDB: 'Implementations should follow common conventions' for reserved patterns is not normative"
+      location: "§1.3"
+      severity: "minor"
+      recommendation: "Consider providing normative guidance or specific reserved patterns"
+
+    - issue: "IFNDR Category table states it is 'not a diagnostic table' but follows diagnostic table format"
+      location: "§1.2.1"
+      severity: "editorial"
+      recommendation: "Consider different formatting to distinguish from diagnostic tables"
+
+  forward_reference_tracking:
+    - reference: "Appendix C - Conformance Dossier schema"
+      status: "forward reference"
+      sections: ["§1.1"]
+
+    - reference: "Appendix I - Complete IDB/USB/UVB indices"
+      status: "forward reference"
+      sections: ["§1.2"]
+
+    - reference: "Appendix J - Minimum guaranteed limits"
+      status: "forward reference"
+      sections: ["§1.4"]
+
+    - reference: "Appendix B.4 - Diagnostic conflict resolution rules"
+      status: "forward reference"
+      sections: ["§1.2"]
+
+    - reference: "§8.1 - Module System Architecture (Compilation Unit)"
+      status: "forward reference"
+      sections: ["§2.12"]
+
+    - reference: "§15.3 - Async type aliases"
+      status: "forward reference"
+      sections: ["§1.3"]
+
+    - reference: "Clause 5 - Data Types (layout principles)"
+      status: "forward reference"
+      sections: ["§3.2"]
+
+    - reference: "§7.2.1 - [[layout(...)]] attribute"
+      status: "forward reference"
+      sections: ["§3.2"]
+
+    - reference: "§9.7 - Drop class"
+      status: "forward reference"
+      sections: ["§3.2", "§3.6"]
+
+    - reference: "§6.3 - Modal pointer states and raw pointer types"
+      status: "forward reference"
+      sections: ["§3.1", "§3.8"]
+
+    - reference: "§13 - Key-based concurrency model"
+      status: "forward reference"
+      sections: ["§3.1"]
+
+    - reference: "§13.1.2 - Key modes (Read, Write)"
+      status: "forward reference"
+      sections: ["§4.5.3"]
+
+    - reference: "§13.2 - # coarsening annotation"
+      status: "forward reference"
+      sections: ["§4.5.3"]
+
+    - reference: "§13.3 - parallel block"
+      status: "forward reference"
+      sections: ["§3.7"]
+
+    - reference: "§9.3 - Class implementation and method dispatch"
+      status: "forward reference"
+      sections: ["§4.2", "§4.5.5"]
+
+    - reference: "§6.1 - Modal types"
+      status: "forward reference"
+      sections: ["§4.1", "§4.2"]
+
+    - reference: "§6.4 - Function types"
+      status: "forward reference"
+      sections: ["§4.1"]
+
+    - reference: "§7.1 - Turbofish syntax"
+      status: "forward reference"
+      sections: ["§4.4"]
+
+    - reference: "§7.3 - Refinement type subtyping"
+      status: "forward reference"
+      sections: ["§4.2"]
+
+reserved_keywords:
+  keywords:
+    - "and"
+    - "as"
+    - "async"
+    - "atomic"
+    - "break"
+    - "comptime"
+    - "shared"
+    - "const"
+    - "continue"
+    - "defer"
+    - "dispatch"
+    - "do"
+    - "drop"
+    - "else"
+    - "emit"
+    - "enum"
+    - "escape"
+    - "extern"
+    - "false"
+    - "for"
+    - "gpu"
+    - "if"
+    - "import"
+    - "in"
+    - "interrupt"
+    - "let"
+    - "loop"
+    - "match"
+    - "modal"
+    - "mod"
+    - "module"
+    - "move"
+    - "mut"
+    - "override"
+    - "pool"
+    - "private"
+    - "procedure"
+    - "protected"
+    - "public"
+    - "quote"
+    - "record"
+    - "region"
+    - "result"
+    - "return"
+    - "select"
+    - "self"
+    - "Self"
+    - "set"
+    - "simd"
+    - "spawn"
+    - "sync"
+    - "then"
+    - "class"
+    - "transition"
+    - "transmute"
+    - "true"
+    - "type"
+    - "union"
+    - "unique"
+    - "unsafe"
+    - "using"
+    - "var"
+    - "volatile"
+    - "where"
+    - "while"
+    - "widen"
+    - "dyn"
+    - "yield"
+
+operator_tokens:
+  multi_character:
+    comparison: ["==", "!=", "<=", ">="]
+    logical: ["&&", "||"]
+    bitwise_shift: ["<<", ">>", "<<=", ">>="]
+    range: ["..", "..="]
+    arrow: ["=>", "->"]
+    binding: [":="]
+    contract: ["|="]
+    other: ["**", "::"]
+    receiver_dispatch: ["~", "~>", "~!", "~%"]
+    region: ["r^", "^"]
+
+  single_character: ["+", "-", "*", "/", "%", "<", ">", "=", "!", "&", "|", "^", "~", ".", ",", ":", ";", "(", ")", "[", "]", "{", "}", "#", "@", "?"]
+
+metadata:
+  document: "Cursive Language Specification (Draft 3)"
+  scope: "Clauses 1-3 (Lines 0-1999 approximately)"
+  extracted: "2025-12-03"
+  clauses_covered:
+    - "Clause 1: General Principles and Conformance"
+    - "Clause 2: Lexical Structure and Source Text"
+    - "Clause 3: The Object and Memory Model"
+    - "Clause 4: Type System Foundations (partial - §4.1-§4.5.5)"
+  notes:
+    - "Extraction stopped at line 1999 during §4.5.5 (Method Receiver Permissions)"
+    - "Many forward references to later clauses documented in forward_reference_tracking"
+    - "Some diagnostic codes referenced in examples may be defined in later clauses"
+    - "IFNDR categories listed but individual instances not enumerated (require full spec scan)"

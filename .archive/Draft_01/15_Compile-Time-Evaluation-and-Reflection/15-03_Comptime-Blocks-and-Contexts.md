@@ -1,0 +1,370 @@
+# Cursive Language Specification
+
+## Clause 15 — Compile-Time Evaluation and Reflection
+
+**Part**: XV — Compile-Time Evaluation and Reflection  
+**File**: 16-3_Comptime-Blocks-and-Contexts.md  
+**Section**: §15.3 Comptime Blocks and Contexts  
+**Stable label**: [comptime.blocks]  
+**Forward references**: §16.2 [comptime.procedures], §16.4 [comptime.intrinsics], §16.8 [comptime.codegen.api], Clause 2 §2.2 [lex.phases], Clause 4 §4.6 [module.initialization], Clause 5 §5.2 [name.scope], Clause 7 §7.7 [expr.constant], Annex A §A.4 [grammar.expression]
+
+---
+
+### §15.3 Comptime Blocks and Contexts [comptime.blocks]
+
+#### §15.3.1 Overview [comptime.blocks.overview]
+
+[1] _Comptime blocks_ are block expressions prefixed with the `comptime` keyword that execute during the compile-time execution phase. They provide inline compile-time computation for generating constants, conditional compilation, and code generation without requiring separate comptime procedures.
+
+[2] Comptime blocks were introduced in §8.7 [expr.constant]; this subclause provides complete specification of their execution model, scope rules, grant accumulation, and integration with module initialization and code generation.
+
+[3] Comptime blocks may appear at module scope (participating in module initialization, §4.6) or within procedure bodies (for local compile-time computation).
+
+#### §15.3.2 Syntax [comptime.blocks.syntax]
+
+[4] Comptime block syntax:
+
+**Comptime blocks** match the pattern:
+```
+"comptime" <block_expr>
+```
+
+**Block expressions** take one of the following forms:
+```
+"{" <statement>* "}"
+"{" <statement>* "result" <expression> "}"
+```
+
+[ Note: See Annex A §A.4 [grammar.expression] for the normative `comptime_block` production.
+— end note ]
+
+[5] The `comptime` keyword immediately precedes a block expression. The block introduces a lexical scope (§6.2) that exists only during compilation.
+
+[6] **Result expression.** Blocks with `result expr` have type `typeof(expr)`. Blocks without `result` have type `()` (unit).
+
+#### §15.3.3 Constraints [comptime.blocks.constraints]
+
+##### §15.3.3.1 Grant Accumulation
+
+[7] _Grant union._ The grant set of a comptime block is the union of grants from all operations within the block:
+
+$$
+\text{grants}(\texttt{comptime } \{ s_1; \ldots; s_n \}) = \bigcup_{i=1}^{n} \text{grants}(s_i)
+$$
+
+[8] All accumulated grants must be comptime-safe. Any runtime grant produces diagnostic E15-001.
+
+##### §15.3.3.2 Scope Isolation
+
+[9] _Compile-time scope._ Bindings declared within comptime blocks are compile-time only and do not persist to runtime:
+
+$$
+\frac{x \text{ declared in comptime block}}{\text{runtime code cannot reference } x}
+\tag{WF-Comptime-Scope-Isolated}
+$$
+
+[10] Attempting to reference comptime bindings from runtime code produces diagnostic E15-020 (undefined identifier, via standard name resolution).
+
+[11] _Outer scope access._ Comptime blocks may reference outer-scope bindings (module constants, procedure parameters, earlier comptime-generated constants). The accessed bindings must have compile-time-known values.
+
+##### §15.3.3.3 Result Type Constraints
+
+[12] _Type evaluability._ When a comptime block includes `result expr`, the expression shall be compile-time evaluable and have compile-time representable type (§16.2.3.4[15]).
+
+[13] _Context integration._ Comptime blocks used in type positions (array lengths, type alias RHS) shall have appropriate types:
+
+- Array length context: requires `usize` result
+- Type alias context: requires `TypeRef` result (§16.8)
+- Const binding initializer: requires any compile-time representable type
+
+##### §15.3.3.4 Module-Scope Placement
+
+[14] _Module-level comptime blocks._ Comptime blocks at module scope participate in module initialization (§4.6). They may:
+
+- Generate constants via `codegen::declare_constant`
+- Generate types and procedures via codegen APIs (§16.8)
+- Perform compile-time assertions
+- Query configuration and conditionally generate code
+
+[15] Module-level comptime blocks are evaluated in dependency order before type checking begins.
+
+#### §15.3.4 Semantics [comptime.blocks.semantics]
+
+##### §15.3.4.1 Evaluation Model
+
+[16] Comptime blocks execute during the compile-time execution phase (§2.2.4.2):
+
+[ Given: Comptime block `comptime { body }` with environment $\Gamma$ ]
+
+$$
+\frac{\Gamma_{\text{ct}} \vdash body : \tau \quad \langle body, \sigma_{\text{ct}} \rangle \Downarrow_{\text{comptime}} \langle v, \sigma'_{\text{ct}} \rangle}{\langle \texttt{comptime } \{ body \}, \sigma \rangle \Downarrow_{\text{compile}} v}
+\tag{E-Comptime-Block}
+$$
+
+[17] The compile-time store $\sigma_{\text{ct}}$ is local to the block. After evaluation, the result value $v$ is embedded as a compile-time constant. The store is discarded.
+
+##### §15.3.4.2 Dependency Analysis
+
+[18] Comptime blocks form a dependency graph where block $B_1$ depends on block $B_2$ if:
+
+- $B_1$ references constants generated by $B_2$
+- $B_1$ references types generated by $B_2$
+- $B_1$ calls comptime procedures that depend on $B_2$
+
+[19] **Acyclic requirement:**
+
+$$
+\frac{\exists \text{ cycle in comptime dependency graph}}{\text{ERROR E15-021: cyclic comptime dependency}}
+\tag{WF-Comptime-Acyclic}
+$$
+
+[20] Cyclic dependencies among comptime blocks are ill-formed and produce diagnostic E15-021.
+
+##### §15.3.4.3 Statement Execution
+
+[21] Statements within comptime blocks execute sequentially in textual order, following the execution model in Clause 7. Side effects visible during comptime evaluation include:
+
+- Binding creation and mutation
+- Comptime allocation (via `comptime::alloc`)
+- Code generation (via `comptime::codegen`)
+- Diagnostic emission (via `comptime::diag`)
+
+[22] All side effects are compile-time only. No runtime state is modified.
+
+#### §15.3.5 Examples [comptime.blocks.examples]
+
+##### §15.3.5.1 Conditional Compilation
+
+**Example 16.3.5.1** (Platform-conditional constants):
+
+```cursive
+comptime {
+    let os <- target_os()
+
+    if os == "linux" {
+        codegen::declare_constant(
+            name: "PATH_SEPARATOR",
+            ty: codegen::type_named("string@View"),
+            value: quote { "/" }
+        )
+    } else if os == "windows" {
+        codegen::declare_constant(
+            name: "PATH_SEPARATOR",
+            ty: codegen::type_named("string@View"),
+            value: quote { "\\" }
+        )
+    } else {
+        comptime_error("Unsupported OS")
+    }
+}
+
+// Generated constant available:
+let sep: const string@View = PATH_SEPARATOR
+```
+
+##### §15.3.5.2 Compile-Time Assertions
+
+**Example 16.3.5.2** (Validating type layout):
+
+```cursive
+[[repr(C)]]
+[[reflect]]
+record NetworkPacket {
+    header: [u8; 16],
+    payload: [u8; 1024],
+    checksum: u32,
+}
+
+comptime {
+    let info <- reflect_type::<NetworkPacket>()
+
+    comptime_assert(
+        info.size == 1044,
+        "NetworkPacket size must be 1044 bytes"
+    )
+
+    comptime_assert(
+        info.align == 4,
+        "NetworkPacket must be 4-byte aligned"
+    )
+
+    comptime_note("Network packet layout validated")
+}
+```
+
+##### §15.3.5.3 Dependency Ordering
+
+**Example 16.3.5.3** (Dependent comptime blocks):
+
+```cursive
+// Block 1: Generate base constant
+comptime {
+    codegen::declare_constant(
+        name: "BASE_SIZE",
+        ty: codegen::type_named("usize"),
+        value: quote { 1024 }
+    )
+}
+
+// Block 2: Depends on BASE_SIZE
+let BUFFER_SIZE: const usize = comptime {
+    result BASE_SIZE * 4  // References generated constant
+}
+
+// Block 3: Depends on BUFFER_SIZE
+type Buffer = [u8; BUFFER_SIZE]
+```
+
+[1] Evaluation order: Block 1 (generates BASE_SIZE) → Block 2 (computes BUFFER_SIZE) → Block 3 (uses BUFFER_SIZE).
+
+#### §15.3.6 Comptime Blocks at Module Scope [comptime.blocks.module]
+
+##### §15.3.6.1 Module Initialization Integration
+
+[23] Module-scope comptime blocks participate in module initialization (§4.6). They are classified as eager dependencies when they:
+
+- Generate constants referenced by other module-level bindings
+- Generate types or procedures used in the module
+- Call comptime procedures that produce values used in initialization
+
+[24] **Eager dependency classification:**
+
+[ Given: Module $M$ with comptime block $B$ ]
+
+$$
+\frac{B \text{ generates constants/types used in module initialization}}{M \text{ has eager dependency on } B}
+\tag{Eager-Comptime-Block}
+$$
+
+##### §15.3.6.2 Code Generation at Module Scope
+
+[25] Module-scope comptime blocks with `comptime::codegen` grant may generate declarations that become part of the module's export set (if marked public):
+
+**Example 16.3.6.1** (Generating public procedures at module scope):
+
+```cursive
+comptime {
+    let types: [string@View] = ["i32", "i64", "f32", "f64"]
+
+    loop type_name: string@View in types {
+        codegen::declare_procedure(codegen::ProcedureSpec {
+            name: string_concat("abs_", type_name),
+            visibility: codegen::Visibility::Public,
+            receiver: codegen::ReceiverSpec::None,
+            params: [
+                codegen::ParamSpec {
+                    name: "value",
+                    ty: TypeRef::Named(type_name),
+                    permission: Permission::Const,
+                    responsible: false,
+                },
+            ],
+            return_type: TypeRef::Named(type_name),
+            sequent: codegen::sequent_pure(),
+            body: quote {
+                result if value < 0 { -value } else { value }
+            },
+        })
+    }
+}
+
+// Generated public procedures:
+// public procedure abs_i32(value: const i32): i32 { ... }
+// public procedure abs_i64(value: const i64): i64 { ... }
+// public procedure abs_f32(value: const f32): f32 { ... }
+// public procedure abs_f64(value: const f64): f64 { ... }
+
+let x = abs_i32(-42)  // 42
+```
+
+#### §15.3.7 Comptime Blocks in Procedure Bodies [comptime.blocks.local]
+
+##### §15.3.7.1 Local Comptime Computation
+
+[26] Comptime blocks within procedure bodies compute local constants:
+
+**Example 16.3.7.1** (Procedure-local comptime):
+
+```cursive
+procedure process_data(input: [u8]): [u8]
+    [[ alloc::heap |- input.len() > 0 => true ]]
+{
+    let CHUNK_SIZE: const usize = comptime {
+        let optimal <- target_pointer_width()
+        result optimal * 8  // 64 or 256 depending on platform
+    }
+
+    // Use CHUNK_SIZE as compile-time constant
+    var chunks: [[u8; CHUNK_SIZE]] = []
+
+    // Process in chunks...
+    result processed
+}
+```
+
+[1] The comptime block computes a procedure-local constant based on platform characteristics.
+
+##### §15.3.7.2 Conditional Assertions
+
+[27] Comptime blocks enable conditional compile-time assertions based on context:
+
+**Example 16.3.7.2** (Context-dependent validation):
+
+```cursive
+procedure create_buffer<const SIZE: usize>(): [u8; SIZE]
+    [[ alloc::heap |- true => true ]]
+{
+    comptime {
+        if cfg("strict_validation") {
+            comptime_assert(
+                SIZE > 0 && SIZE <= 65536,
+                "Buffer size out of valid range"
+            )
+            comptime_assert(
+                is_power_of_two(SIZE),
+                "Buffer size must be power of 2 in strict mode"
+            )
+        }
+    }
+
+    result [0; SIZE]
+}
+```
+
+#### §15.3.8 Diagnostics [comptime.blocks.diagnostics]
+
+[28] Comptime block diagnostics:
+
+[Note: Diagnostics defined in this subsection are cataloged in Annex E §E.5.1.15. — end note]
+
+#### §15.3.9 Conformance Requirements [comptime.blocks.requirements]
+
+[29] A conforming implementation SHALL:
+
+1. Support `comptime { ... }` block expression syntax
+2. Execute comptime blocks during compile-time execution phase (§2.2.4.2)
+3. Enforce grant restrictions: only comptime-safe grants permitted
+4. Isolate comptime block scope from runtime code
+5. Allow comptime blocks to reference outer compile-time bindings
+6. Evaluate module-scope comptime blocks in dependency order
+7. Detect cyclic dependencies and emit diagnostic E15-021
+8. Support comptime blocks in all expression contexts where compile-time values permitted
+9. Enforce result type constraints for typed contexts
+10. Emit diagnostics E15-001, E15-020, E15-021, E15-022 for violations
+
+[30] A conforming implementation MAY:
+
+1. Optimize comptime block evaluation
+2. Cache comptime block results
+3. Parallelize independent comptime blocks (maintaining observable determinism)
+
+[31] A conforming implementation SHALL NOT:
+
+1. Execute comptime blocks at runtime
+2. Allow runtime code to reference comptime-only bindings
+3. Evaluate comptime blocks non-deterministically
+4. Permit comptime blocks to modify runtime state except via codegen
+
+---
+
+**Previous**: §16.2 Comptime Procedures (§16.2 [comptime.procedures]) | **Next**: §16.4 Comptime Intrinsics and Configuration (§16.4 [comptime.intrinsics])

@@ -1,1 +1,2 @@
 # diag_code	rule_id	message	severity
+E-TYP-1101	-	`shared` permission not supported in Cursive0	error

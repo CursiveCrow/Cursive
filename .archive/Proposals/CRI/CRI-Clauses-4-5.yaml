@@ -1,0 +1,1965 @@
+# Comprehensive Reference Index (CRI)
+# Cursive Language Specification - Clauses 4-5
+# Type System Foundations and Data Types (Lines 1480-2999+)
+
+metadata:
+  source_file: CursiveLanguageSpecification.md
+  clauses_covered:
+    - "4: Type System Foundations"
+    - "5: Data Types"
+  line_range: "1480-4519"
+  date_generated: "2025-12-03"
+
+# =============================================================================
+# TYPE SYSTEM
+# =============================================================================
+type_system:
+  foundational_types:
+    - name: "Type Context (Γ)"
+      definition: "Environment mapping identifiers to types during type checking"
+      judgment_form: "Γ ::= ∅ | Γ, x : T"
+      section: "§4.1"
+      usage: "The judgment Γ ⊢ e : T asserts that expression e has type T in context Γ"
+
+  equivalence_rules:
+    - rule_id: "T-Equiv-Nominal"
+      name: "Nominal Equivalence"
+      judgment: "D(T) = D(U) → Γ ⊢ T ≡ U"
+      definition: "Two nominal types are equivalent iff they refer to the same declaration"
+      section: "§4.1"
+      applies_to: ["record", "enum", "modal"]
+
+    - rule_id: "T-Equiv-Tuple"
+      name: "Tuple Equivalence"
+      judgment: "T = (T₁, …, Tₙ) ∧ U = (U₁, …, Uₙ) ∧ ∀i ∈ 1..n, Γ ⊢ Tᵢ ≡ Uᵢ → Γ ⊢ T ≡ U"
+      definition: "Tuples are equivalent if components are equivalent (structural)"
+      section: "§4.1"
+      applies_to: ["tuple"]
+
+    - rule_id: "T-Equiv-Func"
+      name: "Function Type Equivalence"
+      judgment: "Parameters and return type must be equivalent"
+      definition: "Abstract calling signature equivalence (extended in §6.4)"
+      section: "§4.1"
+      note: "Extended by T-Equiv-Func-Extended in §6.4 to include move modifiers and representation kind"
+
+    - rule_id: "T-Equiv-Func-Extended"
+      name: "Extended Function Type Equivalence"
+      judgment: "κ_F = κ_G ∧ n = k ∧ ∀i, (m_i = m'_i ∧ Γ ⊢ T_i ≡ U_i) ∧ Γ ⊢ R_F ≡ R_G → Γ ⊢ F ≡ G"
+      definition: "Complete function type identity including representation kind and move modifiers"
+      section: "§6.4"
+      applies_to: ["function_type"]
+
+    - rule_id: "T-Equiv-Union"
+      name: "Union Type Equivalence"
+      judgment: "multiset_equiv(members(T), members(U)) → Γ ⊢ T ≡ U"
+      definition: "Union types are equivalent if member type multisets are equal (order-independent)"
+      section: "§4.1"
+      applies_to: ["union"]
+
+    - rule_id: "T-Equiv-Permission"
+      name: "Permission Equivalence"
+      judgment: "P₁ = P₂ ∧ Γ ⊢ T ≡ U → Γ ⊢ P₁ T ≡ P₂ U"
+      definition: "Permission-qualified types are equivalent if permissions and base types match"
+      section: "§4.1"
+      applies_to: ["all_types"]
+
+    - rule_id: "T-Equiv-Prim"
+      name: "Primitive Type Equivalence"
+      judgment: "T ∈ T_prim ∧ U ∈ T_prim ∧ T = U → Γ ⊢ T ≡ U"
+      definition: "Strict name equivalence for primitive types"
+      section: "§5.1"
+      applies_to: ["primitive"]
+
+    - rule_id: "T-Equiv-Record"
+      name: "Record Type Equivalence"
+      judgment: "D(R₁) = D(R₂) → Γ ⊢ R₁ ≡ R₂"
+      definition: "Records equivalent iff they refer to same declaration (nominal)"
+      section: "§5.3"
+      applies_to: ["record"]
+
+    - rule_id: "T-Equiv-Enum"
+      name: "Enum Type Equivalence"
+      judgment: "D(E₁) = D(E₂) → Γ ⊢ E₁ ≡ E₂"
+      definition: "Enums equivalent iff they refer to same declaration (nominal)"
+      section: "§5.4"
+      applies_to: ["enum"]
+
+    - rule_id: "T-Equiv-Array"
+      name: "Array Type Equivalence"
+      judgment: "Γ ⊢ T ≡ U ∧ N = M → Γ ⊢ [T; N] ≡ [U; M]"
+      definition: "Arrays equivalent if element types equivalent and lengths equal"
+      section: "§5.2.2"
+      applies_to: ["array"]
+
+    - rule_id: "T-Equiv-Slice"
+      name: "Slice Type Equivalence"
+      judgment: "Γ ⊢ T ≡ U → Γ ⊢ [T] ≡ [U]"
+      definition: "Slices equivalent if element types equivalent"
+      section: "§5.2.3"
+      applies_to: ["slice"]
+
+    - rule_id: "T-Equiv-Range"
+      name: "Range Type Equivalence"
+      judgment: "Γ ⊢ T ≡ U → Γ ⊢ Range<T> ≡ Range<U>"
+      definition: "Range types have structural equivalence based on element type"
+      section: "§5.2.4"
+      applies_to: ["range"]
+
+  subtyping_rules:
+    - rule_id: "T-Coerce"
+      name: "Coercion Rule"
+      judgment: "Γ ⊢ e : S ∧ Γ ⊢ S <: T → Γ ⊢ e : T"
+      definition: "Implicit coercion when expression has subtype of expected type"
+      section: "§4.2"
+
+    - rule_id: "Sub-Never"
+      name: "Never Type as Bottom"
+      judgment: "T ∈ T → Γ ⊢ ! <: T"
+      definition: "The never type ! is subtype of all other types"
+      section: "§5.1"
+      applies_to: ["never"]
+
+    - rule_id: "No-Implicit-Prim-Coerce"
+      name: "No Implicit Primitive Conversions"
+      judgment: "T ≠ U ∧ T ∈ T_prim ∧ U ∈ T_prim ∧ U ≠ ! → Γ ⊬ T <: U"
+      definition: "No implicit conversions between distinct primitive types"
+      section: "§5.1"
+      applies_to: ["primitive"]
+
+    - rule_id: "Sub-Tuple"
+      name: "Tuple Subtyping"
+      judgment: "n = m ∧ ∀i ∈ 1..n, Γ ⊢ Tᵢ <: Uᵢ → Γ ⊢ (T₁, …, Tₙ) <: (U₁, …, Uₘ)"
+      definition: "Tuple subtyping is covariant in all component positions"
+      section: "§5.2.1"
+      applies_to: ["tuple"]
+
+    - rule_id: "Sub-Array"
+      name: "Array Subtyping"
+      judgment: "Γ ⊢ T <: U ∧ N = M → Γ ⊢ [T; N] <: [U; M]"
+      definition: "Array subtyping is covariant in element type, invariant in length"
+      section: "§5.2.2"
+      applies_to: ["array"]
+
+    - rule_id: "Sub-Slice"
+      name: "Slice Subtyping"
+      judgment: "Γ ⊢ T <: U → Γ ⊢ [T] <: [U]"
+      definition: "Slice subtyping is covariant in element type"
+      section: "§5.2.3"
+      applies_to: ["slice"]
+
+    - rule_id: "Coerce-Array-Slice"
+      name: "Array to Slice Coercion"
+      judgment: "Γ ⊢ a : P [T; N] → Γ ⊢ a : P [T]"
+      definition: "Implicit coercion from array to slice viewing entire array"
+      section: "§5.2.3"
+      applies_to: ["array", "slice"]
+
+    - rule_id: "Sub-Record-Class"
+      name: "Record Class Subtyping"
+      judgment: "R <: Cl → Γ ⊢ R <: Cl"
+      definition: "Record is subtype of class if it implements that class"
+      section: "§5.3"
+      applies_to: ["record"]
+
+    - rule_id: "Sub-Enum-Class"
+      name: "Enum Class Subtyping"
+      judgment: "E <: Cl → Γ ⊢ E <: Cl"
+      definition: "Enum is subtype of class if it implements that class"
+      section: "§5.4"
+      applies_to: ["enum"]
+
+    - rule_id: "Sub-Union-Width"
+      name: "Union Width Subtyping"
+      judgment: "∀T ∈ᵤ U₁ : T ∈ᵤ U₂ → Γ ⊢ U₁ <: U₂"
+      definition: "Union is subtype if its members are subset of another union's members"
+      section: "§5.5"
+      applies_to: ["union"]
+
+    - rule_id: "Sub-Union-Depth"
+      name: "Union Depth Subtyping"
+      judgment: "U₁ = T₁|…|Tₙ ∧ U₂ = S₁|…|Sₙ ∧ ∀i, ∃j : Γ ⊢ Tᵢ <: Sⱼ → Γ ⊢ U₁ <: U₂"
+      definition: "Union subtyping when corresponding members are subtypes"
+      section: "§5.5"
+      applies_to: ["union"]
+
+    - rule_id: "Sub-Member-Union"
+      name: "Member to Union Subtyping"
+      judgment: "T ∈ᵤ U → Γ ⊢ T <: U"
+      definition: "Single type is subtype of any union containing it"
+      section: "§5.5"
+      applies_to: ["union"]
+
+    - rule_id: "Sub-Generic"
+      name: "Generic Subtyping"
+      judgment: "∀i. variance_check(Pᵢ, Aᵢ, Bᵢ) → Γ ⊢ Name[A₁,…,Aₙ] <: Name[B₁,…,Bₙ]"
+      definition: "Generic type subtyping based on parameter variance"
+      section: "§4.3"
+      applies_to: ["generic"]
+
+    - rule_id: "Var-Func"
+      name: "Function Type Variance"
+      judgment: "Γ ⊢ U <: T ∧ Γ ⊢ R₁ <: R₂ → Γ ⊢ (T) -> R₁ <: (U) -> R₂"
+      definition: "Contravariant parameters, covariant return type"
+      section: "§4.3"
+      applies_to: ["function_type"]
+
+    - rule_id: "Var-Const"
+      name: "Const Permission Variance"
+      judgment: "Γ ⊢ A <: B → Γ ⊢ const C[A] <: const C[B]"
+      definition: "const permission enables covariant treatment of containers"
+      section: "§4.3"
+      applies_to: ["container_types"]
+
+    - rule_id: "Sub-Perm-US"
+      name: "Unique to Shared Subtyping"
+      judgment: "Γ ⊢ unique T <: shared T"
+      definition: "unique is subtype of shared"
+      section: "§4.5.4"
+      applies_to: ["permission"]
+
+    - rule_id: "Sub-Perm-UC"
+      name: "Unique to Const Subtyping"
+      judgment: "Γ ⊢ unique T <: const T"
+      definition: "unique is subtype of const"
+      section: "§4.5.4"
+      applies_to: ["permission"]
+
+    - rule_id: "Sub-Perm-SC"
+      name: "Shared to Const Subtyping"
+      judgment: "Γ ⊢ shared T <: const T"
+      definition: "shared is subtype of const"
+      section: "§4.5.4"
+      applies_to: ["permission"]
+
+    - rule_id: "Modal-Incomparable"
+      name: "Modal State Incomparability"
+      judgment: "S_A ≠ S_B → Γ ⊢ M@S_A ⊀: M@S_B ∧ Γ ⊢ M@S_B ⊀: M@S_A"
+      definition: "Distinct state-specific types are incomparable"
+      section: "§6.1"
+      applies_to: ["modal"]
+
+    - rule_id: "T-Modal-Widen"
+      name: "Modal Widening"
+      judgment: "Γ ⊢ e : M@S ∧ S ∈ States(M) → Γ ⊢ widen e : M"
+      definition: "Explicit widening from state-specific to general modal type"
+      section: "§6.1"
+      applies_to: ["modal"]
+
+    - rule_id: "Sub-Modal-Widen"
+      name: "Modal Widening Subtyping"
+      judgment: "S ∈ {@Managed, @View} → Γ ⊢ string@S <: string"
+      definition: "State-specific types are subtypes of general modal type (for string)"
+      section: "§6.2"
+      applies_to: ["string", "modal"]
+
+    - rule_id: "Sub-Ptr-Widen"
+      name: "Pointer Widening Subtyping"
+      judgment: "S ∈ {@Valid, @Null} → Γ ⊢ Ptr<T>@S <: Ptr<T>"
+      definition: "Niche-layout-compatible implicit widening for pointers"
+      section: "§6.3"
+      applies_to: ["pointer", "modal"]
+
+    - rule_id: "T-Sparse-Sub-Closure"
+      name: "Sparse to Closure Subtyping"
+      judgment: "Γ ⊢ (T₁,…,Tₙ) -> R wf → Γ ⊢ (T₁,…,Tₙ) -> R <: |T₁,…,Tₙ| -> R"
+      definition: "Sparse function pointer is subtype of closure type"
+      section: "§6.4"
+      applies_to: ["function_type"]
+
+    - rule_id: "T-NonMove-Sub-Move"
+      name: "Non-Move to Move Subtyping"
+      judgment: "Γ ⊢ T wf → Γ ⊢ (T) -> R <: (move T) -> R"
+      definition: "Non-move parameter is subtype of move parameter"
+      section: "§6.4"
+      applies_to: ["function_type"]
+
+    - rule_id: "Modal-Class-Sub"
+      name: "Modal Class Subtyping"
+      judgment: "M is modal ∧ M <: Cl ∧ Cl is modal class → Γ ⊢ M <: Cl"
+      definition: "Modal type that implements modal class is subtype of that class"
+      section: "§6.1"
+      applies_to: ["modal", "class"]
+
+  variance_definitions:
+    covariant:
+      symbol: "+"
+      condition: "F[A] <: F[B] when A <: B"
+      positions:
+        - "output positions (return types)"
+        - "immutable fields"
+        - "tuple components"
+        - "slice elements"
+      section: "§4.3"
+
+    contravariant:
+      symbol: "-"
+      condition: "F[A] <: F[B] when B <: A"
+      positions:
+        - "input positions (parameter types)"
+        - "function parameters"
+      section: "§4.3"
+
+    invariant:
+      symbol: "="
+      condition: "F[A] <: F[B] only when A ≡ B"
+      positions:
+        - "input and output positions"
+        - "mutable storage"
+        - "array length"
+      section: "§4.3"
+
+    bivariant:
+      symbol: "±"
+      condition: "Always (parameter unused)"
+      positions:
+        - "phantom type parameters"
+      section: "§4.3"
+
+  inference_modes:
+    synthesis:
+      symbol: "Γ ⊢ e ⇒ T"
+      name: "Synthesis Mode"
+      definition: "Type T is derived from the structure of expression e"
+      section: "§4.4"
+      rules:
+        - "Synth-Var: Variable lookup"
+        - "Synth-Tuple: Tuple construction"
+        - "Synth-App: Function application"
+        - "Synth-Annot: Explicit annotation"
+
+    checking:
+      symbol: "Γ ⊢ e ⇐ T"
+      name: "Checking Mode"
+      definition: "Expression e is validated against expected type T"
+      section: "§4.4"
+      rules:
+        - "Check-Sub: Synthesis satisfies checking via subtyping"
+        - "Check-Lambda: Closure checking with propagated parameter types"
+
+  permission_lattice:
+    ordering: "unique <: shared <: const"
+    permissions:
+      unique:
+        abbreviation: "~!"
+        access: "read-write"
+        aliasing: "none"
+        description: "Exclusive mutable access"
+        implies_responsibility: false
+        note: "Permission does NOT imply cleanup responsibility"
+        section: "§4.5.3"
+
+      shared:
+        abbreviation: "~%"
+        access: "key-synchronized"
+        aliasing: "synchronized"
+        description: "Key-protected mutable access"
+        implies_responsibility: false
+        note: "Permission does NOT imply cleanup responsibility"
+        key_properties:
+          - "Path-specific: keys acquired at granularity of accessed path"
+          - "Implicitly acquired: automatic key acquisition"
+          - "Minimal scope: held for minimal duration"
+          - "Reentrant: nested access succeeds if covering key held"
+        section: "§4.5.3"
+
+      const:
+        abbreviation: "~"
+        access: "read-only"
+        aliasing: "unlimited"
+        description: "Immutable access (default)"
+        is_default: true
+        section: "§4.5.3"
+
+    coexistence_matrix:
+      description: "Which permissions may exist simultaneously for the same object"
+      section: "§4.5.3"
+      rules:
+        - active: "unique"
+          may_add_unique: false
+          may_add_shared: false
+          may_add_const: false
+        - active: "shared"
+          may_add_unique: false
+          may_add_shared: true
+          may_add_const: true
+        - active: "const"
+          may_add_unique: false
+          may_add_shared: true
+          may_add_const: true
+
+    receiver_compatibility:
+      description: "Method receiver permission compatibility matrix"
+      section: "§4.5.5"
+      matrix:
+        - caller: "const"
+          const_receiver: true
+          unique_receiver: false
+          shared_receiver: false
+        - caller: "unique"
+          const_receiver: true
+          unique_receiver: true
+          shared_receiver: true
+        - caller: "shared"
+          const_receiver: true
+          unique_receiver: false
+          shared_receiver: true
+
+    no_implicit_upgrade:
+      description: "Coercion from weaker to stronger permission not derivable"
+      section: "§4.5.4"
+      prohibited:
+        - "const T ⊀: unique T"
+        - "const T ⊀: shared T"
+        - "shared T ⊀: unique T"
+
+  typing_rules:
+    literals:
+      - rule_id: "T-Int-Literal"
+        judgment: "v ∈ IntLiteral ∧ T ∈ T_int ∧ InRange(v, T) → Γ ⊢ v : T"
+        section: "§5.1"
+
+      - rule_id: "T-Float-Literal"
+        judgment: "v ∈ FloatLiteral ∧ T ∈ T_float → Γ ⊢ v : T"
+        section: "§5.1"
+
+      - rule_id: "T-Bool-Literal"
+        judgment: "v ∈ {true, false} → Γ ⊢ v : bool"
+        section: "§5.1"
+
+      - rule_id: "T-Char-Literal"
+        judgment: "v ∈ CharLiteral ∧ IsUSV(v) → Γ ⊢ v : char"
+        section: "§5.1"
+
+      - rule_id: "T-Unit-Literal"
+        judgment: "Γ ⊢ () : ()"
+        section: "§5.1"
+
+      - rule_id: "T-String-Literal"
+        judgment: "Γ ⊢ s is valid string literal → Γ ⊢ s : string@View"
+        section: "§6.2"
+
+    tuples:
+      - rule_id: "T-Tuple-Type"
+        judgment: "∀i ∈ 1..n, Γ ⊢ Tᵢ wf → Γ ⊢ (T₁,…,Tₙ) wf"
+        section: "§5.2.1"
+
+      - rule_id: "T-Tuple-Literal"
+        judgment: "∀i ∈ 1..n, Γ ⊢ eᵢ : Tᵢ → Γ ⊢ (e₁,…,eₙ) : (T₁,…,Tₙ)"
+        section: "§5.2.1"
+
+      - rule_id: "T-Tuple-Index"
+        judgment: "Γ ⊢ e : (T₀,…,Tₙ₋₁) ∧ 0 ≤ i < n → Γ ⊢ e.i : Tᵢ"
+        section: "§5.2.1"
+
+    arrays:
+      - rule_id: "T-Array-Type"
+        judgment: "Γ ⊢ T wf ∧ N : usize ∧ N ≥ 0 → Γ ⊢ [T; N] wf"
+        section: "§5.2.2"
+
+      - rule_id: "T-Array-Literal-List"
+        judgment: "∀i ∈ 1..n, Γ ⊢ eᵢ : T → Γ ⊢ [e₁,…,eₙ] : [T; n]"
+        section: "§5.2.2"
+
+      - rule_id: "T-Array-Literal-Repeat"
+        judgment: "Γ ⊢ e : T ∧ N : usize ∧ (T : Copy ∨ e ∈ ConstExpr) → Γ ⊢ [e; N] : [T; N]"
+        section: "§5.2.2"
+
+      - rule_id: "T-Array-Index"
+        judgment: "Γ ⊢ a : [T; N] ∧ Γ ⊢ i : usize → Γ ⊢ a[i] : T"
+        section: "§5.2.2"
+
+    slices:
+      - rule_id: "T-Slice-Type"
+        judgment: "Γ ⊢ T wf → Γ ⊢ [T] wf"
+        section: "§5.2.3"
+
+      - rule_id: "T-Slice-From-Array"
+        judgment: "Γ ⊢ a : P [T; N] ∧ Γ ⊢ r : Range → Γ ⊢ a[r] : P [T]"
+        section: "§5.2.3"
+
+      - rule_id: "T-Slice-Index"
+        judgment: "Γ ⊢ s : [T] ∧ Γ ⊢ i : usize → Γ ⊢ s[i] : T"
+        section: "§5.2.3"
+
+    ranges:
+      - rule_id: "T-Range-Exclusive"
+        judgment: "Γ ⊢ e₁ : T ∧ Γ ⊢ e₂ : T → Γ ⊢ e₁..e₂ : Range<T>"
+        section: "§5.2.4"
+
+      - rule_id: "T-Range-Inclusive"
+        judgment: "Γ ⊢ e₁ : T ∧ Γ ⊢ e₂ : T → Γ ⊢ e₁..=e₂ : RangeInclusive<T>"
+        section: "§5.2.4"
+
+      - rule_id: "T-Range-From"
+        judgment: "Γ ⊢ e : T → Γ ⊢ e.. : RangeFrom<T>"
+        section: "§5.2.4"
+
+      - rule_id: "T-Range-To"
+        judgment: "Γ ⊢ e : T → Γ ⊢ ..e : RangeTo<T>"
+        section: "§5.2.4"
+
+      - rule_id: "T-Range-To-Inclusive"
+        judgment: "Γ ⊢ e : T → Γ ⊢ ..=e : RangeToInclusive<T>"
+        section: "§5.2.4"
+
+      - rule_id: "T-Range-Full"
+        judgment: "Γ ⊢ .. : RangeFull"
+        section: "§5.2.4"
+
+    records:
+      - rule_id: "T-Record-WF"
+        judgment: "∀i ∈ 1..n, Γ ⊢ Tᵢ wf ∧ ∀i ≠ j, fᵢ ≠ fⱼ → Γ ⊢ record R {f₁:T₁,…,fₙ:Tₙ} wf"
+        section: "§5.3"
+
+      - rule_id: "T-Record-Lit"
+        judgment: "∀i ∈ 1..n, Γ ⊢ eᵢ : Tᵢ ∧ R = {f₁:T₁,…,fₙ:Tₙ} → Γ ⊢ R{f₁:e₁,…,fₙ:eₙ} : R"
+        section: "§5.3"
+
+      - rule_id: "T-Field"
+        judgment: "Γ ⊢ e : R ∧ R.fields(f) = T ∧ visible(f, Γ) → Γ ⊢ e.f : T"
+        section: "§5.3"
+
+    enums:
+      - rule_id: "T-Enum-WF"
+        judgment: "∀i ∈ 1..n, Γ ⊢ Pᵢ wf ∧ ∀i ≠ j, vᵢ ≠ vⱼ → Γ ⊢ enum E {v₁(P₁),…,vₙ(Pₙ)} wf"
+        section: "§5.4"
+
+      - rule_id: "T-Variant-Unit"
+        judgment: "E declares variant V with no payload → Γ ⊢ E::V : E"
+        section: "§5.4"
+
+      - rule_id: "T-Variant-Tuple"
+        judgment: "E declares variant V(T₁,…,Tₙ) ∧ ∀i, Γ ⊢ eᵢ : Tᵢ → Γ ⊢ E::V(e₁,…,eₙ) : E"
+        section: "§5.4"
+
+      - rule_id: "T-Variant-Record"
+        judgment: "E declares variant V{f₁:T₁,…,fₙ:Tₙ} ∧ ∀i, Γ ⊢ eᵢ : Tᵢ → Γ ⊢ E::V{f₁:e₁,…,fₙ:eₙ} : E"
+        section: "§5.4"
+
+    unions:
+      - rule_id: "T-Union-WF"
+        judgment: "n ≥ 2 ∧ ∀i ∈ 1..n, Γ ⊢ Tᵢ wf → Γ ⊢ T₁|T₂|…|Tₙ wf"
+        section: "§5.5"
+
+      - rule_id: "T-Union-Intro"
+        judgment: "Γ ⊢ e : T ∧ T ∈ᵤ U → Γ ⊢ e : U"
+        section: "§5.5"
+
+      - rule_id: "T-Union-Member"
+        judgment: "∃i ∈ 1..n : Γ ⊢ T ≡ Tᵢ → Γ ⊢ T ∈ᵤ U"
+        section: "§5.5"
+
+      - rule_id: "T-Union-Match"
+        judgment: "Γ ⊢ e : U ∧ U = T₁|…|Tₙ ∧ ∀i, Γ, xᵢ:Tᵢ ⊢ eᵢ : R → Γ ⊢ match e {x₁:T₁⇒e₁,…,xₙ:Tₙ⇒eₙ} : R"
+        section: "§5.5"
+
+      - rule_id: "Union-No-Direct-Access"
+        judgment: "Γ ⊢ e : U ⇒ Γ ⊬ e.f : T"
+        definition: "Direct field access on union value is forbidden"
+        section: "§5.5"
+
+      - rule_id: "T-Try-Union"
+        judgment: "Propagation operator on union type"
+        definition: "e? unwraps success type or returns error types"
+        section: "§5.5.1"
+
+    modal_types:
+      - rule_id: "Modal-WF"
+        judgment: "n ≥ 1 ∧ ∀i ∈ 1..n, Sᵢ unique ∧ ∀i, Payload(Sᵢ) wf → Γ ⊢ modal M {@S₁…@Sₙ} wf"
+        section: "§6.1"
+
+      - rule_id: "State-Specific-WF"
+        judgment: "S ∈ States(M) → Γ ⊢ M@S wf"
+        section: "§6.1"
+
+      - rule_id: "T-Modal-State-Intro"
+        judgment: "M@S has payload fields f₁:T₁,…,fₖ:Tₖ ∧ ∀i, Γ ⊢ eᵢ : Tᵢ → Γ ⊢ M@S{f₁:e₁,…,fₖ:eₖ} : M@S"
+        section: "§6.1"
+
+      - rule_id: "T-Modal-Field"
+        judgment: "Γ ⊢ e : M@S ∧ f ∈ Payload(S) ∧ Payload(S).f : T → Γ ⊢ e.f : T"
+        section: "§6.1"
+
+      - rule_id: "T-Modal-Method"
+        judgment: "Γ ⊢ e : M@S ∧ m ∈ Methods(S) ∧ m : (M@S,T₁,…,Tₙ) -> R → Γ ⊢ e.m(a₁,…,aₙ) : R"
+        section: "§6.1"
+
+      - rule_id: "T-Modal-Transition"
+        judgment: "Γ ⊢ e_self : P_src M@S_src ∧ (S_src, S_tgt) ∈ Transitions(M) ∧ ∀i, Γ ⊢ aᵢ : Tᵢ → Γ ⊢ e_self.t(a₁,…,aₙ) : M@S_tgt"
+        section: "§6.1"
+
+    pointers:
+      - rule_id: "T-Addr-Of"
+        judgment: "Γ ⊢ e : T ∧ e is valid place expression → Γ ⊢ &e : Ptr<T>@Valid"
+        section: "§6.3"
+
+      - rule_id: "T-Null-Ptr"
+        judgment: "Γ ⊢ Ptr::null() : Ptr<T>@Null"
+        section: "§6.3"
+
+      - rule_id: "T-Deref"
+        judgment: "Γ ⊢ p : Ptr<T>@Valid → Γ ⊢ *p : T"
+        section: "§6.3"
+
+      - rule_id: "T-Raw-Ptr-Cast-Imm"
+        judgment: "Γ ⊢ p : Ptr<T>@Valid → Γ ⊢ p as *imm T : *imm T"
+        section: "§6.3"
+
+      - rule_id: "T-Raw-Ptr-Cast-Mut"
+        judgment: "Γ ⊢ p : Ptr<T>@Valid → Γ ⊢ p as *mut T : *mut T"
+        section: "§6.3"
+
+      - rule_id: "T-Raw-Deref-Imm"
+        judgment: "Γ ⊢ p : *imm T ∧ context is unsafe → Γ ⊢ *p : T"
+        section: "§6.3"
+
+      - rule_id: "T-Raw-Deref-Mut"
+        judgment: "Γ ⊢ p : *mut T ∧ context is unsafe → Γ ⊢ *p : T"
+        section: "§6.3"
+
+    functions:
+      - rule_id: "T-Func-WF"
+        judgment: "Γ ⊢ R wf ∧ ∀i ∈ 1..n, Γ ⊢ Tᵢ wf → Γ ⊢ (m₁ T₁,…,mₙ Tₙ) -> R wf"
+        section: "§6.4"
+
+      - rule_id: "T-Closure-WF"
+        judgment: "Γ ⊢ R wf ∧ ∀i ∈ 1..n, Γ ⊢ Tᵢ wf → Γ ⊢ |m₁ T₁,…,mₙ Tₙ| -> R wf"
+        section: "§6.4"
+
+      - rule_id: "T-Proc-As-Value"
+        judgment: "procedure f(m₁ x₁:T₁,…,mₙ xₙ:Tₙ) -> R declared → Γ ⊢ f : (m₁ T₁,…,mₙ Tₙ) -> R"
+        section: "§6.4"
+
+      - rule_id: "T-Closure-Sparse"
+        judgment: "Γ ⊢ |p₁,…,pₙ| -> e : (T₁,…,Tₙ) -> R ∧ captures(…) = ∅ → Γ ⊢ |p₁,…,pₙ| -> e : (T₁,…,Tₙ) -> R"
+        section: "§6.4"
+
+      - rule_id: "T-Closure-Capturing"
+        judgment: "Γ ⊢ |p₁,…,pₙ| -> e : (T₁,…,Tₙ) -> R ∧ captures(…) ≠ ∅ → Γ ⊢ |p₁,…,pₙ| -> e : |T₁,…,Tₙ| -> R"
+        section: "§6.4"
+
+      - rule_id: "T-Call"
+        judgment: "Γ ⊢ f : (m₁ T₁,…,mₙ Tₙ) -> R ∧ ∀i ∈ 1..n, Γ ⊢ aᵢ : Tᵢ → Γ ⊢ f(a₁,…,aₙ) : R"
+        section: "§6.4"
+
+# =============================================================================
+# TERMINOLOGY REGISTRY
+# =============================================================================
+terminology:
+  type_system:
+    - term: "Type Context"
+      canonical_form: "Γ"
+      definition: "Environment mapping identifiers to types during type checking"
+      defined_in: "§4.1"
+
+    - term: "Type Equivalence"
+      canonical_form: "T ≡ U"
+      definition: "Two types are equivalent if they denote the same type (reflexive, symmetric, transitive)"
+      defined_in: "§4.1"
+
+    - term: "Nominal Type"
+      definition: "Type whose equivalence is determined by declaration identity, not structure"
+      defined_in: "§4.1"
+      examples: ["record", "enum", "modal"]
+
+    - term: "Structural Type"
+      definition: "Type whose equivalence is determined by composition, not name"
+      defined_in: "§4.1"
+      examples: ["tuple", "union", "function", "array", "slice"]
+
+    - term: "Subtype Relation"
+      canonical_form: "S <: T"
+      definition: "Partial order determining when value of type S may be used where type T is expected"
+      defined_in: "§4.2"
+
+    - term: "Coercion"
+      definition: "Implicit conversion when expression of subtype used in context expecting supertype"
+      defined_in: "§4.2"
+
+    - term: "Variance"
+      definition: "How subtyping of type arguments relates to subtyping of parameterized types"
+      defined_in: "§4.3"
+
+    - term: "Bidirectional Type Inference"
+      definition: "Type inference combining synthesis (outward) and checking (inward) modes"
+      defined_in: "§4.4"
+
+    - term: "Permission"
+      definition: "Type qualifier governing data access, mutation, and aliasing"
+      defined_in: "§4.5"
+
+    - term: "Permission-Qualified Type"
+      canonical_form: "P T"
+      definition: "Pair (P, T) where P is permission and T is base type"
+      defined_in: "§4.5.1"
+
+  permissions:
+    - term: "const permission"
+      definition: "Immutable access with unlimited aliasing (default)"
+      defined_in: "§4.5.3"
+
+    - term: "unique permission"
+      definition: "Exclusive read-write access with no aliasing"
+      defined_in: "§4.5.3"
+
+    - term: "shared permission"
+      definition: "Key-synchronized mutable access with controlled aliasing"
+      defined_in: "§4.5.3"
+
+    - term: "Inactive Binding"
+      definition: "Binding whose permission has been temporarily downgraded for bounded scope"
+      defined_in: "§4.5.5"
+
+    - term: "Key"
+      definition: "Synchronization primitive implicitly acquired for shared access"
+      defined_in: "§4.5.3"
+
+  data_types:
+    - term: "Primitive Type"
+      definition: "Built-in scalar type forming foundation of type system"
+      defined_in: "§5.1"
+
+    - term: "Composite Type"
+      definition: "Type constructed by aggregating other types into structured collections"
+      defined_in: "§5.2"
+
+    - term: "Tuple"
+      definition: "Ordered, fixed-length, heterogeneous sequence of values (structural)"
+      defined_in: "§5.2.1"
+
+    - term: "Arity"
+      definition: "Number of components in a tuple"
+      defined_in: "§5.2.1"
+
+    - term: "Array"
+      definition: "Contiguous, fixed-length, homogeneous sequence with compile-time known length"
+      defined_in: "§5.2.2"
+
+    - term: "Slice"
+      definition: "Dynamically-sized view into contiguous sequence (non-owning)"
+      defined_in: "§5.2.3"
+
+    - term: "Dense Pointer"
+      definition: "Multi-word pointer containing data pointer and metadata (e.g., length)"
+      defined_in: "§5.2.3"
+
+    - term: "Range"
+      definition: "Compiler-intrinsic type representing bounded or unbounded interval"
+      defined_in: "§5.2.4"
+
+    - term: "Record"
+      definition: "Nominal product type with named fields"
+      defined_in: "§5.3"
+
+    - term: "Enum"
+      definition: "Nominal sum type with named variants carrying optional payloads"
+      defined_in: "§5.4"
+
+    - term: "Variant"
+      definition: "Named alternative within an enum, may carry payload"
+      defined_in: "§5.4"
+
+    - term: "Discriminant"
+      definition: "Compile-time-assigned integer identifying active variant/state"
+      defined_in: "§5.4"
+
+    - term: "Union Type"
+      definition: "Structural anonymous sum type (tagged union)"
+      defined_in: "§5.5"
+
+    - term: "Member Type"
+      definition: "Component type constituting a union"
+      defined_in: "§5.5"
+
+    - term: "Propagation Operator"
+      canonical_form: "?"
+      definition: "Operator for early return of error-like union members"
+      defined_in: "§5.5.1"
+
+    - term: "Niche"
+      definition: "Invalid bit pattern within a type that cannot represent a valid value"
+      defined_in: "§5.4"
+
+    - term: "Niche Optimization"
+      definition: "Technique repurposing niches to encode discriminant information"
+      defined_in: "§5.4"
+
+  modal_types:
+    - term: "Modal Type"
+      definition: "Nominal type embedding compile-time-validated state machine"
+      defined_in: "§6.1"
+
+    - term: "State-Specific Type"
+      canonical_form: "M@S"
+      definition: "Type containing only data defined in specific state (no runtime discriminant)"
+      defined_in: "§6.1"
+
+    - term: "General Modal Type"
+      canonical_form: "M"
+      definition: "Sum type capable of holding value in any declared state (with runtime discriminant)"
+      defined_in: "§6.1"
+
+    - term: "State Transition"
+      definition: "Procedure consuming value of one state and producing value of another state"
+      defined_in: "§6.1"
+
+    - term: "Modal Widening"
+      definition: "Conversion from state-specific type M@S to general modal type M"
+      defined_in: "§6.1"
+
+    - term: "Niche-Layout-Compatible"
+      definition: "Modal type where state-specific and general types have identical layout via niche encoding"
+      defined_in: "§6.1"
+
+  string_types:
+    - term: "string@Managed"
+      definition: "Owned, heap-allocated, mutable string buffer"
+      defined_in: "§6.2"
+
+    - term: "string@View"
+      definition: "Non-owning, immutable slice into string data"
+      defined_in: "§6.2"
+
+    - term: "UTF-8 Character Boundary"
+      definition: "Byte offset that is start of string, end of string, or not a continuation byte"
+      defined_in: "§6.2"
+
+  pointer_types:
+    - term: "Safe Modal Pointer"
+      canonical_form: "Ptr<T>"
+      definition: "Primary pointer type with compile-time-tracked states preventing null/use-after-free"
+      defined_in: "§6.3"
+
+    - term: "Raw Pointer"
+      canonical_form: "*imm T, *mut T"
+      definition: "Unsafe C-style pointer with no safety guarantees"
+      defined_in: "§6.3"
+
+    - term: "Ptr@Valid"
+      definition: "Pointer guaranteed non-null and pointing to live, accessible memory"
+      defined_in: "§6.3"
+
+    - term: "Ptr@Null"
+      definition: "Pointer guaranteed to be null (address 0x0)"
+      defined_in: "§6.3"
+
+    - term: "Ptr@Expired"
+      definition: "Pointer was valid but now references deallocated memory (compile-time only)"
+      defined_in: "§6.3"
+
+    - term: "Place Expression"
+      definition: "Expression denoting a memory location (variable, field, indexed access)"
+      defined_in: "§6.3"
+
+  function_types:
+    - term: "Function Type"
+      definition: "Structural type representing callable signature"
+      defined_in: "§6.4"
+
+    - term: "Sparse Function Pointer"
+      canonical_form: "(T) -> U"
+      definition: "Direct pointer to executable code (single word, FFI-safe)"
+      defined_in: "§6.4"
+
+    - term: "Closure"
+      canonical_form: "|T| -> U"
+      definition: "Dense pointer with code pointer and environment pointer (two words, not FFI-safe)"
+      defined_in: "§6.4"
+
+    - term: "Representation Kind"
+      canonical_form: "κ"
+      definition: "Whether function is sparse or closure (part of type identity)"
+      defined_in: "§6.4"
+
+# =============================================================================
+# GRAMMAR PRODUCTIONS
+# =============================================================================
+grammar:
+  permissions:
+    - nonterminal: "permission"
+      production: '"const" | "unique" | "shared"'
+      section: "§4.5.3"
+
+    - nonterminal: "permission_type"
+      production: "[permission] type"
+      section: "§4.5.3"
+
+  primitives:
+    - nonterminal: "primitive_type"
+      production: "integer_type | float_type | \"bool\" | \"char\" | unit_type | never_type"
+      section: "§5.1"
+
+    - nonterminal: "integer_type"
+      production: "signed_int | unsigned_int | pointer_int"
+      section: "§5.1"
+
+    - nonterminal: "signed_int"
+      production: '"i8" | "i16" | "i32" | "i64" | "i128"'
+      section: "§5.1"
+
+    - nonterminal: "unsigned_int"
+      production: '"u8" | "u16" | "u32" | "u64" | "u128"'
+      section: "§5.1"
+
+    - nonterminal: "pointer_int"
+      production: '"isize" | "usize"'
+      section: "§5.1"
+
+    - nonterminal: "float_type"
+      production: '"f16" | "f32" | "f64"'
+      section: "§5.1"
+
+    - nonterminal: "unit_type"
+      production: '"(" ")"'
+      section: "§5.1"
+
+    - nonterminal: "never_type"
+      production: '"!"'
+      section: "§5.1"
+
+  tuples:
+    - nonterminal: "tuple_type"
+      production: '"(" type_list? ")"'
+      section: "§5.2.1"
+
+    - nonterminal: "type_list"
+      production: 'type ("," type)* ","?'
+      section: "§5.2.1"
+
+    - nonterminal: "tuple_literal"
+      production: '"(" expression_list? ")"'
+      section: "§5.2.1"
+
+    - nonterminal: "expression_list"
+      production: 'expression ("," expression)* ","?'
+      section: "§5.2.1"
+
+    - nonterminal: "tuple_access"
+      production: 'expression "." decimal_literal'
+      section: "§5.2.1"
+
+  arrays:
+    - nonterminal: "array_type"
+      production: '"[" type ";" const_expression "]"'
+      section: "§5.2.2"
+
+    - nonterminal: "array_literal"
+      production: '"[" expression_list "]" | "[" expression ";" const_expression "]"'
+      section: "§5.2.2"
+
+    - nonterminal: "array_access"
+      production: 'expression "[" expression "]"'
+      section: "§5.2.2"
+
+  slices:
+    - nonterminal: "slice_type"
+      production: '"[" type "]"'
+      section: "§5.2.3"
+
+    - nonterminal: "slice_access"
+      production: 'expression "[" expression "]"'
+      section: "§5.2.3"
+
+    - nonterminal: "slice_range"
+      production: 'expression "[" range_expression "]"'
+      section: "§5.2.3"
+
+  ranges:
+    - nonterminal: "range_expression"
+      production: "exclusive_range | inclusive_range | from_range | to_range | to_inclusive_range | full_range"
+      section: "§5.2.4"
+
+    - nonterminal: "exclusive_range"
+      production: 'expression ".." expression'
+      section: "§5.2.4"
+
+    - nonterminal: "inclusive_range"
+      production: 'expression "..=" expression'
+      section: "§5.2.4"
+
+    - nonterminal: "from_range"
+      production: 'expression ".."'
+      section: "§5.2.4"
+
+    - nonterminal: "to_range"
+      production: '".." expression'
+      section: "§5.2.4"
+
+    - nonterminal: "to_inclusive_range"
+      production: '"..=" expression'
+      section: "§5.2.4"
+
+    - nonterminal: "full_range"
+      production: '".."'
+      section: "§5.2.4"
+
+  records:
+    - nonterminal: "record_decl"
+      production: '[visibility] "record" identifier [generic_params] [implements_clause] "{" record_body "}" [type_invariant]'
+      section: "§5.3"
+
+    - nonterminal: "record_body"
+      production: 'field_decl ("," field_decl)* ","?'
+      section: "§5.3"
+
+    - nonterminal: "field_decl"
+      production: '[visibility] identifier ":" type'
+      section: "§5.3"
+
+    - nonterminal: "implements_clause"
+      production: '"<:" class_list'
+      section: "§5.3"
+
+    - nonterminal: "class_list"
+      production: 'type_path ("," type_path)*'
+      section: "§5.3"
+
+    - nonterminal: "type_invariant"
+      production: '"where" "{" predicate "}"'
+      section: "§5.3"
+
+    - nonterminal: "record_literal"
+      production: 'type_path "{" field_init_list "}"'
+      section: "§5.3"
+
+    - nonterminal: "field_init_list"
+      production: 'field_init ("," field_init)* ","?'
+      section: "§5.3"
+
+    - nonterminal: "field_init"
+      production: 'identifier ":" expression | identifier'
+      section: "§5.3"
+
+    - nonterminal: "field_access"
+      production: 'expression "." identifier'
+      section: "§5.3"
+
+  enums:
+    - nonterminal: "enum_decl"
+      production: '[visibility] "enum" identifier [generic_params] [implements_clause] "{" variant_list "}" [type_invariant]'
+      section: "§5.4"
+
+    - nonterminal: "variant_list"
+      production: 'variant ("," variant)* ","?'
+      section: "§5.4"
+
+    - nonterminal: "variant"
+      production: 'identifier [variant_payload] ["=" integer_constant]'
+      section: "§5.4"
+
+    - nonterminal: "variant_payload"
+      production: '"(" type_list ")" | "{" field_decl_list "}"'
+      section: "§5.4"
+
+    - nonterminal: "field_decl_list"
+      production: 'field_decl ("," field_decl)* ","?'
+      section: "§5.4"
+
+    - nonterminal: "enum_literal"
+      production: 'type_path "::" identifier [variant_args]'
+      section: "§5.4"
+
+    - nonterminal: "variant_args"
+      production: '"(" expression_list ")" | "{" field_init_list "}"'
+      section: "§5.4"
+
+  unions:
+    - nonterminal: "union_type"
+      production: 'type ("|" type)+'
+      section: "§5.5"
+
+    - nonterminal: "try_expr"
+      production: 'postfix_expr "?"'
+      section: "§5.5.1"
+
+  modal_types:
+    - nonterminal: "modal_decl"
+      production: '[visibility] "modal" identifier [generic_params] [implements_clause] "{" state_block+ "}"'
+      section: "§6.1"
+
+    - nonterminal: "state_block"
+      production: '"@" state_name [state_payload] [state_members]'
+      section: "§6.1"
+
+    - nonterminal: "state_name"
+      production: "identifier"
+      section: "§6.1"
+
+    - nonterminal: "state_payload"
+      production: '"{" (field_decl ("," field_decl)* ","?)? "}"'
+      section: "§6.1"
+
+    - nonterminal: "state_members"
+      production: '"{" (method_def | transition_def)* "}"'
+      section: "§6.1"
+
+    - nonterminal: "method_def"
+      production: '"procedure" identifier "(" param_list ")" ["->" return_type] block'
+      section: "§6.1"
+
+    - nonterminal: "transition_def"
+      production: '"transition" identifier "(" param_list ")" "->" "@" target_state block'
+      section: "§6.1"
+
+    - nonterminal: "target_state"
+      production: "identifier"
+      section: "§6.1"
+
+    - nonterminal: "state_specific_type"
+      production: 'modal_type_name "@" state_name'
+      section: "§6.1"
+
+    - nonterminal: "modal_pattern"
+      production: '"@" state_name ["{" payload_pattern "}"]'
+      section: "§6.1"
+
+    - nonterminal: "payload_pattern"
+      production: '(field_name [":" pattern] ("," field_name [":" pattern])* ","?)?'
+      section: "§6.1"
+
+  strings:
+    - nonterminal: "string_type"
+      production: '"string" ["@" string_state]'
+      section: "§6.2"
+
+    - nonterminal: "string_state"
+      production: '"Managed" | "View"'
+      section: "§6.2"
+
+  pointers:
+    - nonterminal: "safe_pointer_type"
+      production: '"Ptr" "<" type ">" ["@" pointer_state]'
+      section: "§6.3"
+
+    - nonterminal: "pointer_state"
+      production: '"Valid" | "Null" | "Expired"'
+      section: "§6.3"
+
+    - nonterminal: "raw_pointer_type"
+      production: '"*" raw_pointer_qual type'
+      section: "§6.3"
+
+    - nonterminal: "raw_pointer_qual"
+      production: '"imm" | "mut"'
+      section: "§6.3"
+
+    - nonterminal: "address_of_expr"
+      production: '"&" place_expr'
+      section: "§6.3"
+
+    - nonterminal: "null_ptr_expr"
+      production: '"Ptr" "::" "null" "()"'
+      section: "§6.3"
+
+    - nonterminal: "raw_ptr_cast_expr"
+      production: 'safe_ptr_expr "as" raw_pointer_type'
+      section: "§6.3"
+
+  functions:
+    - nonterminal: "function_type"
+      production: "sparse_function_type | closure_type"
+      section: "§6.4"
+
+    - nonterminal: "sparse_function_type"
+      production: '"(" [param_type_list] ")" "->" type'
+      section: "§6.4"
+
+    - nonterminal: "closure_type"
+      production: '"|" [param_type_list] "|" "->" type'
+      section: "§6.4"
+
+    - nonterminal: "param_type_list"
+      production: 'param_type ("," param_type)*'
+      section: "§6.4"
+
+    - nonterminal: "param_type"
+      production: '["move"] type'
+      section: "§6.4"
+
+# =============================================================================
+# DIAGNOSTIC CODES
+# =============================================================================
+diagnostics:
+  type_system_foundation:
+    - code: "E-TYP-1501"
+      severity: "Error"
+      condition: "Type mismatch in expression or assignment"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§4.1"
+
+    - code: "E-TYP-1502"
+      severity: "Error"
+      condition: "No valid type derivable for expression"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§4.1"
+
+    - code: "E-TYP-1503"
+      severity: "Error"
+      condition: "Operation not supported for operand type"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§4.1"
+
+    - code: "E-TYP-1505"
+      severity: "Error"
+      condition: "Missing required type annotation at module scope"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§4.1, §4.4"
+
+    - code: "E-TYP-1510"
+      severity: "Error"
+      condition: "Source type is not a subtype of target type"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§4.2"
+
+    - code: "E-TYP-1511"
+      severity: "Error"
+      condition: "Implicit permission upgrade attempted"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§4.2"
+
+    - code: "E-TYP-1512"
+      severity: "Error"
+      condition: "Coercion between incompatible sibling permissions"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§4.2"
+
+    - code: "E-TYP-1520"
+      severity: "Error"
+      condition: "Variance violation in generic type instantiation"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§4.3"
+
+    - code: "E-TYP-1521"
+      severity: "Error"
+      condition: "Invariant type parameter requires exact type match"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§4.3"
+
+    - code: "E-TYP-1530"
+      severity: "Error"
+      condition: "Type inference failed; unable to determine type"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§4.4"
+
+  permissions:
+    - code: "E-TYP-1601"
+      severity: "Error"
+      condition: "Attempt to mutate data via a const path"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§4.5.5"
+
+    - code: "E-TYP-1602"
+      severity: "Error"
+      condition: "Violation of unique exclusion (aliasing detected or inactive use)"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§4.5.5"
+
+    - code: "E-TYP-1604"
+      severity: "Error"
+      condition: "Direct field mutation through shared path"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§4.5.5"
+
+    - code: "E-TYP-1605"
+      severity: "Error"
+      condition: "Method receiver permission incompatible with caller's permission"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§4.5.5"
+
+  primitive_types:
+    - code: "W-TYP-1701"
+      severity: "Warning"
+      condition: "f16 arithmetic emulated on target platform"
+      detection: "Compile-time"
+      effect: "Warning"
+      section: "§5.1"
+
+    - code: "E-TYP-1710"
+      severity: "Error"
+      condition: "Integer literal out of range for target type"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.1"
+
+    - code: "E-TYP-1711"
+      severity: "Error"
+      condition: "Character literal is not a valid Unicode Scalar Value"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.1"
+
+    - code: "E-TYP-1712"
+      severity: "Error"
+      condition: "Implicit conversion between distinct primitive types"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.1"
+
+    - code: "E-TYP-1713"
+      severity: "Error"
+      condition: "Shadowing of primitive type alias identifier"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.1"
+
+    - code: "P-TYP-1720"
+      severity: "Panic"
+      condition: "Integer overflow in checked mode"
+      detection: "Runtime"
+      effect: "Panic"
+      section: "§5.1"
+
+    - code: "P-TYP-1721"
+      severity: "Panic"
+      condition: "Integer division or remainder by zero"
+      detection: "Runtime"
+      effect: "Panic"
+      section: "§5.1"
+
+  tuples:
+    - code: "E-TYP-1801"
+      severity: "Error"
+      condition: "Tuple index out of bounds"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.2.1"
+
+    - code: "E-TYP-1802"
+      severity: "Error"
+      condition: "Tuple index is not a compile-time constant integer literal"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.2.1"
+
+    - code: "E-TYP-1803"
+      severity: "Error"
+      condition: "Tuple arity mismatch in assignment or pattern"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.2.1"
+
+  arrays:
+    - code: "E-TYP-1810"
+      severity: "Error"
+      condition: "Array length is not a compile-time constant"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.2.2"
+
+    - code: "E-TYP-1812"
+      severity: "Error"
+      condition: "Array index expression has non-usize type"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.2.2"
+
+    - code: "E-TYP-1813"
+      severity: "Error"
+      condition: "Array repeat literal requires Copy or constant initializer"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.2.2"
+
+    - code: "E-TYP-1814"
+      severity: "Error"
+      condition: "Array length mismatch in assignment or pattern"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.2.2"
+
+  slices:
+    - code: "E-TYP-1820"
+      severity: "Error"
+      condition: "Slice index expression has non-usize type"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.2.3"
+
+    - code: "P-TYP-1822"
+      severity: "Panic"
+      condition: "Slice range out of bounds"
+      detection: "Runtime"
+      effect: "Panic"
+      section: "§5.2.3"
+
+    - code: "E-TYP-1823"
+      severity: "Error"
+      condition: "Slice outlives borrowed storage"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.2.3"
+
+  ranges:
+    - code: "E-TYP-1830"
+      severity: "Error"
+      condition: "Range bound types do not match"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.2.4"
+
+    - code: "E-TYP-1831"
+      severity: "Error"
+      condition: "Unbounded range used in context requiring finite iteration"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.2.4"
+
+  records:
+    - code: "E-TYP-1901"
+      severity: "Error"
+      condition: "Duplicate field name in record declaration"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.3"
+
+    - code: "E-TYP-1902"
+      severity: "Error"
+      condition: "Missing field initializer in record literal"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.3"
+
+    - code: "E-TYP-1903"
+      severity: "Error"
+      condition: "Duplicate field initializer in record literal"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.3"
+
+    - code: "E-TYP-1904"
+      severity: "Error"
+      condition: "Access to nonexistent field"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.3"
+
+    - code: "E-TYP-1905"
+      severity: "Error"
+      condition: "Access to field not visible in current scope"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.3"
+
+    - code: "E-TYP-1906"
+      severity: "Error"
+      condition: "Field visibility exceeds record visibility"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.3"
+
+    - code: "P-TYP-1909"
+      severity: "Panic"
+      condition: "Type invariant violated at construction"
+      detection: "Runtime"
+      effect: "Panic"
+      section: "§5.3"
+
+    - code: "P-TYP-1910"
+      severity: "Panic"
+      condition: "Type invariant violated at procedure boundary"
+      detection: "Runtime"
+      effect: "Panic"
+      section: "§5.3"
+
+  enums:
+    - code: "E-TYP-2001"
+      severity: "Error"
+      condition: "Enum declaration contains no variants"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.4"
+
+    - code: "E-TYP-2002"
+      severity: "Error"
+      condition: "Duplicate variant name in enum declaration"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.4"
+
+    - code: "E-TYP-2003"
+      severity: "Error"
+      condition: "Duplicate discriminant value in enum declaration"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.4"
+
+    - code: "E-TYP-2004"
+      severity: "Error"
+      condition: "Discriminant value is not a compile-time constant"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.4"
+
+    - code: "E-TYP-2005"
+      severity: "Error"
+      condition: "Direct field access on enum value without pattern matching"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.4"
+
+    - code: "E-TYP-2006"
+      severity: "Error"
+      condition: "Infinite type: recursive enum without indirection"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.4"
+
+    - code: "E-TYP-2007"
+      severity: "Error"
+      condition: "Unknown variant name in enum construction"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.4"
+
+    - code: "E-TYP-2008"
+      severity: "Error"
+      condition: "Variant payload arity mismatch"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.4"
+
+    - code: "E-TYP-2009"
+      severity: "Error"
+      condition: "Missing field initializer in record-like variant"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.4"
+
+    - code: "E-TYP-2010"
+      severity: "Error"
+      condition: "Discriminant overflow during implicit assignment"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.4"
+
+    - code: "P-TYP-2011"
+      severity: "Panic"
+      condition: "Type invariant violated at construction"
+      detection: "Runtime"
+      effect: "Panic"
+      section: "§5.4"
+
+    - code: "P-TYP-2012"
+      severity: "Panic"
+      condition: "Type invariant violated at procedure boundary"
+      detection: "Runtime"
+      effect: "Panic"
+      section: "§5.4"
+
+  unions:
+    - code: "E-TYP-2201"
+      severity: "Error"
+      condition: "Union type has fewer than two member types"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.5"
+
+    - code: "E-TYP-2202"
+      severity: "Error"
+      condition: "Direct access on union value without pattern matching"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.5"
+
+    - code: "E-TYP-2203"
+      severity: "Error"
+      condition: "Infinite type: recursive union without indirection"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.5"
+
+    - code: "E-TYP-2204"
+      severity: "Error"
+      condition: "Union type used in [[layout(C)]] context"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.5"
+
+    - code: "E-PAT-2205"
+      severity: "Error"
+      condition: "match expression is not exhaustive for union type"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.5"
+
+    - code: "W-TYP-2201"
+      severity: "Warning"
+      condition: "Union type contains duplicate member types"
+      detection: "Compile-time"
+      effect: "N/A"
+      section: "§5.5"
+
+    - code: "E-TYP-2210"
+      severity: "Error"
+      condition: "? applied to non-union type"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.5.1"
+
+    - code: "E-TYP-2211"
+      severity: "Error"
+      condition: "Ambiguous success type in ? expression"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.5.1"
+
+    - code: "E-TYP-2212"
+      severity: "Error"
+      condition: "Union member not propagation-compatible with return type"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.5.1"
+
+    - code: "E-TYP-2213"
+      severity: "Error"
+      condition: "? used outside procedure body"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.5.1"
+
+    - code: "E-TYP-2214"
+      severity: "Error"
+      condition: "No success type candidate (all types propagate)"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§5.5.1"
+
+  modal_types:
+    - code: "E-TYP-2050"
+      severity: "Error"
+      condition: "Modal type declares zero states"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§6.1"
+
+    - code: "E-TYP-2051"
+      severity: "Error"
+      condition: "Duplicate state name within modal type declaration"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§6.1"
+
+    - code: "E-TYP-2052"
+      severity: "Error"
+      condition: "Field access for field not present in the current state's payload"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§6.1"
+
+    - code: "E-TYP-2053"
+      severity: "Error"
+      condition: "Method invocation for method not available in the current state"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§6.1"
+
+    - code: "E-TYP-2055"
+      severity: "Error"
+      condition: "Transition body returns a value not matching the declared target state-specific type"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§6.1"
+
+    - code: "E-TYP-2056"
+      severity: "Error"
+      condition: "Transition invoked on value not of the declared source state-specific type"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§6.1"
+
+    - code: "E-TYP-2057"
+      severity: "Error"
+      condition: "Direct field or method access on general modal type without pattern matching"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§6.1"
+
+    - code: "E-TYP-2060"
+      severity: "Error"
+      condition: "Non-exhaustive match on general modal type; missing states must be listed"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§6.1"
+
+    - code: "E-TYP-2070"
+      severity: "Error"
+      condition: "Implicit modal widening on non-niche-layout-compatible type (missing widen keyword)"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§6.1"
+
+    - code: "E-TYP-2071"
+      severity: "Error"
+      condition: "widen applied to non-modal type"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§6.1"
+
+    - code: "E-TYP-2072"
+      severity: "Error"
+      condition: "widen applied to already-general modal type"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§6.1"
+
+    - code: "W-OPT-4010"
+      severity: "Warning"
+      condition: "Modal widening involves large payload copy (> threshold)"
+      detection: "Compile-time"
+      effect: "Advisory"
+      section: "§6.1"
+
+  strings:
+    - code: "E-TYP-2151"
+      severity: "Error"
+      condition: "Slice boundary not on UTF-8 char boundary"
+      detection: "Runtime"
+      effect: "Panic"
+      section: "§6.2"
+
+    - code: "E-TYP-2152"
+      severity: "Error"
+      condition: "Direct byte indexing (s[i]) on string type"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§6.2"
+
+    - code: "E-TYP-2153"
+      severity: "Error"
+      condition: "Slice end index less than start index"
+      detection: "Runtime"
+      effect: "Panic"
+      section: "§6.2"
+
+    - code: "E-TYP-2154"
+      severity: "Error"
+      condition: "Slice index exceeds string length"
+      detection: "Runtime"
+      effect: "Panic"
+      section: "§6.2"
+
+  pointers:
+    - code: "E-TYP-2101"
+      severity: "Error"
+      condition: "Dereference of pointer in @Null state"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§6.3"
+
+    - code: "E-TYP-2102"
+      severity: "Error"
+      condition: "Dereference of pointer in @Expired state (use-after-free)"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§6.3"
+
+    - code: "E-TYP-2103"
+      severity: "Error"
+      condition: "Dereference of raw pointer outside unsafe block"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§6.3"
+
+    - code: "E-TYP-2104"
+      severity: "Error"
+      condition: "Address-of operator applied to non-place expression"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§6.3"
+
+    - code: "E-TYP-2105"
+      severity: "Error"
+      condition: "Cast of non-@Valid pointer to raw pointer"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§6.3"
+
+    - code: "E-TYP-2106"
+      severity: "Error"
+      condition: "Modal pointer type in extern procedure signature"
+      detection: "Compile-time"
+      effect: "Rejection"
+      section: "§6.3"
+
+# =============================================================================
+# POTENTIAL ISSUES
+# =============================================================================
+potential_issues:
+  inconsistencies:
+    - issue: "Niche optimization rules unclear across types"
+      description: "§5.4 says enums SHOULD apply niche optimization, §5.5 says unions SHOULD apply it, but §6.1 says modal types MUST apply it. Inconsistent obligation levels."
+      severity: "Medium"
+      sections: ["§5.4", "§5.5", "§6.1"]
+      recommendation: "Clarify whether the different obligations (SHOULD vs MUST) are intentional or if they should be harmonized"
+
+    - issue: "Permission system and responsibility separation"
+      description: "Multiple sections emphasize that permissions do NOT imply cleanup responsibility (§4.5.3 for unique and shared), but this critical distinction might be easily overlooked"
+      severity: "Low"
+      sections: ["§4.5.3"]
+      recommendation: "Consider adding a high-level principle statement about orthogonality of permission and responsibility"
+
+  ambiguities:
+    - issue: "Modal widening niche-layout-compatible conditions"
+      description: "The four conditions for niche-layout-compatibility (§6.1) are clear individually, but the document doesn't explicitly state whether ALL four must hold or if they're alternative conditions"
+      severity: "Low"
+      sections: ["§6.1"]
+      recommendation: "Add explicit 'ALL of the following conditions' or similar qualifier"
+
+    - issue: "Permission propagation semantics"
+      description: "§5.3 states 'permission propagates to field access' but doesn't detail behavior for nested structures, container types, or method returns"
+      severity: "Medium"
+      sections: ["§5.3", "§4.5"]
+      recommendation: "Add explicit rules or examples for permission propagation in complex scenarios"
+
+    - issue: "Union member canonical ordering"
+      description: "§5.5 specifies discriminant assignment uses 'lexicographically by fully-qualified type name' but doesn't define ordering for parameterized types or complex nested types"
+      severity: "Low"
+      sections: ["§5.5"]
+      recommendation: "Specify canonical ordering for generics, e.g., Vec<A> vs Vec<B>, or Option<T> vs Result<T,E>"
+
+  completeness_gaps:
+    - issue: "Missing variance rules for custom generic containers"
+      description: "§4.3 defines variance rules and gives examples for built-in types, but doesn't specify how user-defined generic records/enums determine their variance"
+      severity: "Medium"
+      sections: ["§4.3"]
+      recommendation: "Add section on variance inference for user-defined generic types"
+
+    - issue: "Incomplete specification of 'const path' mutation rules"
+      description: "E-TYP-1601 prohibits mutation via const path, but edge cases like interior mutability patterns, atomic operations, or unsafe blocks are not addressed"
+      severity: "Medium"
+      sections: ["§4.5.5"]
+      recommendation: "Define const semantics in presence of unsafe code and atomic types"
+
+    - issue: "Type invariant verification strategy underspecified"
+      description: "§5.3, §5.4 mention type invariants and reference §10.4 for enforcement, but the clauses read don't contain §10.4"
+      severity: "High"
+      sections: ["§5.3", "§5.4"]
+      recommendation: "Ensure cross-references are accurate; include verification strategy in the relevant clause or provide forward reference"
+
+    - issue: "Bounds checking specification incomplete"
+      description: "§5.2.2 and §5.2.3 mention bounds checking references §11.4.2, but that section is not in the read portion"
+      severity: "Low"
+      sections: ["§5.2.2", "§5.2.3"]
+      recommendation: "Include forward reference or brief summary of bounds checking semantics"
+
+    - issue: "Class implementation semantics underspecified"
+      description: "Multiple types reference class implementation (records §5.3, enums §5.4, modal §6.1) pointing to §9.3, but no details on class semantics are in clauses 4-5"
+      severity: "Medium"
+      sections: ["§5.3", "§5.4", "§6.1"]
+      recommendation: "Ensure Chapter 9 is comprehensive; consider brief summary in type definitions"
+
+  cross_reference_issues:
+    - issue: "Forward references to undefined sections"
+      description: "Multiple forward references to sections beyond Clause 6 (e.g., §7.1 turbofish, §10.3.1 invariants, §11.2 pattern matching, §12 FFI)"
+      severity: "Low"
+      recommendation: "Ensure all forward references are resolved in final specification"
+
+    - issue: "Receiver shorthand notation not defined"
+      description: "§4.5.3 mentions 'Receiver shorthand notation is defined in §2.7' but Clause 2 is not in the analyzed range"
+      severity: "Low"
+      sections: ["§4.5.3"]
+      recommendation: "Include brief inline definition or ensure §2.7 is accessible"
+
+  type_safety_concerns:
+    - issue: "Ptr@Expired state is compile-time only"
+      description: "§6.3 states @Expired has no runtime representation and is statically prevented from use, but region exit transitions are described as compile-time type refinements. Unclear how this interacts with dynamic control flow"
+      severity: "Medium"
+      sections: ["§6.3"]
+      recommendation: "Clarify how region-based lifetime tracking works with conditional branches and loops"
+
+    - issue: "Shared permission field mutation diagnostic"
+      description: "E-TYP-1604 prohibits direct field mutation through shared path, but §4.5.3 states shared grants 'mutable access' with key synchronization. Potential confusion about when mutation is allowed"
+      severity: "Medium"
+      sections: ["§4.5.3", "§4.5.5"]
+      recommendation: "Clarify that shared allows mutation ONLY through ~% methods, not direct field assignment"
+
+  implementation_concerns:
+    - issue: "Integer overflow behavior in release mode"
+      description: "§5.1 states release-mode overflow is IDB with three options (wrap, panic, trap), requiring uniform behavior. May be difficult for optimizers to maintain uniformity guarantee"
+      severity: "Low"
+      sections: ["§5.1"]
+      recommendation: "Consider specifying wrapping semantics as mandatory default with opt-in checked mode"
+
+    - issue: "Key granularity and reentrancy semantics"
+      description: "§4.5.3 describes key properties including reentrancy, but formal semantics of 'covering key' and 'minimal scope' are not defined"
+      severity: "Medium"
+      sections: ["§4.5.3", "§13.1.2"]
+      recommendation: "Provide formal definition of key hierarchy and reentrancy rules (likely in §13)"
+
+# =============================================================================
+# METADATA
+# =============================================================================
+statistics:
+  total_type_rules: 67
+  total_diagnostic_codes: 84
+  total_grammar_productions: 60
+  total_terminology_entries: 48
+  sections_covered: 19
+
+cross_references:
+  forward_references:
+    - from: "§4.2"
+      to: "§9.3"
+      topic: "Class implementation subtyping"
+    - from: "§4.4"
+      to: "§7.1"
+      topic: "Turbofish syntax for explicit type arguments"
+    - from: "§5.2.2"
+      to: "§11.4.2"
+      topic: "Bounds checking"
+    - from: "§5.3"
+      to: "§8.5"
+      topic: "Visibility and access control"
+    - from: "§5.3"
+      to: "§10.3.1"
+      topic: "Type invariants"
+    - from: "§5.3"
+      to: "§10.4"
+      topic: "Invariant enforcement modes"
+    - from: "§5.4"
+      to: "§11.2"
+      topic: "Pattern matching and exhaustiveness"
+    - from: "§6.3"
+      to: "§11.4.5"
+      topic: "Dereference operator evaluation"
+    - from: "§6.3"
+      to: "§3.3"
+      topic: "Escape rule"
+    - from: "§6.3"
+      to: "Clause 12"
+      topic: "FFI safety"
+
+  backward_references:
+    - from: "§4.5.3"
+      to: "§2.7"
+      topic: "Receiver shorthand notation"
+    - from: "§5.1"
+      to: "§2.8"
+      topic: "Literal syntax"
+    - from: "§6.2"
+      to: "§2.1"
+      topic: "Source text encoding (UTF-8)"
+    - from: "§6.2"
+      to: "RFC 3629"
+      topic: "UTF-8 specification"
+    - from: "§6.3"
+      to: "§3.5"
+      topic: "Responsibility system"
+    - from: "§6.3"
+      to: "§3.7"
+      topic: "Region system"

@@ -1,0 +1,10 @@
+C:\Dev\Cursive\cursive-bootstrap\src\project\manifest.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_project.dir\Release\manifest.obj
+C:\Dev\Cursive\cursive-bootstrap\src\project\load_project.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_project.dir\Release\load_project.obj
+C:\Dev\Cursive\cursive-bootstrap\src\project\module_discovery.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_project.dir\Release\module_discovery.obj
+C:\Dev\Cursive\cursive-bootstrap\src\project\deterministic_order.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_project.dir\Release\deterministic_order.obj
+C:\Dev\Cursive\cursive-bootstrap\src\project\outputs.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_project.dir\Release\outputs.obj
+C:\Dev\Cursive\cursive-bootstrap\src\project\ir_assembly.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_project.dir\Release\ir_assembly.obj
+C:\Dev\Cursive\cursive-bootstrap\src\project\tool_resolution.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_project.dir\Release\tool_resolution.obj
+C:\Dev\Cursive\cursive-bootstrap\src\project\link.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_project.dir\Release\link.obj
+C:\Dev\Cursive\cursive-bootstrap\src\project\project_validate.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_project.dir\Release\project_validate.obj
+C:\Dev\Cursive\cursive-bootstrap\src\project\ident.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_project.dir\Release\ident.obj

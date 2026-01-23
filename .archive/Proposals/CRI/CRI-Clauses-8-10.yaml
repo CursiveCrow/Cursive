@@ -1,0 +1,2140 @@
+---
+# Comprehensive Reference Index (CRI)
+# Cursive Language Specification: Clauses 8-10
+# Module System, Classes, and Contracts
+# Lines: 5653-8200 (approximate)
+
+metadata:
+  title: "CRI: Modules, Classes, Contracts"
+  clauses: [8, 9, 10]
+  line_range: "5653-8200"
+  generated: "2025-12-03"
+  spec_version: "Draft"
+
+# =============================================================================
+# CLAUSE 8: MODULES AND NAME RESOLUTION
+# =============================================================================
+
+clause_8_modules:
+  title: "Modules and Name Resolution"
+  line_range: "5653-6465"
+
+  sections:
+    - id: "8.1"
+      title: "Module System Architecture"
+      line_start: 5657
+      concepts:
+        - name: "Project"
+          definition: "Top-level organizational unit with Cursive.toml manifest"
+        - name: "Assembly"
+          definition: "Collection of modules compiled as single unit (library or executable)"
+        - name: "Module"
+          definition: "Fundamental unit of code organization; one directory with .cursive files"
+        - name: "Compilation Unit"
+          definition: "All source files constituting a single module"
+        - name: "Folder-as-Module Principle"
+          definition: "Each directory with .cursive files = one module"
+        - name: "Multi-File Processing Order"
+          definition: "IDB (Implementation-Defined Behavior); semantics must be order-independent"
+
+      grammar:
+        - production: "top_level_item"
+          syntax: "import_decl | use_decl | static_decl | procedure_decl | type_decl | class_declaration"
+          line: 5699
+        - production: "static_decl"
+          syntax: 'visibility? ("let" | "var") binding'
+          line: 5706
+        - production: "type_decl"
+          syntax: 'visibility? ("record" | "enum" | "modal" | "type") identifier ...'
+          line: 5707
+        - production: "procedure_decl"
+          syntax: 'visibility? "procedure" identifier ...'
+          line: 5708
+        - production: "module_path"
+          syntax: 'identifier ("::" identifier)*'
+          line: 5716
+
+      formal_rules:
+        - name: "WF-Module-Path-Derivation"
+          description: "Module path derived from filesystem structure"
+          formula: "replace(relative_path, PATH_SEPARATOR, '::')"
+          line: 5725
+
+      constraints:
+        - "Visibility defaults to 'internal'"
+        - "Identifier uniqueness across module (unified namespace)"
+        - "No control-flow at module scope"
+        - "No expression statements at module scope"
+
+      diagnostics:
+        - code: "E-MOD-1106"
+          severity: "Error"
+          condition: "Module path component not valid identifier"
+          line: 5751
+        - code: "E-NAM-1302"
+          severity: "Error"
+          condition: "Duplicate declaration in module scope"
+          line: 5752
+        - code: "E-SYN-0501"
+          severity: "Error"
+          condition: "Control-flow construct at module scope"
+          line: 5753
+
+      cross_references:
+        - target: "§9.2"
+          note: "class_declaration production"
+          line: 5711
+        - target: "§3.4"
+          note: "Binding model (let/var semantics)"
+          line: 5711
+
+    - id: "8.2"
+      title: "Project Manifest"
+      line_start: 5757
+      concepts:
+        - name: "Cursive.toml"
+          definition: "UTF-8 TOML 1.0 manifest at project root"
+        - name: "Manifest Tables"
+          definition: "[project], [language], [paths], [[assembly]]"
+
+      tables:
+        - name: "[project]"
+          required_keys: ["name", "version"]
+          format: "SemVer"
+        - name: "[language]"
+          required_keys: ["version"]
+          format: "SemVer (minimum compiler version)"
+        - name: "[paths]"
+          required_keys: "symbolic_name -> relative_path mappings"
+        - name: "[[assembly]]"
+          required_keys: ["name", "root", "path"]
+          optional_keys: ["type: library|executable (default: library)"]
+
+      formal_rules:
+        - name: "WF-Manifest"
+          description: "Manifest well-formedness"
+          line: 5818
+        - name: "WF-Manifest-Project"
+          line: 5832
+        - name: "WF-Manifest-Language"
+          line: 5842
+        - name: "WF-Manifest-Paths"
+          line: 5852
+        - name: "WF-Manifest-Assembly"
+          line: 5862
+
+      diagnostics:
+        - code: "E-MOD-1101"
+          severity: "Error"
+          condition: "Cursive.toml not found or malformed"
+          line: 5876
+        - code: "E-MOD-1102"
+          severity: "Error"
+          condition: "[paths] missing, empty, or invalid"
+          line: 5877
+        - code: "E-MOD-1103"
+          severity: "Error"
+          condition: "Assembly root not in [paths]"
+          line: 5878
+        - code: "E-MOD-1107"
+          severity: "Error"
+          condition: "[project] table or keys missing"
+          line: 5879
+        - code: "E-MOD-1108"
+          severity: "Error"
+          condition: "Duplicate assembly name"
+          line: 5880
+        - code: "E-MOD-1109"
+          severity: "Error"
+          condition: "[language] version missing or incompatible"
+          line: 5881
+
+    - id: "8.3"
+      title: "Module Discovery and Paths"
+      line_start: 5885
+      concepts:
+        - name: "Module Path"
+          definition: "Sequence of identifiers (::) uniquely identifying module"
+        - name: "Case-Sensitivity"
+          definition: "Collision detection on case-insensitive filesystems"
+
+      formal_rules:
+        - name: "WF-Module-Path"
+          description: "All components must be valid identifiers, not keywords"
+          line: 5897
+        - name: "WF-Module-Path-Collision"
+          description: "Case-folded NFC normalization check"
+          line: 5916
+
+      diagnostics:
+        - code: "E-MOD-1104"
+          severity: "Error"
+          condition: "Module path collision on case-insensitive filesystem"
+          line: 5929
+        - code: "E-MOD-1105"
+          severity: "Error"
+          condition: "Module path component is reserved keyword"
+          line: 5930
+        - code: "E-MOD-1106"
+          severity: "Error"
+          condition: "Module path component not valid identifier"
+          line: 5931
+        - code: "W-MOD-1101"
+          severity: "Warning"
+          condition: "Potential collision on case-insensitive systems"
+          line: 5932
+
+      cross_references:
+        - target: "§2.5"
+          note: "Identifier syntax"
+          line: 5908
+        - target: "§2.6"
+          note: "Reserved keywords"
+          line: 5908
+
+    - id: "8.4"
+      title: "Scope Context Structure"
+      line_start: 5936
+      concepts:
+        - name: "Scope"
+          definition: "Region where names are valid; lexically nested"
+        - name: "Scope Context (Γ)"
+          definition: "Ordered list of scope mappings: [S_local, S_proc, S_module, S_universe]"
+        - name: "Universe Scope"
+          definition: "Implicit outermost scope: primitive types, true/false, cursive.*"
+        - name: "Unified Namespace"
+          definition: "Single namespace per scope shared by terms, types, modules"
+
+      scope_hierarchy:
+        - level: "S_local"
+          contents: "Block-local bindings (let, var, loop, match)"
+        - level: "S_proc"
+          contents: "Procedure parameters, local type parameters"
+        - level: "S_module"
+          contents: "Module declarations, imported/used names"
+        - level: "S_universe"
+          contents: "Primitive types, literals, cursive.* namespace"
+
+      formal_rules:
+        - name: "Context Extension"
+          formula: "Γ, x : T ≡ [S_local ∪ {x ↦ T}, S_proc, S_module, S_universe]"
+          line: 5989
+
+      diagnostics:
+        - code: "E-NAM-1302"
+          severity: "Error"
+          condition: "Duplicate name in scope"
+          line: 6005
+
+      cross_references:
+        - target: "§5.1"
+          note: "Primitive types"
+          line: 5965
+        - target: "§8.4"
+          note: "Unified namespace principle"
+          line: 5745
+
+    - id: "8.5"
+      title: "Visibility and Access Control"
+      line_start: 6009
+      concepts:
+        - name: "Visibility Levels"
+          definition: "public, internal (default), private, protected"
+
+      visibility_table:
+        - modifier: "public"
+          scope: "Any module in any assembly"
+        - modifier: "internal"
+          scope: "Same assembly only (DEFAULT)"
+        - modifier: "private"
+          scope: "Defining module only"
+        - modifier: "protected"
+          scope: "Defining type and class implementations only"
+
+      grammar:
+        - production: "visibility"
+          syntax: '"public" | "internal" | "private" | "protected"'
+          line: 6033
+
+      formal_rules:
+        - name: "WF-Access-Public"
+          line: 6050
+        - name: "WF-Access-Internal"
+          line: 6055
+        - name: "WF-Access-Private"
+          line: 6060
+        - name: "WF-Access-Protected-Self"
+          line: 6065
+        - name: "WF-Access-Protected-Class"
+          line: 6070
+
+      constraints:
+        - "protected MUST NOT be used on top-level declarations"
+        - "Intra-assembly access automatic without import"
+
+      diagnostics:
+        - code: "E-NAM-1305"
+          severity: "Error"
+          condition: "Inaccessible item (visibility violation)"
+          line: 6085
+        - code: "E-DEC-2440"
+          severity: "Error"
+          condition: "protected on top-level declaration"
+          line: 6086
+        - code: "E-MOD-1207"
+          severity: "Error"
+          condition: "Cannot access protected item from this scope"
+          line: 6087
+
+    - id: "8.6"
+      title: "Import and Use Declarations"
+      line_start: 6091
+      concepts:
+        - name: "Import Declaration"
+          definition: "Declares external assembly dependency; enables qualified access"
+        - name: "Use Declaration"
+          definition: "Creates scope alias for unqualified access"
+        - name: "Re-export"
+          definition: "public use makes item part of module's public API"
+
+      grammar:
+        - production: "import_decl"
+          syntax: '"import" module_path ("as" identifier)?'
+          line: 6112
+        - production: "use_decl"
+          syntax: 'visibility? "use" use_clause'
+          line: 6114
+        - production: "use_clause"
+          syntax: 'use_path ("as" identifier)? | use_path "::" use_list | use_path "::" "*"'
+          line: 6115
+        - production: "use_path"
+          syntax: 'module_path ("::" identifier)?'
+          line: 6119
+        - production: "use_list"
+          syntax: '"{" use_specifier ("," use_specifier)* ","? "}"'
+          line: 6120
+        - production: "use_specifier"
+          syntax: 'identifier ("as" identifier)? | "self" ("as" identifier)?'
+          line: 6121
+
+      import_semantics:
+        - "Establishes assembly dependency edge"
+        - "Makes module namespace available for qualified access"
+        - "Does NOT introduce names into unqualified namespace"
+        - "Alias (as) becomes local name"
+
+      use_semantics:
+        - item_use: "use path::Item - introduces binding"
+        - list_use: "use path::{A, B, C} - multiple bindings"
+        - self_use: "use path::{self, A} - module + items"
+        - wildcard_use: "use path::* - all accessible items"
+
+      formal_rules:
+        - name: "WF-Use-Item"
+          line: 6186
+        - name: "WF-Use-Wildcard"
+          line: 6196
+        - name: "WF-Use-Public"
+          description: "Re-export must be public"
+          line: 6213
+
+      constraints:
+        - "External assemblies require import before use"
+        - "Same assembly: use without import"
+        - "Cyclic imports forbidden"
+        - "Cannot re-export private/internal items"
+
+      diagnostics:
+        - code: "E-MOD-1201"
+          severity: "Error"
+          condition: "Circular import dependency"
+          line: 6240
+        - code: "E-MOD-1202"
+          severity: "Error"
+          condition: "Import of non-existent assembly/module"
+          line: 6241
+        - code: "E-MOD-1203"
+          severity: "Error"
+          condition: "Name conflict from use/import"
+          line: 6242
+        - code: "E-MOD-1204"
+          severity: "Error"
+          condition: "Item in use path not found/accessible"
+          line: 6243
+        - code: "E-MOD-1205"
+          severity: "Error"
+          condition: "public use of non-public item"
+          line: 6244
+        - code: "E-MOD-1206"
+          severity: "Error"
+          condition: "Duplicate item in use list"
+          line: 6245
+        - code: "W-MOD-1201"
+          severity: "Warning"
+          condition: "Wildcard use in public API module"
+          line: 6246
+
+      cross_references:
+        - target: "§8.5"
+          note: "Visibility rules"
+          line: 6248
+
+    - id: "8.7"
+      title: "Name Resolution"
+      line_start: 6252
+      concepts:
+        - name: "Name Introduction"
+          definition: "Adding binding to scope namespace"
+        - name: "Shadowing"
+          definition: "Inner scope obscures outer scope binding"
+        - name: "Name Lookup"
+          definition: "Finding entity referenced by identifier"
+
+      shadowing_rules:
+        - "Explicit shadowing with 'shadow' keyword"
+        - "Strict Mode: implicit shadowing = E-NAM-1303 error"
+        - "Permissive Mode: implicit shadowing = W-NAM-1303 warning"
+        - "Using 'shadow' when nothing shadowed = E-NAM-1306 error"
+
+      lookup_algorithms:
+        - unqualified: "Search innermost to outermost scope"
+        - qualified: "p::i - resolve prefix p to module m, then i in m"
+
+      diagnostics:
+        - code: "E-NAM-1301"
+          severity: "Error"
+          condition: "Unresolved name"
+          line: 6299
+        - code: "E-NAM-1302"
+          severity: "Error"
+          condition: "Duplicate name in scope"
+          line: 6300
+        - code: "E-NAM-1303"
+          severity: "Error"
+          condition: "Shadowing without 'shadow' (Strict Mode)"
+          line: 6301
+        - code: "W-NAM-1303"
+          severity: "Warning"
+          condition: "Shadowing without 'shadow' (Permissive Mode)"
+          line: 6302
+        - code: "E-NAM-1304"
+          severity: "Error"
+          condition: "Unresolved module path prefix"
+          line: 6303
+        - code: "E-NAM-1306"
+          severity: "Error"
+          condition: "Unnecessary shadow keyword"
+          line: 6304
+
+      cross_references:
+        - target: "§8.5"
+          note: "Visibility"
+          line: 6306
+
+    - id: "8.8"
+      title: "Module Initialization"
+      line_start: 6310
+      concepts:
+        - name: "Module Dependency Graph (MDG)"
+          definition: "Directed graph G=(V,E) of module dependencies"
+        - name: "Edge Classification"
+          types:
+            - "Value-Level: expression evaluates binding from other module"
+            - "Type-Level: reference to type/class/constant signature only"
+        - name: "Eager Dependencies"
+          definition: "Value-Level from module-level initializer"
+        - name: "Lazy Dependencies"
+          definition: "Type-Level OR Value-Level in procedure bodies"
+        - name: "Initialization Stages"
+          stages:
+            - "Static: compile-time constants in data section"
+            - "Dynamic: runtime execution before main()"
+
+      formal_rules:
+        - name: "WF-Dep-Value"
+          description: "Value-level edge classification"
+          line: 6357
+        - name: "WF-Acyclic-Eager-Deps"
+          description: "Eager subgraph must be DAG"
+          line: 6369
+
+      execution_order:
+        - "Topological sort of eager dependency graph"
+        - "Execute initializers in lexical order per module"
+        - "Multi-file order: IDB, lexical within each file"
+
+      failure_semantics:
+        - "Panic in initializer = module failed"
+        - "Program state = poisoned"
+        - "Access to failed module = panic"
+
+      diagnostics:
+        - code: "E-MOD-1401"
+          severity: "Error"
+          condition: "Cyclic module dependency in eager initializers"
+          line: 6403
+
+      cross_references:
+        - target: "§8.1"
+          note: "File processing order"
+          line: 6390
+
+    - id: "8.9"
+      title: "Program Entry Point"
+      line_start: 6407
+      concepts:
+        - name: "Entry Point"
+          definition: "main procedure receives root capabilities"
+        - name: "No Ambient Authority"
+          definition: "All I/O/effects require explicit capability parameter"
+        - name: "Context Record"
+          definition: "Root capabilities (fs, net, sys, heap) - see Appendix E"
+
+      signature:
+        required: "public procedure main(ctx: Context) -> i32"
+        constraints:
+          - "Must be public"
+          - "Exactly one Context parameter"
+          - "Must return i32"
+          - "Must not be generic"
+
+      return_semantics:
+        - "0 = success"
+        - "non-zero = failure (application-defined codes)"
+
+      global_state:
+        definition: "Module-level var bindings"
+        constraint: "Module-level var MUST NOT be public"
+
+      diagnostics:
+        - code: "E-DEC-2430"
+          severity: "Error"
+          condition: "Multiple main procedures"
+          line: 6459
+        - code: "E-DEC-2431"
+          severity: "Error"
+          condition: "Invalid main signature"
+          line: 6460
+        - code: "E-DEC-2432"
+          severity: "Error"
+          condition: "main is generic"
+          line: 6461
+        - code: "E-DEC-2433"
+          severity: "Error"
+          condition: "Public mutable global state"
+          line: 6462
+
+# =============================================================================
+# CLAUSE 9: CLASSES AND POLYMORPHISM
+# =============================================================================
+
+clause_9_classes:
+  title: "Classes and Polymorphism"
+  line_range: "6466-7207"
+
+  sections:
+    - id: "9.1"
+      title: "Introduction to Classes"
+      line_start: 6468
+      concepts:
+        - name: "Class"
+          definition: "Abstract interface: procedure signatures, associated types, abstract fields/states"
+        - name: "Class Tuple"
+          formula: "Cl = (N, G, S, P_abs, P_con, A_abs, A_con, F, St)"
+          components:
+            - "N: class name"
+            - "G: generic type parameters"
+            - "S: superclass bounds"
+            - "P_abs: abstract procedures"
+            - "P_con: concrete procedures (defaults)"
+            - "A_abs: abstract associated types"
+            - "A_con: concrete associated types"
+            - "F: abstract fields"
+            - "St: abstract states"
+        - name: "Modal Class"
+          definition: "Class with St ≠ ∅; only modal types can implement"
+        - name: "Implementation Relation"
+          formula: "T <: Cl"
+
+      polymorphism_paths:
+        - path: 1
+          name: "Static Polymorphism"
+          dispatch: "Compile-time (monomorphization)"
+          cost: "Zero"
+          use_case: "Constrained generics"
+        - path: 2
+          name: "Dynamic Polymorphism"
+          dispatch: "Runtime (vtable)"
+          cost: "One indirect call"
+          use_case: "Heterogeneous collections"
+        - path: 3
+          name: "Opaque Polymorphism"
+          dispatch: "Compile-time (type erasure)"
+          cost: "Zero"
+          use_case: "Hidden return types"
+
+      path_selection:
+        - "Static: generic parameter T <: Tr"
+        - "Dynamic: dyn Tr type"
+        - "Opaque: opaque Tr return type"
+
+    - id: "9.2"
+      title: "Class Declarations"
+      line_start: 6527
+      concepts:
+        - name: "Abstract Procedure"
+          definition: "Signature without body; implementer must provide"
+        - name: "Concrete Procedure"
+          definition: "Signature with body; default implementation"
+        - name: "Associated Type"
+          definition: "Type declaration in class (abstract or concrete)"
+        - name: "Abstract Field"
+          definition: "Required field name and type"
+        - name: "Abstract State"
+          definition: "Required state name and minimum payload"
+        - name: "Self Type"
+          definition: "Within class, Self denotes implementing type"
+        - name: "Generic Class Parameters"
+          definition: "class Foo<T> - specified at use-site"
+        - name: "Superclass"
+          definition: "class Sub <: A + B - nominal subtyping"
+        - name: "Class Alias"
+          definition: "type Alias = A + B - compound bound shorthand"
+
+      grammar:
+        - production: "class_declaration"
+          syntax: '[visibility] "class" identifier [generic_params] ["<:" superclass_bounds] "{" class_item* "}"'
+          line: 6586
+        - production: "superclass_bounds"
+          syntax: "class_bound ('+' class_bound)*"
+          line: 6592
+        - production: "class_bound"
+          syntax: "type_path [generic_args]"
+          line: 6593
+        - production: "class_item"
+          syntax: "abstract_procedure | concrete_procedure | associated_type | abstract_field | abstract_state"
+          line: 6595
+        - production: "abstract_procedure"
+          syntax: '"procedure" identifier signature [contract_clause] ";"'
+          line: 6602
+        - production: "concrete_procedure"
+          syntax: '"procedure" identifier signature [contract_clause] block'
+          line: 6605
+        - production: "associated_type"
+          syntax: '"type" identifier ["=" type] ";"'
+          line: 6608
+        - production: "abstract_field"
+          syntax: "identifier ':' type"
+          line: 6611
+        - production: "abstract_state"
+          syntax: '"@" identifier "{" [field_list] "}"'
+          line: 6614
+        - production: "class_alias"
+          syntax: '[visibility] "type" identifier [generic_params] "=" class_bound ("+" class_bound)* ";"'
+          line: 6617
+
+      formal_rules:
+        - name: "WF-Class"
+          description: "Class well-formedness"
+          line: 6642
+        - name: "WF-Class-Self"
+          description: "Self type in class context"
+          line: 6664
+        - name: "T-Modal-Class"
+          description: "Modal class constraint"
+          line: 6667
+        - name: "WF-State-Ref"
+          description: "State reference well-formedness"
+          line: 6679
+        - name: "T-State-Union"
+          description: "Union of class states as return type"
+          line: 6689
+        - name: "T-Superclass"
+          description: "Superclass inheritance"
+          line: 6700
+        - name: "T-Alias-Equiv"
+          description: "Class alias equivalence"
+          line: 6712
+
+      well_formedness_requirements:
+        - "Unique identifier in namespace"
+        - "All procedure signatures well-formed"
+        - "Unique names for associated types, fields, states"
+        - "No name conflicts among members"
+        - "Valid superclass references"
+        - "No cyclic superclass dependencies"
+        - "Unique field names within state payloads"
+        - "State references in signatures declared in class"
+
+      diagnostics:
+        - code: "E-TRS-2900"
+          severity: "Error"
+          condition: "Duplicate procedure name in class"
+          line: 6723
+        - code: "E-TRS-2904"
+          severity: "Error"
+          condition: "Duplicate associated type name"
+          line: 6724
+        - code: "E-TRS-2905"
+          severity: "Error"
+          condition: "Name conflict among members"
+          line: 6725
+        - code: "E-TRS-2908"
+          severity: "Error"
+          condition: "Cyclic superclass dependency"
+          line: 6726
+        - code: "E-TRS-2909"
+          severity: "Error"
+          condition: "Superclass refers to undefined class"
+          line: 6727
+        - code: "E-CLS-0408"
+          severity: "Error"
+          condition: "Duplicate abstract field name"
+          line: 6728
+        - code: "E-CLS-0409"
+          severity: "Error"
+          condition: "Duplicate abstract state name"
+          line: 6729
+        - code: "E-CLS-0410"
+          severity: "Error"
+          condition: "State reference to undeclared state"
+          line: 6730
+        - code: "E-CLS-0411"
+          severity: "Error"
+          condition: "Duplicate field name in state payload"
+          line: 6731
+
+      cross_references:
+        - target: "§7.1"
+          note: "Static polymorphism (generic_params, generic_args)"
+          line: 6622
+        - target: "§10.1"
+          note: "Contract fundamentals (contract_clause)"
+          line: 6622
+
+    - id: "9.3"
+      title: "Class Implementation"
+      line_start: 6735
+      concepts:
+        - name: "Class Implementation"
+          definition: "Type declares '<: Class' and provides all required members"
+        - name: "Implementation Site"
+          definition: "Must occur at type definition; no extension implementations"
+        - name: "Orphan Rule"
+          definition: "For T <: Tr, either T or Tr must be defined in current assembly"
+        - name: "Override Keyword"
+          usage:
+            - "MUST NOT use for abstract procedure implementation"
+            - "MUST use when replacing concrete procedure"
+        - name: "Coherence Rule"
+          definition: "Type may implement class at most once"
+
+      grammar:
+        - production: "implements_clause"
+          syntax: '"<:" class_list'
+          line: 6772
+        - production: "class_list"
+          syntax: "type_path (',' type_path)*"
+          line: 6773
+
+      formal_rules:
+        - name: "T-Impl-Complete"
+          description: "Implementation completeness"
+          line: 6778
+        - name: "WF-Impl"
+          description: "Implementation well-formedness"
+          line: 6791
+        - name: "T-Field-Compat"
+          description: "Field type compatibility"
+          line: 6834
+        - name: "T-State-Compat"
+          description: "State payload compatibility"
+          line: 6847
+        - name: "T-State-Uninhabited"
+          description: "Omission of uninhabited states"
+          line: 6863
+        - name: "T-Field-Conflict"
+          description: "Field name conflicts from multiple classes"
+          line: 6881
+        - name: "T-State-Conflict"
+          description: "State name conflicts from multiple classes"
+          line: 6889
+
+      field_state_implementation:
+        - "Field: implementing type must have field with same name and compatible type (subtype)"
+        - "State: implementing modal must have state with same name and at least required fields"
+        - "Additional fields permitted in implementing state (invisible through class interface)"
+        - "Pattern matching: only class-declared fields accessible"
+        - "Uninhabited state: may be omitted if any field has type !"
+
+      diagnostics:
+        - code: "E-TRS-2901"
+          severity: "Error"
+          condition: "override on abstract procedure"
+          line: 6904
+        - code: "E-TRS-2902"
+          severity: "Error"
+          condition: "Missing override on concrete procedure"
+          line: 6905
+        - code: "E-TRS-2903"
+          severity: "Error"
+          condition: "Missing required procedure"
+          line: 6906
+        - code: "E-TRS-2906"
+          severity: "Error"
+          condition: "Duplicate class implementation"
+          line: 6907
+        - code: "E-TRS-2907"
+          severity: "Error"
+          condition: "Orphan rule violation"
+          line: 6908
+        - code: "E-CLS-0401"
+          severity: "Error"
+          condition: "Non-modal type implements modal class"
+          line: 6909
+        - code: "E-CLS-0402"
+          severity: "Error"
+          condition: "Missing required field"
+          line: 6910
+        - code: "E-CLS-0403"
+          severity: "Error"
+          condition: "Missing required state"
+          line: 6911
+        - code: "E-CLS-0404"
+          severity: "Error"
+          condition: "Incompatible field type"
+          line: 6912
+        - code: "E-CLS-0405"
+          severity: "Error"
+          condition: "Missing state payload field"
+          line: 6913
+        - code: "E-CLS-0406"
+          severity: "Error"
+          condition: "Conflicting field names"
+          line: 6914
+        - code: "E-CLS-0407"
+          severity: "Error"
+          condition: "Conflicting state names"
+          line: 6915
+
+      cross_references:
+        - target: "§5.3"
+          note: "record_decl with implements_clause"
+          line: 6761
+        - target: "§5.4"
+          note: "enum_decl with implements_clause"
+          line: 6762
+        - target: "§6.1"
+          note: "modal_decl with implements_clause"
+          line: 6763
+
+    - id: "9.4"
+      title: "Class Constraints in Generics"
+      line_start: 6919
+      concepts:
+        - name: "Class Constraint"
+          definition: "Generic parameter T <: Tr restricts type arguments"
+        - name: "Constraint Satisfaction"
+          definition: "Type argument must implement Tr"
+        - name: "Method Availability"
+          definition: "Tr methods callable on T via static dispatch"
+
+      diagnostics:
+        - code: "E-TRS-2930"
+          severity: "Error"
+          condition: "Type argument doesn't satisfy constraint"
+          line: 6939
+        - code: "E-TRS-2931"
+          severity: "Error"
+          condition: "Unconstrained parameter used in class method"
+          line: 6940
+
+      cross_references:
+        - target: "§7.1"
+          note: "Static polymorphism specification"
+          line: 6925
+
+    - id: "9.5"
+      title: "Dynamic Polymorphism (Witnesses)"
+      line_start: 6952
+      concepts:
+        - name: "Witness (dyn)"
+          definition: "dyn Class - sized type for runtime polymorphism via vtable"
+        - name: "Witness Safety (Object Safety)"
+          definition: "Class is dyn-safe if procedures are vtable-eligible or [[static_dispatch_only]]"
+        - name: "VTable Eligibility"
+          requirements:
+            - "Has receiver parameter"
+            - "No generic type parameters"
+            - "Does not return Self by value (except box Self or dyn Self)"
+            - "Does not use Self in parameters (except via pointer)"
+        - name: "[[static_dispatch_only]]"
+          definition: "Attribute excludes procedure from vtable; static contexts only"
+        - name: "State Dispatch"
+          definition: "Modal class dyn uses vtable state mapping for pattern matching"
+
+      grammar:
+        - production: "dyn_type"
+          syntax: '"dyn" class_path'
+          line: 7002
+
+      formal_rules:
+        - name: "dyn_safe definition"
+          formula: "dyn_safe(Tr) ⟺ ∀p ∈ procedures(Tr). vtable_eligible(p) ∨ has_static_dispatch_attr(p)"
+          line: 6988
+        - name: "T-Witness-Form"
+          description: "Witness formation from concrete type"
+          line: 7007
+        - name: "E-Witness-Form"
+          description: "Evaluation rule for witness creation"
+          line: 7027
+        - name: "E-Witness-Dispatch"
+          description: "VTable dispatch algorithm"
+          line: 7046
+
+      vtable_layout:
+        structure: "WitnessRepr { data: *imm (), vtable: *imm VTable }"
+        size: "2 * sizeof(usize) (16 bytes on 64-bit)"
+        alignment: "alignof(usize)"
+        entries:
+          - "size: usize"
+          - "align: usize"
+          - "drop: *imm fn (null if no Drop)"
+          - "state_map: *imm StateMap (null if not modal)"
+          - "methods[..] (in class declaration order)"
+
+      state_map:
+        definition: "For modal classes, maps class state indices to concrete discriminants"
+        dispatch:
+          - "Read concrete discriminant"
+          - "Look up class state index via state map"
+          - "Dispatch to match arm"
+          - "Only class-declared fields accessible"
+
+      diagnostics:
+        - code: "E-TRS-2940"
+          severity: "Error"
+          condition: "[[static_dispatch_only]] called on dyn"
+          line: 7099
+        - code: "E-TRS-2941"
+          severity: "Error"
+          condition: "Witness from non-dyn-safe class"
+          line: 7100
+        - code: "E-TRS-2942"
+          severity: "Error"
+          condition: "Generic procedure without [[static_dispatch_only]]"
+          line: 7101
+
+      cross_references:
+        - target: "§4.5"
+          note: "Permissions on witness types"
+          line: 7105
+        - target: "§13.3.1"
+          note: "Witness Types and Shared Permission"
+          line: 7105
+
+    - id: "9.6"
+      title: "Opaque Polymorphism"
+      line_start: 7109
+      concepts:
+        - name: "Opaque Type"
+          definition: "opaque Class - hides concrete type, exposes only class interface"
+        - name: "Type Encapsulation"
+          mechanism:
+            - "Callee returns concrete type implementing Class"
+            - "Caller observes only Class members"
+            - "Concrete type members forbidden"
+        - name: "Opaque Type Equality"
+          definition: "Two opaque Tr are distinct if from different procedures"
+        - name: "Zero Overhead"
+          definition: "Returned value is concrete type, not fat pointer"
+
+      grammar:
+        - production: "return_type"
+          syntax: '... | "opaque" class_path'
+          line: 7126
+
+      formal_rules:
+        - name: "T-Opaque-Return"
+          description: "Procedure body typing against opaque return"
+          line: 7138
+        - name: "T-Opaque-Project"
+          description: "Call site projection to class interface"
+          line: 7155
+        - name: "T-Opaque-Distinct"
+          description: "Distinct procedures yield distinct opaque types"
+          line: 7174
+
+      diagnostics:
+        - code: "E-TRS-2910"
+          severity: "Error"
+          condition: "Accessing non-class member on opaque"
+          line: 7194
+        - code: "E-TRS-2911"
+          severity: "Error"
+          condition: "Opaque return doesn't implement class"
+          line: 7195
+        - code: "E-TRS-2912"
+          severity: "Error"
+          condition: "Incompatible opaque types"
+          line: 7196
+
+    - id: "9.7"
+      title: "Foundational Classes"
+      line_start: 7200
+      concepts:
+        - name: "Foundational Classes"
+          list: ["Drop", "Copy", "Clone", "Iterator"]
+          definition: "Special compiler semantics; defined in Appendix D.1"
+
+      cross_references:
+        - target: "Appendix D.1"
+          note: "Normative signatures and semantics"
+          line: 7204
+
+# =============================================================================
+# CLAUSE 10: CONTRACTS AND VERIFICATION
+# =============================================================================
+
+clause_10_contracts:
+  title: "Contracts and Verification"
+  line_range: "7208-8152"
+
+  sections:
+    - id: "10.1"
+      title: "Contract Fundamentals"
+      line_start: 7214
+      concepts:
+        - name: "Contract"
+          definition: "Specification (|=) with preconditions and postconditions"
+          formula: "C = (P_pre, P_post) where P_pre, P_post ∈ Predicate*"
+        - name: "Predicate"
+          definition: "Pure boolean expression in evaluation context"
+        - name: "Distinction from Capabilities"
+          note: "Contracts = logical validity; Capabilities = authority for effects"
+
+      grammar:
+        - production: "contract_clause"
+          syntax: '"|=" contract_body'
+          line: 7239
+        - production: "contract_body"
+          syntax: "precondition_expr | precondition_expr '=>' postcondition_expr | '=>' postcondition_expr"
+          line: 7242
+        - production: "precondition_expr"
+          syntax: "predicate_expr"
+          line: 7247
+        - production: "postcondition_expr"
+          syntax: "predicate_expr"
+          line: 7250
+        - production: "predicate_expr"
+          syntax: "logical_or_expr"
+          line: 7253
+        - production: "logical_or_expr"
+          syntax: "logical_and_expr | logical_or_expr '||' logical_and_expr"
+          line: 7256
+        - production: "logical_and_expr"
+          syntax: "logical_not_expr | logical_and_expr '&&' logical_not_expr"
+          line: 7260
+        - production: "logical_not_expr"
+          syntax: "'!' logical_not_expr | primary_predicate"
+          line: 7264
+        - production: "primary_predicate"
+          syntax: "comparison_expr | '(' predicate_expr ')' | identifier | procedure_call | field_access | contract_intrinsic"
+          line: 7268
+        - production: "contract_intrinsic"
+          syntax: "'@result' | '@entry' '(' expression ')'"
+          line: 7276
+
+      positioning:
+        rule: "After return type (or parameter list), before body/semicolon"
+
+      formal_rules:
+        - name: "WF-Contract"
+          description: "Contract well-formedness"
+          formula: "Γ_pre ⊢ P_pre : bool ∧ pure(P_pre) ∧ Γ_post ⊢ P_post : bool ∧ pure(P_post)"
+          line: 7307
+
+      logical_operators:
+        precedence:
+          - level: 1
+            operator: "!"
+            associativity: "right"
+          - level: 2
+            operator: "&&"
+            associativity: "left"
+          - level: 3
+            operator: "||"
+            associativity: "left"
+        short_circuit: "&&: stop if left false; ||: stop if left true"
+
+      cross_references:
+        - target: "§10.1.2"
+          note: "Evaluation contexts"
+          line: 7319
+        - target: "§10.1.1"
+          note: "Purity constraints"
+          line: 7320
+        - target: "§2.12"
+          note: "Grammar enforcement"
+          line: 7333
+
+    - id: "10.1.1"
+      title: "Purity Constraints"
+      line_start: 7337
+      concepts:
+        - name: "Pure Expression"
+          definition: "No observable side effects"
+
+      purity_requirements:
+        - "Must NOT invoke procedures with capability parameters"
+        - "Must NOT mutate observable state"
+        - "Built-in operators on primitives always pure"
+        - "comptime procedures always pure"
+
+      diagnostics:
+        - code: "E-CON-2802"
+          severity: "Error"
+          condition: "Impure expression in contract"
+          line: 7355
+
+      cross_references:
+        - target: "§10.1.1"
+          note: "Referenced in WF-Contract"
+          line: 7320
+
+    - id: "10.1.2"
+      title: "Evaluation Contexts"
+      line_start: 7359
+      concepts:
+        - name: "Evaluation Context"
+          definition: "Bindings available for predicate reference"
+        - name: "Precondition Context (Γ_pre)"
+          includes:
+            - "All procedure parameters at entry state"
+            - "Receiver binding (via shorthand)"
+            - "Enclosing scope bindings (side-effect-free)"
+          excludes:
+            - "@result intrinsic"
+            - "@entry operator"
+            - "Procedure body bindings"
+        - name: "Postcondition Context (Γ_post)"
+          includes:
+            - "All procedure parameters (post-state for mutable)"
+            - "Receiver binding (post-state for mutable)"
+            - "@result intrinsic"
+            - "@entry operator"
+            - "Enclosing scope bindings"
+
+      mutable_parameter_state:
+        table:
+          - location: "Left of =>"
+            state: "Entry state"
+          - location: "Right of => (bare)"
+            state: "Post-state"
+          - location: "Right of => with @entry()"
+            state: "Entry state"
+
+      cross_references:
+        - target: "§10.1.2"
+          note: "Referenced in WF-Contract"
+          line: 7319
+        - target: "§10.2.2"
+          note: "@result and @entry intrinsics"
+          line: 7386
+
+    - id: "10.1.3"
+      title: "Inline Parameter Constraints"
+      line_start: 7417
+      concepts:
+        - name: "Inline Parameter Constraint"
+          definition: "where clause on parameter = refinement type + precondition"
+
+      grammar:
+        - production: "parameter_with_constraint"
+          syntax: 'identifier ":" type_expr "where" "{" predicate_expr "}"'
+          line: 7426
+
+      desugaring:
+        - "x: T where { P } ≡ refinement type T where { P }"
+        - "Add P as conjunct to effective precondition"
+
+      effective_precondition:
+        formula: "P_eff = P_1 ∧ P_2 ∧ ... ∧ P_n ∧ P_proc"
+
+      cross_references:
+        - target: "§7.3"
+          note: "Refinement types"
+          line: 7438
+
+    - id: "10.2"
+      title: "Contract Clauses"
+      line_start: 7450
+      subsections:
+        - "10.2.1: Preconditions"
+        - "10.2.2: Postconditions"
+
+    - id: "10.2.1"
+      title: "Preconditions"
+      line_start: 7458
+      concepts:
+        - name: "Precondition"
+          definition: "Expression left of => (or entire if no =>); caller obligation"
+
+      formal_rules:
+        - name: "Pre-Satisfied"
+          description: "Caller obligation verification"
+          formula: "Verification Fact F(P_pre, L) where L dominates call site S"
+          line: 7468
+
+      attribution: "Failure attributed to CALLER (call site)"
+
+      elision_rules:
+        - form: "|= P"
+          precondition: "P"
+        - form: "|= P => Q"
+          precondition: "P"
+        - form: "|= => Q"
+          precondition: "true (always satisfied)"
+        - form: "(no contract)"
+          precondition: "true (always satisfied)"
+
+      verification:
+        - "Static mode: must prove or E-CON-2801"
+        - "Dynamic mode: runtime check on failure; panic on false"
+
+      cross_references:
+        - target: "§10.5"
+          note: "Verification Facts"
+          line: 7468
+        - target: "§10.1.2"
+          note: "Precondition scope Γ_pre"
+          line: 7496
+        - target: "§10.4"
+          note: "Verification strategy"
+          line: 7496
+
+    - id: "10.2.2"
+      title: "Postconditions"
+      line_start: 7500
+      concepts:
+        - name: "Postcondition"
+          definition: "Expression right of =>; callee obligation"
+
+      formal_rules:
+        - name: "Post-Valid"
+          description: "Callee must ensure postcondition at all return points"
+          line: 7510
+
+      attribution: "Failure attributed to CALLEE (return point)"
+
+      elision_rules:
+        - form: "|= P"
+          postcondition: "true (no postcondition)"
+        - form: "|= P => Q"
+          postcondition: "Q"
+        - form: "|= => Q"
+          postcondition: "Q"
+        - form: "(no contract)"
+          postcondition: "true (no postcondition)"
+
+      intrinsics:
+        - name: "@result"
+          availability: "Postcondition only (right of =>)"
+          type: "Return type of enclosing procedure"
+          value: "Value being returned"
+          unit_returns: "If () return, @result = ()"
+          shadowing: "MUST NOT be shadowed"
+
+        - name: "@entry(expr)"
+          availability: "Postcondition only (right of =>)"
+          semantics: "Evaluates expr in entry state"
+          evaluation_point: "After parameter binding, before body"
+          expr_constraint: "MUST be pure"
+          expr_scope: "MUST reference only parameters/receiver"
+          type_constraint: "Result type MUST implement Copy or Clone"
+          capture_mechanism:
+            - "Copy types: bitwise copy (zero overhead)"
+            - "Clone types: invoke clone() at entry (unconditional)"
+          performance_note: "Prefer Copy projections over cloning structures"
+          non_copyable: "Must capture copyable projection, not resource itself"
+
+      diagnostics:
+        - code: "E-CON-2805"
+          severity: "Error"
+          condition: "@entry() result not Copy/Clone"
+          line: 7621
+        - code: "E-CON-2806"
+          severity: "Error"
+          condition: "@result outside postcondition"
+          line: 7622
+
+      verification:
+        - "Static mode: must prove or E-CON-2801"
+        - "Dynamic mode: runtime check on failure; panic on false"
+
+      cross_references:
+        - target: "§10.4"
+          note: "Verification strategy"
+          line: 7624
+        - target: "§10.1.1"
+          note: "Purity constraints"
+          line: 7566
+
+    - id: "10.3"
+      title: "Invariants"
+      line_start: 7628
+      concepts:
+        - name: "Invariant"
+          definition: "Predicate that MUST hold over scope/lifetime"
+        - name: "Forms"
+          types:
+            - "Type Invariants (§10.3.1)"
+            - "Loop Invariants (§10.3.2)"
+
+      cross_references:
+        - target: "§7.3"
+          note: "Refinement types (anonymous invariants)"
+          line: 7634
+        - target: "§10.4"
+          note: "Verification mechanisms"
+          line: 7634
+        - target: "§10.5"
+          note: "Verification mechanisms"
+          line: 7634
+
+    - id: "10.3.1"
+      title: "Type Invariants"
+      line_start: 7638
+      concepts:
+        - name: "Type Invariant"
+          definition: "where clause on record/enum/modal; constrains all instances"
+
+      grammar:
+        - production: "record_declaration"
+          syntax: '[visibility] "record" identifier [generic_params] "{" field_list "}" [type_invariant]'
+          line: 7649
+        - production: "enum_declaration"
+          syntax: '[visibility] "enum" identifier [generic_params] "{" variant_list "}" [type_invariant]'
+          line: 7653
+        - production: "modal_declaration"
+          syntax: '[visibility] "modal" identifier [generic_params] "{" state_list "}" [type_invariant]'
+          line: 7657
+        - production: "type_invariant"
+          syntax: '"where" "{" predicate_expr "}"'
+          line: 7661
+
+      predicate_context:
+        - "self refers to instance"
+        - "Field access on self permitted"
+        - "Pure method calls permitted"
+
+      enforcement_points:
+        - point: "Post-Construction"
+          description: "After constructor/literal initialization"
+        - point: "Pre-Call (Public)"
+          description: "Before public procedure with instance as receiver"
+        - point: "Post-Call (Mutator)"
+          description: "Before unique self procedure returns"
+
+      verification:
+        - "[[dynamic]] context: runtime check on static proof failure"
+        - "Outside [[dynamic]]: static proof required; failure = E-CON-2801"
+
+      effective_postcondition:
+        formula: "EffectivePost(P) = Post ∧ Inv(self)"
+        note: "For unique receiver procedures"
+
+      private_procedure_exemption:
+        - "Private procedures exempt from Pre-Call enforcement"
+        - "Enables temporary invariant violation"
+        - "MUST restore before returning to public caller"
+        - "Type author's responsibility"
+
+      diagnostics:
+        - code: "E-CON-2820"
+          severity: "Error"
+          condition: "Type invariant violated at construction"
+          line: 7740
+          detection: "See §10.4"
+        - code: "E-CON-2821"
+          severity: "Error"
+          condition: "Type invariant violated at public entry"
+          line: 7741
+          detection: "See §10.4"
+        - code: "E-CON-2822"
+          severity: "Error"
+          condition: "Type invariant violated at mutator return"
+          line: 7742
+          detection: "See §10.4"
+
+    - id: "10.3.2"
+      title: "Loop Invariants"
+      line_start: 7746
+      concepts:
+        - name: "Loop Invariant"
+          definition: "where clause on loop; MUST hold at iteration start and after termination"
+
+      grammar:
+        - production: "loop_expression"
+          syntax: '"loop" [loop_condition] [loop_invariant] block'
+          line: 7757
+        - production: "loop_invariant"
+          syntax: '"where" "{" predicate_expr "}"'
+          line: 7760
+        - production: "loop_condition"
+          syntax: "expression"
+          line: 7763
+
+      enforcement_points:
+        - point: "Initialization"
+          description: "Before first iteration"
+          formal: "Γ_0 ⊢ Inv"
+        - point: "Maintenance"
+          description: "At start of each subsequent iteration"
+          formal: "Γ_i ⊢ Inv ⟹ Γ_{i+1} ⊢ Inv"
+        - point: "Termination"
+          description: "After loop terminates"
+          formal: "Γ_exit ⊢ Inv"
+
+      verification_fact_generation:
+        note: "Successful verification generates F(Inv, L_exit)"
+        usage: "Invariant available as postcondition of loop"
+
+      diagnostics:
+        - code: "E-CON-2830"
+          severity: "Error"
+          condition: "Loop invariant not established at initialization"
+          line: 7813
+          detection: "See §10.4"
+        - code: "E-CON-2831"
+          severity: "Error"
+          condition: "Loop invariant not maintained across iteration"
+          line: 7814
+          detection: "See §10.4"
+
+    - id: "10.4"
+      title: "Contract Verification"
+      line_start: 7818
+      concepts:
+        - name: "Verification Strategy"
+          default: "Static verification required"
+          opt_in: "[[dynamic]] permits runtime verification"
+
+      formal_rules:
+        - name: "Contract-Static-OK"
+          condition: "StaticProof(Γ, P)"
+          result: "verified (zero overhead)"
+          line: 7830
+        - name: "Contract-Static-Fail"
+          condition: "¬StaticProof(Γ, P) ∧ ¬InDynamicContext"
+          result: "ill-formed (E-CON-2801)"
+          line: 7839
+        - name: "Contract-Dynamic-Elide"
+          condition: "StaticProof(Γ, P) in [[dynamic]]"
+          result: "verified (zero overhead)"
+          line: 7853
+        - name: "Contract-Dynamic-Check"
+          condition: "¬StaticProof(Γ, P) ∧ InDynamicContext"
+          result: "emit runtime check"
+          line: 7863
+
+      proof_techniques:
+        mandatory:
+          - name: "Constant propagation"
+            description: "Evaluate compile-time constants"
+          - name: "Linear integer reasoning"
+            description: "Prove inequalities over bounded integers"
+          - name: "Boolean algebra"
+            description: "Simplify and prove boolean expressions"
+          - name: "Control flow analysis"
+            description: "Track predicates from conditionals"
+          - name: "Type-derived bounds"
+            description: "Use type constraints (e.g., usize >= 0)"
+          - name: "Verification facts"
+            description: "Use facts from prior checks"
+
+        recommended:
+          - name: "Transitive reasoning"
+            description: "Deduce a < c from a < b ∧ b < c"
+          - name: "Interprocedural analysis"
+            description: "Use postconditions as Verification Facts"
+          - name: "Numeric range inference"
+            description: "Deduce bounds beyond basic type constraints"
+
+      verification_location:
+        - type: "Precondition"
+          verified: "Call site"
+          dynamic_context: "Call expression's context"
+        - type: "Postcondition"
+          verified: "Definition site"
+          dynamic_context: "Procedure's [[dynamic]] status"
+        - type: "Type invariant"
+          verified: "Enforcement point"
+          dynamic_context: "Expression's context"
+        - type: "Loop invariant"
+          verified: "Enforcement point"
+          dynamic_context: "Enclosing scope's context"
+
+      runtime_check_insertion:
+        - contract: "Precondition"
+          location: "Before call (at call site)"
+        - contract: "Postcondition"
+          location: "Before return (in callee)"
+        - contract: "Type invariant"
+          location: "At enforcement points"
+        - contract: "Loop invariant"
+          location: "At enforcement points"
+
+      runtime_check_failure:
+        - "Trigger Panic (P-CON-2850)"
+        - "Include: predicate text, source location, pre/post type"
+        - "Normal panic propagation"
+
+      fact_synthesis:
+        note: "Successful runtime check synthesizes Verification Fact"
+
+      diagnostics:
+        - code: "E-CON-2801"
+          severity: "Error"
+          condition: "Contract not statically provable outside [[dynamic]]"
+          line: 8002
+        - code: "P-CON-2850"
+          severity: "Panic"
+          condition: "Runtime contract check failed"
+          line: 8003
+
+      cross_references:
+        - target: "§10.5"
+          note: "Verification Facts"
+          line: 7887
+        - target: "§10.3.1"
+          note: "Type invariant enforcement"
+          line: 7963
+        - target: "§10.3.2"
+          note: "Loop invariant enforcement"
+          line: 7965
+
+    - id: "10.5"
+      title: "Verification Facts"
+      line_start: 8007
+      concepts:
+        - name: "Verification Fact"
+          definition: "Compiler-internal guarantee F(P, L, S): predicate P holds at location L"
+        - name: "Zero-Size Property"
+          constraints:
+            - "No runtime size"
+            - "No runtime representation"
+            - "Cannot be stored, passed, or returned"
+            - "Exists solely for static analysis"
+
+      formal_rules:
+        - name: "Fact-Dominate"
+          description: "Fact satisfies requirement if it strictly dominates in CFG"
+          formula: "F(P, L) ∈ Facts ∧ L dom S ∧ L ≠ S ⟹ P satisfied at S"
+          line: 8033
+
+      fact_generation:
+        - construct: "if P { ... }"
+          fact: "F(P, _)"
+          location: "Entry of then-branch"
+        - construct: "if !P { } else { ... }"
+          fact: "F(P, _)"
+          location: "Entry of else-branch"
+        - construct: "match x { Pat => ... }"
+          fact: "F(x matches Pat, _)"
+          location: "Entry of match arm"
+        - construct: "Runtime check for P"
+          fact: "F(P, _)"
+          location: "Immediately after check"
+        - construct: "Loop invariant Inv at exit"
+          fact: "F(Inv, _)"
+          location: "Immediately after loop"
+
+      type_narrowing:
+        formula: "typeof(x) →^{F(P,L)} typeof(x) where {P}"
+        note: "Enables flow-sensitive typing"
+
+      dynamic_fact_injection:
+        algorithm:
+          - "Identify requirement P at point S"
+          - "Construct check: if !P { panic(...) }"
+          - "Insert check C to dominate S"
+          - "Successful execution establishes F(P, exit(C))"
+
+      cross_references:
+        - target: "§10.4"
+          note: "Verification mechanisms"
+          line: 7982
+
+    - id: "10.6"
+      title: "Behavioral Subtyping (Liskov Substitution)"
+      line_start: 8087
+      concepts:
+        - name: "Behavioral Subtyping Principle"
+          definition: "Class implementations adhere to LSP for contracts"
+        - name: "Precondition Weakening"
+          rule: "Implementation MAY weaken (require less); MUST NOT strengthen"
+        - name: "Postcondition Strengthening"
+          rule: "Implementation MAY strengthen (guarantee more); MUST NOT weaken"
+
+      verification_strategy:
+        timing: "Statically at compile-time"
+        checks:
+          - "Precondition: impl_pre ⟹ class_pre"
+          - "Postcondition: class_post ⟹ impl_post"
+        infrastructure: "Same as [[verify(static)]]"
+        on_failure: "Ill-formed (structural error)"
+
+      diagnostics:
+        - code: "E-CON-2803"
+          severity: "Error"
+          condition: "Implementation strengthens class precondition"
+          line: 8148
+        - code: "E-CON-2804"
+          severity: "Error"
+          condition: "Implementation weakens class postcondition"
+          line: 8149
+
+      cross_references:
+        - target: "§10.4.1"
+          note: "Proof infrastructure"
+          line: 8112
+
+# =============================================================================
+# GRAMMAR PRODUCTIONS SUMMARY (Clauses 8-10)
+# =============================================================================
+
+grammar_productions:
+  clause_8:
+    - "top_level_item ::= import_decl | use_decl | static_decl | procedure_decl | type_decl | class_declaration"
+    - "static_decl ::= visibility? ('let' | 'var') binding"
+    - "type_decl ::= visibility? ('record' | 'enum' | 'modal' | 'type') identifier ..."
+    - "procedure_decl ::= visibility? 'procedure' identifier ..."
+    - "module_path ::= identifier ('::' identifier)*"
+    - "visibility ::= 'public' | 'internal' | 'private' | 'protected'"
+    - "import_decl ::= 'import' module_path ('as' identifier)?"
+    - "use_decl ::= visibility? 'use' use_clause"
+    - "use_clause ::= use_path ('as' identifier)? | use_path '::' use_list | use_path '::' '*'"
+    - "use_path ::= module_path ('::' identifier)?"
+    - "use_list ::= '{' use_specifier (',' use_specifier)* ','? '}'"
+    - "use_specifier ::= identifier ('as' identifier)? | 'self' ('as' identifier)?"
+
+  clause_9:
+    - "class_declaration ::= [visibility] 'class' identifier [generic_params] ['<:' superclass_bounds] '{' class_item* '}'"
+    - "superclass_bounds ::= class_bound ('+' class_bound)*"
+    - "class_bound ::= type_path [generic_args]"
+    - "class_item ::= abstract_procedure | concrete_procedure | associated_type | abstract_field | abstract_state"
+    - "abstract_procedure ::= 'procedure' identifier signature [contract_clause] ';'"
+    - "concrete_procedure ::= 'procedure' identifier signature [contract_clause] block"
+    - "associated_type ::= 'type' identifier ['=' type] ';'"
+    - "abstract_field ::= identifier ':' type"
+    - "abstract_state ::= '@' identifier '{' [field_list] '}'"
+    - "class_alias ::= [visibility] 'type' identifier [generic_params] '=' class_bound ('+' class_bound)* ';'"
+    - "implements_clause ::= '<:' class_list"
+    - "class_list ::= type_path (',' type_path)*"
+    - "dyn_type ::= 'dyn' class_path"
+    - "return_type ::= ... | 'opaque' class_path"
+
+  clause_10:
+    - "contract_clause ::= '|=' contract_body"
+    - "contract_body ::= precondition_expr | precondition_expr '=>' postcondition_expr | '=>' postcondition_expr"
+    - "precondition_expr ::= predicate_expr"
+    - "postcondition_expr ::= predicate_expr"
+    - "predicate_expr ::= logical_or_expr"
+    - "logical_or_expr ::= logical_and_expr | logical_or_expr '||' logical_and_expr"
+    - "logical_and_expr ::= logical_not_expr | logical_and_expr '&&' logical_not_expr"
+    - "logical_not_expr ::= '!' logical_not_expr | primary_predicate"
+    - "primary_predicate ::= comparison_expr | '(' predicate_expr ')' | identifier | procedure_call | field_access | contract_intrinsic"
+    - "contract_intrinsic ::= '@result' | '@entry' '(' expression ')'"
+    - "parameter_with_constraint ::= identifier ':' type_expr 'where' '{' predicate_expr '}'"
+    - "record_declaration ::= [visibility] 'record' identifier [generic_params] '{' field_list '}' [type_invariant]"
+    - "enum_declaration ::= [visibility] 'enum' identifier [generic_params] '{' variant_list '}' [type_invariant]"
+    - "modal_declaration ::= [visibility] 'modal' identifier [generic_params] '{' state_list '}' [type_invariant]"
+    - "type_invariant ::= 'where' '{' predicate_expr '}'"
+    - "loop_expression ::= 'loop' [loop_condition] [loop_invariant] block"
+    - "loop_invariant ::= 'where' '{' predicate_expr '}'"
+    - "loop_condition ::= expression"
+
+# =============================================================================
+# DIAGNOSTIC CODES (Clauses 8-10)
+# =============================================================================
+
+diagnostic_codes:
+  module_system:
+    - code: "E-MOD-1101"
+      severity: "Error"
+      condition: "Cursive.toml not found or malformed"
+      clause: "8.2"
+    - code: "E-MOD-1102"
+      severity: "Error"
+      condition: "[paths] missing, empty, or invalid"
+      clause: "8.2"
+    - code: "E-MOD-1103"
+      severity: "Error"
+      condition: "Assembly root not in [paths]"
+      clause: "8.2"
+    - code: "E-MOD-1104"
+      severity: "Error"
+      condition: "Module path collision on case-insensitive filesystem"
+      clause: "8.3"
+    - code: "E-MOD-1105"
+      severity: "Error"
+      condition: "Module path component is reserved keyword"
+      clause: "8.3"
+    - code: "E-MOD-1106"
+      severity: "Error"
+      condition: "Module path component not valid identifier"
+      clause: "8.1, 8.3"
+    - code: "E-MOD-1107"
+      severity: "Error"
+      condition: "[project] table or keys missing"
+      clause: "8.2"
+    - code: "E-MOD-1108"
+      severity: "Error"
+      condition: "Duplicate assembly name"
+      clause: "8.2"
+    - code: "E-MOD-1109"
+      severity: "Error"
+      condition: "[language] version missing or incompatible"
+      clause: "8.2"
+    - code: "E-MOD-1201"
+      severity: "Error"
+      condition: "Circular import dependency"
+      clause: "8.6"
+    - code: "E-MOD-1202"
+      severity: "Error"
+      condition: "Import of non-existent assembly/module"
+      clause: "8.6"
+    - code: "E-MOD-1203"
+      severity: "Error"
+      condition: "Name conflict from use/import"
+      clause: "8.6"
+    - code: "E-MOD-1204"
+      severity: "Error"
+      condition: "Item in use path not found/accessible"
+      clause: "8.6"
+    - code: "E-MOD-1205"
+      severity: "Error"
+      condition: "public use of non-public item"
+      clause: "8.6"
+    - code: "E-MOD-1206"
+      severity: "Error"
+      condition: "Duplicate item in use list"
+      clause: "8.6"
+    - code: "E-MOD-1207"
+      severity: "Error"
+      condition: "Cannot access protected item from scope"
+      clause: "8.5"
+    - code: "E-MOD-1401"
+      severity: "Error"
+      condition: "Cyclic module dependency in eager initializers"
+      clause: "8.8"
+    - code: "W-MOD-1101"
+      severity: "Warning"
+      condition: "Potential collision on case-insensitive systems"
+      clause: "8.3"
+    - code: "W-MOD-1201"
+      severity: "Warning"
+      condition: "Wildcard use in public API module"
+      clause: "8.6"
+
+  name_resolution:
+    - code: "E-NAM-1301"
+      severity: "Error"
+      condition: "Unresolved name"
+      clause: "8.7"
+    - code: "E-NAM-1302"
+      severity: "Error"
+      condition: "Duplicate name in scope"
+      clause: "8.1, 8.4, 8.7"
+    - code: "E-NAM-1303"
+      severity: "Error"
+      condition: "Shadowing without 'shadow' (Strict Mode)"
+      clause: "8.7"
+    - code: "W-NAM-1303"
+      severity: "Warning"
+      condition: "Shadowing without 'shadow' (Permissive Mode)"
+      clause: "8.7"
+    - code: "E-NAM-1304"
+      severity: "Error"
+      condition: "Unresolved module path prefix"
+      clause: "8.7"
+    - code: "E-NAM-1305"
+      severity: "Error"
+      condition: "Inaccessible item (visibility violation)"
+      clause: "8.5"
+    - code: "E-NAM-1306"
+      severity: "Error"
+      condition: "Unnecessary shadow keyword"
+      clause: "8.7"
+
+  declarations:
+    - code: "E-DEC-2430"
+      severity: "Error"
+      condition: "Multiple main procedures"
+      clause: "8.9"
+    - code: "E-DEC-2431"
+      severity: "Error"
+      condition: "Invalid main signature"
+      clause: "8.9"
+    - code: "E-DEC-2432"
+      severity: "Error"
+      condition: "main is generic"
+      clause: "8.9"
+    - code: "E-DEC-2433"
+      severity: "Error"
+      condition: "Public mutable global state"
+      clause: "8.9"
+    - code: "E-DEC-2440"
+      severity: "Error"
+      condition: "protected on top-level declaration"
+      clause: "8.5"
+
+  classes:
+    - code: "E-TRS-2900"
+      severity: "Error"
+      condition: "Duplicate procedure name in class"
+      clause: "9.2"
+    - code: "E-TRS-2901"
+      severity: "Error"
+      condition: "override on abstract procedure"
+      clause: "9.3"
+    - code: "E-TRS-2902"
+      severity: "Error"
+      condition: "Missing override on concrete procedure"
+      clause: "9.3"
+    - code: "E-TRS-2903"
+      severity: "Error"
+      condition: "Missing required procedure"
+      clause: "9.3"
+    - code: "E-TRS-2904"
+      severity: "Error"
+      condition: "Duplicate associated type name"
+      clause: "9.2"
+    - code: "E-TRS-2905"
+      severity: "Error"
+      condition: "Name conflict among members"
+      clause: "9.2"
+    - code: "E-TRS-2906"
+      severity: "Error"
+      condition: "Duplicate class implementation"
+      clause: "9.3"
+    - code: "E-TRS-2907"
+      severity: "Error"
+      condition: "Orphan rule violation"
+      clause: "9.3"
+    - code: "E-TRS-2908"
+      severity: "Error"
+      condition: "Cyclic superclass dependency"
+      clause: "9.2"
+    - code: "E-TRS-2909"
+      severity: "Error"
+      condition: "Superclass refers to undefined class"
+      clause: "9.2"
+    - code: "E-TRS-2910"
+      severity: "Error"
+      condition: "Accessing non-class member on opaque"
+      clause: "9.6"
+    - code: "E-TRS-2911"
+      severity: "Error"
+      condition: "Opaque return doesn't implement class"
+      clause: "9.6"
+    - code: "E-TRS-2912"
+      severity: "Error"
+      condition: "Incompatible opaque types"
+      clause: "9.6"
+    - code: "E-TRS-2930"
+      severity: "Error"
+      condition: "Type argument doesn't satisfy constraint"
+      clause: "9.4"
+    - code: "E-TRS-2931"
+      severity: "Error"
+      condition: "Unconstrained parameter in class method"
+      clause: "9.4"
+    - code: "E-TRS-2940"
+      severity: "Error"
+      condition: "[[static_dispatch_only]] called on dyn"
+      clause: "9.5"
+    - code: "E-TRS-2941"
+      severity: "Error"
+      condition: "Witness from non-dyn-safe class"
+      clause: "9.5"
+    - code: "E-TRS-2942"
+      severity: "Error"
+      condition: "Generic procedure without [[static_dispatch_only]]"
+      clause: "9.5"
+    - code: "E-CLS-0401"
+      severity: "Error"
+      condition: "Non-modal type implements modal class"
+      clause: "9.3"
+    - code: "E-CLS-0402"
+      severity: "Error"
+      condition: "Missing required field"
+      clause: "9.3"
+    - code: "E-CLS-0403"
+      severity: "Error"
+      condition: "Missing required state"
+      clause: "9.3"
+    - code: "E-CLS-0404"
+      severity: "Error"
+      condition: "Incompatible field type"
+      clause: "9.3"
+    - code: "E-CLS-0405"
+      severity: "Error"
+      condition: "Missing state payload field"
+      clause: "9.3"
+    - code: "E-CLS-0406"
+      severity: "Error"
+      condition: "Conflicting field names"
+      clause: "9.3"
+    - code: "E-CLS-0407"
+      severity: "Error"
+      condition: "Conflicting state names"
+      clause: "9.3"
+    - code: "E-CLS-0408"
+      severity: "Error"
+      condition: "Duplicate abstract field name"
+      clause: "9.2"
+    - code: "E-CLS-0409"
+      severity: "Error"
+      condition: "Duplicate abstract state name"
+      clause: "9.2"
+    - code: "E-CLS-0410"
+      severity: "Error"
+      condition: "State reference to undeclared state"
+      clause: "9.2"
+    - code: "E-CLS-0411"
+      severity: "Error"
+      condition: "Duplicate field name in state payload"
+      clause: "9.2"
+
+  contracts:
+    - code: "E-CON-2801"
+      severity: "Error"
+      condition: "Contract not statically provable outside [[dynamic]]"
+      clause: "10.4"
+    - code: "E-CON-2802"
+      severity: "Error"
+      condition: "Impure expression in contract"
+      clause: "10.1.1"
+    - code: "E-CON-2803"
+      severity: "Error"
+      condition: "Implementation strengthens class precondition"
+      clause: "10.6"
+    - code: "E-CON-2804"
+      severity: "Error"
+      condition: "Implementation weakens class postcondition"
+      clause: "10.6"
+    - code: "E-CON-2805"
+      severity: "Error"
+      condition: "@entry() result not Copy/Clone"
+      clause: "10.2.2"
+    - code: "E-CON-2806"
+      severity: "Error"
+      condition: "@result outside postcondition"
+      clause: "10.2.2"
+    - code: "E-CON-2820"
+      severity: "Error"
+      condition: "Type invariant violated at construction"
+      clause: "10.3.1"
+    - code: "E-CON-2821"
+      severity: "Error"
+      condition: "Type invariant violated at public entry"
+      clause: "10.3.1"
+    - code: "E-CON-2822"
+      severity: "Error"
+      condition: "Type invariant violated at mutator return"
+      clause: "10.3.1"
+    - code: "E-CON-2830"
+      severity: "Error"
+      condition: "Loop invariant not established at initialization"
+      clause: "10.3.2"
+    - code: "E-CON-2831"
+      severity: "Error"
+      condition: "Loop invariant not maintained"
+      clause: "10.3.2"
+    - code: "P-CON-2850"
+      severity: "Panic"
+      condition: "Runtime contract check failed"
+      clause: "10.4"
+
+# =============================================================================
+# CROSS-REFERENCES (Clauses 8-10)
+# =============================================================================
+
+cross_references:
+  from_clause_8:
+    - source: "8.1"
+      target: "§9.2"
+      note: "class_declaration production"
+    - source: "8.1"
+      target: "§3.4"
+      note: "Binding model (let/var)"
+    - source: "8.1"
+      target: "§8.4"
+      note: "Unified namespace"
+    - source: "8.3"
+      target: "§2.5"
+      note: "Identifier syntax"
+    - source: "8.3"
+      target: "§2.6"
+      note: "Reserved keywords"
+    - source: "8.4"
+      target: "§5.1"
+      note: "Primitive types"
+    - source: "8.5"
+      target: "§8.5"
+      note: "Referenced from 8.6, 8.7"
+    - source: "8.8"
+      target: "§8.1"
+      note: "File processing order"
+
+  from_clause_9:
+    - source: "9.2"
+      target: "§7.1"
+      note: "Static polymorphism (generic_params, generic_args)"
+    - source: "9.2"
+      target: "§10.1"
+      note: "Contract fundamentals (contract_clause)"
+    - source: "9.3"
+      target: "§5.3"
+      note: "record_decl with implements_clause"
+    - source: "9.3"
+      target: "§5.4"
+      note: "enum_decl with implements_clause"
+    - source: "9.3"
+      target: "§6.1"
+      note: "modal_decl with implements_clause"
+    - source: "9.4"
+      target: "§7.1"
+      note: "Static polymorphism specification"
+    - source: "9.5"
+      target: "§4.5"
+      note: "Permissions on witness types"
+    - source: "9.5"
+      target: "§13.3.1"
+      note: "Witness Types and Shared Permission"
+    - source: "9.7"
+      target: "Appendix D.1"
+      note: "Foundational classes (Drop, Copy, Clone, Iterator)"
+
+  from_clause_10:
+    - source: "10.1"
+      target: "§10.1.1"
+      note: "Purity constraints"
+    - source: "10.1"
+      target: "§10.1.2"
+      note: "Evaluation contexts"
+    - source: "10.1"
+      target: "§2.12"
+      note: "Grammar enforcement"
+    - source: "10.1.2"
+      target: "§10.2.2"
+      note: "@result and @entry intrinsics"
+    - source: "10.1.3"
+      target: "§7.3"
+      note: "Refinement types"
+    - source: "10.2.1"
+      target: "§10.5"
+      note: "Verification Facts"
+    - source: "10.2.1"
+      target: "§10.4"
+      note: "Verification strategy"
+    - source: "10.2.2"
+      target: "§10.4"
+      note: "Verification strategy"
+    - source: "10.2.2"
+      target: "§10.1.1"
+      note: "Purity constraints for @entry"
+    - source: "10.3"
+      target: "§7.3"
+      note: "Refinement types (anonymous invariants)"
+    - source: "10.3"
+      target: "§10.4"
+      note: "Verification mechanisms"
+    - source: "10.3"
+      target: "§10.5"
+      note: "Verification mechanisms"
+    - source: "10.4"
+      target: "§10.5"
+      note: "Verification Facts"
+    - source: "10.4"
+      target: "§10.3.1"
+      note: "Type invariant enforcement"
+    - source: "10.4"
+      target: "§10.3.2"
+      note: "Loop invariant enforcement"
+    - source: "10.6"
+      target: "§10.4.1"
+      note: "Proof infrastructure (note: this section may not exist)"
+
+# =============================================================================
+# POTENTIAL ISSUES AND AMBIGUITIES
+# =============================================================================
+
+potential_issues:
+  - location: "§9.2 (line 6622)"
+    issue: "Reference to §10.1 for contract_clause, but §10.1 title is 'Contract Fundamentals', grammar is in first subsection"
+    severity: "minor"
+    recommendation: "Ensure precise subsection reference"
+
+  - location: "§10.6 (line 8112)"
+    issue: "Cross-reference to §10.4.1, but §10.4.1 doesn't appear to exist; §10.4 is 'Contract Verification' with no explicit subsections"
+    severity: "moderate"
+    recommendation: "Verify subsection numbering or update reference to §10.4"
+
+  - location: "§8.1 (line 5683)"
+    issue: "Multi-file processing order is IDB (Implementation-Defined Behavior), but semantics must be order-independent. Potential confusion about what 'order' means vs affects"
+    severity: "minor"
+    recommendation: "Already well-explained; no action needed"
+
+  - location: "§8.8 (line 6390)"
+    issue: "Initialization order within multi-file modules is IDB, but semantics must be deterministic. Potential edge case: what if initializers have observable order-dependent behavior?"
+    severity: "low"
+    recommendation: "Clarify that order-dependent initialization is considered ill-formed"
+
+  - location: "§9.2 (line 6711)"
+    issue: "Class declaration production references generic_params and generic_args (line 6586), cross-ref to §7.1, but does §7.1 define the exact syntax?"
+    severity: "low"
+    recommendation: "Verify grammar completeness in §7.1"
+
+  - location: "§9.3 (line 6761-6765)"
+    issue: "Cross-references to §5.3, §5.4, §6.1 for implements_clause, but states 'class_list production defined in §5.3'. Should other clauses also define it or just reference §5.3?"
+    severity: "minor"
+    recommendation: "Ensure consistent grammar attribution"
+
+  - location: "§10.3.1 (line 7723)"
+    issue: "Private procedure exemption allows temporary invariant violation, but restoration requirement relies on 'type author's responsibility'. No compile-time verification of restoration?"
+    severity: "moderate"
+    recommendation: "Document as design decision; consider warning in future"
+
+  - location: "§10.4 (line 7874-7899)"
+    issue: "Proof techniques split into 'mandatory' (MUST support) and 'recommended' (SHOULD support). Does this impact portability guarantees?"
+    severity: "low"
+    recommendation: "Already documented; ensure conformance dossier records capabilities"
+
+  - location: "§9.2 (line 6711)"
+    issue: "State references in modal class procedures: 'ClassName@StateName' syntax, but what about generic classes? Generic modal classes with states?"
+    severity: "low"
+    recommendation: "Ensure modal generics section addresses state references"
+
+completeness_check:
+  grammar:
+    status: "Complete"
+    note: "All productions for Clauses 8-10 extracted"
+
+  diagnostics:
+    status: "Complete"
+    note: "All E-MOD-*, E-CLS-*, E-CON-*, E-NAM-*, E-DEC-*, E-TRS-*, W-MOD-*, P-CON-* codes extracted"
+
+  cross_references:
+    status: "Complete with minor issue"
+    note: "One potential dangling reference (§10.4.1) needs verification"
+
+  formal_rules:
+    status: "Complete"
+    note: "All WF-*, T-*, E-* inference rules documented with line numbers"
+
+# =============================================================================
+# END OF COMPREHENSIVE REFERENCE INDEX
+# =============================================================================

@@ -1,0 +1,2032 @@
+# Cursive Language Specification - Comprehensive Reference Index
+# Metaprogramming (Clauses 16-19) and Appendices
+# Generated from CursiveLanguageSpecification.md
+
+metadata:
+  specification: "The Cursive Language Specification (Draft 3)"
+  part: "Part 5: Metaprogramming"
+  clauses: [16, 17, 18, 19]
+  appendices: [A, B, D, E, F, G, H, I, J]
+  line_range: "14400-17631"
+
+# ============================================================================
+# CLAUSE 16: COMPILE-TIME EXECUTION
+# ============================================================================
+
+clause_16_comptime_execution:
+  title: "Compile-Time Execution"
+  line_start: 14403
+
+  section_16_1_comptime_environment:
+    title: "The Comptime Environment"
+    line_start: 14409
+
+    formal_definition:
+      environment: "Γ_ct ::= (Σ_stdlib, Σ_imports, Σ_types, Σ_caps, ∅)"
+      components:
+        - name: "Σ_stdlib"
+          description: "Standard library subset available at compile time"
+        - name: "Σ_imports"
+          description: "Modules imported via import declarations"
+        - name: "Σ_types"
+          description: "Type definitions visible at the point of comptime execution"
+        - name: "Σ_caps"
+          description: "Compile-time capabilities provided to the current context"
+        - name: "∅"
+          description: "Empty set: no shared mutable state with runtime environment"
+
+    properties:
+      isolation:
+        description: "Comptime environment is isolated from runtime environment"
+        restrictions:
+          - "Runtime memory or heap allocations"
+          - "File handles, network sockets, or I/O resources (except ProjectFiles)"
+          - "Foreign function interfaces"
+          - "Runtime capabilities"
+
+      determinism:
+        description: "Comptime code MUST be deterministic"
+        formal: "Γ_ct ⊢ e ⇓ v₁ ∧ Γ_ct ⊢ e ⇓ v₂ ⟹ v₁ = v₂"
+
+      termination:
+        description: "Comptime execution MUST terminate"
+        enforcement: "Resource limits as specified in §16.8"
+
+      purity:
+        description: "All expressions evaluated in comptime context MUST be pure"
+        exceptions:
+          - "Operations on compile-time capabilities"
+          - "File reads via ProjectFiles capability"
+          - "Diagnostic emissions via ComptimeDiagnostics capability"
+
+    prohibited_constructs:
+      - "unsafe blocks"
+      - "FFI calls (extern procedures)"
+      - "Runtime capability access"
+      - "Random number generation"
+      - "System time queries"
+      - "I/O operations (except ProjectFiles)"
+
+    diagnostics:
+      - code: "E-CTE-0001"
+        severity: "Error"
+        condition: "unsafe block in comptime context"
+        detection: "Compile-time"
+        effect: "Rejection"
+      - code: "E-CTE-0002"
+        severity: "Error"
+        condition: "FFI call in comptime context"
+        detection: "Compile-time"
+        effect: "Rejection"
+      - code: "E-CTE-0003"
+        severity: "Error"
+        condition: "Runtime capability access in comptime context"
+        detection: "Compile-time"
+        effect: "Rejection"
+      - code: "E-CTE-0004"
+        severity: "Error"
+        condition: "Non-deterministic operation in comptime context"
+        detection: "Compile-time"
+        effect: "Rejection"
+      - code: "E-CTE-0005"
+        severity: "Error"
+        condition: "Prohibited I/O operation in comptime context"
+        detection: "Compile-time"
+        effect: "Rejection"
+
+  section_16_2_comptime_available_types:
+    title: "Comptime-Available Types"
+    line_start: 14483
+
+    definition:
+      predicate: "IsComptimeAvailable(T)"
+      formal: "IsComptimeAvailable(T) ⟺ T ∈ T_ct"
+
+    type_set:
+      primitive: "bool, i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, f32, f64, char"
+      string: "string"
+      metatypes: ["Type", "Ast"]
+      composite:
+        - "Tuple(T_ct*)"
+        - "Array(T_ct)"
+        - "Record_ct"
+        - "Enum_ct"
+
+    not_comptime_available:
+      - "Reference types"
+      - "Capability types"
+      - "Modal types"
+      - "Types containing dyn"
+
+    typing_rules:
+      - rule: "CT-Prim"
+        description: "Primitive types are comptime-available"
+      - rule: "CT-String"
+        description: "String type is comptime-available"
+      - rule: "CT-Type"
+        description: "Type metatype is comptime-available"
+      - rule: "CT-Ast"
+        description: "Ast metatype is comptime-available"
+      - rule: "CT-Tuple"
+        description: "Tuple types are comptime-available if all components are"
+      - rule: "CT-Array"
+        description: "Array types are comptime-available if element type is"
+      - rule: "CT-Record"
+        description: "Record types are comptime-available if all field types are"
+      - rule: "CT-Enum"
+        description: "Enum types are comptime-available if all variant payload types are"
+
+    diagnostics:
+      - code: "E-CTE-0010"
+        condition: "Non-comptime-available type in comptime expr"
+      - code: "E-CTE-0011"
+        condition: "Reference type in comptime context"
+      - code: "E-CTE-0012"
+        condition: "Capability type in comptime context"
+
+  section_16_3_comptime_blocks:
+    title: "Comptime Blocks and Expressions"
+    line_start: 14552
+
+    grammar:
+      comptime_block: 'comptime block'
+      comptime_expr: 'comptime "{" expr "}"'
+
+    typing_rules:
+      - rule: "T-ComptimeBlock"
+        description: "Comptime block in statement context"
+        formal: "Γ_ct ⊢ stmts : () / Γ ⊢ comptime { stmts } : ()"
+      - rule: "T-ComptimeExpr"
+        description: "Comptime expression in expression context"
+        formal: "Γ_ct ⊢ e : T ∧ IsComptimeAvailable(T) / Γ ⊢ comptime { e } : T"
+
+    evaluation:
+      steps:
+        - "Implementation evaluates comptime block body in Γ_ct"
+        - "For comptime expressions, resulting value v is converted to literal node in AST"
+        - "Literal node replaces comptime expression in subsequent translation phases"
+
+    diagnostics:
+      - code: "E-CTE-0020"
+        condition: "Comptime block contains prohibited construct"
+      - code: "E-CTE-0021"
+        condition: "Comptime expression has non-comptime type"
+      - code: "E-CTE-0022"
+        condition: "Comptime evaluation diverges (exceeds limits)"
+      - code: "E-CTE-0023"
+        condition: "Comptime evaluation panics"
+
+  section_16_4_comptime_procedures:
+    title: "Comptime Procedures"
+    line_start: 14606
+
+    grammar:
+      comptime_procedure_decl: 'comptime procedure identifier generic_params? "(" param_list ")" "->" return_type requires_clause? block'
+      requires_clause: 'requires comptime_predicate ("," comptime_predicate)*'
+      comptime_predicate: 'comptime_expr'
+
+    typing_rules:
+      - rule: "T-ComptimeProc"
+        description: "Comptime procedure declaration well-formedness"
+      - rule: "T-ComptimeCall"
+        description: "Comptime procedure call"
+
+    validation:
+      - "All parameter types MUST be comptime-available"
+      - "Return type MUST be comptime-available"
+      - "Procedure body MUST satisfy comptime restrictions"
+      - "If requires clause present, all predicates MUST evaluate to true at each call site"
+
+    restrictions:
+      - "MUST NOT call runtime-only procedures"
+      - "MUST NOT access runtime capabilities"
+      - "MUST NOT perform I/O (except via comptime capabilities)"
+
+    diagnostics:
+      - code: "E-CTE-0030"
+        condition: "Parameter type not comptime-available"
+      - code: "E-CTE-0031"
+        condition: "Return type not comptime-available"
+      - code: "E-CTE-0032"
+        condition: "Comptime procedure body violates restrictions"
+      - code: "E-CTE-0033"
+        condition: "Requires clause predicate evaluates to false"
+      - code: "E-CTE-0034"
+        condition: "Comptime procedure called from runtime context"
+
+  section_16_5_comptime_capabilities:
+    title: "Comptime Capabilities"
+    line_start: 14672
+
+    subsection_16_5_1_type_emitter:
+      title: "TypeEmitter"
+      line_start: 14678
+
+      definition: "Authorizes emission of generated code into the compilation unit"
+
+      procedures:
+        - name: "emit"
+          signature: "procedure emit(~, ast: Ast)"
+          description: "Emits an AST node at module scope"
+        - name: "acquire_write_key"
+          signature: "procedure acquire_write_key(~, target: Type, form: Type) -> WriteKey"
+          description: "Acquires exclusive write access for a (type, form) pair"
+        - name: "target_type"
+          signature: "procedure target_type(~) -> Type"
+          description: "Returns the target type for derive contexts"
+
+      provision:
+        - "Comptime blocks annotated with [[emit]]"
+        - "Derive target procedure bodies"
+        - "Available via identifier: emitter"
+
+      diagnostics:
+        - code: "E-CTE-0040"
+          condition: "Emit operation without TypeEmitter capability"
+        - code: "E-CTE-0041"
+          condition: "[[emit]] attribute on non-comptime block"
+        - code: "E-CTE-0042"
+          condition: "Emitted AST is ill-formed"
+
+    subsection_16_5_2_introspect:
+      title: "Introspect"
+      line_start: 14729
+
+      definition: "Authorizes reflection over type structure at compile time"
+
+      procedures:
+        - name: "category"
+          signature: "procedure category<T>() -> TypeCategory"
+          description: "Returns the type category"
+        - name: "fields"
+          signature: "procedure fields<T>() -> [FieldInfo] where category::<T>() == TypeCategory::Record"
+          description: "Returns field information for record types"
+        - name: "variants"
+          signature: "procedure variants<T>() -> [VariantInfo] where category::<T>() == TypeCategory::Enum"
+          description: "Returns variant information for enum types"
+        - name: "states"
+          signature: "procedure states<T>() -> [StateInfo] where category::<T>() == TypeCategory::Modal"
+          description: "Returns state information for modal types"
+        - name: "implements_form"
+          signature: "procedure implements_form<T; F>() -> bool"
+          description: "Tests whether a type implements a form"
+        - name: "type_name"
+          signature: "procedure type_name<T>() -> string"
+          description: "Returns the type's name as a string"
+        - name: "module_path"
+          signature: "procedure module_path<T>() -> string"
+          description: "Returns the type's module path"
+
+      supporting_types:
+        TypeCategory:
+          variants: ["Record", "Enum", "Modal", "Primitive", "Tuple", "Array", "Procedure", "Reference", "Generic"]
+        FieldInfo:
+          fields: ["name: string", "type_id: Type", "offset: u64", "visibility: Visibility"]
+        VariantInfo:
+          fields: ["name: string", "discriminant: i64", "fields: [FieldInfo]"]
+        StateInfo:
+          fields: ["name: string", "transitions: [TransitionInfo]"]
+        TransitionInfo:
+          fields: ["name: string", "target_state: string", "parameters: [FieldInfo]"]
+        Visibility:
+          variants: ["Public", "Private", "Module"]
+
+      provision: "Implicitly provided to all comptime contexts via identifier: introspect"
+
+      diagnostics:
+        - code: "E-CTE-0050"
+          condition: "fields called on non-record type"
+        - code: "E-CTE-0051"
+          condition: "variants called on non-enum type"
+        - code: "E-CTE-0052"
+          condition: "states called on non-modal type"
+        - code: "E-CTE-0053"
+          condition: "Introspection of incomplete type"
+
+    subsection_16_5_3_project_files:
+      title: "ProjectFiles"
+      line_start: 14843
+
+      definition: "Authorizes read-only access to files within the project directory during compile time"
+
+      procedures:
+        - name: "read"
+          signature: "procedure read(~, path: string) -> Result<string, FileError>"
+        - name: "read_bytes"
+          signature: "procedure read_bytes(~, path: string) -> Result<[u8], FileError>"
+        - name: "exists"
+          signature: "procedure exists(~, path: string) -> bool"
+        - name: "list_dir"
+          signature: "procedure list_dir(~, path: string) -> Result<[string], FileError>"
+        - name: "project_root"
+          signature: "procedure project_root(~) -> string"
+
+      FileError:
+        variants:
+          - "NotFound { path: string }"
+          - "PermissionDenied { path: string }"
+          - "NotUtf8 { path: string }"
+          - "IoError { message: string }"
+
+      provision: "Only to comptime blocks annotated with [[files]], available via identifier: files"
+
+      path_restrictions:
+        - "Paths MUST be relative"
+        - "Paths MUST NOT contain .. components traversing above project root"
+        - "Paths MUST NOT follow symbolic links escaping project directory"
+
+      determinism: "File contents captured at start of Metaprogramming Phase"
+
+      diagnostics:
+        - code: "E-CTE-0060"
+          condition: "File operation without ProjectFiles capability"
+        - code: "E-CTE-0061"
+          condition: "[[files]] attribute on non-comptime block"
+        - code: "E-CTE-0062"
+          condition: "Path escapes project directory"
+        - code: "E-CTE-0063"
+          condition: "Absolute path in file operation"
+        - code: "E-CTE-0064"
+          condition: "File not found"
+
+    subsection_16_5_4_comptime_diagnostics:
+      title: "ComptimeDiagnostics"
+      line_start: 14898
+
+      definition: "Authorizes emission of compile-time diagnostics including errors, warnings, and notes"
+
+      procedures:
+        - name: "error"
+          signature: "procedure error(~!, message: string) -> !"
+          description: "Emits error and terminates Metaprogramming Phase"
+        - name: "error_at"
+          signature: "procedure error_at(~!, message: string, span: SourceSpan) -> !"
+        - name: "warning"
+          signature: "procedure warning(~, message: string)"
+        - name: "warning_at"
+          signature: "procedure warning_at(~, message: string, span: SourceSpan)"
+        - name: "note"
+          signature: "procedure note(~, message: string)"
+        - name: "note_at"
+          signature: "procedure note_at(~, message: string, span: SourceSpan)"
+        - name: "current_span"
+          signature: "procedure current_span(~) -> SourceSpan"
+        - name: "current_module"
+          signature: "procedure current_module(~) -> string"
+
+      SourceSpan:
+        fields: ["file: string", "start_line: u32", "start_column: u32", "end_line: u32", "end_column: u32"]
+
+      provision: "Implicitly provided to all comptime contexts and derive target procedures via identifier: diagnostics"
+
+      diagnostics:
+        - code: "E-CTE-0070"
+          severity: "Error"
+          condition: "Comptime error emitted by user code"
+        - code: "W-CTE-0071"
+          severity: "Warning"
+          condition: "Comptime warning emitted by user code"
+
+  section_16_6_comptime_control_flow:
+    title: "Comptime Control Flow"
+    line_start: 14958
+
+    grammar:
+      comptime_if: 'comptime if comptime_expr block (else (comptime_if | block))?'
+      comptime_for: 'comptime for pattern in comptime_expr block'
+
+    comptime_if:
+      typing_rule: "T-ComptimeIf"
+      evaluation:
+        - "Evaluate condition e in Γ_ct to obtain boolean b"
+        - "If b = true, include then-block in AST"
+        - "If b = false, include else-block (if present) in AST"
+        - "Non-selected branch is discarded and not type-checked"
+
+    comptime_for:
+      typing_rule: "T-ComptimeFor"
+      evaluation:
+        - "Evaluate iterator expression e in Γ_ct to obtain sequence [v₁, ..., vₙ]"
+        - "For each vᵢ, instantiate loop body with pattern bound to vᵢ"
+        - "Concatenate all instantiated bodies in order"
+        - "Resulting unrolled code replaces comptime for in AST"
+
+    diagnostics:
+      - code: "E-CTE-0080"
+        condition: "Comptime if condition not comptime-evaluable"
+      - code: "E-CTE-0081"
+        condition: "Comptime if condition not boolean"
+      - code: "E-CTE-0082"
+        condition: "Comptime for iterator not comptime-evaluable"
+      - code: "E-CTE-0083"
+        condition: "Comptime for iterator not iterable"
+      - code: "E-CTE-0084"
+        condition: "Comptime for exceeds iteration limit"
+
+  section_16_7_comptime_assertions:
+    title: "Comptime Assertions"
+    line_start: 15026
+
+    grammar:
+      comptime_assert: 'comptime assert "(" comptime_expr ("," string_literal)? ")"'
+
+    typing_rule: "T-ComptimeAssert"
+
+    evaluation:
+      - "Evaluate condition e in Γ_ct to obtain boolean b"
+      - "If b = true, assertion succeeds; continue compilation"
+      - "If b = false, emit diagnostic E-CTE-0090 with optional message and halt"
+
+    diagnostics:
+      - code: "E-CTE-0090"
+        condition: "Comptime assertion failed"
+      - code: "E-CTE-0091"
+        condition: "Comptime assertion condition not boolean"
+      - code: "E-CTE-0092"
+        condition: "Comptime assertion condition not comptime-eval"
+
+  section_16_8_resource_limits:
+    title: "Resource Limits"
+    line_start: 15070
+
+    minimum_guaranteed_limits:
+      - resource: "Recursion depth"
+        limit: "128 calls"
+        diagnostic: "E-CTE-0100"
+      - resource: "Loop iterations"
+        limit: "65,536"
+        diagnostic: "E-CTE-0101"
+      - resource: "Memory allocation"
+        limit: "64 MiB"
+        diagnostic: "E-CTE-0102"
+      - resource: "AST nodes generated"
+        limit: "1,000,000"
+        diagnostic: "E-CTE-0103"
+      - resource: "Comptime procedure time"
+        limit: "60 seconds"
+        diagnostic: "E-CTE-0104"
+
+    note: "Implementations MAY support higher limits. Actual limits are implementation-defined."
+
+    diagnostics:
+      - code: "E-CTE-0100"
+        condition: "Comptime recursion depth exceeded"
+      - code: "E-CTE-0101"
+        condition: "Comptime iteration limit exceeded"
+      - code: "E-CTE-0102"
+        condition: "Comptime memory limit exceeded"
+      - code: "E-CTE-0103"
+        condition: "Comptime AST node limit exceeded"
+      - code: "E-CTE-0104"
+        condition: "Comptime execution time limit exceeded"
+
+# ============================================================================
+# CLAUSE 17: TYPE REFLECTION
+# ============================================================================
+
+clause_17_type_reflection:
+  title: "Type Reflection"
+  line_start: 15104
+
+  section_17_1_type_metatype:
+    title: "The Type Metatype"
+    line_start: 15110
+
+    definition: "Type metatype is a compile-time type whose values represent Cursive types"
+    formal: "Type : Kind"
+
+    grammar:
+      type_literal: 'Type "::<" type ">"'
+
+    typing_rule: "T-TypeLiteral"
+
+    diagnostics:
+      - code: "E-REF-0010"
+        condition: "Type argument to Type::<> is ill-formed"
+      - code: "E-REF-0011"
+        condition: "Type::<> used in runtime context"
+
+  section_17_2_type_categories:
+    title: "Type Categories"
+    line_start: 15153
+
+    definition: "Type category classifies a type by its fundamental structure"
+
+    TypeCategory:
+      variants:
+        - Record
+        - Enum
+        - Modal
+        - Primitive
+        - Tuple
+        - Array
+        - Procedure
+        - Reference
+        - Generic
+
+    category_assignment:
+      - type_form: "record R { ... }"
+        category: "Record"
+      - type_form: "enum E { ... }"
+        category: "Enum"
+      - type_form: "modal M { ... }"
+        category: "Modal"
+      - type_form: "bool, i32, f64, char, etc."
+        category: "Primitive"
+      - type_form: "(T1, T2, ...)"
+        category: "Tuple"
+      - type_form: "[T; n], [T]"
+        category: "Array"
+      - type_form: "procedure(...) -> T"
+        category: "Procedure"
+      - type_form: "&T, &unique T, &const T"
+        category: "Reference"
+      - type_form: "T where T is type parameter"
+        category: "Generic"
+
+    introspection_function: "comptime procedure category<T>() -> TypeCategory"
+
+    diagnostics:
+      - code: "E-REF-0020"
+        condition: "Category query on incomplete type"
+
+  section_17_3_structural_introspection:
+    title: "Structural Introspection"
+    line_start: 15215
+
+    subsection_17_3_1_record_introspection:
+      title: "Record Introspection"
+
+      FieldInfo:
+        fields:
+          - "name: string"
+          - "type_id: Type"
+          - "offset: u64"
+          - "visibility: Visibility"
+
+      Visibility:
+        variants: ["Public", "Private", "Module"]
+
+      function: "comptime procedure fields<T>() -> [FieldInfo] requires category::<T>() == TypeCategory::Record"
+
+      typing_rule: "T-Fields"
+
+      diagnostics:
+        - code: "E-REF-0030"
+          condition: "fields called on non-record type"
+
+    subsection_17_3_2_enum_introspection:
+      title: "Enum Introspection"
+
+      VariantInfo:
+        fields:
+          - "name: string"
+          - "discriminant: i64"
+          - "fields: [FieldInfo]"
+
+      function: "comptime procedure variants<T>() -> [VariantInfo] requires category::<T>() == TypeCategory::Enum"
+
+      typing_rule: "T-Variants"
+
+      diagnostics:
+        - code: "E-REF-0040"
+          condition: "variants called on non-enum type"
+
+    subsection_17_3_3_modal_introspection:
+      title: "Modal Introspection"
+
+      StateInfo:
+        fields:
+          - "name: string"
+          - "fields: [FieldInfo]"
+          - "transitions: [TransitionInfo]"
+
+      TransitionInfo:
+        fields:
+          - "name: string"
+          - "target_state: string"
+          - "parameters: [FieldInfo]"
+
+      function: "comptime procedure states<T>() -> [StateInfo] requires category::<T>() == TypeCategory::Modal"
+
+      typing_rule: "T-States"
+
+      diagnostics:
+        - code: "E-REF-0050"
+          condition: "states called on non-modal type"
+
+  section_17_4_form_introspection:
+    title: "Form Introspection"
+    line_start: 15370
+
+    functions:
+      - name: "implements_form"
+        signature: "comptime procedure implements_form<T; F>() -> bool"
+      - name: "required_procedures"
+        signature: "comptime procedure required_procedures<F>() -> [ProcedureInfo] requires is_form::<F>()"
+
+    ProcedureInfo:
+      fields:
+        - "name: string"
+        - "parameters: [ParameterInfo]"
+        - "return_type: Type"
+        - "is_procedure: bool"
+
+    ParameterInfo:
+      fields:
+        - "name: string"
+        - "type_id: Type"
+        - "mode: ParameterMode"
+
+    ParameterMode:
+      variants: ["Value", "Ref", "RefUnique", "RefConst", "Self_"]
+
+    typing_rules:
+      - "T-ImplementsForm"
+      - "T-RequiredProcs"
+
+    diagnostics:
+      - code: "E-REF-0060"
+        condition: "required_procedures called on non-form"
+      - code: "E-REF-0061"
+        condition: "implements_form with non-form second arg"
+
+  section_17_5_type_predicates:
+    title: "Type Predicates"
+    line_start: 15440
+
+    predicates:
+      - "comptime procedure is_record<T>() -> bool"
+      - "comptime procedure is_enum<T>() -> bool"
+      - "comptime procedure is_modal<T>() -> bool"
+      - "comptime procedure is_primitive<T>() -> bool"
+      - "comptime procedure is_tuple<T>() -> bool"
+      - "comptime procedure is_array<T>() -> bool"
+      - "comptime procedure is_sized<T>() -> bool"
+      - "comptime procedure is_copy<T>() -> bool"
+      - "comptime procedure is_form<T>() -> bool"
+
+    equivalences:
+      - predicate: "is_record::<T>()"
+        equivalent: "category(T) = Record"
+      - predicate: "is_enum::<T>()"
+        equivalent: "category(T) = Enum"
+      - predicate: "is_modal::<T>()"
+        equivalent: "category(T) = Modal"
+      - predicate: "is_sized::<T>()"
+        equivalent: "∃n. sizeof(T) = n"
+      - predicate: "is_copy::<T>()"
+        equivalent: "T <: Copy"
+
+    diagnostics:
+      - code: "E-REF-0070"
+        condition: "Type predicate on incomplete type"
+
+  section_17_6_type_name_introspection:
+    title: "Type Name and Path Introspection"
+    line_start: 15496
+
+    functions:
+      - name: "type_name"
+        signature: "comptime procedure type_name<T>() -> string"
+        returns: 'Unqualified type name (e.g., "Point")'
+      - name: "module_path"
+        signature: "comptime procedure module_path<T>() -> string"
+        returns: 'Module path without type (e.g., "geo::shapes")'
+      - name: "full_path"
+        signature: "comptime procedure full_path<T>() -> string"
+        returns: 'Fully qualified path (e.g., "geo::shapes::Point")'
+
+    note: "For generic types, the name includes type parameters: Vec<i32>"
+
+    diagnostics:
+      - code: "E-REF-0080"
+        condition: "Name introspection on incomplete type"
+
+# ============================================================================
+# CLAUSE 18: CODE GENERATION
+# ============================================================================
+
+clause_18_code_generation:
+  title: "Code Generation"
+  line_start: 15532
+
+  section_18_1_ast_type:
+    title: "The Ast Type"
+    line_start: 15538
+
+    definition: "Opaque type representing a syntax tree fragment"
+
+    variants:
+      - variant: "Ast::Expr"
+        category: "Expressions (§7)"
+      - variant: "Ast::Stmt"
+        category: "Statements (§4.2)"
+      - variant: "Ast::Item"
+        category: "Items: type decls, procedures"
+      - variant: "Ast::Type"
+        category: "Type expressions (§4.1)"
+      - variant: "Ast::Pattern"
+        category: "Patterns (§11.5)"
+
+    subtyping:
+      - "Ast::Expr <: Ast"
+      - "Ast::Stmt <: Ast"
+      - "Ast::Item <: Ast"
+      - "Ast::Type <: Ast"
+      - "Ast::Pattern <: Ast"
+
+    diagnostics:
+      - code: "E-GEN-0010"
+        condition: "Ast used in runtime context"
+
+  section_18_2_quote_expressions:
+    title: "Quote Expressions"
+    line_start: 15580
+
+    definition: "Constructs an Ast value from literal Cursive syntax"
+
+    grammar:
+      quote_expr: 'quote "{" quoted_content "}"'
+      quote_type: 'quote type "{" type_expr "}"'
+      quote_pattern: 'quote pattern "{" pattern "}"'
+      quoted_content: "expr | stmt_list | item_list"
+
+    typing_rules:
+      - rule: "T-QuoteExpr"
+        description: "Expression quote"
+      - rule: "T-QuoteStmt"
+        description: "Statement quote"
+      - rule: "T-QuoteItem"
+        description: "Item quote"
+      - rule: "T-QuoteType"
+        description: "Type quote"
+      - rule: "T-QuotePattern"
+        description: "Pattern quote"
+
+    validation: "Quoted content MUST be syntactically valid. Type checking deferred until emission."
+
+    diagnostics:
+      - code: "E-GEN-0020"
+        condition: "Quoted content is syntactically invalid"
+      - code: "E-GEN-0021"
+        condition: "Quote expression outside comptime"
+
+  section_18_3_splice_expressions:
+    title: "Splice Expressions"
+    line_start: 15657
+
+    definition: "Inserts a compile-time value into a quote expression"
+
+    grammar:
+      splice_expr: '"$(" comptime_expr ")"'
+      splice_ident: '"$" identifier'
+
+    note: "Shorthand $ident is equivalent to $(ident)"
+
+    typing_rules:
+      - rule: "T-SpliceAst"
+        description: "Ast splice (hygienic)"
+      - rule: "T-SpliceLiteral"
+        description: "Literal splice"
+      - rule: "T-SpliceIdent"
+        description: "Identifier splice (unhygienic)"
+
+    comptime_literal_types:
+      types: ["bool", "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128", "f32", "f64", "char", "string"]
+
+    splice_context_compatibility:
+      - context: "Expression"
+        compatible: "Ast::Expr, comptime literals"
+      - context: "Statement"
+        compatible: "Ast::Stmt, Ast::Expr"
+      - context: "Type position"
+        compatible: "Ast::Type, Type (via type_repr_of)"
+      - context: "Pattern position"
+        compatible: "Ast::Pattern"
+      - context: "Identifier"
+        compatible: "string (unhygienic), Ast with ident (hygienic)"
+
+    diagnostics:
+      - code: "E-GEN-0030"
+        condition: "Splice type incompatible with context"
+      - code: "E-GEN-0031"
+        condition: "Splice expression not comptime-evaluable"
+      - code: "E-GEN-0032"
+        condition: "Invalid identifier string in splice"
+      - code: "E-GEN-0033"
+        condition: "Splice expression outside quote context"
+
+  section_18_4_hygiene:
+    title: "Hygiene"
+    line_start: 15745
+
+    definition: "Property that identifiers introduced by code generation do not accidentally capture or shadow identifiers at emission site"
+
+    formal_definition:
+      capture_set: "Captures(q) = FreeVars(q) ∩ Dom(Γ_ct)"
+      fresh_name_set: "Fresh(q) = BoundVars(q)"
+
+    hygiene_preservation_invariant:
+      - "If x ∈ Captures(q), then x resolves to same binding it referenced at quote site"
+      - "If x ∈ Fresh(q), then x does not capture any binding at emission site"
+
+    renaming_function: "Rename(x) = gensym(x, EmissionContext)"
+
+    hygiene_breaking:
+      - input_type: "string"
+        behavior: "Unhygienic—binds in emission scope"
+      - input_type: "Ast"
+        behavior: "Hygienic—preserves original scope"
+
+    name_generation:
+      deterministic_using:
+        - "Original identifier name"
+        - "Unique counter for emission context"
+        - "Source location of quote"
+
+      note: "Ensures reproducibility across compilations"
+
+    diagnostics:
+      - code: "E-GEN-0040"
+        condition: "Captured identifier no longer in scope at emission"
+      - code: "E-GEN-0041"
+        condition: "Hygiene renaming collision (implementation limit)"
+
+  section_18_5_emission:
+    title: "Emission"
+    line_start: 15810
+
+    definition: "Process of inserting generated AST nodes into the compilation unit"
+
+    grammar:
+      emit_stmt: 'emitter_expr "~>" "emit" "(" ast_expr ")"'
+
+    typing_rule: "T-Emit"
+
+    emission_target: "Emitted items are inserted at module scope of current compilation unit"
+
+    post_emission_type_checking:
+      description: "Implementation MUST perform full type checking on expanded AST after Metaprogramming Phase"
+      diagnostic_trace_includes:
+        - "Location of emit call"
+        - "Derive target or comptime block that generated the code"
+        - "Specific type error in emitted code"
+
+    emission_order:
+      - "All derive targets execute in dependency order"
+      - "Explicit [[emit]] blocks execute in declaration order"
+      - "Emitted items become visible to subsequent emissions within same phase"
+
+    diagnostics:
+      - code: "E-GEN-0050"
+        condition: "Emit without TypeEmitter capability"
+      - code: "E-GEN-0051"
+        condition: "Emitted AST is not an item"
+      - code: "E-GEN-0052"
+        condition: "Emitted AST is ill-formed"
+      - code: "E-GEN-0053"
+        condition: "Type error in emitted code"
+
+  section_18_6_type_representation:
+    title: "Type Representation"
+    line_start: 15870
+
+    definition: "Converts a Type metatype value to an Ast::Type node suitable for splicing"
+
+    typing_rule: "T-TypeRepr"
+
+    diagnostics:
+      - code: "E-GEN-0060"
+        condition: "type_repr_of called on invalid Type"
+
+  section_18_7_write_keys:
+    title: "Write Keys"
+    line_start: 15899
+
+    definition: "Provides exclusive write access to a (type, form) pair during derive execution"
+
+    WriteKey:
+      fields:
+        - "target_type: Type"
+        - "form: Type"
+
+    acquisition: "comptime procedure acquire_write_key(emitter: TypeEmitter, target: Type, form: Type) -> WriteKey"
+
+    single_writer_property: "For each (type, form) pair, at most one write key may be held at any time"
+
+    typing_rule: "T-WriteKey"
+
+    diagnostics:
+      - code: "E-GEN-0070"
+        condition: "Write key already held for (type, form) pair"
+      - code: "E-GEN-0071"
+        condition: "Duplicate form implementation emitted"
+
+# ============================================================================
+# CLAUSE 19: DERIVATION
+# ============================================================================
+
+clause_19_derivation:
+  title: "Derivation"
+  line_start: 15950
+
+  section_19_1_derive_attributes:
+    title: "Derive Attributes"
+    line_start: 15956
+
+    definition: "Requests automatic generation of form implementations for an annotated type declaration"
+
+    grammar:
+      derive_attr: '"[[" "derive" "(" derive_target_list ")" "]]"'
+      derive_target_list: "derive_target (',' derive_target)*"
+      derive_target: "identifier"
+
+    placement: "MUST immediately precede a type declaration (record, enum, or modal)"
+
+    typing_rule: "T-DeriveAttr"
+
+    validation: "Each identifier in derive target list MUST resolve to a derive target declaration or standard derive target"
+
+    diagnostics:
+      - code: "E-DRV-0010"
+        condition: "Unknown derive target name"
+      - code: "E-DRV-0011"
+        condition: "Derive attribute on non-type declaration"
+      - code: "E-DRV-0012"
+        condition: "Duplicate derive target in attribute"
+
+  section_19_2_derive_target_declarations:
+    title: "Derive Target Declarations"
+    line_start: 16003
+
+    definition: "Named code generator that produces form implementations for annotated types"
+
+    grammar:
+      derive_target_decl: 'derive target identifier "(" "target" ":" "Type" ")" derive_contract? block'
+      derive_contract: '"|=" contract_clause ("," contract_clause)*'
+      contract_clause: 'emits class_ref | requires class_ref'
+      class_ref: "identifier"
+
+    typing_rule: "T-DeriveTarget"
+
+    contract_semantics:
+      - clause: "emits F"
+        meaning: "Derive target emits an implementation of class F"
+      - clause: "requires F"
+        meaning: "Target type must implement class F before derive"
+
+    implicit_bindings:
+      - identifier: "target"
+        type: "Type"
+        description: "The type being derived"
+      - identifier: "emitter"
+        type: "TypeEmitter"
+        description: "Capability for code emission"
+      - identifier: "introspect"
+        type: "Introspect"
+        description: "Capability for type introspection"
+      - identifier: "diagnostics"
+        type: "ComptimeDiagnostics"
+        description: "Capability for error reporting"
+
+    diagnostics:
+      - code: "E-DRV-0020"
+        condition: "Derive target body violates comptime rules"
+      - code: "E-DRV-0021"
+        condition: "Contract references unknown form"
+      - code: "E-DRV-0022"
+        condition: "Derive target has invalid signature"
+
+  section_19_3_derive_contracts:
+    title: "Derive Contracts"
+    line_start: 16065
+
+    definition: "Specifies the classes a derive target emits and the classes it requires as preconditions"
+
+    formal_definition: "Derive contract is a pair (E, R) where E ⊆ Classes (emitted), R ⊆ Classes (required)"
+
+    emits_clause:
+      description: "emits F ⟹ T <: F after derive execution"
+
+    requires_clause:
+      description: "requires F ⟹ T <: F before derive execution"
+
+    contract_verification:
+      - "All emits forms are implemented by target type"
+      - "No form is emitted that is not declared in emits clause"
+
+    diagnostics:
+      - code: "E-DRV-0030"
+        condition: "Required form not implemented by target type"
+      - code: "E-DRV-0031"
+        condition: "Emits clause not satisfied after execution"
+      - code: "E-DRV-0032"
+        condition: "Undeclared form emitted"
+
+  section_19_4_derive_execution_model:
+    title: "Derive Execution Model"
+    line_start: 16110
+
+    definition: "Process by which derive targets are invoked during Metaprogramming Phase"
+
+    dependency_graph: "G = (V, E) where V = {(T, D) | T has [[derive(D)]]}, E = {((T, D₁), (T, D₂)) | D₁ requires F ∧ D₂ emits F}"
+
+    execution_algorithm:
+      - "Construct derive dependency graph G for all derive attributes"
+      - "Detect cycles in G. If cycles exist, emit E-DRV-0040 and halt"
+      - "Compute topological order π of G"
+      - "For each (T, D) in order π: verify requires, execute derive target, verify emits"
+
+    parallel_execution:
+      description: "Derive targets with no dependencies MAY execute in parallel"
+      guarantees:
+        - "Write key acquisition is atomic"
+        - "Emission order within a type is deterministic"
+
+    diagnostics:
+      - code: "E-DRV-0040"
+        condition: "Cyclic derive dependency"
+      - code: "E-DRV-0041"
+        condition: "Derive target execution panics"
+      - code: "E-DRV-0042"
+        condition: "Derive execution exceeds resource limits"
+
+  section_19_5_generated_type_declarations:
+    title: "Generated Type Declarations"
+    line_start: 16155
+
+    definition: "Derive targets emit complete type declarations with form implementations inline"
+
+    output_structure:
+      - "Preserves all original fields in declaration order"
+      - "Includes subtyping clause <: F for each emitted class"
+      - "Includes all procedure implementations required by class"
+
+    orphan_rule_compliance:
+      description: "Derive targets MUST NOT emit standalone class implementations"
+      enforcement:
+        - "Requiring derive attributes on type declarations"
+        - "Emitting complete type declarations, not separate implementation blocks"
+
+    prohibited_patterns:
+      - pattern: "Emit implementation without type"
+        violation: "Orphan rule"
+      - pattern: "Emit type in different module"
+        violation: "Module boundary"
+      - pattern: "Emit for type without derive attr"
+        violation: "Unauthorized emission"
+
+    diagnostics:
+      - code: "E-DRV-0050"
+        condition: "Emitted declaration missing original fields"
+      - code: "E-DRV-0051"
+        condition: "Emitted declaration has wrong type name"
+      - code: "E-DRV-0052"
+        condition: "Form procedure missing from emission"
+
+  section_19_6_standard_derive_targets:
+    title: "Standard Derive Targets"
+    line_start: 16218
+
+    definition: "Derive targets provided by language implementation for common forms"
+
+    targets:
+      Debug:
+        contract: "|= emits Debug"
+        applicable: "Record, Enum"
+        procedure: "procedure debug(~) -> string"
+        generation_rules:
+          - "For records: Concatenate type name, {, field name-value pairs separated by ,, and }"
+          - "For enums: Concatenate variant name and, if present, ( payload values )"
+        field_requirement: "All fields MUST implement Debug"
+        diagnostic: "E-DRV-0060"
+
+      Clone:
+        contract: "|= emits Clone"
+        applicable: "Record, Enum"
+        procedure: "procedure clone(~) -> Self"
+        generation_rules:
+          - "For records: Construct new instance with each field cloned"
+          - "For enums: Match on variant, clone payload, construct same variant"
+        field_requirement: "All fields MUST implement Clone"
+        diagnostic: "E-DRV-0061"
+
+      Eq:
+        contract: "|= emits Eq"
+        applicable: "Record, Enum"
+        procedure: "procedure eq(~, other: ~Self) -> bool"
+        generation_rules:
+          - "For records: Return true iff all corresponding fields are equal"
+          - "For enums: Return true iff variants match and all payload fields are equal"
+        field_requirement: "All fields MUST implement Eq"
+        diagnostic: "E-DRV-0062"
+
+      Hash:
+        contract: "|= emits Hash, requires Eq"
+        applicable: "Record, Enum"
+        procedure: "procedure hash(~, hasher: &unique Hasher)"
+        generation_rules:
+          - "For records: Hash each field in declaration order"
+          - "For enums: Hash discriminant, then hash payload fields"
+        field_requirement: "All fields MUST implement Hash"
+        diagnostic: "E-DRV-0063"
+
+      Default:
+        contract: "|= emits Default"
+        applicable: "Record"
+        procedure: "procedure default() -> Self"
+        generation_rules:
+          - "Construct instance with each field set to its default value"
+        field_requirement: "All fields MUST implement Default"
+        diagnostics: ["E-DRV-0064", "E-DRV-0065"]
+
+      Serialize:
+        contract: "|= emits Serialize"
+        applicable: "Record, Enum"
+        procedure: "procedure serialize(~, serializer: &unique Serializer) -> Result<(), SerializeError>"
+        generation_rules: "Implementation-defined serialization format"
+        field_requirement: "All fields MUST implement Serialize"
+        diagnostic: "E-DRV-0066"
+
+      Deserialize:
+        contract: "|= emits Deserialize"
+        applicable: "Record, Enum"
+        procedure: "procedure deserialize(deserializer: &unique Deserializer) -> Result<Self, DeserializeError>"
+        generation_rules: "Implementation-defined serialization format"
+        field_requirement: "All fields MUST implement Deserialize"
+        diagnostic: "E-DRV-0067"
+
+    diagnostics:
+      - code: "E-DRV-0060"
+        condition: "Field does not implement Debug"
+      - code: "E-DRV-0061"
+        condition: "Field does not implement Clone"
+      - code: "E-DRV-0062"
+        condition: "Field does not implement Eq"
+      - code: "E-DRV-0063"
+        condition: "Field does not implement Hash"
+      - code: "E-DRV-0064"
+        condition: "Field does not implement Default"
+      - code: "E-DRV-0065"
+        condition: "Default derive on non-record type"
+      - code: "E-DRV-0066"
+        condition: "Field does not implement Serialize"
+      - code: "E-DRV-0067"
+        condition: "Field does not implement Deserialize"
+
+  section_19_7_type_category_dispatch:
+    title: "Type Category Dispatch"
+    line_start: 16381
+
+    definition: "Enables derive targets to generate different code based on target type's category"
+
+    grammar:
+      category_match: 'match introspect "~>" category "::<" type_var ">" "()" "{" category_arm+ "}"'
+      category_arm: 'TypeCategory "::" category_name "=>" block ","'
+      category_name: "Record | Enum | Modal | Primitive | Tuple | Array | Procedure | Reference | Generic"
+
+    exhaustiveness: "Category match in derive target need not be exhaustive. Unmatched categories result in E-DRV-0070."
+
+    typing_rule: "T-CategoryMatch"
+
+    diagnostics:
+      - code: "E-DRV-0070"
+        condition: "Derive target not applicable to type category"
+
+# ============================================================================
+# APPENDICES
+# ============================================================================
+
+appendices:
+
+  appendix_a_c_type_mapping:
+    title: "C Type Mapping Reference"
+    line_start: 17198
+
+    mappings:
+      - c_type: "void"
+        cursive_type: "() (return) or opaque c_void (pointer)"
+      - c_type: "_Bool"
+        cursive_type: "CBool"
+        note: "NOT bool"
+      - c_type: "char"
+        cursive_type: "c_char"
+        note: "Platform-dependent signedness"
+      - c_type: "signed char"
+        cursive_type: "c_schar / i8"
+      - c_type: "unsigned char"
+        cursive_type: "c_uchar / u8"
+      - c_type: "short"
+        cursive_type: "c_short / i16"
+      - c_type: "unsigned short"
+        cursive_type: "c_ushort / u16"
+      - c_type: "int"
+        cursive_type: "c_int / i32"
+      - c_type: "unsigned int"
+        cursive_type: "c_uint / u32"
+      - c_type: "long"
+        cursive_type: "c_long"
+        note: "IDB: 32 or 64 bits"
+      - c_type: "unsigned long"
+        cursive_type: "c_ulong"
+        note: "IDB: 32 or 64 bits"
+      - c_type: "long long"
+        cursive_type: "c_longlong / i64"
+      - c_type: "unsigned long long"
+        cursive_type: "c_ulonglong / u64"
+      - c_type: "size_t"
+        cursive_type: "c_size_t / usize"
+      - c_type: "ssize_t"
+        cursive_type: "c_ssize_t / isize"
+      - c_type: "ptrdiff_t"
+        cursive_type: "c_ptrdiff_t / isize"
+      - c_type: "float"
+        cursive_type: "c_float / f32"
+      - c_type: "double"
+        cursive_type: "c_double / f64"
+      - c_type: "T*"
+        cursive_type: "*mut T or *imm T"
+      - c_type: "const T*"
+        cursive_type: "*imm T"
+      - c_type: "T[] / T* (array)"
+        cursive_type: "BufferView<T> / BufferMut<T>"
+      - c_type: "char* (string)"
+        cursive_type: "CStr / CString"
+      - c_type: "void*"
+        cursive_type: "*mut opaque c_void"
+      - c_type: "Function pointer"
+        cursive_type: "Sparse function type"
+
+  appendix_b_layout_verification:
+    title: "Compile-Time Layout Verification"
+    line_start: 17233
+
+    description: "For critical FFI types, layout can be verified at compile time using [[layout(C)]] and [[derive(FfiSafe)]] facilities"
+
+    verification_pattern: |
+      comptime {
+          static_assert(
+              MyStruct::verify_layout(24, 8),
+              "MyStruct layout mismatch with C definition"
+          );
+          static_assert(
+              MyStruct::c_size() == 24,
+              "MyStruct size mismatch"
+          );
+          static_assert(
+              MyStruct::c_alignment() == 8,
+              "MyStruct alignment mismatch"
+          );
+      }
+
+  appendix_d_formal_grammar:
+    title: "Formal Grammar (ANTLR)"
+    line_start: 17269
+
+    description: "Complete normative grammar for Cursive in ANTLR4 format"
+
+    structure:
+      lexer_rules:
+        - "Keywords"
+        - "Identifiers (XID_START/XID_Continue)"
+        - "Literals (integer/float/string/char)"
+        - "Operators"
+        - "Comments"
+
+      parser_rules:
+        - "All declarations (record, enum, modal, class, procedure)"
+        - "Expressions (precedence-encoded)"
+        - "Statements"
+        - "Patterns"
+
+      operator_precedence:
+        levels: 14
+        range: "Postfix to Assignment"
+
+      comment_nesting: "Block comments (/* ... */) MUST nest recursively; lexer maintains nesting counter"
+
+      maximal_munch_exception: "Generic argument exception per §2.7 (context-sensitive lexing)"
+
+    constraints:
+      - "Keywords are reserved per §2.6"
+      - "Receiver shorthands (~, ~%, ~!) MUST appear only as first parameter in type method declarations"
+      - "All lexical rules MUST conform to preprocessing pipeline output (§2.1)"
+
+  appendix_e_diagnostics:
+    title: "Diagnostics (Normative)"
+    line_start: 17290
+
+    description: "Normative taxonomy for compiler diagnostics and authoritative allocation of diagnostic code ranges"
+
+    diagnostic_code_format:
+      pattern: "K-CAT-FFNN"
+      components:
+        K_kind:
+          E: "Error - violation of normative requirement, compilation cannot proceed to codegen"
+          W: "Warning - well-formed but contains potential issues"
+          N: "Note - informational message attached to error or warning"
+        CAT: "Three-letter code identifying language subsystem"
+        FF: "Two digits identifying specific feature area or chapter"
+        NN: "Two digits uniquely identifying specific condition"
+
+    code_range_allocation:
+      - prefix: "E-CNF-"
+        range: "0100-0299"
+        domain: "Clause 1: Conformance (general)"
+      - prefix: "E-CNF-"
+        range: "0300-0399"
+        domain: "Clause 1: Implementation Limits"
+      - prefix: "E-SRC-"
+        range: "0100-0399"
+        domain: "Clause 2: Source Text & Lexical"
+      - prefix: "E-SYN-"
+        range: "0100-0199"
+        domain: "Clause 2: Syntactic Nesting"
+      - prefix: "E-MEM-"
+        range: "3000-3099"
+        domain: "Clause 3: Memory Model"
+      - prefix: "E-TYP-"
+        range: "1500-1599"
+        domain: "Clause 4: Type System Foundations"
+      - prefix: "E-TYP-"
+        range: "1600-1699"
+        domain: "Clause 4: Permission System"
+      - prefix: "E-TYP-"
+        range: "2000-2049"
+        domain: "Clause 5: Union Types"
+      - prefix: "E-TYP-"
+        range: "2050-2099"
+        domain: "Clause 6: Modal Types"
+      - prefix: "E-KEY-"
+        range: "0001-0099"
+        domain: "Clause 13: Key System"
+      - prefix: "E-CTE-"
+        range: "0001-0104"
+        domain: "Clause 16: Compile-Time Execution"
+      - prefix: "E-REF-"
+        range: "0010-0080"
+        domain: "Clause 17: Type Reflection"
+      - prefix: "E-GEN-"
+        range: "0010-0071"
+        domain: "Clause 18: Code Generation"
+      - prefix: "E-DRV-"
+        range: "0010-0070"
+        domain: "Clause 19: Derivation"
+
+    reserved_ranges:
+      - range: "2500-2899"
+        reserved_for: "Clauses 10-12"
+      - range: "4000-4999"
+        reserved_for: "Standard Library"
+      - range: "5000-5999"
+        reserved_for: "Implementation-Specific"
+
+    conflict_resolution:
+      precedence:
+        1: "Type System diagnostics (E-TYP-) for permission and type violations"
+        2: "Memory Model diagnostics (E-MEM-) for lifetime and move violations"
+        3: "Source diagnostics (E-SRC-) for lexical violations"
+
+      note: "Implementations MAY emit secondary diagnostics in addition to canonical diagnostic"
+
+  appendix_f_conformance_dossier:
+    title: "Conformance Dossier Schema"
+    line_start: 17384
+
+    description: "Normative requirements for Conformance Dossier"
+
+    file_format: "Valid JSON document encoded in UTF-8"
+
+    required_information:
+      metadata:
+        - "Compiler identifier (vendor name)"
+        - "Compiler version (semantic versioning)"
+        - "Target triple (architecture-vendor-os)"
+        - "Build timestamp"
+
+      configuration:
+        - "Conformance mode (strict or permissive)"
+        - "List of enabled language feature flags"
+
+      safety_report:
+        - "Count of unsafe blocks in compiled program"
+        - "List of IFNDR instances (file path, line number, category)"
+
+      implementation_defined_behavior:
+        - "Pointer width (32 or 64 bits)"
+        - "Type layout map for primitive types (size and alignment)"
+
+      implementation_limits:
+        - "Maximum recursion depth"
+        - "Maximum identifier length"
+        - "Maximum source file size"
+
+  appendix_g_standard_form_catalog:
+    title: "Standard Form Catalog"
+    line_start: 17426
+
+    description: "Normative definitions for foundational forms and system capability forms"
+
+    foundational_forms:
+      Drop:
+        signature: "procedure drop(~!)"
+        description: "RAII cleanup, compiler-invoked only"
+        constraint: "MUST NOT be called directly by user code (E-TRS-2920)"
+
+      Copy:
+        description: "Marker form for implicit bitwise duplication"
+        constraints:
+          - "Copy and Drop are mutually exclusive (E-TRS-2921)"
+          - "Copy requires all fields implement Copy (E-TRS-2922)"
+          - "Any type implementing Copy MUST also implement Clone"
+
+      Clone:
+        signature: "procedure clone(~): Self"
+        description: "Explicit deep copy"
+
+      Iterator:
+        signature: "type Item; procedure next(~!): Self::Item | None"
+        description: "Iteration protocol for loop ... in"
+
+    system_capability_forms:
+      FileSystem:
+        procedures:
+          - "open(path: string@View, mode: FileMode): FileHandle | IoError"
+          - "exists(path: string@View): bool"
+          - "restrict(path: string@View): dyn FileSystem (attenuation)"
+
+      Network:
+        procedures:
+          - "connect(addr: NetAddr): Stream | NetError"
+          - "bind(addr: NetAddr): Listener | NetError"
+          - "restrict_to_host(addr: NetAddr): dyn Network (attenuation)"
+
+      HeapAllocator:
+        procedures:
+          - "alloc<T>(count: usize): *mut T"
+          - "dealloc<T>(ptr: *mut T, count: usize)"
+          - "with_quota(size: usize): dyn HeapAllocator (attenuation)"
+        constraint: "alloc MUST panic on OOM (never return null)"
+
+      System:
+        procedures:
+          - "exit(code: i32): !"
+          - "get_env(key: string@View): string"
+          - "spawn<T>(closure: () -> T): Thread<T>@Spawned"
+          - "time(): Timestamp"
+          - "after(duration: Duration): Future<()>"
+
+      Reactor:
+        procedures:
+          - "run<T, E>(async_val: Async<T, (), T, E>): T | E"
+          - "register(handle: IoHandle, interest: Interest): Token"
+          - "poll_ready(token: Token): Readiness"
+
+      Time:
+        procedures:
+          - "now(): Timestamp"
+
+  appendix_h_core_library:
+    title: "Core Library Specification"
+    line_start: 17486
+
+    description: "Minimal normative definitions for core types assumed available without explicit import"
+
+    Context:
+      fields:
+        - name: "fs"
+          type: "dyn FileSystem"
+          purpose: "Filesystem authority"
+        - name: "net"
+          type: "dyn Network"
+          purpose: "Network authority"
+        - name: "sys"
+          type: "System"
+          purpose: "System primitives (env, time)"
+        - name: "heap"
+          type: "dyn HeapAllocator"
+          purpose: "Dynamic allocation"
+        - name: "reactor"
+          type: "Reactor"
+          purpose: "Async runtime"
+        - name: "cpu"
+          type: "CpuDomainFactory"
+          purpose: "CPU parallel execution"
+        - name: "gpu"
+          type: "GpuDomainFactory | None"
+          purpose: "GPU execution"
+        - name: "inline"
+          type: "InlineDomainFactory"
+          purpose: "Inline execution"
+
+      note: "Option and Result are removed. Optionality handled via Union Types (T | None), failure via (T | Error). Pointers handle nullability via Ptr<T>@Null states."
+
+    standard_ffi_types:
+      CStr:
+        fields: "ptr: *imm c_char"
+        constraints: "ptr non-null; buffer MUST be null-terminated"
+
+      CString:
+        fields: "ptr: *mut c_char, len: usize, cap: usize"
+        constraints: "ptr MAY be null only when len = cap = 0; len < cap; byte at ptr[len] MUST be null"
+
+      NonNull:
+        fields: "ptr: *mut T"
+        constraints: "ptr non-null"
+
+      OwnedPtr:
+        fields: "ptr: *mut T, allocator: extern C fn(*mut opaque c_void)"
+        constraints: "Drop; destructor calls allocator(ptr) when ptr non-null"
+
+      BufferView:
+        fields: "ptr: *imm T, len: usize"
+        constraints: "ptr MAY be null only when len = 0; bounds checking is caller responsibility"
+
+      BufferMut:
+        fields: "ptr: *mut T, len: usize"
+        constraints: "Same null/len rule as BufferView; caller ensures uniqueness and bounds"
+
+      CBool:
+        definition: "[[layout(C)]] record { value: u8 }"
+        constraints: "Valid values 0 or 1; size/alignment are IDB per platform ABI"
+
+      OwnedFd:
+        fields: "fd: c_int"
+        constraints: "Drop closes descriptor"
+
+      BorrowedFd:
+        fields: "fd: c_int"
+        constraints: "Does not own; no Drop"
+
+      opaque_c_void:
+        description: "Opaque type representing C void"
+
+      IoError:
+        variants: ["WouldBlock", "Interrupted", "InvalidData", "NotFound", "PermissionDenied", "UnexpectedEof", "Other(u32)"]
+
+      ForeignResource:
+        states:
+          - "@Borrowed { ptr: *imm T }"
+          - "@Owned { ptr: *mut T, dtor: extern C fn(*mut T) }"
+        constraints: "Transition rules follow modal semantics; ownership respected by destructor"
+
+      VaList:
+        definition: "record { handle: opaque c_void }"
+        procedures: "va_copy(dst: *mut VaList, src: *imm VaList)"
+        constraints: "ABI-defined handle layout; va_copy mirrors C va_copy"
+
+      wide_character_aliases:
+        c_wchar: "IDB: 2 or 4 bytes"
+        c_char16: "2-byte UTF-16"
+        c_char32: "4-byte UTF-32"
+
+  appendix_i_behavior_classification:
+    title: "Behavior Classification Index (Normative)"
+    line_start: 17561
+
+    description: "Index of behaviors by classification. Definitions in §1.2"
+
+    unverifiable_behavior_uvb:
+      - "FFI Calls (§17)"
+      - "Raw Pointer Dereference (§6.3)"
+      - "Transmute Operations"
+      - "Pointer Arithmetic"
+
+    implementation_defined_behavior_idb:
+      - "Type Layout (non-C)"
+      - "Integer Overflow (Release)"
+      - "Pointer Width"
+      - "Resource Limits"
+      - "Panic Abort Mechanism"
+      - "Async State Layout (§15.3)"
+      - "Async Discriminant Encoding (§15.3)"
+      - "Async Cancellation I/O Behavior (§15.9)"
+      - "Condition Wake Mechanism (§15.6.3)"
+      - "Dynamic Index Ordering Mechanism (§13.7): Index-value comparison, address comparison, lock coarsening, or hybrid. MUST satisfy cross-task consistency"
+
+    unspecified_behavior_usb:
+      - "Map Iteration: Order of iteration for hash-based collections"
+      - "Padding Bytes: Values of padding bytes in non-[[layout(C)]] records"
+
+    defined_runtime_panics:
+      - "Integer Overflow (Checked Mode)"
+      - "Array/Slice Bounds Check"
+      - "Dynamic Key Conflict: occurs only in [[dynamic]] contexts where runtime key acquisition blocks indefinitely or detects deadlock"
+      - "Contract Check Failure: occurs in [[dynamic]] contexts when runtime-checked contract predicate evaluates to false (P-CON-2850)"
+      - "Refinement Validation Failure: occurs in [[dynamic]] contexts when runtime-checked refinement predicate evaluates to false (P-TYP-1953)"
+
+  appendix_j_implementation_limits:
+    title: "Implementation Limits (Normative)"
+    line_start: 17606
+
+    description: "Minimum guaranteed capacities from §1.4 that all conforming implementations MUST support"
+
+    minimum_guaranteed_limits:
+      source:
+        - resource: "Source Size"
+          limit: "1 MiB"
+        - resource: "Logical Lines"
+          limit: "65,535"
+        - resource: "Line Length"
+          limit: "16,384 chars"
+        - resource: "Nesting Depth"
+          limit: "256"
+        - resource: "Identifier Length"
+          limit: "1,023 chars"
+        - resource: "Parameters"
+          limit: "255"
+        - resource: "Fields"
+          limit: "1,024"
+
+      compile_time_execution:
+        - resource: "Comptime Recursion Depth"
+          limit: "256 frames"
+        - resource: "Comptime Evaluation Steps"
+          limit: "10,000,000"
+        - resource: "Comptime Memory Allocation"
+          limit: "256 MiB"
+        - resource: "Comptime String Length"
+          limit: "16 MiB"
+        - resource: "Comptime Sequence Length"
+          limit: "1,000,000 elements"
+        - resource: "Total Emitted Declarations"
+          limit: "100,000"
+
+    note: "Reference to §16.8 for detailed comptime execution limits"
+
+# ============================================================================
+# COMPREHENSIVE DIAGNOSTIC CODE INDEX
+# ============================================================================
+
+diagnostic_codes:
+
+  compile_time_execution_e_cte:
+    - code: "E-CTE-0001"
+      condition: "unsafe block in comptime context"
+    - code: "E-CTE-0002"
+      condition: "FFI call in comptime context"
+    - code: "E-CTE-0003"
+      condition: "Runtime capability access in comptime context"
+    - code: "E-CTE-0004"
+      condition: "Non-deterministic operation in comptime context"
+    - code: "E-CTE-0005"
+      condition: "Prohibited I/O operation in comptime context"
+    - code: "E-CTE-0010"
+      condition: "Non-comptime-available type in comptime expr"
+    - code: "E-CTE-0011"
+      condition: "Reference type in comptime context"
+    - code: "E-CTE-0012"
+      condition: "Capability type in comptime context"
+    - code: "E-CTE-0020"
+      condition: "Comptime block contains prohibited construct"
+    - code: "E-CTE-0021"
+      condition: "Comptime expression has non-comptime type"
+    - code: "E-CTE-0022"
+      condition: "Comptime evaluation diverges (exceeds limits)"
+    - code: "E-CTE-0023"
+      condition: "Comptime evaluation panics"
+    - code: "E-CTE-0030"
+      condition: "Parameter type not comptime-available"
+    - code: "E-CTE-0031"
+      condition: "Return type not comptime-available"
+    - code: "E-CTE-0032"
+      condition: "Comptime procedure body violates restrictions"
+    - code: "E-CTE-0033"
+      condition: "Requires clause predicate evaluates to false"
+    - code: "E-CTE-0034"
+      condition: "Comptime procedure called from runtime context"
+    - code: "E-CTE-0040"
+      condition: "Emit operation without TypeEmitter capability"
+    - code: "E-CTE-0041"
+      condition: "[[emit]] attribute on non-comptime block"
+    - code: "E-CTE-0042"
+      condition: "Emitted AST is ill-formed"
+    - code: "E-CTE-0050"
+      condition: "fields called on non-record type"
+    - code: "E-CTE-0051"
+      condition: "variants called on non-enum type"
+    - code: "E-CTE-0052"
+      condition: "states called on non-modal type"
+    - code: "E-CTE-0053"
+      condition: "Introspection of incomplete type"
+    - code: "E-CTE-0060"
+      condition: "File operation without ProjectFiles capability"
+    - code: "E-CTE-0061"
+      condition: "[[files]] attribute on non-comptime block"
+    - code: "E-CTE-0062"
+      condition: "Path escapes project directory"
+    - code: "E-CTE-0063"
+      condition: "Absolute path in file operation"
+    - code: "E-CTE-0064"
+      condition: "File not found"
+    - code: "E-CTE-0070"
+      severity: "Error"
+      condition: "Comptime error emitted by user code"
+    - code: "W-CTE-0071"
+      severity: "Warning"
+      condition: "Comptime warning emitted by user code"
+    - code: "E-CTE-0080"
+      condition: "Comptime if condition not comptime-evaluable"
+    - code: "E-CTE-0081"
+      condition: "Comptime if condition not boolean"
+    - code: "E-CTE-0082"
+      condition: "Comptime for iterator not comptime-evaluable"
+    - code: "E-CTE-0083"
+      condition: "Comptime for iterator not iterable"
+    - code: "E-CTE-0084"
+      condition: "Comptime for exceeds iteration limit"
+    - code: "E-CTE-0090"
+      condition: "Comptime assertion failed"
+    - code: "E-CTE-0091"
+      condition: "Comptime assertion condition not boolean"
+    - code: "E-CTE-0092"
+      condition: "Comptime assertion condition not comptime-eval"
+    - code: "E-CTE-0100"
+      condition: "Comptime recursion depth exceeded"
+    - code: "E-CTE-0101"
+      condition: "Comptime iteration limit exceeded"
+    - code: "E-CTE-0102"
+      condition: "Comptime memory limit exceeded"
+    - code: "E-CTE-0103"
+      condition: "Comptime AST node limit exceeded"
+    - code: "E-CTE-0104"
+      condition: "Comptime execution time limit exceeded"
+
+  type_reflection_e_ref:
+    - code: "E-REF-0010"
+      condition: "Type argument to Type::<> is ill-formed"
+    - code: "E-REF-0011"
+      condition: "Type::<> used in runtime context"
+    - code: "E-REF-0020"
+      condition: "Category query on incomplete type"
+    - code: "E-REF-0030"
+      condition: "fields called on non-record type"
+    - code: "E-REF-0040"
+      condition: "variants called on non-enum type"
+    - code: "E-REF-0050"
+      condition: "states called on non-modal type"
+    - code: "E-REF-0060"
+      condition: "required_procedures called on non-form"
+    - code: "E-REF-0061"
+      condition: "implements_form with non-form second arg"
+    - code: "E-REF-0070"
+      condition: "Type predicate on incomplete type"
+    - code: "E-REF-0080"
+      condition: "Name introspection on incomplete type"
+
+  code_generation_e_gen:
+    - code: "E-GEN-0010"
+      condition: "Ast used in runtime context"
+    - code: "E-GEN-0020"
+      condition: "Quoted content is syntactically invalid"
+    - code: "E-GEN-0021"
+      condition: "Quote expression outside comptime"
+    - code: "E-GEN-0030"
+      condition: "Splice type incompatible with context"
+    - code: "E-GEN-0031"
+      condition: "Splice expression not comptime-evaluable"
+    - code: "E-GEN-0032"
+      condition: "Invalid identifier string in splice"
+    - code: "E-GEN-0033"
+      condition: "Splice expression outside quote context"
+    - code: "E-GEN-0040"
+      condition: "Captured identifier no longer in scope at emission"
+    - code: "E-GEN-0041"
+      condition: "Hygiene renaming collision (implementation limit)"
+    - code: "E-GEN-0050"
+      condition: "Emit without TypeEmitter capability"
+    - code: "E-GEN-0051"
+      condition: "Emitted AST is not an item"
+    - code: "E-GEN-0052"
+      condition: "Emitted AST is ill-formed"
+    - code: "E-GEN-0053"
+      condition: "Type error in emitted code"
+    - code: "E-GEN-0060"
+      condition: "type_repr_of called on invalid Type"
+    - code: "E-GEN-0070"
+      condition: "Write key already held for (type, form) pair"
+    - code: "E-GEN-0071"
+      condition: "Duplicate form implementation emitted"
+
+  derivation_e_drv:
+    - code: "E-DRV-0010"
+      condition: "Unknown derive target name"
+    - code: "E-DRV-0011"
+      condition: "Derive attribute on non-type declaration"
+    - code: "E-DRV-0012"
+      condition: "Duplicate derive target in attribute"
+    - code: "E-DRV-0020"
+      condition: "Derive target body violates comptime rules"
+    - code: "E-DRV-0021"
+      condition: "Contract references unknown form"
+    - code: "E-DRV-0022"
+      condition: "Derive target has invalid signature"
+    - code: "E-DRV-0030"
+      condition: "Required form not implemented by target type"
+    - code: "E-DRV-0031"
+      condition: "Emits clause not satisfied after execution"
+    - code: "E-DRV-0032"
+      condition: "Undeclared form emitted"
+    - code: "E-DRV-0040"
+      condition: "Cyclic derive dependency"
+    - code: "E-DRV-0041"
+      condition: "Derive target execution panics"
+    - code: "E-DRV-0042"
+      condition: "Derive execution exceeds resource limits"
+    - code: "E-DRV-0050"
+      condition: "Emitted declaration missing original fields"
+    - code: "E-DRV-0051"
+      condition: "Emitted declaration has wrong type name"
+    - code: "E-DRV-0052"
+      condition: "Form procedure missing from emission"
+    - code: "E-DRV-0060"
+      condition: "Field does not implement Debug"
+    - code: "E-DRV-0061"
+      condition: "Field does not implement Clone"
+    - code: "E-DRV-0062"
+      condition: "Field does not implement Eq"
+    - code: "E-DRV-0063"
+      condition: "Field does not implement Hash"
+    - code: "E-DRV-0064"
+      condition: "Field does not implement Default"
+    - code: "E-DRV-0065"
+      condition: "Default derive on non-record type"
+    - code: "E-DRV-0066"
+      condition: "Field does not implement Serialize"
+    - code: "E-DRV-0067"
+      condition: "Field does not implement Deserialize"
+    - code: "E-DRV-0070"
+      condition: "Derive target not applicable to type category"
+
+# ============================================================================
+# GRAMMAR PRODUCTIONS SUMMARY
+# ============================================================================
+
+grammar_productions_summary:
+  note: "94 EBNF grammar blocks found throughout specification"
+
+  metaprogramming_grammars:
+    clause_16:
+      - line: 14562
+        production: "comptime_block, comptime_expr"
+      - line: 14616
+        production: "comptime_procedure_decl, requires_clause, comptime_predicate"
+      - line: 14968
+        production: "comptime_if, comptime_for"
+      - line: 15036
+        production: "comptime_assert"
+
+    clause_17:
+      - line: 15126
+        production: "type_literal"
+      - line: 15478
+        production: "comptime_requires, comptime_predicate_expr"
+
+    clause_18:
+      - line: 15590
+        production: "quote_expr, quote_type, quote_pattern, quoted_content"
+      - line: 15667
+        production: "splice_expr, splice_ident"
+      - line: 15820
+        production: "emit_stmt"
+
+    clause_19:
+      - line: 15966
+        production: "derive_attr, derive_target_list, derive_target"
+      - line: 16013
+        production: "derive_target_decl, derive_contract, contract_clause, class_ref"
+      - line: 16391
+        production: "category_match, category_arm, category_name"
+
+# ============================================================================
+# POTENTIAL ISSUES AND INCONSISTENCIES
+# ============================================================================
+
+potential_issues:
+
+  inconsistencies:
+    - issue: "Appendix C referenced in text but not present"
+      location: "§17390 references Appendix C (Conformance Dossier Schema) but titled as Appendix F"
+      severity: "Minor"
+      recommendation: "Standardize appendix labeling - either use letters A-J consistently or update references"
+
+    - issue: "Comptime resource limits discrepancy"
+      location: "§16.8 lists 128 calls recursion limit, but Appendix J lists 256 frames"
+      severity: "Moderate"
+      recommendation: "Clarify if these are different measurements or standardize the limit"
+
+    - issue: "Missing grammar reference"
+      location: "Multiple references to §4.2, §7, §11.5 for grammar definitions not fully extracted"
+      severity: "Minor"
+      recommendation: "Cross-reference with earlier clauses for complete grammar"
+
+  ambiguities:
+    - issue: "Comptime string length vs sequence length"
+      location: "Appendix J lists both 16 MiB string length and 1M element sequence length"
+      severity: "Low"
+      recommendation: "Clarify relationship between these limits for string operations"
+
+    - issue: "Category match exhaustiveness"
+      location: "§19.7 states category match 'need not be exhaustive' but error E-DRV-0070 fires on unmatched"
+      severity: "Low"
+      recommendation: "Clarify whether this means 'may fail at runtime' or 'implementation chooses how to handle'"
+
+  incomplete_sections:
+    - issue: "Type representation function signature"
+      location: "§18.6 line 15870 - function signature not provided"
+      severity: "Moderate"
+      recommendation: "Add complete signature for type_repr_of function"
+
+    - issue: "FFI forms chapter references"
+      location: "Multiple references to §17 for FFI, but FFI is in Clause 20"
+      severity: "Minor"
+      recommendation: "Update cross-references to use Clause 20"
+
+  clarifications_needed:
+    - issue: "Comptime evaluation steps vs iterations"
+      location: "Appendix J mentions 10M evaluation steps but §16.8 mentions 65,536 iterations"
+      severity: "Low"
+      recommendation: "Clarify distinction between evaluation steps and loop iterations"
+
+    - issue: "ProjectFiles determinism"
+      location: "§16.5.3 states file contents captured at start of phase but doesn't specify caching behavior"
+      severity: "Low"
+      recommendation: "Clarify if modifications during compilation are prohibited or simply not reflected"
+
+# ============================================================================
+# CROSS-REFERENCES
+# ============================================================================
+
+cross_references:
+  metaprogramming_to_other_clauses:
+    - from: "Clause 16"
+      to: "Clause 2"
+      reference: "Translation Phase 2 (Metaprogramming Phase)"
+    - from: "Clause 16"
+      to: "Clause 10"
+      reference: "Purity requirement (§10.1.1)"
+    - from: "Clause 16"
+      to: "Clause 12"
+      reference: "Runtime capabilities"
+    - from: "Clause 17"
+      to: "Clause 4"
+      reference: "Type system foundations"
+    - from: "Clause 17"
+      to: "Clause 5"
+      reference: "Data types"
+    - from: "Clause 17"
+      to: "Clause 6"
+      reference: "Behavioral types (Modal)"
+    - from: "Clause 17"
+      to: "Clause 9"
+      reference: "Forms (formerly traits)"
+    - from: "Clause 19"
+      to: "Clause 9"
+      reference: "Orphan rule (§9.3)"
+    - from: "Appendix E"
+      to: "All Clauses"
+      reference: "Diagnostic code allocation"
+    - from: "Appendix I"
+      to: "Clause 1"
+      reference: "Behavior classification definitions (§1.2)"
+
+# ============================================================================
+# SUMMARY STATISTICS
+# ============================================================================
+
+statistics:
+  total_lines: 17631
+  metaprogramming_section_lines: 3228
+  appendices_lines: 433
+
+  diagnostic_codes:
+    E_CTE: 44
+    E_REF: 11
+    E_GEN: 14
+    E_DRV: 20
+    W_CTE: 1
+    total: 90
+
+  grammar_productions: 94
+
+  comptime_capabilities: 4
+  standard_derive_targets: 7
+  appendices: 9
+
+  clauses_covered:
+    - 16
+    - 17
+    - 18
+    - 19
+
+  appendices_covered:
+    - A
+    - B
+    - D
+    - E
+    - F
+    - G
+    - H
+    - I
+    - J

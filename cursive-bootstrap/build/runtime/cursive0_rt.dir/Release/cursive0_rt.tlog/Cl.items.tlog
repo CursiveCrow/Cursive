@@ -1,0 +1,9 @@
+C:\Dev\Cursive\cursive-bootstrap\runtime\src\mem.c;C:\Dev\Cursive\cursive-bootstrap\build\runtime\cursive0_rt.dir\Release\mem.obj
+C:\Dev\Cursive\cursive-bootstrap\runtime\src\rtc_stubs.c;C:\Dev\Cursive\cursive-bootstrap\build\runtime\cursive0_rt.dir\Release\rtc_stubs.obj
+C:\Dev\Cursive\cursive-bootstrap\runtime\src\panic.c;C:\Dev\Cursive\cursive-bootstrap\build\runtime\cursive0_rt.dir\Release\panic.obj
+C:\Dev\Cursive\cursive-bootstrap\runtime\src\spec_trace.c;C:\Dev\Cursive\cursive-bootstrap\build\runtime\cursive0_rt.dir\Release\spec_trace.obj
+C:\Dev\Cursive\cursive-bootstrap\runtime\src\context.c;C:\Dev\Cursive\cursive-bootstrap\build\runtime\cursive0_rt.dir\Release\context.obj
+C:\Dev\Cursive\cursive-bootstrap\runtime\src\region.c;C:\Dev\Cursive\cursive-bootstrap\build\runtime\cursive0_rt.dir\Release\region.obj
+C:\Dev\Cursive\cursive-bootstrap\runtime\src\heap.c;C:\Dev\Cursive\cursive-bootstrap\build\runtime\cursive0_rt.dir\Release\heap.obj
+C:\Dev\Cursive\cursive-bootstrap\runtime\src\string_bytes.c;C:\Dev\Cursive\cursive-bootstrap\build\runtime\cursive0_rt.dir\Release\string_bytes.obj
+C:\Dev\Cursive\cursive-bootstrap\runtime\src\filesystem.c;C:\Dev\Cursive\cursive-bootstrap\build\runtime\cursive0_rt.dir\Release\filesystem.obj

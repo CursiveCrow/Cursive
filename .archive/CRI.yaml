@@ -1,0 +1,1465 @@
+COMPREHENSIVE REFERENCE INDEX
+═══════════════════════════════════════════════════════════════════════════════
+Document: The Cursive Language Specification (Draft 3) 
+Generated from: 1 uploaded specification file (`CursiveLanguageSpecification.md`)
+Coverage: Clauses 1-15, 18-20 and Appendices C, G, H, I, plus substantial portions of Clauses 2-7, 8, 9, 12-14 and 6.2/6.3, 13.x, 20.x as visible in the file. Some subsections and minor examples are not fully expanded due to length constraints.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+> **Important caveat:**
+> The document is large and dense. The CRI below is **structured and fairly detailed**, but **not literally exhaustive**: some minor rules, diagnostics, and examples are summarized or grouped. All locations and definitions are taken directly from the uploaded spec; where the spec itself cross‑references sections not fully visible, those are recorded but not expanded.
+
+---
+
+document_structure:
+title: "The Cursive Language Specification"
+version: "Draft 3" 
+
+clauses:
+- number: "1"
+title: "General Principles and Conformance" 
+category: "Semantic"
+subsections:
+- "1.1: Conformance Obligations"
+- "1.2: Behavior Classifications"
+- "1.2.1: Ill-Formed, No Diagnostic Required (IFNDR)" 
+- "1.3: Reserved Identifiers" 
+- "1.4: Implementation Limits"
+- "1.5: Language Evolution"
+- "1.6: (Foundational semantic concepts: Program Point, LexicalScope, etc.)" 
+
+```
+- number: "2"
+  title: "Lexical Structure and Source Text" :contentReference[oaicite:6]{index=6}
+  category: "Lexical"
+  subsections:
+    - "2.1: Source Text Encoding"
+    - "2.3: Preprocessing Pipeline (implied by 'Normalized Source File')" :contentReference[oaicite:7]{index=7}
+    - "2.6: Keywords (keyword table referenced) :contentReference[oaicite:8]{index=8}"
+    - "2.7: Context-Sensitive Lexing / maximal-munch exception (referenced elsewhere)"
+    - "2.8: Literals (string/char/number, referenced by 'outside of literals')" :contentReference[oaicite:9]{index=9}
+    - "2.12: Translation Phases"
+    - "2.13: Syntactic Nesting Limits"
+
+- number: "3"
+  title: "Object and Memory Model"
+  category: "Runtime"
+  subsections:
+    - "3.1: Foundational Principles (object lifetimes, storage durations – referenced)"
+    - "3.3: Provenance and Escape Rule" :contentReference[oaicite:10]{index=10}
+    - "3.4: The Binding Model" :contentReference[oaicite:11]{index=11}
+    - "3.5: Move Semantics" :contentReference[oaicite:12]{index=12}
+    - "3.6: Deterministic Destruction (RAII)" :contentReference[oaicite:13]{index=13}
+
+- number: "4"
+  title: "Type System Foundations"
+  category: "Type System"
+  subsections:
+    - "4.2: Subtyping and Coercion" :contentReference[oaicite:14]{index=14}
+    - "4.3: Variance"
+    - "4.5: Permission Types and Subtyping lattice"
+
+- number: "5"
+  title: "Primitive and Composite Types"
+  category: "Type System"
+  subsections:
+    - "5.x: Primitive numerics, bool, etc. (implied, referenced by layout tables) :contentReference[oaicite:15]{index=15}"
+    - "5.4: Niche Optimization (referenced by Ptr<T> layout)" :contentReference[oaicite:16]{index=16}
+    - "5.5: Union Types (referenced by §4.2 union member subtyping)" :contentReference[oaicite:17]{index=17}
+
+- number: "6"
+  title: "Modal, Pointer, String, and Function Types"
+  category: "Type System"
+  subsections:
+    - "6.1: Modal Types (states, widening – referenced by §4.2 and §7.2)" :contentReference[oaicite:18]{index=18}
+    - "6.2: String Type (`string`, `string@Managed`, `string@View`)" :contentReference[oaicite:19]{index=19}
+    - "6.3: Pointer Types (`Ptr<T>`, raw pointers, UVB rules)" :contentReference[oaicite:20]{index=20}
+    - "6.x: Function and closure types (sparse vs closure, dependencies)" :contentReference[oaicite:21]{index=21}
+
+- number: "7"
+  title: "Type Extensions (Generics, Refinements, Attributes)"
+  category: "Type System"
+  subsections:
+    - "7.2: Attributes (`[[inline]]`, `[[cold]]`, `[[deprecated]]`, `[[reflect]]`, FFI attributes, etc.)" :contentReference[oaicite:22]{index=22}
+    - "7.3: Refinement Types (`T where { P }`)" :contentReference[oaicite:23]{index=23}
+    - "7.5: Verification Facts (referenced from refinements and contracts)" :contentReference[oaicite:24]{index=24}
+
+- number: "8"
+  title: "Modules and Name Resolution" :contentReference[oaicite:25]{index=25}
+  category: "Syntactic"
+  subsections:
+    - "8.1: Module System Architecture (Project, Assembly, Module)" :contentReference[oaicite:26]{index=26}
+    - "8.3: Module Discovery and Search Paths (referenced by Context constraints)" :contentReference[oaicite:27]{index=27}
+    - "8.5: Visibility and Access Control (referenced by diagnostics) :contentReference[oaicite:28]{index=28}"
+    - "8.7: Name Resolution (introduction, shadowing, lookup rules)" :contentReference[oaicite:29]{index=29}
+    - "8.9: Program Entry (`main` and `Context` parameter)" :contentReference[oaicite:30]{index=30}
+
+- number: "9"
+  title: "Forms and Traits / Advanced Name & Type Relations"
+  category: "Type System"
+  subsections:
+    - "9.1–9.4: Form definitions (Drop, Copy, Clone, Iterator, capability forms – also cataloged in Appendix G)" :contentReference[oaicite:31]{index=31}
+
+- number: "10"
+  title: "Contracts"
+  category: "Semantic"
+  subsections:
+    - "10.1: Purity Constraints" :contentReference[oaicite:32]{index=32}
+    - "10.3: Loop Invariants (E-CON-2830/2831)" :contentReference[oaicite:33]{index=33}
+    - "10.4: Contract Verification (static vs `[[dynamic]]`)" :contentReference[oaicite:34]{index=34}
+    - "10.5: Verification Facts"
+
+- number: "11"
+  title: "Expressions and Statements"
+  category: "Syntactic"
+  subsections:
+    - "11.1: Expression Categories / precedence (implied)"
+    - "11.4: Primary Expressions" :contentReference[oaicite:35]{index=35}
+    - "11.4.1: Field and Tuple Access" :contentReference[oaicite:36]{index=36}
+    - "11.4.2: Indexing Expressions" :contentReference[oaicite:37]{index=37}
+    - "11.4.3: Procedure and Method Calls" :contentReference[oaicite:38]{index=38}
+
+- number: "12"
+  title: "Capability System"
+  category: "Semantic"
+  subsections:
+    - "12.1–12.2: Capability introduction / universe and module-level capabilities (referenced by Context)" :contentReference[oaicite:39]{index=39}
+    - "12.3: Capability Attenuation" :contentReference[oaicite:40]{index=40}
+
+- number: "13"
+  title: "Key System (Shared Concurrency Control)"
+  category: "Runtime"
+  subsections:
+    - "13.1: Keys, Modes, and Compatibility" :contentReference[oaicite:41]{index=41}
+    - "13.2: Key Acquisition and Release (atomic acquisition, progress guarantee)" 
+    - "13.3: Key Paths and Boundaries (pointer deref boundaries)" 
+    - "13.4: `#` Key Block (syntax, semantics)" :contentReference[oaicite:44]{index=44}
+    - "13.7: Advanced Key Patterns and Read-Then-Write Prohibition" 
+    - "13.10: Memory Ordering" 
+
+- number: "14"
+  title: "Structured Parallelism"
+  category: "Runtime"
+  subsections:
+    - "14.1–14.4: Parallel block and `spawn` / `dispatch` basics (implied)" :contentReference[oaicite:47]{index=47}
+    - "14.5: Dispatch Expressions and Reduction" :contentReference[oaicite:48]{index=48}
+    - "14.9: Parallel Block Result Types" 
+    - "14.10: Panic Handling in Parallel Blocks" 
+    - "14.11–14.13: Nesting, Determinism, Memory Allocation" :contentReference[oaicite:51]{index=51}
+
+- number: "15"
+  title: "Async and Reactor Integration"
+  category: "Runtime"
+  subsections:
+    - "15.3: Async State Layout / discriminants (referenced as IDB) :contentReference[oaicite:52]{index=52}"
+    - "15.6: Time / timers" :contentReference[oaicite:53]{index=53}
+    - "15.9: Cancellation (I/O behaviour is IDB)" :contentReference[oaicite:54]{index=54}
+    - "15.11: Runtime Integration and Reactor capabilities" :contentReference[oaicite:55]{index=55}
+
+- number: "18"
+  title: "Metaprogramming and Emission"
+  category: "Semantic"
+  subsections:
+    - "18.5: Emission (compile-time `emit` construct and derive execution order)" :contentReference[oaicite:56]{index=56}
+
+- number: "19"
+  title: "Metaprogramming: Derive and Compile-Time Execution"
+  category: "Semantic"
+  subsections:
+    - "19.4: Derive Dependency Order (referenced by §18.5)" :contentReference[oaicite:57]{index=57}
+
+- number: "20"
+  title: "Interoperability and FFI"
+  category: "Runtime"
+  subsections:
+    - "20.6: Capability Isolation Patterns (FFI & capabilities)" :contentReference[oaicite:58]{index=58}
+    - "20.7: Standard FFI Types" :contentReference[oaicite:59]{index=59}
+    - "20.8: Foreign Contracts (`@foreign_assumes` / `@foreign_ensures`)" :contentReference[oaicite:60]{index=60}
+    - "20.9: Platform Type Aliases" :contentReference[oaicite:61]{index=61}
+```
+
+structural_issues:
+- "Diagnostics appendix maps `E-CON-32xx` range to 'Clause 12: Contracts', but contract system is Clause 10 and Clause 12 is capabilities. (Likely stale renumbering.)"
+- "`[[reflect]]` attribute and FFI attributes refer to Clause 17/18 for semantics, while the visible FFI semantics live in Clause 20 and metaprogramming/emission in Clause 18, suggesting renumbering drift in cross-references."
+- "Appendix lettering appears reused: Appendix C is Conformance Dossier schema, but some internal headings under a later appendix still carry 'C.x' labels, suggesting editorial leftovers."
+
+---
+
+terminology:
+
+* term: "conforming implementation"
+  definition: "A translator (compiler, interpreter, or hybrid) that satisfies all normative requirements applicable to implementations and generates a Conformance Dossier." 
+  defined_in: "§1.1"
+  category: "Concept"
+  variants: []
+  notes: ""
+
+* term: "conforming program"
+  definition: "A Cursive source program that satisfies all normative requirements applicable to programs; in particular lexical, syntactic, and static-semantic constraints." 
+  defined_in: "§1.1"
+  category: "Concept"
+  variants: []
+  notes: ""
+
+* term: "well-formed program"
+  definition: "Program that satisfies all lexical constraints (Clause 2), syntactic constraints (Clause 3 and grammar), and all static-semantic constraints across the specification." 
+  defined_in: "§1.1"
+  category: "Concept"
+  variants: []
+  notes: ""
+
+* term: "behavior classifications"
+  definition: "Partition of all program behaviors into Defined Behavior, Implementation-Defined Behavior (IDB), Unspecified Behavior (USB), and Unverifiable Behavior (UVB)."
+  defined_in: "§1.2"
+  category: "Concept"
+  variants: []
+  notes: "Appendix I indexes individual behaviors by classification."
+
+* term: "Defined Behavior"
+  definition: "Behavior for which the specification prescribes exactly one permitted outcome that conforming implementations MUST produce for all well-formed programs." 
+  defined_in: "§1.2"
+  category: "Concept"
+  variants: []
+  notes: ""
+
+* term: "Implementation-Defined Behavior"
+  definition: "Behavior where multiple outcomes are permitted but an implementation MUST choose and document one outcome, consistently across builds, in the Conformance Dossier."
+  defined_in: "§1.2"
+  category: "Concept"
+  variants:
+
+  * variant: "IDB"
+    location: "§1.2, Appendix I"
+    notes: "Examples include pointer width, some type layouts, async state layout, dynamic index ordering mechanism."
+
+* term: "Unspecified Behavior"
+  definition: "Behavior where multiple outcomes are permitted and implementations need not document which outcome is chosen; outcomes may vary between executions, while still respecting safety invariants in safe code."
+  defined_in: "§1.2"
+  category: "Concept"
+  variants:
+
+  * variant: "USB"
+    location: "§1.2, Appendix I"
+    notes: "Appendix I lists map iteration order and padding bytes as USB instances."
+
+* term: "Unverifiable Behavior"
+  definition: "Behavior whose correctness depends on properties external to the language’s semantic model; permitted only in `unsafe` code and FFI calls."
+  defined_in: "§1.2"
+  category: "Concept"
+  variants:
+
+  * variant: "UVB"
+    location: "§1.2, Appendix I"
+    notes: "Examples: FFI calls, raw pointer dereference, `transmute`, pointer arithmetic."
+
+* term: "Ill-Formed, No Diagnostic Required (IFNDR)"
+  definition: "Class of ill-formed programs where detecting the violation is undecidable or infeasible; implementations may compile or reject without obligation to diagnose, but must record instances in the Conformance Dossier." 
+  defined_in: "§1.2.1"
+  category: "Concept"
+  variants:
+
+  * variant: "IFNDR"
+    location: "§1.2.1"
+    notes: "Observable effects of executing an IFNDR program are USB but must still not exhibit UVB."
+
+* term: "reserved identifier"
+  definition: "Identifier reserved for the specification or implementations and forbidden for user-defined identifiers in conforming programs (keywords, `cursive.*`, compiler-generated prefixes, universe-protected bindings)." 
+  defined_in: "§1.3"
+  category: "Concept"
+  variants: []
+  notes: ""
+
+* term: "Universe-Protected Binding"
+  definition: "Identifier pre-declared in the implicit universal scope that MUST NOT be shadowed by user declarations at module scope (e.g., `Context`, core primitives)."
+  defined_in: "§1.3"
+  category: "Concept"
+  variants: []
+  notes: "Universe-protected list explicitly includes core types and forms; all must be available without `use` or import."
+
+* term: "Conformance Dossier"
+  definition: "Machine-readable JSON artifact describing implementation configuration, documented IDB choices, IFNDR instances, and implementation limits."
+  defined_in: "§1.1, Appendix C"
+  category: "Construct"
+  variants: []
+  notes: ""
+
+* term: "LexicalScope"
+  definition: "Triple (EntryPoint, ExitPoint, Parent?) describing a static region of code governing binding visibility; scopes form a forest of trees per procedure." 
+  defined_in: "§1.6 (by reference), §2 introduction"
+  category: "Concept"
+  variants: []
+  notes: ""
+
+* term: "Source Text"
+  definition: "Sequence of Unicode scalar values resulting from decoding a source byte stream and preprocessing; must exclude prohibited code points outside literals." 
+  defined_in: "§2.1"
+  category: "Concept"
+  variants:
+
+  * variant: "Normalized Source File"
+    location: "§2.1"
+    notes: ""
+
+* term: "Binding"
+  definition: "Named association between an identifier and an object, introduced by `let`, `var`, pattern matching, and procedure parameters." 
+  defined_in: "§3.4"
+  category: "Concept"
+  variants: []
+  notes: "Binding state machine for `unique` permission (Active/Inactive/Moved/PartiallyMoved) is defined in §3.4 and permission section §4.5."
+
+* term: "Provenance"
+  definition: "Abstract origin/lifetime classification for pointers and references (Global, Heap, Stack scope, Region, etc.) used to enforce escape rules and prevent use-after-free."
+  defined_in: "§3.3"
+  category: "Concept"
+  variants: []
+  notes: "Escape Rule forbids assigning shorter-lived provenance into longer-lived storage; violation is `E-MEM-3020`."
+
+* term: "Permission"
+  definition: "Type-level qualifier (`const`, `unique`, `shared`) capturing aliasing and mutability properties; forms a linear subtyping lattice and controls key-analysis applicability."
+  defined_in: "§4.5"
+  category: "Type"
+  variants: []
+  notes: "Implicit upgrades are forbidden; attempts are `E-TYP-1511`."
+
+* term: "subtype relation"
+  definition: "Partial order on types (<:) determining when an expression of one type may be used in a context expecting another type, possibly via coercion." 
+  defined_in: "§4.2"
+  category: "Concept"
+  variants: []
+  notes: "Subtype lattice includes permission subtyping, union member subtyping, modal widening, refinement types."
+
+* term: "coercion"
+  definition: "Implicit conversion when an expression of subtype `S` is used where supertype `T` is expected, governed by typing rule (T-Coerce)." 
+  defined_in: "§4.2"
+  category: "Operation"
+  variants: []
+  notes: "Coercion must not introduce UVB."
+
+* term: "variance"
+  definition: "Polarity of type parameters (covariant, contravariant, invariant, bivariant) controlling how subtyping between arguments lifts to subtyping between generic instantiations." 
+  defined_in: "§4.3"
+  category: "Concept"
+  variants: []
+  notes: ""
+
+* term: "modal type"
+  definition: "Type with named states (e.g., `@Borrowed`, `@Owned`, `@Valid`, `@Null`) and explicit, typed transitions; state-specific type written `M@S`."
+  defined_in: "§6.1, §7.2, §20.7"
+  category: "Type"
+  variants: []
+  notes: "State-specific types incomparable; transitions are explicit; modal widening converts `M@S` to `M`."
+
+* term: "refinement type"
+  definition: "Type of the form `T where { P }` restricting values of base type `T` to those satisfying boolean predicate `P`." 
+  defined_in: "§7.3"
+  category: "Type"
+  variants: []
+  notes: "Refinement type is a subtype of `T`; same layout as `T`; predicates must be pure and boolean."
+
+* term: "Project"
+  definition: "Top-level organizational unit consisting of source files and a manifest (`Cursive.toml`), defining one or more assemblies." 
+  defined_in: "§8.1"
+  category: "Concept"
+  variants: []
+  notes: ""
+
+* term: "Assembly"
+  definition: "Collection of modules compiled and distributed as a single unit; may be `library` or `executable`." 
+  defined_in: "§8.1"
+  category: "Concept"
+  variants: []
+  notes: ""
+
+* term: "Module"
+  definition: "Named compilation unit within an assembly, forming a node in the module graph; subject to import/use and initialization rules." 
+  defined_in: "§8.1"
+  category: "Construct"
+  variants: []
+  notes: ""
+
+* term: "Name Introduction"
+  definition: "Process of adding a binding to a scope's namespace via declaration." 
+  defined_in: "§8.7"
+  category: "Concept"
+  variants: []
+  notes: ""
+
+* term: "Shadowing"
+  definition: "Declaration in an inner scope that obscures a binding of the same name in an outer scope; requires explicit `shadow` keyword in strict mode." 
+  defined_in: "§8.7"
+  category: "Concept"
+  variants: []
+  notes: ""
+
+* term: "Name Lookup"
+  definition: "Resolution of an identifier to the entity it denotes by searching scopes (unqualified) or module paths (qualified)." 
+  defined_in: "§8.7"
+  category: "Operation"
+  variants:
+
+  * variant: "Name Resolution"
+    location: "§8.7"
+    notes: ""
+
+* term: "Contract"
+  definition: "Specification of preconditions, postconditions, and invariants expressed as predicates associated with procedures, loops, and types."
+  defined_in: "Clause 10"
+  category: "Construct"
+  variants: []
+  notes: "Foreign contracts (FFI) are a specialized form in §20.8."
+
+* term: "Verification Fact"
+  definition: "Fact recorded by the verifier when a predicate is proved, available to justify future coercions and contract checks."
+  defined_in: "§7.5, §10.5"
+  category: "Concept"
+  variants: []
+  notes: ""
+
+* term: "`Context`"
+  definition: "Core record type parameter holding explicit capability fields (e.g., `fs`, `net`, `time`, `reactor`) passed into `main` and threaded through APIs to avoid ambient authority."
+  defined_in: "Appendix H, §8.9"
+  category: "Type"
+  variants: []
+  notes: "Field types must match capability form dynes defined in Appendix D; `Context` is universe-protected."
+
+* term: "Capability"
+  definition: "Value representing authority to perform effects (filesystem, network, heap, system, reactor, time), typically implemented as a form with attenuation operations."
+  defined_in: "Clause 12, Appendix G"
+  category: "Concept"
+  variants: []
+  notes: "Attenuation creates restricted capabilities (e.g., `restrict(path)`), enforced via type system."
+
+* term: "Key"
+  definition: "Logical capability representing exclusive or shared access to a `shared` path, with mode (Read or Write) and scope; managed by key system and `#` blocks."
+  defined_in: "Clause 13"
+  category: "Concept"
+  variants: []
+  notes: "Key triples (Path, Mode, Scope) tracked in Γ_keys; enforce data-race freedom."
+
+* term: "`#` key block"
+  definition: "Explicit key-acquisition construct that acquires keys to one or more paths at block entry and holds them until block exit, with optional modifiers (`write`, `release`, `ordered`, `speculative`)."
+  defined_in: "§13.4"
+  category: "Construct"
+  variants:
+
+  * variant: "key block"
+    location: "§13.4"
+    notes: ""
+
+* term: "read-then-write prohibition"
+  definition: "Rule forbidding statements that both read and write the same `shared` path without a covering Write key, to avoid upgrade deadlocks."
+  defined_in: "§13.7.1"
+  category: "Constraint"
+  variants: []
+  notes: ""
+
+* term: "Parallel block"
+  definition: "Structured parallel construct `parallel ctx.cpu() { ... }` or `parallel ctx.gpu() { ... }` that spawns work items via `spawn` and `dispatch` and yields a value per result-type rules."
+  defined_in: "Clause 14"
+  category: "Construct"
+  variants: []
+  notes: ""
+
+* term: "SpawnHandle<T>"
+  definition: "Modal handle representing a spawned work item, eventually yielding a result of type `T` that can be awaited or joined."
+  defined_in: "Clause 14, Appendix H"
+  category: "Type"
+  variants: []
+  notes: ""
+
+* term: "Speculative block"
+  definition: "Key block with `speculative write` used for optimistic concurrency with snapshot/commit semantics and no nested key blocks or `wait`/`defer`." 
+  defined_in: "§13.7.2"
+  category: "Construct"
+  variants: []
+  notes: ""
+
+* term: "FFI-safe type"
+  definition: "Type conforming to layout and behavior requirements for safe FFI use; core set defined by `FfiSafe` constraint and standard FFI types catalog."
+  defined_in: "Clause 20, Appendix H"
+  category: "Type"
+  variants: []
+  notes: ""
+
+* term: "Foreign contract"
+  definition: "Contract attached to an `extern \"C\"` declaration using `@foreign_assumes` and `@foreign_ensures` predicates that describe obligations and guarantees at the FFI boundary." 
+  defined_in: "§20.8"
+  category: "Construct"
+  variants: []
+  notes: "Verification modes `[[static]]`, `[[dynamic]]`, `[[assume]]`, `[[trust]]` adjust enforcement."
+
+* term: "unsafe block"
+  definition: "Syntactic construct where programmer assumes responsibility for UVB; required for operations like raw pointer deref and FFI calls."
+  defined_in: "Clause 6.3, Appendix I"
+  category: "Construct"
+  variants: []
+  notes: "Safe code cannot exhibit UVB by safety invariant (§1.2)."
+
+* term: "RAII"
+  definition: "Deterministic destruction model where resources are acquired during initialization and released at statically known destruction points."
+  defined_in: "§3.6"
+  category: "Concept"
+  variants: []
+  notes: ""
+
+# (Many more terms exist; this registry covers the major named concepts needed to reason about clauses 1–15 and 18–20.)
+
+---
+
+grammar:
+notation: "Mixed: informal EBNF within clauses; normative ANTLR4 grammar in Appendix D (Lexer: keywords/identifiers/literals; Parser: modules, types, expressions, statements)."
+
+productions:
+- nonterminal: "key_block"
+definitions:
+- rule: 'key_block ::= "#" path_list mode_modifier* block'
+location: "§13.4" 
+used_in: ["§13.2", "§13.4", "§13.7", "§14.5"]
+
+```
+- nonterminal: "path_list"
+  definitions:
+    - rule: "path_list ::= path_expr (\",\" path_expr)*"
+      location: "§13.4" :contentReference[oaicite:110]{index=110}
+  used_in: ["§13.4", "§13.7"]
+
+- nonterminal: "mode_modifier"
+  definitions:
+    - rule: 'mode_modifier ::= "write" | "read" | release_modifier | "ordered" | "speculative"'
+      location: "§13.4" :contentReference[oaicite:111]{index=111}
+  used_in: ["§13.4", "§13.7"]
+
+- nonterminal: "release_modifier"
+  definitions:
+    - rule: 'release_modifier ::= "release" ("write" | "read")'
+      location: "§13.4"
+  used_in: ["§13.4", "§13.7.2"]
+
+- nonterminal: "move_expr"
+  definitions:
+    - rule: '<move_expr> ::= "move" <place_expr>'
+      location: "§3.5" :contentReference[oaicite:112]{index=112}
+  used_in: ["§3.5", "§11.4"]
+
+- nonterminal: "partial_move"
+  definitions:
+    - rule: '<partial_move> ::= "move" <place_expr> "." <identifier>'
+      location: "§3.5" :contentReference[oaicite:113]{index=113}
+  used_in: ["§3.5"]
+
+- nonterminal: "index_expr"
+  definitions:
+    - rule: "index_expr ::= primary_expr '[' expr ']'"
+      location: "§11.4.2" :contentReference[oaicite:114]{index=114}
+  used_in: ["§11.4.2", "§3.3 P-Index"]
+
+- nonterminal: "call_expr"
+  definitions:
+    - rule: "call_expr ::= primary_expr '(' argument_list? ')'"
+      location: "§11.4.3" :contentReference[oaicite:115]{index=115}
+  used_in: ["§11.4.3", "§11.4", "Clause 14 (spawn/dispatch call examples)"]
+
+- nonterminal: "argument_list"
+  definitions:
+    - rule: "argument_list ::= argument (',' argument)*"
+      location: "§11.4.3" :contentReference[oaicite:116]{index=116}
+  used_in: ["§11.4.3"]
+
+- nonterminal: "string_type"
+  definitions:
+    - rule: 'string_type ::= "string" ( "@" string_state )?'
+      location: "§6.2" :contentReference[oaicite:117]{index=117}
+  used_in: ["§6.2", "Appendix H (Context & FFI signatures)"]
+
+- nonterminal: "string_state"
+  definitions:
+    - rule: 'string_state ::= "Managed" | "View"'
+      location: "§6.2" :contentReference[oaicite:118]{index=118}
+  used_in: ["§6.2", "Appendix H"]
+
+- nonterminal: "contract_clause"
+  definitions:
+    - rule: "contract_clause ::= contract_prelude contract_body"
+      location: "§10.x" 
+  used_in: ["Clause 10", "§20.8 foreign contracts"]
+
+- nonterminal: "foreign_contract"
+  definitions:
+    - rule: 'foreign_contract ::= "@foreign_assumes" "(" predicate_list ")" | "@foreign_ensures" "(" predicate_list ")"'
+      location: "§20.8" :contentReference[oaicite:120]{index=120}
+  used_in: ["§20.8"]
+
+- nonterminal: "dispatch_expr"
+  definitions:
+    - rule: 'dispatch_expr ::= "dispatch" ident "in" range_expr dispatch_modifiers? block'
+      location: "§14.5" :contentReference[oaicite:121]{index=121}
+  used_in: ["§14.5", "§14.12"]
+
+# Many more nonterminals (modules, declarations, full expression grammar) are defined in Appendix D; CRI refers to Appendix D for the exhaustive list.
+```
+
+terminals:
+- token: "IDENT"
+pattern: "Unicode identifier characters: XID_Start XID_Continue* (normalized to NFC for identifiers and module paths)."
+location: "§2.1, §2.6"
+variants: ["identifier"]
+
+```
+- token: "INT_LITERAL"
+  pattern: "Digit sequences with optional base prefixes and suffixes (types), per Clause 2 literals."
+  location: "§2.8"
+  variants: []
+
+- token: "STRING_LITERAL"
+  pattern: "Quoted UTF‑8 string literals with escape sequences; may contain prohibited code points as data."
+  location: "§2.8, §6.2" 
+  variants: []
+```
+
+keywords:
+master_list_location: "§2.6 (keyword table; not fully reproduced here)"
+keywords:
+- keyword: "let"
+defined: "§3.4, Clause 11"
+grammar_usage: ["declarations", "pattern bindings"]
+- keyword: "var"
+defined: "§3.4"
+grammar_usage: ["mutable bindings"]
+- keyword: "shared"
+defined: "§4.5, §13"
+grammar_usage: ["permission annotations", "paths requiring key analysis"]
+- keyword: "unique"
+defined: "§4.5"
+grammar_usage: ["permission annotations"]
+- keyword: "const"
+defined: "§4.5"
+grammar_usage: ["permission annotations"]
+- keyword: "unsafe"
+defined: "§6.3, Appendix I"
+grammar_usage: ["blocks enabling UVB operations"]
+- keyword: "parallel"
+defined: "Clause 14"
+grammar_usage: ["structured parallel blocks"]
+- keyword: "dispatch"
+defined: "§14.5"
+grammar_usage: ["parallel iteration"]
+- keyword: "spawn"
+defined: "Clause 14"
+grammar_usage: ["work item creation"]
+- keyword: "move"
+defined: "§3.5"
+grammar_usage: ["move_expr", "parameter modifier"]
+- keyword: "defer"
+defined: "Clause 11, §13.2 (interaction with keys)"
+grammar_usage: ["defer statement"]
+# The complete reserved keyword list is in §2.6; this CRI records only the ones explicitly referenced in visible semantic sections.
+
+operators:
+- symbol: "*"
+name: "dereference / multiplication"
+precedence: null
+associativity: "left"
+location: "§3.3, §6.3, §11.4"
+conflicts: []
+- symbol: "&&"
+name: "logical and"
+precedence: null
+associativity: "left"
+location: "Clause 11 (expression grammar)"
+conflicts: []
+- symbol: "||"
+name: "logical or"
+precedence: null
+associativity: "left"
+location: "Clause 11"
+conflicts: []
+- symbol: "+"
+name: "addition"
+precedence: null
+associativity: "left"
+location: "Clause 11, examples in §13.7.1"
+conflicts: []
+- symbol: "="
+name: "assignment"
+precedence: null
+associativity: "right"
+location: "Clause 11, §3.5 move semantics"
+conflicts: []
+# Operator precedence is described textually in Clause 11 and the grammar appendix; explicit numeric ranks are not fully visible in the excerpts.
+
+precedence_table_location: "Clause 11, Appendix D (expression grammar) – not reproduced in full."
+
+---
+
+type_system:
+types:
+- name: "bool, integer, floating-point primitives"
+aliases: []
+definition: "Primitive scalar types forming the basis for arithmetic and comparison; concrete set (e.g. i32, u64, f32) defined in primitive types clause."
+location: "Clause 5 (primitive types)"
+supertypes: []
+subtypes: []
+parameters: []
+
+```
+- name: "string"
+  aliases: []
+  definition: "Unicode text type with modal states `@Managed` and `@View` describing ownership vs borrowed views." :contentReference[oaicite:125]{index=125}
+  location: "§6.2"
+  supertypes: []
+  subtypes: ["string@Managed", "string@View"]
+  parameters: []
+
+- name: "string@Managed"
+  aliases: []
+  definition: "State-specific string modal representing owned heap-allocated data with RAII semantics."
+  location: "§6.2"
+  supertypes: ["string"]
+  subtypes: []
+  parameters: []
+
+- name: "string@View"
+  aliases: []
+  definition: "Borrowed view into string data; does not own storage."
+  location: "§6.2"
+  supertypes: ["string"]
+  subtypes: []
+  parameters: []
+
+- name: "Ptr<T>"
+  aliases: []
+  definition: "Safe pointer modal type with states `@Valid`, `@Null`, `@Expired`; represented as a single machine word using niche optimization." :contentReference[oaicite:126]{index=126}
+  location: "§6.3"
+  supertypes: []
+  subtypes: ["Ptr<T>@Valid", "Ptr<T>@Null", "Ptr<T>@Expired"]
+  parameters: ["T"]
+
+- name: "Ptr<T>@Valid"
+  aliases: []
+  definition: "State-specific pointer guaranteed to point to a live `T` object; dereference is safe."
+  location: "§6.3"
+  supertypes: ["Ptr<T>"]
+  subtypes: []
+  parameters: ["T"]
+
+- name: "Ptr<T>@Null"
+  aliases: []
+  definition: "State-specific pointer equal to address 0x0; dereference is ill-formed."
+  location: "§6.3"
+  supertypes: ["Ptr<T>"]
+  subtypes: []
+  parameters: ["T"]
+
+- name: "Ptr<T>@Expired"
+  aliases: []
+  definition: "Compile-time-only state representing use-after-free; has no runtime discriminant; dereference forbidden."
+  location: "§6.3"
+  supertypes: ["Ptr<T>"]
+  subtypes: []
+  parameters: ["T"]
+
+- name: "*imm T"
+  aliases: []
+  definition: "Raw immutable pointer; runtime representation is a machine word; safety only enforced via `unsafe` and external reasoning." :contentReference[oaicite:127]{index=127}
+  location: "§6.3"
+  supertypes: []
+  subtypes: []
+  parameters: ["T"]
+
+- name: "*mut T"
+  aliases: []
+  definition: "Raw mutable pointer; same representation as `*imm T`."
+  location: "§6.3"
+  supertypes: []
+  subtypes: []
+  parameters: ["T"]
+
+- name: "T where { P }"
+  aliases: ["Refinement type over T"]
+  definition: "Subtype of `T` constrained by pure boolean predicate `P`."
+  location: "§7.3" :contentReference[oaicite:128]{index=128}
+  supertypes: ["T"]
+  subtypes: []
+  parameters: ["T"]
+
+- name: "Context"
+  aliases: []
+  definition: "Record type whose fields are capability form dynes providing access to filesystem, network, time, reactor, heap, etc." 
+  location: "Appendix H, §8.9"
+  supertypes: []
+  subtypes: []
+  parameters: []
+
+- name: "CStr"
+  aliases: []
+  definition: "View into a null-terminated C string (`ptr: *imm c_char`)."
+  location: "Appendix H §H.1" :contentReference[oaicite:130]{index=130}
+  supertypes: []
+  subtypes: []
+  parameters: []
+
+- name: "CString"
+  aliases: []
+  definition: "Owned C string with pointer, length, and capacity fields and null-termination invariant."
+  location: "Appendix H §H.1" :contentReference[oaicite:131]{index=131}
+  supertypes: []
+  subtypes: []
+  parameters: []
+
+- name: "NonNull<T>"
+  aliases: []
+  definition: "Wrapper ensuring pointer `ptr: *mut T` is non-null."
+  location: "Appendix H §H.1"
+  supertypes: []
+  subtypes: []
+  parameters: ["T"]
+
+- name: "OwnedPtr<T>"
+  aliases: []
+  definition: "Owned heap pointer with destructor calling a provided allocator function."
+  location: "Appendix H §H.1"
+  supertypes: []
+  subtypes: []
+  parameters: ["T"]
+
+- name: "ForeignResource<T>"
+  aliases: []
+  definition: "Modal resource with states `@Borrowed` and `@Owned` modeling FFI-managed lifetime and destructor."
+  location: "Appendix H §H.1" :contentReference[oaicite:132]{index=132}
+  supertypes: []
+  subtypes: ["ForeignResource<T>@Borrowed", "ForeignResource<T>@Owned"]
+  parameters: ["T"]
+
+- name: "VaList"
+  aliases: []
+  definition: "Opaque handle to C variadic argument list."
+  location: "Appendix H §H.1"
+  supertypes: []
+  subtypes: []
+  parameters: []
+
+- name: "FileSystem, Network, HeapAllocator, System, Reactor, Time"
+  aliases: []
+  definition: "Form types representing system capabilities; each defines methods for respective actions."
+  location: "Appendix G" :contentReference[oaicite:133]{index=133}
+  supertypes: []
+  subtypes: []
+  parameters: []
+```
+
+hierarchy:
+- sub: "string@Managed"
+super: "string"
+location: "§6.2 (modal widening rule)"
+- sub: "string@View"
+super: "string"
+location: "§6.2"
+- sub: "Ptr<T>@Valid"
+super: "Ptr<T>"
+location: "§6.3" 
+- sub: "Ptr<T>@Null"
+super: "Ptr<T>"
+location: "§6.3"
+- sub: "T where { P }"
+super: "T"
+location: "§7.3" 
+- sub: "Modal type implementing class Cl"
+super: "Cl"
+location: "§5.x, §7.2, §5.5 (Modal-Class-Sub)"
+
+type_rules:
+- id: "T-COERCE"
+construct: "Subtyping coercion"
+formal: "Γ ⊢ e : S ∧ Γ ⊢ S <: T ⇒ Γ ⊢ e : T"
+prose: "Expression of subtype may be used where supertype is expected via implicit coercion; must not introduce UVB."
+location: "§4.2" 
+conflicts: []
+
+```
+- id: "T-MODAL-STATE-INTRO"
+  construct: "Construction of state-specific modal value"
+  formal: "If Γ ⊢ e_i : T_i for fields f_i of state S, then Γ ⊢ M@S{f_i: e_i} : M@S"
+  prose: "State instance is formed by providing all payload fields."
+  location: "§6.1" :contentReference[oaicite:139]{index=139}
+  conflicts: []
+
+- id: "T-MODAL-FIELD"
+  construct: "Field access on state-specific modal"
+  formal: "Γ ⊢ e : M@S ∧ f ∈ Payload(S) ⇒ Γ ⊢ e.f : T"
+  prose: "Payload fields of state S are only accessible via M@S bindings."
+  location: "§6.1" :contentReference[oaicite:140]{index=140}
+  conflicts: []
+
+- id: "T-MODAL-WIDEN"
+  construct: "Modal widening"
+  formal: "Γ ⊢ e : M@S ⇒ Γ ⊢ widen e : M"
+  prose: "State-specific modal may be widened to general modal type; subtyping relation used elsewhere."
+  location: "§6.1" :contentReference[oaicite:141]{index=141}
+  conflicts: []
+
+- id: "T-MOVE"
+  construct: "`move x`"
+  formal: "Γ ⊢ x : T ∧ state(Γ,x)=Valid ∧ movable(Γ,x) ⇒ Γ ⊢ move x : T ⊣ Γ[x↦Moved]"
+  prose: "Moves value out of binding, leaving it Moved and unusable except for reassignment of `var`."
+  location: "§3.5" :contentReference[oaicite:142]{index=142}
+  conflicts: []
+
+- id: "T-MOVE-FIELD"
+  construct: "Partial move from record field"
+  formal: "Γ ⊢ x : record {..., f:T,...} ∧ perm(Γ,x)=unique ⇒ Γ ⊢ move x.f : T ⊣ Γ[x↦PartiallyMoved(f)]"
+  prose: "Partial move allowed only from unique, movable bindings."
+  location: "§3.5" :contentReference[oaicite:143]{index=143}
+  conflicts: []
+
+- id: "T-REFINEMENT-INTRO"
+  construct: "Refinement type introduction"
+  formal: "If Γ ⊢ e : T ∧ predicate P(e) provable (or verified) then Γ ⊢ e : T where {P}"
+  prose: "Values of base type may be given refinement type when predicate known to hold."
+  location: "§7.3" 
+  conflicts: []
+
+- id: "T-REFINEMENT-COERCE"
+  construct: "Coercion from refinement to base"
+  formal: "Γ ⊢ e : T where {P} ⇒ Γ ⊢ e : T"
+  prose: "Refinement types are subtypes; implicit downcast allowed."
+  location: "§7.3, §4.2"
+  conflicts: []
+
+- id: "T-PARALLEL-EMPTY"
+  construct: "Empty parallel block"
+  formal: "Γ ⊢ parallel D {} : ()"
+  prose: "Parallel block with no `spawn` or `dispatch` yields unit."
+  location: "§14.9" 
+  conflicts: []
+
+- id: "T-PARALLEL-SINGLE"
+  construct: "Single spawn parallel block"
+  formal: "Γ ⊢ spawn {e} : SpawnHandle<T> ⇒ Γ ⊢ parallel D { spawn {e} } : T"
+  prose: "Parallel block with single spawn yields inner result type."
+  location: "§14.9" 
+  conflicts: []
+
+- id: "T-PARALLEL-MULTI"
+  construct: "Multiple spawn parallel block"
+  formal: "Γ ⊢ spawn {e_i} : SpawnHandle<T_i> ⇒ Γ ⊢ parallel D {...} : (T_1,...,T_n)"
+  prose: "Multiple spawns yield tuple of results."
+  location: "§14.9"
+  conflicts: []
+
+# Many additional typing rules (indexing, field access, calls, key analysis, emit, introspection) are present; this CRI lists only the major ones visible in the provided excerpts.
+```
+
+conversions:
+- from: "M@S (state-specific modal)"
+to: "M (general modal)"
+implicit: true
+syntax: "widen e (explicit in rule, but also via subtyping)"
+mechanism: "Drops state information at type level while preserving runtime representation."
+may_fail: false
+failure_behavior: "N/A"
+location: "§6.1 (modal widening)" 
+conflicts: []
+
+```
+- from: "T"
+  to: "T where {P}"
+  implicit: true
+  syntax: "Implicit when Verification Facts prove predicate; otherwise explicit check in `[[dynamic]]`."
+  mechanism: "Static verification; runtime check only under `[[dynamic]]`."
+  may_fail: true
+  failure_behavior: "Panic `P-TYP-1953` on failed dynamic refinement validation." 
+  location: "§7.3"
+  conflicts: []
+
+- from: "Ptr<T>@Valid"
+  to: "raw pointer `*mut T` / `*imm T`"
+  implicit: false
+  syntax: "cast or FFI boundary"
+  mechanism: "Reinterprets safe pointer as raw; safety obligations move to `unsafe` context."
+  may_fail: true
+  failure_behavior: "If underlying address invalid, behavior is UVB."
+  location: "§6.3, §20.7" 
+  conflicts: []
+```
+
+---
+
+semantics:
+evaluation:
+model: "Strict (call-by-value for expressions and arguments)"
+order: "Left-to-right, depth-first, for subexpression evaluation and key acquisition."
+order_location: "§13.1.3 Evaluation Order"
+
+scoping:
+model: "Lexical"
+model_location: "§1.6 LexicalScope; §8.7 Name Resolution"
+scope_introducers:
+- construct: "block `{ ... }`"
+scope_type: "block"
+location: "Clause 11, §13.2 (key scopes)"
+- construct: "procedure / method body"
+scope_type: "function"
+location: "Clause 3, Clause 11"
+- construct: "module"
+scope_type: "module"
+location: "Clause 8"
+- construct: "parallel block body"
+scope_type: "block (may be nested under task)"
+location: "Clause 14"
+lookup_rule: "Unqualified lookup searches from innermost scope outward; qualified lookup resolves module paths then fields/names." 
+lookup_location: "§8.7"
+shadowing_allowed: true
+shadowing_location: "§8.7"
+
+binding:
+- construct: "let"
+creates: "Immutable binding"
+mutable: false
+scope: "Lexical block scope or pattern scope"
+location: "§3.4, Clause 11" 
+- construct: "var"
+creates: "Mutable binding"
+mutable: true
+scope: "Lexical block scope"
+location: "§3.4"
+
+evaluation_rules:
+- id: "E-Key-Eval-Order"
+construct: "Binary operator evaluation with keys"
+condition: "Expression e1 ⊕ e2 in context requiring key analysis"
+rule: "Evaluate e1, then e2, then apply operator; key acquisition follows the same left-to-right order." 
+location: "§13.1.3"
+
+```
+- id: "E-Key-Acquire-New"
+  construct: "New key acquisition"
+  condition: "Access requires key, and no covering key exists."
+  rule: "Add (P,M,S) to Γ_keys; optionally emit runtime synchronization under `[[dynamic]]`."
+  location: "§13.2, §13.3, §13.7" 
+
+- id: "E-Key-Release-Scope"
+  construct: "Scope exit"
+  condition: "Scope S exits (normal, return, break, continue, panic, cancellation)."
+  rule: "Remove all keys with scope S or nested scopes from Γ_keys; runtime ensures release before RAII destruction and before `defer` bodies." 
+  location: "§13.2, §13.7.2"
+
+- id: "E-Parallel-Panic"
+  construct: "Panic in parallel block"
+  condition: "Work item panics inside parallel block."
+  rule: "Panic captured; other work settles; after completion, first panic re-raised at block boundary; others may be logged and discarded." 
+  location: "§14.10"
+
+- id: "E-Speculative-Commit"
+  construct: "Speculative block commit"
+  condition: "`speculative write` key block completes without conflict."
+  rule: "Validate write-set against version counters; commit writes atomically; discard writes and retry or fallback on conflict." :contentReference[oaicite:158]{index=158}
+  location: "§13.7.3"
+```
+
+control_flow:
+- construct: "parallel block"
+semantics: "Spawns work items (`spawn`, `dispatch`), waits for all to settle, aggregates results and propagates first panic if any."
+location: "Clause 14"
+
+```
+- construct: "dispatch"
+  semantics: "Parallel iteration over range or collection with optional reduction; key patterns determine safe partitioning."
+  location: "§14.5, §13.5" 
+
+- construct: "defer"
+  semantics: "Registers block to run on scope exit after keys are released; new keys in defer have fresh scope."
+  location: "§11.x, §13.2" :contentReference[oaicite:161]{index=161}
+```
+
+---
+
+constraints:
+static:
+- id: "SC-001"
+description: "Program must be well-formed (lexical, syntactic, static-semantic) or compilation is rejected."
+applies_to: ["whole program"]
+violation: "E-CNF-0101"
+location: "§1.1" 
+
+```
+- id: "SC-002"
+  description: "UTF-8 is mandatory; invalid sequences or prohibited control characters outside literals are ill-formed."
+  applies_to: ["source text"]
+  violation: "E-SRC-0101, E-SRC-0104"
+  location: "§2.1" :contentReference[oaicite:163]{index=163}
+
+- id: "SC-010"
+  description: "Subtype relation must be reflexive and transitive; coercions only allowed when S <: T."
+  applies_to: ["all type conversions"]
+  violation: "E-TYP-1510, E-TYP-1511, E-TYP-1512"
+  location: "§4.2" :contentReference[oaicite:164]{index=164}
+
+- id: "SC-020"
+  description: "Refinement predicates must be pure, boolean, not circular, and must be statically provable unless inside `[[dynamic]]`."
+  applies_to: ["refinement types"]
+  violation: "E-TYP-1950–1953, E-CON-2802"
+  location: "§7.3" 
+
+- id: "SC-030"
+  description: "Contract predicates (including foreign contracts) require static proof unless in `[[dynamic]]` context."
+  applies_to: ["contracts"]
+  violation: "E-CON-2801, E-CON-2850–2852, E-CON-2853–2855"
+  location: "§10.4, §20.8" 
+
+- id: "SC-040"
+  description: "Key safety must be statically provable unless in `[[dynamic]]`; otherwise program is ill-formed."
+  applies_to: ["all shared path accesses using key system"]
+  violation: "E-KEY-0020"
+  location: "§13.1.4" 
+
+- id: "SC-050"
+  description: "Read-then-write patterns on shared paths without covering Write key are rejected."
+  applies_to: ["statements accessing shared paths"]
+  violation: "E-KEY-0060"
+  location: "§13.7.1" 
+
+- id: "SC-060"
+  description: "`Drop` and `Copy` cannot both be implemented by same type; Copy requires Clone and fieldwise Copy."
+  applies_to: ["form implementations"]
+  violation: "E-TRS-2920–2922"
+  location: "Appendix G" :contentReference[oaicite:169]{index=169}
+
+- id: "SC-070"
+  description: "Universe-protected bindings (including `Context` and primitives) must not be shadowed at module scope."
+  applies_to: ["top-level declarations"]
+  violation: "Name resolution errors (E-NAM-13xx)"
+  location: "§1.3, §8.7" 
+```
+
+runtime:
+- id: "RC-001"
+description: "Out-of-bounds array/slice access triggers defined panic."
+applies_to: ["indexing expressions"]
+violation: "Panic (Defined Runtime Panic in Appendix I)"
+location: "Appendix I F.4" 
+
+```
+- id: "RC-002"
+  description: "Runtime refinement validation failure in `[[dynamic]]` context panics."
+  applies_to: ["refinement type checks"]
+  violation: "P-TYP-1953"
+  location: "§7.3, Appendix I" 
+
+- id: "RC-003"
+  description: "Runtime contract violation in `[[dynamic]]` context panics."
+  applies_to: ["contracts"]
+  violation: "P-CON-2860, P-CON-2861"
+  location: "§10.4, §20.8, Appendix I" 
+
+- id: "RC-010"
+  description: "Dynamic key conflict in `[[dynamic]]` context may block or panic only as specified; dynamic ordering must ensure progress."
+  applies_to: ["key acquisition at runtime"]
+  violation: "Panic 'Dynamic Key Conflict' instance; or deadlock is forbidden but not given as UB."
+  location: "§13.7, Appendix I" 
+```
+
+limits:
+- name: "UTF-8 only"
+value: "Source must be UTF-8; invalid sequences rejected."
+location: "§2.1" 
+conflicts: []
+
+```
+- name: "Implementation limits (recursion depth, identifier length, source file size, syntactic nesting)"
+  value: "Minima not fully listed in excerpt; specific maxima are implementation-defined but must be documented in Conformance Dossier."
+  location: "§1.4, §2.13, Appendix C" 
+  conflicts: []
+```
+
+---
+
+behaviors:
+defined:
+- behavior: "Array/slice bounds checks"
+specification: "Out-of-bounds indexing triggers defined panic; no memory UB."
+location: "Appendix I F.4" 
+
+```
+- behavior: "Key release on scope exit"
+  specification: "All keys in a scope (and nested scopes, on panic) are released before RAII destruction and `defer` execution."
+  location: "§13.2, §13.7.2" 
+
+- behavior: "Parallel block panic propagation"
+  specification: "First panic (completion order) is re-raised after work settles; others may be logged."
+  location: "§14.10" 
+```
+
+implementation_defined:
+- behavior: "Pointer width and alignment"
+what_varies: "Size and alignment of raw pointers and pointer-sized integers; must be documented (32 vs 64 bit, etc.)."
+location: "Appendix I F.2; Appendix C dossier fields"
+
+```
+- behavior: "Type layout for non-`[[layout(C)]]` records"
+  what_varies: "Field ordering, padding, niche exploitation."
+  location: "Appendix I F.2; Clause 5." :contentReference[oaicite:181]{index=181}
+
+- behavior: "Dynamic index ordering mechanism"
+  what_varies: "Mechanism used to compute `DynOrder(P,Q)` (index comparison, address comparison, or hybrid) while satisfying required properties."
+  location: "§13.7, Appendix I" 
+
+- behavior: "Async state layout/discriminant encoding"
+  what_varies: "Representation of async state machines; layout and discriminant details documented per implementation."
+  location: "Appendix I F.2; §15.3" :contentReference[oaicite:183]{index=183}
+
+- behavior: "Map iteration order"
+  what_varies: "Order in which hash-based maps iterate; not documented, may differ by run."
+  location: "Appendix I F.3" :contentReference[oaicite:184]{index=184}
+```
+
+unspecified:
+- behavior: "Map iteration order"
+what_varies: "Iteration order over hash-based collections."
+location: "Appendix I F.3" 
+
+```
+- behavior: "Values of padding bytes in non-C-layout records"
+  what_varies: "Bit pattern of padding bytes; not observable in safe code."
+  location: "Appendix I F.3" :contentReference[oaicite:186]{index=186}
+```
+
+undefined:
+# The spec replaces traditional UB with UVB and IFNDR; there is no classic 'undefined behavior' category.
+- behavior: "N/A (classic undefined behavior intentionally avoided)"
+trigger: "Instead classified as UVB or IFNDR."
+
+errors:
+- error: "E-CNF-0101"
+conditions: ["Program is ill-formed due to syntactic or static-semantic violation."]
+location: "§1.1" 
+
+```
+- error: "E-KEY-0020"
+  conditions: ["Key safety not provable statically and outside `[[dynamic]]` context."]
+  location: "§13.1.4" 
+
+- error: "E-MEM-3001"
+  conditions: ["Access to a binding in Moved or PartiallyMoved state."]
+  location: "§3.5" :contentReference[oaicite:189]{index=189}
+
+- error: "E-TYP-1953"
+  conditions: ["Refinement predicate not statically provable outside `[[dynamic]]` context."]
+  location: "§7.3" 
+
+- error: "E-CON-2801"
+  conditions: ["Contract predicate not statically provable outside `[[dynamic]]` context."]
+  location: "§10.4" :contentReference[oaicite:191]{index=191}
+```
+
+---
+
+builtins:
+functions:
+- name: "Drop::drop"
+signature: "procedure drop(~!)"
+description: "RAII destructor invoked by compiler at destruction points; must not be called directly."
+location: "Appendix G (Foundational Forms)"
+aliases: []
+
+```
+- name: "Clone::clone"
+  signature: "procedure clone(~): Self"
+  description: "Explicit deep copy; for Copy types, equivalent to bitwise copy."
+  location: "Appendix G" :contentReference[oaicite:193]{index=193}
+  aliases: []
+
+- name: "Iterator::next"
+  signature: "procedure next(~!): Self::Item | None"
+  description: "Iteration protocol for `loop ... in` constructs."
+  location: "Appendix G" :contentReference[oaicite:194]{index=194}
+  aliases: []
+
+- name: "System::after"
+  signature: "procedure after(duration: Duration): Future<()>"
+  description: "Async timer; integrates with Reactor per §15.6.1 and §15.11."
+  location: "Appendix G, §15.6.1" :contentReference[oaicite:195]{index=195}
+  aliases: []
+
+- name: "Reactor::run"
+  signature: "run<T, E>(async_val: Async<T, (), T, E>): T | E"
+  description: "Drives an async computation to completion."
+  location: "Appendix G, §15.11" :contentReference[oaicite:196]{index=196}
+  aliases: []
+```
+
+constants: []
+
+types:
+- name: "Context"
+description: "Core record aggregating capability fields; must be available in universe scope."
+location: "Appendix H, §8.9"
+
+```
+- name: "Standard FFI Types (`CStr`, `CString`, `NonNull<T>`, `OwnedPtr<T>`, `BufferView<T>`, `BufferMut<T>`, `CBool`, `OwnedFd`, `BorrowedFd`, `IoError`, `ForeignResource<T>`, `VaList`, `c_wchar`, `c_char16`, `c_char32`)"
+  description: "Normative FFI-safe representations of common C entities (strings, buffers, file descriptors, IO errors, variadic lists, wide characters)."
+  location: "Appendix H §H.1" 
+```
+
+---
+
+cross_references:
+explicit:
+- from_clause: "§1.2"
+reference_text: "See Appendix I for the complete IDB index."
+target: "Appendix I"
+target_contains: "Enumerated IDB, USB, UVB, and defined panic instances."
+valid: true
+issue: ""
+
+```
+- from_clause: "§4.2"
+  reference_text: "Permission subtyping: §4.5."
+  target: "§4.5"
+  target_contains: "Permission lattice and subtyping rules."
+  valid: true
+  issue: "" :contentReference[oaicite:199]{index=199}
+
+- from_clause: "§7.3"
+  reference_text: "Predicate purity: §10.1.1."
+  target: "§10.1.1"
+  target_contains: "Definition of pure expression."
+  valid: true
+  issue: "" 
+
+- from_clause: "§7.2.6 (FFI attributes)"
+  reference_text: "Complete semantics are defined in Clause 18 (Interoperability)."
+  target: "Clause 18"
+  target_contains: "Metaprogramming/emission, not FFI semantics; FFI semantics observed in Clause 20."
+  valid: false
+  issue: "Likely stale reference after FFI was moved to Clause 20." 
+
+- from_clause: "§18.5"
+  reference_text: "All derive targets execute in dependency order (§19.4)."
+  target: "§19.4"
+  target_contains: "Derive dependency ordering (not fully visible)."
+  valid: true
+  issue: "Target text not included in excerpt, but reference is structurally coherent." :contentReference[oaicite:202]{index=202}
+```
+
+implicit_dependencies:
+- clause: "Clause 13 (Key System)"
+depends_on: ["§4.5 Permission Types", "Clause 14 Parallelism", "Clause 12 Capabilities"]
+reason: "Keys apply only to `shared` permission; parallel blocks introduce concurrent accesses; capabilities provide shared resources whose access is controlled by keys."
+
+```
+- clause: "Clause 10 (Contracts)"
+  depends_on: ["§7.3 Refinement Types", "§1.2 Behavior Classifications"]
+  reason: "Refinements share verification machinery and behavior classification; contract failures become defined panics or IFNDR." 
+```
+
+---
+
+examples:
+
+* id: "EX-001"
+  location: "§13.4"
+  code: |
+  #path write {
+  path += e
+  }
+  claimed_behavior: "Acquires Write key to `path` for block duration; pattern classified as permitted compound update."
+  claimed_output: "None; modifies `path` deterministically and releases key on exit."
+  demonstrates: "Key block acquisition and read-then-write prohibition exemption via desugaring."
+
+* id: "EX-002"
+  location: "§13.3.3"
+  code: |
+  let list: shared List<i32> = ...
+
+  list.value          // Key: list.value
+  (*list.next).value  // Key: (*list.next).value
+  claimed_behavior: "Two independent keys; operations may proceed in parallel when nodes differ."
+  claimed_output: "Unspecified numeric results; structure demonstrates key boundaries."
+  demonstrates: "Key boundary semantics across pointer dereferences."
+
+* id: "EX-003"
+  location: "§14.10"
+  code: |
+  let results = parallel ctx.cpu() {
+  spawn { catch_panic(|| risky_work_a()) }
+  spawn { catch_panic(|| risky_work_b()) }
+  }
+  // results: (Result<A, PanicInfo>, Result<B, PanicInfo>)
+  claimed_behavior: "Panics inside spawned work are captured in `Result` and do not propagate out of the parallel block."
+  claimed_output: "Tuple of Result values; no outer panic."
+  demonstrates: "Panic capture in parallel blocks."
+
+* id: "EX-004"
+  location: "§20.8"
+  code: |
+  extern "C" {
+  procedure fwrite(
+  ptr: *imm opaque c_void,
+  size: c_size_t,
+  count: c_size_t,
+  stream: *mut FILE
+  ) -> c_size_t
+  |= @foreign_assumes(ptr != null, stream != null)
+  |= @foreign_ensures(@result <= count);
+  }
+  claimed_behavior: "Call sites may assume preconditions, and in static mode postcondition used for downstream proofs; in `[[dynamic]]` mode a runtime check ensures @result <= count."
+  claimed_output: "Number of elements written; never exceeds `count`."
+  demonstrates: "Foreign contract usage and verification modes." 
+
+* id: "EX-005"
+  location: "§13.2 (Defer interaction)"
+  code: |
+  {
+  player.health = 50
+  defer { player.mana = 100 }
+  }
+  claimed_behavior: "Key for `player` acquired for health write, released on scope exit, then defer executes with fresh key for `player.mana`."
+  claimed_output: "After block, health=50, mana=100, with correct key lifetimes."
+  demonstrates: "Key release order relative to `defer` execution." 
+
+# Many more examples exist; the CRI indexes representative ones relevant to key, contracts, parallelism, and FFI semantics.
+
+---
+
+conflicts_observed:
+terminology:
+- term: "Contracts clause number"
+locations:
+- location: "Diagnostics appendix (error code ranges)"
+usage: "E-CON-32xx associated with Clause 12: Contracts."
+- location: "Main text"
+usage: "Contracts defined in Clause 10; Clause 12 is Capabilities."
+nature: "Contradiction (stale renumbering)."
+
+```
+- term: "Interoperability clause number"
+  locations:
+    - location: "§7.2.6 (FFI attributes)"
+      usage: "Refers to 'Clause 18 (Interoperability)'."
+    - location: "Clause 20"
+      usage: "Interoperability and FFI semantics defined as Clause 20.*."
+  nature: "Contradiction / outdated reference." 
+```
+
+grammar:
+- production: "FFI semantics location"
+conflict: "Attributes grammar and semantics say 'see Clause 18', but foreign contract grammar actually lives in Clause 20.8."
+locations: ["§7.2.6", "§20.8"]
+
+types:
+- subject: "Modal vs general type naming for `Ptr<T>`"
+conflict: "Documentation says @Expired state is compile-time only but simultaneously includes pointer layout table listing '@Expired representation' as 'Formerly-valid address' with same runtime encoding as Valid."
+locations: ["§6.3 (Ptr<T> layout)", "Prose about @Expired having no runtime representation"]
+conflict: "Ambiguity (clarified that @Expired is compile-time only despite sharing bit pattern with Valid)." 
+
+semantics:
+- subject: "Speculative blocks vs memory ordering annotations"
+conflict: "Speculative blocks forbid explicit memory ordering annotations inside, but memory ordering semantics section describes general annotations that could appear anywhere."
+locations: ["§13.7.3 Speculative blocks", "§13.10 Memory Ordering"]
+conflict: "Needs explicit statement that annotations are syntactically illegal within speculative blocks."
+
+values:
+- subject: "Implementation limits"
+conflict: "Appendix C lists implementation limits in Dossier; Clause 1.4 references minimum capacities, but detailed numeric minima are not visible in excerpt."
+locations: ["§1.4", "Appendix C"]
+conflict: "Incomplete specification in visible text; likely filled in in sections not included."

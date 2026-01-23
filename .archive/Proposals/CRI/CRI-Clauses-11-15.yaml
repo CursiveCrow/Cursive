@@ -1,0 +1,2161 @@
+# Comprehensive Reference Index (CRI)
+# Cursive Language Specification: Clauses 11-15
+# Focus: Expressions, Capabilities, Key System, Parallelism, Async
+
+metadata:
+  title: "Cursive Language Specification - Clauses 11-15 Reference Index"
+  version: "1.0"
+  date: "2025-12-03"
+  scope: "Lines 8150-14400 (approximately)"
+  clauses_covered:
+    - "Clause 11: Expressions & Statements"
+    - "Clause 12: Capability System"
+    - "Clause 13: Key System"
+    - "Clause 14: Structured Parallelism"
+    - "Clause 15: Asynchronous Operations"
+
+# ============================================================================
+# CLAUSE 11: EXPRESSIONS & STATEMENTS
+# ============================================================================
+
+clause_11_expressions_statements:
+  location: "§11 (Lines 8153-9637)"
+
+  foundational_concepts:
+    expression:
+      definition: "Syntactic form that produces a typed value when evaluated"
+      properties:
+        - "Has compile-time type T"
+        - "Has value category (place or value)"
+        - "Produces runtime value conforming to type"
+
+    statement:
+      definition: "Syntactic form executed for side effects, does not produce value"
+      categories:
+        - declaration: "let, var"
+        - assignment: "Modify place value"
+        - expression: "Execute expression for side effects"
+        - control_flow: "return, result, break, continue"
+        - defer: "Schedule cleanup at scope exit"
+
+    value_categories:
+      place_expression:
+        notation: "e^place"
+        definition: "Denotes memory location with stable address"
+        examples:
+          - "Identifier bound by let/var"
+          - "Dereferenced pointer (*p)"
+          - "Field access on place (place.field)"
+          - "Tuple access on place (place.0)"
+          - "Indexed access on place (place[i])"
+
+      value_expression:
+        notation: "e^value"
+        definition: "Produces temporary value without persistent location"
+        examples:
+          - "Literals"
+          - "Arithmetic and logical results"
+          - "Procedure and closure call results"
+          - "Constructor expressions"
+          - "Block expression results"
+
+    evaluation_order:
+      rule: "Deterministic, strictly left-to-right"
+      exception: "Short-circuit operators (&&, ||) conditionally skip right operand"
+      statement_execution: "Sequential in source order"
+
+  pattern_matching:
+    location: "§11.2 (Lines 8245-8402)"
+
+    pattern_types:
+      irrefutable:
+        definition: "Matches any value of its expected type"
+        examples:
+          - "Identifier patterns (x)"
+          - "Wildcard patterns (_)"
+          - "Tuple patterns of irrefutable sub-patterns"
+          - "Record patterns of irrefutable sub-patterns"
+          - "Single-variant enum patterns"
+
+      refutable:
+        definition: "Can fail to match a value of its expected type"
+        examples:
+          - "Literal patterns (42, \"hello\", true)"
+          - "Multi-variant enum patterns"
+          - "Modal state patterns (@State)"
+          - "Range patterns (0..10)"
+
+    matching_rules:
+      literal: "Matches if scrutinee == literal"
+      wildcard: "Matches any value, no binding, value not consumed"
+      identifier: "Matches any value, move semantics binding"
+      tuple: "Matches if arity matches and each component matches"
+      record: "Matches if type and fields match (shorthand: {x} ≡ {x: x})"
+      enum: "Matches if discriminant equals variant, payload recursively matched"
+      modal: "Matches if active state is @State, payload recursively matched"
+      range: "Matches if start ≤ scrutinee < end (compile-time constants required)"
+
+    exhaustiveness:
+      requirement: "Match expressions MUST be exhaustive"
+      mandatory_for:
+        - "enum types: All variants covered"
+        - "modal types: All states covered"
+        - "bool type: Both true and false covered"
+        - "Integer types: Union of ranges covers all, OR wildcard present"
+      algorithm: "Sound exhaustiveness checking required"
+      unreachability: "Arms covering only values already covered are forbidden"
+
+    diagnostics:
+      E-PAT-2711: "Refutable pattern in irrefutable context"
+      E-PAT-2712: "Pattern type incompatible with scrutinee"
+      E-PAT-2713: "Duplicate binding identifier in pattern"
+      E-PAT-2721: "Range pattern bounds not compile-time constants"
+      E-PAT-2722: "Range pattern start exceeds end"
+      E-PAT-2731: "Record pattern references non-existent field"
+      E-PAT-2732: "Record pattern missing required field"
+      E-PAT-2741: "Match expression not exhaustive"
+      E-PAT-2751: "Match arm unreachable"
+
+  operator_precedence:
+    location: "§11.3 (Lines 8405-8441)"
+
+    definition:
+      precedence: "Integer ranking determining operator binding tightness"
+      associativity: "Grouping direction for equal-precedence operators"
+
+    ambiguous_operators:
+      minus:
+        unary: "Numeric negation (precedence 3)"
+        binary: "Subtraction (precedence 7)"
+      ampersand:
+        unary: "Address-of (precedence 3)"
+        binary: "Bitwise AND (precedence 9)"
+      asterisk:
+        unary: "Dereference (precedence 3)"
+        binary: "Multiplication (precedence 6)"
+      caret:
+        unary: "Region allocation (precedence 3)"
+        binary: "Bitwise XOR (precedence 10)"
+      disambiguation: "Syntactic: after complete operand → binary, else unary"
+
+  primary_expressions:
+    location: "§11.4 (Lines 8443-8862)"
+
+    literals:
+      types: "integer, float, string, character, boolean"
+      typing: "Determined by Clause 2 (lexical) and Clause 5 (inference)"
+      string_type: "string@View per §6.2"
+      category: "Value expressions"
+
+    identifiers:
+      resolution: "Name resolution per Clause 8"
+      requirement: "Must resolve to value binding (not type/module/form)"
+      category: "Place if let/var binding, else value"
+
+    field_tuple_access:
+      location: "§11.4.1"
+      field_access: "postfix_expr.identifier"
+      tuple_access: "postfix_expr.integer_literal (0-indexed, constant)"
+      typing_rules:
+        field: "Field must exist, be visible, in record type"
+        tuple: "Index literal, within bounds [0, n)"
+      value_category: "Propagates from base expression"
+      diagnostics:
+        E-EXP-2511: "Identifier resolves to type/module, not value"
+        E-EXP-2521: "Field access on non-record type"
+        E-EXP-2522: "Field does not exist"
+        E-EXP-2523: "Field not visible"
+        E-EXP-2524: "Tuple access on non-tuple type"
+        E-EXP-2525: "Tuple index out of bounds"
+        E-EXP-2526: "Tuple index not constant integer literal"
+
+    indexing:
+      location: "§11.4.2"
+      syntax: "postfix_expr[expression]"
+      types_supported: "Arrays [T; N], Slices [T]"
+      index_type: "usize (no implicit conversions)"
+      bounds_checking: "MANDATORY at runtime (panic P-EXP-2530)"
+      relationship_to_dynamic: "Bounds checks NOT affected by [[dynamic]]"
+      string_indexing: "Direct byte indexing prohibited (E-TYP-2152), range slicing allowed"
+      value_category: "Propagates from base"
+      diagnostics:
+        E-EXP-2527: "Indexing on non-indexable type"
+        E-EXP-2528: "Index not type usize"
+        P-EXP-2530: "Index out of bounds at runtime (panic)"
+
+    procedure_method_calls:
+      location: "§11.4.3"
+
+      procedure_call: "f(arg1, arg2, ...)"
+      method_call_instance: "receiver~>method(args)"
+      method_call_static: "Type::method(args)"
+
+      argument_passing:
+        - "Count must equal parameter count"
+        - "Types must be compatible per subtyping"
+        - "move parameters require explicit move at call site"
+        - "Evaluated left-to-right before control transfer"
+
+      instance_dispatch:
+        algorithm:
+          - "Search inherent methods of receiver type"
+          - "Search methods in visible implemented forms"
+          - "Ambiguity requires qualified syntax Form::m(receiver, ...)"
+        strict_matching: "Receiver type must match exactly (no auto-deref/ref)"
+
+      diagnostics:
+        E-EXP-2531: "Callee not callable type"
+        E-EXP-2532: "Argument count mismatch"
+        E-EXP-2533: "Argument type incompatible"
+        E-EXP-2534: "move argument required but not provided"
+        E-EXP-2535: "move argument provided but parameter not move"
+        E-EXP-2536: "Method not found"
+        E-EXP-2537: "Method call using . instead of ~>"
+        E-NAM-1305: "Ambiguous method resolution"
+
+    pipeline_expressions:
+      location: "§11.4.4"
+      syntax: "x => f"
+      desugaring: "f(x)"
+      chaining: "x => f => g => h ≡ h(g(f(x)))"
+      associativity: "Left-associative"
+      diagnostics:
+        E-EXP-2538: "Right-hand side not callable"
+        E-EXP-2539: "Pipeline target has no parameters"
+
+    unary_operators:
+      location: "§11.4.5"
+      precedence: 3
+      associativity: "Right-associative"
+
+      operators:
+        logical_not: "! (bool or integer bitwise complement)"
+        numeric_negation: "- (signed int/float only, not unsigned)"
+        address_of: "& (see §6.3 for normative rule, produces Ptr<T>@Valid)"
+        dereference: "* (see §6.3 for normative rule, requires @Valid state)"
+        region_alloc: "^ (see §3.7 for normative rules)"
+        move: "move (see §3.5 for normative semantics)"
+        modal_widen: "widen (see §6.1 for normative rule)"
+
+      diagnostics:
+        E-EXP-2541: "Logical ! on non-bool/non-integer"
+        E-EXP-2542: "Negation of unsigned integer"
+        E-EXP-2543: "Address-of on value expression"
+        E-EXP-2544: "Dereference of @Null pointer"
+        E-EXP-2545: "Raw pointer deref outside unsafe"
+        E-MEM-3021: "Region alloc outside region scope"
+        E-MEM-3001: "Move from Moved state"
+        E-MEM-3006: "Move from immovable binding (:=)"
+
+    binary_operators:
+      location: "§11.4.6"
+
+      arithmetic: "+ - * / % **"
+      bitwise: "& | ^ << >>"
+      comparison: "== != < <= > >="
+      logical: "&& ||"
+
+      type_requirements:
+        arithmetic: "Homogeneous numeric types, no implicit conversions"
+        bitwise: "Homogeneous integer types"
+        shift: "Left operand integer, right operand u32"
+        comparison: "Homogeneous types, == != require Eq, < <= > >= require Ord"
+        logical: "Both operands bool"
+
+      short_circuit:
+        and: "e1 && e2: if e1 false, e2 NOT evaluated, result false"
+        or: "e1 || e2: if e1 true, e2 NOT evaluated, result true"
+        note: "SOLE exception to strict left-to-right evaluation"
+
+      overflow_behavior:
+        strict_mode: "Panic on overflow"
+        release_mode: "IDB (implementation-defined: wrap or panic)"
+
+      division:
+        by_zero: "MUST panic"
+        truncation: "Toward zero for signed integers"
+        remainder: "a == (a / b) * b + (a % b)"
+
+      shift_overflow: "IDB if right operand >= bit width of left operand"
+
+      diagnostics:
+        E-EXP-2551: "Arithmetic on non-numeric"
+        E-EXP-2552: "Mismatched operand types"
+        E-EXP-2553: "Bitwise on non-integer"
+        E-EXP-2554: "Comparison of incompatible types"
+        E-EXP-2555: "Logical operator on non-bool"
+        E-EXP-2556: "Shift amount not u32"
+        P-EXP-2560: "Integer overflow in strict mode"
+        P-EXP-2561: "Division by zero"
+
+    cast_expressions:
+      location: "§11.4.7"
+      syntax: "expr as TargetType"
+      precedence: 4
+      associativity: "Left-associative"
+
+      valid_casts:
+        numeric_widening: "iN→iM (M>N) sign-extended, uN→uM zero-extended, fN→fM precision-extended"
+        numeric_narrowing: "Truncate low-order bits (int), round nearest (float)"
+        sign_conversion: "iN↔uN bit reinterpretation"
+        int_float: "iN/uN→fM nearest representable, fM→iN/uN truncate toward zero (panic on overflow/NaN)"
+        pointer_integer: "usize↔*imm/*mut (unsafe only)"
+        safe_raw_ptr: "Ptr<T>@Valid→*imm/*mut (extract address)"
+        enum_integer: "enum→int (requires [[layout(IntType)]])"
+        bool_integer: "bool→int (false→0, true→1)"
+        char_integer: "char↔u32 unicode scalar, char↔u8 (validated, panic if invalid)"
+
+      diagnostics:
+        E-EXP-2571: "Cast between incompatible types"
+        E-EXP-2572: "Pointer-integer cast outside unsafe"
+        E-EXP-2573: "Enum cast without [[layout(IntType)]]"
+        E-EXP-2574: "Cast of non-@Valid pointer to raw"
+        P-EXP-2580: "Float-to-int overflow/NaN"
+        P-EXP-2581: "u32 as char invalid unicode"
+        P-EXP-2582: "char as u8 value > 255"
+
+  closure_expressions:
+    location: "§11.5 (Lines 9050-9167)"
+
+    syntax: "|params| -> return_type body"
+
+    types:
+      non_capturing: "Sparse function pointer (FFI-compatible)"
+      capturing: "Closure type with environment"
+
+    capture_semantics:
+      const: "By reference, const reference in environment"
+      unique: "Move required, owned value (binding becomes Moved)"
+      shared: "By reference, shared reference in environment"
+
+    typing:
+      parameters: "May infer from expected type if known"
+      return_type: "May infer from body"
+      bidirectional: "Supports bidirectional type checking"
+
+    subtyping: "Sparse function pointer <: closure type (§6.4 T-Sparse-Sub-Closure)"
+
+    diagnostics:
+      E-EXP-2591: "Closure parameter type cannot be inferred"
+      E-EXP-2593: "Capture of unique binding without move"
+      E-EXP-2594: "Closure return type mismatch"
+
+  control_flow_expressions:
+    location: "§11.6 (Lines 9170-9299)"
+
+    if_expression:
+      syntax: "if condition block [else block]"
+      typing:
+        with_else: "Both branches must have same type T"
+        without_else: "Then-branch must have type (), result type ()"
+      condition: "Must be bool"
+      diagnostics:
+        E-EXP-2601: "if condition not bool"
+        E-EXP-2602: "if branches incompatible types"
+        E-EXP-2603: "if without else in non-unit context"
+
+    match_expression:
+      syntax: "match scrutinee { pattern => body, ... }"
+      requirements:
+        - "All arm bodies must have same type"
+        - "Pattern set must be exhaustive"
+        - "No arm must be unreachable"
+      guards: "if guard_expr (must be bool, evaluated only if pattern matches)"
+      guard_exhaustiveness: "Guards don't affect exhaustiveness (patterns cover full range)"
+      diagnostics:
+        E-EXP-2611: "Match arms incompatible types"
+        E-EXP-2612: "Match guard not bool"
+
+    loop_expressions:
+      infinite: "loop { body } (type ! if no break)"
+      conditional: "loop condition { body } (type ())"
+      iterator: "loop pattern in iterator { body } (type ())"
+      break_value: "If break value present, loop type is break value type"
+      labels: "'label: loop { ... } break 'label value"
+      diagnostics:
+        E-EXP-2621: "Iterator expression does not implement Iterator"
+        E-EXP-2622: "break values incompatible types"
+
+  block_expressions:
+    location: "§11.7 (Lines 9302-9356)"
+
+    syntax: "{ statements* [expression] }"
+
+    type_determination:
+      explicit_result: "Type of result statement"
+      final_expression: "Type of final unterminated expression"
+      default: "Unit type () if empty or ends with terminated statement"
+
+    scope_rules:
+      - "Bindings visible only within block"
+      - "Bindings shadow outer bindings"
+      - "Destruction in reverse declaration order on exit"
+
+    specialized_blocks:
+      region: "§3.7 Regions"
+      unsafe: "§3.8 Unsafe Memory Operations"
+      parallel: "§14 Structured Parallelism"
+      comptime: "§16 Compile-Time Execution"
+
+  declaration_statements:
+    location: "§11.8 (Lines 9359-9410)"
+
+    syntax:
+      let: "let pattern [: type] binding_op expression"
+      var: "var pattern [: type] binding_op expression"
+
+    semantics:
+      let_vs_var: "Mutability (reassignment allowed with var)"
+      equals_vs_colonequals: "Movability (responsibility transfer allowed with =)"
+      orthogonality: "Mutability and movability are independent"
+
+    type_inference: "If type omitted, inferred from initializer"
+    pattern_requirement: "MUST be irrefutable"
+
+    diagnostics:
+      E-DEC-2401: "Reassignment of immutable let binding"
+      E-DEC-2402: "Type annotation incompatible with inferred type"
+
+  expression_statements:
+    location: "§11.9 (Lines 9413-9437)"
+
+    syntax: "expression terminator"
+    terminator: "; or newline"
+    type: "Unit type ()"
+    effect: "Value discarded after evaluation"
+
+  control_flow_statements:
+    location: "§11.10 (Lines 9439-9522)"
+
+    return:
+      syntax: "return [expression]"
+      effect: "Terminates procedure, returns to caller"
+      typing: "Expression type must match procedure return type (or () if omitted)"
+      scope: "Must not appear at module scope"
+
+    result:
+      syntax: "result expression"
+      effect: "Terminates enclosing block, yields value as block result"
+      typing: "Expression type becomes/must match block type"
+      scope: "Exits immediately enclosing block only"
+
+    break:
+      syntax: "break ['label] [expression]"
+      effect: "Terminates innermost (or labeled) loop"
+      requirement: "Must appear within loop body"
+      value_consistency: "All breaks for same loop must provide same type (or all omit)"
+
+    continue:
+      syntax: "continue ['label]"
+      effect: "Skips to next iteration of innermost (or labeled) loop"
+      requirement: "Must appear within loop body"
+
+    deferred_actions: "Execute in LIFO order on return/result/break/continue"
+
+    diagnostics:
+      E-STM-2661: "return type mismatch"
+      E-STM-2665: "return at module scope"
+      E-STM-2664: "result type mismatch"
+      E-STM-2662: "break outside loop"
+      E-STM-2663: "continue outside loop"
+      E-STM-2666: "Unknown loop label"
+      E-STM-2667: "break values incompatible types"
+
+  assignment_statements:
+    location: "§11.11 (Lines 9525-9583)"
+
+    syntax: "place_expr assignment_operator expression"
+    operators: "= += -= *= /= %= &= |= ^= <<= >>="
+
+    requirements:
+      - "LHS must be place expression"
+      - "LHS must be mutable (var binding)"
+      - "LHS must be accessible via unique permission"
+      - "RHS type must be compatible with LHS type"
+
+    compound_assignment: "place op= expr desugars to place = place op expr (place evaluated once)"
+
+    movability_preservation:
+      var_equals: "var x = v remains movable after reassignment"
+      var_colonequals: "var x := v remains immovable after reassignment"
+      note: ":= operator appears only at declaration, = used for all reassignments"
+
+    drop_on_reassignment:
+      reference: "§3.4 (Binding Model), §3.6 (Deterministic Destruction)"
+      order: "New value evaluated → Old value dropped → New value installed"
+
+    diagnostics:
+      E-STM-2631: "Assignment target not place expression"
+      E-DEC-2401: "Assignment to immutable let binding"
+      E-STM-2632: "Assignment through const permission"
+      E-STM-2633: "Assignment type mismatch"
+
+  defer_statements:
+    location: "§11.12 (Lines 9587-9636)"
+
+    syntax: "defer block_expr"
+
+    requirements:
+      - "Deferred block must have type ()"
+      - "Must not contain non-local control flow"
+      - "May reference bindings from enclosing scope"
+
+    registration: "Block pushed onto per-scope stack when defer executes"
+
+    execution_order: "LIFO (Last-In, First-Out) when scope exits"
+
+    triggering_conditions:
+      - "Normal completion"
+      - "return"
+      - "result"
+      - "break"
+      - "panic"
+
+    nested_scopes: "Each block has own defer stack"
+
+    panic_handling:
+      - "Remaining deferred blocks still execute"
+      - "After all deferred blocks complete, panic propagates"
+      - "Multiple panics: behavior IDB"
+
+    diagnostics:
+      E-STM-2651: "Defer block has non-unit type"
+      E-STM-2652: "Non-local control flow in defer block"
+
+  grammar_productions:
+    expression: "assignment_expr"
+    assignment_expr: "logical_or_expr [ assignment_operator assignment_expr ]"
+    logical_or_expr: "logical_and_expr ( '||' logical_and_expr )*"
+    logical_and_expr: "comparison_expr ( '&&' comparison_expr )*"
+    comparison_expr: "bitor_expr ( comparison_operator bitor_expr )*"
+    bitor_expr: "bitxor_expr ( '|' bitxor_expr )*"
+    bitxor_expr: "bitand_expr ( '^' bitand_expr )*"
+    bitand_expr: "shift_expr ( '&' shift_expr )*"
+    shift_expr: "additive_expr ( shift_operator additive_expr )*"
+    additive_expr: "multiplicative_expr ( additive_operator multiplicative_expr )*"
+    multiplicative_expr: "power_expr ( multiplicative_operator power_expr )*"
+    power_expr: "cast_expr [ '**' power_expr ]"
+    cast_expr: "unary_expr [ 'as' type ]"
+    unary_expr: "unary_operator unary_expr | postfix_expr"
+    postfix_expr: "primary_expr postfix_operation*"
+    primary_expr: "literal | identifier | '(' expression ')' | tuple_expr | array_expr | block_expr | if_expr | match_expr | loop_expr | closure_expr"
+
+# ============================================================================
+# CLAUSE 12: THE CAPABILITY SYSTEM
+# ============================================================================
+
+clause_12_capability_system:
+  location: "§12 (Lines 9639-9792)"
+
+  foundational_principles:
+    location: "§12.1"
+
+    capability:
+      definition: "First-class value representing unforgeable authority to perform external effects"
+      formal: "Capability ::= (Authority, Interface, Provenance)"
+      components:
+        authority: "Set of permitted operations"
+        interface: "Form defining available methods"
+        provenance: "Derivation chain from root capability"
+
+    no_ambient_authority:
+      principle: "No global side-effect functions exist"
+      enforcement: "All I/O, allocation, system interaction requires explicit capabilities"
+      examples:
+        invalid: "print('Hello') — does not exist"
+        invalid: "File::open('/path') — does not exist"
+        valid: "ctx.fs.write_stdout('Hello\\n')"
+
+    authority_derivation:
+      rule: "Procedure p may perform effect e iff p receives capability c where e ∈ Authority(c)"
+
+    diagnostics:
+      E-CAP-1001: "Ambient authority detected: global procedure performs side effects"
+
+  root_of_authority:
+    location: "§12.2"
+
+    context_record:
+      definition: "Root capability provided by Cursive runtime at entry point"
+      injection: "Runtime constructs Context before main execution"
+      entry_point: "public procedure main(ctx: Context) -> i32"
+      guarantee: "Runtime MUST provide valid, initialized Context"
+
+    diagnostics:
+      E-DEC-2431: "main signature incorrect"
+
+  capability_attenuation:
+    location: "§12.3"
+
+    definition: "Process of creating capability with strictly LESS authority than source"
+
+    formal: "Attenuate(C_parent, R) → C_child"
+    components:
+      C_parent: "Source capability"
+      R: "Restriction specification (path, quota, host filter)"
+      C_child: "Derived capability"
+
+    invariant: "Authority(C_child) ⊆ Authority(C_parent)"
+
+    requirements:
+      - "Return capability implementing same form as parent"
+      - "Enforce specified restrictions on all operations"
+      - "Delegate authorized operations to parent capability"
+
+    type_preservation: "Attenuation preserves capability form"
+
+  capability_propagation:
+    location: "§12.4"
+
+    principle: "Capabilities travel through call graph as explicit parameters"
+
+    witness_types: "dyn Class enables capability polymorphism"
+
+    parameter_syntax: "procedure read_config(fs: dyn FileSystem, path: string@View): string"
+
+    permission_requirements:
+      side_effecting_io: "shared (~%)"
+      pure_queries: "const (~)"
+
+    prohibition: "Procedure MUST NOT access capabilities not explicitly provided"
+
+    diagnostics:
+      E-CAP-1002: "Effect-producing procedure lacks required capability param"
+
+# ============================================================================
+# CLAUSE 13: THE KEY SYSTEM
+# ============================================================================
+
+clause_13_key_system:
+  location: "§13 (Lines 9794-12006)"
+
+  overview:
+    purpose: "Safe access to shared data through static verification with runtime synchronization fallback"
+    philosophy: "Keys are compile-time proofs, runtime synchronization only when [[dynamic]] present and static proof fails"
+
+  key_fundamentals:
+    location: "§13.1 (Lines 9806-10149)"
+
+    key_definition:
+      formal: "Key ::= (Path, Mode, Scope)"
+      components:
+        path: "PathExpr - memory location being accessed"
+        mode: "{ Read, Write } - access grant"
+        scope: "LexicalScope - validity duration"
+
+    key_nature: "Static proof of access rights, primarily compile-time verification"
+
+    key_state_context: "Γ_keys : ProgramPoint → P(Key)"
+
+    held_predicate: "Held(P, M, S, Γ_keys, p) ⟺ (P, M, S) ∈ Γ_keys(p)"
+
+    key_invariants:
+      path_specificity: "Key to P grants access only to P and paths prefixed by P"
+      implicit_acquisition: "Accessing shared path logically acquires necessary key"
+      scoped_lifetime: "Keys valid for bounded lexical scope, invalid on exit"
+      reentrancy: "If key covering P already held by task, nested access succeeds"
+      task_locality: "Keys associated with tasks, remain valid across procedure calls"
+
+    path_expression_grammar:
+      path_expr: "root_segment ('.' path_segment)*"
+      root_segment: "key_marker? IDENTIFIER index_suffix?"
+      path_segment: "key_marker? IDENTIFIER index_suffix?"
+      key_marker: "'#'"
+      index_suffix: "'[' expression ']'"
+
+    path_root_extraction:
+      definition: "Root(e) extracts base identifier from which key analysis begins"
+      cases:
+        identifier: "Root(x) = x"
+        field_access: "Root(e.f) = Root(e)"
+        index_access: "Root(e[i]) = Root(e)"
+        method_call: "Root(e.m(...)) = Root(e)"
+        dereference: "Root(*e) = ⊥_boundary (key boundary)"
+
+    key_boundary:
+      definition: "Pointer dereference creates independent key context"
+      rule: "(*e).p establishes new key path rooted at runtime identity of dereferenced value"
+      rationale: "Enables concurrent access to different nodes in recursive structures"
+
+    path_well_formedness:
+      requirements:
+        - "Root identifier bound in scope with type T_0"
+        - "Each subsequent segment valid (field exists or indexable with usize)"
+        - "At most one # marker in entire path"
+
+    diagnostics:
+      E-KEY-0001: "Access to shared path outside valid key context"
+      E-KEY-0002: "# annotation on non-shared path"
+      E-KEY-0003: "Multiple # markers in single path expression"
+      E-KEY-0004: "Key escapes its defining scope"
+
+  path_prefix_disjointness:
+    location: "§13.1.1"
+
+    prefix:
+      definition: "Prefix(p1...pm, q1...qn) ⟺ m ≤ n ∧ ∀i ∈ 1..m, pi ≡_seg qi"
+      semantics: "If Prefix(P, Q), key to P covers access to Q"
+
+    disjointness:
+      definition: "Disjoint(P, Q) ⟺ ¬Prefix(P, Q) ∧ ¬Prefix(Q, P)"
+      semantics: "Disjoint paths → concurrent accesses statically safe, no runtime sync"
+
+    overlap:
+      definition: "Overlaps(P, Q) ⟺ ¬Disjoint(P, Q)"
+      equivalently: "Overlaps(P, Q) ⟺ Prefix(P, Q) ∨ Prefix(Q, P)"
+
+    segment_equivalence:
+      definition: "pi ≡_seg qi ⟺ name(pi) = name(qi) ∧ IndexEquiv(pi, qi)"
+
+    index_expression_equivalence:
+      provably_equivalent:
+        - "Same integer literal"
+        - "Same const binding"
+        - "Same generic const parameter"
+        - "Same variable binding in scope"
+        - "Same canonical form under constant folding"
+
+      provably_disjoint:
+        static: "Both statically resolvable with different values"
+        control_flow: "Verification Fact (§10.5) establishes e1 ≠ e2"
+        contract: "Procedure precondition or parameter constraint asserts e1 ≠ e2"
+        refinement: "Index has refinement type constraining relationship"
+        algebraic: "Expressions share base but differ by statically-known constant offsets"
+        dispatch: "Within dispatch block, accesses indexed by iteration variable"
+        disjoint_ranges: "Index expressions reference iteration variables from non-overlapping ranges"
+
+  key_modes:
+    location: "§13.1.2"
+
+    modes:
+      read:
+        operations: "Read value at path"
+        exclusivity: "Shared: multiple Read keys to overlapping paths MAY coexist"
+      write:
+        operations: "Read and write value"
+        exclusivity: "Exclusive: Write key excludes all other keys to overlapping paths"
+
+    context_classification:
+      read_context: "Expression appears in position requiring only read access"
+      write_context: "Expression appears in position requiring write access"
+      examples:
+        read: "RHS of let/var, RHS of assignment, operands, const/shared params, conditions"
+        write: "LHS of assignment, LHS of compound assignment, ~! receiver, unique param"
+
+    mode_determination:
+      rule: "RequiredMode(e) determined by syntactic context"
+
+    compatibility:
+      definition: "Compatible(K1, K2) ⟺ Disjoint(P1, P2) ∨ (M1 = Read ∧ M2 = Read)"
+      matrix:
+        read_read_overlap: "Compatible"
+        read_write_overlap: "Incompatible"
+        write_read_overlap: "Incompatible"
+        write_write_overlap: "Incompatible"
+        any_disjoint: "Compatible"
+
+    blocking_semantics:
+      when_required: "If compiler cannot statically prove compatibility"
+      behavior: "Task blocks until conflicting key released"
+      progress_guarantee: "Any blocked task MUST eventually acquire key (eventual progress)"
+
+    diagnostics:
+      E-KEY-0005: "Write access required but only Read available"
+
+  key_acquisition_release:
+    location: "§13.2"
+
+    lifecycle:
+      acquisition: "Keys logically acquired on demand during expression evaluation"
+      execution: "Statement/block body executes with all keys logically held"
+      release: "All keys invalid when scope exits"
+
+    mode_ordering: "Read < Write (Read is sufficient for Read requirement)"
+
+    key_set_operations:
+      acquire: "Γ_keys' = Γ_keys ∪ {(P, M, S)}"
+      release: "Γ_keys' = Γ_keys \\ {(P, M, S) : (P, M, S) ∈ Γ_keys}"
+      release_by_scope: "Γ_keys' = Γ_keys \\ {(P, M, S') : S' = S}"
+      mode_transition: "Replace key of one mode with different mode for same path/scope"
+
+    panic_release: "PanicRelease(S, Γ_keys) releases all keys in S and nested scopes atomically"
+
+    compile_time_tracking:
+      - "Compute key path (§13.4)"
+      - "Determine required mode (§13.1.2)"
+      - "Check for coverage by existing key"
+      - "Add key to Γ_keys if not covered"
+      - "Mark key for release at scope exit"
+
+    covered_predicate:
+      definition: "Covered(Q, M_Q, Γ_keys) ⟺ ∃(P, M_P, S) ∈ Γ_keys : Prefix(P, Q) ∧ ModeSufficient(M_P, M_Q)"
+
+    acquisition_rules:
+      acquire_new: "If access requires key and no covering key exists, new key acquired"
+      acquire_covered: "If access covered by existing key with sufficient mode, no acquisition"
+      acquire_mode_transition: "If covered but requires different mode, mode transition occurs"
+
+    release_rules:
+      scope_exit: "When scope exits, all keys with that scope released"
+      order: "Keys released in reverse acquisition order (LIFO)"
+
+    evaluation_order: "Subexpressions evaluated left-to-right, depth-first (Defined Behavior)"
+
+    destructuring_patterns:
+      rule: "Single key acquired to root of matched expression"
+      example: "let (a, b) = shared_pair  // Key to shared_pair (Read mode)"
+
+    runtime_realization:
+      when_required: "If static safety cannot be proven"
+      requirements:
+        - "Block if incompatible key held by another task"
+        - "Proceed once compatibility established"
+        - "Release key when scope exits"
+
+    release_guarantee:
+      triggers: "Normal completion, return, break, continue, panic, task cancellation"
+
+    panic_release_detail:
+      order: "Key release during panic MUST occur BEFORE any Drop::drop calls in same scope"
+      mode_transition_panic: "Original key released, no new key acquired"
+
+    defer_interaction:
+      defer_execution: "Keys acquired when defer executes (not when registered)"
+      scope_exit: "Keys held when scope exits released BEFORE defer blocks execute"
+
+    scope_definitions:
+      expression_statement: "Statement, release at semicolon"
+      declaration: "Declaration, release at semicolon"
+      assignment: "Statement, release at semicolon"
+      if_condition: "Condition only, release before entering branch"
+      match_scrutinee: "Scrutinee only, release before entering arm"
+      loop_condition: "Each iteration's condition, release before entering body"
+      hash_block: "Entire block, release at closing brace"
+      procedure_body: "Callee's body, release at procedure return"
+      defer_body: "Defer block, release at defer completion"
+
+    diagnostics:
+      W-KEY-0001: "Fine-grained keys in tight loop (performance hint)"
+      W-KEY-0002: "Redundant key acquisition (already covered)"
+      E-KEY-0006: "Key acquisition in defer escapes to outer scope"
+
+  procedure_boundaries:
+    location: "§13.3"
+
+    boundary_rule: "Passing shared value as procedure argument does NOT constitute key acquisition"
+
+    dynamic_independence: "[[dynamic]] status of callee independent of caller"
+
+    interprocedural_analysis:
+      soundness: "If analysis concludes no runtime sync needed, concurrent execution MUST be safe"
+      conservatism: "If cannot prove safety and callee not [[dynamic]], program ill-formed"
+      separate_compilation:
+        - "Assume callee may access ANY path reachable from shared parameters"
+        - "Assume callee requires Write access unless parameter declared const"
+        - "If safety not provable and not [[dynamic]], ill-formed"
+
+    inlining: "Inlined body analyzed as if statements written at call site"
+
+    fine_grained_parallelism: "When interprocedural analysis proves callees access disjoint paths, may execute concurrently without sync"
+
+    callee_granularity: "Callee determines key granularity through access patterns and explicit # blocks"
+
+    reentrancy: "If caller holds key covering callee's access paths, callee's accesses covered"
+
+    diagnostics:
+      W-KEY-0005: "Callee access pattern unknown; assuming full access"
+
+  witness_types_shared:
+    location: "§13.3.1"
+
+    shared_dyn: "shared dyn Class composition of shared permission + dyn type"
+
+    constraint: "Only forms with exclusively read-only methods (~) compatible with shared"
+
+    well_formedness: "shared dyn Tr well-formed iff all methods in Tr have ~ receiver"
+
+    method_invocation: "KeyPath(e.m(...)) = Root(e), KeyMode = Read"
+
+    diagnostics:
+      E-KEY-0083: "shared dyn Class where Form has ~% method"
+
+  modal_transitions:
+    location: "§13.3.2"
+
+    transition_mutation: "State transition modifies discriminant → mutation → Write key required"
+
+    typing: "KeyPath(e.t(...)) = Root(e), KeyMode = Write"
+
+    field_access:
+      read_field: "Read key"
+      write_field: "Write key"
+      path: "Modal value's root (not individual field)"
+
+  closure_capture_shared:
+    location: "§13.3.3"
+
+    classification:
+      local: "Argument position, spawn body, dispatch body, immediate invocation"
+      escaping: "let/var binding, returned, stored in field"
+
+    object_identity:
+      definition: "id(r) - unique value representing storage location"
+      properties: "Uniqueness, Stability, Comparability, Non-forgeable"
+
+    local_closure_analysis: "Key analysis uses defining scope's paths"
+
+    escaping_closure_type: "Type MUST include shared dependency set: |T| → R [shared: {x: T}]"
+
+    escaping_key_analysis: "Key analysis uses object identity: KeyPath(C, x.p) = id(C.x).p"
+
+    diagnostics:
+      E-KEY-0085: "Escaping closure with shared capture lacks type annotation"
+      E-KEY-0086: "Escaping closure outlives captured shared binding"
+      W-KEY-0009: "Closure captures shared data"
+
+  hash_key_block:
+    location: "§13.4"
+
+    definition: "Explicit key acquisition construct"
+
+    syntax: "#path_list mode_modifier* block"
+
+    mode_semantics:
+      default: "Read mode (#path { })"
+      explicit_write: "Write mode (#path write { })"
+
+    modifiers:
+      write: "Acquire Write keys"
+      read: "Acquire Read keys (default)"
+      release: "For nested release (mode transitions)"
+      ordered: "Enforce deterministic acquisition for dynamic indices"
+      speculative: "Request optimistic execution with retry"
+
+    desugaring:
+      default: "#P { B } ≡ #P with mode=Read { B }"
+      write: "#P write { B } ≡ #P with mode=Write { B }"
+      multiple: "#P1, P2 write { B } ≡ #P1 write, P2 write { B }"
+
+    read_mode_restriction: "# block without write MUST NOT contain write operations to keyed paths"
+
+    read_then_write_permission: "Read-then-write prohibition does NOT apply when covering Write key statically held"
+
+    inline_coarsening: "# may appear inline in path to set key granularity"
+
+    compound_assignment: "Compound assignment operators desugar to # blocks with write mode"
+
+    acquisition_rule: "Keys acquired in canonical order (not declaration order)"
+
+    concurrent_access:
+      read_read: "Both proceed concurrently"
+      read_write: "One blocks until other releases"
+      write_write: "One blocks until other releases"
+
+    method_receiver_coarsening:
+      valid: "#player.get_health() - key to player"
+      invalid: "player.#get_health() - E-KEY-0020"
+
+    diagnostics:
+      E-KEY-0014: "ordered modifier on paths with different array bases"
+      E-KEY-0020: "# immediately before method name"
+      E-KEY-0031: "# block path not in scope"
+      E-KEY-0032: "# block path is not shared"
+      E-KEY-0070: "Write operation in # block without write modifier"
+      W-KEY-0003: "# redundant (matches type boundary)"
+      W-KEY-0013: "ordered modifier with statically-comparable indices"
+
+  type_level_boundaries:
+    location: "§13.5"
+
+    definition: "Permanent granularity constraint declared on record field"
+
+    syntax: "#field: Type in record declaration"
+
+    propagation_rule: "For path r.f.q1...qn where f declared as #f: U, KeyPath(P) = r.f"
+
+    diagnostics:
+      E-KEY-0033: "# on field of non-record type"
+      W-KEY-0003: "Expression # redundant (matches type boundary)"
+
+  static_index_resolution:
+    location: "§13.6"
+
+    scope: "Multiple dynamic indices accessing same array within SAME statement"
+
+    rule: "Compiler MUST either prove disjoint or reject with E-KEY-0010"
+
+    classifications:
+      statically_disjoint: "ProvablyDisjoint via static values → fine-grained keys"
+      provably_disjoint: "ProvablyDisjoint via any §13.1.1 rule → fine-grained keys"
+      potentially_overlapping: "¬ProvablyDisjoint → REJECTION (E-KEY-0010)"
+
+    cross_statement: "[[dynamic]] permits runtime serialization for different statements"
+
+    diagnostics:
+      E-KEY-0010: "Potential conflict on dynamic indices (same statement)"
+
+  deadlock_prevention:
+    location: "§13.7"
+
+    mechanisms:
+      - "Scoped keys (limited hold duration)"
+      - "Canonical ordering (deterministic acquisition)"
+      - "Await prohibition (no keys held across suspension)"
+
+    canonical_order:
+      definition: "P <_canon Q iff ∃k ≥ 1 : (∀i < k, pi =_seg qi) ∧ (pk <_seg qk ∨ (k > m ∧ m < n))"
+      segment_ordering:
+        identifiers: "Lexicographic by UTF-8 byte sequence"
+        indexed: "By index value for statically resolvable (a[i] <_seg a[j] iff StaticValue(i) < StaticValue(j))"
+        bare_vs_indexed: "Bare precedes any indexed (a <_seg a[i])"
+      dynamic_indices:
+        same_binding: "a[i] =_seg a[i] (same segment)"
+        different_binding_dynamic: "Ordering determined at runtime per Dynamic Ordering Guarantee"
+        different_binding_static: "Program ill-formed (E-KEY-0020)"
+
+    atomic_key_acquisition:
+      definition: "# block with multiple paths acquires all before executing body"
+      properties:
+        - "No rollback: partially-acquired keys retained during blocking"
+        - "Eventual acquisition: each key eventually acquired"
+        - "Order preservation: keys acquired in canonical order"
+        - "Body precondition: executes only after all keys held"
+
+    dynamic_ordering_guarantee:
+      properties:
+        totality: "For any two distinct paths, exactly one of DynOrder(P, Q) or DynOrder(Q, P) holds"
+        antisymmetry: "DynOrder(P, Q) ∧ DynOrder(Q, P) ⟹ P = Q"
+        transitivity: "DynOrder(P, Q) ∧ DynOrder(Q, R) ⟹ DynOrder(P, R)"
+        cross_task_consistency: "All tasks compute same DynOrder(P, Q)"
+        value_determinism: "DynOrder depends only on runtime values, not task identity/timing"
+      same_element_coalescing: "If two paths resolve to same location, acquire only one key"
+      mechanism: "IDB (implementation-defined)"
+
+    statement_keys: "Acquired in evaluation order (left-to-right, depth-first)"
+
+    block_keys: "Acquired in canonical order regardless of listed order"
+
+    nested_blocks:
+      independent: "Nested # blocks acquire keys independently, outer keys remain held"
+      identical_same_mode: "Inner key covered by outer, no additional acquisition"
+      identical_different_mode: "MUST use release modifier, triggers release-and-reacquire"
+      prefix_relationship: "Analyzed for coverage based on prefix rules"
+
+    deadlock_hazard: "Inconsistent nesting order across tasks creates potential deadlock"
+
+    single_task_guarantee: "Single task cannot deadlock with itself"
+
+    diagnostics:
+      E-KEY-0011: "Detectable key ordering cycle within procedure"
+      W-KEY-0012: "Nested # blocks with potential order cycle"
+      I-KEY-0011: "# block uses runtime ordering for dynamic indices"
+      I-KEY-0013: "# block coarsened due to incomparable dynamic indices"
+
+  read_then_write_prohibition:
+    location: "§13.7.1"
+
+    definition: "Pattern where shared path read and written in same statement without covering Write key"
+
+    formal:
+      reads_path: "ReadsPath(e, P) ⟺ Accesses(e, P) ∧ ReadContext(e)"
+      writes_path: "WritesPath(e, P) ⟺ Accesses(e, P) ∧ WriteContext(e)"
+      pattern: "ReadThenWrite(P, S) ⟺ ∃e_r, e_w ∈ Subexpressions(S) : ReadsPath(e_r, P) ∧ WritesPath(e_w, P)"
+
+    prohibition_rule: "Reject read-then-write patterns when no covering Write key statically held"
+
+    pattern_classification:
+      compound_assignment: "p += e has covering Write key (desugars to # block) → Permitted"
+      explicit_hash_block: "#p { p = p + e } has covering Write key → Permitted"
+      bare_read_write: "p = p + e has no covering Write key → Reject E-KEY-0060"
+      function_call: "p = f(p) has no covering Write key → Reject E-KEY-0060"
+      disjoint_fields: "p.a = p.b + 1 disjoint paths → Permitted"
+
+    separate_statements: "Reading and writing same shared path in SEPARATE statements permitted (keys released between)"
+
+    aliasing: "When cannot prove paths distinct, assume may alias"
+
+    resolution_strategies:
+      - "Use compound assignment (p += e)"
+      - "Use explicit # block (#p { p = p + e })"
+      - "Separate into distinct statements (let tmp = p; p = tmp + e)"
+      - "Prove path distinctness (contract or disjoint paths)"
+
+    diagnostics:
+      E-KEY-0060: "Read-then-write on same shared path without covering Write key"
+      W-KEY-0004: "Read-then-write in sequential context; contention if parallelized"
+      W-KEY-0006: "Explicit read-then-write form; compound assignment available"
+
+  nested_key_release:
+    location: "§13.7.2"
+
+    definition: "Nested # block requesting different mode performs key release and reacquire"
+
+    release_keyword: "MUST be present to indicate programmer understands potential interleaving"
+
+    mode_transitions:
+      escalation: "release write: Read → Write"
+      downgrade: "release read: Write → Read"
+
+    release_and_reacquire_sequence:
+      - "Release: Release outer key held by enclosing block"
+      - "Acquire: Acquire target mode key to path (blocking if contended)"
+      - "Execute: Evaluate body"
+      - "Release: Release inner key"
+      - "Reacquire: Acquire outer mode key for enclosing block's remaining scope"
+
+    reacquisition_semantics:
+      blocking: "If another task holds conflicting key, current task blocks"
+      concurrent_reads: "Multiple tasks MAY hold Read keys concurrently"
+      interleaving: "Window exists where other tasks MAY acquire and release keys"
+
+    optimization_elision: "Implementation MAY elide reacquisition if remaining scope doesn't access covered paths"
+
+    interleaving_windows:
+      entry: "Between release (step 1) and acquire (step 2)"
+      exit: "Between release (step 4) and reacquire (step 5)"
+      effects: "Other tasks MAY acquire keys, modify data, complete operations"
+
+    staleness: "Programmer MUST account for interleaving; values read before may be stale after"
+
+    diagnostics:
+      E-KEY-0012: "Nested mode change without release modifier"
+      E-KEY-0017: "release modifier without target mode"
+      E-KEY-0018: "release with target mode matching outer mode"
+      W-KEY-0010: "release block permits interleaving"
+      W-KEY-0011: "Access to potentially stale binding after release"
+
+  speculative_block:
+    location: "§13.7.3"
+
+    definition: "Executes without exclusive key, relies on optimistic concurrency control"
+
+    formal:
+      read_set: "R(B): set of (path, value) pairs read during evaluation"
+      write_set: "W(B): set of (path, value) pairs to be written"
+      commit_predicate: "⋀_(p,v)∈R(B) (current(p) = v)"
+      commit: "SpeculativeCommit(R, W) ⟺ Atomic(⋀_(p,v)∈R p = v ⟹ ⋀_(q,w)∈W q := w)"
+
+    syntax: "#P speculative write { B }"
+
+    well_formedness:
+      write_required: "MUST use write modifier (speculative read-only ill-formed)"
+      pure_body: "Body MUST be effect-pure outside keyed set"
+      permitted_operations:
+        - "Read from keyed paths"
+        - "Write to keyed paths"
+        - "Pure computation"
+        - "const receiver methods on keyed data"
+        - "Pure procedures"
+      prohibited_operations:
+        - "Write to paths outside keyed set"
+        - "Nested key blocks"
+        - "wait expressions"
+        - "Procedures with side effects"
+        - "defer statements"
+        - "Panic-inducing operations (bounds checks permitted)"
+
+    execution_model:
+      - "Initialize retries := 0"
+      - "Snapshot: Read keyed paths, record (path, value) in R"
+      - "Execute: Evaluate body, collect writes in W"
+      - "Commit: Atomically verify R unchanged and apply W"
+      - "On success: Return body value"
+      - "On failure: Increment retries, if < MAX_SPECULATIVE_RETRIES goto Snapshot, else Fallback"
+      - "Fallback: Acquire blocking Write key, execute body, release, return"
+
+    retry_limit: "MAX_SPECULATIVE_RETRIES is IDB (typical: 3-10)"
+
+    snapshot_granularity: "IDB (atomic load, seqlock, copy under brief lock)"
+
+    commit_atomicity: "MUST be atomic wrt all other key operations on overlapping paths (IDB mechanism)"
+
+    interaction_with_blocking:
+      another_speculative: "Race; one commits, others retry"
+      blocking_read_held: "Speculative may commit (compatible)"
+      blocking_write_held: "Speculative commit fails, retry or fallback"
+
+    panic_during_speculation: "Write set discarded, no writes committed, panic propagates"
+
+    memory_ordering:
+      snapshot_reads: "Acquire semantics"
+      successful_commit: "Release semantics"
+      failed_commit: "No ordering guarantees (writes discarded)"
+
+    version_counters: "IDB (may add hidden version counters to shared values)"
+
+    diagnostics:
+      E-KEY-0090: "Nested key block inside speculative block"
+      E-KEY-0091: "Write to path outside keyed set in speculative block"
+      E-KEY-0092: "wait expression inside speculative block"
+      E-KEY-0093: "defer statement inside speculative block"
+      E-KEY-0094: "speculative combined with release"
+      E-KEY-0095: "speculative without write modifier"
+      E-KEY-0096: "Memory ordering annotation inside speculative block"
+      W-KEY-0020: "Speculative block on large struct (may be inefficient)"
+      W-KEY-0021: "Speculative block body may be expensive to re-execute"
+
+  keys_async_suspension:
+    location: "§13.8"
+
+    prohibition: "Keys MUST NOT be held across async suspension points"
+
+    suspension_points: "yield and yield from expressions (§15.4.2, §15.4.3)"
+
+    diagnostic: "E-ASYNC-0013 emitted when yield/yield from occurs while keys logically held"
+
+    scope_interaction: "Applies to keys held at suspension point, not keys in enclosing scopes already released"
+
+  compile_time_verification:
+    location: "§13.9"
+
+    philosophy: "Keys are compile-time abstraction; runtime sync emitted ONLY when [[dynamic]] present and static verification fails"
+
+    verification_hierarchy:
+      static_proof: "Compiler proves safety, Zero runtime cost, Default (mandatory)"
+      runtime_synchronization: "Static proof insufficient, Non-zero cost, Requires [[dynamic]]"
+
+    static_safety_conditions:
+      no_escape: "shared value never escapes to another task (K-SS-1)"
+      disjoint_paths: "Concurrent accesses target provably disjoint paths (K-SS-2)"
+      sequential_context: "No parallel block encloses access (K-SS-3)"
+      unique_origin: "Value is unique at origin, temporarily viewed as shared (K-SS-4)"
+      dispatch_indexed: "Access indexed by dispatch iteration variable (K-SS-5)"
+      speculative_only: "All accesses in speculative blocks with fallback (K-SS-6)"
+
+    default_behavior: "When static safety cannot be proven and not [[dynamic]], program ill-formed"
+
+    with_dynamic: "When static safety cannot be proven but in [[dynamic]] context, emit runtime sync"
+
+    runtime_realization:
+      requirements:
+        - "Mutual exclusion per key compatibility rules"
+        - "Blocking when incompatible keys held"
+        - "Release on scope exit (including panic)"
+        - "Progress guarantee (no indefinite starvation)"
+
+    runtime_ordered_acquisition: "When [[dynamic]] with incomparable dynamic indices, evaluate indices, determine order (IDB), acquire in computed order"
+
+    observational_equivalence: "Behavior identical whether static or runtime enforced (only performance differs)"
+
+    static_case_overhead: "When all accesses statically safe: No sync metadata, layout may equal unique equivalent, no runtime code"
+
+    runtime_case_overhead: "When [[dynamic]] permits runtime sync: Sync metadata added, layout IDB, runtime code generated"
+
+    diagnostics:
+      E-KEY-0020: "Key safety not statically provable outside [[dynamic]]"
+      W-KEY-0021: "[[dynamic]] present but all key operations statically safe"
+
+  memory_ordering:
+    location: "§13.10"
+
+    default: "Sequential consistency"
+
+    key_operations:
+      acquisition: "Acquire semantics"
+      release: "Release semantics"
+
+    relaxed_ordering:
+      syntax: "[[relaxed]], [[acquire]], [[release]], [[acq_rel]], [[seq_cst]]"
+      example: "[[relaxed]] counter += 1"
+      note: "Annotation affects memory operation, not key synchronization"
+
+    fence_operations: "fence(acquire), fence(release), fence(seq_cst)"
+
+  grammar_productions:
+    path_expr: "root_segment ('.' path_segment)*"
+    root_segment: "key_marker? IDENTIFIER index_suffix?"
+    path_segment: "key_marker? IDENTIFIER index_suffix?"
+    key_marker: "'#'"
+    index_suffix: "'[' expression ']'"
+    key_block: "'#' path_list mode_modifier* block"
+    path_list: "path_expr (',' path_expr)*"
+    mode_modifier: "'write' | 'read' | release_modifier | 'ordered' | 'speculative'"
+    release_modifier: "'release' ('write' | 'read')"
+
+# ============================================================================
+# CLAUSE 14: STRUCTURED PARALLELISM
+# ============================================================================
+
+clause_14_structured_parallelism:
+  location: "§14 (Lines 12054-12920)"
+
+  overview:
+    purpose: "Concurrent execution across multiple workers within bounded scope"
+    guarantee: "All spawned work completes before parallel scope exits"
+    benefits: "Deterministic resource cleanup, composable concurrency"
+
+  parallelism_overview:
+    location: "§14.1"
+
+    formal_definition:
+      work_set: "W: set of work items spawned within parallel block P"
+      invariant: "∀w ∈ W. lifetime(w) ⊆ lifetime(P)"
+
+    work_item: "Unit of computation queued for execution by worker"
+    worker: "Execution context (typically OS thread or GPU compute unit)"
+    task: "Runtime representation of work item during execution (may suspend/resume)"
+
+  parallel_block:
+    location: "§14.2"
+
+    definition: "Establishes scope within which work may execute concurrently"
+
+    formal: "P = (D, A, B)"
+    components:
+      D: "Execution domain expression"
+      A: "Block options (possibly empty)"
+      B: "Block body containing statements and work-creating expressions"
+
+    syntax: "parallel domain_expr [block_options] block"
+
+    block_options:
+      cancel: "CancelToken - cooperative cancellation capability"
+      name: "string - labels block for debugging/profiling"
+
+    typing: "Type determined by contents (§14.9)"
+
+    well_formedness:
+      - "Domain expression evaluates to type implementing ExecutionDomain"
+      - "All spawn/dispatch in body reference enclosing parallel block"
+      - "No spawn/dispatch outside parallel block"
+      - "All captured bindings satisfy permission requirements (§14.3)"
+
+    evaluation:
+      - "Let d = eval(domain_expr)"
+      - "Initialize worker pool per d configuration"
+      - "If cancel option present, associate token with block"
+      - "Evaluate statements in B sequentially; spawn/dispatch enqueue work items"
+      - "Block at closing brace until all enqueued work completes"
+      - "If any work panicked, propagate first panic after all work settles"
+      - "Release workers back to domain"
+      - "Return collected results (§14.9)"
+
+    completion_ordering: "Work items complete in Unspecified order"
+
+    diagnostics:
+      E-PAR-0001: "spawn or dispatch outside parallel"
+      E-PAR-0002: "Domain expression not ExecutionDomain"
+      E-PAR-0003: "Invalid domain parameter type"
+
+  capture_semantics:
+    location: "§14.3"
+
+    principle: "spawn/dispatch body capture follows closure capture semantics (§11.5)"
+
+    lifetime_safety: "Structured concurrency ensures captured references valid (all work completes before block exits)"
+
+    distinction_from_closures: "Parallel work items enable safe reference capture for const/shared bindings (closures may escape, requiring move for non-Copy)"
+
+    diagnostics:
+      E-PAR-0020: "Implicit capture of unique binding"
+      E-PAR-0021: "Move of already-moved binding"
+      E-PAR-0022: "Move of binding from outer parallel scope"
+
+  spawn_expression:
+    location: "§14.4"
+
+    definition: "Creates work item for concurrent execution within enclosing parallel block"
+
+    syntax: "spawn [attribute_list] block"
+
+    attributes:
+      name: "string - labels for debugging/profiling (default: Anonymous)"
+      affinity: "CpuSet - CPU core affinity hint (default: Domain default)"
+      priority: "Priority - scheduling priority hint (default: Priority::Normal)"
+
+    typing: "spawn { e } returns SpawnHandle<T> where e : T"
+
+    spawn_handle:
+      modal_type: "modal SpawnHandle<T> { @Pending { }, @Ready { value: T } }"
+      wait_support: "Supports wait expression (§15.3) for result retrieval"
+
+    evaluation:
+      - "Capture free variables per §14.3"
+      - "Package captured environment with expression into work item"
+      - "Enqueue work item to parallel block's worker pool"
+      - "Return SpawnHandle<T>@Pending immediately (non-blocking)"
+      - "Worker eventually dequeues and evaluates expression"
+      - "On completion, handle transitions to @Ready with result value"
+
+    result_collection:
+      implicit: "When parallel block contains only spawns, results form tuple in declaration order"
+      explicit_wait: "Use wait handle to retrieve specific result"
+      ignored: "Results not collected are discarded; work still completes"
+
+    diagnostics:
+      E-PAR-0030: "Invalid spawn attribute type"
+      E-PAR-0031: "spawn in escaping closure"
+
+  dispatch_expression:
+    location: "§14.5"
+
+    definition: "Data-parallel iteration where each iteration may execute concurrently"
+
+    syntax: "dispatch pattern in range_expr [key_clause] [attribute_list] block"
+
+    key_clause: "key path_expr key_mode (read | write)"
+
+    attributes:
+      reduce: "Reduction operator (combines iteration results)"
+      ordered: "Forces sequential side-effect ordering"
+      chunk: "usize - groups iterations for granularity"
+
+    typing:
+      without_reduction: "dispatch i in range { B } : ()"
+      with_reduction: "dispatch i in range [reduce: ⊕] { B } : T where B : T"
+
+    key_inference:
+      when_provided: "Use explicit key clause"
+      when_omitted: "Compiler analyzes body to infer key paths and modes"
+      failure: "If inference fails or ambiguous, emit E-PAR-0041"
+
+    disjointness_guarantee: "Accesses indexed by iteration variable to same array proven disjoint across iterations"
+
+    evaluation:
+      - "Evaluate range to determine iteration count n"
+      - "Analyze key patterns to partition iterations into conflict-free groups"
+      - "For each group, enqueue iterations as work items"
+      - "Workers execute iterations, acquiring keys as needed (§13.2)"
+      - "If [reduce: op] present, combine partial results using op"
+      - "Block until all iterations complete"
+      - "Return reduced value (if reduction) or unit"
+
+    parallelism_determination:
+      data_i: "n distinct keys → full parallel"
+      data_i_div_2: "n/2 distinct keys → pairs serialize"
+      data_i_mod_k: "k distinct keys → k-way parallel"
+      data_f_i: "Unknown at compile → runtime serialization"
+
+    reduction_semantics:
+      requirement: "Reduction operators MUST be associative"
+      non_associative: "[ordered] attribute required (forces sequential execution)"
+      parallel_reduction:
+        - "Partition iterations across workers"
+        - "Each worker reduces partition to partial result"
+        - "Combine partial results in deterministic tree pattern"
+        - "Return final result"
+      tree_combination: "Deterministic based on iteration indices (reproducible for non-commutative associative)"
+
+    cross_iteration_dependency: "Accesses referencing different iteration's data rejected"
+
+    diagnostics:
+      E-PAR-0040: "Dispatch outside parallel block"
+      E-PAR-0041: "Key inference failed; explicit key required"
+      E-PAR-0042: "Cross-iteration dependency detected"
+      E-PAR-0043: "Non-associative reduction without [ordered]"
+      W-PAR-0040: "Dynamic key pattern; runtime serialization"
+
+  execution_domains:
+    location: "§14.6"
+
+    definition: "Capability providing access to computational resources"
+
+    execution_domain_form:
+      methods:
+        name: "() -> string - human-readable name for debugging/profiling"
+        max_concurrency: "() -> usize - maximum concurrent work items supported"
+      dyn_safe: "Yes (enables heterogeneous domain handling)"
+
+    cpu_domain:
+      location: "§14.6.1"
+      access: "ctx.cpu(workers: n, affinity: cpus, priority: p, stack_size: s)"
+      parameters:
+        workers: "usize - number of worker threads (default: system CPU count)"
+        affinity: "CpuSet - CPU core affinity mask (default: all CPUs)"
+        priority: "Priority - thread scheduling hint (default: Priority::Normal)"
+        stack_size: "usize - stack size per worker (default: IDB)"
+      types:
+        CpuSet: "Methods: all(), cores(indices), range(start, end), numa_node(node)"
+        Priority: "Enum: Idle, Low, Normal, High, Realtime"
+      realtime_note: "Requires elevated privileges; IDB fallback to High if insufficient privileges"
+
+    gpu_domain:
+      location: "§14.6.2"
+      access: "ctx.gpu(device: d, queue: q)"
+      parameters:
+        device: "usize - GPU device index (default: 0)"
+        queue: "usize - command queue index (default: 0)"
+      capture_rules:
+        capturable: "GpuBuffer<T>, primitive constants, const small records"
+        forbidden: "shared types (key system unavailable on GPU), host pointers, heap-allocated types"
+      memory_model: "GPU and CPU have separate memory spaces; data transfer explicit"
+      intrinsics:
+        alloc: "gpu::alloc<T>(count: usize) -> GpuBuffer<T>"
+        upload: "gpu::upload(src, dst) -> ()"
+        download: "gpu::download(src, dst) -> ()"
+        global_id: "gpu::global_id() -> usize"
+        local_id: "gpu::local_id() -> usize"
+        workgroup_id: "gpu::workgroup_id() -> usize"
+        barrier: "gpu::barrier() -> ()"
+        atomic_add: "gpu::atomic_add(ptr, val) -> T"
+        atomic_min: "gpu::atomic_min(ptr, val) -> T"
+        atomic_max: "gpu::atomic_max(ptr, val) -> T"
+        atomic_cas: "gpu::atomic_cas(ptr, cmp, new) -> T"
+      dispatch_dimensions:
+        1D: "dispatch i in 0..n { ... }"
+        2D: "dispatch (x, y) in (0..width, 0..height) { ... }"
+        3D: "dispatch (x, y, z) in (0..w, 0..h, 0..d) { ... }"
+        workgroup: "dispatch i in 0..n [workgroup: 256] { ... }"
+      diagnostics:
+        E-PAR-0050: "Host memory access in GPU code"
+        E-PAR-0051: "shared capture in GPU dispatch"
+        E-PAR-0052: "Nested GPU parallel block"
+
+    inline_domain:
+      location: "§14.6.3"
+      access: "ctx.inline()"
+      purpose: "Testing, debugging, single-threaded contexts"
+      evaluation:
+        spawn: "Evaluates expression immediately and blocks until complete"
+        dispatch: "Executes as sequential loop"
+        parallelism: "No actual parallelism occurs"
+        rules: "All capture rules and permission requirements remain enforced"
+
+  async_integration:
+    location: "§14.7"
+
+    principle: "Async operations (wait, Async<T> per §15) compose with parallel blocks"
+
+    wait_inside_parallel:
+      - "Worker suspends current work item"
+      - "Worker picks up another queued work item (if available)"
+      - "When async operation completes, suspended work item becomes ready"
+      - "Some worker resumes work item"
+
+    key_prohibition: "Keys MUST NOT be held across wait suspension points (§13.8)"
+
+    spawn_handle_wait: "SpawnHandle<T> supports wait expression for blocking on spawned work"
+
+  cancellation:
+    location: "§14.8"
+
+    definition: "Cooperative mechanism by which in-progress parallel work may be requested to stop early"
+
+    cancel_token:
+      modal_type: "modal CancelToken { @Active { ... }, @Cancelled { ... } }"
+      methods_active:
+        cancel: "~% - request cancellation"
+        is_cancelled: "~ -> bool"
+        wait_cancelled: "~ -> Async<()>"
+        child: "~ -> CancelToken@Active"
+      methods_cancelled:
+        is_cancelled: "~ -> bool { result true }"
+      constructor: "new() -> CancelToken@Active"
+
+    propagation: "When attached to parallel block via cancel option, token implicitly available in spawn/dispatch bodies"
+
+    cancellation_vs_completion:
+      checks_returns_early: "Iteration completes immediately"
+      ignores: "Iteration runs to completion"
+      queued_not_started: "MAY be dequeued without executing"
+      mid_execution: "Continues until next check point"
+
+  parallel_block_results:
+    location: "§14.9"
+
+    result_type_determination:
+      no_spawn_dispatch: "()"
+      single_spawn: "T where spawn { e } and e : T"
+      multiple_spawns: "(T1, ..., Tn) for spawns e1, ..., en"
+      dispatch_no_reduce: "()"
+      dispatch_with_reduce: "T where dispatch ... [reduce: op] { e } and e : T"
+      mixed: "Tuple of all results"
+
+  panic_handling:
+    location: "§14.10"
+
+    single_panic:
+      - "Panicking work item captures panic information"
+      - "Other work items continue to completion (or cancellation if token attached)"
+      - "After all work settles, panic re-raised at block boundary"
+
+    multiple_panics:
+      - "Each panic captured independently"
+      - "All work completes or cancelled"
+      - "First panic (by completion order) raised"
+      - "Other panics discarded; implementations MAY log them"
+
+    panic_and_cancellation: "Implementations MAY request cancellation on first panic (IDB)"
+
+    catching_panics: "Use catch_panic(|| risky_work()) to handle panics within block"
+
+  nested_parallelism:
+    location: "§14.11"
+
+    definition: "Parallel blocks may be nested; inner blocks execute within outer context"
+
+    cpu_nesting: "Inner CPU blocks share worker pool with outer (workers parameter is hint/limit, not additional)"
+
+    heterogeneous_nesting: "CPU and GPU blocks may be nested"
+
+    nesting_constraints:
+      - "GPU blocks MUST NOT nest inside other GPU blocks"
+      - "Inner CPU blocks share outer block's worker pool"
+      - "Capture rules apply independently at each level"
+
+  determinism:
+    location: "§14.12"
+
+    definition: "Given identical inputs and parallel structure, execution produces identical results"
+
+    deterministic_dispatch:
+      conditions:
+        - "Key patterns produce identical partitioning across runs"
+        - "Iterations with same key execute in index order"
+        - "Reduction uses deterministic tree combination"
+
+    ordered_dispatch:
+      attribute: "[ordered]"
+      effect: "Forces sequential side-effect ordering"
+      mechanism: "Iterations MAY execute in parallel, but side effects buffered and applied in index order"
+
+  memory_allocation:
+    location: "§14.13"
+
+    captured_allocator: "Work items may allocate using captured allocator capabilities"
+
+    region_allocation: "Region allocation within parallel blocks supported (region work_arena { parallel { ... } })"
+
+  grammar_productions:
+    parallel_block: "'parallel' domain_expr block_options? block"
+    domain_expr: "expression"
+    block_options: "'[' block_option (',' block_option)* ']'"
+    block_option: "'cancel' ':' expression | 'name' ':' string_literal"
+    spawn_expr: "'spawn' attribute_list? block"
+    attribute_list: "'[' attribute (',' attribute)* ']'"
+    attribute: "'name' ':' string_literal | 'affinity' ':' expression | 'priority' ':' expression"
+    dispatch_expr: "'dispatch' pattern 'in' range_expr key_clause? attribute_list? block"
+    key_clause: "'key' path_expr key_mode"
+    key_mode: "'read' | 'write'"
+
+# ============================================================================
+# CLAUSE 15: ASYNCHRONOUS OPERATIONS
+# ============================================================================
+
+clause_15_asynchronous_operations:
+  location: "§15 (Lines 12921-14449)"
+
+  overview:
+    purpose: "Asynchronous computation: operations that suspend and resume, produce values incrementally or after external events"
+
+  async_class:
+    location: "§15.2"
+
+    definition: "Modal class representing interface for asynchronous computations"
+
+    type_parameters:
+      Out: "Type of values produced at each suspension point (Required)"
+      In: "Type of values received when resumed (Default: ())"
+      Result: "Type of final completion value (Default: ())"
+      E: "Type of error on failure (Default: !)"
+
+    class_declaration:
+      states:
+        Suspended: "Computation paused, payload: output: Out"
+        Completed: "Computation finished successfully, payload: value: Result"
+        Failed: "Computation terminated with error, payload: error: E"
+      abstract_procedure: "resume(~!, input: In) -> Async@Suspended | Async@Completed | Async@Failed"
+
+    modal_class_note: "As modal class (§9.2), declares abstract states that implementing modals must provide"
+
+    async_returning_procedures:
+      return_type: "Concrete compiler-generated modal implementing Async class"
+      subtyping: "gen_f <: Async<Out, In, Result, E>"
+
+    monomorphic_vs_polymorphic:
+      direct_call: "Concrete generated modal, no indirection"
+      homogeneous_collection: "Concrete generated modal, no indirection"
+      heterogeneous_collection: "dyn Async<...>, indirection required"
+      polymorphic_parameter: "dyn Async<...> or generic T <: Async<...>"
+
+    class_subtyping:
+      variance: "Out covariant, In contravariant, Result covariant, E covariant"
+
+    compiler_generated_implementations:
+      for_each_async_proc: "Compiler generates anonymous modal implementing Async class"
+      generated_modal_includes:
+        - "Exact state names required by class (@Suspended, @Completed, @Failed)"
+        - "All class-required payload fields in each state"
+        - "Implementation-specific fields (gen_ prefix) for resumption state and captured locals"
+        - "May omit @Failed when E = ! per uninhabited state omission (§9.3)"
+
+    well_formedness: "When E = !, @Failed state uninhabited and may be omitted"
+
+    default_parameter_expansion:
+      Async_T: "Async<T, (), (), !>"
+      Async_T_U: "Async<T, U, (), !>"
+      Async_T_U_R: "Async<T, U, R, !>"
+
+    diagnostics:
+      E-ASYNC-0001: "Async type parameter not well-formed"
+      E-ASYNC-0002: "yield in non-async procedure"
+      E-ASYNC-0003: "result type mismatch with Result parameter"
+
+  type_aliases:
+    location: "§15.3"
+
+    Sequence: "Async<T, (), (), !> - yields values with no input, infallible"
+    Future: "Async<(), (), T, E> - completes with single value"
+    Pipe: "Async<Out, In, (), !> - bidirectional value exchange"
+    Exchange: "Async<T, T, T, !> - symmetric bidirectional"
+    Stream: "Async<T, (), (), E> - yields values, fallible"
+
+    equivalence: "Type aliases structurally equivalent to expanded forms"
+
+    variance_inheritance:
+      Sequence_T: "Covariant in T"
+      Future_T_E: "Covariant in T, E"
+      Pipe_In_Out: "Contravariant in In, Covariant in Out"
+      Stream_T_E: "Covariant in T, E"
+
+  producing_async_values:
+    location: "§15.4"
+
+    async_returning_procedures:
+      location: "§15.4.1"
+
+      syntax: "procedure name(...) -> Async<Out, In, Result, E> { body }"
+      no_modifier: "Return type determines async behavior (no special syntax modifier)"
+
+      modal_generation:
+        - "Compiler generates anonymous modal implementing Async<Out, In, Result, E>"
+        - "Generated modal has states @Suspended, @Completed, @Failed (unless E = !)"
+        - "Each state includes class-required fields plus implementation fields"
+        - "Procedure body transformed into resume transition implementation"
+        - "Each yield becomes suspension point; gen_point stores resumption"
+        - "result expression produces @Completed value"
+        - "Return without result in Result = () implicitly completes with ()"
+        - "Error propagation via ? transitions to @Failed"
+
+      normal_completion: "result value or reach end of body (for Result = ())"
+
+      failure: "Error propagates via ? or explicit error return"
+
+      diagnostics:
+        E-ASYNC-0030: "Error propagation in infallible async procedure"
+
+    yield_expression:
+      location: "§15.4.2"
+
+      syntax: "yield [release] expression"
+      optional_release: "Enables yielding while keys held (release-and-reacquire)"
+
+      typing:
+        operand: "Must have type Out"
+        expression_type: "Type In (value provided when resumed)"
+        context: "Valid only within procedure returning Async<Out, In, Result, E>"
+
+      key_interaction: "When yield combined with # key block in same expression, key released BEFORE suspension"
+
+      desugaring:
+        yield_hash_block: "yield #path { expr } → { let __temp = #path { expr }; yield __temp }"
+
+      evaluation:
+        - "Let v = eval(operand)"
+        - "Transition Async to @Suspended { output: v }"
+        - "Return control to caller"
+        - "When resume(input) called, bind input as result of yield expression"
+        - "Continue execution from point after yield"
+
+      yield_release_evaluation:
+        - "Let Γ_keys = currently held keys"
+        - "Release all keys in LIFO order"
+        - "Let v = eval(operand)"
+        - "Transition to @Suspended { output: v }"
+        - "Return control"
+        - "When resume(input) called: reacquire all keys in canonical order, bind input"
+        - "Continue from point after yield release"
+
+      staleness: "Values read from shared data before yield release SHOULD be considered stale after"
+
+      diagnostics:
+        E-ASYNC-0010: "yield outside async-returning procedure"
+        E-ASYNC-0011: "yield operand type does not match Out"
+        E-ASYNC-0012: "yield inside sync expression"
+        E-ASYNC-0013: "yield while key held (without release)"
+        W-KEY-0011: "Access to potentially stale binding after yield release"
+
+    yield_from_expression:
+      location: "§15.4.3"
+
+      syntax: "yield [release] from expression"
+
+      definition: "Delegates to another async, forwarding outputs/inputs until completion"
+
+      typing:
+        source: "Must be Async<Out, In, R, E2> where Out, In match enclosing, E2 <: E1"
+        expression_type: "Type R (source's Result type)"
+
+      delegation_loop:
+        - "Let s = eval(source)"
+        - "Loop: Match s:"
+        - "  @Suspended { output }: Execute yield output in enclosing. When resumed with input, let s := s~>resume(input)"
+        - "  @Completed { value }: yield from evaluates to value. Exit loop"
+        - "  @Failed { error }: Propagate error to enclosing. Exit loop"
+
+      delegation_with_key_parking:
+        - "Let Γ_keys = currently held keys"
+        - "Let s = eval(source)"
+        - "Loop: Match s:"
+        - "  @Suspended { output }: Release all keys (LIFO), yield output, when resumed reacquire keys (canonical), let s := s~>resume(input)"
+        - "  @Completed { value }: yield release from evaluates to value. Exit"
+        - "  @Failed { error }: Propagate error. Exit"
+
+      diagnostics:
+        E-ASYNC-0020: "yield from outside async-returning proc"
+        E-ASYNC-0021: "Incompatible Out parameter in yield from"
+        E-ASYNC-0022: "Incompatible In parameter in yield from"
+        E-ASYNC-0023: "yield from inside sync expression"
+        E-ASYNC-0024: "yield from while key held (without release)"
+        E-ASYNC-0025: "Error type not compatible in yield from"
+        W-KEY-0011: "Access to potentially stale binding after yield release from"
+
+  consuming_async_values:
+    location: "§15.5"
+
+    iteration:
+      location: "§15.5.1"
+
+      syntax: "loop pattern in expression block"
+
+      requirement: "Async<T, (), R, E> (In = ())"
+
+      desugaring:
+        original: "loop item in source { body }"
+        desugared: "var __s = source; loop { match __s { @Suspended { output: item } => { body; __s = __s~>resume(()) }, @Completed { .. } => break, @Failed { error } => panic(error) } }"
+
+      diagnostics:
+        E-ASYNC-0040: "Iteration over async with In ≠ ()"
+
+    manual_stepping:
+      location: "§15.5.2"
+
+      definition: "Direct interaction with Async state machine via pattern matching and explicit resume"
+
+      requirement: "Required for async values with non-unit In types"
+
+    synchronous_execution:
+      location: "§15.5.3"
+
+      syntax: "sync expression"
+
+      definition: "Runs Future<T, E> (Async<(), (), T, E>) to completion synchronously"
+
+      typing: "sync e : T | E where e : Async<(), (), T, E>"
+
+      requirement: "Operand MUST have Out = () and In = ()"
+
+      context_restriction: "Permitted only in non-async contexts"
+
+      evaluation:
+        - "Let a = eval(e)"
+        - "Loop: Match a:"
+        - "  @Suspended { output: () }: Let a := a~>resume(())"
+        - "  @Completed { value }: Return value"
+        - "  @Failed { error }: Propagate error"
+
+      reactor_integration: "sync f desugars to ctx.reactor~>run(f)"
+
+      diagnostics:
+        E-ASYNC-0050: "sync inside async-returning proc"
+        E-ASYNC-0051: "sync operand has Out ≠ ()"
+        E-ASYNC-0052: "sync operand has In ≠ ()"
+
+  concurrent_composition:
+    location: "§15.6"
+
+    race_expression:
+      location: "§15.6.1"
+
+      syntax: "race { expr1 -> |pattern1| handler1, expr2 -> |pattern2| handler2, ... }"
+
+      first_completion_typing: "All handlers same result type R, error union E1 | ... | En"
+
+      streaming_typing: "When all handlers use yield, result is Sequence<U, E1 | ... | En>"
+
+      first_completion_evaluation:
+        - "Initiate all async expressions concurrently"
+        - "When any reaches @Completed or @Failed: execute handler, cancel others, return handler result"
+        - "If operation fails, failure propagates unless explicitly handled"
+
+      streaming_evaluation:
+        - "Initiate all concurrently"
+        - "When any yields: execute handler, yield handler result, resume arm"
+        - "When arm completes: remove from race"
+        - "When all complete: streaming race completes"
+        - "If any fails: propagate error, cancel remaining"
+
+      cancellation:
+        - "All other in-flight operations dropped"
+        - "Drop implementations execute (§15.9)"
+        - "Resources released before race completes"
+
+      diagnostics:
+        E-ASYNC-0060: "race with fewer than 2 arms"
+        E-ASYNC-0061: "race arms have incompatible types"
+        E-ASYNC-0062: "Non-streaming race operand has Out ≠ ()"
+        E-ASYNC-0063: "Mixed yield/non-yield handlers in race"
+
+    all_expression:
+      location: "§15.6.2"
+
+      syntax: "all { expr1, expr2, ... }"
+
+      typing: "all { e1, ..., en } : (T1, ..., Tn) | (E1 | ... | En)"
+
+      evaluation:
+        - "Initiate all async expressions concurrently"
+        - "Wait for all to complete"
+        - "If all succeed: return tuple of results in declaration order"
+        - "If any fails: cancel remaining, propagate first error"
+
+      first_failure_semantics:
+        - "When any transitions to @Failed: record error, cancel remaining, wait for cancellation cleanup, propagate error"
+
+      diagnostics:
+        E-ASYNC-0070: "all operand has Out ≠ ()"
+        E-ASYNC-0071: "all operand has In ≠ ()"
+
+    condition_waiting:
+      location: "§15.6.3"
+
+      method_signature: "procedure until<T; R>(self: shared T, predicate: procedure(const T) -> bool, action: procedure(unique T) -> R) -> Future<R>"
+
+      predicate_registration:
+        immediate_true: "Acquire Write key, execute action, complete Future"
+        otherwise: "Register waiter (path, pred, action, continuation), transition Future to @Suspended, waiter does NOT hold keys"
+
+      notification_on_key_release:
+        - "When Write key to P released, check for waiters on P or any prefix"
+        - "Mark matching waiters potentially ready"
+        - "Re-evaluate predicates"
+        - "Waiters with true predicates transitioned to ready and scheduled"
+
+      notification_granularity:
+        player_health_released: "Waiters on player.health, player"
+        player_released: "All waiters on player or player.*"
+        arr_i_released: "Waiters on arr[i], arr"
+
+      predicate_re_evaluation:
+        - "Acquire Read key to waiter's path"
+        - "Evaluate pred(value)"
+        - "If true: transition to Write key via release-and-reacquire, execute action(value), complete Future"
+        - "If false: release Read key, remain in wait table"
+
+      ordering_guarantees:
+        - "Waiter observing mutation effect sees all prior mutations by same task"
+        - "Across tasks, waiters see mutations in order consistent with key acquisition order"
+        - "Spurious wakeups permitted"
+
+  transformations_combinators:
+    location: "§15.7"
+
+    map: "procedure map<Out; In; Result; E; U>(self: Async<Out, In, Result, E>, f: procedure(Out) -> U) -> Async<U, In, Result, E>"
+
+    filter: "procedure filter<T; E>(self: Async<T, (), (), E>, predicate: procedure(const T) -> bool) -> Async<T, (), (), E>"
+
+    take: "procedure take<T; E>(self: Async<T, (), (), E>, count: usize) -> Async<T, (), (), E>"
+
+    fold: "procedure fold<T; A; E>(self: Async<T, (), (), E>, initial: A, combine: procedure(A, T) -> A) -> Future<A, E>"
+
+    chain: "procedure chain<T; U; E>(self: Future<T, E>, next: procedure(T) -> Future<U, E>) -> Future<U, E>"
+
+    combinator_return_types: "Declared with Async class return types, but each invocation produces distinct compiler-generated modal"
+
+    lazy_evaluation:
+      map: "When source yields v, yield f(v)"
+      filter: "When source yields v, yield v only if p(v) true; else resume source"
+      take: "Yield first n values from source, then complete"
+      fold: "Consume all source values, accumulate via f, complete with final accumulator"
+      chain: "When source completes with v, evaluate f(v) and delegate to resulting async"
+
+  memory_model_state_representation:
+    location: "§15.8"
+
+    generated_modal_structure:
+      for_each_async_proc: "Compiler generates modal containing states, class-required payload, implementation fields"
+
+    size_formula:
+      modal_size: "sizeof(gen_f) = sizeof(Discriminant) + max_{S ∈ States}(sizeof(S.payload))"
+      suspended_payload: "sizeof(Out) + sizeof(gen_point) + Σ_{v ∈ live_locals} sizeof(v)"
+      completed_payload: "sizeof(Result)"
+      failed_payload: "sizeof(E)"
+
+    class_type_no_fixed_size: "Async class interface has no fixed size; only concrete modals have defined sizes"
+
+    abi_classification: "IDB: Generated modal layout, implementation field placement, discriminant encoding, alignment, naming scheme"
+
+    region_allocation: "Async state may be allocated in regions"
+
+    heap_escape: "When async values escape defining scope, MUST be heap-allocated"
+
+    structured_lifetime: "Async operation allocated in region MUST NOT escape that region: lifetime(A) ≤ lifetime(region(A))"
+
+  cancellation_cleanup:
+    location: "§15.9"
+
+    drop_based_cancellation: "When Async@Suspended value dropped, operation cancelled"
+
+    cleanup_order:
+      - "Execution does not continue past current suspension point"
+      - "defer blocks executed in reverse declaration order"
+      - "Drop implementations called for all captured resources"
+      - "Cleanup proceeds innermost scope outward"
+
+    in_flight_io_behavior: "IDB: Cancel/complete/abandon, close immediately/graceful, flush/abandon"
+
+  error_handling:
+    location: "§15.10"
+
+    error_propagation: "? operator propagates errors through async boundaries"
+
+    error_type_constraints: "Procedure returning Async<..., !> MUST NOT contain error-propagating expressions"
+
+    cleanup_on_failure:
+      - "Error captured in @Failed state"
+      - "defer blocks execute in reverse order"
+      - "Drop implementations run for all live bindings"
+      - "Async transitions to @Failed { error }"
+
+  integration_with_other_features:
+    location: "§15.11"
+
+    capability_requirements:
+      location: "§15.11.1"
+
+      categories:
+        pure_sequence: "None - range(0, 100)"
+        io_operation: "Specific dyn - fs~>read(file)"
+        timing: "System dyn - sys~>after(duration)"
+        network: "Network dyn - net~>fetch(url)"
+
+      propagation: "Capabilities captured by async remain valid across suspensions (stored in state)"
+
+      reactor_capability:
+        class_definition: "class Reactor { procedure run<T; E>(~, future: Future<T, E>) -> T | E; procedure register<T; E>(~, future: Future<T, E>) -> FutureHandle<T, E> }"
+        sync_usage: "sync expression implicitly uses reactor from Context"
+
+      io_capability_methods: "FileSystem, Network, Time provide methods returning Async"
+
+    permission_capture_rules:
+      location: "§15.11.2"
+
+      capture_table:
+        const_T: "Yes - referenced data must outlive async"
+        unique_T: "Yes - exclusive access for async lifetime"
+        shared_T: "Yes - subject to key rules at each suspension"
+        move_T: "Yes - ownership transfers to async state"
+
+      dynamic_inheritance: "When spawn/dispatch captures shared data, [[dynamic]] status inherited from enclosing scope"
+
+      dynamic_on_spawn: "[[dynamic]] attribute may be applied to individual spawn expressions"
+
+      lifetime_constraint: "lifetime(b) ≥ lifetime(Async) for all captured bindings"
+
+      key_state_at_suspension:
+        default: "yield or yield from (without release) MUST NOT occur while any keys held"
+        prohibition_rule: "Γ_keys ≠ ∅ ∧ (IsYield(e) ∨ IsYieldFrom(e)) ∧ release ∉ modifiers ⟹ Emit(E-ASYNC-0013)"
+        rationale: "Keys are synchronization primitives; holding across suspension could cause deadlock/priority inversion"
+        opt_in: "yield release or yield release from invokes Release-and-Reacquire (analogous to §13.7.2)"
+        semantics: "Release all keys (LIFO) → Suspend (keys available to others) → Resume → Re-acquire all keys (canonical)"
+
+      diagnostics:
+        E-ASYNC-0013: "yield while key held (without release)"
+        E-ASYNC-0080: "Captured binding does not outlive async"
+        E-ASYNC-0081: "Async operation escapes its region"
+        W-ASYNC-0001: "Large captured state (performance)"
+        W-KEY-0011: "Access to potentially stale binding after yield release"
+
+    parallel_block_composition:
+      location: "§15.11.3"
+
+      async_in_spawn: "spawn blocks may contain async operations (yield from I/O Future)"
+
+      worker_behavior:
+        - "Task suspends on yield from"
+        - "Reactor registers I/O operation"
+        - "Worker picks up other work items"
+        - "When I/O ready, reactor notifies and task resumes"
+
+      async_in_dispatch: "dispatch may iterate over async sequences (each yielded item processed as separate work item)"
+
+      structured_concurrency: "All async operations spawned within parallel block MUST complete or be cancelled before block exits"
+
+  grammar_productions:
+    async_procedure: "procedure_decl (* where return type is Async<...> *)"
+    yield_expr: "'yield' ['release'] expression"
+    yield_from_expr: "'yield' ['release'] 'from' expression"
+    sync_expr: "'sync' expression"
+    race_expr: "'race' '{' race_arm (',' race_arm)* [','] '}'"
+    race_arm: "expression '->' '|' pattern '|' race_handler"
+    race_handler: "expression | 'yield' expression"
+    all_expr: "'all' '{' expression (',' expression)* [','] '}'"
+    async_loop: "'loop' pattern 'in' expression block"
+
+# ============================================================================
+# CROSS-REFERENCES AND INDEX
+# ============================================================================
+
+cross_references:
+  string_types: "§6.2 (Authoritative for string@View typing and indexing rules)"
+  pointer_types: "§6.3 (Authoritative for T-Addr-Of, T-Deref, raw pointer rules)"
+  modal_types: "§6.1 (Authoritative for T-Modal-Widen and state-specific types)"
+  function_types: "§6.4 (Authoritative for closure subtyping T-Sparse-Sub-Closure)"
+  binding_model: "§3.4 (Authoritative for let/var, =/=, movability/mutability orthogonality)"
+  responsibility_move: "§3.5 (Authoritative for T-Move, post-move state tracking)"
+  deterministic_destruction: "§3.6 (Authoritative for LIFO destruction order, drop on reassignment)"
+  regions: "§3.7 (Authoritative for T-Alloc-Named, T-Alloc-Implicit, region allocation)"
+  unsafe_blocks: "§3.8 (Authoritative for raw pointer operations)"
+  name_resolution: "Clause 8 (Authoritative for identifier resolution rules)"
+  entry_point: "§8.9 (Authoritative for main signature)"
+  verification_facts: "§10.5 (Authoritative for control flow facts used in index disjointness)"
+  modal_classes: "§9.2 (Authoritative for modal class semantics)"
+  dyn_types: "§9.5 (Authoritative for dyn safety and dynamic dispatch)"
+
+potential_issues:
+  - "Clause 13.1 (Key Fundamentals): Path root extraction for method calls could be clarified with more examples"
+  - "Clause 13.7.2 (Nested Key Release): Reacquisition elision optimization needs clearer conditions"
+  - "Clause 13.7.3 (Speculative Block): MAX_SPECULATIVE_RETRIES should specify typical range more precisely"
+  - "Clause 14.6.2 (GPU Domain): GPU intrinsics need more detailed semantics (memory ordering, failure modes)"
+  - "Clause 15.2 (Async Class): Generated modal naming scheme needs specification for reproducibility"
+  - "Clause 15.8 (Memory Model): ABI classification marked as IDB but should specify minimum guarantees"
+  - "Cross-clause: Interaction between [[dynamic]], key system, and parallel blocks needs consolidated specification"
+  - "Cross-clause: Memory ordering semantics across key system, parallel blocks, and async need unified model"
+
+diagnostic_code_summary:
+  clause_11:
+    E-EXP: "2501-2594 (Expression type errors, operator misuse, call errors)"
+    E-STM: "2631-2667 (Statement errors: assignment, control flow, defer)"
+    E-PAT: "2711-2751 (Pattern matching errors)"
+    E-DEC: "2401-2402 (Declaration errors)"
+    P-EXP: "2530, 2560-2561, 2580-2582 (Runtime panics: bounds, overflow, cast)"
+
+  clause_12:
+    E-CAP: "1001-1002 (Capability errors: ambient authority, missing capability)"
+    E-DEC: "2431 (Entry point signature error)"
+
+  clause_13:
+    E-KEY: "0001-0096 (Key system errors: access, annotation, blocks, conflicts, mode, boundaries)"
+    W-KEY: "0001-0021 (Key system warnings: performance, redundancy, staleness)"
+    I-KEY: "0011, 0013 (Key system info: runtime ordering, coarsening)"
+
+  clause_14:
+    E-PAR: "0001-0052 (Parallelism errors: spawn/dispatch outside parallel, domain, GPU)"
+    W-PAR: "0040 (Parallelism warnings: dynamic key patterns)"
+
+  clause_15:
+    E-ASYNC: "0001-0081 (Async errors: type params, yield, sync, race, all, capture)"
+    W-ASYNC: "0001 (Async warnings: large captured state)"
+
+implementation_defined_behavior:
+  - "Integer overflow in release mode (wrap or panic)"
+  - "Shift operations where right operand >= bit width of left operand"
+  - "Key metadata representation (inline vs external, size overhead)"
+  - "Key acquisition ordering mechanism for dynamic indices"
+  - "Speculative block MAX_SPECULATIVE_RETRIES value"
+  - "Speculative block snapshot and commit mechanisms"
+  - "Parallel block worker pool management"
+  - "GPU domain memory transfer and synchronization"
+  - "Async state representation (layout, discriminant encoding)"
+  - "In-flight I/O behavior on cancellation"
+  - "Panic behavior with multiple concurrent panics"

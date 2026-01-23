@@ -1,0 +1,9 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/Dev/Cursive/cursive-bootstrap/build/cmake_install.cmake",
+		"C:/Dev/Cursive/cursive-bootstrap/build/runtime/cmake_install.cmake",
+		"C:/Dev/Cursive/cursive-bootstrap/build/tests/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

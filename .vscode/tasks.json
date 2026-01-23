@@ -1,0 +1,29 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build HelloWorld (cursivec0)",
+      "type": "process",
+      "command": "c:\\Dev\\Cursive\\cursive-bootstrap\\build\\Release\\cursivec0.exe",
+      "args": [
+        "build",
+        "${workspaceFolder}\\HelloWorld\\Cursive.toml"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Run HelloWorld",
+      "type": "process",
+      "command": "${workspaceFolder}\\HelloWorld\\build\\bin\\test.exe",
+      "dependsOn": "Build HelloWorld (cursivec0)",
+      "problemMatcher": []
+    }
+  ]
+}

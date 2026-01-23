@@ -1,0 +1,136 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\abi\abi_types.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\abi\abi_params.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\abi\abi_calls.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\layout\layout_primitives.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\layout\layout_dispatch.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\layout\layout_records.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\layout\layout_unions.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\layout\layout_aggregates.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\layout\layout_modal.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\layout\layout_dynobj.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\layout\layout_value_bits.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\lower\lower_expr_core.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\lower\lower_expr_calls.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\lower\lower_expr_places.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\lower\lower_stmt.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\lower\lower_pat.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\lower\lower_proc.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\lower\lower_module.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\llvm\llvm_module.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\llvm\llvm_types.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\llvm\llvm_attrs.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\llvm\llvm_call_abi.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\llvm\llvm_ub_safe.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\llvm\llvm_mem.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\runtime\runtime_calls.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\runtime\runtime_decls.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\ir_model.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\ir_dump.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\ir_lowering.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\mangle.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\linkage.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\checks.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\cleanup.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\globals.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\init.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\dyn_dispatch.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\vtable_emit.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\literal_emit.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\binding_storage.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\entrypoint.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\codegen\poison_instrument.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Dev\Cursive\cursive-bootstrap\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{DD1F5596-E41A-332F-87FC-DD9BFF5A9934}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

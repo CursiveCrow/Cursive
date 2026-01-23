@@ -1,0 +1,629 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ResolveNugetPackages>false</ResolveNugetPackages>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="MinSizeRel|x64">
+      <Configuration>MinSizeRel</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="RelWithDebInfo|x64">
+      <Configuration>RelWithDebInfo</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{FAC261F9-2A87-35AE-8C7B-AB0E4DD6A1FC}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <Platform>x64</Platform>
+    <ProjectName>ALL_BUILD</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Dev\Cursive\cursive-bootstrap\CMakeLists.txt">
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule C:/Dev/Cursive/cursive-bootstrap/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Dev/Cursive/cursive-bootstrap -BC:/Dev/Cursive/cursive-bootstrap/build --check-stamp-file C:/Dev/Cursive/cursive-bootstrap/build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\4.0.1\CMakeCCompiler.cmake;C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\4.0.1\CMakeCXXCompiler.cmake;C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\4.0.1\CMakeRCCompiler.cmake;C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\4.0.1\CMakeSystem.cmake;C:\Dev\Cursive\cursive-bootstrap\cmake\Fuzzing.cmake;C:\Dev\Cursive\cursive-bootstrap\cmake\LLVM21.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVM-Config.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVMConfig.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVMConfigVersion.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVMExports-release.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVMExports.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeCInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CTest.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CTestTargets.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CTestUseLaunchers.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Compiler\MSVC-C.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Compiler\MSVC.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\DartConfiguration.tcl.in;C:\Program Files\CMake\share\cmake-4.0\Modules\FindLibXml2.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPkgConfig.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPython\Support.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPython3.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Linker\MSVC-C.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Linker\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Linker\MSVC.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-MSVC-C.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows-Initialize.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows-MSVC-C.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows-MSVC.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\WindowsPaths.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule C:/Dev/Cursive/cursive-bootstrap/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Dev/Cursive/cursive-bootstrap -BC:/Dev/Cursive/cursive-bootstrap/build --check-stamp-file C:/Dev/Cursive/cursive-bootstrap/build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\4.0.1\CMakeCCompiler.cmake;C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\4.0.1\CMakeCXXCompiler.cmake;C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\4.0.1\CMakeRCCompiler.cmake;C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\4.0.1\CMakeSystem.cmake;C:\Dev\Cursive\cursive-bootstrap\cmake\Fuzzing.cmake;C:\Dev\Cursive\cursive-bootstrap\cmake\LLVM21.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVM-Config.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVMConfig.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVMConfigVersion.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVMExports-release.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVMExports.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeCInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CTest.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CTestTargets.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CTestUseLaunchers.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Compiler\MSVC-C.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Compiler\MSVC.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\DartConfiguration.tcl.in;C:\Program Files\CMake\share\cmake-4.0\Modules\FindLibXml2.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPkgConfig.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPython\Support.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPython3.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Linker\MSVC-C.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Linker\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Linker\MSVC.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-MSVC-C.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows-Initialize.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows-MSVC-C.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows-MSVC.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\WindowsPaths.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Building Custom Rule C:/Dev/Cursive/cursive-bootstrap/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Dev/Cursive/cursive-bootstrap -BC:/Dev/Cursive/cursive-bootstrap/build --check-stamp-file C:/Dev/Cursive/cursive-bootstrap/build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\4.0.1\CMakeCCompiler.cmake;C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\4.0.1\CMakeCXXCompiler.cmake;C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\4.0.1\CMakeRCCompiler.cmake;C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\4.0.1\CMakeSystem.cmake;C:\Dev\Cursive\cursive-bootstrap\cmake\Fuzzing.cmake;C:\Dev\Cursive\cursive-bootstrap\cmake\LLVM21.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVM-Config.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVMConfig.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVMConfigVersion.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVMExports-release.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVMExports.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeCInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CTest.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CTestTargets.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CTestUseLaunchers.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Compiler\MSVC-C.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Compiler\MSVC.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\DartConfiguration.tcl.in;C:\Program Files\CMake\share\cmake-4.0\Modules\FindLibXml2.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPkgConfig.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPython\Support.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPython3.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Linker\MSVC-C.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Linker\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Linker\MSVC.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-MSVC-C.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows-Initialize.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows-MSVC-C.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows-MSVC.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\WindowsPaths.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Building Custom Rule C:/Dev/Cursive/cursive-bootstrap/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Dev/Cursive/cursive-bootstrap -BC:/Dev/Cursive/cursive-bootstrap/build --check-stamp-file C:/Dev/Cursive/cursive-bootstrap/build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\4.0.1\CMakeCCompiler.cmake;C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\4.0.1\CMakeCXXCompiler.cmake;C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\4.0.1\CMakeRCCompiler.cmake;C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\4.0.1\CMakeSystem.cmake;C:\Dev\Cursive\cursive-bootstrap\cmake\Fuzzing.cmake;C:\Dev\Cursive\cursive-bootstrap\cmake\LLVM21.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVM-Config.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVMConfig.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVMConfigVersion.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVMExports-release.cmake;C:\Dev\Cursive\cursive-bootstrap\third_party\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm\LLVMExports.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeCInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CTest.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CTestTargets.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\CTestUseLaunchers.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Compiler\MSVC-C.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Compiler\MSVC.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\DartConfiguration.tcl.in;C:\Program Files\CMake\share\cmake-4.0\Modules\FindLibXml2.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPkgConfig.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPython\Support.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\FindPython3.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Linker\MSVC-C.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Linker\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Linker\MSVC.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-MSVC-C.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows-Initialize.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows-MSVC-C.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows-MSVC.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-4.0\Modules\Platform\WindowsPaths.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Dev\Cursive\cursive-bootstrap\build\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+  </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\ZERO_CHECK.vcxproj">
+      <Project>{C7386739-AE06-3DFE-95D7-2F2050533733}</Project>
+      <Name>ZERO_CHECK</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_arrays_slices_test.vcxproj">
+      <Project>{8FAB51D9-FF1B-3876-A414-96F663A1995B}</Project>
+      <Name>analysis_arrays_slices_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_borrow_bind_test.vcxproj">
+      <Project>{2FF87C8C-6B4F-3CC3-8A09-BB446255F4EB}</Project>
+      <Name>analysis_borrow_bind_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_c0x_features_test.vcxproj">
+      <Project>{18669240-D016-3A29-8E59-1A5600C8F5F5}</Project>
+      <Name>analysis_c0x_features_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_calls_test.vcxproj">
+      <Project>{8B386A8E-2D13-37E2-8424-CEE4104FF423}</Project>
+      <Name>analysis_calls_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_collect_toplevel_test.vcxproj">
+      <Project>{3FF97F1F-D292-3422-A24E-036E725E6B94}</Project>
+      <Name>analysis_collect_toplevel_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_conformance_subset_unicode_test.vcxproj">
+      <Project>{11295F39-84DB-38B8-B173-2F1716777E29}</Project>
+      <Name>analysis_conformance_subset_unicode_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_conformance_test.vcxproj">
+      <Project>{79EC039A-C2D5-34CA-95A0-8DE67AA0866A}</Project>
+      <Name>analysis_conformance_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_enum_disc_test.vcxproj">
+      <Project>{13CEEEA2-3F8E-3763-811A-C7FE296171D2}</Project>
+      <Name>analysis_enum_disc_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_init_planner_test.vcxproj">
+      <Project>{1003C013-3022-3475-A5CB-964CBEB08752}</Project>
+      <Name>analysis_init_planner_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_literals_test.vcxproj">
+      <Project>{7B7F1EAD-6941-3136-B1A7-36241939ABB3}</Project>
+      <Name>analysis_literals_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_records_test.vcxproj">
+      <Project>{96C2A8A3-6471-39CB-8470-BB8B4C97FD20}</Project>
+      <Name>analysis_records_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_resolve_qual_test.vcxproj">
+      <Project>{718D7BA1-8649-3F0B-B862-0ABB9F402748}</Project>
+      <Name>analysis_resolve_qual_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_resolver_expr_test.vcxproj">
+      <Project>{24092980-E7EB-396F-8A97-52A0CC32F234}</Project>
+      <Name>analysis_resolver_expr_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_resolver_items_test.vcxproj">
+      <Project>{1BF62499-2C97-339C-8572-40647953CBCD}</Project>
+      <Name>analysis_resolver_items_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_scopes_intro_test.vcxproj">
+      <Project>{7E7EE259-B642-3C16-8C52-20BE25B61659}</Project>
+      <Name>analysis_scopes_intro_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_scopes_lookup_test.vcxproj">
+      <Project>{B7AF5094-7D73-3816-B225-74D8E82A8BEE}</Project>
+      <Name>analysis_scopes_lookup_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_scopes_test.vcxproj">
+      <Project>{9E146CE7-8792-375A-ABE7-E98509EF7F9B}</Project>
+      <Name>analysis_scopes_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_subtyping_test.vcxproj">
+      <Project>{983BCC54-73D5-31AC-B2C5-0D5509C444AF}</Project>
+      <Name>analysis_subtyping_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_tuples_test.vcxproj">
+      <Project>{8EC2C3F9-FD81-38AB-B772-8002EC4502CD}</Project>
+      <Name>analysis_tuples_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_type_equiv_test.vcxproj">
+      <Project>{AE74D31D-E5CE-3661-8897-4DD31EC45E52}</Project>
+      <Name>analysis_type_equiv_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_type_expr_test.vcxproj">
+      <Project>{2673FFBB-99DA-38B3-B892-90FAE9D6E9EB}</Project>
+      <Name>analysis_type_expr_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_type_infer_test.vcxproj">
+      <Project>{285CD01B-FF30-3F28-BE4E-4900050CBA98}</Project>
+      <Name>analysis_type_infer_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_type_match_test.vcxproj">
+      <Project>{B3D3FF96-9116-32BC-9DB1-4645AE480B49}</Project>
+      <Name>analysis_type_match_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_type_stmt_test.vcxproj">
+      <Project>{A44C71E3-CB80-3603-A64A-787EA44B9BBF}</Project>
+      <Name>analysis_type_stmt_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_type_wf_test.vcxproj">
+      <Project>{BAD4A624-ED76-300B-912E-3B9207D20D44}</Project>
+      <Name>analysis_type_wf_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_types_test.vcxproj">
+      <Project>{AF7B276A-9855-331C-9A5C-E16E5371C42D}</Project>
+      <Name>analysis_types_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_unions_test.vcxproj">
+      <Project>{DE5FFD34-6DE0-3102-BFB5-27EA7453A74A}</Project>
+      <Name>analysis_unions_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\analysis_visibility_test.vcxproj">
+      <Project>{67E14CC0-6D5E-362C-9C3F-98781373F5E0}</Project>
+      <Name>analysis_visibility_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\codegen_abi_test.vcxproj">
+      <Project>{B940DE1F-8623-3C3D-9D47-D8C041FEC437}</Project>
+      <Name>codegen_abi_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\codegen_globals_test.vcxproj">
+      <Project>{BAA676A4-CC1C-3C43-B9B7-217CBC8D793D}</Project>
+      <Name>codegen_globals_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\codegen_init_poison_test.vcxproj">
+      <Project>{ACBFD8A7-63CE-38C7-BFD3-554F6118F5A7}</Project>
+      <Name>codegen_init_poison_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\codegen_ir_model_test.vcxproj">
+      <Project>{292A885D-7ADD-347A-A149-923FAB118102}</Project>
+      <Name>codegen_ir_model_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\codegen_layout_test.vcxproj">
+      <Project>{925413A4-61D3-3BDF-96C3-E1ECB4FD1C55}</Project>
+      <Name>codegen_layout_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\codegen_linkage_test.vcxproj">
+      <Project>{C48AD4D0-E9C5-3DF4-AA82-9672F947512F}</Project>
+      <Name>codegen_linkage_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\codegen_llvm_test.vcxproj">
+      <Project>{E8F59CE4-10DB-3549-AF1C-C7ED6C487314}</Project>
+      <Name>codegen_llvm_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\codegen_mangle_test.vcxproj">
+      <Project>{5C23C90A-EEAE-3A5C-AF04-C54044937423}</Project>
+      <Name>codegen_mangle_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\codegen_panic_cleanup_test.vcxproj">
+      <Project>{53DFD3EE-96AD-3C2F-B735-609E811CC636}</Project>
+      <Name>codegen_panic_cleanup_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\codegen_phase4_lower_missing_cov_test.vcxproj">
+      <Project>{843BD66A-355D-3475-A1EF-1697367C1738}</Project>
+      <Name>codegen_phase4_lower_missing_cov_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\codegen_runtime_interface_phase4_test.vcxproj">
+      <Project>{AF804633-EA36-344C-9793-D4B173BA5085}</Project>
+      <Name>codegen_runtime_interface_phase4_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\codegen_string_literal_test.vcxproj">
+      <Project>{5DF1C700-2836-3760-9177-724721754A60}</Project>
+      <Name>codegen_string_literal_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\core_diag_code_selection_test.vcxproj">
+      <Project>{9D4F0B32-4D9E-34B4-A8D5-AA54DA8C8F3C}</Project>
+      <Name>core_diag_code_selection_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\core_diag_external_test.vcxproj">
+      <Project>{8FF6F20F-1771-3C48-A2E4-9B25F9A0A379}</Project>
+      <Name>core_diag_external_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\core_diag_messages_test.vcxproj">
+      <Project>{99451F37-D192-3CC2-A761-9822BFF61FA5}</Project>
+      <Name>core_diag_messages_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\core_diag_order_test.vcxproj">
+      <Project>{CBD874B0-0A24-38E6-B281-C575545D56E7}</Project>
+      <Name>core_diag_order_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\core_diag_render_test.vcxproj">
+      <Project>{FCCBA249-E5BC-3D7F-8529-BFB13499A423}</Project>
+      <Name>core_diag_render_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\core_diagnostics_emit_test.vcxproj">
+      <Project>{26468AAE-B206-3D58-98E1-40BEED6FC94E}</Project>
+      <Name>core_diagnostics_emit_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\core_hash_test.vcxproj">
+      <Project>{8EC9739B-31F4-3809-9B45-A12953E9CD7B}</Project>
+      <Name>core_hash_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\core_host_primitives_test.vcxproj">
+      <Project>{5BFAFE2B-CA54-3B66-A15B-3E488C897DF4}</Project>
+      <Name>core_host_primitives_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\core_line_normalization_test.vcxproj">
+      <Project>{DE2F7E31-95BE-33D6-A50A-74C955A5E329}</Project>
+      <Name>core_line_normalization_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\core_prohibited_codepoints_test.vcxproj">
+      <Project>{24400F7C-F171-3713-AB51-45E7C9860997}</Project>
+      <Name>core_prohibited_codepoints_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\core_source_load_test.vcxproj">
+      <Project>{4533BD87-8687-386E-BEC6-B9168A443B29}</Project>
+      <Name>core_source_load_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\core_span_test.vcxproj">
+      <Project>{AD2B52A4-20A4-3303-97E7-EB4FECDCE24B}</Project>
+      <Name>core_span_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\core_ub_model_test.vcxproj">
+      <Project>{CC14318C-F52E-35EF-A85A-DC06721C325F}</Project>
+      <Name>core_ub_model_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\cursive0_analysis.vcxproj">
+      <Project>{A9C0DB48-1234-3D7F-B9F0-CD08B24B0D33}</Project>
+      <Name>cursive0_analysis</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\cursive0_codegen.vcxproj">
+      <Project>{BE12E154-E50A-3126-93CE-8B5AB86D3AB9}</Project>
+      <Name>cursive0_codegen</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\cursive0_core.vcxproj">
+      <Project>{C01D5AB7-7D64-3B57-AD12-76742DE07560}</Project>
+      <Name>cursive0_core</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\cursive0_eval.vcxproj">
+      <Project>{9F91D01E-3FB4-3CE8-84DD-6488ABA3FB74}</Project>
+      <Name>cursive0_eval</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\cursive0_frontend.vcxproj">
+      <Project>{B5F9D5C1-B017-3221-878D-8D45B119782D}</Project>
+      <Name>cursive0_frontend</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\cursive0_interpreter.vcxproj">
+      <Project>{925F110A-9D1F-3BA5-A02B-14C00A042FD4}</Project>
+      <Name>cursive0_interpreter</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\cursive0_interpreter_cli.vcxproj">
+      <Project>{33ACD123-D8C9-35DA-9391-F8B0976D5509}</Project>
+      <Name>cursive0_interpreter_cli</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\cursive0_project.vcxproj">
+      <Project>{8E8D75ED-BE07-39BB-B0F5-B69920D68199}</Project>
+      <Name>cursive0_project</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\runtime\cursive0_rt.vcxproj">
+      <Project>{FCC439BD-6A21-38ED-9173-ECB6E9FC474B}</Project>
+      <Name>cursive0_rt</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\cursive0_syntax.vcxproj">
+      <Project>{1F480CD1-D641-34B3-A29E-1676BDEE55DC}</Project>
+      <Name>cursive0_syntax</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\cursivec0.vcxproj">
+      <Project>{D9E20AA5-9247-3EA8-B476-6ECCF1770D2D}</Project>
+      <Name>cursivec0</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_apply_cov_test.vcxproj">
+      <Project>{679D0D2D-791D-33A4-AC03-9342EF8D8EC1}</Project>
+      <Name>eval_apply_cov_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_builtins_test.vcxproj">
+      <Project>{5B44F6ED-6FD8-3622-A316-2EA360374C5E}</Project>
+      <Name>eval_builtins_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_cast_cov_test.vcxproj">
+      <Project>{4D46E161-D8C7-3E4B-AA27-51FAF267A575}</Project>
+      <Name>eval_cast_cov_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_cleanup_cov_test.vcxproj">
+      <Project>{AF7F9964-DD7E-36B9-B0C0-B5B2F3DEF99E}</Project>
+      <Name>eval_cleanup_cov_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_control_flow_cov_test.vcxproj">
+      <Project>{11866D22-3261-320C-A7F9-2E550EE7AA08}</Project>
+      <Name>eval_control_flow_cov_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_eval_call_cov_test.vcxproj">
+      <Project>{C5FDDC89-F996-3BA7-9C05-193470817164}</Project>
+      <Name>eval_eval_call_cov_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_eval_test.vcxproj">
+      <Project>{9BB41E3C-9D01-3FC3-BCD0-C824D40436C2}</Project>
+      <Name>eval_eval_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_exec_cov_test.vcxproj">
+      <Project>{E0DC2A5D-81A4-30EB-BB4E-B14AAFA0F37B}</Project>
+      <Name>eval_exec_cov_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_exec_flow_cov_test.vcxproj">
+      <Project>{9189834F-212D-3EA8-B58B-F1E65344E8DF}</Project>
+      <Name>eval_exec_flow_cov_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_init_test.vcxproj">
+      <Project>{7DE1A254-CB9D-3A79-88AE-FDD432A2DE2F}</Project>
+      <Name>eval_init_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_interpreter_cov_test.vcxproj">
+      <Project>{931B7C85-9A8E-3B1E-AEC1-52107D99B281}</Project>
+      <Name>eval_interpreter_cov_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_interpreter_test.vcxproj">
+      <Project>{F3DA4D09-9847-3AD2-9DD8-2A2A2128F6C5}</Project>
+      <Name>eval_interpreter_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_lookup_cov_test.vcxproj">
+      <Project>{FDC69461-9648-3C96-BA17-206FA94E3CF7}</Project>
+      <Name>eval_lookup_cov_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_match_test.vcxproj">
+      <Project>{C5B9BA0A-563E-3676-AD24-3C0172C5942C}</Project>
+      <Name>eval_match_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_smoke_test.vcxproj">
+      <Project>{0B31BA7C-F427-318A-8553-E6A61A23CD4A}</Project>
+      <Name>eval_smoke_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_state_test.vcxproj">
+      <Project>{87EC86F4-9E0E-3B1B-A290-6406CBD7DCD9}</Project>
+      <Name>eval_state_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_unwind_cov_test.vcxproj">
+      <Project>{2FFA5804-91E9-3564-9404-38144B3C783B}</Project>
+      <Name>eval_unwind_cov_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_value_test.vcxproj">
+      <Project>{6C7C8A85-758E-344C-8CF4-9AB041CCDCB3}</Project>
+      <Name>eval_value_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\eval_write_cov_test.vcxproj">
+      <Project>{99973EFB-2535-319D-BC6D-3E47C6A411CD}</Project>
+      <Name>eval_write_cov_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\project_deterministic_order_test.vcxproj">
+      <Project>{EF9A2D49-4254-30A9-9812-8216F9CA34BD}</Project>
+      <Name>project_deterministic_order_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\project_ir_assembly_test.vcxproj">
+      <Project>{C99F7354-7A6D-3FD5-AA7B-A7037F2D7857}</Project>
+      <Name>project_ir_assembly_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\project_link_test.vcxproj">
+      <Project>{97551185-8CD9-353E-9EE1-3B5C5BF07D50}</Project>
+      <Name>project_link_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\project_load_pipeline_test.vcxproj">
+      <Project>{F0CF02E3-1A97-3A61-BAB0-5057F82DC4BD}</Project>
+      <Name>project_load_pipeline_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\project_manifest_parse_test.vcxproj">
+      <Project>{D71DBAE2-8CF0-3AF4-A436-34C1B8E0C4B9}</Project>
+      <Name>project_manifest_parse_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\project_manifest_validate_test.vcxproj">
+      <Project>{33E3929B-2DE8-36EF-874F-18E6747D4E29}</Project>
+      <Name>project_manifest_validate_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\project_module_discovery_test.vcxproj">
+      <Project>{8B465240-78CF-3468-AABC-A10E0D83AD7D}</Project>
+      <Name>project_module_discovery_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\project_outputs_test.vcxproj">
+      <Project>{03196C33-9F4D-32EC-8674-53CE57A2F7C7}</Project>
+      <Name>project_outputs_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\project_tool_resolution_test.vcxproj">
+      <Project>{A1F70BCC-5C66-3829-A2B6-87AC76ACDFAD}</Project>
+      <Name>project_tool_resolution_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_c0x_parser_test.vcxproj">
+      <Project>{7E873832-EADA-377D-BF44-0A24DFFF989B}</Project>
+      <Name>syntax_c0x_parser_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_keyword_policy_test.vcxproj">
+      <Project>{B620E709-D506-3448-9BB9-FAE0EEFA88EE}</Project>
+      <Name>syntax_keyword_policy_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_lexer_ident_kw_test.vcxproj">
+      <Project>{1C5CB52E-5756-384B-81B9-8B6B38BA192C}</Project>
+      <Name>syntax_lexer_ident_kw_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_lexer_literals_test.vcxproj">
+      <Project>{F7514C04-914B-3F7B-B024-21D2AF7F8AE1}</Project>
+      <Name>syntax_lexer_literals_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_lexer_max_munch_test.vcxproj">
+      <Project>{C555F942-D537-39A9-90EE-1BE8B5CA2BEA}</Project>
+      <Name>syntax_lexer_max_munch_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_lexer_security_test.vcxproj">
+      <Project>{C1F5CFFF-6A24-3EF9-8F10-1F8EA7C85DD5}</Project>
+      <Name>syntax_lexer_security_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_lexer_ws_test.vcxproj">
+      <Project>{1084E08C-990E-3CA2-86BD-4F82C0AB1FF4}</Project>
+      <Name>syntax_lexer_ws_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_newline_termination_test.vcxproj">
+      <Project>{72FD8247-F848-37EB-8D05-08405A754552}</Project>
+      <Name>syntax_newline_termination_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_parse_modules_test.vcxproj">
+      <Project>{8F0AA794-B814-3D4B-A2FA-D0CCA9E9D0E4}</Project>
+      <Name>syntax_parse_modules_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_parser_angle_test.vcxproj">
+      <Project>{5F3FDA8C-C1FA-3E51-9B6E-CC0BFCC9EC94}</Project>
+      <Name>syntax_parser_angle_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_parser_consume_test.vcxproj">
+      <Project>{B89A62D6-5107-3741-8DB2-C0388D6B4D50}</Project>
+      <Name>syntax_parser_consume_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_parser_core_test.vcxproj">
+      <Project>{CA46A427-A19D-3247-9307-B1C2FFC9A58D}</Project>
+      <Name>syntax_parser_core_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_parser_docs_test.vcxproj">
+      <Project>{23031859-885D-3E5F-A956-7C628A88A85C}</Project>
+      <Name>syntax_parser_docs_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_parser_expr_test.vcxproj">
+      <Project>{9C57E327-B439-3AD2-8E69-D14FBCD4A000}</Project>
+      <Name>syntax_parser_expr_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_parser_items_test.vcxproj">
+      <Project>{2EE7A9AE-9F40-3FFD-BDFE-2C665839B9E7}</Project>
+      <Name>syntax_parser_items_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_parser_pattern_test.vcxproj">
+      <Project>{4B33F402-E552-3C69-A824-7B85B045822B}</Project>
+      <Name>syntax_parser_pattern_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_parser_stmt_test.vcxproj">
+      <Project>{342E76B7-F175-3B5F-948B-C9B2FFD62777}</Project>
+      <Name>syntax_parser_stmt_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_parser_type_test.vcxproj">
+      <Project>{2D60F81A-6CDA-36BE-9DF2-0D78262852A1}</Project>
+      <Name>syntax_parser_type_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_token_span_test.vcxproj">
+      <Project>{87D04C1F-74DE-35BA-B9FD-6AD86BE7A791}</Project>
+      <Name>syntax_token_span_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Dev\Cursive\cursive-bootstrap\build\tests\syntax_tokenize_test.vcxproj">
+      <Project>{C1081E99-D0F9-39AA-96A2-8554137BC710}</Project>
+      <Name>syntax_tokenize_test</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

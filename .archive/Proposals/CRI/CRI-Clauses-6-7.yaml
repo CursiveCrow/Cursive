@@ -1,0 +1,1878 @@
+# Cursive Language Specification
+# Comprehensive Reference Index (CRI)
+# Clauses 6-7: Behavioral Types and Type Extensions
+# Lines ~3000-5650
+
+---
+specification:
+  title: "Cursive Language Specification - Clauses 6-7 Reference Index"
+  version: "Draft"
+  scope: "Lines 3000-5650 (Behavioral Types and Type Extensions)"
+  generated: "2025-12-03"
+
+# ==============================================================================
+# CLAUSE 6: BEHAVIORAL TYPES
+# ==============================================================================
+
+behavioral_types:
+
+  # ----------------------------------------------------------------------------
+  # 6.1 MODAL TYPES
+  # ----------------------------------------------------------------------------
+
+  modal_types:
+    section: "§6.1"
+    line_range: "3477-3825"
+
+    definition: >
+      A modal type is a nominal type that embeds a compile-time-validated state
+      machine into the type system. Modal types define a family of related types:
+      (1) State-specific types (M@S) containing only state payload data without
+      runtime discriminant, and (2) General modal type (M) as a tagged union
+      capable of holding any state with runtime discriminant.
+
+    type_forms:
+      state_specific:
+        syntax: "M@S"
+        description: "State-specific type for state S of modal M"
+        discriminant: "None (statically tracked)"
+        representation: "Equivalent to record containing state payload fields"
+        zero_sized: "Yes, if payload is empty"
+
+      general_modal:
+        syntax: "M"
+        description: "General modal type (sum of all states)"
+        discriminant: "Runtime discriminant or niche encoding"
+        representation: "Tagged union of all state payloads"
+        layout: "Discriminant + max(state payloads) + padding"
+
+    states:
+      definition: "States(M) = finite, non-empty set of state names"
+      type_family: "T_M = {M} ∪ {M@S : S ∈ States(M)}"
+      incomparability: "M@S_A and M@S_B are incomparable when S_A ≠ S_B"
+      transitions: "Transitions(M) ⊆ States(M) × States(M)"
+
+    grammar:
+      modal_decl: |
+        [visibility] "modal" identifier [generic_params]
+                     [implements_clause] "{" state_block+ "}"
+
+      state_block: '@" state_name [state_payload] [state_members]'
+
+      state_payload: '"{" (field_decl ("," field_decl)* ","?)? "}"'
+
+      state_members: '"{" (method_def | transition_def)* "}"'
+
+      transition_def: 'transition" identifier "(" param_list ")" "->" "@" target_state block'
+
+      state_specific_type: 'modal_type_name "@" state_name'
+
+    typing_rules:
+      - rule: "Modal-WF"
+        condition: "n ≥ 1, all states unique, all payloads well-formed"
+        conclusion: "modal M { @S1 ... @Sn } is well-formed"
+
+      - rule: "State-Specific-WF"
+        condition: "S ∈ States(M)"
+        conclusion: "M@S is well-formed"
+
+      - rule: "T-Modal-State-Intro"
+        description: "State-specific value construction"
+        condition: "M@S has payload fields f1:T1,...,fk:Tk, all ei:Ti"
+        conclusion: "M@S{f1:e1,...,fk:ek} : M@S"
+
+      - rule: "T-Modal-Field"
+        description: "State payload field access"
+        condition: "e:M@S, f ∈ Payload(S), Payload(S).f:T"
+        conclusion: "e.f : T"
+
+      - rule: "T-Modal-Method"
+        description: "State-specific method invocation"
+        condition: "e:M@S, m ∈ Methods(S), m:(M@S,T1,...,Tn)->R"
+        conclusion: "e.m(a1,...,an) : R"
+
+      - rule: "Modal-Incomparable"
+        description: "State-specific types are incomparable"
+        condition: "S_A ≠ S_B"
+        conclusion: "M@S_A ⊄ M@S_B and M@S_B ⊄ M@S_A"
+
+      - rule: "T-Modal-Widen"
+        description: "Modal widening"
+        condition: "e:M@S, S ∈ States(M)"
+        conclusion: "widen e : M"
+
+      - rule: "T-Modal-Transition"
+        description: "Transition typing"
+        condition: "e_self:P_src M@S_src, (S_src,S_tgt) ∈ Transitions(M)"
+        conclusion: "e_self.t(a1,...,an) : M@S_tgt"
+
+    widening:
+      explicit_keyword: "widen"
+
+      niche_layout_compatible:
+        description: "State-specific type is niche-layout-compatible with general type"
+        conditions:
+          - "Niche optimization applies (no explicit discriminant)"
+          - "sizeof(M@S) = sizeof(M)"
+          - "alignof(M@S) = alignof(M)"
+          - "No discriminant storage overhead"
+
+        when_true:
+          subtyping: "M@S <: M"
+          implicit_coercion: "Permitted"
+          widen_keyword: "Optional (may omit)"
+          runtime_cost: "Zero (no-op)"
+
+        when_false:
+          subtyping: "M@S ⊄ M"
+          implicit_coercion: "Prohibited"
+          widen_keyword: "Required"
+          runtime_cost: "Copy payload + set discriminant"
+
+      narrowing:
+        mechanism: "Pattern matching only (runtime discriminant check)"
+        implicit: false
+
+    memory_layout:
+      state_specific:
+        layout: "Equivalent to record of payload fields"
+        size: "Sum of field sizes + padding"
+        alignment: "Max field alignment"
+        discriminant: "None"
+        zero_sized: "Yes if payload empty"
+
+      general_modal:
+        layout: "Discriminant || Payload || Padding"
+        size: "sizeof(Discriminant) + max(sizeof(M@S) for S) + Padding"
+        alignment: "max(alignof(Discriminant), max(alignof(M@S) for S))"
+        discriminant: "Integer or niche encoding"
+        niche_optimization: "MUST apply"
+
+    pattern_matching:
+      general_type:
+        description: "Match on M inspects runtime discriminant"
+        exhaustiveness: "MUST cover all states"
+        arm_type: "Bound variable has state-specific type M@S in @S arm"
+
+      state_specific_type:
+        description: "Match on M@S is irrefutable payload destructuring"
+        exhaustiveness: "No requirement (state known statically)"
+        coverage: "Other states neither required nor permitted"
+
+      syntax: '@" state_name ["{" payload_pattern "}"]'
+
+    visibility:
+      payload_fields: "Implicitly protected"
+      accessible_from:
+        - "Procedures in same modal's state blocks"
+        - "Transition implementations"
+        - "Associated class implementations"
+      external_access: "Through methods and pattern matching only"
+
+    diagnostics:
+      - code: "E-TYP-2050"
+        severity: "Error"
+        condition: "Modal type declares zero states"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2051"
+        severity: "Error"
+        condition: "Duplicate state name within modal declaration"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2052"
+        severity: "Error"
+        condition: "Field access for field not in current state's payload"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2053"
+        severity: "Error"
+        condition: "Method invocation not available in current state"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2055"
+        severity: "Error"
+        condition: "Transition body returns wrong state-specific type"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2056"
+        severity: "Error"
+        condition: "Transition invoked on value not of source state"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2057"
+        severity: "Error"
+        condition: "Direct access on general modal without pattern matching"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2060"
+        severity: "Error"
+        condition: "Non-exhaustive match on general modal type"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2070"
+        severity: "Error"
+        condition: "Implicit widening on non-niche-layout-compatible type"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2071"
+        severity: "Error"
+        condition: "widen applied to non-modal type"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2072"
+        severity: "Error"
+        condition: "widen applied to already-general modal type"
+        detection: "Compile-time"
+
+      - code: "W-OPT-4010"
+        severity: "Warning"
+        condition: "Modal widening involves large payload copy (>threshold)"
+        detection: "Compile-time"
+        note: "Threshold is IDB, recommended default: 256 bytes"
+
+  # ----------------------------------------------------------------------------
+  # 6.2 STRING TYPES
+  # ----------------------------------------------------------------------------
+
+  string_types:
+    section: "§6.2"
+    line_range: "3826-4050"
+
+    definition: >
+      The string type is a built-in modal type representing sequences of Unicode
+      scalar values encoded as UTF-8. All string content MUST be valid UTF-8.
+
+    states:
+      managed:
+        name: "string@Managed"
+        description: "Owned, heap-allocated, mutable string buffer"
+        ownership: "Has Drop responsibility"
+        representation:
+          fields:
+            - name: "pointer"
+              type: "Ptr<u8>@Valid"
+              description: "Pointer to heap-allocated UTF-8 buffer"
+            - name: "length"
+              type: "usize"
+              description: "Number of bytes of valid content"
+            - name: "capacity"
+              type: "usize"
+              description: "Total allocated buffer size in bytes"
+          size: "3 × sizeof(usize)"
+          alignment: "alignof(usize)"
+
+        classes:
+          Copy: false
+          Clone: false  # By design - requires heap capability
+          Drop: true
+
+        operations:
+          - "string::from(source: string@View, heap: dyn HeapAllocator): string@Managed"
+          - "append(self: unique, data: string@View, heap: dyn HeapAllocator)"
+          - "clone_with(self: const, heap: dyn HeapAllocator): string@Managed"
+          - "as_view(self: const) -> string@View  # O(1)"
+
+      view:
+        name: "string@View"
+        description: "Non-owning, immutable slice into string data"
+        ownership: "No Drop responsibility"
+        representation:
+          fields:
+            - name: "pointer"
+              type: "Ptr<const u8>@Valid"
+              description: "Pointer to first byte of view"
+            - name: "length"
+              type: "usize"
+              description: "Number of bytes in view"
+          size: "2 × sizeof(usize)"
+          alignment: "alignof(usize)"
+
+        classes:
+          Copy: true
+          Clone: true
+          Drop: false
+
+        operations:
+          - "length(self: const): usize"
+          - "is_empty(self: const): bool"
+          - "chars(self: const): CharIterator"
+          - "to_managed(self: const, heap: dyn HeapAllocator): string@Managed  # O(n)"
+
+    literals:
+      type: "string@View"
+      storage: "Static, read-only memory"
+      lifetime: "Static (never deallocated)"
+
+    slicing:
+      syntax: "s[a..b]"
+      result_type: "string@View"
+      indices: "Byte offsets (not character indices)"
+      boundary_requirements:
+        - "start ≤ end"
+        - "end ≤ s.length()"
+        - "start must be UTF-8 character boundary"
+        - "end must be UTF-8 character boundary"
+
+      character_boundary_definition: >
+        Byte offset i is a valid character boundary if:
+        (1) i == 0, OR (2) i == length, OR (3) byte at i is NOT UTF-8
+        continuation byte (high bits NOT 10)
+
+    constraints:
+      - description: "All string content MUST be valid UTF-8"
+        enforcement: "Static for literals, runtime for slicing"
+
+      - description: "Direct byte indexing forbidden"
+        rule: "e:string@S ⟹ e[i] is ill-formed (single index)"
+
+      - description: "Slice boundaries MUST be UTF-8 character boundaries"
+        enforcement: "Runtime panic on violation"
+
+    diagnostics:
+      - code: "E-TYP-2151"
+        severity: "Error (Panic)"
+        condition: "Slice boundary not on UTF-8 char boundary"
+        detection: "Runtime"
+
+      - code: "E-TYP-2152"
+        severity: "Error"
+        condition: "Direct byte indexing (s[i]) on string type"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2153"
+        severity: "Error (Panic)"
+        condition: "Slice end index < start index"
+        detection: "Runtime"
+
+      - code: "E-TYP-2154"
+        severity: "Error (Panic)"
+        condition: "Slice index exceeds string length"
+        detection: "Runtime"
+
+  # ----------------------------------------------------------------------------
+  # 6.3 POINTER TYPES
+  # ----------------------------------------------------------------------------
+
+  pointer_types:
+    section: "§6.3"
+    line_range: "4051-4336"
+
+    definition: >
+      Pointer types are types whose values are memory addresses. Cursive provides
+      two families: (1) Safe modal pointers (Ptr<T>) with compile-time state
+      tracking, and (2) Raw pointers (*imm T, *mut T) for unsafe code and FFI.
+
+    safe_pointers:
+      type_name: "Ptr<T>"
+      states:
+        Valid:
+          name: "@Valid"
+          description: "Non-null, points to live accessible memory"
+          dereferenceable: true
+          representation: "Non-zero address"
+
+        Null:
+          name: "@Null"
+          description: "Guaranteed null (address 0x0)"
+          dereferenceable: false
+          representation: "Address 0x0"
+
+        Expired:
+          name: "@Expired"
+          description: "Was valid, now references deallocated memory"
+          dereferenceable: false
+          representation: "Formerly-valid address (compile-time only)"
+          note: "No runtime representation - statically prevents use"
+
+      type_family: "T_Ptr<T> = {Ptr<T>, Ptr<T>@Valid, Ptr<T>@Null, Ptr<T>@Expired}"
+
+      niche_layout_compatible: true
+      implicit_widening: true
+      subtyping: "Ptr<T>@S <: Ptr<T> for S ∈ {Valid, Null}"
+
+      memory_layout:
+        size: "sizeof(usize)"
+        alignment: "alignof(usize)"
+        discriminant: "Niche encoding (null vs non-null address)"
+        niche_optimization: "MUST apply"
+        expired_state: "Compile-time only (no runtime representation)"
+
+      operations:
+        address_of:
+          syntax: "&e"
+          result_type: "Ptr<T>@Valid"
+          operand: "Valid place expression (memory location)"
+
+        null_constructor:
+          syntax: "Ptr::null()"
+          result_type: "Ptr<T>@Null"
+
+        dereference:
+          syntax: "*p"
+          requirement: "p : Ptr<T>@Valid"
+          result_type: "T"
+          invalid_states: ["@Null", "@Expired"]
+
+        cast_to_raw:
+          syntax: "p as *imm T  |  p as *mut T"
+          requirement: "p : Ptr<T>@Valid"
+          result_type: "*imm T | *mut T"
+
+      classes:
+        Copy: true
+        Clone: true
+        Drop: false
+        note: "Pointers don't own referenced memory"
+
+      region_interaction:
+        description: "On region exit, pointers to region allocations transition @Valid -> @Expired"
+        mechanism: "Compile-time type refinement (not runtime operation)"
+        effect: "Subsequent dereference attempts are statically rejected"
+
+    raw_pointers:
+      types:
+        immutable:
+          syntax: "*imm T"
+          mutability: "Immutable"
+
+        mutable:
+          syntax: "*mut T"
+          mutability: "Mutable"
+
+      representation:
+        size: "sizeof(usize)"
+        alignment: "alignof(usize)"
+        note: "imm/mut distinction is compile-time only"
+
+      safety: "Unverifiable Behavior (UVB)"
+      ffi_safe: true
+
+      operations:
+        dereference:
+          syntax: "*p"
+          requirement: "Must be in unsafe block"
+          safety: "No guarantees - null, dangling, misaligned, uninitialized all UVB"
+
+      classes:
+        Copy: true
+        Clone: true
+        Drop: false
+
+    constraints:
+      dereference:
+        - "* on Ptr<T>@Null is ill-formed"
+        - "* on Ptr<T>@Expired is ill-formed"
+        - "* on raw pointer outside unsafe block is ill-formed"
+
+      address_of:
+        - "Operand of & MUST be place expression"
+        - "Operand of & MUST be initialized"
+        - "Resulting pointer MUST NOT escape lifetime of referenced storage"
+
+      cast:
+        - "Only Ptr<T>@Valid may be cast to raw pointer"
+        - "Casting @Null or @Expired to raw pointer is ill-formed"
+
+      ffi:
+        - "Ptr<T>@State MUST NOT appear in extern procedure signatures"
+        - "Only raw pointers permitted at FFI boundaries"
+
+    diagnostics:
+      - code: "E-TYP-2101"
+        severity: "Error"
+        condition: "Dereference of pointer in @Null state"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2102"
+        severity: "Error"
+        condition: "Dereference of pointer in @Expired state (use-after-free)"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2103"
+        severity: "Error"
+        condition: "Dereference of raw pointer outside unsafe block"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2104"
+        severity: "Error"
+        condition: "Address-of operator applied to non-place expression"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2105"
+        severity: "Error"
+        condition: "Cast of non-@Valid pointer to raw pointer"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2106"
+        severity: "Error"
+        condition: "Modal pointer type in extern procedure signature"
+        detection: "Compile-time"
+
+  # ----------------------------------------------------------------------------
+  # 6.4 FUNCTION TYPES
+  # ----------------------------------------------------------------------------
+
+  function_types:
+    section: "§6.4"
+    line_range: "4337-4621"
+
+    definition: >
+      Function types are structural types representing callable signatures.
+      Cursive distinguishes two representations based on environment capture:
+      sparse function pointers and closures.
+
+    representations:
+      sparse_function_pointer:
+        syntax: "(T1, T2, ..., Tn) -> R"
+        description: "Direct pointer to executable code"
+        size: "1 machine word"
+        ffi_safe: true
+        captures_environment: false
+        use_cases:
+          - "Non-capturing procedures"
+          - "Non-capturing closure expressions"
+          - "FFI callbacks"
+
+      closure:
+        syntax: "|T1, T2, ..., Tn| -> R"
+        description: "Code pointer + environment pointer"
+        size: "2 machine words"
+        ffi_safe: false
+        captures_environment: true
+        use_cases:
+          - "Closure expressions capturing bindings"
+          - "Callbacks closing over external state"
+
+    formal_definition:
+      tuple: "F = (P1, ..., Pn, R, κ)"
+      components:
+        - "Pi = (mi, Ti) where mi ∈ {ε, move}, Ti is type"
+        - "R is return type"
+        - "κ ∈ {sparse, closure} is representation kind"
+
+    grammar:
+      function_type: "sparse_function_type | closure_type"
+      sparse_function_type: '"(" [param_type_list] ")" "->" type'
+      closure_type: '"|" [param_type_list] "|" "->" type'
+      param_type_list: 'param_type ("," param_type)*'
+      param_type: '["move"] type'
+
+    type_identity:
+      components:
+        - "Representation kind (sparse vs closure)"
+        - "Parameter types including move modifiers"
+        - "Return type"
+
+      not_included:
+        - "Contract annotations"
+        - "Parameter names"
+
+      examples:
+        - "(T) -> U  ≠  |T| -> U  # Different representation"
+        - "(T) -> U  ≠  (move T) -> U  # Different move modifier"
+
+    typing_rules:
+      - rule: "T-Func-WF"
+        description: "Function type well-formedness"
+        condition: "R wf, all Ti wf"
+        conclusion: "(m1 T1, ..., mn Tn) -> R is wf"
+
+      - rule: "T-Equiv-Func-Extended"
+        description: "Function type equivalence"
+        conditions:
+          - "κF = κG (same representation kind)"
+          - "n = k (same parameter count)"
+          - "∀i: mi = m'i ∧ Ti ≡ Ui (same move modifiers and types)"
+          - "RF ≡ RG (same return type)"
+        conclusion: "F ≡ G"
+
+      - rule: "T-Sparse-Sub-Closure"
+        description: "Sparse function pointer is subtype of closure"
+        condition: "(T1, ..., Tn) -> R is wf"
+        conclusion: "(T1, ..., Tn) -> R <: |T1, ..., Tn| -> R"
+        note: "Converse does NOT hold"
+
+      - rule: "T-NonMove-Sub-Move"
+        description: "Non-move parameter is subtype of move parameter"
+        condition: "T is wf"
+        conclusion: "(T) -> R <: (move T) -> R"
+        note: "Safe to not take responsibility when caller prepared to transfer"
+
+      - rule: "T-Proc-As-Value"
+        description: "Procedure reference has sparse function type"
+        condition: "procedure f(m1 x1:T1, ..., mn xn:Tn) -> R declared"
+        conclusion: "f : (m1 T1, ..., mn Tn) -> R"
+
+      - rule: "T-Closure-Sparse"
+        description: "Non-capturing closure has sparse function type"
+        condition: "captures(|p1,...,pn| -> e) = ∅"
+        conclusion: "|p1,...,pn| -> e : (T1,...,Tn) -> R"
+
+      - rule: "T-Closure-Capturing"
+        description: "Capturing closure has closure type"
+        condition: "captures(|p1,...,pn| -> e) ≠ ∅"
+        conclusion: "|p1,...,pn| -> e : |T1,...,Tn| -> R"
+
+      - rule: "T-Call"
+        description: "Function invocation"
+        condition: "f:(m1 T1,...,mn Tn)->R, all ai:Ti, move expressions for move params"
+        conclusion: "f(a1,...,an) : R"
+
+    variance:
+      parameters: "Contravariant"
+      return_type: "Covariant"
+      reference: "§4.3 (Var-Func)"
+
+    memory_layout:
+      sparse_function_pointer:
+        size: "sizeof(usize)"
+        alignment: "alignof(usize)"
+        representation: |
+          ┌─────────────────────────────────┐
+          │          code_ptr               │
+          └─────────────────────────────────┘
+                 (1 machine word)
+
+      closure:
+        size: "2 × sizeof(usize)"
+        alignment: "alignof(usize)"
+        representation: |
+          ┌─────────────────────────────────┬─────────────────────────────────┐
+          │          env_ptr                │          code_ptr               │
+          └─────────────────────────────────┴─────────────────────────────────┘
+                 (1 machine word)                  (1 machine word)
+
+        sparse_to_closure_coercion:
+          env_ptr: "Set to null"
+          code_ptr: "Thunk that ignores env parameter or optimized calling convention"
+
+    constraints:
+      structural:
+        - "Function type MUST have zero or more parameters and exactly one return type"
+        - "Unit type () MUST be used when callable returns no meaningful value"
+        - "move modifier MUST NOT appear on return type"
+
+      ffi:
+        - "Closure types MUST NOT appear in extern procedure signatures"
+        - "Only sparse function pointer types permitted at FFI boundaries"
+        - "Sparse function pointers in FFI MUST NOT have generic type parameters"
+
+      invocation:
+        - "Argument count MUST equal parameter count"
+        - "Each argument type MUST be subtype of corresponding parameter type"
+        - "For move parameters, argument MUST be explicit move expression"
+
+    diagnostics:
+      - code: "E-TYP-2220"
+        severity: "Error"
+        condition: "Argument count mismatch"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2221"
+        severity: "Error"
+        condition: "Type mismatch in function argument or return position"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2222"
+        severity: "Error"
+        condition: "Missing move on argument to move parameter"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2223"
+        severity: "Error"
+        condition: "Closure type in extern procedure signature"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2224"
+        severity: "Error"
+        condition: "Assignment of closure value to sparse function pointer type"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2225"
+        severity: "Error"
+        condition: "move modifier on return type"
+        detection: "Compile-time"
+
+# ==============================================================================
+# CLAUSE 7: TYPE EXTENSIONS
+# ==============================================================================
+
+type_extensions:
+  description: >
+    Mechanisms that extend or constrain the type system: static polymorphism
+    (generics), attributes (compile-time metadata), and refinement types
+    (types with predicate constraints).
+
+  # ----------------------------------------------------------------------------
+  # 7.1 STATIC POLYMORPHISM (GENERICS)
+  # ----------------------------------------------------------------------------
+
+  generics:
+    section: "§7.1"
+    line_range: "4622-4894"
+
+    definition: >
+      Generic declarations introduce type parameters serving as placeholders
+      for concrete types supplied at instantiation. Resolved entirely at
+      compile time via monomorphization.
+
+    formal_definition:
+      declaration: "D = (Name, Params, Body)"
+      type_parameter: "Pi = (namei, Boundsi)"
+      bounds: "Boundsi ⊆ T_form (set of class bounds)"
+      unconstrained: "Boundsi = ∅"
+      constrained: "Boundsi ≠ ∅"
+
+    grammar:
+      generic_params: '"<" generic_param_list ">"'
+      generic_param_list: 'generic_param (";" generic_param)*'
+      generic_param: 'identifier [bound_clause] [default_clause]'
+      bound_clause: '"<:" class_bound_list'
+      default_clause: '"=" type'
+      class_bound_list: 'class_bound ("," class_bound)*'
+      where_clause: '"where" where_predicate_list'
+      where_predicate_list: 'where_predicate (";" where_predicate)* [";"]'
+      where_predicate: 'identifier "<:" class_bound_list'
+      generic_args: '"<" type_arg_list ">"'
+      type_arg_list: 'type ("," type)*'
+      turbofish: '"::" generic_args'
+
+    separator_hierarchy:
+      parameter_separator:
+        symbol: ";"
+        role: "Separates type parameters"
+        scope: "Between < and >"
+
+      bound_separator:
+        symbol: ","
+        role: "Separates bounds within one parameter"
+        scope: "After <: until next ; or >"
+
+    syntax_examples:
+      - "<T>                         # One unconstrained parameter"
+      - "<T; U>                      # Two unconstrained parameters"
+      - "<T <: Display>              # One parameter with single bound"
+      - "<T <: Display, Ord>         # One parameter with multiple bounds"
+      - "<T <: Display; U>           # Two parameters: T bounded, U unconstrained"
+      - "<T <: Display; U <: Clone>  # Two parameters, each with one bound"
+      - "<T <: Display, Ord; U <: Clone, Hash>  # Two parameters, each with multiple bounds"
+
+    where_clause:
+      alternative_to_inline_bounds: true
+      separator: "Semicolon or newline before identifier <:"
+      combination: "Inline bounds + where clause = union of all bounds"
+
+      example: |
+        procedure compare<T>(a: T, b: T) -> Ordering
+        where T <: Ord
+        { ... }
+
+        procedure process<T; U>(x: T, y: U) -> string
+        where T <: Display, Clone;
+              U <: Hash
+        { ... }
+
+    typing_rules:
+      - rule: "WF-Generic-Param"
+        description: "Generic parameter list well-formedness"
+        conditions:
+          - "All parameter names distinct"
+          - "All class bounds reference valid class types"
+        conclusion: "<P1; ...; Pn> is wf"
+
+      - rule: "WF-Generic-Type"
+        description: "Generic type declaration well-formedness"
+        condition: "Params wf, Body wf under context extended with type parameters"
+        conclusion: "type Name<P1,...,Pn> Body is wf"
+
+      - rule: "WF-Generic-Proc"
+        description: "Generic procedure well-formedness"
+        condition: "Params wf, signature and body wf under extended context"
+        conclusion: "procedure f<P1,...,Pn>(...)->R{...} is wf"
+
+      - rule: "T-Constraint-Sat"
+        description: "Constraint satisfaction"
+        condition: "For all B ∈ Bounds: A <: B"
+        conclusion: "A satisfies Bounds"
+
+      - rule: "T-Generic-Inst"
+        description: "Generic instantiation well-formedness"
+        condition: "Name<P1,...,Pn> declared, all Ai satisfy Bounds(Pi)"
+        conclusion: "Name<A1,...,An> is wf"
+
+      - rule: "T-Generic-Call"
+        description: "Generic procedure call typing"
+        conditions:
+          - "f<P1,...,Pn>(x1:S1,...,xm:Sm)->R declared"
+          - "All Ai satisfy Bounds(Pi)"
+          - "All ej : Sj[A1/T1,...,An/Tn]"
+        conclusion: "f<A1,...,An>(e1,...,em) : R[A1/T1,...,An/Tn]"
+
+    type_argument_inference:
+      mechanism: "Bidirectional type inference (§4.4)"
+      sources:
+        - "Types of value arguments at call site"
+        - "Expected return type from surrounding context"
+      failure: "Ill-formed with diagnostic E-TYP-2301"
+
+    monomorphization:
+      description: "Generate specialized code for each concrete instantiation"
+      requirements:
+        specialization: "For D<T1,...,Tn> and A1,...,An, produce D[A1/T1,...,An/Tn]"
+        zero_overhead: "Direct static calls (no vtable dispatch)"
+        independent_instantiation: "Container<i32> and Container<i64> are distinct types"
+
+      recursion:
+        detection: "MUST detect and reject infinite monomorphization recursion"
+        depth_limit: "IDB (Implementation-Defined Behavior)"
+        minimum_support: "128 levels"
+
+    memory_layout:
+      independence: "Each instantiation has independent layout"
+      size: "sizeof(Name<A1,...,An>) = sizeof(Name[A1/T1,...,An/Tn])"
+      alignment: "alignof(Name<A1,...,An>) = alignof(Name[A1/T1,...,An/Tn])"
+
+    variance:
+      reference: "§4.3 for complete specification"
+      determination: "By usage within type definition"
+
+    constraints:
+      - "Generic parameter list MUST NOT contain duplicate names"
+      - "Class bound MUST reference valid class type"
+      - "Generic instantiation MUST provide exactly declared number of type arguments"
+      - "Type arguments MUST satisfy all constraints"
+      - "Generic parameters PROHIBITED in extern procedure signatures"
+      - "Infinite monomorphization recursion MUST be detected and rejected"
+      - "Monomorphization depth MUST NOT exceed implementation limit"
+
+    diagnostics:
+      - code: "E-TYP-2301"
+        severity: "Error"
+        condition: "Type arguments cannot be inferred"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2302"
+        severity: "Error"
+        condition: "Type argument does not satisfy class bound"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2303"
+        severity: "Error"
+        condition: "Wrong number of type arguments"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2304"
+        severity: "Error"
+        condition: "Duplicate type parameter name"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2305"
+        severity: "Error"
+        condition: "Class bound references non-class type"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2306"
+        severity: "Error"
+        condition: "Generic parameter in extern procedure signature"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2307"
+        severity: "Error"
+        condition: "Infinite monomorphization recursion detected"
+        detection: "Compile-time"
+
+      - code: "E-TYP-2308"
+        severity: "Error"
+        condition: "Monomorphization depth limit exceeded"
+        detection: "Compile-time"
+
+  # ----------------------------------------------------------------------------
+  # 7.2 ATTRIBUTES
+  # ----------------------------------------------------------------------------
+
+  attributes:
+    section: "§7.2"
+    line_range: "4895-5457"
+
+    definition: >
+      Compile-time annotations attached to declarations or expressions providing
+      metadata to the compiler. Attributes influence code generation, memory layout,
+      diagnostics, verification strategies, and interoperability.
+
+    formal_definition:
+      attribute: "A = (Name, Args)"
+      attribute_list: "AttributeList = <A1, A2, ..., An>"
+      registry: "R = R_spec ∪ R_vendor"
+      spec_defined: "R_spec (specification-defined attributes)"
+      vendor_defined: "R_vendor (vendor extensions)"
+
+    grammar:
+      attribute_list: "attribute+"
+      attribute: '"[[" attribute_spec ("," attribute_spec)* "]]"'
+      attribute_spec: 'attribute_name ["(" attribute_args ")"]'
+      attribute_name: 'identifier | vendor_prefix "::" identifier'
+      vendor_prefix: 'identifier ("." identifier)*'
+      attribute_args: 'attribute_arg ("," attribute_arg)*'
+      attribute_arg: |
+        literal
+        | identifier
+        | identifier ":" literal
+        | identifier "(" attribute_args ")"
+
+      attributed_expr: "attribute_list expression"
+
+    placement:
+      declaration_level: "Immediately before declaration (no separation allowed)"
+      expression_level: "Immediately before expression"
+
+      equivalence: |
+        [[attr1, attr2]]
+        declaration
+
+        # Equivalent to:
+        [[attr1]]
+        [[attr2]]
+        declaration
+
+      application_order: "Unspecified Behavior (USB)"
+
+    processing:
+      steps:
+        1. "Verify A.Name ∈ R"
+        2. "Verify D is valid target for A"
+        3. "Verify A.Args conforms to argument spec for A"
+        4. "Apply effect defined for A"
+
+    target_matrix:
+      columns: ["record", "enum", "modal", "procedure", "Field", "Parameter", "expression"]
+
+      layout: ["Yes", "Yes", "No", "No", "No", "No", "No"]
+      inline: ["No", "No", "No", "Yes", "No", "No", "No"]
+      cold: ["No", "No", "No", "Yes", "No", "No", "No"]
+      static_dispatch_only: ["No", "No", "No", "Yes", "No", "No", "No"]
+      deprecated: ["Yes", "Yes", "Yes", "Yes", "Yes", "No", "No"]
+      reflect: ["Yes", "Yes", "Yes", "No", "No", "No", "No"]
+      link_name: ["No", "No", "No", "Yes (FFI)", "No", "No", "No"]
+      no_mangle: ["No", "No", "No", "Yes (FFI)", "No", "No", "No"]
+      unwind: ["No", "No", "No", "Yes (FFI)", "No", "No", "No"]
+      dynamic: ["Yes", "Yes", "Yes", "Yes", "No", "No", "Yes"]
+      relaxed: ["No", "No", "No", "No", "No", "No", "Yes"]
+      acquire: ["No", "No", "No", "No", "No", "No", "Yes"]
+      release: ["No", "No", "No", "No", "No", "No", "Yes"]
+      acq_rel: ["No", "No", "No", "No", "No", "No", "Yes"]
+      seq_cst: ["No", "No", "No", "No", "No", "No", "Yes"]
+
+    vendor_extensions:
+      namespace_requirement: "Reverse-domain-style prefix"
+      format: "[[com.vendor.attribute_name]]"
+      reserved_namespace: "cursive.*"
+      unknown_attribute_handling: "Diagnostic E-DEC-2451"
+
+    specification_defined_attributes:
+
+      # 7.2.1 layout
+      layout:
+        section: "§7.2.1"
+        syntax: '[[layout(layout_args)]]'
+        args: "layout_kind (, layout_kind)*"
+        targets: ["record", "enum"]
+
+        kinds:
+          C:
+            description: "C-compatible layout"
+            record:
+              - "Fields laid out in declaration order"
+              - "Padding per target C ABI alignment constraints"
+              - "Total size multiple of alignment"
+            enum:
+              - "Discriminant as C-compatible integer tag"
+              - "Default tag type: IDB (typically i32)"
+              - "Tagged union per target C ABI"
+
+          IntType:
+            description: "Explicit discriminant type (enum only)"
+            values: ["i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64"]
+            requirement: "Discriminant values MUST be representable in specified type"
+            applicability: "enum only (E-DEC-2452 on record)"
+
+          packed:
+            description: "Remove all inter-field padding"
+            effects:
+              - "All inter-field padding removed"
+              - "Each field alignment = 1"
+              - "Record overall alignment = 1"
+            implications:
+              - "Field access MAY require unaligned memory operations"
+              - "Taking reference to packed field is UVB (requires unsafe block)"
+              - "Direct field reads/writes remain safe"
+            applicability: "record only (E-DEC-2454 on enum)"
+
+          align_N:
+            syntax: "align(N)"
+            requirement: "N MUST be positive power of two (E-DEC-2453)"
+            effect: "Effective alignment = max(N, natural_alignment)"
+            warning: "W-DEC-2451 if N < natural alignment"
+
+        valid_combinations:
+          - combination: "layout(C)"
+            validity: "Valid"
+            effect: "C-compatible layout"
+
+          - combination: "layout(packed)"
+            validity: "Valid"
+            effect: "Packed layout (records only)"
+
+          - combination: "layout(align(N))"
+            validity: "Valid"
+            effect: "Minimum alignment N"
+
+          - combination: "layout(C, packed)"
+            validity: "Valid"
+            effect: "C-compatible packed layout"
+
+          - combination: "layout(C, align(N))"
+            validity: "Valid"
+            effect: "C-compatible with minimum alignment N"
+
+          - combination: "layout(u8)"
+            validity: "Valid (enum)"
+            effect: "8-bit unsigned discriminant"
+
+          - combination: "layout(packed, align(N))"
+            validity: "Invalid"
+            diagnostic: "E-DEC-2455"
+
+        applicability_constraints:
+          record: ["C", "packed", "align(N)"]
+          enum: ["C", "align(N)", "IntType"]
+          modal: "Ill-formed (E-FFI-3303)"
+          generic_unmonomorphized: "Ill-formed (E-FFI-3303)"
+
+      # 7.2.2 inline
+      inline:
+        section: "§7.2.2"
+        syntax: '[[inline(mode)]]'
+        targets: ["procedure"]
+
+        modes:
+          always:
+            description: "SHOULD inline at all call sites"
+            failure_warning: "W-DEC-2452 if not possible"
+
+          never:
+            description: "MUST NOT inline"
+            effect: "Separate callable unit, standard calling convention"
+
+          default:
+            description: "Apply default heuristics"
+            note: "Equivalent to omitting attribute"
+
+      # 7.2.3 cold
+      cold:
+        section: "§7.2.3"
+        syntax: '[[cold]]'
+        targets: ["procedure"]
+        description: "Procedure unlikely to execute during typical runs"
+
+        optimizations:
+          - "Place in separate section for instruction cache locality"
+          - "Reduce optimization effort"
+          - "Bias branch prediction against calling"
+
+        semantics: "Hint (MAY ignore without diagnostic)"
+
+      # 7.2.4 deprecated
+      deprecated:
+        section: "§7.2.4"
+        syntax: '[[deprecated("message")]]'
+        targets: ["record", "enum", "modal", "procedure", "field"]
+        message: "Optional string argument for deprecation message"
+
+        effect:
+          - "Emit warning W-CNF-0601 on usage"
+          - "Include message in diagnostic if present"
+          - "Declaration remains fully functional"
+
+      # 7.2.5 reflect
+      reflect:
+        section: "§7.2.5"
+        syntax: '[[reflect]]'
+        targets: ["record", "enum", "modal"]
+        description: "Enable compile-time introspection"
+
+        effect:
+          - "Type metadata accessible to reflect_type<T>() intrinsic"
+          - "No effect on runtime behavior or memory layout"
+
+        reference: "Clause 17 (Metaprogramming)"
+
+      # 7.2.6 FFI Attributes
+      ffi_attributes:
+        section: "§7.2.6"
+        targets: ["extern procedure"]
+        reference: "Clause 18 (Interoperability)"
+
+        attributes:
+          link_name:
+            syntax: '[[link_name("symbol")]]'
+            reference: "§18.4"
+            effect: "Overrides linker symbol name"
+
+          no_mangle:
+            syntax: '[[no_mangle]]'
+            reference: "§18.4"
+            effect: "Disables name mangling (implicit for extern \"C\")"
+
+          unwind:
+            syntax: '[[unwind(mode)]]'
+            reference: "§18.5"
+            modes: ["abort", "catch"]
+            effect: "Controls panic behavior at FFI boundary"
+
+      # 7.2.7 Memory Ordering Attributes
+      memory_ordering_attributes:
+        section: "§7.2.7"
+        targets: ["expression (memory access)"]
+        reference: "§13.10 (Memory Ordering)"
+        applicability: "Expressions performing memory access to shared data"
+
+        attributes:
+          relaxed:
+            effect: "Atomicity only—no ordering guarantees"
+
+          acquire:
+            effect: "Subsequent reads see prior writes"
+
+          release:
+            effect: "Prior writes visible to acquire reads"
+
+          acq_rel:
+            effect: "Both acquire and release semantics"
+
+          seq_cst:
+            effect: "Total global order (default)"
+            note: "Explicit annotation rarely needed"
+
+      # 7.2.9 dynamic
+      dynamic:
+        section: "§7.2.9"
+        line_range: "5262-5362"
+        syntax: '[[dynamic]]'
+        targets: ["record", "enum", "modal", "procedure", "expression"]
+
+        definition: >
+          Explicit opt-in for runtime verification when static verification
+          is insufficient. Reflects philosophy of static safety by default.
+
+        propagation_rules:
+          declaration_level: "All expressions within declaration in dynamic context"
+          expression_level: "Only that expression and sub-expressions in dynamic context"
+          lexical_scoping: "Determined lexically, not dynamically"
+          no_transitive_propagation: "Does not propagate through procedure calls"
+
+        effects:
+          key_system:
+            reference: "§13"
+            behavior: "If static analysis fails, MAY insert runtime synchronization"
+            rules: ["K-Static-Required", "K-Dynamic-Permitted (§13.9)"]
+            still_errors: "Same-statement conflicts (§13.6.1)"
+
+          dynamic_index_ordering:
+            reference: "§13.7"
+            behavior: "Runtime ordering for dynamically-indexed paths in # blocks"
+            guarantee: "Deadlock freedom"
+            mechanism: "Implementation-Defined"
+
+          contract_system:
+            reference: "§10"
+            behavior: "If predicate not statically provable, insert runtime check"
+            failure: "Panic (P-CON-2850)"
+            rules: ["Contract-Static-OK", "Contract-Static-Fail", "Contract-Dynamic-Elide", "Contract-Dynamic-Check (§10.4)"]
+
+          refinement_types:
+            reference: "§7.3"
+            behavior: "If predicate not statically provable, insert runtime check"
+            failure: "Panic (P-TYP-1953)"
+
+        runtime_behavior:
+          key_operations: "Insert runtime synchronization primitives"
+          contract_checks: "Generate assertion code at verification points"
+          refinement_validation: "Insert predicate evaluation at type coercion points"
+
+        static_elision:
+          principle: "If compiler can prove property statically, no runtime code generated"
+          note: "[[dynamic]] permits but does not require runtime verification"
+
+        constraints:
+          - "MUST NOT be applied to contract clauses directly (apply to procedure)"
+          - "MUST NOT be applied to type alias declarations"
+          - "MUST NOT be applied to field declarations (apply to containing record)"
+
+        diagnostics:
+          - code: "E-KEY-0020"
+            severity: "Error"
+            condition: "Key safety not statically provable outside [[dynamic]]"
+            detection: "Compile-time"
+
+          - code: "E-CON-2801"
+            severity: "Error"
+            condition: "Contract not statically provable outside [[dynamic]]"
+            detection: "Compile-time"
+
+          - code: "E-TYP-1953"
+            severity: "Error"
+            condition: "Refinement not statically provable outside [[dynamic]]"
+            detection: "Compile-time"
+
+          - code: "W-DYN-0001"
+            severity: "Warning"
+            condition: "[[dynamic]] present but all proofs succeed statically"
+            detection: "Compile-time"
+
+      # 7.2.10 static_dispatch_only
+      static_dispatch_only:
+        section: "§7.2.10"
+        line_range: "5363-5457"
+        syntax: '[[static_dispatch_only]]'
+        targets: ["procedure (in class)"]
+
+        definition: >
+          Marks procedure in class as excluded from dyn dispatch (vtable).
+          Allows classes to contain non-vtable-eligible procedures while
+          maintaining overall dyn safety.
+
+        dyn_safety_rule: |
+          dyn_safe(Tr) ⟺ ∀p ∈ procedures(Tr). vtable_eligible(p) ∨ has_static_dispatch_attr(p)
+
+        call_resolution:
+          static_context: "Calls on concrete types resolve normally"
+          dynamic_context: "Calls on dyn Class cannot resolve (E-TRS-2940)"
+
+        common_uses:
+          - "Generic procedures in classes"
+          - "Procedures returning Self by value"
+
+        constraints:
+          - "May apply to any procedure in class declaration"
+          - "MUST NOT apply to procedures outside class declarations"
+          - "MUST NOT apply to non-procedure declarations"
+
+        diagnostics:
+          - code: "E-TRS-2940"
+            severity: "Error"
+            condition: "Procedure with [[static_dispatch_only]] called on dyn"
+            detection: "Compile-time"
+
+          - code: "E-TRS-2942"
+            severity: "Error"
+            condition: "Generic procedure in class without [[static_dispatch_only]]"
+            detection: "Compile-time"
+
+    consolidated_diagnostics:
+      - code: "E-DEC-2450"
+        severity: "Error"
+        condition: "Malformed attribute syntax"
+        detection: "Compile-time"
+
+      - code: "E-DEC-2451"
+        severity: "Error"
+        condition: "Unknown attribute name"
+        detection: "Compile-time"
+
+      - code: "E-DEC-2452"
+        severity: "Error"
+        condition: "Attribute not valid on target declaration kind"
+        detection: "Compile-time"
+
+      - code: "E-DEC-2453"
+        severity: "Error"
+        condition: "align(N) where N is not power of two"
+        detection: "Compile-time"
+
+      - code: "E-DEC-2454"
+        severity: "Error"
+        condition: "packed applied to non-record declaration"
+        detection: "Compile-time"
+
+      - code: "E-DEC-2455"
+        severity: "Error"
+        condition: "Conflicting layout arguments (packed with align)"
+        detection: "Compile-time"
+
+      - code: "W-DEC-2451"
+        severity: "Warning"
+        condition: "align(N) where N < natural alignment (no effect)"
+        detection: "Compile-time"
+
+      - code: "W-DEC-2452"
+        severity: "Warning"
+        condition: "inline(always) but inlining not possible"
+        detection: "Compile-time"
+
+  # ----------------------------------------------------------------------------
+  # 7.3 REFINEMENT TYPES
+  # ----------------------------------------------------------------------------
+
+  refinement_types:
+    section: "§7.3"
+    line_range: "5458-5649"
+
+    definition: >
+      A refinement type is a type constructed by attaching a predicate constraint
+      to a base type. The refinement type "T where { P }" denotes the subset of
+      values of type T for which predicate P evaluates to true.
+
+    formal_definition:
+      tuple: "R = (T_base, P)"
+      base_type: "T_base ∈ T (the type being refined)"
+      predicate: "P : T_base -> bool (pure predicate)"
+      value_set: "Values(T where {P}) = {v ∈ Values(T) | P(v) = true}"
+      subtyping: "T where {P} is proper subtype of T"
+
+    grammar:
+      refinement_type: 'type "where" "{" predicate "}"'
+      type_alias_refine: '"type" identifier "=" type "where" "{" predicate "}"'
+      param_with_constraint: 'identifier ":" type "where" "{" predicate "}"'
+      predicate: "expression"
+
+    self_reference:
+      type_alias_context: "self refers to the value being constrained"
+      parameter_context: "Parameter name refers to constrained value (NOT self)"
+      binding: "Implicitly bound within predicate scope with base type T"
+
+    typing_rules:
+      - rule: "WF-Refine-Type"
+        description: "Refinement type well-formedness"
+        conditions:
+          - "T is wf"
+          - "Γ, self:T ⊢ P : bool"
+          - "Pure(P)"
+        conclusion: "T where {P} is wf"
+
+      - rule: "WF-Param-Constraint"
+        description: "Parameter constraint well-formedness"
+        conditions:
+          - "T is wf"
+          - "Γ, x:T ⊢ P : bool"
+          - "Pure(P)"
+          - "self ∉ FreeVars(P)"
+        conclusion: "x : T where {P} is wf"
+
+      - rule: "T-Refine-Intro"
+        description: "Introduction of refinement type"
+        conditions:
+          - "e : T"
+          - "Γ ⊢ F(P[e/self], L)  # Verification Fact establishes P"
+          - "L dominates current location"
+        conclusion: "e : T where {P}"
+
+      - rule: "T-Refine-Elim"
+        description: "Elimination (subtyping to base type)"
+        condition: "e : T where {P}"
+        conclusion: "e : T"
+        note: "No runtime check required"
+
+      - rule: "Sub-Refine-Base"
+        description: "Refinement is subtype of base"
+        conclusion: "T where {P} <: T"
+
+      - rule: "Sub-Refine"
+        description: "Stronger predicate is subtype of weaker"
+        condition: "P ⟹ Q"
+        conclusion: "T where {P} <: T where {Q}"
+
+    type_equivalence:
+      condition: "Predicates are logically equivalent"
+      rule: "T where {P} ≡ T where {Q} ⟺ P ⟺ Q"
+
+    nested_refinements:
+      flattening: "(T where {P}) where {Q} ≡ T where {P ∧ Q}"
+
+    predicate_requirements:
+      purity: "MUST be pure expression (§10.1.1)"
+      type: "MUST evaluate to bool"
+
+      self_reference_in_type_alias: "MUST use self"
+      self_reference_in_param: "MUST use parameter name (self forbidden)"
+
+      scoping: "MAY reference other in-scope bindings (including earlier parameters)"
+
+    automatic_coercion:
+      condition: "Active Verification Facts prove P holds"
+      mechanism: "Implicit (no runtime check)"
+
+    variance_interaction:
+      reference: "§4.2 (subtyping), §4.3 (variance)"
+      rule: "S where {P} <: S, so C<S where {P}> <: C<S> for covariant C<T>"
+
+    verification:
+      default: "Static proof required"
+
+      static_success:
+        action: "No runtime code generated"
+
+      static_failure_without_dynamic:
+        diagnostic: "E-TYP-1953"
+        effect: "Rejection"
+
+      static_failure_with_dynamic:
+        action: "Generate runtime check"
+        failure_behavior: "Panic (P-TYP-1953)"
+
+    memory_layout:
+      size: "sizeof(T where {P}) = sizeof(T)"
+      alignment: "alignof(T where {P}) = alignof(T)"
+      representation: "Identical to base type T"
+      note: "Predicate is compile-time and runtime constraint only"
+
+    constraints:
+      - description: "Predicate MUST be pure"
+        diagnostic: "E-CON-2802"
+
+      - description: "Predicate MUST evaluate to bool"
+        diagnostic: "E-TYP-1951"
+
+      - description: "self MUST NOT appear in inline parameter constraints"
+        diagnostic: "E-TYP-1950"
+
+      - description: "Circular type dependencies forbidden"
+        diagnostic: "E-TYP-1952"
+
+      - description: "Static verification required outside [[dynamic]]"
+        diagnostic: "E-TYP-1953"
+
+    diagnostics:
+      - code: "E-TYP-1950"
+        severity: "Error"
+        condition: "self used in inline parameter constraint"
+        detection: "Compile-time"
+
+      - code: "E-TYP-1951"
+        severity: "Error"
+        condition: "Refinement predicate is not of type bool"
+        detection: "Compile-time"
+
+      - code: "E-TYP-1952"
+        severity: "Error"
+        condition: "Circular type dependency in refinement predicate"
+        detection: "Compile-time"
+
+      - code: "E-TYP-1953"
+        severity: "Error"
+        condition: "Refinement predicate not statically provable outside [[dynamic]]"
+        detection: "Compile-time"
+
+      - code: "E-CON-2802"
+        severity: "Error"
+        condition: "Impure expression in refinement predicate"
+        detection: "Compile-time"
+
+      - code: "P-TYP-1953"
+        severity: "Panic"
+        condition: "Runtime refinement validation failed"
+        detection: "Runtime"
+
+# ==============================================================================
+# GRAMMAR PRODUCTIONS
+# ==============================================================================
+
+grammar_productions:
+
+  modal_types:
+    - 'modal_decl ::= [visibility] "modal" identifier [generic_params] [implements_clause] "{" state_block+ "}"'
+    - 'state_block ::= "@" state_name [state_payload] [state_members]'
+    - 'state_name ::= identifier'
+    - 'state_payload ::= "{" (field_decl ("," field_decl)* ","?)? "}"'
+    - 'state_members ::= "{" (method_def | transition_def)* "}"'
+    - 'method_def ::= "procedure" identifier "(" param_list ")" ["->" return_type] block'
+    - 'transition_def ::= "transition" identifier "(" param_list ")" "->" "@" target_state block'
+    - 'target_state ::= identifier'
+    - 'state_specific_type ::= modal_type_name "@" state_name'
+    - 'modal_pattern ::= "@" state_name ["{" payload_pattern "}"]'
+    - 'payload_pattern ::= (field_name [":" pattern] ("," field_name [":" pattern])* ","?)?'
+
+  string_types:
+    - 'string_type ::= "string" ["@" string_state]'
+    - 'string_state ::= "Managed" | "View"'
+
+  pointer_types:
+    - 'safe_pointer_type ::= "Ptr" "<" type ">" ["@" pointer_state]'
+    - 'pointer_state ::= "Valid" | "Null" | "Expired"'
+    - 'raw_pointer_type ::= "*" raw_pointer_qual type'
+    - 'raw_pointer_qual ::= "imm" | "mut"'
+    - 'address_of_expr ::= "&" place_expr'
+    - 'null_ptr_expr ::= "Ptr" "::" "null" "()"'
+    - 'raw_ptr_cast_expr ::= safe_ptr_expr "as" raw_pointer_type'
+
+  function_types:
+    - 'function_type ::= sparse_function_type | closure_type'
+    - 'sparse_function_type ::= "(" [param_type_list] ")" "->" type'
+    - 'closure_type ::= "|" [param_type_list] "|" "->" type'
+    - 'param_type_list ::= param_type ("," param_type)*'
+    - 'param_type ::= ["move"] type'
+
+  generics:
+    - 'generic_params ::= "<" generic_param_list ">"'
+    - 'generic_param_list ::= generic_param (";" generic_param)*'
+    - 'generic_param ::= identifier [bound_clause] [default_clause]'
+    - 'bound_clause ::= "<:" class_bound_list'
+    - 'default_clause ::= "=" type'
+    - 'class_bound_list ::= class_bound ("," class_bound)*'
+    - 'where_clause ::= "where" where_predicate_list'
+    - 'where_predicate_list ::= where_predicate (";" where_predicate)* [";"]'
+    - 'where_predicate ::= identifier "<:" class_bound_list'
+    - 'generic_args ::= "<" type_arg_list ">"'
+    - 'type_arg_list ::= type ("," type)*'
+    - 'turbofish ::= "::" generic_args'
+
+  attributes:
+    - 'attribute_list ::= attribute+'
+    - 'attribute ::= "[[" attribute_spec ("," attribute_spec)* "]]"'
+    - 'attribute_spec ::= attribute_name ["(" attribute_args ")"]'
+    - 'attribute_name ::= identifier | vendor_prefix "::" identifier'
+    - 'vendor_prefix ::= identifier ("." identifier)*'
+    - 'attribute_args ::= attribute_arg ("," attribute_arg)*'
+    - 'attribute_arg ::= literal | identifier | identifier ":" literal | identifier "(" attribute_args ")"'
+    - 'expression ::= attributed_expr | unattributed_expr'
+    - 'attributed_expr ::= attribute_list expression'
+    - 'layout_attribute ::= "[[" "layout" "(" layout_args ")" "]]"'
+    - 'layout_args ::= layout_kind ("," layout_kind)*'
+    - 'layout_kind ::= "C" | "packed" | "align" "(" integer_literal ")" | int_type'
+    - 'int_type ::= "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"'
+    - 'deprecated_attribute ::= "[[" "deprecated" ["(" string_literal ")"] "]]"'
+    - 'dynamic_attribute ::= "[[" "dynamic" "]]"'
+    - 'static_dispatch_attr ::= "[[" "static_dispatch_only" "]]"'
+
+  refinement_types:
+    - 'refinement_type ::= type "where" "{" predicate "}"'
+    - 'type_alias_refine ::= "type" identifier "=" type "where" "{" predicate "}"'
+    - 'param_with_constraint ::= identifier ":" type "where" "{" predicate "}"'
+    - 'predicate ::= expression'
+
+# ==============================================================================
+# DIAGNOSTIC CODES
+# ==============================================================================
+
+diagnostic_codes:
+
+  modal_types:
+    - { code: "E-TYP-2050", severity: "Error", condition: "Modal type declares zero states", detection: "Compile-time" }
+    - { code: "E-TYP-2051", severity: "Error", condition: "Duplicate state name within modal declaration", detection: "Compile-time" }
+    - { code: "E-TYP-2052", severity: "Error", condition: "Field access for field not in current state's payload", detection: "Compile-time" }
+    - { code: "E-TYP-2053", severity: "Error", condition: "Method invocation not available in current state", detection: "Compile-time" }
+    - { code: "E-TYP-2055", severity: "Error", condition: "Transition body returns wrong state-specific type", detection: "Compile-time" }
+    - { code: "E-TYP-2056", severity: "Error", condition: "Transition invoked on value not of source state", detection: "Compile-time" }
+    - { code: "E-TYP-2057", severity: "Error", condition: "Direct access on general modal without pattern matching", detection: "Compile-time" }
+    - { code: "E-TYP-2060", severity: "Error", condition: "Non-exhaustive match on general modal type", detection: "Compile-time" }
+    - { code: "E-TYP-2070", severity: "Error", condition: "Implicit widening on non-niche-layout-compatible type", detection: "Compile-time" }
+    - { code: "E-TYP-2071", severity: "Error", condition: "widen applied to non-modal type", detection: "Compile-time" }
+    - { code: "E-TYP-2072", severity: "Error", condition: "widen applied to already-general modal type", detection: "Compile-time" }
+    - { code: "W-OPT-4010", severity: "Warning", condition: "Modal widening involves large payload copy", detection: "Compile-time" }
+
+  string_types:
+    - { code: "E-TYP-2151", severity: "Error (Panic)", condition: "Slice boundary not on UTF-8 char boundary", detection: "Runtime" }
+    - { code: "E-TYP-2152", severity: "Error", condition: "Direct byte indexing on string type", detection: "Compile-time" }
+    - { code: "E-TYP-2153", severity: "Error (Panic)", condition: "Slice end index < start index", detection: "Runtime" }
+    - { code: "E-TYP-2154", severity: "Error (Panic)", condition: "Slice index exceeds string length", detection: "Runtime" }
+
+  pointer_types:
+    - { code: "E-TYP-2101", severity: "Error", condition: "Dereference of pointer in @Null state", detection: "Compile-time" }
+    - { code: "E-TYP-2102", severity: "Error", condition: "Dereference of pointer in @Expired state (use-after-free)", detection: "Compile-time" }
+    - { code: "E-TYP-2103", severity: "Error", condition: "Dereference of raw pointer outside unsafe block", detection: "Compile-time" }
+    - { code: "E-TYP-2104", severity: "Error", condition: "Address-of operator applied to non-place expression", detection: "Compile-time" }
+    - { code: "E-TYP-2105", severity: "Error", condition: "Cast of non-@Valid pointer to raw pointer", detection: "Compile-time" }
+    - { code: "E-TYP-2106", severity: "Error", condition: "Modal pointer type in extern procedure signature", detection: "Compile-time" }
+
+  function_types:
+    - { code: "E-TYP-2220", severity: "Error", condition: "Argument count mismatch", detection: "Compile-time" }
+    - { code: "E-TYP-2221", severity: "Error", condition: "Type mismatch in function argument or return position", detection: "Compile-time" }
+    - { code: "E-TYP-2222", severity: "Error", condition: "Missing move on argument to move parameter", detection: "Compile-time" }
+    - { code: "E-TYP-2223", severity: "Error", condition: "Closure type in extern procedure signature", detection: "Compile-time" }
+    - { code: "E-TYP-2224", severity: "Error", condition: "Assignment of closure value to sparse function pointer type", detection: "Compile-time" }
+    - { code: "E-TYP-2225", severity: "Error", condition: "move modifier on return type", detection: "Compile-time" }
+
+  generics:
+    - { code: "E-TYP-2301", severity: "Error", condition: "Type arguments cannot be inferred", detection: "Compile-time" }
+    - { code: "E-TYP-2302", severity: "Error", condition: "Type argument does not satisfy class bound", detection: "Compile-time" }
+    - { code: "E-TYP-2303", severity: "Error", condition: "Wrong number of type arguments", detection: "Compile-time" }
+    - { code: "E-TYP-2304", severity: "Error", condition: "Duplicate type parameter name", detection: "Compile-time" }
+    - { code: "E-TYP-2305", severity: "Error", condition: "Class bound references non-class type", detection: "Compile-time" }
+    - { code: "E-TYP-2306", severity: "Error", condition: "Generic parameter in extern procedure signature", detection: "Compile-time" }
+    - { code: "E-TYP-2307", severity: "Error", condition: "Infinite monomorphization recursion detected", detection: "Compile-time" }
+    - { code: "E-TYP-2308", severity: "Error", condition: "Monomorphization depth limit exceeded", detection: "Compile-time" }
+
+  attributes:
+    - { code: "E-DEC-2450", severity: "Error", condition: "Malformed attribute syntax", detection: "Compile-time" }
+    - { code: "E-DEC-2451", severity: "Error", condition: "Unknown attribute name", detection: "Compile-time" }
+    - { code: "E-DEC-2452", severity: "Error", condition: "Attribute not valid on target declaration kind", detection: "Compile-time" }
+    - { code: "E-DEC-2453", severity: "Error", condition: "align(N) where N is not power of two", detection: "Compile-time" }
+    - { code: "E-DEC-2454", severity: "Error", condition: "packed applied to non-record declaration", detection: "Compile-time" }
+    - { code: "E-DEC-2455", severity: "Error", condition: "Conflicting layout arguments (packed with align)", detection: "Compile-time" }
+    - { code: "W-DEC-2451", severity: "Warning", condition: "align(N) where N < natural alignment", detection: "Compile-time" }
+    - { code: "W-DEC-2452", severity: "Warning", condition: "inline(always) but inlining not possible", detection: "Compile-time" }
+    - { code: "E-KEY-0020", severity: "Error", condition: "Key safety not statically provable outside [[dynamic]]", detection: "Compile-time" }
+    - { code: "E-CON-2801", severity: "Error", condition: "Contract not statically provable outside [[dynamic]]", detection: "Compile-time" }
+    - { code: "W-DYN-0001", severity: "Warning", condition: "[[dynamic]] present but all proofs succeed statically", detection: "Compile-time" }
+    - { code: "E-TRS-2940", severity: "Error", condition: "[[static_dispatch_only]] procedure called on dyn", detection: "Compile-time" }
+    - { code: "E-TRS-2942", severity: "Error", condition: "Generic procedure in class without [[static_dispatch_only]]", detection: "Compile-time" }
+
+  refinement_types:
+    - { code: "E-TYP-1950", severity: "Error", condition: "self used in inline parameter constraint", detection: "Compile-time" }
+    - { code: "E-TYP-1951", severity: "Error", condition: "Refinement predicate is not of type bool", detection: "Compile-time" }
+    - { code: "E-TYP-1952", severity: "Error", condition: "Circular type dependency in refinement predicate", detection: "Compile-time" }
+    - { code: "E-TYP-1953", severity: "Error", condition: "Refinement not statically provable outside [[dynamic]]", detection: "Compile-time" }
+    - { code: "E-CON-2802", severity: "Error", condition: "Impure expression in refinement predicate", detection: "Compile-time" }
+    - { code: "P-TYP-1953", severity: "Panic", condition: "Runtime refinement validation failed", detection: "Runtime" }
+
+# ==============================================================================
+# POTENTIAL ISSUES
+# ==============================================================================
+
+potential_issues:
+
+  - category: "Ambiguity"
+    location: "§6.1 Modal Types"
+    issue: "Niche-layout-compatible definition"
+    description: >
+      The conditions for niche-layout-compatible are clearly stated, but the
+      specification relies on "niche optimization applies" which is defined
+      elsewhere. Cross-reference to §5.4 is present but circular dependency
+      exists: modal types MUST apply niche optimization, but when is it applicable?
+    severity: "Minor"
+    recommendation: "Add explicit conditions for when niche optimization is applicable to modal types"
+
+  - category: "Completeness"
+    location: "§6.2 String Types"
+    issue: "Character boundary validation algorithm"
+    description: >
+      While the definition of valid character boundary is given, there's no
+      specification of HOW the runtime should detect these boundaries efficiently
+      or what happens with invalid UTF-8 sequences discovered during validation.
+    severity: "Minor"
+    recommendation: "Add note about validation strategy and handling of malformed UTF-8"
+
+  - category: "Consistency"
+    location: "§6.3 Pointer Types"
+    issue: "@Expired state representation"
+    description: >
+      The specification states @Expired has "no runtime representation" and is
+      "compile-time only", but it's included in States(Ptr<T>). This could be
+      confusing since the general type Ptr<T> has runtime discriminant but @Expired
+      cannot appear at runtime. Consider clarifying that @Expired cannot be widened.
+    severity: "Minor"
+    recommendation: "Add explicit rule that widening @Expired is ill-formed"
+
+  - category: "Completeness"
+    location: "§6.4 Function Types"
+    issue: "Environment capture analysis"
+    description: >
+      The specification states that closure type is determined by captures() set,
+      but doesn't define the algorithm for computing captures(). What constitutes
+      a "capture"? Are all free variables captured, or only those used?
+    severity: "Moderate"
+    recommendation: "Define captures() function formally or cross-reference to closure semantics section"
+
+  - category: "Ambiguity"
+    location: "§7.1 Generics"
+    issue: "Semicolon vs comma in generic params"
+    description: >
+      The separator hierarchy is well-defined, but what about trailing separators?
+      Is <T;> valid? Is <T <: Display,> valid? The grammar shows [";"] in where_clause
+      but not in generic_param_list.
+    severity: "Minor"
+    recommendation: "Clarify trailing separator rules or add explicit prohibition"
+
+  - category: "Incompleteness"
+    location: "§7.2.1 Layout Attribute"
+    issue: "Implementation-Defined default tag type"
+    description: >
+      For layout(C) on enum, "default tag type is implementation-defined (IDB),
+      typically i32". This creates portability issues. Should there be a minimum
+      requirement or recommendation for conformance?
+    severity: "Moderate"
+    recommendation: "Define minimum requirements or make recommendation normative"
+
+  - category: "Ambiguity"
+    location: "§7.2.9 [[dynamic]] Attribute"
+    issue: "Verification context propagation"
+    description: >
+      The specification states "lexical scoping" and "no transitive propagation",
+      but what about closures? If a closure is defined in a [[dynamic]] context,
+      does the dynamic context apply to the closure body when it's invoked later?
+    severity: "Moderate"
+    recommendation: "Add explicit rule for closure capture of verification context"
+
+  - category: "Consistency"
+    location: "§7.3 Refinement Types"
+    issue: "Verification Facts reference"
+    description: >
+      T-Refine-Intro references "Verification Facts (§7.5)" but this section is
+      §7.3. Either the cross-reference is wrong or there's a missing section.
+      Based on context, this likely should reference the contract system (Clause 10).
+    severity: "Major"
+    recommendation: "Fix cross-reference to §10.5 or wherever Verification Facts are actually defined"
+
+  - category: "Completeness"
+    location: "§6.1 Modal Types"
+    issue: "Modal class implementation details"
+    description: >
+      The section mentions "modal classes" and that modals can implement them
+      (§9.2, §9.3), but doesn't explain how pattern matching works when using
+      a modal through its class interface. Does the class expose abstract states?
+    severity: "Minor"
+    recommendation: "Add example or clarification of pattern matching through class interface"
+
+  - category: "Potential Contradiction"
+    location: "§6.2 String Types"
+    issue: "string@Managed Clone constraint"
+    description: >
+      The specification states string@Managed MUST NOT implement Clone because
+      Clone::clone doesn't provide heap capability. However, it also defines
+      clone_with(heap) method. Is this a language design choice or could Clone
+      be made to work with capability parameters?
+    severity: "Minor - Design Note"
+    recommendation: "Consider adding note explaining why Clone can't be extended for capabilities"
+
+# ==============================================================================
+# CROSS-REFERENCES
+# ==============================================================================
+
+cross_references:
+
+  external_sections:
+    - reference: "§4.1"
+      topic: "Type Equivalence (T-Equiv-*)"
+      relevance: "Modal types, function types, refinement types"
+
+    - reference: "§4.2"
+      topic: "Subtyping and Coercion"
+      relevance: "All behavioral types participate in subtype relation"
+
+    - reference: "§4.3"
+      topic: "Variance"
+      relevance: "Generic types, function types"
+
+    - reference: "§4.4"
+      topic: "Bidirectional Type Inference"
+      relevance: "Generic type argument inference"
+
+    - reference: "§5.4"
+      topic: "Enum Types and Niche Optimization"
+      relevance: "Modal types MUST apply niche optimization"
+
+    - reference: "§5.5"
+      topic: "Union Types"
+      relevance: "Niche optimization SHOULD apply"
+
+    - reference: "§9.2"
+      topic: "Form Declarations (Classes)"
+      relevance: "Generic bounds, modal class implementation"
+
+    - reference: "§9.3"
+      topic: "Class Implementation"
+      relevance: "Modal types implementing classes"
+
+    - reference: "§10"
+      topic: "Contract System"
+      relevance: "[[dynamic]] attribute effects, Verification Facts"
+
+    - reference: "§10.1.1"
+      topic: "Pure Expressions"
+      relevance: "Refinement type predicates"
+
+    - reference: "§10.3.1"
+      topic: "Type Invariants"
+      relevance: "Where clause semantics"
+
+    - reference: "§10.4"
+      topic: "Invariant Enforcement"
+      relevance: "Verification strategies"
+
+    - reference: "§10.5"
+      topic: "Capability Model"
+      relevance: "String operations requiring heap allocator"
+
+    - reference: "§11.2"
+      topic: "Pattern Matching"
+      relevance: "Modal types, enum exhaustiveness"
+
+    - reference: "§12"
+      topic: "Foreign Function Interface (FFI)"
+      relevance: "FFI-safe types, layout(C), extern signatures"
+
+    - reference: "§13"
+      topic: "Concurrency and Key System"
+      relevance: "[[dynamic]] attribute effects on key safety"
+
+    - reference: "§13.6.1"
+      topic: "Same-Statement Conflicts"
+      relevance: "Still errors even with [[dynamic]]"
+
+    - reference: "§13.7"
+      topic: "Dynamic Index Ordering"
+      relevance: "[[dynamic]] enables runtime ordering"
+
+    - reference: "§13.9"
+      topic: "Key Safety Rules"
+      relevance: "K-Static-Required, K-Dynamic-Permitted"
+
+    - reference: "§13.10"
+      topic: "Memory Ordering"
+      relevance: "Memory ordering attributes semantics"
+
+    - reference: "Clause 17"
+      topic: "Metaprogramming"
+      relevance: "[[reflect]] attribute, compile-time introspection"
+
+    - reference: "Clause 18"
+      topic: "Interoperability"
+      relevance: "FFI attributes detailed semantics"
+
+    - reference: "Appendix D.1"
+      topic: "Standard Classes (Copy, Clone, Drop)"
+      relevance: "Class implementation constraints"
+
+  internal_forward_references:
+    - from: "§6.1"
+      to: "§7.5 (should be §10.5)"
+      topic: "Verification Facts"
+      status: "POTENTIAL ERROR - Section number mismatch"
+
+# ==============================================================================
+# SUMMARY STATISTICS
+# ==============================================================================
+
+summary:
+  total_sections: 11
+  total_subsections: 10
+  line_range: "3000-5650 (approx 2650 lines)"
+
+  type_forms_defined:
+    - "Modal types (M@S, M)"
+    - "String types (string@Managed, string@View)"
+    - "Safe pointer types (Ptr<T>@Valid, @Null, @Expired)"
+    - "Raw pointer types (*imm T, *mut T)"
+    - "Sparse function pointers ((T)->U)"
+    - "Closures (|T|->U)"
+    - "Refinement types (T where {P})"
+
+  attributes_defined: 15
+  grammar_productions: 56
+  typing_rules: 29
+  diagnostic_codes: 62
+  potential_issues_identified: 10
+
+  key_concepts:
+    - "State machines in type system (modal types)"
+    - "Niche optimization for zero-cost abstraction"
+    - "UTF-8 enforcement in string types"
+    - "Compile-time null safety via pointer states"
+    - "Representation cost explicit in function types"
+    - "Monomorphization-based generics"
+    - "Attribute-based compile-time metadata"
+    - "Static verification with dynamic fallback"
+    - "Refinement types for dependent typing"
+
+---
+# End of Comprehensive Reference Index
