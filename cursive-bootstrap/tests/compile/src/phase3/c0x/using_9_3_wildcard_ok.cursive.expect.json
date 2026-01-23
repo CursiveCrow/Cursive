@@ -1,0 +1,29 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\c0x\\using_9_3_wildcard_ok.cursive",
+        "start_line": 3,
+        "start_col": 25,
+        "end_line": 3,
+        "end_col": 26
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\c0x\\using_9_3_wildcard_ok.cursive",
+        "start_line": 3,
+        "start_col": 25,
+        "end_line": 3,
+        "end_col": 26
+      }
+    }
+  ],
+  "exit_code": 1
+}

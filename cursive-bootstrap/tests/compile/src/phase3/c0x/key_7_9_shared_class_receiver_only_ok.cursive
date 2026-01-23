@@ -6,15 +6,14 @@ class Readable {
   procedure read(~) -> i32
 }
 
-record MyReader { value: i32 }
-
-MyReader <: Readable {
+record MyReader <: Readable {
+  value: i32
   procedure read(~) -> i32 {
     return self.value
   }
 }
 
-public procedure main(ctx: Context) -> i32 {
+public procedure main(move ctx: Context) -> i32 {
   var r: shared $Readable = MyReader { value: 42 } as shared $Readable
   return r ~> read()
 }

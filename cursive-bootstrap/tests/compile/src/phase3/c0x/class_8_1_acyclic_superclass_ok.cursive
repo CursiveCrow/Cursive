@@ -2,15 +2,21 @@
 # SPEC_COV: ClassDecl-Acyclic
 // §8.1: Superclass bounds MUST be acyclic.
 
-class Base { procedure base_method(~) -> i32 }
-class Derived <: Base { procedure derived_method(~) -> i32 }
+class Base {
+  procedure base_method(~) -> i32
+}
 
-record MyType { value: i32 }
+class Derived <: Base {
+  procedure derived_method(~) -> i32
+}
 
-MyType <: Base { procedure base_method(~) -> i32 { return self.value } }
-MyType <: Derived { procedure derived_method(~) -> i32 { return self.value * 2 } }
+record MyType <: Base, Derived {
+  value: i32
+  procedure base_method(~) -> i32 { return self.value }
+  procedure derived_method(~) -> i32 { return self.value * 2 }
+}
 
-public procedure main(ctx: Context) -> i32 {
+public procedure main(move ctx: Context) -> i32 {
   var m: MyType = MyType { value: 21 }
   return m ~> base_method() + m ~> derived_method()
 }

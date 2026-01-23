@@ -6,13 +6,12 @@ class WithDefault {
   procedure value(~) -> i32 { return 0 }
 }
 
-record Custom { v: i32 }
-
-Custom <: WithDefault {
+record Custom <: WithDefault {
+  v: i32
   override procedure value(~) -> i32 { return self.v }
 }
 
-public procedure main(ctx: Context) -> i32 {
+public procedure main(move ctx: Context) -> i32 {
   var c: Custom = Custom { v: 42 }
   return c ~> value()
 }

@@ -7,15 +7,14 @@ class Mutable {
   procedure mutate(~!)
 }
 
-record MyMutable { value: i32 }
-
-MyMutable <: Mutable {
+record MyMutable <: Mutable {
+  value: i32
   procedure mutate(~!) {
     self.value = self.value + 1
   }
 }
 
-public procedure main(ctx: Context) -> i32 {
+public procedure main(move ctx: Context) -> i32 {
   // Cannot have shared $Mutable because mutate requires ~!
   var m: shared $Mutable = MyMutable { value: 42 } as shared $Mutable
   return 0

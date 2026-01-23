@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-TYP-2501",
+      "severity": "error",
+      "message": "`override` used on abstract procedure implementation",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\c0x\\class_8_3_override_abstract_err.cursive",
+        "start_line": 11,
+        "start_col": 3,
+        "end_line": 11,
+        "end_col": 60
+      }
+    }
+  ],
+  "exit_code": 1
+}

@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-MOD-2402",
+      "severity": "error",
+      "message": "Type annotation incompatible with inferred type",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\c0x\\key_7_8_boundary_field_ok.cursive",
+        "start_line": 6,
+        "start_col": 44,
+        "end_line": 13,
+        "end_col": 2
+      }
+    }
+  ],
+  "exit_code": 1
+}

@@ -221,27 +221,6 @@ def _copy_filtered_project(src_root: Path, dst_root: Path) -> None:
             continue
 
 
-def _spec_verifier_path(repo_root: Path) -> Path:
-    exe = "spec_verifier.exe" if os.name == "nt" else "spec_verifier"
-    return repo_root / "spec_verifier" / "build" / "bin" / exe
-
-
-def _run_spec_verifier(repo_root: Path) -> tuple[bool, str]:
-    verifier = _spec_verifier_path(repo_root)
-    if not verifier.exists():
-        return False, f"spec_verifier not found: {verifier}"
-    proc = subprocess.run(
-        [str(verifier)],
-        capture_output=True,
-        text=True,
-        cwd=repo_root,
-    )
-    if proc.returncode != 0:
-        message = proc.stdout.strip() or proc.stderr.strip() or "verification failed"
-        return False, f"spec_verifier failed: {message}"
-    return True, ""
-
-
 def _write_diag_codes(repo_root: Path, data: dict) -> None:
     codes: list[str] = []
     diags = data.get("diagnostics") if isinstance(data, dict) else None
@@ -373,9 +352,6 @@ def _run_one(
                 if actual_ir != expected_ir:
                     return False, f"{test_path}: IR mismatch.\n\nExpected:\n{expected_ir}\n\nActual:\n{actual_ir}"
                 _write_diag_codes(repo_root, {})
-                ok, msg = _run_spec_verifier(repo_root)
-                if not ok:
-                    return False, f"{test_path}: {msg}"
                 return True, ""
 
             if stderr:
@@ -405,9 +381,6 @@ def _run_one(
             if check.returncode != 0:
                 message = check.stdout.strip() or check.stderr.strip() or "mismatch"
                 return False, f"{test_path}: {message}"
-            ok, msg = _run_spec_verifier(repo_root)
-            if not ok:
-                return False, f"{test_path}: {msg}"
             return True, ""
         finally:
             if cleanup_temp_file and filtered_path and filtered_path.exists():

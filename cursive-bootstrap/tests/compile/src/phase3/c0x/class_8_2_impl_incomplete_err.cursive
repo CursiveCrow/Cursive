@@ -8,13 +8,12 @@ class WithTwoMethods {
   procedure method_b(~) -> i32
 }
 
-record PartialImpl { value: i32 }
-
-PartialImpl <: WithTwoMethods {
+record PartialImpl <: WithTwoMethods {
+  value: i32
   // Missing method_b
   procedure method_a(~) -> i32 { return self.value }
 }
 
-public procedure main(ctx: Context) -> i32 {
+public procedure main(move ctx: Context) -> i32 {
   return 0
 }

@@ -52,32 +52,32 @@ Use for runtime behavior validated by the spec verifier (interpreter is debug-on
 
 Tests in `compile/src/phase3/` are organized into semantic categories:
 
-| Category | Description |
-|----------|-------------|
-| `arrays_slices/` | Array and slice type tests |
-| `builtins/` | String, bytes, and builtin function tests |
-| `capabilities/` | Capability system (heap, filesystem, context) tests |
-| `classes/` | Class definition, linearization, and member tests |
-| `conformance/` | Language conformance and reserved name tests |
-| `declarations/` | Declaration typing, visibility, and return tests |
-| `drop/` | Drop trait and destructor tests |
-| `dynamic/` | Dynamic dispatch tests |
-| `enums/` | Enum and discriminant tests |
-| `implementations/` | Class implementation tests |
-| `memory/` | Pointers, regions, provenance, transmute tests |
-| `methods/` | Method lookup and receiver permission tests |
-| `modals/` | Modal type state, transitions, and widening tests |
-| `module/` | Module resolution, visibility, and using tests |
-| `ownership/` | Binding state, move semantics, bitcopy tests |
-| `patterns/` | Pattern matching tests |
-| `permissions/` | Const/unique permission tests |
-| `records/` | Record type and method tests |
-| `regression/` | Regression tests for fixed bugs |
-| `resolve/` | Name resolution tests |
-| `semantics/` | General semantic analysis tests |
-| `types/` | Type checking, bounds, equivalence, inference tests |
-| `unsupported/` | Tests for unsupported C0 constructs |
-| `unwind/` | Unwind/panic tests |
+| Category           | Description                                         |
+| ------------------ | --------------------------------------------------- |
+| `arrays_slices/`   | Array and slice type tests                          |
+| `builtins/`        | String, bytes, and builtin function tests           |
+| `capabilities/`    | Capability system (heap, filesystem, context) tests |
+| `classes/`         | Class definition, linearization, and member tests   |
+| `conformance/`     | Language conformance and reserved name tests        |
+| `declarations/`    | Declaration typing, visibility, and return tests    |
+| `drop/`            | Drop trait and destructor tests                     |
+| `dynamic/`         | Dynamic dispatch tests                              |
+| `enums/`           | Enum and discriminant tests                         |
+| `implementations/` | Class implementation tests                          |
+| `memory/`          | Pointers, regions, provenance, transmute tests      |
+| `methods/`         | Method lookup and receiver permission tests         |
+| `modals/`          | Modal type state, transitions, and widening tests   |
+| `module/`          | Module resolution, visibility, and using tests      |
+| `ownership/`       | Binding state, move semantics, bitcopy tests        |
+| `patterns/`        | Pattern matching tests                              |
+| `permissions/`     | Const/unique permission tests                       |
+| `records/`         | Record type and method tests                        |
+| `regression/`      | Regression tests for fixed bugs                     |
+| `resolve/`         | Name resolution tests                               |
+| `semantics/`       | General semantic analysis tests                     |
+| `types/`           | Type checking, bounds, equivalence, inference tests |
+| `unsupported/`     | Tests for unsupported C0 constructs                 |
+| `unwind/`          | Unwind/panic tests                                  |
 
 ## Naming Conventions
 

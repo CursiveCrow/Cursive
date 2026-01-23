@@ -7,14 +7,13 @@ class Container<T> where T <: Bitcopy {
   procedure set(~!, value: T)
 }
 
-record MyContainer { value: i32 }
-
-MyContainer <: Container<i32> {
+record MyContainer <: Container<i32> {
+  value: i32
   procedure get(~) -> i32 { return self.value }
   procedure set(~!, value: i32) { self.value = value }
 }
 
-public procedure main(ctx: Context) -> i32 {
+public procedure main(move ctx: Context) -> i32 {
   var c: MyContainer = MyContainer { value: 42 }
   return c ~> get()
 }

@@ -6,14 +6,13 @@ class LocalClass {
   procedure method(~) -> i32
 }
 
-record LocalType { value: i32 }
-
-// Both LocalClass and LocalType are local, coherence satisfied
-LocalType <: LocalClass {
+record LocalType <: LocalClass {
+  value: i32
+  // Both LocalClass and LocalType are local, coherence satisfied
   procedure method(~) -> i32 { return self.value }
 }
 
-public procedure main(ctx: Context) -> i32 {
+public procedure main(move ctx: Context) -> i32 {
   var t: LocalType = LocalType { value: 42 }
   return t ~> method()
 }

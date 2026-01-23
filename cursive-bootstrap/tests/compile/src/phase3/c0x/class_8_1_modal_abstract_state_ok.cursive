@@ -11,16 +11,13 @@ modal class Lifecycle {
   procedure stop(~!)
 }
 
-modal MyService {
+modal MyService <: Lifecycle {
   @Idle { }
   @Active { data: i32 }
-}
-
-MyService <: Lifecycle {
   procedure start(~!) { }
   procedure stop(~!) { }
 }
 
-public procedure main(ctx: Context) -> i32 {
+public procedure main(move ctx: Context) -> i32 {
   return 0
 }

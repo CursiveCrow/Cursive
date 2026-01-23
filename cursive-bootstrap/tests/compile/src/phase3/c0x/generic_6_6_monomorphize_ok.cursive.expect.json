@@ -1,0 +1,29 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-SRC-0510",
+      "severity": "error",
+      "message": "Missing statement terminator",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\c0x\\generic_6_6_monomorphize_ok.cursive",
+        "start_line": 10,
+        "start_col": 50,
+        "end_line": 10,
+        "end_col": 51
+      }
+    },
+    {
+      "code": "E-SRC-0510",
+      "severity": "error",
+      "message": "Missing statement terminator",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\c0x\\generic_6_6_monomorphize_ok.cursive",
+        "start_line": 11,
+        "start_col": 52,
+        "end_line": 11,
+        "end_col": 53
+      }
+    }
+  ],
+  "exit_code": 1
+}

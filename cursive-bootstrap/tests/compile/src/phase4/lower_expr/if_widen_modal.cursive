@@ -6,7 +6,7 @@
 
 modal Status {
   @Idle { ticks: i32 }
-  @Busy { code: i32 retries: i32 }
+  @Busy { code: i32; retries: i32 }
 }
 
 public procedure main(ctx: Context) -> i32 {

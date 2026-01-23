@@ -7,13 +7,12 @@ class Abstract {
   procedure method(~) -> i32
 }
 
-record BadOverride { value: i32 }
-
-BadOverride <: Abstract {
+record BadOverride <: Abstract {
+  value: i32
   // Cannot use override for abstract method
   override procedure method(~) -> i32 { return self.value }
 }
 
-public procedure main(ctx: Context) -> i32 {
+public procedure main(move ctx: Context) -> i32 {
   return 0
 }

@@ -9,10 +9,10 @@
 using foreign::ForeignClass
 using foreign::ForeignType
 
-ForeignType <: ForeignClass {
+record ForeignTypeImpl <: ForeignClass {
   procedure method(~) -> i32 { return 0 }
 }
 
-public procedure main(ctx: Context) -> i32 {
+public procedure main(move ctx: Context) -> i32 {
   return 0
 }

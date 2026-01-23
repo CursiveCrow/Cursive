@@ -7,13 +7,12 @@ class WithDefault {
   procedure value(~) -> i32 { return 0 }
 }
 
-record MissingOverride { v: i32 }
-
-MissingOverride <: WithDefault {
+record MissingOverride <: WithDefault {
+  v: i32
   // Missing override keyword
   procedure value(~) -> i32 { return self.v }
 }
 
-public procedure main(ctx: Context) -> i32 {
+public procedure main(move ctx: Context) -> i32 {
   return 0
 }

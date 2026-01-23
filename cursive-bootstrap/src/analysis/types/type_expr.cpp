@@ -1049,13 +1049,24 @@ ExprTypeResult TypeFieldAccessExprImpl(const ScopeContext& ctx,
   SpecDefsTypeExpr();
   ExprTypeResult result;
 
-  const auto base_result = TypeExpr(ctx, type_ctx, expr.base, env);
-  if (!base_result.ok) {
-    result.diag_id = base_result.diag_id;
-    return result;
+  // Field access uses place typing for the base expression, since accessing
+  // a field doesn't consume the base - it just reads through it. This allows
+  // field access on non-Bitcopy types (e.g., self.field in methods).
+  const auto place_result = TypePlace(ctx, type_ctx, expr.base, env);
+  TypeRef base_type;
+  if (place_result.ok) {
+    base_type = place_result.type;
+  } else {
+    // Fall back to value typing for non-place expressions
+    const auto base_result = TypeExpr(ctx, type_ctx, expr.base, env);
+    if (!base_result.ok) {
+      result.diag_id = base_result.diag_id;
+      return result;
+    }
+    base_type = base_result.type;
   }
 
-  const auto stripped = StripPerm(base_result.type);
+  const auto stripped = StripPerm(base_type);
   if (!stripped) {
     return result;
   }
@@ -1088,7 +1099,7 @@ ExprTypeResult TypeFieldAccessExprImpl(const ScopeContext& ctx,
       return result;
     }
     TypeRef field_type = lowered.type;
-    if (const auto* perm_type = std::get_if<TypePerm>(&base_result.type->node)) {
+    if (const auto* perm_type = std::get_if<TypePerm>(&base_type->node)) {
       field_type = MakeTypePerm(perm_type->perm, field_type);
       if (BitcopyType(ctx, field_type)) {
         SPEC_RULE("T-Modal-Field-Perm");
@@ -1154,7 +1165,7 @@ ExprTypeResult TypeFieldAccessExprImpl(const ScopeContext& ctx,
 
   TypeRef field_type = *field_type_opt;
 
-  if (const auto* perm_type = std::get_if<TypePerm>(&base_result.type->node)) {
+  if (const auto* perm_type = std::get_if<TypePerm>(&base_type->node)) {
     field_type = MakeTypePerm(perm_type->perm, field_type);
     if (BitcopyType(ctx, field_type)) {
       SPEC_RULE("T-Field-Record-Perm");

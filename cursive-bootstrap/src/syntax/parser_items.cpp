@@ -1240,16 +1240,26 @@ ParseElemResult<StateMember> ParseStateMember(Parser parser) {
     Advance(name.parser);
   }
   ParseElemResult<std::shared_ptr<Type>> ty = ParseType(name.parser);
+  Parser after_type = ty.parser;
+  // Consume optional terminator (semicolon or newline)
+  const Token* tok = Tok(after_type);
+  if (tok && (tok->kind == TokenKind::Newline || (tok->kind == TokenKind::Punctuator && tok->lexeme == ";"))) {
+    Advance(after_type);
+  }
   StateFieldDecl field;
   field.vis = vis.elem;
   field.name = name.elem;
   field.type = ty.elem;
-  field.span = SpanBetween(parser, ty.parser);
+  field.span = SpanBetween(parser, after_type);
   field.doc_opt = std::nullopt;
-  return {ty.parser, field};
+  return {after_type, field};
 }
 
 ParseElemResult<std::vector<StateMember>> ParseStateMemberList(Parser parser) {
+  // Skip leading newlines
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-StateMemberList-End");
     return {parser, {}};
@@ -1258,6 +1268,11 @@ ParseElemResult<std::vector<StateMember>> ParseStateMemberList(Parser parser) {
   std::vector<StateMember> members;
   Parser cur = parser;
   while (!IsPunc(cur, "}")) {
+    // Skip newlines between members
+    while (Tok(cur) && Tok(cur)->kind == TokenKind::Newline) {
+      Advance(cur);
+    }
+    if (IsPunc(cur, "}")) break;
     if (IsPunc(cur, ",")) {
       EmitParseSyntaxErr(cur, TokSpan(cur));
       Advance(cur);
@@ -1267,6 +1282,10 @@ ParseElemResult<std::vector<StateMember>> ParseStateMemberList(Parser parser) {
     ParseElemResult<StateMember> mem = ParseStateMember(cur);
     members.push_back(mem.elem);
     cur = mem.parser;
+    // Skip newlines after member
+    while (Tok(cur) && Tok(cur)->kind == TokenKind::Newline) {
+      Advance(cur);
+    }
     if (cur.tokens == before.tokens && cur.index == before.index) {
       EmitParseSyntaxErr(cur, TokSpan(cur));
       cur = AdvanceOrEOF(cur);
@@ -1310,6 +1329,10 @@ ParseElemResult<StateBlock> ParseStateBlock(Parser parser) {
 }
 
 ParseElemResult<std::vector<StateBlock>> ParseStateBlockList(Parser parser) {
+  // Skip leading newlines
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-StateBlockList-Empty");
     return {parser, {}};
@@ -1319,10 +1342,18 @@ ParseElemResult<std::vector<StateBlock>> ParseStateBlockList(Parser parser) {
   std::vector<StateBlock> blocks;
   blocks.push_back(block.elem);
   Parser cur = block.parser;
+  // Skip newlines between state blocks
+  while (Tok(cur) && Tok(cur)->kind == TokenKind::Newline) {
+    Advance(cur);
+  }
   while (!IsPunc(cur, "}")) {
     ParseElemResult<StateBlock> next = ParseStateBlock(cur);
     blocks.push_back(next.elem);
     cur = next.parser;
+    // Skip newlines after state block
+    while (Tok(cur) && Tok(cur)->kind == TokenKind::Newline) {
+      Advance(cur);
+    }
   }
   return {cur, blocks};
 }
@@ -1419,6 +1450,10 @@ ParseElemResult<ClassItem> ParseClassItem(Parser parser) {
 }
 
 ParseElemResult<std::vector<ClassItem>> ParseClassItemList(Parser parser) {
+  // Skip leading newlines
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-ClassItemList-End");
     return {parser, {}};
@@ -1428,10 +1463,18 @@ ParseElemResult<std::vector<ClassItem>> ParseClassItemList(Parser parser) {
   std::vector<ClassItem> items;
   items.push_back(item.elem);
   Parser cur = item.parser;
+  // Skip newlines between items
+  while (Tok(cur) && Tok(cur)->kind == TokenKind::Newline) {
+    Advance(cur);
+  }
   while (!IsPunc(cur, "}")) {
     ParseElemResult<ClassItem> next = ParseClassItem(cur);
     items.push_back(next.elem);
     cur = next.parser;
+    // Skip newlines between items
+    while (Tok(cur) && Tok(cur)->kind == TokenKind::Newline) {
+      Advance(cur);
+    }
   }
   return {cur, items};
 }
@@ -1448,6 +1491,10 @@ ParseElemResult<std::vector<ClassItem>> ParseClassBody(Parser parser) {
   }
   Parser next = parser;
   Advance(next);
+  // Skip newlines after opening brace
+  while (Tok(next) && Tok(next)->kind == TokenKind::Newline) {
+    Advance(next);
+  }
   ParseElemResult<std::vector<ClassItem>> items = ParseClassItemList(next);
   if (!IsPunc(items.parser, "}")) {
     EmitParseSyntaxErr(items.parser, TokSpan(items.parser));

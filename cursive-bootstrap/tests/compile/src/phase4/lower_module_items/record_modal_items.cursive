@@ -6,8 +6,8 @@
 # SPEC_COV: CG-Item-Enum
 
 record Point {
-  x: i32,
-  procedure len(~) -> i32 { return 0; }
+  x: i32
+  procedure len(~) -> i32 { return 0 }
 }
 
 enum Color { Red }
