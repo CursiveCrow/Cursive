@@ -1,0 +1,14 @@
+# SPEC_COV: C0X-Dispatch-Basic
+# SPEC_COV: T-Dispatch
+// Tests basic dispatch syntax and typing (§2.7.4, §18.5.1)
+// Expected: no diagnostics
+
+public procedure main(ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+  parallel domain {
+    dispatch i in 0..100 {
+      // Parallel iteration
+    }
+  }
+  return 0
+}

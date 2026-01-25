@@ -1,0 +1,9 @@
+# SPEC_COV: T-Assign
+// Assignment through pointer dereference
+
+public procedure main(ctx: Context) -> i32 {
+  var x: i32 = 10
+  let p: Ptr<unique i32>@Valid = &x
+  *p = 20
+  return x
+}

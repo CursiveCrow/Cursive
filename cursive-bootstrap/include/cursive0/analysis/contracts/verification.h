@@ -33,6 +33,9 @@ struct StaticProofResult {
   std::string explanation;  // For diagnostic
 };
 
+// Structural equality of expressions (syntax-only)
+bool ExprStructEqual(const syntax::ExprPtr& a, const syntax::ExprPtr& b);
+
 // StaticProof(Γ_S, P): decidable predicate provability
 StaticProofResult StaticProof(
     const StaticProofContext& ctx,

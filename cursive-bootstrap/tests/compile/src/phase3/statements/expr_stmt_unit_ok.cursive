@@ -1,0 +1,7 @@
+# SPEC_COV: T-ExprStmt
+// Unit expression statement
+
+public procedure main(ctx: Context) -> i32 {
+  ();
+  return 0
+}

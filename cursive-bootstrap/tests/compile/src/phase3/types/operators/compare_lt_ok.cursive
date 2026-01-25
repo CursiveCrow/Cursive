@@ -1,0 +1,10 @@
+# SPEC_COV: T-Compare
+# SPEC_COV: T-Lt
+// Less-than comparison operator
+
+public procedure main(ctx: Context) -> i32 {
+  let a: i32 = 10;
+  let b: i32 = 20;
+  let c: bool = a < b;
+  return 0;
+}

@@ -88,6 +88,8 @@ static TypeRef SubstSelfType(const TypeRef& self, const TypeRef& type) {
           return MakeTypePtr(SubstSelfType(self, node.element), node.state);
         } else if constexpr (std::is_same_v<T, TypeRawPtr>) {
           return MakeTypeRawPtr(node.qual, SubstSelfType(self, node.element));
+        } else if constexpr (std::is_same_v<T, TypeRefine>) {
+          return MakeTypeRefine(SubstSelfType(self, node.base), node.predicate);
         } else {
           return type;
         }
@@ -118,7 +120,10 @@ static TypeRef StripPerm(const TypeRef& type) {
     return type;
   }
   if (const auto* perm = std::get_if<TypePerm>(&type->node)) {
-    return perm->base;
+    return StripPerm(perm->base);
+  }
+  if (const auto* refine = std::get_if<TypeRefine>(&type->node)) {
+    return StripPerm(refine->base);
   }
   return type;
 }
@@ -459,7 +464,17 @@ StaticMethodLookup LookupMethodStatic(const ScopeContext& ctx,
     return result;
   }
 
-  const auto* path_type = std::get_if<TypePathType>(&base->node);
+  TypeRef lookup_base = base;
+  if (const auto* opaque = std::get_if<TypeOpaque>(&base->node)) {
+    if (opaque->origin) {
+      const auto it = ctx.sigma.opaque_underlying.find(opaque->origin);
+      if (it != ctx.sigma.opaque_underlying.end()) {
+        lookup_base = it->second;
+      }
+    }
+  }
+
+  const auto* path_type = std::get_if<TypePathType>(&lookup_base->node);
   const syntax::RecordDecl* record = nullptr;
   std::vector<syntax::ClassPath> implements;
   if (path_type) {

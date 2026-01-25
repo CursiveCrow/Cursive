@@ -1,0 +1,34 @@
+// Tests cancellation cleanup behavior (§18.6.2)
+// Work checks and returns early, iteration completes immediately
+
+public procedure main(ctx: Context) -> i32 {
+  let domain = ctx~>inline()  // Inline for deterministic behavior
+  let token: CancelToken@Active = CancelToken::new()
+
+  parallel domain [cancel: token] {
+    let _ = wait spawn {
+      // First task requests cancellation
+      token~>cancel()
+    }
+
+    let _ = wait spawn {
+      // Second task checks and exits early
+      if token~>is_cancelled() {
+        let msg = "early_exit"
+        let _ = match ctx.fs~>write_stdout(msg) {
+          ok: () => ()
+          err: IoError => ()
+        }
+      } else {
+        let msg = "full_run"
+        let _ = match ctx.fs~>write_stdout(msg) {
+          ok: () => ()
+          err: IoError => ()
+        }
+      }
+      ()
+    }
+  }
+
+  return 0i32
+}

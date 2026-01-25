@@ -1,17 +1,65 @@
 {
-    "diagnostics":  [
-                        {
-                            "code":  "E-TYP-1921",
-                            "severity":  "error",
-                            "message":  "Enum discriminant literal is invalid",
-                            "span":  {
-                                         "file":  "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\enums\\enum_disc_invalid_err.cursive",
-                                         "start_line":  6,
-                                         "start_col":  7,
-                                         "end_line":  6,
-                                         "end_col":  27
-                                     }
-                        }
-                    ],
-    "exit_code":  1
+  "diagnostics": [
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\enums\\enum_disc_invalid_err.cursive",
+        "start_line": 5,
+        "start_col": 9,
+        "end_line": 6,
+        "end_col": 1
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\enums\\enum_disc_invalid_err.cursive",
+        "start_line": 5,
+        "start_col": 9,
+        "end_line": 6,
+        "end_col": 1
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\enums\\enum_disc_invalid_err.cursive",
+        "start_line": 5,
+        "start_col": 9,
+        "end_line": 6,
+        "end_col": 1
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\enums\\enum_disc_invalid_err.cursive",
+        "start_line": 6,
+        "start_col": 3,
+        "end_line": 6,
+        "end_col": 4
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\enums\\enum_disc_invalid_err.cursive",
+        "start_line": 7,
+        "start_col": 1,
+        "end_line": 7,
+        "end_col": 2
+      }
+    }
+  ],
+  "exit_code": 1
 }

@@ -17,6 +17,6 @@ procedure Counter::read_value(~) -> i32 {
 
 public procedure main(ctx: Context) -> i32 {
   var c: Counter = Counter { value: 10 }
-  var result: i32 = c ~> read_value()
-  return result
+  var res: i32 = c ~> read_value()
+  return res
 }

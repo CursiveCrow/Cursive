@@ -1,0 +1,5 @@
+[assembly]
+name = "concurrency_test"
+kind = "executable"
+root = "src"
+emit_ir = "ll"

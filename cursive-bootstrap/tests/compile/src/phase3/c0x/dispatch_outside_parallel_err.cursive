@@ -1,0 +1,11 @@
+# SPEC_COV: C0X-Dispatch-Context-Check
+# SPEC_COV: E-CON-0140
+// Tests that dispatch requires enclosing parallel block (§18.5.1)
+// Expected diagnostic: E-CON-0140
+
+public procedure main(ctx: Context) -> i32 {
+  // Error: dispatch without enclosing parallel block
+  dispatch i in 0..100 {
+  }
+  return 0
+}

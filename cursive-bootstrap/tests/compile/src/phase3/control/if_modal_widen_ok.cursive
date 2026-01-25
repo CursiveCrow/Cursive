@@ -1,0 +1,8 @@
+# SPEC_COV: T-If
+// If expression with different branch types
+
+public procedure main(ctx: Context) -> i32 {
+  let cond: bool = true
+  let x: i32 | bool = if cond { 42 } else { false }
+  return 0
+}

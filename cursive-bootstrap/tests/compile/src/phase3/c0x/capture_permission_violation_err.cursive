@@ -1,0 +1,20 @@
+# SPEC_COV: C0X-Capture-Permission-Violation
+# SPEC_COV: E-CON-0103
+// Tests captured binding violates permission requirements (§18.1.1, §18.3)
+// Expected diagnostic: E-CON-0103
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  let domain = ctx~>cpu()
+  // Raw pointer - not allowed in capture
+  var value: i32 = 42
+  let raw_ptr: *mut i32 = &value as *mut i32
+  parallel domain {
+    // Error: raw pointer capture violates permission requirements
+    let h = spawn {
+      return *raw_ptr
+    }
+  }
+  return 0
+}

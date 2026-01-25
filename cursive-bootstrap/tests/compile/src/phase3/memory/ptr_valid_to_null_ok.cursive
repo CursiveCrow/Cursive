@@ -1,0 +1,9 @@
+# SPEC_COV: T-Ptr-State
+// Valid to null state union
+
+public procedure main(ctx: Context) -> i32 {
+  var x: i32 = 42
+  let valid_p: Ptr<i32>@Valid = &x
+  let nullable: Ptr<i32>@Valid | Ptr<i32>@Null = valid_p
+  return 0
+}

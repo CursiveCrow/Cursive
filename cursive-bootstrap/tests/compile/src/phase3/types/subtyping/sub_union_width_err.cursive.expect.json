@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-UNS-0107",
+      "severity": "error",
+      "message": "Non-`Bitcopy` place expression used as value",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\types\\subtyping\\sub_union_width_err.cursive",
+        "start_line": 3,
+        "start_col": 44,
+        "end_line": 7,
+        "end_col": 2
+      }
+    }
+  ],
+  "exit_code": 1
+}

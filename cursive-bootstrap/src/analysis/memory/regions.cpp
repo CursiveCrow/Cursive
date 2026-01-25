@@ -126,6 +126,9 @@ static TypeRef StripPermOnce(const TypeRef& type) {
   if (const auto* perm = std::get_if<TypePerm>(&type->node)) {
     return perm->base;
   }
+  if (const auto* refine = std::get_if<TypeRefine>(&type->node)) {
+    return refine->base;
+  }
   return type;
 }
 
@@ -296,9 +299,28 @@ static TypeLowerResult LowerType(const ScopeContext& ctx,
                   MakeTypeBytes(LowerBytesState(node.state))};
         } else if constexpr (std::is_same_v<T, syntax::TypeDynamic>) {
           return {true, std::nullopt, MakeTypeDynamic(node.path)};
-        } else if constexpr (std::is_same_v<T, syntax::TypeModalState>) {
+        } else if constexpr (std::is_same_v<T, syntax::TypeOpaque>) {
           return {true, std::nullopt,
-                  MakeTypeModalState(node.path, node.state)};
+                  MakeTypeOpaque(node.path, type.get(), type->span)};
+        } else if constexpr (std::is_same_v<T, syntax::TypeRefine>) {
+          const auto base = LowerType(ctx, node.base);
+          if (!base.ok) {
+            return base;
+          }
+          return {true, std::nullopt,
+                  MakeTypeRefine(base.type, node.predicate)};
+        } else if constexpr (std::is_same_v<T, syntax::TypeModalState>) {
+          std::vector<TypeRef> args;
+          args.reserve(node.generic_args.size());
+          for (const auto& arg : node.generic_args) {
+            const auto lowered = LowerType(ctx, arg);
+            if (!lowered.ok) {
+              return lowered;
+            }
+            args.push_back(lowered.type);
+          }
+          return {true, std::nullopt,
+                  MakeTypeModalState(node.path, node.state, std::move(args))};
         } else if constexpr (std::is_same_v<T, syntax::TypePathType>) {
           return {true, std::nullopt, MakeTypePath(node.path)};
         } else {
@@ -319,7 +341,16 @@ static TypeRef SubstSelfType(const TypeRef& self, const TypeRef& type) {
           if (node.path.size() == 1 && IdEq(node.path[0], "Self")) {
             return self;
           }
-          return MakeTypePath(node.path);
+          if (node.generic_args.empty()) {
+            return MakeTypePath(node.path);
+          }
+          TypePathType out = node;
+          out.generic_args.clear();
+          out.generic_args.reserve(node.generic_args.size());
+          for (const auto& arg : node.generic_args) {
+            out.generic_args.push_back(SubstSelfType(self, arg));
+          }
+          return MakeType(out);
         } else if constexpr (std::is_same_v<T, TypePerm>) {
           return MakeTypePerm(node.perm, SubstSelfType(self, node.base));
         } else if constexpr (std::is_same_v<T, TypeTuple>) {
@@ -352,6 +383,16 @@ static TypeRef SubstSelfType(const TypeRef& self, const TypeRef& type) {
           return MakeTypePtr(SubstSelfType(self, node.element), node.state);
         } else if constexpr (std::is_same_v<T, TypeRawPtr>) {
           return MakeTypeRawPtr(node.qual, SubstSelfType(self, node.element));
+        } else if constexpr (std::is_same_v<T, TypeRefine>) {
+          return MakeTypeRefine(SubstSelfType(self, node.base), node.predicate);
+        } else if constexpr (std::is_same_v<T, TypeModalState>) {
+          TypeModalState out = node;
+          out.generic_args.clear();
+          out.generic_args.reserve(node.generic_args.size());
+          for (const auto& arg : node.generic_args) {
+            out.generic_args.push_back(SubstSelfType(self, arg));
+          }
+          return MakeType(out);
         } else {
           return MakeType(type->node);
         }

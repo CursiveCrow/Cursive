@@ -12,6 +12,7 @@ C:\Dev\Cursive\cursive-bootstrap\src\analysis\resolve\visibility.cpp;C:\Dev\Curs
 C:\Dev\Cursive\cursive-bootstrap\src\analysis\types\types.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_analysis.dir\Release\types.obj
 C:\Dev\Cursive\cursive-bootstrap\src\analysis\types\type_expr.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_analysis.dir\Release\type_expr.obj
 C:\Dev\Cursive\cursive-bootstrap\src\analysis\types\type_stmt.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_analysis.dir\Release\type_stmt.obj
+C:\Dev\Cursive\cursive-bootstrap\src\analysis\types\type_concurrency.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_analysis.dir\Release\type_concurrency.obj
 C:\Dev\Cursive\cursive-bootstrap\src\analysis\types\type_pattern.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_analysis.dir\Release\type_pattern.obj
 C:\Dev\Cursive\cursive-bootstrap\src\analysis\types\type_decls.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_analysis.dir\Release\type_decls.obj
 C:\Dev\Cursive\cursive-bootstrap\src\analysis\types\type_equiv.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_analysis.dir\Release\type_equiv.obj
@@ -44,6 +45,7 @@ C:\Dev\Cursive\cursive-bootstrap\src\analysis\memory\init_planner.cpp;C:\Dev\Cur
 C:\Dev\Cursive\cursive-bootstrap\src\analysis\caps\cap_system.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_analysis.dir\Release\cap_system.obj
 C:\Dev\Cursive\cursive-bootstrap\src\analysis\caps\cap_heap.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_analysis.dir\Release\cap_heap.obj
 C:\Dev\Cursive\cursive-bootstrap\src\analysis\caps\cap_filesystem.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_analysis.dir\Release\cap_filesystem.obj
+C:\Dev\Cursive\cursive-bootstrap\src\analysis\caps\cap_concurrency.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_analysis.dir\Release\cap_concurrency.obj
 C:\Dev\Cursive\cursive-bootstrap\src\analysis\keys\key_context.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_analysis.dir\Release\key_context.obj
 C:\Dev\Cursive\cursive-bootstrap\src\analysis\keys\key_conflict.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_analysis.dir\Release\key_conflict.obj
 C:\Dev\Cursive\cursive-bootstrap\src\analysis\generics\monomorphize.cpp;C:\Dev\Cursive\cursive-bootstrap\build\cursive0_analysis.dir\Release\monomorphize.obj

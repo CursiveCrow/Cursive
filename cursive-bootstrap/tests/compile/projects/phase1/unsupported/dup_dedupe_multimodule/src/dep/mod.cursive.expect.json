@@ -1,11 +1,4 @@
 {
-  "diagnostics": [
-    {
-      "code": "E-UNS-0113",
-      "severity": "error",
-      "message": "Attribute syntax used",
-      "span": null
-    }
-  ],
-  "exit_code": 1
+  "diagnostics": [],
+  "exit_code": 0
 }

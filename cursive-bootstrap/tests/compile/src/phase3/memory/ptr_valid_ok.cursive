@@ -1,0 +1,8 @@
+# SPEC_COV: T-Ptr-State
+// Valid pointer creation and use
+
+public procedure main(ctx: Context) -> i32 {
+  var x: i32 = 42
+  let p: Ptr<unique i32>@Valid = &x
+  return *p
+}

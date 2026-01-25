@@ -1,0 +1,7 @@
+# SPEC_COV: T-If
+// Basic if-else expression
+
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = if true { 1 } else { 2 };
+  return x;
+}

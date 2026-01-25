@@ -1,0 +1,8 @@
+# SPEC_COV: Pat-Refutable
+# SPEC_COV: E-PAT-2761
+// E-PAT-2761: Refutable pattern in let
+
+public procedure main(ctx: Context) -> i32 {
+  let 0 = 42
+  return 0
+}

@@ -1,0 +1,11 @@
+# SPEC_COV: T-Break-Value
+# SPEC_COV: E-MOD-2402
+// E-MOD-2402: Mismatched break types
+
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = loop {
+    if true { break 42 }
+    break true
+  }
+  return x
+}

@@ -1,0 +1,9 @@
+# SPEC_COV: T-Region
+// Region with size options
+
+public procedure main(ctx: Context) -> i32 {
+  region {
+    let p = ^1
+    return *p
+  }
+}

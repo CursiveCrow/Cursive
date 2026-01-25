@@ -422,6 +422,12 @@ static __inline uint8_t* c0_wide_to_utf8(
 }
 
 // -----------------------------------------------------------------------------
+// Parallel panic integration (see parallel.c / panic.c)
+// -----------------------------------------------------------------------------
+int c0_parallel_in_panic_scope(void);
+void c0_parallel_raise_panic(uint32_t code);
+
+// -----------------------------------------------------------------------------
 // Size checks (Win64 expectations)
 // -----------------------------------------------------------------------------
 
@@ -432,8 +438,10 @@ _Static_assert(sizeof(C0BytesView) == 16, "bytes@View layout");
 _Static_assert(sizeof(C0BytesManaged) == 24, "bytes@Managed layout");
 _Static_assert(sizeof(C0DynObject) == 16, "dynamic object layout");
 _Static_assert(sizeof(C0Context) == 32, "Context layout");
+_Static_assert(sizeof(C0ExecutionDomain) == 16, "ExecutionDomain layout");
 _Static_assert(sizeof(C0StringModal) == 32, "string modal layout");
 _Static_assert(sizeof(C0RegionOptions) == 40, "RegionOptions layout");
+_Static_assert(sizeof(C0Range) == 24, "Range layout");
 _Static_assert(sizeof(C0AllocationError) == 16, "AllocationError layout");
 _Static_assert(sizeof(C0DirEntry) == 56, "DirEntry layout");
 _Static_assert(sizeof(C0Union_StringManaged_AllocError) == 32, "string|AllocError layout");

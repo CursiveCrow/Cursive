@@ -51,10 +51,11 @@ const std::vector<std::string_view>& UniverseProtectedNames() {
       "i8",     "i16",    "i32",    "i64",    "i128",   "u8",
       "u16",    "u32",    "u64",    "u128",   "f16",    "f32",
       "f64",    "bool",   "char",   "usize",  "isize",  "Self",
-      "Drop", "Bitcopy", "Clone",
-      "string", "bytes",  "Modal",  "Region", "RegionOptions",
-      "Context", "System", "Async", "Future", "Sequence", "Stream", "Pipe",
-      "Exchange"};
+      "Drop", "Bitcopy", "Clone", "Eq", "Hash", "Hasher", "Iterator", "Step",
+      "FfiSafe", "string", "bytes",  "Modal",  "Region", "RegionOptions",
+      "CancelToken", "Context", "System", "ExecutionDomain", "Reactor",
+      "CpuSet", "Priority", "Async", "Future", "Sequence", "Stream", "Pipe",
+      "Exchange", "FutureHandle"};
   return names;
 }
 
@@ -156,15 +157,18 @@ const std::vector<std::string_view>& PrimTypeNames() {
 const std::vector<std::string_view>& SpecialTypeNames() {
   SpecDefsNames();
   static const std::vector<std::string_view> names = {
-      "Self", "Drop", "Bitcopy", "Clone", "string", "bytes", "Modal",
-      "Region", "RegionOptions", "Context", "System"};
+      "Self", "Drop", "Bitcopy", "Clone", "Eq", "Hash", "Hasher", "Iterator",
+      "Step", "FfiSafe", "string", "bytes", "Modal", "Region",
+      "RegionOptions", "CancelToken", "Context", "System", "ExecutionDomain",
+      "CpuSet", "Priority", "Reactor"};
   return names;
 }
 
 const std::vector<std::string_view>& AsyncTypeNames() {
   SpecDefsNames();
   static const std::vector<std::string_view> names = {
-      "Async", "Future", "Sequence", "Stream", "Pipe", "Exchange"};
+      "Async", "Future", "Sequence", "Stream", "Pipe", "Exchange",
+      "FutureHandle"};
   return names;
 }
 

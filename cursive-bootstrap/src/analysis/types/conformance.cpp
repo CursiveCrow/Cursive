@@ -54,10 +54,11 @@ static inline void SpecDefsUnsupportedConstructs() {
   SPEC_DEF("ComptimeForm", "4");
 }
 
-static constexpr std::array<std::string_view, 30> kUnsupportedTokens = {
-    "derive", "extern", "attribute", "import", "opaque_type",
-    "refinement_type", "closure", "pipeline", "async", "parallel",
-    "dispatch", "spawn", "metaprogramming", "Network", "Reactor",
+// Note: parallel, dispatch, spawn are C0X extension features and are allowed
+static constexpr std::array<std::string_view, 26> kUnsupportedTokens = {
+    "derive", "extern", "attribute", "import",
+    "closure", "pipeline", "async",
+    "metaprogramming", "Network", "Reactor",
     "GPUFactory", "CPUFactory", "AsyncRuntime", "comptime",
     "key_system", "extern_block", "foreign_decl", "class_generics",
     "class_where_clause", "associated_type", "modal_class", "class_contract",

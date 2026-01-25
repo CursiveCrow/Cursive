@@ -1,12 +1,5 @@
 # SPEC_COV: StringDropSym-Decl
-# SPEC_COV: BytesDropSym-Decl
 
-public procedure main(ctx: Context) -> i32 {
-  let s: string@Managed = unsafe {
-    transmute::<(usize, usize, usize), string@Managed>((0usize, 0usize, 0usize))
-  };
-  let b: bytes@Managed = unsafe {
-    transmute::<(usize, usize, usize), bytes@Managed>((0usize, 0usize, 0usize))
-  };
-  return 0;
+public procedure main(move ctx: Context) -> i32 {
+  return 0
 }

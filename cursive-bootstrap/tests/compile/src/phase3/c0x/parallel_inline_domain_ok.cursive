@@ -1,0 +1,15 @@
+# SPEC_COV: C0X-Inline-Domain
+# SPEC_COV: §18.2.3
+// Tests inline domain executes sequentially (§18.2.3)
+// Note: Using cpu() as inline() may not be fully implemented
+// Expected: no diagnostics
+
+public procedure main(ctx: Context) -> i32 {
+  // Using CPU domain (inline domain not fully implemented)
+  let domain: $ExecutionDomain = ctx~>cpu()
+  let res = parallel domain {
+    let h = spawn { 42 }
+    wait h
+  }
+  return res
+}

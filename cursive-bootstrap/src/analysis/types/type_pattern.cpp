@@ -385,9 +385,28 @@ static TypeLowerResult LowerType(const ScopeContext& ctx,
           return {true, std::nullopt, MakeTypeBytes(LowerBytesState(node.state))};
         } else if constexpr (std::is_same_v<T, syntax::TypeDynamic>) {
           return {true, std::nullopt, MakeTypeDynamic(node.path)};
-        } else if constexpr (std::is_same_v<T, syntax::TypeModalState>) {
+        } else if constexpr (std::is_same_v<T, syntax::TypeOpaque>) {
           return {true, std::nullopt,
-                  MakeTypeModalState(node.path, node.state)};
+                  MakeTypeOpaque(node.path, type.get(), type->span)};
+        } else if constexpr (std::is_same_v<T, syntax::TypeRefine>) {
+          const auto base = LowerType(ctx, node.base);
+          if (!base.ok) {
+            return base;
+          }
+          return {true, std::nullopt,
+                  MakeTypeRefine(base.type, node.predicate)};
+        } else if constexpr (std::is_same_v<T, syntax::TypeModalState>) {
+          std::vector<TypeRef> args;
+          args.reserve(node.generic_args.size());
+          for (const auto& arg : node.generic_args) {
+            const auto lowered = LowerType(ctx, arg);
+            if (!lowered.ok) {
+              return lowered;
+            }
+            args.push_back(lowered.type);
+          }
+          return {true, std::nullopt,
+                  MakeTypeModalState(node.path, node.state, std::move(args))};
         } else if constexpr (std::is_same_v<T, syntax::TypePathType>) {
           return {true, std::nullopt, MakeTypePath(node.path)};
         } else {

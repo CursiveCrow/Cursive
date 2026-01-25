@@ -1,0 +1,9 @@
+# SPEC_COV: T-CompoundAssign
+# SPEC_COV: E-SEM-2551
+// E-SEM-2551: Compound assignment type mismatch
+
+public procedure main(ctx: Context) -> i32 {
+  var x: bool = true
+  x += 5
+  return 0
+}

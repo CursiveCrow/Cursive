@@ -131,6 +131,10 @@ bool UsingClauseBindsName(const syntax::UsingClause& clause,
             return false;
           }
           return NameMatches(key, node.path.back());
+        } else if constexpr (std::is_same_v<T, syntax::UsingWildcard>) {
+          // Wildcard binds all visible names from the module.
+          (void)node;
+          return true;
         } else {
           for (const auto& spec : node.specs) {
             if (spec.alias_opt) {
@@ -192,12 +196,19 @@ const syntax::ASTItem* FindDeclByName(const ScopeContext& ctx,
     return nullptr;
   }
   const auto key = IdKeyOf(name);
+  const syntax::ASTItem* using_fallback = nullptr;
   for (const auto& item : module->items) {
     if (ItemBindsName(item, key)) {
+      if (std::holds_alternative<syntax::UsingDecl>(item)) {
+        if (!using_fallback) {
+          using_fallback = &item;
+        }
+        continue;
+      }
       return &item;
     }
   }
-  return nullptr;
+  return using_fallback;
 }
 
 std::optional<core::Span> SpanOfItem(const syntax::ASTItem& item) {
@@ -394,16 +405,25 @@ void CheckExpr(const ScopeContext& ctx,
             CheckExpr(ctx, arm.body, diags);
           }
         } else if constexpr (std::is_same_v<T, syntax::LoopInfiniteExpr>) {
+          if (node.invariant_opt.has_value()) {
+            CheckExpr(ctx, node.invariant_opt->predicate, diags);
+          }
           if (node.body) {
             CheckBlock(ctx, *node.body, diags);
           }
         } else if constexpr (std::is_same_v<T, syntax::LoopConditionalExpr>) {
           CheckExpr(ctx, node.cond, diags);
+          if (node.invariant_opt.has_value()) {
+            CheckExpr(ctx, node.invariant_opt->predicate, diags);
+          }
           if (node.body) {
             CheckBlock(ctx, *node.body, diags);
           }
         } else if constexpr (std::is_same_v<T, syntax::LoopIterExpr>) {
           CheckExpr(ctx, node.iter, diags);
+          if (node.invariant_opt.has_value()) {
+            CheckExpr(ctx, node.invariant_opt->predicate, diags);
+          }
           if (node.body) {
             CheckBlock(ctx, *node.body, diags);
           }
@@ -432,6 +452,25 @@ void CheckExpr(const ScopeContext& ctx,
           CheckArgs(ctx, node.args, diags);
         } else if constexpr (std::is_same_v<T, syntax::PropagateExpr>) {
           CheckExpr(ctx, node.value, diags);
+        } else if constexpr (std::is_same_v<T, syntax::EntryExpr>) {
+          CheckExpr(ctx, node.expr, diags);
+        } else if constexpr (std::is_same_v<T, syntax::YieldExpr>) {
+          CheckExpr(ctx, node.value, diags);
+        } else if constexpr (std::is_same_v<T, syntax::YieldFromExpr>) {
+          CheckExpr(ctx, node.value, diags);
+        } else if constexpr (std::is_same_v<T, syntax::SyncExpr>) {
+          CheckExpr(ctx, node.value, diags);
+        } else if constexpr (std::is_same_v<T, syntax::RaceExpr>) {
+          for (const auto& arm : node.arms) {
+            CheckExpr(ctx, arm.expr, diags);
+            CheckExpr(ctx, arm.handler.value, diags);
+          }
+        } else if constexpr (std::is_same_v<T, syntax::AllExpr>) {
+          for (const auto& elem : node.exprs) {
+            CheckExpr(ctx, elem, diags);
+          }
+        } else if constexpr (std::is_same_v<T, syntax::ResultExpr>) {
+          return;
         } else {
           return;
         }
@@ -452,6 +491,9 @@ void CheckItem(const ScopeContext& ctx,
             CheckBlock(ctx, *node.body, diags);
           }
         } else if constexpr (std::is_same_v<T, syntax::RecordDecl>) {
+          if (node.invariant.has_value()) {
+            CheckExpr(ctx, node.invariant->predicate, diags);
+          }
           for (const auto& member : node.members) {
             if (const auto* field =
                     std::get_if<syntax::FieldDecl>(&member)) {
@@ -463,7 +505,14 @@ void CheckItem(const ScopeContext& ctx,
               }
             }
           }
+        } else if constexpr (std::is_same_v<T, syntax::EnumDecl>) {
+          if (node.invariant.has_value()) {
+            CheckExpr(ctx, node.invariant->predicate, diags);
+          }
         } else if constexpr (std::is_same_v<T, syntax::ModalDecl>) {
+          if (node.invariant.has_value()) {
+            CheckExpr(ctx, node.invariant->predicate, diags);
+          }
           for (const auto& state : node.states) {
             for (const auto& member : state.members) {
               if (const auto* method =
@@ -559,10 +608,26 @@ core::DiagnosticStream CheckModuleVisibility(const ScopeContext& ctx,
                                              const syntax::ASTModule& module) {
   SpecDefsVisibility();
   core::DiagnosticStream diags;
+  bool public_api = false;
+  for (const auto& item : module.items) {
+    const auto vis = VisOpt(item);
+    if (vis.has_value() && *vis == syntax::Visibility::Public) {
+      public_api = true;
+      break;
+    }
+  }
   for (const auto& item : module.items) {
     const auto vis = TopLevelVis(item);
     if (!vis.ok && vis.diag_id == "Protected-TopLevel-Err") {
       EmitDiag(diags, "E-MOD-2440", SpanOfItem(item));
+    }
+    if (public_api) {
+      if (const auto* using_decl = std::get_if<syntax::UsingDecl>(&item)) {
+        if (std::holds_alternative<syntax::UsingWildcard>(using_decl->clause)) {
+          SPEC_RULE("Using-Wildcard-Warn");
+          EmitDiag(diags, "W-MOD-1201", SpanOfItem(item));
+        }
+      }
     }
     CheckItem(ctx, item, diags);
   }

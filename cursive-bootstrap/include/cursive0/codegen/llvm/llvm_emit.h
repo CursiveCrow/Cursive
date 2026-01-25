@@ -135,6 +135,13 @@ public:
     return active_regions_.empty() ? nullptr : &active_regions_.back();
   }
 
+  // C0X Extension: Parallel context tracking for spawn/dispatch (§18)
+  void PushParallelContext(const IRValue& ctx) { parallel_contexts_.push_back(ctx); }
+  void PopParallelContext() { if (!parallel_contexts_.empty()) parallel_contexts_.pop_back(); }
+  const IRValue* CurrentParallelContext() const {
+    return parallel_contexts_.empty() ? nullptr : &parallel_contexts_.back();
+  }
+
   // T-LLVM-004: Checked Arithmetic (UB/Poison Avoidance)
   llvm::Value* EmitCheckedAdd(llvm::Value* lhs, llvm::Value* rhs, bool is_signed);
   llvm::Value* EmitCheckedSub(llvm::Value* lhs, llvm::Value* rhs, bool is_signed);
@@ -166,6 +173,7 @@ private:
   std::unordered_map<std::string, llvm::Value*> values_;
   std::unordered_map<std::string, std::string> symbol_aliases_;
   std::vector<IRValue> active_regions_;
+  std::vector<IRValue> parallel_contexts_;  // C0X Extension: §18 parallel context stack
 
 
   // Type cache

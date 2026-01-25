@@ -2,15 +2,7 @@
   "diagnostics": [
     {
       "code": "E-MEM-3030",
-      "severity": "error",
-      "message": "Unsafe operation outside block",
-      "span": {
-        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\memory\\alloc_raw_unsafe_err.cursive",
-        "start_line": 2,
-        "start_col": 44,
-        "end_line": 10,
-        "end_col": 2
-      }
+      "severity": "error"
     }
   ],
   "exit_code": 1

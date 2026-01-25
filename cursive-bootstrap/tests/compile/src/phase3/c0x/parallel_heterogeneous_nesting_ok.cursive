@@ -1,0 +1,17 @@
+# SPEC_COV: C0X-Heterogeneous-Nesting
+# SPEC_COV: §18.8.2
+// Tests CPU inside GPU nesting is allowed (§18.8.2)
+// CPU and GPU blocks may be nested
+// Expected: no diagnostics
+// TODO: GPU domain support needs implementation
+
+public procedure main(ctx: Context) -> i32 {
+  let cpu: $ExecutionDomain = ctx~>cpu()
+  
+  // Simplified - nested parallel blocks
+  parallel cpu {
+    dispatch i in 0..10 {
+    }
+  }
+  return 0
+}

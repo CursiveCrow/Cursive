@@ -6,6 +6,7 @@
 #include "cursive0/runtime/runtime_interface.h"
 #include "cursive0/analysis/caps/cap_filesystem.h"
 #include "cursive0/analysis/caps/cap_heap.h"
+#include "cursive0/analysis/caps/cap_concurrency.h"
 #include "cursive0/analysis/resolve/scopes.h"
 #include "cursive0/analysis/memory/string_bytes.h"
 #include "cursive0/analysis/types/types.h"
@@ -61,6 +62,11 @@ analysis::TypeRef TypePath(std::initializer_list<std::string> names) {
     path.push_back(name);
   }
   return analysis::MakeTypePath(std::move(path));
+}
+
+analysis::TypeRef TypePtrU8() {
+  return analysis::MakeTypePtr(analysis::MakeTypePrim("u8"),
+                               analysis::PtrState::Valid);
 }
 
 analysis::TypeRef TypeModalState(std::initializer_list<std::string> path,
@@ -446,6 +452,127 @@ void LLVMEmitter::DeclareRuntime() {
 
     declare_modal(analysis::BuildFileModalDecl());
     declare_modal(analysis::BuildDirIterModalDecl());
+    declare_modal(analysis::BuildCancelTokenModalDecl());
+  }
+
+  // Structured concurrency runtime
+  // Note: All parameters use Move mode to ensure ByValue ABI, matching the
+  // C function signatures in the runtime. Using nullopt would result in ByRef
+  // passing which doesn't match the C ABI.
+  {
+    std::vector<IRParam> params;
+    // domain is a 16-byte struct passed by invisible reference on x64 per C ABI
+    params.push_back(MakeParam("domain", analysis::ParamMode::Move,
+                               analysis::MakeTypeDynamic({"ExecutionDomain"})));
+    params.push_back(MakeParam("cancel_token", analysis::ParamMode::Move,
+                               TypePtrU8()));
+    params.push_back(MakeParam("name", analysis::ParamMode::Move,
+                               TypePtrU8()));
+    declare_fn("cursive0_parallel_begin", params, TypePtrU8(), false);
+  }
+  {
+    std::vector<IRParam> params;
+    params.push_back(MakeParam("ctx_ptr", analysis::ParamMode::Move, TypePtrU8()));
+    declare_fn("cursive0_parallel_join", params, TypePrim("i32"), false);
+  }
+  {
+    std::vector<IRParam> params;
+    params.push_back(MakeParam("env", analysis::ParamMode::Move, TypePtrU8()));
+    params.push_back(MakeParam("env_size", analysis::ParamMode::Move, TypePrim("usize")));
+    std::vector<analysis::TypeFuncParam> fn_params;
+    fn_params.push_back({std::nullopt, TypePtrU8()});
+    fn_params.push_back({std::nullopt, TypePtrU8()});
+    fn_params.push_back({std::nullopt, TypePtrU8()});
+    auto fn_ty = analysis::MakeTypeFunc(std::move(fn_params), TypePrim("()"));
+    params.push_back(MakeParam("body", analysis::ParamMode::Move, fn_ty));
+    params.push_back(MakeParam("result_size", analysis::ParamMode::Move, TypePrim("usize")));
+    declare_fn("cursive0_spawn_create", params, TypePtrU8(), false);
+  }
+  {
+    std::vector<IRParam> params;
+    params.push_back(MakeParam("handle_ptr", analysis::ParamMode::Move, TypePtrU8()));
+    declare_fn("cursive0_spawn_wait", params, TypePtrU8(), false);
+  }
+  {
+    std::vector<IRParam> params;
+    // Range is a 16-byte struct (start, end)
+    params.push_back(MakeParam("range", analysis::ParamMode::Move, analysis::MakeTypeRange()));
+    params.push_back(MakeParam("elem_size", analysis::ParamMode::Move, TypePrim("usize")));
+    params.push_back(MakeParam("result_size", analysis::ParamMode::Move, TypePrim("usize")));
+    std::vector<analysis::TypeFuncParam> fn_params;
+    fn_params.push_back({std::nullopt, TypePtrU8()});
+    fn_params.push_back({std::nullopt, TypePtrU8()});
+    fn_params.push_back({std::nullopt, TypePtrU8()});
+    fn_params.push_back({std::nullopt, TypePtrU8()});
+    auto fn_ty = analysis::MakeTypeFunc(std::move(fn_params), TypePrim("()"));
+    params.push_back(MakeParam("body", analysis::ParamMode::Move, fn_ty));
+    params.push_back(MakeParam("captured_env", analysis::ParamMode::Move, TypePtrU8()));
+    // reduce_op is a string@View (16 bytes) - but C expects const char*, so use ptr
+    params.push_back(MakeParam("reduce_op", analysis::ParamMode::Move, TypePtrU8()));
+    params.push_back(MakeParam("reduce_result", analysis::ParamMode::Move, TypePtrU8()));
+    params.push_back(MakeParam("reduce_fn", analysis::ParamMode::Move, fn_ty));
+    params.push_back(MakeParam("ordered", analysis::ParamMode::Move, TypePrim("i32")));
+    params.push_back(MakeParam("chunk_size", analysis::ParamMode::Move, TypePrim("usize")));
+    declare_fn("cursive0_dispatch_run", params, TypePrim("()"), false);
+  }
+  {
+    std::vector<IRParam> params;
+    declare_fn("cursive0_cancel_token_new", params, TypePtrU8(), false);
+  }
+  {
+    std::vector<IRParam> params;
+    params.push_back(MakeParam("token_ptr", analysis::ParamMode::Move, TypePtrU8()));
+    declare_fn("cursive0_cancel_token_cancel", params, TypePrim("()"), false);
+  }
+  {
+    std::vector<IRParam> params;
+    params.push_back(MakeParam("token_ptr", analysis::ParamMode::Move, TypePtrU8()));
+    declare_fn("cursive0_cancel_token_is_cancelled", params, TypePrim("i32"), false);
+  }
+  {
+    std::vector<IRParam> params;
+    params.push_back(MakeParam("ctx_ptr", std::nullopt, TypePtrU8()));
+    params.push_back(MakeParam("code", std::nullopt, TypePrim("u32")));
+    declare_fn("cursive0_parallel_work_panic", params, TypePrim("()"), false);
+  }
+
+  // Context and ExecutionDomain builtins
+  {
+    std::vector<IRParam> params;
+    params.push_back(MakeParam("self", std::nullopt, TypePath({"Context"})));
+    declare_fn(BuiltinSymContextCpu(), params,
+               analysis::MakeTypeDynamic({"CpuDomain"}), false);
+  }
+  {
+    std::vector<IRParam> params;
+    params.push_back(MakeParam("self", std::nullopt, TypePath({"Context"})));
+    declare_fn(BuiltinSymContextGpu(), params,
+               analysis::MakeTypeDynamic({"GpuDomain"}), false);
+  }
+  {
+    std::vector<IRParam> params;
+    params.push_back(MakeParam("self", std::nullopt, TypePath({"Context"})));
+    declare_fn(BuiltinSymContextInline(), params,
+               analysis::MakeTypeDynamic({"InlineDomain"}), false);
+  }
+  {
+    std::vector<IRParam> params;
+    params.push_back(MakeParam("self", std::nullopt,
+                               analysis::MakeTypeDynamic({"ExecutionDomain"})));
+    declare_fn(BuiltinSymExecutionDomainName(), params,
+               analysis::MakeTypeString(analysis::StringState::View), false);
+  }
+  {
+    std::vector<IRParam> params;
+    params.push_back(MakeParam("self", std::nullopt,
+                               analysis::MakeTypeDynamic({"ExecutionDomain"})));
+    declare_fn(BuiltinSymExecutionDomainMaxConcurrency(), params,
+               TypePrim("u64"), false);
+  }
+  {
+    std::vector<IRParam> params;
+    declare_fn(BuiltinSymCancelTokenNew(), params,
+               TypeModalState({"CancelToken"}, "Active"), false);
   }
 }
 

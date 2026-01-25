@@ -1,10 +1,16 @@
 {
   "diagnostics": [
     {
-      "code": "E-UNS-0110",
+      "code": "E-UNS-0101",
       "severity": "error",
-      "message": "`import` declaration used",
-      "span": null
+      "message": "Unsupported construct in Cursive0 subset",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase1\\unsupported\\import_unsupported.cursive",
+        "start_line": 1,
+        "start_col": 1,
+        "end_line": 1,
+        "end_col": 7
+      }
     }
   ],
   "exit_code": 1

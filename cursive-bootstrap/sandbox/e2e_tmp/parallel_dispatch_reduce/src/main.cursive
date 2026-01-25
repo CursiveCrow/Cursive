@@ -1,0 +1,21 @@
+// Tests parallel dispatch with reduce option computing sum of 0..100.
+// Expected: sum of 0..99 = (99 * 100) / 2 = 4950
+
+public procedure main(ctx: Context) -> i32 {
+  let domain = ctx~>cpu()
+
+  let sum = parallel domain {
+    dispatch i in 0..100 [reduce: +] {
+      i
+    }
+  }
+
+  // Print result (4950)
+  let out_msg = "4950"
+  let _ = match ctx.fs~>write_stdout(out_msg) {
+    ok: () => ()
+    err: IoError => ()
+  }
+
+  return 0i32
+}

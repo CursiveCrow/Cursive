@@ -20,11 +20,16 @@ AttributeRegistry InitializeRegistry() {
   
   AttributeRegistry registry;
   
-  // [[dynamic]] - Key system dynamic verification
+  // [[dynamic]] - Dynamic verification scope
   {
     AttributeSpec spec;
     spec.name = attrs::kDynamic;
-    spec.valid_targets = {AttributeTarget::KeyBlock};
+    spec.valid_targets = {AttributeTarget::Procedure, AttributeTarget::Record,
+                          AttributeTarget::Enum, AttributeTarget::Modal,
+                          AttributeTarget::Class, AttributeTarget::Method,
+                          AttributeTarget::Static, AttributeTarget::Binding,
+                          AttributeTarget::Statement, AttributeTarget::Expression,
+                          AttributeTarget::KeyBlock};
     registry.Register(spec);
   }
   
@@ -61,10 +66,10 @@ AttributeRegistry InitializeRegistry() {
     registry.Register(spec);
   }
   
-  // [[repr(...)]] - Memory representation
+  // [[layout(...)]] - Memory representation
   {
     AttributeSpec spec;
-    spec.name = attrs::kRepr;
+    spec.name = attrs::kLayout;
     spec.valid_targets = {AttributeTarget::Record, AttributeTarget::Enum};
     spec.args.push_back({"kind", true, false, std::nullopt});  // C, packed, transparent
     registry.Register(spec);
@@ -84,6 +89,38 @@ AttributeRegistry InitializeRegistry() {
     AttributeSpec spec;
     spec.name = attrs::kPacked;
     spec.valid_targets = {AttributeTarget::Record};
+    registry.Register(spec);
+  }
+
+  // Memory order attributes
+  {
+    AttributeSpec spec;
+    spec.name = attrs::kRelaxed;
+    spec.valid_targets = {AttributeTarget::Expression};
+    registry.Register(spec);
+  }
+  {
+    AttributeSpec spec;
+    spec.name = attrs::kAcquire;
+    spec.valid_targets = {AttributeTarget::Expression};
+    registry.Register(spec);
+  }
+  {
+    AttributeSpec spec;
+    spec.name = attrs::kRelease;
+    spec.valid_targets = {AttributeTarget::Expression};
+    registry.Register(spec);
+  }
+  {
+    AttributeSpec spec;
+    spec.name = attrs::kAcqRel;
+    spec.valid_targets = {AttributeTarget::Expression};
+    registry.Register(spec);
+  }
+  {
+    AttributeSpec spec;
+    spec.name = attrs::kSeqCst;
+    spec.valid_targets = {AttributeTarget::Expression};
     registry.Register(spec);
   }
   
@@ -162,6 +199,27 @@ AttributeRegistry InitializeRegistry() {
     spec.valid_targets = {AttributeTarget::Procedure};
     registry.Register(spec);
   }
+
+  // [[deprecated]] - Deprecated declaration
+  {
+    AttributeSpec spec;
+    spec.name = attrs::kDeprecated;
+    spec.valid_targets = {AttributeTarget::Procedure, AttributeTarget::Record,
+                          AttributeTarget::Enum, AttributeTarget::Modal,
+                          AttributeTarget::Class, AttributeTarget::Field,
+                          AttributeTarget::Method, AttributeTarget::TypeAlias,
+                          AttributeTarget::Static};
+    spec.args.push_back({"message", false, false, std::nullopt});
+    registry.Register(spec);
+  }
+
+  // [[stale_ok]] - Suppress shared staleness warnings
+  {
+    AttributeSpec spec;
+    spec.name = attrs::kStaleOk;
+    spec.valid_targets = {AttributeTarget::Binding};
+    registry.Register(spec);
+  }
   
   // [[inline]] - Inline hint
   {
@@ -201,6 +259,62 @@ AttributeRegistry InitializeRegistry() {
     AttributeSpec spec;
     spec.name = attrs::kExport;
     spec.valid_targets = {AttributeTarget::Procedure, AttributeTarget::Static};
+    spec.args.push_back({"link_name", false, false, std::nullopt});
+    registry.Register(spec);
+  }
+
+  // [[symbol("name")]] - Explicit symbol name (FFI)
+  {
+    AttributeSpec spec;
+    spec.name = attrs::kSymbol;
+    spec.valid_targets = {AttributeTarget::Procedure};
+    spec.args.push_back({"name", true, false, std::nullopt});
+    registry.Register(spec);
+  }
+
+  // [[library("name")]] - Link library (extern block)
+  {
+    AttributeSpec spec;
+    spec.name = attrs::kLibrary;
+    spec.valid_targets = {AttributeTarget::ExternBlock};
+    spec.args.push_back({"name", true, false, std::nullopt});
+    registry.Register(spec);
+  }
+
+  // [[unwind(mode)]] - FFI unwind mode
+  {
+    AttributeSpec spec;
+    spec.name = attrs::kUnwind;
+    spec.valid_targets = {AttributeTarget::Procedure};
+    spec.args.push_back({"mode", false, false, "abort"});
+    registry.Register(spec);
+  }
+
+  // [[ffi_pass_by_value]] - Force by-value FFI passing
+  {
+    AttributeSpec spec;
+    spec.name = attrs::kFfiPassByValue;
+    spec.valid_targets = {AttributeTarget::Procedure};
+    registry.Register(spec);
+  }
+
+  // Verification-mode attributes
+  {
+    AttributeSpec spec;
+    spec.name = attrs::kStatic;
+    spec.valid_targets = {AttributeTarget::ExternBlock, AttributeTarget::Procedure};
+    registry.Register(spec);
+  }
+  {
+    AttributeSpec spec;
+    spec.name = attrs::kAssume;
+    spec.valid_targets = {AttributeTarget::ExternBlock, AttributeTarget::Procedure};
+    registry.Register(spec);
+  }
+  {
+    AttributeSpec spec;
+    spec.name = attrs::kTrust;
+    spec.valid_targets = {AttributeTarget::ExternBlock, AttributeTarget::Procedure};
     registry.Register(spec);
   }
   

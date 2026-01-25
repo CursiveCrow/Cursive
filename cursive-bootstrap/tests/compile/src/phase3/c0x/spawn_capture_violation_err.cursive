@@ -1,0 +1,19 @@
+# SPEC_COV: C0X-Spawn-Capture-Violation
+# SPEC_COV: E-CON-0131
+// Tests spawn capture rule violation (§18.4.1)
+// Expected diagnostic: E-CON-0131
+
+record MutData { var value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+  var data: MutData = MutData { value: 42 }
+  parallel domain {
+    // Error: capturing mutable binding without proper permission
+    let h: SpawnHandle<i32> = spawn {
+      data.value = 100  // Invalid mutation through capture
+      return data.value
+    }
+  }
+  return 0
+}

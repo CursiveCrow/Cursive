@@ -1,0 +1,7 @@
+# SPEC_COV: T-Raw-Null
+// Null raw pointer
+
+public procedure main(ctx: Context) -> i32 {
+  let p: *imm i32 = null
+  return 0
+}

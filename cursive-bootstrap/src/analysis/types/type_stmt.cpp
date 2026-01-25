@@ -14,6 +14,8 @@
 
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/core/diagnostic_messages.h"
+#include "cursive0/analysis/contracts/verification.h"
+#include "cursive0/analysis/composite/classes.h"
 #include "cursive0/analysis/resolve/scopes.h"
 #include "cursive0/analysis/types/subtyping.h"
 #include "cursive0/analysis/types/type_equiv.h"
@@ -97,6 +99,208 @@ static bool IsPrimType(const TypeRef& type, std::string_view name) {
   }
   const auto* prim = std::get_if<TypePrim>(&type->node);
   return prim && prim->name == name;
+}
+
+static syntax::ExprPtr MakeExpr(const core::Span& span, syntax::ExprNode node) {
+  auto expr = std::make_shared<syntax::Expr>();
+  expr->span = span;
+  expr->node = std::move(node);
+  return expr;
+}
+
+static syntax::ExprPtr MakeUnitExpr(const core::Span& span) {
+  syntax::TupleExpr tuple;
+  return MakeExpr(span, tuple);
+}
+
+static syntax::ExprPtr SubstituteResultEntry(const syntax::ExprPtr& expr,
+                                              const syntax::ExprPtr& result_expr) {
+  if (!expr) {
+    return expr;
+  }
+  if (std::holds_alternative<syntax::ResultExpr>(expr->node)) {
+    return result_expr;
+  }
+  return std::visit(
+      [&](const auto& node) -> syntax::ExprPtr {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, syntax::BinaryExpr>) {
+          auto out = node;
+          out.lhs = SubstituteResultEntry(node.lhs, result_expr);
+          out.rhs = SubstituteResultEntry(node.rhs, result_expr);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::UnaryExpr>) {
+          auto out = node;
+          out.value = SubstituteResultEntry(node.value, result_expr);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
+          auto out = node;
+          out.base = SubstituteResultEntry(node.base, result_expr);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::TupleAccessExpr>) {
+          auto out = node;
+          out.base = SubstituteResultEntry(node.base, result_expr);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
+          auto out = node;
+          out.base = SubstituteResultEntry(node.base, result_expr);
+          out.index = SubstituteResultEntry(node.index, result_expr);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::CallExpr>) {
+          auto out = node;
+          out.callee = SubstituteResultEntry(node.callee, result_expr);
+          for (auto& arg : out.args) {
+            arg.value = SubstituteResultEntry(arg.value, result_expr);
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::QualifiedApplyExpr>) {
+          auto out = node;
+          if (std::holds_alternative<syntax::ParenArgs>(node.args)) {
+            auto paren = std::get<syntax::ParenArgs>(node.args);
+            for (auto& arg : paren.args) {
+              arg.value = SubstituteResultEntry(arg.value, result_expr);
+            }
+            out.args = paren;
+          } else {
+            auto brace = std::get<syntax::BraceArgs>(node.args);
+            for (auto& field : brace.fields) {
+              field.value = SubstituteResultEntry(field.value, result_expr);
+            }
+            out.args = brace;
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::MethodCallExpr>) {
+          auto out = node;
+          out.receiver = SubstituteResultEntry(node.receiver, result_expr);
+          for (auto& arg : out.args) {
+            arg.value = SubstituteResultEntry(arg.value, result_expr);
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::CastExpr>) {
+          auto out = node;
+          out.value = SubstituteResultEntry(node.value, result_expr);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::RangeExpr>) {
+          auto out = node;
+          out.lhs = SubstituteResultEntry(node.lhs, result_expr);
+          out.rhs = SubstituteResultEntry(node.rhs, result_expr);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::DerefExpr>) {
+          auto out = node;
+          out.value = SubstituteResultEntry(node.value, result_expr);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::AddressOfExpr>) {
+          auto out = node;
+          out.place = SubstituteResultEntry(node.place, result_expr);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::MoveExpr>) {
+          auto out = node;
+          out.place = SubstituteResultEntry(node.place, result_expr);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::AllocExpr>) {
+          auto out = node;
+          out.value = SubstituteResultEntry(node.value, result_expr);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::TupleExpr>) {
+          auto out = node;
+          for (auto& elem : out.elements) {
+            elem = SubstituteResultEntry(elem, result_expr);
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::ArrayExpr>) {
+          auto out = node;
+          for (auto& elem : out.elements) {
+            elem = SubstituteResultEntry(elem, result_expr);
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
+          auto out = node;
+          for (auto& field : out.fields) {
+            field.value = SubstituteResultEntry(field.value, result_expr);
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::EnumLiteralExpr>) {
+          auto out = node;
+          if (out.payload_opt.has_value()) {
+            if (std::holds_alternative<syntax::EnumPayloadParen>(*out.payload_opt)) {
+              auto paren = std::get<syntax::EnumPayloadParen>(*out.payload_opt);
+              for (auto& elem : paren.elements) {
+                elem = SubstituteResultEntry(elem, result_expr);
+              }
+              out.payload_opt = paren;
+            } else {
+              auto brace = std::get<syntax::EnumPayloadBrace>(*out.payload_opt);
+              for (auto& field : brace.fields) {
+                field.value = SubstituteResultEntry(field.value, result_expr);
+              }
+              out.payload_opt = brace;
+            }
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::IfExpr>) {
+          auto out = node;
+          out.cond = SubstituteResultEntry(node.cond, result_expr);
+          out.then_expr = SubstituteResultEntry(node.then_expr, result_expr);
+          out.else_expr = SubstituteResultEntry(node.else_expr, result_expr);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::MatchExpr>) {
+          auto out = node;
+          out.value = SubstituteResultEntry(node.value, result_expr);
+          for (auto& arm : out.arms) {
+            arm.guard_opt = SubstituteResultEntry(arm.guard_opt, result_expr);
+            arm.body = SubstituteResultEntry(arm.body, result_expr);
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::PropagateExpr>) {
+          auto out = node;
+          out.value = SubstituteResultEntry(node.value, result_expr);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::EntryExpr>) {
+          auto out = node;
+          out.expr = SubstituteResultEntry(node.expr, result_expr);
+          return MakeExpr(expr->span, out);
+        } else {
+          return expr;
+        }
+      },
+      expr->node);
+}
+
+static void CollectContractFacts(const syntax::ExprPtr& expr,
+                                 StaticProofContext& ctx) {
+  if (!expr) {
+    return;
+  }
+  if (const auto* binary = std::get_if<syntax::BinaryExpr>(&expr->node)) {
+    if (binary->op == "&&") {
+      CollectContractFacts(binary->lhs, ctx);
+      CollectContractFacts(binary->rhs, ctx);
+      return;
+    }
+  }
+  AddFact(ctx, expr, expr->span);
+}
+
+static std::optional<std::string_view> VerifyPostconditionAtReturn(
+    const ScopeContext& ctx,
+    const StmtTypeContext& type_ctx,
+    const syntax::ExprPtr& return_value) {
+  if (!type_ctx.contract || !type_ctx.contract->postcondition) {
+    return std::nullopt;
+  }
+  const auto result_expr =
+      return_value ? return_value : MakeUnitExpr(type_ctx.contract->postcondition->span);
+  const auto pred =
+      SubstituteResultEntry(type_ctx.contract->postcondition, result_expr);
+  StaticProofContext proof_ctx;
+  if (type_ctx.contract->precondition) {
+    CollectContractFacts(type_ctx.contract->precondition, proof_ctx);
+  }
+  const auto proof = StaticProof(proof_ctx, pred);
+  if (!proof.provable && !type_ctx.contract_dynamic) {
+    return "E-SEM-2801";
+  }
+  return std::nullopt;
 }
 
 static constexpr std::array<std::string_view, 12> kIntTypes = {
@@ -292,10 +496,57 @@ static TypeLowerResult LowerType(const ScopeContext& ctx,
           return {true, std::nullopt, MakeTypeBytes(LowerBytesState(node.state))};
         } else if constexpr (std::is_same_v<T, syntax::TypeDynamic>) {
           return {true, std::nullopt, MakeTypeDynamic(node.path)};
-        } else if constexpr (std::is_same_v<T, syntax::TypeModalState>) {
+        } else if constexpr (std::is_same_v<T, syntax::TypeOpaque>) {
           return {true, std::nullopt,
-                  MakeTypeModalState(node.path, node.state)};
+                  MakeTypeOpaque(node.path, type.get(), type->span)};
+        } else if constexpr (std::is_same_v<T, syntax::TypeRefine>) {
+          const auto base = LowerType(ctx, node.base);
+          if (!base.ok) {
+            return base;
+          }
+          return {true, std::nullopt,
+                  MakeTypeRefine(base.type, node.predicate)};
+        } else if constexpr (std::is_same_v<T, syntax::TypeModalState>) {
+          std::vector<TypeRef> args;
+          args.reserve(node.generic_args.size());
+          for (const auto& arg : node.generic_args) {
+            const auto lowered = LowerType(ctx, arg);
+            if (!lowered.ok) {
+              return lowered;
+            }
+            args.push_back(lowered.type);
+          }
+          return {true, std::nullopt,
+                  MakeTypeModalState(node.path, node.state, std::move(args))};
         } else if constexpr (std::is_same_v<T, syntax::TypePathType>) {
+          auto is_builtin_generic = [&](const syntax::TypePath& path) {
+            if (path.size() != 1) {
+              return false;
+            }
+            return IdEq(path[0], "SpawnHandle") ||
+                   IdEq(path[0], "FutureHandle") ||
+                   IdEq(path[0], "Async") ||
+                   IdEq(path[0], "Sequence") ||
+                   IdEq(path[0], "Future") ||
+                   IdEq(path[0], "Stream") ||
+                   IdEq(path[0], "Pipe") ||
+                   IdEq(path[0], "Exchange") ||
+                   IdEq(path[0], "Ptr");
+          };
+          if (!node.generic_args.empty() && is_builtin_generic(node.path)) {
+            std::vector<TypeRef> lowered_args;
+            for (const auto& arg : node.generic_args) {
+              const auto lower_result = LowerType(ctx, arg);
+              if (!lower_result.ok) {
+                return lower_result;
+              }
+              lowered_args.push_back(lower_result.type);
+            }
+            TypePathType result_type;
+            result_type.path = node.path;
+            result_type.generic_args = std::move(lowered_args);
+            return {true, std::nullopt, MakeType(result_type)};
+          }
           return {true, std::nullopt, MakeTypePath(node.path)};
         } else {
           return {false, std::nullopt, {}};
@@ -1640,6 +1891,9 @@ ExprTypeResult TypeBlockExpr(const ScopeContext& ctx,
                              const ExprTypeFn& type_expr,
                              const IdentTypeFn& type_ident,
                              const PlaceTypeFn& type_place) {
+  if (type_ctx.require_pure) {
+    return {false, "E-SEM-2802", {}};
+  }
   if (!expr.block) {
     return {false, std::nullopt, {}};
   }
@@ -1670,6 +1924,10 @@ ExprTypeResult TypeUnsafeBlockExpr(const ScopeContext& ctx,
                                    const IdentTypeFn& type_ident,
                                    const PlaceTypeFn& type_place) {
   ExprTypeResult result;
+  if (type_ctx.require_pure) {
+    result.diag_id = "E-SEM-2802";
+    return result;
+  }
   if (!expr.block) {
     return result;
   }
@@ -1713,6 +1971,31 @@ CheckResult CheckUnsafeBlockExpr(const ScopeContext& ctx,
   return result;
 }
 
+static std::optional<std::string_view> CheckLoopInvariantPredicate(
+    const ScopeContext& ctx,
+    const StmtTypeContext& type_ctx,
+    const syntax::LoopInvariant& invariant,
+    const TypeEnv& env) {
+  StmtTypeContext inv_ctx = type_ctx;
+  inv_ctx.contract_phase = ContractPhase::Precondition;
+  inv_ctx.require_pure = true;
+  auto inv_expr = [&](const syntax::ExprPtr& expr) {
+    return TypeExpr(ctx, inv_ctx, expr, env);
+  };
+  auto inv_ident = [&](std::string_view name) -> ExprTypeResult {
+    return TypeIdentifierExpr(ctx, syntax::IdentifierExpr{std::string(name)}, env);
+  };
+  auto inv_place = [&](const syntax::ExprPtr& expr) -> PlaceTypeResult {
+    return TypePlace(ctx, inv_ctx, expr, env);
+  };
+  const auto check = CheckExpr(ctx, invariant.predicate, MakeTypePrim("bool"),
+                               inv_expr, inv_place, inv_ident);
+  if (!check.ok) {
+    return check.diag_id;
+  }
+  return std::nullopt;
+}
+
 ExprTypeResult TypeLoopInfiniteExpr(const ScopeContext& ctx,
                                     const StmtTypeContext& type_ctx,
                                     const syntax::LoopInfiniteExpr& expr,
@@ -1721,6 +2004,18 @@ ExprTypeResult TypeLoopInfiniteExpr(const ScopeContext& ctx,
                                     const IdentTypeFn& type_ident,
                                     const PlaceTypeFn& type_place) {
   ExprTypeResult result;
+  if (type_ctx.require_pure) {
+    result.diag_id = "E-SEM-2802";
+    return result;
+  }
+  if (expr.invariant_opt) {
+    const auto diag =
+        CheckLoopInvariantPredicate(ctx, type_ctx, *expr.invariant_opt, env);
+    if (diag.has_value()) {
+      result.diag_id = diag;
+      return result;
+    }
+  }
   if (!expr.body) {
     return result;
   }
@@ -1764,6 +2059,18 @@ ExprTypeResult TypeLoopConditionalExpr(const ScopeContext& ctx,
                                        const IdentTypeFn& type_ident,
                                        const PlaceTypeFn& type_place) {
   ExprTypeResult result;
+  if (type_ctx.require_pure) {
+    result.diag_id = "E-SEM-2802";
+    return result;
+  }
+  if (expr.invariant_opt) {
+    const auto diag =
+        CheckLoopInvariantPredicate(ctx, type_ctx, *expr.invariant_opt, env);
+    if (diag.has_value()) {
+      result.diag_id = diag;
+      return result;
+    }
+  }
   const auto cond_type = TypeExprWithEnv(ctx, env, type_expr, expr.cond);
   if (!cond_type.ok) {
     result.diag_id = cond_type.diag_id;
@@ -1816,6 +2123,18 @@ ExprTypeResult TypeLoopIterExpr(const ScopeContext& ctx,
                                 const IdentTypeFn& type_ident,
                                 const PlaceTypeFn& type_place) {
   ExprTypeResult result;
+  if (type_ctx.require_pure) {
+    result.diag_id = "E-SEM-2802";
+    return result;
+  }
+  if (expr.invariant_opt) {
+    const auto diag =
+        CheckLoopInvariantPredicate(ctx, type_ctx, *expr.invariant_opt, env);
+    if (diag.has_value()) {
+      result.diag_id = diag;
+      return result;
+    }
+  }
   if (!expr.pattern) {
     return result;
   }
@@ -1824,6 +2143,97 @@ ExprTypeResult TypeLoopIterExpr(const ScopeContext& ctx,
     result.diag_id = iter_type.diag_id;
     return result;
   }
+
+  if (const auto async_iter = AsyncSigOf(ctx, iter_type.type)) {
+    const auto async_ret = AsyncSigOf(ctx, type_ctx.return_type);
+    if (!async_ret.has_value() || !IsPrimType(async_iter->in, "()")) {
+      result.diag_id = "E-CON-0240";
+      return result;
+    }
+
+    const auto err_sub = Subtyping(ctx, async_iter->err, async_ret->err);
+    if (!err_sub.ok) {
+      result.diag_id = err_sub.diag_id;
+      return result;
+    }
+    if (!err_sub.subtype) {
+      return result;
+    }
+
+    TypeRef pat_type = async_iter->out;
+    if (expr.type_opt) {
+      const auto lowered = LowerType(ctx, expr.type_opt);
+      if (!lowered.ok) {
+        result.diag_id = lowered.diag_id;
+        return result;
+      }
+      const auto sub = Subtyping(ctx, async_iter->out, lowered.type);
+      if (!sub.ok) {
+        result.diag_id = sub.diag_id;
+        return result;
+      }
+      if (!sub.subtype) {
+        return result;
+      }
+      pat_type = lowered.type;
+    }
+
+    const auto pat = TypePattern(ctx, expr.pattern, pat_type);
+    if (!pat.ok) {
+      result.diag_id = pat.diag_id;
+      return result;
+    }
+    std::vector<IdKey> names;
+    CollectPatNames(*expr.pattern, names);
+    if (!DistinctNames(names)) {
+      SPEC_RULE("Pat-Dup-Err");
+      result.diag_id = "Pat-Dup-Err";
+      return result;
+    }
+
+    TypeEnv inner = PushScope(env);
+    const auto intro = IntroAll(inner, pat.bindings, syntax::Mutability::Let,
+                                false);
+    if (!intro.ok) {
+      result.diag_id = intro.diag_id;
+      return result;
+    }
+
+    if (!expr.body) {
+      return result;
+    }
+    StmtTypeContext loop_ctx = type_ctx;
+    loop_ctx.loop_flag = LoopFlag::Loop;
+    auto active_env = [&]() -> const TypeEnv& {
+      return loop_ctx.env_ref ? *loop_ctx.env_ref : intro.env;
+    };
+    auto loop_type_expr = [&](const syntax::ExprPtr& inner_expr) {
+      return TypeExpr(ctx, loop_ctx, inner_expr, active_env());
+    };
+    auto loop_type_ident = [&](std::string_view name) -> ExprTypeResult {
+      return TypeIdentifierExpr(ctx, syntax::IdentifierExpr{std::string(name)},
+                                active_env());
+    };
+    auto loop_type_place = [&](const syntax::ExprPtr& inner_expr) -> PlaceTypeResult {
+      return TypePlace(ctx, loop_ctx, inner_expr, active_env());
+    };
+    const auto info = TypeBlockInfo(ctx, loop_ctx, *expr.body, intro.env,
+                                    loop_type_expr, loop_type_ident,
+                                    loop_type_place, loop_ctx.env_ref);
+    if (!info.ok) {
+      result.diag_id = info.diag_id;
+      return result;
+    }
+    const auto loop_type = LoopTypeFin(ctx, info.breaks, info.break_void);
+    if (!loop_type.has_value()) {
+      return result;
+    }
+    SPEC_RULE("T-Loop-Iter-Async");
+    result.ok = true;
+    result.type = *loop_type;
+    return result;
+  }
+
   const auto elem = IterElementType(iter_type.type);
   if (!elem.has_value()) {
     return result;
@@ -2294,7 +2704,73 @@ StmtTypeResult TypeStmt(const ScopeContext& ctx,
           }
           return {true, std::nullopt, env, {}};
         } else if constexpr (std::is_same_v<T, syntax::ReturnStmt>) {
+          const auto verify_post = [&](const syntax::ExprPtr& value)
+              -> std::optional<std::string_view> {
+            return VerifyPostconditionAtReturn(ctx, type_ctx, value);
+          };
+          const syntax::ExprPtr ret_value =
+              node.value_opt ? *node.value_opt : syntax::ExprPtr{};
+          const auto async_sig = AsyncSigOf(ctx, type_ctx.return_type);
+          if (async_sig.has_value()) {
+            if (node.value_opt) {
+              const auto check =
+                  CheckExpr(ctx, node.value_opt, async_sig->result, type_expr,
+                            place_fn, ident_type, match_check);
+              if (!check.ok) {
+                if (!check.diag_id.has_value()) {
+                  SPEC_RULE("Return-Async-Type-Err");
+                  return {false, "E-CON-0203", {}, {}};
+                }
+                return {false, check.diag_id, {}, {}};
+              }
+              if (const auto diag = verify_post(ret_value); diag.has_value()) {
+                return {false, *diag, {}, {}};
+              }
+              SPEC_RULE("T-Return-Value");
+              return {true, std::nullopt, env, {}};
+            }
+            if (!IsPrimType(async_sig->result, "()")) {
+              SPEC_RULE("Return-Async-Unit-Err");
+              return {false, "E-CON-0203", {}, {}};
+            }
+            if (const auto diag = verify_post(ret_value); diag.has_value()) {
+              return {false, *diag, {}, {}};
+            }
+            SPEC_RULE("T-Return-Unit");
+            return {true, std::nullopt, env, {}};
+          }
           if (node.value_opt) {
+            if (type_ctx.opaque_return) {
+              const auto typed =
+                  TypeExprWithEnv(ctx, env, type_expr, node.value_opt);
+              if (!typed.ok) {
+                return {false, typed.diag_id, {}, {}};
+              }
+              if (!TypeImplementsClass(ctx, typed.type,
+                                       type_ctx.opaque_return->class_path)) {
+                SPEC_RULE("T-Opaque-Return");
+                return {false, "E-TYP-2511", {}, {}};
+              }
+              if (type_ctx.opaque_return->underlying) {
+                const auto equiv =
+                    TypeEquiv(type_ctx.opaque_return->underlying, typed.type);
+                if (!equiv.ok) {
+                  return {false, equiv.diag_id, {}, {}};
+                }
+                if (!equiv.equiv) {
+                  SPEC_RULE("T-Opaque-Return");
+                  return {false, "Opaque-Type-Mismatch", {}, {}};
+                }
+              } else {
+                type_ctx.opaque_return->underlying = typed.type;
+              }
+              if (const auto diag = verify_post(ret_value); diag.has_value()) {
+                return {false, *diag, {}, {}};
+              }
+              SPEC_RULE("T-Opaque-Return");
+              SPEC_RULE("T-Return-Value");
+              return {true, std::nullopt, env, {}};
+            }
             const auto check = CheckExpr(ctx, node.value_opt, type_ctx.return_type,
                                          type_expr, place_fn, ident_type, match_check);
             if (!check.ok) {
@@ -2304,12 +2780,18 @@ StmtTypeResult TypeStmt(const ScopeContext& ctx,
               }
               return {false, check.diag_id, {}, {}};
             }
+            if (const auto diag = verify_post(ret_value); diag.has_value()) {
+              return {false, *diag, {}, {}};
+            }
             SPEC_RULE("T-Return-Value");
             return {true, std::nullopt, env, {}};
           }
           if (!IsPrimType(type_ctx.return_type, "()")) {
             SPEC_RULE("Return-Unit-Err");
             return {false, "Return-Type-Err", {}, {}};
+          }
+          if (const auto diag = verify_post(ret_value); diag.has_value()) {
+            return {false, *diag, {}, {}};
           }
           SPEC_RULE("T-Return-Unit");
           return {true, std::nullopt, env, {}};
@@ -2353,6 +2835,7 @@ StmtTypeResult TypeStmt(const ScopeContext& ctx,
             return {false, std::nullopt, {}, {}};
           }
           StmtTypeContext key_ctx = type_ctx;
+          key_ctx.keys_held = true;
           // Key blocks use the same type checking as regular blocks
           const auto typed = TypeBlock(ctx, key_ctx, *node.body, env, type_expr,
                                        type_ident, type_place,

@@ -17,7 +17,6 @@ C:/Dev/Cursive/cursive-bootstrap/build/CMakeFiles/cursive0_interpreter.dir
 C:/Dev/Cursive/cursive-bootstrap/build/CMakeFiles/cursive0_frontend.dir
 C:/Dev/Cursive/cursive-bootstrap/build/CMakeFiles/cursive0_interpreter_cli.dir
 C:/Dev/Cursive/cursive-bootstrap/build/CMakeFiles/cursivec0.dir
-C:/Dev/Cursive/cursive-bootstrap/build/CMakeFiles/spec_verifier_build.dir
 C:/Dev/Cursive/cursive-bootstrap/build/CMakeFiles/RUN_TESTS.dir
 C:/Dev/Cursive/cursive-bootstrap/build/CMakeFiles/ALL_BUILD.dir
 C:/Dev/Cursive/cursive-bootstrap/build/CMakeFiles/ZERO_CHECK.dir
@@ -42,13 +41,11 @@ C:/Dev/Cursive/cursive-bootstrap/build/tests/CMakeFiles/syntax_parser_docs_test.
 C:/Dev/Cursive/cursive-bootstrap/build/tests/CMakeFiles/syntax_parser_consume_test.dir
 C:/Dev/Cursive/cursive-bootstrap/build/tests/CMakeFiles/syntax_parser_angle_test.dir
 C:/Dev/Cursive/cursive-bootstrap/build/tests/CMakeFiles/syntax_keyword_policy_test.dir
-C:/Dev/Cursive/cursive-bootstrap/build/tests/CMakeFiles/syntax_c0x_parser_test.dir
 C:/Dev/Cursive/cursive-bootstrap/build/tests/CMakeFiles/analysis_scopes_test.dir
 C:/Dev/Cursive/cursive-bootstrap/build/tests/CMakeFiles/analysis_scopes_intro_test.dir
 C:/Dev/Cursive/cursive-bootstrap/build/tests/CMakeFiles/analysis_types_test.dir
 C:/Dev/Cursive/cursive-bootstrap/build/tests/CMakeFiles/analysis_type_equiv_test.dir
 C:/Dev/Cursive/cursive-bootstrap/build/tests/CMakeFiles/analysis_subtyping_test.dir
-C:/Dev/Cursive/cursive-bootstrap/build/tests/CMakeFiles/analysis_c0x_features_test.dir
 C:/Dev/Cursive/cursive-bootstrap/build/tests/CMakeFiles/analysis_borrow_bind_test.dir
 C:/Dev/Cursive/cursive-bootstrap/build/tests/CMakeFiles/analysis_calls_test.dir
 C:/Dev/Cursive/cursive-bootstrap/build/tests/CMakeFiles/analysis_tuples_test.dir

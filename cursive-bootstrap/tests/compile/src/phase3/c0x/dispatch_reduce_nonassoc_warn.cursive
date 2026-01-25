@@ -1,0 +1,20 @@
+# SPEC_COV: C0X-Dispatch-Reduce-Associativity
+# SPEC_COV: W-CON-0140
+// Tests warning for non-associative reduce without [ordered] (§18.5.2)
+// Expected diagnostic: W-CON-0140
+
+// Custom non-associative subtraction operator
+procedure subtract(a: i32, b: i32) -> i32 {
+  return a - b
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+  parallel domain {
+    // Warning: subtraction is not associative, should use [ordered]
+    dispatch i in 0..100 [reduce: subtract] {
+      i
+    }
+  }
+  return 0
+}

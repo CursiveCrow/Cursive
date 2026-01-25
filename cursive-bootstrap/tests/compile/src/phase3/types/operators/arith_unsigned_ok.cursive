@@ -1,0 +1,9 @@
+# SPEC_COV: T-Arith
+// Arithmetic operators on u32
+
+public procedure main(ctx: Context) -> i32 {
+  let a: u32 = 10u32;
+  let b: u32 = 20u32;
+  let c: u32 = a + b;
+  return 0;
+}

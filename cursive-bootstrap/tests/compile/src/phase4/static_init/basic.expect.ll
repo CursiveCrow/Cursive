@@ -10,11 +10,14 @@ proc @demo_x3a_x3amain {
   seq {
     seq {
       call @cursive_x3a_x3aruntime_x3a_x3ainit_x3a_x3ademo (%__panic)
-      panic_check
+      seq {
+        call @cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x3a_x3aemit (0x6B6365684363696E6150, "")
+        panic_check
+      }
     }
     block seq {
       nop
-      nop
+      call @cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x3a_x3aemit (0x7974706D452D70756E61656C43, "")
       ret 0x0
     } nop
   }
@@ -26,19 +29,28 @@ proc @cursive_x3a_x3aruntime_x3a_x3ainit_x3a_x3ademo {
       nop
       bind %x = 0x1
       store @demo_x3a_x3ax = %x
-      init_panic_handle demo [demo]
+      seq {
+        call @cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x3a_x3aemit (0x656C646E614863696E615074696E49, "")
+        init_panic_handle demo [demo]
+      }
     }
     seq {
       seq {
         nop
         nop
         check_op Overflow + 0x1, 0x2
-        panic_check
+        seq {
+          call @cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x3a_x3aemit (0x6B6365684363696E6150, "")
+          panic_check
+        }
         binop + 0x1, 0x2
       }
       bind %y = binop
       store @demo_x3a_x3ay = %y
-      init_panic_handle demo [demo]
+      seq {
+        call @cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x3a_x3aemit (0x656C646E614863696E615074696E49, "")
+        init_panic_handle demo [demo]
+      }
     }
     seq {
       seq {
@@ -53,7 +65,10 @@ proc @cursive_x3a_x3aruntime_x3a_x3ainit_x3a_x3ademo {
         store @demo_x3a_x3aa = %a
         store @demo_x3a_x3ab = %b
       }
-      init_panic_handle demo [demo]
+      seq {
+        call @cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x3a_x3aemit (0x656C646E614863696E615074696E49, "")
+        init_panic_handle demo [demo]
+      }
     }
   }
 }

@@ -1,0 +1,4 @@
+[assembly]
+name = "parallel_inline_domain"
+kind = "executable"
+root = "src"

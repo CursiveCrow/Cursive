@@ -1,0 +1,17 @@
+# SPEC_COV: T-Frame
+// Frame reset behavior
+
+public procedure main(ctx: Context) -> i32 {
+  var sum: i32 = 0
+  region {
+    frame {
+      let a = ^10
+      sum = sum + *a
+    }
+    frame {
+      let b = ^20
+      sum = sum + *b
+    }
+  }
+  return sum
+}

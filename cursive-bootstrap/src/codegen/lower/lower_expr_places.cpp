@@ -281,6 +281,34 @@ LowerResult LowerReadPlace(const syntax::Expr& place, LowerCtx& ctx) {
             value.name = node.name;
             return LowerResult{MakeIR(std::move(read)), value};
           }
+          if (const auto* capture = ctx.LookupCapture(node.name)) {
+            SPEC_RULE("Lower-ReadPlace-Ident-Capture");
+            IRPtr ir = EmptyIR();
+            IRValue field_ptr = ctx.CaptureFieldPtr(*capture);
+            IRValue value = ctx.FreshTempValue("capture_val");
+            if (capture->by_ref) {
+              IRValue captured_ptr = ctx.FreshTempValue("capture_ptr");
+              IRReadPtr load_ptr;
+              load_ptr.ptr = field_ptr;
+              load_ptr.result = captured_ptr;
+              ctx.RegisterValueType(captured_ptr, capture->field_type);
+              IRReadPtr load_val;
+              load_val.ptr = captured_ptr;
+              load_val.result = value;
+              ir = SeqIR({MakeIR(std::move(load_ptr)), MakeIR(std::move(load_val))});
+            } else {
+              IRReadPtr load_val;
+              load_val.ptr = field_ptr;
+              load_val.result = value;
+              ir = MakeIR(std::move(load_val));
+            }
+            if (ctx.expr_type) {
+              ctx.RegisterValueType(value, ctx.expr_type(place));
+            } else {
+              ctx.RegisterValueType(value, capture->value_type);
+            }
+            return LowerResult{ir, value};
+          }
 
           std::vector<std::string> full;
           std::string resolved_name = node.name;
@@ -473,6 +501,27 @@ IRPtr LowerWritePlaceImpl(const syntax::Expr& place,
             store_nodrop.name = node.name;
             store_nodrop.value = value;
             return MakeIR(std::move(store_nodrop));
+          }
+          if (const auto* capture = ctx.LookupCapture(node.name)) {
+            SPEC_RULE(allow_drop ? "Lower-WritePlace-Ident-Capture"
+                                 : "LowerWriteSub-Ident-Capture");
+            IRValue field_ptr = ctx.CaptureFieldPtr(*capture);
+            if (capture->by_ref) {
+              IRValue captured_ptr = ctx.FreshTempValue("capture_ptr");
+              IRReadPtr load_ptr;
+              load_ptr.ptr = field_ptr;
+              load_ptr.result = captured_ptr;
+              register_ptr_type(captured_ptr, capture->value_type);
+              IRWritePtr write;
+              write.ptr = captured_ptr;
+              write.value = value;
+              return SeqIR({MakeIR(std::move(load_ptr)), MakeIR(std::move(write))});
+            }
+            IRWritePtr write;
+            write.ptr = field_ptr;
+            write.value = value;
+            register_ptr_type(field_ptr, capture->value_type);
+            return MakeIR(std::move(write));
           }
 
           std::vector<std::string> full;
@@ -810,6 +859,17 @@ LowerResult LowerAddrOf(const syntax::Expr& place, LowerCtx& ctx) {
             ctx.RegisterDerivedValue(ptr_value, info);
             return LowerResult{MakeIR(std::move(addr)), ptr_value};
           }
+          if (const auto* capture = ctx.LookupCapture(node.name)) {
+            SPEC_RULE("Lower-AddrOf-Ident-Capture");
+            IRValue field_ptr = ctx.CaptureFieldPtr(*capture);
+            if (capture->by_ref) {
+              IRReadPtr load_ptr;
+              load_ptr.ptr = field_ptr;
+              load_ptr.result = ptr_value;
+              return LowerResult{MakeIR(std::move(load_ptr)), ptr_value};
+            }
+            return LowerResult{EmptyIR(), field_ptr};
+          }
           std::vector<std::string> full;
           std::string resolved_name = node.name;
           if (!ctx.resolve_name) {
@@ -948,8 +1008,14 @@ LowerResult LowerMovePlace(const syntax::Expr& place, LowerCtx& ctx) {
   auto read_result = LowerReadPlace(place, ctx);
 
   if (auto root = PlaceRoot(place)) {
-    if (auto head = FieldHead(place)) {
-      ctx.MarkFieldMoved(*root, *head);
+    if (ctx.GetBindingState(*root)) {
+      if (auto head = FieldHead(place)) {
+        ctx.MarkFieldMoved(*root, *head);
+      } else {
+        ctx.MarkMoved(*root);
+      }
+    } else if (ctx.LookupCapture(*root)) {
+      // Captured bindings are not tracked in local binding states here.
     } else {
       ctx.MarkMoved(*root);
     }

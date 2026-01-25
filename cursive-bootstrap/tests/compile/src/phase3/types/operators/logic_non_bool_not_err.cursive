@@ -1,0 +1,9 @@
+# SPEC_COV: T-Not
+# SPEC_COV: E-SEM-2554
+// E-SEM-2554: Logical NOT with non-boolean operand
+
+public procedure main(ctx: Context) -> i32 {
+  let a: i32 = 1;
+  let b: bool = !a;
+  return 0;
+}

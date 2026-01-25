@@ -1,0 +1,16 @@
+# SPEC_COV: Method-ConstructSelf
+# SPEC_COV: T-Field
+# SPEC_COV: T-Record-Lit
+// Method that accesses multiple fields for computation.
+// Tests field access in binary expressions.
+
+record Counter {
+  a: i32,
+  b: i32,
+  procedure sum(~) -> i32 { return self.a + self.b; }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let c = Counter { a: 5, b: 10 };
+  return c~>sum();
+}

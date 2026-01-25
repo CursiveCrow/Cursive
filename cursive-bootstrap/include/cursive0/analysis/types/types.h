@@ -8,6 +8,13 @@
 #include <vector>
 #include <variant>
 
+#include "cursive0/core/span.h"
+
+namespace cursive0::syntax {
+struct Type;
+struct Expr;
+}
+
 namespace cursive0::analysis {
 
 enum class Permission {
@@ -113,11 +120,23 @@ struct TypeDynamic {
 struct TypeModalState {
   TypePath path;
   std::string state;
+  std::vector<TypeRef> generic_args;
 };
 
 struct TypePathType {
   TypePath path;
   std::vector<TypeRef> generic_args;  // C0X Extension: Foo<T, U>
+};
+
+struct TypeOpaque {
+  TypePath class_path;
+  const syntax::Type* origin = nullptr;
+  core::Span origin_span;
+};
+
+struct TypeRefine {
+  TypeRef base;
+  std::shared_ptr<syntax::Expr> predicate;
 };
 
 using TypeNode = std::variant<TypePrim,
@@ -134,6 +153,8 @@ using TypeNode = std::variant<TypePrim,
                               TypeDynamic,
                               TypeModalState,
                               TypePathType,
+                              TypeOpaque,
+                              TypeRefine,
                               TypeRange>;
 
 struct Type {
@@ -154,8 +175,15 @@ TypeRef MakeTypeRawPtr(RawPtrQual qual, TypeRef element);
 TypeRef MakeTypeString(std::optional<StringState> state);
 TypeRef MakeTypeBytes(std::optional<BytesState> state);
 TypeRef MakeTypeDynamic(TypePath path);
-TypeRef MakeTypeModalState(TypePath path, std::string state);
+TypeRef MakeTypeModalState(TypePath path,
+                           std::string state,
+                           std::vector<TypeRef> generic_args = {});
 TypeRef MakeTypePath(TypePath path);
+TypeRef MakeTypeOpaque(TypePath class_path,
+                       const syntax::Type* origin,
+                       const core::Span& origin_span);
+TypeRef MakeTypeRefine(TypeRef base,
+                       std::shared_ptr<syntax::Expr> predicate);
 
 std::string TypeToString(const Type& type);
 std::string TypeToString(const TypeRef& type);

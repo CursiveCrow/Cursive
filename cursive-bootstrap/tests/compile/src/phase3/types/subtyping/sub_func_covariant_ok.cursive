@@ -1,0 +1,11 @@
+# SPEC_COV: Sub-Func
+# SPEC_COV: Sub-Func-Covariant
+// Function type assignment
+
+procedure identity(x: i32) -> i32 { return x; }
+
+public procedure main(ctx: Context) -> i32 {
+  let f: (i32) -> i32 = identity;
+  let x = 42;
+  return 0;
+}

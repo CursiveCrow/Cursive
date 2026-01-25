@@ -1,0 +1,7 @@
+# SPEC_COV: E-TYP-1901
+// E-TYP-1901: Not callable
+
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = 42
+  return x()
+}

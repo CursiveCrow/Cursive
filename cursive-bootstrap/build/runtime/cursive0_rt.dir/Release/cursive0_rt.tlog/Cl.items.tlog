@@ -6,4 +6,5 @@ C:\Dev\Cursive\cursive-bootstrap\runtime\src\context.c;C:\Dev\Cursive\cursive-bo
 C:\Dev\Cursive\cursive-bootstrap\runtime\src\region.c;C:\Dev\Cursive\cursive-bootstrap\build\runtime\cursive0_rt.dir\Release\region.obj
 C:\Dev\Cursive\cursive-bootstrap\runtime\src\heap.c;C:\Dev\Cursive\cursive-bootstrap\build\runtime\cursive0_rt.dir\Release\heap.obj
 C:\Dev\Cursive\cursive-bootstrap\runtime\src\string_bytes.c;C:\Dev\Cursive\cursive-bootstrap\build\runtime\cursive0_rt.dir\Release\string_bytes.obj
+C:\Dev\Cursive\cursive-bootstrap\runtime\src\parallel.c;C:\Dev\Cursive\cursive-bootstrap\build\runtime\cursive0_rt.dir\Release\parallel.obj
 C:\Dev\Cursive\cursive-bootstrap\runtime\src\filesystem.c;C:\Dev\Cursive\cursive-bootstrap\build\runtime\cursive0_rt.dir\Release\filesystem.obj

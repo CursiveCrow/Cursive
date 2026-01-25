@@ -1,0 +1,9 @@
+# SPEC_COV: E-TYP-1601
+// E-TYP-1601: Permission coercion
+
+procedure takes_unique(x: unique i32) -> i32 { return 0; }
+
+public procedure main(ctx: Context) -> i32 {
+  let c: const i32 = 42
+  return takes_unique(c)
+}

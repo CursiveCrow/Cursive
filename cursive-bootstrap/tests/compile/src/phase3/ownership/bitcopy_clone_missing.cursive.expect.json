@@ -1,17 +1,17 @@
 {
-    "diagnostics":  [
-                        {
-                            "code":  "E-TYP-2623",
-                            "severity":  "error",
-                            "message":  "Type implementing `Bitcopy` does not implement `Clone`",
-                            "span":  {
-                                         "file":  "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\ownership\\bitcopy_clone_missing.cursive",
-                                         "start_line":  1,
-                                         "start_col":  1,
-                                         "end_line":  1,
-                                         "end_col":  31
-                                     }
-                        }
-                    ],
-    "exit_code":  1
+  "diagnostics": [
+    {
+      "code": "E-TYP-2623",
+      "severity": "error",
+      "message": "Type implementing `Bitcopy` does not implement `Clone`",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\ownership\\bitcopy_clone_missing.cursive",
+        "start_line": 1,
+        "start_col": 1,
+        "end_line": 1,
+        "end_col": 31
+      }
+    }
+  ],
+  "exit_code": 1
 }

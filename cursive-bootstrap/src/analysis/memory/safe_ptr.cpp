@@ -13,6 +13,9 @@ static TypeRef StripPermOnce(const TypeRef& type) {
   if (const auto* perm = std::get_if<TypePerm>(&type->node)) {
     return perm->base;
   }
+  if (const auto* refine = std::get_if<TypeRefine>(&type->node)) {
+    return refine->base;
+  }
   return type;
 }
 

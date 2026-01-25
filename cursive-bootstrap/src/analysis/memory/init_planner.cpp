@@ -376,13 +376,29 @@ ModuleSet TypeRefsTy(const syntax::Type& type, const InitEnv& env) {
           return TypeRefsTypePath(node.path, env);
         } else if constexpr (std::is_same_v<T, syntax::TypeModalState>) {
           SPEC_RULE("TypeRef-ModalState");
-          return TypeRefsTypePath(node.path, env);
+          ModuleSet out = TypeRefsTypePath(node.path, env);
+          for (const auto& arg : node.generic_args) {
+            if (!arg) {
+              continue;
+            }
+            Merge(out, TypeRefsTy(*arg, env));
+          }
+          return out;
         } else if constexpr (std::is_same_v<T, syntax::TypePermType>) {
           SPEC_RULE("TypeRef-Perm");
           if (!node.base) {
             return {};
           }
           return TypeRefsTy(*node.base, env);
+        } else if constexpr (std::is_same_v<T, syntax::TypeRefine>) {
+          ModuleSet out;
+          if (node.base) {
+            Merge(out, TypeRefsTy(*node.base, env));
+          }
+          if (node.predicate) {
+            Merge(out, TypeRefsExpr(*node.predicate, env));
+          }
+          return out;
         } else if constexpr (std::is_same_v<T, syntax::TypePrim>) {
           SPEC_RULE("TypeRef-Prim");
           return {};
@@ -474,6 +490,7 @@ ModuleSet TypeRefsRef(const std::variant<syntax::TypePath, syntax::ModalStateRef
           SPEC_RULE("TypeRef-Ref-ModalState");
           syntax::TypeModalState state;
           state.path = node.path;
+          state.generic_args = {};
           state.state = node.state;
           syntax::Type fake;
           fake.node = state;
@@ -906,6 +923,9 @@ void CollectExprNodesFromType(const std::shared_ptr<syntax::Type>& type,
           CollectExprNodesFromType(node.element, out);
         } else if constexpr (std::is_same_v<T, syntax::TypeRawPtr>) {
           CollectExprNodesFromType(node.element, out);
+        } else if constexpr (std::is_same_v<T, syntax::TypeRefine>) {
+          CollectExprNodesFromType(node.base, out);
+          CollectExprNodes(node.predicate, out);
         }
       },
       type->node);
@@ -1345,6 +1365,8 @@ void CollectArraySizeExprs(const std::shared_ptr<syntax::Type>& type,
           CollectArraySizeExprs(node.element, out);
         } else if constexpr (std::is_same_v<T, syntax::TypeRawPtr>) {
           CollectArraySizeExprs(node.element, out);
+        } else if constexpr (std::is_same_v<T, syntax::TypeRefine>) {
+          CollectArraySizeExprs(node.base, out);
         }
       },
       type->node);

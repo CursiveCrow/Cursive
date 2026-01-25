@@ -28,7 +28,9 @@ static bool IsFoundationalClassPath(const syntax::ClassPath& path) {
     return false;
   }
   return IdEq(path[0], "Drop") || IdEq(path[0], "Bitcopy") ||
-         IdEq(path[0], "Clone");
+         IdEq(path[0], "Clone") ||
+         // C0X Extension: Structured Concurrency (§18.2.4)
+         IdEq(path[0], "ExecutionDomain");
 }
 syntax::Path FullPath(const syntax::Path& path, std::string_view name) {
   syntax::Path out = path;
@@ -171,6 +173,13 @@ ResTypeResult ResolveType(ResolveContext& ctx,
           auto out = *type;
           auto& out_node = std::get<syntax::TypeModalState>(out.node);
           out_node.path = resolved.value;
+          for (auto& arg : out_node.generic_args) {
+            const auto resolved_arg = ResolveType(ctx, arg);
+            if (!resolved_arg.ok) {
+              return {false, resolved_arg.diag_id, std::nullopt, {}};
+            }
+            arg = resolved_arg.value;
+          }
           SPEC_RULE("ResolveType-ModalState");
           return {true, std::nullopt, std::nullopt,
                   std::make_shared<syntax::Type>(std::move(out))};

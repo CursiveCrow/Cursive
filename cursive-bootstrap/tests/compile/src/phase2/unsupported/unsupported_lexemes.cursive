@@ -7,9 +7,6 @@ procedure demo() {
   closure;
   pipeline;
   async;
-  parallel;
-  dispatch;
-  spawn;
   metaprogramming;
   Network;
   Reactor;

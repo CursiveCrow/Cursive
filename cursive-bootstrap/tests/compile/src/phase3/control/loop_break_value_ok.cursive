@@ -1,0 +1,9 @@
+# SPEC_COV: T-Break-Value
+// Break with value
+
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = loop {
+    break 42
+  }
+  return x
+}

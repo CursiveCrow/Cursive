@@ -1,0 +1,22 @@
+# SPEC_COV: C0X-Nested-Parallelism-CPU
+# SPEC_COV: §18.8.2
+// Tests nested CPU parallel blocks (§18.8.2)
+// Inner CPU blocks share outer block's worker pool
+// Expected: no diagnostics
+
+public procedure main(ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+  let res = parallel domain {
+    let outer = spawn {
+      // Nested parallel block - shares worker pool
+      let inner_domain: $ExecutionDomain = ctx~>cpu()
+      let inner_result = parallel inner_domain {
+        let h = spawn { 21 }
+        wait h
+      }
+      inner_result * 2
+    }
+    wait outer
+  }
+  return res
+}

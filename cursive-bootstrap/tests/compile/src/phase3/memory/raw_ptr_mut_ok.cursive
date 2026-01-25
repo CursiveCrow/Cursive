@@ -1,0 +1,8 @@
+# SPEC_COV: T-Raw-Ptr-Mut
+// Mutable raw pointer
+
+public procedure main(ctx: Context) -> i32 {
+  var x: i32 = 42
+  let p: *mut i32 = unsafe { &x as *mut i32 }
+  return 0
+}

@@ -1,0 +1,13 @@
+# SPEC_COV: T-Match
+# SPEC_COV: E-PAT-2751
+// E-PAT-2751: Unreachable match arm
+
+public procedure main(ctx: Context) -> i32 {
+  let b: bool = true
+  let x: i32 = match b {
+    true => 1,
+    false => 0,
+    true => 2
+  }
+  return x
+}

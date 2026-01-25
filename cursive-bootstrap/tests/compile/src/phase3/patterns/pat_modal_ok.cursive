@@ -1,0 +1,11 @@
+# SPEC_COV: T-Pat-Modal
+// Modal-like pattern (using bool)
+
+public procedure main(ctx: Context) -> i32 {
+  let ready: bool = true
+  let x: i32 = match ready {
+    true => 100,
+    false => 0
+  }
+  return x
+}

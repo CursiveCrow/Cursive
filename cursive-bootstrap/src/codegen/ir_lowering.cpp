@@ -3166,6 +3166,12 @@ struct IRVisitor {
     if (v->getType()->isPointerTy() && target->isPointerTy()) {
       return builder->CreateBitCast(v, target);
     }
+    if (v->getType()->isIntegerTy() && target->isPointerTy()) {
+      return builder->CreateIntToPtr(v, target);
+    }
+    if (v->getType()->isPointerTy() && target->isIntegerTy()) {
+      return builder->CreatePtrToInt(v, target);
+    }
     if (v->getType()->isIntegerTy() && target->isIntegerTy()) {
       unsigned src_bits = v->getType()->getIntegerBitWidth();
       unsigned dst_bits = target->getIntegerBitWidth();
@@ -4767,6 +4773,209 @@ struct IRVisitor {
   void operator()(const IROpaque&) {
     SPEC_RULE("LowerIR-Opaque");
     SPEC_RULE("LowerIRInstr-Empty");
+  }
+
+  // C0X Extension: Structured Concurrency IR handlers (§18)
+  
+  // §18.1 Parallel block lowering
+  // Emits: ctx = cursive0_parallel_begin(domain, cancel_token, name)
+  //        <body>
+  //        cursive0_parallel_join(ctx)
+  void operator()(const IRParallel& par) {
+    SPEC_RULE("LowerIR-Parallel");
+    SPEC_RULE("Lower-ParallelIR");
+    
+    if (!ctx) {
+      // No codegen context - just emit the body sequentially
+      if (par.body) {
+        emitter.EmitIR(par.body);
+      }
+      return;
+    }
+    
+    // §18.1.1: Call cursive0_parallel_begin(domain, cancel_token, name)
+    IRValue ctx_value = ctx->FreshTempValue("parallel_ctx");
+    {
+      IRCall begin_call;
+      begin_call.callee.kind = IRValue::Kind::Symbol;
+      begin_call.callee.name = "cursive0_parallel_begin";
+      begin_call.args.push_back(par.domain);
+      if (par.cancel_token.has_value()) {
+        begin_call.args.push_back(*par.cancel_token);
+      } else {
+        // Pass null for cancel_token
+        IRValue null_val;
+        null_val.kind = IRValue::Kind::Immediate;
+        null_val.bytes = {0, 0, 0, 0, 0, 0, 0, 0};  // null pointer
+        begin_call.args.push_back(null_val);
+      }
+      // Pass name string or null
+      IRValue name_val;
+      name_val.kind = IRValue::Kind::Immediate;
+      name_val.bytes = {0, 0, 0, 0, 0, 0, 0, 0};  // null for now
+      begin_call.args.push_back(name_val);
+      begin_call.result = ctx_value;
+      (*this)(begin_call);
+    }
+    
+    // Store parallel context for nested spawn/dispatch to access
+    emitter.PushParallelContext(ctx_value);
+    
+    // Emit the body
+    if (par.body) {
+      emitter.EmitIR(par.body);
+    }
+    
+    emitter.PopParallelContext();
+    
+    // §18.1.2: Call cursive0_parallel_join(ctx) - waits and propagates panics
+    {
+      IRCall join_call;
+      join_call.callee.kind = IRValue::Kind::Symbol;
+      join_call.callee.name = "cursive0_parallel_join";
+      join_call.args.push_back(ctx_value);
+      join_call.result = par.result;
+      (*this)(join_call);
+    }
+  }
+
+  // §18.4 Spawn expression lowering
+  // For inline execution (§18.2.4 InlineDomain):
+  //   1. Execute body immediately
+  //   2. Store result via cursive0_spawn_inline_complete(result_ptr, result_size)
+  //   3. Return handle in @Ready state
+  void operator()(const IRSpawn& spawn) {
+    SPEC_RULE("LowerIR-Spawn");
+    SPEC_RULE("Lower-SpawnIR");
+
+    if (spawn.captured_env) {
+      emitter.EmitIR(spawn.captured_env);
+    }
+
+    IRCall create_call;
+    create_call.callee.kind = IRValue::Kind::Symbol;
+    create_call.callee.name = "cursive0_spawn_create";
+    create_call.args = {spawn.env_ptr, spawn.env_size, spawn.body_fn, spawn.result_size};
+    create_call.result = spawn.result;
+    (*this)(create_call);
+  }
+
+  // §10.3 Wait expression lowering
+  // Extracts result value T from SpawnHandle<T>
+  void operator()(const IRWait& wait) {
+    SPEC_RULE("LowerIR-Wait");
+    SPEC_RULE("Lower-WaitIR");
+
+    IRValue ptr_val;
+    if (ctx) {
+      ptr_val = ctx->FreshTempValue("wait_ptr");
+    } else {
+      ptr_val.kind = IRValue::Kind::Opaque;
+      ptr_val.name = "wait_ptr";
+    }
+
+    IRCall wait_call;
+    wait_call.callee.kind = IRValue::Kind::Symbol;
+    wait_call.callee.name = "cursive0_spawn_wait";
+    wait_call.args.push_back(wait.handle);
+    wait_call.result = ptr_val;
+    (*this)(wait_call);
+
+    analysis::TypeRef result_type = ctx ? ctx->LookupValueType(wait.result) : nullptr;
+    if (!result_type || IsUnitType(result_type)) {
+      llvm::Type* unit_ty = emitter.GetLLVMType(analysis::MakeTypePrim("()"));
+      if (unit_ty) {
+        StoreTemp(wait.result, llvm::Constant::getNullValue(unit_ty));
+      }
+      return;
+    }
+
+    llvm::Value* ptr = emitter.EvaluateIRValue(ptr_val);
+    llvm::Type* elem_ty = emitter.GetLLVMType(result_type);
+    if (!ptr || !elem_ty) {
+      return;
+    }
+    llvm::Value* casted = builder->CreateBitCast(ptr, elem_ty->getPointerTo());
+    llvm::Value* loaded = builder->CreateLoad(elem_ty, casted);
+    StoreTemp(wait.result, loaded);
+  }
+
+  // §18.5 Dispatch expression lowering
+  // For inline execution: sequential iteration with optional reduction
+  void operator()(const IRDispatch& dispatch) {
+    SPEC_RULE("LowerIR-Dispatch");
+    SPEC_RULE("Lower-DispatchIR");
+
+    if (dispatch.captured_env) {
+      emitter.EmitIR(dispatch.captured_env);
+    }
+
+    IRValue reduce_op_val;
+    reduce_op_val.kind = IRValue::Kind::Immediate;
+    if (dispatch.reduce_op.has_value()) {
+      const std::string& text = *dispatch.reduce_op;
+      reduce_op_val.name = "\"" + text + "\"";
+      reduce_op_val.bytes.assign(text.begin(), text.end());
+    } else {
+      reduce_op_val.name = "\"\"";
+      reduce_op_val.bytes.clear();
+    }
+
+    const bool has_reduce =
+        dispatch.reduce_op.has_value() || dispatch.reduce_fn.has_value();
+
+    IRValue reduce_fn_val;
+    if (dispatch.reduce_fn.has_value()) {
+      reduce_fn_val = *dispatch.reduce_fn;
+    } else {
+      reduce_fn_val.kind = IRValue::Kind::Immediate;
+      reduce_fn_val.bytes = {0};
+    }
+
+    IRValue ordered_val;
+    ordered_val.kind = IRValue::Kind::Immediate;
+    ordered_val.bytes = {static_cast<std::uint8_t>(dispatch.ordered ? 1 : 0)};
+
+    IRValue chunk_val;
+    if (dispatch.chunk_size.has_value()) {
+      chunk_val = *dispatch.chunk_size;
+    } else {
+      chunk_val.kind = IRValue::Kind::Immediate;
+      chunk_val.bytes = {0};
+    }
+
+    IRCall call;
+    call.callee.kind = IRValue::Kind::Symbol;
+    call.callee.name = "cursive0_dispatch_run";
+    call.args = {dispatch.range,
+                 dispatch.elem_size,
+                 dispatch.result_size,
+                 dispatch.body_fn,
+                 dispatch.env_ptr,
+                 reduce_op_val,
+                 dispatch.result_ptr,
+                 reduce_fn_val,
+                 ordered_val,
+                 chunk_val};
+    if (ctx) {
+      call.result = ctx->FreshTempValue("dispatch_call");
+    } else {
+      call.result.kind = IRValue::Kind::Opaque;
+      call.result.name = "dispatch_call";
+    }
+    (*this)(call);
+
+    if (has_reduce) {
+      IRReadPtr read;
+      read.ptr = dispatch.result_ptr;
+      read.result = dispatch.result;
+      (*this)(read);
+    } else {
+      llvm::Type* unit_ty = emitter.GetLLVMType(analysis::MakeTypePrim("()"));
+      if (unit_ty) {
+        StoreTemp(dispatch.result, llvm::Constant::getNullValue(unit_ty));
+      }
+    }
   }
 };
 void LLVMEmitter::EmitIR(const IRPtr& ir) {

@@ -2,7 +2,10 @@ proc @demo_x3a_x3amain {
   seq {
     seq {
       call @cursive_x3a_x3aruntime_x3a_x3ainit_x3a_x3ademo (%__panic)
-      panic_check
+      seq {
+        call @cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x3a_x3aemit (0x6B6365684363696E6150, "")
+        panic_check
+      }
     }
     block seq {
       seq {
@@ -18,11 +21,18 @@ proc @demo_x3a_x3amain {
             read %a
             nop
             check_index %a, 0x0
-            panic_check
+            seq {
+              call @cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x3a_x3aemit (0x6B6365684363696E6150, "")
+              panic_check
+            }
           }
           bind %x = index_elem
         }
-        panic_check
+        seq {
+          call @cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x3a_x3aemit (0x74726174532D70756E61656C43, "")
+          call @cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x3a_x3aemit (0x656E6F442D70756E61656C43, "")
+          panic_check
+        }
       }
       seq {
         seq {
@@ -30,15 +40,26 @@ proc @demo_x3a_x3amain {
             read %a
             nop
             check_index %a, 0x1
-            panic_check
+            seq {
+              call @cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x3a_x3aemit (0x6B6365684363696E6150, "")
+              panic_check
+            }
           }
           bind %y = index_elem
         }
-        panic_check
+        seq {
+          call @cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x3a_x3aemit (0x74726174532D70756E61656C43, "")
+          call @cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x3a_x3aemit (0x656E6F442D70756E61656C43, "")
+          panic_check
+        }
       }
       seq {
         nop
-        panic_check
+        seq {
+          call @cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x3a_x3aemit (0x74726174532D70756E61656C43, "")
+          call @cursive_x3a_x3aruntime_x3a_x3aspec_x5ftrace_x3a_x3aemit (0x656E6F442D70756E61656C43, "")
+          panic_check
+        }
         ret 0x0
       }
     } nop

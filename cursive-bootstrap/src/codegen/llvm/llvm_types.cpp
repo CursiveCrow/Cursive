@@ -4,6 +4,7 @@
 #include "cursive0/analysis/modal/modal_widen.h"
 #include "cursive0/analysis/resolve/scopes.h"
 #include "cursive0/analysis/types/types.h"
+#include "cursive0/analysis/caps/cap_concurrency.h"
 
 // LLVM Includes
 #include "llvm/IR/DerivedTypes.h"
@@ -442,6 +443,15 @@ llvm::Type* LLVMEmitter::GetLLVMType(analysis::TypeRef type) {
       ll_ty = llvm::StructType::get(context_, {});
     } else {
       const auto* modal = std::get_if<analysis::TypeModalState>(&type->node);
+      const bool is_async = modal && modal->path.size() == 1 && IdEq(modal->path[0], "Async");
+      if (modal && (analysis::IsSpawnHandleTypePath(modal->path) ||
+                    analysis::IsCancelTokenTypePath(modal->path) ||
+                    analysis::IsFutureHandleTypePath(modal->path) ||
+                    is_async)) {
+        ll_ty = GetOpaquePtr();
+        type_cache_[type] = ll_ty;
+        return ll_ty;
+      }
       syntax::Path syntax_path;
       syntax_path.reserve(modal->path.size());
       for (const auto& comp : modal->path) {
@@ -515,6 +525,15 @@ llvm::Type* LLVMEmitter::GetLLVMType(analysis::TypeRef type) {
       SPEC_RULE("LLVMTy-Err");
       ll_ty = GetOpaquePtr();
     } else {
+      const bool is_async = path->path.size() == 1 && IdEq(path->path[0], "Async");
+      if (analysis::IsSpawnHandleTypePath(path->path) ||
+          analysis::IsCancelTokenTypePath(path->path) ||
+          analysis::IsFutureHandleTypePath(path->path) ||
+          is_async) {
+        ll_ty = GetOpaquePtr();
+        type_cache_[type] = ll_ty;
+        return ll_ty;
+      }
       syntax::Path syntax_path;
       syntax_path.reserve(path->path.size());
       for (const auto& comp : path->path) {

@@ -1,0 +1,10 @@
+public procedure main(ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+  parallel domain {
+    let handle = spawn {
+      42
+    }
+    wait handle
+  }
+  return 0
+}

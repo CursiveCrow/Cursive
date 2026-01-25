@@ -21,6 +21,29 @@ bool BlockEndsWithReturn(const syntax::Block& block) {
   return std::holds_alternative<syntax::ReturnStmt>(block.stmts.back());
 }
 
+bool DispatchHasReduce(const syntax::DispatchExpr& expr) {
+  for (const auto& opt : expr.opts) {
+    if (opt.kind == syntax::DispatchOptionKind::Reduce) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool IsCollectableParallelExpr(const syntax::Expr& expr, bool& needs_wait) {
+  if (std::holds_alternative<syntax::SpawnExpr>(expr.node)) {
+    needs_wait = true;
+    return true;
+  }
+  if (const auto* dispatch = std::get_if<syntax::DispatchExpr>(&expr.node)) {
+    if (DispatchHasReduce(*dispatch)) {
+      needs_wait = false;
+      return true;
+    }
+  }
+  return false;
+}
+
 }  // namespace
 
 namespace {
@@ -147,6 +170,21 @@ IRPtr LowerStmtList(const std::vector<syntax::Stmt>& stmts, LowerCtx& ctx) {
 LowerResult LowerBlock(const syntax::Block& block, LowerCtx& ctx) {
   // Push a new scope for this block
   ctx.PushScope(false, false);
+  struct ParallelCollectScope {
+    LowerCtx& ctx;
+    bool active = false;
+    explicit ParallelCollectScope(LowerCtx& ctx_in) : ctx(ctx_in) {
+      active = ctx.parallel_collect != nullptr;
+      if (active) {
+        ctx.parallel_collect_depth += 1;
+      }
+    }
+    ~ParallelCollectScope() {
+      if (active) {
+        ctx.parallel_collect_depth -= 1;
+      }
+    }
+  } collect_scope(ctx);
 
   // Lower all statements
   IRPtr stmts_ir = LowerStmtList(block.stmts, ctx);
@@ -157,7 +195,21 @@ LowerResult LowerBlock(const syntax::Block& block, LowerCtx& ctx) {
 
   if (block.tail_opt) {
     SPEC_RULE("Lower-Block-Tail");
+    bool needs_wait = false;
+    const bool collect_tail =
+        ctx.parallel_collect && ctx.parallel_collect_depth == 1 &&
+        IsCollectableParallelExpr(*block.tail_opt, needs_wait);
+    auto prev_suppress = ctx.suppress_temp_at_depth;
+    if (collect_tail) {
+      ctx.suppress_temp_at_depth = ctx.temp_depth + 1;
+    }
     auto tail_result = LowerExpr(*block.tail_opt, ctx);
+    if (collect_tail) {
+      ctx.suppress_temp_at_depth = prev_suppress;
+      ctx.parallel_collect->push_back({tail_result.value, needs_wait});
+    } else {
+      ctx.suppress_temp_at_depth = prev_suppress;
+    }
     tail_ir = tail_result.ir;
     result_value = tail_result.value;
   } else {
@@ -338,6 +390,18 @@ IRPtr LowerCompoundAssignStmt(const syntax::CompoundAssignStmt& stmt,
 
 IRPtr LowerExprStmt(const syntax::ExprStmt& stmt, LowerCtx& ctx) {
   SPEC_RULE("Lower-Stmt-Expr");
+
+  if (ctx.parallel_collect && ctx.parallel_collect_depth == 1 && stmt.value) {
+    bool needs_wait = false;
+    if (IsCollectableParallelExpr(*stmt.value, needs_wait)) {
+      auto prev_suppress = ctx.suppress_temp_at_depth;
+      ctx.suppress_temp_at_depth = ctx.temp_depth + 1;
+      auto expr_result = LowerExpr(*stmt.value, ctx);
+      ctx.suppress_temp_at_depth = prev_suppress;
+      ctx.parallel_collect->push_back({expr_result.value, needs_wait});
+      return expr_result.ir;
+    }
+  }
 
   auto expr_result = LowerExpr(*stmt.value, ctx);
 

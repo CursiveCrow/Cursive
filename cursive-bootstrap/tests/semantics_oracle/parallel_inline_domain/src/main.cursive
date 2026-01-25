@@ -1,0 +1,39 @@
+# SPEC_COV: Parallel-Inline-Domain
+# SPEC_COV: §18.2.3
+// Tests inline domain executes sequentially (§18.2.3)
+// spawn {} evaluates immediately and blocks until complete
+// dispatch executes as sequential loop
+// Output should be deterministic: "ABC"
+
+public procedure main(ctx: Context) -> i32 {
+  let domain = ctx~>inline()
+
+  parallel domain {
+    // With inline domain, spawn executes immediately
+    let _ = wait spawn {
+      let msg_a = "A"
+      let _ = match ctx.fs~>write_stdout(msg_a) {
+        ok: () => ()
+        err: IoError => ()
+      }
+    }
+
+    let _ = wait spawn {
+      let msg_b = "B"
+      let _ = match ctx.fs~>write_stdout(msg_b) {
+        ok: () => ()
+        err: IoError => ()
+      }
+    }
+
+    let _ = wait spawn {
+      let msg_c = "C"
+      let _ = match ctx.fs~>write_stdout(msg_c) {
+        ok: () => ()
+        err: IoError => ()
+      }
+    }
+  }
+
+  return 0i32
+}

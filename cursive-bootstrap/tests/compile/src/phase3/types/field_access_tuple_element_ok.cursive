@@ -1,0 +1,20 @@
+# SPEC_COV: FieldAccess-TupleElement
+# SPEC_COV: T-Field
+# SPEC_COV: T-Tuple-Index
+// §11.6.2 + §11.2: Field access on tuple element.
+// Combines tuple indexing with field access on record containing tuple.
+
+record Container {
+  pair: (i32, i32)
+  procedure get_first(~) -> i32 {
+    return self.pair.0
+  }
+  procedure get_second(~) -> i32 {
+    return self.pair.1
+  }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+  let c: Container = Container { pair: (11, 22) }
+  return c ~> get_first() + c ~> get_second()
+}

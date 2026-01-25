@@ -1,0 +1,19 @@
+# SPEC_COV: Dyn-NestedField
+# SPEC_COV: T-Dynamic-MethodCall
+// Dynamic dispatch accessing nested field.
+// Tests field access through self in dynamic method.
+
+class Container {
+  procedure get_value(~) -> i32;
+}
+record Inner { val: i32 }
+record Wrapper <: Container {
+  inner: Inner,
+  procedure get_value(~) -> i32 { return self.inner.val; }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let w = Wrapper { inner: Inner { val: 42 } };
+  let d: $Container = w as $Container;
+  return d~>get_value();
+}

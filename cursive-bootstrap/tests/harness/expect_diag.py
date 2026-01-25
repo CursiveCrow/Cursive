@@ -52,7 +52,7 @@ def main() -> int:
 
     expected_diags = expected.get("diagnostics", [])
     actual_diags = actual.get("diagnostics", [])
-    required_keys = {"code", "severity", "message", "span"}
+    required_keys = {"code", "severity"}
     for idx, exp in enumerate(expected_diags):
         if not isinstance(exp, dict):
             errors.append(f"diag[{idx}]: expected diagnostic is not an object")

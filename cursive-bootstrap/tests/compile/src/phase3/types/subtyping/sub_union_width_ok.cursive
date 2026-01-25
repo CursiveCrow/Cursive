@@ -1,0 +1,7 @@
+# SPEC_COV: Sub-Union-Width
+// Union assignment test
+
+public procedure main(ctx: Context) -> i32 {
+  let u: i32 | bool = 42;
+  return 0;
+}

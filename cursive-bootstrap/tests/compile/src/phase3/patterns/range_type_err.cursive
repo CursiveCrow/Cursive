@@ -1,0 +1,12 @@
+# SPEC_COV: T-Pat-Range
+# SPEC_COV: E-PAT-2722
+// E-PAT-2722: Range with mismatched types
+
+public procedure main(ctx: Context) -> i32 {
+  let b: bool = true
+  let x: i32 = match b {
+    0..10 => 1,
+    _ => 0
+  }
+  return x
+}

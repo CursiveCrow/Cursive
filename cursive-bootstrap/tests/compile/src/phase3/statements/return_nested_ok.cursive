@@ -1,0 +1,10 @@
+# SPEC_COV: T-Return
+// Return in nested block
+
+public procedure main(ctx: Context) -> i32 {
+  {
+    {
+      return 42
+    }
+  }
+}

@@ -1,0 +1,16 @@
+# SPEC_COV: C0X-Spawn-Basic
+# SPEC_COV: T-Spawn
+// Tests basic spawn syntax and typing (§2.7.2, §18.4.1)
+// Expected: no diagnostics
+
+public procedure main(ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+  parallel domain {
+    // Spawn infers SpawnHandle<i32> type
+    let h = spawn {
+      42
+    }
+    wait h
+  }
+  return 0
+}

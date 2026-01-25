@@ -67,6 +67,9 @@ llvm::Module* LLVMEmitter::EmitModule(const IRDecls& decls, LowerCtx& ctx) {
   DeclareRuntime();
 
   IRDecls expanded = decls;
+  for (const auto& proc : ctx.extra_procs) {
+    expanded.push_back(proc);
+  }
 
   auto declare_proc = [&](const std::string& sym,
                           const std::vector<IRParam>& params,

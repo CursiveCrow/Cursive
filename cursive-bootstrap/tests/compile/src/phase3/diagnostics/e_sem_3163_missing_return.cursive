@@ -1,0 +1,10 @@
+# SPEC_COV: E-SEM-3163
+// E-SEM-3163: Missing return
+
+procedure get_int() -> i32 {
+  let x: i32 = 42
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

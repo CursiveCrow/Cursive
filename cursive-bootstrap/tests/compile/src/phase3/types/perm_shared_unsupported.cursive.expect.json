@@ -1,10 +1,16 @@
 {
   "diagnostics": [
     {
-      "code": "E-TYP-1101",
+      "code": "E-MOD-2402",
       "severity": "error",
-      "message": "`shared` permission not supported in Cursive0",
-      "span": null
+      "message": "Type annotation incompatible with inferred type",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\types\\perm_shared_unsupported.cursive",
+        "start_line": 2,
+        "start_col": 44,
+        "end_line": 5,
+        "end_col": 2
+      }
     }
   ],
   "exit_code": 1

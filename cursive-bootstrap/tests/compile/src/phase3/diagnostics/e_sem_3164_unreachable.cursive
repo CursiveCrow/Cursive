@@ -1,0 +1,8 @@
+# SPEC_COV: E-SEM-3164
+// E-SEM-3164: Unreachable code
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+  let x: i32 = 42
+  return x
+}

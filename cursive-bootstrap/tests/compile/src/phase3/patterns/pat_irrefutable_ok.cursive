@@ -1,0 +1,8 @@
+# SPEC_COV: Pat-Irrefutable
+// Let requires irrefutable pattern
+
+public procedure main(ctx: Context) -> i32 {
+  let x = 42
+  let (a, b) = (1, 2)
+  return x + a + b
+}

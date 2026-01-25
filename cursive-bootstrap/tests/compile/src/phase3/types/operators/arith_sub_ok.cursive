@@ -1,0 +1,10 @@
+# SPEC_COV: T-Arith
+# SPEC_COV: T-Sub
+// Subtraction operator on i32
+
+public procedure main(ctx: Context) -> i32 {
+  let a: i32 = 30;
+  let b: i32 = 10;
+  let c: i32 = a - b;
+  return c;
+}

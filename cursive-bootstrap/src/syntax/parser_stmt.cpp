@@ -74,7 +74,13 @@ bool IsExprStartToken(const Token& tok) {
     return tok.lexeme == "if" || tok.lexeme == "match" ||
            tok.lexeme == "loop" || tok.lexeme == "unsafe" ||
            tok.lexeme == "move" || tok.lexeme == "transmute" ||
-           tok.lexeme == "widen" || tok.lexeme == "comptime";
+           tok.lexeme == "widen" || tok.lexeme == "comptime" ||
+           // C0X Extension: Structured Concurrency (§18)
+           tok.lexeme == "parallel" || tok.lexeme == "spawn" ||
+           tok.lexeme == "dispatch" ||
+           // C0X Extension: Async expressions (§19)
+           tok.lexeme == "yield" || tok.lexeme == "sync" ||
+           tok.lexeme == "race" || tok.lexeme == "all";
   }
   return false;
 }
@@ -554,9 +560,13 @@ ParseStmtSeqResult ParseStmtSeq(Parser parser) {
 
   Parser probe = Clone(parser);
   ParseElemResult<ExprPtr> tail = ParseExpr(probe);
-  if (tail.parser.diags.empty() && IsPunc(tail.parser, "}")) {
+  Parser tail_end = Clone(tail.parser);
+  while (Tok(tail_end) && Tok(tail_end)->kind == TokenKind::Newline) {
+    Advance(tail_end);
+  }
+  if (tail.parser.diags.empty() && IsPunc(tail_end, "}")) {
     SPEC_RULE("ParseStmtSeq-TailExpr");
-    Parser merged = MergeDiag(parser, tail.parser, tail.parser);
+    Parser merged = MergeDiag(parser, tail.parser, tail_end);
     return {merged, {}, tail.elem};
   }
 

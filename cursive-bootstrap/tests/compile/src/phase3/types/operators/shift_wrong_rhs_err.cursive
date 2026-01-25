@@ -1,0 +1,10 @@
+# SPEC_COV: T-Shift
+# SPEC_COV: E-SEM-2552
+// E-SEM-2552: Shift with wrong RHS type (should be u32)
+
+public procedure main(ctx: Context) -> i32 {
+  let a: i32 = 1;
+  let b: i32 = 4;
+  let c: i32 = a << b;
+  return c;
+}

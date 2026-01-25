@@ -25,6 +25,11 @@ static inline void SpecDefsResolveQual() {
   SPEC_DEF("ArgsExprs", "9.3");
 }
 
+bool IsRuntimePanicPath(const syntax::Path& path, std::string_view name) {
+  return path.size() == 2 && IdEq(path[0], "cursive") &&
+         IdEq(path[1], "runtime") && name == "panic";
+}
+
 syntax::ExprPtr MakeExpr(const core::Span& span, syntax::ExprNode node) {
   auto expr = std::make_shared<syntax::Expr>();
   expr->span = span;
@@ -296,6 +301,13 @@ ResolveQualifiedFormResult ResolveQualifiedForm(const ResolveQualContext& ctx,
             SPEC_RULE("ResolveQual-Name-Err");
             return {false, "ResolveExpr-Ident-Err", {}};
           }
+          if (IsRuntimePanicPath(node.path, node.name)) {
+            syntax::PathExpr path;
+            path.path = node.path;
+            path.name = node.name;
+            SPEC_RULE("ResolveQual-Name-Value");
+            return {true, std::nullopt, MakeExpr(expr.span, path)};
+          }
           const auto value = ResolveQualified(
               *ctx.ctx, *ctx.name_maps, *ctx.module_names, node.path, node.name,
               EntityKind::Value, ctx.can_access);
@@ -357,6 +369,27 @@ ResolveQualifiedFormResult ResolveQualifiedForm(const ResolveQualContext& ctx,
               }
               SPEC_RULE("ResolveQual-Apply-Err");
               return {false, "ResolveExpr-Ident-Err", {}};
+            }
+            if (IsRuntimePanicPath(node.path, node.name)) {
+              syntax::PathExpr path;
+              path.path = node.path;
+              path.name = node.name;
+              syntax::CallExpr call;
+              call.callee = MakeExpr(expr.span, path);
+              call.args = resolved_args.args;
+              SPEC_RULE("ResolveQual-Apply-Value");
+              return {true, std::nullopt, MakeExpr(expr.span, call)};
+            }
+            if (node.path.size() == 1 && IdEq(node.path[0], "CancelToken") &&
+                IdEq(node.name, "new")) {
+              syntax::PathExpr path;
+              path.path = node.path;
+              path.name = node.name;
+              syntax::CallExpr call;
+              call.callee = MakeExpr(expr.span, path);
+              call.args = resolved_args.args;
+              SPEC_RULE("ResolveQual-Apply-Value");
+              return {true, std::nullopt, MakeExpr(expr.span, call)};
             }
             const auto value = ResolveQualified(
                 *ctx.ctx, *ctx.name_maps, *ctx.module_names, node.path,

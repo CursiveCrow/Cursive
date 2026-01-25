@@ -1,0 +1,18 @@
+# SPEC_COV: Perm-Nested-Field-Err
+# SPEC_COV: P-Field-Perm-Propagate
+// E-MOD-2401: Cannot mutate through const nested field access.
+// const permission prevents mutation even through multiple levels.
+
+record Inner {
+  val: i32
+}
+
+record Outer {
+  inner: Inner
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let o: Outer = Outer { inner: Inner { val: 1 } };
+  o.inner.val = 42;
+  return 0;
+}

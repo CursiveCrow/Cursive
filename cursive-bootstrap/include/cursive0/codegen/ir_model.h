@@ -292,6 +292,55 @@ struct IRLowerPanic {
   IRPtr cleanup_ir;
 };
 
+// C0X Extension: Structured Concurrency IR nodes (§11.3)
+
+// §18.1 Parallel block IR
+struct IRParallel {
+  IRValue domain;                    // $ExecutionDomain
+  IRPtr body;                        // Block body
+  IRValue result;                    // Result value (tuple of spawn results or unit)
+  std::optional<IRValue> cancel_token;  // Optional cancellation token
+  std::string name;                  // Optional debug name
+};
+
+// §18.4 Spawn expression IR
+struct IRSpawn {
+  IRPtr captured_env;                // Captured environment setup
+  IRPtr body;                        // Spawn body
+  IRValue body_result;               // Result value from body execution (T)
+  IRValue result;                    // SpawnHandle<T> handle
+  IRValue env_ptr;                   // Pointer to captured environment
+  IRValue env_size;                  // Size of captured environment (usize)
+  IRValue body_fn;                   // Wrapper function symbol
+  IRValue result_size;               // Result size (usize)
+  std::string name;                  // Optional debug name
+};
+
+// §10.3 Wait expression IR
+struct IRWait {
+  IRValue handle;                    // SpawnHandle<T>
+  IRValue result;                    // T (extracted from SpawnHandle)
+};
+
+// §18.5 Dispatch expression IR
+struct IRDispatch {
+  std::shared_ptr<cursive0::syntax::Pattern> pattern;  // Iteration variable
+  IRValue range;                     // Range<I>
+  IRPtr body;                        // Iteration body
+  IRValue body_result;               // Result value from each iteration
+  IRPtr captured_env;                // Captured environment setup
+  IRValue env_ptr;                   // Pointer to captured environment
+  IRValue body_fn;                   // Wrapper function symbol
+  IRValue elem_size;                 // Iteration element size (usize)
+  IRValue result_size;               // Body result size (usize)
+  IRValue result_ptr;                // Pointer to reduction result
+  std::optional<std::string> reduce_op;  // Reduction operator if present
+  std::optional<IRValue> reduce_fn;  // Custom reducer wrapper if present
+  IRValue result;                    // T if reduce, () otherwise
+  bool ordered = false;              // [ordered] flag
+  std::optional<IRValue> chunk_size; // [chunk:] value
+};
+
 struct IROpaque {};
 
 struct IR {
@@ -338,7 +387,12 @@ struct IR {
                IRPanicCheck,
                IRInitPanicHandle,
                IRCheckPoison,
-               IRLowerPanic>
+               IRLowerPanic,
+               // C0X Extension: Structured Concurrency
+               IRParallel,
+               IRSpawn,
+               IRWait,
+               IRDispatch>
       node;
 };
 

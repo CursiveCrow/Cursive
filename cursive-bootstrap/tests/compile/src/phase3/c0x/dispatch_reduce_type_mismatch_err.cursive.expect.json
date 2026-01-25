@@ -1,0 +1,9 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-SEM-3161",
+      "severity": "error"
+    }
+  ],
+  "exit_code": 1
+}

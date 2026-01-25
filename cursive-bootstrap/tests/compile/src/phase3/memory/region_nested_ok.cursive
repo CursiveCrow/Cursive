@@ -1,0 +1,12 @@
+# SPEC_COV: T-Region
+// Nested regions
+
+public procedure main(ctx: Context) -> i32 {
+  region {
+    let outer = ^10
+    region {
+      let inner = ^20
+      return *outer + *inner
+    }
+  }
+}

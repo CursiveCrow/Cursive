@@ -1,0 +1,15 @@
+# SPEC_COV: Lower-Spawn
+# SPEC_COV: Lower-Wait
+# SPEC_COV: IR-Spawn-Create
+# SPEC_COV: IR-Spawn-Wait
+
+public procedure main(ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+  parallel domain {
+    let h = spawn {
+      42
+    }
+    wait h
+  }
+  return 0
+}

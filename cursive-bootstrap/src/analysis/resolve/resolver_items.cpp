@@ -32,6 +32,42 @@ static inline void SpecDefsResolverItems() {
   SPEC_DEF("BindSelfClass", "5.1.7");
 }
 
+ResolveResult<std::optional<syntax::TypeInvariant>> ResolveTypeInvariantOpt(
+    ResolveContext& ctx,
+    const std::optional<syntax::TypeInvariant>& inv_opt) {
+  ResolveResult<std::optional<syntax::TypeInvariant>> result;
+  if (!inv_opt.has_value()) {
+    result.ok = true;
+    result.value = std::nullopt;
+    return result;
+  }
+  ScopeContext inv_scope = *ctx.ctx;
+  inv_scope.scopes.insert(inv_scope.scopes.begin(), Scope{});
+  IntroResult intro = Intro(inv_scope, "self",
+                            Entity{EntityKind::Value, std::nullopt,
+                                   std::nullopt, EntitySource::Decl});
+  if (!intro.ok) {
+    result.ok = false;
+    result.diag_id = intro.diag_id;
+    return result;
+  }
+  ResolveContext inv_ctx = ctx;
+  inv_ctx.ctx = &inv_scope;
+  const auto pred = ResolveExpr(inv_ctx, inv_opt->predicate);
+  if (!pred.ok) {
+    result.ok = false;
+    result.diag_id = pred.diag_id;
+    result.span = pred.span;
+    return result;
+  }
+  syntax::TypeInvariant inv;
+  inv.predicate = pred.value;
+  inv.span = inv_opt->span;
+  result.ok = true;
+  result.value = inv;
+  return result;
+}
+
 std::optional<core::Span> SpanOfItem(const syntax::ASTItem& item) {
   return std::visit(
       [](const auto& it) -> std::optional<core::Span> { return it.span; },
@@ -666,6 +702,11 @@ ResolveResult<syntax::ASTItem> ResolveItem(ResolveContext& ctx,
             return {false, impls.diag_id, impls.span, {}};
           }
           out.implements = impls.value;
+          const auto invariant = ResolveTypeInvariantOpt(ctx, node.invariant);
+          if (!invariant.ok) {
+            return {false, invariant.diag_id, invariant.span, {}};
+          }
+          out.invariant = invariant.value;
           const auto members = ResolveRecordMemberList(ctx, node, node.members);
           if (!members.ok) {
             return {false, members.diag_id, members.span, {}};
@@ -680,6 +721,11 @@ ResolveResult<syntax::ASTItem> ResolveItem(ResolveContext& ctx,
             return {false, impls.diag_id, impls.span, {}};
           }
           out.implements = impls.value;
+          const auto invariant = ResolveTypeInvariantOpt(ctx, node.invariant);
+          if (!invariant.ok) {
+            return {false, invariant.diag_id, invariant.span, {}};
+          }
+          out.invariant = invariant.value;
           const auto vars = ResolveVariantList(ctx, node.variants);
           if (!vars.ok) {
             return {false, vars.diag_id, vars.span, {}};
@@ -694,6 +740,11 @@ ResolveResult<syntax::ASTItem> ResolveItem(ResolveContext& ctx,
             return {false, impls.diag_id, impls.span, {}};
           }
           out.implements = impls.value;
+          const auto invariant = ResolveTypeInvariantOpt(ctx, node.invariant);
+          if (!invariant.ok) {
+            return {false, invariant.diag_id, invariant.span, {}};
+          }
+          out.invariant = invariant.value;
           const auto states = ResolveStateBlockList(ctx, node.states);
           if (!states.ok) {
             return {false, states.diag_id, states.span, {}};

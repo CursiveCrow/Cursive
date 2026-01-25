@@ -1,0 +1,10 @@
+# SPEC_COV: T-Ptr-Perm
+# SPEC_COV: E-MOD-2401
+// E-MOD-2401: Cannot mutate through const pointer
+
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = 42
+  let p: Ptr<const i32>@Valid = &x
+  *p = 100
+  return 0
+}

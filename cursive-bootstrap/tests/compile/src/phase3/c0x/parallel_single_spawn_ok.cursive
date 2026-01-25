@@ -1,0 +1,16 @@
+# SPEC_COV: C0X-Parallel-Single-Spawn
+# SPEC_COV: T-Parallel-Single
+// Tests parallel with single spawn returns T (§18.1.3)
+// Γ ⊢ `spawn` {e} : SpawnHandle⟨T⟩
+// ────────────────────────────────────────────────────────
+// Γ ⊢ `parallel` D {`spawn` {e}} : T
+// Expected: no diagnostics
+
+public procedure main(ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+  // Single spawn - result type is T (i32), not tuple
+  let res = parallel domain {
+    spawn { 42 }
+  }
+  return res
+}

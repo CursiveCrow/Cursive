@@ -1,9 +1,21 @@
 {
   "diagnostics": [
     {
-      "code": "E-UNS-0101",
+      "code": "E-SRC-0520",
       "severity": "error",
-      "message": "Unsupported construct in Cursive0 subset",
+      "message": "Generic syntax error (unexpected token)",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase1\\unsupported\\generic_header_unsupported.cursive",
+        "start_line": 1,
+        "start_col": 15,
+        "end_line": 1,
+        "end_col": 15
+      }
+    },
+    {
+      "code": "E-SRC-0520",
+      "severity": "error",
+      "message": "Generic syntax error (unexpected token)",
       "span": {
         "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase1\\unsupported\\generic_header_unsupported.cursive",
         "start_line": 1,

@@ -1,0 +1,11 @@
+# SPEC_COV: T-Pat-Enum
+// Enum pattern matching
+
+public procedure main(ctx: Context) -> i32 {
+  let b: bool = true
+  let x: i32 = match b {
+    true => 1,
+    false => 0
+  }
+  return x
+}

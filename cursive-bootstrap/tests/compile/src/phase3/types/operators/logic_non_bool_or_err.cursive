@@ -1,0 +1,10 @@
+# SPEC_COV: T-Logic-Or
+# SPEC_COV: E-SEM-2554
+// E-SEM-2554: Logical OR with non-boolean operands
+
+public procedure main(ctx: Context) -> i32 {
+  let a: i32 = 1;
+  let b: i32 = 2;
+  let c: bool = a || b;
+  return 0;
+}

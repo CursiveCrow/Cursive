@@ -1364,6 +1364,7 @@ compile	parse	Parse-Postfix	-	0	0	0	0
 compile	parse	Parse-Primary-Err	-	0	0	0	0	
 compile	parse	Parse-Syntax-Err	-	0	0	0	0	
 compile	parse	Emit-Append	-	0	0	0	0	
+compile	parse	Diag-Emit	src/basic.cursive	7	3	7	9	code%3DE-SRC-0520%3Bseverity%3Derror%3Bmessage%3DGeneric syntax error (unexpected token)
 compile	parse	Sync-Stmt-Advance	-	0	0	0	0	
 compile	parse	Sync-Stmt-Consume	-	0	0	0	0	
 compile	parse	Parse-PostfixTail-Stop	-	0	0	0	0	

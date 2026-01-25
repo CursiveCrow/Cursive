@@ -1,0 +1,17 @@
+# SPEC_COV: C0X-Capture-Const
+# SPEC_COV: §18.3.1
+// Tests const binding capture in spawn (§18.3.1)
+// Expected: no diagnostics
+
+public procedure main(ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+  let value: const i32 = 42
+  parallel domain {
+    let h = spawn {
+      // OK: const capture by reference
+      value
+    }
+    wait h
+  }
+  return 0
+}

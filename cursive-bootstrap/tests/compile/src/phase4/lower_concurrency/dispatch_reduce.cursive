@@ -1,0 +1,12 @@
+# SPEC_COV: Lower-Dispatch-Reduce
+# SPEC_COV: IR-Dispatch-Reduce
+
+public procedure main(ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+  parallel domain {
+    dispatch i in 0..100 [reduce: +] {
+      i as i32
+    }
+  }
+  return 0
+}

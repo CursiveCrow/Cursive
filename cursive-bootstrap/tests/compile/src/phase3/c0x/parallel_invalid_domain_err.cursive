@@ -1,0 +1,12 @@
+# SPEC_COV: C0X-Parallel-Domain-Check
+# SPEC_COV: E-CON-0101
+// Tests that parallel block requires ExecutionDomain (§18.1.1)
+// Expected diagnostic: E-CON-0101
+
+public procedure main(ctx: Context) -> i32 {
+  let not_domain: i32 = 42
+  // Error: i32 does not implement ExecutionDomain
+  parallel not_domain {
+  }
+  return 0
+}

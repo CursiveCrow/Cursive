@@ -1,0 +1,9 @@
+# SPEC_COV: B-Move-Partial
+# SPEC_COV: E-UNS-0110
+// E-UNS-0110: Use after partial move
+
+public procedure main(ctx: Context) -> i32 {
+  let t: (i32, i32) = (10, 20)
+  let a = t.0
+  return t.0
+}

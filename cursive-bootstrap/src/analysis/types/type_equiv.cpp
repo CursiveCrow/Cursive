@@ -10,6 +10,7 @@
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/core/int128.h"
 #include "cursive0/core/symbols.h"
+#include "cursive0/analysis/contracts/verification.h"
 #include "cursive0/analysis/resolve/collect_toplevel.h"
 #include "cursive0/analysis/resolve/scopes.h"
 #include "cursive0/analysis/resolve/scopes_lookup.h"
@@ -218,6 +219,24 @@ static std::optional<std::uint64_t> ParseIntLiteralUsize(
     return std::nullopt;
   }
   return core::UInt128ToU64(value);
+}
+
+static bool TypePathEq(const TypePath& lhs, const TypePath& rhs) {
+  if (lhs.size() != rhs.size()) {
+    return false;
+  }
+  for (std::size_t i = 0; i < lhs.size(); ++i) {
+    if (IdKeyOf(lhs[i]) != IdKeyOf(rhs[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool SpanEq(const core::Span& lhs, const core::Span& rhs) {
+  return lhs.file == rhs.file &&
+         lhs.start_offset == rhs.start_offset &&
+         lhs.end_offset == rhs.end_offset;
 }
 
 static const syntax::ASTModule* FindModule(const ScopeContext& ctx,
@@ -470,15 +489,38 @@ TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
             return {true, std::nullopt, false};
           }
           SPEC_RULE("T-Equiv-Path");
-          return {true, std::nullopt, PathEq(node.path, other->path)};
+          if (!PathEq(node.path, other->path)) {
+            return {true, std::nullopt, false};
+          }
+          if (node.generic_args.size() != other->generic_args.size()) {
+            return {true, std::nullopt, false};
+          }
+          for (std::size_t i = 0; i < node.generic_args.size(); ++i) {
+            const auto res = TypeEquiv(node.generic_args[i], other->generic_args[i]);
+            if (!res.ok || !res.equiv) {
+              return res.ok ? TypeEquivResult{true, std::nullopt, false} : res;
+            }
+          }
+          return {true, std::nullopt, true};
         } else if constexpr (std::is_same_v<T, TypeModalState>) {
           const auto* other = std::get_if<TypeModalState>(&rhs->node);
           if (!other) {
             return {true, std::nullopt, false};
           }
           SPEC_RULE("T-Equiv-ModalState");
-          return {true, std::nullopt,
-                  PathEq(node.path, other->path) && node.state == other->state};
+          if (!PathEq(node.path, other->path) || node.state != other->state) {
+            return {true, std::nullopt, false};
+          }
+          if (node.generic_args.size() != other->generic_args.size()) {
+            return {true, std::nullopt, false};
+          }
+          for (std::size_t i = 0; i < node.generic_args.size(); ++i) {
+            const auto res = TypeEquiv(node.generic_args[i], other->generic_args[i]);
+            if (!res.ok || !res.equiv) {
+              return res.ok ? TypeEquivResult{true, std::nullopt, false} : res;
+            }
+          }
+          return {true, std::nullopt, true};
         } else if constexpr (std::is_same_v<T, TypeString>) {
           const auto* other = std::get_if<TypeString>(&rhs->node);
           if (!other) {
@@ -527,6 +569,28 @@ TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
           }
           SPEC_RULE("T-Equiv-Dynamic");
           return {true, std::nullopt, PathEq(node.path, other->path)};
+        } else if constexpr (std::is_same_v<T, TypeOpaque>) {
+          const auto* other = std::get_if<TypeOpaque>(&rhs->node);
+          if (!other) {
+            return {true, std::nullopt, false};
+          }
+          SPEC_RULE("T-Equiv-Opaque");
+          if (!TypePathEq(node.class_path, other->class_path)) {
+            return {true, std::nullopt, false};
+          }
+          return {true, std::nullopt, SpanEq(node.origin_span, other->origin_span)};
+        } else if constexpr (std::is_same_v<T, TypeRefine>) {
+          const auto* other = std::get_if<TypeRefine>(&rhs->node);
+          if (!other) {
+            return {true, std::nullopt, false};
+          }
+          const auto base = TypeEquiv(node.base, other->base);
+          if (!base.ok || !base.equiv) {
+            return base.ok ? TypeEquivResult{true, std::nullopt, false} : base;
+          }
+          SPEC_RULE("T-Equiv-Refine");
+          return {true, std::nullopt,
+                  ExprStructEqual(node.predicate, other->predicate)};
         } else {
           return {true, std::nullopt, false};
         }

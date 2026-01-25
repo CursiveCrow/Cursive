@@ -1,0 +1,10 @@
+# SPEC_COV: T-Pat-Binding
+// Pattern binding with rename
+
+record Pair { first: i32, second: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  let p: Pair = Pair { first: 10, second: 20 }
+  let Pair { first: a, second: b } = p
+  return a + b
+}

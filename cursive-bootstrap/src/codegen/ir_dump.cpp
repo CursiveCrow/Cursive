@@ -613,6 +613,70 @@ struct Dumper {
   void DumpNode(const IRCheckPoison& c) { oss << "check_poison " << c.module; }
 
   void DumpNode(const IRLowerPanic& p) { oss << "panic " << p.reason; }
+
+  void DumpNode(const IRParallel& par) {
+    oss << "parallel {\n";
+    indent_level++;
+    Indent(); oss << "domain: "; Dump(par.domain); oss << "\n";
+    Indent(); oss << "body:\n";
+    indent_level++;
+    Indent(); Dump(par.body); oss << "\n";
+    indent_level--;
+    indent_level--;
+    Indent(); oss << "}";
+  }
+
+  void DumpNode(const IRSpawn& spawn) {
+    oss << "spawn {\n";
+    indent_level++;
+    if (spawn.captured_env) {
+      Indent(); oss << "captured_env:\n";
+      indent_level++;
+      Indent(); Dump(spawn.captured_env); oss << "\n";
+      indent_level--;
+    }
+    Indent(); oss << "body:\n";
+    indent_level++;
+    Indent(); Dump(spawn.body); oss << "\n";
+    indent_level--;
+    Indent(); oss << "body_result: "; Dump(spawn.body_result); oss << "\n";
+    Indent(); oss << "result: "; Dump(spawn.result); oss << "\n";
+    if (!spawn.name.empty()) {
+      Indent(); oss << "name: " << spawn.name << "\n";
+    }
+    indent_level--;
+    Indent(); oss << "}";
+  }
+
+  void DumpNode(const IRWait& wait) {
+    oss << "wait ";
+    Dump(wait.handle);
+    oss << " -> ";
+    Dump(wait.result);
+  }
+
+  void DumpNode(const IRDispatch& dispatch) {
+    oss << "dispatch {\n";
+    indent_level++;
+    Indent(); oss << "range: "; Dump(dispatch.range); oss << "\n";
+    if (dispatch.ordered) {
+      Indent(); oss << "ordered: true\n";
+    }
+    if (dispatch.chunk_size.has_value()) {
+      Indent(); oss << "chunk_size: "; Dump(*dispatch.chunk_size); oss << "\n";
+    }
+    if (dispatch.reduce_op.has_value()) {
+      Indent(); oss << "reduce_op: " << *dispatch.reduce_op << "\n";
+    }
+    Indent(); oss << "body:\n";
+    indent_level++;
+    Indent(); Dump(dispatch.body); oss << "\n";
+    indent_level--;
+    Indent(); oss << "body_result: "; Dump(dispatch.body_result); oss << "\n";
+    Indent(); oss << "result: "; Dump(dispatch.result); oss << "\n";
+    indent_level--;
+    Indent(); oss << "}";
+  }
 };
 
 }  // namespace

@@ -1,0 +1,20 @@
+# SPEC_COV: C0X-Capture-Use-After-Move
+# SPEC_COV: E-CON-0122
+// Tests moved binding used after spawn (§18.3.3)
+// Expected diagnostic: E-CON-0122
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  let domain = ctx~>cpu()
+  let data: unique Data = Data { value: 42 }
+  let res: i32 = parallel domain {
+    let h = spawn [move data] {
+      return data.value
+    }
+    // Error: moved binding used after spawn
+    let x: i32 = data.value
+    return wait h
+  }
+  return res
+}

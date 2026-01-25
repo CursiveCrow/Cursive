@@ -43,6 +43,9 @@
     <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\analysis\types\type_stmt.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\analysis\types\type_concurrency.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\analysis\types\type_pattern.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -137,6 +140,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\analysis\caps\cap_filesystem.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\analysis\caps\cap_concurrency.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\src\analysis\keys\key_context.cpp">

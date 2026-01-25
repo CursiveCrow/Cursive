@@ -1,0 +1,11 @@
+# SPEC_COV: B-Move-Return
+// Return moves value
+
+procedure create() -> i32 {
+  let x: i32 = 42
+  return x
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return create()
+}

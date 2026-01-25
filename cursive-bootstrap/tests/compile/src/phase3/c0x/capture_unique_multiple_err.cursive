@@ -1,0 +1,22 @@
+# SPEC_COV: C0X-Capture-Unique-Multiple
+# SPEC_COV: E-CON-0121
+// Tests multiple spawns cannot capture same unique binding (§18.3.3)
+// Expected diagnostic: E-CON-0121
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  let domain = ctx~>cpu()
+  let data: unique Data = Data { value: 42 }
+  let res: i32 = parallel domain {
+    // Error: multiple work items capture same unique binding
+    let h1 = spawn [move data] {
+      return data.value
+    }
+    let h2 = spawn [move data] {
+      return data.value
+    }
+    return wait h1
+  }
+  return res
+}

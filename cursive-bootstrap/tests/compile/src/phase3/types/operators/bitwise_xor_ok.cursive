@@ -1,0 +1,10 @@
+# SPEC_COV: T-Bitwise
+# SPEC_COV: T-BitXor
+// Bitwise XOR operator
+
+public procedure main(ctx: Context) -> i32 {
+  let a: i32 = 0b1010;
+  let b: i32 = 0b1100;
+  let c: i32 = a ^ b;
+  return c;
+}

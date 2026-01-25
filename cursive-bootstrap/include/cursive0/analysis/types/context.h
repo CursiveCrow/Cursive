@@ -50,6 +50,7 @@ struct Sigma {
   std::vector<syntax::ASTModule> mods;
   std::map<PathKey, TypeDecl> types;
   std::map<PathKey, syntax::ClassDecl> classes;
+  std::unordered_map<const syntax::Type*, TypeRef> opaque_underlying;
 };
 
 using Scope = std::unordered_map<IdKey, Entity>;

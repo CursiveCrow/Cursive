@@ -1,0 +1,7 @@
+# SPEC_COV: T-ExprStmt
+// Expression statement discards value
+
+public procedure main(ctx: Context) -> i32 {
+  42;
+  return 0
+}

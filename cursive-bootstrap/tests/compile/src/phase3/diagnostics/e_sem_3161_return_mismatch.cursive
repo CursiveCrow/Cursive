@@ -1,0 +1,10 @@
+# SPEC_COV: E-SEM-3161
+// E-SEM-3161: Return type mismatch
+
+procedure get_int() -> i32 {
+  return true
+}
+
+public procedure main(ctx: Context) -> i32 {
+  return 0
+}

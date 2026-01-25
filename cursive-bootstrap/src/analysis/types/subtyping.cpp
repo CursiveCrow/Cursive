@@ -9,8 +9,11 @@
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/analysis/modal/modal.h"
 #include "cursive0/analysis/modal/modal_widen.h"
+#include "cursive0/analysis/contracts/verification.h"
 #include "cursive0/analysis/resolve/scopes.h"
 #include "cursive0/analysis/types/type_equiv.h"
+#include "cursive0/analysis/types/type_stmt.h"
+#include "cursive0/analysis/caps/cap_concurrency.h"
 #include "cursive0/syntax/ast.h"
 
 namespace cursive0::analysis {
@@ -70,6 +73,12 @@ static bool IsNumericMismatch(const TypeRef& lhs, const TypeRef& rhs) {
 static bool IsNeverType(const TypeRef& type) {
   const auto* prim = std::get_if<TypePrim>(&type->node);
   return prim && prim->name == "!";
+}
+
+static bool SpanEq(const core::Span& lhs, const core::Span& rhs) {
+  return lhs.file == rhs.file &&
+         lhs.start_offset == rhs.start_offset &&
+         lhs.end_offset == rhs.end_offset;
 }
 
 static bool PermSub(Permission lhs, Permission rhs) {
@@ -149,6 +158,49 @@ SubtypingResult Subtyping(const ScopeContext& ctx,
     return {true, std::nullopt, true};
   }
 
+  if (const auto* lref = std::get_if<TypeRefine>(&lhs->node)) {
+    if (const auto* rref = std::get_if<TypeRefine>(&rhs->node)) {
+      const auto base_eq = TypeEquiv(lref->base, rref->base);
+      if (!base_eq.ok) {
+        return {false, base_eq.diag_id, false};
+      }
+      if (!base_eq.equiv) {
+        return {true, std::nullopt, false};
+      }
+      SPEC_RULE("Sub-Refine");
+      if (!lref->predicate || !rref->predicate) {
+        return {true, std::nullopt, false};
+      }
+      StaticProofContext proof_ctx;
+      AddFact(proof_ctx, lref->predicate, rref->predicate->span);
+      const auto proof = StaticProof(proof_ctx, rref->predicate);
+      if (proof.provable) {
+        return {true, std::nullopt, true};
+      }
+      return {true, std::optional<std::string_view>{"E-TYP-1953"}, false};
+    }
+    SPEC_RULE("Sub-Refine-Elim");
+    return Subtyping(ctx, lref->base, rhs);
+  }
+  if (std::holds_alternative<TypeRefine>(rhs->node)) {
+    return {true, std::nullopt, false};
+  }
+
+  if (const auto* lopaque = std::get_if<TypeOpaque>(&lhs->node)) {
+    const auto* ropaque = std::get_if<TypeOpaque>(&rhs->node);
+    if (!ropaque) {
+      return {true, std::nullopt, false};
+    }
+    SPEC_RULE("Sub-Opaque");
+    if (SpanEq(lopaque->origin_span, ropaque->origin_span)) {
+      return {true, std::nullopt, true};
+    }
+    return {true, std::optional<std::string_view>{"Opaque-Type-Mismatch"}, false};
+  }
+  if (std::holds_alternative<TypeOpaque>(rhs->node)) {
+    return {true, std::nullopt, false};
+  }
+
   if (IsNumericMismatch(lhs, rhs)) {
     return {true, std::nullopt, false};
   }
@@ -156,6 +208,54 @@ SubtypingResult Subtyping(const ScopeContext& ctx,
   if (IsNeverType(lhs)) {
     SPEC_RULE("Sub-Never");
     return {true, std::nullopt, true};
+  }
+
+  const auto lhs_async = AsyncSigOf(ctx, lhs);
+  const auto rhs_async = AsyncSigOf(ctx, rhs);
+  if (lhs_async.has_value() && rhs_async.has_value()) {
+    const auto out_sub = Subtyping(ctx, lhs_async->out, rhs_async->out);
+    if (!out_sub.ok) {
+      return {false, out_sub.diag_id, false};
+    }
+    if (!out_sub.subtype) {
+      return {true, std::nullopt, false};
+    }
+    const auto in_sub = Subtyping(ctx, rhs_async->in, lhs_async->in);
+    if (!in_sub.ok) {
+      return {false, in_sub.diag_id, false};
+    }
+    if (!in_sub.subtype) {
+      return {true, std::nullopt, false};
+    }
+    const auto res_sub = Subtyping(ctx, lhs_async->result, rhs_async->result);
+    if (!res_sub.ok) {
+      return {false, res_sub.diag_id, false};
+    }
+    if (!res_sub.subtype) {
+      return {true, std::nullopt, false};
+    }
+    const auto err_sub = Subtyping(ctx, lhs_async->err, rhs_async->err);
+    if (!err_sub.ok) {
+      return {false, err_sub.diag_id, false};
+    }
+    if (!err_sub.subtype) {
+      return {true, std::nullopt, false};
+    }
+    SPEC_RULE("Sub-Async");
+    return {true, std::nullopt, true};
+  }
+
+  if (const auto* ldyn = std::get_if<TypeDynamic>(&lhs->node)) {
+    if (const auto* rdyn = std::get_if<TypeDynamic>(&rhs->node)) {
+      if (IsExecutionDomainTypePath(rdyn->path)) {
+        if (rdyn->path.size() == 1 && ldyn->path.size() == 1) {
+          const auto& lname = ldyn->path[0];
+          if (lname == "CpuDomain" || lname == "GpuDomain" || lname == "InlineDomain") {
+            return {true, std::nullopt, true};
+          }
+        }
+      }
+    }
   }
 
   if (const auto* lstr = std::get_if<TypeString>(&lhs->node)) {
@@ -272,6 +372,21 @@ SubtypingResult Subtyping(const ScopeContext& ctx,
         SPEC_RULE("Modal-Incomparable");
         return {true, std::nullopt, false};
       }
+      if (TypePathEq(lmodal->path, rmodal->path) &&
+          lmodal->state == rmodal->state) {
+        if (lmodal->generic_args.size() != rmodal->generic_args.size()) {
+          return {true, std::nullopt, false};
+        }
+        for (std::size_t i = 0; i < lmodal->generic_args.size(); ++i) {
+          const auto res = TypeEquiv(lmodal->generic_args[i], rmodal->generic_args[i]);
+          if (!res.ok) {
+            return {false, res.diag_id, false};
+          }
+          if (!res.equiv) {
+            return {true, std::nullopt, false};
+          }
+        }
+      }
     }
   }
 
@@ -279,6 +394,18 @@ SubtypingResult Subtyping(const ScopeContext& ctx,
     if (const auto* rpath = std::get_if<TypePathType>(&rhs->node)) {
       if (!TypePathEq(lmodal->path, rpath->path)) {
         return {true, std::nullopt, false};
+      }
+      if (lmodal->generic_args.size() != rpath->generic_args.size()) {
+        return {true, std::nullopt, false};
+      }
+      for (std::size_t i = 0; i < lmodal->generic_args.size(); ++i) {
+        const auto res = TypeEquiv(lmodal->generic_args[i], rpath->generic_args[i]);
+        if (!res.ok) {
+          return {false, res.diag_id, false};
+        }
+        if (!res.equiv) {
+          return {true, std::nullopt, false};
+        }
       }
       SPEC_RULE("Sub-Modal-Niche");
       if (!NicheCompatible(ctx, lmodal->path, lmodal->state)) {

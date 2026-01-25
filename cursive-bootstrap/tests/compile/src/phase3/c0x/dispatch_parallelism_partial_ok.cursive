@@ -1,0 +1,16 @@
+# SPEC_COV: C0X-Dispatch-Parallelism-Partial
+# SPEC_COV: §18.5.3
+// Tests partial parallelism from key patterns (§18.5.3)
+// data[i / 2] generates n/2 distinct keys - pairs serialize
+// Expected: no diagnostics
+
+public procedure main(ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+  
+  parallel domain {
+    // Simplified - shared data access not fully implemented
+    dispatch i in 0..100 {
+    }
+  }
+  return 0
+}

@@ -113,11 +113,11 @@
       <ProxyFileName>%(Filename)_p.c</ProxyFileName>
     </Midl>
     <PostBuildEvent>
-      <Message>Merging kernel32 import library into cursive0_rt.lib</Message>
+      <Message>Merging kernel32 + vcruntime into cursive0_rt.lib</Message>
       <Command>setlocal
 "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\lib.exe" /NOLOGO /OUT:C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.sanitized.lib /REMOVE:KERNEL32.dll C:/Dev/Cursive/cursive-bootstrap/runtime/cursive0_rt.lib
 if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\lib.exe" /NOLOGO /OUT:C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.merged.lib C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.sanitized.lib kernel32.lib
+"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\lib.exe" /NOLOGO /OUT:C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.merged.lib C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.sanitized.lib kernel32.lib "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/lib/x64/vcruntime.lib"
 if %errorlevel% neq 0 goto :cmEnd
 "C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.merged.lib C:/Dev/Cursive/cursive-bootstrap/runtime/cursive0_rt.lib
 if %errorlevel% neq 0 goto :cmEnd
@@ -172,11 +172,11 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <ProxyFileName>%(Filename)_p.c</ProxyFileName>
     </Midl>
     <PostBuildEvent>
-      <Message>Merging kernel32 import library into cursive0_rt.lib</Message>
+      <Message>Merging kernel32 + vcruntime into cursive0_rt.lib</Message>
       <Command>setlocal
 "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\lib.exe" /NOLOGO /OUT:C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.sanitized.lib /REMOVE:KERNEL32.dll C:/Dev/Cursive/cursive-bootstrap/runtime/cursive0_rt.lib
 if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\lib.exe" /NOLOGO /OUT:C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.merged.lib C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.sanitized.lib kernel32.lib
+"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\lib.exe" /NOLOGO /OUT:C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.merged.lib C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.sanitized.lib kernel32.lib "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/lib/x64/vcruntime.lib"
 if %errorlevel% neq 0 goto :cmEnd
 "C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.merged.lib C:/Dev/Cursive/cursive-bootstrap/runtime/cursive0_rt.lib
 if %errorlevel% neq 0 goto :cmEnd
@@ -231,11 +231,11 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <ProxyFileName>%(Filename)_p.c</ProxyFileName>
     </Midl>
     <PostBuildEvent>
-      <Message>Merging kernel32 import library into cursive0_rt.lib</Message>
+      <Message>Merging kernel32 + vcruntime into cursive0_rt.lib</Message>
       <Command>setlocal
 "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\lib.exe" /NOLOGO /OUT:C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.sanitized.lib /REMOVE:KERNEL32.dll C:/Dev/Cursive/cursive-bootstrap/runtime/cursive0_rt.lib
 if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\lib.exe" /NOLOGO /OUT:C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.merged.lib C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.sanitized.lib kernel32.lib
+"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\lib.exe" /NOLOGO /OUT:C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.merged.lib C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.sanitized.lib kernel32.lib "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/lib/x64/vcruntime.lib"
 if %errorlevel% neq 0 goto :cmEnd
 "C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.merged.lib C:/Dev/Cursive/cursive-bootstrap/runtime/cursive0_rt.lib
 if %errorlevel% neq 0 goto :cmEnd
@@ -289,11 +289,11 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <ProxyFileName>%(Filename)_p.c</ProxyFileName>
     </Midl>
     <PostBuildEvent>
-      <Message>Merging kernel32 import library into cursive0_rt.lib</Message>
+      <Message>Merging kernel32 + vcruntime into cursive0_rt.lib</Message>
       <Command>setlocal
 "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\lib.exe" /NOLOGO /OUT:C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.sanitized.lib /REMOVE:KERNEL32.dll C:/Dev/Cursive/cursive-bootstrap/runtime/cursive0_rt.lib
 if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\lib.exe" /NOLOGO /OUT:C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.merged.lib C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.sanitized.lib kernel32.lib
+"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\lib.exe" /NOLOGO /OUT:C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.merged.lib C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.sanitized.lib kernel32.lib "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/lib/x64/vcruntime.lib"
 if %errorlevel% neq 0 goto :cmEnd
 "C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Dev/Cursive/cursive-bootstrap/build/runtime/cursive0_rt.merged.lib C:/Dev/Cursive/cursive-bootstrap/runtime/cursive0_rt.lib
 if %errorlevel% neq 0 goto :cmEnd
@@ -376,6 +376,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\runtime\src\region.c" />
     <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\runtime\src\heap.c" />
     <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\runtime\src\string_bytes.c" />
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\runtime\src\parallel.c" />
     <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\runtime\src\filesystem.c" />
   </ItemGroup>
   <ItemGroup />

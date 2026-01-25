@@ -1,0 +1,11 @@
+# SPEC_COV: Sub-Perm
+// Permission lattice: unique <: const
+
+procedure takes_const(x: const i32) -> i32 {
+  return x;
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let u: unique i32 = unsafe { transmute::<i32, unique i32>(42) };
+  return takes_const(u);
+}

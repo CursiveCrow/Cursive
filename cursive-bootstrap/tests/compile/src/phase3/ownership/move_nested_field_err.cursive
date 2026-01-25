@@ -1,0 +1,18 @@
+# SPEC_COV: Move-NestedField-Err
+# SPEC_COV: B-Move-Field-NonUnique-Err
+// E-MEM-3004: Cannot move from nested field without unique permission.
+// Tests that partial move from non-unique nested structure is rejected.
+
+record Inner {
+  val: i32
+}
+
+record Outer {
+  inner: Inner
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let o: Outer = Outer { inner: Inner { val: 42 } };
+  let v: i32 = move o.inner.val;
+  return 0;
+}

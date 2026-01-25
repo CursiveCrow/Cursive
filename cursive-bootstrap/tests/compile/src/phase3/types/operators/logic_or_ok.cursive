@@ -1,0 +1,9 @@
+# SPEC_COV: T-Logic-Or
+// Logical OR operator
+
+public procedure main(ctx: Context) -> i32 {
+  let a: bool = true;
+  let b: bool = false;
+  let c: bool = a || b;
+  return 0;
+}

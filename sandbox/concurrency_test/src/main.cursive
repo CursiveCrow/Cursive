@@ -1,0 +1,13 @@
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+  var data = Data { value: 42 }
+  parallel domain {
+    let h = spawn {
+      data.value
+    }
+    wait h
+  }
+  return 0
+}

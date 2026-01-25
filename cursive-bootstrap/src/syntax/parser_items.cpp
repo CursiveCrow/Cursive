@@ -291,18 +291,28 @@ ParseElemResult<AttributeItem> ParseAttributeItem(Parser parser) {
 // Returns empty list if no attributes
 ParseElemResult<AttributeList> ParseAttributeListOpt(Parser parser) {
   AttributeList attrs;
-  
-  while (IsPunc(parser, "[")) {
-    Parser probe = parser;
-    Advance(probe);
-    if (!IsPunc(probe, "[")) {
-      break;  // Not an attribute
+
+  auto is_attr_start = [](const Parser& cur) -> bool {
+    if (IsPunc(cur, "[[")) {
+      return true;
     }
-    
-    // Consume [[
+    if (IsPunc(cur, "[")) {
+      Parser probe = cur;
+      Advance(probe);
+      return IsPunc(probe, "[");
+    }
+    return false;
+  };
+
+  while (is_attr_start(parser)) {
+    // Consume [[ (either as a single punctuator or two '[' tokens)
     Parser next = parser;
-    Advance(next);
-    Advance(next);
+    if (IsPunc(next, "[[")) {
+      Advance(next);
+    } else {
+      Advance(next);
+      Advance(next);
+    }
     
     SPEC_RULE("Parse-Attribute");
     
@@ -318,16 +328,20 @@ ParseElemResult<AttributeList> ParseAttributeListOpt(Parser parser) {
       next = item.parser;
     }
     
-    // Expect ]]
-    if (!IsPunc(next, "]")) {
-      EmitParseSyntaxErr(next, TokSpan(next));
-    } else {
+    // Expect ]] (either as a single punctuator or two ']' tokens)
+    if (IsPunc(next, "]]") ) {
       Advance(next);
-    }
-    if (!IsPunc(next, "]")) {
-      EmitParseSyntaxErr(next, TokSpan(next));
     } else {
-      Advance(next);
+      if (!IsPunc(next, "]")) {
+        EmitParseSyntaxErr(next, TokSpan(next));
+      } else {
+        Advance(next);
+      }
+      if (!IsPunc(next, "]")) {
+        EmitParseSyntaxErr(next, TokSpan(next));
+      } else {
+        Advance(next);
+      }
     }
     
     parser = next;
@@ -379,6 +393,40 @@ ParseElemResult<std::optional<ContractClause>> ParseContractClauseOpt(Parser par
   
   clause.span = SpanBetween(start, next);
   return {next, clause};
+}
+
+// Parse type invariant: where { predicate_expr }
+ParseElemResult<std::optional<TypeInvariant>> ParseInvariantOpt(Parser parser) {
+  if (!IsKw(parser, "where")) {
+    SPEC_RULE("Parse-InvariantOpt-None");
+    return {parser, std::nullopt};
+  }
+  SPEC_RULE("Parse-InvariantOpt-Yes");
+  Parser start = parser;
+  Parser next = parser;
+  Advance(next);  // consume where
+  if (!IsPunc(next, "{")) {
+    EmitParseSyntaxErr(next, TokSpan(next));
+    Parser sync = next;
+    SyncItem(sync);
+    return {sync, std::nullopt};
+  }
+  Parser after_l = next;
+  Advance(after_l);
+  ParseElemResult<ExprPtr> pred = ParseExpr(after_l);
+  Parser after_pred = pred.parser;
+  if (!IsPunc(after_pred, "}")) {
+    EmitParseSyntaxErr(after_pred, TokSpan(after_pred));
+    Parser sync = after_pred;
+    SyncItem(sync);
+    return {sync, std::nullopt};
+  }
+  Parser after = after_pred;
+  Advance(after);
+  TypeInvariant inv;
+  inv.predicate = pred.elem;
+  inv.span = SpanBetween(start, after);
+  return {after, inv};
 }
 
 void EmitExternUnsupported(Parser& parser) {
@@ -446,6 +494,26 @@ ParseElemResult<std::vector<std::shared_ptr<Type>>> ParseTypeList(Parser parser)
   std::vector<std::shared_ptr<Type>> types;
   types.push_back(first.elem);
   return ParseTypeListTail(first.parser, std::move(types));
+}
+
+ParseElemResult<ModulePath> ParseUsingPath(Parser parser) {
+  SPEC_RULE("Parse-Using-Path");
+  ParseElemResult<Identifier> head = ParseIdent(parser);
+  ModulePath path;
+  path.push_back(head.elem);
+  Parser cur = head.parser;
+  while (IsOp(cur, "::")) {
+    Parser after_colons = cur;
+    Advance(after_colons);
+    // Stop before using-list or wildcard: `using path::{...}` or `using path::*`
+    if (IsPunc(after_colons, "{") || IsOp(after_colons, "*")) {
+      break;
+    }
+    ParseElemResult<Identifier> seg = ParseIdent(after_colons);
+    path.push_back(seg.elem);
+    cur = seg.parser;
+  }
+  return {cur, path};
 }
 
 ParseElemResult<UsingSpec> ParseUsingSpec(Parser parser) {
@@ -1695,18 +1763,37 @@ ParseItemResult ParseItem(Parser parser) {
   if (IsKw(cur, "using")) {
     Parser next = cur;
     Advance(next);
-    ParseElemResult<ModulePath> path = ParseModulePath(next);
-    if (IsPunc(path.parser, "{")) {
-      SPEC_RULE("Parse-Using-List");
-      Parser after_brace = path.parser;
-      Advance(after_brace);
-      ParseElemResult<std::vector<UsingSpec>> specs = ParseUsingList(after_brace);
-      UsingDecl decl;
-      decl.vis = vis.elem;
-      decl.clause = UsingList{path.elem, std::move(specs.elem)};
-      decl.span = SpanBetween(start, specs.parser);
-      decl.doc = {};
-      return {specs.parser, decl};
+    ParseElemResult<ModulePath> path = ParseUsingPath(next);
+    if (IsOp(path.parser, "::")) {
+      Parser after_colons = path.parser;
+      Advance(after_colons);
+      if (IsPunc(after_colons, "{")) {
+        SPEC_RULE("Parse-Using-List");
+        Parser after_brace = after_colons;
+        Advance(after_brace);
+        ParseElemResult<std::vector<UsingSpec>> specs = ParseUsingList(after_brace);
+        UsingDecl decl;
+        decl.vis = vis.elem;
+        decl.clause = UsingList{path.elem, std::move(specs.elem)};
+        decl.span = SpanBetween(start, specs.parser);
+        decl.doc = {};
+        return {specs.parser, decl};
+      }
+      if (IsOp(after_colons, "*")) {
+        SPEC_RULE("Parse-Using-Wildcard");
+        Parser after_star = after_colons;
+        Advance(after_star);
+        UsingDecl decl;
+        decl.vis = vis.elem;
+        decl.clause = UsingWildcard{path.elem};
+        decl.span = SpanBetween(start, after_star);
+        decl.doc = {};
+        return {after_star, decl};
+      }
+      EmitParseSyntaxErr(after_colons, TokSpan(after_colons));
+      Parser sync = after_colons;
+      SyncItem(sync);
+      return {sync, ErrorItem{SpanBetween(start, sync)}};
     }
     SPEC_RULE("Parse-Using-Path");
     ParseElemResult<std::optional<Identifier>> alias = ParseAliasOpt(path.parser);
@@ -1770,6 +1857,8 @@ ParseItemResult ParseItem(Parser parser) {
     // C0X Extension: Parse optional where clause
     ParseElemResult<std::optional<WhereClause>> where_clause = ParseWhereClauseOpt(impls.parser);
     ParseElemResult<std::vector<RecordMember>> members = ParseRecordBody(where_clause.parser);
+    ParseElemResult<std::optional<TypeInvariant>> invariant =
+        ParseInvariantOpt(members.parser);
     RecordDecl decl;
     decl.attrs = attrs.elem;  // C0X Extension
     decl.vis = vis.elem;
@@ -1777,10 +1866,11 @@ ParseItemResult ParseItem(Parser parser) {
     decl.generic_params = gen_params.elem;  // C0X Extension
     decl.implements = std::move(impls.elem);
     decl.where_clause = where_clause.elem;  // C0X Extension
+    decl.invariant = invariant.elem;  // C0X Extension
     decl.members = std::move(members.elem);
-    decl.span = SpanBetween(start, members.parser);
+    decl.span = SpanBetween(start, invariant.parser);
     decl.doc = {};
-    return {members.parser, decl};
+    return {invariant.parser, decl};
   }
 
   if (IsKw(cur, "enum")) {
@@ -1794,6 +1884,8 @@ ParseItemResult ParseItem(Parser parser) {
     // C0X Extension: Parse optional where clause
     ParseElemResult<std::optional<WhereClause>> where_clause = ParseWhereClauseOpt(impls.parser);
     ParseElemResult<std::vector<VariantDecl>> vars = ParseEnumBody(where_clause.parser);
+    ParseElemResult<std::optional<TypeInvariant>> invariant =
+        ParseInvariantOpt(vars.parser);
     EnumDecl decl;
     decl.attrs = attrs.elem;  // C0X Extension
     decl.vis = vis.elem;
@@ -1801,10 +1893,11 @@ ParseItemResult ParseItem(Parser parser) {
     decl.generic_params = gen_params.elem;  // C0X Extension
     decl.implements = std::move(impls.elem);
     decl.where_clause = where_clause.elem;  // C0X Extension
+    decl.invariant = invariant.elem;  // C0X Extension
     decl.variants = std::move(vars.elem);
-    decl.span = SpanBetween(start, vars.parser);
+    decl.span = SpanBetween(start, invariant.parser);
     decl.doc = {};
-    return {vars.parser, decl};
+    return {invariant.parser, decl};
   }
 
   if (IsKw(cur, "modal")) {
@@ -1818,16 +1911,19 @@ ParseItemResult ParseItem(Parser parser) {
     // C0X Extension: Parse optional where clause
     ParseElemResult<std::optional<WhereClause>> where_clause = ParseWhereClauseOpt(impls.parser);
     ParseElemResult<std::vector<StateBlock>> states = ParseModalBody(where_clause.parser);
+    ParseElemResult<std::optional<TypeInvariant>> invariant =
+        ParseInvariantOpt(states.parser);
     ModalDecl decl;
     decl.vis = vis.elem;
     decl.name = name.elem;
     decl.generic_params = gen_params.elem;  // C0X Extension
     decl.implements = std::move(impls.elem);
     decl.where_clause = where_clause.elem;  // C0X Extension
+    decl.invariant = invariant.elem;  // C0X Extension
     decl.states = std::move(states.elem);
-    decl.span = SpanBetween(start, states.parser);
+    decl.span = SpanBetween(start, invariant.parser);
     decl.doc = {};
-    return {states.parser, decl};
+    return {invariant.parser, decl};
   }
 
   if (IsKw(cur, "class")) {

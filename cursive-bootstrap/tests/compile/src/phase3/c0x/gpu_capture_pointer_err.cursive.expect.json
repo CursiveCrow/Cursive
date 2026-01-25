@@ -1,0 +1,9 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-CON-0151",
+      "severity": "error"
+    }
+  ],
+  "exit_code": 1
+}

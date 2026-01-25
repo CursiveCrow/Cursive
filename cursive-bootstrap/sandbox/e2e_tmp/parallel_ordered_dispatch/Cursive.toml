@@ -1,0 +1,4 @@
+[assembly]
+name = "parallel_ordered_dispatch"
+kind = "executable"
+root = "src"

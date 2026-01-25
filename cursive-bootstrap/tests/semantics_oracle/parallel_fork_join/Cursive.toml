@@ -1,0 +1,4 @@
+[assembly]
+name = "parallel_fork_join"
+kind = "executable"
+root = "src"

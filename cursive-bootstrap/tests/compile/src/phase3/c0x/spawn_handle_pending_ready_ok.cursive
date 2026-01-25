@@ -1,0 +1,17 @@
+# SPEC_COV: C0X-SpawnHandle-States
+# SPEC_COV: §18.4.2
+// Tests SpawnHandle modal states @Pending and @Ready (§18.4.2)
+// Expected: no diagnostics
+
+public procedure main(ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+  
+  parallel domain {
+    // Spawn returns SpawnHandle<T>@Pending
+    let h = spawn { 42 }
+    
+    // Wait extracts the value, consuming the handle
+    let res = wait h
+  }
+  return 0
+}

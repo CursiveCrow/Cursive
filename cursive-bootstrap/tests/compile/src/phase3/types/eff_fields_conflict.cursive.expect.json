@@ -1,30 +1,6 @@
 {
   "diagnostics": [
     {
-      "code": "E-SRC-0510",
-      "severity": "error",
-      "message": "Missing statement terminator",
-      "span": {
-        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\types\\eff_fields_conflict.cursive",
-        "start_line": 4,
-        "start_col": 1,
-        "end_line": 4,
-        "end_col": 2
-      }
-    },
-    {
-      "code": "E-SRC-0510",
-      "severity": "error",
-      "message": "Missing statement terminator",
-      "span": {
-        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\types\\eff_fields_conflict.cursive",
-        "start_line": 8,
-        "start_col": 1,
-        "end_line": 8,
-        "end_col": 2
-      }
-    },
-    {
       "code": "E-SRC-0520",
       "severity": "error",
       "message": "Generic syntax error (unexpected token)",

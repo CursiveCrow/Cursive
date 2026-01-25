@@ -1,7 +1,11 @@
 #include "cursive0/codegen/lower/lower_expr.h"
+#include "cursive0/codegen/lower/lower_pat.h"
 #include "cursive0/codegen/checks.h"
 #include "cursive0/codegen/layout/layout.h"
+#include "cursive0/codegen/cleanup.h"
+#include "cursive0/codegen/abi/abi.h"
 #include "cursive0/core/assert_spec.h"
+#include "cursive0/analysis/caps/cap_concurrency.h"
 
 #include <algorithm>
 #include <cassert>
@@ -9,6 +13,8 @@
 #include <iostream>
 #include <memory>
 #include <variant>
+#include <unordered_set>
+#include <unordered_map>
 
 namespace cursive0::codegen {
 
@@ -124,6 +130,29 @@ bool IsTempValueExpr(const syntax::Expr& expr) {
   return !IsPlaceExprForTemp(expr);
 }
 
+bool DispatchHasReduce(const syntax::DispatchExpr& expr) {
+  for (const auto& opt : expr.opts) {
+    if (opt.kind == syntax::DispatchOptionKind::Reduce) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool IsCollectableParallelExpr(const syntax::Expr& expr, bool& needs_wait) {
+  if (std::holds_alternative<syntax::SpawnExpr>(expr.node)) {
+    needs_wait = true;
+    return true;
+  }
+  if (const auto* dispatch = std::get_if<syntax::DispatchExpr>(&expr.node)) {
+    if (DispatchHasReduce(*dispatch)) {
+      needs_wait = false;
+      return true;
+    }
+  }
+  return false;
+}
+
 std::vector<syntax::ExprPtr> ArgsExprs(const std::vector<syntax::Arg>& args) {
   if (args.empty()) {
     SPEC_RULE("ArgsExprs-Empty");
@@ -180,6 +209,527 @@ IRRange ToIRRange(const RangeVal& range) {
   out.hi = range.hi;
   return out;
 }
+
+std::vector<std::uint8_t> LEBytesU64(std::uint64_t value, std::size_t n) {
+  std::vector<std::uint8_t> bytes;
+  bytes.reserve(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    bytes.push_back(static_cast<std::uint8_t>((value >> (8 * i)) & 0xFFu));
+  }
+  return bytes;
+}
+
+IRValue USizeImmediate(std::uint64_t value) {
+  IRValue v;
+  v.kind = IRValue::Kind::Immediate;
+  v.name = std::to_string(value);
+  v.bytes = LEBytesU64(value, static_cast<std::size_t>(kPtrSize));
+  return v;
+}
+
+IRValue MakeNullPtr(const analysis::TypeRef& ptr_type,
+                    LowerCtx& ctx,
+                    std::vector<IRPtr>& parts) {
+  IRValue zero = USizeImmediate(0);
+  IRValue null_ptr = ctx.FreshTempValue("null_ptr");
+  IRTransmute trans;
+  trans.from = analysis::MakeTypePrim("usize");
+  trans.to = ptr_type;
+  trans.value = zero;
+  trans.result = null_ptr;
+  parts.push_back(MakeIR(std::move(trans)));
+  ctx.RegisterValueType(null_ptr, ptr_type);
+  return null_ptr;
+}
+
+analysis::Permission PermissionOfType(const analysis::TypeRef& type) {
+  if (!type) {
+    return analysis::Permission::Const;
+  }
+  if (const auto* perm = std::get_if<analysis::TypePerm>(&type->node)) {
+    return perm->perm;
+  }
+  return analysis::Permission::Const;
+}
+
+bool IsUnitType(const analysis::TypeRef& type) {
+  if (!type) {
+    return false;
+  }
+  if (const auto* prim = std::get_if<analysis::TypePrim>(&type->node)) {
+    return prim->name == "()";
+  }
+  return false;
+}
+
+struct CaptureBinding {
+  std::string name;
+  analysis::TypeRef type;
+  bool explicit_move = false;
+};
+
+static void CollectPatternNames(const syntax::Pattern& pat,
+                                std::vector<std::string>& out);
+
+static void CollectFieldPatNames(const syntax::FieldPattern& field,
+                                 std::vector<std::string>& out) {
+  if (field.pattern_opt) {
+    CollectPatternNames(*field.pattern_opt, out);
+    return;
+  }
+  out.push_back(field.name);
+}
+
+static void CollectPatternNames(const syntax::Pattern& pat,
+                                std::vector<std::string>& out) {
+  std::visit(
+      [&](const auto& node) {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, syntax::IdentifierPattern>) {
+          out.push_back(node.name);
+        } else if constexpr (std::is_same_v<T, syntax::TypedPattern>) {
+          out.push_back(node.name);
+        } else if constexpr (std::is_same_v<T, syntax::TuplePattern>) {
+          for (const auto& elem : node.elements) {
+            if (elem) {
+              CollectPatternNames(*elem, out);
+            }
+          }
+        } else if constexpr (std::is_same_v<T, syntax::RecordPattern>) {
+          for (const auto& field : node.fields) {
+            CollectFieldPatNames(field, out);
+          }
+        } else if constexpr (std::is_same_v<T, syntax::EnumPattern>) {
+          if (!node.payload_opt.has_value()) {
+            return;
+          }
+          std::visit(
+              [&](const auto& payload) {
+                using P = std::decay_t<decltype(payload)>;
+                if constexpr (std::is_same_v<P, syntax::TuplePayloadPattern>) {
+                  for (const auto& elem : payload.elements) {
+                    if (elem) {
+                      CollectPatternNames(*elem, out);
+                    }
+                  }
+                } else {
+                  for (const auto& field : payload.fields) {
+                    CollectFieldPatNames(field, out);
+                  }
+                }
+              },
+              *node.payload_opt);
+        } else if constexpr (std::is_same_v<T, syntax::ModalPattern>) {
+          if (!node.fields_opt.has_value()) {
+            return;
+          }
+          for (const auto& field : node.fields_opt->fields) {
+            CollectFieldPatNames(field, out);
+          }
+        } else if constexpr (std::is_same_v<T, syntax::RangePattern>) {
+          if (node.lo) {
+            CollectPatternNames(*node.lo, out);
+          }
+          if (node.hi) {
+            CollectPatternNames(*node.hi, out);
+          }
+        }
+      },
+      pat.node);
+}
+
+struct ScopedNames {
+  std::vector<std::unordered_set<std::string>> scopes;
+
+  void Push() { scopes.emplace_back(); }
+  void Pop() { if (!scopes.empty()) scopes.pop_back(); }
+  bool IsLocal(const std::string& name) const {
+    for (auto it = scopes.rbegin(); it != scopes.rend(); ++it) {
+      if (it->find(name) != it->end()) {
+        return true;
+      }
+    }
+    return false;
+  }
+  void Add(const std::string& name) {
+    if (!scopes.empty()) {
+      scopes.back().insert(name);
+    }
+  }
+  void AddAll(const std::vector<std::string>& names) {
+    for (const auto& name : names) {
+      Add(name);
+    }
+  }
+};
+
+static std::optional<std::string> PlaceRootName(const syntax::ExprPtr& expr) {
+  if (!expr) {
+    return std::nullopt;
+  }
+  return std::visit(
+      [&](const auto& node) -> std::optional<std::string> {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
+          return node.name;
+        } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
+          return PlaceRootName(node.base);
+        } else if constexpr (std::is_same_v<T, syntax::TupleAccessExpr>) {
+          return PlaceRootName(node.base);
+        } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
+          return PlaceRootName(node.base);
+        } else if constexpr (std::is_same_v<T, syntax::DerefExpr>) {
+          return PlaceRootName(node.value);
+        } else if constexpr (std::is_same_v<T, syntax::MoveExpr>) {
+          return PlaceRootName(node.place);
+        } else if constexpr (std::is_same_v<T, syntax::AddressOfExpr>) {
+          return PlaceRootName(node.place);
+        }
+        return std::nullopt;
+      },
+      expr->node);
+}
+
+struct CaptureCollector {
+  LowerCtx& ctx;
+  const std::unordered_set<std::string>& explicit_moves;
+  std::unordered_map<std::string, CaptureBinding> captures;
+  std::vector<std::string> order;
+  ScopedNames locals;
+
+  void RecordCapture(std::string_view name) {
+    const std::string key(name);
+    if (locals.IsLocal(key)) {
+      return;
+    }
+    const auto* binding = ctx.GetBindingState(key);
+    if (!binding || !binding->type) {
+      return;
+    }
+    if (captures.find(key) != captures.end()) {
+      return;
+    }
+    CaptureBinding entry;
+    entry.name = key;
+    entry.type = binding->type;
+    entry.explicit_move = explicit_moves.find(key) != explicit_moves.end();
+    captures.emplace(key, entry);
+    order.push_back(key);
+  }
+
+  void VisitExpr(const syntax::ExprPtr& expr) {
+    if (!expr) {
+      return;
+    }
+    std::visit(
+        [&](const auto& node) {
+          using T = std::decay_t<decltype(node)>;
+          if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
+            RecordCapture(node.name);
+          } else if constexpr (std::is_same_v<T, syntax::QualifiedApplyExpr>) {
+            if (std::holds_alternative<syntax::ParenArgs>(node.args)) {
+              const auto& args = std::get<syntax::ParenArgs>(node.args).args;
+              for (const auto& arg : args) {
+                VisitExpr(arg.value);
+              }
+            } else {
+              const auto& fields = std::get<syntax::BraceArgs>(node.args).fields;
+              for (const auto& field : fields) {
+                VisitExpr(field.value);
+              }
+            }
+          } else if constexpr (std::is_same_v<T, syntax::RangeExpr>) {
+            VisitExpr(node.lhs);
+            VisitExpr(node.rhs);
+          } else if constexpr (std::is_same_v<T, syntax::BinaryExpr>) {
+            VisitExpr(node.lhs);
+            VisitExpr(node.rhs);
+          } else if constexpr (std::is_same_v<T, syntax::CastExpr>) {
+            VisitExpr(node.value);
+          } else if constexpr (std::is_same_v<T, syntax::UnaryExpr>) {
+            VisitExpr(node.value);
+          } else if constexpr (std::is_same_v<T, syntax::DerefExpr>) {
+            VisitExpr(node.value);
+          } else if constexpr (std::is_same_v<T, syntax::AddressOfExpr>) {
+            VisitExpr(node.place);
+          } else if constexpr (std::is_same_v<T, syntax::MoveExpr>) {
+            VisitExpr(node.place);
+          } else if constexpr (std::is_same_v<T, syntax::AllocExpr>) {
+            VisitExpr(node.value);
+          } else if constexpr (std::is_same_v<T, syntax::TupleExpr>) {
+            for (const auto& elem : node.elements) {
+              VisitExpr(elem);
+            }
+          } else if constexpr (std::is_same_v<T, syntax::ArrayExpr>) {
+            for (const auto& elem : node.elements) {
+              VisitExpr(elem);
+            }
+          } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
+            for (const auto& field : node.fields) {
+              VisitExpr(field.value);
+            }
+          } else if constexpr (std::is_same_v<T, syntax::EnumLiteralExpr>) {
+            if (!node.payload_opt.has_value()) {
+              return;
+            }
+            std::visit(
+                [&](const auto& payload) {
+                  using P = std::decay_t<decltype(payload)>;
+                  if constexpr (std::is_same_v<P, syntax::EnumPayloadParen>) {
+                    for (const auto& elem : payload.elements) {
+                      VisitExpr(elem);
+                    }
+                  } else {
+                    for (const auto& field : payload.fields) {
+                      VisitExpr(field.value);
+                    }
+                  }
+                },
+                *node.payload_opt);
+          } else if constexpr (std::is_same_v<T, syntax::IfExpr>) {
+            VisitExpr(node.cond);
+            VisitExpr(node.then_expr);
+            VisitExpr(node.else_expr);
+          } else if constexpr (std::is_same_v<T, syntax::MatchExpr>) {
+            VisitExpr(node.value);
+            for (const auto& arm : node.arms) {
+              locals.Push();
+              if (arm.pattern) {
+                std::vector<std::string> names;
+                CollectPatternNames(*arm.pattern, names);
+                locals.AddAll(names);
+              }
+              VisitExpr(arm.guard_opt);
+              VisitExpr(arm.body);
+              locals.Pop();
+            }
+          } else if constexpr (std::is_same_v<T, syntax::LoopInfiniteExpr>) {
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          } else if constexpr (std::is_same_v<T, syntax::LoopConditionalExpr>) {
+            VisitExpr(node.cond);
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          } else if constexpr (std::is_same_v<T, syntax::LoopIterExpr>) {
+            VisitExpr(node.iter);
+            locals.Push();
+            if (node.pattern) {
+              std::vector<std::string> names;
+              CollectPatternNames(*node.pattern, names);
+              locals.AddAll(names);
+            }
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+            locals.Pop();
+          } else if constexpr (std::is_same_v<T, syntax::BlockExpr>) {
+            if (node.block) {
+              VisitBlock(*node.block);
+            }
+          } else if constexpr (std::is_same_v<T, syntax::UnsafeBlockExpr>) {
+            if (node.block) {
+              VisitBlock(*node.block);
+            }
+          } else if constexpr (std::is_same_v<T, syntax::TransmuteExpr>) {
+            VisitExpr(node.value);
+          } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
+            VisitExpr(node.base);
+          } else if constexpr (std::is_same_v<T, syntax::TupleAccessExpr>) {
+            VisitExpr(node.base);
+          } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
+            VisitExpr(node.base);
+            VisitExpr(node.index);
+          } else if constexpr (std::is_same_v<T, syntax::CallExpr>) {
+            VisitExpr(node.callee);
+            for (const auto& arg : node.args) {
+              VisitExpr(arg.value);
+            }
+          } else if constexpr (std::is_same_v<T, syntax::MethodCallExpr>) {
+            VisitExpr(node.receiver);
+            for (const auto& arg : node.args) {
+              VisitExpr(arg.value);
+            }
+          } else if constexpr (std::is_same_v<T, syntax::PropagateExpr>) {
+            VisitExpr(node.value);
+          } else if constexpr (std::is_same_v<T, syntax::EntryExpr>) {
+            VisitExpr(node.expr);
+          } else if constexpr (std::is_same_v<T, syntax::ParallelExpr>) {
+            VisitExpr(node.domain);
+            for (const auto& opt : node.opts) {
+              VisitExpr(opt.value);
+            }
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          } else if constexpr (std::is_same_v<T, syntax::SpawnExpr>) {
+            for (const auto& opt : node.opts) {
+              VisitExpr(opt.value);
+            }
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          } else if constexpr (std::is_same_v<T, syntax::WaitExpr>) {
+            VisitExpr(node.handle);
+          } else if constexpr (std::is_same_v<T, syntax::DispatchExpr>) {
+            VisitExpr(node.range);
+            if (node.key_clause.has_value()) {
+              RecordCapture(node.key_clause->key_path.root);
+              for (const auto& seg : node.key_clause->key_path.segs) {
+                if (const auto* idx = std::get_if<syntax::KeySegIndex>(&seg)) {
+                  VisitExpr(idx->expr);
+                }
+              }
+            }
+            for (const auto& opt : node.opts) {
+              VisitExpr(opt.chunk_expr);
+            }
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          }
+        },
+        expr->node);
+  }
+
+  void VisitStmt(const syntax::Stmt& stmt) {
+    std::visit(
+        [&](const auto& node) {
+          using T = std::decay_t<decltype(node)>;
+          if constexpr (std::is_same_v<T, syntax::LetStmt> ||
+                        std::is_same_v<T, syntax::VarStmt>) {
+            VisitExpr(node.binding.init);
+            if (node.binding.pat) {
+              std::vector<std::string> names;
+              CollectPatternNames(*node.binding.pat, names);
+              locals.AddAll(names);
+            }
+          } else if constexpr (std::is_same_v<T, syntax::ShadowLetStmt> ||
+                               std::is_same_v<T, syntax::ShadowVarStmt>) {
+            VisitExpr(node.init);
+            locals.Add(node.name);
+          } else if constexpr (std::is_same_v<T, syntax::AssignStmt>) {
+            VisitExpr(node.place);
+            VisitExpr(node.value);
+          } else if constexpr (std::is_same_v<T, syntax::CompoundAssignStmt>) {
+            VisitExpr(node.place);
+            VisitExpr(node.value);
+          } else if constexpr (std::is_same_v<T, syntax::ExprStmt>) {
+            VisitExpr(node.value);
+          } else if constexpr (std::is_same_v<T, syntax::DeferStmt>) {
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          } else if constexpr (std::is_same_v<T, syntax::RegionStmt>) {
+            VisitExpr(node.opts_opt);
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          } else if constexpr (std::is_same_v<T, syntax::FrameStmt>) {
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          } else if constexpr (std::is_same_v<T, syntax::ReturnStmt>) {
+            VisitExpr(node.value_opt);
+          } else if constexpr (std::is_same_v<T, syntax::ResultStmt>) {
+            VisitExpr(node.value);
+          } else if constexpr (std::is_same_v<T, syntax::BreakStmt>) {
+            VisitExpr(node.value_opt);
+          } else if constexpr (std::is_same_v<T, syntax::UnsafeBlockStmt>) {
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          } else if constexpr (std::is_same_v<T, syntax::KeyBlockStmt>) {
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          }
+        },
+        stmt);
+  }
+
+  void VisitBlock(const syntax::Block& block) {
+    locals.Push();
+    for (const auto& stmt : block.stmts) {
+      VisitStmt(stmt);
+    }
+    VisitExpr(block.tail_opt);
+    locals.Pop();
+  }
+};
+
+static std::vector<CaptureBinding> CollectCaptures(
+    const syntax::Block& body,
+    LowerCtx& ctx,
+    const std::unordered_set<std::string>& explicit_moves) {
+  CaptureCollector collector{ctx, explicit_moves, {}, {}, {}};
+  collector.VisitBlock(body);
+  std::vector<CaptureBinding> result;
+  result.reserve(collector.order.size());
+  for (const auto& key : collector.order) {
+    result.push_back(collector.captures.at(key));
+  }
+  return result;
+}
+
+static std::unordered_set<std::string> CollectSpawnMoveCaptures(
+    const syntax::SpawnExpr& expr) {
+  std::unordered_set<std::string> moves;
+  for (const auto& opt : expr.opts) {
+    if (opt.kind != syntax::SpawnOptionKind::MoveCapture) {
+      continue;
+    }
+    const auto root = PlaceRootName(opt.value);
+    if (root.has_value()) {
+      moves.insert(*root);
+    }
+  }
+  return moves;
+}
+
+struct LowerCtxSnapshot {
+  std::vector<ScopeInfo> scope_stack;
+  std::unordered_map<std::string, std::vector<BindingState>> binding_states;
+  std::unordered_map<std::string, DerivedValueInfo> derived_values;
+  std::vector<TempValue>* temp_sink = nullptr;
+  int temp_depth = 0;
+  std::optional<int> suppress_temp_at_depth;
+  std::vector<ParallelCollectItem>* parallel_collect = nullptr;
+  int parallel_collect_depth = 0;
+  std::optional<CaptureEnvInfo> capture_env;
+  analysis::TypeRef proc_ret_type;
+
+  explicit LowerCtxSnapshot(const LowerCtx& ctx)
+      : scope_stack(ctx.scope_stack),
+        binding_states(ctx.binding_states),
+        derived_values(ctx.derived_values),
+        temp_sink(ctx.temp_sink),
+        temp_depth(ctx.temp_depth),
+        suppress_temp_at_depth(ctx.suppress_temp_at_depth),
+        parallel_collect(ctx.parallel_collect),
+        parallel_collect_depth(ctx.parallel_collect_depth),
+        capture_env(ctx.capture_env),
+        proc_ret_type(ctx.proc_ret_type) {}
+
+  void Restore(LowerCtx& ctx) const {
+    ctx.scope_stack = scope_stack;
+    ctx.binding_states = binding_states;
+    // Merge derived_values: preserve new values created during the nested
+    // lowering (e.g., capture_ptr_N) while restoring values from the snapshot.
+    // New derived values are referenced from generated IR and must be preserved.
+    for (const auto& [key, value] : derived_values) {
+      ctx.derived_values[key] = value;
+    }
+    ctx.temp_sink = temp_sink;
+    ctx.temp_depth = temp_depth;
+    ctx.suppress_temp_at_depth = suppress_temp_at_depth;
+    ctx.parallel_collect = parallel_collect;
+    ctx.parallel_collect_depth = parallel_collect_depth;
+    ctx.capture_env = capture_env;
+    ctx.proc_ret_type = proc_ret_type;
+  }
+};
 
 }  // namespace
 
@@ -447,6 +997,31 @@ LowerResult LowerIdentifier(const syntax::IdentifierExpr& expr, LowerCtx& ctx) {
     value.name = name;
 
     return LowerResult{MakeIR(std::move(read)), value};
+  }
+
+  if (const auto* capture = ctx.LookupCapture(name)) {
+    SPEC_RULE("Lower-Expr-Ident-Capture");
+    IRPtr ir = EmptyIR();
+    IRValue field_ptr = ctx.CaptureFieldPtr(*capture);
+    IRValue value = ctx.FreshTempValue("capture_val");
+    if (capture->by_ref) {
+      IRValue captured_ptr = ctx.FreshTempValue("capture_ptr");
+      IRReadPtr load_ptr;
+      load_ptr.ptr = field_ptr;
+      load_ptr.result = captured_ptr;
+      ctx.RegisterValueType(captured_ptr, capture->field_type);
+      IRReadPtr load_val;
+      load_val.ptr = captured_ptr;
+      load_val.result = value;
+      ir = SeqIR({MakeIR(std::move(load_ptr)), MakeIR(std::move(load_val))});
+    } else {
+      IRReadPtr load_val;
+      load_val.ptr = field_ptr;
+      load_val.result = value;
+      ir = MakeIR(std::move(load_val));
+    }
+    ctx.RegisterValueType(value, capture->value_type);
+    return LowerResult{ir, value};
   }
 
   if (!ctx.resolve_name) {
@@ -932,6 +1507,873 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
           IRValue ptr_value = ctx.FreshTempValue("alloc_ptr");
           alloc.result = ptr_value;
           return LowerResult{SeqIR({value_result.ir, MakeIR(std::move(alloc))}), ptr_value};
+        // C0X Extension: Structured Concurrency (§11.3)
+        } else if constexpr (std::is_same_v<T, syntax::ParallelExpr>) {
+          SPEC_RULE("Lower-Expr-Parallel");
+          // Lower domain expression
+          auto domain_result = LowerExpr(*node.domain, ctx);
+          // Lower body
+          std::vector<ParallelCollectItem> collected;
+          auto* prev_collect = ctx.parallel_collect;
+          int prev_depth = ctx.parallel_collect_depth;
+          bool explicit_result = false;
+          if (node.body) {
+            if (node.body->tail_opt) {
+              bool needs_wait = false;
+              if (!IsCollectableParallelExpr(*node.body->tail_opt, needs_wait)) {
+                explicit_result = true;
+              }
+            }
+            if (!explicit_result) {
+              for (const auto& stmt : node.body->stmts) {
+                if (std::holds_alternative<syntax::ResultStmt>(stmt)) {
+                  explicit_result = true;
+                  break;
+                }
+              }
+            }
+          }
+          if (!explicit_result) {
+            ctx.parallel_collect = &collected;
+            ctx.parallel_collect_depth = 0;
+          }
+          LowerResult body_result;
+          if (node.body) {
+            body_result = LowerBlock(*node.body, ctx);
+          } else {
+            body_result = LowerResult{EmptyIR(), ctx.FreshTempValue("parallel_unit")};
+          }
+          ctx.parallel_collect = prev_collect;
+          ctx.parallel_collect_depth = prev_depth;
+          // Create IRParallel
+          IRParallel parallel;
+          parallel.domain = domain_result.value;
+          parallel.body = body_result.ir;
+          parallel.result = ctx.FreshTempValue("parallel_join");
+          // Handle options (cancel, name)
+          for (const auto& opt : node.opts) {
+            if (opt.kind == syntax::ParallelOptionKind::Cancel && opt.value) {
+              auto cancel_result = LowerExpr(*opt.value, ctx);
+              parallel.cancel_token = cancel_result.value;
+            } else if (opt.kind == syntax::ParallelOptionKind::Name && opt.value) {
+              if (const auto* lit = std::get_if<syntax::LiteralExpr>(&opt.value->node)) {
+                parallel.name = lit->literal.lexeme;
+              }
+            }
+          }
+          std::vector<IRPtr> parts;
+          parts.push_back(domain_result.ir);
+          parts.push_back(MakeIR(std::move(parallel)));
+
+          IRValue result_value;
+          if (explicit_result) {
+            result_value = body_result.value;
+          } else if (collected.empty()) {
+            result_value.kind = IRValue::Kind::Opaque;
+            result_value.name = "unit";
+          } else {
+            std::vector<IRValue> elems;
+            elems.reserve(collected.size());
+            for (const auto& item : collected) {
+              if (item.needs_wait) {
+                IRWait wait;
+                wait.handle = item.value;
+                wait.result = ctx.FreshTempValue("parallel_wait");
+                parts.push_back(MakeIR(std::move(wait)));
+                elems.push_back(wait.result);
+              } else {
+                elems.push_back(item.value);
+              }
+            }
+            if (elems.size() == 1) {
+              result_value = elems[0];
+            } else {
+              IRValue tuple_value = ctx.FreshTempValue("parallel_tuple");
+              DerivedValueInfo info;
+              info.kind = DerivedValueInfo::Kind::TupleLit;
+              info.elements = std::move(elems);
+              ctx.RegisterDerivedValue(tuple_value, info);
+              result_value = tuple_value;
+            }
+          }
+
+          return LowerResult{SeqIR(std::move(parts)), result_value};
+        } else if constexpr (std::is_same_v<T, syntax::SpawnExpr>) {
+          SPEC_RULE("Lower-Expr-Spawn");
+          std::unordered_set<std::string> explicit_moves =
+              CollectSpawnMoveCaptures(node);
+          std::vector<CaptureBinding> captures;
+          if (node.body) {
+            captures = CollectCaptures(*node.body, ctx, explicit_moves);
+          }
+
+          std::vector<analysis::TypeRef> env_fields;
+          std::vector<IRValue> env_values;
+          std::vector<IRPtr> env_parts;
+
+          CaptureEnvInfo env_info;
+          env_info.captures.clear();
+
+          for (std::size_t i = 0; i < captures.size(); ++i) {
+            const auto& cap = captures[i];
+            const auto perm = PermissionOfType(cap.type);
+            const bool by_ref =
+                perm == analysis::Permission::Const ||
+                perm == analysis::Permission::Shared;
+            analysis::TypeRef field_type = cap.type;
+            if (by_ref) {
+              field_type = analysis::MakeTypePtr(cap.type, analysis::PtrState::Valid);
+            }
+
+            env_fields.push_back(field_type);
+            CaptureAccess access;
+            access.index = i;
+            access.value_type = cap.type;
+            access.field_type = field_type;
+            access.by_ref = by_ref;
+            env_info.captures[cap.name] = access;
+
+            IRValue field_val;
+            IRPtr field_ir = EmptyIR();
+            if (by_ref) {
+              IRValue ptr = ctx.FreshTempValue("capture_addr");
+              DerivedValueInfo info;
+              info.kind = DerivedValueInfo::Kind::AddrLocal;
+              info.name = cap.name;
+              ctx.RegisterDerivedValue(ptr, info);
+              ctx.RegisterValueType(
+                  ptr,
+                  analysis::MakeTypePtr(cap.type, analysis::PtrState::Valid));
+              field_val = ptr;
+            } else if (cap.explicit_move) {
+              syntax::Expr ident_expr;
+              ident_expr.node = syntax::IdentifierExpr{cap.name};
+              auto move_res = LowerMovePlace(ident_expr, ctx);
+              field_val = move_res.value;
+              field_ir = move_res.ir;
+            } else {
+              field_val.kind = IRValue::Kind::Local;
+              field_val.name = cap.name;
+            }
+            if (field_ir &&
+                !std::holds_alternative<IROpaque>(field_ir->node)) {
+              env_parts.push_back(field_ir);
+            }
+            env_values.push_back(field_val);
+          }
+
+          analysis::TypeRef env_type = analysis::MakeTypeTuple(env_fields);
+          env_info.env_type = env_type;
+
+          IRValue env_tuple = ctx.FreshTempValue("spawn_env");
+          DerivedValueInfo tuple_info;
+          tuple_info.kind = DerivedValueInfo::Kind::TupleLit;
+          tuple_info.elements = env_values;
+          ctx.RegisterDerivedValue(env_tuple, tuple_info);
+          ctx.RegisterValueType(env_tuple, env_type);
+
+          const std::string env_var_name =
+              ctx.FreshTempValue("spawn_env_var").name;
+          IRBindVar bind_env;
+          bind_env.name = env_var_name;
+          bind_env.value = env_tuple;
+          bind_env.type = env_type;
+          env_parts.push_back(MakeIR(std::move(bind_env)));
+
+          IRValue env_ptr = ctx.FreshTempValue("spawn_env_ptr");
+          DerivedValueInfo addr_info;
+          addr_info.kind = DerivedValueInfo::Kind::AddrLocal;
+          addr_info.name = env_var_name;
+          ctx.RegisterDerivedValue(env_ptr, addr_info);
+          ctx.RegisterValueType(
+              env_ptr,
+              analysis::MakeTypePtr(env_type, analysis::PtrState::Valid));
+
+          analysis::ScopeContext scope;
+          if (ctx.sigma) {
+            scope.sigma = *ctx.sigma;
+            scope.current_module = ctx.module_path;
+          }
+          std::uint64_t env_size_val = 0;
+          if (ctx.sigma) {
+            if (const auto size = SizeOf(scope, env_type)) {
+              env_size_val = *size;
+            } else {
+              ctx.ReportCodegenFailure();
+            }
+          }
+          IRValue env_size = USizeImmediate(env_size_val);
+
+          analysis::TypeRef body_type = analysis::MakeTypePrim("()");
+          if (node.body && node.body->tail_opt && ctx.expr_type) {
+            body_type = ctx.expr_type(*node.body->tail_opt);
+          }
+          if (!body_type) {
+            body_type = analysis::MakeTypePrim("()");
+          }
+          std::uint64_t result_size_val = 0;
+          if (ctx.sigma) {
+            if (const auto size = SizeOf(scope, body_type)) {
+              result_size_val = *size;
+            } else {
+              ctx.ReportCodegenFailure();
+            }
+          }
+          IRValue result_size = USizeImmediate(result_size_val);
+
+          std::string wrapper_sym =
+              "__c0x_spawn_body_" + std::to_string(ctx.synth_proc_counter++);
+          ProcIR proc;
+          proc.symbol = wrapper_sym;
+          proc.ret = analysis::MakeTypePrim("()");
+
+          analysis::TypeRef env_ptr_type =
+              analysis::MakeTypePtr(env_type, analysis::PtrState::Valid);
+          analysis::TypeRef result_ptr_type =
+              analysis::MakeTypePtr(body_type, analysis::PtrState::Valid);
+
+          // Note: env and result are passed by value (Move mode) because the C
+          // runtime calls body(env_ptr, result_ptr, panic_out) directly, not
+          // by reference. Using nullopt mode would generate ByRef ABI which
+          // expects pointer-to-pointer semantics.
+          IRParam env_param;
+          env_param.mode = analysis::ParamMode::Move;
+          env_param.name = "env";
+          env_param.type = env_ptr_type;
+          proc.params.push_back(env_param);
+
+          IRParam result_param;
+          result_param.mode = analysis::ParamMode::Move;
+          result_param.name = "result";
+          result_param.type = result_ptr_type;
+          proc.params.push_back(result_param);
+
+          IRParam panic_param;
+          panic_param.mode = analysis::ParamMode::Move;
+          panic_param.name = std::string(kPanicOutName);
+          panic_param.type = PanicOutType();
+          proc.params.push_back(panic_param);
+
+          {
+            LowerCtxSnapshot snapshot(ctx);
+            ctx.scope_stack.clear();
+            ctx.binding_states.clear();
+            ctx.derived_values.clear();
+            ctx.temp_sink = nullptr;
+            ctx.temp_depth = 0;
+            ctx.suppress_temp_at_depth.reset();
+            ctx.parallel_collect = nullptr;
+            ctx.parallel_collect_depth = 0;
+            ctx.capture_env.reset();
+            ctx.proc_ret_type = analysis::MakeTypePrim("()");
+
+            ctx.PushScope(false, false);
+            ctx.RegisterVar(env_param.name, env_ptr_type, false, false);
+            ctx.RegisterVar(result_param.name, result_ptr_type, false, false);
+            ctx.RegisterVar(panic_param.name, panic_param.type, true, false);
+
+            CaptureEnvInfo wrapper_env = env_info;
+            IRValue env_param_val;
+            env_param_val.kind = IRValue::Kind::Local;
+            env_param_val.name = env_param.name;
+            wrapper_env.env_param = env_param_val;
+            ctx.capture_env = wrapper_env;
+
+            LowerResult body_result;
+            if (node.body) {
+              body_result = LowerBlock(*node.body, ctx);
+            } else {
+              IRValue unit;
+              unit.kind = IRValue::Kind::Opaque;
+              unit.name = "unit";
+              body_result = LowerResult{EmptyIR(), unit};
+            }
+
+            IRPtr store_ir = EmptyIR();
+            if (!IsUnitType(body_type)) {
+              IRWritePtr write;
+              IRValue result_ptr_val;
+              result_ptr_val.kind = IRValue::Kind::Local;
+              result_ptr_val.name = result_param.name;
+              write.ptr = result_ptr_val;
+              write.value = body_result.value;
+              store_ir = MakeIR(std::move(write));
+            }
+
+            CleanupPlan cleanup_plan = ComputeCleanupPlanForCurrentScope(ctx);
+            IRPtr cleanup_ir = EmitCleanup(cleanup_plan, ctx);
+            ctx.PopScope();
+
+            IRValue unit_ret;
+            unit_ret.kind = IRValue::Kind::Opaque;
+            unit_ret.name = "unit";
+            IRReturn ret;
+            ret.value = unit_ret;
+
+            std::vector<IRPtr> parts;
+            if (body_result.ir) {
+              parts.push_back(body_result.ir);
+            }
+            if (store_ir && !std::holds_alternative<IROpaque>(store_ir->node)) {
+              parts.push_back(store_ir);
+            }
+            if (cleanup_ir && !std::holds_alternative<IROpaque>(cleanup_ir->node)) {
+              parts.push_back(cleanup_ir);
+            }
+            parts.push_back(MakeIR(std::move(ret)));
+            proc.body = SeqIR(std::move(parts));
+
+            snapshot.Restore(ctx);
+          }
+
+          ctx.RegisterProcSig(proc);
+          ctx.RegisterProcModule(proc.symbol, ctx.module_path);
+          ctx.extra_procs.push_back(proc);
+
+          IRSpawn spawn;
+          spawn.body = EmptyIR();
+          IRValue unit_body;
+          unit_body.kind = IRValue::Kind::Opaque;
+          unit_body.name = "unit";
+          spawn.body_result = unit_body;
+          spawn.captured_env = SeqIR(std::move(env_parts));
+          spawn.env_ptr = env_ptr;
+          spawn.env_size = env_size;
+          spawn.body_fn.kind = IRValue::Kind::Symbol;
+          spawn.body_fn.name = wrapper_sym;
+          spawn.result_size = result_size;
+          spawn.result = ctx.FreshTempValue("spawn_handle");
+          IRValue spawn_result = spawn.result;
+          // Handle options (name, affinity, priority)
+          for (const auto& opt : node.opts) {
+            if (opt.kind == syntax::SpawnOptionKind::Name && opt.value) {
+              if (const auto* lit = std::get_if<syntax::LiteralExpr>(&opt.value->node)) {
+                spawn.name = lit->literal.lexeme;
+              }
+            }
+          }
+          return LowerResult{MakeIR(std::move(spawn)), spawn_result};
+        } else if constexpr (std::is_same_v<T, syntax::WaitExpr>) {
+          SPEC_RULE("Lower-Expr-Wait");
+          // Lower handle expression
+          auto handle_result = LowerExpr(*node.handle, ctx);
+          // Create IRWait
+          IRWait wait;
+          wait.handle = handle_result.value;
+          wait.result = ctx.FreshTempValue("wait_result");
+          IRValue wait_result = wait.result;
+          
+          // Register result type: extract T from SpawnHandle<T>
+          if (ctx.expr_type) {
+            if (auto handle_type = ctx.expr_type(*node.handle)) {
+              if (auto inner = analysis::ExtractSpawnHandleInner(handle_type)) {
+                ctx.RegisterValueType(wait_result, *inner);
+              }
+            }
+          }
+          
+          return LowerResult{SeqIR({handle_result.ir, MakeIR(std::move(wait))}), wait_result};
+        } else if constexpr (std::is_same_v<T, syntax::DispatchExpr>) {
+          SPEC_RULE("Lower-Expr-Dispatch");
+          auto range_result = LowerExpr(*node.range, ctx);
+
+          std::unordered_set<std::string> explicit_moves;
+          std::vector<CaptureBinding> captures;
+          if (node.body) {
+            captures = CollectCaptures(*node.body, ctx, explicit_moves);
+          }
+
+          std::vector<analysis::TypeRef> env_fields;
+          std::vector<IRValue> env_values;
+          std::vector<IRPtr> env_parts;
+
+          CaptureEnvInfo env_info;
+          env_info.captures.clear();
+
+          for (std::size_t i = 0; i < captures.size(); ++i) {
+            const auto& cap = captures[i];
+            const auto perm = PermissionOfType(cap.type);
+            const bool by_ref =
+                perm == analysis::Permission::Const ||
+                perm == analysis::Permission::Shared;
+            analysis::TypeRef field_type = cap.type;
+            if (by_ref) {
+              field_type = analysis::MakeTypePtr(cap.type, analysis::PtrState::Valid);
+            }
+
+            env_fields.push_back(field_type);
+            CaptureAccess access;
+            access.index = i;
+            access.value_type = cap.type;
+            access.field_type = field_type;
+            access.by_ref = by_ref;
+            env_info.captures[cap.name] = access;
+
+            IRValue field_val;
+            IRPtr field_ir = EmptyIR();
+            if (by_ref) {
+              IRValue ptr = ctx.FreshTempValue("capture_addr");
+              DerivedValueInfo info;
+              info.kind = DerivedValueInfo::Kind::AddrLocal;
+              info.name = cap.name;
+              ctx.RegisterDerivedValue(ptr, info);
+              ctx.RegisterValueType(
+                  ptr,
+                  analysis::MakeTypePtr(cap.type, analysis::PtrState::Valid));
+              field_val = ptr;
+            } else if (cap.explicit_move) {
+              syntax::Expr ident_expr;
+              ident_expr.node = syntax::IdentifierExpr{cap.name};
+              auto move_res = LowerMovePlace(ident_expr, ctx);
+              field_val = move_res.value;
+              field_ir = move_res.ir;
+            } else {
+              field_val.kind = IRValue::Kind::Local;
+              field_val.name = cap.name;
+            }
+            if (field_ir &&
+                !std::holds_alternative<IROpaque>(field_ir->node)) {
+              env_parts.push_back(field_ir);
+            }
+            env_values.push_back(field_val);
+          }
+
+          analysis::TypeRef env_type = analysis::MakeTypeTuple(env_fields);
+          env_info.env_type = env_type;
+
+          IRValue env_tuple = ctx.FreshTempValue("dispatch_env");
+          DerivedValueInfo tuple_info;
+          tuple_info.kind = DerivedValueInfo::Kind::TupleLit;
+          tuple_info.elements = env_values;
+          ctx.RegisterDerivedValue(env_tuple, tuple_info);
+          ctx.RegisterValueType(env_tuple, env_type);
+
+          const std::string env_var_name =
+              ctx.FreshTempValue("dispatch_env_var").name;
+          IRBindVar bind_env;
+          bind_env.name = env_var_name;
+          bind_env.value = env_tuple;
+          bind_env.type = env_type;
+          env_parts.push_back(MakeIR(std::move(bind_env)));
+
+          IRValue env_ptr = ctx.FreshTempValue("dispatch_env_ptr");
+          DerivedValueInfo addr_info;
+          addr_info.kind = DerivedValueInfo::Kind::AddrLocal;
+          addr_info.name = env_var_name;
+          ctx.RegisterDerivedValue(env_ptr, addr_info);
+          ctx.RegisterValueType(
+              env_ptr,
+              analysis::MakeTypePtr(env_type, analysis::PtrState::Valid));
+
+          analysis::TypeRef elem_type = analysis::MakeTypePrim("usize");
+          analysis::TypeRef body_type = analysis::MakeTypePrim("()");
+          if (node.body && node.body->tail_opt && ctx.expr_type) {
+            body_type = ctx.expr_type(*node.body->tail_opt);
+          }
+          if (!body_type) {
+            body_type = analysis::MakeTypePrim("()");
+          }
+
+          bool has_reduce = false;
+          bool use_custom_reduce = false;
+          std::optional<std::string> reduce_op;
+          std::optional<std::string> custom_reduce_name;
+          for (const auto& opt : node.opts) {
+            if (opt.kind == syntax::DispatchOptionKind::Reduce) {
+              has_reduce = true;
+              switch (opt.reduce_op) {
+                case syntax::ReduceOp::Add: reduce_op = "+"; break;
+                case syntax::ReduceOp::Mul: reduce_op = "*"; break;
+                case syntax::ReduceOp::Min: reduce_op = "min"; break;
+                case syntax::ReduceOp::Max: reduce_op = "max"; break;
+                case syntax::ReduceOp::And: reduce_op = "and"; break;
+                case syntax::ReduceOp::Or: reduce_op = "or"; break;
+                case syntax::ReduceOp::Custom:
+                  use_custom_reduce = true;
+                  reduce_op = std::nullopt;
+                  custom_reduce_name = opt.custom_reduce_name;
+                  break;
+              }
+            }
+          }
+
+          analysis::ScopeContext scope;
+          if (ctx.sigma) {
+            scope.sigma = *ctx.sigma;
+            scope.current_module = ctx.module_path;
+          }
+          std::uint64_t elem_size_val = 0;
+          if (ctx.sigma) {
+            if (const auto size = SizeOf(scope, elem_type)) {
+              elem_size_val = *size;
+            } else {
+              ctx.ReportCodegenFailure();
+            }
+          }
+          IRValue elem_size = USizeImmediate(elem_size_val);
+
+          std::uint64_t result_size_val = 0;
+          if (has_reduce && ctx.sigma) {
+            if (const auto size = SizeOf(scope, body_type)) {
+              result_size_val = *size;
+            } else {
+              ctx.ReportCodegenFailure();
+            }
+          }
+          IRValue result_size = USizeImmediate(result_size_val);
+
+          IRValue result_ptr;
+          if (has_reduce) {
+            IRValue uninit = ctx.FreshTempValue("dispatch_result_init");
+            const std::string result_name =
+                ctx.FreshTempValue("dispatch_result_var").name;
+            IRBindVar bind_result;
+            bind_result.name = result_name;
+            bind_result.value = uninit;
+            bind_result.type = body_type;
+            env_parts.push_back(MakeIR(std::move(bind_result)));
+
+            DerivedValueInfo res_addr;
+            res_addr.kind = DerivedValueInfo::Kind::AddrLocal;
+            res_addr.name = result_name;
+            result_ptr = ctx.FreshTempValue("dispatch_result_ptr");
+            ctx.RegisterDerivedValue(result_ptr, res_addr);
+            auto res_ptr_type =
+                analysis::MakeTypeRawPtr(analysis::RawPtrQual::Mut, body_type);
+            ctx.RegisterValueType(result_ptr, res_ptr_type);
+          } else {
+            auto res_ptr_type =
+                analysis::MakeTypeRawPtr(analysis::RawPtrQual::Mut,
+                                         analysis::MakeTypePrim("u8"));
+            result_ptr = MakeNullPtr(res_ptr_type, ctx, env_parts);
+          }
+
+          std::optional<IRValue> reduce_fn;
+          if (use_custom_reduce) {
+            std::string wrapper_sym =
+                "__c0x_dispatch_reduce_" + std::to_string(ctx.synth_proc_counter++);
+            ProcIR proc;
+            proc.symbol = wrapper_sym;
+            proc.ret = analysis::MakeTypePrim("()");
+
+            analysis::TypeRef lhs_ptr =
+                analysis::MakeTypeRawPtr(analysis::RawPtrQual::Imm, body_type);
+            analysis::TypeRef rhs_ptr =
+                analysis::MakeTypeRawPtr(analysis::RawPtrQual::Imm, body_type);
+            analysis::TypeRef out_ptr =
+                analysis::MakeTypeRawPtr(analysis::RawPtrQual::Mut, body_type);
+
+            // Note: lhs, rhs, and out are passed by value (Move mode) because
+            // the C runtime calls reduce_fn(lhs_ptr, rhs_ptr, out_ptr, panic_out)
+            // directly, not by reference.
+            IRParam lhs_param;
+            lhs_param.mode = analysis::ParamMode::Move;
+            lhs_param.name = "lhs";
+            lhs_param.type = lhs_ptr;
+            proc.params.push_back(lhs_param);
+
+            IRParam rhs_param;
+            rhs_param.mode = analysis::ParamMode::Move;
+            rhs_param.name = "rhs";
+            rhs_param.type = rhs_ptr;
+            proc.params.push_back(rhs_param);
+
+            IRParam out_param;
+            out_param.mode = analysis::ParamMode::Move;
+            out_param.name = "out";
+            out_param.type = out_ptr;
+            proc.params.push_back(out_param);
+
+            IRParam panic_param;
+            panic_param.mode = analysis::ParamMode::Move;
+            panic_param.name = std::string(kPanicOutName);
+            panic_param.type = PanicOutType();
+            proc.params.push_back(panic_param);
+
+            {
+              LowerCtxSnapshot snapshot(ctx);
+              ctx.scope_stack.clear();
+              ctx.binding_states.clear();
+              ctx.derived_values.clear();
+              ctx.temp_sink = nullptr;
+              ctx.temp_depth = 0;
+              ctx.suppress_temp_at_depth.reset();
+              ctx.parallel_collect = nullptr;
+              ctx.parallel_collect_depth = 0;
+              ctx.capture_env.reset();
+              ctx.proc_ret_type = analysis::MakeTypePrim("()");
+
+              ctx.PushScope(false, false);
+              ctx.RegisterVar(lhs_param.name, lhs_param.type, false, false);
+              ctx.RegisterVar(rhs_param.name, rhs_param.type, false, false);
+              ctx.RegisterVar(out_param.name, out_param.type, false, false);
+              ctx.RegisterVar(panic_param.name, panic_param.type, true, false);
+
+              IRValue lhs_val = ctx.FreshTempValue("reduce_lhs");
+              IRValue rhs_val = ctx.FreshTempValue("reduce_rhs");
+              IRValue lhs_ptr_val;
+              lhs_ptr_val.kind = IRValue::Kind::Local;
+              lhs_ptr_val.name = lhs_param.name;
+              IRReadPtr read_lhs;
+              read_lhs.ptr = lhs_ptr_val;
+              read_lhs.result = lhs_val;
+              IRValue rhs_ptr_val;
+              rhs_ptr_val.kind = IRValue::Kind::Local;
+              rhs_ptr_val.name = rhs_param.name;
+              IRReadPtr read_rhs;
+              read_rhs.ptr = rhs_ptr_val;
+              read_rhs.result = rhs_val;
+
+              ctx.RegisterValueType(lhs_val, body_type);
+              ctx.RegisterValueType(rhs_val, body_type);
+
+              std::vector<IRPtr> parts;
+              parts.push_back(MakeIR(std::move(read_lhs)));
+              parts.push_back(MakeIR(std::move(read_rhs)));
+
+              IRValue callee;
+              callee.kind = IRValue::Kind::Symbol;
+              if (custom_reduce_name.has_value()) {
+                callee.name = *custom_reduce_name;
+                if (ctx.resolve_name) {
+                  if (const auto resolved = ctx.resolve_name(*custom_reduce_name)) {
+                    std::vector<std::string> full = *resolved;
+                    const std::string resolved_name = full.back();
+                    full.pop_back();
+                    IRReadPath read_path;
+                    read_path.path = std::move(full);
+                    read_path.name = resolved_name;
+                    parts.push_back(MakeIR(std::move(read_path)));
+                    callee.name = resolved_name;
+                  } else {
+                    ctx.ReportResolveFailure(*custom_reduce_name);
+                  }
+                } else {
+                  ctx.ReportResolveFailure(*custom_reduce_name);
+                }
+              }
+
+              IRCall call_reduce;
+              call_reduce.callee = callee;
+              call_reduce.args = {lhs_val, rhs_val};
+              call_reduce.result = ctx.FreshTempValue("reduce_val");
+              ctx.RegisterValueType(call_reduce.result, body_type);
+              parts.push_back(MakeIR(std::move(call_reduce)));
+              parts.push_back(PanicCheck(ctx));
+
+              IRValue out_ptr_val;
+              out_ptr_val.kind = IRValue::Kind::Local;
+              out_ptr_val.name = out_param.name;
+              IRWritePtr write;
+              write.ptr = out_ptr_val;
+              write.value = call_reduce.result;
+              parts.push_back(MakeIR(std::move(write)));
+
+              CleanupPlan cleanup_plan = ComputeCleanupPlanForCurrentScope(ctx);
+              IRPtr cleanup_ir = EmitCleanup(cleanup_plan, ctx);
+              if (cleanup_ir && !std::holds_alternative<IROpaque>(cleanup_ir->node)) {
+                parts.push_back(cleanup_ir);
+              }
+              ctx.PopScope();
+
+              IRValue unit_ret;
+              unit_ret.kind = IRValue::Kind::Opaque;
+              unit_ret.name = "unit";
+              IRReturn ret;
+              ret.value = unit_ret;
+              parts.push_back(MakeIR(std::move(ret)));
+              proc.body = SeqIR(std::move(parts));
+
+              snapshot.Restore(ctx);
+            }
+
+            ctx.RegisterProcSig(proc);
+            ctx.RegisterProcModule(proc.symbol, ctx.module_path);
+            ctx.extra_procs.push_back(proc);
+
+            IRValue fn_val;
+            fn_val.kind = IRValue::Kind::Symbol;
+            fn_val.name = wrapper_sym;
+            reduce_fn = fn_val;
+          }
+
+          
+
+          std::string wrapper_sym =
+              "__c0x_dispatch_body_" + std::to_string(ctx.synth_proc_counter++);
+          ProcIR proc;
+          proc.symbol = wrapper_sym;
+          proc.ret = analysis::MakeTypePrim("()");
+
+          analysis::TypeRef elem_ptr_type =
+              analysis::MakeTypePtr(elem_type, analysis::PtrState::Valid);
+          analysis::TypeRef env_ptr_type =
+              analysis::MakeTypePtr(env_type, analysis::PtrState::Valid);
+          analysis::TypeRef result_ptr_type =
+              analysis::MakeTypePtr(body_type, analysis::PtrState::Valid);
+
+          // Note: elem, env, and result are passed by value (Move mode) because
+          // the C runtime calls body(elem_ptr, env_ptr, result_ptr, panic_out)
+          // directly, not by reference.
+          IRParam elem_param;
+          elem_param.mode = analysis::ParamMode::Move;
+          elem_param.name = "elem";
+          elem_param.type = elem_ptr_type;
+          proc.params.push_back(elem_param);
+
+          IRParam env_param;
+          env_param.mode = analysis::ParamMode::Move;
+          env_param.name = "env";
+          env_param.type = env_ptr_type;
+          proc.params.push_back(env_param);
+
+          IRParam result_param;
+          result_param.mode = analysis::ParamMode::Move;
+          result_param.name = "result";
+          result_param.type = result_ptr_type;
+          proc.params.push_back(result_param);
+
+          IRParam panic_param;
+          panic_param.mode = analysis::ParamMode::Move;
+          panic_param.name = std::string(kPanicOutName);
+          panic_param.type = PanicOutType();
+          proc.params.push_back(panic_param);
+
+          {
+            LowerCtxSnapshot snapshot(ctx);
+            ctx.scope_stack.clear();
+            ctx.binding_states.clear();
+            ctx.derived_values.clear();
+            ctx.temp_sink = nullptr;
+            ctx.temp_depth = 0;
+            ctx.suppress_temp_at_depth.reset();
+            ctx.parallel_collect = nullptr;
+            ctx.parallel_collect_depth = 0;
+            ctx.capture_env.reset();
+            ctx.proc_ret_type = analysis::MakeTypePrim("()");
+
+            ctx.PushScope(false, false);
+            ctx.RegisterVar(elem_param.name, elem_param.type, false, false);
+            ctx.RegisterVar(env_param.name, env_param.type, false, false);
+            ctx.RegisterVar(result_param.name, result_param.type, false, false);
+            ctx.RegisterVar(panic_param.name, panic_param.type, true, false);
+
+            CaptureEnvInfo wrapper_env = env_info;
+            IRValue env_param_val;
+            env_param_val.kind = IRValue::Kind::Local;
+            env_param_val.name = env_param.name;
+            wrapper_env.env_param = env_param_val;
+            ctx.capture_env = wrapper_env;
+
+            IRValue elem_ptr_val;
+            elem_ptr_val.kind = IRValue::Kind::Local;
+            elem_ptr_val.name = elem_param.name;
+            IRValue elem_val = ctx.FreshTempValue("dispatch_elem");
+            IRReadPtr read_elem;
+            read_elem.ptr = elem_ptr_val;
+            read_elem.result = elem_val;
+            ctx.RegisterValueType(elem_val, elem_type);
+
+            IRPtr bind_ir = EmptyIR();
+            if (node.pattern) {
+              RegisterPatternBindings(*node.pattern, elem_type, ctx);
+              bind_ir = LowerBindPattern(*node.pattern, elem_val, ctx);
+            }
+
+            LowerResult body_result;
+            if (node.body) {
+              body_result = LowerBlock(*node.body, ctx);
+            } else {
+              IRValue unit_val;
+              unit_val.kind = IRValue::Kind::Opaque;
+              unit_val.name = "unit";
+              body_result = LowerResult{EmptyIR(), unit_val};
+            }
+
+            IRPtr store_ir = EmptyIR();
+            if (!IsUnitType(body_type)) {
+              IRWritePtr write;
+              IRValue result_ptr_val;
+              result_ptr_val.kind = IRValue::Kind::Local;
+              result_ptr_val.name = result_param.name;
+              write.ptr = result_ptr_val;
+              write.value = body_result.value;
+              store_ir = MakeIR(std::move(write));
+            }
+
+            CleanupPlan cleanup_plan = ComputeCleanupPlanForCurrentScope(ctx);
+            IRPtr cleanup_ir = EmitCleanup(cleanup_plan, ctx);
+            ctx.PopScope();
+
+            IRValue unit_ret;
+            unit_ret.kind = IRValue::Kind::Opaque;
+            unit_ret.name = "unit";
+            IRReturn ret;
+            ret.value = unit_ret;
+
+            std::vector<IRPtr> parts;
+            parts.push_back(MakeIR(std::move(read_elem)));
+            if (bind_ir && !std::holds_alternative<IROpaque>(bind_ir->node)) {
+              parts.push_back(bind_ir);
+            }
+            if (body_result.ir) {
+              parts.push_back(body_result.ir);
+            }
+            if (store_ir && !std::holds_alternative<IROpaque>(store_ir->node)) {
+              parts.push_back(store_ir);
+            }
+            if (cleanup_ir && !std::holds_alternative<IROpaque>(cleanup_ir->node)) {
+              parts.push_back(cleanup_ir);
+            }
+            parts.push_back(MakeIR(std::move(ret)));
+            proc.body = SeqIR(std::move(parts));
+
+            snapshot.Restore(ctx);
+          }
+
+          ctx.RegisterProcSig(proc);
+          ctx.RegisterProcModule(proc.symbol, ctx.module_path);
+          ctx.extra_procs.push_back(proc);
+
+          IRDispatch dispatch;
+          dispatch.pattern = node.pattern;
+          dispatch.range = range_result.value;
+          dispatch.body = EmptyIR();
+          IRValue unit_body;
+          unit_body.kind = IRValue::Kind::Opaque;
+          unit_body.name = "unit";
+          dispatch.body_result = unit_body;
+          dispatch.captured_env = SeqIR(std::move(env_parts));
+          dispatch.env_ptr = env_ptr;
+          dispatch.body_fn.kind = IRValue::Kind::Symbol;
+          dispatch.body_fn.name = wrapper_sym;
+          dispatch.elem_size = elem_size;
+          dispatch.result_size = result_size;
+          dispatch.result_ptr = result_ptr;
+          dispatch.reduce_op = reduce_op;
+          dispatch.reduce_fn = reduce_fn;
+          dispatch.result = ctx.FreshTempValue("dispatch_result");
+          IRValue dispatch_result = dispatch.result;
+
+          IRPtr chunk_ir = EmptyIR();
+          for (const auto& opt : node.opts) {
+            if (opt.kind == syntax::DispatchOptionKind::Ordered) {
+              dispatch.ordered = true;
+            } else if (opt.kind == syntax::DispatchOptionKind::Chunk &&
+                       opt.chunk_expr) {
+              auto chunk_result = LowerExpr(*opt.chunk_expr, ctx);
+              chunk_ir = chunk_result.ir;
+              dispatch.chunk_size = chunk_result.value;
+            }
+          }
+
+          std::vector<IRPtr> call_parts;
+          call_parts.push_back(range_result.ir);
+          if (chunk_ir && !std::holds_alternative<IROpaque>(chunk_ir->node)) {
+            call_parts.push_back(chunk_ir);
+          }
+          call_parts.push_back(MakeIR(std::move(dispatch)));
+          return LowerResult{SeqIR(std::move(call_parts)), dispatch_result};
         } else {
           IRValue value = ctx.FreshTempValue("unknown_expr");
           return LowerResult{EmptyIR(), value};
@@ -1128,6 +2570,32 @@ const DerivedValueInfo* LowerCtx::LookupDerivedValue(const IRValue& value) const
     return nullptr;
   }
   return &it->second;
+}
+
+const CaptureAccess* LowerCtx::LookupCapture(const std::string& name) const {
+  if (!capture_env.has_value()) {
+    return nullptr;
+  }
+  auto it = capture_env->captures.find(name);
+  if (it == capture_env->captures.end()) {
+    return nullptr;
+  }
+  return &it->second;
+}
+
+IRValue LowerCtx::CaptureFieldPtr(const CaptureAccess& access) {
+  IRValue ptr = FreshTempValue("capture_ptr");
+  if (!capture_env.has_value()) {
+    return ptr;
+  }
+  DerivedValueInfo info;
+  info.kind = DerivedValueInfo::Kind::AddrTuple;
+  info.base = capture_env->env_param;
+  info.tuple_index = access.index;
+  RegisterDerivedValue(ptr, info);
+  auto elem_ptr = analysis::MakeTypeRawPtr(analysis::RawPtrQual::Mut, access.field_type);
+  RegisterValueType(ptr, elem_ptr);
+  return ptr;
 }
 
 IRValue LowerCtx::FreshTempValue(std::string_view prefix) {

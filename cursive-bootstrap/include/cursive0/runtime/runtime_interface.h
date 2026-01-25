@@ -127,6 +127,36 @@ std::string BuiltinSymHeapAllocatorAllocRaw();
 std::string BuiltinSymHeapAllocatorDeallocRaw();
 
 // ============================================================================
+// §18.2 ExecutionDomain builtins
+// ============================================================================
+
+// (BuiltinSym-ExecutionDomain-Name)
+std::string BuiltinSymExecutionDomainName();
+
+// (BuiltinSym-ExecutionDomain-MaxConcurrency)
+std::string BuiltinSymExecutionDomainMaxConcurrency();
+
+// ============================================================================
+// §18.2 Context execution domain constructors
+// ============================================================================
+
+// (BuiltinSym-Context-Cpu)
+std::string BuiltinSymContextCpu();
+
+// (BuiltinSym-Context-Gpu)
+std::string BuiltinSymContextGpu();
+
+// (BuiltinSym-Context-Inline)
+std::string BuiltinSymContextInline();
+
+// ============================================================================
+// §18.6 CancelToken builtins
+// ============================================================================
+
+// (BuiltinSym-CancelToken-New)
+std::string BuiltinSymCancelTokenNew();
+
+// ============================================================================
 // §6.12.14 String/Bytes builtin symbols
 // ============================================================================
 

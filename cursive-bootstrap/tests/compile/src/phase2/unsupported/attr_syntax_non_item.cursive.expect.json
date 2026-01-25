@@ -1,10 +1,16 @@
 {
   "diagnostics": [
     {
-      "code": "E-UNS-0113",
+      "code": "E-MOD-1301",
       "severity": "error",
-      "message": "Attribute syntax used",
-      "span": null
+      "message": "Unresolved name: identifier not found in any accessible scope",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase2\\unsupported\\attr_syntax_non_item.cursive",
+        "start_line": 2,
+        "start_col": 5,
+        "end_line": 2,
+        "end_col": 9
+      }
     }
   ],
   "exit_code": 1

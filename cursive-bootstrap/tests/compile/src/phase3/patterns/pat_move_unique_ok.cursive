@@ -1,0 +1,8 @@
+# SPEC_COV: Pat-Move
+// Move from unique binding
+
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = 42
+  let y = move x
+  return y
+}

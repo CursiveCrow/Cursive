@@ -1,0 +1,16 @@
+# SPEC_COV: Ptr-ToField
+# SPEC_COV: T-AddressOf
+// Address-of operator on record field.
+// Tests pointer creation to nested field.
+
+record Point {
+  x: i32,
+  y: i32
+}
+
+public procedure main(ctx: Context) -> i32 {
+  var p: Point = Point { x: 10, y: 20 };
+  let px: Ptr<i32>@Valid = &p.x;
+  let py: Ptr<i32>@Valid = &p.y;
+  return *px + *py;
+}

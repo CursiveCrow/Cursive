@@ -1,0 +1,31 @@
+// Tests basic parallel fork-join semantics: spawn two tasks, wait for both.
+
+public procedure main(move ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+
+  let result: i32 = parallel domain {
+    let h1 = spawn {
+      42
+    }
+    let h2 = spawn {
+      42
+    }
+
+    let v1: i32 = wait h1
+    let v2: i32 = wait h2
+
+    v1 + v2
+  }
+
+  // Print result (84 = 42 + 42)
+  let result_str: string@Managed = match cursive::runtime::string::from_i32(result, ctx.heap) {
+    ok: string@Managed => ok
+    err: AllocationError => return 1i32
+  }
+  let _ = match ctx.fs~>write_stdout(result_str~>as_view()) {
+    ok: () => ()
+    err: IoError => ()
+  }
+
+  return 0i32
+}

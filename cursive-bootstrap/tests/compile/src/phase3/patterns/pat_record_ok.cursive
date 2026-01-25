@@ -1,0 +1,10 @@
+# SPEC_COV: T-Pat-Record
+// Record destructuring pattern
+
+record Point { x: i32, y: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  let p: Point = Point { x: 10, y: 20 }
+  let Point { x: a, y: b } = p
+  return a + b
+}

@@ -1,0 +1,11 @@
+
+public procedure main(ctx: Context) -> i32 {
+  let s: string@View = "hello";
+  let len: usize = string::length(s);
+  let msg: string@View = if len == 5usize { "ok" } else { "bad" };
+  let _ = match ctx.fs~>write_stdout(msg) {
+    ok: () => (),
+    err: IoError => ()
+  };
+  return 0i32;
+}

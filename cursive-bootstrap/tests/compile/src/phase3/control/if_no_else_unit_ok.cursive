@@ -1,0 +1,7 @@
+# SPEC_COV: T-If-No-Else
+// If without else returns unit
+
+public procedure main(ctx: Context) -> i32 {
+  if true { let x: i32 = 1; };
+  return 0;
+}

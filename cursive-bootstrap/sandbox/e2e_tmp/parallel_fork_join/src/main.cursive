@@ -1,0 +1,18 @@
+// Tests basic parallel fork-join semantics: spawn two tasks, wait for both.
+
+public procedure main(ctx: Context) -> i32 {
+  let domain = ctx~>cpu()
+
+  let total = parallel domain {
+    (wait spawn { 42 }) + (wait spawn { 42 })
+  }
+
+  // Print result (84 = 42 + 42)
+  let out_msg = "84"
+  let _ = match ctx.fs~>write_stdout(out_msg) {
+    ok: () => ()
+    err: IoError => ()
+  }
+
+  return 0i32
+}

@@ -1,0 +1,13 @@
+# SPEC_COV: Dyn-MultipleMethods
+# SPEC_COV: T-Dynamic-MethodCall
+// Dynamic dispatch with method call.
+// Tests dynamic method dispatch.
+
+class Getter { procedure get(~) -> i32; }
+record Value <: Getter { v: i32, procedure get(~) -> i32 { return 1; } }
+
+public procedure main(ctx: Context) -> i32 {
+  let v = Value { v: 100 };
+  let d: $Getter = v as $Getter;
+  return d~>get();
+}

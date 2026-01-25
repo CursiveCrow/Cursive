@@ -541,6 +541,31 @@ LowerResult LowerMethodCall(const syntax::MethodCallExpr& expr, LowerCtx& ctx) {
     scope.current_module = ctx.module_path;
   }
 
+  if (const auto* path = stripped ? std::get_if<analysis::TypePathType>(&stripped->node) : nullptr) {
+    if (path->path.size() == 1 && analysis::IdEq(path->path[0], "Context") &&
+        (expr.name == "cpu" || expr.name == "gpu" || expr.name == "inline")) {
+      SPEC_RULE("Lower-MethodCall-ContextBuiltin");
+      auto recv_result = LowerRecvArgExpr(*expr.receiver, ctx);
+      auto [args_ir, arg_values] = LowerArgs(param_modes, expr.args, ctx);
+
+      std::vector<IRValue> all_args;
+      all_args.push_back(recv_result.value);
+      all_args.insert(all_args.end(), arg_values.begin(), arg_values.end());
+
+      const std::string qualified = "Context::" + expr.name;
+      std::string callee_sym = BuiltinSym(qualified);
+      IRValue result_value = ctx.FreshTempValue("method_call");
+
+      IRCall call;
+      call.callee = IRValue{IRValue::Kind::Symbol, callee_sym, {}};
+      call.args = std::move(all_args);
+      call.result = result_value;
+
+      return LowerResult{SeqIR({recv_result.ir, args_ir, MakeIR(std::move(call))}),
+                         result_value};
+    }
+  }
+
   if (dyn_type && ctx.sigma) {
     const bool is_builtin = dyn_type->path.size() == 1 && IsBuiltinCapClass(dyn_type->path[0]);
     const auto* class_method = analysis::LookupClassMethod(scope, dyn_type->path, expr.name);

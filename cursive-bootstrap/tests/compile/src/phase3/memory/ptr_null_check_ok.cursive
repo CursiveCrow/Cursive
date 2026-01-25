@@ -1,0 +1,11 @@
+# SPEC_COV: Ptr-Null
+# SPEC_COV: T-Ptr-State
+// Pointer null state and valid state.
+// Tests pointer state annotations.
+
+public procedure main(ctx: Context) -> i32 {
+  let null_ptr: Ptr<i32>@Null = Ptr::null();
+  var x: i32 = 42;
+  let valid_ptr: Ptr<i32>@Valid = &x;
+  return *valid_ptr;
+}

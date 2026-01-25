@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -18,8 +19,11 @@
 #include "cursive0/analysis/caps/cap_filesystem.h"
 #include "cursive0/analysis/caps/cap_heap.h"
 #include "cursive0/analysis/caps/cap_system.h"
+#include "cursive0/analysis/caps/cap_concurrency.h"
 #include "cursive0/analysis/composite/enums.h"
 #include "cursive0/analysis/composite/function_types.h"
+#include "cursive0/analysis/contracts/contract_check.h"
+#include "cursive0/analysis/contracts/verification.h"
 #include "cursive0/analysis/types/literals.h"
 #include "cursive0/analysis/modal/modal.h"
 #include "cursive0/analysis/modal/modal_fields.h"
@@ -35,6 +39,7 @@
 #include "cursive0/analysis/types/type_equiv.h"
 #include "cursive0/analysis/types/type_infer.h"
 #include "cursive0/analysis/types/type_match.h"
+#include "cursive0/analysis/types/type_stmt.h"
 #include "cursive0/analysis/memory/regions.h"
 
 namespace cursive0::analysis {
@@ -201,6 +206,9 @@ LayoutOf(const ScopeContext& ctx, const TypeRef& type) {
   }
   if (const auto* perm = std::get_if<TypePerm>(&type->node)) {
     return LayoutOf(ctx, perm->base);
+  }
+  if (const auto* refine = std::get_if<TypeRefine>(&type->node)) {
+    return LayoutOf(ctx, refine->base);
   }
 
   auto modal_layout = [&](std::uint64_t managed_size,
@@ -567,6 +575,321 @@ static ExprTypeResult TypeTransmuteExprImpl(const ScopeContext& ctx,
 static std::optional<ParamMode> LowerParamMode(
     const std::optional<syntax::ParamMode>& mode);
 
+static syntax::ExprPtr MakeExpr(const core::Span& span, syntax::ExprNode node) {
+  auto expr = std::make_shared<syntax::Expr>();
+  expr->span = span;
+  expr->node = std::move(node);
+  return expr;
+}
+
+static syntax::ExprPtr SubstituteIdent(const syntax::ExprPtr& expr,
+                                       std::string_view name,
+                                       const syntax::ExprPtr& replacement) {
+  if (!expr) {
+    return expr;
+  }
+  if (const auto* ident = std::get_if<syntax::IdentifierExpr>(&expr->node)) {
+    if (IdEq(ident->name, name)) {
+      return replacement;
+    }
+    return expr;
+  }
+  return std::visit(
+      [&](const auto& node) -> syntax::ExprPtr {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, syntax::BinaryExpr>) {
+          auto out = node;
+          out.lhs = SubstituteIdent(node.lhs, name, replacement);
+          out.rhs = SubstituteIdent(node.rhs, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::UnaryExpr>) {
+          auto out = node;
+          out.value = SubstituteIdent(node.value, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
+          auto out = node;
+          out.base = SubstituteIdent(node.base, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::TupleAccessExpr>) {
+          auto out = node;
+          out.base = SubstituteIdent(node.base, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
+          auto out = node;
+          out.base = SubstituteIdent(node.base, name, replacement);
+          out.index = SubstituteIdent(node.index, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::CallExpr>) {
+          auto out = node;
+          out.callee = SubstituteIdent(node.callee, name, replacement);
+          for (auto& arg : out.args) {
+            arg.value = SubstituteIdent(arg.value, name, replacement);
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::QualifiedApplyExpr>) {
+          auto out = node;
+          if (std::holds_alternative<syntax::ParenArgs>(node.args)) {
+            auto paren = std::get<syntax::ParenArgs>(node.args);
+            for (auto& arg : paren.args) {
+              arg.value = SubstituteIdent(arg.value, name, replacement);
+            }
+            out.args = paren;
+          } else {
+            auto brace = std::get<syntax::BraceArgs>(node.args);
+            for (auto& field : brace.fields) {
+              field.value = SubstituteIdent(field.value, name, replacement);
+            }
+            out.args = brace;
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::MethodCallExpr>) {
+          auto out = node;
+          out.receiver = SubstituteIdent(node.receiver, name, replacement);
+          for (auto& arg : out.args) {
+            arg.value = SubstituteIdent(arg.value, name, replacement);
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::CastExpr>) {
+          auto out = node;
+          out.value = SubstituteIdent(node.value, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::RangeExpr>) {
+          auto out = node;
+          out.lhs = SubstituteIdent(node.lhs, name, replacement);
+          out.rhs = SubstituteIdent(node.rhs, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::DerefExpr>) {
+          auto out = node;
+          out.value = SubstituteIdent(node.value, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::AddressOfExpr>) {
+          auto out = node;
+          out.place = SubstituteIdent(node.place, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::MoveExpr>) {
+          auto out = node;
+          out.place = SubstituteIdent(node.place, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::AllocExpr>) {
+          auto out = node;
+          out.value = SubstituteIdent(node.value, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::TupleExpr>) {
+          auto out = node;
+          for (auto& elem : out.elements) {
+            elem = SubstituteIdent(elem, name, replacement);
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::ArrayExpr>) {
+          auto out = node;
+          for (auto& elem : out.elements) {
+            elem = SubstituteIdent(elem, name, replacement);
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
+          auto out = node;
+          for (auto& field : out.fields) {
+            field.value = SubstituteIdent(field.value, name, replacement);
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::EnumLiteralExpr>) {
+          auto out = node;
+          if (out.payload_opt.has_value()) {
+            if (std::holds_alternative<syntax::EnumPayloadParen>(*out.payload_opt)) {
+              auto paren = std::get<syntax::EnumPayloadParen>(*out.payload_opt);
+              for (auto& elem : paren.elements) {
+                elem = SubstituteIdent(elem, name, replacement);
+              }
+              out.payload_opt = paren;
+            } else {
+              auto brace = std::get<syntax::EnumPayloadBrace>(*out.payload_opt);
+              for (auto& field : brace.fields) {
+                field.value = SubstituteIdent(field.value, name, replacement);
+              }
+              out.payload_opt = brace;
+            }
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::IfExpr>) {
+          auto out = node;
+          out.cond = SubstituteIdent(node.cond, name, replacement);
+          out.then_expr = SubstituteIdent(node.then_expr, name, replacement);
+          out.else_expr = SubstituteIdent(node.else_expr, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::MatchExpr>) {
+          auto out = node;
+          out.value = SubstituteIdent(node.value, name, replacement);
+          for (auto& arm : out.arms) {
+            arm.guard_opt = SubstituteIdent(arm.guard_opt, name, replacement);
+            arm.body = SubstituteIdent(arm.body, name, replacement);
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::PropagateExpr>) {
+          auto out = node;
+          out.value = SubstituteIdent(node.value, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::EntryExpr>) {
+          auto out = node;
+          out.expr = SubstituteIdent(node.expr, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else {
+          return expr;
+        }
+      },
+      expr->node);
+}
+
+static bool ExprUsesOnlyEnvBindings(const syntax::ExprPtr& expr,
+                                    const TypeEnv& env) {
+  if (!expr) {
+    return true;
+  }
+  if (const auto* ident = std::get_if<syntax::IdentifierExpr>(&expr->node)) {
+    return BindOf(env, ident->name).has_value();
+  }
+  if (std::holds_alternative<syntax::ResultExpr>(expr->node)) {
+    return false;
+  }
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, syntax::BinaryExpr>) {
+          return ExprUsesOnlyEnvBindings(node.lhs, env) &&
+                 ExprUsesOnlyEnvBindings(node.rhs, env);
+        } else if constexpr (std::is_same_v<T, syntax::UnaryExpr>) {
+          return ExprUsesOnlyEnvBindings(node.value, env);
+        } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
+          return ExprUsesOnlyEnvBindings(node.base, env);
+        } else if constexpr (std::is_same_v<T, syntax::TupleAccessExpr>) {
+          return ExprUsesOnlyEnvBindings(node.base, env);
+        } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
+          return ExprUsesOnlyEnvBindings(node.base, env) &&
+                 ExprUsesOnlyEnvBindings(node.index, env);
+        } else if constexpr (std::is_same_v<T, syntax::CallExpr>) {
+          if (!ExprUsesOnlyEnvBindings(node.callee, env)) {
+            return false;
+          }
+          for (const auto& arg : node.args) {
+            if (!ExprUsesOnlyEnvBindings(arg.value, env)) {
+              return false;
+            }
+          }
+          return true;
+        } else if constexpr (std::is_same_v<T, syntax::QualifiedApplyExpr>) {
+          return false;
+        } else if constexpr (std::is_same_v<T, syntax::QualifiedNameExpr>) {
+          return false;
+        } else if constexpr (std::is_same_v<T, syntax::PathExpr>) {
+          return false;
+        } else if constexpr (std::is_same_v<T, syntax::MethodCallExpr>) {
+          if (!ExprUsesOnlyEnvBindings(node.receiver, env)) {
+            return false;
+          }
+          for (const auto& arg : node.args) {
+            if (!ExprUsesOnlyEnvBindings(arg.value, env)) {
+              return false;
+            }
+          }
+          return true;
+        } else if constexpr (std::is_same_v<T, syntax::CastExpr>) {
+          return ExprUsesOnlyEnvBindings(node.value, env);
+        } else if constexpr (std::is_same_v<T, syntax::RangeExpr>) {
+          return ExprUsesOnlyEnvBindings(node.lhs, env) &&
+                 ExprUsesOnlyEnvBindings(node.rhs, env);
+        } else if constexpr (std::is_same_v<T, syntax::DerefExpr>) {
+          return ExprUsesOnlyEnvBindings(node.value, env);
+        } else if constexpr (std::is_same_v<T, syntax::AddressOfExpr>) {
+          return ExprUsesOnlyEnvBindings(node.place, env);
+        } else if constexpr (std::is_same_v<T, syntax::MoveExpr>) {
+          return ExprUsesOnlyEnvBindings(node.place, env);
+        } else if constexpr (std::is_same_v<T, syntax::AllocExpr>) {
+          return ExprUsesOnlyEnvBindings(node.value, env);
+        } else if constexpr (std::is_same_v<T, syntax::TupleExpr>) {
+          for (const auto& elem : node.elements) {
+            if (!ExprUsesOnlyEnvBindings(elem, env)) {
+              return false;
+            }
+          }
+          return true;
+        } else if constexpr (std::is_same_v<T, syntax::ArrayExpr>) {
+          for (const auto& elem : node.elements) {
+            if (!ExprUsesOnlyEnvBindings(elem, env)) {
+              return false;
+            }
+          }
+          return true;
+        } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
+          for (const auto& field : node.fields) {
+            if (!ExprUsesOnlyEnvBindings(field.value, env)) {
+              return false;
+            }
+          }
+          return true;
+        } else if constexpr (std::is_same_v<T, syntax::EnumLiteralExpr>) {
+          if (!node.payload_opt.has_value()) {
+            return true;
+          }
+          if (std::holds_alternative<syntax::EnumPayloadParen>(*node.payload_opt)) {
+            const auto& paren = std::get<syntax::EnumPayloadParen>(*node.payload_opt);
+            for (const auto& elem : paren.elements) {
+              if (!ExprUsesOnlyEnvBindings(elem, env)) {
+                return false;
+              }
+            }
+            return true;
+          }
+          const auto& brace = std::get<syntax::EnumPayloadBrace>(*node.payload_opt);
+          for (const auto& field : brace.fields) {
+            if (!ExprUsesOnlyEnvBindings(field.value, env)) {
+              return false;
+            }
+          }
+          return true;
+        } else if constexpr (std::is_same_v<T, syntax::IfExpr>) {
+          return ExprUsesOnlyEnvBindings(node.cond, env) &&
+                 ExprUsesOnlyEnvBindings(node.then_expr, env) &&
+                 ExprUsesOnlyEnvBindings(node.else_expr, env);
+        } else if constexpr (std::is_same_v<T, syntax::MatchExpr>) {
+          if (!ExprUsesOnlyEnvBindings(node.value, env)) {
+            return false;
+          }
+          for (const auto& arm : node.arms) {
+            if (!ExprUsesOnlyEnvBindings(arm.guard_opt, env)) {
+              return false;
+            }
+            if (!ExprUsesOnlyEnvBindings(arm.body, env)) {
+              return false;
+            }
+          }
+          return true;
+        } else if constexpr (std::is_same_v<T, syntax::PropagateExpr>) {
+          return ExprUsesOnlyEnvBindings(node.value, env);
+        } else if constexpr (std::is_same_v<T, syntax::EntryExpr>) {
+          return ExprUsesOnlyEnvBindings(node.expr, env);
+        } else {
+          return true;
+        }
+      },
+      expr->node);
+}
+
+static bool ProveRefinePredicate(const syntax::ExprPtr& value,
+                                 const TypeRefine& refine,
+                                 std::optional<std::string_view>& diag_id) {
+  if (!refine.predicate) {
+    return false;
+  }
+  const auto substituted =
+      SubstituteIdent(refine.predicate, "self", value);
+  StaticProofContext proof_ctx;
+  const auto proof = StaticProof(proof_ctx, substituted);
+  if (!proof.provable) {
+    diag_id = "E-TYP-1953";
+    return false;
+  }
+  return true;
+}
+
 static Permission PermOfType(const TypeRef& type) {
   if (!type) {
     return Permission::Const;
@@ -575,6 +898,121 @@ static Permission PermOfType(const TypeRef& type) {
     return perm->perm;
   }
   return Permission::Const;
+}
+
+static bool IsCapabilityType(const TypeRef& type) {
+  const auto stripped = StripPerm(type);
+  if (!stripped) {
+    return false;
+  }
+  const auto* dyn = std::get_if<TypeDynamic>(&stripped->node);
+  if (!dyn) {
+    return false;
+  }
+  return IsFileSystemClassPath(dyn->path) ||
+         IsHeapAllocatorClassPath(dyn->path) ||
+         IsReactorClassPath(dyn->path) ||
+         IsExecutionDomainClassPath(dyn->path);
+}
+
+static bool IsImpureType(const TypeRef& type) {
+  if (!type) {
+    return false;
+  }
+  if (PermOfType(type) == Permission::Unique) {
+    return true;
+  }
+  if (IsCapabilityType(type)) {
+    return true;
+  }
+  return false;
+}
+
+static bool ParamsPure(const ScopeContext& ctx,
+                       const std::vector<TypeFuncParam>& params) {
+  (void)ctx;
+  for (const auto& param : params) {
+    if (IsImpureType(param.type)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool ParamsPure(const ScopeContext& ctx,
+                       const std::vector<syntax::Param>& params,
+                       const std::function<TypeLowerResult(
+                           const std::shared_ptr<syntax::Type>&)>& lower_type) {
+  for (const auto& param : params) {
+    const auto lowered = lower_type(param.type);
+    if (!lowered.ok) {
+      return true;
+    }
+    if (IsImpureType(lowered.type)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static TypeRef SubstSelfType(const TypeRef& self, const TypeRef& type) {
+  if (!type) {
+    return type;
+  }
+  return std::visit(
+      [&](const auto& node) -> TypeRef {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, TypePathType>) {
+          if (node.path.size() == 1 && node.path[0] == "Self") {
+            return self;
+          }
+          return type;
+        } else if constexpr (std::is_same_v<T, TypePerm>) {
+          return MakeTypePerm(node.perm, SubstSelfType(self, node.base));
+        } else if constexpr (std::is_same_v<T, TypeTuple>) {
+          std::vector<TypeRef> elems;
+          elems.reserve(node.elements.size());
+          for (const auto& elem : node.elements) {
+            elems.push_back(SubstSelfType(self, elem));
+          }
+          return MakeTypeTuple(std::move(elems));
+        } else if constexpr (std::is_same_v<T, TypeArray>) {
+          return MakeTypeArray(SubstSelfType(self, node.element), node.length);
+        } else if constexpr (std::is_same_v<T, TypeSlice>) {
+          return MakeTypeSlice(SubstSelfType(self, node.element));
+        } else if constexpr (std::is_same_v<T, TypeUnion>) {
+          std::vector<TypeRef> members;
+          members.reserve(node.members.size());
+          for (const auto& member : node.members) {
+            members.push_back(SubstSelfType(self, member));
+          }
+          return MakeTypeUnion(std::move(members));
+        } else if constexpr (std::is_same_v<T, TypeFunc>) {
+          std::vector<TypeFuncParam> params;
+          params.reserve(node.params.size());
+          for (const auto& param : node.params) {
+            params.push_back(
+                TypeFuncParam{param.mode, SubstSelfType(self, param.type)});
+          }
+          return MakeTypeFunc(std::move(params), SubstSelfType(self, node.ret));
+        } else if constexpr (std::is_same_v<T, TypePtr>) {
+          return MakeTypePtr(SubstSelfType(self, node.element), node.state);
+        } else if constexpr (std::is_same_v<T, TypeRawPtr>) {
+          return MakeTypeRawPtr(node.qual, SubstSelfType(self, node.element));
+        } else if constexpr (std::is_same_v<T, TypeRefine>) {
+          return MakeTypeRefine(SubstSelfType(self, node.base), node.predicate);
+        } else if constexpr (std::is_same_v<T, TypeModalState>) {
+          std::vector<TypeRef> args;
+          args.reserve(node.generic_args.size());
+          for (const auto& arg : node.generic_args) {
+            args.push_back(SubstSelfType(self, arg));
+          }
+          return MakeTypeModalState(node.path, node.state, std::move(args));
+        } else {
+          return type;
+        }
+      },
+      type->node);
 }
 
 static bool PermSub(Permission lhs, Permission rhs) {
@@ -891,10 +1329,57 @@ static TypeLowerResult LowerType(const ScopeContext& ctx,
                   MakeTypeBytes(LowerBytesState(node.state))};
         } else if constexpr (std::is_same_v<T, syntax::TypeDynamic>) {
           return {true, std::nullopt, MakeTypeDynamic(node.path)};
-        } else if constexpr (std::is_same_v<T, syntax::TypeModalState>) {
+        } else if constexpr (std::is_same_v<T, syntax::TypeOpaque>) {
           return {true, std::nullopt,
-                  MakeTypeModalState(node.path, node.state)};
+                  MakeTypeOpaque(node.path, type.get(), type->span)};
+        } else if constexpr (std::is_same_v<T, syntax::TypeRefine>) {
+          const auto base = LowerType(ctx, node.base);
+          if (!base.ok) {
+            return base;
+          }
+          return {true, std::nullopt,
+                  MakeTypeRefine(base.type, node.predicate)};
+        } else if constexpr (std::is_same_v<T, syntax::TypeModalState>) {
+          std::vector<TypeRef> args;
+          args.reserve(node.generic_args.size());
+          for (const auto& arg : node.generic_args) {
+            const auto lower_result = LowerType(ctx, arg);
+            if (!lower_result.ok) {
+              return lower_result;
+            }
+            args.push_back(lower_result.type);
+          }
+          return {true, std::nullopt,
+                  MakeTypeModalState(node.path, node.state, std::move(args))};
         } else if constexpr (std::is_same_v<T, syntax::TypePathType>) {
+          auto is_builtin_generic = [&](const syntax::TypePath& path) {
+            if (path.size() != 1) {
+              return false;
+            }
+            return IdEq(path[0], "SpawnHandle") ||
+                   IdEq(path[0], "FutureHandle") ||
+                   IdEq(path[0], "Async") ||
+                   IdEq(path[0], "Sequence") ||
+                   IdEq(path[0], "Future") ||
+                   IdEq(path[0], "Stream") ||
+                   IdEq(path[0], "Pipe") ||
+                   IdEq(path[0], "Exchange") ||
+                   IdEq(path[0], "Ptr");
+          };
+          if (!node.generic_args.empty() && is_builtin_generic(node.path)) {
+            std::vector<TypeRef> lowered_args;
+            for (const auto& arg : node.generic_args) {
+              const auto lower_result = LowerType(ctx, arg);
+              if (!lower_result.ok) {
+                return lower_result;
+              }
+              lowered_args.push_back(lower_result.type);
+            }
+            TypePathType result_type;
+            result_type.path = node.path;
+            result_type.generic_args = std::move(lowered_args);
+            return {true, std::nullopt, MakeType(result_type)};
+          }
           return {true, std::nullopt, MakeTypePath(node.path)};
         } else {
           return {false, std::nullopt, {}};
@@ -946,7 +1431,8 @@ static bool IsSelfTypePath(const TypePath& path) {
 
 static bool IsBuiltinCapClassPath(const TypePath& path) {
   return path.size() == 1 &&
-         (IdEq(path[0], "FileSystem") || IdEq(path[0], "HeapAllocator"));
+         (IdEq(path[0], "FileSystem") || IdEq(path[0], "HeapAllocator") ||
+          IdEq(path[0], "Reactor"));
 }
 
 static bool IsLogicOp(std::string_view op) { return op == "&&" || op == "||"; }
@@ -1074,6 +1560,11 @@ ExprTypeResult TypeFieldAccessExprImpl(const ScopeContext& ctx,
   if (std::holds_alternative<TypeUnion>(stripped->node)) {
     SPEC_RULE("Union-DirectAccess-Err");
     result.diag_id = "Union-DirectAccess-Err";
+    return result;
+  }
+  if (std::holds_alternative<TypeOpaque>(stripped->node)) {
+    SPEC_RULE("T-Opaque-Project");
+    result.diag_id = "E-TYP-2510";
     return result;
   }
 
@@ -1605,6 +2096,19 @@ ExprTypeResult TypeCastExprImpl(const ScopeContext& ctx,
     return result;
   }
 
+  if (const auto* refine = std::get_if<TypeRefine>(&target.type->node)) {
+    if (!CastValid(source.type, refine->base)) {
+      return result;
+    }
+    if (!ProveRefinePredicate(expr.value, *refine, result.diag_id)) {
+      return result;
+    }
+    SPEC_RULE("T-Refine-Intro");
+    result.ok = true;
+    result.type = target.type;
+    return result;
+  }
+
   if (!CastValid(source.type, target.type)) {
     return result;
   }
@@ -1726,14 +2230,28 @@ ExprTypeResult TypeRangeExprImpl(const ScopeContext& ctx,
   SpecDefsTypeExpr();
   ExprTypeResult result;
 
-  // Check bounds are usize
+  // Helper to check if type is an integer type (for C0X dispatch ranges)
+  auto is_integer_type = [](const TypeRef& type) -> bool {
+    if (!type) return false;
+    const auto* prim = std::get_if<TypePrim>(&type->node);
+    if (!prim) return false;
+    return prim->name == "usize" || prim->name == "isize" ||
+           prim->name == "i8" || prim->name == "i16" ||
+           prim->name == "i32" || prim->name == "i64" ||
+           prim->name == "u8" || prim->name == "u16" ||
+           prim->name == "u32" || prim->name == "u64";
+  };
+
+  // Check bounds are usize (or integer types in parallel context for C0X)
   if (expr.lhs) {
     const auto start = TypeExpr(ctx, type_ctx, expr.lhs, env);
     if (!start.ok) {
       result.diag_id = start.diag_id;
       return result;
     }
-    if (!IsPrimType(start.type, "usize")) {
+    // C0X Extension: Allow integer types in parallel context for dispatch
+    if (!IsPrimType(start.type, "usize") &&
+        !(type_ctx.in_parallel && is_integer_type(start.type))) {
       SPEC_RULE("Range-NonIndex-Err");
       result.diag_id = "Range-NonIndex-Err";
       return result;
@@ -1746,7 +2264,9 @@ ExprTypeResult TypeRangeExprImpl(const ScopeContext& ctx,
       result.diag_id = end.diag_id;
       return result;
     }
-    if (!IsPrimType(end.type, "usize")) {
+    // C0X Extension: Allow integer types in parallel context for dispatch
+    if (!IsPrimType(end.type, "usize") &&
+        !(type_ctx.in_parallel && is_integer_type(end.type))) {
       SPEC_RULE("Range-NonIndex-Err");
       result.diag_id = "Range-NonIndex-Err";
       return result;
@@ -1997,6 +2517,10 @@ ExprTypeResult TypeMoveExprImpl(const ScopeContext& ctx,
                                 const TypeEnv& env) {
   SpecDefsTypeExpr();
   ExprTypeResult result;
+  if (type_ctx.require_pure) {
+    result.diag_id = "E-SEM-2802";
+    return result;
+  }
 
   const auto place = TypePlace(ctx, type_ctx, expr.place, env);
   if (!place.ok) {
@@ -2501,6 +3025,103 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
   if (!lookup_base) {
     return result;
   }
+  if (type_ctx.require_pure && IsCapabilityType(lookup_base)) {
+    result.diag_id = "E-SEM-2802";
+    return result;
+  }
+
+  if (const auto* opaque = std::get_if<TypeOpaque>(&lookup_base->node)) {
+    const auto class_table = ClassMethodTable(ctx, opaque->class_path);
+    if (!class_table.ok) {
+      result.diag_id = class_table.diag_id;
+      return result;
+    }
+
+    const syntax::ClassMethodDecl* method = nullptr;
+    syntax::ClassPath owner;
+    for (const auto& entry : class_table.methods) {
+      if (!entry.method) {
+        continue;
+      }
+      if (!IdEq(entry.method->name, expr.name)) {
+        continue;
+      }
+      method = entry.method;
+      owner = entry.owner;
+      break;
+    }
+    if (!method) {
+      SPEC_RULE("T-Opaque-Project");
+      result.diag_id = "E-TYP-2510";
+      return result;
+    }
+
+    if (!owner.empty() && IdEq(owner.back(), "Drop") &&
+        IdEq(method->name, "drop")) {
+      SPEC_RULE("Drop-Call-Err-Dyn");
+      result.diag_id = "Drop-Call-Err-Dyn";
+      return result;
+    }
+
+    auto lower_type_self = [&](const std::shared_ptr<syntax::Type>& type)
+        -> LowerTypeResult {
+      const auto lowered = LowerType(ctx, type);
+      if (!lowered.ok) {
+        return {false, lowered.diag_id, {}};
+      }
+      return {true, std::nullopt, SubstSelfType(lookup_base, lowered.type)};
+    };
+
+    const auto mode = RecvModeOf(method->receiver);
+    const auto recv_base =
+        RecvBaseType(expr.receiver, mode, type_place, type_expr);
+    if (!recv_base.ok) {
+      result.diag_id = recv_base.diag_id;
+      return result;
+    }
+    const auto recv_type =
+        RecvTypeForReceiver(ctx, lookup_base, method->receiver, lower_type_self);
+    if (!recv_type.ok) {
+      result.diag_id = recv_type.diag_id;
+      return result;
+    }
+    const auto method_perm = PermOfType(recv_type.type);
+    if (!PermSub(recv_base.perm, method_perm)) {
+      SPEC_RULE("MethodCall-RecvPerm-Err");
+      result.diag_id = "MethodCall-RecvPerm-Err";
+      return result;
+    }
+
+    const auto recv_arg = RecvArgOk(expr.receiver, mode, type_expr);
+    if (!recv_arg.ok) {
+      result.diag_id = recv_arg.diag_id;
+      return result;
+    }
+
+    const auto args_ok =
+        ArgsOk(ctx, method->params, expr.args, type_expr, &type_place,
+               lower_type_self);
+    if (!args_ok.ok) {
+      result.diag_id = args_ok.diag_id;
+      return result;
+    }
+
+    TypeLowerResult ret_type;
+    if (!method->return_type_opt) {
+      ret_type = {true, std::nullopt, MakeTypePrim("()")} ;
+    } else {
+      ret_type = lower_type_self(method->return_type_opt);
+    }
+    if (!ret_type.ok) {
+      result.diag_id = ret_type.diag_id;
+      return result;
+    }
+
+    SPEC_RULE("T-Opaque-Project");
+    result.ok = true;
+    result.type = ret_type.type;
+    return result;
+  }
 
   if (const auto* modal = std::get_if<TypeModalState>(&lookup_base->node)) {
     if (modal->path.size() == 1 && IdEq(modal->path[0], "Region") &&
@@ -2755,6 +3376,107 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       result.type = sig->ret;
       return result;
     }
+    if (IsReactorClassPath(dyn->path)) {
+      if (!(IdEq(expr.name, "run") || IdEq(expr.name, "register"))) {
+        SPEC_RULE("LookupClassMethod-NotFound");
+        result.diag_id = "LookupMethod-NotFound";
+        return result;
+      }
+
+      const auto recv_base =
+          RecvBaseType(expr.receiver, std::nullopt, type_place, type_expr);
+      if (!recv_base.ok) {
+        result.diag_id = recv_base.diag_id;
+        return result;
+      }
+      if (!recv_base.base ||
+          !std::holds_alternative<TypeDynamic>(recv_base.base->node)) {
+        return result;
+      }
+      if (!PermSub(recv_base.perm, Permission::Const)) {
+        SPEC_RULE("MethodCall-RecvPerm-Err");
+        result.diag_id = "MethodCall-RecvPerm-Err";
+        return result;
+      }
+      const auto recv_arg = RecvArgOk(expr.receiver, std::nullopt, type_expr);
+      if (!recv_arg.ok) {
+        result.diag_id = recv_arg.diag_id;
+        return result;
+      }
+      if (expr.args.size() != 1) {
+        SPEC_RULE("Call-ArgCount-Err");
+        result.diag_id = "Call-ArgCount-Err";
+        return result;
+      }
+      if (expr.args[0].moved) {
+        SPEC_RULE("Call-Move-Unexpected");
+        result.diag_id = "Call-Move-Unexpected";
+        return result;
+      }
+      const auto arg_type = type_expr(expr.args[0].value);
+      if (!arg_type.ok) {
+        result.diag_id = arg_type.diag_id;
+        return result;
+      }
+      const auto async_sig = AsyncSigOf(ctx, arg_type.type);
+      if (!async_sig.has_value() ||
+          !IsPrimType(async_sig->out, "()") ||
+          !IsPrimType(async_sig->in, "()")) {
+        SPEC_RULE("Call-ArgType-Err");
+        result.diag_id = "Call-ArgType-Err";
+        return result;
+      }
+
+      SPEC_RULE("T-Dynamic-MethodCall");
+      result.ok = true;
+      if (IdEq(expr.name, "run")) {
+        result.type = MakeTypeUnion({async_sig->result, async_sig->err});
+      } else {
+        result.type = MakeFutureHandleType(async_sig->result, async_sig->err);
+      }
+      return result;
+    }
+    if (IsExecutionDomainTypePath(dyn->path)) {
+      const auto sig = LookupExecutionDomainMethodSig(expr.name);
+      if (!sig.has_value()) {
+        SPEC_RULE("LookupClassMethod-NotFound");
+        result.diag_id = "LookupMethod-NotFound";
+        return result;
+      }
+
+      const auto recv_base =
+          RecvBaseType(expr.receiver, std::nullopt, type_place, type_expr);
+      if (!recv_base.ok) {
+        result.diag_id = recv_base.diag_id;
+        return result;
+      }
+      if (!recv_base.base ||
+          !std::holds_alternative<TypeDynamic>(recv_base.base->node)) {
+        return result;
+      }
+      if (!PermSub(recv_base.perm, sig->recv_perm)) {
+        SPEC_RULE("MethodCall-RecvPerm-Err");
+        result.diag_id = "MethodCall-RecvPerm-Err";
+        return result;
+      }
+      const auto recv_arg = RecvArgOk(expr.receiver, std::nullopt, type_expr);
+      if (!recv_arg.ok) {
+        result.diag_id = recv_arg.diag_id;
+        return result;
+      }
+      const auto args_ok =
+          ArgsOk(ctx, sig->params, expr.args, type_expr, &type_place,
+                 lower_type);
+      if (!args_ok.ok) {
+        result.diag_id = args_ok.diag_id;
+        return result;
+      }
+
+      SPEC_RULE("T-Dynamic-MethodCall");
+      result.ok = true;
+      result.type = sig->ret;
+      return result;
+    }
     const auto table = ClassMethodTable(ctx, dyn->path);
     if (!table.ok) {
       result.diag_id = table.diag_id;
@@ -2807,6 +3529,13 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       return result;
     }
     const auto method_perm = PermOfType(recv_type.type);
+    if (type_ctx.require_pure) {
+      if (method_perm != Permission::Const ||
+          !ParamsPure(ctx, method->params, lower_type)) {
+        result.diag_id = "E-SEM-2802";
+        return result;
+      }
+    }
     if (!PermSub(recv_base.perm, method_perm)) {
       SPEC_RULE("MethodCall-RecvPerm-Err");
       result.diag_id = "MethodCall-RecvPerm-Err";
@@ -2852,6 +3581,13 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
         result.diag_id = "LookupMethod-NotFound";
         return result;
       }
+      if (type_ctx.require_pure) {
+        if (sig->recv_perm != Permission::Const ||
+            !ParamsPure(ctx, sig->params, lower_type)) {
+          result.diag_id = "E-SEM-2802";
+          return result;
+        }
+      }
 
       const auto recv_base =
           RecvBaseType(expr.receiver, std::nullopt, type_place, type_expr);
@@ -2890,6 +3626,56 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       result.ok = true;
       result.type = sig->ret;
       return result;
+    }
+
+    // C0X Extension: Context method lookup (§18.2)
+    if (path->path.size() == 1 && IdEq(path->path[0], "Context")) {
+      const auto sig = LookupContextMethodSig(expr.name);
+      if (sig.has_value()) {
+        if (type_ctx.require_pure) {
+          if (sig->recv_perm != Permission::Const ||
+              !ParamsPure(ctx, sig->params, lower_type)) {
+            result.diag_id = "E-SEM-2802";
+            return result;
+          }
+        }
+        const auto recv_base =
+            RecvBaseType(expr.receiver, std::nullopt, type_place, type_expr);
+        if (!recv_base.ok) {
+          result.diag_id = recv_base.diag_id;
+          return result;
+        }
+        const auto* recv_path = recv_base.base
+                                    ? std::get_if<TypePathType>(&recv_base.base->node)
+                                    : nullptr;
+        if (!recv_path || recv_path->path.size() != 1 ||
+            !IdEq(recv_path->path[0], "Context")) {
+          return result;
+        }
+        if (!PermSub(recv_base.perm, sig->recv_perm)) {
+          SPEC_RULE("MethodCall-RecvPerm-Err");
+          result.diag_id = "MethodCall-RecvPerm-Err";
+          return result;
+        }
+
+        const auto recv_arg = RecvArgOk(expr.receiver, std::nullopt, type_expr);
+        if (!recv_arg.ok) {
+          result.diag_id = recv_arg.diag_id;
+          return result;
+        }
+
+        const auto args_ok =
+            ArgsOk(ctx, sig->params, expr.args, type_expr, &type_place, lower_type);
+        if (!args_ok.ok) {
+          result.diag_id = args_ok.diag_id;
+          return result;
+        }
+
+        SPEC_RULE("T-Context-MethodCall");
+        result.ok = true;
+        result.type = sig->ret;
+        return result;
+      }
     }
   }
 
@@ -2939,6 +3725,13 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
     return result;
   }
   const auto method_perm = PermOfType(recv_type.type);
+  if (type_ctx.require_pure) {
+    if (method_perm != Permission::Const ||
+        !ParamsPure(ctx, params, lower_type)) {
+      result.diag_id = "E-SEM-2802";
+      return result;
+    }
+  }
   if (!PermSub(recv_base.perm, method_perm)) {
     SPEC_RULE("MethodCall-RecvPerm-Err");
     result.diag_id = "MethodCall-RecvPerm-Err";
@@ -3050,6 +3843,45 @@ static ExprTypeResult TypeExprImpl(const ScopeContext& ctx,
           return TypeMoveExprImpl(ctx, type_ctx, node, env);
         } else if constexpr (std::is_same_v<T, syntax::PropagateExpr>) {
           return TypePropagateExprImpl(ctx, type_ctx, node, env);
+        } else if constexpr (std::is_same_v<T, syntax::ResultExpr>) {
+          if (type_ctx.contract_phase != ContractPhase::Postcondition) {
+            ExprTypeResult r;
+            r.diag_id = "E-SEM-2806";
+            return r;
+          }
+          ExprTypeResult r;
+          r.ok = true;
+          r.type = type_ctx.return_type ? type_ctx.return_type : MakeTypePrim("()");
+          return r;
+        } else if constexpr (std::is_same_v<T, syntax::EntryExpr>) {
+          if (type_ctx.contract_phase != ContractPhase::Postcondition) {
+            ExprTypeResult r;
+            r.diag_id = "E-SEM-2852";
+            return r;
+          }
+          if (!node.expr) {
+            return ExprTypeResult{};
+          }
+          if (!ExprUsesOnlyEnvBindings(node.expr, env)) {
+            ExprTypeResult r;
+            r.diag_id = "E-SEM-2852";
+            return r;
+          }
+          const auto typed = TypeExpr(ctx, type_ctx, node.expr, env);
+          if (!typed.ok) {
+            ExprTypeResult r;
+            r.diag_id = typed.diag_id;
+            return r;
+          }
+          if (!BitcopyType(ctx, typed.type) && !CloneType(ctx, typed.type)) {
+            ExprTypeResult r;
+            r.diag_id = "E-SEM-2805";
+            return r;
+          }
+          ExprTypeResult r;
+          r.ok = true;
+          r.type = typed.type;
+          return r;
         } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
           return TypeRecordExprImpl(ctx, type_ctx, node, env);
         } else if constexpr (std::is_same_v<T, syntax::EnumLiteralExpr>) {
@@ -3085,6 +3917,17 @@ static ExprTypeResult TypeExprImpl(const ScopeContext& ctx,
             r.diag_id = call.diag_id;
             return r;
           }
+          if (type_ctx.require_pure) {
+            const auto callee_type = type_expr(node.callee);
+            if (callee_type.ok) {
+              const auto* func =
+                  std::get_if<TypeFunc>(&StripPerm(callee_type.type)->node);
+              if (func && !ParamsPure(ctx, func->params)) {
+                r.diag_id = "E-SEM-2802";
+                return r;
+              }
+            }
+          }
           r.ok = true;
           r.type = call.type;
           return r;
@@ -3109,6 +3952,18 @@ static ExprTypeResult TypeExprImpl(const ScopeContext& ctx,
           return TypeAllocExpr(ctx, type_ctx, node, env);
         } else if constexpr (std::is_same_v<T, syntax::TransmuteExpr>) {
           return TypeTransmuteExprImpl(ctx, type_ctx, node, env, expr->span);
+        // C0X Extension: Async expressions (§19)
+        } else if constexpr (std::is_same_v<T, syntax::YieldExpr>) {
+          return TypeYieldExpr(ctx, type_ctx, node, env, type_expr);
+        } else if constexpr (std::is_same_v<T, syntax::YieldFromExpr>) {
+          return TypeYieldFromExpr(ctx, type_ctx, node, env, type_expr);
+        } else if constexpr (std::is_same_v<T, syntax::SyncExpr>) {
+          return TypeSyncExpr(ctx, type_ctx, node, env, type_expr);
+        } else if constexpr (std::is_same_v<T, syntax::RaceExpr>) {
+          return TypeRaceExpr(ctx, type_ctx, node, env, type_expr, type_ident,
+                              type_place);
+        } else if constexpr (std::is_same_v<T, syntax::AllExpr>) {
+          return TypeAllExpr(ctx, type_ctx, node, env, type_expr);
         } else if constexpr (std::is_same_v<T, syntax::QualifiedNameExpr>) {
           SPEC_RULE("Expr-Unresolved-Err");
           ExprTypeResult r;
@@ -3119,6 +3974,18 @@ static ExprTypeResult TypeExprImpl(const ScopeContext& ctx,
           ExprTypeResult r;
           r.diag_id = "ResolveExpr-Ident-Err";
           return r;
+        // C0X Extension: Structured Concurrency (§10, §18)
+        } else if constexpr (std::is_same_v<T, syntax::ParallelExpr>) {
+          return TypeParallelExpr(ctx, type_ctx, node, env, type_expr,
+                                  type_ident, type_place);
+        } else if constexpr (std::is_same_v<T, syntax::SpawnExpr>) {
+          return TypeSpawnExpr(ctx, type_ctx, node, env, type_expr,
+                               type_ident, type_place);
+        } else if constexpr (std::is_same_v<T, syntax::WaitExpr>) {
+          return TypeWaitExpr(ctx, type_ctx, node, env, type_expr, type_place);
+        } else if constexpr (std::is_same_v<T, syntax::DispatchExpr>) {
+          return TypeDispatchExpr(ctx, type_ctx, node, env, type_expr,
+                                  type_ident, type_place);
         } else {
           return ExprTypeResult{};
         }
@@ -3184,6 +4051,10 @@ ExprTypeResult TypeTransmuteExprImpl(const ScopeContext& ctx,
                                  const core::Span& span) {
   SpecDefsTypeExpr();
   ExprTypeResult result;
+  if (type_ctx.require_pure) {
+    result.diag_id = "E-SEM-2802";
+    return result;
+  }
   if (!IsInUnsafeSpan(ctx, span)) {
     SPEC_RULE("Transmute-Unsafe-Err");
     result.diag_id = "Transmute-Unsafe-Err";
@@ -3349,6 +4220,46 @@ TypeWfResult TypeWFImpl(const ScopeContext& ctx, const TypeRef& type) {
           }
           SPEC_RULE("WF-Dynamic");
           return {true, std::nullopt};
+        } else if constexpr (std::is_same_v<T, TypeOpaque>) {
+          syntax::Path class_path;
+          class_path.reserve(node.class_path.size());
+          for (const auto& comp : node.class_path) {
+            class_path.push_back(comp);
+          }
+          if (ctx.sigma.classes.find(PathKeyOf(class_path)) == ctx.sigma.classes.end()) {
+            SPEC_RULE("WF-Opaque-Err");
+            return {false, "Superclass-Undefined"};
+          }
+          SPEC_RULE("WF-Opaque");
+          return {true, std::nullopt};
+        } else if constexpr (std::is_same_v<T, TypeRefine>) {
+          const auto base = TypeWFImpl(ctx, node.base);
+          if (!base.ok) {
+            return base;
+          }
+          if (!node.predicate) {
+            return {false, std::nullopt};
+          }
+          TypeEnv env;
+          TypeScope scope;
+          scope.emplace(IdKeyOf("self"),
+                        TypeBinding{syntax::Mutability::Let, node.base});
+          env.scopes.push_back(std::move(scope));
+          StmtTypeContext type_ctx;
+          type_ctx.return_type = MakeTypePrim("bool");
+          const auto pred_type = TypeExpr(ctx, type_ctx, node.predicate, env);
+          if (!pred_type.ok) {
+            return {false, pred_type.diag_id};
+          }
+          if (!IsPrimType(pred_type.type, "bool")) {
+            return {false, "E-TYP-1955"};
+          }
+          const auto purity = CheckPurity(node.predicate);
+          if (!purity.ok) {
+            return {false, std::optional<std::string_view>{"E-TYP-1954"}};
+          }
+          SPEC_RULE("WF-Refine-Type");
+          return {true, std::nullopt};
         } else if constexpr (std::is_same_v<T, TypeString>) {
           SPEC_RULE("WF-String");
           return {true, std::nullopt};
@@ -3396,7 +4307,10 @@ TypeRef StripPerm(const TypeRef& type) {
     return type;
   }
   if (const auto* perm = std::get_if<TypePerm>(&type->node)) {
-    return perm->base;
+    return StripPerm(perm->base);
+  }
+  if (const auto* refine = std::get_if<TypeRefine>(&type->node)) {
+    return StripPerm(refine->base);
   }
   return type;
 }
@@ -3523,6 +4437,34 @@ bool BitcopyType(const ScopeContext& ctx, const TypeRef& type) {
     }
     return BitcopyType(ctx, perm->base);
   }
+  if (const auto* refine = std::get_if<TypeRefine>(&type->node)) {
+    return BitcopyType(ctx, refine->base);
+  }
+  if (const auto* opaque = std::get_if<TypeOpaque>(&type->node)) {
+    if (opaque->origin) {
+      const auto it = ctx.sigma.opaque_underlying.find(opaque->origin);
+      if (it != ctx.sigma.opaque_underlying.end()) {
+        return BitcopyType(ctx, it->second);
+      }
+    }
+    return false;
+  }
+  if (const auto* path = std::get_if<TypePathType>(&type->node)) {
+    syntax::Path syntax_path;
+    syntax_path.reserve(path->path.size());
+    for (const auto& comp : path->path) {
+      syntax_path.push_back(comp);
+    }
+    const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
+    if (it != ctx.sigma.types.end()) {
+      if (const auto* alias = std::get_if<syntax::TypeAliasDecl>(&it->second)) {
+        const auto lowered = LowerType(ctx, alias->type);
+        if (lowered.ok && lowered.type) {
+          return BitcopyType(ctx, lowered.type);
+        }
+      }
+    }
+  }
   if (const auto* tuple = std::get_if<TypeTuple>(&type->node)) {
     for (const auto& elem : tuple->elements) {
       if (!BitcopyType(ctx, elem)) {
@@ -3535,6 +4477,33 @@ bool BitcopyType(const ScopeContext& ctx, const TypeRef& type) {
     return BitcopyType(ctx, array->element);
   }
   return BuiltinBitcopyType(type) || ImplementsBitcopy(ctx, type);
+}
+
+bool CloneType(const ScopeContext& ctx, const TypeRef& type) {
+  SpecDefsTypeExpr();
+  if (!type) {
+    return false;
+  }
+  if (const auto* perm = std::get_if<TypePerm>(&type->node)) {
+    return CloneType(ctx, perm->base);
+  }
+  if (const auto* refine = std::get_if<TypeRefine>(&type->node)) {
+    return CloneType(ctx, refine->base);
+  }
+  if (const auto* opaque = std::get_if<TypeOpaque>(&type->node)) {
+    if (opaque->origin) {
+      const auto it = ctx.sigma.opaque_underlying.find(opaque->origin);
+      if (it != ctx.sigma.opaque_underlying.end()) {
+        return CloneType(ctx, it->second);
+      }
+    }
+    return false;
+  }
+  if (BitcopyType(ctx, type)) {
+    return true;
+  }
+  const syntax::ClassPath clone_path = {"Clone"};
+  return TypeImplementsClass(ctx, type, clone_path);
 }
 
 bool EqType(const TypeRef& type) {
@@ -3877,6 +4846,10 @@ ExprTypeResult TypeAllocExpr(const ScopeContext& ctx,
                              const TypeEnv& env) {
   SpecDefsTypeExpr();
   ExprTypeResult result;
+  if (type_ctx.require_pure) {
+    result.diag_id = "E-SEM-2802";
+    return result;
+  }
   if (!expr.value) {
     return result;
   }

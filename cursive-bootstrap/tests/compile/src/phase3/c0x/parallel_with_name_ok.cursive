@@ -1,0 +1,12 @@
+# SPEC_COV: C0X-Parallel-Name-Option
+# SPEC_COV: T-Parallel
+// Tests parallel block with name option (§2.7.1, §18.1.1)
+// Expected: no diagnostics
+
+public procedure main(ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+  parallel domain [name: "worker-pool"] {
+    // Named parallel block for debugging
+  }
+  return 0
+}

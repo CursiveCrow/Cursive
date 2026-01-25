@@ -1,32 +1,59 @@
 #include "rt_internal.h"
 
-void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3anew_x5fscoped(const C0RegionOptions* options) {
-  c0_trace_emit_rule("RegionSym-NewScoped");
-  (void)options;
+enum {
+  C0_REGION_ACTIVE = 0,
+  C0_REGION_FROZEN = 1,
+  C0_REGION_FREED = 2,
+};
+
+static volatile LONG64 g_region_next = 0;
+
+static C0Region c0_region_make(uint8_t disc, uint64_t handle) {
+  C0Region region;
+  c0_memset(&region, 0, sizeof(C0Region));
+  region.disc = disc;
+  region.handle = handle;
+  return region;
 }
 
-void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aalloc(const void* self, const void* value) {
+static uint64_t c0_region_next_handle(void) {
+  return (uint64_t)InterlockedIncrement64(&g_region_next);
+}
+
+C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3anew_x5fscoped(
+    const C0RegionOptions* options) {
+  c0_trace_emit_rule("RegionSym-NewScoped");
+  (void)options;
+  const uint64_t handle = c0_region_next_handle();
+  return c0_region_make(C0_REGION_ACTIVE, handle);
+}
+
+void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aalloc(
+    C0Region self,
+    const void* value) {
   c0_trace_emit_rule("RegionSym-Alloc");
   (void)self;
   (void)value;
 }
 
-void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5funchecked(const void* self) {
+C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5funchecked(
+    C0Region self) {
   c0_trace_emit_rule("RegionSym-ResetUnchecked");
-  (void)self;
+  return c0_region_make(C0_REGION_ACTIVE, self.handle);
 }
 
-void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afreeze(const void* self) {
+C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afreeze(C0Region self) {
   c0_trace_emit_rule("RegionSym-Freeze");
-  (void)self;
+  return c0_region_make(C0_REGION_FROZEN, self.handle);
 }
 
-void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3athaw(const void* self) {
+C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3athaw(C0Region self) {
   c0_trace_emit_rule("RegionSym-Thaw");
-  (void)self;
+  return c0_region_make(C0_REGION_ACTIVE, self.handle);
 }
 
-void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(const void* self) {
+C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(
+    C0Region self) {
   c0_trace_emit_rule("RegionSym-FreeUnchecked");
-  (void)self;
+  return c0_region_make(C0_REGION_FREED, self.handle);
 }

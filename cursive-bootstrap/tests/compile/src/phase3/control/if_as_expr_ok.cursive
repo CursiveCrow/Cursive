@@ -1,0 +1,8 @@
+# SPEC_COV: T-If
+// If expression used in expression context
+
+public procedure main(ctx: Context) -> i32 {
+  let a: i32 = 10;
+  let b: i32 = 20;
+  return if a < b { a } else { b };
+}

@@ -178,6 +178,10 @@ bool UsingClauseBindsName(const syntax::UsingClause& clause,
             return false;
           }
           return NameMatches(key, node.path.back());
+        } else if constexpr (std::is_same_v<T, syntax::UsingWildcard>) {
+          // Wildcard binds all visible names from the module.
+          (void)node;
+          return true;
         } else {
           for (const auto& spec : node.specs) {
             if (spec.alias_opt) {
@@ -229,12 +233,19 @@ const syntax::ASTItem* FindDeclByName(const ScopeContext& ctx,
     return nullptr;
   }
   const auto key = IdKeyOf(name);
+  const syntax::ASTItem* using_fallback = nullptr;
   for (const auto& item : module->items) {
     if (ItemBindsName(item, key)) {
+      if (std::holds_alternative<syntax::UsingDecl>(item)) {
+        if (!using_fallback) {
+          using_fallback = &item;
+        }
+        continue;
+      }
       return &item;
     }
   }
-  return nullptr;
+  return using_fallback;
 }
 
 std::optional<core::Span> SpanOfItem(const syntax::ASTItem& item) {
@@ -722,6 +733,42 @@ UsingNamesResult UsingNames(const ScopeContext& ctx,
               decl.span,
           });
           return {true, std::nullopt, std::nullopt, bindings};
+        } else if constexpr (std::is_same_v<T, syntax::UsingWildcard>) {
+          if (!HasModuleName(module_names, clause.module_path)) {
+            return {false, "Resolve-Using-None", decl.span, {}};
+          }
+          const auto map_it = name_maps.find(PathKeyOf(clause.module_path));
+          if (map_it == name_maps.end()) {
+            return {false, "Resolve-Using-None", decl.span, {}};
+          }
+          BindingList bindings;
+          for (const auto& [key, ent] : map_it->second) {
+            if (ent.kind != EntityKind::Value && ent.kind != EntityKind::Type &&
+                ent.kind != EntityKind::Class) {
+              continue;
+            }
+            const std::string name = key;
+            if (decl.vis == syntax::Visibility::Public) {
+              const auto* decl_item =
+                  FindDeclByName(ctx, clause.module_path, name);
+              if (!decl_item || ItemVisibility(*decl_item) !=
+                                   syntax::Visibility::Public) {
+                SPEC_RULE("Using-List-Public-Err");
+                return {false, "Using-List-Public-Err", decl.span, {}};
+              }
+            }
+            const auto access = CanAccess(ctx, clause.module_path, name);
+            if (!access.ok) {
+              return {false, access.diag_id, decl.span, {}};
+            }
+            bindings.push_back(BoundName{
+                IdKeyOf(name),
+                Entity{ent.kind, clause.module_path, name, EntitySource::Using},
+                decl.span,
+            });
+          }
+          SPEC_RULE("Using-Wildcard");
+          return {true, std::nullopt, std::nullopt, bindings};
         } else {
           if (!HasModuleName(module_names, clause.module_path)) {
             return {false, "Resolve-Using-None", decl.span, {}};
@@ -734,8 +781,32 @@ UsingNamesResult UsingNames(const ScopeContext& ctx,
           if (map_it == name_maps.end()) {
             return {false, "Resolve-Using-None", decl.span, {}};
           }
-          BindingList bindings;
+          std::optional<syntax::UsingSpec> self_spec;
           for (const auto& spec : clause.specs) {
+            if (IdEq(spec.name, "self")) {
+              if (self_spec.has_value()) {
+                SPEC_RULE("Using-List-Dup");
+                return {false, "Using-List-Dup", decl.span, {}};
+              }
+              self_spec = spec;
+            }
+          }
+          BindingList bindings;
+          if (self_spec.has_value()) {
+            syntax::Identifier bind_name = self_spec->alias_opt.value_or(
+                clause.module_path.empty() ? syntax::Identifier{}
+                                           : clause.module_path.back());
+            bindings.push_back(BoundName{
+                IdKeyOf(bind_name),
+                Entity{EntityKind::ModuleAlias, clause.module_path, std::nullopt,
+                       EntitySource::Using},
+                decl.span,
+            });
+          }
+          for (const auto& spec : clause.specs) {
+            if (IdEq(spec.name, "self")) {
+              continue;
+            }
             const auto ent_it = map_it->second.find(IdKeyOf(spec.name));
             if (ent_it == map_it->second.end()) {
               return {false, "Resolve-Using-None", decl.span, {}};

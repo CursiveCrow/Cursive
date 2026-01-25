@@ -524,10 +524,11 @@ ParseElemResult<std::shared_ptr<Type>> ParseNonPermType(Parser parser) {
       Parser after_kw = parser;
       Advance(after_kw);
       ParseElemResult<TypePath> opaque_path = ParseTypePath(after_kw);
-      EmitUnsupportedConstruct(opaque_path.parser);
+      SPEC_RULE("Parse-Opaque-Type");
+      TypeOpaque opaque;
+      opaque.path = std::move(opaque_path.elem);
       return {opaque_path.parser,
-              MakeTypeNode(SpanBetween(start, opaque_path.parser),
-                           TypePathType{std::move(opaque_path.elem)})};
+              MakeTypeNode(SpanBetween(start, opaque_path.parser), opaque)};
     }
     const std::string_view lexeme = tok->lexeme;
     if (IsPrimLexemeSet(lexeme)) {
@@ -579,31 +580,20 @@ ParseElemResult<std::shared_ptr<Type>> ParseNonPermType(Parser parser) {
                            TypePathType{std::move(path.elem)})};
     }
 
-    const Token* next = Tok(path.parser);
-    if (next && IsOpTok(*next, "@")) {
-      SPEC_RULE("Parse-Modal-State-Type");
-      Parser after_at = path.parser;
-      Advance(after_at);
-      ParseElemResult<Identifier> state = ParseIdent(after_at);
-      TypeModalState modal;
-      modal.path = std::move(path.elem);
-      modal.state = state.elem;
-      return {state.parser, MakeTypeNode(SpanBetween(start, state.parser), modal)};
-    }
-
-    // C0X Extension: Parse generic type arguments if present
+    // Parse optional generic args, then optional modal state.
+    std::vector<std::shared_ptr<Type>> args;
+    Parser cur = path.parser;
+    const Token* next = Tok(cur);
     if (next && IsOpTok(*next, "<")) {
       SPEC_RULE("Parse-Type-Generic-Args");
-      Parser after_lt = path.parser;
+      Parser after_lt = cur;
       Advance(after_lt);  // consume <
-      
-      std::vector<std::shared_ptr<Type>> args;
-      
+
       // Parse first type arg
       ParseElemResult<std::shared_ptr<Type>> first_arg = ParseType(after_lt);
       args.push_back(first_arg.elem);
-      Parser cur = first_arg.parser;
-      
+      cur = first_arg.parser;
+
       // Parse additional args separated by ; or ,
       while (IsPunc(cur, ";") || IsPunc(cur, ",")) {
         Advance(cur);
@@ -611,31 +601,41 @@ ParseElemResult<std::shared_ptr<Type>> ParseNonPermType(Parser parser) {
         args.push_back(arg.elem);
         cur = arg.parser;
       }
-      
+
       // Expect >
       if (!IsOp(cur, ">")) {
         EmitParseSyntaxErr(cur, TokSpan(cur));
       } else {
         Advance(cur);
       }
-      
+    }
+
+    const Token* after_args = Tok(cur);
+    if (after_args && IsOpTok(*after_args, "@")) {
+      SPEC_RULE("Parse-Modal-State-Type");
+      Parser after_at = cur;
+      Advance(after_at);
+      ParseElemResult<Identifier> state = ParseIdent(after_at);
+      TypeModalState modal;
+      modal.path = std::move(path.elem);
+      modal.generic_args = std::move(args);
+      modal.state = state.elem;
+      return {state.parser, MakeTypeNode(SpanBetween(start, state.parser), modal)};
+    }
+
+    if (!after_args || (!IsOpTok(*after_args, "@") && !IsOpTok(*after_args, "<") &&
+                  !BuiltinTypePath(path.elem))) {
+      SPEC_RULE("Parse-Type-Path");
       TypePathType ty_path;
       ty_path.path = std::move(path.elem);
       ty_path.generic_args = std::move(args);
       return {cur, MakeTypeNode(SpanBetween(start, cur), ty_path)};
     }
 
-    if (!next || (!IsOpTok(*next, "@") && !IsOpTok(*next, "<") &&
-                  !BuiltinTypePath(path.elem))) {
-      SPEC_RULE("Parse-Type-Path");
-      return {path.parser,
-              MakeTypeNode(SpanBetween(start, path.parser),
-                           TypePathType{std::move(path.elem)})};
-    }
-
-    return {path.parser,
-            MakeTypeNode(SpanBetween(start, path.parser),
-                         TypePathType{std::move(path.elem)})};
+    TypePathType ty_path;
+    ty_path.path = std::move(path.elem);
+    ty_path.generic_args = std::move(args);
+    return {cur, MakeTypeNode(SpanBetween(start, cur), ty_path)};
   }
 
   EmitParseSyntaxErr(parser, TokSpan(parser));
@@ -708,13 +708,6 @@ ParseElemResult<std::shared_ptr<Type>> ParseType(Parser parser) {
       ParseUnionTail(base.parser);
 
   Parser out = tail.parser;
-  const Token* where_tok = Tok(out);
-  if (where_tok && TypeWhereTok(*where_tok)) {
-    EmitUnsupportedConstruct(out);
-    Parser sync = out;
-    SyncType(sync);
-    out = sync;
-  }
 
   SPEC_RULE("Parse-Type");
   std::shared_ptr<Type> merged = base.elem;
@@ -730,6 +723,35 @@ ParseElemResult<std::shared_ptr<Type>> ParseType(Parser parser) {
     perm_type.perm = *perm.perm;
     perm_type.base = merged;
     merged = MakeTypeNode(SpanBetween(start, out), perm_type);
+  }
+
+  const Token* where_tok = Tok(out);
+  if (where_tok && TypeWhereTok(*where_tok)) {
+    SPEC_RULE("Parse-Refinement-Type");
+    Parser after_where = out;
+    Advance(after_where);  // consume where
+    if (!IsPunc(after_where, "{")) {
+      EmitParseSyntaxErr(after_where, TokSpan(after_where));
+      Parser sync = after_where;
+      SyncType(sync);
+      return {sync, merged};
+    }
+    Parser after_l = after_where;
+    Advance(after_l);
+    ParseElemResult<std::shared_ptr<Expr>> pred = ParseExpr(after_l);
+    if (!IsPunc(pred.parser, "}")) {
+      EmitParseSyntaxErr(pred.parser, TokSpan(pred.parser));
+      Parser sync = pred.parser;
+      SyncType(sync);
+      return {sync, merged};
+    }
+    Parser after_r = pred.parser;
+    Advance(after_r);
+    TypeRefine refine;
+    refine.base = merged;
+    refine.predicate = pred.elem;
+    merged = MakeTypeNode(SpanBetween(start, after_r), refine);
+    out = after_r;
   }
   return {out, merged};
 }

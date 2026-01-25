@@ -9,6 +9,7 @@
 #include "cursive0/analysis/resolve/scopes.h"
 #include "cursive0/analysis/resolve/scopes_lookup.h"
 #include "cursive0/analysis/types/subtyping.h"
+#include "cursive0/analysis/caps/cap_concurrency.h"
 
 namespace cursive0::analysis {
 

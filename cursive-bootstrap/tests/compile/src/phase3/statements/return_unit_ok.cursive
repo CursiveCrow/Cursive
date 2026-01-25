@@ -1,0 +1,11 @@
+# SPEC_COV: T-Return-Unit
+// Return unit
+
+procedure do_nothing() -> () {
+  return
+}
+
+public procedure main(ctx: Context) -> i32 {
+  do_nothing()
+  return 0
+}

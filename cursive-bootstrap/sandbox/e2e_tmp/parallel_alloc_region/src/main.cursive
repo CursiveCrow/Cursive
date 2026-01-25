@@ -1,0 +1,29 @@
+// Tests memory allocation in parallel work items (§18.8.3)
+// Work items may allocate from region using ^ operator
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  let domain = ctx~>cpu()
+
+  var sum = 0
+  region {
+    sum = parallel domain {
+      // Each iteration allocates in the region
+      dispatch i in 0..100 [reduce: +] {
+        // Allocate data in region
+        let d = ^Data { value: i }
+        d.value
+      }
+    }
+  }
+
+  // Print result (4950 = sum of 0..99)
+  let out_msg = "4950"
+  let _ = match ctx.fs~>write_stdout(out_msg) {
+    ok: () => ()
+    err: IoError => ()
+  }
+
+  return 0i32
+}

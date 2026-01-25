@@ -1,0 +1,17 @@
+{
+  "diagnostics": [
+    {
+      "code": "E-SEM-2531",
+      "severity": "error",
+      "message": "Callee expression is not of FUNCTION type",
+      "span": {
+        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\diagnostics\\e_typ_1901_not_callable.cursive",
+        "start_line": 3,
+        "start_col": 44,
+        "end_line": 6,
+        "end_col": 2
+      }
+    }
+  ],
+  "exit_code": 1
+}

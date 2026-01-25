@@ -1,0 +1,14 @@
+# SPEC_COV: C0X-Dispatch-Range-Check
+# SPEC_COV: E-CON-0141
+// Tests that dispatch range must be iterable (§18.5.1)
+// Expected diagnostic: E-CON-0141
+
+public procedure main(ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+  parallel domain {
+    // Error: i32 is not iterable
+    dispatch i in 42 {
+    }
+  }
+  return 0
+}

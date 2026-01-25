@@ -1,0 +1,9 @@
+# SPEC_COV: T-Region
+// Basic region allocation
+
+public procedure main(ctx: Context) -> i32 {
+  region {
+    let p = ^42
+    return *p
+  }
+}

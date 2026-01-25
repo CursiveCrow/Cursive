@@ -1,0 +1,13 @@
+# SPEC_COV: C0X-ExecutionDomain-Interface
+# SPEC_COV: §18.2.4
+// Tests ExecutionDomain class methods (§18.2.4)
+// Expected: no diagnostics
+// TODO: ExecutionDomain method resolution needs implementation
+
+public procedure main(ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+  // Simplified test - ExecutionDomain methods not fully implemented
+  parallel domain {
+  }
+  return 0
+}

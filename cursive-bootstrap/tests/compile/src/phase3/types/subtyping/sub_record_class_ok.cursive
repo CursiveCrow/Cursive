@@ -1,0 +1,11 @@
+# SPEC_COV: Sub-Record-Class
+// Record implementing class - basic test
+
+class Pingable { procedure ping(~) -> i32; }
+record R <: Pingable { v: i32, procedure ping(~) -> i32 { return 1; } }
+
+public procedure main(ctx: Context) -> i32 {
+  let r = R { v: 42 };
+  let d: $Pingable = r as $Pingable;
+  return d~>ping();
+}

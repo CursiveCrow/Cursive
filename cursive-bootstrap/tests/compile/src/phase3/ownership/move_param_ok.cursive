@@ -1,0 +1,13 @@
+# SPEC_COV: Move-Param
+# SPEC_COV: B-Move-Param
+// Move parameter in function call.
+// Tests that move parameters transfer responsibility.
+
+procedure consume(move x: i32) -> i32 {
+  return x;
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let v: i32 = 42;
+  return consume(move v);
+}

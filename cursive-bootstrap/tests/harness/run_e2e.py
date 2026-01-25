@@ -118,6 +118,13 @@ def _spec_verifier_path(repo_root: Path) -> Path:
 
 
 def _run_spec_verifier(repo_root: Path) -> tuple[bool, str]:
+    skip = os.environ.get("CURSIVE_SKIP_SPEC_VERIFIER", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    if skip:
+        return True, "spec_verifier skipped"
     verifier = _spec_verifier_path(repo_root)
     if not verifier.exists():
         return False, f"spec_verifier not found: {verifier}"
@@ -174,11 +181,25 @@ def _run_test(compiler: Path, test_root: Path, repo_root: Path) -> tuple[bool, s
     if not runtime_lib.exists():
         return False, f"runtime library not found: {runtime_lib}"
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        temp_root = Path(tmpdir) / "project"
+    keep_temp = os.environ.get("CURSIVE_E2E_KEEP_TEMP", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    if keep_temp:
+        temp_root = repo_root / "sandbox" / "e2e_tmp" / test_root.name
+        if temp_root.exists():
+            shutil.rmtree(temp_root)
+        temp_root.mkdir(parents=True, exist_ok=True)
+        _copy_filtered_project(test_root, temp_root)
+        temp_dir_ctx = None
+    else:
+        temp_dir_ctx = tempfile.TemporaryDirectory()
+        temp_root = Path(temp_dir_ctx.name) / "project"
         temp_root.mkdir(parents=True, exist_ok=True)
         _copy_filtered_project(test_root, temp_root)
 
+    try:
         runtime_dir = temp_root / "runtime"
         runtime_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(runtime_lib, runtime_dir / "cursive0_rt.lib")
@@ -232,6 +253,9 @@ def _run_test(compiler: Path, test_root: Path, repo_root: Path) -> tuple[bool, s
         ok, msg = _run_spec_verifier(repo_root)
         if not ok:
             return False, f"{test_root}: {msg}"
+    finally:
+        if temp_dir_ctx is not None:
+            temp_dir_ctx.cleanup()
 
     return True, ""
 

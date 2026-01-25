@@ -22,6 +22,7 @@ struct Expr;
 struct Type;
 struct Pattern;
 struct Block;
+struct LoopInvariant;
 
 using ExprPtr = std::shared_ptr<Expr>;
 using PatternPtr = std::shared_ptr<Pattern>;
@@ -135,12 +136,22 @@ struct TypeDynamic {
 
 struct TypeModalState {
   TypePath path;
+  std::vector<std::shared_ptr<Type>> generic_args;
   Identifier state;
 };
 
 struct TypePathType {
   TypePath path;
   std::vector<std::shared_ptr<Type>> generic_args;  // C0X Extension: Foo<T, U>
+};
+
+struct TypeOpaque {
+  TypePath path;
+};
+
+struct TypeRefine {
+  std::shared_ptr<Type> base;
+  ExprPtr predicate;
 };
 
 using TypeNode = std::variant<TypePrim,
@@ -156,7 +167,9 @@ using TypeNode = std::variant<TypePrim,
                               TypeBytes,
                               TypeDynamic,
                               TypeModalState,
-                              TypePathType>;
+                              TypePathType,
+                              TypeOpaque,
+                              TypeRefine>;
 
 struct Type {
   core::Span span;
@@ -390,11 +403,13 @@ struct MatchExpr {
 };
 
 struct LoopInfiniteExpr {
+  std::optional<LoopInvariant> invariant_opt;
   std::shared_ptr<Block> body;
 };
 
 struct LoopConditionalExpr {
   ExprPtr cond;
+  std::optional<LoopInvariant> invariant_opt;
   std::shared_ptr<Block> body;
 };
 
@@ -402,6 +417,7 @@ struct LoopIterExpr {
   std::shared_ptr<Pattern> pattern;
   std::shared_ptr<Type> type_opt;
   ExprPtr iter;
+  std::optional<LoopInvariant> invariant_opt;
   std::shared_ptr<Block> body;
 };
 
@@ -459,6 +475,160 @@ struct EntryExpr {
   ExprPtr expr;
 };
 
+// C0X Extension: Async/await expressions (§19)
+struct YieldExpr {
+  bool release = false;  // true when `yield release`
+  ExprPtr value;
+};
+
+struct YieldFromExpr {
+  bool release = false;  // true when `yield release from`
+  ExprPtr value;
+};
+
+struct SyncExpr {
+  ExprPtr value;
+};
+
+enum class RaceHandlerKind {
+  Return,  // handler is an expression
+  Yield,   // handler is `yield <expr>`
+};
+
+struct RaceHandler {
+  RaceHandlerKind kind = RaceHandlerKind::Return;
+  ExprPtr value;
+};
+
+struct RaceArm {
+  ExprPtr expr;
+  std::shared_ptr<Pattern> pattern;
+  RaceHandler handler;
+};
+
+struct RaceExpr {
+  std::vector<RaceArm> arms;
+};
+
+struct AllExpr {
+  std::vector<ExprPtr> exprs;
+};
+
+// C0X Extension: Structured Concurrency AST nodes (§3.5, §18)
+
+// §18.1.1 Parallel block option kinds
+enum class ParallelOptionKind {
+  Cancel,  // cancel: CancelToken
+  Name,    // name: string literal
+};
+
+// §18.1.1 Parallel block option
+struct ParallelOption {
+  ParallelOptionKind kind;
+  ExprPtr value;  // CancelToken expr for Cancel, string literal for Name
+  core::Span span;
+};
+
+// §18.1.1 Parallel block expression
+struct ParallelExpr {
+  ExprPtr domain;                       // $ExecutionDomain
+  std::vector<ParallelOption> opts;     // [cancel:, name:]
+  std::shared_ptr<Block> body;
+};
+
+// §18.4.1 Spawn option kinds
+enum class SpawnOptionKind {
+  Name,      // name: string literal
+  Affinity,  // affinity: CpuSet expression
+  Priority,  // priority: Priority expression
+  MoveCapture, // move <expr> capture
+};
+
+// §18.4.1 Spawn option
+struct SpawnOption {
+  SpawnOptionKind kind;
+  ExprPtr value;
+  core::Span span;
+};
+
+// §18.4.1 Spawn expression
+struct SpawnExpr {
+  std::vector<SpawnOption> opts;     // [name:, affinity:, priority:, move]
+  std::shared_ptr<Block> body;
+};
+
+// §10.3 Wait expression
+struct WaitExpr {
+  ExprPtr handle;  // SpawnHandle<T>
+};
+
+// §18.5.1 Dispatch option kinds
+enum class DispatchOptionKind {
+  Reduce,   // reduce: operator
+  Ordered,  // ordered flag
+  Chunk,    // chunk: usize expression
+};
+
+// §18.5.1 Reduce operator (built-in or custom identifier)
+enum class ReduceOp {
+  Add,   // +
+  Mul,   // *
+  Min,   // min
+  Max,   // max
+  And,   // and
+  Or,    // or
+  Custom, // identifier
+};
+
+// §18.5.1 Dispatch option
+struct DispatchOption {
+  DispatchOptionKind kind;
+  ReduceOp reduce_op = ReduceOp::Add;       // for Reduce
+  Identifier custom_reduce_name;             // for Custom reduce
+  ExprPtr chunk_expr;                        // for Chunk
+  core::Span span;
+};
+
+// C0X Extension: Key System types (forward declarations for dispatch key clause)
+enum class KeyMode {
+  Read,
+  Write,
+};
+
+struct KeySegField {
+  bool marked;  // # boundary marker
+  Identifier name;
+};
+
+struct KeySegIndex {
+  bool marked;  // # boundary marker
+  ExprPtr expr;
+};
+
+using KeySeg = std::variant<KeySegField, KeySegIndex>;
+
+struct KeyPathExpr {
+  Identifier root;
+  std::vector<KeySeg> segs;
+  core::Span span;
+};
+
+// §18.5.1 Key clause for dispatch
+struct DispatchKeyClause {
+  KeyPathExpr key_path;
+  KeyMode mode;
+  core::Span span;
+};
+
+// §18.5.1 Dispatch expression
+struct DispatchExpr {
+  std::shared_ptr<Pattern> pattern;           // loop variable pattern
+  ExprPtr range;                              // Range<I>
+  std::optional<DispatchKeyClause> key_clause; // key path_expr mode
+  std::vector<DispatchOption> opts;           // [reduce:, ordered, chunk:]
+  std::shared_ptr<Block> body;
+};
+
 using ExprNode = std::variant<ErrorExpr,
                               LiteralExpr,
                               IdentifierExpr,
@@ -493,7 +663,17 @@ using ExprNode = std::variant<ErrorExpr,
                               MethodCallExpr,
                               PropagateExpr,
                               ResultExpr,
-                              EntryExpr>;
+                              EntryExpr,
+                              YieldExpr,
+                              YieldFromExpr,
+                              SyncExpr,
+                              RaceExpr,
+                              AllExpr,
+                              // C0X Extension: Structured Concurrency
+                              ParallelExpr,
+                              SpawnExpr,
+                              WaitExpr,
+                              DispatchExpr>;
 
 struct Expr {
   core::Span span;
@@ -596,34 +776,11 @@ struct ErrorStmt {
   core::Span span;
 };
 
-// C0X Extension: Key System AST nodes
-enum class KeyMode {
-  Read,
-  Write,
-};
-
+// C0X Extension: Key System AST nodes (KeyBlockMod and KeyBlockStmt)
 enum class KeyBlockMod {
   Dynamic,
   Speculative,
   Release,
-};
-
-struct KeySegField {
-  bool marked;  // # boundary marker
-  Identifier name;
-};
-
-struct KeySegIndex {
-  bool marked;  // # boundary marker
-  ExprPtr expr;
-};
-
-using KeySeg = std::variant<KeySegField, KeySegIndex>;
-
-struct KeyPathExpr {
-  Identifier root;
-  std::vector<KeySeg> segs;
-  core::Span span;
 };
 
 struct KeyBlockStmt {
@@ -709,7 +866,11 @@ struct UsingList {
   std::vector<UsingSpec> specs;
 };
 
-using UsingClause = std::variant<UsingPath, UsingList>;
+struct UsingWildcard {
+  ModulePath module_path;
+};
+
+using UsingClause = std::variant<UsingPath, UsingList, UsingWildcard>;
 
 struct UsingDecl {
   Visibility vis;
@@ -795,6 +956,18 @@ struct ContractClause {
   core::Span span;
 };
 
+// Foreign contract clauses (extern blocks)
+enum class ForeignContractKind {
+  Assumes,
+  Ensures,
+};
+
+struct ForeignContractClause {
+  ForeignContractKind kind;
+  std::vector<ExprPtr> predicates;
+  core::Span span;
+};
+
 // Contract intrinsic: @result or @entry(expr)
 enum class ContractIntrinsicKind {
   Result,  // @result - the return value
@@ -828,6 +1001,43 @@ struct ProcedureDecl {
   std::optional<WhereClause> where_clause;  // C0X Extension
   std::optional<ContractClause> contract;  // C0X Extension
   std::shared_ptr<Block> body;
+  core::Span span;
+  DocList doc;
+};
+
+// Extern ABI specifier (extern "C" or extern ABI_ID)
+struct ExternAbiString {
+  Token literal;
+};
+
+struct ExternAbiIdent {
+  Identifier name;
+};
+
+using ExternAbi = std::variant<ExternAbiString, ExternAbiIdent>;
+
+// Extern procedure declaration (inside extern block)
+struct ExternProcDecl {
+  AttributeList attrs;  // C0X Extension
+  Visibility vis;
+  Identifier name;
+  std::optional<GenericParams> generic_params;  // C0X Extension
+  std::optional<WhereClause> where_clause;  // C0X Extension
+  std::vector<Param> params;
+  std::shared_ptr<Type> return_type_opt;
+  std::optional<ContractClause> contract;  // C0X Extension
+  std::optional<std::vector<ForeignContractClause>> foreign_contracts_opt;  // C0X Extension
+  core::Span span;
+  DocList doc;
+};
+
+using ExternItem = std::variant<ExternProcDecl>;
+
+struct ExternBlock {
+  AttributeList attrs;  // C0X Extension
+  Visibility vis;
+  std::optional<ExternAbi> abi_opt;
+  std::vector<ExternItem> items;
   core::Span span;
   DocList doc;
 };
@@ -1031,6 +1241,7 @@ struct ErrorItem {
 
 using ASTItem = std::variant<UsingDecl,
                              ImportDecl,  // C0X Extension
+                             ExternBlock,
                              StaticDecl,
                              ProcedureDecl,
                              RecordDecl,

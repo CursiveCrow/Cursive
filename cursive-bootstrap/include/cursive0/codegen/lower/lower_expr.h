@@ -43,6 +43,25 @@ struct TempValue {
   analysis::TypeRef type;
 };
 
+struct ParallelCollectItem {
+  IRValue value;
+  bool needs_wait = false;
+};
+
+// CaptureAccess tracks access to a captured binding inside spawn/dispatch bodies.
+struct CaptureAccess {
+  std::size_t index = 0;
+  analysis::TypeRef value_type;
+  analysis::TypeRef field_type;
+  bool by_ref = false;
+};
+
+struct CaptureEnvInfo {
+  IRValue env_param;
+  analysis::TypeRef env_type;
+  std::unordered_map<std::string, CaptureAccess> captures;
+};
+
 struct ScopeInfo {
   std::vector<std::string> variables;     // Variables in declaration order
   std::vector<CleanupItem> cleanup_items; // Cleanup items in append order
@@ -188,6 +207,17 @@ struct LowerCtx {
   int temp_depth = 0;
   std::optional<int> suppress_temp_at_depth;
   std::uint64_t temp_counter = 0;
+
+  // Structured concurrency implicit result collection for parallel blocks
+  std::vector<ParallelCollectItem>* parallel_collect = nullptr;
+  int parallel_collect_depth = 0;
+
+  // Structured concurrency capture environment for spawn/dispatch bodies
+  std::optional<CaptureEnvInfo> capture_env;
+
+  // Synthetic procedures generated during lowering (spawn/dispatch wrappers)
+  std::vector<ProcIR> extra_procs;
+  std::uint64_t synth_proc_counter = 0;
   
   // Push a new scope
   void PushScope(bool is_loop = false, bool is_region = false);
@@ -229,6 +259,10 @@ struct LowerCtx {
 
   void RegisterDerivedValue(const IRValue& value, const DerivedValueInfo& info);
   const DerivedValueInfo* LookupDerivedValue(const IRValue& value) const;
+
+  // Capture lookup helpers (spawn/dispatch lowering)
+  const CaptureAccess* LookupCapture(const std::string& name) const;
+  IRValue CaptureFieldPtr(const CaptureAccess& access);
 
   // Generate a unique temporary value placeholder.
   IRValue FreshTempValue(std::string_view prefix);

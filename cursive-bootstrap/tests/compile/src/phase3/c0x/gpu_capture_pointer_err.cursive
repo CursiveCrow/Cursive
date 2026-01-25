@@ -1,0 +1,17 @@
+# SPEC_COV: C0X-GPU-Capture-Pointer
+# SPEC_COV: E-CON-0151
+// Tests host pointer capture in GPU domain is error (§18.2.2)
+// Expected diagnostic: E-CON-0151
+
+public procedure main(ctx: Context) -> i32 {
+  let domain = ctx~>gpu()
+  var value: i32 = 42
+  let ptr: Ptr<i32>@Valid = &value
+  parallel domain {
+    // Error: host pointer captured in GPU domain
+    dispatch i in 0..100 {
+      let x: i32 = *ptr
+    }
+  }
+  return 0
+}

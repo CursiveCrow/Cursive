@@ -1,0 +1,11 @@
+# SPEC_COV: B-Move-Match
+// Move in match arms
+
+public procedure main(ctx: Context) -> i32 {
+  let u: i32 | bool = 42
+  let y: i32 = match u {
+    v: i32 => v,
+    _: bool => 0
+  }
+  return y
+}

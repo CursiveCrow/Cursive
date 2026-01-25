@@ -1,0 +1,8 @@
+# SPEC_COV: T-If
+# SPEC_COV: E-SEM-2561
+// E-SEM-2561: If condition must be bool
+
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = if 1 { 2 } else { 3 };
+  return x;
+}

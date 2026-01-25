@@ -1,0 +1,18 @@
+# SPEC_COV: Parallel-Panic-Propagate
+# SPEC_COV: §18.7.1-PanicCapture
+# SPEC_COV: §18.7.2-PanicPropagate
+// Tests that panic in spawned task propagates to parallel block boundary.
+
+public procedure main(ctx: Context) -> i32 {
+  let domain = ctx~>cpu()
+
+  parallel domain {
+    // This will panic
+    spawn {
+      cursive::runtime::panic(1u32)
+    }
+  }
+
+  // Should not reach here
+  return 0i32
+}

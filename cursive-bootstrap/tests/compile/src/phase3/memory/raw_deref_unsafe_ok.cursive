@@ -1,0 +1,9 @@
+# SPEC_COV: T-Raw-Deref
+// Raw pointer dereference in unsafe block
+
+public procedure main(ctx: Context) -> i32 {
+  var x: i32 = 42
+  let p: *mut i32 = unsafe { &x as *mut i32 }
+  let y: i32 = unsafe { *p }
+  return y
+}

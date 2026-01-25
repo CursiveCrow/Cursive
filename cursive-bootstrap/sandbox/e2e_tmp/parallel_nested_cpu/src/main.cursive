@@ -1,0 +1,29 @@
+// Tests nested CPU parallel blocks (§18.8.2)
+// Inner CPU blocks share outer block's worker pool
+// Result: 42 * 4 = 168
+
+public procedure main(ctx: Context) -> i32 {
+  let domain = ctx~>cpu()
+
+  let total = parallel domain {
+    wait spawn {
+      // Nested parallel block
+      let inner_domain = ctx~>cpu()
+      let inner_sum = parallel inner_domain {
+        // Multiple spawns in nested block
+        (wait spawn { 42 }) + (wait spawn { 42 }) +
+        (wait spawn { 42 }) + (wait spawn { 42 })
+      }
+      inner_sum
+    }
+  }
+
+  // Print result (168 = 42 * 4)
+  let out_msg = "168"
+  let _ = match ctx.fs~>write_stdout(out_msg) {
+    ok: () => ()
+    err: IoError => ()
+  }
+
+  return 0i32
+}

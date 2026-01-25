@@ -1,0 +1,10 @@
+# SPEC_COV: T-Arith
+# SPEC_COV: T-Add
+// Addition operator on i32
+
+public procedure main(ctx: Context) -> i32 {
+  let a: i32 = 10;
+  let b: i32 = 20;
+  let c: i32 = a + b;
+  return c;
+}

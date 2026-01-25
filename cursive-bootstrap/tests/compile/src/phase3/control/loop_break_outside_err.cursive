@@ -1,0 +1,8 @@
+# SPEC_COV: T-Break
+# SPEC_COV: E-SEM-3172
+// E-SEM-3172: break outside loop
+
+public procedure main(ctx: Context) -> i32 {
+  break
+  return 0
+}

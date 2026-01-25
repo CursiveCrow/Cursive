@@ -1,0 +1,9 @@
+# SPEC_COV: Sub-Union-Width
+# SPEC_COV: E-MOD-2402
+// E-MOD-2402: Cannot assign wider union to narrower
+
+public procedure main(ctx: Context) -> i32 {
+  let wide: i32 | bool | char = 42;
+  let narrow: i32 | bool = wide;
+  return 0;
+}

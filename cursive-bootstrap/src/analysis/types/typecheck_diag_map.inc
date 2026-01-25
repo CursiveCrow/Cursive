@@ -61,6 +61,52 @@ static constexpr DiagMapEntry kTypecheckDiagMap[] = {
   {"Drop-Call-Err", "E-MEM-3005"},
   {"Drop-Call-Err-Dyn", "E-MEM-3005"},
   {"DropOnAssign-Err", "E-OUT-0412"},
+  // C0X Extension: Structured Concurrency diagnostic codes (§18)
+  {"E-CON-0101", "E-CON-0101"},  // Domain does not implement ExecutionDomain
+  {"E-CON-0103", "E-CON-0103"},  // Raw pointer in capture
+  {"E-CON-0120", "E-CON-0120"},  // unique binding captured without explicit move
+  {"E-CON-0121", "E-CON-0121"},  // multiple work items capture same unique binding
+  {"E-CON-0122", "E-CON-0122"},  // use-after-move in parallel block
+  {"E-CON-0130", "E-CON-0130"},  // spawn without enclosing parallel block
+  {"E-CON-0131", "E-CON-0131"},  // mutable capture violation
+  {"E-CON-0132", "E-CON-0132"},  // wait operand is not SpawnHandle/FutureHandle
+  {"E-CON-0133", "E-CON-0133"},  // wait while key is held
+  {"E-CON-0140", "E-CON-0140"},  // dispatch without enclosing parallel block
+  {"E-CON-0141", "E-CON-0141"},  // range expression not iterable
+  {"E-CON-0142", "E-CON-0142"},  // reduce operator type mismatch
+  {"E-CON-0143", "E-CON-0143"},  // key clause ill-formed
+  {"E-CON-0150", "E-CON-0150"},  // shared binding in GPU domain
+  {"E-CON-0151", "E-CON-0151"},  // Host pointer in GPU domain
+  {"E-CON-0152", "E-CON-0152"},  // Heap-provenanced value in GPU domain
+  {"E-CON-0153", "E-CON-0153"},  // Nested GPU parallel block
+  {"E-CON-0203", "E-CON-0203"},  // async return type mismatch
+  {"E-CON-0210", "E-CON-0210"},  // yield outside async
+  {"E-CON-0211", "E-CON-0211"},  // yield operand mismatch
+  {"E-CON-0212", "E-CON-0212"},  // yield inside sync
+  {"E-CON-0213", "E-CON-0213"},  // yield while key held
+  {"E-CON-0220", "E-CON-0220"},  // yield from outside async
+  {"E-CON-0221", "E-CON-0221"},  // yield from Out mismatch
+  {"E-CON-0222", "E-CON-0222"},  // yield from In mismatch
+  {"E-CON-0223", "E-CON-0223"},  // yield from inside sync
+  {"E-CON-0224", "E-CON-0224"},  // yield from while key held
+  {"E-CON-0225", "E-CON-0225"},  // yield from error type mismatch
+  {"E-CON-0240", "E-CON-0240"},  // async loop with In != ()
+  {"E-CON-0250", "E-CON-0250"},  // sync inside async
+  {"E-CON-0251", "E-CON-0251"},  // sync Out != ()
+  {"E-CON-0252", "E-CON-0252"},  // sync In != ()
+  {"E-CON-0260", "E-CON-0260"},  // race arity < 2
+  {"E-CON-0261", "E-CON-0261"},  // race incompatible types
+  {"E-CON-0262", "E-CON-0262"},  // race Out != () in return mode
+  {"E-CON-0263", "E-CON-0263"},  // race mixed handlers
+  {"E-CON-0270", "E-CON-0270"},  // all Out != ()
+  {"E-CON-0271", "E-CON-0271"},  // all In != ()
+  {"E-TYP-2510", "E-TYP-2510"},  // opaque member access
+  {"E-TYP-2511", "E-TYP-2511"},  // opaque return type mismatch
+  {"E-TYP-1953", "E-TYP-1953"},  // refinement not provable
+  {"E-TYP-1954", "E-TYP-1954"},  // impure refinement predicate
+  {"E-TYP-1955", "E-TYP-1955"},  // non-bool refinement predicate
+  {"E-TYP-1956", "E-TYP-1956"},  // self used in param constraint
+  {"E-TYP-1957", "E-TYP-1957"},  // circular dependency in predicate
   {"Dynamic-NonDispatchable", "E-TYP-2541"},
   {"EffFields-Conflict", "E-TYP-2406"},
   {"EffMethods-Conflict", "E-UNS-0106"},
@@ -139,6 +185,7 @@ static constexpr DiagMapEntry kTypecheckDiagMap[] = {
   {"Modal-StateName-Err", "E-TYP-2054"},
   {"Names-Step-Dup", "E-MOD-1302"},
   {"NullLiteral-Infer-Err", "E-TYP-1530"},
+  {"Opaque-Type-Mismatch", "E-TYP-2512"},
   {"Out-Dirs-Err", "E-OUT-0401"},
   {"Out-IR-Collision", "E-OUT-0406"},
   {"Out-IR-Err", "E-OUT-0403"},
@@ -235,6 +282,25 @@ static constexpr DiagMapEntry kTypecheckDiagMap[] = {
   {"Validate-Module-Special-Shadow-Err", "E-CNF-0404"},
   {"Validate-ModulePath-Reserved-Err", "E-CNF-0402"},
   {"ValueUse-NonBitcopyPlace", "E-UNS-0107"},
+  {"E-SEM-2801", "E-SEM-2801"},
+  {"E-SEM-2802", "E-SEM-2802"},
+  {"E-SEM-2803", "E-SEM-2803"},
+  {"E-SEM-2804", "E-SEM-2804"},
+  {"E-SEM-2805", "E-SEM-2805"},
+  {"E-SEM-2806", "E-SEM-2806"},
+  {"E-SEM-2820", "E-SEM-2820"},
+  {"E-SEM-2821", "E-SEM-2821"},
+  {"E-SEM-2822", "E-SEM-2822"},
+  {"E-SEM-2823", "E-SEM-2823"},
+  {"E-SEM-2824", "E-SEM-2824"},
+  {"E-SEM-2830", "E-SEM-2830"},
+  {"E-SEM-2831", "E-SEM-2831"},
+  {"E-SEM-2850", "E-SEM-2850"},
+  {"E-SEM-2851", "E-SEM-2851"},
+  {"E-SEM-2852", "E-SEM-2852"},
+  {"E-SEM-2853", "E-SEM-2853"},
+  {"E-SEM-2854", "E-SEM-2854"},
+  {"E-SEM-2855", "E-SEM-2855"},
   {"WF-Assembly-Count-Err", "E-PRJ-0202"},
   {"WF-Assembly-EmitIR-Err", "E-PRJ-0204"},
   {"WF-Assembly-EmitIRType-Err", "E-PRJ-0204"},

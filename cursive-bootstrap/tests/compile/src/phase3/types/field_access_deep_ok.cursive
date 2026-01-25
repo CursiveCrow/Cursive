@@ -1,0 +1,18 @@
+# SPEC_COV: FieldAccess-Deep
+# SPEC_COV: T-Field
+// §11.6.2: Deep nested field access (a.b.c.d) with 4 levels.
+// Tests permission propagation through multiple levels.
+
+record D { val: i32 }
+record C { d: D }
+record B { c: C }
+record A { b: B }
+
+procedure access_deep(a: A) -> i32 {
+  return a.b.c.d.val
+}
+
+public procedure main(move ctx: Context) -> i32 {
+  let a: A = A { b: B { c: C { d: D { val: 123 } } } }
+  return access_deep(a)
+}

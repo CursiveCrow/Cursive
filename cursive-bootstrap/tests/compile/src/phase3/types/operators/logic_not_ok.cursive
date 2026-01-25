@@ -1,0 +1,8 @@
+# SPEC_COV: T-Not
+// Logical NOT operator
+
+public procedure main(ctx: Context) -> i32 {
+  let a: bool = true;
+  let b: bool = !a;
+  return 0;
+}

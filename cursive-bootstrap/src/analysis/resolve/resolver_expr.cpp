@@ -504,6 +504,18 @@ ResExprResult ResolveExpr(ResolveContext& ctx,
           out.pattern = resolved_pat.value;
           out.type_opt = resolved_ty.value;
           out.iter = resolved_iter.value;
+          if (node.invariant_opt.has_value()) {
+            const auto inv_pred = ResolveExpr(ctx, node.invariant_opt->predicate);
+            if (!inv_pred.ok) {
+              return {false, inv_pred.diag_id, inv_pred.span, {}};
+            }
+            syntax::LoopInvariant inv;
+            inv.predicate = inv_pred.value;
+            inv.span = node.invariant_opt->span;
+            out.invariant_opt = inv;
+          } else {
+            out.invariant_opt = std::nullopt;
+          }
           if (node.body) {
             const auto body = ResolveBlock(ctx, *node.body);
             if (!body.ok) {
@@ -731,6 +743,18 @@ ResExprResult ResolveExpr(ResolveContext& ctx,
         } else if constexpr (std::is_same_v<T, syntax::LoopInfiniteExpr>) {
           auto out = *expr;
           auto& out_node = std::get<syntax::LoopInfiniteExpr>(out.node);
+          if (node.invariant_opt.has_value()) {
+            const auto inv_pred = ResolveExpr(ctx, node.invariant_opt->predicate);
+            if (!inv_pred.ok) {
+              return {false, inv_pred.diag_id, inv_pred.span, {}};
+            }
+            syntax::LoopInvariant inv;
+            inv.predicate = inv_pred.value;
+            inv.span = node.invariant_opt->span;
+            out_node.invariant_opt = inv;
+          } else {
+            out_node.invariant_opt = std::nullopt;
+          }
           if (node.body) {
             const auto body = ResolveBlock(ctx, *node.body);
             if (!body.ok) {
@@ -749,6 +773,18 @@ ResExprResult ResolveExpr(ResolveContext& ctx,
           auto out = *expr;
           auto& out_node = std::get<syntax::LoopConditionalExpr>(out.node);
           out_node.cond = cond.value;
+          if (node.invariant_opt.has_value()) {
+            const auto inv_pred = ResolveExpr(ctx, node.invariant_opt->predicate);
+            if (!inv_pred.ok) {
+              return {false, inv_pred.diag_id, inv_pred.span, {}};
+            }
+            syntax::LoopInvariant inv;
+            inv.predicate = inv_pred.value;
+            inv.span = node.invariant_opt->span;
+            out_node.invariant_opt = inv;
+          } else {
+            out_node.invariant_opt = std::nullopt;
+          }
           if (node.body) {
             const auto body = ResolveBlock(ctx, *node.body);
             if (!body.ok) {
@@ -845,6 +881,105 @@ ResExprResult ResolveExpr(ResolveContext& ctx,
           SPEC_RULE("ResolveExpr-Hom");
           return {true, std::nullopt, std::nullopt,
                   std::make_shared<syntax::Expr>(std::move(out))};
+        } else if constexpr (std::is_same_v<T, syntax::EntryExpr>) {
+          const auto val = ResolveExpr(ctx, node.expr);
+          if (!val.ok) {
+            return {false, val.diag_id, val.span, {}};
+          }
+          auto out = *expr;
+          auto& out_node = std::get<syntax::EntryExpr>(out.node);
+          out_node.expr = val.value;
+          SPEC_RULE("ResolveExpr-Hom");
+          return {true, std::nullopt, std::nullopt,
+                  std::make_shared<syntax::Expr>(std::move(out))};
+        } else if constexpr (std::is_same_v<T, syntax::YieldExpr>) {
+          const auto val = ResolveExpr(ctx, node.value);
+          if (!val.ok) {
+            return {false, val.diag_id, val.span, {}};
+          }
+          auto out = *expr;
+          auto& out_node = std::get<syntax::YieldExpr>(out.node);
+          out_node.value = val.value;
+          SPEC_RULE("ResolveExpr-Yield");
+          return {true, std::nullopt, std::nullopt,
+                  std::make_shared<syntax::Expr>(std::move(out))};
+        } else if constexpr (std::is_same_v<T, syntax::YieldFromExpr>) {
+          const auto val = ResolveExpr(ctx, node.value);
+          if (!val.ok) {
+            return {false, val.diag_id, val.span, {}};
+          }
+          auto out = *expr;
+          auto& out_node = std::get<syntax::YieldFromExpr>(out.node);
+          out_node.value = val.value;
+          SPEC_RULE("ResolveExpr-YieldFrom");
+          return {true, std::nullopt, std::nullopt,
+                  std::make_shared<syntax::Expr>(std::move(out))};
+        } else if constexpr (std::is_same_v<T, syntax::SyncExpr>) {
+          const auto val = ResolveExpr(ctx, node.value);
+          if (!val.ok) {
+            return {false, val.diag_id, val.span, {}};
+          }
+          auto out = *expr;
+          auto& out_node = std::get<syntax::SyncExpr>(out.node);
+          out_node.value = val.value;
+          SPEC_RULE("ResolveExpr-Sync");
+          return {true, std::nullopt, std::nullopt,
+                  std::make_shared<syntax::Expr>(std::move(out))};
+        } else if constexpr (std::is_same_v<T, syntax::RaceExpr>) {
+          if (!ctx.ctx) {
+            return {true, std::nullopt, std::nullopt, expr};
+          }
+          std::vector<syntax::RaceArm> arms;
+          arms.reserve(node.arms.size());
+          for (const auto& arm : node.arms) {
+            const auto resolved_expr = ResolveExpr(ctx, arm.expr);
+            if (!resolved_expr.ok) {
+              return {false, resolved_expr.diag_id, resolved_expr.span, {}};
+            }
+            ScopeGuard guard(*ctx.ctx);
+            const auto resolved_pat = ResolvePattern(ctx, arm.pattern);
+            if (!resolved_pat.ok) {
+              return {false, resolved_pat.diag_id, resolved_pat.span, {}};
+            }
+            const auto bind = BindPattern(ctx, resolved_pat.value);
+            if (!bind.ok) {
+              return {false, bind.diag_id, bind.span, {}};
+            }
+            const auto resolved_handler = ResolveExpr(ctx, arm.handler.value);
+            if (!resolved_handler.ok) {
+              return {false, resolved_handler.diag_id, resolved_handler.span, {}};
+            }
+            syntax::RaceArm out_arm = arm;
+            out_arm.expr = resolved_expr.value;
+            out_arm.pattern = resolved_pat.value;
+            out_arm.handler.value = resolved_handler.value;
+            arms.push_back(std::move(out_arm));
+          }
+          auto out = *expr;
+          auto& out_node = std::get<syntax::RaceExpr>(out.node);
+          out_node.arms = std::move(arms);
+          SPEC_RULE("ResolveExpr-Race");
+          return {true, std::nullopt, std::nullopt,
+                  std::make_shared<syntax::Expr>(std::move(out))};
+        } else if constexpr (std::is_same_v<T, syntax::AllExpr>) {
+          std::vector<syntax::ExprPtr> elems;
+          elems.reserve(node.exprs.size());
+          for (const auto& elem : node.exprs) {
+            const auto resolved = ResolveExpr(ctx, elem);
+            if (!resolved.ok) {
+              return {false, resolved.diag_id, resolved.span, {}};
+            }
+            elems.push_back(resolved.value);
+          }
+          auto out = *expr;
+          auto& out_node = std::get<syntax::AllExpr>(out.node);
+          out_node.exprs = std::move(elems);
+          SPEC_RULE("ResolveExpr-All");
+          return {true, std::nullopt, std::nullopt,
+                  std::make_shared<syntax::Expr>(std::move(out))};
+        } else if constexpr (std::is_same_v<T, syntax::ResultExpr>) {
+          SPEC_RULE("ResolveExpr-Hom");
+          return {true, std::nullopt, std::nullopt, expr};
         } else {
           return {true, std::nullopt, std::nullopt, expr};
         }

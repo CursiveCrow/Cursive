@@ -61,6 +61,7 @@ static std::shared_ptr<syntax::Type> MakeTypeModalStateAst(
   for (const auto comp : comps) {
     node.path.emplace_back(comp);
   }
+  node.generic_args = {};
   node.state = syntax::Identifier{state};
   return MakeTypeNode(node);
 }

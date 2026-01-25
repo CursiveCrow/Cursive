@@ -1,0 +1,11 @@
+# SPEC_COV: T-Return
+// Never type in diverging function
+
+procedure diverge() -> ! {
+  loop { }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  if false { diverge() }
+  return 0
+}

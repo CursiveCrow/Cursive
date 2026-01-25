@@ -13,6 +13,7 @@
 #include "cursive0/analysis/caps/cap_filesystem.h"
 #include "cursive0/analysis/caps/cap_heap.h"
 #include "cursive0/analysis/caps/cap_system.h"
+#include "cursive0/analysis/caps/cap_concurrency.h"
 #include "cursive0/analysis/resolve/scopes.h"
 #include "cursive0/analysis/resolve/scopes_intro.h"
 #include "cursive0/analysis/resolve/visibility.h"
@@ -287,6 +288,77 @@ void PopulateSigma(ScopeContext& ctx) {
     syntax::Path path;
     path.emplace_back("System");
     ctx.sigma.types[PathKeyOf(path)] = BuildSystemRecordDecl();
+  }
+  // C0X Extension: Structured Concurrency (§18)
+  {
+    syntax::Path path;
+    path.emplace_back("SpawnHandle");
+    ctx.sigma.types[PathKeyOf(path)] = BuildSpawnHandleModalDecl();
+  }
+  {
+    syntax::Path path;
+    path.emplace_back("CancelToken");
+    ctx.sigma.types[PathKeyOf(path)] = BuildCancelTokenModalDecl();
+  }
+  {
+    syntax::Path path;
+    path.emplace_back("FutureHandle");
+    ctx.sigma.types[PathKeyOf(path)] = BuildFutureHandleModalDecl();
+  }
+  {
+    syntax::Path path;
+    path.emplace_back("Async");
+    ctx.sigma.types[PathKeyOf(path)] = BuildAsyncModalDecl();
+  }
+  {
+    syntax::Path path;
+    path.emplace_back("Sequence");
+    ctx.sigma.types[PathKeyOf(path)] = BuildSequenceAliasDecl();
+  }
+  {
+    syntax::Path path;
+    path.emplace_back("Future");
+    ctx.sigma.types[PathKeyOf(path)] = BuildFutureAliasDecl();
+  }
+  {
+    syntax::Path path;
+    path.emplace_back("Stream");
+    ctx.sigma.types[PathKeyOf(path)] = BuildStreamAliasDecl();
+  }
+  {
+    syntax::Path path;
+    path.emplace_back("Pipe");
+    ctx.sigma.types[PathKeyOf(path)] = BuildPipeAliasDecl();
+  }
+  {
+    syntax::Path path;
+    path.emplace_back("Exchange");
+    ctx.sigma.types[PathKeyOf(path)] = BuildExchangeAliasDecl();
+  }
+  {
+    syntax::Path path;
+    path.emplace_back("ExecutionDomain");
+    ctx.sigma.classes[PathKeyOf(path)] = BuildExecutionDomainClassDecl();
+  }
+  {
+    syntax::Path path;
+    path.emplace_back("Reactor");
+    ctx.sigma.classes[PathKeyOf(path)] = BuildReactorClassDecl();
+  }
+  {
+    syntax::Path path;
+    path.emplace_back("CpuDomain");
+    ctx.sigma.classes[PathKeyOf(path)] = BuildCpuDomainClassDecl();
+  }
+  {
+    syntax::Path path;
+    path.emplace_back("GpuDomain");
+    ctx.sigma.classes[PathKeyOf(path)] = BuildGpuDomainClassDecl();
+  }
+  {
+    syntax::Path path;
+    path.emplace_back("InlineDomain");
+    ctx.sigma.classes[PathKeyOf(path)] = BuildInlineDomainClassDecl();
   }
   for (const auto& module : ctx.sigma.mods) {
     for (const auto& item : module.items) {

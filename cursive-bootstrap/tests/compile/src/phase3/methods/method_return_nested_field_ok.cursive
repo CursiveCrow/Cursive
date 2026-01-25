@@ -1,0 +1,18 @@
+# SPEC_COV: Method-ReturnNestedField
+# SPEC_COV: T-Field
+// Method that returns self.inner.field through nested access.
+// Tests permission propagation through multiple levels.
+
+record Inner {
+  val: i32
+}
+
+record Outer {
+  inner: Inner,
+  procedure get_inner_val(~) -> i32 { return self.inner.val; }
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let o = Outer { inner: Inner { val: 99 } };
+  return o~>get_inner_val();
+}

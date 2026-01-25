@@ -3,14 +3,7 @@
     {
       "code": "E-SEM-3151",
       "severity": "error",
-      "message": "Defer block has non-unit type",
-      "span": {
-        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\semantics\\defer_non_unit_err.cursive",
-        "start_line": 2,
-        "start_col": 44,
-        "end_line": 7,
-        "end_col": 2
-      }
+      "message": "Defer block has non-unit type"
     }
   ],
   "exit_code": 1

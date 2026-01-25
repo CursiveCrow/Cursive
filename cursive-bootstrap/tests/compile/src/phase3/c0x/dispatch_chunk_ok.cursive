@@ -1,0 +1,16 @@
+# SPEC_COV: C0X-Dispatch-Chunk
+# SPEC_COV: §18.5.1
+// Tests dispatch with [chunk] attribute (§18.5.1)
+// Groups iterations into chunks for granularity control
+// Expected: no diagnostics
+
+public procedure main(ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+  parallel domain {
+    // Process in chunks of 10
+    dispatch i in 0..1000 [chunk: 10] {
+      // Each chunk processes 10 iterations together
+    }
+  }
+  return 0
+}

@@ -14,6 +14,7 @@
 #include "cursive0/analysis/composite/record_methods.h"
 #include "cursive0/analysis/resolve/scopes.h"
 #include "cursive0/analysis/memory/safe_ptr.h"
+#include "cursive0/analysis/contracts/verification.h"
 #include "cursive0/analysis/types/subtyping.h"
 #include "cursive0/analysis/types/type_expr.h"
 
@@ -37,6 +38,12 @@ static bool PtrNullExpected(const TypeRef& type) {
   if (!type) {
     return false;
   }
+  if (const auto* perm = std::get_if<TypePerm>(&type->node)) {
+    return PtrNullExpected(perm->base);
+  }
+  if (const auto* refine = std::get_if<TypeRefine>(&type->node)) {
+    return PtrNullExpected(refine->base);
+  }
   const auto* ptr = std::get_if<TypePtr>(&type->node);
   if (!ptr) {
     return false;
@@ -45,6 +52,187 @@ static bool PtrNullExpected(const TypeRef& type) {
     return true;
   }
   return ptr->state == PtrState::Null;
+}
+
+static syntax::ExprPtr MakeExpr(const core::Span& span, syntax::ExprNode node) {
+  auto expr = std::make_shared<syntax::Expr>();
+  expr->span = span;
+  expr->node = std::move(node);
+  return expr;
+}
+
+static syntax::ExprPtr SubstituteIdent(const syntax::ExprPtr& expr,
+                                       std::string_view name,
+                                       const syntax::ExprPtr& replacement) {
+  if (!expr) {
+    return expr;
+  }
+  if (const auto* ident = std::get_if<syntax::IdentifierExpr>(&expr->node)) {
+    if (IdEq(ident->name, name)) {
+      return replacement;
+    }
+    return expr;
+  }
+  return std::visit(
+      [&](const auto& node) -> syntax::ExprPtr {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, syntax::BinaryExpr>) {
+          auto out = node;
+          out.lhs = SubstituteIdent(node.lhs, name, replacement);
+          out.rhs = SubstituteIdent(node.rhs, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::UnaryExpr>) {
+          auto out = node;
+          out.value = SubstituteIdent(node.value, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
+          auto out = node;
+          out.base = SubstituteIdent(node.base, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::TupleAccessExpr>) {
+          auto out = node;
+          out.base = SubstituteIdent(node.base, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
+          auto out = node;
+          out.base = SubstituteIdent(node.base, name, replacement);
+          out.index = SubstituteIdent(node.index, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::CallExpr>) {
+          auto out = node;
+          out.callee = SubstituteIdent(node.callee, name, replacement);
+          for (auto& arg : out.args) {
+            arg.value = SubstituteIdent(arg.value, name, replacement);
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::QualifiedApplyExpr>) {
+          auto out = node;
+          if (std::holds_alternative<syntax::ParenArgs>(node.args)) {
+            auto paren = std::get<syntax::ParenArgs>(node.args);
+            for (auto& arg : paren.args) {
+              arg.value = SubstituteIdent(arg.value, name, replacement);
+            }
+            out.args = paren;
+          } else {
+            auto brace = std::get<syntax::BraceArgs>(node.args);
+            for (auto& field : brace.fields) {
+              field.value = SubstituteIdent(field.value, name, replacement);
+            }
+            out.args = brace;
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::MethodCallExpr>) {
+          auto out = node;
+          out.receiver = SubstituteIdent(node.receiver, name, replacement);
+          for (auto& arg : out.args) {
+            arg.value = SubstituteIdent(arg.value, name, replacement);
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::CastExpr>) {
+          auto out = node;
+          out.value = SubstituteIdent(node.value, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::RangeExpr>) {
+          auto out = node;
+          out.lhs = SubstituteIdent(node.lhs, name, replacement);
+          out.rhs = SubstituteIdent(node.rhs, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::DerefExpr>) {
+          auto out = node;
+          out.value = SubstituteIdent(node.value, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::AddressOfExpr>) {
+          auto out = node;
+          out.place = SubstituteIdent(node.place, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::MoveExpr>) {
+          auto out = node;
+          out.place = SubstituteIdent(node.place, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::AllocExpr>) {
+          auto out = node;
+          out.value = SubstituteIdent(node.value, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::TupleExpr>) {
+          auto out = node;
+          for (auto& elem : out.elements) {
+            elem = SubstituteIdent(elem, name, replacement);
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::ArrayExpr>) {
+          auto out = node;
+          for (auto& elem : out.elements) {
+            elem = SubstituteIdent(elem, name, replacement);
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
+          auto out = node;
+          for (auto& field : out.fields) {
+            field.value = SubstituteIdent(field.value, name, replacement);
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::EnumLiteralExpr>) {
+          auto out = node;
+          if (out.payload_opt.has_value()) {
+            if (std::holds_alternative<syntax::EnumPayloadParen>(*out.payload_opt)) {
+              auto paren = std::get<syntax::EnumPayloadParen>(*out.payload_opt);
+              for (auto& elem : paren.elements) {
+                elem = SubstituteIdent(elem, name, replacement);
+              }
+              out.payload_opt = paren;
+            } else {
+              auto brace = std::get<syntax::EnumPayloadBrace>(*out.payload_opt);
+              for (auto& field : brace.fields) {
+                field.value = SubstituteIdent(field.value, name, replacement);
+              }
+              out.payload_opt = brace;
+            }
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::IfExpr>) {
+          auto out = node;
+          out.cond = SubstituteIdent(node.cond, name, replacement);
+          out.then_expr = SubstituteIdent(node.then_expr, name, replacement);
+          out.else_expr = SubstituteIdent(node.else_expr, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::MatchExpr>) {
+          auto out = node;
+          out.value = SubstituteIdent(node.value, name, replacement);
+          for (auto& arm : out.arms) {
+            arm.guard_opt = SubstituteIdent(arm.guard_opt, name, replacement);
+            arm.body = SubstituteIdent(arm.body, name, replacement);
+          }
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::PropagateExpr>) {
+          auto out = node;
+          out.value = SubstituteIdent(node.value, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::EntryExpr>) {
+          auto out = node;
+          out.expr = SubstituteIdent(node.expr, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else {
+          return expr;
+        }
+      },
+      expr->node);
+}
+
+static bool ProveRefinePredicate(const syntax::ExprPtr& value,
+                                 const TypeRefine& refine,
+                                 std::optional<std::string_view>& diag_id) {
+  if (!refine.predicate) {
+    return false;
+  }
+  const auto substituted =
+      SubstituteIdent(refine.predicate, "self", value);
+  StaticProofContext proof_ctx;
+  const auto proof = StaticProof(proof_ctx, substituted);
+  if (!proof.provable) {
+    diag_id = "E-TYP-1953";
+    return false;
+  }
+  return true;
 }
 
 static bool TypePathEq(const TypePath& lhs, const TypePath& rhs) {
@@ -417,6 +605,21 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
     return result;
   }
   if (!sub.subtype) {
+    if (const auto* refine = std::get_if<TypeRefine>(&expected->node)) {
+      const auto base_check =
+          CheckExprImpl(ctx, expr, refine->base, type_expr, type_place,
+                        type_ident, match_check);
+      if (!base_check.ok) {
+        result.diag_id = base_check.diag_id;
+        return result;
+      }
+      if (!ProveRefinePredicate(expr, *refine, result.diag_id)) {
+        return result;
+      }
+      SPEC_RULE("T-Refine-Intro");
+      result.ok = true;
+      return result;
+    }
     return result;
   }
 

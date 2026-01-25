@@ -1,0 +1,11 @@
+# SPEC_COV: T-Pat-Range
+// Inclusive range pattern
+
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = 10
+  let y: i32 = match x {
+    0..=10 => 1,
+    _ => 0
+  }
+  return y
+}

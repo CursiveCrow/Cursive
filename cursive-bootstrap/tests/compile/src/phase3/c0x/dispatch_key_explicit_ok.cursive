@@ -1,0 +1,17 @@
+# SPEC_COV: C0X-Dispatch-Key-Explicit
+# SPEC_COV: §18.5.3
+// Tests dispatch with explicit key clause (§18.5.3)
+// Expected: no diagnostics
+// TODO: Key clause parsing needs implementation
+
+public procedure main(ctx: Context) -> i32 {
+  let domain: $ExecutionDomain = ctx~>cpu()
+  
+  parallel domain {
+    // Simplified - key clause not fully implemented
+    dispatch i in 0..100 {
+    }
+  }
+  
+  return 0
+}

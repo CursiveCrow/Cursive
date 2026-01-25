@@ -17,6 +17,15 @@ struct SystemMethodSig {
 
 std::optional<SystemMethodSig> LookupSystemMethodSig(std::string_view name);
 
+// C0X Extension: Context method signatures for execution domains (§18.2)
+struct ContextMethodSig {
+  Permission recv_perm;
+  std::vector<syntax::Param> params;
+  TypeRef ret;
+};
+
+std::optional<ContextMethodSig> LookupContextMethodSig(std::string_view name);
+
 syntax::RecordDecl BuildContextRecordDecl();
 syntax::RecordDecl BuildSystemRecordDecl();
 

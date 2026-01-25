@@ -1,0 +1,12 @@
+# SPEC_COV: T-Compare
+# SPEC_COV: E-SEM-2553
+// E-SEM-2553: Ordering comparison on non-orderable type
+
+record Point { x: i32, y: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  let p1: Point = Point { x: 1, y: 2 };
+  let p2: Point = Point { x: 3, y: 4 };
+  let c: bool = p1 < p2;
+  return 0;
+}

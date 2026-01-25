@@ -1,0 +1,7 @@
+# SPEC_COV: T-Ptr-State
+// Null pointer creation
+
+public procedure main(ctx: Context) -> i32 {
+  let p: Ptr<i32>@Null = Ptr::null()
+  return 0
+}

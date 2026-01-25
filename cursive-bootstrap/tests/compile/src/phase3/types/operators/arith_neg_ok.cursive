@@ -1,0 +1,8 @@
+# SPEC_COV: T-Neg
+// Negation operator on i32
+
+public procedure main(ctx: Context) -> i32 {
+  let a: i32 = 42;
+  let b: i32 = -a;
+  return b;
+}

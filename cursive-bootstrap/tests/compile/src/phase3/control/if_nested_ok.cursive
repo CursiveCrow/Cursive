@@ -1,0 +1,8 @@
+# SPEC_COV: T-If
+// Nested if expressions
+
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = 5;
+  let y: i32 = if x > 0 { if x > 10 { 100 } else { 50 } } else { 0 };
+  return y;
+}

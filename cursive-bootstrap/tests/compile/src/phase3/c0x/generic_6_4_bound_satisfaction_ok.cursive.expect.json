@@ -1,52 +1,8 @@
 {
   "diagnostics": [
     {
-      "code": "E-SRC-0520",
-      "severity": "error",
-      "message": "Generic syntax error (unexpected token)",
-      "span": {
-        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\c0x\\generic_6_4_bound_satisfaction_ok.cursive",
-        "start_line": 21,
-        "start_col": 7,
-        "end_line": 21,
-        "end_col": 13
-      }
-    },
-    {
-      "code": "E-SRC-0520",
-      "severity": "error",
-      "message": "Generic syntax error (unexpected token)",
-      "span": {
-        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\c0x\\generic_6_4_bound_satisfaction_ok.cursive",
-        "start_line": 21,
-        "start_col": 7,
-        "end_line": 21,
-        "end_col": 13
-      }
-    },
-    {
-      "code": "E-SRC-0520",
-      "severity": "error",
-      "message": "Generic syntax error (unexpected token)",
-      "span": {
-        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\c0x\\generic_6_4_bound_satisfaction_ok.cursive",
-        "start_line": 21,
-        "start_col": 7,
-        "end_line": 21,
-        "end_col": 13
-      }
-    },
-    {
-      "code": "E-SRC-0510",
-      "severity": "error",
-      "message": "Missing statement terminator",
-      "span": {
-        "file": "C:\\Dev\\Cursive\\cursive-bootstrap\\tests\\compile\\src\\phase3\\c0x\\generic_6_4_bound_satisfaction_ok.cursive",
-        "start_line": 22,
-        "start_col": 3,
-        "end_line": 22,
-        "end_col": 9
-      }
+      "code": "E-MOD-1301",
+      "severity": "error"
     }
   ],
   "exit_code": 1

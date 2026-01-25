@@ -38,8 +38,9 @@
     - [5.8. String and Bytes Types and States](#58-string-and-bytes-types-and-states)
     - [5.9. Capabilities and Context (Cursive0)](#59-capabilities-and-context-cursive0)
     - [5.10. Enum Discriminant Defaults](#510-enum-discriminant-defaults)
-    - [5.11. Foundational Classes (Cursive0)](#511-foundational-classes-cursive0)
+    - [5.11. Foundational Predicates and Classes (Cursive0)](#511-foundational-predicates-and-classes-cursive0)
     - [5.12. Initialization Planning](#512-initialization-planning)
+    - [5.13 Attributes and Metadata](#513-attributes-and-metadata)
   - [6. Phase 4: Code Generation](#6-phase-4-code-generation)
     - [6.0. Codegen Model and Judgments](#60-codegen-model-and-judgments)
     - [6.1. Layout and Representation](#61-layout-and-representation)
@@ -70,14 +71,21 @@
     - [8.3. E-OUT (Output and Linking)](#83-e-out-output-and-linking)
     - [8.4. E-SRC (Source)](#84-e-src-source)
     - [8.5. E-CNF (Conformance / Limits)](#85-e-cnf-conformance--limits)
-    - [8.6. E-UNS (Unsupported Constructs)](#86-e-uns-unsupported-constructs)
-    - [8.7. E-MEM (Memory)](#87-e-mem-memory)
-    - [8.8. W-MOD (Module Warnings)](#88-w-mod-module-warnings)
-    - [8.9. W-SRC (Source Warnings)](#89-w-src-source-warnings)
-    - [8.10. E-TYP (Types)](#810-e-typ-types)
-    - [8.11. W-SYS (System Warnings)](#811-w-sys-system-warnings)
-    - [8.12. E-SEM (Semantics)](#812-e-sem-semantics)
-    - [8.13. W-SEM (Semantic Warnings)](#813-w-sem-semantic-warnings)
+    - [8.6. W-CNF (Conformance Warnings)](#86-w-cnf-conformance-warnings)
+    - [8.7. E-UNS (Unsupported Constructs)](#87-e-uns-unsupported-constructs)
+    - [8.8. E-MEM (Memory)](#88-e-mem-memory)
+    - [8.9. E-CON (Concurrency and Contracts)](#89-e-con-concurrency-and-contracts)
+    - [8.10. I-CON (Concurrency and Contracts Info)](#810-i-con-concurrency-and-contracts-info)
+    - [8.11. W-CON (Concurrency and Contracts Warnings)](#811-w-con-concurrency-and-contracts-warnings)
+    - [8.12. E-SYS (System)](#812-e-sys-system)
+    - [8.13. W-MOD (Module Warnings)](#813-w-mod-module-warnings)
+    - [8.14. W-SRC (Source Warnings)](#814-w-src-source-warnings)
+    - [8.15. E-TYP (Types)](#815-e-typ-types)
+    - [8.16. W-SYS (System Warnings)](#816-w-sys-system-warnings)
+    - [8.17. E-SEM (Semantics)](#817-e-sem-semantics)
+    - [8.18. W-SEM (Semantic Warnings)](#818-w-sem-semantic-warnings)
+    - [8.19. P-TYP (Runtime Panics - Types)](#819-p-typ-runtime-panics---types)
+    - [8.20. P-SEM (Runtime Panics - Semantics)](#820-p-sem-runtime-panics---semantics)
   - [9. Appendix B - Notation and Glossary](#9-appendix-b---notation-and-glossary)
     - [9.1. Notation Conventions](#91-notation-conventions)
     - [9.2. Helper Functions and Relations](#92-helper-functions-and-relations)
@@ -109,9 +117,9 @@ PhaseSection(Phase4) = 6
 ### 0.2. Deviations from the Root Specification (Cursive0)
 
 **DeviationId.**
-DeviationId = {D_BootstrapEquivalence, D_SourceNormalization, D_ModuleOrdering, D_KeywordReservation, D_GenericTokenization, D_UnsafeSpanClassification, D_GroupingTrailingCommas, D_UnsupportedGrammarFamilies, D_SingleAssemblyVisibility, D_OverloadingScope, D_Permissions, D_ParamPassing, D_PointerAddressOf, D_RegionOptionsSyntax, D_TypeInference, D_RecordUpdate, D_RangeExpressions, D_RangePatterns, D_FieldVisibilityDefault, D_EnumDiscriminantControls, D_UnionLayout, D_LayoutAttributes, D_CallingConventionToolchain, D_SymbolVisibilityMechanism, D_FileSystemSemantics}
+DeviationId = {D_BootstrapEquivalence, D_SourceNormalization, D_ModuleOrdering, D_KeywordReservation, D_GenericTokenization, D_UnsafeSpanClassification, D_GroupingTrailingCommas, D_UnsupportedGrammarFamilies, D_OverloadingScope, D_Permissions, D_ParamPassing, D_PointerAddressOf, D_RegionOptionsSyntax, D_TypeInference, D_RecordUpdate, D_RangeExpressions, D_RangePatterns, D_FieldVisibilityDefault, D_EnumDiscriminantControls, D_UnionLayout, D_LayoutAttributes, D_CallingConventionToolchain, D_SymbolVisibilityMechanism, D_FileSystemSemantics}
 
-- `System` in Cursive0 omits `time()` and `get_env` returns `string | ()`; this is a bootstrap restriction.
+- `System` in Cursive0 omits `time()`; this is a bootstrap restriction.
 
 **DeviationRef.**
 DeviationRef(D_BootstrapEquivalence) = {"0.3.2"}
@@ -122,7 +130,6 @@ DeviationRef(D_GenericTokenization) = {"3.2.9"}
 DeviationRef(D_UnsafeSpanClassification) = {"3.2.12"}
 DeviationRef(D_GroupingTrailingCommas) = {"3.3.4"}
 DeviationRef(D_UnsupportedGrammarFamilies) = {"3.3.2.7"}
-DeviationRef(D_SingleAssemblyVisibility) = {"5.1.4"}
 DeviationRef(D_OverloadingScope) = {"5.1.5", "5.3"}
 DeviationRef(D_Permissions) = {"1.1.1", "5.2.2"}
 DeviationRef(D_ParamPassing) = {"5.2.4", "5.3.2", "5.2.15"}
@@ -201,6 +208,9 @@ BootstrapEq(C_a, C_b, P) ⇔ ObsComp(C_a, P) = ObsComp(C_b, P) ∧ (Status(C_a, 
 **NormativeKeywords.**
 NormativeKeywords = {`MUST`, `MUST NOT`, `SHOULD`, `SHOULD NOT`, `MAY`}
 
+**RFC 2119 Interpretation.**
+The keywords in NormativeKeywords MUST be interpreted as described in RFC 2119.
+
 **DocScope.**
 DocScope = {ConformanceTarget, SupportedSubset, RequiredBehavior(`cursivec0`)}
 
@@ -235,14 +245,14 @@ ReqJudgments(P) = [Phase1Order(P), Phase3Order(P), Phase4Order(P)]
 TypeNodes(P, m) = { t | t ∈ Type ∧ Subnode(ASTModule(P, m), t) }
 StmtNodes(P, m) = { s | s ∈ Stmt ∧ Subnode(ASTModule(P, m), s) }
 
-ItemKind(UsingDecl(_)) = `using_decl`
-ItemKind(ProcedureDecl(_, _, _, _, _, _, _)) = `procedure`
-ItemKind(RecordDecl(_, _, _, _, _, _)) = `record`
-ItemKind(EnumDecl(_, _, _, _, _, _)) = `enum`
-ItemKind(ModalDecl(_, _, _, _, _, _)) = `modal`
-ItemKind(ClassDecl(_, _, _, _, _)) = `class`
-ItemKind(TypeAliasDecl(_, _, _, _, _)) = `type_alias`
-ItemKind(StaticDecl(_, _, _, _, _)) = `static_decl`
+ItemKind(UsingDecl(_, _, _, _, _)) = `using_decl`
+ItemKind(ProcedureDecl(_, _, _, _, _, _, _, _, _, _, _)) = `procedure`
+ItemKind(RecordDecl(_, _, _, _, _, _, _, _, _, _)) = `record`
+ItemKind(EnumDecl(_, _, _, _, _, _, _, _, _, _)) = `enum`
+ItemKind(ModalDecl(_, _, _, _, _, _, _, _, _, _)) = `modal`
+ItemKind(ClassDecl(_, _, _, _, _, _, _, _, _, _)) = `class`
+ItemKind(TypeAliasDecl(_, _, _, _, _, _, _, _)) = `type_alias`
+ItemKind(StaticDecl(_, _, _, _, _, _)) = `static_decl`
 ItemKind(_) = ⊥
 
 TopDeclConstructs(P) = { ItemKind(it) | m ∈ P.modules ∧ it ∈ ASTModule(P, m).items ∧ ItemKind(it) ≠ ⊥ }
@@ -259,6 +269,8 @@ TypeCtor(TypeRawPtr(_, elem)) = {`rawptr`} ∪ TypeCtor(elem)
 TypeCtor(TypeString(_)) = {`string`}
 TypeCtor(TypeBytes(_)) = {`bytes`}
 TypeCtor(TypeDynamic(_)) = {`dyn_class`}
+TypeCtor(TypeOpaque(_)) = {`opaque`}
+TypeCtor(TypeRefine(base, _)) = {`refinement`} ∪ TypeCtor(base)
 TypeCtor(TypeModalState(_, _)) = {`modal`}
 TypeCtor(TypePath(["Region"])) = {`region`}
 TypeCtor(TypePath(["RegionOptions"])) = {`region_options`}
@@ -270,9 +282,10 @@ TypeConstructs(P) = ⋃_{m ∈ P.modules} ⋃_{t ∈ TypeNodes(P, m)} TypeCtor(t
 
 PermOfType(TypePerm(p, _)) = {p}
 PermOfType(_) = ∅
-RecvPerms(members) = { p | ∃ vis, ov, name, recv, params, ret, body, span, doc. MethodDecl(vis, ov, name, recv, params, ret, body, span, doc) ∈ members ∧ recv = ReceiverShorthand(p) }
-ClassRecvPerms(items) = { p | ∃ vis, name, recv, params, ret, body, span, doc. ClassMethodDecl(vis, name, recv, params, ret, body, span, doc) ∈ items ∧ recv = ReceiverShorthand(p) }
-PermConstructs(P) = ⋃_{m ∈ P.modules} ⋃_{t ∈ TypeNodes(P, m)} PermOfType(t) ∪ ⋃_{m ∈ P.modules} ⋃_{RecordDecl(_, _, _, members, _, _) ∈ ASTModule(P, m).items} RecvPerms(members) ∪ ⋃_{m ∈ P.modules} ⋃_{ClassDecl(_, _, _, items, _) ∈ ASTModule(P, m).items} ClassRecvPerms(items)
+RecvPerms(members) = { p | ∃ attrs, vis, ov, name, gen_params, recv, params, ret, contract, body, span, doc. MethodDecl(attrs, vis, ov, name, gen_params, recv, params, ret, contract, body, span, doc) ∈ members ∧ recv = ReceiverShorthand(p) }
+ClassRecvPerms(items) = { p | ∃ attrs, vis, name, gen_params, recv, params, ret, contract, body, span, doc. ClassMethodDecl(attrs, vis, name, gen_params, recv, params, ret, contract, body, span, doc) ∈ items ∧ recv = ReceiverShorthand(p) }
+StateRecvPerms(states) = { p | ∃ S, members, span, doc, attrs, vis, name, gen_params, recv, params, ret, contract, body. StateBlock(S, members, span, doc) ∈ states ∧ StateMethodDecl(attrs, vis, name, gen_params, recv, params, ret, contract, body, _, _) ∈ members ∧ recv = ReceiverShorthand(p) }
+PermConstructs(P) = ⋃_{m ∈ P.modules} ⋃_{t ∈ TypeNodes(P, m)} PermOfType(t) ∪ ⋃_{m ∈ P.modules} ⋃_{RecordDecl(_, _, _, _, _, _, members, _, _, _) ∈ ASTModule(P, m).items} RecvPerms(members) ∪ ⋃_{m ∈ P.modules} ⋃_{ModalDecl(_, _, _, _, _, _, states, _, _, _) ∈ ASTModule(P, m).items} StateRecvPerms(states) ∪ ⋃_{m ∈ P.modules} ⋃_{ClassDecl(_, _, _, _, _, _, _, items, _, _) ∈ ASTModule(P, m).items} ClassRecvPerms(items)
 
 ExprKind(Literal(_)) = `literal`
 ExprKind(Identifier(_)) = `identifier`
@@ -291,6 +304,15 @@ ExprKind(UnsafeBlockExpr(_)) = `unsafe`
 ExprKind(AllocExpr(_, _)) = `region_alloc`
 ExprKind(MethodCall(_, _, _)) = `method_call`
 ExprKind(Propagate(_)) = `union_propagate`
+ExprKind(ParallelExpr(_, _, _)) = `parallel`
+ExprKind(SpawnExpr(_, _)) = `spawn`
+ExprKind(DispatchExpr(_, _, _, _, _)) = `dispatch`
+ExprKind(WaitExpr(_)) = `wait`
+ExprKind(YieldExpr(_, _)) = `yield`
+ExprKind(YieldFromExpr(_, _)) = `yield`
+ExprKind(SyncExpr(_)) = `sync`
+ExprKind(RaceExpr(_)) = `race`
+ExprKind(AllExpr(_)) = `all`
 ExprKind(_) = ⊥
 
 StmtKind(LetStmt(_)) = `let`
@@ -302,6 +324,7 @@ StmtKind(CompoundAssignStmt(_, _, _)) = `compound_assign`
 StmtKind(DeferStmt(_)) = `defer`
 StmtKind(RegionStmt(_, _, _)) = `region`
 StmtKind(FrameStmt(_, _)) = `frame`
+StmtKind(KeyBlockStmt(_, _, _, _)) = `key_block`
 StmtKind(ReturnStmt(_)) = `return`
 StmtKind(ResultStmt(_)) = `result`
 StmtKind(BreakStmt(_)) = `break`
@@ -311,7 +334,7 @@ StmtKind(_) = ⊥
 
 ExprStmtConstructs(P) = { ExprKind(e) | m ∈ P.modules ∧ e ∈ ExprNodes(P, m) ∧ ExprKind(e) ≠ ⊥ } ∪ { StmtKind(s) | m ∈ P.modules ∧ s ∈ StmtNodes(P, m) ∧ StmtKind(s) ≠ ⊥ }
 
-CapConstructs(P) = { c | c ∈ {`Context`, `FileSystem`, `HeapAllocator`} ∧ ∃ m, t. m ∈ P.modules ∧ t ∈ TypeNodes(P, m) ∧ t = TypePath([c]) }
+CapConstructs(P) = { c | c ∈ {`Context`, `FileSystem`, `HeapAllocator`, `ExecutionDomain`, `Reactor`} ∧ ∃ m, t. m ∈ P.modules ∧ t ∈ TypeNodes(P, m) ∧ t = TypePath([c]) }
 
 Constructs(P) = TopDeclConstructs(P) ∪ TypeConstructs(P) ∪ PermConstructs(P) ∪ ExprStmtConstructs(P) ∪ CapConstructs(P)
 
@@ -338,46 +361,36 @@ S_Lex = RulesIn({"3.1", "3.2", "3.3"})
 S_Modules = RulesIn({"2", "3.3.6.3", "5.1"})
 
 **S_TopDecl.**
-S_TopDecl = {`using_decl`, `procedure`, `record`, `enum`, `modal`, `class`, `type_alias`, `static_decl`}
+S_TopDecl = {`import_decl`, `using_decl`, `extern_block`, `procedure`, `record`, `enum`, `modal`, `class`, `type_alias`, `static_decl`}
 
 **S_Types.**
 PrimTypes_C0 = IntTypes ∪ FloatTypes ∪ {`bool`, `char`, `()`, `!`}
-TypeCtors_C0 = {`tuple`, `array`, `slice`, `record`, `enum`, `union`, `function`, `ptr`, `rawptr`, `string`, `bytes`, `region_options`, `region`, `dyn_class`}
+TypeCtors_C0 = {`tuple`, `array`, `slice`, `record`, `enum`, `union`, `function`, `ptr`, `rawptr`, `string`, `bytes`, `region_options`, `region`, `dyn_class`, `opaque`, `refinement`}
 S_Types = PrimTypes_C0 ∪ TypeCtors_C0
 
 **S_Perms.**
 S_Perms = PermSet_C0
 
 **S_ExprStmt.**
-S_ExprStmt = {`literal`, `identifier`, `field_access`, `tuple_index`, `index`, `if`, `loop`, `match`, `break`, `continue`, `return`, `result`, `defer`, `region`, `frame`, `union_propagate`, `let`, `var`, `shadow`, `assign`, `compound_assign`, `move`, `widen`, `transmute`, `unsafe`, `region_alloc`, `method_call`}
+S_ExprStmt = {`literal`, `identifier`, `field_access`, `tuple_index`, `index`, `if`, `loop`, `match`, `break`, `continue`, `return`, `result`, `defer`, `region`, `frame`, `key_block`, `union_propagate`, `let`, `var`, `shadow`, `assign`, `compound_assign`, `move`, `widen`, `transmute`, `unsafe`, `region_alloc`, `method_call`, `parallel`, `spawn`, `dispatch`, `wait`, `yield`, `sync`, `race`, `all`}
 
 **S_Caps.**
-S_Caps = {`Context`, `FileSystem`, `HeapAllocator`}
+S_Caps = {`Context`, `FileSystem`, `HeapAllocator`, `ExecutionDomain`, `Reactor`}
   
 **PermSet (Cursive0).**
-PermSet_C0 = {`const`, `unique`}
-
-**(Perm-Shared-Unsupported)**
-PermSyntax ∈ {`shared`, `~%`}    c = Code(Perm-Shared-Unsupported)
-───────────────────────────────────────────────────────────────
-Γ ⊢ Emit(c)
+PermSet_C0 = {`const`, `unique`, `shared`}
 
 **Subset Lexeme Basis.**
 Let S be a source file and let K satisfy Γ ⊢ Tokenize(S) ⇓ (K, _).
 Any use of PermSyntax or UnsupportedForm MUST be based on token lexemes in K (and, where specified elsewhere, the AST produced by ParseFile(S)); implementations MUST NOT match substrings inside identifiers.
 See Â§3.2.2 and Â§3.2.7.
 
-S0Unsupported = {`derive`, `extern`, `attribute`, `import`, `opaque_type`, `refinement_type`, `closure`, `pipeline`, `async`, `parallel`, `dispatch`, `spawn`, `metaprogramming`, `Network`, `Reactor`, `GPUFactory`, `CPUFactory`, `AsyncRuntime`}
+S0Unsupported = {`closure`, `pipeline`, `metaprogramming`, `Network`, `GPUFactory`, `CPUFactory`}
 
 ### 1.2. Behavior Types
 
-**BehaviorClass.**
-BehaviorClass = {Specified, UVB}
-
-UVBRel = {ReadPtrSigma(RawPtr(q, addr), σ), WritePtrSigma(RawPtr(q, addr), v, σ)}
-
 **IllFormed.**
-StaticJudgSet = WFModulePathJudg ∪ LinkJudg ∪ ParseJudgment ∪ ResolvePathJudg ∪ ResolveExprListJudg ∪ ResolveEnumPayloadJudg ∪ ResolveCalleeJudg ∪ ResolveArmJudg ∪ ResolveStmtSeqJudg ∪ TypeEqJudg ∪ ConstLenJudg ∪ SubtypingJudg ∪ PermSubJudg ∪ ArgsOkTJudg ∪ TypeInfJudg ∪ StmtJudg ∪ PatJudg ∪ ExprJudg ∪ MatchJudg ∪ DeclJudg ∪ BJudgment ∪ ArgPassJudg ∪ ProvPlaceJudg ∪ ProvExprJudg ∪ ProvStmtJudg ∪ BlockProvJudg ∪ ArgsOkJudg ∪ TypeWFJudg ∪ StringBytesJudg ∪ BitcopyDropJudg ∪ TypeRefsJudg ∪ ValueRefsJudg ∪ CodegenJudg ∪ LayoutJudg ∪ EncodeConstJudg ∪ ValidValueJudg ∪ RecordLayoutJudg ∪ UnionLayoutJudg ∪ TupleLayoutJudg ∪ RangeLayoutJudg ∪ EnumLayoutJudg ∪ ModalLayoutJudg ∪ DynLayoutJudg ∪ ABITyJudg ∪ ABIParamJudg ∪ ABIRetJudg ∪ ABICallJudg ∪ LowerCallJudg ∪ MangleJudg ∪ LinkageJudg ∪ EvalOrderJudg ∪ LowerExprJudg ∪ LowerStmtJudg ∪ PatternLowerJudg ∪ LowerBindJudg ∪ GlobalsJudg ∪ ConstInitJudg ∪ CleanupJudg ∪ RuntimeIfcJudg ∪ DynDispatchJudg ∪ ChecksJudg ∪ LLVMAttrJudg ∪ RuntimeDeclJudg ∪ LLVMTyJudg ∪ LLVMEmitJudg ∪ LowerIRJudg ∪ BindStorageJudg ∪ LLVMCallJudg ∪ VTableJudg ∪ LiteralEmitJudg ∪ BuiltinSymJudg ∪ DropHookJudg ∪ EntryJudg ∪ PoisonJudg
+StaticJudgSet = WFModulePathJudg ∪ LinkJudg ∪ ParseJudgment ∪ ResolvePathJudg ∪ ResolveExprListJudg ∪ ResolveEnumPayloadJudg ∪ ResolveCalleeJudg ∪ ResolveArmJudg ∪ ResolveStmtSeqJudg ∪ TypeEqJudg ∪ ConstLenJudg ∪ SubtypingJudg ∪ PermSubJudg ∪ ArgsOkTJudg ∪ TypeInfJudg ∪ StmtJudg ∪ PatJudg ∪ ExprJudg ∪ MatchJudg ∪ DeclJudg ∪ BJudgment ∪ ArgPassJudg ∪ ProvPlaceJudg ∪ ProvExprJudg ∪ ProvStmtJudg ∪ BlockProvJudg ∪ ArgsOkJudg ∪ TypeWFJudg ∪ StringBytesJudg ∪ BitcopyDropJudg ∪ BitcopyJudg ∪ CloneJudg ∪ DropJudg ∪ FfiSafeJudg ∪ TypeRefsJudg ∪ ValueRefsJudg ∪ CodegenJudg ∪ LayoutJudg ∪ EncodeConstJudg ∪ ValidValueJudg ∪ RecordLayoutJudg ∪ UnionLayoutJudg ∪ TupleLayoutJudg ∪ RangeLayoutJudg ∪ EnumLayoutJudg ∪ ModalLayoutJudg ∪ DynLayoutJudg ∪ ABITyJudg ∪ ABIParamJudg ∪ ABIRetJudg ∪ ABICallJudg ∪ LowerCallJudg ∪ MangleJudg ∪ LinkageJudg ∪ EvalOrderJudg ∪ LowerExprJudg ∪ LowerStmtJudg ∪ PatternLowerJudg ∪ LowerBindJudg ∪ GlobalsJudg ∪ ConstInitJudg ∪ CleanupJudg ∪ RuntimeIfcJudg ∪ DynDispatchJudg ∪ ChecksJudg ∪ LLVMAttrJudg ∪ RuntimeDeclJudg ∪ LLVMTyJudg ∪ LLVMEmitJudg ∪ LowerIRJudg ∪ BindStorageJudg ∪ LLVMCallJudg ∪ VTableJudg ∪ LiteralEmitJudg ∪ BuiltinSymJudg ∪ DropHookJudg ∪ EntryJudg ∪ PoisonJudg
 StaticRuleSet = { r | Conclusion(r) ∈ StaticJudgSet }
 Conclusion(r) = J    (r is written (π_1 … π_k) / J)
 Premises(r) = [π_1, …, π_k]    (r is written (π_1 … π_k) / _)
@@ -390,9 +403,6 @@ IllFormed(x) ⇔ ∃ r ∈ StaticRuleSet. Applies(r, x) ∧ ¬ PremisesHold(r, x
 
 **Undefinedness Policy.**
 StaticUndefined(J) ⇔ ∃ r. Conclusion(r) = J ∧ ∃ π ∈ Premises(r). π = ⊥
-DynamicUndefined(R) ⇔ R ∈ UVBRel ∧ R undefined
-Behavior(R) = Specified ⇔ ¬ DynamicUndefined(R)
-Behavior(R) = UVB ⇔ DynamicUndefined(R)
 
 RuleId(r) = id ⇔ r is labeled (id)
 DiagIdOf(J) = id ⇔ ∃ r. Conclusion(r) = J ∧ RuleId(r) = id
@@ -407,11 +417,6 @@ StaticUndefined(J)    Code(DiagIdOf(J)) = c
 StaticUndefined(J)    Code(DiagIdOf(J)) = ⊥
 ────────────────────────────────────────
 Γ ⊢ J ⇑
-
-**(Dynamic-Undefined-UVB)**
-DynamicUndefined(R)
-────────────────────────────
-Γ ⊢ Behavior(R) = UVB
 
 **Static vs. Runtime Checks.**
 
@@ -437,14 +442,9 @@ AbortOnErrorCount(n) ⇔ n ≥ MaxErrorCount
 ### 1.4. Unsupported Constructs Policy
 
 **UnsupportedConstruct.**
-UnsupportedConstruct = {`key_system`, `attribute_syntax`, `extern_block`, `foreign_decl`, `class_generics`, `class_where_clause`, `associated_type`, `modal_class`, `class_contract`}
+UnsupportedConstruct = ∅
 
-**(WF-Attr-Unsupported)**
-`[[...]]` ∈ M
-───────────────────────────────────────────────
-Γ ⊢ Emit(Code(WF-Attr-Unsupported))
-
-UnsupportedForm = UnsupportedConstruct ∪ S0Unsupported ∪ UnsupportedGrammarFamily ∪ UnsupportedClassItem ∪ UnsupportedWhereClause ∪ ComptimeForm
+UnsupportedForm = UnsupportedConstruct ∪ S0Unsupported ∪ UnsupportedGrammarFamily ∪ ComptimeForm
 
 **(Unsupported-Construct)**
 f ∈ UnsupportedForm
@@ -629,8 +629,11 @@ TypeRender(TypeRawPtr(q, T)) = "* " ++ QualLexeme(q) ++ " " ++ TypeRender(T)
 TypeRender(TypeString(st)) = "string" ++ StringStateSuffix(st)
 TypeRender(TypeBytes(st)) = "bytes" ++ BytesStateSuffix(st)
 TypeRender(TypeDynamic(p)) = "$" ++ StringOfPath(p)
-TypeRender(TypeModalState(p, S)) = StringOfPath(p) ++ "@" ++ S
+TypeRender(TypeApply(p, args)) = StringOfPath(p) ++ "<" ++ Join(", ", [TypeRender(a) | a ∈ args]) ++ ">"
+TypeRender(TypeModalState(modal_ref, S)) = ModalRefRender(modal_ref) ++ "@" ++ S
 TypeRender(TypePath(p)) = StringOfPath(p)
+ModalRefRender(TypePath(p)) = StringOfPath(p)
+ModalRefRender(TypeApply(p, args)) = StringOfPath(p) ++ "<" ++ Join(", ", [TypeRender(a) | a ∈ args]) ++ ">"
 
 #### 1.6.7. Diagnostics without Source Spans
 
@@ -1236,11 +1239,6 @@ DiscState = {DiscStart(S, A), DiscScan(S, A, Pending, M, Seen), DiscDone(M), Err
 ──────────────────────────────────────────────────────────────
 ⟨DiscScan(S, A, [], M, Seen)⟩ → ⟨DiscDone(M)⟩
 
-**(WF-Import-Unsupported)**
-import_decl ∈ M
-────────────────────────────────────────────────
-Γ ⊢ Emit(Code(WF-Import-Unsupported))
-
 ### 2.5. Output Artifacts and Linking
 
 **Output Root.**
@@ -1597,10 +1595,23 @@ Invoke(a, t) ⇑
 
 ### 2.7. Unwind and FFI Surface
 
-**(WF-Unwind-Unsupported)**
-`[[unwind]]` ∈ M
-──────────────────────────────────────────────
-Γ ⊢ Emit(Code(WF-Unwind-Unsupported))
+**FFI Boundary.** A call to an `extern` procedure or an invocation of a `[[export]]` procedure from foreign code crosses the FFI boundary.
+
+FFIBoundary(proc) ⇔ proc = ExternProcDecl(_, _, _, _, _, _, _, _, _, _, _) ∨ (proc = ProcedureDecl(_, _, _, _, _, _, _, _, _, _, _) ∧ ExportAttr(proc) defined)
+
+**Unwind Modes.**
+UnwindMode(proc) = m ⇔ UnwindAttr(proc) = m
+UnwindMode(proc) = "abort" ⇔ UnwindAttr(proc) undefined
+
+UnwindAttr(proc) = m ⇔ ∃ a ∈ AttrByName(proc, "unwind"). a.args = [StringLiteral(m)]
+
+**Boundary Effects.**
+1. If a Cursive panic or foreign unwind attempts to cross an FFI boundary with UnwindMode(proc) = "abort", the program MUST abort.
+2. If UnwindMode(proc) = "catch", boundary behavior is defined in §5.13.6.4 and §21.2:
+   - Imported procedures: foreign unwinds are converted to Cursive panics.
+   - Exported procedures: Cursive panics are caught and converted to the error indicator value defined in §21.2.2.
+
+**Safety.** Calls to `extern` procedures MUST occur within an `unsafe` block (§21.2.1). A call outside `unsafe` is ill-formed (`Call-Extern-Unsafe-Err`).
 
 ## 3. Phase 1: Source Loading, Lexing, Parsing
 
@@ -1770,7 +1781,7 @@ Next(K, i) = ⊥ ⇔ { j | j > i ∧ K[j].kind ≠ newline } = ∅
 Next(K, i) = K[j] ⇔ j = min{ j | j > i ∧ K[j].kind ≠ newline }
 
 Ambig = {"+", "-", "*", "&", "|"}
-BeginsOperand(t) ⇔ t.kind ∈ {Identifier, IntLiteral, FloatLiteral, StringLiteral, CharLiteral, BoolLiteral, NullLiteral} ∨ (t.kind = Punctuator ∧ t.lexeme ∈ {"(", "[", "{"}) ∨ (t.kind = Operator ∧ t.lexeme ∈ {"!", "-", "&", "*", "^"}) ∨ (t.kind = Keyword ∧ t.lexeme ∈ {"if", "match", "loop", "unsafe", "move", "transmute", "widen"})
+BeginsOperand(t) ⇔ t.kind ∈ {Identifier, IntLiteral, FloatLiteral, StringLiteral, CharLiteral, BoolLiteral, NullLiteral} ∨ (t.kind = Punctuator ∧ t.lexeme ∈ {"(", "[", "{"}) ∨ (t.kind = Operator ∧ t.lexeme ∈ {"!", "-", "&", "*", "^"}) ∨ (t.kind = Keyword ∧ t.lexeme ∈ {"if", "match", "loop", "unsafe", "move", "transmute", "widen", "parallel", "spawn", "dispatch", "yield", "sync", "race", "all"})
 UnaryOnly = {"!", "~", "?"}
 
 Continue(K, i) ⇔ Depth(K, i) > 0 ∨ (∃ t. Prev(K, i) = t ∧ (t.lexeme = "," ∨ (t.kind = Operator ∧ ((t.lexeme ∈ Ambig ∧ ∃ u. Next(K, i) = u ∧ BeginsOperand(u)) ∨ t.lexeme ∉ UnaryOnly)))) ∨ (∃ u. Next(K, i) = u ∧ u.lexeme ∈ {".", "::", "~>"})
@@ -1780,6 +1791,7 @@ Filter(K) = [ K[i] | K[i].kind ≠ newline ∨ ¬ Continue(K, i) ]
 IsTerminator(t) ⇔ t = Punctuator(";") ∨ t.kind = newline
 BoundaryTokens(K, i) = { t | t = K[i] ∨ t = Prev(K, i) ∨ t = Next(K, i) } \ {⊥}
 HasTerminator(F, i) ⇔ ∃ t ∈ BoundaryTokens(F, i). IsTerminator(t)
+Commas are separators within a single statement and are never statement terminators. A comma MUST appear only between list elements. Trailing commas are permitted only when TrailingCommaAllowed (§3.3.5); otherwise they are ill-formed. A permitted trailing comma does not introduce an empty list element.
 RequiredTerminator : Token* × ℕ → Bool
 ContinuesLine : Token* × ℕ → Bool
 ContinuesLine(K, i) ⇔ K[i].kind = newline ∧ Continue(K, i)
@@ -1987,7 +1999,7 @@ Sensitive(c) ⇔ c ∈ {U+202A … U+202E, U+2066 … U+2069, U+200C, U+200D}
 #### 3.2.3. Reserved Lexemes
 
 **Reserved.**
-Reserved = {`as`, `break`, `class`, `continue`, `else`, `enum`, `false`, `defer`, `frame`, `if`, `imm`, `import`, `internal`, `let`, `loop`, `match`, `modal`, `move`, `mut`, `null`, `private`, `procedure`, `protected`, `public`, `record`, `region`, `result`, `return`, `shadow`, `shared`, `transition`, `transmute`, `true`, `type`, `unique`, `unsafe`, `var`, `widen`, `using`, `const`, `override`}
+Reserved = {`all`, `as`, `break`, `class`, `continue`, `dispatch`, `else`, `enum`, `false`, `defer`, `frame`, `from`, `if`, `imm`, `import`, `internal`, `let`, `loop`, `match`, `modal`, `move`, `mut`, `null`, `parallel`, `private`, `procedure`, `protected`, `public`, `race`, `record`, `region`, `result`, `return`, `shadow`, `shared`, `spawn`, `sync`, `transition`, `transmute`, `true`, `type`, `unique`, `unsafe`, `var`, `widen`, `where`, `using`, `yield`, `const`, `override`}
 
 FutureReserved = ∅
 
@@ -2000,18 +2012,20 @@ ReservedIdentPrefix = {`gen_`}
 ReservedNamespacePhase = Phase3
 
 **Universe-Protected Bindings.**
-UniverseProtected = {`i8`, `i16`, `i32`, `i64`, `i128`, `u8`, `u16`, `u32`, `u64`, `u128`, `f16`, `f32`, `f64`, `bool`, `char`, `usize`, `isize`, `Self`, `Drop`, `Bitcopy`, `Clone`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, `Context`, `System`, `Async`, `Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`}
+UniverseProtected = {`i8`, `i16`, `i32`, `i64`, `i128`, `u8`, `u16`, `u32`, `u64`, `u128`, `f16`, `f32`, `f64`, `bool`, `char`, `usize`, `isize`, `Self`, `Drop`, `Bitcopy`, `Clone`, `Eq`, `Hash`, `Hasher`, `Iterator`, `Step`, `FfiSafe`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, `CancelToken`, `Context`, `System`, `ExecutionDomain`, `Reactor`, `CpuSet`, `Priority`, `Async`, `Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`, `FutureHandle`}
 UniverseProtectedPhase = Phase3
+
+`Drop`, `Bitcopy`, `Clone`, and `FfiSafe` are reserved predicate names. They MUST NOT be declared as classes or used as user-defined type/value bindings.
 
 #### 3.2.4. Token Kinds
 
 TokenKind ∈ {Identifier, Keyword(k), IntLiteral, FloatLiteral, StringLiteral, CharLiteral, BoolLiteral, NullLiteral, Operator(o), Punctuator(p), Newline, Unknown}
 
 **Operator Set.**
-OperatorSet = {"+", "-", "*", "/", "%", "**", "==", "!=", "<", "<=", ">", ">=", "&&", "||", "!", "&", "|", "^", "<<", ">>", "=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", ":=", "<:", "..", "..=", "=>", "->", "::", "~", "~>", "~!", "?", "#", "@", "$"}
+OperatorSet = {"+", "-", "*", "/", "%", "**", "==", "!=", "<", "<=", ">", ">=", "&&", "||", "!", "&", "|", "^", "<<", ">>", "=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", ":=", "<:", "..", "..=", "=>", "->", "::", "~", "~>", "~!", "~%", "?", "#", "@", "$"}
 
 **Punctuator Set.**
-PunctuatorSet = {"(", ")", "[", "]", "{", "}", ",", ":", ";", "."}
+PunctuatorSet = {"(", ")", "[", "]", "[[", "]]", "{", "}", ",", ":", ";", "."}
 
 OperatorSet ∩ PunctuatorSet = ∅
 
@@ -2563,44 +2577,65 @@ ASTFile.path ∈ Path
 ASTFile.items ∈ [ASTItem]
 ASTFile.module_doc ∈ DocList
 
+**Attributes.**
+
+AttrName ::= identifier | ⟨vendor_prefix, identifier⟩
+vendor_prefix ::= identifier ("." identifier)*
+AttrArg ::= literal | identifier | ⟨name, literal⟩ | ⟨name, args⟩
+AttributeSpec ::= Attr(name: AttrName, args: [AttrArg])
+AttributeList ::= [AttributeSpec]
+AttrOpt ::= {⊥} ∪ AttributeList
+
 ##### 3.3.2.2. Items
 
-ASTItem ∈ {UsingDecl, StaticDecl, ProcedureDecl, RecordDecl, EnumDecl, ModalDecl, ClassDecl, TypeAliasDecl, ErrorItem}
+ASTItem ∈ {ImportDecl, UsingDecl, ExternBlock, StaticDecl, ProcedureDecl, RecordDecl, EnumDecl, ModalDecl, ClassDecl, TypeAliasDecl, ErrorItem}
+
+**ImportDecl.**
+
+ImportDecl = ⟨attrs_opt, vis, path, alias_opt, span, doc⟩
 
 **UsingDecl.**
 
-UsingDecl = ⟨vis, clause, span, doc⟩
+UsingDecl = ⟨attrs_opt, vis, clause, span, doc⟩
 
 **UsingClause.**
 
-UsingClause ∈ {UsingPath = ⟨path, alias_opt⟩, UsingList = ⟨module_path, specs⟩}
+UsingClause ∈ {UsingPath = ⟨path, alias_opt⟩, UsingList = ⟨module_path, specs⟩, UsingWildcard = ⟨module_path⟩}
 
-UsingSpec = ⟨name, alias_opt⟩
+UsingSpec = ⟨name, alias_opt⟩    name ∈ {identifier, `self`}
+
+**ExternBlock.**
+
+ExternBlock = ⟨attrs_opt, vis, abi_opt, items, span, doc⟩
+ExternItem ∈ {ExternProcDecl = ⟨attrs_opt, vis, name, gen_params_opt, where_clause_opt, params, return_type_opt, contract_opt, foreign_contracts_opt, span, doc⟩}
+abi_opt ∈ {⊥} ∪ ExternAbi
+ExternAbi ∈ {StringAbi, IdentAbi}
 
 **StaticDecl.**
 
-StaticDecl = ⟨vis, mut, binding, span, doc⟩
+StaticDecl = ⟨attrs_opt, vis, mut, binding, span, doc⟩
 
 mut ∈ {`let`, `var`}
 
 **ProcedureDecl.**
 
-ProcedureDecl = ⟨vis, name, params, return_type_opt, body, span, doc⟩
+ProcedureDecl = ⟨attrs_opt, vis, name, gen_params_opt, where_clause_opt, params, return_type_opt, contract_opt, body, span, doc⟩
 
 **RecordDecl.**
 
-RecordDecl = ⟨vis, name, implements, members, span, doc⟩
+RecordDecl = ⟨attrs_opt, vis, name, gen_params_opt, where_clause_opt, implements, members, invariant_opt, span, doc⟩
 
 RecordDecl.implements ∈ [ClassPath]
 
-RecordMember ∈ {FieldDecl = ⟨vis, name, type, init_opt, span, doc_opt⟩, MethodDecl = ⟨vis, override, name, receiver, params, return_type_opt, body, span, doc_opt⟩}
+RecordMember ∈ {FieldDecl = ⟨attrs_opt, vis, boundary, name, type, init_opt, span, doc_opt⟩, MethodDecl = ⟨attrs_opt, vis, override, name, gen_params_opt, receiver, params, return_type_opt, contract_opt, body, span, doc_opt⟩}
 Receiver ∈ {ReceiverShorthand(perm), ReceiverExplicit(mode_opt, type)}
 perm ∈ {`const`, `unique`, `shared`}
 mode_opt ∈ {`move`, ⊥}
+boundary ∈ {true, false}
 
 **EnumDecl.**
 
-EnumDecl = ⟨vis, name, implements, variants, span, doc⟩
+EnumDecl = ⟨attrs_opt, vis, name, gen_params_opt, where_clause_opt, implements, variants, invariant_opt, span, doc⟩
 
 EnumDecl.implements ∈ [ClassPath]
 
@@ -2611,27 +2646,81 @@ VariantPayload ∈ {TuplePayload = [Type], RecordPayload = [FieldDecl]}
 
 **ModalDecl.**
 
-ModalDecl = ⟨vis, name, implements, states, span, doc⟩
+ModalDecl = ⟨attrs_opt, vis, name, gen_params_opt, where_clause_opt, implements, states, invariant_opt, span, doc⟩
 
 ModalDecl.implements ∈ [ClassPath]
 
 StateBlock = ⟨name, members, span, doc_opt⟩
 
-StateMember ∈ {StateFieldDecl = ⟨vis, name, type, span, doc_opt⟩, StateMethodDecl = ⟨vis, name, params, return_type_opt, body, span, doc_opt⟩, TransitionDecl = ⟨vis, name, params, target_state, body, span, doc_opt⟩}
+StateMember ∈ {StateFieldDecl = ⟨attrs_opt, vis, boundary, name, type, span, doc_opt⟩, StateMethodDecl = ⟨attrs_opt, vis, name, gen_params_opt, receiver, params, return_type_opt, contract_opt, body, span, doc_opt⟩, TransitionDecl = ⟨attrs_opt, vis, name, params, target_state, body, span, doc_opt⟩}
 
 **ClassDecl.**
 
-ClassDecl = ⟨vis, name, supers, items, span, doc⟩
+ClassDecl = ⟨attrs_opt, vis, modal_opt, name, gen_params_opt, where_clause_opt, supers, items, span, doc⟩
 
 ClassDecl.supers ∈ [ClassPath]
 
-ClassItem ∈ {ClassFieldDecl = ⟨vis, name, type, span, doc_opt⟩, ClassMethodDecl = ⟨vis, name, receiver, params, return_type_opt, body_opt, span, doc_opt⟩}
-AbstractClassMethod(m) ⇔ ∃ vis, name, recv, params, ret, span, doc. m = ClassMethodDecl(vis, name, recv, params, ret, ⊥, span, doc)
-ConcreteClassMethod(m) ⇔ ∃ vis, name, recv, params, ret, body, span, doc. m = ClassMethodDecl(vis, name, recv, params, ret, body, span, doc) ∧ body ≠ ⊥
+ClassItem ∈ {ClassFieldDecl = ⟨attrs_opt, vis, boundary, name, type, span, doc_opt⟩, ClassMethodDecl = ⟨attrs_opt, vis, name, gen_params_opt, receiver, params, return_type_opt, contract_opt, body_opt, span, doc_opt⟩, AssociatedTypeDecl = ⟨attrs_opt, vis, name, type_opt, span, doc_opt⟩, AbstractStateDecl = ⟨attrs_opt, vis, name, fields, span, doc_opt⟩}
+AbstractClassMethod(m) ⇔ ∃ attrs, vis, name, gen_params, recv, params, ret, contract, span, doc. m = ClassMethodDecl(attrs, vis, name, gen_params, recv, params, ret, contract, ⊥, span, doc)
+ConcreteClassMethod(m) ⇔ ∃ attrs, vis, name, gen_params, recv, params, ret, contract, body, span, doc. m = ClassMethodDecl(attrs, vis, name, gen_params, recv, params, ret, contract, body, span, doc) ∧ body ≠ ⊥
+AbstractStateDecl.fields ∈ [ClassFieldDecl]
 
 **TypeAliasDecl.**
 
-TypeAliasDecl = ⟨vis, name, type, span, doc⟩
+TypeAliasDecl = ⟨attrs_opt, vis, name, gen_params_opt, where_clause_opt, type, span, doc⟩
+
+**Generic Parameters and Where Clauses.**
+
+Variance = {Covariant, Contravariant, Invariant, Bivariant}
+TypeParam = ⟨name, bounds, default_opt, variance⟩
+GenericParams = [TypeParam]
+GenericArgs = [Type]
+PredicateName = {`Bitcopy`, `Clone`, `Drop`, `FfiSafe`}
+PredWherePred = ⟨pred, type⟩
+WherePred = PredWherePred
+WhereClause = [WherePred]
+gen_params_opt ∈ {⊥} ∪ GenericParams
+where_clause_opt ∈ {⊥} ∪ WhereClause
+
+**Contracts and Invariants.**
+
+ContractClause = ⟨pre, post⟩
+Invariant = Expr
+contract_opt ∈ {⊥} ∪ ContractClause
+invariant_opt ∈ {⊥} ∪ Invariant
+modal_opt ∈ {true, false}
+ForeignContractKind = {ForeignAssumes, ForeignEnsures}
+EnsuresPredicate = {Ensures(pred), EnsuresError(pred), EnsuresNullResult(pred)}    pred ∈ Expr
+ForeignContractClause = ⟨kind, preds⟩
+  kind ∈ ForeignContractKind
+  preds ∈ [Expr]              if kind = ForeignAssumes
+  preds ∈ [EnsuresPredicate]  if kind = ForeignEnsures
+foreign_contracts_opt ∈ {⊥} ∪ [ForeignContractClause]
+
+**Key System (AST).**
+
+KeyMode = {Read, Write}
+KeyModeOpt ∈ {⊥} ∪ KeyMode
+KeyBlockMod = {Dynamic, Speculative, Release}
+KeyBlockMods = [KeyBlockMod]
+KeySeg = {Field(marked, name), Index(marked, expr)}    marked ∈ {true, false}
+KeyPathExpr = ⟨root, segs⟩
+KeyPathList = [KeyPathExpr]
+KeyBlockStmt = ⟨paths, mods, mode_opt, body⟩
+
+**Concurrency (AST).**
+
+ParallelOpt = {Cancel(expr), Name(str)}
+ParallelOpts = [ParallelOpt]
+SpawnOpt = {Name(str), Affinity(expr), Priority(expr)}
+SpawnOpts = [SpawnOpt]
+ReduceOp = {`+`, `*`} ∪ Identifier
+DispatchOpt = {Reduce(op), Ordered, Chunk(expr)}    op ∈ ReduceOp
+DispatchOpts = [DispatchOpt]
+YieldReleaseOpt ∈ {⊥} ∪ {Release}
+RaceHandler = {RaceReturn(expr), RaceYield(expr)}
+RaceArm = ⟨expr, pat, handler⟩    handler ∈ RaceHandler
+RaceArms = [RaceArm]
 AliasBodyRef = {"6.1.4"}
 AliasStep(TypePath(p)) = AliasBody(p) if defined; otherwise TypePath(p)
 AliasStep(T) = T if T ∉ {TypePath(p)}
@@ -2642,14 +2731,19 @@ AliasNorm(T) =
  TypeSlice(AliasNorm(elem))  if T = TypeSlice(elem)
  TypeUnion([AliasNorm(t) | t ∈ members])  if T = TypeUnion(members)
  TypeFunc([⟨m, AliasNorm(t)⟩ | ⟨m, t⟩ ∈ params], AliasNorm(ret))  if T = TypeFunc(params, ret)
+ TypeApply(AliasPath(path), [AliasNorm(t) | t ∈ args])  if T = TypeApply(path, args)
  TypeDynamic(AliasPath(path))  if T = TypeDynamic(path)
- TypeModalState(AliasPath(path), state)  if T = TypeModalState(path, state)
+ TypeOpaque(AliasPath(path))  if T = TypeOpaque(path)
+ TypeModalState(AliasModalRef(modal_ref), state)  if T = TypeModalState(modal_ref, state)
  TypePtr(AliasNorm(elem), ptr_state_opt)  if T = TypePtr(elem, ptr_state_opt)
  TypeRawPtr(qual, AliasNorm(elem))  if T = TypeRawPtr(qual, elem)
+ TypeRefine(AliasNorm(base), pred)  if T = TypeRefine(base, pred)
  AliasNorm(AliasStep(T))  if T = TypePath(p)
  T  otherwise
 AliasPath(p) = p if AliasBody(p) undefined
 AliasPath(p) = AliasPath(p') if AliasBody(p) = TypePath(p')
+AliasModalRef(TypePath(p)) = TypePath(AliasPath(p))
+AliasModalRef(TypeApply(p, args)) = TypeApply(AliasPath(p), [AliasNorm(t) | t ∈ args])
 AliasTransparent(T, U) ⇔ AliasNorm(T) = AliasNorm(U)
 AliasGraph = { ⟨p, q⟩ | AliasBody(p) = T ∧ q ∈ TypePaths(T) }
 TypePaths(TypePrim(_)) = ∅
@@ -2660,21 +2754,26 @@ TypePaths(TypeArray(T, _)) = TypePaths(T)
 TypePaths(TypeSlice(T)) = TypePaths(T)
 TypePaths(TypeUnion([T_1, …, T_n])) = ⋃_{i=1}^n TypePaths(T_i)
 TypePaths(TypeFunc([⟨_, T_1⟩, …, ⟨_, T_n⟩], R)) = (⋃_{i=1}^n TypePaths(T_i)) ∪ TypePaths(R)
+TypePaths(TypeApply(p, args)) = {p} ∪ (⋃_{t ∈ args} TypePaths(t))
 TypePaths(TypePtr(T, _)) = TypePaths(T)
 TypePaths(TypeRawPtr(_, T)) = TypePaths(T)
 TypePaths(TypeString(_)) = ∅
 TypePaths(TypeBytes(_)) = ∅
 TypePaths(TypeDynamic(p)) = {p}
-TypePaths(TypeModalState(p, _)) = {p}
+TypePaths(TypeOpaque(p)) = {p}
+TypePaths(TypeModalState(modal_ref, _)) = TypePathsOfModalRef(modal_ref)
 TypePaths(TypePath(p)) = {p}
+TypePaths(TypeRefine(base, _)) = TypePaths(base)
+TypePathsOfModalRef(TypePath(p)) = {p}
+TypePathsOfModalRef(TypeApply(p, args)) = {p} ∪ (⋃_{t ∈ args} TypePaths(t))
 AliasCycle(p) ⇔ p ∈ Reach^+(AliasGraph, p)
 **(TypeAlias-Recursive-Err)**
 AliasCycle(p)    c = Code(TypeAlias-Recursive-Err)
 ────────────────────────────────────────────────────
 Γ ⊢ p : TypeAliasOk ⇑ c
 **(TypeAlias-Ok)**
-¬ AliasCycle(p)
-────────────────────────
+Σ.Types[p] = TypeAliasDecl(_, _, _, gen_params_opt, where_clause_opt, ty, _, _)    params_gen = TypeParamsOpt(gen_params_opt)    params_gen = [P_1, …, P_n]    Γ ⊢ ⟨P_1; …; P_n⟩ wf    Γ_g = BindTypeParams(Γ, params_gen)    Γ_g; params_gen ⊢ where_clause_opt wf    Γ_g ⊢ ty wf    ¬ AliasCycle(p)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ p : TypeAliasOk
 
 **ErrorItem.**
@@ -2685,7 +2784,10 @@ IsDecl(ErrorItem(_)) = false
 ##### 3.3.2.3. Types
 
 **Type.**
-Type = {TypePerm(perm, base), TypePrim(name), TypeTuple(elems), TypeArray(elem, size_expr), TypeSlice(elem), TypeUnion(members), TypeFunc(params, ret), TypePath(path), TypeDynamic(path), TypeString(string_state_opt), TypeBytes(bytes_state_opt), TypeModalState(path, state), TypePtr(elem, ptr_state_opt), TypeRawPtr(qual, elem), TypeRange}
+Type = {TypePerm(perm, base), TypePrim(name), TypeTuple(elems), TypeArray(elem, size_expr), TypeSlice(elem), TypeUnion(members), TypeFunc(params, ret), TypePath(path), TypeApply(path, args), TypeDynamic(path), TypeOpaque(path), TypeRefine(base, pred), TypeString(string_state_opt), TypeBytes(bytes_state_opt), TypeModalState(modal_ref, state), TypePtr(elem, ptr_state_opt), TypeRawPtr(qual, elem), TypeRange}
+TypeApply = ⟨path, args⟩
+TypeOpaque = ⟨path⟩
+TypeRefine = ⟨base, pred⟩
 
 Perm = {`const`, `unique`, `shared`}
 Qual = {`imm`, `mut`}
@@ -2712,10 +2814,16 @@ LiteralToken = { t ∈ Token | t.kind ∈ LiteralKind }
 
 **Expr.**
 RangeKind = {`To`, `ToInclusive`, `Full`, `From`, `Exclusive`, `Inclusive`}
-Expr = {Literal(lit), PtrNullExpr, Identifier(name), QualifiedName(path, name), QualifiedApply(path, name, form), Path(path, name), ErrorExpr(span), TupleExpr(elems), ArrayExpr(elems), RecordExpr(type_ref, fields), EnumLiteral(path, payload_opt), FieldAccess(base, name), TupleAccess(base, index), IndexAccess(base, index_expr), Call(callee, args), MethodCall(base, name, args), Unary(op, expr), Binary(op, left, right), Cast(expr, type), Range(kind, lo_opt, hi_opt), IfExpr(cond, then_block, else_opt), MatchExpr(scrutinee, arms), LoopInfinite(body), LoopConditional(cond, body), LoopIter(pattern, type_opt, iter, body), BlockExpr(stmts, tail_opt), UnsafeBlockExpr(body), MoveExpr(place), TransmuteExpr(src_type, dst_type, expr), AllocExpr(region_opt, expr), Propagate(expr), AddressOf(place), Deref(expr)}
+Expr = {Literal(lit), PtrNullExpr, Identifier(name), QualifiedName(path, name), QualifiedApply(path, name, form), Path(path, name), ErrorExpr(span), TupleExpr(elems), ArrayExpr(elems), RecordExpr(type_ref, fields), EnumLiteral(path, payload_opt), FieldAccess(base, name), TupleAccess(base, index), IndexAccess(base, index_expr), Call(callee, args), CallTypeArgs(callee, type_args, args), MethodCall(base, name, args), Unary(op, expr), Binary(op, left, right), Cast(expr, type), Range(kind, lo_opt, hi_opt), IfExpr(cond, then_block, else_opt), MatchExpr(scrutinee, arms), LoopInfinite(inv_opt, body), LoopConditional(cond, inv_opt, body), LoopIter(pattern, type_opt, iter, inv_opt, body), BlockExpr(stmts, tail_opt), UnsafeBlockExpr(body), MoveExpr(place), TransmuteExpr(src_type, dst_type, expr), AllocExpr(region_opt, expr), Propagate(expr), AddressOf(place), Deref(expr), ContractResult, ContractEntry(expr), ParallelExpr(domain, opts, body), SpawnExpr(opts, body), DispatchExpr(pat, range, key_clause_opt, opts, body), WaitExpr(handle), YieldExpr(release_opt, expr), YieldFromExpr(release_opt, expr), SyncExpr(expr), RaceExpr(arms), AllExpr(exprs)}
 ExprSpan : Expr → Span
+ExprAttrs(e) ∈ AttrOpt
+AttachExprAttrs(e, attrs) = e' where ExprAttrs(e') = (attrs ++ ExprAttrs(e) if ExprAttrs(e) ≠ ⊥ else attrs) and all other fields of e' equal those of e
+LoopInvariantOpt ∈ {⊥} ∪ Expr
+KeyClause = ⟨path, mode⟩
+KeyClauseOpt ∈ {⊥} ∪ KeyClause
 
-TypeRef = {TypePath(path), ModalStateRef(path, state)}
+ModalRef = {TypePath(path), TypeApply(path, args)}
+TypeRef = {TypePath(path), TypeApply(path, args), ModalStateRef(modal_ref, state)}    modal_ref ∈ ModalRef
 
 **Qualified Expressions.**
 ParenForm = {Paren(args) | args ∈ Arg*}
@@ -2746,7 +2854,7 @@ ModalPayloadPattern = {ModalRecordPayload([FieldPattern])}
 
 ##### 3.3.2.6. Statements
 
-Stmt = {LetStmt(binding), VarStmt(binding), ErrorStmt(span), ShadowLetStmt(name, type_opt, init), ShadowVarStmt(name, type_opt, init), AssignStmt(place, expr), CompoundAssignStmt(place, op, expr), ExprStmt(expr), DeferStmt(block), RegionStmt(opts_opt, alias_opt, block), FrameStmt(target_opt, block), ReturnStmt(expr_opt), ResultStmt(expr), BreakStmt(expr_opt), ContinueStmt, UnsafeBlockStmt(block)}
+Stmt = {LetStmt(binding), VarStmt(binding), ErrorStmt(span), ShadowLetStmt(name, type_opt, init), ShadowVarStmt(name, type_opt, init), AssignStmt(place, expr), CompoundAssignStmt(place, op, expr), ExprStmt(expr), DeferStmt(block), RegionStmt(opts_opt, alias_opt, block), FrameStmt(target_opt, block), KeyBlockStmt(paths, mods, mode_opt, block), ReturnStmt(expr_opt), ResultStmt(expr), BreakStmt(expr_opt), ContinueStmt, UnsafeBlockStmt(block)}
 
 binding = ⟨pattern, type_opt, op, init, span⟩
 opts_opt ∈ {⊥} ∪ Expr    alias_opt ∈ {⊥} ∪ Identifier
@@ -2754,7 +2862,7 @@ target_opt ∈ {⊥} ∪ Identifier
 
 ##### 3.3.2.7. Unsupported Grammar Families (Cursive0 Decision)
 
-UnsupportedGrammarFamily = {`attributes`, `extern_ffi`, `generics`, `contracts`, `keys`, `concurrency`, `async`, `metaprogramming`}
+UnsupportedGrammarFamily = {`metaprogramming`}
 UnsupportedGrammarFamily ⊆ UnsupportedForm
 
 #### 3.3.3. Parser State and Judgments
@@ -2821,9 +2929,20 @@ IsPunc(t, s) ⇔ t.kind = Punctuator(s)
 Lexeme(t) = t.lexeme
 
 **Contextual Keywords.**
-CtxKeyword = {"in"}
+CtxKeyword = {"in", "key", "wait"}
 Ctx(t, s) ⇔ IsIdent(t) ∧ Lexeme(t) = s ∧ s ∈ CtxKeyword
 ¬ Ctx(t, "as") ∧ ¬ Ctx(t, "move")
+
+**Fixed Identifier Lexemes.**
+FixedIdent_Key = {"read", "write", "dynamic", "speculative", "release"}
+FixedIdent_Parallel = {"cancel", "name"}
+FixedIdent_Spawn = {"name", "affinity", "priority"}
+FixedIdent_Dispatch = {"reduce", "ordered", "chunk", "min", "max", "and", "or"}
+FixedIdent = FixedIdent_Key ∪ FixedIdent_Parallel ∪ FixedIdent_Spawn ∪ FixedIdent_Dispatch
+FixedIdentTok(t, s) ⇔ IsIdent(t) ∧ Lexeme(t) = s ∧ s ∈ FixedIdent
+Fixed identifiers MUST be tokenized as identifiers and are disambiguated by syntactic position.
+
+Trailing comma rules are defined in §3.3.5.
 
 **Cursive0 Declaration Keywords.**
 UsingKeyword = "using"
@@ -2833,44 +2952,65 @@ Keyword("use") = false
 UnionPropTok(t) ⇔ IsOp(t, "?")
 UnionPropForm(e) ⇔ ∃ e_0. e = Propagate(e_0)
 
-**Cursive0 Type Restrictions.**
+**Type Tokens.**
 TypeWhereTok(t) ⇔ IsIdent(t) ∧ Lexeme(t) = "where"
 OpaqueTypeTok(t) ⇔ IsIdent(t) ∧ Lexeme(t) = "opaque"
-TypeArgsUnsupported(P) ⇔ Γ ⊢ ParseTypePath(P) ⇓ (P_1, path) ∧ IsOp(Tok(P_1), "<") ∧ path ≠ [`Ptr`]
-C0TypeRestricted(P) ⇔ TypeArgsUnsupported(P) ∨ TypeWhereTok(Tok(P)) ∨ OpaqueTypeTok(Tok(P))
+TypeArgsStartTok(t) ⇔ IsOp(t, "<")
+C0TypeRestricted(P) ⇔ false
 
 **Syntax (Cursive0 Subset).**
 
 ```ebnf
 module            ::= item*
-item              ::= using_decl | static_decl | procedure_decl | record_decl | enum_decl | modal_decl | class_decl | type_alias_decl
-using_decl         ::= visibility? "using" using_clause
-using_clause       ::= using_path ("as" identifier)? | using_list
+item              ::= import_decl | using_decl | extern_block | static_decl | procedure_decl | record_decl | enum_decl | modal_decl | class_decl | type_alias_decl
+
+attribute_list    ::= attribute+
+attribute          ::= "[[" attribute_spec ("," attribute_spec)* "]]"
+attribute_spec     ::= attribute_name ("(" attribute_args ")")?
+attribute_name     ::= identifier | vendor_prefix "::" identifier
+vendor_prefix      ::= identifier ("." identifier)*
+attribute_args     ::= attribute_arg ("," attribute_arg)*
+attribute_arg      ::= literal
+                    | identifier
+                    | identifier ":" literal
+                    | identifier "(" attribute_args ")"
+
+import_decl        ::= attribute_list? visibility? "import" module_path ("as" identifier)?
+using_decl         ::= attribute_list? visibility? "using" using_clause
+using_clause       ::= using_path ("as" identifier)?
+                     | using_path "::" using_list
+                     | using_path "::" "*"
 path               ::= identifier ("::" identifier)*
 module_path        ::= path
-using_path         ::= path
-type_path          ::= path
-using_list         ::= module_path "{" using_specifier ("," using_specifier)* "}"
+using_path         ::= module_path ("::" identifier)?
+type_path          ::= path generic_args?
+using_list         ::= "{" using_specifier ("," using_specifier)* "}"
 using_specifier    ::= identifier ("as" identifier)?
+                     | "self" ("as" identifier)?
 
-static_decl        ::= visibility? ("let" | "var") binding_decl
+extern_block       ::= attribute_list? visibility? "extern" extern_abi? "{" extern_item* "}"
+extern_abi         ::= string_literal | identifier
+extern_item        ::= attribute_list? visibility? "procedure" identifier generic_params? signature where_clause? contract_clause? foreign_contract_clause_list? terminator
+
+static_decl        ::= attribute_list? visibility? ("let" | "var") binding_decl
 binding_decl       ::= pattern (":" type)? binding_op expression
-procedure_decl     ::= visibility? "procedure" identifier signature block_expr
+procedure_decl     ::= attribute_list? visibility? "procedure" identifier generic_params? signature where_clause? contract_clause? block_expr
 signature          ::= "(" param_list? ")" ("->" type)?
 param_list         ::= param ("," param)*
-param              ::= param_mode? identifier ":" type
+param              ::= param_mode? identifier ":" type param_refine_opt?
+param_refine_opt   ::= refinement_clause
 param_mode         ::= "move"
-record_decl        ::= visibility? "record" identifier implements_clause? "{" record_body? "}"
-enum_decl          ::= visibility? "enum" identifier implements_clause? "{" variant_list? "}"
-modal_decl         ::= visibility? "modal" identifier implements_clause? "{" state_block+ "}"
-class_decl         ::= visibility? "class" identifier ("<:" superclass_bounds)? "{" class_body? "}"
-type_alias_decl    ::= visibility? "type" identifier "=" type
+record_decl        ::= attribute_list? visibility? "record" identifier generic_params? implements_clause? where_clause? "{" record_body? "}" type_invariant?
+enum_decl          ::= attribute_list? visibility? "enum" identifier generic_params? implements_clause? where_clause? "{" variant_list? "}" type_invariant?
+modal_decl         ::= attribute_list? visibility? "modal" identifier generic_params? implements_clause? where_clause? "{" state_block+ "}" type_invariant?
+class_decl         ::= attribute_list? visibility? "modal"? "class" identifier generic_params? ("<:" superclass_bounds)? where_clause? "{" class_body? "}"
+type_alias_decl    ::= attribute_list? visibility? "type" identifier generic_params? where_clause? "=" type
 
 record_body        ::= record_member ("," record_member)*
-record_member      ::= record_field_decl | method_def
-method_def         ::= visibility? "override"? "procedure" identifier "(" receiver ("," param_list)? ")" ("->" type)? block_expr
+record_member      ::= attribute_list? (record_field_decl | method_def)
+method_def         ::= visibility? "override"? "procedure" identifier generic_params? "(" receiver ("," param_list)? ")" ("->" type)? contract_clause? block_expr
 receiver           ::= receiver_shorthand | explicit_receiver
-receiver_shorthand ::= "~" | "~!"
+receiver_shorthand ::= "~" | "~!" | "~%"
 explicit_receiver  ::= param_mode? "self" ":" type
 
 implements_clause  ::= "<:" class_list
@@ -2879,32 +3019,38 @@ class_path         ::= type_path
 
 state_block        ::= "@" state_name "{" state_member* "}"
 state_name         ::= identifier
-state_member       ::= state_field_decl | state_method_def | transition_def
-state_field_decl   ::= visibility? identifier ":" type
-state_method_def   ::= visibility? "procedure" identifier "(" param_list ")" ("->" type)? block_expr
+state_member       ::= attribute_list? (state_field_decl | state_method_def | transition_def)
+state_field_decl   ::= visibility? key_boundary? identifier ":" type
+state_method_def   ::= visibility? "procedure" identifier generic_params? "(" state_method_params ")" ("->" type)? contract_clause? block_expr
+state_method_params ::= receiver_shorthand ("," param_list)?
+                     | param_list?
 transition_def     ::= visibility? "transition" identifier "(" param_list ")" "->" "@" target_state block_expr
 target_state       ::= identifier
 
 superclass_bounds  ::= class_path ("+" class_path)*
 class_body         ::= class_item*
-class_item         ::= class_method_decl | class_field_decl
-class_method_decl  ::= visibility? "procedure" identifier "(" receiver ("," param_list)? ")" ("->" type)? class_method_body
+class_item         ::= class_method_decl | associated_type_decl | abstract_field_decl | abstract_state_decl
+class_method_decl  ::= attribute_list? visibility? "procedure" identifier generic_params? "(" receiver ("," param_list)? ")" ("->" type)? contract_clause? class_method_body
 class_method_body  ::= block_expr | terminator
-class_field_decl   ::= visibility? identifier ":" type terminator
+associated_type_decl ::= attribute_list? visibility? "type" identifier ("=" type)? terminator
+abstract_field_decl ::= attribute_list? visibility? key_boundary? identifier ":" type terminator
+abstract_state_decl ::= attribute_list? visibility? "@" identifier "{" abstract_field_decl* "}" terminator?
 
 visibility         ::= "public" | "internal" | "private" | "protected"
 
+key_boundary       ::= "#"
+
 record_field_decl_list ::= record_field_decl ("," record_field_decl)*
-record_field_decl  ::= visibility? identifier ":" type record_field_init_opt?
+record_field_decl  ::= visibility? key_boundary? identifier ":" type record_field_init_opt?
 record_field_init_opt ::= "=" expression
 field_decl_list    ::= field_decl ("," field_decl)*
-field_decl         ::= visibility? identifier ":" type
+field_decl         ::= visibility? key_boundary? identifier ":" type
 variant_list       ::= variant ("," variant)*
 variant            ::= identifier variant_payload? ("=" integer_literal)?
 variant_payload    ::= "(" type_list? ")" | "{" field_decl_list? "}"
 type_list          ::= type ("," type)*
 
-statement          ::= binding_stmt | shadow_binding | assignment_stmt | expr_stmt | defer_stmt | region_stmt | frame_stmt | return_stmt | result_stmt | break_stmt | continue_stmt | unsafe_block
+statement          ::= key_block_stmt | binding_stmt | shadow_binding | assignment_stmt | expr_stmt | defer_stmt | region_stmt | frame_stmt | return_stmt | result_stmt | break_stmt | continue_stmt | unsafe_block
 binding_stmt       ::= ("let" | "var") pattern (":" type)? binding_op expression terminator
 shadow_binding     ::= "shadow" ("let" | "var") identifier (":" type)? "=" expression terminator
 assignment_stmt    ::= place_expr "=" expression terminator
@@ -2921,12 +3067,25 @@ break_stmt         ::= "break" expression? terminator?
 continue_stmt      ::= "continue" terminator?
 unsafe_block       ::= "unsafe" block_expr
 
+key_block_stmt     ::= "#" key_path_list key_block_mod* key_mode? block_expr
+key_path_list      ::= key_path_expr ("," key_path_expr)*
+key_block_mod      ::= "dynamic" | "speculative" | "release"
+key_mode           ::= "read" | "write"
+key_path_expr      ::= key_root key_seg*
+key_root           ::= identifier
+key_seg            ::= ("." key_field) | ("[" key_index "]")
+key_field          ::= key_marker? identifier
+key_index          ::= key_marker? expression
+key_marker         ::= "#"
+
 binding_op         ::= "=" | ":="
 compound_op        ::= "+=" | "-=" | "*=" | "/=" | "%="
 terminator         ::= ";" | newline
 newline            ::= "\n"
 
-expression         ::= range_expression | logical_or_expr
+expression         ::= attribute_list? unattributed_expr
+unattributed_expr  ::= range_expression | logical_or_expr
+
 range_expression   ::= exclusive_range | inclusive_range | from_range | to_range | to_inclusive_range | full_range
 exclusive_range    ::= logical_or_expr ".." logical_or_expr
 inclusive_range    ::= logical_or_expr "..=" logical_or_expr
@@ -2954,15 +3113,36 @@ move_expr           ::= "move" place_expr
 postfix_expr        ::= primary_expr postfix_suffix*
 postfix_suffix      ::= "." identifier | "." decimal_literal | "[" expression "]" | "~>" identifier "(" argument_list? ")" | "(" argument_list? ")" | "?"
 
-primary_expr        ::= literal | null_ptr_expr | identifier_expr | qualified_expr | tuple_literal | array_literal | record_literal | if_expr | match_expr | loop_expr | block_expr | unsafe_expr | transmute_expr
-                   | alloc_expr
+primary_expr        ::= literal | null_ptr_expr | identifier_expr | contract_intrinsic | qualified_expr | tuple_literal | array_literal | record_literal | if_expr | match_expr | loop_expr | block_expr | unsafe_expr | transmute_expr | alloc_expr | parallel_expr | spawn_expr | wait_expr | dispatch_expr | yield_expr | yield_from_expr | sync_expr | race_expr | all_expr
 unsafe_expr         ::= "unsafe" block_expr
-transmute_expr      ::= "transmute" "::" "<" type "," type ">" "(" expression ")"
+transmute_expr      ::= "transmute" "<" type "," type ">" "(" expression ")"
 identifier_expr     ::= identifier
-qualified_expr      ::= type_path "::" identifier qualified_suffix?
+qualified_expr      ::= qualified_type_expr ("::" identifier)? qualified_suffix?
+qualified_type_expr ::= path
 qualified_suffix    ::= "(" argument_list? ")" | "{" field_init_list "}"
 null_ptr_expr       ::= "Ptr" "::" "null" "(" ")"
 alloc_expr          ::= "^" expression
+
+parallel_expr      ::= "parallel" domain_expr block_options? block_expr
+domain_expr        ::= expression
+block_options      ::= "[" block_option ("," block_option)* "]"
+block_option       ::= "cancel" ":" expression | "name" ":" string_literal
+spawn_expr         ::= "spawn" spawn_option_list? block_expr
+spawn_option_list  ::= "[" spawn_option ("," spawn_option)* "]"
+spawn_option       ::= "name" ":" string_literal | "affinity" ":" expression | "priority" ":" expression
+wait_expr          ::= "wait" expression
+yield_expr         ::= "yield" "release"? expression
+yield_from_expr    ::= "yield" "release"? "from" expression
+sync_expr          ::= "sync" expression
+race_expr          ::= "race" "{" race_arm ("," race_arm)* "}"
+race_arm           ::= expression "->" "|" pattern "|" race_handler
+race_handler       ::= expression | "yield" expression
+all_expr           ::= "all" "{" expression ("," expression)* "}"
+dispatch_expr      ::= "dispatch" pattern "in" range_expression key_clause? dispatch_option_list? block_expr
+key_clause         ::= "key" key_path_expr key_mode
+dispatch_option_list ::= "[" dispatch_option ("," dispatch_option)* "]"
+dispatch_option    ::= "reduce" ":" reduce_op | "ordered" | "chunk" ":" expression
+reduce_op          ::= "+" | "*" | "min" | "max" | "and" | "or" | identifier
 
 parenthesized_expr  ::= "(" expression ")"
 
@@ -2974,7 +3154,6 @@ record_literal      ::= (type_path | state_specific_type) "{" field_init_list "}
 field_init_list     ::= field_init ("," field_init)*
 field_init          ::= identifier ":" expression | identifier
 
-
 argument_list       ::= argument ("," argument)*
 argument            ::= "move"? expression
 
@@ -2983,7 +3162,9 @@ match_expr          ::= "match" expression "{" match_arm ("," match_arm)* "}"
 match_arm           ::= pattern ("if" expression)? "=>" arm_body
 arm_body            ::= expression | block_expr
 
-loop_expr           ::= "loop" block_expr | "loop" expression block_expr | "loop" pattern (":" type)? "in" expression block_expr
+loop_expr           ::= "loop" loop_condition? loop_invariant? block_expr
+loop_condition      ::= expression | pattern (":" type)? "in" expression
+loop_invariant      ::= "where" "{" predicate_expr "}"
 
 block_expr          ::= "{" statement* expression? "}"
 
@@ -3008,11 +3189,11 @@ modal_pattern       ::= "@" identifier ("{" field_pattern_list? "}")?
 
 range_pattern       ::= pattern (".." | "..=") pattern
 
-type                ::= permission? non_permission_type
-permission          ::= "const" | "unique" | "shared"
-non_permission_type ::= union_type | non_union_type
+type                ::= permission? base_type refinement_clause?
+refinement_clause   ::= "where" "{" predicate_expr "}"
+base_type           ::= union_type | non_union_type
 union_type          ::= non_union_type ("|" non_union_type)+
-non_union_type      ::= primitive_type | tuple_type | function_type | array_type | slice_type | safe_pointer_type | raw_pointer_type | string_type | bytes_type | dynamic_type | state_specific_type | type_path
+non_union_type      ::= primitive_type | tuple_type | function_type | array_type | slice_type | safe_pointer_type | raw_pointer_type | string_type | bytes_type | dynamic_type | state_specific_type | type_path | opaque_type
 
 primitive_type      ::= integer_type | float_type | bool_type | char_type | unit_type | never_type
 integer_type        ::= "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" | "isize" | "usize"
@@ -3033,16 +3214,53 @@ slice_type          ::= "[" type "]"
 string_type         ::= "string" ("@" ("Managed" | "View"))?
 bytes_type          ::= "bytes" ("@" ("Managed" | "View"))?
 
-state_specific_type ::= type_path "@" state_name
+modal_type_name     ::= type_path generic_args?
+state_specific_type ::= modal_type_name "@" state_name
 
 safe_pointer_type   ::= "Ptr" "<" type ">" ("@" pointer_state)?
 pointer_state       ::= "Valid" | "Null" | "Expired"
 raw_pointer_type    ::= "*" ("imm" | "mut") type
 
 dynamic_type        ::= "$" type_path
+opaque_type         ::= "opaque" type_path
 
 const_expression    ::= expression
+
+permission         ::= "const" | "unique" | "shared"
+
+generic_params     ::= "<" type_param (";" type_param)* ">"
+type_param         ::= identifier type_bounds? type_default?
+type_bounds        ::= "<:" bound_list
+bound_list         ::= class_bound ("," class_bound)*
+class_bound        ::= type_path generic_args?
+type_default       ::= "=" type
+where_clause       ::= "where" where_predicate_list
+where_predicate_list ::= where_predicate (predicate_separator where_predicate)* predicate_separator?
+predicate_separator ::= terminator
+where_predicate    ::= predicate_name "(" type ")"
+predicate_name     ::= "Bitcopy" | "Clone" | "Drop" | "FfiSafe"
+generic_args       ::= "<" type_arg_list ">"
+type_arg_list      ::= type ("," type)*
+
+contract_clause    ::= "|=" contract_body
+contract_body      ::= precondition_expr | precondition_expr "=>" postcondition_expr | "=>" postcondition_expr
+precondition_expr  ::= predicate_expr
+postcondition_expr ::= predicate_expr
+predicate_expr     ::= logical_or_expr
+contract_intrinsic ::= "@result" | "@entry" "(" expression ")"
+foreign_contract_clause_list ::= foreign_contract_clause+
+foreign_contract_clause ::= "|=" foreign_contract_body
+foreign_contract_body ::= foreign_assumes | foreign_ensures
+foreign_assumes    ::= "@foreign_assumes" "(" predicate_list ")"
+foreign_ensures    ::= "@foreign_ensures" "(" ensures_predicate_list ")"
+predicate_list     ::= predicate_expr ("," predicate_expr)*
+ensures_predicate_list ::= ensures_predicate ("," ensures_predicate)*
+ensures_predicate  ::= predicate_expr | "@error" ":" predicate_expr | "@null_result" ":" predicate_expr
+
+type_invariant     ::= "where" "{" predicate_expr "}"
 ```
+
+Commas are list separators only and are never statement terminators; statement termination is governed solely by `terminator`.
 
 **Method Context (Cursive0).**
 
@@ -3101,10 +3319,14 @@ Tok(P) ∈ EndSet
 ⟨ListScan(P, xs)⟩ → ⟨ListDone(P, xs)⟩
 
 EndSet ⊆ TokenKind
+In list parsing rules, P_0 denotes the parser state immediately after consuming the list opening delimiter for the list being parsed.
 TrailingComma(P, EndSet) ⇔ IsPunc(Tok(P), ",") ∧ Tok(Advance(P)) ∈ EndSet
+TokensBetween(P_0, P) = ⟨TokIndex(P_0), TokIndex(P)⟩
+TokLine(t) = t.span.line_s
+TrailingCommaAllowed(P_0, P, EndSet) ⇔ TrailingComma(P, EndSet) ∧ TokLine(Tok(P)) < TokLine(Tok(Advance(P)))
 
 **(Trailing-Comma-Err)**
-TrailingComma(P, EndSet)    c = Code(Unsupported-Construct)
+TrailingComma(P, EndSet)    ¬ TrailingCommaAllowed(P_0, P, EndSet)    c = Code(Trailing-Comma-Err)
 ─────────────────────────────────────────────────────────────
 Γ ⊢ Emit(c, Tok(P).span)
 
@@ -3175,57 +3397,123 @@ IsKw(Tok(P), v)    v ∈ {`public`, `internal`, `private`, `protected`}
 ──────────────────────────────────────────
 Γ ⊢ ParseVis(P) ⇓ (P, `internal`)
 
+**(Parse-ModalOpt-Yes)**
+IsKw(Tok(P), `modal`)
+────────────────────────────────────────────
+Γ ⊢ ParseModalOpt(P) ⇓ (Advance(P), true)
+
+**(Parse-ModalOpt-No)**
+¬ IsKw(Tok(P), `modal`)
+────────────────────────────────────────────
+Γ ⊢ ParseModalOpt(P) ⇓ (P, false)
+
 ##### 3.3.6.3. Using Declarations
 
-**(Parse-Using-Path)**
-Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    IsKw(Tok(P_1), `using`)    Γ ⊢ ParseModulePath(Advance(P_1)) ⇓ (P_2, path)    Γ ⊢ ParseAliasOpt(P_2) ⇓ (P_3, alias_opt)
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseItem(P) ⇓ (P_3, ⟨UsingDecl, vis, ⟨UsingPath, path, alias_opt⟩, SpanBetween(P, P_3), []⟩)
+**Import Declarations.**
+
+**(Parse-Import)**
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    IsKw(Tok(P_1), `import`)    Γ ⊢ ParseModulePath(Advance(P_1)) ⇓ (P_2, path)    Γ ⊢ ParseAliasOpt(P_2) ⇓ (P_3, alias_opt)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_3, ⟨ImportDecl, attrs_opt, vis, path, alias_opt, SpanBetween(P, P_3), []⟩)
+
+**Using Declarations.**
+
+**(Parse-Using-Wildcard)**
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    IsKw(Tok(P_1), `using`)    Γ ⊢ ParseModulePath(Advance(P_1)) ⇓ (P_2, mp)    IsOp(Tok(P_2), "::")    IsOp(Tok(Advance(P_2)), "*")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (Advance(Advance(P_2)), ⟨UsingDecl, attrs_opt, vis, ⟨UsingWildcard, mp⟩, SpanBetween(P, Advance(Advance(P_2))), []⟩)
 
 **(Parse-Using-List)**
-Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    IsKw(Tok(P_1), `using`)    Γ ⊢ ParseModulePath(Advance(P_1)) ⇓ (P_2, mp)    IsPunc(Tok(P_2), "{")    Γ ⊢ ParseUsingList(Advance(P_2)) ⇓ (P_3, specs)
-───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseItem(P) ⇓ (P_3, ⟨UsingDecl, vis, ⟨UsingList, mp, specs⟩, SpanBetween(P, P_3), []⟩)
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    IsKw(Tok(P_1), `using`)    Γ ⊢ ParseModulePath(Advance(P_1)) ⇓ (P_2, mp)    IsOp(Tok(P_2), "::")    IsPunc(Tok(Advance(P_2)), "{")    Γ ⊢ ParseUsingList(Advance(Advance(P_2))) ⇓ (P_3, specs)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_3, ⟨UsingDecl, attrs_opt, vis, ⟨UsingList, mp, specs⟩, SpanBetween(P, P_3), []⟩)
+
+**(Parse-Using-Path-Qualified)**
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    IsKw(Tok(P_1), `using`)    Γ ⊢ ParseModulePath(Advance(P_1)) ⇓ (P_2, mp)    IsOp(Tok(P_2), "::")    IsIdent(Tok(Advance(P_2)))    Γ ⊢ ParseIdent(Advance(P_2)) ⇓ (P_3, id)    Γ ⊢ ParseAliasOpt(P_3) ⇓ (P_4, alias_opt)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_4, ⟨UsingDecl, attrs_opt, vis, ⟨UsingPath, mp ++ [id], alias_opt⟩, SpanBetween(P, P_4), []⟩)
+
+**(Parse-Using-Path)**
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    IsKw(Tok(P_1), `using`)    Γ ⊢ ParseModulePath(Advance(P_1)) ⇓ (P_2, path)    ¬ IsOp(Tok(P_2), "::")    Γ ⊢ ParseAliasOpt(P_2) ⇓ (P_3, alias_opt)
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_3, ⟨UsingDecl, attrs_opt, vis, ⟨UsingPath, path, alias_opt⟩, SpanBetween(P, P_3), []⟩)
+
+**Extern Blocks.**
+
+**(Parse-ExternBlock)**
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    IsKw(Tok(P_1), `extern`)    Γ ⊢ ParseExternAbiOpt(Advance(P_1)) ⇓ (P_2, abi_opt)    IsPunc(Tok(P_2), "{")    Γ ⊢ ParseExternItemList(Advance(P_2)) ⇓ (P_3, items)    IsPunc(Tok(P_3), "}")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (Advance(P_3), ⟨ExternBlock, attrs_opt, vis, abi_opt, items, SpanBetween(P, Advance(P_3)), []⟩)
+
+**(Parse-ExternAbiOpt-None)**
+Tok(P).kind ∉ {StringLiteral, Identifier}
+──────────────────────────────────────────────
+Γ ⊢ ParseExternAbiOpt(P) ⇓ (P, ⊥)
+
+**(Parse-ExternAbiOpt-String)**
+Tok(P).kind = StringLiteral
+──────────────────────────────────────────────
+Γ ⊢ ParseExternAbiOpt(P) ⇓ (Advance(P), StringAbi(Tok(P)))
+
+**(Parse-ExternAbiOpt-Ident)**
+IsIdent(Tok(P))
+──────────────────────────────────────────────
+Γ ⊢ ParseExternAbiOpt(P) ⇓ (Advance(P), IdentAbi(Lexeme(Tok(P))))
+
+**(Parse-ExternItemList-End)**
+IsPunc(Tok(P), "}")
+────────────────────────────────────────────
+Γ ⊢ ParseExternItemList(P) ⇓ (P, [])
+
+**(Parse-ExternItemList-Cons)**
+¬ IsPunc(Tok(P), "}")    Γ ⊢ ParseExternItem(P) ⇓ (P_1, it)    Γ ⊢ ParseExternItemList(P_1) ⇓ (P_2, rest)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseExternItemList(P) ⇓ (P_2, [it] ++ rest)
+
+**(Parse-ExternItem)**
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    IsKw(Tok(P_1), `procedure`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseGenericParamsOpt(P_2) ⇓ (P_3, gen_params_opt)    Γ ⊢ ParseSignature(P_3) ⇓ (P_4, params, ret_opt)    Γ ⊢ ParseWhereClauseOpt(P_4) ⇓ (P_5, where_clause_opt)    Γ ⊢ ParseContractClauseOpt(P_5) ⇓ (P_6, contract_opt)    Γ ⊢ ParseForeignContractClauseListOpt(P_6) ⇓ (P_7, foreign_contracts_opt)    Γ ⊢ ConsumeTerminatorReq(P_7) ⇓ P_8
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseExternItem(P) ⇓ (P_8, ⟨ExternProcDecl, attrs_opt, vis, name, gen_params_opt, where_clause_opt, params, ret_opt, contract_opt, foreign_contracts_opt, SpanBetween(P, P_8), []⟩)
 
 ##### 3.3.6.4. Static Declarations
 
 **(Parse-Static-Decl)**
-Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    Tok(P_1) = Keyword(kw)    kw ∈ {`let`, `var`}    mut = kw    Γ ⊢ ParseBindingAfterLetVar(P_1) ⇓ (P_2, bind)
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseItem(P) ⇓ (P_2, ⟨StaticDecl, vis, mut, bind, SpanBetween(P, P_2), []⟩)
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    Tok(P_1) = Keyword(kw)    kw ∈ {`let`, `var`}    mut = kw    Γ ⊢ ParseBindingAfterLetVar(P_1) ⇓ (P_2, bind)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_2, ⟨StaticDecl, attrs_opt, vis, mut, bind, SpanBetween(P, P_2), []⟩)
 
 ##### 3.3.6.5. Procedure Declarations
 
 **(Parse-Procedure)**
-Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    IsKw(Tok(P_1), `procedure`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseSignature(P_2) ⇓ (P_3, params, ret_opt)    Γ ⊢ ParseBlock(P_3) ⇓ (P_4, body)
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseItem(P) ⇓ (P_4, ⟨ProcedureDecl, vis, name, params, ret_opt, body, SpanBetween(P, P_4), []⟩)
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    IsKw(Tok(P_1), `procedure`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseGenericParamsOpt(P_2) ⇓ (P_3, gen_params_opt)    Γ ⊢ ParseSignature(P_3) ⇓ (P_4, params, ret_opt)    Γ ⊢ ParseWhereClauseOpt(P_4) ⇓ (P_5, where_clause_opt)    Γ ⊢ ParseContractClauseOpt(P_5) ⇓ (P_6, contract_opt)    Γ ⊢ ParseBlock(P_6) ⇓ (P_7, body)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_7, ⟨ProcedureDecl, attrs_opt, vis, name, gen_params_opt, where_clause_opt, params, ret_opt, contract_opt, body, SpanBetween(P, P_7), []⟩)
 
 ##### 3.3.6.6. Record Declarations
 
 **(Parse-Record)**
-Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    IsKw(Tok(P_1), `record`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseImplementsOpt(P_2) ⇓ (P_3, impls)    Γ ⊢ ParseRecordBody(P_3) ⇓ (P_4, members)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseItem(P) ⇓ (P_4, ⟨RecordDecl, vis, name, impls, members, SpanBetween(P, P_4), []⟩)
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    IsKw(Tok(P_1), `record`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseGenericParamsOpt(P_2) ⇓ (P_3, gen_params_opt)    Γ ⊢ ParseImplementsOpt(P_3) ⇓ (P_4, impls)    Γ ⊢ ParseWhereClauseOpt(P_4) ⇓ (P_5, where_clause_opt)    Γ ⊢ ParseRecordBody(P_5) ⇓ (P_6, members)    Γ ⊢ ParseInvariantOpt(P_6) ⇓ (P_7, invariant_opt)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_7, ⟨RecordDecl, attrs_opt, vis, name, gen_params_opt, where_clause_opt, impls, members, invariant_opt, SpanBetween(P, P_7), []⟩)
 
 ##### 3.3.6.7. Enum Declarations
 
 **(Parse-Enum)**
-Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    IsKw(Tok(P_1), `enum`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseImplementsOpt(P_2) ⇓ (P_3, impls)    Γ ⊢ ParseEnumBody(P_3) ⇓ (P_4, variants)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseItem(P) ⇓ (P_4, ⟨EnumDecl, vis, name, impls, variants, SpanBetween(P, P_4), []⟩)
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    IsKw(Tok(P_1), `enum`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseGenericParamsOpt(P_2) ⇓ (P_3, gen_params_opt)    Γ ⊢ ParseImplementsOpt(P_3) ⇓ (P_4, impls)    Γ ⊢ ParseWhereClauseOpt(P_4) ⇓ (P_5, where_clause_opt)    Γ ⊢ ParseEnumBody(P_5) ⇓ (P_6, variants)    Γ ⊢ ParseInvariantOpt(P_6) ⇓ (P_7, invariant_opt)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_7, ⟨EnumDecl, attrs_opt, vis, name, gen_params_opt, where_clause_opt, impls, variants, invariant_opt, SpanBetween(P, P_7), []⟩)
 
 ##### 3.3.6.8. Modal Declarations
 
 **(Parse-Modal)**
-Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    IsKw(Tok(P_1), `modal`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseImplementsOpt(P_2) ⇓ (P_3, impls)    Γ ⊢ ParseModalBody(P_3) ⇓ (P_4, states)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseItem(P) ⇓ (P_4, ⟨ModalDecl, vis, name, impls, states, SpanBetween(P, P_4), []⟩)
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    IsKw(Tok(P_1), `modal`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseGenericParamsOpt(P_2) ⇓ (P_3, gen_params_opt)    Γ ⊢ ParseImplementsOpt(P_3) ⇓ (P_4, impls)    Γ ⊢ ParseWhereClauseOpt(P_4) ⇓ (P_5, where_clause_opt)    Γ ⊢ ParseModalBody(P_5) ⇓ (P_6, states)    Γ ⊢ ParseInvariantOpt(P_6) ⇓ (P_7, invariant_opt)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_7, ⟨ModalDecl, attrs_opt, vis, name, gen_params_opt, where_clause_opt, impls, states, invariant_opt, SpanBetween(P, P_7), []⟩)
 
 **(Parse-Class)**
-Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    IsKw(Tok(P_1), `class`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseSuperclassOpt(P_2) ⇓ (P_3, supers)    Γ ⊢ ParseClassBody(P_3) ⇓ (P_4, items)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseItem(P) ⇓ (P_4, ⟨ClassDecl, vis, name, supers, items, SpanBetween(P, P_4), []⟩)
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    Γ ⊢ ParseModalOpt(P_1) ⇓ (P_2, modal_opt)    IsKw(Tok(P_2), `class`)    Γ ⊢ ParseIdent(Advance(P_2)) ⇓ (P_3, name)    Γ ⊢ ParseGenericParamsOpt(P_3) ⇓ (P_4, gen_params_opt)    Γ ⊢ ParseSuperclassOpt(P_4) ⇓ (P_5, supers)    Γ ⊢ ParseWhereClauseOpt(P_5) ⇓ (P_6, where_clause_opt)    Γ ⊢ ParseClassBody(P_6) ⇓ (P_7, items)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_7, ⟨ClassDecl, attrs_opt, vis, modal_opt, name, gen_params_opt, where_clause_opt, supers, items, SpanBetween(P, P_7), []⟩)
 
 **(Parse-ModalBody)**
 IsPunc(Tok(P), "{")    Γ ⊢ ParseStateBlockList(Advance(P)) ⇓ (P_1, states)    IsPunc(Tok(P_1), "}")
@@ -3238,19 +3526,19 @@ IsOp(Tok(P), "@")    Γ ⊢ ParseIdent(Advance(P)) ⇓ (P_1, name)    IsPunc(Tok
 Γ ⊢ ParseStateBlock(P) ⇓ (Advance(P_2), ⟨name, members, SpanBetween(P, P_2), []⟩)
 
 **(Parse-StateMember-Field)**
-Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    Γ ⊢ ParseIdent(P_1) ⇓ (P_2, name)    IsPunc(Tok(P_2), ":")    Γ ⊢ ParseType(Advance(P_2)) ⇓ (P_3, ty)
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseStateMember(P) ⇓ (P_3, ⟨StateFieldDecl, vis, name, ty, SpanBetween(P, P_3), []⟩)
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    Γ ⊢ ParseKeyBoundaryOpt(P_1) ⇓ (P_2, boundary)    Γ ⊢ ParseIdent(P_2) ⇓ (P_3, name)    IsPunc(Tok(P_3), ":")    Γ ⊢ ParseType(Advance(P_3)) ⇓ (P_4, ty)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStateMember(P) ⇓ (P_4, ⟨StateFieldDecl, attrs_opt, vis, boundary, name, ty, SpanBetween(P, P_4), []⟩)
 
 **(Parse-StateMember-Method)**
-Γ ⊢ ParseVis(P) ⇓ (P_0, vis)    IsKw(Tok(P_0), `procedure`)    Γ ⊢ ParseIdent(Advance(P_0)) ⇓ (P_1, name)    Γ ⊢ ParseSignature(P_1) ⇓ (P_2, params, ret_opt)    Γ ⊢ ParseBlock(P_2) ⇓ (P_3, body)
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseStateMember(P) ⇓ (P_3, ⟨StateMethodDecl, vis, name, params, ret_opt, body, SpanBetween(P, P_3), []⟩)
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    IsKw(Tok(P_1), `procedure`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseGenericParamsOpt(P_2) ⇓ (P_3, gen_params_opt)    Γ ⊢ ParseStateMethodSignature(P_3) ⇓ (P_4, recv, params, ret_opt)    Γ ⊢ ParseContractClauseOpt(P_4) ⇓ (P_5, contract_opt)    Γ ⊢ ParseBlock(P_5) ⇓ (P_6, body)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStateMember(P) ⇓ (P_6, ⟨StateMethodDecl, attrs_opt, vis, name, gen_params_opt, recv, params, ret_opt, contract_opt, body, SpanBetween(P, P_6), []⟩)
 
 **(Parse-StateMember-Transition)**
-Γ ⊢ ParseVis(P) ⇓ (P_0, vis)    IsKw(Tok(P_0), `transition`)    Γ ⊢ ParseIdent(Advance(P_0)) ⇓ (P_1, name)    IsPunc(Tok(P_1), "(")    Γ ⊢ ParseParamList(Advance(P_1)) ⇓ (P_2, params)    IsPunc(Tok(P_2), ")")    P_2' = Advance(P_2)    IsOp(Tok(P_2'), "->")    IsOp(Tok(Advance(P_2')), "@")    Γ ⊢ ParseIdent(Advance(Advance(P_2'))) ⇓ (P_3, target)    Γ ⊢ ParseBlock(P_3) ⇓ (P_4, body)
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseStateMember(P) ⇓ (P_4, ⟨TransitionDecl, vis, name, params, target, body, SpanBetween(P, P_4), []⟩)
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    IsKw(Tok(P_1), `transition`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    IsPunc(Tok(P_2), "(")    Γ ⊢ ParseParamList(Advance(P_2)) ⇓ (P_3, params)    IsPunc(Tok(P_3), ")")    P_3' = Advance(P_3)    IsOp(Tok(P_3'), "->")    IsOp(Tok(Advance(P_3')), "@")    Γ ⊢ ParseIdent(Advance(Advance(P_3'))) ⇓ (P_4, target)    Γ ⊢ ParseBlock(P_4) ⇓ (P_5, body)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStateMember(P) ⇓ (P_5, ⟨TransitionDecl, attrs_opt, vis, name, params, target, body, SpanBetween(P, P_5), []⟩)
 
 ##### 3.3.6.9. Implements Clauses
 
@@ -3323,14 +3611,49 @@ IsPunc(Tok(P), "}")
 Γ ⊢ ParseClassItemList(P) ⇓ (P_2, [it] ++ rest)
 
 **(Parse-ClassItem-Method)**
-Γ ⊢ ParseVis(P) ⇓ (P_0, vis)    IsKw(Tok(P_0), `procedure`)    Γ ⊢ ParseIdent(Advance(P_0)) ⇓ (P_1, name)    Γ ⊢ ParseMethodSignature(P_1) ⇓ (P_2, receiver, params, ret_opt)    Γ ⊢ ParseClassMethodBody(P_2) ⇓ (P_3, body_opt)
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseClassItem(P) ⇓ (P_3, ⟨ClassMethodDecl, vis, name, receiver, params, ret_opt, body_opt, SpanBetween(P, P_3), []⟩)
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    IsKw(Tok(P_1), `procedure`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseGenericParamsOpt(P_2) ⇓ (P_3, gen_params_opt)    Γ ⊢ ParseMethodSignature(P_3) ⇓ (P_4, receiver, params, ret_opt)    Γ ⊢ ParseContractClauseOpt(P_4) ⇓ (P_5, contract_opt)    Γ ⊢ ParseClassMethodBody(P_5) ⇓ (P_6, body_opt)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClassItem(P) ⇓ (P_6, ⟨ClassMethodDecl, attrs_opt, vis, name, gen_params_opt, receiver, params, ret_opt, contract_opt, body_opt, SpanBetween(P, P_6), []⟩)
+
+**(Parse-ClassItem-AssociatedType)**
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    IsKw(Tok(P_1), `type`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseAssocTypeOpt(P_2) ⇓ (P_3, type_opt)    Γ ⊢ ConsumeTerminatorReq(P_3) ⇓ P_4
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClassItem(P) ⇓ (P_4, ⟨AssociatedTypeDecl, attrs_opt, vis, name, type_opt, SpanBetween(P, P_4), []⟩)
+
+**(Parse-ClassItem-AbstractState)**
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    IsOp(Tok(P_1), "@")    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    IsPunc(Tok(P_2), "{")    Γ ⊢ ParseAbstractFieldList(Advance(P_2)) ⇓ (P_3, fields)    IsPunc(Tok(P_3), "}")    Γ ⊢ ConsumeTerminatorOpt(Advance(P_3), ⊥) ⇓ P_4
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClassItem(P) ⇓ (P_4, ⟨AbstractStateDecl, attrs_opt, vis, name, fields, SpanBetween(P, P_4), []⟩)
 
 **(Parse-ClassItem-Field)**
-Γ ⊢ ParseVis(P) ⇓ (P_0, vis)    Γ ⊢ ParseIdent(P_0) ⇓ (P_1, name)    IsPunc(Tok(P_1), ":")    Γ ⊢ ParseType(Advance(P_1)) ⇓ (P_2, ty)    Γ ⊢ ConsumeTerminatorReq(P_2) ⇓ P_3
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseClassItem(P) ⇓ (P_3, ⟨ClassFieldDecl, vis, name, ty, SpanBetween(P, P_3), []⟩)
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    Γ ⊢ ParseKeyBoundaryOpt(P_1) ⇓ (P_2, boundary)    Γ ⊢ ParseIdent(P_2) ⇓ (P_3, name)    IsPunc(Tok(P_3), ":")    Γ ⊢ ParseType(Advance(P_3)) ⇓ (P_4, ty)    Γ ⊢ ConsumeTerminatorReq(P_4) ⇓ P_5
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClassItem(P) ⇓ (P_5, ⟨ClassFieldDecl, attrs_opt, vis, boundary, name, ty, SpanBetween(P, P_5), []⟩)
+
+**(Parse-AssocTypeOpt-None)**
+¬ IsOp(Tok(P), "=")
+──────────────────────────────────────────────
+Γ ⊢ ParseAssocTypeOpt(P) ⇓ (P, ⊥)
+
+**(Parse-AssocTypeOpt-Yes)**
+IsOp(Tok(P), "=")    Γ ⊢ ParseType(Advance(P)) ⇓ (P_1, ty)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAssocTypeOpt(P) ⇓ (P_1, ty)
+
+**(Parse-AbstractFieldList-End)**
+IsPunc(Tok(P), "}")
+────────────────────────────────────────────
+Γ ⊢ ParseAbstractFieldList(P) ⇓ (P, [])
+
+**(Parse-AbstractFieldList-Cons)**
+Γ ⊢ ParseAbstractFieldDecl(P) ⇓ (P_1, f)    Γ ⊢ ParseAbstractFieldList(P_1) ⇓ (P_2, rest)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAbstractFieldList(P) ⇓ (P_2, [f] ++ rest)
+
+**(Parse-AbstractFieldDecl)**
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    Γ ⊢ ParseKeyBoundaryOpt(P_1) ⇓ (P_2, boundary)    Γ ⊢ ParseIdent(P_2) ⇓ (P_3, name)    IsPunc(Tok(P_3), ":")    Γ ⊢ ParseType(Advance(P_3)) ⇓ (P_4, ty)    Γ ⊢ ConsumeTerminatorReq(P_4) ⇓ P_5
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAbstractFieldDecl(P) ⇓ (P_5, ⟨ClassFieldDecl, attrs_opt, vis, boundary, name, ty, SpanBetween(P, P_5), []⟩)
 
 **(Parse-ClassMethodBody-Concrete)**
 IsPunc(Tok(P), "{")    Γ ⊢ ParseBlock(P) ⇓ (P_1, body)
@@ -3342,18 +3665,12 @@ IsPunc(Tok(P), "{")    Γ ⊢ ParseBlock(P) ⇓ (P_1, body)
 ──────────────────────────────────────────────────────────
 Γ ⊢ ParseClassMethodBody(P) ⇓ (P_1, ⊥)
 
-UnsupportedClassItem = {`modal_class`, `type_item`, `abstract_state`, `override_in_class`}
-UnsupportedClassItem ⊆ UnsupportedForm
-
 ##### 3.3.6.11. Type Alias Declarations
 
 **(Parse-Type-Alias)**
-Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    IsKw(Tok(P_1), `type`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    IsOp(Tok(P_2), "=")    Γ ⊢ ParseType(Advance(P_2)) ⇓ (P_3, ty)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseItem(P) ⇓ (P_3, ⟨TypeAliasDecl, vis, name, ty, SpanBetween(P, P_3), []⟩)
-
-UnsupportedWhereClause = {`where_clause`}
-UnsupportedWhereClause ⊆ UnsupportedForm
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    IsKw(Tok(P_1), `type`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    Γ ⊢ ParseGenericParamsOpt(P_2) ⇓ (P_3, gen_params_opt)    Γ ⊢ ParseWhereClauseOpt(P_3) ⇓ (P_4, where_clause_opt)    IsOp(Tok(P_4), "=")    Γ ⊢ ParseType(Advance(P_4)) ⇓ (P_5, ty)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseItem(P) ⇓ (P_5, ⟨TypeAliasDecl, attrs_opt, vis, name, gen_params_opt, where_clause_opt, ty, SpanBetween(P, P_5), []⟩)
 
 ##### 3.3.6.13. Item Helper Parsing Rules
 
@@ -3380,12 +3697,280 @@ IsOp(Tok(P), "::")    Γ ⊢ ParseIdent(Advance(P)) ⇓ (P_1, id)    Γ ⊢ Pars
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseTypePathTail(P, xs) ⇓ (P_2, ys)
 
+**Attribute Lists.**
+
+**(Parse-AttrListOpt-None)**
+¬ IsPunc(Tok(P), "[[")
+──────────────────────────────────────────────
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P, ⊥)
+
+**(Parse-AttrListOpt-Yes)**
+IsPunc(Tok(P), "[[")    Γ ⊢ ParseAttrList(P) ⇓ (P_1, attrs)
+──────────────────────────────────────────────
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_1, attrs)
+
+**(Parse-AttrList-Cons)**
+Γ ⊢ ParseAttrBlock(P) ⇓ (P_1, attrs_0)    Γ ⊢ ParseAttrListTail(P_1, attrs_0) ⇓ (P_2, attrs)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrList(P) ⇓ (P_2, attrs)
+
+**(Parse-AttrListTail-End)**
+¬ IsPunc(Tok(P), "[[")
+──────────────────────────────────────────────
+Γ ⊢ ParseAttrListTail(P, attrs) ⇓ (P, attrs)
+
+**(Parse-AttrListTail-Cons)**
+IsPunc(Tok(P), "[[")    Γ ⊢ ParseAttrBlock(P) ⇓ (P_1, attrs_0)    Γ ⊢ ParseAttrListTail(P_1, attrs ++ attrs_0) ⇓ (P_2, attrs_1)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrListTail(P, attrs) ⇓ (P_2, attrs_1)
+
+**(Parse-AttrBlock)**
+IsPunc(Tok(P), "[[")    P_0 = Advance(P)    Γ ⊢ ParseAttrSpecList(P_0) ⇓ (P_1, specs)    IsPunc(Tok(P_1), "]]")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrBlock(P) ⇓ (Advance(P_1), specs)
+
+**(Parse-AttrSpecList-Cons)**
+Γ ⊢ ParseAttrSpec(P) ⇓ (P_1, s)    Γ ⊢ ParseAttrSpecListTail(P_1, [s]) ⇓ (P_2, specs)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrSpecList(P) ⇓ (P_2, specs)
+
+**(Parse-AttrSpecListTail-End)**
+¬ IsPunc(Tok(P), ",")
+──────────────────────────────────────────────
+Γ ⊢ ParseAttrSpecListTail(P, xs) ⇓ (P, xs)
+
+**(Parse-AttrSpecListTail-TrailingComma)**
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "]]")    TrailingCommaAllowed(P_0, P, {Punctuator("]]")})
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrSpecListTail(P, xs) ⇓ (Advance(P), xs)
+
+**(Parse-AttrSpecListTail-Comma)**
+IsPunc(Tok(P), ",")    Γ ⊢ ParseAttrSpec(Advance(P)) ⇓ (P_1, s)    Γ ⊢ ParseAttrSpecListTail(P_1, xs ++ [s]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrSpecListTail(P, xs) ⇓ (P_2, ys)
+
+**(Parse-AttrSpec)**
+Γ ⊢ ParseAttrName(P) ⇓ (P_1, name)    Γ ⊢ ParseAttrArgsOpt(P_1) ⇓ (P_2, args)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrSpec(P) ⇓ (P_2, Attr(name, args))
+
+**(Parse-AttrName-Plain)**
+Γ ⊢ ParseIdent(P) ⇓ (P_1, id)    ¬ IsPunc(Tok(P_1), ".")    ¬ IsOp(Tok(P_1), "::")
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrName(P) ⇓ (P_1, id)
+
+**(Parse-AttrName-Vendor)**
+Γ ⊢ ParseIdent(P) ⇓ (P_1, id_0)    Γ ⊢ ParseVendorPrefixTail(P_1, [id_0]) ⇓ (P_2, pref)    IsOp(Tok(P_2), "::")    Γ ⊢ ParseIdent(Advance(P_2)) ⇓ (P_3, name)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrName(P) ⇓ (P_3, ⟨pref, name⟩)
+
+**(Parse-VendorPrefixTail-End)**
+¬ IsPunc(Tok(P), ".")
+──────────────────────────────────────────────
+Γ ⊢ ParseVendorPrefixTail(P, xs) ⇓ (P, xs)
+
+**(Parse-VendorPrefixTail-Cons)**
+IsPunc(Tok(P), ".")    Γ ⊢ ParseIdent(Advance(P)) ⇓ (P_1, id)    Γ ⊢ ParseVendorPrefixTail(P_1, xs ++ [id]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseVendorPrefixTail(P, xs) ⇓ (P_2, ys)
+
+**(Parse-AttrArgsOpt-None)**
+¬ IsPunc(Tok(P), "(")
+──────────────────────────────────────────────
+Γ ⊢ ParseAttrArgsOpt(P) ⇓ (P, [])
+
+**(Parse-AttrArgsOpt-Yes)**
+IsPunc(Tok(P), "(")    Γ ⊢ ParseAttrArgList(Advance(P)) ⇓ (P_1, args)    IsPunc(Tok(P_1), ")")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrArgsOpt(P) ⇓ (Advance(P_1), args)
+
+**(Parse-AttrArgList-Cons)**
+Γ ⊢ ParseAttrArg(P) ⇓ (P_1, a)    Γ ⊢ ParseAttrArgListTail(P_1, [a]) ⇓ (P_2, args)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrArgList(P) ⇓ (P_2, args)
+
+**(Parse-AttrArgListTail-End)**
+¬ IsPunc(Tok(P), ",")
+──────────────────────────────────────────────
+Γ ⊢ ParseAttrArgListTail(P, xs) ⇓ (P, xs)
+
+**(Parse-AttrArgListTail-TrailingComma)**
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), ")")    TrailingCommaAllowed(P_0, P, {Punctuator(")")})
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrArgListTail(P, xs) ⇓ (Advance(P), xs)
+
+**(Parse-AttrArgListTail-Comma)**
+IsPunc(Tok(P), ",")    Γ ⊢ ParseAttrArg(Advance(P)) ⇓ (P_1, a)    Γ ⊢ ParseAttrArgListTail(P_1, xs ++ [a]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrArgListTail(P, xs) ⇓ (P_2, ys)
+
+**(Parse-AttrArg-Named-Literal)**
+Γ ⊢ ParseIdent(P) ⇓ (P_1, name)    IsPunc(Tok(P_1), ":")    Tok(Advance(P_1)).kind ∈ LiteralKind
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrArg(P) ⇓ (Advance(Advance(P_1)), ⟨name, Tok(Advance(P_1))⟩)
+
+**(Parse-AttrArg-Named-Call)**
+Γ ⊢ ParseIdent(P) ⇓ (P_1, name)    IsPunc(Tok(P_1), "(")    Γ ⊢ ParseAttrArgList(Advance(P_1)) ⇓ (P_2, args)    IsPunc(Tok(P_2), ")")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrArg(P) ⇓ (Advance(P_2), ⟨name, args⟩)
+
+**(Parse-AttrArg-Literal)**
+Tok(P).kind ∈ LiteralKind
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrArg(P) ⇓ (Advance(P), Tok(P))
+
+**(Parse-AttrArg-Ident)**
+Γ ⊢ ParseIdent(P) ⇓ (P_1, name)
+──────────────────────────────────────────────
+Γ ⊢ ParseAttrArg(P) ⇓ (P_1, name)
+
+**Generic Arguments and Parameters.**
+
+**(Parse-GenericArgs)**
+IsOp(Tok(P), "<")    Γ ⊢ ParseTypeList(Advance(P)) ⇓ (P_1, args)    IsOp(Tok(P_1), ">")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseGenericArgs(P) ⇓ (Advance(P_1), args)
+
+**(Parse-GenericArgsOpt-None)**
+¬ IsOp(Tok(P), "<")
+──────────────────────────────────────────────
+Γ ⊢ ParseGenericArgsOpt(P) ⇓ (P, ⊥)
+
+**(Parse-GenericArgsOpt-Yes)**
+Γ ⊢ ParseGenericArgs(P) ⇓ (P_1, args)
+──────────────────────────────────────────────
+Γ ⊢ ParseGenericArgsOpt(P) ⇓ (P_1, args)
+
+**(Parse-GenericParamsOpt-None)**
+¬ IsOp(Tok(P), "<")
+──────────────────────────────────────────────
+Γ ⊢ ParseGenericParamsOpt(P) ⇓ (P, ⊥)
+
+**(Parse-GenericParamsOpt-Yes)**
+Γ ⊢ ParseGenericParams(P) ⇓ (P_1, params)
+──────────────────────────────────────────────
+Γ ⊢ ParseGenericParamsOpt(P) ⇓ (P_1, params)
+
+**(Parse-GenericParams)** 
+IsOp(Tok(P), "<")    Γ ⊢ ParseTypeParam(Advance(P)) ⇓ (P_1, p_1)    Γ ⊢ ParseTypeParamTail(P_1, [p_1]) ⇓ (P_2, ps)    IsOp(Tok(P_2), ">")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseGenericParams(P) ⇓ (Advance(P_2), ps)
+
+**(Parse-TypeParamTail-End)** 
+¬ IsPunc(Tok(P), ";")
+──────────────────────────────────────────────
+Γ ⊢ ParseTypeParamTail(P, ps) ⇓ (P, ps)
+
+**(Parse-TypeParamTail-Cons)** 
+IsPunc(Tok(P), ";")    Γ ⊢ ParseTypeParam(Advance(P)) ⇓ (P_1, p)    Γ ⊢ ParseTypeParamTail(P_1, ps ++ [p]) ⇓ (P_2, ps')
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseTypeParamTail(P, ps) ⇓ (P_2, ps')
+
+**(Parse-TypeParam)** 
+Γ ⊢ ParseIdent(P) ⇓ (P_1, name)    Γ ⊢ ParseTypeBoundsOpt(P_1) ⇓ (P_2, bounds)    Γ ⊢ ParseTypeDefaultOpt(P_2) ⇓ (P_3, default_opt)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseTypeParam(P) ⇓ (P_3, ⟨name, bounds, default_opt, ⊥⟩)
+
+**(Parse-TypeBoundsOpt-None)**
+¬ IsOp(Tok(P), "<:")
+──────────────────────────────────────────────
+Γ ⊢ ParseTypeBoundsOpt(P) ⇓ (P, [])
+
+**(Parse-TypeBoundsOpt-Yes)**
+IsOp(Tok(P), "<:")    Γ ⊢ ParseClassBoundList(Advance(P)) ⇓ (P_1, bounds)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseTypeBoundsOpt(P) ⇓ (P_1, bounds)
+
+**(Parse-ClassBoundList-Cons)**
+Γ ⊢ ParseClassBound(P) ⇓ (P_1, b_1)    Γ ⊢ ParseClassBoundListTail(P_1, [b_1]) ⇓ (P_2, bs)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClassBoundList(P) ⇓ (P_2, bs)
+
+**(Parse-ClassBoundListTail-End)**
+¬ IsPunc(Tok(P), ",")
+──────────────────────────────────────────────
+Γ ⊢ ParseClassBoundListTail(P, bs) ⇓ (P, bs)
+
+**(Parse-ClassBoundListTail-Cons)**
+IsPunc(Tok(P), ",")    Γ ⊢ ParseClassBound(Advance(P)) ⇓ (P_1, b)    Γ ⊢ ParseClassBoundListTail(P_1, bs ++ [b]) ⇓ (P_2, bs')
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClassBoundListTail(P, bs) ⇓ (P_2, bs')
+
+**(Parse-ClassBound)**
+Γ ⊢ ParseTypePath(P) ⇓ (P_1, path)    Γ ⊢ ParseGenericArgsOpt(P_1) ⇓ (P_2, args_opt)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClassBound(P) ⇓ (P_2, ⟨path, args_opt⟩)
+
+**(Parse-TypeDefaultOpt-None)**
+¬ IsOp(Tok(P), "=")
+──────────────────────────────────────────────
+Γ ⊢ ParseTypeDefaultOpt(P) ⇓ (P, ⊥)
+
+**(Parse-TypeDefaultOpt-Yes)**
+IsOp(Tok(P), "=")    Γ ⊢ ParseType(Advance(P)) ⇓ (P_1, ty)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseTypeDefaultOpt(P) ⇓ (P_1, ty)
+
+**(Parse-WhereClauseOpt-None)**
+¬ IsKw(Tok(P), `where`) ∨ IsPunc(Tok(Advance(P)), "{")
+──────────────────────────────────────────────
+Γ ⊢ ParseWhereClauseOpt(P) ⇓ (P, ⊥)
+
+**(Parse-WhereClauseOpt-Yes)**
+IsKw(Tok(P), `where`)    ¬ IsPunc(Tok(Advance(P)), "{")    Γ ⊢ ParseWherePredList(Advance(P)) ⇓ (P_1, preds)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseWhereClauseOpt(P) ⇓ (P_1, preds)
+
+**(Parse-WherePredList-Cons)**
+Γ ⊢ ParseWherePred(P) ⇓ (P_1, p)    Γ ⊢ ParseWherePredListTail(P_1, [p]) ⇓ (P_2, ps)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseWherePredList(P) ⇓ (P_2, ps)
+
+**(Parse-WherePredListTail-End)**
+¬ IsTerminator(Tok(P))
+──────────────────────────────────────────────
+Γ ⊢ ParseWherePredListTail(P, ps) ⇓ (P, ps)
+
+**(Parse-WherePredListTail-TrailingTerminator)**
+IsTerminator(Tok(P))    ¬ IsIdent(Tok(Advance(P)))
+────────────────────────────────────────────────────
+Γ ⊢ ParseWherePredListTail(P, ps) ⇓ (Advance(P), ps)
+
+**(Parse-WherePredListTail-Cons)**
+IsTerminator(Tok(P))    Γ ⊢ ParseWherePred(Advance(P)) ⇓ (P_1, p)    Γ ⊢ ParseWherePredListTail(P_1, ps ++ [p]) ⇓ (P_2, ps')
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseWherePredListTail(P, ps) ⇓ (P_2, ps')
+
+IsPredName(name) ⇔ name ∈ {`Bitcopy`, `Clone`, `Drop`, `FfiSafe`}
+
+**(Parse-WherePred-Predicate)**
+Γ ⊢ ParseIdent(P) ⇓ (P_1, name)    IsPredName(name)    IsPunc(Tok(P_1), "(")    Γ ⊢ ParseType(Advance(P_1)) ⇓ (P_2, ty)    IsPunc(Tok(P_2), ")")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseWherePred(P) ⇓ (Advance(P_2), PredWherePred(name, ty))
+
+**(Parse-WherePred-Err)**
+Γ ⊢ ParseIdent(P) ⇓ (P_1, name)    ¬ (IsPredName(name) ∧ IsPunc(Tok(P_1), "("))    c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P_1).span)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseWherePred(P) ⇓ (P_1, PredWherePred(name, TypePrim("!")))
+
+**(Parse-InvariantOpt-None)**
+¬ (IsKw(Tok(P), `where`) ∧ IsPunc(Tok(Advance(P)), "{"))
+──────────────────────────────────────────────
+Γ ⊢ ParseInvariantOpt(P) ⇓ (P, ⊥)
+
+**(Parse-InvariantOpt-Yes)**
+IsKw(Tok(P), `where`)    IsPunc(Tok(Advance(P)), "{")    Γ ⊢ ParsePredicateExpr(Advance(Advance(P))) ⇓ (P_1, pred)    IsPunc(Tok(P_1), "}")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseInvariantOpt(P) ⇓ (Advance(P_1), pred)
+
+ParseLoopInvariantOpt(P) ⇓ (P_1, inv_opt) ⇔ Γ ⊢ ParseInvariantOpt(P) ⇓ (P_1, inv_opt)
+
 **Qualified Head.**
 
 
 **(Parse-QualifiedHead)**
 Γ ⊢ ParseIdent(P) ⇓ (P_1, id_0)    IsOp(Tok(P_1), "::")    Γ ⊢ ParseModulePathTail(P_1, [id_0]) ⇓ (P_2, xs)    xs = ys ++ [name]    |xs| ≥ 2
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseQualifiedHead(P) ⇓ (P_2, ys, name)
 
 **Using Lists.**
@@ -3433,7 +4018,7 @@ IsPunc(Tok(P), "}")
 Γ ⊢ ParseRecordMemberTail(P, xs) ⇓ (P, xs)
 
 **(Parse-RecordMemberTail-TrailingComma)**
-IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    Γ ⊢ Emit(Code(Unsupported-Construct))
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    TrailingCommaAllowed(P_0, P, {Punctuator("}")})
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseRecordMemberTail(P, xs) ⇓ (Advance(P), xs)
 
@@ -3445,21 +4030,21 @@ IsPunc(Tok(P), ",")    Γ ⊢ ParseRecordMember(Advance(P)) ⇓ (P_1, m)    Γ �
 **Record Members.**
 
 **(Parse-RecordMember-Method)**
-Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    IsKw(Tok(P_1), `procedure`)    Γ ⊢ ParseMethodDefAfterVis(P_1, vis) ⇓ (P_2, m)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    IsKw(Tok(P_1), `procedure`)    Γ ⊢ ParseMethodDefAfterVis(P_1, vis, attrs_opt) ⇓ (P_2, m)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseRecordMember(P) ⇓ (P_2, m)
 
 **(Parse-RecordMember-Field)**
-Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    ¬ IsKw(Tok(P_1), `procedure`)    Γ ⊢ ParseRecordFieldDeclAfterVis(P_1, vis) ⇓ (P_2, f)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    ¬ IsKw(Tok(P_1), `procedure`)    Γ ⊢ ParseRecordFieldDeclAfterVis(P_1, vis, attrs_opt) ⇓ (P_2, f)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseRecordMember(P) ⇓ (P_2, f)
 
 **Record Method Definitions.**
 
 **(Parse-MethodDefAfterVis)**
-Γ ⊢ ParseOverrideOpt(P) ⇓ (P_0, ov)    IsKw(Tok(P_0), `procedure`)    Γ ⊢ ParseIdent(Advance(P_0)) ⇓ (P_1, name)    Γ ⊢ ParseMethodSignature(P_1) ⇓ (P_2, receiver, params, ret_opt)    Γ ⊢ ParseBlock(P_2) ⇓ (P_3, body)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseMethodDefAfterVis(P, vis) ⇓ (P_3, ⟨MethodDecl, vis, ov, name, receiver, params, ret_opt, body, SpanBetween(P, P_3), []⟩)
+Γ ⊢ ParseOverrideOpt(P) ⇓ (P_0, ov)    IsKw(Tok(P_0), `procedure`)    Γ ⊢ ParseIdent(Advance(P_0)) ⇓ (P_1, name)    Γ ⊢ ParseGenericParamsOpt(P_1) ⇓ (P_2, gen_params_opt)    Γ ⊢ ParseMethodSignature(P_2) ⇓ (P_3, receiver, params, ret_opt)    Γ ⊢ ParseContractClauseOpt(P_3) ⇓ (P_4, contract_opt)    Γ ⊢ ParseBlock(P_4) ⇓ (P_5, body)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseMethodDefAfterVis(P, vis, attrs_opt) ⇓ (P_5, ⟨MethodDecl, attrs_opt, vis, ov, name, gen_params_opt, receiver, params, ret_opt, contract_opt, body, SpanBetween(P, P_5), []⟩)
 
 **(Parse-Override-Yes)**
 IsKw(Tok(P), `override`)
@@ -3476,6 +4061,16 @@ IsKw(Tok(P), `override`)
 IsPunc(Tok(P), "(")    Γ ⊢ ParseReceiver(Advance(P)) ⇓ (P_1, r)    Γ ⊢ ParseMethodParams(P_1) ⇓ (P_2, params)    IsPunc(Tok(P_2), ")")    Γ ⊢ ParseReturnOpt(Advance(P_2)) ⇓ (P_3, ret_opt)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseMethodSignature(P) ⇓ (P_3, r, params, ret_opt)
+
+**(Parse-StateMethodSignature-Receiver)**
+IsPunc(Tok(P), "(")    Γ ⊢ ParseReceiver(Advance(P)) ⇓ (P_1, r)    r = ReceiverShorthand(_)    Γ ⊢ ParseMethodParams(P_1) ⇓ (P_2, params)    IsPunc(Tok(P_2), ")")    Γ ⊢ ParseReturnOpt(Advance(P_2)) ⇓ (P_3, ret_opt)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStateMethodSignature(P) ⇓ (P_3, r, params, ret_opt)
+
+**(Parse-StateMethodSignature-Default)**
+IsPunc(Tok(P), "(")    ¬ IsOp(Tok(Advance(P)), "~")    ¬ IsOp(Tok(Advance(P)), "~!")    ¬ IsOp(Tok(Advance(P)), "~%")    Γ ⊢ ParseSignature(P) ⇓ (P_1, params, ret_opt)    r = ReceiverShorthand(`const`)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStateMethodSignature(P) ⇓ (P_1, r, params, ret_opt)
 
 **(Parse-MethodParams-None)**
 IsPunc(Tok(P), ")")
@@ -3498,6 +4093,11 @@ IsOp(Tok(P), "~")
 IsOp(Tok(P), "~!")
 ──────────────────────────────────────────────────────────────
 Γ ⊢ ParseReceiver(P) ⇓ (Advance(P), ReceiverShorthand(`unique`))
+
+**(Parse-Receiver-Short-Shared)**
+IsOp(Tok(P), "~%")
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseReceiver(P) ⇓ (Advance(P), ReceiverShorthand(`shared`))
 
 **(Parse-Receiver-Explicit)**
 Γ ⊢ ParseParamModeOpt(P) ⇓ (P_1, mode)    IsIdent(Tok(P_1))    Lexeme(Tok(P_1)) = `self`    IsPunc(Tok(Advance(P_1)), ":")    Γ ⊢ ParseType(Advance(Advance(P_1))) ⇓ (P_2, ty)
@@ -3558,6 +4158,108 @@ IsOp(Tok(P), "->")    Γ ⊢ ParseType(Advance(P)) ⇓ (P_1, ty)
 ────────────────────────────────────────────────────────────────
 Γ ⊢ ParseReturnOpt(P) ⇓ (P_1, ty)
 
+**(Parse-ContractClauseOpt-None)**
+¬ IsOp(Tok(P), "|=") ∨ ForeignContractStart(P)
+──────────────────────────────────────────────
+Γ ⊢ ParseContractClauseOpt(P) ⇓ (P, ⊥)
+
+**(Parse-ContractClauseOpt-Yes)**
+IsOp(Tok(P), "|=")    Γ ⊢ ParseContractBody(Advance(P)) ⇓ (P_1, clause)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseContractClauseOpt(P) ⇓ (P_1, clause)
+
+**(Parse-ContractBody-PostOnly)**
+IsOp(Tok(P), "=>")    Γ ⊢ ParsePredicateExpr(Advance(P)) ⇓ (P_1, post)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseContractBody(P) ⇓ (P_1, ⟨⊥, post⟩)
+
+**(Parse-ContractBody-PrePost)**
+Γ ⊢ ParsePredicateExpr(P) ⇓ (P_1, pre)    IsOp(Tok(P_1), "=>")    Γ ⊢ ParsePredicateExpr(Advance(P_1)) ⇓ (P_2, post)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseContractBody(P) ⇓ (P_2, ⟨pre, post⟩)
+
+**(Parse-ContractBody-PreOnly)**
+Γ ⊢ ParsePredicateExpr(P) ⇓ (P_1, pre)    ¬ IsOp(Tok(P_1), "=>")
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseContractBody(P) ⇓ (P_1, ⟨pre, ⊥⟩)
+
+ForeignContractStart(P) ⇔ IsOp(Tok(P), "|=") ∧ IsOp(Tok(Advance(P)), "@") ∧ IsIdent(Tok(Advance(Advance(P)))) ∧ Lexeme(Tok(Advance(Advance(P)))) ∈ {`foreign_assumes`, `foreign_ensures`}
+
+**(Parse-ForeignContractClauseListOpt-None)**
+¬ ForeignContractStart(P)
+──────────────────────────────────────────────
+Γ ⊢ ParseForeignContractClauseListOpt(P) ⇓ (P, ⊥)
+
+**(Parse-ForeignContractClauseListOpt-Yes)**
+ForeignContractStart(P)    Γ ⊢ ParseForeignContractClauseList(P) ⇓ (P_1, clauses)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseForeignContractClauseListOpt(P) ⇓ (P_1, clauses)
+
+**(Parse-ForeignContractClauseList-Cons)**
+Γ ⊢ ParseForeignContractClause(P) ⇓ (P_1, clause)    Γ ⊢ ParseForeignContractClauseListTail(P_1, [clause]) ⇓ (P_2, clauses)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseForeignContractClauseList(P) ⇓ (P_2, clauses)
+
+**(Parse-ForeignContractClauseListTail-End)**
+¬ ForeignContractStart(P)
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseForeignContractClauseListTail(P, xs) ⇓ (P, xs)
+
+**(Parse-ForeignContractClauseListTail-Cons)**
+ForeignContractStart(P)    Γ ⊢ ParseForeignContractClause(P) ⇓ (P_1, clause)    Γ ⊢ ParseForeignContractClauseListTail(P_1, xs ++ [clause]) ⇓ (P_2, ys)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseForeignContractClauseListTail(P, xs) ⇓ (P_2, ys)
+
+**(Parse-ForeignContractClause-Assumes)**
+IsOp(Tok(P), "|=")    IsOp(Tok(Advance(P)), "@")    IsIdent(Tok(Advance(Advance(P))))    Lexeme(Tok(Advance(Advance(P)))) = `foreign_assumes`    IsPunc(Tok(Advance(Advance(Advance(P)))), "(")    Γ ⊢ ParsePredicateList(Advance(Advance(Advance(Advance(P))))) ⇓ (P_1, preds)    IsPunc(Tok(P_1), ")")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseForeignContractClause(P) ⇓ (Advance(P_1), ForeignContractClause(ForeignAssumes, preds))
+
+**(Parse-ForeignContractClause-Ensures)**
+IsOp(Tok(P), "|=")    IsOp(Tok(Advance(P)), "@")    IsIdent(Tok(Advance(Advance(P))))    Lexeme(Tok(Advance(Advance(P)))) = `foreign_ensures`    IsPunc(Tok(Advance(Advance(Advance(P)))), "(")    Γ ⊢ ParseEnsuresPredicateList(Advance(Advance(Advance(Advance(P))))) ⇓ (P_1, preds)    IsPunc(Tok(P_1), ")")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseForeignContractClause(P) ⇓ (Advance(P_1), ForeignContractClause(ForeignEnsures, preds))
+
+**(Parse-PredicateList)** 
+Γ ⊢ ParseExprList(P) ⇓ (P_1, preds)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePredicateList(P) ⇓ (P_1, preds)
+
+**(Parse-EnsuresPredicateList-Cons)** 
+Γ ⊢ ParseEnsuresPredicate(P) ⇓ (P_1, pred)    Γ ⊢ ParseEnsuresPredicateListTail(P_1, [pred]) ⇓ (P_2, preds)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseEnsuresPredicateList(P) ⇓ (P_2, preds)
+
+**(Parse-EnsuresPredicateListTail-End)** 
+¬ IsPunc(Tok(P), ",")
+──────────────────────────────────────────────
+Γ ⊢ ParseEnsuresPredicateListTail(P, xs) ⇓ (P, xs)
+
+**(Parse-EnsuresPredicateListTail-TrailingComma)** 
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), ")")    TrailingCommaAllowed(P_0, P, {Punctuator(")")})
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseEnsuresPredicateListTail(P, xs) ⇓ (Advance(P), xs)
+
+**(Parse-EnsuresPredicateListTail-Comma)** 
+IsPunc(Tok(P), ",")    Γ ⊢ ParseEnsuresPredicate(Advance(P)) ⇓ (P_1, pred)    Γ ⊢ ParseEnsuresPredicateListTail(P_1, xs ++ [pred]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseEnsuresPredicateListTail(P, xs) ⇓ (P_2, ys)
+
+**(Parse-EnsuresPredicate-Error)** 
+IsOp(Tok(P), "@")    IsIdent(Tok(Advance(P)))    Lexeme(Tok(Advance(P))) = `error`    IsPunc(Tok(Advance(Advance(P))), ":")    Γ ⊢ ParsePredicateExpr(Advance(Advance(Advance(P)))) ⇓ (P_1, pred)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseEnsuresPredicate(P) ⇓ (P_1, EnsuresError(pred))
+
+**(Parse-EnsuresPredicate-NullResult)** 
+IsOp(Tok(P), "@")    IsIdent(Tok(Advance(P)))    Lexeme(Tok(Advance(P))) = `null_result`    IsPunc(Tok(Advance(Advance(P))), ":")    Γ ⊢ ParsePredicateExpr(Advance(Advance(Advance(P)))) ⇓ (P_1, pred)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseEnsuresPredicate(P) ⇓ (P_1, EnsuresNullResult(pred))
+
+**(Parse-EnsuresPredicate-Plain)** 
+Γ ⊢ ParsePredicateExpr(P) ⇓ (P_1, pred)
+──────────────────────────────────────────────
+Γ ⊢ ParseEnsuresPredicate(P) ⇓ (P_1, Ensures(pred))
+
 **(Parse-AliasOpt-None)**
 ¬ IsKw(Tok(P), `as`)
 ───────────────────────────────────────────
@@ -3578,6 +4280,16 @@ IsPunc(Tok(P), ":")    Γ ⊢ ParseType(Advance(P)) ⇓ (P_1, ty)
 ──────────────────────────────────────────────────────────────
 Γ ⊢ ParseTypeAnnotOpt(P) ⇓ (P_1, ty)
 
+**(Parse-KeyBoundaryOpt-Yes)**
+IsOp(Tok(P), "#")
+────────────────────────────────────────────
+Γ ⊢ ParseKeyBoundaryOpt(P) ⇓ (Advance(P), true)
+
+**(Parse-KeyBoundaryOpt-No)**
+¬ IsOp(Tok(P), "#")
+────────────────────────────────────────────
+Γ ⊢ ParseKeyBoundaryOpt(P) ⇓ (P, false)
+
 **(Parse-UsingList-Empty)**
 IsPunc(Tok(P), "}")    Γ ⊢ Emit(Code(Unsupported-Construct))
 ──────────────────────────────────────────────────────────────
@@ -3594,7 +4306,7 @@ IsPunc(Tok(P), "}")
 Γ ⊢ ParseUsingListTail(P, xs) ⇓ (P, xs)
 
 **(Parse-UsingListTail-TrailingComma)**
-IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    Γ ⊢ Emit(Code(Unsupported-Construct))
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    TrailingCommaAllowed(P_0, P, {Punctuator("}")})
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseUsingListTail(P, xs) ⇓ (Advance(P), xs)
 
@@ -3614,14 +4326,14 @@ IsPunc(Tok(P), "}")
 Γ ⊢ ParseRecordFieldDeclList(P) ⇓ (P_2, fields)
 
 **(Parse-RecordFieldDecl)**
-Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    Γ ⊢ ParseRecordFieldDeclAfterVis(P_1, vis) ⇓ (P_2, f)
+Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    Γ ⊢ ParseRecordFieldDeclAfterVis(P_1, vis, ⊥) ⇓ (P_2, f)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseRecordFieldDecl(P) ⇓ (P_2, f)
 
 **(Parse-RecordFieldDeclAfterVis)**
-Γ ⊢ ParseIdent(P) ⇓ (P_1, name)    IsPunc(Tok(P_1), ":")    Γ ⊢ ParseType(Advance(P_1)) ⇓ (P_2, ty)    Γ ⊢ ParseRecordFieldInitOpt(P_2) ⇓ (P_3, init_opt)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseRecordFieldDeclAfterVis(P, vis) ⇓ (P_3, ⟨vis, name, ty, init_opt⟩)
+Γ ⊢ ParseKeyBoundaryOpt(P) ⇓ (P_0, boundary)    Γ ⊢ ParseIdent(P_0) ⇓ (P_1, name)    IsPunc(Tok(P_1), ":")    Γ ⊢ ParseType(Advance(P_1)) ⇓ (P_2, ty)    Γ ⊢ ParseRecordFieldInitOpt(P_2) ⇓ (P_3, init_opt)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRecordFieldDeclAfterVis(P, vis, attrs_opt) ⇓ (P_3, ⟨FieldDecl, attrs_opt, vis, boundary, name, ty, init_opt, SpanBetween(P, P_3), ⊥⟩)
 
 **(Parse-RecordFieldInitOpt-None)**
 ¬ IsOp(Tok(P), "=")
@@ -3639,7 +4351,7 @@ IsPunc(Tok(P), "}")
 Γ ⊢ ParseRecordFieldDeclTail(P, xs) ⇓ (P, xs)
 
 **(Parse-RecordFieldDeclTail-TrailingComma)**
-IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    Γ ⊢ Emit(Code(Unsupported-Construct))
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    TrailingCommaAllowed(P_0, P, {Punctuator("}")})
 ──────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseRecordFieldDeclTail(P, xs) ⇓ (Advance(P), xs)
 
@@ -3659,9 +4371,9 @@ IsPunc(Tok(P), "}")
 Γ ⊢ ParseFieldDeclList(P) ⇓ (P_2, fields)
 
 **(Parse-FieldDecl)**
-Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    Γ ⊢ ParseIdent(P_1) ⇓ (P_2, name)    IsPunc(Tok(P_2), ":")    Γ ⊢ ParseType(Advance(P_2)) ⇓ (P_3, ty)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseFieldDecl(P) ⇓ (P_3, ⟨vis, name, ty, ⊥⟩)
+Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    Γ ⊢ ParseKeyBoundaryOpt(P_1) ⇓ (P_2, boundary)    Γ ⊢ ParseIdent(P_2) ⇓ (P_3, name)    IsPunc(Tok(P_3), ":")    Γ ⊢ ParseType(Advance(P_3)) ⇓ (P_4, ty)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseFieldDecl(P) ⇓ (P_4, ⟨FieldDecl, ⊥, vis, boundary, name, ty, ⊥, SpanBetween(P, P_4), ⊥⟩)
 
 **(Parse-FieldDeclTail-End)**
 IsPunc(Tok(P), "}")
@@ -3669,7 +4381,7 @@ IsPunc(Tok(P), "}")
 Γ ⊢ ParseFieldDeclTail(P, xs) ⇓ (P, xs)
 
 **(Parse-FieldDeclTail-TrailingComma)**
-IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    Γ ⊢ Emit(Code(Unsupported-Construct))
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    TrailingCommaAllowed(P_0, P, {Punctuator("}")})
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseFieldDeclTail(P, xs) ⇓ (Advance(P), xs)
 
@@ -3723,7 +4435,7 @@ IsPunc(Tok(P), "}")
 Γ ⊢ ParseVariantTail(P, xs) ⇓ (P, xs)
 
 **(Parse-VariantTail-TrailingComma)**
-IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    Γ ⊢ Emit(Code(Unsupported-Construct))
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    TrailingCommaAllowed(P_0, P, {Punctuator("}")})
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseVariantTail(P, xs) ⇓ (Advance(P), xs)
 
@@ -3753,7 +4465,7 @@ IsPunc(Tok(P), ")")
 Γ ⊢ ParseParamTail(P, xs) ⇓ (P, xs)
 
 **(Parse-ParamTail-TrailingComma)**
-IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), ")")    Γ ⊢ Emit(Code(Unsupported-Construct))
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), ")")    TrailingCommaAllowed(P_0, P, {Punctuator(")")})
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseParamTail(P, xs) ⇓ (Advance(P), xs)
 
@@ -3768,27 +4480,7 @@ IsPunc(Tok(P), "(")    Γ ⊢ ParseParamList(Advance(P)) ⇓ (P_1, params)    Is
 
 
 
-##### 3.3.6.14. Unsupported Constructs (Parsing)
-
-**(Parse-Import-Unsupported)**
-IsKw(Tok(P), `import`)    Γ ⊢ Emit(Code(WF-Import-Unsupported))
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseItem(P) ⇓ (SyncItem(Advance(P)), ErrorItem(SpanBetween(P, Advance(P))))
-
-**(Parse-Attribute-Unsupported)**
-IsPunc(Tok(P), "[")    IsPunc(Tok(Advance(P)), "[")    Γ ⊢ Emit(Code(WF-Attr-Unsupported))    Γ ⊢ SyncItem(P) ⇓ P_1
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseItem(P) ⇓ (P_1, ErrorItem(SpanBetween(P, P_1)))
-
-**(Parse-Modal-Class-Unsupported)**
-IsKw(Tok(P), `modal`)    IsKw(Tok(Advance(P)), `class`)    Γ ⊢ Emit(Code(Unsupported-Construct))
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseItem(P) ⇓ (SyncItem(Advance(Advance(P))), ErrorItem(SpanBetween(P, Advance(Advance(P)))))
-
-**(Parse-Extern-Unsupported)**
-IsIdent(Tok(P))    Lexeme(Tok(P)) = `extern`    Γ ⊢ Emit(Code(Parse-Extern-Unsupported))
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseItem(P) ⇓ (SyncItem(Advance(P)), ErrorItem(SpanBetween(P, Advance(P))))
+##### 3.3.6.14. Parser Recovery for Unsupported Constructs
 
 **(Parse-Use-Unsupported)**
 IsIdent(Tok(P))    Lexeme(Tok(P)) = `use`    Γ ⊢ Emit(Code(Unsupported-Construct))
@@ -3800,7 +4492,7 @@ IsKw(Tok(P), `return`)    Γ ⊢ Emit(Code(Return-At-Module-Err))
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseItem(P) ⇓ (SyncItem(Advance(P)), ErrorItem(SpanBetween(P, Advance(P))))
 
-**Generic Syntax Rejection.**
+**Generic Syntax Recovery.**
 AngleDelta(Operator("<")) = 1
 AngleDelta(Operator(">")) = -1
 AngleDelta(Operator(">>")) = -2
@@ -3820,11 +4512,6 @@ AngleScan(P_0, P, d) ⇓ P_1
 
 SkipAngles(P_0) ⇓ P' ⇔ AngleScan(P_0, P_0, 0) ⇓ P'
 
-**(Parse-Generic-Header-Unsupported)**
-Γ ⊢ ParseVis(P) ⇓ (P_1, vis)    Tok(P_1) = Keyword(kw)    kw ∈ {`procedure`, `record`, `enum`, `class`, `modal`, `type`}    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)    IsOp(Tok(P_2), "<")    P_2' = SkipAngles(P_2)    Γ ⊢ Emit(Code(Unsupported-Construct))    Γ ⊢ SyncItem(P_2') ⇓ P_3
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseItem(P) ⇓ (P_3, ErrorItem(SpanBetween(P, P_3)))
-
 
 **(Parse-Item-Err)**
 c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P).span)    P_1 = AdvanceOrEOF(P)    Γ ⊢ SyncItem(P_1) ⇓ P_2
@@ -3837,9 +4524,9 @@ c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P).span)    P_1 = AdvanceOrEOF(
 TypeStart(t) ⇔ IsKw(t, `const`) ∨ IsKw(t, `unique`) ∨ IsKw(t, `shared`) ∨ Lexeme(t) ∈ PrimTypes_C0 ∨ IsPunc(t, "(") ∨ IsPunc(t, "[") ∨ IsOp(t, "*") ∨ IsOp(t, "$") ∨ Lexeme(t) ∈ {`string`, `Ptr`} ∨ IsIdent(t)
 
 **(Parse-Type)**
-Γ ⊢ ParsePermOpt(P) ⇓ (P_1, perm_opt)    Γ ⊢ ParseNonPermType(P_1) ⇓ (P_2, base)    Γ ⊢ ParseUnionTail(P_2) ⇓ (P_3, ts)    base' = (base if ts = [] else TypeUnion([base] ++ ts))    ty = (base' if perm_opt = ⊥ else TypePerm(perm_opt, base'))
+Γ ⊢ ParsePermOpt(P) ⇓ (P_1, perm_opt)    Γ ⊢ ParseNonPermType(P_1) ⇓ (P_2, base)    Γ ⊢ ParseUnionTail(P_2) ⇓ (P_3, ts)    base' = (base if ts = [] else TypeUnion([base] ++ ts))    ty_0 = (base' if perm_opt = ⊥ else TypePerm(perm_opt, base'))    Γ ⊢ ParseRefinementOpt(P_3) ⇓ (P_4, pred_opt)    ty = (ty_0 if pred_opt = ⊥ else TypeRefine(ty_0, pred_opt))
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseType(P) ⇓ (P_3, ty)
+Γ ⊢ ParseType(P) ⇓ (P_4, ty)
 
 **(Parse-Type-Err)**
 Γ ⊢ ParsePermOpt(P) ⇓ (P_1, perm_opt)    c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P_1).span)    base = TypePrim("!")    ty = (base if perm_opt = ⊥ else TypePerm(perm_opt, base))
@@ -3876,6 +4563,24 @@ IsKw(Tok(P), `shared`)
 IsOp(Tok(P), "|")    Γ ⊢ ParseNonPermType(Advance(P)) ⇓ (P_1, t_1)    Γ ⊢ ParseUnionTail(P_1) ⇓ (P_2, ts)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseUnionTail(P) ⇓ (P_2, [t_1] ++ ts)
+
+**Refinement Clauses.**
+
+**(Parse-RefinementOpt-None)**
+¬ IsKw(Tok(P), `where`)
+──────────────────────────────────────────────
+Γ ⊢ ParseRefinementOpt(P) ⇓ (P, ⊥)
+
+**(Parse-RefinementOpt-Yes)**
+IsKw(Tok(P), `where`)    IsPunc(Tok(Advance(P)), "{")    Γ ⊢ ParsePredicateExpr(Advance(Advance(P))) ⇓ (P_1, pred)    IsPunc(Tok(P_1), "}")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRefinementOpt(P) ⇓ (Advance(P_1), pred)
+
+ParsePredicateExpr(P) ⇓ (P_1, e) ⇔ Γ ⊢ ParseExpr(P) ⇓ (P_1, e)
+
+**Modal Type References.**
+
+ParseModalTypeRef(P) ⇓ (P_2, tr) ⇔ Γ ⊢ ParseTypePath(P) ⇓ (P_1, path) ∧ Γ ⊢ ParseGenericArgsOpt(P_1) ⇓ (P_2, args_opt) ∧ tr = (TypePath(path) if args_opt = ⊥ else TypeApply(path, args_opt))
 
 
 **Non-Permission Types.**
@@ -3949,14 +4654,19 @@ IsOp(Tok(P), "$")    Γ ⊢ ParseTypePath(Advance(P)) ⇓ (P_1, path)
 Γ ⊢ ParseNonPermType(P) ⇓ (P_1, TypeDynamic(path))
 
 **(Parse-Modal-State-Type)**
-Γ ⊢ ParseTypePath(P) ⇓ (P_1, path)    IsOp(Tok(P_1), "@")    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, state)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseNonPermType(P) ⇓ (P_2, TypeModalState(path, state))
+Γ ⊢ ParseModalTypeRef(P) ⇓ (P_1, modal_ref)    IsOp(Tok(P_1), "@")    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, state)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (P_2, TypeModalState(modal_ref, state))
 
-**(Parse-Type-Generic-Unsupported)**
-Γ ⊢ ParseTypePath(P) ⇓ (P_1, path)    IsOp(Tok(P_1), "<")    path ≠ [`Ptr`]    P_1' = SkipAngles(P_1)    Γ ⊢ Emit(Code(Unsupported-Construct))    Γ ⊢ SyncType(P_1') ⇓ P_2
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseNonPermType(P) ⇓ (P_2, TypePath(path))
+**(Parse-Opaque-Type)**
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `opaque`    Γ ⊢ ParseTypePath(Advance(P)) ⇓ (P_1, path)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (P_1, TypeOpaque(path))
+
+**(Parse-Type-Apply)**
+Γ ⊢ ParseTypePath(P) ⇓ (P_1, path)    IsOp(Tok(P_1), "<")    Γ ⊢ ParseGenericArgs(P_1) ⇓ (P_2, args)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (P_2, TypeApply(path, args))
 
 **(Parse-Type-Path)**
 Γ ⊢ ParseTypePath(P) ⇓ (P_1, path)    ¬ IsOp(Tok(P_1), "@")    ¬ IsOp(Tok(P_1), "<")    ¬ BuiltinTypePath(path)
@@ -3978,7 +4688,7 @@ IsPunc(Tok(P), ")")
 Γ ⊢ ParseTupleTypeElems(P) ⇓ (Advance(P_1), [t])
 
 **(Parse-TupleTypeElems-TrailingComma)**
-Γ ⊢ ParseType(P) ⇓ (P_1, t)    IsPunc(Tok(P_1), ",")    IsPunc(Tok(Advance(P_1)), ")")    Γ ⊢ Emit(Code(Unsupported-Construct))
+Γ ⊢ ParseType(P) ⇓ (P_1, t)    IsPunc(Tok(P_1), ",")    IsPunc(Tok(Advance(P_1)), ")")    TrailingCommaAllowed(P_0, P_1, {Punctuator(")")})
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseTupleTypeElems(P) ⇓ (Advance(P_1), [t])
 
@@ -4090,12 +4800,12 @@ IsPunc(Tok(P), ")")
 Γ ⊢ ParseTypeList(P) ⇓ (P_2, ts)
 
 **(Parse-TypeListTail-End)**
-Tok(P) ∈ {Punctuator(")"), Punctuator("}")}
+Tok(P) ∈ {Punctuator(")"), Punctuator("}"), Operator(">")}
 ──────────────────────────────────────────────────────────────
 Γ ⊢ ParseTypeListTail(P, xs) ⇓ (P, xs)
 
 **(Parse-TypeListTail-TrailingComma)**
-IsPunc(Tok(P), ",")    Tok(Advance(P)) ∈ {Punctuator(")"), Punctuator("}")}    Γ ⊢ Emit(Code(Unsupported-Construct))
+IsPunc(Tok(P), ",")    Tok(Advance(P)) ∈ {Punctuator(")"), Punctuator("}"), Operator(">")}    TrailingCommaAllowed(P_0, P, {Punctuator(")"), Punctuator("}"), Operator(">")})
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseTypeListTail(P, xs) ⇓ (Advance(P), xs)
 
@@ -4116,8 +4826,13 @@ BitAndOps = {"&"}
 AddOps = {"+", "-"}
 MulOps = {"*", "/", "%"}
 
-**(Parse-Expr)**
-Γ ⊢ ParseRange(P) ⇓ (P_1, e)
+**(Parse-Expr-Attr)**
+IsPunc(Tok(P), "[[")    Γ ⊢ ParseAttrList(P) ⇓ (P_1, attrs)    Γ ⊢ ParseRange(P_1) ⇓ (P_2, e)    AttachExprAttrs(e, attrs) = e'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseExpr(P) ⇓ (P_2, e')
+
+**(Parse-Expr-NoAttr)**
+¬ IsPunc(Tok(P), "[[")    Γ ⊢ ParseRange(P) ⇓ (P_1, e)
 ──────────────────────────────────────────────
 Γ ⊢ ParseExpr(P) ⇓ (P_1, e)
 
@@ -4125,7 +4840,7 @@ MulOps = {"*", "/", "%"}
 
 ExprStart(t) ⇔ IsIdent(t) ∨ (t ∈ LiteralToken) ∨ IsPunc(t, "(") ∨ IsPunc(t, "[") ∨ IsPunc(t, "{")
               ∨ IsOp(t, "!") ∨ IsOp(t, "-") ∨ IsOp(t, "&") ∨ IsOp(t, "*") ∨ IsOp(t, "^")
-              ∨ IsKw(t, `if`) ∨ IsKw(t, `match`) ∨ IsKw(t, `loop`) ∨ IsKw(t, `unsafe`) ∨ IsKw(t, `move`) ∨ IsKw(t, `transmute`) ∨ IsKw(t, `widen`)
+              ∨ IsKw(t, `if`) ∨ IsKw(t, `match`) ∨ IsKw(t, `loop`) ∨ IsKw(t, `unsafe`) ∨ IsKw(t, `move`) ∨ IsKw(t, `transmute`) ∨ IsKw(t, `widen`) ∨ IsKw(t, `parallel`) ∨ IsKw(t, `spawn`) ∨ IsKw(t, `dispatch`) ∨ IsKw(t, `yield`) ∨ IsKw(t, `sync`) ∨ IsKw(t, `race`) ∨ IsKw(t, `all`)
 
 **(Parse-Range-To)**
 IsOp(Tok(P), "..")    Γ ⊢ ParseLogicalOr(Advance(P)) ⇓ (P_1, e)
@@ -4283,6 +4998,16 @@ IsIdent(Tok(P))    Lexeme(Tok(P)) = `Ptr`    IsOp(Tok(Advance(P)), "::")    Tok(
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParsePrimary(P) ⇓ (Advance(Advance(Advance(Advance(Advance(P))))), PtrNullExpr)
 
+**(Parse-Contract-Result)**
+IsOp(Tok(P), "@")    IsKw(Tok(Advance(P)), `result`)
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(Advance(P)), ContractResult)
+
+**(Parse-Contract-Entry)**
+IsOp(Tok(P), "@")    IsIdent(Tok(Advance(P)))    Lexeme(Tok(Advance(P))) = `entry`    IsPunc(Tok(Advance(Advance(P))), "(")    Γ ⊢ ParseExpr(Advance(Advance(Advance(P)))) ⇓ (P_1, e)    IsPunc(Tok(P_1), ")")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_1), ContractEntry(e))
+
 **(Parse-Alloc-Implicit)**
 IsOp(Tok(P), "^")    Γ ⊢ ParseExpr(Advance(P)) ⇓ (P_1, e)
 ────────────────────────────────────────────────────────────────
@@ -4294,14 +5019,9 @@ IsIdent(Tok(P))    ¬ IsOp(Tok(Advance(P)), "::")    ¬ IsOp(Tok(Advance(P)), "@
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParsePrimary(P) ⇓ (Advance(P), Identifier(Lexeme(Tok(P))))
 
-**(Parse-Qualified-Generic-Unsupported)**
-Γ ⊢ ParseQualifiedHead(P) ⇓ (P_1, path, name)    IsOp(Tok(P_1), "<")    P_1' = SkipAngles(P_1)    Γ ⊢ Emit(Code(Unsupported-Construct))    Γ ⊢ SyncStmt(P_1') ⇓ P_2
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParsePrimary(P) ⇓ (P_2, ErrorExpr(SpanBetween(P, P_2)))
-
 **(Parse-Qualified-Name)**
 Γ ⊢ ParseQualifiedHead(P) ⇓ (P_1, path, name)    Tok(P_1) ∉ {Punctuator("("), Punctuator("{")}    ¬ IsOp(Tok(P_1), "@")
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParsePrimary(P) ⇓ (P_1, QualifiedName(path, name))
 
 **(Parse-Qualified-Apply-Paren)**
@@ -4330,9 +5050,9 @@ IsPunc(Tok(P), "[")    Γ ⊢ ParseExprList(Advance(P)) ⇓ (P_1, elems)    IsPu
 Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_1), ArrayExpr(elems))
 
 **(Parse-Record-Literal-ModalState)**
-Γ ⊢ ParseTypePath(P) ⇓ (P_1, path)    IsOp(Tok(P_1), "@")    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, state)    IsPunc(Tok(P_2), "{")    Γ ⊢ ParseFieldInitList(Advance(P_2)) ⇓ (P_3, fields)    IsPunc(Tok(P_3), "}")
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_3), RecordExpr(ModalStateRef(path, state), fields))
+Γ ⊢ ParseModalTypeRef(P) ⇓ (P_1, modal_ref)    IsOp(Tok(P_1), "@")    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, state)    IsPunc(Tok(P_2), "{")    Γ ⊢ ParseFieldInitList(Advance(P_2)) ⇓ (P_3, fields)    IsPunc(Tok(P_3), "}")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_3), RecordExpr(ModalStateRef(modal_ref, state), fields))
 
 **(Parse-Record-Literal)**
 Γ ⊢ ParseTypePath(P) ⇓ (P_1, path)    |path| = 1    IsPunc(Tok(P_1), "{")    Γ ⊢ ParseFieldInitList(Advance(P_1)) ⇓ (P_2, fields)    IsPunc(Tok(P_2), "}")
@@ -4374,6 +5094,51 @@ IsKw(Tok(P), `loop`)    Γ ⊢ ParseLoopTail(Advance(P)) ⇓ (P_1, loop)
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParsePrimary(P) ⇓ (P_1, loop)
 
+**(Parse-Parallel-Expr)**
+IsKw(Tok(P), `parallel`)    Γ ⊢ ParseExpr_NoBrace(Advance(P)) ⇓ (P_1, domain)    Γ ⊢ ParseParallelOptsOpt(P_1) ⇓ (P_2, opts)    Γ ⊢ ParseBlock(P_2) ⇓ (P_3, body)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (P_3, ParallelExpr(domain, opts, body))
+
+**(Parse-Spawn-Expr)**
+IsKw(Tok(P), `spawn`)    Γ ⊢ ParseSpawnOptsOpt(Advance(P)) ⇓ (P_1, opts)    Γ ⊢ ParseBlock(P_1) ⇓ (P_2, body)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (P_2, SpawnExpr(opts, body))
+
+**(Parse-Wait-Expr)**
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `wait`    Γ ⊢ ParseExpr(Advance(P)) ⇓ (P_1, handle)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (P_1, WaitExpr(handle))
+
+**(Parse-Dispatch-Expr)**
+IsKw(Tok(P), `dispatch`)    Γ ⊢ ParsePattern(Advance(P)) ⇓ (P_1, pat)    IsIdent(Tok(P_1))    Lexeme(Tok(P_1)) = `in`    Γ ⊢ ParseRange(Advance(P_1)) ⇓ (P_2, range)    Γ ⊢ ParseKeyClauseOpt(P_2) ⇓ (P_3, key_clause_opt)    Γ ⊢ ParseDispatchOptsOpt(P_3) ⇓ (P_4, opts)    Γ ⊢ ParseBlock(P_4) ⇓ (P_5, body)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (P_5, DispatchExpr(pat, range, key_clause_opt, opts, body))
+
+**(Parse-Yield-From-Expr)**
+IsKw(Tok(P), `yield`)    P_1 = Advance(P)    (IsIdent(Tok(P_1)) ∧ Lexeme(Tok(P_1)) = `release` ⇒ release_opt = Release ∧ P_2 = Advance(P_1))    (¬(IsIdent(Tok(P_1)) ∧ Lexeme(Tok(P_1)) = `release`) ⇒ release_opt = ⊥ ∧ P_2 = P_1)    IsKw(Tok(P_2), `from`)    Γ ⊢ ParseExpr(Advance(P_2)) ⇓ (P_3, e)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (P_3, YieldFromExpr(release_opt, e))
+
+**(Parse-Yield-Expr)**
+IsKw(Tok(P), `yield`)    P_1 = Advance(P)    (IsIdent(Tok(P_1)) ∧ Lexeme(Tok(P_1)) = `release` ⇒ release_opt = Release ∧ P_2 = Advance(P_1))    (¬(IsIdent(Tok(P_1)) ∧ Lexeme(Tok(P_1)) = `release`) ⇒ release_opt = ⊥ ∧ P_2 = P_1)    ¬ IsKw(Tok(P_2), `from`)    Γ ⊢ ParseExpr(P_2) ⇓ (P_3, e)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (P_3, YieldExpr(release_opt, e))
+
+**(Parse-Sync-Expr)**
+IsKw(Tok(P), `sync`)    Γ ⊢ ParseExpr(Advance(P)) ⇓ (P_1, e)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (P_1, SyncExpr(e))
+
+**(Parse-Race-Expr)**
+IsKw(Tok(P), `race`)    IsPunc(Tok(Advance(P)), "{")    Γ ⊢ ParseRaceArms(Advance(Advance(P))) ⇓ (P_1, arms)    IsPunc(Tok(P_1), "}")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_1), RaceExpr(arms))
+
+**(Parse-All-Expr)**
+IsKw(Tok(P), `all`)    IsPunc(Tok(Advance(P)), "{")    Γ ⊢ ParseAllExprList(Advance(Advance(P))) ⇓ (P_1, es)    IsPunc(Tok(P_1), "}")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_1), AllExpr(es))
+
 **(Parse-Block-Expr)**
 IsPunc(Tok(P), "{")    Γ ⊢ ParseBlock(P) ⇓ (P_1, b)
 ──────────────────────────────────────────────────────────────
@@ -4385,12 +5150,12 @@ IsKw(Tok(P), `unsafe`)    Γ ⊢ ParseBlock(Advance(P)) ⇓ (P_1, b)
 Γ ⊢ ParsePrimary(P) ⇓ (P_1, UnsafeBlockExpr(b))
 
 **(Parse-Transmute-Expr-ShiftSplit)**
-IsKw(Tok(P), `transmute`)    IsOp(Tok(Advance(P)), "::")    IsOp(Tok(Advance(Advance(P))), "<")    Γ ⊢ ParseType(Advance(Advance(Advance(P)))) ⇓ (P_1, t1)    IsPunc(Tok(P_1), ",")    Γ ⊢ ParseType(Advance(P_1)) ⇓ (P_2, t2)    IsOp(Tok(P_2), ">>")    P_2' = SplitShiftR(P_2)    IsOp(Tok(P_2'), ">")    IsPunc(Tok(Advance(P_2')), "(")    Γ ⊢ ParseExpr(Advance(Advance(P_2'))) ⇓ (P_3, e)    IsPunc(Tok(P_3), ")")
+IsKw(Tok(P), `transmute`)    IsOp(Tok(Advance(P)), "<")    Γ ⊢ ParseType(Advance(Advance(P))) ⇓ (P_1, t1)    IsPunc(Tok(P_1), ",")    Γ ⊢ ParseType(Advance(P_1)) ⇓ (P_2, t2)    IsOp(Tok(P_2), ">>")    P_2' = SplitShiftR(P_2)    IsOp(Tok(P_2'), ">")    IsPunc(Tok(Advance(P_2')), "(")    Γ ⊢ ParseExpr(Advance(Advance(P_2'))) ⇓ (P_3, e)    IsPunc(Tok(P_3), ")")
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_3), TransmuteExpr(t1, t2, e))
 
 **(Parse-Transmute-Expr)**
-IsKw(Tok(P), `transmute`)    IsOp(Tok(Advance(P)), "::")    IsOp(Tok(Advance(Advance(P))), "<")    Γ ⊢ ParseType(Advance(Advance(Advance(P)))) ⇓ (P_1, t1)    IsPunc(Tok(P_1), ",")    Γ ⊢ ParseType(Advance(P_1)) ⇓ (P_2, t2)    IsOp(Tok(P_2), ">")    IsPunc(Tok(Advance(P_2)), "(")    Γ ⊢ ParseExpr(Advance(Advance(P_2))) ⇓ (P_3, e)    IsPunc(Tok(P_3), ")")
+IsKw(Tok(P), `transmute`)    IsOp(Tok(Advance(P)), "<")    Γ ⊢ ParseType(Advance(Advance(P))) ⇓ (P_1, t1)    IsPunc(Tok(P_1), ",")    Γ ⊢ ParseType(Advance(P_1)) ⇓ (P_2, t2)    IsOp(Tok(P_2), ">")    IsPunc(Tok(Advance(P_2)), "(")    Γ ⊢ ParseExpr(Advance(Advance(P_2))) ⇓ (P_3, e)    IsPunc(Tok(P_3), ")")
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_3), TransmuteExpr(t1, t2, e))
 
@@ -4405,16 +5170,18 @@ c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P).span)    P_1 = AdvanceOrEOF(
 **Postfix Tail.**
 
 **(Parse-PostfixTail-Stop)**
-Tok(P) ∉ PostfixStart
+¬ PostfixStart(P)
 ──────────────────────────────────────────────
 Γ ⊢ ParsePostfixTail(P, e) ⇓ (P, e)
 
 **(Parse-PostfixTail-Cons)**
-Tok(P) ∈ PostfixStart    Γ ⊢ PostfixStep(P, e) ⇓ (P_1, e_1)    Γ ⊢ ParsePostfixTail(P_1, e_1) ⇓ (P_2, e_2)
+PostfixStart(P)    Γ ⊢ PostfixStep(P, e) ⇓ (P_1, e_1)    Γ ⊢ ParsePostfixTail(P_1, e_1) ⇓ (P_2, e_2)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParsePostfixTail(P, e) ⇓ (P_2, e_2)
 
-PostfixStart = {Punctuator("."), Punctuator("["), Punctuator("("), Operator("~>"), Operator("?")}
+PostfixStartTok = {Punctuator("."), Punctuator("["), Punctuator("("), Operator("~>"), Operator("?")}
+CallTypeArgsStart(P) ⇔ TypeArgsStartTok(Tok(P)) ∧ (Γ ⊢ ParseGenericArgs(P) ⇓ (P_1, args)) ∧ IsPunc(Tok(P_1), "(")
+PostfixStart(P) ⇔ Tok(P) ∈ PostfixStartTok ∨ CallTypeArgsStart(P)
 
 **(Postfix-Field)**
 IsPunc(Tok(P), ".")    IsIdent(Tok(Advance(P)))    name = Lexeme(Tok(Advance(P)))
@@ -4436,9 +5203,14 @@ IsPunc(Tok(P), "(")    Γ ⊢ ParseArgList(Advance(P)) ⇓ (P_1, args)    IsPunc
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ PostfixStep(P, e) ⇓ (Advance(P_1), Call(e, args))
 
+**(Postfix-Call-TypeArgs)**
+CallTypeArgsStart(P)    Γ ⊢ ParseGenericArgs(P) ⇓ (P_1, targs)    IsPunc(Tok(P_1), "(")    Γ ⊢ ParseArgList(Advance(P_1)) ⇓ (P_2, args)    IsPunc(Tok(P_2), ")")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PostfixStep(P, e) ⇓ (Advance(P_2), CallTypeArgs(e, targs, args))
+
 **(Postfix-MethodCall)**
 IsOp(Tok(P), "~>")    Γ ⊢ ParseIdent(Advance(P)) ⇓ (P_1, name)    IsPunc(Tok(P_1), "(")    Γ ⊢ ParseArgList(Advance(P_1)) ⇓ (P_2, args)    IsPunc(Tok(P_2), ")")
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ PostfixStep(P, e) ⇓ (Advance(P_2), MethodCall(e, name, args))
 
 **(Postfix-Propagate)**
@@ -4473,6 +5245,355 @@ IsKw(Tok(P), `move`)
 ──────────────────────────────────────────────────────
 Γ ⊢ ParseArgMoveOpt(P) ⇓ (Advance(P), true)
 
+**Key Paths.**
+
+**(Parse-KeyMarkerOpt-Yes)**
+IsOp(Tok(P), "#")
+────────────────────────────────────────────
+Γ ⊢ ParseKeyMarkerOpt(P) ⇓ (Advance(P), true)
+
+**(Parse-KeyMarkerOpt-No)**
+¬ IsOp(Tok(P), "#")
+────────────────────────────────────────────
+Γ ⊢ ParseKeyMarkerOpt(P) ⇓ (P, false)
+
+**(Parse-KeyField)**
+Γ ⊢ ParseKeyMarkerOpt(P) ⇓ (P_1, marked)    Γ ⊢ ParseIdent(P_1) ⇓ (P_2, name)
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseKeyField(P) ⇓ (P_2, Field(marked, name))
+
+**(Parse-KeyIndex)**
+Γ ⊢ ParseKeyMarkerOpt(P) ⇓ (P_1, marked)    Γ ⊢ ParseExpr(P_1) ⇓ (P_2, e)
+──────────────────────────────────────────────────────────────
+Γ ⊢ ParseKeyIndex(P) ⇓ (P_2, Index(marked, e))
+
+**(Parse-KeySegs-End)**
+Tok(P) ∉ {Punctuator("."), Punctuator("[")}
+──────────────────────────────────────────────
+Γ ⊢ ParseKeySegs(P, xs) ⇓ (P, xs)
+
+**(Parse-KeySegs-Field)**
+IsPunc(Tok(P), ".")    Γ ⊢ ParseKeyField(Advance(P)) ⇓ (P_1, seg)    Γ ⊢ ParseKeySegs(P_1, xs ++ [seg]) ⇓ (P_2, ys)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseKeySegs(P, xs) ⇓ (P_2, ys)
+
+**(Parse-KeySegs-Index)**
+IsPunc(Tok(P), "[")    Γ ⊢ ParseKeyIndex(Advance(P)) ⇓ (P_1, seg)    IsPunc(Tok(P_1), "]")    Γ ⊢ ParseKeySegs(Advance(P_1), xs ++ [seg]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseKeySegs(P, xs) ⇓ (P_2, ys)
+
+**(Parse-KeyPathExpr)**
+Γ ⊢ ParseIdent(P) ⇓ (P_1, root)    Γ ⊢ ParseKeySegs(P_1, []) ⇓ (P_2, segs)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseKeyPathExpr(P) ⇓ (P_2, ⟨root, segs⟩)
+
+**(Parse-KeyPathList-Cons)**
+Γ ⊢ ParseKeyPathExpr(P) ⇓ (P_1, kp)    Γ ⊢ ParseKeyPathListTail(P_1, [kp]) ⇓ (P_2, ks)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseKeyPathList(P) ⇓ (P_2, ks)
+
+**(Parse-KeyPathListTail-End)**
+¬ IsPunc(Tok(P), ",")
+──────────────────────────────────────────────
+Γ ⊢ ParseKeyPathListTail(P, xs) ⇓ (P, xs)
+
+**(Parse-KeyPathListTail-Comma)**
+IsPunc(Tok(P), ",")    Γ ⊢ ParseKeyPathExpr(Advance(P)) ⇓ (P_1, kp)    Γ ⊢ ParseKeyPathListTail(P_1, xs ++ [kp]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseKeyPathListTail(P, xs) ⇓ (P_2, ys)
+
+**Key Modes and Modifiers.**
+
+**(Parse-KeyBlockMod-Dynamic)**
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `dynamic`
+──────────────────────────────────────────────
+Γ ⊢ ParseKeyBlockMod(P) ⇓ (Advance(P), Dynamic)
+
+**(Parse-KeyBlockMod-Speculative)**
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `speculative`
+──────────────────────────────────────────────
+Γ ⊢ ParseKeyBlockMod(P) ⇓ (Advance(P), Speculative)
+
+**(Parse-KeyBlockMod-Release)**
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `release`
+──────────────────────────────────────────────
+Γ ⊢ ParseKeyBlockMod(P) ⇓ (Advance(P), Release)
+
+**(Parse-KeyBlockModsOpt-None)**
+¬ (IsIdent(Tok(P)) ∧ Lexeme(Tok(P)) ∈ {`dynamic`, `speculative`, `release`})
+──────────────────────────────────────────────
+Γ ⊢ ParseKeyBlockModsOpt(P) ⇓ (P, [])
+
+**(Parse-KeyBlockModsOpt-Cons)**
+Γ ⊢ ParseKeyBlockMod(P) ⇓ (P_1, m)    Γ ⊢ ParseKeyBlockModsOpt(P_1) ⇓ (P_2, ms)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseKeyBlockModsOpt(P) ⇓ (P_2, [m] ++ ms)
+
+**(Parse-KeyMode-Read)**
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `read`
+──────────────────────────────────────────────
+Γ ⊢ ParseKeyMode(P) ⇓ (Advance(P), Read)
+
+**(Parse-KeyMode-Write)**
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `write`
+──────────────────────────────────────────────
+Γ ⊢ ParseKeyMode(P) ⇓ (Advance(P), Write)
+
+**(Parse-KeyMode-Err)**
+¬ (IsIdent(Tok(P)) ∧ Lexeme(Tok(P)) ∈ {`read`, `write`})    c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P).span)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseKeyMode(P) ⇓ (P, Read)
+
+**(Parse-KeyModeOpt-None)**
+¬ (IsIdent(Tok(P)) ∧ Lexeme(Tok(P)) ∈ {`read`, `write`})
+──────────────────────────────────────────────
+Γ ⊢ ParseKeyModeOpt(P) ⇓ (P, ⊥)
+
+**(Parse-KeyModeOpt-Some)**
+Γ ⊢ ParseKeyMode(P) ⇓ (P_1, mode)
+──────────────────────────────────────────────
+Γ ⊢ ParseKeyModeOpt(P) ⇓ (P_1, mode)
+
+**(Parse-KeyClauseOpt-None)**
+¬ Ctx(Tok(P), `key`)
+──────────────────────────────────────────────
+Γ ⊢ ParseKeyClauseOpt(P) ⇓ (P, ⊥)
+
+**(Parse-KeyClauseOpt-Yes)**
+Ctx(Tok(P), `key`)    Γ ⊢ ParseKeyPathExpr(Advance(P)) ⇓ (P_1, path)    Γ ⊢ ParseKeyMode(P_1) ⇓ (P_2, mode)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseKeyClauseOpt(P) ⇓ (P_2, ⟨path, mode⟩)
+
+**Parallel Options.**
+
+**(Parse-ParallelOptsOpt-None)**
+¬ IsPunc(Tok(P), "[")
+──────────────────────────────────────────────
+Γ ⊢ ParseParallelOptsOpt(P) ⇓ (P, [])
+
+**(Parse-ParallelOptsOpt-Yes)**
+IsPunc(Tok(P), "[")    Γ ⊢ ParseParallelOptList(Advance(P)) ⇓ (P_1, opts)    IsPunc(Tok(P_1), "]")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseParallelOptsOpt(P) ⇓ (Advance(P_1), opts)
+
+**(Parse-ParallelOptList-Empty)**
+IsPunc(Tok(P), "]")    c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P).span)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseParallelOptList(P) ⇓ (P, [])
+
+**(Parse-ParallelOptList-Cons)**
+Γ ⊢ ParseParallelOpt(P) ⇓ (P_1, opt)    Γ ⊢ ParseParallelOptListTail(P_1, [opt]) ⇓ (P_2, opts)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseParallelOptList(P) ⇓ (P_2, opts)
+
+**(Parse-ParallelOptListTail-End)**
+IsPunc(Tok(P), "]")
+──────────────────────────────────────────────
+Γ ⊢ ParseParallelOptListTail(P, xs) ⇓ (P, xs)
+
+**(Parse-ParallelOptListTail-TrailingComma)**
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "]")    TrailingCommaAllowed(P_0, P, {Punctuator("]")})
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseParallelOptListTail(P, xs) ⇓ (Advance(P), xs)
+
+**(Parse-ParallelOptListTail-Comma)**
+IsPunc(Tok(P), ",")    Γ ⊢ ParseParallelOpt(Advance(P)) ⇓ (P_1, opt)    Γ ⊢ ParseParallelOptListTail(P_1, xs ++ [opt]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseParallelOptListTail(P, xs) ⇓ (P_2, ys)
+
+**(Parse-ParallelOpt-Cancel)**
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `cancel`    IsPunc(Tok(Advance(P)), ":")    Γ ⊢ ParseExpr(Advance(Advance(P))) ⇓ (P_1, e)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseParallelOpt(P) ⇓ (P_1, Cancel(e))
+
+**(Parse-ParallelOpt-Name)**
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `name`    IsPunc(Tok(Advance(P)), ":")    Tok(Advance(Advance(P))).kind = StringLiteral
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseParallelOpt(P) ⇓ (Advance(Advance(Advance(P))), Name(Tok(Advance(Advance(P)))))
+
+**Spawn Options.**
+
+**(Parse-SpawnOptsOpt-None)**
+¬ IsPunc(Tok(P), "[")
+──────────────────────────────────────────────
+Γ ⊢ ParseSpawnOptsOpt(P) ⇓ (P, [])
+
+**(Parse-SpawnOptsOpt-Yes)**
+IsPunc(Tok(P), "[")    Γ ⊢ ParseSpawnOptList(Advance(P)) ⇓ (P_1, opts)    IsPunc(Tok(P_1), "]")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseSpawnOptsOpt(P) ⇓ (Advance(P_1), opts)
+
+**(Parse-SpawnOptList-Empty)**
+IsPunc(Tok(P), "]")    c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P).span)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseSpawnOptList(P) ⇓ (P, [])
+
+**(Parse-SpawnOptList-Cons)**
+Γ ⊢ ParseSpawnOpt(P) ⇓ (P_1, opt)    Γ ⊢ ParseSpawnOptListTail(P_1, [opt]) ⇓ (P_2, opts)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseSpawnOptList(P) ⇓ (P_2, opts)
+
+**(Parse-SpawnOptListTail-End)**
+IsPunc(Tok(P), "]")
+──────────────────────────────────────────────
+Γ ⊢ ParseSpawnOptListTail(P, xs) ⇓ (P, xs)
+
+**(Parse-SpawnOptListTail-TrailingComma)**
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "]")    TrailingCommaAllowed(P_0, P, {Punctuator("]")})
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseSpawnOptListTail(P, xs) ⇓ (Advance(P), xs)
+
+**(Parse-SpawnOptListTail-Comma)**
+IsPunc(Tok(P), ",")    Γ ⊢ ParseSpawnOpt(Advance(P)) ⇓ (P_1, opt)    Γ ⊢ ParseSpawnOptListTail(P_1, xs ++ [opt]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseSpawnOptListTail(P, xs) ⇓ (P_2, ys)
+
+**(Parse-SpawnOpt-Name)**
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `name`    IsPunc(Tok(Advance(P)), ":")    Tok(Advance(Advance(P))).kind = StringLiteral
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseSpawnOpt(P) ⇓ (Advance(Advance(Advance(P))), Name(Tok(Advance(Advance(P)))))
+
+**(Parse-SpawnOpt-Affinity)**
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `affinity`    IsPunc(Tok(Advance(P)), ":")    Γ ⊢ ParseExpr(Advance(Advance(P))) ⇓ (P_1, e)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseSpawnOpt(P) ⇓ (P_1, Affinity(e))
+
+**(Parse-SpawnOpt-Priority)**
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `priority`    IsPunc(Tok(Advance(P)), ":")    Γ ⊢ ParseExpr(Advance(Advance(P))) ⇓ (P_1, e)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseSpawnOpt(P) ⇓ (P_1, Priority(e))
+
+**Dispatch Options.**
+
+**(Parse-DispatchOptsOpt-None)**
+¬ IsPunc(Tok(P), "[")
+──────────────────────────────────────────────
+Γ ⊢ ParseDispatchOptsOpt(P) ⇓ (P, [])
+
+**(Parse-DispatchOptsOpt-Yes)**
+IsPunc(Tok(P), "[")    Γ ⊢ ParseDispatchOptList(Advance(P)) ⇓ (P_1, opts)    IsPunc(Tok(P_1), "]")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseDispatchOptsOpt(P) ⇓ (Advance(P_1), opts)
+
+**(Parse-DispatchOptList-Empty)**
+IsPunc(Tok(P), "]")    c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P).span)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseDispatchOptList(P) ⇓ (P, [])
+
+**(Parse-DispatchOptList-Cons)**
+Γ ⊢ ParseDispatchOpt(P) ⇓ (P_1, opt)    Γ ⊢ ParseDispatchOptListTail(P_1, [opt]) ⇓ (P_2, opts)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseDispatchOptList(P) ⇓ (P_2, opts)
+
+**(Parse-DispatchOptListTail-End)**
+IsPunc(Tok(P), "]")
+──────────────────────────────────────────────
+Γ ⊢ ParseDispatchOptListTail(P, xs) ⇓ (P, xs)
+
+**(Parse-DispatchOptListTail-TrailingComma)**
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "]")    TrailingCommaAllowed(P_0, P, {Punctuator("]")})
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseDispatchOptListTail(P, xs) ⇓ (Advance(P), xs)
+
+**(Parse-DispatchOptListTail-Comma)**
+IsPunc(Tok(P), ",")    Γ ⊢ ParseDispatchOpt(Advance(P)) ⇓ (P_1, opt)    Γ ⊢ ParseDispatchOptListTail(P_1, xs ++ [opt]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseDispatchOptListTail(P, xs) ⇓ (P_2, ys)
+
+**(Parse-ReduceOp-Op)**
+IsOp(Tok(P), op)    op ∈ {"+", "*"}
+──────────────────────────────────────────────
+Γ ⊢ ParseReduceOp(P) ⇓ (Advance(P), op)
+
+**(Parse-ReduceOp-Ident)**
+IsIdent(Tok(P))
+──────────────────────────────────────────────
+Γ ⊢ ParseReduceOp(P) ⇓ (Advance(P), Lexeme(Tok(P)))
+
+**(Parse-DispatchOpt-Reduce)**
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `reduce`    IsPunc(Tok(Advance(P)), ":")    Γ ⊢ ParseReduceOp(Advance(Advance(P))) ⇓ (P_1, op)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseDispatchOpt(P) ⇓ (P_1, Reduce(op))
+
+**(Parse-DispatchOpt-Ordered)**
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `ordered`
+──────────────────────────────────────────────
+Γ ⊢ ParseDispatchOpt(P) ⇓ (Advance(P), Ordered)
+
+**(Parse-DispatchOpt-Chunk)**
+IsIdent(Tok(P))    Lexeme(Tok(P)) = `chunk`    IsPunc(Tok(Advance(P)), ":")    Γ ⊢ ParseExpr(Advance(Advance(P))) ⇓ (P_1, e)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseDispatchOpt(P) ⇓ (P_1, Chunk(e))
+
+**Race Arms.**
+
+**(Parse-RaceArms-Cons)**
+Γ ⊢ ParseRaceArm(P) ⇓ (P_1, a)    Γ ⊢ ParseRaceArmsTail(P_1, [a]) ⇓ (P_2, arms)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRaceArms(P) ⇓ (P_2, arms)
+
+**(Parse-RaceArms-Empty)**
+Tok(P) = Punctuator("}")    c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P).span)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRaceArms(P) ⇓ (P, [])
+
+**(Parse-RaceArm)**
+Γ ⊢ ParseExpr(P) ⇓ (P_1, e)    IsOp(Tok(P_1), "->")    IsPunc(Tok(Advance(P_1)), "|")    Γ ⊢ ParsePattern(Advance(Advance(P_1))) ⇓ (P_2, pat)    IsPunc(Tok(P_2), "|")    Γ ⊢ ParseRaceHandler(Advance(P_2)) ⇓ (P_3, handler)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRaceArm(P) ⇓ (P_3, ⟨e, pat, handler⟩)
+
+**(Parse-RaceArmsTail-End)**
+Tok(P) = Punctuator("}")
+──────────────────────────────────────────────
+Γ ⊢ ParseRaceArmsTail(P, xs) ⇓ (P, xs)
+
+**(Parse-RaceArmsTail-TrailingComma)**
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    TrailingCommaAllowed(P_0, P, {Punctuator("}")})
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRaceArmsTail(P, xs) ⇓ (Advance(P), xs)
+
+**(Parse-RaceArmsTail-Comma)**
+IsPunc(Tok(P), ",")    Γ ⊢ ParseRaceArm(Advance(P)) ⇓ (P_1, a)    Γ ⊢ ParseRaceArmsTail(P_1, xs ++ [a]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRaceArmsTail(P, xs) ⇓ (P_2, ys)
+
+**(Parse-RaceHandler-Yield)**
+IsKw(Tok(P), `yield`)    Γ ⊢ ParseExpr(Advance(P)) ⇓ (P_1, e)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRaceHandler(P) ⇓ (P_1, RaceYield(e))
+
+**(Parse-RaceHandler-Return)**
+¬ IsKw(Tok(P), `yield`)    Γ ⊢ ParseExpr(P) ⇓ (P_1, e)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseRaceHandler(P) ⇓ (P_1, RaceReturn(e))
+
+**All Expression Lists.**
+
+**(Parse-AllExprList-Cons)**
+Γ ⊢ ParseExpr(P) ⇓ (P_1, e)    Γ ⊢ ParseAllExprListTail(P_1, [e]) ⇓ (P_2, es)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAllExprList(P) ⇓ (P_2, es)
+
+**(Parse-AllExprList-Empty)**
+Tok(P) = Punctuator("}")    c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P).span)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAllExprList(P) ⇓ (P, [])
+
+**(Parse-AllExprListTail-End)**
+Tok(P) = Punctuator("}")
+──────────────────────────────────────────────
+Γ ⊢ ParseAllExprListTail(P, xs) ⇓ (P, xs)
+
+**(Parse-AllExprListTail-TrailingComma)**
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    TrailingCommaAllowed(P_0, P, {Punctuator("}")})
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAllExprListTail(P, xs) ⇓ (Advance(P), xs)
+
+**(Parse-AllExprListTail-Comma)**
+IsPunc(Tok(P), ",")    Γ ⊢ ParseExpr(Advance(P)) ⇓ (P_1, e)    Γ ⊢ ParseAllExprListTail(P_1, xs ++ [e]) ⇓ (P_2, ys)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAllExprListTail(P, xs) ⇓ (P_2, ys)
+
 **Expression Lists.**
 
 **(Parse-ExprList-Cons)**
@@ -4498,7 +5619,7 @@ IsPunc(Tok(P), ")")
 Γ ⊢ ParseTupleExprElems(P) ⇓ (Advance(P_1), [e])
 
 **(Parse-TupleExprElems-TrailingComma)**
-Γ ⊢ ParseExpr(P) ⇓ (P_1, e)    IsPunc(Tok(P_1), ",")    IsPunc(Tok(Advance(P_1)), ")")    Γ ⊢ Emit(Code(Unsupported-Construct))
+Γ ⊢ ParseExpr(P) ⇓ (P_1, e)    IsPunc(Tok(P_1), ",")    IsPunc(Tok(Advance(P_1)), ")")    TrailingCommaAllowed(P_0, P_1, {Punctuator(")")})
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseTupleExprElems(P) ⇓ (Advance(P_1), [e])
 
@@ -4600,7 +5721,7 @@ IsPunc(Tok(P), ")")
 Γ ⊢ ParseArgTail(P, xs) ⇓ (P, xs)
 
 **(Parse-ArgTail-TrailingComma)**
-IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), ")")    Γ ⊢ Emit(Code(Unsupported-Construct))
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), ")")    TrailingCommaAllowed(P_0, P, {Punctuator(")")})
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseArgTail(P, xs) ⇓ (Advance(P), xs)
 
@@ -4615,7 +5736,7 @@ Tok(P) ∈ {Punctuator(")"), Punctuator("]"), Punctuator("}")}
 Γ ⊢ ParseExprListTail(P, xs) ⇓ (P, xs)
 
 **(Parse-ExprListTail-TrailingComma)**
-IsPunc(Tok(P), ",")    Tok(Advance(P)) ∈ {Punctuator(")"), Punctuator("]"), Punctuator("}")}    Γ ⊢ Emit(Code(Unsupported-Construct))
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "]")    TrailingCommaAllowed(P_0, P, {Punctuator("]")})
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseExprListTail(P, xs) ⇓ (Advance(P), xs)
 
@@ -4630,7 +5751,7 @@ IsPunc(Tok(P), "}")
 Γ ⊢ ParseFieldInitTail(P, xs) ⇓ (P, xs)
 
 **(Parse-FieldInitTail-TrailingComma)**
-IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    Γ ⊢ Emit(Code(Unsupported-Construct))
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    TrailingCommaAllowed(P_0, P, {Punctuator("}")})
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseFieldInitTail(P, xs) ⇓ (Advance(P), xs)
 
@@ -4641,19 +5762,19 @@ IsPunc(Tok(P), ",")    Γ ⊢ ParseFieldInit(Advance(P)) ⇓ (P_1, f)    Γ ⊢ 
 **Loop Tail.**
 
 **(Parse-LoopTail-Infinite)**
-IsPunc(Tok(P), "{")    Γ ⊢ ParseBlock(P) ⇓ (P_1, b)
-────────────────────────────────────────────────────────────────
-Γ ⊢ ParseLoopTail(P) ⇓ (P_1, LoopInfinite(b))
+Γ ⊢ ParseLoopInvariantOpt(P) ⇓ (P_0, inv_opt)    IsPunc(Tok(P_0), "{")    Γ ⊢ ParseBlock(P_0) ⇓ (P_1, b)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseLoopTail(P) ⇓ (P_1, LoopInfinite(inv_opt, b))
 
 **(Parse-LoopTail-Iter)**
-Γ ⊢ TryParsePatternIn(P) ⇓ (P_1, pat)    Γ ⊢ ParseTypeAnnotOpt(P_1) ⇓ (P_2, ty_opt)    IsIdent(Tok(P_2))    Lexeme(Tok(P_2)) = `in`    Γ ⊢ ParseExpr_NoBrace(Advance(P_2)) ⇓ (P_3, iter)    Γ ⊢ ParseBlock(P_3) ⇓ (P_4, body)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseLoopTail(P) ⇓ (P_4, LoopIter(pat, ty_opt, iter, body))
+Γ ⊢ TryParsePatternIn(P) ⇓ (P_1, pat)    Γ ⊢ ParseTypeAnnotOpt(P_1) ⇓ (P_2, ty_opt)    IsIdent(Tok(P_2))    Lexeme(Tok(P_2)) = `in`    Γ ⊢ ParseExpr_NoBrace(Advance(P_2)) ⇓ (P_3, iter)    Γ ⊢ ParseLoopInvariantOpt(P_3) ⇓ (P_4, inv_opt)    Γ ⊢ ParseBlock(P_4) ⇓ (P_5, body)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseLoopTail(P) ⇓ (P_5, LoopIter(pat, ty_opt, iter, inv_opt, body))
 
 **(Parse-LoopTail-Cond)**
-Γ ⊢ ParseExpr_NoBrace(P) ⇓ (P_1, cond)    Γ ⊢ ParseBlock(P_1) ⇓ (P_2, body)
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseLoopTail(P) ⇓ (P_2, LoopConditional(cond, body))
+Γ ⊢ ParseExpr_NoBrace(P) ⇓ (P_1, cond)    Γ ⊢ ParseLoopInvariantOpt(P_1) ⇓ (P_2, inv_opt)    Γ ⊢ ParseBlock(P_2) ⇓ (P_3, body)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseLoopTail(P) ⇓ (P_3, LoopConditional(cond, inv_opt, body))
 
 **(TryParsePatternIn-Ok)**
 P_c = Clone(P)    Γ ⊢ ParsePattern(P_c) ⇓ (P_1, pat)    Γ ⊢ ParseTypeAnnotOpt(P_1) ⇓ (P_2, ty_opt)    IsIdent(Tok(P_2))    Lexeme(Tok(P_2)) = `in`    P' = MergeDiag(P, P_2, P_1)
@@ -4796,7 +5917,7 @@ IsPunc(Tok(P), ")")
 Γ ⊢ ParsePatternListTail(P, xs) ⇓ (P, xs)
 
 **(Parse-PatternListTail-TrailingComma)**
-IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), ")")    Γ ⊢ Emit(Code(Unsupported-Construct))
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), ")")    TrailingCommaAllowed(P_0, P, {Punctuator(")")})
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParsePatternListTail(P, xs) ⇓ (Advance(P), xs)
 
@@ -4818,7 +5939,7 @@ IsPunc(Tok(P), ")")
 Γ ⊢ ParseTuplePatternElems(P) ⇓ (Advance(P_1), [p])
 
 **(Parse-TuplePatternElems-TrailingComma)**
-Γ ⊢ ParsePattern(P) ⇓ (P_1, p)    IsPunc(Tok(P_1), ",")    IsPunc(Tok(Advance(P_1)), ")")    Γ ⊢ Emit(Code(Unsupported-Construct))
+Γ ⊢ ParsePattern(P) ⇓ (P_1, p)    IsPunc(Tok(P_1), ",")    IsPunc(Tok(Advance(P_1)), ")")    TrailingCommaAllowed(P_0, P_1, {Punctuator(")")})
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseTuplePatternElems(P) ⇓ (Advance(P_1), [p])
 
@@ -4860,7 +5981,7 @@ IsPunc(Tok(P), "}")
 Γ ⊢ ParseFieldPatternTail(P, xs) ⇓ (P, xs)
 
 **(Parse-FieldPatternTail-TrailingComma)**
-IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    Γ ⊢ Emit(Code(Unsupported-Construct))
+IsPunc(Tok(P), ",")    IsPunc(Tok(Advance(P)), "}")    TrailingCommaAllowed(P_0, P, {Punctuator("}")})
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseFieldPatternTail(P, xs) ⇓ (Advance(P), xs)
 
@@ -4993,6 +6114,11 @@ IsKw(Tok(P), `frame`)    Γ ⊢ ParseBlock(Advance(P)) ⇓ (P_1, b)
 IsIdent(Tok(P))    IsPunc(Tok(Advance(P)), ".")    IsKw(Tok(Advance(Advance(P))), `frame`)    name = Lexeme(Tok(P))    Γ ⊢ ParseBlock(Advance(Advance(Advance(P)))) ⇓ (P_1, b)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseStmtCore(P) ⇓ (P_1, FrameStmt(name, b))
+
+**(Parse-KeyBlock-Stmt)**
+IsOp(Tok(P), "#")    Γ ⊢ ParseKeyPathList(Advance(P)) ⇓ (P_1, paths)    Γ ⊢ ParseKeyBlockModsOpt(P_1) ⇓ (P_2, mods)    Γ ⊢ ParseKeyModeOpt(P_2) ⇓ (P_3, mode_opt)    Γ ⊢ ParseBlock(P_3) ⇓ (P_4, body)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStmtCore(P) ⇓ (P_4, KeyBlockStmt(paths, mods, mode_opt, body))
 
 **(Parse-Expr-Stmt)**
 Γ ⊢ ParseExpr(P) ⇓ (P_1, e)
@@ -5160,7 +6286,7 @@ ItemParseErrRule = Parse-Item-Err
 
 #### 3.3.13. Diagnostics (Phase 1)
 
-Phase1DiagRules = {Unsupported-Construct, Missing-Terminator-Err, Parse-Syntax-Err}
+Phase1DiagRules = {Unsupported-Construct, Missing-Terminator-Err, Trailing-Comma-Err, Parse-Syntax-Err}
 
 **(Parse-Syntax-Err)**
 GenericParseRules = {Parse-Ident-Err, Parse-Type-Err, Parse-Pattern-Err, Parse-Primary-Err, Parse-Statement-Err, Parse-Item-Err}
@@ -5356,8 +6482,10 @@ ReservedModulePath(path) ⇔ (|path| ≥ 1 ∧ IdEq(path[0], `cursive`)) ∨ (�
 <!-- Source: "The `cursive.*` namespace prefix is reserved for specification-defined features. User programs and vendor extensions MUST NOT use this namespace." -->
 
 PrimTypeNames = {`i8`, `i16`, `i32`, `i64`, `i128`, `u8`, `u16`, `u32`, `u64`, `u128`, `f16`, `f32`, `f64`, `bool`, `char`, `usize`, `isize`}
-SpecialTypeNames = {`Self`, `Drop`, `Bitcopy`, `Clone`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, `Context`, `System`}
-AsyncTypeNames = {`Async`, `Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`}
+SpecialTypeNames = {`Self`, `Drop`, `Bitcopy`, `Clone`, `Eq`, `Hash`, `Hasher`, `Iterator`, `Step`, `FfiSafe`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, `CancelToken`, `Context`, `System`, `ExecutionDomain`, `CpuSet`, `Priority`, `Reactor`}
+AsyncTypeNames = {`Async`, `Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`, `FutureHandle`}
+
+`Drop`, `Bitcopy`, `Clone`, and `FfiSafe` are reserved predicate names and are included in SpecialTypeNames to prevent shadowing.
 
 PrimTypeKeys = {IdKey(x) | x ∈ PrimTypeNames}
 SpecialTypeKeys = {IdKey(x) | x ∈ SpecialTypeNames}
@@ -5518,7 +6646,16 @@ RegionAliasName(Γ, x) ⇔ Γ ⊢ ResolveValueName(x) ⇓ ent ∧ RegionAlias(en
 **Qualified Lookup.**
 P = Project(Γ)
 m = CurrentModule(Γ)
-ModulePaths = { p | p ∈ P.modules }
+AllModulePaths(P) = ⋃_{A ∈ P.assemblies} A.modules
+AsmOfPath(p) = p[0]    if |p| ≥ 1
+AsmOfModule(m) = AsmOfPath(m)
+ImportDecls(m) = [d | d ∈ ASTModule(P, m).items ∧ d = ImportDecl(_, _, _, _, _, _)]
+ImportPaths(m) = [p | ImportDecl(_, _, p, _, _, _) ∈ ImportDecls(m)]
+VisibleAssemblies(m) = {AsmOfModule(m)} ∪ {AsmOfPath(p) | p ∈ ImportPaths(m)}
+PublicAPI(m) ⇔ ∃ it ∈ ASTModule(P, m).items. Vis(it) = `public`
+VisibleModulePaths(m) = { p | p ∈ AllModulePaths(P) ∧ AsmOfPath(p) ∈ VisibleAssemblies(m) }
+ModulePaths = VisibleModulePaths(m)
+ModuleNames = VisibleModuleNames(m)
 Alias = AliasMap(m)
 
 **(Resolve-ModulePath)**
@@ -5540,10 +6677,15 @@ K ∈ {ValueKind, TypeKind, ClassKind, ModuleKind}
 
 #### 5.1.4. Visibility and Accessibility
 
-DeclOf(mp, name) = it ⇔ ModuleOf(it) = mp ∧ IdKey(name) ∈ dom(ItemBindings(it, mp))
+DeclOf(mp, name) = it ⇔ ModuleOf(it) = mp ∧ it ≠ ExternBlock(_, _, _, _, _, _) ∧ IdKey(name) ∈ dom(ItemBindings(it, mp))
+DeclOf(mp, name) = proc ⇔ ExternBlockOf(proc) = blk ∧ ModuleOf(blk) = mp ∧ ProcName(proc) = name
 ModuleOf(it) = p ⇔ it ∈ ASTModule(P, p).items
+ModuleOf(proc) = ModuleOf(ExternBlockOf(proc))
+ExternBlockOf(proc) = blk ⇔ ∃ p. blk ∈ ASTModule(P, p).items ∧ proc ∈ blk.items
+ProcName(proc) = name ⇔ proc = ExternProcDecl(_, _, name, _, _, _, _, _, _, _, _)
 ModuleOfPath(path) = mp ⇔ SplitLast(path) = (mp, name)
 Vis(it) = it.vis
+SameAssembly(m_1, m_2) ⇔ AsmOfModule(m_1) = AsmOfModule(m_2)
 
 **(Access-Public)**
 Vis(it) = `public`
@@ -5551,8 +6693,8 @@ Vis(it) = `public`
 Γ ⊢ CanAccess(m, it) ⇓ ok
 
 **(Access-Internal)**
-Vis(it) = `internal`
-──────────────────────────────────────────────
+Vis(it) = `internal`    SameAssembly(ModuleOf(it), m)
+────────────────────────────────────────────────────────────────
 Γ ⊢ CanAccess(m, it) ⇓ ok
 
 **(Access-Private)**
@@ -5564,6 +6706,11 @@ Vis(it) = `private`    ModuleOf(it) = m
 Vis(it) = `protected`    ModuleOf(it) = m
 ──────────────────────────────────────────────────────────────
 Γ ⊢ CanAccess(m, it) ⇓ ok
+
+**(Access-Internal-Err)**
+Vis(it) = `internal`    ¬ SameAssembly(ModuleOf(it), m)    c = Code(Access-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ CanAccess(m, it) ⇑ c
 
 **(Access-Err)**
 Vis(it) ∈ {`private`, `protected`}    ModuleOf(it) ≠ m    c = Code(Access-Err)
@@ -5592,7 +6739,7 @@ Vis(it) = `protected`    TopLevelDecl(it)    c = Code(Protected-TopLevel-Err)
 **Binding Kinds.**
 
 BindKind = {Value, Type, Class, ModuleAlias}
-BindSource = {Decl, Using}
+BindSource = {Decl, Using, Import}
 NameInfo = ⟨kind, origin, target_opt, source⟩
 P = Project(Γ)
 NameMap(P, mp) = N ⇔ ModuleMap(P, mp) = M ∧ Γ ⊢ CollectNames(M) ⇓ N
@@ -5657,9 +6804,10 @@ ClassMap(m) = { n ↦ origin | NameMap(P, m)[n].kind = Class }
 Γ ⊢ PatNames(RangePattern(_, p_l, p_h)) ⇓ N_l ++ N_h
 
 **Using Bindings.**
-ModuleNames = { StringOfPath(p) | p ∈ ModulePaths }
+AllModuleNames = { StringOfPath(p) | p ∈ AllModulePaths(P) }
+VisibleModuleNames(m) = { StringOfPath(p) | p ∈ VisibleModulePaths(m) }
 Last([c_1, …, c_n]) = c_n if n ≥ 1
-IsModulePath(path) ⇔ StringOfPath(path) ∈ ModuleNames
+IsModulePath(path) ⇔ StringOfPath(path) ∈ AllModuleNames
 SplitLast(path) = (mp, name) ⇔ path = mp ++ [name] ∧ |path| ≥ 2
 ModuleByPath(P, p) = m ⇔ ASTModule(P, p) = m
 
@@ -5667,8 +6815,11 @@ ModuleByPath(P, p) = m ⇔ ASTModule(P, p) = m
 ItemNames(mp) = { n | NameMap(P, mp)[n].kind ∈ {Value, Type, Class} }
 
 **Using Spec Names.**
-UsingSpecName(⟨name, alias_opt⟩) = name
-UsingSpecNames([s_1, …, s_n]) = [UsingSpecName(s_1), …, UsingSpecName(s_n)]
+UsingSpecName(mp, ⟨name, alias_opt⟩) =
+ alias_opt    if alias_opt ≠ ⊥
+ Last(mp)     if name = `self` ∧ alias_opt = ⊥
+ name         otherwise
+UsingSpecNames(mp, [s_1, …, s_n]) = [UsingSpecName(mp, s_1), …, UsingSpecName(mp, s_n)]
 
 **Declared Names (Non-Using).**
 
@@ -5700,6 +6851,37 @@ DeclNames(m) = DeclNames(m.items, m.path)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ItemOfPath(path) ↑
 
+**Import Path Resolution.**
+
+ImportRequired(m, path) ⇔ AsmOfPath(path) ≠ AsmOfModule(m)
+ImportCovers(m, path) ⇔ ∃ p ∈ ImportPaths(m). PathPrefix(p, path)
+ImportOkJudg = {ImportOk}
+
+**(Import-Ok-Local)**
+¬ ImportRequired(m, path)
+──────────────────────────────────────────────
+Γ ⊢ ImportOk(m, path) ⇓ ok
+
+**(Import-Ok-Covered)**
+ImportRequired(m, path)    ImportCovers(m, path)
+──────────────────────────────────────────────
+Γ ⊢ ImportOk(m, path) ⇓ ok
+
+**(Import-Ok-Err)**
+ImportRequired(m, path)    ¬ ImportCovers(m, path)    c = Code(Import-Using-Missing)
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ImportOk(m, path) ⇑ c
+
+**(Resolve-Import-Ok)**
+StringOfPath(path) ∈ AllModuleNames
+──────────────────────────────────────────────
+Γ ⊢ ResolveImportPath(path) ⇓ path
+
+**(Resolve-Import-Err)**
+StringOfPath(path) ∉ AllModuleNames    c = Code(Resolve-Import-Err)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveImportPath(path) ⇑ c
+
 **Using Path Resolution.**
 
 **(Resolve-Using-Item)**
@@ -5722,8 +6904,20 @@ IsModulePath(path)    Γ ⊢ ItemOfPath(path) ⇓ (mp, name)    c = Code(Resolve
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ResolveUsingPath(path) ⇑ c
 
+**Import Bindings.**
+
+**(Import-Path)**
+u = ⟨ImportDecl, vis, path, alias_opt, _, _⟩    Γ ⊢ ResolveImportPath(path) ⇓ mp    name = alias_opt if present, else Last(path)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ImportNames(u) ⇓ [(name, ⟨ModuleAlias, mp, ⊥, Import⟩)]
+
+**(Import-Path-Err)**
+u = ⟨ImportDecl, _, path, _, _, _⟩    Γ ⊢ ResolveImportPath(path) ⇑ c
+────────────────────────────────────────────────────────────────
+Γ ⊢ ImportNames(u) ⇑ c
+
 **(Using-Path-Item)**
-u = ⟨UsingDecl, vis, ⟨UsingPath, path, alias_opt⟩, _, _⟩    Γ ⊢ ResolveUsingPath(path) ⇓ ⟨Item, mp, item⟩    Γ ⊢ CanAccess(m, DeclOf(mp, item)) ⇓ ok    (vis = `public` ⇒ Vis(DeclOf(mp, item)) = `public`)    NameMap(P, mp)[IdKey(item)] = ⟨k, _, _, _⟩    k ∈ {Value, Type, Class}    name = alias_opt if present, else item
+u = ⟨UsingDecl, vis, ⟨UsingPath, path, alias_opt⟩, _, _⟩    Γ ⊢ ResolveUsingPath(path) ⇓ ⟨Item, mp, item⟩    Γ ⊢ ImportOk(m, mp) ⇓ ok    Γ ⊢ CanAccess(m, DeclOf(mp, item)) ⇓ ok    (vis = `public` ⇒ Vis(DeclOf(mp, item)) = `public`)    NameMap(P, mp)[IdKey(item)] = ⟨k, _, _, _⟩    k ∈ {Value, Type, Class}    name = alias_opt if present, else item
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ UsingNames(u) ⇓ [(name, ⟨k, mp, item, Using⟩)]
 
@@ -5733,22 +6927,37 @@ u = ⟨UsingDecl, `public`, ⟨UsingPath, path, _⟩, _, _⟩    Γ ⊢ ResolveU
 Γ ⊢ UsingNames(u) ⇑ c
 
 **(Using-Path-Module)**
-u = ⟨UsingDecl, _, ⟨UsingPath, path, alias_opt⟩, _, _⟩    Γ ⊢ ResolveUsingPath(path) ⇓ ⟨Module, path⟩    name = alias_opt if present, else Last(path)
+u = ⟨UsingDecl, _, ⟨UsingPath, path, alias_opt⟩, _, _⟩    Γ ⊢ ResolveUsingPath(path) ⇓ ⟨Module, path⟩    Γ ⊢ ImportOk(m, path) ⇓ ok    name = alias_opt if present, else Last(path)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ UsingNames(u) ⇓ [(name, ⟨ModuleAlias, path, ⊥, Using⟩)]
 
-**(Using-List)**
-u = ⟨UsingDecl, vis, ⟨UsingList, mp, [s_1, …, s_n]⟩, _, _⟩    Distinct(UsingSpecNames([s_1, …, s_n]))    ∀ i, s_i = ⟨name_i, alias_i⟩    NameMap(P, mp)[IdKey(name_i)] = ⟨k_i, _, _, _⟩    k_i ∈ {Value, Type, Class}    Γ ⊢ CanAccess(m, DeclOf(mp, name_i)) ⇓ ok    (vis = `public` ⇒ Vis(DeclOf(mp, name_i)) = `public`)    bind_i = ⟨(alias_i if present else name_i), ⟨k_i, mp, name_i, Using⟩⟩
+**(Using-List-NoSelf)**
+u = ⟨UsingDecl, vis, ⟨UsingList, mp, specs⟩, _, _⟩    ∀ s ∈ specs. s = ⟨name_s, _⟩ ∧ name_s ≠ `self`    Distinct(UsingSpecNames(mp, specs))    Γ ⊢ ImportOk(m, mp) ⇓ ok    ∀ i, s_i = ⟨name_i, alias_i⟩    NameMap(P, mp)[IdKey(name_i)] = ⟨k_i, _, _, _⟩    k_i ∈ {Value, Type, Class}    Γ ⊢ CanAccess(m, DeclOf(mp, name_i)) ⇓ ok    (vis = `public` ⇒ Vis(DeclOf(mp, name_i)) = `public`)    bind_i = ⟨UsingSpecName(mp, s_i), ⟨k_i, mp, name_i, Using⟩⟩
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ UsingNames(u) ⇓ [bind_1, …, bind_n]
 
+**(Using-List-Self)**
+u = ⟨UsingDecl, vis, ⟨UsingList, mp, specs⟩, _, _⟩    s_self ∈ specs    s_self = ⟨`self`, alias_self⟩    ∀ s ∈ specs. s.name = `self` ⇒ s = s_self    ItemSpecs = [s_i | s_i ∈ specs ∧ s_i.name ≠ `self`]    Distinct(UsingSpecNames(mp, specs))    Γ ⊢ ImportOk(m, mp) ⇓ ok    ∀ i, s_i ∈ ItemSpecs, s_i = ⟨name_i, alias_i⟩    NameMap(P, mp)[IdKey(name_i)] = ⟨k_i, _, _, _⟩    k_i ∈ {Value, Type, Class}    Γ ⊢ CanAccess(m, DeclOf(mp, name_i)) ⇓ ok    (vis = `public` ⇒ Vis(DeclOf(mp, name_i)) = `public`)    bind_i = ⟨UsingSpecName(mp, s_i), ⟨k_i, mp, name_i, Using⟩⟩    self_name = UsingSpecName(mp, s_self)    bind_self = ⟨self_name, ⟨ModuleAlias, mp, ⊥, Using⟩⟩
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ UsingNames(u) ⇓ [bind_self, bind_1, …, bind_n]
+
+**(Using-Wildcard-Warn)**
+u = ⟨UsingDecl, vis, ⟨UsingWildcard, mp⟩, _, _⟩    Γ ⊢ ImportOk(m, mp) ⇓ ok    PublicAPI(m)    Items = { name | name ∈ ItemNames(mp) ∧ Γ ⊢ CanAccess(m, DeclOf(mp, name)) ⇓ ok }    (vis = `public` ⇒ ∀ name ∈ Items. Vis(DeclOf(mp, name)) = `public`)    ∀ name ∈ Items, NameMap(P, mp)[IdKey(name)] = ⟨k, _, _, _⟩    k ∈ {Value, Type, Class}    bind_name = ⟨name, ⟨k, mp, name, Using⟩⟩    Γ ⊢ Emit(W-MOD-1201, ⊥)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ UsingNames(u) ⇓ [bind_name | name ∈ Items]
+
+**(Using-Wildcard)**
+u = ⟨UsingDecl, vis, ⟨UsingWildcard, mp⟩, _, _⟩    Γ ⊢ ImportOk(m, mp) ⇓ ok    ¬ PublicAPI(m)    Items = { name | name ∈ ItemNames(mp) ∧ Γ ⊢ CanAccess(m, DeclOf(mp, name)) ⇓ ok }    (vis = `public` ⇒ ∀ name ∈ Items. Vis(DeclOf(mp, name)) = `public`)    ∀ name ∈ Items, NameMap(P, mp)[IdKey(name)] = ⟨k, _, _, _⟩    k ∈ {Value, Type, Class}    bind_name = ⟨name, ⟨k, mp, name, Using⟩⟩
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ UsingNames(u) ⇓ [bind_name | name ∈ Items]
+
 **(Using-List-Dup)**
-u = ⟨UsingDecl, _, ⟨UsingList, _, specs⟩, _, _⟩    ¬ Distinct(UsingSpecNames(specs))    c = Code(Using-List-Dup)
+u = ⟨UsingDecl, _, ⟨UsingList, mp, specs⟩, _, _⟩    ¬ Distinct(UsingSpecNames(mp, specs))    c = Code(Using-List-Dup)
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ UsingNames(u) ⇑ c
 
 **(Using-List-Public-Err)**
-u = ⟨UsingDecl, `public`, ⟨UsingList, mp, [s_1, …, s_n]⟩, _, _⟩    ∃ i. s_i = ⟨name_i, _⟩ ∧ Vis(DeclOf(mp, name_i)) ≠ `public`    c = Code(Using-List-Public-Err)
+u = ⟨UsingDecl, `public`, ⟨UsingList, mp, specs⟩, _, _⟩    ∃ s_i ∈ specs. s_i = ⟨name_i, _⟩ ∧ name_i ≠ `self` ∧ Vis(DeclOf(mp, name_i)) ≠ `public`    c = Code(Using-List-Public-Err)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ UsingNames(u) ⇑ c
 
@@ -5757,6 +6966,11 @@ u = ⟨UsingDecl, `public`, ⟨UsingList, mp, [s_1, …, s_n]⟩, _, _⟩    ∃
 **(Bind-Procedure)**
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ItemBindings(⟨ProcedureDecl, _, name, _, _, _, _, _⟩, p) ⇓ [(name, ⟨Value, p, ⊥, Decl⟩)]
+
+**(Bind-ExternBlock)**
+B = [(name_i, ⟨Value, p, ⊥, Decl⟩) | ExternProcDecl(_, _, name_i, _, _, _, _, _, _, _, _) ∈ items]
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ItemBindings(⟨ExternBlock, _, _, _, items, _, _⟩, p) ⇓ B
 
 **(Bind-Record)**
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -5778,6 +6992,16 @@ u = ⟨UsingDecl, `public`, ⟨UsingList, mp, [s_1, …, s_n]⟩, _, _⟩    ∃
 Γ ⊢ PatNames(pat) ⇓ N
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ItemBindings(⟨StaticDecl, _, _, ⟨pat, _, _, _, _⟩, _, _⟩, p) ⇓ [(n, ⟨Value, p, ⊥, Decl⟩) | n ∈ N]
+
+**(Bind-Import)**
+Γ ⊢ ImportNames(u) ⇓ B
+──────────────────────────────────────────────
+Γ ⊢ ItemBindings(u, p) ⇓ B
+
+**(Bind-Import-Err)**
+Γ ⊢ ImportNames(u) ⇑ c
+──────────────────────────────────────────────
+Γ ⊢ ItemBindings(u, p) ⇑ c
 
 **(Bind-Using)**
 Γ ⊢ UsingNames(u) ⇓ B
@@ -5805,8 +7029,13 @@ u = ⟨UsingDecl, `public`, ⟨UsingList, mp, [s_1, …, s_n]⟩, _, _⟩    ∃
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ CollectNames(it :: rest, p, N) ⇓ N'
 
+**(Collect-Using-Import-Dup)**
+Γ ⊢ ItemBindings(it, p) ⇓ B    (¬ DisjointNames(B, N) ∨ ¬ NoDup(B))    UsingImportConflict(B, N)    c = Code(Import-Using-Name-Conflict)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ CollectNames(it :: rest, p, N) ⇑ c
+
 **(Collect-Dup)**
-Γ ⊢ ItemBindings(it, p) ⇓ B    (¬ DisjointNames(B, N) ∨ ¬ NoDup(B))    c = Code(Collect-Dup)
+Γ ⊢ ItemBindings(it, p) ⇓ B    (¬ DisjointNames(B, N) ∨ ¬ NoDup(B))    ¬ UsingImportConflict(B, N)    c = Code(Collect-Dup)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ CollectNames(it :: rest, p, N) ⇑ c
 
@@ -5819,6 +7048,10 @@ Names(B) = { n | (n, _) ∈ B }
 NoDup(B) ⇔ Distinct(Names(B))
 DisjointNames(B, N) ⇔ Names(B) ∩ dom(N) = ∅
 N ∪ B = { (n, v) | (n, v) ∈ N ∨ (n, v) ∈ B }
+NameInfoOf(B, n) = info ⇔ (n, info) ∈ B
+NameSource(B, n) = src ⇔ NameInfoOf(B, n) = info ∧ info.source = src
+NameSource(N, n) = src ⇔ n ∈ dom(N) ∧ N[n].source = src
+UsingImportConflict(B, N) ⇔ ∃ n. n ∈ Names(B) ∩ dom(N) ∧ (NameSource(B, n) ∈ {Using, Import} ∨ NameSource(N, n) ∈ {Using, Import})
 
 **CollectNames (Small-Step).**
 NamesState = {NamesStart(M), NamesScan(items, p, N), NamesDone(N), Error(code)}
@@ -5832,8 +7065,13 @@ NamesState = {NamesStart(M), NamesScan(items, p, N), NamesDone(N), Error(code)}
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ⟨NamesScan(it :: rest, p, N)⟩ → ⟨NamesScan(rest, p, N ∪ B)⟩
 
+**(Names-Step-Using-Import-Dup)**
+Γ ⊢ ItemBindings(it, p) ⇓ B    (¬ DisjointNames(B, N) ∨ ¬ NoDup(B))    UsingImportConflict(B, N)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⟨NamesScan(it :: rest, p, N)⟩ → ⟨Error(Code(Import-Using-Name-Conflict))⟩
+
 **(Names-Step-Dup)**
-Γ ⊢ ItemBindings(it, p) ⇓ B    (¬ DisjointNames(B, N) ∨ ¬ NoDup(B))
+Γ ⊢ ItemBindings(it, p) ⇓ B    (¬ DisjointNames(B, N) ∨ ¬ NoDup(B))    ¬ UsingImportConflict(B, N)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ⟨NamesScan(it :: rest, p, N)⟩ → ⟨Error(Code(Names-Step-Dup))⟩
 
@@ -5898,6 +7136,13 @@ ResolvePathJudg = {ResolveRecordPath, ResolveEnumUnit, ResolveEnumTuple, Resolve
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ResolveEnumRecord(path, name) ⇓ p
 
+BuiltinValuePath(path, name) ⇔ BuiltinValueSig(path, name) defined
+
+**(ResolveQual-Name-Builtin)**
+BuiltinValuePath(path, name)
+──────────────────────────────────────────────────────────────
+Γ ⊢ ResolveQualifiedForm(QualifiedName(path, name)) ⇓ Path(path, name)
+
 **(ResolveQual-Name-Value)**
 Γ ⊢ ResolveQualified(path, name, ValueKind) ⇓ ent    ent.origin_opt = mp    name' = (ent.target_opt if present, else name)    PathOfModule(mp) = path'
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -5922,6 +7167,11 @@ ResolvePathJudg = {ResolveRecordPath, ResolveEnumUnit, ResolveEnumTuple, Resolve
 Γ ⊢ ResolveArgs(args) ⇓ args'    Γ ⊢ ResolveQualified(path, name, ValueKind) ⇓ ent    ent.origin_opt = mp    name' = (ent.target_opt if present, else name)    PathOfModule(mp) = path'
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ResolveQualifiedForm(QualifiedApply(path, name, Paren(args))) ⇓ Call(Path(path', name'), args')
+
+**(ResolveQual-Apply-Builtin)**
+Γ ⊢ ResolveArgs(args) ⇓ args'    BuiltinValuePath(path, name)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveQualifiedForm(QualifiedApply(path, name, Paren(args))) ⇓ Call(Path(path, name), args')
 
 **(ResolveQual-Apply-Record)**
 Γ ⊢ ResolveArgs(args) ⇓ args'    Γ ⊢ ResolveRecordPath(path, name) ⇓ p    SplitLast(p) = (mp, name')
@@ -5988,44 +7238,188 @@ ReservedModulePath(PathOfModule(p))    c = Code(Validate-ModulePath-Reserved-Err
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ResolveItems(it :: rest) ⇓ it' :: rest'
 
+**Type Parameter Scopes (Resolution).**
+
+TypeParamBindings(params) = { IdKey(p.name) ↦ ⟨Type, ⊥, ⊥, Decl⟩ | p ∈ params }
+TypeParamBindings(⊥) = {}
+
+**(ResolveGenericParamsOpt-None)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveGenericParamsOpt(⊥) ⇓ ⊥
+
+**(ResolveGenericParamsOpt-Yes)**
+Γ ⊢ ResolveTypeParamList(params) ⇓ params'
+──────────────────────────────────────────────
+Γ ⊢ ResolveGenericParamsOpt(params) ⇓ params'
+
+**(ResolveTypeParam)**
+Γ ⊢ ResolveClassPathList(bounds) ⇓ bounds'    Γ ⊢ ResolveTypeOpt(default_opt) ⇓ default_opt'
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveTypeParam(⟨name, bounds, default_opt, variance⟩) ⇓ ⟨name, bounds', default_opt', variance⟩
+
+**(ResolveTypeParamList-Empty)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveTypeParamList([]) ⇓ []
+
+**(ResolveTypeParamList-Cons)**
+Γ ⊢ ResolveTypeParam(p) ⇓ p'    Γ ⊢ ResolveTypeParamList(ps) ⇓ ps'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveTypeParamList(p :: ps) ⇓ p' :: ps'
+
+**(ResolveWhereClauseOpt-None)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveWhereClauseOpt(⊥) ⇓ ⊥
+
+**(ResolveWhereClauseOpt-Yes)**
+Γ ⊢ ResolveWherePredList(preds) ⇓ preds'
+──────────────────────────────────────────────
+Γ ⊢ ResolveWhereClauseOpt(preds) ⇓ preds'
+
+**(ResolveWherePred-Predicate)**
+Γ ⊢ ResolveType(ty) ⇓ ty'
+──────────────────────────────────────────────────────────────
+Γ ⊢ ResolveWherePred(PredWherePred(pred, ty)) ⇓ PredWherePred(pred, ty')
+
+**(ResolveWherePredList-Empty)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveWherePredList([]) ⇓ []
+
+**(ResolveWherePredList-Cons)**
+Γ ⊢ ResolveWherePred(p) ⇓ p'    Γ ⊢ ResolveWherePredList(ps) ⇓ ps'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveWherePredList(p :: ps) ⇓ p' :: ps'
+
+**(ResolveContractClauseOpt-None)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveContractClauseOpt(⊥) ⇓ ⊥
+
+**(ResolveContractClauseOpt-Yes)**
+Γ ⊢ ResolveExprOpt(pre) ⇓ pre'    Γ ⊢ ResolveExprOpt(post) ⇓ post'
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveContractClauseOpt(ContractClause(pre, post)) ⇓ ContractClause(pre', post')
+
+**(ResolveInvariantOpt-None)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveInvariantOpt(⊥) ⇓ ⊥
+
+**(ResolveInvariantOpt-Yes)**
+Γ ⊢ ResolveExpr(inv) ⇓ inv'
+──────────────────────────────────────────────
+Γ ⊢ ResolveInvariantOpt(inv) ⇓ inv'
+
+**(ResolveForeignContractClauseListOpt-None)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveForeignContractClauseListOpt(⊥) ⇓ ⊥
+
+**(ResolveForeignContractClauseListOpt-Yes)**
+Γ ⊢ ResolveForeignContractClauseList(cs) ⇓ cs'
+────────────────────────────────────────────────
+Γ ⊢ ResolveForeignContractClauseListOpt(cs) ⇓ cs'
+
+**(ResolveForeignContractClauseList-Empty)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveForeignContractClauseList([]) ⇓ []
+
+**(ResolveForeignContractClauseList-Cons)**
+Γ ⊢ ResolveForeignContractClause(c) ⇓ c'    Γ ⊢ ResolveForeignContractClauseList(cs) ⇓ cs'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveForeignContractClauseList(c :: cs) ⇓ c' :: cs'
+
+**(ResolveForeignContractClause-Assumes)**
+Γ ⊢ ResolveExprList(preds) ⇓ preds'
+───────────────────────────────────────────────
+Γ ⊢ ResolveForeignContractClause(ForeignContractClause(ForeignAssumes, preds)) ⇓ ForeignContractClause(ForeignAssumes, preds')
+
+**(ResolveForeignContractClause-Ensures)**
+Γ ⊢ ResolveEnsuresPredicateList(preds) ⇓ preds'
+───────────────────────────────────────────────
+Γ ⊢ ResolveForeignContractClause(ForeignContractClause(ForeignEnsures, preds)) ⇓ ForeignContractClause(ForeignEnsures, preds')
+
+**(ResolveEnsuresPredicateList-Empty)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveEnsuresPredicateList([]) ⇓ []
+
+**(ResolveEnsuresPredicateList-Cons)**
+Γ ⊢ ResolveEnsuresPredicate(p) ⇓ p'    Γ ⊢ ResolveEnsuresPredicateList(ps) ⇓ ps'
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveEnsuresPredicateList(p :: ps) ⇓ p' :: ps'
+
+**(ResolveEnsuresPredicate-Plain)**
+Γ ⊢ ResolveExpr(pred) ⇓ pred'
+──────────────────────────────────────────────
+Γ ⊢ ResolveEnsuresPredicate(Ensures(pred)) ⇓ Ensures(pred')
+
+**(ResolveEnsuresPredicate-Error)**
+Γ ⊢ ResolveExpr(pred) ⇓ pred'
+──────────────────────────────────────────────
+Γ ⊢ ResolveEnsuresPredicate(EnsuresError(pred)) ⇓ EnsuresError(pred')
+
+**(ResolveEnsuresPredicate-NullResult)**
+Γ ⊢ ResolveExpr(pred) ⇓ pred'
+──────────────────────────────────────────────
+Γ ⊢ ResolveEnsuresPredicate(EnsuresNullResult(pred)) ⇓ EnsuresNullResult(pred')
+
+**(ResolveExternItemList-Empty)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveExternItemList([]) ⇓ []
+
+**(ResolveExternItemList-Cons)**
+Γ ⊢ ResolveExternItem(it) ⇓ it'    Γ ⊢ ResolveExternItemList(rest) ⇓ rest'
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExternItemList(it :: rest) ⇓ it' :: rest'
+
+**(ResolveExternItem-Procedure)**
+S_gen = TypeParamBindings(gen_params_opt)    Γ_g = [S_gen, S_module, S_universe]    Γ_g ⊢ ResolveGenericParamsOpt(gen_params_opt) ⇓ gen_params_opt'    Γ_g ⊢ ResolveWhereClauseOpt(where_clause_opt) ⇓ where_clause_opt'    S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ_p = [S_proc, S_gen, S_module, S_universe]    Γ_p ⊢ ResolveParams(params) ⇓ params'    Γ_p ⊢ ResolveTypeOpt(ret_opt) ⇓ ret_opt'    Γ_p ⊢ ResolveContractClauseOpt(contract_opt) ⇓ contract_opt'    Γ_p ⊢ ResolveForeignContractClauseListOpt(foreign_contracts_opt) ⇓ foreign_contracts_opt'
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExternItem(ExternProcDecl(attrs_opt, vis, name, gen_params_opt, where_clause_opt, params, ret_opt, contract_opt, foreign_contracts_opt, span, doc)) ⇓ ExternProcDecl(attrs_opt, vis, name, gen_params_opt', where_clause_opt', params', ret_opt', contract_opt', foreign_contracts_opt', span, doc)
+
+**(ResolveItem-ExternBlock)**
+Γ ⊢ ResolveExternItemList(items) ⇓ items'
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveItem(ExternBlock(attrs_opt, vis, abi_opt, items, span, doc)) ⇓ ExternBlock(attrs_opt, vis, abi_opt, items', span, doc)
+
 **(ResolveItem-Static)**
 Γ ⊢ ResolvePattern(pat) ⇓ pat'    Γ ⊢ ResolveExpr(init) ⇓ init'    Γ ⊢ ResolveTypeOpt(ty_opt) ⇓ ty_opt'
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ResolveItem(StaticDecl(vis, mut, ⟨pat, ty_opt, op, init, span⟩, span', doc)) ⇓ StaticDecl(vis, mut, ⟨pat', ty_opt', op, init', span⟩, span', doc)
+Γ ⊢ ResolveItem(StaticDecl(attrs_opt, vis, mut, ⟨pat, ty_opt, op, init, span⟩, span', doc)) ⇓ StaticDecl(attrs_opt, vis, mut, ⟨pat', ty_opt', op, init', span⟩, span', doc)
 
 **(ResolveItem-Procedure)**
-S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ_p = [S_proc, S_module, S_universe]    Γ_p ⊢ ResolveParams(params) ⇓ params'    Γ_p ⊢ ResolveTypeOpt(ret_opt) ⇓ ret_opt'    Γ_p ⊢ ResolveExpr(body) ⇓ body'
+S_gen = TypeParamBindings(gen_params_opt)    Γ_g = [S_gen, S_module, S_universe]    Γ_g ⊢ ResolveGenericParamsOpt(gen_params_opt) ⇓ gen_params_opt'    Γ_g ⊢ ResolveWhereClauseOpt(where_clause_opt) ⇓ where_clause_opt'    S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ_p = [S_proc, S_gen, S_module, S_universe]    Γ_p ⊢ ResolveParams(params) ⇓ params'    Γ_p ⊢ ResolveTypeOpt(ret_opt) ⇓ ret_opt'    Γ_p ⊢ ResolveContractClauseOpt(contract_opt) ⇓ contract_opt'    Γ_p ⊢ ResolveExpr(body) ⇓ body'
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ResolveItem(ProcedureDecl(vis, name, params, ret_opt, body, span, doc)) ⇓ ProcedureDecl(vis, name, params', ret_opt', body', span, doc)
+Γ ⊢ ResolveItem(ProcedureDecl(attrs_opt, vis, name, gen_params_opt, where_clause_opt, params, ret_opt, contract_opt, body, span, doc)) ⇓ ProcedureDecl(attrs_opt, vis, name, gen_params_opt', where_clause_opt', params', ret_opt', contract_opt', body', span, doc)
+
+**(ResolveItem-Import)**
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveItem(ImportDecl(attrs_opt, vis, path, alias_opt, span, doc)) ⇓ ImportDecl(attrs_opt, vis, path, alias_opt, span, doc)
 
 **(ResolveItem-Using)**
 ──────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ResolveItem(UsingDecl(vis, clause, span, doc)) ⇓ UsingDecl(vis, clause, span, doc)
+Γ ⊢ ResolveItem(UsingDecl(attrs_opt, vis, clause, span, doc)) ⇓ UsingDecl(attrs_opt, vis, clause, span, doc)
 
 **(ResolveItem-TypeAlias)**
-Γ ⊢ ResolveType(ty) ⇓ ty'
+S_gen = TypeParamBindings(gen_params_opt)    Γ_g = [S_gen, S_module, S_universe]    Γ_g ⊢ ResolveGenericParamsOpt(gen_params_opt) ⇓ gen_params_opt'    Γ_g ⊢ ResolveWhereClauseOpt(where_clause_opt) ⇓ where_clause_opt'    Γ_g ⊢ ResolveType(ty) ⇓ ty'
 ──────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ResolveItem(TypeAliasDecl(vis, name, ty, span, doc)) ⇓ TypeAliasDecl(vis, name, ty', span, doc)
+Γ ⊢ ResolveItem(TypeAliasDecl(attrs_opt, vis, name, gen_params_opt, where_clause_opt, ty, span, doc)) ⇓ TypeAliasDecl(attrs_opt, vis, name, gen_params_opt', where_clause_opt', ty', span, doc)
 
 **(ResolveItem-Record)**
-R = RecordDecl(vis, name, impls, members, span, doc)    Γ ⊢ ResolveClassPathList(impls) ⇓ impls'    Γ ⊢ ResolveRecordMemberList(R, members) ⇓ members'
+R = RecordDecl(attrs_opt, vis, name, gen_params_opt, where_clause_opt, impls, members, invariant_opt, span, doc)    S_gen = TypeParamBindings(gen_params_opt)    Γ_g = [S_gen, S_module, S_universe]    Γ_g ⊢ ResolveGenericParamsOpt(gen_params_opt) ⇓ gen_params_opt'    Γ_g ⊢ ResolveWhereClauseOpt(where_clause_opt) ⇓ where_clause_opt'    Γ_g ⊢ ResolveClassPathList(impls) ⇓ impls'    Γ_g ⊢ ResolveRecordMemberList(R, members) ⇓ members'    Γ_g ⊢ ResolveInvariantOpt(invariant_opt) ⇓ invariant_opt'
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ResolveItem(R) ⇓ RecordDecl(vis, name, impls', members', span, doc)
+Γ ⊢ ResolveItem(R) ⇓ RecordDecl(attrs_opt, vis, name, gen_params_opt', where_clause_opt', impls', members', invariant_opt', span, doc)
 
 **(ResolveItem-Enum)**
-Γ ⊢ ResolveClassPathList(impls) ⇓ impls'    Γ ⊢ ResolveVariantList(vars) ⇓ vars'
+S_gen = TypeParamBindings(gen_params_opt)    Γ_g = [S_gen, S_module, S_universe]    Γ_g ⊢ ResolveGenericParamsOpt(gen_params_opt) ⇓ gen_params_opt'    Γ_g ⊢ ResolveWhereClauseOpt(where_clause_opt) ⇓ where_clause_opt'    Γ_g ⊢ ResolveClassPathList(impls) ⇓ impls'    Γ_g ⊢ ResolveVariantList(vars) ⇓ vars'    Γ_g ⊢ ResolveInvariantOpt(invariant_opt) ⇓ invariant_opt'
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ResolveItem(EnumDecl(vis, name, impls, vars, span, doc)) ⇓ EnumDecl(vis, name, impls', vars', span, doc)
+Γ ⊢ ResolveItem(EnumDecl(attrs_opt, vis, name, gen_params_opt, where_clause_opt, impls, vars, invariant_opt, span, doc)) ⇓ EnumDecl(attrs_opt, vis, name, gen_params_opt', where_clause_opt', impls', vars', invariant_opt', span, doc)
 
 **(ResolveItem-Modal)**
-Γ ⊢ ResolveClassPathList(impls) ⇓ impls'    Γ ⊢ ResolveStateBlockList(states) ⇓ states'
+S_gen = TypeParamBindings(gen_params_opt)    Γ_g = [S_gen, S_module, S_universe]    Γ_g ⊢ ResolveGenericParamsOpt(gen_params_opt) ⇓ gen_params_opt'    Γ_g ⊢ ResolveWhereClauseOpt(where_clause_opt) ⇓ where_clause_opt'    Γ_g ⊢ ResolveClassPathList(impls) ⇓ impls'    Γ_g ⊢ ResolveStateBlockList(states) ⇓ states'    Γ_g ⊢ ResolveInvariantOpt(invariant_opt) ⇓ invariant_opt'
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ResolveItem(ModalDecl(vis, name, impls, states, span, doc)) ⇓ ModalDecl(vis, name, impls', states', span, doc)
+Γ ⊢ ResolveItem(ModalDecl(attrs_opt, vis, name, gen_params_opt, where_clause_opt, impls, states, invariant_opt, span, doc)) ⇓ ModalDecl(attrs_opt, vis, name, gen_params_opt', where_clause_opt', impls', states', invariant_opt', span, doc)
 
 **(ResolveItem-Class)**
-Γ ⊢ ResolveClassPathList(supers) ⇓ supers'    Γ ⊢ ResolveClassItemList(items) ⇓ items'
+S_gen = TypeParamBindings(gen_params_opt)    Γ_g = [S_gen, S_module, S_universe]    Γ_g ⊢ ResolveGenericParamsOpt(gen_params_opt) ⇓ gen_params_opt'    Γ_g ⊢ ResolveWhereClauseOpt(where_clause_opt) ⇓ where_clause_opt'    Γ_g ⊢ ResolveClassPathList(supers) ⇓ supers'    Γ_g ⊢ ResolveClassItemList(items) ⇓ items'
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ResolveItem(ClassDecl(vis, name, supers, items, span, doc)) ⇓ ClassDecl(vis, name, supers', items', span, doc)
+Γ ⊢ ResolveItem(ClassDecl(attrs_opt, vis, modal_opt, name, gen_params_opt, where_clause_opt, supers, items, span, doc)) ⇓ ClassDecl(attrs_opt, vis, modal_opt, name, gen_params_opt', where_clause_opt', supers', items', span, doc)
 
 **Self Binding for Methods.**
 
@@ -6069,7 +7463,7 @@ S_proc' = S_proc[IdKey(`Self`) ↦ ⟨Type, ⊥, ⊥, Decl⟩]
 **(ResolveFieldDecl)**
 Γ ⊢ ResolveType(ty) ⇓ ty'    Γ ⊢ ResolveExprOpt(init_opt) ⇓ init_opt'
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ResolveFieldDecl(FieldDecl(vis, name, ty, init_opt, span, doc_opt)) ⇓ FieldDecl(vis, name, ty', init_opt', span, doc_opt)
+Γ ⊢ ResolveFieldDecl(FieldDecl(attrs_opt, vis, boundary, name, ty, init_opt, span, doc_opt)) ⇓ FieldDecl(attrs_opt, vis, boundary, name, ty', init_opt', span, doc_opt)
 
 **(ResolveFieldDeclList-Empty)**
 ──────────────────────────────────────────────
@@ -6086,9 +7480,9 @@ S_proc' = S_proc[IdKey(`Self`) ↦ ⟨Type, ⊥, ⊥, Decl⟩]
 Γ ⊢ ResolveRecordMember(R, f) ⇓ f'
 
 **(ResolveRecordMember-Method)**
-S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ ⊢ BindSelfRecord(R, S_proc) ⇓ S_proc'    Γ_m = [S_proc', S_module, S_universe]    Γ_m ⊢ ResolveReceiver(recv) ⇓ recv'    Γ_m ⊢ ResolveParams(params) ⇓ params'    Γ_m ⊢ ResolveTypeOpt(ret_opt) ⇓ ret_opt'    Γ_m ⊢ ResolveExpr(body) ⇓ body'
+R = RecordDecl(_, _, _, gen_params_opt_r, _, _, _, _, _, _)    S_rec = TypeParamBindings(gen_params_opt_r)    S_gen = TypeParamBindings(gen_params_opt)    Γ_g = [S_gen, S_rec, S_module, S_universe]    Γ_g ⊢ ResolveGenericParamsOpt(gen_params_opt) ⇓ gen_params_opt'    S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ ⊢ BindSelfRecord(R, S_proc) ⇓ S_proc'    Γ_m = [S_proc', S_gen, S_rec, S_module, S_universe]    Γ_m ⊢ ResolveReceiver(recv) ⇓ recv'    Γ_m ⊢ ResolveParams(params) ⇓ params'    Γ_m ⊢ ResolveTypeOpt(ret_opt) ⇓ ret_opt'    Γ_m ⊢ ResolveContractClauseOpt(contract_opt) ⇓ contract_opt'    Γ_m ⊢ ResolveExpr(body) ⇓ body'
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ResolveRecordMember(R, MethodDecl(vis, override, name, recv, params, ret_opt, body, span, doc_opt)) ⇓ MethodDecl(vis, override, name, recv', params', ret_opt', body', span, doc_opt)
+Γ ⊢ ResolveRecordMember(R, MethodDecl(attrs_opt, vis, override, name, gen_params_opt, recv, params, ret_opt, contract_opt, body, span, doc_opt)) ⇓ MethodDecl(attrs_opt, vis, override, name, gen_params_opt', recv', params', ret_opt', contract_opt', body', span, doc_opt)
 
 **(ResolveRecordMemberList-Empty)**
 ──────────────────────────────────────────────
@@ -6099,20 +7493,44 @@ S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ResolveRecordMemberList(R, m :: ms) ⇓ m' :: ms'
 
+**(ResolveClassFieldDecl)**
+Γ ⊢ ResolveType(ty) ⇓ ty'
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveClassFieldDecl(ClassFieldDecl(attrs_opt, vis, boundary, name, ty, span, doc_opt)) ⇓ ClassFieldDecl(attrs_opt, vis, boundary, name, ty', span, doc_opt)
+
+**(ResolveClassFieldDeclList-Empty)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveClassFieldDeclList([]) ⇓ []
+
+**(ResolveClassFieldDeclList-Cons)**
+Γ ⊢ ResolveClassFieldDecl(f) ⇓ f'    Γ ⊢ ResolveClassFieldDeclList(fs) ⇓ fs'
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveClassFieldDeclList(f :: fs) ⇓ f' :: fs'
+
+**(ResolveClassItem-AssociatedType)**
+Γ ⊢ ResolveTypeOpt(type_opt) ⇓ type_opt'
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveClassItem(AssociatedTypeDecl(attrs_opt, vis, name, type_opt, span, doc_opt)) ⇓ AssociatedTypeDecl(attrs_opt, vis, name, type_opt', span, doc_opt)
+
+**(ResolveClassItem-AbstractState)**
+Γ ⊢ ResolveClassFieldDeclList(fields) ⇓ fields'
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveClassItem(AbstractStateDecl(attrs_opt, vis, name, fields, span, doc_opt)) ⇓ AbstractStateDecl(attrs_opt, vis, name, fields', span, doc_opt)
+
 **(ResolveClassItem-Field)**
 Γ ⊢ ResolveType(ty) ⇓ ty'
 ──────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ResolveClassItem(ClassFieldDecl(vis, name, ty, span, doc_opt)) ⇓ ClassFieldDecl(vis, name, ty', span, doc_opt)
+Γ ⊢ ResolveClassItem(ClassFieldDecl(attrs_opt, vis, boundary, name, ty, span, doc_opt)) ⇓ ClassFieldDecl(attrs_opt, vis, boundary, name, ty', span, doc_opt)
 
 **(ResolveClassItem-Method-Abstract)**
-S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ ⊢ BindSelfClass(S_proc) ⇓ S_proc'    Γ_m = [S_proc', S_module, S_universe]    Γ_m ⊢ ResolveReceiver(recv) ⇓ recv'    Γ_m ⊢ ResolveParams(params) ⇓ params'    Γ_m ⊢ ResolveTypeOpt(ret_opt) ⇓ ret_opt'
+Scopes(Γ) = [S_class, S_module, S_universe]    S_gen = TypeParamBindings(gen_params_opt)    Γ_g = [S_gen, S_class, S_module, S_universe]    Γ_g ⊢ ResolveGenericParamsOpt(gen_params_opt) ⇓ gen_params_opt'    S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ ⊢ BindSelfClass(S_proc) ⇓ S_proc'    Γ_m = [S_proc', S_gen, S_class, S_module, S_universe]    Γ_m ⊢ ResolveReceiver(recv) ⇓ recv'    Γ_m ⊢ ResolveParams(params) ⇓ params'    Γ_m ⊢ ResolveTypeOpt(ret_opt) ⇓ ret_opt'    Γ_m ⊢ ResolveContractClauseOpt(contract_opt) ⇓ contract_opt'
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ResolveClassItem(ClassMethodDecl(vis, name, recv, params, ret_opt, ⊥, span, doc_opt)) ⇓ ClassMethodDecl(vis, name, recv', params', ret_opt', ⊥, span, doc_opt)
+Γ ⊢ ResolveClassItem(ClassMethodDecl(attrs_opt, vis, name, gen_params_opt, recv, params, ret_opt, contract_opt, ⊥, span, doc_opt)) ⇓ ClassMethodDecl(attrs_opt, vis, name, gen_params_opt', recv', params', ret_opt', contract_opt', ⊥, span, doc_opt)
 
 **(ResolveClassItem-Method-Concrete)**
-S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ ⊢ BindSelfClass(S_proc) ⇓ S_proc'    Γ_m = [S_proc', S_module, S_universe]    Γ_m ⊢ ResolveReceiver(recv) ⇓ recv'    Γ_m ⊢ ResolveParams(params) ⇓ params'    Γ_m ⊢ ResolveTypeOpt(ret_opt) ⇓ ret_opt'    Γ_m ⊢ ResolveExpr(body) ⇓ body'
+Scopes(Γ) = [S_class, S_module, S_universe]    S_gen = TypeParamBindings(gen_params_opt)    Γ_g = [S_gen, S_class, S_module, S_universe]    Γ_g ⊢ ResolveGenericParamsOpt(gen_params_opt) ⇓ gen_params_opt'    S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ ⊢ BindSelfClass(S_proc) ⇓ S_proc'    Γ_m = [S_proc', S_gen, S_class, S_module, S_universe]    Γ_m ⊢ ResolveReceiver(recv) ⇓ recv'    Γ_m ⊢ ResolveParams(params) ⇓ params'    Γ_m ⊢ ResolveTypeOpt(ret_opt) ⇓ ret_opt'    Γ_m ⊢ ResolveContractClauseOpt(contract_opt) ⇓ contract_opt'    Γ_m ⊢ ResolveExpr(body) ⇓ body'
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ResolveClassItem(ClassMethodDecl(vis, name, recv, params, ret_opt, body, span, doc_opt)) ⇓ ClassMethodDecl(vis, name, recv', params', ret_opt', body', span, doc_opt)
+Γ ⊢ ResolveClassItem(ClassMethodDecl(attrs_opt, vis, name, gen_params_opt, recv, params, ret_opt, contract_opt, body, span, doc_opt)) ⇓ ClassMethodDecl(attrs_opt, vis, name, gen_params_opt', recv', params', ret_opt', contract_opt', body', span, doc_opt)
 
 **(ResolveClassItemList-Empty)**
 ──────────────────────────────────────────────
@@ -6154,17 +7572,17 @@ S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ 
 **(ResolveStateMember-Field)**
 Γ ⊢ ResolveType(ty) ⇓ ty'
 ────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ResolveStateMember(StateFieldDecl(vis, name, ty, span, doc_opt)) ⇓ StateFieldDecl(vis, name, ty', span, doc_opt)
+Γ ⊢ ResolveStateMember(StateFieldDecl(attrs_opt, vis, boundary, name, ty, span, doc_opt)) ⇓ StateFieldDecl(attrs_opt, vis, boundary, name, ty', span, doc_opt)
 
 **(ResolveStateMember-Method)**
-S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ_m = [S_proc, S_module, S_universe]    Γ_m ⊢ ResolveParams(params) ⇓ params'    Γ_m ⊢ ResolveTypeOpt(ret_opt) ⇓ ret_opt'    Γ_m ⊢ ResolveExpr(body) ⇓ body'
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ResolveStateMember(StateMethodDecl(vis, name, params, ret_opt, body, span, doc_opt)) ⇓ StateMethodDecl(vis, name, params', ret_opt', body', span, doc_opt)
+Scopes(Γ) = [S_modal, S_module, S_universe]    S_gen = TypeParamBindings(gen_params_opt)    Γ_g = [S_gen, S_modal, S_module, S_universe]    Γ_g ⊢ ResolveGenericParamsOpt(gen_params_opt) ⇓ gen_params_opt'    S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ_m = [S_proc, S_gen, S_modal, S_module, S_universe]    Γ_m ⊢ ResolveReceiver(recv) ⇓ recv'    Γ_m ⊢ ResolveParams(params) ⇓ params'    Γ_m ⊢ ResolveTypeOpt(ret_opt) ⇓ ret_opt'    Γ_m ⊢ ResolveContractClauseOpt(contract_opt) ⇓ contract_opt'    Γ_m ⊢ ResolveExpr(body) ⇓ body'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveStateMember(StateMethodDecl(attrs_opt, vis, name, gen_params_opt, recv, params, ret_opt, contract_opt, body, span, doc_opt)) ⇓ StateMethodDecl(attrs_opt, vis, name, gen_params_opt', recv', params', ret_opt', contract_opt', body', span, doc_opt)
 
 **(ResolveStateMember-Transition)**
-S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ_m = [S_proc, S_module, S_universe]    Γ_m ⊢ ResolveParams(params) ⇓ params'    Γ_m ⊢ ResolveExpr(body) ⇓ body'
+Scopes(Γ) = [S_modal, S_module, S_universe]    S_proc = { IdKey(p.name) ↦ ⟨Value, ⊥, ⊥, Decl⟩ | p ∈ params }    Γ_m = [S_proc, S_modal, S_module, S_universe]    Γ_m ⊢ ResolveParams(params) ⇓ params'    Γ_m ⊢ ResolveExpr(body) ⇓ body'
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ResolveStateMember(TransitionDecl(vis, name, params, target_state, body, span, doc_opt)) ⇓ TransitionDecl(vis, name, params', target_state, body', span, doc_opt)
+Γ ⊢ ResolveStateMember(TransitionDecl(attrs_opt, vis, name, params, target_state, body, span, doc_opt)) ⇓ TransitionDecl(attrs_opt, vis, name, params', target_state, body', span, doc_opt)
 
 **(ResolveStateMemberList-Empty)**
 ──────────────────────────────────────────────
@@ -6244,20 +7662,34 @@ LocalTypePath(path) ⇔ |path| = 1 ∧ Γ ⊢ ResolveTypeName(path[0]) ⇓ ent �
 ──────────────────────────────────────────────
 Γ ⊢ ResolveType(TypeDynamic(path)) ⇓ TypeDynamic(path')
 
+**(ResolveType-Apply)**
+Γ ⊢ ResolveTypePath(path) ⇓ path'    Γ ⊢ ResolveTypeList(args) ⇓ args'
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveType(TypeApply(path, args)) ⇓ TypeApply(path', args')
+
 **(ResolveType-ModalState)**
-Γ ⊢ ResolveTypePath(path) ⇓ path'
+Γ ⊢ ResolveModalRef(modal_ref) ⇓ modal_ref'
 ──────────────────────────────────────────────────────────────
-Γ ⊢ ResolveType(TypeModalState(path, state)) ⇓ TypeModalState(path', state)
+Γ ⊢ ResolveType(TypeModalState(modal_ref, state)) ⇓ TypeModalState(modal_ref', state)
+
+ResolveModalRef(modal_ref) ⇓ modal_ref' ⇔
+ (modal_ref = TypePath(path) ∧ Γ ⊢ ResolveTypePath(path) ⇓ path' ∧ modal_ref' = TypePath(path')) ∨
+ (modal_ref = TypeApply(path, args) ∧ Γ ⊢ ResolveTypePath(path) ⇓ path' ∧ Γ ⊢ ResolveTypeList(args) ⇓ args' ∧ modal_ref' = TypeApply(path', args'))
 
 **(ResolveTypeRef-Path)**
 Γ ⊢ ResolveTypePath(path) ⇓ path'
 ──────────────────────────────────────────────
 Γ ⊢ ResolveTypeRef(TypePath(path)) ⇓ TypePath(path')
 
-**(ResolveTypeRef-ModalState)**
-Γ ⊢ ResolveTypePath(path) ⇓ path'
+**(ResolveTypeRef-Apply)**
+Γ ⊢ ResolveType(TypeApply(path, args)) ⇓ TypeApply(path', args')
 ──────────────────────────────────────────────────────────────
-Γ ⊢ ResolveTypeRef(ModalStateRef(path, state)) ⇓ ModalStateRef(path', state)
+Γ ⊢ ResolveTypeRef(TypeApply(path, args)) ⇓ TypeApply(path', args')
+
+**(ResolveTypeRef-ModalState)**
+Γ ⊢ ResolveModalRef(modal_ref) ⇓ modal_ref'
+──────────────────────────────────────────────────────────────
+Γ ⊢ ResolveTypeRef(ModalStateRef(modal_ref, state)) ⇓ ModalStateRef(modal_ref', state)
 
 **(ResolveType-Hom)**
 ∀ i, Γ ⊢ ResolveType(t_i) ⇓ t_i'
@@ -6422,6 +7854,152 @@ ResolveEnumPayloadJudg = {ResolveEnumPayload}
 ────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ResolveEnumPayload(Brace(fields)) ⇓ Brace(fields')
 
+ResolveKeyPathJudg = {ResolveKeyPathExpr, ResolveKeyPathList, ResolveKeySeg, ResolveKeySegs}
+
+**(ResolveKeySeg-Field)**
+seg = Field(marked, name)
+──────────────────────────────────────────────
+Γ ⊢ ResolveKeySeg(seg) ⇓ seg
+
+**(ResolveKeySeg-Index)**
+seg = Index(marked, e)    Γ ⊢ ResolveExpr(e) ⇓ e'
+──────────────────────────────────────────────────────────────
+Γ ⊢ ResolveKeySeg(seg) ⇓ Index(marked, e')
+
+**(ResolveKeySegs-Empty)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveKeySegs([]) ⇓ []
+
+**(ResolveKeySegs-Cons)**
+Γ ⊢ ResolveKeySeg(s) ⇓ s'    Γ ⊢ ResolveKeySegs(ss) ⇓ ss'
+────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveKeySegs(s :: ss) ⇓ s' :: ss'
+
+**(ResolveKeyPathExpr)**
+Γ ⊢ ResolveValueName(root) ⇓ ent    Γ ⊢ ResolveKeySegs(segs) ⇓ segs'
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveKeyPathExpr(⟨root, segs⟩) ⇓ ⟨root, segs'⟩
+
+**(ResolveKeyPathExpr-Err)**
+Γ ⊢ ResolveValueName(root) ⇑    c = Code(ResolveExpr-Ident-Err)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveKeyPathExpr(⟨root, segs⟩) ⇑ c
+
+**(ResolveKeyPathList-Empty)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveKeyPathList([]) ⇓ []
+
+**(ResolveKeyPathList-Cons)**
+Γ ⊢ ResolveKeyPathExpr(kp) ⇓ kp'    Γ ⊢ ResolveKeyPathList(kps) ⇓ kps'
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveKeyPathList(kp :: kps) ⇓ kp' :: kps'
+
+ResolveParallelOptJudg = {ResolveParallelOpt, ResolveParallelOpts}
+
+**(ResolveParallelOpt-Cancel)**
+Γ ⊢ ResolveExpr(e) ⇓ e'
+──────────────────────────────────────────────────────────────
+Γ ⊢ ResolveParallelOpt(Cancel(e)) ⇓ Cancel(e')
+
+**(ResolveParallelOpt-Name)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveParallelOpt(Name(s)) ⇓ Name(s)
+
+**(ResolveParallelOpts-Empty)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveParallelOpts([]) ⇓ []
+
+**(ResolveParallelOpts-Cons)**
+Γ ⊢ ResolveParallelOpt(o) ⇓ o'    Γ ⊢ ResolveParallelOpts(os) ⇓ os'
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveParallelOpts(o :: os) ⇓ o' :: os'
+
+ResolveSpawnOptJudg = {ResolveSpawnOpt, ResolveSpawnOpts}
+
+**(ResolveSpawnOpt-Name)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveSpawnOpt(Name(s)) ⇓ Name(s)
+
+**(ResolveSpawnOpt-Affinity)**
+Γ ⊢ ResolveExpr(e) ⇓ e'
+──────────────────────────────────────────────────────────────
+Γ ⊢ ResolveSpawnOpt(Affinity(e)) ⇓ Affinity(e')
+
+**(ResolveSpawnOpt-Priority)**
+Γ ⊢ ResolveExpr(e) ⇓ e'
+──────────────────────────────────────────────────────────────
+Γ ⊢ ResolveSpawnOpt(Priority(e)) ⇓ Priority(e')
+
+**(ResolveSpawnOpts-Empty)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveSpawnOpts([]) ⇓ []
+
+**(ResolveSpawnOpts-Cons)**
+Γ ⊢ ResolveSpawnOpt(o) ⇓ o'    Γ ⊢ ResolveSpawnOpts(os) ⇓ os'
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveSpawnOpts(o :: os) ⇓ o' :: os'
+
+ResolveDispatchOptJudg = {ResolveDispatchOpt, ResolveDispatchOpts}
+
+**(ResolveDispatchOpt-Reduce)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveDispatchOpt(Reduce(op)) ⇓ Reduce(op)
+
+**(ResolveDispatchOpt-Ordered)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveDispatchOpt(Ordered) ⇓ Ordered
+
+**(ResolveDispatchOpt-Chunk)**
+Γ ⊢ ResolveExpr(e) ⇓ e'
+──────────────────────────────────────────────────────────────
+Γ ⊢ ResolveDispatchOpt(Chunk(e)) ⇓ Chunk(e')
+
+**(ResolveDispatchOpts-Empty)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveDispatchOpts([]) ⇓ []
+
+**(ResolveDispatchOpts-Cons)**
+Γ ⊢ ResolveDispatchOpt(o) ⇓ o'    Γ ⊢ ResolveDispatchOpts(os) ⇓ os'
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveDispatchOpts(o :: os) ⇓ o' :: os'
+
+ResolveRaceJudg = {ResolveRaceArm, ResolveRaceArms, ResolveRaceHandler}
+
+**(ResolveRaceHandler-Return)**
+Γ ⊢ ResolveExpr(e) ⇓ e'
+──────────────────────────────────────────────
+Γ ⊢ ResolveRaceHandler(RaceReturn(e)) ⇓ RaceReturn(e')
+
+**(ResolveRaceHandler-Yield)**
+Γ ⊢ ResolveExpr(e) ⇓ e'
+──────────────────────────────────────────────
+Γ ⊢ ResolveRaceHandler(RaceYield(e)) ⇓ RaceYield(e')
+
+**(ResolveRaceArm)**
+Γ ⊢ ResolveExpr(e) ⇓ e'    Γ_0 = PushScope(Γ)    Γ_0 ⊢ ResolvePattern(pat) ⇓ pat'    Γ_0 ⊢ BindPattern(pat') ⇓ Γ_1    Γ_1 ⊢ ResolveRaceHandler(handler) ⇓ handler'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveRaceArm(⟨e, pat, handler⟩) ⇓ ⟨e', pat', handler'⟩
+
+**(ResolveRaceArms-Empty)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveRaceArms([]) ⇓ []
+
+**(ResolveRaceArms-Cons)**
+Γ ⊢ ResolveRaceArm(a) ⇓ a'    Γ ⊢ ResolveRaceArms(as) ⇓ as'
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveRaceArms(a :: as) ⇓ a' :: as'
+
+ResolveAllExprListJudg = {ResolveAllExprList}
+
+**(ResolveAllExprList-Empty)**
+──────────────────────────────────────────────
+Γ ⊢ ResolveAllExprList([]) ⇓ []
+
+**(ResolveAllExprList-Cons)**
+Γ ⊢ ResolveExpr(e) ⇓ e'    Γ ⊢ ResolveAllExprList(es) ⇓ es'
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveAllExprList(e :: es) ⇓ e' :: es'
+
 ResolveCalleeJudg = {ResolveCallee}
 
 **(ResolveCallee-Ident-Value)**
@@ -6439,6 +8017,11 @@ ResolveCalleeJudg = {ResolveCallee}
 ──────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ResolveCallee(Path(path, name), args) ⇓ Path(path, name)
 
+**(ResolveCallee-Path-Builtin)**
+BuiltinValuePath(path, name)
+──────────────────────────────────────────────
+Γ ⊢ ResolveCallee(Path(path, name), args) ⇓ Path(path, name)
+
 **(ResolveCallee-Path-Record)**
 Γ ⊢ ResolveRecordPath(path, name) ⇓ p    args = []
 ────────────────────────────────────────────────────────────────────────────────
@@ -6453,6 +8036,11 @@ ResolveCalleeJudg = {ResolveCallee}
 Γ ⊢ ResolveArgs(args) ⇓ args'    Γ ⊢ ResolveCallee(callee, args') ⇓ callee'
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ResolveExpr(Call(callee, args)) ⇓ Call(callee', args')
+
+**(ResolveExpr-Call-TypeArgs)**
+Γ ⊢ ResolveTypeList(type_args) ⇓ type_args'    Γ ⊢ ResolveArgs(args) ⇓ args'    Γ ⊢ ResolveCallee(callee, args') ⇓ callee'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExpr(CallTypeArgs(callee, type_args, args)) ⇓ CallTypeArgs(callee', type_args', args')
 
 **(ResolveExpr-RecordExpr)**
 Γ ⊢ ResolveTypeRef(tr) ⇓ tr'    Γ ⊢ ResolveFieldInits(fields) ⇓ fields'
@@ -6490,12 +8078,69 @@ ResolveArmJudg = {ResolveArm, ResolveArms}
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ResolveExpr(LoopIter(pat, ty_opt, iter, body)) ⇓ LoopIter(pat', ty_opt', iter', body')
 
+**(ResolveExpr-Parallel)**
+Γ ⊢ ResolveExpr(domain) ⇓ domain'    Γ ⊢ ResolveParallelOpts(opts) ⇓ opts'    Γ ⊢ ResolveExpr(body) ⇓ body'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExpr(ParallelExpr(domain, opts, body)) ⇓ ParallelExpr(domain', opts', body')
+
+**(ResolveExpr-Spawn)**
+Γ ⊢ ResolveSpawnOpts(opts) ⇓ opts'    Γ ⊢ ResolveExpr(body) ⇓ body'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExpr(SpawnExpr(opts, body)) ⇓ SpawnExpr(opts', body')
+
+**(ResolveExpr-Wait)**
+Γ ⊢ ResolveExpr(handle) ⇓ handle'
+────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExpr(WaitExpr(handle)) ⇓ WaitExpr(handle')
+
+ResolveKeyClauseJudg = {ResolveKeyClauseOpt}
+
+**(ResolveKeyClauseOpt-None)**
+key_clause_opt = ⊥
+──────────────────────────────────────────────
+Γ ⊢ ResolveKeyClauseOpt(key_clause_opt) ⇓ ⊥
+
+**(ResolveKeyClauseOpt-Yes)**
+key_clause_opt = ⟨path, mode⟩    Γ ⊢ ResolveKeyPathExpr(path) ⇓ path'
+────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveKeyClauseOpt(key_clause_opt) ⇓ ⟨path', mode⟩
+
+**(ResolveExpr-Dispatch)**
+Γ ⊢ ResolvePattern(pat) ⇓ pat'    Γ ⊢ ResolveExpr(range) ⇓ range'    Γ ⊢ ResolveKeyClauseOpt(key_clause_opt) ⇓ key_clause_opt'    Γ ⊢ ResolveDispatchOpts(opts) ⇓ opts'    Γ_0 = PushScope(Γ)    Γ_0 ⊢ BindPattern(pat') ⇓ Γ_1    Γ_1 ⊢ ResolveExpr(body) ⇓ body'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ResolveExpr(DispatchExpr(pat, range, key_clause_opt, opts, body)) ⇓ DispatchExpr(pat', range', key_clause_opt', opts', body')
+
+**(ResolveExpr-Yield)**
+Γ ⊢ ResolveExpr(e) ⇓ e'
+──────────────────────────────────────────────
+Γ ⊢ ResolveExpr(YieldExpr(release_opt, e)) ⇓ YieldExpr(release_opt, e')
+
+**(ResolveExpr-YieldFrom)**
+Γ ⊢ ResolveExpr(e) ⇓ e'
+──────────────────────────────────────────────
+Γ ⊢ ResolveExpr(YieldFromExpr(release_opt, e)) ⇓ YieldFromExpr(release_opt, e')
+
+**(ResolveExpr-Sync)**
+Γ ⊢ ResolveExpr(e) ⇓ e'
+──────────────────────────────────────────────
+Γ ⊢ ResolveExpr(SyncExpr(e)) ⇓ SyncExpr(e')
+
+**(ResolveExpr-Race)**
+Γ ⊢ ResolveRaceArms(arms) ⇓ arms'
+──────────────────────────────────────────────
+Γ ⊢ ResolveExpr(RaceExpr(arms)) ⇓ RaceExpr(arms')
+
+**(ResolveExpr-All)**
+Γ ⊢ ResolveAllExprList(es) ⇓ es'
+──────────────────────────────────────────────
+Γ ⊢ ResolveExpr(AllExpr(es)) ⇓ AllExpr(es')
+
 **(ResolveExpr-Alloc-Explicit-ByAlias)**
 Γ ⊢ ResolveValueName(r) ⇓ ent    RegionAlias(ent)    Γ ⊢ ResolveExpr(e) ⇓ e'
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ResolveExpr(Binary("^", Identifier(r), e)) ⇓ AllocExpr(r, e')
 
-ResolveExprRules = {ResolveExpr-Ident, ResolveExpr-Qualified, ResolveExpr-Call, ResolveExpr-RecordExpr, ResolveExpr-EnumLiteral, ResolveExpr-Match, ResolveExpr-LoopIter, ResolveExpr-Alloc-Explicit-ByAlias, ResolveExpr-Hom, ResolveExpr-Alloc-Implicit, ResolveExpr-Alloc-Explicit, ResolveExpr-Block}
+ResolveExprRules = {ResolveExpr-Ident, ResolveExpr-Qualified, ResolveExpr-Call, ResolveExpr-Call-TypeArgs, ResolveExpr-RecordExpr, ResolveExpr-EnumLiteral, ResolveExpr-Match, ResolveExpr-LoopIter, ResolveExpr-Parallel, ResolveExpr-Spawn, ResolveExpr-Wait, ResolveExpr-Dispatch, ResolveExpr-Yield, ResolveExpr-YieldFrom, ResolveExpr-Sync, ResolveExpr-Race, ResolveExpr-All, ResolveExpr-Alloc-Explicit-ByAlias, ResolveExpr-Hom, ResolveExpr-Alloc-Implicit, ResolveExpr-Alloc-Explicit, ResolveExpr-Block}
 
 NoSpecificResolveExpr(e) ⇔ ¬ ∃ r ∈ ResolveExprRules \ {ResolveExpr-Hom}. PremisesHold(r, e)
 
@@ -6633,7 +8278,7 @@ e = Literal(lit)    lit.kind = IntLiteral    InRange(IntValue(lit), "usize")    
 Γ ⊢ ConstLen(e) ⇓ n
 
 **(ConstLen-Path)**
-e = Path(path, name)    ValuePathType(path, name) = T    StaticDecl(_, _, ⟨IdentPattern(name), _, "=", init, _⟩, _, _) ∈ Γ    Γ ⊢ ConstLen(init) ⇓ n
+e = Path(path, name)    ValuePathType(path, name) = T    StaticDecl(_, _, _, ⟨IdentPattern(name), _, "=", init, _⟩, _, _) ∈ Γ    Γ ⊢ ConstLen(init) ⇓ n
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ConstLen(e) ⇓ n
 
@@ -6685,7 +8330,7 @@ T = TypePath(p)    U = TypePath(p)
 Γ ⊢ T ≡ U
 
 **(T-Equiv-ModalState)**
-T = TypeModalState(p, S)    U = TypeModalState(p, S)
+T = TypeModalState(modal_ref, S)    U = TypeModalState(modal_ref, S)
 ──────────────────────────────────────────────────────────────
 Γ ⊢ T ≡ U
 
@@ -6733,9 +8378,21 @@ PermSubJudg = {PermSub}
 ──────────────────────────────────────────────
 `const` PermSub `const`
 
+**(Perm-Shared)**
+──────────────────────────────────────────────
+`shared` PermSub `shared`
+
 **(Perm-Unique)**
 ──────────────────────────────────────────────
 `unique` PermSub `unique`
+
+**(Perm-Unique-Shared)**
+──────────────────────────────────────────────
+`unique` PermSub `shared`
+
+**(Perm-Shared-Const)**
+──────────────────────────────────────────────
+`shared` PermSub `const`
 
 **(Perm-Unique-Const)**
 ──────────────────────────────────────────────
@@ -6777,13 +8434,19 @@ s ∈ {`Valid`, `Null`}
 Γ ⊢ TypePtr(T, s) <: TypePtr(T, ⊥)
 
 **(Sub-Modal-Niche)**
-Σ.Types[p] = `modal` M    S ∈ States(M)    NicheCompatible(M, S)
+ModalDeclOf(modal_ref) = M    S ∈ States(M)    NicheCompatible(modal_ref, S)
 ────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ TypeModalState(p, S) <: TypePath(p)
+Γ ⊢ TypeModalState(modal_ref, S) <: ModalRefType(modal_ref)
 
 **(Sub-Func)**
 T = TypeFunc([⟨m_1, T_1⟩, …, ⟨m_n, T_n⟩], R)    U = TypeFunc([⟨m_1, U_1⟩, …, ⟨m_n, U_n⟩], S)    ∀ i, Γ ⊢ U_i <: T_i    Γ ⊢ R <: S
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T <: U
+
+**(Sub-Async)**
+AsyncSig(T) = ⟨Out_1, In_1, Result_1, E_1⟩    AsyncSig(U) = ⟨Out_2, In_2, Result_2, E_2⟩
+Γ ⊢ Out_1 <: Out_2    Γ ⊢ In_2 <: In_1    Γ ⊢ Result_1 <: Result_2    Γ ⊢ E_1 <: E_2
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ T <: U
 
 Member(T, U) ⇔ U = TypeUnion([U_1, …, U_n]) ∧ ∃ i. Γ ⊢ T ≡ U_i
@@ -6840,6 +8503,11 @@ ArgType(a) =
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ Call(callee, args) : R_c
 
+**(Call-Extern-Unsafe-Err)**
+CalleeProc(callee) = proc    proc = ExternProcDecl(_, _, _, _, _, _, _, _, _, _, _)    ¬ UnsafeSpan(span(Call(callee, args)))    c = Code(Call-Extern-Unsafe-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Call(callee, args) ⇑ c
+
 **(Call-Callee-NotFunc)**
 Γ; R; L ⊢ callee : T    T ≠ TypeFunc(_, _)    ¬(RecordCallee(callee) ∧ args = [])    c = Code(Call-Callee-NotFunc)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -6862,6 +8530,11 @@ ArgType(a) =
 
 **(Call-Move-Unexpected)**
 Γ; R; L ⊢ callee : TypeFunc(params, _)    ∃ i. ParamMode(params[i]) = ⊥ ∧ ArgMoved(args[i]) = true    c = Code(Call-Move-Unexpected)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Call(callee, args) ⇑ c
+
+**(Call-Arg-Packed-Unsafe-Err)**
+Γ; R; L ⊢ callee : TypeFunc(params, _)    ∃ i. ParamMode(params[i]) = ⊥ ∧ PackedField(ArgExpr(args[i])) ∧ ¬ UnsafeSpan(span(ArgExpr(args[i])))    c = Code(Packed-Field-Unsafe-Err)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ Call(callee, args) ⇑ c
 
@@ -7042,7 +8715,7 @@ SetMembers(U) = { T | T ∈ DistinctMembers(U) }
 
 Fields(R) = Fields_{§ 5.3.2}(R)
 
-InitOk(f) ⇔ f = FieldDecl(vis, name, T_f, init_opt, span, doc) ∧ (init_opt = ⊥) ∨ (init_opt = e ∧ Γ; ⊥; ⊥ ⊢ e : T ∧ Γ ⊢ T <: T_f)
+InitOk(f) ⇔ f = FieldDecl(attrs_opt, vis, boundary, name, T_f, init_opt, span, doc) ∧ (init_opt = ⊥) ∨ (init_opt = e ∧ Γ; ⊥; ⊥ ⊢ e : T ∧ Γ ⊢ T <: T_f)
 
 **(WF-Record)**
 ∀ f ∈ Fields(R), InitOk(f)    ∀ f_i ≠ f_j, f_i.name ≠ f_j.name
@@ -7055,7 +8728,12 @@ InitOk(f) ⇔ f = FieldDecl(vis, name, T_f, init_opt, span, doc) ∧ (init_opt =
 Γ ⊢ R record wf ⇑ c
 
 DefaultConstructible(R) ⇔ ∀ f ∈ Fields(R). f.init_opt ≠ ⊥
-RecordPath(R) = FullPath(ModuleOf(R), R.name)
+BuiltinRecord = {`RegionOptions`, `DirEntry`, `Context`, `System`}
+BuiltinEnum = {`FileKind`, `IoError`, `AllocationError`}
+BuiltinModal = {`Region`, `File`, `DirIter`, `CancelToken`, `SpawnHandle`, `FutureHandle`, `Async`}
+
+RecordPath(R) = [R.name]    if R.name ∈ BuiltinRecord
+RecordPath(R) = FullPath(ModuleOf(R), R.name)    otherwise
 RecordCallee(callee) = R ⇔ (callee = Identifier(name) ∨ callee = Path(path, name)) ∧ Γ ⊢ ResolveTypeName(name) ⇓ ent ∧ ent.origin_opt = mp ∧ name' = (ent.target_opt if present, else name) ∧ RecordDecl(FullPath(PathOfModule(mp), name')) = R
 
 **(T-Record-Default)**
@@ -7109,7 +8787,7 @@ n ≥ 1    ∀ i, Γ; R; L ⊢ e_i ⇒ T_i ⊣ C_i
 Γ; R; L ⊢ Call(callee, args) ⇒ T ⊣ C ⇑ c
 
 **(Chk-Subsumption-Modal-NonNiche)**
-Γ; R; L ⊢ e ⇒ S ⊣ C    StripPerm(S) = TypeModalState(p, S_s)    StripPerm(T) = TypePath(p)    Σ.Types[p] = `modal` M    ¬ NicheCompatible(M, S_s)    c = Code(Chk-Subsumption-Modal-NonNiche)
+Γ; R; L ⊢ e ⇒ S ⊣ C    StripPerm(S) = TypeModalState(modal_ref, S_s)    StripPerm(T) = ModalRefType(modal_ref)    ModalDeclOf(modal_ref) = M    ¬ NicheCompatible(modal_ref, S_s)    c = Code(Chk-Subsumption-Modal-NonNiche)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ e ⇐ T ⇑ c
 
@@ -7535,22 +9213,32 @@ InnermostActiveRegion(Γ) undefined    c = Code(Frame-NoActiveRegion-Err)
 **Control Flow Statements**
 
 **(T-Return-Value)**
-Γ; R; L ⊢ e ⇐ R ⊣ ∅
+R_b = BodyReturnType(R)    Γ; R; L ⊢ e ⇐ R_b ⊣ ∅
 ────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ ReturnStmt(e) ⇒ Γ ▷ ⟨[], [], false⟩
 
 **(T-Return-Unit)**
-R = TypePrim("()")
+R_b = BodyReturnType(R)    R_b = TypePrim("()")
 ────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ ReturnStmt(⊥) ⇒ Γ ▷ ⟨[], [], false⟩
 
+**(Return-Async-Type-Err)**
+AsyncSig(R) = ⟨Out, In, Result, E⟩    Γ; R; L ⊢ e : T    ¬(Γ ⊢ T <: Result)    c = Code(E-CON-0203)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ReturnStmt(e) ⇑ c
+
+**(Return-Async-Unit-Err)**
+AsyncSig(R) = ⟨Out, In, Result, E⟩    Result ≠ TypePrim("()")    c = Code(E-CON-0203)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ ReturnStmt(⊥) ⇑ c
+
 **(Return-Type-Err)**
-Γ; R; L ⊢ e : T    ¬(Γ ⊢ T <: R)    c = Code(Return-Type-Err)
+AsyncSig(R) = ⊥    Γ; R; L ⊢ e : T    R_b = BodyReturnType(R)    ¬(Γ ⊢ T <: R_b)    c = Code(Return-Type-Err)
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ ReturnStmt(e) ⇑ c
 
 **(Return-Unit-Err)**
-R ≠ TypePrim("()")    c = Code(Return-Type-Err)
+AsyncSig(R) = ⊥    R_b = BodyReturnType(R)    R_b ≠ TypePrim("()")    c = Code(Return-Type-Err)
 ────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ ReturnStmt(⊥) ⇑ c
 
@@ -7681,6 +9369,16 @@ LastStmt([s_1, …, s_n]) = s_n    (n ≥ 1)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LoopIter(pat, ty_opt, iter, body) : T_r
 
+**(T-Loop-Iter-Async)**
+AsyncSig(R) = ⟨Out_r, In_r, Result_r, E_r⟩    Γ; R; L ⊢ iter : T_iter    AsyncSig(T_iter) = ⟨Out_i, In_i, Result_i, E_i⟩    In_i = TypePrim("()")    Γ ⊢ E_i <: E_r    (ty_opt = ⊥ ⇒ T_p = Out_i)    (ty_opt = T_a ⇒ Γ ⊢ Out_i <: T_a ∧ T_p = T_a)    Γ ⊢ pat ⇐ T_p ⊣ B    Distinct(PatNames(pat))    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, B) ⇓ Γ_1    Γ_1; R; `loop` ⊢ BlockInfo(body) ⇓ ⟨T_b, Brk, BrkVoid⟩    LoopTypeFin(Brk, BrkVoid) = T_r
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LoopIter(pat, ty_opt, iter, body) : T_r
+
+**(Loop-Async-Err)**
+Γ; R; L ⊢ iter : T_iter    AsyncSig(T_iter) = ⟨Out_i, In_i, Result_i, E_i⟩    (AsyncSig(R) = ⊥ ∨ In_i ≠ TypePrim("()"))    c = Code(E-CON-0240)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LoopIter(pat, ty_opt, iter, body) ⇑ c
+
 **Irrefutable Binding Patterns**
 
 PatJudg = {Γ ⊢ pat ⇐ T ⊣ B}
@@ -7764,8 +9462,13 @@ NumericTypes = IntTypes ∪ FloatTypes
 EqType(T) ⇔ (StripPerm(T) = TypePrim(t) ∧ t ∈ NumericTypes ∪ {`bool`, `char`}) ∨ StripPerm(T) = TypePtr(U, s) ∨ StripPerm(T) = TypeRawPtr(q, U) ∨ StripPerm(T) = TypeString(st) ∨ StripPerm(T) = TypeBytes(st)
 OrdType(T) ⇔ StripPerm(T) = TypePrim(t) ∧ t ∈ IntTypes ∪ FloatTypes ∪ {`char`}
 ValuePathType : Path × Ident ⇀ Type
+BuiltinValueSig(path, name) = ⟨params, ret⟩ ⇔
+ (path = ["Region"] ∧ RegionProcSig(`Region::`name) = ⟨params, ret⟩) ∨
+ (path = ["CancelToken"] ∧ CancelTokenProcSig(`CancelToken::`name) = ⟨params, ret⟩)
 ValuePathType(path, name) = StaticType(path, name) if StaticType(path, name) defined
-ValuePathType(path, name) = TypeFunc([⟨mode, T⟩ | ⟨mode, x, T⟩ ∈ params], ProcReturn(ret_opt)) if DeclOf(path, name) = ProcedureDecl(_, name, params, ret_opt, _, _, _)
+ValuePathType(path, name) = TypeFunc([⟨mode, T⟩ | ⟨mode, x, T⟩ ∈ params], ret) if BuiltinValueSig(path, name) = ⟨params, ret⟩
+ValuePathType(path, name) = TypeFunc([⟨mode, T⟩ | ⟨mode, x, T⟩ ∈ params], ProcReturn(ret_opt)) if DeclOf(path, name) = ProcedureDecl(_, _, _, _, _, params, ret_opt, _, _, _, _)
+ValuePathType(path, name) = TypeFunc([⟨mode, T⟩ | ⟨mode, x, T⟩ ∈ params], ProcReturn(ret_opt)) if DeclOf(path, name) = ExternProcDecl(_, _, _, _, _, params, ret_opt, _, _, _, _)
 ValuePathType(path, name) undefined otherwise
 UnsafeSpan(span) ⇔ ∃ U, K, D, K', i. ParseInputs(U, K, D, K') ∧ SourceOf(K'_i).path = span.file ∧ ∃ sp ∈ UnsafeSpans(K'_i). span ⊆ sp
 
@@ -7968,7 +9671,9 @@ CastValid(S, T) ⇔ (S' = TypePrim(s) ∧ T' = TypePrim(t) ∧ s, t ∈ NumericT
 
 **Address-Of, Dereference, Move**
 
-AddrOfOk(p) ⇔ IsPlace(p) ∧ (p = IndexAccess(_, idx) ⇒ Γ; R; L ⊢ idx : T_i ∧ StripPerm(T_i) = TypePrim("usize"))
+HasLayoutPacked(D) ⇔ `layout(packed)` appears in D.attrs_opt
+PackedField(p) ⇔ p = FieldAccess(base, f) ∧ StripPerm(ExprType(base)) = TypePath(path) ∧ RecordDecl(path) = R ∧ HasLayoutPacked(R)
+AddrOfOk(p) ⇔ IsPlace(p) ∧ (p = IndexAccess(_, idx) ⇒ Γ; R; L ⊢ idx : T_i ∧ StripPerm(T_i) = TypePrim("usize")) ∧ (PackedField(p) ⇒ UnsafeSpan(span(p)))
 
 **(T-AddrOf)**
 Γ; R; L ⊢ p :place T    AddrOfOk(p)
@@ -8024,6 +9729,11 @@ UnsafeSpan(span(Deref(e)))    Γ; R; L ⊢ e : TypeRawPtr(`mut`, T)
 Γ; R; L ⊢ p :place T
 ──────────────────────────────────────────────
 Γ; R; L ⊢ MoveExpr(p) : T
+
+**(AddrOf-Packed-Unsafe-Err)**
+PackedField(p)    ¬ UnsafeSpan(span(p))    c = Code(Packed-Field-Unsafe-Err)
+──────────────────────────────────────────────────────────────
+Γ; R; L ⊢ AddressOf(p) ⇑ c
 
 **(AddrOf-NonPlace)**
 ¬ IsPlace(e)    c = Code(AddrOf-NonPlace)
@@ -8082,9 +9792,21 @@ UnsafeSpan(span(TransmuteExpr(t_1, t_2, e)))    Γ ⊢ t_1 wf    Γ ⊢ t_2 wf  
 SuccessMember(R, U) = T_s ⇔ U = TypeUnion([T_1, …, T_n]) ∧ ¬(Γ ⊢ T_s <: R) ∧ ∀ i ≠ s. Γ ⊢ T_i <: R
 
 **(T-Propagate)**
-Γ; R; L ⊢ e : U    SuccessMember(R, U) = T_s
+AsyncSig(R) = ⊥    Γ; R; L ⊢ e : U    SuccessMember(R, U) = T_s
 ────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ Propagate(e) : T_s
+
+SuccessMemberAsync(E, U) = T_s ⇔ U = TypeUnion([T_1, …, T_n]) ∧ ¬(Γ ⊢ T_s <: E) ∧ ∀ i ≠ s. Γ ⊢ T_i <: E
+
+**(T-Async-Try)**
+AsyncSig(R) = ⟨Out, In, Result, E⟩    E ≠ TypePrim("!")    Γ; R; L ⊢ e : U    SuccessMemberAsync(E, U) = T_s
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Propagate(e) : T_s
+
+**(Async-Try-Infallible-Err)**
+AsyncSig(R) = ⟨Out, In, Result, E⟩    E = TypePrim("!")    Γ; R; L ⊢ e : U    c = Code(E-CON-0230)
+──────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Propagate(e) ⇑ c
 
 **Record Literals**
 
@@ -8128,7 +9850,7 @@ RecordDecl(p) = R    ∃ ⟨f, e⟩ ∈ fields. FieldType(R, f) = T_f ∧ ¬ Bit
 
 EnumDecl(p) = E ⇔ EnumPathOf(E) = p
 VariantPayload(E, v) = payload_opt ⇔ ∃ disc, span, doc. VariantDecl(v, payload_opt, disc, span, doc) ∈ E.variants
-VariantFieldNames(fs) = [ f | FieldDecl(_, f, _, _, _, _) ∈ fs ]
+VariantFieldNames(fs) = [ f | FieldDecl(_, _, _, f, _, _, _, _) ∈ fs ]
 VariantFieldNameSet(fs) = Set(VariantFieldNames(fs))
 
 EnumFieldType(E, v, f) = T_f ⇔ VariantPayload(E, v) = RecordPayload(fs) ∧ ⟨_, f, T_f, _, _, _⟩ ∈ fs
@@ -8239,12 +9961,12 @@ StripPerm(T) = TypePath(p)    EnumDecl(p) = E    VariantPayload(E, v) = RecordPa
 Γ ⊢ EnumPattern(p, v, RecordPayloadPattern(fs)) ◁ T ⊣ B
 
 **(Pat-Modal-R)**
-StripPerm(T) = TypePath(p)    Σ.Types[p] = `modal` M    S ∈ States(M)    ∀ fp ∈ fs, PayloadMap(M, S)(FieldName(fp)) = T_f ∧ Γ ⊢ PatOf(fp) ◁ T_f ⊣ B_f    B = ⊎_{fp ∈ fs} B_f
+StripPerm(T) = ModalRefType(modal_ref)    ModalDeclOf(modal_ref) = M    S ∈ States(M)    ∀ fp ∈ fs, ModalPayloadMap(modal_ref, S)(FieldName(fp)) = T_f ∧ Γ ⊢ PatOf(fp) ◁ T_f ⊣ B_f    B = ⊎_{fp ∈ fs} B_f
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ModalPattern(S, fs) ◁ T ⊣ B
 
 **(Pat-Modal-State-R)**
-StripPerm(T) = TypeModalState(p, S)    Σ.Types[p] = `modal` M    ∀ fp ∈ fs, PayloadMap(M, S)(FieldName(fp)) = T_f ∧ Γ ⊢ PatOf(fp) ◁ T_f ⊣ B_f    B = ⊎_{fp ∈ fs} B_f
+StripPerm(T) = TypeModalState(modal_ref, S)    ModalDeclOf(modal_ref) = M    ∀ fp ∈ fs, ModalPayloadMap(modal_ref, S)(FieldName(fp)) = T_f ∧ Γ ⊢ PatOf(fp) ◁ T_f ⊣ B_f    B = ⊎_{fp ∈ fs} B_f
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ModalPattern(S, fs) ◁ T ⊣ B
 
@@ -8279,16 +10001,15 @@ ArmVariants(arms) = { v | ∃ p, g, b. ⟨p, g, b⟩ ∈ arms ∧ p = EnumPatter
 
 **Modal Match**
 
-StateNames(M) = States(M)
 ArmStates(arms) = { s | ∃ p, g, b. ⟨p, g, b⟩ ∈ arms ∧ p = ModalPattern(_, s) }
 
 **(T-Match-Modal)**
-Γ; R; L ⊢ e : TypePath(p)    Σ.Types[p] = `modal` M    ∀ i, arm_i = ⟨p_i, g_i, b_i⟩    Γ ⊢ p_i ◁ TypePath(p) ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    (g_i ≠ ⊥ ⇒ Γ_i; R; L ⊢ g_i : TypePrim("bool"))    Γ_i; R; L ⊢ ArmBody(b_i) : T_i    AllEq_Γ([T_1, …, T_k])    (HasIrrefutableArm(arms, TypePath(p)) ∨ ArmStates(arms) = StateNames(M))
+Γ; R; L ⊢ e : ModalRefType(modal_ref)    ModalDeclOf(modal_ref) = M    ∀ i, arm_i = ⟨p_i, g_i, b_i⟩    Γ ⊢ p_i ◁ ModalRefType(modal_ref) ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    (g_i ≠ ⊥ ⇒ Γ_i; R; L ⊢ g_i : TypePrim("bool"))    Γ_i; R; L ⊢ ArmBody(b_i) : T_i    AllEq_Γ([T_1, …, T_k])    (HasIrrefutableArm(arms, ModalRefType(modal_ref)) ∨ ArmStates(arms) = States(M))
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ MatchExpr(e, arms) : T_1
 
 **(Match-Modal-NonExhaustive)**
-Γ; R; L ⊢ e : TypePath(p)    Σ.Types[p] = `modal` M    ¬(HasIrrefutableArm(arms, TypePath(p)) ∨ ArmStates(arms) = StateNames(M))    c = Code(Match-Modal-NonExhaustive)
+Γ; R; L ⊢ e : ModalRefType(modal_ref)    ModalDeclOf(modal_ref) = M    ¬(HasIrrefutableArm(arms, ModalRefType(modal_ref)) ∨ ArmStates(arms) = States(M))    c = Code(Match-Modal-NonExhaustive)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ MatchExpr(e, arms) ⇑ c
 
@@ -8326,7 +10047,7 @@ UnionTypesExhaustive(arms, types) ⇔ ∀ T ∈ types. ∃ arm ∈ arms. ∃ p, 
 Γ; R; L ⊢ MatchExpr(e, arms) ⇐ T ⊣ ∅
 
 **(Chk-Match-Modal)**
-Γ; R; L ⊢ e : TypePath(p)    Σ.Types[p] = `modal` M    ∀ i, arm_i = ⟨p_i, g_i, b_i⟩    Γ ⊢ p_i ◁ TypePath(p) ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    (g_i ≠ ⊥ ⇒ Γ_i; R; L ⊢ g_i : TypePrim("bool"))    Γ_i; R; L ⊢ ArmBody(b_i) ⇐ T    (HasIrrefutableArm(arms, TypePath(p)) ∨ ArmStates(arms) = StateNames(M))
+Γ; R; L ⊢ e : ModalRefType(modal_ref)    ModalDeclOf(modal_ref) = M    ∀ i, arm_i = ⟨p_i, g_i, b_i⟩    Γ ⊢ p_i ◁ ModalRefType(modal_ref) ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    (g_i ≠ ⊥ ⇒ Γ_i; R; L ⊢ g_i : TypePrim("bool"))    Γ_i; R; L ⊢ ArmBody(b_i) ⇐ T    (HasIrrefutableArm(arms, ModalRefType(modal_ref)) ∨ ArmStates(arms) = StateNames(M))
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ MatchExpr(e, arms) ⇐ T ⊣ ∅
 
@@ -8337,7 +10058,7 @@ UnionTypesExhaustive(arms, types) ⇔ ∀ T ∈ types. ∃ arm ∈ arms. ∃ p, 
 
 #### 5.2.14. Declaration Typing (Cursive0)
 
-DeclJudg = {Γ ⊢ ProcedureDecl : ok, Γ ⊢ StaticDecl : ok, Γ ⊢ RecordDecl : ok, Γ ⊢ EnumDecl : ok, Γ ⊢ ModalDecl : ok, Γ ⊢ ClassDecl : ok}
+DeclJudg = {Γ ⊢ ProcedureDecl : ok, Γ ⊢ ExternProcDecl : ok, Γ ⊢ ExternBlock : ok, Γ ⊢ StaticDecl : ok, Γ ⊢ RecordDecl : ok, Γ ⊢ EnumDecl : ok, Γ ⊢ ModalDecl : ok, Γ ⊢ ClassDecl : ok}
 
 **DeclTyping.**
 DeclTyping(Ms) ⇓ ok ⇔ ∀ M ∈ Ms. Γ ⊢ DeclTypingMod(M) ⇓ ok
@@ -8345,14 +10066,16 @@ DeclTypingMod(M) ⇓ ok ⇔ ∀ it ∈ M.items. Γ ⊢ DeclTypingItem(M.path, it
 
 ProvBindCheck(params, body) ⇓ ok ⇔ body = BlockExpr(stmts, tail_opt) ∧ ∃ vec{π}. |vec{π}| = |params| ∧ Γ; InitProvEnv(params, vec{π}, []) ⊢ BlockProv(stmts, tail_opt) ⇓ π
 
+DeclTypingItem(m, ImportDecl(_)) ⇓ ok
 DeclTypingItem(m, UsingDecl(_)) ⇓ ok
-DeclTypingItem(m, StaticDecl(_, _, _, _, _)) ⇓ ok ⇔ Γ ⊢ StaticDecl : ok
-DeclTypingItem(m, TypeAliasDecl(_, name, _, _, _)) ⇓ ok ⇔ Γ ⊢ FullPath(m, name) : TypeAliasOk
-DeclTypingItem(m, ProcedureDecl(_, _, params, _, body, _, _) = item) ⇓ ok ⇔ Γ ⊢ ProcedureDecl : ok ∧ ProcBindCheck(m, item) ⇓ ok ∧ ProvBindCheck(params, body) ⇓ ok
-DeclTypingItem(m, R) ⇓ ok ⇔ R = RecordDecl(_, _, _, _, _, _) ∧ Γ ⊢ R record : ok ∧ ∀ md ∈ Methods(R). MethodBindCheck(m, TypePath(RecordPath(R)), md) ⇓ ok ∧ ProvBindCheck(MethodParamsDecl(TypePath(RecordPath(R)), md), md.body) ⇓ ok
-DeclTypingItem(m, E) ⇓ ok ⇔ E = EnumDecl(_, _, _, _, _, _) ∧ Γ ⊢ E enum : ok
-DeclTypingItem(m, M) ⇓ ok ⇔ M = ModalDecl(_, _, _, _, _, _) ∧ Γ ⊢ M modal : ok ∧ ∀ S ∈ States(M), ∀ md ∈ Methods(S). StateMethodBindCheck(m, M, S, md) ⇓ ok ∧ ProvBindCheck(StateMethodParams(M, S, md), md.body) ⇓ ok ∧ ∀ tr ∈ Transitions(S). TransitionBindCheck(m, M, S, tr) ⇓ ok ∧ ProvBindCheck(TransitionParams(M, S, tr), tr.body) ⇓ ok
-DeclTypingItem(m, Cl) ⇓ ok ⇔ Cl = ClassDecl(_, _, _, _, _) ∧ Γ ⊢ Cl : ok ∧ ∀ md ∈ ClassMethods(Cl). (md.body_opt = ⊥ ∨ (ClassMethodBindCheck(m, Cl, md) ⇓ ok ∧ ProvBindCheck(ClassMethodParams(Cl, md), md.body_opt) ⇓ ok))
+DeclTypingItem(m, ExternBlock(_, _, _, items, _, _)) ⇓ ok ⇔ Γ ⊢ ExternBlock : ok ∧ ∀ it ∈ items. Γ ⊢ it : ok
+DeclTypingItem(m, StaticDecl(_, _, _, _, _, _)) ⇓ ok ⇔ Γ ⊢ StaticDecl : ok
+DeclTypingItem(m, TypeAliasDecl(_, name, _, _, _, _, _, _)) ⇓ ok ⇔ Γ ⊢ FullPath(m, name) : TypeAliasOk
+DeclTypingItem(m, ProcedureDecl(_, _, _, _, _, params, _, _, body, _, _) = item) ⇓ ok ⇔ Γ ⊢ ProcedureDecl : ok ∧ ProcBindCheck(m, item) ⇓ ok ∧ ProvBindCheck(params, body) ⇓ ok
+DeclTypingItem(m, R) ⇓ ok ⇔ R = RecordDecl(_, _, _, _, _, _, _, _, _, _) ∧ Γ ⊢ R record : ok ∧ ∀ md ∈ Methods(R). MethodBindCheck(m, TypePath(RecordPath(R)), md) ⇓ ok ∧ ProvBindCheck(MethodParamsDecl(TypePath(RecordPath(R)), md), md.body) ⇓ ok
+DeclTypingItem(m, E) ⇓ ok ⇔ E = EnumDecl(_, _, _, _, _, _, _, _, _, _) ∧ Γ ⊢ E enum : ok
+DeclTypingItem(m, M) ⇓ ok ⇔ M = ModalDecl(_, _, _, _, _, _, _, _, _, _) ∧ Γ ⊢ M modal : ok ∧ ∀ S ∈ States(M), ∀ md ∈ Methods(M, S). StateMethodBindCheck(m, M, S, md) ⇓ ok ∧ ProvBindCheck(StateMethodParams(M, S, md), md.body) ⇓ ok ∧ ∀ tr ∈ Transitions(M, S). TransitionBindCheck(m, M, S, tr) ⇓ ok ∧ ProvBindCheck(TransitionParams(M, S, tr), tr.body) ⇓ ok
+DeclTypingItem(m, Cl) ⇓ ok ⇔ Cl = ClassDecl(_, _, _, _, _, _, _, _, _, _) ∧ Γ ⊢ Cl : ok ∧ ∀ md ∈ ClassMethods(Cl). (md.body_opt = ⊥ ∨ (ClassMethodBindCheck(m, Cl, md) ⇓ ok ∧ ProvBindCheck(ClassMethodParams(Cl, md), md.body_opt) ⇓ ok))
 
 ParamBinds(params) = [⟨x, T⟩ | ⟨_, x, T⟩ ∈ params]
 ProcReturn(ret_opt) =
@@ -8364,21 +10087,71 @@ ExplicitReturn(BlockExpr(stmts, tail_opt)) ⇔ tail_opt = ⊥ ∧ stmts ≠ [] �
 
 VisRank(`public`) = 3    VisRank(`internal`) = 2    VisRank(`private`) = 1    VisRank(`protected`) = 1
 FieldVisOk(R) ⇔ ∀ f ∈ Fields(R). VisRank(f.vis) ≤ VisRank(R.vis)
-StateMemberVisOk(M) ⇔ ∀ S ∈ States(M), ∀ m ∈ Payload(M, S) ∪ Methods(S) ∪ Transitions(S). VisRank(m.vis) ≤ VisRank(M.vis)
+StateMemberVisOk(M) ⇔ ∀ S ∈ States(M), ∀ m ∈ Payload(M, S) ∪ Methods(M, S) ∪ Transitions(M, S). VisRank(m.vis) ≤ VisRank(M.vis)
 
 **(WF-ProcedureDecl)**
-Distinct(ParamNames(params))    ReturnAnnOk(ret_opt)    R = ProcReturn(ret_opt)    ∀ ⟨_, x_i, T_i⟩ ∈ params, Γ ⊢ T_i wf    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, ParamBinds(params)) ⇓ Γ_1    Γ_1; R; ⊥ ⊢ body : T_b    Γ ⊢ T_b <: R    (R ≠ TypePrim("()") ⇒ ExplicitReturn(body))
+item = ProcedureDecl(_, vis, _, gen_params_opt, where_clause_opt, params, ret_opt, _, body, _, _)    params_gen = TypeParamsOpt(gen_params_opt)    params_gen = [P_1, …, P_n]    Γ ⊢ ⟨P_1; …; P_n⟩ wf    Γ_g = BindTypeParams(Γ, params_gen)    Γ_g; params_gen ⊢ where_clause_opt wf    Distinct(ParamNames(params))    ReturnAnnOk(ret_opt)    R = ProcReturn(ret_opt)    R_b = BodyReturnType(R)    ∀ ⟨_, x_i, T_i⟩ ∈ params, Γ_g ⊢ T_i wf    Γ_0 = PushScope(Γ_g)    IntroAll(Γ_0, ParamBinds(params)) ⇓ Γ_1    Γ_1; R; ⊥ ⊢ body : T_b    Γ_g ⊢ T_b <: R_b    (ExportAttr(item) undefined ∨ Γ ⊢ ExportSigOk(item) ⇓ ok)    (R_b ≠ TypePrim("()") ⇒ ExplicitReturn(body))
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ProcedureDecl : ok
 
 **(WF-ProcedureDecl-MissingReturnType)**
-item = ProcedureDecl(_, _, _, ret_opt, _, _, _)    ¬ ReturnAnnOk(ret_opt)    c = Code(WF-ProcedureDecl-MissingReturnType)
+item = ProcedureDecl(_, _, _, _, _, _, ret_opt, _, _, _, _)    ¬ ReturnAnnOk(ret_opt)    c = Code(WF-ProcedureDecl-MissingReturnType)
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ item ⇑ c
 
 **(WF-ProcBody-ExplicitReturn-Err)**
-item = ProcedureDecl(_, _, _, ret_opt, body, _, _)    R = ProcReturn(ret_opt)    R ≠ TypePrim("()")    ¬ ExplicitReturn(body)    c = Code(WF-ProcBody-ExplicitReturn-Err)
+item = ProcedureDecl(_, _, _, _, _, _, ret_opt, _, body, _, _)    R = ProcReturn(ret_opt)    R_b = BodyReturnType(R)    R_b ≠ TypePrim("()")    ¬ ExplicitReturn(body)    c = Code(WF-ProcBody-ExplicitReturn-Err)
 ────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ item ⇑ c
+
+**(WF-ExternProcDecl)**
+item = ExternProcDecl(_, _, _, gen_params_opt, where_clause_opt, params, ret_opt, _, _, _, _)    gen_params_opt = ⊥    params_gen = []    Γ_g = Γ    Γ_g; params_gen ⊢ where_clause_opt wf    Distinct(ParamNames(params))    ReturnAnnOk(ret_opt)    R = ProcReturn(ret_opt)    ∀ ⟨_, x_i, T_i⟩ ∈ params, Γ_g ⊢ T_i wf    Γ_g ⊢ R wf    ExternSigOk(params, ret_opt)
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ExternProcDecl : ok
+
+**(WF-ExternProcDecl-MissingReturnType)**
+item = ExternProcDecl(_, _, _, _, _, _, ret_opt, _, _, _, _)    ¬ ReturnAnnOk(ret_opt)    c = Code(WF-ExternProcDecl-MissingReturnType)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ item ⇑ c
+
+**(ExternProc-Generic-Err)**
+item = ExternProcDecl(_, _, _, gen_params_opt, _, _, _, _, _, _, _)    gen_params_opt ≠ ⊥    c = Code(ExternProc-Generic-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ item ⇑ c
+
+**(ExternProc-ByValue-Err)**
+item = ExternProcDecl(_, _, _, _, _, params, ret_opt, _, _, _, _)    R = ProcReturn(ret_opt)    (∃ T ∈ ExternParamTypes(params). ¬ FfiByValueOk(T) ∨ ¬ FfiByValueOk(R))    c = Code(FfiByValue-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ item ⇑ c
+
+**(WF-ExternBlock)**
+item = ExternBlock(_, _, abi_opt, _, _, _)    ExternAbiOk(abi_opt)
+──────────────────────────────────────────────────────────────
+Γ ⊢ ExternBlock : ok
+
+**(ExternAbi-Unknown-Err)**
+item = ExternBlock(_, _, abi_opt, _, _, _)    ¬ ExternAbiOk(abi_opt)    c = Code(ExternAbi-Unknown-Err)
+────────────────────────────────────────────────────────────────
+Γ ⊢ item ⇑ c
+
+**(Export-Vis-Err)**
+item = ProcedureDecl(_, vis, _, _, _, _, _, _, _, _, _)    ExportAttr(item) defined    vis ≠ `public`    c = Code(Export-Vis-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ item ⇑ c
+
+**(ExportAbi-Unknown-Err)**
+item = ProcedureDecl(_, _, _, _, _, _, _, _, _, _, _)    ExportAttr(item) = ⟨abi, _⟩    abi ∉ ExternAbiSet    c = Code(ExternAbi-Unknown-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ item ⇑ c
+
+**(Export-Return-NotZeroable-Err)**
+item = ProcedureDecl(_, _, _, _, _, _, ret_opt, _, _, _, _)    ExportAttr(item) defined    UnwindMode(item) = "catch"    R = ProcReturn(ret_opt)    ¬ ZeroableType(R)    c = Code(Export-Return-NotZeroable-Err)
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ item ⇑ c
+
+**(Export-ByValue-Err)**
+item = ProcedureDecl(_, _, _, _, _, params, ret_opt, _, _, _, _)    ExportAttr(item) defined    R = ProcReturn(ret_opt)    (∃ T ∈ ExportParamTypes(params). ¬ FfiByValueOk(T) ∨ ¬ FfiByValueOk(R))    c = Code(FfiByValue-Err)
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ item ⇑ c
 
 StaticVisOk(vis, mut) ⇔ ¬ (vis = `public` ∧ mut = `var`)
@@ -8389,31 +10162,32 @@ binding = ⟨pat, ty_opt, op, init, _⟩    StaticVisOk(vis, mut)    ty_opt = T_
 Γ ⊢ StaticDecl : ok
 
 **(WF-StaticDecl-Ann-Mismatch)**
-item = StaticDecl(vis, mut, ⟨pat, ty_opt, op, init, _⟩, _, _)    ty_opt = T_a    Γ; ⊥; ⊥ ⊢ init ⇒ T_i ⊣ C    Solve(C) ⇓ θ    ¬(Γ ⊢ θ(T_i) <: T_a)    c = Code(WF-StaticDecl-Ann-Mismatch)
+item = StaticDecl(_, vis, mut, ⟨pat, ty_opt, op, init, _⟩, _, _)    ty_opt = T_a    Γ; ⊥; ⊥ ⊢ init ⇒ T_i ⊣ C    Solve(C) ⇓ θ    ¬(Γ ⊢ θ(T_i) <: T_a)    c = Code(WF-StaticDecl-Ann-Mismatch)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ item ⇑ c
 
 **(WF-StaticDecl-MissingType)**
-item = StaticDecl(_, _, ⟨pat, ty_opt, op, init, _⟩, _, _)    ty_opt = ⊥    c = Code(WF-StaticDecl-MissingType)
+item = StaticDecl(_, _, _, ⟨pat, ty_opt, op, init, _⟩, _, _)    ty_opt = ⊥    c = Code(WF-StaticDecl-MissingType)
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ item ⇑ c
 
 **(StaticVisOk-Err)**
-item = StaticDecl(vis, mut, _, _, _)    ¬ StaticVisOk(vis, mut)    c = Code(StaticVisOk-Err)
+item = StaticDecl(_, vis, mut, _, _, _)    ¬ StaticVisOk(vis, mut)    c = Code(StaticVisOk-Err)
 ────────────────────────────────────────────────────────────────
 Γ ⊢ item ⇑ c
 
 **(WF-RecordDecl)**
-∀ f ∈ Fields(R), Γ ⊢ f.type wf    FieldVisOk(R)    Γ ⊢ R record wf    Γ ⊢ Methods(R) : ok    Γ ⊢ TypePath(RecordPath(R)) : ImplementsOk
+R = RecordDecl(_, _, _, gen_params_opt, where_clause_opt, _, _, _, _, _)    params_gen = TypeParamsOpt(gen_params_opt)    params_gen = [P_1, …, P_n]    Γ ⊢ ⟨P_1; …; P_n⟩ wf    Γ_g = BindTypeParams(Γ, params_gen)    Γ_g; params_gen ⊢ where_clause_opt wf    ∀ f ∈ Fields(R), Γ_g ⊢ f.type wf    FieldVisOk(R)    Γ_g ⊢ R record wf    Γ_g ⊢ Methods(R) : ok    Γ_g ⊢ TypePath(RecordPath(R)) : ImplementsOk
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ R record : ok
 
 **(FieldVisOk-Err)**
-R = RecordDecl(_, _, _, _, _, _)    ¬ FieldVisOk(R)    c = Code(FieldVisOk-Err)
+R = RecordDecl(_, _, _, _, _, _, _, _, _, _)    ¬ FieldVisOk(R)    c = Code(FieldVisOk-Err)
 ────────────────────────────────────────────────────────────────
 Γ ⊢ R ⇑ c
 
-EnumPathOf(E) = FullPath(ModuleOf(E), E.name)
+EnumPathOf(E) = [E.name]    if E.name ∈ BuiltinEnum
+EnumPathOf(E) = FullPath(ModuleOf(E), E.name)    otherwise
 
 **Enum Variant Visibility.**
 
@@ -8421,7 +10195,7 @@ VariantVis(E, v) = Vis(E)
 VariantVisible(m, E, v) ⇔ Γ ⊢ CanAccess(m, E) ⇓ ok
 
 **(WF-EnumDecl)**
-variants ≠ []    Distinct([v.name | v ∈ variants])    ∀ v ∈ variants, Γ ⊢ v.payload_opt wf    EnumDiscriminants(E) ⇓ _    Γ ⊢ TypePath(EnumPathOf(E)) : ImplementsOk
+E = EnumDecl(_, _, _, gen_params_opt, where_clause_opt, _, variants, _, _, _)    params_gen = TypeParamsOpt(gen_params_opt)    params_gen = [P_1, …, P_n]    Γ ⊢ ⟨P_1; …; P_n⟩ wf    Γ_g = BindTypeParams(Γ, params_gen)    Γ_g; params_gen ⊢ where_clause_opt wf    variants ≠ []    Distinct([v.name | v ∈ variants])    ∀ v ∈ variants, Γ_g ⊢ v.payload_opt wf    EnumDiscriminants(E) ⇓ _    Γ_g ⊢ TypePath(EnumPathOf(E)) : ImplementsOk
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ E enum : ok
 
@@ -8431,31 +10205,32 @@ PayloadOptWF(RecordPayload([⟨f_1, T_1⟩, …, ⟨f_k, T_k⟩])) ⇔ Distinct(
 
 Γ ⊢ payload_opt wf ⇔ PayloadOptWF(payload_opt)
 
-ModalPath(M) = FullPath(ModuleOf(M), M.name)
+ModalPath(M) = [M.name]    if M.name ∈ BuiltinModal
+ModalPath(M) = FullPath(ModuleOf(M), M.name)    otherwise
 
 **(WF-ModalDecl)**
-p = ModalPath(M)    Γ ⊢ `modal` M wf    StateMemberVisOk(M)    Γ ⊢ TypePath(p) : ImplementsOk    ∀ S ∈ States(M), ∀ md ∈ Methods(S), Γ ⊢ md : StateMethodOK(M, S)    Γ ⊢ md : StateMethodBodyOK(p, S)    ∀ tr ∈ Transitions(S), Γ ⊢ tr : TransitionOK(M, S)    Γ ⊢ tr : TransitionBodyOK(p, S)
+M = ModalDecl(_, _, _, gen_params_opt, where_clause_opt, _, _, _, _, _)    params_gen = TypeParamsOpt(gen_params_opt)    params_gen = [P_1, …, P_n]    Γ ⊢ ⟨P_1; …; P_n⟩ wf    Γ_g = BindTypeParams(Γ, params_gen)    Γ_g; params_gen ⊢ where_clause_opt wf    p = ModalPath(M)    Γ_g ⊢ `modal` M wf    StateMemberVisOk(M)    Γ_g ⊢ TypePath(p) : ImplementsOk    ∀ S ∈ States(M), ∀ md ∈ Methods(M, S), Γ_g ⊢ md : StateMethodOK(M, S)    Γ_g ⊢ md : StateMethodBodyOK(p, S)    ∀ tr ∈ Transitions(M, S), Γ_g ⊢ tr : TransitionOK(M, S)    Γ_g ⊢ tr : TransitionBodyOK(p, S)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ M modal : ok
 
 **(StateMemberVisOk-Err)**
-M = ModalDecl(_, _, _, _, _, _)    ¬ StateMemberVisOk(M)    c = Code(StateMemberVisOk-Err)
+M = ModalDecl(_, _, _, _, _, _, _, _, _, _)    ¬ StateMemberVisOk(M)    c = Code(StateMemberVisOk-Err)
 ────────────────────────────────────────────────────────────────
 Γ ⊢ M ⇑ c
 
 **(WF-ClassDecl)**
-Γ ⊢ Cl : ClassOk
+Cl = ClassDecl(_, _, _, _, gen_params_opt, where_clause_opt, _, _, _, _)    params_gen = TypeParamsOpt(gen_params_opt)    params_gen = [P_1, …, P_n]    Γ ⊢ ⟨P_1; …; P_n⟩ wf    Γ_g = BindTypeParams(Γ, params_gen)    Γ_g; params_gen ⊢ where_clause_opt wf    Γ_g ⊢ Cl : ClassOk
 ──────────────────────────────────────────────
 Γ ⊢ Cl : ok
 
 **Program Entry Point (Cursive0).**
 
-MainDecls(P) = [ d | m ∈ P.modules, d ∈ ASTModule(P, m).items, d = ProcedureDecl(vis, name, params, ret_opt, body, span, doc), name = `main` ]
+MainDecls(P) = [ d | m ∈ P.modules, d ∈ ASTModule(P, m).items, d = ProcedureDecl(_, vis, name, _, _, params, ret_opt, _, body, span, doc), name = `main` ]
 
-TypeParams(ProcedureDecl(_)) = []
+TypeParams(ProcedureDecl(_, _, _, gen_params_opt, _, _, _, _, _, _, _)) = (gen_params_opt if gen_params_opt ≠ ⊥ else [])
 MainGeneric(d) ⇔ TypeParams(d) ≠ []
 
-MainSigOk(d) ⇔ d = ProcedureDecl(vis, `main`, params, ret_opt, _, _, _) ∧ vis = `public` ∧ params = [⟨mode, name, ty⟩] ∧ mode ∈ {⊥, `move`} ∧ ty = TypePath([`Context`]) ∧ BuiltInContext(TypePath([`Context`])) ∧ ret_opt = TypePrim("i32")
+MainSigOk(d) ⇔ d = ProcedureDecl(_, vis, `main`, _, _, params, ret_opt, _, _, _, _) ∧ vis = `public` ∧ params = [⟨mode, name, ty⟩] ∧ mode ∈ {⊥, `move`} ∧ ty = TypePath([`Context`]) ∧ BuiltInContext(TypePath([`Context`])) ∧ ret_opt = TypePrim("i32")
 MainConsumesContext(d) ⇔ MainSigOk(d) ∧ ∃ mode. d.params = [⟨mode, _, _⟩] ∧ mode = `move`
 MainRetainsContext(d) ⇔ MainSigOk(d) ∧ ∃ mode. d.params = [⟨mode, _, _⟩] ∧ mode = ⊥
 
@@ -8766,26 +10541,30 @@ Entries(B) = [⟨x_1, B[x_1]⟩, …, ⟨x_n, B[x_n]⟩] ⇔ [x_1, …, x_n] enu
 
 SynthParams([⟨m_1, T_1⟩, …, ⟨m_n, T_n⟩]) = [⟨m_1, ⊥, T_1⟩, …, ⟨m_n, ⊥, T_n⟩]
 
-CalleeProc(Identifier(x)) = proc ⇔ Γ ⊢ ResolveValueName(x) ⇓ ent ∧ ent.origin_opt = mp ∧ name = (ent.target_opt if present, else x) ∧ DeclOf(mp, name) = proc ∧ proc = ProcedureDecl(_)
-CalleeProc(Path(path, name)) = proc ⇔ Γ ⊢ ResolveQualified(path, name, ValueKind) ⇓ ent ∧ ent.origin_opt = mp ∧ name' = (ent.target_opt if present, else name) ∧ DeclOf(mp, name') = proc ∧ proc = ProcedureDecl(_)
+CalleeProc(Identifier(x)) = proc ⇔ Γ ⊢ ResolveValueName(x) ⇓ ent ∧ ent.origin_opt = mp ∧ name = (ent.target_opt if present, else x) ∧ DeclOf(mp, name) = proc ∧ (proc = ProcedureDecl(_, _, _, _, _, _, _, _, _, _, _) ∨ proc = ExternProcDecl(_, _, _, _, _, _, _, _, _, _, _))
+CalleeProc(Path(path, name)) = proc ⇔ Γ ⊢ ResolveQualified(path, name, ValueKind) ⇓ ent ∧ ent.origin_opt = mp ∧ name' = (ent.target_opt if present, else name) ∧ DeclOf(mp, name') = proc ∧ (proc = ProcedureDecl(_, _, _, _, _, _, _, _, _, _, _) ∨ proc = ExternProcDecl(_, _, _, _, _, _, _, _, _, _, _))
 
 Params(Call(callee, args)) =
   { proc.params            if CalleeProc(callee) = proc
     SynthParams(params)    if ExprType(callee) = TypeFunc(params, _)
     ⊥                      otherwise }
 
+MethodOf(base, name) = md ⇔ StripPerm(ExprType(base)) = TypeModalState(modal_ref, S) ∧ ModalDeclOf(modal_ref) = M ∧ LookupStateMethod(M, S, name) = md
+MethodOf(base, name) = tr ⇔ StripPerm(ExprType(base)) = TypeModalState(modal_ref, S) ∧ ModalDeclOf(modal_ref) = M ∧ LookupTransition(M, S, name) = tr
 MethodOf(base, name) = m ⇔ LookupMethod(StripPerm(ExprType(base)), name) = m
 RecvBase(base, name) = T ⇔ MethodOf(base, name) = m ∧ T = StripPerm(ExprType(base))
 
-RecvParams(base, name) = [⟨RecvMode(m.receiver), `self`, RecvType(T, m.receiver)⟩] ++ m.params ⇔ MethodOf(base, name) = m ∧ RecvBase(base, name) = T
+RecvParams(base, name) = StateMethodParams(M, S, md) ⇔ StripPerm(ExprType(base)) = TypeModalState(modal_ref, S) ∧ ModalDeclOf(modal_ref) = M ∧ LookupStateMethod(M, S, name) = md
+RecvParams(base, name) = TransitionParams(M, S, tr) ⇔ StripPerm(ExprType(base)) = TypeModalState(modal_ref, S) ∧ ModalDeclOf(modal_ref) = M ∧ LookupTransition(M, S, name) = tr
+RecvParams(base, name) = [⟨RecvMode(m.receiver), `self`, RecvType(T, m.receiver)⟩] ++ m.params ⇔ MethodOf(base, name) = m ∧ RecvBase(base, name) = T ∧ (m = MethodDecl(_, _, _, _, _, _, _, _, _, _, _, _) ∨ m = ClassMethodDecl(_, _, _, _, _, _, _, _, _, _, _))
 
 **Static Binding Maps (Module Scope).**
 
-StaticBindTypesMod(P, m) = ++_{item ∈ ASTModule(P, m).items, item = StaticDecl(_, _, binding, _, _)} StaticBindTypes(binding)
+StaticBindTypesMod(P, m) = ++_{item ∈ ASTModule(P, m).items, item = StaticDecl(_, _, _, binding, _, _)} StaticBindTypes(binding)
 
-StaticBindInfo(item) = BindInfoMap(λ U. RespOfInit(init), StaticBindTypes(binding), MovOf(op), mut) ⇔ item = StaticDecl(_, mut, binding, _, _) ∧ binding = ⟨_, _, op, init, _⟩
+StaticBindInfo(item) = BindInfoMap(λ U. RespOfInit(init), StaticBindTypes(binding), MovOf(op), mut) ⇔ item = StaticDecl(_, _, mut, binding, _, _) ∧ binding = ⟨_, _, op, init, _⟩
 
-StaticBindMap(P, m) = ++_{item ∈ ASTModule(P, m).items, item = StaticDecl(_, _, _, _, _)} StaticBindInfo(item)
+StaticBindMap(P, m) = ++_{item ∈ ASTModule(P, m).items, item = StaticDecl(_, _, _, _, _, _)} StaticBindInfo(item)
 
 **Procedure Entry.**
 
@@ -9120,7 +10899,7 @@ Init_Π(m, params) = [{ x ↦ Active | (x:T) ∈ ParamTypeMap(params) ∧ PermOf
 
 BindCheck(m, params, body) ⇓ ok ⇔ Γ; Init_B(m, params); Init_Π(m, params) ⊢ body ⇒ 𝔅' ▷ Π'
 
-ProcBindCheck(m, ProcedureDecl(_, _, params, _, body, _, _)) ⇓ ok ⇔ BindCheck(m, params, body) ⇓ ok
+ProcBindCheck(m, ProcedureDecl(_, _, _, _, _, params, _, _, body, _, _)) ⇓ ok ⇔ BindCheck(m, params, body) ⇓ ok
 
 MethodParamsDecl(T, m) = [⟨RecvMode(m.receiver), `self`, RecvType(T, m.receiver)⟩] ++ m.params
 MethodBindCheck(m, T, md) ⇓ ok ⇔ md.body = body ∧ BindCheck(m, MethodParamsDecl(T, md), body) ⇓ ok
@@ -9151,11 +10930,11 @@ PtrDiagRefs = {"8.10"}
 **Built-in Record Type `RegionOptions`.**
 
 RegionOptionsFields = [
-  ⟨`public`, `stack_size`, TypePrim("usize"), Literal(IntLiteral(0)), ⊥, ⊥⟩,
-  ⟨`public`, `name`, TypeString(⊥), Literal(StringLiteral("\"")), ⊥, ⊥⟩
+  ⟨⊥, `public`, false, `stack_size`, TypePrim("usize"), Literal(IntLiteral(0)), ⊥, ⊥⟩,
+  ⟨⊥, `public`, false, `name`, TypeString(⊥), Literal(StringLiteral("\"")), ⊥, ⊥⟩
 ]
 
-RegionOptionsDecl = RecordDecl(`public`, `RegionOptions`, [], RegionOptionsFields, ⊥, ⊥)
+RegionOptionsDecl = RecordDecl(⊥, `public`, `RegionOptions`, ⊥, ⊥, [], RegionOptionsFields, ⊥, ⊥, ⊥)
 
 Σ.Types[`RegionOptions`] = RegionOptionsDecl
 
@@ -9330,7 +11109,45 @@ ArmProv(⟨pat, _, body⟩) = π ⇔ ArmEnv(Ω, pat) = Ω' ∧ ArmBodyProv(body,
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; Ω ⊢ MatchExpr(_, arms) ⇓ π
 
-ProvExprRules = {P-Place-Expr, P-Literal, P-Move, P-AddrOf, P-Alloc, P-Region-Alloc-Method, P-If, P-If-No-Else, P-Match, P-Block, P-Loop-Infinite, P-Loop-Conditional, P-Loop-Iter, P-Expr-Sub}
+FrameProv(Γ, ⟨Σ_π, RS⟩) =
+  { π_Region(r)    if InnermostActiveRegion(Γ) = r
+    StackProv(Σ_π) otherwise }
+
+AsyncCreateExpr(Call(_, _)) ⇔ AsyncSig(ExprType(Call(_, _))) ≠ ⊥
+AsyncCreateExpr(MethodCall(_, _, _)) ⇔ AsyncSig(ExprType(MethodCall(_, _, _))) ≠ ⊥
+AsyncCreateExpr(RaceExpr(_)) ⇔ AsyncSig(ExprType(RaceExpr(_))) ≠ ⊥
+AsyncCreateExpr(_) ⇔ false
+
+AsyncCaptureArgs(Call(_, args)) = [e | ⟨_, e, _⟩ ∈ args]
+AsyncCaptureArgs(MethodCall(base, _, args)) = [base] ++ [e | ⟨_, e, _⟩ ∈ args]
+AsyncCaptureArgs(RaceExpr(arms)) = [e | ⟨e, _, _⟩ ∈ arms]
+AsyncCaptureArgs(_) = []
+
+ASYNC_LARGE_CAPTURE_THRESHOLD_BYTES = WIDEN_LARGE_PAYLOAD_THRESHOLD_BYTES
+AsyncCaptureSize(args) = Σ_{e ∈ args} sizeof(ExprType(e))
+AsyncCaptureWarnCond(e) ⇔ AsyncCreateExpr(e) ∧ AsyncCaptureSize(AsyncCaptureArgs(e)) > ASYNC_LARGE_CAPTURE_THRESHOLD_BYTES
+
+**(Warn-Async-LargeCapture)**
+AsyncCaptureWarnCond(e)    sp = span(e)    Γ ⊢ Emit(W-CON-0201, sp)
+───────────────────────────────────────────────────────────────
+Γ ⊢ WarnAsyncCapture(e) ⇓ ok
+
+**(Warn-Async-LargeCapture-Ok)**
+¬ AsyncCaptureWarnCond(e)
+───────────────────────────────────────────────
+Γ ⊢ WarnAsyncCapture(e) ⇓ ok
+
+**(Async-Capture-Err)**
+AsyncCreateExpr(e)    AsyncCaptureArgs(e) = args    ∃ e_i ∈ args. Γ; Ω ⊢ e_i ⇓ π_i ∧ π_i < FrameProv(Γ, Ω)    c = Code(E-CON-0280)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ e ⇑ c
+
+**(P-Async-Create)**
+AsyncCreateExpr(e)    AsyncCaptureArgs(e) = args    ∀ e_i ∈ args, Γ; Ω ⊢ e_i ⇓ π_i    ∀ e_i ∈ args, ¬(π_i < FrameProv(Γ, Ω))    Γ ⊢ WarnAsyncCapture(e) ⇓ ok
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ e ⇓ FrameProv(Γ, Ω)
+
+ProvExprRules = {P-Place-Expr, P-Literal, P-Move, P-AddrOf, P-Alloc, P-Region-Alloc-Method, P-If, P-If-No-Else, P-Match, P-Async-Create, P-Block, P-Loop-Infinite, P-Loop-Conditional, P-Loop-Iter, P-Expr-Sub}
 
 NoSpecificProvExpr(e) ⇔ ¬ ∃ r ∈ ProvExprRules \ {P-Expr-Sub}. PremisesHold(r, e)
 
@@ -9379,8 +11196,13 @@ binding = ⟨pat, _, _, init, _⟩    Γ; Ω ⊢ init ⇓ π_init    Γ ⊢ PatN
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; Ω ⊢ CompoundAssignStmt(p, _, e) ⇒ Ω ▷ ⟨[], [], false⟩
 
+**(Prov-Async-Escape-Err)**
+stmt ∈ {AssignStmt(p, e), CompoundAssignStmt(p, _, e)}    Γ; Ω ⊢ p ⇓ π_x    Γ; Ω ⊢ e ⇓ π_e    π_e < π_x    AsyncSig(ExprType(e)) ≠ ⊥    c = Code(E-CON-0281)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ stmt ⇑ c
+
 **(Prov-Escape-Err)**
-stmt ∈ {AssignStmt(p, e), CompoundAssignStmt(p, _, e)}    Γ; Ω ⊢ p ⇓ π_x    Γ; Ω ⊢ e ⇓ π_e    π_e < π_x    c = Code(Prov-Escape-Err)
+stmt ∈ {AssignStmt(p, e), CompoundAssignStmt(p, _, e)}    Γ; Ω ⊢ p ⇓ π_x    Γ; Ω ⊢ e ⇓ π_e    π_e < π_x    AsyncSig(ExprType(e)) = ⊥    c = Code(Prov-Escape-Err)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; Ω ⊢ stmt ⇑ c
 
@@ -9535,13 +11357,14 @@ SubstSelf(T, TypePtr(ty, s)) = TypePtr(SubstSelf(T, ty), s)
 SubstSelf(T, TypeRawPtr(q, ty)) = TypeRawPtr(q, SubstSelf(T, ty))
 SubstSelf(T, TypeString(state_opt)) = TypeString(state_opt)
 SubstSelf(T, TypeBytes(state_opt)) = TypeBytes(state_opt)
-SubstSelf(T, TypeModalState(p, S)) = TypeModalState(p, S)
+SubstSelf(T, TypeModalState(modal_ref, S)) = TypeModalState(modal_ref, S)
 SubstSelf(T, TypeDynamic(p)) = TypeDynamic(p)
 SubstSelf(T, TypePrim(n)) = TypePrim(n)
 SubstSelf(T, TypePath(p)) = TypePath(p)    if p ≠ [`Self`]
 
 RecvType(T, ReceiverShorthand(`const`)) = TypePerm(`const`, T)
 RecvType(T, ReceiverShorthand(`unique`)) = TypePerm(`unique`, T)
+RecvType(T, ReceiverShorthand(`shared`)) = TypePerm(`shared`, T)
 RecvType(T, ReceiverExplicit(mode_opt, ty)) = SubstSelf(T, ty)
 
 RecvMode(ReceiverShorthand(_)) = ⊥
@@ -9560,11 +11383,13 @@ Sig_T(T, m) = ⟨RecvType(T, m.receiver), ParamSig_T(T, m.params), SubstSelf(T, 
 
 SigSelf(m) = Sig_T(SelfVar, m)
 
+SigMatch(T, m_impl, m_decl) ⇔ Sig_T(T, m_impl) = ⟨recv_i, params_i, ret_i⟩ ∧ Sig_T(T, m_decl) = ⟨recv_d, params_d, ret_d⟩ ∧ recv_i = recv_d ∧ params_i = params_d ∧ Γ ⊢ ret_i <: ret_d
+
 **Class Declarations.**
 
 ClassItems(Cl) = Cl.items
-ClassMethods(Cl) = [ m | m ∈ ClassItems(Cl) ∧ ∃ vis, name, recv, params, ret, body, span, doc. m = ClassMethodDecl(vis, name, recv, params, ret, body, span, doc) ]
-ClassFields(Cl) = [ f | f ∈ ClassItems(Cl) ∧ ∃ vis, name, ty, span, doc. f = ClassFieldDecl(vis, name, ty, span, doc) ]
+ClassMethods(Cl) = [ m | m ∈ ClassItems(Cl) ∧ ∃ attrs, vis, name, gen_params, recv, params, ret, contract, body, span, doc. m = ClassMethodDecl(attrs, vis, name, gen_params, recv, params, ret, contract, body, span, doc) ]
+ClassFields(Cl) = [ f | f ∈ ClassItems(Cl) ∧ ∃ attrs, vis, boundary, name, ty, span, doc. f = ClassFieldDecl(attrs, vis, boundary, name, ty, span, doc) ]
 MethodNames(Cl) = [ m.name | m ∈ ClassMethods(Cl) ]
 FieldNames(Cl) = [ f.name | f ∈ ClassFields(Cl) ]
 
@@ -9680,7 +11505,7 @@ SelfOccurs(TypePtr(ty, s)) = SelfOccurs(ty)
 SelfOccurs(TypeRawPtr(q, ty)) = SelfOccurs(ty)
 SelfOccurs(TypeString(state_opt)) = false
 SelfOccurs(TypeBytes(state_opt)) = false
-SelfOccurs(TypeModalState(p, S)) = false
+SelfOccurs(TypeModalState(modal_ref, S)) = false
 SelfOccurs(TypeDynamic(p)) = false
 SelfOccurs(TypePrim(n)) = false
 SelfOccurs(TypePath(p)) = false    if p ≠ [`Self`]
@@ -9696,9 +11521,9 @@ dispatchable(Cl) ⇔ ∀ m ∈ EffMethods(Cl). vtable_eligible(m)
 SelfTypeClass(ty) ⇔ ty = SelfVar ∨ ∃ p. ty = TypePerm(p, SelfVar)
 
 **(WF-Class-Method)**
-(r = ReceiverExplicit(mode_opt, ty) ⇒ SelfTypeClass(ty))    (r = ReceiverShorthand(_) ⇒ true)    Γ ⊢ RecvType(SelfVar, r) wf    self ∉ ParamNames(params)    Distinct(ParamNames(params))    ∀ ⟨_, _, T_i⟩ ∈ params, Γ ⊢ T_i wf    (return_type_opt = ⊥ ∨ Γ ⊢ return_type_opt wf)
+params_gen = TypeParamsOpt(gen_params_opt)    params_gen = [P_1, …, P_n]    Γ ⊢ ⟨P_1; …; P_n⟩ wf    Γ_m = BindTypeParams(Γ, params_gen)    (r = ReceiverExplicit(mode_opt, ty) ⇒ SelfTypeClass(ty))    (r = ReceiverShorthand(_) ⇒ true)    Γ_m ⊢ RecvType(SelfVar, r) wf    self ∉ ParamNames(params)    Distinct(ParamNames(params))    ∀ ⟨_, _, T_i⟩ ∈ params, Γ_m ⊢ T_i wf    (return_type_opt = ⊥ ∨ Γ_m ⊢ return_type_opt wf)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ⟨ClassMethodDecl, _, name, r, params, return_type_opt, body_opt, _, _⟩ : ClassMethodOK(Cl)
+Γ ⊢ ⟨ClassMethodDecl, _, _, name, gen_params_opt, r, params, return_type_opt, _, body_opt, _, _⟩ : ClassMethodOK(Cl)
 
 **(T-Class-Method-Body-Abstract)**
 m.body_opt = ⊥
@@ -9706,7 +11531,7 @@ m.body_opt = ⊥
 Γ ⊢ m : ClassMethodBodyOK
 
 **(T-Class-Method-Body)**
-m.body_opt = body    T_self = RecvType(SelfVar, m.receiver)    R_m = ReturnType_T(SelfVar, m)    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, [⟨`self`, T_self⟩] ++ ParamBinds_T(SelfVar, m.params)) ⇓ Γ_1    Γ_1; R_m; ⊥ ⊢ body : T_b    Γ ⊢ T_b <: R_m    (R_m ≠ TypePrim("()") ⇒ ExplicitReturn(body))
+m.body_opt = body    T_self = RecvType(SelfVar, m.receiver)    R_m = ReturnType_T(SelfVar, m)    R_b = BodyReturnType(R_m)    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, [⟨`self`, T_self⟩] ++ ParamBinds_T(SelfVar, m.params)) ⇓ Γ_1    Γ_1; R_m; ⊥ ⊢ body : T_b    Γ ⊢ T_b <: R_b    (R_b ≠ TypePrim("()") ⇒ ExplicitReturn(body))
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ m : ClassMethodBodyOK
 
@@ -9737,11 +11562,10 @@ S ∈ Supers(Cl)    ¬(Γ ⊢ S : ClassPath)    c = Code(Superclass-Undefined)
 
 **Class Implementation.**
 
-Implements(T) = impls ⇔ T = RecordDecl(_, _, impls, _, _, _) ∨ T = EnumDecl(_, _, impls, _, _, _) ∨ T = ModalDecl(_, _, impls, _, _, _) ∨ T = ClassDecl(_, _, impls, _, _)
+Implements(T) = impls ⇔ T = RecordDecl(_, _, _, _, _, impls, _, _, _, _) ∨ T = EnumDecl(_, _, _, _, _, impls, _, _, _, _) ∨ T = ModalDecl(_, _, _, _, _, impls, _, _, _, _) ∨ T = ClassDecl(_, _, _, _, _, _, impls, _, _, _)
 
 **Implements Clause Constraints.**
 NoDefaultMethods(Cl) ⇔ ∀ m ∈ ClassMethods(Cl). m.body = ⊥
-BitcopyImpliesClone(T) ⇔ (`Bitcopy` ∈ Implements(T)) ⇒ (Clone ∈ Implements(T))
 AbstractsImplemented(T) ⇔ ∀ Cl ∈ Implements(T). ∀ m ∈ ClassMethodTable(Cl). (m.body = ⊥ ⇒ MethodByName(T, m.name) ≠ ⊥)
 
 **(Impl-Duplicate-Class-Err)**
@@ -9751,15 +11575,15 @@ AbstractsImplemented(T) ⇔ ∀ Cl ∈ Implements(T). ∀ m ∈ ClassMethodTable
 
 Fields(T) = Fields(R) ⇔ T = TypePath(p) ∧ RecordDecl(p) = R
 Methods(T) = Methods(R) ⇔ T = TypePath(p) ∧ RecordDecl(p) = R
-Fields(T) = [] ⇔ T = TypePath(p) ∧ (EnumDecl(p) = E ∨ Σ.Types[p] = `modal` M)
-Methods(T) = [] ⇔ T = TypePath(p) ∧ (EnumDecl(p) = E ∨ Σ.Types[p] = `modal` M)
+Fields(T) = [] ⇔ (T = TypePath(p) ∧ EnumDecl(p) = E) ∨ (T = ModalRefType(modal_ref))
+Methods(T) = [] ⇔ (T = TypePath(p) ∧ EnumDecl(p) = E) ∨ (T = ModalRefType(modal_ref))
 MethodByName(T, name) = m' ⇔ m' ∈ Methods(T) ∧ m'.name = name
 MethodByName(T, name) = ⊥ ⇔ ¬ ∃ m' ∈ Methods(T). m'.name = name
 ClassMethodTable(Cl) = EffMethods(Cl)
 ClassFieldTable(Cl) = EffFields(Cl)
 
 **(Impl-Abstract-Method)**
-m ∈ ClassMethodTable(Cl)    m.body = ⊥    MethodByName(T, m.name) = m'    Sig_T(T, m') = Sig_T(T, m)    m'.override = false
+m ∈ ClassMethodTable(Cl)    m.body = ⊥    MethodByName(T, m.name) = m'    SigMatch(T, m', m)    m'.override = false
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ T implements abstract m
 
@@ -9769,12 +11593,12 @@ m ∈ ClassMethodTable(Cl)    m.body = ⊥    MethodByName(T, m.name) = ⊥    c
 Γ ⊢ T : ImplementsOk ⇑ c
 
 **(Impl-Sig-Err)**
-m ∈ ClassMethodTable(Cl)    m.body = ⊥    MethodByName(T, m.name) = m'    Sig_T(T, m') ≠ Sig_T(T, m)    c = Code(Impl-Missing-Method)
+m ∈ ClassMethodTable(Cl)    m.body = ⊥    MethodByName(T, m.name) = m'    ¬ SigMatch(T, m', m)    c = Code(Impl-Missing-Method)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ T : ImplementsOk ⇑ c
 
 **(Override-Abstract-Err)**
-m ∈ ClassMethodTable(Cl)    m.body = ⊥    MethodByName(T, m.name) = m'    Sig_T(T, m') = Sig_T(T, m)    m'.override = true    c = Code(Override-Abstract-Err)
+m ∈ ClassMethodTable(Cl)    m.body = ⊥    MethodByName(T, m.name) = m'    SigMatch(T, m', m)    m'.override = true    c = Code(Override-Abstract-Err)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ T : ImplementsOk ⇑ c
 
@@ -9784,17 +11608,17 @@ m ∈ ClassMethodTable(Cl)    m.body ≠ ⊥    MethodByName(T, m.name) = ⊥
 Γ ⊢ T uses default m
 
 **(Impl-Concrete-Override)**
-m ∈ ClassMethodTable(Cl)    m.body ≠ ⊥    MethodByName(T, m.name) = m'    Sig_T(T, m') = Sig_T(T, m)    m'.override = true
+m ∈ ClassMethodTable(Cl)    m.body ≠ ⊥    MethodByName(T, m.name) = m'    SigMatch(T, m', m)    m'.override = true
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ T overrides m
 
 **(Override-Missing-Err)**
-m ∈ ClassMethodTable(Cl)    m.body ≠ ⊥    MethodByName(T, m.name) = m'    Sig_T(T, m') = Sig_T(T, m)    m'.override = false    c = Code(Override-Missing-Err)
+m ∈ ClassMethodTable(Cl)    m.body ≠ ⊥    MethodByName(T, m.name) = m'    SigMatch(T, m', m)    m'.override = false    c = Code(Override-Missing-Err)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ T : ImplementsOk ⇑ c
 
 **(Impl-Sig-Err-Concrete)**
-m ∈ ClassMethodTable(Cl)    m.body ≠ ⊥    MethodByName(T, m.name) = m'    Sig_T(T, m') ≠ Sig_T(T, m)    c = Code(Impl-Missing-Method)
+m ∈ ClassMethodTable(Cl)    m.body ≠ ⊥    MethodByName(T, m.name) = m'    ¬ SigMatch(T, m', m)    c = Code(Impl-Missing-Method)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ T : ImplementsOk ⇑ c
 
@@ -9869,13 +11693,18 @@ LookupMethod(T, name) = ⊥ ⇔ MethodByName(T, name) = ⊥ ∧ (|ClassDefaults(
 Γ; R; L ⊢ MethodCall(base, name, args) ⇑ c
 
 **(Drop-Call-Err)**
-Γ; R; L ⊢ base : T_b    LookupMethod(StripPerm(T_b), name) = m    MethodOwner(m) = `Drop`    MethodName(m) = `drop`    c = Code(Drop-Call-Err)
+Γ; R; L ⊢ base : T_b    LookupMethod(StripPerm(T_b), name) = m    MethodName(m) = `drop`    Sig_T(StripPerm(T_b), m) = ⟨TypePerm(`unique`, StripPerm(T_b)), [], TypePrim("()")⟩    c = Code(Drop-Call-Err)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ MethodCall(base, name, args) ⇑ c
 
 **(Drop-Call-Err-Dyn)**
-Γ; R; L ⊢ base : TypeDynamic(Cl)    LookupClassMethod(Cl, name) = m    MethodOwner(m) = `Drop`    MethodName(m) = `drop`    c = Code(Drop-Call-Err-Dyn)
+Γ; R; L ⊢ base : TypeDynamic(Cl)    LookupClassMethod(Cl, name) = m    MethodName(m) = `drop`    Sig_T(SelfVar, m) = ⟨TypePerm(`unique`, SelfVar), [], TypePrim("()")⟩    c = Code(Drop-Call-Err-Dyn)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ MethodCall(base, name, args) ⇑ c
+
+**(MethodCall-Packed-Unsafe-Err)**
+RecvArgMode(base) = ⊥    PackedField(base)    ¬ UnsafeSpan(span(base))    c = Code(Packed-Field-Unsafe-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ MethodCall(base, name, args) ⇑ c
 
 **(T-MethodCall)**
@@ -9902,8 +11731,8 @@ RecvBaseType(base, RecvMode(m.receiver)) = P_caller TypeDynamic(Cl)    LookupCla
 
 **Definitions.**
 
-Fields(R) = [ f | f ∈ R.members ∧ ∃ vis, name, ty, init, span, doc. f = FieldDecl(vis, name, ty, init, span, doc) ]
-Methods(R) = [ m | m ∈ R.members ∧ ∃ vis, override, name, recv, params, ret, body, span, doc. m = MethodDecl(vis, override, name, recv, params, ret, body, span, doc) ]
+Fields(R) = [ f | f ∈ R.members ∧ ∃ attrs, vis, boundary, name, ty, init, span, doc. f = FieldDecl(attrs, vis, boundary, name, ty, init, span, doc) ]
+Methods(R) = [ m | m ∈ R.members ∧ ∃ attrs, vis, override, name, gen_params, recv, params, ret, contract, body, span, doc. m = MethodDecl(attrs, vis, override, name, gen_params, recv, params, ret, contract, body, span, doc) ]
 Self_R = TypePath(RecordPath(R))
 SelfType(R, ty) ⇔ ty = Self_R ∨ ∃ p. ty = TypePerm(p, Self_R)
 
@@ -9927,16 +11756,25 @@ SelfType(R, ty)
 ────────────────────────────────────────────────────────────────
 Γ ⊢ ReceiverShorthand(`unique`) : Recv(R, `unique`, ⊥)
 
+**(Recv-Shared)**
+────────────────────────────────────────────────────────────────
+Γ ⊢ ReceiverShorthand(`shared`) : Recv(R, `shared`, ⊥)
+
 ParamNames(params) = [x | ⟨_, x, _⟩ ∈ params]
 
 **(WF-Record-Method)**
-Γ ⊢ r : Recv(R, P, mode)    self ∉ ParamNames(params)    Distinct(ParamNames(params))    ∀ ⟨_, _, T_i⟩ ∈ params, Γ ⊢ T_i wf    (return_type_opt = ⊥ ∨ Γ ⊢ return_type_opt wf)
+params_gen = TypeParamsOpt(gen_params_opt)    params_gen = [P_1, …, P_n]    Γ ⊢ ⟨P_1; …; P_n⟩ wf    Γ_m = BindTypeParams(Γ, params_gen)    Γ_m ⊢ r : Recv(R, P, mode)    self ∉ ParamNames(params)    Distinct(ParamNames(params))    ∀ ⟨_, _, T_i⟩ ∈ params, Γ_m ⊢ T_i wf    (return_type_opt = ⊥ ∨ Γ_m ⊢ return_type_opt wf)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ⟨MethodDecl, _, name, r, params, return_type_opt, body, _, _⟩ : MethodOK(R, P, mode)
+Γ ⊢ ⟨MethodDecl, _, _, _, name, gen_params_opt, r, params, return_type_opt, _, body, _, _⟩ : MethodOK(R, P, mode)
 
 **(T-Record-Method-Body)**
-Γ ⊢ m : MethodOK(R, P, mode)    T_self = RecvType(Self_R, m.receiver)    R_m = ReturnType_T(Self_R, m)    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, [⟨`self`, T_self⟩] ++ ParamBinds_T(Self_R, m.params)) ⇓ Γ_1    Γ_1; R_m; ⊥ ⊢ m.body : T_b    Γ ⊢ T_b <: R_m    (R_m ≠ TypePrim("()") ⇒ ExplicitReturn(m.body))
+Γ ⊢ m : MethodOK(R, P, mode)    T_self = RecvType(Self_R, m.receiver)    R_m = ReturnType_T(Self_R, m)    R_b = BodyReturnType(R_m)    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, [⟨`self`, T_self⟩] ++ ParamBinds_T(Self_R, m.params)) ⇓ Γ_1    Γ_1; R_m; ⊥ ⊢ m.body : T_b    Γ ⊢ T_b <: R_b    (R_b ≠ TypePrim("()") ⇒ ExplicitReturn(m.body))
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ m : MethodBodyOK(R)
+
+**(T-Record-Method-Builtin)**
+BuiltinRecord(R.name)    m ∈ Methods(R)    m.body = ⊥
+──────────────────────────────────────────────────────────────
 Γ ⊢ m : MethodBodyOK(R)
 
 MethodNames(R) = [ m.name | m ∈ Methods(R) ]
@@ -9996,16 +11834,42 @@ ApplyMethod(m, v_self, vecv) = BlockExpr(bs ++ ss, t) ⇔ BindStmts(m, v_self, v
 
 ### 5.4. Modal Types (Definitions)
 
+StateBlocks(M) = M.states
+StateList(M) = [ b.name | b ∈ StateBlocks(M) ]
+StateNames(M) = { S | S ∈ StateList(M) }
+States(M) = StateNames(M)
 States(M) ≠ ∅
-States(M) = { S | S ∈ StateNames(M) }
-Payload(M, S) = [⟨f_1, T_1⟩, …, ⟨f_k, T_k⟩]
-𝒯_M = {M} ∪ { M@S | S ∈ States(M) }
+StateBlockOf(M, S) = b ⇔ b ∈ StateBlocks(M) ∧ b.name = S
+StateMembers(M, S) = b.members ⇔ StateBlockOf(M, S) = b
+Payload(M, S) = [⟨f, T⟩ | StateFieldDecl(_, _, _, f, T, _, _) ∈ StateMembers(M, S)]
+ModalSelfRef(M) =
+  { TypePath(ModalPath(M))    if params_gen = []
+    TypeApply(ModalPath(M), [TypePath([P_i.name]) | P_i ∈ params_gen])    otherwise
+  }    where params_gen = TypeParamsOpt(M.gen_params_opt)
+ModalSelfType(M, S) = TypeModalState(ModalSelfRef(M), S)
+ModalSelfBase(M) = ModalRefType(ModalSelfRef(M))
+𝒯_M = {ModalSelfBase(M)} ∪ { ModalSelfType(M, S) | S ∈ States(M) }
+Notation: M@S = ModalSelfType(M, S), and M = ModalSelfBase(M).
 
 **Payload Map.**
 
 PayloadMap(M, S) =
  { f_i ↦ T_i | ⟨f_i, T_i⟩ ∈ Payload(M, S) }    if Distinct([f_i | ⟨f_i, T_i⟩ ∈ Payload(M, S)])
  ⊥    otherwise
+
+ModalRefPath(TypePath(p)) = p
+ModalRefPath(TypeApply(p, _)) = p
+ModalRefArgs(TypePath(_)) = []
+ModalRefArgs(TypeApply(_, args)) = args
+ModalDeclOf(modal_ref) = M ⇔ ModalRefPath(modal_ref) = p ∧ Σ.Types[p] = `modal` M
+ModalRefSubst(modal_ref, M) = θ ⇔ params_gen = TypeParamsOpt(M.gen_params_opt) ∧ DefaultArgs(params_gen, ModalRefArgs(modal_ref)) = args' ∧ θ = [args'_i / params_gen[i].name]
+ModalPayload(modal_ref, S) = [⟨f, TypeSubst(θ, T)⟩ | ⟨f, T⟩ ∈ Payload(M, S)] where ModalDeclOf(modal_ref) = M and θ = ModalRefSubst(modal_ref, M)
+ModalPayloadMap(modal_ref, S) =
+ { f_i ↦ T_i | ⟨f_i, T_i⟩ ∈ ModalPayload(modal_ref, S) }    if Distinct([f_i | ⟨f_i, T_i⟩ ∈ ModalPayload(modal_ref, S)])
+ ⊥    otherwise
+
+ModalRefType(TypePath(p)) = TypePath(p)
+ModalRefType(TypeApply(p, args)) = TypeApply(p, args)
 
 **(WF-Modal-Payload)**
 ∀ i, Γ ⊢ T_i wf    ∀ i ≠ j, f_i ≠ f_j
@@ -10023,6 +11887,27 @@ TypesMap = Σ.Types
 ClassesMap = Σ.Classes
 
 TypeWFJudg = {Γ ⊢ T wf}
+
+TypeParamsOf(p) =
+  TypeParamsOpt(R.gen_params_opt)    if RecordDecl(p) = R
+  TypeParamsOpt(E.gen_params_opt)    if EnumDecl(p) = E
+  TypeParamsOpt(M.gen_params_opt)    if ModalDecl(p) = M
+  TypeParamsOpt(gen_params_opt)      if Σ.Types[p] = TypeAliasDecl(_, _, _, gen_params_opt, _, _, _, _)
+
+TypeWhereOf(p) =
+  R.where_clause_opt    if RecordDecl(p) = R
+  E.where_clause_opt    if EnumDecl(p) = E
+  M.where_clause_opt    if ModalDecl(p) = M
+  where_clause_opt      if Σ.Types[p] = TypeAliasDecl(_, _, _, _, where_clause_opt, _, _, _)
+
+AsyncParams = [⟨`Out`, [], ⊥, ⊥⟩, ⟨`In`, [], TypePrim("()"), ⊥⟩, ⟨`Result`, [], TypePrim("()"), ⊥⟩, ⟨`E`, [], TypePrim("!"), ⊥⟩]
+
+AsyncSig(T) = ⟨Out, In, Result, E⟩ ⇔ AliasNorm(T) = TypeApply(["Async"], args) ∧ DefaultArgs(AsyncParams, args) = [Out, In, Result, E]
+AsyncSig(T) = ⊥    otherwise
+
+BodyReturnType(R) =
+  { Result    if AsyncSig(R) = ⟨Out, In, Result, E⟩
+    R         otherwise }
 
 **(WF-Prim)**
 T = TypePrim(name)    name ∈ PrimTypes_C0
@@ -10065,9 +11950,44 @@ T = TypeFunc([⟨m_1, T_1⟩, …, ⟨m_n, T_n⟩], R)    Γ ⊢ R wf    ∀ i, 
 Γ ⊢ T wf
 
 **(WF-Path)**
-T = TypePath(p)    p ∈ dom(Σ.Types)
+T = TypePath(p)    p ∈ dom(Σ.Types)    TypeParamsOf(p) = []
 ────────────────────────────────────────
 Γ ⊢ T wf
+
+**(WF-Path-Generic-Err)**
+T = TypePath(p)    p ∈ dom(Σ.Types)    TypeParamsOf(p) ≠ []    c = Code(E-TYP-2303)
+────────────────────────────────────────────────────────────────
+Γ ⊢ T wf ⇑ c
+
+**(WF-Apply)**
+T = TypeApply(p, args)    p ∈ dom(Σ.Types)    params_gen = TypeParamsOf(p)    DefaultArgs(params_gen, args) = args'    θ = [args'_i / params_gen[i].name]    ∀ i, Γ ⊢ args'_i wf    ∀ i, Γ ⊢ args'_i satisfies Bounds(params_gen[i])    Γ ⊢ TypeWhereOf(p)[θ] ok
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T wf
+
+**(WF-Apply-ArgCount-Err)**
+T = TypeApply(p, args)    p ∈ dom(Σ.Types)    params_gen = TypeParamsOf(p)    DefaultArgs(params_gen, args) = ⊥    c = Code(E-TYP-2303)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T wf ⇑ c
+
+**(WF-Async)**
+T = TypeApply(["Async"], args)    DefaultArgs(AsyncParams, args) = args'    ∀ i, Γ ⊢ args'_i wf
+────────────────────────────────────────────────────────────────
+Γ ⊢ T wf
+
+**(WF-Async-ArgCount-Err)**
+T = TypeApply(["Async"], args)    DefaultArgs(AsyncParams, args) = ⊥    c = Code(E-CON-0201)
+────────────────────────────────────────────────────────────────
+Γ ⊢ T wf ⇑ c
+
+**(WF-Async-Arg-WF-Err)**
+T = TypeApply(["Async"], args)    DefaultArgs(AsyncParams, args) = args'    ∃ i. Γ ⊢ args'_i wf ⇑    c = Code(E-CON-0201)
+────────────────────────────────────────────────────────────────
+Γ ⊢ T wf ⇑ c
+
+**(WF-Async-Path-Err)**
+T = TypePath(["Async"])    c = Code(E-CON-0201)
+────────────────────────────────────────────────────────────────
+Γ ⊢ T wf ⇑ c
 
 **(WF-Dynamic)**
 T = TypeDynamic(p)    p ∈ dom(Σ.Classes)
@@ -10096,9 +12016,14 @@ T = TypePtr(T_0, state_opt)    state_opt ∈ {⊥, `Valid`, `Null`, `Expired`}  
 Γ ⊢ T wf
 
 **(WF-ModalState)**
-T = TypeModalState(p, S)    p ∈ dom(Σ.Types)    Σ.Types[p] = `modal` M    S ∈ States(M)
-─────────────────────────────────────────────────────────────────────────────────────────
+T = TypeModalState(modal_ref, S)    ModalDeclOf(modal_ref) = M    S ∈ States(M)    params_gen = TypeParamsOpt(M.gen_params_opt)    DefaultArgs(params_gen, ModalRefArgs(modal_ref)) = args'    θ = [args'_i / params_gen[i].name]    ∀ i, Γ ⊢ args'_i wf    ∀ i, Γ ⊢ args'_i satisfies Bounds(params_gen[i])    Γ ⊢ M.where_clause_opt[θ] ok
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ T wf
+
+**(WF-ModalState-ArgCount-Err)**
+T = TypeModalState(modal_ref, S)    ModalDeclOf(modal_ref) = M    params_gen = TypeParamsOpt(M.gen_params_opt)    DefaultArgs(params_gen, ModalRefArgs(modal_ref)) = ⊥    c = Code(E-TYP-2303)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T wf ⇑ c
 
 **(WF-RawPtr)**
 T = TypeRawPtr(q, T_0)    Γ ⊢ T_0 wf
@@ -10134,11 +12059,13 @@ S ∈ States(M)
 
 PayloadNames(M, S) = [ f | ⟨f, _⟩ ∈ Payload(M, S) ]
 PayloadNameSet(M, S) = Set(PayloadNames(M, S))
+ModalPayloadNames(modal_ref, S) = [ f | ⟨f, _⟩ ∈ ModalPayload(modal_ref, S) ]
+ModalPayloadNameSet(modal_ref, S) = Set(ModalPayloadNames(modal_ref, S))
 
 **(T-Modal-State-Intro)**
-Σ.Types[path] = `modal` M    S ∈ States(M)    path ∉ {["File"], ["DirIter"]}    PayloadNameSet(M, S) = FieldInitSet(fields)    Distinct(FieldInitNames(fields))    ∀ ⟨f, e⟩ ∈ fields, PayloadMap(M, S)(f) = T_f ∧ Γ; R; L ⊢ e ⇐ T_f ⊣ ∅
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ; R; L ⊢ RecordExpr(ModalStateRef(path, S), fields) : TypeModalState(path, S)
+ModalDeclOf(modal_ref) = M    S ∈ States(M)    ModalRefPath(modal_ref) ∉ {["File"], ["DirIter"], ["CancelToken"], ["SpawnHandle"], ["FutureHandle"], ["Async"]}    ModalPayloadNameSet(modal_ref, S) = FieldInitSet(fields)    Distinct(FieldInitNames(fields))    ∀ ⟨f, e⟩ ∈ fields, ModalPayloadMap(modal_ref, S)(f) = T_f ∧ Γ; R; L ⊢ e ⇐ T_f ⊣ ∅
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ RecordExpr(ModalStateRef(modal_ref, S), fields) : TypeModalState(modal_ref, S)
 
 **(Modal-Incomparable)**
 S_A ≠ S_B
@@ -10166,79 +12093,230 @@ RegionProcSig(`Region::free_unchecked`) = ⟨[⟨⊥, `self`, TypePerm(`unique`,
 ProvType(T, π) = T_π
 BaseType(T_π) = T    ProvOf(T_π) = π
 
-`Bitcopy` ∉ Implements(TypePath(["Region"]))
+¬ BitcopyType(TypePath(["Region"]))
 
 **(Region-Unchecked-Unsafe-Err)**
 Γ; R; L ⊢ base : T    StripPerm(T) = TypeModalState(["Region"], S)    S ∈ {`Active`, `Frozen`}    name ∈ {"reset_unchecked", "free_unchecked"}    ¬ UnsafeSpan(span(MethodCall(base, name, args)))    c = Code(Region-Unchecked-Unsafe-Err)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ MethodCall(base, name, args) ⇑ c
 
+#### 5.4.2. Built-in Modal Type `CancelToken` (Cursive0)
+
+["CancelToken"] ∈ dom(Σ.Types)
+States(`CancelToken`) = { `@Active`, `@Cancelled` }
+
+CancelTokenFields = [⟨`id`, TypePrim("usize")⟩]
+
+Payload(`CancelToken`, `@Active`) = CancelTokenFields
+Payload(`CancelToken`, `@Cancelled`) = CancelTokenFields
+
+CancelTokenActiveMembers = [
+  StateFieldDecl(⊥, `private`, false, `id`, TypePrim("usize"), ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "cancel", ⊥, ReceiverShorthand(`shared`), [], TypePrim("()"), ⊥, ⊥, ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "is_cancelled", ⊥, ReceiverShorthand(`const`), [], TypePrim("bool"), ⊥, ⊥, ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "wait_cancelled", ⊥, ReceiverShorthand(`const`), [], TypeApply(["Async"], [TypePrim("()")]), ⊥, ⊥, ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "child", ⊥, ReceiverShorthand(`const`), [], TypeModalState(["CancelToken"], `@Active`), ⊥, ⊥, ⊥, ⊥)
+]
+CancelTokenCancelledMembers = [
+  StateFieldDecl(⊥, `private`, false, `id`, TypePrim("usize"), ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "is_cancelled", ⊥, ReceiverShorthand(`const`), [], TypePrim("bool"), ⊥, ⊥, ⊥, ⊥)
+]
+CancelTokenStates = [
+  StateBlock(`@Active`, CancelTokenActiveMembers, ⊥, ⊥),
+  StateBlock(`@Cancelled`, CancelTokenCancelledMembers, ⊥, ⊥)
+]
+CancelTokenDecl = ModalDecl(⊥, `public`, `CancelToken`, ⊥, ⊥, [], CancelTokenStates, ⊥, ⊥, ⊥)
+
+Σ.Types["CancelToken"] = `modal` CancelTokenDecl
+
+CancelTokenProcs = {`CancelToken::new`}
+CancelTokenProcSig(`CancelToken::new`) = ⟨[], TypeModalState(["CancelToken"], `@Active`)⟩
+
+#### 5.4.3. Built-in Modal Type `SpawnHandle` (Cursive0)
+
+["SpawnHandle"] ∈ dom(Σ.Types)
+States(`SpawnHandle`) = { `@Pending`, `@Ready` }
+
+SpawnHandleParams = [⟨`T`, [], ⊥, ⊥⟩]
+
+SpawnHandleReadyFields = [⟨`value`, TypePath(["T"])⟩]
+
+Payload(`SpawnHandle`, `@Pending`) = []
+Payload(`SpawnHandle`, `@Ready`) = SpawnHandleReadyFields
+
+SpawnHandlePendingMembers = []
+SpawnHandleReadyMembers = [
+  StateFieldDecl(⊥, `public`, false, `value`, TypePath(["T"]), ⊥, ⊥)
+]
+SpawnHandleStates = [
+  StateBlock(`@Pending`, SpawnHandlePendingMembers, ⊥, ⊥),
+  StateBlock(`@Ready`, SpawnHandleReadyMembers, ⊥, ⊥)
+]
+SpawnHandleDecl = ModalDecl(⊥, `public`, `SpawnHandle`, SpawnHandleParams, ⊥, [], SpawnHandleStates, ⊥, ⊥, ⊥)
+
+Σ.Types["SpawnHandle"] = `modal` SpawnHandleDecl
+
+#### 5.4.4. Built-in Modal Type `FutureHandle` (Cursive0)
+
+["FutureHandle"] ∈ dom(Σ.Types)
+States(`FutureHandle`) = { `@Pending`, `@Ready` }
+
+FutureHandleParams = [⟨`T`, [], ⊥, ⊥⟩, ⟨`E`, [], ⊥, ⊥⟩]
+
+FutureHandleReadyFields = [⟨`value`, TypeUnion([TypePath(["T"]), TypePath(["E"])])⟩]
+
+Payload(`FutureHandle`, `@Pending`) = []
+Payload(`FutureHandle`, `@Ready`) = FutureHandleReadyFields
+
+FutureHandlePendingMembers = []
+FutureHandleReadyMembers = [
+  StateFieldDecl(⊥, `public`, false, `value`, TypeUnion([TypePath(["T"]), TypePath(["E"])]), ⊥, ⊥)
+]
+FutureHandleStates = [
+  StateBlock(`@Pending`, FutureHandlePendingMembers, ⊥, ⊥),
+  StateBlock(`@Ready`, FutureHandleReadyMembers, ⊥, ⊥)
+]
+FutureHandleDecl = ModalDecl(⊥, `public`, `FutureHandle`, FutureHandleParams, ⊥, [], FutureHandleStates, ⊥, ⊥, ⊥)
+
+Σ.Types["FutureHandle"] = `modal` FutureHandleDecl
+
+#### 5.4.5. Built-in Modal Type `Async` (Cursive0)
+
+["Async"] ∈ dom(Σ.Types)
+States(`Async`) = { `@Suspended`, `@Completed`, `@Failed` }
+
+AsyncParams = [⟨`Out`, [], ⊥, ⊥⟩, ⟨`In`, [], TypePrim("()"), ⊥⟩, ⟨`Result`, [], TypePrim("()"), ⊥⟩, ⟨`E`, [], TypePrim("!"), ⊥⟩]
+
+AsyncRef = TypeApply(["Async"], [TypePath(["Out"]), TypePath(["In"]), TypePath(["Result"]), TypePath(["E"])])
+
+AsyncSuspendedFields = [⟨`output`, TypePath(["Out"])⟩]
+AsyncCompletedFields = [⟨`value`, TypePath(["Result"])⟩]
+AsyncFailedFields = [⟨`error`, TypePath(["E"])⟩]
+
+Payload(`Async`, `@Suspended`) = AsyncSuspendedFields
+Payload(`Async`, `@Completed`) = AsyncCompletedFields
+Payload(`Async`, `@Failed`) = AsyncFailedFields
+
+AsyncSuspendedMembers = [
+  StateFieldDecl(⊥, `public`, false, `output`, TypePath(["Out"]), ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "resume", ⊥, ReceiverShorthand(`unique`), [⟨⊥, `input`, TypePath(["In"])⟩], TypeUnion([TypeModalState(AsyncRef, `@Suspended`), TypeModalState(AsyncRef, `@Completed`), TypeModalState(AsyncRef, `@Failed`)]), ⊥, ⊥, ⊥, ⊥)
+]
+AsyncCompletedMembers = [
+  StateFieldDecl(⊥, `public`, false, `value`, TypePath(["Result"]), ⊥, ⊥)
+]
+AsyncFailedMembers = [
+  StateFieldDecl(⊥, `public`, false, `error`, TypePath(["E"]), ⊥, ⊥)
+]
+
+AsyncStates = [
+  StateBlock(`@Suspended`, AsyncSuspendedMembers, ⊥, ⊥),
+  StateBlock(`@Completed`, AsyncCompletedMembers, ⊥, ⊥),
+  StateBlock(`@Failed`, AsyncFailedMembers, ⊥, ⊥)
+]
+AsyncDecl = ModalDecl(⊥, `public`, `Async`, AsyncParams, ⊥, [], AsyncStates, ⊥, ⊥, ⊥)
+
+Σ.Types["Async"] = `modal` AsyncDecl
+
+When `E = !`, values of `Async@Failed` are uninhabited. The implementation MAY omit the `@Failed` state from concrete storage layouts per §9.3.
+
+SequenceParams = [⟨`T`, [], ⊥, ⊥⟩]
+SequenceBody = TypeApply(["Async"], [TypePath(["T"]), TypePrim("()"), TypePrim("()"), TypePrim("!")])
+SequenceDecl = TypeAliasDecl(⊥, `public`, `Sequence`, SequenceParams, ⊥, SequenceBody, ⊥, ⊥)
+
+FutureParams = [⟨`T`, [], ⊥, ⊥⟩, ⟨`E`, [], TypePrim("!"), ⊥⟩]
+FutureBody = TypeApply(["Async"], [TypePrim("()"), TypePrim("()"), TypePath(["T"]), TypePath(["E"])])
+FutureDecl = TypeAliasDecl(⊥, `public`, `Future`, FutureParams, ⊥, FutureBody, ⊥, ⊥)
+
+StreamParams = [⟨`T`, [], ⊥, ⊥⟩, ⟨`E`, [], ⊥, ⊥⟩]
+StreamBody = TypeApply(["Async"], [TypePath(["T"]), TypePrim("()"), TypePrim("()"), TypePath(["E"])])
+StreamDecl = TypeAliasDecl(⊥, `public`, `Stream`, StreamParams, ⊥, StreamBody, ⊥, ⊥)
+
+PipeParams = [⟨`In`, [], ⊥, ⊥⟩, ⟨`Out`, [], ⊥, ⊥⟩]
+PipeBody = TypeApply(["Async"], [TypePath(["Out"]), TypePath(["In"]), TypePrim("()"), TypePrim("!")])
+PipeDecl = TypeAliasDecl(⊥, `public`, `Pipe`, PipeParams, ⊥, PipeBody, ⊥, ⊥)
+
+ExchangeParams = [⟨`T`, [], ⊥, ⊥⟩]
+ExchangeBody = TypeApply(["Async"], [TypePath(["T"]), TypePath(["T"]), TypePath(["T"]), TypePrim("!")])
+ExchangeDecl = TypeAliasDecl(⊥, `public`, `Exchange`, ExchangeParams, ⊥, ExchangeBody, ⊥, ⊥)
+
+Σ.Types["Sequence"] = SequenceDecl
+Σ.Types["Future"] = FutureDecl
+Σ.Types["Stream"] = StreamDecl
+Σ.Types["Pipe"] = PipeDecl
+Σ.Types["Exchange"] = ExchangeDecl
+
 ### 5.5. State-Specific Fields
 
-ModalFieldVisible(m, p) ⇔ Σ.Types[p] = `modal` M ∧ ModuleOfPath(ModalPath(M)) = m
+ModalFieldVisible(m, modal_ref) ⇔ ModalDeclOf(modal_ref) = M ∧ ModuleOfPath(ModalPath(M)) = m
 
 **(T-Modal-Field)**
-Γ; R; L ⊢ e : TypeModalState(p, S)    Σ.Types[p] = `modal` M    PayloadMap(M, S)(f) = T    ModalFieldVisible(m, p)
+Γ; R; L ⊢ e : TypeModalState(modal_ref, S)    ModalDeclOf(modal_ref) = M    ModalPayloadMap(modal_ref, S)(f) = T    ModalFieldVisible(m, modal_ref)
 ────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ e.f : T
 
 **(T-Modal-Field-Perm)**
-Γ; R; L ⊢ e : TypePerm(p', TypeModalState(p, S))    Σ.Types[p] = `modal` M    PayloadMap(M, S)(f) = T    ModalFieldVisible(m, p)
+Γ; R; L ⊢ e : TypePerm(p', TypeModalState(modal_ref, S))    ModalDeclOf(modal_ref) = M    ModalPayloadMap(modal_ref, S)(f) = T    ModalFieldVisible(m, modal_ref)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ e.f : TypePerm(p', T)
 
 **(Modal-Field-Missing)**
-Γ; R; L ⊢ e : TypeModalState(p, S)    Σ.Types[p] = `modal` M    PayloadMap(M, S)(f) undefined    c = Code(Modal-Field-Missing)
+Γ; R; L ⊢ e : TypeModalState(modal_ref, S)    ModalDeclOf(modal_ref) = M    ModalPayloadMap(modal_ref, S)(f) undefined    c = Code(Modal-Field-Missing)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ e.f ⇑ c
 
 **(Modal-Field-General-Err)**
-Γ; R; L ⊢ e : T    StripPerm(T) = TypePath(p)    Σ.Types[p] = `modal` M    c = Code(Modal-Field-General-Err)
+Γ; R; L ⊢ e : T    StripPerm(T) = ModalRefType(modal_ref)    ModalDeclOf(modal_ref) = M    c = Code(Modal-Field-General-Err)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ e.f ⇑ c
 
 **(Modal-Field-NotVisible)**
-Γ; R; L ⊢ e : TypeModalState(p, S)    Σ.Types[p] = `modal` M    PayloadMap(M, S)(f) = T    ¬ ModalFieldVisible(m, p)    c = Code(Modal-Field-NotVisible)
+Γ; R; L ⊢ e : TypeModalState(modal_ref, S)    ModalDeclOf(modal_ref) = M    ModalPayloadMap(modal_ref, S)(f) = T    ¬ ModalFieldVisible(m, modal_ref)    c = Code(Modal-Field-NotVisible)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ e.f ⇑ c
 
 ### 5.6. Transitions and State-Specific Methods
 
-Methods(S) = [ m | m ∈ StateMembers(S) ∧ ∃ vis, name, params, ret, body, span, doc. m = StateMethodDecl(vis, name, params, ret, body, span, doc) ]
-Transitions(S) = [ t | t ∈ StateMembers(S) ∧ ∃ vis, name, params, target, body, span, doc. t = TransitionDecl(vis, name, params, target, body, span, doc) ]
-StateMethodNames(S) = [ m.name | m ∈ Methods(S) ]
-TransitionNames(S) = [ t.name | t ∈ Transitions(S) ]
+Methods(M, S) = [ m | m ∈ StateMembers(M, S) ∧ ∃ attrs, vis, name, gen_params, recv, params, ret, contract, body, span, doc. m = StateMethodDecl(attrs, vis, name, gen_params, recv, params, ret, contract, body, span, doc) ]
+Transitions(M, S) = [ t | t ∈ StateMembers(M, S) ∧ ∃ attrs, vis, name, params, target, body, span, doc. t = TransitionDecl(attrs, vis, name, params, target, body, span, doc) ]
+StateMethodNames(M, S) = [ m.name | m ∈ Methods(M, S) ]
+TransitionNames(M, S) = [ t.name | t ∈ Transitions(M, S) ]
+StateMemberNames(M, S) = StateMethodNames(M, S) ++ TransitionNames(M, S)
 
 **(StateMethod-Dup)**
-¬ Distinct(StateMethodNames(S))    c = Code(StateMethod-Dup)
+¬ Distinct(StateMethodNames(M, S))    c = Code(StateMethod-Dup)
 ────────────────────────────────────────────────────────────
 Γ ⊢ S ⇑ c
 
 **(Transition-Dup)**
-¬ Distinct(TransitionNames(S))    c = Code(Transition-Dup)
+¬ Distinct(TransitionNames(M, S))    c = Code(Transition-Dup)
 ──────────────────────────────────────────────────────────
 Γ ⊢ S ⇑ c
 
-LookupStateMethod(S, name) = m ⇔ m ∈ Methods(S) ∧ m.name = name
-LookupStateMethod(S, name) = ⊥ ⇔ ¬ ∃ m ∈ Methods(S). m.name = name
-LookupTransition(S, name) = t ⇔ t ∈ Transitions(S) ∧ t.name = name
-LookupTransition(S, name) = ⊥ ⇔ ¬ ∃ t ∈ Transitions(S). t.name = name
+**(StateMember-Name-Conflict)**
+¬ Disjoint(StateMethodNames(M, S), TransitionNames(M, S))    c = Code(StateMember-Name-Conflict)
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ S ⇑ c
+
+LookupStateMethod(M, S, name) = m ⇔ m ∈ Methods(M, S) ∧ m.name = name
+LookupStateMethod(M, S, name) = ⊥ ⇔ ¬ ∃ m ∈ Methods(M, S). m.name = name
+LookupTransition(M, S, name) = t ⇔ t ∈ Transitions(M, S) ∧ t.name = name
+LookupTransition(M, S, name) = ⊥ ⇔ ¬ ∃ t ∈ Transitions(M, S). t.name = name
 StateMemberVisible(mod, M, vis) ⇔ vis ∈ {`public`, `internal`} ∨ (vis ∈ {`private`, `protected`} ∧ ModuleOfPath(ModalPath(M)) = mod)
-MethodSig(M, S, m).recv = TypePerm(`const`, M@S)
+MethodSig(M, S, m).recv = RecvType(ModalSelfType(M, S), m.receiver)
 MethodSig(M, S, m).params = m.params
 MethodSig(M, S, m).ret = ReturnType(m)
-TransitionSig(M, S_src, t).recv = TypePerm(`unique`, M@S_src)
+TransitionSig(M, S_src, t).recv = TypePerm(`unique`, ModalSelfType(M, S_src))
 TransitionSig(M, S_src, t).params = t.params
 S_tgt = t.target
-TransitionSig(M, S_src, t).ret = M@S_tgt
+TransitionSig(M, S_src, t).ret = ModalSelfType(M, S_tgt)
 TransitionSig(M, S_src, t).target = S_tgt
 TransitionSig(M, S_src, t).mode = `move`
 
 **State Method and Transition Well-Formedness.**
 
 **(WF-State-Method)**
-self ∉ ParamNames(md.params)    Distinct(ParamNames(md.params))    ∀ ⟨_, _, T_i⟩ ∈ md.params, Γ ⊢ T_i wf    (md.return_type_opt = ⊥ ∨ Γ ⊢ md.return_type_opt wf)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+params_gen = TypeParamsOpt(md.gen_params_opt)    params_gen = [P_1, …, P_n]    Γ ⊢ ⟨P_1; …; P_n⟩ wf    Γ_m = BindTypeParams(Γ, params_gen)    Γ_m ⊢ md.receiver : Recv(ModalSelfType(M, S), P, mode)    self ∉ ParamNames(md.params)    Distinct(ParamNames(md.params))    ∀ ⟨_, _, T_i⟩ ∈ md.params, Γ_m ⊢ T_i wf    (md.return_type_opt = ⊥ ∨ Γ_m ⊢ md.return_type_opt wf)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ md : StateMethodOK(M, S)
 
 **(WF-Transition)**
@@ -10252,9 +12330,9 @@ tr.target ∉ States(M)    c = Code(Transition-Target-Err)
 Γ ⊢ tr ⇑ c
 
 **(T-Modal-Transition)**
-Γ; R; L ⊢ e_self : `unique` M@S_src    LookupTransition(S_src, t) = tr    StateMemberVisible(mod, M, tr.vis)    TransitionSig(M, S_src, tr).params = ps    TransitionSig(M, S_src, tr).target = S_tgt    Γ; R; L ⊢ ArgsOk(ps, args)    RecvArgOk(e_self, `move`)
+Γ; R; L ⊢ e_self : TypePerm(`unique`, TypeModalState(modal_ref, S_src))    ModalDeclOf(modal_ref) = M    LookupTransition(M, S_src, t) = tr    StateMemberVisible(mod, M, tr.vis)    TransitionSig(M, S_src, tr).params = ps    TransitionSig(M, S_src, tr).target = S_tgt    Γ; R; L ⊢ ArgsOk(ps, args)    RecvArgOk(e_self, `move`)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ; R; L ⊢ e_self ~> t(args) : M@S_tgt
+Γ; R; L ⊢ e_self ~> t(args) : TypeModalState(modal_ref, S_tgt)
 
 **(Transition-Source-Err)**
 Γ; R; L ⊢ e_self : T    (PermOf(T) ≠ `unique` ∨ StripPerm(T) ≠ TypeModalState(_, _))    c = Code(Transition-Source-Err)
@@ -10262,39 +12340,44 @@ tr.target ∉ States(M)    c = Code(Transition-Target-Err)
 Γ; R; L ⊢ e_self ~> t(args) ⇑ c
 
 **(Transition-NotVisible)**
-Γ; R; L ⊢ e_self : `unique` M@S_src    LookupTransition(S_src, t) = tr    ¬ StateMemberVisible(mod, M, tr.vis)    c = Code(Transition-NotVisible)
+Γ; R; L ⊢ e_self : TypePerm(`unique`, TypeModalState(modal_ref, S_src))    ModalDeclOf(modal_ref) = M    LookupTransition(M, S_src, t) = tr    ¬ StateMemberVisible(mod, M, tr.vis)    c = Code(Transition-NotVisible)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ e_self ~> t(args) ⇑ c
 
 
 **(T-Modal-Transition-Body)**
-Σ.Types[p] = `modal` M    S_src ∈ States(M)    tr ∈ Transitions(S_src)    tr.body = body    tr.target = S_tgt    S_tgt ∈ States(M)    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, [⟨`self`, TypePerm(`unique`, TypeModalState(p, S_src))⟩] ++ ParamBinds(tr.params)) ⇓ Γ_1    Γ_1; TypeModalState(p, S_tgt); ⊥ ⊢ body : T_b    Γ ⊢ T_b <: TypeModalState(p, S_tgt)
+Σ.Types[p] = `modal` M    S_src ∈ States(M)    tr ∈ Transitions(M, S_src)    tr.body = body    tr.target = S_tgt    S_tgt ∈ States(M)    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, [⟨`self`, TypePerm(`unique`, ModalSelfType(M, S_src))⟩] ++ ParamBinds(tr.params)) ⇓ Γ_1    Γ_1; ModalSelfType(M, S_tgt); ⊥ ⊢ body : T_b    Γ ⊢ T_b <: ModalSelfType(M, S_tgt)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ tr : TransitionBodyOK(p, S_src)
 
 **(Transition-Body-Err)**
-Σ.Types[p] = `modal` M    S_src ∈ States(M)    tr ∈ Transitions(S_src)    tr.body = body    tr.target = S_tgt    S_tgt ∈ States(M)    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, [⟨`self`, TypePerm(`unique`, TypeModalState(p, S_src))⟩] ++ ParamBinds(tr.params)) ⇓ Γ_1    Γ_1; TypeModalState(p, S_tgt); ⊥ ⊢ body : T_b    ¬(Γ ⊢ T_b <: TypeModalState(p, S_tgt))    c = Code(Transition-Body-Err)
+Σ.Types[p] = `modal` M    S_src ∈ States(M)    tr ∈ Transitions(M, S_src)    tr.body = body    tr.target = S_tgt    S_tgt ∈ States(M)    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, [⟨`self`, TypePerm(`unique`, ModalSelfType(M, S_src))⟩] ++ ParamBinds(tr.params)) ⇓ Γ_1    Γ_1; ModalSelfType(M, S_tgt); ⊥ ⊢ body : T_b    ¬(Γ ⊢ T_b <: ModalSelfType(M, S_tgt))    c = Code(Transition-Body-Err)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ tr ⇑ c
 
 **(T-Modal-Method)**
-Γ; R; L ⊢ e : P_caller M@S    PermSub(P_caller, `const`)    LookupStateMethod(S, m) = md    StateMemberVisible(mod, M, md.vis)    MethodSig(M, S, md).params = ps    Γ; R; L ⊢ ArgsOk(ps, args)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ e : P_caller TypeModalState(modal_ref, S)    ModalDeclOf(modal_ref) = M    LookupStateMethod(M, S, m) = md    P_method = RecvPerm(ModalSelfType(M, S), md.receiver)    PermSub(P_caller, P_method)    StateMemberVisible(mod, M, md.vis)    MethodSig(M, S, md).params = ps    Γ; R; L ⊢ ArgsOk(ps, args)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ e ~> m(args) : ReturnType(md)
 
+**(Modal-Method-RecvPerm-Err)**
+Γ; R; L ⊢ e : P_caller TypeModalState(modal_ref, S)    ModalDeclOf(modal_ref) = M    LookupStateMethod(M, S, m) = md    P_method = RecvPerm(ModalSelfType(M, S), md.receiver)    ¬ PermSub(P_caller, P_method)    c = Code(MethodCall-RecvPerm-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ e ~> m(args) ⇑ c
+
 **(Modal-Method-NotFound)**
-Γ; R; L ⊢ e : P_caller M@S    LookupStateMethod(S, m) undefined    c = Code(Modal-Method-NotFound)
+Γ; R; L ⊢ e : P_caller TypeModalState(modal_ref, S)    ModalDeclOf(modal_ref) = M    LookupStateMethod(M, S, m) undefined    c = Code(Modal-Method-NotFound)
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ e ~> m(args) ⇑ c
 
 **(Modal-Method-NotVisible)**
-Γ; R; L ⊢ e : P_caller M@S    LookupStateMethod(S, m) = md    ¬ StateMemberVisible(mod, M, md.vis)    c = Code(Modal-Method-NotVisible)
+Γ; R; L ⊢ e : P_caller TypeModalState(modal_ref, S)    ModalDeclOf(modal_ref) = M    LookupStateMethod(M, S, m) = md    ¬ StateMemberVisible(mod, M, md.vis)    c = Code(Modal-Method-NotVisible)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ e ~> m(args) ⇑ c
 
 **(T-Modal-Method-Body)**
-Σ.Types[p] = `modal` M    S ∈ States(M)    md ∈ Methods(S)    md.body = body    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, [⟨`self`, TypePerm(`const`, TypeModalState(p, S))⟩] ++ ParamBinds(md.params)) ⇓ Γ_1    R_m = ReturnType(md)    Γ_1; R_m; ⊥ ⊢ body : T_b    Γ ⊢ T_b <: R_m    (R_m ≠ TypePrim("()") ⇒ ExplicitReturn(body))
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Σ.Types[p] = `modal` M    S ∈ States(M)    md ∈ Methods(M, S)    md.body = body    T_self = RecvType(ModalSelfType(M, S), md.receiver)    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, [⟨`self`, T_self⟩] ++ ParamBinds(md.params)) ⇓ Γ_1    R_m = ReturnType(md)    R_b = BodyReturnType(R_m)    Γ_1; R_m; ⊥ ⊢ body : T_b    Γ ⊢ T_b <: R_b    (R_b ≠ TypePrim("()") ⇒ ExplicitReturn(body))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ md : StateMethodBodyOK(p, S)
 
 ### 5.7. Modal Widening (`widen`)
@@ -10302,40 +12385,40 @@ tr.target ∉ States(M)    c = Code(Transition-Target-Err)
 WIDEN_LARGE_PAYLOAD_THRESHOLD_BYTES = 256
 
 **(T-Modal-Widen)**
-Γ; R; L ⊢ e : TypeModalState(p, S)    Σ.Types[p] = `modal` M    S ∈ States(M)    Γ ⊢ WarnWidenLargePayload(e, p, S) ⇓ ok
+Γ; R; L ⊢ e : TypeModalState(modal_ref, S)    ModalDeclOf(modal_ref) = M    S ∈ States(M)    Γ ⊢ WarnWidenLargePayload(e, modal_ref, S) ⇓ ok
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ; R; L ⊢ `widen` e : TypePath(p)
+Γ; R; L ⊢ `widen` e : ModalRefType(modal_ref)
 
 **(T-Modal-Widen-Perm)**
-Γ; R; L ⊢ e : TypePerm(p', TypeModalState(p, S))    Σ.Types[p] = `modal` M    S ∈ States(M)    Γ ⊢ WarnWidenLargePayload(e, p, S) ⇓ ok
+Γ; R; L ⊢ e : TypePerm(p', TypeModalState(modal_ref, S))    ModalDeclOf(modal_ref) = M    S ∈ States(M)    Γ ⊢ WarnWidenLargePayload(e, modal_ref, S) ⇓ ok
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ; R; L ⊢ `widen` e : TypePerm(p', TypePath(p))
+Γ; R; L ⊢ `widen` e : TypePerm(p', ModalRefType(modal_ref))
 
 **(Widen-AlreadyGeneral)**
-Γ; R; L ⊢ e : T    StripPerm(T) = TypePath(p)    Σ.Types[p] = `modal` M    c = Code(Widen-AlreadyGeneral)
+Γ; R; L ⊢ e : T    StripPerm(T) = ModalRefType(modal_ref)    ModalDeclOf(modal_ref) = M    c = Code(Widen-AlreadyGeneral)
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ `widen` e ⇑ c
 
 **(Widen-NonModal)**
-Γ; R; L ⊢ e : T    StripPerm(T) = U    U ≠ TypeModalState(_, _)    ¬ ∃ p, M. (U = TypePath(p) ∧ Σ.Types[p] = `modal` M)    c = Code(Widen-NonModal)
+Γ; R; L ⊢ e : T    StripPerm(T) = U    U ≠ TypeModalState(_, _)    ¬ ∃ modal_ref, M. (U = ModalRefType(modal_ref) ∧ ModalDeclOf(modal_ref) = M)    c = Code(Widen-NonModal)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ `widen` e ⇑ c
 
 **Niche-Layout-Compatible Conditions**
 
-NicheCompatible(M, S) ⇔ NicheApplies(M) ∧ PayloadState(M) = S ∧ sizeof(M@S) = sizeof(M) ∧ alignof(M@S) = alignof(M)
+NicheCompatible(modal_ref, S) ⇔ ModalDeclOf(modal_ref) = M ∧ NicheApplies(modal_ref) ∧ PayloadState(modal_ref) = S ∧ sizeof(TypeModalState(modal_ref, S)) = sizeof(ModalRefType(modal_ref)) ∧ alignof(TypeModalState(modal_ref, S)) = alignof(ModalRefType(modal_ref))
 
-WidenWarnCond(p, S) ⇔ Σ.Types[p] = `modal` M ∧ sizeof(M@S) > WIDEN_LARGE_PAYLOAD_THRESHOLD_BYTES ∧ ¬ NicheCompatible(M, S)
+WidenWarnCond(modal_ref, S) ⇔ ModalDeclOf(modal_ref) = M ∧ sizeof(TypeModalState(modal_ref, S)) > WIDEN_LARGE_PAYLOAD_THRESHOLD_BYTES ∧ ¬ NicheCompatible(modal_ref, S)
 
 **(Warn-Widen-LargePayload)**
-WidenWarnCond(p, S)    sp = span(Unary("widen", e))    Γ ⊢ Emit(W-SYS-4010, sp)
+WidenWarnCond(modal_ref, S)    sp = span(Unary("widen", e))    Γ ⊢ Emit(W-SYS-4010, sp)
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ WarnWidenLargePayload(e, p, S) ⇓ ok
+Γ ⊢ WarnWidenLargePayload(e, modal_ref, S) ⇓ ok
 
 **(Warn-Widen-Ok)**
-¬ WidenWarnCond(p, S)
+¬ WidenWarnCond(modal_ref, S)
 ───────────────────────────────────────────────
-Γ ⊢ WarnWidenLargePayload(e, p, S) ⇓ ok
+Γ ⊢ WarnWidenLargePayload(e, modal_ref, S) ⇓ ok
 
 **Size Relationship**
 
@@ -10536,13 +12619,24 @@ b = (ByteLen(SB, self) = 0)
 
 #### 5.9.1. Capability Access
 
-CapClass = {`FileSystem`, `HeapAllocator`}
+CapClass = {`FileSystem`, `HeapAllocator`, `ExecutionDomain`, `Reactor`}
 CapType(Cl) = TypeDynamic(Cl)
+
+ReactorMethodParams = [⟨`T`, [], ⊥, ⊥⟩, ⟨`E`, [], ⊥, ⊥⟩]
+ReactorMethods = [
+  ClassMethodDecl(⊥, `public`, "run", ReactorMethodParams, ReceiverShorthand(`const`), [⟨⊥, `future`, TypeApply(["Future"], [TypePath(["T"]), TypePath(["E"])])⟩], TypeUnion([TypePath(["T"]), TypePath(["E"])]), ⊥, ⊥, ⊥, ⊥),
+  ClassMethodDecl(⊥, `public`, "register", ReactorMethodParams, ReceiverShorthand(`const`), [⟨⊥, `future`, TypeApply(["Future"], [TypePath(["T"]), TypePath(["E"])])⟩], TypeApply(["FutureHandle"], [TypePath(["T"]), TypePath(["E"])]), ⊥, ⊥, ⊥, ⊥)
+]
+ReactorMethodNames = { m.name | m ∈ ReactorMethods }
+ReactorDecl = ClassDecl(⊥, `public`, false, `Reactor`, ⊥, ⊥, [], ReactorMethods, ⊥, ⊥)
+Σ.Classes["Reactor"] = ReactorDecl
 
 CapMethodSig(`FileSystem`, name) = ⟨params, ret⟩ ⇔ ⟨name, recv, params, ret⟩ ∈ FileSystemInterface
 CapMethodSig(`HeapAllocator`, name) = ⟨params, ret⟩ ⇔ ⟨name, recv, params, ret⟩ ∈ HeapAllocatorInterface
+CapMethodSig(`Reactor`, name) = ⟨params, ret⟩ ⇔ LookupClassMethod(`Reactor`, name) = m ∧ Sig_T(SelfVar, m) = ⟨_, params, ret⟩
 CapRecv(`FileSystem`, name) = recv ⇔ ⟨name, recv, params, ret⟩ ∈ FileSystemInterface
 CapRecv(`HeapAllocator`, name) = recv ⇔ ⟨name, recv, params, ret⟩ ∈ HeapAllocatorInterface
+CapRecv(`Reactor`, name) = recv ⇔ LookupClassMethod(`Reactor`, name) = m ∧ RecvPerm(SelfVar, m.receiver) = recv
 
 
 #### 5.9.2. `FileSystem` Capability Class
@@ -10569,55 +12663,82 @@ FileSystemInterface =
  ⟨"restrict", ~, [⟨⊥, `path`, TypeString(`@View`)⟩], TypeDynamic(`FileSystem`)⟩
 }
 
-Variants(`FileKind`) = [`File`, `Dir`, `Other`]
+FileKindVariants = [
+  VariantDecl(`File`, ⊥, ⊥, ⊥, ⊥),
+  VariantDecl(`Dir`, ⊥, ⊥, ⊥, ⊥),
+  VariantDecl(`Other`, ⊥, ⊥, ⊥, ⊥)
+]
+FileKindDecl = EnumDecl(⊥, `public`, `FileKind`, ⊥, ⊥, [], FileKindVariants, ⊥, ⊥, ⊥)
 
-Implements(`FileKind`) = [`Bitcopy`]
+IoErrorVariants = [
+  VariantDecl(`NotFound`, ⊥, ⊥, ⊥, ⊥),
+  VariantDecl(`PermissionDenied`, ⊥, ⊥, ⊥, ⊥),
+  VariantDecl(`AlreadyExists`, ⊥, ⊥, ⊥, ⊥),
+  VariantDecl(`InvalidPath`, ⊥, ⊥, ⊥, ⊥),
+  VariantDecl(`Busy`, ⊥, ⊥, ⊥, ⊥),
+  VariantDecl(`IoFailure`, ⊥, ⊥, ⊥, ⊥)
+]
+IoErrorDecl = EnumDecl(⊥, `public`, `IoError`, ⊥, ⊥, [], IoErrorVariants, ⊥, ⊥, ⊥)
 
-Fields(`DirEntry`) = [⟨`name`, TypeString(`@Managed`)⟩, ⟨`path`, TypeString(`@Managed`)⟩, ⟨`kind`, TypePath(["FileKind"])⟩]
+DirEntryFields = [
+  ⟨⊥, `public`, false, `name`, TypeString(`@Managed`), ⊥, ⊥, ⊥⟩,
+  ⟨⊥, `public`, false, `path`, TypeString(`@Managed`), ⊥, ⊥, ⊥⟩,
+  ⟨⊥, `public`, false, `kind`, TypePath(["FileKind"]), ⊥, ⊥, ⊥⟩
+]
+DirEntryDecl = RecordDecl(⊥, `public`, `DirEntry`, ⊥, ⊥, [], DirEntryFields, ⊥, ⊥, ⊥)
 
-**DirIter Modal Type.**
+DirIterOpenMembers = [
+  StateFieldDecl(⊥, `public`, false, `handle`, TypePrim("usize"), ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "next", ⊥, ReceiverShorthand(`const`), [], TypeUnion([TypePath(["DirEntry"]), TypePrim("()"), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
+  TransitionDecl(⊥, `public`, "close", [], `@Closed`, ⊥, ⊥, ⊥)
+]
+DirIterClosedMembers = []
+DirIterStates = [
+  StateBlock(`@Open`, DirIterOpenMembers, ⊥, ⊥),
+  StateBlock(`@Closed`, DirIterClosedMembers, ⊥, ⊥)
+]
+DirIterDecl = ModalDecl(⊥, `public`, `DirIter`, ⊥, ⊥, [], DirIterStates, ⊥, ⊥, ⊥)
 
-States(`DirIter`) = {`@Open`, `@Closed`}
+FileReadMembers = [
+  StateFieldDecl(⊥, `public`, false, `handle`, TypePrim("usize"), ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "read_all", ⊥, ReceiverShorthand(`const`), [], TypeUnion([TypeString(`@Managed`), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "read_all_bytes", ⊥, ReceiverShorthand(`const`), [], TypeUnion([TypeBytes(`@Managed`), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
+  TransitionDecl(⊥, `public`, "close", [], `@Closed`, ⊥, ⊥, ⊥)
+]
+FileWriteMembers = [
+  StateFieldDecl(⊥, `public`, false, `handle`, TypePrim("usize"), ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "write", ⊥, ReceiverShorthand(`const`), [⟨⊥, `data`, TypeBytes(`@View`)⟩], TypeUnion([TypePrim("()"), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "flush", ⊥, ReceiverShorthand(`const`), [], TypeUnion([TypePrim("()"), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
+  TransitionDecl(⊥, `public`, "close", [], `@Closed`, ⊥, ⊥, ⊥)
+]
+FileAppendMembers = [
+  StateFieldDecl(⊥, `public`, false, `handle`, TypePrim("usize"), ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "write", ⊥, ReceiverShorthand(`const`), [⟨⊥, `data`, TypeBytes(`@View`)⟩], TypeUnion([TypePrim("()"), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "flush", ⊥, ReceiverShorthand(`const`), [], TypeUnion([TypePrim("()"), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
+  TransitionDecl(⊥, `public`, "close", [], `@Closed`, ⊥, ⊥, ⊥)
+]
+FileClosedMembers = []
+FileStates = [
+  StateBlock(`@Read`, FileReadMembers, ⊥, ⊥),
+  StateBlock(`@Write`, FileWriteMembers, ⊥, ⊥),
+  StateBlock(`@Append`, FileAppendMembers, ⊥, ⊥),
+  StateBlock(`@Closed`, FileClosedMembers, ⊥, ⊥)
+]
+FileDecl = ModalDecl(⊥, `public`, `File`, ⊥, ⊥, [], FileStates, ⊥, ⊥, ⊥)
 
-Payload(`DirIter`, `@Open`) = [⟨`handle`, `usize`⟩]
-Payload(`DirIter`, `@Closed`) = []
-
-DirIterStateMembers =
-{
- ⟨`@Open`, "next", `method`, [], TypeUnion([TypePath(["DirEntry"]), TypePrim("()"), TypePath(["IoError"])])⟩,
- ⟨`@Open`, "close", `transition`, [], TypeModalState(["DirIter"], `@Closed`)⟩
-}
-
-**File Modal Type.**
-
-States(`File`) = {`@Read`, `@Write`, `@Append`, `@Closed`}
-
-Payload(`File`, `@Read`) = [⟨`handle`, `usize`⟩]
-Payload(`File`, `@Write`) = [⟨`handle`, `usize`⟩]
-Payload(`File`, `@Append`) = [⟨`handle`, `usize`⟩]
-Payload(`File`, `@Closed`) = []
-
-FileStateMembers =
-{
- ⟨`@Read`, "read_all", `method`, [], TypeUnion([TypeString(`@Managed`), TypePath(["IoError"])])⟩,
- ⟨`@Read`, "read_all_bytes", `method`, [], TypeUnion([TypeBytes(`@Managed`), TypePath(["IoError"])])⟩,
- ⟨`@Read`, "close", `transition`, [], TypeModalState(["File"], `@Closed`)⟩,
- ⟨`@Write`, "write", `method`, [⟨⊥, `data`, TypeBytes(`@View`)⟩], TypeUnion([TypePrim("()"), TypePath(["IoError"])])⟩,
- ⟨`@Write`, "flush", `method`, [], TypeUnion([TypePrim("()"), TypePath(["IoError"])])⟩,
- ⟨`@Write`, "close", `transition`, [], TypeModalState(["File"], `@Closed`)⟩,
- ⟨`@Append`, "write", `method`, [⟨⊥, `data`, TypeBytes(`@View`)⟩], TypeUnion([TypePrim("()"), TypePath(["IoError"])])⟩,
- ⟨`@Append`, "flush", `method`, [], TypeUnion([TypePrim("()"), TypePath(["IoError"])])⟩,
- ⟨`@Append`, "close", `transition`, [], TypeModalState(["File"], `@Closed`)⟩
-}
-
-Variants(`IoError`) = [`NotFound`, `PermissionDenied`, `AlreadyExists`, `InvalidPath`, `Busy`, `IoFailure`]
-
-Implements(`IoError`) = [`Bitcopy`]
+RecordDecl(["DirEntry"]) = DirEntryDecl
+EnumDecl(["FileKind"]) = FileKindDecl
+EnumDecl(["IoError"]) = IoErrorDecl
+Σ.Types["DirEntry"] = DirEntryDecl
+Σ.Types["FileKind"] = FileKindDecl
+Σ.Types["IoError"] = IoErrorDecl
+Σ.Types["DirIter"] = `modal` DirIterDecl
+Σ.Types["File"] = `modal` FileDecl
 
 **(Record-FileDir-Err)**
-path ∈ {["File"], ["DirIter"]}    c = Code(Record-FileDir-Err)
+ModalRefPath(modal_ref) ∈ {["File"], ["DirIter"], ["CancelToken"], ["SpawnHandle"], ["FutureHandle"], ["Async"]}    c = Code(Record-FileDir-Err)
 ────────────────────────────────────────────────────────────────────────────────────
-Γ; R; L ⊢ RecordExpr(ModalStateRef(path, S), fields) ⇑ c
+Γ; R; L ⊢ RecordExpr(ModalStateRef(modal_ref, S), fields) ⇑ c
 
 #### 5.9.3. `HeapAllocator` Capability Class
 
@@ -10638,26 +12759,60 @@ HeapAllocatorInterface =
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ MethodCall(base, "dealloc_raw", args) ⇑ c
 
-Variants(`AllocationError`) = [`OutOfMemory`, `QuotaExceeded`]
-VariantPayload(`AllocationError`, `OutOfMemory`) = TuplePayload([TypePrim("usize")])
-VariantPayload(`AllocationError`, `QuotaExceeded`) = TuplePayload([TypePrim("usize")])
+AllocationErrorVariants = [
+  VariantDecl(`OutOfMemory`, TuplePayload([TypePrim("usize")]), ⊥, ⊥, ⊥),
+  VariantDecl(`QuotaExceeded`, TuplePayload([TypePrim("usize")]), ⊥, ⊥, ⊥)
+]
+AllocationErrorDecl = EnumDecl(⊥, `public`, `AllocationError`, ⊥, ⊥, [], AllocationErrorVariants, ⊥, ⊥, ⊥)
+EnumDecl(["AllocationError"]) = AllocationErrorDecl
+Σ.Types["AllocationError"] = AllocationErrorDecl
 AllocErrorVal(r) ⇔ ∃ s. r = EnumValue(["AllocationError", "OutOfMemory"], TuplePayload([s])) ∨ r = EnumValue(["AllocationError", "QuotaExceeded"], TuplePayload([s]))
 
 #### 5.9.4. `Context` Record (Cursive0)
 
-BuiltinRecord ⊇ {`Context`, `System`}
-
-Fields(`Context`) = [⟨`fs`, TypeDynamic(`FileSystem`)⟩, ⟨`heap`, TypeDynamic(`HeapAllocator`)⟩, ⟨`sys`, TypePath(["System"])⟩]
-
-Implements(`Context`) = [`Bitcopy`]
-Implements(`System`) = [`Bitcopy`]
+ContextFields = [
+  ⟨⊥, `public`, false, `fs`, TypeDynamic(`FileSystem`), ⊥, ⊥, ⊥⟩,
+  ⟨⊥, `public`, false, `heap`, TypeDynamic(`HeapAllocator`), ⊥, ⊥, ⊥⟩,
+  ⟨⊥, `public`, false, `sys`, TypePath(["System"]), ⊥, ⊥, ⊥⟩,
+  ⟨⊥, `public`, false, `reactor`, TypeDynamic(`Reactor`), ⊥, ⊥, ⊥⟩
+]
+ContextMethods = [
+  MethodDecl(⊥, `public`, false, "cpu", ⊥, ReceiverShorthand(`const`), [], TypeDynamic(`ExecutionDomain`), ⊥, ⊥, ⊥, ⊥),
+  MethodDecl(⊥, `public`, false, "gpu", ⊥, ReceiverShorthand(`const`), [], TypeDynamic(`ExecutionDomain`), ⊥, ⊥, ⊥, ⊥),
+  MethodDecl(⊥, `public`, false, "inline", ⊥, ReceiverShorthand(`const`), [], TypeDynamic(`ExecutionDomain`), ⊥, ⊥, ⊥, ⊥)
+]
+ContextMembers = ContextFields ++ ContextMethods
+ContextDecl = RecordDecl(⊥, `public`, `Context`, ⊥, ⊥, [], ContextMembers, ⊥, ⊥, ⊥)
 
 SystemInterface =
 {
  ⟨"exit", [⟨⊥, `code`, TypePrim("i32")⟩], TypePrim("!")⟩,
- ⟨"get_env", [⟨⊥, `key`, TypeString(`@View`)⟩], TypeUnion([TypeString(⊥), TypePrim("()")])⟩
+ ⟨"get_env", [⟨⊥, `key`, TypeString(`@View`)⟩], TypeString(⊥)⟩
 }
+SystemMembers = [
+  MethodDecl(⊥, `public`, false, "exit", ⊥, ReceiverShorthand(`const`), [⟨⊥, `code`, TypePrim("i32")⟩], TypePrim("!"), ⊥, ⊥, ⊥, ⊥),
+  MethodDecl(⊥, `public`, false, "get_env", ⊥, ReceiverShorthand(`const`), [⟨⊥, `key`, TypeString(`@View`)⟩], TypeString(⊥), ⊥, ⊥, ⊥, ⊥)
+]
+SystemDecl = RecordDecl(⊥, `public`, `System`, ⊥, ⊥, [], SystemMembers, ⊥, ⊥, ⊥)
 SystemMethodSig(name) = ⟨params, ret⟩ ⇔ ⟨name, params, ret⟩ ∈ SystemInterface
+
+RecordDecl(["Context"]) = ContextDecl
+RecordDecl(["System"]) = SystemDecl
+Σ.Types["Context"] = ContextDecl
+Σ.Types["System"] = SystemDecl
+BuiltInContext(T) ⇔ T = TypePath(["Context"]) ∧ RecordDecl(["Context"]) = ContextDecl
+
+CpuSetDecl = TypeAliasDecl(⊥, `public`, `CpuSet`, ⊥, ⊥, TypePrim("u64"), ⊥, ⊥)
+PriorityVariants = [
+  VariantDecl(`Low`, ⊥, ⊥, ⊥, ⊥),
+  VariantDecl(`Normal`, ⊥, ⊥, ⊥, ⊥),
+  VariantDecl(`High`, ⊥, ⊥, ⊥, ⊥)
+]
+PriorityDecl = EnumDecl(⊥, `public`, `Priority`, ⊥, ⊥, [], PriorityVariants, ⊥, ⊥, ⊥)
+
+Σ.Types["CpuSet"] = CpuSetDecl
+EnumDecl(["Priority"]) = PriorityDecl
+Σ.Types["Priority"] = PriorityDecl
 ### 5.10. Enum Discriminant Defaults
 
 Variants(E) = E.variants
@@ -10702,52 +12857,48 @@ DiscType(E) =
  `u64`   otherwise
 
 
-### 5.11. Foundational Classes (Cursive0)
+### 5.11. Foundational Predicates and Classes (Cursive0)
 
-**Class Signatures (built-in).**
+**Built-in Predicate Names.**
 
-```cursive
-class Drop {
-    procedure drop(~!)
-}
+PredicateName = {`Bitcopy`, `Clone`, `Drop`, `FfiSafe`}
 
-class Bitcopy { }
-
-class Clone {
-    procedure clone(~) -> Self
-}
-```
+**Predicate Judgments.**
 
 BitcopyDropJudg = {Γ ⊢ T : BitcopyDropOk}
+BitcopyJudg = {BitcopyType}
+CloneJudg = {CloneType}
+DropJudg = {DropType}
 
-ImplementsBitcopy(T) ⇔ `Bitcopy` ∈ Implements(T)
-ImplementsDrop(T) ⇔ `Drop` ∈ Implements(T)
-ImplementsClone(T) ⇔ `Clone` ∈ Implements(T)
+HasCloneMethod(T) ⇔ ∃ p, R, m. T = TypePath(p) ∧ RecordDecl(p) = R ∧ m ∈ Methods(R) ∧ MethodName(m) = `clone` ∧ Sig_T(T, m) = ⟨TypePerm(`const`, T), [], T⟩
+HasDropMethod(T) ⇔ ∃ p, R, m. T = TypePath(p) ∧ RecordDecl(p) = R ∧ m ∈ Methods(R) ∧ MethodName(m) = `drop` ∧ Sig_T(T, m) = ⟨TypePerm(`unique`, T), [], TypePrim("()")⟩
+
+CloneType(T) ⇔ BuiltinCloneType(T) ∨ HasCloneMethod(StripPerm(T)) ∨ BitcopyType(T)
+DropType(T) ⇔ BuiltinDropType(T) ∨ HasDropMethod(StripPerm(T))
 
 **(BitcopyDrop-Ok)**
-¬(ImplementsBitcopy(T) ∧ ImplementsDrop(T))    (ImplementsBitcopy(T) ⇒ ImplementsClone(T))    (ImplementsBitcopy(T) ⇒ ∀ f : T_f ∈ Fields(T). BitcopyType(T_f))
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+¬(BitcopyType(T) ∧ DropType(T))
+──────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ T : BitcopyDropOk
 
 **(BitcopyDrop-Conflict)**
-ImplementsBitcopy(T) ∧ ImplementsDrop(T)    c = Code(BitcopyDrop-Conflict)
+BitcopyType(T) ∧ DropType(T)    c = Code(BitcopyDrop-Conflict)
 ─────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ T : BitcopyDropOk ⇑ c
 
-**(Bitcopy-Clone-Missing)**
-ImplementsBitcopy(T)    ¬ ImplementsClone(T)    c = Code(Bitcopy-Clone-Missing)
-──────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ T : BitcopyDropOk ⇑ c
-
-**(Bitcopy-Field-NonBitcopy)**
-ImplementsBitcopy(T)    ∃ f : T_f ∈ Fields(T). ¬ BitcopyType(T_f)    c = Code(Bitcopy-Field-NonBitcopy)
-────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ T : BitcopyDropOk ⇑ c
+BitcopyType(T) ⇔ BitcopyTypeCore(T)
 
 BitcopyTypeCore(T) ⇔
  false    if T = TypePerm(`unique`, _)
- BuiltinBitcopyType(T_0) ∨ Γ ⊢ T_0 <: `Bitcopy`    if T = TypePerm(p, T_0) ∧ p ≠ `unique`
- BuiltinBitcopyType(T) ∨ Γ ⊢ T <: `Bitcopy`    otherwise
+ BitcopyTypeCore(T_0)    if T = TypePerm(p, T_0) ∧ p ≠ `unique`
+ BuiltinBitcopyType(T) ∨
+ (T = TypeTuple([T_1, …, T_n]) ∧ ∀ i ∈ 1..n, BitcopyType(T_i)) ∨
+ (T = TypeArray(T_0, e) ∧ Γ ⊢ ConstLen(e) ⇓ _ ∧ BitcopyType(T_0)) ∨
+ (T = TypeUnion([T_1, …, T_n]) ∧ ∀ i ∈ 1..n, BitcopyType(T_i)) ∨
+ (T = TypePath(p) ∧ RecordDecl(p) = R ∧ ∀ f : T_f ∈ Fields(R). BitcopyType(T_f)) ∨
+ (T = TypePath(p) ∧ EnumDecl(p) = E ∧ ∀ v ∈ Variants(E). ∀ T_f ∈ PayloadTypes(v). BitcopyType(T_f)) ∨
+ (T = TypeModalState(modal_ref, S) ∧ ModalDeclOf(modal_ref) = M ∧ ∀ T_f ∈ ModalPayload(modal_ref, S). BitcopyType(T_f)) ∨
+ (T = ModalRefType(modal_ref) ∧ ModalDeclOf(modal_ref) = M ∧ ∀ S ∈ States(M). ∀ T_f ∈ ModalPayload(modal_ref, S). BitcopyType(T_f))
 
 BuiltinBitcopyType(T) ⇔
  T = TypePrim(t) ∧ t ∈ PrimTypes_C0 ∨
@@ -10758,11 +12909,58 @@ BuiltinBitcopyType(T) ⇔
  T = TypeDynamic(Cl) ∨
  T = TypeRange ∨
  T = TypeString(`@View`) ∨
- T = TypeBytes(`@View`)
+ T = TypeBytes(`@View`) ∨
+ T = TypePath(["FileKind"]) ∨
+ T = TypePath(["IoError"]) ∨
+ T = TypePath(["Context"]) ∨
+ T = TypePath(["System"])
 
 BuiltinDropType(T) ⇔ T = TypeString(`@Managed`) ∨ T = TypeBytes(`@Managed`)
 
 BuiltinCloneType(T) ⇔ BuiltinBitcopyType(T)
+
+**Class Signatures (built-in).**
+
+```cursive
+class Eq {
+    procedure eq(~, other: const Self) -> bool
+}
+
+class Hasher {
+    procedure write(~!, data: bytes@View) -> ()
+    procedure finish(~) -> u64
+}
+
+class Hash {
+    procedure hash(~, hasher: unique Hasher) -> ()
+}
+
+class Iterator {
+    type Item
+    procedure next(~!) -> Self::Item | ()
+}
+
+class Step {
+    procedure successor(~) -> Self | ()
+    procedure predecessor(~) -> Self | ()
+}
+```
+
+ImplementsEq(T) ⇔ `Eq` ∈ Implements(T)
+ImplementsHash(T) ⇔ `Hash` ∈ Implements(T)
+ImplementsIterator(T) ⇔ `Iterator` ∈ Implements(T)
+ImplementsStep(T) ⇔ `Step` ∈ Implements(T)
+ImplementsHasher(T) ⇔ `Hasher` ∈ Implements(T)
+
+**Eq Semantics.** `Eq::eq` MUST be reflexive, symmetric, and transitive.
+
+**Hash Semantics.** `Hash` implementations MUST also implement `Eq`. For any values a, b, and any hasher state h, if a~>eq(b) = true, then invoking a~>hash(h) and b~>hash(h) from identical initial hasher states MUST yield identical final hasher states.
+
+**Hasher Semantics.** A `Hasher` maintains an internal state h : `u64`. `write` appends bytes to the input stream; `finish` returns the FNV‑1a 64-bit hash of the concatenated byte stream, using FNVOffset64 and FNVPrime64 as defined in §6.3.1.
+
+**Iterator Semantics.** `Iterator::next` returns `Self::Item` while iteration remains, or `()` when exhausted.
+
+**Step Semantics.** `successor` and `predecessor` define a discrete stepping relation. If successor(x) = y, then predecessor(y) = x, and vice versa, when both are defined.
 
 ### 5.12. Initialization Planning
 
@@ -10811,7 +13009,7 @@ FullPath(path, name) = path ++ [name]
 EnumPath(path) = p ⇔ SplitLast(path) = (p, n)
 VariantName(path) = n ⇔ SplitLast(path) = (p, n)
 
-TypeRefsJudg = {TypeRefsTy, TypeRefsRef, TypeRefsExpr, TypeRefsPat}
+TypeRefsJudg = {TypeRefsTy, TypeRefsRef, TypeRefsExpr, TypeRefsPat, TypeRefsArgs}
 Modules = env.Modules
 Alias = env.Alias
 UsingTypeMap = env.UsingTypeMap
@@ -10837,9 +13035,14 @@ path = [name]    name ∈ dom(UsingTypeMap)    UsingTypeMap[name] ≠ env.self
 Γ ⊢ TypeRefsTy(TypeDynamic(path), env) ⇓ T
 
 **(TypeRef-ModalState)**
-Γ ⊢ TypeRefsTy(TypePath(path), env) ⇓ T
+Γ ⊢ TypeRefsRef(modal_ref, env) ⇓ T
 ──────────────────────────────────────────────────────────────────
-Γ ⊢ TypeRefsTy(TypeModalState(path, state), env) ⇓ T
+Γ ⊢ TypeRefsTy(TypeModalState(modal_ref, state), env) ⇓ T
+
+**(TypeRef-Apply)**
+Γ ⊢ TypeRefsTy(TypePath(path), env) ⇓ T_p    ∀ i, Γ ⊢ TypeRefsTy(args_i, env) ⇓ T_i
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ TypeRefsTy(TypeApply(path, args), env) ⇓ T_p ∪ ⋃_{i=1}^n T_i
 
 **(TypeRef-Perm)**
 Γ ⊢ TypeRefsTy(base, env) ⇓ T
@@ -10902,10 +13105,15 @@ path = [name]    name ∈ dom(UsingTypeMap)    UsingTypeMap[name] ≠ env.self
 ────────────────────────────────────────────────────────────
 Γ ⊢ TypeRefsRef(TypePath(path), env) ⇓ T
 
+**(TypeRef-Ref-Apply)**
+Γ ⊢ TypeRefsTy(TypeApply(path, args), env) ⇓ T
+──────────────────────────────────────────────────────────────
+Γ ⊢ TypeRefsRef(TypeApply(path, args), env) ⇓ T
+
 **(TypeRef-Ref-ModalState)**
-Γ ⊢ TypeRefsTy(TypeModalState(path, state), env) ⇓ T
+Γ ⊢ TypeRefsTy(TypeModalState(modal_ref, state), env) ⇓ T
 ────────────────────────────────────────────────────────────────
-Γ ⊢ TypeRefsRef(ModalStateRef(path, state), env) ⇓ T
+Γ ⊢ TypeRefsRef(ModalStateRef(modal_ref, state), env) ⇓ T
 
 **(TypeRef-RecordExpr)**
 Γ ⊢ TypeRefsRef(r, env) ⇓ T_t    Γ ⊢ TypeRefsExprs(fields, env) ⇓ T_e
@@ -10932,7 +13140,12 @@ path = [name]    name ∈ dom(UsingTypeMap)    UsingTypeMap[name] ≠ env.self
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ TypeRefsExpr(TransmuteExpr(t_1, t_2, e), env) ⇓ T_e ∪ T_1 ∪ T_2
 
-TypeRefsExprRules = {TypeRef-RecordExpr, TypeRef-EnumLiteral, TypeRef-QualBrace, TypeRef-Cast, TypeRef-Transmute, TypeRef-Expr-Sub}
+**(TypeRef-CallTypeArgs)**
+Γ ⊢ TypeRefsExpr(callee, env) ⇓ T_c    Γ ⊢ TypeRefsArgs(args, env) ⇓ T_a    ∀ i, Γ ⊢ TypeRefsTy(type_args[i], env) ⇓ T_i
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ TypeRefsExpr(CallTypeArgs(callee, type_args, args), env) ⇓ T_c ∪ T_a ∪ ⋃_{i=1}^n T_i
+
+TypeRefsExprRules = {TypeRef-RecordExpr, TypeRef-EnumLiteral, TypeRef-QualBrace, TypeRef-Cast, TypeRef-Transmute, TypeRef-CallTypeArgs, TypeRef-Expr-Sub}
 NoSpecificTypeRefsExpr(e) ⇔ ¬ ∃ r ∈ TypeRefsExprRules \ {TypeRef-Expr-Sub}. PremisesHold(r, e)
 
 **(TypeRef-Expr-Sub)**
@@ -11002,6 +13215,17 @@ NoSpecificTypeRefsExpr(e)    Children_LTR(e) = [e_1, …, e_n]    ∀ i, Γ ⊢ 
 f = ⟨name, e⟩    Γ ⊢ TypeRefsExpr(e, env) ⇓ T_e    Γ ⊢ TypeRefsExprs(fs, env) ⇓ T_f
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ TypeRefsExprs(f::fs, env) ⇓ T_e ∪ T_f
+
+TypeRefsArgsJudg = {TypeRefsArgs}
+
+**(TypeRefsArgs-Empty)**
+────────────────────────────────────────────────────────
+Γ ⊢ TypeRefsArgs([], env) ⇓ ∅
+
+**(TypeRefsArgs-Cons)**
+a = ⟨moved, e, span⟩    Γ ⊢ TypeRefsExpr(e, env) ⇓ T_e    Γ ⊢ TypeRefsArgs(rest, env) ⇓ T_r
+────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ TypeRefsArgs(a::rest, env) ⇓ T_e ∪ T_r
 
 **(TypeRefsEnumPayload-None)**
 ──────────────────────────────────────────────────────────────
@@ -11121,24 +13345,24 @@ RecvTypeSet(ReceiverExplicit(_, t)) = {t}
 RecvTypeSet(ReceiverShorthand(_)) = ∅
 ClassPathTypeSet(paths) = { TypePath(p) | p ∈ paths }
 
-RecordFieldTypeSet(members) = { t | ∃ vis, name, init, span, doc. FieldDecl(vis, name, t, init, span, doc) ∈ members }
-RecordMethodRecvTypes(members) = { t | ∃ vis, ov, name, recv, params, ret, body, span, doc. MethodDecl(vis, ov, name, recv, params, ret, body, span, doc) ∈ members ∧ t ∈ RecvTypeSet(recv) }
-RecordMethodParamTypes(members) = { t | ∃ vis, ov, name, recv, params, ret, body, span, doc. MethodDecl(vis, ov, name, recv, params, ret, body, span, doc) ∈ members ∧ t ∈ ParamTypeSet(params) }
-RecordMethodRetTypes(members) = { t | ∃ vis, ov, name, recv, params, ret, body, span, doc. MethodDecl(vis, ov, name, recv, params, ret, body, span, doc) ∈ members ∧ t ∈ TypeOptSet(ret) }
+RecordFieldTypeSet(members) = { t | ∃ attrs, vis, boundary, name, init, span, doc. FieldDecl(attrs, vis, boundary, name, t, init, span, doc) ∈ members }
+RecordMethodRecvTypes(members) = { t | ∃ attrs, vis, ov, name, gen_params, recv, params, ret, contract, body, span, doc. MethodDecl(attrs, vis, ov, name, gen_params, recv, params, ret, contract, body, span, doc) ∈ members ∧ t ∈ RecvTypeSet(recv) }
+RecordMethodParamTypes(members) = { t | ∃ attrs, vis, ov, name, gen_params, recv, params, ret, contract, body, span, doc. MethodDecl(attrs, vis, ov, name, gen_params, recv, params, ret, contract, body, span, doc) ∈ members ∧ t ∈ ParamTypeSet(params) }
+RecordMethodRetTypes(members) = { t | ∃ attrs, vis, ov, name, gen_params, recv, params, ret, contract, body, span, doc. MethodDecl(attrs, vis, ov, name, gen_params, recv, params, ret, contract, body, span, doc) ∈ members ∧ t ∈ TypeOptSet(ret) }
 RecordMemberTypeSet(members) = RecordFieldTypeSet(members) ∪ RecordMethodRecvTypes(members) ∪ RecordMethodParamTypes(members) ∪ RecordMethodRetTypes(members)
 
-ClassFieldTypeSet(items) = { t | ∃ vis, name, span, doc. ClassFieldDecl(vis, name, t, span, doc) ∈ items }
-ClassMethodRecvTypes(items) = { t | ∃ vis, name, recv, params, ret, body, span, doc. ClassMethodDecl(vis, name, recv, params, ret, body, span, doc) ∈ items ∧ t ∈ RecvTypeSet(recv) }
-ClassMethodParamTypes(items) = { t | ∃ vis, name, recv, params, ret, body, span, doc. ClassMethodDecl(vis, name, recv, params, ret, body, span, doc) ∈ items ∧ t ∈ ParamTypeSet(params) }
-ClassMethodRetTypes(items) = { t | ∃ vis, name, recv, params, ret, body, span, doc. ClassMethodDecl(vis, name, recv, params, ret, body, span, doc) ∈ items ∧ t ∈ TypeOptSet(ret) }
+ClassFieldTypeSet(items) = { t | ∃ attrs, vis, boundary, name, span, doc. ClassFieldDecl(attrs, vis, boundary, name, t, span, doc) ∈ items }
+ClassMethodRecvTypes(items) = { t | ∃ attrs, vis, name, gen_params, recv, params, ret, contract, body, span, doc. ClassMethodDecl(attrs, vis, name, gen_params, recv, params, ret, contract, body, span, doc) ∈ items ∧ t ∈ RecvTypeSet(recv) }
+ClassMethodParamTypes(items) = { t | ∃ attrs, vis, name, gen_params, recv, params, ret, contract, body, span, doc. ClassMethodDecl(attrs, vis, name, gen_params, recv, params, ret, contract, body, span, doc) ∈ items ∧ t ∈ ParamTypeSet(params) }
+ClassMethodRetTypes(items) = { t | ∃ attrs, vis, name, gen_params, recv, params, ret, contract, body, span, doc. ClassMethodDecl(attrs, vis, name, gen_params, recv, params, ret, contract, body, span, doc) ∈ items ∧ t ∈ TypeOptSet(ret) }
 ClassItemTypeSet(items) = ClassFieldTypeSet(items) ∪ ClassMethodRecvTypes(items) ∪ ClassMethodParamTypes(items) ∪ ClassMethodRetTypes(items)
 
 VariantPayloadTypeSet(⊥) = ∅
 VariantPayloadTypeSet(TuplePayload(tys)) = { t | t ∈ tys }
-VariantPayloadTypeSet(RecordPayload(fields)) = { t | ∃ vis, name, init, span, doc. FieldDecl(vis, name, t, init, span, doc) ∈ fields }
+VariantPayloadTypeSet(RecordPayload(fields)) = { t | ∃ attrs, vis, boundary, name, init, span, doc. FieldDecl(attrs, vis, boundary, name, t, init, span, doc) ∈ fields }
 EnumVariantTypeSet(variants) = { t | ∃ name, payload, disc, span, doc. VariantDecl(name, payload, disc, span, doc) ∈ variants ∧ t ∈ VariantPayloadTypeSet(payload) }
 
-TypePos_Static(P, m) = { t | ∃ vis, mut, bind, span, doc. ⟨StaticDecl, vis, mut, bind, span, doc⟩ ∈ ASTModule(P, m).items ∧ bind.type_opt = t ∧ t ≠ ⊥ }
+TypePos_Static(P, m) = { t | ∃ attrs, vis, mut, bind, span, doc. ⟨StaticDecl, attrs, vis, mut, bind, span, doc⟩ ∈ ASTModule(P, m).items ∧ bind.type_opt = t ∧ t ≠ ⊥ }
 TypePos_Proc(P, m) = { t | ∃ vis, name, params, ret, body, span, doc. ⟨ProcedureDecl, vis, name, params, ret, body, span, doc⟩ ∈ ASTModule(P, m).items ∧ t ∈ (ParamTypeSet(params) ∪ TypeOptSet(ret)) }
 TypePos_Record(P, m) = { t | ∃ vis, name, impls, members, span, doc. ⟨RecordDecl, vis, name, impls, members, span, doc⟩ ∈ ASTModule(P, m).items ∧ t ∈ (ClassPathTypeSet(impls) ∪ RecordMemberTypeSet(members)) }
 TypePos_Enum(P, m) = { t | ∃ vis, name, impls, variants, span, doc. ⟨EnumDecl, vis, name, impls, variants, span, doc⟩ ∈ ASTModule(P, m).items ∧ t ∈ (ClassPathTypeSet(impls) ∪ EnumVariantTypeSet(variants)) }
@@ -11165,11 +13389,11 @@ ExprNodesOf(x) = { e | e ∈ Expr ∧ Subnode(x, e) }
 
 TypeDeps(P, m) = { n | ∃ t ∈ TypePositions(P, m). Γ ⊢ TypeRefsTy(t, env_m) ⇓ T ∧ n ∈ T } ∪ { n | ∃ p ∈ PatNodes(P, m). Γ ⊢ TypeRefsPat(p, env_m) ⇓ T ∧ n ∈ T } ∪ { n | ∃ e ∈ (ExprNodes(P, m) ∪ TypePosExprs(P, m)). Γ ⊢ TypeRefsExpr(e, env_m) ⇓ T ∧ n ∈ T }
 
-StaticInitExprs(P, m) = { init | ∃ vis, mut, bind, span, doc. ⟨StaticDecl, vis, mut, bind, span, doc⟩ ∈ ASTModule(P, m).items ∧ bind.init = init }
-RecordFieldInitExprs(P, m) = { init | ∃ vis, name, impls, members, span, doc. ⟨RecordDecl, vis, name, impls, members, span, doc⟩ ∈ ASTModule(P, m).items ∧ ∃ f. f = FieldDecl(_, _, _, init, _, _) ∈ members ∧ init ≠ ⊥ }
-ProcBodies(P, m) = { body | ∃ vis, name, params, ret, body, span, doc. ⟨ProcedureDecl, vis, name, params, ret, body, span, doc⟩ ∈ ASTModule(P, m).items }
-RecordMethodBodies(P, m) = { body | ∃ vis, name, impls, members, span, doc. ⟨RecordDecl, vis, name, impls, members, span, doc⟩ ∈ ASTModule(P, m).items ∧ ∃ md. md = MethodDecl(_, _, _, _, _, _, body, _, _) ∈ members }
-ClassMethodBodies(P, m) = { body | ∃ vis, name, supers, items, span, doc. ⟨ClassDecl, vis, name, supers, items, span, doc⟩ ∈ ASTModule(P, m).items ∧ ∃ md. md = ClassMethodDecl(_, _, _, _, _, body, _, _) ∈ items ∧ body ≠ ⊥ }
+StaticInitExprs(P, m) = { init | ∃ attrs, vis, mut, bind, span, doc. ⟨StaticDecl, attrs, vis, mut, bind, span, doc⟩ ∈ ASTModule(P, m).items ∧ bind.init = init }
+RecordFieldInitExprs(P, m) = { init | ∃ attrs, vis, name, gen_params, where_clause, impls, members, invariant, span, doc. ⟨RecordDecl, attrs, vis, name, gen_params, where_clause, impls, members, invariant, span, doc⟩ ∈ ASTModule(P, m).items ∧ ∃ f. f = FieldDecl(_, _, _, _, _, init, _, _) ∈ members ∧ init ≠ ⊥ }
+ProcBodies(P, m) = { body | ∃ attrs, vis, name, gen_params, where_clause, params, ret, contract, body, span, doc. ⟨ProcedureDecl, attrs, vis, name, gen_params, where_clause, params, ret, contract, body, span, doc⟩ ∈ ASTModule(P, m).items }
+RecordMethodBodies(P, m) = { body | ∃ attrs, vis, name, gen_params, where_clause, impls, members, invariant, span, doc. ⟨RecordDecl, attrs, vis, name, gen_params, where_clause, impls, members, invariant, span, doc⟩ ∈ ASTModule(P, m).items ∧ ∃ md. md = MethodDecl(_, _, _, _, _, _, _, _, _, body, _, _) ∈ members }
+ClassMethodBodies(P, m) = { body | ∃ attrs, vis, modal, name, gen_params, where_clause, supers, items, span, doc. ⟨ClassDecl, attrs, vis, modal, name, gen_params, where_clause, supers, items, span, doc⟩ ∈ ASTModule(P, m).items ∧ ∃ md. md = ClassMethodDecl(_, _, _, _, _, _, _, _, body, _, _) ∈ items ∧ body ≠ ⊥ }
 
 ValueDepsEager(P, m) = { n | ∃ e ∈ StaticInitExprs(P, m). Γ ⊢ ValueRefs(e, env_m) ⇓ V ∧ n ∈ V }
 ValueDepsLazy(P, m) = { n | ∃ e ∈ RecordFieldInitExprs(P, m) ∪ ⋃_{b ∈ (ProcBodies(P, m) ∪ RecordMethodBodies(P, m) ∪ ClassMethodBodies(P, m))} ExprNodesOf(b). Γ ⊢ ValueRefs(e, env_m) ⇓ V ∧ n ∈ V }
@@ -11189,6 +13413,352 @@ G_e = ⟨V, E_val^{eager}⟩
 ∀ v ∈ V, ¬ Reachable(v, v, E_val^{eager})
 ───────────────────────────────────────────────────────────
 Γ ⊢ G_e : DAG
+
+### 5.13 Attributes and Metadata
+
+#### 5.13.1 Attribute registry and placement
+
+Attribute syntax is defined in §3.3.4.
+Malformed attribute syntax is ill-formed (`E-MOD-2450`).
+
+AttrTarget = {Record, Enum, Modal, Procedure, Field, Binding, Expression, ExternBlock, TypeAlias}
+
+AttrRegistry = R_spec ⊎ R_vendor
+R_vendor = ∅
+
+R_spec = {
+  layout, inline, cold, static_dispatch_only, deprecated,
+  dynamic, stale_ok,
+  relaxed, acquire, release, acqrel, seqcst,
+  static, assume, trust,
+  symbol, library, no_mangle, unwind,
+  reflect, derive, emit, files,
+  export, ffi_pass_by_value
+}
+
+AttrTargets(layout) = {Record, Enum}
+AttrTargets(inline) = {Procedure}
+AttrTargets(cold) = {Procedure}
+AttrTargets(static_dispatch_only) = {Procedure}
+AttrTargets(deprecated) = {Record, Enum, Modal, Procedure, Field, Binding, TypeAlias}
+AttrTargets(dynamic) = {Record, Enum, Modal, Procedure, Expression}
+AttrTargets(stale_ok) = {Binding}
+AttrTargets(relaxed) = {Expression}
+AttrTargets(acquire) = {Expression}
+AttrTargets(release) = {Expression}
+AttrTargets(acqrel) = {Expression}
+AttrTargets(seqcst) = {Expression}
+AttrTargets(static) = {Procedure}
+AttrTargets(assume) = {Procedure}
+AttrTargets(trust) = {Procedure, ExternBlock}
+AttrTargets(symbol) = {Procedure}
+AttrTargets(library) = {ExternBlock}
+AttrTargets(no_mangle) = {Procedure}
+AttrTargets(unwind) = {Procedure}
+AttrTargets(reflect) = {Record, Enum, Modal}
+AttrTargets(derive) = {Record, Enum, Modal}
+AttrTargets(emit) = {Expression}
+AttrTargets(files) = {Expression}
+AttrTargets(export) = {Procedure}
+AttrTargets(ffi_pass_by_value) = {Record, Enum}
+
+AttrListJudg = {AttrListWf}
+
+**(AttrList-Ok)**
+A = [a_1, …, a_n]    ∀ i, a_i = ⟨name_i, args_i⟩    ∀ i, name_i ∈ R_spec ∪ R_vendor    ∀ i, τ ∈ AttrTargets(name_i)    ∀ i, AttrArgsOk(name_i, args_i)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ AttrListWf(A, τ) ⇓ ok
+
+**(AttrList-Unknown)**
+A = [a_1, …, a_n]    ∃ i, a_i = ⟨name_i, _⟩ ∧ name_i ∉ R_spec ∪ R_vendor
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ AttrListWf(A, τ) ⇑ c    c = Code(Attr-Unknown)
+
+**(AttrList-Target-Err)**
+A = [a_1, …, a_n]    ∃ i, a_i = ⟨name_i, _⟩ ∧ name_i ∈ R_spec ∪ R_vendor ∧ τ ∉ AttrTargets(name_i)
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ AttrListWf(A, τ) ⇑ c    c = Code(Attr-Target-Err)
+
+AttrArgsOk(name, args) ⇔ args satisfy the attribute-specific grammar and constraints in §§5.13.3–5.13.6, or the vendor-defined schema for name ∈ R_vendor.
+Memory-order attributes are well-formed only when attached to key blocks or expressions that contain key acquisition.
+
+For every declaration or expression with an attribute list A and target kind τ, the implementation MUST check Γ ⊢ AttrListWf(A, τ) ⇓ ok.
+
+**Placement.** An attribute list MUST appear immediately before the declaration or expression it modifies. Multiple attribute lists on the same target are equivalent to a single list with concatenated entries in source order. Attribute application order is left-to-right in that concatenated list.
+
+**Deferred attributes.** `reflect`, `derive`, `emit`, and `files` require compile-time execution and are deferred in Cursive0 (Phase 2). Their use is rejected as Unsupported-Construct.
+
+**Export and FFI pass-by-value attributes.** `export` and `ffi_pass_by_value` are defined in §5.13.6.
+
+#### 5.13.2 Vendor-defined attributes
+
+Vendor-defined attributes in R_vendor MUST use reverse-domain prefixes (`com.vendor.name`). The `cursive.*` namespace is reserved for specification-defined attributes.
+
+Cursive0 defines R_vendor = ∅. Any attribute name not in R_spec is rejected as unknown.
+
+#### 5.13.3 Layout attributes
+
+**Syntax**
+
+```ebnf
+layout_attribute ::= "[[" "layout" "(" layout_args ")" "]]"
+layout_args      ::= layout_kind ("," layout_kind)*
+layout_kind      ::= "C" | "packed" | "align" "(" integer_literal ")" | int_type
+int_type         ::= "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
+```
+
+**`[[layout(C)]]`.** Specifies C-compatible memory layout.
+
+For `record` declarations:
+1. Fields MUST be laid out in declaration order.
+2. Padding MUST be inserted only as required by the target platform's C ABI.
+3. Total size MUST be a multiple of the record's alignment.
+
+For `enum` declarations:
+1. The discriminant MUST be represented as a C-compatible integer tag.
+2. Default tag type is `DiscType(E)` as defined in §5.10.
+3. Layout MUST conform to a tagged union per the target C ABI.
+
+**`[[layout(IntType)]]` (explicit discriminant).** For an `enum` marked `[[layout(IntType)]]` where `IntType` is `i8`–`i64` or `u8`–`u64`:
+1. The discriminant MUST use the specified integer type.
+2. Each variant's discriminant value MUST be representable in that type.
+3. This form is valid only on `enum` declarations.
+
+**`[[layout(packed)]]`.** Removes inter-field padding.
+
+For a `record` marked `[[layout(packed)]]`:
+1. All inter-field padding is removed.
+2. Each field MUST be laid out with alignment 1.
+3. The record's overall alignment becomes 1.
+
+Taking a reference to a packed field MUST occur within an `unsafe` block. Outside `unsafe`, the program is ill-formed (`Packed-Field-Unsafe-Err`).
+
+**`[[layout(align(N))]]`.** Sets a minimum alignment.
+
+1. N MUST be a positive integer that is a power of two.
+2. Effective alignment is max(N, natural alignment).
+3. If N < natural alignment, natural alignment is used.
+4. Type size is padded to a multiple of the effective alignment.
+
+**Compile-time layout verification.**
+
+Valid combinations:
+- `layout(C)`
+- `layout(packed)`
+- `layout(align(N))`
+- `layout(C, packed)`
+- `layout(C, align(N))`
+- `layout(u8)` (enum)
+
+Invalid combinations:
+- `layout(packed, align(N))`
+
+Applicability constraints:
+- `record`: `C`, `packed`, `align(N)`
+- `enum`: `C`, `align(N)`, `IntType`
+- `modal`: none
+- generic (unmonomorphized): none
+
+**Constraints**
+1. `layout(packed)` applied to a non-`record` declaration is ill-formed (`E-MOD-2454`).
+2. `layout(align(N))` where N is not a power of two is ill-formed (`E-MOD-2453`).
+3. Conflicting layout arguments (including `layout(packed, align(N))`) are ill-formed (`E-MOD-2455`).
+4. `layout(align(N))` where N < natural alignment emits warning `W-MOD-2451`.
+
+#### 5.13.4 Optimization hints
+
+**Syntax**
+
+```ebnf
+inline_attribute ::= "[[" "inline" ("(" inline_mode ")")? "]]"
+inline_mode      ::= "always" | "never" | "default"
+
+cold_attribute   ::= "[[" "cold" "]]"
+```
+
+**`[[inline]]`.** The implementation SHOULD inline the procedure at call sites when feasible.
+
+**`[[inline(always)]]`.** The implementation SHOULD inline the procedure at all call sites. If inlining is not possible (recursive, address taken), the implementation SHOULD emit warning `W-MOD-2452`.
+
+**`[[inline(default)]]`.** Equivalent to omitting the attribute.
+
+**`[[inline(never)]]`.** The implementation MUST NOT inline the procedure. The procedure body MUST be emitted as a separate callable unit.
+
+**`[[cold]]`.** Marks a procedure as unlikely to execute during typical runs. The implementation MAY use this as an optimization hint.
+
+#### 5.13.5 Diagnostics and metadata attributes
+
+**`[[deprecated]]`.** Marks a declaration as deprecated. When referenced, the implementation MUST emit warning `W-CNF-0601`. If a message argument is present, the diagnostic SHOULD include it.
+
+**`[[dynamic]]`.** Marks a declaration or expression as requiring runtime verification when static verification is insufficient.
+
+Scope determination:
+1. e is within a `[[dynamic]]` scope if it is enclosed by a `[[dynamic]]` declaration, or by an attributed expression.
+2. Scope is lexical and does not propagate through procedure calls.
+
+**Formal Scope Definition**
+
+ExprAttrList(e) = A    if ExprAttrs(e) = A
+ExprAttrList(e) = []   if ExprAttrs(e) = ⊥
+ExprAttrByName(e, n) = [a | a ∈ ExprAttrList(e) ∧ a.name = n]
+DynamicDecl(d) ⇔ AttrByName(d, "dynamic") ≠ []
+DynamicExpr(e) ⇔ ExprAttrByName(e, "dynamic") ≠ []
+DynamicScope(s) ⇔ (∃ d. DynamicDecl(d) ∧ s ⊆ d.span) ∨ (∃ e. DynamicExpr(e) ∧ s ⊆ ExprSpan(e))
+InDynamicContext ⇔ DynamicScope(s) where s is the span of the syntactic form currently being verified or type-checked.
+
+Effects:
+- Key System: runtime synchronization MAY be inserted when static key verification fails (see §17.6).
+- Contracts: runtime checks MAY be inserted when predicates are not provable (see §14.7).
+- Refinement types: runtime checks MAY be inserted when predicates are not provable (see §13.7).
+
+**Dynamic Target Restrictions**
+1. `[[dynamic]]` applied to a contract predicate expression is ill-formed (`E-CON-0410`).
+2. `[[dynamic]]` applied to a `type` alias declaration is ill-formed (`E-CON-0411`).
+3. `[[dynamic]]` applied to a field declaration is ill-formed (`E-CON-0412`).
+
+If a `[[dynamic]]` scope results in no runtime checks or runtime synchronization, the implementation SHOULD emit warning `W-CON-0401`.
+
+**`[[static_dispatch_only]]`.** Excludes a class procedure from dynamic dispatch. Dispatchability and vtable eligibility are defined in §13.5.
+
+**`[[stale_ok]]`.** Suppresses staleness warnings for bindings derived from `shared` data across `release` or `yield release` boundaries (see §17.4). Valid only on `let` and `var` bindings.
+
+**Verification-mode attributes.** `[[static]]`, `[[assume]]`, and `[[trust]]` are interpreted only in foreign-contract contexts. Semantics are defined in §21.4. `[[dynamic]]` reuses the dynamic verification mode defined above.
+
+#### 5.13.6 FFI attributes
+
+##### 5.13.6.1 `[[symbol]]`
+
+**Syntax**
+
+```ebnf
+symbol_attribute ::= "[[" "symbol" "(" string_literal ")" "]]"
+```
+
+**Static Semantics**
+
+1. Valid only on extern procedure declarations and exported procedures.
+2. The string argument specifies the exact linker symbol name.
+3. The symbol name MUST be non-empty and valid for the target platform's linker.
+4. `[[symbol]]` overrides any name from `[[export]]` or `[[no_mangle]]`.
+5. `[[symbol]]` and `[[no_mangle]]` MUST NOT both appear on the same declaration.
+
+
+##### 5.13.6.2 `[[library]]`
+
+**Syntax**
+
+```ebnf
+library_attribute ::= "[[" "library" "(" library_args ")" "]]"
+library_args      ::= "name" ":" string_literal ("," "kind" ":" string_literal)?
+```
+
+**Static Semantics**
+
+**Link Kinds**
+
+| Kind          | Meaning                   |
+| :------------ | :------------------------ |
+| `"dylib"`     | Dynamic library (default) |
+| `"static"`    | Static library            |
+| `"framework"` | macOS framework           |
+| `"raw-dylib"` | Windows delay-load        |
+
+1. Valid only on `extern` blocks.
+2. The `name` argument specifies the library name without platform prefix or suffix.
+3. If `kind` is omitted, `"dylib"` is assumed.
+4. Platform-specific library resolution applies.
+
+
+##### 5.13.6.3 `[[no_mangle]]`
+
+**Syntax**
+
+```ebnf
+no_mangle_attribute ::= "[[" "no_mangle" "]]"
+```
+
+**Static Semantics**
+
+Name mangling uses `ScopedSym` as defined in §6.3.1. Applying `[[no_mangle]]` sets the link name to the declaration's identifier without mangling.
+
+1. Valid on extern procedure declarations and exported procedures.
+2. Implicit for procedures in `extern "C"` or `extern "C-unwind"` blocks (specifying it is redundant but permitted).
+3. `[[no_mangle]]` and `[[symbol]]` MUST NOT both appear on the same declaration.
+
+
+##### 5.13.6.4 `[[unwind]]`
+
+**Syntax**
+
+```ebnf
+unwind_attribute ::= "[[" "unwind" "(" unwind_mode ")" "]]"
+unwind_mode      ::= string_literal
+```
+
+**Static Semantics**
+
+**Modes**
+
+| Mode      | Behavior                                                                                                                                        |
+| :-------- | :---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `"abort"` | Any panic or foreign unwind that would cross the boundary aborts.                                                                              |
+| `"catch"` | Unwinding is caught at the boundary. Imported procedures convert foreign unwinds to Cursive panics; exported procedures convert panics to an error indicator value (§21.2.2). |
+
+If `[[unwind]]` is not specified, `"abort"` is assumed.
+
+`[[unwind]]` is valid only on extern procedure declarations and exported procedures.
+
+**Catch ABI Requirement.**
+
+If `UnwindMode(proc) = "catch"`, the ABI at the boundary MUST be `"C-unwind"`:
+1. For extern procedures: `ExternAbiName(ExternAbiOf(proc)) = "C-unwind"`.
+2. For exported procedures: `ExportAttr(proc) = ⟨"C-unwind", _⟩`.
+
+
+##### 5.13.6.5 `[[export]]`
+
+**Syntax**
+
+```ebnf
+export_attribute ::= "[[" "export" "(" string_literal ")" "]]"
+                  | "[[" "export" "(" string_literal "," export_opts ")" "]]"
+export_opts      ::= export_opt ("," export_opt)*
+export_opt       ::= "link_name" ":" string_literal
+```
+
+**Static Semantics**
+
+1. Valid only on procedure declarations.
+2. The procedure MUST be `public`.
+3. The ABI string selects the foreign calling convention (see §21.2.1).
+4. The link name is `link_name` if provided, otherwise `LinkName` (§6.3.1).
+5. `[[export]]` implies external linkage; if `link_name` is omitted and `[[no_mangle]]` is absent, the default symbol is the mangled name.
+6. Export signatures MUST satisfy the FFI safety requirements in §21.2.2 and §21.3.
+
+
+##### 5.13.6.6 `[[ffi_pass_by_value]]`
+
+**Syntax**
+
+```ebnf
+ffi_pass_by_value_attribute ::= "[[" "ffi_pass_by_value" "]]"
+```
+
+**Static Semantics**
+
+This attribute marks a `record` or `enum` that satisfies both `DropType` and `FfiSafeType` as eligible for by-value passing across the FFI boundary. If a `DropType` + `FfiSafeType` type is passed by value in any FFI signature without this attribute, the program is ill-formed (§21.1.1).
+
+
+**FFI Attribute Constraints**
+
+1. `[[symbol]]` is valid only on extern procedure declarations or exported procedures.
+2. Duplicate symbol names within a compilation unit are link-time errors.
+3. `[[library]]` is valid only on `extern` blocks.
+4. Unknown library kinds are ill-formed.
+5. `[[no_mangle]]` on a non-FFI procedure is ill-formed.
+6. `[[no_mangle]]` on an extern procedure within an `extern "C"` or `extern "C-unwind"` block is redundant and SHOULD emit a warning.
+7. `[[unwind]]` on a non-FFI procedure is ill-formed.
+8. `[[unwind("abort")]]` is redundant and SHOULD emit a warning.
 
 ## 6. Phase 4: Code Generation
 
@@ -11241,10 +13811,9 @@ ClassMethodParams(Cl, m) = [⟨RecvMode(m.receiver), `self`, RecvType(SelfVar, m
 ParamList_T(T, params) = [⟨mode_i, name_i, SubstSelf(T, ty_i)⟩ | ⟨mode_i, name_i, ty_i⟩ ∈ params]
 ClassMethodParams_T(T, m) = [⟨RecvMode(m.receiver), `self`, RecvType(T, m.receiver)⟩] ++ ParamList_T(T, m.params)
 
-StateMethodParams(M, S, md) = [⟨⊥, `self`, TypePerm(`const`, TypeModalState(ModalPath(M), S))⟩] ++ md.params
+StateMethodParams(M, S, md) = [⟨RecvMode(md.receiver), `self`, RecvType(TypeModalState(ModalPath(M), S), md.receiver)⟩] ++ md.params
 TransitionParams(M, S, tr) = [⟨`move`, `self`, TypePerm(`unique`, TypeModalState(ModalPath(M), S))⟩] ++ tr.params
 
-StateList(M) = [s | s ∈ M.states]
 DefaultImpl : Type × ClassMethodDecl → ASTItem
 DefaultUserSet(m) = { T | Γ ⊢ T uses default m }
 DefaultUserList(m) = sort_{≺_{type}}(DefaultUserSet(m))
@@ -11255,27 +13824,27 @@ item = UsingDecl(_)
 Γ ⊢ CodegenItem(item) ⇓ []
 
 **(CG-Item-TypeAlias)**
-item = TypeAliasDecl(_)
+item = TypeAliasDecl(_, _, _, _, _, _, _, _)
 ────────────────────────────────────────────
 Γ ⊢ CodegenItem(item) ⇓ []
 
 **(CG-Item-Procedure-Main)**
-item = ProcedureDecl(vis, "main", params, ret_opt, body, span, doc)    Project(Γ) = P    Executable(P)    MainSigOk(item)    R = ProcReturn(ret_opt)    Γ ⊢ EmitInitPlan(P) ⇓ IR_init    Γ ⊢ LowerBlock(body) ⇓ ⟨IR_body, v⟩    Γ ⊢ Mangle(item) ⇓ sym    params' = CodegenParams(params)
+item = ProcedureDecl(attrs_opt, vis, "main", gen_params_opt, where_clause_opt, params, ret_opt, contract_opt, body, span, doc)    Project(Γ) = P    Executable(P)    MainSigOk(item)    R = ProcReturn(ret_opt)    Γ ⊢ EmitInitPlan(P) ⇓ IR_init    Γ ⊢ LowerBlock(body) ⇓ ⟨IR_body, v⟩    Γ ⊢ Mangle(item) ⇓ sym    params' = CodegenParams(params)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ CodegenItem(item) ⇓ [ProcIR(sym, params', R, SeqIR(IR_init, IR_body))]
 
 **(CG-Item-Procedure)**
-item = ProcedureDecl(vis, name, params, ret_opt, body, span, doc)    Project(Γ) = P    (name ≠ "main" ∨ ¬ Executable(P))    R = ProcReturn(ret_opt)    Γ ⊢ LowerBlock(body) ⇓ ⟨IR, v⟩    Γ ⊢ Mangle(item) ⇓ sym    params' = CodegenParams(params)
+item = ProcedureDecl(attrs_opt, vis, name, gen_params_opt, where_clause_opt, params, ret_opt, contract_opt, body, span, doc)    Project(Γ) = P    (name ≠ "main" ∨ ¬ Executable(P))    R = ProcReturn(ret_opt)    Γ ⊢ LowerBlock(body) ⇓ ⟨IR, v⟩    Γ ⊢ Mangle(item) ⇓ sym    params' = CodegenParams(params)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ CodegenItem(item) ⇓ [ProcIR(sym, params', R, IR)]
 
 **(CG-Item-Static)**
-item = StaticDecl(_)    Γ ⊢ EmitGlobal(item) ⇓ ds
+item = StaticDecl(_, _, _, _, _, _)    Γ ⊢ EmitGlobal(item) ⇓ ds
 ──────────────────────────────────────────────────────────
 Γ ⊢ CodegenItem(item) ⇓ ds
 
 **(CG-Item-Record)**
-item = RecordDecl(vis, name, implements, members, span, doc)    R = item    Methods(R) = [m_1, …, m_k]    ∀ i, Γ ⊢ CodegenItem(m_i) ⇓ ds_i
+item = RecordDecl(attrs_opt, vis, name, gen_params_opt, where_clause_opt, implements, members, invariant_opt, span, doc)    R = item    Methods(R) = [m_1, …, m_k]    ∀ i, Γ ⊢ CodegenItem(m_i) ⇓ ds_i
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ CodegenItem(item) ⇓ ds_1 ++ … ++ ds_k
 
@@ -11285,22 +13854,22 @@ m ∈ Methods(R)    params' = MethodParams(R, m)    R_m = ReturnType(m)    m.bod
 Γ ⊢ CodegenItem(m) ⇓ [ProcIR(sym, params'', R_m, IR)]
 
 **(CG-Item-Modal)**
-item = ModalDecl(vis, name, implements, states, span, doc)    M = item    ∀ S ∈ StateList(M), ∀ md ∈ Methods(S), Γ ⊢ CodegenItem(md) ⇓ ds_{S,md}    ∀ S ∈ StateList(M), ∀ tr ∈ Transitions(S), Γ ⊢ CodegenItem(tr) ⇓ ds_{S,tr}
+item = ModalDecl(attrs_opt, vis, name, gen_params_opt, where_clause_opt, implements, states, invariant_opt, span, doc)    M = item    ∀ S ∈ StateList(M), ∀ md ∈ Methods(M, S), Γ ⊢ CodegenItem(md) ⇓ ds_{S,md}    ∀ S ∈ StateList(M), ∀ tr ∈ Transitions(M, S), Γ ⊢ CodegenItem(tr) ⇓ ds_{S,tr}
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ CodegenItem(item) ⇓ ++_{S ∈ StateList(M)} ( ++_{md ∈ Methods(S)} ds_{S,md} ++ ++_{tr ∈ Transitions(S)} ds_{S,tr} )
+Γ ⊢ CodegenItem(item) ⇓ ++_{S ∈ StateList(M)} ( ++_{md ∈ Methods(M, S)} ds_{S,md} ++ ++_{tr ∈ Transitions(M, S)} ds_{S,tr} )
 
 **(CG-Item-StateMethod)**
-S ∈ StateList(M)    md ∈ Methods(S)    params' = StateMethodParams(M, S, md)    R_m = ReturnType(md)    md.body = body    Γ ⊢ LowerBlock(body) ⇓ ⟨IR, v⟩    Γ ⊢ Mangle(md) ⇓ sym    params'' = CodegenParams(params')
+S ∈ StateList(M)    md ∈ Methods(M, S)    params' = StateMethodParams(M, S, md)    R_m = ReturnType(md)    md.body = body    Γ ⊢ LowerBlock(body) ⇓ ⟨IR, v⟩    Γ ⊢ Mangle(md) ⇓ sym    params'' = CodegenParams(params')
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ CodegenItem(md) ⇓ [ProcIR(sym, params'', R_m, IR)]
 
 **(CG-Item-Transition)**
-S ∈ StateList(M)    tr ∈ Transitions(S)    params' = TransitionParams(M, S, tr)    TransitionSig(M, S, tr).target = S_t    tr.body = body    Γ ⊢ LowerBlock(body) ⇓ ⟨IR, v⟩    Γ ⊢ Mangle(tr) ⇓ sym    params'' = CodegenParams(params')
+S ∈ StateList(M)    tr ∈ Transitions(M, S)    params' = TransitionParams(M, S, tr)    TransitionSig(M, S, tr).target = S_t    tr.body = body    Γ ⊢ LowerBlock(body) ⇓ ⟨IR, v⟩    Γ ⊢ Mangle(tr) ⇓ sym    params'' = CodegenParams(params')
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ CodegenItem(tr) ⇓ [ProcIR(sym, params'', TypeModalState(ModalPath(M), S_t), IR)]
 
 **(CG-Item-Class)**
-item = ClassDecl(vis, name, supers, items, span, doc)    Cl = item    ClassMethods(Cl) = [m_1, …, m_k]    ∀ i, Γ ⊢ CodegenItem(m_i) ⇓ ds_i
+item = ClassDecl(attrs_opt, vis, modal_opt, name, gen_params_opt, where_clause_opt, supers, items, span, doc)    Cl = item    ClassMethods(Cl) = [m_1, …, m_k]    ∀ i, Γ ⊢ CodegenItem(m_i) ⇓ ds_i
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ CodegenItem(item) ⇓ ds_1 ++ … ++ ds_k
 
@@ -11315,7 +13884,7 @@ m ∈ ClassMethods(Cl)    m.body_opt = body    DefaultUserList(m) = [T_1, …, T
 Γ ⊢ CodegenItem(m) ⇓ [ProcIR(sym_1, params_1', R_1, IR_1), …, ProcIR(sym_k, params_k', R_k, IR_k)]
 
 **(CG-Item-Enum)**
-item = EnumDecl(_)
+item = EnumDecl(_, _, _, _, _, _, _, _, _, _)
 ────────────────────────────────────────────
 Γ ⊢ CodegenItem(item) ⇓ []
 
@@ -11574,7 +14143,7 @@ T = TypePath(p)    RecordDecl(p) = R    Fields(R) = fields    RecordLayout(field
 FieldOffset(fields, f_i) = offset_i ⇔ fields = [⟨f_1, T_1⟩, …, ⟨f_n, T_n⟩] ∧ 1 ≤ i ≤ n ∧ Offsets(fields) = [offset_1, …, offset_n]
 
 **Type Aliases.**
-AliasBody(p) = ty ⇔ Σ.Types[p] = TypeAliasDecl(vis, name, ty, span, doc)
+AliasBody(p) = ty ⇔ Σ.Types[p] = TypeAliasDecl(attrs_opt, vis, name, gen_params_opt, where_clause_opt, ty, span, doc)
 
 **(Size-Alias)**
 T = TypePath(p)    AliasBody(p) = ty    Γ ⊢ sizeof(ty) = size
@@ -11661,7 +14230,7 @@ TypeKey(TypeArray(T, e)) = ⟨TagKey(`array`), TypeKey(T), ArrayLen(e)⟩
 TypeKey(TypeSlice(T)) = ⟨TagKey(`slice`), TypeKey(T)⟩
 TypeKey(TypeFunc([⟨m_1, T_1⟩, …, ⟨m_n, T_n⟩], R)) = ⟨TagKey(`func`), n, ModeKey(m_1), TypeKey(T_1), …, ModeKey(m_n), TypeKey(T_n), TypeKey(R)⟩
 TypeKey(TypePath(p)) = ⟨TagKey(`path`), PathOrderKey(p)⟩
-TypeKey(TypeModalState(p, S)) = ⟨TagKey(`modal_state`), PathOrderKey(p), S⟩
+TypeKey(TypeModalState(modal_ref, S)) = ⟨TagKey(`modal_state`), PathOrderKey(ModalRefPath(modal_ref)), S⟩
 TypeKey(TypeString(st)) = ⟨TagKey(`string`), StateKey(st)⟩
 TypeKey(TypeBytes(st)) = ⟨TagKey(`bytes`), StateKey(st)⟩
 TypeKey(TypeDynamic(p)) = ⟨TagKey(`dynamic`), PathOrderKey(p)⟩
@@ -11712,7 +14281,7 @@ ValueBits(TypeArray(T, e), [v_0, …, v_{n-1}]) = bits ⇔ ArrayLen(e) = n ∧ s
 ValueBits(TypeSlice(T), SliceValue(v, r)) = bits ⇔ SliceBounds(r, Len(v)) = (start, end) ∧ n = end - start ∧ ∃ addr. ValueBits(TypeRawPtr(`imm`, T), RawPtr(`imm`, addr)) = b_ptr ∧ ValueBits(TypePrim("usize"), IntVal("usize", n)) = b_len ∧ bits = b_ptr ++ b_len
 ValueBits(TypeRange, r) = bits ⇔ RangeValFields(r) = [⟨`kind`, v_k⟩, ⟨`lo`, v_l⟩, ⟨`hi`, v_h⟩] ∧ RangeFields = [⟨`kind`, T_k⟩, ⟨`lo`, T_l⟩, ⟨`hi`, T_h⟩] ∧ RecordLayout(RangeFields) ⇓ ⟨size, _, offsets⟩ ∧ StructBits([T_k, T_l, T_h], [v_k, v_l, v_h], offsets, size) = bits
 
-ValueBits(TypeModalState(p, S), v) = bits ⇔ Σ.Types[p] = `modal` M ∧ S ∈ States(M) ∧ v = RecordValue(ModalStateRef(p, S), fs) ∧ Payload(M, S) = fields ∧ RecordLayout(fields) ⇓ ⟨size, _, offsets⟩ ∧ fields = [⟨f_1, T_1⟩, …, ⟨f_n, T_n⟩] ∧ (∀ i. FieldValue(RecordValue(ModalStateRef(p, S), fs), f_i) = v_i) ∧ StructBits([T_1, …, T_n], [v_1, …, v_n], offsets, size) = bits
+ValueBits(TypeModalState(modal_ref, S), v) = bits ⇔ ModalDeclOf(modal_ref) = M ∧ S ∈ States(M) ∧ v = RecordValue(ModalStateRef(modal_ref, S), fs) ∧ ModalPayload(modal_ref, S) = fields ∧ RecordLayout(fields) ⇓ ⟨size, _, offsets⟩ ∧ fields = [⟨f_1, T_1⟩, …, ⟨f_n, T_n⟩] ∧ (∀ i. FieldValue(RecordValue(ModalStateRef(modal_ref, S), fs), f_i) = v_i) ∧ StructBits([T_1, …, T_n], [v_1, …, v_n], offsets, size) = bits
 
 EnumPayloadBits(E, name, ⊥) = bits ⇔ (∃ v ∈ Variants(E). v.name = name ∧ VariantPayloadOpt(v) = ⊥) ∧ PadBytes([], PayloadSize(E)) = bits
 EnumPayloadBits(E, name, TuplePayload([v_1, …, v_k])) = bits ⇔ (∃ v ∈ Variants(E). v.name = name ∧ VariantPayloadOpt(v) = TuplePayload([T_1, …, T_k])) ∧ ValueBits(TypeTuple([T_1, …, T_k]), (v_1, …, v_k)) = b ∧ PadBytes(b, PayloadSize(E)) = bits
@@ -11721,7 +14290,7 @@ EnumPayloadBits(E, name, RecordPayload(fs)) = bits ⇔ (∃ v ∈ Variants(E). v
 ValueBits(TypePath(p), v) = bits ⇔ AliasBody(p) = ty ∧ ValueBits(ty, v) = bits
 ValueBits(TypePath(p), v) = bits ⇔ RecordDecl(p) = R ∧ v = RecordValue(TypePath(p), fs) ∧ Fields(R) = fields ∧ RecordLayout(fields) ⇓ ⟨size, _, offsets⟩ ∧ fields = [⟨f_1, T_1⟩, …, ⟨f_n, T_n⟩] ∧ (∀ i. FieldValue(RecordValue(TypePath(p), fs), f_i) = v_i) ∧ StructBits([T_1, …, T_n], [v_1, …, v_n], offsets, size) = bits
 ValueBits(TypePath(p), v) = bits ⇔ EnumDecl(p) = E ∧ v = EnumValue(path, payload) ∧ EnumPath(path) = p ∧ name = VariantName(path) ∧ EnumDisc(E, name) = d ∧ EnumPayloadBits(E, name, payload) = payload_bits ∧ EnumDiscType(E) = D ∧ D = TypePrim(t) ∧ ValueBits(D, IntVal(t, d)) = disc_bits ∧ TaggedBits(disc_bits, payload_bits, sizeof(D), PayloadSize(E), PayloadAlign(E), EnumSize(E)) = bits
-ValueBits(TypePath(p), v) = bits ⇔ Σ.Types[p] = `modal` M ∧ v = ⟨S, v_s⟩ ∧ ModalBits(M, S, v_s) = bits
+ValueBits(ModalRefType(modal_ref), v) = bits ⇔ ModalDeclOf(modal_ref) = M ∧ v = ⟨S, v_s⟩ ∧ ModalBits(modal_ref, S, v_s) = bits
 
 ValueBits(TypeUnion(U), v) = bits ⇔ ∃ T. Member(T, TypeUnion(U)) ∧ UnionBits(U, T, v) = bits
 
@@ -11778,21 +14347,22 @@ UnionBits(U, T, v) = bits ⇔ UnionNicheBits(U, T, v) = bits ∨ UnionTaggedBits
 **Modal Niche Encoding.**
 
 SingleFieldPayload(M, S) = T ⇔ Payload(M, S) = [⟨f, T⟩]
+ModalSingleFieldPayload(modal_ref, S) = T' ⇔ ModalDeclOf(modal_ref) = M ∧ SingleFieldPayload(M, S) = T ∧ θ = ModalRefSubst(modal_ref, M) ∧ T' = TypeSubst(θ, T)
 EmptyState(M, S) ⇔ Payload(M, S) = []
-PayloadState(M) = S_p ⇔ S_p ∈ States(M) ∧ SingleFieldPayload(M, S_p) = T_p ∧ NicheCount(T_p) > 0 ∧ (∀ S ∈ States(M). S ≠ S_p ⇒ EmptyState(M, S)) ∧ NicheCount(T_p) ≥ |States(M)| - 1
-NicheApplies(M) ⇔ ∃ S_p. PayloadState(M) = S_p
+PayloadState(modal_ref) = S_p ⇔ ModalDeclOf(modal_ref) = M ∧ S_p ∈ States(M) ∧ ModalSingleFieldPayload(modal_ref, S_p) = T_p ∧ NicheCount(T_p) > 0 ∧ (∀ S ∈ States(M). S ≠ S_p ⇒ EmptyState(M, S)) ∧ NicheCount(T_p) ≥ |States(M)| - 1
+NicheApplies(modal_ref) ⇔ ∃ S_p. PayloadState(modal_ref) = S_p
 EmptyStates(M) = [ S ∈ States(M) | EmptyState(M, S) ]
 EmptyRecordVal(v) ⇔ ∃ tr. v = RecordValue(tr, [])
-ModalNicheBits(M, S, v) = bits ⇔ NicheApplies(M) ∧ PayloadState(M) = S_p ∧ SingleFieldPayload(M, S_p) = T_p ∧ ((S = S_p ∧ ValueBits(T_p, v) = bits ∧ bits ∉ NicheSet(T_p)) ∨ (∃ i. EmptyStates(M)[i] = S ∧ (v = () ∨ EmptyRecordVal(v)) ∧ NicheOrder(T_p)[i] = bits))
-ModalBits(M, S, v) = bits ⇔ ModalNicheBits(M, S, v) = bits ∨ ModalTaggedBits(M, S, v) = bits
+ModalNicheBits(modal_ref, S, v) = bits ⇔ ModalDeclOf(modal_ref) = M ∧ NicheApplies(modal_ref) ∧ PayloadState(modal_ref) = S_p ∧ ModalSingleFieldPayload(modal_ref, S_p) = T_p ∧ ((S = S_p ∧ ValueBits(T_p, v) = bits ∧ bits ∉ NicheSet(T_p)) ∨ (∃ i. EmptyStates(M)[i] = S ∧ (v = () ∨ EmptyRecordVal(v)) ∧ NicheOrder(T_p)[i] = bits))
+ModalBits(modal_ref, S, v) = bits ⇔ ModalNicheBits(modal_ref, S, v) = bits ∨ ModalTaggedBits(modal_ref, S, v) = bits
 
-ModalPayloadSize(M) = max_{S ∈ States(M)}(StateSize(M, S))
-ModalPayloadAlign(M) = max_{S ∈ States(M)}(StateAlign(M, S))
-StateRecordBits(M, S, v) = b ⇔ Payload(M, S) = fields ∧ RecordLayout(fields) ⇓ ⟨size, _, offsets⟩ ∧ fields = [⟨f_1, T_1⟩, …, ⟨f_n, T_n⟩] ∧ ((n = 0 ∧ (v = () ∨ EmptyRecordVal(v)) ∧ b = []) ∨ (n > 0 ∧ v = RecordValue(tr, fs) ∧ (∀ i. FieldValue(RecordValue(tr, fs), f_i) = v_i) ∧ StructBits([T_1, …, T_n], [v_1, …, v_n], offsets, size) = b))
-ModalPayloadBits(M, S, v) = bits ⇔ StateRecordBits(M, S, v) = b ∧ PadBytes(b, ModalPayloadSize(M)) = bits
+ModalPayloadSize(modal_ref) = s ⇔ ModalDeclOf(modal_ref) = M ∧ s = max_{S ∈ States(M)}(StateSize(modal_ref, S))
+ModalPayloadAlign(modal_ref) = a ⇔ ModalDeclOf(modal_ref) = M ∧ a = max_{S ∈ States(M)}(StateAlign(modal_ref, S))
+StateRecordBits(modal_ref, S, v) = b ⇔ ModalPayload(modal_ref, S) = fields ∧ RecordLayout(fields) ⇓ ⟨size, _, offsets⟩ ∧ fields = [⟨f_1, T_1⟩, …, ⟨f_n, T_n⟩] ∧ ((n = 0 ∧ (v = () ∨ EmptyRecordVal(v)) ∧ b = []) ∨ (n > 0 ∧ v = RecordValue(tr, fs) ∧ (∀ i. FieldValue(RecordValue(tr, fs), f_i) = v_i) ∧ StructBits([T_1, …, T_n], [v_1, …, v_n], offsets, size) = b))
+ModalPayloadBits(modal_ref, S, v) = bits ⇔ StateRecordBits(modal_ref, S, v) = b ∧ ModalPayloadSize(modal_ref) = s ∧ PadBytes(b, s) = bits
 
 Modal tagged layout is fully defined; all bytes outside the discriminant and payload ranges MUST be zero.
-ModalTaggedBits(M, S, v) = bits ⇔ ¬ NicheApplies(M) ∧ ModalDiscType(M) = D ∧ StateIndex(M, S) = i ∧ ValueBits(D, i) = disc_bits ∧ ModalPayloadBits(M, S, v) = payload_bits ∧ TaggedBits(disc_bits, payload_bits, sizeof(D), ModalPayloadSize(M), ModalPayloadAlign(M), ModalSize(M)) = bits ∧ payload_off = AlignUp(sizeof(D), ModalPayloadAlign(M)) ∧ ∀ j. 0 ≤ j < |bits| ∧ j ∉ [0, sizeof(D)) ∧ j ∉ [payload_off, payload_off + ModalPayloadSize(M)) ⇒ bits[j] = 0x00
+ModalTaggedBits(modal_ref, S, v) = bits ⇔ ModalDeclOf(modal_ref) = M ∧ ¬ NicheApplies(modal_ref) ∧ ModalDiscType(modal_ref) = D ∧ StateIndex(M, S) = i ∧ ValueBits(D, i) = disc_bits ∧ ModalPayloadBits(modal_ref, S, v) = payload_bits ∧ ModalPayloadSize(modal_ref) = psize ∧ ModalPayloadAlign(modal_ref) = palign ∧ TaggedBits(disc_bits, payload_bits, sizeof(D), psize, palign, ModalSize(modal_ref)) = bits ∧ payload_off = AlignUp(sizeof(D), palign) ∧ ∀ j. 0 ≤ j < |bits| ∧ j ∉ [0, sizeof(D)) ∧ j ∉ [payload_off, payload_off + psize) ⇒ bits[j] = 0x00
 
 
 
@@ -12046,50 +14616,50 @@ T = TypePath(p)    EnumDecl(p) = E    EnumLayout(E) ⇓ ⟨size, align, _, _⟩
 
 #### 6.1.7. Modal Layout (Codegen)
 
-ModalDiscType(M) = DiscType(|States(M)| - 1)
-StateSize(M, S) = s ⇔ RecordLayout(Payload(M, S)) ⇓ ⟨s, a, _⟩
-StateAlign(M, S) = a ⇔ RecordLayout(Payload(M, S)) ⇓ ⟨s, a, _⟩
-ModalAlign(M) = max(alignof(ModalDiscType(M)), max_{S ∈ States(M)}(StateAlign(M, S)))
-ModalSize(M) = AlignUp(sizeof(ModalDiscType(M)) + max_{S ∈ States(M)}(StateSize(M, S)), ModalAlign(M))
+ModalDiscType(modal_ref) = DiscType(|States(M)| - 1) where ModalDeclOf(modal_ref) = M
+StateSize(modal_ref, S) = s ⇔ RecordLayout(ModalPayload(modal_ref, S)) ⇓ ⟨s, a, _⟩
+StateAlign(modal_ref, S) = a ⇔ RecordLayout(ModalPayload(modal_ref, S)) ⇓ ⟨s, a, _⟩
+ModalAlign(modal_ref) = max(alignof(ModalDiscType(modal_ref)), max_{S ∈ States(M)}(StateAlign(modal_ref, S))) where ModalDeclOf(modal_ref) = M
+ModalSize(modal_ref) = AlignUp(sizeof(ModalDiscType(modal_ref)) + max_{S ∈ States(M)}(StateSize(modal_ref, S)), ModalAlign(modal_ref)) where ModalDeclOf(modal_ref) = M
 ModalLayoutJudg = {ModalLayout}
 
 **(Layout-Modal-Niche)**
-NicheApplies(M)    PayloadState(M) = S_p    SingleFieldPayload(M, S_p) = T_p    Γ ⊢ layout(T_p) ⇓ ⟨size, align⟩
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ModalLayout(M) ⇓ ⟨size, align, ⊥, layout(T_p)⟩
+ModalDeclOf(modal_ref) = M    NicheApplies(modal_ref)    PayloadState(modal_ref) = S_p    ModalSingleFieldPayload(modal_ref, S_p) = T_p    Γ ⊢ layout(T_p) ⇓ ⟨size, align⟩
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ModalLayout(modal_ref) ⇓ ⟨size, align, ⊥, layout(T_p)⟩
 
 **(Layout-Modal-Tagged)**
-¬ NicheApplies(M)    size = ModalSize(M)    align = ModalAlign(M)
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ModalLayout(M) ⇓ ⟨size, align, ModalDiscType(M), max_{S ∈ States(M)}(StateSize(M, S))⟩
+ModalDeclOf(modal_ref) = M    ¬ NicheApplies(modal_ref)    size = ModalSize(modal_ref)    align = ModalAlign(modal_ref)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ModalLayout(modal_ref) ⇓ ⟨size, align, ModalDiscType(modal_ref), max_{S ∈ States(M)}(StateSize(modal_ref, S))⟩
 
 **(Size-Modal)**
-T = TypePath(p)    Σ.Types[p] = `modal` M    ModalLayout(M) ⇓ ⟨size, _, _, _⟩
+T = ModalRefType(modal_ref)    ModalLayout(modal_ref) ⇓ ⟨size, _, _, _⟩
 ──────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ sizeof(T) = size
 
 **(Align-Modal)**
-T = TypePath(p)    Σ.Types[p] = `modal` M    ModalLayout(M) ⇓ ⟨_, align, _, _⟩
+T = ModalRefType(modal_ref)    ModalLayout(modal_ref) ⇓ ⟨_, align, _, _⟩
 ───────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ alignof(T) = align
 
 **(Layout-Modal)**
-T = TypePath(p)    Σ.Types[p] = `modal` M    ModalLayout(M) ⇓ ⟨size, align, _, _⟩
+T = ModalRefType(modal_ref)    ModalLayout(modal_ref) ⇓ ⟨size, align, _, _⟩
 ──────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ layout(T) ⇓ ⟨size, align⟩
 
 **(Size-ModalState)**
-T = TypeModalState(p, S)    Σ.Types[p] = `modal` M    S ∈ States(M)    StateSize(M, S) = size
+T = TypeModalState(modal_ref, S)    ModalDeclOf(modal_ref) = M    S ∈ States(M)    StateSize(modal_ref, S) = size
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ sizeof(T) = size
 
 **(Align-ModalState)**
-T = TypeModalState(p, S)    Σ.Types[p] = `modal` M    S ∈ States(M)    StateAlign(M, S) = align
+T = TypeModalState(modal_ref, S)    ModalDeclOf(modal_ref) = M    S ∈ States(M)    StateAlign(modal_ref, S) = align
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ alignof(T) = align
 
 **(Layout-ModalState)**
-T = TypeModalState(p, S)    Σ.Types[p] = `modal` M    S ∈ States(M)    StateSize(M, S) = size    StateAlign(M, S) = align
+T = TypeModalState(modal_ref, S)    ModalDeclOf(modal_ref) = M    S ∈ States(M)    StateSize(modal_ref, S) = size    StateAlign(modal_ref, S) = align
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ layout(T) ⇓ ⟨size, align⟩
 
@@ -12191,7 +14761,7 @@ T = TypeUnion([T_1, …, T_n])    UnionLayout(T) ⇓ ⟨size, align, _, _⟩
 Γ ⊢ ABITy(T) ⇓ ⟨size, align⟩
 
 **(ABI-Modal)**
-T = TypePath(p)    Σ.Types[p] = `modal` M    ModalLayout(M) ⇓ ⟨size, align, _, _⟩
+T = ModalRefType(modal_ref)    ModalLayout(modal_ref) ⇓ ⟨size, align, _, _⟩
 ──────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ABITy(T) ⇓ ⟨size, align⟩
 
@@ -12264,27 +14834,32 @@ PanicOutParams(params, callee) =
 #### 6.2.4. Call Lowering for Procedures and Methods
 
 LowerCallJudg = {MethodSymbol, BuiltinMethodSym, LowerMethodCall, LowerArgs, LowerRecvArg}
-ModalStateOf(T) = TypeModalState(p, S) ⇔ StripPerm(T) = TypeModalState(p, S)
-BuiltinCapClass = {`FileSystem`, `HeapAllocator`}
+ModalStateOf(T) = TypeModalState(modal_ref, S) ⇔ StripPerm(T) = TypeModalState(modal_ref, S)
+BuiltinCapClass = {`FileSystem`, `HeapAllocator`, `Reactor`}
+
+**(MethodSymbol-Record-Builtin)**
+LookupMethod(T, name) = m    m = MethodDecl(_, _, _, _, _, _, _, _, _, body, _, _)    body = ⊥    T = TypePath(p)    RecordDecl(p) = R    R.name ∈ BuiltinRecord    Γ ⊢ BuiltinSym(R.name::name) ⇓ sym
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ MethodSymbol(T, name) ⇓ sym
 
 **(MethodSymbol-Record)**
-LookupMethod(T, name) = m    m = MethodDecl(_)    Γ ⊢ Mangle(m) ⇓ sym
+LookupMethod(T, name) = m    m = MethodDecl(_, _, _, _, _, _, _, _, _, body, _, _)    body ≠ ⊥    Γ ⊢ Mangle(m) ⇓ sym
 ───────────────────────────────────────────────────────────────────────────
 Γ ⊢ MethodSymbol(T, name) ⇓ sym
 
 **(MethodSymbol-Default)**
-LookupMethod(T, name) = m    m = ClassMethodDecl(_)    m.body_opt ≠ ⊥    Γ ⊢ Mangle(DefaultImpl(T, m)) ⇓ sym
+LookupMethod(T, name) = m    m = ClassMethodDecl(_, _, _, _, _, _, _, _, _, _, _)    m.body_opt ≠ ⊥    Γ ⊢ Mangle(DefaultImpl(T, m)) ⇓ sym
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ MethodSymbol(T, name) ⇓ sym
 
 **(MethodSymbol-ModalState-Method)**
-ModalStateOf(T) = TypeModalState(p, S)    LookupStateMethod(S, name) = md    Γ ⊢ Mangle(md) ⇓ sym
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ModalStateOf(T) = TypeModalState(modal_ref, S)    ModalDeclOf(modal_ref) = M    LookupStateMethod(M, S, name) = md    Γ ⊢ Mangle(md) ⇓ sym
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ MethodSymbol(T, name) ⇓ sym
 
 **(MethodSymbol-ModalState-Transition)**
-ModalStateOf(T) = TypeModalState(p, S)    LookupTransition(S, name) = tr    Γ ⊢ Mangle(tr) ⇓ sym
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ModalStateOf(T) = TypeModalState(modal_ref, S)    ModalDeclOf(modal_ref) = M    LookupTransition(M, S, name) = tr    Γ ⊢ Mangle(tr) ⇓ sym
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ MethodSymbol(T, name) ⇓ sym
 
 **(BuiltinMethodSym-FileSystem)**
@@ -12359,13 +14934,14 @@ Join(sep, [s]) = s
 Join(sep, [s_1, …, s_n]) = s_1 ++ sep ++ Join(sep, [s_2, …, s_n])    (n ≥ 2)
 PathSig(p) = mangle(PathString(p))
 
-ItemPath(it) = PathOfModule(ModuleOf(it)) ++ [name] ⇔ it = ProcedureDecl(vis, name, params, ret_opt, body, span, doc)
+ItemPath(it) = PathOfModule(ModuleOf(it)) ++ [name] ⇔ it = ProcedureDecl(_, _, name, _, _, _, _, _, _, _, _)
+ItemPath(it) = PathOfModule(ModuleOf(it)) ++ [name] ⇔ it = ExternProcDecl(_, _, name, _, _, _, _, _, _, _, _)
 ItemPath(m) = RecordPath(R) ++ [m.name] ⇔ m ∈ Methods(R)
 ItemPath(m) = ClassPath(Cl) ++ [m.name] ⇔ m ∈ ClassMethods(Cl)
-ItemPath(m) = ModalPath(M) ++ [S] ++ [m.name] ⇔ S ∈ States(M) ∧ m ∈ Methods(S)
-ItemPath(tr) = ModalPath(M) ++ [S] ++ [tr.name] ⇔ S ∈ States(M) ∧ tr ∈ Transitions(S)
-ItemPath(it) = PathOfModule(ModuleOf(it)) ++ [StaticName(binding)] ⇔ it = StaticDecl(vis, mut, binding, span, doc) ∧ StaticName(binding) ≠ ⊥
-ItemPath(StaticBinding(StaticDecl(vis, mut, binding, span, doc), x)) = PathOfModule(ModuleOf(StaticDecl(vis, mut, binding, span, doc))) ++ [x]
+ItemPath(m) = ModalPath(M) ++ [S] ++ [m.name] ⇔ S ∈ States(M) ∧ m ∈ Methods(M, S)
+ItemPath(tr) = ModalPath(M) ++ [S] ++ [tr.name] ⇔ S ∈ States(M) ∧ tr ∈ Transitions(M, S)
+ItemPath(it) = PathOfModule(ModuleOf(it)) ++ [StaticName(binding)] ⇔ it = StaticDecl(_, _, _, binding, span, doc) ∧ StaticName(binding) ≠ ⊥
+ItemPath(StaticBinding(StaticDecl(attrs_opt, vis, mut, binding, span, doc), x)) = PathOfModule(ModuleOf(StaticDecl(attrs_opt, vis, mut, binding, span, doc))) ++ [x]
 ItemPath(VTableDecl(T, Cl)) = ["vtable"] ++ PathOfType(T) ++ ["cl"] ++ ClassPath(Cl)
 ItemPath(DefaultImpl(T, m)) = ["default"] ++ PathOfType(T) ++ ["cl"] ++ ClassPath(Cl) ++ [m.name] ⇔ m ∈ ClassMethods(Cl)
 
@@ -12375,7 +14951,7 @@ PathOfType(TypePrim(name)) = ["prim", name]
 PathOfType(TypeString(st)) = ["string", TypeStateName(st)]
 PathOfType(TypeBytes(st)) = ["bytes", TypeStateName(st)]
 PathOfType(TypePath(p)) = p
-PathOfType(TypeModalState(p, S)) = p ++ [S]
+PathOfType(TypeModalState(modal_ref, S)) = ModalRefPath(modal_ref) ++ [S]
 PathOfType(T) = ⊥ ⇔ T ∉ {TypePrim(_), TypeString(_), TypeBytes(_), TypePath(_), TypeModalState(_, _)}
 ClassPath(Cl) = p ⇔ Σ.Classes[p] = Cl
 
@@ -12391,44 +14967,81 @@ LiteralID(kind, contents) = mangle(kind) ++ "_" ++ Hex64(FNV1a64(contents))
 **Mangle Rules.**
 
 ScopedSym(item) = PathSig(ItemPath(item))
+RawSym(s) = s
+
+AttrListOf(item) = attrs    if item.attrs_opt = attrs
+AttrListOf(item) = []       if item.attrs_opt = ⊥
+AttrByName(item, n) = [a | a ∈ AttrListOf(item) ∧ a.name = n]
+SymbolAttr(item) = s ⇔ ∃ a ∈ AttrByName(item, "symbol"). a.args = [StringLiteral(s)]
+NoMangleAttr(item) ⇔ AttrByName(item, "no_mangle") ≠ []
+ExportAttr(item) = ⟨abi, link_name_opt⟩ ⇔ ∃ a ∈ AttrByName(item, "export"). ExportArgs(a) = ⟨abi, link_name_opt⟩
+
+ExportArgs(a) = ⟨abi, link_name_opt⟩ ⇔
+ a.args = [StringLiteral(abi)] ∧ link_name_opt = ⊥
+ a.args = [StringLiteral(abi), ⟨"link_name", StringLiteral(s)⟩] ∧ link_name_opt = s
+
+StringText(tok) = s ⇔ tok.kind = StringLiteral ∧ T = Lexeme(tok) ∧ StringBytesFrom(T, 1, |T|-1) = bytes ∧ DecodeUTF8(bytes) = s
+ExternAbiName(abi_opt) = "C"    if abi_opt = ⊥
+ExternAbiName(abi_opt) = s      if abi_opt = IdentAbi(s)
+ExternAbiName(abi_opt) = s      if abi_opt = StringAbi(tok) ∧ StringText(tok) = s
+ExternAbiExplicit(abi_opt) ⇔ abi_opt ≠ ⊥
+ExternAbiOf(proc) = abi_opt ⇔ ExternBlockOf(proc) = ExternBlock(_, _, abi_opt, _, _, _)
+ExternRawName(proc) ⇔ proc = ExternProcDecl(_, _, _, _, _, _, _, _, _, _, _) ∧ ExternAbiName(ExternAbiOf(proc)) ∈ {"C", "C-unwind"}
+
+LinkName(item) = sym ⇔
+ SymbolAttr(item) = s                          ∧ sym = RawSym(s)
+ SymbolAttr(item) undefined ∧ ExportAttr(item) = ⟨_, s⟩ ∧ s ≠ ⊥ ∧ sym = RawSym(s)
+ SymbolAttr(item) undefined ∧ NoMangleAttr(item)          ∧ sym = RawSym(ItemName(item))
+ SymbolAttr(item) undefined ∧ ExternRawName(item)         ∧ sym = RawSym(ItemName(item))
+ SymbolAttr(item) undefined ∧ ExportAttr(item) defined    ∧ sym = ScopedSym(item)
+ SymbolAttr(item) undefined ∧ ExportAttr(item) undefined  ∧ sym = ScopedSym(item)
+
+ItemName(item) = name ⇔ item = ProcedureDecl(_, _, name, _, _, _, _, _, _, _, _)
+ItemName(item) = name ⇔ item = ExternProcDecl(_, _, name, _, _, _, _, _, _, _, _)
+ItemName(item) = name ⇔ item = StaticDecl(_, _, _, ⟨IdentifierPattern(name), _, _, _, _⟩, _, _)
 
 **(Mangle-Proc)**
-item = ProcedureDecl(vis, name, params, ret_opt, body, span, doc)    name ≠ "main"
+item = ProcedureDecl(attrs_opt, vis, name, gen_params_opt, where_clause_opt, params, ret_opt, contract_opt, body, span, doc)    name ≠ "main"    LinkName(item) = sym
 ─────────────────────────────────────────────────────────────────────────────
-Γ ⊢ Mangle(item) ⇓ ScopedSym(item)
+Γ ⊢ Mangle(item) ⇓ sym
+
+**(Mangle-ExternProc)**
+item = ExternProcDecl(attrs_opt, vis, name, gen_params_opt, where_clause_opt, params, ret_opt, contract_opt, foreign_contracts_opt, span, doc)    LinkName(item) = sym
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Mangle(item) ⇓ sym
 
 **(Mangle-Main)**
-item = ProcedureDecl(vis, "main", params, ret_opt, body, span, doc)    MainSigOk(item)
+item = ProcedureDecl(attrs_opt, vis, "main", gen_params_opt, where_clause_opt, params, ret_opt, contract_opt, body, span, doc)    MainSigOk(item)    LinkName(item) = sym
 ──────────────────────────────────────────────────────────────────────────────
-Γ ⊢ Mangle(item) ⇓ ScopedSym(item)
+Γ ⊢ Mangle(item) ⇓ sym
 
 **(Mangle-Record-Method)**
-item = MethodDecl(vis, override, name, receiver, params, ret_opt, body, span, doc_opt)
+item = MethodDecl(attrs_opt, vis, override, name, gen_params_opt, receiver, params, ret_opt, contract_opt, body, span, doc_opt)
 ──────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Mangle(item) ⇓ ScopedSym(item)
 
 **(Mangle-Class-Method)**
-item = ClassMethodDecl(vis, name, receiver, params, ret_opt, body_opt, span, doc_opt)
+item = ClassMethodDecl(attrs_opt, vis, name, gen_params_opt, receiver, params, ret_opt, contract_opt, body_opt, span, doc_opt)
 ──────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Mangle(item) ⇓ ScopedSym(item)
 
 **(Mangle-State-Method)**
-item = StateMethodDecl(vis, name, params, ret_opt, body, span, doc_opt)
+item = StateMethodDecl(attrs_opt, vis, name, gen_params_opt, recv, params, ret_opt, contract_opt, body, span, doc_opt)
 ──────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Mangle(item) ⇓ ScopedSym(item)
 
 **(Mangle-Transition)**
-item = TransitionDecl(vis, name, params, target, body, span, doc_opt)
+item = TransitionDecl(attrs_opt, vis, name, params, target, body, span, doc_opt)
 ──────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Mangle(item) ⇓ ScopedSym(item)
 
 **(Mangle-Static)**
-item = StaticDecl(vis, mut, binding, span, doc)    StaticName(binding) ≠ ⊥
+item = StaticDecl(attrs_opt, vis, mut, binding, span, doc)    StaticName(binding) ≠ ⊥
 ──────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Mangle(item) ⇓ ScopedSym(item)
 
 **(Mangle-StaticBinding)**
-item = StaticBinding(StaticDecl(_, _, binding, _, _), x)
+item = StaticBinding(StaticDecl(_, _, _, binding, _, _), x)
 ──────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Mangle(item) ⇓ ScopedSym(item)
 
@@ -12457,48 +15070,53 @@ item ∈ {ProcedureDecl, StaticDecl, MethodDecl}    Vis(item) ∈ {`public`, `in
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Linkage(sym) ⇓ `external`
 
+**(Linkage-ExternProc)**
+item = ExternProcDecl(_, _, _, _, _, _, _, _, _, _, _)    Γ ⊢ Mangle(item) ⇓ sym
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Linkage(sym) ⇓ `external`
+
 **(Linkage-UserItem-Internal)**
 item ∈ {ProcedureDecl, StaticDecl, MethodDecl}    Vis(item) = `private`    Γ ⊢ Mangle(item) ⇓ sym
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Linkage(sym) ⇓ `internal`
 
 **(Linkage-StaticBinding)**
-item = StaticBinding(StaticDecl(vis, _, _, _, _), x)    vis ∈ {`public`, `internal`}    Γ ⊢ Mangle(item) ⇓ sym
+item = StaticBinding(StaticDecl(_, vis, _, _, _, _), x)    vis ∈ {`public`, `internal`}    Γ ⊢ Mangle(item) ⇓ sym
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Linkage(sym) ⇓ `external`
 
 **(Linkage-StaticBinding-Internal)**
-item = StaticBinding(StaticDecl(vis, _, _, _, _), x)    vis = `private`    Γ ⊢ Mangle(item) ⇓ sym
+item = StaticBinding(StaticDecl(_, vis, _, _, _, _), x)    vis = `private`    Γ ⊢ Mangle(item) ⇓ sym
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Linkage(sym) ⇓ `internal`
 
 **(Linkage-ClassMethod)**
-item = ClassMethodDecl(vis, name, receiver, params, ret_opt, body_opt, span, doc_opt)    body_opt ≠ ⊥    Vis(item) ∈ {`public`, `internal`, `protected`}    Γ ⊢ Mangle(item) ⇓ sym
+item = ClassMethodDecl(attrs_opt, vis, name, gen_params_opt, receiver, params, ret_opt, contract_opt, body_opt, span, doc_opt)    body_opt ≠ ⊥    Vis(item) ∈ {`public`, `internal`, `protected`}    Γ ⊢ Mangle(item) ⇓ sym
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Linkage(sym) ⇓ `external`
 
 **(Linkage-ClassMethod-Internal)**
-item = ClassMethodDecl(vis, name, receiver, params, ret_opt, body_opt, span, doc_opt)    body_opt ≠ ⊥    Vis(item) = `private`    Γ ⊢ Mangle(item) ⇓ sym
+item = ClassMethodDecl(attrs_opt, vis, name, gen_params_opt, receiver, params, ret_opt, contract_opt, body_opt, span, doc_opt)    body_opt ≠ ⊥    Vis(item) = `private`    Γ ⊢ Mangle(item) ⇓ sym
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Linkage(sym) ⇓ `internal`
 
 **(Linkage-StateMethod)**
-item = StateMethodDecl(vis, name, params, ret_opt, body, span, doc_opt)    Vis(item) ∈ {`public`, `internal`, `protected`}    Γ ⊢ Mangle(item) ⇓ sym
+item = StateMethodDecl(attrs_opt, vis, name, gen_params_opt, recv, params, ret_opt, contract_opt, body, span, doc_opt)    Vis(item) ∈ {`public`, `internal`, `protected`}    Γ ⊢ Mangle(item) ⇓ sym
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Linkage(sym) ⇓ `external`
 
 **(Linkage-StateMethod-Internal)**
-item = StateMethodDecl(vis, name, params, ret_opt, body, span, doc_opt)    Vis(item) = `private`    Γ ⊢ Mangle(item) ⇓ sym
+item = StateMethodDecl(attrs_opt, vis, name, gen_params_opt, recv, params, ret_opt, contract_opt, body, span, doc_opt)    Vis(item) = `private`    Γ ⊢ Mangle(item) ⇓ sym
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Linkage(sym) ⇓ `internal`
 
 **(Linkage-Transition)**
-item = TransitionDecl(vis, name, params, target, body, span, doc_opt)    Vis(item) ∈ {`public`, `internal`, `protected`}    Γ ⊢ Mangle(item) ⇓ sym
+item = TransitionDecl(attrs_opt, vis, name, params, target, body, span, doc_opt)    Vis(item) ∈ {`public`, `internal`, `protected`}    Γ ⊢ Mangle(item) ⇓ sym
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Linkage(sym) ⇓ `external`
 
 **(Linkage-Transition-Internal)**
-item = TransitionDecl(vis, name, params, target, body, span, doc_opt)    Vis(item) = `private`    Γ ⊢ Mangle(item) ⇓ sym
+item = TransitionDecl(attrs_opt, vis, name, params, target, body, span, doc_opt)    Vis(item) = `private`    Γ ⊢ Mangle(item) ⇓ sym
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Linkage(sym) ⇓ `internal`
 
@@ -12585,6 +15203,30 @@ OptExprs(⊥, e) = [e]
 **(OptExprs-Both)**
 OptExprs(e_1, e_2) = [e_1, e_2]
 
+ParallelOptExprs([]) = []
+ParallelOptExprs(Cancel(e) :: os) = [e] ++ ParallelOptExprs(os)
+ParallelOptExprs(Name(_) :: os) = ParallelOptExprs(os)
+
+SpawnOptExprs([]) = []
+SpawnOptExprs(Name(_) :: os) = SpawnOptExprs(os)
+SpawnOptExprs(Affinity(e) :: os) = [e] ++ SpawnOptExprs(os)
+SpawnOptExprs(Priority(e) :: os) = [e] ++ SpawnOptExprs(os)
+
+DispatchOptExprs([]) = []
+DispatchOptExprs(Reduce(_) :: os) = DispatchOptExprs(os)
+DispatchOptExprs(Ordered :: os) = DispatchOptExprs(os)
+DispatchOptExprs(Chunk(e) :: os) = [e] ++ DispatchOptExprs(os)
+
+KeySegExprs([]) = []
+KeySegExprs(Field(_, _) :: ss) = KeySegExprs(ss)
+KeySegExprs(Index(_, e) :: ss) = [e] ++ KeySegExprs(ss)
+KeyPathExprs(⟨root, segs⟩) = KeySegExprs(segs)
+KeyClauseExprs(⊥) = []
+KeyClauseExprs(⟨path, mode⟩) = KeyPathExprs(path)
+
+RaceArmExprs([]) = []
+RaceArmExprs(⟨e, _, _⟩ :: as) = [e] ++ RaceArmExprs(as)
+
 LowerExprJudg = {LowerExpr, LowerUnOp, LowerBinOp, LowerCast, LowerList, LowerFieldInits, LowerOpt, LowerReadPlace, LowerWritePlace, LowerMovePlace, LowerAddrOf, LowerPlace}
 
 **(EvalOrder-Literal)** `Children_LTR(Literal(â„“)) = []`.
@@ -12614,6 +15256,7 @@ LowerExprJudg = {LowerExpr, LowerUnOp, LowerBinOp, LowerCast, LowerList, LowerFi
 **(EvalOrder-IndexAccess)** `Children_LTR(IndexAccess(base, idx)) = [base, idx]`.
   
 **(EvalOrder-Call)** `Children_LTR(Call(callee, args)) = [callee] ++ ArgsExprs(args)`.
+**(EvalOrder-Call-TypeArgs)** `Children_LTR(CallTypeArgs(callee, type_args, args)) = [callee] ++ ArgsExprs(args)`.
   
 **(EvalOrder-MethodCall)** `Children_LTR(MethodCall(base, name, args)) = [base] ++ ArgsExprs(args)`.
   
@@ -12646,6 +15289,24 @@ LowerExprJudg = {LowerExpr, LowerUnOp, LowerBinOp, LowerCast, LowerList, LowerFi
 **(EvalOrder-Deref)** `Children_LTR(Deref(e)) = [e]`.
   
 **(EvalOrder-Alloc)** `Children_LTR(AllocExpr(r_opt, e)) = [e]`.
+
+**(EvalOrder-Parallel)** `Children_LTR(ParallelExpr(domain, opts, body)) = [domain] ++ ParallelOptExprs(opts)`.
+
+**(EvalOrder-Spawn)** `Children_LTR(SpawnExpr(opts, body)) = SpawnOptExprs(opts)`.
+
+**(EvalOrder-Dispatch)** `Children_LTR(DispatchExpr(pat, range, key_clause_opt, opts, body)) = [range] ++ KeyClauseExprs(key_clause_opt) ++ DispatchOptExprs(opts)`.
+
+**(EvalOrder-Wait)** `Children_LTR(WaitExpr(handle)) = [handle]`.
+
+**(EvalOrder-Yield)** `Children_LTR(YieldExpr(release_opt, e)) = [e]`.
+
+**(EvalOrder-YieldFrom)** `Children_LTR(YieldFromExpr(release_opt, e)) = [e]`.
+
+**(EvalOrder-Sync)** `Children_LTR(SyncExpr(e)) = [e]`.
+
+**(EvalOrder-Race)** `Children_LTR(RaceExpr(arms)) = RaceArmExprs(arms)`.
+
+**(EvalOrder-All)** `Children_LTR(AllExpr(es)) = es`.
 
 RetType(Γ) = R ⇔ ProcRet(Γ) = R
 
@@ -13583,7 +16244,7 @@ EnumValuePath(v) = path    EnumPath(path) = p    T = TypePath(p)    EnumDecl(p) 
 Γ ⊢ TagOf(v, T) ⇓ d
 
 **(TagOf-Modal)**
-v = ⟨S, v_S⟩    T = TypePath(p)    Σ.Types[p] = `modal` M    StateIndex(M, S) = i
+v = ⟨S, v_S⟩    T = ModalRefType(modal_ref)    ModalDeclOf(modal_ref) = M    StateIndex(M, S) = i
 ───────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ TagOf(v, T) ⇓ i
 
@@ -13633,22 +16294,22 @@ StaticBindList(binding) = PatNames(pat) ⇔ binding = ⟨pat, _, _, _, _⟩
 
 StaticBinding : StaticDecl × Name → StaticDecl
 
-StaticSym(StaticDecl(_, _, binding, _, _), x) =
- Mangle(StaticDecl(_, _, binding, _, _))    if StaticName(binding) = x
- Mangle(StaticBinding(StaticDecl(_, _, binding, _, _), x))    otherwise
+StaticSym(StaticDecl(_, _, _, binding, _, _), x) =
+ Mangle(StaticDecl(_, _, _, binding, _, _))    if StaticName(binding) = x
+ Mangle(StaticBinding(StaticDecl(_, _, _, binding, _, _), x))    otherwise
 
 **(Emit-Static-Const)**
-item = StaticDecl(vis, mut, binding, span, doc)    StaticName(binding) = name    binding = ⟨pat, ty_opt, op, init, _⟩    Γ ⊢ ConstInit(init) ⇓ bytes    Γ ⊢ Mangle(item) ⇓ sym
+item = StaticDecl(attrs_opt, vis, mut, binding, span, doc)    StaticName(binding) = name    binding = ⟨pat, ty_opt, op, init, _⟩    Γ ⊢ ConstInit(init) ⇓ bytes    Γ ⊢ Mangle(item) ⇓ sym
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ EmitGlobal(item) ⇓ [GlobalConst(sym, bytes)]
 
 **(Emit-Static-Init)**
-item = StaticDecl(vis, mut, binding, span, doc)    StaticName(binding) = name    binding = ⟨pat, ty_opt, op, init, _⟩    Γ ⊢ ConstInit(init) ⇑    T = ExprType(init)    Γ ⊢ Mangle(item) ⇓ sym
+item = StaticDecl(attrs_opt, vis, mut, binding, span, doc)    StaticName(binding) = name    binding = ⟨pat, ty_opt, op, init, _⟩    Γ ⊢ ConstInit(init) ⇑    T = ExprType(init)    Γ ⊢ Mangle(item) ⇓ sym
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ EmitGlobal(item) ⇓ [GlobalZero(sym, sizeof(T))]
 
 **(Emit-Static-Multi)**
-item = StaticDecl(vis, mut, binding, span, doc)    StaticName(binding) = ⊥    StaticBindTypes(binding) = B    StaticBindList(binding) = [x_1, …, x_k]    ∀ i, Γ ⊢ Mangle(StaticBinding(item, x_i)) ⇓ sym_i
+item = StaticDecl(attrs_opt, vis, mut, binding, span, doc)    StaticName(binding) = ⊥    StaticBindTypes(binding) = B    StaticBindList(binding) = [x_1, …, x_k]    ∀ i, Γ ⊢ Mangle(StaticBinding(item, x_i)) ⇓ sym_i
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ EmitGlobal(item) ⇓ [GlobalZero(sym_1, sizeof(B[x_1])), …, GlobalZero(sym_k, sizeof(B[x_k]))]
 
@@ -13666,9 +16327,9 @@ DeinitSym(m) = sym
 ──────────────────────────────
 Γ ⊢ DeinitFn(m) ⇓ sym
 
-StaticItems(P, m) = [ item | item ∈ ASTModule(P, m).items ∧ item = StaticDecl(_, _, _, _, _) ]
+StaticItems(P, m) = [ item | item ∈ ASTModule(P, m).items ∧ item = StaticDecl(_, _, _, _, _, _) ]
 
-StaticItemOf(path, name) = item ⇔ m = path ∧ item ∈ StaticItems(Project(Γ), m) ∧ item = StaticDecl(_, _, binding, _, _) ∧ name ∈ StaticBindList(binding) ∧ ∀ item'. (item' ∈ StaticItems(Project(Γ), m) ∧ item' = StaticDecl(_, _, binding', _, _) ∧ name ∈ StaticBindList(binding')) ⇒ item' = item
+StaticItemOf(path, name) = item ⇔ m = path ∧ item ∈ StaticItems(Project(Γ), m) ∧ item = StaticDecl(_, _, _, binding, _, _) ∧ name ∈ StaticBindList(binding) ∧ ∀ item'. (item' ∈ StaticItems(Project(Γ), m) ∧ item' = StaticDecl(_, _, _, binding', _, _) ∧ name ∈ StaticBindList(binding')) ⇒ item' = item
 
 StaticSymPath(path, name) = StaticSym(item, name) ⇔ StaticItemOf(path, name) = item
 
@@ -13676,9 +16337,9 @@ StaticAddr(path, name) = addr ⇔ ∃ sym. StaticSymPath(path, name) = sym ∧ A
 
 AddrOfSym : Symbol → Addr
 
-StaticType(path, name) = StaticBindTypes(binding)[name] ⇔ StaticItemOf(path, name) = StaticDecl(_, mut, binding, _, _)
+StaticType(path, name) = StaticBindTypes(binding)[name] ⇔ StaticItemOf(path, name) = StaticDecl(_, _, mut, binding, _, _)
 
-StaticBindInfo(path, name) = BindInfoMap(λ U. RespOfInit(init), StaticBindTypes(binding), MovOf(op), mut)[name] ⇔ StaticItemOf(path, name) = StaticDecl(_, mut, binding, _, _) ∧ binding = ⟨_, _, op, init, _⟩
+StaticBindInfo(path, name) = BindInfoMap(λ U. RespOfInit(init), StaticBindTypes(binding), MovOf(op), mut)[name] ⇔ StaticItemOf(path, name) = StaticDecl(_, _, mut, binding, _, _) ∧ binding = ⟨_, _, op, init, _⟩
 
 SeqIRList([]) = ε
 SeqIRList([IR] ++ IRs) = SeqIR(IR, SeqIRList(IRs))
@@ -13687,7 +16348,7 @@ StaticStoreIR(item, []) = ε
 StaticStoreIR(item, [⟨x, v⟩] ++ bs) = SeqIR(StoreGlobal(StaticSym(item, x), v), StaticStoreIR(item, bs))
 
 **(Lower-StaticInit-Item)**
-item = StaticDecl(vis, mut, binding, span, doc)    binding = ⟨pat, ty_opt, op, init, _⟩    Γ ⊢ LowerExpr(init) ⇓ ⟨IR_e, v⟩    Γ ⊢ MatchPattern(pat, v) ⇓ B    BindOrder(pat, B) = binds    Γ ⊢ InitPanicHandle(m) ⇓ IR_p
+item = StaticDecl(attrs_opt, vis, mut, binding, span, doc)    binding = ⟨pat, ty_opt, op, init, _⟩    Γ ⊢ LowerExpr(init) ⇓ ⟨IR_e, v⟩    Γ ⊢ MatchPattern(pat, v) ⇓ B    BindOrder(pat, B) = binds    Γ ⊢ InitPanicHandle(m) ⇓ IR_p
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Lower-StaticInitItem(m, item) ⇓ SeqIR(IR_e, StaticStoreIR(item, binds), IR_p)
 
@@ -13728,7 +16389,7 @@ StaticBindInfo(path, x).resp ≠ resp    Γ ⊢ Lower-StaticDeinitNames(path, it
 Γ ⊢ Lower-StaticDeinitNames(path, item, [x] ++ xs) ⇓ IR_r
 
 **(Lower-StaticDeinit-Item)**
-item = StaticDecl(vis, mut, binding, span, doc)    binding = ⟨pat, _, _, _, _⟩    xs = Rev(StaticBindList(binding))    Γ ⊢ Lower-StaticDeinitNames(PathOfModule(m), item, xs) ⇓ IR
+item = StaticDecl(attrs_opt, vis, mut, binding, span, doc)    binding = ⟨pat, _, _, _, _⟩    xs = Rev(StaticBindList(binding))    Γ ⊢ Lower-StaticDeinitNames(PathOfModule(m), item, xs) ⇓ IR
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Lower-StaticDeinitItem(m, item) ⇓ IR
 
@@ -13937,6 +16598,14 @@ ModalLayout(`Region`) ⇓ ⟨size, align, disc, payload⟩
 ──────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ BuiltinSym(`HeapAllocator::dealloc_raw`) ⇓ PathSig(["cursive", "runtime", "heap", "dealloc_raw"])
 
+**(BuiltinSym-Reactor-Run)**
+──────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ BuiltinSym(`Reactor::run`) ⇓ PathSig(["cursive", "runtime", "reactor", "run"])
+
+**(BuiltinSym-Reactor-Register)**
+───────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ BuiltinSym(`Reactor::register`) ⇓ PathSig(["cursive", "runtime", "reactor", "register"])
+
 ### 6.10. Dynamic Dispatch
 
 DynDispatchJudg = {VTable, VSlot, DynPack, LowerDynCall}
@@ -13944,7 +16613,7 @@ DynDispatchJudg = {VTable, VSlot, DynPack, LowerDynCall}
 VTableEligible(Cl) = [ m ∈ EffMethods(Cl) | vtable_eligible(m) ].
 
 **(DispatchSym-Impl)**
-LookupClassMethod(Cl, name) = m    MethodByName(T, name) = m'    Sig_T(T, m') = Sig_T(T, m)    Γ ⊢ Mangle(m') ⇓ sym
+LookupClassMethod(Cl, name) = m    MethodByName(T, name) = m'    SigMatch(T, m', m)    Γ ⊢ Mangle(m') ⇓ sym
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ DispatchSym(T, Cl, name) ⇓ sym
 
@@ -13954,7 +16623,7 @@ LookupClassMethod(Cl, name) = m    MethodByName(T, name) = ⊥    m.body_opt ≠
 Γ ⊢ DispatchSym(T, Cl, name) ⇓ sym
 
 **(DispatchSym-Default-Mismatch)**
-LookupClassMethod(Cl, name) = m    MethodByName(T, name) = m'    Sig_T(T, m') ≠ Sig_T(T, m)    m.body_opt ≠ ⊥    Γ ⊢ Mangle(DefaultImpl(T, m)) ⇓ sym
+LookupClassMethod(Cl, name) = m    MethodByName(T, name) = m'    ¬ SigMatch(T, m', m)    m.body_opt ≠ ⊥    Γ ⊢ Mangle(DefaultImpl(T, m)) ⇓ sym
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ DispatchSym(T, Cl, name) ⇓ sym
 
@@ -14159,6 +16828,7 @@ RuntimeDeclJudg = {RuntimeSig(sym) ⇓ ⟨params, ret⟩, BuiltinSig(method) ⇓
 
 BuiltinSig(`FileSystem`::name) = ⟨[⟨⊥, `self`, TypePerm(CapRecv(`FileSystem`, name), TypeDynamic(`FileSystem`))⟩] ++ params, ret⟩ ⇔ CapMethodSig(`FileSystem`, name) = ⟨params, ret⟩
 BuiltinSig(`HeapAllocator`::name) = ⟨[⟨⊥, `self`, TypePerm(CapRecv(`HeapAllocator`, name), TypeDynamic(`HeapAllocator`))⟩] ++ params, ret⟩ ⇔ CapMethodSig(`HeapAllocator`, name) = ⟨params, ret⟩
+BuiltinSig(`Reactor`::name) = ⟨[⟨⊥, `self`, TypePerm(CapRecv(`Reactor`, name), TypeDynamic(`Reactor`))⟩] ++ params, ret⟩ ⇔ CapMethodSig(`Reactor`, name) = ⟨params, ret⟩
 BuiltinSig(method) = ⟨params, ret⟩ ⇔ StringBytesBuiltinSig(method) = ⟨params, ret⟩
 
 RuntimeSig(PanicSym) = ⟨[⟨⊥, `code`, TypePrim("u32")⟩], TypePrim("!")⟩
@@ -14297,24 +16967,24 @@ T = TypeUnion([T_1, …, T_n])    UnionLayout(T) ⇓ ⟨size, _, disc, payload_s
 Γ ⊢ LLVMTy(T) ⇓ LLVMStruct(elems)
 
 **(LLVMTy-Modal-Niche)**
-T = TypePath(p)    Σ.Types[p] = `modal` M    NicheApplies(M)    PayloadState(M) = S_p    SingleFieldPayload(M, S_p) = T_p    Γ ⊢ LLVMTy(T_p) ⇓ τ
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+T = ModalRefType(modal_ref)    ModalDeclOf(modal_ref) = M    NicheApplies(modal_ref)    PayloadState(modal_ref) = S_p    ModalSingleFieldPayload(modal_ref, S_p) = T_p    Γ ⊢ LLVMTy(T_p) ⇓ τ
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LLVMTy(T) ⇓ τ
 
 **(LLVMTy-Modal-Tagged)**
-T = TypePath(p)    Σ.Types[p] = `modal` M    ModalLayout(M) ⇓ ⟨size, _, disc, payload_size⟩    disc ≠ ⊥    payload_align = max_{S ∈ States(M)}(StateAlign(M, S))    TaggedElems(disc, payload_size, payload_align, size) = elems
+T = ModalRefType(modal_ref)    ModalDeclOf(modal_ref) = M    ModalLayout(modal_ref) ⇓ ⟨size, _, disc, payload_size⟩    disc ≠ ⊥    payload_align = max_{S ∈ States(M)}(StateAlign(modal_ref, S))    TaggedElems(disc, payload_size, payload_align, size) = elems
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LLVMTy(T) ⇓ LLVMStruct(elems)
 
 **(LLVMTy-Modal-StringBytes)**
-BaseModal(TypeString(⊥)) = `string`
-BaseModal(TypeBytes(⊥)) = `bytes`
-T ∈ {TypeString(⊥), TypeBytes(⊥)}    ModalLayout(BaseModal(T)) ⇓ ⟨size, _, disc, payload_size⟩    (disc = ⊥ ⇒ PayloadState(BaseModal(T)) = S_p ∧ SingleFieldPayload(BaseModal(T), S_p) = T_p ∧ Γ ⊢ LLVMTy(T_p) ⇓ τ)    (disc ≠ ⊥ ⇒ payload_align = max_{S ∈ States(BaseModal(T))}(StateAlign(BaseModal(T), S)) ∧ TaggedElems(disc, payload_size, payload_align, size) = elems)
+BaseModal(TypeString(⊥)) = TypePath(["string"])
+BaseModal(TypeBytes(⊥)) = TypePath(["bytes"])
+T ∈ {TypeString(⊥), TypeBytes(⊥)}    ModalLayout(BaseModal(T)) ⇓ ⟨size, _, disc, payload_size⟩    (disc = ⊥ ⇒ PayloadState(BaseModal(T)) = S_p ∧ ModalSingleFieldPayload(BaseModal(T), S_p) = T_p ∧ Γ ⊢ LLVMTy(T_p) ⇓ τ)    (disc ≠ ⊥ ⇒ ModalDeclOf(BaseModal(T)) = M ∧ payload_align = max_{S ∈ States(M)}(StateAlign(BaseModal(T), S)) ∧ TaggedElems(disc, payload_size, payload_align, size) = elems)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LLVMTy(T) ⇓ (τ if disc = ⊥ else LLVMStruct(elems))
 
 **(LLVMTy-ModalState)**
-T = TypeModalState(p, S)    Σ.Types[p] = `modal` M    S ∈ States(M)    Payload(M, S) = fields    RecordLayout(fields) ⇓ ⟨size, _, offsets⟩    StructElems(fields, offsets, size) = elems
+T = TypeModalState(modal_ref, S)    ModalDeclOf(modal_ref) = M    S ∈ States(M)    ModalPayload(modal_ref, S) = fields    RecordLayout(fields) ⇓ ⟨size, _, offsets⟩    StructElems(fields, offsets, size) = elems
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LLVMTy(T) ⇓ LLVMStruct(elems)
 
@@ -14353,7 +17023,7 @@ LLVMTy(T) undefined
 LLVMEmitJudg = {LowerIR(ModuleIR) ⇓ LLVMIR, EmitLLVM(LLVMIR) ⇓ bytes, EmitObj(LLVMIR) ⇓ bytes}
 
 RuntimeSyms = {PanicSym, StringDropSym, BytesDropSym, ContextInitSym} ∪ {RegionSym(proc) | proc ∈ RegionProcs} ∪ {BuiltinSym(method) | method ∈ BuiltinMethods}
-BuiltinMethods = StringBuiltins ∪ BytesBuiltins ∪ {`FileSystem`::name | ⟨name, recv, params, ret⟩ ∈ FileSystemInterface} ∪ {`HeapAllocator`::name | ⟨name, recv, params, ret⟩ ∈ HeapAllocatorInterface}
+BuiltinMethods = StringBuiltins ∪ BytesBuiltins ∪ {`FileSystem`::name | ⟨name, recv, params, ret⟩ ∈ FileSystemInterface} ∪ {`HeapAllocator`::name | ⟨name, recv, params, ret⟩ ∈ HeapAllocatorInterface} ∪ {`Reactor`::name | name ∈ ReactorMethodNames}
 RefSyms : IR → 𝒫(Symbol)
 RefSyms([]) = ∅
 RefSyms([d] ++ ds) = RefSyms(d) ∪ RefSyms(ds)
@@ -14507,7 +17177,7 @@ LenLit(n) = IntLiteral(IntValue = n)
 StaticType(sym) =
  TypeArray(TypePrim("u8"), LenLit(|bytes|))    if sym = Mangle(LiteralData(kind, bytes))
  StaticBindTypes(sym)                          otherwise
-ProcModule(sym) = m ⇔ ∃ item, p. item = ProcedureDecl(_, _, _, _, _, _, _) ∧ ItemPath(item) = p ∧ sym = ScopedSym(item) ∧ ModuleOfPath(p) = m
+ProcModule(sym) = m ⇔ ∃ item, p. item = ProcedureDecl(_, _, _, _, _, _, _, _, _, _, _) ∧ ItemPath(item) = p ∧ sym = ScopedSym(item) ∧ ModuleOfPath(p) = m
 SigOf(callee) =
  ⟨params, ret⟩    if callee = Mangle(d) ∧ d ∈ {ProcedureDecl, MethodDecl, DefaultImpl} ∧ Sig(d) = ⟨params, ret⟩
  RuntimeSig(sym)  if callee = sym ∧ RuntimeSig(sym) defined
@@ -14648,7 +17318,8 @@ ValueType((v_1, …, v_n)) = TypeTuple([T_1, …, T_n]) ⇔ ∀ i. ValueType(v_i
 ValueType([v_1, …, v_n]) = TypeArray(T, Literal(IntLiteral(n))) ⇔ ∀ i. ValueType(v_i) = T
 ValueType(SliceValue(v, r)) = TypeSlice(T) ⇔ ValueType(v) = TypeArray(T, _) ∨ ValueType(v) = TypeSlice(T)
 ValueType(RecordValue(TypePath(p), fs)) = TypePath(p)
-ValueType(RecordValue(ModalStateRef(p, S), fs)) = TypeModalState(p, S)
+ValueType(RecordValue(ModalStateRef(modal_ref, S), fs)) = TypeModalState(modal_ref, S)
+ValueType(ModalVal(S, v_s)) = ModalRefType(modal_ref) ⇔ ValueType(v_s) = TypeModalState(modal_ref, S)
 ValueType(EnumValue(path, payload)) = TypePath(p) ⇔ EnumPath(path) = p
 ValueType(RangeVal(k, lo, hi)) = TypeRange
 ValueType(Dyn(Cl, RawPtr(`imm`, addr), T)) = TypeDynamic(Cl)
@@ -14658,7 +17329,6 @@ ValueType(v) = TypeBytes(`@View`) ⇔ v ∈ `bytes@View`
 ValueType(v) = TypeBytes(`@Managed`) ⇔ v ∈ `bytes@Managed`
 ValueType(v) = TypeString(⊥) ⇔ ValueType(v) = TypeString(`@View`) ∨ ValueType(v) = TypeString(`@Managed`)
 ValueType(v) = TypeBytes(⊥) ⇔ ValueType(v) = TypeBytes(`@View`) ∨ ValueType(v) = TypeBytes(`@Managed`)
-ValueType(v) = TypePath(p) ⇔ ∃ S, M. ValueType(v) = TypeModalState(p, S) ∧ Σ.Types[p] = `modal` M ∧ S ∈ States(M)
 ValueType(v) = U ⇔ ∃ T. ValueType(v) = T ∧ Member(T, U)
 
 **(Lower-ReadPtrIR)**
@@ -15286,8 +17956,8 @@ Cycle(G_e)    c = Code(Topo-Cycle)
 Γ ⊢ Topo(G_e) ⇑ c
 
 P = Project(Γ)
-StaticInitOf(item) = init ⇔ item = StaticDecl(vis, mut, binding, span, doc) ∧ binding = ⟨pat, ty_opt, op, init, sp⟩
-StaticInitOf(item) = ⊥ ⇔ item ∉ StaticDecl(_, _, _, _, _)
+StaticInitOf(item) = init ⇔ item = StaticDecl(attrs_opt, vis, mut, binding, span, doc) ∧ binding = ⟨pat, ty_opt, op, init, sp⟩
+StaticInitOf(item) = ⊥ ⇔ item ∉ StaticDecl(_, _, _, _, _, _)
 InitList(m) = [ init | item ∈ Items(P, m) ∧ StaticInitOf(item) = init ]
 
 InitOrder(G_e) = L ⇔ Γ ⊢ Topo(G_e) ⇓ L
@@ -15295,7 +17965,7 @@ InitPlan(G_e) = ++_{m ∈ InitOrder(G_e)} InitList(m)
 
 DeinitOrder(G_e) = rev(InitOrder(G_e))
 
-StaticBindOrder(m) = ++_{item ∈ StaticItems(P, m), item = StaticDecl(vis, mut, binding, span, doc)} [⟨PathOfModule(m), x⟩ | x ∈ StaticBindList(binding)]
+StaticBindOrder(m) = ++_{item ∈ StaticItems(P, m), item = StaticDecl(attrs_opt, vis, mut, binding, span, doc)} [⟨PathOfModule(m), x⟩ | x ∈ StaticBindList(binding)]
 
 GlobalStaticOrder = ++_{m ∈ InitOrder(G_e)} StaticBindOrder(m)
 
@@ -15360,18 +18030,19 @@ mi = |L|
 
 ### 7.2. Modal Layout (Dynamic Semantics)
 
-layout(M@S) = layout(`record` {Payload(M, S)})
-Payload(M, S) = ∅ ⇒ sizeof(M@S) = 0
-layout(M) =
- layout(T_p)    if NicheApplies(M) ∧ PayloadState(M) = S_p ∧ SingleFieldPayload(M, S_p) = T_p
- layout(`enum` {S_1(Payload(M, S_1)), …, S_n(Payload(M, S_n))})    otherwise
-sizeof(M) =
- sizeof(T_p)    if NicheApplies(M) ∧ PayloadState(M) = S_p ∧ SingleFieldPayload(M, S_p) = T_p
- sizeof(Discriminant) + max_{S ∈ States(M)}(sizeof(M@S)) + Padding    otherwise
-alignof(M) =
- alignof(T_p)    if NicheApplies(M) ∧ PayloadState(M) = S_p ∧ SingleFieldPayload(M, S_p) = T_p
- max(alignof(Discriminant), max_{S ∈ States(M)}(alignof(M@S)))    otherwise
-ValueBits(M, ⟨S, v⟩) = bits ⇔ ModalBits(M, S, v) = bits
+layout(TypeModalState(modal_ref, S)) = layout(`record` {ModalPayload(modal_ref, S)})
+ModalPayload(modal_ref, S) = ∅ ⇒ sizeof(TypeModalState(modal_ref, S)) = 0
+layout(ModalRefType(modal_ref)) =
+ layout(T_p)    if NicheApplies(modal_ref) ∧ PayloadState(modal_ref) = S_p ∧ ModalSingleFieldPayload(modal_ref, S_p) = T_p
+ layout(`enum` {S_1(ModalPayload(modal_ref, S_1)), …, S_n(ModalPayload(modal_ref, S_n))})    otherwise
+ModalDeclOf(modal_ref) = M
+sizeof(ModalRefType(modal_ref)) =
+ sizeof(T_p)    if NicheApplies(modal_ref) ∧ PayloadState(modal_ref) = S_p ∧ ModalSingleFieldPayload(modal_ref, S_p) = T_p
+ sizeof(Discriminant) + max_{S ∈ States(M)}(sizeof(TypeModalState(modal_ref, S))) + Padding    otherwise
+alignof(ModalRefType(modal_ref)) =
+ alignof(T_p)    if NicheApplies(modal_ref) ∧ PayloadState(modal_ref) = S_p ∧ ModalSingleFieldPayload(modal_ref, S_p) = T_p
+ max(alignof(Discriminant), max_{S ∈ States(M)}(alignof(TypeModalState(modal_ref, S))))    otherwise
+ValueBits(modal_ref, ⟨S, v⟩) = bits ⇔ ModalBits(modal_ref, S, v) = bits
 
 ### 7.3. Modal Pattern Matching
 
@@ -15474,10 +18145,10 @@ DropValue(T, v, F) ⇓ σ' ⇔ DropValueOut(T, v, F) ⇓ (ok, σ')
 DropStaticAction(path, name) ⇓ σ' ⇔ DropStaticActionOut(path, name) ⇓ (ok, σ')
 RecordType(T) ⇔ ∃ p. T = TypePath(p) ∧ RecordDecl(p) defined
 DropCall(T, v, σ) ⇓ (out, σ') relation
-¬ ImplementsDrop(T) ⇒ DropCall(T, v, σ) ⇓ (Val(()), σ)
-ImplementsDrop(T) ∧ BuiltinDropType(T) ∧ T = TypeString(`@Managed`) ∧ Γ ⊢ StringDropSym ⇓ sym ∧ ExecIRSigma(CallIR(sym, [v]), σ) ⇓ (out, σ') ⇒ DropCall(T, v, σ) ⇓ (out, σ')
-ImplementsDrop(T) ∧ BuiltinDropType(T) ∧ T = TypeBytes(`@Managed`) ∧ Γ ⊢ BytesDropSym ⇓ sym ∧ ExecIRSigma(CallIR(sym, [v]), σ) ⇓ (out, σ') ⇒ DropCall(T, v, σ) ⇓ (out, σ')
-ImplementsDrop(T) ∧ ¬ BuiltinDropType(T) ∧ LookupMethod(StripPerm(T), "drop") = m ∧ BindParams(MethodParamsDecl(StripPerm(T), m), [v]) = binds ∧ BlockEnter(σ, binds) ⇓ (σ_1, scope) ∧ Γ ⊢ EvalBlockBodySigma(m.body, σ_1) ⇓ (out_1, σ_2) ∧ BlockExit(σ_2, scope, out_1) ⇓ (out_2, σ_3) ∧ ReturnOut(out_2) = out ⇒ DropCall(T, v, σ) ⇓ (out, σ_3)
+¬ DropType(T) ⇒ DropCall(T, v, σ) ⇓ (Val(()), σ)
+DropType(T) ∧ BuiltinDropType(T) ∧ T = TypeString(`@Managed`) ∧ Γ ⊢ StringDropSym ⇓ sym ∧ ExecIRSigma(CallIR(sym, [v]), σ) ⇓ (out, σ') ⇒ DropCall(T, v, σ) ⇓ (out, σ')
+DropType(T) ∧ BuiltinDropType(T) ∧ T = TypeBytes(`@Managed`) ∧ Γ ⊢ BytesDropSym ⇓ sym ∧ ExecIRSigma(CallIR(sym, [v]), σ) ⇓ (out, σ') ⇒ DropCall(T, v, σ) ⇓ (out, σ')
+DropType(T) ∧ ¬ BuiltinDropType(T) ∧ LookupMethod(StripPerm(T), "drop") = m ∧ Sig_T(StripPerm(T), m) = ⟨TypePerm(`unique`, StripPerm(T)), [], TypePrim("()")⟩ ∧ BindParams(MethodParamsDecl(StripPerm(T), m), [v]) = binds ∧ BlockEnter(σ, binds) ⇓ (σ_1, scope) ∧ Γ ⊢ EvalBlockBodySigma(m.body, σ_1) ⇓ (out_1, σ_2) ∧ BlockExit(σ_2, scope, out_1) ⇓ (out_2, σ_3) ∧ ReturnOut(out_2) = out ⇒ DropCall(T, v, σ) ⇓ (out, σ_3)
 ReleaseValue(T, v, σ) ⇓ σ' relation
 ReleaseValue(T, v, σ) ⇓ σ' ⇔ σ' = σ
 DropChildren(T, v, F) =
@@ -15485,8 +18156,8 @@ DropChildren(T, v, F) =
  [⟨T_i, v_i⟩ | T = TypeTuple([T_0, …, T_{n-1}]), i ∈ rev([0, …, n-1]), TupleValue(v, i) = v_i]    if T = TypeTuple(_)
  [⟨T_e, v_i⟩ | T = TypeArray(T_e, n), i ∈ rev([0, …, n-1]), IndexValue(v, i) = v_i]    if T = TypeArray(_, _)
  [⟨T', v'⟩ | UnionCase(v) = ⟨T', v'⟩]    if T = TypeUnion(_)
- [⟨TypeModalState(p, S), v_s⟩ | v = ⟨S, v_s⟩]    if T = TypePath(p) ∧ Σ.Types[p] = `modal` M
- [⟨T_i, v_i⟩ | ⟨f_i, T_i⟩ ∈ Payload(M, S), FieldValue(v, f_i) = v_i]    if T = TypeModalState(p, S) ∧ Σ.Types[p] = `modal` M
+ [⟨TypeModalState(modal_ref, S), v_s⟩ | v = ⟨S, v_s⟩]    if T = ModalRefType(modal_ref) ∧ ModalDeclOf(modal_ref) = M
+ [⟨T_i, v_i⟩ | ⟨f_i, T_i⟩ ∈ ModalPayload(modal_ref, S), FieldValue(v, f_i) = v_i]    if T = TypeModalState(modal_ref, S) ∧ ModalDeclOf(modal_ref) = M
  []    otherwise
 DropList([], σ) ⇓ (ok, σ)
 DropList([⟨T, v⟩] ++ xs, σ) ⇓ (c, σ'') ⇔ DropValueOut(T, v, ∅) ⇓ (c_1, σ') ∧ (c_1 = panic ⇒ c = panic ∧ σ'' = σ') ∧ (c_1 = ok ⇒ DropList(xs, σ') ⇓ (c, σ''))
@@ -15726,6 +18397,11 @@ LookupVal(σ, x) = v
 LookupBind(σ, x) undefined    Γ ⊢ ResolveValueName(x) ⇑    Γ ⊢ ResolveTypeName(x) ⇓ ent    ent.origin_opt = mp    name = (ent.target_opt if present, else x)    ¬ PoisonedModule(σ, PathOfModule(mp))    RecordDecl(FullPath(PathOfModule(mp), name)) = R
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 LookupVal(σ, x) = RecordCtor(FullPath(PathOfModule(mp), name))
+
+**(LookupValPath-Builtin)**
+BuiltinValuePath(path, name)
+──────────────────────────────────────────────────────────────
+LookupValPath(σ, path, name) = ProcRef(path, name)
 
 **(LookupValPath-Static)**
 Γ ⊢ ResolveQualified(path, name, ValueKind) ⇓ ent    ent.origin_opt = mp    path' = PathOfModule(mp)    name' = (ent.target_opt if present, else name)    ¬ PoisonedModule(σ, path')    StaticAddr(path', name') = addr    ReadAddr(σ, addr) = v
@@ -16058,10 +18734,20 @@ v_ptr = RawPtr(`mut`, addr)    WriteAddr(σ, addr, v) ⇓ σ'
 ───────────────────────────────────────────────────────────────
 Γ ⊢ WritePtrSigma(v_ptr, v, σ) ⇓ (ok, σ')
 
-ReadPtrSigma(RawPtr(q, addr), σ) undefined ⇔ ReadAddr(σ, addr) undefined
-WritePtrSigma(RawPtr(`imm`, addr), v, σ) undefined
-DynamicUndefined(ReadPtrSigma(RawPtr(q, addr), σ)) ⇔ ReadPtrSigma(RawPtr(q, addr), σ) undefined
-DynamicUndefined(WritePtrSigma(RawPtr(`imm`, addr), v, σ))
+**(ReadPtr-Raw-Invalid)**
+v_ptr = RawPtr(q, addr)    ReadAddr(σ, addr) undefined
+──────────────────────────────────────────────────────────────
+Γ ⊢ ReadPtrSigma(v_ptr, σ) ⇓ (Ctrl(Panic), σ)
+
+**(WritePtr-Raw-Imm)**
+v_ptr = RawPtr(`imm`, addr)
+──────────────────────────────────────────────────────────────
+Γ ⊢ WritePtrSigma(v_ptr, v, σ) ⇓ (Ctrl(Panic), σ)
+
+**(WritePtr-Raw-Invalid)**
+v_ptr = RawPtr(`mut`, addr)    ¬ ∃ σ'. WriteAddr(σ, addr, v) ⇓ σ'
+──────────────────────────────────────────────────────────────
+Γ ⊢ WritePtrSigma(v_ptr, v, σ) ⇓ (Ctrl(Panic), σ)
 
 
 **(AddrOf-Ident)**
@@ -16582,7 +19268,7 @@ UnOp("!", true) ⇓ false
 UnOp("!", v) ⇓ v' ⇔ IntValue(v, t) ∧ v' = BitNot(v)
 UnOp("-", v) ⇓ v' ⇔ v = IntVal(t, x) ∧ t ∈ SignedIntTypes ∧ x' = -x ∧ InRange(x', t) ∧ v' = IntVal(t, x')
 UnOp("-", v) ⇓ v' ⇔ v = FloatVal(t, x) ∧ v' = FloatVal(t, -x)
-UnOp("widen", v) ⇓ v
+UnOp("widen", v) ⇓ ModalVal(S, v) ⇔ v = RecordValue(ModalStateRef(modal_ref, S), fs)
 BinOp(op, v_1, v_2) ⇓ v ⇔ op ∈ ArithOps ∧ NumericValue(v_1, t) ∧ NumericValue(v_2, t) ∧ ArithEval(op, t, v_1, v_2) ⇓ v
 BinOp(op, v_1, v_2) ⇓ v ⇔ op ∈ BitOps ∧ IntValue(v_1, t) ∧ IntValue(v_2, t) ∧ BitEval(op, t, v_1, v_2) ⇓ v
 BinOp(op, v_1, v_2) ⇓ v ⇔ op ∈ ShiftOps ∧ IntValue(v_1, t) ∧ U32Value(v_2) ∧ ShiftEval(op, t, v_1, v_2) ⇓ v
@@ -16886,11 +19572,14 @@ body = e    Γ ⊢ EvalSigma(e, σ) ⇓ (out, σ')
 
 **Call and Method Application.**
 
-CallJudg = {Γ ⊢ EvalArgsSigma(params, args, σ) ⇓ (out, σ'), Γ ⊢ EvalRecvSigma(base, mode, σ) ⇓ (out, σ'), Γ ⊢ ApplyRegionProc(name, vec_v, σ) ⇓ (out, σ'), Γ ⊢ ApplyProcSigma(proc, vec_v, σ) ⇓ (out, σ'), Γ ⊢ ApplyRecordCtorSigma(p, σ) ⇓ (out, σ'), Γ ⊢ ApplyMethodSigma(base, name, v_self, v_arg, vec_v, σ) ⇓ (out, σ')}
+CallJudg = {Γ ⊢ EvalArgsSigma(params, args, σ) ⇓ (out, σ'), Γ ⊢ EvalRecvSigma(base, mode, σ) ⇓ (out, σ'), Γ ⊢ ApplyRegionProc(name, vec_v, σ) ⇓ (out, σ'), Γ ⊢ ApplyCancelProc(name, vec_v, σ) ⇓ (out, σ'), Γ ⊢ ApplyProcSigma(proc, vec_v, σ) ⇓ (out, σ'), Γ ⊢ ApplyRecordCtorSigma(p, σ) ⇓ (out, σ'), Γ ⊢ ApplyMethodSigma(base, name, v_self, v_arg, vec_v, σ) ⇓ (out, σ')}
 CallTarget(ProcRef(proc)) = proc
 CallTarget(RecordCtor(p)) = RecordCtor(p)
+MethodTarget(RecordValue(TypePath(p), fs), name) = m ⇔ LookupMethod(TypePath(p), name) = m
+MethodTarget(RecordValue(ModalStateRef(modal_ref, S), fs), name) = md ⇔ ModalDeclOf(modal_ref) = M ∧ LookupStateMethod(M, S, name) = md
+MethodTarget(RecordValue(ModalStateRef(modal_ref, S), fs), name) = tr ⇔ ModalDeclOf(modal_ref) = M ∧ LookupTransition(M, S, name) = tr
 MethodTarget(Dyn(Cl, RawPtr(`imm`, addr), T), name) = Dispatch(T, Cl, name)
-MethodTarget(v_self, name) = m ∧ m.body = ⊥ ∧ ¬ ∃ vec_v, v. Γ ⊢ PrimCall(MethodOwner(m), MethodName(m), v_self, vec_v) ⇓ v ⇒ IllFormed(MethodTarget(v_self, name))
+MethodTarget(v_self, name) = m ∧ m.body = ⊥ ∧ ¬ ∃ vec_v, out. Γ ⊢ PrimCall(MethodOwner(m), MethodName(m), v_self, vec_v) ⇓ out ⇒ IllFormed(MethodTarget(v_self, name))
 ArgVal = {v, Alias(addr)}
 BindParams([⟨mode_1, x_1, T_1⟩, …, ⟨mode_n, x_n, T_n⟩], [v_1, …, v_n]) = [⟨x_1, v_1⟩, …, ⟨x_n, v_n⟩]
 RecordDefaultInits(p) = [⟨f_1, e_1⟩, …, ⟨f_n, e_n⟩] ⇔ RecordDecl(p) = R ∧ Fields(R) = [⟨vis_1, f_1, T_1, e_1, span_1, doc_1⟩, …, ⟨vis_n, f_n, T_n, e_n, span_n, doc_n⟩] ∧ ∀ i. e_i ≠ ⊥
@@ -16959,6 +19648,7 @@ mode = ⊥    Γ ⊢ AddrOfSigma(base, σ) ⇓ (Ctrl(κ), σ_1)
 Γ ⊢ EvalRecvSigma(base, mode, σ) ⇓ (Ctrl(κ), σ_1)
 
 RegionProcParams(name) = params ⇔ RegionProcSig(`Region::`name) = ⟨params, ret⟩
+CancelProcParams(name) = params ⇔ CancelTokenProcSig(`CancelToken::`name) = ⟨params, ret⟩
 
 **(ApplyRegionProc-NewScoped)**
 name = `new_scoped`    vec_v = [opts]    RegionNewScoped(σ, opts) ⇓ (σ', v)
@@ -16990,6 +19680,11 @@ name = `free_unchecked`    vec_v = [v_r]    RegionFreeProc(σ, v_r) ⇓ (σ', v'
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ApplyRegionProc(name, vec_v, σ) ⇓ (Val(v'), σ')
 
+**(ApplyCancelProc-New)**
+name = `new`    vec_v = []    CancelNew() ⇓ v
+──────────────────────────────────────────────────────────────
+Γ ⊢ ApplyCancelProc(name, vec_v, σ) ⇓ (Val(v), σ)
+
 **(ApplyProcSigma)**
 BindParams(proc.params, vec_v) = binds    BlockEnter(σ, binds) ⇓ (σ_1, scope)    Γ ⊢ EvalBlockBodySigma(proc.body, σ_1) ⇓ (out, σ_2)    BlockExit(σ_2, scope, out) ⇓ (out', σ_3)
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -17006,9 +19701,9 @@ RecordDefaultInits(p) = fields    Γ ⊢ EvalFieldInitsSigma(fields, σ) ⇓ (Ct
 Γ ⊢ ApplyRecordCtorSigma(p, σ) ⇓ (Ctrl(κ), σ_1)
 
 **(ApplyMethodSigma-Prim)**
-m = MethodTarget(v_self, name)    MethodOwner(m) = owner    MethodName(m) = name    Γ ⊢ PrimCall(owner, name, v_self, vec_v) ⇓ v
+m = MethodTarget(v_self, name)    MethodOwner(m) = owner    MethodName(m) = name    Γ ⊢ PrimCall(owner, name, v_self, vec_v) ⇓ out
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ApplyMethodSigma(base, name, v_self, v_arg, vec_v, σ) ⇓ (Val(v), σ)
+Γ ⊢ ApplyMethodSigma(base, name, v_self, v_arg, vec_v, σ) ⇓ (out, σ)
 
 **(ApplyMethodSigma)**
 m = MethodTarget(v_self, name)    BindParams(RecvParams(base, name), [v_arg] ++ vec_v) = binds    BlockEnter(σ, binds) ⇓ (σ_1, scope)    Γ ⊢ EvalBlockBodySigma(m.body, σ_1) ⇓ (out, σ_2)    BlockExit(σ_2, scope, out) ⇓ (out', σ_3)
@@ -17023,6 +19718,16 @@ m = MethodTarget(v_self, name)    BindParams(RecvParams(base, name), [v_arg] ++ 
 **(EvalSigma-Call-RegionProc-Ctrl-Args)**
 Γ ⊢ EvalSigma(callee, σ) ⇓ (Val(ProcRef([`Region`], name)), σ_1)    RegionProcParams(name) = params    Γ ⊢ EvalArgsSigma(params, args, σ_1) ⇓ (Ctrl(κ), σ_2)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EvalSigma(Call(callee, args), σ) ⇓ (Ctrl(κ), σ_2)
+
+**(EvalSigma-Call-CancelProc)**
+Γ ⊢ EvalSigma(callee, σ) ⇓ (Val(ProcRef([`CancelToken`], name)), σ_1)    CancelProcParams(name) = params    Γ ⊢ EvalArgsSigma(params, args, σ_1) ⇓ (Val(vec_v), σ_2)    Γ ⊢ ApplyCancelProc(name, vec_v, σ_2) ⇓ (out, σ_3)
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EvalSigma(Call(callee, args), σ) ⇓ (out, σ_3)
+
+**(EvalSigma-Call-CancelProc-Ctrl-Args)**
+Γ ⊢ EvalSigma(callee, σ) ⇓ (Val(ProcRef([`CancelToken`], name)), σ_1)    CancelProcParams(name) = params    Γ ⊢ EvalArgsSigma(params, args, σ_1) ⇓ (Ctrl(κ), σ_2)
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ EvalSigma(Call(callee, args), σ) ⇓ (Ctrl(κ), σ_2)
 
 **(EvalSigma-Call-Proc)**
@@ -17532,9 +20237,9 @@ IsPlace(e)    Γ ⊢ AddrOfSigma(e, σ) ⇓ (Val(addr), σ_1)    T_e = ExprType(
 
 **Dynamic Dispatch.**
 
-Dispatch(T, Cl, name) = m' ⇔ m = LookupClassMethod(Cl, name) ∧ MethodByName(T, name) = m' ∧ Sig_T(T, m') = Sig_T(T, m)
-Dispatch(T, Cl, name) = m ⇔ m = LookupClassMethod(Cl, name) ∧ (MethodByName(T, name) = ⊥ ∨ (∃ m'. MethodByName(T, name) = m' ∧ Sig_T(T, m') ≠ Sig_T(T, m))) ∧ m.body ≠ ⊥
-Dispatch(T, Cl, name) = ⊥ ⇔ m = LookupClassMethod(Cl, name) ∧ (MethodByName(T, name) = ⊥ ∨ (∃ m'. MethodByName(T, name) = m' ∧ Sig_T(T, m') ≠ Sig_T(T, m))) ∧ m.body = ⊥
+Dispatch(T, Cl, name) = m' ⇔ m = LookupClassMethod(Cl, name) ∧ MethodByName(T, name) = m' ∧ SigMatch(T, m', m)
+Dispatch(T, Cl, name) = m ⇔ m = LookupClassMethod(Cl, name) ∧ (MethodByName(T, name) = ⊥ ∨ (∃ m'. MethodByName(T, name) = m' ∧ ¬ SigMatch(T, m', m))) ∧ m.body ≠ ⊥
+Dispatch(T, Cl, name) = ⊥ ⇔ m = LookupClassMethod(Cl, name) ∧ (MethodByName(T, name) = ⊥ ∨ (∃ m'. MethodByName(T, name) = m' ∧ ¬ SigMatch(T, m', m))) ∧ m.body = ⊥
 
 
 ### 7.7. FileSystem and File Operations
@@ -17726,6 +20431,36 @@ DirIterOpen(ω, h) ∧ DirIterPos(ω, h) = i ∧ i < |DirIterEntries(ω, h)| ∧
 
 DirClose(h, ω) ⇓ (ok, ω') ⇒ ¬ DirIterOpen(ω', h)
 
+**System Operations.**
+
+SysState = ⟨env, exit_code_opt⟩
+Env(⟨env, exit_code_opt⟩) = env
+ExitCode(⟨env, exit_code_opt⟩) = exit_code_opt
+SetExitCode(⟨env, _⟩, code) = ⟨env, code⟩
+
+SystemJudg = {SystemGetEnv(key) ⇓ r, SystemExit(code) ⇓ ok}
+SystemJudg_sys = {SystemGetEnv(key, sys) ⇓ (r, sys'), SystemExit(code, sys) ⇓ sys'}
+
+SystemGetEnv(key) ⇓ r ⇔ ∃ sys, sys'. SystemGetEnv(key, sys) ⇓ (r, sys')
+SystemExit(code) ⇓ ok ⇔ ∃ sys, sys'. SystemExit(code, sys) ⇓ sys'
+
+EmptyStringVal = v ⇔ ∃ lit. lit.kind = StringLiteral ∧ StringBytes(lit) = [] ∧ LiteralValue(lit, TypeString(`@View`)) = v
+
+**(System-GetEnv-Ok)**
+Env(sys)[key] = v
+──────────────────────────────────────────────
+SystemGetEnv(key, sys) ⇓ (v, sys)
+
+**(System-GetEnv-None)**
+key ∉ dom(Env(sys))
+──────────────────────────────────────────────
+SystemGetEnv(key, sys) ⇓ (v, sys)    EmptyStringVal = v
+
+**(System-Exit)**
+sys' = SetExitCode(sys, code)
+──────────────────────────────────────────────
+SystemExit(code, sys) ⇓ sys'
+
 **Handle Extraction.**
 
 HandleOf(v) = h ⇔ v = `File@Read`{`handle`: h} ∨ v = `File@Write`{`handle`: h} ∨ v = `File@Append`{`handle`: h}
@@ -17733,157 +20468,190 @@ DirHandleOf(v) = h ⇔ v = `DirIter@Open`{`handle`: h}
 
 **Primitive Method Application.**
 
-MethodName(MethodDecl(_, _, name, _, _, _, _, _, _)) = name
-MethodName(ClassMethodDecl(_, name, _, _, _, _, _, _)) = name
-MethodName(StateMethodDecl(_, name, _, _, _, _, _)) = name
-MethodName(TransitionDecl(_, name, _, _, _, _, _)) = name
+MethodName(MethodDecl(_, _, _, name, _, _, _, _, _, _, _, _)) = name
+MethodName(ClassMethodDecl(_, _, name, _, _, _, _, _, _, _, _)) = name
+MethodName(StateMethodDecl(_, _, name, _, _, _, _, _, _, _, _)) = name
+MethodName(TransitionDecl(_, _, name, _, _, _, _, _)) = name
 MethodOwner(m) = owner ⇔ ∃ T. MethodByName(T, MethodName(m)) = m ∧ owner = T
-PrimCallJudg = {PrimCall(Owner, name, v_self, args) ⇓ v}
+MethodOwner(m) = ModalStateRef(modal_ref, S) ⇔ ModalDeclOf(modal_ref) = M ∧ (m ∈ Methods(M, S) ∨ m ∈ Transitions(M, S))
+PrimCallJudg = {PrimCall(Owner, name, v_self, args) ⇓ out}
 
 **(Prim-FS-OpenRead)**
 Γ ⊢ FSOpenRead(v_fs, p) ⇓ r
 ──────────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`FileSystem`, `open_read`, v_fs, [p]) ⇓ r
+Γ ⊢ PrimCall(`FileSystem`, `open_read`, v_fs, [p]) ⇓ Val(r)
 
 **(Prim-FS-OpenWrite)**
 Γ ⊢ FSOpenWrite(v_fs, p) ⇓ r
 ───────────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`FileSystem`, `open_write`, v_fs, [p]) ⇓ r
+Γ ⊢ PrimCall(`FileSystem`, `open_write`, v_fs, [p]) ⇓ Val(r)
 
 **(Prim-FS-OpenAppend)**
 Γ ⊢ FSOpenAppend(v_fs, p) ⇓ r
 ────────────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`FileSystem`, `open_append`, v_fs, [p]) ⇓ r
+Γ ⊢ PrimCall(`FileSystem`, `open_append`, v_fs, [p]) ⇓ Val(r)
 
 **(Prim-FS-CreateWrite)**
 Γ ⊢ FSCreateWrite(v_fs, p) ⇓ r
 ──────────────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`FileSystem`, `create_write`, v_fs, [p]) ⇓ r
+Γ ⊢ PrimCall(`FileSystem`, `create_write`, v_fs, [p]) ⇓ Val(r)
 
 **(Prim-FS-ReadFile)**
 Γ ⊢ FSReadFile(v_fs, p) ⇓ r
 ──────────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`FileSystem`, `read_file`, v_fs, [p]) ⇓ r
+Γ ⊢ PrimCall(`FileSystem`, `read_file`, v_fs, [p]) ⇓ Val(r)
 
 **(Prim-FS-ReadBytes)**
 Γ ⊢ FSReadBytes(v_fs, p) ⇓ r
 ───────────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`FileSystem`, `read_bytes`, v_fs, [p]) ⇓ r
+Γ ⊢ PrimCall(`FileSystem`, `read_bytes`, v_fs, [p]) ⇓ Val(r)
 
 **(Prim-FS-WriteFile)**
 Γ ⊢ FSWriteFile(v_fs, p, d) ⇓ r
 ──────────────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`FileSystem`, `write_file`, v_fs, [p, d]) ⇓ r
+Γ ⊢ PrimCall(`FileSystem`, `write_file`, v_fs, [p, d]) ⇓ Val(r)
 
 **(Prim-FS-WriteStdout)**
 Γ ⊢ FSWriteStdout(v_fs, d) ⇓ r
 ──────────────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`FileSystem`, `write_stdout`, v_fs, [d]) ⇓ r
+Γ ⊢ PrimCall(`FileSystem`, `write_stdout`, v_fs, [d]) ⇓ Val(r)
 
 **(Prim-FS-WriteStderr)**
 Γ ⊢ FSWriteStderr(v_fs, d) ⇓ r
 ──────────────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`FileSystem`, `write_stderr`, v_fs, [d]) ⇓ r
+Γ ⊢ PrimCall(`FileSystem`, `write_stderr`, v_fs, [d]) ⇓ Val(r)
 
 **(Prim-FS-Exists)**
 Γ ⊢ FSExists(v_fs, p) ⇓ b
 ────────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`FileSystem`, `exists`, v_fs, [p]) ⇓ b
+Γ ⊢ PrimCall(`FileSystem`, `exists`, v_fs, [p]) ⇓ Val(b)
 
 **(Prim-FS-Remove)**
 Γ ⊢ FSRemove(v_fs, p) ⇓ r
 ────────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`FileSystem`, `remove`, v_fs, [p]) ⇓ r
+Γ ⊢ PrimCall(`FileSystem`, `remove`, v_fs, [p]) ⇓ Val(r)
 
 **(Prim-FS-OpenDir)**
 Γ ⊢ FSOpenDir(v_fs, p) ⇓ r
 ──────────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`FileSystem`, `open_dir`, v_fs, [p]) ⇓ r
+Γ ⊢ PrimCall(`FileSystem`, `open_dir`, v_fs, [p]) ⇓ Val(r)
 
 **(Prim-FS-CreateDir)**
 Γ ⊢ FSCreateDir(v_fs, p) ⇓ r
 ────────────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`FileSystem`, `create_dir`, v_fs, [p]) ⇓ r
+Γ ⊢ PrimCall(`FileSystem`, `create_dir`, v_fs, [p]) ⇓ Val(r)
 
 **(Prim-FS-EnsureDir)**
 Γ ⊢ FSEnsureDir(v_fs, p) ⇓ r
 ────────────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`FileSystem`, `ensure_dir`, v_fs, [p]) ⇓ r
+Γ ⊢ PrimCall(`FileSystem`, `ensure_dir`, v_fs, [p]) ⇓ Val(r)
 
 **(Prim-FS-Kind)**
 Γ ⊢ FSKind(v_fs, p) ⇓ r
 ──────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`FileSystem`, `kind`, v_fs, [p]) ⇓ r
+Γ ⊢ PrimCall(`FileSystem`, `kind`, v_fs, [p]) ⇓ Val(r)
 
 **(Prim-FS-Restrict)**
 Γ ⊢ FSRestrict(v_fs, p) ⇓ v_fs'
 ──────────────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`FileSystem`, `restrict`, v_fs, [p]) ⇓ v_fs'
+Γ ⊢ PrimCall(`FileSystem`, `restrict`, v_fs, [p]) ⇓ Val(v_fs')
 
 **(Prim-File-ReadAll)**
 HandleOf(v) = h    Γ ⊢ FileReadAll(h) ⇓ r
 ───────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`File@Read`, `read_all`, v, []) ⇓ r
+Γ ⊢ PrimCall(ModalStateRef(["File"], `@Read`), `read_all`, v, []) ⇓ Val(r)
 
 **(Prim-File-ReadAllBytes)**
 HandleOf(v) = h    Γ ⊢ FileReadAllBytes(h) ⇓ r
 ────────────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`File@Read`, `read_all_bytes`, v, []) ⇓ r
+Γ ⊢ PrimCall(ModalStateRef(["File"], `@Read`), `read_all_bytes`, v, []) ⇓ Val(r)
 
 **(Prim-File-Write)**
 HandleOf(v) = h    Γ ⊢ FileWrite(h, d) ⇓ r
 ────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`File@Write`, `write`, v, [d]) ⇓ r
+Γ ⊢ PrimCall(ModalStateRef(["File"], `@Write`), `write`, v, [d]) ⇓ Val(r)
 
 **(Prim-File-Flush)**
 HandleOf(v) = h    Γ ⊢ FileFlush(h) ⇓ r
 ────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`File@Write`, `flush`, v, []) ⇓ r
+Γ ⊢ PrimCall(ModalStateRef(["File"], `@Write`), `flush`, v, []) ⇓ Val(r)
 
 **(Prim-File-Write-Append)**
 HandleOf(v) = h    Γ ⊢ FileWrite(h, d) ⇓ r
 ─────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`File@Append`, `write`, v, [d]) ⇓ r
+Γ ⊢ PrimCall(ModalStateRef(["File"], `@Append`), `write`, v, [d]) ⇓ Val(r)
 
 **(Prim-File-Flush-Append)**
 HandleOf(v) = h    Γ ⊢ FileFlush(h) ⇓ r
 ─────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`File@Append`, `flush`, v, []) ⇓ r
+Γ ⊢ PrimCall(ModalStateRef(["File"], `@Append`), `flush`, v, []) ⇓ Val(r)
 
 **(Prim-File-Close-Read)**
 HandleOf(v) = h    Γ ⊢ FileClose(h) ⇓ ok
 ──────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`File@Read`, `close`, v, []) ⇓ `File@Closed`{}
+Γ ⊢ PrimCall(ModalStateRef(["File"], `@Read`), `close`, v, []) ⇓ Val(`File@Closed`{})
 
 **(Prim-File-Close-Write)**
 HandleOf(v) = h    Γ ⊢ FileClose(h) ⇓ ok
 ───────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`File@Write`, `close`, v, []) ⇓ `File@Closed`{}
+Γ ⊢ PrimCall(ModalStateRef(["File"], `@Write`), `close`, v, []) ⇓ Val(`File@Closed`{})
 
 **(Prim-File-Close-Append)**
 HandleOf(v) = h    Γ ⊢ FileClose(h) ⇓ ok
 ───────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`File@Append`, `close`, v, []) ⇓ `File@Closed`{}
+Γ ⊢ PrimCall(ModalStateRef(["File"], `@Append`), `close`, v, []) ⇓ Val(`File@Closed`{})
 
 **(Prim-Dir-Next)**
 DirHandleOf(v) = h    Γ ⊢ DirNext(h) ⇓ r
 ─────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`DirIter@Open`, `next`, v, []) ⇓ r
+Γ ⊢ PrimCall(ModalStateRef(["DirIter"], `@Open`), `next`, v, []) ⇓ Val(r)
 
 **(Prim-Dir-Close)**
 DirHandleOf(v) = h    Γ ⊢ DirClose(h) ⇓ ok
 ──────────────────────────────────────────────────────────────
-Γ ⊢ PrimCall(`DirIter@Open`, `close`, v, []) ⇓ `DirIter@Closed`{}
+Γ ⊢ PrimCall(ModalStateRef(["DirIter"], `@Open`), `close`, v, []) ⇓ Val(`DirIter@Closed`{})
+
+**(Prim-Cancel-Cancel)**
+Γ ⊢ CancelDoCancel(v) ⇓ ok
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PrimCall(ModalStateRef(["CancelToken"], `@Active`), `cancel`, v, []) ⇓ Val(())
+
+**(Prim-Cancel-IsCancelled-Active)**
+Γ ⊢ CancelIsCancelled(v) ⇓ b
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PrimCall(ModalStateRef(["CancelToken"], `@Active`), `is_cancelled`, v, []) ⇓ Val(b)
+
+**(Prim-Cancel-IsCancelled-Cancelled)**
+Γ ⊢ CancelIsCancelled(v) ⇓ b
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PrimCall(ModalStateRef(["CancelToken"], `@Cancelled`), `is_cancelled`, v, []) ⇓ Val(b)
+
+**(Prim-Cancel-Child)**
+Γ ⊢ CancelChild(v) ⇓ v_c
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PrimCall(ModalStateRef(["CancelToken"], `@Active`), `child`, v, []) ⇓ Val(v_c)
+
+**(Prim-System-GetEnv)**
+Γ ⊢ SystemGetEnv(k) ⇓ r
+──────────────────────────────────────────────────────────────────
+Γ ⊢ PrimCall(`System`, `get_env`, v_sys, [k]) ⇓ Val(r)
+
+**(Prim-System-Exit)**
+Γ ⊢ SystemExit(code) ⇓ ok
+──────────────────────────────────────────────────────────────────
+Γ ⊢ PrimCall(`System`, `exit`, v_sys, [code]) ⇓ Ctrl(Abort)
+
+When `PrimCall(System, exit, ...)` yields `Ctrl(Abort)`, program execution terminates and the observable exit status is `code`.
 
 **(ApplyMethod-Prim)**
-MethodOwner(m) = owner    MethodName(m) = name    Γ ⊢ PrimCall(owner, name, v_self, vec_v) ⇓ v
+MethodOwner(m) = owner    MethodName(m) = name    Γ ⊢ PrimCall(owner, name, v_self, vec_v) ⇓ out
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ApplyMethod(m, v_self, vec_v) ⇓ v
+Γ ⊢ ApplyMethod(m, v_self, vec_v) ⇓ out
 
 **(ApplyMethod-Prim-Step)**
-MethodOwner(m) = owner    MethodName(m) = name    Γ ⊢ PrimCall(owner, name, v_self, vec_v) ⇓ v
+MethodOwner(m) = owner    MethodName(m) = name    Γ ⊢ PrimCall(owner, name, v_self, vec_v) ⇓ out
 ─────────────────────────────────────────────────────────────────────────────────────────────────────
-⟨ApplyMethod(m, v_self, vec_v)⟩ → ⟨v⟩
+⟨ApplyMethod(m, v_self, vec_v)⟩ → ⟨out⟩
 
 ### 7.8. Interpreter Entrypoint (Project-Level)
 
@@ -17920,7 +20688,7 @@ Executable(P)    MainDecls(P) = [d]    MainSigOk(d)    Γ ⊢ ContextInitSigma(�
 
 ### 8.0. DiagIdâ€“Code Map
 
-DiagTable = {`E-PRJ`, `E-MOD`, `E-OUT`, `E-SRC`, `E-CNF`, `E-UNS`, `E-MEM`, `W-MOD`, `W-SRC`, `E-TYP`, `W-SYS`, `E-SEM`, `W-SEM`}
+DiagTable = {`E-PRJ`, `E-MOD`, `E-OUT`, `E-SRC`, `E-CNF`, `W-CNF`, `E-UNS`, `E-MEM`, `E-CON`, `I-CON`, `W-CON`, `E-SYS`, `W-MOD`, `W-SRC`, `E-TYP`, `W-SYS`, `E-SEM`, `W-SEM`, `P-TYP`, `P-SEM`}
 DiagRow = ⟨code, sev, det, cond, ids⟩
 RowCode(⟨code, sev, det, cond, ids⟩) = code
 RowSev(⟨code, sev, det, cond, ids⟩) = sev
@@ -17960,6 +20728,9 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 | `E-MOD-1104` | Error    | Compile-time | Module path collision after NFC + case folding                  | WF-Module-Path-Collision, Disc-Collision                                                                                               |
 | `E-MOD-1105` | Error    | Compile-time | Module path component is a reserved keyword                     | WF-Module-Path-Reserved                                                                                                                |
 | `E-MOD-1106` | Error    | Compile-time | Module path component is not a valid identifier                 | WF-Module-Path-Ident-Err                                                                                                               |
+| `E-MOD-1201` | Error    | Compile-time | External `using` path without required `import`                 | Import-Using-Missing                                                                                                                   |
+| `E-MOD-1202` | Error    | Compile-time | Import of non-existent assembly or module                       | Resolve-Import-Err                                                                                                                     |
+| `E-MOD-1203` | Error    | Compile-time | Name introduced by `using` or `import as` conflicts with existing | Import-Using-Name-Conflict                                                                                                             |
 | `E-MOD-1204` | Error    | Compile-time | Using path does not resolve to a module or item                 | Resolve-Using-None                                                                                                                     |
 | `E-MOD-1205` | Error    | Compile-time | Attempt to `public using` a non-public item                     | Using-Path-Item-Public-Err, Using-List-Public-Err                                                                                      |
 | `E-MOD-1206` | Error    | Compile-time | Duplicate item in a `using` list                                | Using-List-Dup                                                                                                                         |
@@ -17981,6 +20752,12 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 | `E-MOD-2433` | Error    | Compile-time | Module-scope `var` declaration with `public` visibility         | StaticVisOk-Err                                                                                                                        |
 | `E-MOD-2434` | Error    | Compile-time | Missing `main` procedure                                        | Main-Missing                                                                                                                           |
 | `E-MOD-2440` | Error    | Compile-time | `protected` used on top-level declaration                       | Protected-TopLevel-Err                                                                                                                 |
+| `E-MOD-2450` | Error    | Compile-time | Malformed attribute syntax                                      | Attr-Syntax-Err                                                                                                                        |
+| `E-MOD-2451` | Error    | Compile-time | Unknown attribute name                                          | Attr-Unknown                                                                                                                           |
+| `E-MOD-2452` | Error    | Compile-time | Attribute not valid on target declaration kind                  | Attr-Target-Err                                                                                                                        |
+| `E-MOD-2453` | Error    | Compile-time | `align(N)` where N is not a power of two                        | Attr-Align-NotPow2                                                                                                                     |
+| `E-MOD-2454` | Error    | Compile-time | `packed` applied to non-record                                  | Attr-Packed-NonRecord                                                                                                                  |
+| `E-MOD-2455` | Error    | Compile-time | Conflicting layout arguments                                    | Attr-Layout-Conflict                                                                                                                   |
 
 ### 8.3. E-OUT (Output and Linking)
 
@@ -18022,6 +20799,7 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 | `E-SRC-0309` | Error    | Compile-time | Tokenization failed to classify a character sequence         | Max-Munch-Err                            |
 | `E-SRC-0510` | Error    | Compile-time | Missing statement terminator                                 | Missing-Terminator-Err                   |
 | `E-SRC-0520` | Error    | Compile-time | Generic syntax error (unexpected token)                      | Parse-Syntax-Err                         |
+| `E-SRC-0521` | Error    | Compile-time | Trailing comma in single-line list                           | Trailing-Comma-Err                       |
 
 ### 8.5. E-CNF (Conformance / Limits)
 
@@ -18030,11 +20808,17 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 | `E-CNF-0401` | Error    | Compile-time | Reserved keyword used as identifier                                                                                  | Validate-Module-Keyword-Err                                                               |
 | `E-CNF-0402` | Error    | Compile-time | Reserved namespace `cursive.*` used by user code                                                                     | Validate-ModulePath-Reserved-Err, Intro-Reserved-Cursive-Err, Shadow-Reserved-Cursive-Err |
 | `E-CNF-0403` | Error    | Compile-time | Primitive type name shadowed at module scope                                                                         | Validate-Module-Prim-Shadow-Err                                                           |
-| `E-CNF-0404` | Error    | Compile-time | Shadowing of `Self`, `Drop`, `Bitcopy`, `Clone`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, or `Context` | Validate-Module-Special-Shadow-Err                                                        |
-| `E-CNF-0405` | Error    | Compile-time | Shadowing of async type alias (`Async`, `Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`)                          | Validate-Module-Async-Shadow-Err                                                          |
+| `E-CNF-0404` | Error    | Compile-time | Shadowing of `Self`, `Drop`, `Bitcopy`, `Clone`, `Eq`, `Hash`, `Hasher`, `Iterator`, `Step`, `FfiSafe`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, `CancelToken`, `Context`, `System`, `ExecutionDomain`, `CpuSet`, `Priority`, or `Reactor` | Validate-Module-Special-Shadow-Err                                                        |
+| `E-CNF-0405` | Error    | Compile-time | Shadowing of async type alias (`Async`, `Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`, `FutureHandle`)          | Validate-Module-Async-Shadow-Err                                                          |
 | `E-CNF-0406` | Error    | Compile-time | User declaration uses `gen_` prefix                                                                                  | Intro-Reserved-Gen-Err, Shadow-Reserved-Gen-Err                                           |
 
-### 8.6. E-UNS (Unsupported Constructs)
+### 8.6. W-CNF (Conformance Warnings)
+
+| Code         | Severity | Detection    | Condition                                                     |
+| ------------ | -------- | ------------ | ------------------------------------------------------------- |
+| `W-CNF-0601` | Warning  | Compile-time | Reference to declaration marked `[[deprecated]]`             |
+
+### 8.7. E-UNS (Unsupported Constructs)
 
 | Code         | Severity | Detection    | Condition                                              | DiagId                   |
 | ------------ | -------- | ------------ | ------------------------------------------------------ | ------------------------ |
@@ -18046,12 +20830,8 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 | `E-UNS-0106` | Error    | Compile-time | Conflicting procedure signatures from multiple classes | EffMethods-Conflict      |
 | `E-UNS-0107` | Error    | Compile-time | Non-`Bitcopy` place expression used as value           | ValueUse-NonBitcopyPlace |
 | `E-UNS-0108` | Error    | Compile-time | Range expression used as index in Cursive0 subset      | Range-NonIndex-Err       |
-| `E-UNS-0110` | Error    | Compile-time | `import` declaration used                              | WF-Import-Unsupported    |
-| `E-UNS-0111` | Error    | Compile-time | `[[unwind]]` attribute used                            | WF-Unwind-Unsupported    |
-| `E-UNS-0112` | Error    | Compile-time | `extern` block or foreign declaration used             | Parse-Extern-Unsupported |
-| `E-UNS-0113` | Error    | Compile-time | Attribute syntax used                                  | WF-Attr-Unsupported      |
 
-### 8.7. E-MEM (Memory)
+### 8.8. E-MEM (Memory)
 
 | Code         | Severity | Detection    | Condition                                                            | DiagId                                                                                   |
 | ------------ | -------- | ------------ | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
@@ -18061,7 +20841,7 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 | `E-MEM-3001` | Error    | Compile-time | Read or move of a binding in Moved or PartiallyMoved state           | B-Place-Moved-Err, B-Move-Whole-Moved-Err, B-Move-Field-Moved-Err                        |
 | `E-MEM-3003` | Error    | Compile-time | Reassignment of immutable binding                                    | B-Assign-Immutable-Err                                                                   |
 | `E-MEM-3004` | Error    | Compile-time | Partial move from binding without `unique` permission                | B-Move-Field-NonUnique-Err                                                               |
-| `E-MEM-3005` | Error    | Compile-time | Explicit call to `Drop::drop` method                                 | Drop-Call-Err, Drop-Call-Err-Dyn                                                         |
+| `E-MEM-3005` | Error    | Compile-time | Explicit call to `drop` method with destructor signature             | Drop-Call-Err, Drop-Call-Err-Dyn                                                         |
 | `E-MEM-3006` | Error    | Compile-time | Attempt to move from immovable binding (`:=`)                        | B-Move-Whole-Immovable-Err, B-Move-Field-Immovable-Err                                   |
 | `E-MEM-3007` | Error    | Compile-time | `unique` binding from place expression requires explicit `move`      | B-LetVar-UniqueNonMove-Err, B-ShadowLet-UniqueNonMove-Err, B-ShadowVar-UniqueNonMove-Err |
 | `E-MEM-3020` | Error    | Compile-time | Value with shorter-lived provenance escapes to longer-lived location | Prov-Escape-Err                                                                          |
@@ -18071,13 +20851,141 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 | `E-MEM-3030` | Error    | Compile-time | Unsafe operation outside block                                       | DeallocRaw-Unsafe-Err                                                                    |
 | `E-MEM-3030` | Error    | Compile-time | Unsafe operation outside block                                       | Region-Unchecked-Unsafe-Err                                                              |
 
-### 8.8. W-MOD (Module Warnings)
+### 8.9. E-CON (Concurrency and Contracts)
+
+| Code         | Severity | Detection    | Condition                                                        | DiagId      |
+| ------------ | -------- | ------------ | ---------------------------------------------------------------- | ----------- |
+| `E-CON-0001` | Error    | Compile-time | Access to `shared` path outside valid key context                | E-CON-0001 |
+| `E-CON-0002` | Error    | Compile-time | `#` annotation on non-`shared` path                              | E-CON-0002 |
+| `E-CON-0003` | Error    | Compile-time | Multiple `#` markers in single path expression                   | E-CON-0003 |
+| `E-CON-0004` | Error    | Compile-time | Key escapes its defining scope                                   | E-CON-0004 |
+| `E-CON-0005` | Error    | Compile-time | Write access required but only Read available                    | E-CON-0005 |
+| `E-CON-0006` | Error    | Compile-time | Key acquisition in `defer` escapes to outer scope                | E-CON-0006 |
+| `E-CON-0010` | Error    | Compile-time | Potential conflict on dynamic indices (same statement)           | E-CON-0010 |
+| `E-CON-0011` | Error    | Compile-time | Detectable key ordering cycle within procedure                   | E-CON-0011 |
+| `E-CON-0012` | Error    | Compile-time | Nested mode change without `release` modifier                    | E-CON-0012 |
+| `E-CON-0014` | Error    | Compile-time | `ordered` modifier on paths with different array bases           | E-CON-0014 |
+| `E-CON-0017` | Error    | Compile-time | `release` modifier without target mode                           | E-CON-0017 |
+| `E-CON-0018` | Error    | Compile-time | `release` with target mode matching outer mode                   | E-CON-0018 |
+| `E-CON-0020` | Error    | Compile-time | Key safety not statically provable outside `[[dynamic]]`         | E-CON-0020 |
+| `E-CON-0030` | Error    | Compile-time | `#` immediately before method name                               | E-CON-0030 |
+| `E-CON-0031` | Error    | Compile-time | `#` block path not in scope                                      | E-CON-0031 |
+| `E-CON-0032` | Error    | Compile-time | `#` block path is not `shared`                                   | E-CON-0032 |
+| `E-CON-0033` | Error    | Compile-time | `#` on field of non-record type                                  | E-CON-0033 |
+| `E-CON-0034` | Error    | Compile-time | Key path root cannot be derived for shared access                | E-CON-0034 |
+| `E-CON-0060` | Error    | Compile-time | Read-then-write on same `shared` path without covering Write key | E-CON-0060 |
+| `E-CON-0070` | Error    | Compile-time | Write operation in `#` block without `write` modifier            | E-CON-0070 |
+| `E-CON-0083` | Error    | Compile-time | `shared $Class` where class has `~%`/`~!` methods                | E-CON-0083 |
+| `E-CON-0085` | Error    | Compile-time | Escaping closure with `shared` capture lacks dependency set      | E-CON-0085 |
+| `E-CON-0086` | Error    | Compile-time | Escaping closure outlives captured `shared` binding              | E-CON-0086 |
+| `E-CON-0090` | Error    | Compile-time | Nested key block inside speculative block                        | E-CON-0090 |
+| `E-CON-0091` | Error    | Compile-time | Write to path outside keyed set in speculative block             | E-CON-0091 |
+| `E-CON-0092` | Error    | Compile-time | `wait` expression inside speculative block                       | E-CON-0092 |
+| `E-CON-0093` | Error    | Compile-time | `defer` statement inside speculative block                       | E-CON-0093 |
+| `E-CON-0094` | Error    | Compile-time | `speculative` combined with `release`                            | E-CON-0094 |
+| `E-CON-0095` | Error    | Compile-time | `speculative` without `write` modifier                           | E-CON-0095 |
+| `E-CON-0096` | Error    | Compile-time | Memory ordering annotation inside speculative block              | E-CON-0096 |
+| `E-CON-0101` | Error    | Compile-time | `spawn` or `dispatch` outside parallel                           | E-CON-0101 |
+| `E-CON-0102` | Error    | Compile-time | Domain expression not `ExecutionDomain`                          | E-CON-0102 |
+| `E-CON-0103` | Error    | Compile-time | Invalid domain parameter type                                    | E-CON-0103 |
+| `E-CON-0120` | Error    | Compile-time | Implicit capture of `unique` binding                             | E-CON-0120 |
+| `E-CON-0121` | Error    | Compile-time | Move of already-moved binding                                    | E-CON-0121 |
+| `E-CON-0122` | Error    | Compile-time | Move of binding from outer parallel scope                        | E-CON-0122 |
+| `E-CON-0130` | Error    | Compile-time | Invalid spawn attribute type                                     | E-CON-0130 |
+| `E-CON-0131` | Error    | Compile-time | `spawn` in escaping closure                                      | E-CON-0131 |
+| `E-CON-0132` | Error    | Compile-time | `wait` operand is not SpawnHandle or FutureHandle               | E-CON-0132 |
+| `E-CON-0133` | Error    | Compile-time | `wait` while key is held                                         | E-CON-0133 |
+| `E-CON-0140` | Error    | Compile-time | Dispatch outside parallel block                                  | E-CON-0140 |
+| `E-CON-0141` | Error    | Compile-time | Key inference failed; explicit key required                      | E-CON-0141 |
+| `E-CON-0142` | Error    | Compile-time | Cross-iteration dependency detected                              | E-CON-0142 |
+| `E-CON-0143` | Error    | Compile-time | Non-associative reduction without `[ordered]`                    | E-CON-0143 |
+| `E-CON-0150` | Error    | Compile-time | Host memory access in GPU code                                   | E-CON-0150 |
+| `E-CON-0151` | Error    | Compile-time | `shared` capture in GPU dispatch                                 | E-CON-0151 |
+| `E-CON-0152` | Error    | Compile-time | Nested GPU parallel block                                        | E-CON-0152 |
+| `E-CON-0201` | Error    | Compile-time | `Async` type parameter is not well-formed                        | E-CON-0201 |
+| `E-CON-0203` | Error    | Compile-time | `result` type mismatch with `Result` parameter                   | E-CON-0203 |
+| `E-CON-0210` | Error    | Compile-time | `yield` outside async-returning procedure                        | E-CON-0210 |
+| `E-CON-0211` | Error    | Compile-time | `yield` operand type does not match `Out`                        | E-CON-0211 |
+| `E-CON-0212` | Error    | Compile-time | `yield` inside `sync` expression                                 | E-CON-0212 |
+| `E-CON-0213` | Error    | Compile-time | `yield` while key is held (without `release`)                    | E-CON-0213 |
+| `E-CON-0220` | Error    | Compile-time | `yield from` outside async-returning procedure                   | E-CON-0220 |
+| `E-CON-0221` | Error    | Compile-time | Incompatible `Out` parameter in `yield from`                     | E-CON-0221 |
+| `E-CON-0222` | Error    | Compile-time | Incompatible `In` parameter in `yield from`                      | E-CON-0222 |
+| `E-CON-0223` | Error    | Compile-time | `yield from` inside `sync` expression                            | E-CON-0223 |
+| `E-CON-0224` | Error    | Compile-time | `yield from` while key is held (without `release`)               | E-CON-0224 |
+| `E-CON-0225` | Error    | Compile-time | Error type not compatible in `yield from`                        | E-CON-0225 |
+| `E-CON-0230` | Error    | Compile-time | Error propagation in infallible async procedure                  | E-CON-0230 |
+| `E-CON-0240` | Error    | Compile-time | Iteration over async with `In ≠ ()`                              | E-CON-0240 |
+| `E-CON-0250` | Error    | Compile-time | `sync` inside async-returning procedure                          | E-CON-0250 |
+| `E-CON-0251` | Error    | Compile-time | `sync` operand has `Out ≠ ()`                                    | E-CON-0251 |
+| `E-CON-0252` | Error    | Compile-time | `sync` operand has `In ≠ ()`                                     | E-CON-0252 |
+| `E-CON-0260` | Error    | Compile-time | `race` with fewer than 2 arms                                    | E-CON-0260 |
+| `E-CON-0261` | Error    | Compile-time | `race` arms have incompatible types                              | E-CON-0261 |
+| `E-CON-0262` | Error    | Compile-time | Non-streaming `race` operand has `Out ≠ ()`                      | E-CON-0262 |
+| `E-CON-0263` | Error    | Compile-time | Mixed yield/non-yield handlers in race                           | E-CON-0263 |
+| `E-CON-0270` | Error    | Compile-time | `all` operand has `Out ≠ ()`                                     | E-CON-0270 |
+| `E-CON-0271` | Error    | Compile-time | `all` operand has `In ≠ ()`                                      | E-CON-0271 |
+| `E-CON-0280` | Error    | Compile-time | Captured binding does not outlive async                          | E-CON-0280 |
+| `E-CON-0281` | Error    | Compile-time | Async operation escapes its region                               | E-CON-0281 |
+| `E-CON-0410` | Error    | Compile-time | `[[dynamic]]` applied to contract clause directly                | E-CON-0410 |
+| `E-CON-0411` | Error    | Compile-time | `[[dynamic]]` applied to type alias declaration                  | E-CON-0411 |
+| `E-CON-0412` | Error    | Compile-time | `[[dynamic]]` applied to field declaration                       | E-CON-0412 |
+
+### 8.10. I-CON (Concurrency and Contracts Info)
+
+| Code         | Severity | Detection    | Condition                                     |
+| ------------ | -------- | ------------ | --------------------------------------------- |
+| `I-CON-0011` | Info     | Compile-time | Runtime synchronization emitted under `[[dynamic]]`            |
+| `I-CON-0013` | Info     | Compile-time | Static key safety proven under `[[dynamic]]` (no runtime sync) |
+
+### 8.11. W-CON (Concurrency and Contracts Warnings)
+
+| Code         | Severity | Detection    | Condition                                                         |
+| ------------ | -------- | ------------ | ----------------------------------------------------------------- |
+| `W-CON-0001` | Warning  | Compile-time | Fine-grained keys in tight loop (performance hint)                |
+| `W-CON-0002` | Warning  | Compile-time | Redundant key acquisition (already covered)                       |
+| `W-CON-0003` | Warning  | Compile-time | `#` redundant (matches type boundary)                             |
+| `W-CON-0004` | Warning  | Compile-time | Read-then-write may cause contention if parallelized              |
+| `W-CON-0005` | Warning  | Compile-time | Callee access pattern unknown; assuming full access               |
+| `W-CON-0006` | Warning  | Compile-time | Explicit read-then-write form used; compound assignment available |
+| `W-CON-0009` | Warning  | Compile-time | Closure captures `shared` data                                    |
+| `W-CON-0010` | Warning  | Compile-time | `release` block permits interleaving                              |
+| `W-CON-0011` | Warning  | Compile-time | Access to potentially stale binding after release                 |
+| `W-CON-0012` | Warning  | Compile-time | Nested `#` blocks with potential order cycle                      |
+| `W-CON-0013` | Warning  | Compile-time | `ordered` modifier used with statically-comparable indices        |
+| `W-CON-0020` | Warning  | Compile-time | Speculative block on large struct (may be inefficient)            |
+| `W-CON-0021` | Warning  | Compile-time | Speculative block body may be expensive to re-execute             |
+| `W-CON-0140` | Warning  | Compile-time | Dynamic key pattern; runtime serialization                        |
+| `W-CON-0201` | Warning  | Compile-time | Large captured state (performance)                                |
+| `W-CON-0401` | Warning  | Compile-time | `[[dynamic]]` present but all proofs succeed statically           |
+
+### 8.12. E-SYS (System)
+
+| Code         | Severity | Detection    | Condition                                          | DiagId       |
+| ------------ | -------- | ------------ | -------------------------------------------------- | ------------ |
+| `E-SYS-3340` | Error    | Compile-time | `[[symbol]]` on non-FFI procedure                   | E-SYS-3340 |
+| `E-SYS-3341` | Error    | Compile-time | Empty symbol string                                 | E-SYS-3341 |
+| `E-SYS-3342` | Error    | Link-time    | Duplicate symbol name in compilation unit           | E-SYS-3342 |
+| `E-SYS-3345` | Error    | Compile-time | `[[library]]` outside `extern` block                | E-SYS-3345 |
+| `E-SYS-3346` | Error    | Compile-time | Unknown library kind                                | E-SYS-3346 |
+| `E-SYS-3347` | Error    | Link-time    | Library not found                                   | E-SYS-3347 |
+| `E-SYS-3350` | Error    | Compile-time | `[[no_mangle]]` on non-exportable procedure         | E-SYS-3350 |
+| `E-SYS-3351` | Error    | Compile-time | `[[no_mangle]]` combined with `[[symbol]]`          | E-SYS-3351 |
+| `E-SYS-3352` | Error    | Compile-time | Unsupported extern ABI string                       | ExternAbi-Unknown-Err |
+| `E-SYS-3353` | Error    | Compile-time | `[[export]]` requires `public` visibility           | Export-Vis-Err |
+| `E-SYS-3355` | Error    | Compile-time | Unknown unwind mode                                 | E-SYS-3355 |
+| `E-SYS-3356` | Error    | Compile-time | `[[unwind]]` on non-FFI procedure                   | E-SYS-3356 |
+
+### 8.13. W-MOD (Module Warnings)
 
 | Code         | Severity | Detection    | Condition                                                      |
 | ------------ | -------- | ------------ | -------------------------------------------------------------- |
 | `W-MOD-1101` | Warning  | Compile-time | Potential module path collision on case-insensitive filesystem |
+| `W-MOD-1201` | Warning  | Compile-time | Wildcard `using` in a module exposing public API               |
+| `W-MOD-2451` | Warning  | Compile-time | `align(N)` where N < natural alignment                         |
+| `W-MOD-2452` | Warning  | Compile-time | `inline(always)` but inlining failed                           |
 
-### 8.9. W-SRC (Source Warnings)
+### 8.14. W-SRC (Source Warnings)
 
 | Code         | Severity | Detection    | Condition                                                   |
 | ------------ | -------- | ------------ | ----------------------------------------------------------- |
@@ -18085,18 +20993,20 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 | `W-SRC-0301` | Warning  | Compile-time | Leading zeros in decimal literal                            |
 | `W-SRC-0308` | Warning  | Compile-time | Lexically sensitive Unicode character within `unsafe` block |
 
-### 8.10. E-TYP (Types)
+### 8.15. E-TYP (Types)
 
 | Code         | Severity | Detection    | Condition                                                                                              | DiagId                                                                                                                                   |
 | ------------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `E-TYP-1101` | Error    | Compile-time | `shared` permission not supported in Cursive0                                                          | Perm-Shared-Unsupported                                                                                                                  |
-| `E-TYP-1505` | Error    | Compile-time | Missing required type annotation at module scope                                                       | WF-StaticDecl-MissingType, WF-ProcedureDecl-MissingReturnType                                                                            |
+| `E-TYP-1505` | Error    | Compile-time | Missing required type annotation at module scope                                                       | WF-StaticDecl-MissingType, WF-ProcedureDecl-MissingReturnType, WF-ExternProcDecl-MissingReturnType                                       |
 | `E-TYP-1530` | Error    | Compile-time | Type inference failed; unable to determine type                                                        | T-LetStmt-Infer-Err, T-VarStmt-Infer-Err, T-ShadowLetStmt-Infer-Err, T-ShadowVarStmt-Infer-Err, PtrNull-Infer-Err, NullLiteral-Infer-Err |
 | `E-TYP-1506` | Error    | Compile-time | Type alias cycle detected                                                                              | TypeAlias-Recursive-Err                                                                                                                  |
 | `E-TYP-1507` | Error    | Compile-time | Procedure with non-unit return type requires explicit return statement                                 | WF-ProcBody-ExplicitReturn-Err                                                                                                           |
+| `E-TYP-1520` | Error    | Compile-time | Variance violation in generic type instantiation                                                        | E-TYP-1520 |
+| `E-TYP-1521` | Error    | Compile-time | Invariant type parameter requires exact type match                                                       | E-TYP-1521 |
 | `E-TYP-1601` | Error    | Compile-time | Mutation through `const` path                                                                          | B-Assign-Const-Err                                                                                                                       |
 | `E-TYP-1602` | Error    | Compile-time | `unique` exclusion violation (aliasing or inactive use)                                                | B-Place-Unique-Err                                                                                                                       |
 | `E-TYP-1603` | Error    | Compile-time | Non-`move` argument must be a place expression                                                         | Call-Arg-NotPlace                                                                                                                        |
+| `E-TYP-1604` | Error    | Compile-time | Direct field mutation through `shared` path without key                                                 | E-TYP-1604 |
 | `E-TYP-1605` | Error    | Compile-time | Receiver permission incompatible with caller                                                           | MethodCall-RecvPerm-Err                                                                                                                  |
 | `E-TYP-1801` | Error    | Compile-time | Tuple index out of bounds                                                                              | TupleIndex-OOB                                                                                                                           |
 | `E-TYP-1802` | Error    | Compile-time | Tuple index is not a compile-time constant integer literal                                             | TupleIndex-NonConst                                                                                                                      |
@@ -18118,6 +21028,11 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 | `E-TYP-1921` | Error    | Compile-time | Enum discriminant literal is invalid                                                                   | Enum-Disc-Invalid                                                                                                                        |
 | `E-TYP-1922` | Error    | Compile-time | Enum discriminant must be non-negative                                                                 | Enum-Disc-Negative                                                                                                                       |
 | `E-TYP-1923` | Error    | Compile-time | Duplicate enum discriminant value                                                                      | Enum-Disc-Dup                                                                                                                            |
+| `E-TYP-1953` | Error    | Compile-time | Refinement not provable outside `[[dynamic]]` scope                                                     | E-TYP-1953 |
+| `E-TYP-1954` | Error    | Compile-time | Impure expression in refinement predicate                                                               | E-TYP-1954 |
+| `E-TYP-1955` | Error    | Compile-time | Predicate does not evaluate to `bool`                                                                   | E-TYP-1955 |
+| `E-TYP-1956` | Error    | Compile-time | `self` used in inline parameter constraint                                                              | E-TYP-1956 |
+| `E-TYP-1957` | Error    | Compile-time | Circular type dependency in refinement predicate                                                        | E-TYP-1957 |
 | `E-TYP-2050` | Error    | Compile-time | Modal type declares zero states                                                                        | Modal-NoStates-Err                                                                                                                       |
 | `E-TYP-2051` | Error    | Compile-time | Duplicate state name within modal type                                                                 | Modal-DupState-Err                                                                                                                       |
 | `E-TYP-2052` | Error    | Compile-time | Field access for field not present in current state's payload                                          | Modal-Field-Missing                                                                                                                      |
@@ -18133,41 +21048,76 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 | `E-TYP-2062` | Error    | Compile-time | Duplicate transition name in modal state                                                               | Transition-Dup                                                                                                                           |
 | `E-TYP-2063` | Error    | Compile-time | State member visibility exceeds modal visibility                                                       | StateMemberVisOk-Err                                                                                                                     |
 | `E-TYP-2064` | Error    | Compile-time | State member not visible in current scope                                                              | Modal-Field-NotVisible, Transition-NotVisible, Modal-Method-NotVisible                                                                   |
+| `E-TYP-2065` | Error    | Compile-time | State method name conflicts with transition name in the same modal state                               | StateMember-Name-Conflict                                                                                                                |
 | `E-TYP-2070` | Error    | Compile-time | Implicit widening on non-niche-layout-compatible type                                                  | Chk-Subsumption-Modal-NonNiche                                                                                                           |
 | `E-TYP-2071` | Error    | Compile-time | `widen` applied to non-modal type                                                                      | Widen-NonModal                                                                                                                           |
 | `E-TYP-2072` | Error    | Compile-time | `widen` applied to already-general modal type                                                          | Widen-AlreadyGeneral                                                                                                                     |
-| `E-TYP-2073` | Error    | Compile-time | Record literal whose type is `File@S` or `DirIter@S` for any state `S` in the corresponding modal type | Record-FileDir-Err                                                                                                                       |
+| `E-TYP-2073` | Error    | Compile-time | Record literal whose type is `File@S`, `DirIter@S`, or `CancelToken@S` for any state `S` in the corresponding modal type | Record-FileDir-Err                                                                                                                       |
 | `E-TYP-2101` | Error    | Compile-time | Dereference of pointer in `@Null` state                                                                | Deref-Null                                                                                                                               |
 | `E-TYP-2102` | Error    | Compile-time | Dereference of pointer in `@Expired` state                                                             | Deref-Expired                                                                                                                            |
 | `E-TYP-2103` | Error    | Compile-time | Dereference of raw pointer outside `unsafe`                                                            | Deref-Raw-Unsafe                                                                                                                         |
 | `E-TYP-2104` | Error    | Compile-time | Address-of applied to non-place expression                                                             | AddrOf-NonPlace                                                                                                                          |
+| `E-TYP-2105` | Error    | Compile-time | Reference to packed field outside `unsafe`                                                             | Packed-Field-Unsafe-Err                                                                                                                   |
+| `E-TYP-2106` | Error    | Compile-time | Call to `extern` procedure outside `unsafe`                                                            | Call-Extern-Unsafe-Err                                                                                                                    |
 | `E-MEM-3031` | Error    | Compile-time | `transmute` source and target sizes differ                                                             | T-Transmute-SizeEq                                                                                                                       |
 | `E-TYP-2201` | Error    | Compile-time | Union type has fewer than two member types                                                             | WF-Union-TooFew                                                                                                                          |
 | `E-TYP-2202` | Error    | Compile-time | Direct access on union value without pattern matching                                                  | Union-DirectAccess-Err                                                                                                                   |
+| `E-TYP-2301` | Error    | Compile-time | Type arguments cannot be inferred; explicit instantiation required                                    | E-TYP-2301 |
+| `E-TYP-2302` | Error    | Compile-time | Type argument does not satisfy required class bound or predicate                                      | E-TYP-2302 |
+| `E-TYP-2303` | Error    | Compile-time | Wrong number of type arguments                                                                         | E-TYP-2303 |
+| `E-TYP-2304` | Error    | Compile-time | Duplicate type parameter name in generic declaration                                                  | E-TYP-2304 |
+| `E-TYP-2305` | Error    | Compile-time | Class bound references a non-class type                                                               | E-TYP-2305 |
+| `E-TYP-2306` | Error    | Compile-time | Generic parameter in `extern` procedure signature                                                     | ExternProc-Generic-Err                                                                                                                   |
+| `E-TYP-2307` | Error    | Compile-time | Infinite monomorphization recursion                                                                   | E-TYP-2307 |
+| `E-TYP-2308` | Error    | Compile-time | Monomorphization depth limit exceeded                                                                 | E-TYP-2308 |
+| `E-TYP-2401` | Error    | Compile-time | Non-modal type implements modal class                                                                   | E-TYP-2401 |
 | `E-TYP-2402` | Error    | Compile-time | Implementing type missing required field                                                               | Impl-Field-Missing                                                                                                                       |
+| `E-TYP-2403` | Error    | Compile-time | Implementing modal missing required state                                                              | E-TYP-2403 |
 | `E-TYP-2404` | Error    | Compile-time | Implementing field has incompatible type                                                               | Impl-Field-Type-Err                                                                                                                      |
+| `E-TYP-2405` | Error    | Compile-time | Implementing state missing required payload field                                                      | E-TYP-2405 |
 | `E-TYP-2406` | Error    | Compile-time | Conflicting field names from multiple classes                                                          | EffFields-Conflict                                                                                                                       |
+| `E-TYP-2407` | Error    | Compile-time | Conflicting state names from multiple classes                                                          | E-TYP-2407 |
 | `E-TYP-2408` | Error    | Compile-time | Duplicate abstract field name in class                                                                 | Class-AbstractField-Dup                                                                                                                  |
+| `E-TYP-2409` | Error    | Compile-time | Duplicate abstract state name in class                                                                 | E-TYP-2409 |
 | `E-TYP-2500` | Error    | Compile-time | Duplicate procedure name in class                                                                      | Class-Method-Dup                                                                                                                         |
 | `E-TYP-2501` | Error    | Compile-time | `override` used on abstract procedure implementation                                                   | Override-Abstract-Err                                                                                                                    |
 | `E-TYP-2502` | Error    | Compile-time | Missing `override` on concrete procedure replacement                                                   | Override-Missing-Err                                                                                                                     |
 | `E-TYP-2503` | Error    | Compile-time | Type does not implement required procedure from class or has incompatible signature                    | Impl-Missing-Method, Impl-Sig-Err, Impl-Sig-Err-Concrete                                                                                 |
+| `E-TYP-2504` | Error    | Compile-time | Duplicate associated type name in class                                                                | E-TYP-2504 |
 | `E-TYP-2505` | Error    | Compile-time | Name conflict among class members                                                                      | Class-Name-Conflict                                                                                                                      |
 | `E-TYP-2506` | Error    | Compile-time | Coherence violation: duplicate class implementation                                                    | Impl-Dup, Impl-Duplicate-Class-Err                                                                                                       |
+| `E-TYP-2507` | Error    | Compile-time | Orphan rule violation: neither type nor class is local                                                 | E-TYP-2507 |
 | `E-TYP-2508` | Error    | Compile-time | Cyclic superclass dependency detected                                                                  | Superclass-Cycle                                                                                                                         |
 | `E-TYP-2509` | Error    | Compile-time | Superclass bound refers to undefined class                                                             | Superclass-Undefined                                                                                                                     |
+| `E-TYP-2510` | Error    | Compile-time | Accessing member not defined on opaque type's class                                                    | E-TYP-2510 |
+| `E-TYP-2511` | Error    | Compile-time | Opaque return type does not implement required class                                                   | E-TYP-2511 |
+| `E-TYP-2512` | Error    | Compile-time | Attempting to assign incompatible opaque types                                                         | E-TYP-2512 |
+| `E-TYP-2530` | Error    | Compile-time | Type argument does not satisfy class constraint                                                        | E-TYP-2530 |
+| `E-TYP-2531` | Error    | Compile-time | Unconstrained type parameter used in class method                                                      | E-TYP-2531 |
+| `E-TYP-2540` | Error    | Compile-time | Procedure with `[[static_dispatch_only]]` called on `$`                                                 | E-TYP-2540 |
 | `E-TYP-2541` | Error    | Compile-time | Dynamic class type created from non-dispatchable class                                                 | Dynamic-NonDispatchable                                                                                                                  |
-| `E-TYP-2621` | Error    | Compile-time | Type implements both `Bitcopy` and `Drop`                                                              | BitcopyDrop-Conflict                                                                                                                     |
-| `E-TYP-2622` | Error    | Compile-time | `Bitcopy` type has non-`Bitcopy` field                                                                 | Bitcopy-Field-NonBitcopy                                                                                                                 |
-| `E-TYP-2623` | Error    | Compile-time | Type implementing `Bitcopy` does not implement `Clone`                                                 | Bitcopy-Clone-Missing                                                                                                                    |
+| `E-TYP-2542` | Error    | Compile-time | Generic procedure in class without `[[static_dispatch_only]]` attribute                               | E-TYP-2542 |
+| `E-TYP-2621` | Error    | Compile-time | Type satisfies both `BitcopyType` and `DropType`                                                       | BitcopyDrop-Conflict                                                                                                                     |
+| `E-TYP-2622` | Error    | Compile-time | `BitcopyType` has non-`BitcopyType` field                                                              | Bitcopy-Field-NonBitcopy                                                                                                                 |
+| `E-TYP-2623` | Error    | Compile-time | Prohibited type category in `FfiSafeType`                                                              | FfiSafe-Prohibited-Err                                                                                                                   |
+| `E-TYP-2624` | Error    | Compile-time | `FfiSafeType` record without `[[layout(C)]]`                                                           | FfiSafe-Record-LayoutC-Err                                                                                                               |
+| `E-TYP-2625` | Error    | Compile-time | `FfiSafeType` enum without `[[layout(C)]]`                                                             | FfiSafe-Enum-LayoutC-Err                                                                                                                 |
+| `E-TYP-2626` | Error    | Compile-time | `FfiSafeType` record has non-`FfiSafeType` field                                                       | FfiSafe-Record-Field-Err                                                                                                                 |
+| `E-TYP-2627` | Error    | Compile-time | `FfiSafeType` enum has non-`FfiSafeType` payload field                                                 | FfiSafe-Enum-Field-Err                                                                                                                   |
+| `E-TYP-2628` | Error    | Compile-time | `FfiSafeType` requires complete layout                                                                 | FfiSafe-Incomplete-Err                                                                                                                   |
+| `E-TYP-2629` | Error    | Compile-time | Generic `FfiSafeType` with unconstrained parameter                                                     | FfiSafe-Generic-Unbounded-Err                                                                                                            |
+| `E-TYP-2630` | Error    | Compile-time | By-value FFI use of `DropType` without `[[ffi_pass_by_value]]`                                         | FfiByValue-Err                                                                                                                           |
+| `E-TYP-2631` | Error    | Compile-time | `[[export]]` with `unwind = "catch"` requires zeroable return type                                    | Export-Return-NotZeroable-Err                                                                                                            |
 
-### 8.11. W-SYS (System Warnings)
+### 8.16. W-SYS (System Warnings)
 
 | Code         | Severity | Detection    | Condition                                               |
 | ------------ | -------- | ------------ | ------------------------------------------------------- |
 | `W-SYS-4010` | Warning  | Compile-time | Modal widening involves large payload copy (>256 bytes) |
+| `W-SYS-3350` | Warning  | Compile-time | `[[no_mangle]]` in `extern "C"` (redundant)             |
+| `W-SYS-3355` | Warning  | Compile-time | `[[unwind("abort")]]` (redundant)                       |
 
-### 8.12. E-SEM (Semantics)
+### 8.17. E-SEM (Semantics)
 
 | Code         | Severity | Detection    | Condition                                            | DiagId                                            |
 | ------------ | -------- | ------------ | ---------------------------------------------------- | ------------------------------------------------- |
@@ -18183,6 +21133,26 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 | `E-SEM-2711` | Error    | Compile-time | Refutable pattern in irrefutable context (`let`)     | Let-Refutable-Pattern-Err                         |
 | `E-SEM-2713` | Error    | Compile-time | Duplicate binding identifier within single pattern   | Pat-Dup-Err, Pat-Dup-R-Err                        |
 | `E-SEM-2721` | Error    | Compile-time | Range pattern bounds are not compile-time constants  | RangePattern-NonConst                             |
+| `E-SEM-2801` | Error    | Compile-time | Contract predicate not provable outside `[[dynamic]]` scope | E-SEM-2801 |
+| `E-SEM-2802` | Error    | Compile-time | Impure expression in contract predicate              | E-SEM-2802 |
+| `E-SEM-2803` | Error    | Compile-time | Implementation strengthens class precondition        | E-SEM-2803 |
+| `E-SEM-2804` | Error    | Compile-time | Implementation weakens class postcondition           | E-SEM-2804 |
+| `E-SEM-2805` | Error    | Compile-time | `@entry()` result type not `BitcopyType` or `CloneType` | E-SEM-2805 |
+| `E-SEM-2806` | Error    | Compile-time | `@result` used outside postcondition                 | E-SEM-2806 |
+| `E-SEM-2820` | Error    | See §14.7    | Type invariant violated at construction              | E-SEM-2820 |
+| `E-SEM-2821` | Error    | See §14.7    | Type invariant violated at public entry              | E-SEM-2821 |
+| `E-SEM-2822` | Error    | See §14.7    | Type invariant violated at mutator return            | E-SEM-2822 |
+| `E-SEM-2823` | Error    | See §14.7    | Type invariant violated at private-to-public return  | E-SEM-2823 |
+| `E-SEM-2824` | Error    | Compile-time | Public mutable field on type with invariant          | E-SEM-2824 |
+| `E-SEM-2830` | Error    | See §14.7    | Loop invariant not established at initialization     | E-SEM-2830 |
+| `E-SEM-2831` | Error    | See §14.7    | Loop invariant not maintained across iteration       | E-SEM-2831 |
+| `E-SEM-2850` | Error    | Compile-time | Cannot prove `@foreign_assumes` predicate            | E-SEM-2850 |
+| `E-SEM-2851` | Error    | Compile-time | Invalid predicate in foreign contract                | E-SEM-2851 |
+| `E-SEM-2852` | Error    | Compile-time | Predicate references out-of-scope value              | E-SEM-2852 |
+| `E-SEM-2853` | Error    | Compile-time | Invalid predicate in `@foreign_ensures`              | E-SEM-2853 |
+| `E-SEM-2854` | Error    | Compile-time | `@result` used in non-return context                 | E-SEM-2854 |
+| `E-SEM-2855` | Error    | Compile-time | `@error` predicate on void-returning procedure       | E-SEM-2855 |
+| `E-SEM-3004` | Error    | Compile-time | Impure expression in contract clause                 | E-SEM-3004 |
 | `E-SEM-2722` | Error    | Compile-time | Range pattern start exceeds end (empty range)        | RangePattern-Empty                                |
 | `E-SEM-2731` | Error    | Compile-time | Record pattern references non-existent field         | RecordPattern-UnknownField                        |
 | `E-SEM-3011` | Error    | Compile-time | Method defined outside of type context               | Method-Context-Err                                |
@@ -18198,11 +21168,25 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 | `E-SEM-3164` | Error    | Compile-time | `result` type mismatch with block                    | BlockInfo-Res-Err                                 |
 | `E-SEM-3165` | Error    | Compile-time | `return` at module scope                             | Return-At-Module-Err                              |
 
-### 8.13. W-SEM (Semantic Warnings)
+### 8.18. W-SEM (Semantic Warnings)
 
 | Code         | Severity | Detection    | Condition                               | DiagId                  |
 | ------------ | -------- | ------------ | --------------------------------------- | ----------------------- |
 | `W-SEM-1001` | Warning  | Compile-time | Unreachable code after result statement | Warn-Result-Unreachable |
+
+### 8.19. P-TYP (Runtime Panics - Types)
+
+| Code         | Severity | Detection | Condition                                  | DiagId       |
+| ------------ | -------- | --------- | ------------------------------------------ | ------------ |
+| `P-TYP-1953` | Panic    | Runtime   | Refinement predicate failed at runtime     | P-TYP-1953 |
+
+### 8.20. P-SEM (Runtime Panics - Semantics)
+
+| Code         | Severity | Detection | Condition                                   | DiagId       |
+| ------------ | -------- | --------- | ------------------------------------------- | ------------ |
+| `P-SEM-2850` | Panic    | Runtime   | Contract predicate failed at runtime        | P-SEM-2850 |
+| `P-SEM-2860` | Panic    | Runtime   | Foreign precondition failed at runtime      | P-SEM-2860 |
+| `P-SEM-2861` | Panic    | Runtime   | Foreign postcondition failed at runtime     | P-SEM-2861 |
 
 ## 9. Appendix B - Notation and Glossary
 
@@ -18326,10 +21310,4195 @@ EmitList([d] ++ ds) = (Γ ⊢ Emit(d)) ∧ EmitList(ds)
 **ArgMax.**
 argmax_{x ∈ C} g(x) = x* ⇔ x* ∈ C ∧ ∀ y ∈ C. g(x*) ≥ g(y) ∧ (∀ z ∈ C. g(z) = g(x*) ⇒ z = x*)
 
+### 9.3. Variance
+
+**Variance.** Specifies how subtyping of type arguments relates to subtyping of parameterized types. For a generic type constructor F with parameter X, variance determines whether F[A] <: F[B] when A <: B, when B <: A, both, or neither.
+
+**Static Semantics**
+
+**Variance Classifications**
+
+| Variance      | Symbol | Condition for F[A] <: F[B] | Position Requirement                              |
+| :------------ | :----- | :------------------------- | :----------------------------------------------- |
+| Covariant     | `+`    | A <: B                     | Output positions (return types, immutable fields) |
+| Contravariant | `-`    | B <: A                     | Input positions (parameter types)                 |
+| Invariant     | `=`    | A ≡ B                      | Both input and output, or mutable storage         |
+| Bivariant     | `±`    | Always                     | Parameter does not appear in type structure       |
+
+**Generic Subtyping Rule**
+
+For a generic type Name⟨T_1, …, T_n⟩ to be a subtype of Name⟨U_1, …, U_n⟩, each type argument pair (T_i, U_i) MUST satisfy the variance of the corresponding parameter:
+- Covariant (`+`): T_i <: U_i
+- Contravariant (`-`): U_i <: T_i
+- Invariant (`=`): T_i ≡ U_i
+- Bivariant (`±`): always compatible
+
+**Function Type Variance**
+
+Function types are contravariant in their parameter types and covariant in their return types: (U) -> R_1 is a subtype of (T) -> R_2 iff T <: U and R_1 <: R_2.
+
+**Permission Interaction**
+
+The `const` permission enables covariance for otherwise invariant generic types: `const` C⟨A⟩ <: `const` C⟨B⟩ if A <: B. This relaxation MUST NOT apply to `unique` or `shared` permissions.
+
+**Constraints**
+
+An implementation MUST reject a subtyping judgment that violates variance rules.
+
+When a type parameter has invariant variance, the implementation MUST require exact type equivalence for that parameter in subtyping checks.
+
+**Diagnostics:** See Appendix A, codes `E-TYP-1520`, `E-TYP-1521`.
+
+### 9.4. Type Inference
+
+#### 9.4.1. Bidirectional Type Checking
+
+**Type Inference.** The process by which type information not explicitly annotated in the source program is derived. Cursive employs bidirectional type inference, combining synthesis and checking.
+
+**Static Semantics**
+
+**Judgment Classes**
+
+| Judgment        | Name       | Meaning                                              |
+| :-------------- | :--------- | :--------------------------------------------------- |
+| Γ ⊢ e ⇒ T       | Synthesis  | Type T is derived from the structure of e            |
+| Γ ⊢ e ⇐ T       | Checking   | Expression e is validated against expected type T    |
+
+In synthesis mode, type information flows from expression to context. In checking mode, expected type flows inward to guide inference.
+
+#### 9.4.2. Local Type Inference
+
+**Static Semantics**
+
+Type inference MUST be local: inference operates within a single procedure body and MUST NOT propagate type information across procedure boundaries.
+
+An implementation MUST NOT infer types for public API boundaries.
+
+#### 9.4.3. Inference Constraints
+
+**Static Semantics**
+
+**Mandatory Annotations**
+
+The following positions MUST have explicit type annotations:
+- Procedure parameter types
+- Procedure return types
+- Public and protected module-scope bindings
+
+**Permitted Omissions**
+
+The following positions MAY omit type annotations when the type is inferable:
+- Local bindings within procedure bodies (`let`, `var`)
+- Closure parameter types when the closure expression is checked against an expected function type.
+
+**(Infer-Closure-Params)**
+Γ; R; L ⊢ C ⇐ TypeFunc([⟨m_1, T_1⟩, …, ⟨m_n, T_n⟩], R_t) ⊣ ∅    Params(C) = [p_1, …, p_n]    ∀ i. (Annot(p_i) = ⊥ ⇒ ParamType(p_i) = T_i) ∧ (Annot(p_i) = T_i' ⇒ Γ ⊢ T_i' ≡ T_i)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ InferClosureParams(C) ⇓ ok
+
+If a closure parameter lacks an annotation and no expected function type is available, inference fails.
+
+Params(C) is the parameter list of closure expression C. Annot(p) is the optional type annotation on parameter p.
+
+**Diagnostics:** See Appendix A, code `E-TYP-1505`.
+
+#### 9.4.4. Inference Failures
+
+**Static Semantics**
+
+An implementation MUST reject a program if inference fails to derive a unique type for any expression.
+
+When type arguments are not inferred, explicit type arguments MUST be supplied at the call site.
+Explicit type arguments are supplied using the generic call syntax `callee<type_arg_list>(...)` (see §13.1.2). This form parses to `CallTypeArgs`.
+
+**Diagnostics:** See Appendix A, code `E-TYP-1530`.
+
+## 10. The Permission System
+
+---
+
+### 10.1 Permission Lattice (`const`, `unique`, `shared`)
+
+
+#### 10.1.1 `const` Permission (Read-Only)
+
+**Permission.** A type qualifier governing access, mutation, and aliasing of data referenced by a binding. When no permission is specified, `const` is the default.
+
+**`const` Permission.** Grants read-only access to data with unlimited aliasing. Mutation through a `const` path is forbidden.
+
+**Syntax**
+
+```ebnf
+permission       ::= "const" | "unique" | "shared"
+permission_type  ::= type
+```
+
+
+**Static Semantics**
+
+Let 𝒫 denote the set of permissions:
+
+𝒫 = {`const`, `unique`, `shared`}
+
+A **permission-qualified type** is a pair (P, T) where P ∈ 𝒫 and T is a base type. The notation P T denotes this qualification.
+
+**Operations Permitted:**
+
+| Operation | Permitted |
+| :-------- | :-------- |
+| Read      | Yes       |
+| Write     | No        |
+| Aliasing  | Unlimited |
+
+
+#### 10.1.2 `unique` Permission (Exclusive Read-Write)
+
+**`unique` Permission.** Grants exclusive read-write access to data. A live `unique` path to an object precludes any other path to that object or its sub-components.
+
+**Static Semantics**
+
+**Exclusivity Invariant:**
+
+∀ p_1, p_2 ∈ Paths. (perm(p_1) = `unique` ∧ overlaps(p_1, p_2)) ⇒ p_1 = p_2
+
+**Operations Permitted:**
+
+| Operation | Permitted  |
+| :-------- | :--------- |
+| Read      | Yes        |
+| Write     | Yes        |
+| Aliasing  | No aliases |
+
+The `unique` permission does **not** imply cleanup responsibility. A parameter of type `unique T` (without `move`) grants exclusive access while the caller retains responsibility.
+
+
+#### 10.1.3 `shared` Permission (Synchronized Access)
+
+**`shared` Permission.** Grants mutable access through implicit key acquisition. See §17 for complete key system semantics.
+
+**Static Semantics**
+
+**Operations Permitted:**
+
+| Operation                   | Permitted | Key Mode  |
+| :-------------------------- | :-------- | :-------- |
+| Field read                  | Yes       | Read key  |
+| Field mutation              | Yes       | Write key |
+| Method call (`~` receiver)  | Yes       | Read key  |
+| Method call (`~%` receiver) | Yes       | Write key |
+| Method call (`~!` receiver) | No        | N/A       |
+
+**Key Properties:**
+
+| Property      | Description                                               |
+| :------------ | :-------------------------------------------------------- |
+| Path-specific | Keys acquired at accessed path granularity                |
+| Implicit      | Accessing `shared` path acquires necessary key            |
+| Minimal       | Keys held for minimal duration                            |
+| Reentrant     | Covering key permits nested access without re-acquisition |
+
+The `shared` permission does **not** imply cleanup responsibility.
+
+
+#### 10.1.4 Lattice Ordering
+
+**Lattice Ordering.** The permission lattice orders permissions by aliasing guarantee strength.
+
+**Static Semantics**
+
+`unique` <: `shared` <: `const`
+
+**Lattice Diagram:**
+
+
+
+### 10.2 Exclusivity and Aliasing Rules
+
+**Aliasing.** Two paths alias when they refer to overlapping storage locations: aliases(p_1, p_2) ⇔ storage(p_1) ∩ storage(p_2) ≠ ∅.
+
+**Binding State Machine**
+
+A binding b with `unique` permission exists in one of two states:
+
+| State    | Definition                                        | Operations Permitted         |
+| :------- | :------------------------------------------------ | :--------------------------- |
+| Active   | No downgraded references to b are live          | Read, write, move, downgrade |
+| Inactive | One or more downgraded references to b are live | No operations                |
+
+**Static Semantics**
+
+**(Inactive-Enter)**
+b : `unique` T    b is Active    downgrade to P where P ∈ {`const`, `shared`}
+──────────────────────────────────────────────────────────────────────────────
+b becomes Inactive
+
+**(Inactive-Exit)**
+b is Inactive    all downgraded references to b go out of scope
+──────────────────────────────────────────────────────────────────────────────
+b becomes Active with `unique` permission restored
+
+**Constraints**
+
+1. During the inactive period, the original `unique` binding MUST NOT be read, written, or moved.
+2. The transition back to Active occurs deterministically when the downgrade scope ends.
+
+**Coexistence Matrix**
+
+| Active Permission | May Add `unique` | May Add `shared` | May Add `const` |
+| :---------------- | :--------------- | :--------------- | :-------------- |
+| `unique`          | No               | No               | No              |
+| `shared`          | No               | Yes              | Yes             |
+| `const`           | No               | Yes              | Yes             |
+
+
+### 10.3 Permission Subtyping and Coercion
+
+**Permission Subtyping.** This section formalizes the subtype relation between permission-qualified types. General subtyping is defined in §9.2.
+
+**Subtyping Rules**
+
+Permission subtyping allows treating a stronger permission as a weaker one:
+- `unique T <: shared T`
+- `unique T <: const T`
+- `shared T <: const T`
+
+Permissions coerce implicitly in one direction only: from stronger to weaker. Upgrade from weaker to stronger is forbidden.
+
+**Diagnostics:** See Appendix A, codes `E-TYP-1601`, `E-TYP-1602`, `E-TYP-1604`.
+
+**Method Receiver Permissions**
+
+*[REF: Shorthand syntax (`~`, `~!`, `~%`) is defined in §14.2.2.]*
+
+A method with receiver permission P_method is callable through a path with permission P_caller iff:
+
+P_caller <: P_method
+
+| Caller Permission | May Call `~` | May Call `~%` | May Call `~!` |
+| :---------------- | :----------- | :------------ | :------------ |
+| `const`           | Yes          | No            | No            |
+| `shared`          | Yes          | Yes           | No            |
+| `unique`          | Yes          | Yes           | Yes           |
+
+**Diagnostics:** See Appendix A, code `E-TYP-1605`.
+
+---
+
+## 13. Abstraction and Polymorphism
+
+---
+
+### 13.1 Generics
+
+
+#### 13.1.1 Generic Type Parameters
+
+**Generic Declaration.** Introduces one or more **type parameters** that serve as placeholders for concrete types supplied at instantiation.
+
+A generic declaration D is defined by:
+
+D = (Name, Params, Body)
+
+where:
+- Name is the declaration's identifier
+- Params = ⟨P_1, P_2, …, P_n⟩ is an ordered sequence of type parameters
+- Body is the declaration body (type definition or procedure body)
+
+Each type parameter P_i is defined by:
+
+P_i = (name_i, Bounds_i, Default_i)
+
+where:
+- name_i is an identifier serving as the parameter name
+- Bounds_i ⊆ 𝒯_class is a (possibly empty) set of class bounds
+- Default_i ∈ Type ∪ {⊥} is an optional default type
+
+Inline bounds (`<:`) are class bounds only. Predicate bounds are specified exclusively in `where` clauses (§13.1.3).
+
+A type parameter with Bounds_i = ∅ is **unconstrained**. A type parameter with Bounds_i ≠ ∅ is **constrained**; it MUST be instantiated only with types implementing all classes in Bounds_i.
+
+**Syntax**
+
+```ebnf
+generic_params     ::= "<" generic_param_list ">"
+generic_param_list ::= generic_param (";" generic_param)*
+generic_param      ::= identifier bound_clause? default_clause?
+bound_clause       ::= "<:" class_bound_list
+default_clause     ::= "=" type
+class_bound_list   ::= class_bound ("," class_bound)*
+
+generic_args       ::= "<" type_arg_list ">"
+type_arg_list      ::= type ("," type)*
+```
+
+
+**Static Semantics**
+
+DefaultSuffix(params) ⇔ ∀ i < j. (params[i].default_opt ≠ ⊥ ⇒ params[j].default_opt ≠ ⊥)
+DefaultRefsOk(params) ⇔ ∀ i. params[i].default_opt = T_i ⇒ TypeParamsIn(T_i, params) ⊆ {params[j].name | j < i}
+DefaultWF(Γ, params) ⇔ ∀ i. params[i].default_opt = T_i ⇒ (Γ_i ⊢ T_i wf ∧ Γ_i ⊢ T_i satisfies Bounds(params[i])) where Γ_i = BindTypeParams(Γ, [params[j] | j < i])
+
+**(WF-Generic-Param)**
+
+∀ i ≠ j, name_i ≠ name_j    ∀ i, ∀ B ∈ Bounds_i, Γ ⊢ B : ClassPath    DefaultSuffix([P_1, …, P_n])    DefaultRefsOk([P_1, …, P_n])    DefaultWF(Γ, [P_1, …, P_n])
+──────────────────────────────────────────────────────────────────────────
+Γ ⊢ ⟨P_1; …; P_n⟩ wf
+
+**(WF-Generic-Type)**
+
+Γ ⊢ ⟨P_1, …, P_n⟩ wf    Γ, T_1 : P_1, …, T_n : P_n ⊢ Body wf
+──────────────────────────────────────────────────────────────────────────
+Γ ⊢ `type` Name⟨P_1, …, P_n⟩ Body wf
+
+**Constraints**
+
+| Separator | Role                                  | Scope                            |
+| :-------- | :------------------------------------ | :------------------------------- |
+| `;`       | Separates type parameters             | Between `<` and `>`              |
+| `,`       | Separates bounds within one parameter | After `<:` until next `;` or `>` |
+
+**Diagnostics:** See Appendix A, code `E-TYP-2304`.
+
+
+#### 13.1.2 Generic Procedures
+
+**Generic Procedure.** A procedure parameterized by type parameters. Type arguments MAY be explicit or inferred.
+
+**Syntax**
+
+```ebnf
+generic_procedure ::= "procedure" identifier generic_params "(" param_list? ")" ("->" type)? block
+generic_call      ::= callee generic_args "(" arg_list? ")"
+```
+
+
+**Static Semantics**
+
+**(WF-Generic-Proc)**
+
+Γ ⊢ ⟨P_1, …, P_n⟩ wf    Γ' = Γ, T_1 : P_1, …, T_n : P_n    Γ' ⊢ signature wf    Γ' ⊢ body wf
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ `procedure` f⟨P_1, …, P_n⟩(...) → R {…} wf
+
+**(T-Generic-Call)**
+
+procedure f⟨T_1, …, T_n⟩(x_1 : S_1, …, x_m : S_m) → R where W declared
+DefaultArgs([T_1, …, T_n], [A_1, …, A_k]) = [A_1', …, A_n']
+θ = [A_1'/T_1, …, A_n'/T_n]
+∀ i ∈ 1..n, Γ ⊢ A_i' satisfies Bounds(T_i)
+Γ ⊢ W[θ] ok
+∀ j ∈ 1..m, Γ ⊢ e_j : S_j[θ]
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ CallTypeArgs(Identifier(f), [A_1, …, A_k], [e_1, …, e_m]) : R[θ]
+
+**(Generic-Call-ArgCount-Err)**
+DefaultArgs([T_1, …, T_n], [A_1, …, A_k]) = ⊥    c = Code(E-TYP-2303)
+──────────────────────────────────────────────────────────────
+Γ ⊢ CallTypeArgs(Identifier(f), [A_1, …, A_k], [e_1, …, e_m]) ⇑ c
+
+After substituting type arguments, a `CallTypeArgs` expression is elaborated to a monomorphic `Call`; subsequent phases operate on the elaborated form.
+
+**Type Argument Inference**
+
+When type arguments are not explicitly provided, the implementation MUST infer them using bidirectional type inference (§9.4). Inference sources:
+1. Types of value arguments at the call site
+2. Expected return type from the surrounding context
+
+Generic procedures in classes MUST NOT participate in dynamic dispatch. Such procedures MUST be marked with `[[static_dispatch_only]]` (see §5.13.5) and MUST be called only through concrete type references, not through `$Class` references.
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-TYP-2301`, `E-TYP-2306`.
+
+
+#### 13.1.3 Generic Constraints
+
+**Constraint Satisfaction.** Determines whether a type argument satisfies the bounds declared for a type parameter.
+
+**Syntax**
+
+```ebnf
+where_clause         ::= "where" where_predicate_list
+where_predicate_list ::= where_predicate (predicate_separator where_predicate)* predicate_separator?
+where_predicate      ::= predicate_name "(" type ")"
+predicate_name       ::= "Bitcopy" | "Clone" | "Drop" | "FfiSafe"
+predicate_separator  ::= terminator
+```
+
+
+**Static Semantics**
+
+WherePreds(⊥) = []
+WherePreds(W) = W
+
+TypeParamsOpt(⊥) = []
+TypeParamsOpt(ps) = ps
+TypeParamNames(params) = [p.name | p ∈ params]
+BindTypeParams(Γ, params) = Γ, T_1 : P_1, …, T_n : P_n    where params = [P_1, …, P_n] ∧ ∀ i. T_i = P_i.name
+
+DefaultArgs(params, args) = args' ⇔ params = [P_1, …, P_n] ∧ args = [A_1, …, A_k] ∧ k ≤ n ∧
+  (∀ i ≤ k. A_i' = A_i) ∧
+  (∀ i ∈ k+1..n. P_i.default_opt = T_i ∧ A_i' = TypeSubst([A_1'/P_1.name, …, A_{i-1}'/P_{i-1}.name], T_i)) ∧
+  args' = [A_1', …, A_n']
+
+DefaultArgs(params, args) = ⊥ ⇔ ¬∃ args'. DefaultArgs(params, args) = args'
+
+**(WherePred-WF-Predicate)**
+
+wp = PredWherePred(pred, ty)    pred ∈ PredicateName    Γ' = BindTypeParams(Γ, params)    Γ' ⊢ ty wf
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; params ⊢ wp wf
+
+Γ; params ⊢ W wf ⇔ ∀ wp ∈ WherePreds(W). Γ; params ⊢ wp wf
+
+PredOk(`Bitcopy`, T) ⇔ BitcopyType(T)
+PredOk(`Clone`, T) ⇔ CloneType(T)
+PredOk(`Drop`, T) ⇔ DropType(T)
+PredOk(`FfiSafe`, T) ⇔ Γ ⊢ FfiSafeType(T) ⇓ ok
+
+**(T-Constraint-Sat)**
+
+∀ B ∈ Bounds, Γ ⊢ A <: B
+─────────────────────────────────────
+Γ ⊢ A satisfies Bounds
+
+**(WherePred-Predicate)**
+
+wp = ⟨pred, ty⟩    PredOk(pred, ty[θ])
+──────────────────────────────────────
+Γ ⊢ wp[θ] ok
+
+Γ ⊢ W[θ] ok ⇔ ∀ wp ∈ WherePreds(W). Γ ⊢ wp[θ] ok
+
+**(T-Generic-Inst)**
+
+Name⟨P_1, …, P_n⟩ where W declared    DefaultArgs([P_1, …, P_n], [A_1, …, A_k]) = [A'_1, …, A'_n]    θ = [A'_i / P_i.name]
+∀ i ∈ 1..n, Γ ⊢ A'_i satisfies Bounds(P_i)    Γ ⊢ W[θ] ok
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Name⟨A_1, …, A_k⟩ wf
+
+When both inline bounds and a `where` clause specify constraints for the same parameter, the effective constraint is the conjunction of the inline class bounds and the `where` predicates.
+
+**Constraints**
+
+1. A class bound MUST reference a valid class type; bounding by non-class types is forbidden.
+2. A where predicate MUST use a predicate name from PredicateName.
+3. A generic instantiation MUST satisfy DefaultArgs(params, args) ≠ ⊥.
+4. Type arguments MUST satisfy all inline bounds and all `where` predicates.
+
+**Diagnostics:** See Appendix A, codes `E-TYP-2302`, `E-TYP-2303`, `E-TYP-2305`.
+
+
+#### 13.1.4 Monomorphization
+
+**Monomorphization.** The process of generating specialized code for each concrete instantiation of a generic type or procedure.
+
+Given a generic declaration D⟨T_1, …, T_n⟩ and concrete type arguments A_1, …, A_n, monomorphization produces a specialized declaration D[A_1/T_1, …, A_n/T_n] where each occurrence of T_i in the body is replaced with A_i.
+
+**Static Semantics**
+
+**Monomorphization Requirements**
+
+1. **Specialization:** For each instantiation D⟨A_1, …, A_n⟩, produce code equivalent to substituting each type argument for its corresponding parameter throughout the declaration body.
+
+2. **Zero Overhead:** Calls to generic procedures MUST compile to direct static calls to the specialized instantiation. Virtual dispatch is prohibited for static polymorphism.
+
+3. **Independent Instantiation:** Each distinct instantiation is an independent type or procedure. `Container<i32>` and `Container<i64>` are distinct types.
+
+**Recursion Depth**
+
+Monomorphization MAY produce recursive instantiations. Implementations MUST detect and reject infinite monomorphization recursion. The maximum instantiation depth is 128.
+
+**Variance**
+
+The variance of each type parameter is determined by its usage within the type definition. See §9.3 for variance specification.
+
+**Dynamic Semantics**
+
+**Layout Independence**
+
+Each monomorphized instantiation has an independent memory layout:
+
+sizeof(Name⟨A_1, …, A_n⟩) = sizeof(Name[A_1/T_1, …, A_n/T_n])
+
+alignof(Name⟨A_1, …, A_n⟩) = alignof(Name[A_1/T_1, …, A_n/T_n])
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-TYP-2307`, `E-TYP-2308`.
+
+
+### 13.2 Classes (Forms)
+
+
+#### 13.2.1 Class Declaration Syntax
+
+**Class.** A named declaration that defines an abstract interface consisting of procedure signatures, associated type declarations, abstract fields, and abstract states.
+
+A class Cl is defined as a tuple:
+
+Cl = (N, G, S, P_abs, P_con, A_abs, A_con, F, St)
+
+where:
+- N is the class name
+- G is the (possibly empty) set of generic type parameters
+- S is the (possibly empty) set of superclass bounds
+- P_abs is the set of abstract procedure signatures
+- P_con is the set of concrete procedure definitions (default implementations)
+- A_abs is the set of abstract associated type declarations
+- A_con is the set of concrete associated type bindings
+- F is the (possibly empty) set of abstract field declarations
+- St is the (possibly empty) set of abstract state declarations
+
+A class with St ≠ ∅ is a **modal class**. Only modal types MUST implement modal classes.
+
+A type T **implements** class Cl (written T <: Cl) when:
+
+T <: Cl ⇔ ∀ p ∈ P_abs. T defines p ∧ ∀ a ∈ A_abs. T binds a ∧ ∀ f ∈ F. T has f ∧ ∀ s ∈ St. T has s
+
+**Syntax**
+
+```ebnf
+class_declaration ::=
+    visibility? "class" identifier generic_params?
+    ("<:" superclass_bounds)? "{"
+        class_item*
+    "}"
+
+superclass_bounds ::= class_bound ("+" class_bound)*
+class_bound       ::= type_path generic_args?
+
+class_item ::=
+    abstract_procedure
+  | concrete_procedure
+  | associated_type
+  | abstract_field
+  | abstract_state
+
+abstract_procedure ::= "procedure" identifier signature contract_clause?
+concrete_procedure ::= "procedure" identifier signature contract_clause? block
+abstract_field     ::= identifier ":" type
+abstract_state     ::= "@" identifier "{" field_list? "}"
+field_list         ::= abstract_field ("," abstract_field)*
+```
+
+
+**Static Semantics**
+
+**(WF-Class)**
+
+unique(N)    ∀ p ∈ P. Γ, Self : Type ⊢ p wf    ¬ cyclic(S)    names_disjoint(P, A, F, St)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ class N [<: S] {P, A, F, St} wf
+
+**(T-Superclass)**
+
+class A <: B    T <: A
+────────────────────────
+Γ ⊢ T <: B
+
+Within a class declaration, `Self` denotes the (unknown) implementing type.
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-TYP-2500`, `E-TYP-2504`, `E-TYP-2505`, `E-TYP-2508`, `E-TYP-2509`, `E-TYP-2408`, `E-TYP-2409`.
+
+
+#### 13.2.2 Associated Methods
+
+**Abstract Procedure.** A procedure signature within a class that lacks a body. Implementing types MUST provide a concrete implementation.
+
+**Concrete Procedure.** A procedure definition within a class that includes a body. Implementing types automatically inherit this procedure but MAY override it using the `override` keyword.
+
+**Static Semantics**
+
+**(WF-Class-Self)**
+
+Γ, Self : Type ⊢ body : ok
+──────────────────────────────────────────
+Γ ⊢ class T { body } : Class
+
+
+#### 13.2.3 Associated Types
+
+**Associated Type.** A type declaration within a class:
+- If abstract (no `= T`): implementing types MUST provide a concrete type binding
+- If concrete (`= T`): provides a default type that MAY be overridden
+
+**Syntax**
+
+```ebnf
+associated_type ::= "type" identifier ("=" type)?
+```
+
+
+
+**Static Semantics**
+
+Generic class parameters (`class Foo<T>`) are specified at use-site. Associated types are specified by the implementer within the type body.
+
+**Class Alias Equivalence (T-Alias-Equiv)**
+
+type Alias = A + B
+──────────────────────────────────────────────────────────────
+Γ ⊢ T <: Alias ⇔ Γ ⊢ T <: A ∧ Γ ⊢ T <: B
+
+
+### 13.3 Class Implementation
+
+
+#### 13.3.1 Implementation Blocks
+
+**Class Implementation.** A type implements a class by:
+1. Declaring the class in its "implements clause" using the `<:` operator
+2. Providing implementations for all abstract procedures
+3. Providing type bindings for all abstract associated types
+4. Having fields with matching names and compatible types for all abstract fields
+5. Having states with matching names and required payload fields for all abstract states (modal classes only)
+
+Class implementation MUST occur at the type's definition site. Extension implementations are prohibited.
+
+**Syntax**
+
+```ebnf
+impl_procedure    ::= visibility? "override"? "procedure" identifier signature block
+```
+
+
+**Static Semantics**
+
+**(T-Impl-Complete)**
+
+T <: Cl    ∀ p ∈ P_abs(Cl). T defines p    ∀ a ∈ A_abs(Cl). T binds a    ∀ f ∈ F(Cl). T has f    ∀ s ∈ St(Cl). T has s
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T implements Cl
+
+**(WF-Impl)**
+
+Γ ⊢ T wf    Γ ⊢ Cl wf    St(Cl) ≠ ∅ ⇒ T is modal
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T <: Cl wf
+
+**Override Semantics**
+
+- **Implementing an abstract procedure**: `override` keyword MUST NOT be used
+- **Overriding a concrete procedure**: `override` keyword MUST be used
+
+**Coherence Rule**
+
+A type `T` MAY implement a class `Cl` at most once.
+
+**Orphan Rule**
+
+For `T <: Cl`, at least one of `T` or `Cl` MUST be defined in the current assembly.
+
+**(T-Field-Compat)**
+
+f : T_c ∈ F(Cl)    f : T_i ∈ fields(R)    T_i <: T_c
+──────────────────────────────────────────────────────────────
+R ⊢ f present
+
+**(T-Modal-Class)**
+
+St(Cl) ≠ ∅    T <: Cl    T is not a modal type
+────────────────────────────────────────────────────
+ill-formed: E-TYP-2401
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-TYP-2501`–`E-TYP-2507`, `E-TYP-2401`–`E-TYP-2407`.
+
+
+### 13.4 Class Constraints
+
+
+#### 13.4.1 Single Constraints
+
+**Class Constraint.** A generic parameter `T <: Cl` restricts valid type arguments to types implementing class `Cl`.
+
+**Static Semantics**
+
+**Constraint Satisfaction**
+
+A generic instantiation is well-formed only if every constrained parameter `T <: Cl` is instantiated with a type that implements `Cl`.
+
+**Method Availability**
+
+Within the body of a generic item, methods of `Cl` are callable on values of type `T` via static dispatch; calls resolve at monomorphization with no vtable lookup.
+
+
+#### 13.4.2 Multiple Constraints (`+`)
+
+**Multiple Constraints.** A type parameter MAY have multiple class bounds using the `+` separator or comma-separated bounds after `<:`.
+
+**Syntax**
+
+
+**Static Semantics**
+
+The type argument must implement all specified classes.
+
+
+#### 13.4.3 Where Clauses
+
+**Where Clauses.** As an alternative to inline bounds, constraints MAY be specified in a `where` clause. See §13.1.3 for full grammar.
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-TYP-2530`, `E-TYP-2531`.
+
+
+### 13.5 Dynamic Polymorphism (`$`)
+
+
+#### 13.5.1 Dynamic Class Objects
+
+**Dynamic Class Type.** A `$Class` is a concrete, sized type representing any value implementing a dispatchable class. Implemented as a dense pointer.
+
+**Syntax**
+
+```ebnf
+dynamic_type ::= "$" class_path
+class_path   ::= type_path
+```
+
+
+**Static Semantics**
+
+**(T-Dynamic-Form)**
+
+Γ ⊢ v : T    Γ ⊢ T <: Cl    dispatchable(Cl)
+──────────────────────────────────────────────
+Γ ⊢ v : $Cl
+
+**Dispatchability**
+
+A class is **dispatchable** if every procedure in the class is either:
+1. VTable-eligible, OR
+2. Explicitly excluded via `[[static_dispatch_only]]`
+
+**VTable Eligibility**
+
+A procedure is **vtable-eligible** if ALL of the following are true:
+1. Has a receiver parameter (`self`, `~`, `~!`, `~%`)
+2. Has NO generic type parameters
+3. Does NOT return `Self` by value (except via pointer indirection)
+4. Does NOT use `Self` in parameter types (except via pointer indirection)
+
+**Formal Definition**
+
+dispatchable(Cl) ⇔ ∀ p ∈ procedures(Cl). vtable_eligible(p) ∨ has_static_dispatch_attr(p)
+
+**Dynamic Semantics**
+
+**Dynamic Class Type Creation**
+
+1. Let `v` be a value of concrete type `T` where `T <: Cl` and `dispatchable(Cl)`.
+2. Let `dp` be a pointer to the storage of `v`.
+3. Let `vt` be the static vtable for the `(T, Cl)` type-class pair.
+4. Construct the dynamic class value as the pair `(dp, vt)`.
+
+**(E-Dynamic-Form)**
+
+Γ ⊢ v : T    T <: Cl    dispatchable(Cl)
+────────────────────────────────────────
+v ⇒_$ (ptr(v), vtable(T, Cl))
+
+**Memory Layout**
+
+A dynamic class type (`$Class`) is represented as a two-word structure:
+
+- **Size**: `2 * sizeof(usize)` (16 bytes on 64-bit platforms)
+- **Alignment**: `alignof(usize)`
+
+
+
+#### 13.5.2 Virtual Method Dispatch
+
+**Virtual Method Dispatch.** A procedure call on a dynamic class type dispatches through the vtable.
+
+**Dynamic Semantics**
+
+**VTable Dispatch Algorithm**
+
+A procedure call `w~>method(args)` on dynamic class type `w: $Cl` executes as follows:
+
+1. Let `(dp, vt)` be the data pointer and vtable pointer components of `w`.
+2. Let `offset` be the vtable offset for `method`.
+3. Let `fp` be the function pointer at `vt + header_size + offset * sizeof(usize)`.
+4. Return the result of calling `fp(dp, args)`.
+
+**(E-Dynamic-Dispatch)**
+
+w = (dp, vt)    method ∈ interface(Cl)    vt[offset(method)] = fp
+────────────────────────────────────────────────────────────────────────────
+w~>method(args) → fp(dp, args)
+
+**VTable Layout (Stable ABI)**
+
+For non-modal classes (header size = 3):
+1. `size: usize` — Size of concrete type
+2. `align: usize` — Alignment requirement
+3. `drop: *imm fn` — Destructor function pointer (null if DropType of the concrete type does not hold)
+4. `methods[..]` — Function pointers in class declaration order
+
+For modal classes (header size = 4): includes additional `state_map` pointer.
+
+
+#### 13.5.3 Object Safety
+
+**Object Safety.** Determines whether a class MAY be used as a dynamic class type (dispatchability).
+
+**Static Semantics**
+
+A class that contains non-vtable-eligible procedures without `[[static_dispatch_only]]` is NOT dispatchable.
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-TYP-2540`–`E-TYP-2542`.
+
+
+### 13.6 Opaque Polymorphism (`opaque`)
+
+
+#### 13.6.1 Opaque Return Types
+
+**Opaque Return Type.** An `opaque Class` exposes only the class's interface while hiding the concrete implementation type.
+
+**Syntax**
+*[REF: Return-type grammar is defined in §14.1.1.]*
+
+
+**Static Semantics**
+
+**(T-Opaque-Return)**
+
+Γ ⊢ body : T    Γ ⊢ T <: Cl    return_type(f) = opaque Cl
+───────────────────────────────────────────────────────────────────
+Γ ⊢ f : () → opaque Cl
+
+**(T-Opaque-Project)**
+
+At call sites, the opaque type is treated as an existential; callers MUST invoke only class methods:
+
+Γ ⊢ f() : opaque Cl    m ∈ interface(Cl)
+────────────────────────────────────────────
+Γ ⊢ f()~>m(args) : R_m
+
+**Type Encapsulation**
+
+For a procedure returning `opaque Class`:
+- The callee returns a concrete type implementing `Class`
+- The caller observes only `Class` members
+- Access to concrete type members is forbidden
+
+
+#### 13.6.2 Type Erasure
+
+**Type Erasure.** Opaque types provide type encapsulation without runtime overhead.
+
+**Static Semantics**
+
+**Opaque Type Equality**
+
+Two opaque types `opaque Cl` are equivalent if and only if they originate from the same procedure definition:
+
+f ≠ g
+──────────────────────────────
+typeof(f()) ≠ typeof(g())
+
+**Zero Overhead**
+
+Opaque types MUST incur zero runtime overhead. The returned value is the concrete type, not a dense pointer. Type encapsulation is enforced statically.
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-TYP-2510`–`E-TYP-2512`.
+
+
+### 13.7 Refinement Types
+
+
+#### 13.7.1 Refinement Syntax
+
+**Refinement Type.** A type constructed by attaching a predicate constraint to a base type. The refinement type `T where { P }` denotes the subset of values of type `T` for which predicate `P` evaluates to `true`.
+
+A refinement type R is defined by:
+
+R = (T_base, P)
+
+where:
+- T_base ∈ 𝒯 is the base type being refined
+- P : T_base → `bool` is a pure predicate constraining the value set
+
+Values(T where {P}) = { v ∈ Values(T) | P(v) = `true` }
+
+A refinement type is a **proper subtype** of its base type.
+
+**Syntax**
+
+```ebnf
+refinement_type       ::= type "where" "{" predicate_expr "}"
+type_alias_decl       ::= visibility? "type" identifier "=" type "where" "{" predicate_expr "}"
+param_with_constraint ::= identifier ":" type "where" "{" predicate_expr "}"
+```
+
+
+Within standalone refinement types, `self` refers to the constrained value. In parameter constraints, the parameter name is used instead.
+
+
+#### 13.7.2 Refinement Constraints
+
+**Static Semantics**
+
+**(WF-Refine-Type)**
+
+Γ ⊢ T wf    Γ, `self` : T ⊢ P : `bool`    Pure(P)
+──────────────────────────────────────────────────────────────
+Γ ⊢ (T where {P}) wf
+
+**(T-Refine-Intro)**
+
+Γ ⊢ e : T    Γ ⊢ F(P[e/`self`], L)    L dominates current location
+────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ e : T where {P}
+
+**(T-Refine-Elim)**
+
+Γ ⊢ e : T where {P}
+────────────────────
+Γ ⊢ e : T
+
+**Subtyping Rules**
+
+Γ ⊢ (T where {P}) <: T
+
+Γ ⊢ P ⇒ Q
+──────────────────────────────────────────────────
+Γ ⊢ (T where {P}) <: (T where {Q})
+
+**Nested Refinements**
+
+(T where {P}) where {Q} ≡ T where {P ∧ Q}
+
+**Decidable Predicate Subset**
+
+Implementations MUST support:
+1. Literal comparisons
+2. Bound propagation from control flow
+3. Syntactic equality (up to alpha-renaming)
+4. Transitive inequalities (linear arithmetic over integers)
+5. Boolean combinations of decidable predicates
+
+
+#### 13.7.3 Refinement Verification
+
+**Static Semantics**
+
+Refinement predicates require static proof by default:
+
+1. Implementation attempts static verification
+2. If verification succeeds, no runtime code is generated
+3. If verification fails and not in `[[dynamic]]` scope: ill-formed (E-TYP-1953)
+4. If verification fails in `[[dynamic]]` scope: runtime check is generated
+
+**Dynamic Semantics**
+
+**Representation**
+
+sizeof(T where {P}) = sizeof(T)
+
+alignof(T where {P}) = alignof(T)
+
+The predicate is a compile-time and runtime constraint only; it does not affect physical representation.
+
+**Constraints**
+
+Failed runtime checks trigger a panic (`P-TYP-1953`).
+
+**Diagnostics:** See Appendix A.
+
+
+### 13.8 Capability Classes
+
+*[REF: Capability fundamentals defined in §4 (The Authority Model). This section covers type-system integration only.]*
+
+
+#### 13.8.1 Capability Class
+
+**Capability Class.** Regular classes that define system authority interfaces. The dynamic dispatch operator `$` applies uniformly to all classes, including capability classes.
+
+**Syntax**
+
+
+**Static Semantics**
+
+A parameter of type `$Class` accepts any concrete type `T` implementing `Class`. This is the same mechanism as for any other class—capability classes have no special type-system behavior.
+
+See §4 for capability propagation, attenuation, and no-ambient-authority rules.
+
+
+#### 13.8.2 Capability Bounds
+
+**Capability Bounds.** Capability classes MAY be used as bounds in generics like any other class.
+
+**Syntax**
+
+
+**Static Semantics**
+
+No syntactic distinction exists between capability class bounds and regular class bounds. The capability nature is semantic (enforcement of no-ambient-authority), not syntactic.
+
+
+### 13.9 Foundational Predicates and Classes
+
+*[REF: Built-in predicate definitions and class signatures are defined in §5.11. This section specifies their role in the type system.]*
+
+Foundational predicate and class names are reserved at module scope (see §3.2.3).
+
+
+#### 13.9.1 `Drop` Predicate
+
+**Drop Predicate.** `DropType(T)` holds for types with built-in drop behavior or a `drop` method with the required signature (§5.11). The `drop` method is invoked implicitly when a binding goes out of scope.
+
+**Static Semantics**
+
+- The `drop` method MUST NOT be called directly by user code (`E-MEM-3005`, §5.3.1).
+- `BitcopyType` and `DropType` are mutually exclusive on the same type.
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, code `E-TYP-2621`.
+
+
+#### 13.9.2 `Bitcopy` Predicate
+
+**Bitcopy Predicate.** `BitcopyType(T)` holds for types that MAY be implicitly duplicated via bitwise copy (§5.11).
+
+**Static Semantics**
+
+- `BitcopyType` values are duplicated (not moved) on assignment and parameter passing.
+- `BitcopyType` requires all fields to satisfy `BitcopyType`.
+- `BitcopyType(T)` implies `CloneType(T)`. For such values, `clone()` performs a bitwise copy identical to the implicit copy operation.
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, code `E-TYP-2622`.
+
+
+#### 13.9.3 `Clone` Predicate
+
+**Clone Predicate.** `CloneType(T)` holds for types with built-in cloning behavior or a `clone` method with the required signature (§5.11).
+
+**Static Semantics**
+
+For `BitcopyType` values, `clone()` performs a bitwise copy identical to the implicit copy operation.
+
+
+#### 13.9.4 `Eq` and `Hash` Classes
+
+**Eq and Hash Classes.** Define equality comparison and hashing for use in collections.
+
+**Static Semantics**
+
+See §5.11 for `Eq` and `Hash` signatures and semantic requirements, including equivalence properties and hash consistency.
+
+Types implementing `Hash` MUST also implement `Eq`. If two values are equal per `Eq::eq`, they MUST produce the same hash value.
+
+
+#### 13.9.5 `Iterator` Class
+
+**Iterator Class.** Defines the iteration protocol for `loop ... in` expressions.
+
+**Syntax**
+
+```cursive
+class Iterator {
+    type Item
+    procedure next(~!) -> Self::Item | ()
+}
+```
+
+
+**Static Semantics**
+
+Range types implement `Iterator` when their element type implements `Step`.
+
+
+#### 13.9.6 `Step` Class
+
+**Step Class.** Defines discrete stepping for range iteration.
+
+**Syntax**
+
+```cursive
+class Step {
+    procedure successor(~) -> Self | ()
+    procedure predecessor(~) -> Self | ()
+}
+```
+
+
+---
+
+## 14. Procedures and Contracts
+
+### 14.4 Contract Syntax
+
+#### 14.4.1 Contract Clause Position
+
+**Contract.** A specification attached to a procedure declaration that asserts logical predicates over program state. Contracts govern logical validity through preconditions (caller obligations) and postconditions (callee guarantees).
+
+A contract C is a pair (P_pre, P_post) where:
+- P_pre is a conjunction of boolean predicates representing preconditions
+- P_post is a conjunction of boolean predicates representing postconditions
+
+**Syntax**
+
+```ebnf
+contract_clause    ::= "|=" contract_body
+contract_body      ::= precondition_expr
+                     | precondition_expr "=>" postcondition_expr
+                     | "=>" postcondition_expr
+
+precondition_expr  ::= predicate_expr
+postcondition_expr ::= predicate_expr
+predicate_expr     ::= logical_or_expr
+contract_intrinsic ::= "@result" | "@entry" "(" expression ")"
+```
+
+A contract clause (`|=`) MUST appear after the return type annotation (or after the parameter list if no return type) and before the procedure body.
 
 
 
 
+**Static Semantics**
+
+**(WF-Contract)**
+
+Γ_pre ⊢ P_pre : `bool`    pure(P_pre)
+Γ_post ⊢ P_post : `bool`    pure(P_post)
+────────────────────────────────────────────────────────────
+Γ ⊢ `|=` P_pre ⇒ P_post : WF
+
+**Logical Operators**
+
+Predicates use standard boolean operators with precedence (highest to lowest):
+1. `!` (logical NOT) — right-associative
+2. `&&` (logical AND) — left-associative, short-circuit
+3. `||` (logical OR) — left-associative, short-circuit
+
+
+#### 14.4.2 Purity Constraints
+
+**Pure Expression.** An expression whose evaluation produces no observable side effects. All expressions within a contract MUST be pure.
+
+**Static Semantics**
+
+An expression e satisfies pure(e) iff:
+1. e MUST NOT invoke any procedure that accepts capability parameters
+2. e MUST NOT mutate state observable outside the expression's evaluation
+3. Built-in operators on primitive types and `comptime` procedures are always pure
+
+
+#### 14.4.3 Evaluation Contexts
+
+**Evaluation Context.** Defines the set of bindings available for reference within a predicate expression.
+
+**Static Semantics**
+
+**Precondition Evaluation Context (Γ_pre)**
+
+Includes:
+- All procedure parameters at their entry state
+- The receiver binding (if present)
+- All bindings visible in the enclosing scope accessible without side effects
+
+MUST NOT include:
+- The `@result` intrinsic
+- The `@entry` operator
+- Any binding introduced within the procedure body
+
+**Postcondition Evaluation Context (Γ_post)**
+
+Includes:
+- All procedure parameters:
+  - Immutable parameters (`const`, `~`): same value as at entry
+  - Mutable parameters (`unique`, `shared`): post-state value
+- The receiver binding (post-state for mutable receivers)
+- The `@result` intrinsic
+- The `@entry` operator
+- All bindings visible in the enclosing scope
+
+**Mutable Parameter State Semantics**
+
+| Location in Contract          | State Referenced |
+| :---------------------------- | :--------------- |
+| Left of `=>`                  | Entry state      |
+| Right of `=>` (bare)          | Post-state       |
+| Right of `=>` with `@entry()` | Entry state      |
+
+
+### 14.5 Pre/Postconditions
+
+#### 14.5.1 Precondition Syntax (`|=`)
+
+**Precondition.** The logical expression appearing to the left of `=>` in a `|=` contract clause, or the entire expression if `=>` is absent. The caller MUST ensure this expression evaluates to `true` prior to the call.
+
+**Static Semantics**
+
+**(Pre-Satisfied)**
+
+Γ ⊢ f : (T_1, …, T_n) → R    precondition(f) = P_pre    StaticProof(Γ_S, P_pre)
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ f(a_1, …, a_n) @ S : valid
+
+Failure to satisfy a precondition is diagnosed at the **caller**. The diagnostic MUST identify the call site.
+
+**Elision Rules**
+
+| Contract Form        | Precondition              |
+| :------------------- | :------------------------ |
+| `|= P`              | P                         |
+| `|= P => Q`         | P                         |
+| `|= => Q`           | `true` (always satisfied) |
+| (no contract clause) | `true` (always satisfied) |
+
+
+#### 14.5.2 Postcondition Syntax (`=>`)
+
+**Postcondition.** The logical expression appearing to the right of `=>` in a `|=` contract clause. The callee MUST ensure this expression evaluates to `true` immediately before returning.
+
+**Static Semantics**
+
+**(Post-Valid)**
+
+postcondition(f) = P_post    ∀ r ∈ ReturnPoints(f). Γ_r ⊢ P_post : satisfied
+───────────────────────────────────────────────────────────────────────────
+f : postcondition-valid
+
+Failure to satisfy a postcondition is diagnosed at the **callee**. The diagnostic MUST identify the return point.
+
+**Elision Rules**
+
+| Contract Form        | Postcondition             |
+| :------------------- | :------------------------ |
+| `|= P`              | `true` (no postcondition) |
+| `|= P => Q`         | Q                         |
+| `|= => Q`           | Q                         |
+| (no contract clause) | `true` (always satisfied) |
+
+
+#### 14.5.3 `@result` Binding in Postconditions
+
+**@result Intrinsic.** Refers to the return value in postcondition expressions.
+
+**Static Semantics**
+
+| Property     | Specification                                  |
+| :----------- | :--------------------------------------------- |
+| Availability | Postcondition expressions only (right of `=>`) |
+| Type         | The return type of the enclosing procedure     |
+| Value        | The value being returned from the procedure    |
+| Unit Returns | If procedure returns `()`, `@result` has `()`  |
+
+**Constraints**
+
+Use of `@result` outside postcondition expressions is ill-formed (`E-SEM-2806`).
+
+**Dynamic Semantics**
+
+At each return point r with returned value v_r, postconditions are evaluated with `@result` bound to v_r.
+
+
+#### 14.5.4 `@entry()` Expression
+
+**@entry Operator.** Evaluates `expr` in the entry state of the procedure.
+
+**Static Semantics**
+
+| Property              | Specification                                             |
+| :-------------------- | :-------------------------------------------------------- |
+| Availability          | Postcondition expressions only (right of `=>`)            |
+| Semantics             | Evaluates `expr` in entry state of the procedure          |
+| Evaluation Point      | After parameter binding, before body execution            |
+| Expression Constraint | `expr` MUST be pure                                       |
+| Expression Scope      | `expr` MUST reference only parameters and receiver        |
+| Type Constraint       | Result type of `expr` MUST satisfy `BitcopyType` or `CloneType` |
+
+**(Entry-Type)**
+
+Γ_post ⊢ e : T    (BitcopyType(T) ∨ CloneType(T))
+────────────────────────────────────────────────────────
+Γ_post ⊢ @entry(e) : T
+
+**Dynamic Semantics**
+
+**Capture Semantics**
+
+When `@entry(expr)` appears in a postcondition:
+1. The implementation evaluates `expr` immediately after parameter binding
+2. The result is captured: `BitcopyType` types use bitwise copy; other `CloneType` types invoke `clone()`
+3. In the postcondition, `@entry(expr)` refers to this captured value
+
+**Constraints**
+
+If the result type of `expr` does not satisfy `BitcopyType` or `CloneType`, the program is ill-formed (`E-SEM-2805`).
+
+
+### 14.6 Invariants
+
+#### 14.6.1 Type Invariants
+
+**Type Invariant.** A `where` clause attached to a `record`, `enum`, or `modal` type declaration. The invariant constrains all instances of the type.
+
+**Syntax**
+
+```ebnf
+type_invariant ::= "where" "{" predicate_expr "}"
+```
+
+
+**Static Semantics**
+
+**Invariant Predicate Context**
+
+Within a type invariant predicate:
+- `self` refers to an instance of the type being defined
+- Field access on `self` is permitted
+- Method calls on `self` are permitted if the method is pure
+
+**Enforcement Points**
+
+| Enforcement Point   | Description                                       |
+| :------------------ | :------------------------------------------------ |
+| Post-Construction   | After constructor or literal initialization       |
+| Pre-Call (Public)   | Before any public procedure with receiver         |
+| Post-Call (Mutator) | Before any procedure taking `unique self` returns |
+
+**Public Field Constraint**
+
+Types with type invariants MUST NOT declare public mutable fields.
+
+**Private Procedure Exemption**
+
+Private procedures (`internal` or less) are exempt from the Pre-Call enforcement point. The type invariant MUST be verified when a private procedure returns to a public caller.
+
+
+#### 14.6.2 Loop Invariants
+
+**Loop Invariant.** A `where` clause attached to a `loop` expression. The invariant specifies a predicate that MUST hold at the beginning of every iteration and after termination.
+
+**Syntax**
+
+```ebnf
+loop_expression ::= "loop" loop_condition? loop_invariant? block_expr
+loop_condition  ::= expression
+loop_invariant  ::= "where" "{" predicate_expr "}"
+```
+
+
+**Static Semantics**
+
+**Enforcement Points**
+
+| Point          | Description                               | Formal                                                 |
+| :------------- | :---------------------------------------- | :----------------------------------------------------- |
+| Initialization | Before the first iteration begins         | Γ_0 ⊢ Inv                                              |
+| Maintenance    | At the start of each subsequent iteration | Γ_i ⊢ Inv ⇒ Γ_(i+1) ⊢ Inv                               |
+| Termination    | Immediately after loop terminates         | Γ_exit ⊢ Inv                                           |
+
+**Verification Fact Generation**
+
+Upon successful verification at the Termination point, the implementation generates a Verification Fact F(Inv, L_exit) for use as a postcondition of the loop.
+
+
+#### 14.6.3 Invariant Verification
+
+**Static Semantics**
+
+Invariant verification follows the same rules as contract verification (§14.7):
+- Static verification required by default
+- `[[dynamic]]` attribute permits runtime verification when static proof fails
+
+
+### 14.7 Verification Logic
+
+#### 14.7.1 Contract Verification Modes
+
+**Contract Verification.** Determines how predicates are ensured to hold. By default, **static verification is required**. The `[[dynamic]]` attribute permits runtime verification as an explicit opt-in.
+
+**Static Semantics**
+
+**Default: Static Verification Required**
+
+**(Contract-Static-OK)**
+
+StaticProof(Γ_S, P)
+──────────────────────────────────────────────
+P : verified (no runtime check)
+
+**(Contract-Static-Fail)**
+
+¬ StaticProof(Γ_S, P)    ¬ InDynamicContext
+──────────────────────────────────────────────
+program is ill-formed (E-SEM-2801)
+
+**With `[[dynamic]]`: Runtime Verification Permitted**
+
+**(Contract-Dynamic-Elide)**
+
+StaticProof(Γ_S, P)
+──────────────────────────────────────────────
+P : verified (no runtime check)
+
+**(Contract-Dynamic-Check)**
+
+¬ StaticProof(Γ_S, P)    InDynamicContext
+────────────────────────────────────────────────────
+emit runtime check ContractCheck(P, k, s, ρ)
+
+Here k is the ContractKind at verification location s, and ρ is the corresponding contract environment.
+
+**Mandatory Proof Techniques**
+
+| Technique                | Description                                        |
+| :----------------------- | :------------------------------------------------- |
+| Constant propagation     | Evaluate expressions with compile-time constants   |
+| Linear integer reasoning | Prove inequalities over bounded integer arithmetic |
+| Boolean algebra          | Simplify and prove boolean expressions             |
+| Control flow analysis    | Track predicates established by conditionals       |
+| Type-derived bounds      | Use type constraints (e.g., `usize >= 0`)          |
+| Verification facts       | Use facts established by prior checks (§14.7.2)    |
+
+**StaticProof Definition**
+
+Let FactsAt(S) = { P | F(P, L) ∈ Facts ∧ L dom S }.
+
+Define Decidable(P) as the smallest set closed under:
+
+1. `true`, `false`
+2. Comparisons of linear integer expressions over literals and variables
+3. Syntactic equality (up to alpha-renaming) between identifiers and literal constants
+4. Boolean combinations of decidable predicates using `!`, `&&`, `||`
+
+Define entailment FactsAt(S) ⊢ P by the rules:
+
+**(Ent-True)**
+P ≡ `true`
+──────────────────────────────
+FactsAt(S) ⊢ P
+
+**(Ent-Fact)**
+P ∈ FactsAt(S)
+──────────────────────────────
+FactsAt(S) ⊢ P
+
+**(Ent-And)**
+FactsAt(S) ⊢ P    FactsAt(S) ⊢ Q
+────────────────────────────────────────
+FactsAt(S) ⊢ P ∧ Q
+
+**(Ent-Or-L)**  
+FactsAt(S) ⊢ P
+────────────────────────
+FactsAt(S) ⊢ P ∨ Q
+
+**(Ent-Or-R)**  
+FactsAt(S) ⊢ Q
+────────────────────────
+FactsAt(S) ⊢ P ∨ Q
+
+**(Ent-Linear)**
+LinearEntails(FactsAt(S), P)
+─────────────────────────────
+FactsAt(S) ⊢ P
+
+**Linear Integer Entailment**
+
+Let LinExpr be expressions of the form ∑_i a_i x_i + c where a_i, c ∈ ℤ and each x_i is an integer-typed variable. Let LinPred be predicates comparing two LinExpr with `==`, `!=`, `<`, `<=`, `>`, or `>=`.
+
+Define LinFactsAt(S) = { P ∈ FactsAt(S) | P ∈ LinPred }.
+
+Then:
+
+LinearEntails(FactsAt(S), P) ⇔ P ∈ LinPred ∧ ⋀ LinFactsAt(S) ⊨_ℤ P
+
+Implementations MAY use any sound decision procedure; they MUST be complete for LinPred entailment.
+
+Then:
+
+StaticProof(Γ_S, P) ⇔ Decidable(P) ∧ FactsAt(S) ⊢ P
+
+where S is the verification location for P (Table §14.7.1), and Γ_S is the typing environment at S.
+
+**Satisfaction Judgment**
+
+Γ_S ⊢ P : satisfied ⇔ StaticProof(Γ_S, P)
+
+**Verification Location**
+
+| Contract Type  | Verified Where    | `[[dynamic]]` Context Determined By  |
+| :------------- | :---------------- | :----------------------------------- |
+| Precondition   | Call site         | The call expression's context        |
+| Postcondition  | Definition site   | The procedure's `[[dynamic]]` status |
+| Type invariant | Enforcement point | The expression's context             |
+| Loop invariant | Enforcement point | The enclosing scope's context        |
+
+**Dynamic Semantics**
+
+**Runtime Check Failure**
+
+When a runtime-checked predicate evaluates to `false`:
+1. The runtime MUST trigger a Panic
+2. The panic payload MUST include predicate text, source location, and contract type
+3. Normal panic propagation rules apply
+
+**Diagnostics:** See Appendix A.
+
+
+#### 14.7.2 Verification Facts
+
+**Verification Fact.** A static guarantee that a predicate P holds at program location L. Used for static analysis, contract elision, and type narrowing.
+
+A Verification Fact is a triple F(P, L, S) where:
+- P is a predicate expression
+- L is a program location (CFG node)
+- S is the source of the fact (control flow, runtime check, or assumption)
+
+**Static Semantics**
+
+**Zero-Size Property**
+
+Verification Facts:
+- Have zero runtime size
+- Have no runtime representation
+- MUST NOT be stored in variables, passed as parameters, or returned
+
+**Fact Dominance**
+
+**(Fact-Dominate)**
+
+F(P, L) ∈ Facts    L dom S    L ≠ S
+────────────────────────────────────
+P satisfied at S
+
+**Fact Generation Rules**
+
+| Construct                    | Generated Fact                  | Location             |
+| :--------------------------- | :------------------------------ | :------------------- |
+| `if P { ... }`               | F(P, _)                | Entry of then-branch |
+| `if !P { } else { ... }`     | F(P, _)                | Entry of else-branch |
+| `match x { Pat => ... }`     | F(x matches Pat, _)    | Entry of match arm   |
+| Runtime check for P          | F(P, _)                | After check          |
+| Loop invariant Inv at exit   | F(Inv, _)              | After loop           |
+
+
+#### 14.7.3 Fact Propagation
+
+**Static Semantics**
+
+**Type Narrowing**
+
+When a Verification Fact F(P, L) is active for binding x at location L:
+
+typeof(x) -[F(P, L)]-> typeof(x) `where` {P}
+
+**Dynamic Semantics**
+
+**Dynamic Fact Injection**
+
+When a `[[dynamic]]` scope requires a runtime check and no static fact dominates:
+
+1. Identify requirement P at program point S
+2. Construct check block: `if !P { panic("Contract violation: {P}") }`
+3. Insert check into CFG such that it dominates S
+4. Successful execution establishes F(P, exit(C))
+
+
+#### 14.7.4 Small-Step and Big-Step Semantics
+
+At each verification location (Table §14.7.1), any required runtime check is elaborated to `ContractCheck(P, k, s, ρ)` (with ρ determined by ContractKind) and inserted so that it dominates the guarded program point.
+
+**Definitions**
+
+Let `ContractKind = Pre | Post | TypeInv | LoopInv | ForeignPre | ForeignPost`.
+
+Define the meta-expression:
+
+ContractCheck(P, k, s, ρ) = `if` !P[ρ] { `panic`(ContractViolation(k, P, s)) }
+
+where `P[ρ]` denotes capture-by-value substitution of `@result` and `@entry(expr)` with values in ρ. If `P` contains an intrinsic not bound in ρ, the program is ill-formed. `ContractViolation(k, P, s)` is the tuple ⟨k, PredText(P), s⟩ where PredText(P) is the exact source text of the predicate expression `P` as written in the enclosing contract clause after source normalization (§2.2). The panic payload is exactly this tuple.
+
+**Contract Environments**
+
+Let ρ_emptyset = ∅.
+
+Let EntryCapture(f, σ_entry) be a map from each syntactically distinct `@entry(expr)` in `postcondition(f)` to its captured value, where each `expr` is evaluated in the entry state σ_entry using Γ_pre; if any capture panics, the panic propagates.
+
+`EntryCapture` is computed once per procedure invocation and reused for all postcondition checks in that invocation.
+
+For a procedure return at point r with returned value v_r:
+
+- ρ_post = EntryCapture(f, σ_entry) ∪ {`@result` ↦ v_r}
+- ρ_foreign_post = {`@result` ↦ v_r}
+
+Then use the following environments:
+
+| ContractKind | Environment |
+| :----------- | :---------- |
+| `Pre`        | ρ_emptyset |
+| `Post`       | ρ_post |
+| `TypeInv`    | ρ_emptyset |
+| `LoopInv`    | ρ_emptyset |
+| `ForeignPre` | ρ_emptyset |
+| `ForeignPost`| ρ_foreign_post |
+
+**Small-Step (Contract Check Machine)**
+
+CheckState = {CheckStart(P, k, s, ρ, σ), CheckDone(σ), CheckPanic(σ)}
+
+**(Check-True)**
+Γ ⊢ EvalSigma(P[ρ], σ) ⇓ (Val(true), σ')
+──────────────────────────────────────────────────────────────────────────────
+⟨CheckStart(P, k, s, ρ, σ)⟩ → ⟨CheckDone(σ')⟩
+
+**(Check-False)**
+Γ ⊢ EvalSigma(P[ρ], σ) ⇓ (Val(false), σ')
+───────────────────────────────────────────────────────────────────────────────
+⟨CheckStart(P, k, s, ρ, σ)⟩ → ⟨CheckPanic(σ')⟩
+
+**(Check-Panic)**
+Γ ⊢ EvalSigma(P[ρ], σ) ⇓ (Ctrl(Panic), σ')
+──────────────────────────────────────────────────────────────────────────────
+⟨CheckStart(P, k, s, ρ, σ)⟩ → ⟨CheckPanic(σ')⟩
+
+`CheckPanic` denotes a panic with payload `ContractViolation(k, P, s)` when the predicate evaluates to `false`, and it propagates any inner panic produced by evaluating `P`.
+
+**Big-Step**
+
+**(Check-Ok)**
+⟨CheckStart(P, k, s, ρ, σ)⟩ →* ⟨CheckDone(σ')⟩
+───────────────────────────────────────────────────────────────────────
+Γ ⊢ ContractCheck(P, k, s, ρ, σ) ⇓ σ'
+
+**(Check-Fail)**
+⟨CheckStart(P, k, s, ρ, σ)⟩ →* ⟨CheckPanic(σ')⟩
+───────────────────────────────────────────────────────────────────────
+Γ ⊢ ContractCheck(P, k, s, ρ, σ) ⇑ panic
+
+
+### 14.8 Behavioral Subtyping
+
+#### 14.8.1 Liskov Substitution Principle
+
+**Liskov Substitution.** When a type implements a class, procedure implementations MUST adhere to the Liskov Substitution Principle with respect to class-defined contracts.
+
+**Static Semantics**
+
+**Precondition Weakening**
+
+An implementation MAY weaken (require less than) the preconditions defined in the class. An implementation MUST NOT strengthen (require more than) the preconditions.
+
+**Postcondition Strengthening**
+
+An implementation MAY strengthen (guarantee more than) the postconditions defined in the class. An implementation MUST NOT weaken (guarantee less than) the postconditions.
+
+**Verification Strategy**
+
+Behavioral subtyping constraints are verified **statically at compile-time**:
+
+1. **Precondition Check**: Verify that the implementation's precondition logically implies the class's precondition
+2. **Postcondition Check**: Verify that the class's postcondition logically implies the implementation's postcondition
+
+No runtime checks are generated for behavioral subtyping; violations are structural errors.
+
+
+#### 14.8.2 Contract Inheritance
+
+*[REF: Behavioral subtyping constraints in §14.8.1 govern contract inheritance.]*
+
+
+## 17. The Key System
+
+### 17.1 Keys
+
+#### 17.1.1 Key Definition
+
+**Key.** A static proof of access rights to a specific path within `shared` data.
+
+**Static Semantics**
+
+Keys are a compile-time verification mechanism. Key state is tracked during type checking. Runtime synchronization is introduced only when static analysis fails to prove safety (see §17.6).
+
+**Key Invariants**
+
+1. **Path-specificity:** A key to path P grants access only to P and paths for which P is a prefix.
+2. **Implicit acquisition:** Accessing a `shared` path logically acquires the necessary key.
+3. **Scoped lifetime:** Keys are valid for a bounded lexical scope and become invalid when that scope exits.
+4. **Reentrancy:** If a key covering path P is already held, nested access to P or any path prefixed by P succeeds without conflict.
+5. **Task locality:** Keys are associated with tasks. A key held by a task remains valid until its scope exits.
+
+
+#### 17.1.2 Key Triple (Path, Mode, Scope)
+
+**Key Triple.** A key consists of: **Path** (the memory location being accessed), **Mode** (`Read` or `Write`), and **Scope** (the lexical scope during which the key is valid).
+
+**Syntax**
+
+**Path Expression Grammar**
+
+```ebnf
+key_path_expr   ::= root_segment ("." path_segment)*
+root_segment    ::= key_marker? identifier index_suffix?
+path_segment    ::= key_marker? identifier index_suffix?
+key_marker      ::= "#"
+index_suffix    ::= "[" expression "]"
+```
+
+**Static Semantics**
+
+**Path Well-Formedness**
+
+A path expression is well-formed if each segment is valid for the type of the previous segment (field access on records, indexing on arrays/slices). A path expression MUST contain at most one `#` marker.
+
+**Key Analysis Requirement**
+
+Key analysis is performed if and only if the path's root has `shared` permission. Paths with `const` or `unique` permission do not require keys.
 
 
 
+#### 17.1.3 Read Mode
+
+**Read Mode.** A key mode that permits read-only access to a path. Multiple Read keys to overlapping paths MAY coexist.
+
+**Static Semantics**
+
+**(K-Mode-Read)**
+Γ ⊢ e : `shared` T    ReadContext(e)
+────────────────────────────────────
+RequiredMode(e) = Read
+
+**Read Context Classification**
+
+| Syntactic Position                           | Context |
+| :------------------------------------------- | :------ |
+| Right-hand side of `let`/`var` initializer   | Read    |
+| Right-hand side of assignment (`=`)          | Read    |
+| Operand of arithmetic/logical operator       | Read    |
+| Argument to `const` or `shared` parameter    | Read    |
+| Condition expression (`if`, `loop`, `match`) | Read    |
+| Receiver of method with `~` receiver         | Read    |
+
+
+#### 17.1.4 Write Mode
+
+**Write Mode.** A key mode that permits read and write access to a path. A Write key excludes all other keys to overlapping paths.
+
+**Static Semantics**
+
+**(K-Mode-Write)**
+Γ ⊢ e : `shared` T    WriteContext(e)
+─────────────────────────────────────
+RequiredMode(e) = Write
+
+**Write Context Classification**
+
+| Syntactic Position                                 | Context |
+| :------------------------------------------------- | :------ |
+| Left-hand side of assignment (`=`)                 | Write   |
+| Left-hand side of compound assignment (`+=`, etc.) | Write   |
+| Receiver of method with `~!` receiver              | Write   |
+| Receiver of method with `~%` receiver              | Write   |
+| Argument to `unique` parameter                     | Write   |
+
+**Disambiguation Rule**
+
+If an expression appears in multiple contexts, the more restrictive context (Write) applies.
+
+**Mode Ordering**
+
+Read < Write
+
+A held mode is sufficient for a required mode when:
+
+ModeSufficient(M_held, M_required) ⇔ M_required ≤ M_held
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, code `E-CON-0005`.
+
+
+#### 17.1.5 Key State Context
+
+**Key State Context.** A mapping Γ_keys : ProgramPoint → ℘(Key) that associates each program point with the set of keys logically held at that point.
+
+**Static Semantics**
+
+**Key Set Operations**
+
+Let Γ_keys be the current key set, a collection of (P, M, S) triples.
+
+**(Acquire)**
+Acquire(P, M, S, Γ_keys) = Γ_keys ∪ {(P, M, S)}
+
+**(Release)**
+Release(P, Γ_keys) = Γ_keys \ {(P, M, S) : (P, M, S) ∈ Γ_keys}
+
+**(Release by Scope)**
+ReleaseScope(S, Γ_keys) = Γ_keys \ {(P, M, S') : S' = S}
+
+**(Mode Transition)**
+ModeTransition(P, M_new, Γ_keys) = (Γ_keys \ {(P, M_old, S)}) ∪ {(P, M_new, S)}
+
+**Panic Release Semantics**
+
+PanicRelease(S, Γ_keys) = Γ_keys \ {(P, M, S') : S' ≤_nest S}
+
+All keys held by the panicking scope and its nested scopes are released atomically before panic unwinding proceeds.
+
+
+#### 17.1.6 Held Predicate
+
+**Held Predicate.** A key is held at a program point if it is a member of the key state context at that point: Held(P, M, S, Γ_keys, p) ⇔ (P, M, S) ∈ Γ_keys(p).
+
+**Static Semantics**
+
+**Key Compatibility**
+
+Two keys K_1 = (P_1, M_1, S_1) and K_2 = (P_2, M_2, S_2) are **compatible** if and only if:
+
+Compatible(K_1, K_2) ⇔ Disjoint(P_1, P_2) ∨ (M_1 = Read ∧ M_2 = Read)
+
+**Compatibility Matrix**
+
+| Key A Mode | Key B Mode | Paths Overlap? | Compatible? |
+| :--------- | :--------- | :------------- | :---------- |
+| Read       | Read       | Yes            | Yes         |
+| Read       | Write      | Yes            | No          |
+| Write      | Read       | Yes            | No          |
+| Write      | Write      | Yes            | No          |
+| Any        | Any        | No (disjoint)  | Yes         |
+
+**Dynamic Semantics**
+
+**Progress Guarantee**
+
+Implementations MUST guarantee eventual progress: any task blocked waiting for a key MUST eventually acquire that key, provided the holder eventually releases it.
+
+Blocked(t, K) ∧ Held(K, t') ∧ ◇ Released(K, t') ⇒ ◇ Acquired(K, t)
+
+**Wait Suspension Restriction**
+
+A `wait` expression is a suspension point. The key set MUST be empty at the suspension point.
+
+**(K-Wait-No-Keys)**
+WaitExpr(h) at program point p    Γ_keys(p) ≠ ∅
+──────────────────────────────────────────────
+Emit(`E-CON-0133`)
+
+
+#### 17.1.7 Key Roots and Key Path Formation
+
+**Key Root.** The base storage location from which a key path is derived. Key roots arise from: (1) **Lexical roots**: identifiers bound in the current scope; (2) **Boundary roots**: runtime object identities created at key boundaries (pointer indirection and type-level boundaries). For any place expression e with `shared` permission, the **key path** KeyPath(e) is the normalized `key_path_expr` used for key acquisition and conflict analysis.
+
+**Static Semantics**
+
+**Path Root Extraction**
+
+Define Root(e) for place expressions (§3.4.2) recursively:
+Root(e) =
+ x                 if e = x
+ Root(e')          if e = e'.f
+ Root(e')          if e = e'[i]
+ Root(e')          if e = e' ~> m(...)
+ ⊥_boundary        if e = (*e')
+
+where ⊥_boundary indicates a **key boundary** introduced by pointer dereference.
+
+**Object Identity**
+
+The **identity** of a reference or pointer r, written id(r), is a unique runtime value denoting the storage location referred to by r.
+
+Implementations MUST ensure:
+1. **Uniqueness:** id(r_1) = id(r_2) iff r_1 and r_2 refer to overlapping storage.
+2. **Stability:** id(r) remains constant for the lifetime of the referent.
+3. **Opacity:** identities are not directly observable except through key semantics.
+
+**KeyPath Formation**
+
+Let e be a place expression accessing `shared` data and let e’s field/index tail be p_2 … p_n.
+
+- **Lexical root case:** If Root(e) = x, then
+  KeyPath(e) = x.p_2 … p_n truncated by any type-level boundary.
+
+- **Boundary root case:** If Root(e) = ⊥_boundary and e = (*e').p_2 … p_n, then
+  KeyPath(e) = id(*e').p_2 … p_n truncated by any type-level boundary.
+
+Type-level boundaries are defined in §17.2.4.
+
+**Pointer Indirection**
+
+A pointer dereference establishes a new key boundary. Key paths do not extend across pointer indirections.
+
+For `(*e').p` where `e' : shared Ptr<T>@Valid`:
+1. Dereferencing `e'` requires a key to KeyPath(e') in Read mode.
+2. Accessing `.p` on the dereferenced value uses a fresh key rooted at id(*e').
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, code `E-CON-0034`.
+
+### 17.2 Acquisition and `#` Blocks
+
+
+#### 17.2.1 Implicit Key Acquisition
+
+**Implicit Acquisition.** Keys are logically acquired on demand during expression evaluation and released at scope exit.
+
+**Static Semantics**
+
+**Key Lifecycle Phases**
+
+1. **Acquisition Phase:** Keys are logically acquired as `shared` paths are evaluated, in evaluation order
+2. **Execution Phase:** The statement or block body executes with all keys logically held
+3. **Release Phase:** All keys become invalid when the scope exits
+
+**Covered Predicate**
+
+An access to path Q requiring mode M_Q is covered by the current key state if:
+
+Covered(Q, M_Q, Γ_keys) ⇔ ∃ (P, M_P, S) ∈ Γ_keys : Prefix(P, Q) ∧ ModeSufficient(M_P, M_Q)
+
+**Acquisition Rules**
+
+**(K-Acquire-New)**
+Γ ⊢ P : `shared` T    M = RequiredMode(P)    ¬ Covered(P, M, Γ_keys)    S = CurrentScope
+──────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ'_keys = Γ_keys ∪ {(P, M, S)}
+
+**(K-Acquire-Covered)**
+Γ ⊢ P : `shared` T    M = RequiredMode(P)    Covered(P, M, Γ_keys)
+──────────────────────────────────────────────────────────────
+Γ'_keys = Γ_keys
+
+**Evaluation Order**
+
+Subexpressions are evaluated left-to-right, depth-first. Key acquisition follows evaluation order.
+
+**(K-Eval-Order)**
+eval(e_1 ⊕ e_2) → eval(e_1); eval(e_2); apply(⊕)
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `W-CON-0001`, `W-CON-0002`.
+
+
+#### 17.2.2 Key Release
+
+**Key Release.** Keys are released when their defining scope exits.
+
+**Static Semantics**
+
+**(K-Release-Scope)**
+ScopeExit(S)
+──────────────────────────────────────────────────────────────────
+Γ'_keys = Γ_keys \ {(P, M, S') : S' = S}
+
+**(K-Release-Order)**
+
+Keys acquired within a scope are released per LIFO semantics (§3.5.2).
+
+**Dynamic Semantics**
+
+**Release Guarantee**
+
+Keys are released when their scope exits, regardless of exit mechanism:
+
+| Exit Mechanism    | Keys Released? |
+| :---------------- | :------------- |
+| Normal completion | Yes            |
+| `return`          | Yes            |
+| `break`           | Yes            |
+| `continue`        | Yes            |
+| Panic propagation | Yes            |
+| Task cancellation | Yes            |
+
+**Key and RAII Cleanup Interaction**
+
+Keys are released at scope exit before any drop actions for bindings in that scope (see §3.5).
+
+**Scope Definitions**
+
+| Construct                      | Key Scope                  | Release Point          |
+| :----------------------------- | :------------------------- | :--------------------- |
+| Expression statement (`expr;`) | The statement              | Semicolon              |
+| `let`/`var` declaration        | The declaration            | Semicolon              |
+| Assignment statement           | The statement              | Semicolon              |
+| `if` condition                 | The condition only         | Before entering branch |
+| `match` scrutinee              | The scrutinee only         | Before entering arm    |
+| `loop` condition               | Each iteration's condition | Before entering body   |
+| `#path { ... }` block          | The entire block           | Closing brace          |
+| Procedure body                 | Callee's body              | Procedure return       |
+| `defer` body                   | The defer block            | Defer completion       |
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, code `E-CON-0006`.
+
+
+#### 17.2.3 `#` Block Syntax
+
+**Key Block.** The `#` key block is the explicit key acquisition construct. It acquires a key to one or more paths at block entry and holds those keys until block exit.
+
+**Syntax**
+
+```ebnf
+key_block       ::= "#" path_list mode_modifier* block
+path_list       ::= key_path_expr ("," key_path_expr)*
+mode_modifier   ::= "write" | "read" | release_modifier | "ordered" | "speculative"
+release_modifier ::= "release" ("write" | "read")
+```
+
+**Mode Semantics**
+
+| Block Form        | Key Mode | Mutation Permitted |
+| :---------------- | :------- | :----------------- |
+| `#path { }`       | Read     | No                 |
+| `#path write { }` | Write    | Yes                |
+
+**Static Semantics**
+
+**(K-Block-Acquire)**
+Γ ⊢ P_1, …, P_m : `shared` T_i    M = BlockMode(B)    (Q_1, …, Q_m) = CanonicalSort(P_1, …, P_m)    S = NewScope
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ'_keys = Γ_keys ∪ {(Q_i, M, S) : i ∈ 1..m}
+
+**(K-Read-Block-No-Write)**
+BlockMode(B) = Read    P ∈ KeyedPaths(B)    WriteOf(P) ∈ Body(B)
+──────────────────────────────────────────────────────────────────────────────
+Emit(`E-CON-0070`)
+
+**Dynamic Semantics**
+
+**Execution Order**
+
+1. Acquire keys (mode per block specification) to all listed paths in canonical order
+2. Execute the block body
+3. Release all keys in reverse acquisition order
+
+**Concurrent Access**
+
+| Block A        | Block B        | Same/Overlapping Path | Result                          |
+| :------------- | :------------- | :-------------------- | :------------------------------ |
+| `#p { }`       | `#p { }`       | Yes                   | Both proceed concurrently       |
+| `#p { }`       | `#p write { }` | Yes                   | One blocks until other releases |
+| `#p write { }` | `#p write { }` | Yes                   | One blocks until other releases |
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-CON-0001`–`E-CON-0004`, `E-CON-0030`–`E-CON-0032`, `E-CON-0070`, `W-CON-0003`.
+
+
+#### 17.2.4 Key Coarsening
+
+**Key Coarsening.** The `#` marker in a path expression sets the key granularity. The key is acquired at the marked position, covering all subsequent segments.
+
+**Syntax**
+
+**Inline Coarsening**
+
+```ebnf
+coarsened_path  ::= path_segment* "#" path_segment+
+```
+
+**Static Semantics**
+
+**(K-Coarsen-Inline)**
+P = p_1 … p_(k-1).#p_k … p_n    Γ ⊢ P : `shared` T    M = RequiredMode(P)
+────────────────────────────────────────────────────────────────────────────
+AcquireKey(p_1 … p_k, M, Γ_keys)
+
+**Type-Level Key Boundary**
+
+A field declared with `#` establishes a permanent key boundary:
+
+```ebnf
+key_field_decl      ::= "#"? visibility? identifier ":" type
+```
+
+**(K-Type-Boundary)**
+Γ ⊢ r : R    R.fields ∋ (#f : U)    P = r.f.q_1 … q_n
+────────────────────────────────────────────────────────────
+KeyPath(P) = r.f
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-CON-0033`, `W-CON-0013`.
+
+
+#### 17.2.5 Closure Capture of `shared` Bindings
+
+**Shared Closure Capture.** Closures that capture `shared` bindings participate in key analysis. Because a closure MAY be invoked outside its defining scope, key path roots depend on whether the closure escapes.
+
+**Classification**
+
+A closure expression C is **local** if it appears only in:
+1. Argument position of an immediate procedure or method call
+2. The body of a `spawn` expression
+3. The body of a `dispatch` expression
+4. Operand of immediate invocation
+
+A closure is **escaping** if it is:
+1. Bound to a `let` or `var` binding
+2. Returned from a procedure
+3. Stored into a record or enum field
+
+Let SharedCaptures(C) be the set of captured bindings with `shared` permission.
+
+**Static Semantics**
+
+**Local Closure Key Paths**
+
+For a local closure, key analysis treats the closure body as if it executed in the defining scope. Any access `x.p` where `x ∈ SharedCaptures(C)` uses lexical rooting (§17.1.7):
+
+KeyPath(C, x.p) = KeyPath(x.p)
+
+Keys are acquired at invocation, not at definition.
+
+**Escaping Closure Type Requirement**
+
+An escaping closure that captures `shared` bindings MUST carry a shared dependency set in its closure type (§12.4.3):
+
+**(K-Closure-Escape-Type)**
+C is escaping    SharedCaptures(C) = {x_1, …, x_n}
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Type(C) = |vec_T| → R [`shared`: {x_1 : `shared` T_1, …, x_n : `shared` T_n}]
+
+The dependency set MAY be inferred when the closure is assigned to a binding with an expected closure type; otherwise it MUST be written explicitly.
+
+**Escaping Closure Key Paths**
+
+For an escaping closure, key paths are rooted at runtime identities of captured references:
+
+**(K-Closure-Escape-Keys)**
+C : |vec_T| → R [`shared`: {x : `shared` T}]    Access(x.p, M) ∈ C.body
+─────────────────────────────────────────────────────────────────────────────
+KeyPath(C, x.p) = id(C.x).p    KeyMode = M
+
+where C.x denotes the captured reference to x stored in the closure environment.
+
+**Lifetime Constraint**
+
+An escaping closure MUST NOT outlive any captured `shared` binding. Implementations MUST reject any flow where the closure’s lifetime exceeds the lifetime of a captured `shared` root.
+
+**Dynamic Semantics**
+
+**Local Closure Invocation**
+
+1. Determine accessed `shared` paths in the closure body.
+2. Acquire required keys using lexical roots.
+3. Execute the closure body.
+4. Release keys at the end of the invocation.
+
+**Escaping Closure Invocation**
+
+1. For each dependency (x : shared T) in the closure type, let r = C.x.
+2. Acquire required keys for paths rooted at id(r).
+3. Execute the closure body.
+4. Release keys at the end of the invocation.
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-CON-0085`, `E-CON-0086`, `W-CON-0009`.
+
+
+#### 17.2.6 `shared` Dynamic Class Objects (`shared $Class`)
+
+**Shared Dynamic Class.** Dynamic class objects (`$Cl`, §13.5) erase the concrete type at runtime. When such an object is viewed with `shared` permission, key analysis does not inspect the concrete method bodies chosen by vtable dispatch. Therefore, `shared $Cl` is restricted to read-only dynamic interfaces.
+
+**Static Semantics**
+
+**Well-Formedness**
+
+A dynamic class object type MAY be qualified with `shared` permission only if every vtable-eligible procedure in the class (including inherited ones) has a `const` receiver (`~`):
+
+Let DynMethods(Cl) denote the set of procedures callable via vtable dispatch on `$Cl` (i.e., vtable‑eligible and not marked `[[static_dispatch_only]]`).
+
+**(K-Witness-Shared-WF)**
+∀ m ∈ DynMethods(Cl). m.receiver = `~`
+──────────────────────────────────────────────
+Γ ⊢ `shared` $Cl wf
+
+If any method requires `shared` (`~%`) or `unique` (`~!`) receiver permission, `shared $Cl` is ill‑formed. Such methods MAY still exist on `Cl` if they are excluded from dynamic dispatch via `[[static_dispatch_only]]`.
+
+**Dynamic Calls Through `shared $Cl`**
+
+For a call `e~>m(args)` where `e : shared $Cl`, the key mode is Read and the key path is the root of `e`:
+
+KeyPath(e~>m(...)) = Root(e)    KeyMode = Read
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, code `E-CON-0083`.
+
+
+### 17.3 Conflict Detection
+
+
+#### 17.3.1 Path Prefix and Disjointness
+
+**Path Relations.** The prefix relation and disjointness relation on paths determine key coverage and static safety of concurrent accesses.
+
+**Static Semantics**
+
+**Path Prefix**
+
+Path P is a prefix of path Q (written Prefix(P, Q)) if P is an initial subsequence of Q:
+
+Prefix(p_1 … p_m, q_1 … q_n) ⇔ m ≤ n ∧ ∀ i ∈ 1..m, p_i ≡_seg q_i
+
+**Path Disjointness**
+
+Two paths P and Q are disjoint (written Disjoint(P, Q)) if neither is a prefix of the other:
+
+Disjoint(P, Q) ⇔ ¬ Prefix(P, Q) ∧ ¬ Prefix(Q, P)
+
+**Segment Equivalence**
+
+p_i ≡_seg q_i ⇔ name(p_i) = name(q_i) ∧ IndexEquiv(p_i, q_i)
+
+**Index Expression Equivalence**
+
+Two index expressions e_1 and e_2 are provably equivalent (e_1 ≡_idx e_2) if:
+
+1. Both are the same integer literal
+2. Both are references to the same `const` binding
+3. Both are references to the same generic const parameter
+4. Both are references to the same variable binding in scope
+5. Both normalize to the same canonical form under constant folding
+
+**Disjointness for Static Safety**
+
+**(K-Disjoint-Safe)**
+Disjoint(P, Q)
+──────────────────────────────────────────────────
+ConcurrentAccess(P, Q) is statically safe
+
+**Prefix for Coverage**
+
+**(K-Prefix-Coverage)**
+Prefix(P, Q)    Held(P, M, Γ_keys)
+──────────────────────────────────
+Covers((P, M), Q)
+
+
+#### 17.3.2 Static Conflict Analysis
+
+**Static Conflict Analysis.** When multiple dynamic indices access the same array within a single statement, they MUST be provably disjoint; otherwise, the program is ill-formed.
+
+**Static Semantics**
+
+**Provable Disjointness for Indices**
+
+Two index expressions are provably disjoint (ProvablyDisjoint(e_1, e_2)) if:
+
+1. **Static Disjointness:** Both are statically resolvable with different values
+2. **Control Flow Facts:** A Verification Fact establishes e_1 ≠ e_2
+3. **Contract-Based:** A precondition asserts e_1 ≠ e_2
+4. **Refinement Types:** An index has a refinement type constraining its relationship
+5. **Algebraic Offset:** Expressions share a common base but differ by constant offsets
+6. **Dispatch Iteration:** Within a `dispatch` block, accesses indexed by the iteration variable are automatically disjoint
+7. **Disjoint Loop Ranges:** Iteration variables from loops with non-overlapping ranges
+
+**(K-Dynamic-Index-Conflict)**
+P_1 = a[e_1]    P_2 = a[e_2]    SameStatement(P_1, P_2)    (Dynamic(e_1) ∨ Dynamic(e_2))    ¬ ProvablyDisjoint(e_1, e_2)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Emit(`E-CON-0010`)
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, code `E-CON-0010`.
+
+
+#### 17.3.3 Read-Then-Write Prohibition
+
+**Read-Then-Write.** A pattern that occurs when a statement contains both a read and a write to the same `shared` path without a covering Write key.
+
+**Static Semantics**
+
+**Formal Definition**
+
+ReadThenWrite(P, S) ⇔ ∃ e_r, e_w ∈ Subexpressions(S) : ReadsPath(e_r, P) ∧ WritesPath(e_w, P)
+
+**(K-Read-Write-Reject)**
+Γ ⊢ P : `shared` T    ReadThenWrite(P, S)    ¬ ∃ (Q, Write, S') ∈ Γ_keys : Prefix(Q, P)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Emit(`E-CON-0060`)
+
+**(K-RMW-Permitted)**
+Γ ⊢ P : `shared` T    ReadThenWrite(P, S)    ∃ (Q, Write, S') ∈ Γ_keys : Prefix(Q, P)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Permitted
+
+**Pattern Classification**
+
+| Pattern                  | Covering Write Key?         | Action                |
+| :----------------------- | :-------------------------- | :-------------------- |
+| `p += e`                 | Yes (desugars to `#` block) | Permitted             |
+| `#p write { p = p + e }` | Yes                         | Permitted             |
+| `p = p + e`              | No                          | **Reject E-CON-0060** |
+| `p.a = p.b + 1`          | No, but disjoint paths      | Permitted             |
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-CON-0060`, `W-CON-0004`, `W-CON-0006`.
+
+
+### 17.4 Nested Release
+
+
+#### 17.4.1 Nested Key Semantics
+
+**Nested Keys.** Nested `#` blocks acquire keys independently. The outer block's keys remain held while the inner block executes.
+
+**Syntax**
+
+The `release` modifier enables mode transitions in nested blocks:
+
+| Outer Mode | `release` Target | Operation                                      |
+| :--------- | :--------------- | :--------------------------------------------- |
+| Read       | `write`          | Escalation: Release Read → Gap → Acquire Write |
+| Write      | `read`           | Downgrade: Release Write → Gap → Acquire Read  |
+
+**Static Semantics**
+
+**(K-Nested-Same-Path)**
+Held(P, M_outer, Γ_keys)    #P M_inner { ... }
+──────────────────────────────────────────────────────────────
+if M_inner = M_outer:
+ Covered (no acquisition)
+otherwise if M_inner ≠ M_outer ∧ `release` ∈ modifiers:
+ Release-and-Reacquire per §17.4.1
+otherwise:
+ Emit(`E-CON-0012`)
+
+**Dynamic Semantics**
+
+**Release-and-Reacquire Sequence**
+
+When entering `#path release <target> { body }`:
+
+1. **Release:** Release the outer key held by the enclosing block
+2. **Acquire:** Acquire the target mode key to `path` (blocking if contended)
+3. **Execute:** Evaluate `body`
+4. **Release:** Release the inner key
+5. **Reacquire:** Acquire the outer mode key for the enclosing block's remaining scope
+
+**(K-Release-Sequence)**
+Held(P, M_outer, S_outer)    #P `release` M_inner { B }
+────────────────────────────────────────────────────────────
+Release(P, Γ_keys);
+Acquire(P, M_inner, S_inner);
+Eval(B);
+Release(P, Γ_keys);
+Acquire(P, M_outer, S_outer)
+
+**Interleaving Windows**
+
+Between steps 1 and 2 (entry), and between steps 4 and 5 (exit), other tasks MAY acquire keys to the same path.
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-CON-0011`, `E-CON-0012`, `E-CON-0017`, `E-CON-0018`, `W-CON-0010`–`W-CON-0012`.
+
+**Staleness Suppression (`[[stale_ok]]`)**
+
+`[[stale_ok]]` suppresses warning `W-CON-0011` on a binding derived from `shared` data across a `release` or `yield release` boundary. See §5.13.5 for the full definition. The attribute does not affect dynamic semantics.
+
+
+#### 17.4.2 Key Reentrancy
+
+**Key Reentrancy.** If a caller holds a key covering the callee's access paths, the callee's accesses are covered without additional acquisition.
+
+**Static Semantics**
+
+**(K-Reentrant)**
+Held(P, M, Γ_keys)    Prefix(P, Q)    CalleeAccesses(Q)
+──────────────────────────────────────────────────────────
+CalleeCovered(Q)
+
+**(K-Procedure-Boundary)**
+
+Passing a `shared` value as a procedure argument does not constitute key acquisition:
+
+Γ ⊢ f : (`shared` T) → R    Γ ⊢ v : `shared` T
+──────────────────────────────────────────────────────────────
+call(f, v) → no key acquisition at call site
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, code `W-CON-0005`.
+
+
+### 17.5 Speculative Execution
+
+
+#### 17.5.1 Speculative Block Semantics
+
+**Speculative Block.** A key block that executes without acquiring an exclusive key, relying on optimistic concurrency control. The block body executes against a snapshot; at block exit, writes are atomically committed if and only if the snapshot values remain unchanged.
+
+**Syntax**
+
+```ebnf
+speculative_block ::= "#" path_list "speculative" "write" block
+```
+
+**Static Semantics**
+
+**(K-Spec-Write-Required)**
+#P `speculative` M {B}    M ≠ `write`
+────────────────────────────────────────
+Emit(`E-CON-0095`)
+
+**(K-Spec-Pure-Body)**
+#P `speculative write` {B}    Writes(B) ⊄ CoveredPaths(P)
+──────────────────────────────────────────────────────────
+Emit(`E-CON-0091`)
+
+**Permitted Operations**
+
+- Read from keyed paths
+- Write to keyed paths
+- Pure computation (arithmetic, logic, local bindings)
+- Procedure calls to `const` receiver methods on keyed data
+
+**Prohibited Operations**
+
+- Write to paths outside the keyed set
+- Nested key blocks
+- `wait` expressions
+- Procedure calls with side effects
+- `defer` statements
+
+**(K-Spec-No-Nested-Key)**
+#P `speculative write` {B}    #Q _ {…} ∈ Subexpressions(B)
+──────────────────────────────────────────────────────────
+Emit(`E-CON-0090`)
+
+
+#### 17.5.2 Snapshot-Execute-Commit Cycle
+
+**Speculative Commit.** SpeculativeCommit(R, W) ⇔ Atomic(⋀_((p, v) ∈ R) p = v ⇒ ⋀_((q, w) ∈ W) q := w)
+
+**Dynamic Semantics**
+
+**Execution Model**
+
+1. **Initialize**: Set retries := 0
+2. **Snapshot**: Read all paths in the keyed set, recording (path, value) pairs in read set R
+3. **Execute**: Evaluate body, collecting writes in write set W
+4. **Commit**: Atomically verify ⋀_((p, v) ∈ R) (current(p) = v) and, if true, apply all writes in W
+5. **On success**: Return the value of body
+6. **On failure**: Increment retries; if below limit, goto step 2; otherwise fallback
+7. **Fallback**: Acquire a blocking Write key, execute body, release key, return value
+
+**Retry Limit**
+
+`MAX_SPECULATIVE_RETRIES` = 16.
+
+**Interaction with Blocking Keys**
+
+| Concurrent Operation      | Speculative Block Behavior                  |
+| :------------------------ | :------------------------------------------ |
+| Another speculative block | Race; one commits, others retry             |
+| Blocking Read key held    | Speculative MAY commit (compatible)         |
+| Blocking Write key held   | Speculative commit fails, retry or fallback |
+
+**Snapshot and Commit Requirements**
+
+The snapshot step MUST be observationally equivalent to an atomic snapshot over the keyed set R. The commit step MUST be atomic with respect to all other key operations on overlapping paths and MUST satisfy `SpeculativeCommit(R, W)`.
+
+
+#### 17.5.3 Speculation and Panics
+
+**Dynamic Semantics**
+
+If a panic occurs during execution (step 3):
+
+1. The write set W is discarded (no writes are committed)
+2. No key is held (nothing to release)
+3. The panic propagates normally
+
+**Memory Ordering**
+
+- Snapshot reads: Acquire semantics
+- Successful commit: Release semantics
+- Failed commit: No ordering guarantees (writes discarded)
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-CON-0090`–`E-CON-0096`, `W-CON-0020`, `W-CON-0021`.
+
+
+### 17.6 Runtime Realization (`[[dynamic]]`)
+
+
+#### 17.6.1 Dynamic Key Verification
+
+**Dynamic Verification.** Keys are a compile-time abstraction. Runtime synchronization is emitted only when the `[[dynamic]]` attribute is present and static verification fails.
+
+**Static Semantics**
+
+**Static Safety Conditions**
+
+| Condition              | Description                                                 | Rule   |
+| :--------------------- | :---------------------------------------------------------- | :----- |
+| **No escape**          | `shared` value never escapes to another task                | K-SS-1 |
+| **Disjoint paths**     | Concurrent accesses target provably disjoint paths          | K-SS-2 |
+| **Sequential context** | No `parallel` block encloses the access                     | K-SS-3 |
+| **Unique origin**      | Value is `unique` at origin, temporarily viewed as `shared` | K-SS-4 |
+| **Dispatch-indexed**   | Access indexed by `dispatch` iteration variable             | K-SS-5 |
+| **Speculative-only**   | All accesses within speculative blocks with fallback        | K-SS-6 |
+
+**(K-Static-Safe)**
+Access(P, M)    StaticallySafe(P)
+────────────────────────────────
+NoRuntimeSync(P)
+
+**(K-Static-Safe-Info)**
+Access(P, M)    StaticallySafe(P)    InDynamicContext
+────────────────────────────────────────────────────
+Emit(`I-CON-0013`)
+
+**(K-Static-Required)**
+¬ StaticallySafe(P)    ¬ InDynamicContext
+──────────────────────────────────────────
+Emit(`E-CON-0020`)
+
+**(K-Dynamic-Permitted)**
+¬ StaticallySafe(P)    InDynamicContext
+────────────────────────────────────────
+EmitRuntimeSync(P)
+
+**(K-Dynamic-Permitted-Info)**
+¬ StaticallySafe(P)    InDynamicContext
+────────────────────────────────────────
+Emit(`I-CON-0011`)
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-CON-0014`, `E-CON-0020`, `I-CON-0011`, `I-CON-0013`.
+
+
+#### 17.6.2 Runtime Lock Acquisition
+
+**Dynamic Semantics**
+
+**Runtime Realization**
+
+When runtime synchronization is required:
+
+1. Mutual exclusion per key compatibility rules (§17.1.6)
+2. Blocking when incompatible keys are held
+3. Release on scope exit (including panic)
+4. Progress guarantee (no indefinite starvation)
+
+**Canonical Order**
+
+A canonical order on paths defines deterministic acquisition order:
+
+P <_canon Q ⇔ ∃ k ≥ 1 : (∀ i < k, p_i =_seg q_i) ∧ (p_k <_seg q_k ∨ (k > m ∧ m < n))
+
+**Segment Ordering**
+
+1. **Identifiers:** Lexicographic by UTF-8 byte sequence
+2. **Indexed segments:** By index value for statically resolvable indices
+3. **Bare vs indexed:** Bare identifier precedes any indexed form
+
+**Dynamic Ordering Guarantee**
+
+Within `[[dynamic]]` scope, incomparable dynamic indices require runtime ordering satisfying:
+
+1. **Totality**: For distinct paths P and Q, exactly one of DynOrder(P, Q) or DynOrder(Q, P) holds
+2. **Antisymmetry**: DynOrder(P, Q) ∧ DynOrder(Q, P) ⇒ P = Q
+3. **Transitivity**: DynOrder(P, Q) ∧ DynOrder(Q, R) ⇒ DynOrder(P, R)
+4. **Cross-Task Consistency**: All tasks compute the same ordering
+5. **Value-Determinism**: Ordering depends only on runtime values, not timing
+
+**Observational Equivalence**
+
+∀ P : Observable(StaticSafe(P)) = Observable(RuntimeSync(P))
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, code `W-CON-0021`.
+
+
+### 17.7 Memory Ordering
+
+
+#### 17.7.1 Default Sequential Consistency
+
+**Sequential Consistency.** Key acquisition uses acquire semantics. Key release uses release semantics. Memory accesses default to sequentially consistent ordering.
+
+
+#### 17.7.2 Relaxed Ordering Levels
+
+**Syntax**
+
+
+| Ordering  | Guarantee                             |
+| :-------- | :------------------------------------ |
+| `relaxed` | Atomicity only—no ordering            |
+| `acquire` | Subsequent reads see prior writes     |
+| `release` | Prior writes visible to acquire reads |
+| `acqrel` | Both acquire and release              |
+| `seqcst` | Total global order (default)          |
+
+
+#### 17.7.3 Memory Ordering Attributes
+
+**Syntax**
+
+```ebnf
+memory_order_attribute ::= "[[" memory_order "]]"
+memory_order           ::= "relaxed" | "acquire" | "release" | "acqrel" | "seqcst"
+```
+
+**Static Semantics**
+
+Memory ordering annotations are permitted inside standard `#` blocks. The annotation affects only the data access ordering; it does not modify the key's acquire/release semantics at block entry and exit.
+
+Memory ordering annotations MUST NOT appear inside speculative blocks (§17.5).
+
+
+#### 17.7.4 Fence Operations
+
+**Syntax**
+
+
+---
+
+## 18. Structured Parallelism
+
+---
+
+### 18.1 Parallel Blocks
+
+
+#### 18.1.1 `parallel` Block Syntax
+
+**Parallel Block.** A scope within which work executes concurrently across multiple workers. A parallel block P is defined as P = (D, A, B) where D is the execution domain expression, A is the set of block options, and B is the block body.
+
+**Syntax**
+
+```ebnf
+parallel_block    ::= "parallel" domain_expr block_options? block
+
+domain_expr       ::= expression
+
+block_options     ::= "[" block_option ("," block_option)* "]"
+
+block_option      ::= "cancel" ":" expression
+                    | "name" ":" string_literal
+
+block             ::= "{" statement* "}"
+```
+
+| Option   | Type          | Effect                                       |
+| :------- | :------------ | :------------------------------------------- |
+| `cancel` | `CancelToken` | Provides cooperative cancellation capability |
+| `name`   | `string`      | Labels the block for debugging and profiling |
+
+**Static Semantics**
+
+**Typing Rule**
+
+BlockOptOk(Name(_)) ⇔ true
+BlockOptOk(Cancel(e)) ⇔ Γ ⊢ e : TypePath(["CancelToken"])
+BlockOptsOk(opts) ⇔ ∀ opt ∈ opts. BlockOptOk(opt)
+
+Γ ⊢ D : `$ExecutionDomain`    BlockOptsOk(opts)    Γ_P = Γ[parallel_context ↦ D]    Γ_P ⊢ B : T
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ `parallel` D opts {B} : T    (T-Parallel)
+
+**Well-Formedness**
+
+A parallel block is well-formed if and only if:
+
+1. The domain expression evaluates to a type implementing `ExecutionDomain`.
+2. All `spawn` and `dispatch` expressions within the block body reference the enclosing parallel block.
+3. No `spawn` or `dispatch` expression appears outside a parallel block.
+4. All captured bindings satisfy the permission requirements of §18.3.
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-CON-0101`–`E-CON-0103`.
+
+
+#### 18.1.2 Fork-Join Semantics
+
+**Structured Concurrency Invariant.** Let 𝒲 denote the set of work items spawned within a parallel block P: ∀ w ∈ 𝒲. lifetime(w) ⊆ lifetime(P). A **work item** is a unit of computation queued for execution by a worker (created by `spawn` and `dispatch` expressions). A **worker** is an execution context that executes work items. A **task** is the runtime representation of a work item during execution; tasks MAY suspend and resume, and are associated with key state per §17.1.
+
+**Dynamic Semantics**
+
+Evaluation of `parallel D [opts] { B }`:
+
+1. Evaluate domain expression D to obtain d.
+2. Initialize the worker pool according to d's configuration.
+3. If the `cancel` option is present, associate its token with the block.
+4. Evaluate statements in B sequentially; `spawn` and `dispatch` expressions enqueue work items.
+5. Block at the closing brace until all enqueued work items complete.
+6. If any work item panicked, propagate the first panic (by completion order) after all work settles.
+7. Release workers back to the domain.
+8. Return the collected results per §18.1.3.
+
+Work items MAY execute concurrently. Define EnqueueIndex(w) as the sequential index assigned to each work item when its `spawn` or `dispatch` expression is evaluated in step 4. Define CompletionOrder as the total order on work items induced by the abstract execution in which each work item transitions to its completed state; if two transitions occur in the same abstract step, EnqueueIndex breaks the tie. The parallel block guarantees only that ALL work completes before the block exits.
+
+
+#### 18.1.3 Parallel Block Completion
+
+**Parallel Completion.** A parallel block is an expression that yields a value. The result type depends on the block's contents.
+
+**Static Semantics**
+
+**Result Type Determination**
+
+| Block Contents                     | Result Type          |
+| :--------------------------------- | :------------------- |
+| No `spawn` or `dispatch`           | `()`                 |
+| Single `spawn { e }` where e : T | T                   |
+| Multiple spawns e_1, …, e_n     | (T_1, …, T_n)        |
+| `dispatch` without `[reduce]`    | `()`                 |
+| `dispatch ... [reduce: op] { e }`| T where e : T        |
+| Mixed spawns and reducing dispatch | Tuple of all results |
+
+**Typing Rules**
+
+────────────────────────────────────────────
+Γ ⊢ `parallel` D {} : ()    (T-Parallel-Empty)
+
+Γ ⊢ `spawn` {e} : SpawnHandle⟨T⟩
+────────────────────────────────────────────────────────
+Γ ⊢ `parallel` D {`spawn` {e}} : T    (T-Parallel-Single)
+
+Γ ⊢ `spawn` {e_i} : SpawnHandle⟨T_i⟩    ∀ i ∈ 1..n
+──────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ `parallel` D {`spawn` {e_1}; …; `spawn` {e_n}} : (T_1, …, T_n)    (T-Parallel-Multi)
+
+
+### 18.2 Execution Domains
+
+
+#### 18.2.1 CPU Domain
+
+**CPU Domain.** An execution domain that executes work items on operating system threads managed by the runtime.
+
+**Static Semantics**
+
+`ctx.cpu()` is a `Context` method (see §5.9.4) that returns a value of type `$ExecutionDomain`.
+
+`CpuSet` and `Priority` are built-in types (see §5.9.4). `CpuSet` is an alias of `u64` interpreted as a bitset: CPU index i is included iff bit i of the mask is 1. `Priority` is an enum with variants `Low`, `Normal`, and `High`; higher discriminant values denote higher scheduling priority.
+
+
+#### 18.2.2 GPU Domain
+
+**GPU Domain.** An execution domain that executes work items on graphics processing unit compute shaders.
+
+**Static Semantics**
+
+`ctx.gpu()` is a `Context` method (see §5.9.4) that returns a value of type `$ExecutionDomain` representing a GPU execution domain. Within GPU-domain work items, capturing `shared` bindings, host pointers, or heap‑provenanced values is ill‑formed; only GPU‑accessible data MAY be captured.
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-CON-0150`–`E-CON-0152`.
+
+
+#### 18.2.3 Inline Domain
+
+**Inline Domain.** An execution domain that executes work items sequentially on the current thread.
+
+**Syntax**
+
+```cursive
+ctx.inline()
+```
+
+**Static Semantics**
+
+`ctx.inline()` is a `Context` method (see §5.9.4) that returns a value of type `$ExecutionDomain` representing the inline domain.
+
+**Dynamic Semantics**
+
+- `spawn { e }` evaluates e immediately and blocks until complete.
+- `dispatch i in range { e }` executes as a sequential loop.
+- No actual parallelism occurs.
+- All capture rules and permission requirements remain enforced.
+
+
+#### 18.2.4 Domain Selection
+
+**Execution Domain.** A capability that provides access to computational resources. Domains implement the `ExecutionDomain` class.
+
+**Static Semantics**
+
+ExecutionDomainMethods = [
+  ClassMethodDecl(⊥, `public`, "name", ⊥, ReceiverShorthand(`const`), [], TypeString(⊥), ⊥, ⊥, ⊥, ⊥),
+  ClassMethodDecl(⊥, `public`, "max_concurrency", ⊥, ReceiverShorthand(`const`), [], TypePrim("usize"), ⊥, ⊥, ⊥, ⊥)
+]
+ExecutionDomainDecl = ClassDecl(⊥, `public`, false, `ExecutionDomain`, ⊥, ⊥, [], ExecutionDomainMethods, ⊥, ⊥)
+Σ.Classes["ExecutionDomain"] = ExecutionDomainDecl
+
+This class is dispatchable, enabling heterogeneous domain handling.
+
+
+### 18.3 Capture Semantics
+
+See §10.1 for permission definitions. This section defines parallel-specific capture constraints.
+
+
+#### 18.3.1 Capture Rules for `const`
+
+**Const Capture.** Bindings with `const` permission MAY be captured by reference into `spawn` and `dispatch` bodies. Captured `const` references are guaranteed valid because structured concurrency (§18.1.2) ensures all work completes before the parallel block exits.
+
+**Static Semantics**
+
+`const` capture does not transfer responsibility. Multiple work items MAY capture the same `const` binding concurrently.
+
+
+#### 18.3.2 Capture Rules for `shared`
+
+**Shared Capture.** Bindings with `shared` permission MAY be captured by reference into `spawn` and `dispatch` bodies. Accesses are synchronized via the key system (§17).
+
+**Static Semantics**
+
+`shared` capture does not transfer responsibility. Concurrent access follows key acquisition semantics per §17.2.
+
+
+#### 18.3.3 Capture Rules for `unique` (Move Required)
+
+See §3.4 for move semantics and §10.1.2 for `unique` permission rules.
+
+**Unique Capture.** Bindings with `unique` permission MUST NOT be implicitly captured. To use a `unique` binding in a work item, explicit `move` is required. At most one work item MAY receive ownership.
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-CON-0120`–`E-CON-0122`.
+
+
+### 18.4 Tasks and Spawning
+
+
+#### 18.4.1 `spawn` Expression Syntax
+
+**Spawn Expression.** An expression that creates a work item for concurrent execution within the enclosing parallel block.
+
+**Syntax**
+
+```ebnf
+spawn_expr      ::= "spawn" spawn_option_list? block
+
+spawn_option_list  ::= "[" spawn_option ("," spawn_option)* "]"
+
+spawn_option       ::= "name" ":" string_literal
+                    | "affinity" ":" expression
+                    | "priority" ":" expression
+```
+
+| Attribute  | Type       | Default            | Effect                         |
+| :--------- | :--------- | :----------------- | :----------------------------- |
+| `name`     | `string`   | Anonymous          | Labels for debugging/profiling |
+| `affinity` | `CpuSet`   | Domain default     | CPU core affinity hint         |
+| `priority` | `Priority` | `Priority::Normal` | Scheduling priority hint       |
+
+**Static Semantics**
+
+**Typing Rule**
+
+SpawnOptOk(Name(_)) ⇔ true
+SpawnOptOk(Affinity(e)) ⇔ Γ ⊢ e : TypePath(["CpuSet"])
+SpawnOptOk(Priority(e)) ⇔ Γ ⊢ e : TypePath(["Priority"])
+SpawnOptsOk(opts) ⇔ ∀ opt ∈ opts. SpawnOptOk(opt)
+
+Γ[parallel_context] = D    SpawnOptsOk(opts)    Γ_capture ⊢ e : T
+────────────────────────────────────────────────────────────
+Γ ⊢ `spawn` opts {e} : SpawnHandle⟨T⟩    (T-Spawn)
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-CON-0130`, `E-CON-0131`.
+
+
+#### 18.4.2 Task Creation
+
+**SpawnHandle Type.** A modal type representing a pending or completed spawn result:
+
+
+**Dynamic Semantics**
+
+Evaluation of `spawn [attrs] { e }`:
+
+1. Capture free variables from enclosing scope per §18.3.
+2. Package the captured environment with expression e into a work item.
+3. If `affinity` is present, restrict worker selection to CPU indices whose bits are set in the `CpuSet` mask; if the set is empty, use the domain default.
+4. If `priority` is present, assign the task the given `Priority`. When multiple tasks are ready, workers MUST select any task of maximal priority among those ready.
+5. Enqueue the work item to the parallel block's worker pool.
+6. Return `SpawnHandle<T>@Pending` immediately (non-blocking).
+7. A worker eventually dequeues and evaluates e.
+8. Upon completion, the handle transitions to `@Ready` with the result value.
+
+
+#### 18.4.3 Task Result Collection
+
+**Result Collection.** Spawn results are collected through three mechanisms:
+
+| Mechanism           | Description                                                                 |
+| :------------------ | :-------------------------------------------------------------------------- |
+| Implicit collection | When a parallel block contains only spawn expressions, results form a tuple |
+| Explicit wait       | Use `wait handle` to retrieve a specific result                             |
+| Ignored             | Results not collected are discarded; work still completes                   |
+
+**Static Semantics**
+
+**(T-Wait-Spawn)**
+Γ; R; L ⊢ h : TypeApply(["SpawnHandle"], [T])
+──────────────────────────────────────────
+Γ; R; L ⊢ `wait` h : T
+
+**(T-Wait-Future)**
+Γ; R; L ⊢ h : TypeApply(["FutureHandle"], [T, E])
+──────────────────────────────────────────
+Γ; R; L ⊢ `wait` h : TypeUnion([T, E])
+
+**(Wait-Handle-Err)**
+Γ; R; L ⊢ h : T_h    StripPerm(T_h) ∉ {TypeApply(["SpawnHandle"], [_]), TypeApply(["FutureHandle"], [_, _])}    c = Code(E-CON-0132)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ `wait` h ⇑ c
+
+**Dynamic Semantics**
+
+`SpawnHandle<T>` and `FutureHandle<T, E>` support the `wait` expression for result retrieval. Per §17, keys MUST NOT be held across `wait` suspension points.
+
+Evaluation of `wait h`:
+
+1. Evaluate h to v.
+2. If v is `@Ready { value }`, return value.
+3. If v is `@Pending`, block the current task until the handle transitions to `@Ready`, then return its value.
+4. For `SpawnHandle<T>`, the returned value has type T. For `FutureHandle<T, E>`, the returned value has type `T | E`.
+
+
+### 18.5 Data Parallelism (`dispatch`)
+
+
+#### 18.5.1 `dispatch` Expression Syntax
+
+**Dispatch Expression.** An expression that expresses data-parallel iteration where each iteration MAY execute concurrently.
+
+**Syntax**
+
+```ebnf
+dispatch_expr   ::= "dispatch" pattern "in" range_expression
+                    key_clause?
+                    dispatch_option_list?
+                    block
+
+key_clause      ::= "key" key_path_expr key_mode
+
+key_mode        ::= "read" | "write"
+
+dispatch_option_list  ::= "[" dispatch_option ("," dispatch_option)* "]"
+
+dispatch_option       ::= "reduce" ":" reduce_op
+                        | "ordered"
+                        | "chunk" ":" expression
+
+reduce_op       ::= "+" | "*" | "min" | "max" | "and" | "or" | identifier
+```
+
+| Attribute | Type         | Effect                                        |
+| :-------- | :----------- | :-------------------------------------------- |
+| `reduce`  | Reduction op | Combines iteration results using specified op |
+| `ordered` | (flag)       | Forces sequential side-effect ordering        |
+| `chunk`   | `usize`      | Groups iterations into chunks for granularity |
+
+**Static Semantics**
+
+**Typing Rule (Without Reduction)**
+
+Γ ⊢ range : Range⟨I⟩    Γ, i : I ⊢ B : T
+──────────────────────────────────────────────────────────
+Γ ⊢ `dispatch` i `in range` {B} : ()    (T-Dispatch)
+
+**Typing Rule (With Reduction)**
+
+Γ ⊢ range : Range⟨I⟩    Γ, i : I ⊢ B : T    Γ ⊢ ⊕ : (T, T) → T
+─────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ `dispatch` i `in range [reduce: ⊕]` {B} : T    (T-Dispatch-Reduce)
+
+**Constraints**
+
+**Diagnostics:** See Appendix A, codes `E-CON-0140`–`E-CON-0143`, `W-CON-0140`.
+
+
+#### 18.5.2 Iteration Space
+
+**Dynamic Semantics**
+
+Evaluation of `dispatch i in range [attrs] { B }`:
+
+1. Evaluate `range` to determine iteration count n.
+2. Analyze key patterns to partition iterations into conflict-free groups.
+3. For each group, enqueue iterations as work items to the worker pool.
+4. Workers execute iterations, acquiring required keys per §17.2 before the first access to each keyed path in the iteration.
+5. If `[reduce: op]` is present, combine partial results using `op`.
+6. Block until all iterations complete.
+7. Return the reduced value (if reduction) or unit.
+
+**Reduction Semantics**
+
+Reduction operators MUST be associative:
+
+∀ a, b, c. (a ⊕ b) ⊕ c = a ⊕ (b ⊕ c)
+
+For non-associative operations, the `[ordered]` attribute is required, which forces sequential execution.
+
+Parallel reduction:
+
+1. Partition iterations across workers.
+2. Each worker reduces its partition to a partial result.
+3. Combine partial results in a deterministic tree pattern.
+4. Return the final result.
+
+
+#### 18.5.3 Key-Based Parallelism Determination
+
+See §17 for key system definition. This section defines dispatch-specific key usage.
+
+**Static Semantics**
+
+**Key Inference**
+
+When no key clause is provided, the body is analyzed to infer key paths and modes:
+
+| Body Access Pattern       | Inferred Key Path        | Inferred Mode   |
+| :------------------------ | :----------------------- | :-------------- |
+| `data[i] = ...`           | `data[i]`                | `write`         |
+| `... = data[i]`           | `data[i]`                | `read`          |
+| `data[i] = data[i] + ...` | `data[i]`                | `write`         |
+| `result[i] = source[j]`   | `result[i]`, `source[j]` | `write`, `read` |
+
+**Disjointness Guarantee**
+
+`dispatch` v `in` r { … a[v] … }
+────────────────────────────────────────────────────────────
+∀ v_1, v_2 ∈ r, v_1 ≠ v_2 ⇒ ProvablyDisjoint(a[v_1], a[v_2])    (K-Disjoint-Dispatch)
+
+**Parallelism Determination**
+
+| Key Pattern   | Keys Generated      | Parallelism Degree    |
+| :------------ | :------------------ | :-------------------- |
+| `data[i]`     | n distinct keys     | Full parallel         |
+| `data[i / 2]` | n/2 distinct keys   | Pairs serialize       |
+| `data[i % k]` | k distinct keys     | k-way parallel        |
+| `data[f(i)]`  | Unknown at compile  | Runtime serialization |
+
+
+### 18.6 Cancellation
+
+
+#### 18.6.1 Cancellation Propagation
+
+**Cancellation.** The cooperative mechanism by which in-progress parallel work MAY be requested to stop early. Work items MUST explicitly check for cancellation; the runtime does not forcibly terminate work.
+
+**Syntax**
+
+**CancelToken Type**
+
+**Static Semantics**
+
+`CancelToken` is a built-in modal type. See §5.4.2 for its declaration, method signatures, and the built-in procedure `CancelToken::new`.
+
+**Dynamic Semantics**
+
+When a cancel token is attached to a parallel block via the `cancel` option, the token is implicitly available within all `spawn` and `dispatch` bodies.
+
+**Cancel Token State**
+
+CancelStatus = {Active, Cancelled}
+CancelState = ⟨parent, status⟩    where parent ∈ ℕ ∪ {⊥} and status ∈ CancelStatus
+CancelMap = ℕ ⇀ CancelState
+
+CancelStatusOf(χ, id) = s ⇔ χ[id] = ⟨_, s⟩
+CancelParentOf(χ, id) = p ⇔ χ[id] = ⟨p, _⟩
+
+Descendant(χ, a, b) ⇔ (a = b) ∨ (∃ p. CancelParentOf(χ, b) = p ∧ Descendant(χ, a, p))
+
+FreshCancelId(χ) = n ⇔ n ∉ dom(χ) ∧ ∀ m < n. m ∈ dom(χ)
+
+CancelVal(n, S) = RecordValue(ModalStateRef(["CancelToken"], S), [⟨`id`, IntVal("usize", n)⟩])
+CancelId(v) = n ⇔ v = RecordValue(ModalStateRef(["CancelToken"], S), fs) ∧ FieldValue(v, `id`) = IntVal("usize", n)
+
+CancelJudg = {CancelNew() ⇓ v, CancelChild(v) ⇓ v', CancelIsCancelled(v) ⇓ b, CancelDoCancel(v) ⇓ ok}
+CancelJudg_χ = {CancelNew(χ) ⇓ (v, χ'), CancelChild(v, χ) ⇓ (v', χ'), CancelIsCancelled(v, χ) ⇓ b, CancelDoCancel(v, χ) ⇓ χ'}
+
+CancelNew() ⇓ v ⇔ ∃ χ, χ'. CancelNew(χ) ⇓ (v, χ')
+CancelChild(v) ⇓ v' ⇔ ∃ χ, χ'. CancelChild(v, χ) ⇓ (v', χ')
+CancelIsCancelled(v) ⇓ b ⇔ ∃ χ. CancelIsCancelled(v, χ) ⇓ b
+CancelDoCancel(v) ⇓ ok ⇔ ∃ χ, χ'. CancelDoCancel(v, χ) ⇓ χ'
+
+**(Cancel-New)**
+FreshCancelId(χ) = n    χ' = χ[n ↦ ⟨⊥, Active⟩]
+──────────────────────────────────────────────
+CancelNew(χ) ⇓ (CancelVal(n, `@Active`), χ')
+
+**(Cancel-Child)**
+CancelId(v) = p    FreshCancelId(χ) = n    χ' = χ[n ↦ ⟨p, Active⟩]
+──────────────────────────────────────────────────────────────────────────────
+CancelChild(v, χ) ⇓ (CancelVal(n, `@Active`), χ')
+
+**(Cancel-IsCancelled)**
+CancelId(v) = n    CancelStatusOf(χ, n) = s    b = (s = Cancelled)
+──────────────────────────────────────────────────────────────────────────────
+CancelIsCancelled(v, χ) ⇓ b
+
+**(Cancel-DoCancel)**
+CancelId(v) = n    χ' = χ[ k ↦ ⟨CancelParentOf(χ, k), Cancelled⟩ | k ∈ dom(χ) ∧ Descendant(χ, n, k) ]
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+CancelDoCancel(v, χ) ⇓ χ'
+
+
+#### 18.6.2 Cancellation Cleanup
+
+**Dynamic Semantics**
+
+Cancellation is a request, not a guarantee:
+
+| Scenario                       | Behavior                          |
+| :----------------------------- | :-------------------------------- |
+| Work checks and returns early  | Iteration completes immediately   |
+| Work ignores cancellation      | Iteration runs to completion      |
+| Work is queued but not started | MAY be dequeued without executing |
+| Work is mid-execution          | Continues until next check point  |
+
+
+### 18.7 Panic Handling in Parallel
+
+
+#### 18.7.1 Single Panic Semantics
+
+**Parallel Panic Handling.** When a work item panics within a parallel block, the panic is captured and propagated after all work settles.
+
+**Dynamic Semantics**
+
+1. The panicking work item captures panic information.
+2. Other work items continue to completion (or cancellation if a token is attached).
+3. After all work settles, the panic is re-raised at the block boundary.
+
+
+#### 18.7.2 Multiple Panic Handling
+
+**Dynamic Semantics**
+
+1. Each panic is captured independently.
+2. All work completes or is cancelled.
+3. The first panic (by completion order) is raised.
+4. Other panics are discarded; implementations MAY log them.
+
+
+#### 18.7.3 Panic and Cancellation
+
+**Dynamic Semantics**
+
+If a cancel token is attached to the parallel block, the runtime MUST request cancellation on the first captured panic, exactly once. If no cancel token is attached, the runtime MUST NOT request cancellation solely due to a panic.
+
+
+### 18.8 Determinism and Nesting
+
+
+#### 18.8.1 Determinism Guarantees
+
+**Determinism.** Given identical inputs and parallel structure, execution produces identical results.
+
+**Static Semantics**
+
+Dispatch is deterministic when:
+
+1. Key patterns produce identical partitioning across runs.
+2. Iterations with the same key execute in index order.
+3. Reduction uses deterministic tree combination.
+
+The `[ordered]` attribute forces sequential side-effect ordering. Iterations MAY execute in parallel, but side effects (I/O, shared mutation) are buffered and applied in index order.
+
+
+#### 18.8.2 Nested Parallelism Rules
+
+**Nested Parallelism.** Parallel blocks MAY be nested. Inner blocks execute within the context established by outer blocks.
+
+**Dynamic Semantics**
+
+**CPU Nesting**
+
+Inner CPU parallel blocks share the worker pool with outer blocks. The `workers` parameter on inner blocks is a hint or limit, not additional workers.
+
+**Heterogeneous Nesting**
+
+CPU and GPU blocks MAY be nested.
+
+**Constraints**
+
+1. GPU parallel blocks MUST NOT be nested inside other GPU parallel blocks.
+2. Inner CPU blocks share the outer block's worker pool.
+3. Capture rules apply independently at each nesting level.
+
+
+#### 18.8.3 Memory Allocation in Parallel
+
+**Parallel Allocation.** Work items MAY allocate memory using captured allocator capabilities.
+
+**Dynamic Semantics**
+
+**Captured Allocator**
+
+Work items MAY capture `ctx.heap` and invoke allocation methods.
+
+**Region Allocation**
+
+Work items executing within a `region` block MAY allocate from that region using the `^` operator.
+
+## 19. Asynchronous Operations
+
+### 19.1 Async Model
+
+#### 19.1.1 Built-in Modal Type `Async` (Cursive0)
+
+**Async Modal.** `Async<Out, In, Result, E>` is the built-in modal type defined in §5.4.5.
+
+**Type Parameters**
+
+Out: type of values produced at suspension.
+In: type of values received on resume.
+Result: type of final completion value.
+E: type of failure value.
+
+**States**
+
+`@Suspended` carries `output: Out`.
+`@Completed` carries `value: Result`.
+`@Failed` carries `error: E`.
+
+When `E = !`, `@Failed` is uninhabited; storage omission rules are in §5.4.5.
+
+Async parameter defaults and subtyping are defined by `AsyncSig` (§5.2.9) and **(Sub-Async)** (§5.2.6).
+
+#### 19.1.2 Type Aliases (`Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`)
+
+**Syntax**
+
+```cursive
+type Sequence<T> = Async<T, (), (), !>
+type Future<T; E = !> = Async<(), (), T, E>
+type Pipe<In; Out> = Async<Out, In, (), !>
+type Exchange<T> = Async<T, T, T, !>
+type Stream<T; E> = Async<T, (), (), E>
+```
+
+**Static Semantics**
+
+`Sequence`, `Future`, `Stream`, `Pipe`, and `Exchange` are built-in type aliases (§5.4.5) and expand by alias normalization (§5.2.7).
+
+#### 19.1.3 Async State Machine
+
+**Async Procedure.** A procedure is async iff `AsyncSig(R) = ⟨Out, In, Result, E⟩`, where `R` is its declared return type.
+
+**Static Semantics**
+
+SuspendExpr(e) ⇔ e = YieldExpr(_, _) ∨ e = YieldFromExpr(_, _)
+
+A binding is **live across suspension** iff there exists a control-flow path from a suspension point to a use of the binding on which the binding is not redefined. The async frame stores every binding that is live across suspension, plus the resumption point and any implementation fields required by the runtime.
+
+If the captured state size exceeds the large-capture threshold, the warning rule in §5.2.17 applies (W-CON-0201).
+
+**Dynamic Semantics**
+
+Evaluation of a call to an async procedure:
+
+1. Evaluate arguments left-to-right (§6.4).
+2. Allocate a fresh async frame, capturing required arguments and initializing the resumption point to the procedure entry.
+3. Execute the body until:
+   - `yield` or `yield from` is reached: produce `Async@Suspended { output = v }`.
+   - `return` is executed: produce `Async@Completed { value = v }`.
+   - error propagation via `?` yields an error value: produce `Async@Failed { error = e }`.
+4. The call expression evaluates to the produced modal state.
+
+Evaluation of `a~>resume(input)` for `a : Async@Suspended`:
+
+1. Resume execution at the stored resumption point with the yielded input value bound to the suspended `yield` expression.
+2. Run until the next suspension or completion, returning the corresponding `Async` state.
+
+### 19.2 Suspension
+
+#### 19.2.1 Suspension Points
+
+**Suspension Point.** A suspension point is any evaluation point of `yield` or `yield from`. At a suspension point, the async computation transitions to `@Suspended` and returns control to its caller.
+
+#### 19.2.2 `yield` Expression
+
+**Syntax**
+
+```ebnf
+yield_expr ::= "yield" "release"? expression
+```
+
+**Static Semantics**
+
+**(T-Yield)**
+AsyncSig(R) = ⟨Out, In, Result, E⟩    Γ; R; L ⊢ e : T    Γ ⊢ T <: Out
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ YieldExpr(release_opt, e) : In
+
+**(Yield-NotAsync-Err)**
+AsyncSig(R) = ⊥    c = Code(E-CON-0210)
+──────────────────────────────────────────────
+Γ; R; L ⊢ YieldExpr(release_opt, e) ⇑ c
+
+**(Yield-Out-Err)**
+AsyncSig(R) = ⟨Out, In, Result, E⟩    Γ; R; L ⊢ e : T    ¬(Γ ⊢ T <: Out)    c = Code(E-CON-0211)
+────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ YieldExpr(release_opt, e) ⇑ c
+
+Key restrictions for `yield` are defined in §19.4.2.
+
+**Dynamic Semantics**
+
+Evaluation of `yield e`:
+
+1. Evaluate e to v.
+2. If `release_opt = Release`, release all held keys and record the key set (§19.4.2).
+3. Transition to `Async@Suspended { output = v }`.
+4. When resumed with input i:
+   - if `release_opt = Release`, reacquire recorded keys in canonical order (§17.4.1);
+   - bind i as the value of the `yield` expression and continue.
+
+#### 19.2.3 `yield from` Expression
+
+**Syntax**
+
+```ebnf
+yield_from_expr ::= "yield" "release"? "from" expression
+```
+
+**Static Semantics**
+
+**(T-Yield-From)**
+AsyncSig(R) = ⟨Out, In, Result, E_1⟩    Γ; R; L ⊢ e : T_e    AsyncSig(T_e) = ⟨Out_e, In_e, Result_e, E_2⟩    Γ ⊢ Out_e ≡ Out    Γ ⊢ In_e ≡ In    Γ ⊢ E_2 <: E_1
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ YieldFromExpr(release_opt, e) : Result_e
+
+**(YieldFrom-NotAsync-Err)**
+AsyncSig(R) = ⊥    c = Code(E-CON-0220)
+──────────────────────────────────────────────
+Γ; R; L ⊢ YieldFromExpr(release_opt, e) ⇑ c
+
+**(YieldFrom-Out-Err)**
+AsyncSig(R) = ⟨Out, In, Result, E_1⟩    Γ; R; L ⊢ e : T_e    (AsyncSig(T_e) = ⊥ ∨ (AsyncSig(T_e) = ⟨Out_e, In_e, Result_e, E_2⟩ ∧ ¬(Γ ⊢ Out_e ≡ Out)))    c = Code(E-CON-0221)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ YieldFromExpr(release_opt, e) ⇑ c
+
+**(YieldFrom-In-Err)**
+AsyncSig(R) = ⟨Out, In, Result, E_1⟩    Γ; R; L ⊢ e : T_e    AsyncSig(T_e) = ⟨Out_e, In_e, Result_e, E_2⟩    Γ ⊢ Out_e ≡ Out    ¬(Γ ⊢ In_e ≡ In)    c = Code(E-CON-0222)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ YieldFromExpr(release_opt, e) ⇑ c
+
+**(YieldFrom-ErrType-Err)**
+AsyncSig(R) = ⟨Out, In, Result, E_1⟩    Γ; R; L ⊢ e : T_e    AsyncSig(T_e) = ⟨Out_e, In_e, Result_e, E_2⟩    Γ ⊢ Out_e ≡ Out    Γ ⊢ In_e ≡ In    ¬(Γ ⊢ E_2 <: E_1)    c = Code(E-CON-0225)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ YieldFromExpr(release_opt, e) ⇑ c
+
+Key restrictions for `yield from` are defined in §19.4.2.
+
+**Dynamic Semantics**
+
+Evaluation of `yield from source`:
+
+1. Evaluate source to s.
+2. Loop:
+   - If s is `@Suspended { output }`: evaluate `yield` (or `yield release`) with output; on resumption with input i, set s := s~>resume(i).
+   - If s is `@Completed { value }`: evaluate to value and exit.
+   - If s is `@Failed { error }`: propagate error and exit.
+
+### 19.3 Consumption and Composition
+
+#### 19.3.1 Iteration (`loop...in`)
+
+**Async Loop.** `loop pat in e { body }` consumes an `Async<Out, (), Result, E>` and iterates over yielded values.
+
+**Static Semantics**
+
+The typing rule is **(T-Loop-Iter-Async)** and error **(Loop-Async-Err)** in §5.2.11. Iteration is permitted only in async procedures and requires `In = ()`.
+
+**Dynamic Semantics**
+
+1. Evaluate e to a.
+2. Repeat:
+   - If a is `@Suspended { output }`: bind output to pat, execute body, then set a := a~>resume(()).
+   - If a is `@Completed { value }`: terminate the loop.
+   - If a is `@Failed { error }`: propagate error from the enclosing async procedure.
+
+#### 19.3.2 Manual Stepping
+
+**Manual Stepping.** An async value MAY be advanced by pattern matching on its modal state and invoking `~>resume` on the `@Suspended` state. This is required for async values with non-unit `In` types.
+
+#### 19.3.3 Synchronous Execution (`sync`)
+
+**Syntax**
+
+```ebnf
+sync_expr ::= "sync" expression
+```
+
+**Static Semantics**
+
+YieldInExpr(e) ⇔ ∃ e' ∈ SubExprsList([e]). e' = YieldExpr(_, _)
+YieldFromInExpr(e) ⇔ ∃ e' ∈ SubExprsList([e]). e' = YieldFromExpr(_, _)
+
+**(Sync-Yield-Err)**
+YieldInExpr(e)    c = Code(E-CON-0212)
+──────────────────────────────────────────────
+Γ; R; L ⊢ SyncExpr(e) ⇑ c
+
+**(Sync-YieldFrom-Err)**
+YieldFromInExpr(e)    c = Code(E-CON-0223)
+──────────────────────────────────────────────
+Γ; R; L ⊢ SyncExpr(e) ⇑ c
+
+**(T-Sync)**
+AsyncSig(R) = ⊥    Γ; R; L ⊢ e : T_e    AsyncSig(T_e) = ⟨Out, In, Result, E⟩    Out = TypePrim("()")    In = TypePrim("()")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ SyncExpr(e) : TypeUnion([Result, E])
+
+**(Sync-Async-Context-Err)**
+AsyncSig(R) ≠ ⊥    c = Code(E-CON-0250)
+──────────────────────────────────────────────
+Γ; R; L ⊢ SyncExpr(e) ⇑ c
+
+**(Sync-Out-Err)**
+AsyncSig(R) = ⊥    Γ; R; L ⊢ e : T_e    (AsyncSig(T_e) = ⊥ ∨ (AsyncSig(T_e) = ⟨Out, In, Result, E⟩ ∧ Out ≠ TypePrim("()")))    c = Code(E-CON-0251)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ SyncExpr(e) ⇑ c
+
+**(Sync-In-Err)**
+AsyncSig(R) = ⊥    Γ; R; L ⊢ e : T_e    AsyncSig(T_e) = ⟨Out, In, Result, E⟩    Out = TypePrim("()")    In ≠ TypePrim("()")    c = Code(E-CON-0252)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ SyncExpr(e) ⇑ c
+
+**Dynamic Semantics**
+
+Evaluation of `sync e`:
+
+1. Evaluate e to a.
+2. Loop:
+   - If a is `@Suspended { output = () }`: set a := a~>resume(()).
+   - If a is `@Completed { value }`: return value.
+   - If a is `@Failed { error }`: propagate error.
+
+#### 19.3.4 `race` Expression
+
+**Syntax**
+
+```ebnf
+race_expr    ::= "race" "{" race_arm ("," race_arm)* "}"
+race_arm     ::= expression "->" "|" pattern "|" race_handler
+race_handler ::= expression | "yield" expression
+```
+
+**Static Semantics**
+
+RaceMode(arms) =
+  { `return`    if ∀ arm ∈ arms. arm.handler = RaceReturn(_)
+    `yield`     if ∀ arm ∈ arms. arm.handler = RaceYield(_)
+    ⊥           otherwise }
+
+**(T-Race)**
+n = |arms|    n ≥ 2    RaceMode(arms) = `return`    ∀ i, arm_i = ⟨e_i, pat_i, RaceReturn(r_i)⟩    Γ; R; L ⊢ e_i : T_i    AsyncSig(T_i) = ⟨Out_i, In_i, Result_i, E_i⟩    Out_i = TypePrim("()")    In_i = TypePrim("()")    Γ ⊢ pat_i ⇐ Result_i ⊣ B_i    Distinct(PatNames(pat_i))    Γ_i = IntroAll(Γ, B_i)    Γ_i; R; L ⊢ r_i : T_i^r    AllEq_Γ([T_1^r, …, T_n^r])    T_r = T_1^r
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ RaceExpr(arms) : TypeUnion([T_r, E_1, …, E_n])
+
+**(T-Race-Stream)**
+n = |arms|    n ≥ 2    RaceMode(arms) = `yield`    ∀ i, arm_i = ⟨e_i, pat_i, RaceYield(r_i)⟩    Γ; R; L ⊢ e_i : T_i    AsyncSig(T_i) = ⟨Out_i, In_i, Result_i, E_i⟩    In_i = TypePrim("()")    Γ ⊢ pat_i ⇐ Out_i ⊣ B_i    Distinct(PatNames(pat_i))    Γ_i = IntroAll(Γ, B_i)    Γ_i; R; L ⊢ r_i : U_i    AllEq_Γ([U_1, …, U_n])    U = U_1
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ RaceExpr(arms) : TypeApply(["Stream"], [U, TypeUnion([E_1, …, E_n])])
+
+**(Race-Arity-Err)**
+n = |arms|    n < 2    c = Code(E-CON-0260)
+──────────────────────────────────────────────
+Γ; R; L ⊢ RaceExpr(arms) ⇑ c
+
+**(Race-Handler-Mix-Err)**
+RaceMode(arms) = ⊥    c = Code(E-CON-0263)
+──────────────────────────────────────────────
+Γ; R; L ⊢ RaceExpr(arms) ⇑ c
+
+**(Race-Operand-Out-Err)**
+RaceMode(arms) = `return`    ∃ i. Γ; R; L ⊢ e_i : T_i ∧ (AsyncSig(T_i) = ⟨Out_i, In_i, Result_i, E_i⟩ ∧ Out_i ≠ TypePrim("()"))    c = Code(E-CON-0262)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ RaceExpr(arms) ⇑ c
+
+**(Race-Operand-Err)**
+RaceMode(arms) = `return`    ∃ i. Γ; R; L ⊢ e_i : T_i ∧ (AsyncSig(T_i) = ⊥ ∨ (AsyncSig(T_i) = ⟨Out_i, In_i, Result_i, E_i⟩ ∧ Out_i = TypePrim("()") ∧ In_i ≠ TypePrim("()")))    c = Code(E-CON-0261)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ RaceExpr(arms) ⇑ c
+
+**(Race-Stream-Operand-Err)**
+RaceMode(arms) = `yield`    ∃ i. Γ; R; L ⊢ e_i : T_i ∧ (AsyncSig(T_i) = ⊥ ∨ (AsyncSig(T_i) = ⟨Out_i, In_i, Result_i, E_i⟩ ∧ In_i ≠ TypePrim("()")))    c = Code(E-CON-0261)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ RaceExpr(arms) ⇑ c
+
+**(Race-Handler-Type-Err)**
+n = |arms|    n ≥ 2    RaceMode(arms) = `return`    ∀ i, arm_i = ⟨e_i, pat_i, RaceReturn(r_i)⟩    Γ; R; L ⊢ e_i : T_i    AsyncSig(T_i) = ⟨Out_i, In_i, Result_i, E_i⟩    Out_i = TypePrim("()")    In_i = TypePrim("()")    Γ ⊢ pat_i ⇐ Result_i ⊣ B_i    Distinct(PatNames(pat_i))    Γ_i = IntroAll(Γ, B_i)    Γ_i; R; L ⊢ r_i : T_i^r    ¬ AllEq_Γ([T_1^r, …, T_n^r])    c = Code(E-CON-0261)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ RaceExpr(arms) ⇑ c
+
+**(Race-Stream-Handler-Type-Err)**
+n = |arms|    n ≥ 2    RaceMode(arms) = `yield`    ∀ i, arm_i = ⟨e_i, pat_i, RaceYield(r_i)⟩    Γ; R; L ⊢ e_i : T_i    AsyncSig(T_i) = ⟨Out_i, In_i, Result_i, E_i⟩    In_i = TypePrim("()")    Γ ⊢ pat_i ⇐ Out_i ⊣ B_i    Distinct(PatNames(pat_i))    Γ_i = IntroAll(Γ, B_i)    Γ_i; R; L ⊢ r_i : U_i    ¬ AllEq_Γ([U_1, …, U_n])    c = Code(E-CON-0261)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ RaceExpr(arms) ⇑ c
+
+**Dynamic Semantics**
+
+**First-Completion Evaluation**
+
+1. Initiate all async expressions concurrently.
+2. When any operation reaches `@Completed` or `@Failed`:
+   - Execute the corresponding handler.
+   - Cancel all other operations.
+   - Return the handler result.
+
+**Streaming Evaluation**
+
+1. Initiate all async expressions concurrently.
+2. When any arm yields: execute handler, emit its value as the next stream output, resume that arm.
+3. When an arm completes: remove it from the race.
+4. When all arms complete: the stream completes.
+5. If any arm fails: propagate the error and cancel remaining arms.
+
+#### 19.3.5 `all` Expression
+
+**Syntax**
+
+```ebnf
+all_expr ::= "all" "{" expression ("," expression)* "}"
+```
+
+**Static Semantics**
+
+**(T-All)**
+n = |exprs|    ∀ i, Γ; R; L ⊢ e_i : T_i    AsyncSig(T_i) = ⟨Out_i, In_i, Result_i, E_i⟩    Out_i = TypePrim("()")    In_i = TypePrim("()")    T_tuple = TypeTuple([Result_1, …, Result_n])
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ AllExpr([e_1, …, e_n]) : TypeUnion([T_tuple, E_1, …, E_n])
+
+**(All-Out-Err)**
+∃ i. Γ; R; L ⊢ e_i : T_i ∧ (AsyncSig(T_i) = ⊥ ∨ (AsyncSig(T_i) = ⟨Out_i, In_i, Result_i, E_i⟩ ∧ Out_i ≠ TypePrim("()")))    c = Code(E-CON-0270)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ AllExpr(exprs) ⇑ c
+
+**(All-In-Err)**
+∃ i. Γ; R; L ⊢ e_i : T_i ∧ (AsyncSig(T_i) = ⟨Out_i, In_i, Result_i, E_i⟩ ∧ Out_i = TypePrim("()") ∧ In_i ≠ TypePrim("()"))    c = Code(E-CON-0271)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ AllExpr(exprs) ⇑ c
+
+**Dynamic Semantics**
+
+1. Initiate all async expressions concurrently.
+2. Wait for all operations to complete.
+3. If all succeed: return tuple of results in declaration order.
+4. If any fails: cancel remaining operations and propagate the first error.
+
+#### 19.3.6 `until` Expression
+
+**Static Semantics**
+
+`until` is a method on `shared` values:
+
+until : shared T × procedure(const T) -> bool × procedure(unique T) -> R -> Future<R>
+
+**Dynamic Semantics**
+
+Evaluation of `shared_value~>until(pred, action)`:
+
+1. If pred(shared_value) is true:
+   - Acquire a Write key for the target path.
+   - Execute action(shared_value).
+   - Complete the future with the result.
+2. Otherwise:
+   - Register a waiter record.
+   - Transition to `@Suspended { output = () }`.
+
+On key release, registered waiters re-evaluate predicates. Waiters whose predicates return true are scheduled for execution.
+
+#### 19.3.7 Transformations and Combinators
+
+**Static Semantics**
+
+map : Async<Out, In, Result, E> × procedure(Out) -> U -> Async<U, In, Result, E>
+filter : Async<T, (), (), E> × procedure(const T) -> bool -> Async<T, (), (), E>
+take : Async<T, (), (), E> × usize -> Async<T, (), (), E>
+fold : Async<T, (), (), E> × A × procedure(A, T) -> A -> Future<A, E>
+chain : Future<T, E> × procedure(T) -> Future<U, E> -> Future<U, E>
+
+**(T-Async-Map)**
+Γ; R; L ⊢ a : TypeApply(["Async"], [Out, In, Result, E])    Γ; R; L ⊢ f : (Out) -> U
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ a~>map(f) : TypeApply(["Async"], [U, In, Result, E])
+
+**(T-Async-Filter)**
+Γ; R; L ⊢ a : TypeApply(["Async"], [T, TypePrim("()"), TypePrim("()"), E])    Γ; R; L ⊢ p : (TypePerm(`const`, T)) -> TypePrim("bool")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ a~>filter(p) : TypeApply(["Async"], [T, TypePrim("()"), TypePrim("()"), E])
+
+**(T-Async-Take)**
+Γ; R; L ⊢ a : TypeApply(["Async"], [T, TypePrim("()"), TypePrim("()"), E])    Γ; R; L ⊢ n : TypePrim("usize")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ a~>take(n) : TypeApply(["Async"], [T, TypePrim("()"), TypePrim("()"), E])
+
+**(T-Async-Fold)**
+Γ; R; L ⊢ a : TypeApply(["Async"], [T, TypePrim("()"), TypePrim("()"), E])    Γ; R; L ⊢ init : A    Γ; R; L ⊢ f : (A, T) -> A
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ a~>fold(init, f) : TypeApply(["Future"], [A, E])
+
+**(T-Async-Chain)**
+Γ; R; L ⊢ a : TypeApply(["Future"], [T, E])    Γ; R; L ⊢ f : (T) -> TypeApply(["Future"], [U, E])
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ a~>chain(f) : TypeApply(["Future"], [U, E])
+
+**Dynamic Semantics**
+
+Combinators return new async values that apply transformations when resumed:
+
+1. map(f): when the source yields v, yield f(v).
+2. filter(p): when the source yields v, yield v only if p(v) is true.
+3. take(n): yield the first n values, then complete.
+4. fold(init, f): consume all values, accumulate, complete with the final accumulator.
+5. chain(f): when the source completes with v, delegate to f(v).
+
+### 19.4 Async-Key Integration
+
+#### 19.4.1 Key State at Suspension
+
+**Suspension Key State.** At suspension, the task releases access rights. Other tasks MAY acquire keys to the same paths during the suspension period. Reacquisition behavior for `yield release` is defined in §19.2.2.
+
+#### 19.4.2 Key Prohibition in Yield
+
+**Yield Key Prohibition.** `yield` and `yield from` MUST NOT occur while keys are held unless the `release` modifier is present.
+
+**(K-Yield-No-Keys)**
+YieldExpr(⊥, _) at program point p    Γ_keys(p) ≠ ∅
+──────────────────────────────────────────────
+Emit(`E-CON-0213`)
+
+**(K-YieldFrom-No-Keys)**
+YieldFromExpr(⊥, _) at program point p    Γ_keys(p) ≠ ∅
+──────────────────────────────────────────────
+Emit(`E-CON-0224`)
+
+**Yield Release Mechanism**
+
+If `release` is used, all held keys are released before suspension and reacquired on resume in canonical order (§17.4.1).
+
+**Staleness**
+
+Bindings derived from shared data before a `yield release` are potentially stale after resumption. The warning `W-CON-0011` applies unless suppressed by `[[stale_ok]]` (§5.13.5).
+
+#### 19.4.3 Async Capability Requirements
+
+Async operations require capabilities corresponding to their effects:
+
+| Category      | Capability Required |
+| :------------ | :------------------ |
+| Pure sequence | None                |
+| I/O operation | Capability providing the invoked I/O method |
+| Timing        | `System`            |
+| Async runtime | `Reactor`           |
+
+The `$Reactor` capability and its interface are defined in §5.9.2.
+
+#### 19.4.4 Async Error Handling
+
+**Static Semantics**
+
+Error propagation in async procedures is defined by **(T-Async-Try)** and **(Async-Try-Infallible-Err)** in §5.2.12.
+
+**Dynamic Semantics**
+
+When an async computation fails:
+
+1. The error value is captured.
+2. `defer` blocks execute in reverse order.
+3. `Drop` implementations run for live bindings.
+4. The computation transitions to `@Failed { error }`.
+
+**Constraints**
+
+Async capture and escape constraints are defined in §5.2.17 (E-CON-0280, E-CON-0281).
+
+---
+
+*[REF: Procedure declarations, methods, and overloading are defined in Cursive0.md. This appendix specifies contracts, invariants, verification logic, behavioral subtyping, and foreign contract clauses.]*
+
+## 21. Foreign Function Interface
+
+### 21.1 FfiSafe
+
+#### 21.1.1 FfiSafe Definition
+
+**FfiSafe Predicate.** `FfiSafeType(T)` holds when the runtime representation of `T` is compatible with the platform C ABI.
+
+**Static Semantics**
+
+FfiSafeJudg = {FfiSafeType}
+
+FfiPrimTypes = {`i8`, `i16`, `i32`, `i64`, `i128`, `u8`, `u16`, `u32`, `u64`, `u128`, `isize`, `usize`, `f16`, `f32`, `f64`, `char`, `()`}
+
+HasLayoutC(D) ⇔ `layout(C)` appears in D.attrs_opt
+PayloadTypes(v) = []    if v.payload_opt = ⊥
+PayloadTypes(v) = ts    if v.payload_opt = TuplePayload(ts)
+PayloadTypes(v) = [T_f | ⟨_, f, T_f, _, _, _⟩ ∈ fields]    if v.payload_opt = RecordPayload(fields)
+
+TypeParamSet(params) = Set(TypeParamNames(params))
+
+AliasParams(p) = gen_params_opt ⇔ Σ.Types[p] = TypeAliasDecl(_, _, _, gen_params_opt, _, _, _, _)
+AliasWhere(p) = where_clause_opt ⇔ Σ.Types[p] = TypeAliasDecl(_, _, _, _, where_clause_opt, _, _, _)
+
+TypeSubst(θ, TypePath([x])) = θ(x)    if x ∈ dom(θ)
+TypeSubst(θ, TypePath(p)) = TypePath(p)    if p ≠ [x] ∨ x ∉ dom(θ)
+TypeSubst(θ, TypeApply(p, args)) = TypeApply(p, [TypeSubst(θ, a) | a ∈ args])
+TypeSubst(θ, TypePerm(p, T)) = TypePerm(p, TypeSubst(θ, T))
+TypeSubst(θ, TypeTuple(ts)) = TypeTuple([TypeSubst(θ, t) | t ∈ ts])
+TypeSubst(θ, TypeArray(T, e)) = TypeArray(TypeSubst(θ, T), e)
+TypeSubst(θ, TypeSlice(T)) = TypeSlice(TypeSubst(θ, T))
+TypeSubst(θ, TypeUnion(ts)) = TypeUnion([TypeSubst(θ, t) | t ∈ ts])
+TypeSubst(θ, TypeFunc(params, R)) = TypeFunc([⟨m, TypeSubst(θ, T)⟩ | ⟨m, T⟩ ∈ params], TypeSubst(θ, R))
+TypeSubst(θ, TypePtr(T, s)) = TypePtr(TypeSubst(θ, T), s)
+TypeSubst(θ, TypeRawPtr(q, T)) = TypeRawPtr(q, TypeSubst(θ, T))
+TypeSubst(θ, TypeString(s)) = TypeString(s)
+TypeSubst(θ, TypeBytes(s)) = TypeBytes(s)
+ModalRefSubst(θ, TypePath(p)) = TypePath(p)
+ModalRefSubst(θ, TypeApply(p, args)) = TypeApply(p, [TypeSubst(θ, a) | a ∈ args])
+TypeSubst(θ, TypeModalState(modal_ref, S)) = TypeModalState(ModalRefSubst(θ, modal_ref), S)
+TypeSubst(θ, TypeDynamic(p)) = TypeDynamic(p)
+TypeSubst(θ, TypeOpaque(p)) = TypeOpaque(p)
+TypeSubst(θ, TypePrim(n)) = TypePrim(n)
+TypeSubst(θ, TypeRange) = TypeRange
+
+TypeParamsIn(TypePath([x]), params) = {x}    if x ∈ TypeParamSet(params)
+TypeParamsIn(TypePath(p), params) = ∅        if p ≠ [x] ∨ x ∉ TypeParamSet(params)
+TypeParamsIn(TypeApply(_, args), params) = ⋃_{a ∈ args} TypeParamsIn(a, params)
+TypeParamsIn(TypePerm(_, T), params) = TypeParamsIn(T, params)
+TypeParamsIn(TypeTuple(ts), params) = ⋃_{t ∈ ts} TypeParamsIn(t, params)
+TypeParamsIn(TypeArray(T, _), params) = TypeParamsIn(T, params)
+TypeParamsIn(TypeSlice(T), params) = TypeParamsIn(T, params)
+TypeParamsIn(TypeUnion(ts), params) = ⋃_{t ∈ ts} TypeParamsIn(t, params)
+TypeParamsIn(TypeFunc(params_t, R), params) = ⋃_{⟨_, T⟩ ∈ params_t} TypeParamsIn(T, params) ∪ TypeParamsIn(R, params)
+TypeParamsIn(TypePtr(T, _), params) = TypeParamsIn(T, params)
+TypeParamsIn(TypeRawPtr(_, T), params) = TypeParamsIn(T, params)
+TypeParamsInModalRef(TypePath(_), params) = ∅
+TypeParamsInModalRef(TypeApply(_, args), params) = ⋃_{a ∈ args} TypeParamsIn(a, params)
+TypeParamsIn(TypeModalState(modal_ref, _), params) = TypeParamsInModalRef(modal_ref, params)
+TypeParamsIn(TypeString(_), params) = ∅
+TypeParamsIn(TypeBytes(_), params) = ∅
+TypeParamsIn(TypeModalState(_, _), params) = ∅
+TypeParamsIn(TypeDynamic(_), params) = ∅
+TypeParamsIn(TypeOpaque(_), params) = ∅
+TypeParamsIn(TypePrim(_), params) = ∅
+TypeParamsIn(TypeRange, params) = ∅
+
+TypeParamsInFields(fields, params) = ⋃_{f ∈ fields} TypeParamsIn(f.type, params)
+TypeParamsInPayloads(vars, params) = ⋃_{v ∈ vars} ⋃_{T_f ∈ PayloadTypes(v)} TypeParamsIn(T_f, params)
+
+HasFfiSafePred(W, x) ⇔ ∃ wp ∈ WherePreds(W). wp = PredWherePred(`FfiSafe`, TypePath([x]))
+FfiSafeWhereOk(params, W, Xs) ⇔ ∀ x ∈ Xs. HasFfiSafePred(W, x)
+
+ProhibitedFfiType(T) ⇔
+ T = TypePrim("bool") ∨
+ T = TypePtr(_, _) ∨
+ T = TypeModalState(_, _) ∨
+ T = ModalRefType(modal_ref) ∨
+ T = TypeDynamic(_) ∨
+ T = TypeOpaque(_) ∨
+ T = TypeTuple(_) ∨
+ T = TypeUnion(_) ∨
+ T = TypeSlice(_) ∨
+ T = TypeString(_) ∨
+ T = TypeBytes(_) ∨
+ T = TypeRange ∨
+ T = TypePath(["Context"])
+
+FfiByValueType(T) ⇔ StripPerm(T) ∉ {TypeRawPtr(_, _), TypePtr(_, _), TypeFunc(_, _)} ∧ StripPerm(T) ≠ TypePrim("()")
+FfiPassByValueAttr(T) ⇔ (T = TypePath(p) ∧ RecordDecl(p) = R ∧ AttrByName(R, "ffi_pass_by_value") ≠ []) ∨ (T = TypePath(p) ∧ EnumDecl(p) = E ∧ AttrByName(E, "ffi_pass_by_value") ≠ [])
+FfiByValueOk(T) ⇔ ¬(DropType(T) ∧ FfiSafeType(T) ⇓ ok ∧ FfiByValueType(T)) ∨ FfiPassByValueAttr(StripPerm(T))
+
+**(FfiSafe-Prim)**
+T = TypePrim(t)    t ∈ FfiPrimTypes
+──────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇓ ok
+
+**(FfiSafe-RawPtr)**
+T = TypeRawPtr(_, _)
+──────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇓ ok
+
+**(FfiSafe-Array)**
+T = TypeArray(U, n)    Γ ⊢ ConstLen(n) ⇓ _    Γ ⊢ FfiSafeType(U) ⇓ ok
+────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇓ ok
+
+**(FfiSafe-Func)**
+T = TypeFunc(params, R)    ∀ ⟨_, T_i⟩ ∈ params. Γ ⊢ FfiSafeType(T_i) ⇓ ok    Γ ⊢ FfiSafeType(R) ⇓ ok
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇓ ok
+
+**(FfiSafe-Perm)**
+T = TypePerm(_, U)    Γ ⊢ FfiSafeType(U) ⇓ ok
+──────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇓ ok
+
+**(FfiSafe-Alias)**
+T = TypePath(p)    AliasBody(p) = ty    Γ ⊢ FfiSafeType(ty) ⇓ ok
+────────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇓ ok
+
+**(FfiSafe-Alias-Apply)**
+T = TypeApply(p, args)    AliasBody(p) = ty    params_gen = TypeParamsOpt(AliasParams(p))    DefaultArgs(params_gen, args) = args'    θ = [args'_i / params_gen[i].name]    Γ ⊢ AliasWhere(p)[θ] ok    Γ ⊢ FfiSafeType(TypeSubst(θ, ty)) ⇓ ok
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇓ ok
+
+**(FfiSafe-Record)**
+T = TypePath(p)    RecordDecl(p) = R    HasLayoutC(R)    TypeParamsOpt(R.gen_params_opt) = []    Γ ⊢ layout(T) ⇓ _    ∀ f : T_f ∈ Fields(R). Γ ⊢ FfiSafeType(T_f) ⇓ ok    FfiSafeWhereOk([], R.where_clause_opt, ∅)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇓ ok
+
+**(FfiSafe-Record-Apply)**
+T = TypeApply(p, args)    RecordDecl(p) = R    params_gen = TypeParamsOpt(R.gen_params_opt)    DefaultArgs(params_gen, args) = args'    θ = [args'_i / params_gen[i].name]    HasLayoutC(R)    Γ ⊢ layout(T) ⇓ _    Γ ⊢ R.where_clause_opt[θ] ok    FfiSafeWhereOk(params_gen, R.where_clause_opt, TypeParamsInFields(Fields(R), params_gen))    ∀ f : T_f ∈ Fields(R). Γ ⊢ FfiSafeType(TypeSubst(θ, T_f)) ⇓ ok
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇓ ok
+
+**(FfiSafe-Enum)**
+T = TypePath(p)    EnumDecl(p) = E    HasLayoutC(E)    TypeParamsOpt(E.gen_params_opt) = []    Γ ⊢ layout(T) ⇓ _    ∀ v ∈ Variants(E). ∀ T_f ∈ PayloadTypes(v). Γ ⊢ FfiSafeType(T_f) ⇓ ok    FfiSafeWhereOk([], E.where_clause_opt, ∅)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇓ ok
+
+**(FfiSafe-Enum-Apply)**
+T = TypeApply(p, args)    EnumDecl(p) = E    params_gen = TypeParamsOpt(E.gen_params_opt)    DefaultArgs(params_gen, args) = args'    θ = [args'_i / params_gen[i].name]    HasLayoutC(E)    Γ ⊢ layout(T) ⇓ _    Γ ⊢ E.where_clause_opt[θ] ok    FfiSafeWhereOk(params_gen, E.where_clause_opt, TypeParamsInPayloads(Variants(E), params_gen))    ∀ v ∈ Variants(E). ∀ T_f ∈ PayloadTypes(v). Γ ⊢ FfiSafeType(TypeSubst(θ, T_f)) ⇓ ok
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇓ ok
+
+**(FfiSafe-Prohibited-Err)**
+ProhibitedFfiType(T)    c = Code(FfiSafe-Prohibited-Err)
+──────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇑ c
+
+**(FfiSafe-Record-LayoutC-Err)**
+(T = TypePath(p) ∨ T = TypeApply(p, _))    RecordDecl(p) = R    ¬ HasLayoutC(R)    c = Code(FfiSafe-Record-LayoutC-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇑ c
+
+**(FfiSafe-Enum-LayoutC-Err)**
+(T = TypePath(p) ∨ T = TypeApply(p, _))    EnumDecl(p) = E    ¬ HasLayoutC(E)    c = Code(FfiSafe-Enum-LayoutC-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇑ c
+
+**(FfiSafe-Record-Field-Err)**
+T = TypePath(p)    RecordDecl(p) = R    HasLayoutC(R)    ∃ f : T_f ∈ Fields(R). Γ ⊢ FfiSafeType(T_f) ⇑    c = Code(FfiSafe-Record-Field-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇑ c
+
+**(FfiSafe-Record-Field-Apply-Err)**
+T = TypeApply(p, args)    RecordDecl(p) = R    params_gen = TypeParamsOpt(R.gen_params_opt)    DefaultArgs(params_gen, args) = args'    θ = [args'_i / params_gen[i].name]    HasLayoutC(R)    ∃ f : T_f ∈ Fields(R). Γ ⊢ FfiSafeType(TypeSubst(θ, T_f)) ⇑    c = Code(FfiSafe-Record-Field-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇑ c
+
+**(FfiSafe-Enum-Field-Err)**
+T = TypePath(p)    EnumDecl(p) = E    HasLayoutC(E)    ∃ v ∈ Variants(E). ∃ T_f ∈ PayloadTypes(v). Γ ⊢ FfiSafeType(T_f) ⇑    c = Code(FfiSafe-Enum-Field-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇑ c
+
+**(FfiSafe-Enum-Field-Apply-Err)**
+T = TypeApply(p, args)    EnumDecl(p) = E    params_gen = TypeParamsOpt(E.gen_params_opt)    DefaultArgs(params_gen, args) = args'    θ = [args'_i / params_gen[i].name]    HasLayoutC(E)    ∃ v ∈ Variants(E). ∃ T_f ∈ PayloadTypes(v). Γ ⊢ FfiSafeType(TypeSubst(θ, T_f)) ⇑    c = Code(FfiSafe-Enum-Field-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇑ c
+
+**(FfiSafe-Incomplete-Err)**
+(T = TypePath(p) ∨ T = TypeApply(p, _))    (RecordDecl(p) = R ∨ EnumDecl(p) = E)    ¬ ∃ τ. Γ ⊢ layout(T) ⇓ τ    c = Code(FfiSafe-Incomplete-Err)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇑ c
+
+**(FfiSafe-Record-Generic-Unbounded-Err)**
+T = TypePath(p)    RecordDecl(p) = R    params_gen = TypeParamsOpt(R.gen_params_opt)    params_gen ≠ []    ¬ FfiSafeWhereOk(params_gen, R.where_clause_opt, TypeParamsInFields(Fields(R), params_gen))    c = Code(FfiSafe-Generic-Unbounded-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇑ c
+
+**(FfiSafe-Enum-Generic-Unbounded-Err)**
+T = TypePath(p)    EnumDecl(p) = E    params_gen = TypeParamsOpt(E.gen_params_opt)    params_gen ≠ []    ¬ FfiSafeWhereOk(params_gen, E.where_clause_opt, TypeParamsInPayloads(Variants(E), params_gen))    c = Code(FfiSafe-Generic-Unbounded-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇑ c
+
+**(FfiSafe-Record-Apply-Generic-Unbounded-Err)**
+T = TypeApply(p, args)    RecordDecl(p) = R    params_gen = TypeParamsOpt(R.gen_params_opt)    params_gen ≠ []    ¬ FfiSafeWhereOk(params_gen, R.where_clause_opt, TypeParamsInFields(Fields(R), params_gen))    c = Code(FfiSafe-Generic-Unbounded-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇑ c
+
+**(FfiSafe-Enum-Apply-Generic-Unbounded-Err)**
+T = TypeApply(p, args)    EnumDecl(p) = E    params_gen = TypeParamsOpt(E.gen_params_opt)    params_gen ≠ []    ¬ FfiSafeWhereOk(params_gen, E.where_clause_opt, TypeParamsInPayloads(Variants(E), params_gen))    c = Code(FfiSafe-Generic-Unbounded-Err)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ FfiSafeType(T) ⇑ c
+
+**Prohibited Categories**
+
+The following type categories MUST NOT satisfy `FfiSafeType`:
+
+- `bool`
+- Modal types
+- Safe pointers `Ptr<T>`
+- Dynamic class object types `TypeDynamic(_)`
+- Opaque types
+- Tuples
+- Unions
+- Slices
+- String and bytes types
+- `Context`
+- Range types
+
+**RAII by-value rule.** If a type satisfies both `DropType` and `FfiSafeType`, then any by-value appearance of that type in an FFI signature requires the defining type to carry `[[ffi_pass_by_value]]`.
+
+**Generic Bounds.** Any type parameter that appears in a field type or variant payload of a type satisfying `FfiSafeType` MUST be bounded by a `where` predicate of the form `FfiSafe(X)`.
+
+
+### 21.2 Externs and Exports
+
+#### 21.2.1 Extern Procedure Declarations
+
+**Extern Procedure.** A declaration whose implementation is provided by foreign code.
+
+**Static Semantics**
+
+**ABI Strings**
+
+ExternAbiSet = {"C", "C-unwind", "system", "stdcall", "fastcall", "vectorcall"}
+ExternAbiOk(abi_opt) ⇔ ExternAbiName(abi_opt) ∈ ExternAbiSet
+
+**Signature Requirements**
+
+ExternParamTypes(params) = [T_i | ⟨_, _, T_i⟩ ∈ params]
+ExternSigOk(params, ret_opt) ⇔
+ R = ProcReturn(ret_opt) ∧
+ (R = TypePrim("()") ∨ Γ ⊢ FfiSafeType(R) ⇓ ok) ∧
+ (∀ T ∈ ExternParamTypes(params). Γ ⊢ FfiSafeType(T) ⇓ ok) ∧
+ (∀ T ∈ ExternParamTypes(params). FfiByValueOk(T)) ∧
+ FfiByValueOk(R)
+
+SparseFuncType(T) ⇔ T = TypeFunc(_, _)
+
+**FFI Constraints**
+
+1. Closure types MUST NOT appear in `extern` signatures.
+2. Only sparse function pointer types are FFI-safe in `extern` signatures (`SparseFuncType`).
+3. Sparse function pointer types in `extern` signatures MUST NOT have generic type parameters.
+
+**Call Safety**
+
+Calls to extern procedures MUST appear within an `unsafe` block.
+
+
+#### 21.2.2 Exported Procedures
+
+**Exported Procedure.** A Cursive procedure made callable from foreign code via `[[export]]`.
+
+**Static Semantics**
+
+**Error Indicator Value.**
+
+ZeroBits(T) = [0x00, …, 0x00] where |ZeroBits(T)| = sizeof(T)
+ZeroValue(T) = v ⇔ ValueBits(T, v) = ZeroBits(T) ∧ ∀ v'. (ValueBits(T, v') = ZeroBits(T) ⇒ v' = v)
+ZeroableType(T) ⇔ ∃ v. ZeroValue(T) = v
+
+If `UnwindMode(proc) = "catch"`, then `ZeroableType(R)` MUST hold for the exported procedure's return type R.
+
+ExportSigJudg = {ExportSigOk}
+ExportParamTypes(params) = [T_i | ⟨_, _, T_i⟩ ∈ params]
+
+**(ExportSig-Ok)**
+proc = ProcedureDecl(_, vis, _, _, _, params, ret_opt, _, _, _, _)    vis = `public`    ExportAttr(proc) = ⟨abi, _⟩    abi ∈ ExternAbiSet    R = ProcReturn(ret_opt)    (R = TypePrim("()") ∨ Γ ⊢ FfiSafeType(R) ⇓ ok)    (∀ T ∈ ExportParamTypes(params). Γ ⊢ FfiSafeType(T) ⇓ ok)    (∀ T ∈ ExportParamTypes(params). FfiByValueOk(T))    FfiByValueOk(R)    (UnwindMode(proc) ≠ "catch" ∨ ZeroableType(R))
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ExportSigOk(proc) ⇓ ok
+
+**Dynamic Semantics (Unwind Catch).**
+
+If `UnwindMode(proc) = "catch"` and a Cursive panic reaches the FFI boundary during execution of an exported procedure with return type R:
+1. The panic is caught at the boundary and does not propagate into foreign code.
+2. The procedure returns the error indicator value `ZeroValue(R)` to the foreign caller.
+
+
+### 21.3 Capability Isolation
+
+**Capability Isolation.** Foreign code MUST NOT receive or return capability-bearing values.
+
+**Static Semantics**
+
+1. Any FFI signature containing `Context`, a capability class, or a dynamic class object is ill-formed.
+2. A raw pointer derived from region-local storage MUST NOT cross an FFI boundary.
+
+
+### 21.4 Foreign Contracts
+
+#### 21.4.1 Foreign Preconditions
+
+**Foreign Preconditions.** Conditions that callers must satisfy before invoking foreign procedures, specified using the `@foreign_assumes` clause.
+
+**Syntax**
+
+```ebnf
+ffi_verification_attr ::= "[[" ffi_verification_mode "]]"
+ffi_verification_mode ::= "static" | "dynamic" | "assume" | "trust"
+
+foreign_contract ::= "|=" "@foreign_assumes" "(" predicate_list ")"
+
+predicate_list   ::= predicate ("," predicate)*
+
+predicate        ::= comparison_expr | null_check | range_check
+
+null_check       ::= expression "!=" null_literal | expression "==" null_literal
+
+range_check      ::= expression "in" range_expression
+```
+
+
+**Static Semantics**
+
+**Predicate Context**
+
+Predicates MAY reference:
+
+- Parameter names from the procedure signature
+- Literal constants
+- Pure functions and operators
+- Fields of parameter values (for record types)
+
+Predicates MUST NOT reference:
+
+- Global mutable state
+- Values not in scope at the call site
+- Effectful operations
+
+**Verification Modes**
+
+| Mode                   | Behavior                                                   |
+| :--------------------- | :--------------------------------------------------------- |
+| `[[static]]` (default) | Caller must prove predicates at compile time               |
+| `[[dynamic]]`          | Runtime checks inserted before `unsafe` call               |
+| `[[assume]]`           | Predicates assumed true without checks (optimization only) |
+
+`[[static]]` uses `StaticProof` as defined in §14.7.1. `[[dynamic]]` inserts `ContractCheck(P, ForeignPre, s, ρ_emptyset)` immediately before the foreign call.
+
+**Dynamic Semantics**
+
+A failed `ForeignPre` check triggers a panic (`P-SEM-2860`).
+
+
+#### 21.4.2 Foreign Postconditions
+
+**Foreign Postconditions.** Conditions that foreign code guarantees upon successful return, specified using the `@foreign_ensures` clause. These are trusted assertions about foreign behavior.
+
+**Syntax**
+
+```ebnf
+foreign_ensures ::= "@foreign_ensures" "(" ensures_predicate_list ")"
+
+ensures_predicate_list ::= ensures_predicate ("," ensures_predicate)*
+
+ensures_predicate ::= predicate
+                    | "@error" ":" predicate
+                    | "@null_result" ":" predicate
+```
+
+
+**Static Semantics**
+
+**Predicate Bindings**
+
+Postcondition predicates MAY reference:
+
+- `@result`: The return value of the foreign procedure
+- Parameter names (for checking output parameters)
+- `@error`: Predicates that hold when the call fails
+- `@null_result`: Predicates that hold when result is null
+
+**Success, Error, and Null Classification**
+
+Let U be the set of unconditional predicates, E the list of `@error` predicates, and N the list of `@null_result` predicates.
+
+Define:
+
+ErrCond =
+ ⋀_(P ∈ E) P    if E ≠ ∅
+ `false`        otherwise
+
+NullCond = (`@result` == `null`)
+
+SuccessCond = ¬ ErrCond
+
+The foreign call is classified as an error iff `ErrCond` holds; otherwise it is classified as success.
+
+Then the foreign postcondition obligations are:
+
+1. For each P ∈ U, require SuccessCond ⇒ P
+2. For each P ∈ E, require ErrCond ⇒ P
+3. For each P ∈ N, require NullCond ⇒ P
+
+`@null_result` predicates are well-formed only when the return type is a nullable pointer type; otherwise they are invalid (`E-SEM-2853`). A nullable pointer type is one of:
+1. `Ptr<T>@Null`
+2. `*imm T`
+3. `*mut T`
+
+`@error` predicates are well-formed only when the return type is not `()`. Using `@error` on a void-returning foreign procedure is ill-formed (`E-SEM-2855`).
+
+**Verification Modes**
+
+| Mode                   | Behavior                                                      |
+| :--------------------- | :------------------------------------------------------------ |
+| `[[static]]` (default) | Postconditions available as assumptions for downstream proofs |
+| `[[dynamic]]`          | Runtime assertions after foreign call returns                 |
+| `[[assume]]`           | Postconditions assumed without checks (optimization only)     |
+| `[[trust]]`            | Postconditions trusted without runtime checks (audited code)  |
+
+`[[static]]` uses `StaticProof` as defined in §14.7.1 with `SuccessCond` and `ErrCond` gating the obligations.
+
+**Dynamic Semantics**
+
+In `[[dynamic]]` mode, the implementation MUST evaluate `ErrCond` and `NullCond` in left-to-right predicate order and insert runtime checks enforcing the implications above immediately after the foreign call returns. Each inserted check is `ContractCheck(P, ForeignPost, s, ρ_foreign_post)`. A failed runtime check triggers a panic with payload `ContractViolation(ForeignPost, P, s)` at the call site (`P-SEM-2861`).
+
+
+#### 21.4.3 Trust Boundaries
+
+**Trust Boundaries.** Verification behavior definitions for foreign contracts, controlling the trade-off between safety guarantees and performance.
+
+**Syntax**
+
+
+**Static Semantics**
+
+**Trust Annotation**
+
+The `[[trust]]` attribute on an extern block suppresses runtime checks for all contracts within that block. Postconditions are assumed true without verification.
+
+**Safety Implications**
+
+Incorrect postconditions under `[[trust]]` place the program outside conformance. The programmer asserts that the foreign code satisfies declared contracts.
+
+**Verification Hierarchy**
+
+| Level         | Precondition Check | Postcondition Check      |
+| :------------ | :----------------- | :----------------------- |
+| `[[static]]`  | Compile-time proof | Available as assumptions |
+| `[[dynamic]]` | Runtime assertion  | Runtime assertion        |
+| `[[assume]]`  | No check           | No check                 |
+| `[[trust]]`   | No check           | No check (trusted)       |

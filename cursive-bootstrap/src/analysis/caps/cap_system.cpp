@@ -115,6 +115,36 @@ std::optional<SystemMethodSig> LookupSystemMethodSig(std::string_view name) {
   return std::nullopt;
 }
 
+// C0X Extension: Context method lookup for execution domains (§18.2)
+std::optional<ContextMethodSig> LookupContextMethodSig(std::string_view name) {
+  SpecDefsCapSystem();
+  ContextMethodSig sig{};
+  sig.recv_perm = Permission::Const;
+
+  // §18.2.1: ctx.cpu() -> $ExecutionDomain
+  if (IdEq(name, "cpu")) {
+    sig.params = {};
+    sig.ret = MakeTypeDynamic({"CpuDomain"});
+    return sig;
+  }
+
+  // §18.2.2: ctx.gpu() -> $ExecutionDomain
+  if (IdEq(name, "gpu")) {
+    sig.params = {};
+    sig.ret = MakeTypeDynamic({"GpuDomain"});
+    return sig;
+  }
+
+  // §18.2.3: ctx.inline() -> $ExecutionDomain
+  if (IdEq(name, "inline")) {
+    sig.params = {};
+    sig.ret = MakeTypeDynamic({"InlineDomain"});
+    return sig;
+  }
+
+  return std::nullopt;
+}
+
 syntax::RecordDecl BuildContextRecordDecl() {
   SpecDefsCapSystem();
   syntax::RecordDecl record;
@@ -125,6 +155,7 @@ syntax::RecordDecl BuildContextRecordDecl() {
       MakeField("fs", MakeTypeDynamicAst({"FileSystem"})),
       MakeField("heap", MakeTypeDynamicAst({"HeapAllocator"})),
       MakeField("sys", MakeTypePathAst({"System"})),
+      MakeField("reactor", MakeTypeDynamicAst({"Reactor"})),
   };
   record.span = core::Span{};
   record.doc = {};

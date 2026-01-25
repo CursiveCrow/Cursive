@@ -6,6 +6,7 @@
 
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/project/deterministic_order.h"
+#include "cursive0/syntax/ast.h"
 
 namespace cursive0::analysis {
 
@@ -119,6 +120,10 @@ static std::uint64_t TagKeyOf(const TypeNode& node) {
           return 13;
         } else if constexpr (std::is_same_v<T, TypeRange>) {
           return 14;
+        } else if constexpr (std::is_same_v<T, TypeOpaque>) {
+          return 15;
+        } else if constexpr (std::is_same_v<T, TypeRefine>) {
+          return 16;
         } else {
           return 0;
         }
@@ -421,9 +426,11 @@ TypeRef MakeTypeDynamic(TypePath path) {
   return MakeType(TypeDynamic{std::move(path)});
 }
 
-TypeRef MakeTypeModalState(TypePath path, std::string state) {
+TypeRef MakeTypeModalState(TypePath path,
+                           std::string state,
+                           std::vector<TypeRef> generic_args) {
   SpecDefsTypeRepr();
-  return MakeType(TypeModalState{std::move(path), std::move(state)});
+  return MakeType(TypeModalState{std::move(path), std::move(state), std::move(generic_args)});
 }
 
 TypeRef MakeTypePath(TypePath path) {
@@ -431,7 +438,34 @@ TypeRef MakeTypePath(TypePath path) {
   return MakeType(TypePathType{std::move(path)});
 }
 
+TypeRef MakeTypeOpaque(TypePath class_path,
+                       const syntax::Type* origin,
+                       const core::Span& origin_span) {
+  SpecDefsTypeRepr();
+  return MakeType(TypeOpaque{std::move(class_path), origin, origin_span});
+}
+
+TypeRef MakeTypeRefine(TypeRef base,
+                       std::shared_ptr<syntax::Expr> predicate) {
+  SpecDefsTypeRepr();
+  return MakeType(TypeRefine{std::move(base), std::move(predicate)});
+}
+
 static void AppendTypeString(std::string& out, const Type& type) {
+  auto append_generic_args = [&](const std::vector<TypeRef>& args) {
+    if (args.empty()) {
+      return;
+    }
+    out.push_back('<');
+    for (std::size_t i = 0; i < args.size(); ++i) {
+      if (i != 0) {
+        out.append(", ");
+      }
+      AppendTypeString(out, *args[i]);
+    }
+    out.push_back('>');
+  };
+
   std::visit(
       [&](const auto& node) {
         using T = std::decay_t<decltype(node)>;
@@ -518,10 +552,18 @@ static void AppendTypeString(std::string& out, const Type& type) {
           out.append(PathToString(node.path));
         } else if constexpr (std::is_same_v<T, TypeModalState>) {
           out.append(PathToString(node.path));
+          append_generic_args(node.generic_args);
           out.push_back('@');
           out.append(node.state);
+        } else if constexpr (std::is_same_v<T, TypeOpaque>) {
+          out.append("opaque ");
+          out.append(PathToString(node.class_path));
+        } else if constexpr (std::is_same_v<T, TypeRefine>) {
+          AppendTypeString(out, *node.base);
+          out.append(" where { ... }");
         } else if constexpr (std::is_same_v<T, TypePathType>) {
           out.append(PathToString(node.path));
+          append_generic_args(node.generic_args);
         }
       },
       type.node);
@@ -617,11 +659,27 @@ TypeKey TypeKeyOf(const Type& type) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
           key.atoms.push_back(
               KeyAtom::Key(std::make_shared<TypeKey>(PathOrderKey(node.path))));
+          if (!node.generic_args.empty()) {
+            std::vector<TypeKey> arg_keys;
+            arg_keys.reserve(node.generic_args.size());
+            for (const auto& arg : node.generic_args) {
+              arg_keys.push_back(TypeKeyOf(*arg));
+            }
+            key.atoms.push_back(KeyAtom::KeyList(MakeKeyList(arg_keys)));
+          }
           return key;
         } else if constexpr (std::is_same_v<T, TypeModalState>) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
           key.atoms.push_back(
               KeyAtom::Key(std::make_shared<TypeKey>(PathOrderKey(node.path))));
+          if (!node.generic_args.empty()) {
+            std::vector<TypeKey> arg_keys;
+            arg_keys.reserve(node.generic_args.size());
+            for (const auto& arg : node.generic_args) {
+              arg_keys.push_back(TypeKeyOf(*arg));
+            }
+            key.atoms.push_back(KeyAtom::KeyList(MakeKeyList(arg_keys)));
+          }
           key.atoms.push_back(KeyAtom::String(node.state));
           return key;
         } else if constexpr (std::is_same_v<T, TypeString>) {
@@ -638,6 +696,26 @@ TypeKey TypeKeyOf(const Type& type) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
           key.atoms.push_back(
               KeyAtom::Key(std::make_shared<TypeKey>(PathOrderKey(node.path))));
+          return key;
+        } else if constexpr (std::is_same_v<T, TypeOpaque>) {
+          key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
+          key.atoms.push_back(KeyAtom::Key(
+              std::make_shared<TypeKey>(PathOrderKey(node.class_path))));
+          key.atoms.push_back(KeyAtom::String(node.origin_span.file));
+          key.atoms.push_back(KeyAtom::Number(node.origin_span.start_offset));
+          key.atoms.push_back(KeyAtom::Number(node.origin_span.end_offset));
+          return key;
+        } else if constexpr (std::is_same_v<T, TypeRefine>) {
+          key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
+          key.atoms.push_back(
+              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(*node.base))));
+          if (node.predicate) {
+            key.atoms.push_back(KeyAtom::String(node.predicate->span.file));
+            key.atoms.push_back(
+                KeyAtom::Number(node.predicate->span.start_offset));
+            key.atoms.push_back(
+                KeyAtom::Number(node.predicate->span.end_offset));
+          }
           return key;
         } else if constexpr (std::is_same_v<T, TypePtr>) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
@@ -764,8 +842,18 @@ static void CollectTypePaths(const Type& type, std::vector<TypePath>& out) {
           out.push_back(node.path);
         } else if constexpr (std::is_same_v<T, TypeModalState>) {
           out.push_back(node.path);
+          for (const auto& arg : node.generic_args) {
+            CollectTypePaths(*arg, out);
+          }
+        } else if constexpr (std::is_same_v<T, TypeOpaque>) {
+          out.push_back(node.class_path);
+        } else if constexpr (std::is_same_v<T, TypeRefine>) {
+          CollectTypePaths(*node.base, out);
         } else if constexpr (std::is_same_v<T, TypePathType>) {
           out.push_back(node.path);
+          for (const auto& arg : node.generic_args) {
+            CollectTypePaths(*arg, out);
+          }
         }
       },
       type.node);

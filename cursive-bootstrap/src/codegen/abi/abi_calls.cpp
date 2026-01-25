@@ -148,7 +148,17 @@ std::optional<std::string> MethodSymbol(const analysis::ScopeContext& ctx,
     return std::nullopt;
   }
 
-  const auto stripped = StripPerm(type);
+  TypeRef stripped = StripPerm(type);
+  if (stripped) {
+    if (const auto* opaque = std::get_if<analysis::TypeOpaque>(&stripped->node)) {
+      if (opaque->origin) {
+        const auto it = ctx.sigma.opaque_underlying.find(opaque->origin);
+        if (it != ctx.sigma.opaque_underlying.end()) {
+          stripped = it->second;
+        }
+      }
+    }
+  }
 
   // (MethodSymbol-ModalState-Method) and (MethodSymbol-ModalState-Transition)
   // Check if this is a modal state type
@@ -213,7 +223,10 @@ std::optional<std::string> MethodSymbol(const analysis::ScopeContext& ctx,
 
 bool IsBuiltinCapClass(std::string_view class_name) {
   // BuiltinCapClass = {FileSystem, HeapAllocator}
-  return class_name == "FileSystem" || class_name == "HeapAllocator";
+  return class_name == "FileSystem" || class_name == "HeapAllocator" ||
+         class_name == "Reactor" ||
+         class_name == "ExecutionDomain" || class_name == "CpuDomain" ||
+         class_name == "GpuDomain" || class_name == "InlineDomain";
 }
 
 std::optional<std::string> BuiltinMethodSym(std::string_view cap_class,
@@ -234,6 +247,16 @@ std::optional<std::string> BuiltinMethodSym(std::string_view cap_class,
   if (cap_class == "HeapAllocator") {
     SPEC_RULE("BuiltinMethodSym-HeapAllocator");
     const std::string sym = BuiltinSym(std::string("HeapAllocator::") + std::string(name));
+    if (sym.empty()) {
+      return std::nullopt;
+    }
+    return sym;
+  }
+
+  if (cap_class == "ExecutionDomain" || cap_class == "CpuDomain" ||
+      cap_class == "GpuDomain" || cap_class == "InlineDomain") {
+    SPEC_RULE("BuiltinMethodSym-ExecutionDomain");
+    const std::string sym = BuiltinSym(std::string("ExecutionDomain::") + std::string(name));
     if (sym.empty()) {
       return std::nullopt;
     }

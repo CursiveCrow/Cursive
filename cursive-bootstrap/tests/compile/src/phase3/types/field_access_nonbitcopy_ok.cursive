@@ -1,0 +1,21 @@
+# SPEC_COV: FieldAccess-NonBitcopy
+# SPEC_COV: T-Field
+// §11.6.2: Field access on non-Bitcopy record type.
+// The base of field access is a place expression, not a value expression.
+// This means the base type does NOT need to be Bitcopy.
+
+record Inner {
+  value: i32
+}
+
+record Outer {
+  inner: Inner
+  procedure get_inner_value(~) -> i32 {
+    return self.inner.value
+  }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+  let o: Outer = Outer { inner: Inner { value: 42 } }
+  return o ~> get_inner_value()
+}

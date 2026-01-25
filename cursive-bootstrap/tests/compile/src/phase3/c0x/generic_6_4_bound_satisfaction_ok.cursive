@@ -20,6 +20,6 @@ procedure sum<T>(a: T, b: T) -> T where T <: Addable {
 public procedure main(move ctx: Context) -> i32 {
   var c1: Counter = Counter { value: 10 }
   var c2: Counter = Counter { value: 32 }
-  var result: Counter = sum<Counter>(c1, c2)
-  return result.value
+  var res: Counter = sum<Counter>(c1, c2)
+  return res.value
 }

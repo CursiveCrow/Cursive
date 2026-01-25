@@ -64,7 +64,13 @@
       "WebFetch(domain:ada-auth.org)",
       "Bash(powershell:*)",
       "WebFetch(domain:webassembly.github.io)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(./build/Release/cursivec0.exe build:*)",
+      "Bash(./build/Release/cursivec0.exe:*)",
+      "Bash(cursive-bootstrap/build/Release/cursivec0.exe build:*)",
+      "Bash(./build/Release/syntax_parse_modules_test.exe)",
+      "Bash(ctest:*)",
+      "Bash(./Release/cursivec0.exe build:*)"
     ],
     "deny": [
       "Bash(git: *)"

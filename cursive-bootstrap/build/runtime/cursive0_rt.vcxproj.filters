@@ -25,6 +25,9 @@
     <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\runtime\src\string_bytes.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\runtime\src\parallel.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="C:\Dev\Cursive\cursive-bootstrap\runtime\src\filesystem.c">
       <Filter>Source Files</Filter>
     </ClCompile>

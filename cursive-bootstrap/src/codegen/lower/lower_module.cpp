@@ -105,6 +105,9 @@ analysis::TypeRef SubstSelfType(const analysis::TypeRef& self,
           return analysis::MakeTypePtr(SubstSelfType(self, node.element), node.state);
         } else if constexpr (std::is_same_v<T, analysis::TypeRawPtr>) {
           return analysis::MakeTypeRawPtr(node.qual, SubstSelfType(self, node.element));
+        } else if constexpr (std::is_same_v<T, analysis::TypeRefine>) {
+          return analysis::MakeTypeRefine(SubstSelfType(self, node.base),
+                                          node.predicate);
         } else {
           return type;
         }

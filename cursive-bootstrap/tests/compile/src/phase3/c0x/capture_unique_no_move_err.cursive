@@ -1,0 +1,19 @@
+# SPEC_COV: C0X-Capture-Unique-NoMove
+# SPEC_COV: E-CON-0120
+// Tests unique binding capture without move is error (§18.3.3)
+// Expected diagnostic: E-CON-0120
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  let domain = ctx~>cpu()
+  let data: unique Data = Data { value: 42 }
+  let res: i32 = parallel domain {
+    // Error: unique binding captured without explicit move
+    let h = spawn {
+      return data.value
+    }
+    return wait h
+  }
+  return res
+}

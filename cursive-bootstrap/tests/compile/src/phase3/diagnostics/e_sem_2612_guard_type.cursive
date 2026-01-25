@@ -1,0 +1,11 @@
+# SPEC_COV: E-SEM-2612
+// E-SEM-2612: Guard not bool
+
+public procedure main(ctx: Context) -> i32 {
+  let x: i32 = 10
+  let y: i32 = match x {
+    v if v => 1,
+    _ => 0
+  }
+  return y
+}

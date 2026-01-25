@@ -182,6 +182,48 @@ std::string BuiltinSymHeapAllocatorDeallocRaw() {
 }
 
 // ============================================================================
+// §18.2 ExecutionDomain builtins
+// ============================================================================
+
+std::string BuiltinSymExecutionDomainName() {
+  SPEC_DEF("BuiltinSym-ExecutionDomain-Name", "§18.2.4");
+  return core::PathSig({"cursive", "runtime", "execution_domain", "name"});
+}
+
+std::string BuiltinSymExecutionDomainMaxConcurrency() {
+  SPEC_DEF("BuiltinSym-ExecutionDomain-MaxConcurrency", "§18.2.4");
+  return core::PathSig({"cursive", "runtime", "execution_domain", "max_concurrency"});
+}
+
+// ============================================================================
+// §18.2 Context execution domain constructors
+// ============================================================================
+
+std::string BuiltinSymContextCpu() {
+  SPEC_DEF("BuiltinSym-Context-Cpu", "§18.2.1");
+  return core::PathSig({"cursive", "runtime", "context", "cpu"});
+}
+
+std::string BuiltinSymContextGpu() {
+  SPEC_DEF("BuiltinSym-Context-Gpu", "§18.2.2");
+  return core::PathSig({"cursive", "runtime", "context", "gpu"});
+}
+
+std::string BuiltinSymContextInline() {
+  SPEC_DEF("BuiltinSym-Context-Inline", "§18.2.3");
+  return core::PathSig({"cursive", "runtime", "context", "inline"});
+}
+
+// ============================================================================
+// §18.6 CancelToken builtins
+// ============================================================================
+
+std::string BuiltinSymCancelTokenNew() {
+  SPEC_DEF("BuiltinSym-CancelToken-New", "§18.6.1");
+  return core::PathSig({"CancelToken", "new"});
+}
+
+// ============================================================================
 // §6.12.14 String/Bytes builtin symbols
 // ============================================================================
 
@@ -343,6 +385,18 @@ std::string BuiltinSym(const std::string& qualified_name) {
   if (qualified_name == "HeapAllocator::with_quota") return BuiltinSymHeapAllocatorWithQuota();
   if (qualified_name == "HeapAllocator::alloc_raw") return BuiltinSymHeapAllocatorAllocRaw();
   if (qualified_name == "HeapAllocator::dealloc_raw") return BuiltinSymHeapAllocatorDeallocRaw();
+
+  // ExecutionDomain methods
+  if (qualified_name == "ExecutionDomain::name") return BuiltinSymExecutionDomainName();
+  if (qualified_name == "ExecutionDomain::max_concurrency") return BuiltinSymExecutionDomainMaxConcurrency();
+
+  // Context execution domain constructors
+  if (qualified_name == "Context::cpu") return BuiltinSymContextCpu();
+  if (qualified_name == "Context::gpu") return BuiltinSymContextGpu();
+  if (qualified_name == "Context::inline") return BuiltinSymContextInline();
+
+  // CancelToken builtins
+  if (qualified_name == "CancelToken::new") return BuiltinSymCancelTokenNew();
   
   // String builtins
   if (qualified_name == "string::from") return BuiltinSymStringFrom();

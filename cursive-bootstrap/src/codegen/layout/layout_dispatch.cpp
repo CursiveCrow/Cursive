@@ -7,6 +7,7 @@
 #include "cursive0/analysis/modal/modal_widen.h"
 #include "cursive0/analysis/resolve/scopes.h"
 #include "cursive0/analysis/types/type_equiv.h"
+#include "cursive0/analysis/caps/cap_concurrency.h"
 
 namespace cursive0::codegen {
 namespace {
@@ -216,9 +217,28 @@ std::optional<cursive0::analysis::TypeRef> LowerTypeForLayout(
           return cursive0::analysis::MakeTypeBytes(LowerBytesState(node.state));
         } else if constexpr (std::is_same_v<T, cursive0::syntax::TypeDynamic>) {
           return cursive0::analysis::MakeTypeDynamic(node.path);
+        } else if constexpr (std::is_same_v<T, cursive0::syntax::TypeOpaque>) {
+          return cursive0::analysis::MakeTypeOpaque(node.path, type.get(),
+                                                    type->span);
+        } else if constexpr (std::is_same_v<T, cursive0::syntax::TypeRefine>) {
+          const auto base = LowerTypeForLayout(ctx, node.base);
+          if (!base.has_value()) {
+            return std::nullopt;
+          }
+          return cursive0::analysis::MakeTypeRefine(*base, node.predicate);
         } else if constexpr (std::is_same_v<T,
                                            cursive0::syntax::TypeModalState>) {
-          return cursive0::analysis::MakeTypeModalState(node.path, node.state);
+          std::vector<cursive0::analysis::TypeRef> args;
+          args.reserve(node.generic_args.size());
+          for (const auto& arg : node.generic_args) {
+            const auto lowered = LowerTypeForLayout(ctx, arg);
+            if (!lowered.has_value()) {
+              return std::nullopt;
+            }
+            args.push_back(*lowered);
+          }
+          return cursive0::analysis::MakeTypeModalState(node.path, node.state,
+                                                       std::move(args));
         } else if constexpr (std::is_same_v<T,
                                            cursive0::syntax::TypePathType>) {
           return cursive0::analysis::MakeTypePath(node.path);
@@ -238,6 +258,20 @@ std::optional<Layout> LayoutOf(const cursive0::analysis::ScopeContext& ctx,
   if (const auto* perm = std::get_if<cursive0::analysis::TypePerm>(&type->node)) {
     SPEC_RULE("Layout-Perm");
     return LayoutOf(ctx, perm->base);
+  }
+  if (const auto* refine =
+          std::get_if<cursive0::analysis::TypeRefine>(&type->node)) {
+    return LayoutOf(ctx, refine->base);
+  }
+  if (const auto* opaque =
+          std::get_if<cursive0::analysis::TypeOpaque>(&type->node)) {
+    if (opaque->origin) {
+      const auto it = ctx.sigma.opaque_underlying.find(opaque->origin);
+      if (it != ctx.sigma.opaque_underlying.end()) {
+        return LayoutOf(ctx, it->second);
+      }
+    }
+    return std::nullopt;
   }
 
   if (const auto* prim = std::get_if<cursive0::analysis::TypePrim>(&type->node)) {
@@ -261,6 +295,27 @@ std::optional<Layout> LayoutOf(const cursive0::analysis::ScopeContext& ctx,
   if (std::holds_alternative<cursive0::analysis::TypeFunc>(type->node)) {
     SPEC_RULE("Layout-Func");
     return Layout{kPtrSize, kPtrAlign};
+  }
+
+  if (const auto* modal = std::get_if<cursive0::analysis::TypeModalState>(&type->node)) {
+    const bool is_async = modal->path.size() == 1 && IdEq(modal->path[0], "Async");
+    if (analysis::IsSpawnHandleTypePath(modal->path) ||
+        analysis::IsCancelTokenTypePath(modal->path) ||
+        analysis::IsFutureHandleTypePath(modal->path) ||
+        is_async) {
+      SPEC_RULE("Layout-Modal-OpaquePtr");
+      return Layout{kPtrSize, kPtrAlign};
+    }
+  }
+  if (const auto* path = std::get_if<cursive0::analysis::TypePathType>(&type->node)) {
+    const bool is_async = path->path.size() == 1 && IdEq(path->path[0], "Async");
+    if (analysis::IsSpawnHandleTypePath(path->path) ||
+        analysis::IsCancelTokenTypePath(path->path) ||
+        analysis::IsFutureHandleTypePath(path->path) ||
+        is_async) {
+      SPEC_RULE("Layout-Modal-OpaquePtr");
+      return Layout{kPtrSize, kPtrAlign};
+    }
   }
 
   if (std::holds_alternative<cursive0::analysis::TypeDynamic>(type->node)) {

@@ -1,0 +1,11 @@
+# SPEC_COV: Sub-Tuple
+// Tuple subtyping with element covariance
+
+procedure takes_tuple(t: (i32, i32)) -> i32 {
+  return t.0 + t.1;
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let t: (i32, i32) = (10, 20);
+  return takes_tuple(t);
+}

@@ -1,0 +1,18 @@
+# SPEC_COV: C0X-GPU-Capture-Shared
+# SPEC_COV: E-CON-0150
+// Tests shared binding capture in GPU domain is error (§18.2.2)
+// Expected diagnostic: E-CON-0150
+
+record Data { value: i32 }
+
+public procedure main(ctx: Context) -> i32 {
+  let domain = ctx~>gpu()
+  var data: shared Data = Data { value: 42 }
+  parallel domain {
+    // Error: shared binding captured in GPU domain
+    dispatch i in 0..100 {
+      let x: i32 = data.value
+    }
+  }
+  return 0
+}

@@ -1,0 +1,9 @@
+# SPEC_COV: T-If
+// Permission handling in if branches
+
+public procedure main(ctx: Context) -> i32 {
+  let a: i32 = 10
+  let b: i32 = 20
+  let x: i32 = if true { a } else { b }
+  return x
+}

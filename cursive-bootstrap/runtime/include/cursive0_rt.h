@@ -37,11 +37,24 @@ typedef struct C0DynObject {
   void* vtable;
 } C0DynObject;
 
-// Context record: { fs: dyn FileSystem, heap: dyn HeapAllocator }
+// Context record: { fs: dyn FileSystem, heap: dyn HeapAllocator, sys: System (empty), reactor: dyn Reactor }
 typedef struct C0Context {
   C0DynObject fs;
   C0DynObject heap;
+  C0DynObject reactor;
 } C0Context;
+
+typedef enum {
+  C0_DOMAIN_CPU = 0,
+  C0_DOMAIN_GPU = 1,
+  C0_DOMAIN_INLINE = 2,
+} C0DomainKind;
+
+typedef struct C0ExecutionDomain {
+  uint8_t kind;
+  uint8_t _pad[7];
+  uint64_t max_concurrency;
+} C0ExecutionDomain;
 
 // Modal string layout (string with unspecified state)
 typedef struct C0StringModal {
@@ -55,6 +68,21 @@ typedef struct C0RegionOptions {
   uint64_t stack_size;
   C0StringModal name;
 } C0RegionOptions;
+
+// Region modal layout (disc + handle payload)
+typedef struct C0Region {
+  uint8_t disc;
+  uint8_t _pad[7];
+  uint64_t handle;
+} C0Region;
+
+// Range layout (tag, lo, hi)
+typedef struct C0Range {
+  uint8_t tag;
+  uint8_t _pad[7];
+  uint64_t lo;
+  uint64_t hi;
+} C0Range;
 
 // Slice layout for [u8]
 typedef struct C0SliceU8 {
@@ -213,12 +241,12 @@ void cursive_x3a_x3aruntime_x3a_x3astring_x3a_x3adrop_x5fmanaged(C0StringManaged
 void cursive_x3a_x3aruntime_x3a_x3abytes_x3a_x3adrop_x5fmanaged(C0BytesManaged* value);
 
 // Region procs
-void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3anew_x5fscoped(const C0RegionOptions* options);
-void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aalloc(const void* self, const void* value);
-void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5funchecked(const void* self);
-void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afreeze(const void* self);
-void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3athaw(const void* self);
-void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(const void* self);
+C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3anew_x5fscoped(const C0RegionOptions* options);
+void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aalloc(C0Region self, const void* value);
+C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5funchecked(C0Region self);
+C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afreeze(C0Region self);
+C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3athaw(C0Region self);
+C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(C0Region self);
 
 // String builtins
 void cursive_x3a_x3aruntime_x3a_x3astring_x3a_x3afrom(
@@ -369,6 +397,66 @@ void cursive_x3a_x3aruntime_x3a_x3aheap_x3a_x3adealloc_x5fraw(
   const C0DynObject* self,
   void** ptr,
   const uint64_t* count);
+
+// -----------------------------------------------------------------------------
+// C0X Extension: Structured Concurrency Runtime Support (§18)
+// -----------------------------------------------------------------------------
+
+// §18.2 Context execution domain constructors
+C0DynObject cursive_x3a_x3aruntime_x3a_x3acontext_x3a_x3acpu(
+  const C0Context* self);
+C0DynObject cursive_x3a_x3aruntime_x3a_x3acontext_x3a_x3agpu(
+  const C0Context* self);
+C0DynObject cursive_x3a_x3aruntime_x3a_x3acontext_x3a_x3ainline(
+  const C0Context* self);
+
+// §18.2 ExecutionDomain methods
+C0StringView cursive_x3a_x3aruntime_x3a_x3aexecution_x5fdomain_x3a_x3aname(
+  const C0DynObject* self);
+uint64_t cursive_x3a_x3aruntime_x3a_x3aexecution_x5fdomain_x3a_x3amax_x5fconcurrency(
+  const C0DynObject* self);
+
+// §18.1.1 Begin parallel block - creates execution context
+void* cursive0_parallel_begin(C0DynObject domain, void* cancel_token, const char* name);
+
+// §18.1.2 Join parallel block - waits for completion, propagates first panic
+int cursive0_parallel_join(void* ctx_ptr);
+
+// §18.4.2 Create spawn handle - returns SpawnHandle<T>@Pending
+void* cursive0_spawn_create(void* env, size_t env_size,
+                            void (*body)(void* env, void* result, void* panic_out),
+                            size_t result_size);
+
+// §10.3 Wait for spawn result - blocks until ready, extracts value
+void* cursive0_spawn_wait(void* handle_ptr);
+
+// §18.5.2 Dispatch iteration - parallel data iteration
+void cursive0_dispatch_run(C0Range range, size_t elem_size, size_t result_size,
+                           void (*body)(void* elem, void* captured, void* result, void* panic_out),
+                           void* captured_env,
+                           C0StringView reduce_op,
+                           void* reduce_result,
+                           void (*reduce_fn)(void* lhs, void* rhs, void* out, void* panic_out),
+                           int ordered,
+                           size_t chunk_size);
+
+// §18.6.1 Cancellation token operations
+void* cursive0_cancel_token_new(void);
+void cursive0_cancel_token_cancel(void* token_ptr);
+int cursive0_cancel_token_is_cancelled(void* token_ptr);
+
+// §18.7 Panic handling in parallel contexts
+void cursive0_parallel_work_panic(void* ctx_ptr, uint32_t code);
+
+// Low-level panic helper (used by parallel runtime)
+void cursive0_panic(uint32_t code);
+
+// CancelToken modal methods
+void* CancelToken_x3a_x3anew(void);
+void CancelToken_x3a_x3aActive_x3a_x3acancel(void* self);
+uint8_t CancelToken_x3a_x3aActive_x3a_x3ais_x5fcancelled(void* self);
+uint8_t CancelToken_x3a_x3aCancelled_x3a_x3ais_x5fcancelled(void* self);
+void* CancelToken_x3a_x3aActive_x3a_x3achild(void* self);
 
 // File/DirIter methods (modal state methods / transitions)
 C0Union_StringManaged_IoError File_x3a_x3aRead_x3a_x3aread_x5fall(

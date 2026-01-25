@@ -17,6 +17,7 @@ namespace cursive0::analysis {
 // Attribute target (where attribute can be applied)
 enum class AttributeTarget {
   Procedure,
+  ExternBlock,
   Record,
   Enum,
   Modal,
@@ -26,7 +27,9 @@ enum class AttributeTarget {
   Param,
   TypeAlias,
   Static,
+  Binding,
   Statement,
+  Expression,
   KeyBlock,
 };
 
@@ -61,9 +64,14 @@ namespace attrs {
   constexpr std::string_view kStaticDispatchOnly = "static_dispatch_only";
   
   // Memory attributes
-  constexpr std::string_view kRepr = "repr";
+  constexpr std::string_view kLayout = "layout";
   constexpr std::string_view kAlign = "align";
   constexpr std::string_view kPacked = "packed";
+  constexpr std::string_view kRelaxed = "relaxed";
+  constexpr std::string_view kAcquire = "acquire";
+  constexpr std::string_view kRelease = "release";
+  constexpr std::string_view kAcqRel = "acqrel";
+  constexpr std::string_view kSeqCst = "seqcst";
   
   // Diagnostic control
   constexpr std::string_view kAllow = "allow";
@@ -75,13 +83,24 @@ namespace attrs {
   constexpr std::string_view kTest = "test";
   constexpr std::string_view kBench = "bench";
   constexpr std::string_view kIgnore = "ignore";
-  
+
   // Visibility/linking
+  constexpr std::string_view kDeprecated = "deprecated";
+  constexpr std::string_view kStaleOk = "stale_ok";
   constexpr std::string_view kInline = "inline";
   constexpr std::string_view kCold = "cold";
   constexpr std::string_view kHot = "hot";
   constexpr std::string_view kNoMangle = "no_mangle";
   constexpr std::string_view kExport = "export";
+  constexpr std::string_view kSymbol = "symbol";
+  constexpr std::string_view kLibrary = "library";
+  constexpr std::string_view kUnwind = "unwind";
+  constexpr std::string_view kFfiPassByValue = "ffi_pass_by_value";
+
+  // Verification-mode attributes
+  constexpr std::string_view kStatic = "static";
+  constexpr std::string_view kAssume = "assume";
+  constexpr std::string_view kTrust = "trust";
 }
 
 // Attribute registry

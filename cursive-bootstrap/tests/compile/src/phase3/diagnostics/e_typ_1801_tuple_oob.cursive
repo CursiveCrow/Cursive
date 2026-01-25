@@ -1,0 +1,7 @@
+# SPEC_COV: E-TYP-1801
+// E-TYP-1801: Tuple index out of bounds
+
+public procedure main(ctx: Context) -> i32 {
+  let t: (i32, i32) = (1, 2)
+  return t.5
+}

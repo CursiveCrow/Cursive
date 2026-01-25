@@ -41,7 +41,8 @@ bool BeginsOperand(const Token& tok) {
     case TokenKind::NullLiteral:
       return true;
     case TokenKind::Punctuator:
-      return tok.lexeme == "(" || tok.lexeme == "[" || tok.lexeme == "{";
+      return tok.lexeme == "(" || tok.lexeme == "[" || tok.lexeme == "{" ||
+             tok.lexeme == "@";
     case TokenKind::Operator:
       return tok.lexeme == "!" || tok.lexeme == "-" || tok.lexeme == "&" ||
              tok.lexeme == "*" || tok.lexeme == "^";
@@ -49,7 +50,13 @@ bool BeginsOperand(const Token& tok) {
       return tok.lexeme == "if" || tok.lexeme == "match" ||
              tok.lexeme == "loop" || tok.lexeme == "unsafe" ||
              tok.lexeme == "move" || tok.lexeme == "transmute" ||
-             tok.lexeme == "widen";
+             tok.lexeme == "widen" ||
+             // C0X Extension: Structured Concurrency (§18)
+             tok.lexeme == "parallel" || tok.lexeme == "spawn" ||
+             tok.lexeme == "dispatch" ||
+             // C0X Extension: Async expressions (§19)
+             tok.lexeme == "yield" || tok.lexeme == "sync" ||
+             tok.lexeme == "race" || tok.lexeme == "all";
     default:
       return false;
   }

@@ -183,6 +183,63 @@ declare void @DirIter_x3a_x3aOpen_x3a_x3anext(ptr noalias noundef nonnull sret a
 ; Function Attrs: nounwind
 declare void @DirIter_x3a_x3aOpen_x3a_x3aclose({ i64 }) #1
 
+; Function Attrs: nounwind
+declare void @CancelToken_x3a_x3aActive_x3a_x3acancel(ptr noundef nonnull readonly align 8 dereferenceable(8)) #1
+
+; Function Attrs: nounwind
+declare i8 @CancelToken_x3a_x3aActive_x3a_x3ais_x5fcancelled(ptr noundef nonnull readonly align 8 dereferenceable(8)) #1
+
+; Function Attrs: nounwind
+declare ptr @CancelToken_x3a_x3aActive_x3a_x3achild(ptr noundef nonnull readonly align 8 dereferenceable(8)) #1
+
+; Function Attrs: nounwind
+declare i8 @CancelToken_x3a_x3aCancelled_x3a_x3ais_x5fcancelled(ptr noundef nonnull readonly align 8 dereferenceable(8)) #1
+
+; Function Attrs: nounwind
+declare ptr @cursive0_parallel_begin(ptr noundef nonnull readonly align 8 dereferenceable(16), ptr noundef nonnull align 1 dereferenceable(1), ptr noundef nonnull align 1 dereferenceable(1)) #1
+
+; Function Attrs: nounwind
+declare i32 @cursive0_parallel_join(ptr noundef nonnull align 1 dereferenceable(1)) #1
+
+; Function Attrs: nounwind
+declare ptr @cursive0_spawn_create(ptr noundef nonnull align 1 dereferenceable(1), i64, ptr, i64) #1
+
+; Function Attrs: nounwind
+declare ptr @cursive0_spawn_wait(ptr noundef nonnull align 1 dereferenceable(1)) #1
+
+; Function Attrs: nounwind
+declare void @cursive0_dispatch_run(ptr noundef nonnull readonly align 8 dereferenceable(24), i64, i64, ptr, ptr noundef nonnull align 1 dereferenceable(1), ptr noundef nonnull align 1 dereferenceable(1), ptr noundef nonnull align 1 dereferenceable(1), ptr, i32, i64) #1
+
+; Function Attrs: nounwind
+declare ptr @cursive0_cancel_token_new() #1
+
+; Function Attrs: nounwind
+declare void @cursive0_cancel_token_cancel(ptr noundef nonnull align 1 dereferenceable(1)) #1
+
+; Function Attrs: nounwind
+declare i32 @cursive0_cancel_token_is_cancelled(ptr noundef nonnull align 1 dereferenceable(1)) #1
+
+; Function Attrs: nounwind
+declare void @cursive0_parallel_work_panic(ptr noundef nonnull readonly align 1 dereferenceable(1), ptr noundef nonnull readonly align 4 dereferenceable(4)) #1
+
+; Function Attrs: nounwind
+declare void @cursive_x3a_x3aruntime_x3a_x3acontext_x3a_x3acpu(ptr noalias noundef nonnull sret align 8 dereferenceable(16), ptr noundef nonnull readonly align 8 dereferenceable(32)) #1
+
+; Function Attrs: nounwind
+declare void @cursive_x3a_x3aruntime_x3a_x3acontext_x3a_x3agpu(ptr noalias noundef nonnull sret align 8 dereferenceable(16), ptr noundef nonnull readonly align 8 dereferenceable(32)) #1
+
+; Function Attrs: nounwind
+declare void @cursive_x3a_x3aruntime_x3a_x3acontext_x3a_x3ainline(ptr noalias noundef nonnull sret align 8 dereferenceable(16), ptr noundef nonnull readonly align 8 dereferenceable(32)) #1
+
+; Function Attrs: nounwind
+declare void @cursive_x3a_x3aruntime_x3a_x3aexecution_x5fdomain_x3a_x3aname(ptr noalias noundef nonnull sret align 8 dereferenceable(16), ptr noundef nonnull readonly align 8 dereferenceable(16)) #1
+
+; Function Attrs: nounwind
+declare i64 @cursive_x3a_x3aruntime_x3a_x3aexecution_x5fdomain_x3a_x3amax_x5fconcurrency(ptr noundef nonnull readonly align 8 dereferenceable(16)) #1
+
+; Function Attrs: nounwind
+declare ptr @CancelToken_x3a_x3anew() #1
+
 define i32 @test_x3a_x3aidentity(ptr noundef nonnull readonly align 4 dereferenceable(4) %x, ptr %__panic) {
 entry:
   %byref_arg2 = alloca { ptr, i64 }, align 8

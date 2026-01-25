@@ -1,0 +1,12 @@
+# SPEC_COV: Sub-Array
+// Array subtyping - array to slice conversion
+
+procedure takes_slice(s: [i32]) -> i32 {
+  return 0;
+}
+
+public procedure main(ctx: Context) -> i32 {
+  let arr: [i32; 4] = [1, 2, 3, 4];
+  let sl: [i32] = arr;
+  return takes_slice(sl);
+}

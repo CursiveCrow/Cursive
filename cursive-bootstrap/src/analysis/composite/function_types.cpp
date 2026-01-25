@@ -12,6 +12,7 @@
 #include "cursive0/analysis/resolve/scopes_lookup.h"
 #include "cursive0/analysis/types/type_equiv.h"
 #include "cursive0/analysis/memory/string_bytes.h"
+#include "cursive0/analysis/caps/cap_concurrency.h"
 #include "cursive0/analysis/resolve/visibility.h"
 
 namespace cursive0::analysis {
@@ -197,9 +198,28 @@ static TypeLowerResult LowerType(const ScopeContext& ctx,
                   MakeTypeBytes(LowerBytesState(node.state))};
         } else if constexpr (std::is_same_v<T, syntax::TypeDynamic>) {
           return {true, std::nullopt, MakeTypeDynamic(node.path)};
-        } else if constexpr (std::is_same_v<T, syntax::TypeModalState>) {
+        } else if constexpr (std::is_same_v<T, syntax::TypeOpaque>) {
           return {true, std::nullopt,
-                  MakeTypeModalState(node.path, node.state)};
+                  MakeTypeOpaque(node.path, type.get(), type->span)};
+        } else if constexpr (std::is_same_v<T, syntax::TypeRefine>) {
+          const auto base = LowerType(ctx, node.base);
+          if (!base.ok) {
+            return base;
+          }
+          return {true, std::nullopt,
+                  MakeTypeRefine(base.type, node.predicate)};
+        } else if constexpr (std::is_same_v<T, syntax::TypeModalState>) {
+          std::vector<TypeRef> args;
+          args.reserve(node.generic_args.size());
+          for (const auto& arg : node.generic_args) {
+            const auto lowered = LowerType(ctx, arg);
+            if (!lowered.ok) {
+              return lowered;
+            }
+            args.push_back(lowered.type);
+          }
+          return {true, std::nullopt,
+                  MakeTypeModalState(node.path, node.state, std::move(args))};
         } else if constexpr (std::is_same_v<T, syntax::TypePathType>) {
           return {true, std::nullopt, MakeTypePath(node.path)};
         } else {
@@ -309,6 +329,12 @@ ValuePathTypeResult ValuePathType(const ScopeContext& ctx,
   SpecDefsFunctionTypes();
   if (const auto builtin = LookupStringBytesBuiltinType(path, name)) {
     return {true, std::nullopt, *builtin};
+  }
+  if (path.size() == 1 && IdEq(path[0], "CancelToken") && IdEq(name, "new")) {
+    std::vector<TypeFuncParam> params;
+    return {true, std::nullopt,
+            MakeTypeFunc(std::move(params),
+                         MakeCancelTokenTypeWithState("Active"))};
   }
   ScopeContext local = ctx;
   const auto current_module = local.current_module;

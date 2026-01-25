@@ -1,0 +1,9 @@
+# SPEC_COV: Sub-Never
+// Never type is subtype of all types
+
+public procedure main(ctx: Context) -> i32 {
+  if false {
+    loop { }
+  }
+  return 0;
+}

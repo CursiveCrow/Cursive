@@ -170,6 +170,7 @@ ExprTypeResult TypeErrorExpr(const ScopeContext& ctx,
 // Helper predicates
 bool IsPlaceExpr(const syntax::ExprPtr& expr);
 bool BitcopyType(const ScopeContext& ctx, const TypeRef& type);
+bool CloneType(const ScopeContext& ctx, const TypeRef& type);
 bool EqType(const TypeRef& type);
 bool OrdType(const TypeRef& type);
 bool CastValid(const TypeRef& source, const TypeRef& target);
