@@ -28,10 +28,14 @@ const std::unordered_set<std::string_view>& RuntimeSymbols() {
       // Region symbols
       "cursive::runtime::region::new_scoped",
       "cursive::runtime::region::alloc",
+      "cursive::runtime::region::mark",
+      "cursive::runtime::region::reset_to",
       "cursive::runtime::region::reset_unchecked",
       "cursive::runtime::region::freeze",
       "cursive::runtime::region::thaw",
       "cursive::runtime::region::free_unchecked",
+      "cursive::runtime::region::addr_is_active",
+      "cursive::runtime::region::addr_tag_from",
       // Structured concurrency runtime (C0X)
       "cursive0_parallel_begin",
       "cursive0_parallel_join",

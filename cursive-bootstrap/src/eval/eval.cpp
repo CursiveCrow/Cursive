@@ -1059,7 +1059,7 @@ std::optional<SignedMag> TruncToSignedMag(double value) {
     return std::nullopt;
   }
   const long double truncated = std::trunc(static_cast<long double>(value));
-  const long double abs_val = std::fabsl(truncated);
+  const long double abs_val = std::fabs(truncated);
   if (abs_val > static_cast<long double>(
                     std::numeric_limits<std::uint64_t>::max())) {
     return std::nullopt;
@@ -2169,6 +2169,12 @@ Outcome ReadPtrSigmaImpl(const Value& ptr, Sigma& sigma) {
   if (const auto* p = std::get_if<PtrVal>(&ptr.node)) {
     switch (p->state) {
       case analysis::PtrState::Valid: {
+        if (const auto tag = AddrTag(sigma, p->addr);
+            tag.has_value() && !TagActive(sigma, *tag)) {
+          SPEC_RULE("ReadPtr-Expired");
+          SetPanicReason(sigma, PanicReason::ExpiredDeref);
+          return PanicOutcome();
+        }
         const auto value = ReadAddr(sigma, p->addr);
         if (!value.has_value()) {
           return PanicOutcome();
@@ -2551,12 +2557,17 @@ std::optional<Value> RegionAllocImpl(Sigma& sigma,
                                      RegionTarget target,
                                      const Value& value) {
   const auto tag = ResolveTagImpl(sigma, target);
-  if (tag.has_value()) {
-    if (const auto* dyn = std::get_if<DynamicVal>(&value.node)) {
-      sigma.addr_tags[dyn->data.addr] =
-          RuntimeTag{RuntimeTagKind::RegionTag, *tag};
-    }
+  if (!tag.has_value()) {
+    return std::nullopt;
   }
+  const Addr addr = AllocAddr(sigma);
+  if (!WriteAddr(sigma, addr, value)) {
+    return std::nullopt;
+  }
+  if (!ArenaAppend(sigma, target, addr)) {
+    return std::nullopt;
+  }
+  sigma.addr_tags[addr] = RuntimeTag{RuntimeTagKind::RegionTag, *tag};
   return value;
 }
 
@@ -2736,6 +2747,12 @@ StmtOut WritePtrSigma(const Value& ptr, const Value& value, Sigma& sigma) {
   if (const auto* p = std::get_if<PtrVal>(&ptr.node)) {
     switch (p->state) {
       case analysis::PtrState::Valid:
+        if (const auto tag = AddrTag(sigma, p->addr);
+            tag.has_value() && !TagActive(sigma, *tag)) {
+          SPEC_RULE("WritePtr-Expired");
+          SetPanicReason(sigma, PanicReason::ExpiredDeref);
+          return PanicStmtOut();
+        }
         if (!WriteAddr(sigma, p->addr, value)) {
           return PanicStmtOut();
         }
@@ -4678,6 +4695,5 @@ Outcome EvalSigma(const SemanticsContext& ctx,
 }
 
 }  // namespace cursive0::eval
-
 
 

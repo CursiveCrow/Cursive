@@ -2,8 +2,10 @@
 #include "cursive0/codegen/checks.h"
 #include "cursive0/codegen/cleanup.h"
 #include "cursive0/codegen/globals.h"
+#include "cursive0/runtime/runtime_interface.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/analysis/resolve/scopes.h"
+#include "cursive0/analysis/types/type_expr.h"
 
 #include <cassert>
 #include <algorithm>
@@ -839,6 +841,18 @@ LowerResult LowerAddrOf(const syntax::Expr& place, LowerCtx& ctx) {
     ctx.RegisterValueType(value, ptr_type);
   };
 
+  auto tag_from = [&](const IRValue& addr, const IRValue& base) -> IRPtr {
+    IRCall tag_call;
+    tag_call.callee.kind = IRValue::Kind::Symbol;
+    tag_call.callee.name = RegionSymAddrTagFrom();
+    tag_call.args.push_back(addr);
+    tag_call.args.push_back(base);
+    IRValue tag_value = ctx.FreshTempValue("addr_tag");
+    tag_call.result = tag_value;
+    ctx.RegisterValueType(tag_value, analysis::MakeTypePrim("()"));
+    return MakeIR(std::move(tag_call));
+  };
+
   return std::visit(
       [&](const auto& node) -> LowerResult {
         using T = std::decay_t<decltype(node)>;
@@ -919,7 +933,10 @@ LowerResult LowerAddrOf(const syntax::Expr& place, LowerCtx& ctx) {
           info.field = node.name;
           ctx.RegisterDerivedValue(ptr_value, info);
 
-          return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir, MakeIR(std::move(addr))}),
+          IRPtr tag_ir = tag_from(ptr_value, base_result.value);
+          return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir,
+                                                      MakeIR(std::move(addr)),
+                                                      tag_ir}),
                              ptr_value};
         } else if constexpr (std::is_same_v<T, syntax::TupleAccessExpr>) {
           auto base_result = LowerAddrOf(*node.base, ctx);
@@ -935,7 +952,10 @@ LowerResult LowerAddrOf(const syntax::Expr& place, LowerCtx& ctx) {
           info.tuple_index = static_cast<std::size_t>(std::stoull(node.index.lexeme));
           ctx.RegisterDerivedValue(ptr_value, info);
 
-          return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir, MakeIR(std::move(addr))}),
+          IRPtr tag_ir = tag_from(ptr_value, base_result.value);
+          return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir,
+                                                      MakeIR(std::move(addr)),
+                                                      tag_ir}),
                              ptr_value};
         } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
           auto base_result = LowerAddrOf(*node.base, ctx);
@@ -960,10 +980,12 @@ LowerResult LowerAddrOf(const syntax::Expr& place, LowerCtx& ctx) {
             info.range = ToIRRange(range_result.value);
             ctx.RegisterDerivedValue(ptr_value, info);
 
+            IRPtr tag_ir = tag_from(ptr_value, base_result.value);
             return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir, range_result.ir,
                                       MakeIR(std::move(check)),
                                       PanicCheck(ctx),
-                                      MakeIR(std::move(addr))}),
+                                      MakeIR(std::move(addr)),
+                                      tag_ir}),
                                ptr_value};
           }
 
@@ -978,13 +1000,63 @@ LowerResult LowerAddrOf(const syntax::Expr& place, LowerCtx& ctx) {
           info.index = index_result.value;
           ctx.RegisterDerivedValue(ptr_value, info);
 
+          IRPtr tag_ir = tag_from(ptr_value, base_result.value);
           return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir, index_result.ir,
                                     MakeIR(std::move(check)),
                                     PanicCheck(ctx),
-                                    MakeIR(std::move(addr))}),
+                                    MakeIR(std::move(addr)),
+                                    tag_ir}),
                              ptr_value};
         } else if constexpr (std::is_same_v<T, syntax::DerefExpr>) {
           auto ptr_result = LowerExpr(*node.value, ctx);
+          analysis::TypeRef ptr_type;
+          if (ctx.expr_type) {
+            ptr_type = ctx.expr_type(*node.value);
+          }
+          if (ptr_type) {
+            auto stripped = analysis::StripPerm(ptr_type);
+            if (stripped) {
+              if (const auto* raw = std::get_if<analysis::TypeRawPtr>(&stripped->node)) {
+                (void)raw;
+                SPEC_RULE("Lower-AddrOf-Deref-Raw");
+                return LowerResult{ptr_result.ir, ptr_result.value};
+              }
+              if (const auto* ptr = std::get_if<analysis::TypePtr>(&stripped->node)) {
+                if (ptr->state == analysis::PtrState::Null) {
+                  SPEC_RULE("Lower-AddrOf-Deref-Null");
+                  IRValue unreachable = ctx.FreshTempValue("unreachable");
+                  return LowerResult{SeqIR({ptr_result.ir,
+                                            LowerPanic(PanicReason::NullDeref, ctx)}),
+                                     unreachable};
+                }
+                if (ptr->state == analysis::PtrState::Expired) {
+                  SPEC_RULE("Lower-AddrOf-Deref-Expired");
+                  IRValue unreachable = ctx.FreshTempValue("unreachable");
+                  return LowerResult{SeqIR({ptr_result.ir,
+                                            LowerPanic(PanicReason::ExpiredDeref, ctx)}),
+                                     unreachable};
+                }
+                SPEC_RULE("Lower-AddrOf-Deref");
+                IRCall call;
+                call.callee.kind = IRValue::Kind::Symbol;
+                call.callee.name = RegionSymAddrIsActive();
+                call.args.push_back(ptr_result.value);
+                IRValue active_value = ctx.FreshTempValue("addr_active");
+                call.result = active_value;
+                ctx.RegisterValueType(active_value, analysis::MakeTypePrim("bool"));
+                IRCheckOp check;
+                check.op = "addr_active";
+                check.reason = PanicReasonString(PanicReason::ExpiredDeref);
+                check.lhs = active_value;
+                return LowerResult{SeqIR({ptr_result.ir,
+                                          MakeIR(std::move(call)),
+                                          MakeIR(std::move(check)),
+                                          PanicCheck(ctx)}),
+                                   ptr_result.value};
+              }
+            }
+          }
+          SPEC_RULE("Lower-AddrOf-Deref");
           return LowerResult{ptr_result.ir, ptr_result.value};
         }
 

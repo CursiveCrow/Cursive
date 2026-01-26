@@ -262,6 +262,7 @@ struct Sigma {
   std::map<Addr, Value> store;
   std::vector<ScopeEntry> scope_stack;
   std::vector<RegionEntry> region_stack;
+  std::map<RegionTarget, std::vector<Addr>> region_arena;
   std::map<Addr, RuntimeTag> addr_tags;
   std::map<Addr, AddrView> addr_views;
   FsState fs_state;
@@ -339,6 +340,13 @@ bool BindVal(Sigma& sigma,
 
 std::optional<RuntimeTag> AddrTag(const Sigma& sigma, Addr addr);
 bool TagActive(const Sigma& sigma, const RuntimeTag& tag);
+
+bool ArenaNew(Sigma& sigma, RegionTarget target);
+std::optional<std::size_t> ArenaMark(const Sigma& sigma, RegionTarget target);
+bool ArenaAppend(Sigma& sigma, RegionTarget target, Addr addr);
+bool ArenaResetTo(Sigma& sigma, RegionTarget target, std::size_t mark);
+bool ArenaClear(Sigma& sigma, RegionTarget target);
+bool ArenaRemove(Sigma& sigma, RegionTarget target);
 
 bool PoisonedModule(const Sigma& sigma, const analysis::PathKey& path);
 std::set<analysis::PathKey> PoisonedModules(const Sigma& sigma);

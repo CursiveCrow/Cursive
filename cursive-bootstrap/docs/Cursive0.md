@@ -418,6 +418,9 @@ StaticUndefined(J)    Code(DiagIdOf(J)) = ⊥
 ────────────────────────────────────────
 Γ ⊢ J ⇑
 
+**OutsideConformance.**
+If OutsideConformance holds, this specification imposes no requirements on observable behavior, diagnostics, or termination. Implementations MAY exhibit any behavior.
+
 **Static vs. Runtime Checks.**
 
 CheckKind = {PatternExhaustiveness, TypeCompatibility, PermissionViolations, ProvenanceEscape, ArrayBounds, SafePointerValidity, IntegerOverflow, SliceBounds, IntDivisionByZero}
@@ -10963,9 +10966,16 @@ FrameBind(Γ, target_opt) = Γ_f ⇔ r =
   { InnermostActiveRegion(Γ)    if target_opt = ⊥
     target_opt                  if target_opt ≠ ⊥ ∧ Γ; R; L ⊢ Identifier(target_opt) : T_r ∧ RegionActiveType(T_r) } ∧ F = FreshRegion(Γ) ∧ IntroAll(Γ, [⟨F, TypeModalState([`Region`], `Active`)⟩]) ⇓ Γ_f
 
+**Region Binding Constraints.**
+If alias_opt = ⊥, the identifier r produced by RegionBindName(Γ, alias_opt) MUST be treated as synthetic. It MUST NOT be introduced by name resolution and MUST NOT be referenced by user code.
+
+FrameBind introduces a fresh synthetic region identifier F with the same restriction. F is used only for provenance assignment.
+
 **Provenance Tags.**
 
 π ::= π_Global | π_Stack(S) | π_Heap | π_Region(r) | ⊥
+
+RegionNesting(r_inner, r_outer) ⇔ ∃ Γ_1, σ_inner, Γ_2, σ_outer, Γ_3. Γ = Γ_1 ++ [σ_inner] ++ Γ_2 ++ [σ_outer] ++ Γ_3 ∧ r_inner ∈ dom(σ_inner) ∧ r_outer ∈ dom(σ_outer)
 
 **Lifetime Order.**
 
@@ -12094,6 +12104,11 @@ ProvType(T, π) = T_π
 BaseType(T_π) = T    ProvOf(T_π) = π
 
 ¬ BitcopyType(TypePath(["Region"]))
+
+**Region Arena Requirements.**
+1. `Region::alloc` MUST yield a value with provenance π_Region(r) where r is the receiver arena. The provenance tag is determined by the binding identifier introduced by RegionBindName and the current region stack (see AllocTag, Prov-RegionStmt, Prov-FrameStmt).
+2. After `Region::reset_unchecked` or `Region::free_unchecked`, any dereference through a `Ptr<T>@Valid` whose address has an inactive `RegionTag` MUST behave as `Expired` per PtrState/ReadPtr. Uses of non-pointer values with provenance π_Region(r) after reset/free are OutsideConformance.
+3. `Region::free_unchecked` MUST be invoked exactly once on any `Region` that remains in `@Active` or `@Frozen` at scope exit. Implementations MAY invoke `Region::free_unchecked` implicitly during RegionStmt cleanup.
 
 **(Region-Unchecked-Unsafe-Err)**
 Γ; R; L ⊢ base : T    StripPerm(T) = TypeModalState(["Region"], S)    S ∈ {`Active`, `Frozen`}    name ∈ {"reset_unchecked", "free_unchecked"}    ¬ UnsafeSpan(span(MethodCall(base, name, args)))    c = Code(Region-Unchecked-Unsafe-Err)
@@ -15894,20 +15909,20 @@ DropOnAssignRoot(p) ⇔ PlaceRoot(p) = x ∧ ((Γ ⊢ ResolveValueName(x) ⇓ en
 Γ ⊢ LowerAddrOf(Identifier(x)) ⇓ ⟨IR_p, addr⟩
 
 **(Lower-AddrOf-Field)**
-Γ ⊢ LowerAddrOf(p) ⇓ ⟨IR_p, addr⟩    T_b = ExprType(p)    FieldAddr(T_b, addr, f) = addr'
-─────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ LowerAddrOf(FieldAccess(p, f)) ⇓ ⟨IR_p, addr'⟩
+Γ ⊢ LowerAddrOf(p) ⇓ ⟨IR_p, addr⟩    T_b = ExprType(p)    FieldAddr(T_b, addr, f) = addr'    IR_t = CallIR(RegionAddrTagFromSym, [addr', addr])
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LowerAddrOf(FieldAccess(p, f)) ⇓ ⟨SeqIR(IR_p, IR_t), addr'⟩
 
 **(Lower-AddrOf-Tuple)**
-Γ ⊢ LowerAddrOf(p) ⇓ ⟨IR_p, addr⟩    T_b = ExprType(p)    TupleAddr(T_b, addr, i) = addr'
-────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ LowerAddrOf(TupleAccess(p, i)) ⇓ ⟨IR_p, addr'⟩
+Γ ⊢ LowerAddrOf(p) ⇓ ⟨IR_p, addr⟩    T_b = ExprType(p)    TupleAddr(T_b, addr, i) = addr'    IR_t = CallIR(RegionAddrTagFromSym, [addr', addr])
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LowerAddrOf(TupleAccess(p, i)) ⇓ ⟨SeqIR(IR_p, IR_t), addr'⟩
 
 
 **(Lower-AddrOf-Index)**
-Γ ⊢ LowerAddrOf(p) ⇓ ⟨IR_p, addr⟩    Γ ⊢ LowerReadPlace(p) ⇓ ⟨IR_r, v_p⟩    Γ ⊢ LowerExpr(idx) ⇓ ⟨IR_i, v_i⟩    ExprType(idx) = TypePrim("usize")    T_b = ExprType(p)    Γ ⊢ CheckIndex(Len(v_p), v_i) ⇓ ok    IndexAddr(T_b, addr, v_i) = addr'
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ LowerAddrOf(IndexAccess(p, idx)) ⇓ ⟨SeqIR(IR_p, IR_r, IR_i), addr'⟩
+Γ ⊢ LowerAddrOf(p) ⇓ ⟨IR_p, addr⟩    Γ ⊢ LowerReadPlace(p) ⇓ ⟨IR_r, v_p⟩    Γ ⊢ LowerExpr(idx) ⇓ ⟨IR_i, v_i⟩    ExprType(idx) = TypePrim("usize")    T_b = ExprType(p)    Γ ⊢ CheckIndex(Len(v_p), v_i) ⇓ ok    IndexAddr(T_b, addr, v_i) = addr'    IR_t = CallIR(RegionAddrTagFromSym, [addr', addr])
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LowerAddrOf(IndexAccess(p, idx)) ⇓ ⟨SeqIR(IR_p, IR_r, IR_i, IR_t), addr'⟩
 
 **(Lower-AddrOf-Index-OOB)**
 Γ ⊢ LowerAddrOf(p) ⇓ ⟨IR_p, addr⟩    Γ ⊢ LowerReadPlace(p) ⇓ ⟨IR_r, v_p⟩    Γ ⊢ LowerExpr(idx) ⇓ ⟨IR_i, v_i⟩    ExprType(idx) = TypePrim("usize")    ¬(0 ≤ v_i < Len(v_p))    Γ ⊢ LowerPanic(Bounds) ⇓ IR_k
@@ -16491,7 +16506,7 @@ PanicReasonOf(OtherSite) = Other
 
 ### 6.9. Built-ins Runtime Interface
 
-RuntimeIfcJudg = {RegionLayout, RegionSym, BuiltinSym}
+RuntimeIfcJudg = {RegionLayout, RegionSym, RegionAddrIsActiveSym, RegionAddrTagFromSym, BuiltinSym}
 
 **(RegionLayout)**
 ModalLayout(`Region`) ⇓ ⟨size, align, disc, payload⟩
@@ -16505,6 +16520,14 @@ ModalLayout(`Region`) ⇓ ⟨size, align, disc, payload⟩
 **(RegionSym-Alloc)**
 ──────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ RegionSym(`Region::alloc`) ⇓ PathSig(["cursive", "runtime", "region", "alloc"])
+
+**(RegionSym-Mark)**
+──────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ RegionSym(`Region::mark`) ⇓ PathSig(["cursive", "runtime", "region", "mark"])
+
+**(RegionSym-ResetTo)**
+────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ RegionSym(`Region::reset_to`) ⇓ PathSig(["cursive", "runtime", "region", "reset_to"])
 
 **(RegionSym-ResetUnchecked)**
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -16521,6 +16544,14 @@ ModalLayout(`Region`) ⇓ ⟨size, align, disc, payload⟩
 **(RegionSym-FreeUnchecked)**
 ────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ RegionSym(`Region::free_unchecked`) ⇓ PathSig(["cursive", "runtime", "region", "free_unchecked"])
+
+**(RegionSym-AddrIsActive)**
+────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ RegionAddrIsActiveSym ⇓ PathSig(["cursive", "runtime", "region", "addr_is_active"])
+
+**(RegionSym-AddrTagFrom)**
+────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ RegionAddrTagFromSym ⇓ PathSig(["cursive", "runtime", "region", "addr_tag_from"])
 
 **(BuiltinSym-FileSystem-OpenRead)**
 ────────────────────────────────────────────────────────────────────────────────────────────
@@ -16835,7 +16866,12 @@ RuntimeSig(PanicSym) = ⟨[⟨⊥, `code`, TypePrim("u32")⟩], TypePrim("!")⟩
 RuntimeSig(ContextInitSym) = ⟨[], TypePath(["Context"])⟩
 RuntimeSig(StringDropSym) = ⟨[⟨`move`, `value`, TypeString(`@Managed`)⟩], TypePrim("()")⟩
 RuntimeSig(BytesDropSym) = ⟨[⟨`move`, `value`, TypeBytes(`@Managed`)⟩], TypePrim("()")⟩
-RuntimeSig(sym) = ⟨params, ret⟩ ⇔ sym = RegionSym(proc) ∧ RegionProcSig(proc) = ⟨params, ret⟩
+RuntimeSig(sym) = ⟨[⟨⊥, `self`, TypePerm(`unique`, TypeModalState(["Region"], `@Active`))⟩, ⟨⊥, `size`, TypePrim("usize")⟩, ⟨⊥, `align`, TypePrim("usize")⟩], TypeRawPtr(`mut`, TypePrim("u8"))⟩ ⇔ sym = RegionSym(`Region::alloc`)
+RuntimeSig(sym) = ⟨[⟨⊥, `self`, TypePerm(`unique`, TypeModalState(["Region"], `@Active`))⟩], TypePrim("usize")⟩ ⇔ sym = RegionSym(`Region::mark`)
+RuntimeSig(sym) = ⟨[⟨⊥, `self`, TypePerm(`unique`, TypeModalState(["Region"], `@Active`))⟩, ⟨⊥, `mark`, TypePrim("usize")⟩], TypePrim("()")⟩ ⇔ sym = RegionSym(`Region::reset_to`)
+RuntimeSig(sym) = ⟨[⟨⊥, `addr`, TypeRawPtr(`imm`, TypePrim("u8"))⟩], TypePrim("bool")⟩ ⇔ sym = RegionAddrIsActiveSym
+RuntimeSig(sym) = ⟨[⟨⊥, `addr`, TypeRawPtr(`imm`, TypePrim("u8"))⟩, ⟨⊥, `base`, TypeRawPtr(`imm`, TypePrim("u8"))⟩], TypePrim("()")⟩ ⇔ sym = RegionAddrTagFromSym
+RuntimeSig(sym) = ⟨params, ret⟩ ⇔ sym = RegionSym(proc) ∧ proc ≠ `Region::alloc` ∧ RegionProcSig(proc) = ⟨params, ret⟩
 RuntimeSig(sym) = ⟨params, ret⟩ ⇔ sym = BuiltinSym(method) ∧ BuiltinSig(method) = ⟨params, ret⟩
 
 LLVMDecl : Symbol × Sig → LLVMDecl
@@ -17022,7 +17058,7 @@ LLVMTy(T) undefined
 
 LLVMEmitJudg = {LowerIR(ModuleIR) ⇓ LLVMIR, EmitLLVM(LLVMIR) ⇓ bytes, EmitObj(LLVMIR) ⇓ bytes}
 
-RuntimeSyms = {PanicSym, StringDropSym, BytesDropSym, ContextInitSym} ∪ {RegionSym(proc) | proc ∈ RegionProcs} ∪ {BuiltinSym(method) | method ∈ BuiltinMethods}
+RuntimeSyms = {PanicSym, StringDropSym, BytesDropSym, ContextInitSym} ∪ {RegionSym(proc) | proc ∈ RegionProcs} ∪ {RegionSym(`Region::mark`), RegionSym(`Region::reset_to`), RegionAddrIsActiveSym, RegionAddrTagFromSym} ∪ {BuiltinSym(method) | method ∈ BuiltinMethods}
 BuiltinMethods = StringBuiltins ∪ BytesBuiltins ∪ {`FileSystem`::name | ⟨name, recv, params, ret⟩ ∈ FileSystemInterface} ∪ {`HeapAllocator`::name | ⟨name, recv, params, ret⟩ ∈ HeapAllocatorInterface} ∪ {`Reactor`::name | name ∈ ReactorMethodNames}
 RefSyms : IR → 𝒫(Symbol)
 RefSyms([]) = ∅
@@ -17224,9 +17260,9 @@ GlobalVTable(sym, header, slots) = d
 Γ ⊢ LowerIRDecl(d) ⇓ LLVMGlobalVTable(sym, header, slots)
 
 **(Lower-AllocIR)**
-RegionSym(`Region::alloc`) ⇓ sym    r = InnermostActiveRegion(Γ) if r_opt = ⊥, otherwise r_opt    Γ ⊢ LowerIRInstr(CallIR(sym, [r, v])) ⇓ ll
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ LowerIRInstr(AllocIR(r_opt, v)) ⇓ ll
+RegionSym(`Region::alloc`) ⇓ sym    r = InnermostActiveRegion(Γ) if r_opt = ⊥, otherwise r_opt    TypeOf(v) = T    sizeof(T) = n    alignof(T) = a    Γ ⊢ LowerIRInstr(CallIR(sym, [r, IntVal(`usize`, n), IntVal(`usize`, a)])) ⇓ ⟨I_a, p⟩    Store(p, v, T) = I_s
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LowerIRInstr(AllocIR(r_opt, v)) ⇓ ⟨I_a ++ I_s, p⟩
 
 **(Lower-BindVarIR)**
 Γ ⊢ BindSlot(x) ⇓ slot    TypeOf(x) = T_x
@@ -17340,6 +17376,16 @@ PtrType(v_ptr) = TypePtr(T, `Valid`)
 PtrType(v_ptr) = TypeRawPtr(q, T)
 ──────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LowerIRInstr(ReadPtrIR(v_ptr)) ⇓ ⟨[Load(PtrAddr(v_ptr), T)], v⟩
+
+**(Lower-ReadPtrIR-Null)**
+PtrType(v_ptr) = TypePtr(T, `Null`)    Γ ⊢ LowerIRInstr(LowerPanic(NullDeref)) ⇓ ll
+──────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LowerIRInstr(ReadPtrIR(v_ptr)) ⇓ ll
+
+**(Lower-ReadPtrIR-Expired)**
+PtrType(v_ptr) = TypePtr(T, `Expired`)    Γ ⊢ LowerIRInstr(LowerPanic(ExpiredDeref)) ⇓ ll
+────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LowerIRInstr(ReadPtrIR(v_ptr)) ⇓ ll
 
 **(Lower-WritePtrIR)**
 PtrType(v_ptr) = TypePtr(T, `Valid`)
@@ -17527,7 +17573,16 @@ ProcRet(Γ) = R ⇔ Γ is lowering ProcIR(_, _, R, _)
 ProcSig(Γ) = sig ⇔ Γ ⊢ LLVMCallSig(ProcParams(Γ), ProcRet(Γ)) ⇓ sig
 ParamEntry(params, x) = ⟨mode, T⟩ ⇔ ⟨mode, x, T⟩ ∈ params
 AllocaSlot(T) = LLVMAlloca(LLVMTy(T))
+RegionSlot(r, T) = CallIR(RegionSym(`Region::alloc`), [r, IntVal(`usize`, sizeof(T)), IntVal(`usize`, alignof(T))])
 BindState(Γ) = Γ.bind_state
+
+ResolveEntry_π([], tag) = ⊥
+ResolveEntry_π(⟨tag, target⟩ :: es, t) =
+ ⟨tag, target⟩             if t = tag
+ ResolveEntry_π(es, t)      otherwise
+ResolveTarget_π(⟨Σ_π, RS⟩, tag) = target ⇔ ResolveEntry_π(RS, tag) = ⟨tag, target⟩
+BindProv_Γ(x) = π ⇔ Γ has provenance environment Ω ∧ Γ; Ω ⊢ Identifier(x) ⇓ π
+BindRegionTarget(x) = r ⇔ BindProv_Γ(x) = π_Region(tag) ∧ ResolveTarget_π(Ω, tag) = r
 
 **(BindValid-Sigma)**
 BindState(Γ) = 𝔅    Lookup_B(𝔅, x) = ⟨s, _, _, _⟩
@@ -17543,6 +17598,11 @@ ProcParams(Γ) = params    ParamEntry(params, x) = ⟨mode, T⟩    Γ ⊢ ABIPa
 ProcParams(Γ) = params    ParamEntry(params, x) = ⟨mode, T⟩    Γ ⊢ ABIParam(mode, T) ⇓ `ByRef`    ProcSig(Γ) = sig
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ BindSlot(x) ⇓ LLVMParam(sig, params, x)
+
+**(BindSlot-Region)**
+BindRegionTarget(x) = r
+──────────────────────────────────────────────────────────────
+Γ ⊢ BindSlot(x) ⇓ RegionSlot(r, TypeOf(x))
 
 **(BindSlot-Local)**
 Γ ⊢ ResolveValueName(x) ⇓ ent    ent.origin_opt = ⊥    ParamEntry(ProcParams(Γ), x) undefined
@@ -18343,7 +18403,7 @@ CurrentScope(σ) = scope ⇔ ScopeStack(σ) = scope :: ss
 CurrentScopeId(σ) = ScopeId(CurrentScope(σ))
 ScopeEmpty(sid) = ⟨sid, [], ∅, ∅, ∅⟩
 FreshScopeId(σ) = sid ⇒ ∀ s ∈ ScopeStack(σ). ScopeId(s) ≠ sid
-UpdateScopeStack(σ, ss) = σ' ⇔ ScopeStack(σ') = ss ∧ AddrTags(σ') = AddrTags(σ) ∧ RegionStack(σ') = RegionStack(σ) ∧ PoisonedModules(σ') = PoisonedModules(σ)
+UpdateScopeStack(σ, ss) = σ' ⇔ ScopeStack(σ') = ss ∧ AddrTags(σ') = AddrTags(σ) ∧ RegionStack(σ') = RegionStack(σ) ∧ RegionArena(σ') = RegionArena(σ) ∧ PoisonedModules(σ') = PoisonedModules(σ)
 PushScope_σ(σ) ⇓ (σ', scope) ⇔ scope = ScopeEmpty(sid) ∧ FreshScopeId(σ) = sid ∧ UpdateScopeStack(σ, scope :: ScopeStack(σ)) = σ'
 PopScope_σ(σ) ⇓ (σ', scope) ⇔ ScopeStack(σ) = scope :: ss ∧ UpdateScopeStack(σ, ss) = σ'
 AppendCleanup(σ, item) ⇓ σ' ⇔ ScopeStack(σ) = scope :: ss ∧ scope = ⟨sid, cleanup, names, vals, states⟩ ∧ scope' = ⟨sid, cleanup ++ [item], names, vals, states⟩ ∧ UpdateScopeStack(σ, scope' :: ss) = σ'
@@ -18457,6 +18517,22 @@ RuntimeTag = {RegionTag(tag), ScopeTag(sid)}
 RegionStack(σ) ∈ [RegionEntry]
 AddrTags(σ) : Addr ⇀ RuntimeTag
 
+**Region Arenas.**
+
+RegionArena(σ) : usize ⇀ [Addr]
+ArenaAllocs(σ, r) = allocs ⇔ RegionArena(σ)(r) = allocs
+UpdateRegionArena(σ, RA) = σ' ⇔ RegionArena(σ') = RA ∧ ScopeStack(σ') = ScopeStack(σ) ∧ AddrTags(σ') = AddrTags(σ) ∧ RegionStack(σ') = RegionStack(σ) ∧ PoisonedModules(σ') = PoisonedModules(σ)
+ArenaNew(σ, r) ⇓ σ' ⇔ UpdateRegionArena(σ, RegionArena(σ)[r ↦ []]) = σ'
+
+FreshAddr(σ) = addr ⇒ ReadAddr(σ, addr) undefined ∧ AddrTags(σ)(addr) undefined
+Prefix([a_0, …, a_{n-1}], m) = [a_0, …, a_{m-1}]    (0 ≤ m ≤ n)
+
+ArenaAppend(σ, r, addr) ⇓ σ' ⇔ ArenaAllocs(σ, r) = allocs ∧ UpdateRegionArena(σ, RegionArena(σ)[r ↦ allocs ++ [addr]]) = σ'
+ArenaMark(σ, r) = m ⇔ ArenaAllocs(σ, r) = allocs ∧ m = |allocs|
+ArenaResetTo(σ, r, m) ⇓ σ' ⇔ ArenaAllocs(σ, r) = allocs ∧ 0 ≤ m ≤ |allocs| ∧ allocs' = Prefix(allocs, m) ∧ UpdateRegionArena(σ, RegionArena(σ)[r ↦ allocs']) = σ'
+ArenaClear(σ, r) ⇓ σ' ⇔ ArenaResetTo(σ, r, 0) ⇓ σ'
+ArenaRemove(σ, r) ⇓ σ' ⇔ RegionArena(σ') = RegionArena(σ) \ {r} ∧ ScopeStack(σ') = ScopeStack(σ) ∧ AddrTags(σ') = AddrTags(σ) ∧ RegionStack(σ') = RegionStack(σ) ∧ PoisonedModules(σ') = PoisonedModules(σ)
+
 **Region Values.**
 
 RegionValue(S, h) = RecordValue(ModalStateRef([`Region`], S), [⟨`handle`, IntVal("usize", h)⟩])
@@ -18477,19 +18553,21 @@ FreshArena(σ) = r ⇒ ∀ e ∈ RegionStack(σ). RegionTargetOf(e) ≠ r
 ActiveTarget(σ) undefined ⇒ IllFormed(ActiveTarget(σ))
 ResolveTarget(σ, r) undefined ⇒ IllFormed(ResolveTarget(σ, r))
 
-UpdateRegionStack(σ, rs) = σ' ⇔ RegionStack(σ') = rs ∧ ScopeStack(σ') = ScopeStack(σ) ∧ AddrTags(σ') = AddrTags(σ) ∧ PoisonedModules(σ') = PoisonedModules(σ)
+UpdateRegionStack(σ, rs) = σ' ⇔ RegionStack(σ') = rs ∧ ScopeStack(σ') = ScopeStack(σ) ∧ AddrTags(σ') = AddrTags(σ) ∧ RegionArena(σ') = RegionArena(σ) ∧ PoisonedModules(σ') = PoisonedModules(σ)
 
-RegionNew(σ, opts) ⇓ (σ', r, scope) ⇔ PushScope_σ(σ) ⇓ (σ_1, scope) ∧ FreshArena(σ) = r ∧ UpdateRegionStack(σ_1, ⟨r, r, scope, ⊥⟩ :: RegionStack(σ_1)) = σ'
+RegionNew(σ, opts) ⇓ (σ', r, scope) ⇔ PushScope_σ(σ) ⇓ (σ_1, scope) ∧ FreshArena(σ) = r ∧ ArenaNew(σ_1, r) ⇓ σ_2 ∧ UpdateRegionStack(σ_2, ⟨r, r, scope, ⊥⟩ :: RegionStack(σ_2)) = σ'
 
-RegionOpen(σ, opts) ⇓ (σ', r) ⇔ FreshArena(σ) = r ∧ UpdateRegionStack(σ, ⟨r, r, CurrentScopeId(σ), ⊥⟩ :: RegionStack(σ)) = σ'
+RegionOpen(σ, opts) ⇓ (σ', r) ⇔ FreshArena(σ) = r ∧ ArenaNew(σ, r) ⇓ σ_1 ∧ UpdateRegionStack(σ_1, ⟨r, r, CurrentScopeId(σ), ⊥⟩ :: RegionStack(σ_1)) = σ'
 
 FrameEnter(σ, r) ⇓ (σ', F, scope, mark) ⇔ PushScope_σ(σ) ⇓ (σ_1, scope) ∧ F = FreshTag(σ) ∧ mark = FrameMark(σ_1, r) ∧ UpdateRegionStack(σ_1, ⟨F, r, scope, mark⟩ :: RegionStack(σ_1)) = σ'
 
 BindRegionAlias(σ, ⊥, r) ⇓ σ
 BindRegionAlias(σ, x, r) ⇓ σ' ⇔ BindVal(σ, x, RegionValue(`@Active`, r)) ⇓ (σ', b)
 
-DynPayloadAddr(v, addr) ⇔ v = Dyn(Cl, RawPtr(`imm`, addr), T)
-RegionAlloc(σ, r, v) ⇓ (σ', v') ⇒ (ResolveTag(σ, r) = tag ∧ ∀ addr. DynPayloadAddr(v', addr) ⇒ AddrTags(σ')(addr) = RegionTag(tag))
+TagAddr(σ, addr, tag) ⇓ σ' ⇔ AddrTags(σ') = AddrTags(σ)[addr ↦ tag] ∧ ScopeStack(σ') = ScopeStack(σ) ∧ RegionStack(σ') = RegionStack(σ) ∧ RegionArena(σ') = RegionArena(σ) ∧ PoisonedModules(σ') = PoisonedModules(σ)
+TagAddrFrom(σ, base, addr) ⇓ σ' ⇔ (AddrTag(σ, base) = tag ∧ TagAddr(σ, addr, tag) ⇓ σ') ∨ (AddrTag(σ, base) = ⊥ ∧ σ' = σ)
+
+RegionAlloc(σ, r, v) ⇓ (σ', v') ⇔ ResolveTag(σ, r) = tag ∧ FreshAddr(σ) = addr ∧ WriteAddr(σ, addr, v) ⇓ σ_1 ∧ ArenaAppend(σ_1, r, addr) ⇓ σ_2 ∧ TagAddr(σ_2, addr, RegionTag(tag)) ⇓ σ' ∧ ReadAddr(σ', addr) = v'
 
 FreshTags(σ, tags) ⇔ Distinct(tags) ∧ ∀ tag ∈ Set(tags). ∀ e ∈ RegionStack(σ). RegionTagOf(e) ≠ tag
 
@@ -18498,13 +18576,17 @@ RetagRegions(e::es, r, tags) =
  e' :: RetagRegions(es, r, tags')    if RegionTargetOf(e) = r ∧ tags = tag :: tags' ∧ e' = ⟨tag, RegionTargetOf(e), RegionScopeOf(e), RegionMarkOf(e)⟩
  e :: RetagRegions(es, r, tags)      otherwise
 
-RegionReset(σ, r) ⇓ σ' ⇔ FreshTags(σ, tags) ∧ RetagRegions(RegionStack(σ), r, tags) = rs' ∧ UpdateRegionStack(σ, rs') = σ'
+RegionReset(σ, r) ⇓ σ' ⇔ ArenaClear(σ, r) ⇓ σ_1 ∧ FreshTags(σ_1, tags) ∧ RetagRegions(RegionStack(σ_1), r, tags) = rs' ∧ UpdateRegionStack(σ_1, rs') = σ'
 
 PopRegions([], r) = []
 PopRegions(e::es, r) =
  PopRegions(es, r)    if RegionTargetOf(e) = r
  e :: PopRegions(es, r)    otherwise
-RegionFree(σ, r) ⇓ σ' ⇔ PopRegions(RegionStack(σ), r) = rs' ∧ UpdateRegionStack(σ, rs') = σ'
+RegionFree(σ, r) ⇓ σ' ⇔ ArenaRemove(σ, r) ⇓ σ_1 ∧ PopRegions(RegionStack(σ_1), r) = rs' ∧ UpdateRegionStack(σ_1, rs') = σ'
+
+**Region Deallocation Order.**
+RegionRelease and FrameReset MUST execute CleanupScope before any ArenaResetTo or ArenaRemove.
+ArenaResetTo, ArenaClear, and ArenaRemove MUST NOT invoke Drop; they only reclaim arena storage.
 
 **Region Procedures.**
 
@@ -18540,14 +18622,14 @@ RegionHandleOf(v_r) = h    RegionFree(σ, h) ⇓ σ'    v' = RegionValue(`@Freed
 ──────────────────────────────────────────────────────────────────────────────────────────────
 RegionFreeProc(σ, v_r) ⇓ (σ', v')
 
-PopRegion([], r) = ⊥
-PopRegion(e::es, r) =
- es                    if RegionTargetOf(e) = r
- e :: PopRegion(es, r) otherwise
-ReleaseArena(σ, r) ⇓ σ' ⇔ PopRegion(RegionStack(σ), r) = rs' ∧ UpdateRegionStack(σ, rs') = σ'
-ResetArena(σ, r, mark) ⇓ σ' ⇔ PopRegion(RegionStack(σ), r) = rs' ∧ UpdateRegionStack(σ, rs') = σ'
+PopRegionScope([], scope) = ⊥
+PopRegionScope(e::es, scope) =
+ es                          if RegionScopeOf(e) = scope
+ PopRegionScope(es, scope)   otherwise
+ReleaseArena(σ, r) ⇓ σ' ⇔ RegionFree(σ, r) ⇓ σ'
+ResetArena(σ, r, scope, mark) ⇓ σ' ⇔ ArenaResetTo(σ, r, mark) ⇓ σ_1 ∧ PopRegionScope(RegionStack(σ_1), scope) = rs' ∧ UpdateRegionStack(σ_1, rs') = σ'
 
-FrameMark(σ, r) = |RegionStack(σ)|
+FrameMark(σ, r) = ArenaMark(σ, r)
 
 **Control Outcomes.**
 
@@ -18683,7 +18765,10 @@ TagActive(Sigma, RegionTag(tag)) ⇔ ∃ e ∈ RegionStack(Sigma). RegionTagOf(e
 TagActive(Sigma, ScopeTag(sid)) ⇔ ∃ e ∈ ScopeStack(Sigma). ScopeId(e) = sid
 PtrState(Sigma, Ptr@Null(_)) = `Null`
 PtrState(Sigma, Ptr@Expired(_)) = `Expired`
-PtrState(Sigma, Ptr@Valid(addr)) = `Valid`
+PtrState(Sigma, Ptr@Valid(addr)) =
+ `Valid`    if AddrTag(Sigma, addr) = ⊥
+ `Valid`    if AddrTag(Sigma, addr) = tag ≠ ⊥ ∧ TagActive(Sigma, tag)
+ `Expired`  if AddrTag(Sigma, addr) = tag ≠ ⊥ ∧ ¬ TagActive(Sigma, tag)
 DynAddrState(Sigma, addr) =
  `Valid`    if AddrTag(Sigma, addr) = ⊥
  `Valid`    if AddrTag(Sigma, addr) = tag ≠ ⊥ ∧ TagActive(Sigma, tag)
@@ -18766,9 +18851,9 @@ LookupBind(σ, x) = b    AddrOfBind(b) = addr
 Γ ⊢ AddrOfSigma(Identifier(x), σ) ⇓ (Val(addr), σ)
 
 **(AddrOf-Field)**
-Γ ⊢ AddrOfSigma(p, σ) ⇓ (Val(addr), σ_1)    T_b = ExprType(p)    FieldAddr(T_b, addr, f) = addr'
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ AddrOfSigma(FieldAccess(p, f), σ) ⇓ (Val(addr'), σ_1)
+Γ ⊢ AddrOfSigma(p, σ) ⇓ (Val(addr), σ_1)    T_b = ExprType(p)    FieldAddr(T_b, addr, f) = addr'    TagAddrFrom(σ_1, addr, addr') ⇓ σ_2
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ AddrOfSigma(FieldAccess(p, f), σ) ⇓ (Val(addr'), σ_2)
 
 **(AddrOf-Field-Ctrl)**
 Γ ⊢ AddrOfSigma(p, σ) ⇓ (Ctrl(κ), σ_1)
@@ -18776,9 +18861,9 @@ LookupBind(σ, x) = b    AddrOfBind(b) = addr
 Γ ⊢ AddrOfSigma(FieldAccess(p, f), σ) ⇓ (Ctrl(κ), σ_1)
 
 **(AddrOf-Tuple)**
-Γ ⊢ AddrOfSigma(p, σ) ⇓ (Val(addr), σ_1)    T_b = ExprType(p)    TupleAddr(T_b, addr, i) = addr'
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ AddrOfSigma(TupleAccess(p, i), σ) ⇓ (Val(addr'), σ_1)
+Γ ⊢ AddrOfSigma(p, σ) ⇓ (Val(addr), σ_1)    T_b = ExprType(p)    TupleAddr(T_b, addr, i) = addr'    TagAddrFrom(σ_1, addr, addr') ⇓ σ_2
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ AddrOfSigma(TupleAccess(p, i), σ) ⇓ (Val(addr'), σ_2)
 
 **(AddrOf-Tuple-Ctrl)**
 Γ ⊢ AddrOfSigma(p, σ) ⇓ (Ctrl(κ), σ_1)
@@ -18787,9 +18872,9 @@ LookupBind(σ, x) = b    AddrOfBind(b) = addr
 
 **(AddrOf-Index)**
 **(AddrOfSigma-Index-Ok)**
-Γ ⊢ AddrOfSigma(p, σ) ⇓ (Val(addr), σ_1)    Γ ⊢ EvalSigma(i, σ_1) ⇓ (Val(v_i), σ_2)    IndexLen(σ_2, addr) = L    Γ ⊢ CheckIndex(L, v_i) ⇓ ok    T_b = ExprType(p)    IndexAddr(T_b, addr, v_i) = addr'
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ AddrOfSigma(IndexAccess(p, i), σ) ⇓ (Val(addr'), σ_2)
+Γ ⊢ AddrOfSigma(p, σ) ⇓ (Val(addr), σ_1)    Γ ⊢ EvalSigma(i, σ_1) ⇓ (Val(v_i), σ_2)    IndexLen(σ_2, addr) = L    Γ ⊢ CheckIndex(L, v_i) ⇓ ok    T_b = ExprType(p)    IndexAddr(T_b, addr, v_i) = addr'    TagAddrFrom(σ_2, addr, addr') ⇓ σ_3
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ AddrOfSigma(IndexAccess(p, i), σ) ⇓ (Val(addr'), σ_3)
 
 **(AddrOfSigma-Index-OOB)**
 Γ ⊢ AddrOfSigma(p, σ) ⇓ (Val(addr), σ_1)    Γ ⊢ EvalSigma(i, σ_1) ⇓ (Val(v_i), σ_2)    ¬ (0 ≤ v_i < IndexLen(σ_2, addr))
@@ -20066,7 +20151,7 @@ LookupVal(σ, r) = v_r    RegionHandleOf(v_r) = h    ResolveTarget(σ, h) = r_t 
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ExecSigma(FrameStmt(r, b), σ) ⇓ (StmtOutOf(out'), σ_3)
 
-FrameReset(Σ, r, scope, mark, out) ⇓ (out', Σ') ⇔ Γ ⊢ CleanupScope(scope, Σ) ⇓ (c, Σ_1) ∧ out' = ExitOutcome(out, c) ∧ ((out' = Ctrl(Abort) ∧ Σ' = Σ_1) ∨ (out' ≠ Ctrl(Abort) ∧ ResetArena(Σ_1, r, mark) ⇓ Σ_2 ∧ PopScope_σ(Σ_2) ⇓ (Σ', scope)))
+FrameReset(Σ, r, scope, mark, out) ⇓ (out', Σ') ⇔ Γ ⊢ CleanupScope(scope, Σ) ⇓ (c, Σ_1) ∧ out' = ExitOutcome(out, c) ∧ ((out' = Ctrl(Abort) ∧ Σ' = Σ_1) ∨ (out' ≠ Ctrl(Abort) ∧ ResetArena(Σ_1, r, scope, mark) ⇓ Σ_2 ∧ PopScope_σ(Σ_2) ⇓ (Σ', scope)))
 
 **(ExecSigma-Return)**
 Γ ⊢ EvalSigma(e, σ) ⇓ (Val(v), σ_1)

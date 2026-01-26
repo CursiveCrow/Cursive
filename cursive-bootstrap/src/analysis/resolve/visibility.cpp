@@ -18,6 +18,17 @@ static inline void SpecDefsVisibility() {
   SPEC_DEF("ModuleOfPath", "5.1.4");
   SPEC_DEF("Vis", "5.1.4");
   SPEC_DEF("TopLevelDecl", "5.1.4");
+  SPEC_DEF("AsmOfPath", "5.1.4");
+  SPEC_DEF("SameAssembly", "5.1.4");
+}
+
+// §5.1.4: AsmOfPath(p) = p[0] - first path component is assembly name
+// §5.1.4: SameAssembly(m₁, m₂) ⇔ AsmOfModule(m₁) = AsmOfModule(m₂)
+bool SameAssembly(const syntax::ModulePath& m1, const syntax::ModulePath& m2) {
+  if (m1.empty() || m2.empty()) {
+    return false;
+  }
+  return m1[0] == m2[0];
 }
 
 std::optional<syntax::Visibility> VisOpt(const syntax::ASTItem& item) {
@@ -555,8 +566,12 @@ AccessResult CanAccessVis(const syntax::ModulePath& accessor_module,
       SPEC_RULE("Access-Public");
       return {true, std::nullopt};
     case syntax::Visibility::Internal:
-      SPEC_RULE("Access-Internal");
-      return {true, std::nullopt};
+      if (SameAssembly(accessor_module, decl_module)) {
+        SPEC_RULE("Access-Internal");
+        return {true, std::nullopt};
+      }
+      SPEC_RULE("Access-Internal-Err");
+      return {false, "Access-Err"};
     case syntax::Visibility::Private:
       if (PathEq(accessor_module, decl_module)) {
         SPEC_RULE("Access-Private");

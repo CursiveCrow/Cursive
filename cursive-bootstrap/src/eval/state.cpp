@@ -620,6 +620,48 @@ bool TagActive(const Sigma& sigma, const RuntimeTag& tag) {
   return false;
 }
 
+bool ArenaNew(Sigma& sigma, RegionTarget target) {
+  sigma.region_arena[target] = {};
+  return true;
+}
+
+std::optional<std::size_t> ArenaMark(const Sigma& sigma, RegionTarget target) {
+  const auto it = sigma.region_arena.find(target);
+  if (it == sigma.region_arena.end()) {
+    return std::nullopt;
+  }
+  return it->second.size();
+}
+
+bool ArenaAppend(Sigma& sigma, RegionTarget target, Addr addr) {
+  auto it = sigma.region_arena.find(target);
+  if (it == sigma.region_arena.end()) {
+    return false;
+  }
+  it->second.push_back(addr);
+  return true;
+}
+
+bool ArenaResetTo(Sigma& sigma, RegionTarget target, std::size_t mark) {
+  auto it = sigma.region_arena.find(target);
+  if (it == sigma.region_arena.end()) {
+    return false;
+  }
+  if (mark > it->second.size()) {
+    return false;
+  }
+  it->second.resize(mark);
+  return true;
+}
+
+bool ArenaClear(Sigma& sigma, RegionTarget target) {
+  return ArenaResetTo(sigma, target, 0);
+}
+
+bool ArenaRemove(Sigma& sigma, RegionTarget target) {
+  return sigma.region_arena.erase(target) > 0;
+}
+
 bool PoisonedModule(const Sigma& sigma, const analysis::PathKey& path) {
   const auto it = sigma.poison_flags.find(path);
   if (it == sigma.poison_flags.end()) {

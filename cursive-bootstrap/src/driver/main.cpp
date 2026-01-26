@@ -230,6 +230,10 @@ static std::string SeverityString(Severity severity) {
       return "error";
     case Severity::Warning:
       return "warning";
+    case Severity::Info:
+      return "info";
+    case Severity::Panic:
+      return "panic";
   }
   return "error";
 }

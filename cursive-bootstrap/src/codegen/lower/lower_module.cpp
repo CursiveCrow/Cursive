@@ -466,6 +466,57 @@ IRDecls LowerModule(const syntax::ASTModule& module, LowerCtx& ctx) {
           } else if constexpr (std::is_same_v<T, syntax::EnumDecl>) {
             SPEC_RULE("CG-Item-Enum");
             return;
+          } else if constexpr (std::is_same_v<T, syntax::ExternBlock>) {
+            SPEC_RULE("CG-Item-ExternBlock");
+            // Emit external declarations for each procedure in the extern block
+            const auto scope = BuildScope(module.path, ctx);
+            for (const auto& ext_item : node.items) {
+              std::visit(
+                  [&](const auto& proc) {
+                    using PT = std::decay_t<decltype(proc)>;
+                    if constexpr (std::is_same_v<PT, syntax::ExternProcDecl>) {
+                      SPEC_RULE("CG-Item-ExternProc");
+                      // Determine symbol name using LinkName or raw name
+                      std::string symbol;
+                      if (auto link_name = LinkName(proc.attrs, proc.name)) {
+                        symbol = *link_name;
+                      } else {
+                        // For extern declarations without attributes, use raw name
+                        symbol = proc.name;
+                      }
+
+                      // Build parameter list
+                      std::vector<IRParam> params;
+                      for (const auto& param : proc.params) {
+                        params.push_back(LowerParam(param, scope, nullptr));
+                      }
+
+                      // Determine return type
+                      auto ret_type = LowerReturnType(scope, proc.return_type_opt, nullptr);
+
+                      // Create extern proc IR
+                      ExternProcIR extern_proc;
+                      extern_proc.symbol = symbol;
+                      extern_proc.params = std::move(params);
+                      extern_proc.ret = ret_type;
+
+                      // Register signature for call resolution
+                      ProcIR sig;
+                      sig.symbol = extern_proc.symbol;
+                      sig.params = extern_proc.params;
+                      sig.ret = extern_proc.ret;
+                      ctx.RegisterProcSig(sig);
+
+                      decls.push_back(std::move(extern_proc));
+                    }
+                  },
+                  ext_item);
+            }
+            return;
+          } else if constexpr (std::is_same_v<T, syntax::ImportDecl>) {
+            SPEC_RULE("CG-Item-Import");
+            // Imports are handled during module loading
+            return;
           } else if constexpr (std::is_same_v<T, syntax::ErrorItem>) {
             SPEC_RULE("CG-Item-ErrorItem");
             return;

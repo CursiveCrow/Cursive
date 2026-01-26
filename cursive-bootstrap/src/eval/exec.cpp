@@ -1,4 +1,5 @@
 #include "cursive0/eval/exec.h"
+#include <algorithm>
 #include <memory>
 #include <utility>
 
@@ -242,6 +243,9 @@ bool RegionNew(Sigma& sigma,
     return false;
   }
   const RegionTarget target = FreshArena(sigma);
+  if (!ArenaNew(sigma, target)) {
+    return false;
+  }
   RegionEntry entry;
   entry.tag = target;
   entry.target = target;
@@ -267,7 +271,11 @@ bool FrameEnter(Sigma& sigma,
     return false;
   }
   const RegionTag tag = FreshTag(sigma);
-  const std::size_t mark = sigma.region_stack.size();
+  const auto mark_opt = ArenaMark(sigma, target);
+  if (!mark_opt.has_value()) {
+    return false;
+  }
+  const std::size_t mark = *mark_opt;
   RegionEntry entry;
   entry.tag = tag;
   entry.target = target;
@@ -286,11 +294,11 @@ bool FrameEnter(Sigma& sigma,
   return true;
 }
 
-bool PopRegion(Sigma& sigma, RegionTarget target) {
+bool PopRegionScope(Sigma& sigma, ScopeId scope) {
   for (auto it = sigma.region_stack.rbegin();
        it != sigma.region_stack.rend();
        ++it) {
-    if (it->target == target) {
+    if (it->scope == scope) {
       sigma.region_stack.erase(std::next(it).base());
       return true;
     }
@@ -298,12 +306,31 @@ bool PopRegion(Sigma& sigma, RegionTarget target) {
   return false;
 }
 
-bool ReleaseArena(Sigma& sigma, RegionTarget target) {
-  return PopRegion(sigma, target);
+void RemoveRegionEntries(Sigma& sigma, RegionTarget target) {
+  auto& stack = sigma.region_stack;
+  stack.erase(std::remove_if(stack.begin(), stack.end(),
+                             [target](const RegionEntry& entry) {
+                               return entry.target == target;
+                             }),
+              stack.end());
 }
 
-bool ResetArena(Sigma& sigma, RegionTarget target, std::size_t /*mark*/) {
-  return PopRegion(sigma, target);
+bool ReleaseArena(Sigma& sigma, RegionTarget target) {
+  if (!ArenaRemove(sigma, target)) {
+    return false;
+  }
+  RemoveRegionEntries(sigma, target);
+  return true;
+}
+
+bool ResetArena(Sigma& sigma,
+                RegionTarget target,
+                ScopeId scope,
+                std::size_t mark) {
+  if (!ArenaResetTo(sigma, target, mark)) {
+    return false;
+  }
+  return PopRegionScope(sigma, scope);
 }
 
 Outcome RegionRelease(const SemanticsContext& ctx,
@@ -351,7 +378,7 @@ Outcome FrameReset(const SemanticsContext& ctx,
       return out2;
     }
   }
-  if (!ResetArena(sigma, target, mark)) {
+  if (!ResetArena(sigma, target, scope, mark)) {
     return PanicOutcome();
   }
   ScopeEntry popped;

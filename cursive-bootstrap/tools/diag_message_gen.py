@@ -4,7 +4,7 @@ import re
 import sys
 from pathlib import Path
 
-CODE_RE = re.compile(r"^[EWI]-[A-Z]{3}-[0-9]{4}$")
+CODE_RE = re.compile(r"^[EWIP]-[A-Z]{3}-[0-9]{4}$")
 TABLE_RE = re.compile(r"^###\s+8\.\d+\.\s+([A-Z]-[A-Z]{3})")
 
 
@@ -90,10 +90,8 @@ def parse_spec(spec_path: Path):
 
                     if not CODE_RE.match(code):
                         raise ValueError(f"Invalid diagnostic code format: {code}")
-                    if severity not in {"Error", "Warning"}:
+                    if severity not in {"Error", "Warning", "Info", "Panic"}:
                         raise ValueError(f"Unsupported severity for {code}: {severity}")
-                    if any(ord(ch) > 127 for ch in condition):
-                        raise ValueError(f"Non-ASCII condition for {code}")
 
                     if code in seen:
                         prev = seen[code]
@@ -128,7 +126,14 @@ def render(rows) -> str:
         code = row["code"]
         cond = c_escape(row["condition"])
         sev = row["severity"]
-        sev_expr = "Severity::Error" if sev == "Error" else "Severity::Warning"
+        if sev == "Error":
+            sev_expr = "Severity::Error"
+        elif sev == "Warning":
+            sev_expr = "Severity::Warning"
+        elif sev == "Info":
+            sev_expr = "Severity::Info"
+        else:
+            sev_expr = "Severity::Panic"
         lines.append(f"  {{\"{code}\", {sev_expr}, \"{cond}\"}},")
     lines.append("};")
     lines.append("")

@@ -29,6 +29,8 @@ enum class PanicReason {
   NullDeref,     // 0x0008
   ExpiredDeref,  // 0x0009
   InitPanic,     // 0x000A
+  ContractPre,   // 0x000B - precondition violation
+  ContractPost,  // 0x000C - postcondition violation
   Other,         // 0x00FF
 };
 

@@ -36,8 +36,16 @@ bool IsKeyword(std::string_view s) {
   return core::IsKeyword(s);
 }
 
+bool IsFixedIdentifier(std::string_view s) {
+  return core::IsFixedIdentifier(s);
+}
+
+bool IsFixedIdentTok(const Token& tok, std::string_view s) {
+  return tok.kind == TokenKind::Identifier && tok.lexeme == s;
+}
+
 bool IsCtxKeyword(std::string_view s) {
-  return s == "in";
+  return s == "in" || s == "key" || s == "wait";
 }
 
 bool Ctx(const Token& tok, std::string_view s) {

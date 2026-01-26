@@ -242,11 +242,15 @@ void cursive_x3a_x3aruntime_x3a_x3abytes_x3a_x3adrop_x5fmanaged(C0BytesManaged* 
 
 // Region procs
 C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3anew_x5fscoped(const C0RegionOptions* options);
-void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aalloc(C0Region self, const void* value);
+void* cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aalloc(C0Region self, uint64_t size, uint64_t align);
+uint64_t cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3amark(C0Region self);
+void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5fto(C0Region self, uint64_t mark);
 C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5funchecked(C0Region self);
 C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afreeze(C0Region self);
 C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3athaw(C0Region self);
 C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(C0Region self);
+uint8_t cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aaddr_x5fis_x5factive(const void* addr);
+void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aaddr_x5ftag_x5ffrom(const void* addr, const void* base);
 
 // String builtins
 void cursive_x3a_x3aruntime_x3a_x3astring_x3a_x3afrom(

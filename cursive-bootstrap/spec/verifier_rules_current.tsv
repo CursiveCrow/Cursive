@@ -1,5 +1,3 @@
 # rule_id	domain	min_count	max_count	payload_keys
-Emit-Static-Const	compile	1	-	-
-Emit-Static-Init	compile	1	-	-
-Emit-Static-Multi	compile	1	-	-
-ConstInit	compile	1	-	-
+StringLiteralVal	runtime	1	-	-
+EmitLiteral-String	runtime	1	-	-

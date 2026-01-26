@@ -402,6 +402,12 @@ struct MatchExpr {
   std::vector<MatchArm> arms;
 };
 
+// Loop invariant: where { predicate }
+struct LoopInvariant {
+  ExprPtr predicate;
+  core::Span span;
+};
+
 struct LoopInfiniteExpr {
   std::optional<LoopInvariant> invariant_opt;
   std::shared_ptr<Block> body;
@@ -985,12 +991,6 @@ struct TypeInvariant {
   core::Span span;
 };
 
-// Loop invariant: where { predicate }
-struct LoopInvariant {
-  ExprPtr predicate;
-  core::Span span;
-};
-
 struct ProcedureDecl {
   AttributeList attrs;  // C0X Extension
   Visibility vis;
@@ -1157,6 +1157,7 @@ struct ModalDecl {
   std::optional<GenericParams> generic_params;  // C0X Extension
   std::vector<ClassPath> implements;
   std::optional<WhereClause> where_clause;  // C0X Extension
+  std::optional<TypeInvariant> invariant;  // C0X Extension
   std::vector<StateBlock> states;
   core::Span span;
   DocList doc;
@@ -1230,7 +1231,9 @@ struct ClassDecl {
 struct TypeAliasDecl {
   Visibility vis;
   Identifier name;
+  std::optional<GenericParams> generic_params;  // C0X Extension
   std::shared_ptr<Type> type;
+  std::optional<WhereClause> where_clause;  // C0X Extension
   core::Span span;
   DocList doc;
 };

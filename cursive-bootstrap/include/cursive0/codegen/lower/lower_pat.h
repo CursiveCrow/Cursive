@@ -29,7 +29,9 @@ IRPtr LowerBindList(const std::vector<std::shared_ptr<syntax::Pattern>>& pattern
 void RegisterPatternBindings(const syntax::Pattern& pattern,
                              const analysis::TypeRef& type_hint,
                              LowerCtx& ctx,
-                             bool is_immovable = false);
+                             bool is_immovable = false,
+                             analysis::ProvenanceKind prov = analysis::ProvenanceKind::Bottom,
+                             std::optional<std::string> prov_region = std::nullopt);
 
 // §6.6 TagOf - get the discriminant tag
 enum class TagOfKind { Enum, Modal };
@@ -48,6 +50,8 @@ LowerResult LowerMatch(const syntax::Expr& scrutinee,
 LowerResult LowerMatchArm(const syntax::MatchArm& arm,
                           const IRValue& scrutinee,
                           const analysis::TypeRef& scrutinee_type,
+                          analysis::ProvenanceKind scrutinee_prov,
+                          std::optional<std::string> scrutinee_region,
                           LowerCtx& ctx);
 
 // §6.6 PatternCheck - check if a value matches a pattern

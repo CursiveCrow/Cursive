@@ -31,6 +31,7 @@ struct CleanupItem {
   enum class Kind {
     DropBinding,
     DeferBlock,
+    ReleaseRegion,
   };
 
   Kind kind = Kind::DropBinding;
@@ -65,6 +66,7 @@ struct CaptureEnvInfo {
 struct ScopeInfo {
   std::vector<std::string> variables;     // Variables in declaration order
   std::vector<CleanupItem> cleanup_items; // Cleanup items in append order
+  std::vector<std::string> region_tags;   // Synthetic region tags for naming
   bool is_loop = false;                   // True if this is a loop scope
   bool is_region = false;                 // True if this is a region scope
 };
@@ -76,6 +78,8 @@ struct BindingState {
   bool is_immovable = false;             // Immovable binding (:=)
   bool is_moved = false;                  // Has this binding been movedSigma
   std::vector<std::string> moved_fields;  // Fields that have been moved (for partial moves)
+  analysis::ProvenanceKind prov = analysis::ProvenanceKind::Bottom;
+  std::optional<std::string> prov_region;
 };
 
 
@@ -104,6 +108,7 @@ struct DerivedValueInfo {
     AddrTuple,
     AddrIndex,
     AddrDeref,
+    LoadFromAddr,
   };
 
   Kind kind = Kind::Field;
@@ -152,6 +157,10 @@ struct LowerCtx {
   bool codegen_failed = false;
   std::vector<std::string> resolve_failures;
 
+  // Expression provenance map computed by analysis (per procedure).
+  std::unordered_map<const syntax::Expr*, analysis::ProvenanceKind> expr_prov;
+  std::unordered_map<const syntax::Expr*, std::string> expr_region;
+
   // IR value and symbol type tracking.
   std::unordered_map<std::string, analysis::TypeRef> value_types;
   std::unordered_map<std::string, analysis::TypeRef> static_types;
@@ -169,6 +178,10 @@ struct LowerCtx {
   std::vector<syntax::ModulePath> init_order;
   std::vector<syntax::ModulePath> init_modules;
   std::vector<std::pair<std::size_t, std::size_t>> init_eager_edges;
+
+  // Active region alias stack for implicit frame lowering.
+  std::vector<std::string> active_region_aliases;
+  std::uint64_t region_alias_counter = 0;
 
   void ReportResolveFailure(const std::string& name);
   void ReportCodegenFailure(
@@ -240,7 +253,9 @@ struct LowerCtx {
   void RegisterVar(const std::string& name,
                    analysis::TypeRef type,
                    bool has_responsibility = true,
-                   bool is_immovable = false);
+                   bool is_immovable = false,
+                   analysis::ProvenanceKind prov = analysis::ProvenanceKind::Bottom,
+                   std::optional<std::string> prov_region = std::nullopt);
   
   // Mark a variable as moved
   void MarkMoved(const std::string& name);
@@ -250,9 +265,13 @@ struct LowerCtx {
   
   // Get binding state
   const BindingState* GetBindingState(const std::string& name) const;
+
+  std::optional<analysis::ProvenanceKind> LookupExprProv(const syntax::Expr& expr) const;
+  std::optional<std::string> LookupExprRegion(const syntax::Expr& expr) const;
   
   // Register a defer block in the current scope
   void RegisterDefer(const IRPtr& defer_ir);
+  void RegisterRegionRelease(const std::string& name);
 
   // Register a temporary value for cleanup
   void RegisterTempValue(const IRValue& value, const analysis::TypeRef& type);
@@ -266,6 +285,10 @@ struct LowerCtx {
 
   // Generate a unique temporary value placeholder.
   IRValue FreshTempValue(std::string_view prefix);
+
+  // Generate a unique internal alias for an implicit region.
+  std::string FreshRegionAlias();
+  void ReserveRegionTag(const std::string& name);
   
 };
 

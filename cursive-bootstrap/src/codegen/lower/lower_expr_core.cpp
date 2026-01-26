@@ -1489,8 +1489,16 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
         } else if constexpr (std::is_same_v<T, syntax::AllocExpr>) {
           SPEC_RULE("Lower-Expr-Alloc");
           auto value_result = LowerExpr(*node.value, ctx);
+          analysis::TypeRef value_type;
+          if (ctx.expr_type) {
+            value_type = ctx.expr_type(*node.value);
+          }
+          if (!value_type) {
+            value_type = ctx.LookupValueType(value_result.value);
+          }
           IRAlloc alloc;
           alloc.value = value_result.value;
+          alloc.type = value_type;
           if (node.region_opt) {
             syntax::IdentifierExpr ident;
             ident.name = *node.region_opt;
@@ -1501,12 +1509,28 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
             alloc.region = region_result.value;
             IRValue ptr_value = ctx.FreshTempValue("alloc_ptr");
             alloc.result = ptr_value;
+            IRValue alloc_val = ctx.FreshTempValue("alloc_val");
+            DerivedValueInfo info;
+            info.kind = DerivedValueInfo::Kind::LoadFromAddr;
+            info.base = ptr_value;
+            ctx.RegisterDerivedValue(alloc_val, info);
+            if (value_type) {
+              ctx.RegisterValueType(alloc_val, value_type);
+            }
             return LowerResult{SeqIR({value_result.ir, region_result.ir, MakeIR(std::move(alloc))}),
-                               ptr_value};
+                               alloc_val};
           }
           IRValue ptr_value = ctx.FreshTempValue("alloc_ptr");
           alloc.result = ptr_value;
-          return LowerResult{SeqIR({value_result.ir, MakeIR(std::move(alloc))}), ptr_value};
+          IRValue alloc_val = ctx.FreshTempValue("alloc_val");
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::LoadFromAddr;
+          info.base = ptr_value;
+          ctx.RegisterDerivedValue(alloc_val, info);
+          if (value_type) {
+            ctx.RegisterValueType(alloc_val, value_type);
+          }
+          return LowerResult{SeqIR({value_result.ir, MakeIR(std::move(alloc))}), alloc_val};
         // C0X Extension: Structured Concurrency (§11.3)
         } else if constexpr (std::is_same_v<T, syntax::ParallelExpr>) {
           SPEC_RULE("Lower-Expr-Parallel");
@@ -2482,7 +2506,9 @@ std::vector<std::string> LowerCtx::VarsToFunctionRoot() const {
 void LowerCtx::RegisterVar(const std::string& name,
                             analysis::TypeRef type,
                             bool has_responsibility,
-                            bool is_immovable) {
+                            bool is_immovable,
+                            analysis::ProvenanceKind prov,
+                            std::optional<std::string> prov_region) {
   if (!scope_stack.empty()) {
     scope_stack.back().variables.push_back(name);
     if (has_responsibility) {
@@ -2498,6 +2524,8 @@ void LowerCtx::RegisterVar(const std::string& name,
   state.has_responsibility = has_responsibility;
   state.is_immovable = is_immovable;
   state.is_moved = false;
+  state.prov = prov;
+  state.prov_region = std::move(prov_region);
 
   binding_states[name].push_back(std::move(state));
 }
@@ -2533,11 +2561,38 @@ const BindingState* LowerCtx::GetBindingState(const std::string& name) const {
   return nullptr;
 }
 
+std::optional<analysis::ProvenanceKind> LowerCtx::LookupExprProv(
+    const syntax::Expr& expr) const {
+  const auto it = expr_prov.find(&expr);
+  if (it == expr_prov.end()) {
+    return std::nullopt;
+  }
+  return it->second;
+}
+
+std::optional<std::string> LowerCtx::LookupExprRegion(
+    const syntax::Expr& expr) const {
+  const auto it = expr_region.find(&expr);
+  if (it == expr_region.end()) {
+    return std::nullopt;
+  }
+  return it->second;
+}
+
 void LowerCtx::RegisterDefer(const IRPtr& defer_ir) {
   if (!scope_stack.empty()) {
     CleanupItem item;
     item.kind = CleanupItem::Kind::DeferBlock;
     item.defer_ir = defer_ir;
+    scope_stack.back().cleanup_items.push_back(std::move(item));
+  }
+}
+
+void LowerCtx::RegisterRegionRelease(const std::string& name) {
+  if (!scope_stack.empty()) {
+    CleanupItem item;
+    item.kind = CleanupItem::Kind::ReleaseRegion;
+    item.name = name;
     scope_stack.back().cleanup_items.push_back(std::move(item));
   }
 }
@@ -2603,6 +2658,35 @@ IRValue LowerCtx::FreshTempValue(std::string_view prefix) {
   value.kind = IRValue::Kind::Opaque;
   value.name = std::string(prefix) + "_" + std::to_string(temp_counter++);
   return value;
+}
+
+std::string LowerCtx::FreshRegionAlias() {
+  auto name_used = [this](const std::string& name) -> bool {
+    auto it = binding_states.find(name);
+    if (it != binding_states.end() && !it->second.empty()) {
+      return true;
+    }
+    for (const auto& scope : scope_stack) {
+      if (std::find(scope.region_tags.begin(), scope.region_tags.end(), name) !=
+          scope.region_tags.end()) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  for (std::size_t i = 0;; ++i) {
+    std::string name = std::string("region$") + std::to_string(i);
+    if (!name_used(name)) {
+      return name;
+    }
+  }
+}
+
+void LowerCtx::ReserveRegionTag(const std::string& name) {
+  if (!scope_stack.empty()) {
+    scope_stack.back().region_tags.push_back(name);
+  }
 }
 
 void LowerCtx::ReportResolveFailure(const std::string& name) {

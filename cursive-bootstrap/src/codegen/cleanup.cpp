@@ -377,6 +377,13 @@ static void AppendCleanupItemToPlan(const CleanupItem& item,
       plan.push_back(std::move(action));
       return;
     }
+    case CleanupItem::Kind::ReleaseRegion: {
+      CleanupAction action;
+      action.kind = CleanupAction::Kind::ReleaseRegion;
+      action.name = item.name;
+      plan.push_back(std::move(action));
+      return;
+    }
   }
 }
 

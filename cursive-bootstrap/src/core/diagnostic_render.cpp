@@ -23,7 +23,20 @@ std::string Render(const Diagnostic& diag) {
   SPEC_DEF("Render", "1.6.6");
   std::string out = diag.code;
   out += " (";
-  out += (diag.severity == Severity::Error) ? "error" : "warning";
+  switch (diag.severity) {
+    case Severity::Error:
+      out += "error";
+      break;
+    case Severity::Warning:
+      out += "warning";
+      break;
+    case Severity::Info:
+      out += "info";
+      break;
+    case Severity::Panic:
+      out += "panic";
+      break;
+  }
   out += ")";
   if (!diag.message.empty()) {
     out += ": ";

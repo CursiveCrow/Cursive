@@ -16,6 +16,10 @@ std::string_view LexemeText(const Token& tok);
 
 bool IsKeyword(std::string_view s);
 
+// §3.3.4 Fixed identifiers - identifiers with special meaning in context
+bool IsFixedIdentifier(std::string_view s);
+bool IsFixedIdentTok(const Token& tok, std::string_view s);
+
 bool IsCtxKeyword(std::string_view s);
 bool Ctx(const Token& tok, std::string_view s);
 

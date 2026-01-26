@@ -3,6 +3,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "cursive0/core/span.h"
@@ -19,6 +20,23 @@ struct ProvCheckResult {
   std::optional<core::Span> span;
 };
 
+enum class ProvenanceKind {
+  Global,
+  Stack,
+  Heap,
+  Region,
+  Bottom,
+  Param,
+};
+
+struct ExprProvMapResult {
+  bool ok = false;
+  std::optional<std::string_view> diag_id;
+  std::optional<core::Span> span;
+  std::unordered_map<const syntax::Expr*, ProvenanceKind> expr_prov;
+  std::unordered_map<const syntax::Expr*, std::string> expr_region;
+};
+
 TypeRef RegionActiveTypeRef();
 bool RegionActiveType(const TypeRef& type);
 std::optional<std::string> InnermostActiveRegion(const TypeEnv& env);
@@ -29,5 +47,12 @@ ProvCheckResult ProvBindCheck(const ScopeContext& ctx,
                               const std::vector<syntax::Param>& params,
                               const std::shared_ptr<syntax::Block>& body,
                               const std::optional<BindSelfParam>& self_param);
+
+ExprProvMapResult ComputeExprProvenanceMap(
+    const ScopeContext& ctx,
+    const syntax::ModulePath& module_path,
+    const std::vector<syntax::Param>& params,
+    const std::shared_ptr<syntax::Block>& body,
+    const std::optional<BindSelfParam>& self_param);
 
 }  // namespace cursive0::analysis

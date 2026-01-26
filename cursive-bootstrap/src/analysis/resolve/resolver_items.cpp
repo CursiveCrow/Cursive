@@ -766,6 +766,37 @@ ResolveResult<syntax::ASTItem> ResolveItem(ResolveContext& ctx,
           out.items = items.value;
           SPEC_RULE("ResolveItem-Class");
           return {true, std::nullopt, std::nullopt, out};
+        } else if constexpr (std::is_same_v<T, syntax::ExternBlock>) {
+          auto out = node;
+          // Resolve each extern procedure declaration
+          std::vector<syntax::ExternItem> resolved_items;
+          for (const auto& ext_item : node.items) {
+            std::visit(
+                [&](const auto& item) {
+                  using IT = std::decay_t<decltype(item)>;
+                  if constexpr (std::is_same_v<IT, syntax::ExternProcDecl>) {
+                    auto proc_out = item;
+                    const auto resolved_params = ResolveParams(ctx, item.params);
+                    if (resolved_params.ok) {
+                      proc_out.params = resolved_params.value;
+                    }
+                    const auto resolved_ret =
+                        ResolveTypeOpt(ctx, item.return_type_opt);
+                    if (resolved_ret.ok) {
+                      proc_out.return_type_opt = resolved_ret.value;
+                    }
+                    resolved_items.push_back(proc_out);
+                  }
+                },
+                ext_item);
+          }
+          out.items = resolved_items;
+          SPEC_RULE("ResolveItem-ExternBlock");
+          return {true, std::nullopt, std::nullopt, out};
+        } else if constexpr (std::is_same_v<T, syntax::ImportDecl>) {
+          // Import declarations are resolved during module loading
+          SPEC_RULE("ResolveItem-Import");
+          return {true, std::nullopt, std::nullopt, node};
         } else {
           SPEC_RULE("ResolveItem-Error");
           return {true, std::nullopt, std::nullopt, node};

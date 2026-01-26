@@ -42,6 +42,14 @@ std::string RegionSymNewScoped();
 // RegionSym(Region::alloc) = PathSig(["cursive", "runtime", "region", "alloc"])
 std::string RegionSymAlloc();
 
+// (RegionSym-Mark)
+// RegionSym(Region::mark) = PathSig(["cursive", "runtime", "region", "mark"])
+std::string RegionSymMark();
+
+// (RegionSym-ResetTo)
+// RegionSym(Region::reset_to) = PathSig(["cursive", "runtime", "region", "reset_to"])
+std::string RegionSymResetTo();
+
 // (RegionSym-ResetUnchecked)
 // RegionSym(Region::reset_unchecked) = PathSig(["cursive", "runtime", "region", "reset_unchecked"])
 std::string RegionSymResetUnchecked();
@@ -57,6 +65,14 @@ std::string RegionSymThaw();
 // (RegionSym-FreeUnchecked)
 // RegionSym(Region::free_unchecked) = PathSig(["cursive", "runtime", "region", "free_unchecked"])
 std::string RegionSymFreeUnchecked();
+
+// (RegionSym-AddrIsActive)
+// RegionAddrActiveSym = PathSig(["cursive", "runtime", "region", "addr_is_active"])
+std::string RegionSymAddrIsActive();
+
+// (RegionSym-AddrTagFrom)
+// RegionAddrTagFromSym = PathSig(["cursive", "runtime", "region", "addr_tag_from"])
+std::string RegionSymAddrTagFrom();
 
 // Dispatch function for RegionSym by method name
 std::string RegionSym(const std::string& method);
@@ -155,6 +171,18 @@ std::string BuiltinSymContextInline();
 
 // (BuiltinSym-CancelToken-New)
 std::string BuiltinSymCancelTokenNew();
+
+// ============================================================================
+// §19 Reactor builtins
+// ============================================================================
+
+// (BuiltinSym-Reactor-Run)
+// Reactor::run - starts the reactor event loop
+std::string BuiltinSymReactorRun();
+
+// (BuiltinSym-Reactor-Register)
+// Reactor::register - registers a handler with the reactor
+std::string BuiltinSymReactorRegister();
 
 // ============================================================================
 // §6.12.14 String/Bytes builtin symbols

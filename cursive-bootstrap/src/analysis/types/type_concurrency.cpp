@@ -1280,7 +1280,7 @@ struct YieldFinder {
                     for (const auto& elem : payload.elements) {
                       VisitExpr(elem);
                     }
-                  } else if constexpr (std::is_same_v<P, syntax::EnumPayloadRecord>) {
+                  } else if constexpr (std::is_same_v<P, syntax::EnumPayloadBrace>) {
                     for (const auto& field : payload.fields) {
                       VisitExpr(field.value);
                     }

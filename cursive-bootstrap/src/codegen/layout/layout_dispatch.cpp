@@ -298,7 +298,8 @@ std::optional<Layout> LayoutOf(const cursive0::analysis::ScopeContext& ctx,
   }
 
   if (const auto* modal = std::get_if<cursive0::analysis::TypeModalState>(&type->node)) {
-    const bool is_async = modal->path.size() == 1 && IdEq(modal->path[0], "Async");
+    const bool is_async = modal->path.size() == 1 &&
+                          analysis::IdEq(modal->path[0], "Async");
     if (analysis::IsSpawnHandleTypePath(modal->path) ||
         analysis::IsCancelTokenTypePath(modal->path) ||
         analysis::IsFutureHandleTypePath(modal->path) ||
@@ -308,7 +309,8 @@ std::optional<Layout> LayoutOf(const cursive0::analysis::ScopeContext& ctx,
     }
   }
   if (const auto* path = std::get_if<cursive0::analysis::TypePathType>(&type->node)) {
-    const bool is_async = path->path.size() == 1 && IdEq(path->path[0], "Async");
+    const bool is_async = path->path.size() == 1 &&
+                          analysis::IdEq(path->path[0], "Async");
     if (analysis::IsSpawnHandleTypePath(path->path) ||
         analysis::IsCancelTokenTypePath(path->path) ||
         analysis::IsFutureHandleTypePath(path->path) ||

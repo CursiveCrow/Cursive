@@ -6,6 +6,7 @@
 #include "cursive0/codegen/lower/lower_expr.h"
 #include "cursive0/codegen/lower/lower_pat.h"
 #include "cursive0/core/assert_spec.h"
+#include "cursive0/runtime/runtime_interface.h"
 
 #include <cassert>
 #include <variant>
@@ -14,12 +15,51 @@ namespace cursive0::codegen {
 
 namespace {
 
+struct ProvInfo {
+  analysis::ProvenanceKind kind = analysis::ProvenanceKind::Bottom;
+  std::optional<std::string> region;
+};
+
+ProvInfo BindProvInfo(const ProvInfo& init) {
+  if (init.kind == analysis::ProvenanceKind::Bottom) {
+    return ProvInfo{analysis::ProvenanceKind::Stack, std::nullopt};
+  }
+  return init;
+}
+
+ProvInfo ExprProvInfo(const syntax::Expr& expr, const LowerCtx& ctx) {
+  ProvInfo info;
+  if (auto prov = ctx.LookupExprProv(expr)) {
+    info.kind = *prov;
+  }
+  if (info.kind == analysis::ProvenanceKind::Region) {
+    info.region = ctx.LookupExprRegion(expr);
+  }
+  return info;
+}
+
 bool BlockEndsWithReturn(const syntax::Block& block) {
   if (block.stmts.empty()) {
     return false;
   }
   return std::holds_alternative<syntax::ReturnStmt>(block.stmts.back());
 }
+
+struct ParallelCollectScope {
+  LowerCtx& ctx;
+  bool active = false;
+  explicit ParallelCollectScope(LowerCtx& ctx_in) : ctx(ctx_in) {
+    active = ctx.parallel_collect != nullptr;
+    if (active) {
+      ctx.parallel_collect_depth += 1;
+    }
+  }
+  ~ParallelCollectScope() {
+    if (active) {
+      ctx.parallel_collect_depth -= 1;
+    }
+  }
+};
 
 bool DispatchHasReduce(const syntax::DispatchExpr& expr) {
   for (const auto& opt : expr.opts) {
@@ -170,21 +210,7 @@ IRPtr LowerStmtList(const std::vector<syntax::Stmt>& stmts, LowerCtx& ctx) {
 LowerResult LowerBlock(const syntax::Block& block, LowerCtx& ctx) {
   // Push a new scope for this block
   ctx.PushScope(false, false);
-  struct ParallelCollectScope {
-    LowerCtx& ctx;
-    bool active = false;
-    explicit ParallelCollectScope(LowerCtx& ctx_in) : ctx(ctx_in) {
-      active = ctx.parallel_collect != nullptr;
-      if (active) {
-        ctx.parallel_collect_depth += 1;
-      }
-    }
-    ~ParallelCollectScope() {
-      if (active) {
-        ctx.parallel_collect_depth -= 1;
-      }
-    }
-  } collect_scope(ctx);
+  ParallelCollectScope collect_scope(ctx);
 
   // Lower all statements
   IRPtr stmts_ir = LowerStmtList(block.stmts, ctx);
@@ -258,17 +284,26 @@ IRPtr LowerLetStmt(const syntax::LetStmt& stmt, LowerCtx& ctx) {
   if (!var_type && ctx.expr_type && binding.init) {
     var_type = ctx.expr_type(*binding.init);
   }
+  ProvInfo init_prov;
+  if (binding.init) {
+    init_prov = ExprProvInfo(*binding.init, ctx);
+  }
+  const ProvInfo bind_prov = BindProvInfo(init_prov);
   const bool immovable = binding.op.lexeme == ":=";
   if (binding.pat) {
-    RegisterPatternBindings(*binding.pat, var_type, ctx, immovable);
+    RegisterPatternBindings(*binding.pat, var_type, ctx, immovable,
+                            bind_prov.kind, bind_prov.region);
     bind_ir = LowerBindPattern(*binding.pat, init_result.value, ctx);
   } else {
     IRBindVar bind;
     bind.name = "anon_binding";
     bind.value = init_result.value;
     bind.type = var_type;
+    bind.prov = bind_prov.kind;
+    bind.prov_region = bind_prov.region;
     bind_ir = MakeIR(std::move(bind));
-    ctx.RegisterVar(bind.name, var_type, true, immovable);
+    ctx.RegisterVar(bind.name, var_type, true, immovable, bind_prov.kind,
+                    bind_prov.region);
   }
 
   return SeqIR({init_result.ir, bind_ir});
@@ -298,17 +333,26 @@ IRPtr LowerVarStmt(const syntax::VarStmt& stmt, LowerCtx& ctx) {
   if (!var_type && ctx.expr_type && binding.init) {
     var_type = ctx.expr_type(*binding.init);
   }
+  ProvInfo init_prov;
+  if (binding.init) {
+    init_prov = ExprProvInfo(*binding.init, ctx);
+  }
+  const ProvInfo bind_prov = BindProvInfo(init_prov);
   const bool immovable = binding.op.lexeme == ":=";
   if (binding.pat) {
-    RegisterPatternBindings(*binding.pat, var_type, ctx, immovable);
+    RegisterPatternBindings(*binding.pat, var_type, ctx, immovable,
+                            bind_prov.kind, bind_prov.region);
     bind_ir = LowerBindPattern(*binding.pat, init_result.value, ctx);
   } else {
     IRBindVar bind;
     bind.name = "anon_var";
     bind.value = init_result.value;
     bind.type = var_type;
+    bind.prov = bind_prov.kind;
+    bind.prov_region = bind_prov.region;
     bind_ir = MakeIR(std::move(bind));
-    ctx.RegisterVar(bind.name, var_type, true, immovable);
+    ctx.RegisterVar(bind.name, var_type, true, immovable, bind_prov.kind,
+                    bind_prov.region);
   }
 
   return SeqIR({init_result.ir, bind_ir});
@@ -576,7 +620,15 @@ IRPtr LowerStmt(const syntax::Stmt& stmt, LowerCtx& ctx) {
             var_type = ctx.expr_type(*node.init);
           }
           bind.type = var_type;
-          ctx.RegisterVar(node.name, var_type, true, false);
+          ProvInfo init_prov;
+          if (node.init) {
+            init_prov = ExprProvInfo(*node.init, ctx);
+          }
+          const ProvInfo bind_prov = BindProvInfo(init_prov);
+          bind.prov = bind_prov.kind;
+          bind.prov_region = bind_prov.region;
+          ctx.RegisterVar(node.name, var_type, true, false, bind_prov.kind,
+                          bind_prov.region);
           return SeqIR({init_result.ir, MakeIR(std::move(bind))});
         } else if constexpr (std::is_same_v<T, syntax::ShadowVarStmt>) {
           SPEC_RULE("Lower-Stmt-ShadowVar");
@@ -596,7 +648,15 @@ IRPtr LowerStmt(const syntax::Stmt& stmt, LowerCtx& ctx) {
             var_type = ctx.expr_type(*node.init);
           }
           bind.type = var_type;
-          ctx.RegisterVar(node.name, var_type, true, false);
+          ProvInfo init_prov;
+          if (node.init) {
+            init_prov = ExprProvInfo(*node.init, ctx);
+          }
+          const ProvInfo bind_prov = BindProvInfo(init_prov);
+          bind.prov = bind_prov.kind;
+          bind.prov_region = bind_prov.region;
+          ctx.RegisterVar(node.name, var_type, true, false, bind_prov.kind,
+                          bind_prov.region);
           return SeqIR({init_result.ir, MakeIR(std::move(bind))});
         } else if constexpr (std::is_same_v<T, syntax::AssignStmt>) {
           return LowerAssignStmt(node, ctx);
@@ -630,27 +690,28 @@ IRPtr LowerStmt(const syntax::Stmt& stmt, LowerCtx& ctx) {
           }
 
           auto opts_result = LowerExpr(*opts_expr, ctx);
-          if (node.alias_opt.has_value()) {
-            ctx.PushScope(false, true);
-            analysis::TypePath region_path;
-            region_path.push_back("Region");
-            const auto region_type = analysis::MakeTypeModalState(std::move(region_path),
-                                                              "Active");
-            ctx.RegisterVar(*node.alias_opt, region_type, false, true);
-          }
+          const std::string alias_name =
+              node.alias_opt.has_value() ? *node.alias_opt : ctx.FreshRegionAlias();
+          ctx.PushScope(false, true);
+          ctx.RegisterRegionRelease(alias_name);
+          analysis::TypePath region_path;
+          region_path.push_back("Region");
+          const auto region_type =
+              analysis::MakeTypeModalState(std::move(region_path), "Active");
+          ctx.RegisterVar(alias_name, region_type, false, true);
+          ctx.active_region_aliases.push_back(alias_name);
 
           auto body_result = LowerBlock(*node.body, ctx);
 
-          if (node.alias_opt.has_value()) {
-            ctx.PopScope();
-          }
+          ctx.active_region_aliases.pop_back();
+          ctx.PopScope();
           if (ctx.temp_sink) {
             ctx.RegisterTempValue(body_result.value, block_result_type(node.body));
           }
 
           IRRegion region;
           region.owner = opts_result.value;
-          region.alias = node.alias_opt;
+          region.alias = alias_name;
           region.body = body_result.ir;
           region.value = body_result.value;
 
@@ -660,34 +721,109 @@ IRPtr LowerStmt(const syntax::Stmt& stmt, LowerCtx& ctx) {
             return EmptyIR();
           }
 
-          auto body_result = LowerBlock(*node.body, ctx);
-          if (ctx.temp_sink) {
-            ctx.RegisterTempValue(body_result.value, block_result_type(node.body));
-          }
-
-          if (!node.target_opt.has_value()) {
+          std::optional<IRValue> region_value;
+          IRPtr region_ir = EmptyIR();
+          if (node.target_opt.has_value()) {
+            SPEC_RULE("Lower-Stmt-Frame-Explicit");
+            syntax::IdentifierExpr ident;
+            ident.name = *node.target_opt;
+            syntax::Expr region_expr;
+            region_expr.span = node.span;
+            region_expr.node = ident;
+            auto region_result = LowerExpr(region_expr, ctx);
+            region_ir = region_result.ir;
+            region_value = region_result.value;
+          } else {
             SPEC_RULE("Lower-Stmt-Frame-Implicit");
-            IRFrame frame;
-            frame.region = std::nullopt;
-            frame.body = body_result.ir;
-            frame.value = body_result.value;
-            return MakeIR(std::move(frame));
+            if (!ctx.active_region_aliases.empty()) {
+              IRValue value;
+              value.kind = IRValue::Kind::Local;
+              value.name = ctx.active_region_aliases.back();
+              region_value = value;
+            }
           }
 
-          SPEC_RULE("Lower-Stmt-Frame-Explicit");
-          syntax::IdentifierExpr ident;
-          ident.name = *node.target_opt;
-          syntax::Expr region_expr;
-          region_expr.span = node.span;
-          region_expr.node = ident;
-          auto region_result = LowerExpr(region_expr, ctx);
+          if (!region_value.has_value()) {
+            return EmptyIR();
+          }
+
+          IRValue mark_value = ctx.FreshTempValue("frame_mark");
+          ctx.RegisterValueType(mark_value, analysis::MakeTypePrim("usize"));
+
+          IRCall mark_call;
+          mark_call.callee.kind = IRValue::Kind::Symbol;
+          mark_call.callee.name = RegionSymMark();
+          mark_call.args.push_back(*region_value);
+          mark_call.result = mark_value;
+          IRPtr mark_ir = MakeIR(std::move(mark_call));
+
+          IRCall reset_call;
+          reset_call.callee.kind = IRValue::Kind::Symbol;
+          reset_call.callee.name = RegionSymResetTo();
+          reset_call.args.push_back(*region_value);
+          reset_call.args.push_back(mark_value);
+          IRValue reset_value = ctx.FreshTempValue("frame_reset");
+          reset_call.result = reset_value;
+          ctx.RegisterValueType(reset_value, analysis::MakeTypePrim("()"));
+          IRPtr reset_ir = MakeIR(std::move(reset_call));
+
+          ctx.PushScope(false, false);
+          const std::string frame_tag = ctx.FreshRegionAlias();
+          ctx.ReserveRegionTag(frame_tag);
+          ParallelCollectScope collect_scope(ctx);
+          // Ensure reset runs after defers/drops in this frame scope.
+          ctx.RegisterDefer(reset_ir);
+
+          IRPtr stmts_ir = LowerStmtList(node.body->stmts, ctx);
+
+          IRPtr tail_ir = EmptyIR();
+          IRValue result_value;
+          if (node.body->tail_opt) {
+            SPEC_RULE("Lower-Block-Tail");
+            bool needs_wait = false;
+            const bool collect_tail =
+                ctx.parallel_collect && ctx.parallel_collect_depth == 1 &&
+                IsCollectableParallelExpr(*node.body->tail_opt, needs_wait);
+            auto prev_suppress = ctx.suppress_temp_at_depth;
+            if (collect_tail) {
+              ctx.suppress_temp_at_depth = ctx.temp_depth + 1;
+            }
+            auto tail_result = LowerExpr(*node.body->tail_opt, ctx);
+            if (collect_tail) {
+              ctx.suppress_temp_at_depth = prev_suppress;
+              ctx.parallel_collect->push_back({tail_result.value, needs_wait});
+            } else {
+              ctx.suppress_temp_at_depth = prev_suppress;
+            }
+            tail_ir = tail_result.ir;
+            result_value = tail_result.value;
+          } else {
+            SPEC_RULE("Lower-Block-Unit");
+            result_value.kind = IRValue::Kind::Opaque;
+            result_value.name = "unit";
+          }
+
+          CleanupPlan cleanup_plan = ComputeCleanupPlanForCurrentScope(ctx);
+          CleanupPlan remainder = ComputeCleanupPlanRemainder(CleanupTarget::CurrentScope, ctx);
+          IRPtr cleanup_ir = EmitCleanupWithRemainder(cleanup_plan, remainder, ctx);
+          ctx.PopScope();
+
+          const bool ends_with_return = BlockEndsWithReturn(*node.body);
+          IRBlock block_ir;
+          block_ir.setup = SeqIR({region_ir, mark_ir, stmts_ir});
+          block_ir.body = ends_with_return ? tail_ir : SeqIR({tail_ir, cleanup_ir});
+          block_ir.value = result_value;
+
+          if (ctx.temp_sink) {
+            ctx.RegisterTempValue(result_value, block_result_type(node.body));
+          }
 
           IRFrame frame;
-          frame.region = region_result.value;
-          frame.body = body_result.ir;
-          frame.value = body_result.value;
+          frame.region = region_value;
+          frame.body = MakeIR(std::move(block_ir));
+          frame.value = result_value;
 
-          return SeqIR({region_result.ir, MakeIR(std::move(frame))});
+          return MakeIR(std::move(frame));
         } else if constexpr (std::is_same_v<T, syntax::ReturnStmt>) {
           temps_handled = true;
           return LowerReturnStmt(node, ctx, temps);
@@ -812,7 +948,10 @@ LowerResult LowerLoopIter(const syntax::LoopIterExpr& expr, LowerCtx& ctx) {
   if (ctx.expr_type) {
     pattern_type = LoopPatternType(ctx.expr_type(*expr.iter));
   }
-  RegisterPatternBindings(*expr.pattern, pattern_type, ctx);
+  const ProvInfo iter_prov = ExprProvInfo(*expr.iter, ctx);
+  const ProvInfo bind_prov = BindProvInfo(iter_prov);
+  RegisterPatternBindings(*expr.pattern, pattern_type, ctx, false,
+                          bind_prov.kind, bind_prov.region);
 
   // Lower the body
   LowerResult body_result = LowerBlock(*expr.body, ctx);

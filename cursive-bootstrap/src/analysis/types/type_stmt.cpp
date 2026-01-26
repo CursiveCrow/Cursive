@@ -2709,7 +2709,7 @@ StmtTypeResult TypeStmt(const ScopeContext& ctx,
             return VerifyPostconditionAtReturn(ctx, type_ctx, value);
           };
           const syntax::ExprPtr ret_value =
-              node.value_opt ? *node.value_opt : syntax::ExprPtr{};
+              node.value_opt ? node.value_opt : syntax::ExprPtr{};
           const auto async_sig = AsyncSigOf(ctx, type_ctx.return_type);
           if (async_sig.has_value()) {
             if (node.value_opt) {

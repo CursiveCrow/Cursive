@@ -1732,12 +1732,122 @@ ParseItemResult ParseItem(Parser parser) {
   }
   if (const Token* tok = Tok(parser);
       tok && IsIdentTok(*tok) && tok->lexeme == "extern") {
-    SPEC_RULE("Parse-Extern-Unsupported");
-    EmitExternUnsupported(parser);
+    SPEC_RULE("Parse-Extern-Block");
     Parser next = parser;
+    Advance(next);  // consume extern
+
+    // Parse optional ABI: extern "C" or extern ABI_ID
+    std::optional<ExternAbi> abi_opt;
+    const Token* abi_tok = Tok(next);
+    if (abi_tok) {
+      if (abi_tok->kind == TokenKind::StringLiteral) {
+        SPEC_RULE("Parse-Extern-Abi-String");
+        ExternAbiString abi_str;
+        abi_str.literal = *abi_tok;
+        abi_opt = abi_str;
+        Advance(next);
+      } else if (IsIdentTok(*abi_tok)) {
+        SPEC_RULE("Parse-Extern-Abi-Ident");
+        ExternAbiIdent abi_id;
+        abi_id.name = abi_tok->lexeme;
+        abi_opt = abi_id;
+        Advance(next);
+      }
+    }
+
+    // Expect opening brace
+    if (!IsPunc(next, "{")) {
+      EmitParseSyntaxErr(next, TokSpan(next));
+      Parser sync = next;
+      SyncItem(sync);
+      return {sync, ErrorItem{SpanBetween(start, sync)}};
+    }
     Advance(next);
-    SyncItem(next);
-    return {next, ErrorItem{SpanBetween(start, next)}};
+
+    // Parse extern items
+    std::vector<ExternItem> items;
+    while (!IsPunc(next, "}") && !AtEof(next)) {
+      // Skip newlines
+      while (Tok(next) && Tok(next)->kind == TokenKind::Newline) {
+        Advance(next);
+      }
+      if (IsPunc(next, "}")) break;
+
+      // Parse optional attributes for extern proc
+      ParseElemResult<AttributeList> item_attrs = ParseAttributeListOpt(next);
+      next = item_attrs.parser;
+
+      // Skip newlines after attributes
+      while (Tok(next) && Tok(next)->kind == TokenKind::Newline) {
+        Advance(next);
+      }
+
+      // Parse visibility
+      ParseElemResult<Visibility> item_vis = ParseVis(next);
+      next = item_vis.parser;
+
+      // Expect procedure keyword
+      if (!IsKw(next, "procedure")) {
+        EmitParseSyntaxErr(next, TokSpan(next));
+        SyncStmt(next);
+        continue;
+      }
+      Advance(next);  // consume procedure
+
+      // Parse procedure name
+      ParseElemResult<Identifier> proc_name = ParseIdent(next);
+
+      // Parse optional generic parameters
+      ParseElemResult<std::optional<GenericParams>> gen_params =
+          ParseGenericParamsOpt(proc_name.parser);
+
+      // Parse signature
+      SignatureResult sig = ParseSignature(gen_params.parser);
+
+      // Parse optional where clause
+      ParseElemResult<std::optional<WhereClause>> where_clause =
+          ParseWhereClauseOpt(sig.parser);
+
+      // Parse optional contract clause
+      ParseElemResult<std::optional<ContractClause>> contract =
+          ParseContractClauseOpt(where_clause.parser);
+
+      ExternProcDecl proc_decl;
+      proc_decl.attrs = item_attrs.elem;
+      proc_decl.vis = item_vis.elem;
+      proc_decl.name = proc_name.elem;
+      proc_decl.generic_params = gen_params.elem;
+      proc_decl.where_clause = where_clause.elem;
+      proc_decl.params = sig.params;
+      proc_decl.return_type_opt = sig.return_type_opt;
+      proc_decl.contract = contract.elem;
+      proc_decl.span = SpanBetween(item_attrs.parser, contract.parser);
+
+      items.push_back(proc_decl);
+      next = contract.parser;
+
+      // Consume terminator
+      const Token* term = Tok(next);
+      if (term && (term->kind == TokenKind::Newline ||
+                   (term->kind == TokenKind::Punctuator && term->lexeme == ";"))) {
+        Advance(next);
+      }
+    }
+
+    // Expect closing brace
+    if (!IsPunc(next, "}")) {
+      EmitParseSyntaxErr(next, TokSpan(next));
+    } else {
+      Advance(next);
+    }
+
+    ExternBlock block;
+    block.attrs = attrs.elem;
+    block.vis = Visibility::Private;  // Extern blocks default to private visibility
+    block.abi_opt = abi_opt;
+    block.items = std::move(items);
+    block.span = SpanBetween(start, next);
+    return {next, block};
   }
   if (const Token* tok = Tok(parser);
       tok && IsIdentTok(*tok) && tok->lexeme == "use") {
@@ -1968,7 +2078,9 @@ ParseItemResult ParseItem(Parser parser) {
     TypeAliasDecl decl;
     decl.vis = vis.elem;
     decl.name = name.elem;
+    decl.generic_params = gen_params.elem;  // C0X Extension
     decl.type = ty.elem;
+    decl.where_clause = where_clause.elem;  // C0X Extension
     decl.span = SpanBetween(start, where_clause.parser);
     decl.doc = {};
     return {where_clause.parser, decl};

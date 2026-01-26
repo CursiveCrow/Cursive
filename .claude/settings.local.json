@@ -70,7 +70,12 @@
       "Bash(cursive-bootstrap/build/Release/cursivec0.exe build:*)",
       "Bash(./build/Release/syntax_parse_modules_test.exe)",
       "Bash(ctest:*)",
-      "Bash(./Release/cursivec0.exe build:*)"
+      "Bash(./Release/cursivec0.exe build:*)",
+      "Bash(awk:*)",
+      "Bash(for rule in \"Loop-Async-Err\" \"Return-Async-Type-Err\" \"Return-Async-Unit-Err\" \"Return-Unit-Err\" \"T-UnsafeBlockStmt\")",
+      "Bash(do echo \"=== $rule ===\")",
+      "Bash(comm -23:*)",
+      "Bash(comm -13:*)"
     ],
     "deny": [
       "Bash(git: *)"

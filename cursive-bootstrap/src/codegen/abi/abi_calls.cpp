@@ -148,7 +148,7 @@ std::optional<std::string> MethodSymbol(const analysis::ScopeContext& ctx,
     return std::nullopt;
   }
 
-  TypeRef stripped = StripPerm(type);
+  analysis::TypeRef stripped = StripPerm(type);
   if (stripped) {
     if (const auto* opaque = std::get_if<analysis::TypeOpaque>(&stripped->node)) {
       if (opaque->origin) {

@@ -443,7 +443,8 @@ llvm::Type* LLVMEmitter::GetLLVMType(analysis::TypeRef type) {
       ll_ty = llvm::StructType::get(context_, {});
     } else {
       const auto* modal = std::get_if<analysis::TypeModalState>(&type->node);
-      const bool is_async = modal && modal->path.size() == 1 && IdEq(modal->path[0], "Async");
+      const bool is_async = modal && modal->path.size() == 1 &&
+                            analysis::IdEq(modal->path[0], "Async");
       if (modal && (analysis::IsSpawnHandleTypePath(modal->path) ||
                     analysis::IsCancelTokenTypePath(modal->path) ||
                     analysis::IsFutureHandleTypePath(modal->path) ||
@@ -525,7 +526,8 @@ llvm::Type* LLVMEmitter::GetLLVMType(analysis::TypeRef type) {
       SPEC_RULE("LLVMTy-Err");
       ll_ty = GetOpaquePtr();
     } else {
-      const bool is_async = path->path.size() == 1 && IdEq(path->path[0], "Async");
+      const bool is_async = path->path.size() == 1 &&
+                            analysis::IdEq(path->path[0], "Async");
       if (analysis::IsSpawnHandleTypePath(path->path) ||
           analysis::IsCancelTokenTypePath(path->path) ||
           analysis::IsFutureHandleTypePath(path->path) ||

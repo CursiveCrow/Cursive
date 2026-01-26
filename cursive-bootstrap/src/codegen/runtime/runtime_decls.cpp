@@ -200,9 +200,26 @@ void LLVMEmitter::DeclareRuntime() {
     auto region_active = TypeModalState({"Region"}, "Active");
     auto self_ty = analysis::MakeTypePerm(analysis::Permission::Unique, region_active);
     params.push_back(MakeParam("self", std::nullopt, self_ty));
-    // Polymorphic value parameter; default to unit for declaration if unknown.
-    params.push_back(MakeParam("value", std::nullopt, TypePrim("()")));
-    declare_fn(RegionSymAlloc(), params, TypePrim("()"), false);
+    params.push_back(MakeParam("size", std::nullopt, TypePrim("usize")));
+    params.push_back(MakeParam("align", std::nullopt, TypePrim("usize")));
+    auto ret_ty = analysis::MakeTypeRawPtr(analysis::RawPtrQual::Mut,
+                                           analysis::MakeTypePrim("u8"));
+    declare_fn(RegionSymAlloc(), params, ret_ty, false);
+  }
+  {
+    std::vector<IRParam> params;
+    auto region_active = TypeModalState({"Region"}, "Active");
+    auto self_ty = analysis::MakeTypePerm(analysis::Permission::Unique, region_active);
+    params.push_back(MakeParam("self", std::nullopt, self_ty));
+    declare_fn(RegionSymMark(), params, TypePrim("usize"), false);
+  }
+  {
+    std::vector<IRParam> params;
+    auto region_active = TypeModalState({"Region"}, "Active");
+    auto self_ty = analysis::MakeTypePerm(analysis::Permission::Unique, region_active);
+    params.push_back(MakeParam("self", std::nullopt, self_ty));
+    params.push_back(MakeParam("mark", std::nullopt, TypePrim("usize")));
+    declare_fn(RegionSymResetTo(), params, TypePrim("()"), false);
   }
   {
     std::vector<IRParam> params;
@@ -240,6 +257,21 @@ void LLVMEmitter::DeclareRuntime() {
     params.push_back(MakeParam("self", std::nullopt, self_ty));
     declare_fn(RegionSymFreeUnchecked(), params,
                TypeModalState({"Region"}, "Freed"), false);
+  }
+  {
+    std::vector<IRParam> params;
+    auto addr_ty = analysis::MakeTypeRawPtr(analysis::RawPtrQual::Imm,
+                                            analysis::MakeTypePrim("u8"));
+    params.push_back(MakeParam("addr", std::nullopt, addr_ty));
+    declare_fn(RegionSymAddrIsActive(), params, TypePrim("bool"), false);
+  }
+  {
+    std::vector<IRParam> params;
+    auto addr_ty = analysis::MakeTypeRawPtr(analysis::RawPtrQual::Imm,
+                                            analysis::MakeTypePrim("u8"));
+    params.push_back(MakeParam("addr", std::nullopt, addr_ty));
+    params.push_back(MakeParam("base", std::nullopt, addr_ty));
+    declare_fn(RegionSymAddrTagFrom(), params, TypePrim("()"), false);
   }
 
   // String builtins

@@ -118,6 +118,10 @@ std::uint16_t PanicCode(PanicReason reason) {
       return 0x0009;
     case PanicReason::InitPanic:
       return 0x000A;
+    case PanicReason::ContractPre:
+      return 0x000B;
+    case PanicReason::ContractPost:
+      return 0x000C;
     case PanicReason::Other:
     default:
       return 0x00FF;
@@ -146,6 +150,10 @@ std::string PanicReasonString(PanicReason reason) {
       return "ExpiredDeref";
     case PanicReason::InitPanic:
       return "InitPanic";
+    case PanicReason::ContractPre:
+      return "ContractPre";
+    case PanicReason::ContractPost:
+      return "ContractPost";
     case PanicReason::Other:
     default:
       return "Other";

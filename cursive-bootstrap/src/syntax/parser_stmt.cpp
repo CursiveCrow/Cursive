@@ -448,9 +448,12 @@ ParseStmtCoreResult ParseStmtCore(Parser parser) {
     }
     
     // Parse key block modifiers: dynamic, speculative, release
+    // Note: These are fixed identifiers per §3.3.4, not keywords
     std::vector<KeyBlockMod> mods;
-    while (IsKw(next, "dynamic") || IsKw(next, "speculative") || IsKw(next, "release")) {
-      const Token* mod_tok = Tok(next);
+    const Token* mod_tok = Tok(next);
+    while (mod_tok && mod_tok->kind == TokenKind::Identifier &&
+           (mod_tok->lexeme == "dynamic" || mod_tok->lexeme == "speculative" ||
+            mod_tok->lexeme == "release")) {
       if (mod_tok->lexeme == "dynamic") {
         mods.push_back(KeyBlockMod::Dynamic);
       } else if (mod_tok->lexeme == "speculative") {
@@ -459,16 +462,21 @@ ParseStmtCoreResult ParseStmtCore(Parser parser) {
         mods.push_back(KeyBlockMod::Release);
       }
       Advance(next);
+      mod_tok = Tok(next);
     }
-    
+
     // Parse key mode: read or write
+    // Note: These are fixed identifiers per §3.3.4, not keywords
     std::optional<KeyMode> mode;
-    if (IsKw(next, "read")) {
-      mode = KeyMode::Read;
-      Advance(next);
-    } else if (IsKw(next, "write")) {
-      mode = KeyMode::Write;
-      Advance(next);
+    const Token* mode_tok = Tok(next);
+    if (mode_tok && mode_tok->kind == TokenKind::Identifier) {
+      if (mode_tok->lexeme == "read") {
+        mode = KeyMode::Read;
+        Advance(next);
+      } else if (mode_tok->lexeme == "write") {
+        mode = KeyMode::Write;
+        Advance(next);
+      }
     }
     
     // Parse block body

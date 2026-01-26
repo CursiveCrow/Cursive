@@ -68,6 +68,13 @@ struct ProvExprResult {
   ProvTag prov;
 };
 
+struct ExprProvInfo {
+  ProvTag tag;
+  std::optional<IdKey> target;
+};
+
+using ExprProvTagMap = std::unordered_map<const syntax::Expr*, ExprProvInfo>;
+
 struct ProvStmtResult {
   bool ok = false;
   std::optional<std::string_view> diag_id;
@@ -870,6 +877,78 @@ static std::optional<std::string> InnermostActiveRegionName(
   return *region;
 }
 
+static ProvTag FrameProv(const TypeEnv& gamma, const ProvEnv& env) {
+  SpecDefsRegions();
+  const auto region = InnermostActiveRegionName(gamma);
+  if (!region.has_value()) {
+    return StackProv(env);
+  }
+  return RegionTag(IdKeyOf(*region));
+}
+
+static std::optional<AsyncSig> AsyncSigForExpr(const ScopeContext& ctx,
+                                               const TypeEnv& env,
+                                               const syntax::ExprPtr& expr) {
+  if (!expr) {
+    return std::nullopt;
+  }
+  StmtTypeContext type_ctx;
+  type_ctx.return_type = {};
+  type_ctx.loop_flag = LoopFlag::None;
+  type_ctx.in_unsafe = false;
+  type_ctx.diags = nullptr;
+
+  const auto expr_type = TypeExpr(ctx, type_ctx, expr, env);
+  if (!expr_type.ok || !expr_type.type) {
+    return std::nullopt;
+  }
+  return AsyncSigOf(ctx, expr_type.type);
+}
+
+static bool AsyncCreateExpr(const ScopeContext& ctx,
+                            const TypeEnv& env,
+                            const syntax::ExprPtr& expr) {
+  if (!expr) {
+    return false;
+  }
+  const bool is_async_form =
+      std::holds_alternative<syntax::CallExpr>(expr->node) ||
+      std::holds_alternative<syntax::MethodCallExpr>(expr->node) ||
+      std::holds_alternative<syntax::RaceExpr>(expr->node);
+  if (!is_async_form) {
+    return false;
+  }
+  return AsyncSigForExpr(ctx, env, expr).has_value();
+}
+
+static std::vector<syntax::ExprPtr> AsyncCaptureArgs(
+    const syntax::ExprPtr& expr) {
+  std::vector<syntax::ExprPtr> out;
+  if (!expr) {
+    return out;
+  }
+  std::visit(
+      [&](const auto& node) {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, syntax::CallExpr>) {
+          for (const auto& arg : node.args) {
+            out.push_back(arg.value);
+          }
+        } else if constexpr (std::is_same_v<T, syntax::MethodCallExpr>) {
+          out.push_back(node.receiver);
+          for (const auto& arg : node.args) {
+            out.push_back(arg.value);
+          }
+        } else if constexpr (std::is_same_v<T, syntax::RaceExpr>) {
+          for (const auto& arm : node.arms) {
+            out.push_back(arm.expr);
+          }
+        }
+      },
+      expr->node);
+  return out;
+}
+
 static std::optional<TypeRef> LookupTypeForRegion(const ScopeContext& ctx,
                                                   const TypeEnv& env,
                                                   std::string_view name) {
@@ -982,16 +1061,48 @@ static std::vector<syntax::ExprPtr> ChildrenLtr(const syntax::ExprPtr& expr) {
   return out;
 }
 
+static std::optional<IdKey> ResolveRegionTarget(const ProvEnv& env,
+                                                const ProvTag& tag) {
+  if (tag.kind != ProvKind::Region) {
+    return std::nullopt;
+  }
+  for (const auto& entry : env.regions) {
+    if (entry.tag == tag.region) {
+      return entry.target;
+    }
+  }
+  return std::nullopt;
+}
+
+static void RecordExprProv(const syntax::ExprPtr& expr,
+                           const ProvExprResult& res,
+                           const ProvEnv& env,
+                           ExprProvTagMap* map) {
+  if (!map || !expr) {
+    return;
+  }
+  if (!res.ok) {
+    return;
+  }
+  ExprProvInfo info;
+  info.tag = res.prov;
+  info.target = ResolveRegionTarget(env, res.prov);
+  (*map)[expr.get()] = std::move(info);
+}
+
 static ProvExprResult ProvExpr(const ScopeContext& ctx,
                                const syntax::ExprPtr& expr,
                                const ProvEnv& env,
-                               const TypeEnv& gamma);
+                               const TypeEnv& gamma,
+                               ExprProvTagMap* expr_map);
 
 static ProvExprResult ProvPlace(const ScopeContext& ctx,
                                 const syntax::ExprPtr& place,
                                 const ProvEnv& env,
-                                const TypeEnv& gamma) {
+                                const TypeEnv& gamma,
+                                ExprProvTagMap* expr_map) {
   (void)ctx;
+  (void)expr_map;
   ProvExprResult result;
   if (!place) {
     result.ok = true;
@@ -1008,7 +1119,7 @@ static ProvExprResult ProvPlace(const ScopeContext& ctx,
           result.prov = lookup.value_or(BottomTag());
           return result;
         } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
-          auto base = ProvPlace(ctx, node.base, env, gamma);
+          auto base = ProvPlace(ctx, node.base, env, gamma, expr_map);
           if (!base.ok) {
             return base;
           }
@@ -1016,7 +1127,7 @@ static ProvExprResult ProvPlace(const ScopeContext& ctx,
           base.prov = base.prov;
           return base;
         } else if constexpr (std::is_same_v<T, syntax::TupleAccessExpr>) {
-          auto base = ProvPlace(ctx, node.base, env, gamma);
+          auto base = ProvPlace(ctx, node.base, env, gamma, expr_map);
           if (!base.ok) {
             return base;
           }
@@ -1024,7 +1135,7 @@ static ProvExprResult ProvPlace(const ScopeContext& ctx,
           base.prov = base.prov;
           return base;
         } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
-          auto base = ProvPlace(ctx, node.base, env, gamma);
+          auto base = ProvPlace(ctx, node.base, env, gamma, expr_map);
           if (!base.ok) {
             return base;
           }
@@ -1032,7 +1143,7 @@ static ProvExprResult ProvPlace(const ScopeContext& ctx,
           base.prov = base.prov;
           return base;
         } else if constexpr (std::is_same_v<T, syntax::DerefExpr>) {
-          auto inner = ProvExpr(ctx, node.value, env, gamma);
+          auto inner = ProvExpr(ctx, node.value, env, gamma, expr_map);
           if (!inner.ok) {
             return inner;
           }
@@ -1063,17 +1174,20 @@ static ProvTag LoopProv(const ProvEnv& env,
 static ProvExprResult BlockProv(const ScopeContext& ctx,
                                 const syntax::Block& block,
                                 const ProvEnv& env,
-                                const TypeEnv& gamma);
+                                const TypeEnv& gamma,
+                                ExprProvTagMap* expr_map);
 
 static ProvStmtResult ProvStmt(const ScopeContext& ctx,
                                const syntax::Stmt& stmt,
                                const ProvEnv& env,
-                               const TypeEnv& gamma);
+                               const TypeEnv& gamma,
+                               ExprProvTagMap* expr_map);
 
 static ProvSeqResult ProvStmtSeq(const ScopeContext& ctx,
                                  const std::vector<syntax::Stmt>& stmts,
                                  const ProvEnv& env,
-                                 const TypeEnv& gamma) {
+                                 const TypeEnv& gamma,
+                                 ExprProvTagMap* expr_map) {
   ProvSeqResult result;
   if (stmts.empty()) {
     SPEC_RULE("Prov-Seq-Empty");
@@ -1085,7 +1199,7 @@ static ProvSeqResult ProvStmtSeq(const ScopeContext& ctx,
 
   const auto& head = stmts.front();
   std::vector<syntax::Stmt> tail(stmts.begin() + 1, stmts.end());
-  const auto head_res = ProvStmt(ctx, head, env, gamma);
+  const auto head_res = ProvStmt(ctx, head, env, gamma, expr_map);
   if (!head_res.ok) {
     result.ok = false;
     result.diag_id = head_res.diag_id;
@@ -1093,7 +1207,8 @@ static ProvSeqResult ProvStmtSeq(const ScopeContext& ctx,
     return result;
   }
 
-  const auto tail_res = ProvStmtSeq(ctx, tail, head_res.env, head_res.gamma);
+  const auto tail_res =
+      ProvStmtSeq(ctx, tail, head_res.env, head_res.gamma, expr_map);
   if (!tail_res.ok) {
     return tail_res;
   }
@@ -1117,11 +1232,12 @@ static ProvSeqResult ProvStmtSeq(const ScopeContext& ctx,
 static ProvExprResult BlockProv(const ScopeContext& ctx,
                                 const syntax::Block& block,
                                 const ProvEnv& env,
-                                const TypeEnv& gamma) {
+                                const TypeEnv& gamma,
+                                ExprProvTagMap* expr_map) {
   ProvExprResult result;
   ProvEnv inner_env = PushScope_pi(env);
   TypeEnv inner_gamma = PushScope(gamma);
-  const auto seq = ProvStmtSeq(ctx, block.stmts, inner_env, inner_gamma);
+  const auto seq = ProvStmtSeq(ctx, block.stmts, inner_env, inner_gamma, expr_map);
   if (!seq.ok) {
     result.ok = false;
     result.diag_id = seq.diag_id;
@@ -1131,7 +1247,7 @@ static ProvExprResult BlockProv(const ScopeContext& ctx,
 
   std::optional<ProvTag> tail_prov;
   if (block.tail_opt) {
-    const auto tail = ProvExpr(ctx, block.tail_opt, seq.env, seq.gamma);
+    const auto tail = ProvExpr(ctx, block.tail_opt, seq.env, seq.gamma, expr_map);
     if (!tail.ok) {
       return tail;
     }
@@ -1165,7 +1281,7 @@ static BreakProvResult BreakProv(const ScopeContext& ctx,
   BreakProvResult result;
   ProvEnv inner_env = PushScope_pi(env);
   TypeEnv inner_gamma = PushScope(gamma);
-  const auto seq = ProvStmtSeq(ctx, body.stmts, inner_env, inner_gamma);
+  const auto seq = ProvStmtSeq(ctx, body.stmts, inner_env, inner_gamma, nullptr);
   if (!seq.ok) {
     result.ok = false;
     result.diag_id = seq.diag_id;
@@ -1173,7 +1289,7 @@ static BreakProvResult BreakProv(const ScopeContext& ctx,
     return result;
   }
   if (body.tail_opt) {
-    const auto tail = ProvExpr(ctx, body.tail_opt, seq.env, seq.gamma);
+    const auto tail = ProvExpr(ctx, body.tail_opt, seq.env, seq.gamma, nullptr);
     if (!tail.ok) {
       result.ok = false;
       result.diag_id = tail.diag_id;
@@ -1190,12 +1306,17 @@ static BreakProvResult BreakProv(const ScopeContext& ctx,
 static ProvExprResult ProvExpr(const ScopeContext& ctx,
                                const syntax::ExprPtr& expr,
                                const ProvEnv& env,
-                               const TypeEnv& gamma) {
+                               const TypeEnv& gamma,
+                               ExprProvTagMap* expr_map) {
+  auto finish = [&](ProvExprResult res) -> ProvExprResult {
+    RecordExprProv(expr, res, env, expr_map);
+    return res;
+  };
   ProvExprResult result;
   if (!expr) {
     result.ok = true;
     result.prov = BottomTag();
-    return result;
+    return finish(result);
   }
 
   if (const auto* literal = std::get_if<syntax::LiteralExpr>(&expr->node)) {
@@ -1203,43 +1324,43 @@ static ProvExprResult ProvExpr(const ScopeContext& ctx,
     SPEC_RULE("P-Literal");
     result.ok = true;
     result.prov = BottomTag();
-    return result;
+    return finish(result);
   }
 
   if (const auto* move = std::get_if<syntax::MoveExpr>(&expr->node)) {
-    auto inner = ProvPlace(ctx, move->place, env, gamma);
+    auto inner = ProvPlace(ctx, move->place, env, gamma, expr_map);
     if (!inner.ok) {
-      return inner;
+      return finish(inner);
     }
     SPEC_RULE("P-Move");
     inner.prov = inner.prov;
-    return inner;
+    return finish(inner);
   }
 
   if (const auto* addr = std::get_if<syntax::AddressOfExpr>(&expr->node)) {
-    auto inner = ProvPlace(ctx, addr->place, env, gamma);
+    auto inner = ProvPlace(ctx, addr->place, env, gamma, expr_map);
     if (!inner.ok) {
-      return inner;
+      return finish(inner);
     }
     SPEC_RULE("P-AddrOf");
     inner.prov = inner.prov;
-    return inner;
+    return finish(inner);
   }
 
   if (const auto* alloc = std::get_if<syntax::AllocExpr>(&expr->node)) {
-    auto inner = ProvExpr(ctx, alloc->value, env, gamma);
+    auto inner = ProvExpr(ctx, alloc->value, env, gamma, expr_map);
     if (!inner.ok) {
-      return inner;
+      return finish(inner);
     }
     const auto tag = AllocTag(env, alloc->region_opt);
     SPEC_RULE("P-Alloc");
     result.ok = true;
     if (tag.has_value()) {
       result.prov = RegionTag(*tag);
-      return result;
+      return finish(result);
     }
     result.prov = BottomTag();
-    return result;
+    return finish(result);
   }
 
   if (const auto* call = std::get_if<syntax::MethodCallExpr>(&expr->node)) {
@@ -1248,50 +1369,50 @@ static ProvExprResult ProvExpr(const ScopeContext& ctx,
         const auto type = LookupTypeForRegion(ctx, gamma, recv->name);
         if (type.has_value() && RegionActiveType(*type)) {
           for (const auto& arg : call->args) {
-            const auto arg_res = ProvExpr(ctx, arg.value, env, gamma);
+            const auto arg_res = ProvExpr(ctx, arg.value, env, gamma, expr_map);
             if (!arg_res.ok) {
-              return arg_res;
+              return finish(arg_res);
             }
           }
           const auto tag = AllocTag(env, std::optional<std::string>(recv->name));
           SPEC_RULE("P-Region-Alloc-Method");
           result.ok = true;
           result.prov = tag.has_value() ? RegionTag(*tag) : BottomTag();
-          return result;
+          return finish(result);
         }
       }
     }
   }
 
   if (const auto* if_expr = std::get_if<syntax::IfExpr>(&expr->node)) {
-    const auto cond = ProvExpr(ctx, if_expr->cond, env, gamma);
+    const auto cond = ProvExpr(ctx, if_expr->cond, env, gamma, expr_map);
     if (!cond.ok) {
-      return cond;
+      return finish(cond);
     }
-    const auto then_res = ProvExpr(ctx, if_expr->then_expr, env, gamma);
+    const auto then_res = ProvExpr(ctx, if_expr->then_expr, env, gamma, expr_map);
     if (!then_res.ok) {
-      return then_res;
+      return finish(then_res);
     }
     if (if_expr->else_expr) {
-      const auto else_res = ProvExpr(ctx, if_expr->else_expr, env, gamma);
+      const auto else_res = ProvExpr(ctx, if_expr->else_expr, env, gamma, expr_map);
       if (!else_res.ok) {
-        return else_res;
+        return finish(else_res);
       }
       SPEC_RULE("P-If");
       result.ok = true;
       result.prov = JoinProv(env, then_res.prov, else_res.prov);
-      return result;
+      return finish(result);
     }
     SPEC_RULE("P-If-No-Else");
     result.ok = true;
     result.prov = BottomTag();
-    return result;
+    return finish(result);
   }
 
   if (const auto* match = std::get_if<syntax::MatchExpr>(&expr->node)) {
-    const auto scrut = ProvExpr(ctx, match->value, env, gamma);
+    const auto scrut = ProvExpr(ctx, match->value, env, gamma, expr_map);
     if (!scrut.ok) {
-      return scrut;
+      return finish(scrut);
     }
     std::vector<ProvTag> arm_provs;
     arm_provs.reserve(match->arms.size());
@@ -1309,31 +1430,31 @@ static ProvExprResult ProvExpr(const ScopeContext& ctx,
       const auto bind_pi = BindProv(arm_env, BottomTag());
       arm_env = IntroAll_pi(arm_env, bind_names, bind_pi);
       if (arm.guard_opt) {
-        const auto guard = ProvExpr(ctx, arm.guard_opt, arm_env, gamma);
+        const auto guard = ProvExpr(ctx, arm.guard_opt, arm_env, gamma, expr_map);
         if (!guard.ok) {
-          return guard;
+          return finish(guard);
         }
       }
-      const auto body = ProvExpr(ctx, arm.body, arm_env, gamma);
+      const auto body = ProvExpr(ctx, arm.body, arm_env, gamma, expr_map);
       if (!body.ok) {
-        return body;
+        return finish(body);
       }
       arm_provs.push_back(body.prov);
     }
     SPEC_RULE("P-Match");
     result.ok = true;
     result.prov = JoinAllProv(env, arm_provs);
-    return result;
+    return finish(result);
   }
 
   if (const auto* block_expr = std::get_if<syntax::BlockExpr>(&expr->node)) {
     if (!block_expr->block) {
       result.ok = true;
       result.prov = BottomTag();
-      return result;
+      return finish(result);
     }
     SPEC_RULE("P-Block");
-    return BlockProv(ctx, *block_expr->block, env, gamma);
+    return finish(BlockProv(ctx, *block_expr->block, env, gamma, expr_map));
   }
 
   if (const auto* unsafe_expr =
@@ -1341,10 +1462,10 @@ static ProvExprResult ProvExpr(const ScopeContext& ctx,
     if (!unsafe_expr->block) {
       result.ok = true;
       result.prov = BottomTag();
-      return result;
+      return finish(result);
     }
     SPEC_RULE("P-Block");
-    return BlockProv(ctx, *unsafe_expr->block, env, gamma);
+    return finish(BlockProv(ctx, *unsafe_expr->block, env, gamma, expr_map));
   }
 
   if (const auto* loop_inf =
@@ -1352,50 +1473,50 @@ static ProvExprResult ProvExpr(const ScopeContext& ctx,
     if (!loop_inf->body) {
       result.ok = true;
       result.prov = BottomTag();
-      return result;
+      return finish(result);
     }
     const auto prov = BreakProv(ctx, *loop_inf->body, env, gamma);
     if (!prov.ok) {
       result.ok = false;
       result.diag_id = prov.diag_id;
       result.span = prov.span;
-      return result;
+      return finish(result);
     }
     SPEC_RULE("P-Loop-Infinite");
     result.ok = true;
     result.prov = LoopProv(env, prov.breaks, prov.break_void);
-    return result;
+    return finish(result);
   }
 
   if (const auto* loop_cond =
           std::get_if<syntax::LoopConditionalExpr>(&expr->node)) {
-    const auto cond = ProvExpr(ctx, loop_cond->cond, env, gamma);
+    const auto cond = ProvExpr(ctx, loop_cond->cond, env, gamma, expr_map);
     if (!cond.ok) {
-      return cond;
+      return finish(cond);
     }
     if (!loop_cond->body) {
       result.ok = true;
       result.prov = BottomTag();
-      return result;
+      return finish(result);
     }
     const auto prov = BreakProv(ctx, *loop_cond->body, env, gamma);
     if (!prov.ok) {
       result.ok = false;
       result.diag_id = prov.diag_id;
       result.span = prov.span;
-      return result;
+      return finish(result);
     }
     SPEC_RULE("P-Loop-Conditional");
     result.ok = true;
     result.prov = LoopProv(env, prov.breaks, prov.break_void);
-    return result;
+    return finish(result);
   }
 
   if (const auto* loop_iter =
           std::get_if<syntax::LoopIterExpr>(&expr->node)) {
-    const auto iter = ProvExpr(ctx, loop_iter->iter, env, gamma);
+    const auto iter = ProvExpr(ctx, loop_iter->iter, env, gamma, expr_map);
     if (!iter.ok) {
-      return iter;
+      return finish(iter);
     }
     ProvEnv arm_env = env;
     std::vector<std::string> bind_names;
@@ -1410,50 +1531,74 @@ static ProvExprResult ProvExpr(const ScopeContext& ctx,
     if (!loop_iter->body) {
       result.ok = true;
       result.prov = BottomTag();
-      return result;
+      return finish(result);
     }
     const auto prov = BreakProv(ctx, *loop_iter->body, arm_env, gamma);
     if (!prov.ok) {
       result.ok = false;
       result.diag_id = prov.diag_id;
       result.span = prov.span;
-      return result;
+      return finish(result);
     }
     SPEC_RULE("P-Loop-Iter");
     result.ok = true;
     result.prov = LoopProv(env, prov.breaks, prov.break_void);
-    return result;
+    return finish(result);
+  }
+
+  if (AsyncCreateExpr(ctx, gamma, expr)) {
+    const auto args = AsyncCaptureArgs(expr);
+    const auto frame_prov = FrameProv(gamma, env);
+    for (const auto& arg : args) {
+      const auto arg_res = ProvExpr(ctx, arg, env, gamma, expr_map);
+      if (!arg_res.ok) {
+        return finish(arg_res);
+      }
+      if (ProvLess(env, arg_res.prov, frame_prov)) {
+        SPEC_RULE("Async-Capture-Err");
+        ProvExprResult err;
+        err.ok = false;
+        err.diag_id = "Async-Capture-Err";
+        err.span = expr->span;
+        return finish(err);
+      }
+    }
+    SPEC_RULE("P-Async-Create");
+    result.ok = true;
+    result.prov = frame_prov;
+    return finish(result);
   }
 
   if (IsPlaceExpr(expr)) {
-    const auto place = ProvPlace(ctx, expr, env, gamma);
+    const auto place = ProvPlace(ctx, expr, env, gamma, expr_map);
     if (!place.ok) {
-      return place;
+      return finish(place);
     }
     SPEC_RULE("P-Place-Expr");
-    return place;
+    return finish(place);
   }
 
   const auto children = ChildrenLtr(expr);
   std::vector<ProvTag> child_provs;
   child_provs.reserve(children.size());
   for (const auto& child : children) {
-    const auto child_res = ProvExpr(ctx, child, env, gamma);
+    const auto child_res = ProvExpr(ctx, child, env, gamma, expr_map);
     if (!child_res.ok) {
-      return child_res;
+      return finish(child_res);
     }
     child_provs.push_back(child_res.prov);
   }
   SPEC_RULE("P-Expr-Sub");
   result.ok = true;
   result.prov = JoinAllProv(env, child_provs);
-  return result;
+  return finish(result);
 }
 
 static ProvStmtResult ProvStmt(const ScopeContext& ctx,
                                const syntax::Stmt& stmt,
                                const ProvEnv& env,
-                               const TypeEnv& gamma) {
+                               const TypeEnv& gamma,
+                               ExprProvTagMap* expr_map) {
   ProvStmtResult result;
   result.ok = true;
   result.env = env;
@@ -1463,7 +1608,7 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
       [&](const auto& node) -> ProvStmtResult {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, syntax::LetStmt>) {
-          const auto init = ProvExpr(ctx, node.binding.init, env, gamma);
+          const auto init = ProvExpr(ctx, node.binding.init, env, gamma, expr_map);
           if (!init.ok) {
             return {false, init.diag_id, init.span, env, gamma, {}};
           }
@@ -1486,7 +1631,7 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
           return {true, std::nullopt, std::nullopt, std::move(out_env),
                   std::move(out_gamma), {}};
         } else if constexpr (std::is_same_v<T, syntax::VarStmt>) {
-          const auto init = ProvExpr(ctx, node.binding.init, env, gamma);
+          const auto init = ProvExpr(ctx, node.binding.init, env, gamma, expr_map);
           if (!init.ok) {
             return {false, init.diag_id, init.span, env, gamma, {}};
           }
@@ -1509,7 +1654,7 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
           return {true, std::nullopt, std::nullopt, std::move(out_env),
                   std::move(out_gamma), {}};
         } else if constexpr (std::is_same_v<T, syntax::ShadowLetStmt>) {
-          const auto init = ProvExpr(ctx, node.init, env, gamma);
+          const auto init = ProvExpr(ctx, node.init, env, gamma, expr_map);
           if (!init.ok) {
             return {false, init.diag_id, init.span, env, gamma, {}};
           }
@@ -1529,7 +1674,7 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
           return {true, std::nullopt, std::nullopt, std::move(out_env),
                   std::move(out_gamma), {}};
         } else if constexpr (std::is_same_v<T, syntax::ShadowVarStmt>) {
-          const auto init = ProvExpr(ctx, node.init, env, gamma);
+          const auto init = ProvExpr(ctx, node.init, env, gamma, expr_map);
           if (!init.ok) {
             return {false, init.diag_id, init.span, env, gamma, {}};
           }
@@ -1549,37 +1694,45 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
           return {true, std::nullopt, std::nullopt, std::move(out_env),
                   std::move(out_gamma), {}};
         } else if constexpr (std::is_same_v<T, syntax::AssignStmt>) {
-          const auto place = ProvPlace(ctx, node.place, env, gamma);
+          const auto place = ProvPlace(ctx, node.place, env, gamma, expr_map);
           if (!place.ok) {
             return {false, place.diag_id, place.span, env, gamma, {}};
           }
-          const auto value = ProvExpr(ctx, node.value, env, gamma);
+          const auto value = ProvExpr(ctx, node.value, env, gamma, expr_map);
           if (!value.ok) {
             return {false, value.diag_id, value.span, env, gamma, {}};
           }
           if (ProvLess(env, value.prov, place.prov)) {
+            if (AsyncSigForExpr(ctx, gamma, node.value).has_value()) {
+              SPEC_RULE("Prov-Async-Escape-Err");
+              return {false, "Prov-Async-Escape-Err", node.span, env, gamma, {}};
+            }
             SPEC_RULE("Prov-Escape-Err");
             return {false, "Prov-Escape-Err", node.span, env, gamma, {}};
           }
           SPEC_RULE("Prov-Assign");
           return {true, std::nullopt, std::nullopt, env, gamma, {}};
         } else if constexpr (std::is_same_v<T, syntax::CompoundAssignStmt>) {
-          const auto place = ProvPlace(ctx, node.place, env, gamma);
+          const auto place = ProvPlace(ctx, node.place, env, gamma, expr_map);
           if (!place.ok) {
             return {false, place.diag_id, place.span, env, gamma, {}};
           }
-          const auto value = ProvExpr(ctx, node.value, env, gamma);
+          const auto value = ProvExpr(ctx, node.value, env, gamma, expr_map);
           if (!value.ok) {
             return {false, value.diag_id, value.span, env, gamma, {}};
           }
           if (ProvLess(env, value.prov, place.prov)) {
+            if (AsyncSigForExpr(ctx, gamma, node.value).has_value()) {
+              SPEC_RULE("Prov-Async-Escape-Err");
+              return {false, "Prov-Async-Escape-Err", node.span, env, gamma, {}};
+            }
             SPEC_RULE("Prov-Escape-Err");
             return {false, "Prov-Escape-Err", node.span, env, gamma, {}};
           }
           SPEC_RULE("Prov-CompoundAssign");
           return {true, std::nullopt, std::nullopt, env, gamma, {}};
         } else if constexpr (std::is_same_v<T, syntax::ExprStmt>) {
-          const auto expr = ProvExpr(ctx, node.value, env, gamma);
+          const auto expr = ProvExpr(ctx, node.value, env, gamma, expr_map);
           if (!expr.ok) {
             return {false, expr.diag_id, expr.span, env, gamma, {}};
           }
@@ -1589,7 +1742,7 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
           if (!node.body) {
             return {true, std::nullopt, std::nullopt, env, gamma, {}};
           }
-          const auto body = BlockProv(ctx, *node.body, env, gamma);
+          const auto body = BlockProv(ctx, *node.body, env, gamma, expr_map);
           if (!body.ok) {
             return {false, body.diag_id, body.span, env, gamma, {}};
           }
@@ -1607,7 +1760,7 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
             expr_ptr->node = call;
             opts_expr = expr_ptr;
           }
-          const auto opts = ProvExpr(ctx, opts_expr, env, gamma);
+          const auto opts = ProvExpr(ctx, opts_expr, env, gamma, expr_map);
           if (!opts.ok) {
             return {false, opts.diag_id, opts.span, env, gamma, {}};
           }
@@ -1628,7 +1781,8 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
               TypeBinding{syntax::Mutability::Let, RegionActiveTypeRef()};
 
           if (node.body) {
-            const auto body = BlockProv(ctx, *node.body, inner_env, inner_gamma);
+            const auto body =
+                BlockProv(ctx, *node.body, inner_env, inner_gamma, expr_map);
             if (!body.ok) {
               return {false, body.diag_id, body.span, env, gamma, {}};
             }
@@ -1665,7 +1819,8 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
               TypeBinding{syntax::Mutability::Let, RegionActiveTypeRef()};
 
           if (node.body) {
-            const auto body = BlockProv(ctx, *node.body, inner_env, inner_gamma);
+            const auto body =
+                BlockProv(ctx, *node.body, inner_env, inner_gamma, expr_map);
             if (!body.ok) {
               return {false, body.diag_id, body.span, env, gamma, {}};
             }
@@ -1677,7 +1832,7 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
             SPEC_RULE("Prov-Return-Unit");
             return {true, std::nullopt, std::nullopt, env, gamma, {}};
           }
-          const auto value = ProvExpr(ctx, node.value_opt, env, gamma);
+          const auto value = ProvExpr(ctx, node.value_opt, env, gamma, expr_map);
           if (!value.ok) {
             return {false, value.diag_id, value.span, env, gamma, {}};
           }
@@ -1686,7 +1841,7 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
           flow.results.push_back(value.prov);
           return {true, std::nullopt, std::nullopt, env, gamma, std::move(flow)};
         } else if constexpr (std::is_same_v<T, syntax::ResultStmt>) {
-          const auto value = ProvExpr(ctx, node.value, env, gamma);
+          const auto value = ProvExpr(ctx, node.value, env, gamma, expr_map);
           if (!value.ok) {
             return {false, value.diag_id, value.span, env, gamma, {}};
           }
@@ -1701,7 +1856,7 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
             flow.break_void = true;
             return {true, std::nullopt, std::nullopt, env, gamma, std::move(flow)};
           }
-          const auto value = ProvExpr(ctx, node.value_opt, env, gamma);
+          const auto value = ProvExpr(ctx, node.value_opt, env, gamma, expr_map);
           if (!value.ok) {
             return {false, value.diag_id, value.span, env, gamma, {}};
           }
@@ -1716,7 +1871,7 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
           if (!node.body) {
             return {true, std::nullopt, std::nullopt, env, gamma, {}};
           }
-          const auto body = BlockProv(ctx, *node.body, env, gamma);
+          const auto body = BlockProv(ctx, *node.body, env, gamma, expr_map);
           if (!body.ok) {
             return {false, body.diag_id, body.span, env, gamma, {}};
           }
@@ -1837,7 +1992,7 @@ ProvCheckResult ProvBindCheck(const ScopeContext& ctx,
   gamma.scopes.emplace_back();
   ParamTypeMap(ctx, params, self_param, gamma);
 
-  const auto block = BlockProv(ctx, *body, prov_env, gamma);
+  const auto block = BlockProv(ctx, *body, prov_env, gamma, nullptr);
   if (!block.ok) {
     result.ok = false;
     result.diag_id = block.diag_id;
@@ -1846,6 +2001,91 @@ ProvCheckResult ProvBindCheck(const ScopeContext& ctx,
   }
 
   result.ok = true;
+  return result;
+}
+
+static ProvenanceKind ToPublicKind(const ProvTag& tag) {
+  switch (tag.kind) {
+    case ProvKind::Global:
+      return ProvenanceKind::Global;
+    case ProvKind::Stack:
+      return ProvenanceKind::Stack;
+    case ProvKind::Heap:
+      return ProvenanceKind::Heap;
+    case ProvKind::Region:
+      return ProvenanceKind::Region;
+    case ProvKind::Bottom:
+      return ProvenanceKind::Bottom;
+    case ProvKind::Param:
+      return ProvenanceKind::Param;
+  }
+  return ProvenanceKind::Bottom;
+}
+
+ExprProvMapResult ComputeExprProvenanceMap(
+    const ScopeContext& ctx,
+    const syntax::ModulePath& module_path,
+    const std::vector<syntax::Param>& params,
+    const std::shared_ptr<syntax::Block>& body,
+    const std::optional<BindSelfParam>& self_param) {
+  SpecDefsRegions();
+  ExprProvMapResult result;
+  if (!body) {
+    result.ok = true;
+    return result;
+  }
+
+  std::vector<std::string> param_names;
+  std::vector<ProvTag> param_tags;
+  if (self_param.has_value()) {
+    param_names.push_back("self");
+    param_tags.push_back(ParamTag(param_tags.size()));
+  }
+  for (const auto& param : params) {
+    param_names.push_back(param.name);
+    param_tags.push_back(ParamTag(param_tags.size()));
+  }
+
+  ProvEnv prov_env = InitProvEnv(param_names, param_tags, {});
+
+  const auto static_bindings = StaticBindings(ctx, module_path);
+  if (!static_bindings.empty()) {
+    ProvScope static_scope;
+    static_scope.id = prov_env.next_scope_id++;
+    for (const auto& binding : static_bindings) {
+      static_scope.map.emplace(IdKeyOf(binding.name), GlobalTag());
+    }
+    prov_env.scopes.insert(prov_env.scopes.begin(), std::move(static_scope));
+  }
+
+  TypeEnv gamma;
+  gamma.scopes.emplace_back();
+  if (!static_bindings.empty()) {
+    for (const auto& binding : static_bindings) {
+      gamma.scopes.front()[IdKeyOf(binding.name)] =
+          TypeBinding{binding.mut, binding.type};
+    }
+  }
+  gamma.scopes.emplace_back();
+  ParamTypeMap(ctx, params, self_param, gamma);
+
+  ExprProvTagMap expr_map;
+  const auto block = BlockProv(ctx, *body, prov_env, gamma, &expr_map);
+  if (!block.ok) {
+    result.ok = false;
+    result.diag_id = block.diag_id;
+    result.span = block.span;
+    return result;
+  }
+
+  result.ok = true;
+  result.expr_prov.reserve(expr_map.size());
+  for (const auto& [expr_ptr, info] : expr_map) {
+    result.expr_prov.emplace(expr_ptr, ToPublicKind(info.tag));
+    if (info.tag.kind == ProvKind::Region && info.target.has_value()) {
+      result.expr_region.emplace(expr_ptr, *info.target);
+    }
+  }
   return result;
 }
 

@@ -73,6 +73,18 @@ std::vector<std::string> ItemPathDefaultImpl(const analysis::TypeRef& type,
 std::vector<std::string> PathOfType(const analysis::TypeRef& type);
 
 // =============================================================================
+// §6.3.1 LinkName - FFI attribute-aware symbol resolution
+// =============================================================================
+
+// LinkName resolves the link symbol name for a declaration based on attributes:
+//   - If [[symbol("name")]] present, return specified name
+//   - If [[no_mangle]] present, return raw identifier
+//   - If [[export(link_name="name")]] present, return link_name
+//   - Otherwise, return std::nullopt (caller should use mangled name)
+std::optional<std::string> LinkName(const syntax::AttributeList& attrs,
+                                    const std::string& raw_name);
+
+// =============================================================================
 // Mangle Functions (§6.3.1 Rules)
 // =============================================================================
 
@@ -81,6 +93,7 @@ std::string ScopedSym(const std::vector<std::string>& item_path);
 
 // (Mangle-Proc): Mangle non-main procedure
 // (Mangle-Main): Mangle main procedure
+// With attribute-aware LinkName resolution
 std::string MangleProc(const syntax::ModulePath& module_path,
                        const syntax::ProcedureDecl& proc);
 

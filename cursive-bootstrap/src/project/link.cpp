@@ -308,6 +308,8 @@ std::vector<std::string> RuntimeRequiredSyms() {
   const std::string_view region_procs[] = {
       "new_scoped",
       "alloc",
+      "mark",
+      "reset_to",
       "reset_unchecked",
       "freeze",
       "thaw",
@@ -316,6 +318,8 @@ std::vector<std::string> RuntimeRequiredSyms() {
   for (const auto& proc : region_procs) {
     syms.push_back(core::PathSig({"cursive", "runtime", "region", proc}));
   }
+  syms.push_back(core::PathSig({"cursive", "runtime", "region", "addr_is_active"}));
+  syms.push_back(core::PathSig({"cursive", "runtime", "region", "addr_tag_from"}));
 
   const std::string_view string_builtins[] = {
       "from",

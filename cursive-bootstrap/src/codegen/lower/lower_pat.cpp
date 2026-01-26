@@ -240,7 +240,9 @@ static void MergeMoveStates(LowerCtx& base,
 void RegisterPatternBindings(const syntax::Pattern& pattern,
                              const analysis::TypeRef& type_hint,
                              LowerCtx& ctx,
-                             bool is_immovable) {
+                             bool is_immovable,
+                             analysis::ProvenanceKind prov,
+                             std::optional<std::string> prov_region) {
   std::function<void(const syntax::Pattern&, analysis::TypeRef)> walk =
       [&](const syntax::Pattern& pat, analysis::TypeRef hint) {
         std::visit(
@@ -251,14 +253,16 @@ void RegisterPatternBindings(const syntax::Pattern& pattern,
               } else if constexpr (std::is_same_v<T, syntax::LiteralPattern>) {
                 return;
               } else if constexpr (std::is_same_v<T, syntax::IdentifierPattern>) {
-                ctx.RegisterVar(node.name, hint, true, is_immovable);
+                ctx.RegisterVar(node.name, hint, true, is_immovable, prov,
+                                prov_region);
                 return;
               } else if constexpr (std::is_same_v<T, syntax::TypedPattern>) {
                 analysis::TypeRef typed = LowerSyntaxType(node.type, ctx);
                 if (!typed) {
                   typed = hint;
                 }
-                ctx.RegisterVar(node.name, typed, true, is_immovable);
+                ctx.RegisterVar(node.name, typed, true, is_immovable, prov,
+                                prov_region);
                 return;
               } else if constexpr (std::is_same_v<T, syntax::TuplePattern>) {
                 const analysis::TypeTuple* tuple_type = nullptr;
@@ -283,7 +287,8 @@ void RegisterPatternBindings(const syntax::Pattern& pattern,
                   if (field.pattern_opt) {
                     walk(*field.pattern_opt, field_type);
                   } else {
-                    ctx.RegisterVar(field.name, field_type, true, is_immovable);
+                    ctx.RegisterVar(field.name, field_type, true, is_immovable, prov,
+                                    prov_region);
                   }
                 }
                 return;
@@ -316,7 +321,8 @@ void RegisterPatternBindings(const syntax::Pattern& pattern,
                           if (field.pattern_opt) {
                             walk(*field.pattern_opt, field_type);
                           } else {
-                            ctx.RegisterVar(field.name, field_type, true, is_immovable);
+                            ctx.RegisterVar(field.name, field_type, true, is_immovable, prov,
+                                            prov_region);
                           }
                         }
                       }
@@ -342,7 +348,8 @@ void RegisterPatternBindings(const syntax::Pattern& pattern,
                   if (field.pattern_opt) {
                     walk(*field.pattern_opt, field_type);
                   } else {
-                    ctx.RegisterVar(field.name, field_type, true, is_immovable);
+                    ctx.RegisterVar(field.name, field_type, true, is_immovable, prov,
+                                    prov_region);
                   }
                 }
                 return;
@@ -376,8 +383,21 @@ IRPtr LowerBindPattern(const syntax::Pattern& pattern,
     }
     return nullptr;
   };
+  auto lookup_bind_prov = [&ctx](const std::string& name) -> analysis::ProvenanceKind {
+    if (const auto* state = ctx.GetBindingState(name)) {
+      return state->prov;
+    }
+    return analysis::ProvenanceKind::Bottom;
+  };
+  auto lookup_bind_region = [&ctx](const std::string& name) -> std::optional<std::string> {
+    if (const auto* state = ctx.GetBindingState(name)) {
+      return state->prov_region;
+    }
+    return std::nullopt;
+  };
   return std::visit(
-      [&value, &ctx, &lookup_bind_type](const auto& pat) -> IRPtr {
+      [&value, &ctx, &lookup_bind_type, &lookup_bind_prov,
+       &lookup_bind_region](const auto& pat) -> IRPtr {
         using T = std::decay_t<decltype(pat)>;
 
         if constexpr (std::is_same_v<T, syntax::WildcardPattern>) {
@@ -387,6 +407,8 @@ IRPtr LowerBindPattern(const syntax::Pattern& pattern,
           bind.name = pat.name;
           bind.value = value;
           bind.type = lookup_bind_type(pat.name);
+          bind.prov = lookup_bind_prov(pat.name);
+          bind.prov_region = lookup_bind_region(pat.name);
           return MakeIR(std::move(bind));
         } else if constexpr (std::is_same_v<T, syntax::TypedPattern>) {
           IRValue bind_value = value;
@@ -432,6 +454,8 @@ IRPtr LowerBindPattern(const syntax::Pattern& pattern,
           if (!bind.type) {
             bind.type = LowerSyntaxType(pat.type, ctx);
           }
+          bind.prov = lookup_bind_prov(pat.name);
+          bind.prov_region = lookup_bind_region(pat.name);
           return MakeIR(std::move(bind));
         } else if constexpr (std::is_same_v<T, syntax::LiteralPattern>) {
           return EmptyIR();
@@ -464,6 +488,8 @@ IRPtr LowerBindPattern(const syntax::Pattern& pattern,
               bind.name = field.name;
               bind.value = field_val;
               bind.type = lookup_bind_type(field.name);
+              bind.prov = lookup_bind_prov(field.name);
+              bind.prov_region = lookup_bind_region(field.name);
               bindings.push_back(MakeIR(std::move(bind)));
             }
           }
@@ -473,7 +499,8 @@ IRPtr LowerBindPattern(const syntax::Pattern& pattern,
             return EmptyIR();
           }
           return std::visit(
-              [&value, &ctx, &pat, &lookup_bind_type](const auto& payload) -> IRPtr {
+              [&value, &ctx, &pat, &lookup_bind_type, &lookup_bind_prov,
+               &lookup_bind_region](const auto& payload) -> IRPtr {
                 using P = std::decay_t<decltype(payload)>;
                 if constexpr (std::is_same_v<P, syntax::TuplePayloadPattern>) {
                   std::vector<IRPtr> bindings;
@@ -507,6 +534,8 @@ IRPtr LowerBindPattern(const syntax::Pattern& pattern,
                       bind.name = field.name;
                       bind.value = field_val;
                       bind.type = lookup_bind_type(field.name);
+                      bind.prov = lookup_bind_prov(field.name);
+                      bind.prov_region = lookup_bind_region(field.name);
                       bindings.push_back(MakeIR(std::move(bind)));
                     }
                   }
@@ -535,6 +564,8 @@ IRPtr LowerBindPattern(const syntax::Pattern& pattern,
               bind.name = field.name;
               bind.value = field_val;
               bind.type = lookup_bind_type(field.name);
+              bind.prov = lookup_bind_prov(field.name);
+              bind.prov_region = lookup_bind_region(field.name);
               bindings.push_back(MakeIR(std::move(bind)));
             }
           }
@@ -617,9 +648,12 @@ IRValue PatternCheck(const syntax::Pattern& pattern,
 LowerResult LowerMatchArm(const syntax::MatchArm& arm,
                           const IRValue& scrutinee,
                           const analysis::TypeRef& scrutinee_type,
+                          analysis::ProvenanceKind scrutinee_prov,
+                          std::optional<std::string> scrutinee_region,
                           LowerCtx& ctx) {
   ctx.PushScope(false, false);
-  RegisterPatternBindings(*arm.pattern, scrutinee_type, ctx);
+  RegisterPatternBindings(*arm.pattern, scrutinee_type, ctx, false,
+                          scrutinee_prov, scrutinee_region);
 
   // Bind the pattern
   IRPtr bind_ir = LowerBindPattern(*arm.pattern, scrutinee, ctx);
@@ -655,6 +689,14 @@ LowerResult LowerMatch(const syntax::Expr& scrutinee,
   if (ctx.expr_type) {
     scrutinee_type = ctx.expr_type(scrutinee);
   }
+  analysis::ProvenanceKind scrutinee_prov = analysis::ProvenanceKind::Bottom;
+  if (auto prov = ctx.LookupExprProv(scrutinee)) {
+    scrutinee_prov = *prov;
+  }
+  std::optional<std::string> scrutinee_region;
+  if (scrutinee_prov == analysis::ProvenanceKind::Region) {
+    scrutinee_region = ctx.LookupExprRegion(scrutinee);
+  }
   if (scrutinee_type) {
     ctx.RegisterValueType(scrutinee_result.value, scrutinee_type);
   }
@@ -665,7 +707,8 @@ LowerResult LowerMatch(const syntax::Expr& scrutinee,
   arm_ctxs.reserve(arms.size());
   for (const auto& arm : arms) {
     LowerCtx arm_ctx = ctx;
-    auto arm_result = LowerMatchArm(arm, scrutinee_result.value, scrutinee_type, arm_ctx);
+    auto arm_result = LowerMatchArm(arm, scrutinee_result.value, scrutinee_type,
+                                    scrutinee_prov, scrutinee_region, arm_ctx);
     for (const auto& [name, type] : arm_ctx.value_types) {
       if (!ctx.value_types.count(name)) {
         ctx.value_types.emplace(name, type);

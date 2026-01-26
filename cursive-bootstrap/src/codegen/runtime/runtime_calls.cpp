@@ -44,6 +44,16 @@ std::string RegionSymAlloc() {
   return core::PathSig({"cursive", "runtime", "region", "alloc"});
 }
 
+std::string RegionSymMark() {
+  SPEC_RULE("RegionSym-Mark");
+  return core::PathSig({"cursive", "runtime", "region", "mark"});
+}
+
+std::string RegionSymResetTo() {
+  SPEC_RULE("RegionSym-ResetTo");
+  return core::PathSig({"cursive", "runtime", "region", "reset_to"});
+}
+
 std::string RegionSymResetUnchecked() {
   SPEC_RULE("RegionSym-ResetUnchecked");
   return core::PathSig({"cursive", "runtime", "region", "reset_unchecked"});
@@ -64,11 +74,23 @@ std::string RegionSymFreeUnchecked() {
   return core::PathSig({"cursive", "runtime", "region", "free_unchecked"});
 }
 
+std::string RegionSymAddrIsActive() {
+  SPEC_RULE("RegionSym-AddrIsActive");
+  return core::PathSig({"cursive", "runtime", "region", "addr_is_active"});
+}
+
+std::string RegionSymAddrTagFrom() {
+  SPEC_RULE("RegionSym-AddrTagFrom");
+  return core::PathSig({"cursive", "runtime", "region", "addr_tag_from"});
+}
+
 std::string RegionSym(const std::string& method) {
   SPEC_DEF("RegionSym", "");
   
   if (method == "new_scoped") return RegionSymNewScoped();
   if (method == "alloc") return RegionSymAlloc();
+  if (method == "mark") return RegionSymMark();
+  if (method == "reset_to") return RegionSymResetTo();
   if (method == "reset_unchecked") return RegionSymResetUnchecked();
   if (method == "freeze") return RegionSymFreeze();
   if (method == "thaw") return RegionSymThaw();
@@ -330,6 +352,20 @@ std::string BuiltinSymBytesDropManaged() {
 
 
 // ============================================================================
+// §19 Reactor builtins
+// ============================================================================
+
+std::string BuiltinSymReactorRun() {
+  SPEC_DEF("BuiltinSym-Reactor-Run", "§19");
+  return core::PathSig({"cursive", "runtime", "reactor", "run"});
+}
+
+std::string BuiltinSymReactorRegister() {
+  SPEC_DEF("BuiltinSym-Reactor-Register", "§19");
+  return core::PathSig({"cursive", "runtime", "reactor", "register"});
+}
+
+// ============================================================================
 // §6.8 Panic symbol
 // ============================================================================
 
@@ -397,6 +433,10 @@ std::string BuiltinSym(const std::string& qualified_name) {
 
   // CancelToken builtins
   if (qualified_name == "CancelToken::new") return BuiltinSymCancelTokenNew();
+
+  // Reactor builtins (§19)
+  if (qualified_name == "Reactor::run") return BuiltinSymReactorRun();
+  if (qualified_name == "Reactor::register") return BuiltinSymReactorRegister();
   
   // String builtins
   if (qualified_name == "string::from") return BuiltinSymStringFrom();
@@ -432,6 +472,8 @@ std::string BuiltinSym(const std::string& qualified_name) {
   // Region methods (alternate qualified form)
   if (qualified_name == "Region::new_scoped") return RegionSymNewScoped();
   if (qualified_name == "Region::alloc") return RegionSymAlloc();
+  if (qualified_name == "Region::mark") return RegionSymMark();
+  if (qualified_name == "Region::reset_to") return RegionSymResetTo();
   if (qualified_name == "Region::reset_unchecked") return RegionSymResetUnchecked();
   if (qualified_name == "Region::freeze") return RegionSymFreeze();
   if (qualified_name == "Region::thaw") return RegionSymThaw();
@@ -450,10 +492,14 @@ void AnchorRuntimeInterfaceRules() {
   SPEC_RULE("RegionLayout");
   SPEC_RULE("RegionSym-NewScoped");
   SPEC_RULE("RegionSym-Alloc");
+  SPEC_RULE("RegionSym-Mark");
+  SPEC_RULE("RegionSym-ResetTo");
   SPEC_RULE("RegionSym-ResetUnchecked");
   SPEC_RULE("RegionSym-Freeze");
   SPEC_RULE("RegionSym-Thaw");
   SPEC_RULE("RegionSym-FreeUnchecked");
+  SPEC_RULE("RegionSym-AddrIsActive");
+  SPEC_RULE("RegionSym-AddrTagFrom");
   SPEC_RULE("BuiltinSym-FileSystem-OpenRead");
   SPEC_RULE("BuiltinSym-FileSystem-OpenWrite");
   SPEC_RULE("BuiltinSym-FileSystem-OpenAppend");

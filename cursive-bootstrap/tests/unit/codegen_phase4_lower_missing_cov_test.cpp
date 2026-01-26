@@ -1163,7 +1163,10 @@ void TestPatternLowering() {
   arm.guard_opt = nullptr;
   arm.body = lit_i32;
   (void)cursive0::codegen::LowerMatchArm(arm, scrut,
-                                         cursive0::analysis::MakeTypePrim("i32"), ctx);
+                                         cursive0::analysis::MakeTypePrim("i32"),
+                                         cursive0::analysis::ProvenanceKind::Bottom,
+                                         std::nullopt,
+                                         ctx);
 
   (void)cursive0::codegen::LowerMatch(*lit_i32, {arm}, ctx);
 }

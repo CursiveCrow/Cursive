@@ -1,5 +1,6 @@
 #include "cursive0/codegen/mangle.h"
 
+#include <optional>
 #include <variant>
 
 #include "cursive0/core/assert_spec.h"
@@ -7,6 +8,61 @@
 #include "cursive0/core/symbols.h"
 
 namespace cursive0::codegen {
+
+// =============================================================================
+// §6.3.1 LinkName - FFI attribute-aware symbol resolution
+// =============================================================================
+
+std::optional<std::string> LinkName(const syntax::AttributeList& attrs,
+                                    const std::string& raw_name) {
+  SPEC_DEF("LinkName", "6.3.1");
+
+  for (const auto& attr : attrs) {
+    // [[symbol("name")]] - use exact specified symbol name
+    if (attr.name == "symbol") {
+      SPEC_RULE("LinkName-Symbol");
+      for (const auto& arg : attr.args) {
+        if (const auto* tok = std::get_if<syntax::Token>(&arg.value)) {
+          if (tok->kind == syntax::TokenKind::StringLiteral) {
+            // Remove quotes from string literal
+            std::string_view sv = tok->lexeme;
+            if (sv.size() >= 2 && sv.front() == '"' && sv.back() == '"') {
+              return std::string(sv.substr(1, sv.size() - 2));
+            }
+            return std::string(sv);
+          }
+        }
+      }
+    }
+
+    // [[no_mangle]] - use raw identifier as symbol
+    if (attr.name == "no_mangle") {
+      SPEC_RULE("LinkName-NoMangle");
+      return raw_name;
+    }
+
+    // [[export(link_name="name")]] - use link_name value
+    if (attr.name == "export") {
+      for (const auto& arg : attr.args) {
+        if (arg.key.has_value() && *arg.key == "link_name") {
+          SPEC_RULE("LinkName-Export");
+          if (const auto* tok = std::get_if<syntax::Token>(&arg.value)) {
+            if (tok->kind == syntax::TokenKind::StringLiteral) {
+              std::string_view sv = tok->lexeme;
+              if (sv.size() >= 2 && sv.front() == '"' && sv.back() == '"') {
+                return std::string(sv.substr(1, sv.size() - 2));
+              }
+              return std::string(sv);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // No FFI attribute found - use standard mangling
+  return std::nullopt;
+}
 
 namespace {
 
@@ -246,6 +302,12 @@ std::string ScopedSym(const std::vector<std::string>& item_path) {
 
 std::string MangleProc(const syntax::ModulePath& module_path,
                        const syntax::ProcedureDecl& proc) {
+  // §6.3.1 Check FFI attributes first
+  if (auto link_name = LinkName(proc.attrs, proc.name)) {
+    SPEC_RULE("Mangle-Proc-LinkName");
+    return *link_name;
+  }
+
   if (proc.name == "main") {
     SPEC_RULE("Mangle-Main");
   } else {

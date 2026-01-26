@@ -44,7 +44,8 @@ bool IsLiteralFalse(const syntax::ExprPtr& expr) {
 }
 
 // Simple structural equality of expressions
-bool ExprStructEqual(const syntax::ExprPtr& a, const syntax::ExprPtr& b) {
+bool ExprStructEqualInternal(const syntax::ExprPtr& a,
+                             const syntax::ExprPtr& b) {
   if (!a && !b) return true;
   if (!a || !b) return false;
   
@@ -65,22 +66,22 @@ bool ExprStructEqual(const syntax::ExprPtr& a, const syntax::ExprPtr& b) {
           return node_a.path == node_b->path && node_a.name == node_b->name;
         } else if constexpr (std::is_same_v<T, syntax::BinaryExpr>) {
           return node_a.op == node_b->op &&
-                 ExprStructEqual(node_a.lhs, node_b->lhs) &&
-                 ExprStructEqual(node_a.rhs, node_b->rhs);
+                 ExprStructEqualInternal(node_a.lhs, node_b->lhs) &&
+                 ExprStructEqualInternal(node_a.rhs, node_b->rhs);
         } else if constexpr (std::is_same_v<T, syntax::UnaryExpr>) {
           return node_a.op == node_b->op &&
-                 ExprStructEqual(node_a.value, node_b->value);
+                 ExprStructEqualInternal(node_a.value, node_b->value);
         } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
           return node_a.name == node_b->name &&
-                 ExprStructEqual(node_a.base, node_b->base);
+                 ExprStructEqualInternal(node_a.base, node_b->base);
         } else if constexpr (std::is_same_v<T, syntax::TupleAccessExpr>) {
           return node_a.index.lexeme == node_b->index.lexeme &&
-                 ExprStructEqual(node_a.base, node_b->base);
+                 ExprStructEqualInternal(node_a.base, node_b->base);
         } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
-          return ExprStructEqual(node_a.base, node_b->base) &&
-                 ExprStructEqual(node_a.index, node_b->index);
+          return ExprStructEqualInternal(node_a.base, node_b->base) &&
+                 ExprStructEqualInternal(node_a.index, node_b->index);
         } else if constexpr (std::is_same_v<T, syntax::CallExpr>) {
-          if (!ExprStructEqual(node_a.callee, node_b->callee)) {
+          if (!ExprStructEqualInternal(node_a.callee, node_b->callee)) {
             return false;
           }
           if (node_a.args.size() != node_b->args.size()) {
@@ -90,8 +91,8 @@ bool ExprStructEqual(const syntax::ExprPtr& a, const syntax::ExprPtr& b) {
             if (node_a.args[i].moved != node_b->args[i].moved) {
               return false;
             }
-            if (!ExprStructEqual(node_a.args[i].value,
-                                 node_b->args[i].value)) {
+            if (!ExprStructEqualInternal(node_a.args[i].value,
+                                         node_b->args[i].value)) {
               return false;
             }
           }
@@ -113,7 +114,8 @@ bool ExprStructEqual(const syntax::ExprPtr& a, const syntax::ExprPtr& b) {
               if (lhs.args[i].moved != rhs.args[i].moved) {
                 return false;
               }
-              if (!ExprStructEqual(lhs.args[i].value, rhs.args[i].value)) {
+              if (!ExprStructEqualInternal(lhs.args[i].value,
+                                           rhs.args[i].value)) {
                 return false;
               }
             }
@@ -128,7 +130,8 @@ bool ExprStructEqual(const syntax::ExprPtr& a, const syntax::ExprPtr& b) {
             if (lhs.fields[i].name != rhs.fields[i].name) {
               return false;
             }
-            if (!ExprStructEqual(lhs.fields[i].value, rhs.fields[i].value)) {
+            if (!ExprStructEqualInternal(lhs.fields[i].value,
+                                         rhs.fields[i].value)) {
               return false;
             }
           }
@@ -137,7 +140,7 @@ bool ExprStructEqual(const syntax::ExprPtr& a, const syntax::ExprPtr& b) {
           if (node_a.name != node_b->name) {
             return false;
           }
-          if (!ExprStructEqual(node_a.receiver, node_b->receiver)) {
+          if (!ExprStructEqualInternal(node_a.receiver, node_b->receiver)) {
             return false;
           }
           if (node_a.args.size() != node_b->args.size()) {
@@ -147,14 +150,14 @@ bool ExprStructEqual(const syntax::ExprPtr& a, const syntax::ExprPtr& b) {
             if (node_a.args[i].moved != node_b->args[i].moved) {
               return false;
             }
-            if (!ExprStructEqual(node_a.args[i].value,
-                                 node_b->args[i].value)) {
+            if (!ExprStructEqualInternal(node_a.args[i].value,
+                                         node_b->args[i].value)) {
               return false;
             }
           }
           return true;
         } else if constexpr (std::is_same_v<T, syntax::EntryExpr>) {
-          return ExprStructEqual(node_a.expr, node_b->expr);
+          return ExprStructEqualInternal(node_a.expr, node_b->expr);
         } else if constexpr (std::is_same_v<T, syntax::ResultExpr>) {
           return true;
         }
@@ -724,6 +727,10 @@ static bool EntailsConstraints(const std::vector<DiffConstraint>& facts,
 }
 
 }  // namespace
+
+bool ExprStructEqual(const syntax::ExprPtr& a, const syntax::ExprPtr& b) {
+  return ExprStructEqualInternal(a, b);
+}
 
 StaticProofResult StaticProof(
     const StaticProofContext& ctx,

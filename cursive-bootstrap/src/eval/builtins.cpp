@@ -897,6 +897,9 @@ std::optional<Value> BuiltinCall(const analysis::TypePath& module_path,
         return std::nullopt;
       }
       const RegionTarget target = FreshArena(sigma);
+      if (!ArenaNew(sigma, target)) {
+        return std::nullopt;
+      }
       RegionEntry entry;
       entry.tag = target;
       entry.target = target;
@@ -940,6 +943,9 @@ std::optional<Value> BuiltinCall(const analysis::TypePath& module_path,
       }
       const auto handle = RegionTargetOf(*self_val);
       if (!handle.has_value()) {
+        return std::nullopt;
+      }
+      if (!ArenaClear(sigma, *handle)) {
         return std::nullopt;
       }
       RetagRegionEntries(sigma, *handle);
@@ -986,6 +992,9 @@ std::optional<Value> BuiltinCall(const analysis::TypePath& module_path,
       }
       const auto handle = RegionTargetOf(*self_val);
       if (!handle.has_value()) {
+        return std::nullopt;
+      }
+      if (!ArenaRemove(sigma, *handle)) {
         return std::nullopt;
       }
       RemoveRegionEntries(sigma, *handle);

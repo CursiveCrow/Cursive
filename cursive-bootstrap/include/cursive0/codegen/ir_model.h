@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "cursive0/analysis/types/types.h"
+#include "cursive0/analysis/memory/regions.h"
 #include "cursive0/syntax/ast.h"
 
 namespace cursive0::codegen {
@@ -76,6 +77,8 @@ struct IRBindVar {
   std::string name;
   IRValue value;
   analysis::TypeRef type;
+  analysis::ProvenanceKind prov = analysis::ProvenanceKind::Bottom;
+  std::optional<std::string> prov_region;
 };
 
 struct IRStoreVar {
@@ -170,6 +173,7 @@ struct IRAlloc {
   std::optional<IRValue> region;
   IRValue value;
   IRValue result;
+  analysis::TypeRef type;
 };
 
 struct IRReturn {
@@ -431,7 +435,16 @@ struct GlobalVTable {
   std::vector<std::string> slots;
 };
 
-using IRDecl = std::variant<ProcIR, GlobalConst, GlobalZero, GlobalVTable>;
+// §6.3.1 External procedure declaration (from extern block)
+struct ExternProcIR {
+  std::string symbol;
+  std::vector<IRParam> params;
+  cursive0::analysis::TypeRef ret;
+  // Optional ABI specifier (e.g., "C")
+  std::optional<std::string> abi;
+};
+
+using IRDecl = std::variant<ProcIR, GlobalConst, GlobalZero, GlobalVTable, ExternProcIR>;
 using IRDecls = std::vector<IRDecl>;
 
 bool ValidateIR(const IR& ir);

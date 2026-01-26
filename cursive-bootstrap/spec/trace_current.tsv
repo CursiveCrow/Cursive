@@ -2088,6 +2088,16 @@ compile	codegen	Size-Prim	-	0	0	0	0
 compile	codegen	CG-Item-Procedure-Main	-	0	0	0	0	
 compile	codegen	Lower-Proc	-	0	0	0	0	
 compile	codegen	Mangle-Main	-	0	0	0	0	
+compile	codegen	Pat-Ident	-	0	0	0	0	
+compile	codegen	Pat-Ident	-	0	0	0	0	
+compile	codegen	Pat-Ident	-	0	0	0	0	
+compile	codegen	Pat-Ident	-	0	0	0	0	
+compile	codegen	Pat-Tuple	-	0	0	0	0	
+compile	codegen	P-Literal	-	0	0	0	0	
+compile	codegen	Prov-Return	-	0	0	0	0	
+compile	codegen	Prov-Seq-Empty	-	0	0	0	0	
+compile	codegen	Prov-Seq-Cons	-	0	0	0	0	
+compile	codegen	BlockProv-Res	-	0	0	0	0	
 compile	codegen	Lower-StmtList-Empty	-	0	0	0	0	
 compile	codegen	Lower-StmtList-Cons	-	0	0	0	0	
 compile	codegen	Lower-Stmt-Return	-	0	0	0	0	

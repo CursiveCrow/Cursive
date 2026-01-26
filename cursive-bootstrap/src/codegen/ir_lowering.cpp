@@ -1485,6 +1485,25 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       StoreAtOffset(emitter, builder, alloca, layout->offsets[2], hi_val);
       return builder->CreateLoad(llvm_ty, alloca);
     }
+    case DerivedValueInfo::Kind::LoadFromAddr: {
+      analysis::TypeRef value_type = ctx->LookupValueType(value);
+      if (!value_type) {
+        return nullptr;
+      }
+      llvm::Value* addr = emitter.EvaluateIRValue(info.base);
+      if (!addr) {
+        return nullptr;
+      }
+      llvm::Type* llvm_ty = emitter.GetLLVMType(value_type);
+      if (!llvm_ty) {
+        return nullptr;
+      }
+      if (!addr->getType()->isPointerTy()) {
+        return nullptr;
+      }
+      llvm::Value* typed_ptr = builder->CreateBitCast(addr, llvm_ty->getPointerTo());
+      return builder->CreateLoad(llvm_ty, typed_ptr);
+    }
     default:
       break;
   }
@@ -1602,6 +1621,25 @@ void EmitPanicIfFalse(LLVMEmitter& emitter,
   builder->SetInsertPoint(fail_bb);
   StorePanicRecord(emitter, builder, code);
   builder->CreateBr(ok_bb);
+
+  builder->SetInsertPoint(ok_bb);
+}
+
+void EmitPanicReturnIfFalse(LLVMEmitter& emitter,
+                            llvm::IRBuilder<>* builder,
+                            llvm::Value* ok,
+                            std::uint16_t code) {
+  if (!ok) {
+    return;
+  }
+  llvm::Function* func = builder->GetInsertBlock()->getParent();
+  llvm::BasicBlock* ok_bb = llvm::BasicBlock::Create(emitter.GetContext(), "check_ok", func);
+  llvm::BasicBlock* fail_bb = llvm::BasicBlock::Create(emitter.GetContext(), "check_fail", func);
+  builder->CreateCondBr(ok, ok_bb, fail_bb);
+
+  builder->SetInsertPoint(fail_bb);
+  StorePanicRecord(emitter, builder, code);
+  EmitReturn(emitter, builder);
 
   builder->SetInsertPoint(ok_bb);
 }
@@ -4006,6 +4044,47 @@ struct IRVisitor {
         }
       }
     }
+    if (ptr_type) {
+      auto stripped = StripPerm(ptr_type);
+      if (stripped) {
+        if (const auto* ptr_info = std::get_if<analysis::TypePtr>(&stripped->node)) {
+          if (ptr_info->state.has_value()) {
+            if (*ptr_info->state == analysis::PtrState::Null) {
+              SPEC_RULE("Lower-ReadPtrIR-Null");
+              StorePanicRecord(emitter, builder, PanicCode(PanicReason::NullDeref));
+              EmitReturn(emitter, builder);
+              return;
+            }
+            if (*ptr_info->state == analysis::PtrState::Expired) {
+              SPEC_RULE("Lower-ReadPtrIR-Expired");
+              StorePanicRecord(emitter, builder, PanicCode(PanicReason::ExpiredDeref));
+              EmitReturn(emitter, builder);
+              return;
+            }
+          }
+          if (!ptr_info->state.has_value() ||
+              *ptr_info->state == analysis::PtrState::Valid) {
+            llvm::Function* check_fn = emitter.GetFunction(RegionSymAddrIsActive());
+            if (!check_fn) {
+              if (ctx) {
+                ctx->ReportCodegenFailure();
+              }
+              return;
+            }
+            llvm::Value* cast_ptr = builder->CreateBitCast(ptr, emitter.GetOpaquePtr());
+            llvm::Value* active = builder->CreateCall(check_fn, {cast_ptr});
+            llvm::Value* ok = active;
+            if (active->getType()->isIntegerTy() &&
+                active->getType()->getIntegerBitWidth() != 1) {
+              ok = builder->CreateICmpNE(active,
+                                         llvm::ConstantInt::get(active->getType(), 0));
+            }
+            EmitPanicReturnIfFalse(emitter, builder, ok,
+                                   PanicCode(PanicReason::ExpiredDeref));
+          }
+        }
+      }
+    }
     analysis::TypeRef elem_type = PtrElementType(ptr_type);
     if (!elem_type || IsUnitType(elem_type)) {
       elem_type = ValueType(read.result);
@@ -4048,6 +4127,26 @@ struct IRVisitor {
           return;
         }
         SPEC_RULE("Lower-WritePtrIR");
+        if (!ptr_info->state.has_value() ||
+            ptr_info->state == analysis::PtrState::Valid) {
+          llvm::Function* check_fn = emitter.GetFunction(RegionSymAddrIsActive());
+          if (!check_fn) {
+            if (ctx) {
+              ctx->ReportCodegenFailure();
+            }
+            return;
+          }
+          llvm::Value* cast_ptr = builder->CreateBitCast(ptr, emitter.GetOpaquePtr());
+          llvm::Value* active = builder->CreateCall(check_fn, {cast_ptr});
+          llvm::Value* ok = active;
+          if (active->getType()->isIntegerTy() &&
+              active->getType()->getIntegerBitWidth() != 1) {
+            ok = builder->CreateICmpNE(active,
+                                       llvm::ConstantInt::get(active->getType(), 0));
+          }
+          EmitPanicReturnIfFalse(emitter, builder, ok,
+                                 PanicCode(PanicReason::ExpiredDeref));
+        }
       }
       if (const auto* raw_info = std::get_if<analysis::TypeRawPtr>(&stripped->node)) {
         if (raw_info->qual == analysis::RawPtrQual::Imm) {
@@ -4235,22 +4334,65 @@ struct IRVisitor {
     }
 
     llvm::Value* region = emitter.EvaluateIRValue(*region_value);
-    if (region) {
-      SPEC_RULE("Lower-AllocIR");
-      IRValue callee_val;
-      callee_val.kind = IRValue::Kind::Symbol;
-      callee_val.name = RegionSymAlloc();
-
-      IRCall call;
-      call.callee = callee_val;
-      call.args = { *region_value, alloc.value };
-      call.result = alloc.result;
-      (*this)(call);
+    if (!region) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
     }
 
-    if (val) {
-      StoreTemp(alloc.result, val);
+    analysis::TypeRef value_type = alloc.type;
+    if (!value_type && ctx) {
+      value_type = ctx->LookupValueType(alloc.value);
     }
+    if (!value_type) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    const auto scope = BuildScope(ctx);
+    const auto size_opt = SizeOf(scope, value_type);
+    const auto align_opt = AlignOf(scope, value_type);
+    if (!size_opt.has_value()) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+    const std::uint64_t size = *size_opt;
+    const std::uint64_t align = align_opt.value_or(1);
+
+    llvm::Function* alloc_fn = emitter.GetFunction(RegionSymAlloc());
+    if (!alloc_fn) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+    llvm::Type* usize_ty = llvm::Type::getInt64Ty(emitter.GetContext());
+    llvm::Value* size_val = llvm::ConstantInt::get(usize_ty, size);
+    llvm::Value* align_val = llvm::ConstantInt::get(usize_ty, align);
+
+    SPEC_RULE("Lower-AllocIR");
+    llvm::Value* raw_ptr = builder->CreateCall(alloc_fn, {region, size_val, align_val});
+    StoreTemp(alloc.result, raw_ptr);
+
+    if (!val) {
+      return;
+    }
+    llvm::Type* llvm_ty = emitter.GetLLVMType(value_type);
+    if (!llvm_ty) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+    bool is_unsigned = IsUnsignedValue(alloc.value);
+    val = CoerceToType(val, llvm_ty, is_unsigned);
+    llvm::Value* typed_ptr = builder->CreateBitCast(raw_ptr, llvm_ty->getPointerTo());
+    builder->CreateStore(val, typed_ptr);
   }
 
   void operator()(const IRRegion& region) {
@@ -4292,6 +4434,13 @@ struct IRVisitor {
             builder->CreateStore(reg_val, slot);
           }
           emitter.SetLocal(alias, slot);
+          if (ctx) {
+            IRValue local_val;
+            local_val.kind = IRValue::Kind::Local;
+            local_val.name = alias;
+            ctx->RegisterValueType(local_val, alias_type);
+            ctx->RegisterVar(alias, alias_type, false, true);
+          }
         }
       }
     }
@@ -4523,6 +4672,17 @@ struct IRVisitor {
     llvm::Value* lhs = emitter.EvaluateIRValue(check.lhs);
     llvm::Value* rhs = check.rhs.has_value() ? emitter.EvaluateIRValue(*check.rhs) : nullptr;
     if (!lhs) {
+      return;
+    }
+
+    if (check.op == "addr_active") {
+      llvm::Value* ok = lhs;
+      if (lhs->getType()->isIntegerTy() &&
+          lhs->getType()->getIntegerBitWidth() != 1) {
+        ok = builder->CreateICmpNE(
+            lhs, llvm::ConstantInt::get(lhs->getType(), 0));
+      }
+      EmitPanicIfFalse(emitter, builder, ok, PanicCodeFromString(check.reason));
       return;
     }
 

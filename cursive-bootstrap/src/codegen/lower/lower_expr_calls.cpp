@@ -534,6 +534,42 @@ LowerResult LowerMethodCall(const syntax::MethodCallExpr& expr, LowerCtx& ctx) {
   analysis::TypeRef stripped = recv_type ? analysis::StripPerm(recv_type) : recv_type;
   const auto* dyn_type = stripped ? std::get_if<analysis::TypeDynamic>(&stripped->node) : nullptr;
 
+  if (expr.name == "alloc" && stripped) {
+    if (const auto* modal = std::get_if<analysis::TypeModalState>(&stripped->node)) {
+      if (modal->path.size() == 1 && analysis::IdEq(modal->path[0], "Region") &&
+          modal->state == "Active") {
+        SPEC_RULE("Lower-MethodCall-Region-Alloc");
+        if (expr.args.size() == 1 && expr.args[0].value) {
+          auto recv_result = LowerExpr(*expr.receiver, ctx);
+          auto value_result = LowerExpr(*expr.args[0].value, ctx);
+          analysis::TypeRef value_type;
+          if (ctx.expr_type) {
+            value_type = ctx.expr_type(*expr.args[0].value);
+          }
+          if (!value_type) {
+            value_type = ctx.LookupValueType(value_result.value);
+          }
+          IRAlloc alloc;
+          alloc.region = recv_result.value;
+          alloc.value = value_result.value;
+          alloc.type = value_type;
+          IRValue ptr_value = ctx.FreshTempValue("alloc_ptr");
+          alloc.result = ptr_value;
+          IRValue alloc_val = ctx.FreshTempValue("alloc_val");
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::LoadFromAddr;
+          info.base = ptr_value;
+          ctx.RegisterDerivedValue(alloc_val, info);
+          if (value_type) {
+            ctx.RegisterValueType(alloc_val, value_type);
+          }
+          return LowerResult{SeqIR({recv_result.ir, value_result.ir, MakeIR(std::move(alloc))}),
+                             alloc_val};
+        }
+      }
+    }
+  }
+
   ParamModeList param_modes;
   analysis::ScopeContext scope;
   if (ctx.sigma) {

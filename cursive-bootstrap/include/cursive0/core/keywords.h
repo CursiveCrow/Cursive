@@ -5,14 +5,13 @@
 
 namespace cursive0::core {
 
-inline constexpr std::array<std::string_view, 55> kCursive0Keywords = {
+inline constexpr std::array<std::string_view, 50> kCursive0Keywords = {
     "all",
     "as",
     "break",
     "class",
     "continue",
     "dispatch",    // C0X Extension: structured concurrency
-    "dynamic",     // C0X Extension: key system
     "else",
     "enum",
     "false",
@@ -36,17 +35,14 @@ inline constexpr std::array<std::string_view, 55> kCursive0Keywords = {
     "protected",
     "public",
     "race",
-    "read",        // C0X Extension: key system
     "record",
     "region",
-    "release",     // C0X Extension: key system
     "result",
     "return",
     "shadow",
     "shared",
     "spawn",       // C0X Extension: structured concurrency
     "sync",
-    "speculative", // C0X Extension: key system
     "transition",
     "transmute",
     "true",
@@ -56,12 +52,30 @@ inline constexpr std::array<std::string_view, 55> kCursive0Keywords = {
     "var",
     "where",       // C0X Extension: generics
     "widen",
-    "write",       // C0X Extension: key system
     "using",
     "yield",
     "const",
     "override",
 };
+
+// §3.3.4 Fixed identifiers - these are identifiers, not keywords
+// They have special meaning in specific contexts only
+inline constexpr std::array<std::string_view, 5> kCursive0FixedIdentifiers = {
+    "dynamic",     // C0X Extension: key system
+    "read",        // C0X Extension: key system
+    "release",     // C0X Extension: key system
+    "speculative", // C0X Extension: key system
+    "write",       // C0X Extension: key system
+};
+
+inline bool IsFixedIdentifier(std::string_view s) {
+  for (std::string_view ident : kCursive0FixedIdentifiers) {
+    if (s == ident) {
+      return true;
+    }
+  }
+  return false;
+}
 
 inline constexpr std::array<std::string_view, 46> kCursive0Operators = {
     "+",

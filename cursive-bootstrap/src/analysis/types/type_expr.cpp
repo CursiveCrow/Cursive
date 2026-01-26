@@ -113,11 +113,7 @@ static bool IsPrimTypeName(std::string_view name) {
          name == "char" || name == "()" || name == "!";
 }
 
-struct TypeLowerResult {
-  bool ok = false;
-  std::optional<std::string_view> diag_id;
-  TypeRef type;
-};
+using TypeLowerResult = LowerTypeResult;
 
 static TypeLowerResult LowerType(const ScopeContext& ctx,
                                  const std::shared_ptr<syntax::Type>& type);
@@ -2618,7 +2614,7 @@ ExprTypeResult TypeTupleAccessExprImpl(const ScopeContext& ctx,
   PlaceTypeFn type_place = [&](const syntax::ExprPtr& inner) {
     return TypePlace(ctx, type_ctx, inner, env);
   };
-  auto lower_type = [&](const std::shared_ptr<syntax::Type>& type) -> LowerTypeResult {
+  auto lower_type = [&](const std::shared_ptr<syntax::Type>& type) -> TypeLowerResult {
     const auto lowered = LowerType(ctx, type);
     if (!lowered.ok) {
       return {false, lowered.diag_id, {}};
@@ -2998,7 +2994,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
   PlaceTypeFn type_place = [&](const syntax::ExprPtr& inner) {
     return TypePlace(ctx, type_ctx, inner, env);
   };
-  auto lower_type = [&](const std::shared_ptr<syntax::Type>& type) -> LowerTypeResult {
+  auto lower_type = [&](const std::shared_ptr<syntax::Type>& type) -> TypeLowerResult {
     const auto lowered = LowerType(ctx, type);
     if (!lowered.ok) {
       return {false, lowered.diag_id, {}};
@@ -3064,7 +3060,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
     }
 
     auto lower_type_self = [&](const std::shared_ptr<syntax::Type>& type)
-        -> LowerTypeResult {
+        -> TypeLowerResult {
       const auto lowered = LowerType(ctx, type);
       if (!lowered.ok) {
         return {false, lowered.diag_id, {}};
@@ -3724,6 +3720,8 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
     result.diag_id = recv_type.diag_id;
     return result;
   }
+  const auto& params = record_method ? record_method->params
+                                     : class_method->params;
   const auto method_perm = PermOfType(recv_type.type);
   if (type_ctx.require_pure) {
     if (method_perm != Permission::Const ||
@@ -3744,8 +3742,6 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
     return result;
   }
 
-  const auto& params = record_method ? record_method->params
-                                     : class_method->params;
   const auto args_ok =
       ArgsOk(ctx, params, expr.args, type_expr, &type_place, lower_type);
   if (!args_ok.ok) {

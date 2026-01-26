@@ -11,8 +11,15 @@ static inline void SpecDefsDiagnosticTypes() {
 }
 
 static std::string SeverityLabel(Severity severity) {
-  if (severity == Severity::Warning) {
-    return "warning";
+  switch (severity) {
+    case Severity::Error:
+      return "error";
+    case Severity::Warning:
+      return "warning";
+    case Severity::Info:
+      return "info";
+    case Severity::Panic:
+      return "panic";
   }
   return "error";
 }
@@ -45,7 +52,7 @@ bool HasError(const DiagnosticStream& stream) {
   SPEC_DEF("HasError", "1.6.3");
   SpecDefsDiagnosticTypes();
   for (const auto& diag : stream) {
-    if (diag.severity == Severity::Error) {
+    if (diag.severity == Severity::Error || diag.severity == Severity::Panic) {
       return true;
     }
   }

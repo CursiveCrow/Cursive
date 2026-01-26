@@ -150,6 +150,7 @@ Value ContextInitSigma(Sigma& sigma) {
   }
   Value heap = MakeDynamicHandle(sigma, analysis::TypePath{"HeapAllocator"}, scope_id);
   Value sys = MakeSystemValue();
+  Value reactor = MakeDynamicHandle(sigma, analysis::TypePath{"Reactor"}, scope_id);
 
   RecordVal ctx;
   ctx.record_type = analysis::MakeTypePath(analysis::TypePath{"Context"});
@@ -157,6 +158,7 @@ Value ContextInitSigma(Sigma& sigma) {
       {"fs", fs},
       {"heap", heap},
       {"sys", sys},
+      {"reactor", reactor},
   };
   SPEC_RULE("ContextInitSigma");
   return Value{ctx};

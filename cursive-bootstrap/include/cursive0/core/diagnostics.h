@@ -13,6 +13,8 @@ using DiagCode = std::string;
 enum class Severity {
   Error,
   Warning,
+  Info,
+  Panic,
 };
 
 struct Diagnostic {
