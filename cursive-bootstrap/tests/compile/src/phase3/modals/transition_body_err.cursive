@@ -1,8 +1,0 @@
-# SPEC_COV: Transition-Body-Err
-modal Mod {
-  @A {
-    v: i32
-    transition bad() -> @B { Mod@A { v: 0 } }
-  }
-  @B { v: i32 }
-}

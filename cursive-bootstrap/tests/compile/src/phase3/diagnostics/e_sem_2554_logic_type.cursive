@@ -1,9 +1,0 @@
-# SPEC_COV: E-SEM-2554
-// E-SEM-2554: Logical type error
-
-public procedure main(ctx: Context) -> i32 {
-  let x: i32 = 10
-  let y: i32 = 20
-  let z: bool = x && y
-  return 0
-}

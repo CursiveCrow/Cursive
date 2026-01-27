@@ -1,8 +1,0 @@
-# SPEC_COV: C0X-9.2-Import-Parse
-// §9.2: import declaration
-
-import cursive::runtime
-
-public procedure main(ctx: Context) -> i32 {
-  return 0
-}

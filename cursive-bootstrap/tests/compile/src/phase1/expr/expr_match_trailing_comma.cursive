@@ -1,3 +1,0 @@
-# SPEC_COV: Parse-Match-Expr
-# SPEC_COV: Trailing-Comma-Err
-let x = match 1 { 1 => 1, }

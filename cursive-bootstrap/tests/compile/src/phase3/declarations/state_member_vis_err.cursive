@@ -1,2 +1,0 @@
-# SPEC_COV: StateMemberVisOk-Err
-private modal Mod { @State { public v: i32 } }

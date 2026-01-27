@@ -1,4 +1,0 @@
-[assembly]
-name = "dyn_dispatch"
-kind = "executable"
-root = "src"

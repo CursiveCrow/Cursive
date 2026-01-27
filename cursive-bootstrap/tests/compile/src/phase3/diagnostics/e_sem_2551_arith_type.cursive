@@ -1,9 +1,0 @@
-# SPEC_COV: E-SEM-2551
-// E-SEM-2551: Arithmetic type error
-
-public procedure main(ctx: Context) -> i32 {
-  let x: bool = true
-  let y: bool = false
-  let z: bool = x + y
-  return 0
-}

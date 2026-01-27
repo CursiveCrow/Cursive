@@ -1,9 +1,0 @@
-# SPEC_COV: T-Alloc
-// Allocation in explicit region
-
-public procedure main(ctx: Context) -> i32 {
-  region as r {
-    let p = r ^ 100
-    return *p
-  }
-}

@@ -1,9 +1,0 @@
-# SPEC_COV: Lower-Expr-If
-# SPEC_COV: T-Modal-Widen
-
-modal Status { @Idle { v: i32 } @Busy { v: i32 } }
-
-public procedure main(ctx: Context) -> i32 {
-  let s: Status = widen Status@Idle { v: 1 }
-  return 0
-}

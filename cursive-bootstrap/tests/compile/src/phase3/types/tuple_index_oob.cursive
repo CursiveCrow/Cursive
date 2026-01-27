@@ -1,7 +1,0 @@
-# SPEC_COV: TupleIndex-OOB
-// E-TYP-1801: Tuple index out of bounds
-public procedure main(ctx: Context) -> i32 {
-  let t: (i32, bool) = (1, true);
-  let x: i32 = t.5;
-  return 0;
-}

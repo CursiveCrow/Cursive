@@ -1,4 +1,0 @@
-[assembly]
-name = "heap_string_alloc"
-kind = "executable"
-root = "src"

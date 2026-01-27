@@ -1,7 +1,0 @@
-# SPEC_COV: Deref-Null
-// E-TYP-2101: Dereference of pointer in @Null state
-public procedure main(ctx: Context) -> i32 {
-  let p: Ptr<i32>@Null = Ptr::null();
-  let x: i32 = *p;
-  return 0;
-}

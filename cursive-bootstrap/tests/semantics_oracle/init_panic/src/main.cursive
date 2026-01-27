@@ -1,8 +1,0 @@
-# SPEC_COV: Init-Panic
-# SPEC_COV: Init-Fail
-
-let boom: i32 = 1i32 / 0i32
-
-public procedure main(ctx: Context) -> i32 {
-  return 0i32;
-}

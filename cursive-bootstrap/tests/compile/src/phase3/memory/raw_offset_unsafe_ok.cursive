@@ -1,8 +1,0 @@
-# SPEC_COV: T-Raw-Offset
-// Raw pointer arithmetic
-
-public procedure main(ctx: Context) -> i32 {
-  var arr: [i32; 4] = [1, 2, 3, 4]
-  let p: *mut i32 = unsafe { &arr as *mut i32 }
-  return 0
-}

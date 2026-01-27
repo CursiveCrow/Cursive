@@ -1,7 +1,0 @@
-# SPEC_COV: Modal-Method-NotFound
-modal Mod { @Open { v: i32 } }
-public procedure main(ctx: Context) -> i32 {
-  let m = Mod@Open { v: 0 };
-  let x = m~>missing();
-  return 0;
-}

@@ -1,8 +1,0 @@
-# SPEC_COV: T-If
-// Branch union widening
-
-public procedure main(ctx: Context) -> i32 {
-  let b: bool = true
-  let x: i32 | bool = if b { 42 } else { false }
-  return 0
-}

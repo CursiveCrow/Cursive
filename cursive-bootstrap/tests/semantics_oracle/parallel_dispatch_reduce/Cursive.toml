@@ -1,4 +1,0 @@
-[assembly]
-name = "parallel_dispatch_reduce"
-kind = "executable"
-root = "src"

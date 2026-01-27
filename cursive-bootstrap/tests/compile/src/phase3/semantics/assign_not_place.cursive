@@ -1,6 +1,0 @@
-# SPEC_COV: Assign-NotPlace
-// E-SEM-3131: Assignment to non-place expression
-public procedure main(ctx: Context) -> i32 {
-  1 = 2;
-  return 0;
-}

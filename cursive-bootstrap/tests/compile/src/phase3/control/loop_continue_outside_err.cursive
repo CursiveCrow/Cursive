@@ -1,8 +1,0 @@
-# SPEC_COV: T-Continue
-# SPEC_COV: E-SEM-3171
-// E-SEM-3171: continue outside loop
-
-public procedure main(ctx: Context) -> i32 {
-  continue
-  return 0
-}

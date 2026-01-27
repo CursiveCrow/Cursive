@@ -1,6 +1,0 @@
-# SPEC_COV: E-MOD-1301
-// E-MOD-1301: Unresolved name
-
-public procedure main(ctx: Context) -> i32 {
-  return undefined_name
-}

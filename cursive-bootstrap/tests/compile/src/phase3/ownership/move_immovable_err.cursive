@@ -1,9 +1,0 @@
-# SPEC_COV: B-Move-Immovable
-# SPEC_COV: E-UNS-0111
-// E-UNS-0111: Move from immovable binding
-
-public procedure main(ctx: Context) -> i32 {
-  let x := 42
-  let y = move x
-  return y
-}

@@ -1,7 +1,0 @@
-# SPEC_COV: Index-NonIndexable
-// E-SEM-2527: Indexing a non-indexable type
-public procedure main(ctx: Context) -> i32 {
-  let x: i32 = 42;
-  let y: i32 = x[0];
-  return 0;
-}

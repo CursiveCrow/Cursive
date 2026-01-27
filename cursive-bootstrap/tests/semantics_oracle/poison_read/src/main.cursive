@@ -1,7 +1,0 @@
-# SPEC_COV: PoisonFlag-Decl
-# SPEC_COV: CheckPoison-Use
-
-public procedure main(ctx: Context) -> i32 {
-  let _x = demo::value;
-  return 0;
-}

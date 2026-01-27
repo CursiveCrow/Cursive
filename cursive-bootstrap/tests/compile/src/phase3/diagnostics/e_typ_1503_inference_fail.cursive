@@ -1,7 +1,0 @@
-# SPEC_COV: E-TYP-1503
-// E-TYP-1503: Type inference failure
-
-public procedure main(ctx: Context) -> i32 {
-  let x = []
-  return 0
-}

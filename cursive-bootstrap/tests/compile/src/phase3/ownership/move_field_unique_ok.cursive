@@ -1,9 +1,0 @@
-# SPEC_COV: B-Move-Field
-// Move field from unique binding
-
-record Container { value: i32 }
-
-public procedure main(ctx: Context) -> i32 {
-  let c: Container = Container { value: 42 }
-  return c.value
-}

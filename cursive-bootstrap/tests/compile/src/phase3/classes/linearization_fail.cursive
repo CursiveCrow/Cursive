@@ -1,9 +1,0 @@
-# SPEC_COV: Merge-Fail
-# SPEC_COV: Lin-Fail
-# SPEC_COV: Superclass-Cycle
-class O {}
-class A <: O {}
-class B <: O {}
-class C <: A + B {}
-class D <: B + A {}
-class E <: C + D {}

@@ -1,6 +1,0 @@
-# SPEC_COV: Alloc-Implicit-NoRegion-Err
-// E-MEM-3021: Implicit region allocation outside any region scope
-public procedure main(ctx: Context) -> i32 {
-  let p: Ptr<i32>@Valid = ^1;
-  return 0;
-}

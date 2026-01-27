@@ -1,4 +1,0 @@
-[assembly]
-name = "resolve_module_path_err"
-kind = "executable"
-root = "src"

@@ -1,8 +1,0 @@
-# SPEC_COV: Frame-NoActiveRegion-Err
-// E-MEM-1207: frame statement outside any region scope
-public procedure main(ctx: Context) -> i32 {
-  frame {
-    let x: i32 = 1;
-  }
-  return 0;
-}

@@ -1,9 +1,0 @@
-# SPEC_COV: T-Ptr-Perm
-// Pointer with permission
-
-public procedure main(ctx: Context) -> i32 {
-  var x: i32 = 42
-  let p: Ptr<unique i32>@Valid = &x
-  *p = 100
-  return x
-}

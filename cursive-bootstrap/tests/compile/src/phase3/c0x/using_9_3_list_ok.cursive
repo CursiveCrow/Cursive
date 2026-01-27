@@ -1,9 +1,0 @@
-# SPEC_COV: C0X-9.3-UsingList
-# SPEC_COV: Using-List
-// §9.3: List using introduces multiple names.
-
-using cursive::runtime::{string, bytes}
-
-public procedure main(ctx: Context) -> i32 {
-  return 0
-}

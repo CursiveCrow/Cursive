@@ -1,8 +1,0 @@
-# SPEC_COV: B-Inactive
-// Branch inactivation
-
-public procedure main(ctx: Context) -> i32 {
-  let x: i32 = 42
-  let y: i32 = if true { x } else { 0 }
-  return y
-}

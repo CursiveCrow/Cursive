@@ -1,8 +1,0 @@
-# SPEC_COV: B-Assign-Const-Err
-// E-TYP-1601: Mutation through const path
-public procedure main(ctx: Context) -> i32 {
-  let x: i32 = 1;
-  let p: Ptr<const i32>@Valid = &x;
-  *p = 2;
-  return 0;
-}

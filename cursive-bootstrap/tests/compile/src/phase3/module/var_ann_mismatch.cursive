@@ -1,6 +1,0 @@
-# SPEC_COV: T-VarStmt-Ann-Mismatch
-// E-MOD-2402: Var annotation type mismatch
-public procedure main(ctx: Context) -> i32 {
-  var x: i32 = true;
-  return 0;
-}

@@ -1,8 +1,0 @@
-# SPEC_COV: Pat-Tuple-Arity-Err
-// E-TYP-1803: Tuple arity mismatch in pattern.
-// Pattern expects 2 elements but tuple has 3.
-public procedure main(ctx: Context) -> i32 {
-  let t: (i32, i32, i32) = (1, 2, 3);
-  let (a, b) = t;
-  return 0i32;
-}

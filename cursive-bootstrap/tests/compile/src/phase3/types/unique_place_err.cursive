@@ -1,8 +1,0 @@
-# SPEC_COV: B-Place-Unique-Err
-// E-TYP-1602: unique exclusion violation
-public procedure main(ctx: Context) -> i32 {
-  var x: unique i32 = 1;
-  let p1: Ptr<unique i32>@Valid = &x;
-  let p2: Ptr<unique i32>@Valid = &x;
-  return 0;
-}

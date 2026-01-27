@@ -1,8 +1,0 @@
-# SPEC_COV: Sub-Member-Union
-// Single type is subtype of union containing that type: i32 <: (i32 | bool)
-
-public procedure main(ctx: Context) -> i32 {
-  let single: i32 = 42;
-  let union_val: i32 | bool = single;
-  return 0;
-}

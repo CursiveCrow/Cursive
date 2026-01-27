@@ -1,8 +1,0 @@
-# SPEC_COV: T-If
-# SPEC_COV: E-SEM-2562
-// E-SEM-2562: If branches must have compatible types
-
-public procedure main(ctx: Context) -> i32 {
-  let x: i32 = if true { 1 } else { true };
-  return x;
-}

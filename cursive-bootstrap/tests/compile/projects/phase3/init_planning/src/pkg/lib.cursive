@@ -1,6 +1,0 @@
-# SPEC_COV: WF-Acyclic-Eager
-# SPEC_COV: Topo-Cycle
-public let b: i32 = demo::a
-
-public procedure dummy() -> () {
-}

@@ -1,7 +1,0 @@
-# SPEC_COV: BytesBuiltin-Unknown
-// E-TYP-3102: Unknown bytes builtin
-public procedure main(ctx: Context) -> i32 {
-  let b: bytes@View = "hello" as bytes@View;
-  let x: i32 = cursive::runtime::bytes::unknown(b);
-  return 0;
-}

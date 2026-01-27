@@ -1,9 +1,0 @@
-# SPEC_COV: T-Bitwise
-# SPEC_COV: T-BitNot
-// Bitwise complement using XOR with -1
-
-public procedure main(ctx: Context) -> i32 {
-  let a: i32 = 0b1010;
-  let b: i32 = a ^ -1;
-  return b;
-}

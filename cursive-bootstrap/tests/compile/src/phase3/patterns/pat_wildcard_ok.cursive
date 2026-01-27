@@ -1,8 +1,0 @@
-# SPEC_COV: T-Pat-Wildcard
-// Wildcard pattern discards value
-
-public procedure main(ctx: Context) -> i32 {
-  let _ = 42
-  let (_, b) = (1, 2)
-  return b
-}

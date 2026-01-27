@@ -1,8 +1,0 @@
-# SPEC_COV: C0X-Import-Basic
-# SPEC_COV: C0X-Module-Import
-// Tests basic import declaration syntax.
-// Note: This tests parsing only; resolution requires multi-module setup.
-
-public procedure main(ctx: Context) -> i32 {
-  return 0
-}

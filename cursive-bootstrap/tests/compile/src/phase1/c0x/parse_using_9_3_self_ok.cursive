@@ -1,8 +1,0 @@
-# SPEC_COV: C0X-9.3-UsingSelf-Parse
-// §9.3: using self
-
-using cursive::runtime::{self, string}
-
-public procedure main(ctx: Context) -> i32 {
-  return 0
-}

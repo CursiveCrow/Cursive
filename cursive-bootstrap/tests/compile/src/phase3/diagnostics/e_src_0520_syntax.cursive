@@ -1,6 +1,0 @@
-# SPEC_COV: E-SRC-0520
-// E-SRC-0520: Syntax error
-
-public procedure main(ctx: Context) -> i32
-  return 0
-}

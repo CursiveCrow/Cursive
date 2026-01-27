@@ -1,7 +1,0 @@
-# SPEC_COV: Pat-Dup-R-Err
-// E-SEM-2713: Duplicate binding in nested pattern
-public procedure main(ctx: Context) -> i32 {
-  let t: ((i32, i32), i32) = ((1, 2), 3);
-  let ((a, a), b) = t;
-  return 0;
-}

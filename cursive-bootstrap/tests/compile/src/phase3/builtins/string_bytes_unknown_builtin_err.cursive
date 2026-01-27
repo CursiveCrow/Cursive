@@ -1,5 +1,0 @@
-# SPEC_COV: ResolveQual-Name-Err
-public procedure main(ctx: Context) -> i32 {
-  let x = string::missing();
-  return 0;
-}

@@ -1,3 +1,0 @@
-# SPEC_COV: Parse-Func-Type
-# SPEC_COV: Trailing-Comma-Err
-let f: (i32,) -> i32 = 0

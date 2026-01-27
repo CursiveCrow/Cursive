@@ -1,8 +1,0 @@
-# SPEC_COV: T-Assign
-// Assignment to mutable variable
-
-public procedure main(ctx: Context) -> i32 {
-  var x: i32 = 10
-  x = 20
-  return x
-}

@@ -1,6 +1,0 @@
-# SPEC_COV: ValueUse-NonBitcopyPlace
-public procedure main(ctx: Context) -> i32 {
-  let x: unique i32 = unsafe { transmute::<i32, unique i32>(0) };
-  let y: unique i32 = x;
-  return 0;
-}

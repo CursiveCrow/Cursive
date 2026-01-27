@@ -1,5 +1,0 @@
-# SPEC_COV: Parse-Type
-# SPEC_COV: Sync-Type-Advance
-# SPEC_COV: Sync-Type-Consume
-type T = u8 where Foo
-procedure ok() {}

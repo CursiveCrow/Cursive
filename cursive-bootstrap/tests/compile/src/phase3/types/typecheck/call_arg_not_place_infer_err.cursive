@@ -1,7 +1,0 @@
-# SPEC_COV: Syn-Call-Err
-# SPEC_COV: Call-Arg-NotPlace
-public procedure foo(x: i32) -> i32 { return 0; }
-public procedure main(ctx: Context) -> i32 {
-  let y = foo(1);
-  return 0;
-}

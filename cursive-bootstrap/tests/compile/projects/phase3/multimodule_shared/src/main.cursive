@@ -1,4 +1,0 @@
-# SPEC_COV: Main-Ok
-public procedure main(ctx: Context) -> i32 {
-  return 0;
-}

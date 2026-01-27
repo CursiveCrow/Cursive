@@ -1,6 +1,0 @@
-# SPEC_COV: T-Binary-Type-Err
-// E-TYP-2901: Binary operator type mismatch
-public procedure main(ctx: Context) -> i32 {
-  let x: i32 = 1 + true;
-  return 0;
-}

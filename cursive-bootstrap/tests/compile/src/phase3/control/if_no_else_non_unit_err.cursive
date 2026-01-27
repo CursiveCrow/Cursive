@@ -1,8 +1,0 @@
-# SPEC_COV: T-If-No-Else
-# SPEC_COV: E-MOD-2402
-// E-MOD-2402: If without else cannot have non-unit type
-
-public procedure main(ctx: Context) -> i32 {
-  let x: i32 = if true { 42 }
-  return 0
-}

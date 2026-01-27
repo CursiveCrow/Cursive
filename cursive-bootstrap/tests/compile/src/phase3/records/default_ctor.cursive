@@ -1,9 +1,0 @@
-# SPEC_COV: T-Record-Default
-public procedure main(ctx: Context) -> i32 {
-  let r: Rec = Rec();
-
-  return 0;
-}
-record Rec {
-  a: i32 = 1
-}

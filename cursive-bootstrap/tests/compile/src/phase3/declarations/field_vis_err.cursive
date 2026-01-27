@@ -1,2 +1,0 @@
-# SPEC_COV: FieldVisOk-Err
-private record Rec { public a: i32 }

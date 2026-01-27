@@ -1,5 +1,0 @@
-# SPEC_COV: ResolveStmt-Region
-# SPEC_COV: ResolveExpr-Ident-Err
-public procedure main(ctx: Context) -> i32 { region(1) as r { } r; 
- return 0;
-}

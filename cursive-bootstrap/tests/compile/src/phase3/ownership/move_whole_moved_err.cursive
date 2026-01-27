@@ -1,9 +1,0 @@
-# SPEC_COV: B-Move-Whole
-# SPEC_COV: E-UNS-0110
-// E-UNS-0110: Use after move
-
-public procedure main(ctx: Context) -> i32 {
-  let x: i32 = 42
-  let y = move x
-  return x
-}

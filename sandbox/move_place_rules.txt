@@ -1,8 +1,0 @@
-**(MovePlace-Whole)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{FieldHead}(p) = \bot \quad \text{LookupBind}(\sigma_1, \text{PlaceRoot}(p)) = b \quad \text{BindInfo}(b).\text{mov} = \text{mov} \quad \text{SetState}(\sigma_1, b, \text{Moved}) \Downarrow \sigma_2}{\Gamma \vdash \text{MovePlaceσ}(p, \sigma) \Downarrow (\text{Val}(v), \sigma_2)}$$
-
-**(MovePlace-Field)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Val}(v), \sigma_1) \quad \text{FieldHead}(p) = f \quad \text{LookupBind}(\sigma_1, \text{PlaceRoot}(p)) = b \quad \text{BindInfo}(b).\text{mov} = \text{mov} \quad \text{BindState}(\sigma_1, b) = s \quad \text{PM}(s, f) = s' \quad \text{SetState}(\sigma_1, b, s') \Downarrow \sigma_2}{\Gamma \vdash \text{MovePlaceσ}(p, \sigma) \Downarrow (\text{Val}(v), \sigma_2)}$$
-
-**(MovePlace-Ctrl)**
-$$\frac{\Gamma \vdash \text{ReadPlaceσ}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}{\Gamma \vdash \text{MovePlaceσ}(p, \sigma) \Downarrow (\text{Ctrl}(\kappa), \sigma_1)}$$

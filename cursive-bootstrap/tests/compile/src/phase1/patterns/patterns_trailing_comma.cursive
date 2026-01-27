@@ -1,4 +1,0 @@
-# SPEC_COV: Parse-TuplePatternElems-TrailingComma
-# SPEC_COV: Parse-PatternListTail-TrailingComma
-# SPEC_COV: Parse-FieldPatternTail-TrailingComma
-let (a,) = x let (a, b,) = x let Rec { a, } = x

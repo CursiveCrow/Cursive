@@ -1,8 +1,0 @@
-# SPEC_COV: T-Loop-Cond-NonBool
-// E-TYP-2801: Loop condition must be bool
-public procedure main(ctx: Context) -> i32 {
-  loop 42 {
-    break;
-  }
-  return 0;
-}

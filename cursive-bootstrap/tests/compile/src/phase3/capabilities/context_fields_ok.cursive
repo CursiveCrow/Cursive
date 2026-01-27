@@ -1,8 +1,0 @@
-# SPEC_COV: BuiltinRecord
-# SPEC_COV: Fields(Context)
-public procedure main(ctx: Context) -> i32 {
-  let fs = ctx.fs;
-  let heap = ctx.heap;
-  let sys = ctx.sys;
-  return 0;
-}

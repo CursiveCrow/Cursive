@@ -1,8 +1,0 @@
-# SPEC_COV: C0X-6.1-GenericSingle-Parse
-// §6.1: Single type parameter
-
-record Box<T> { value: T }
-
-public procedure main(ctx: Context) -> i32 {
-  return 0
-}

@@ -1,6 +1,0 @@
-[assembly]
-name = "demo"
-kind = "executable"
-root = "src"
-out_dir = "build"
-emit_ir = "none"

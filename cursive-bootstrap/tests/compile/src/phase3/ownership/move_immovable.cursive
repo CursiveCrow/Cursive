@@ -1,6 +1,0 @@
-# SPEC_COV: B-Move-Whole-Immovable-Err
-public procedure main(ctx: Context) -> i32 {
-  let x: i32 := 1;
-  let y: i32 = move x;
-  return 0;
-}

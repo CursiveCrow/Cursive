@@ -1,9 +1,0 @@
-# SPEC_COV: T-ExprStmt
-// Expression statement with unused result
-
-procedure compute() -> i32 { return 42; }
-
-public procedure main(ctx: Context) -> i32 {
-  compute()
-  return 0
-}

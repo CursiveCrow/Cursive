@@ -1,2 +1,0 @@
-# SPEC_COV: Modal-Field-NotVisible
-modal Mod { @Open { v: i32 } }

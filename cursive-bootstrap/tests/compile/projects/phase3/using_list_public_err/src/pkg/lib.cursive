@@ -1,4 +1,0 @@
-# SPEC_COV: Using-List-Public-Err
-// Private item that cannot be publicly used
-procedure secret() -> () {}
-public procedure visible() -> () {}

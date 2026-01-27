@@ -1,9 +1,0 @@
-# SPEC_COV: E-TYP-1602
-// E-TYP-1602: Permission mismatch
-
-procedure one_arg(x: i32) -> i32 { return x; }
-
-public procedure main(ctx: Context) -> i32 {
-  let f: (i32, i32) -> i32 = one_arg
-  return 0
-}

@@ -1,9 +1,0 @@
-# SPEC_COV: C0X-9.3-UsingSelf
-# SPEC_COV: Using-Self
-// §9.3: Self using includes module itself.
-
-using cursive::runtime::{self, string}
-
-public procedure main(ctx: Context) -> i32 {
-  return 0
-}

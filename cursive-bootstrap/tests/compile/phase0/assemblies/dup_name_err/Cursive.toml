@@ -1,9 +1,0 @@
-[[assembly]]
-name = "demo"
-kind = "executable"
-root = "src"
-
-[[assembly]]
-name = "demo"
-kind = "executable"
-root = "src2"

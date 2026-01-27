@@ -1,8 +1,0 @@
-# SPEC_COV: E-TYP-1902
-// E-TYP-1902: Wrong argument count
-
-procedure add(a: i32, b: i32) -> i32 { return a + b; }
-
-public procedure main(ctx: Context) -> i32 {
-  return add(1)
-}

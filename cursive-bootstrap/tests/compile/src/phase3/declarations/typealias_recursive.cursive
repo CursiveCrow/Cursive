@@ -1,3 +1,0 @@
-# SPEC_COV: TypeAlias-Recursive-Err
-type A = demo::B
-type B = demo::A

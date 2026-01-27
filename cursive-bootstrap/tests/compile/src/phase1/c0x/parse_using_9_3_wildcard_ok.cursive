@@ -1,8 +1,0 @@
-# SPEC_COV: C0X-9.3-UsingWildcard-Parse
-// §9.3: using wildcard
-
-using cursive::runtime::*
-
-public procedure main(ctx: Context) -> i32 {
-  return 0
-}

@@ -1,9 +1,0 @@
-# SPEC_COV: C0X-7.8-BoundaryRecord-Parse
-// §7.8: Type-level boundary marker # on record field
-
-record Protected { #private: PrivateData }
-record PrivateData { secret: i32 }
-
-public procedure main(ctx: Context) -> i32 {
-  return 0
-}

@@ -1,6 +1,0 @@
-# SPEC_COV: Alloc-Region-NotFound-Err
-// E-MEM-1206: Region allocation with unknown alias
-public procedure main(ctx: Context) -> i32 {
-  let x: i32 = unknown_alias ^ 1;
-  return 0;
-}

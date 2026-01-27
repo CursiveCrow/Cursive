@@ -1,6 +1,0 @@
-# SPEC_COV: T-Unary-Type-Err
-// E-TYP-2902: Unary operator type mismatch
-public procedure main(ctx: Context) -> i32 {
-  let x: bool = -true;
-  return 0;
-}

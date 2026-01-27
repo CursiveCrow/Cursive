@@ -1,4 +1,0 @@
-[assembly]
-name = "parallel_panic_propagate"
-kind = "executable"
-root = "src"

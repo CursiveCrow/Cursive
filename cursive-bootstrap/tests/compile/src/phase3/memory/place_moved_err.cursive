@@ -1,8 +1,0 @@
-# SPEC_COV: B-Place-Moved-Err
-// E-MEM-3001: Read from moved binding
-public procedure main(ctx: Context) -> i32 {
-  let x: i32 = 1;
-  let y: i32 = move x;
-  let z: i32 = x;
-  return 0;
-}

@@ -1,4 +1,0 @@
-# SPEC_COV: WF-Module-Path-Collision
-# SPEC_COV: Disc-Collision
-# SPEC_COV: Modules-Err
-procedure demo() {}

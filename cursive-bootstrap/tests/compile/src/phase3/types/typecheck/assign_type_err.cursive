@@ -1,8 +1,0 @@
-# SPEC_COV: T-Assign
-# SPEC_COV: Assign-Type-Err
-public procedure main(ctx: Context) -> i32 {
-  var x: i32 = 0;
-  x = true;
-
-  return 0;
-}

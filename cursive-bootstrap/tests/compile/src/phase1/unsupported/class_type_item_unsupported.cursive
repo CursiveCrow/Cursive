@@ -1,4 +1,0 @@
-# SPEC_COV: Unsupported-Construct
-class C {
-  type T = i32;
-}

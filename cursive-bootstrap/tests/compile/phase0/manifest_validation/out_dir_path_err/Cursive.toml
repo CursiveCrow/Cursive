@@ -1,5 +1,0 @@
-[assembly]
-name = "demo"
-kind = "executable"
-root = "src"
-out_dir = "/abs"

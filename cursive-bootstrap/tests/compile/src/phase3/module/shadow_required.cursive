@@ -1,9 +1,0 @@
-# SPEC_COV: Intro-Shadow-Required
-// E-MOD-1303: Shadowing without shadow keyword - binding exists in outer scope
-public procedure main(ctx: Context) -> i32 {
-  let x: i32 = 1;
-  {
-    let x: i32 = 2;
-  }
-  return 0;
-}

@@ -1,4 +1,0 @@
-[assembly]
-name = "parallel_multi_panic"
-kind = "executable"
-root = "src"

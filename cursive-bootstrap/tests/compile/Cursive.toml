@@ -1,4 +1,0 @@
-[assembly]
-name = "compile_tests"
-kind = "executable"
-root = "src"

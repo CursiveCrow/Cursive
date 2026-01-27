@@ -1,8 +1,0 @@
-# SPEC_COV: Widen-AlreadyGeneral
-modal Mod { @Open { v: i32 } }
-
-public procedure main(ctx: Context) -> i32 {
-  let a: Mod = widen (Mod@Open { v: 1 });
-  let b = widen (move a);
-  return 0;
-}

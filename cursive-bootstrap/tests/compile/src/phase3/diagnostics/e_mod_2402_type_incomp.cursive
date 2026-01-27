@@ -1,7 +1,0 @@
-# SPEC_COV: E-MOD-2402
-// E-MOD-2402: Type annotation incompatible
-
-public procedure main(ctx: Context) -> i32 {
-  let x: i32 = true
-  return x
-}

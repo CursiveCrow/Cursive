@@ -1,9 +1,0 @@
-# SPEC_COV: C0X-8-Superclass-Parse
-// §8: Class with superclass bound
-
-class Base { }
-class Derived <: Base { }
-
-public procedure main(ctx: Context) -> i32 {
-  return 0
-}

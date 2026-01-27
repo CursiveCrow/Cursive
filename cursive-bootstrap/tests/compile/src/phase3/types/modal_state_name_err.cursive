@@ -1,9 +1,0 @@
-# SPEC_COV: Modal-StateName-Err
-// E-TYP-2054: State name collides with modal type name
-modal M {
-  state M {}
-}
-
-public procedure main(ctx: Context) -> i32 {
-  return 0;
-}

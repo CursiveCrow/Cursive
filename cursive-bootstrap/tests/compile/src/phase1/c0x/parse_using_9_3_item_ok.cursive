@@ -1,8 +1,0 @@
-# SPEC_COV: C0X-9.3-UsingItem-Parse
-// §9.3: using single item
-
-using cursive::runtime::string
-
-public procedure main(ctx: Context) -> i32 {
-  return 0
-}

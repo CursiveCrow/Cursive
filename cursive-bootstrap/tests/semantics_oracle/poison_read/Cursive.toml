@@ -1,4 +1,0 @@
-[assembly]
-name = "poison_read"
-kind = "executable"
-root = "src"

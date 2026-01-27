@@ -1,9 +1,0 @@
-{
-  "diagnostics": [
-    {
-      "code": "E-MOD-1301",
-      "severity": "error"
-    }
-  ],
-  "exit_code": 1
-}

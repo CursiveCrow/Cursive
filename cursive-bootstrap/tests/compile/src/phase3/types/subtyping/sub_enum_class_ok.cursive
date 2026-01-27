@@ -1,9 +1,0 @@
-# SPEC_COV: Sub-Enum-Class
-// Enum with methods - basic enum definition
-
-enum Status { Active, Inactive }
-
-public procedure main(ctx: Context) -> i32 {
-  let s: Status = Status::Active;
-  return 0;
-}

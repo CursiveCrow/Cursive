@@ -1,9 +1,0 @@
-# SPEC_COV: B-Place-Unique-Err
-// E-TYP-1602: unique exclusion violation (aliasing).
-// Cannot access a unique place after aliasing it.
-public procedure main(ctx: Context) -> i32 {
-  var x: unique i32 = 42;
-  let a: const i32 = x;
-  let b: const i32 = x;
-  return 0i32;
-}

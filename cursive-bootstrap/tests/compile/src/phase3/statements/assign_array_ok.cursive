@@ -1,8 +1,0 @@
-# SPEC_COV: T-Assign
-// Assignment to array element
-
-public procedure main(ctx: Context) -> i32 {
-  var arr: [i32; 3] = [1, 2, 3]
-  arr.0usize = 10
-  return arr.0usize
-}

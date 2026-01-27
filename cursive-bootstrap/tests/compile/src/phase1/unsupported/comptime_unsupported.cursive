@@ -1,2 +1,0 @@
-# SPEC_COV: Parse-Comptime-Unsupported
-let x = comptime {}

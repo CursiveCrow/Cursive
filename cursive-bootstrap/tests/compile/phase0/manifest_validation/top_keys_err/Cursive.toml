@@ -1,5 +1,0 @@
-foo = "bar"
-[assembly]
-name = "demo"
-kind = "executable"
-root = "src"

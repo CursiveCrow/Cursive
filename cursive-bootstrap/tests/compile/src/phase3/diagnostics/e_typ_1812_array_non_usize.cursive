@@ -1,8 +1,0 @@
-# SPEC_COV: E-TYP-1812
-// E-TYP-1812: Array index type error
-
-public procedure main(ctx: Context) -> i32 {
-  let arr: [i32; 3] = [1, 2, 3]
-  let idx: i32 = 1
-  return arr.idx
-}

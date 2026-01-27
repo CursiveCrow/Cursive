@@ -1,7 +1,0 @@
-# SPEC_COV: T-Match
-// Match expression used in expression context
-
-public procedure main(ctx: Context) -> i32 {
-  let b: bool = true;
-  return match b { true => 42, false => 0 };
-}

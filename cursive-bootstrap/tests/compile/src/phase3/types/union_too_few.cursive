@@ -1,7 +1,0 @@
-# SPEC_COV: WF-Union-TooFew
-// E-TYP-2201: Union type has fewer than two member types
-type SingleUnion = i32 |;
-
-public procedure main(ctx: Context) -> i32 {
-  return 0;
-}

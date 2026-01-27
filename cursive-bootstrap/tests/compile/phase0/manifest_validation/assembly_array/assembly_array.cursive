@@ -1,3 +1,0 @@
-# SPEC_COV: ValidateManifest-Ok
-# SPEC_COV: WF-Assembly-Table
-procedure demo() {}

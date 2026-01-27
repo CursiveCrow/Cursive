@@ -1,7 +1,0 @@
-# SPEC_COV: Resolve-Using-None
-// E-MOD-1204: Using path does not resolve to a module or item
-using nonexistent::module
-
-public procedure main(ctx: Context) -> i32 {
-  return 0;
-}

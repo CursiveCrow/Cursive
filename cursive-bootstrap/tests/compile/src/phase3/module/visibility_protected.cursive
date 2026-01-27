@@ -1,3 +1,0 @@
-# SPEC_COV: Protected-TopLevel-Err
-protected procedure secret() -> () {
-}

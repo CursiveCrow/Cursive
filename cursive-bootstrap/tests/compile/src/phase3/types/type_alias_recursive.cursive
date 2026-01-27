@@ -1,8 +1,0 @@
-# SPEC_COV: TypeAlias-Recursive-Err
-// E-TYP-1506: Type alias cycle detected
-type A = B;
-type B = A;
-
-public procedure main(ctx: Context) -> i32 {
-  return 0;
-}

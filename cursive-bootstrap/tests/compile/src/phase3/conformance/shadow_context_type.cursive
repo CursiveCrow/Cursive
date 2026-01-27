@@ -1,3 +1,0 @@
-# SPEC_COV: Validate-Module-Special-Shadow-Err
-// E-CNF-0404: Shadowing of Context type at module scope.
-type Context = i32

@@ -1,8 +1,0 @@
-# SPEC_COV: Defer-NonUnit-Err
-// E-SEM-3151: Defer block with non-unit return type
-public procedure main(ctx: Context) -> i32 {
-  defer {
-    1
-  }
-  return 0;
-}

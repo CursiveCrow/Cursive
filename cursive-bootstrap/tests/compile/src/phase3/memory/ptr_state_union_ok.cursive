@@ -1,8 +1,0 @@
-# SPEC_COV: T-Ptr-State
-// Pointer state union
-
-public procedure main(ctx: Context) -> i32 {
-  var x: i32 = 42
-  let p: Ptr<i32>@Valid | Ptr<i32>@Null = &x
-  return 0
-}

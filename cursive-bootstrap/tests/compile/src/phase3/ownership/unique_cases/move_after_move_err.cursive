@@ -1,7 +1,0 @@
-# SPEC_COV: B-Move-Whole-Moved-Err
-public procedure main(ctx: Context) -> i32 {
-  let x: unique i32 = unsafe { transmute::<i32, unique i32>(0) };
-  let y: unique i32 = move x;
-  let z: unique i32 = move x;
-  return 0;
-}

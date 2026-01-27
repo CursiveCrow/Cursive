@@ -1,8 +1,0 @@
-# SPEC_COV: C0X-6.1-GenericMulti-Parse
-// §6.1: Multiple type parameters separated by semicolon
-
-record Pair<T; U> { first: T, second: U }
-
-public procedure main(ctx: Context) -> i32 {
-  return 0
-}

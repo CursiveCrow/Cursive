@@ -1,5 +1,0 @@
-# SPEC_COV: FieldAccess-Unknown
-public procedure main(ctx: Context) -> i32 {
-  let bad = ctx.missing;
-  return 0;
-}

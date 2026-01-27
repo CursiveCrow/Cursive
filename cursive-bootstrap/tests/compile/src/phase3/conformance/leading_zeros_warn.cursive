@@ -1,4 +1,0 @@
-# SPEC_COV: LitInt-LeadingZero-Warn
-// W-SRC-0301: Leading zeros in decimal literal.
-// Leading zeros in decimal literals trigger a warning.
-let x: i32 = 0042

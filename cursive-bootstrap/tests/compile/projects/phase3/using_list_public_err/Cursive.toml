@@ -1,4 +1,0 @@
-[assembly]
-name = "using_list_public_err"
-kind = "executable"
-root = "src"

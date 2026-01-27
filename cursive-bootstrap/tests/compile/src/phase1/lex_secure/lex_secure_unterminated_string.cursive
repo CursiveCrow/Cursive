@@ -1,6 +1,0 @@
-# SPEC_COV: Lex-String-Unterminated-Recover
-# SPEC_COV: LexSecure-Err
-procedure demo() -> i32 {
-  let s = "hi‮
-  return 0;
-}

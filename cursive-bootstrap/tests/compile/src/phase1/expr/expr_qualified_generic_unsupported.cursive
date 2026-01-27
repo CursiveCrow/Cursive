@@ -1,2 +1,0 @@
-# SPEC_COV: Parse-Qualified-Generic-Unsupported
-let a = Mod::Foo<i32>

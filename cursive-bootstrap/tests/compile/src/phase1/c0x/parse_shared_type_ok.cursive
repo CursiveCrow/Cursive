@@ -1,9 +1,0 @@
-# SPEC_COV: C0X-SharedType-Parse
-// shared permission qualifier on type
-
-record Data { value: i32 }
-
-public procedure main(ctx: Context) -> i32 {
-  var d: shared Data = Data { value: 42 }
-  return d.value
-}

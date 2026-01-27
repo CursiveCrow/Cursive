@@ -1,3 +1,0 @@
-# SPEC_COV: Parse-Qualified-Generic-Unsupported
-# SPEC_COV: Parse-QualifiedHead
-let x = Mod::Thing<T>

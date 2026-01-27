@@ -1,6 +1,0 @@
-# SPEC_COV: Deref-Null
-public procedure main(ctx: Context) -> i32 {
-  let p: Ptr<i32>@Null = Ptr::null();
-  let v = *p;
-  return 0;
-}

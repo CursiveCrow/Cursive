@@ -1,3 +1,0 @@
-# SPEC_COV: Parse-TupleTypeElems-TrailingComma
-# SPEC_COV: Parse-Tuple-Type
-let t: (i32,) = 0

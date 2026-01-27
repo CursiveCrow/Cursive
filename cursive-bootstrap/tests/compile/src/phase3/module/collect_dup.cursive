@@ -1,4 +1,0 @@
-# SPEC_COV: Collect-Dup
-# SPEC_COV: Names-Step-Dup
-procedure foo() -> () {}
-procedure foo() -> () {}

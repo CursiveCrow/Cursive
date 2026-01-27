@@ -1,6 +1,0 @@
-# SPEC_COV: StringLiteralVal
-
-public procedure main(ctx: Context) -> i32 {
-  let s: string@View = "hi";
-  return 0;
-}

@@ -1,7 +1,0 @@
-# SPEC_COV: E-SEM-2562
-// E-SEM-2562: If branches incompatible types
-
-public procedure main(ctx: Context) -> i32 {
-  let x: i32 = if true { 1 } else { true }
-  return x
-}

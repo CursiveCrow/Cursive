@@ -1,7 +1,0 @@
-# SPEC_COV: Protected-TopLevel-Err
-// E-MOD-2440: Protected visibility at module scope
-protected procedure helper() -> () {}
-
-public procedure main(ctx: Context) -> i32 {
-  return 0;
-}

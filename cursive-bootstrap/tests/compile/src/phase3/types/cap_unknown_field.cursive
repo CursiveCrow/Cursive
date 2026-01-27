@@ -1,6 +1,0 @@
-# SPEC_COV: Cap-Unknown-Field
-// E-TYP-2606: Unknown field on capability type
-public procedure main(ctx: Context) -> i32 {
-  let x: i32 = ctx.unknown_cap;
-  return 0;
-}

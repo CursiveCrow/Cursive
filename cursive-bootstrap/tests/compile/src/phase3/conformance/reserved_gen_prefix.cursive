@@ -1,4 +1,0 @@
-# SPEC_COV: Intro-Reserved-Gen-Err
-// E-CNF-0406: User declaration uses `gen_` prefix.
-// The `gen_` prefix is reserved for compiler-generated symbols.
-procedure gen_helper() -> () {}

@@ -1,5 +1,0 @@
-# SPEC_COV: T-If-No-Else
-public procedure main(ctx: Context) -> i32 {
-  if true { };
-  return 0;
-}

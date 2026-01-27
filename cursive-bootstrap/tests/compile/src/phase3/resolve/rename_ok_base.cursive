@@ -1,4 +1,0 @@
-# SPEC_COV: ResolveStmt-Let
-public procedure main(ctx: Context) -> i32 { let x = 1; let y = x; 
- return 0;
-}

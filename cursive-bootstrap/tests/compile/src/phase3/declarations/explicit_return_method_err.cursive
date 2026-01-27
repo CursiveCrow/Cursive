@@ -1,9 +1,0 @@
-# SPEC_COV: WF-ProcBody-ExplicitReturn-Err
-record Counter {
-  v: i32,
-  procedure get(~) -> i32 { 0 }
-}
-
-public procedure main(ctx: Context) -> i32 {
-  return 0;
-}

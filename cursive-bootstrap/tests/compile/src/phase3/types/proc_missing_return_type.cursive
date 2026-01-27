@@ -1,7 +1,0 @@
-# SPEC_COV: WF-ProcedureDecl-MissingReturnType
-// E-TYP-1505: Missing return type annotation on procedure
-procedure helper() {}
-
-public procedure main(ctx: Context) -> i32 {
-  return 0;
-}

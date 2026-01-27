@@ -1,4 +1,0 @@
-[assembly]
-name = "modal_state_machine"
-kind = "executable"
-root = "src"

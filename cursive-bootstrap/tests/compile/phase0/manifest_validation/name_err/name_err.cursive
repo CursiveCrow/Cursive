@@ -1,3 +1,0 @@
-# SPEC_COV: ValidateManifest-Err
-# SPEC_COV: WF-Assembly-Name-Err
-procedure demo() {}

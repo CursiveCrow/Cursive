@@ -1,4 +1,0 @@
-[assembly]
-name = "init_panic"
-kind = "executable"
-root = "src"

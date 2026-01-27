@@ -1,8 +1,0 @@
-# SPEC_COV: T-Alloc
-# SPEC_COV: E-SEM-2801
-// E-SEM-2801: Allocation outside region
-
-public procedure main(ctx: Context) -> i32 {
-  let p = ^42
-  return 0
-}

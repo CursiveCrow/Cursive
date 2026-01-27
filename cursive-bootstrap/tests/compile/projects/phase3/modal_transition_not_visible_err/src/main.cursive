@@ -1,8 +1,0 @@
-# SPEC_COV: Transition-NotVisible
-procedure consume(move m: unique lib::Mod@Open) -> lib::Mod@Open {
-  (move m)~>go()
-}
-public procedure main(ctx: Context) -> i32 {
-  let n = consume(move unsafe { transmute::<i32, unique lib::Mod@Open>(0) });
-  return 0;
-}

@@ -1,2 +1,0 @@
-# SPEC_COV: StaticVisOk-Err
-public var x: i32 = 0

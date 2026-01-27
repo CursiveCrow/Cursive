@@ -1,7 +1,0 @@
-# SPEC_COV: E-TYP-1502
-// E-TYP-1502: Ambiguous type
-
-public procedure main(ctx: Context) -> i32 {
-  let p: Ptr<i32>@Null = Ptr::null()
-  return 0
-}

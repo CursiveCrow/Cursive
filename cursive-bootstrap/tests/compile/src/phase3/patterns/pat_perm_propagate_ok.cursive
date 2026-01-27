@@ -1,8 +1,0 @@
-# SPEC_COV: Pat-Perm
-// Permission propagation to pattern bindings
-
-public procedure main(ctx: Context) -> i32 {
-  let t: (i32, i32) = (10, 20)
-  let (a, b) = t
-  return a + b
-}

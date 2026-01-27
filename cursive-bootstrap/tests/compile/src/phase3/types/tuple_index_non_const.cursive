@@ -1,8 +1,0 @@
-# SPEC_COV: TupleIndex-NonConst
-// E-TYP-1802: Tuple index is not a compile-time constant
-public procedure main(ctx: Context) -> i32 {
-  let t: (i32, bool) = (1, true);
-  let i: usize = 0;
-  let x: i32 = t.(i);
-  return 0;
-}

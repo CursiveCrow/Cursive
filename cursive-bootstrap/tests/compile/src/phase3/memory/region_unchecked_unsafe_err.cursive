@@ -1,7 +1,0 @@
-# SPEC_COV: Region-Unchecked-Unsafe-Err
-public procedure main(ctx: Context) -> i32 {
-  region as r {
-    r~>reset_unchecked();
-  }
-  return 0;
-}

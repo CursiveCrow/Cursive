@@ -1,5 +1,0 @@
-# SPEC_COV: WF-Attr-Unsupported
-procedure demo() -> i32 {
-  [[attr]];
-  return 0;
-}

@@ -1,7 +1,0 @@
-# SPEC_COV: Modal-Incomparable
-modal Mod { @A { v: i32 } @B { v: i32 } }
-public procedure main(ctx: Context) -> i32 {
-  let a: Mod@A = Mod@A { v: 1 };
-  let b: Mod@B = move a;
-  return 0;
-}
