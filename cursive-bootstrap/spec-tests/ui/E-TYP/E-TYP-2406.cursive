@@ -1,0 +1,23 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2406
+// SPEC: 5.3
+// DESC: Conflicting field names from multiple classes
+
+class HasX {
+    x: i32
+}
+
+class HasXFloat {
+    x: f64
+}
+
+record Point {
+    x: i32
+}
+
+implements HasX for Point { }
+implements HasXFloat for Point { } //~ ERROR E-TYP-2406
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

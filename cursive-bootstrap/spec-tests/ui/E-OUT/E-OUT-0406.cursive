@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-OUT-0406
+// SPEC: Appendix A
+// DESC: Output path collision detected
+// SKIP: Requires multi-module project with colliding output paths
+
+// This error occurs when two modules would produce the same output file.
+// Requires project-level test setup.
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

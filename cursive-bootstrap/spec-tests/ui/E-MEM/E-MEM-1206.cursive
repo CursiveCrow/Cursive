@@ -1,0 +1,9 @@
+// RUN: compile-fail
+// DIAG: E-MEM-1206
+// SPEC: 5.2.17
+// DESC: Named region not found for allocation
+
+public procedure main(move ctx: Context) -> i32 {
+    let p: Ptr<i32>@Valid = unknown_region ^ 42  //~ ERROR E-MEM-1206: region not found
+    return 0
+}

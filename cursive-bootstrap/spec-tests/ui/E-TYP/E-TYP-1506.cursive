@@ -1,0 +1,11 @@
+// RUN: compile-fail
+// DIAG: E-TYP-1506
+// SPEC: 5.2
+// DESC: Type alias cycle detected
+
+type A = B  //~ ERROR E-TYP-1506: type alias cycle
+type B = A
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

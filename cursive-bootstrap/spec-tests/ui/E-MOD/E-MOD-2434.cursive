@@ -1,0 +1,10 @@
+// RUN: compile-fail
+// DIAG: E-MOD-2434
+// SPEC: 2.5
+// DESC: Missing main procedure
+
+// This file has no main procedure  //~ ERROR E-MOD-2434: missing main
+
+procedure helper() -> i32 {
+    return 42
+}

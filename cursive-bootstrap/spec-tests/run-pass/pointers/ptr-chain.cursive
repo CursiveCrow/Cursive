@@ -1,0 +1,11 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.12
+// DESC: Pointer chain dereferencing
+
+public procedure main(move ctx: Context) -> i32 {
+    var x: i32 = 42
+    var p1: Ptr<unique i32>@Valid = &x
+    var p2: Ptr<Ptr<unique i32>@Valid>@Valid = &p1
+    return **p2
+}

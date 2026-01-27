@@ -1,0 +1,15 @@
+// RUN: compile-pass
+// DIAG: W-SYS-4010
+// SPEC: 6.4
+// DESC: Modal widening involves large payload copy (>256 bytes)
+
+modal LargeModal {
+    state Big { data: [i32; 100] }
+    state Small { }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let big: LargeModal@Big = LargeModal@Big{ data: [0; 100] }
+    let general: LargeModal = widen big //~ WARNING W-SYS-4010
+    return 0
+}

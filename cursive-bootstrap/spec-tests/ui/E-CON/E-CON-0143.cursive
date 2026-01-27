@@ -1,0 +1,18 @@
+// RUN: compile-fail
+// DIAG: E-CON-0143
+// SPEC: 8.9
+// DESC: Non-associative reduction without [ordered]
+
+procedure non_assoc_reduce() -> f64 {
+    var result: f64 = 0.0
+    parallel {
+        dispatch reduce(+) 0..100 |i| {  //~ ERROR E-CON-0143: non-associative without ordered
+            result = result + (1.0 / (i + 1))
+        }
+    }
+    return result
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

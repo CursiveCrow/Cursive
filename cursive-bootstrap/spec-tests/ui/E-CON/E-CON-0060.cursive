@@ -1,0 +1,19 @@
+// RUN: compile-fail
+// DIAG: E-CON-0060
+// SPEC: 8.9
+// DESC: Read-then-write on same shared path without covering Write key
+
+record Counter {
+    var value: i32
+}
+
+procedure read_then_write(c: shared Counter) -> () {
+    # c {
+        let x: i32 = c.value
+        c.value = x + 1  //~ ERROR E-CON-0060: read-then-write without Write key
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

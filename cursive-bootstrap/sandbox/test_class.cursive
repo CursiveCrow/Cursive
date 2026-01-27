@@ -1,7 +1,0 @@
-class HasLen {
-  procedure len(~) -> usize
-}
-
-public procedure main(ctx: Context) -> i32 {
-  return 0
-}

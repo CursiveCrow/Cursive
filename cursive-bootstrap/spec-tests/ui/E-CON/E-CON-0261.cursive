@@ -1,0 +1,15 @@
+// RUN: compile-fail
+// DIAG: E-CON-0261
+// SPEC: 8.9
+// DESC: race arms have incompatible types
+
+async procedure race_types() -> i32 {
+    return race {  //~ ERROR E-CON-0261: race incompatible types
+        async { return 1 } => |v| { v }
+        async { return "hello" } => |v| { 0 }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

@@ -1,0 +1,25 @@
+// RUN: compile-fail
+// DIAG: E-MOD-1307
+// SPEC: 5.1
+// DESC: Ambiguous method resolution; disambiguation required
+
+class Drawable {
+    procedure draw(~) -> ()
+}
+
+class Printable {
+    procedure draw(~) -> ()
+}
+
+record Shape {
+    procedure draw(~) -> () { }
+}
+
+implements Drawable for Shape { }
+implements Printable for Shape { }
+
+public procedure main(move ctx: Context) -> i32 {
+    let s: Shape = Shape{}
+    s ~> draw() //~ ERROR E-MOD-1307
+    return 0
+}

@@ -1,0 +1,13 @@
+// RUN: compile-fail
+// DIAG: E-SEM-3133
+// SPEC: 8.17
+// DESC: Assignment type mismatch
+
+procedure type_mismatch() -> () {
+    var x: i32 = 10
+    x = true  //~ ERROR E-SEM-3133: assignment type mismatch
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

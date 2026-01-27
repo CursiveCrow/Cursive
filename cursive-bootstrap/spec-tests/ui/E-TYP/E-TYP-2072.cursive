@@ -1,0 +1,15 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2072
+// SPEC: 5.7
+// DESC: widen applied to already-general modal type
+
+modal Connection {
+    state Open { }
+    state Closed { }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let c: Connection = Connection@Open{}
+    let w = widen c //~ ERROR E-TYP-2072
+    return 0
+}

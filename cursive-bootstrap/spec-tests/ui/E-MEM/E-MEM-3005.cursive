@@ -1,0 +1,11 @@
+// RUN: compile-fail
+// DIAG: E-MEM-3005
+// SPEC: 6.8
+// DESC: Explicit call to drop method with destructor signature
+// SKIP: Requires Drop implementation
+
+// NOTE: Cannot directly call drop() on a Drop-implementing type.
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

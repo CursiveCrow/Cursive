@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2102
+// SPEC: 8.15
+// DESC: Dereference of pointer in @Expired state
+
+procedure deref_expired(p: Ptr<i32>@Expired) -> i32 {
+    return *p  //~ ERROR E-TYP-2102: dereference of @Expired pointer
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

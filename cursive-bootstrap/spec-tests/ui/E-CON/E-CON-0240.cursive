@@ -1,0 +1,22 @@
+// RUN: compile-fail
+// DIAG: E-CON-0240
+// SPEC: 8.9
+// DESC: Iteration with non-() input type
+
+async procedure with_input() -> Channel[i32, string] {
+    yield 42
+    return ()
+}
+
+async procedure iterate_non_unit() -> Future[i32] {
+    let seq = with_input()
+    var sum: i32 = 0
+    loop item in sync seq {  //~ ERROR E-CON-0240: iteration with In != ()
+        sum = sum + item
+    }
+    return sum
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

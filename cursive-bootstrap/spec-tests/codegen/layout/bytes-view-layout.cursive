@@ -1,0 +1,11 @@
+// RUN: compile-pass
+// SPEC: 6.1 Layout-Bytes-View
+// DESC: Verify bytes@View layout (ptr, len)
+
+public procedure main(move ctx: Context) -> i32 {
+    // bytes@View is a fat pointer: ptr (8) + len (8) = 16
+    static_assert(sizeof(bytes@View) == 16)
+    static_assert(alignof(bytes@View) == 8)
+
+    return 0
+}

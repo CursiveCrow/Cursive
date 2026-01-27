@@ -1,0 +1,28 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2506
+// SPEC: 13.2
+// DESC: Coherence violation - duplicate class implementation
+
+class Foo {
+    procedure bar(~) -> i32
+}
+
+record MyType {
+    x: i32
+}
+
+class Foo for MyType {
+    procedure bar(~) -> i32 {
+        return ~.x
+    }
+}
+
+class Foo for MyType {  //~ ERROR E-TYP-2506: duplicate impl
+    procedure bar(~) -> i32 {
+        return 0
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

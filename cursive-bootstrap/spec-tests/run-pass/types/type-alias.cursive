@@ -1,0 +1,16 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.13
+// DESC: Type alias
+
+type Int = i32
+type Pair = (Int, Int)
+
+procedure sum(p: Pair) -> Int {
+    return p.0 + p.1
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let p: Pair = (20, 22)
+    return sum(p)
+}

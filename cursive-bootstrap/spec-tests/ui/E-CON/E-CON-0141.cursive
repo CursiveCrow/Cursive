@@ -1,0 +1,29 @@
+// RUN: compile-fail
+// DIAG: E-CON-0141
+// SPEC: 8.9
+// DESC: Key inference failed - cannot determine required keys
+
+record Complex {
+    a: shared Inner
+    b: shared Inner
+}
+
+record Inner {
+    var value: i32
+}
+
+procedure ambiguous_keys(c: Complex, flag: bool) -> () {
+    parallel {
+        dispatch 0..10 |i| {  //~ ERROR E-CON-0141: key inference failed
+            if flag {
+                # write c.a.value { c.a.value = i }
+            } else {
+                # write c.b.value { c.b.value = i }
+            }
+        }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

@@ -1,0 +1,26 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.10
+// DESC: Enum with record payload
+
+record Point {
+    x: i32
+    y: i32
+}
+
+enum Shape {
+    Circle(i32)
+    Rectangle(Point)
+}
+
+procedure get_area(s: Shape) -> i32 {
+    return match s {
+        Shape::Circle(r) => { r * r * 3 }
+        Shape::Rectangle(p) => { p.x * p.y }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let rect: Shape = Shape::Rectangle(Point{ x: 6, y: 7 })
+    return get_area(rect)
+}

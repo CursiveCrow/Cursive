@@ -1,0 +1,16 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.6
+// DESC: Match with guard condition
+
+procedure guarded_match(n: i32) -> i32 {
+    return match n {
+        x if x > 40 => { x }
+        x if x > 20 => { x * 2 }
+        x => { x * 3 }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return guarded_match(42)
+}

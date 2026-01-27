@@ -1,0 +1,20 @@
+// RUN: compile-fail
+// DIAG: E-CON-0152
+// SPEC: 8.9
+// DESC: Nested GPU parallel block
+
+procedure nested_gpu() -> () {
+    parallel on gpu {
+        dispatch 0..100 |i| {
+            parallel on gpu {  //~ ERROR E-CON-0152: nested GPU parallel
+                dispatch 0..10 |j| {
+                    let x: i32 = j
+                }
+            }
+        }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

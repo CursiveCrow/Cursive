@@ -1886,11 +1886,11 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
           wait.handle = handle_result.value;
           wait.result = ctx.FreshTempValue("wait_result");
           IRValue wait_result = wait.result;
-          
-          // Register result type: extract T from SpawnHandle<T>
+
+          // Register result type: extract T from Spawned<T>
           if (ctx.expr_type) {
             if (auto handle_type = ctx.expr_type(*node.handle)) {
-              if (auto inner = analysis::ExtractSpawnHandleInner(handle_type)) {
+              if (auto inner = analysis::ExtractSpawnedInner(handle_type)) {
                 ctx.RegisterValueType(wait_result, *inner);
               }
             }

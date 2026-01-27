@@ -1,0 +1,13 @@
+// RUN: compile-fail
+// DIAG: E-MOD-1207
+// SPEC: 5.1
+// DESC: Cannot access a non-public item from this scope
+
+module inner {
+    procedure private_fn() -> () { }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    inner::private_fn() //~ ERROR E-MOD-1207
+    return 0
+}

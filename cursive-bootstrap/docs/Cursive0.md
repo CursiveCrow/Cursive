@@ -2015,7 +2015,7 @@ ReservedIdentPrefix = {`gen_`}
 ReservedNamespacePhase = Phase3
 
 **Universe-Protected Bindings.**
-UniverseProtected = {`i8`, `i16`, `i32`, `i64`, `i128`, `u8`, `u16`, `u32`, `u64`, `u128`, `f16`, `f32`, `f64`, `bool`, `char`, `usize`, `isize`, `Self`, `Drop`, `Bitcopy`, `Clone`, `Eq`, `Hash`, `Hasher`, `Iterator`, `Step`, `FfiSafe`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, `CancelToken`, `Context`, `System`, `ExecutionDomain`, `Reactor`, `CpuSet`, `Priority`, `Async`, `Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`, `FutureHandle`}
+UniverseProtected = {`i8`, `i16`, `i32`, `i64`, `i128`, `u8`, `u16`, `u32`, `u64`, `u128`, `f16`, `f32`, `f64`, `bool`, `char`, `usize`, `isize`, `Self`, `Drop`, `Bitcopy`, `Clone`, `Eq`, `Hash`, `Hasher`, `Iterator`, `Step`, `FfiSafe`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, `CancelToken`, `Context`, `System`, `ExecutionDomain`, `Reactor`, `CpuSet`, `Priority`, `Async`, `Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`, `Tracked`, `Spawned`}
 UniverseProtectedPhase = Phase3
 
 `Drop`, `Bitcopy`, `Clone`, and `FfiSafe` are reserved predicate names. They MUST NOT be declared as classes or used as user-defined type/value bindings.
@@ -6486,7 +6486,7 @@ ReservedModulePath(path) ⇔ (|path| ≥ 1 ∧ IdEq(path[0], `cursive`)) ∨ (�
 
 PrimTypeNames = {`i8`, `i16`, `i32`, `i64`, `i128`, `u8`, `u16`, `u32`, `u64`, `u128`, `f16`, `f32`, `f64`, `bool`, `char`, `usize`, `isize`}
 SpecialTypeNames = {`Self`, `Drop`, `Bitcopy`, `Clone`, `Eq`, `Hash`, `Hasher`, `Iterator`, `Step`, `FfiSafe`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, `CancelToken`, `Context`, `System`, `ExecutionDomain`, `CpuSet`, `Priority`, `Reactor`}
-AsyncTypeNames = {`Async`, `Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`, `FutureHandle`}
+AsyncTypeNames = {`Async`, `Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`, `Tracked`}
 
 `Drop`, `Bitcopy`, `Clone`, and `FfiSafe` are reserved predicate names and are included in SpecialTypeNames to prevent shadowing.
 
@@ -8733,7 +8733,7 @@ InitOk(f) ⇔ f = FieldDecl(attrs_opt, vis, boundary, name, T_f, init_opt, span,
 DefaultConstructible(R) ⇔ ∀ f ∈ Fields(R). f.init_opt ≠ ⊥
 BuiltinRecord = {`RegionOptions`, `DirEntry`, `Context`, `System`}
 BuiltinEnum = {`FileKind`, `IoError`, `AllocationError`}
-BuiltinModal = {`Region`, `File`, `DirIter`, `CancelToken`, `SpawnHandle`, `FutureHandle`, `Async`}
+BuiltinModal = {`Region`, `File`, `DirIter`, `CancelToken`, `Spawned`, `Tracked`, `Async`}
 
 RecordPath(R) = [R.name]    if R.name ∈ BuiltinRecord
 RecordPath(R) = FullPath(ModuleOf(R), R.name)    otherwise
@@ -12073,7 +12073,7 @@ ModalPayloadNames(modal_ref, S) = [ f | ⟨f, _⟩ ∈ ModalPayload(modal_ref, S
 ModalPayloadNameSet(modal_ref, S) = Set(ModalPayloadNames(modal_ref, S))
 
 **(T-Modal-State-Intro)**
-ModalDeclOf(modal_ref) = M    S ∈ States(M)    ModalRefPath(modal_ref) ∉ {["File"], ["DirIter"], ["CancelToken"], ["SpawnHandle"], ["FutureHandle"], ["Async"]}    ModalPayloadNameSet(modal_ref, S) = FieldInitSet(fields)    Distinct(FieldInitNames(fields))    ∀ ⟨f, e⟩ ∈ fields, ModalPayloadMap(modal_ref, S)(f) = T_f ∧ Γ; R; L ⊢ e ⇐ T_f ⊣ ∅
+ModalDeclOf(modal_ref) = M    S ∈ States(M)    ModalRefPath(modal_ref) ∉ {["File"], ["DirIter"], ["CancelToken"], ["Spawned"], ["Tracked"], ["Async"]}    ModalPayloadNameSet(modal_ref, S) = FieldInitSet(fields)    Distinct(FieldInitNames(fields))    ∀ ⟨f, e⟩ ∈ fields, ModalPayloadMap(modal_ref, S)(f) = T_f ∧ Γ; R; L ⊢ e ⇐ T_f ⊣ ∅
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ RecordExpr(ModalStateRef(modal_ref, S), fields) : TypeModalState(modal_ref, S)
 
@@ -12147,53 +12147,53 @@ CancelTokenDecl = ModalDecl(⊥, `public`, `CancelToken`, ⊥, ⊥, [], CancelTo
 CancelTokenProcs = {`CancelToken::new`}
 CancelTokenProcSig(`CancelToken::new`) = ⟨[], TypeModalState(["CancelToken"], `@Active`)⟩
 
-#### 5.4.3. Built-in Modal Type `SpawnHandle` (Cursive0)
+#### 5.4.3. Built-in Modal Type `Spawned` (Cursive0)
 
-["SpawnHandle"] ∈ dom(Σ.Types)
-States(`SpawnHandle`) = { `@Pending`, `@Ready` }
+["Spawned"] ∈ dom(Σ.Types)
+States(`Spawned`) = { `@Pending`, `@Ready` }
 
-SpawnHandleParams = [⟨`T`, [], ⊥, ⊥⟩]
+SpawnedParams = [⟨`T`, [], ⊥, ⊥⟩]
 
-SpawnHandleReadyFields = [⟨`value`, TypePath(["T"])⟩]
+SpawnedReadyFields = [⟨`value`, TypePath(["T"])⟩]
 
-Payload(`SpawnHandle`, `@Pending`) = []
-Payload(`SpawnHandle`, `@Ready`) = SpawnHandleReadyFields
+Payload(`Spawned`, `@Pending`) = []
+Payload(`Spawned`, `@Ready`) = SpawnedReadyFields
 
-SpawnHandlePendingMembers = []
-SpawnHandleReadyMembers = [
+SpawnedPendingMembers = []
+SpawnedReadyMembers = [
   StateFieldDecl(⊥, `public`, false, `value`, TypePath(["T"]), ⊥, ⊥)
 ]
-SpawnHandleStates = [
-  StateBlock(`@Pending`, SpawnHandlePendingMembers, ⊥, ⊥),
-  StateBlock(`@Ready`, SpawnHandleReadyMembers, ⊥, ⊥)
+SpawnedStates = [
+  StateBlock(`@Pending`, SpawnedPendingMembers, ⊥, ⊥),
+  StateBlock(`@Ready`, SpawnedReadyMembers, ⊥, ⊥)
 ]
-SpawnHandleDecl = ModalDecl(⊥, `public`, `SpawnHandle`, SpawnHandleParams, ⊥, [], SpawnHandleStates, ⊥, ⊥, ⊥)
+SpawnedDecl = ModalDecl(⊥, `public`, `Spawned`, SpawnedParams, ⊥, [], SpawnedStates, ⊥, ⊥, ⊥)
 
-Σ.Types["SpawnHandle"] = `modal` SpawnHandleDecl
+Σ.Types["Spawned"] = `modal` SpawnedDecl
 
-#### 5.4.4. Built-in Modal Type `FutureHandle` (Cursive0)
+#### 5.4.4. Built-in Modal Type `Tracked` (Cursive0)
 
-["FutureHandle"] ∈ dom(Σ.Types)
-States(`FutureHandle`) = { `@Pending`, `@Ready` }
+["Tracked"] ∈ dom(Σ.Types)
+States(`Tracked`) = { `@Pending`, `@Ready` }
 
-FutureHandleParams = [⟨`T`, [], ⊥, ⊥⟩, ⟨`E`, [], ⊥, ⊥⟩]
+TrackedParams = [⟨`T`, [], ⊥, ⊥⟩, ⟨`E`, [], ⊥, ⊥⟩]
 
-FutureHandleReadyFields = [⟨`value`, TypeUnion([TypePath(["T"]), TypePath(["E"])])⟩]
+TrackedReadyFields = [⟨`value`, TypeUnion([TypePath(["T"]), TypePath(["E"])])⟩]
 
-Payload(`FutureHandle`, `@Pending`) = []
-Payload(`FutureHandle`, `@Ready`) = FutureHandleReadyFields
+Payload(`Tracked`, `@Pending`) = []
+Payload(`Tracked`, `@Ready`) = TrackedReadyFields
 
-FutureHandlePendingMembers = []
-FutureHandleReadyMembers = [
+TrackedPendingMembers = []
+TrackedReadyMembers = [
   StateFieldDecl(⊥, `public`, false, `value`, TypeUnion([TypePath(["T"]), TypePath(["E"])]), ⊥, ⊥)
 ]
-FutureHandleStates = [
-  StateBlock(`@Pending`, FutureHandlePendingMembers, ⊥, ⊥),
-  StateBlock(`@Ready`, FutureHandleReadyMembers, ⊥, ⊥)
+TrackedStates = [
+  StateBlock(`@Pending`, TrackedPendingMembers, ⊥, ⊥),
+  StateBlock(`@Ready`, TrackedReadyMembers, ⊥, ⊥)
 ]
-FutureHandleDecl = ModalDecl(⊥, `public`, `FutureHandle`, FutureHandleParams, ⊥, [], FutureHandleStates, ⊥, ⊥, ⊥)
+TrackedDecl = ModalDecl(⊥, `public`, `Tracked`, TrackedParams, ⊥, [], TrackedStates, ⊥, ⊥, ⊥)
 
-Σ.Types["FutureHandle"] = `modal` FutureHandleDecl
+Σ.Types["Tracked"] = `modal` TrackedDecl
 
 #### 5.4.5. Built-in Modal Type `Async` (Cursive0)
 
@@ -12640,7 +12640,7 @@ CapType(Cl) = TypeDynamic(Cl)
 ReactorMethodParams = [⟨`T`, [], ⊥, ⊥⟩, ⟨`E`, [], ⊥, ⊥⟩]
 ReactorMethods = [
   ClassMethodDecl(⊥, `public`, "run", ReactorMethodParams, ReceiverShorthand(`const`), [⟨⊥, `future`, TypeApply(["Future"], [TypePath(["T"]), TypePath(["E"])])⟩], TypeUnion([TypePath(["T"]), TypePath(["E"])]), ⊥, ⊥, ⊥, ⊥),
-  ClassMethodDecl(⊥, `public`, "register", ReactorMethodParams, ReceiverShorthand(`const`), [⟨⊥, `future`, TypeApply(["Future"], [TypePath(["T"]), TypePath(["E"])])⟩], TypeApply(["FutureHandle"], [TypePath(["T"]), TypePath(["E"])]), ⊥, ⊥, ⊥, ⊥)
+  ClassMethodDecl(⊥, `public`, "register", ReactorMethodParams, ReceiverShorthand(`const`), [⟨⊥, `future`, TypeApply(["Future"], [TypePath(["T"]), TypePath(["E"])])⟩], TypeApply(["Tracked"], [TypePath(["T"]), TypePath(["E"])]), ⊥, ⊥, ⊥, ⊥)
 ]
 ReactorMethodNames = { m.name | m ∈ ReactorMethods }
 ReactorDecl = ClassDecl(⊥, `public`, false, `Reactor`, ⊥, ⊥, [], ReactorMethods, ⊥, ⊥)
@@ -12751,7 +12751,7 @@ EnumDecl(["IoError"]) = IoErrorDecl
 Σ.Types["File"] = `modal` FileDecl
 
 **(Record-FileDir-Err)**
-ModalRefPath(modal_ref) ∈ {["File"], ["DirIter"], ["CancelToken"], ["SpawnHandle"], ["FutureHandle"], ["Async"]}    c = Code(Record-FileDir-Err)
+ModalRefPath(modal_ref) ∈ {["File"], ["DirIter"], ["CancelToken"], ["Spawned"], ["Tracked"], ["Async"]}    c = Code(Record-FileDir-Err)
 ────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ RecordExpr(ModalStateRef(modal_ref, S), fields) ⇑ c
 
@@ -20894,7 +20894,7 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 | `E-CNF-0402` | Error    | Compile-time | Reserved namespace `cursive.*` used by user code                                                                     | Validate-ModulePath-Reserved-Err, Intro-Reserved-Cursive-Err, Shadow-Reserved-Cursive-Err |
 | `E-CNF-0403` | Error    | Compile-time | Primitive type name shadowed at module scope                                                                         | Validate-Module-Prim-Shadow-Err                                                           |
 | `E-CNF-0404` | Error    | Compile-time | Shadowing of `Self`, `Drop`, `Bitcopy`, `Clone`, `Eq`, `Hash`, `Hasher`, `Iterator`, `Step`, `FfiSafe`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, `CancelToken`, `Context`, `System`, `ExecutionDomain`, `CpuSet`, `Priority`, or `Reactor` | Validate-Module-Special-Shadow-Err                                                        |
-| `E-CNF-0405` | Error    | Compile-time | Shadowing of async type alias (`Async`, `Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`, `FutureHandle`)          | Validate-Module-Async-Shadow-Err                                                          |
+| `E-CNF-0405` | Error    | Compile-time | Shadowing of async type alias (`Async`, `Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`, `Tracked`)               | Validate-Module-Async-Shadow-Err                                                          |
 | `E-CNF-0406` | Error    | Compile-time | User declaration uses `gen_` prefix                                                                                  | Intro-Reserved-Gen-Err, Shadow-Reserved-Gen-Err                                           |
 
 ### 8.6. W-CNF (Conformance Warnings)
@@ -20978,7 +20978,7 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 | `E-CON-0122` | Error    | Compile-time | Move of binding from outer parallel scope                        | E-CON-0122 |
 | `E-CON-0130` | Error    | Compile-time | Invalid spawn attribute type                                     | E-CON-0130 |
 | `E-CON-0131` | Error    | Compile-time | `spawn` in escaping closure                                      | E-CON-0131 |
-| `E-CON-0132` | Error    | Compile-time | `wait` operand is not SpawnHandle or FutureHandle               | E-CON-0132 |
+| `E-CON-0132` | Error    | Compile-time | `wait` operand is not Spawned or Tracked                        | E-CON-0132 |
 | `E-CON-0133` | Error    | Compile-time | `wait` while key is held                                         | E-CON-0133 |
 | `E-CON-0140` | Error    | Compile-time | Dispatch outside parallel block                                  | E-CON-0140 |
 | `E-CON-0141` | Error    | Compile-time | Key inference failed; explicit key required                      | E-CON-0141 |
@@ -24164,11 +24164,11 @@ Work items MAY execute concurrently. Define EnqueueIndex(w) as the sequential in
 ────────────────────────────────────────────
 Γ ⊢ `parallel` D {} : ()    (T-Parallel-Empty)
 
-Γ ⊢ `spawn` {e} : SpawnHandle⟨T⟩
+Γ ⊢ `spawn` {e} : Spawned⟨T⟩
 ────────────────────────────────────────────────────────
 Γ ⊢ `parallel` D {`spawn` {e}} : T    (T-Parallel-Single)
 
-Γ ⊢ `spawn` {e_i} : SpawnHandle⟨T_i⟩    ∀ i ∈ 1..n
+Γ ⊢ `spawn` {e_i} : Spawned⟨T_i⟩    ∀ i ∈ 1..n
 ──────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ `parallel` D {`spawn` {e_1}; …; `spawn` {e_n}} : (T_1, …, T_n)    (T-Parallel-Multi)
 
@@ -24308,7 +24308,7 @@ SpawnOptsOk(opts) ⇔ ∀ opt ∈ opts. SpawnOptOk(opt)
 
 Γ[parallel_context] = D    SpawnOptsOk(opts)    Γ_capture ⊢ e : T
 ────────────────────────────────────────────────────────────
-Γ ⊢ `spawn` opts {e} : SpawnHandle⟨T⟩    (T-Spawn)
+Γ ⊢ `spawn` opts {e} : Spawned⟨T⟩    (T-Spawn)
 
 **Constraints**
 
@@ -24317,7 +24317,7 @@ SpawnOptsOk(opts) ⇔ ∀ opt ∈ opts. SpawnOptOk(opt)
 
 #### 18.4.2 Task Creation
 
-**SpawnHandle Type.** A modal type representing a pending or completed spawn result:
+**Spawned Type.** A modal type representing a pending or completed spawn result:
 
 
 **Dynamic Semantics**
@@ -24329,7 +24329,7 @@ Evaluation of `spawn [attrs] { e }`:
 3. If `affinity` is present, restrict worker selection to CPU indices whose bits are set in the `CpuSet` mask; if the set is empty, use the domain default.
 4. If `priority` is present, assign the task the given `Priority`. When multiple tasks are ready, workers MUST select any task of maximal priority among those ready.
 5. Enqueue the work item to the parallel block's worker pool.
-6. Return `SpawnHandle<T>@Pending` immediately (non-blocking).
+6. Return `Spawned<T>@Pending` immediately (non-blocking).
 7. A worker eventually dequeues and evaluates e.
 8. Upon completion, the handle transitions to `@Ready` with the result value.
 
@@ -24347,30 +24347,30 @@ Evaluation of `spawn [attrs] { e }`:
 **Static Semantics**
 
 **(T-Wait-Spawn)**
-Γ; R; L ⊢ h : TypeApply(["SpawnHandle"], [T])
+Γ; R; L ⊢ h : TypeApply(["Spawned"], [T])
 ──────────────────────────────────────────
 Γ; R; L ⊢ `wait` h : T
 
 **(T-Wait-Future)**
-Γ; R; L ⊢ h : TypeApply(["FutureHandle"], [T, E])
+Γ; R; L ⊢ h : TypeApply(["Tracked"], [T, E])
 ──────────────────────────────────────────
 Γ; R; L ⊢ `wait` h : TypeUnion([T, E])
 
 **(Wait-Handle-Err)**
-Γ; R; L ⊢ h : T_h    StripPerm(T_h) ∉ {TypeApply(["SpawnHandle"], [_]), TypeApply(["FutureHandle"], [_, _])}    c = Code(E-CON-0132)
+Γ; R; L ⊢ h : T_h    StripPerm(T_h) ∉ {TypeApply(["Spawned"], [_]), TypeApply(["Tracked"], [_, _])}    c = Code(E-CON-0132)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ `wait` h ⇑ c
 
 **Dynamic Semantics**
 
-`SpawnHandle<T>` and `FutureHandle<T, E>` support the `wait` expression for result retrieval. Per §17, keys MUST NOT be held across `wait` suspension points.
+`Spawned<T>` and `Tracked<T, E>` support the `wait` expression for result retrieval. Per §17, keys MUST NOT be held across `wait` suspension points.
 
 Evaluation of `wait h`:
 
 1. Evaluate h to v.
 2. If v is `@Ready { value }`, return value.
 3. If v is `@Pending`, block the current task until the handle transitions to `@Ready`, then return its value.
-4. For `SpawnHandle<T>`, the returned value has type T. For `FutureHandle<T, E>`, the returned value has type `T | E`.
+4. For `Spawned<T>`, the returned value has type T. For `Tracked<T, E>`, the returned value has type `T | E`.
 
 
 ### 18.5 Data Parallelism (`dispatch`)

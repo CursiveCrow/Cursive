@@ -1,0 +1,35 @@
+// RUN: compile-pass
+// SPEC: 6.1.4 Layout-Enum-Tagged
+// DESC: Verify enum discriminant and payload layout
+
+enum Color {
+    Red
+    Green
+    Blue
+}
+
+enum Option {
+    None
+    Some(i32)
+}
+
+enum Result {
+    Ok(i64)
+    Err(i32)
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    // Unit-only enum needs just discriminant
+    static_assert(sizeof(Color) >= 1)
+    static_assert(alignof(Color) >= 1)
+
+    // Option with i32 payload: discriminant + i32
+    static_assert(sizeof(Option) >= 5)
+    static_assert(alignof(Option) == 4)
+
+    // Result: discriminant + max(sizeof(i64), sizeof(i32))
+    static_assert(sizeof(Result) >= 9)
+    static_assert(alignof(Result) == 8)
+
+    return 0
+}

@@ -1,0 +1,13 @@
+// RUN: compile-fail
+// DIAG: E-TYP-1921
+// SPEC: 5.10
+// DESC: Enum discriminant literal is invalid
+
+enum Status {
+    Active = 999999999999999999999  //~ ERROR E-TYP-1921: invalid discriminant
+    Inactive
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

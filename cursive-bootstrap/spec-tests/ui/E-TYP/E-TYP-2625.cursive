@@ -1,0 +1,18 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2625
+// SPEC: 6.2
+// DESC: FfiSafeType enum without [[layout(C)]]
+
+enum Color {
+    Red
+    Green
+    Blue
+}
+
+extern "C" {
+    procedure ffi_color(c: Color) -> () //~ ERROR E-TYP-2625
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

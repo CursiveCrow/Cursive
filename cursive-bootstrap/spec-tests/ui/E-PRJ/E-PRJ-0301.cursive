@@ -1,0 +1,11 @@
+// RUN: compile-fail
+// DIAG: E-PRJ-0301
+// SPEC: 2.2
+// DESC: assembly.root or out_dir has invalid type, is absolute, or resolves outside root
+
+// NOTE: This test requires a multi-file project structure.
+// See ui/E-PRJ/E-PRJ-0301-invalid-root/
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

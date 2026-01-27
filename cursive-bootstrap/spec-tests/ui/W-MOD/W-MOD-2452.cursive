@@ -1,0 +1,16 @@
+// RUN: compile-pass
+// DIAG: W-MOD-2452
+// SPEC: 8.13
+// DESC: inline(always) but inlining failed
+
+[[inline(always)]]
+procedure recursive_fn(n: i32) -> i32 { //~ WARN W-MOD-2452: inlining failed
+    if n <= 0 {
+        return 0
+    }
+    return n + recursive_fn(n - 1)
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return recursive_fn(10)
+}

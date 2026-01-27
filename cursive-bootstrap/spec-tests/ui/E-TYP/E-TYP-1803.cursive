@@ -1,0 +1,9 @@
+// RUN: compile-fail
+// DIAG: E-TYP-1803
+// SPEC: 5.2.1
+// DESC: Tuple arity mismatch in assignment or pattern
+
+public procedure main(move ctx: Context) -> i32 {
+    let (a, b, c): (i32, i32) = (1, 2)  //~ ERROR E-TYP-1803: arity mismatch
+    return a
+}

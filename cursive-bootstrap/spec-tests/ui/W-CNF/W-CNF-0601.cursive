@@ -1,0 +1,11 @@
+// RUN: compile-pass
+// DIAG: W-CNF-0601
+// SPEC: 8.6
+// DESC: Reference to declaration marked [[deprecated]]
+// SKIP: Requires [[deprecated]] attribute support
+
+// NOTE: Warns when using a deprecated declaration.
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

@@ -1,0 +1,20 @@
+// RUN: compile-fail
+// DIAG: E-TYP-1907
+// SPEC: 8.15
+// DESC: Non-Bitcopy field requires move source expression
+
+record NonBitcopy {
+    data: string@Managed
+}
+
+record Container {
+    inner: NonBitcopy
+}
+
+procedure copy_field(c: Container) -> NonBitcopy {
+    return c.inner  //~ ERROR E-TYP-1907: non-Bitcopy field requires move
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

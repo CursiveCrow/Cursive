@@ -1,0 +1,9 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.8
+// DESC: Basic closure
+
+public procedure main(move ctx: Context) -> i32 {
+    let add_ten = |x: i32| -> i32 { return x + 10 }
+    return add_ten(32)
+}

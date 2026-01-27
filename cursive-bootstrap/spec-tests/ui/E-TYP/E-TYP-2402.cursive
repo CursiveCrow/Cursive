@@ -1,0 +1,16 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2402
+// SPEC: 5.3
+// DESC: Implementing type missing required field
+
+class Sized {
+    size: usize
+}
+
+record Empty { }
+
+implements Sized for Empty { } //~ ERROR E-TYP-2402
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

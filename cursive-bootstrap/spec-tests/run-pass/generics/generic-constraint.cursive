@@ -1,0 +1,27 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 13.1
+// DESC: Generic procedure with class constraint
+
+class Numeric {
+    procedure value(~) -> i32
+}
+
+record Int {
+    n: i32
+}
+
+class Numeric for Int {
+    procedure value(~) -> i32 {
+        return ~.n
+    }
+}
+
+procedure get_value[T: Numeric](x: T) -> i32 {
+    return x ~> value()
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let i: Int = Int { n: 42 }
+    return get_value[Int](i)
+}

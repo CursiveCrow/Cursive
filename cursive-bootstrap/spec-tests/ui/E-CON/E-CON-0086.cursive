@@ -1,0 +1,19 @@
+// RUN: compile-fail
+// DIAG: E-CON-0086
+// SPEC: 8.9
+// DESC: Escaping closure outlives shared binding
+
+record Data {
+    value: i32
+}
+
+procedure outlives_shared() -> procedure() -> i32 {
+    let d: shared Data = Data { value: 42 }
+    return || {  //~ ERROR E-CON-0086: closure outlives shared binding
+        return d.value
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

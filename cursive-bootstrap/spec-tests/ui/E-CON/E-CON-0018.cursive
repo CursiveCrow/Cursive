@@ -1,0 +1,20 @@
+// RUN: compile-fail
+// DIAG: E-CON-0018
+// SPEC: 8.9
+// DESC: release modifier with matching outer mode
+
+record Counter {
+    var value: i32
+}
+
+procedure matching_release(c: shared Counter) -> () {
+    # write c {
+        # release write c {  //~ ERROR E-CON-0018: release with matching outer mode
+            c.value = 10
+        }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

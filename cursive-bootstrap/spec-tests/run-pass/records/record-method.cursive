@@ -1,0 +1,18 @@
+// RUN: run-pass
+// EXIT: 5
+// SPEC: 5.3
+// DESC: Record with method
+
+record Point {
+    x: i32
+    y: i32
+
+    procedure sum(~) -> i32 {
+        return ~.x + ~.y
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let p: Point = Point { x: 2, y: 3 }
+    return p ~> sum()
+}

@@ -1,0 +1,9 @@
+// RUN: run-pass
+// EXIT: 0
+// SPEC: 5.8
+// DESC: String view literal
+
+public procedure main(move ctx: Context) -> i32 {
+    let s: string@View = "hello world"
+    return 0
+}

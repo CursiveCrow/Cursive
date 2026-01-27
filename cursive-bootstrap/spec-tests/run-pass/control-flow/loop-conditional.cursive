@@ -1,0 +1,12 @@
+// RUN: run-pass
+// EXIT: 5
+// SPEC: 5.2.6
+// DESC: Conditional loop
+
+public procedure main(move ctx: Context) -> i32 {
+    var count: i32 = 0
+    loop count < 5 {
+        count = count + 1
+    }
+    return count
+}

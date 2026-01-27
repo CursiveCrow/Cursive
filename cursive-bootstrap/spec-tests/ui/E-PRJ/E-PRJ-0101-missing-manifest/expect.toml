@@ -1,0 +1,5 @@
+# E-PRJ-0101: Cursive.toml not found at project root
+# SPEC: 2.1
+# DESC: Missing Cursive.toml manifest at project root
+
+diag = "E-PRJ-0101"

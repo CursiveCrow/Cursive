@@ -1,0 +1,17 @@
+// RUN: compile-fail
+// DIAG: E-TYP-1954
+// SPEC: 5.2.13
+// DESC: Impure expression in refinement predicate
+
+var counter: i32 = 0
+
+procedure increment() -> i32 {
+    counter = counter + 1
+    return counter
+}
+
+type BadRefine = i32 where increment() > 0 //~ ERROR E-TYP-1954
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

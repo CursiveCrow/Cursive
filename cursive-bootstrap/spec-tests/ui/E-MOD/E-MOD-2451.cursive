@@ -1,0 +1,13 @@
+// RUN: compile-fail
+// DIAG: E-MOD-2451
+// SPEC: 8.2
+// DESC: Unknown attribute name
+
+[[unknown_attribute]]  //~ ERROR E-MOD-2451: unknown attribute name
+record BadAttr {
+    value: i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

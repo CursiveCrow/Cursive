@@ -1,0 +1,20 @@
+// RUN: compile-fail
+// DIAG: E-CON-0012
+// SPEC: 8.9
+// DESC: Nested mode change without release modifier
+
+record Counter {
+    var value: i32
+}
+
+procedure nested_mode(c: shared Counter) -> () {
+    # write c {
+        # write c {  //~ ERROR E-CON-0012: nested mode without release
+            c.value = 10
+        }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

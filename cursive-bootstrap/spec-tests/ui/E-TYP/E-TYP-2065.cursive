@@ -1,0 +1,16 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2065
+// SPEC: 5.4
+// DESC: State method name conflicts with transition name in the same modal state
+
+modal Connection {
+    state Open {
+        procedure close(~) -> () { }
+        transition close() -> Closed { return Connection@Closed{} } //~ ERROR E-TYP-2065
+    }
+    state Closed { }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

@@ -1,0 +1,14 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 14.4
+// DESC: Procedure with postcondition
+
+procedure double(x: i32) -> i32
+    ensures { @result == x * 2 }
+{
+    return x * 2
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return double(21)
+}

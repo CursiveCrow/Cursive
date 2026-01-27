@@ -1,0 +1,16 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2062
+// SPEC: 5.6
+// DESC: Duplicate transition name in modal state
+
+modal Connection {
+    state Open {
+        transition close() -> Closed { return Connection@Closed{} }
+        transition close() -> Closed { return Connection@Closed{} } //~ ERROR E-TYP-2062
+    }
+    state Closed { }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

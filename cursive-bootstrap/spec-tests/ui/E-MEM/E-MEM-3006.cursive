@@ -1,0 +1,13 @@
+// RUN: compile-fail
+// DIAG: E-MEM-3006
+// SPEC: 5.2.4
+// DESC: Attempt to move from immovable binding (:=)
+
+public procedure consume(move x: i32) -> i32 {
+    return x
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let x := 42
+    return consume(move x)  //~ ERROR E-MEM-3006: move from immovable
+}

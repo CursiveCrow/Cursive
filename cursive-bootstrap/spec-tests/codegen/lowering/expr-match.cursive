@@ -1,0 +1,32 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 6.4 Lower-Expr-Match
+// DESC: Verify switch/branch lowering for match
+
+enum Color {
+    Red
+    Green
+    Blue
+}
+
+enum Option {
+    None
+    Some(i32)
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let c: Color = Color::Green
+    let color_val: i32 = match c {
+        Color::Red => { 1 }
+        Color::Green => { 2 }
+        Color::Blue => { 3 }
+    }
+
+    let opt: Option = Option::Some(42)
+    let opt_val: i32 = match opt {
+        Option::None => { 0 }
+        Option::Some(v) => { v }
+    }
+
+    return if color_val == 2 { opt_val } else { 1 }
+}

@@ -1,0 +1,9 @@
+// RUN: compile-fail
+// DIAG: E-SEM-3131
+// SPEC: 5.2.4
+// DESC: Assignment target is not a place expression
+
+public procedure main(move ctx: Context) -> i32 {
+    1 + 2 = 3  //~ ERROR E-SEM-3131: not a place
+    return 0
+}

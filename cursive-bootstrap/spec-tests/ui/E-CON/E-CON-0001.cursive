@@ -1,0 +1,16 @@
+// RUN: compile-fail
+// DIAG: E-CON-0001
+// SPEC: 8.9
+// DESC: Access to shared path outside valid key context
+
+record Counter {
+    var value: i32
+}
+
+procedure access_no_key(c: shared Counter) -> i32 {
+    return c.value  //~ ERROR E-CON-0001: access to shared outside key context
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

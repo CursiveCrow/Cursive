@@ -1,0 +1,14 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.7
+// DESC: Array pattern matching
+
+procedure sum_first_three(arr: [i32; 5]) -> i32 {
+    let [a, b, c, _, _] = arr
+    return a + b + c
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let arr: [i32; 5] = [10, 12, 20, 0, 0]
+    return sum_first_three(arr)
+}

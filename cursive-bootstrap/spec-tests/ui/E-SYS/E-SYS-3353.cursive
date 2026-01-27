@@ -1,0 +1,13 @@
+// RUN: compile-fail
+// DIAG: E-SYS-3353
+// SPEC: 8.12
+// DESC: [[export]] requires public visibility
+
+[[export]]
+procedure private_export() -> i32 {  //~ ERROR E-SYS-3353: export requires public
+    return 42
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

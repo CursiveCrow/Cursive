@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-MOD-2430
+// SPEC: 2.5
+// DESC: Multiple main procedures defined
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}
+
+public procedure main(move ctx: Context) -> i32 {  //~ ERROR E-MOD-2430: multiple main
+    return 1
+}

@@ -1,0 +1,30 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 6.2 ABI-Modal
+// DESC: Verify modal state passing conventions
+
+modal Status {
+    @Active { code: i32 }
+    @Inactive { }
+}
+
+procedure get_code(s: Status@Active) -> i32 {
+    return s.code
+}
+
+procedure is_active_code(s: Status) -> i32 {
+    return match s {
+        active: Status@Active => { active.code }
+        _: Status@Inactive => { 0 }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let active: Status@Active = Status@Active { code: 42 }
+    let code: i32 = get_code(active)
+
+    let status: Status = Status@Active { code: 100 }
+    let result: i32 = is_active_code(status)
+
+    return if result == 100 { code } else { 1 }
+}

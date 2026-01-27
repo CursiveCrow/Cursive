@@ -1,0 +1,21 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2511
+// SPEC: 5.3
+// DESC: Opaque return type does not implement required class
+
+class Drawable {
+    procedure draw(~) -> () { }
+}
+
+record Point {
+    x: i32
+    y: i32
+}
+
+procedure get_drawable() -> opaque Drawable {
+    return Point{ x: 0, y: 0 } //~ ERROR E-TYP-2511
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

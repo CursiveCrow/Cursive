@@ -1,0 +1,21 @@
+// RUN: compile-fail
+// DIAG: E-MOD-1208
+// SPEC: 5.1
+// DESC: Using path is ambiguous between module and item
+
+module ambig {
+    public record Item { }
+}
+
+module other {
+    public module ambig {
+        public record Nested { }
+    }
+}
+
+using other::*
+using ambig::Item //~ ERROR E-MOD-1208
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

@@ -1,0 +1,13 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.7
+// DESC: Move parameter transfers ownership
+
+procedure consume(move x: i32) -> i32 {
+    return x
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let x: i32 = 42
+    return consume(move x)
+}

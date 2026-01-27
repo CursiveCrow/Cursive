@@ -1,0 +1,10 @@
+// RUN: compile-fail
+// DIAG: E-MOD-2401
+// SPEC: 5.2.4
+// DESC: Reassignment of immutable let binding
+
+public procedure main(move ctx: Context) -> i32 {
+    let x: i32 = 10
+    x = 20  //~ ERROR E-MOD-2401: reassignment immutable
+    return x
+}

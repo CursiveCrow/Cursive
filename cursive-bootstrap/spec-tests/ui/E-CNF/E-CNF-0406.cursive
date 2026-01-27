@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-CNF-0406
+// SPEC: 1.1
+// DESC: User declaration uses gen_ prefix
+
+public procedure gen_foo() -> i32 {  //~ ERROR E-CNF-0406: gen_ prefix reserved
+    return 0
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

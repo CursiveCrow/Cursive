@@ -1,0 +1,20 @@
+// RUN: compile-pass
+// DIAG: W-CON-0002
+// SPEC: 8.11
+// DESC: Redundant key acquisition (already covered)
+
+record Counter {
+    var value: i32
+}
+
+procedure redundant_key(c: shared Counter) -> () {
+    # write c {
+        # write c {  //~ WARNING W-CON-0002: redundant key acquisition
+            c.value = 10
+        }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

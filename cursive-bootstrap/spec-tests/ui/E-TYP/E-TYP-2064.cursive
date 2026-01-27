@@ -1,0 +1,17 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2064
+// SPEC: 5.4
+// DESC: State member not visible in current scope
+
+modal Connection {
+    state Open {
+        data: i32
+    }
+    state Closed { }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let c: Connection@Open = Connection@Open{ data: 42 }
+    let x: i32 = c.data //~ ERROR E-TYP-2064
+    return 0
+}

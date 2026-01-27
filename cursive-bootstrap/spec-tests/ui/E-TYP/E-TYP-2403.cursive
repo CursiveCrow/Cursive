@@ -1,0 +1,19 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2403
+// SPEC: 5.3
+// DESC: Implementing modal missing required state
+
+class Resource {
+    state Open { }
+    state Closed { }
+}
+
+modal Handle {
+    state Active { }
+}
+
+implements Resource for Handle { } //~ ERROR E-TYP-2403
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

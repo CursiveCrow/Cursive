@@ -1,0 +1,11 @@
+// RUN: compile-fail
+// DIAG: E-UNS-0101
+// SPEC: 1.4
+// DESC: Unsupported construct in Cursive0 subset
+// SKIP: Need to identify specific unsupported constructs
+
+// NOTE: This error is for constructs outside the C0 subset.
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

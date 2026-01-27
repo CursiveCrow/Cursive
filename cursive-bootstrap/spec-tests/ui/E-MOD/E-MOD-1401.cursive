@@ -1,0 +1,11 @@
+// RUN: compile-fail
+// DIAG: E-MOD-1401
+// SPEC: 8.2
+// DESC: Cyclic module dependency detected in eager initializers
+
+static A: i32 = B  //~ ERROR E-MOD-1401: cyclic dependency
+static B: i32 = A
+
+public procedure main(move ctx: Context) -> i32 {
+    return A
+}

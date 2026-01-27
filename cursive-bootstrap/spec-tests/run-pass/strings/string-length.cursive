@@ -1,0 +1,10 @@
+// RUN: run-pass
+// EXIT: 5
+// SPEC: 5.2.16
+// DESC: String length operation
+
+public procedure main(move ctx: Context) -> i32 {
+    let s: string@View = "hello"
+    let len: usize = s ~> length()
+    return len as i32
+}

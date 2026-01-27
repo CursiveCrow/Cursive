@@ -1,0 +1,14 @@
+// RUN: compile-fail
+// DIAG: E-MOD-2454
+// SPEC: 8.2
+// DESC: packed applied to non-record
+
+[[packed]]  //~ ERROR E-MOD-2454: packed on non-record
+enum BadPacked {
+    A
+    B
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

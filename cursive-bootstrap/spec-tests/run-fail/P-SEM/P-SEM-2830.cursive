@@ -1,0 +1,16 @@
+// RUN: run-fail
+// EXIT: 1
+// DIAG: P-SEM-2830
+// SPEC: 14.7
+// DESC: Runtime panic on loop invariant not established
+// SKIP: Requires [[dynamic]] loop invariant checking
+
+public procedure main(move ctx: Context) -> i32 {
+    var i: i32 = 10
+    [[dynamic]]
+    invariant { i >= 0 }
+    loop i > 0 {
+        i = i - 1
+    }
+    return 0
+}

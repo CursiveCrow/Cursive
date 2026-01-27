@@ -1,0 +1,14 @@
+// RUN: compile-fail
+// DIAG: E-CON-0033
+// SPEC: 8.9
+// DESC: # on field of non-record type
+
+procedure key_non_record(x: shared i32) -> () {
+    # x.field {  //~ ERROR E-CON-0033: # on field of non-record
+        let val: i32 = 0
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

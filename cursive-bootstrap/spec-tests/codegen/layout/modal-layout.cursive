@@ -1,0 +1,25 @@
+// RUN: compile-pass
+// SPEC: 6.1 Layout-Modal-Tagged
+// DESC: Verify modal type layout with state discrimination
+
+modal Connection {
+    @Open { fd: i32 }
+    @Closed { }
+}
+
+modal Resource {
+    @Active { handle: i64, refcount: i32 }
+    @Released { }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    // Connection: discriminant + max state payload (fd: i32)
+    static_assert(sizeof(Connection) >= 5)
+    static_assert(alignof(Connection) >= 4)
+
+    // Resource: discriminant + max state payload (handle + refcount)
+    static_assert(sizeof(Resource) >= 13)
+    static_assert(alignof(Resource) == 8)
+
+    return 0
+}

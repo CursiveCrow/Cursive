@@ -1,0 +1,11 @@
+// RUN: compile-fail
+// DIAG: E-PRJ-0203
+// SPEC: 2.2
+// DESC: assembly.name is not a valid identifier
+
+// NOTE: This test requires a multi-file project structure.
+// See ui/E-PRJ/E-PRJ-0203-invalid-name/
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

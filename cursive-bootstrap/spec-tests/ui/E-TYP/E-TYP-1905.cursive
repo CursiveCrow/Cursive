@@ -1,0 +1,16 @@
+// RUN: compile-fail
+// DIAG: E-TYP-1905
+// SPEC: 8.15
+// DESC: Access to field not visible in current scope
+
+record Private {
+    private value: i32
+}
+
+procedure access_private(p: Private) -> i32 {
+    return p.value  //~ ERROR E-TYP-1905: field not visible
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

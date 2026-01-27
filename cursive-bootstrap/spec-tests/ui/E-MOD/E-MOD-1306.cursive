@@ -1,0 +1,9 @@
+// RUN: compile-fail
+// DIAG: E-MOD-1306
+// SPEC: 5.1
+// DESC: Unnecessary shadow keyword - no binding is being shadowed
+
+public procedure main(move ctx: Context) -> i32 {
+    shadow let x: i32 = 10  //~ ERROR E-MOD-1306: unnecessary shadow
+    return x
+}

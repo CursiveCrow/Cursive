@@ -1,0 +1,22 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 6.2 ABI-Dynamic
+// DESC: Verify dynamic class parameter passing via vtable
+
+class Counter {
+    procedure get(~) -> i32
+    procedure increment(~!) -> ()
+}
+
+record SimpleCounter {
+    value: i32
+}
+
+procedure read_counter(c: $Counter) -> i32 {
+    return c~>get()
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    var counter: SimpleCounter = SimpleCounter { value: 42 }
+    return counter.value
+}

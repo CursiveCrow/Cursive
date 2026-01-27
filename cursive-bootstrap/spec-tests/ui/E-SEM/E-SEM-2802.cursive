@@ -1,0 +1,21 @@
+// RUN: compile-fail
+// DIAG: E-SEM-2802
+// SPEC: 8.17
+// DESC: Impure expression in contract predicate
+
+var global_counter: i32 = 0
+
+procedure impure() -> i32 {
+    global_counter = global_counter + 1
+    return global_counter
+}
+
+procedure with_impure_contract(x: i32)
+    @requires(impure() > 0)  //~ ERROR E-SEM-2802: impure in contract
+{
+    return ()
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

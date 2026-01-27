@@ -1,0 +1,17 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 6.4 Lower-Expr-If
+// DESC: Verify conditional branch lowering
+
+public procedure main(move ctx: Context) -> i32 {
+    let cond: bool = true
+    let result: i32 = if cond { 42 } else { 0 }
+
+    let nested: i32 = if cond {
+        if result > 40 { 100 } else { 50 }
+    } else {
+        0
+    }
+
+    return if nested == 100 { result } else { 1 }
+}

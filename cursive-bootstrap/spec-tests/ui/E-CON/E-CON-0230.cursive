@@ -1,0 +1,17 @@
+// RUN: compile-fail
+// DIAG: E-CON-0230
+// SPEC: 8.9
+// DESC: Error propagation with ? when procedure is infallible
+
+async procedure infallible() -> Future[i32] {
+    return 42
+}
+
+async procedure propagate_infallible() -> Future[i32] {
+    let result: i32 = infallible()?  //~ ERROR E-CON-0230: error propagation infallible
+    return result
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

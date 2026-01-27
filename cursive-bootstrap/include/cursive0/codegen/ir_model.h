@@ -312,7 +312,7 @@ struct IRSpawn {
   IRPtr captured_env;                // Captured environment setup
   IRPtr body;                        // Spawn body
   IRValue body_result;               // Result value from body execution (T)
-  IRValue result;                    // SpawnHandle<T> handle
+  IRValue result;                    // Spawned<T> handle
   IRValue env_ptr;                   // Pointer to captured environment
   IRValue env_size;                  // Size of captured environment (usize)
   IRValue body_fn;                   // Wrapper function symbol
@@ -322,8 +322,8 @@ struct IRSpawn {
 
 // §10.3 Wait expression IR
 struct IRWait {
-  IRValue handle;                    // SpawnHandle<T>
-  IRValue result;                    // T (extracted from SpawnHandle)
+  IRValue handle;                    // Spawned<T>
+  IRValue result;                    // T (extracted from Spawned)
 };
 
 // §18.5 Dispatch expression IR

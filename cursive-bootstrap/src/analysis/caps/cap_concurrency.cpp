@@ -13,9 +13,9 @@ namespace {
 
 static inline void SpecDefsConcurrency() {
   SPEC_DEF("ExecutionDomainClass", "18.2.4");
-  SPEC_DEF("SpawnHandleModal", "18.4.2");
+  SPEC_DEF("SpawnedModal", "18.4.2");
   SPEC_DEF("CancelTokenModal", "18.6.1");
-  SPEC_DEF("FutureHandleModal", "5.4.4");
+  SPEC_DEF("TrackedModal", "5.4.4");
   SPEC_DEF("AsyncModal", "5.4.5");
   SPEC_DEF("ReactorClass", "5.9.2");
 }
@@ -205,55 +205,55 @@ syntax::ClassDecl BuildInlineDomainClassDecl() {
 }
 
 // -----------------------------------------------------------------------------
-// SpawnHandle<T> modal type (§18.4.2)
+// Spawned<T> modal type (§18.4.2)
 // -----------------------------------------------------------------------------
 
-bool IsSpawnHandleTypePath(const syntax::TypePath& path) {
+bool IsSpawnedTypePath(const syntax::TypePath& path) {
   SpecDefsConcurrency();
-  return path.size() == 1 && IdEq(path[0], "SpawnHandle");
+  return path.size() == 1 && IdEq(path[0], "Spawned");
 }
 
-bool IsValidSpawnHandleState(std::string_view state) {
+bool IsValidSpawnedState(std::string_view state) {
   SpecDefsConcurrency();
   return StrEq(state, "Pending") || StrEq(state, "Ready");
 }
 
-TypeRef MakeSpawnHandleType(const TypeRef& inner_type) {
+TypeRef MakeSpawnedType(const TypeRef& inner_type) {
   SpecDefsConcurrency();
   TypePathType path_type;
-  path_type.path = {"SpawnHandle"};
+  path_type.path = {"Spawned"};
   path_type.generic_args = {inner_type};
   return MakeType(path_type);
 }
 
-TypeRef MakeSpawnHandleTypeWithState(const TypeRef& inner_type,
-                                     std::string_view state) {
+TypeRef MakeSpawnedTypeWithState(const TypeRef& inner_type,
+                                 std::string_view state) {
   SpecDefsConcurrency();
   // For modal state types, we need to use TypeModalState
-  // SpawnHandle<T>@State
+  // Spawned<T>@State
   TypeModalState modal;
-  modal.path = {"SpawnHandle"};
+  modal.path = {"Spawned"};
   modal.state = std::string(state);
   modal.generic_args = {inner_type};
   return MakeType(modal);
 }
 
-std::optional<TypeRef> ExtractSpawnHandleInner(const TypeRef& type) {
+std::optional<TypeRef> ExtractSpawnedInner(const TypeRef& type) {
   SpecDefsConcurrency();
   if (!type) return std::nullopt;
 
-  // Check for TypePathType with SpawnHandle path
+  // Check for TypePathType with Spawned path
   const auto* path = std::get_if<TypePathType>(&type->node);
-  if (path && !path->path.empty() && IdEq(path->path.back(), "SpawnHandle")) {
+  if (path && !path->path.empty() && IdEq(path->path.back(), "Spawned")) {
     if (!path->generic_args.empty()) {
       return path->generic_args[0];
     }
     return std::nullopt;
   }
 
-  // Check for TypeModalState with SpawnHandle path
+  // Check for TypeModalState with Spawned path
   const auto* modal = std::get_if<TypeModalState>(&type->node);
-  if (modal && !modal->path.empty() && IdEq(modal->path.back(), "SpawnHandle")) {
+  if (modal && !modal->path.empty() && IdEq(modal->path.back(), "Spawned")) {
     if (!modal->generic_args.empty()) {
       return modal->generic_args[0];
     }
@@ -264,54 +264,54 @@ std::optional<TypeRef> ExtractSpawnHandleInner(const TypeRef& type) {
 }
 
 // -----------------------------------------------------------------------------
-// FutureHandle<T, E> modal type (§5.4.4)
+// Tracked<T, E> modal type (§5.4.4)
 // -----------------------------------------------------------------------------
 
-bool IsFutureHandleTypePath(const syntax::TypePath& path) {
+bool IsTrackedTypePath(const syntax::TypePath& path) {
   SpecDefsConcurrency();
-  return path.size() == 1 && IdEq(path[0], "FutureHandle");
+  return path.size() == 1 && IdEq(path[0], "Tracked");
 }
 
-bool IsValidFutureHandleState(std::string_view state) {
+bool IsValidTrackedState(std::string_view state) {
   SpecDefsConcurrency();
   return StrEq(state, "Pending") || StrEq(state, "Ready");
 }
 
-TypeRef MakeFutureHandleType(const TypeRef& value_type,
-                             const TypeRef& err_type) {
+TypeRef MakeTrackedType(const TypeRef& value_type,
+                        const TypeRef& err_type) {
   SpecDefsConcurrency();
   TypePathType path_type;
-  path_type.path = {"FutureHandle"};
+  path_type.path = {"Tracked"};
   path_type.generic_args = {value_type, err_type};
   return MakeType(path_type);
 }
 
-TypeRef MakeFutureHandleTypeWithState(const TypeRef& value_type,
-                                      const TypeRef& err_type,
-                                      std::string_view state) {
+TypeRef MakeTrackedTypeWithState(const TypeRef& value_type,
+                                 const TypeRef& err_type,
+                                 std::string_view state) {
   SpecDefsConcurrency();
   TypeModalState modal;
-  modal.path = {"FutureHandle"};
+  modal.path = {"Tracked"};
   modal.state = std::string(state);
   modal.generic_args = {value_type, err_type};
   return MakeType(modal);
 }
 
-std::optional<std::pair<TypeRef, TypeRef>> ExtractFutureHandleArgs(
+std::optional<std::pair<TypeRef, TypeRef>> ExtractTrackedArgs(
     const TypeRef& type) {
   SpecDefsConcurrency();
   if (!type) {
     return std::nullopt;
   }
   const auto* path = std::get_if<TypePathType>(&type->node);
-  if (path && IsFutureHandleTypePath(path->path)) {
+  if (path && IsTrackedTypePath(path->path)) {
     if (path->generic_args.size() == 2) {
       return std::make_pair(path->generic_args[0], path->generic_args[1]);
     }
     return std::nullopt;
   }
   const auto* modal = std::get_if<TypeModalState>(&type->node);
-  if (modal && IsFutureHandleTypePath(modal->path)) {
+  if (modal && IsTrackedTypePath(modal->path)) {
     if (modal->generic_args.size() == 2) {
       return std::make_pair(modal->generic_args[0], modal->generic_args[1]);
     }
@@ -406,11 +406,11 @@ TypeRef MakeCancelTokenTypeWithState(std::string_view state) {
 // Built-in type declarations for sigma population
 // -----------------------------------------------------------------------------
 
-syntax::ModalDecl BuildSpawnHandleModalDecl() {
+syntax::ModalDecl BuildSpawnedModalDecl() {
   SpecDefsConcurrency();
   syntax::ModalDecl decl{};
   decl.vis = syntax::Visibility::Public;
-  decl.name = "SpawnHandle";
+  decl.name = "Spawned";
   decl.generic_params = MakeGenericParams({MakeTypeParam("T", nullptr)});
   decl.implements = {};
 
@@ -471,11 +471,11 @@ syntax::ModalDecl BuildCancelTokenModalDecl() {
   return decl;
 }
 
-syntax::ModalDecl BuildFutureHandleModalDecl() {
+syntax::ModalDecl BuildTrackedModalDecl() {
   SpecDefsConcurrency();
   syntax::ModalDecl decl{};
   decl.vis = syntax::Visibility::Public;
-  decl.name = "FutureHandle";
+  decl.name = "Tracked";
   decl.generic_params =
       MakeGenericParams({MakeTypeParam("T", nullptr), MakeTypeParam("E", nullptr)});
   decl.implements = {};

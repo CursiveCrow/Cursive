@@ -1,0 +1,11 @@
+// RUN: compile-fail
+// DIAG: E-SEM-3152
+// SPEC: 5.2.6
+// DESC: Non-local control flow in defer block
+
+public procedure main(move ctx: Context) -> i32 {
+    defer {
+        return 42  //~ ERROR E-SEM-3152: non-local in defer
+    }
+    return 0
+}

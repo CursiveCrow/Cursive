@@ -55,7 +55,7 @@ const std::vector<std::string_view>& UniverseProtectedNames() {
       "FfiSafe", "string", "bytes",  "Modal",  "Region", "RegionOptions",
       "CancelToken", "Context", "System", "ExecutionDomain", "Reactor",
       "CpuSet", "Priority", "Async", "Future", "Sequence", "Stream", "Pipe",
-      "Exchange", "FutureHandle"};
+      "Exchange", "Tracked", "Spawned"};
   return names;
 }
 
@@ -168,7 +168,7 @@ const std::vector<std::string_view>& AsyncTypeNames() {
   SpecDefsNames();
   static const std::vector<std::string_view> names = {
       "Async", "Future", "Sequence", "Stream", "Pipe", "Exchange",
-      "FutureHandle"};
+      "Tracked"};
   return names;
 }
 

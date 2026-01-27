@@ -1,0 +1,17 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2541
+// SPEC: 8.15
+// DESC: Dynamic class type created from non-dispatchable class
+
+[[static_dispatch_only]]
+class NonDispatchable {
+    procedure method(~) -> i32
+}
+
+procedure make_dynamic(x: $NonDispatchable) -> i32 {  //~ ERROR E-TYP-2541: non-dispatchable
+    return x ~> method()
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

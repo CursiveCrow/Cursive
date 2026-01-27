@@ -1,0 +1,10 @@
+// RUN: run-fail
+// EXIT: 1
+// SPEC: 6.11
+// DESC: Runtime panic on division by zero
+
+public procedure main(move ctx: Context) -> i32 {
+    let x: i32 = 42
+    let y: i32 = 0
+    return x / y
+}

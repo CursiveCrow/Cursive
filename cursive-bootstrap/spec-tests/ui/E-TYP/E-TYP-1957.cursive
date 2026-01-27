@@ -1,0 +1,14 @@
+// RUN: compile-fail
+// DIAG: E-TYP-1957
+// SPEC: 5.2.13
+// DESC: Circular type dependency in refinement predicate
+
+type A = i32 where is_valid_b(B::default())
+type B = i32 where is_valid_a(A::default()) //~ ERROR E-TYP-1957
+
+procedure is_valid_a(x: A) -> bool { return true }
+procedure is_valid_b(x: B) -> bool { return true }
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

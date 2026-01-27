@@ -1,0 +1,19 @@
+// RUN: compile-fail
+// DIAG: E-CON-0224
+// SPEC: 15.3
+// DESC: yield from while key is held without release
+
+procedure outer(data: shared i32) -> Async<(), (), i32, !> {
+    procedure inner() -> Async<(), (), i32, !> {
+        return 42
+    }
+
+    #data {
+        yield from inner() //~ ERROR E-CON-0224
+    }
+    return 0
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

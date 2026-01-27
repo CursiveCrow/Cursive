@@ -1,4 +1,0 @@
-[assembly]
-name = "simple_spawn_test"
-kind = "executable"
-root = "src"

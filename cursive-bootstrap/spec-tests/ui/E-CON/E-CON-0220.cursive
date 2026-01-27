@@ -1,0 +1,13 @@
+// RUN: compile-fail
+// DIAG: E-CON-0220
+// SPEC: 8.9
+// DESC: yield from operand is not an async expression
+
+async procedure bad_yield_from() -> Sequence[i32] {
+    yield from 42  //~ ERROR E-CON-0220: yield from operand not async
+    return ()
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

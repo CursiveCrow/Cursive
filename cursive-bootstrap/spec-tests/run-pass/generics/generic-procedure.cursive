@@ -1,0 +1,12 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 13.1
+// DESC: Generic procedure instantiation
+
+procedure identity[T](x: T) -> T {
+    return x
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return identity[i32](42)
+}

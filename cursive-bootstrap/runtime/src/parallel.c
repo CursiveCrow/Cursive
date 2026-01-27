@@ -125,7 +125,7 @@ struct WorkItem {
     SpawnHandle* handle;     // Owning handle
 };
 
-// §18.4.2 SpawnHandle runtime representation
+// §18.4.2 Spawned runtime representation (internal: SpawnHandle)
 struct SpawnHandle {
     WorkItem* item;
     int is_ready;
@@ -436,7 +436,7 @@ int cursive0_parallel_join(void* ctx_ptr) {
 }
 
 // §18.4.2 Create spawn handle
-// Returns SpawnHandle<T>@Pending (or @Ready if body is NULL for inline execution)
+// Returns Spawned<T>@Pending (or @Ready if body is NULL for inline execution)
 void* cursive0_spawn_create(void* env, size_t env_size,
                             void (*body)(void* env, void* result, void* panic_out),
                             size_t result_size) {

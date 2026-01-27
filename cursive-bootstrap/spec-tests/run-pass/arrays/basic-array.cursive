@@ -1,0 +1,9 @@
+// RUN: run-pass
+// EXIT: 3
+// SPEC: 5.2.1
+// DESC: Fixed-size array creation and indexing
+
+public procedure main(move ctx: Context) -> i32 {
+    let arr: [i32; 5] = [1, 2, 3, 4, 5]
+    return arr[2]
+}

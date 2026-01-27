@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2542
+// SPEC: 5.3
+// DESC: Generic procedure in class without [[static_dispatch_only]] attribute
+
+class Container {
+    procedure map<T, U>(~, f: procedure(T) -> U) -> Self //~ ERROR E-TYP-2542
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

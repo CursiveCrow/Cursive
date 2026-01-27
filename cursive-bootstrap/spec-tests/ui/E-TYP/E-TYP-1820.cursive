@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-TYP-1820
+// SPEC: 8.15
+// DESC: Slice index expression has non-usize type
+
+procedure index_slice(s: [i32], idx: i32) -> i32 {
+    return s[idx]  //~ ERROR E-TYP-1820: slice index non-usize
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

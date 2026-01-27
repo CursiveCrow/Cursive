@@ -1,0 +1,15 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.17
+// DESC: Heap allocation through capability
+
+procedure alloc_value(heap: $HeapAllocator) -> i32 {
+    let boxed: Ptr<i32>@Valid = heap ~> alloc(42)
+    let value: i32 = *boxed
+    heap ~> dealloc(move boxed)
+    return value
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return alloc_value(ctx.heap)
+}

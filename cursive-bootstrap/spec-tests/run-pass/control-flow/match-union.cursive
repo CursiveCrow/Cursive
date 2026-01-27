@@ -1,0 +1,16 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.6
+// DESC: Match expression on union type
+
+public procedure classify(u: i32 | bool) -> i32 {
+    return match u {
+        v: i32 => { v }
+        b: bool => { if b { 1 } else { 0 } }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let x: i32 | bool = 42
+    return classify(x)
+}

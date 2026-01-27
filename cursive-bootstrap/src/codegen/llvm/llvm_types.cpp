@@ -445,9 +445,9 @@ llvm::Type* LLVMEmitter::GetLLVMType(analysis::TypeRef type) {
       const auto* modal = std::get_if<analysis::TypeModalState>(&type->node);
       const bool is_async = modal && modal->path.size() == 1 &&
                             analysis::IdEq(modal->path[0], "Async");
-      if (modal && (analysis::IsSpawnHandleTypePath(modal->path) ||
+      if (modal && (analysis::IsSpawnedTypePath(modal->path) ||
                     analysis::IsCancelTokenTypePath(modal->path) ||
-                    analysis::IsFutureHandleTypePath(modal->path) ||
+                    analysis::IsTrackedTypePath(modal->path) ||
                     is_async)) {
         ll_ty = GetOpaquePtr();
         type_cache_[type] = ll_ty;
@@ -528,9 +528,9 @@ llvm::Type* LLVMEmitter::GetLLVMType(analysis::TypeRef type) {
     } else {
       const bool is_async = path->path.size() == 1 &&
                             analysis::IdEq(path->path[0], "Async");
-      if (analysis::IsSpawnHandleTypePath(path->path) ||
+      if (analysis::IsSpawnedTypePath(path->path) ||
           analysis::IsCancelTokenTypePath(path->path) ||
-          analysis::IsFutureHandleTypePath(path->path) ||
+          analysis::IsTrackedTypePath(path->path) ||
           is_async) {
         ll_ty = GetOpaquePtr();
         type_cache_[type] = ll_ty;

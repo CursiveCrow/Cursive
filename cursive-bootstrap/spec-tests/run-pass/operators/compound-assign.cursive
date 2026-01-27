@@ -1,0 +1,21 @@
+// RUN: run-pass
+// EXIT: 100
+// SPEC: 5.2.5, 9.2
+// DESC: Compound assignment operators (+=, -=, *=, /=, %=)
+
+public procedure main(move ctx: Context) -> i32 {
+    var x: i32 = 10
+    x += 5
+    x -= 3
+    x *= 2
+    x /= 2
+    x %= 7
+
+    var y: i32 = 100
+    y += 50
+    y -= 25
+    y *= 2
+    y /= 5
+
+    return y
+}

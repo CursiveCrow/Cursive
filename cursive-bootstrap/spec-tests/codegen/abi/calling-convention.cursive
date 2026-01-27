@@ -1,0 +1,18 @@
+// RUN: run-pass
+// EXIT: 0
+// SPEC: 13.2.11
+// DESC: Verify calling convention for procedures
+
+procedure add(a: i32, b: i32) -> i32 {
+    return a + b
+}
+
+procedure sub(a: i32, b: i32) -> i32 {
+    return a - b
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let result = add(10, 5)
+    let final_val = sub(result, 15)
+    return final_val
+}

@@ -1,0 +1,11 @@
+// RUN: compile-pass
+// DIAG: W-SRC-0101
+// SPEC: 3.1
+// DESC: UTF-8 BOM present at the start of the file
+// SKIP: Requires file with BOM
+
+// NOTE: Warning when file starts with UTF-8 BOM.
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

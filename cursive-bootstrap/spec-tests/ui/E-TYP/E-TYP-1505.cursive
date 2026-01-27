@@ -1,0 +1,10 @@
+// RUN: compile-fail
+// DIAG: E-TYP-1505
+// SPEC: 5.2
+// DESC: Missing required type annotation at module scope
+
+static x = 42  //~ ERROR E-TYP-1505: missing type annotation
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

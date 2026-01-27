@@ -1,0 +1,11 @@
+// RUN: compile-fail
+// DIAG: E-MEM-3001
+// SPEC: 5.2.4
+// DESC: Read or move of a binding in Moved state
+
+public procedure main(move ctx: Context) -> i32 {
+    let x: unique i32 = 42
+    let y: unique i32 = move x
+    let z: i32 = x  //~ ERROR E-MEM-3001: binding moved
+    return z
+}

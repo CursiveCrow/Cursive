@@ -1,0 +1,21 @@
+// RUN: compile-pass
+// SPEC: 4.3
+// DESC: Verify symbol name mangling for procedures
+
+procedure foo() -> () {
+}
+
+procedure bar(x: i32) -> i32 {
+    return x
+}
+
+procedure baz(x: i32, y: i32) -> i32 {
+    return x + y
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    foo()
+    let a = bar(1)
+    let b = baz(1, 2)
+    return 0
+}

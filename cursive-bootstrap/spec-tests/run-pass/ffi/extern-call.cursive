@@ -1,0 +1,12 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 17
+// DESC: Call to extern C function
+
+extern "C" {
+    procedure test_return_42() -> i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return unsafe { test_return_42() }
+}

@@ -1,4 +1,0 @@
-[assembly]
-name = "minimal_spawn"
-kind = "executable"
-root = "src"

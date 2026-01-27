@@ -1,0 +1,9 @@
+// RUN: compile-fail
+// DIAG: E-SRC-0304
+// SPEC: 3.2
+// DESC: Malformed numeric literal
+
+public procedure main(move ctx: Context) -> i32 {
+    let x: i32 = 0x  //~ ERROR E-SRC-0304: Malformed numeric
+    return 0
+}

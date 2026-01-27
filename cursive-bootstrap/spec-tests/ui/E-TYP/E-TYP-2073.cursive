@@ -1,0 +1,9 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2073
+// SPEC: 5.4
+// DESC: Record literal whose type is File@S, DirIter@S, or CancelToken@S
+
+public procedure main(move ctx: Context) -> i32 {
+    let f: File@Open = File@Open{ handle: 0 } //~ ERROR E-TYP-2073
+    return 0
+}

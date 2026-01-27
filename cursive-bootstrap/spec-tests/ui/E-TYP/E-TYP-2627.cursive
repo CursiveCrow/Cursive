@@ -1,0 +1,22 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2627
+// SPEC: 6.2
+// DESC: FfiSafeType enum has non-FfiSafeType payload field
+
+record NonFfi {
+    data: i32
+}
+
+[[layout(C)]]
+enum Message {
+    Empty
+    Data(NonFfi)
+}
+
+extern "C" {
+    procedure ffi_message(m: Message) -> () //~ ERROR E-TYP-2627
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

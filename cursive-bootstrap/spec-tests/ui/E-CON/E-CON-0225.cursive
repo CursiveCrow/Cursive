@@ -1,0 +1,17 @@
+// RUN: compile-fail
+// DIAG: E-CON-0225
+// SPEC: 15.3
+// DESC: Error type not compatible in yield from
+
+procedure outer() -> Async<(), (), i32, ()> {
+    procedure inner() -> Async<(), (), i32, string@View> {
+        return 42
+    }
+
+    yield from inner()? //~ ERROR E-CON-0225
+    return 0
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

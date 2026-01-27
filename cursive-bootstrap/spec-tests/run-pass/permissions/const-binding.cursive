@@ -1,0 +1,9 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.2
+// DESC: Const permission binding
+
+public procedure main(move ctx: Context) -> i32 {
+    let x: const i32 = 42
+    return x
+}

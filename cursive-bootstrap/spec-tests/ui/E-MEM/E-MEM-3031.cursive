@@ -1,0 +1,10 @@
+// RUN: compile-fail
+// DIAG: E-MEM-3031
+// SPEC: 5.2.16
+// DESC: transmute source and target sizes differ
+
+public procedure main(move ctx: Context) -> i32 {
+    let x: i32 = 42
+    let y: i64 = unsafe { transmute(x) }  //~ ERROR E-MEM-3031: size mismatch
+    return 0
+}

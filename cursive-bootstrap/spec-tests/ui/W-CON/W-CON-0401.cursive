@@ -1,0 +1,15 @@
+// RUN: compile-pass
+// DIAG: W-CON-0401
+// SPEC: 5.13
+// DESC: [[dynamic]] present but all proofs succeed statically
+
+[[dynamic]]
+procedure always_true(x: i32) -> i32
+    requires { x >= 0 }
+{
+    return x //~ WARNING W-CON-0401
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return always_true(42)
+}

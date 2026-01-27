@@ -1,0 +1,17 @@
+// RUN: compile-fail
+// DIAG: E-CON-0120
+// SPEC: 8.9
+// DESC: Implicit capture of unique binding
+
+procedure capture_unique() -> () {
+    let x: unique i32 = 42
+    parallel {
+        spawn {
+            let y: i32 = x  //~ ERROR E-CON-0120: implicit capture of unique
+        }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

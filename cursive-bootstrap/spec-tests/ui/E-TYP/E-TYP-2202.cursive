@@ -1,0 +1,10 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2202
+// SPEC: 5.2.1
+// DESC: Direct access on union value without pattern matching
+
+public procedure main(move ctx: Context) -> i32 {
+    let u: i32 | bool = 42
+    let x: i32 = u  //~ ERROR E-TYP-2202: direct access on union
+    return x
+}

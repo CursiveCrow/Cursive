@@ -1,0 +1,20 @@
+// RUN: compile-fail
+// DIAG: E-CON-0003
+// SPEC: 8.9
+// DESC: Multiple # markers in single path expression
+
+record Inner {
+    var value: i32
+}
+
+record Outer {
+    inner: shared Inner
+}
+
+procedure multi_marker(o: shared Outer) -> i32 {
+    return ##o.inner.value  //~ ERROR E-CON-0003: multiple # markers
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

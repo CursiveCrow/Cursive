@@ -1,0 +1,32 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 6.2 ABI-Union
+// DESC: Verify union type passing conventions
+
+procedure classify(u: i32 | bool) -> i32 {
+    return match u {
+        v: i32 => { v }
+        b: bool => { if b { 1 } else { 0 } }
+    }
+}
+
+procedure pass_three_way(u: i8 | i16 | i32) -> i32 {
+    return match u {
+        v: i8 => { v as i32 }
+        v: i16 => { v as i32 }
+        v: i32 => { v }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let u1: i32 | bool = 42
+    let r1: i32 = classify(u1)
+
+    let u2: i32 | bool = true
+    let r2: i32 = classify(u2)
+
+    let u3: i8 | i16 | i32 = 100i32
+    let r3: i32 = pass_three_way(u3)
+
+    return if r2 == 1 && r3 == 100 { r1 } else { 1 }
+}

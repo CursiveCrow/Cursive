@@ -1,4 +1,0 @@
-[assembly]
-name = "parallel_nested_cpu"
-kind = "executable"
-root = "src"

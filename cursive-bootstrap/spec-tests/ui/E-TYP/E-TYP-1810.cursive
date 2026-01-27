@@ -1,0 +1,13 @@
+// RUN: compile-fail
+// DIAG: E-TYP-1810
+// SPEC: 5.2.1
+// DESC: Array length is not a compile-time constant
+
+procedure get_len() -> usize {
+    return 5
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let arr: [i32; get_len()] = [1, 2, 3, 4, 5]  //~ ERROR E-TYP-1810: not constant
+    return 0
+}

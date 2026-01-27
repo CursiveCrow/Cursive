@@ -1,0 +1,12 @@
+// RUN: run-pass
+// EXIT: 120
+// SPEC: 5.2.7
+// DESC: Recursive procedure call
+
+procedure factorial(n: i32) -> i32 {
+    return if n <= 1 { 1 } else { n * factorial(n - 1) }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return factorial(5)
+}

@@ -1,0 +1,12 @@
+// RUN: run-pass
+// EXIT: 10
+// SPEC: 6.4 Lower-Expr-Array
+// DESC: Verify array construction lowering
+
+public procedure main(move ctx: Context) -> i32 {
+    let arr1: [i32; 4] = [1, 2, 3, 4]
+    let arr2: [i8; 3] = [10i8, 20i8, 30i8]
+
+    let sum: i32 = arr1[0] + arr1[1] + arr1[2] + arr1[3]
+    return sum
+}

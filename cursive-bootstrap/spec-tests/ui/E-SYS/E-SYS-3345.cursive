@@ -1,0 +1,13 @@
+// RUN: compile-fail
+// DIAG: E-SYS-3345
+// SPEC: 8.12
+// DESC: [[library]] outside extern block
+
+[[library("mylib")]]  //~ ERROR E-SYS-3345: library outside extern
+procedure not_extern() -> i32 {
+    return 42
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

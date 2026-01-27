@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-SRC-0102
+// SPEC: 3.1
+// DESC: Failed to read source file
+// SKIP: Requires filesystem permission error
+
+// NOTE: This test requires a file that cannot be read.
+// The test harness cannot trigger this reliably.
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

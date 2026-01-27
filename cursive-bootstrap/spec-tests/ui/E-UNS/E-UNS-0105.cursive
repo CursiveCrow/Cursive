@@ -1,0 +1,21 @@
+// RUN: compile-fail
+// DIAG: E-UNS-0105
+// SPEC: 1.4
+// DESC: override used with no concrete procedure to override
+
+class Foo {
+    procedure bar(~) -> i32
+}
+
+record MyFoo {
+}
+
+class Foo for MyFoo {
+    override procedure baz(~) -> i32 {  //~ ERROR E-UNS-0105: no concrete to override
+        return 0
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

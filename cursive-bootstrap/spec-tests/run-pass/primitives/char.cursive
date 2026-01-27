@@ -1,0 +1,13 @@
+// RUN: run-pass
+// EXIT: 0
+// SPEC: 5.2.1
+// DESC: Character type with various literals
+
+public procedure main(move ctx: Context) -> i32 {
+    let a: char = 'a'
+    let b: char = '\n'
+    let c: char = '\t'
+    let d: char = '\\'
+    let e: char = '\''
+    return 0
+}

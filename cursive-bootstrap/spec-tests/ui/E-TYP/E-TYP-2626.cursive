@@ -1,0 +1,21 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2626
+// SPEC: 6.2
+// DESC: FfiSafeType record has non-FfiSafeType field
+
+record Inner {
+    value: i32
+}
+
+[[layout(C)]]
+record Outer {
+    inner: Inner
+}
+
+extern "C" {
+    procedure ffi_outer(o: Outer) -> () //~ ERROR E-TYP-2626
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

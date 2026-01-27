@@ -1,0 +1,15 @@
+// RUN: compile-fail
+// DIAG: E-SEM-2852
+// SPEC: 6.9
+// DESC: Predicate references out-of-scope value
+
+var global_limit: usize = 100
+
+extern "C" {
+    @foreign_assumes(len < global_limit) //~ ERROR E-SEM-2852
+    procedure external_fn(ptr: *imm u8, len: usize) -> i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

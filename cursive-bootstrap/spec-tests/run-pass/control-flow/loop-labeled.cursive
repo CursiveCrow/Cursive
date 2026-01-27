@@ -1,0 +1,19 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.6
+// DESC: Labeled loop with break to label
+
+public procedure main(move ctx: Context) -> i32 {
+    var result: i32 = 0
+    'outer: loop {
+        var i: i32 = 0
+        loop i < 10 {
+            if i == 5 {
+                result = 42
+                break 'outer
+            }
+            i = i + 1
+        }
+    }
+    return result
+}

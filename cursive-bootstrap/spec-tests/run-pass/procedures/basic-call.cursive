@@ -1,0 +1,12 @@
+// RUN: run-pass
+// EXIT: 30
+// SPEC: 5.2.7
+// DESC: Basic procedure call with arguments
+
+procedure add(a: i32, b: i32) -> i32 {
+    return a + b
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return add(10, 20)
+}

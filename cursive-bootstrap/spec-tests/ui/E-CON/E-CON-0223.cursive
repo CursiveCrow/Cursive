@@ -1,0 +1,19 @@
+// RUN: compile-fail
+// DIAG: E-CON-0223
+// SPEC: 15.3
+// DESC: yield from inside sync expression
+
+procedure outer() -> Async<(), (), i32, !> {
+    procedure inner() -> Async<(), (), i32, !> {
+        return 42
+    }
+
+    let result = sync {
+        yield from inner() //~ ERROR E-CON-0223
+    }
+    return result
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

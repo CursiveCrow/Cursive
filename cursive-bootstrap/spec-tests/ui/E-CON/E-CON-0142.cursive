@@ -1,0 +1,17 @@
+// RUN: compile-fail
+// DIAG: E-CON-0142
+// SPEC: 8.9
+// DESC: Cross-iteration dependency detected
+
+procedure cross_iteration() -> () {
+    var arr: [i32; 10] = [0; 10]
+    parallel {
+        dispatch 1..10 |i| {
+            arr[i] = arr[i - 1] + 1  //~ ERROR E-CON-0142: cross-iteration dependency
+        }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

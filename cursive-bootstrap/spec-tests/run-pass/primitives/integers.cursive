@@ -1,0 +1,18 @@
+// RUN: run-pass
+// EXIT: 0
+// SPEC: 5.2.1
+// DESC: All integer types compile and have correct ranges
+
+public procedure main(move ctx: Context) -> i32 {
+    let a: i8 = -128
+    let b: i16 = -32768
+    let c: i32 = -2147483648
+    let d: i64 = -9223372036854775808
+    let e: u8 = 255
+    let f: u16 = 65535
+    let g: u32 = 4294967295
+    let h: u64 = 18446744073709551615
+    let i: usize = 0
+    let j: isize = 0
+    return 0
+}

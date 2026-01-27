@@ -1,0 +1,23 @@
+// RUN: compile-pass
+// DIAG: W-CON-0201
+// SPEC: 13.2.17
+// DESC: Large captured state (performance)
+
+record LargeState {
+    data: [i32; 512]
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let large: LargeState = LargeState{ data: [0; 512] }
+
+    let async_op: Async<(), (), i32, !> = async { //~ WARN W-CON-0201: Large captured state
+        var sum: i32 = 0
+        var i: usize = 0
+        loop i < 512 {
+            sum = sum + large.data[i]
+            i = i + 1
+        }
+        return sum
+    }
+    return 0
+}

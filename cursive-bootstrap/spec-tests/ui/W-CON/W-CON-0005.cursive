@@ -1,0 +1,16 @@
+// RUN: compile-pass
+// DIAG: W-CON-0005
+// SPEC: 14.2
+// DESC: Callee access pattern unknown; assuming full access
+
+procedure unknown_access(x: shared i32) -> () {
+    // implementation hidden
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let x: shared i32 = 42
+    #x {
+        unknown_access(x) //~ WARNING W-CON-0005
+    }
+    return 0
+}

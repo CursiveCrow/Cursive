@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-OUT-0407
+// SPEC: Appendix A
+// DESC: Runtime library missing or unreadable
+// SKIP: Requires missing runtime library
+
+// This error occurs when cursive0_rt.lib is not found.
+// Requires project-level test setup with missing runtime.
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

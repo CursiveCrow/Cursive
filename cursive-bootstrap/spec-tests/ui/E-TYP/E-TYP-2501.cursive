@@ -1,0 +1,22 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2501
+// SPEC: 8.15
+// DESC: override used on abstract procedure implementation
+
+class Base {
+    procedure method(~) -> i32
+}
+
+record Impl {
+    value: i32
+}
+
+class Base for Impl {
+    override procedure method(~) -> i32 {  //~ ERROR E-TYP-2501: override on abstract
+        return ~.value
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

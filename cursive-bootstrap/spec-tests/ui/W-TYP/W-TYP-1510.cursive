@@ -1,0 +1,13 @@
+// RUN: compile-pass
+// DIAG: W-TYP-1510
+// SPEC: 8.14
+// DESC: Redundant type annotation matches inferred type
+
+procedure redundant_annotation() -> i32 {
+    let x: i32 = 42 as i32  //~ WARNING W-TYP-1510: redundant annotation
+    return x
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return redundant_annotation()
+}

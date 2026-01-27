@@ -1,0 +1,5 @@
+// This project intentionally has no Cursive.toml to trigger E-PRJ-0101
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

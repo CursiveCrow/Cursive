@@ -1,0 +1,14 @@
+// RUN: compile-fail
+// DIAG: E-CON-0103
+// SPEC: 8.9
+// DESC: Invalid domain parameter for parallel
+
+procedure bad_domain_param() -> () {
+    parallel on cpu(affinity: "invalid") {  //~ ERROR E-CON-0103: invalid domain parameter
+        spawn { return () }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

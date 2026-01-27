@@ -1,0 +1,10 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.8
+// DESC: Closure with captured variable
+
+public procedure main(move ctx: Context) -> i32 {
+    let offset: i32 = 32
+    let add_offset = |x: i32| -> i32 { return x + offset }
+    return add_offset(10)
+}

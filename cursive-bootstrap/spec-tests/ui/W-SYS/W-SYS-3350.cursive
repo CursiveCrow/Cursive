@@ -1,0 +1,13 @@
+// RUN: compile-pass
+// DIAG: W-SYS-3350
+// SPEC: 6.3
+// DESC: [[no_mangle]] in extern "C" (redundant)
+
+[[no_mangle]]
+extern "C" { //~ WARNING W-SYS-3350
+    procedure external_fn() -> i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

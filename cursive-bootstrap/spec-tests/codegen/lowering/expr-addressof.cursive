@@ -1,0 +1,15 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 6.4 Lower-Expr-AddressOf
+// DESC: Verify address-of operator lowering
+
+public procedure main(move ctx: Context) -> i32 {
+    var x: i32 = 42
+    let p: Ptr<unique i32>@Valid = &x
+
+    var y: i64 = 100
+    let q: Ptr<unique i64>@Valid = &y
+
+    let val: i32 = *p
+    return val
+}

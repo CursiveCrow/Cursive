@@ -1,0 +1,9 @@
+// RUN: compile-fail
+// DIAG: E-SRC-0510
+// SPEC: 3.3
+// DESC: Missing statement terminator
+
+public procedure main(move ctx: Context) -> i32 {
+    let x: i32 = 1 let y: i32 = 2  //~ ERROR E-SRC-0510: Missing terminator
+    return 0
+}

@@ -1,0 +1,29 @@
+// RUN: run-pass
+// EXIT: 55
+// SPEC: 5.2.6, 5.2.12, 5.2.13
+// DESC: Inclusive range operator (..=) in loops and patterns
+
+procedure sum_inclusive() -> i32 {
+    var sum: i32 = 0
+    loop i in 1..=10 {
+        sum = sum + i
+    }
+    return sum
+}
+
+procedure match_inclusive(n: i32) -> i32 {
+    return match n {
+        0..=9 => { 10 }
+        10..=19 => { 20 }
+        20..=29 => { 30 }
+        _ => { 100 }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let sum: i32 = sum_inclusive()
+    let m1: i32 = match_inclusive(5)
+    let m2: i32 = match_inclusive(15)
+    let m3: i32 = match_inclusive(25)
+    return sum
+}

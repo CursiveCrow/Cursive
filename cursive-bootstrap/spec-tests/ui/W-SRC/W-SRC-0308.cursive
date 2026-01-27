@@ -1,0 +1,12 @@
+// RUN: compile-pass
+// DIAG: W-SRC-0308
+// SPEC: 3.2
+// DESC: Lexically sensitive Unicode character within unsafe block
+
+public procedure main(move ctx: Context) -> i32 {
+    unsafe {
+        // Contains a bidi override character (simulated)
+        let x‮test: i32 = 42 //~ WARNING W-SRC-0308
+        return x‮test
+    }
+}

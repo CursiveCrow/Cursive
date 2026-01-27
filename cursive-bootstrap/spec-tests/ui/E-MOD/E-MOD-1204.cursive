@@ -1,0 +1,10 @@
+// RUN: compile-fail
+// DIAG: E-MOD-1204
+// SPEC: 8.2
+// DESC: Using path does not resolve to a module or item
+
+using nonexistent::path  //~ ERROR E-MOD-1204: using path not resolved
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

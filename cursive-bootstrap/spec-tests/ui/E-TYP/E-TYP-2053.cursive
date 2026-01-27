@@ -1,0 +1,21 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2053
+// SPEC: 8.15
+// DESC: Method invocation for method not available in current state
+
+modal Resource {
+    state Empty {}
+    state Ready {
+        procedure get(~) -> i32 {
+            return 0
+        }
+    }
+}
+
+procedure call_unavailable(r: Resource@Empty) -> i32 {
+    return r ~> get()  //~ ERROR E-TYP-2053: method not available in state
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

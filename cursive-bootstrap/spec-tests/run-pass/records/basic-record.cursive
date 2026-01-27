@@ -1,0 +1,14 @@
+// RUN: run-pass
+// EXIT: 3
+// SPEC: 5.2.3
+// DESC: Basic record declaration and field access
+
+record Point {
+    x: i32
+    y: i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let p: Point = Point { x: 1, y: 2 }
+    return p.x + p.y
+}

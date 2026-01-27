@@ -1,0 +1,16 @@
+// RUN: compile-fail
+// DIAG: E-TYP-1520
+// SPEC: 8.15
+// DESC: Variance violation in generic type instantiation
+
+record Container[+T] {
+    value: T
+}
+
+procedure covariant_violation(x: Container[i32]) -> Container[i64] {
+    return x  //~ ERROR E-TYP-1520: variance violation
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

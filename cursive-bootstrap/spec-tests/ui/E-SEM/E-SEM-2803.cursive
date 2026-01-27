@@ -1,0 +1,27 @@
+// RUN: compile-fail
+// DIAG: E-SEM-2803
+// SPEC: 8.17
+// DESC: Class implementation strengthens precondition
+
+class Processor {
+    procedure process(~, x: i32)
+        @requires(x >= 0)
+        -> i32
+}
+
+record StrictProcessor {
+    value: i32
+}
+
+class Processor for StrictProcessor {
+    procedure process(~, x: i32)
+        @requires(x >= 10)  //~ ERROR E-SEM-2803: strengthens precondition
+        -> i32
+    {
+        return ~.value + x
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

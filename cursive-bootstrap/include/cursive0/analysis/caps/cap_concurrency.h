@@ -4,9 +4,9 @@
 //
 // This header declares the built-in types for structured concurrency and async:
 // - ExecutionDomain class (§18.2.4)
-// - SpawnHandle<T> modal type (§18.4.2)
+// - Spawned<T> modal type (§18.4.2)
 // - CancelToken modal type (§18.6.1)
-// - FutureHandle<T, E> modal type (§5.4.4)
+// - Tracked<T, E> modal type (§5.4.4)
 // - Async<Out, In, Result, E> modal type and aliases (§5.4.5)
 
 #include <optional>
@@ -46,42 +46,42 @@ syntax::ClassDecl BuildGpuDomainClassDecl();
 syntax::ClassDecl BuildInlineDomainClassDecl();
 
 // -----------------------------------------------------------------------------
-// SpawnHandle<T> modal type (§18.4.2)
+// Spawned<T> modal type (§18.4.2)
 // -----------------------------------------------------------------------------
 
-// Check if a type path refers to SpawnHandle
-bool IsSpawnHandleTypePath(const syntax::TypePath& path);
+// Check if a type path refers to Spawned
+bool IsSpawnedTypePath(const syntax::TypePath& path);
 
-// Valid states for SpawnHandle<T>
+// Valid states for Spawned<T>
 // @Pending - task has been created but not completed
 // @Ready   - task has completed, value is available
-bool IsValidSpawnHandleState(std::string_view state);
+bool IsValidSpawnedState(std::string_view state);
 
-// Create a SpawnHandle<T> type with the given inner type
-TypeRef MakeSpawnHandleType(const TypeRef& inner_type);
+// Create a Spawned<T> type with the given inner type
+TypeRef MakeSpawnedType(const TypeRef& inner_type);
 
-// Create a SpawnHandle<T>@State type
-TypeRef MakeSpawnHandleTypeWithState(const TypeRef& inner_type,
-                                     std::string_view state);
+// Create a Spawned<T>@State type
+TypeRef MakeSpawnedTypeWithState(const TypeRef& inner_type,
+                                 std::string_view state);
 
-// Extract the inner type T from SpawnHandle<T>
-std::optional<TypeRef> ExtractSpawnHandleInner(const TypeRef& type);
+// Extract the inner type T from Spawned<T>
+std::optional<TypeRef> ExtractSpawnedInner(const TypeRef& type);
 
 // ---------------------------------------------------------------------------
-// FutureHandle<T, E> modal type (§5.4.4)
+// Tracked<T, E> modal type (§5.4.4)
 // ---------------------------------------------------------------------------
 
-bool IsFutureHandleTypePath(const syntax::TypePath& path);
+bool IsTrackedTypePath(const syntax::TypePath& path);
 
-bool IsValidFutureHandleState(std::string_view state);
+bool IsValidTrackedState(std::string_view state);
 
-TypeRef MakeFutureHandleType(const TypeRef& value_type, const TypeRef& err_type);
+TypeRef MakeTrackedType(const TypeRef& value_type, const TypeRef& err_type);
 
-TypeRef MakeFutureHandleTypeWithState(const TypeRef& value_type,
-                                      const TypeRef& err_type,
-                                      std::string_view state);
+TypeRef MakeTrackedTypeWithState(const TypeRef& value_type,
+                                 const TypeRef& err_type,
+                                 std::string_view state);
 
-std::optional<std::pair<TypeRef, TypeRef>> ExtractFutureHandleArgs(
+std::optional<std::pair<TypeRef, TypeRef>> ExtractTrackedArgs(
     const TypeRef& type);
 
 // -----------------------------------------------------------------------------
@@ -119,15 +119,15 @@ TypeRef MakeCancelTokenTypeWithState(std::string_view state);
 // Built-in type declarations for sigma population
 // -----------------------------------------------------------------------------
 
-// Build SpawnHandle modal declaration (states: Pending, Ready)
-// Note: SpawnHandle<T> is generic; this builds a non-generic version for name lookup
-syntax::ModalDecl BuildSpawnHandleModalDecl();
+// Build Spawned modal declaration (states: Pending, Ready)
+// Note: Spawned<T> is generic; this builds a non-generic version for name lookup
+syntax::ModalDecl BuildSpawnedModalDecl();
 
 // Build CancelToken modal declaration (states: Active, Cancelled)
 syntax::ModalDecl BuildCancelTokenModalDecl();
 
-// Build FutureHandle modal declaration (states: Pending, Ready)
-syntax::ModalDecl BuildFutureHandleModalDecl();
+// Build Tracked modal declaration (states: Pending, Ready)
+syntax::ModalDecl BuildTrackedModalDecl();
 
 // Build Async modal declaration (states: Suspended, Completed, Failed)
 syntax::ModalDecl BuildAsyncModalDecl();

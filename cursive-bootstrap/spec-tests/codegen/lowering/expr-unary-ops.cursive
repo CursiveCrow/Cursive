@@ -1,0 +1,17 @@
+// RUN: run-pass
+// EXIT: 0
+// SPEC: 6.4 Lower-Expr-Unary
+// DESC: Verify unary operation lowering
+
+public procedure main(move ctx: Context) -> i32 {
+    let a: i32 = 10
+    let neg: i32 = -a
+
+    let t: bool = true
+    let f: bool = !t
+
+    let neg_neg: i32 = -neg
+
+    let ok: bool = neg == -10 && !f && neg_neg == 10
+    return if ok { 0 } else { 1 }
+}

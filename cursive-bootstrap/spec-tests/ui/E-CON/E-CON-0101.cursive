@@ -1,0 +1,14 @@
+// RUN: compile-fail
+// DIAG: E-CON-0101
+// SPEC: 8.9
+// DESC: spawn or dispatch outside parallel
+
+procedure bad_spawn() -> () {
+    spawn {  //~ ERROR E-CON-0101: spawn outside parallel
+        let x: i32 = 1
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

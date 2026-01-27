@@ -1,0 +1,40 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.2, 8.4
+// DESC: Permission coercion chain: unique -> shared -> const
+
+procedure read_const(x: const i32) -> i32 {
+    return x
+}
+
+procedure read_shared(x: shared i32) -> i32 {
+    return x
+}
+
+procedure unique_to_shared(x: unique i32) -> i32 {
+    let s: shared i32 = x
+    return read_shared(s)
+}
+
+procedure shared_to_const(x: shared i32) -> i32 {
+    let c: const i32 = x
+    return read_const(c)
+}
+
+procedure unique_to_const(x: unique i32) -> i32 {
+    let c: const i32 = x
+    return read_const(c)
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let u: unique i32 = 42
+    let r1: i32 = unique_to_shared(u)
+
+    let s: shared i32 = 10
+    let r2: i32 = shared_to_const(s)
+
+    let u2: unique i32 = 42
+    let r3: i32 = unique_to_const(u2)
+
+    return r3
+}

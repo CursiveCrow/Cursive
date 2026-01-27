@@ -1,0 +1,16 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 14
+// DESC: Basic contract with requires clause
+
+[[dynamic]]
+procedure safe_divide(a: i32, b: i32)
+    @requires(b != 0)
+    -> i32
+{
+    return a / b
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return safe_divide(84, 2)
+}

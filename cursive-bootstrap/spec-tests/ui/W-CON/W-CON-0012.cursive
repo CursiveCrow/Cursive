@@ -1,0 +1,15 @@
+// RUN: compile-pass
+// DIAG: W-CON-0012
+// SPEC: 14.2
+// DESC: Nested # blocks with potential order cycle
+
+public procedure main(move ctx: Context) -> i32 {
+    let a: shared i32 = 1
+    let b: shared i32 = 2
+    #a {
+        #b { //~ WARN W-CON-0012: potential order cycle
+            let sum = a + b
+        }
+    }
+    return 0
+}

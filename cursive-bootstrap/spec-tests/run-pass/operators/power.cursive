@@ -1,0 +1,16 @@
+// RUN: run-pass
+// EXIT: 8
+// SPEC: 5.2.5
+// DESC: Power operator (**)
+
+public procedure main(move ctx: Context) -> i32 {
+    let a: i32 = 2 ** 3
+    let b: i32 = 3 ** 2
+    let c: i32 = 4 ** 1
+    let d: i32 = 5 ** 0
+
+    let e: f64 = 2.0 ** 3.0
+    let f: f32 = 2.0f32 ** 2.0f32
+
+    return a
+}

@@ -1,0 +1,15 @@
+// RUN: compile-fail
+// DIAG: E-MOD-1203
+// SPEC: 5.1
+// DESC: Name introduced by using or import as conflicts with existing
+
+record Point {
+    x: i32
+    y: i32
+}
+
+using other::Point //~ ERROR E-MOD-1203
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

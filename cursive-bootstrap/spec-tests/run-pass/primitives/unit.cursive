@@ -1,0 +1,14 @@
+// RUN: run-pass
+// EXIT: 0
+// SPEC: 5.2.1
+// DESC: Unit type ()
+
+procedure do_nothing() -> () {
+    return ()
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let u: () = ()
+    do_nothing()
+    return 0
+}

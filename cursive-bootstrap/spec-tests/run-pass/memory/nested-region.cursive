@@ -1,0 +1,16 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.17
+// DESC: Nested regions
+
+public procedure main(move ctx: Context) -> i32 {
+    var result: i32 = 0
+    region {
+        let outer: Ptr<i32>@Valid = ^10
+        region {
+            let inner: Ptr<i32>@Valid = ^32
+            result = *outer + *inner
+        }
+    }
+    return result
+}

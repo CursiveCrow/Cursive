@@ -5021,7 +5021,7 @@ struct IRVisitor {
   }
 
   // §10.3 Wait expression lowering
-  // Extracts result value T from SpawnHandle<T>
+  // Extracts result value T from Spawned<T>
   void operator()(const IRWait& wait) {
     SPEC_RULE("LowerIR-Wait");
     SPEC_RULE("Lower-WaitIR");

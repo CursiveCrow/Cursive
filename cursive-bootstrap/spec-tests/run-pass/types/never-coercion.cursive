@@ -1,0 +1,40 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.1, 8.4
+// DESC: Never type (!) coercion to any type (Sub-Never)
+
+procedure diverge() -> ! {
+    loop {
+    }
+}
+
+procedure with_never(flag: bool) -> i32 {
+    let x: i32 = if flag {
+        42
+    } else {
+        loop {
+        }
+    }
+    return x
+}
+
+procedure match_never(n: i32) -> i32 {
+    return match n {
+        0 => { 0 }
+        1 => { 1 }
+        _ => {
+            if n > 0 {
+                n
+            } else {
+                loop {
+                }
+            }
+        }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let result: i32 = with_never(true)
+    let m: i32 = match_never(42)
+    return result
+}

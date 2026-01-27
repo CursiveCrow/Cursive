@@ -1,0 +1,19 @@
+// RUN: compile-fail
+// DIAG: E-CON-0411
+// SPEC: 8.9
+// DESC: [[dynamic]] procedure with non-pure body
+
+var global: i32 = 0
+
+[[dynamic]]
+procedure impure_dynamic(x: i32)
+    @requires(x > 0)
+    -> i32
+{
+    global = global + 1  //~ ERROR E-CON-0411: dynamic procedure impure
+    return x
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

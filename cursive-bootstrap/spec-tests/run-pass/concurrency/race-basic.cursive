@@ -1,0 +1,24 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 16.5
+// DESC: Race expression for first-completed future
+
+async procedure fast() -> Future[i32] {
+    return 42
+}
+
+async procedure slow() -> Future[i32] {
+    return 100
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let f1: Future[i32] = fast()
+    let f2: Future[i32] = slow()
+
+    let result: i32 = race {
+        f1 -> |v| v,
+        f2 -> |v| v
+    }
+
+    return result
+}

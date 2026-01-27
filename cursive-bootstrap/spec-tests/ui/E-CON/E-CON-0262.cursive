@@ -1,0 +1,25 @@
+// RUN: compile-fail
+// DIAG: E-CON-0262
+// SPEC: 15.3
+// DESC: Non-streaming race operand has Out != ()
+
+procedure stream1() -> Async<i32, (), i32, !> {
+    yield 1
+    return 0
+}
+
+procedure stream2() -> Async<i32, (), i32, !> {
+    yield 2
+    return 0
+}
+
+procedure do_race() -> i32 {
+    return race { //~ ERROR E-CON-0262
+        stream1() => x { return x }
+        stream2() => y { return y }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

@@ -1,0 +1,25 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 13.3
+// DESC: Modal state method
+
+modal Counter {
+    state Zero {}
+    state NonZero {
+        value: i32
+
+        procedure get(~) -> i32 {
+            return ~.value
+        }
+    }
+
+    transition Zero -> NonZero set(~, n: i32) {
+        return Counter@NonZero { value: n }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let c: Counter@Zero = Counter@Zero {}
+    let c2: Counter@NonZero = c ~> set(42)
+    return c2 ~> get()
+}

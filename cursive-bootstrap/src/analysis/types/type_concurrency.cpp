@@ -138,8 +138,8 @@ static bool IsExecutionDomain(const TypeRef& type) {
 }
 
 // Re-export from cap_concurrency.h for local use
-using ::cursive0::analysis::MakeSpawnHandleType;
-using ::cursive0::analysis::ExtractSpawnHandleInner;
+using ::cursive0::analysis::MakeSpawnedType;
+using ::cursive0::analysis::ExtractSpawnedInner;
 
 // §18.3 Capture Analysis
 //
@@ -1054,7 +1054,7 @@ static std::vector<TypeRef> CollectParallelResultTypes(
           return out;
         }
         if (is_spawn) {
-          const auto inner = ExtractSpawnHandleInner(*expr_type);
+          const auto inner = ExtractSpawnedInner(*expr_type);
           if (!inner) {
             diag_id = "E-CON-0132";
             return out;
@@ -1086,7 +1086,7 @@ static std::vector<TypeRef> CollectParallelResultTypes(
         return out;
       }
       if (is_spawn) {
-        const auto inner = ExtractSpawnHandleInner(*expr_type);
+        const auto inner = ExtractSpawnedInner(*expr_type);
         if (!inner) {
           diag_id = "E-CON-0132";
           return out;
@@ -1691,7 +1691,7 @@ ExprTypeResult TypeParallelExpr(const ScopeContext& ctx,
 //
 // Γ[parallel_context] = D    Γ_capture ⊢ e : T
 // ────────────────────────────────────────────────────────────
-// Γ ⊢ `spawn` {e} : SpawnHandle⟨T⟩
+// Γ ⊢ `spawn` {e} : Spawned⟨T⟩
 //
 ExprTypeResult TypeSpawnExpr(const ScopeContext& ctx,
                              const StmtTypeContext& type_ctx,
@@ -1712,7 +1712,7 @@ ExprTypeResult TypeSpawnExpr(const ScopeContext& ctx,
   // Type check spawn body
   if (!expr.body) {
     result.ok = true;
-    result.type = MakeSpawnHandleType(MakeUnit());
+    result.type = MakeSpawnedType(MakeUnit());
     return result;
   }
 
@@ -1757,22 +1757,22 @@ ExprTypeResult TypeSpawnExpr(const ScopeContext& ctx,
     }
   }
 
-  // Return type is SpawnHandle<T> where T is body type (§18.4.2)
+  // Return type is Spawned<T> where T is body type (§18.4.2)
   result.ok = true;
-  result.type = MakeSpawnHandleType(body_result.type);
+  result.type = MakeSpawnedType(body_result.type);
   return result;
 }
 
 // §10.3 T-Wait: Type checking for wait expression
 //
-// Γ ⊢ h : SpawnHandle⟨T⟩
+// Γ ⊢ h : Spawned⟨T⟩
 // ──────────────────────────────────────────
 // Γ ⊢ `wait` h : T
 //
 // Key restriction: "wait is well-formed only when the current key context is empty"
 //
 // Note: wait implicitly consumes (moves) the handle, so we use place typing
-// to allow non-Bitcopy SpawnHandle values.
+// to allow non-Bitcopy Spawned values.
 //
 ExprTypeResult TypeWaitExpr(const ScopeContext& ctx,
                             const StmtTypeContext& type_ctx,
@@ -1790,7 +1790,7 @@ ExprTypeResult TypeWaitExpr(const ScopeContext& ctx,
   }
 
   // Type check handle expression as a place (wait implicitly moves the handle)
-  // This allows non-Bitcopy SpawnHandle values to be used directly
+  // This allows non-Bitcopy Spawned values to be used directly
   PlaceTypeResult handle_result = type_place(expr.handle);
   if (!handle_result.ok) {
     // If place typing fails, try value typing (for expressions that are values)
@@ -1799,17 +1799,17 @@ ExprTypeResult TypeWaitExpr(const ScopeContext& ctx,
       result.diag_id = value_result.diag_id;
       return result;
     }
-    // Check that handle is SpawnHandle<T>
+    // Check that handle is Spawned<T>
     const auto stripped = StripPermAll(value_result.type);
-    auto inner = ExtractSpawnHandleInner(stripped);
+    auto inner = ExtractSpawnedInner(stripped);
     if (inner) {
       result.ok = true;
       result.type = *inner;
       return result;
     }
-    const auto future_args = ExtractFutureHandleArgs(stripped);
+    const auto future_args = ExtractTrackedArgs(stripped);
     if (!future_args.has_value()) {
-      result.diag_id = "E-CON-0132";  // wait operand is not SpawnHandle/FutureHandle
+      result.diag_id = "E-CON-0132";  // wait operand is not Spawned/Tracked
       return result;
     }
     result.ok = true;
@@ -1818,15 +1818,15 @@ ExprTypeResult TypeWaitExpr(const ScopeContext& ctx,
   }
 
   const auto stripped = StripPermAll(handle_result.type);
-  auto inner = ExtractSpawnHandleInner(stripped);
+  auto inner = ExtractSpawnedInner(stripped);
   if (inner) {
     result.ok = true;
     result.type = *inner;
     return result;
   }
-  const auto future_args = ExtractFutureHandleArgs(stripped);
+  const auto future_args = ExtractTrackedArgs(stripped);
   if (!future_args.has_value()) {
-    result.diag_id = "E-CON-0132";  // wait operand is not SpawnHandle/FutureHandle
+    result.diag_id = "E-CON-0132";  // wait operand is not Spawned/Tracked
     return result;
   }
 

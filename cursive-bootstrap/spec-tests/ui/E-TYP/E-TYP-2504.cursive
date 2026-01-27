@@ -1,0 +1,14 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2504
+// SPEC: 8.15
+// DESC: Duplicate associated type in class
+
+class WithAssoc {
+    type Item
+    type Item  //~ ERROR E-TYP-2504: duplicate associated type
+    procedure get(~) -> Item
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

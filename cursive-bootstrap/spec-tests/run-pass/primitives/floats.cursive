@@ -1,0 +1,14 @@
+// RUN: run-pass
+// EXIT: 0
+// SPEC: 5.2.1
+// DESC: Float types compile with various literals
+
+public procedure main(move ctx: Context) -> i32 {
+    let a: f32 = 3.14
+    let b: f64 = 2.71828
+    let c: f32 = 1.0e10
+    let d: f64 = 1.0e-10
+    let e: f32 = 0.0
+    let f: f64 = -0.0
+    return 0
+}

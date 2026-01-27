@@ -1,0 +1,17 @@
+// RUN: compile-fail
+// DIAG: E-TYP-1912
+// SPEC: 5.3.2
+// DESC: Explicit receiver type must be Self for record methods
+
+record Point {
+    x: i32
+    y: i32
+
+    procedure get_x(~self: i32) -> i32 { //~ ERROR E-TYP-1912
+        return 0
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

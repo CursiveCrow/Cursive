@@ -1,0 +1,9 @@
+// RUN: compile-fail
+// DIAG: E-SRC-0301
+// SPEC: 3.2
+// DESC: Unterminated string literal
+
+public procedure main(move ctx: Context) -> i32 {
+    let s: string@View = "hello  //~ ERROR E-SRC-0301: Unterminated string
+    return 0
+}

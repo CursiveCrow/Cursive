@@ -1,0 +1,18 @@
+// RUN: link-fail
+// DIAG: E-SYS-3342
+// SPEC: 6.3
+// DESC: Duplicate symbol name in compilation unit
+
+[[symbol("duplicate_sym")]]
+extern "C" {
+    procedure fn1() -> i32
+}
+
+[[symbol("duplicate_sym")]]
+extern "C" {
+    procedure fn2() -> i32 //~ ERROR E-SYS-3342
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

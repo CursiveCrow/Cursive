@@ -1,0 +1,20 @@
+// RUN: run-fail
+// DIAG: E-SEM-2822
+// SPEC: 14.7
+// DESC: Type invariant violated at mutator return
+
+record PositiveInt {
+    value: i32
+
+    invariant { self.value > 0 }
+
+    procedure set_value(~!, new_val: i32) -> () {
+        self.value = new_val
+    } //~ PANIC E-SEM-2822
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    var p: PositiveInt = PositiveInt{ value: 1 }
+    p ~> set_value(-5)
+    return 0
+}

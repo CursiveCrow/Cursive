@@ -1,0 +1,9 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.4
+// DESC: Immovable binding with :=
+
+public procedure main(move ctx: Context) -> i32 {
+    let x := 42
+    return x
+}

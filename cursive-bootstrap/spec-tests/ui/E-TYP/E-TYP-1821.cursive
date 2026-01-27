@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-TYP-1821
+// SPEC: 8.15
+// DESC: Direct slice indexing not permitted in Cursive0 subset
+
+procedure direct_slice_index(s: [i32]) -> i32 {
+    return s[0]  //~ ERROR E-TYP-1821: direct slice indexing
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

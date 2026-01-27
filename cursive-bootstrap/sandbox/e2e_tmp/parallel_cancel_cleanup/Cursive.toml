@@ -1,4 +1,0 @@
-[assembly]
-name = "parallel_cancel_cleanup"
-kind = "executable"
-root = "src"

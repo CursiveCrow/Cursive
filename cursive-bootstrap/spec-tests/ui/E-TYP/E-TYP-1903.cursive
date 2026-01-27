@@ -1,0 +1,14 @@
+// RUN: compile-fail
+// DIAG: E-TYP-1903
+// SPEC: 5.2.3
+// DESC: Duplicate field initializer in record literal
+
+record Point {
+    x: i32
+    y: i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let p: Point = Point { x: 1, y: 2, x: 3 }  //~ ERROR E-TYP-1903: duplicate field
+    return 0
+}

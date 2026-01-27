@@ -1,0 +1,20 @@
+// RUN: run-pass
+// EXIT: 0
+// SPEC: 6.4 Lower-Expr-Cast
+// DESC: Verify cast instruction lowering
+
+public procedure main(move ctx: Context) -> i32 {
+    let a: i8 = 10i8
+    let b: i32 = a as i32
+    let c: i64 = b as i64
+
+    let d: i64 = 1000i64
+    let e: i32 = d as i32
+    let f: i8 = e as i8
+
+    let g: u8 = 255u8
+    let h: i32 = g as i32
+
+    let ok: bool = b == 10 && c == 10 && e == 1000 && h == 255
+    return if ok { 0 } else { 1 }
+}

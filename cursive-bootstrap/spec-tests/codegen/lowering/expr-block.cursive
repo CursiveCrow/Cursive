@@ -1,0 +1,22 @@
+// RUN: run-pass
+// EXIT: 30
+// SPEC: 6.4 Lower-Expr-Block
+// DESC: Verify block scope lowering
+
+public procedure main(move ctx: Context) -> i32 {
+    let result: i32 = {
+        let x: i32 = 10
+        let y: i32 = 20
+        x + y
+    }
+
+    let nested: i32 = {
+        let a: i32 = {
+            let b: i32 = 5
+            b * 2
+        }
+        a + result
+    }
+
+    return if nested == 40 { result } else { 1 }
+}

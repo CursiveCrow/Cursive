@@ -447,20 +447,21 @@ target_include_directories(cursive0_frontend PUBLIC
 
 target_compile_features(cursive0_frontend PUBLIC cxx_std_20)
 
-add_executable(cursive0_interpreter_cli
-  tools/cursive0_interpreter_main.cpp
-)
-
-target_link_libraries(cursive0_interpreter_cli PRIVATE
-  cursive0_interpreter
-  cursive0_frontend
-)
-
-target_include_directories(cursive0_interpreter_cli PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
-target_compile_features(cursive0_interpreter_cli PRIVATE cxx_std_20)
+# Interpreter CLI disabled - source file not present
+# add_executable(cursive0_interpreter_cli
+#   tools/cursive0_interpreter_main.cpp
+# )
+#
+# target_link_libraries(cursive0_interpreter_cli PRIVATE
+#   cursive0_interpreter
+#   cursive0_frontend
+# )
+#
+# target_include_directories(cursive0_interpreter_cli PRIVATE
+#   ${CMAKE_CURRENT_SOURCE_DIR}/include
+# )
+#
+# target_compile_features(cursive0_interpreter_cli PRIVATE cxx_std_20)
 
 
 add_executable(cursivec0

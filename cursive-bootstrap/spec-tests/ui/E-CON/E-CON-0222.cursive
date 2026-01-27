@@ -1,0 +1,18 @@
+// RUN: compile-fail
+// DIAG: E-CON-0222
+// SPEC: 15.3
+// DESC: Incompatible In parameter in yield from
+
+procedure outer() -> Async<(), i32, i32, !> {
+    procedure inner() -> Async<(), f64, i32, !> {
+        let input = yield
+        return 0
+    }
+
+    yield from inner() //~ ERROR E-CON-0222
+    return 0
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

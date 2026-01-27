@@ -1,0 +1,21 @@
+// RUN: compile-fail
+// DIAG: E-CON-0133
+// SPEC: 8.9
+// DESC: wait while key is held
+
+record Counter {
+    var value: i32
+}
+
+procedure wait_with_key(c: shared Counter) -> () {
+    parallel {
+        let h = spawn { return 42 }
+        # c {
+            wait h  //~ ERROR E-CON-0133: wait while key held
+        }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

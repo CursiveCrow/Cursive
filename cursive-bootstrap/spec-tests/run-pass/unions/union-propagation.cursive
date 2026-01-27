@@ -1,0 +1,25 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.9
+// DESC: Union propagation with ? operator
+
+procedure may_fail(succeed: bool) -> i32 | bool {
+    if succeed {
+        return 42
+    } else {
+        return false
+    }
+}
+
+procedure propagate() -> i32 | bool {
+    let result: i32 = may_fail(true)?
+    return result
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let result: i32 | bool = propagate()
+    return match result {
+        v: i32 => { v }
+        b: bool => { 0 }
+    }
+}

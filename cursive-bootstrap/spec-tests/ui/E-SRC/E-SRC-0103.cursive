@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-SRC-0103
+// SPEC: 3.1
+// DESC: Embedded BOM found after the first position
+// SKIP: Requires binary file with embedded BOM
+
+// NOTE: This test requires a file with BOM at non-zero position.
+// The test harness cannot create this inline.
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

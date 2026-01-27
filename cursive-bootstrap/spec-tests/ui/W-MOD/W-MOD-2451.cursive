@@ -1,0 +1,13 @@
+// RUN: compile-pass
+// DIAG: W-MOD-2451
+// SPEC: 5.13
+// DESC: align(N) where N < natural alignment
+
+[[layout(align(1))]]
+record SmallAlign { //~ WARNING W-MOD-2451
+    value: i64
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

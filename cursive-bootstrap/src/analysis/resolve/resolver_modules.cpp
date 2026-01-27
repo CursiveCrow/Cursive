@@ -292,8 +292,8 @@ void PopulateSigma(ScopeContext& ctx) {
   // C0X Extension: Structured Concurrency (§18)
   {
     syntax::Path path;
-    path.emplace_back("SpawnHandle");
-    ctx.sigma.types[PathKeyOf(path)] = BuildSpawnHandleModalDecl();
+    path.emplace_back("Spawned");
+    ctx.sigma.types[PathKeyOf(path)] = BuildSpawnedModalDecl();
   }
   {
     syntax::Path path;
@@ -302,8 +302,8 @@ void PopulateSigma(ScopeContext& ctx) {
   }
   {
     syntax::Path path;
-    path.emplace_back("FutureHandle");
-    ctx.sigma.types[PathKeyOf(path)] = BuildFutureHandleModalDecl();
+    path.emplace_back("Tracked");
+    ctx.sigma.types[PathKeyOf(path)] = BuildTrackedModalDecl();
   }
   {
     syntax::Path path;

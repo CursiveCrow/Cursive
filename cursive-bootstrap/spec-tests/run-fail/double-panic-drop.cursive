@@ -1,0 +1,33 @@
+// RUN: run-fail
+// EXIT: 134
+// SPEC: 7.4 Cleanup-Cons-Drop-Panic
+// DESC: Drop panic propagation through cleanup list causes abort
+
+record FirstDrop {
+    id: i32
+}
+
+record SecondDrop {
+    id: i32
+}
+
+class Drop for FirstDrop {
+    procedure drop(~!) -> () {
+        panic("first drop panic")
+    }
+}
+
+class Drop for SecondDrop {
+    procedure drop(~!) -> () {
+        panic("second drop panic")
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    {
+        let a: FirstDrop = FirstDrop { id: 1 }
+        let b: SecondDrop = SecondDrop { id: 2 }
+        panic("trigger cleanup")
+    }
+    return 0
+}

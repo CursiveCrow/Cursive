@@ -1,0 +1,13 @@
+// RUN: compile-fail
+// DIAG: E-SEM-2533
+// SPEC: 5.2.7
+// DESC: Argument type incompatible with parameter type
+
+procedure take_int(x: i32) -> i32 {
+    return x
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let b: bool = true
+    return take_int(b)  //~ ERROR E-SEM-2533: type mismatch
+}

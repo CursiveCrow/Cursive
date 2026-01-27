@@ -1,0 +1,14 @@
+// RUN: run-pass
+// EXIT: 2
+// SPEC: 5.2.6
+// DESC: Basic match expression on integers
+
+public procedure main(move ctx: Context) -> i32 {
+    let x: i32 = 2
+    let result: i32 = match x {
+        1 => { 10 }
+        2 => { 2 }
+        _ => { 0 }
+    }
+    return result
+}

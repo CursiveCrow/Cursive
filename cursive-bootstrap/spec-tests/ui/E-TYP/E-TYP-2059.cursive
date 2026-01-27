@@ -1,0 +1,16 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2059
+// SPEC: 8.15
+// DESC: Transition target state not declared in modal type
+
+modal Counter {
+    state Zero {}
+
+    transition Zero -> NonExistent go(~) {  //~ ERROR E-TYP-2059: target state not declared
+        return Counter@Zero{}
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

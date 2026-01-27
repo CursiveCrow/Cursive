@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2306
+// SPEC: 8.15
+// DESC: Generic parameter in extern procedure signature
+
+extern "C" {
+    procedure generic_extern[T](x: T) -> T  //~ ERROR E-TYP-2306: generic in extern
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

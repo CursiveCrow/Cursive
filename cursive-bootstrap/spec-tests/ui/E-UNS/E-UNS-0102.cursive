@@ -1,0 +1,11 @@
+// RUN: compile-fail
+// DIAG: E-UNS-0102
+// SPEC: 1.4
+// DESC: Array index must be a compile-time constant
+
+public procedure main(move ctx: Context) -> i32 {
+    let arr: [i32; 5] = [1, 2, 3, 4, 5]
+    var idx: usize = 2
+    let val: i32 = arr[idx]  //~ ERROR E-UNS-0102: index not constant
+    return val
+}

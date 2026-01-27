@@ -1,0 +1,11 @@
+// RUN: compile-fail
+// DIAG: E-UNS-0106
+// SPEC: 1.4
+// DESC: Conflicting procedure signatures from multiple classes
+// SKIP: Requires complex class hierarchy setup
+
+// NOTE: Need multiple class bounds with conflicting method signatures.
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

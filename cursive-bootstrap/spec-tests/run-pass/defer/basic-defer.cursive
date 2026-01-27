@@ -1,0 +1,16 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.20
+// DESC: Basic defer statement execution
+
+procedure with_defer() -> i32 {
+    var result: i32 = 0
+    defer {
+        result = 42
+    }
+    return result
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return with_defer()
+}

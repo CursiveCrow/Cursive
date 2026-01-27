@@ -1,0 +1,10 @@
+// RUN: compile-fail
+// DIAG: E-MOD-1202
+// SPEC: 5.1
+// DESC: Import of non-existent assembly or module
+
+import nonexistent_assembly //~ ERROR E-MOD-1202
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

@@ -1,0 +1,37 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 13.2.5
+// DESC: Dynamic dispatch through class type
+
+class Valuable {
+    procedure value(~) -> i32
+}
+
+record A {
+    n: i32
+}
+
+record B {
+    n: i32
+}
+
+class Valuable for A {
+    procedure value(~) -> i32 {
+        return ~.n
+    }
+}
+
+class Valuable for B {
+    procedure value(~) -> i32 {
+        return ~.n * 2
+    }
+}
+
+procedure get_value(v: $Valuable) -> i32 {
+    return v ~> value()
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let a: A = A { n: 42 }
+    return get_value(a)
+}

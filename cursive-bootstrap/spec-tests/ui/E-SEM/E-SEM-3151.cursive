@@ -1,0 +1,11 @@
+// RUN: compile-fail
+// DIAG: E-SEM-3151
+// SPEC: 5.2.6
+// DESC: Defer block has non-unit type
+
+public procedure main(move ctx: Context) -> i32 {
+    defer {
+        42  //~ ERROR E-SEM-3151: defer non-unit
+    }
+    return 0
+}

@@ -1,0 +1,14 @@
+// RUN: compile-fail
+// DIAG: E-CON-0260
+// SPEC: 8.9
+// DESC: race with fewer than 2 arms
+
+async procedure single_race() -> i32 {
+    return race {  //~ ERROR E-CON-0260: race with fewer than 2 arms
+        async { return 1 }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

@@ -1,0 +1,18 @@
+// RUN: compile-fail
+// DIAG: E-CON-0221
+// SPEC: 15.3
+// DESC: Incompatible Out parameter in yield from
+
+procedure outer() -> Async<i32, (), i32, !> {
+    procedure inner() -> Async<f64, (), i32, !> {
+        yield 1.5
+        return 0
+    }
+
+    yield from inner() //~ ERROR E-CON-0221
+    return 0
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

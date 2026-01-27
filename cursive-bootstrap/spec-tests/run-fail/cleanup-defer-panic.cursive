@@ -1,0 +1,14 @@
+// RUN: run-fail
+// EXIT: 134
+// SPEC: 7.4 Cleanup-Step-Defer-Panic
+// DESC: When defer panics during cleanup, process aborts
+
+public procedure main(move ctx: Context) -> i32 {
+    {
+        defer {
+            panic("defer panic")
+        }
+        panic("initial panic")
+    }
+    return 0
+}

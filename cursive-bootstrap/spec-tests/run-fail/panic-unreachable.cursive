@@ -1,0 +1,12 @@
+// RUN: run-fail
+// EXIT: 1
+// SPEC: 5.3
+// DESC: Runtime panic on unreachable code executed
+
+public procedure main(move ctx: Context) -> i32 {
+    let x: i32 = 5
+    if x > 0 {
+        // Fall through to unreachable
+    }
+    unreachable()
+}

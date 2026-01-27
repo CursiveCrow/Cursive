@@ -1,0 +1,10 @@
+// RUN: compile-fail
+// DIAG: E-SEM-3165
+// SPEC: 8.17
+// DESC: return at module scope
+
+return 0  //~ ERROR E-SEM-3165: return at module scope
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

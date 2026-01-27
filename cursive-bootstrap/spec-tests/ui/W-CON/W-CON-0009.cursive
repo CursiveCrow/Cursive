@@ -1,0 +1,10 @@
+// RUN: compile-pass
+// DIAG: W-CON-0009
+// SPEC: 14.2
+// DESC: Closure captures shared data
+
+public procedure main(move ctx: Context) -> i32 {
+    let data: shared i32 = 42
+    let closure = || -> i32 { return data } //~ WARNING W-CON-0009
+    return closure()
+}

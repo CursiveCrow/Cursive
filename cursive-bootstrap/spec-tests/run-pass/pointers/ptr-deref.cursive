@@ -1,0 +1,10 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.14
+// DESC: Pointer dereference for reading
+
+public procedure main(move ctx: Context) -> i32 {
+    let value: i32 = 42
+    let p: Ptr<i32>@Valid = &value
+    return *p
+}

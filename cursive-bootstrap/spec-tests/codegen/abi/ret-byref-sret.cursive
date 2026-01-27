@@ -1,0 +1,22 @@
+// RUN: run-pass
+// EXIT: 15
+// SPEC: 6.2 ABI-Ret-ByRef
+// DESC: Verify sret convention for large return types
+
+record LargeRecord {
+    a: i64
+    b: i64
+    c: i64
+    d: i64
+    e: i64
+}
+
+procedure return_large() -> LargeRecord {
+    return LargeRecord { a: 1, b: 2, c: 3, d: 4, e: 5 }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let r: LargeRecord = return_large()
+    let sum: i64 = r.a + r.b + r.c + r.d + r.e
+    return sum as i32
+}

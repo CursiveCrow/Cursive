@@ -1,0 +1,14 @@
+// RUN: compile-fail
+// DIAG: E-CON-0252
+// SPEC: 15.3
+// DESC: sync operand has In != ()
+
+procedure returns_async() -> Async<(), i32, i32, !> {
+    let input = yield
+    return input
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let result = sync returns_async() //~ ERROR E-CON-0252
+    return result
+}

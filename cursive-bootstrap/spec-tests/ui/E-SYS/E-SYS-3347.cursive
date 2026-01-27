@@ -1,0 +1,13 @@
+// RUN: link-fail
+// DIAG: E-SYS-3347
+// SPEC: 6.3
+// DESC: Library not found
+
+[[library("nonexistent_library_xyz123", kind = "static")]]
+extern "C" {
+    procedure missing_fn() -> i32 //~ ERROR E-SYS-3347
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

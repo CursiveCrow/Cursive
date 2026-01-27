@@ -1,0 +1,10 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2201
+// SPEC: 5.2.1
+// DESC: Union type has fewer than two member types
+
+type SingleUnion = i32 |  //~ ERROR E-TYP-2201: too few members
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

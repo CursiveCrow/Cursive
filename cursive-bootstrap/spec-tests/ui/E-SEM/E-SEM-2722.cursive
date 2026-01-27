@@ -1,0 +1,15 @@
+// RUN: compile-fail
+// DIAG: E-SEM-2722
+// SPEC: 8.17
+// DESC: Range pattern start exceeds end (empty range)
+
+procedure empty_range(n: i32) -> i32 {
+    return match n {
+        10..5 => { 1 }  //~ ERROR E-SEM-2722: empty range pattern
+        _ => { 0 }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

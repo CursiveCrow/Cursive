@@ -1,0 +1,18 @@
+// RUN: compile-fail
+// DIAG: E-CON-0014
+// SPEC: 8.9
+// DESC: ordered modifier on different array bases
+
+procedure diff_bases() -> () {
+    var arr1: [i32; 10] = [0; 10]
+    var arr2: [i32; 10] = [0; 10]
+    parallel {
+        dispatch [ordered] 0..10 |i| {
+            arr1[i] = arr2[i]  //~ ERROR E-CON-0014: ordered on different array bases
+        }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

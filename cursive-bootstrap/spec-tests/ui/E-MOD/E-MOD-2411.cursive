@@ -1,0 +1,21 @@
+// RUN: compile-fail
+// DIAG: E-MOD-2411
+// SPEC: 8.2
+// DESC: Missing move expression at call site for transferring parameter
+
+record Resource {
+    value: i32
+}
+
+procedure consume(move r: Resource) -> i32 {
+    return r.value
+}
+
+procedure missing_move() -> i32 {
+    let r: Resource = Resource { value: 42 }
+    return consume(r)  //~ ERROR E-MOD-2411: missing move expression
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

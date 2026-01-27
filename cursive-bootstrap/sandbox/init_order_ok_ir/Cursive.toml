@@ -1,5 +1,0 @@
-[assembly]
-name = "init_order_ok"
-kind = "executable"
-emit_ir = "ll"
-root = "src"

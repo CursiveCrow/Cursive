@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2054
+// SPEC: 8.15
+// DESC: State name collides with modal type name
+
+modal Resource {  //~ ERROR E-TYP-2054: state name collides with modal name
+    state Resource {}
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

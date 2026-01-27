@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-SRC-0521
+// SPEC: 3.3
+// DESC: Trailing comma in single-line list
+
+public procedure foo(a: i32, b: i32,) -> i32 {  //~ ERROR E-SRC-0521: Trailing comma
+    return a + b
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return foo(1, 2)
+}

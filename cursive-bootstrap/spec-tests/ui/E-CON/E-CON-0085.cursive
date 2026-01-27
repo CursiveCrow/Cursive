@@ -1,0 +1,18 @@
+// RUN: compile-fail
+// DIAG: E-CON-0085
+// SPEC: 8.9
+// DESC: Escaping closure lacks explicit dependency annotation
+
+record Counter {
+    var value: i32
+}
+
+procedure make_closure(c: shared Counter) -> procedure() -> i32 {
+    return || {  //~ ERROR E-CON-0085: escaping closure lacks dependency
+        return c.value
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

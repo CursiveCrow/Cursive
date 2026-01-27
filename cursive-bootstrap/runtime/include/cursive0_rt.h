@@ -426,7 +426,7 @@ void* cursive0_parallel_begin(C0DynObject domain, void* cancel_token, const char
 // §18.1.2 Join parallel block - waits for completion, propagates first panic
 int cursive0_parallel_join(void* ctx_ptr);
 
-// §18.4.2 Create spawn handle - returns SpawnHandle<T>@Pending
+// §18.4.2 Create spawn handle - returns Spawned<T>@Pending
 void* cursive0_spawn_create(void* env, size_t env_size,
                             void (*body)(void* env, void* result, void* panic_out),
                             size_t result_size);

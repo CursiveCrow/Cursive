@@ -1,0 +1,16 @@
+// RUN: compile-pass
+// SPEC: 6.1 Layout-Ptr
+// DESC: Verify safe pointer layout: sizeof = PtrSize, alignof = PtrAlign
+
+public procedure main(move ctx: Context) -> i32 {
+    // Ptr<T> should be pointer-sized (8 bytes on 64-bit)
+    static_assert(sizeof(Ptr<i32>) == 8)
+    static_assert(alignof(Ptr<i32>) == 8)
+
+    // Ptr layout is independent of pointee type
+    static_assert(sizeof(Ptr<i8>) == 8)
+    static_assert(sizeof(Ptr<i64>) == 8)
+    static_assert(sizeof(Ptr<(i32, i32)>) == 8)
+
+    return 0
+}

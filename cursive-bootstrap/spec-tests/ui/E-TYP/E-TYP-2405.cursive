@@ -1,0 +1,22 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2405
+// SPEC: 5.3
+// DESC: Implementing state missing required payload field
+
+class Resource {
+    state Open {
+        handle: i32
+    }
+    state Closed { }
+}
+
+modal MyResource {
+    state Open { }
+    state Closed { }
+}
+
+implements Resource for MyResource { } //~ ERROR E-TYP-2405
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

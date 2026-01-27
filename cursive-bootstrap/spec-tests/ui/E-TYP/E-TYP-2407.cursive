@@ -1,0 +1,27 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2407
+// SPEC: 5.3
+// DESC: Conflicting state names from multiple classes
+
+class Resource1 {
+    state Open { x: i32 }
+    state Closed { }
+}
+
+class Resource2 {
+    state Open { y: f64 }
+    state Done { }
+}
+
+modal MyResource {
+    state Open { x: i32 }
+    state Closed { }
+    state Done { }
+}
+
+implements Resource1 for MyResource { }
+implements Resource2 for MyResource { } //~ ERROR E-TYP-2407
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

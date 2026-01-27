@@ -161,11 +161,11 @@ llvm::Module* LLVMEmitter::EmitModule(const IRDecls& decls, LowerCtx& ctx) {
 
   // Pass 1: declare functions
   for (const auto& decl : expanded) {
-    if (!std::holds_alternative<ProcIR>(decl)) {
-      continue;
+    if (auto* proc = std::get_if<ProcIR>(&decl)) {
+      declare_proc(proc->symbol, proc->params, proc->ret, IsDropGlueSymbol(proc->symbol));
+    } else if (auto* ext = std::get_if<ExternProcIR>(&decl)) {
+      declare_proc(ext->symbol, ext->params, ext->ret, false);
     }
-    const auto& proc = std::get<ProcIR>(decl);
-    declare_proc(proc.symbol, proc.params, proc.ret, IsDropGlueSymbol(proc.symbol));
   }
 
   // Declare external procedures referenced from other modules.
@@ -195,6 +195,7 @@ void LLVMEmitter::EmitDecl(const IRDecl& decl) {
     void operator()(const GlobalConst& global) { emitter.EmitGlobalConst(global); }
     void operator()(const GlobalZero& global) { emitter.EmitGlobalZero(global); }
     void operator()(const GlobalVTable& vtable) { emitter.EmitVTable(vtable); }
+    void operator()(const ExternProcIR&) { /* extern procs have no body */ }
   };
   std::visit(Visitor{*this}, decl);
   if (current_ctx_ && current_ctx_->codegen_failed) {

@@ -1,0 +1,17 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2624
+// SPEC: 6.2
+// DESC: FfiSafeType record without [[layout(C)]]
+
+record Point {
+    x: i32
+    y: i32
+}
+
+extern "C" {
+    procedure ffi_point(p: Point) -> () //~ ERROR E-TYP-2624
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

@@ -1,0 +1,14 @@
+// RUN: run-fail
+// EXIT: 134
+// SPEC: 7.4 Cleanup-Cons-Defer-Panic
+// DESC: Defer panic propagation through cleanup list causes abort
+
+public procedure main(move ctx: Context) -> i32 {
+    defer {
+        panic("second defer panic")
+    }
+    defer {
+        panic("first defer panic")
+    }
+    return 0
+}

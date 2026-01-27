@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2507
+// SPEC: 8.15
+// DESC: Orphan rule violation - implementing foreign class for foreign type
+// NOTE: This requires a specific module structure; shown here for documentation
+
+// In module that doesn't own ExternalClass or ExternalType:
+// class ExternalClass for ExternalType { ... } //~ ERROR E-TYP-2507: orphan rule
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

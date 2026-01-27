@@ -1,0 +1,23 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2530
+// SPEC: 5.3
+// DESC: Type argument does not satisfy class constraint
+
+class Numeric {
+    procedure add(~, other: Self) -> Self
+}
+
+procedure sum<T: Numeric>(a: T, b: T) -> T {
+    return a ~> add(b)
+}
+
+record NotNumeric {
+    value: i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let x: NotNumeric = NotNumeric{ value: 1 }
+    let y: NotNumeric = NotNumeric{ value: 2 }
+    let z = sum(x, y) //~ ERROR E-TYP-2530
+    return 0
+}

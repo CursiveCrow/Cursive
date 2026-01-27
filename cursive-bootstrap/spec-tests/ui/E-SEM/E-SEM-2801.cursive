@@ -1,0 +1,18 @@
+// RUN: compile-fail
+// DIAG: E-SEM-2801
+// SPEC: 8.17
+// DESC: Contract predicate not provable outside [[dynamic]] scope
+
+procedure with_contract(x: i32)
+    @requires(x > 0)  //~ ERROR E-SEM-2801: contract not provable
+{
+    return ()
+}
+
+procedure call_without_proof() -> () {
+    with_contract(-1)
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

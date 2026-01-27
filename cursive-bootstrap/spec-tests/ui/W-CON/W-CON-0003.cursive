@@ -1,0 +1,17 @@
+// RUN: compile-pass
+// DIAG: W-CON-0003
+// SPEC: 14.2
+// DESC: # redundant (matches type boundary)
+
+record Point {
+    x: i32
+    y: i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let p: shared Point = Point{ x: 1, y: 2 }
+    #p { //~ WARNING W-CON-0003
+        let x = p.x
+    }
+    return 0
+}

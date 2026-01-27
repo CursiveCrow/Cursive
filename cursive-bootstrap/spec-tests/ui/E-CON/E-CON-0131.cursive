@@ -1,0 +1,16 @@
+// RUN: compile-fail
+// DIAG: E-CON-0131
+// SPEC: 8.9
+// DESC: spawn in escaping closure
+
+procedure escaping() -> procedure() -> () {
+    return || {
+        parallel {
+            spawn { return () }  //~ ERROR E-CON-0131: spawn in escaping closure
+        }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

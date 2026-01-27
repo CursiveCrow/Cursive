@@ -1,0 +1,21 @@
+// RUN: compile-pass
+// SPEC: 6.1.4 Layout-Union-Tagged
+// DESC: Verify tagged union with discriminant
+
+public procedure main(move ctx: Context) -> i32 {
+    // i32 | i64 requires discriminant since both have values
+    // Layout: discriminant (1-8) + padding + max(sizeof(i32), sizeof(i64))
+    // Discriminant at least 1 byte, payload i64 = 8, total >= 9
+    static_assert(sizeof(i32 | i64) >= 9)
+    static_assert(alignof(i32 | i64) == 8)
+
+    // i32 | bool has discriminant
+    // discriminant + padding + i32 payload
+    static_assert(sizeof(i32 | bool) >= 5)
+    static_assert(alignof(i32 | bool) == 4)
+
+    // Three-way union
+    static_assert(sizeof(i8 | i16 | i32) >= 5)
+
+    return 0
+}

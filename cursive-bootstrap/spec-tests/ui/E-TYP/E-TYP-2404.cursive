@@ -1,0 +1,18 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2404
+// SPEC: 5.3
+// DESC: Implementing field has incompatible type
+
+class Sized {
+    size: usize
+}
+
+record MySize {
+    size: i32
+}
+
+implements Sized for MySize { } //~ ERROR E-TYP-2404
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

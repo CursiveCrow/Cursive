@@ -1,0 +1,13 @@
+// RUN: compile-fail
+// DIAG: E-TYP-1901
+// SPEC: 5.2.3
+// DESC: Duplicate field name in record declaration
+
+record Point {
+    x: i32
+    x: i32  //~ ERROR E-TYP-1901: Duplicate field name
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

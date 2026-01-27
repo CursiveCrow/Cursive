@@ -1,0 +1,25 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2302
+// SPEC: 8.15
+// DESC: Type argument does not satisfy required class bound
+
+class Printable {
+    procedure print(~) -> ()
+}
+
+procedure print_it[T: Printable](x: T) -> () {
+    x ~> print()
+}
+
+record NoPrint {
+    value: i32
+}
+
+procedure call_print() -> () {
+    let n: NoPrint = NoPrint { value: 1 }
+    print_it[NoPrint](n)  //~ ERROR E-TYP-2302: type does not satisfy class bound
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

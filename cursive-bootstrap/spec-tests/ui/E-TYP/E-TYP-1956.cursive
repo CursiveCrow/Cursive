@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-TYP-1956
+// SPEC: 5.2.13
+// DESC: self used in inline parameter constraint
+
+procedure bad_constraint(x: i32 where self > x) -> i32 { //~ ERROR E-TYP-1956
+    return x
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

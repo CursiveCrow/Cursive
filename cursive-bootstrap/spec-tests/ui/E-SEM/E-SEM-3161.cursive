@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-SEM-3161
+// SPEC: 5.2.7
+// DESC: Return type mismatch with procedure
+
+procedure foo() -> i32 {
+    return true  //~ ERROR E-SEM-3161: return type mismatch
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

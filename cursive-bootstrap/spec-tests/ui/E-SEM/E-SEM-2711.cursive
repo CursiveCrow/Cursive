@@ -1,0 +1,18 @@
+// RUN: compile-fail
+// DIAG: E-SEM-2711
+// SPEC: 8.17
+// DESC: Refutable pattern in irrefutable context (let)
+
+enum Color {
+    Red
+    Blue
+}
+
+procedure refutable_let() -> i32 {
+    let Color::Red = Color::Blue  //~ ERROR E-SEM-2711: refutable pattern in let
+    return 0
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

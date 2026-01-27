@@ -1,0 +1,17 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2057
+// SPEC: 8.15
+// DESC: Direct field access on general modal type without pattern matching
+
+modal Resource {
+    state Empty {}
+    state Ready { value: i32 }
+}
+
+procedure direct_access(r: Resource) -> i32 {
+    return r.value  //~ ERROR E-TYP-2057: direct field access on general modal
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

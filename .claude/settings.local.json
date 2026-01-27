@@ -75,7 +75,20 @@
       "Bash(for rule in \"Loop-Async-Err\" \"Return-Async-Type-Err\" \"Return-Async-Unit-Err\" \"Return-Unit-Err\" \"T-UnsafeBlockStmt\")",
       "Bash(do echo \"=== $rule ===\")",
       "Bash(comm -23:*)",
-      "Bash(comm -13:*)"
+      "Bash(comm -13:*)",
+      "Bash(xargs cat:*)",
+      "Bash(git -C \"C:\\\\Dev\\\\Cursive\\\\cursive-bootstrap\" ls-files)",
+      "Bash(cmd.exe /c \"C:\\\\Dev\\\\Cursive\\\\cursive-bootstrap\\\\bootstrap\\\\cursivec0.exe --help\")",
+      "Skill(ralph-loop:ralph-loop)",
+      "Bash(xargs:*)",
+      "Read(//c/tmp/**)",
+      "Bash(for dir in \"C:\\\\Dev\\\\Cursive\\\\cursive-bootstrap\\\\spec-tests\\\\run-pass\"/*)",
+      "Bash(for dir in \"C:\\\\Dev\\\\Cursive\\\\cursive-bootstrap\\\\spec-tests\\\\run-fail\"/*)",
+      "Bash(do if [ -d \"$dir\" ])",
+      "Bash(for file in \"C:\\\\Dev\\\\Cursive\\\\cursive-bootstrap\\\\spec-tests\\\\run-pass\\\\bindings\\\\*\"*.cursive\"\")",
+      "Bash(do head -4 \"$file\")",
+      "Bash(.cursivec0.exe:*)",
+      "Bash(exe \")"
     ],
     "deny": [
       "Bash(git: *)"

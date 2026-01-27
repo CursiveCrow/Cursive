@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-MOD-1104
+// SPEC: 8.2
+// DESC: Module path collision after NFC + case folding
+// NOTE: This test requires a specific project structure with colliding module paths
+// The test file itself demonstrates the condition
+
+module collision  //~ ERROR E-MOD-1104: module path collision
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

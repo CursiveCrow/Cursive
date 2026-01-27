@@ -1,0 +1,24 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2502
+// SPEC: 8.15
+// DESC: Missing override on concrete procedure replacement
+
+class Base {
+    procedure method(~) -> i32 {
+        return 0
+    }
+}
+
+record Impl {
+    value: i32
+}
+
+class Base for Impl {
+    procedure method(~) -> i32 {  //~ ERROR E-TYP-2502: missing override
+        return ~.value
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

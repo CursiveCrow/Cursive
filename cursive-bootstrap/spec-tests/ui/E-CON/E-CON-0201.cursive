@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-CON-0201
+// SPEC: 8.9
+// DESC: Async type parameter is not well-formed
+
+async procedure bad_async() -> Async[i32, string, bool, char] {  //~ ERROR E-CON-0201: Async not well-formed
+    return 0
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

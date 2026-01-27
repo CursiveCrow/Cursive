@@ -1,0 +1,16 @@
+// RUN: compile-fail
+// DIAG: E-CON-0130
+// SPEC: 8.9
+// DESC: Invalid attribute on spawn expression
+
+procedure bad_spawn_attr() -> () {
+    parallel {
+        [[invalid_attr]] spawn {  //~ ERROR E-CON-0130: invalid spawn attribute
+            return ()
+        }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

@@ -1,0 +1,25 @@
+// RUN: compile-fail
+// DIAG: E-CON-0020
+// SPEC: 8.9
+// DESC: Key safety not provable without additional annotations
+
+record Data {
+    var x: i32
+    var y: i32
+}
+
+procedure unsafe_key(d: shared Data, flag: bool) -> () {
+    if flag {
+        # write d.x {
+            d.x = 10
+        }
+    } else {
+        # write d.y {  //~ ERROR E-CON-0020: key safety not provable
+            d.y = 20
+        }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

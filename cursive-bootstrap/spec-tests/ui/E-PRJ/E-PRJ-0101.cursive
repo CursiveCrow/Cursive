@@ -1,0 +1,15 @@
+// RUN: compile-fail
+// DIAG: E-PRJ-0101
+// SPEC: 2.1
+// DESC: Missing Cursive.toml manifest at project root
+
+// NOTE: This test requires a multi-file project structure.
+// The test harness will create a project directory WITHOUT Cursive.toml
+// to trigger E-PRJ-0101.
+
+// This file serves as a placeholder. The actual test is:
+// ui/E-PRJ/E-PRJ-0101-missing-manifest/
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

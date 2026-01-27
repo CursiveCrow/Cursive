@@ -1,0 +1,20 @@
+// RUN: compile-fail
+// DIAG: E-SEM-2823
+// SPEC: 14.7
+// DESC: Type invariant violated at private-to-public return
+
+record Counter {
+    value: i32
+
+    invariant { self.value >= 0 }
+}
+
+// Private helper that might violate invariant
+procedure helper() -> Counter {
+    // Returning Counter with potentially negative value
+    return Counter{ value: -1 }  //~ ERROR E-SEM-2823: Type invariant violated
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

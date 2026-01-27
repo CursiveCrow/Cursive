@@ -1,0 +1,18 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2105
+// SPEC: 8.15
+// DESC: Reference to packed field outside unsafe
+
+[[packed]]
+record PackedData {
+    a: u8
+    b: i32
+}
+
+procedure bad_ref(p: PackedData) -> Ptr<i32>@Valid {
+    return &p.b  //~ ERROR E-TYP-2105: packed field outside unsafe
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

@@ -1,0 +1,15 @@
+// RUN: run-fail
+// DIAG: E-SEM-2820
+// SPEC: 14.7
+// DESC: Type invariant violated at construction
+
+record PositiveInt {
+    value: i32
+
+    invariant { self.value > 0 }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let p: PositiveInt = PositiveInt{ value: -1 } //~ PANIC E-SEM-2820
+    return 0
+}

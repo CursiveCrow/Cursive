@@ -1,0 +1,10 @@
+// RUN: compile-fail
+// DIAG: E-UNS-0103
+// SPEC: 1.4
+// DESC: Array index out of bounds (static check)
+
+public procedure main(move ctx: Context) -> i32 {
+    let arr: [i32; 5] = [1, 2, 3, 4, 5]
+    let val: i32 = arr[10]  //~ ERROR E-UNS-0103: index out of bounds
+    return val
+}

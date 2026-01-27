@@ -300,9 +300,9 @@ std::optional<Layout> LayoutOf(const cursive0::analysis::ScopeContext& ctx,
   if (const auto* modal = std::get_if<cursive0::analysis::TypeModalState>(&type->node)) {
     const bool is_async = modal->path.size() == 1 &&
                           analysis::IdEq(modal->path[0], "Async");
-    if (analysis::IsSpawnHandleTypePath(modal->path) ||
+    if (analysis::IsSpawnedTypePath(modal->path) ||
         analysis::IsCancelTokenTypePath(modal->path) ||
-        analysis::IsFutureHandleTypePath(modal->path) ||
+        analysis::IsTrackedTypePath(modal->path) ||
         is_async) {
       SPEC_RULE("Layout-Modal-OpaquePtr");
       return Layout{kPtrSize, kPtrAlign};
@@ -311,9 +311,9 @@ std::optional<Layout> LayoutOf(const cursive0::analysis::ScopeContext& ctx,
   if (const auto* path = std::get_if<cursive0::analysis::TypePathType>(&type->node)) {
     const bool is_async = path->path.size() == 1 &&
                           analysis::IdEq(path->path[0], "Async");
-    if (analysis::IsSpawnHandleTypePath(path->path) ||
+    if (analysis::IsSpawnedTypePath(path->path) ||
         analysis::IsCancelTokenTypePath(path->path) ||
-        analysis::IsFutureHandleTypePath(path->path) ||
+        analysis::IsTrackedTypePath(path->path) ||
         is_async) {
       SPEC_RULE("Layout-Modal-OpaquePtr");
       return Layout{kPtrSize, kPtrAlign};

@@ -1,0 +1,38 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 13.2
+// DESC: Class with superclass constraint
+
+class Base {
+    procedure base_value(~) -> i32
+}
+
+class Derived: Base {
+    procedure derived_value(~) -> i32
+}
+
+record Impl {
+    a: i32
+    b: i32
+}
+
+class Base for Impl {
+    procedure base_value(~) -> i32 {
+        return ~.a
+    }
+}
+
+class Derived for Impl {
+    procedure derived_value(~) -> i32 {
+        return ~.b
+    }
+}
+
+procedure use_derived[T: Derived](x: T) -> i32 {
+    return x ~> base_value() + x ~> derived_value()
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let i: Impl = Impl { a: 20, b: 22 }
+    return use_derived[Impl](i)
+}

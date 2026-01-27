@@ -1,0 +1,15 @@
+// RUN: run-pass
+// EXIT: 10
+// SPEC: 5.2.6
+// DESC: Basic loop with break
+
+public procedure main(move ctx: Context) -> i32 {
+    var count: i32 = 0
+    loop {
+        count = count + 1
+        if count >= 10 {
+            break
+        }
+    }
+    return count
+}

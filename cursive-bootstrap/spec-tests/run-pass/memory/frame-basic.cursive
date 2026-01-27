@@ -1,0 +1,15 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.17
+// DESC: Frame within region
+
+public procedure main(move ctx: Context) -> i32 {
+    var result: i32 = 0
+    region {
+        frame {
+            let p: Ptr<i32>@Valid = ^42
+            result = *p
+        }
+    }
+    return result
+}

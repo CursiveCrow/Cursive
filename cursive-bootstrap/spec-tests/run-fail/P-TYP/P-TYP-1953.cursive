@@ -1,0 +1,11 @@
+// RUN: run-fail
+// DIAG: P-TYP-1953
+// SPEC: 8.19
+// DESC: Refinement predicate failed at runtime
+// SKIP: Requires refinement types with runtime checks
+
+// NOTE: Refinement predicates can fail at runtime under [[dynamic]].
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

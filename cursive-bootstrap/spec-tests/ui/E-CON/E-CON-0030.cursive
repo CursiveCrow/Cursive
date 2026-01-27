@@ -1,0 +1,20 @@
+// RUN: compile-fail
+// DIAG: E-CON-0030
+// SPEC: 8.9
+// DESC: # immediately before method name
+
+record Counter {
+    var value: i32
+}
+
+procedure Counter::get(~) -> i32 {
+    return ~.value
+}
+
+procedure bad_key_method(c: shared Counter) -> i32 {
+    return c ~> #get()  //~ ERROR E-CON-0030: # before method name
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

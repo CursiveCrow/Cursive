@@ -1,0 +1,13 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2051
+// SPEC: 5.4
+// DESC: Duplicate state name within modal type
+
+modal Status {
+    state Active { }
+    state Active { }  //~ ERROR E-TYP-2051: duplicate state
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

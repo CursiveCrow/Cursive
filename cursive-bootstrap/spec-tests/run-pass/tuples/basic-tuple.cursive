@@ -1,0 +1,9 @@
+// RUN: run-pass
+// EXIT: 30
+// SPEC: 5.2.1
+// DESC: Tuple construction and indexing
+
+public procedure main(move ctx: Context) -> i32 {
+    let t: (i32, i32, i32) = (10, 20, 30)
+    return t.2
+}

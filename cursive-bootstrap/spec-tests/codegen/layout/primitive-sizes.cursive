@@ -1,0 +1,29 @@
+// RUN: compile-pass
+// SPEC: 5.1
+// DESC: Verify primitive type sizes via alignment/layout
+
+public procedure main(move ctx: Context) -> i32 {
+    // i8, u8 are 1 byte
+    static_assert(sizeof(i8) == 1)
+    static_assert(sizeof(u8) == 1)
+
+    // i16, u16 are 2 bytes
+    static_assert(sizeof(i16) == 2)
+    static_assert(sizeof(u16) == 2)
+
+    // i32, u32 are 4 bytes
+    static_assert(sizeof(i32) == 4)
+    static_assert(sizeof(u32) == 4)
+
+    // i64, u64 are 8 bytes
+    static_assert(sizeof(i64) == 8)
+    static_assert(sizeof(u64) == 8)
+
+    // f32 is 4 bytes
+    static_assert(sizeof(f32) == 4)
+
+    // f64 is 8 bytes
+    static_assert(sizeof(f64) == 8)
+
+    return 0
+}

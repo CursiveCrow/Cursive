@@ -1,0 +1,23 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 13.2
+// DESC: Basic class implementation
+
+class Printable {
+    procedure value(~) -> i32
+}
+
+record Number {
+    n: i32
+}
+
+class Printable for Number {
+    procedure value(~) -> i32 {
+        return ~.n
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let num: Number = Number { n: 42 }
+    return num ~> value()
+}

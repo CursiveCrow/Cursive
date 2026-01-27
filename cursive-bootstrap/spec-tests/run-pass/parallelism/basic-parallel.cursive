@@ -1,0 +1,16 @@
+// RUN: run-pass
+// EXIT: 55
+// SPEC: 15
+// DESC: Basic parallel block with spawn
+
+public procedure main(move ctx: Context) -> i32 {
+    var result: i32 = 0
+    parallel {
+        var sum: i32 = 0
+        dispatch 1..11 |i| {
+            sum = sum + i
+        }
+        result = sum
+    }
+    return result
+}

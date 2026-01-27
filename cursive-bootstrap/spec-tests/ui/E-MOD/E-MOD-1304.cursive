@@ -1,0 +1,10 @@
+// RUN: compile-fail
+// DIAG: E-MOD-1304
+// SPEC: 5.1
+// DESC: Unresolved module: path prefix did not resolve to a module
+
+using nonexistent::submodule::item //~ ERROR E-MOD-1304
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

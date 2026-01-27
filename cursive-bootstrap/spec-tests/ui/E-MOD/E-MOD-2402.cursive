@@ -1,0 +1,13 @@
+// RUN: compile-fail
+// DIAG: E-MOD-2402
+// SPEC: 8.2
+// DESC: Type annotation incompatible with inferred type
+
+procedure bad_annotation() -> i32 {
+    let x: i32 = true  //~ ERROR E-MOD-2402: type annotation mismatch
+    return x
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

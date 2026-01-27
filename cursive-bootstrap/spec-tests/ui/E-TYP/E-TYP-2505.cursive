@@ -1,0 +1,16 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2505
+// SPEC: 8.15
+// DESC: Class name conflicts with existing type in scope
+
+record Existing {
+    value: i32
+}
+
+class Existing {  //~ ERROR E-TYP-2505: class name conflict
+    procedure method(~) -> i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

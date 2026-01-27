@@ -1,0 +1,9 @@
+// RUN: run-fail
+// EXIT: 1
+// SPEC: 6.11
+// DESC: Runtime panic on assertion failure
+
+public procedure main(move ctx: Context) -> i32 {
+    assert(false)
+    return 0
+}

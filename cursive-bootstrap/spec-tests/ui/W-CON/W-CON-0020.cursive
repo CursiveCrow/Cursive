@@ -1,0 +1,16 @@
+// RUN: compile-pass
+// DIAG: W-CON-0020
+// SPEC: 14.2
+// DESC: Speculative block on large struct (may be inefficient)
+
+record LargeStruct {
+    data: [i32; 100]
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let large: shared LargeStruct = LargeStruct{ data: [0; 100] }
+    #large speculative write { //~ WARNING W-CON-0020
+        // speculative access
+    }
+    return 0
+}

@@ -1,4 +1,0 @@
-[assembly]
-name = "parallel_alloc_region"
-kind = "executable"
-root = "src"

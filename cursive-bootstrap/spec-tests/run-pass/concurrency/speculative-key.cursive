@@ -1,0 +1,23 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 15.3, E-CON-0090
+// DESC: Speculative key block for optimistic execution
+
+record Counter {
+    var value: i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let c: shared Counter = Counter { value: 0 }
+
+    # c speculative {
+        c.value = 42
+    }
+
+    var result: i32 = 0
+    # c {
+        result = c.value
+    }
+
+    return result
+}

@@ -1,0 +1,21 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.7
+// DESC: Match on enum with payloads
+
+enum Result {
+    Ok(i32)
+    Err(i32)
+}
+
+procedure extract(r: Result) -> i32 {
+    return match r {
+        Result::Ok(v) => { v }
+        Result::Err(e) => { e }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let ok: Result = Result::Ok(42)
+    return extract(ok)
+}

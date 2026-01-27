@@ -1,0 +1,13 @@
+// RUN: run-pass
+// EXIT: 3
+// SPEC: 6.4 Lower-Expr-Tuple
+// DESC: Verify tuple construction lowering
+
+public procedure main(move ctx: Context) -> i32 {
+    let t1: (i32, i32) = (1, 2)
+    let t2: (i8, i16, i32) = (1i8, 2i16, 3i32)
+    let t3: (bool, i32) = (true, 42)
+
+    let sum: i32 = t1.0 + t1.1
+    return if sum == 3 { t2.2 } else { 1 }
+}

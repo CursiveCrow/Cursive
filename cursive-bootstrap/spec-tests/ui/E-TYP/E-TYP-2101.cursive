@@ -1,0 +1,10 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2101
+// SPEC: 5.2.12
+// DESC: Dereference of pointer in @Null state
+
+public procedure main(move ctx: Context) -> i32 {
+    let p: Ptr<i32>@Null = Ptr::null()
+    let x: i32 = *p  //~ ERROR E-TYP-2101: deref @Null
+    return x
+}

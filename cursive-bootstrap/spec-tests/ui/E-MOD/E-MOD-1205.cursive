@@ -1,0 +1,14 @@
+// RUN: compile-fail
+// DIAG: E-MOD-1205
+// SPEC: 5.1
+// DESC: Attempt to public using a non-public item
+
+module inner {
+    procedure private_fn() -> () { }
+}
+
+public using inner::private_fn //~ ERROR E-MOD-1205
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

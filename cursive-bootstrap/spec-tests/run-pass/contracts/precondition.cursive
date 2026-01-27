@@ -1,0 +1,14 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 14.4
+// DESC: Procedure with precondition
+
+procedure divide(a: i32, b: i32) -> i32
+    requires { b != 0 }
+{
+    return a / b
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return divide(84, 2)
+}

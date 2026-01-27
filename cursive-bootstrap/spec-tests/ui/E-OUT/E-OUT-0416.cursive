@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-OUT-0416
+// SPEC: Appendix A
+// DESC: Runtime built-in symbol resolution failed
+// SKIP: Requires internal codegen failure
+
+// This error occurs when runtime built-in symbol resolution fails.
+// This is an internal error that should not occur with valid source.
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

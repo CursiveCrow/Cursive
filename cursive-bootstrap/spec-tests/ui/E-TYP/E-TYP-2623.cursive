@@ -1,0 +1,16 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2623
+// SPEC: 6.2
+// DESC: Prohibited type category in FfiSafeType
+
+record Wrapper {
+    closure: procedure(i32) -> i32
+}
+
+extern "C" {
+    procedure ffi_call(w: Wrapper) -> () //~ ERROR E-TYP-2623
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

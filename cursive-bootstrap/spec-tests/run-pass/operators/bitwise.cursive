@@ -1,0 +1,16 @@
+// RUN: run-pass
+// EXIT: 0
+// SPEC: 5.2.5
+// DESC: Bitwise operators
+
+public procedure main(move ctx: Context) -> i32 {
+    let a: u32 = 0xFF00
+    let b: u32 = 0x00FF
+    let and_result: u32 = a & b
+    let or_result: u32 = a | b
+    let xor_result: u32 = a ^ b
+    let not_result: u32 = ~a
+    let shl: u32 = a << 4
+    let shr: u32 = a >> 4
+    return 0
+}

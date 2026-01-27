@@ -1,0 +1,20 @@
+// RUN: compile-fail
+// DIAG: E-CON-0006
+// SPEC: 8.9
+// DESC: Key acquisition in defer escapes to outer scope
+
+record Counter {
+    var value: i32
+}
+
+procedure key_in_defer(c: shared Counter) -> () {
+    defer {
+        # write c {  //~ ERROR E-CON-0006: key in defer escapes
+            c.value = 0
+        }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

@@ -1,0 +1,16 @@
+// RUN: compile-pass
+// DIAG: W-SEM-2700
+// SPEC: 8.14
+// DESC: Match arm pattern overlaps with previous arm
+
+procedure overlapping_match(n: i32) -> i32 {
+    return match n {
+        0..100 => { 1 }
+        50..60 => { 2 }  //~ WARNING W-SEM-2700: overlapping pattern
+        _ => { 0 }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return overlapping_match(55)
+}

@@ -1,0 +1,15 @@
+// RUN: run-pass
+// EXIT: 3
+// SPEC: 5.2.6
+// DESC: Nested if expressions
+
+public procedure main(move ctx: Context) -> i32 {
+    let a: bool = true
+    let b: bool = true
+    let result: i32 = if a {
+        if b { 3 } else { 2 }
+    } else {
+        if b { 1 } else { 0 }
+    }
+    return result
+}

@@ -1,0 +1,19 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 14
+// DESC: Contract with ensures clause
+
+[[dynamic]]
+procedure positive_result(x: i32)
+    @ensures(@result >= 0)
+    -> i32
+{
+    if x < 0 {
+        return -x
+    }
+    return x
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return positive_result(42)
+}

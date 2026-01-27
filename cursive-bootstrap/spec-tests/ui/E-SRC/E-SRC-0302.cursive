@@ -1,0 +1,9 @@
+// RUN: compile-fail
+// DIAG: E-SRC-0302
+// SPEC: 3.2
+// DESC: Invalid escape sequence in string literal
+
+public procedure main(move ctx: Context) -> i32 {
+    let s: string@View = "hello\q"  //~ ERROR E-SRC-0302: Invalid escape
+    return 0
+}

@@ -1,0 +1,33 @@
+// RUN: run-pass
+// EXIT: 30
+// SPEC: 6.2 ABI-Record
+// DESC: Verify record passing conventions
+
+record Point {
+    x: i32
+    y: i32
+}
+
+record Point3D {
+    x: i32
+    y: i32
+    z: i32
+}
+
+procedure pass_point(p: const Point) -> i32 {
+    return p.x + p.y
+}
+
+procedure pass_point3d(p: const Point3D) -> i32 {
+    return p.x + p.y + p.z
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let pt: Point = Point { x: 10, y: 20 }
+    let sum2d: i32 = pass_point(pt)
+
+    let pt3: Point3D = Point3D { x: 1, y: 2, z: 3 }
+    let sum3d: i32 = pass_point3d(pt3)
+
+    return if sum3d == 6 { sum2d } else { 1 }
+}

@@ -1,0 +1,17 @@
+// RUN: run-pass
+// EXIT: 25
+// SPEC: 5.2.6
+// DESC: Loop with continue to skip iterations
+
+public procedure main(move ctx: Context) -> i32 {
+    var sum: i32 = 0
+    var i: i32 = 0
+    loop i < 10 {
+        i = i + 1
+        if i % 2 == 0 {
+            continue
+        }
+        sum = sum + i
+    }
+    return sum
+}

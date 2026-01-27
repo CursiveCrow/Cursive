@@ -1,0 +1,20 @@
+// RUN: run-pass
+// EXIT: 3
+// SPEC: 5.2.20
+// DESC: Defer statements execute in reverse order
+
+procedure defer_order() -> i32 {
+    var result: i32 = 0
+    defer {
+        result = result * 2
+    }
+    defer {
+        result = result + 1
+    }
+    result = 1
+    return result
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return defer_order()
+}

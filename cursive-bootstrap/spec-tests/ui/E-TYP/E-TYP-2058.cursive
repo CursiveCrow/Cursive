@@ -1,0 +1,15 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2058
+// SPEC: 8.15
+// DESC: Duplicate field name in modal state payload
+
+modal Resource {
+    state Ready {  //~ ERROR E-TYP-2058: duplicate field in state payload
+        value: i32
+        value: i32
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

@@ -1,0 +1,10 @@
+// RUN: compile-fail
+// DIAG: E-CNF-0404
+// SPEC: 1.1
+// DESC: Shadowing of Self, Drop, Bitcopy, Clone, etc. at module scope
+
+type Drop = i32  //~ ERROR E-CNF-0404: Special name shadowed
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

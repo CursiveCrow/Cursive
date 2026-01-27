@@ -1,0 +1,11 @@
+// RUN: compile-fail
+// DIAG: E-MOD-1105
+// SPEC: 8.2
+// DESC: Module path component is a reserved keyword
+// NOTE: This requires directory structure with keyword name
+
+module procedure  //~ ERROR E-MOD-1105: module path reserved keyword
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

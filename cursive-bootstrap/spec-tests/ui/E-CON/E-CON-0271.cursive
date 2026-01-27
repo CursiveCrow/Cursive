@@ -1,0 +1,20 @@
+// RUN: compile-fail
+// DIAG: E-CON-0271
+// SPEC: 15.3
+// DESC: all operand has In != ()
+
+procedure needs_input() -> Async<(), i32, i32, !> {
+    let x = yield
+    return x
+}
+
+procedure do_all() -> (i32, i32) {
+    return all { //~ ERROR E-CON-0271
+        needs_input()
+        needs_input()
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

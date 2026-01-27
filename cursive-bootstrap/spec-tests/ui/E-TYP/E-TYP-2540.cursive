@@ -1,0 +1,17 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2540
+// SPEC: 5.3
+// DESC: Procedure with [[static_dispatch_only]] called on $Class
+
+class Serializable {
+    [[static_dispatch_only]]
+    procedure serialize(~) -> bytes@Managed
+}
+
+procedure serialize_any(x: $Serializable, heap: $HeapAllocator) -> bytes@Managed {
+    return x ~> serialize() //~ ERROR E-TYP-2540
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

@@ -1,0 +1,15 @@
+// RUN: compile-pass
+// SPEC: 6.1 Layout-Func
+// DESC: Verify function pointer layout: sizeof = PtrSize
+
+public procedure main(move ctx: Context) -> i32 {
+    // Function pointer should be pointer-sized
+    static_assert(sizeof(procedure() -> ()) == 8)
+    static_assert(alignof(procedure() -> ()) == 8)
+
+    // Function pointer size independent of signature
+    static_assert(sizeof(procedure(i32) -> i32) == 8)
+    static_assert(sizeof(procedure(i32, i32) -> i64) == 8)
+
+    return 0
+}

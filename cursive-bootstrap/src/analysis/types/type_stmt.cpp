@@ -523,8 +523,8 @@ static TypeLowerResult LowerType(const ScopeContext& ctx,
             if (path.size() != 1) {
               return false;
             }
-            return IdEq(path[0], "SpawnHandle") ||
-                   IdEq(path[0], "FutureHandle") ||
+            return IdEq(path[0], "Spawned") ||
+                   IdEq(path[0], "Tracked") ||
                    IdEq(path[0], "Async") ||
                    IdEq(path[0], "Sequence") ||
                    IdEq(path[0], "Future") ||

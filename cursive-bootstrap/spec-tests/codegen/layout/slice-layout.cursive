@@ -1,0 +1,16 @@
+// RUN: compile-pass
+// SPEC: 6.1 Layout-Slice
+// DESC: Verify slice layout as fat pointer (ptr + len)
+
+public procedure main(move ctx: Context) -> i32 {
+    // Slice is a fat pointer: ptr (8) + len (8) = 16
+    static_assert(sizeof([i32]) == 16)
+    static_assert(alignof([i32]) == 8)
+
+    // Slice layout is independent of element type
+    static_assert(sizeof([i8]) == 16)
+    static_assert(sizeof([i64]) == 16)
+    static_assert(sizeof([(i32, i32)]) == 16)
+
+    return 0
+}

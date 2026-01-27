@@ -1,0 +1,10 @@
+// RUN: compile-pass
+// DIAG: W-MOD-1201
+// SPEC: 8.13
+// DESC: Wildcard using in a module exposing public API
+
+public using cursive::runtime::*  //~ WARNING W-MOD-1201: wildcard using in public module
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

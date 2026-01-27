@@ -1,0 +1,16 @@
+// RUN: compile-fail
+// DIAG: E-SEM-2850
+// SPEC: 6.9
+// DESC: Cannot prove @foreign_assumes predicate
+
+extern "C" {
+    @foreign_assumes(len > 0)
+    procedure external_fn(ptr: *imm u8, len: usize) -> i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    unsafe {
+        let ptr: *imm u8 = null
+        return external_fn(ptr, 0) //~ ERROR E-SEM-2850
+    }
+}

@@ -1,0 +1,16 @@
+// RUN: compile-fail
+// DIAG: E-CON-0150
+// SPEC: 8.9
+// DESC: Host memory access in GPU code
+
+procedure gpu_host_access(data: [i32; 10]) -> () {
+    parallel on gpu {
+        dispatch 0..10 |i| {
+            let x: i32 = data[i]  //~ ERROR E-CON-0150: host memory in GPU
+        }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

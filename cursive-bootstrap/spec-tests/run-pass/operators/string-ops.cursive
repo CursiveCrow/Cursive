@@ -1,0 +1,14 @@
+// RUN: run-pass
+// EXIT: 1
+// SPEC: 5.2.3
+// DESC: String comparison operators
+
+public procedure main(move ctx: Context) -> i32 {
+    let a: string@View = "hello"
+    let b: string@View = "hello"
+    let c: string@View = "world"
+    if a == b && a != c {
+        return 1
+    }
+    return 0
+}

@@ -1,0 +1,15 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2063
+// SPEC: 5.4
+// DESC: State member visibility exceeds modal visibility
+
+modal Connection {
+    state Open {
+        public procedure send(~) -> () { } //~ ERROR E-TYP-2063
+    }
+    state Closed { }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

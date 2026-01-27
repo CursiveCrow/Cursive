@@ -1,0 +1,31 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.1, 8.4
+// DESC: Union type widening (Sub-Union-Width)
+
+procedure widen_union() -> i32 | bool | string@View {
+    let narrow: i32 | bool = 42
+    let wide: i32 | bool | string@View = narrow
+    return wide
+}
+
+procedure widen_member() -> i32 | bool {
+    let x: i32 = 42
+    let wide: i32 | bool = x
+    return wide
+}
+
+procedure extract(u: i32 | bool | string@View) -> i32 {
+    return match u {
+        v: i32 => { v }
+        b: bool => { if b { 1 } else { 0 } }
+        s: string@View => { 0 }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let w1: i32 | bool | string@View = widen_union()
+    let w2: i32 | bool = widen_member()
+    let result: i32 = extract(w1)
+    return result
+}

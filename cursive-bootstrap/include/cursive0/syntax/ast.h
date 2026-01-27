@@ -565,7 +565,7 @@ struct SpawnExpr {
 
 // §10.3 Wait expression
 struct WaitExpr {
-  ExprPtr handle;  // SpawnHandle<T>
+  ExprPtr handle;  // Spawned<T>
 };
 
 // §18.5.1 Dispatch option kinds

@@ -1,0 +1,13 @@
+// RUN: compile-pass
+// DIAG: W-CON-0006
+// SPEC: 14.2
+// DESC: Explicit read-then-write form used; compound assignment available
+
+public procedure main(move ctx: Context) -> i32 {
+    var x: shared i32 = 10
+    #x write {
+        let val = x
+        x = val + 1 //~ WARN W-CON-0006: compound assignment available
+    }
+    return 0
+}

@@ -1,0 +1,20 @@
+// RUN: run-pass
+// EXIT: 42
+// SPEC: 5.2.5
+// DESC: Nested union type handling
+
+type MaybeInt = i32 | ()
+type NestedMaybe = MaybeInt | bool
+
+procedure extract(v: NestedMaybe) -> i32 {
+    return match v {
+        x: i32 => { x }
+        _: () => { 0 }
+        b: bool => { if b { 1 } else { 0 } }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let v: NestedMaybe = 42
+    return extract(v)
+}

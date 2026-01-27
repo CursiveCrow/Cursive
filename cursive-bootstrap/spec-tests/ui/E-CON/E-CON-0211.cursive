@@ -1,0 +1,13 @@
+// RUN: compile-fail
+// DIAG: E-CON-0211
+// SPEC: 8.9
+// DESC: yield operand type does not match Out
+
+async procedure bad_yield() -> Sequence[i32] {
+    yield "hello"  //~ ERROR E-CON-0211: yield type mismatch
+    return 0
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

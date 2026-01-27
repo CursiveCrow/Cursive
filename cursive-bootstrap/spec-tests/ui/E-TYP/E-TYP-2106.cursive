@@ -1,0 +1,12 @@
+// RUN: compile-fail
+// DIAG: E-TYP-2106
+// SPEC: 5.2.12
+// DESC: Call to extern procedure outside unsafe
+
+extern "C" {
+    procedure foreign_func() -> i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    return foreign_func()  //~ ERROR E-TYP-2106: extern outside unsafe
+}

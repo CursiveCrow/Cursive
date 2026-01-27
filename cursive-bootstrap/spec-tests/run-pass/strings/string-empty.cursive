@@ -1,0 +1,13 @@
+// RUN: run-pass
+// EXIT: 1
+// SPEC: 5.2.16
+// DESC: String is_empty check
+
+public procedure main(move ctx: Context) -> i32 {
+    let empty: string@View = ""
+    let not_empty: string@View = "hello"
+    if empty ~> is_empty() && !(not_empty ~> is_empty()) {
+        return 1
+    }
+    return 0
+}

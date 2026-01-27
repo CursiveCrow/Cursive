@@ -70,7 +70,7 @@ static constexpr DiagMapEntry kTypecheckDiagMap[] = {
   {"E-CON-0122", "E-CON-0122"},  // use-after-move in parallel block
   {"E-CON-0130", "E-CON-0130"},  // spawn without enclosing parallel block
   {"E-CON-0131", "E-CON-0131"},  // mutable capture violation
-  {"E-CON-0132", "E-CON-0132"},  // wait operand is not SpawnHandle/FutureHandle
+  {"E-CON-0132", "E-CON-0132"},  // wait operand is not Spawned/Tracked
   {"E-CON-0133", "E-CON-0133"},  // wait while key is held
   {"E-CON-0140", "E-CON-0140"},  // dispatch without enclosing parallel block
   {"E-CON-0141", "E-CON-0141"},  // range expression not iterable
