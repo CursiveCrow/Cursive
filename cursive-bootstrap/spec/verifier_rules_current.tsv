@@ -1,3 +1,0 @@
-# rule_id	domain	min_count	max_count	payload_keys
-StringLiteralVal	runtime	1	-	-
-EmitLiteral-String	runtime	1	-	-

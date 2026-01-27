@@ -1,5 +1,0 @@
-[assembly]
-name = "test"
-kind = "executable"
-root = "src"
-emit_ir = "ll"
