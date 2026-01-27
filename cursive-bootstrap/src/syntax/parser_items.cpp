@@ -32,7 +32,7 @@ bool IsPunc(const Parser& parser, std::string_view p);
 
 // C0X Extension: Generic parameter parsing
 
-// Parse type bounds: <: Class1 + Class2
+// Parse type bounds: <: Class1 , Class2
 ParseElemResult<std::vector<TypeBound>> ParseTypeBounds(Parser parser) {
   std::vector<TypeBound> bounds;
   if (!IsOp(parser, "<:")) {
@@ -48,8 +48,8 @@ ParseElemResult<std::vector<TypeBound>> ParseTypeBounds(Parser parser) {
   bounds.push_back(first_bound);
   next = first_name.parser;
   
-  // Parse additional bounds separated by +
-  while (IsOp(next, "+")) {
+  // Parse additional bounds separated by ","
+  while (IsOp(next, ",")) {
     Advance(next);
     ParseElemResult<Identifier> bound_name = ParseIdent(next);
     TypeBound bound;
@@ -1187,6 +1187,10 @@ ParseElemResult<VariantDecl> ParseVariant(Parser parser) {
 
 ParseElemResult<std::vector<VariantDecl>> ParseVariantTail(Parser parser,
                                                           std::vector<VariantDecl> xs) {
+  // Skip newlines between variants
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-VariantTail-End");
     return {parser, xs};
@@ -1194,6 +1198,10 @@ ParseElemResult<std::vector<VariantDecl>> ParseVariantTail(Parser parser,
   if (IsPunc(parser, ",")) {
     Parser after = parser;
     Advance(after);
+    // Skip newlines after comma
+    while (Tok(after) && Tok(after)->kind == TokenKind::Newline) {
+      Advance(after);
+    }
     if (IsPunc(after, "}")) {
       SPEC_RULE("Parse-VariantTail-TrailingComma");
       EmitUnsupportedConstruct(after);
@@ -1204,11 +1212,23 @@ ParseElemResult<std::vector<VariantDecl>> ParseVariantTail(Parser parser,
     xs.push_back(var.elem);
     return ParseVariantTail(var.parser, std::move(xs));
   }
+  // Newlines work as separators between variants (no comma required)
+  const Token* tok = Tok(parser);
+  if (tok && tok->kind == TokenKind::Identifier) {
+    SPEC_RULE("Parse-VariantTail-NoComma");
+    ParseElemResult<VariantDecl> var = ParseVariant(parser);
+    xs.push_back(var.elem);
+    return ParseVariantTail(var.parser, std::move(xs));
+  }
   EmitParseSyntaxErr(parser, TokSpan(parser));
   return {parser, xs};
 }
 
 ParseElemResult<std::vector<VariantDecl>> ParseVariantList(Parser parser) {
+  // Skip leading newlines
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-VariantList-Empty");
     return {parser, {}};

@@ -11,10 +11,10 @@ enum Color {
 
 public procedure main(move ctx: Context) -> i32 {
     let c: Color = Color::Green
-    let result: i32 = match c {
+    let res: i32 = match c {
         Color::Red => { 0 }
         Color::Green => { 1 }
         Color::Blue => { 2 }
     }
-    return result
+    return res
 }
