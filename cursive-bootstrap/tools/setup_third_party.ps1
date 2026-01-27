@@ -7,9 +7,13 @@
     - LLVM 21.1.8 (prebuilt Windows binaries)
     - ICU 72.1 (prebuilt Windows MSVC2019 binaries)
     - tomlplusplus 3.4.0 (header-only library)
+    - GCC 15.2.0 (w64devkit, x64 only)
+    - CMake 3.31.4 (prebuilt Windows binaries)
 
     Dependencies are placed in the third_party/ directory with the structure
     expected by CMakeLists.txt.
+
+    Note: GCC/MinGW-w64 is only available for x64 architecture via w64devkit.
 
 .PARAMETER Arch
     Target architecture: "x64" or "arm64". Defaults to auto-detect based on current system.
@@ -41,7 +45,9 @@ $ErrorActionPreference = "Stop"
 
 # Configuration
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ThirdPartyDir = Join-Path $ScriptDir "third_party"
+# Third party goes in parent directory (cursive-bootstrap/third_party, not tools/third_party)
+$ProjectRoot = Split-Path -Parent $ScriptDir
+$ThirdPartyDir = Join-Path $ProjectRoot "third_party"
 $TempDir = Join-Path $ThirdPartyDir "temp"
 
 # Auto-detect architecture
@@ -62,12 +68,22 @@ $ArchConfig = @{
         LLVMDirName = "llvm-21.1.8-x86_64"
         ICUArchive = "icu4c-72_1-Win64-MSVC2019.zip"
         ICUDir = "win64"
+        GCCAvailable = $true
+        GCCArchive = "w64devkit-x64-2.5.0.7z.exe"
+        GCCDirName = "w64devkit"
+        CMakeArchive = "cmake-3.31.4-windows-x86_64.zip"
+        CMakeDirName = "cmake-3.31.4-windows-x86_64"
     }
     "arm64" = @{
         LLVMTriple = "aarch64-pc-windows-msvc"
         LLVMDirName = "llvm-21.1.8-aarch64"
         ICUArchive = "icu4c-72_1-WinARM64-MSVC2019.zip"
         ICUDir = "winarm64"
+        GCCAvailable = $false
+        GCCArchive = $null
+        GCCDirName = $null
+        CMakeArchive = "cmake-3.31.4-windows-arm64.zip"
+        CMakeDirName = "cmake-3.31.4-windows-arm64"
     }
 }
 
@@ -95,6 +111,24 @@ $Dependencies = @{
         TargetDir = Join-Path $ThirdPartyDir "tomlplusplus"
         ArchiveName = "tomlplusplus-3.4.0.zip"
         ValidationFile = "include\toml++\toml.hpp"
+    }
+    CMake = @{
+        Version = "3.31.4"
+        Url = "https://github.com/Kitware/CMake/releases/download/v3.31.4/$($CurrentArch.CMakeArchive)"
+        TargetDir = Join-Path $ThirdPartyDir "cmake"
+        ArchiveName = $CurrentArch.CMakeArchive
+        ValidationFile = "bin\cmake.exe"
+    }
+}
+
+# Add GCC only if available for the target architecture
+if ($CurrentArch.GCCAvailable) {
+    $Dependencies["GCC"] = @{
+        Version = "15.2.0"
+        Url = "https://github.com/skeeto/w64devkit/releases/download/v2.5.0/$($CurrentArch.GCCArchive)"
+        TargetDir = Join-Path $ThirdPartyDir "gcc\$($CurrentArch.GCCDirName)"
+        ArchiveName = $CurrentArch.GCCArchive
+        ValidationFile = "bin\gcc.exe"
     }
 }
 
@@ -180,9 +214,27 @@ function Expand-ZipArchive {
         [string]$ArchivePath,
         [string]$DestinationPath
     )
-    
+
     Write-Host "    Extracting .zip..." -ForegroundColor Gray
     Expand-Archive -Path $ArchivePath -DestinationPath $DestinationPath -Force
+}
+
+function Expand-7zArchive {
+    param(
+        [string]$ArchivePath,
+        [string]$DestinationPath
+    )
+
+    $7z = Get-7ZipPath
+    if (-not $7z) {
+        throw "7-Zip is required to extract .7z files. Please install 7-Zip from https://www.7-zip.org/"
+    }
+
+    Write-Host "    Extracting .7z with 7-Zip..." -ForegroundColor Gray
+    & $7z x $ArchivePath -o"$DestinationPath" -y | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to extract .7z archive"
+    }
 }
 
 function Get-Dependency {
@@ -256,6 +308,9 @@ function Get-Dependency {
         elseif ($archivePath -match '\.zip$') {
             Expand-ZipArchive -ArchivePath $archivePath -DestinationPath $extractTemp
         }
+        elseif ($archivePath -match '\.7z(\.exe)?$') {
+            Expand-7zArchive -ArchivePath $archivePath -DestinationPath $extractTemp
+        }
         else {
             throw "Unknown archive format: $archivePath"
         }
@@ -321,6 +376,32 @@ function Get-Dependency {
                 }
                 else {
                     throw "Could not find extracted tomlplusplus directory"
+                }
+            }
+            "GCC" {
+                # w64devkit extracts to w64devkit/ directory
+                $extractedDir = Get-ChildItem $extractTemp -Directory | Where-Object { $_.Name -eq "w64devkit" } | Select-Object -First 1
+                if ($extractedDir) {
+                    if (Test-Path $targetDir) {
+                        Remove-Item $targetDir -Recurse -Force
+                    }
+                    Move-Item $extractedDir.FullName $targetDir
+                }
+                else {
+                    throw "Could not find extracted w64devkit directory"
+                }
+            }
+            "CMake" {
+                # CMake extracts to cmake-3.31.4-windows-x86_64/ directory
+                $extractedDir = Get-ChildItem $extractTemp -Directory | Where-Object { $_.Name -match "^cmake-" } | Select-Object -First 1
+                if ($extractedDir) {
+                    if (Test-Path $targetDir) {
+                        Remove-Item $targetDir -Recurse -Force
+                    }
+                    Move-Item $extractedDir.FullName $targetDir
+                }
+                else {
+                    throw "Could not find extracted CMake directory"
                 }
             }
         }
@@ -414,7 +495,42 @@ function Test-Dependencies {
         Write-Error "tomlplusplus: Header NOT found at $tomlHeader"
         $allValid = $false
     }
-    
+
+    # GCC validation (only if available for this architecture)
+    if ($CurrentArch.GCCAvailable -and $Dependencies.ContainsKey("GCC")) {
+        $gccExe = Join-Path $Dependencies.GCC.TargetDir $Dependencies.GCC.ValidationFile
+        if (Test-Path $gccExe) {
+            Write-Success "GCC: gcc.exe found"
+
+            # Also check for g++
+            $gppExe = Join-Path $Dependencies.GCC.TargetDir "bin\g++.exe"
+            if (Test-Path $gppExe) {
+                Write-Success "GCC: g++.exe found"
+            }
+            else {
+                Write-Error "GCC: g++.exe NOT found at $gppExe"
+                $allValid = $false
+            }
+        }
+        else {
+            Write-Error "GCC: gcc.exe NOT found at $gccExe"
+            $allValid = $false
+        }
+    }
+    elseif (-not $CurrentArch.GCCAvailable) {
+        Write-Warning "GCC: Not available for $Arch architecture (skipped)"
+    }
+
+    # CMake validation
+    $cmakeExe = Join-Path $Dependencies.CMake.TargetDir $Dependencies.CMake.ValidationFile
+    if (Test-Path $cmakeExe) {
+        Write-Success "CMake: cmake.exe found"
+    }
+    else {
+        Write-Error "CMake: cmake.exe NOT found at $cmakeExe"
+        $allValid = $false
+    }
+
     return $allValid
 }
 
@@ -426,10 +542,10 @@ Write-Host "  Target Architecture: $Arch" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Check for 7-Zip (required for LLVM .tar.xz)
+# Check for 7-Zip (required for LLVM .tar.xz and GCC .7z.exe)
 $7z = Get-7ZipPath
 if (-not $7z) {
-    Write-Warning "7-Zip not found. Required for extracting LLVM .tar.xz archives."
+    Write-Warning "7-Zip not found. Required for extracting LLVM .tar.xz and GCC .7z.exe archives."
     Write-Host "  Please install 7-Zip from https://www.7-zip.org/" -ForegroundColor Yellow
     Write-Host ""
 }
@@ -443,7 +559,13 @@ if (-not (Test-Path $ThirdPartyDir)) {
 # Download and extract dependencies
 $success = $true
 
-foreach ($name in @("LLVM", "ICU", "TomlPlusPlus")) {
+# Build the list of dependencies to download
+$dependencyList = @("LLVM", "ICU", "TomlPlusPlus", "CMake")
+if ($CurrentArch.GCCAvailable) {
+    $dependencyList += "GCC"
+}
+
+foreach ($name in $dependencyList) {
     Write-Host ""
     if (-not (Get-Dependency -Name $name -Config $Dependencies[$name])) {
         $success = $false

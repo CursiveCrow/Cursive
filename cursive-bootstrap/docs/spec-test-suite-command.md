@@ -9,7 +9,7 @@ Copy and paste the command below to generate a comprehensive test suite for the 
 
 DIRECTORY STRUCTURE:
 
-cursive-bootstrap/spec-tests/
+cursive-bootstrap/tests/
   runner/
     run_tests.py              - Main test harness (Python 3.10+)
     filecheck.py              - Inline directive parser
@@ -151,7 +151,7 @@ Before outputting completion promise:
 11. No test has SKIP or XFAIL without documented reason
 12. README.md documents test format and runner usage
 
-Output SPEC-TESTS-COMPLETE when ALL of the above are satisfied." --completion-promise "SPEC-TESTS-COMPLETE" --max-iterations 150
+Output tests-COMPLETE when ALL of the above are satisfied." --completion-promise "tests-COMPLETE" --max-iterations 150
 ```
 
 ## Usage
@@ -164,6 +164,6 @@ Output SPEC-TESTS-COMPLETE when ALL of the above are satisfied." --completion-pr
 ## Notes
 
 - **Max iterations**: 150 (adjust if needed)
-- **Completion promise**: `SPEC-TESTS-COMPLETE`
+- **Completion promise**: `tests-COMPLETE`
 - **Cancel**: Use `/ralph-loop:cancel-ralph` to stop the loop early
 - **Monitor**: Check `.claude/ralph-loop.local.md` for iteration status

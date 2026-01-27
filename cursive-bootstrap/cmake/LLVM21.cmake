@@ -65,25 +65,29 @@ if(EXISTS "${LLVM_ROOT}")
     # We use add_link_options to ensure it propagates to all targets.
     add_link_options("/NODEFAULTLIB:\"C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Professional\\DIA SDK\\lib\\amd64\\diaguids.lib\"")
     add_link_options("/NODEFAULTLIB:diaguids.lib")
-    
-    # Find VS2022 DIA SDK for the correct architecture
-    set(DIA_SDK_PATH "C:/Program Files/Microsoft Visual Studio/2022/Community/DIA SDK/lib/${LLVM_DIA_ARCH}/diaguids.lib")
-    if(EXISTS "${DIA_SDK_PATH}")
-      link_libraries("${DIA_SDK_PATH}")
-    else()
-      # Try Enterprise edition path
-      set(DIA_SDK_PATH "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/DIA SDK/lib/${LLVM_DIA_ARCH}/diaguids.lib")
+
+    # Find DIA SDK for the correct architecture
+    # Try VS 2026 Build Tools first, then VS 2022 editions
+    set(DIA_SDK_PATHS
+      "C:/Program Files (x86)/Microsoft Visual Studio/18/BuildTools/DIA SDK/lib/${LLVM_DIA_ARCH}/diaguids.lib"
+      "C:/Program Files/Microsoft Visual Studio/2026/Community/DIA SDK/lib/${LLVM_DIA_ARCH}/diaguids.lib"
+      "C:/Program Files/Microsoft Visual Studio/2026/Enterprise/DIA SDK/lib/${LLVM_DIA_ARCH}/diaguids.lib"
+      "C:/Program Files/Microsoft Visual Studio/2026/Professional/DIA SDK/lib/${LLVM_DIA_ARCH}/diaguids.lib"
+      "C:/Program Files/Microsoft Visual Studio/2022/Community/DIA SDK/lib/${LLVM_DIA_ARCH}/diaguids.lib"
+      "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/DIA SDK/lib/${LLVM_DIA_ARCH}/diaguids.lib"
+      "C:/Program Files/Microsoft Visual Studio/2022/Professional/DIA SDK/lib/${LLVM_DIA_ARCH}/diaguids.lib"
+    )
+    set(DIA_SDK_FOUND FALSE)
+    foreach(DIA_SDK_PATH ${DIA_SDK_PATHS})
       if(EXISTS "${DIA_SDK_PATH}")
         link_libraries("${DIA_SDK_PATH}")
-      else()
-        # Try Professional edition path
-        set(DIA_SDK_PATH "C:/Program Files/Microsoft Visual Studio/2022/Professional/DIA SDK/lib/${LLVM_DIA_ARCH}/diaguids.lib")
-        if(EXISTS "${DIA_SDK_PATH}")
-          link_libraries("${DIA_SDK_PATH}")
-        else()
-          message(WARNING "VS2022 diaguids.lib not found for ${LLVM_DIA_ARCH}. Linker errors may occur.")
-        endif()
+        message(STATUS "Found DIA SDK: ${DIA_SDK_PATH}")
+        set(DIA_SDK_FOUND TRUE)
+        break()
       endif()
+    endforeach()
+    if(NOT DIA_SDK_FOUND)
+      message(WARNING "diaguids.lib not found for ${LLVM_DIA_ARCH}. Linker errors may occur.")
     endif()
   endif()
 
