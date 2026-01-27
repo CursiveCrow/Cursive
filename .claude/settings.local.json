@@ -82,10 +82,10 @@
       "Skill(ralph-loop:ralph-loop)",
       "Bash(xargs:*)",
       "Read(//c/tmp/**)",
-      "Bash(for dir in \"C:\\\\Dev\\\\Cursive\\\\cursive-bootstrap\\\\spec-tests\\\\run-pass\"/*)",
-      "Bash(for dir in \"C:\\\\Dev\\\\Cursive\\\\cursive-bootstrap\\\\spec-tests\\\\run-fail\"/*)",
+      "Bash(for dir in \"C:\\\\Dev\\\\Cursive\\\\cursive-bootstrap\\\\tests\\\\run-pass\"/*)",
+      "Bash(for dir in \"C:\\\\Dev\\\\Cursive\\\\cursive-bootstrap\\\\tests\\\\run-fail\"/*)",
       "Bash(do if [ -d \"$dir\" ])",
-      "Bash(for file in \"C:\\\\Dev\\\\Cursive\\\\cursive-bootstrap\\\\spec-tests\\\\run-pass\\\\bindings\\\\*\"*.cursive\"\")",
+      "Bash(for file in \"C:\\\\Dev\\\\Cursive\\\\cursive-bootstrap\\\\tests\\\\run-pass\\\\bindings\\\\*\"*.cursive\"\")",
       "Bash(do head -4 \"$file\")",
       "Bash(.cursivec0.exe:*)",
       "Bash(exe \")"

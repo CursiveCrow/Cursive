@@ -1,8 +1,8 @@
-# Install script for directory: C:/Dev/Cursive/cursive-bootstrap/runtime
+# Install script for directory: C:/Dev/Cursive/Cursive/cursive-bootstrap/runtime
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
-  set(CMAKE_INSTALL_PREFIX "C:/Program Files/cursive")
+  set(CMAKE_INSTALL_PREFIX "C:/Program Files (x86)/cursive")
 endif()
 string(REGEX REPLACE "/$" "" CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 
@@ -35,6 +35,6 @@ endif()
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
 if(CMAKE_INSTALL_LOCAL_ONLY)
-  file(WRITE "C:/Dev/Cursive/cursive-bootstrap/build/runtime/install_local_manifest.txt"
+  file(WRITE "C:/Dev/Cursive/Cursive/cursive-bootstrap/build/runtime/install_local_manifest.txt"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
 endif()

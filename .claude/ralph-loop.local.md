@@ -2,7 +2,7 @@
 active: true
 iteration: 1
 max_iterations: 150
-completion_promise: "SPEC-TESTS-COMPLETE"
+completion_promise: "tests-COMPLETE"
 started_at: "2026-01-27T05:37:13Z"
 ---
 
@@ -10,7 +10,7 @@ Create a comprehensive, systematic compiler test suite for cursivec0 following i
 
 DIRECTORY STRUCTURE:
 
-cursive-bootstrap/spec-tests/
+cursive-bootstrap/tests/
   runner/
     run_tests.py              - Main test harness (Python 3.10+)
     filecheck.py              - Inline directive parser
@@ -152,4 +152,4 @@ Before outputting completion promise:
 11. No test has SKIP or XFAIL without documented reason
 12. README.md documents test format and runner usage
 
-Output SPEC-TESTS-COMPLETE when ALL of the above are satisfied.
+Output tests-COMPLETE when ALL of the above are satisfied.
