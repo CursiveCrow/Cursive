@@ -254,6 +254,29 @@ ParseStmtCoreResult ParseStmtCore(Parser parser) {
     return {expr.parser, stmt, true};
   }
 
+  if (IsKw(parser, "static_assert")) {
+    SPEC_RULE("Parse-StaticAssert-Stmt");
+    Parser next = parser;
+    Advance(next);
+    if (!IsPunc(next, "(")) {
+      EmitParseSyntaxErr(next, TokSpan(next));
+      return {next, ErrorStmt{SpanBetween(start, next)}, false};
+    }
+    Parser after_lparen = next;
+    Advance(after_lparen);
+    ParseElemResult<ExprPtr> cond = ParseExpr(after_lparen);
+    if (!IsPunc(cond.parser, ")")) {
+      EmitParseSyntaxErr(cond.parser, TokSpan(cond.parser));
+      return {cond.parser, ErrorStmt{SpanBetween(start, cond.parser)}, false};
+    }
+    Parser after_rparen = cond.parser;
+    Advance(after_rparen);
+    StaticAssertStmt stmt;
+    stmt.condition = cond.elem;
+    stmt.span = SpanBetween(start, after_rparen);
+    return {after_rparen, stmt, true};
+  }
+
   if (IsKw(parser, "break")) {
     SPEC_RULE("Parse-Break-Stmt");
     Parser next = parser;

@@ -4,8 +4,8 @@
 // DESC: Match on modal type states
 
 modal Result {
-    state Ok { value: i32 }
-    state Err { code: i32 }
+    @Ok { value: i32 }
+    @Err { code: i32 }
 }
 
 procedure get_value(r: Result) -> i32 {

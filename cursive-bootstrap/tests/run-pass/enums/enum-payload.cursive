@@ -15,8 +15,8 @@ enum Shape {
 
 procedure get_area(s: Shape) -> i32 {
     return match s {
-        Shape::Circle(r) => { r * r * 3 }
-        Shape::Rectangle(p) => { p.x * p.y }
+        Shape::Circle(r;) => { r * r * 3 }
+        Shape::Rectangle(p;) => { p.x * p.y }
     }
 }
 

@@ -3,8 +3,8 @@
 // SPEC: 8.15
 // DESC: Infinite monomorphization detected
 
-record Loop[T] {
-    value: Loop[Loop[T]]  //~ ERROR E-TYP-2307: infinite monomorphization
+record Loop<T> {
+    value: Loop<Loop<T>>  //~ ERROR E-TYP-2307: infinite monomorphization
 }
 
 public procedure main(move ctx: Context) -> i32 {

@@ -4,8 +4,8 @@
 // DESC: Implicit widening on non-niche-layout-compatible type
 
 modal Resource {
-    state Active { handle: *mut u8 }
-    state Released { }
+    @Active { handle: *mut u8 }
+    @Released { }
 }
 
 public procedure main(move ctx: Context) -> i32 {

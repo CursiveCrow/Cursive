@@ -17,11 +17,11 @@ class Numeric for Int {
     }
 }
 
-procedure get_value[T: Numeric](x: T) -> i32 {
+procedure get_value<T: Numeric>(x: T) -> i32 {
     return x ~> value()
 }
 
 public procedure main(move ctx: Context) -> i32 {
     let i: Int = Int { n: 42 }
-    return get_value[Int](i)
+    return get_value<Int>(i)
 }

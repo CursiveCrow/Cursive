@@ -4,8 +4,8 @@
 // DESC: Direct field access on general modal type without pattern matching
 
 modal Resource {
-    state Empty {}
-    state Ready { value: i32 }
+    @Empty {}
+    @Ready { value: i32 }
 }
 
 procedure direct_access(r: Resource) -> i32 {

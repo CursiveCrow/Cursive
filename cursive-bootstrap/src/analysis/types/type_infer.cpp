@@ -17,6 +17,8 @@
 #include "cursive0/analysis/contracts/verification.h"
 #include "cursive0/analysis/types/subtyping.h"
 #include "cursive0/analysis/types/type_expr.h"
+#include "cursive0/analysis/generics/monomorphize.h"
+#include "cursive0/analysis/memory/calls.h"
 
 namespace cursive0::analysis {
 
@@ -165,6 +167,15 @@ static syntax::ExprPtr SubstituteIdent(const syntax::ExprPtr& expr,
             elem = SubstituteIdent(elem, name, replacement);
           }
           return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+          auto out = node;
+          out.value = SubstituteIdent(node.value, name, replacement);
+          out.count = SubstituteIdent(node.count, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+          return expr;
+        } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+          return expr;
         } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
           auto out = node;
           for (auto& field : out.fields) {
@@ -369,40 +380,46 @@ static ExprTypeResult InferExprImpl(const ScopeContext& ctx,
     if (!call->callee) {
       return result;
     }
-    if (call->args.empty()) {
-      if (const auto* ident =
-              std::get_if<syntax::IdentifierExpr>(&call->callee->node);
-          ident && IdEq(ident->name, "RegionOptions")) {
-        SPEC_RULE("T-Record-Default");
+    // For generic procedure calls, fall through to type_expr which handles substitution
+    if (!call->generic_args.empty()) {
+      SPEC_RULE("Syn-Generic-Call-Fallthrough");
+      // Fall through to type_expr(expr) below for proper generic handling
+    } else {
+      if (call->args.empty()) {
+        if (const auto* ident =
+                std::get_if<syntax::IdentifierExpr>(&call->callee->node);
+            ident && IdEq(ident->name, "RegionOptions")) {
+          SPEC_RULE("T-Record-Default");
+          result.ok = true;
+          result.type = MakeTypePath({"RegionOptions"});
+          return result;
+        }
+      }
+      const auto record =
+          TypeRecordDefaultCall(ctx, call->callee, call->args, type_expr);
+      if (record.ok) {
         result.ok = true;
-        result.type = MakeTypePath({"RegionOptions"});
+        result.type = record.type;
         return result;
       }
-    }
-    const auto record =
-        TypeRecordDefaultCall(ctx, call->callee, call->args, type_expr);
-    if (record.ok) {
-      result.ok = true;
-      result.type = record.type;
-      return result;
-    }
-    if (record.diag_id.has_value()) {
-      result.diag_id = record.diag_id;
-      return result;
-    }
-    const auto call_type =
-        TypeCall(ctx, call->callee, call->args, type_expr, type_place);
-    if (!call_type.ok) {
-      if (call_type.diag_id.has_value()) {
-        SPEC_RULE("Syn-Call-Err");
-        result.diag_id = call_type.diag_id;
+      if (record.diag_id.has_value()) {
+        result.diag_id = record.diag_id;
+        return result;
       }
+      const auto call_type =
+          TypeCall(ctx, call->callee, call->args, type_expr, type_place);
+      if (!call_type.ok) {
+        if (call_type.diag_id.has_value()) {
+          SPEC_RULE("Syn-Call-Err");
+          result.diag_id = call_type.diag_id;
+        }
+        return result;
+      }
+      SPEC_RULE("Syn-Call");
+      result.ok = true;
+      result.type = call_type.type;
       return result;
     }
-    SPEC_RULE("Syn-Call");
-    result.ok = true;
-    result.type = call_type.type;
-    return result;
   }
 
   const auto fallback = type_expr(expr);

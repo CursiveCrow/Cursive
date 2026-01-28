@@ -4,8 +4,8 @@
 // DESC: widen applied to already-general modal type
 
 modal Connection {
-    state Open { }
-    state Closed { }
+    @Open { }
+    @Closed { }
 }
 
 public procedure main(move ctx: Context) -> i32 {

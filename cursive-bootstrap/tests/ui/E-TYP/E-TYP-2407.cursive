@@ -4,19 +4,19 @@
 // DESC: Conflicting state names from multiple classes
 
 class Resource1 {
-    state Open { x: i32 }
-    state Closed { }
+    @Open { x: i32 }
+    @Closed { }
 }
 
 class Resource2 {
-    state Open { y: f64 }
-    state Done { }
+    @Open { y: f64 }
+    @Done { }
 }
 
 modal MyResource {
-    state Open { x: i32 }
-    state Closed { }
-    state Done { }
+    @Open { x: i32 }
+    @Closed { }
+    @Done { }
 }
 
 implements Resource1 for MyResource { }

@@ -238,6 +238,7 @@ static const DiagMessageEntry kDiagMessages[] = {
   {"E-TYP-1520", Severity::Error, "Variance violation in generic type instantiation"},
   {"E-TYP-1521", Severity::Error, "Invariant type parameter requires exact type match"},
   {"E-TYP-1530", Severity::Error, "Type inference failed; unable to determine type"},
+  {"E-TYP-1531", Severity::Error, "Float literal explicit suffix does not match expected type"},
   {"E-TYP-1601", Severity::Error, "Mutation through `const` path"},
   {"E-TYP-1602", Severity::Error, "`unique` exclusion violation (aliasing or inactive use)"},
   {"E-TYP-1603", Severity::Error, "Non-`move` argument must be a place expression"},

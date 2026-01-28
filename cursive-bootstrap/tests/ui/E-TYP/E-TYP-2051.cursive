@@ -4,8 +4,8 @@
 // DESC: Duplicate state name within modal type
 
 modal Status {
-    state Active { }
-    state Active { }  //~ ERROR E-TYP-2051: duplicate state
+    @Active { }
+    @Active { }  //~ ERROR E-TYP-2051: duplicate state
 }
 
 public procedure main(move ctx: Context) -> i32 {

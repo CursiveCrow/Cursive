@@ -4,8 +4,8 @@
 // DESC: Non-modal type implements modal class
 
 class Resource {
-    state Open { }
-    state Closed { }
+    @Open { }
+    @Closed { }
 }
 
 record Handle {

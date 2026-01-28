@@ -119,15 +119,19 @@ bool IsQuote(core::UnicodeScalar c) {
   return c == '"' || c == '\'';
 }
 
-bool HasFloatMarker(const std::vector<core::UnicodeScalar>& scalars,
+bool HasFloatSuffix(const std::vector<core::UnicodeScalar>& scalars,
                     std::size_t start,
                     std::size_t end) {
-  for (std::size_t i = start; i < end; ++i) {
-    const core::UnicodeScalar c = scalars[i];
-    if (c == '.' || c == 'e' || c == 'E') {
-      return true;
-    }
+  // Float literals REQUIRE a suffix: f, f16, f32, or f64
+  // This avoids ambiguity with tuple access (e.g., t.0.0)
+  if (end < start + 1) {
+    return false;
   }
+  // Check for bare 'f' suffix
+  if (scalars[end - 1] == 'f') {
+    return true;
+  }
+  // Check for f16, f32, f64 suffixes
   if (end >= start + 3) {
     const core::UnicodeScalar a = scalars[end - 3];
     const core::UnicodeScalar b = scalars[end - 2];
@@ -222,8 +226,9 @@ NextTokenResult NextToken(const core::SourceFile& source,
     }
   } else if (IsDecDigit(first)) {
     LiteralScanResult flt = ScanFloatLiteral(source, start);
-    if (flt.ok || (flt.next > start &&
-                   HasFloatMarker(scalars, start, flt.next))) {
+    // Only classify as FloatLiteral when a suffix is present (f, f16, f32, f64)
+    // This avoids ambiguity with tuple access (e.g., t.0.0 must be tuple access)
+    if (flt.ok && HasFloatSuffix(scalars, start, flt.next)) {
       Candidate cand;
       cand.kind = TokenKind::FloatLiteral;
       cand.next = flt.next;

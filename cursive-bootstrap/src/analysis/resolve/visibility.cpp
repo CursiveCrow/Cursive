@@ -323,6 +323,8 @@ void CheckStmt(const ScopeContext& ctx,
           if (node.body) {
             CheckBlock(ctx, *node.body, diags);
           }
+        } else if constexpr (std::is_same_v<T, syntax::StaticAssertStmt>) {
+          CheckExpr(ctx, node.condition, diags);
         } else {
           return;
         }
@@ -401,6 +403,13 @@ void CheckExpr(const ScopeContext& ctx,
           for (const auto& elem : node.elements) {
             CheckExpr(ctx, elem, diags);
           }
+        } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+          CheckExpr(ctx, node.value, diags);
+          CheckExpr(ctx, node.count, diags);
+        } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+          // sizeof(type) - type visibility is checked during type resolution
+        } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+          // alignof(type) - type visibility is checked during type resolution
         } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
           CheckFieldInits(ctx, node.fields, diags);
         } else if constexpr (std::is_same_v<T, syntax::IfExpr>) {

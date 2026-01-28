@@ -4,8 +4,8 @@
 // DESC: Modal state transitions
 
 modal Counter {
-    state Zero {}
-    state NonZero { value: i32 }
+    @Zero {}
+    @NonZero { value: i32 }
 
     transition Zero -> NonZero set(~, n: i32) {
         return Counter@NonZero { value: n }

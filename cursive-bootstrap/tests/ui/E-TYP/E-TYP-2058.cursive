@@ -4,7 +4,7 @@
 // DESC: Duplicate field name in modal state payload
 
 modal Resource {
-    state Ready {  //~ ERROR E-TYP-2058: duplicate field in state payload
+    @Ready {  //~ ERROR E-TYP-2058: duplicate field in state payload
         value: i32
         value: i32
     }

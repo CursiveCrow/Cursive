@@ -4,10 +4,10 @@
 // DESC: Basic modal type with states
 
 modal Connection {
-    state Open {
+    @Open {
         id: i32
     }
-    state Closed { }
+    @Closed { }
 }
 
 public procedure main(move ctx: Context) -> i32 {

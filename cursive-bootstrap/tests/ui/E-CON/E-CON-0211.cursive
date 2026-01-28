@@ -3,7 +3,7 @@
 // SPEC: 8.9
 // DESC: yield operand type does not match Out
 
-async procedure bad_yield() -> Sequence[i32] {
+async procedure bad_yield() -> Sequence<i32> {
     yield "hello"  //~ ERROR E-CON-0211: yield type mismatch
     return 0
 }

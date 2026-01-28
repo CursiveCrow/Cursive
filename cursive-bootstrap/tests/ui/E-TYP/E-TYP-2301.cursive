@@ -3,7 +3,7 @@
 // SPEC: 13.1
 // DESC: Type arguments cannot be inferred
 
-record Container[T] {
+record Container<T> {
     value: T
 }
 

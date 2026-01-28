@@ -96,6 +96,7 @@ struct DerivedValueInfo {
     UnionPayload,
     TupleLit,
     ArrayLit,
+    ArrayRepeat,
     RecordLit,
     DynLit,
     DynData,
@@ -127,6 +128,8 @@ struct DerivedValueInfo {
   std::vector<std::string> static_path;
   std::string name;
   std::string vtable_sym;
+  IRValue repeat_value;
+  IRValue repeat_count;
 };
 
 // LowerCtx - context for lowering operations

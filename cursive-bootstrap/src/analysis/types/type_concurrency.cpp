@@ -419,6 +419,13 @@ struct CaptureCollector {
             for (const auto& elem : node.elements) {
               VisitExpr(elem);
             }
+          } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+            VisitExpr(node.value);
+            VisitExpr(node.count);
+          } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+            // sizeof(type) has no runtime sub-expressions
+          } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+            // alignof(type) has no runtime sub-expressions
           } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
             for (const auto& field : node.fields) {
               VisitExpr(field.value);
@@ -606,6 +613,8 @@ struct CaptureCollector {
             if (node.body) {
               VisitBlock(*node.body);
             }
+          } else if constexpr (std::is_same_v<T, syntax::StaticAssertStmt>) {
+            VisitExpr(node.condition);
           }
         },
         stmt);
@@ -719,6 +728,13 @@ struct UseAfterMoveChecker {
             for (const auto& elem : node.elements) {
               VisitExpr(elem);
             }
+          } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+            VisitExpr(node.value);
+            VisitExpr(node.count);
+          } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+            // sizeof(type) has no runtime sub-expressions
+          } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+            // alignof(type) has no runtime sub-expressions
           } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
             for (const auto& field : node.fields) {
               VisitExpr(field.value);
@@ -904,6 +920,8 @@ struct UseAfterMoveChecker {
             if (node.body) {
               VisitBlock(*node.body);
             }
+          } else if constexpr (std::is_same_v<T, syntax::StaticAssertStmt>) {
+            VisitExpr(node.condition);
           }
         },
         stmt);
@@ -1261,6 +1279,13 @@ struct YieldFinder {
             for (const auto& elem : node.elements) {
               VisitExpr(elem);
             }
+          } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+            VisitExpr(node.value);
+            VisitExpr(node.count);
+          } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+            // sizeof(type) has no runtime sub-expressions
+          } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+            // alignof(type) has no runtime sub-expressions
           } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
             for (const auto& field : node.fields) {
               VisitExpr(field.value);
@@ -1418,6 +1443,8 @@ struct YieldFinder {
             VisitBlock(node.body);
           } else if constexpr (std::is_same_v<T, syntax::KeyBlockStmt>) {
             VisitBlock(node.body);
+          } else if constexpr (std::is_same_v<T, syntax::StaticAssertStmt>) {
+            VisitExpr(node.condition);
           } else {
             return;
           }

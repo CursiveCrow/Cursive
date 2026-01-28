@@ -151,6 +151,14 @@ ResTypeResult ResolveType(ResolveContext& ctx,
           auto out = *type;
           auto& out_node = std::get<syntax::TypePathType>(out.node);
           out_node.path = resolved.value;
+          // Also resolve generic args
+          for (auto& arg : out_node.generic_args) {
+            const auto resolved_arg = ResolveType(ctx, arg);
+            if (!resolved_arg.ok) {
+              return {false, resolved_arg.diag_id, std::nullopt, {}};
+            }
+            arg = resolved_arg.value;
+          }
           SPEC_RULE("ResolveType-Path");
           return {true, std::nullopt, std::nullopt,
                   std::make_shared<syntax::Type>(std::move(out))};

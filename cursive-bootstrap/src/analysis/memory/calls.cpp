@@ -9,6 +9,7 @@
 #include "cursive0/analysis/resolve/scopes.h"
 #include "cursive0/analysis/resolve/scopes_lookup.h"
 #include "cursive0/analysis/types/subtyping.h"
+#include "cursive0/analysis/types/type_expr.h"
 #include "cursive0/analysis/caps/cap_concurrency.h"
 
 namespace cursive0::analysis {
@@ -34,7 +35,7 @@ syntax::ExprPtr MakeExpr(const core::Span& span, syntax::ExprNode node) {
   return expr;
 }
 
-bool IsPlaceExpr(const syntax::ExprPtr& expr) {
+bool IsPlaceExprLocal(const syntax::ExprPtr& expr) {
   if (!expr) {
     return false;
   }
@@ -51,13 +52,13 @@ bool IsPlaceExpr(const syntax::ExprPtr& expr) {
     return true;
   }
   if (const auto* deref = std::get_if<syntax::DerefExpr>(&expr->node)) {
-    return IsPlaceExpr(deref->value);
+    return IsPlaceExprLocal(deref->value);
   }
   return false;
 }
 
 syntax::ExprPtr MovedArgExpr(const syntax::Arg& arg) {
-  if (!arg.moved || !IsPlaceExpr(arg.value)) {
+  if (!arg.moved || !IsPlaceExprLocal(arg.value)) {
     return arg.value;
   }
   core::Span span = arg.span;
@@ -70,7 +71,7 @@ syntax::ExprPtr MovedArgExpr(const syntax::Arg& arg) {
   return MakeExpr(core::Span{}, syntax::MoveExpr{arg.value});
 }
 
-TypeRef StripPerm(const TypeRef& type) {
+TypeRef StripPermLocal(const TypeRef& type) {
   if (!type) {
     return type;
   }
@@ -95,7 +96,7 @@ struct AddrOfOkResult {
 
 AddrOfOkResult AddrOfOk(const syntax::ExprPtr& expr,
                         const ExprTypeFn& type_expr) {
-  if (!IsPlaceExpr(expr)) {
+  if (!IsPlaceExprLocal(expr)) {
     return {false, std::nullopt};
   }
   const auto* index = std::get_if<syntax::IndexAccessExpr>(&expr->node);
@@ -106,7 +107,7 @@ AddrOfOkResult AddrOfOk(const syntax::ExprPtr& expr,
   if (!idx_type.ok) {
     return {false, idx_type.diag_id};
   }
-  const auto idx_stripped = StripPerm(idx_type.type);
+  const auto idx_stripped = StripPermLocal(idx_type.type);
   if (IsPrimType(idx_stripped, "usize")) {
     return {true, std::nullopt};
   }
@@ -115,7 +116,7 @@ AddrOfOkResult AddrOfOk(const syntax::ExprPtr& expr,
   if (!base_type.ok) {
     return {false, base_type.diag_id};
   }
-  const auto stripped = StripPerm(base_type.type);
+  const auto stripped = StripPermLocal(base_type.type);
   if (stripped) {
     if (std::holds_alternative<TypeArray>(stripped->node)) {
       return {false, "Index-Array-NonUsize"};
@@ -232,7 +233,7 @@ CallTypeResult TypeCall(const ScopeContext& ctx,
   for (std::size_t i = 0; i < args.size(); ++i) {
     const auto& arg = args[i];
     if (!params[i].mode.has_value() && type_place &&
-        IsPlaceExpr(arg.value)) {
+        IsPlaceExprLocal(arg.value)) {
       const auto place_type = (*type_place)(arg.value);
       if (!place_type.ok) {
         result.diag_id = place_type.diag_id;
@@ -264,7 +265,7 @@ CallTypeResult TypeCall(const ScopeContext& ctx,
   }
 
   for (std::size_t i = 0; i < args.size(); ++i) {
-    if (!params[i].mode.has_value() && !IsPlaceExpr(args[i].value)) {
+    if (!params[i].mode.has_value() && !IsPlaceExprLocal(args[i].value)) {
       SPEC_RULE("Call-Arg-NotPlace");
       result.diag_id = "Call-Arg-NotPlace";
       return result;
@@ -307,6 +308,150 @@ CallTypeResult TypeCall(const ScopeContext& ctx,
   SPEC_RULE("T-Call");
   result.ok = true;
   result.type = func->ret;
+  return result;
+}
+
+// Type check a generic procedure call with type substitution (§13.1.2 T-Generic-Call)
+CallTypeResult TypeCallWithSubst(const ScopeContext& ctx,
+                                 const syntax::ExprPtr& callee,
+                                 const std::vector<syntax::Arg>& args,
+                                 const TypeSubst& subst,
+                                 const ExprTypeFn& type_expr,
+                                 const PlaceTypeFn* type_place) {
+  SpecDefsCalls();
+  SPEC_RULE("T-Generic-Call");
+  CallTypeResult result;
+  if (!callee) {
+    return result;
+  }
+  const auto callee_type = type_expr(callee);
+  if (!callee_type.ok) {
+    result.diag_id = callee_type.diag_id;
+    return result;
+  }
+
+  const auto* func = std::get_if<TypeFunc>(&callee_type.type->node);
+  if (!func) {
+    SPEC_RULE("Call-Callee-NotFunc");
+    result.diag_id = "Call-Callee-NotFunc";
+    return result;
+  }
+
+  const auto& params = func->params;
+  if (params.size() != args.size()) {
+    SPEC_RULE("Call-ArgCount-Err");
+    result.diag_id = "Call-ArgCount-Err";
+    return result;
+  }
+
+  // Check move annotations
+  for (std::size_t i = 0; i < args.size(); ++i) {
+    if (params[i].mode == ParamMode::Move && !args[i].moved) {
+      SPEC_RULE("Call-Move-Missing");
+      result.diag_id = "Call-Move-Missing";
+      return result;
+    }
+  }
+
+  for (std::size_t i = 0; i < args.size(); ++i) {
+    if (!params[i].mode.has_value() && args[i].moved) {
+      SPEC_RULE("Call-Move-Unexpected");
+      result.diag_id = "Call-Move-Unexpected";
+      return result;
+    }
+  }
+
+  // Type arguments with substitution applied to parameter types
+  std::vector<TypeRef> arg_types;
+  arg_types.reserve(args.size());
+  for (std::size_t i = 0; i < args.size(); ++i) {
+    const auto& arg = args[i];
+    if (!params[i].mode.has_value() && type_place &&
+        IsPlaceExprLocal(arg.value)) {
+      const auto place_type = (*type_place)(arg.value);
+      if (!place_type.ok) {
+        result.diag_id = place_type.diag_id;
+        return result;
+      }
+      arg_types.push_back(place_type.type);
+      continue;
+    }
+    const auto arg_expr = MovedArgExpr(arg);
+    const auto arg_type = type_expr(arg_expr);
+    if (!arg_type.ok) {
+      result.diag_id = arg_type.diag_id;
+      return result;
+    }
+    arg_types.push_back(arg_type.type);
+  }
+
+  // Check arg types against substituted parameter types
+  for (std::size_t i = 0; i < args.size(); ++i) {
+    // Apply substitution to parameter type (T -> concrete type)
+    const TypeRef subst_param_type = InstantiateType(params[i].type, subst);
+    const auto sub = Subtyping(ctx, arg_types[i], subst_param_type);
+    if (!sub.ok) {
+      result.diag_id = sub.diag_id;
+      return result;
+    }
+    if (!sub.subtype) {
+      SPEC_RULE("Call-ArgType-Err");
+      result.diag_id = "Generic-Call-ArgType-Err";  // Traceable diagnostic
+      return result;
+    }
+  }
+
+  for (std::size_t i = 0; i < args.size(); ++i) {
+    if (!params[i].mode.has_value() && !IsPlaceExprLocal(args[i].value)) {
+      // For generic calls, if the substituted type is Bitcopy, allow value passing
+      const TypeRef subst_param_type = InstantiateType(params[i].type, subst);
+      if (!BitcopyType(ctx, subst_param_type)) {
+        SPEC_RULE("Call-Arg-NotPlace");
+        result.diag_id = "Generic-Call-Arg-NotPlace";  // Traceable diagnostic
+        return result;
+      }
+      // Bitcopy type - value passing allowed, continue checking
+    }
+  }
+
+  if (params.empty()) {
+    SPEC_RULE("ArgsT-Empty");
+  } else {
+    for (std::size_t i = 0; i < params.size(); ++i) {
+      if (params[i].mode == ParamMode::Move) {
+        const auto moved = MovedArgExpr(args[i]);
+        const auto moved_type = type_expr(moved);
+        if (!moved_type.ok) {
+          result.diag_id = moved_type.diag_id;
+          return result;
+        }
+        // Apply substitution to parameter type
+        const TypeRef subst_param_type = InstantiateType(params[i].type, subst);
+        const auto sub = Subtyping(ctx, moved_type.type, subst_param_type);
+        if (!sub.ok) {
+          result.diag_id = sub.diag_id;
+          return result;
+        }
+        if (!sub.subtype) {
+          SPEC_RULE("Call-ArgType-Err");
+          result.diag_id = "Generic-Call-Move-ArgType-Err";  // Traceable diagnostic
+          return result;
+        }
+        SPEC_RULE("ArgsT-Cons");
+        continue;
+      }
+      const auto addr_ok = AddrOfOk(args[i].value, type_expr);
+      if (!addr_ok.ok) {
+        result.diag_id = addr_ok.diag_id;
+        return result;
+      }
+      SPEC_RULE("ArgsT-Cons-Ref");
+    }
+  }
+
+  // Return substituted return type
+  result.ok = true;
+  result.type = InstantiateType(func->ret, subst);
   return result;
 }
 

@@ -123,7 +123,9 @@ std::optional<Entity> Lookup(const ScopeContext& ctx, std::string_view name) {
 std::optional<Entity> ResolveValueName(const ScopeContext& ctx,
                                        std::string_view name) {
   SpecDefsLookup();
-  const auto ent = Lookup(ctx, name);
+  // Map ~ (receiver reference) to self
+  const std::string_view lookup_name = (name == "~") ? "self" : name;
+  const auto ent = Lookup(ctx, lookup_name);
   if (!ent.has_value()) {
     return std::nullopt;
   }

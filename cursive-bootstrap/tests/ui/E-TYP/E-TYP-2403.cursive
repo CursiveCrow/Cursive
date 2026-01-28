@@ -4,12 +4,12 @@
 // DESC: Implementing modal missing required state
 
 class Resource {
-    state Open { }
-    state Closed { }
+    @Open { }
+    @Closed { }
 }
 
 modal Handle {
-    state Active { }
+    @Active { }
 }
 
 implements Resource for Handle { } //~ ERROR E-TYP-2403

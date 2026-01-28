@@ -4,8 +4,8 @@
 // DESC: Generic modal type
 
 modal Option<T> {
-    state Some { value: T }
-    state None { }
+    @Some { value: T }
+    @None { }
 }
 
 procedure unwrap_or<T>(opt: Option<T>, default: T) -> T {

@@ -8,6 +8,7 @@
 #include "cursive0/analysis/types/context.h"
 #include "cursive0/analysis/types/place_types.h"
 #include "cursive0/analysis/types/types.h"
+#include "cursive0/analysis/generics/monomorphize.h"
 #include "cursive0/syntax/ast.h"
 
 namespace cursive0::analysis {
@@ -32,6 +33,14 @@ CallTypeResult TypeCall(const ScopeContext& ctx,
                         const std::vector<syntax::Arg>& args,
                         const ExprTypeFn& type_expr,
                         const PlaceTypeFn* type_place = nullptr);
+
+// Type check a generic procedure call with type substitution (§13.1.2 T-Generic-Call)
+CallTypeResult TypeCallWithSubst(const ScopeContext& ctx,
+                                 const syntax::ExprPtr& callee,
+                                 const std::vector<syntax::Arg>& args,
+                                 const TypeSubst& subst,
+                                 const ExprTypeFn& type_expr,
+                                 const PlaceTypeFn* type_place = nullptr);
 
 bool IsRecordCallee(const ScopeContext& ctx,
                     const syntax::ExprPtr& callee,

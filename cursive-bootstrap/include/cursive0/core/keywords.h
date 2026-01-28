@@ -5,7 +5,7 @@
 
 namespace cursive0::core {
 
-inline constexpr std::array<std::string_view, 50> kCursive0Keywords = {
+inline constexpr std::array<std::string_view, 53> kCursive0Keywords = {
     "all",
     "as",
     "break",
@@ -55,6 +55,9 @@ inline constexpr std::array<std::string_view, 50> kCursive0Keywords = {
     "yield",
     "const",
     "override",
+    "sizeof",
+    "alignof",
+    "static_assert",
 };
 
 // §3.3.4 Fixed identifiers - these are identifiers, not keywords

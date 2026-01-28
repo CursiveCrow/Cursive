@@ -1355,6 +1355,13 @@ static std::vector<syntax::ExprPtr> ChildrenLtr(const syntax::ExprPtr& expr) {
           for (const auto& elem : node.elements) {
             out.push_back(elem);
           }
+        } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+          out.push_back(node.value);
+          out.push_back(node.count);
+        } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+          // sizeof(type) has no runtime sub-expressions
+        } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+          // alignof(type) has no runtime sub-expressions
         } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
           for (const auto& field : node.fields) {
             out.push_back(field.value);

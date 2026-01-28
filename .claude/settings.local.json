@@ -88,7 +88,19 @@
       "Bash(for file in \"C:\\\\Dev\\\\Cursive\\\\cursive-bootstrap\\\\tests\\\\run-pass\\\\bindings\\\\*\"*.cursive\"\")",
       "Bash(do head -4 \"$file\")",
       "Bash(.cursivec0.exe:*)",
-      "Bash(exe \")"
+      "Bash(exe \")",
+      "Bash(cmd.exe /c \"C:\\\\Dev\\\\Cursive\\\\cursive-bootstrap\\\\build_msvc.bat Release\")",
+      "Bash(expr \")",
+      "Bash(cmd.exe //c \"build_msvc.bat\")",
+      "Bash(powershell.exe -Command \"cd ''C:/Dev/Cursive/cursive-bootstrap''; ./build_msvc.bat 2>&1\")",
+      "Bash(build_msvc.bat)",
+      "Bash(cmd /c \"cd /d C:\\\\Dev\\\\Cursive\\\\cursive-bootstrap && build_msvc.bat\")",
+      "Bash(cmd /c \"cd /d C:\\\\Dev\\\\Cursive\\\\cursive-bootstrap\\\\build && cmake --build . --config Release 2>&1\")",
+      "Bash(C:/Dev/Cursive/cursive-bootstrap/build/Release/cursivec0.exe:*)",
+      "Bash(/c/Dev/Cursive/cursive-bootstrap/build/Release/cursivec0.exe .)",
+      "Bash(cmd.exe:*)",
+      "Bash(powershell.exe -Command \"& ''C:\\\\Dev\\\\Cursive\\\\cursive-bootstrap\\\\build\\\\Release\\\\cursivec0.exe'' ''C:\\\\Users\\\\Crow\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Dev-Cursive\\\\513aae4b-fcc8-495f-a54f-2dc7be66e270\\\\scratchpad\\\\generic_test2'' 2>&1\")",
+      "Bash(powershell.exe -Command:*)"
     ],
     "deny": [
       "Bash(git: *)"

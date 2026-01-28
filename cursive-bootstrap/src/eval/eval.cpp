@@ -4474,6 +4474,48 @@ Outcome EvalSigma(const SemanticsContext& ctx,
           array.elements = std::move(std::get<std::vector<Value>>(values_out));
           SPEC_RULE("EvalSigma-Array");
           return MakeVal(Value{array});
+        } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+          auto value_out = EvalSigma(ctx, *node.value, sigma);
+          if (IsCtrl(value_out)) {
+            SPEC_RULE("EvalSigma-ArrayRepeat-Ctrl");
+            return MakeCtrl(std::get<Control>(value_out.node));
+          }
+          auto count_out = EvalSigma(ctx, *node.count, sigma);
+          if (IsCtrl(count_out)) {
+            SPEC_RULE("EvalSigma-ArrayRepeat-CountCtrl");
+            return MakeCtrl(std::get<Control>(count_out.node));
+          }
+          Value elem_val = std::get<Value>(value_out.node);
+          Value count_val = std::get<Value>(count_out.node);
+          std::uint64_t count = 0;
+          if (const auto* iv = std::get_if<IntVal>(&count_val.node)) {
+            count = core::UInt128ToU64(iv->magnitude);
+          }
+          ArrayVal array;
+          array.elements.reserve(static_cast<std::size_t>(count));
+          for (std::uint64_t i = 0; i < count; ++i) {
+            array.elements.push_back(elem_val);
+          }
+          SPEC_RULE("EvalSigma-ArrayRepeat");
+          return MakeVal(Value{array});
+        } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+          // sizeof is evaluated at compile-time; in the interpreter,
+          // return a placeholder or compute layout if possible
+          SPEC_RULE("EvalSigma-Sizeof");
+          IntVal v;
+          v.type = "usize";
+          v.negative = false;
+          v.magnitude = core::UInt128FromU64(0);  // Would need layout computation
+          return MakeVal(Value{v});
+        } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+          // alignof is evaluated at compile-time; in the interpreter,
+          // return a placeholder or compute layout if possible
+          SPEC_RULE("EvalSigma-Alignof");
+          IntVal v;
+          v.type = "usize";
+          v.negative = false;
+          v.magnitude = core::UInt128FromU64(1);  // Would need layout computation
+          return MakeVal(Value{v});
         } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
           auto fields_out = EvalFieldInitsSigma(ctx, node.fields, sigma);
           if (std::holds_alternative<Control>(fields_out)) {
@@ -4486,6 +4528,10 @@ Outcome EvalSigma(const SemanticsContext& ctx,
           } else if (const auto* path =
                          std::get_if<syntax::TypePath>(&node.target)) {
             record.record_type = analysis::MakeTypePath(TypePathOf(*path));
+          } else if (const auto* gen_ref =
+                         std::get_if<syntax::GenericTypeRef>(&node.target)) {
+            // GenericTypeRef case - use path without generics for eval fallback
+            record.record_type = analysis::MakeTypePath(TypePathOf(gen_ref->path));
           } else if (const auto* modal =
                          std::get_if<syntax::ModalStateRef>(&node.target)) {
             record.record_type =

@@ -17,7 +17,7 @@ enum Color {
 procedure unwrap_option(opt: Option) -> i32 {
     return match opt {
         Option::None => { 0 }
-        Option::Some(v) => { v }
+        Option::Some(v;) => { v }
     }
 }
 

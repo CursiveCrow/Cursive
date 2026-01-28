@@ -35,8 +35,8 @@ static constexpr std::array<std::string_view, 12> kIntSuffixes = {
     "i128", "u128", "isize", "usize", "i64", "u64",
     "i32",  "u32",  "i16",   "u16",  "i8",  "u8"};
 
-static constexpr std::array<std::string_view, 3> kFloatSuffixes = {
-    "f16", "f32", "f64"};
+static constexpr std::array<std::string_view, 4> kFloatSuffixes = {
+    "f16", "f32", "f64", "f"};
 
 static constexpr std::array<std::string_view, 12> kIntTypes = {
     "i8",   "i16",  "i32",  "i64",  "i128", "u8",
@@ -305,14 +305,23 @@ ExprTypeResult TypeLiteralExpr(const ScopeContext& ctx,
     }
     case syntax::TokenKind::FloatLiteral: {
       if (const auto suffix = FloatSuffix(lit)) {
-        SPEC_RULE("T-Float-Literal-Suffix");
+        // Bare 'f' suffix defaults to f32
+        if (*suffix == "f") {
+          SPEC_RULE("T-Float-Literal-Infer");
+          result.ok = true;
+          result.type = MakeTypePrim("f32");
+          return result;
+        }
+        // Explicit width suffix (f16, f32, f64)
+        SPEC_RULE("T-Float-Literal-Explicit");
         result.ok = true;
         result.type = MakeTypePrim(std::string(*suffix));
         return result;
       }
-      SPEC_RULE("T-Float-Literal-Default");
+      // Suffix is required, but if somehow missing, default to f32
+      SPEC_RULE("T-Float-Literal-Infer");
       result.ok = true;
-      result.type = MakeTypePrim("f64");
+      result.type = MakeTypePrim("f32");
       return result;
     }
     case syntax::TokenKind::BoolLiteral:
@@ -378,8 +387,22 @@ LiteralCheckResult CheckLiteralExpr(const ScopeContext& ctx,
     if (!prim || !IsFloatTypeName(prim->name)) {
       return result;
     }
-    SPEC_RULE("Chk-Float-Literal");
-    result.ok = true;
+    const auto suffix = FloatSuffix(lit);
+    // Bare 'f' suffix accepts any float type from context
+    if (!suffix.has_value() || *suffix == "f") {
+      SPEC_RULE("Chk-Float-Literal-Infer");
+      result.ok = true;
+      return result;
+    }
+    // Explicit suffix must match expected type
+    if (*suffix == prim->name) {
+      SPEC_RULE("Chk-Float-Literal-Explicit");
+      result.ok = true;
+      return result;
+    }
+    // Explicit suffix mismatch - error
+    SPEC_RULE("Chk-Float-Literal-Mismatch-Err");
+    result.diag_id = "E-TYP-1531";
     return result;
   }
   if (lit.kind == syntax::TokenKind::NullLiteral) {

@@ -3,11 +3,11 @@
 // SPEC: 16
 // DESC: Basic async procedure
 
-async procedure compute() -> Future[i32] {
+async procedure compute() -> Future<i32> {
     return 42
 }
 
 public procedure main(move ctx: Context) -> i32 {
-    let f: Future[i32] = compute()
+    let f: Future<i32> = compute()
     return sync f
 }

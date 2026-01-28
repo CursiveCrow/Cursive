@@ -81,6 +81,8 @@ bool IsExprStart(const Token& tok) {
            tok.lexeme == "loop" || tok.lexeme == "unsafe" ||
            tok.lexeme == "move" || tok.lexeme == "transmute" ||
            tok.lexeme == "widen" ||
+           // Layout intrinsics
+           tok.lexeme == "sizeof" || tok.lexeme == "alignof" ||
            // C0X Extension: Structured Concurrency (§2.7)
            tok.lexeme == "parallel" || tok.lexeme == "spawn" ||
            tok.lexeme == "dispatch" ||
@@ -945,6 +947,52 @@ ParseElemResult<ExprPtr> ParsePrimary(Parser parser, bool allow_brace) {
     return {next, MakeExpr(tok->span, lit)};
   }
 
+  // Parse sizeof(type)
+  if (tok && tok->kind == TokenKind::Keyword && tok->lexeme == "sizeof") {
+    SPEC_RULE("Parse-Sizeof");
+    Parser next = parser;
+    Advance(next);
+    if (!IsPunc(next, "(")) {
+      EmitParseSyntaxErr(next, TokSpan(next));
+      return {next, MakeExpr(TokSpan(parser), ErrorExpr{})};
+    }
+    Parser after_lparen = next;
+    Advance(after_lparen);
+    ParseElemResult<std::shared_ptr<Type>> type = ParseType(after_lparen);
+    if (!IsPunc(type.parser, ")")) {
+      EmitParseSyntaxErr(type.parser, TokSpan(type.parser));
+      return {type.parser, MakeExpr(TokSpan(parser), ErrorExpr{})};
+    }
+    Parser after = type.parser;
+    Advance(after);
+    SizeofExpr expr;
+    expr.type = type.elem;
+    return {after, MakeExpr(SpanBetween(parser, after), expr)};
+  }
+
+  // Parse alignof(type)
+  if (tok && tok->kind == TokenKind::Keyword && tok->lexeme == "alignof") {
+    SPEC_RULE("Parse-Alignof");
+    Parser next = parser;
+    Advance(next);
+    if (!IsPunc(next, "(")) {
+      EmitParseSyntaxErr(next, TokSpan(next));
+      return {next, MakeExpr(TokSpan(parser), ErrorExpr{})};
+    }
+    Parser after_lparen = next;
+    Advance(after_lparen);
+    ParseElemResult<std::shared_ptr<Type>> type = ParseType(after_lparen);
+    if (!IsPunc(type.parser, ")")) {
+      EmitParseSyntaxErr(type.parser, TokSpan(type.parser));
+      return {type.parser, MakeExpr(TokSpan(parser), ErrorExpr{})};
+    }
+    Parser after = type.parser;
+    Advance(after);
+    AlignofExpr expr;
+    expr.type = type.elem;
+    return {after, MakeExpr(SpanBetween(parser, after), expr)};
+  }
+
   if (tok && IsIdentTok(*tok) && tok->lexeme == "Ptr") {
     Parser next = parser;
     Advance(next);
@@ -981,6 +1029,16 @@ ParseElemResult<ExprPtr> ParsePrimary(Parser parser, bool allow_brace) {
     return {expr.parser, MakeExpr(SpanBetween(parser, expr.parser), alloc)};
   }
 
+  // Receiver reference: ~ is used inside method bodies to access the receiver
+  if (tok && IsOpTok(*tok, "~")) {
+    SPEC_RULE("Parse-Receiver-Ref");
+    Parser next = parser;
+    Advance(next);
+    IdentifierExpr ident;
+    ident.name = "~";
+    return {next, MakeExpr(tok->span, ident)};
+  }
+
   // C0X Extension: wait expression (contextual keyword) - must be checked before
   // general identifier parsing to prevent `wait` being consumed as simple ident
   if (tok && tok->kind == TokenKind::Identifier && tok->lexeme == "wait") {
@@ -1002,8 +1060,10 @@ ParseElemResult<ExprPtr> ParsePrimary(Parser parser, bool allow_brace) {
     const bool is_modal = look && IsOpTok(*look, "@");
     const bool is_record = look &&
         look->kind == TokenKind::Punctuator && look->lexeme == "{";
+    const bool is_generic = look && IsOpTok(*look, "<");
     if (!look || (!is_qual && (!allow_brace || !is_modal) &&
-                  (!allow_brace || !is_record))) {
+                  (!allow_brace || !is_record) &&
+                  (!allow_brace || !is_generic))) {
       SPEC_RULE("Parse-Identifier-Expr");
       // Check for unsupported lexemes used as identifiers
       if (core::IsUnsupportedLexeme(tok->lexeme)) {
@@ -1115,21 +1175,76 @@ ParseElemResult<ExprPtr> ParsePrimary(Parser parser, bool allow_brace) {
   }
 
   if (tok && IsPuncTok(*tok, "[")) {
-    SPEC_RULE("Parse-Array-Literal");
     Parser next = parser;
     Advance(next);
-    ParseElemResult<std::vector<ExprPtr>> elems = ParseExprList(next);
-    if (!IsPunc(elems.parser, "]")) {
-      EmitParseSyntaxErr(elems.parser, TokSpan(elems.parser));
-      Parser sync = elems.parser;
-      SyncStmt(sync);
-      return {sync, MakeExpr(SpanBetween(parser, sync), ErrorExpr{})};
+
+    // Empty array []
+    if (IsPunc(next, "]")) {
+      SPEC_RULE("Parse-Array-Literal-Empty");
+      Parser after = next;
+      Advance(after);
+      ArrayExpr arr;
+      return {after, MakeExpr(SpanBetween(parser, after), arr)};
     }
-    Parser after = elems.parser;
-    Advance(after);
-    ArrayExpr arr;
-    arr.elements = std::move(elems.elem);
-    return {after, MakeExpr(SpanBetween(parser, after), arr)};
+
+    // Parse first expression
+    ParseElemResult<ExprPtr> first = ParseExpr(next);
+
+    // Check for repeat syntax [expr; count]
+    if (IsPunc(first.parser, ";")) {
+      SPEC_RULE("Parse-Array-Repeat");
+      Parser after_semi = first.parser;
+      Advance(after_semi);
+      ParseElemResult<ExprPtr> count = ParseExpr(after_semi);
+      if (!IsPunc(count.parser, "]")) {
+        EmitParseSyntaxErr(count.parser, TokSpan(count.parser));
+        Parser sync = count.parser;
+        SyncStmt(sync);
+        return {sync, MakeExpr(SpanBetween(parser, sync), ErrorExpr{})};
+      }
+      Parser after = count.parser;
+      Advance(after);
+      ArrayRepeatExpr rep;
+      rep.value = first.elem;
+      rep.count = count.elem;
+      return {after, MakeExpr(SpanBetween(parser, after), rep)};
+    }
+
+    // Check for closing bracket (single-element array)
+    if (IsPunc(first.parser, "]")) {
+      SPEC_RULE("Parse-Array-Literal-Single");
+      Parser after = first.parser;
+      Advance(after);
+      ArrayExpr arr;
+      arr.elements.push_back(first.elem);
+      return {after, MakeExpr(SpanBetween(parser, after), arr)};
+    }
+
+    // Parse comma-separated list
+    if (IsPunc(first.parser, ",")) {
+      SPEC_RULE("Parse-Array-Literal-List");
+      std::vector<ExprPtr> elems;
+      elems.push_back(first.elem);
+      Parser after_comma = first.parser;
+      Advance(after_comma);
+      ParseElemResult<std::vector<ExprPtr>> rest = ParseExprListTail(after_comma, std::move(elems));
+      if (!IsPunc(rest.parser, "]")) {
+        EmitParseSyntaxErr(rest.parser, TokSpan(rest.parser));
+        Parser sync = rest.parser;
+        SyncStmt(sync);
+        return {sync, MakeExpr(SpanBetween(parser, sync), ErrorExpr{})};
+      }
+      Parser after = rest.parser;
+      Advance(after);
+      ArrayExpr arr;
+      arr.elements = std::move(rest.elem);
+      return {after, MakeExpr(SpanBetween(parser, after), arr)};
+    }
+
+    EmitParseSyntaxErr(first.parser, TokSpan(first.parser));
+    Parser sync = first.parser;
+    SyncStmt(sync);
+    return {sync, MakeExpr(SpanBetween(parser, sync), ErrorExpr{})};
   }
 
   if (allow_brace && tok && IsIdentTok(*tok)) {
@@ -1137,11 +1252,42 @@ ParseElemResult<ExprPtr> ParsePrimary(Parser parser, bool allow_brace) {
     Parser next = parser;
     Advance(next);
     const Token* look = Tok(next);
-    if (look && (IsOpTok(*look, "@") || IsPuncTok(*look, "{"))) {
+    // Check for @ or { immediately, or < (generic args) followed by @ or {
+    if (look && (IsOpTok(*look, "@") || IsPuncTok(*look, "{") ||
+                 IsOpTok(*look, "<"))) {
       ParseElemResult<TypePath> path = ParseTypePath(start);
-      if (IsOp(path.parser, "@")) {
+
+      // Parse optional generic args <T1, T2, ...>
+      std::vector<std::shared_ptr<Type>> generic_args;
+      Parser cur = path.parser;
+      if (IsOp(cur, "<")) {
+        Parser after_lt = cur;
+        Advance(after_lt);  // consume <
+
+        // Parse first type arg
+        ParseElemResult<std::shared_ptr<Type>> first_arg = ParseType(after_lt);
+        generic_args.push_back(first_arg.elem);
+        cur = first_arg.parser;
+
+        // Parse additional args separated by ; or ,
+        while (IsPunc(cur, ";") || IsPunc(cur, ",")) {
+          Advance(cur);
+          ParseElemResult<std::shared_ptr<Type>> arg = ParseType(cur);
+          generic_args.push_back(arg.elem);
+          cur = arg.parser;
+        }
+
+        // Expect >
+        if (!IsOp(cur, ">")) {
+          EmitParseSyntaxErr(cur, TokSpan(cur));
+        } else {
+          Advance(cur);
+        }
+      }
+
+      if (IsOp(cur, "@")) {
         SPEC_RULE("Parse-Record-Literal-ModalState");
-        Parser after_at = path.parser;
+        Parser after_at = cur;
         Advance(after_at);
         ParseElemResult<Identifier> state = ParseIdent(after_at);
         if (!IsPunc(state.parser, "{")) {
@@ -1164,14 +1310,15 @@ ParseElemResult<ExprPtr> ParsePrimary(Parser parser, bool allow_brace) {
         RecordExpr rec;
         ModalStateRef modal;
         modal.path = path.elem;
+        modal.generic_args = std::move(generic_args);
         modal.state = state.elem;
         rec.target = modal;
         rec.fields = std::move(fields.elem);
         return {after, MakeExpr(SpanBetween(parser, after), rec)};
       }
-      if (IsPunc(path.parser, "{") && path.elem.size() == 1) {
+      if (IsPunc(cur, "{") && path.elem.size() == 1) {
         SPEC_RULE("Parse-Record-Literal");
-        Parser after_l = path.parser;
+        Parser after_l = cur;
         Advance(after_l);
         ParseElemResult<std::vector<FieldInit>> fields = ParseFieldInitList(after_l);
         if (!IsPunc(fields.parser, "}")) {
@@ -1183,9 +1330,40 @@ ParseElemResult<ExprPtr> ParsePrimary(Parser parser, bool allow_brace) {
         Parser after = fields.parser;
         Advance(after);
         RecordExpr rec;
-        rec.target = path.elem;
+        if (generic_args.empty()) {
+          rec.target = path.elem;
+        } else {
+          GenericTypeRef gen_ref;
+          gen_ref.path = path.elem;
+          gen_ref.generic_args = std::move(generic_args);
+          rec.target = gen_ref;
+        }
         rec.fields = std::move(fields.elem);
         return {after, MakeExpr(SpanBetween(parser, after), rec)};
+      }
+      // Generic procedure call: identifier<types>(args)  (§13.1.2)
+      if (IsPunc(cur, "(") && !generic_args.empty() && path.elem.size() == 1) {
+        SPEC_RULE("Parse-Generic-Procedure-Call");
+        Parser after_l = cur;
+        Advance(after_l);
+        ParseElemResult<std::vector<Arg>> args = ParseArgList(after_l);
+        if (!IsPunc(args.parser, ")")) {
+          EmitParseSyntaxErr(args.parser, TokSpan(args.parser));
+          Parser sync = args.parser;
+          SyncStmt(sync);
+          return {sync, MakeExpr(SpanBetween(parser, sync), ErrorExpr{})};
+        }
+        Parser after = args.parser;
+        Advance(after);
+        // Create identifier expression for the callee
+        IdentifierExpr ident;
+        ident.name = path.elem[0];
+        auto callee = MakeExpr(SpanBetween(start, cur), ident);
+        CallExpr call;
+        call.callee = callee;
+        call.generic_args = std::move(generic_args);
+        call.args = std::move(args.elem);
+        return {after, MakeExpr(SpanBetween(parser, after), call)};
       }
     }
   }

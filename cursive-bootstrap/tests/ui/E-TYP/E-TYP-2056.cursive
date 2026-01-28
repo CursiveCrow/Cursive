@@ -4,8 +4,8 @@
 // DESC: Transition invoked on value not of declared source state
 
 modal Counter {
-    state Zero {}
-    state NonZero { value: i32 }
+    @Zero {}
+    @NonZero { value: i32 }
 
     transition Zero -> NonZero increment(~) {
         return Counter@NonZero{ value: 1 }

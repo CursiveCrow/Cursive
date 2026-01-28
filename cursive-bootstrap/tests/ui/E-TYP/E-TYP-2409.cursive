@@ -4,9 +4,9 @@
 // DESC: Duplicate abstract state name in class
 
 class Resource {
-    state Open { }
-    state Open { } //~ ERROR E-TYP-2409
-    state Closed { }
+    @Open { }
+    @Open { } //~ ERROR E-TYP-2409
+    @Closed { }
 }
 
 public procedure main(move ctx: Context) -> i32 {

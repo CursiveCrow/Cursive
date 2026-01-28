@@ -4,15 +4,15 @@
 // DESC: Implementing state missing required payload field
 
 class Resource {
-    state Open {
+    @Open {
         handle: i32
     }
-    state Closed { }
+    @Closed { }
 }
 
 modal MyResource {
-    state Open { }
-    state Closed { }
+    @Open { }
+    @Closed { }
 }
 
 implements Resource for MyResource { } //~ ERROR E-TYP-2405

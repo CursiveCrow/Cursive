@@ -4,8 +4,8 @@
 // DESC: Modal state method
 
 modal Counter {
-    state Zero {}
-    state NonZero {
+    @Zero {}
+    @NonZero {
         value: i32
 
         procedure get(~) -> i32 {

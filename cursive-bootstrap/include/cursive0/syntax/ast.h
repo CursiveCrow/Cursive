@@ -297,13 +297,32 @@ struct ArrayExpr {
   std::vector<ExprPtr> elements;
 };
 
+struct ArrayRepeatExpr {
+  ExprPtr value;
+  ExprPtr count;
+};
+
+struct SizeofExpr {
+  std::shared_ptr<Type> type;
+};
+
+struct AlignofExpr {
+  std::shared_ptr<Type> type;
+};
+
+struct GenericTypeRef {
+  TypePath path;
+  std::vector<std::shared_ptr<Type>> generic_args;
+};
+
 struct ModalStateRef {
   TypePath path;
+  std::vector<std::shared_ptr<Type>> generic_args;
   Identifier state;
 };
 
 struct RecordExpr {
-  std::variant<TypePath, ModalStateRef> target;
+  std::variant<TypePath, GenericTypeRef, ModalStateRef> target;
   std::vector<FieldInit> fields;
 };
 
@@ -458,6 +477,7 @@ struct IndexAccessExpr {
 
 struct CallExpr {
   ExprPtr callee;
+  std::vector<std::shared_ptr<Type>> generic_args;  // §13.1.2 generic_call
   std::vector<Arg> args;
 };
 
@@ -652,6 +672,9 @@ using ExprNode = std::variant<ErrorExpr,
                               PtrNullExpr,
                               TupleExpr,
                               ArrayExpr,
+                              ArrayRepeatExpr,
+                              SizeofExpr,
+                              AlignofExpr,
                               RecordExpr,
                               EnumLiteralExpr,
                               IfExpr,
@@ -777,6 +800,11 @@ struct ErrorStmt {
   core::Span span;
 };
 
+struct StaticAssertStmt {
+  ExprPtr condition;
+  core::Span span;
+};
+
 // C0X Extension: Key System AST nodes (KeyBlockMod and KeyBlockStmt)
 enum class KeyBlockMod {
   Dynamic,
@@ -807,6 +835,7 @@ using Stmt = std::variant<LetStmt,
                           ContinueStmt,
                           UnsafeBlockStmt,
                           KeyBlockStmt,
+                          StaticAssertStmt,
                           ErrorStmt>;
 
 struct Block {

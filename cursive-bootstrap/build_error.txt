@@ -1,8 +1,0 @@
-'vswhere.exe' is not recognized as an internal or external command,
-operable program or batch file.
-NMAKE : fatal error U1073: don't know how to make '"C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\DIA SDK\lib\amd64\diaguids.lib"'
-Stop.
-NMAKE : fatal error U1077: '"C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.50.35717\bin\HostX64\x64\nmake.exe" -s -f CMakeFiles\cursivec0.dir\build.make /nologo -SL                 CMakeFiles\cursivec0.dir\build' : return code '0x2'
-Stop.
-NMAKE : fatal error U1077: '"C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.50.35717\bin\HostX64\x64\nmake.exe" -s -f CMakeFiles\Makefile2 /nologo -LS                 all' : return code '0x2'
-Stop.

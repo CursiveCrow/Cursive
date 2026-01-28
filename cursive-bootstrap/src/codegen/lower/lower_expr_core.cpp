@@ -464,6 +464,13 @@ struct CaptureCollector {
             for (const auto& elem : node.elements) {
               VisitExpr(elem);
             }
+          } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+            VisitExpr(node.value);
+            VisitExpr(node.count);
+          } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+            // No sub-expressions to visit (type is not a runtime expression)
+          } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+            // No sub-expressions to visit (type is not a runtime expression)
           } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
             for (const auto& field : node.fields) {
               VisitExpr(field.value);
@@ -642,6 +649,8 @@ struct CaptureCollector {
             if (node.body) {
               VisitBlock(*node.body);
             }
+          } else if constexpr (std::is_same_v<T, syntax::StaticAssertStmt>) {
+            VisitExpr(node.condition);
           }
         },
         stmt);
@@ -839,6 +848,15 @@ std::vector<syntax::ExprPtr> ChildrenLTR(const syntax::Expr& expr) {
         } else if constexpr (std::is_same_v<T, syntax::ArrayExpr>) {
           SPEC_RULE("EvalOrder-Array");
           return node.elements;
+        } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+          SPEC_RULE("EvalOrder-ArrayRepeat");
+          return {node.value, node.count};
+        } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+          SPEC_RULE("EvalOrder-Sizeof");
+          return {};
+        } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+          SPEC_RULE("EvalOrder-Alignof");
+          return {};
         } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
           SPEC_RULE("EvalOrder-Record");
           return FieldExprs(node.fields);
@@ -1337,6 +1355,67 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
           return LowerTuple(node, ctx);
         } else if constexpr (std::is_same_v<T, syntax::ArrayExpr>) {
           return LowerArray(node, ctx);
+        } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+          SPEC_RULE("Lower-Expr-ArrayRepeat");
+          // Lower value and count expressions
+          auto value_result = LowerExpr(*node.value, ctx);
+          auto count_result = LowerExpr(*node.count, ctx);
+          // Build array with repeated value
+          IRValue array_value = ctx.FreshTempValue("array_repeat");
+          DerivedValueInfo info;
+          info.kind = DerivedValueInfo::Kind::ArrayRepeat;
+          info.repeat_value = value_result.value;
+          info.repeat_count = count_result.value;
+          ctx.RegisterDerivedValue(array_value, info);
+          return LowerResult{SeqIR({value_result.ir, count_result.ir}), array_value};
+        } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+          SPEC_RULE("Lower-Expr-Sizeof");
+          if (!ctx.sigma) {
+            ctx.ReportCodegenFailure();
+            return LowerResult{EmptyIR(), IRValue{}};
+          }
+          analysis::ScopeContext scope;
+          scope.sigma = *ctx.sigma;
+          scope.current_module = ctx.module_path;
+          auto lowered = LowerTypeForLayout(scope, node.type);
+          if (!lowered) {
+            ctx.ReportCodegenFailure();
+            return LowerResult{EmptyIR(), IRValue{}};
+          }
+          auto layout = LayoutOf(scope, *lowered);
+          if (!layout) {
+            ctx.ReportCodegenFailure();
+            return LowerResult{EmptyIR(), IRValue{}};
+          }
+          IRValue value;
+          value.kind = IRValue::Kind::Immediate;
+          value.name = std::to_string(layout->size);
+          value.bytes = EncodeU64BE(layout->size);
+          return LowerResult{EmptyIR(), value};
+        } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+          SPEC_RULE("Lower-Expr-Alignof");
+          if (!ctx.sigma) {
+            ctx.ReportCodegenFailure();
+            return LowerResult{EmptyIR(), IRValue{}};
+          }
+          analysis::ScopeContext scope;
+          scope.sigma = *ctx.sigma;
+          scope.current_module = ctx.module_path;
+          auto lowered = LowerTypeForLayout(scope, node.type);
+          if (!lowered) {
+            ctx.ReportCodegenFailure();
+            return LowerResult{EmptyIR(), IRValue{}};
+          }
+          auto layout = LayoutOf(scope, *lowered);
+          if (!layout) {
+            ctx.ReportCodegenFailure();
+            return LowerResult{EmptyIR(), IRValue{}};
+          }
+          IRValue value;
+          value.kind = IRValue::Kind::Immediate;
+          value.name = std::to_string(layout->align);
+          value.bytes = EncodeU64BE(layout->align);
+          return LowerResult{EmptyIR(), value};
         } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
           return LowerRecord(node, ctx);
         } else if constexpr (std::is_same_v<T, syntax::EnumLiteralExpr>) {

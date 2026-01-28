@@ -9,7 +9,7 @@ public procedure main(move ctx: Context) -> i32 {
     let c: i32 = 4 ** 1
     let d: i32 = 5 ** 0
 
-    let e: f64 = 2.0 ** 3.0
+    let e: f64 = 2.0f64 ** 3.0f64
     let f: f32 = 2.0f32 ** 2.0f32
 
     return a

@@ -327,6 +327,7 @@ std::size_t MatchIntSuffix(const std::vector<UnicodeScalar>& scalars,
 
 std::size_t MatchFloatSuffix(const std::vector<UnicodeScalar>& scalars,
                              std::size_t start) {
+  // Check for explicit width suffixes first (longer matches)
   static constexpr std::string_view kFloatSuffixes[] = {
       "f16",
       "f32",
@@ -336,6 +337,13 @@ std::size_t MatchFloatSuffix(const std::vector<UnicodeScalar>& scalars,
     const std::size_t len = MatchSuffix(scalars, start, suf);
     if (len > 0) {
       return len;
+    }
+  }
+  // Check for bare 'f' suffix (width inferred from context)
+  if (start < scalars.size() && scalars[start] == 'f') {
+    // Make sure it's not followed by a digit (which would be f16/f32/f64)
+    if (start + 1 >= scalars.size() || !IsDecDigit(scalars[start + 1])) {
+      return 1;
     }
   }
   return 0;

@@ -7,7 +7,7 @@ record Counter {
     var value: i32
 }
 
-async procedure yield_with_key(c: shared Counter) -> Sequence[i32] {
+async procedure yield_with_key(c: shared Counter) -> Sequence<i32> {
     # write c {
         yield c.value  //~ ERROR E-CON-0213: yield while key held
     }

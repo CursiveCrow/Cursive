@@ -4,8 +4,8 @@
 // DESC: Modal widening involves large payload copy (>256 bytes)
 
 modal LargeModal {
-    state Big { data: [i32; 100] }
-    state Small { }
+    @Big { data: [i32; 100] }
+    @Small { }
 }
 
 public procedure main(move ctx: Context) -> i32 {

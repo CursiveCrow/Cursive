@@ -10,8 +10,8 @@ enum Result {
 
 procedure extract(r: Result) -> i32 {
     return match r {
-        Result::Ok(v) => { v }
-        Result::Err(e) => { e }
+        Result::Ok(v;) => { v }
+        Result::Err(e;) => { e }
     }
 }
 

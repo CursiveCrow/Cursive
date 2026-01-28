@@ -3,7 +3,7 @@
 // SPEC: 16
 // DESC: Async sequence with yield
 
-async procedure generate() -> Sequence[i32] {
+async procedure generate() -> Sequence<i32> {
     yield 1
     yield 2
     yield 3
@@ -12,7 +12,7 @@ async procedure generate() -> Sequence[i32] {
 
 public procedure main(move ctx: Context) -> i32 {
     var sum: i32 = 0
-    let seq: Sequence[i32] = generate()
+    let seq: Sequence<i32> = generate()
     loop item in sync seq {
         sum = sum + item
     }

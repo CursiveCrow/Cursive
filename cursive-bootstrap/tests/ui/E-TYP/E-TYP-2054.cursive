@@ -4,7 +4,7 @@
 // DESC: State name collides with modal type name
 
 modal Resource {  //~ ERROR E-TYP-2054: state name collides with modal name
-    state Resource {}
+    @Resource {}
 }
 
 public procedure main(move ctx: Context) -> i32 {

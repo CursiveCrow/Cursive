@@ -103,6 +103,7 @@ static constexpr DiagMapEntry kTypecheckDiagMap[] = {
   {"E-CON-0271", "E-CON-0271"},  // all In != ()
   {"E-TYP-2510", "E-TYP-2510"},  // opaque member access
   {"E-TYP-2511", "E-TYP-2511"},  // opaque return type mismatch
+  {"E-TYP-1531", "E-TYP-1531"},  // float literal explicit suffix mismatch
   {"E-TYP-1953", "E-TYP-1953"},  // refinement not provable
   {"E-TYP-1954", "E-TYP-1954"},  // impure refinement predicate
   {"E-TYP-1955", "E-TYP-1955"},  // non-bool refinement predicate

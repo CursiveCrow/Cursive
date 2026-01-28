@@ -4,8 +4,8 @@
 // DESC: Transition body returns value not matching declared target state
 
 modal Counter {
-    state Zero {}
-    state NonZero { value: i32 }
+    @Zero {}
+    @NonZero { value: i32 }
 
     transition Zero -> NonZero increment(~) {
         return Counter@Zero{}  //~ ERROR E-TYP-2055: transition body state mismatch

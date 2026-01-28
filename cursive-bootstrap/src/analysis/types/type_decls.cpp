@@ -1292,6 +1292,13 @@ static bool ExprContainsIdent(const syntax::ExprPtr& expr,
             }
           }
           return false;
+        } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+          return ExprContainsIdent(node.value, name) ||
+                 ExprContainsIdent(node.count, name);
+        } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+          return false;
+        } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+          return false;
         } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
           for (const auto& field : node.fields) {
             if (ExprContainsIdent(field.value, name)) {
@@ -1455,6 +1462,15 @@ static syntax::ExprPtr SubstituteIdent(const syntax::ExprPtr& expr,
             elem = SubstituteIdent(elem, name, replacement);
           }
           return make_expr(out);
+        } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+          auto out = node;
+          out.value = SubstituteIdent(node.value, name, replacement);
+          out.count = SubstituteIdent(node.count, name, replacement);
+          return make_expr(out);
+        } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+          return expr;
+        } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+          return expr;
         } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
           auto out = node;
           for (auto& field : out.fields) {
@@ -1606,6 +1622,15 @@ static bool ExprUsesTypePath(const syntax::ExprPtr& expr,
             if (TypePathEq(*path, target)) {
               return true;
             }
+          } else if (const auto* gen_ref = std::get_if<syntax::GenericTypeRef>(&node.target)) {
+            if (TypePathEq(gen_ref->path, target)) {
+              return true;
+            }
+            for (const auto& arg : gen_ref->generic_args) {
+              if (TypeMentionsPath(arg, target)) {
+                return true;
+              }
+            }
           }
           for (const auto& field : node.fields) {
             if (ExprUsesTypePath(field.value, target)) {
@@ -1713,6 +1738,15 @@ static bool ExprUsesTypePath(const syntax::ExprPtr& expr,
               return true;
             }
           }
+          return false;
+        } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+          return ExprUsesTypePath(node.value, target) ||
+                 ExprUsesTypePath(node.count, target);
+        } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+          // sizeof(type) - type argument is a compile-time constant
+          return false;
+        } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+          // alignof(type) - type argument is a compile-time constant
           return false;
         } else if constexpr (std::is_same_v<T, syntax::IfExpr>) {
           return ExprUsesTypePath(node.cond, target) ||

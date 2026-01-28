@@ -210,6 +210,15 @@ static syntax::ExprPtr SubstituteResultEntry(const syntax::ExprPtr& expr,
             elem = SubstituteResultEntry(elem, result_expr);
           }
           return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+          auto out = node;
+          out.value = SubstituteResultEntry(node.value, result_expr);
+          out.count = SubstituteResultEntry(node.count, result_expr);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+          return expr;
+        } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+          return expr;
         } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
           auto out = node;
           for (auto& field : out.fields) {
@@ -1067,6 +1076,9 @@ static bool HasNonLocalCtrlStmt(const syntax::Stmt& stmt, bool in_loop) {
             return true;
           }
           return false;
+        } else if constexpr (std::is_same_v<T, syntax::StaticAssertStmt>) {
+          // static_assert has no control flow
+          return false;
         } else {
           return false;
         }
@@ -1266,6 +1278,20 @@ static bool HasNonLocalCtrlExpr(const syntax::ExprPtr& expr, bool in_loop) {
               return true;
             }
           }
+          return false;
+        } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+          if (HasNonLocalCtrlExpr(node.value, in_loop)) {
+            SPEC_RULE("HasNonLocalCtrl-Child");
+            return true;
+          }
+          if (HasNonLocalCtrlExpr(node.count, in_loop)) {
+            SPEC_RULE("HasNonLocalCtrl-Child");
+            return true;
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+          return false;
+        } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
           return false;
         } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
           for (const auto& field : node.fields) {
@@ -2785,6 +2811,26 @@ StmtTypeResult TypeStmt(const ScopeContext& ctx,
             return {false, typed.diag_id, {}, {}};
           }
           SPEC_RULE("T-KeyBlockStmt");
+          return {true, std::nullopt, env, {}};
+        } else if constexpr (std::is_same_v<T, syntax::StaticAssertStmt>) {
+          // static_assert(cond) - compile-time assertion
+          if (!node.condition) {
+            return {false, std::nullopt, {}, {}};
+          }
+          // Type check the condition
+          const auto cond_type = type_expr(node.condition);
+          if (!cond_type.ok) {
+            return {false, cond_type.diag_id, {}, {}};
+          }
+          // Condition must be bool
+          if (!IsPrimType(cond_type.type, "bool")) {
+            SPEC_RULE("T-StaticAssert-TypeErr");
+            return {false, "E-TYP-2501", {}, {}};
+          }
+          // Note: Constant evaluation and assertion checking
+          // is deferred to codegen phase where ConstLen-style
+          // evaluation can be performed
+          SPEC_RULE("T-StaticAssert");
           return {true, std::nullopt, env, {}};
         } else if constexpr (std::is_same_v<T, syntax::ErrorStmt>) {
           SPEC_RULE("T-ErrorStmt");

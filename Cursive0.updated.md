@@ -9,6 +9,7 @@
   - [1. Foundations](#1-foundations)
     - [1.1. Conformance](#11-conformance)
     - [1.2. Behavior Types](#12-behavior-types)
+    - [1.3. Authority Model](#13-authority-model)
     - [1.4. Unsupported Constructs Policy](#14-unsupported-constructs-policy)
     - [1.5. Target and ABI Assumptions](#15-target-and-abi-assumptions)
     - [1.6. Diagnostics Infrastructure](#16-diagnostics-infrastructure)
@@ -117,9 +118,10 @@ PhaseSection(Phase4) = 6
 ### 0.2. Deviations from the Root Specification (Cursive0)
 
 **DeviationId.**
-DeviationId = {D_BootstrapEquivalence, D_SourceNormalization, D_ModuleOrdering, D_KeywordReservation, D_GenericTokenization, D_UnsafeSpanClassification, D_GroupingTrailingCommas, D_UnsupportedGrammarFamilies, D_OverloadingScope, D_Permissions, D_ParamPassing, D_PointerAddressOf, D_RegionOptionsSyntax, D_TypeInference, D_RecordUpdate, D_RangeExpressions, D_RangePatterns, D_FieldVisibilityDefault, D_EnumDiscriminantControls, D_UnionLayout, D_LayoutAttributes, D_CallingConventionToolchain, D_SymbolVisibilityMechanism, D_FileSystemSemantics}
+DeviationId = {D_BootstrapEquivalence, D_SourceNormalization, D_ModuleOrdering, D_KeywordReservation, D_GenericTokenization, D_UnsafeSpanClassification, D_GroupingTrailingCommas, D_UnsupportedGrammarFamilies, D_OverloadingScope, D_Permissions, D_ParamPassing, D_PointerAddressOf, D_RegionOptionsSyntax, D_TypeInference, D_RecordUpdate, D_RangeExpressions, D_RangePatterns, D_FieldVisibilityDefault, D_EnumDiscriminantControls, D_UnionLayout, D_LayoutAttributes, D_CallingConventionToolchain, D_SymbolVisibilityMechanism, D_FileSystemSemantics, D_ResultStatementRemoved}
 
-- `System` in Cursive0 omits `time()`; this is a bootstrap restriction.
+- `System` in Cursive0 omits `time()`;
+- Cursive0 does not reserve `result` as a keyword and does not support the `result e;` statement-form. Block values are produced by tail expressions (and, where early exit is required, by `frame`/`break`-style control constructs). The contract intrinsic `@result` remains supported (§3.3.8.6) and is parsed as `@` followed by an identifier with lexeme `result`. this is a bootstrap restriction.
 
 **DeviationRef.**
 DeviationRef(D_BootstrapEquivalence) = {"0.3.2"}
@@ -146,6 +148,7 @@ DeviationRef(D_LayoutAttributes) = {"6.1.3"}
 DeviationRef(D_CallingConventionToolchain) = {"6.2.1", "6.2.3"}
 DeviationRef(D_SymbolVisibilityMechanism) = {"6.3.4"}
 DeviationRef(D_FileSystemSemantics) = {"7.7"}
+DeviationRef(D_ResultStatementRemoved) = {"0.2.1", "3.2.3", "3.3.8.6"}
 
 ### 0.3. Bootstrap Milestones and Equivalence
 
@@ -441,6 +444,83 @@ MaxErrorCount ∈ ℕ ∪ {∞}
 SuggestedMaxErrorCount = 100
 AbortOnErrorCount(n) ⇔ n ≥ MaxErrorCount
 
+### 1.3. Authority Model
+
+Cursive0 adopts a **no ambient authority (NAA)** discipline: observable external effects are only possible through explicit possession and use of *capability values*.
+
+This section is a Cursive0 specialization of the root Cursive design (see the root design's authority model). Where the root design references capability classes and factories not present in the Cursive0 subset (e.g., `Network`, `CpuDomainFactory`, `GpuDomainFactory`), those constructs are unsupported in Cursive0 and are rejected per §1.4 (via `S0Unsupported`).
+
+#### 1.3.1. Capability universe in Cursive0
+
+Let:
+
+- `CapToken = {FileSystem, HeapAllocator, Reactor, ExecutionDomain, System}`
+
+A *capability-bearing type* is any type that (possibly transitively) contains one or more elements of `CapToken`. In Cursive0, the capability roots are:
+
+- `Context` (provides `fs`, `heap`, `sys`, `reactor`, and domain accessors), and
+- the dynamic class object types `$FileSystem`, `$HeapAllocator`, `$Reactor`, `$ExecutionDomain`, and
+- `System`.
+
+Define a structural capability extraction function:
+
+- `CapInType : Type → 𝒫(CapToken)`
+
+such that (at minimum):
+
+- `CapInType(TypePath(["Context"])) = {FileSystem, HeapAllocator, Reactor, ExecutionDomain, System}`
+- `CapInType(TypePath(["System"])) = {System}`
+- `CapInType(TypeDynamic(["FileSystem"])) = {FileSystem}`
+- `CapInType(TypeDynamic(["HeapAllocator"])) = {HeapAllocator}`
+- `CapInType(TypeDynamic(["Reactor"])) = {Reactor}`
+- `CapInType(TypeDynamic(["ExecutionDomain"])) = {ExecutionDomain}`
+- `CapInType(TypePerm(_, T)) = CapInType(T)`
+- `CapInType(TypeTuple(Ts)) = ⋃{CapInType(T) | T ∈ Ts}`
+- `CapInType(TypeArray(T, _)) = CapInType(T)`
+- `CapInType(TypeSlice(T)) = CapInType(T)`
+- `CapInType(TypeStruct(_), TypeRecord(_), TypeUnion(_), TypeEnum(_), TypeModalState(_), TypeApply(_), …)` distributes structurally over the immediate component types of the type constructor (after alias expansion).
+
+(Implementations MAY compute `CapInType` by taking the least fixed-point over nominal expansions and alias expansions; cycles are handled by memoization and treating already-visited nominal nodes as contributing `∅` for termination.)
+
+#### 1.3.2. No ambient authority requirements
+
+**(NAA-1) No implicit capability roots.** A conforming implementation MUST NOT provide any implicit/global bindings whose type is capability-bearing (per §1.3.1). In particular, there MUST NOT exist built-in top-level values that directly perform file system, allocation, reactor, or scheduling effects without an explicit capability receiver/value.
+
+**(NAA-2) Context as the sole initial root.** The only capability roots introduced by the abstract machine at runtime are those contained in the `Context` value produced by `ContextInitSigma` (see §7.7.6) and explicitly passed to the program entry procedure.
+
+**(NAA-3) Effect gating.** Any externally observable effect specified by this document (e.g., file system I/O, raw allocation, reactor scheduling, process exit) MUST occur only as a consequence of calling a capability-gated primitive:
+- a built-in procedure that is classified as a runtime host primitive (§1.7), or
+- a built-in method/procedure whose receiver is a capability value (e.g., `$FileSystem`, `$HeapAllocator`, `$Reactor`, `$ExecutionDomain`, or `System`).
+
+**(NAA-4) Callgraph monotonicity (capability requirement subset property).** Because `closure` and `pipeline` constructs are unsupported in Cursive0 (`S0Unsupported`), call targets in Cursive0 are statically resolvable after name resolution.
+
+Define a procedure-level capability requirement:
+
+- `CapReq(d) = ⋃{CapInType(T_i) | T_i is the type of a parameter (and receiver, if any) of declaration d}`
+
+A program satisfies the capability subset property iff for every direct call from procedure `d_src` to procedure `d_tgt`:
+
+- `CapReq(d_tgt) ⊆ CapReq(d_src)`.
+
+A conforming implementation MUST reject programs that violate this property.
+
+(Informal intuition: a procedure may not call into code that requires capabilities it did not itself explicitly receive, except via explicit capability values passed through its own parameters.)
+
+#### 1.3.3. Attenuation requirements
+
+Some capability-gated operations create *attenuated* (restricted) derived capabilities. In Cursive0, the following operations are attenuation operations:
+
+- `$FileSystem::restrict(root)` produces a file system capability whose authority is limited to the specified rooted subtree (see §7.7.1–§7.7.2 for the rooted model).
+- `$HeapAllocator::with_quota(bytes)` produces a heap allocator whose authority is limited by the specified quota (see §7.7.5).
+- `CancelToken@Active::child()` produces a descendant cancellation token whose cancellation is dominated by the parent (see §18.6.1).
+- `Context::cpu()`, `Context::gpu()`, and `Context::inline()` produce execution-domain capabilities derived from the context (see §5.9.5).
+
+A conforming implementation MUST ensure attenuation is **monotone**: derived capability values MUST NOT grant authority beyond that of the source capability value from which they were derived.
+
+#### 1.3.4. Unsafe and foreign interaction
+
+The no-ambient-authority requirements constrain the *safe* Cursive0 execution model. `unsafe` operations and foreign-function interfaces may allow a program to escape these constraints by design, but capability isolation requirements (see §21.3) still apply: capability-bearing values MUST NOT cross the safe/foreign boundary except through the mechanisms explicitly permitted by this specification.
+
 ### 1.4. Unsupported Constructs Policy
 
 **UnsupportedConstruct.**
@@ -650,9 +730,14 @@ FSPrim = {FSOpenRead, FSOpenWrite, FSOpenAppend, FSCreateWrite, FSReadFile, FSRe
 FilePrim = {FileReadAll, FileReadAllBytes, FileWrite, FileFlush, FileClose}
 DirPrim = {DirNext, DirClose}
 
-HostPrim = {ParseTOML, ReadBytes, WriteFile, ResolveTool, ResolveRuntimeLib, Invoke, AssembleIR, InvokeLinker} ∪ FSPrim ∪ FilePrim ∪ DirPrim
+SystemPrim = {SystemGetEnv, SystemExit}
+HeapPrim = {HeapWithQuota, HeapAllocRaw, HeapDeallocRaw}
+ReactorPrim = {ReactorRun, ReactorRegister}
+CancelPrim = {CancelNew, CancelChild, CancelDoCancel, CancelIsCancelled, CancelWaitCancelled}
+
+HostPrim = {ParseTOML, ReadBytes, WriteFile, ResolveTool, ResolveRuntimeLib, Invoke, AssembleIR, InvokeLinker} ∪ FSPrim ∪ FilePrim ∪ DirPrim ∪ SystemPrim ∪ HeapPrim ∪ ReactorPrim ∪ CancelPrim
 HostPrimDiag = {ParseTOML, ReadBytes, WriteFile, ResolveTool, ResolveRuntimeLib, Invoke, AssembleIR, InvokeLinker}
-HostPrimRuntime = FSPrim ∪ FilePrim ∪ DirPrim
+HostPrimRuntime = FSPrim ∪ FilePrim ∪ DirPrim ∪ SystemPrim ∪ HeapPrim ∪ ReactorPrim ∪ CancelPrim
 MapsToDiagOrRuntime(p) ⇔ p ∈ HostPrimDiag ∪ HostPrimRuntime
 HostPrimFail(p) ⇔ p ∈ HostPrim ∧ ∃ args. Γ ⊢ p(args) ⇑
 
@@ -5004,7 +5089,7 @@ IsIdent(Tok(P))    Lexeme(Tok(P)) = `Ptr`    IsOp(Tok(Advance(P)), "::")    Tok(
 Γ ⊢ ParsePrimary(P) ⇓ (Advance(Advance(Advance(Advance(Advance(P))))), PtrNullExpr)
 
 **(Parse-Contract-Result)**
-IsOp(Tok(P), "@")    IsKw(Tok(Advance(P)), `result`)
+IsOp(Tok(P), "@")    IsIdent(Tok(Advance(P)))    Lexeme(Tok(Advance(P))) = `result`
 ──────────────────────────────────────────────────────────────
 Γ ⊢ ParsePrimary(P) ⇓ (Advance(Advance(P)), ContractResult)
 
@@ -20671,6 +20756,11 @@ DirHandleOf(v) = h    Γ ⊢ DirClose(h) ⇓ ok
 ────────────────────────────────────────────────────────────────────────────
 Γ ⊢ PrimCall(ModalStateRef(["CancelToken"], `@Active`), `child`, v, []) ⇓ Val(v_c)
 
+**(Prim-Cancel-WaitCancelled)**
+Γ ⊢ CancelWaitCancelled(v) ⇓ v_a
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PrimCall(ModalStateRef(["CancelToken"], `@Active`), `wait_cancelled`, v, []) ⇓ Val(v_a)
+
 **(Prim-System-GetEnv)**
 Γ ⊢ SystemGetEnv(k) ⇓ r
 ──────────────────────────────────────────────────────────────────
@@ -20682,6 +20772,45 @@ DirHandleOf(v) = h    Γ ⊢ DirClose(h) ⇓ ok
 Γ ⊢ PrimCall(`System`, `exit`, v_sys, [code]) ⇓ Ctrl(Abort)
 
 When `PrimCall(System, exit, ...)` yields `Ctrl(Abort)`, program execution terminates and the observable exit status is `code`.
+
+**Heap Allocator Operations**
+
+HeapJudg = {HeapWithQuota(v_heap, quota) ⇓ v_heap', HeapAllocRaw(v_heap, count) ⇓ ptr, HeapDeallocRaw(v_heap, ptr, count) ⇓ ok}
+
+`HeapWithQuota`, `HeapAllocRaw`, and `HeapDeallocRaw` are runtime host-primitive relations. Their concrete behavior is implementation-defined, but a conforming implementation MUST satisfy the attenuation requirements in §1.3.3:
+- `HeapWithQuota(v_heap, q)` MUST NOT yield an allocator whose effective quota exceeds that of `v_heap`.
+- Allocations performed through an allocator derived by `with_quota` MUST respect that quota (by trapping, returning null, or failing in an implementation-defined manner for the unsafe raw interface).
+
+**(Prim-Heap-WithQuota)**
+Γ ⊢ HeapWithQuota(v_heap, quota) ⇓ v_heap'
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PrimCall(`HeapAllocator`, `with_quota`, v_heap, [quota]) ⇓ Val(v_heap')
+
+**(Prim-Heap-AllocRaw)**
+Γ ⊢ HeapAllocRaw(v_heap, count) ⇓ ptr
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PrimCall(`HeapAllocator`, `alloc_raw`, v_heap, [count]) ⇓ Val(ptr)
+
+**(Prim-Heap-DeallocRaw)**
+Γ ⊢ HeapDeallocRaw(v_heap, ptr, count) ⇓ ok
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PrimCall(`HeapAllocator`, `dealloc_raw`, v_heap, [ptr, count]) ⇓ Val(UnitVal)
+
+**Reactor Operations**
+
+ReactorJudg = {ReactorRun(v_reactor, f) ⇓ r, ReactorRegister(v_reactor, f) ⇓ h}
+
+`ReactorRun` and `ReactorRegister` are runtime host-primitive relations that interface the async model (§19) with a concrete event loop.
+
+**(Prim-Reactor-Run)**
+Γ ⊢ ReactorRun(v_reactor, f) ⇓ r
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PrimCall(`Reactor`, `run`, v_reactor, [f]) ⇓ Val(r)
+
+**(Prim-Reactor-Register)**
+Γ ⊢ ReactorRegister(v_reactor, f) ⇓ h
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PrimCall(`Reactor`, `register`, v_reactor, [f]) ⇓ Val(h)
 
 **(ApplyMethod-Prim)**
 MethodOwner(m) = owner    MethodName(m) = name    Γ ⊢ PrimCall(owner, name, v_self, vec_v) ⇓ out
@@ -22355,7 +22484,7 @@ Failed runtime checks trigger a panic (`P-TYP-1953`).
 
 ### 13.8 Capability Classes
 
-*[REF: Capability fundamentals defined in §4 (The Authority Model). This section covers type-system integration only.]*
+*[REF: Capability fundamentals defined in §1.3 (Authority Model). This section covers type-system integration only.]*
 
 
 #### 13.8.1 Capability Class
@@ -22369,7 +22498,7 @@ Failed runtime checks trigger a panic (`P-TYP-1953`).
 
 A parameter of type `$Class` accepts any concrete type `T` implementing `Class`. This is the same mechanism as for any other class—capability classes have no special type-system behavior.
 
-See §4 for capability propagation, attenuation, and no-ambient-authority rules.
+See §1.3 for capability propagation, attenuation, and no-ambient-authority rules.
 
 
 #### 13.8.2 Capability Bounds
@@ -24473,13 +24602,14 @@ FreshCancelId(χ) = n ⇔ n ∉ dom(χ) ∧ ∀ m < n. m ∈ dom(χ)
 CancelVal(n, S) = RecordValue(ModalStateRef(["CancelToken"], S), [⟨`id`, IntVal("usize", n)⟩])
 CancelId(v) = n ⇔ v = RecordValue(ModalStateRef(["CancelToken"], S), fs) ∧ FieldValue(v, `id`) = IntVal("usize", n)
 
-CancelJudg = {CancelNew() ⇓ v, CancelChild(v) ⇓ v', CancelIsCancelled(v) ⇓ b, CancelDoCancel(v) ⇓ ok}
-CancelJudg_χ = {CancelNew(χ) ⇓ (v, χ'), CancelChild(v, χ) ⇓ (v', χ'), CancelIsCancelled(v, χ) ⇓ b, CancelDoCancel(v, χ) ⇓ χ'}
+CancelJudg = {CancelNew() ⇓ v, CancelChild(v) ⇓ v', CancelIsCancelled(v) ⇓ b, CancelDoCancel(v) ⇓ ok, CancelWaitCancelled(v) ⇓ a}
+CancelJudg_χ = {CancelNew(χ) ⇓ (v, χ'), CancelChild(v, χ) ⇓ (v', χ'), CancelIsCancelled(v, χ) ⇓ b, CancelDoCancel(v, χ) ⇓ χ', CancelWaitCancelled(v, χ) ⇓ a}
 
 CancelNew() ⇓ v ⇔ ∃ χ, χ'. CancelNew(χ) ⇓ (v, χ')
 CancelChild(v) ⇓ v' ⇔ ∃ χ, χ'. CancelChild(v, χ) ⇓ (v', χ')
 CancelIsCancelled(v) ⇓ b ⇔ ∃ χ. CancelIsCancelled(v, χ) ⇓ b
 CancelDoCancel(v) ⇓ ok ⇔ ∃ χ, χ'. CancelDoCancel(v, χ) ⇓ χ'
+CancelWaitCancelled(v) ⇓ a ⇔ ∃ χ. CancelWaitCancelled(v, χ) ⇓ a
 
 **(Cancel-New)**
 FreshCancelId(χ) = n    χ' = χ[n ↦ ⟨⊥, Active⟩]
@@ -24501,6 +24631,19 @@ CancelId(v) = n    χ' = χ[ k ↦ ⟨CancelParentOf(χ, k), Cancelled⟩ | k �
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 CancelDoCancel(v, χ) ⇓ χ'
 
+
+
+**(Cancel-WaitCancelled-Completed)**
+CancelId(v) = n    CancelStatusOf(χ, n) = Cancelled
+──────────────────────────────────────────────────────────────────────────────
+CancelWaitCancelled(v, χ) ⇓ RecordValue(ModalStateRef(["Async"], `@Completed`), [⟨`value`, UnitVal⟩])
+
+**(Cancel-WaitCancelled-Suspended)**
+CancelId(v) = n    CancelStatusOf(χ, n) = Active
+──────────────────────────────────────────────────────────────────────────────
+CancelWaitCancelled(v, χ) ⇓ RecordValue(ModalStateRef(["Async"], `@Suspended`), [⟨`output`, UnitVal⟩])
+
+The `Async@Suspended` value produced by `CancelWaitCancelled` is associated with the cancellation token `v`. A conforming implementation MUST ensure that once `v` (or any ancestor token) transitions to `Cancelled`, the corresponding suspended computation becomes eligible to complete and does not fail (its error type is `!`).
 
 #### 18.6.2 Cancellation Cleanup
 

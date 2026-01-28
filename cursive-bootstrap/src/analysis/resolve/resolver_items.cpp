@@ -654,6 +654,14 @@ ResolveResult<syntax::ASTItem> ResolveItem(ResolveContext& ctx,
           proc_ctx.sigma = ctx.ctx->sigma;
           proc_ctx.current_module = ctx.ctx->current_module;
           Scope proc_scope;
+          // Add generic type parameters to scope (§13.1.2)
+          if (node.generic_params.has_value()) {
+            for (const auto& type_param : node.generic_params->params) {
+              proc_scope.emplace(IdKeyOf(type_param.name),
+                                 Entity{EntityKind::Type, std::nullopt,
+                                        std::nullopt, EntitySource::Decl});
+            }
+          }
           for (const auto& param : node.params) {
             proc_scope.emplace(IdKeyOf(param.name),
                                Entity{EntityKind::Value, std::nullopt,
@@ -697,17 +705,34 @@ ResolveResult<syntax::ASTItem> ResolveItem(ResolveContext& ctx,
           return {true, std::nullopt, std::nullopt, out};
         } else if constexpr (std::is_same_v<T, syntax::RecordDecl>) {
           auto out = node;
-          const auto impls = ResolveClassPathList(ctx, node.implements);
+          // Create scope context with type parameters for generic records (§13.1)
+          ResolveContext record_ctx = ctx;
+          ScopeContext record_scope_ctx;
+          if (node.generic_params.has_value()) {
+            record_scope_ctx.project = ctx.ctx->project;
+            record_scope_ctx.sigma = ctx.ctx->sigma;
+            record_scope_ctx.current_module = ctx.ctx->current_module;
+            Scope type_param_scope;
+            for (const auto& type_param : node.generic_params->params) {
+              type_param_scope.emplace(IdKeyOf(type_param.name),
+                                       Entity{EntityKind::Type, std::nullopt,
+                                              std::nullopt, EntitySource::Decl});
+            }
+            record_scope_ctx.scopes = {type_param_scope, ModuleScope(ctx.ctx->scopes),
+                                       UniverseScope(ctx.ctx->scopes)};
+            record_ctx.ctx = &record_scope_ctx;
+          }
+          const auto impls = ResolveClassPathList(record_ctx, node.implements);
           if (!impls.ok) {
             return {false, impls.diag_id, impls.span, {}};
           }
           out.implements = impls.value;
-          const auto invariant = ResolveTypeInvariantOpt(ctx, node.invariant);
+          const auto invariant = ResolveTypeInvariantOpt(record_ctx, node.invariant);
           if (!invariant.ok) {
             return {false, invariant.diag_id, invariant.span, {}};
           }
           out.invariant = invariant.value;
-          const auto members = ResolveRecordMemberList(ctx, node, node.members);
+          const auto members = ResolveRecordMemberList(record_ctx, node, node.members);
           if (!members.ok) {
             return {false, members.diag_id, members.span, {}};
           }
@@ -716,17 +741,34 @@ ResolveResult<syntax::ASTItem> ResolveItem(ResolveContext& ctx,
           return {true, std::nullopt, std::nullopt, out};
         } else if constexpr (std::is_same_v<T, syntax::EnumDecl>) {
           auto out = node;
-          const auto impls = ResolveClassPathList(ctx, node.implements);
+          // Create scope context with type parameters for generic enums (§13.1)
+          ResolveContext enum_ctx = ctx;
+          ScopeContext enum_scope_ctx;
+          if (node.generic_params.has_value()) {
+            enum_scope_ctx.project = ctx.ctx->project;
+            enum_scope_ctx.sigma = ctx.ctx->sigma;
+            enum_scope_ctx.current_module = ctx.ctx->current_module;
+            Scope type_param_scope;
+            for (const auto& type_param : node.generic_params->params) {
+              type_param_scope.emplace(IdKeyOf(type_param.name),
+                                       Entity{EntityKind::Type, std::nullopt,
+                                              std::nullopt, EntitySource::Decl});
+            }
+            enum_scope_ctx.scopes = {type_param_scope, ModuleScope(ctx.ctx->scopes),
+                                     UniverseScope(ctx.ctx->scopes)};
+            enum_ctx.ctx = &enum_scope_ctx;
+          }
+          const auto impls = ResolveClassPathList(enum_ctx, node.implements);
           if (!impls.ok) {
             return {false, impls.diag_id, impls.span, {}};
           }
           out.implements = impls.value;
-          const auto invariant = ResolveTypeInvariantOpt(ctx, node.invariant);
+          const auto invariant = ResolveTypeInvariantOpt(enum_ctx, node.invariant);
           if (!invariant.ok) {
             return {false, invariant.diag_id, invariant.span, {}};
           }
           out.invariant = invariant.value;
-          const auto vars = ResolveVariantList(ctx, node.variants);
+          const auto vars = ResolveVariantList(enum_ctx, node.variants);
           if (!vars.ok) {
             return {false, vars.diag_id, vars.span, {}};
           }
@@ -735,17 +777,34 @@ ResolveResult<syntax::ASTItem> ResolveItem(ResolveContext& ctx,
           return {true, std::nullopt, std::nullopt, out};
         } else if constexpr (std::is_same_v<T, syntax::ModalDecl>) {
           auto out = node;
-          const auto impls = ResolveClassPathList(ctx, node.implements);
+          // Create scope context with type parameters for generic modals (§13.1)
+          ResolveContext modal_ctx = ctx;
+          ScopeContext modal_scope_ctx;
+          if (node.generic_params.has_value()) {
+            modal_scope_ctx.project = ctx.ctx->project;
+            modal_scope_ctx.sigma = ctx.ctx->sigma;
+            modal_scope_ctx.current_module = ctx.ctx->current_module;
+            Scope type_param_scope;
+            for (const auto& type_param : node.generic_params->params) {
+              type_param_scope.emplace(IdKeyOf(type_param.name),
+                                       Entity{EntityKind::Type, std::nullopt,
+                                              std::nullopt, EntitySource::Decl});
+            }
+            modal_scope_ctx.scopes = {type_param_scope, ModuleScope(ctx.ctx->scopes),
+                                      UniverseScope(ctx.ctx->scopes)};
+            modal_ctx.ctx = &modal_scope_ctx;
+          }
+          const auto impls = ResolveClassPathList(modal_ctx, node.implements);
           if (!impls.ok) {
             return {false, impls.diag_id, impls.span, {}};
           }
           out.implements = impls.value;
-          const auto invariant = ResolveTypeInvariantOpt(ctx, node.invariant);
+          const auto invariant = ResolveTypeInvariantOpt(modal_ctx, node.invariant);
           if (!invariant.ok) {
             return {false, invariant.diag_id, invariant.span, {}};
           }
           out.invariant = invariant.value;
-          const auto states = ResolveStateBlockList(ctx, node.states);
+          const auto states = ResolveStateBlockList(modal_ctx, node.states);
           if (!states.ok) {
             return {false, states.diag_id, states.span, {}};
           }

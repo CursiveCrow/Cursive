@@ -256,6 +256,12 @@ std::vector<syntax::ExprPtr> ChildrenLtr(const syntax::Expr& expr) {
           return node.elements;
         } else if constexpr (std::is_same_v<T, syntax::ArrayExpr>) {
           return node.elements;
+        } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+          return {node.value, node.count};
+        } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+          return {};
+        } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+          return {};
         } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
           return FieldExprs(node.fields);
         } else if constexpr (std::is_same_v<T, syntax::EnumLiteralExpr>) {
@@ -477,7 +483,7 @@ ModuleSet TypeRefsTy(const syntax::Type& type, const InitEnv& env) {
       type.node);
 }
 
-ModuleSet TypeRefsRef(const std::variant<syntax::TypePath, syntax::ModalStateRef>& ref,
+ModuleSet TypeRefsRef(const std::variant<syntax::TypePath, syntax::GenericTypeRef, syntax::ModalStateRef>& ref,
                       const InitEnv& env) {
   SpecDefsInitPlanner();
   return std::visit(
@@ -486,11 +492,19 @@ ModuleSet TypeRefsRef(const std::variant<syntax::TypePath, syntax::ModalStateRef
         if constexpr (std::is_same_v<T, syntax::TypePath>) {
           SPEC_RULE("TypeRef-Ref-Path");
           return TypeRefsTypePath(node, env);
+        } else if constexpr (std::is_same_v<T, syntax::GenericTypeRef>) {
+          SPEC_RULE("TypeRef-Ref-GenericPath");
+          syntax::TypePathType path_type;
+          path_type.path = node.path;
+          path_type.generic_args = node.generic_args;
+          syntax::Type fake;
+          fake.node = path_type;
+          return TypeRefsTy(fake, env);
         } else {
           SPEC_RULE("TypeRef-Ref-ModalState");
           syntax::TypeModalState state;
           state.path = node.path;
-          state.generic_args = {};
+          state.generic_args = node.generic_args;
           state.state = node.state;
           syntax::Type fake;
           fake.node = state;
@@ -966,6 +980,13 @@ void CollectExprNodes(const syntax::ExprPtr& expr,
           for (const auto& elem : node.elements) {
             CollectExprNodes(elem, out);
           }
+        } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+          CollectExprNodes(node.value, out);
+          CollectExprNodes(node.count, out);
+        } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+          // sizeof(type) has no runtime sub-expressions
+        } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+          // alignof(type) has no runtime sub-expressions
         } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
           for (const auto& field : node.fields) {
             CollectExprNodes(field.value, out);

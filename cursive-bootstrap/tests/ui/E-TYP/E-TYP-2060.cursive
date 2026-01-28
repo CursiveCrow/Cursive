@@ -4,9 +4,9 @@
 // DESC: Non-exhaustive match on general modal type
 
 modal Resource {
-    state Empty {}
-    state Ready { value: i32 }
-    state Error { code: i32 }
+    @Empty {}
+    @Ready { value: i32 }
+    @Error { code: i32 }
 }
 
 procedure incomplete_match(r: Resource) -> i32 {

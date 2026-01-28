@@ -857,6 +857,10 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
           ctrl.kind = ControlKind::Continue;
           SPEC_RULE("ExecSigma-Continue");
           return MakeCtrlOut(ctrl);
+        } else if constexpr (std::is_same_v<T, syntax::StaticAssertStmt>) {
+          // static_assert is a compile-time check; at runtime, it's a no-op
+          SPEC_RULE("ExecSigma-StaticAssert");
+          return MakeOk();
         } else if constexpr (std::is_same_v<T, syntax::ErrorStmt>) {
           Control ctrl;
           ctrl.kind = ControlKind::Panic;

@@ -4,11 +4,11 @@
 // DESC: Duplicate method name in modal state
 
 modal Connection {
-    state Open {
+    @Open {
         procedure send(~) -> () { }
         procedure send(~) -> () { } //~ ERROR E-TYP-2061
     }
-    state Closed { }
+    @Closed { }
 }
 
 public procedure main(move ctx: Context) -> i32 {

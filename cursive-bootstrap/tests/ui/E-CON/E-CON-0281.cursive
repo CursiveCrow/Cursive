@@ -3,7 +3,7 @@
 // SPEC: 8.9
 // DESC: Async closure captures reference with insufficient lifetime
 
-async procedure capture_ref() -> Future[i32] {
+async procedure capture_ref() -> Future<i32> {
     let x: i32 = 42
     let closure = async || {  //~ ERROR E-CON-0281: async closure lifetime
         return x

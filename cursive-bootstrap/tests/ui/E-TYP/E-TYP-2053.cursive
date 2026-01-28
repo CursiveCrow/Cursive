@@ -4,8 +4,8 @@
 // DESC: Method invocation for method not available in current state
 
 modal Resource {
-    state Empty {}
-    state Ready {
+    @Empty {}
+    @Ready {
         procedure get(~) -> i32 {
             return 0
         }

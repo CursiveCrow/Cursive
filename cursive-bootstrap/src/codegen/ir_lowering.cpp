@@ -1179,6 +1179,33 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       }
       return builder->CreateLoad(llvm_ty, alloca);
     }
+    case DerivedValueInfo::Kind::ArrayRepeat: {
+      auto value_type = ctx->LookupValueType(value);
+      auto stripped = StripPerm(value_type);
+      if (!stripped) {
+        return nullptr;
+      }
+      auto* arr = std::get_if<analysis::TypeArray>(&stripped->node);
+      if (!arr) {
+        return nullptr;
+      }
+      llvm::Type* llvm_ty = emitter.GetLLVMType(stripped);
+      auto* alloca = CreateEntryAlloca(emitter, builder, llvm_ty, "array_repeat");
+      if (!alloca) {
+        return nullptr;
+      }
+      builder->CreateStore(llvm::Constant::getNullValue(llvm_ty), alloca);
+      const auto elem_size = SizeOf(scope, arr->element).value_or(0);
+      llvm::Value* repeat_elem = emitter.EvaluateIRValue(info.repeat_value);
+      if (!repeat_elem || elem_size == 0) {
+        return builder->CreateLoad(llvm_ty, alloca);
+      }
+      for (std::uint64_t i = 0; i < arr->length; ++i) {
+        const std::uint64_t offset = i * elem_size;
+        StoreAtOffset(emitter, builder, alloca, offset, repeat_elem);
+      }
+      return builder->CreateLoad(llvm_ty, alloca);
+    }
     case DerivedValueInfo::Kind::RecordLit: {
       auto value_type = ctx->LookupValueType(value);
       auto stripped = StripPerm(value_type);

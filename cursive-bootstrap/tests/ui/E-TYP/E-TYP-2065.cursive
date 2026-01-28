@@ -4,11 +4,11 @@
 // DESC: State method name conflicts with transition name in the same modal state
 
 modal Connection {
-    state Open {
+    @Open {
         procedure close(~) -> () { }
         transition close() -> Closed { return Connection@Closed{} } //~ ERROR E-TYP-2065
     }
-    state Closed { }
+    @Closed { }
 }
 
 public procedure main(move ctx: Context) -> i32 {

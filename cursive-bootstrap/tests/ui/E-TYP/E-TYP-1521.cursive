@@ -3,12 +3,12 @@
 // SPEC: 8.15
 // DESC: Invariant type parameter position mismatch
 
-record Invariant[T] {
+record Invariant<T> {
     setter: procedure(T) -> ()
     getter: procedure() -> T
 }
 
-procedure coerce(x: Invariant[i32]) -> Invariant[i64] {
+procedure coerce(x: Invariant<i32>) -> Invariant<i64> {
     return x  //~ ERROR E-TYP-1521: invariant type mismatch
 }
 

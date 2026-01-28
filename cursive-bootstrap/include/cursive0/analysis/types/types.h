@@ -179,6 +179,7 @@ TypeRef MakeTypeModalState(TypePath path,
                            std::string state,
                            std::vector<TypeRef> generic_args = {});
 TypeRef MakeTypePath(TypePath path);
+TypeRef MakeTypePath(TypePath path, std::vector<TypeRef> generic_args);
 TypeRef MakeTypeOpaque(TypePath class_path,
                        const syntax::Type* origin,
                        const core::Span& origin_span);

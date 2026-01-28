@@ -16,6 +16,7 @@
 #include "cursive0/core/diagnostic_messages.h"
 #include "cursive0/analysis/composite/arrays_slices.h"
 #include "cursive0/analysis/composite/classes.h"
+#include "cursive0/analysis/generics/monomorphize.h"
 #include "cursive0/analysis/caps/cap_filesystem.h"
 #include "cursive0/analysis/caps/cap_heap.h"
 #include "cursive0/analysis/caps/cap_system.h"
@@ -113,10 +114,97 @@ static bool IsPrimTypeName(std::string_view name) {
          name == "char" || name == "()" || name == "!";
 }
 
+// Helper functions for generic call type checking (§13.1.2 T-Generic-Call)
+static const syntax::ASTModule* FindModuleByPathForGeneric(
+    const ScopeContext& ctx,
+    const syntax::ModulePath& path) {
+  for (const auto& mod : ctx.sigma.mods) {
+    if (mod.path == path) {
+      return &mod;
+    }
+  }
+  return nullptr;
+}
+
+static const syntax::ProcedureDecl* FindProcedureInModule(
+    const syntax::ASTModule& module,
+    std::string_view name) {
+  for (const auto& item : module.items) {
+    const auto* decl = std::get_if<syntax::ProcedureDecl>(&item);
+    if (!decl) {
+      continue;
+    }
+    if (IdEq(decl->name, name)) {
+      return decl;
+    }
+  }
+  return nullptr;
+}
+
+// Forward declaration for LowerType
 using TypeLowerResult = LowerTypeResult;
 
 static TypeLowerResult LowerType(const ScopeContext& ctx,
                                  const std::shared_ptr<syntax::Type>& type);
+
+// Build substitution map for a generic procedure call
+static std::optional<TypeSubst> BuildGenericCallSubst(
+    const ScopeContext& ctx,
+    const syntax::ExprPtr& callee,
+    const std::vector<std::shared_ptr<syntax::Type>>& generic_args) {
+  if (!callee) {
+    return std::nullopt;
+  }
+
+  // Extract procedure name and module path from callee
+  std::string name;
+  std::optional<syntax::ModulePath> origin;
+
+  if (const auto* ident = std::get_if<syntax::IdentifierExpr>(&callee->node)) {
+    const auto ent = ResolveValueName(ctx, ident->name);
+    if (!ent || !ent->origin_opt) {
+      return std::nullopt;
+    }
+    origin = ent->origin_opt;
+    name = ent->target_opt.value_or(std::string(ident->name));
+  } else if (const auto* path_expr = std::get_if<syntax::PathExpr>(&callee->node)) {
+    origin = path_expr->path;
+    name = path_expr->name;
+  } else {
+    return std::nullopt;
+  }
+
+  // Find the module
+  const auto* module = FindModuleByPathForGeneric(ctx, *origin);
+  if (!module) {
+    return std::nullopt;
+  }
+
+  // Find the procedure
+  const auto* proc = FindProcedureInModule(*module, name);
+  if (!proc || !proc->generic_params) {
+    return std::nullopt;
+  }
+
+  // Check arg count matches param count
+  if (generic_args.size() != proc->generic_params->params.size()) {
+    return std::nullopt;
+  }
+
+  // Lower each generic_arg to TypeRef
+  std::vector<TypeRef> lowered_args;
+  lowered_args.reserve(generic_args.size());
+  for (const auto& arg : generic_args) {
+    const auto lowered = LowerType(ctx, arg);
+    if (!lowered.ok) {
+      return std::nullopt;
+    }
+    lowered_args.push_back(lowered.type);
+  }
+
+  // Build and return substitution map
+  return BuildSubstitution(proc->generic_params->params, lowered_args);
+}
 
 static constexpr std::uint64_t kPtrSize = 8;
 static constexpr std::uint64_t kPtrAlign = 8;
@@ -682,6 +770,17 @@ static syntax::ExprPtr SubstituteIdent(const syntax::ExprPtr& expr,
             elem = SubstituteIdent(elem, name, replacement);
           }
           return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+          auto out = node;
+          out.value = SubstituteIdent(node.value, name, replacement);
+          out.count = SubstituteIdent(node.count, name, replacement);
+          return MakeExpr(expr->span, out);
+        } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+          // sizeof(type) has no identifier substitution in type argument
+          return expr;
+        } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+          // alignof(type) has no identifier substitution in type argument
+          return expr;
         } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
           auto out = node;
           for (auto& field : out.fields) {
@@ -813,6 +912,15 @@ static bool ExprUsesOnlyEnvBindings(const syntax::ExprPtr& expr,
               return false;
             }
           }
+          return true;
+        } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+          return ExprUsesOnlyEnvBindings(node.value, env) &&
+                 ExprUsesOnlyEnvBindings(node.count, env);
+        } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+          // sizeof(type) references no runtime bindings
+          return true;
+        } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+          // alignof(type) references no runtime bindings
           return true;
         } else if constexpr (std::is_same_v<T, syntax::RecordExpr>) {
           for (const auto& field : node.fields) {
@@ -2733,17 +2841,36 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
     }
 
     SPEC_RULE("T-Modal-State-Intro");
+
+    // Lower generic args from syntax types to TypeRefs
+    std::vector<TypeRef> lowered_args;
+    for (const auto& arg : modal->generic_args) {
+      const auto lowered = LowerType(ctx, arg);
+      if (!lowered.ok) {
+        result.diag_id = lowered.diag_id;
+        return result;
+      }
+      lowered_args.push_back(lowered.type);
+    }
+
     result.ok = true;
-    result.type = MakeTypeModalState(modal->path, modal->state);
+    result.type = MakeTypeModalState(modal->path, modal->state, std::move(lowered_args));
     return result;
   }
 
-  const auto* path = std::get_if<syntax::TypePath>(&expr.target);
-  if (!path) {
+  // Handle TypePath and GenericTypeRef cases
+  TypePath type_path;
+  std::vector<std::shared_ptr<syntax::Type>> syntax_generic_args;
+
+  if (const auto* path = std::get_if<syntax::TypePath>(&expr.target)) {
+    type_path = *path;
+  } else if (const auto* gen_ref = std::get_if<syntax::GenericTypeRef>(&expr.target)) {
+    type_path = gen_ref->path;
+    syntax_generic_args = gen_ref->generic_args;
+  } else {
     return result;
   }
 
-  const TypePath type_path = *path;
   const auto* record = LookupRecordDecl(ctx, type_path);
   if (!record) {
     return result;
@@ -2825,8 +2952,20 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
   }
 
   SPEC_RULE("T-Record-Literal");
+
+  // Lower generic args from syntax types to TypeRefs
+  std::vector<TypeRef> lowered_record_args;
+  for (const auto& arg : syntax_generic_args) {
+    const auto lowered = LowerType(ctx, arg);
+    if (!lowered.ok) {
+      result.diag_id = lowered.diag_id;
+      return result;
+    }
+    lowered_record_args.push_back(lowered.type);
+  }
+
   result.ok = true;
-  result.type = MakeTypePath(type_path);
+  result.type = MakeTypePath(type_path, std::move(lowered_record_args));
   return result;
 }
 
@@ -3886,6 +4025,83 @@ static ExprTypeResult TypeExprImpl(const ScopeContext& ctx,
           return TypeTupleExpr(ctx, node, type_expr);
         } else if constexpr (std::is_same_v<T, syntax::ArrayExpr>) {
           return TypeArrayExpr(ctx, node, type_expr);
+        } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+          SPEC_RULE("T-Array-Repeat");
+          ExprTypeResult r;
+          if (!node.value || !node.count) {
+            return r;
+          }
+          // Type check the value expression
+          const auto value_type = type_expr(node.value);
+          if (!value_type.ok) {
+            r.diag_id = value_type.diag_id;
+            return r;
+          }
+          // Type check the count expression
+          const auto count_type = type_expr(node.count);
+          if (!count_type.ok) {
+            r.diag_id = count_type.diag_id;
+            return r;
+          }
+          // Count must be usize or compatible integer type
+          const auto count_prim = GetPrimName(count_type.type);
+          if (!count_prim.has_value() ||
+              (!IsIntType(*count_prim) && *count_prim != "usize")) {
+            r.diag_id = "E-TYP-1816";
+            return r;
+          }
+          // Element type must be Bitcopy for repeat initialization
+          if (!BitcopyType(ctx, value_type.type)) {
+            r.diag_id = "E-TYP-1817";
+            return r;
+          }
+          // Evaluate count as compile-time constant
+          const auto len = ConstLen(ctx, node.count);
+          if (!len.ok || !len.value.has_value()) {
+            r.diag_id = len.diag_id.value_or("E-TYP-1816");
+            return r;
+          }
+          r.ok = true;
+          r.type = MakeTypeArray(value_type.type, *len.value);
+          return r;
+        } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+          SPEC_RULE("T-Sizeof");
+          ExprTypeResult r;
+          if (!node.type) {
+            return r;
+          }
+          const auto lowered = LowerType(ctx, node.type);
+          if (!lowered.ok) {
+            r.diag_id = lowered.diag_id;
+            return r;
+          }
+          const auto wf = TypeWF(ctx, lowered.type);
+          if (!wf.ok) {
+            r.diag_id = wf.diag_id;
+            return r;
+          }
+          r.ok = true;
+          r.type = MakeTypePrim("usize");
+          return r;
+        } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+          SPEC_RULE("T-Alignof");
+          ExprTypeResult r;
+          if (!node.type) {
+            return r;
+          }
+          const auto lowered = LowerType(ctx, node.type);
+          if (!lowered.ok) {
+            r.diag_id = lowered.diag_id;
+            return r;
+          }
+          const auto wf = TypeWF(ctx, lowered.type);
+          if (!wf.ok) {
+            r.diag_id = wf.diag_id;
+            return r;
+          }
+          r.ok = true;
+          r.type = MakeTypePrim("usize");
+          return r;
         } else if constexpr (std::is_same_v<T, syntax::CallExpr>) {
           if (node.callee && node.args.empty()) {
             if (const auto* ident =
@@ -3906,6 +4122,46 @@ static ExprTypeResult TypeExprImpl(const ScopeContext& ctx,
           PlaceTypeFn type_place = [&](const syntax::ExprPtr& inner) {
             return TypePlace(ctx, type_ctx, inner, env);
           };
+
+          // Handle generic procedure calls (§13.1.2 T-Generic-Call)
+          // DEBUG: Check if generic_args is empty
+          if (node.generic_args.empty()) {
+            SPEC_RULE("DEBUG-CallExpr-GenericArgs-Empty");
+          } else {
+            SPEC_RULE("DEBUG-CallExpr-GenericArgs-Present");
+          }
+          if (!node.generic_args.empty()) {
+            const auto subst_opt = BuildGenericCallSubst(ctx, node.callee, node.generic_args);
+            if (!subst_opt.has_value()) {
+              ExprTypeResult r;
+              r.diag_id = "Generic-Call-Subst-Fail";  // Traceable diagnostic
+              return r;
+            }
+            const auto call = TypeCallWithSubst(ctx, node.callee, node.args,
+                                                 *subst_opt, type_expr, &type_place);
+            ExprTypeResult r;
+            if (!call.ok) {
+              r.diag_id = call.diag_id;
+              return r;
+            }
+            if (type_ctx.require_pure) {
+              const auto callee_type = type_expr(node.callee);
+              if (callee_type.ok) {
+                const auto* func =
+                    std::get_if<TypeFunc>(&StripPerm(callee_type.type)->node);
+                if (func && !ParamsPure(ctx, func->params)) {
+                  r.diag_id = "E-SEM-2802";
+                  return r;
+                }
+              }
+            }
+            r.ok = true;
+            r.type = call.type;
+            SPEC_RULE("T-Generic-Call");
+            return r;
+          }
+
+          // Non-generic call path
           const auto call =
               TypeCall(ctx, node.callee, node.args, type_expr, &type_place);
           ExprTypeResult r;
@@ -4445,22 +4701,6 @@ bool BitcopyType(const ScopeContext& ctx, const TypeRef& type) {
     }
     return false;
   }
-  if (const auto* path = std::get_if<TypePathType>(&type->node)) {
-    syntax::Path syntax_path;
-    syntax_path.reserve(path->path.size());
-    for (const auto& comp : path->path) {
-      syntax_path.push_back(comp);
-    }
-    const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
-    if (it != ctx.sigma.types.end()) {
-      if (const auto* alias = std::get_if<syntax::TypeAliasDecl>(&it->second)) {
-        const auto lowered = LowerType(ctx, alias->type);
-        if (lowered.ok && lowered.type) {
-          return BitcopyType(ctx, lowered.type);
-        }
-      }
-    }
-  }
   if (const auto* tuple = std::get_if<TypeTuple>(&type->node)) {
     for (const auto& elem : tuple->elements) {
       if (!BitcopyType(ctx, elem)) {
@@ -4471,6 +4711,113 @@ bool BitcopyType(const ScopeContext& ctx, const TypeRef& type) {
   }
   if (const auto* array = std::get_if<TypeArray>(&type->node)) {
     return BitcopyType(ctx, array->element);
+  }
+  // §12877: Union types are Bitcopy if all member types are Bitcopy
+  if (const auto* union_type = std::get_if<TypeUnion>(&type->node)) {
+    for (const auto& member : union_type->members) {
+      if (!BitcopyType(ctx, member)) {
+        return false;
+      }
+    }
+    return true;
+  }
+  // §12884-12887: Structural Bitcopy derivation for Records, Enums, Modals, Type Aliases
+  if (const auto* path_type = std::get_if<TypePathType>(&type->node)) {
+    syntax::Path syntax_path;
+    syntax_path.reserve(path_type->path.size());
+    for (const auto& comp : path_type->path) {
+      syntax_path.push_back(comp);
+    }
+    const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
+    if (it != ctx.sigma.types.end()) {
+      // Type aliases: recurse through to the underlying type
+      if (const auto* alias = std::get_if<syntax::TypeAliasDecl>(&it->second)) {
+        const auto lowered = LowerType(ctx, alias->type);
+        if (lowered.ok && lowered.type) {
+          return BitcopyType(ctx, lowered.type);
+        }
+      }
+      // §12884: Records are Bitcopy if all fields have Bitcopy types
+      if (const auto* record = std::get_if<syntax::RecordDecl>(&it->second)) {
+        for (const auto& member : record->members) {
+          if (const auto* field = std::get_if<syntax::FieldDecl>(&member)) {
+            const auto lowered = LowerType(ctx, field->type);
+            if (!lowered.ok || !lowered.type || !BitcopyType(ctx, lowered.type)) {
+              return ImplementsBitcopy(ctx, type);
+            }
+          }
+        }
+        return true;
+      }
+      // §12885: Enums are Bitcopy if all variant payload types are Bitcopy
+      if (const auto* enum_decl = std::get_if<syntax::EnumDecl>(&it->second)) {
+        for (const auto& variant : enum_decl->variants) {
+          if (!variant.payload_opt.has_value()) {
+            continue;
+          }
+          const bool payload_ok = std::visit(
+              [&](const auto& payload) {
+                using P = std::decay_t<decltype(payload)>;
+                if constexpr (std::is_same_v<P, syntax::VariantPayloadTuple>) {
+                  for (const auto& elem : payload.elements) {
+                    if (!elem) continue;
+                    const auto lowered = LowerType(ctx, elem);
+                    if (!lowered.ok || !lowered.type ||
+                        !BitcopyType(ctx, lowered.type)) {
+                      return false;
+                    }
+                  }
+                } else {
+                  for (const auto& field : payload.fields) {
+                    const auto lowered = LowerType(ctx, field.type);
+                    if (!lowered.ok || !lowered.type ||
+                        !BitcopyType(ctx, lowered.type)) {
+                      return false;
+                    }
+                  }
+                }
+                return true;
+              },
+              *variant.payload_opt);
+          if (!payload_ok) {
+            return ImplementsBitcopy(ctx, type);
+          }
+        }
+        return true;
+      }
+      // §12887: Modal general types are Bitcopy if all states' payloads are Bitcopy
+      if (const auto* modal_decl = std::get_if<syntax::ModalDecl>(&it->second)) {
+        for (const auto& state : modal_decl->states) {
+          for (const auto& member : state.members) {
+            if (const auto* field = std::get_if<syntax::StateFieldDecl>(&member)) {
+              const auto lowered = LowerType(ctx, field->type);
+              if (!lowered.ok || !lowered.type || !BitcopyType(ctx, lowered.type)) {
+                return ImplementsBitcopy(ctx, type);
+              }
+            }
+          }
+        }
+        return true;
+      }
+    }
+  }
+  // §12886: Modal state types are Bitcopy if all payload fields for that state are Bitcopy
+  if (const auto* modal_state = std::get_if<TypeModalState>(&type->node)) {
+    const auto* decl = LookupModalDecl(ctx, modal_state->path);
+    if (decl) {
+      const auto* state_block = LookupModalState(*decl, modal_state->state);
+      if (state_block) {
+        for (const auto& member : state_block->members) {
+          if (const auto* field = std::get_if<syntax::StateFieldDecl>(&member)) {
+            const auto lowered = LowerType(ctx, field->type);
+            if (!lowered.ok || !lowered.type || !BitcopyType(ctx, lowered.type)) {
+              return false;
+            }
+          }
+        }
+        return true;
+      }
+    }
   }
   return BuiltinBitcopyType(type) || ImplementsBitcopy(ctx, type);
 }

@@ -4,8 +4,8 @@
 // DESC: Field access for field not present in current state's payload
 
 modal Resource {
-    state Empty {}
-    state Ready { value: i32 }
+    @Empty {}
+    @Ready { value: i32 }
 }
 
 procedure access_missing(r: Resource@Empty) -> i32 {

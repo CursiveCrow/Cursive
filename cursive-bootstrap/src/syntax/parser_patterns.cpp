@@ -283,13 +283,8 @@ ParseElemResult<PatternPtr> ParsePatternAtom(Parser parser) {
     return {next, MakePattern(tok->span, lit)};
   }
 
-  if (IsIdentTok(*tok) && tok->lexeme == "_") {
-    SPEC_RULE("Parse-Pattern-Wildcard");
-    Parser next = parser;
-    Advance(next);
-    return {next, MakePattern(tok->span, WildcardPattern{})};
-  }
-
+  // Check typed pattern BEFORE wildcard - lookahead for ":" takes precedence
+  // This allows `_: Type` to parse as TypedPattern rather than WildcardPattern
   if (IsIdentTok(*tok)) {
     Parser next = parser;
     Advance(next);
@@ -303,6 +298,14 @@ ParseElemResult<PatternPtr> ParsePatternAtom(Parser parser) {
       pat.type = ty.elem;
       return {ty.parser, MakePattern(SpanBetween(parser, ty.parser), pat)};
     }
+  }
+
+  // Wildcard pattern: `_` not followed by `:`
+  if (IsIdentTok(*tok) && tok->lexeme == "_") {
+    SPEC_RULE("Parse-Pattern-Wildcard");
+    Parser next = parser;
+    Advance(next);
+    return {next, MakePattern(tok->span, WildcardPattern{})};
   }
 
   if (IsIdentTok(*tok)) {

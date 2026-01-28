@@ -4,10 +4,10 @@
 // DESC: State member visibility exceeds modal visibility
 
 modal Connection {
-    state Open {
+    @Open {
         public procedure send(~) -> () { } //~ ERROR E-TYP-2063
     }
-    state Closed { }
+    @Closed { }
 }
 
 public procedure main(move ctx: Context) -> i32 {

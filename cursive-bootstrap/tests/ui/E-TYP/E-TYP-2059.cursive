@@ -4,7 +4,7 @@
 // DESC: Transition target state not declared in modal type
 
 modal Counter {
-    state Zero {}
+    @Zero {}
 
     transition Zero -> NonExistent go(~) {  //~ ERROR E-TYP-2059: target state not declared
         return Counter@Zero{}

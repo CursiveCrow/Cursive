@@ -4,8 +4,8 @@
 // DESC: Modal type widening with widen keyword
 
 modal Counter {
-    state Zero { }
-    state NonZero { value: i32 }
+    @Zero { }
+    @NonZero { value: i32 }
 }
 
 procedure get_value(c: Counter) -> i32 {

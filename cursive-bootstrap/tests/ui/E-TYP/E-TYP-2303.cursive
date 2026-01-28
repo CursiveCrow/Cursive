@@ -3,11 +3,11 @@
 // SPEC: 13.1
 // DESC: Wrong number of type arguments
 
-record Container[T] {
+record Container<T> {
     value: T
 }
 
 public procedure main(move ctx: Context) -> i32 {
-    let c: Container[i32, bool] = Container[i32, bool] { value: 42 }  //~ ERROR E-TYP-2303: wrong count
+    let c: Container<i32, bool> = Container<i32, bool> { value: 42 }  //~ ERROR E-TYP-2303: wrong count
     return 0
 }

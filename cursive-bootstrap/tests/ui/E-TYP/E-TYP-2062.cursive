@@ -4,11 +4,11 @@
 // DESC: Duplicate transition name in modal state
 
 modal Connection {
-    state Open {
+    @Open {
         transition close() -> Closed { return Connection@Closed{} }
         transition close() -> Closed { return Connection@Closed{} } //~ ERROR E-TYP-2062
     }
-    state Closed { }
+    @Closed { }
 }
 
 public procedure main(move ctx: Context) -> i32 {

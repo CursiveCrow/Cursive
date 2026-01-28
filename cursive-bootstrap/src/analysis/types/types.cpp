@@ -435,7 +435,12 @@ TypeRef MakeTypeModalState(TypePath path,
 
 TypeRef MakeTypePath(TypePath path) {
   SpecDefsTypeRepr();
-  return MakeType(TypePathType{std::move(path)});
+  return MakeType(TypePathType{std::move(path), {}});
+}
+
+TypeRef MakeTypePath(TypePath path, std::vector<TypeRef> generic_args) {
+  SpecDefsTypeRepr();
+  return MakeType(TypePathType{std::move(path), std::move(generic_args)});
 }
 
 TypeRef MakeTypeOpaque(TypePath class_path,

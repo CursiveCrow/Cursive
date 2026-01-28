@@ -242,13 +242,13 @@ ResolveResult<std::optional<syntax::EnumPayload>> ResolveEnumPayload(
       *payload_opt);
 }
 
-ResolveResult<std::variant<syntax::TypePath, syntax::ModalStateRef>>
+ResolveResult<std::variant<syntax::TypePath, syntax::GenericTypeRef, syntax::ModalStateRef>>
 ResolveTypeRef(ResolveContext& ctx,
-               const std::variant<syntax::TypePath, syntax::ModalStateRef>& target) {
-  ResolveResult<std::variant<syntax::TypePath, syntax::ModalStateRef>> result;
+               const std::variant<syntax::TypePath, syntax::GenericTypeRef, syntax::ModalStateRef>& target) {
+  ResolveResult<std::variant<syntax::TypePath, syntax::GenericTypeRef, syntax::ModalStateRef>> result;
   return std::visit(
       [&](const auto& node)
-          -> ResolveResult<std::variant<syntax::TypePath, syntax::ModalStateRef>> {
+          -> ResolveResult<std::variant<syntax::TypePath, syntax::GenericTypeRef, syntax::ModalStateRef>> {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, syntax::TypePath>) {
           const auto resolved = ResolveTypePath(ctx, node);
@@ -258,6 +258,17 @@ ResolveTypeRef(ResolveContext& ctx,
           SPEC_RULE("ResolveTypeRef-Path");
           result.ok = true;
           result.value = resolved.value;
+          return result;
+        } else if constexpr (std::is_same_v<T, syntax::GenericTypeRef>) {
+          const auto resolved = ResolveTypePath(ctx, node.path);
+          if (!resolved.ok) {
+            return {false, resolved.diag_id, resolved.span, {}};
+          }
+          syntax::GenericTypeRef out = node;
+          out.path = resolved.value;
+          SPEC_RULE("ResolveTypeRef-GenericPath");
+          result.ok = true;
+          result.value = out;
           return result;
         } else {
           const auto resolved = ResolveTypePath(ctx, node.path);
@@ -443,10 +454,20 @@ ResExprResult ResolveExpr(ResolveContext& ctx,
           if (!resolved_callee.ok) {
             return {false, resolved_callee.diag_id, resolved_callee.span, {}};
           }
+          // Resolve generic type arguments (§13.1.2 T-Generic-Call)
+          std::vector<std::shared_ptr<syntax::Type>> resolved_generic_args;
+          for (const auto& arg : node.generic_args) {
+            const auto resolved = ResolveType(ctx, arg);
+            if (!resolved.ok) {
+              return {false, resolved.diag_id, resolved.span, {}};
+            }
+            resolved_generic_args.push_back(resolved.value);
+          }
           auto out = *expr;
           auto& out_node = std::get<syntax::CallExpr>(out.node);
           out_node.callee = resolved_callee.value;
           out_node.args = resolved_args.value;
+          out_node.generic_args = std::move(resolved_generic_args);
           SPEC_RULE("ResolveExpr-Call");
           return {true, std::nullopt, std::nullopt,
                   std::make_shared<syntax::Expr>(std::move(out))};
@@ -715,6 +736,30 @@ ResExprResult ResolveExpr(ResolveContext& ctx,
           SPEC_RULE("ResolveExpr-Hom");
           return {true, std::nullopt, std::nullopt,
                   std::make_shared<syntax::Expr>(std::move(out))};
+        } else if constexpr (std::is_same_v<T, syntax::ArrayRepeatExpr>) {
+          const auto resolved_value = ResolveExpr(ctx, node.value);
+          if (!resolved_value.ok) {
+            return {false, resolved_value.diag_id, resolved_value.span, {}};
+          }
+          const auto resolved_count = ResolveExpr(ctx, node.count);
+          if (!resolved_count.ok) {
+            return {false, resolved_count.diag_id, resolved_count.span, {}};
+          }
+          auto out = *expr;
+          auto& out_node = std::get<syntax::ArrayRepeatExpr>(out.node);
+          out_node.value = resolved_value.value;
+          out_node.count = resolved_count.value;
+          SPEC_RULE("ResolveExpr-Hom");
+          return {true, std::nullopt, std::nullopt,
+                  std::make_shared<syntax::Expr>(std::move(out))};
+        } else if constexpr (std::is_same_v<T, syntax::SizeofExpr>) {
+          // sizeof(type) - type is resolved during type checking
+          SPEC_RULE("ResolveExpr-Leaf");
+          return {true, std::nullopt, std::nullopt, expr};
+        } else if constexpr (std::is_same_v<T, syntax::AlignofExpr>) {
+          // alignof(type) - type is resolved during type checking
+          SPEC_RULE("ResolveExpr-Leaf");
+          return {true, std::nullopt, std::nullopt, expr};
         } else if constexpr (std::is_same_v<T, syntax::IfExpr>) {
           const auto resolved_cond = ResolveExpr(ctx, node.cond);
           if (!resolved_cond.ok) {
@@ -1208,6 +1253,16 @@ ResolveStmtResult ResolveStmt(ResolveContext& ctx,
               return {false, resolved.diag_id, resolved.span, {}};
             }
             out.body = std::make_shared<syntax::Block>(resolved.block);
+          }
+          return {true, std::nullopt, std::nullopt, out};
+        } else if constexpr (std::is_same_v<T, syntax::StaticAssertStmt>) {
+          auto out = node;
+          if (node.condition) {
+            const auto cond = ResolveExpr(ctx, node.condition);
+            if (!cond.ok) {
+              return {false, cond.diag_id, cond.span, {}};
+            }
+            out.condition = cond.value;
           }
           return {true, std::nullopt, std::nullopt, out};
         } else {

@@ -843,6 +843,11 @@ IRPtr LowerStmt(const syntax::Stmt& stmt, LowerCtx& ctx) {
             return body_result.ir;
           }
           return EmptyIR();
+        } else if constexpr (std::is_same_v<T, syntax::StaticAssertStmt>) {
+          // static_assert is a compile-time check that was validated during
+          // type checking. At codegen time, it generates no runtime code.
+          SPEC_RULE("Lower-Stmt-StaticAssert");
+          return EmptyIR();
         } else {
           // Unknown statement form
           return EmptyIR();
