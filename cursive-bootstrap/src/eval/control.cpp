@@ -47,9 +47,6 @@ std::string ControlToString(const Control& ctrl) {
     case ControlKind::Return:
       kind = "return";
       break;
-    case ControlKind::Result:
-      kind = "result";
-      break;
     case ControlKind::Break:
       kind = "break";
       break;

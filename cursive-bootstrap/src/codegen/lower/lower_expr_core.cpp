@@ -632,8 +632,6 @@ struct CaptureCollector {
             }
           } else if constexpr (std::is_same_v<T, syntax::ReturnStmt>) {
             VisitExpr(node.value_opt);
-          } else if constexpr (std::is_same_v<T, syntax::ResultStmt>) {
-            VisitExpr(node.value);
           } else if constexpr (std::is_same_v<T, syntax::BreakStmt>) {
             VisitExpr(node.value_opt);
           } else if constexpr (std::is_same_v<T, syntax::UnsafeBlockStmt>) {
@@ -1546,14 +1544,6 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
               bool needs_wait = false;
               if (!IsCollectableParallelExpr(*node.body->tail_opt, needs_wait)) {
                 explicit_result = true;
-              }
-            }
-            if (!explicit_result) {
-              for (const auto& stmt : node.body->stmts) {
-                if (std::holds_alternative<syntax::ResultStmt>(stmt)) {
-                  explicit_result = true;
-                  break;
-                }
               }
             }
           }

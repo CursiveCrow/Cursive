@@ -9,7 +9,6 @@ namespace cursive0::eval {
 
 enum class ControlKind {
   Return,
-  Result,
   Break,
   Continue,
   Panic,

@@ -2377,13 +2377,6 @@ static BindResult BindStmt(const ScopeContext& ctx,
           }
           SPEC_RULE("B-ExprStmt");
           return res;
-        } else if constexpr (std::is_same_v<T, syntax::ResultStmt>) {
-          const auto res = BindExpr(ctx, node.value, in);
-          if (!res.ok) {
-            return res;
-          }
-          SPEC_RULE("B-ResultStmt");
-          return res;
         } else if constexpr (std::is_same_v<T, syntax::ReturnStmt>) {
           if (!node.value_opt) {
             SPEC_RULE("B-Return-Unit");

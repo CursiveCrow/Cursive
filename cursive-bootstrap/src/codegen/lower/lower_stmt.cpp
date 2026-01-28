@@ -827,22 +827,6 @@ IRPtr LowerStmt(const syntax::Stmt& stmt, LowerCtx& ctx) {
         } else if constexpr (std::is_same_v<T, syntax::ReturnStmt>) {
           temps_handled = true;
           return LowerReturnStmt(node, ctx, temps);
-        } else if constexpr (std::is_same_v<T, syntax::ResultStmt>) {
-          temps_handled = true;
-          SPEC_RULE("Lower-Stmt-Result");
-          auto prev_suppress = ctx.suppress_temp_at_depth;
-          ctx.suppress_temp_at_depth = ctx.temp_depth + 1;
-          auto expr_result = LowerExpr(*node.value, ctx);
-          ctx.suppress_temp_at_depth = prev_suppress;
-          std::vector<IRPtr> parts;
-          parts.push_back(expr_result.ir);
-          if (!temps.empty()) {
-            parts.push_back(CleanupList(temps, ctx));
-          }
-          IRResult res;
-          res.value = expr_result.value;
-          parts.push_back(MakeIR(std::move(res)));
-          return SeqIR(std::move(parts));
         } else if constexpr (std::is_same_v<T, syntax::BreakStmt>) {
           temps_handled = true;
           return LowerBreakStmt(node, ctx, temps);

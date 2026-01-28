@@ -25,7 +25,6 @@ static constexpr std::string_view kCursive0Keywords[] = {
     "public",
     "record",
     "region",
-    "result",
     "return",
     "shadow",
     "shared",

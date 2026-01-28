@@ -869,8 +869,6 @@ void CollectExprNodesFromStmt(const syntax::Stmt& stmt,
           CollectExprNodesFromBlock(node.body, out);
         } else if constexpr (std::is_same_v<T, syntax::ReturnStmt>) {
           CollectExprNodes(node.value_opt, out);
-        } else if constexpr (std::is_same_v<T, syntax::ResultStmt>) {
-          CollectExprNodes(node.value, out);
         } else if constexpr (std::is_same_v<T, syntax::BreakStmt>) {
           CollectExprNodes(node.value_opt, out);
         } else if constexpr (std::is_same_v<T, syntax::UnsafeBlockStmt>) {

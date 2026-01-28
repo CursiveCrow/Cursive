@@ -596,8 +596,6 @@ struct CaptureCollector {
             }
           } else if constexpr (std::is_same_v<T, syntax::ReturnStmt>) {
             VisitExpr(node.value_opt);
-          } else if constexpr (std::is_same_v<T, syntax::ResultStmt>) {
-            VisitExpr(node.value);
           } else if constexpr (std::is_same_v<T, syntax::BreakStmt>) {
             VisitExpr(node.value_opt);
           } else if constexpr (std::is_same_v<T, syntax::UnsafeBlockStmt>) {
@@ -896,8 +894,6 @@ struct UseAfterMoveChecker {
             }
           } else if constexpr (std::is_same_v<T, syntax::ReturnStmt>) {
             VisitExpr(node.value_opt);
-          } else if constexpr (std::is_same_v<T, syntax::ResultStmt>) {
-            VisitExpr(node.value);
           } else if constexpr (std::is_same_v<T, syntax::BreakStmt>) {
             VisitExpr(node.value_opt);
           } else if constexpr (std::is_same_v<T, syntax::UnsafeBlockStmt>) {
@@ -1416,8 +1412,6 @@ struct YieldFinder {
             VisitBlock(node.body);
           } else if constexpr (std::is_same_v<T, syntax::ReturnStmt>) {
             VisitExpr(node.value_opt);
-          } else if constexpr (std::is_same_v<T, syntax::ResultStmt>) {
-            VisitExpr(node.value);
           } else if constexpr (std::is_same_v<T, syntax::BreakStmt>) {
             VisitExpr(node.value_opt);
           } else if constexpr (std::is_same_v<T, syntax::UnsafeBlockStmt>) {

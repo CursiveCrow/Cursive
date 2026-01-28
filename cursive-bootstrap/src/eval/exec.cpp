@@ -481,11 +481,7 @@ Outcome EvalBlockBodySigma(const SemanticsContext& ctx,
                            Sigma& sigma) {
   const auto seq_out = ExecSeqSigma(ctx, block.stmts, sigma);
   if (std::holds_alternative<Control>(seq_out.node)) {
-    const auto& ctrl = std::get<Control>(seq_out.node);
-    if (ctrl.kind == ControlKind::Result) {
-      return MakeVal(ctrl.value ? *ctrl.value : Value{UnitVal{}});
-    }
-    return MakeCtrl(ctrl);
+    return MakeCtrl(std::get<Control>(seq_out.node));
   }
   if (block.tail_opt) {
     return EvalSigma(ctx, *block.tail_opt, sigma);
@@ -834,20 +830,6 @@ StmtOut ExecSigma(const SemanticsContext& ctx,
           ctrl.kind = ControlKind::Return;
           ctrl.value = std::get<Value>(out.node);
           SPEC_RULE("ExecSigma-Return");
-          return MakeCtrlOut(ctrl);
-        } else if constexpr (std::is_same_v<T, syntax::ResultStmt>) {
-          auto prev_suppress = temp_state.suppress_depth;
-          temp_state.suppress_depth = temp_state.depth + 1;
-          Outcome out = EvalSigma(stmt_ctx, *node.value, sigma);
-          temp_state.suppress_depth = prev_suppress;
-          if (IsCtrl(out)) {
-            SPEC_RULE("ExecSigma-Result-Ctrl");
-            return MakeCtrlOut(std::get<Control>(out.node));
-          }
-          Control ctrl;
-          ctrl.kind = ControlKind::Result;
-          ctrl.value = std::get<Value>(out.node);
-          SPEC_RULE("ExecSigma-Result");
           return MakeCtrlOut(ctrl);
         } else if constexpr (std::is_same_v<T, syntax::BreakStmt>) {
           if (!node.value_opt) {

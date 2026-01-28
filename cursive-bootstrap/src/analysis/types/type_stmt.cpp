@@ -69,9 +69,6 @@ static inline void SpecDefsTypeStmt() {
   SPEC_DEF("LoopTypeInf", "5.2.11");
   SPEC_DEF("LoopTypeFin", "5.2.11");
   SPEC_DEF("LastStmt", "5.2.11");
-  SPEC_DEF("ResultNotLast", "5.2.11");
-  SPEC_DEF("FirstResultSpan", "5.2.11");
-  SPEC_DEF("WarnResultUnreachable", "5.2.11");
   SPEC_DEF("HasNonLocalCtrl", "5.2.11");
   SPEC_DEF("DeferSafe", "5.2.11");
   SPEC_DEF("RegionActiveType", "5.2.17");
@@ -973,46 +970,6 @@ static std::optional<TypeRef> LoopTypeFin(const ScopeContext& ctx,
   return std::nullopt;
 }
 
-static bool ResultNotLast(const std::vector<syntax::Stmt>& stmts) {
-  for (std::size_t i = 0; i + 1 < stmts.size(); ++i) {
-    if (std::holds_alternative<syntax::ResultStmt>(stmts[i])) {
-      return true;
-    }
-  }
-  return false;
-}
-
-static std::optional<core::Span> FirstResultSpan(
-    const std::vector<syntax::Stmt>& stmts) {
-  for (const auto& stmt : stmts) {
-    if (const auto* res = std::get_if<syntax::ResultStmt>(&stmt)) {
-      return res->span;
-    }
-  }
-  return std::nullopt;
-}
-
-static void WarnResultUnreachable(const ScopeContext& ctx,
-                                  const StmtTypeContext& type_ctx,
-                                  const std::vector<syntax::Stmt>& stmts) {
-  (void)ctx;
-  if (ResultNotLast(stmts)) {
-    SPEC_RULE("Warn-Result-Unreachable");
-    if (!type_ctx.diags) {
-      return;
-    }
-    const auto span = FirstResultSpan(stmts);
-    if (!span.has_value()) {
-      return;
-    }
-    if (auto diag = core::MakeDiagnostic("W-SEM-1001", *span)) {
-      *type_ctx.diags = core::Emit(*type_ctx.diags, *diag);
-    }
-    return;
-  }
-  SPEC_RULE("Warn-Result-Ok");
-}
-
 static bool HasNonLocalCtrlExpr(const syntax::ExprPtr& expr, bool in_loop);
 
 static bool HasNonLocalCtrlBlock(const syntax::Block& block, bool in_loop);
@@ -1023,9 +980,6 @@ static bool HasNonLocalCtrlStmt(const syntax::Stmt& stmt, bool in_loop) {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, syntax::ReturnStmt>) {
           SPEC_RULE("HasNonLocalCtrl-Return");
-          return true;
-        } else if constexpr (std::is_same_v<T, syntax::ResultStmt>) {
-          SPEC_RULE("HasNonLocalCtrl-Result");
           return true;
         } else if constexpr (std::is_same_v<T, syntax::BreakStmt>) {
           if (!in_loop) {
@@ -1721,8 +1675,6 @@ BlockInfoResult TypeBlockInfo(const ScopeContext& ctx,
     return result;
   }
 
-  WarnResultUnreachable(ctx, type_ctx, block.stmts);
-
   const auto res_type = ResType(ctx, stmts_typed.flow.results);
   std::optional<ExprTypeResult> tail_type;
   if (block.tail_opt) {
@@ -1837,8 +1789,6 @@ CheckResult CheckBlock(const ScopeContext& ctx,
     result.diag_id = stmts_typed.diag_id;
     return result;
   }
-
-  WarnResultUnreachable(ctx, type_ctx, block.stmts);
 
   const auto res_type = ResType(ctx, stmts_typed.flow.results);
   if (res_type.has_value()) {
@@ -2795,15 +2745,6 @@ StmtTypeResult TypeStmt(const ScopeContext& ctx,
           }
           SPEC_RULE("T-Return-Unit");
           return {true, std::nullopt, env, {}};
-        } else if constexpr (std::is_same_v<T, syntax::ResultStmt>) {
-          const auto typed = TypeExprWithEnv(ctx, env, type_expr, node.value);
-          if (!typed.ok) {
-            return {false, typed.diag_id, {}, {}};
-          }
-          SPEC_RULE("T-ResultStmt");
-          FlowInfo flow;
-          flow.results.push_back(typed.type);
-          return {true, std::nullopt, env, std::move(flow)};
         } else if constexpr (std::is_same_v<T, syntax::BreakStmt>) {
           if (type_ctx.loop_flag != LoopFlag::Loop) {
             SPEC_RULE("Break-Outside-Loop");

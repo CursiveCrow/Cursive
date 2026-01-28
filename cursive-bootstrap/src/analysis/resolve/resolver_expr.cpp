@@ -1190,14 +1190,6 @@ ResolveStmtResult ResolveStmt(ResolveContext& ctx,
           }
           out.value_opt = value.value;
           return {true, std::nullopt, std::nullopt, out};
-        } else if constexpr (std::is_same_v<T, syntax::ResultStmt>) {
-          auto out = node;
-          const auto value = ResolveExpr(ctx, node.value);
-          if (!value.ok) {
-            return {false, value.diag_id, value.span, {}};
-          }
-          out.value = value.value;
-          return {true, std::nullopt, std::nullopt, out};
         } else if constexpr (std::is_same_v<T, syntax::BreakStmt>) {
           auto out = node;
           const auto value = ResolveExprOpt(ctx, node.value_opt);

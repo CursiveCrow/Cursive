@@ -37,7 +37,6 @@ inline constexpr std::array<std::string_view, 50> kCursive0Keywords = {
     "race",
     "record",
     "region",
-    "result",
     "return",
     "shadow",
     "shared",

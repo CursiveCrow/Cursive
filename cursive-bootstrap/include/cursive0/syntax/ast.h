@@ -759,11 +759,6 @@ struct ReturnStmt {
   core::Span span;
 };
 
-struct ResultStmt {
-  ExprPtr value;
-  core::Span span;
-};
-
 struct BreakStmt {
   ExprPtr value_opt;
   core::Span span;
@@ -808,7 +803,6 @@ using Stmt = std::variant<LetStmt,
                           RegionStmt,
                           FrameStmt,
                           ReturnStmt,
-                          ResultStmt,
                           BreakStmt,
                           ContinueStmt,
                           UnsafeBlockStmt,

@@ -254,17 +254,6 @@ ParseStmtCoreResult ParseStmtCore(Parser parser) {
     return {expr.parser, stmt, true};
   }
 
-  if (IsKw(parser, "result")) {
-    SPEC_RULE("Parse-Result-Stmt");
-    Parser next = parser;
-    Advance(next);
-    ParseElemResult<ExprPtr> expr = ParseExpr(next);
-    ResultStmt stmt;
-    stmt.value = expr.elem;
-    stmt.span = SpanBetween(start, expr.parser);
-    return {expr.parser, stmt, true};
-  }
-
   if (IsKw(parser, "break")) {
     SPEC_RULE("Parse-Break-Stmt");
     Parser next = parser;

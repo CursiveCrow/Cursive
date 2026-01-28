@@ -317,8 +317,6 @@ void CheckStmt(const ScopeContext& ctx,
           }
         } else if constexpr (std::is_same_v<T, syntax::ReturnStmt>) {
           CheckExpr(ctx, node.value_opt, diags);
-        } else if constexpr (std::is_same_v<T, syntax::ResultStmt>) {
-          CheckExpr(ctx, node.value, diags);
         } else if constexpr (std::is_same_v<T, syntax::BreakStmt>) {
           CheckExpr(ctx, node.value_opt, diags);
         } else if constexpr (std::is_same_v<T, syntax::UnsafeBlockStmt>) {

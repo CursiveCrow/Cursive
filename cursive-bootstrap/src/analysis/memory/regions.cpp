@@ -1840,15 +1840,6 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
           ProvFlow flow;
           flow.results.push_back(value.prov);
           return {true, std::nullopt, std::nullopt, env, gamma, std::move(flow)};
-        } else if constexpr (std::is_same_v<T, syntax::ResultStmt>) {
-          const auto value = ProvExpr(ctx, node.value, env, gamma, expr_map);
-          if (!value.ok) {
-            return {false, value.diag_id, value.span, env, gamma, {}};
-          }
-          SPEC_RULE("Prov-ResultStmt");
-          ProvFlow flow;
-          flow.results.push_back(value.prov);
-          return {true, std::nullopt, std::nullopt, env, gamma, std::move(flow)};
         } else if constexpr (std::is_same_v<T, syntax::BreakStmt>) {
           if (!node.value_opt) {
             SPEC_RULE("Prov-Break-Unit");
