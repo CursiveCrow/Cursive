@@ -185,6 +185,14 @@ TypeRef InstantiateType(const TypeRef& type, const TypeSubst& subst) {
           return MakeTypeFunc(std::move(new_params),
                               InstantiateType(node.ret, subst));
         }
+        else if constexpr (std::is_same_v<T, TypeModalState>) {
+          std::vector<TypeRef> new_args;
+          new_args.reserve(node.generic_args.size());
+          for (const auto& arg : node.generic_args) {
+            new_args.push_back(InstantiateType(arg, subst));
+          }
+          return MakeTypeModalState(node.path, node.state, std::move(new_args));
+        }
         else {
           return type;
         }

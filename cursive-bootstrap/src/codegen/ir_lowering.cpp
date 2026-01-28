@@ -9,6 +9,7 @@
 #include "cursive0/codegen/mangle.h"
 #include "cursive0/core/symbols.h"
 #include "cursive0/analysis/composite/enums.h"
+#include "cursive0/analysis/generics/monomorphize.h"
 #include "cursive0/analysis/modal/modal_widen.h"
 #include "cursive0/analysis/resolve/scopes.h"
 #include "cursive0/analysis/types/type_equiv.h"
@@ -339,6 +340,17 @@ std::optional<FieldInfo> LookupRecordField(const analysis::ScopeContext& scope,
   }
   auto& names = fields_opt->first;
   auto& types = fields_opt->second;
+
+  // §13.1 Instantiate: Substitute type parameters in field types for generic records
+  // e.g., for Container<i32>, substitute T -> i32 in field type "T"
+  if (record->generic_params.has_value() && !path_type.generic_args.empty()) {
+    analysis::TypeSubst type_subst = analysis::BuildSubstitution(
+        record->generic_params->params, path_type.generic_args);
+    for (auto& field_type : types) {
+      field_type = analysis::InstantiateType(field_type, type_subst);
+    }
+  }
+
   auto layout = RecordLayoutOf(scope, types);
   if (!layout.has_value()) {
     return std::nullopt;
@@ -1214,7 +1226,7 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
       }
       std::optional<std::pair<std::vector<std::string>, std::vector<analysis::TypeRef>>> fields_opt;
       if (auto* path = std::get_if<analysis::TypePathType>(&stripped->node)) {
-        fields_opt = [&]() -> std::optional<std::pair<std::vector<std::string>, std::vector<analysis::TypeRef>>> {
+        fields_opt = [&, path]() -> std::optional<std::pair<std::vector<std::string>, std::vector<analysis::TypeRef>>> {
           syntax::Path syntax_path;
           syntax_path.reserve(path->path.size());
           for (const auto& seg : path->path) {
@@ -1228,7 +1240,16 @@ llvm::Value* MaterializeDerivedValue(LLVMEmitter& emitter,
           if (!record) {
             return std::nullopt;
           }
-          return CollectRecordFields(scope, *record);
+          auto result = CollectRecordFields(scope, *record);
+          // §13.1 Instantiate: Substitute type parameters in field types for generic records
+          if (result.has_value() && record->generic_params.has_value() && !path->generic_args.empty()) {
+            analysis::TypeSubst type_subst = analysis::BuildSubstitution(
+                record->generic_params->params, path->generic_args);
+            for (auto& field_type : result->second) {
+              field_type = analysis::InstantiateType(field_type, type_subst);
+            }
+          }
+          return result;
         }();
       } else if (auto* modal = std::get_if<analysis::TypeModalState>(&stripped->node)) {
         const auto* decl = LookupModalDecl(scope, modal->path);

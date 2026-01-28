@@ -525,21 +525,7 @@ static TypeLowerResult LowerType(const ScopeContext& ctx,
           return {true, std::nullopt,
                   MakeTypeModalState(node.path, node.state, std::move(args))};
         } else if constexpr (std::is_same_v<T, syntax::TypePathType>) {
-          auto is_builtin_generic = [&](const syntax::TypePath& path) {
-            if (path.size() != 1) {
-              return false;
-            }
-            return IdEq(path[0], "Spawned") ||
-                   IdEq(path[0], "Tracked") ||
-                   IdEq(path[0], "Async") ||
-                   IdEq(path[0], "Sequence") ||
-                   IdEq(path[0], "Future") ||
-                   IdEq(path[0], "Stream") ||
-                   IdEq(path[0], "Pipe") ||
-                   IdEq(path[0], "Exchange") ||
-                   IdEq(path[0], "Ptr");
-          };
-          if (!node.generic_args.empty() && is_builtin_generic(node.path)) {
+          if (!node.generic_args.empty()) {
             std::vector<TypeRef> lowered_args;
             for (const auto& arg : node.generic_args) {
               const auto lower_result = LowerType(ctx, arg);

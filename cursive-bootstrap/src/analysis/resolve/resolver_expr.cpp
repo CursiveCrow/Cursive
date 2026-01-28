@@ -266,6 +266,14 @@ ResolveTypeRef(ResolveContext& ctx,
           }
           syntax::GenericTypeRef out = node;
           out.path = resolved.value;
+          // Also resolve generic args to match ResolveType behavior for TypePathType
+          for (auto& arg : out.generic_args) {
+            const auto resolved_arg = ResolveType(ctx, arg);
+            if (!resolved_arg.ok) {
+              return {false, resolved_arg.diag_id, resolved_arg.span, {}};
+            }
+            arg = resolved_arg.value;
+          }
           SPEC_RULE("ResolveTypeRef-GenericPath");
           result.ok = true;
           result.value = out;
@@ -277,6 +285,14 @@ ResolveTypeRef(ResolveContext& ctx,
           }
           syntax::ModalStateRef out = node;
           out.path = resolved.value;
+          // Also resolve generic args to match ResolveType behavior for TypeModalState
+          for (auto& arg : out.generic_args) {
+            const auto resolved_arg = ResolveType(ctx, arg);
+            if (!resolved_arg.ok) {
+              return {false, resolved_arg.diag_id, resolved_arg.span, {}};
+            }
+            arg = resolved_arg.value;
+          }
           SPEC_RULE("ResolveTypeRef-ModalState");
           result.ok = true;
           result.value = out;

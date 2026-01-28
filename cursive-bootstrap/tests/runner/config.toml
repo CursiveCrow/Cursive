@@ -4,7 +4,7 @@
 [compiler]
 # Path to cursivec0.exe (relative to tests root, or absolute)
 # If not specified, auto-detected from ../build/Release/cursivec0.exe
-# path = "../build/Release/cursivec0.exe"
+path = "../../build/Release/cursivec0.exe"
 
 # Timeout for each test in seconds
 timeout = 60
@@ -12,7 +12,7 @@ timeout = 60
 [runtime]
 # Path to cursive0_rt.lib
 # If not specified, auto-detected
-# path = "auxiliary/runtime/cursive0_rt.lib"
+path = "../../runtime/cursive0_rt.lib"
 
 [execution]
 # Number of parallel jobs (0 = auto-detect CPU count)

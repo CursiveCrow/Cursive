@@ -1456,22 +1456,14 @@ static TypeLowerResult LowerType(const ScopeContext& ctx,
           return {true, std::nullopt,
                   MakeTypeModalState(node.path, node.state, std::move(args))};
         } else if constexpr (std::is_same_v<T, syntax::TypePathType>) {
-          auto is_builtin_generic = [&](const syntax::TypePath& path) {
-            if (path.size() != 1) {
-              return false;
-            }
-            return IdEq(path[0], "Spawned") ||
-                   IdEq(path[0], "Tracked") ||
-                   IdEq(path[0], "Async") ||
-                   IdEq(path[0], "Sequence") ||
-                   IdEq(path[0], "Future") ||
-                   IdEq(path[0], "Stream") ||
-                   IdEq(path[0], "Pipe") ||
-                   IdEq(path[0], "Exchange") ||
-                   IdEq(path[0], "Ptr");
-          };
-          if (!node.generic_args.empty() && is_builtin_generic(node.path)) {
+          // §5.2.9, §13.1: Generic type instantiation lowering
+          // Per WF-Apply (§5.2.3), type arguments MUST be preserved for ALL
+          // generic types - both builtin (Ptr, Spawned, etc.) and user-defined
+          // (records, enums, modals with type parameters).
+          if (!node.generic_args.empty()) {
+            SPEC_RULE("WF-Apply");
             std::vector<TypeRef> lowered_args;
+            lowered_args.reserve(node.generic_args.size());
             for (const auto& arg : node.generic_args) {
               const auto lower_result = LowerType(ctx, arg);
               if (!lower_result.ok) {
@@ -1760,6 +1752,14 @@ ExprTypeResult TypeFieldAccessExprImpl(const ScopeContext& ctx,
 
   TypeRef field_type = *field_type_opt;
 
+  // §13.1 Instantiate: Substitute type parameters in field type
+  // e.g., for Container<i32>, substitute T -> i32 in field type "T"
+  if (record->generic_params.has_value() && !path_type->generic_args.empty()) {
+    TypeSubst type_subst = BuildSubstitution(record->generic_params->params,
+                                             path_type->generic_args);
+    field_type = InstantiateType(field_type, type_subst);
+  }
+
   if (const auto* perm_type = std::get_if<TypePerm>(&base_type->node)) {
     field_type = MakeTypePerm(perm_type->perm, field_type);
     if (BitcopyType(ctx, field_type)) {
@@ -1880,6 +1880,14 @@ PlaceTypeResult TypeFieldAccessPlaceImpl(const ScopeContext& ctx,
   }
 
   TypeRef field_type = *field_type_opt;
+
+  // §13.1 Instantiate: Substitute type parameters in field type
+  // e.g., for Container<i32>, substitute T -> i32 in field type "T"
+  if (record->generic_params.has_value() && !path_type->generic_args.empty()) {
+    TypeSubst type_subst = BuildSubstitution(record->generic_params->params,
+                                             path_type->generic_args);
+    field_type = InstantiateType(field_type, type_subst);
+  }
 
   if (const auto* perm_type = std::get_if<TypePerm>(&base_result.type->node)) {
     field_type = MakeTypePerm(perm_type->perm, field_type);
@@ -2913,6 +2921,25 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
     }
   }
 
+  // §13.1 WF-Apply: Lower generic args BEFORE field type checking so we can
+  // build a substitution map for type parameter instantiation
+  std::vector<TypeRef> lowered_record_args;
+  for (const auto& arg : syntax_generic_args) {
+    const auto lowered = LowerType(ctx, arg);
+    if (!lowered.ok) {
+      result.diag_id = lowered.diag_id;
+      return result;
+    }
+    lowered_record_args.push_back(lowered.type);
+  }
+
+  // §13.1: Build type substitution map for generic records
+  // Maps type parameter names (e.g., "T") to concrete types (e.g., i32)
+  TypeSubst type_subst;
+  if (record->generic_params.has_value() && !lowered_record_args.empty()) {
+    type_subst = BuildSubstitution(record->generic_params->params, lowered_record_args);
+  }
+
   auto type_expr = [&](const syntax::ExprPtr& inner) {
     return TypeExpr(ctx, type_ctx, inner, env);
   };
@@ -2929,9 +2956,15 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
   };
 
   for (const auto& field_init : expr.fields) {
-    const auto field_type_opt = FieldType(*record, field_init.name, ctx);
+    auto field_type_opt = FieldType(*record, field_init.name, ctx);
     if (!field_type_opt.has_value()) {
       return result;
+    }
+
+    // §13.1 Instantiate: Substitute type parameters in field type
+    // e.g., for Box<i32>, substitute T -> i32 in field type "T"
+    if (!type_subst.empty()) {
+      field_type_opt = InstantiateType(*field_type_opt, type_subst);
     }
 
     if (!BitcopyType(ctx, *field_type_opt) && IsPlaceExpr(field_init.value) &&
@@ -2952,17 +2985,6 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
   }
 
   SPEC_RULE("T-Record-Literal");
-
-  // Lower generic args from syntax types to TypeRefs
-  std::vector<TypeRef> lowered_record_args;
-  for (const auto& arg : syntax_generic_args) {
-    const auto lowered = LowerType(ctx, arg);
-    if (!lowered.ok) {
-      result.diag_id = lowered.diag_id;
-      return result;
-    }
-    lowered_record_args.push_back(lowered.type);
-  }
 
   result.ok = true;
   result.type = MakeTypePath(type_path, std::move(lowered_record_args));

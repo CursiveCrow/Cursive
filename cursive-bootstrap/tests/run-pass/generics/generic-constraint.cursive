@@ -17,7 +17,7 @@ class Numeric for Int {
     }
 }
 
-procedure get_value<T: Numeric>(x: T) -> i32 {
+procedure get_value<T <: Numeric>(x: T) -> i32 {
     return x ~> value()
 }
 

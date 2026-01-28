@@ -35,6 +35,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple, Any
@@ -60,8 +61,27 @@ class Config:
     list_only: bool
 
 
-def find_compiler(root: Path) -> Path:
+def load_config_toml(runner_dir: Path) -> dict:
+    """Load configuration from config.toml."""
+    config_path = runner_dir / "config.toml"
+    if not config_path.exists():
+        return {}
+
+    with open(config_path, "rb") as f:
+        return tomllib.load(f)
+
+
+def find_compiler(root: Path, config_toml: dict) -> Path:
     """Locate cursivec0.exe relative to tests directory."""
+    # Check config.toml first
+    if "compiler" in config_toml and "path" in config_toml["compiler"]:
+        config_path = config_toml["compiler"]["path"]
+        # Resolve relative to tests root
+        resolved = (root / config_path).resolve()
+        if resolved.exists():
+            return resolved
+
+    # Fall back to auto-detection
     candidates = [
         root.parent / "build" / "Release" / "cursivec0.exe",
         root.parent / "build" / "Debug" / "cursivec0.exe",
@@ -73,8 +93,17 @@ def find_compiler(root: Path) -> Path:
     raise FileNotFoundError("Could not find cursivec0.exe. Use --compiler to specify path.")
 
 
-def find_runtime(root: Path) -> Path:
+def find_runtime(root: Path, config_toml: dict) -> Path:
     """Locate cursive0_rt.lib."""
+    # Check config.toml first
+    if "runtime" in config_toml and "path" in config_toml["runtime"]:
+        config_path = config_toml["runtime"]["path"]
+        # Resolve relative to tests root
+        resolved = (root / config_path).resolve()
+        if resolved.exists():
+            return resolved
+
+    # Fall back to auto-detection
     candidates = [
         root / "auxiliary" / "runtime" / "cursive0_rt.lib",
         root.parent / "build" / "Release" / "cursive0_rt.lib",
@@ -889,8 +918,11 @@ def main() -> int:
     script_dir = Path(__file__).parent
     spec_tests_root = script_dir.parent
 
-    compiler_path = args.compiler or find_compiler(spec_tests_root)
-    runtime_lib = find_runtime(spec_tests_root)
+    # Load config.toml
+    config_toml = load_config_toml(script_dir)
+
+    compiler_path = args.compiler or find_compiler(spec_tests_root, config_toml)
+    runtime_lib = find_runtime(spec_tests_root, config_toml)
     llvm_bin = find_llvm_bin(spec_tests_root)
 
     config = Config(

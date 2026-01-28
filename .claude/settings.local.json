@@ -100,7 +100,8 @@
       "Bash(/c/Dev/Cursive/cursive-bootstrap/build/Release/cursivec0.exe .)",
       "Bash(cmd.exe:*)",
       "Bash(powershell.exe -Command \"& ''C:\\\\Dev\\\\Cursive\\\\cursive-bootstrap\\\\build\\\\Release\\\\cursivec0.exe'' ''C:\\\\Users\\\\Crow\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Dev-Cursive\\\\513aae4b-fcc8-495f-a54f-2dc7be66e270\\\\scratchpad\\\\generic_test2'' 2>&1\")",
-      "Bash(powershell.exe -Command:*)"
+      "Bash(powershell.exe -Command:*)",
+      "Bash(cmake:*)"
     ],
     "deny": [
       "Bash(git: *)"

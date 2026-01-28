@@ -2,6 +2,12 @@ cmake_minimum_required(VERSION 3.20)
 
 project(cursive LANGUAGES C CXX)
 
+# Set output directories for built artifacts
+# This ensures executables and libraries are placed in predictable locations
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/$<CONFIG>)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/$<CONFIG>)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/$<CONFIG>)
+
 include(CTest)
 
 # T-LLVM-001: Integration
@@ -447,23 +453,6 @@ target_include_directories(cursive0_frontend PUBLIC
 
 target_compile_features(cursive0_frontend PUBLIC cxx_std_20)
 
-# Interpreter CLI disabled - source file not present
-# add_executable(cursive0_interpreter_cli
-#   tools/cursive0_interpreter_main.cpp
-# )
-#
-# target_link_libraries(cursive0_interpreter_cli PRIVATE
-#   cursive0_interpreter
-#   cursive0_frontend
-# )
-#
-# target_include_directories(cursive0_interpreter_cli PRIVATE
-#   ${CMAKE_CURRENT_SOURCE_DIR}/include
-# )
-#
-# target_compile_features(cursive0_interpreter_cli PRIVATE cxx_std_20)
-
-
 add_executable(cursivec0
   src/driver/main.cpp
 )
@@ -488,68 +477,7 @@ if(WIN32 AND CURSIVE_USE_BUNDLED_ICU AND DEFINED CURSIVE_ICU_DLLS)
   endforeach()
 endif()
 
-set(SPEC_VERIFIER_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/spec_verifier")
-option(CURSIVE_BUILD_SPEC_VERIFIER "Build the spec verifier tool" OFF)
-set(SPEC_VERIFIER_BOOTSTRAP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bootstrap")
-option(CURSIVE_USE_BOOTSTRAP_COMPILER "Use pinned bootstrap compiler for spec verifier" OFF)
-set(SPEC_VERIFIER_BOOTSTRAP_COMPILER "${SPEC_VERIFIER_BOOTSTRAP_DIR}/cursivec0.exe")
-set(SPEC_VERIFIER_BOOTSTRAP_COMPILER_DEP "${SPEC_VERIFIER_BOOTSTRAP_COMPILER}")
-set(SPEC_VERIFIER_BOOTSTRAP_RUNTIME "${SPEC_VERIFIER_BOOTSTRAP_DIR}/cursive0_rt.lib")
-set(SPEC_VERIFIER_BOOTSTRAP_RUNTIME_DEP "${SPEC_VERIFIER_BOOTSTRAP_RUNTIME}")
-if(NOT CURSIVE_USE_BOOTSTRAP_COMPILER OR NOT EXISTS "${SPEC_VERIFIER_BOOTSTRAP_COMPILER}")
-  set(SPEC_VERIFIER_BOOTSTRAP_COMPILER "$<TARGET_FILE:cursivec0>")
-  set(SPEC_VERIFIER_BOOTSTRAP_COMPILER_DEP cursivec0)
-endif()
-if(NOT CURSIVE_USE_BOOTSTRAP_COMPILER OR NOT EXISTS "${SPEC_VERIFIER_BOOTSTRAP_RUNTIME}")
-  set(SPEC_VERIFIER_BOOTSTRAP_RUNTIME "${CMAKE_CURRENT_SOURCE_DIR}/runtime/cursive0_rt.lib")
-  set(SPEC_VERIFIER_BOOTSTRAP_RUNTIME_DEP "${SPEC_VERIFIER_BOOTSTRAP_RUNTIME}")
-endif()
-set(SPEC_VERIFIER_OUTPUT
-  "${SPEC_VERIFIER_ROOT}/build/bin/spec_verifier${CMAKE_EXECUTABLE_SUFFIX}"
-)
-
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
-
-set(SPEC_VERIFIER_BOOTSTRAP_SUMS "${SPEC_VERIFIER_BOOTSTRAP_DIR}/SHA256SUMS")
-set(SPEC_VERIFIER_VERIFY_BOOTSTRAP OFF)
-if(CURSIVE_USE_BOOTSTRAP_COMPILER AND EXISTS "${SPEC_VERIFIER_BOOTSTRAP_SUMS}")
-  set(SPEC_VERIFIER_VERIFY_BOOTSTRAP ON)
-endif()
-
-if(CURSIVE_BUILD_SPEC_VERIFIER)
-  add_custom_command(
-    OUTPUT "${SPEC_VERIFIER_OUTPUT}"
-    COMMAND ${CMAKE_COMMAND} -E echo
-            "spec_verifier: use_bootstrap=${CURSIVE_USE_BOOTSTRAP_COMPILER}"
-    COMMAND ${CMAKE_COMMAND} -E echo
-            "spec_verifier: bootstrap verify=${SPEC_VERIFIER_VERIFY_BOOTSTRAP}"
-    COMMAND ${CMAKE_COMMAND} -E echo
-            "spec_verifier: compiler=${SPEC_VERIFIER_BOOTSTRAP_COMPILER}"
-    COMMAND ${CMAKE_COMMAND} -E echo
-            "spec_verifier: runtime=${SPEC_VERIFIER_BOOTSTRAP_RUNTIME}"
-    COMMAND ${CMAKE_COMMAND} -E env SPEC_VERIFY_BOOTSTRAP=${SPEC_VERIFIER_VERIFY_BOOTSTRAP}
-            ${Python3_EXECUTABLE} -c
-            "import os,subprocess,sys; verify=os.environ.get('SPEC_VERIFY_BOOTSTRAP')=='ON'; sys.exit(0) if not verify else sys.exit(subprocess.call([r'${Python3_EXECUTABLE}', r'${CMAKE_CURRENT_SOURCE_DIR}/tools/verify_bootstrap_hashes.py']))"
-    COMMAND ${CMAKE_COMMAND} -E make_directory
-            "${SPEC_VERIFIER_ROOT}/runtime"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${SPEC_VERIFIER_BOOTSTRAP_RUNTIME}"
-            "${SPEC_VERIFIER_ROOT}/runtime/cursive0_rt.lib"
-    COMMAND "${SPEC_VERIFIER_BOOTSTRAP_COMPILER}" build "${SPEC_VERIFIER_ROOT}/src/main.cursive"
-    WORKING_DIRECTORY "${SPEC_VERIFIER_ROOT}"
-    DEPENDS
-            ${SPEC_VERIFIER_BOOTSTRAP_COMPILER_DEP}
-            "${SPEC_VERIFIER_BOOTSTRAP_RUNTIME_DEP}"
-            "${SPEC_VERIFIER_ROOT}/Cursive.toml"
-            "${SPEC_VERIFIER_ROOT}/src/main.cursive"
-  )
-
-  add_custom_target(spec_verifier_build DEPENDS "${SPEC_VERIFIER_OUTPUT}")
-endif()
-
-if(BUILD_TESTING)
-  add_subdirectory(tests)
-endif()
 
 if(CURSIVE_ENABLE_FUZZING)
   include(cmake/Fuzzing.cmake)
