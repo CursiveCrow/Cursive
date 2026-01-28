@@ -115,11 +115,11 @@ Tests created for:
 - W-TYP-1510 - Type warning
 - W-SYS-3350, 3355, 4010 - System warnings
 
-## Run-Pass Categories (124 tests)
+## Run-Pass Categories (123 tests)
 
 - [x] primitives (6 tests) - added literal-suffixes.cursive
 - [x] operators (11 tests) - added compound-assign.cursive, bitwise-compound.cursive, power.cursive
-- [x] control-flow (22 tests) - added inclusive-range.cursive, result-statement.cursive
+- [x] control-flow (21 tests) - added inclusive-range.cursive
 - [x] bindings (5 tests)
 - [x] procedures (5 tests)
 - [x] records (7 tests)
@@ -395,7 +395,6 @@ This section tracks coverage of normative inference rules from Cursive0.md (§3-
 | T-Float-Literal-Suffix | primitives/literal-suffixes.cursive | 3.14f32, 3.14f64 |
 | T-Power | operators/power.cursive | ** operator |
 | Range-Inclusive | control-flow/inclusive-range.cursive | ..= in loops and patterns |
-| T-ResultStmt | control-flow/result-statement.cursive | result expr statement |
 | Sub-Never | types/never-coercion.cursive | ! type coercion |
 | Sub-Union-Width | types/union-widening.cursive | Union type widening |
 | string@Managed | strings/string-managed.cursive | Managed string operations |

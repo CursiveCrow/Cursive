@@ -326,7 +326,6 @@ StmtKind(RegionStmt(_, _, _)) = `region`
 StmtKind(FrameStmt(_, _)) = `frame`
 StmtKind(KeyBlockStmt(_, _, _, _)) = `key_block`
 StmtKind(ReturnStmt(_)) = `return`
-StmtKind(ResultStmt(_)) = `result`
 StmtKind(BreakStmt(_)) = `break`
 StmtKind(ContinueStmt) = `continue`
 StmtKind(UnsafeBlockStmt(_)) = `unsafe`
@@ -372,7 +371,7 @@ S_Types = PrimTypes_C0 ∪ TypeCtors_C0
 S_Perms = PermSet_C0
 
 **S_ExprStmt.**
-S_ExprStmt = {`literal`, `identifier`, `field_access`, `tuple_index`, `index`, `if`, `loop`, `match`, `break`, `continue`, `return`, `result`, `defer`, `region`, `frame`, `key_block`, `union_propagate`, `let`, `var`, `shadow`, `assign`, `compound_assign`, `move`, `widen`, `transmute`, `unsafe`, `region_alloc`, `method_call`, `parallel`, `spawn`, `dispatch`, `wait`, `yield`, `sync`, `race`, `all`}
+S_ExprStmt = {`literal`, `identifier`, `field_access`, `tuple_index`, `index`, `if`, `loop`, `match`, `break`, `continue`, `return`, `defer`, `region`, `frame`, `key_block`, `union_propagate`, `let`, `var`, `shadow`, `assign`, `compound_assign`, `move`, `widen`, `transmute`, `unsafe`, `region_alloc`, `method_call`, `parallel`, `spawn`, `dispatch`, `wait`, `yield`, `sync`, `race`, `all`}
 
 **S_Caps.**
 S_Caps = {`Context`, `FileSystem`, `HeapAllocator`, `ExecutionDomain`, `Reactor`}
@@ -2002,7 +2001,7 @@ Sensitive(c) ⇔ c ∈ {U+202A … U+202E, U+2066 … U+2069, U+200C, U+200D}
 #### 3.2.3. Reserved Lexemes
 
 **Reserved.**
-Reserved = {`all`, `as`, `break`, `class`, `continue`, `dispatch`, `else`, `enum`, `false`, `defer`, `frame`, `from`, `if`, `imm`, `import`, `internal`, `let`, `loop`, `match`, `modal`, `move`, `mut`, `null`, `parallel`, `private`, `procedure`, `protected`, `public`, `race`, `record`, `region`, `result`, `return`, `shadow`, `shared`, `spawn`, `sync`, `transition`, `transmute`, `true`, `type`, `unique`, `unsafe`, `var`, `widen`, `where`, `using`, `yield`, `const`, `override`}
+Reserved = {`all`, `as`, `break`, `class`, `continue`, `dispatch`, `else`, `enum`, `false`, `defer`, `frame`, `from`, `if`, `imm`, `import`, `internal`, `let`, `loop`, `match`, `modal`, `move`, `mut`, `null`, `parallel`, `private`, `procedure`, `protected`, `public`, `race`, `record`, `region`, `return`, `shadow`, `shared`, `spawn`, `sync`, `transition`, `transmute`, `true`, `type`, `unique`, `unsafe`, `var`, `widen`, `where`, `using`, `yield`, `const`, `override`}
 
 FutureReserved = ∅
 
@@ -2857,7 +2856,7 @@ ModalPayloadPattern = {ModalRecordPayload([FieldPattern])}
 
 ##### 3.3.2.6. Statements
 
-Stmt = {LetStmt(binding), VarStmt(binding), ErrorStmt(span), ShadowLetStmt(name, type_opt, init), ShadowVarStmt(name, type_opt, init), AssignStmt(place, expr), CompoundAssignStmt(place, op, expr), ExprStmt(expr), DeferStmt(block), RegionStmt(opts_opt, alias_opt, block), FrameStmt(target_opt, block), KeyBlockStmt(paths, mods, mode_opt, block), ReturnStmt(expr_opt), ResultStmt(expr), BreakStmt(expr_opt), ContinueStmt, UnsafeBlockStmt(block)}
+Stmt = {LetStmt(binding), VarStmt(binding), ErrorStmt(span), ShadowLetStmt(name, type_opt, init), ShadowVarStmt(name, type_opt, init), AssignStmt(place, expr), CompoundAssignStmt(place, op, expr), ExprStmt(expr), DeferStmt(block), RegionStmt(opts_opt, alias_opt, block), FrameStmt(target_opt, block), KeyBlockStmt(paths, mods, mode_opt, block), ReturnStmt(expr_opt), BreakStmt(expr_opt), ContinueStmt, UnsafeBlockStmt(block)}
 
 binding = ⟨pattern, type_opt, op, init, span⟩
 opts_opt ∈ {⊥} ∪ Expr    alias_opt ∈ {⊥} ∪ Identifier
@@ -3053,7 +3052,7 @@ variant            ::= identifier variant_payload? ("=" integer_literal)?
 variant_payload    ::= "(" type_list? ")" | "{" field_decl_list? "}"
 type_list          ::= type ("," type)*
 
-statement          ::= key_block_stmt | binding_stmt | shadow_binding | assignment_stmt | expr_stmt | defer_stmt | region_stmt | frame_stmt | return_stmt | result_stmt | break_stmt | continue_stmt | unsafe_block
+statement          ::= key_block_stmt | binding_stmt | shadow_binding | assignment_stmt | expr_stmt | defer_stmt | region_stmt | frame_stmt | return_stmt | break_stmt | continue_stmt | unsafe_block
 binding_stmt       ::= ("let" | "var") pattern (":" type)? binding_op expression terminator
 shadow_binding     ::= "shadow" ("let" | "var") identifier (":" type)? "=" expression terminator
 assignment_stmt    ::= place_expr "=" expression terminator
@@ -3065,7 +3064,6 @@ region_opts        ::= "(" expression ")"
 region_alias       ::= "as" identifier
 frame_stmt         ::= "frame" block_expr | identifier "." "frame" block_expr
 return_stmt        ::= "return" expression? terminator?
-result_stmt        ::= "result" expression terminator?
 break_stmt         ::= "break" expression? terminator?
 continue_stmt      ::= "continue" terminator?
 unsafe_block       ::= "unsafe" block_expr
@@ -6057,11 +6055,6 @@ IsKw(Tok(P), `shadow`)    Tok(Advance(P)) ∈ {Keyword(`let`), Keyword(`var`)}  
 IsKw(Tok(P), `return`)    Γ ⊢ ParseExprOpt(Advance(P)) ⇓ (P_1, e_opt)
 ──────────────────────────────────────────────────────────────
 Γ ⊢ ParseStmtCore(P) ⇓ (P_1, ReturnStmt(e_opt))
-
-**(Parse-Result-Stmt)**
-IsKw(Tok(P), `result`)    Γ ⊢ ParseExpr(Advance(P)) ⇓ (P_1, e)
-──────────────────────────────────────────────────────────────
-Γ ⊢ ParseStmtCore(P) ⇓ (P_1, ResultStmt(e))
 
 **(Parse-Break-Stmt)**
 IsKw(Tok(P), `break`)    Γ ⊢ ParseExprOpt(Advance(P)) ⇓ (P_1, e_opt)
@@ -9152,10 +9145,6 @@ stmt ∈ {AssignStmt(p, e), CompoundAssignStmt(p, op, e)}    Γ; R; L ⊢ p : Ty
 ────────────────────────────────────────────────────────────────
 HasNonLocalCtrl(ReturnStmt(_), in_loop)
 
-**(HasNonLocalCtrl-Result)**
-────────────────────────────────────────────────────────────────
-HasNonLocalCtrl(ResultStmt(_), in_loop)
-
 **(HasNonLocalCtrl-Break)**
 in_loop = false
 ────────────────────────────────────────────────────────────────
@@ -9244,27 +9233,6 @@ AsyncSig(R) = ⊥    Γ; R; L ⊢ e : T    R_b = BodyReturnType(R)    ¬(Γ ⊢ 
 AsyncSig(R) = ⊥    R_b = BodyReturnType(R)    R_b ≠ TypePrim("()")    c = Code(Return-Type-Err)
 ────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ ReturnStmt(⊥) ⇑ c
-
-**(T-ResultStmt)**
-Γ; R; L ⊢ e : T
-────────────────────────────────────────────────────────────────
-Γ; R; L ⊢ ResultStmt(e) ⇒ Γ ▷ ⟨[T], [], false⟩
-
-ResultNotLast(stmts) ⇔ ∃ pre, rest, e. stmts = pre ++ [ResultStmt(e)] ++ rest ∧ rest ≠ []
-
-FirstResultSpan([]) = ⊥
-FirstResultSpan(ResultStmt(e) :: rest) = span(ResultStmt(e))
-FirstResultSpan(s :: rest) = FirstResultSpan(rest) if s ≠ ResultStmt(_)
-
-**(Warn-Result-Unreachable)**
-ResultNotLast(stmts)    FirstResultSpan(stmts) = sp    Γ ⊢ Emit(W-SEM-1001, sp)
-────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ WarnResultUnreachable(stmts) ⇓ ok
-
-**(Warn-Result-Ok)**
-¬ ResultNotLast(stmts)
-──────────────────────────────────────────────
-Γ ⊢ WarnResultUnreachable(stmts) ⇓ ok
 
 **(T-Break-Value)**
 L = `loop`    Γ; R; L ⊢ e : T
@@ -10429,8 +10397,8 @@ TempOrder(e) =
 
 TempOrderStmt(s) = TempOrderList(StmtExprs(s))
 
-ControlExpr(ReturnStmt(e)) = e    ControlExpr(ResultStmt(e)) = e    ControlExpr(BreakStmt(e)) = e
-ControlExpr(s) = ⊥    if s ∉ {ReturnStmt(_), ResultStmt(_), BreakStmt(_)}
+ControlExpr(ReturnStmt(e)) = e    ControlExpr(BreakStmt(e)) = e
+ControlExpr(s) = ⊥    if s ∉ {ReturnStmt(_), BreakStmt(_)}
 
 TempStmtList(s) = [ e ∈ TempOrderStmt(s) | TempScope(e) = StmtScope(s) ∧ e ≠ ControlExpr(s) ]
 TempDropOrder(s) = Rev(TempStmtList(s))
@@ -10504,7 +10472,6 @@ StmtExprs(AssignStmt(p, e)) = [e, p]
 StmtExprs(CompoundAssignStmt(p, _, e)) = [p, e]
 StmtExprs(ExprStmt(e)) = [e]
 StmtExprs(ReturnStmt(e_opt)) = OptList(e_opt)
-StmtExprs(ResultStmt(e)) = [e]
 StmtExprs(BreakStmt(e_opt)) = OptList(e_opt)
 StmtExprs(ContinueStmt) = []
 StmtExprs(DeferStmt(_)) = []
@@ -10771,11 +10738,6 @@ T_b = BindType(ShadowVarStmt(x, ty_opt, init))    PermOf(T_b) = `unique`    IsPl
 Γ; 𝔅; Π ⊢ e ⇒ 𝔅_1 ▷ Π_1
 ────────────────────────────────────────────────────────────────
 Γ; 𝔅; Π ⊢ ExprStmt(e) ⇒ 𝔅_1 ▷ Π_1
-
-**(B-ResultStmt)**
-Γ; 𝔅; Π ⊢ e ⇒ 𝔅_1 ▷ Π_1
-────────────────────────────────────────────────────────────────
-Γ; 𝔅; Π ⊢ ResultStmt(e) ⇒ 𝔅_1 ▷ Π_1
 
 **(B-UnsafeStmt)**
 Γ; 𝔅; Π ⊢ b ⇒ 𝔅_1 ▷ Π_1
@@ -11220,11 +11182,6 @@ stmt ∈ {AssignStmt(p, e), CompoundAssignStmt(p, _, e)}    Γ; Ω ⊢ p ⇓ π_
 Γ; Ω ⊢ e ⇓ π
 ────────────────────────────────────────────────────────────────
 Γ; Ω ⊢ ExprStmt(e) ⇒ Ω ▷ ⟨[], [], false⟩
-
-**(Prov-ResultStmt)**
-Γ; Ω ⊢ e ⇓ π
-────────────────────────────────────────────────────────────────
-Γ; Ω ⊢ ResultStmt(e) ⇒ Ω ▷ ⟨[π], [], false⟩
 
 **(Prov-Return)**
 Γ; Ω ⊢ e ⇓ π
@@ -16075,7 +16032,7 @@ LowerStmtJudg = {LowerStmt, LowerStmtList, LowerBlock, LowerLoop}
 ──────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LowerLoop(loop) ⇓ ⟨IR, v⟩
 
-StmtForms0 = {LetStmt(_), VarStmt(_), ShadowLetStmt(_, _, _), ShadowVarStmt(_, _, _), AssignStmt(_, _), CompoundAssignStmt(_, _, _), ExprStmt(_), DeferStmt(_), RegionStmt(_, _, _), FrameStmt(_, _), ReturnStmt(_), ResultStmt(_), BreakStmt(_), ContinueStmt, UnsafeBlockStmt(_), ErrorStmt(_)}
+StmtForms0 = {LetStmt(_), VarStmt(_), ShadowLetStmt(_, _, _), ShadowVarStmt(_, _, _), AssignStmt(_, _), CompoundAssignStmt(_, _, _), ExprStmt(_), DeferStmt(_), RegionStmt(_, _, _), FrameStmt(_, _), ReturnStmt(_), BreakStmt(_), ContinueStmt, UnsafeBlockStmt(_), ErrorStmt(_)}
 LowerStmtTotal(Γ) ⇔ ∀ s. s ∈ StmtForms0 ⇒ ∃ IR. Γ ⊢ LowerStmt(s) ⇓ IR
 
 **(Lower-StmtList-Empty)**
@@ -16153,11 +16110,6 @@ opts = RegionOptsExpr(opts_opt)    Γ ⊢ LowerExpr(opts) ⇓ ⟨IR_o, v_o⟩   
 ──────────────────────────────────────────────────────────────
 Γ ⊢ LowerStmt(ReturnStmt(⊥)) ⇓ ReturnIR(())
 
-**(Lower-Stmt-Result)**
-Γ ⊢ LowerExpr(expr) ⇓ ⟨IR_e, v⟩
-──────────────────────────────────────────────────────────────────────
-Γ ⊢ LowerStmt(ResultStmt(expr)) ⇓ SeqIR(IR_e, ResultIR(v))
-
 **(Lower-Stmt-Break)**
 Γ ⊢ LowerExpr(e) ⇓ ⟨IR_e, v⟩
 ────────────────────────────────────────────────────────────────────
@@ -16191,13 +16143,12 @@ TempCleanupIR(s) =
  ε    if k = 0
  SeqIRList([EmitDrop(T_k, v_k), …, EmitDrop(T_1, v_1)])    otherwise
 
-For s ∉ {ReturnStmt(_), ResultStmt(_), BreakStmt(_), ContinueStmt}, the lowering MUST produce
+For s ∉ {ReturnStmt(_), BreakStmt(_), ContinueStmt}, the lowering MUST produce
 Γ ⊢ LowerStmt(s) ⇓ SeqIR(IR_s, TempCleanupIR(s)).
 
 For control-flow statements, the lowering MUST emit temporary cleanup immediately before the control transfer:
 
 Γ ⊢ LowerStmt(ReturnStmt(e)) ⇓ SeqIR(IR_e, TempCleanupIR(s), ReturnIR(v))
-Γ ⊢ LowerStmt(ResultStmt(e)) ⇓ SeqIR(IR_e, TempCleanupIR(s), ResultIR(v))
 Γ ⊢ LowerStmt(BreakStmt(e)) ⇓ SeqIR(IR_e, TempCleanupIR(s), BreakIR(v))
 Γ ⊢ LowerStmt(BreakStmt(⊥)) ⇓ SeqIR(TempCleanupIR(s), BreakIR(⊥))
 Γ ⊢ LowerStmt(ContinueStmt) ⇓ SeqIR(TempCleanupIR(s), ContinueIR)
@@ -20167,16 +20118,6 @@ FrameReset(Σ, r, scope, mark, out) ⇓ (out', Σ') ⇔ Γ ⊢ CleanupScope(scop
 ───────────────────────────────────────────────────────
 Γ ⊢ ExecSigma(ReturnStmt(e), σ) ⇓ (Ctrl(κ), σ_1)
 
-**(ExecSigma-Result)**
-Γ ⊢ EvalSigma(e, σ) ⇓ (Val(v), σ_1)
-──────────────────────────────────────────────────────────
-Γ ⊢ ExecSigma(ResultStmt(e), σ) ⇓ (Ctrl(Result(v)), σ_1)
-
-**(ExecSigma-Result-Ctrl)**
-Γ ⊢ EvalSigma(e, σ) ⇓ (Ctrl(κ), σ_1)
-───────────────────────────────────────────────────────
-Γ ⊢ ExecSigma(ResultStmt(e), σ) ⇓ (Ctrl(κ), σ_1)
-
 **(ExecSigma-Break)**
 Γ ⊢ EvalSigma(e, σ) ⇓ (Val(v), σ_1)
 ──────────────────────────────────────────────────────────
@@ -21250,16 +21191,9 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 | `E-SEM-3161` | Error    | Compile-time | `return` type mismatch with procedure                | Return-Type-Err                                   |
 | `E-SEM-3162` | Error    | Compile-time | `break` outside `loop`                               | Break-Outside-Loop                                |
 | `E-SEM-3163` | Error    | Compile-time | `continue` outside `loop`                            | Continue-Outside-Loop                             |
-| `E-SEM-3164` | Error    | Compile-time | `result` type mismatch with block                    | BlockInfo-Res-Err                                 |
 | `E-SEM-3165` | Error    | Compile-time | `return` at module scope                             | Return-At-Module-Err                              |
 
-### 8.18. W-SEM (Semantic Warnings)
-
-| Code         | Severity | Detection    | Condition                               | DiagId                  |
-| ------------ | -------- | ------------ | --------------------------------------- | ----------------------- |
-| `W-SEM-1001` | Warning  | Compile-time | Unreachable code after result statement | Warn-Result-Unreachable |
-
-### 8.19. P-TYP (Runtime Panics - Types)
+### 8.18. P-TYP (Runtime Panics - Types)
 
 | Code         | Severity | Detection | Condition                                  | DiagId       |
 | ------------ | -------- | --------- | ------------------------------------------ | ------------ |

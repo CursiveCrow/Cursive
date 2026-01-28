@@ -58,7 +58,7 @@
         "T-ShadowVarStmt-Ann", "T-ShadowVarStmt-Ann-Mismatch", "T-ShadowVarStmt-Infer",
         "T-ShadowVarStmt-Infer-Err", "T-Assign", "T-CompoundAssign", "T-ExprStmt",
         "T-UnsafeStmt", "T-DeferStmt", "T-RegionStmt", "T-FrameStmt-Implicit",
-        "T-FrameStmt-Explicit", "T-Return-Value", "T-Return-Unit", "T-ResultStmt",
+        "T-FrameStmt-Explicit", "T-Return-Value", "T-Return-Unit",
         "T-Break-Value", "T-Break-Unit", "T-Continue", "T-ErrorStmt", "T-Block"
       ]
     },
@@ -89,7 +89,7 @@
         "B-ArgPass-Move-Missing", "B-ArgPass-Cons", "B-Call", "B-MethodCall",
         "B-Transition", "B-Seq-Empty", "B-Seq-Cons", "B-LetVar-UniqueNonMove-Err",
         "B-LetVar", "B-ShadowLet-UniqueNonMove-Err", "B-ShadowLet",
-        "B-ShadowVar-UniqueNonMove-Err", "B-ShadowVar", "B-ExprStmt", "B-ResultStmt",
+        "B-ShadowVar-UniqueNonMove-Err", "B-ShadowVar", "B-ExprStmt",
         "B-UnsafeStmt", "B-Defer", "B-RegionStmt", "B-FrameStmt",
         "B-Assign-Immutable-Err", "B-Assign", "B-Assign-Const-Err", "B-If",
         "B-Match", "B-Arm", "B-Block", "B-Loop-Infinite", "B-Loop-Conditional",
@@ -104,7 +104,7 @@
       "rules": [
         "Prov-Seq-Empty", "Prov-Seq-Cons", "Prov-LetVar", "Prov-ShadowLet",
         "Prov-ShadowVar", "Prov-Assign", "Prov-CompoundAssign", "Prov-Async-Escape-Err",
-        "Prov-Escape-Err", "Prov-ExprStmt", "Prov-ResultStmt", "Prov-Return",
+        "Prov-Escape-Err", "Prov-ExprStmt", "Prov-Return",
         "Prov-Return-Unit", "Prov-Break", "Prov-Break-Unit", "Prov-Continue",
         "Prov-UnsafeStmt", "Prov-DeferStmt", "Prov-RegionStmt", "Prov-FrameStmt",
         "Prov-ErrorStmt"
