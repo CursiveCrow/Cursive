@@ -522,6 +522,110 @@ LayoutOf(const ScopeContext& ctx, const TypeRef& type) {
     return modal_state_layout(*decl, modal->state);
   }
   if (const auto* path = std::get_if<TypePathType>(&type->node)) {
+    // §5.4.5: Handle async type aliases - compute layout for Async struct
+    // Async<Out, In, Result, E> has layout { u8 discriminant, max_payload }
+    // where max_payload = max(sizeof(Out), sizeof(Result), sizeof(E))
+    const std::string& type_name = path->path.empty() ? "" : path->path.back();
+    auto compute_async_layout = [&](const std::vector<TypeRef>& async_args)
+        -> std::optional<std::pair<std::uint64_t, std::uint64_t>> {
+      // Async<Out, In, Result, E>: Out=0, In=1, Result=2, E=3
+      // Layout = { u8, max(sizeof(Out), sizeof(Result), sizeof(E if E != !)) }
+      std::uint64_t max_payload_size = 0;
+      std::uint64_t max_payload_align = 1;
+
+      auto add_payload = [&](std::size_t idx) {
+        if (idx < async_args.size() && async_args[idx]) {
+          // Skip if type is ! (never type) - contributes 0 bytes
+          if (const auto* prim = std::get_if<TypePrim>(&async_args[idx]->node)) {
+            if (prim->name == "!") return;
+          }
+          // Skip if type is () (unit type)
+          if (const auto* tup = std::get_if<TypeTuple>(&async_args[idx]->node)) {
+            if (tup->elements.empty()) return;
+          }
+          const auto layout = LayoutOf(ctx, async_args[idx]);
+          if (layout.has_value()) {
+            max_payload_size = std::max(max_payload_size, layout->first);
+            max_payload_align = std::max(max_payload_align, layout->second);
+          }
+        }
+      };
+
+      add_payload(0);  // Out
+      add_payload(2);  // Result
+      add_payload(3);  // E
+
+      // Discriminant is u8 (1 byte, align 1)
+      const std::uint64_t disc_size = 1;
+      const std::uint64_t disc_align = 1;
+      const std::uint64_t align = std::max(disc_align, max_payload_align);
+      const std::uint64_t size = AlignUp(disc_size + max_payload_size, align);
+      return std::make_pair(size, align);
+    };
+
+    // Check for Async<Out, In, Result, E>
+    if (IdEq(type_name, "Async") && !path->generic_args.empty()) {
+      return compute_async_layout(path->generic_args);
+    }
+    // Future<T; E = !> = Async<(), (), T, E>
+    if (IdEq(type_name, "Future") && !path->generic_args.empty()) {
+      auto unit_type = MakeTypeTuple({});
+      auto never_type = MakeTypePrim("!");
+      std::vector<TypeRef> async_args = {
+          unit_type,  // Out
+          unit_type,  // In
+          path->generic_args[0],  // Result (T)
+          path->generic_args.size() > 1 ? path->generic_args[1] : never_type  // E
+      };
+      return compute_async_layout(async_args);
+    }
+    // Sequence<T> = Async<T, (), (), !>
+    if (IdEq(type_name, "Sequence") && !path->generic_args.empty()) {
+      auto unit_type = MakeTypeTuple({});
+      auto never_type = MakeTypePrim("!");
+      std::vector<TypeRef> async_args = {
+          path->generic_args[0],  // Out (T)
+          unit_type,  // In
+          unit_type,  // Result
+          never_type  // E
+      };
+      return compute_async_layout(async_args);
+    }
+    // Stream<T; E> = Async<T, (), (), E>
+    if (IdEq(type_name, "Stream") && path->generic_args.size() >= 2) {
+      auto unit_type = MakeTypeTuple({});
+      std::vector<TypeRef> async_args = {
+          path->generic_args[0],  // Out (T)
+          unit_type,  // In
+          unit_type,  // Result
+          path->generic_args[1]  // E
+      };
+      return compute_async_layout(async_args);
+    }
+    // Pipe<In; Out> = Async<Out, In, (), !>
+    if (IdEq(type_name, "Pipe") && path->generic_args.size() >= 2) {
+      auto unit_type = MakeTypeTuple({});
+      auto never_type = MakeTypePrim("!");
+      std::vector<TypeRef> async_args = {
+          path->generic_args[1],  // Out
+          path->generic_args[0],  // In
+          unit_type,  // Result
+          never_type  // E
+      };
+      return compute_async_layout(async_args);
+    }
+    // Exchange<T> = Async<T, T, T, !>
+    if (IdEq(type_name, "Exchange") && !path->generic_args.empty()) {
+      auto never_type = MakeTypePrim("!");
+      std::vector<TypeRef> async_args = {
+          path->generic_args[0],  // Out (T)
+          path->generic_args[0],  // In (T)
+          path->generic_args[0],  // Result (T)
+          never_type  // E
+      };
+      return compute_async_layout(async_args);
+    }
+
     syntax::Path syntax_path;
     syntax_path.reserve(path->path.size());
     for (const auto& comp : path->path) {
@@ -4753,9 +4857,20 @@ bool BitcopyType(const ScopeContext& ctx, const TypeRef& type) {
     const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
     if (it != ctx.sigma.types.end()) {
       // Type aliases: recurse through to the underlying type
+      // §13.1: Generic type aliases require substitution of type arguments
       if (const auto* alias = std::get_if<syntax::TypeAliasDecl>(&it->second)) {
         const auto lowered = LowerType(ctx, alias->type);
         if (lowered.ok && lowered.type) {
+          // Check if alias has generic params and we have generic args
+          if (alias->generic_params && !alias->generic_params->params.empty() &&
+              !path_type->generic_args.empty()) {
+            // Build substitution mapping type params to type args
+            TypeSubst subst = BuildSubstitution(alias->generic_params->params,
+                                                path_type->generic_args);
+            // Apply substitution to get the instantiated type
+            TypeRef instantiated = InstantiateType(lowered.type, subst);
+            return BitcopyType(ctx, instantiated);
+          }
           return BitcopyType(ctx, lowered.type);
         }
       }
@@ -4808,12 +4923,28 @@ bool BitcopyType(const ScopeContext& ctx, const TypeRef& type) {
         return true;
       }
       // §12887: Modal general types are Bitcopy if all states' payloads are Bitcopy
+      // §13.1: Generic modals require substitution of type arguments
       if (const auto* modal_decl = std::get_if<syntax::ModalDecl>(&it->second)) {
+        // Build substitution if modal has generic params and we have args
+        TypeSubst subst;
+        if (modal_decl->generic_params && !modal_decl->generic_params->params.empty() &&
+            !path_type->generic_args.empty()) {
+          subst = BuildSubstitution(modal_decl->generic_params->params,
+                                    path_type->generic_args);
+        }
         for (const auto& state : modal_decl->states) {
           for (const auto& member : state.members) {
             if (const auto* field = std::get_if<syntax::StateFieldDecl>(&member)) {
               const auto lowered = LowerType(ctx, field->type);
-              if (!lowered.ok || !lowered.type || !BitcopyType(ctx, lowered.type)) {
+              if (!lowered.ok || !lowered.type) {
+                return ImplementsBitcopy(ctx, type);
+              }
+              // Apply substitution if we have one
+              TypeRef field_type = lowered.type;
+              if (!subst.empty()) {
+                field_type = InstantiateType(lowered.type, subst);
+              }
+              if (!BitcopyType(ctx, field_type)) {
                 return ImplementsBitcopy(ctx, type);
               }
             }

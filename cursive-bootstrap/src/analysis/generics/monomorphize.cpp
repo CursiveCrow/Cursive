@@ -200,26 +200,52 @@ TypeRef InstantiateType(const TypeRef& type, const TypeSubst& subst) {
       type->node);
 }
 
+// Simple lowering of default type arguments (handles common primitive defaults)
+// For full lowering of complex types, use the LowerType functions in type_stmt.cpp
+static TypeRef LowerDefaultType(const std::shared_ptr<syntax::Type>& type) {
+  if (!type) {
+    return nullptr;
+  }
+  return std::visit(
+      [&](const auto& node) -> TypeRef {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, syntax::TypePrim>) {
+          // Common defaults: ! (never), () (unit)
+          return MakeTypePrim(node.name);
+        } else if constexpr (std::is_same_v<T, syntax::TypePathType>) {
+          // Simple path types (type parameters used as defaults)
+          return MakeTypePath(node.path);
+        } else {
+          // For complex types, we'd need full LowerType
+          // For now, return nullptr to indicate unsupported default
+          return nullptr;
+        }
+      },
+      type->node);
+}
+
 TypeSubst BuildSubstitution(
     const std::vector<syntax::TypeParam>& params,
     const std::vector<TypeRef>& args) {
   SpecDefsMonomorphize();
   SPEC_RULE("Build-Subst");
-  
+
   TypeSubst subst;
-  
+
   for (std::size_t i = 0; i < params.size() && i < args.size(); ++i) {
     subst[params[i].name] = args[i];
   }
-  
-  // Fill in defaults for missing args
+
+  // Fill in defaults for missing args (§13.1.3 Default Type Arguments)
   for (std::size_t i = args.size(); i < params.size(); ++i) {
     if (params[i].default_type) {
-      // Lower AST type to analysis type (simplified - real impl would use full lowering)
-      // For now, just skip defaults
+      TypeRef default_arg = LowerDefaultType(params[i].default_type);
+      if (default_arg) {
+        subst[params[i].name] = default_arg;
+      }
     }
   }
-  
+
   return subst;
 }
 

@@ -4,7 +4,7 @@
 // DESC: Procedure with precondition
 
 procedure divide(a: i32, b: i32) -> i32
-    requires { b != 0 }
+    |= b != 0
 {
     return a / b
 }

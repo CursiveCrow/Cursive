@@ -2467,6 +2467,133 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
           }
           call_parts.push_back(MakeIR(std::move(dispatch)));
           return LowerResult{SeqIR(std::move(call_parts)), dispatch_result};
+
+        // C0X Extension: Asynchronous Operations (§19)
+
+        } else if constexpr (std::is_same_v<T, syntax::YieldExpr>) {
+          SPEC_RULE("Lower-Expr-Yield");
+          // §19.2.2 Yield expression lowering
+          auto value_result = LowerExpr(*node.value, ctx);
+
+          IRYield yield;
+          yield.release = node.release;
+          yield.value = value_result.value;
+          yield.result = ctx.FreshTempValue("yield_in");
+          // state_index will be assigned during async procedure transformation
+          yield.state_index = 0;
+
+          if (node.release) {
+            yield.keys_record = ctx.FreshTempValue("keys_record");
+          }
+
+          IRValue yield_result = yield.result;
+          return LowerResult{SeqIR({value_result.ir, MakeIR(std::move(yield))}),
+                             yield_result};
+
+        } else if constexpr (std::is_same_v<T, syntax::YieldFromExpr>) {
+          SPEC_RULE("Lower-Expr-YieldFrom");
+          // §19.2.3 Yield-from expression lowering
+          auto source_result = LowerExpr(*node.value, ctx);
+
+          IRYieldFrom yf;
+          yf.release = node.release;
+          yf.source = source_result.value;
+          yf.result = ctx.FreshTempValue("yield_from_result");
+
+          // Get source type for later emission
+          if (ctx.expr_type) {
+            yf.source_type = ctx.expr_type(*node.value);
+          }
+
+          IRValue yf_result = yf.result;
+          return LowerResult{SeqIR({source_result.ir, MakeIR(std::move(yf))}),
+                             yf_result};
+
+        } else if constexpr (std::is_same_v<T, syntax::SyncExpr>) {
+          SPEC_RULE("Lower-Expr-Sync");
+          // §19.3.3 Sync expression lowering
+          auto async_result = LowerExpr(*node.value, ctx);
+
+          IRSync sync;
+          sync.async_value = async_result.value;
+          sync.result = ctx.FreshTempValue("sync_result");
+
+          // Get async type info for emission
+          if (ctx.expr_type) {
+            sync.async_type = ctx.expr_type(*node.value);
+            // Extract result_type and error_type from async type
+            if (auto sig = analysis::GetAsyncSig(sync.async_type)) {
+              sync.result_type = sig->result_type;
+              sync.error_type = sig->error_type;
+            }
+          }
+
+          IRValue sync_result = sync.result;
+          return LowerResult{SeqIR({async_result.ir, MakeIR(std::move(sync))}),
+                             sync_result};
+
+        } else if constexpr (std::is_same_v<T, syntax::RaceExpr>) {
+          SPEC_RULE("Lower-Expr-Race");
+          // §19.3.4 Race expression lowering
+          // Determine mode from first handler
+          bool is_streaming = !node.arms.empty() &&
+                              node.arms[0].handler.kind == syntax::RaceHandlerKind::Yield;
+
+          std::vector<IRRaceArm> ir_arms;
+          for (const auto& arm : node.arms) {
+            IRRaceArm ir_arm;
+            auto async_result = LowerExpr(*arm.expr, ctx);
+            ir_arm.async_ir = async_result.ir;
+            ir_arm.async_value = async_result.value;
+            ir_arm.pattern = arm.pattern;
+
+            // Lower handler
+            auto handler_result = LowerExpr(*arm.handler.value, ctx);
+            ir_arm.handler_ir = handler_result.ir;
+            ir_arm.handler_result = handler_result.value;
+
+            ir_arms.push_back(std::move(ir_arm));
+          }
+
+          if (is_streaming) {
+            IRRaceYield race;
+            race.arms = std::move(ir_arms);
+            race.result = ctx.FreshTempValue("race_yield_result");
+            if (ctx.expr_type) {
+              race.stream_type = ctx.expr_type(expr);
+            }
+            IRValue result = race.result;
+            return LowerResult{MakeIR(std::move(race)), result};
+          } else {
+            IRRaceReturn race;
+            race.arms = std::move(ir_arms);
+            race.result = ctx.FreshTempValue("race_return_result");
+            if (ctx.expr_type) {
+              race.result_type = ctx.expr_type(expr);
+            }
+            IRValue result = race.result;
+            return LowerResult{MakeIR(std::move(race)), result};
+          }
+
+        } else if constexpr (std::is_same_v<T, syntax::AllExpr>) {
+          SPEC_RULE("Lower-Expr-All");
+          // §19.3.5 All expression lowering
+          IRAll all;
+          for (const auto& expr_ptr : node.exprs) {
+            auto result = LowerExpr(*expr_ptr, ctx);
+            all.async_irs.push_back(result.ir);
+            all.async_values.push_back(result.value);
+            // error_types will be extracted during emission from async_type
+          }
+          all.result = ctx.FreshTempValue("all_result");
+
+          if (ctx.expr_type) {
+            all.tuple_type = ctx.expr_type(expr);
+          }
+
+          IRValue result = all.result;
+          return LowerResult{MakeIR(std::move(all)), result};
+
         } else {
           IRValue value = ctx.FreshTempValue("unknown_expr");
           return LowerResult{EmptyIR(), value};

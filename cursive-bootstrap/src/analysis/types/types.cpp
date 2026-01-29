@@ -881,4 +881,136 @@ std::vector<TypePath> TypePaths(const TypeRef& type) {
   return TypePaths(*type);
 }
 
+// C0X Extension: Async type helpers (§19.1)
+
+bool IdEq(const std::string& a, const std::string& b) {
+  return a == b;
+}
+
+namespace {
+
+// Check if path matches the Async built-in modal type
+bool IsAsyncPath(const TypePath& path) {
+  return path.size() == 1 && IdEq(path[0], "Async");
+}
+
+// Check if path matches a built-in async type alias
+bool IsAsyncAliasPath(const TypePath& path) {
+  if (path.size() != 1) return false;
+  const std::string& name = path[0];
+  return IdEq(name, "Future") || IdEq(name, "Sequence") ||
+         IdEq(name, "Stream") || IdEq(name, "Pipe") || IdEq(name, "Exchange");
+}
+
+}  // namespace
+
+bool IsAsyncType(const TypeRef& type) {
+  SPEC_RULE("AsyncSig");
+
+  if (!type) return false;
+
+  return std::visit(
+      [](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+
+        if constexpr (std::is_same_v<T, TypePathType>) {
+          // Check for Async<...> or type alias
+          return IsAsyncPath(node.path) || IsAsyncAliasPath(node.path);
+        } else if constexpr (std::is_same_v<T, TypeModalState>) {
+          // Async@Suspended, Async@Completed, Async@Failed
+          return IsAsyncPath(node.path);
+        } else {
+          return false;
+        }
+      },
+      type->node);
+}
+
+std::optional<AsyncSig> GetAsyncSig(const TypeRef& type) {
+  SPEC_RULE("AsyncSig-Extract");
+
+  if (!type) return std::nullopt;
+
+  // Create unit and never types for defaults
+  auto unit_type = MakeTypeTuple({});
+  auto never_type = MakeTypePrim("!");
+
+  return std::visit(
+      [&](const auto& node) -> std::optional<AsyncSig> {
+        using T = std::decay_t<decltype(node)>;
+
+        if constexpr (std::is_same_v<T, TypePathType>) {
+          // Get the last element of the path (handles module prefixes)
+          const std::string& name = node.path.empty() ? "" : node.path.back();
+
+          if (IsAsyncPath(node.path) || IdEq(name, "Async")) {
+            // Async<Out, In, Result, E>
+            AsyncSig sig;
+            sig.out_type = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
+            sig.in_type = node.generic_args.size() > 1 ? node.generic_args[1] : unit_type;
+            sig.result_type = node.generic_args.size() > 2 ? node.generic_args[2] : unit_type;
+            sig.error_type = node.generic_args.size() > 3 ? node.generic_args[3] : never_type;
+            return sig;
+          } else if (IdEq(name, "Future")) {
+            // Future<T; E = !> = Async<(), (), T, E>
+            AsyncSig sig;
+            sig.out_type = unit_type;
+            sig.in_type = unit_type;
+            sig.result_type = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
+            sig.error_type = node.generic_args.size() > 1 ? node.generic_args[1] : never_type;
+            return sig;
+          } else if (IdEq(name, "Sequence")) {
+            // Sequence<T> = Async<T, (), (), !>
+            AsyncSig sig;
+            sig.out_type = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
+            sig.in_type = unit_type;
+            sig.result_type = unit_type;
+            sig.error_type = never_type;
+            return sig;
+          } else if (IdEq(name, "Stream")) {
+            // Stream<T; E> = Async<T, (), (), E>
+            AsyncSig sig;
+            sig.out_type = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
+            sig.in_type = unit_type;
+            sig.result_type = unit_type;
+            sig.error_type = node.generic_args.size() > 1 ? node.generic_args[1] : never_type;
+            return sig;
+          } else if (IdEq(name, "Pipe")) {
+            // Pipe<In; Out> = Async<Out, In, (), !>
+            AsyncSig sig;
+            sig.out_type = node.generic_args.size() > 1 ? node.generic_args[1] : unit_type;
+            sig.in_type = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
+            sig.result_type = unit_type;
+            sig.error_type = never_type;
+            return sig;
+          } else if (IdEq(name, "Exchange")) {
+            // Exchange<T> = Async<T, T, T, !>
+            AsyncSig sig;
+            auto t = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
+            sig.out_type = t;
+            sig.in_type = t;
+            sig.result_type = t;
+            sig.error_type = never_type;
+            return sig;
+          }
+          return std::nullopt;
+        } else if constexpr (std::is_same_v<T, TypeModalState>) {
+          // Async@Suspended, Async@Completed, Async@Failed
+          const std::string& state_name = node.path.empty() ? "" : node.path.back();
+          if (IsAsyncPath(node.path) || IdEq(state_name, "Async")) {
+            AsyncSig sig;
+            sig.out_type = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
+            sig.in_type = node.generic_args.size() > 1 ? node.generic_args[1] : unit_type;
+            sig.result_type = node.generic_args.size() > 2 ? node.generic_args[2] : unit_type;
+            sig.error_type = node.generic_args.size() > 3 ? node.generic_args[3] : never_type;
+            return sig;
+          }
+          return std::nullopt;
+        } else {
+          return std::nullopt;
+        }
+      },
+      type->node);
+}
+
 }  // namespace cursive0::analysis

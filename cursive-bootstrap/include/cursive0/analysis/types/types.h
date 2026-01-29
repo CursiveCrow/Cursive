@@ -225,4 +225,33 @@ std::vector<TypeRef> SortUnionMembers(const std::vector<TypeRef>& members);
 std::vector<TypePath> TypePaths(const Type& type);
 std::vector<TypePath> TypePaths(const TypeRef& type);
 
+// C0X Extension: Async type helpers (§19.1)
+
+/// Returns true if the type is an async type (Async<...> or a type alias thereof).
+/// This checks for TypePathType or TypeModalState with path ["Async"], or
+/// type aliases Future, Sequence, Stream, Pipe, Exchange.
+bool IsAsyncType(const TypeRef& type);
+
+/// Helper to compare identifiers for equality (case-sensitive).
+bool IdEq(const std::string& a, const std::string& b);
+
+/// Async type signature components.
+/// For Async<Out, In, Result, E>, holds the extracted type arguments.
+struct AsyncSig {
+  TypeRef out_type;     // Yielded output type
+  TypeRef in_type;      // Resume input type
+  TypeRef result_type;  // Completion result type
+  TypeRef error_type;   // Error type (! for infallible)
+};
+
+/// Extracts the async signature from an async type.
+/// Returns nullopt if the type is not an async type.
+/// Handles Async<Out, In, Result, E> and aliases:
+///   Future<T; E = !> = Async<(), (), T, E>
+///   Sequence<T> = Async<T, (), (), !>
+///   Stream<T; E> = Async<T, (), (), E>
+///   Pipe<In; Out> = Async<Out, In, (), !>
+///   Exchange<T> = Async<T, T, T, !>
+std::optional<AsyncSig> GetAsyncSig(const TypeRef& type);
+
 }  // namespace cursive0::analysis

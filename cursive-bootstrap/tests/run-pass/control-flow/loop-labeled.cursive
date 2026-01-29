@@ -2,6 +2,7 @@
 // EXIT: 42
 // SPEC: 5.2.6
 // DESC: Labeled loop with break to label
+// SKIP: Labeled loops not in Cursive0 spec (full Cursive feature)
 
 public procedure main(move ctx: Context) -> i32 {
     var result: i32 = 0

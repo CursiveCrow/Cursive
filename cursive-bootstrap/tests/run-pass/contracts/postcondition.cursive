@@ -4,7 +4,7 @@
 // DESC: Procedure with postcondition
 
 procedure double(x: i32) -> i32
-    ensures { @result == x * 2 }
+    |= => @result == x * 2
 {
     return x * 2
 }

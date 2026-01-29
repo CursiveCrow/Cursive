@@ -10,6 +10,7 @@
 #include "cursive0/codegen/mangle.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/analysis/memory/regions.h"
+#include "cursive0/analysis/types/types.h"
 
 namespace cursive0::codegen {
 
@@ -25,6 +26,11 @@ bool IsUnitType(const analysis::TypeRef& type) {
     return prim->name == "()";
   }
   return false;
+}
+
+// §19.1.3 Check if procedure returns an async type
+bool IsAsyncProc(const analysis::TypeRef& ret_type) {
+  return analysis::IsAsyncType(ret_type);
 }
 
 bool BlockEndsWithReturn(const syntax::Block& block) {
@@ -144,6 +150,9 @@ ProcIR LowerProc(const ProcedureDecl& decl,
   if (!ir.ret) {
     ir.ret = analysis::MakeTypePrim("()");
   }
+
+  // Set proc_ret_type for async procedure detection in return statement lowering
+  ctx.proc_ret_type = ir.ret;
 
   // Add panic out-parameter when required
   if (NeedsPanicOut(ir.symbol)) {

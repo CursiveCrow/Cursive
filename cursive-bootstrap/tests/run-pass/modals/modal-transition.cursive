@@ -4,16 +4,16 @@
 // DESC: Modal state transitions
 
 modal Counter {
-    @Zero {}
-    @NonZero { value: i32 }
-
-    transition Zero -> NonZero set(~, n: i32) {
-        return Counter@NonZero { value: n }
+    @Zero {
+        transition set(n: i32) -> @NonZero {
+            return Counter@NonZero { value: n }
+        }
     }
+    @NonZero { value: i32 }
 }
 
 public procedure main(move ctx: Context) -> i32 {
     let c: Counter@Zero = Counter@Zero {}
-    let c2: Counter@NonZero = c ~> set(42)
+    let c2: Counter@NonZero = c~>set(42)
     return c2.value
 }

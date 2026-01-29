@@ -11,7 +11,7 @@ procedure increment() -> i32 {
 }
 
 procedure bad_contract(x: i32) -> i32
-    requires { increment() > 0 } //~ ERROR E-SEM-3004
+    |= increment() > 0 //~ ERROR E-SEM-3004
 {
     return x
 }

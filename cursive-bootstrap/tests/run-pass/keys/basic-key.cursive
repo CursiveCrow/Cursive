@@ -9,11 +9,11 @@ record Counter {
 
 public procedure main(move ctx: Context) -> i32 {
     let c: shared Counter = Counter { value: 0 }
-    # write c {
+    #c write {
         c.value = 42
     }
     var result: i32 = 0
-    # c {
+    #c {
         result = c.value
     }
     return result

@@ -258,6 +258,21 @@ static TypeLowerResult LowerType(const ScopeContext& ctx,
           return {true, std::nullopt,
                   MakeTypeModalState(node.path, node.state, std::move(args))};
         } else if constexpr (std::is_same_v<T, syntax::TypePathType>) {
+          // §5.2.9, §13.1: Generic type instantiation lowering
+          // Per WF-Apply (§5.2.3), type arguments MUST be preserved
+          if (!node.generic_args.empty()) {
+            std::vector<TypeRef> lowered_args;
+            lowered_args.reserve(node.generic_args.size());
+            for (const auto& arg : node.generic_args) {
+              const auto lower_result = LowerType(ctx, arg);
+              if (!lower_result.ok) {
+                return lower_result;
+              }
+              lowered_args.push_back(lower_result.type);
+            }
+            return {true, std::nullopt,
+                    MakeTypePath(node.path, std::move(lowered_args))};
+          }
           return {true, std::nullopt, MakeTypePath(node.path)};
         } else {
           return {false, std::nullopt, {}};

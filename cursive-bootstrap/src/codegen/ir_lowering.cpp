@@ -5185,6 +5185,282 @@ struct IRVisitor {
       }
     }
   }
+
+  // C0X Extension: Asynchronous Operations IR nodes (§19)
+
+  // §19.2.2 Yield expression lowering
+  // Stores output value in async frame, sets state, returns @Suspended
+  void operator()(const IRYield& yield) {
+    SPEC_RULE("LowerIR-Yield");
+    SPEC_RULE("Lower-YieldIR");
+
+    // TODO: Implement yield emission
+    // 1. Store output value in async frame
+    // 2. Set state to yield.state_index
+    // 3. If yield.release: call cursive0_async_keys_release()
+    // 4. Return @Suspended with output
+    // Resume path:
+    // 5. If yield.release: call cursive0_async_keys_reacquire()
+    // 6. Load input into result binding
+
+    (void)yield;  // Suppress unused warning until implemented
+  }
+
+  // §19.2.3 Yield-from expression lowering
+  // Delegates to source async, forwarding yields and collecting result
+  void operator()(const IRYieldFrom& yf) {
+    SPEC_RULE("LowerIR-YieldFrom");
+    SPEC_RULE("Lower-YieldFromIR");
+
+    // TODO: Implement yield-from emission
+    // Loop over source async:
+    //   @Suspended { output } => yield [release] output; source = source~>resume(input)
+    //   @Completed { value } => break value
+    //   @Failed { error } => propagate error
+
+    (void)yf;  // Suppress unused warning until implemented
+  }
+
+  // §19.3.3 Sync expression lowering
+  // Runs async to completion synchronously
+  void operator()(const IRSync& sync) {
+    SPEC_RULE("LowerIR-Sync");
+    SPEC_RULE("Lower-SyncIR");
+
+    // Get the async value
+    llvm::Value* async_val = emitter.EvaluateIRValue(sync.async_value);
+    if (!async_val) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    // Async modal type layout:
+    // - Discriminant: u8 at offset 0 (0=Suspended, 1=Completed, 2=Failed)
+    // - Payload: after discriminant, aligned
+    //
+    // For Future<T> = Async<(), (), T, !>:
+    // - @Completed { value: T } is the only non-empty state
+    // - @Suspended { output: () } has unit output
+    // - @Failed { error: ! } is uninhabited
+    //
+    // §19.3.3 Sync semantics:
+    // Loop: check state
+    //   @Suspended -> call resume(())
+    //   @Completed -> return value
+    //   @Failed -> propagate error
+
+    llvm::Function* func = builder->GetInsertBlock()->getParent();
+    llvm::LLVMContext& llvm_ctx = emitter.GetContext();
+
+    // Create basic blocks for the sync loop
+    llvm::BasicBlock* loop_bb = llvm::BasicBlock::Create(llvm_ctx, "sync_loop", func);
+    llvm::BasicBlock* suspended_bb = llvm::BasicBlock::Create(llvm_ctx, "sync_suspended", func);
+    llvm::BasicBlock* completed_bb = llvm::BasicBlock::Create(llvm_ctx, "sync_completed", func);
+    llvm::BasicBlock* failed_bb = llvm::BasicBlock::Create(llvm_ctx, "sync_failed", func);
+    llvm::BasicBlock* exit_bb = llvm::BasicBlock::Create(llvm_ctx, "sync_exit", func);
+
+    // §19.3.3: Async struct layout is { i8 discriminant, T payload }
+    llvm::IntegerType* i8_ty = llvm::Type::getInt8Ty(llvm_ctx);
+
+    // Get result type for payload
+    analysis::TypeRef result_type = sync.result_type;
+    llvm::Type* result_llvm_ty = result_type ? emitter.GetLLVMType(result_type) : nullptr;
+    if (!result_llvm_ty) {
+      result_llvm_ty = llvm::StructType::get(llvm_ctx, {});  // Unit type
+    }
+
+    // The async_val is a by-value struct from IRAsyncComplete
+    // Use its actual type to ensure type consistency
+    llvm::Type* async_val_ty = async_val->getType();
+    llvm::StructType* async_struct_ty = nullptr;
+
+    // If async_val is not a pointer, we need to allocate and store it
+    llvm::Value* async_struct_ptr = async_val;
+    if (!async_val_ty->isPointerTy()) {
+      // Use the actual type of async_val for the alloca
+      if (auto* struct_ty = llvm::dyn_cast<llvm::StructType>(async_val_ty)) {
+        async_struct_ty = struct_ty;
+      } else {
+        // Fallback: create struct type
+        async_struct_ty = llvm::StructType::get(llvm_ctx, {i8_ty, result_llvm_ty});
+      }
+      llvm::AllocaInst* async_alloca = CreateEntryAlloca(emitter, builder, async_struct_ty, "async_slot");
+      if (async_alloca) {
+        builder->CreateStore(async_val, async_alloca);
+        async_struct_ptr = async_alloca;
+      }
+    } else {
+      // async_val is a pointer - get the element type
+      // For opaque pointers, create our expected struct type
+      async_struct_ty = llvm::StructType::get(llvm_ctx, {i8_ty, result_llvm_ty});
+    }
+
+    // Jump to loop
+    builder->CreateBr(loop_bb);
+    builder->SetInsertPoint(loop_bb);
+
+    // Load discriminant using struct GEP (field 0)
+    llvm::Value* disc_ptr = builder->CreateStructGEP(async_struct_ty, async_struct_ptr, 0, "disc_ptr");
+    llvm::Value* disc = builder->CreateLoad(i8_ty, disc_ptr, "disc");
+    if (!disc) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    // Create switch on discriminant
+    llvm::SwitchInst* sw = builder->CreateSwitch(disc, failed_bb, 2);
+    sw->addCase(llvm::ConstantInt::get(i8_ty, 0), suspended_bb);  // @Suspended
+    sw->addCase(llvm::ConstantInt::get(i8_ty, 1), completed_bb);  // @Completed
+
+    // Handle @Suspended: call resume and loop back
+    builder->SetInsertPoint(suspended_bb);
+    {
+      // For Future<T> = Async<(), (), T, !>, input type is ()
+      // Call cursive0_async_resume(async_ptr, unit_input)
+      //
+      // For now, since we don't have the runtime function implemented,
+      // we'll just loop back (assumes the async is already @Completed)
+      // TODO: Implement proper resume call
+      builder->CreateBr(loop_bb);
+    }
+
+    // Handle @Completed: extract value and exit
+    builder->SetInsertPoint(completed_bb);
+    llvm::Value* completed_result = nullptr;
+    {
+      // Use struct GEP to access payload at field 1
+      llvm::Value* payload_ptr = builder->CreateStructGEP(async_struct_ty, async_struct_ptr, 1, "payload_ptr");
+      completed_result = builder->CreateLoad(result_llvm_ty, payload_ptr, "completed_value");
+
+      if (!completed_result) {
+        // Fall back to unit/zero value
+        completed_result = llvm::Constant::getNullValue(result_llvm_ty);
+      }
+
+      builder->CreateBr(exit_bb);
+    }
+
+    // Handle @Failed: propagate error or panic
+    builder->SetInsertPoint(failed_bb);
+    {
+      // For Future<T> = Async<(), (), T, !>, error type is ! (never)
+      // So @Failed is uninhabited - we should never reach here
+      // Call panic or use unreachable
+      EmitPanicIfFalse(emitter, builder,
+                       llvm::ConstantInt::getFalse(llvm_ctx),
+                       PanicCode(PanicReason::AsyncFailed));
+      builder->CreateUnreachable();
+    }
+
+    // Exit block: phi node for result
+    builder->SetInsertPoint(exit_bb);
+
+    if (result_llvm_ty && completed_result) {
+      llvm::PHINode* phi = builder->CreatePHI(result_llvm_ty, 1, "sync_result");
+      phi->addIncoming(completed_result, completed_bb);
+      StoreTemp(sync.result, phi);
+    } else if (result_llvm_ty) {
+      StoreTemp(sync.result, llvm::Constant::getNullValue(result_llvm_ty));
+    }
+  }
+
+  // §19.3.4 Race expression (first-completion mode) lowering
+  void operator()(const IRRaceReturn& race) {
+    SPEC_RULE("LowerIR-RaceReturn");
+    SPEC_RULE("Lower-RaceReturnIR");
+
+    // TODO: Implement race (first-completion) emission
+    // 1. Initiate all async values
+    // 2. Poll until one completes
+    // 3. Execute corresponding handler
+    // 4. Cancel other operations
+    // 5. Return handler result
+
+    (void)race;  // Suppress unused warning until implemented
+  }
+
+  // §19.3.4 Race expression (streaming mode) lowering
+  void operator()(const IRRaceYield& race) {
+    SPEC_RULE("LowerIR-RaceYield");
+    SPEC_RULE("Lower-RaceYieldIR");
+
+    // TODO: Implement race (streaming) emission
+    // 1. Initiate all async values
+    // 2. When any yields: execute handler, emit value, resume arm
+    // 3. When arm completes: remove from race
+    // 4. When all complete: stream completes
+    // 5. If any fails: propagate error, cancel others
+
+    (void)race;  // Suppress unused warning until implemented
+  }
+
+  // §19.3.5 All expression lowering
+  void operator()(const IRAll& all) {
+    SPEC_RULE("LowerIR-All");
+    SPEC_RULE("Lower-AllIR");
+
+    // TODO: Implement all emission
+    // 1. Initiate all async values
+    // 2. Wait for all to complete
+    // 3. If all succeed: construct result tuple
+    // 4. If any fails: cancel remaining, propagate first error
+
+    (void)all;  // Suppress unused warning until implemented
+  }
+
+  // §19.1.3 Async@Completed value construction
+  // Used for return statements in async procedures
+  void operator()(const IRAsyncComplete& async_complete) {
+    SPEC_RULE("LowerIR-AsyncComplete");
+    SPEC_RULE("Lower-AsyncCompleteIR");
+
+    // Get the value to wrap
+    llvm::Value* value = emitter.EvaluateIRValue(async_complete.value);
+
+    // Async modal type layout:
+    // - Discriminant: u8 at offset 0 (1 = @Completed)
+    // - Payload: after discriminant, aligned (contains the result value)
+    //
+    // For Future<T> = Async<(), (), T, !>:
+    // - @Completed { value: T }
+    //
+    // Build the async struct value directly (not a pointer) for return by value.
+
+    llvm::LLVMContext& llvm_ctx = emitter.GetContext();
+
+    // Get the result type (T in Future<T>)
+    analysis::TypeRef result_type = async_complete.result_type;
+    llvm::Type* result_llvm_ty = result_type ? emitter.GetLLVMType(result_type) : nullptr;
+    llvm::Type* i8_ty = llvm::Type::getInt8Ty(llvm_ctx);
+
+    if (!result_llvm_ty) {
+      // For unit type or unknown, create a minimal struct
+      result_llvm_ty = llvm::StructType::get(llvm_ctx, {});
+    }
+
+    // Create the async struct type: { i8 discriminant, T payload }
+    // We use a struct with i8 and the result type, letting LLVM handle alignment
+    llvm::StructType* async_struct_ty = llvm::StructType::get(llvm_ctx, {i8_ty, result_llvm_ty});
+
+    // Build the struct value using insertvalue
+    // Start with an undefined struct and insert the fields
+    llvm::Value* async_val = llvm::UndefValue::get(async_struct_ty);
+
+    // Insert discriminant (1 = @Completed) at field 0
+    async_val = builder->CreateInsertValue(async_val, llvm::ConstantInt::get(i8_ty, 1), {0}, "async_with_disc");
+
+    // Insert payload value at field 1
+    if (value) {
+      async_val = builder->CreateInsertValue(async_val, value, {1}, "async_complete_val");
+    }
+
+    // Store the struct value (by value, not pointer)
+    StoreTemp(async_complete.result, async_val);
+  }
 };
 void LLVMEmitter::EmitIR(const IRPtr& ir) {
     if (!ir) return;

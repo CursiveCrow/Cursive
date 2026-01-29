@@ -18,9 +18,9 @@ namespace cursive0::analysis {
 
 namespace {
 
-// Helper: Create unit type (empty tuple)
+// Helper: Create unit type
 static TypeRef MakeUnit() {
-  return MakeTypeTuple({});
+  return MakeTypePrim("()");
 }
 
 static TypeRef MakeNever() {
@@ -2197,7 +2197,13 @@ ExprTypeResult TypeSyncExpr(const ScopeContext& ctx,
   }
 
   result.ok = true;
-  result.type = MakeTypeUnion({async_sig->result, async_sig->err});
+  // §19.3.3: If error type is ! (never), the union simplifies to just the result type
+  // because T | ! ≡ T (! contributes no inhabitants)
+  if (IsPrimType(async_sig->err, "!")) {
+    result.type = async_sig->result;
+  } else {
+    result.type = MakeTypeUnion({async_sig->result, async_sig->err});
+  }
   return result;
 }
 

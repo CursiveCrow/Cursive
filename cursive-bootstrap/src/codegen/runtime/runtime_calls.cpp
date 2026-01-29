@@ -366,6 +366,50 @@ std::string BuiltinSymReactorRegister() {
 }
 
 // ============================================================================
+// §19 Async builtins
+// ============================================================================
+
+std::string BuiltinSymAsyncResume() {
+  SPEC_DEF("BuiltinSym-Async-Resume", "§19.2.2");
+  return core::PathSig({"cursive", "runtime", "async", "resume"});
+}
+
+std::string BuiltinSymAsyncGetDiscriminant() {
+  SPEC_DEF("BuiltinSym-Async-GetDiscriminant", "§19");
+  return core::PathSig({"cursive", "runtime", "async", "get_discriminant"});
+}
+
+std::string BuiltinSymAsyncGetSuspendedOutput() {
+  SPEC_DEF("BuiltinSym-Async-GetSuspendedOutput", "§19");
+  return core::PathSig({"cursive", "runtime", "async", "get_suspended_output"});
+}
+
+std::string BuiltinSymAsyncGetCompletedValue() {
+  SPEC_DEF("BuiltinSym-Async-GetCompletedValue", "§19");
+  return core::PathSig({"cursive", "runtime", "async", "get_completed_value"});
+}
+
+std::string BuiltinSymAsyncGetFailedError() {
+  SPEC_DEF("BuiltinSym-Async-GetFailedError", "§19");
+  return core::PathSig({"cursive", "runtime", "async", "get_failed_error"});
+}
+
+std::string BuiltinSymAsyncCreateCompleted() {
+  SPEC_DEF("BuiltinSym-Async-CreateCompleted", "§19");
+  return core::PathSig({"cursive", "runtime", "async", "create_completed"});
+}
+
+std::string BuiltinSymAsyncCreateFailed() {
+  SPEC_DEF("BuiltinSym-Async-CreateFailed", "§19");
+  return core::PathSig({"cursive", "runtime", "async", "create_failed"});
+}
+
+std::string BuiltinSymAsyncCreateSuspended() {
+  SPEC_DEF("BuiltinSym-Async-CreateSuspended", "§19");
+  return core::PathSig({"cursive", "runtime", "async", "create_suspended"});
+}
+
+// ============================================================================
 // §6.8 Panic symbol
 // ============================================================================
 

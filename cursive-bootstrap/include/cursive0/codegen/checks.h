@@ -31,6 +31,7 @@ enum class PanicReason {
   InitPanic,     // 0x000A
   ContractPre,   // 0x000B - precondition violation
   ContractPost,  // 0x000C - postcondition violation
+  AsyncFailed,   // 0x000D - async @Failed state reached (§19)
   Other,         // 0x00FF
 };
 

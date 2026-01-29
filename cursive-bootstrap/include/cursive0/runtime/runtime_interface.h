@@ -185,6 +185,51 @@ std::string BuiltinSymReactorRun();
 std::string BuiltinSymReactorRegister();
 
 // ============================================================================
+// §19 Async builtins
+// ============================================================================
+
+// (BuiltinSym-Async-Resume)
+// Async@Suspended::resume - resumes an async value with input
+// Signature: (async_ptr: *mut Async<Out, In, Result, E>, input: In) -> ()
+// Modifies async in place, transitioning to next state
+std::string BuiltinSymAsyncResume();
+
+// (BuiltinSym-Async-GetDiscriminant)
+// Gets the discriminant of an async value (0=Suspended, 1=Completed, 2=Failed)
+// Signature: (async_ptr: *imm Async) -> u8
+std::string BuiltinSymAsyncGetDiscriminant();
+
+// (BuiltinSym-Async-GetSuspendedOutput)
+// Gets the output field from @Suspended state
+// Signature: (async_ptr: *imm Async<Out, In, Result, E>) -> Out
+std::string BuiltinSymAsyncGetSuspendedOutput();
+
+// (BuiltinSym-Async-GetCompletedValue)
+// Gets the value field from @Completed state
+// Signature: (async_ptr: *imm Async<Out, In, Result, E>) -> Result
+std::string BuiltinSymAsyncGetCompletedValue();
+
+// (BuiltinSym-Async-GetFailedError)
+// Gets the error field from @Failed state
+// Signature: (async_ptr: *imm Async<Out, In, Result, E>) -> E
+std::string BuiltinSymAsyncGetFailedError();
+
+// (BuiltinSym-Async-CreateCompleted)
+// Creates an Async value in @Completed state with given value
+// Signature: (value: Result) -> Async<Out, In, Result, E>
+std::string BuiltinSymAsyncCreateCompleted();
+
+// (BuiltinSym-Async-CreateFailed)
+// Creates an Async value in @Failed state with given error
+// Signature: (error: E) -> Async<Out, In, Result, E>
+std::string BuiltinSymAsyncCreateFailed();
+
+// (BuiltinSym-Async-CreateSuspended)
+// Creates an Async value in @Suspended state with given output and frame
+// Signature: (output: Out, frame: *mut Frame) -> Async<Out, In, Result, E>
+std::string BuiltinSymAsyncCreateSuspended();
+
+// ============================================================================
 // §6.12.14 String/Bytes builtin symbols
 // ============================================================================
 

@@ -345,6 +345,74 @@ struct IRDispatch {
   std::optional<IRValue> chunk_size; // [chunk:] value
 };
 
+// C0X Extension: Asynchronous Operations IR nodes (§19)
+
+// §19.2.2 Yield expression IR
+struct IRYield {
+  bool release = false;              // `yield release` flag
+  IRValue value;                     // Expression to yield (Out type)
+  IRValue result;                    // Input received on resume (In type)
+  IRValue keys_record;               // If release: captured key set for reacquire
+  std::size_t state_index = 0;       // State machine resumption point
+};
+
+// §19.2.3 Yield-from expression IR
+struct IRYieldFrom {
+  bool release = false;              // `yield release from` flag
+  IRValue source;                    // Source async value
+  IRValue result;                    // Final completion value (Result_e)
+  analysis::TypeRef source_type;     // Type of source async
+};
+
+// §19.3.3 Sync expression IR
+struct IRSync {
+  IRValue async_value;               // Async<(), (), Result, E> to synchronously execute
+  IRValue result;                    // Result | E union
+  analysis::TypeRef async_type;      // Type of async value
+  analysis::TypeRef result_type;     // Result type
+  analysis::TypeRef error_type;      // Error type
+};
+
+// §19.3.4 Race expression IR (first-completion mode)
+struct IRRaceArm {
+  IRPtr async_ir;                    // IR to produce async value
+  IRValue async_value;               // The async value
+  std::shared_ptr<syntax::Pattern> pattern;  // Handler pattern
+  IRPtr handler_ir;                  // Handler body
+  IRValue handler_result;            // Handler result value
+};
+
+struct IRRaceReturn {
+  std::vector<IRRaceArm> arms;
+  IRValue result;                    // Common handler result type | errors
+  analysis::TypeRef result_type;     // Result type of handlers
+};
+
+// §19.3.4 Race expression IR (streaming mode)
+struct IRRaceYield {
+  std::vector<IRRaceArm> arms;
+  IRValue result;                    // Stream<U, E_union>
+  analysis::TypeRef stream_type;     // Type of resulting stream
+};
+
+// §19.3.5 All expression IR
+struct IRAll {
+  std::vector<IRPtr> async_irs;      // IR to produce each async
+  std::vector<IRValue> async_values; // The async values
+  IRValue result;                    // Tuple<Result_1, ..., Result_n> | E_union
+  analysis::TypeRef tuple_type;      // Type of result tuple
+  std::vector<analysis::TypeRef> error_types;  // Error types for union
+};
+
+// §19.1.3 Create Async@Completed value (for async procedure returns)
+// Wraps a result value in Async@Completed{value: result}
+struct IRAsyncComplete {
+  IRValue value;                     // The result value to wrap
+  IRValue result;                    // The resulting Async@Completed value
+  analysis::TypeRef async_type;      // The full async type (e.g., Future<i32>)
+  analysis::TypeRef result_type;     // Type of the result value
+};
+
 struct IROpaque {};
 
 struct IR {
@@ -396,7 +464,15 @@ struct IR {
                IRParallel,
                IRSpawn,
                IRWait,
-               IRDispatch>
+               IRDispatch,
+               // C0X Extension: Asynchronous Operations (§19)
+               IRYield,
+               IRYieldFrom,
+               IRSync,
+               IRRaceReturn,
+               IRRaceYield,
+               IRAll,
+               IRAsyncComplete>
       node;
 };
 

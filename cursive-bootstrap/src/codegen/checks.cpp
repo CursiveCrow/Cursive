@@ -122,6 +122,8 @@ std::uint16_t PanicCode(PanicReason reason) {
       return 0x000B;
     case PanicReason::ContractPost:
       return 0x000C;
+    case PanicReason::AsyncFailed:
+      return 0x000D;
     case PanicReason::Other:
     default:
       return 0x00FF;
@@ -154,6 +156,8 @@ std::string PanicReasonString(PanicReason reason) {
       return "ContractPre";
     case PanicReason::ContractPost:
       return "ContractPost";
+    case PanicReason::AsyncFailed:
+      return "AsyncFailed";
     case PanicReason::Other:
     default:
       return "Other";

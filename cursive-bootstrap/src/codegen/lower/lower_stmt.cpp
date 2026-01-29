@@ -7,6 +7,7 @@
 #include "cursive0/codegen/lower/lower_pat.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/runtime/runtime_interface.h"
+#include "cursive0/analysis/types/types.h"
 
 #include <cassert>
 #include <variant>
@@ -465,6 +466,7 @@ IRPtr LowerReturnStmt(const syntax::ReturnStmt& stmt,
 
   // Lower the return expression if present
   IRValue return_value;
+  analysis::TypeRef value_type;
   if (stmt.value_opt) {
     SPEC_RULE("Lower-Stmt-Return");
     auto prev_suppress = ctx.suppress_temp_at_depth;
@@ -473,9 +475,35 @@ IRPtr LowerReturnStmt(const syntax::ReturnStmt& stmt,
     ctx.suppress_temp_at_depth = prev_suppress;
     ir_parts.push_back(expr_result.ir);
     return_value = expr_result.value;
+    // Try to get the type from the lowered value first
+    value_type = ctx.LookupValueType(return_value);
+    // Fall back to expression type from type checker for immediate values
+    if (!value_type && ctx.expr_type) {
+      value_type = ctx.expr_type(*stmt.value_opt);
+    }
   } else {
     SPEC_RULE("Lower-Stmt-Return-Unit");
     return_value = IRValue{IRValue::Kind::Opaque, "unit", {}};
+    value_type = analysis::MakeTypePrim("()");
+  }
+
+  // §19.1.3 Async procedure return handling
+  // If the procedure returns an async type, wrap the return value in @Completed
+  if (analysis::IsAsyncType(ctx.proc_ret_type)) {
+    SPEC_RULE("Lower-AsyncReturn");
+
+    // Create IRAsyncComplete to wrap the value in @Completed state
+    IRAsyncComplete async_complete;
+    async_complete.value = return_value;
+    async_complete.result = ctx.FreshTempValue("async_result");
+    async_complete.async_type = ctx.proc_ret_type;
+    async_complete.result_type = value_type;
+    ctx.RegisterValueType(async_complete.result, ctx.proc_ret_type);
+
+    // Save result before move - accessing async_complete after move is UB
+    IRValue async_result = async_complete.result;
+    ir_parts.push_back(MakeIR(std::move(async_complete)));
+    return_value = async_result;
   }
 
   // Drop statement-scoped temporaries before unwinding scopes.

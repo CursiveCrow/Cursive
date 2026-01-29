@@ -1,6 +1,7 @@
 #include "cursive0/codegen/llvm/llvm_emit.h"
 #include "cursive0/codegen/layout/layout.h"
 #include "cursive0/core/assert_spec.h"
+#include "cursive0/analysis/generics/monomorphize.h"
 #include "cursive0/analysis/modal/modal_widen.h"
 #include "cursive0/analysis/resolve/scopes.h"
 #include "cursive0/analysis/types/types.h"
@@ -196,6 +197,77 @@ llvm::Type* TaggedStructType(const analysis::TypeRef& disc_type,
   AppendPad(elems, ctx, pad_tail);
 
   return llvm::StructType::get(ctx, elems, /*isPacked=*/false);
+}
+
+// Helper to check if a type is a primitive type with a given name
+static bool IsPrimType(const analysis::TypeRef& type, std::string_view name) {
+  if (!type) return false;
+  const auto* prim = std::get_if<analysis::TypePrim>(&type->node);
+  return prim && prim->name == name;
+}
+
+// §5.4.5: Build LLVM type for Async<Out, In, Result, E>
+// Layout is { i8 discriminant, <max payload> }
+// Max payload is max(sizeof(Out), sizeof(Result), sizeof(E))
+// When E = !, @Failed is uninhabited and E contributes 0 bytes.
+llvm::Type* BuildAsyncLLVMType(
+    const std::vector<analysis::TypeRef>& generic_args,
+    llvm::LLVMContext& llvm_ctx,
+    const std::function<llvm::Type*(const analysis::TypeRef&)>& get_llvm_type) {
+  // Async<Out, In, Result, E> parameters:
+  // - Out (index 0): output type for @Suspended
+  // - In (index 1): input type for resume (not stored in struct)
+  // - Result (index 2): value type for @Completed
+  // - E (index 3): error type for @Failed
+
+  llvm::Type* i8_ty = llvm::Type::getInt8Ty(llvm_ctx);
+
+  // Find the max payload type from Out, Result, E
+  // In is not stored in the async struct (it's the input to resume)
+  std::vector<analysis::TypeRef> payload_types;
+  if (generic_args.size() > 0 && generic_args[0]) {
+    payload_types.push_back(generic_args[0]);  // Out
+  }
+  if (generic_args.size() > 2 && generic_args[2]) {
+    payload_types.push_back(generic_args[2]);  // Result
+  }
+  if (generic_args.size() > 3 && generic_args[3]) {
+    // Check if E is ! (never type) - if so, ignore it
+    if (!IsPrimType(generic_args[3], "!")) {
+      payload_types.push_back(generic_args[3]);  // E
+    }
+  }
+
+  // Helper to check if type is unit/empty
+  auto is_unit_type = [](llvm::Type* ty) -> bool {
+    if (!ty) return true;
+    if (ty->isStructTy()) {
+      return llvm::cast<llvm::StructType>(ty)->getNumElements() == 0;
+    }
+    return false;
+  };
+
+  // Determine max payload type - pick first non-unit type
+  // A proper impl would compare sizes using DataLayout
+  llvm::Type* max_payload_ty = nullptr;
+  for (const auto& pt : payload_types) {
+    llvm::Type* lt = get_llvm_type(pt);
+    if (!lt) continue;
+    if (is_unit_type(lt)) continue;  // Skip unit types
+    // Take first non-unit type we find
+    if (!max_payload_ty) {
+      max_payload_ty = lt;
+    }
+    // Note: For proper implementation, compare sizes and take larger
+  }
+
+  // Default to empty struct if no payload or all unit types
+  if (!max_payload_ty) {
+    max_payload_ty = llvm::StructType::get(llvm_ctx, {});
+  }
+
+  // Build async struct: { i8 discriminant, max_payload }
+  return llvm::StructType::get(llvm_ctx, {i8_ty, max_payload_ty});
 }
 
 std::optional<analysis::TypeRef> ModalNichePayloadType(
@@ -447,8 +519,20 @@ llvm::Type* LLVMEmitter::GetLLVMType(analysis::TypeRef type) {
                             analysis::IdEq(modal->path[0], "Async");
       if (modal && (analysis::IsSpawnedTypePath(modal->path) ||
                     analysis::IsCancelTokenTypePath(modal->path) ||
-                    analysis::IsTrackedTypePath(modal->path) ||
-                    is_async)) {
+                    analysis::IsTrackedTypePath(modal->path))) {
+        ll_ty = GetOpaquePtr();
+        type_cache_[type] = ll_ty;
+        return ll_ty;
+      }
+      // §5.4.5: Build concrete struct type for Async modal state
+      if (is_async && !modal->generic_args.empty()) {
+        SPEC_RULE("LLVMTy-AsyncState");
+        ll_ty = BuildAsyncLLVMType(
+            modal->generic_args, context_,
+            [this](const analysis::TypeRef& t) { return this->GetLLVMType(t); });
+        type_cache_[type] = ll_ty;
+        return ll_ty;
+      } else if (is_async) {
         ll_ty = GetOpaquePtr();
         type_cache_[type] = ll_ty;
         return ll_ty;
@@ -530,9 +614,108 @@ llvm::Type* LLVMEmitter::GetLLVMType(analysis::TypeRef type) {
                             analysis::IdEq(path->path[0], "Async");
       if (analysis::IsSpawnedTypePath(path->path) ||
           analysis::IsCancelTokenTypePath(path->path) ||
-          analysis::IsTrackedTypePath(path->path) ||
-          is_async) {
+          analysis::IsTrackedTypePath(path->path)) {
         ll_ty = GetOpaquePtr();
+        type_cache_[type] = ll_ty;
+        return ll_ty;
+      }
+      // §5.4.5: Build concrete struct type for Async<Out, In, Result, E>
+      if (is_async && !path->generic_args.empty()) {
+        SPEC_RULE("LLVMTy-Async");
+        ll_ty = BuildAsyncLLVMType(
+            path->generic_args, context_,
+            [this](const analysis::TypeRef& t) { return this->GetLLVMType(t); });
+        type_cache_[type] = ll_ty;
+        return ll_ty;
+      } else if (is_async) {
+        // Async without generic args - return opaque pointer as fallback
+        ll_ty = GetOpaquePtr();
+        type_cache_[type] = ll_ty;
+        return ll_ty;
+      }
+
+      // §5.4.5: Handle async type aliases - expand to Async and build struct type
+      // Future<T; E = !> = Async<(), (), T, E>
+      // Sequence<T> = Async<T, (), (), !>
+      // Stream<T; E> = Async<T, (), (), E>
+      // Pipe<In; Out> = Async<Out, In, (), !>
+      // Exchange<T> = Async<T, T, T, !>
+      const std::string& type_name = path->path.empty() ? "" : path->path.back();
+      if (analysis::IdEq(type_name, "Future") && !path->generic_args.empty()) {
+        SPEC_RULE("LLVMTy-Future");
+        auto unit_type = analysis::MakeTypeTuple({});
+        auto never_type = analysis::MakeTypePrim("!");
+        std::vector<analysis::TypeRef> async_args = {
+            unit_type,  // Out
+            unit_type,  // In
+            path->generic_args[0],  // Result (T)
+            path->generic_args.size() > 1 ? path->generic_args[1] : never_type  // E
+        };
+        ll_ty = BuildAsyncLLVMType(
+            async_args, context_,
+            [this](const analysis::TypeRef& t) { return this->GetLLVMType(t); });
+        type_cache_[type] = ll_ty;
+        return ll_ty;
+      }
+      if (analysis::IdEq(type_name, "Sequence") && !path->generic_args.empty()) {
+        SPEC_RULE("LLVMTy-Sequence");
+        auto unit_type = analysis::MakeTypeTuple({});
+        auto never_type = analysis::MakeTypePrim("!");
+        std::vector<analysis::TypeRef> async_args = {
+            path->generic_args[0],  // Out (T)
+            unit_type,  // In
+            unit_type,  // Result
+            never_type  // E
+        };
+        ll_ty = BuildAsyncLLVMType(
+            async_args, context_,
+            [this](const analysis::TypeRef& t) { return this->GetLLVMType(t); });
+        type_cache_[type] = ll_ty;
+        return ll_ty;
+      }
+      if (analysis::IdEq(type_name, "Stream") && path->generic_args.size() >= 2) {
+        SPEC_RULE("LLVMTy-Stream");
+        auto unit_type = analysis::MakeTypeTuple({});
+        std::vector<analysis::TypeRef> async_args = {
+            path->generic_args[0],  // Out (T)
+            unit_type,  // In
+            unit_type,  // Result
+            path->generic_args[1]  // E
+        };
+        ll_ty = BuildAsyncLLVMType(
+            async_args, context_,
+            [this](const analysis::TypeRef& t) { return this->GetLLVMType(t); });
+        type_cache_[type] = ll_ty;
+        return ll_ty;
+      }
+      if (analysis::IdEq(type_name, "Pipe") && path->generic_args.size() >= 2) {
+        SPEC_RULE("LLVMTy-Pipe");
+        auto unit_type = analysis::MakeTypeTuple({});
+        auto never_type = analysis::MakeTypePrim("!");
+        std::vector<analysis::TypeRef> async_args = {
+            path->generic_args[1],  // Out
+            path->generic_args[0],  // In
+            unit_type,  // Result
+            never_type  // E
+        };
+        ll_ty = BuildAsyncLLVMType(
+            async_args, context_,
+            [this](const analysis::TypeRef& t) { return this->GetLLVMType(t); });
+        type_cache_[type] = ll_ty;
+        return ll_ty;
+      }
+      if (analysis::IdEq(type_name, "Exchange") && !path->generic_args.empty()) {
+        SPEC_RULE("LLVMTy-Exchange");
+        auto never_type = analysis::MakeTypePrim("!");
+        std::vector<analysis::TypeRef> async_args = {
+            path->generic_args[0],  // Out (T)
+            path->generic_args[0],  // In (T)
+            path->generic_args[0],  // Result (T)
+            never_type  // E
+        };
+        ll_ty = BuildAsyncLLVMType(
+            async_args, context_,
+            [this](const analysis::TypeRef& t) { return this->GetLLVMType(t); });
         type_cache_[type] = ll_ty;
         return ll_ty;
       }
@@ -547,7 +730,16 @@ llvm::Type* LLVMEmitter::GetLLVMType(analysis::TypeRef type) {
           SPEC_RULE("LLVMTy-Alias");
           const auto lowered = LowerTypeForLayout(*scope_opt, alias->type);
           if (lowered.has_value()) {
-            ll_ty = GetLLVMType(*lowered);
+            // §13.1: Apply generic substitution if alias has params and type has args
+            if (alias->generic_params && !alias->generic_params->params.empty() &&
+                !path->generic_args.empty()) {
+              analysis::TypeSubst subst = analysis::BuildSubstitution(
+                  alias->generic_params->params, path->generic_args);
+              analysis::TypeRef instantiated = analysis::InstantiateType(*lowered, subst);
+              ll_ty = GetLLVMType(instantiated);
+            } else {
+              ll_ty = GetLLVMType(*lowered);
+            }
           }
         } else if (const auto* record = std::get_if<syntax::RecordDecl>(&it->second)) {
           SPEC_RULE("LLVMTy-Record");

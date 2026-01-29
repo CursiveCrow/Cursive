@@ -241,6 +241,19 @@ std::optional<cursive0::analysis::TypeRef> LowerTypeForLayout(
                                                        std::move(args));
         } else if constexpr (std::is_same_v<T,
                                            cursive0::syntax::TypePathType>) {
+          // §5.2.9, §13.1: Preserve generic arguments when lowering path types
+          if (!node.generic_args.empty()) {
+            std::vector<cursive0::analysis::TypeRef> args;
+            args.reserve(node.generic_args.size());
+            for (const auto& arg : node.generic_args) {
+              const auto lowered = LowerTypeForLayout(ctx, arg);
+              if (!lowered.has_value()) {
+                return std::nullopt;
+              }
+              args.push_back(*lowered);
+            }
+            return cursive0::analysis::MakeTypePath(node.path, std::move(args));
+          }
           return cursive0::analysis::MakeTypePath(node.path);
         } else {
           return std::nullopt;

@@ -677,6 +677,98 @@ struct Dumper {
     indent_level--;
     Indent(); oss << "}";
   }
+
+  // §19.2.2 Yield expression
+  void DumpNode(const IRYield& yield) {
+    oss << "yield";
+    if (yield.release) oss << " release";
+    oss << " ";
+    Dump(yield.value);
+    oss << " [state=" << yield.state_index << "]";
+    oss << " -> ";
+    Dump(yield.result);
+  }
+
+  // §19.2.3 Yield-from expression
+  void DumpNode(const IRYieldFrom& yf) {
+    oss << "yield";
+    if (yf.release) oss << " release";
+    oss << " from ";
+    Dump(yf.source);
+    oss << " -> ";
+    Dump(yf.result);
+  }
+
+  // §19.3.3 Sync expression
+  void DumpNode(const IRSync& sync) {
+    oss << "sync ";
+    Dump(sync.async_value);
+    oss << " -> ";
+    Dump(sync.result);
+  }
+
+  // §19.3.4 Race expression (first-completion)
+  void DumpNode(const IRRaceReturn& race) {
+    oss << "race {\n";
+    indent_level++;
+    for (std::size_t i = 0; i < race.arms.size(); ++i) {
+      const auto& arm = race.arms[i];
+      Indent(); oss << "arm[" << i << "]:\n";
+      indent_level++;
+      Indent(); oss << "async_ir: "; Dump(arm.async_ir); oss << "\n";
+      Indent(); oss << "async_value: "; Dump(arm.async_value); oss << "\n";
+      Indent(); oss << "handler_ir: "; Dump(arm.handler_ir); oss << "\n";
+      Indent(); oss << "handler_result: "; Dump(arm.handler_result); oss << "\n";
+      indent_level--;
+    }
+    Indent(); oss << "result: "; Dump(race.result); oss << "\n";
+    indent_level--;
+    Indent(); oss << "}";
+  }
+
+  // §19.3.4 Race expression (streaming)
+  void DumpNode(const IRRaceYield& race) {
+    oss << "race_yield {\n";
+    indent_level++;
+    for (std::size_t i = 0; i < race.arms.size(); ++i) {
+      const auto& arm = race.arms[i];
+      Indent(); oss << "arm[" << i << "]:\n";
+      indent_level++;
+      Indent(); oss << "async_ir: "; Dump(arm.async_ir); oss << "\n";
+      Indent(); oss << "async_value: "; Dump(arm.async_value); oss << "\n";
+      Indent(); oss << "handler_ir: "; Dump(arm.handler_ir); oss << "\n";
+      Indent(); oss << "handler_result: "; Dump(arm.handler_result); oss << "\n";
+      indent_level--;
+    }
+    Indent(); oss << "result: "; Dump(race.result); oss << "\n";
+    indent_level--;
+    Indent(); oss << "}";
+  }
+
+  // §19.3.5 All expression
+  void DumpNode(const IRAll& all) {
+    oss << "all {\n";
+    indent_level++;
+    for (std::size_t i = 0; i < all.async_irs.size(); ++i) {
+      Indent(); oss << "async[" << i << "]:\n";
+      indent_level++;
+      Indent(); oss << "ir: "; Dump(all.async_irs[i]); oss << "\n";
+      if (i < all.async_values.size()) {
+        Indent(); oss << "value: "; Dump(all.async_values[i]); oss << "\n";
+      }
+      indent_level--;
+    }
+    Indent(); oss << "result: "; Dump(all.result); oss << "\n";
+    indent_level--;
+    Indent(); oss << "}";
+  }
+
+  void DumpNode(const IRAsyncComplete& async_complete) {
+    oss << "async_complete value: ";
+    Dump(async_complete.value);
+    oss << " -> ";
+    Dump(async_complete.result);
+  }
 };
 
 }  // namespace
