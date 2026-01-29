@@ -4,7 +4,7 @@
 // DESC: Key acquisition in defer escapes to outer scope
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure key_in_defer(c: shared Counter) -> () {

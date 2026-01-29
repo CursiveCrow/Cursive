@@ -5,6 +5,6 @@
 
 public procedure main(move ctx: Context) -> i32 {
     let x: i32 = 42
-    let y: i64 = unsafe { transmute(x) }  //~ ERROR E-MEM-3031: size mismatch
+    let y: i64 = unsafe { transmute<i32, i64>(x) }  //~ ERROR E-MEM-3031: size mismatch
     return 0
 }

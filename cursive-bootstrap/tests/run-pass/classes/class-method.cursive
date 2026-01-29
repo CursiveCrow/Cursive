@@ -1,17 +1,14 @@
 // RUN: run-pass
 // EXIT: 42
-// SPEC: 13.2
+// SPEC: 13.3
 // DESC: Class method with implementation
 
 class Numeric {
     procedure double(~) -> i32
 }
 
-record Value {
+record Value <: Numeric {
     n: i32
-}
-
-class Numeric for Value {
     procedure double(~) -> i32 {
         return ~.n * 2
     }

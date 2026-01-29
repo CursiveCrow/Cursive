@@ -12,5 +12,6 @@ procedure guarded_match(n: i32) -> i32 {
 }
 
 public procedure main(move ctx: Context) -> i32 {
-    return guarded_match(42)
+    let n = 42
+    return guarded_match(n)
 }

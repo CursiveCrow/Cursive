@@ -1,34 +1,28 @@
 // RUN: run-pass
 // EXIT: 42
-// SPEC: 13.2
+// SPEC: 13.3
 // DESC: Class with superclass constraint
 
 class Base {
     procedure base_value(~) -> i32
 }
 
-class Derived: Base {
+class Derived <: Base {
     procedure derived_value(~) -> i32
 }
 
-record Impl {
+record Impl <: Base, Derived {
     a: i32
     b: i32
-}
-
-class Base for Impl {
     procedure base_value(~) -> i32 {
         return ~.a
     }
-}
-
-class Derived for Impl {
     procedure derived_value(~) -> i32 {
         return ~.b
     }
 }
 
-procedure use_derived<T: Derived>(x: T) -> i32 {
+procedure use_derived<T <: Derived>(x: T) -> i32 {
     return x ~> base_value() + x ~> derived_value()
 }
 

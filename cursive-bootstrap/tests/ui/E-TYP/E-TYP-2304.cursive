@@ -3,10 +3,11 @@
 // SPEC: 13.1
 // DESC: Duplicate type parameter name
 
-record Container<T, T> {  //~ ERROR E-TYP-2304: duplicate type param
+record Container<T; T> {  //~ ERROR E-TYP-2304: duplicate type param
     a: T
 }
 
 public procedure main(move ctx: Context) -> i32 {
     return 0
 }
+

@@ -15,8 +15,8 @@ procedure stream2() -> Async<i32, (), i32, !> {
 
 procedure do_race() -> i32 {
     return race { //~ ERROR E-CON-0262
-        stream1() => x { return x }
-        stream2() => y { return y }
+        stream1() -> |x| x,
+        stream2() -> |y| y
     }
 }
 

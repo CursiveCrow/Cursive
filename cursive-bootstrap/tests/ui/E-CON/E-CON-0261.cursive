@@ -3,10 +3,18 @@
 // SPEC: 8.9
 // DESC: race arms have incompatible types
 
-async procedure race_types() -> i32 {
+procedure a() -> Future<i32> {
+    return 1
+}
+
+procedure b() -> Future<i32> {
+    return 2
+}
+
+procedure race_types() -> i32 {
     return race {  //~ ERROR E-CON-0261: race incompatible types
-        async { return 1 } => |v| { v }
-        async { return "hello" } => |v| { 0 }
+        a() -> |v| v,
+        b() -> |v|  hello
     }
 }
 

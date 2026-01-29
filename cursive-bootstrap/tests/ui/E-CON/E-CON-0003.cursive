@@ -4,7 +4,7 @@
 // DESC: Multiple # markers in single path expression
 
 record Inner {
-    var value: i32
+    value: i32
 }
 
 record Outer {

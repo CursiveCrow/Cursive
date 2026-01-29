@@ -9,11 +9,8 @@ class Base {
     }
 }
 
-record Impl {
+record Impl <: Base {
     value: i32
-}
-
-class Base for Impl {
     procedure method(~) -> i32 {  //~ ERROR E-TYP-2502: missing override
         return ~.value
     }

@@ -5,7 +5,7 @@
 
 public procedure main(move ctx: Context) -> i32 {
     var x: i32 = 42
-    var p1: Ptr<unique i32>@Valid = &x
-    var p2: Ptr<Ptr<unique i32>@Valid>@Valid = &p1
+    var p1: Ptr<i32>@Valid = &x
+    var p2: Ptr<Ptr<i32>@Valid>@Valid = &p1
     return **p2
 }

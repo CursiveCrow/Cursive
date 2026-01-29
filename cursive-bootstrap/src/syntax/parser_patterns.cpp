@@ -12,7 +12,7 @@
 namespace cursive0::syntax {
 
 namespace {
-void EmitUnsupportedConstruct(Parser& parser) {
+[[maybe_unused]] void EmitUnsupportedConstruct(Parser& parser) {
   auto diag = core::MakeDiagnostic("E-UNS-0101", TokSpan(parser));
   if (!diag) {
     return;
@@ -49,6 +49,13 @@ bool IsPatternStart(const Token& tok) {
   return tok.kind == TokenKind::Operator && tok.lexeme == "@";
 }
 
+void SkipNewlines(Parser& parser) {
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
+}
+
+
 PatternPtr MakePattern(const core::Span& span, PatternNode node) {
   auto pat = std::make_shared<Pattern>();
   pat->span = span;
@@ -68,12 +75,20 @@ struct ModalPayloadOptResult {
 
 ParseElemResult<PatternPtr> ParsePatternRange(Parser parser);
 ParseElemResult<PatternPtr> ParsePatternAtom(Parser parser);
-
 ParseElemResult<std::vector<PatternPtr>> ParsePatternListTail(
     Parser parser,
     std::vector<PatternPtr> xs);
+ParseElemResult<FieldPattern> ParseFieldPattern(Parser parser);
+struct FieldPatternTailOptResult {
+  Parser parser;
+  PatternPtr pattern_opt;
+};
+ParseElemResult<std::vector<FieldPattern>> ParseFieldPatternTail(
+    Parser parser,
+    std::vector<FieldPattern> xs);
 
-[[maybe_unused]] ParseElemResult<std::vector<PatternPtr>> ParsePatternList(Parser parser) {
+ParseElemResult<std::vector<PatternPtr>> ParsePatternList(Parser parser) {
+  SkipNewlines(parser);
   if (IsPunc(parser, ")")) {
     SPEC_RULE("Parse-PatternList-Empty");
     return {parser, {}};
@@ -85,19 +100,24 @@ ParseElemResult<std::vector<PatternPtr>> ParsePatternListTail(
   return ParsePatternListTail(first.parser, std::move(elems));
 }
 
+
 ParseElemResult<std::vector<PatternPtr>> ParsePatternListTail(
     Parser parser,
     std::vector<PatternPtr> xs) {
+  SkipNewlines(parser);
   if (IsPunc(parser, ")")) {
     SPEC_RULE("Parse-PatternListTail-End");
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
+    const TokenKindMatch end_set[] = {MatchPunct(")")};
     Parser after = parser;
     Advance(after);
+    SkipNewlines(after);
     if (IsPunc(after, ")")) {
       SPEC_RULE("Parse-PatternListTail-TrailingComma");
-      EmitUnsupportedConstruct(after);
+      EmitTrailingCommaErr(parser, end_set);
+      after.diags = parser.diags;
       return {after, xs};
     }
     SPEC_RULE("Parse-PatternListTail-Comma");
@@ -109,24 +129,31 @@ ParseElemResult<std::vector<PatternPtr>> ParsePatternListTail(
   return {parser, xs};
 }
 
+
 ParseElemResult<std::vector<PatternPtr>> ParseTuplePatternElems(Parser parser) {
+  SkipNewlines(parser);
   if (IsPunc(parser, ")")) {
     SPEC_RULE("Parse-TuplePatternElems-Empty");
     return {parser, {}};
   }
   ParseElemResult<PatternPtr> first = ParsePattern(parser);
-  if (IsPunc(first.parser, ";")) {
+  Parser after_first = first.parser;
+  SkipNewlines(after_first);
+  if (IsPunc(after_first, ";")) {
     SPEC_RULE("Parse-TuplePatternElems-Single");
-    Parser after = first.parser;
+    Parser after = after_first;
     Advance(after);
     return {after, {first.elem}};
   }
-  if (IsPunc(first.parser, ",")) {
-    Parser after = first.parser;
+  if (IsPunc(after_first, ",")) {
+    const TokenKindMatch end_set[] = {MatchPunct(")")};
+    Parser after = after_first;
     Advance(after);
+    SkipNewlines(after);
     if (IsPunc(after, ")")) {
       SPEC_RULE("Parse-TuplePatternElems-TrailingComma");
-      EmitUnsupportedConstruct(after);
+      EmitTrailingCommaErr(after_first, end_set);
+      after.diags = after_first.diags;
       return {after, {first.elem}};
     }
     SPEC_RULE("Parse-TuplePatternElems-Many");
@@ -139,18 +166,37 @@ ParseElemResult<std::vector<PatternPtr>> ParseTuplePatternElems(Parser parser) {
     elems.insert(elems.end(), tail.elem.begin(), tail.elem.end());
     return {tail.parser, elems};
   }
-  EmitParseSyntaxErr(first.parser, TokSpan(first.parser));
-  return {first.parser, {first.elem}};
+  EmitParseSyntaxErr(after_first, TokSpan(after_first));
+  return {after_first, {first.elem}};
 }
 
 ParseElemResult<std::vector<FieldPattern>> ParseFieldPatternTail(
     Parser parser,
-    std::vector<FieldPattern> xs);
-
-struct FieldPatternTailOptResult {
-  Parser parser;
-  PatternPtr pattern_opt;
-};
+    std::vector<FieldPattern> xs) {
+  SkipNewlines(parser);
+  if (IsPunc(parser, "}")) {
+    SPEC_RULE("Parse-FieldPatternTail-End");
+    return {parser, xs};
+  }
+  if (IsPunc(parser, ",")) {
+    const TokenKindMatch end_set[] = {MatchPunct("}")};
+    Parser after = parser;
+    Advance(after);
+    SkipNewlines(after);
+    if (IsPunc(after, "}")) {
+      SPEC_RULE("Parse-FieldPatternTail-TrailingComma");
+      EmitTrailingCommaErr(parser, end_set);
+      after.diags = parser.diags;
+      return {after, xs};
+    }
+    SPEC_RULE("Parse-FieldPatternTail-Comma");
+    ParseElemResult<FieldPattern> field = ParseFieldPattern(after);
+    xs.push_back(field.elem);
+    return ParseFieldPatternTail(field.parser, std::move(xs));
+  }
+  EmitParseSyntaxErr(parser, TokSpan(parser));
+  return {parser, xs};
+}
 
 FieldPatternTailOptResult ParseFieldPatternTailOpt(Parser parser) {
   if (!IsPunc(parser, ":")) {
@@ -177,6 +223,7 @@ ParseElemResult<FieldPattern> ParseFieldPattern(Parser parser) {
 }
 
 ParseElemResult<std::vector<FieldPattern>> ParseFieldPatternList(Parser parser) {
+  SkipNewlines(parser);
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-FieldPatternList-Empty");
     return {parser, {}};
@@ -188,29 +235,7 @@ ParseElemResult<std::vector<FieldPattern>> ParseFieldPatternList(Parser parser) 
   return ParseFieldPatternTail(first.parser, std::move(fields));
 }
 
-ParseElemResult<std::vector<FieldPattern>> ParseFieldPatternTail(
-    Parser parser,
-    std::vector<FieldPattern> xs) {
-  if (IsPunc(parser, "}")) {
-    SPEC_RULE("Parse-FieldPatternTail-End");
-    return {parser, xs};
-  }
-  if (IsPunc(parser, ",")) {
-    Parser after = parser;
-    Advance(after);
-    if (IsPunc(after, "}")) {
-      SPEC_RULE("Parse-FieldPatternTail-TrailingComma");
-      EmitUnsupportedConstruct(after);
-      return {after, xs};
-    }
-    SPEC_RULE("Parse-FieldPatternTail-Comma");
-    ParseElemResult<FieldPattern> field = ParseFieldPattern(after);
-    xs.push_back(field.elem);
-    return ParseFieldPatternTail(field.parser, std::move(xs));
-  }
-  EmitParseSyntaxErr(parser, TokSpan(parser));
-  return {parser, xs};
-}
+
 
 EnumPayloadOptResult ParseEnumPatternPayloadOpt(Parser parser) {
   if (!IsPunc(parser, "(") && !IsPunc(parser, "{")) {

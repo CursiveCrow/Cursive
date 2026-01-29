@@ -4,6 +4,6 @@
 // DESC: Region allocation ^ outside region scope
 
 public procedure main(move ctx: Context) -> i32 {
-    let p: Ptr<i32>@Valid = ^42  //~ ERROR E-MEM-3021: alloc outside region
+    let p: i32 = ^42  //~ ERROR E-MEM-3021: alloc outside region
     return 0
 }

@@ -7,11 +7,8 @@ class Base {
     procedure method(~) -> i32
 }
 
-record Impl {
+record Impl <: Base {
     value: i32
-}
-
-class Base for Impl {
     override procedure method(~) -> i32 {  //~ ERROR E-TYP-2501: override on abstract
         return ~.value
     }

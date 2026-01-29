@@ -4,7 +4,7 @@
 // DESC: Drop method execution verification
 
 record Resource {
-    var value: i32
+    value: i32
 }
 
 procedure drop(~!) -> () {

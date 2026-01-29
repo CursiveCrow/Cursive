@@ -7,11 +7,8 @@ class Required {
     procedure must_have(~) -> i32
 }
 
-record Missing {
+record Missing <: Required {  //~ ERROR E-TYP-2503: missing required procedure
     value: i32
-}
-
-class Required for Missing {  //~ ERROR E-TYP-2503: missing required procedure
 }
 
 public procedure main(move ctx: Context) -> i32 {

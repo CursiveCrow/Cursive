@@ -1,16 +1,14 @@
 // RUN: compile-fail
-// DIAG: E-CON-0131
-// SPEC: 8.9
-// DESC: spawn in escaping closure
+// DIAG: E-UNS-0101
+// SPEC: 1.4
+// DESC: Unsupported construct in Cursive0 subset (closure)
 
-procedure escaping() -> procedure() -> () {
-    return || {
-        parallel {
-            spawn { return () }  //~ ERROR E-CON-0131: spawn in escaping closure
-        }
-    }
+procedure escaping() -> () -> () {
+    let f = closure  //~ ERROR E-UNS-0101
+    return f
 }
 
 public procedure main(move ctx: Context) -> i32 {
     return 0
 }
+

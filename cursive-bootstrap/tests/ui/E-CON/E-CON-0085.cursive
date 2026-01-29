@@ -1,18 +1,18 @@
 // RUN: compile-fail
-// DIAG: E-CON-0085
-// SPEC: 8.9
-// DESC: Escaping closure lacks explicit dependency annotation
+// DIAG: E-UNS-0101
+// SPEC: 1.4
+// DESC: Unsupported construct in Cursive0 subset (closure)
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
-procedure make_closure(c: shared Counter) -> procedure() -> i32 {
-    return || {  //~ ERROR E-CON-0085: escaping closure lacks dependency
-        return c.value
-    }
+procedure make_closure(c: shared Counter) -> () -> i32 {
+    let f = closure  //~ ERROR E-UNS-0101
+    return f
 }
 
 public procedure main(move ctx: Context) -> i32 {
     return 0
 }
+

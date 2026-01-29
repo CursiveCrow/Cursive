@@ -4,7 +4,7 @@
 // DESC: Fine-grained keys in tight loop (performance hint)
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure tight_loop(c: shared Counter) -> () {

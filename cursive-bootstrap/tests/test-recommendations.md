@@ -78,7 +78,7 @@ procedure helper(x: i32) -> i32 {
 }
 
 public procedure main(move ctx: Context) -> i32 {
-    let fp: procedure(i32) -> i32 = helper
+    let fp: (i32) -> i32 = helper
     return 0
 }
 ```
@@ -977,7 +977,7 @@ public procedure main(move ctx: Context) -> i32 {
 
 public procedure main(move ctx: Context) -> i32 {
     let a: i32 = 42
-    let b: u32 = unsafe { transmute(a) }
+    let b: u32 = unsafe { transmute<i32, u32>(a) }
     return 0
 }
 ```
@@ -1164,7 +1164,7 @@ public procedure main(move ctx: Context) -> i32 {
 
 public procedure main(move ctx: Context) -> i32 {
     var x: i32 = 42
-    let p: Ptr<unique i32>@Valid = &x
+    let p: Ptr<i32>@Valid = &x
     return *p
 }
 ```
@@ -1475,3 +1475,4 @@ The existing test runner should be extended to support `codegen-check` mode that
 1. Compiles the test file with `--emit-ir ll`
 2. Runs FileCheck-style verification against the output
 3. Reports pass/fail based on CHECK directive matches
+

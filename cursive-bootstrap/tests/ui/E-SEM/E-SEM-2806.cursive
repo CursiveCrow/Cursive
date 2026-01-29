@@ -3,9 +3,8 @@
 // SPEC: 8.17
 // DESC: @result used outside postcondition
 
-procedure bad_result(x: i32)
-    @requires(@result > 0)  //~ ERROR E-SEM-2806: @result outside postcondition
-    -> i32
+procedure bad_result(x: i32) -> i32
+    |= @result > 0  //~ ERROR E-SEM-2806: @result outside postcondition
 {
     return x
 }

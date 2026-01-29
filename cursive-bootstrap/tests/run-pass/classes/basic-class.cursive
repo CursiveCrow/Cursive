@@ -1,17 +1,14 @@
 // RUN: run-pass
 // EXIT: 42
-// SPEC: 13.2
+// SPEC: 13.3
 // DESC: Basic class implementation
 
 class Printable {
     procedure value(~) -> i32
 }
 
-record Number {
+record Number <: Printable {
     n: i32
-}
-
-class Printable for Number {
     procedure value(~) -> i32 {
         return ~.n
     }

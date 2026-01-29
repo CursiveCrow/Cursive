@@ -7,11 +7,8 @@ class Numeric {
     procedure value(~) -> i32
 }
 
-record Int {
+record Int <: Numeric {
     n: i32
-}
-
-class Numeric for Int {
     procedure value(~) -> i32 {
         return ~.n
     }

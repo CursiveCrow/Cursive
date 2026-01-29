@@ -4,7 +4,7 @@
 // DESC: Nested mode change without release modifier
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure nested_mode(c: shared Counter) -> () {

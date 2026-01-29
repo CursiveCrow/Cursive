@@ -4,7 +4,7 @@
 // DESC: # annotation on non-shared path
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure annotate_non_shared(c: const Counter) -> i32 {

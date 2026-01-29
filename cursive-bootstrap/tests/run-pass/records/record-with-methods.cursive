@@ -4,7 +4,7 @@
 // DESC: Record with multiple methods
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure Counter::new(initial: i32) -> Counter {

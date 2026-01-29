@@ -4,8 +4,8 @@
 // DESC: Record field update through mutable binding
 
 record Point {
-    var x: i32
-    var y: i32
+    x: i32
+    y: i32
 }
 
 public procedure main(move ctx: Context) -> i32 {

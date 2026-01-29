@@ -3,9 +3,10 @@
 // SPEC: 13.2
 // DESC: Cyclic superclass dependency
 
-class A : B { }  //~ ERROR E-TYP-2508: cyclic superclass
-class B : A { }
+class A <: B { }  //~ ERROR E-TYP-2508: cyclic superclass
+class B <: A { }
 
 public procedure main(move ctx: Context) -> i32 {
     return 0
 }
+

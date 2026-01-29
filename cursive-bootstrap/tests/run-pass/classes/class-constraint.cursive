@@ -7,7 +7,7 @@ class Addable {
     procedure add(~, other: Self) -> Self
 }
 
-record Number {
+record Number <: Addable {
     value: i32
 
     procedure add(~, other: Number) -> Number {
@@ -15,9 +15,9 @@ record Number {
     }
 }
 
-implements Addable for Number { }
 
-procedure sum<T: Addable>(a: T, b: T) -> T {
+
+procedure sum<T <: Addable>(a: T, b: T) -> T {
     return a ~> add(b)
 }
 
@@ -27,3 +27,7 @@ public procedure main(move ctx: Context) -> i32 {
     let result = sum(a, b)
     return result.value
 }
+
+
+
+

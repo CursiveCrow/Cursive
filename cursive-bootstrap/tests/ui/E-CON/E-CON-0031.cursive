@@ -4,7 +4,7 @@
 // DESC: # block path not in scope
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure bad_scope() -> () {

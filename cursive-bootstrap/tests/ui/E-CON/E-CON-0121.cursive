@@ -7,9 +7,9 @@ record Resource {
     value: i32
 }
 
-procedure double_move() -> () {
+procedure double_move(domain: $ExecutionDomain) -> () {
     let r: Resource = Resource { value: 42 }
-    parallel {
+    parallel domain {
         spawn {
             let a: Resource = move r
         }
@@ -17,6 +17,7 @@ procedure double_move() -> () {
             let b: Resource = move r  //~ ERROR E-CON-0121: already moved
         }
     }
+    return ()
 }
 
 public procedure main(move ctx: Context) -> i32 {

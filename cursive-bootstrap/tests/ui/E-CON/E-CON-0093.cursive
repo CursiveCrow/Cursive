@@ -4,7 +4,7 @@
 // DESC: defer statement inside speculative block
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure defer_in_speculative(c: shared Counter) -> () {

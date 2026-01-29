@@ -5,6 +5,6 @@
 
 public procedure main(move ctx: Context) -> i32 {
     let x: i32 = 42
-    let y: u32 = transmute(x)  //~ ERROR E-MEM-3030: unsafe outside block
+    let y: u32 = transmute<i32, u32>(x)  //~ ERROR E-MEM-3030: unsafe outside block
     return 0
 }

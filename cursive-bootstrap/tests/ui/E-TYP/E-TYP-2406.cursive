@@ -11,13 +11,19 @@ class HasXFloat {
     x: f64
 }
 
-record Point {
+record Point <: HasX, HasXFloat {  //~ ERROR E-TYP-2406
     x: i32
 }
 
-implements HasX for Point { }
-implements HasXFloat for Point { } //~ ERROR E-TYP-2406
+
+
 
 public procedure main(move ctx: Context) -> i32 {
     return 0
 }
+
+
+
+
+
+

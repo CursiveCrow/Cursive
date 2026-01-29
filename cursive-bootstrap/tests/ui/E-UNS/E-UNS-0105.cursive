@@ -7,10 +7,10 @@ class Foo {
     procedure bar(~) -> i32
 }
 
-record MyFoo {
-}
-
-class Foo for MyFoo {
+record MyFoo <: Foo {
+    procedure bar(~) -> i32 {
+        return 0
+    }
     override procedure baz(~) -> i32 {  //~ ERROR E-UNS-0105: no concrete to override
         return 0
     }

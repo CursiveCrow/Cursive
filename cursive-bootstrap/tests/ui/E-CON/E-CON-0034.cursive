@@ -4,7 +4,7 @@
 // DESC: Key path root not derivable from lexical context
 
 record Data {
-    var value: i32
+    value: i32
 }
 
 procedure non_derivable() -> () {

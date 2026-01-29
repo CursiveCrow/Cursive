@@ -1,27 +1,21 @@
 // RUN: run-pass
 // EXIT: 42
-// SPEC: 13.2.5
+// SPEC: 13.5
 // DESC: Dynamic dispatch through class type
 
 class Valuable {
     procedure value(~) -> i32
 }
 
-record A {
+record A <: Valuable {
     n: i32
-}
-
-record B {
-    n: i32
-}
-
-class Valuable for A {
     procedure value(~) -> i32 {
         return ~.n
     }
 }
 
-class Valuable for B {
+record B <: Valuable {
+    n: i32
     procedure value(~) -> i32 {
         return ~.n * 2
     }

@@ -5,8 +5,8 @@
 
 public procedure main(move ctx: Context) -> i32 {
     let a: i32 = 42
-    let b: u32 = unsafe { transmute(a) }
-    let c: i32 = unsafe { transmute(b) }
+    let b: u32 = unsafe { transmute<i32, u32>(a) }
+    let c: i32 = unsafe { transmute<u32, i32>(b) }
 
     let ok: bool = c == 42
     return if ok { 0 } else { 1 }

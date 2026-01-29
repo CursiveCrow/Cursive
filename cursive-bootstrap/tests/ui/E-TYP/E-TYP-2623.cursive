@@ -4,7 +4,7 @@
 // DESC: Prohibited type category in FfiSafeType
 
 record Wrapper {
-    closure: procedure(i32) -> i32
+    func: (i32) -> i32
 }
 
 extern "C" {
@@ -14,3 +14,4 @@ extern "C" {
 public procedure main(move ctx: Context) -> i32 {
     return 0
 }
+

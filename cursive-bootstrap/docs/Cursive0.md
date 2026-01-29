@@ -24954,7 +24954,7 @@ n = |exprs|    ∀ i, Γ; R; L ⊢ e_i : T_i    AsyncSig(T_i) = ⟨Out_i, In_i, 
 
 `until` is a method on `shared` values:
 
-until : shared T × procedure(const T) -> bool × procedure(unique T) -> R -> Future<R>
+until : shared T × (const T) -> bool × (unique T) -> R -> Future<R>
 
 **Dynamic Semantics**
 
@@ -24974,11 +24974,11 @@ On key release, registered waiters re-evaluate predicates. Waiters whose predica
 
 **Static Semantics**
 
-map : Async<Out, In, Result, E> × procedure(Out) -> U -> Async<U, In, Result, E>
-filter : Async<T, (), (), E> × procedure(const T) -> bool -> Async<T, (), (), E>
+map : Async<Out, In, Result, E> × (Out) -> U -> Async<U, In, Result, E>
+filter : Async<T, (), (), E> × (const T) -> bool -> Async<T, (), (), E>
 take : Async<T, (), (), E> × usize -> Async<T, (), (), E>
-fold : Async<T, (), (), E> × A × procedure(A, T) -> A -> Future<A, E>
-chain : Future<T, E> × procedure(T) -> Future<U, E> -> Future<U, E>
+fold : Async<T, (), (), E> × A × (A, T) -> A -> Future<A, E>
+chain : Future<T, E> × (T) -> Future<U, E> -> Future<U, E>
 
 **(T-Async-Map)**
 Γ; R; L ⊢ a : TypeApply(["Async"], [Out, In, Result, E])    Γ; R; L ⊢ f : (Out) -> U

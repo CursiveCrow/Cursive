@@ -3,16 +3,17 @@
 // SPEC: 8.9
 // DESC: Nested GPU parallel block
 
-procedure nested_gpu() -> () {
-    parallel on gpu {
-        dispatch 0..100 |i| {
-            parallel on gpu {  //~ ERROR E-CON-0152: nested GPU parallel
-                dispatch 0..10 |j| {
+procedure nested_gpu(ctx: Context) -> () {
+    parallel ctx ~> gpu() {
+        dispatch i in 0..100 {
+            parallel ctx ~> gpu() {  //~ ERROR E-CON-0152: nested GPU parallel
+                dispatch j in 0..10 {
                     let x: i32 = j
                 }
             }
         }
     }
+    return ()
 }
 
 public procedure main(move ctx: Context) -> i32 {

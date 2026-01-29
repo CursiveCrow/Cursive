@@ -4,7 +4,7 @@
 // DESC: Write operation in # block without write modifier
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure write_without_modifier(c: shared Counter) -> () {

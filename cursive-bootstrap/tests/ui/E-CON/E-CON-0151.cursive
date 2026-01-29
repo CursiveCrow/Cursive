@@ -4,15 +4,16 @@
 // DESC: shared capture in GPU dispatch
 
 record Data {
-    var value: i32
+    value: i32
 }
 
-procedure gpu_shared(d: shared Data) -> () {
-    parallel on gpu {
-        dispatch 0..100 |i| {
+procedure gpu_shared(ctx: Context, d: shared Data) -> () {
+    parallel ctx ~> gpu() {
+        dispatch i in 0..100 {
             let x: i32 = d.value  //~ ERROR E-CON-0151: shared capture in GPU
         }
     }
+    return ()
 }
 
 public procedure main(move ctx: Context) -> i32 {

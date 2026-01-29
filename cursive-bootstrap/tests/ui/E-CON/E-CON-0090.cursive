@@ -4,7 +4,7 @@
 // DESC: Nested key block inside speculative block
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure nested_in_speculative(c: shared Counter) -> () {

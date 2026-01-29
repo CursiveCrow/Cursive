@@ -5,10 +5,10 @@
 
 public procedure main(move ctx: Context) -> i32 {
     var x: i32 = 42
-    let p: Ptr<unique i32>@Valid = &x
+    let p: Ptr<i32>@Valid = &x
 
     var y: i64 = 100
-    let q: Ptr<unique i64>@Valid = &y
+    let q: Ptr<i64>@Valid = &y
 
     let val: i32 = *p
     return val

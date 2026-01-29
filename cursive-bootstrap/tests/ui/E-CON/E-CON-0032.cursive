@@ -4,7 +4,7 @@
 // DESC: # block path is not shared
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure not_shared(c: const Counter) -> () {

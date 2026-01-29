@@ -4,10 +4,10 @@
 // DESC: yield while key is held (without release)
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
-async procedure yield_with_key(c: shared Counter) -> Sequence<i32> {
+procedure yield_with_key(c: shared Counter) -> Sequence<i32> {
     # write c {
         yield c.value  //~ ERROR E-CON-0213: yield while key held
     }

@@ -4,11 +4,11 @@
 // DESC: Detectable key ordering cycle within procedure
 
 record A {
-    var value: i32
+    value: i32
 }
 
 record B {
-    var value: i32
+    value: i32
 }
 
 procedure key_cycle(a: shared A, b: shared B) -> () {

@@ -3,12 +3,13 @@
 // SPEC: 8.9
 // DESC: Host memory access in GPU code
 
-procedure gpu_host_access(data: [i32; 10]) -> () {
-    parallel on gpu {
-        dispatch 0..10 |i| {
+procedure gpu_host_access(ctx: Context, data: [i32; 10]) -> () {
+    parallel ctx ~> gpu() {
+        dispatch i in 0..10 {
             let x: i32 = data[i]  //~ ERROR E-CON-0150: host memory in GPU
         }
     }
+    return ()
 }
 
 public procedure main(move ctx: Context) -> i32 {

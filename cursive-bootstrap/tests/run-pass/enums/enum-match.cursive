@@ -18,5 +18,6 @@ procedure status_value(s: Status) -> i32 {
 }
 
 public procedure main(move ctx: Context) -> i32 {
-    return status_value(Status::Ok)
+    let s = Status::Ok
+    return status_value(s)
 }

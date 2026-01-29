@@ -8,5 +8,7 @@ procedure add(a: i32, b: i32) -> i32 {
 }
 
 public procedure main(move ctx: Context) -> i32 {
-    return add(10, 20)
+    let a = 10
+    let b = 20
+    return add(a, b)
 }

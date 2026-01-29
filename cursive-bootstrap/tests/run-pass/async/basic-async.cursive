@@ -1,9 +1,9 @@
 // RUN: run-pass
 // EXIT: 42
 // SPEC: 16
-// DESC: Basic async procedure
+// DESC: Basic procedure
 
-async procedure compute() -> Future<i32> {
+procedure compute() -> Future<i32> {
     return 42
 }
 

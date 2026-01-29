@@ -1,9 +1,13 @@
 // RUN: run-pass
 // EXIT: 42
-// SPEC: 5.2.8
-// DESC: Basic closure
+// SPEC: 5.2.3
+// DESC: Procedure value with function type
+
+procedure add_ten(x: i32) -> i32 {
+    return x + 10
+}
 
 public procedure main(move ctx: Context) -> i32 {
-    let add_ten = |x: i32| -> i32 { return x + 10 }
-    return add_ten(32)
+    let add: (i32) -> i32 = add_ten
+    return add(32)
 }

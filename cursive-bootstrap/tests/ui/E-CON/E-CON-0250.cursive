@@ -3,7 +3,7 @@
 // SPEC: 8.9
 // DESC: sync inside async-returning procedure
 
-async procedure sync_in_async() -> i32 {
+procedure sync_in_async() -> Future<i32> {
     let result: i32 = sync {  //~ ERROR E-CON-0250: sync inside async
         42
     }
@@ -13,3 +13,4 @@ async procedure sync_in_async() -> i32 {
 public procedure main(move ctx: Context) -> i32 {
     return 0
 }
+

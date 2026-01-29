@@ -5,19 +5,13 @@
 
 record FirstDrop {
     id: i32
-}
-
-record SecondDrop {
-    id: i32
-}
-
-class Drop for FirstDrop {
     procedure drop(~!) -> () {
         panic("first drop panic")
     }
 }
 
-class Drop for SecondDrop {
+record SecondDrop {
+    id: i32
     procedure drop(~!) -> () {
         panic("second drop panic")
     }

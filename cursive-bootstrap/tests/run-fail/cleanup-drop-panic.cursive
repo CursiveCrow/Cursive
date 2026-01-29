@@ -5,10 +5,6 @@
 
 record PanicOnDrop {
     value: i32
-}
-
-// Drop implementation that panics
-class Drop for PanicOnDrop {
     procedure drop(~!) -> () {
         panic("drop panic")
     }

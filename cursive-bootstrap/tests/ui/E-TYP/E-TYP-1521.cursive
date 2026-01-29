@@ -4,8 +4,8 @@
 // DESC: Invariant type parameter position mismatch
 
 record Invariant<T> {
-    setter: procedure(T) -> ()
-    getter: procedure() -> T
+    setter: (T) -> ()
+    getter: () -> T
 }
 
 procedure coerce(x: Invariant<i32>) -> Invariant<i64> {
@@ -15,3 +15,4 @@ procedure coerce(x: Invariant<i32>) -> Invariant<i64> {
 public procedure main(move ctx: Context) -> i32 {
     return 0
 }
+

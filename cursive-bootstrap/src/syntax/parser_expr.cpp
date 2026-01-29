@@ -1,6 +1,7 @@
 #include "cursive0/syntax/parser.h"
 
 
+#include <array>
 #include <optional>
 #include <span>
 #include <string_view>
@@ -23,6 +24,12 @@ void EmitUnsupportedConstruct(Parser& parser) {
     return;
   }
   parser.diags = core::Emit(parser.diags, *diag);
+}
+
+void SkipNewlines(Parser& parser) {
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
 }
 
 bool IsKw(const Parser& parser, std::string_view kw) {
@@ -74,7 +81,7 @@ bool IsExprStart(const Token& tok) {
   }
   if (tok.kind == TokenKind::Operator) {
     return tok.lexeme == "!" || tok.lexeme == "-" || tok.lexeme == "&" ||
-           tok.lexeme == "*" || tok.lexeme == "^";
+           tok.lexeme == "*" || tok.lexeme == "^" || tok.lexeme == "@";
   }
   if (tok.kind == TokenKind::Keyword) {
     return tok.lexeme == "if" || tok.lexeme == "match" ||
@@ -803,7 +810,7 @@ ParseElemResult<ExprPtr> ParsePrimary(Parser parser, bool allow_brace) {
     }
   }
 
-  if (tok && IsPuncTok(*tok, "@")) {
+  if (tok && IsOpTok(*tok, "@")) {
     Parser start = parser;
     Parser next = parser;
     Advance(next);  // consume @
@@ -1175,77 +1182,82 @@ ParseElemResult<ExprPtr> ParsePrimary(Parser parser, bool allow_brace) {
   }
 
   if (tok && IsPuncTok(*tok, "[")) {
-    Parser next = parser;
-    Advance(next);
+  Parser next = parser;
+  Advance(next);
+  SkipNewlines(next);
 
-    // Empty array []
-    if (IsPunc(next, "]")) {
-      SPEC_RULE("Parse-Array-Literal-Empty");
-      Parser after = next;
-      Advance(after);
-      ArrayExpr arr;
-      return {after, MakeExpr(SpanBetween(parser, after), arr)};
-    }
-
-    // Parse first expression
-    ParseElemResult<ExprPtr> first = ParseExpr(next);
-
-    // Check for repeat syntax [expr; count]
-    if (IsPunc(first.parser, ";")) {
-      SPEC_RULE("Parse-Array-Repeat");
-      Parser after_semi = first.parser;
-      Advance(after_semi);
-      ParseElemResult<ExprPtr> count = ParseExpr(after_semi);
-      if (!IsPunc(count.parser, "]")) {
-        EmitParseSyntaxErr(count.parser, TokSpan(count.parser));
-        Parser sync = count.parser;
-        SyncStmt(sync);
-        return {sync, MakeExpr(SpanBetween(parser, sync), ErrorExpr{})};
-      }
-      Parser after = count.parser;
-      Advance(after);
-      ArrayRepeatExpr rep;
-      rep.value = first.elem;
-      rep.count = count.elem;
-      return {after, MakeExpr(SpanBetween(parser, after), rep)};
-    }
-
-    // Check for closing bracket (single-element array)
-    if (IsPunc(first.parser, "]")) {
-      SPEC_RULE("Parse-Array-Literal-Single");
-      Parser after = first.parser;
-      Advance(after);
-      ArrayExpr arr;
-      arr.elements.push_back(first.elem);
-      return {after, MakeExpr(SpanBetween(parser, after), arr)};
-    }
-
-    // Parse comma-separated list
-    if (IsPunc(first.parser, ",")) {
-      SPEC_RULE("Parse-Array-Literal-List");
-      std::vector<ExprPtr> elems;
-      elems.push_back(first.elem);
-      Parser after_comma = first.parser;
-      Advance(after_comma);
-      ParseElemResult<std::vector<ExprPtr>> rest = ParseExprListTail(after_comma, std::move(elems));
-      if (!IsPunc(rest.parser, "]")) {
-        EmitParseSyntaxErr(rest.parser, TokSpan(rest.parser));
-        Parser sync = rest.parser;
-        SyncStmt(sync);
-        return {sync, MakeExpr(SpanBetween(parser, sync), ErrorExpr{})};
-      }
-      Parser after = rest.parser;
-      Advance(after);
-      ArrayExpr arr;
-      arr.elements = std::move(rest.elem);
-      return {after, MakeExpr(SpanBetween(parser, after), arr)};
-    }
-
-    EmitParseSyntaxErr(first.parser, TokSpan(first.parser));
-    Parser sync = first.parser;
-    SyncStmt(sync);
-    return {sync, MakeExpr(SpanBetween(parser, sync), ErrorExpr{})};
+  // Empty array []
+  if (IsPunc(next, "]")) {
+    SPEC_RULE("Parse-Array-Literal-Empty");
+    Parser after = next;
+    Advance(after);
+    ArrayExpr arr;
+    return {after, MakeExpr(SpanBetween(parser, after), arr)};
   }
+
+  // Parse first expression
+  ParseElemResult<ExprPtr> first = ParseExpr(next);
+  Parser after_first = first.parser;
+  SkipNewlines(after_first);
+
+  // Check for repeat syntax [expr; count]
+  if (IsPunc(after_first, ";")) {
+    SPEC_RULE("Parse-Array-Repeat");
+    Parser after_semi = after_first;
+    Advance(after_semi);
+    SkipNewlines(after_semi);
+    ParseElemResult<ExprPtr> count = ParseExpr(after_semi);
+    Parser after_count = count.parser;
+    SkipNewlines(after_count);
+    if (!IsPunc(after_count, "]")) {
+      EmitParseSyntaxErr(after_count, TokSpan(after_count));
+      Parser sync = after_count;
+      SyncStmt(sync);
+      return {sync, MakeExpr(SpanBetween(parser, sync), ErrorExpr{})};
+    }
+    Parser after = after_count;
+    Advance(after);
+    ArrayRepeatExpr rep;
+    rep.value = first.elem;
+    rep.count = count.elem;
+    return {after, MakeExpr(SpanBetween(parser, after), rep)};
+  }
+
+  // Check for closing bracket (single-element array)
+  if (IsPunc(after_first, "]")) {
+    SPEC_RULE("Parse-Array-Literal-Single");
+    Parser after = after_first;
+    Advance(after);
+    ArrayExpr arr;
+    arr.elements.push_back(first.elem);
+    return {after, MakeExpr(SpanBetween(parser, after), arr)};
+  }
+
+  // Parse comma-separated list
+  if (IsPunc(after_first, ",")) {
+    SPEC_RULE("Parse-Array-Literal-List");
+    std::vector<ExprPtr> elems;
+    elems.push_back(first.elem);
+    ParseElemResult<std::vector<ExprPtr>> rest =
+        ParseExprListTail(after_first, std::move(elems));
+    if (!IsPunc(rest.parser, "]")) {
+      EmitParseSyntaxErr(rest.parser, TokSpan(rest.parser));
+      Parser sync = rest.parser;
+      SyncStmt(sync);
+      return {sync, MakeExpr(SpanBetween(parser, sync), ErrorExpr{})};
+    }
+    Parser after = rest.parser;
+    Advance(after);
+    ArrayExpr arr;
+    arr.elements = std::move(rest.elem);
+    return {after, MakeExpr(SpanBetween(parser, after), arr)};
+  }
+
+  EmitParseSyntaxErr(after_first, TokSpan(after_first));
+  Parser sync = after_first;
+  SyncStmt(sync);
+  return {sync, MakeExpr(SpanBetween(parser, sync), ErrorExpr{})};
+}
 
   if (allow_brace && tok && IsIdentTok(*tok)) {
     Parser start = parser;
@@ -1857,6 +1869,7 @@ ParseElemResult<ExprPtr> ParsePrimary(Parser parser, bool allow_brace) {
 }
 
 ParseElemResult<std::vector<Arg>> ParseArgList(Parser parser) {
+  SkipNewlines(parser);
   if (IsPunc(parser, ")")) {
     SPEC_RULE("Parse-ArgList-Empty");
     return {parser, {}};
@@ -1893,16 +1906,20 @@ ParseElemResult<bool> ParseArgMoveOpt(Parser parser) {
 
 ParseElemResult<std::vector<Arg>> ParseArgTail(Parser parser,
                                                std::vector<Arg> xs) {
+  SkipNewlines(parser);
   if (IsPunc(parser, ")")) {
     SPEC_RULE("Parse-ArgTail-End");
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
+    const std::array<TokenKindMatch, 1> end_set = {MatchPunct(")")};
     Parser after = parser;
     Advance(after);
+    SkipNewlines(after);
     if (IsPunc(after, ")")) {
       SPEC_RULE("Parse-ArgTail-TrailingComma");
-      EmitUnsupportedConstruct(after);
+      EmitTrailingCommaErr(parser, end_set);
+      after.diags = parser.diags;
       return {after, xs};
     }
     SPEC_RULE("Parse-ArgTail-Comma");
@@ -1916,6 +1933,7 @@ ParseElemResult<std::vector<Arg>> ParseArgTail(Parser parser,
 
 ParseElemResult<std::vector<ExprPtr>> ParseExprList(Parser parser) {
   SPEC_RULE("List-Start");
+  SkipNewlines(parser);
   if (IsPunc(parser, ")") || IsPunc(parser, "]")) {
     SPEC_RULE("Parse-ExprList-Empty");
     SPEC_RULE("List-Done");
@@ -1932,17 +1950,22 @@ ParseElemResult<std::vector<ExprPtr>> ParseExprList(Parser parser) {
 
 ParseElemResult<std::vector<ExprPtr>> ParseExprListTail(Parser parser,
                                                         std::vector<ExprPtr> xs) {
+  SkipNewlines(parser);
   if (IsPunc(parser, ")") || IsPunc(parser, "]") || IsPunc(parser, "}")) {
     SPEC_RULE("Parse-ExprListTail-End");
     SPEC_RULE("List-Done");
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
+    const std::array<TokenKindMatch, 3> end_set = {
+        MatchPunct(")"), MatchPunct("]"), MatchPunct("}")};
     Parser after = parser;
     Advance(after);
+    SkipNewlines(after);
     if (IsPunc(after, ")") || IsPunc(after, "]") || IsPunc(after, "}")) {
       SPEC_RULE("Parse-ExprListTail-TrailingComma");
-      EmitUnsupportedConstruct(after);
+      EmitTrailingCommaErr(parser, end_set);
+      after.diags = parser.diags;
       return {after, xs};
     }
     SPEC_RULE("Parse-ExprListTail-Comma");
@@ -2028,16 +2051,20 @@ ParseElemResult<std::vector<RaceArm>> ParseRaceArms(Parser parser) {
 ParseElemResult<std::vector<RaceArm>> ParseRaceArmsTail(
     Parser parser,
     std::vector<RaceArm> xs) {
+  SkipNewlines(parser);
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-RaceArmsTail-End");
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
+    const std::array<TokenKindMatch, 1> end_set = {MatchPunct("}")};
     Parser after = parser;
     Advance(after);
+    SkipNewlines(after);
     if (IsPunc(after, "}")) {
       SPEC_RULE("Parse-RaceArmsTail-TrailingComma");
-      EmitUnsupportedConstruct(after);
+      EmitTrailingCommaErr(parser, end_set);
+      after.diags = parser.diags;
       return {after, xs};
     }
     SPEC_RULE("Parse-RaceArmsTail-Comma");
@@ -2050,6 +2077,7 @@ ParseElemResult<std::vector<RaceArm>> ParseRaceArmsTail(
 }
 
 ParseElemResult<std::vector<ExprPtr>> ParseAllExprList(Parser parser) {
+  SkipNewlines(parser);
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-AllExprList-Empty");
     return {parser, {}};
@@ -2064,16 +2092,20 @@ ParseElemResult<std::vector<ExprPtr>> ParseAllExprList(Parser parser) {
 ParseElemResult<std::vector<ExprPtr>> ParseAllExprListTail(
     Parser parser,
     std::vector<ExprPtr> xs) {
+  SkipNewlines(parser);
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-AllExprListTail-End");
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
+    const std::array<TokenKindMatch, 1> end_set = {MatchPunct("}")};
     Parser after = parser;
     Advance(after);
+    SkipNewlines(after);
     if (IsPunc(after, "}")) {
       SPEC_RULE("Parse-AllExprListTail-TrailingComma");
-      EmitUnsupportedConstruct(after);
+      EmitTrailingCommaErr(parser, end_set);
+      after.diags = parser.diags;
       return {after, xs};
     }
     SPEC_RULE("Parse-AllExprListTail-Comma");
@@ -2086,25 +2118,30 @@ ParseElemResult<std::vector<ExprPtr>> ParseAllExprListTail(
 }
 
 ParseElemResult<std::vector<ExprPtr>> ParseTupleExprElems(Parser parser) {
+  SkipNewlines(parser);
   if (IsPunc(parser, ")")) {
     SPEC_RULE("Parse-TupleExprElems-Empty");
     return {parser, {}};
   }
   ParseElemResult<ExprPtr> first = ParseExpr(parser);
-  if (IsPunc(first.parser, ";")) {
+  Parser after_first = first.parser;
+  SkipNewlines(after_first);
+  if (IsPunc(after_first, ";")) {
     SPEC_RULE("Parse-TupleExprElems-Single");
-    Parser after = first.parser;
+    Parser after = after_first;
     Advance(after);
     std::vector<ExprPtr> elems;
     elems.push_back(first.elem);
     return {after, elems};
   }
-  if (IsPunc(first.parser, ",")) {
-    Parser after = first.parser;
+  if (IsPunc(after_first, ",")) {
+    const std::array<TokenKindMatch, 1> end_set = {MatchPunct(")")};
+    Parser after = after_first;
     Advance(after);
+    SkipNewlines(after);
     if (IsPunc(after, ")")) {
       SPEC_RULE("Parse-TupleExprElems-TrailingComma");
-      EmitUnsupportedConstruct(after);
+      EmitTrailingCommaErr(after_first, end_set);
       std::vector<ExprPtr> elems;
       elems.push_back(first.elem);
       return {after, elems};
@@ -2126,6 +2163,7 @@ ParseElemResult<std::vector<ExprPtr>> ParseTupleExprElems(Parser parser) {
 }
 
 ParseElemResult<std::vector<FieldInit>> ParseFieldInitList(Parser parser) {
+  SkipNewlines(parser);
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-FieldInitList-Empty");
     EmitUnsupportedConstruct(parser);
@@ -2165,16 +2203,20 @@ ParseElemResult<FieldInit> ParseFieldInit(Parser parser) {
 
 ParseElemResult<std::vector<FieldInit>> ParseFieldInitTail(Parser parser,
                                                            std::vector<FieldInit> xs) {
+  SkipNewlines(parser);
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-FieldInitTail-End");
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
+    const std::array<TokenKindMatch, 1> end_set = {MatchPunct("}")};
     Parser after = parser;
     Advance(after);
+    SkipNewlines(after);
     if (IsPunc(after, "}")) {
       SPEC_RULE("Parse-FieldInitTail-TrailingComma");
-      EmitUnsupportedConstruct(after);
+      EmitTrailingCommaErr(parser, end_set);
+      after.diags = parser.diags;
       return {after, xs};
     }
     SPEC_RULE("Parse-FieldInitTail-Comma");
@@ -2226,19 +2268,20 @@ MatchArmsResult ParseMatchArmsTail(Parser parser, std::vector<MatchArm> xs) {
   }
   if (IsPunc(parser, ",")) {
     const TokenKindMatch end_set[] = {MatchPunct("}")};
-    if (EmitTrailingCommaErr(parser, end_set)) {
-      Parser after = parser;
-      Advance(after);
-      return {after, xs};
-    }
-    SPEC_RULE("Parse-MatchArmsTail-Comma");
-    SPEC_RULE("Parse-MatchArm");
     Parser after = parser;
     Advance(after);
     // Skip newlines after comma
     while (Tok(after) && Tok(after)->kind == TokenKind::Newline) {
       Advance(after);
     }
+    if (IsPunc(after, "}")) {
+      SPEC_RULE("Parse-MatchArmsTail-TrailingComma");
+      EmitTrailingCommaErr(parser, end_set);
+      after.diags = parser.diags;
+      return {after, xs};
+    }
+    SPEC_RULE("Parse-MatchArmsTail-Comma");
+    SPEC_RULE("Parse-MatchArm");
     ParseElemResult<std::shared_ptr<Pattern>> pat = ParsePattern(after);
     GuardOptResult guard = ParseGuardOpt(pat.parser);
     if (!IsOp(guard.parser, "=>")) {

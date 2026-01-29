@@ -4,7 +4,7 @@
 // DESC: Basic key acquisition for shared access
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 public procedure main(move ctx: Context) -> i32 {

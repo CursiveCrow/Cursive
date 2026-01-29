@@ -4,7 +4,7 @@
 // DESC: release modifier with matching outer mode
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure matching_release(c: shared Counter) -> () {

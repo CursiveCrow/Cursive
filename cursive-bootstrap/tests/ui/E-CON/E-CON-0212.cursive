@@ -3,7 +3,7 @@
 // SPEC: 8.9
 // DESC: yield inside sync expression
 
-async procedure yield_in_sync() -> i32 {
+procedure yield_in_sync() -> i32 {
     sync {
         yield 1  //~ ERROR E-CON-0212: yield inside sync
     }

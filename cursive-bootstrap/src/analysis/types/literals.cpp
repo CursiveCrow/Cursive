@@ -356,7 +356,19 @@ bool NullLiteralExpected(const TypeRef& expected) {
   if (!expected) {
     return false;
   }
-  return std::holds_alternative<TypeRawPtr>(expected->node);
+  TypeRef cur = expected;
+  while (cur) {
+    if (const auto* perm = std::get_if<TypePerm>(&cur->node)) {
+      cur = perm->base;
+      continue;
+    }
+    if (const auto* refine = std::get_if<TypeRefine>(&cur->node)) {
+      cur = refine->base;
+      continue;
+    }
+    break;
+  }
+  return cur && std::holds_alternative<TypeRawPtr>(cur->node);
 }
 
 LiteralCheckResult CheckLiteralExpr(const ScopeContext& ctx,
@@ -368,9 +380,24 @@ LiteralCheckResult CheckLiteralExpr(const ScopeContext& ctx,
   if (!expected) {
     return result;
   }
+  TypeRef base = expected;
+  while (base) {
+    if (const auto* perm = std::get_if<TypePerm>(&base->node)) {
+      base = perm->base;
+      continue;
+    }
+    if (const auto* refine = std::get_if<TypeRefine>(&base->node)) {
+      base = refine->base;
+      continue;
+    }
+    break;
+  }
+  if (!base) {
+    return result;
+  }
   const auto& lit = expr.literal;
   if (lit.kind == syntax::TokenKind::IntLiteral) {
-    const auto* prim = std::get_if<TypePrim>(&expected->node);
+    const auto* prim = std::get_if<TypePrim>(&base->node);
     if (!prim || !IsIntTypeName(prim->name)) {
       return result;
     }
@@ -383,7 +410,7 @@ LiteralCheckResult CheckLiteralExpr(const ScopeContext& ctx,
     return result;
   }
   if (lit.kind == syntax::TokenKind::FloatLiteral) {
-    const auto* prim = std::get_if<TypePrim>(&expected->node);
+    const auto* prim = std::get_if<TypePrim>(&base->node);
     if (!prim || !IsFloatTypeName(prim->name)) {
       return result;
     }

@@ -4,9 +4,8 @@
 // DESC: Contract with ensures clause
 
 [[dynamic]]
-procedure positive_result(x: i32)
-    @ensures(@result >= 0)
-    -> i32
+procedure positive_result(x: i32) -> i32
+    |= => @result >= 0
 {
     if x < 0 {
         return -x

@@ -4,7 +4,7 @@
 // DESC: Key escapes its defining scope
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure escape_key(c: shared Counter) -> () {

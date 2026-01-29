@@ -4,7 +4,7 @@
 // DESC: Redundant key acquisition (already covered)
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure redundant_key(c: shared Counter) -> () {

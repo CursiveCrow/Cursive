@@ -10,7 +10,7 @@ procedure needs_input() -> Async<(), i32, i32, !> {
 
 procedure do_all() -> (i32, i32) {
     return all { //~ ERROR E-CON-0271
-        needs_input()
+        needs_input(),
         needs_input()
     }
 }

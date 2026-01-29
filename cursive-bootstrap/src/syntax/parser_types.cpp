@@ -20,6 +20,12 @@ void EmitUnsupportedConstruct(Parser& parser) {
   }
   parser.diags = core::Emit(parser.diags, *diag);
 }
+void SkipNewlines(Parser& parser) {
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
+}
+
 
 std::shared_ptr<Type> MakeTypeNode(const core::Span& span, TypeNode node) {
   auto ty = std::make_shared<Type>();
@@ -151,25 +157,29 @@ ParseElemResult<TypeFuncParam> ParseParamType(Parser parser);
 ParseElemResult<std::vector<TypeFuncParam>> ParseParamTypeListTail(
     Parser parser,
     std::vector<TypeFuncParam> ps) {
+  SkipNewlines(parser);
   if (!IsPunc(parser, ",")) {
     SPEC_RULE("Parse-ParamTypeListTail-End");
     return {parser, ps};
   }
   const TokenKindMatch end_set[] = {MatchPunct(")")};
-  if (EmitTrailingCommaErr(parser, end_set)) {
-    Parser after = parser;
-    Advance(after);
+  Parser after = parser;
+  Advance(after);
+  SkipNewlines(after);
+  if (IsPunc(after, ")")) {
+    EmitTrailingCommaErr(parser, end_set);
+    after.diags = parser.diags;
     return {after, ps};
   }
   SPEC_RULE("Parse-ParamTypeListTail-Comma");
-  Parser next = parser;
-  Advance(next);
-  ParseElemResult<TypeFuncParam> param = ParseParamType(next);
+  ParseElemResult<TypeFuncParam> param = ParseParamType(after);
   ps.push_back(param.elem);
   return ParseParamTypeListTail(param.parser, std::move(ps));
 }
 
+
 ParseElemResult<std::vector<TypeFuncParam>> ParseParamTypeList(Parser parser) {
+  SkipNewlines(parser);
   if (IsPunc(parser, ")")) {
     SPEC_RULE("Parse-ParamTypeList-Empty");
     return {parser, {}};
@@ -180,6 +190,7 @@ ParseElemResult<std::vector<TypeFuncParam>> ParseParamTypeList(Parser parser) {
   params.push_back(first.elem);
   return ParseParamTypeListTail(first.parser, std::move(params));
 }
+
 
 ParseElemResult<TypeFuncParam> ParseParamType(Parser parser) {
   if (IsKw(parser, "move")) {
@@ -274,16 +285,20 @@ ParseElemResult<std::optional<PtrState>> ParsePtrState(Parser parser) {
 ParseElemResult<std::vector<std::shared_ptr<Type>>> ParseTypeListTail(
     Parser parser,
     std::vector<std::shared_ptr<Type>> xs) {
+  SkipNewlines(parser);
   if (IsPunc(parser, ")") || IsPunc(parser, "}")) {
     SPEC_RULE("Parse-TypeListTail-End");
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
+    const TokenKindMatch end_set[] = {MatchPunct(")"), MatchPunct("}")};
     Parser after = parser;
     Advance(after);
+    SkipNewlines(after);
     if (IsPunc(after, ")") || IsPunc(after, "}")) {
       SPEC_RULE("Parse-TypeListTail-TrailingComma");
-      EmitUnsupportedConstruct(after);
+      EmitTrailingCommaErr(parser, end_set);
+      after.diags = parser.diags;
       return {after, xs};
     }
     SPEC_RULE("Parse-TypeListTail-Comma");
@@ -295,25 +310,32 @@ ParseElemResult<std::vector<std::shared_ptr<Type>>> ParseTypeListTail(
   return {parser, xs};
 }
 
+
 ParseElemResult<std::vector<std::shared_ptr<Type>>> ParseTupleTypeElems(
     Parser parser) {
+  SkipNewlines(parser);
   if (IsPunc(parser, ")")) {
     SPEC_RULE("Parse-TupleTypeElems-Empty");
     return {parser, {}};
   }
   ParseElemResult<std::shared_ptr<Type>> first = ParseType(parser);
-  if (IsPunc(first.parser, ";")) {
+  Parser after_first = first.parser;
+  SkipNewlines(after_first);
+  if (IsPunc(after_first, ";")) {
     SPEC_RULE("Parse-TupleTypeElems-One");
-    Parser after = first.parser;
+    Parser after = after_first;
     Advance(after);
     return {after, {first.elem}};
   }
-  if (IsPunc(first.parser, ",")) {
-    Parser after = first.parser;
+  if (IsPunc(after_first, ",")) {
+    const TokenKindMatch end_set[] = {MatchPunct(")")};
+    Parser after = after_first;
     Advance(after);
+    SkipNewlines(after);
     if (IsPunc(after, ")")) {
       SPEC_RULE("Parse-TupleTypeElems-TrailingComma");
-      EmitUnsupportedConstruct(after);
+      EmitTrailingCommaErr(after_first, end_set);
+      after.diags = after_first.diags;
       return {after, {first.elem}};
     }
     SPEC_RULE("Parse-TupleTypeElems-Many");
@@ -326,9 +348,10 @@ ParseElemResult<std::vector<std::shared_ptr<Type>>> ParseTupleTypeElems(
     elems.insert(elems.end(), tail.elem.begin(), tail.elem.end());
     return {tail.parser, elems};
   }
-  EmitParseSyntaxErr(first.parser, TokSpan(first.parser));
-  return {first.parser, {first.elem}};
+  EmitParseSyntaxErr(after_first, TokSpan(after_first));
+  return {after_first, {first.elem}};
 }
+
 
 ParseElemResult<std::shared_ptr<Type>> ParseFuncType(Parser parser) {
   SPEC_RULE("Parse-Func-Type");

@@ -13,15 +13,17 @@ class Resource2 {
     @Done { }
 }
 
-modal MyResource {
+modal MyResource <: Resource1, Resource2 {  //~ ERROR E-TYP-2407
     @Open { x: i32 }
     @Closed { }
     @Done { }
 }
 
-implements Resource1 for MyResource { }
-implements Resource2 for MyResource { } //~ ERROR E-TYP-2407
+
+
 
 public procedure main(move ctx: Context) -> i32 {
     return 0
 }
+
+

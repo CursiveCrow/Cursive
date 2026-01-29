@@ -4,7 +4,7 @@
 // DESC: release modifier without target mode
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure bad_release(c: shared Counter) -> () {

@@ -5,8 +5,8 @@
 
 public procedure main(move ctx: Context) -> i32 {
     region {
-        let p: Ptr<i32>@Valid = ^42
-        let v: i32 = *p
+        let p: i32 = ^42
+        let v: i32 = p
         return v
     }
     return 1

@@ -7,10 +7,11 @@ record NotAClass {
     value: i32
 }
 
-procedure with_bad_bound<T: NotAClass>(x: T) -> T {  //~ ERROR E-TYP-2305: bound references non-class
+procedure with_bad_bound<T <: NotAClass>(x: T) -> T {  //~ ERROR E-TYP-2305: bound references non-class
     return x
 }
 
 public procedure main(move ctx: Context) -> i32 {
     return 0
 }
+

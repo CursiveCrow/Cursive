@@ -4,7 +4,7 @@
 // DESC: Memory ordering in speculative block
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure ordering_speculative(c: shared Counter) -> () {

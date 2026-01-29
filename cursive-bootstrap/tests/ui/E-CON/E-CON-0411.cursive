@@ -6,9 +6,8 @@
 var global: i32 = 0
 
 [[dynamic]]
-procedure impure_dynamic(x: i32)
-    @requires(x > 0)
-    -> i32
+procedure impure_dynamic(x: i32) -> i32
+    |= x > 0
 {
     global = global + 1  //~ ERROR E-CON-0411: dynamic procedure impure
     return x

@@ -3,10 +3,10 @@
 // SPEC: 8.9
 // DESC: Non-associative reduction without [ordered]
 
-procedure non_assoc_reduce() -> f64 {
+procedure non_assoc_reduce(domain: $ExecutionDomain) -> f64 {
     var result: f64 = 0.0f
-    parallel {
-        dispatch reduce(+) 0..100 |i| {  //~ ERROR E-CON-0143: non-associative without ordered
+    parallel domain {
+        dispatch i in 0..100 [reduce: +] {  //~ ERROR E-CON-0143: non-associative without ordered
             result = result + (1.0f / (i + 1))
         }
     }

@@ -4,7 +4,7 @@
 // DESC: Write access required but only Read available
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure write_with_read(c: shared Counter) -> () {

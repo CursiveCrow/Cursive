@@ -4,16 +4,17 @@
 // DESC: wait expression inside speculative block
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
-procedure wait_in_speculative(c: shared Counter) -> () {
-    parallel {
+procedure wait_in_speculative(domain: $ExecutionDomain, c: shared Counter) -> () {
+    parallel domain {
         let h = spawn { return 1 }
         # speculative write c {
             wait h  //~ ERROR E-CON-0092: wait in speculative block
         }
     }
+    return ()
 }
 
 public procedure main(move ctx: Context) -> i32 {

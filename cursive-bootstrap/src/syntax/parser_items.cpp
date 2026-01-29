@@ -20,6 +20,13 @@ void EmitUnsupportedConstruct(Parser& parser) {
   parser.diags = core::Emit(parser.diags, *diag);
 }
 
+void SkipNewlines(Parser& parser) {
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
+}
+
+
 bool IsWhereTok(const Parser& parser) {
   const Token* tok = Tok(parser);
   return tok && IsIdentTok(*tok) && tok->lexeme == "where";
@@ -463,16 +470,20 @@ bool IsPunc(const Parser& parser, std::string_view p) {
 ParseElemResult<std::vector<std::shared_ptr<Type>>> ParseTypeListTail(
     Parser parser,
     std::vector<std::shared_ptr<Type>> xs) {
+  SkipNewlines(parser);
   if (IsPunc(parser, ")") || IsPunc(parser, "}")) {
     SPEC_RULE("Parse-TypeListTail-End");
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
+    const TokenKindMatch end_set[] = {MatchPunct(")"), MatchPunct("}")};
     Parser after = parser;
     Advance(after);
+    SkipNewlines(after);
     if (IsPunc(after, ")") || IsPunc(after, "}")) {
       SPEC_RULE("Parse-TypeListTail-TrailingComma");
-      EmitUnsupportedConstruct(after);
+      EmitTrailingCommaErr(parser, end_set);
+      after.diags = parser.diags;
       return {after, xs};
     }
     SPEC_RULE("Parse-TypeListTail-Comma");
@@ -485,6 +496,7 @@ ParseElemResult<std::vector<std::shared_ptr<Type>>> ParseTypeListTail(
 }
 
 ParseElemResult<std::vector<std::shared_ptr<Type>>> ParseTypeList(Parser parser) {
+  SkipNewlines(parser);
   if (IsPunc(parser, ")")) {
     SPEC_RULE("Parse-TypeList-Empty");
     return {parser, {}};
@@ -529,16 +541,20 @@ ParseElemResult<UsingSpec> ParseUsingSpec(Parser parser) {
 ParseElemResult<std::vector<UsingSpec>> ParseUsingListTail(
     Parser parser,
     std::vector<UsingSpec> xs) {
+  SkipNewlines(parser);
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-UsingListTail-End");
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
+    const TokenKindMatch end_set[] = {MatchPunct("}")};
     Parser after_comma = parser;
     Advance(after_comma);
+    SkipNewlines(after_comma);
     if (IsPunc(after_comma, "}")) {
       SPEC_RULE("Parse-UsingListTail-TrailingComma");
-      EmitUnsupportedConstruct(after_comma);
+      EmitTrailingCommaErr(parser, end_set);
+      after_comma.diags = parser.diags;
       return {after_comma, xs};
     }
     SPEC_RULE("Parse-UsingListTail-Comma");
@@ -551,6 +567,7 @@ ParseElemResult<std::vector<UsingSpec>> ParseUsingListTail(
 }
 
 ParseElemResult<std::vector<UsingSpec>> ParseUsingList(Parser parser) {
+  SkipNewlines(parser);
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-UsingList-Empty");
     EmitUnsupportedConstruct(parser);
@@ -614,16 +631,20 @@ ParseElemResult<Param> ParseParam(Parser parser) {
 
 ParseElemResult<std::vector<Param>> ParseParamTail(Parser parser,
                                                   std::vector<Param> xs) {
+  SkipNewlines(parser);
   if (IsPunc(parser, ")")) {
     SPEC_RULE("Parse-ParamTail-End");
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
+    const TokenKindMatch end_set[] = {MatchPunct(")")};
     Parser after = parser;
     Advance(after);
+    SkipNewlines(after);
     if (IsPunc(after, ")")) {
       SPEC_RULE("Parse-ParamTail-TrailingComma");
-      EmitUnsupportedConstruct(after);
+      EmitTrailingCommaErr(parser, end_set);
+      after.diags = parser.diags;
       return {after, xs};
     }
     SPEC_RULE("Parse-ParamTail-Comma");
@@ -636,6 +657,7 @@ ParseElemResult<std::vector<Param>> ParseParamTail(Parser parser,
 }
 
 ParseElemResult<std::vector<Param>> ParseParamList(Parser parser) {
+  SkipNewlines(parser);
   if (IsPunc(parser, ")")) {
     SPEC_RULE("Parse-ParamList-Empty");
     return {parser, {}};
@@ -874,16 +896,20 @@ ParseElemResult<FieldDecl> ParseRecordFieldDecl(Parser parser) {
 ParseElemResult<std::vector<FieldDecl>> ParseRecordFieldDeclTail(
     Parser parser,
     std::vector<FieldDecl> xs) {
+  SkipNewlines(parser);
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-RecordFieldDeclTail-End");
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
+    const TokenKindMatch end_set[] = {MatchPunct("}")};
     Parser after = parser;
     Advance(after);
+    SkipNewlines(after);
     if (IsPunc(after, "}")) {
       SPEC_RULE("Parse-RecordFieldDeclTail-TrailingComma");
-      EmitUnsupportedConstruct(after);
+      EmitTrailingCommaErr(parser, end_set);
+      after.diags = parser.diags;
       return {after, xs};
     }
     SPEC_RULE("Parse-RecordFieldDeclTail-Comma");
@@ -896,6 +922,7 @@ ParseElemResult<std::vector<FieldDecl>> ParseRecordFieldDeclTail(
 }
 
 ParseElemResult<std::vector<FieldDecl>> ParseRecordFieldDeclList(Parser parser) {
+  SkipNewlines(parser);
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-RecordFieldDeclList-Empty");
     return {parser, {}};
@@ -931,16 +958,20 @@ ParseElemResult<FieldDecl> ParseFieldDecl(Parser parser) {
 ParseElemResult<std::vector<FieldDecl>> ParseFieldDeclTail(
     Parser parser,
     std::vector<FieldDecl> xs) {
+  SkipNewlines(parser);
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-FieldDeclTail-End");
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
+    const TokenKindMatch end_set[] = {MatchPunct("}")};
     Parser after = parser;
     Advance(after);
+    SkipNewlines(after);
     if (IsPunc(after, "}")) {
       SPEC_RULE("Parse-FieldDeclTail-TrailingComma");
-      EmitUnsupportedConstruct(after);
+      EmitTrailingCommaErr(parser, end_set);
+      after.diags = parser.diags;
       return {after, xs};
     }
     SPEC_RULE("Parse-FieldDeclTail-Comma");
@@ -953,6 +984,7 @@ ParseElemResult<std::vector<FieldDecl>> ParseFieldDeclTail(
 }
 
 ParseElemResult<std::vector<FieldDecl>> ParseFieldDeclList(Parser parser) {
+  SkipNewlines(parser);
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-FieldDeclList-Empty");
     return {parser, {}};
@@ -1022,24 +1054,22 @@ ParseElemResult<std::vector<RecordMember>> ParseRecordMemberTail(
     Parser parser,
     std::vector<RecordMember> xs) {
   // Skip any newline terminators
-  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
-    Advance(parser);
-  }
-  
+  SkipNewlines(parser);
+
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-RecordMemberTail-End");
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
+    const TokenKindMatch end_set[] = {MatchPunct("}")};
     Parser after = parser;
     Advance(after);
     // Skip newlines after comma
-    while (Tok(after) && Tok(after)->kind == TokenKind::Newline) {
-      Advance(after);
-    }
+    SkipNewlines(after);
     if (IsPunc(after, "}")) {
       SPEC_RULE("Parse-RecordMemberTail-TrailingComma");
-      EmitUnsupportedConstruct(after);
+      EmitTrailingCommaErr(parser, end_set);
+      after.diags = parser.diags;
       return {after, xs};
     }
     SPEC_RULE("Parse-RecordMemberTail-Comma");
@@ -1070,9 +1100,7 @@ ParseElemResult<std::vector<RecordMember>> ParseRecordMemberTail(
 
 ParseElemResult<std::vector<RecordMember>> ParseRecordMemberList(Parser parser) {
   // Skip leading newlines
-  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
-    Advance(parser);
-  }
+  SkipNewlines(parser);
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-RecordMemberList-End");
     return {parser, {}};
@@ -1188,23 +1216,21 @@ ParseElemResult<VariantDecl> ParseVariant(Parser parser) {
 ParseElemResult<std::vector<VariantDecl>> ParseVariantTail(Parser parser,
                                                           std::vector<VariantDecl> xs) {
   // Skip newlines between variants
-  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
-    Advance(parser);
-  }
+  SkipNewlines(parser);
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-VariantTail-End");
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
+    const TokenKindMatch end_set[] = {MatchPunct("}")};
     Parser after = parser;
     Advance(after);
     // Skip newlines after comma
-    while (Tok(after) && Tok(after)->kind == TokenKind::Newline) {
-      Advance(after);
-    }
+    SkipNewlines(after);
     if (IsPunc(after, "}")) {
       SPEC_RULE("Parse-VariantTail-TrailingComma");
-      EmitUnsupportedConstruct(after);
+      EmitTrailingCommaErr(parser, end_set);
+      after.diags = parser.diags;
       return {after, xs};
     }
     SPEC_RULE("Parse-VariantTail-Comma");
@@ -1226,9 +1252,7 @@ ParseElemResult<std::vector<VariantDecl>> ParseVariantTail(Parser parser,
 
 ParseElemResult<std::vector<VariantDecl>> ParseVariantList(Parser parser) {
   // Skip leading newlines
-  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
-    Advance(parser);
-  }
+  SkipNewlines(parser);
   if (IsPunc(parser, "}")) {
     SPEC_RULE("Parse-VariantList-Empty");
     return {parser, {}};
@@ -1594,24 +1618,25 @@ ParseElemResult<std::vector<ClassItem>> ParseClassBody(Parser parser) {
 
 ParseElemResult<std::vector<ClassPath>> ParseClassListTail(Parser parser,
                                                           std::vector<ClassPath> xs) {
+  SkipNewlines(parser);
   if (!IsPunc(parser, ",")) {
     SPEC_RULE("Parse-ClassListTail-End");
     return {parser, xs};
   }
   const TokenKindMatch end_set[] = {MatchPunct("{")};
-  if (EmitTrailingCommaErr(parser, end_set)) {
-    Parser after = parser;
-    Advance(after);
+  Parser after = parser;
+  Advance(after);
+  SkipNewlines(after);
+  if (IsPunc(after, "{")) {
+    EmitTrailingCommaErr(parser, end_set);
+    after.diags = parser.diags;
     return {after, xs};
   }
   SPEC_RULE("Parse-ClassListTail-Comma");
-  Parser next = parser;
-  Advance(next);
-  ParseElemResult<ClassPath> cls = ParseClassPath(next);
+  ParseElemResult<ClassPath> cls = ParseClassPath(after);
   xs.push_back(cls.elem);
   return ParseClassListTail(cls.parser, std::move(xs));
 }
-
 ParseElemResult<std::vector<ClassPath>> ParseClassList(Parser parser) {
   SPEC_RULE("Parse-ClassList-Cons");
   ParseElemResult<ClassPath> first = ParseClassPath(parser);
@@ -1666,6 +1691,7 @@ ParseElemResult<std::vector<ClassPath>> ParseSuperclassOpt(Parser parser) {
 }
 
 }  // namespace
+
 
 ParseElemResult<Binding> ParseBindingAfterLetVar(Parser parser) {
   return ParseBindingAfterLetVarImpl(parser);

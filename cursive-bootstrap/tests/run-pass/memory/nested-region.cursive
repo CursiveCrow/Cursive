@@ -6,10 +6,10 @@
 public procedure main(move ctx: Context) -> i32 {
     var result: i32 = 0
     region {
-        let outer: Ptr<i32>@Valid = ^10
+        let outer: i32 = ^10
         region {
-            let inner: Ptr<i32>@Valid = ^32
-            result = *outer + *inner
+            let inner: i32 = ^32
+            result = outer + inner
         }
     }
     return result

@@ -5,9 +5,10 @@
 
 procedure bad_domain() -> () {
     let x: i32 = 42
-    parallel on x {  //~ ERROR E-CON-0102: domain not ExecutionDomain
+    parallel x {  //~ ERROR E-CON-0102: domain not ExecutionDomain
         spawn { return () }
     }
+    return ()
 }
 
 public procedure main(move ctx: Context) -> i32 {

@@ -1,5 +1,6 @@
 #include "cursive0/analysis/types/type_infer.h"
 
+#include <array>
 #include <optional>
 #include <string_view>
 #include <utility>
@@ -54,6 +55,24 @@ static bool PtrNullExpected(const TypeRef& type) {
     return true;
   }
   return ptr->state == PtrState::Null;
+}
+
+static bool IsSignedIntOrFloatType(std::string_view name) {
+  static constexpr std::array<std::string_view, 6> kSignedIntTypes = {
+      "i8", "i16", "i32", "i64", "i128", "isize"};
+  static constexpr std::array<std::string_view, 3> kFloatTypes = {
+      "f16", "f32", "f64"};
+  for (const auto& t : kSignedIntTypes) {
+    if (name == t) {
+      return true;
+    }
+  }
+  for (const auto& t : kFloatTypes) {
+    if (name == t) {
+      return true;
+    }
+  }
+  return false;
 }
 
 static syntax::ExprPtr MakeExpr(const core::Span& span, syntax::ExprNode node) {
@@ -484,6 +503,28 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
     if (check.diag_id.has_value()) {
       result.diag_id = check.diag_id;
       return result;
+    }
+  }
+
+  if (const auto* unary = std::get_if<syntax::UnaryExpr>(&expr->node)) {
+    if (IdEq(unary->op, "-")) {
+      const auto expected_strip = StripPerm(expected);
+      const auto* prim = expected_strip
+                             ? std::get_if<TypePrim>(&expected_strip->node)
+                             : nullptr;
+      if (prim && IsSignedIntOrFloatType(prim->name)) {
+        const auto inner = CheckExprImpl(ctx, unary->value, expected, type_expr,
+                                         type_place, type_ident, match_check);
+        if (inner.ok) {
+          SPEC_RULE("T-Neg");
+          result.ok = true;
+          return result;
+        }
+        if (inner.diag_id.has_value()) {
+          result.diag_id = inner.diag_id;
+          return result;
+        }
+      }
     }
   }
 

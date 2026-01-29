@@ -3,11 +3,11 @@
 // SPEC: 16.5
 // DESC: Race expression for first-completed future
 
-async procedure fast() -> Future<i32> {
+procedure fast() -> Future<i32> {
     return 42
 }
 
-async procedure slow() -> Future<i32> {
+procedure slow() -> Future<i32> {
     return 100
 }
 

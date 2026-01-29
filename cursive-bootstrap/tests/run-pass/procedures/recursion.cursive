@@ -4,9 +4,14 @@
 // DESC: Recursive procedure call
 
 procedure factorial(n: i32) -> i32 {
-    return if n <= 1 { 1 } else { n * factorial(n - 1) }
+    if n <= 1 {
+        return 1
+    }
+    let m = n - 1
+    return n * factorial(m)
 }
 
 public procedure main(move ctx: Context) -> i32 {
-    return factorial(5)
+    let n = 5
+    return factorial(n)
 }

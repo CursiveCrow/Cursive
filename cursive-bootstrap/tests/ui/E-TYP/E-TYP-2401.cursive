@@ -8,12 +8,14 @@ class Resource {
     @Closed { }
 }
 
-record Handle {
+record Handle <: Resource {  //~ ERROR E-TYP-2401
     value: i32
 }
 
-implements Resource for Handle { } //~ ERROR E-TYP-2401
+
 
 public procedure main(move ctx: Context) -> i32 {
     return 0
 }
+
+

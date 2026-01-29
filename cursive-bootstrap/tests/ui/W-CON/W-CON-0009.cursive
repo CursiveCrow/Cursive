@@ -1,10 +1,10 @@
-// RUN: compile-pass
-// DIAG: W-CON-0009
-// SPEC: 14.2
-// DESC: Closure captures shared data
+// RUN: compile-fail
+// DIAG: E-UNS-0101
+// SPEC: 1.4
+// DESC: Unsupported construct in Cursive0 subset (closure)
 
 public procedure main(move ctx: Context) -> i32 {
-    let data: shared i32 = 42
-    let closure = || -> i32 { return data } //~ WARNING W-CON-0009
-    return closure()
+    let f = closure  //~ ERROR E-UNS-0101
+    return 0
 }
+

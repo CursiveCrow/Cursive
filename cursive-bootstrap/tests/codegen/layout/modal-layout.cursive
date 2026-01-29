@@ -8,7 +8,10 @@ modal Connection {
 }
 
 modal Resource {
-    @Active { handle: i64, refcount: i32 }
+    @Active {
+        handle: i64
+        refcount: i32
+    }
     @Released { }
 }
 

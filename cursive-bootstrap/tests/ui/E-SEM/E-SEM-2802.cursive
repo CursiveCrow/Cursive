@@ -10,8 +10,8 @@ procedure impure() -> i32 {
     return global_counter
 }
 
-procedure with_impure_contract(x: i32)
-    @requires(impure() > 0)  //~ ERROR E-SEM-2802: impure in contract
+procedure with_impure_contract(x: i32) -> ()
+    |= impure() > 0  //~ ERROR E-SEM-2802: impure in contract
 {
     return ()
 }

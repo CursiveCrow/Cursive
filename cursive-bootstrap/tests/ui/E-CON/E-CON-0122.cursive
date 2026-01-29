@@ -7,15 +7,16 @@ record Resource {
     value: i32
 }
 
-procedure move_outer() -> () {
-    parallel {
+procedure move_outer(domain: $ExecutionDomain) -> () {
+    parallel domain {
         let r: Resource = Resource { value: 42 }
-        parallel {
+        parallel domain {
             spawn {
                 let x: Resource = move r  //~ ERROR E-CON-0122: move from outer parallel
             }
         }
     }
+    return ()
 }
 
 public procedure main(move ctx: Context) -> i32 {

@@ -7,12 +7,13 @@ class Sized {
     size: usize
 }
 
-record MySize {
+record MySize <: Sized {  //~ ERROR E-TYP-2404
     size: i32
 }
 
-implements Sized for MySize { } //~ ERROR E-TYP-2404
+
 
 public procedure main(move ctx: Context) -> i32 {
     return 0
 }
+

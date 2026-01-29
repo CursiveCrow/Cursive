@@ -4,11 +4,11 @@
 // DESC: Write to path outside keyed set in speculative block
 
 record A {
-    var x: i32
+    x: i32
 }
 
 record B {
-    var y: i32
+    y: i32
 }
 
 procedure write_outside_keyed(a: shared A, b: shared B) -> () {

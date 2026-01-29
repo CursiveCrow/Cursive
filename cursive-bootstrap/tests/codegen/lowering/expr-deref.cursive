@@ -5,7 +5,7 @@
 
 public procedure main(move ctx: Context) -> i32 {
     var x: i32 = 42
-    let p: Ptr<unique i32>@Valid = &x
+    let p: Ptr<i32>@Valid = &x
 
     let v1: i32 = *p
     *p = 50

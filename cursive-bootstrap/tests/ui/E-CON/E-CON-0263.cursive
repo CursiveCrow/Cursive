@@ -3,7 +3,8 @@
 // SPEC: 15.3
 // DESC: Mixed yield/non-yield handlers in race
 
-procedure async1() -> Async<(), (), i32, !> {
+procedure async1() -> Async<i32, (), i32, !> {
+    yield 1
     return 1
 }
 
@@ -12,11 +13,12 @@ procedure async2() -> Async<i32, (), i32, !> {
     return 2
 }
 
-procedure do_race() -> i32 {
-    return race { //~ ERROR E-CON-0263
-        async1() => x { return x }
-        async2() => yield y { yield y }
+procedure do_race() -> Async<i32, (), i32, !> {
+    race { //~ ERROR E-CON-0263
+        async1() -> |x| x,
+        async2() -> |y| yield y
     }
+    return 0
 }
 
 public procedure main(move ctx: Context) -> i32 {

@@ -4,7 +4,7 @@
 // DESC: Direct field mutation through shared path without key
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure mutate_shared(x: shared Counter) -> () {

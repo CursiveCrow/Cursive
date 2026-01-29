@@ -4,16 +4,17 @@
 // DESC: wait while key is held
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
-procedure wait_with_key(c: shared Counter) -> () {
-    parallel {
+procedure wait_with_key(domain: $ExecutionDomain, c: shared Counter) -> () {
+    parallel domain {
         let h = spawn { return 42 }
         # c {
             wait h  //~ ERROR E-CON-0133: wait while key held
         }
     }
+    return ()
 }
 
 public procedure main(move ctx: Context) -> i32 {

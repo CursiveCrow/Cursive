@@ -12,5 +12,6 @@ procedure classify(n: i32) -> i32 {
 }
 
 public procedure main(move ctx: Context) -> i32 {
-    return classify(25)
+    let n = 25
+    return classify(n)
 }

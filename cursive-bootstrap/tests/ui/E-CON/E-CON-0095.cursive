@@ -4,7 +4,7 @@
 // DESC: speculative without write modifier
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure speculative_read(c: shared Counter) -> () {

@@ -6,9 +6,8 @@
 var global: i32 = 0
 
 [[dynamic]]
-procedure state_contract(x: i32)
-    @requires(global > 0)  //~ ERROR E-CON-0412: dynamic contract references mutable
-    -> i32
+procedure state_contract(x: i32) -> i32
+    |= global > 0  //~ ERROR E-CON-0412: dynamic contract references mutable
 {
     return x
 }

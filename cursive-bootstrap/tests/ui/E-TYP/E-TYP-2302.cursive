@@ -7,7 +7,7 @@ class Printable {
     procedure print(~) -> ()
 }
 
-procedure print_it<T: Printable>(x: T) -> () {
+procedure print_it<T <: Printable>(x: T) -> () {
     x ~> print()
 }
 
@@ -23,3 +23,4 @@ procedure call_print() -> () {
 public procedure main(move ctx: Context) -> i32 {
     return 0
 }
+

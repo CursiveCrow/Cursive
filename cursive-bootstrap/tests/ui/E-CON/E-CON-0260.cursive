@@ -3,9 +3,13 @@
 // SPEC: 8.9
 // DESC: race with fewer than 2 arms
 
-async procedure single_race() -> i32 {
+procedure one() -> Future<i32> {
+    return 1
+}
+
+procedure single_race() -> i32 {
     return race {  //~ ERROR E-CON-0260: race with fewer than 2 arms
-        async { return 1 }
+        one() -> |v| v
     }
 }
 

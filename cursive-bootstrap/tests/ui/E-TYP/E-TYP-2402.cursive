@@ -7,10 +7,11 @@ class Sized {
     size: usize
 }
 
-record Empty { }
+record Empty <: Sized { }  //~ ERROR E-TYP-2402
 
-implements Sized for Empty { } //~ ERROR E-TYP-2402
+
 
 public procedure main(move ctx: Context) -> i32 {
     return 0
 }
+

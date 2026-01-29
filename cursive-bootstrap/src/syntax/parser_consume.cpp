@@ -91,13 +91,30 @@ bool TrailingComma(const Parser& parser,
   return TokenInEndSet(*next_tok, end_set);
 }
 
+bool TrailingCommaAllowed(const Parser& parser,
+                          std::span<const TokenKindMatch> end_set) {
+  if (!TrailingComma(parser, end_set)) {
+    return false;
+  }
+  const Token* comma = Tok(parser);
+  const Parser next = AdvanceOrEOF(parser);
+  const Token* end_tok = Tok(next);
+  if (!comma || !end_tok) {
+    return false;
+  }
+  return comma->span.start_line < end_tok->span.start_line;
+}
+
 bool EmitTrailingCommaErr(Parser& parser,
                           std::span<const TokenKindMatch> end_set) {
   SPEC_RULE("Trailing-Comma-Err");
   if (!TrailingComma(parser, end_set)) {
     return false;
   }
-  auto diag = core::MakeDiagnostic("E-UNS-0101", TokSpan(parser));
+  if (TrailingCommaAllowed(parser, end_set)) {
+    return false;
+  }
+  auto diag = core::MakeDiagnostic("E-SRC-0521", TokSpan(parser));
   if (!diag) {
     return true;
   }

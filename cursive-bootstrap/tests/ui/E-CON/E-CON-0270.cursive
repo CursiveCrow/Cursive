@@ -3,8 +3,8 @@
 // SPEC: 8.9
 // DESC: all operand is not iterable of async expressions
 
-async procedure bad_all() -> Future<i32> {
-    let results = all [1, 2, 3]  //~ ERROR E-CON-0270: all operand not async
+procedure bad_all() -> Future<i32> {
+    let results = all { 1, 2, 3 }  //~ ERROR E-CON-0270: all operand not async
     return 0
 }
 

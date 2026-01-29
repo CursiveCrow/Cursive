@@ -4,9 +4,10 @@
 // DESC: Dispatch outside parallel block
 
 procedure bad_dispatch() -> () {
-    dispatch 0..10 |i| {  //~ ERROR E-CON-0140: dispatch outside parallel
+    dispatch i in 0..10 {  //~ ERROR E-CON-0140: dispatch outside parallel
         let x: i32 = i
     }
+    return ()
 }
 
 public procedure main(move ctx: Context) -> i32 {

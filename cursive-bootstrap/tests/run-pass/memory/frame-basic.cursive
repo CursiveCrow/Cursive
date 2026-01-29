@@ -7,8 +7,8 @@ public procedure main(move ctx: Context) -> i32 {
     var result: i32 = 0
     region {
         frame {
-            let p: Ptr<i32>@Valid = ^42
-            result = *p
+            let p: i32 = ^42
+            result = p
         }
     }
     return result

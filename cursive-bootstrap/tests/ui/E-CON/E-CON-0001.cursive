@@ -4,7 +4,7 @@
 // DESC: Access to shared path outside valid key context
 
 record Counter {
-    var value: i32
+    value: i32
 }
 
 procedure access_no_key(c: shared Counter) -> i32 {

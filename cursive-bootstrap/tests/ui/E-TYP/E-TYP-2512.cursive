@@ -19,15 +19,16 @@ procedure use_printable(x: opaque Printable) -> () {
     x ~> print()
 }
 
-record Circle {
+record Circle <: Drawable {
     radius: i32
     procedure draw(~) -> () { }
 }
 
-implements Drawable for Circle { }
+
 
 public procedure main(move ctx: Context) -> i32 {
     let d: opaque Drawable = get_drawable()
     use_printable(d) //~ ERROR E-TYP-2512
     return 0
 }
+

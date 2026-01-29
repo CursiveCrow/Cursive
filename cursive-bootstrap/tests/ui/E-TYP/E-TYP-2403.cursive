@@ -8,12 +8,13 @@ class Resource {
     @Closed { }
 }
 
-modal Handle {
+modal Handle <: Resource {  //~ ERROR E-TYP-2403
     @Active { }
 }
 
-implements Resource for Handle { } //~ ERROR E-TYP-2403
+
 
 public procedure main(move ctx: Context) -> i32 {
     return 0
 }
+

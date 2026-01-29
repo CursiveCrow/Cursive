@@ -8,5 +8,8 @@ procedure add_three(a: i32, b: i32, c: i32) -> i32 {
 }
 
 public procedure main(move ctx: Context) -> i32 {
-    return add_three(10, 12, 20)
+    let a = 10
+    let b = 12
+    let c = 20
+    return add_three(a, b, c)
 }

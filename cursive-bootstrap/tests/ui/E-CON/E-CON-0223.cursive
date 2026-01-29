@@ -3,11 +3,11 @@
 // SPEC: 15.3
 // DESC: yield from inside sync expression
 
-procedure outer() -> Async<(), (), i32, !> {
-    procedure inner() -> Async<(), (), i32, !> {
-        return 42
-    }
+procedure inner() -> Async<(), (), i32, !> {
+    return 42
+}
 
+procedure outer() -> Async<(), (), i32, !> {
     let result = sync {
         yield from inner() //~ ERROR E-CON-0223
     }

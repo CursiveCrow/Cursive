@@ -1,11 +1,11 @@
 // RUN: run-pass
 // EXIT: 42
-// SPEC: 15
+// SPEC: 18.4
 // DESC: Spawn and wait for result
 
 public procedure main(move ctx: Context) -> i32 {
     var result: i32 = 0
-    parallel {
+    parallel ctx ~> cpu() {
         let h = spawn {
             return 42
         }
