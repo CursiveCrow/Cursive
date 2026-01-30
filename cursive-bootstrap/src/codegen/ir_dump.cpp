@@ -695,6 +695,7 @@ struct Dumper {
     if (yf.release) oss << " release";
     oss << " from ";
     Dump(yf.source);
+    oss << " [state=" << yf.state_index << "]";
     oss << " -> ";
     Dump(yf.result);
   }
@@ -717,6 +718,7 @@ struct Dumper {
       indent_level++;
       Indent(); oss << "async_ir: "; Dump(arm.async_ir); oss << "\n";
       Indent(); oss << "async_value: "; Dump(arm.async_value); oss << "\n";
+      Indent(); oss << "match_value: "; Dump(arm.match_value); oss << "\n";
       Indent(); oss << "handler_ir: "; Dump(arm.handler_ir); oss << "\n";
       Indent(); oss << "handler_result: "; Dump(arm.handler_result); oss << "\n";
       indent_level--;

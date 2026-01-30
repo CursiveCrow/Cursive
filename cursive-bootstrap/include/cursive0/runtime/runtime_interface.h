@@ -229,6 +229,16 @@ std::string BuiltinSymAsyncCreateFailed();
 // Signature: (output: Out, frame: *mut Frame) -> Async<Out, In, Result, E>
 std::string BuiltinSymAsyncCreateSuspended();
 
+// (BuiltinSym-Async-AllocFrame)
+// Allocates async frame storage
+// Signature: (size: usize, align: usize) -> *mut u8
+std::string BuiltinSymAsyncAllocFrame();
+
+// (BuiltinSym-Async-FreeFrame)
+// Frees async frame storage
+// Signature: (frame: *mut u8) -> ()
+std::string BuiltinSymAsyncFreeFrame();
+
 // ============================================================================
 // §6.12.14 String/Bytes builtin symbols
 // ============================================================================

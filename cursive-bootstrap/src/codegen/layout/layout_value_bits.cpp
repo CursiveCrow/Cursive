@@ -10,6 +10,7 @@
 
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/core/int128.h"
+#include "cursive0/analysis/generics/monomorphize.h"
 #include "cursive0/analysis/resolve/scopes.h"
 #include "cursive0/analysis/modal/modal_widen.h"
 #include "cursive0/analysis/types/type_equiv.h"
@@ -1751,7 +1752,16 @@ bool ValidValue(const cursive0::analysis::ScopeContext& ctx,
       if (!lowered.has_value()) {
         return false;
       }
-      return ValidValue(ctx, *lowered, bits);
+      cursive0::analysis::TypeRef inst = *lowered;
+      if (alias->generic_params &&
+          !alias->generic_params->params.empty() &&
+          !path->generic_args.empty()) {
+        cursive0::analysis::TypeSubst subst =
+            cursive0::analysis::BuildSubstitution(alias->generic_params->params,
+                                                  path->generic_args);
+        inst = cursive0::analysis::InstantiateType(inst, subst);
+      }
+      return ValidValue(ctx, inst, bits);
     }
     if (const auto* record =
             std::get_if<cursive0::syntax::RecordDecl>(&it->second)) {

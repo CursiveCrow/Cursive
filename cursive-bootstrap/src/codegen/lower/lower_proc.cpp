@@ -7,10 +7,13 @@
 #include "cursive0/codegen/lower/lower_expr.h"
 #include "cursive0/codegen/lower/lower_stmt.h"
 #include "cursive0/codegen/layout/layout.h"
+#include "cursive0/codegen/async_frame.h"
 #include "cursive0/codegen/mangle.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/analysis/memory/regions.h"
 #include "cursive0/analysis/types/types.h"
+
+#include <unordered_map>
 
 namespace cursive0::codegen {
 
@@ -48,6 +51,100 @@ bool HasDynamicContractAttr(const AttributeList& attrs) {
     }
   }
   return false;
+}
+
+std::uint64_t AlignUp(std::uint64_t value, std::uint64_t align) {
+  if (align == 0) {
+    return value;
+  }
+  const std::uint64_t rem = value % align;
+  if (rem == 0) {
+    return value;
+  }
+  return value + (align - rem);
+}
+
+struct AsyncIRInfo {
+  std::size_t next_state = 1;
+  std::unordered_map<std::string, analysis::TypeRef> slot_types;
+  std::vector<std::string> slot_order;
+};
+
+void AddAsyncSlot(AsyncIRInfo& info,
+                  const std::string& name,
+                  const analysis::TypeRef& type) {
+  if (!type) {
+    return;
+  }
+  if (info.slot_types.emplace(name, type).second) {
+    info.slot_order.push_back(name);
+  }
+}
+
+void CollectAsyncIR(IRPtr& ir, AsyncIRInfo& info) {
+  if (!ir) {
+    return;
+  }
+  std::visit(
+      [&](auto& node) {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, IRYield>) {
+          node.state_index = info.next_state++;
+        } else if constexpr (std::is_same_v<T, IRYieldFrom>) {
+          node.state_index = info.next_state++;
+        } else if constexpr (std::is_same_v<T, IRBindVar>) {
+          AddAsyncSlot(info, node.name, node.type);
+        } else if constexpr (std::is_same_v<T, IRSeq>) {
+          for (auto& item : node.items) {
+            CollectAsyncIR(item, info);
+          }
+        } else if constexpr (std::is_same_v<T, IRIf>) {
+          CollectAsyncIR(node.then_ir, info);
+          CollectAsyncIR(node.else_ir, info);
+        } else if constexpr (std::is_same_v<T, IRBlock>) {
+          CollectAsyncIR(node.setup, info);
+          CollectAsyncIR(node.body, info);
+        } else if constexpr (std::is_same_v<T, IRLoop>) {
+          CollectAsyncIR(node.iter_ir, info);
+          CollectAsyncIR(node.cond_ir, info);
+          CollectAsyncIR(node.body_ir, info);
+        } else if constexpr (std::is_same_v<T, IRMatch>) {
+          for (auto& arm : node.arms) {
+            CollectAsyncIR(arm.body, info);
+          }
+        } else if constexpr (std::is_same_v<T, IRRegion>) {
+          CollectAsyncIR(node.body, info);
+        } else if constexpr (std::is_same_v<T, IRFrame>) {
+          CollectAsyncIR(node.body, info);
+        } else if constexpr (std::is_same_v<T, IRPanicCheck>) {
+          CollectAsyncIR(node.cleanup_ir, info);
+        } else if constexpr (std::is_same_v<T, IRLowerPanic>) {
+          CollectAsyncIR(node.cleanup_ir, info);
+        } else if constexpr (std::is_same_v<T, IRParallel>) {
+          CollectAsyncIR(node.body, info);
+        } else if constexpr (std::is_same_v<T, IRSpawn>) {
+          CollectAsyncIR(node.captured_env, info);
+          CollectAsyncIR(node.body, info);
+        } else if constexpr (std::is_same_v<T, IRDispatch>) {
+          CollectAsyncIR(node.captured_env, info);
+          CollectAsyncIR(node.body, info);
+        } else if constexpr (std::is_same_v<T, IRRaceReturn>) {
+          for (auto& arm : node.arms) {
+            CollectAsyncIR(arm.async_ir, info);
+            CollectAsyncIR(arm.handler_ir, info);
+          }
+        } else if constexpr (std::is_same_v<T, IRRaceYield>) {
+          for (auto& arm : node.arms) {
+            CollectAsyncIR(arm.async_ir, info);
+            CollectAsyncIR(arm.handler_ir, info);
+          }
+        } else if constexpr (std::is_same_v<T, IRAll>) {
+          for (auto& item : node.async_irs) {
+            CollectAsyncIR(item, info);
+          }
+        }
+      },
+      ir->node);
 }
 
 // Emit precondition check: if (!pre) panic(ContractPre)
@@ -223,6 +320,107 @@ ProcIR LowerProc(const ProcedureDecl& decl,
   }
 
   ir.body = SeqIR(std::move(body_seq));
+
+  if (IsAsyncProc(ir.ret)) {
+    const auto sig = analysis::GetAsyncSig(ir.ret);
+    if (sig.has_value()) {
+      AsyncIRInfo async_ir;
+      std::vector<std::string> param_names;
+      for (const auto& param : ir.params) {
+        if (param.name == kPanicOutName) {
+          continue;
+        }
+        param_names.push_back(param.name);
+        AddAsyncSlot(async_ir, param.name, param.type);
+      }
+      CollectAsyncIR(ir.body, async_ir);
+
+      analysis::ScopeContext scope;
+      if (ctx.sigma) {
+        scope.sigma = *ctx.sigma;
+        scope.current_module = module_path;
+      }
+
+      LowerCtx::AsyncProcInfo async_info;
+      async_info.async_type = ir.ret;
+      async_info.out_type = sig->out;
+      async_info.in_type = sig->in;
+      async_info.result_type = sig->result;
+      async_info.err_type = sig->err;
+      async_info.resume_symbol = ir.symbol + "$resume";
+      async_info.resume_needs_panic_out = NeedsPanicOut(async_info.resume_symbol);
+      async_info.param_names = param_names;
+
+      std::uint64_t offset = kAsyncFrameHeaderSize;
+      std::uint64_t frame_align = kAsyncFrameHeaderAlign;
+      for (const auto& name : async_ir.slot_order) {
+        const auto it = async_ir.slot_types.find(name);
+        if (it == async_ir.slot_types.end()) {
+          continue;
+        }
+        const auto& type = it->second;
+        const auto size_opt = SizeOf(scope, type);
+        const auto align_opt = AlignOf(scope, type);
+        if (!size_opt.has_value()) {
+          ctx.ReportCodegenFailure();
+          continue;
+        }
+        const std::uint64_t size = *size_opt;
+        const std::uint64_t align = align_opt.value_or(1);
+        offset = AlignUp(offset, align);
+        LowerCtx::AsyncFrameSlot slot;
+        slot.type = type;
+        slot.offset = offset;
+        slot.size = size;
+        slot.align = align;
+        async_info.slots[name] = slot;
+        offset += size;
+        frame_align = std::max(frame_align, align);
+      }
+      async_info.frame_align = frame_align;
+      async_info.frame_size = AlignUp(offset, frame_align);
+
+      LowerCtx::AsyncProcInfo wrapper_info = async_info;
+      wrapper_info.is_wrapper = true;
+      wrapper_info.is_resume = false;
+
+      LowerCtx::AsyncProcInfo resume_info = async_info;
+      resume_info.is_wrapper = false;
+      resume_info.is_resume = true;
+
+      ctx.async_procs[ir.symbol] = std::move(wrapper_info);
+      ctx.async_procs[async_info.resume_symbol] = std::move(resume_info);
+
+      ProcIR resume = ir;
+      resume.symbol = async_info.resume_symbol;
+      resume.params.clear();
+
+      IRParam frame_param;
+      frame_param.mode = analysis::ParamMode::Move;
+      frame_param.name = "__c0_async_frame";
+      frame_param.type = analysis::MakeTypePtr(analysis::MakeTypePrim("u8"),
+                                               analysis::PtrState::Valid);
+      resume.params.push_back(frame_param);
+
+      IRParam input_param;
+      input_param.mode = analysis::ParamMode::Move;
+      input_param.name = "__c0_async_input";
+      input_param.type = analysis::MakeTypePtr(analysis::MakeTypePrim("u8"),
+                                               analysis::PtrState::Valid);
+      resume.params.push_back(input_param);
+
+      if (async_info.resume_needs_panic_out) {
+        IRParam panic_param;
+        panic_param.mode = analysis::ParamMode::Move;
+        panic_param.name = std::string(kPanicOutName);
+        panic_param.type = PanicOutType();
+        resume.params.push_back(std::move(panic_param));
+      }
+
+      ctx.RegisterProcSig(resume);
+      ctx.extra_procs.push_back(std::move(resume));
+    }
+  }
 
   return ir;
 }

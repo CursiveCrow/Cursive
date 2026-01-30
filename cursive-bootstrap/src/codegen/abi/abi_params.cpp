@@ -36,6 +36,10 @@ const std::unordered_set<std::string_view>& RuntimeSymbols() {
       "cursive::runtime::region::free_unchecked",
       "cursive::runtime::region::addr_is_active",
       "cursive::runtime::region::addr_tag_from",
+      // Async runtime symbols
+      "cursive::runtime::async::resume",
+      "cursive::runtime::async::alloc_frame",
+      "cursive::runtime::async::free_frame",
       // Structured concurrency runtime (C0X)
       "cursive0_parallel_begin",
       "cursive0_parallel_join",

@@ -362,6 +362,7 @@ struct IRYieldFrom {
   IRValue source;                    // Source async value
   IRValue result;                    // Final completion value (Result_e)
   analysis::TypeRef source_type;     // Type of source async
+  std::size_t state_index = 0;       // State machine resumption point
 };
 
 // §19.3.3 Sync expression IR
@@ -377,6 +378,7 @@ struct IRSync {
 struct IRRaceArm {
   IRPtr async_ir;                    // IR to produce async value
   IRValue async_value;               // The async value
+  IRValue match_value;               // Value bound to pattern (Result or Out)
   std::shared_ptr<syntax::Pattern> pattern;  // Handler pattern
   IRPtr handler_ir;                  // Handler body
   IRValue handler_result;            // Handler result value

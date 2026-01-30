@@ -199,75 +199,91 @@ llvm::Type* TaggedStructType(const analysis::TypeRef& disc_type,
   return llvm::StructType::get(ctx, elems, /*isPacked=*/false);
 }
 
-// Helper to check if a type is a primitive type with a given name
-static bool IsPrimType(const analysis::TypeRef& type, std::string_view name) {
+struct AsyncLayoutInfo {
+  std::uint64_t size = 0;
+  std::uint64_t align = 1;
+  std::uint64_t payload_size = 0;
+  std::uint64_t payload_align = 1;
+};
+
+static bool IsNeverType(const analysis::TypeRef& type) {
   if (!type) return false;
   const auto* prim = std::get_if<analysis::TypePrim>(&type->node);
-  return prim && prim->name == name;
+  return prim && prim->name == "!";
+}
+
+static std::optional<AsyncLayoutInfo> AsyncLayoutOf(
+    const analysis::ScopeContext& scope,
+    const std::vector<analysis::TypeRef>& generic_args) {
+  std::uint64_t max_payload_size = 0;
+  std::uint64_t max_payload_align = 1;
+
+  auto add_payload_layout = [&](const std::optional<Layout>& layout_opt) {
+    if (!layout_opt.has_value() || layout_opt->size == 0) {
+      return;
+    }
+    max_payload_size = std::max(max_payload_size, layout_opt->size);
+    max_payload_align = std::max(max_payload_align, layout_opt->align);
+  };
+
+  // Suspended payload is { output: Out, frame: Ptr<u8> } (hidden frame field)
+  const auto out_type = generic_args.size() > 0
+                            ? generic_args[0]
+                            : analysis::MakeTypePrim("()");
+  const auto frame_ptr = analysis::MakeTypePtr(analysis::MakeTypePrim("u8"),
+                                               analysis::PtrState::Valid);
+  const auto suspended_layout = RecordLayoutOf(scope, {out_type, frame_ptr});
+  if (!suspended_layout.has_value()) {
+    return std::nullopt;
+  }
+  add_payload_layout(suspended_layout->layout);
+
+  // Completed payload (Result)
+  if (generic_args.size() > 2 && generic_args[2] &&
+      !IsNeverType(generic_args[2]) && !IsUnitType(generic_args[2])) {
+    add_payload_layout(LayoutOf(scope, generic_args[2]));
+  }
+
+  // Failed payload (Error)
+  if (generic_args.size() > 3 && generic_args[3] &&
+      !IsNeverType(generic_args[3]) && !IsUnitType(generic_args[3])) {
+    add_payload_layout(LayoutOf(scope, generic_args[3]));
+  }
+
+  const std::uint64_t disc_size = 1;
+  const std::uint64_t disc_align = 1;
+  const std::uint64_t align = std::max(disc_align, max_payload_align);
+  const std::uint64_t size = AlignUp(disc_size + max_payload_size, align);
+
+  AsyncLayoutInfo out;
+  out.size = size;
+  out.align = align;
+  out.payload_size = max_payload_size;
+  out.payload_align = max_payload_align;
+  return out;
 }
 
 // §5.4.5: Build LLVM type for Async<Out, In, Result, E>
-// Layout is { i8 discriminant, <max payload> }
-// Max payload is max(sizeof(Out), sizeof(Result), sizeof(E))
-// When E = !, @Failed is uninhabited and E contributes 0 bytes.
-llvm::Type* BuildAsyncLLVMType(
-    const std::vector<analysis::TypeRef>& generic_args,
-    llvm::LLVMContext& llvm_ctx,
-    const std::function<llvm::Type*(const analysis::TypeRef&)>& get_llvm_type) {
-  // Async<Out, In, Result, E> parameters:
-  // - Out (index 0): output type for @Suspended
-  // - In (index 1): input type for resume (not stored in struct)
-  // - Result (index 2): value type for @Completed
-  // - E (index 3): error type for @Failed
-
-  llvm::Type* i8_ty = llvm::Type::getInt8Ty(llvm_ctx);
-
-  // Find the max payload type from Out, Result, E
-  // In is not stored in the async struct (it's the input to resume)
-  std::vector<analysis::TypeRef> payload_types;
-  if (generic_args.size() > 0 && generic_args[0]) {
-    payload_types.push_back(generic_args[0]);  // Out
-  }
-  if (generic_args.size() > 2 && generic_args[2]) {
-    payload_types.push_back(generic_args[2]);  // Result
-  }
-  if (generic_args.size() > 3 && generic_args[3]) {
-    // Check if E is ! (never type) - if so, ignore it
-    if (!IsPrimType(generic_args[3], "!")) {
-      payload_types.push_back(generic_args[3]);  // E
+// Layout matches ModalLayout: tagged discriminant + max payload blob.
+llvm::Type* BuildAsyncLLVMType(const analysis::ScopeContext& scope,
+                               const std::vector<analysis::TypeRef>& generic_args,
+                               LLVMEmitter& emitter,
+                               LowerCtx* lower_ctx) {
+  auto layout = AsyncLayoutOf(scope, generic_args);
+  if (!layout.has_value()) {
+    if (lower_ctx) {
+      lower_ctx->ReportCodegenFailure();
     }
+    return llvm::StructType::get(emitter.GetContext(), {});
   }
-
-  // Helper to check if type is unit/empty
-  auto is_unit_type = [](llvm::Type* ty) -> bool {
-    if (!ty) return true;
-    if (ty->isStructTy()) {
-      return llvm::cast<llvm::StructType>(ty)->getNumElements() == 0;
-    }
-    return false;
-  };
-
-  // Determine max payload type - pick first non-unit type
-  // A proper impl would compare sizes using DataLayout
-  llvm::Type* max_payload_ty = nullptr;
-  for (const auto& pt : payload_types) {
-    llvm::Type* lt = get_llvm_type(pt);
-    if (!lt) continue;
-    if (is_unit_type(lt)) continue;  // Skip unit types
-    // Take first non-unit type we find
-    if (!max_payload_ty) {
-      max_payload_ty = lt;
-    }
-    // Note: For proper implementation, compare sizes and take larger
-  }
-
-  // Default to empty struct if no payload or all unit types
-  if (!max_payload_ty) {
-    max_payload_ty = llvm::StructType::get(llvm_ctx, {});
-  }
-
-  // Build async struct: { i8 discriminant, max_payload }
-  return llvm::StructType::get(llvm_ctx, {i8_ty, max_payload_ty});
+  const auto disc_type = analysis::MakeTypePrim("u8");
+  return TaggedStructType(disc_type,
+                          layout->payload_size,
+                          layout->payload_align,
+                          layout->size,
+                          emitter,
+                          scope,
+                          lower_ctx);
 }
 
 std::optional<analysis::TypeRef> ModalNichePayloadType(
@@ -527,9 +543,7 @@ llvm::Type* LLVMEmitter::GetLLVMType(analysis::TypeRef type) {
       // §5.4.5: Build concrete struct type for Async modal state
       if (is_async && !modal->generic_args.empty()) {
         SPEC_RULE("LLVMTy-AsyncState");
-        ll_ty = BuildAsyncLLVMType(
-            modal->generic_args, context_,
-            [this](const analysis::TypeRef& t) { return this->GetLLVMType(t); });
+        ll_ty = BuildAsyncLLVMType(*scope_opt, modal->generic_args, *this, current_ctx_);
         type_cache_[type] = ll_ty;
         return ll_ty;
       } else if (is_async) {
@@ -622,9 +636,7 @@ llvm::Type* LLVMEmitter::GetLLVMType(analysis::TypeRef type) {
       // §5.4.5: Build concrete struct type for Async<Out, In, Result, E>
       if (is_async && !path->generic_args.empty()) {
         SPEC_RULE("LLVMTy-Async");
-        ll_ty = BuildAsyncLLVMType(
-            path->generic_args, context_,
-            [this](const analysis::TypeRef& t) { return this->GetLLVMType(t); });
+        ll_ty = BuildAsyncLLVMType(*scope_opt, path->generic_args, *this, current_ctx_);
         type_cache_[type] = ll_ty;
         return ll_ty;
       } else if (is_async) {
@@ -651,9 +663,7 @@ llvm::Type* LLVMEmitter::GetLLVMType(analysis::TypeRef type) {
             path->generic_args[0],  // Result (T)
             path->generic_args.size() > 1 ? path->generic_args[1] : never_type  // E
         };
-        ll_ty = BuildAsyncLLVMType(
-            async_args, context_,
-            [this](const analysis::TypeRef& t) { return this->GetLLVMType(t); });
+        ll_ty = BuildAsyncLLVMType(*scope_opt, async_args, *this, current_ctx_);
         type_cache_[type] = ll_ty;
         return ll_ty;
       }
@@ -667,9 +677,7 @@ llvm::Type* LLVMEmitter::GetLLVMType(analysis::TypeRef type) {
             unit_type,  // Result
             never_type  // E
         };
-        ll_ty = BuildAsyncLLVMType(
-            async_args, context_,
-            [this](const analysis::TypeRef& t) { return this->GetLLVMType(t); });
+        ll_ty = BuildAsyncLLVMType(*scope_opt, async_args, *this, current_ctx_);
         type_cache_[type] = ll_ty;
         return ll_ty;
       }
@@ -682,9 +690,7 @@ llvm::Type* LLVMEmitter::GetLLVMType(analysis::TypeRef type) {
             unit_type,  // Result
             path->generic_args[1]  // E
         };
-        ll_ty = BuildAsyncLLVMType(
-            async_args, context_,
-            [this](const analysis::TypeRef& t) { return this->GetLLVMType(t); });
+        ll_ty = BuildAsyncLLVMType(*scope_opt, async_args, *this, current_ctx_);
         type_cache_[type] = ll_ty;
         return ll_ty;
       }
@@ -698,9 +704,7 @@ llvm::Type* LLVMEmitter::GetLLVMType(analysis::TypeRef type) {
             unit_type,  // Result
             never_type  // E
         };
-        ll_ty = BuildAsyncLLVMType(
-            async_args, context_,
-            [this](const analysis::TypeRef& t) { return this->GetLLVMType(t); });
+        ll_ty = BuildAsyncLLVMType(*scope_opt, async_args, *this, current_ctx_);
         type_cache_[type] = ll_ty;
         return ll_ty;
       }
@@ -713,9 +717,7 @@ llvm::Type* LLVMEmitter::GetLLVMType(analysis::TypeRef type) {
             path->generic_args[0],  // Result (T)
             never_type  // E
         };
-        ll_ty = BuildAsyncLLVMType(
-            async_args, context_,
-            [this](const analysis::TypeRef& t) { return this->GetLLVMType(t); });
+        ll_ty = BuildAsyncLLVMType(*scope_opt, async_args, *this, current_ctx_);
         type_cache_[type] = ll_ty;
         return ll_ty;
       }

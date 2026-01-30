@@ -487,6 +487,19 @@ void LLVMEmitter::DeclareRuntime() {
     declare_modal(analysis::BuildCancelTokenModalDecl());
   }
 
+  // Async frame allocation runtime
+  {
+    std::vector<IRParam> params;
+    params.push_back(MakeParam("size", analysis::ParamMode::Move, TypePrim("usize")));
+    params.push_back(MakeParam("align", analysis::ParamMode::Move, TypePrim("usize")));
+    declare_fn(BuiltinSymAsyncAllocFrame(), params, TypePtrU8(), false);
+  }
+  {
+    std::vector<IRParam> params;
+    params.push_back(MakeParam("frame", analysis::ParamMode::Move, TypePtrU8()));
+    declare_fn(BuiltinSymAsyncFreeFrame(), params, TypePrim("()"), false);
+  }
+
   // Structured concurrency runtime
   // Note: All parameters use Move mode to ensure ByValue ABI, matching the
   // C function signatures in the runtime. Using nullopt would result in ByRef
@@ -609,3 +622,4 @@ void LLVMEmitter::DeclareRuntime() {
 }
 
 } // namespace cursive0::codegen
+

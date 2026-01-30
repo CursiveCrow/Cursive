@@ -946,51 +946,51 @@ std::optional<AsyncSig> GetAsyncSig(const TypeRef& type) {
           if (IsAsyncPath(node.path) || IdEq(name, "Async")) {
             // Async<Out, In, Result, E>
             AsyncSig sig;
-            sig.out_type = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
-            sig.in_type = node.generic_args.size() > 1 ? node.generic_args[1] : unit_type;
-            sig.result_type = node.generic_args.size() > 2 ? node.generic_args[2] : unit_type;
-            sig.error_type = node.generic_args.size() > 3 ? node.generic_args[3] : never_type;
+            sig.out = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
+            sig.in = node.generic_args.size() > 1 ? node.generic_args[1] : unit_type;
+            sig.result = node.generic_args.size() > 2 ? node.generic_args[2] : unit_type;
+            sig.err = node.generic_args.size() > 3 ? node.generic_args[3] : never_type;
             return sig;
           } else if (IdEq(name, "Future")) {
             // Future<T; E = !> = Async<(), (), T, E>
             AsyncSig sig;
-            sig.out_type = unit_type;
-            sig.in_type = unit_type;
-            sig.result_type = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
-            sig.error_type = node.generic_args.size() > 1 ? node.generic_args[1] : never_type;
+            sig.out = unit_type;
+            sig.in = unit_type;
+            sig.result = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
+            sig.err = node.generic_args.size() > 1 ? node.generic_args[1] : never_type;
             return sig;
           } else if (IdEq(name, "Sequence")) {
             // Sequence<T> = Async<T, (), (), !>
             AsyncSig sig;
-            sig.out_type = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
-            sig.in_type = unit_type;
-            sig.result_type = unit_type;
-            sig.error_type = never_type;
+            sig.out = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
+            sig.in = unit_type;
+            sig.result = unit_type;
+            sig.err = never_type;
             return sig;
           } else if (IdEq(name, "Stream")) {
             // Stream<T; E> = Async<T, (), (), E>
             AsyncSig sig;
-            sig.out_type = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
-            sig.in_type = unit_type;
-            sig.result_type = unit_type;
-            sig.error_type = node.generic_args.size() > 1 ? node.generic_args[1] : never_type;
+            sig.out = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
+            sig.in = unit_type;
+            sig.result = unit_type;
+            sig.err = node.generic_args.size() > 1 ? node.generic_args[1] : never_type;
             return sig;
           } else if (IdEq(name, "Pipe")) {
             // Pipe<In; Out> = Async<Out, In, (), !>
             AsyncSig sig;
-            sig.out_type = node.generic_args.size() > 1 ? node.generic_args[1] : unit_type;
-            sig.in_type = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
-            sig.result_type = unit_type;
-            sig.error_type = never_type;
+            sig.out = node.generic_args.size() > 1 ? node.generic_args[1] : unit_type;
+            sig.in = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
+            sig.result = unit_type;
+            sig.err = never_type;
             return sig;
           } else if (IdEq(name, "Exchange")) {
             // Exchange<T> = Async<T, T, T, !>
             AsyncSig sig;
             auto t = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
-            sig.out_type = t;
-            sig.in_type = t;
-            sig.result_type = t;
-            sig.error_type = never_type;
+            sig.out = t;
+            sig.in = t;
+            sig.result = t;
+            sig.err = never_type;
             return sig;
           }
           return std::nullopt;
@@ -999,10 +999,10 @@ std::optional<AsyncSig> GetAsyncSig(const TypeRef& type) {
           const std::string& state_name = node.path.empty() ? "" : node.path.back();
           if (IsAsyncPath(node.path) || IdEq(state_name, "Async")) {
             AsyncSig sig;
-            sig.out_type = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
-            sig.in_type = node.generic_args.size() > 1 ? node.generic_args[1] : unit_type;
-            sig.result_type = node.generic_args.size() > 2 ? node.generic_args[2] : unit_type;
-            sig.error_type = node.generic_args.size() > 3 ? node.generic_args[3] : never_type;
+            sig.out = node.generic_args.size() > 0 ? node.generic_args[0] : unit_type;
+            sig.in = node.generic_args.size() > 1 ? node.generic_args[1] : unit_type;
+            sig.result = node.generic_args.size() > 2 ? node.generic_args[2] : unit_type;
+            sig.err = node.generic_args.size() > 3 ? node.generic_args[3] : never_type;
             return sig;
           }
           return std::nullopt;

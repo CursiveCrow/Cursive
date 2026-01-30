@@ -1,0 +1,6 @@
+﻿public procedure main(move ctx: Context) -> i32 {
+  loop item in sync seq {
+    return 0
+  }
+  return 0
+}

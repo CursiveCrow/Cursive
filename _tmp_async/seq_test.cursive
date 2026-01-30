@@ -1,0 +1,15 @@
+﻿procedure generate() -> Sequence<i32> {
+  yield 1
+  yield 2
+  yield 3
+  return ()
+}
+
+public procedure main(move ctx: Context) -> i32 {
+  var sum: i32 = 0
+  let seq: Sequence<i32> = generate()
+  loop item in seq {
+    sum = sum + item
+  }
+  return sum
+}

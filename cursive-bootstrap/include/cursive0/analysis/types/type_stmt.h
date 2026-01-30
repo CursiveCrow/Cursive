@@ -69,14 +69,6 @@ struct PatternTypeResult {
   std::vector<std::pair<std::string, TypeRef>> bindings;
 };
 
-// Async signature helper (Out, In, Result, E)
-struct AsyncSig {
-  TypeRef out;
-  TypeRef in;
-  TypeRef result;
-  TypeRef err;
-};
-
 // Returns Async signature for Async/alias types, or std::nullopt if not async.
 std::optional<AsyncSig> AsyncSigOf(const ScopeContext& ctx, const TypeRef& type);
 

@@ -4,6 +4,7 @@
 #include <type_traits>
 
 #include "cursive0/core/assert_spec.h"
+#include "cursive0/analysis/generics/monomorphize.h"
 #include "cursive0/analysis/modal/modal_widen.h"
 #include "cursive0/analysis/resolve/scopes.h"
 #include "cursive0/analysis/types/type_equiv.h"
@@ -21,6 +22,126 @@ std::uint64_t AlignUp(std::uint64_t value, std::uint64_t align) {
     return value;
   }
   return value + (align - rem);
+}
+
+bool IsUnitType(const cursive0::analysis::TypeRef& type) {
+  if (!type) {
+    return false;
+  }
+  if (const auto* prim = std::get_if<cursive0::analysis::TypePrim>(&type->node)) {
+    return prim->name == "()";
+  }
+  if (const auto* tup = std::get_if<cursive0::analysis::TypeTuple>(&type->node)) {
+    return tup->elements.empty();
+  }
+  return false;
+}
+
+bool IsNeverType(const cursive0::analysis::TypeRef& type) {
+  if (!type) {
+    return false;
+  }
+  if (const auto* prim = std::get_if<cursive0::analysis::TypePrim>(&type->node)) {
+    return prim->name == "!";
+  }
+  return false;
+}
+
+std::optional<Layout> AsyncLayoutFromArgs(const cursive0::analysis::ScopeContext& ctx,
+                                          const std::vector<cursive0::analysis::TypeRef>& args) {
+  std::uint64_t max_payload_size = 0;
+  std::uint64_t max_payload_align = 1;
+
+  auto add_payload_layout = [&](const std::optional<Layout>& layout_opt) {
+    if (!layout_opt.has_value()) {
+      return;
+    }
+    if (layout_opt->size == 0) {
+      return;
+    }
+    max_payload_size = std::max(max_payload_size, layout_opt->size);
+    max_payload_align = std::max(max_payload_align, layout_opt->align);
+  };
+
+  // Suspended payload is { output: Out, frame: Ptr<u8> } (frame is hidden impl detail)
+  const auto out_type = args.size() > 0 ? args[0] : cursive0::analysis::MakeTypePrim("()");
+  const auto frame_ptr = cursive0::analysis::MakeTypePtr(
+      cursive0::analysis::MakeTypePrim("u8"),
+      cursive0::analysis::PtrState::Valid);
+  const auto suspended_layout = RecordLayoutOf(ctx, {out_type, frame_ptr});
+  if (!suspended_layout.has_value()) {
+    return std::nullopt;
+  }
+  add_payload_layout(suspended_layout->layout);
+
+  // Completed payload is Result (if non-unit/never)
+  if (args.size() > 2 && args[2] && !IsNeverType(args[2]) && !IsUnitType(args[2])) {
+    add_payload_layout(LayoutOf(ctx, args[2]));
+  }
+
+  // Failed payload is E (if non-unit/never)
+  if (args.size() > 3 && args[3] && !IsNeverType(args[3]) && !IsUnitType(args[3])) {
+    add_payload_layout(LayoutOf(ctx, args[3]));
+  }
+
+  const std::uint64_t disc_size = 1;
+  const std::uint64_t disc_align = 1;
+  const std::uint64_t align = std::max(disc_align, max_payload_align);
+  const std::uint64_t size = AlignUp(disc_size + max_payload_size, align);
+  return Layout{size, align};
+}
+
+std::optional<Layout> AsyncLayoutFromName(const cursive0::analysis::ScopeContext& ctx,
+                                          std::string_view name,
+                                          const std::vector<cursive0::analysis::TypeRef>& args) {
+  auto unit_type = cursive0::analysis::MakeTypeTuple({});
+  auto never_type = cursive0::analysis::MakeTypePrim("!");
+
+  if (cursive0::analysis::IdEq(name, "Async")) {
+    return AsyncLayoutFromArgs(ctx, args);
+  }
+  if (cursive0::analysis::IdEq(name, "Future")) {
+    std::vector<cursive0::analysis::TypeRef> async_args = {
+        unit_type,
+        unit_type,
+        args.size() > 0 ? args[0] : unit_type,
+        args.size() > 1 ? args[1] : never_type
+    };
+    return AsyncLayoutFromArgs(ctx, async_args);
+  }
+  if (cursive0::analysis::IdEq(name, "Sequence")) {
+    std::vector<cursive0::analysis::TypeRef> async_args = {
+        args.size() > 0 ? args[0] : unit_type,
+        unit_type,
+        unit_type,
+        never_type
+    };
+    return AsyncLayoutFromArgs(ctx, async_args);
+  }
+  if (cursive0::analysis::IdEq(name, "Stream")) {
+    std::vector<cursive0::analysis::TypeRef> async_args = {
+        args.size() > 0 ? args[0] : unit_type,
+        unit_type,
+        unit_type,
+        args.size() > 1 ? args[1] : never_type
+    };
+    return AsyncLayoutFromArgs(ctx, async_args);
+  }
+  if (cursive0::analysis::IdEq(name, "Pipe")) {
+    std::vector<cursive0::analysis::TypeRef> async_args = {
+        args.size() > 1 ? args[1] : unit_type,
+        args.size() > 0 ? args[0] : unit_type,
+        unit_type,
+        never_type
+    };
+    return AsyncLayoutFromArgs(ctx, async_args);
+  }
+  if (cursive0::analysis::IdEq(name, "Exchange")) {
+    auto t = args.size() > 0 ? args[0] : unit_type;
+    std::vector<cursive0::analysis::TypeRef> async_args = {t, t, t, never_type};
+    return AsyncLayoutFromArgs(ctx, async_args);
+  }
+  return std::nullopt;
 }
 
 std::optional<std::string> DiscTypeName(std::uint64_t max_disc) {
@@ -315,10 +436,13 @@ std::optional<Layout> LayoutOf(const cursive0::analysis::ScopeContext& ctx,
                           analysis::IdEq(modal->path[0], "Async");
     if (analysis::IsSpawnedTypePath(modal->path) ||
         analysis::IsCancelTokenTypePath(modal->path) ||
-        analysis::IsTrackedTypePath(modal->path) ||
-        is_async) {
+        analysis::IsTrackedTypePath(modal->path)) {
       SPEC_RULE("Layout-Modal-OpaquePtr");
       return Layout{kPtrSize, kPtrAlign};
+    }
+    if (is_async) {
+      SPEC_RULE("Layout-Async");
+      return AsyncLayoutFromArgs(ctx, modal->generic_args);
     }
   }
   if (const auto* path = std::get_if<cursive0::analysis::TypePathType>(&type->node)) {
@@ -326,10 +450,20 @@ std::optional<Layout> LayoutOf(const cursive0::analysis::ScopeContext& ctx,
                           analysis::IdEq(path->path[0], "Async");
     if (analysis::IsSpawnedTypePath(path->path) ||
         analysis::IsCancelTokenTypePath(path->path) ||
-        analysis::IsTrackedTypePath(path->path) ||
-        is_async) {
+        analysis::IsTrackedTypePath(path->path)) {
       SPEC_RULE("Layout-Modal-OpaquePtr");
       return Layout{kPtrSize, kPtrAlign};
+    }
+    if (is_async) {
+      SPEC_RULE("Layout-Async");
+      return AsyncLayoutFromArgs(ctx, path->generic_args);
+    }
+    if (!path->path.empty()) {
+      const std::string& name = path->path.back();
+      if (auto async_layout = AsyncLayoutFromName(ctx, name, path->generic_args)) {
+        SPEC_RULE("Layout-Async");
+        return async_layout;
+      }
     }
   }
 
@@ -502,8 +636,18 @@ std::optional<Layout> LayoutOf(const cursive0::analysis::ScopeContext& ctx,
       if (!lowered.has_value()) {
         return std::nullopt;
       }
+      cursive0::analysis::TypeRef inst = *lowered;
+      if (alias->generic_params &&
+          !alias->generic_params->params.empty() &&
+          !path->generic_args.empty()) {
+        SPEC_RULE("Layout-Alias");
+        cursive0::analysis::TypeSubst subst =
+            cursive0::analysis::BuildSubstitution(alias->generic_params->params,
+                                                  path->generic_args);
+        inst = cursive0::analysis::InstantiateType(inst, subst);
+      }
       SPEC_RULE("Layout-Alias");
-      return LayoutOf(ctx, *lowered);
+      return LayoutOf(ctx, inst);
     }
   }
 

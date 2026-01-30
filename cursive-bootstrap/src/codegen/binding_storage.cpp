@@ -16,6 +16,15 @@
 
 namespace cursive0::codegen {
 
+static llvm::Value* ByteGEP(LLVMEmitter& emitter,
+                            llvm::IRBuilder<>* builder,
+                            llvm::Value* base_ptr,
+                            std::uint64_t offset) {
+    llvm::LLVMContext& ctx = emitter.GetContext();
+    llvm::Value* idx = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), offset);
+    return builder->CreateGEP(llvm::Type::getInt8Ty(ctx), base_ptr, idx);
+}
+
 // T-LLVM-010: Binding Storage and Validity
 
 void LLVMEmitter::EmitBindVar(const IRBindVar& bind) {
@@ -81,6 +90,65 @@ void LLVMEmitter::EmitBindVar(const IRBindVar& bind) {
             current_ctx_->ReportCodegenFailure();
         }
         return;
+    }
+
+    // Async resume functions store locals in the async frame instead of allocas.
+    if (auto* async_state = GetAsyncState()) {
+        if (async_state->info && async_state->frame_ptr) {
+            const auto it = async_state->info->slots.find(bind.name);
+            if (it != async_state->info->slots.end()) {
+                llvm::Value* slot_ptr = GetLocal(bind.name);
+                if (!slot_ptr) {
+                    llvm::Function* func = builder->GetInsertBlock()->getParent();
+                    llvm::IRBuilder<> entry_builder(&func->getEntryBlock(),
+                                                    func->getEntryBlock().begin());
+                    llvm::Value* frame_ptr = async_state->frame_ptr;
+                    slot_ptr = ByteGEP(*this, &entry_builder, frame_ptr, it->second.offset);
+                    if (llvm_ty) {
+                        slot_ptr = entry_builder.CreateBitCast(slot_ptr, llvm_ty->getPointerTo());
+                    }
+                    SetLocal(bind.name, slot_ptr);
+                }
+                if (val) {
+                    if (val->getType() != llvm_ty && llvm_ty) {
+                        if (val->getType()->isPointerTy() && llvm_ty->isPointerTy()) {
+                            val = builder->CreateBitCast(val, llvm_ty);
+                        } else if (debug_obj) {
+                            std::string expected_str;
+                            llvm::raw_string_ostream expected_os(expected_str);
+                            llvm_ty->print(expected_os);
+                            expected_os.flush();
+
+                            std::string actual_str;
+                            llvm::raw_string_ostream actual_os(actual_str);
+                            val->getType()->print(actual_os);
+                            actual_os.flush();
+
+                            std::string bind_type_str = bind_type ? analysis::TypeToString(bind_type) : "<null>";
+                            std::string value_type_str = "<null>";
+                            if (current_ctx_) {
+                                if (auto inferred = current_ctx_->LookupValueType(bind.value)) {
+                                    value_type_str = analysis::TypeToString(inferred);
+                                }
+                            }
+                            std::cerr << "[cursivec0] bind type mismatch for `" << bind.name << "`\n";
+                            std::cerr << "  bind.type: " << bind_type_str << "\n";
+                            std::cerr << "  value.type: " << value_type_str << "\n";
+                            std::cerr << "  expected llvm: " << expected_str << "\n";
+                            std::cerr << "  actual llvm: " << actual_str << "\n";
+                        } else if (current_ctx_) {
+                            current_ctx_->ReportCodegenFailure();
+                        }
+                    }
+                    builder->CreateStore(val, slot_ptr);
+                }
+                if (current_ctx_ && bind_type) {
+                    current_ctx_->RegisterVar(bind.name, bind_type, true, false, prov,
+                                              prov_region);
+                }
+                return;
+            }
+        }
     }
 
     llvm::Value* slot = nullptr;

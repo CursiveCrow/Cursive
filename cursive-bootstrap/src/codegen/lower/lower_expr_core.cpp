@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <variant>
 #include <unordered_set>
 #include <unordered_map>
@@ -693,6 +694,60 @@ static std::unordered_set<std::string> CollectSpawnMoveCaptures(
     }
   }
   return moves;
+}
+
+static void MergeFailures(LowerCtx& base, const LowerCtx& branch) {
+  if (branch.resolve_failed) {
+    base.resolve_failed = true;
+  }
+  if (branch.codegen_failed) {
+    base.codegen_failed = true;
+  }
+  for (const auto& name : branch.resolve_failures) {
+    if (std::find(base.resolve_failures.begin(), base.resolve_failures.end(), name) ==
+        base.resolve_failures.end()) {
+      base.resolve_failures.push_back(name);
+    }
+  }
+}
+
+static void MergeMoveStates(LowerCtx& base,
+                            const std::vector<const LowerCtx*>& branches) {
+  for (auto& [name, stack] : base.binding_states) {
+    if (stack.empty()) {
+      continue;
+    }
+    auto& state = stack.back();
+
+    bool moved_any = state.is_moved;
+    std::set<std::string> fields;
+    if (!moved_any) {
+      fields.insert(state.moved_fields.begin(), state.moved_fields.end());
+    }
+
+    for (const auto* branch : branches) {
+      if (!branch) {
+        continue;
+      }
+      const BindingState* bstate = branch->GetBindingState(name);
+      if (!bstate) {
+        continue;
+      }
+      if (bstate->is_moved) {
+        moved_any = true;
+      } else if (!moved_any) {
+        fields.insert(bstate->moved_fields.begin(), bstate->moved_fields.end());
+      }
+    }
+
+    if (moved_any) {
+      state.is_moved = true;
+      state.moved_fields.clear();
+    } else {
+      state.is_moved = false;
+      state.moved_fields.assign(fields.begin(), fields.end());
+    }
+  }
 }
 
 struct LowerCtxSnapshot {
@@ -2495,18 +2550,39 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
           // §19.2.3 Yield-from expression lowering
           auto source_result = LowerExpr(*node.value, ctx);
 
+          analysis::TypeRef source_type;
+          if (ctx.expr_type) {
+            source_type = ctx.expr_type(*node.value);
+          }
+
+          const std::string source_name =
+              ctx.FreshTempValue("yield_from_source").name;
+          IRBindVar bind_source;
+          bind_source.name = source_name;
+          bind_source.value = source_result.value;
+          bind_source.type = source_type;
+
+          IRValue source_local;
+          source_local.kind = IRValue::Kind::Local;
+          source_local.name = source_name;
+          if (source_type) {
+            ctx.RegisterValueType(source_local, source_type);
+          }
+
           IRYieldFrom yf;
           yf.release = node.release;
-          yf.source = source_result.value;
+          yf.source = source_local;
           yf.result = ctx.FreshTempValue("yield_from_result");
 
           // Get source type for later emission
-          if (ctx.expr_type) {
-            yf.source_type = ctx.expr_type(*node.value);
-          }
+          yf.source_type = source_type;
+          // state_index will be assigned during async procedure transformation
+          yf.state_index = 0;
 
           IRValue yf_result = yf.result;
-          return LowerResult{SeqIR({source_result.ir, MakeIR(std::move(yf))}),
+          return LowerResult{SeqIR({source_result.ir,
+                                    MakeIR(std::move(bind_source)),
+                                    MakeIR(std::move(yf))}),
                              yf_result};
 
         } else if constexpr (std::is_same_v<T, syntax::SyncExpr>) {
@@ -2523,8 +2599,8 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
             sync.async_type = ctx.expr_type(*node.value);
             // Extract result_type and error_type from async type
             if (auto sig = analysis::GetAsyncSig(sync.async_type)) {
-              sync.result_type = sig->result_type;
-              sync.error_type = sig->error_type;
+              sync.result_type = sig->result;
+              sync.error_type = sig->err;
             }
           }
 
@@ -2540,6 +2616,9 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
                               node.arms[0].handler.kind == syntax::RaceHandlerKind::Yield;
 
           std::vector<IRRaceArm> ir_arms;
+          std::vector<LowerCtx> arm_ctxs;
+          ir_arms.reserve(node.arms.size());
+          arm_ctxs.reserve(node.arms.size());
           for (const auto& arm : node.arms) {
             IRRaceArm ir_arm;
             auto async_result = LowerExpr(*arm.expr, ctx);
@@ -2547,12 +2626,75 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
             ir_arm.async_value = async_result.value;
             ir_arm.pattern = arm.pattern;
 
+            analysis::TypeRef async_type;
+            analysis::TypeRef pat_type;
+            if (ctx.expr_type) {
+              async_type = ctx.expr_type(*arm.expr);
+              if (auto sig = analysis::GetAsyncSig(async_type)) {
+                pat_type = is_streaming ? sig->out : sig->result;
+              }
+            }
+
+            IRValue match_value = ctx.FreshTempValue("race_match");
+            ir_arm.match_value = match_value;
+
+            LowerCtx arm_ctx = ctx;
+            arm_ctx.PushScope(false, false);
+            if (pat_type) {
+              arm_ctx.RegisterValueType(match_value, pat_type);
+            }
+            if (arm.pattern) {
+              RegisterPatternBindings(*arm.pattern, pat_type, arm_ctx);
+            }
+            IRPtr bind_ir = arm.pattern
+                                ? LowerBindPattern(*arm.pattern, match_value, arm_ctx)
+                                : EmptyIR();
+
             // Lower handler
-            auto handler_result = LowerExpr(*arm.handler.value, ctx);
-            ir_arm.handler_ir = handler_result.ir;
+            auto handler_result = LowerExpr(*arm.handler.value, arm_ctx);
+
+            CleanupPlan cleanup_plan = ComputeCleanupPlanForCurrentScope(arm_ctx);
+            CleanupPlan remainder =
+                ComputeCleanupPlanRemainder(CleanupTarget::CurrentScope, arm_ctx);
+            IRPtr cleanup_ir = EmitCleanupWithRemainder(cleanup_plan, remainder, arm_ctx);
+            arm_ctx.PopScope();
+
+            ir_arm.handler_ir = SeqIR({bind_ir, handler_result.ir, cleanup_ir});
             ir_arm.handler_result = handler_result.value;
 
+            for (const auto& [name, type] : arm_ctx.value_types) {
+              if (!ctx.value_types.count(name)) {
+                ctx.value_types.emplace(name, type);
+              }
+            }
+            for (const auto& [name, info] : arm_ctx.derived_values) {
+              if (!ctx.derived_values.count(name)) {
+                ctx.derived_values.emplace(name, info);
+              }
+            }
+            for (const auto& [name, type] : arm_ctx.static_types) {
+              if (!ctx.static_types.count(name)) {
+                ctx.static_types.emplace(name, type);
+              }
+            }
+            for (const auto& [name, type] : arm_ctx.drop_glue_types) {
+              if (!ctx.drop_glue_types.count(name)) {
+                ctx.drop_glue_types.emplace(name, type);
+              }
+            }
+            ctx.temp_counter = std::max(ctx.temp_counter, arm_ctx.temp_counter);
             ir_arms.push_back(std::move(ir_arm));
+            arm_ctxs.push_back(std::move(arm_ctx));
+          }
+
+          std::vector<const LowerCtx*> branches;
+          branches.reserve(arm_ctxs.size());
+          for (const auto& arm_ctx : arm_ctxs) {
+            branches.push_back(&arm_ctx);
+          }
+          MergeMoveStates(ctx, branches);
+          for (const auto& arm_ctx : arm_ctxs) {
+            MergeFailures(ctx, arm_ctx);
           }
 
           if (is_streaming) {
@@ -2568,8 +2710,8 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
             IRRaceReturn race;
             race.arms = std::move(ir_arms);
             race.result = ctx.FreshTempValue("race_return_result");
-            if (ctx.expr_type) {
-              race.result_type = ctx.expr_type(expr);
+            if (ctx.expr_type && !node.arms.empty()) {
+              race.result_type = ctx.expr_type(*node.arms.front().handler.value);
             }
             IRValue result = race.result;
             return LowerResult{MakeIR(std::move(race)), result};
@@ -2579,17 +2721,28 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
           SPEC_RULE("Lower-Expr-All");
           // §19.3.5 All expression lowering
           IRAll all;
+          std::vector<analysis::TypeRef> tuple_elems;
+          std::vector<analysis::TypeRef> error_types;
+          tuple_elems.reserve(node.exprs.size());
+          error_types.reserve(node.exprs.size());
           for (const auto& expr_ptr : node.exprs) {
             auto result = LowerExpr(*expr_ptr, ctx);
             all.async_irs.push_back(result.ir);
             all.async_values.push_back(result.value);
-            // error_types will be extracted during emission from async_type
+            if (ctx.expr_type) {
+              analysis::TypeRef async_type = ctx.expr_type(*expr_ptr);
+              if (auto sig = analysis::GetAsyncSig(async_type)) {
+                tuple_elems.push_back(sig->result);
+                error_types.push_back(sig->err);
+              }
+            }
           }
           all.result = ctx.FreshTempValue("all_result");
 
-          if (ctx.expr_type) {
-            all.tuple_type = ctx.expr_type(expr);
+          if (tuple_elems.size() == node.exprs.size()) {
+            all.tuple_type = analysis::MakeTypeTuple(tuple_elems);
           }
+          all.error_types = std::move(error_types);
 
           IRValue result = all.result;
           return LowerResult{MakeIR(std::move(all)), result};
@@ -3011,6 +3164,14 @@ void LowerCtx::RegisterProcModule(const std::string& sym, const syntax::ModulePa
 const std::vector<std::string>* LowerCtx::LookupProcModule(const std::string& sym) const {
   auto it = proc_modules.find(sym);
   if (it != proc_modules.end()) {
+    return &it->second;
+  }
+  return nullptr;
+}
+
+const LowerCtx::AsyncProcInfo* LowerCtx::LookupAsyncProc(const std::string& sym) const {
+  auto it = async_procs.find(sym);
+  if (it != async_procs.end()) {
     return &it->second;
   }
   return nullptr;

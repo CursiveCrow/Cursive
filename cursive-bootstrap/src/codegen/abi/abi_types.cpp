@@ -6,6 +6,7 @@
 #include <type_traits>
 
 #include "cursive0/core/assert_spec.h"
+#include "cursive0/analysis/generics/monomorphize.h"
 #include "cursive0/analysis/resolve/scopes.h"
 
 namespace cursive0::codegen {
@@ -241,7 +242,27 @@ std::optional<ABIType> ABITy(const analysis::ScopeContext& ctx,
       if (!resolved.has_value()) {
         return std::nullopt;
       }
-      return ABITy(ctx, *resolved);
+      analysis::TypeRef inst = *resolved;
+      // Apply generic substitution when alias has params and path has args.
+      syntax::Path syntax_path;
+      syntax_path.reserve(path_type->path.size());
+      for (const auto& comp : path_type->path) {
+        syntax_path.push_back(comp);
+      }
+      const auto it = ctx.sigma.types.find(analysis::PathKeyOf(syntax_path));
+      if (it != ctx.sigma.types.end()) {
+        if (const auto* alias = std::get_if<syntax::TypeAliasDecl>(&it->second)) {
+          if (alias->generic_params &&
+              !alias->generic_params->params.empty() &&
+              !path_type->generic_args.empty()) {
+            analysis::TypeSubst subst =
+                analysis::BuildSubstitution(alias->generic_params->params,
+                                            path_type->generic_args);
+            inst = analysis::InstantiateType(inst, subst);
+          }
+        }
+      }
+      return ABITy(ctx, inst);
     }
 
     // (ABI-Record)

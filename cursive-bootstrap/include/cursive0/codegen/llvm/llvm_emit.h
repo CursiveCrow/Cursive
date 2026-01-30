@@ -26,6 +26,7 @@ namespace llvm {
   class BasicBlock;
   class FunctionType;
   class AttributeList;
+  class SwitchInst;
 }
 
 namespace cursive0::codegen {
@@ -37,6 +38,14 @@ struct ABICallResult {
     bool has_sret = false;
     std::vector<PassKind> param_kinds;
     std::vector<std::optional<unsigned>> param_indices;
+};
+
+struct AsyncEmitState {
+  const LowerCtx::AsyncProcInfo* info = nullptr;
+  llvm::Value* frame_ptr = nullptr;
+  llvm::Value* input_ptr = nullptr;
+  llvm::SwitchInst* resume_switch = nullptr;
+  std::unordered_map<std::size_t, llvm::BasicBlock*> resume_blocks;
 };
 
 
@@ -115,6 +124,11 @@ public:
   }
   void ClearTempValues() { values_.clear(); }
 
+  // Async lowering state (active only while emitting async resume proc)
+  void SetAsyncState(AsyncEmitState* state) { async_state_ = state; }
+  AsyncEmitState* GetAsyncState() { return async_state_; }
+  const AsyncEmitState* GetAsyncState() const { return async_state_; }
+
   // Symbol aliases for IRReadPath resolution
   void SetSymbolAlias(const std::string& name, const std::string& symbol) {
     symbol_aliases_[name] = symbol;
@@ -171,6 +185,7 @@ private:
   std::unordered_map<std::string, llvm::Value*> locals_;
 
   std::unordered_map<std::string, llvm::Value*> values_;
+  AsyncEmitState* async_state_ = nullptr;
   std::unordered_map<std::string, std::string> symbol_aliases_;
   std::vector<IRValue> active_regions_;
   std::vector<IRValue> parallel_contexts_;  // C0X Extension: §18 parallel context stack

@@ -6,6 +6,7 @@ add_library(cursive0_rt STATIC
   src/context.c
   src/region.c
   src/heap.c
+  src/async.c
   src/string_bytes.c
   src/parallel.c
   src/filesystem.c

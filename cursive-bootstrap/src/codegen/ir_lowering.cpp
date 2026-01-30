@@ -5,6 +5,7 @@
 #include "cursive0/codegen/checks.h"
 #include "cursive0/codegen/globals.h"
 #include "cursive0/codegen/cleanup.h"
+#include "cursive0/codegen/async_frame.h"
 #include "cursive0/codegen/layout/layout.h"
 #include "cursive0/codegen/mangle.h"
 #include "cursive0/core/symbols.h"
@@ -252,6 +253,137 @@ void StoreAtOffset(LLVMEmitter& emitter,
   }
   llvm::Value* ptr = offset == 0 ? base_ptr : ByteGEP(emitter, builder, base_ptr, offset);
   builder->CreateStore(value, ptr);
+}
+
+llvm::Value* LoadPanicOutPtr(LLVMEmitter& emitter,
+                             llvm::IRBuilder<>* builder);
+
+llvm::Value* CallAsyncResume(LLVMEmitter& emitter,
+                             llvm::IRBuilder<>* builder,
+                             LowerCtx* ctx,
+                             llvm::Value* frame_ptr,
+                             llvm::Value* input_ptr,
+                             const analysis::TypeRef& async_type) {
+  if (!builder || !frame_ptr || !async_type) {
+    return nullptr;
+  }
+  (void)ctx;
+
+  llvm::Value* resume_fn = LoadAtOffset(emitter, builder, frame_ptr,
+                                        kAsyncFrameResumeFnOffset,
+                                        emitter.GetOpaquePtr());
+  if (!resume_fn) {
+    return nullptr;
+  }
+
+  std::vector<IRParam> params;
+  IRParam frame_param;
+  frame_param.mode = analysis::ParamMode::Move;
+  frame_param.name = "frame";
+  frame_param.type = analysis::MakeTypePtr(analysis::MakeTypePrim("u8"),
+                                           analysis::PtrState::Valid);
+  params.push_back(frame_param);
+
+  IRParam input_param;
+  input_param.mode = analysis::ParamMode::Move;
+  input_param.name = "input";
+  input_param.type = analysis::MakeTypePtr(analysis::MakeTypePrim("u8"),
+                                           analysis::PtrState::Valid);
+  params.push_back(input_param);
+
+  IRParam panic_param;
+  panic_param.mode = analysis::ParamMode::Move;
+  panic_param.name = std::string(kPanicOutName);
+  panic_param.type = PanicOutType();
+  params.push_back(panic_param);
+
+  ABICallResult abi = emitter.ComputeCallABI(params, async_type);
+  if (!abi.func_type) {
+    return nullptr;
+  }
+
+  llvm::Function* func = builder->GetInsertBlock()->getParent();
+  std::vector<llvm::Value*> call_args(abi.func_type->getNumParams(), nullptr);
+  llvm::AllocaInst* sret_alloca = nullptr;
+  if (abi.has_sret) {
+    llvm::Type* ret_ty = emitter.GetLLVMType(async_type);
+    sret_alloca = CreateEntryAlloca(emitter, builder, ret_ty, "sret_async");
+    call_args[0] = sret_alloca;
+  }
+
+  llvm::Value* in_ptr = input_ptr ? input_ptr
+                                  : llvm::Constant::getNullValue(emitter.GetOpaquePtr());
+  llvm::Value* panic_ptr = LoadPanicOutPtr(emitter, builder);
+  if (!panic_ptr) {
+    panic_ptr = llvm::Constant::getNullValue(emitter.GetOpaquePtr());
+  }
+
+  std::vector<llvm::Value*> args = {frame_ptr, in_ptr, panic_ptr};
+
+  for (std::size_t i = 0; i < params.size(); ++i) {
+    if (i >= abi.param_indices.size()) {
+      break;
+    }
+    if (!abi.param_indices[i].has_value()) {
+      continue;
+    }
+    unsigned idx = *abi.param_indices[i];
+    if (idx >= call_args.size() || i >= args.size()) {
+      continue;
+    }
+    llvm::Value* arg = args[i];
+    if (!arg) {
+      continue;
+    }
+    llvm::Type* target_ty = abi.param_types[idx];
+    if (abi.param_kinds[i] == PassKind::ByRef) {
+      if (!arg->getType()->isPointerTy()) {
+        llvm::Type* elem_ty = emitter.GetLLVMType(params[i].type);
+        llvm::AllocaInst* slot = CreateEntryAlloca(emitter, builder, elem_ty, "byref_async");
+        if (slot) {
+          builder->CreateStore(arg, slot);
+          call_args[idx] = slot;
+        }
+        continue;
+      }
+      if (target_ty && arg->getType() != target_ty) {
+        if (arg->getType()->isPointerTy() && target_ty->isPointerTy()) {
+          arg = builder->CreateBitCast(arg, target_ty);
+        }
+      }
+      call_args[idx] = arg;
+      continue;
+    }
+    if (target_ty && arg->getType() != target_ty) {
+      if (arg->getType()->isPointerTy() && target_ty->isPointerTy()) {
+        arg = builder->CreateBitCast(arg, target_ty);
+      }
+    }
+    call_args[idx] = arg;
+  }
+
+  for (std::size_t i = 0; i < call_args.size(); ++i) {
+    if (!call_args[i]) {
+      call_args[i] = llvm::Constant::getNullValue(abi.param_types[i]);
+    }
+  }
+
+  llvm::Value* callee = resume_fn;
+  llvm::Type* callee_ty = abi.func_type->getPointerTo();
+  if (callee->getType() != callee_ty && callee->getType()->isPointerTy()) {
+    callee = builder->CreateBitCast(callee, callee_ty);
+  }
+
+  llvm::CallInst* call_inst = builder->CreateCall(abi.func_type, callee, call_args);
+  call_inst->setCallingConv(llvm::CallingConv::C);
+
+  if (abi.has_sret && sret_alloca) {
+    return builder->CreateLoad(emitter.GetLLVMType(async_type), sret_alloca);
+  }
+  if (!call_inst->getType()->isVoidTy()) {
+    return call_inst;
+  }
+  return llvm::Constant::getNullValue(emitter.GetLLVMType(async_type));
 }
 
 std::string ResolvePathSymbol(const std::vector<std::string>& path,
@@ -3205,6 +3337,8 @@ struct IRVisitor {
   llvm::IRBuilder<>* builder;
   LowerCtx* ctx;
 
+  struct AsyncPayloadLayout;
+
   IRVisitor(LLVMEmitter& e)
       : emitter(e),
         builder(static_cast<llvm::IRBuilder<>*>(e.GetBuilderRaw())),
@@ -3302,6 +3436,151 @@ struct IRVisitor {
 
   void StoreTemp(const IRValue& value, llvm::Value* v) {
     emitter.SetTempValue(value, v);
+  }
+
+  llvm::Value* BuildUnionValue(const analysis::TypeRef& union_type,
+                               const analysis::TypeRef& member_type,
+                               llvm::Value* member_val) {
+    if (!union_type) {
+      return member_val;
+    }
+    auto stripped = StripPerm(union_type);
+    if (!stripped) {
+      return member_val;
+    }
+
+    auto is_unit_like = [](const analysis::TypeRef& type) -> bool {
+      if (!type) {
+        return false;
+      }
+      auto base = StripPerm(type);
+      if (!base) {
+        return false;
+      }
+      if (const auto* prim = std::get_if<analysis::TypePrim>(&base->node)) {
+        return prim->name == "()";
+      }
+      if (const auto* tup = std::get_if<analysis::TypeTuple>(&base->node)) {
+        return tup->elements.empty();
+      }
+      return false;
+    };
+
+    const auto* uni = std::get_if<analysis::TypeUnion>(&stripped->node);
+    llvm::Type* union_llvm_ty = emitter.GetLLVMType(stripped);
+    if (!uni) {
+      if (!union_llvm_ty) {
+        return member_val;
+      }
+      if (!member_val) {
+        return llvm::Constant::getNullValue(union_llvm_ty);
+      }
+      if (member_val->getType() != union_llvm_ty) {
+        member_val = CoerceToType(member_val, union_llvm_ty, IsUnsignedType(member_type));
+      }
+      return member_val;
+    }
+
+    const auto scope = BuildScope(ctx);
+    const auto layout = UnionLayoutOf(scope, *uni);
+    if (!layout.has_value()) {
+      return nullptr;
+    }
+
+    const auto& members = layout->member_list;
+    std::optional<std::size_t> member_index;
+    if (member_type) {
+      for (std::size_t i = 0; i < members.size(); ++i) {
+        if (analysis::TypeEquiv(member_type, members[i]).equiv) {
+          member_index = i;
+          break;
+        }
+      }
+    }
+    if (!member_index.has_value() && is_unit_like(member_type)) {
+      for (std::size_t i = 0; i < members.size(); ++i) {
+        if (is_unit_like(members[i])) {
+          member_index = i;
+          break;
+        }
+      }
+    }
+    if (!member_index.has_value() && members.size() == 1) {
+      member_index = 0;
+    }
+    if (!member_index.has_value()) {
+      return nullptr;
+    }
+
+    if (layout->niche) {
+      std::optional<std::size_t> payload_index;
+      for (std::size_t i = 0; i < members.size(); ++i) {
+        if (!is_unit_like(members[i])) {
+          payload_index = i;
+          break;
+        }
+      }
+      if (!payload_index.has_value()) {
+        return nullptr;
+      }
+      const auto payload_type = members[*payload_index];
+      llvm::Type* payload_llvm_ty = emitter.GetLLVMType(payload_type);
+      if (!payload_llvm_ty) {
+        return nullptr;
+      }
+      if (is_unit_like(member_type) || !member_val) {
+        return llvm::Constant::getNullValue(payload_llvm_ty);
+      }
+      if (member_val->getType() != payload_llvm_ty) {
+        member_val = CoerceToType(member_val, payload_llvm_ty,
+                                  IsUnsignedType(member_type));
+      }
+      return member_val;
+    }
+
+    if (!layout->disc_type.has_value()) {
+      return nullptr;
+    }
+
+    if (!union_llvm_ty) {
+      return nullptr;
+    }
+    auto* alloca = CreateEntryAlloca(emitter, builder, union_llvm_ty, "union");
+    if (!alloca) {
+      return nullptr;
+    }
+    builder->CreateStore(llvm::Constant::getNullValue(union_llvm_ty), alloca);
+
+    const auto disc_type = analysis::MakeTypePrim(*layout->disc_type);
+    llvm::Type* disc_llvm_ty = emitter.GetLLVMType(disc_type);
+    if (!disc_llvm_ty) {
+      return nullptr;
+    }
+    llvm::Value* disc_val = llvm::ConstantInt::get(disc_llvm_ty, *member_index);
+    StoreAtOffset(emitter, builder, alloca, 0, disc_val);
+
+    const auto member = members[*member_index];
+    if (!is_unit_like(member) && !IsNeverType(member)) {
+      const auto size_opt = SizeOf(scope, member);
+      if (size_opt.has_value() && *size_opt > 0) {
+        llvm::Type* member_llvm_ty = emitter.GetLLVMType(member);
+        if (!member_llvm_ty) {
+          return nullptr;
+        }
+        if (!member_val) {
+          member_val = llvm::Constant::getNullValue(member_llvm_ty);
+        } else if (member_val->getType() != member_llvm_ty) {
+          member_val = CoerceToType(member_val, member_llvm_ty,
+                                    IsUnsignedType(member_type));
+        }
+        const std::uint64_t disc_size = SizeOf(scope, disc_type).value_or(0);
+        const std::uint64_t payload_offset =
+            AlignUp(disc_size, layout->payload_align);
+        StoreAtOffset(emitter, builder, alloca, payload_offset, member_val);
+      }
+    }
+
+    return builder->CreateLoad(union_llvm_ty, alloca);
   }
 
   void operator()(const IRSeq& seq) {
@@ -3490,6 +3769,104 @@ struct IRVisitor {
     arg_values.reserve(call.args.size());
     for (const auto& arg : call.args) {
       arg_values.push_back(emitter.EvaluateIRValue(arg));
+    }
+
+    if (!sym.empty() && sym == BuiltinSymAsyncResume()) {
+      if (arg_values.size() < 2) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+
+      analysis::TypeRef async_type;
+      if (ctx) {
+        async_type = ctx->LookupValueType(call.args[0]);
+        if (!async_type) {
+          async_type = ctx->LookupValueType(call.result);
+        }
+      }
+      if (!async_type) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+
+      const auto scope = BuildScope(ctx);
+      const auto payload_layout = AsyncPayloadLayoutOf(scope, async_type);
+      if (!payload_layout.has_value()) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+
+      llvm::Value* async_val = arg_values[0];
+      if (!async_val) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+
+      llvm::Type* async_llvm_ty = emitter.GetLLVMType(async_type);
+      llvm::Value* async_struct_ptr = async_val;
+      if (!async_val->getType()->isPointerTy()) {
+        llvm::AllocaInst* async_alloca =
+            CreateEntryAlloca(emitter, builder, async_llvm_ty, "async_resume");
+        if (!async_alloca) {
+          if (ctx) {
+            ctx->ReportCodegenFailure();
+          }
+          return;
+        }
+        builder->CreateStore(async_val, async_alloca);
+        async_struct_ptr = async_alloca;
+      }
+
+      llvm::Value* frame_ptr = LoadAtOffset(emitter, builder, async_struct_ptr,
+                                            payload_layout->payload_offset +
+                                                payload_layout->suspended_frame_offset,
+                                            emitter.GetOpaquePtr());
+      if (!frame_ptr) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+
+      llvm::Value* input_ptr = llvm::Constant::getNullValue(emitter.GetOpaquePtr());
+      if (auto sig = analysis::GetAsyncSig(async_type)) {
+        if (sig->in && !IsUnitType(sig->in)) {
+          llvm::Type* in_llvm_ty = emitter.GetLLVMType(sig->in);
+          llvm::AllocaInst* input_alloca =
+              CreateEntryAlloca(emitter, builder, in_llvm_ty, "async_input");
+          if (!input_alloca) {
+            if (ctx) {
+              ctx->ReportCodegenFailure();
+            }
+            return;
+          }
+          llvm::Value* input_val = arg_values[1];
+          if (input_val) {
+            input_val = CoerceToType(input_val, in_llvm_ty, IsUnsignedValue(call.args[1]));
+            builder->CreateStore(input_val, input_alloca);
+            input_ptr = builder->CreateBitCast(input_alloca, emitter.GetOpaquePtr());
+          }
+        }
+      }
+
+      llvm::Value* resumed = CallAsyncResume(emitter, builder, ctx,
+                                             frame_ptr, input_ptr, async_type);
+      if (!resumed) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      StoreTemp(call.result, resumed);
+      return;
     }
 
     llvm::Value* result = nullptr;
@@ -3688,6 +4065,20 @@ struct IRVisitor {
     SPEC_RULE("LowerIR-Return");
     llvm::Function* func = builder->GetInsertBlock()->getParent();
     llvm::Value* val = emitter.EvaluateIRValue(ret.value);
+
+    if (auto* async_state = emitter.GetAsyncState()) {
+      if (async_state->info && async_state->info->is_resume && async_state->frame_ptr) {
+        llvm::Function* free_fn = emitter.GetFunction(BuiltinSymAsyncFreeFrame());
+        if (!free_fn) {
+          free_fn = emitter.GetModule().getFunction(BuiltinSymAsyncFreeFrame());
+        }
+        if (free_fn) {
+          builder->CreateCall(free_fn, {async_state->frame_ptr});
+        } else if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+      }
+    }
 
     if (func->arg_size() > 0 && func->hasParamAttribute(0, llvm::Attribute::StructRet)) {
       llvm::Argument* sret = func->getArg(0);
@@ -5194,16 +5585,127 @@ struct IRVisitor {
     SPEC_RULE("LowerIR-Yield");
     SPEC_RULE("Lower-YieldIR");
 
-    // TODO: Implement yield emission
-    // 1. Store output value in async frame
-    // 2. Set state to yield.state_index
-    // 3. If yield.release: call cursive0_async_keys_release()
-    // 4. Return @Suspended with output
-    // Resume path:
-    // 5. If yield.release: call cursive0_async_keys_reacquire()
-    // 6. Load input into result binding
+    auto* async_state = emitter.GetAsyncState();
+    if (!async_state || !async_state->info || !async_state->frame_ptr) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
 
-    (void)yield;  // Suppress unused warning until implemented
+    analysis::TypeRef async_type = async_state->info->async_type;
+    if (!async_type && ctx) {
+      async_type = ctx->proc_ret_type;
+    }
+    if (!async_type) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    const auto scope = BuildScope(ctx);
+    const auto payload_layout = AsyncPayloadLayoutOf(scope, async_type);
+    if (!payload_layout.has_value()) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    llvm::Type* async_llvm_ty = emitter.GetLLVMType(async_type);
+    if (!async_llvm_ty) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    auto* alloca = CreateEntryAlloca(emitter, builder, async_llvm_ty, "async_yield");
+    if (!alloca) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+    builder->CreateStore(llvm::Constant::getNullValue(async_llvm_ty), alloca);
+
+    llvm::IntegerType* disc_ty =
+        llvm::cast<llvm::IntegerType>(emitter.GetLLVMType(analysis::MakeTypePrim("u8")));
+    llvm::Value* disc_val = llvm::ConstantInt::get(disc_ty, 0);
+    StoreAtOffset(emitter, builder, alloca, 0, disc_val);
+
+    analysis::TypeRef out_type = async_state->info->out_type;
+    llvm::Value* out_val = emitter.EvaluateIRValue(yield.value);
+    if (out_type) {
+      const auto size_opt = SizeOf(scope, out_type);
+      if (size_opt.has_value() && *size_opt > 0 && out_val) {
+        llvm::Type* out_llvm_ty = emitter.GetLLVMType(out_type);
+        out_val = CoerceToType(out_val, out_llvm_ty, IsUnsignedValue(yield.value));
+        StoreAtOffset(emitter, builder, alloca,
+                      payload_layout->payload_offset + payload_layout->suspended_output_offset,
+                      out_val);
+      }
+    }
+
+    StoreAtOffset(emitter, builder, alloca,
+                  payload_layout->payload_offset + payload_layout->suspended_frame_offset,
+                  async_state->frame_ptr);
+
+    llvm::Value* state_val = llvm::ConstantInt::get(
+        llvm::Type::getInt64Ty(emitter.GetContext()),
+        static_cast<std::uint64_t>(yield.state_index));
+    StoreAtOffset(emitter, builder, async_state->frame_ptr,
+                  kAsyncFrameResumeStateOffset, state_val);
+
+    llvm::Value* async_val = builder->CreateLoad(async_llvm_ty, alloca);
+
+    llvm::Function* func = builder->GetInsertBlock()->getParent();
+    if (func->arg_size() > 0 && func->hasParamAttribute(0, llvm::Attribute::StructRet)) {
+      llvm::Argument* sret = func->getArg(0);
+      builder->CreateStore(async_val, sret);
+      builder->CreateRetVoid();
+    } else {
+      builder->CreateRet(async_val);
+    }
+
+    llvm::BasicBlock* resume_bb = nullptr;
+    auto resume_it = async_state->resume_blocks.find(yield.state_index);
+    if (resume_it != async_state->resume_blocks.end()) {
+      resume_bb = resume_it->second;
+    } else {
+      resume_bb = llvm::BasicBlock::Create(
+          emitter.GetContext(), "resume_state", func);
+      async_state->resume_blocks[yield.state_index] = resume_bb;
+      if (async_state->resume_switch) {
+        llvm::IntegerType* state_ty =
+            llvm::Type::getInt64Ty(emitter.GetContext());
+        llvm::ConstantInt* case_val = llvm::ConstantInt::get(
+            state_ty, static_cast<std::uint64_t>(yield.state_index));
+        async_state->resume_switch->addCase(case_val, resume_bb);
+      }
+    }
+
+    builder->SetInsertPoint(resume_bb);
+
+    analysis::TypeRef in_type = async_state->info->in_type;
+    llvm::Value* input_val = nullptr;
+    if (in_type && !IsUnitType(in_type)) {
+      llvm::Type* in_llvm_ty = emitter.GetLLVMType(in_type);
+      llvm::Value* input_ptr = async_state->input_ptr
+                                   ? async_state->input_ptr
+                                   : llvm::Constant::getNullValue(emitter.GetOpaquePtr());
+      llvm::Value* typed_ptr = builder->CreateBitCast(input_ptr,
+                                                      in_llvm_ty->getPointerTo());
+      input_val = builder->CreateLoad(in_llvm_ty, typed_ptr);
+    } else {
+      llvm::Type* unit_ty = emitter.GetLLVMType(analysis::MakeTypePrim("()"));
+      input_val = llvm::Constant::getNullValue(unit_ty);
+    }
+
+    if (input_val) {
+      StoreTemp(yield.result, input_val);
+    }
   }
 
   // §19.2.3 Yield-from expression lowering
@@ -5212,18 +5714,347 @@ struct IRVisitor {
     SPEC_RULE("LowerIR-YieldFrom");
     SPEC_RULE("Lower-YieldFromIR");
 
-    // TODO: Implement yield-from emission
-    // Loop over source async:
-    //   @Suspended { output } => yield [release] output; source = source~>resume(input)
-    //   @Completed { value } => break value
-    //   @Failed { error } => propagate error
+    auto* async_state = emitter.GetAsyncState();
+    if (!async_state || !async_state->info || !async_state->frame_ptr) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
 
-    (void)yf;  // Suppress unused warning until implemented
+    analysis::TypeRef outer_async_type = async_state->info->async_type;
+    if (!outer_async_type && ctx) {
+      outer_async_type = ctx->proc_ret_type;
+    }
+    if (!outer_async_type) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    analysis::TypeRef source_type = yf.source_type;
+    if (!source_type && ctx) {
+      source_type = ctx->LookupValueType(yf.source);
+    }
+    if (!source_type) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    const auto scope = BuildScope(ctx);
+    const auto outer_payload_layout = AsyncPayloadLayoutOf(scope, outer_async_type);
+    const auto source_payload_layout = AsyncPayloadLayoutOf(scope, source_type);
+    if (!outer_payload_layout.has_value() || !source_payload_layout.has_value()) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    llvm::Type* outer_async_llvm_ty = emitter.GetLLVMType(outer_async_type);
+    llvm::Type* source_llvm_ty = emitter.GetLLVMType(source_type);
+    if (!outer_async_llvm_ty || !source_llvm_ty) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    llvm::Value* source_ptr = nullptr;
+    if (yf.source.kind == IRValue::Kind::Local) {
+      source_ptr = emitter.GetLocal(yf.source.name);
+    }
+    if (!source_ptr) {
+      llvm::Value* source_val = emitter.EvaluateIRValue(yf.source);
+      llvm::AllocaInst* source_alloca =
+          CreateEntryAlloca(emitter, builder, source_llvm_ty, "yield_from_source");
+      if (!source_alloca) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      if (!source_val) {
+        source_val = llvm::Constant::getNullValue(source_llvm_ty);
+      } else if (source_val->getType() != source_llvm_ty) {
+        source_val = CoerceToType(source_val, source_llvm_ty, IsUnsignedValue(yf.source));
+      }
+      builder->CreateStore(source_val, source_alloca);
+      source_ptr = source_alloca;
+    }
+
+    const auto source_sig = analysis::GetAsyncSig(source_type);
+    if (!source_sig.has_value()) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    llvm::Function* func = builder->GetInsertBlock()->getParent();
+    llvm::LLVMContext& llvm_ctx = emitter.GetContext();
+    llvm::BasicBlock* loop_bb =
+        llvm::BasicBlock::Create(llvm_ctx, "yield_from_loop", func);
+    llvm::BasicBlock* suspended_bb =
+        llvm::BasicBlock::Create(llvm_ctx, "yield_from_suspended", func);
+    llvm::BasicBlock* completed_bb =
+        llvm::BasicBlock::Create(llvm_ctx, "yield_from_completed", func);
+    llvm::BasicBlock* failed_bb =
+        llvm::BasicBlock::Create(llvm_ctx, "yield_from_failed", func);
+    llvm::BasicBlock* exit_bb =
+        llvm::BasicBlock::Create(llvm_ctx, "yield_from_exit", func);
+
+    builder->CreateBr(loop_bb);
+    builder->SetInsertPoint(loop_bb);
+
+    llvm::IntegerType* disc_ty =
+        llvm::cast<llvm::IntegerType>(emitter.GetLLVMType(analysis::MakeTypePrim("u8")));
+    llvm::Value* disc = LoadAtOffset(emitter, builder, source_ptr, 0, disc_ty);
+    if (!disc) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    llvm::SwitchInst* sw = builder->CreateSwitch(disc, failed_bb, 3);
+    sw->addCase(llvm::ConstantInt::get(disc_ty, 0), suspended_bb);  // @Suspended
+    sw->addCase(llvm::ConstantInt::get(disc_ty, 1), completed_bb);  // @Completed
+    sw->addCase(llvm::ConstantInt::get(disc_ty, 2), failed_bb);     // @Failed
+
+    // Handle @Suspended: yield output and suspend outer async
+    builder->SetInsertPoint(suspended_bb);
+    {
+      analysis::TypeRef out_type = async_state->info->out_type;
+      if (!out_type) {
+        out_type = source_sig->out;
+      }
+      llvm::Value* out_val = nullptr;
+      if (out_type && !IsUnitType(out_type)) {
+        llvm::Type* out_llvm_ty = emitter.GetLLVMType(out_type);
+        if (out_llvm_ty) {
+          out_val = LoadAtOffset(emitter, builder, source_ptr,
+                                 source_payload_layout->payload_offset +
+                                     source_payload_layout->suspended_output_offset,
+                                 out_llvm_ty);
+        }
+      }
+      if (!out_val) {
+        llvm::Type* unit_ty = emitter.GetLLVMType(analysis::MakeTypePrim("()"));
+        if (unit_ty) {
+          out_val = llvm::Constant::getNullValue(unit_ty);
+        }
+      }
+
+      auto* alloca =
+          CreateEntryAlloca(emitter, builder, outer_async_llvm_ty, "async_yield_from");
+      if (!alloca) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      builder->CreateStore(llvm::Constant::getNullValue(outer_async_llvm_ty), alloca);
+
+      llvm::Value* disc_val = llvm::ConstantInt::get(disc_ty, 0);
+      StoreAtOffset(emitter, builder, alloca, 0, disc_val);
+
+      if (out_type) {
+        const auto size_opt = SizeOf(scope, out_type);
+        if (size_opt.has_value() && *size_opt > 0 && out_val) {
+          llvm::Type* out_llvm_ty = emitter.GetLLVMType(out_type);
+          out_val = CoerceToType(out_val, out_llvm_ty, IsUnsignedType(out_type));
+          StoreAtOffset(emitter, builder, alloca,
+                        outer_payload_layout->payload_offset +
+                            outer_payload_layout->suspended_output_offset,
+                        out_val);
+        }
+      }
+
+      StoreAtOffset(emitter, builder, alloca,
+                    outer_payload_layout->payload_offset +
+                        outer_payload_layout->suspended_frame_offset,
+                    async_state->frame_ptr);
+
+      llvm::Value* state_val = llvm::ConstantInt::get(
+          llvm::Type::getInt64Ty(emitter.GetContext()),
+          static_cast<std::uint64_t>(yf.state_index));
+      StoreAtOffset(emitter, builder, async_state->frame_ptr,
+                    kAsyncFrameResumeStateOffset, state_val);
+
+      llvm::Value* async_val = builder->CreateLoad(outer_async_llvm_ty, alloca);
+
+      if (func->arg_size() > 0 &&
+          func->hasParamAttribute(0, llvm::Attribute::StructRet)) {
+        llvm::Argument* sret = func->getArg(0);
+        builder->CreateStore(async_val, sret);
+        builder->CreateRetVoid();
+      } else {
+        builder->CreateRet(async_val);
+      }
+    }
+
+    // Resume block for yield-from
+    llvm::BasicBlock* resume_bb = nullptr;
+    auto resume_it = async_state->resume_blocks.find(yf.state_index);
+    if (resume_it != async_state->resume_blocks.end()) {
+      resume_bb = resume_it->second;
+    } else {
+      resume_bb = llvm::BasicBlock::Create(
+          emitter.GetContext(), "resume_state", func);
+      async_state->resume_blocks[yf.state_index] = resume_bb;
+      if (async_state->resume_switch) {
+        llvm::IntegerType* state_ty =
+            llvm::Type::getInt64Ty(emitter.GetContext());
+        llvm::ConstantInt* case_val = llvm::ConstantInt::get(
+            state_ty, static_cast<std::uint64_t>(yf.state_index));
+        async_state->resume_switch->addCase(case_val, resume_bb);
+      }
+    }
+
+    builder->SetInsertPoint(resume_bb);
+
+    llvm::Value* input_ptr = async_state->input_ptr
+                                 ? async_state->input_ptr
+                                 : llvm::Constant::getNullValue(emitter.GetOpaquePtr());
+    llvm::Value* source_frame_ptr =
+        LoadAtOffset(emitter, builder, source_ptr,
+                     source_payload_layout->payload_offset +
+                         source_payload_layout->suspended_frame_offset,
+                     emitter.GetOpaquePtr());
+    if (!source_frame_ptr) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+    llvm::Value* resumed = CallAsyncResume(emitter, builder, ctx,
+                                           source_frame_ptr, input_ptr, source_type);
+    if (!resumed) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+    if (resumed->getType() != source_llvm_ty) {
+      resumed = CoerceToType(resumed, source_llvm_ty, IsUnsignedType(source_type));
+    }
+    builder->CreateStore(resumed, source_ptr);
+    builder->CreateBr(loop_bb);
+
+    // Handle @Completed: produce final result
+    builder->SetInsertPoint(completed_bb);
+    {
+      analysis::TypeRef result_type = source_sig->result;
+      llvm::Value* result_val = nullptr;
+      if (result_type) {
+        llvm::Type* result_llvm_ty = emitter.GetLLVMType(result_type);
+        if (result_llvm_ty) {
+          result_val = LoadAtOffset(emitter, builder, source_ptr,
+                                    source_payload_layout->payload_offset,
+                                    result_llvm_ty);
+          if (!result_val) {
+            result_val = llvm::Constant::getNullValue(result_llvm_ty);
+          }
+        }
+      }
+      if (result_val) {
+        StoreTemp(yf.result, result_val);
+      }
+      builder->CreateBr(exit_bb);
+    }
+
+    // Handle @Failed: propagate error from outer async
+    builder->SetInsertPoint(failed_bb);
+    {
+      analysis::TypeRef err_type = source_sig->err;
+      if (IsNeverType(err_type)) {
+        EmitPanicIfFalse(emitter, builder,
+                         llvm::ConstantInt::getFalse(llvm_ctx),
+                         PanicCode(PanicReason::AsyncFailed));
+        builder->CreateUnreachable();
+        return;
+      }
+
+      llvm::Value* err_val = nullptr;
+      if (err_type) {
+        llvm::Type* err_llvm_ty = emitter.GetLLVMType(err_type);
+        if (err_llvm_ty) {
+          err_val = LoadAtOffset(emitter, builder, source_ptr,
+                                 source_payload_layout->payload_offset,
+                                 err_llvm_ty);
+          if (!err_val) {
+            err_val = llvm::Constant::getNullValue(err_llvm_ty);
+          }
+        }
+      }
+
+      auto* alloca =
+          CreateEntryAlloca(emitter, builder, outer_async_llvm_ty, "async_fail");
+      if (!alloca) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      builder->CreateStore(llvm::Constant::getNullValue(outer_async_llvm_ty), alloca);
+
+      llvm::Value* disc_val = llvm::ConstantInt::get(disc_ty, 2);
+      StoreAtOffset(emitter, builder, alloca, 0, disc_val);
+
+      analysis::TypeRef outer_err_type = async_state->info->err_type;
+      if (!outer_err_type) {
+        if (auto outer_sig = analysis::GetAsyncSig(outer_async_type)) {
+          outer_err_type = outer_sig->err;
+        }
+      }
+      if (outer_err_type) {
+        const auto size_opt = SizeOf(scope, outer_err_type);
+        if (size_opt.has_value() && *size_opt > 0 && err_val) {
+          llvm::Type* err_llvm_ty = emitter.GetLLVMType(outer_err_type);
+          if (err_llvm_ty) {
+            err_val = CoerceToType(err_val, err_llvm_ty, IsUnsignedType(outer_err_type));
+            StoreAtOffset(emitter, builder, alloca,
+                          outer_payload_layout->payload_offset, err_val);
+          }
+        }
+      }
+
+      llvm::Value* async_val = builder->CreateLoad(outer_async_llvm_ty, alloca);
+
+      if (async_state->info && async_state->info->is_resume &&
+          async_state->frame_ptr) {
+        llvm::Function* free_fn = emitter.GetFunction(BuiltinSymAsyncFreeFrame());
+        if (!free_fn) {
+          free_fn = emitter.GetModule().getFunction(BuiltinSymAsyncFreeFrame());
+        }
+        if (free_fn) {
+          builder->CreateCall(free_fn, {async_state->frame_ptr});
+        } else if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+      }
+
+      if (func->arg_size() > 0 &&
+          func->hasParamAttribute(0, llvm::Attribute::StructRet)) {
+        llvm::Argument* sret = func->getArg(0);
+        builder->CreateStore(async_val, sret);
+        builder->CreateRetVoid();
+      } else {
+        builder->CreateRet(async_val);
+      }
+      return;
+    }
+
+    builder->SetInsertPoint(exit_bb);
   }
 
   // §19.3.3 Sync expression lowering
   // Runs async to completion synchronously
-  void operator()(const IRSync& sync) {
+    void operator()(const IRSync& sync) {
     SPEC_RULE("LowerIR-Sync");
     SPEC_RULE("Lower-SyncIR");
 
@@ -5240,12 +6071,7 @@ struct IRVisitor {
     // - Discriminant: u8 at offset 0 (0=Suspended, 1=Completed, 2=Failed)
     // - Payload: after discriminant, aligned
     //
-    // For Future<T> = Async<(), (), T, !>:
-    // - @Completed { value: T } is the only non-empty state
-    // - @Suspended { output: () } has unit output
-    // - @Failed { error: ! } is uninhabited
-    //
-    // §19.3.3 Sync semantics:
+    // ?19.3.3 Sync semantics:
     // Loop: check state
     //   @Suspended -> call resume(())
     //   @Completed -> return value
@@ -5254,6 +6080,72 @@ struct IRVisitor {
     llvm::Function* func = builder->GetInsertBlock()->getParent();
     llvm::LLVMContext& llvm_ctx = emitter.GetContext();
 
+    const auto scope = BuildScope(ctx);
+    analysis::TypeRef async_type = sync.async_type;
+    if (!async_type) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    const auto payload_layout = AsyncPayloadLayoutOf(scope, async_type);
+    if (!payload_layout.has_value()) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    analysis::TypeRef result_type = sync.result_type;
+    analysis::TypeRef error_type = sync.error_type;
+    if (!result_type || !error_type) {
+      if (auto sig = analysis::GetAsyncSig(async_type)) {
+        if (!result_type) result_type = sig->result;
+        if (!error_type) error_type = sig->err;
+      }
+    }
+
+    analysis::TypeRef out_type = ctx ? ctx->LookupValueType(sync.result) : nullptr;
+    if (!out_type) {
+      if (error_type && !IsNeverType(error_type)) {
+        out_type = analysis::MakeTypeUnion({result_type, error_type});
+      } else {
+        out_type = result_type;
+      }
+    }
+
+    llvm::Type* result_llvm_ty = result_type ? emitter.GetLLVMType(result_type) : nullptr;
+    if (!result_llvm_ty) {
+      result_llvm_ty = llvm::StructType::get(llvm_ctx, {});  // Unit type
+    }
+
+    llvm::Type* out_llvm_ty = out_type ? emitter.GetLLVMType(out_type) : result_llvm_ty;
+    if (!out_llvm_ty) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    llvm::Type* async_llvm_ty = emitter.GetLLVMType(async_type);
+    if (!async_llvm_ty) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    llvm::AllocaInst* result_slot =
+        CreateEntryAlloca(emitter, builder, out_llvm_ty, "sync_result");
+    if (!result_slot) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+    builder->CreateStore(llvm::Constant::getNullValue(out_llvm_ty), result_slot);
+
     // Create basic blocks for the sync loop
     llvm::BasicBlock* loop_bb = llvm::BasicBlock::Create(llvm_ctx, "sync_loop", func);
     llvm::BasicBlock* suspended_bb = llvm::BasicBlock::Create(llvm_ctx, "sync_suspended", func);
@@ -5261,49 +6153,29 @@ struct IRVisitor {
     llvm::BasicBlock* failed_bb = llvm::BasicBlock::Create(llvm_ctx, "sync_failed", func);
     llvm::BasicBlock* exit_bb = llvm::BasicBlock::Create(llvm_ctx, "sync_exit", func);
 
-    // §19.3.3: Async struct layout is { i8 discriminant, T payload }
-    llvm::IntegerType* i8_ty = llvm::Type::getInt8Ty(llvm_ctx);
-
-    // Get result type for payload
-    analysis::TypeRef result_type = sync.result_type;
-    llvm::Type* result_llvm_ty = result_type ? emitter.GetLLVMType(result_type) : nullptr;
-    if (!result_llvm_ty) {
-      result_llvm_ty = llvm::StructType::get(llvm_ctx, {});  // Unit type
-    }
-
-    // The async_val is a by-value struct from IRAsyncComplete
-    // Use its actual type to ensure type consistency
-    llvm::Type* async_val_ty = async_val->getType();
-    llvm::StructType* async_struct_ty = nullptr;
-
-    // If async_val is not a pointer, we need to allocate and store it
+    // If async_val is not a pointer, allocate and store it to get an address.
     llvm::Value* async_struct_ptr = async_val;
-    if (!async_val_ty->isPointerTy()) {
-      // Use the actual type of async_val for the alloca
-      if (auto* struct_ty = llvm::dyn_cast<llvm::StructType>(async_val_ty)) {
-        async_struct_ty = struct_ty;
-      } else {
-        // Fallback: create struct type
-        async_struct_ty = llvm::StructType::get(llvm_ctx, {i8_ty, result_llvm_ty});
+    if (!async_val->getType()->isPointerTy()) {
+      llvm::AllocaInst* async_alloca =
+          CreateEntryAlloca(emitter, builder, async_llvm_ty, "async_slot");
+      if (!async_alloca) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
       }
-      llvm::AllocaInst* async_alloca = CreateEntryAlloca(emitter, builder, async_struct_ty, "async_slot");
-      if (async_alloca) {
-        builder->CreateStore(async_val, async_alloca);
-        async_struct_ptr = async_alloca;
-      }
-    } else {
-      // async_val is a pointer - get the element type
-      // For opaque pointers, create our expected struct type
-      async_struct_ty = llvm::StructType::get(llvm_ctx, {i8_ty, result_llvm_ty});
+      builder->CreateStore(async_val, async_alloca);
+      async_struct_ptr = async_alloca;
     }
 
     // Jump to loop
     builder->CreateBr(loop_bb);
     builder->SetInsertPoint(loop_bb);
 
-    // Load discriminant using struct GEP (field 0)
-    llvm::Value* disc_ptr = builder->CreateStructGEP(async_struct_ty, async_struct_ptr, 0, "disc_ptr");
-    llvm::Value* disc = builder->CreateLoad(i8_ty, disc_ptr, "disc");
+    // Load discriminant at offset 0
+    llvm::IntegerType* disc_ty =
+        llvm::cast<llvm::IntegerType>(emitter.GetLLVMType(analysis::MakeTypePrim("u8")));
+    llvm::Value* disc = LoadAtOffset(emitter, builder, async_struct_ptr, 0, disc_ty);
     if (!disc) {
       if (ctx) {
         ctx->ReportCodegenFailure();
@@ -5313,74 +6185,328 @@ struct IRVisitor {
 
     // Create switch on discriminant
     llvm::SwitchInst* sw = builder->CreateSwitch(disc, failed_bb, 2);
-    sw->addCase(llvm::ConstantInt::get(i8_ty, 0), suspended_bb);  // @Suspended
-    sw->addCase(llvm::ConstantInt::get(i8_ty, 1), completed_bb);  // @Completed
+    sw->addCase(llvm::ConstantInt::get(disc_ty, 0), suspended_bb);  // @Suspended
+    sw->addCase(llvm::ConstantInt::get(disc_ty, 1), completed_bb);  // @Completed
 
     // Handle @Suspended: call resume and loop back
     builder->SetInsertPoint(suspended_bb);
     {
-      // For Future<T> = Async<(), (), T, !>, input type is ()
-      // Call cursive0_async_resume(async_ptr, unit_input)
-      //
-      // For now, since we don't have the runtime function implemented,
-      // we'll just loop back (assumes the async is already @Completed)
-      // TODO: Implement proper resume call
+      llvm::Value* frame_ptr = LoadAtOffset(emitter, builder, async_struct_ptr,
+                                            payload_layout->payload_offset +
+                                                payload_layout->suspended_frame_offset,
+                                            emitter.GetOpaquePtr());
+      if (!frame_ptr) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      llvm::Value* input_ptr = llvm::Constant::getNullValue(emitter.GetOpaquePtr());
+      llvm::Value* resumed = CallAsyncResume(emitter, builder, ctx,
+                                             frame_ptr, input_ptr, async_type);
+      if (!resumed) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      builder->CreateStore(resumed, async_struct_ptr);
       builder->CreateBr(loop_bb);
     }
 
     // Handle @Completed: extract value and exit
     builder->SetInsertPoint(completed_bb);
-    llvm::Value* completed_result = nullptr;
     {
-      // Use struct GEP to access payload at field 1
-      llvm::Value* payload_ptr = builder->CreateStructGEP(async_struct_ty, async_struct_ptr, 1, "payload_ptr");
-      completed_result = builder->CreateLoad(result_llvm_ty, payload_ptr, "completed_value");
-
-      if (!completed_result) {
-        // Fall back to unit/zero value
-        completed_result = llvm::Constant::getNullValue(result_llvm_ty);
+      llvm::Value* completed_val = LoadAtOffset(emitter, builder, async_struct_ptr,
+                                                 payload_layout->payload_offset,
+                                                 result_llvm_ty);
+      if (!completed_val) {
+        completed_val = llvm::Constant::getNullValue(result_llvm_ty);
       }
-
+      llvm::Value* out_val = BuildUnionValue(out_type, result_type, completed_val);
+      if (!out_val) {
+        out_val = llvm::Constant::getNullValue(out_llvm_ty);
+      }
+      builder->CreateStore(out_val, result_slot);
       builder->CreateBr(exit_bb);
     }
 
     // Handle @Failed: propagate error or panic
     builder->SetInsertPoint(failed_bb);
     {
-      // For Future<T> = Async<(), (), T, !>, error type is ! (never)
-      // So @Failed is uninhabited - we should never reach here
-      // Call panic or use unreachable
-      EmitPanicIfFalse(emitter, builder,
-                       llvm::ConstantInt::getFalse(llvm_ctx),
-                       PanicCode(PanicReason::AsyncFailed));
-      builder->CreateUnreachable();
+      if (IsNeverType(error_type)) {
+        EmitPanicIfFalse(emitter, builder,
+                         llvm::ConstantInt::getFalse(llvm_ctx),
+                         PanicCode(PanicReason::AsyncFailed));
+        builder->CreateUnreachable();
+      } else {
+        llvm::Type* err_llvm_ty = error_type ? emitter.GetLLVMType(error_type) : nullptr;
+        llvm::Value* err_val = nullptr;
+        if (err_llvm_ty) {
+          err_val = LoadAtOffset(emitter, builder, async_struct_ptr,
+                                 payload_layout->payload_offset, err_llvm_ty);
+          if (!err_val) {
+            err_val = llvm::Constant::getNullValue(err_llvm_ty);
+          }
+        }
+        llvm::Value* out_val = BuildUnionValue(out_type, error_type, err_val);
+        if (!out_val) {
+          out_val = llvm::Constant::getNullValue(out_llvm_ty);
+        }
+        builder->CreateStore(out_val, result_slot);
+        builder->CreateBr(exit_bb);
+      }
     }
 
-    // Exit block: phi node for result
+    // Exit block: load result
     builder->SetInsertPoint(exit_bb);
-
-    if (result_llvm_ty && completed_result) {
-      llvm::PHINode* phi = builder->CreatePHI(result_llvm_ty, 1, "sync_result");
-      phi->addIncoming(completed_result, completed_bb);
-      StoreTemp(sync.result, phi);
-    } else if (result_llvm_ty) {
-      StoreTemp(sync.result, llvm::Constant::getNullValue(result_llvm_ty));
-    }
+    llvm::Value* out_val = builder->CreateLoad(out_llvm_ty, result_slot);
+    StoreTemp(sync.result, out_val);
   }
 
   // §19.3.4 Race expression (first-completion mode) lowering
-  void operator()(const IRRaceReturn& race) {
+    void operator()(const IRRaceReturn& race) {
     SPEC_RULE("LowerIR-RaceReturn");
     SPEC_RULE("Lower-RaceReturnIR");
 
-    // TODO: Implement race (first-completion) emission
-    // 1. Initiate all async values
-    // 2. Poll until one completes
-    // 3. Execute corresponding handler
-    // 4. Cancel other operations
-    // 5. Return handler result
+    const auto scope = BuildScope(ctx);
+    analysis::TypeRef union_type = ctx ? ctx->LookupValueType(race.result) : nullptr;
+    if (!union_type) {
+      union_type = race.result_type;
+    }
+    llvm::Type* union_llvm_ty = union_type ? emitter.GetLLVMType(union_type) : nullptr;
+    if (!union_llvm_ty) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
 
-    (void)race;  // Suppress unused warning until implemented
+    llvm::AllocaInst* result_slot =
+        CreateEntryAlloca(emitter, builder, union_llvm_ty, "race_result");
+    if (!result_slot) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+    builder->CreateStore(llvm::Constant::getNullValue(union_llvm_ty), result_slot);
+
+    struct ArmState {
+      const IRRaceArm* arm = nullptr;
+      analysis::TypeRef async_type;
+      analysis::TypeRef result_type;
+      analysis::TypeRef err_type;
+      llvm::Type* async_llvm_ty = nullptr;
+      llvm::AllocaInst* slot = nullptr;
+      AsyncPayloadLayout payload;
+    };
+
+    std::vector<ArmState> arms;
+    arms.reserve(race.arms.size());
+    for (const auto& arm : race.arms) {
+      emitter.EmitIR(arm.async_ir);
+      analysis::TypeRef async_type = ctx ? ctx->LookupValueType(arm.async_value) : nullptr;
+      if (!async_type) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      const auto sig = analysis::GetAsyncSig(async_type);
+      if (!sig.has_value()) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      const auto payload_layout = AsyncPayloadLayoutOf(scope, async_type);
+      if (!payload_layout.has_value()) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      llvm::Type* async_llvm_ty = emitter.GetLLVMType(async_type);
+      if (!async_llvm_ty) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      llvm::AllocaInst* slot =
+          CreateEntryAlloca(emitter, builder, async_llvm_ty, "race_async");
+      if (!slot) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      llvm::Value* async_val = emitter.EvaluateIRValue(arm.async_value);
+      if (!async_val) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      if (async_val->getType() != async_llvm_ty) {
+        async_val = CoerceToType(async_val, async_llvm_ty, IsUnsignedValue(arm.async_value));
+      }
+      builder->CreateStore(async_val, slot);
+
+      ArmState state;
+      state.arm = &arm;
+      state.async_type = async_type;
+      state.result_type = sig->result;
+      state.err_type = sig->err;
+      state.async_llvm_ty = async_llvm_ty;
+      state.slot = slot;
+      state.payload = *payload_layout;
+      arms.push_back(state);
+    }
+
+    llvm::Function* func = builder->GetInsertBlock()->getParent();
+    llvm::LLVMContext& llvm_ctx = emitter.GetContext();
+    llvm::BasicBlock* loop_bb = llvm::BasicBlock::Create(llvm_ctx, "race_loop", func);
+    llvm::BasicBlock* resume_bb = llvm::BasicBlock::Create(llvm_ctx, "race_resume", func);
+    llvm::BasicBlock* exit_bb = llvm::BasicBlock::Create(llvm_ctx, "race_exit", func);
+
+    std::vector<llvm::BasicBlock*> check_bbs;
+    std::vector<llvm::BasicBlock*> completed_bbs;
+    std::vector<llvm::BasicBlock*> failed_bbs;
+    check_bbs.reserve(arms.size());
+    completed_bbs.reserve(arms.size());
+    failed_bbs.reserve(arms.size());
+    for (std::size_t i = 0; i < arms.size(); ++i) {
+      check_bbs.push_back(llvm::BasicBlock::Create(llvm_ctx, "race_check", func));
+      completed_bbs.push_back(llvm::BasicBlock::Create(llvm_ctx, "race_completed", func));
+      failed_bbs.push_back(llvm::BasicBlock::Create(llvm_ctx, "race_failed", func));
+    }
+
+    builder->CreateBr(loop_bb);
+    builder->SetInsertPoint(loop_bb);
+    if (check_bbs.empty()) {
+      builder->CreateBr(exit_bb);
+    } else {
+      builder->CreateBr(check_bbs[0]);
+    }
+
+    llvm::IntegerType* disc_ty =
+        llvm::cast<llvm::IntegerType>(emitter.GetLLVMType(analysis::MakeTypePrim("u8")));
+
+    for (std::size_t i = 0; i < arms.size(); ++i) {
+      const auto& arm = arms[i];
+      llvm::BasicBlock* next_bb = (i + 1 < arms.size()) ? check_bbs[i + 1] : resume_bb;
+
+      builder->SetInsertPoint(check_bbs[i]);
+      llvm::Value* disc = LoadAtOffset(emitter, builder, arm.slot, 0, disc_ty);
+      if (!disc) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      llvm::SwitchInst* sw = builder->CreateSwitch(disc, next_bb, 2);
+      sw->addCase(llvm::ConstantInt::get(disc_ty, 1), completed_bbs[i]);
+      sw->addCase(llvm::ConstantInt::get(disc_ty, 2), failed_bbs[i]);
+
+      // Completed arm: bind pattern, run handler, return result
+      builder->SetInsertPoint(completed_bbs[i]);
+      {
+        llvm::Value* result_val = nullptr;
+        if (arm.result_type) {
+          llvm::Type* result_llvm_ty = emitter.GetLLVMType(arm.result_type);
+          if (result_llvm_ty) {
+            result_val = LoadAtOffset(emitter, builder, arm.slot,
+                                      arm.payload.payload_offset, result_llvm_ty);
+            if (!result_val) {
+              result_val = llvm::Constant::getNullValue(result_llvm_ty);
+            }
+          }
+        }
+        if (result_val) {
+          StoreTemp(arm.arm->match_value, result_val);
+        }
+        emitter.EmitIR(arm.arm->handler_ir);
+        llvm::Value* handler_val = emitter.EvaluateIRValue(arm.arm->handler_result);
+        analysis::TypeRef handler_type = ctx ? ctx->LookupValueType(arm.arm->handler_result)
+                                             : race.result_type;
+        llvm::Value* out_val = BuildUnionValue(union_type, handler_type, handler_val);
+        if (!out_val) {
+          out_val = llvm::Constant::getNullValue(union_llvm_ty);
+        }
+        builder->CreateStore(out_val, result_slot);
+        if (!builder->GetInsertBlock()->getTerminator()) {
+          builder->CreateBr(exit_bb);
+        }
+      }
+
+      // Failed arm: propagate error
+      builder->SetInsertPoint(failed_bbs[i]);
+      {
+        if (IsNeverType(arm.err_type)) {
+          EmitPanicIfFalse(emitter, builder,
+                           llvm::ConstantInt::getFalse(llvm_ctx),
+                           PanicCode(PanicReason::AsyncFailed));
+          builder->CreateUnreachable();
+        } else {
+          llvm::Value* err_val = nullptr;
+          if (arm.err_type) {
+            llvm::Type* err_llvm_ty = emitter.GetLLVMType(arm.err_type);
+            if (err_llvm_ty) {
+              err_val = LoadAtOffset(emitter, builder, arm.slot,
+                                     arm.payload.payload_offset, err_llvm_ty);
+              if (!err_val) {
+                err_val = llvm::Constant::getNullValue(err_llvm_ty);
+              }
+            }
+          }
+          llvm::Value* out_val = BuildUnionValue(union_type, arm.err_type, err_val);
+          if (!out_val) {
+            out_val = llvm::Constant::getNullValue(union_llvm_ty);
+          }
+          builder->CreateStore(out_val, result_slot);
+          if (!builder->GetInsertBlock()->getTerminator()) {
+            builder->CreateBr(exit_bb);
+          }
+        }
+      }
+    }
+
+    // Resume all suspended arms and loop
+    builder->SetInsertPoint(resume_bb);
+    {
+      llvm::Value* input_ptr = llvm::Constant::getNullValue(emitter.GetOpaquePtr());
+      for (const auto& arm : arms) {
+        llvm::Value* frame_ptr = LoadAtOffset(emitter, builder, arm.slot,
+                                               arm.payload.payload_offset +
+                                                   arm.payload.suspended_frame_offset,
+                                               emitter.GetOpaquePtr());
+        if (!frame_ptr) {
+          if (ctx) {
+            ctx->ReportCodegenFailure();
+          }
+          return;
+        }
+        llvm::Value* resumed = CallAsyncResume(emitter, builder, ctx,
+                                               frame_ptr, input_ptr, arm.async_type);
+        if (!resumed) {
+          if (ctx) {
+            ctx->ReportCodegenFailure();
+          }
+          return;
+        }
+        if (resumed->getType() != arm.async_llvm_ty) {
+          resumed = CoerceToType(resumed, arm.async_llvm_ty, IsUnsignedType(arm.async_type));
+        }
+        builder->CreateStore(resumed, arm.slot);
+      }
+      builder->CreateBr(loop_bb);
+    }
+
+    builder->SetInsertPoint(exit_bb);
+    llvm::Value* out_val = builder->CreateLoad(union_llvm_ty, result_slot);
+    StoreTemp(race.result, out_val);
   }
 
   // §19.3.4 Race expression (streaming mode) lowering
@@ -5399,17 +6525,397 @@ struct IRVisitor {
   }
 
   // §19.3.5 All expression lowering
-  void operator()(const IRAll& all) {
+    void operator()(const IRAll& all) {
     SPEC_RULE("LowerIR-All");
     SPEC_RULE("Lower-AllIR");
 
-    // TODO: Implement all emission
-    // 1. Initiate all async values
-    // 2. Wait for all to complete
-    // 3. If all succeed: construct result tuple
-    // 4. If any fails: cancel remaining, propagate first error
+    const auto scope = BuildScope(ctx);
+    analysis::TypeRef union_type = ctx ? ctx->LookupValueType(all.result) : nullptr;
+    llvm::Type* union_llvm_ty = union_type ? emitter.GetLLVMType(union_type) : nullptr;
+    if (!union_llvm_ty) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
 
-    (void)all;  // Suppress unused warning until implemented
+    llvm::AllocaInst* result_slot =
+        CreateEntryAlloca(emitter, builder, union_llvm_ty, "all_result");
+    if (!result_slot) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+    builder->CreateStore(llvm::Constant::getNullValue(union_llvm_ty), result_slot);
+
+    struct ArmState {
+      analysis::TypeRef async_type;
+      analysis::TypeRef result_type;
+      analysis::TypeRef err_type;
+      llvm::Type* async_llvm_ty = nullptr;
+      llvm::Type* result_llvm_ty = nullptr;
+      llvm::AllocaInst* slot = nullptr;
+      llvm::AllocaInst* done_slot = nullptr;
+      llvm::AllocaInst* value_slot = nullptr;
+      AsyncPayloadLayout payload;
+    };
+
+    std::vector<ArmState> arms;
+    arms.reserve(all.async_values.size());
+    std::vector<analysis::TypeRef> tuple_elems;
+    tuple_elems.reserve(all.async_values.size());
+
+    for (std::size_t i = 0; i < all.async_values.size(); ++i) {
+      if (i < all.async_irs.size()) {
+        emitter.EmitIR(all.async_irs[i]);
+      }
+      analysis::TypeRef async_type = ctx ? ctx->LookupValueType(all.async_values[i]) : nullptr;
+      if (!async_type) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      const auto sig = analysis::GetAsyncSig(async_type);
+      if (!sig.has_value()) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      const auto payload_layout = AsyncPayloadLayoutOf(scope, async_type);
+      if (!payload_layout.has_value()) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      llvm::Type* async_llvm_ty = emitter.GetLLVMType(async_type);
+      if (!async_llvm_ty) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      llvm::AllocaInst* slot =
+          CreateEntryAlloca(emitter, builder, async_llvm_ty, "all_async");
+      if (!slot) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      llvm::Value* async_val = emitter.EvaluateIRValue(all.async_values[i]);
+      if (!async_val) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      if (async_val->getType() != async_llvm_ty) {
+        async_val = CoerceToType(async_val, async_llvm_ty, IsUnsignedValue(all.async_values[i]));
+      }
+      builder->CreateStore(async_val, slot);
+
+      llvm::AllocaInst* done_slot =
+          CreateEntryAlloca(emitter, builder, llvm::Type::getInt1Ty(emitter.GetContext()), "all_done");
+      if (!done_slot) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      builder->CreateStore(llvm::ConstantInt::getFalse(emitter.GetContext()), done_slot);
+
+      llvm::Type* result_llvm_ty = sig->result ? emitter.GetLLVMType(sig->result) : nullptr;
+      llvm::AllocaInst* value_slot = nullptr;
+      if (result_llvm_ty) {
+        value_slot = CreateEntryAlloca(emitter, builder, result_llvm_ty, "all_value");
+        if (value_slot) {
+          builder->CreateStore(llvm::Constant::getNullValue(result_llvm_ty), value_slot);
+        }
+      }
+
+      ArmState state;
+      state.async_type = async_type;
+      state.result_type = sig->result;
+      state.err_type = sig->err;
+      state.async_llvm_ty = async_llvm_ty;
+      state.result_llvm_ty = result_llvm_ty;
+      state.slot = slot;
+      state.done_slot = done_slot;
+      state.value_slot = value_slot;
+      state.payload = *payload_layout;
+      arms.push_back(state);
+      tuple_elems.push_back(sig->result);
+    }
+
+    analysis::TypeRef tuple_type = all.tuple_type;
+    if (!tuple_type) {
+      tuple_type = analysis::MakeTypeTuple(tuple_elems);
+    }
+
+    llvm::Function* func = builder->GetInsertBlock()->getParent();
+    llvm::LLVMContext& llvm_ctx = emitter.GetContext();
+    llvm::BasicBlock* loop_bb = llvm::BasicBlock::Create(llvm_ctx, "all_loop", func);
+    llvm::BasicBlock* after_bb = llvm::BasicBlock::Create(llvm_ctx, "all_after", func);
+    llvm::BasicBlock* success_bb = llvm::BasicBlock::Create(llvm_ctx, "all_success", func);
+    llvm::BasicBlock* exit_bb = llvm::BasicBlock::Create(llvm_ctx, "all_exit", func);
+
+    std::vector<llvm::BasicBlock*> check_bbs;
+    std::vector<llvm::BasicBlock*> proc_bbs;
+    std::vector<llvm::BasicBlock*> suspended_bbs;
+    std::vector<llvm::BasicBlock*> completed_bbs;
+    std::vector<llvm::BasicBlock*> failed_bbs;
+    check_bbs.reserve(arms.size());
+    proc_bbs.reserve(arms.size());
+    suspended_bbs.reserve(arms.size());
+    completed_bbs.reserve(arms.size());
+    failed_bbs.reserve(arms.size());
+    for (std::size_t i = 0; i < arms.size(); ++i) {
+      check_bbs.push_back(llvm::BasicBlock::Create(llvm_ctx, "all_check", func));
+      proc_bbs.push_back(llvm::BasicBlock::Create(llvm_ctx, "all_proc", func));
+      suspended_bbs.push_back(llvm::BasicBlock::Create(llvm_ctx, "all_suspend", func));
+      completed_bbs.push_back(llvm::BasicBlock::Create(llvm_ctx, "all_complete", func));
+      failed_bbs.push_back(llvm::BasicBlock::Create(llvm_ctx, "all_failed", func));
+    }
+
+    builder->CreateBr(loop_bb);
+    builder->SetInsertPoint(loop_bb);
+    if (check_bbs.empty()) {
+      builder->CreateBr(success_bb);
+    } else {
+      builder->CreateBr(check_bbs[0]);
+    }
+
+    llvm::IntegerType* disc_ty =
+        llvm::cast<llvm::IntegerType>(emitter.GetLLVMType(analysis::MakeTypePrim("u8")));
+
+    for (std::size_t i = 0; i < arms.size(); ++i) {
+      const auto& arm = arms[i];
+      llvm::BasicBlock* next_bb = (i + 1 < arms.size()) ? check_bbs[i + 1] : after_bb;
+
+      builder->SetInsertPoint(check_bbs[i]);
+      llvm::Value* done_val = builder->CreateLoad(llvm::Type::getInt1Ty(llvm_ctx), arm.done_slot);
+      builder->CreateCondBr(done_val, next_bb, proc_bbs[i]);
+
+      builder->SetInsertPoint(proc_bbs[i]);
+      llvm::Value* disc = LoadAtOffset(emitter, builder, arm.slot, 0, disc_ty);
+      if (!disc) {
+        if (ctx) {
+          ctx->ReportCodegenFailure();
+        }
+        return;
+      }
+      llvm::SwitchInst* sw = builder->CreateSwitch(disc, suspended_bbs[i], 2);
+      sw->addCase(llvm::ConstantInt::get(disc_ty, 1), completed_bbs[i]);
+      sw->addCase(llvm::ConstantInt::get(disc_ty, 2), failed_bbs[i]);
+
+      // Suspended: resume and continue
+      builder->SetInsertPoint(suspended_bbs[i]);
+      {
+        llvm::Value* frame_ptr = LoadAtOffset(emitter, builder, arm.slot,
+                                               arm.payload.payload_offset +
+                                                   arm.payload.suspended_frame_offset,
+                                               emitter.GetOpaquePtr());
+        if (!frame_ptr) {
+          if (ctx) {
+            ctx->ReportCodegenFailure();
+          }
+          return;
+        }
+        llvm::Value* input_ptr = llvm::Constant::getNullValue(emitter.GetOpaquePtr());
+        llvm::Value* resumed = CallAsyncResume(emitter, builder, ctx,
+                                               frame_ptr, input_ptr, arm.async_type);
+        if (!resumed) {
+          if (ctx) {
+            ctx->ReportCodegenFailure();
+          }
+          return;
+        }
+        if (resumed->getType() != arm.async_llvm_ty) {
+          resumed = CoerceToType(resumed, arm.async_llvm_ty, IsUnsignedType(arm.async_type));
+        }
+        builder->CreateStore(resumed, arm.slot);
+        builder->CreateBr(next_bb);
+      }
+
+      // Completed: store result and mark done
+      builder->SetInsertPoint(completed_bbs[i]);
+      {
+        if (arm.result_llvm_ty && arm.value_slot) {
+          llvm::Value* result_val = LoadAtOffset(emitter, builder, arm.slot,
+                                                 arm.payload.payload_offset, arm.result_llvm_ty);
+          if (!result_val) {
+            result_val = llvm::Constant::getNullValue(arm.result_llvm_ty);
+          }
+          builder->CreateStore(result_val, arm.value_slot);
+        }
+        builder->CreateStore(llvm::ConstantInt::getTrue(llvm_ctx), arm.done_slot);
+        builder->CreateBr(next_bb);
+      }
+
+      // Failed: propagate error
+      builder->SetInsertPoint(failed_bbs[i]);
+      {
+        if (IsNeverType(arm.err_type)) {
+          EmitPanicIfFalse(emitter, builder,
+                           llvm::ConstantInt::getFalse(llvm_ctx),
+                           PanicCode(PanicReason::AsyncFailed));
+          builder->CreateUnreachable();
+        } else {
+          llvm::Value* err_val = nullptr;
+          if (arm.err_type) {
+            llvm::Type* err_llvm_ty = emitter.GetLLVMType(arm.err_type);
+            if (err_llvm_ty) {
+              err_val = LoadAtOffset(emitter, builder, arm.slot,
+                                     arm.payload.payload_offset, err_llvm_ty);
+              if (!err_val) {
+                err_val = llvm::Constant::getNullValue(err_llvm_ty);
+              }
+            }
+          }
+          llvm::Value* out_val = BuildUnionValue(union_type, arm.err_type, err_val);
+          if (!out_val) {
+            out_val = llvm::Constant::getNullValue(union_llvm_ty);
+          }
+          builder->CreateStore(out_val, result_slot);
+          if (!builder->GetInsertBlock()->getTerminator()) {
+            builder->CreateBr(exit_bb);
+          }
+        }
+      }
+    }
+
+    // After processing all arms, check completion
+    builder->SetInsertPoint(after_bb);
+    llvm::Value* all_done = llvm::ConstantInt::getTrue(llvm_ctx);
+    for (const auto& arm : arms) {
+      llvm::Value* done_val = builder->CreateLoad(llvm::Type::getInt1Ty(llvm_ctx), arm.done_slot);
+      all_done = builder->CreateAnd(all_done, done_val);
+    }
+    builder->CreateCondBr(all_done, success_bb, loop_bb);
+
+    // Success: build tuple and wrap in union
+    builder->SetInsertPoint(success_bb);
+    {
+      llvm::Type* tuple_llvm_ty = tuple_type ? emitter.GetLLVMType(tuple_type) : nullptr;
+      llvm::Value* tuple_val = nullptr;
+      if (tuple_llvm_ty) {
+        auto* tuple_alloca = CreateEntryAlloca(emitter, builder, tuple_llvm_ty, "all_tuple");
+        if (!tuple_alloca) {
+          if (ctx) {
+            ctx->ReportCodegenFailure();
+          }
+          return;
+        }
+        builder->CreateStore(llvm::Constant::getNullValue(tuple_llvm_ty), tuple_alloca);
+        const auto layout = RecordLayoutOf(scope, tuple_elems);
+        if (!layout.has_value() || layout->offsets.size() < tuple_elems.size()) {
+          if (ctx) {
+            ctx->ReportCodegenFailure();
+          }
+          return;
+        }
+        for (std::size_t i = 0; i < arms.size() && i < tuple_elems.size(); ++i) {
+          if (!arms[i].result_llvm_ty || !arms[i].value_slot) {
+            continue;
+          }
+          llvm::Value* elem_val = builder->CreateLoad(arms[i].result_llvm_ty, arms[i].value_slot);
+          StoreAtOffset(emitter, builder, tuple_alloca, layout->offsets[i], elem_val);
+        }
+        tuple_val = builder->CreateLoad(tuple_llvm_ty, tuple_alloca);
+      }
+      llvm::Value* out_val = BuildUnionValue(union_type, tuple_type, tuple_val);
+      if (!out_val) {
+        out_val = llvm::Constant::getNullValue(union_llvm_ty);
+      }
+      builder->CreateStore(out_val, result_slot);
+      builder->CreateBr(exit_bb);
+    }
+
+    builder->SetInsertPoint(exit_bb);
+    llvm::Value* out_val = builder->CreateLoad(union_llvm_ty, result_slot);
+    StoreTemp(all.result, out_val);
+  }
+
+    struct AsyncPayloadLayout {
+    std::uint64_t payload_offset = 0;
+    std::uint64_t payload_size = 0;
+    std::uint64_t payload_align = 1;
+    std::uint64_t suspended_output_offset = 0;
+    std::uint64_t suspended_frame_offset = 0;
+  };
+
+  static bool IsUnitType(const analysis::TypeRef& type) {
+    if (!type) {
+      return false;
+    }
+    if (const auto* prim = std::get_if<analysis::TypePrim>(&type->node)) {
+      return prim->name == "()";
+    }
+    if (const auto* tup = std::get_if<analysis::TypeTuple>(&type->node)) {
+      return tup->elements.empty();
+    }
+    return false;
+  }
+
+  static bool IsNeverType(const analysis::TypeRef& type) {
+    if (!type) {
+      return false;
+    }
+    if (const auto* prim = std::get_if<analysis::TypePrim>(&type->node)) {
+      return prim->name == "!";
+    }
+    return false;
+  }
+
+  static std::optional<AsyncPayloadLayout> AsyncPayloadLayoutOf(
+      const analysis::ScopeContext& scope,
+      const analysis::TypeRef& async_type) {
+    const auto sig = analysis::GetAsyncSig(async_type);
+    if (!sig.has_value()) {
+      return std::nullopt;
+    }
+
+    std::uint64_t max_payload_size = 0;
+    std::uint64_t max_payload_align = 1;
+
+    auto add_payload_layout = [&](const std::optional<Layout>& layout_opt) {
+      if (!layout_opt.has_value() || layout_opt->size == 0) {
+        return;
+      }
+      max_payload_size = std::max(max_payload_size, layout_opt->size);
+      max_payload_align = std::max(max_payload_align, layout_opt->align);
+    };
+
+    const auto frame_ptr = analysis::MakeTypePtr(analysis::MakeTypePrim("u8"),
+                                                 analysis::PtrState::Valid);
+    const auto suspended_layout = RecordLayoutOf(scope, {sig->out, frame_ptr});
+    if (!suspended_layout.has_value() || suspended_layout->offsets.size() < 2) {
+      return std::nullopt;
+    }
+    add_payload_layout(suspended_layout->layout);
+
+    if (!IsUnitType(sig->result) && !IsNeverType(sig->result)) {
+      add_payload_layout(LayoutOf(scope, sig->result));
+    }
+    if (!IsUnitType(sig->err) && !IsNeverType(sig->err)) {
+      add_payload_layout(LayoutOf(scope, sig->err));
+    }
+
+    const auto disc_type = analysis::MakeTypePrim("u8");
+    const auto disc_size = SizeOf(scope, disc_type).value_or(1);
+    const std::uint64_t payload_offset = AlignUp(disc_size, max_payload_align);
+
+    AsyncPayloadLayout out;
+    out.payload_offset = payload_offset;
+    out.payload_size = max_payload_size;
+    out.payload_align = max_payload_align;
+    out.suspended_output_offset = suspended_layout->offsets[0];
+    out.suspended_frame_offset = suspended_layout->offsets[1];
+    return out;
   }
 
   // §19.1.3 Async@Completed value construction
@@ -5421,44 +6927,64 @@ struct IRVisitor {
     // Get the value to wrap
     llvm::Value* value = emitter.EvaluateIRValue(async_complete.value);
 
-    // Async modal type layout:
-    // - Discriminant: u8 at offset 0 (1 = @Completed)
-    // - Payload: after discriminant, aligned (contains the result value)
-    //
-    // For Future<T> = Async<(), (), T, !>:
-    // - @Completed { value: T }
-    //
-    // Build the async struct value directly (not a pointer) for return by value.
+    const auto scope = BuildScope(ctx);
+    const auto async_type = async_complete.async_type;
+    if (!async_type) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
 
-    llvm::LLVMContext& llvm_ctx = emitter.GetContext();
+    const auto payload_layout = AsyncPayloadLayoutOf(scope, async_type);
+    if (!payload_layout.has_value()) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
 
-    // Get the result type (T in Future<T>)
+    llvm::Type* async_llvm_ty = emitter.GetLLVMType(async_type);
+    if (!async_llvm_ty) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    auto* alloca = CreateEntryAlloca(emitter, builder, async_llvm_ty, "async_complete");
+    if (!alloca) {
+      if (ctx) {
+        ctx->ReportCodegenFailure();
+      }
+      return;
+    }
+    builder->CreateStore(llvm::Constant::getNullValue(async_llvm_ty), alloca);
+
+    llvm::Type* disc_ty = emitter.GetLLVMType(analysis::MakeTypePrim("u8"));
+    llvm::Value* disc_val = llvm::ConstantInt::get(disc_ty, 1);
+    StoreAtOffset(emitter, builder, alloca, 0, disc_val);
+
     analysis::TypeRef result_type = async_complete.result_type;
-    llvm::Type* result_llvm_ty = result_type ? emitter.GetLLVMType(result_type) : nullptr;
-    llvm::Type* i8_ty = llvm::Type::getInt8Ty(llvm_ctx);
-
-    if (!result_llvm_ty) {
-      // For unit type or unknown, create a minimal struct
-      result_llvm_ty = llvm::StructType::get(llvm_ctx, {});
+    if (!result_type) {
+      if (auto sig = analysis::GetAsyncSig(async_type)) {
+        result_type = sig->result;
+      }
     }
 
-    // Create the async struct type: { i8 discriminant, T payload }
-    // We use a struct with i8 and the result type, letting LLVM handle alignment
-    llvm::StructType* async_struct_ty = llvm::StructType::get(llvm_ctx, {i8_ty, result_llvm_ty});
-
-    // Build the struct value using insertvalue
-    // Start with an undefined struct and insert the fields
-    llvm::Value* async_val = llvm::UndefValue::get(async_struct_ty);
-
-    // Insert discriminant (1 = @Completed) at field 0
-    async_val = builder->CreateInsertValue(async_val, llvm::ConstantInt::get(i8_ty, 1), {0}, "async_with_disc");
-
-    // Insert payload value at field 1
-    if (value) {
-      async_val = builder->CreateInsertValue(async_val, value, {1}, "async_complete_val");
+    if (result_type) {
+      const auto size_opt = SizeOf(scope, result_type);
+      if (size_opt.has_value() && *size_opt > 0) {
+        llvm::Type* result_llvm_ty = emitter.GetLLVMType(result_type);
+        if (value && result_llvm_ty) {
+          value = CoerceToType(value, result_llvm_ty, IsUnsignedValue(async_complete.value));
+          StoreAtOffset(emitter, builder, alloca,
+                        payload_layout->payload_offset, value);
+        }
+      }
     }
 
-    // Store the struct value (by value, not pointer)
+    llvm::Value* async_val = builder->CreateLoad(async_llvm_ty, alloca);
     StoreTemp(async_complete.result, async_val);
   }
 };

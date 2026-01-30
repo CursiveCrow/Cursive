@@ -409,6 +409,16 @@ std::string BuiltinSymAsyncCreateSuspended() {
   return core::PathSig({"cursive", "runtime", "async", "create_suspended"});
 }
 
+std::string BuiltinSymAsyncAllocFrame() {
+  SPEC_DEF("BuiltinSym-Async-AllocFrame", "§19");
+  return core::PathSig({"cursive", "runtime", "async", "alloc_frame"});
+}
+
+std::string BuiltinSymAsyncFreeFrame() {
+  SPEC_DEF("BuiltinSym-Async-FreeFrame", "§19");
+  return core::PathSig({"cursive", "runtime", "async", "free_frame"});
+}
+
 // ============================================================================
 // §6.8 Panic symbol
 // ============================================================================
@@ -569,3 +579,5 @@ void AnchorRuntimeInterfaceRules() {
 }
 
 }  // namespace cursive0::codegen
+
+

@@ -528,32 +528,67 @@ LayoutOf(const ScopeContext& ctx, const TypeRef& type) {
     const std::string& type_name = path->path.empty() ? "" : path->path.back();
     auto compute_async_layout = [&](const std::vector<TypeRef>& async_args)
         -> std::optional<std::pair<std::uint64_t, std::uint64_t>> {
-      // Async<Out, In, Result, E>: Out=0, In=1, Result=2, E=3
-      // Layout = { u8, max(sizeof(Out), sizeof(Result), sizeof(E if E != !)) }
+      // Async<Out, In, Result, E>: payload includes hidden frame pointer in @Suspended.
       std::uint64_t max_payload_size = 0;
       std::uint64_t max_payload_align = 1;
 
-      auto add_payload = [&](std::size_t idx) {
-        if (idx < async_args.size() && async_args[idx]) {
-          // Skip if type is ! (never type) - contributes 0 bytes
-          if (const auto* prim = std::get_if<TypePrim>(&async_args[idx]->node)) {
-            if (prim->name == "!") return;
-          }
-          // Skip if type is () (unit type)
-          if (const auto* tup = std::get_if<TypeTuple>(&async_args[idx]->node)) {
-            if (tup->elements.empty()) return;
-          }
-          const auto layout = LayoutOf(ctx, async_args[idx]);
-          if (layout.has_value()) {
-            max_payload_size = std::max(max_payload_size, layout->first);
-            max_payload_align = std::max(max_payload_align, layout->second);
-          }
+      auto add_payload_layout = [&](const std::optional<std::pair<std::uint64_t, std::uint64_t>>& layout_opt) {
+        if (!layout_opt.has_value() || layout_opt->first == 0) {
+          return;
         }
+        max_payload_size = std::max(max_payload_size, layout_opt->first);
+        max_payload_align = std::max(max_payload_align, layout_opt->second);
       };
 
-      add_payload(0);  // Out
-      add_payload(2);  // Result
-      add_payload(3);  // E
+      auto record_layout = [&](const TypeRef& a,
+                               const TypeRef& b)
+          -> std::optional<std::pair<std::uint64_t, std::uint64_t>> {
+        const auto la = LayoutOf(ctx, a);
+        const auto lb = LayoutOf(ctx, b);
+        if (!la.has_value() || !lb.has_value()) {
+          return std::nullopt;
+        }
+        const std::uint64_t align = std::max(la->second, lb->second);
+        const std::uint64_t b_off = AlignUp(la->first, lb->second);
+        const std::uint64_t size = AlignUp(b_off + lb->first, align);
+        return std::make_pair(size, align);
+      };
+
+      const auto out_type = async_args.size() > 0 ? async_args[0] : MakeTypeTuple({});
+      const auto frame_ptr = MakeTypePtr(MakeTypePrim("u8"), PtrState::Valid);
+      const auto suspended_layout = record_layout(out_type, frame_ptr);
+      if (!suspended_layout.has_value()) {
+        return std::nullopt;
+      }
+      add_payload_layout(suspended_layout);
+
+      if (async_args.size() > 2 && async_args[2]) {
+        if (const auto* prim = std::get_if<TypePrim>(&async_args[2]->node)) {
+          if (prim->name != "!") {
+            add_payload_layout(LayoutOf(ctx, async_args[2]));
+          }
+        } else if (const auto* tup = std::get_if<TypeTuple>(&async_args[2]->node)) {
+          if (!tup->elements.empty()) {
+            add_payload_layout(LayoutOf(ctx, async_args[2]));
+          }
+        } else {
+          add_payload_layout(LayoutOf(ctx, async_args[2]));
+        }
+      }
+
+      if (async_args.size() > 3 && async_args[3]) {
+        if (const auto* prim = std::get_if<TypePrim>(&async_args[3]->node)) {
+          if (prim->name != "!") {
+            add_payload_layout(LayoutOf(ctx, async_args[3]));
+          }
+        } else if (const auto* tup = std::get_if<TypeTuple>(&async_args[3]->node)) {
+          if (!tup->elements.empty()) {
+            add_payload_layout(LayoutOf(ctx, async_args[3]));
+          }
+        } else {
+          add_payload_layout(LayoutOf(ctx, async_args[3]));
+        }
+      }
 
       // Discriminant is u8 (1 byte, align 1)
       const std::uint64_t disc_size = 1;

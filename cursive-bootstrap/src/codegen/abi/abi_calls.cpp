@@ -168,7 +168,11 @@ std::optional<std::string> MethodSymbol(const analysis::ScopeContext& ctx,
     if (!modal_decl) {
       return std::nullopt;
     }
-
+    if (modal_path.size() == 1 && analysis::IdEq(modal_path[0], "Async") &&
+        analysis::IdEq(state, "Suspended") && name == "resume") {
+      SPEC_RULE("MethodSymbol-ModalState-Method");
+      return BuiltinSymAsyncResume();
+    }
     // (MethodSymbol-ModalState-Method)
     // LookupStateMethod(S, name) = md → Mangle(md) ⇓ sym
     const auto* state_method = analysis::LookupStateMethodDecl(*modal_decl, state, name);
@@ -477,3 +481,5 @@ void AnchorABIRules() {
 }
 
 }  // namespace cursive0::codegen
+
+

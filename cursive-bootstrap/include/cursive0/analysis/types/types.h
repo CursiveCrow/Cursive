@@ -238,10 +238,10 @@ bool IdEq(const std::string& a, const std::string& b);
 /// Async type signature components.
 /// For Async<Out, In, Result, E>, holds the extracted type arguments.
 struct AsyncSig {
-  TypeRef out_type;     // Yielded output type
-  TypeRef in_type;      // Resume input type
-  TypeRef result_type;  // Completion result type
-  TypeRef error_type;   // Error type (! for infallible)
+  TypeRef out;     // Yielded output type
+  TypeRef in;      // Resume input type
+  TypeRef result;  // Completion result type
+  TypeRef err;     // Error type (! for infallible)
 };
 
 /// Extracts the async signature from an async type.

@@ -252,6 +252,10 @@ C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(C0Region 
 uint8_t cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aaddr_x5fis_x5factive(const void* addr);
 void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aaddr_x5ftag_x5ffrom(const void* addr, const void* base);
 
+// Async frame allocation
+void* cursive_x3a_x3aruntime_x3a_x3aasync_x3a_x3aalloc_x5fframe(uint64_t size, uint64_t align);
+void cursive_x3a_x3aruntime_x3a_x3aasync_x3a_x3afree_x5fframe(void* frame);
+
 // String builtins
 void cursive_x3a_x3aruntime_x3a_x3astring_x3a_x3afrom(
   C0Union_StringManaged_AllocError* out,

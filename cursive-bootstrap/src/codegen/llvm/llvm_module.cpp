@@ -1,8 +1,11 @@
 #include "cursive0/codegen/llvm/llvm_emit.h"
 #include "cursive0/codegen/abi/abi.h"
 #include "cursive0/codegen/cleanup.h"
+#include "cursive0/codegen/async_frame.h"
+#include "cursive0/codegen/layout/layout.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/core/symbols.h"
+#include "cursive0/runtime/runtime_interface.h"
 
 // LLVM Includes
 #include "llvm/IR/Attributes.h"
@@ -41,6 +44,190 @@ void LLVMEmitter::SetupModule() {
 }
 
 namespace {
+
+analysis::ScopeContext BuildScope(const LowerCtx* ctx) {
+  analysis::ScopeContext scope;
+  if (ctx && ctx->sigma) {
+    scope.sigma = *ctx->sigma;
+    scope.current_module = ctx->module_path;
+  }
+  return scope;
+}
+
+llvm::AllocaInst* CreateEntryAlloca(llvm::Function* func,
+                                    llvm::Type* ty,
+                                    const std::string& name) {
+  if (!func || !ty) {
+    return nullptr;
+  }
+  llvm::IRBuilder<> entry_builder(&func->getEntryBlock(), func->getEntryBlock().begin());
+  return entry_builder.CreateAlloca(ty, nullptr, name);
+}
+
+llvm::Value* ByteGEP(LLVMEmitter& emitter,
+                     llvm::IRBuilder<>* builder,
+                     llvm::Value* base_ptr,
+                     std::uint64_t offset) {
+  if (!builder || !base_ptr) {
+    return nullptr;
+  }
+  llvm::LLVMContext& ctx = emitter.GetContext();
+  llvm::Value* idx = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), offset);
+  return builder->CreateGEP(llvm::Type::getInt8Ty(ctx), base_ptr, idx);
+}
+
+void StoreAtOffset(LLVMEmitter& emitter,
+                   llvm::IRBuilder<>* builder,
+                   llvm::Value* base_ptr,
+                   std::uint64_t offset,
+                   llvm::Value* value) {
+  if (!builder || !base_ptr || !value) {
+    return;
+  }
+  llvm::Value* ptr = offset == 0 ? base_ptr : ByteGEP(emitter, builder, base_ptr, offset);
+  builder->CreateStore(value, ptr);
+}
+
+llvm::Value* LoadPanicOutPtr(LLVMEmitter& emitter, llvm::IRBuilder<>* builder) {
+  if (!builder) {
+    return nullptr;
+  }
+  llvm::Value* slot = emitter.GetLocal(std::string(kPanicOutName));
+  if (!slot) {
+    return nullptr;
+  }
+  if (auto* alloca = llvm::dyn_cast<llvm::AllocaInst>(slot)) {
+    return builder->CreateLoad(alloca->getAllocatedType(), alloca);
+  }
+  return builder->CreateLoad(emitter.GetOpaquePtr(), slot);
+}
+
+llvm::Value* CoerceValue(llvm::IRBuilder<>* builder,
+                         llvm::Value* value,
+                         llvm::Type* target) {
+  if (!builder || !value || !target) {
+    return value;
+  }
+  if (value->getType() == target) {
+    return value;
+  }
+  if (value->getType()->isPointerTy() && target->isPointerTy()) {
+    return builder->CreateBitCast(value, target);
+  }
+  if (value->getType()->isIntegerTy() && target->isIntegerTy()) {
+    unsigned from_bits = value->getType()->getIntegerBitWidth();
+    unsigned to_bits = target->getIntegerBitWidth();
+    if (from_bits < to_bits) {
+      return builder->CreateZExt(value, target);
+    }
+    if (from_bits > to_bits) {
+      return builder->CreateTrunc(value, target);
+    }
+  }
+  if (value->getType()->isFloatingPointTy() && target->isFloatingPointTy()) {
+    unsigned from_bits = value->getType()->getPrimitiveSizeInBits();
+    unsigned to_bits = target->getPrimitiveSizeInBits();
+    if (from_bits < to_bits) {
+      return builder->CreateFPExt(value, target);
+    }
+    if (from_bits > to_bits) {
+      return builder->CreateFPTrunc(value, target);
+    }
+  }
+  return builder->CreateBitCast(value, target);
+}
+
+llvm::Value* EmitABICall(LLVMEmitter& emitter,
+                         llvm::IRBuilder<>* builder,
+                         llvm::Value* callee,
+                         const std::vector<IRParam>& params,
+                         const analysis::TypeRef& ret_type,
+                         const std::vector<llvm::Value*>& args) {
+  if (!builder || !callee) {
+    return nullptr;
+  }
+
+  ABICallResult abi = emitter.ComputeCallABI(params, ret_type);
+  if (!abi.func_type) {
+    return nullptr;
+  }
+
+  llvm::Function* func = builder->GetInsertBlock()->getParent();
+  std::vector<llvm::Value*> call_args(abi.func_type->getNumParams(), nullptr);
+  llvm::AllocaInst* sret_alloca = nullptr;
+
+  if (abi.has_sret) {
+    llvm::Type* ret_ty = emitter.GetLLVMType(ret_type);
+    sret_alloca = CreateEntryAlloca(func, ret_ty, "sret_async");
+    call_args[0] = sret_alloca;
+  }
+
+  for (std::size_t i = 0; i < params.size(); ++i) {
+    if (i >= abi.param_indices.size()) {
+      break;
+    }
+    if (!abi.param_indices[i].has_value()) {
+      continue;
+    }
+    unsigned idx = *abi.param_indices[i];
+    if (idx >= call_args.size() || i >= args.size()) {
+      continue;
+    }
+    llvm::Value* arg = args[i];
+    if (!arg) {
+      continue;
+    }
+    if (abi.param_kinds[i] == PassKind::ByRef) {
+      llvm::Type* elem_ty = emitter.GetLLVMType(params[i].type);
+      if (!arg->getType()->isPointerTy()) {
+        llvm::AllocaInst* slot = CreateEntryAlloca(func, elem_ty, "byref_arg");
+        if (slot) {
+          llvm::Value* stored = CoerceValue(builder, arg, elem_ty);
+          builder->CreateStore(stored, slot);
+          call_args[idx] = slot;
+        }
+        continue;
+      }
+      llvm::Type* target_ty = abi.param_types[idx];
+      if (target_ty && arg->getType() != target_ty) {
+        arg = CoerceValue(builder, arg, target_ty);
+      }
+      call_args[idx] = arg;
+      continue;
+    }
+    llvm::Type* target_ty = abi.param_types[idx];
+    if (target_ty && arg->getType() != target_ty) {
+      arg = CoerceValue(builder, arg, target_ty);
+    }
+    call_args[idx] = arg;
+  }
+
+  for (std::size_t i = 0; i < call_args.size(); ++i) {
+    if (!call_args[i]) {
+      call_args[i] = llvm::Constant::getNullValue(abi.param_types[i]);
+    }
+  }
+
+  llvm::Value* callee_val = callee;
+  llvm::Type* callee_ty = abi.func_type->getPointerTo();
+  if (callee_val->getType() != callee_ty && callee_val->getType()->isPointerTy()) {
+    callee_val = builder->CreateBitCast(callee_val, callee_ty);
+  }
+
+  llvm::CallInst* call_inst = builder->CreateCall(abi.func_type, callee_val, call_args);
+  call_inst->setCallingConv(llvm::CallingConv::C);
+
+  if (abi.has_sret && sret_alloca) {
+    return builder->CreateLoad(emitter.GetLLVMType(ret_type), sret_alloca);
+  }
+  if (!call_inst->getType()->isVoidTy()) {
+    return call_inst;
+  }
+  if (ret_type) {
+    return llvm::Constant::getNullValue(emitter.GetLLVMType(ret_type));
+  }
+  return nullptr;
+}
 
 IRParam MakeParam(std::string name, std::optional<analysis::ParamMode> mode, analysis::TypeRef type) {
   IRParam param;
@@ -272,7 +459,226 @@ void LLVMEmitter::EmitProc(const ProcIR& proc) {
     EmitIR(MakeIR(IRClearPanic{}));
   }
 
-  EmitIR(proc.body);
+  const LowerCtx::AsyncProcInfo* async_info =
+      current_ctx_ ? current_ctx_->LookupAsyncProc(proc.symbol) : nullptr;
+
+  auto emit_async_wrapper = [&](const LowerCtx::AsyncProcInfo& info) {
+    llvm::Function* alloc_fn = GetFunction(BuiltinSymAsyncAllocFrame());
+    if (!alloc_fn) {
+      alloc_fn = module_->getFunction(BuiltinSymAsyncAllocFrame());
+    }
+    if (!alloc_fn) {
+      if (current_ctx_) {
+        current_ctx_->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    llvm::Type* usize_ty = GetLLVMType(analysis::MakeTypePrim("usize"));
+    llvm::Value* size_val = llvm::ConstantInt::get(usize_ty, info.frame_size);
+    llvm::Value* align_val = llvm::ConstantInt::get(usize_ty, info.frame_align);
+    llvm::Value* frame_ptr = builder->CreateCall(alloc_fn, {size_val, align_val});
+    frame_ptr = CoerceValue(builder, frame_ptr, GetOpaquePtr());
+
+    llvm::Value* resume_state_val =
+        llvm::ConstantInt::get(llvm::Type::getInt64Ty(context_), 0);
+    StoreAtOffset(*this, builder, frame_ptr, kAsyncFrameResumeStateOffset, resume_state_val);
+
+    llvm::Function* resume_fn = GetFunction(info.resume_symbol);
+    if (!resume_fn) {
+      resume_fn = module_->getFunction(info.resume_symbol);
+    }
+    if (!resume_fn) {
+      if (current_ctx_) {
+        current_ctx_->ReportCodegenFailure();
+      }
+      return;
+    }
+    llvm::Value* resume_ptr = builder->CreateBitCast(resume_fn, GetOpaquePtr());
+    StoreAtOffset(*this, builder, frame_ptr, kAsyncFrameResumeFnOffset, resume_ptr);
+
+    const auto scope = BuildScope(current_ctx_);
+    for (const auto& name : info.param_names) {
+      const auto slot_it = info.slots.find(name);
+      if (slot_it == info.slots.end()) {
+        continue;
+      }
+      const auto& slot = slot_it->second;
+      if (auto size_opt = SizeOf(scope, slot.type)) {
+        if (*size_opt == 0) {
+          continue;
+        }
+      }
+      llvm::Type* slot_ty = GetLLVMType(slot.type);
+      if (!slot_ty) {
+        if (current_ctx_) {
+          current_ctx_->ReportCodegenFailure();
+        }
+        continue;
+      }
+
+      IRValue local_val;
+      local_val.kind = IRValue::Kind::Local;
+      local_val.name = name;
+      llvm::Value* value = EvaluateIRValue(local_val);
+      if (!value) {
+        if (current_ctx_) {
+          current_ctx_->ReportCodegenFailure();
+        }
+        continue;
+      }
+      value = CoerceValue(builder, value, slot_ty);
+
+      llvm::Value* slot_ptr = ByteGEP(*this, builder, frame_ptr, slot.offset);
+      slot_ptr = builder->CreateBitCast(slot_ptr, slot_ty->getPointerTo());
+      builder->CreateStore(value, slot_ptr);
+    }
+
+    llvm::Value* input_ptr = llvm::Constant::getNullValue(GetOpaquePtr());
+    llvm::Value* panic_ptr = nullptr;
+    if (info.resume_needs_panic_out) {
+      panic_ptr = LoadPanicOutPtr(*this, builder);
+      if (!panic_ptr) {
+        panic_ptr = llvm::Constant::getNullValue(GetOpaquePtr());
+      }
+    }
+
+    const LowerCtx::ProcSigInfo* resume_sig =
+        current_ctx_ ? current_ctx_->LookupProcSig(info.resume_symbol) : nullptr;
+    if (!resume_sig) {
+      if (current_ctx_) {
+        current_ctx_->ReportCodegenFailure();
+      }
+      return;
+    }
+    std::vector<llvm::Value*> resume_args;
+    resume_args.push_back(frame_ptr);
+    resume_args.push_back(input_ptr);
+    if (info.resume_needs_panic_out) {
+      resume_args.push_back(panic_ptr);
+    }
+    llvm::Value* resume_val =
+        EmitABICall(*this, builder, resume_fn, resume_sig->params, resume_sig->ret, resume_args);
+    if (!resume_val) {
+      resume_val = llvm::Constant::getNullValue(GetLLVMType(proc.ret));
+    }
+
+    if (func->arg_size() > 0 && func->hasParamAttribute(0, llvm::Attribute::StructRet)) {
+      llvm::Argument* sret = func->getArg(0);
+      builder->CreateStore(resume_val, sret);
+      builder->CreateRetVoid();
+      return;
+    }
+    builder->CreateRet(resume_val);
+  };
+
+  auto emit_async_resume = [&](const LowerCtx::AsyncProcInfo& info) {
+    auto get_param_arg = [&](std::string_view name) -> llvm::Value* {
+      for (std::size_t i = 0; i < proc.params.size(); ++i) {
+        if (proc.params[i].name != name) {
+          continue;
+        }
+        if (i >= abi.param_indices.size()) {
+          return nullptr;
+        }
+        if (!abi.param_indices[i].has_value()) {
+          return nullptr;
+        }
+        unsigned idx = *abi.param_indices[i];
+        if (idx >= func->arg_size()) {
+          return nullptr;
+        }
+        llvm::Value* arg = func->getArg(idx);
+        if (i < abi.param_kinds.size() && abi.param_kinds[i] == PassKind::ByRef) {
+          llvm::Type* param_ty = GetLLVMType(proc.params[i].type);
+          if (!param_ty) {
+            return nullptr;
+          }
+          return builder->CreateLoad(param_ty, arg);
+        }
+        return arg;
+      }
+      return nullptr;
+    };
+
+    llvm::Value* frame_ptr = get_param_arg("__c0_async_frame");
+    if (!frame_ptr) {
+      if (current_ctx_) {
+        current_ctx_->ReportCodegenFailure();
+      }
+      return;
+    }
+    frame_ptr = CoerceValue(builder, frame_ptr, GetOpaquePtr());
+
+    llvm::Value* input_ptr = get_param_arg("__c0_async_input");
+    if (input_ptr) {
+      input_ptr = CoerceValue(builder, input_ptr, GetOpaquePtr());
+    } else {
+      input_ptr = llvm::Constant::getNullValue(GetOpaquePtr());
+    }
+
+    const auto scope = BuildScope(current_ctx_);
+    for (const auto& name : info.param_names) {
+      if (GetLocal(name)) {
+        continue;
+      }
+      const auto slot_it = info.slots.find(name);
+      if (slot_it == info.slots.end()) {
+        continue;
+      }
+      const auto& slot = slot_it->second;
+      if (auto size_opt = SizeOf(scope, slot.type)) {
+        if (*size_opt == 0) {
+          continue;
+        }
+      }
+      llvm::Type* slot_ty = GetLLVMType(slot.type);
+      if (!slot_ty) {
+        if (current_ctx_) {
+          current_ctx_->ReportCodegenFailure();
+        }
+        continue;
+      }
+      llvm::Value* slot_ptr = ByteGEP(*this, builder, frame_ptr, slot.offset);
+      slot_ptr = builder->CreateBitCast(slot_ptr, slot_ty->getPointerTo());
+      SetLocal(name, slot_ptr);
+      if (current_ctx_) {
+        current_ctx_->RegisterVar(name, slot.type, true, false);
+      }
+    }
+
+    llvm::IntegerType* state_ty = llvm::Type::getInt64Ty(context_);
+    llvm::Value* state_val = builder->CreateLoad(
+        state_ty, ByteGEP(*this, builder, frame_ptr, kAsyncFrameResumeStateOffset));
+    llvm::BasicBlock* entry_state =
+        llvm::BasicBlock::Create(context_, "async_entry", func);
+    llvm::SwitchInst* sw = builder->CreateSwitch(state_val, entry_state, 1);
+    sw->addCase(llvm::ConstantInt::get(state_ty, 0), entry_state);
+
+    AsyncEmitState async_state;
+    async_state.info = &info;
+    async_state.frame_ptr = frame_ptr;
+    async_state.input_ptr = input_ptr;
+    async_state.resume_switch = sw;
+    SetAsyncState(&async_state);
+
+    builder->SetInsertPoint(entry_state);
+    EmitIR(proc.body);
+    SetAsyncState(nullptr);
+  };
+
+  bool handled_async = false;
+  if (async_info && async_info->is_wrapper) {
+    emit_async_wrapper(*async_info);
+    handled_async = true;
+  } else if (async_info && async_info->is_resume) {
+    emit_async_resume(*async_info);
+    handled_async = true;
+  }
+
+  if (!handled_async) {
+    EmitIR(proc.body);
+  }
 
   // Ensure every block is terminated even if the body omits an explicit return.
   llvm::Type* ret_ty = func->getReturnType();

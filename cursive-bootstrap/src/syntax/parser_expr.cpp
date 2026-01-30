@@ -887,7 +887,8 @@ ParseElemResult<ExprPtr> ParsePrimary(Parser parser, bool allow_brace) {
     SPEC_RULE("Parse-Sync-Expr");
     Parser next = parser;
     Advance(next);
-    ParseElemResult<ExprPtr> expr = ParseExpr(next);
+    ParseElemResult<ExprPtr> expr = allow_brace ? ParseExpr(next)
+                                                : ParseExprNoBrace(next);
     SyncExpr sync;
     sync.value = expr.elem;
     return {expr.parser, MakeExpr(SpanBetween(parser, expr.parser), sync)};

@@ -182,6 +182,30 @@ struct LowerCtx {
   std::vector<syntax::ModulePath> init_modules;
   std::vector<std::pair<std::size_t, std::size_t>> init_eager_edges;
 
+  // Async procedure lowering metadata
+  struct AsyncFrameSlot {
+    analysis::TypeRef type;
+    std::uint64_t offset = 0;
+    std::uint64_t size = 0;
+    std::uint64_t align = 1;
+  };
+  struct AsyncProcInfo {
+    bool is_wrapper = false;
+    bool is_resume = false;
+    bool resume_needs_panic_out = false;
+    std::string resume_symbol;
+    analysis::TypeRef async_type;
+    analysis::TypeRef out_type;
+    analysis::TypeRef in_type;
+    analysis::TypeRef result_type;
+    analysis::TypeRef err_type;
+    std::uint64_t frame_size = 0;
+    std::uint64_t frame_align = 1;
+    std::unordered_map<std::string, AsyncFrameSlot> slots;
+    std::vector<std::string> param_names;
+  };
+  std::unordered_map<std::string, AsyncProcInfo> async_procs;
+
   // Active region alias stack for implicit frame lowering.
   std::vector<std::string> active_region_aliases;
   std::uint64_t region_alias_counter = 0;
@@ -204,6 +228,7 @@ struct LowerCtx {
   const ProcSigInfo* LookupProcSig(const std::string& sym) const;
   void RegisterProcModule(const std::string& sym, const syntax::ModulePath& module_path);
   const std::vector<std::string>* LookupProcModule(const std::string& sym) const;
+  const AsyncProcInfo* LookupAsyncProc(const std::string& sym) const;
   
   // =========================================================================
   // §6.8 Scope tracking for cleanup
