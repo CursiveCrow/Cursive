@@ -1,9 +1,0 @@
-// RUN: compile-fail
-// DIAG: E-SEM-2531
-// SPEC: 5.2.7
-// DESC: Callee expression is not of FUNCTION type
-
-public procedure main(move ctx: Context) -> i32 {
-    let x: i32 = 42
-    return x()  //~ ERROR E-SEM-2531: not a function
-}

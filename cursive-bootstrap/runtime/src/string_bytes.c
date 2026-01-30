@@ -329,6 +329,14 @@ C0BytesView cursive_x3a_x3aruntime_x3a_x3abytes_x3a_x3aas_x5fview(
   return view;
 }
 
+C0SliceU8 cursive_x3a_x3aruntime_x3a_x3abytes_x3a_x3aas_x5fslice(
+    const C0BytesView* self) {
+  C0SliceU8 slice;
+  slice.data = self ? self->data : NULL;
+  slice.len = self ? self->len : 0;
+  return slice;
+}
+
 void cursive_x3a_x3aruntime_x3a_x3abytes_x3a_x3ato_x5fmanaged(
     C0Union_BytesManaged_AllocError* out,
     const C0BytesView* self,

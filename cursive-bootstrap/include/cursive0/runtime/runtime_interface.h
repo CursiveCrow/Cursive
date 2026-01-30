@@ -257,6 +257,7 @@ std::string BuiltinSymStringDropManaged();
 std::string BuiltinSymBytesWithCapacity();
 std::string BuiltinSymBytesFromSlice();
 std::string BuiltinSymBytesAsView();
+std::string BuiltinSymBytesAsSlice();
 std::string BuiltinSymBytesToManaged();
 std::string BuiltinSymBytesView();
 std::string BuiltinSymBytesViewString();

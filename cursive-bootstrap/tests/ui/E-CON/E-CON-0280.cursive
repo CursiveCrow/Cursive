@@ -1,9 +1,0 @@
-// RUN: compile-fail
-// DIAG: E-CON-0280
-// SPEC: 8.9
-// DESC: Captured binding does not outlive async
-// SKIP: No Cursive0 syntax to exercise Async-Capture-Err without closure/async block support
-
-public procedure main(move ctx: Context) -> i32 {
-    return 0
-}

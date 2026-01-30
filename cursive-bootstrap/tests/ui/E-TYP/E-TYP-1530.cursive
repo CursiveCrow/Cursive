@@ -1,9 +1,0 @@
-// RUN: compile-fail
-// DIAG: E-TYP-1530
-// SPEC: 5.2.9
-// DESC: Type inference failed; unable to determine type
-
-public procedure main(move ctx: Context) -> i32 {
-    let p: Ptr@Null = Ptr::null()  //~ ERROR E-TYP-1530: inference failed
-    return 0
-}

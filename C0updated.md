@@ -1,4 +1,4 @@
-# Cursive 0
+﻿# Cursive 0
 
 - [Cursive 0](#cursive-0)
   - [0. Front Matter](#0-front-matter)
@@ -387,7 +387,7 @@ Let S be a source file and let K satisfy Γ ⊢ Tokenize(S) ⇓ (K, _).
 Any use of PermSyntax or UnsupportedForm MUST be based on token lexemes in K (and, where specified elsewhere, the AST produced by ParseFile(S)); implementations MUST NOT match substrings inside identifiers.
 See Â§3.2.2 and Â§3.2.7.
 
-S0Unsupported = {`closure`, `pipeline`, `metaprogramming`, `Network`, `GPUFactory`, `CPUFactory`}
+S0Unsupported = {`metaprogramming`, `Network`, `GPUFactory`, `CPUFactory`}
 
 ### 1.2. Behavior Types
 
@@ -492,7 +492,7 @@ such that (at minimum):
 - a built-in procedure that is classified as a runtime host primitive (§1.7), or
 - a built-in method/procedure whose receiver is a capability value (e.g., `$FileSystem`, `$HeapAllocator`, `$Reactor`, `$ExecutionDomain`, or `System`).
 
-**(NAA-4) Callgraph monotonicity (capability requirement subset property).** Because `closure` and `pipeline` constructs are unsupported in Cursive0 (`S0Unsupported`), call targets in Cursive0 are statically resolvable after name resolution.
+**(NAA-4) Callgraph monotonicity (capability requirement subset property).** For direct calls (including closure invocations), call targets are statically resolvable after name resolution. For closures, the capability requirements are computed from the closure's type signature.
 
 Define a procedure-level capability requirement:
 
@@ -2875,10 +2875,13 @@ IsDecl(ErrorItem(_)) = false
 ##### 3.3.2.3. Types
 
 **Type.**
-Type = {TypePerm(perm, base), TypePrim(name), TypeTuple(elems), TypeArray(elem, size_expr), TypeSlice(elem), TypeUnion(members), TypeFunc(params, ret), TypePath(path), TypeApply(path, args), TypeDynamic(path), TypeOpaque(path), TypeRefine(base, pred), TypeString(string_state_opt), TypeBytes(bytes_state_opt), TypeModalState(modal_ref, state), TypePtr(elem, ptr_state_opt), TypeRawPtr(qual, elem), TypeRange}
+Type = {TypePerm(perm, base), TypePrim(name), TypeTuple(elems), TypeArray(elem, size_expr), TypeSlice(elem), TypeUnion(members), TypeFunc(params, ret), TypePath(path), TypeApply(path, args), TypeDynamic(path), TypeOpaque(path), TypeRefine(base, pred), TypeString(string_state_opt), TypeBytes(bytes_state_opt), TypeModalState(modal_ref, state), TypePtr(elem, ptr_state_opt), TypeRawPtr(qual, elem), TypeRange, TypeClosure(params, ret, deps_opt)}
 TypeApply = ⟨path, args⟩
 TypeOpaque = ⟨path⟩
 TypeRefine = ⟨base, pred⟩
+TypeClosure = ⟨params, ret, deps_opt⟩    params ∈ [(MoveMode, Type)], ret ∈ Type, deps_opt ∈ {⊥} ∪ SharedDeps
+SharedDeps = ⟨deps⟩    deps ∈ [(Identifier, Type)]
+MoveMode ∈ {true, false}
 
 Perm = {`const`, `unique`, `shared`}
 Qual = {`imm`, `mut`}
@@ -2905,13 +2908,17 @@ LiteralToken = { t ∈ Token | t.kind ∈ LiteralKind }
 
 **Expr.**
 RangeKind = {`To`, `ToInclusive`, `Full`, `From`, `Exclusive`, `Inclusive`}
-Expr = {Literal(lit), PtrNullExpr, Identifier(name), QualifiedName(path, name), QualifiedApply(path, name, form), Path(path, name), ErrorExpr(span), TupleExpr(elems), ArrayExpr(elems), RecordExpr(type_ref, fields), EnumLiteral(path, payload_opt), FieldAccess(base, name), TupleAccess(base, index), IndexAccess(base, index_expr), Call(callee, args), CallTypeArgs(callee, type_args, args), MethodCall(base, name, args), Unary(op, expr), Binary(op, left, right), Cast(expr, type), Range(kind, lo_opt, hi_opt), IfExpr(cond, then_block, else_opt), MatchExpr(scrutinee, arms), LoopInfinite(inv_opt, body), LoopConditional(cond, inv_opt, body), LoopIter(pattern, type_opt, iter, inv_opt, body), BlockExpr(stmts, tail_opt), UnsafeBlockExpr(body), MoveExpr(place), TransmuteExpr(src_type, dst_type, expr), AllocExpr(region_opt, expr), Propagate(expr), AddressOf(place), Deref(expr), ContractResult, ContractEntry(expr), ParallelExpr(domain, opts, body), SpawnExpr(opts, body), DispatchExpr(pat, range, key_clause_opt, opts, body), WaitExpr(handle), YieldExpr(release_opt, expr), YieldFromExpr(release_opt, expr), SyncExpr(expr), RaceExpr(arms), AllExpr(exprs)}
+Expr = {Literal(lit), PtrNullExpr, Identifier(name), QualifiedName(path, name), QualifiedApply(path, name, form), Path(path, name), ErrorExpr(span), TupleExpr(elems), ArrayExpr(elems), RecordExpr(type_ref, fields), EnumLiteral(path, payload_opt), FieldAccess(base, name), TupleAccess(base, index), IndexAccess(base, index_expr), Call(callee, args), CallTypeArgs(callee, type_args, args), MethodCall(base, name, args), Unary(op, expr), Binary(op, left, right), Cast(expr, type), Range(kind, lo_opt, hi_opt), IfExpr(cond, then_block, else_opt), MatchExpr(scrutinee, arms), LoopInfinite(inv_opt, body), LoopConditional(cond, inv_opt, body), LoopIter(pattern, type_opt, iter, inv_opt, body), BlockExpr(stmts, tail_opt), UnsafeBlockExpr(body), MoveExpr(place), TransmuteExpr(src_type, dst_type, expr), AllocExpr(region_opt, expr), Propagate(expr), AddressOf(place), Deref(expr), ContractResult, ContractEntry(expr), ParallelExpr(domain, opts, body), SpawnExpr(opts, body), DispatchExpr(pat, range, key_clause_opt, opts, body), WaitExpr(handle), YieldExpr(release_opt, expr), YieldFromExpr(release_opt, expr), SyncExpr(expr), RaceExpr(arms), AllExpr(exprs), ClosureExpr(params, ret_type_opt, body), PipelineExpr(left, right)}
 ExprSpan : Expr → Span
 ExprAttrs(e) ∈ AttrOpt
 AttachExprAttrs(e, attrs) = e' where ExprAttrs(e') = (attrs ++ ExprAttrs(e) if ExprAttrs(e) ≠ ⊥ else attrs) and all other fields of e' equal those of e
 LoopInvariantOpt ∈ {⊥} ∪ Expr
 KeyClause = ⟨path, mode⟩
 KeyClauseOpt ∈ {⊥} ∪ KeyClause
+
+**Closure Parameters.**
+ClosureParam = ⟨move_opt, name, type_opt⟩    move_opt ∈ {true, false}, name ∈ Identifier, type_opt ∈ {⊥} ∪ Type
+ClosureParams = [ClosureParam]
 
 ModalRef = {TypePath(path), TypeApply(path, args)}
 TypeRef = {TypePath(path), TypeApply(path, args), ModalStateRef(modal_ref, state)}    modal_ref ∈ ModalRef
@@ -3200,10 +3207,12 @@ unary_operator      ::= "!" | "-" | "*" | "widen"
 address_of_expr     ::= "&" place_expr
 move_expr           ::= "move" place_expr
 
-postfix_expr        ::= primary_expr postfix_suffix*
+postfix_expr        ::= pipeline_expr
+pipeline_expr       ::= base_postfix_expr ("=>" base_postfix_expr)*
+base_postfix_expr   ::= primary_expr postfix_suffix*
 postfix_suffix      ::= "." identifier | "." decimal_literal | "[" expression "]" | "~>" identifier "(" argument_list? ")" | "(" argument_list? ")" | "?"
 
-primary_expr        ::= literal | null_ptr_expr | identifier_expr | contract_intrinsic | qualified_expr | tuple_literal | array_literal | record_literal | if_expr | match_expr | loop_expr | block_expr | unsafe_expr | transmute_expr | alloc_expr | parallel_expr | spawn_expr | wait_expr | dispatch_expr | yield_expr | yield_from_expr | sync_expr | race_expr | all_expr
+primary_expr        ::= literal | null_ptr_expr | identifier_expr | contract_intrinsic | qualified_expr | tuple_literal | array_literal | record_literal | if_expr | match_expr | loop_expr | block_expr | unsafe_expr | transmute_expr | alloc_expr | parallel_expr | spawn_expr | wait_expr | dispatch_expr | yield_expr | yield_from_expr | sync_expr | race_expr | all_expr | closure_expr
 unsafe_expr         ::= "unsafe" block_expr
 transmute_expr      ::= "transmute" "<" type "," type ">" "(" expression ")"
 identifier_expr     ::= identifier
@@ -3228,6 +3237,10 @@ race_expr          ::= "race" "{" race_arm ("," race_arm)* "}"
 race_arm           ::= expression "->" "|" pattern "|" race_handler
 race_handler       ::= expression | "yield" expression
 all_expr           ::= "all" "{" expression ("," expression)* "}"
+closure_expr       ::= "|" closure_param_list? "|" ("->" type)? closure_body
+closure_param_list ::= closure_param ("," closure_param)*
+closure_param      ::= "move"? identifier (":" type)?
+closure_body       ::= expression | block_expr
 dispatch_expr      ::= "dispatch" pattern "in" range_expression key_clause? dispatch_option_list? block_expr
 key_clause         ::= "key" key_path_expr key_mode
 dispatch_option_list ::= "[" dispatch_option ("," dispatch_option)* "]"
@@ -3283,7 +3296,7 @@ type                ::= permission? base_type refinement_clause?
 refinement_clause   ::= "where" "{" predicate_expr "}"
 base_type           ::= union_type | non_union_type
 union_type          ::= non_union_type ("|" non_union_type)+
-non_union_type      ::= primitive_type | tuple_type | function_type | array_type | slice_type | safe_pointer_type | raw_pointer_type | string_type | bytes_type | dynamic_type | state_specific_type | type_path | opaque_type
+non_union_type      ::= primitive_type | tuple_type | function_type | closure_type | array_type | slice_type | safe_pointer_type | raw_pointer_type | string_type | bytes_type | dynamic_type | state_specific_type | type_path | opaque_type
 
 primitive_type      ::= integer_type | float_type | bool_type | char_type | unit_type | never_type
 integer_type        ::= "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" | "isize" | "usize"
@@ -3298,6 +3311,10 @@ tuple_type_elements ::= type ";" | type ("," type)+
 function_type       ::= "(" param_type_list? ")" "->" type
 param_type_list     ::= param_type ("," param_type)*
 param_type          ::= "move"? type
+closure_type        ::= "|" param_type_list? "|" "->" type closure_deps?
+closure_deps        ::= "[" "shared" ":" "{" shared_dep_list? "}" "]"
+shared_dep_list     ::= shared_dep ("," shared_dep)*
+shared_dep          ::= identifier ":" type
 array_type          ::= "[" type ";" const_expression "]"
 slice_type          ::= "[" type "]"
 
@@ -4698,6 +4715,46 @@ IsPunc(Tok(P), "(")    Γ ⊢ ParseParamTypeList(Advance(P)) ⇓ (P_1, params)  
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseNonPermType(P) ⇓ (P_2, TypeFunc(params, ret))
 
+**(Parse-Closure-Type)**
+IsOp(Tok(P), "|")    Γ ⊢ ParseParamTypeList(Advance(P)) ⇓ (P_1, params)    IsOp(Tok(P_1), "|")    IsOp(Tok(Advance(P_1)), "->")    Γ ⊢ ParseType(Advance(Advance(P_1))) ⇓ (P_2, ret)    Γ ⊢ ParseClosureDepsOpt(P_2) ⇓ (P_3, deps_opt)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (P_3, TypeClosure(params, ret, deps_opt))
+
+**(Parse-Closure-Type-Empty)**
+IsOp(Tok(P), "|")    IsOp(Tok(Advance(P)), "|")    IsOp(Tok(Advance(Advance(P))), "->")    Γ ⊢ ParseType(Advance(Advance(Advance(P)))) ⇓ (P_1, ret)    Γ ⊢ ParseClosureDepsOpt(P_1) ⇓ (P_2, deps_opt)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseNonPermType(P) ⇓ (P_2, TypeClosure([], ret, deps_opt))
+
+**(Parse-ClosureDepsOpt-None)**
+¬ IsPunc(Tok(P), "[")
+────────────────────────────────────────────────
+Γ ⊢ ParseClosureDepsOpt(P) ⇓ (P, ⊥)
+
+**(Parse-ClosureDepsOpt-Some)**
+IsPunc(Tok(P), "[")    IsIdent(Tok(Advance(P)))    Lexeme(Tok(Advance(P))) = `shared`    IsPunc(Tok(Advance(Advance(P))), ":")    IsPunc(Tok(Advance(Advance(Advance(P)))), "{")    Γ ⊢ ParseSharedDepList(Advance(Advance(Advance(Advance(P))))) ⇓ (P_1, deps)    IsPunc(Tok(P_1), "}")    IsPunc(Tok(Advance(P_1)), "]")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClosureDepsOpt(P) ⇓ (Advance(Advance(P_1)), ⟨deps⟩)
+
+**(Parse-SharedDepList-Empty)**
+IsPunc(Tok(P), "}")
+────────────────────────────────────────────────
+Γ ⊢ ParseSharedDepList(P) ⇓ (P, [])
+
+**(Parse-SharedDepList-Single)**
+Γ ⊢ ParseSharedDep(P) ⇓ (P_1, dep)    ¬ IsPunc(Tok(P_1), ",")
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseSharedDepList(P) ⇓ (P_1, [dep])
+
+**(Parse-SharedDepList-Cons)**
+Γ ⊢ ParseSharedDep(P) ⇓ (P_1, dep)    IsPunc(Tok(P_1), ",")    Γ ⊢ ParseSharedDepList(Advance(P_1)) ⇓ (P_2, deps)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseSharedDepList(P) ⇓ (P_2, [dep] ++ deps)
+
+**(Parse-SharedDep)**
+IsIdent(Tok(P))    name = Lexeme(Tok(P))    IsPunc(Tok(Advance(P)), ":")    Γ ⊢ ParseType(Advance(Advance(P))) ⇓ (P_1, ty)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseSharedDep(P) ⇓ (P_1, ⟨name, ty⟩)
+
 **(Parse-Tuple-Type)**
 IsPunc(Tok(P), "(")    Γ ⊢ ParseTupleTypeElems(Advance(P)) ⇓ (P_1, elems)    elems ≠ []    IsPunc(Tok(P_1), ")")
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -4928,7 +4985,7 @@ IsPunc(Tok(P), "[[")    Γ ⊢ ParseAttrList(P) ⇓ (P_1, attrs)    Γ ⊢ Parse
 
 ##### 3.3.8.1. Range Expressions
 
-ExprStart(t) ⇔ IsIdent(t) ∨ (t ∈ LiteralToken) ∨ IsPunc(t, "(") ∨ IsPunc(t, "[") ∨ IsPunc(t, "{")
+ExprStart(t) ⇔ IsIdent(t) ∨ (t ∈ LiteralToken) ∨ IsPunc(t, "(") ∨ IsPunc(t, "[") ∨ IsPunc(t, "{") ∨ IsOp(t, "|")
               ∨ IsOp(t, "!") ∨ IsOp(t, "-") ∨ IsOp(t, "&") ∨ IsOp(t, "*") ∨ IsOp(t, "^")
               ∨ IsKw(t, `if`) ∨ IsKw(t, `match`) ∨ IsKw(t, `loop`) ∨ IsKw(t, `unsafe`) ∨ IsKw(t, `move`) ∨ IsKw(t, `transmute`) ∨ IsKw(t, `widen`) ∨ IsKw(t, `parallel`) ∨ IsKw(t, `spawn`) ∨ IsKw(t, `dispatch`) ∨ IsKw(t, `yield`) ∨ IsKw(t, `sync`) ∨ IsKw(t, `race`) ∨ IsKw(t, `all`)
 
@@ -5067,9 +5124,29 @@ IsKw(Tok(P), `widen`)    Γ ⊢ ParseUnary(Advance(P)) ⇓ (P_1, e)
 Γ ⊢ ParseUnary(P) ⇓ (P_1, e)
 
 **(Parse-Postfix)**
+Γ ⊢ ParsePipeline(P) ⇓ (P_1, e)
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePostfix(P) ⇓ (P_1, e)
+
+**(Parse-Pipeline)**
+Γ ⊢ ParseBasePostfix(P) ⇓ (P_1, e_0)    Γ ⊢ ParsePipelineTail(P_1, e_0) ⇓ (P_2, e)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePipeline(P) ⇓ (P_2, e)
+
+**(Parse-PipelineTail-Stop)**
+¬ IsOp(Tok(P), "=>")
+───────────────────────────────────────
+Γ ⊢ ParsePipelineTail(P, e) ⇓ (P, e)
+
+**(Parse-PipelineTail-Cons)**
+IsOp(Tok(P), "=>")    Γ ⊢ ParseBasePostfix(Advance(P)) ⇓ (P_1, e_1)    Γ ⊢ ParsePipelineTail(P_1, PipelineExpr(e, e_1)) ⇓ (P_2, e_2)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePipelineTail(P, e) ⇓ (P_2, e_2)
+
+**(Parse-BasePostfix)**
 Γ ⊢ ParsePrimary(P) ⇓ (P_1, e_0)    Γ ⊢ ParsePostfixTail(P_1, e_0) ⇓ (P_2, e)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParsePostfix(P) ⇓ (P_2, e)
+Γ ⊢ ParseBasePostfix(P) ⇓ (P_2, e)
 
 ##### 3.3.8.6. Primary Expressions
 
@@ -5228,6 +5305,66 @@ IsKw(Tok(P), `race`)    IsPunc(Tok(Advance(P)), "{")    Γ ⊢ ParseRaceArms(Adv
 IsKw(Tok(P), `all`)    IsPunc(Tok(Advance(P)), "{")    Γ ⊢ ParseAllExprList(Advance(Advance(P))) ⇓ (P_1, es)    IsPunc(Tok(P_1), "}")
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_1), AllExpr(es))
+
+**(Parse-Closure-Expr)**
+IsOp(Tok(P), "|")    Γ ⊢ ParseClosureParams(Advance(P)) ⇓ (P_1, params)    IsOp(Tok(P_1), "|")    Γ ⊢ ParseClosureRetOpt(Advance(P_1)) ⇓ (P_2, ret_opt)    Γ ⊢ ParseClosureBody(P_2) ⇓ (P_3, body)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (P_3, ClosureExpr(params, ret_opt, body))
+
+**(Parse-Closure-Expr-Empty)**
+IsOp(Tok(P), "|")    IsOp(Tok(Advance(P)), "|")    Γ ⊢ ParseClosureRetOpt(Advance(Advance(P))) ⇓ (P_1, ret_opt)    Γ ⊢ ParseClosureBody(P_1) ⇓ (P_2, body)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (P_2, ClosureExpr([], ret_opt, body))
+
+**(Parse-ClosureParams-Single)**
+Γ ⊢ ParseClosureParam(P) ⇓ (P_1, p)    ¬ IsPunc(Tok(P_1), ",")
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClosureParams(P) ⇓ (P_1, [p])
+
+**(Parse-ClosureParams-Cons)**
+Γ ⊢ ParseClosureParam(P) ⇓ (P_1, p)    IsPunc(Tok(P_1), ",")    Γ ⊢ ParseClosureParams(Advance(P_1)) ⇓ (P_2, ps)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClosureParams(P) ⇓ (P_2, [p] ++ ps)
+
+**(Parse-ClosureParam-MoveTyped)**
+IsKw(Tok(P), `move`)    IsIdent(Tok(Advance(P)))    name = Lexeme(Tok(Advance(P)))    IsPunc(Tok(Advance(Advance(P))), ":")    Γ ⊢ ParseType(Advance(Advance(Advance(P)))) ⇓ (P_1, ty)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClosureParam(P) ⇓ (P_1, ⟨true, name, ty⟩)
+
+**(Parse-ClosureParam-MoveUntyped)**
+IsKw(Tok(P), `move`)    IsIdent(Tok(Advance(P)))    name = Lexeme(Tok(Advance(P)))    ¬ IsPunc(Tok(Advance(Advance(P))), ":")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClosureParam(P) ⇓ (Advance(Advance(P)), ⟨true, name, ⊥⟩)
+
+**(Parse-ClosureParam-Typed)**
+¬ IsKw(Tok(P), `move`)    IsIdent(Tok(P))    name = Lexeme(Tok(P))    IsPunc(Tok(Advance(P)), ":")    Γ ⊢ ParseType(Advance(Advance(P))) ⇓ (P_1, ty)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClosureParam(P) ⇓ (P_1, ⟨false, name, ty⟩)
+
+**(Parse-ClosureParam-Untyped)**
+¬ IsKw(Tok(P), `move`)    IsIdent(Tok(P))    name = Lexeme(Tok(P))    ¬ IsPunc(Tok(Advance(P)), ":")
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClosureParam(P) ⇓ (Advance(P), ⟨false, name, ⊥⟩)
+
+**(Parse-ClosureRetOpt-Some)**
+IsOp(Tok(P), "->")    Γ ⊢ ParseType(Advance(P)) ⇓ (P_1, ty)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClosureRetOpt(P) ⇓ (P_1, ty)
+
+**(Parse-ClosureRetOpt-None)**
+¬ IsOp(Tok(P), "->")
+────────────────────────────────────────
+Γ ⊢ ParseClosureRetOpt(P) ⇓ (P, ⊥)
+
+**(Parse-ClosureBody-Block)**
+IsPunc(Tok(P), "{")    Γ ⊢ ParseBlock(P) ⇓ (P_1, b)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClosureBody(P) ⇓ (P_1, b)
+
+**(Parse-ClosureBody-Expr)**
+¬ IsPunc(Tok(P), "{")    Γ ⊢ ParseExpr(P) ⇓ (P_1, e)
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseClosureBody(P) ⇓ (P_1, e)
 
 **(Parse-Block-Expr)**
 IsPunc(Tok(P), "{")    Γ ⊢ ParseBlock(P) ⇓ (P_1, b)
@@ -8404,6 +8541,11 @@ T = TypeFunc([⟨m_1, T_1⟩, …, ⟨m_n, T_n⟩], R)    U = TypeFunc([⟨m_1, 
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ T ≡ U
 
+**(T-Equiv-Closure)**
+T = TypeClosure([⟨m_1, T_1⟩, …, ⟨m_n, T_n⟩], R, D)    U = TypeClosure([⟨m_1, U_1⟩, …, ⟨m_n, U_n⟩], S, D)    ∀ i, Γ ⊢ T_i ≡ U_i    Γ ⊢ R ≡ S
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T ≡ U
+
 **(T-Equiv-Union)**
 T = TypeUnion([T_1, …, T_n])    U = TypeUnion([U_1, …, U_n])    MembersEq([T_1, …, T_n], [U_1, …, U_n])
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -8528,6 +8670,11 @@ T = TypeFunc([⟨m_1, T_1⟩, …, ⟨m_n, T_n⟩], R)    U = TypeFunc([⟨m_1, 
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ T <: U
 
+**(Sub-Closure)**
+T = TypeClosure([⟨m_1, T_1⟩, …, ⟨m_n, T_n⟩], R, D)    U = TypeClosure([⟨m_1, U_1⟩, …, ⟨m_n, U_n⟩], S, D)    ∀ i, Γ ⊢ U_i <: T_i    Γ ⊢ R <: S
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T <: U
+
 **(Sub-Async)**
 AsyncSig(T) = ⟨Out_1, In_1, Result_1, E_1⟩    AsyncSig(U) = ⟨Out_2, In_2, Result_2, E_2⟩
 Γ ⊢ Out_1 <: Out_2    Γ ⊢ In_2 <: In_1    Γ ⊢ Result_1 <: Result_2    Γ ⊢ E_1 <: E_2
@@ -8628,6 +8775,102 @@ CalleeProc(callee) = proc    proc = ExternProcDecl(_, _, _, _, _, _, _, _, _, _,
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ Call(callee, args) ⇑ c
 
+#### 5.2.4a. Closures and Pipelines
+
+**Capture Set Computation.**
+FreeVars(e) = { x | x ∈ Identifier ∧ Bound(x, e) ∧ ¬ LocallyBound(x, e) }
+CaptureSet(C) = FreeVars(C.body) ∖ { p.name | p ∈ C.params }
+MoveCaptureSet(C) = { x | x ∈ CaptureSet(C) ∧ ∃ p ∈ C.params. p.name = x ∧ p.move_opt = true }
+RefCaptureSet(C) = CaptureSet(C) ∖ MoveCaptureSet(C)
+SharedCaptures(C) = { x | x ∈ CaptureSet(C) ∧ Γ(x) = TypePerm(`shared`, _) }
+ConstCaptures(C) = { x | x ∈ CaptureSet(C) ∧ Γ(x) = TypePerm(`const`, _) }
+UniqueCaptures(C) = { x | x ∈ CaptureSet(C) ∧ Γ(x) = TypePerm(`unique`, _) }
+
+**Closure Classification.**
+IsEscaping(C) ⇔ ExpectedType(C) ≠ ⊥ ∧ CanEscape(ExpectedType(C))
+CanEscape(T) ⇔ T = TypeClosure(_, _, _) ∨ (IsGenericType(T) ∧ ¬ LocalBound(T))
+IsLocalClosure(C) ⇔ ¬ IsEscaping(C)
+
+**Non-Capturing Closure Typing.**
+**(T-Closure-NonCapturing)**
+C = ClosureExpr(params, ret_opt, body)    CaptureSet(C) = ∅
+∀ i. ParamType(params[i]) = T_i    (ret_opt ≠ ⊥ ⇒ R = ret_opt)    (ret_opt = ⊥ ⇒ Γ' ⊢ body : R)
+Γ' = Γ ∪ { params[i].name ↦ T_i | i ∈ 1..|params| }    Γ' ⊢ body : R
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ C : TypeFunc([⟨params[i].move_opt, T_i⟩ | i ∈ 1..|params|], R)
+
+**Capturing Closure Typing.**
+**(T-Closure-Capturing)**
+C = ClosureExpr(params, ret_opt, body)    CaptureSet(C) ≠ ∅    IsLocalClosure(C)
+∀ i. ParamType(params[i]) = T_i    (ret_opt ≠ ⊥ ⇒ R = ret_opt)    (ret_opt = ⊥ ⇒ Γ' ⊢ body : R)
+∀ x ∈ UniqueCaptures(C). ∃ p ∈ params. p.name = x ∧ p.move_opt = true
+Γ' = Γ ∪ { params[i].name ↦ T_i | i ∈ 1..|params| }    Γ' ⊢ body : R
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ C : TypeClosure([⟨params[i].move_opt, T_i⟩ | i ∈ 1..|params|], R, ⊥)
+
+**(T-Closure-Escaping)**
+C = ClosureExpr(params, ret_opt, body)    CaptureSet(C) ≠ ∅    IsEscaping(C)
+∀ i. ParamType(params[i]) = T_i    (ret_opt ≠ ⊥ ⇒ R = ret_opt)    (ret_opt = ⊥ ⇒ Γ' ⊢ body : R)
+∀ x ∈ UniqueCaptures(C). ∃ p ∈ params. p.name = x ∧ p.move_opt = true
+SharedCaptures(C) = {x_1, …, x_k}    deps = [(x_j, Γ(x_j)) | j ∈ 1..k]
+Γ' = Γ ∪ { params[i].name ↦ T_i | i ∈ 1..|params| }    Γ' ⊢ body : R
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ C : TypeClosure([⟨params[i].move_opt, T_i⟩ | i ∈ 1..|params|], R, ⟨deps⟩)
+
+**Capture Rules.**
+**(Capture-Const)**
+x ∈ ConstCaptures(C)
+────────────────────────────────────────────────────────────────
+CaptureMode(C, x) = ByRef
+
+**(Capture-Shared)**
+x ∈ SharedCaptures(C)
+────────────────────────────────────────────────────────────────
+CaptureMode(C, x) = ByRef
+
+**(Capture-Unique-Move)**
+x ∈ UniqueCaptures(C)    ∃ p ∈ C.params. p.name = x ∧ p.move_opt = true
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+CaptureMode(C, x) = ByMove
+
+**(Capture-Unique-NoMove-Err)**
+x ∈ UniqueCaptures(C)    ∀ p ∈ C.params. p.name ≠ x ∨ p.move_opt = false    c = Code(E-CON-0120)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ C ⇑ c
+
+**Closure Invocation.**
+**(T-ClosureCall)**
+Γ; R; L ⊢ callee : TypeClosure(params, R_c, _)    Γ; R; L ⊢ ArgsOk_T(params, args)
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Call(callee, args) : R_c
+
+**Pipeline Typing.**
+**(T-Pipeline)**
+Γ; R; L ⊢ e_1 : T_1    Γ; R; L ⊢ e_2 : T_f
+(T_f = TypeFunc([(m, T_p)], R_f) ∨ T_f = TypeClosure([(m, T_p)], R_f, _))
+Γ ⊢ T_1 <: T_p
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ PipelineExpr(e_1, e_2) : R_f
+
+**(T-Pipeline-NotCallable-Err)**
+Γ; R; L ⊢ e_1 : T_1    Γ; R; L ⊢ e_2 : T_f
+T_f ≠ TypeFunc(_, _)    T_f ≠ TypeClosure(_, _, _)    c = Code(E-SEM-2538)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ PipelineExpr(e_1, e_2) ⇑ c
+
+**(T-Pipeline-TypeMismatch-Err)**
+Γ; R; L ⊢ e_1 : T_1    Γ; R; L ⊢ e_2 : T_f
+(T_f = TypeFunc([(m, T_p)], _) ∨ T_f = TypeClosure([(m, T_p)], _, _))
+¬(Γ ⊢ T_1 <: T_p)    c = Code(E-SEM-2539)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ PipelineExpr(e_1, e_2) ⇑ c
+
+**(T-Pipeline-ArgCount-Err)**
+Γ; R; L ⊢ e_1 : T_1    Γ; R; L ⊢ e_2 : T_f
+(T_f = TypeFunc(params, _) ∨ T_f = TypeClosure(params, _, _))    |params| ≠ 1    c = Code(E-SEM-2539)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ PipelineExpr(e_1, e_2) ⇑ c
+
 #### 5.2.5. Tuples
 
 **(T-Unit-Literal)**
@@ -8705,15 +8948,15 @@ ConstIndex(e) ⇔ ∃ n. Γ ⊢ ConstLen(e) ⇓ n
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ IndexAccess(e_1, e_2) ⇑ c
 
-**(Index-Slice-Direct-Err)**
-Γ ⊢ e_1 : TypeSlice(T)    Γ ⊢ e_2 : TypePrim("usize")    c = Code(Index-Slice-Direct-Err)
-────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ IndexAccess(e_1, e_2) ⇑ c
+**(T-Index-Slice)**
+Γ ⊢ e_1 : TypeSlice(T)    Γ ⊢ e_2 : TypePrim("usize")    BitcopyType(T)
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) : T
 
-**(Index-Slice-Perm-Direct-Err)**
-Γ ⊢ e_1 : TypePerm(p, TypeSlice(T))    Γ ⊢ e_2 : TypePrim("usize")    c = Code(Index-Slice-Direct-Err)
-────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ IndexAccess(e_1, e_2) ⇑ c
+**(T-Index-Slice-Perm)**
+Γ ⊢ e_1 : TypePerm(p, TypeSlice(T))    Γ ⊢ e_2 : TypePrim("usize")    BitcopyType(TypePerm(p, T))
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) : TypePerm(p, T)
 
 **(T-Slice-From-Array)**
 Γ ⊢ e_1 : TypeArray(T, n)    Γ; R; L ⊢ e_2 : Range    BitcopyType(TypeSlice(T))
@@ -8743,6 +8986,16 @@ ConstIndex(e) ⇔ ∃ n. Γ ⊢ ConstLen(e) ⇓ n
 **(P-Index-Array-Perm)**
 Γ ⊢ e_1 :place TypePerm(p, TypeArray(T, len))    Γ ⊢ e_2 : TypePrim("usize")    ConstIndex(e_2)    Γ ⊢ ConstLen(e_2) ⇓ i    Γ ⊢ ConstLen(len) ⇓ n    i < n
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) :place TypePerm(p, T)
+
+**(P-Index-Slice)**
+Γ ⊢ e_1 :place TypeSlice(T)    Γ ⊢ e_2 : TypePrim("usize")
+──────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) :place T
+
+**(P-Index-Slice-Perm)**
+Γ ⊢ e_1 :place TypePerm(p, TypeSlice(T))    Γ ⊢ e_2 : TypePrim("usize")
+──────────────────────────────────────────────────────────────────────────────
 Γ ⊢ IndexAccess(e_1, e_2) :place TypePerm(p, T)
 
 **(P-Slice-From-Array)**
@@ -10711,7 +10964,7 @@ IsPlace(p)    FieldHead(p) = f    x = PlaceRoot(p)    Lookup_B(𝔅, x) = ⟨_, 
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; 𝔅; Π ⊢ MoveExpr(p) ⇑ c
 
-BExprRules = {B-Place, B-Move-Whole, B-Move-Field, B-Call, B-MethodCall, B-Transition, B-Expr-Sub}
+BExprRules = {B-Place, B-Move-Whole, B-Move-Field, B-Call, B-MethodCall, B-Transition, B-Closure-NonCapturing, B-Closure-Capturing, B-Pipeline, B-Expr-Sub}
 
 NoSpecificBExpr(e) ⇔ ¬ ∃ r ∈ BExprRules \ {B-Expr-Sub}. PremisesHold(r, e)
 
@@ -10791,6 +11044,59 @@ params = [⟨`move`, _, T_p⟩] ++ ps    args = [⟨moved, e, _⟩] ++ as    mov
 Γ; 𝔅; Π ⊢ e_self ⇒ 𝔅_0 ▷ Π_0    x = PlaceRoot(e_self)    Lookup_B(𝔅_0, x) = ⟨Valid, mov, m, r⟩    mov = mov    𝔅_1 = Update_B(𝔅_0, x, ⟨Moved, mov, m, r⟩)    Γ; 𝔅_1; Π_0 ⊢ ArgPass(tr.params, args) ⇒ 𝔅_2 ▷ Π_1, D
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; 𝔅; Π ⊢ e_self ↠ t(args) ⇒ 𝔅_2 ▷ Reactivate(Π_1, D)
+
+**Closure Binding State.**
+
+ClosureMoveCaptures(C) = MoveCaptureSet(C)
+ClosureRefCaptures(C) = RefCaptureSet(C)
+
+MoveCaptureValid(𝔅, x) ⇔ Lookup_B(𝔅, x) = ⟨Valid, mov, _, _⟩ ∧ mov = mov
+MoveCaptureErr(𝔅, x) ⇔ Lookup_B(𝔅, x) = ⟨s, mv, _, _⟩ ∧ (s ≠ Valid ∨ mv = immov)
+
+RefCaptureValid(𝔅, x) ⇔ Lookup_B(𝔅, x) = ⟨s, _, _, _⟩ ∧ s = Valid
+
+ApplyMoveCapture(𝔅, x) = Update_B(𝔅, x, ⟨Moved, mv, m, r⟩) where Lookup_B(𝔅, x) = ⟨_, mv, m, r⟩
+
+ApplyMoveCaptures(𝔅, []) = 𝔅
+ApplyMoveCaptures(𝔅, [x] ++ xs) = ApplyMoveCaptures(ApplyMoveCapture(𝔅, x), xs)
+
+**(B-Closure-NonCapturing)**
+C = ClosureExpr(params, ret_type_opt, body)    CaptureSet(C) = ∅
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ C ⇒ 𝔅 ▷ Π
+
+**(B-Closure-Capturing)**
+C = ClosureExpr(params, ret_type_opt, body)    CaptureSet(C) ≠ ∅
+MoveCaps = ClosureMoveCaptures(C)    RefCaps = ClosureRefCaptures(C)
+∀ x ∈ MoveCaps. MoveCaptureValid(𝔅, x)    ∀ x ∈ RefCaps. RefCaptureValid(𝔅, x)
+𝔅' = ApplyMoveCaptures(𝔅, MoveCaps)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ C ⇒ 𝔅' ▷ Π
+
+**(B-Closure-MoveCapture-Moved-Err)**
+C = ClosureExpr(params, ret_type_opt, body)    MoveCaps = ClosureMoveCaptures(C)
+∃ x ∈ MoveCaps. Lookup_B(𝔅, x) = ⟨s, mov, _, _⟩ ∧ s ≠ Valid ∧ mov = mov    c = Code(E-CON-0121)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ C ⇑ c
+
+**(B-Closure-MoveCapture-Immovable-Err)**
+C = ClosureExpr(params, ret_type_opt, body)    MoveCaps = ClosureMoveCaptures(C)
+∃ x ∈ MoveCaps. Lookup_B(𝔅, x) = ⟨_, mv, _, _⟩ ∧ mv = immov    c = Code(E-MEM-3006)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ C ⇑ c
+
+**(B-Closure-RefCapture-Moved-Err)**
+C = ClosureExpr(params, ret_type_opt, body)    RefCaps = ClosureRefCaptures(C)
+∃ x ∈ RefCaps. Lookup_B(𝔅, x) = ⟨s, _, _, _⟩ ∧ s ≠ Valid    c = Code(E-MEM-3001)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ C ⇑ c
+
+**Pipeline Binding State.**
+
+**(B-Pipeline)**
+Γ; 𝔅; Π ⊢ e_1 ⇒ 𝔅_1 ▷ Π_1    Γ; 𝔅_1; Π_1 ⊢ e_2 ⇒ 𝔅_2 ▷ Π_2
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; 𝔅; Π ⊢ PipelineExpr(e_1, e_2) ⇒ 𝔅_2 ▷ Π_2
 
 **Statement Rules (Selected).**
 
@@ -11180,6 +11486,40 @@ ArmProv(⟨pat, _, body⟩) = π ⇔ ArmEnv(Ω, pat) = Ω' ∧ ArmBodyProv(body,
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; Ω ⊢ MatchExpr(_, arms) ⇓ π
 
+**Closure Provenance.**
+
+ClosureCaptureProv(C, Ω) = [π_x | x ∈ CaptureSet(C) ∧ Lookup_π(Σ_π, x) = π_x]
+
+ClosureTargetProv(C, Ω) =
+  { FrameProv(Γ, Ω)    if IsEscaping(C)
+    StackProv(Σ_π)     otherwise }
+
+ClosureEscapeCheck(C, Ω) ⇔ ∀ π_x ∈ ClosureCaptureProv(C, Ω). ¬(π_x < ClosureTargetProv(C, Ω))
+
+**(P-Closure-NonCapturing)**
+C = ClosureExpr(params, ret_type_opt, body)    CaptureSet(C) = ∅    Γ; Ω ⊢ body ⇓ π_body
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ C ⇓ π_Global
+
+**(P-Closure-Capturing)**
+C = ClosureExpr(params, ret_type_opt, body)    CaptureSet(C) ≠ ∅    ClosureEscapeCheck(C, Ω)
+ClosureCaptureProv(C, Ω) = [π_1, …, π_n]    JoinAllProv([π_1, …, π_n]) = π_cap    Γ; Ω ⊢ body ⇓ π_body
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ C ⇓ π_cap
+
+**(P-Closure-Escape-Err)**
+C = ClosureExpr(params, ret_type_opt, body)    CaptureSet(C) ≠ ∅    ¬ClosureEscapeCheck(C, Ω)
+∃ x ∈ CaptureSet(C). Lookup_π(Σ_π, x) = π_x ∧ π_x < ClosureTargetProv(C, Ω)    c = Code(E-CON-0086)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ C ⇑ c
+
+**Pipeline Provenance.**
+
+**(P-Pipeline)**
+Γ; Ω ⊢ e_1 ⇓ π_1    Γ; Ω ⊢ e_2 ⇓ π_2    JoinProv(π_1, π_2) = π
+────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ PipelineExpr(e_1, e_2) ⇓ π
+
 FrameProv(Γ, ⟨Σ_π, RS⟩) =
   { π_Region(r)    if InnermostActiveRegion(Γ) = r
     StackProv(Σ_π) otherwise }
@@ -11218,7 +11558,7 @@ AsyncCreateExpr(e)    AsyncCaptureArgs(e) = args    ∀ e_i ∈ args, Γ; Ω ⊢
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; Ω ⊢ e ⇓ FrameProv(Γ, Ω)
 
-ProvExprRules = {P-Place-Expr, P-Literal, P-Move, P-AddrOf, P-Alloc, P-Region-Alloc-Method, P-If, P-If-No-Else, P-Match, P-Async-Create, P-Block, P-Loop-Infinite, P-Loop-Conditional, P-Loop-Iter, P-Expr-Sub}
+ProvExprRules = {P-Place-Expr, P-Literal, P-Move, P-AddrOf, P-Alloc, P-Region-Alloc-Method, P-If, P-If-No-Else, P-Match, P-Closure-NonCapturing, P-Closure-Capturing, P-Pipeline, P-Async-Create, P-Block, P-Loop-Infinite, P-Loop-Conditional, P-Loop-Iter, P-Expr-Sub}
 
 NoSpecificProvExpr(e) ⇔ ¬ ∃ r ∈ ProvExprRules \ {P-Expr-Sub}. PremisesHold(r, e)
 
@@ -14176,6 +14516,44 @@ T = TypeFunc(params, R)
 ────────────────────────────────────────────
 Γ ⊢ layout(T) ⇓ ⟨PtrSize, PtrAlign⟩
 
+**Closure Layout.**
+
+A closure value is represented as a pair: environment pointer and code pointer.
+
+ClosureRep = ⟨env_ptr: *imm u8, code_ptr: *imm u8⟩
+
+**(Size-Closure)**
+T = TypeClosure(params, R, deps_opt)
+────────────────────────────────────────────
+Γ ⊢ sizeof(T) = 2 × PtrSize
+
+**(Align-Closure)**
+T = TypeClosure(params, R, deps_opt)
+────────────────────────────────────────────
+Γ ⊢ alignof(T) = PtrAlign
+
+**(Layout-Closure)**
+T = TypeClosure(params, R, deps_opt)
+────────────────────────────────────────────
+Γ ⊢ layout(T) ⇓ ⟨2 × PtrSize, PtrAlign⟩
+
+**Closure Environment Layout.**
+
+ClosureEnvFields(C) = [(x_i, T_i) | x_i ∈ CaptureSet(C) ∧ CaptureType(C, x_i) = T_i]
+
+CaptureType(C, x) = T_x ⇔ x ∈ ConstCaptures(C) ∪ SharedCaptures(C) ∧ Γ(x) = T_x
+CaptureType(C, x) = Ptr<T_x>@Valid ⇔ x ∈ MoveCaptureSet(C) ∧ Γ(x) = T_x
+
+**(Layout-ClosureEnv)**
+C = ClosureExpr(params, ret_type_opt, body)    ClosureEnvFields(C) = fields    RecordLayout(fields) ⇓ ⟨size, align, offsets⟩
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ClosureEnvLayout(C) ⇓ ⟨size, align, offsets⟩
+
+**(Layout-ClosureEnv-Empty)**
+C = ClosureExpr(params, ret_type_opt, body)    CaptureSet(C) = ∅
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ClosureEnvLayout(C) ⇓ ⟨0, 1, []⟩
+
 #### 6.1.3. Record Layout Without `[[layout(C)]]`
 
 AlignUp(x, a) = ⌈x/a⌉ × a    where a > 0
@@ -15131,6 +15509,24 @@ item = DefaultImpl(T, m)
 ──────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Mangle(item) ⇓ ScopedSym(item)
 
+**Closure Mangling.**
+
+ClosureIndex(C) returns a unique index for closure C within its enclosing scope.
+
+EnclosingSym(C) = sym ⇔ EnclosingScope(C) = item ∧ Γ ⊢ Mangle(item) ⇓ sym
+
+**(Mangle-Closure)**
+C = ClosureExpr(params, ret_type_opt, body)    EnclosingSym(C) = sym_enc    ClosureIndex(C) = idx
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ Mangle(C) ⇓ PathSig([sym_enc, "_closure" ++ ToString(idx)])
+
+**(Mangle-ClosureEnv)**
+C = ClosureExpr(params, ret_type_opt, body)    Γ ⊢ Mangle(C) ⇓ sym_closure
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ MangleClosureEnv(C) ⇓ PathSig([sym_closure, "_env"])
+
+ClosureCodeSym(C) = sym ⇔ Γ ⊢ Mangle(C) ⇓ sym
+
 #### 6.3.4. Linkage for Generated Symbols
 
 LinkageKind = {`internal`, `external`}
@@ -15829,6 +16225,52 @@ op ∉ {"&&", "||"}    Γ ⊢ LowerBinOp(op, e_1, e_2) ⇓ ⟨IR, v⟩
 Γ ⊢ LowerExpr(e) ⇓ ⟨IR_e, v⟩
 ────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LowerExpr(AllocExpr(r_opt, e)) ⇓ ⟨SeqIR(IR_e, AllocIR(r_opt, v)), v_alloc⟩
+
+**Closure Lowering.**
+
+**(Lower-Expr-Closure-NonCapturing)**
+C = ClosureExpr(params, ret_type_opt, body)    CaptureSet(C) = ∅    Γ ⊢ ClosureCodeSym(C) ⇓ sym
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LowerExpr(C) ⇓ ⟨EmptyIR, ClosureVal(null, sym)⟩
+
+**(Lower-Expr-Closure-Capturing)**
+C = ClosureExpr(params, ret_type_opt, body)    CaptureSet(C) ≠ ∅
+Γ ⊢ ClosureCodeSym(C) ⇓ sym    Γ ⊢ ClosureEnvLayout(C) ⇓ ⟨size, align, offsets⟩
+Γ ⊢ LowerCaptureEnv(C, offsets) ⇓ ⟨IR_env, env_ptr⟩
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LowerExpr(C) ⇓ ⟨IR_env, ClosureVal(env_ptr, sym)⟩
+
+LowerCaptureEnv(C, offsets) ⇓ ⟨IR, env_ptr⟩ ⇔
+  captures = CaptureSet(C) ∧
+  Γ ⊢ ClosureEnvLayout(C) ⇓ ⟨size, align, _⟩ ∧
+  env_ptr = Alloc(size, align) ∧
+  IR = SeqIR(AllocIR(size, align), [StoreCapture(env_ptr, offsets[i], x_i) | x_i ∈ captures, i ∈ 1..|captures|])
+
+StoreCapture(env_ptr, offset, x) = StoreIR(GEP(env_ptr, offset), LoadLocal(x))    if x ∈ RefCaptureSet(C)
+StoreCapture(env_ptr, offset, x) = MoveIR(GEP(env_ptr, offset), x)    if x ∈ MoveCaptureSet(C)
+
+**(Lower-Closure-Call)**
+Γ ⊢ LowerExpr(e_closure) ⇓ ⟨IR_c, v_closure⟩
+v_closure = ClosureVal(env_ptr, code_ptr)
+Γ ⊢ LowerArgs(args) ⇓ ⟨IR_args, vs⟩
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LowerClosureCall(e_closure, args) ⇓ ⟨SeqIR(IR_c, IR_args), IndirectCall(code_ptr, [env_ptr] ++ vs)⟩
+
+**Pipeline Lowering.**
+
+Pipelines desugar to function/closure application.
+
+**(Lower-Expr-Pipeline)**
+Γ ⊢ LowerExpr(e_1) ⇓ ⟨IR_1, v_1⟩    Γ ⊢ LowerExpr(e_2) ⇓ ⟨IR_2, v_2⟩
+IsFunc(ExprType(e_2)) ⇒ IR_call = CallIR(v_2, [v_1])
+IsClosure(ExprType(e_2)) ⇒ v_2 = ClosureVal(env, code) ∧ IR_call = IndirectCall(code, [env, v_1])
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LowerExpr(PipelineExpr(e_1, e_2)) ⇓ ⟨SeqIR(IR_1, IR_2, IR_call), v_result⟩
+
+IsFunc(TypeFunc(_, _)) ⇔ true
+IsFunc(_) ⇔ false
+IsClosure(TypeClosure(_, _, _)) ⇔ true
+IsClosure(_) ⇔ false
 
 **Operator and Cast Lowering.**
 
@@ -17006,6 +17448,13 @@ T = TypeRawPtr(q, U)    LLVMPtrTy(T) = τ
 T = TypeFunc(params, R)    LLVMPtrTy(T) = τ
 ──────────────────────────────────────────────
 Γ ⊢ LLVMTy(T) ⇓ τ
+
+**(LLVMTy-Closure)**
+T = TypeClosure(params, R, deps_opt)
+──────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LLVMTy(T) ⇓ LLVMStruct([`ptr`, `ptr`])
+
+A closure is represented as { ptr env_ptr, ptr code_ptr }. The code_ptr points to a function with signature (ptr, params...) -> R where the first ptr is the environment pointer.
 
 **(LLVMTy-Alias)**
 T = TypePath(p)    AliasBody(p) = ty    Γ ⊢ LLVMTy(ty) ⇓ τ
@@ -19181,7 +19630,9 @@ Ptr@Expired(addr) = PtrVal(`Expired`, addr)
 TupleVal = {(v_1, …, v_n) | n ≥ 0}
 ArrayVal = {[v_1, …, v_n] | n ≥ 0}
 ModalVal(S, v) = ⟨S, v⟩
-Value = {BoolVal(b) | b ∈ {true, false}} ∪ {CharVal(u) | u ∈ UnicodeScalar} ∪ {UnitVal} ∪ {IntVal(t, x) | IntVal(t, x) defined} ∪ {FloatVal(t, v) | FloatVal(t, v) defined} ∪ {PtrVal(s, addr) | PtrVal(s, addr) defined} ∪ {RawPtr(q, addr)} ∪ TupleVal ∪ ArrayVal ∪ {RecordValue(tr, fs)} ∪ {EnumValue(path, payload)} ∪ RangeVal ∪ {SliceValue(v, r) | SliceValue(v, r) defined} ∪ {ModalVal(S, v)} ∪ {Dyn(Cl, RawPtr(`imm`, addr), T)} ∪ `string@Managed` ∪ `string@View` ∪ `bytes@Managed` ∪ `bytes@View`
+FuncVal(sym) defined ⇔ sym ∈ Symbol
+ClosureVal(env_ptr, code_ptr) defined ⇔ (env_ptr = null ∨ env_ptr ∈ Addr) ∧ code_ptr ∈ Symbol
+Value = {BoolVal(b) | b ∈ {true, false}} ∪ {CharVal(u) | u ∈ UnicodeScalar} ∪ {UnitVal} ∪ {IntVal(t, x) | IntVal(t, x) defined} ∪ {FloatVal(t, v) | FloatVal(t, v) defined} ∪ {PtrVal(s, addr) | PtrVal(s, addr) defined} ∪ {RawPtr(q, addr)} ∪ TupleVal ∪ ArrayVal ∪ {RecordValue(tr, fs)} ∪ {EnumValue(path, payload)} ∪ RangeVal ∪ {SliceValue(v, r) | SliceValue(v, r) defined} ∪ {ModalVal(S, v)} ∪ {Dyn(Cl, RawPtr(`imm`, addr), T)} ∪ `string@Managed` ∪ `string@View` ∪ `bytes@Managed` ∪ `bytes@View` ∪ {FuncVal(sym)} ∪ {ClosureVal(env_ptr, code_ptr)}
 
 **EvalListJudg.**
 EvalListJudg = {Γ ⊢ EvalListSigma(es, σ) ⇓ (out, σ'), Γ ⊢ EvalFieldInitsSigma(fields, σ) ⇓ (out, σ')}
@@ -19899,6 +20350,87 @@ mode = RecvArgMode(base)    Γ ⊢ EvalRecvSigma(base, mode, σ) ⇓ (Ctrl(κ), 
 mode = RecvArgMode(base)    Γ ⊢ EvalRecvSigma(base, mode, σ) ⇓ (Val(⟨v_self, v_arg⟩), σ_1)    m = MethodTarget(v_self, name)    Γ ⊢ EvalArgsSigma(m.params, args, σ_1) ⇓ (Ctrl(κ), σ_2)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ EvalSigma(MethodCall(base, name, args), σ) ⇓ (Ctrl(κ), σ_2)
+
+**Closure Evaluation.**
+
+BuildClosureEnv(σ, C) = env ⇔ env = { x ↦ CaptureVal(σ, C, x) | x ∈ CaptureSet(C) }
+
+CaptureVal(σ, C, x) = LookupVal(σ, x)    if x ∈ RefCaptureSet(C)
+CaptureVal(σ, C, x) = MoveVal(σ, x)      if x ∈ MoveCaptureSet(C)
+
+AllocEnv(σ, env) = (σ', env_ptr) ⇔ env_ptr = Alloc(EnvSize(env)) ∧ σ' = StoreEnv(σ, env_ptr, env)
+
+**(EvalSigma-Closure-NonCapturing)**
+C = ClosureExpr(params, ret_type_opt, body)    CaptureSet(C) = ∅    Γ ⊢ Mangle(C) ⇓ sym
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EvalSigma(C, σ) ⇓ (Val(ClosureVal(null, sym)), σ)
+
+**(EvalSigma-Closure-Capturing)**
+C = ClosureExpr(params, ret_type_opt, body)    CaptureSet(C) ≠ ∅    Γ ⊢ Mangle(C) ⇓ sym
+BuildClosureEnv(σ, C) = env    AllocEnv(σ, env) = (σ_1, env_ptr)
+MarkMoved(σ_1, MoveCaptureSet(C)) = σ_2
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EvalSigma(C, σ) ⇓ (Val(ClosureVal(env_ptr, sym)), σ_2)
+
+MarkMoved(σ, []) = σ
+MarkMoved(σ, [x] ++ xs) = MarkMoved(SetMoved(σ, x), xs)
+
+**Closure Call Evaluation.**
+
+**(EvalSigma-ClosureCall)**
+Γ ⊢ EvalSigma(e_c, σ) ⇓ (Val(ClosureVal(env_ptr, code_ptr)), σ_1)
+Γ ⊢ EvalArgsSigma(ClosureParams(ExprType(e_c)), args, σ_1) ⇓ (Val(vec_v), σ_2)
+Γ ⊢ ApplyClosureSigma(env_ptr, code_ptr, vec_v, σ_2) ⇓ (out, σ_3)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EvalSigma(ClosureCall(e_c, args), σ) ⇓ (out, σ_3)
+
+ClosureParams(TypeClosure(params, R, deps_opt)) = params
+ClosureParams(TypeFunc(params, R)) = params
+
+ApplyClosureSigma(env_ptr, code_ptr, vec_v, σ) = (out, σ') ⇔
+  body = CodeBody(code_ptr) ∧
+  params = CodeParams(code_ptr) ∧
+  σ_1 = BindParams(σ, params, vec_v) ∧
+  (env_ptr ≠ null ⇒ σ_2 = BindEnv(σ_1, env_ptr)) ∧
+  (env_ptr = null ⇒ σ_2 = σ_1) ∧
+  Γ ⊢ EvalSigma(body, σ_2) ⇓ (out, σ')
+
+**(EvalSigma-ClosureCall-Ctrl)**
+Γ ⊢ EvalSigma(e_c, σ) ⇓ (Ctrl(κ), σ_1)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EvalSigma(ClosureCall(e_c, args), σ) ⇓ (Ctrl(κ), σ_1)
+
+**(EvalSigma-ClosureCall-Ctrl-Args)**
+Γ ⊢ EvalSigma(e_c, σ) ⇓ (Val(ClosureVal(env_ptr, code_ptr)), σ_1)
+Γ ⊢ EvalArgsSigma(ClosureParams(ExprType(e_c)), args, σ_1) ⇓ (Ctrl(κ), σ_2)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EvalSigma(ClosureCall(e_c, args), σ) ⇓ (Ctrl(κ), σ_2)
+
+**Pipeline Evaluation.**
+
+Pipeline expressions desugar to function/closure application: e_1 => e_2 ≡ e_2(e_1)
+
+**(EvalSigma-Pipeline-Func)**
+Γ ⊢ EvalSigma(e_1, σ) ⇓ (Val(v_1), σ_1)    Γ ⊢ EvalSigma(e_2, σ_1) ⇓ (Val(FuncVal(sym)), σ_2)
+Γ ⊢ ApplyProcSigma(sym, [v_1], σ_2) ⇓ (out, σ_3)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EvalSigma(PipelineExpr(e_1, e_2), σ) ⇓ (out, σ_3)
+
+**(EvalSigma-Pipeline-Closure)**
+Γ ⊢ EvalSigma(e_1, σ) ⇓ (Val(v_1), σ_1)    Γ ⊢ EvalSigma(e_2, σ_1) ⇓ (Val(ClosureVal(env_ptr, code_ptr)), σ_2)
+Γ ⊢ ApplyClosureSigma(env_ptr, code_ptr, [v_1], σ_2) ⇓ (out, σ_3)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EvalSigma(PipelineExpr(e_1, e_2), σ) ⇓ (out, σ_3)
+
+**(EvalSigma-Pipeline-Ctrl-Left)**
+Γ ⊢ EvalSigma(e_1, σ) ⇓ (Ctrl(κ), σ_1)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EvalSigma(PipelineExpr(e_1, e_2), σ) ⇓ (Ctrl(κ), σ_1)
+
+**(EvalSigma-Pipeline-Ctrl-Right)**
+Γ ⊢ EvalSigma(e_1, σ) ⇓ (Val(v_1), σ_1)    Γ ⊢ EvalSigma(e_2, σ_1) ⇓ (Ctrl(κ), σ_2)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EvalSigma(PipelineExpr(e_1, e_2), σ) ⇓ (Ctrl(κ), σ_2)
 
 **(EvalSigma-Alloc-Implicit)**
 Γ ⊢ EvalSigma(e, σ) ⇓ (Val(v), σ_1)    ActiveTarget(σ_1) = r    RegionAlloc(σ_1, r, v) ⇓ (σ_2, v')
@@ -21299,6 +21831,9 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 | `E-SEM-2534` | Error    | Compile-time | `move` argument required but not provided            | Call-Move-Missing                                 |
 | `E-SEM-2535` | Error    | Compile-time | `move` argument provided but parameter is not `move` | Call-Move-Unexpected                              |
 | `E-SEM-2536` | Error    | Compile-time | Method not found for receiver type                   | LookupMethod-NotFound, LookupClassMethod-NotFound |
+| `E-SEM-2538` | Error    | Compile-time | Pipeline RHS is not callable                         | T-Pipeline-NotCallable-Err                        |
+| `E-SEM-2539` | Error    | Compile-time | Pipeline argument type mismatch                      | T-Pipeline-TypeMismatch-Err, T-Pipeline-ArgCount-Err |
+| `E-SEM-2591` | Error    | Compile-time | Closure parameter type cannot be inferred            | Infer-Closure-Params-Err                          |
 | `E-SEM-2705` | Error    | Compile-time | `match` expression is not exhaustive for union type  | Match-Union-NonExhaustive                         |
 | `E-SEM-2711` | Error    | Compile-time | Refutable pattern in irrefutable context (`let`)     | Let-Refutable-Pattern-Err                         |
 | `E-SEM-2713` | Error    | Compile-time | Duplicate binding identifier within single pattern   | Pat-Dup-Err, Pat-Dup-R-Err                        |
@@ -21559,11 +22094,21 @@ The following positions MAY omit type annotations when the type is inferable:
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ InferClosureParams(C) ⇓ ok
 
+**(Infer-Closure-Params-Err)**
+∃ i. Annot(Params(C)_i) = ⊥    ExpectedType(C) = ⊥    c = Code(E-SEM-2591)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ InferClosureParams(C) ⇑ c
+
+**(Infer-Closure-Return)**
+C = ClosureExpr(params, ⊥, body)    Γ' = Γ ∪ { params[i].name ↦ ParamType(params[i]) | i ∈ 1..|params| }    Γ' ⊢ body : R
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ InferClosureReturn(C) ⇓ R
+
 If a closure parameter lacks an annotation and no expected function type is available, inference fails.
 
 Params(C) is the parameter list of closure expression C. Annot(p) is the optional type annotation on parameter p.
 
-**Diagnostics:** See Appendix A, code `E-TYP-1505`.
+**Diagnostics:** See Appendix A, codes `E-TYP-1505`, `E-SEM-2591`.
 
 #### 9.4.4. Inference Failures
 
@@ -23651,9 +24196,59 @@ KeyPath(C, x.p) = id(C.x).p    KeyMode = M
 
 where C.x denotes the captured reference to x stored in the closure environment.
 
+**Local Closure Key Rules**
+
+**(K-Closure-Local-Keys)**
+IsLocalClosure(C)    x ∈ SharedCaptures(C)    Access(x.p, M) ∈ C.body
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+KeyPath(C, x.p) = KeyPath(x.p)    KeyMode = M
+
+**(K-Closure-Invoke-Local)**
+IsLocalClosure(C)    SharedCaptures(C) = {x_1, …, x_n}    AccessedPaths(C.body) = {p_1, …, p_m}
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+InvokeSeq(C) = [ Acquire(KeyPath(x_i.p_j), Mode(p_j)) | x_i ∈ SharedCaptures(C), p_j ∈ PathsOf(x_i) ]; Execute(C.body); ReleaseAll
+
+**(K-Closure-Invoke-Escaping)**
+IsEscaping(C)    C : |vec_T| → R [`shared`: deps]    ∀ (x, T) ∈ deps, r_x = C.x
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+InvokeSeq(C) = [ Acquire(id(r_x).p, Mode(p)) | (x, T) ∈ deps, p ∈ AccessedPathsOf(x, C.body) ]; Execute(C.body); ReleaseAll
+
+**Closure-Key Error Rules**
+
+**(K-Closure-Missing-SharedDeps-Err)**
+IsEscaping(C)    SharedCaptures(C) ≠ ∅    Type(C) = TypeClosure(params, R, ⊥)    c = Code(E-CON-0085)
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ C ⇑ c
+
 **Lifetime Constraint**
 
-An escaping closure MUST NOT outlive any captured `shared` binding. Implementations MUST reject any flow where the closure’s lifetime exceeds the lifetime of a captured `shared` root.
+An escaping closure MUST NOT outlive any captured `shared` binding. Implementations MUST reject any flow where the closure's lifetime exceeds the lifetime of a captured `shared` root.
+
+**(K-Closure-Escape-Lifetime-Err)**
+IsEscaping(C)    x ∈ SharedCaptures(C)    Γ; Ω ⊢ x ⇓ π_x    Γ; Ω ⊢ C ⇓ π_C    π_x < π_C    c = Code(E-CON-0086)
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ C ⇑ c
+
+**Spawn Restriction**
+
+Escaping closures MUST NOT be used as the body of a `spawn` expression. The rationale is that escaping closures rely on runtime identity rooting, which is incompatible with the fork-join semantics of structured parallelism.
+
+**(K-Closure-Spawn-Escaping-Err)**
+IsEscaping(C)    Context(C) = SpawnExpr(_, C)    c = Code(E-CON-0131)
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ C ⇑ c
+
+**Warning for Shared Captures**
+
+**(Warn-Closure-SharedCapture)**
+SharedCaptures(C) ≠ ∅    sp = span(C)    Γ ⊢ Emit(W-CON-0009, sp)
+───────────────────────────────────────────────────────────────
+Γ ⊢ WarnClosureSharedCapture(C) ⇓ ok
+
+**(Warn-Closure-SharedCapture-Ok)**
+SharedCaptures(C) = ∅
+───────────────────────────────────────────────────────────────
+Γ ⊢ WarnClosureSharedCapture(C) ⇓ ok
 
 **Dynamic Semantics**
 
@@ -24348,6 +24943,54 @@ See §3.4 for move semantics and §10.1.2 for `unique` permission rules.
 **Constraints**
 
 **Diagnostics:** See Appendix A, codes `E-CON-0120`–`E-CON-0122`.
+
+
+#### 18.3.4 Closure Capture in Parallel Contexts
+
+**Parallel Closure Capture.** When a closure is used within a `spawn` or `dispatch` body, the closure's capture set is subject to additional constraints beyond §5.2.4a.
+
+**Static Semantics**
+
+**(Parallel-Closure-Capture-Const)**
+C = ClosureExpr(params, ret_type_opt, body)    Context(C) ⊆ {SpawnBody, DispatchBody}
+x ∈ ConstCaptures(C)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParallelClosureCapture(C, x) ⇓ ok
+
+`const` captures within closures in parallel bodies are captured by reference; structured concurrency ensures validity.
+
+**(Parallel-Closure-Capture-Shared)**
+C = ClosureExpr(params, ret_type_opt, body)    Context(C) ⊆ {SpawnBody, DispatchBody}
+x ∈ SharedCaptures(C)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParallelClosureCapture(C, x) ⇓ ok
+
+`shared` captures within closures in parallel bodies are captured by reference with key synchronization per §17.2.5.
+
+**(Parallel-Closure-Capture-Unique)**
+C = ClosureExpr(params, ret_type_opt, body)    Context(C) ⊆ {SpawnBody, DispatchBody}
+x ∈ UniqueCaptures(C)    ExplicitMove(C, x)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParallelClosureCapture(C, x) ⇓ ok
+
+`unique` captures require explicit `move` in the closure parameter list.
+
+**(Parallel-Closure-Capture-Unique-NoMove-Err)**
+C = ClosureExpr(params, ret_type_opt, body)    Context(C) ⊆ {SpawnBody, DispatchBody}
+x ∈ UniqueCaptures(C)    ¬ExplicitMove(C, x)    c = Code(E-CON-0120)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParallelClosureCapture(C, x) ⇑ c
+
+**(Parallel-Escaping-Closure-Spawn-Err)**
+C = ClosureExpr(params, ret_type_opt, body)    Context(C) = SpawnBody    IsEscaping(C)    c = Code(E-CON-0131)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParallelClosureCapture(C, _) ⇑ c
+
+Escaping closures MUST NOT be used as spawn bodies because runtime identity rooting is incompatible with fork-join semantics.
+
+**Constraints**
+
+All closures in parallel contexts are classified as local closures per §17.2.5; escaping closures are forbidden within spawn and dispatch bodies.
 
 
 ### 18.4 Tasks and Spawning
@@ -25178,6 +25821,16 @@ YieldFromExpr(⊥, _) at program point p    Γ_keys(p) ≠ ∅
 ──────────────────────────────────────────────
 Emit(`E-CON-0224`)
 
+**Closure-Yield Key Prohibition**
+
+**(A-Closure-Yield-Keys-Err)**
+C = ClosureExpr(params, ret_type_opt, body)    YieldExpr(_, _) ∈ body    SharedCaptures(C) ≠ ∅
+YieldExpr(⊥, _) at program point p within body    Γ_keys(p) ≠ ∅    c = Code(E-CON-0213)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ C ⇑ c
+
+A closure that captures `shared` bindings and contains `yield` expressions MUST NOT hold keys across the yield point unless the `release` modifier is present.
+
 **Yield Release Mechanism**
 
 If `release` is used, all held keys are released before suspension and reacquired on resume in canonical order (§17.4.1).
@@ -25572,7 +26225,6 @@ Predicates MUST NOT reference:
 | :--------------------- | :--------------------------------------------------------- |
 | `[[static]]` (default) | Caller must prove predicates at compile time               |
 | `[[dynamic]]`          | Runtime checks inserted before `unsafe` call               |
-| `[[assume]]`           | Predicates assumed true without checks (optimization only) |
 
 `[[static]]` uses `StaticProof` as defined in §14.7.1. `[[dynamic]]` inserts `ContractCheck(P, ForeignPre, s, ρ_emptyset)` immediately before the foreign call.
 
@@ -25644,7 +26296,6 @@ Then the foreign postcondition obligations are:
 | :--------------------- | :------------------------------------------------------------ |
 | `[[static]]` (default) | Postconditions available as assumptions for downstream proofs |
 | `[[dynamic]]`          | Runtime assertions after foreign call returns                 |
-| `[[assume]]`           | Postconditions assumed without checks (optimization only)     |
 | `[[trust]]`            | Postconditions trusted without runtime checks (audited code)  |
 
 `[[static]]` uses `StaticProof` as defined in §14.7.1 with `SuccessCond` and `ErrCond` gating the obligations.
@@ -25677,5 +26328,5 @@ Incorrect postconditions under `[[trust]]` place the program outside conformance
 | :------------ | :----------------- | :----------------------- |
 | `[[static]]`  | Compile-time proof | Available as assumptions |
 | `[[dynamic]]` | Runtime assertion  | Runtime assertion        |
-| `[[assume]]`  | No check           | No check                 |
 | `[[trust]]`   | No check           | No check (trusted)       |
+

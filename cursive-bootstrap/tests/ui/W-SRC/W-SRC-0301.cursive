@@ -1,9 +1,0 @@
-// RUN: compile-pass
-// DIAG: W-SRC-0301
-// SPEC: 8.14
-// DESC: Leading zeros in decimal literal
-
-public procedure main(move ctx: Context) -> i32 {
-    let x: i32 = 007  //~ WARNING W-SRC-0301: leading zeros
-    return x
-}

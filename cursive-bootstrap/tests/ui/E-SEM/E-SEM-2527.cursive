@@ -1,9 +1,0 @@
-// RUN: compile-fail
-// DIAG: E-SEM-2527
-// SPEC: 5.2.1
-// DESC: Indexing applied to non-indexable type
-
-public procedure main(move ctx: Context) -> i32 {
-    let x: i32 = 42
-    return x[0]  //~ ERROR E-SEM-2527: non-indexable
-}

@@ -310,6 +310,11 @@ std::string BuiltinSymBytesAsView() {
   return core::PathSig({"cursive", "runtime", "bytes", "as_view"});
 }
 
+std::string BuiltinSymBytesAsSlice() {
+  SPEC_DEF("BuiltinSym-bytes-as_slice", "§6.12.14");
+  return core::PathSig({"cursive", "runtime", "bytes", "as_slice"});
+}
+
 std::string BuiltinSymBytesToManaged() {
   SPEC_DEF("BuiltinSym-bytes-to_managed", "§6.12.14");
   return core::PathSig({"cursive", "runtime", "bytes", "to_managed"});
@@ -506,6 +511,7 @@ std::string BuiltinSym(const std::string& qualified_name) {
   if (qualified_name == "bytes::with_capacity") return BuiltinSymBytesWithCapacity();
   if (qualified_name == "bytes::from_slice") return BuiltinSymBytesFromSlice();
   if (qualified_name == "bytes::as_view") return BuiltinSymBytesAsView();
+  if (qualified_name == "bytes::as_slice") return BuiltinSymBytesAsSlice();
   if (qualified_name == "bytes::to_managed") return BuiltinSymBytesToManaged();
   if (qualified_name == "bytes::view") return BuiltinSymBytesView();
   if (qualified_name == "bytes::view_string") return BuiltinSymBytesViewString();

@@ -250,7 +250,6 @@ static const DiagMessageEntry kDiagMessages[] = {
   {"E-TYP-1810", Severity::Error, "Array length is not a compile-time constant"},
   {"E-TYP-1812", Severity::Error, "Array index expression has non-`usize` type"},
   {"E-TYP-1820", Severity::Error, "Slice index expression has non-`usize` type"},
-  {"E-TYP-1821", Severity::Error, "Direct slice indexing not permitted in Cursive0 subset"},
   {"E-TYP-1901", Severity::Error, "Duplicate field name in record declaration"},
   {"E-TYP-1902", Severity::Error, "Missing field initializer in record literal"},
   {"E-TYP-1903", Severity::Error, "Duplicate field initializer in record literal"},

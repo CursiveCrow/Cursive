@@ -1,0 +1,4 @@
+[assembly]
+name = "spec_indexer"
+kind = "executable"
+root = "src"

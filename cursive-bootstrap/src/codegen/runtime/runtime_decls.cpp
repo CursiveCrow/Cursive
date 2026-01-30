@@ -308,7 +308,7 @@ void LLVMEmitter::DeclareRuntime() {
     path.push_back("bytes");
     const std::vector<std::string> names = {
         "with_capacity", "from_slice", "as_view", "to_managed",
-        "view", "view_string", "append", "length", "is_empty",
+        "view", "view_string", "as_slice", "append", "length", "is_empty",
     };
     for (const auto& name : names) {
       auto func_type = analysis::LookupStringBytesBuiltinType(path, name);

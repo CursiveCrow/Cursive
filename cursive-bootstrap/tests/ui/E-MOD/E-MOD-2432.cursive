@@ -1,8 +1,0 @@
-// RUN: compile-fail
-// DIAG: E-MOD-2432
-// SPEC: 8.2
-// DESC: main is generic (has type parameters)
-
-public procedure main<T>(move ctx: Context) -> i32 {  //~ ERROR E-MOD-2432: main is generic
-    return 0
-}

@@ -383,16 +383,30 @@ ExprTypeResult TypeIndexAccessValue(const ScopeContext& ctx,
       result.diag_id = index_type.diag_id;
       return result;
     }
-    if (IsPrimType(index_type.type, "usize")) {
-      if (std::holds_alternative<TypePerm>(base_type.type->node)) {
-        SPEC_RULE("Index-Slice-Perm-Direct-Err");
-      } else {
-        SPEC_RULE("Index-Slice-Direct-Err");
-      }
-      result.diag_id = "Index-Slice-Direct-Err";
+    if (!IsPrimType(index_type.type, "usize")) {
+      result.diag_id = "Index-Slice-NonUsize";
       return result;
     }
-    result.diag_id = "Index-Slice-NonUsize";
+
+    const auto* perm = std::get_if<TypePerm>(&base_type.type->node);
+    TypeRef out_type = slice->element;
+    if (perm) {
+      out_type = MakeTypePerm(perm->perm, out_type);
+      if (!BitcopyType(ctx, out_type)) {
+        result.diag_id = "ValueUse-NonBitcopyPlace";
+        return result;
+      }
+      SPEC_RULE("T-Index-Slice-Perm");
+    } else {
+      if (!BitcopyType(ctx, out_type)) {
+        result.diag_id = "ValueUse-NonBitcopyPlace";
+        return result;
+      }
+      SPEC_RULE("T-Index-Slice");
+    }
+
+    result.ok = true;
+    result.type = std::move(out_type);
     return result;
   }
 
@@ -506,16 +520,19 @@ PlaceTypeResult TypeIndexAccessPlace(const ScopeContext& ctx,
       result.diag_id = index_type.diag_id;
       return result;
     }
-    if (IsPrimType(index_type.type, "usize")) {
-      if (std::holds_alternative<TypePerm>(base_type.type->node)) {
-        SPEC_RULE("Index-Slice-Perm-Direct-Err");
-      } else {
-        SPEC_RULE("Index-Slice-Direct-Err");
-      }
-      result.diag_id = "Index-Slice-Direct-Err";
+    if (!IsPrimType(index_type.type, "usize")) {
+      result.diag_id = "Index-Slice-NonUsize";
       return result;
     }
-    result.diag_id = "Index-Slice-NonUsize";
+
+    if (const auto* perm = std::get_if<TypePerm>(&base_type.type->node)) {
+      SPEC_RULE("P-Index-Slice-Perm");
+      result.type = MakeTypePerm(perm->perm, slice->element);
+    } else {
+      SPEC_RULE("P-Index-Slice");
+      result.type = slice->element;
+    }
+    result.ok = true;
     return result;
   }
 

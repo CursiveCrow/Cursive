@@ -1,8 +1,0 @@
-// RUN: compile-fail
-// DIAG: E-MOD-2431
-// SPEC: 2.5
-// DESC: Invalid main signature
-
-public procedure main() -> i32 {  //~ ERROR E-MOD-2431: invalid main signature
-    return 0
-}

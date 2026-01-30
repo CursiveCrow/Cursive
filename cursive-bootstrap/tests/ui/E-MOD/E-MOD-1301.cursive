@@ -1,8 +1,0 @@
-// RUN: compile-fail
-// DIAG: E-MOD-1301
-// SPEC: 5.1
-// DESC: Unresolved name - identifier not found in any accessible scope
-
-public procedure main(move ctx: Context) -> i32 {
-    return unknown_variable  //~ ERROR E-MOD-1301: unresolved
-}

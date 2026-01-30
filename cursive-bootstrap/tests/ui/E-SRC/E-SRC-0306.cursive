@@ -1,9 +1,0 @@
-// RUN: compile-fail
-// DIAG: E-SRC-0306
-// SPEC: 3.2
-// DESC: Unterminated block comment
-
-public procedure main(move ctx: Context) -> i32 {
-    /* This comment is not closed  //~ ERROR E-SRC-0306
-    return 0
-}

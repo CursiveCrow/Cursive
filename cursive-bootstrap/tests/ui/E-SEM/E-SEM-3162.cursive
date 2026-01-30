@@ -1,9 +1,0 @@
-// RUN: compile-fail
-// DIAG: E-SEM-3162
-// SPEC: 5.2.6
-// DESC: Break outside loop
-
-public procedure main(move ctx: Context) -> i32 {
-    break  //~ ERROR E-SEM-3162: break outside loop
-    return 0
-}

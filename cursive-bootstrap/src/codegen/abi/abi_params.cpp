@@ -95,6 +95,7 @@ const std::unordered_set<std::string_view>& RuntimeSymbols() {
       "cursive::runtime::bytes::with_capacity",
       "cursive::runtime::bytes::from_slice",
       "cursive::runtime::bytes::as_view",
+      "cursive::runtime::bytes::as_slice",
       "cursive::runtime::bytes::to_managed",
       "cursive::runtime::bytes::view",
       "cursive::runtime::bytes::view_string",

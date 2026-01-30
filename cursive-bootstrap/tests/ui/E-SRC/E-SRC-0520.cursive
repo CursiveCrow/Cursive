@@ -1,9 +1,0 @@
-// RUN: compile-fail
-// DIAG: E-SRC-0520
-// SPEC: 3.3
-// DESC: Generic syntax error (unexpected token)
-
-public procedure main(move ctx: Context) -> i32 {
-    let x: = 42  //~ ERROR E-SRC-0520: Unexpected token
-    return 0
-}

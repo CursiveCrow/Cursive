@@ -341,6 +341,7 @@ std::vector<std::string> RuntimeRequiredSyms() {
       "to_managed",
       "view",
       "view_string",
+      "as_slice",
       "append",
       "length",
       "is_empty",

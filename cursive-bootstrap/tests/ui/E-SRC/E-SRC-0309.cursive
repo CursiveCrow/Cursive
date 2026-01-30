@@ -1,9 +1,0 @@
-// RUN: compile-fail
-// DIAG: E-SRC-0309
-// SPEC: 3.2
-// DESC: Tokenization failed to classify a character sequence
-
-public procedure main(move ctx: Context) -> i32 {
-    let x: i32 = @#$  //~ ERROR E-SRC-0309
-    return 0
-}

@@ -142,7 +142,6 @@ static constexpr DiagMapEntry kTypecheckDiagMap[] = {
   {"Index-Array-NonUsize", "E-TYP-1812"},
   {"Index-Array-OOB-Err", "E-UNS-0103"},
   {"Index-NonIndexable", "E-SEM-2527"},
-  {"Index-Slice-Direct-Err", "E-TYP-1821"},
   {"Index-Slice-NonUsize", "E-TYP-1820"},
   {"Intro-Reserved-Cursive-Err", "E-CNF-0402"},
   {"Intro-Reserved-Gen-Err", "E-CNF-0406"},

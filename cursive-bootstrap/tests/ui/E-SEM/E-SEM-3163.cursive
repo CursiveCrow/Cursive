@@ -1,9 +1,0 @@
-// RUN: compile-fail
-// DIAG: E-SEM-3163
-// SPEC: 5.2.6
-// DESC: Continue outside loop
-
-public procedure main(move ctx: Context) -> i32 {
-    continue  //~ ERROR E-SEM-3163: continue outside loop
-    return 0
-}

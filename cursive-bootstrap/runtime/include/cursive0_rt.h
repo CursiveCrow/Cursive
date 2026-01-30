@@ -309,6 +309,9 @@ void cursive_x3a_x3aruntime_x3a_x3abytes_x3a_x3ato_x5fmanaged(
 C0BytesView cursive_x3a_x3aruntime_x3a_x3abytes_x3a_x3aview(
   const C0SliceU8* data);
 
+C0SliceU8 cursive_x3a_x3aruntime_x3a_x3abytes_x3a_x3aas_x5fslice(
+  const C0BytesView* self);
+
 C0BytesView cursive_x3a_x3aruntime_x3a_x3abytes_x3a_x3aview_x5fstring(
   const C0StringView* data);
 

@@ -38,6 +38,7 @@ static inline void TouchStringBytesRules() {
   SPEC_RULE("BytesToManaged-Err");
   SPEC_RULE("BytesView-Ok");
   SPEC_RULE("BytesViewString-Ok");
+  SPEC_RULE("BytesAsSlice-Ok");
   SPEC_RULE("BytesAppend-Ok");
   SPEC_RULE("BytesAppend-Err");
   SPEC_RULE("BytesLength");
@@ -198,6 +199,12 @@ static std::optional<TypeRef> BytesBuiltinType(std::string_view name) {
     };
     return MakeFunc(std::move(params), BytesViewType());
   }
+  if (IdEq(name, "as_slice")) {
+    std::vector<TypeFuncParam> params = {
+        {std::nullopt, ConstType(BytesViewType())},
+    };
+    return MakeFunc(std::move(params), ConstType(SliceU8Type()));
+  }
   if (IdEq(name, "append")) {
     std::vector<TypeFuncParam> params = {
         {std::nullopt, UniqueType(BytesManagedType())},
@@ -245,9 +252,9 @@ bool IsStringBuiltinName(std::string_view name) {
 
 bool IsBytesBuiltinName(std::string_view name) {
   SpecDefsStringBytes();
-  static constexpr std::array<std::string_view, 9> names = {
+  static constexpr std::array<std::string_view, 10> names = {
       "with_capacity", "from_slice", "as_view", "to_managed",
-      "view", "view_string", "append", "length", "is_empty",
+      "view", "view_string", "as_slice", "append", "length", "is_empty",
   };
   for (const auto& entry : names) {
     if (IdEq(name, entry)) {

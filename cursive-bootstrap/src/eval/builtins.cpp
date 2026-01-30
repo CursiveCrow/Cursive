@@ -145,6 +145,14 @@ IntVal USizeVal(std::uint64_t value) {
   return out;
 }
 
+IntVal U8Val(std::uint8_t value) {
+  IntVal out;
+  out.type = "u8";
+  out.negative = false;
+  out.magnitude = core::UInt128FromU64(value);
+  return out;
+}
+
 Value RegionValue(std::string_view state, RegionTarget handle) {
   RecordVal rec;
   rec.record_type = analysis::MakeTypeModalState({"Region"}, std::string(state));
@@ -1292,6 +1300,31 @@ std::optional<Value> BuiltinCall(const analysis::TypePath& module_path,
       out.bytes = data->bytes;
       SPEC_RULE("BytesViewString-Ok");
       return Value{out};
+    }
+    if (name == "as_slice") {
+      if (args.size() != 1) {
+        return std::nullopt;
+      }
+      const auto self_val = BindingValueToValue(args[0], sigma);
+      if (!self_val.has_value()) {
+        return std::nullopt;
+      }
+      const auto* self = std::get_if<BytesVal>(&self_val->node);
+      if (!self || self->state != analysis::BytesState::View) {
+        return std::nullopt;
+      }
+      std::vector<Value> elems;
+      elems.reserve(self->bytes.size());
+      for (const auto b : self->bytes) {
+        elems.push_back(Value{U8Val(b)});
+      }
+      SliceVal slice;
+      slice.base = std::move(elems);
+      slice.range.kind = RangeKind::Full;
+      slice.range.lo.reset();
+      slice.range.hi.reset();
+      SPEC_RULE("BytesAsSlice-Ok");
+      return Value{slice};
     }
     if (name == "append") {
       if (args.size() != 3) {

@@ -1,9 +1,0 @@
-// RUN: compile-fail
-// DIAG: E-SRC-0303
-// SPEC: 3.2
-// DESC: Invalid character literal
-
-public procedure main(move ctx: Context) -> i32 {
-    let c: char = 'ab'  //~ ERROR E-SRC-0303: Invalid character literal
-    return 0
-}

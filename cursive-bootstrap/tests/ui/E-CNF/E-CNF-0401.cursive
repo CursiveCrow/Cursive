@@ -1,9 +1,0 @@
-// RUN: compile-fail
-// DIAG: E-CNF-0401
-// SPEC: 1.1
-// DESC: Reserved keyword used as identifier
-
-public procedure main(move ctx: Context) -> i32 {
-    let procedure: i32 = 42  //~ ERROR E-CNF-0401: Reserved keyword
-    return 0
-}

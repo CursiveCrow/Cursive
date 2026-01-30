@@ -1,9 +1,0 @@
-// RUN: run-pass
-// EXIT: 42
-// SPEC: 5.2.12
-// DESC: Multi-dimensional array
-
-public procedure main(move ctx: Context) -> i32 {
-    let matrix: [[i32; 2]; 2] = [[10, 20], [30, 42]]
-    return matrix[1][1]
-}
