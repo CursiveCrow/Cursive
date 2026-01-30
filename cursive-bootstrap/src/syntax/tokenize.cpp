@@ -1,5 +1,9 @@
 #include "cursive0/syntax/lexer.h"
 
+#include <cctype>
+#include <cstdlib>
+#include <iomanip>
+#include <iostream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -13,6 +17,59 @@
 namespace cursive0::syntax {
 
 namespace {
+
+void DebugLexFail(const core::SourceFile& source,
+                  const std::vector<core::UnicodeScalar>& scalars,
+                  const std::vector<std::size_t>& offsets,
+                  std::size_t index) {
+  const char* flag = std::getenv("CURSIVE0_DEBUG_LEX");
+  if (!flag || !*flag) {
+    return;
+  }
+
+  const std::size_t n = scalars.size();
+  const std::size_t byte_index = index < offsets.size() ? offsets[index] : 0;
+  const core::UnicodeScalar cp = index < n ? scalars[index] : 0;
+
+  std::cerr << "[cursivec0] lex: Max-Munch-Err at scalar=" << index
+            << " byte=" << byte_index
+            << " codepoint=U+"
+            << std::hex << std::uppercase << std::setw(4) << std::setfill('0')
+            << static_cast<std::uint32_t>(cp)
+            << std::dec << "\n";
+
+  const std::size_t lo = index > 16 ? index - 16 : 0;
+  const std::size_t hi = std::min(n, index + 17);
+
+  std::string context;
+  context.reserve((hi - lo) + 8);
+  for (std::size_t i = lo; i < hi; ++i) {
+    const core::UnicodeScalar c = scalars[i];
+    if (c == '\n') {
+      context += "\\n";
+    } else if (c >= 0x20 && c <= 0x7E) {
+      context.push_back(static_cast<char>(c));
+    } else {
+      context.push_back('.');
+    }
+  }
+
+  std::cerr << "[cursivec0] lex: context=\"" << context << "\"\n";
+  std::cerr << "[cursivec0] lex: window=[";
+  for (std::size_t i = lo; i < hi; ++i) {
+    if (i > lo) {
+      std::cerr << " ";
+    }
+    std::cerr << "U+"
+              << std::hex << std::uppercase << std::setw(4) << std::setfill('0')
+              << static_cast<std::uint32_t>(scalars[i])
+              << std::dec;
+    if (i == index) {
+      std::cerr << "*";
+    }
+  }
+  std::cerr << "]\n";
+}
 
 struct TerminatorResult {
   std::size_t index = 0;
@@ -218,6 +275,7 @@ LexSmallStepResult LexSmallStep(const core::SourceFile& source) {
 
     NextTokenResult next = NextToken(source, i);
     if (!next.ok) {
+      DebugLexFail(source, scalars, offsets, i);
       SPEC_RULE("Lex-Token-Err");
       AppendDiags(result.diags, next.diags);
       result.ok = false;

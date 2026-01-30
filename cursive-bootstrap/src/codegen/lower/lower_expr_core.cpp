@@ -6,6 +6,7 @@
 #include "cursive0/codegen/abi/abi.h"
 #include "cursive0/core/assert_spec.h"
 #include "cursive0/analysis/caps/cap_concurrency.h"
+#include "cursive0/analysis/types/type_expr.h"
 
 #include <algorithm>
 #include <cassert>
@@ -83,6 +84,15 @@ std::optional<std::uint64_t> ParseIntLiteralLexeme(const std::string& lexeme) {
   }
 }
 
+bool HasDynamicAttr(const syntax::AttributeList& attrs) {
+  for (const auto& attr : attrs) {
+    if (attr.name == "dynamic") {
+      return true;
+    }
+  }
+  return false;
+}
+
 std::vector<std::uint8_t> EncodeU64BE(std::uint64_t value) {
   std::vector<std::uint8_t> bytes;
   if (value == 0) {
@@ -107,6 +117,18 @@ syntax::ExprPtr WrapBlockExpr(const std::shared_ptr<syntax::Block>& block) {
   return expr;
 }
 
+bool NeedsIndexCheck(const syntax::Expr& base, const LowerCtx& ctx) {
+  if (!ctx.expr_type) {
+    return true;
+  }
+  analysis::TypeRef base_type = ctx.expr_type(base);
+  analysis::TypeRef stripped = analysis::StripPerm(base_type);
+  if (stripped && std::holds_alternative<analysis::TypeArray>(stripped->node)) {
+    return ctx.dynamic_checks;
+  }
+  return true;
+}
+
 bool IsPlaceExprForTemp(const syntax::Expr& expr) {
   return std::visit(
       [&](const auto& node) -> bool {
@@ -117,6 +139,8 @@ bool IsPlaceExprForTemp(const syntax::Expr& expr) {
           return true;
         } else if constexpr (std::is_same_v<T, syntax::TupleAccessExpr>) {
           return true;
+        } else if constexpr (std::is_same_v<T, syntax::AttributedExpr>) {
+          return node.expr ? IsPlaceExprForTemp(*node.expr) : false;
         } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
           return true;
         } else if constexpr (std::is_same_v<T, syntax::DerefExpr>) {
@@ -427,6 +451,8 @@ struct CaptureCollector {
           using T = std::decay_t<decltype(node)>;
           if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
             RecordCapture(node.name);
+          } else if constexpr (std::is_same_v<T, syntax::AttributedExpr>) {
+            VisitExpr(node.expr);
           } else if constexpr (std::is_same_v<T, syntax::QualifiedApplyExpr>) {
             if (std::holds_alternative<syntax::ParenArgs>(node.args)) {
               const auto& args = std::get<syntax::ParenArgs>(node.args).args;
@@ -1398,6 +1424,15 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
 
         if constexpr (std::is_same_v<T, syntax::ErrorExpr>) {
           return LowerError(node, ctx);
+        } else if constexpr (std::is_same_v<T, syntax::AttributedExpr>) {
+          const bool prev_dynamic = ctx.dynamic_checks;
+          if (HasDynamicAttr(node.attrs)) {
+            ctx.dynamic_checks = true;
+          }
+          LowerResult out = node.expr ? LowerExpr(*node.expr, ctx)
+                                      : LowerResult{};
+          ctx.dynamic_checks = prev_dynamic;
+          return out;
         } else if constexpr (std::is_same_v<T, syntax::LiteralExpr>) {
           return LowerLiteral(expr, node, ctx);
         } else if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
@@ -1516,6 +1551,7 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
           }
           SPEC_RULE("Lower-Expr-Index-Scalar");
           auto index_result = LowerExpr(*node.index, ctx);
+          const bool needs_check = NeedsIndexCheck(*node.base, ctx);
           IRCheckIndex check;
           check.base = base_result.value;
           check.index = index_result.value;
@@ -1525,9 +1561,14 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
           info.base = base_result.value;
           info.index = index_result.value;
           ctx.RegisterDerivedValue(elem_value, info);
-          return LowerResult{SeqIR({base_result.ir, index_result.ir, MakeIR(std::move(check)),
-                                    PanicCheck(ctx)}),
-                             elem_value};
+          std::vector<IRPtr> seq;
+          seq.push_back(base_result.ir);
+          seq.push_back(index_result.ir);
+          if (needs_check) {
+            seq.push_back(MakeIR(std::move(check)));
+            seq.push_back(PanicCheck(ctx));
+          }
+          return LowerResult{SeqIR(std::move(seq)), elem_value};
         } else if constexpr (std::is_same_v<T, syntax::CallExpr>) {
           return LowerCallExpr(node, ctx);
         } else if constexpr (std::is_same_v<T, syntax::MethodCallExpr>) {
@@ -1844,7 +1885,7 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
           }
           std::uint64_t env_size_val = 0;
           if (ctx.sigma) {
-            if (const auto size = SizeOf(scope, env_type)) {
+            if (const auto size = codegen::SizeOf(scope, env_type)) {
               env_size_val = *size;
             } else {
               ctx.ReportCodegenFailure();
@@ -1861,7 +1902,7 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
           }
           std::uint64_t result_size_val = 0;
           if (ctx.sigma) {
-            if (const auto size = SizeOf(scope, body_type)) {
+            if (const auto size = codegen::SizeOf(scope, body_type)) {
               result_size_val = *size;
             } else {
               ctx.ReportCodegenFailure();
@@ -2152,7 +2193,7 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
           }
           std::uint64_t elem_size_val = 0;
           if (ctx.sigma) {
-            if (const auto size = SizeOf(scope, elem_type)) {
+            if (const auto size = codegen::SizeOf(scope, elem_type)) {
               elem_size_val = *size;
             } else {
               ctx.ReportCodegenFailure();
@@ -2162,7 +2203,7 @@ static LowerResult LowerExprImpl(const syntax::Expr& expr, LowerCtx& ctx) {
 
           std::uint64_t result_size_val = 0;
           if (has_reduce && ctx.sigma) {
-            if (const auto size = SizeOf(scope, body_type)) {
+            if (const auto size = codegen::SizeOf(scope, body_type)) {
               result_size_val = *size;
             } else {
               ctx.ReportCodegenFailure();

@@ -167,6 +167,11 @@ ParseModuleResult ParseModuleWithDeps(std::string_view module_path,
 
     log_phase("parse", file);
     const syntax::ParseFileResult parsed = deps.parse_file(*load.source);
+    if (std::getenv("CURSIVE0_DEBUG_PARSE") != nullptr) {
+      std::cerr << "[cursivec0] parse: file=" << file.string()
+                << " diags=" << parsed.diags.size()
+                << " ok=" << (parsed.file.has_value() ? "yes" : "no") << "\n";
+    }
     AppendDiags(result.diags, parsed.diags);
     if (parsed.file.has_value()) {
       const auto ast_subset =

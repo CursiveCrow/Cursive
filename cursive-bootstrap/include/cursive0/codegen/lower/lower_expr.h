@@ -164,6 +164,9 @@ struct LowerCtx {
   std::unordered_map<const syntax::Expr*, analysis::ProvenanceKind> expr_prov;
   std::unordered_map<const syntax::Expr*, std::string> expr_region;
 
+  // [[dynamic]] verification scope for runtime checks (arrays, contracts, etc.)
+  bool dynamic_checks = false;
+
   // IR value and symbol type tracking.
   std::unordered_map<std::string, analysis::TypeRef> value_types;
   std::unordered_map<std::string, analysis::TypeRef> static_types;

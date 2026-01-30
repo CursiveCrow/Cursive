@@ -450,6 +450,19 @@ ResExprResult ResolveExpr(ResolveContext& ctx,
           return {true, std::nullopt, std::nullopt, resolved.expr};
         } else if constexpr (std::is_same_v<T, syntax::PathExpr>) {
           return {true, std::nullopt, std::nullopt, expr};
+        } else if constexpr (std::is_same_v<T, syntax::AttributedExpr>) {
+          if (!node.expr) {
+            return {false, "ResolveExpr-Ident-Err", expr->span, {}};
+          }
+          const auto resolved = ResolveExpr(ctx, node.expr);
+          if (!resolved.ok) {
+            return {false, resolved.diag_id, resolved.span, {}};
+          }
+          auto out = *expr;
+          auto& out_node = std::get<syntax::AttributedExpr>(out.node);
+          out_node.expr = resolved.value;
+          return {true, std::nullopt, std::nullopt,
+                  std::make_shared<syntax::Expr>(std::move(out))};
         } else if constexpr (std::is_same_v<T, syntax::EnumLiteralExpr>) {
           const auto payload = ResolveEnumPayload(ctx, node.payload_opt);
           if (!payload.ok) {

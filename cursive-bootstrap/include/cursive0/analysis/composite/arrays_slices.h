@@ -17,12 +17,14 @@ ExprTypeResult TypeArrayExpr(const ScopeContext& ctx,
 
 ExprTypeResult TypeIndexAccessValue(const ScopeContext& ctx,
                                     const syntax::IndexAccessExpr& expr,
-                                    const ExprTypeFn& type_expr);
+                                    const ExprTypeFn& type_expr,
+                                    bool dynamic_context);
 
 PlaceTypeResult TypeIndexAccessPlace(const ScopeContext& ctx,
                                      const syntax::IndexAccessExpr& expr,
                                      const PlaceTypeFn& type_place,
-                                     const ExprTypeFn& type_expr);
+                                     const ExprTypeFn& type_expr,
+                                     bool dynamic_context);
 
 ExprTypeResult CoerceArrayToSlice(const ScopeContext& ctx,
                                   const TypeRef& type);

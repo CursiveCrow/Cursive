@@ -1,6 +1,8 @@
 #include "cursive0/syntax/parser.h"
 
+#include <cstdint>
 #include <cstdlib>
+#include <iomanip>
 #include <iostream>
 #include <string_view>
 
@@ -103,7 +105,31 @@ static ParseItemsResult ParseItemsInternal(
   }
 
   SPEC_RULE("ParseItems-Cons");
+  if (std::getenv("CURSIVE0_DEBUG_PARSE") != nullptr) {
+    const Token* tok = Tok(cur);
+    std::string_view lex = tok ? tok->lexeme : "<eof>";
+    std::uint8_t b0 = 0;
+    std::uint8_t b1 = 0;
+    if (tok && !tok->lexeme.empty()) {
+      b0 = static_cast<std::uint8_t>(tok->lexeme[0]);
+      if (tok->lexeme.size() > 1) {
+        b1 = static_cast<std::uint8_t>(tok->lexeme[1]);
+      }
+    }
+    std::cerr << "[cursivec0] parse-items: index=" << cur.index
+              << " tok=" << lex << " kind="
+              << (tok ? static_cast<int>(tok->kind) : -1)
+              << " b0=0x" << std::hex << std::uppercase << std::setw(2)
+              << std::setfill('0') << static_cast<int>(b0)
+              << " b1=0x" << std::setw(2) << static_cast<int>(b1)
+              << std::dec << "\n";
+  }
   ParseItemResult item = ParseItem(cur);
+  if (std::getenv("CURSIVE0_DEBUG_PARSE") != nullptr) {
+    std::cerr << "[cursivec0] parse-items: next_index=" << item.parser.index
+              << " advanced=" << (item.parser.index > cur.index ? "yes" : "no")
+              << " diags=" << item.parser.diags.size() << "\n";
+  }
   if (item.parser.tokens == cur.tokens && item.parser.index == cur.index) {
     EmitParseSyntaxErr(cur, TokSpan(cur));
     Parser next = AdvanceOrEOF(cur);

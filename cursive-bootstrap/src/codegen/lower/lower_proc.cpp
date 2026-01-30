@@ -260,6 +260,9 @@ ProcIR LowerProc(const ProcedureDecl& decl,
     ir.params.push_back(std::move(panic_param));
   }
 
+  const bool prev_dynamic_checks = ctx.dynamic_checks;
+  ctx.dynamic_checks = HasDynamicContractAttr(decl.attrs);
+
   // Check for dynamic contract checks (§5.4)
   const bool has_dynamic_contract = HasDynamicContractAttr(decl.attrs) &&
                                     decl.contract.has_value();
@@ -422,6 +425,7 @@ ProcIR LowerProc(const ProcedureDecl& decl,
     }
   }
 
+  ctx.dynamic_checks = prev_dynamic_checks;
   return ir;
 }
 

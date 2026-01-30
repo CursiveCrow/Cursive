@@ -23,6 +23,27 @@ IRRange ToIRRange(const RangeVal& range) {
   return out;
 }
 
+bool NeedsIndexCheck(const syntax::Expr& base, const LowerCtx& ctx) {
+  if (!ctx.expr_type) {
+    return true;
+  }
+  analysis::TypeRef base_type = ctx.expr_type(base);
+  analysis::TypeRef stripped = analysis::StripPerm(base_type);
+  if (stripped && std::holds_alternative<analysis::TypeArray>(stripped->node)) {
+    return ctx.dynamic_checks;
+  }
+  return true;
+}
+
+bool HasDynamicAttr(const syntax::AttributeList& attrs) {
+  for (const auto& attr : attrs) {
+    if (attr.name == "dynamic") {
+      return true;
+    }
+  }
+  return false;
+}
+
 struct StaticBindFlags {
   bool has_responsibility = false;
   bool immovable = false;
@@ -39,7 +60,9 @@ static bool IsPlaceExprLite(const syntax::ExprPtr& expr) {
   return std::visit(
       [&](const auto& node) -> bool {
         using T = std::decay_t<decltype(node)>;
-        if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
+        if constexpr (std::is_same_v<T, syntax::AttributedExpr>) {
+          return node.expr ? IsPlaceExprLite(node.expr) : false;
+        } else if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
           return true;
         } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
           return IsPlaceExprLite(node.base);
@@ -111,7 +134,9 @@ std::optional<std::string> PlaceRoot(const syntax::Expr& expr) {
   return std::visit(
       [&](const auto& node) -> std::optional<std::string> {
         using T = std::decay_t<decltype(node)>;
-        if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
+        if constexpr (std::is_same_v<T, syntax::AttributedExpr>) {
+          return node.expr ? PlaceRoot(*node.expr) : std::nullopt;
+        } else if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
           return node.name;
         } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
           return PlaceRoot(*node.base);
@@ -131,7 +156,9 @@ std::optional<std::string> FieldHead(const syntax::Expr& expr) {
   return std::visit(
       [&](const auto& node) -> std::optional<std::string> {
         using T = std::decay_t<decltype(node)>;
-        if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
+        if constexpr (std::is_same_v<T, syntax::AttributedExpr>) {
+          return node.expr ? FieldHead(*node.expr) : std::nullopt;
+        } else if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
           return std::nullopt;
         } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
           auto head = FieldHead(*node.base);
@@ -175,6 +202,11 @@ std::string FormatRangeBound(const syntax::ExprPtr& expr) {
   if (!expr) {
     return "";
   }
+  if (const auto* attr = std::get_if<syntax::AttributedExpr>(&expr->node)) {
+    if (attr->expr) {
+      return FormatRangeBound(attr->expr);
+    }
+  }
   if (const auto* lit = std::get_if<syntax::LiteralExpr>(&expr->node)) {
     return lit->literal.lexeme;
   }
@@ -202,6 +234,11 @@ std::string FormatRangeExpr(const syntax::RangeExpr& expr) {
 }
 
 std::string FormatIndexExpr(const syntax::Expr& expr) {
+  if (const auto* attr = std::get_if<syntax::AttributedExpr>(&expr.node)) {
+    if (attr->expr) {
+      return FormatIndexExpr(*attr->expr);
+    }
+  }
   if (const auto* lit = std::get_if<syntax::LiteralExpr>(&expr.node)) {
     return lit->literal.lexeme;
   }
@@ -215,7 +252,9 @@ std::string BuildPlaceRepr(const syntax::Expr& expr) {
   return std::visit(
       [&](const auto& node) -> std::string {
         using T = std::decay_t<decltype(node)>;
-        if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
+        if constexpr (std::is_same_v<T, syntax::AttributedExpr>) {
+          return node.expr ? BuildPlaceRepr(*node.expr) : "";
+        } else if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
           return node.name;
         } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
           std::string base = BuildPlaceRepr(*node.base);
@@ -363,6 +402,15 @@ LowerResult LowerReadPlace(const syntax::Expr& place, LowerCtx& ctx) {
           info.tuple_index = static_cast<std::size_t>(std::stoull(node.index.lexeme));
           ctx.RegisterDerivedValue(elem_value, info);
           return LowerResult{base_result.ir, elem_value};
+        } else if constexpr (std::is_same_v<T, syntax::AttributedExpr>) {
+          const bool prev_dynamic = ctx.dynamic_checks;
+          if (HasDynamicAttr(node.attrs)) {
+            ctx.dynamic_checks = true;
+          }
+          LowerResult out = node.expr ? LowerReadPlace(*node.expr, ctx)
+                                      : LowerResult{EmptyIR(), ctx.FreshTempValue("place_attr")};
+          ctx.dynamic_checks = prev_dynamic;
+          return out;
         } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
           auto base_result = LowerReadPlace(*node.base, ctx);
 
@@ -393,7 +441,7 @@ LowerResult LowerReadPlace(const syntax::Expr& place, LowerCtx& ctx) {
 
           SPEC_RULE("Lower-ReadPlace-Index-Scalar");
           auto index_result = LowerExpr(*node.index, ctx);
-
+          const bool needs_check = NeedsIndexCheck(*node.base, ctx);
           IRCheckIndex check;
           check.base = base_result.value;
           check.index = index_result.value;
@@ -408,10 +456,14 @@ LowerResult LowerReadPlace(const syntax::Expr& place, LowerCtx& ctx) {
           info.index = index_result.value;
           ctx.RegisterDerivedValue(elem_value, info);
 
-          return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir, index_result.ir,
-                                    MakeIR(std::move(check)),
-                                    PanicCheck(ctx)}),
-                             elem_value};
+          std::vector<IRPtr> seq;
+          seq.push_back(base_result.ir);
+          seq.push_back(index_result.ir);
+          if (needs_check) {
+            seq.push_back(MakeIR(std::move(check)));
+            seq.push_back(PanicCheck(ctx));
+          }
+          return LowerResult{SeqIR(std::move(seq)), elem_value};
         } else if constexpr (std::is_same_v<T, syntax::DerefExpr>) {
           SPEC_RULE("Lower-ReadPlace-Deref");
           auto ptr_result = LowerReadPlace(*node.value, ctx);
@@ -680,6 +732,15 @@ IRPtr LowerWritePlaceImpl(const syntax::Expr& place,
                         MakeIR(std::move(addr_marker)),
                         drop_ir,
                         MakeIR(std::move(write))});
+        } else if constexpr (std::is_same_v<T, syntax::AttributedExpr>) {
+          const bool prev_dynamic = ctx.dynamic_checks;
+          if (HasDynamicAttr(node.attrs)) {
+            ctx.dynamic_checks = true;
+          }
+          IRPtr out = node.expr ? LowerWritePlaceImpl(*node.expr, value, ctx, allow_drop)
+                                : EmptyIR();
+          ctx.dynamic_checks = prev_dynamic;
+          return out;
         } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
           auto base_addr = LowerAddrOf(*node.base, ctx);
 
@@ -741,6 +802,7 @@ IRPtr LowerWritePlaceImpl(const syntax::Expr& place,
                                : "LowerWriteSub-Index-Scalar");
           auto index_result = LowerExpr(*node.index, ctx);
 
+          const bool needs_check = NeedsIndexCheck(*node.base, ctx);
           IRCheckIndex check;
           check.base = base_value;
           check.index = index_result.value;
@@ -778,12 +840,18 @@ IRPtr LowerWritePlaceImpl(const syntax::Expr& place,
           write.ptr = ptr_value;
           write.value = value;
 
-          return SeqIR(std::vector<IRPtr>{base_addr.ir, base_read_ir, index_result.ir,
-                        MakeIR(std::move(check)),
-                        PanicCheck(ctx),
-                        MakeIR(std::move(addr_marker)),
-                        drop_ir,
-                        MakeIR(std::move(write))});
+          std::vector<IRPtr> seq;
+          seq.push_back(base_addr.ir);
+          seq.push_back(base_read_ir);
+          seq.push_back(index_result.ir);
+          if (needs_check) {
+            seq.push_back(MakeIR(std::move(check)));
+            seq.push_back(PanicCheck(ctx));
+          }
+          seq.push_back(MakeIR(std::move(addr_marker)));
+          seq.push_back(drop_ir);
+          seq.push_back(MakeIR(std::move(write)));
+          return SeqIR(std::move(seq));
         } else if constexpr (std::is_same_v<T, syntax::DerefExpr>) {
           SPEC_RULE(allow_drop ? "Lower-WritePlace-Deref"
                                : "LowerWriteSub-Deref");
@@ -957,6 +1025,15 @@ LowerResult LowerAddrOf(const syntax::Expr& place, LowerCtx& ctx) {
                                                       MakeIR(std::move(addr)),
                                                       tag_ir}),
                              ptr_value};
+        } else if constexpr (std::is_same_v<T, syntax::AttributedExpr>) {
+          const bool prev_dynamic = ctx.dynamic_checks;
+          if (HasDynamicAttr(node.attrs)) {
+            ctx.dynamic_checks = true;
+          }
+          LowerResult out = node.expr ? LowerAddrOf(*node.expr, ctx)
+                                      : LowerResult{EmptyIR(), ctx.FreshTempValue("addr_of_attr")};
+          ctx.dynamic_checks = prev_dynamic;
+          return out;
         } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
           auto base_result = LowerAddrOf(*node.base, ctx);
           IRValue ptr_value = ctx.FreshTempValue("addr_of");
@@ -990,6 +1067,7 @@ LowerResult LowerAddrOf(const syntax::Expr& place, LowerCtx& ctx) {
           }
 
           auto index_result = LowerExpr(*node.index, ctx);
+          const bool needs_check = NeedsIndexCheck(*node.base, ctx);
           IRCheckIndex check;
           check.base = base_result.value;
           check.index = index_result.value;
@@ -1001,12 +1079,16 @@ LowerResult LowerAddrOf(const syntax::Expr& place, LowerCtx& ctx) {
           ctx.RegisterDerivedValue(ptr_value, info);
 
           IRPtr tag_ir = tag_from(ptr_value, base_result.value);
-          return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir, index_result.ir,
-                                    MakeIR(std::move(check)),
-                                    PanicCheck(ctx),
-                                    MakeIR(std::move(addr)),
-                                    tag_ir}),
-                             ptr_value};
+          std::vector<IRPtr> seq;
+          seq.push_back(base_result.ir);
+          seq.push_back(index_result.ir);
+          if (needs_check) {
+            seq.push_back(MakeIR(std::move(check)));
+            seq.push_back(PanicCheck(ctx));
+          }
+          seq.push_back(MakeIR(std::move(addr)));
+          seq.push_back(tag_ir);
+          return LowerResult{SeqIR(std::move(seq)), ptr_value};
         } else if constexpr (std::is_same_v<T, syntax::DerefExpr>) {
           auto ptr_result = LowerExpr(*node.value, ctx);
           analysis::TypeRef ptr_type;

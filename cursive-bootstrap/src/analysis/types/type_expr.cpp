@@ -18,6 +18,7 @@
 #include "cursive0/analysis/composite/classes.h"
 #include "cursive0/analysis/generics/monomorphize.h"
 #include "cursive0/analysis/caps/cap_filesystem.h"
+#include "cursive0/analysis/attributes/attribute_registry.h"
 #include "cursive0/analysis/caps/cap_heap.h"
 #include "cursive0/analysis/caps/cap_system.h"
 #include "cursive0/analysis/caps/cap_concurrency.h"
@@ -2606,11 +2607,13 @@ ExprTypeResult TypeAddressOfExprImpl(const ScopeContext& ctx,
         if (const auto* array = stripped ? std::get_if<TypeArray>(&stripped->node)
                                          : nullptr) {
           const auto index_const = ConstLen(ctx, index->index);
-          if (!index_const.ok || !index_const.value.has_value()) {
-            result.diag_id = "Index-Array-NonConst-Err";
-            return result;
-          }
-          if (*index_const.value >= array->length) {
+          const bool has_const_index = index_const.ok && index_const.value.has_value();
+          if (!has_const_index) {
+            if (!type_ctx.contract_dynamic) {
+              result.diag_id = "Index-Array-NonConst-Err";
+              return result;
+            }
+          } else if (*index_const.value >= array->length) {
             result.diag_id = "Index-Array-OOB-Err";
             return result;
           }
@@ -4102,6 +4105,12 @@ static ExprTypeResult TypeExprImpl(const ScopeContext& ctx,
 
         if constexpr (std::is_same_v<T, syntax::ErrorExpr>) {
           return TypeErrorExprImpl(ctx, node);
+        } else if constexpr (std::is_same_v<T, syntax::AttributedExpr>) {
+          StmtTypeContext inner_ctx = type_ctx;
+          if (HasAttribute(node.attrs, attrs::kDynamic)) {
+            inner_ctx.contract_dynamic = true;
+          }
+          return TypeExpr(ctx, inner_ctx, node.expr, env);
         } else if constexpr (std::is_same_v<T, syntax::LiteralExpr>) {
           return TypeLiteralExpr(ctx, node);
         } else if constexpr (std::is_same_v<T, syntax::PtrNullExpr>) {
@@ -4118,7 +4127,7 @@ static ExprTypeResult TypeExprImpl(const ScopeContext& ctx,
         } else if constexpr (std::is_same_v<T, syntax::TupleAccessExpr>) {
           return TypeTupleAccessExprImpl(ctx, type_ctx, node, env);
         } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
-          return TypeIndexAccessValue(ctx, node, type_expr);
+          return TypeIndexAccessValue(ctx, node, type_expr, type_ctx.contract_dynamic);
         } else if constexpr (std::is_same_v<T, syntax::BinaryExpr>) {
           return TypeBinaryExprImpl(ctx, type_ctx, node, env);
         } else if constexpr (std::is_same_v<T, syntax::UnaryExpr>) {
@@ -4441,6 +4450,12 @@ static PlaceTypeResult TypePlaceImpl(const ScopeContext& ctx,
 
         if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
           return TypeIdentifierPlaceImpl(ctx, node, env);
+        } else if constexpr (std::is_same_v<T, syntax::AttributedExpr>) {
+          StmtTypeContext inner_ctx = type_ctx;
+          if (HasAttribute(node.attrs, attrs::kDynamic)) {
+            inner_ctx.contract_dynamic = true;
+          }
+          return TypePlace(ctx, inner_ctx, node.expr, env);
         } else if constexpr (std::is_same_v<T, syntax::FieldAccessExpr>) {
           return TypeFieldAccessPlaceImpl(ctx, type_ctx, node, env);
         } else if constexpr (std::is_same_v<T, syntax::TupleAccessExpr>) {
@@ -4448,7 +4463,7 @@ static PlaceTypeResult TypePlaceImpl(const ScopeContext& ctx,
         } else if constexpr (std::is_same_v<T, syntax::DerefExpr>) {
           return TypeDerefPlaceImpl(ctx, type_ctx, node, env, expr->span);
         } else if constexpr (std::is_same_v<T, syntax::IndexAccessExpr>) {
-          return TypeIndexAccessPlace(ctx, node, type_place, type_expr);
+          return TypeIndexAccessPlace(ctx, node, type_place, type_expr, type_ctx.contract_dynamic);
         } else {
           return PlaceTypeResult{};
         }

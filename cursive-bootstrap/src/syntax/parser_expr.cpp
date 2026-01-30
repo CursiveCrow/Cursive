@@ -3,7 +3,6 @@
 
 #include <array>
 #include <optional>
-#include <span>
 #include <string_view>
 #include <utility>
 
@@ -77,7 +76,8 @@ bool IsExprStart(const Token& tok) {
     return true;
   }
   if (tok.kind == TokenKind::Punctuator) {
-    return tok.lexeme == "(" || tok.lexeme == "[" || tok.lexeme == "{";
+    return tok.lexeme == "(" || tok.lexeme == "[" || tok.lexeme == "[[" ||
+           tok.lexeme == "{";
   }
   if (tok.kind == TokenKind::Operator) {
     return tok.lexeme == "!" || tok.lexeme == "-" || tok.lexeme == "&" ||
@@ -110,18 +110,6 @@ bool IsPostfixStart(const Token& tok) {
   }
   if (tok.kind == TokenKind::Operator) {
     return tok.lexeme == "~>" || tok.lexeme == "?";
-  }
-  return false;
-}
-
-bool IsOpInSet(const Token& tok, std::span<const std::string_view> ops) {
-  if (tok.kind != TokenKind::Operator) {
-    return false;
-  }
-  for (const std::string_view op : ops) {
-    if (tok.lexeme == op) {
-      return true;
-    }
   }
   return false;
 }
@@ -182,6 +170,9 @@ bool IsPlace(const ExprPtr& expr) {
   if (std::holds_alternative<IndexAccessExpr>(expr->node)) {
     return true;
   }
+  if (const auto* attr = std::get_if<AttributedExpr>(&expr->node)) {
+    return IsPlace(attr->expr);
+  }
   if (const auto* deref = std::get_if<DerefExpr>(&expr->node)) {
     return IsPlace(deref->value);
   }
@@ -192,6 +183,104 @@ ParseElemResult<ExprPtr> ParseExprNoBrace(Parser parser);
 // C0X Extension: For dispatch range parsing where [options] follows
 ParseElemResult<ExprPtr> ParseExprNoBraceNoBracket(Parser parser);
 
+// C0X Extension: Attribute parsing (local copy for expression parsing)
+ParseElemResult<AttributeItem> ParseAttributeItem(Parser parser) {
+  AttributeItem item;
+  const Token* tok = Tok(parser);
+  if (!tok) {
+    EmitParseSyntaxErr(parser, TokSpan(parser));
+    return {parser, item};
+  }
+
+  if (tok->kind != TokenKind::Identifier && tok->kind != TokenKind::Keyword) {
+    EmitParseSyntaxErr(parser, TokSpan(parser));
+    return {parser, item};
+  }
+
+  item.name = std::string(tok->lexeme);
+  Parser next = parser;
+  Advance(next);
+
+  if (IsPunc(next, "(")) {
+    Advance(next);
+    int depth = 1;
+    while (depth > 0 && Tok(next)) {
+      if (IsPunc(next, "(")) {
+        depth++;
+      } else if (IsPunc(next, ")")) {
+        depth--;
+      }
+      if (depth > 0) {
+        Advance(next);
+      }
+    }
+    if (IsPunc(next, ")")) {
+      Advance(next);
+    }
+  }
+
+  item.span = SpanBetween(parser, next);
+  return {next, item};
+}
+
+ParseElemResult<AttributeList> ParseAttributeListOpt(Parser parser) {
+  AttributeList attrs;
+
+  auto is_attr_start = [](const Parser& cur) -> bool {
+    if (IsPunc(cur, "[[")) {
+      return true;
+    }
+    if (IsPunc(cur, "[")) {
+      Parser probe = cur;
+      Advance(probe);
+      return IsPunc(probe, "[");
+    }
+    return false;
+  };
+
+  while (is_attr_start(parser)) {
+    Parser next = parser;
+    if (IsPunc(next, "[[")) {
+      Advance(next);
+    } else {
+      Advance(next);
+      Advance(next);
+    }
+
+    SPEC_RULE("Parse-Attribute");
+
+    ParseElemResult<AttributeItem> first = ParseAttributeItem(next);
+    attrs.push_back(first.elem);
+    next = first.parser;
+
+    while (IsPunc(next, ",")) {
+      Advance(next);
+      ParseElemResult<AttributeItem> item = ParseAttributeItem(next);
+      attrs.push_back(item.elem);
+      next = item.parser;
+    }
+
+    if (IsPunc(next, "]]") ) {
+      Advance(next);
+    } else {
+      if (!IsPunc(next, "]")) {
+        EmitParseSyntaxErr(next, TokSpan(next));
+      } else {
+        Advance(next);
+      }
+      if (!IsPunc(next, "]")) {
+        EmitParseSyntaxErr(next, TokSpan(next));
+      } else {
+        Advance(next);
+      }
+    }
+
+    parser = next;
+  }
+
+  return {parser, attrs};
+}
+
 ParseElemResult<ExprPtr> ParseRange(Parser parser, bool allow_brace,
                                     bool allow_bracket = true);
 ParseElemResult<ExprPtr> ParseRangeTail(Parser parser, const ExprPtr& lhs,
@@ -199,42 +288,16 @@ ParseElemResult<ExprPtr> ParseRangeTail(Parser parser, const ExprPtr& lhs,
                                         bool allow_brace,
                                         bool allow_bracket = true);
 
-using ParseExprFn = ParseElemResult<ExprPtr> (*)(Parser, bool, bool);
-
-ParseElemResult<ExprPtr> ParseLeftChain(Parser parser,
-                                       std::span<const std::string_view> ops,
-                                       ParseExprFn parse_higher,
-                                       bool allow_brace,
-                                       bool allow_bracket = true);
-ParseElemResult<ExprPtr> ParseLeftChainTail(Parser parser, ExprPtr lhs,
-                                           std::span<const std::string_view> ops,
-                                           ParseExprFn parse_higher,
-                                           bool allow_brace,
-                                           bool allow_bracket = true);
-
 ParseElemResult<ExprPtr> ParseLogicalOr(Parser parser, bool allow_brace,
                                         bool allow_bracket = true);
-ParseElemResult<ExprPtr> ParseLogicalAnd(Parser parser, bool allow_brace,
-                                         bool allow_bracket = true);
-ParseElemResult<ExprPtr> ParseComparison(Parser parser, bool allow_brace,
-                                         bool allow_bracket = true);
-ParseElemResult<ExprPtr> ParseBitOr(Parser parser, bool allow_brace,
-                                    bool allow_bracket = true);
-ParseElemResult<ExprPtr> ParseBitXor(Parser parser, bool allow_brace,
-                                     bool allow_bracket = true);
-ParseElemResult<ExprPtr> ParseBitAnd(Parser parser, bool allow_brace,
-                                     bool allow_bracket = true);
-ParseElemResult<ExprPtr> ParseShift(Parser parser, bool allow_brace,
-                                    bool allow_bracket = true);
-ParseElemResult<ExprPtr> ParseAdd(Parser parser, bool allow_brace,
-                                  bool allow_bracket = true);
-ParseElemResult<ExprPtr> ParseMul(Parser parser, bool allow_brace,
-                                  bool allow_bracket = true);
 ParseElemResult<ExprPtr> ParsePower(Parser parser, bool allow_brace,
                                     bool allow_bracket = true);
 ParseElemResult<ExprPtr> ParsePowerTail(Parser parser, ExprPtr lhs,
                                        bool allow_brace,
                                        bool allow_bracket = true);
+// Pratt parsing: handles all left-associative binary operators iteratively
+ParseElemResult<ExprPtr> ParseBinaryExpr(Parser parser, BinaryPrecedence min_prec,
+                                         bool allow_brace, bool allow_bracket = true);
 ParseElemResult<ExprPtr> ParseCast(Parser parser, bool allow_brace,
                                    bool allow_bracket = true);
 ParseElemResult<ExprPtr> ParseCastTail(Parser parser, ExprPtr lhs);
@@ -383,12 +446,34 @@ ElseOptResult ParseElseOpt(Parser parser);
 ParseElemResult<ExprPtr> ParsePlace(Parser parser, bool allow_brace);
 
 ParseElemResult<ExprPtr> ParseExprNoBrace(Parser parser) {
-  return ParseRange(parser, false, true);
+  Parser start = parser;
+  ParseElemResult<AttributeList> attrs = ParseAttributeListOpt(parser);
+  parser = attrs.parser;
+  if (!attrs.elem.empty()) {
+    SkipNewlines(parser);
+    ParseElemResult<ExprPtr> inner = ParseRange(parser, false, true);
+    AttributedExpr node;
+    node.attrs = std::move(attrs.elem);
+    node.expr = inner.elem;
+    return {inner.parser, MakeExpr(SpanBetween(start, inner.parser), node)};
+  }
+  return ParseRange(start, false, true);
 }
 
 // C0X Extension: For dispatch range parsing where [options] follows
 ParseElemResult<ExprPtr> ParseExprNoBraceNoBracket(Parser parser) {
-  return ParseRange(parser, false, false);
+  Parser start = parser;
+  ParseElemResult<AttributeList> attrs = ParseAttributeListOpt(parser);
+  parser = attrs.parser;
+  if (!attrs.elem.empty()) {
+    SkipNewlines(parser);
+    ParseElemResult<ExprPtr> inner = ParseRange(parser, false, false);
+    AttributedExpr node;
+    node.attrs = std::move(attrs.elem);
+    node.expr = inner.elem;
+    return {inner.parser, MakeExpr(SpanBetween(start, inner.parser), node)};
+  }
+  return ParseRange(start, false, false);
 }
 
 ParseElemResult<ExprPtr> ParseRange(Parser parser, bool allow_brace,
@@ -472,82 +557,51 @@ ParseElemResult<ExprPtr> ParseRangeTail(Parser parser, const ExprPtr& lhs,
   return {rhs.parser, MakeExpr(SpanBetween(start, rhs.parser), range)};
 }
 
-ParseElemResult<ExprPtr> ParseLeftChain(Parser parser,
-                                       std::span<const std::string_view> ops,
-                                       ParseExprFn parse_higher,
-                                       bool allow_brace,
-                                       bool allow_bracket) {
-  SPEC_RULE("Parse-LeftChain");
-  ParseElemResult<ExprPtr> lhs = parse_higher(parser, allow_brace, allow_bracket);
-  return ParseLeftChainTail(lhs.parser, lhs.elem, ops, parse_higher, allow_brace, allow_bracket);
-}
+// Pratt parsing implementation: iteratively parse left-associative binary operators
+// This reduces stack depth from O(precedence_levels * nesting) to O(nesting)
+ParseElemResult<ExprPtr> ParseBinaryExpr(Parser parser, BinaryPrecedence min_prec,
+                                         bool allow_brace, bool allow_bracket) {
+  // Start with the highest-precedence sub-expression (power, cast, unary, postfix, primary)
+  ParseElemResult<ExprPtr> result = ParsePower(parser, allow_brace, allow_bracket);
 
-ParseElemResult<ExprPtr> ParseLeftChainTail(Parser parser, ExprPtr lhs,
-                                           std::span<const std::string_view> ops,
-                                           ParseExprFn parse_higher,
-                                           bool allow_brace,
-                                           bool allow_bracket) {
-  const Token* tok = Tok(parser);
-  if (!tok || !IsOpInSet(*tok, ops)) {
-    SPEC_RULE("Parse-LeftChain-Stop");
-    return {parser, lhs};
+  // Iteratively consume binary operators at or above min_prec
+  for (;;) {
+    const Token* tok = Tok(result.parser);
+    if (!tok || tok->kind != TokenKind::Operator) {
+      break;
+    }
+
+    BinaryPrecedence prec = GetBinaryPrecedence(tok->lexeme);
+    if (prec == BinaryPrecedence::NONE || prec < min_prec) {
+      break;
+    }
+
+    SPEC_RULE("Parse-LeftChain-Cons");
+    const Identifier op = tok->lexeme;
+    Parser after_op = result.parser;
+    Advance(after_op);
+
+    // For left-associativity, parse RHS at next higher precedence
+    // This ensures a + b + c parses as (a + b) + c
+    BinaryPrecedence next_prec = static_cast<BinaryPrecedence>(static_cast<int>(prec) + 1);
+    ParseElemResult<ExprPtr> rhs = ParseBinaryExpr(after_op, next_prec, allow_brace, allow_bracket);
+
+    BinaryExpr bin;
+    bin.op = op;
+    bin.lhs = result.elem;
+    bin.rhs = rhs.elem;
+    result.elem = MakeExpr(SpanCover(result.elem->span, rhs.elem->span), bin);
+    result.parser = rhs.parser;
   }
-  SPEC_RULE("Parse-LeftChain-Cons");
-  const Identifier op = tok->lexeme;
-  Parser next = parser;
-  Advance(next);
-  ParseElemResult<ExprPtr> rhs = parse_higher(next, allow_brace, allow_bracket);
-  BinaryExpr bin;
-  bin.op = op;
-  bin.lhs = lhs;
-  bin.rhs = rhs.elem;
-  ExprPtr expr = MakeExpr(SpanCover(lhs->span, rhs.elem->span), bin);
-  return ParseLeftChainTail(rhs.parser, expr, ops, parse_higher, allow_brace, allow_bracket);
+
+  SPEC_RULE("Parse-LeftChain-Stop");
+  return result;
 }
 
 ParseElemResult<ExprPtr> ParseLogicalOr(Parser parser, bool allow_brace,
                                         bool allow_bracket) {
-  return ParseLeftChain(parser, kLogicalOrOps, ParseLogicalAnd, allow_brace, allow_bracket);
-}
-
-ParseElemResult<ExprPtr> ParseLogicalAnd(Parser parser, bool allow_brace,
-                                         bool allow_bracket) {
-  return ParseLeftChain(parser, kLogicalAndOps, ParseComparison, allow_brace, allow_bracket);
-}
-
-ParseElemResult<ExprPtr> ParseComparison(Parser parser, bool allow_brace,
-                                         bool allow_bracket) {
-  return ParseLeftChain(parser, kComparisonOps, ParseBitOr, allow_brace, allow_bracket);
-}
-
-ParseElemResult<ExprPtr> ParseBitOr(Parser parser, bool allow_brace,
-                                    bool allow_bracket) {
-  return ParseLeftChain(parser, kBitOrOps, ParseBitXor, allow_brace, allow_bracket);
-}
-
-ParseElemResult<ExprPtr> ParseBitXor(Parser parser, bool allow_brace,
-                                     bool allow_bracket) {
-  return ParseLeftChain(parser, kBitXorOps, ParseBitAnd, allow_brace, allow_bracket);
-}
-
-ParseElemResult<ExprPtr> ParseBitAnd(Parser parser, bool allow_brace,
-                                     bool allow_bracket) {
-  return ParseLeftChain(parser, kBitAndOps, ParseShift, allow_brace, allow_bracket);
-}
-
-ParseElemResult<ExprPtr> ParseShift(Parser parser, bool allow_brace,
-                                    bool allow_bracket) {
-  return ParseLeftChain(parser, kShiftOps, ParseAdd, allow_brace, allow_bracket);
-}
-
-ParseElemResult<ExprPtr> ParseAdd(Parser parser, bool allow_brace,
-                                  bool allow_bracket) {
-  return ParseLeftChain(parser, kAddOps, ParseMul, allow_brace, allow_bracket);
-}
-
-ParseElemResult<ExprPtr> ParseMul(Parser parser, bool allow_brace,
-                                  bool allow_bracket) {
-  return ParseLeftChain(parser, kMulOps, ParsePower, allow_brace, allow_bracket);
+  // Use Pratt parsing instead of recursive descent
+  return ParseBinaryExpr(parser, BinaryPrecedence::LOGICAL_OR, allow_brace, allow_bracket);
 }
 
 ParseElemResult<ExprPtr> ParsePower(Parser parser, bool allow_brace,

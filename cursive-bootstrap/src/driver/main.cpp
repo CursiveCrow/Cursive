@@ -904,5 +904,16 @@ int main(int argc, char** argv) {
 
   const CompileStatusResult status = CompileStatus(diags);
   const bool ok = status == CompileStatusResult::Ok && !rejected;
+  if (std::getenv("CURSIVE0_DEBUG_PIPELINE") != nullptr) {
+    std::cerr << "[cursivec0] pipeline: phase1_ok=" << phase1_ok
+              << " resolve_ok=" << resolve_ok
+              << " typecheck_ok=" << typecheck_ok
+              << " phase4_ok=" << phase4_ok
+              << " subset_ok=" << subset_ok
+              << " diags=" << diags.size()
+              << " rejected=" << rejected
+              << " status=" << static_cast<int>(status)
+              << "\n";
+  }
   return ok ? 0 : 1;
 }

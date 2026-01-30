@@ -381,6 +381,8 @@ struct CaptureCollector {
           using T = std::decay_t<decltype(node)>;
           if constexpr (std::is_same_v<T, syntax::IdentifierExpr>) {
             RecordCapture(node.name);
+          } else if constexpr (std::is_same_v<T, syntax::AttributedExpr>) {
+            VisitExpr(node.expr);
           } else if constexpr (std::is_same_v<T, syntax::QualifiedApplyExpr>) {
             if (std::holds_alternative<syntax::ParenArgs>(node.args)) {
               const auto& args = std::get<syntax::ParenArgs>(node.args).args;
@@ -690,6 +692,8 @@ struct UseAfterMoveChecker {
             if (!locals.IsLocal(key) && moved.find(key) != moved.end()) {
               found = true;
             }
+          } else if constexpr (std::is_same_v<T, syntax::AttributedExpr>) {
+            VisitExpr(node.expr);
           } else if constexpr (std::is_same_v<T, syntax::QualifiedApplyExpr>) {
             if (std::holds_alternative<syntax::ParenArgs>(node.args)) {
               const auto& args = std::get<syntax::ParenArgs>(node.args).args;
@@ -1241,6 +1245,8 @@ struct YieldFinder {
               return;
             }
             VisitExpr(node.value);
+          } else if constexpr (std::is_same_v<T, syntax::AttributedExpr>) {
+            VisitExpr(node.expr);
           } else if constexpr (std::is_same_v<T, syntax::QualifiedApplyExpr>) {
             if (std::holds_alternative<syntax::ParenArgs>(node.args)) {
               const auto& args = std::get<syntax::ParenArgs>(node.args).args;

@@ -1,5 +1,7 @@
 #include "cursive0/syntax/parser.h"
 
+#include <cstdlib>
+#include <iostream>
 #include <string_view>
 
 #include "cursive0/core/assert_spec.h"
@@ -1976,17 +1978,50 @@ ParseItemResult ParseItem(Parser parser) {
 
   if (IsKw(cur, "procedure")) {
     SPEC_RULE("Parse-Procedure");
+    if (std::getenv("CURSIVE0_DEBUG_PARSE") != nullptr) {
+      std::cerr << "[cursivec0] parse-item: procedure start index="
+                << cur.index << "\n";
+    }
     Parser next = cur;
     Advance(next);
     ParseElemResult<Identifier> name = ParseIdent(next);
+    if (std::getenv("CURSIVE0_DEBUG_PARSE") != nullptr) {
+      std::cerr << "[cursivec0] parse-item: procedure name=" << name.elem
+                << " index=" << name.parser.index << "\n";
+    }
     // C0X Extension: Parse optional generic parameters
     ParseElemResult<std::optional<GenericParams>> gen_params = ParseGenericParamsOpt(name.parser);
+    if (std::getenv("CURSIVE0_DEBUG_PARSE") != nullptr) {
+      std::cerr << "[cursivec0] parse-item: signature start index="
+                << gen_params.parser.index << "\n";
+    }
     SignatureResult sig = ParseSignature(gen_params.parser);
+    if (std::getenv("CURSIVE0_DEBUG_PARSE") != nullptr) {
+      std::cerr << "[cursivec0] parse-item: signature end index="
+                << sig.parser.index << " diags=" << sig.parser.diags.size()
+                << "\n";
+    }
     // C0X Extension: Parse optional where clause
     ParseElemResult<std::optional<WhereClause>> where_clause = ParseWhereClauseOpt(sig.parser);
+    if (std::getenv("CURSIVE0_DEBUG_PARSE") != nullptr) {
+      std::cerr << "[cursivec0] parse-item: where-clause index="
+                << where_clause.parser.index << " diags="
+                << where_clause.parser.diags.size() << "\n";
+    }
     // C0X Extension: Parse optional contract clause
-    ParseElemResult<std::optional<ContractClause>> contract = ParseContractClauseOpt(where_clause.parser);
+    ParseElemResult<std::optional<ContractClause>> contract =
+        ParseContractClauseOpt(where_clause.parser);
+    if (std::getenv("CURSIVE0_DEBUG_PARSE") != nullptr) {
+      std::cerr << "[cursivec0] parse-item: contract index="
+                << contract.parser.index << " diags="
+                << contract.parser.diags.size() << "\n";
+    }
     ParseElemResult<std::shared_ptr<Block>> body = ParseBlock(contract.parser);
+    if (std::getenv("CURSIVE0_DEBUG_PARSE") != nullptr) {
+      std::cerr << "[cursivec0] parse-item: procedure body index="
+                << body.parser.index << " diags=" << body.parser.diags.size()
+                << "\n";
+    }
     ProcedureDecl decl;
     decl.attrs = attrs.elem;  // C0X Extension
     decl.vis = vis.elem;

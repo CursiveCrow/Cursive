@@ -1,5 +1,7 @@
 #include "cursive0/syntax/parser.h"
 
+#include <cstdlib>
+#include <iostream>
 #include <iterator>
 #include <string_view>
 #include <utility>
@@ -156,11 +158,174 @@ bool RequiresTerminator(const Stmt& stmt) {
          std::holds_alternative<CompoundAssignStmt>(stmt);
 }
 
+ExprPtr WrapAttrExpr(const AttributeList& attrs, const ExprPtr& expr) {
+  if (!expr || attrs.empty()) {
+    return expr;
+  }
+  AttributedExpr node;
+  node.attrs = attrs;
+  node.expr = expr;
+  auto out = std::make_shared<Expr>();
+  out->span = expr->span;
+  out->node = std::move(node);
+  return out;
+}
+
+void ApplyStmtAttrs(const AttributeList& attrs, Stmt& stmt) {
+  if (attrs.empty()) {
+    return;
+  }
+  if (auto* let_stmt = std::get_if<LetStmt>(&stmt)) {
+    let_stmt->binding.init = WrapAttrExpr(attrs, let_stmt->binding.init);
+    return;
+  }
+  if (auto* var_stmt = std::get_if<VarStmt>(&stmt)) {
+    var_stmt->binding.init = WrapAttrExpr(attrs, var_stmt->binding.init);
+    return;
+  }
+  if (auto* shadow_let = std::get_if<ShadowLetStmt>(&stmt)) {
+    shadow_let->init = WrapAttrExpr(attrs, shadow_let->init);
+    return;
+  }
+  if (auto* shadow_var = std::get_if<ShadowVarStmt>(&stmt)) {
+    shadow_var->init = WrapAttrExpr(attrs, shadow_var->init);
+    return;
+  }
+  if (auto* assign = std::get_if<AssignStmt>(&stmt)) {
+    assign->place = WrapAttrExpr(attrs, assign->place);
+    assign->value = WrapAttrExpr(attrs, assign->value);
+    return;
+  }
+  if (auto* assign = std::get_if<CompoundAssignStmt>(&stmt)) {
+    assign->place = WrapAttrExpr(attrs, assign->place);
+    assign->value = WrapAttrExpr(attrs, assign->value);
+    return;
+  }
+  if (auto* expr_stmt = std::get_if<ExprStmt>(&stmt)) {
+    expr_stmt->value = WrapAttrExpr(attrs, expr_stmt->value);
+    return;
+  }
+  if (auto* ret = std::get_if<ReturnStmt>(&stmt)) {
+    ret->value_opt = WrapAttrExpr(attrs, ret->value_opt);
+    return;
+  }
+  if (auto* br = std::get_if<BreakStmt>(&stmt)) {
+    br->value_opt = WrapAttrExpr(attrs, br->value_opt);
+    return;
+  }
+  if (auto* region = std::get_if<RegionStmt>(&stmt)) {
+    region->opts_opt = WrapAttrExpr(attrs, region->opts_opt);
+    return;
+  }
+  if (auto* stat = std::get_if<StaticAssertStmt>(&stmt)) {
+    stat->condition = WrapAttrExpr(attrs, stat->condition);
+    return;
+  }
+}
+
 struct ParseStmtCoreResult {
   Parser parser;
   Stmt stmt;
   bool matched = false;
 };
+
+// C0X Extension: Attribute parsing (local copy for statement parsing)
+ParseElemResult<AttributeItem> ParseAttributeItem(Parser parser) {
+  AttributeItem item;
+  const Token* tok = Tok(parser);
+  if (!tok) {
+    EmitParseSyntaxErr(parser, TokSpan(parser));
+    return {parser, item};
+  }
+
+  if (tok->kind != TokenKind::Identifier && tok->kind != TokenKind::Keyword) {
+    EmitParseSyntaxErr(parser, TokSpan(parser));
+    return {parser, item};
+  }
+
+  item.name = std::string(tok->lexeme);
+  Parser next = parser;
+  Advance(next);
+
+  if (IsPunc(next, "(")) {
+    Advance(next);
+    int depth = 1;
+    while (depth > 0 && Tok(next)) {
+      if (IsPunc(next, "(")) {
+        depth++;
+      } else if (IsPunc(next, ")")) {
+        depth--;
+      }
+      if (depth > 0) {
+        Advance(next);
+      }
+    }
+    if (IsPunc(next, ")")) {
+      Advance(next);
+    }
+  }
+
+  item.span = SpanBetween(parser, next);
+  return {next, item};
+}
+
+ParseElemResult<AttributeList> ParseAttributeListOpt(Parser parser) {
+  AttributeList attrs;
+
+  auto is_attr_start = [](const Parser& cur) -> bool {
+    if (IsPunc(cur, "[[")) {
+      return true;
+    }
+    if (IsPunc(cur, "[")) {
+      Parser probe = cur;
+      Advance(probe);
+      return IsPunc(probe, "[");
+    }
+    return false;
+  };
+
+  while (is_attr_start(parser)) {
+    Parser next = parser;
+    if (IsPunc(next, "[[")) {
+      Advance(next);
+    } else {
+      Advance(next);
+      Advance(next);
+    }
+
+    SPEC_RULE("Parse-Attribute");
+
+    ParseElemResult<AttributeItem> first = ParseAttributeItem(next);
+    attrs.push_back(first.elem);
+    next = first.parser;
+
+    while (IsPunc(next, ",")) {
+      Advance(next);
+      ParseElemResult<AttributeItem> item = ParseAttributeItem(next);
+      attrs.push_back(item.elem);
+      next = item.parser;
+    }
+
+    if (IsPunc(next, "]]") ) {
+      Advance(next);
+    } else {
+      if (!IsPunc(next, "]")) {
+        EmitParseSyntaxErr(next, TokSpan(next));
+      } else {
+        Advance(next);
+      }
+      if (!IsPunc(next, "]")) {
+        EmitParseSyntaxErr(next, TokSpan(next));
+      } else {
+        Advance(next);
+      }
+    }
+
+    parser = next;
+  }
+
+  return {parser, attrs};
+}
 
 struct ParseStmtSeqResult {
   Parser parser;
@@ -572,6 +737,14 @@ ParseStmtSeqResult ParseStmtSeq(Parser parser) {
   while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
     Advance(parser);
   }
+
+  if (std::getenv("CURSIVE0_DEBUG_PARSE") != nullptr) {
+    const Token* tok = Tok(parser);
+    std::string_view lex = tok ? tok->lexeme : "<eof>";
+    std::cerr << "[cursivec0] parse-stmtseq: index=" << parser.index
+              << " tok=" << lex << " kind="
+              << (tok ? static_cast<int>(tok->kind) : -1) << "\n";
+  }
   
   if (IsPunc(parser, "}")) {
     SPEC_RULE("ParseStmtSeq-End");
@@ -592,6 +765,10 @@ ParseStmtSeqResult ParseStmtSeq(Parser parser) {
 
   SPEC_RULE("ParseStmtSeq-Cons");
   ParseElemResult<Stmt> head = ParseStmt(parser);
+  if (std::getenv("CURSIVE0_DEBUG_PARSE") != nullptr) {
+    std::cerr << "[cursivec0] parse-stmtseq: head_index=" << head.parser.index
+              << " diags=" << head.parser.diags.size() << "\n";
+  }
   ParseStmtSeqResult tail_seq = ParseStmtSeq(head.parser);
   std::vector<Stmt> stmts;
   stmts.reserve(1 + tail_seq.stmts.size());
@@ -691,6 +868,14 @@ void ConsumeTerminatorReq(Parser& parser) {
 }
 
 ParseElemResult<Stmt> ParseStmt(Parser parser) {
+  ParseElemResult<AttributeList> attrs = ParseAttributeListOpt(parser);
+  parser = attrs.parser;
+  if (!attrs.elem.empty()) {
+    while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+      Advance(parser);
+    }
+  }
+
   ParseStmtCoreResult core = ParseStmtCore(parser);
   if (!core.matched) {
     SPEC_RULE("Parse-Statement-Err");
@@ -699,6 +884,10 @@ ParseElemResult<Stmt> ParseStmt(Parser parser) {
     Parser sync = next;
     SyncStmt(sync);
     return {sync, ErrorStmt{SpanBetween(parser, sync)}};
+  }
+
+  if (!attrs.elem.empty()) {
+    ApplyStmtAttrs(attrs.elem, core.stmt);
   }
 
   SPEC_RULE("Parse-Statement");

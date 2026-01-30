@@ -454,6 +454,12 @@ struct UnsafeBlockExpr {
   std::shared_ptr<Block> block;
 };
 
+// C0X Extension: Attributed expression (e.g., [[dynamic]] expr)
+struct AttributedExpr {
+  AttributeList attrs;
+  ExprPtr expr;
+};
+
 struct TransmuteExpr {
   std::shared_ptr<Type> from;
   std::shared_ptr<Type> to;
@@ -684,6 +690,7 @@ using ExprNode = std::variant<ErrorExpr,
                               LoopIterExpr,
                               BlockExpr,
                               UnsafeBlockExpr,
+                              AttributedExpr,
                               TransmuteExpr,
                               FieldAccessExpr,
                               TupleAccessExpr,

@@ -149,7 +149,8 @@ procedure append_usize(buf: unique bytes@Managed, n: usize, heap: $HeapAllocator
   loop {
     let d: usize = x % 10usize
     let digit: u8 = (d as u8)
-    digits[count] = 48u8 + digit
+    let digit_val: u8 = ((48u8 + digit) as u8)
+    digits[count] = digit_val
     count = count + 1
     x = x / 10usize
     if x == 0usize {
@@ -188,7 +189,10 @@ procedure emit_obligation(
   if !append_lit(buf, "{\"id\":\"", heap) {
     return false
   }
-  if !append_lit(buf, "§", heap) {
+  if !append_byte(buf, 194u8, heap) {
+    return false
+  }
+  if !append_byte(buf, 167u8, heap) {
     return false
   }
   if has_section {
@@ -259,7 +263,7 @@ public procedure main(move ctx: Context) -> i32 {
 
   let read_res = fs ~> read_file(input_path)
   var contents: string@Managed = match read_res {
-    s: string@Managed => { s }
+    s: string@Managed => { move s }
     _e: IoError => { return 1 }
   }
 
@@ -269,9 +273,14 @@ public procedure main(move ctx: Context) -> i32 {
 
   let buf_res = bytes::with_capacity(data_len + 1024, heap)
   var out_buf: unique bytes@Managed = match buf_res {
-    b: bytes@Managed => { b }
+    b: bytes@Managed => { move b }
     _e: AllocationError => { return 1 }
   }
+
+  let kind_rule: string@View = "rule"
+  let kind_definition: string@View = "definition"
+  let kind_diagnostic: string@View = "diagnostic"
+  let kind_judgment: string@View = "judgment"
 
   if !append_lit(out_buf, "{\"version\":1,\"obligations\":[", heap) {
     return 1
@@ -336,7 +345,7 @@ public procedure main(move ctx: Context) -> i32 {
         if found {
           let name_start: usize = line_start + 3usize
           let name_end: usize = line_start + i
-          let ok: bool = emit_obligation(out_buf, data, has_section, section_start, section_end, "rule", name_start, name_end, line_no, first, heap)
+          let ok: bool = emit_obligation(out_buf, data, has_section, section_start, section_end, kind_rule, name_start, name_end, line_no, first, heap)
           if !ok {
             return 1
           }
@@ -358,7 +367,7 @@ public procedure main(move ctx: Context) -> i32 {
           if name_end2 > name_start2 && data[name_end2 - 1usize] == 46u8 {
             name_end2 = name_end2 - 1usize
           }
-          let ok2: bool = emit_obligation(out_buf, data, has_section, section_start, section_end, "definition", name_start2, name_end2, line_no, first, heap)
+          let ok2: bool = emit_obligation(out_buf, data, has_section, section_start, section_end, kind_definition, name_start2, name_end2, line_no, first, heap)
           if !ok2 {
             return 1
           }
@@ -371,7 +380,7 @@ public procedure main(move ctx: Context) -> i32 {
     if diag_idx < line_len {
       let name_start3: usize = line_start + diag_idx
       let name_end3: usize = line_start + diag_idx + 10usize
-      let ok3: bool = emit_obligation(out_buf, data, has_section, section_start, section_end, "diagnostic", name_start3, name_end3, line_no, first, heap)
+      let ok3: bool = emit_obligation(out_buf, data, has_section, section_start, section_end, kind_diagnostic, name_start3, name_end3, line_no, first, heap)
       if !ok3 {
         return 1
       }
@@ -398,7 +407,7 @@ public procedure main(move ctx: Context) -> i32 {
       }
       if q > p {
         let name_end4: usize = line_start + q
-        let ok4: bool = emit_obligation(out_buf, data, has_section, section_start, section_end, "judgment", name_start4, name_end4, line_no, first, heap)
+        let ok4: bool = emit_obligation(out_buf, data, has_section, section_start, section_end, kind_judgment, name_start4, name_end4, line_no, first, heap)
         if !ok4 {
           return 1
         }

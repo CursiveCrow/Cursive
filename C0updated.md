@@ -8933,13 +8933,23 @@ ConstIndex(e) ⇔ ∃ n. Γ ⊢ ConstLen(e) ⇓ n
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ IndexAccess(e_1, e_2) : T
 
+**(T-Index-Array-Dynamic)**
+Γ ⊢ e_1 : TypeArray(T, len)    Γ ⊢ e_2 : TypePrim("usize")    ¬ ConstIndex(e_2)    InDynamicContext    BitcopyType(T)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) : T
+
 **(T-Index-Array-Perm)**
 Γ ⊢ e_1 : TypePerm(p, TypeArray(T, len))    Γ ⊢ e_2 : TypePrim("usize")    ConstIndex(e_2)    Γ ⊢ ConstLen(e_2) ⇓ i    Γ ⊢ ConstLen(len) ⇓ n    i < n    BitcopyType(TypePerm(p, T))
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ IndexAccess(e_1, e_2) : TypePerm(p, T)
 
+**(T-Index-Array-Perm-Dynamic)**
+Γ ⊢ e_1 : TypePerm(p, TypeArray(T, len))    Γ ⊢ e_2 : TypePrim("usize")    ¬ ConstIndex(e_2)    InDynamicContext    BitcopyType(TypePerm(p, T))
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) : TypePerm(p, T)
+
 **(Index-Array-NonConst-Err)**
-Γ ⊢ e_1 : TypeArray(T, _)    Γ ⊢ e_2 : TypePrim("usize")    ¬ ConstIndex(e_2)    c = Code(Index-Array-NonConst-Err)
+Γ ⊢ e_1 : TypeArray(T, _)    Γ ⊢ e_2 : TypePrim("usize")    ¬ ConstIndex(e_2)    ¬ InDynamicContext    c = Code(Index-Array-NonConst-Err)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ IndexAccess(e_1, e_2) ⇑ c
 
@@ -8985,6 +8995,16 @@ ConstIndex(e) ⇔ ∃ n. Γ ⊢ ConstLen(e) ⇓ n
 
 **(P-Index-Array-Perm)**
 Γ ⊢ e_1 :place TypePerm(p, TypeArray(T, len))    Γ ⊢ e_2 : TypePrim("usize")    ConstIndex(e_2)    Γ ⊢ ConstLen(e_2) ⇓ i    Γ ⊢ ConstLen(len) ⇓ n    i < n
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) :place TypePerm(p, T)
+
+**(P-Index-Array-Dynamic)**
+Γ ⊢ e_1 :place TypeArray(T, len)    Γ ⊢ e_2 : TypePrim("usize")    ¬ ConstIndex(e_2)    InDynamicContext
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ IndexAccess(e_1, e_2) :place T
+
+**(P-Index-Array-Perm-Dynamic)**
+Γ ⊢ e_1 :place TypePerm(p, TypeArray(T, len))    Γ ⊢ e_2 : TypePrim("usize")    ¬ ConstIndex(e_2)    InDynamicContext
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ IndexAccess(e_1, e_2) :place TypePerm(p, T)
 
@@ -16091,13 +16111,22 @@ T = ExprType(Literal(ℓ))    LiteralValue(ℓ, T) = v
 ──────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LowerExpr(TupleAccess(base, i)) ⇓ ⟨IR_b, v_i⟩
 
+IndexCheckRequired(base, idx) ⇔
+  (StripPerm(ExprType(base)) = TypeSlice(_)) ∨
+  (StripPerm(ExprType(base)) = TypeArray(_, _) ∧ InDynamicContext)
+
+**(Lower-Expr-Index-Scalar-Static)**
+Γ ⊢ LowerExpr(base) ⇓ ⟨IR_b, v_b⟩    Γ ⊢ LowerExpr(idx) ⇓ ⟨IR_i, v_i⟩    ExprType(idx) = TypePrim("usize")    ¬ IndexCheckRequired(base, idx)    IndexValue(v_b, v_i) = v_e
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LowerExpr(IndexAccess(base, idx)) ⇓ ⟨SeqIR(IR_b, IR_i), v_e⟩
+
 **(Lower-Expr-Index-Scalar)**
-Γ ⊢ LowerExpr(base) ⇓ ⟨IR_b, v_b⟩    Γ ⊢ LowerExpr(idx) ⇓ ⟨IR_i, v_i⟩    ExprType(idx) = TypePrim("usize")    Γ ⊢ CheckIndex(Len(v_b), v_i) ⇓ ok    IndexValue(v_b, v_i) = v_e
+Γ ⊢ LowerExpr(base) ⇓ ⟨IR_b, v_b⟩    Γ ⊢ LowerExpr(idx) ⇓ ⟨IR_i, v_i⟩    ExprType(idx) = TypePrim("usize")    IndexCheckRequired(base, idx)    Γ ⊢ CheckIndex(Len(v_b), v_i) ⇓ ok    IndexValue(v_b, v_i) = v_e
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LowerExpr(IndexAccess(base, idx)) ⇓ ⟨SeqIR(IR_b, IR_i), v_e⟩
 
 **(Lower-Expr-Index-Scalar-OOB)**
-Γ ⊢ LowerExpr(base) ⇓ ⟨IR_b, v_b⟩    Γ ⊢ LowerExpr(idx) ⇓ ⟨IR_i, v_i⟩    ExprType(idx) = TypePrim("usize")    ¬(0 ≤ v_i < Len(v_b))    Γ ⊢ LowerPanic(Bounds) ⇓ IR_k
+Γ ⊢ LowerExpr(base) ⇓ ⟨IR_b, v_b⟩    Γ ⊢ LowerExpr(idx) ⇓ ⟨IR_i, v_i⟩    ExprType(idx) = TypePrim("usize")    IndexCheckRequired(base, idx)    ¬(0 ≤ v_i < Len(v_b))    Γ ⊢ LowerPanic(Bounds) ⇓ IR_k
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LowerExpr(IndexAccess(base, idx)) ⇓ ⟨SeqIR(IR_b, IR_i, IR_k), v_unreach⟩
 
@@ -21524,7 +21553,7 @@ C0Code(id) = ⊥ ⇔ ¬ ∃ row ∈ DiagRows. id ∈ RowIds(row)
 | Code         | Severity | Detection    | Condition                                              | DiagId                   |
 | ------------ | -------- | ------------ | ------------------------------------------------------ | ------------------------ |
 | `E-UNS-0101` | Error    | Compile-time | Unsupported construct in Cursive0 subset               | Unsupported-Construct    |
-| `E-UNS-0102` | Error    | Compile-time | Array index must be a compile-time constant            | Index-Array-NonConst-Err |
+| `E-UNS-0102` | Error    | Compile-time | Array index must be a compile-time constant outside `[[dynamic]]` scope | Index-Array-NonConst-Err |
 | `E-UNS-0103` | Error    | Compile-time | Array index out of bounds                              | Index-Array-OOB-Err      |
 | `E-UNS-0104` | Error    | Compile-time | `transmute` source and target alignments differ        | T-Transmute-AlignEq      |
 | `E-UNS-0105` | Error    | Compile-time | `override` used with no concrete procedure to override | Override-NoConcrete      |

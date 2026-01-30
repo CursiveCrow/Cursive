@@ -343,7 +343,7 @@ static const DiagMessageEntry kDiagMessages[] = {
   {"E-TYP-2630", Severity::Error, "By-value FFI use of `DropType` without `[[ffi_pass_by_value]]`"},
   {"E-TYP-2631", Severity::Error, "`[[export]]` with `unwind = \"catch\"` requires zeroable return type"},
   {"E-UNS-0101", Severity::Error, "Unsupported construct in Cursive0 subset"},
-  {"E-UNS-0102", Severity::Error, "Array index must be a compile-time constant"},
+  {"E-UNS-0102", Severity::Error, "Array index must be a compile-time constant outside [[dynamic]] scope"},
   {"E-UNS-0103", Severity::Error, "Array index out of bounds"},
   {"E-UNS-0104", Severity::Error, "`transmute` source and target alignments differ"},
   {"E-UNS-0105", Severity::Error, "`override` used with no concrete procedure to override"},

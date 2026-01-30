@@ -103,7 +103,11 @@
       "Bash(powershell.exe -Command:*)",
       "Bash(cmake:*)",
       "Bash(./out/build/x64-Debug/Debug/cursivec0.exe build:*)",
-      "Bash(/c/Dev/Cursive/cursive-bootstrap/out/build/x64-Debug/Debug/cursivec0.exe build:*)"
+      "Bash(/c/Dev/Cursive/cursive-bootstrap/out/build/x64-Debug/Debug/cursivec0.exe build:*)",
+      "Bash(c:\\\\Dev\\\\Cursive\\\\build\\\\Debug\\\\cursivec0.exe build:*)",
+      "Bash(\"c:/Dev/Cursive/build/Debug/cursivec0.exe\" build \"c:/Dev/Cursive/tests/spec_index\" --diag-json)",
+      "Bash(\"c:/Dev/Cursive/build/Debug/cursivec0.exe\" build . --diag-json)",
+      "Bash(cmd /c \"\"\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\VC\\\\Auxiliary\\\\Build\\\\vcvars64.bat\"\" >nul 2>&1 && cd /d c:\\\\Dev\\\\Cursive && \"\"C:\\\\Program Files\\\\CMake\\\\bin\\\\cmake.exe\"\" --build build --config Debug --target cursivec0 2>&1\")"
     ],
     "deny": [
       "Bash(git: *)"

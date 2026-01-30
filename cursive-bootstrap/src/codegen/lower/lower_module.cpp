@@ -142,6 +142,15 @@ IRParam LowerParam(const syntax::Param& param,
   return out;
 }
 
+bool HasDynamicAttr(const syntax::AttributeList& attrs) {
+  for (const auto& attr : attrs) {
+    if (attr.name == "dynamic") {
+      return true;
+    }
+  }
+  return false;
+}
+
 ProcIR LowerProcLike(const std::string& symbol,
                      const std::vector<IRParam>& params,
                      const analysis::TypeRef& ret_type,
@@ -276,7 +285,11 @@ ProcIR LowerRecordMethod(const syntax::RecordDecl& record,
 
   const auto ret_type = LowerReturnType(scope, method.return_type_opt, self_type);
   const std::string sym = MangleMethod(record_path, method);
-  return LowerProcLike(sym, params, ret_type, *method.body, module_path, ctx);
+  const bool prev_dynamic_checks = ctx.dynamic_checks;
+  ctx.dynamic_checks = HasDynamicAttr(method.attrs) || HasDynamicAttr(record.attrs);
+  auto proc = LowerProcLike(sym, params, ret_type, *method.body, module_path, ctx);
+  ctx.dynamic_checks = prev_dynamic_checks;
+  return proc;
 }
 
 ProcIR LowerStateMethod(const syntax::ModalDecl& modal,

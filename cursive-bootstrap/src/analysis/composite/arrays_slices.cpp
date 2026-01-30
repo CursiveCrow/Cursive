@@ -254,7 +254,8 @@ ExprTypeResult TypeArrayExpr(const ScopeContext& ctx,
 
 ExprTypeResult TypeIndexAccessValue(const ScopeContext& ctx,
                                     const syntax::IndexAccessExpr& expr,
-                                    const ExprTypeFn& type_expr) {
+                                    const ExprTypeFn& type_expr,
+                                    bool dynamic_context) {
   SpecDefsArraysSlices();
   ExprTypeResult result;
   if (!expr.base || !expr.index) {
@@ -315,13 +316,14 @@ ExprTypeResult TypeIndexAccessValue(const ScopeContext& ctx,
     }
 
     const auto index_const = ConstLen(ctx, expr.index);
-    if (!index_const.ok || !index_const.value.has_value()) {
-      SPEC_RULE("Index-Array-NonConst-Err");
-      result.diag_id = "Index-Array-NonConst-Err";
-      return result;
-    }
-
-    if (*index_const.value >= array->length) {
+    const bool has_const_index = index_const.ok && index_const.value.has_value();
+    if (!has_const_index) {
+      if (!dynamic_context) {
+        SPEC_RULE("Index-Array-NonConst-Err");
+        result.diag_id = "Index-Array-NonConst-Err";
+        return result;
+      }
+    } else if (*index_const.value >= array->length) {
       SPEC_RULE("Index-Array-OOB-Err");
       result.diag_id = "Index-Array-OOB-Err";
       return result;
@@ -335,13 +337,21 @@ ExprTypeResult TypeIndexAccessValue(const ScopeContext& ctx,
         result.diag_id = "ValueUse-NonBitcopyPlace";
         return result;
       }
-      SPEC_RULE("T-Index-Array-Perm");
+      if (has_const_index) {
+        SPEC_RULE("T-Index-Array-Perm");
+      } else {
+        SPEC_RULE("T-Index-Array-Perm-Dynamic");
+      }
     } else {
       if (!BitcopyType(ctx, out_type)) {
         result.diag_id = "ValueUse-NonBitcopyPlace";
         return result;
       }
-      SPEC_RULE("T-Index-Array");
+      if (has_const_index) {
+        SPEC_RULE("T-Index-Array");
+      } else {
+        SPEC_RULE("T-Index-Array-Dynamic");
+      }
     }
 
     result.ok = true;
@@ -418,7 +428,8 @@ ExprTypeResult TypeIndexAccessValue(const ScopeContext& ctx,
 PlaceTypeResult TypeIndexAccessPlace(const ScopeContext& ctx,
                                      const syntax::IndexAccessExpr& expr,
                                      const PlaceTypeFn& type_place,
-                                     const ExprTypeFn& type_expr) {
+                                     const ExprTypeFn& type_expr,
+                                     bool dynamic_context) {
   SpecDefsArraysSlices();
   PlaceTypeResult result;
   if (!expr.base || !expr.index) {
@@ -471,23 +482,32 @@ PlaceTypeResult TypeIndexAccessPlace(const ScopeContext& ctx,
     }
 
     const auto index_const = ConstLen(ctx, expr.index);
-    if (!index_const.ok || !index_const.value.has_value()) {
-      SPEC_RULE("Index-Array-NonConst-Err");
-      result.diag_id = "Index-Array-NonConst-Err";
-      return result;
-    }
-
-    if (*index_const.value >= array->length) {
+    const bool has_const_index = index_const.ok && index_const.value.has_value();
+    if (!has_const_index) {
+      if (!dynamic_context) {
+        SPEC_RULE("Index-Array-NonConst-Err");
+        result.diag_id = "Index-Array-NonConst-Err";
+        return result;
+      }
+    } else if (*index_const.value >= array->length) {
       SPEC_RULE("Index-Array-OOB-Err");
       result.diag_id = "Index-Array-OOB-Err";
       return result;
     }
 
     if (const auto* perm = std::get_if<TypePerm>(&base_type.type->node)) {
-      SPEC_RULE("P-Index-Array-Perm");
+      if (has_const_index) {
+        SPEC_RULE("P-Index-Array-Perm");
+      } else {
+        SPEC_RULE("P-Index-Array-Perm-Dynamic");
+      }
       result.type = MakeTypePerm(perm->perm, array->element);
     } else {
-      SPEC_RULE("P-Index-Array");
+      if (has_const_index) {
+        SPEC_RULE("P-Index-Array");
+      } else {
+        SPEC_RULE("P-Index-Array-Dynamic");
+      }
       result.type = array->element;
     }
     result.ok = true;
