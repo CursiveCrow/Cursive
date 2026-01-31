@@ -1,0 +1,58 @@
+#pragma once
+
+#include <optional>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <vector>
+
+#include "cursive0/00_core/span.h"
+#include "cursive0/03_analysis/memory/borrow_bind.h"
+#include "cursive0/03_analysis/types/context.h"
+#include "cursive0/03_analysis/types/type_stmt.h"
+#include "cursive0/02_syntax/ast.h"
+
+namespace cursive0::analysis {
+
+struct ProvCheckResult {
+  bool ok = false;
+  std::optional<std::string_view> diag_id;
+  std::optional<core::Span> span;
+};
+
+enum class ProvenanceKind {
+  Global,
+  Stack,
+  Heap,
+  Region,
+  Bottom,
+  Param,
+};
+
+struct ExprProvMapResult {
+  bool ok = false;
+  std::optional<std::string_view> diag_id;
+  std::optional<core::Span> span;
+  std::unordered_map<const syntax::Expr*, ProvenanceKind> expr_prov;
+  std::unordered_map<const syntax::Expr*, std::string> expr_region;
+};
+
+TypeRef RegionActiveTypeRef();
+bool RegionActiveType(const TypeRef& type);
+std::optional<std::string> InnermostActiveRegion(const TypeEnv& env);
+std::string FreshRegionName(const TypeEnv& env);
+
+ProvCheckResult ProvBindCheck(const ScopeContext& ctx,
+                              const syntax::ModulePath& module_path,
+                              const std::vector<syntax::Param>& params,
+                              const std::shared_ptr<syntax::Block>& body,
+                              const std::optional<BindSelfParam>& self_param);
+
+ExprProvMapResult ComputeExprProvenanceMap(
+    const ScopeContext& ctx,
+    const syntax::ModulePath& module_path,
+    const std::vector<syntax::Param>& params,
+    const std::shared_ptr<syntax::Block>& body,
+    const std::optional<BindSelfParam>& self_param);
+
+}  // namespace cursive0::analysis

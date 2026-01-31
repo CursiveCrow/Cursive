@@ -637,14 +637,14 @@ match value {
 
 The following constructs are **not supported** in Cursive0. Do not generate code using these:
 
-| Construct | Category | Status |
-|-----------|----------|--------|
-| `metaprogramming` | Grammar | Unsupported in Cursive0 |
-| `closure` | Feature | Use named procedures instead |
-| `pipeline` | Feature | Not available |
-| `Network` | Capability | Not provided in Context |
-| `GPUFactory` | Capability | Not provided in Context |
-| `CPUFactory` | Capability | Not provided in Context |
+| Construct         | Category   | Status                       |
+| ----------------- | ---------- | ---------------------------- |
+| `metaprogramming` | Grammar    | Unsupported in Cursive0      |
+| `closure`         | Feature    | Use named procedures instead |
+| `pipeline`        | Feature    | Not available                |
+| `Network`         | Capability | Not provided in Context      |
+| `GPUFactory`      | Capability | Not provided in Context      |
+| `CPUFactory`      | Capability | Not provided in Context      |
 
 ```cursive
 // WRONG - closures not supported
@@ -662,15 +662,15 @@ procedure add_one(x: i32) -> i32 {
 
 ### 3.1. Primitive Types
 
-| Category | Types |
-|----------|-------|
-| Signed integers | `i8`, `i16`, `i32`, `i64`, `i128`, `isize` |
+| Category          | Types                                      |
+| ----------------- | ------------------------------------------ |
+| Signed integers   | `i8`, `i16`, `i32`, `i64`, `i128`, `isize` |
 | Unsigned integers | `u8`, `u16`, `u32`, `u64`, `u128`, `usize` |
-| Floating point | `f16`, `f32`, `f64` |
-| Boolean | `bool` |
-| Character | `char` |
-| Unit | `()` |
-| Never | `!` |
+| Floating point    | `f16`, `f32`, `f64`                        |
+| Boolean           | `bool`                                     |
+| Character         | `char`                                     |
+| Unit              | `()`                                       |
+| Never             | `!`                                        |
 
 ### 3.2. Compound Types
 
@@ -715,19 +715,19 @@ let z: shared i32 = 30      // Synchronized shared access (requires key system)
 
 **Permission Operations:**
 
-| Permission | Read | Write | Aliasing |
-|------------|------|-------|----------|
-| `const` | Yes | No | Unlimited |
-| `unique` | Yes | Yes | No aliases |
-| `shared` | Yes (with key) | Yes (with key) | Multiple shared |
+| Permission | Read           | Write          | Aliasing        |
+| ---------- | -------------- | -------------- | --------------- |
+| `const`    | Yes            | No             | Unlimited       |
+| `unique`   | Yes            | Yes            | No aliases      |
+| `shared`   | Yes (with key) | Yes (with key) | Multiple shared |
 
 **Method Receiver Compatibility:**
 
 | Caller Permission | May Call `~` | May Call `~%` | May Call `~!` |
-|-------------------|--------------|---------------|---------------|
-| `const` | Yes | No | No |
-| `shared` | Yes | Yes | No |
-| `unique` | Yes | Yes | Yes |
+| ----------------- | ------------ | ------------- | ------------- |
+| `const`           | Yes          | No            | No            |
+| `shared`          | Yes          | Yes           | No            |
+| `unique`          | Yes          | Yes           | Yes           |
 
 ### 3.4. Pointer Types
 
@@ -1282,30 +1282,30 @@ procedure rarely_called() -> () {
 
 **Complete Attribute List:**
 
-| Attribute | Purpose |
-|-----------|---------|
-| `[[inline]]` | Suggest inlining |
-| `[[inline(always)]]` | Force inlining |
-| `[[inline(never)]]` | Never inline |
-| `[[inline(hint)]]` | Hint to inline |
-| `[[cold]]` | Mark as rarely executed |
-| `[[export]]` | Make callable from foreign code |
-| `[[no_mangle]]` | Disable name mangling (FFI) |
-| `[[symbol("name")]]` | Custom symbol name |
-| `[[unwind]]` | Control unwinding at FFI boundary |
-| `[[layout(C)]]` | C-compatible memory layout |
-| `[[ffi_pass_by_value]]` | Allow by-value passing of Drop types in FFI |
-| `[[weak]]` | Weak linkage |
-| `[[dynamic]]` | Allow runtime contract/refinement verification |
+| Attribute                  | Purpose                                            |
+| -------------------------- | -------------------------------------------------- |
+| `[[inline]]`               | Suggest inlining                                   |
+| `[[inline(always)]]`       | Force inlining                                     |
+| `[[inline(never)]]`        | Never inline                                       |
+| `[[inline(hint)]]`         | Hint to inline                                     |
+| `[[cold]]`                 | Mark as rarely executed                            |
+| `[[export]]`               | Make callable from foreign code                    |
+| `[[no_mangle]]`            | Disable name mangling (FFI)                        |
+| `[[symbol("name")]]`       | Custom symbol name                                 |
+| `[[unwind]]`               | Control unwinding at FFI boundary                  |
+| `[[layout(C)]]`            | C-compatible memory layout                         |
+| `[[ffi_pass_by_value]]`    | Allow by-value passing of Drop types in FFI        |
+| `[[weak]]`                 | Weak linkage                                       |
+| `[[dynamic]]`              | Allow runtime contract/refinement verification     |
 | `[[static_dispatch_only]]` | Prevent dynamic dispatch for generic class methods |
 
 ### 4.17. Visibility Modifiers
 
-| Modifier | Scope |
-|----------|-------|
-| `public` | Visible everywhere |
-| `internal` | Visible within the assembly (default) |
-| `private` | Visible only in declaring module |
+| Modifier    | Scope                                      |
+| ----------- | ------------------------------------------ |
+| `public`    | Visible everywhere                         |
+| `internal`  | Visible within the assembly (default)      |
+| `private`   | Visible only in declaring module           |
 | `protected` | Visible in declaring module and submodules |
 
 ```cursive
@@ -1337,23 +1337,23 @@ tuple.1
 
 ### 5.2. Operator Precedence (highest to lowest)
 
-| Level | Operators | Associativity |
-|-------|-----------|---------------|
-| 1 | Postfix: `.` `[]` `~>` `()` `?` | Left |
-| 2 | Unary: `!` `-` `*` `&` `widen` | Right |
-| 3 | `as` (cast) | Left |
-| 4 | `**` (power) | Right |
-| 5 | `*` `/` `%` | Left |
-| 6 | `+` `-` | Left |
-| 7 | `<<` `>>` | Left |
-| 8 | `&` (bitwise) | Left |
-| 9 | `^` (bitwise) | Left |
-| 10 | `\|` (bitwise) | Left |
-| 11 | `==` `!=` `<` `<=` `>` `>=` | Left |
-| 12 | `&&` | Left |
-| 13 | `\|\|` | Left |
-| 14 | `..` `..=` (range) | - |
-| 15 | `=` `:=` `+=` `-=` etc. | Right |
+| Level | Operators                       | Associativity |
+| ----- | ------------------------------- | ------------- |
+| 1     | Postfix: `.` `[]` `~>` `()` `?` | Left          |
+| 2     | Unary: `!` `-` `*` `&` `widen`  | Right         |
+| 3     | `as` (cast)                     | Left          |
+| 4     | `**` (power)                    | Right         |
+| 5     | `*` `/` `%`                     | Left          |
+| 6     | `+` `-`                         | Left          |
+| 7     | `<<` `>>`                       | Left          |
+| 8     | `&` (bitwise)                   | Left          |
+| 9     | `^` (bitwise)                   | Left          |
+| 10    | `\|` (bitwise)                  | Left          |
+| 11    | `==` `!=` `<` `<=` `>` `>=`     | Left          |
+| 12    | `&&`                            | Left          |
+| 13    | `\|\|`                          | Left          |
+| 14    | `..` `..=` (range)              | -             |
+| 15    | `=` `:=` `+=` `-=` etc.         | Right         |
 
 ### 5.3. Literals
 
@@ -1663,16 +1663,16 @@ Key blocks acquire locks for `shared` data access using `#`:
 ```
 
 **Available modifiers:**
-| Modifier | Meaning |
-|----------|---------|
-| `dynamic` | Runtime key acquisition |
+| Modifier      | Meaning                                  |
+| ------------- | ---------------------------------------- |
+| `dynamic`     | Runtime key acquisition                  |
 | `speculative` | Speculative execution that may roll back |
-| `release` | Release held keys after block completes |
+| `release`     | Release held keys after block completes  |
 
 **Available modes:**
-| Mode | Meaning |
-|------|---------|
-| `read` | Read-only access |
+| Mode    | Meaning                |
+| ------- | ---------------------- |
+| `read`  | Read-only access       |
 | `write` | Write access (default) |
 
 **Key boundary fields:**
@@ -1752,12 +1752,12 @@ consume(move b)               // Caller transfers ownership
 
 ### 8.2. Binding Operators
 
-| Syntax | Mutability | Movability |
-|--------|------------|------------|
-| `let x = v` | Immutable | Movable |
-| `let x := v` | Immutable | Immovable |
-| `var x = v` | Mutable | Movable |
-| `var x := v` | Mutable | Immovable |
+| Syntax       | Mutability | Movability |
+| ------------ | ---------- | ---------- |
+| `let x = v`  | Immutable  | Movable    |
+| `let x := v` | Immutable  | Immovable  |
+| `var x = v`  | Mutable    | Movable    |
+| `var x := v` | Mutable    | Immovable  |
 
 ### 8.3. Binding States
 
@@ -1769,11 +1769,11 @@ Bindings have states tracked by the compiler:
 
 ### 8.4. Permissions
 
-| Permission | Meaning |
-|------------|---------|
-| `const` | Read-only access |
-| `unique` | Exclusive mutable access |
-| `shared` | Thread-safe shared access (requires key acquisition) |
+| Permission | Meaning                                              |
+| ---------- | ---------------------------------------------------- |
+| `const`    | Read-only access                                     |
+| `unique`   | Exclusive mutable access                             |
+| `shared`   | Thread-safe shared access (requires key acquisition) |
 
 ```cursive
 procedure read_only(data: const Buffer) -> () { ... }
@@ -1799,13 +1799,13 @@ public procedure main(move ctx: Context) -> i32 {
 
 ### 9.2. Available Capabilities
 
-| Capability | Type | Purpose |
-|------------|------|---------|
-| `ctx.fs` | `$FileSystem` | File system operations |
-| `ctx.heap` | `$HeapAllocator` | Heap memory allocation |
-| `ctx.cpu()` | `$ExecutionDomain` | CPU parallel execution domain |
-| `ctx.gpu()` | `$ExecutionDomain` | GPU execution domain |
-| `ctx.inline()` | `$ExecutionDomain` | Sequential inline execution |
+| Capability     | Type               | Purpose                       |
+| -------------- | ------------------ | ----------------------------- |
+| `ctx.fs`       | `$FileSystem`      | File system operations        |
+| `ctx.heap`     | `$HeapAllocator`   | Heap memory allocation        |
+| `ctx.cpu()`    | `$ExecutionDomain` | CPU parallel execution domain |
+| `ctx.gpu()`    | `$ExecutionDomain` | GPU execution domain          |
+| `ctx.inline()` | `$ExecutionDomain` | Sequential inline execution   |
 
 ### 9.3. FileSystem Capability
 
@@ -1845,17 +1845,17 @@ parallel ctx.cpu() [name: "main_work", cancel: cancel_token] {
 }
 ```
 
-| Option | Type | Effect |
-|--------|------|--------|
-| `name` | `string` | Labels block for debugging/profiling |
-| `cancel` | `CancelToken` | Provides cooperative cancellation |
+| Option   | Type          | Effect                               |
+| -------- | ------------- | ------------------------------------ |
+| `name`   | `string`      | Labels block for debugging/profiling |
+| `cancel` | `CancelToken` | Provides cooperative cancellation    |
 
 ### 10.2. Execution Domains
 
-| Domain | Method | Behavior |
-|--------|--------|----------|
-| CPU | `ctx.cpu()` | Parallel execution on OS threads |
-| GPU | `ctx.gpu()` | Compute shader execution |
+| Domain | Method         | Behavior                                     |
+| ------ | -------------- | -------------------------------------------- |
+| CPU    | `ctx.cpu()`    | Parallel execution on OS threads             |
+| GPU    | `ctx.gpu()`    | Compute shader execution                     |
 | Inline | `ctx.inline()` | Sequential execution (no actual parallelism) |
 
 ```cursive
@@ -1894,11 +1894,11 @@ parallel ctx.cpu() {
 ```
 
 **Spawn options:**
-| Option | Type | Default | Effect |
-|--------|------|---------|--------|
-| `name` | `string` | Anonymous | Labels for debugging/profiling |
-| `affinity` | `CpuSet` | Domain default | CPU core affinity hint |
-| `priority` | `Priority` | `Normal` | Scheduling priority (`Low`, `Normal`, `High`) |
+| Option     | Type       | Default        | Effect                                        |
+| ---------- | ---------- | -------------- | --------------------------------------------- |
+| `name`     | `string`   | Anonymous      | Labels for debugging/profiling                |
+| `affinity` | `CpuSet`   | Domain default | CPU core affinity hint                        |
+| `priority` | `Priority` | `Normal`       | Scheduling priority (`Low`, `Normal`, `High`) |
 
 ### 10.4. Wait Expression
 
@@ -1949,27 +1949,27 @@ dispatch i in 0..100 key data[i] write {
 ```
 
 **Dispatch options:**
-| Option | Meaning |
-|--------|---------|
-| `reduce: op` | Reduction with `+`, `*`, `min`, `max`, `and`, `or`, or custom identifier |
-| `ordered` | Preserve iteration order for side effects |
-| `chunk: expr` | Set chunk size for work distribution |
+| Option        | Meaning                                                                  |
+| ------------- | ------------------------------------------------------------------------ |
+| `reduce: op`  | Reduction with `+`, `*`, `min`, `max`, `and`, `or`, or custom identifier |
+| `ordered`     | Preserve iteration order for side effects                                |
+| `chunk: expr` | Set chunk size for work distribution                                     |
 
 **Key-Based Parallelism:**
-| Key Pattern | Keys Generated | Parallelism |
-|-------------|----------------|-------------|
-| `data[i]` | n distinct keys | Full parallel |
-| `data[i / 2]` | n/2 distinct keys | Pairs serialize |
-| `data[i % k]` | k distinct keys | k-way parallel |
-| `data[f(i)]` | Unknown | Runtime serialization |
+| Key Pattern   | Keys Generated    | Parallelism           |
+| ------------- | ----------------- | --------------------- |
+| `data[i]`     | n distinct keys   | Full parallel         |
+| `data[i / 2]` | n/2 distinct keys | Pairs serialize       |
+| `data[i % k]` | k distinct keys   | k-way parallel        |
+| `data[f(i)]`  | Unknown           | Runtime serialization |
 
 ### 10.6. Capture Semantics
 
-| Permission | Capture Behavior |
-|------------|------------------|
-| `const` | Captured by reference; unlimited sharing |
-| `shared` | Captured by reference; synchronized via keys |
-| `unique` | MUST use explicit `move`; at most one work item receives ownership |
+| Permission | Capture Behavior                                                   |
+| ---------- | ------------------------------------------------------------------ |
+| `const`    | Captured by reference; unlimited sharing                           |
+| `shared`   | Captured by reference; synchronized via keys                       |
+| `unique`   | MUST use explicit `move`; at most one work item receives ownership |
 
 ```cursive
 // WRONG - unique cannot be implicitly captured
@@ -2048,12 +2048,12 @@ yield release from other_async
 ```
 
 **Yield forms:**
-| Form | Meaning |
-|------|---------|
-| `yield expr` | Yield a single value and suspend |
-| `yield release expr` | Yield value, release held keys, then suspend |
-| `yield from expr` | Delegate to another async, yielding all its values |
-| `yield release from expr` | Delegate with key release |
+| Form                      | Meaning                                            |
+| ------------------------- | -------------------------------------------------- |
+| `yield expr`              | Yield a single value and suspend                   |
+| `yield release expr`      | Yield value, release held keys, then suspend       |
+| `yield from expr`         | Delegate to another async, yielding all its values |
+| `yield release from expr` | Delegate with key release                          |
 
 **CRITICAL:** `yield` and `yield from` MUST NOT occur while keys are held unless the `release` modifier is present.
 
@@ -2200,11 +2200,11 @@ extern "C" {
 ```
 
 **Verification Modes:**
-| Mode | Behavior |
-|------|----------|
+| Mode                   | Behavior                                     |
+| ---------------------- | -------------------------------------------- |
 | `[[static]]` (default) | Caller must prove predicates at compile time |
-| `[[dynamic]]` | Runtime checks before call |
-| `[[assume]]` | Assume true without checks (optimization) |
+| `[[dynamic]]`          | Runtime checks before call                   |
+| `[[assume]]`           | Assume true without checks (optimization)    |
 
 ### 12.5. Capability Isolation
 
@@ -2599,4 +2599,4 @@ procedure example(x: i32) -> i32
 
 ---
 
-*This guide is derived from the Cursive0.md specification. When uncertain about a construct, refer to the specification or use a more explicit alternative.*
+*This guide is derived from the C0updated.md specification. When uncertain about a construct, refer to the specification or use a more explicit alternative.*

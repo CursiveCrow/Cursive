@@ -1,0 +1,37 @@
+#pragma once
+
+#include <cstdint>
+#include <optional>
+#include <string_view>
+
+#include "cursive0/00_core/span.h"
+#include "cursive0/03_analysis/types/context.h"
+#include "cursive0/03_analysis/types/type_stmt.h"
+#include "cursive0/03_analysis/types/types.h"
+#include "cursive0/02_syntax/ast.h"
+
+namespace cursive0::analysis {
+
+constexpr std::uint64_t kWidenLargePayloadThresholdBytes = 256;
+
+std::optional<std::string_view> PayloadState(const ScopeContext& ctx,
+                                             const syntax::ModalDecl& decl);
+
+bool NicheApplies(const ScopeContext& ctx, const syntax::ModalDecl& decl);
+
+bool NicheCompatible(const ScopeContext& ctx,
+                     const TypePath& modal_path,
+                     std::string_view state);
+
+bool WidenWarnCond(const ScopeContext& ctx,
+                   const TypePath& modal_path,
+                   std::string_view state);
+
+// Emit warning diagnostic for large payload widening
+void WarnWidenLargePayload(const ScopeContext& ctx,
+                           const StmtTypeContext& type_ctx,
+                           const core::Span& span,
+                           const TypePath& modal_path,
+                           std::string_view state);
+
+}  // namespace cursive0::analysis
