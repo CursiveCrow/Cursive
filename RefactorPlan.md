@@ -172,8 +172,8 @@ cursive/src/
 |   |   |-- ast_dump.cpp
 |   |   |-- ast_validate.cpp
 |   |-- module/
-|       |-- module_aggregate.cpp
-|       |-- module_docs.cpp
+|   |   |-- module_aggregate.cpp
+|   |   |-- module_docs.cpp
 |-- 03_comptime/
 |   |-- comptime_gate.cpp
 |   |-- deferred_attributes.cpp
@@ -374,9 +374,9 @@ cursive/src/
 |   |   |-- prov_block.cpp
 |   |   |-- prov_args.cpp
 |   |-- generics/
-|       |-- generic_params.cpp
-|       |-- where_bounds.cpp
-|       |-- monomorphize.cpp
+|   |   |-- generic_params.cpp
+|   |   |-- where_bounds.cpp
+|   |   |-- monomorphize.cpp
 |-- 05_codegen/
 |   |-- ir/
 |   |   |-- ir_model.cpp
@@ -454,16 +454,16 @@ cursive/src/
 |   |   |   |-- error_stmt.cpp
 |   |   |   |-- stmt_common.cpp
 |   |   |-- pattern/
-|   |       |-- literal_pattern.cpp
-|   |       |-- wildcard_pattern.cpp
-|   |       |-- identifier_pattern.cpp
-|   |       |-- typed_pattern.cpp
-|   |       |-- tuple_pattern.cpp
-|   |       |-- record_pattern.cpp
-|   |       |-- enum_pattern.cpp
-|   |       |-- modal_pattern.cpp
-|   |       |-- range_pattern.cpp
-|   |       |-- pattern_common.cpp
+|   |   |   |-- literal_pattern.cpp
+|   |   |   |-- wildcard_pattern.cpp
+|   |   |   |-- identifier_pattern.cpp
+|   |   |   |-- typed_pattern.cpp
+|   |   |   |-- tuple_pattern.cpp
+|   |   |   |-- record_pattern.cpp
+|   |   |   |-- enum_pattern.cpp
+|   |   |   |-- modal_pattern.cpp
+|   |   |   |-- range_pattern.cpp
+|   |   |   |-- pattern_common.cpp
 |   |-- layout/
 |   |   |-- layout_primitives.cpp
 |   |   |-- layout_records.cpp
@@ -511,14 +511,14 @@ cursive/src/
 |   |   |-- panic.cpp
 |   |   |-- poison_instrument.cpp
 |   |-- llvm/
-|       |-- llvm_module.cpp
-|       |-- llvm_types.cpp
-|       |-- llvm_call.cpp
-|       |-- llvm_emit.cpp
-|       |-- llvm_attr.cpp
-|       |-- llvm_ub_safe.cpp
-|       |-- llvm_backend.cpp
-|       |-- llvm_passes.cpp
+|   |   |-- llvm_module.cpp
+|   |   |-- llvm_types.cpp
+|   |   |-- llvm_call.cpp
+|   |   |-- llvm_emit.cpp
+|   |   |-- llvm_attr.cpp
+|   |   |-- llvm_ub_safe.cpp
+|   |   |-- llvm_backend.cpp
+|   |   |-- llvm_passes.cpp
 |-- 06_driver/
 |   |-- main.cpp
 |   |-- cli.cpp

@@ -1,4 +1,20 @@
 cmake_minimum_required(VERSION 3.20)
 project(cursive LANGUAGES CXX)
 
+set(CURSIVE_BUILD_DIR "${CMAKE_SOURCE_DIR}/build")
+file(MAKE_DIRECTORY "${CURSIVE_BUILD_DIR}")
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CURSIVE_BUILD_DIR}")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CURSIVE_BUILD_DIR}")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CURSIVE_BUILD_DIR}")
+
+if(CMAKE_CONFIGURATION_TYPES)
+  foreach(cfg ${CMAKE_CONFIGURATION_TYPES})
+    string(TOUPPER "${cfg}" cfg_upper)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${cfg_upper} "${CURSIVE_BUILD_DIR}/${cfg}")
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${cfg_upper} "${CURSIVE_BUILD_DIR}/${cfg}")
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${cfg_upper} "${CURSIVE_BUILD_DIR}/${cfg}")
+  endforeach()
+endif()
+
 add_subdirectory(src)

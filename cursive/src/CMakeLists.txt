@@ -16,7 +16,7 @@ add_library(cursive0_core STATIC
 )
 
 target_include_directories(cursive0_core PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/../include
+  ${CMAKE_SOURCE_DIR}/include
 )
 
 target_compile_features(cursive0_core PUBLIC cxx_std_20)
@@ -36,7 +36,7 @@ add_library(cursive0_project STATIC
 )
 
 target_include_directories(cursive0_project PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/../include
+  ${CMAKE_SOURCE_DIR}/include
 )
 
 target_compile_features(cursive0_project PUBLIC cxx_std_20)
@@ -180,7 +180,7 @@ add_library(cursive0_source STATIC
 )
 
 target_include_directories(cursive0_source PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/../include
+  ${CMAKE_SOURCE_DIR}/include
 )
 
 target_compile_features(cursive0_source PUBLIC cxx_std_20)
@@ -191,7 +191,7 @@ add_library(cursive0_comptime STATIC
 )
 
 target_include_directories(cursive0_comptime PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/../include
+  ${CMAKE_SOURCE_DIR}/include
 )
 
 target_compile_features(cursive0_comptime PUBLIC cxx_std_20)
@@ -379,7 +379,7 @@ add_library(cursive0_analysis STATIC
 )
 
 target_include_directories(cursive0_analysis PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/../include
+  ${CMAKE_SOURCE_DIR}/include
 )
 
 target_compile_features(cursive0_analysis PUBLIC cxx_std_20)
@@ -497,7 +497,7 @@ add_library(cursive0_codegen STATIC
 )
 
 target_include_directories(cursive0_codegen PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/../include
+  ${CMAKE_SOURCE_DIR}/include
 )
 
 target_compile_features(cursive0_codegen PUBLIC cxx_std_20)
@@ -518,7 +518,7 @@ add_executable(cursivec0
 target_link_libraries(cursivec0 PRIVATE cursive0_core cursive0_project cursive0_analysis cursive0_codegen cursive0_source)
 
 target_include_directories(cursivec0 PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/../include
+  ${CMAKE_SOURCE_DIR}/include
 )
 
 target_compile_features(cursivec0 PRIVATE cxx_std_20)
