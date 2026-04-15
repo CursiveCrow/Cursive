@@ -17,6 +17,7 @@
 
 #include "04_analysis/typing/type_stmt.h"
 
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -24,7 +25,9 @@
 #include <type_traits>
 
 #include "00_core/assert_spec.h"
+#include "00_core/diagnostic_messages.h"
 #include "04_analysis/composite/function_types.h"
+#include "04_analysis/keys/key_paths.h"
 #include "04_analysis/memory/regions.h"
 #include "04_analysis/resolve/scopes.h"
 #include "00_core/process_config.h"
@@ -59,6 +62,9 @@ static inline void SpecDefsAssignStmt() {
 static std::optional<std::string_view> PlaceRootName(const ast::ExprPtr& expr) {
   if (!expr) {
     return std::nullopt;
+  }
+  if (const auto* attributed = std::get_if<ast::AttributedExpr>(&expr->node)) {
+    return PlaceRootName(attributed->expr);
   }
   if (const auto* ident = std::get_if<ast::IdentifierExpr>(&expr->node)) {
     return ident->name;
@@ -96,6 +102,9 @@ static bool IsPlaceExprNode(const ast::ExprNode& node) {
   if (std::holds_alternative<ast::IdentifierExpr>(node)) {
     return true;
   }
+  if (const auto* attributed = std::get_if<ast::AttributedExpr>(&node)) {
+    return attributed->expr && IsPlaceExprNode(attributed->expr->node);
+  }
   if (const auto* field = std::get_if<ast::FieldAccessExpr>(&node)) {
     return field->base && IsPlaceExprNode(field->base->node);
   }
@@ -116,6 +125,386 @@ static bool IsPlaceExprLocal(const ast::ExprPtr& expr) {
     return false;
   }
   return IsPlaceExprNode(expr->node);
+}
+
+static std::optional<KeyPath> TryBuildKeyPath(const ast::ExprPtr& expr) {
+  const auto result = BuildKeyPath(expr);
+  if (!result.success) {
+    return std::nullopt;
+  }
+  return result.path;
+}
+
+static bool HasCoveringWriteKey(const StmtTypeContext& type_ctx,
+                                const KeyPath& path) {
+  for (const auto& held : type_ctx.held_key_paths) {
+    if (held.mode == ast::KeyMode::Write && IsPrefix(held.path, path)) {
+      return true;
+    }
+  }
+  return type_ctx.keys_held &&
+         type_ctx.key_mode.has_value() &&
+         *type_ctx.key_mode == ast::KeyMode::Write;
+}
+
+static bool IsCompoundRewriteOp(std::string_view op) {
+  return op == "+" || op == "-" || op == "*" || op == "/" || op == "%";
+}
+
+static const ast::ExprPtr* StripAttributedExprRef(const ast::ExprPtr& expr) {
+  const ast::ExprPtr* current = &expr;
+  while (*current) {
+    const auto* attributed = std::get_if<ast::AttributedExpr>(&(*current)->node);
+    if (!attributed) {
+      break;
+    }
+    current = &attributed->expr;
+  }
+  return current;
+}
+
+static bool ExprReadsExactPath(const ast::ExprPtr& expr, const KeyPath& path);
+
+static bool BlockReadsExactPath(const ast::Block& block, const KeyPath& path);
+
+static bool StmtReadsExactPath(const ast::Stmt& stmt, const KeyPath& path) {
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::LetStmt> ||
+                      std::is_same_v<T, ast::VarStmt>) {
+          return ExprReadsExactPath(node.binding.init, path);
+        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
+                             std::is_same_v<T, ast::ShadowVarStmt>) {
+          return ExprReadsExactPath(node.init, path);
+        } else if constexpr (std::is_same_v<T, ast::AssignStmt>) {
+          return ExprReadsExactPath(node.place, path) ||
+                 ExprReadsExactPath(node.value, path);
+        } else if constexpr (std::is_same_v<T, ast::CompoundAssignStmt>) {
+          return ExprReadsExactPath(node.place, path) ||
+                 ExprReadsExactPath(node.value, path);
+        } else if constexpr (std::is_same_v<T, ast::ExprStmt>) {
+          return ExprReadsExactPath(node.value, path);
+        } else if constexpr (std::is_same_v<T, ast::DeferStmt> ||
+                             std::is_same_v<T, ast::UnsafeBlockStmt> ||
+                             std::is_same_v<T, ast::CtStmt>) {
+          return node.body && BlockReadsExactPath(*node.body, path);
+        } else if constexpr (std::is_same_v<T, ast::RegionStmt>) {
+          return ExprReadsExactPath(node.opts_opt, path) ||
+                 (node.body && BlockReadsExactPath(*node.body, path));
+        } else if constexpr (std::is_same_v<T, ast::FrameStmt>) {
+          return node.body && BlockReadsExactPath(*node.body, path);
+        } else if constexpr (std::is_same_v<T, ast::ReturnStmt> ||
+                             std::is_same_v<T, ast::BreakStmt>) {
+          return ExprReadsExactPath(node.value_opt, path);
+        } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
+          if (node.body && BlockReadsExactPath(*node.body, path)) {
+            return true;
+          }
+          for (const auto& key_path : node.paths) {
+            for (const auto& seg : key_path.segs) {
+              if (const auto* index = std::get_if<ast::KeySegIndex>(&seg)) {
+                if (ExprReadsExactPath(index->expr, path)) {
+                  return true;
+                }
+              }
+            }
+          }
+          return false;
+        } else {
+          return false;
+        }
+      },
+      stmt);
+}
+
+static bool BlockReadsExactPath(const ast::Block& block, const KeyPath& path) {
+  for (const auto& stmt : block.stmts) {
+    if (StmtReadsExactPath(stmt, path)) {
+      return true;
+    }
+  }
+  return ExprReadsExactPath(block.tail_opt, path);
+}
+
+static bool ExprReadsExactPath(const ast::ExprPtr& expr, const KeyPath& path) {
+  if (!expr) {
+    return false;
+  }
+
+  if (const auto expr_path = TryBuildKeyPath(expr);
+      expr_path.has_value() && KeyPathEquals(*expr_path, path)) {
+    return true;
+  }
+
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::QualifiedApplyExpr>) {
+          if (std::holds_alternative<ast::ParenArgs>(node.args)) {
+            const auto& args = std::get<ast::ParenArgs>(node.args).args;
+            for (const auto& arg : args) {
+              if (ExprReadsExactPath(arg.value, path)) {
+                return true;
+              }
+            }
+            return false;
+          }
+          const auto& fields = std::get<ast::BraceArgs>(node.args).fields;
+          for (const auto& field : fields) {
+            if (ExprReadsExactPath(field.value, path)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::RangeExpr>) {
+          return ExprReadsExactPath(node.lhs, path) ||
+                 ExprReadsExactPath(node.rhs, path);
+        } else if constexpr (std::is_same_v<T, ast::BinaryExpr>) {
+          return ExprReadsExactPath(node.lhs, path) ||
+                 ExprReadsExactPath(node.rhs, path);
+        } else if constexpr (std::is_same_v<T, ast::CastExpr> ||
+                             std::is_same_v<T, ast::UnaryExpr> ||
+                             std::is_same_v<T, ast::DerefExpr> ||
+                             std::is_same_v<T, ast::AllocExpr> ||
+                             std::is_same_v<T, ast::TransmuteExpr> ||
+                             std::is_same_v<T, ast::PropagateExpr> ||
+                             std::is_same_v<T, ast::YieldExpr> ||
+                             std::is_same_v<T, ast::YieldFromExpr> ||
+                             std::is_same_v<T, ast::SyncExpr>) {
+          return ExprReadsExactPath(node.value, path);
+        } else if constexpr (std::is_same_v<T, ast::AddressOfExpr> ||
+                             std::is_same_v<T, ast::MoveExpr>) {
+          return ExprReadsExactPath(node.place, path);
+      } else if constexpr (std::is_same_v<T, ast::TupleExpr>) {
+        for (const auto& elem : node.elements) {
+          if (ExprReadsExactPath(elem, path)) {
+            return true;
+          }
+        }
+        return false;
+      } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+        bool reads_exact_path = false;
+        ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+          if (reads_exact_path) {
+            return;
+          }
+          if (ExprReadsExactPath(elem, path)) {
+            reads_exact_path = true;
+          }
+        });
+        return reads_exact_path;
+      } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
+        return ExprReadsExactPath(node.value, path) ||
+               ExprReadsExactPath(node.count, path);
+        } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
+          for (const auto& field : node.fields) {
+            if (ExprReadsExactPath(field.value, path)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::EnumLiteralExpr>) {
+          if (!node.payload_opt.has_value()) {
+            return false;
+          }
+          if (std::holds_alternative<ast::EnumPayloadParen>(*node.payload_opt)) {
+            const auto& payload = std::get<ast::EnumPayloadParen>(*node.payload_opt);
+            for (const auto& elem : payload.elements) {
+              if (ExprReadsExactPath(elem, path)) {
+                return true;
+              }
+            }
+            return false;
+          }
+          const auto& payload = std::get<ast::EnumPayloadBrace>(*node.payload_opt);
+          for (const auto& field : payload.fields) {
+            if (ExprReadsExactPath(field.value, path)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::IfExpr>) {
+          return ExprReadsExactPath(node.cond, path) ||
+                 ExprReadsExactPath(node.then_expr, path) ||
+                 ExprReadsExactPath(node.else_expr, path);
+        } else if constexpr (std::is_same_v<T, ast::IfCaseExpr>) {
+          if (ExprReadsExactPath(node.scrutinee, path) ||
+              ExprReadsExactPath(node.else_expr, path)) {
+            return true;
+          }
+          for (const auto& case_clause : node.cases) {
+            if (ExprReadsExactPath(case_clause.body, path)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::IfIsExpr>) {
+          return ExprReadsExactPath(node.scrutinee, path) ||
+                 ExprReadsExactPath(node.then_expr, path) ||
+                 ExprReadsExactPath(node.else_expr, path);
+        } else if constexpr (std::is_same_v<T, ast::LoopInfiniteExpr>) {
+          return (node.invariant_opt.has_value() &&
+                  ExprReadsExactPath(node.invariant_opt->predicate, path)) ||
+                 (node.body && BlockReadsExactPath(*node.body, path));
+        } else if constexpr (std::is_same_v<T, ast::LoopConditionalExpr>) {
+          if (ExprReadsExactPath(node.cond, path)) {
+            return true;
+          }
+          if (node.invariant_opt.has_value() &&
+              ExprReadsExactPath(node.invariant_opt->predicate, path)) {
+            return true;
+          }
+          return node.body && BlockReadsExactPath(*node.body, path);
+        } else if constexpr (std::is_same_v<T, ast::LoopIterExpr>) {
+          if (ExprReadsExactPath(node.iter, path)) {
+            return true;
+          }
+          if (node.invariant_opt.has_value() &&
+              ExprReadsExactPath(node.invariant_opt->predicate, path)) {
+            return true;
+          }
+          return node.body && BlockReadsExactPath(*node.body, path);
+        } else if constexpr (std::is_same_v<T, ast::BlockExpr> ||
+                             std::is_same_v<T, ast::UnsafeBlockExpr>) {
+          return node.block && BlockReadsExactPath(*node.block, path);
+        } else if constexpr (std::is_same_v<T, ast::ComptimeExpr>) {
+          return ExprReadsExactPath(node.body, path);
+        } else if constexpr (std::is_same_v<T, ast::CtIfExpr>) {
+          if (ExprReadsExactPath(node.cond, path)) {
+            return true;
+          }
+          if (node.then_block && BlockReadsExactPath(*node.then_block, path)) {
+            return true;
+          }
+          return node.else_block_opt &&
+                 BlockReadsExactPath(*node.else_block_opt, path);
+        } else if constexpr (std::is_same_v<T, ast::CtLoopIterExpr>) {
+          if (ExprReadsExactPath(node.iter, path)) {
+            return true;
+          }
+          return node.body && BlockReadsExactPath(*node.body, path);
+        } else if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
+          return ExprReadsExactPath(node.expr, path);
+        } else if constexpr (std::is_same_v<T, ast::ClosureExpr>) {
+          return ExprReadsExactPath(node.body, path);
+        } else if constexpr (std::is_same_v<T, ast::PipelineExpr>) {
+          return ExprReadsExactPath(node.lhs, path) ||
+                 ExprReadsExactPath(node.rhs, path);
+        } else if constexpr (std::is_same_v<T, ast::FieldAccessExpr>) {
+          return ExprReadsExactPath(node.base, path);
+        } else if constexpr (std::is_same_v<T, ast::TupleAccessExpr>) {
+          return ExprReadsExactPath(node.base, path);
+        } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {
+          return ExprReadsExactPath(node.base, path) ||
+                 ExprReadsExactPath(node.index, path);
+        } else if constexpr (std::is_same_v<T, ast::CallExpr>) {
+          if (ExprReadsExactPath(node.callee, path)) {
+            return true;
+          }
+          for (const auto& arg : node.args) {
+            if (ExprReadsExactPath(arg.value, path)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::CallTypeArgsExpr>) {
+          if (ExprReadsExactPath(node.callee, path)) {
+            return true;
+          }
+          for (const auto& arg : node.args) {
+            if (ExprReadsExactPath(arg.value, path)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::MethodCallExpr>) {
+          if (ExprReadsExactPath(node.receiver, path)) {
+            return true;
+          }
+          for (const auto& arg : node.args) {
+            if (ExprReadsExactPath(arg.value, path)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::RaceExpr>) {
+          for (const auto& arm : node.arms) {
+            if (ExprReadsExactPath(arm.expr, path) ||
+                ExprReadsExactPath(arm.handler.value, path)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::AllExpr>) {
+          for (const auto& sub : node.exprs) {
+            if (ExprReadsExactPath(sub, path)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::EntryExpr>) {
+          return ExprReadsExactPath(node.expr, path);
+        } else if constexpr (std::is_same_v<T, ast::ParallelExpr>) {
+          if (ExprReadsExactPath(node.domain, path)) {
+            return true;
+          }
+          for (const auto& opt : node.opts) {
+            if (ExprReadsExactPath(opt.value, path)) {
+              return true;
+            }
+          }
+          return node.body && BlockReadsExactPath(*node.body, path);
+        } else if constexpr (std::is_same_v<T, ast::SpawnExpr>) {
+          for (const auto& opt : node.opts) {
+            if (ExprReadsExactPath(opt.value, path)) {
+              return true;
+            }
+          }
+          return node.body && BlockReadsExactPath(*node.body, path);
+        } else if constexpr (std::is_same_v<T, ast::WaitExpr>) {
+          return ExprReadsExactPath(node.handle, path);
+        } else if constexpr (std::is_same_v<T, ast::DispatchExpr>) {
+          if (ExprReadsExactPath(node.range, path)) {
+            return true;
+          }
+          if (node.key_clause.has_value()) {
+            for (const auto& seg : node.key_clause->key_path.segs) {
+              if (const auto* index = std::get_if<ast::KeySegIndex>(&seg)) {
+                if (ExprReadsExactPath(index->expr, path)) {
+                  return true;
+                }
+              }
+            }
+          }
+          for (const auto& opt : node.opts) {
+            if (ExprReadsExactPath(opt.chunk_expr, path)) {
+              return true;
+            }
+            if (ExprReadsExactPath(opt.workgroup_expr, path)) {
+              return true;
+            }
+          }
+          return node.body && BlockReadsExactPath(*node.body, path);
+        } else {
+          return false;
+        }
+      },
+      expr->node);
+}
+
+static bool IsCompoundRewriteCandidate(const ast::AssignStmt& node,
+                                       const KeyPath& path) {
+  const ast::ExprPtr* stripped_value = StripAttributedExprRef(node.value);
+  if (!stripped_value || !*stripped_value) {
+    return false;
+  }
+  const auto* binary = std::get_if<ast::BinaryExpr>(&(*stripped_value)->node);
+  if (!binary || !IsCompoundRewriteOp(binary->op)) {
+    return false;
+  }
+  const auto lhs_path = TryBuildKeyPath(binary->lhs);
+  return lhs_path.has_value() && KeyPathEquals(*lhs_path, path);
 }
 
 struct RootMutabilityResult {
@@ -179,13 +568,13 @@ static ExprTypeResult TypeExprWithCurrentEnv(const ScopeContext& ctx,
   if (!expr) {
     return {};
   }
-  const auto via_callback = type_expr(expr);
-  if (via_callback.ok) {
-    return via_callback;
-  }
   const auto via_env = TypeExpr(ctx, type_ctx, expr, env);
   if (via_env.ok || via_env.diag_id.has_value()) {
     return via_env;
+  }
+  const auto via_callback = type_expr(expr);
+  if (via_callback.ok) {
+    return via_callback;
   }
   return via_callback;
 }
@@ -204,15 +593,32 @@ static PlaceTypeResult TypePlaceWithCurrentEnv(const ScopeContext& ctx,
       return {true, std::nullopt, binding->type};
     }
   }
-  const auto via_callback = type_place(expr);
-  if (via_callback.ok) {
-    return via_callback;
-  }
   const auto via_env = TypePlace(ctx, type_ctx, expr, env);
   if (via_env.ok || via_env.diag_id.has_value()) {
     return via_env;
   }
+  const auto via_callback = type_place(expr);
+  if (via_callback.ok) {
+    return via_callback;
+  }
   return via_callback;
+}
+
+static TypeRef StablePlaceTypeForAssign(const ast::ExprPtr& place,
+                                        const TypeEnv& env,
+                                        const TypeRef& fallback) {
+  if (!place) {
+    return fallback;
+  }
+  if (const auto* attributed = std::get_if<ast::AttributedExpr>(&place->node)) {
+    return StablePlaceTypeForAssign(attributed->expr, env, fallback);
+  }
+  if (const auto* ident = std::get_if<ast::IdentifierExpr>(&place->node)) {
+    if (const auto binding = BindOf(env, ident->name)) {
+      return StableBindingType(*binding);
+    }
+  }
+  return fallback;
 }
 
 static IdentTypeFn IdentTypeWithCurrentEnv(const ScopeContext& ctx,
@@ -284,14 +690,25 @@ StmtTypeResult TypeAssignStmt(const ScopeContext& ctx,
     }
   }
 
+  const auto place_key_path = TryBuildKeyPath(node.place);
+  const bool read_then_write_same_path =
+      place_key_path.has_value() &&
+      ExprReadsExactPath(node.value, *place_key_path);
+
   bool shared_write_with_key = false;
   if (const auto* perm = std::get_if<TypePerm>(&place_type.type->node)) {
     if (perm->perm == Permission::Shared) {
       const bool has_write_key =
-          type_ctx.keys_held &&
-          type_ctx.key_mode.has_value() &&
-          *type_ctx.key_mode == ast::KeyMode::Write;
+          place_key_path.has_value()
+              ? HasCoveringWriteKey(type_ctx, *place_key_path)
+              : (type_ctx.keys_held &&
+                 type_ctx.key_mode.has_value() &&
+                 *type_ctx.key_mode == ast::KeyMode::Write);
       if (!has_write_key) {
+        if (read_then_write_same_path) {
+          SPEC_RULE("K-Read-Write-Reject");
+          return {false, "E-CON-0060", {}, {}};
+        }
         return {false, "E-TYP-1604", {}, {}};
       }
       shared_write_with_key = true;
@@ -315,8 +732,14 @@ StmtTypeResult TypeAssignStmt(const ScopeContext& ctx,
 
   // Assignment checks compare against the stored value type, not the access
   // permission wrapper.
-  TypeRef assign_target_type = place_type.type;
+  TypeRef assign_target_type =
+      StablePlaceTypeForAssign(node.place, env, place_type.type);
   if (const auto* perm = std::get_if<TypePerm>(&place_type.type->node)) {
+    assign_target_type = perm->base;
+  }
+  if (assign_target_type &&
+      std::holds_alternative<TypePerm>(assign_target_type->node)) {
+    const auto* perm = std::get_if<TypePerm>(&assign_target_type->node);
     assign_target_type = perm->base;
   }
 
@@ -364,6 +787,17 @@ StmtTypeResult TypeAssignStmt(const ScopeContext& ctx,
       return {false, "Assign-Type-Err", {}, {}};
     }
     return {false, check.diag_id, {}, {}};
+  }
+
+  if (shared_write_with_key && read_then_write_same_path && type_ctx.diags) {
+    SPEC_RULE("K-RMW-Permitted");
+    if (auto diag = core::MakeDiagnosticById(
+            IsCompoundRewriteCandidate(node, *place_key_path)
+                ? "W-CON-0006"
+                : "W-CON-0004",
+            node.span)) {
+      core::Emit(*type_ctx.diags, *diag);
+    }
   }
 
   TypeEnv out_env = env;

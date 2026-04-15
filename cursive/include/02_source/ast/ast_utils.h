@@ -36,6 +36,10 @@ core::Span span_of(const ASTItem& item);
 // DocOf : ASTNode -> (DocList | bottom)
 // Returns pointer to documentation list, or nullptr if not present.
 
+const DocList* doc_of(const Expr& e);
+const DocList* doc_of(const Type& t);
+const DocList* doc_of(const Pattern& p);
+const DocList* doc_of(const Stmt& s);
 const DocList* doc_of(const ASTItem& item);
 
 // ===========================================================================
@@ -95,6 +99,9 @@ std::vector<const Stmt*> stmt_nodes(const ASTModule& module);
 std::vector<std::string> top_decl_constructs(const ASTModule& module);
 std::string type_ctor(const Type& t);
 std::vector<std::string> type_constructs(const ASTModule& module);
+std::vector<std::string> recv_perms(const std::vector<RecordMember>& members);
+std::vector<std::string> class_recv_perms(const std::vector<ClassItem>& items);
+std::vector<std::string> state_recv_perms(const std::vector<StateBlock>& states);
 std::vector<std::string> perm_constructs(const ASTModule& module);
 std::string expr_kind(const Expr& e);
 std::vector<std::string> expr_stmt_constructs(const ASTModule& module);

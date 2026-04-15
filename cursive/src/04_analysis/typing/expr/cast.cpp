@@ -19,9 +19,9 @@ namespace cursive::analysis::expr {
 namespace {
 
 static inline void SpecDefsCast() {
-  SPEC_DEF("T-Cast", "5.2.12");
-  SPEC_DEF("CastValid", "5.2.12");
-  SPEC_DEF("T-Cast-Invalid", "5.2.12");
+  SPEC_DEF("T-Cast", "16.5.4");
+  SPEC_DEF("CastValid", "16.5.4");
+  SPEC_DEF("T-Cast-Invalid", "16.5.4");
   SPEC_DEF("Dynamic-NonDispatchable", "5.3.1");
 }
 

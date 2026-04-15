@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "00_core/diagnostics.h"
@@ -13,6 +14,8 @@
 #include "02_source/parser/parser.h"
 
 namespace cursive::frontend {
+
+using UnsafeSpanMap = std::unordered_map<std::string, std::vector<core::Span>>;
 
 struct ReadBytesResult {
   std::optional<std::vector<std::uint8_t>> bytes;
@@ -37,11 +40,13 @@ struct ParseModuleDeps {
 
 struct ParseModuleResult {
   std::optional<ast::ASTModule> module;
+  UnsafeSpanMap unsafe_spans_by_file;
   core::DiagnosticStream diags;
 };
 
 struct ParseModulesResult {
   std::optional<std::vector<ast::ASTModule>> modules;
+  UnsafeSpanMap unsafe_spans_by_file;
   core::DiagnosticStream diags;
 };
 

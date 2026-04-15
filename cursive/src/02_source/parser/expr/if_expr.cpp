@@ -55,23 +55,40 @@ struct ElseOptResult {
   ExprPtr else_opt;
 };
 
-ElseOptResult ParseElseOpt(Parser parser) {
-  if (!IsKw(parser, "else")) {
-    SPEC_RULE("Parse-ElseOpt-None");
-    return {parser, nullptr};
+enum class PendingIfKind {
+  Plain,
+  IsSingle,
+};
+
+struct PendingIfArm {
+  Parser start;
+  PendingIfKind kind;
+  ExprPtr cond_or_scrutinee;
+  PatternPtr pattern_opt;
+  ExprPtr then_expr;
+};
+
+struct IfHeadResult {
+  Parser parser;
+  ExprPtr completed_expr;
+  std::optional<PendingIfArm> pending;
+};
+
+ExprPtr MaterializePendingIfArm(const PendingIfArm& arm, const Parser& end, ExprPtr else_opt) {
+  if (arm.kind == PendingIfKind::Plain) {
+    IfExpr ifexpr;
+    ifexpr.cond = arm.cond_or_scrutinee;
+    ifexpr.then_expr = arm.then_expr;
+    ifexpr.else_expr = else_opt;
+    return MakeExpr(SpanBetween(arm.start, end), ifexpr);
   }
 
-  Parser next = parser;
-  Advance(next);
-  if (IsKw(next, "if")) {
-    SPEC_RULE("Parse-ElseOpt-If");
-    ParseElemResult<ExprPtr> expr = ParsePrimary(next, true);
-    return {expr.parser, expr.elem};
-  }
-
-  SPEC_RULE("Parse-ElseOpt-Block");
-  ParseElemResult<std::shared_ptr<Block>> block = ParseBlock(next);
-  return {block.parser, WrapBlockExpr(next, block)};
+  IfIsExpr if_is;
+  if_is.scrutinee = arm.cond_or_scrutinee;
+  if_is.pattern = arm.pattern_opt;
+  if_is.then_expr = arm.then_expr;
+  if_is.else_expr = else_opt;
+  return MakeExpr(SpanBetween(arm.start, end), if_is);
 }
 
 struct IfCaseListResult {
@@ -194,10 +211,7 @@ IfCaseListResult ParseIfCaseList(Parser parser) {
   return {cur, std::move(cases), else_opt};
 }
 
-}  // namespace
-
-ParseElemResult<ExprPtr> ParseIfExpr(Parser parser) {
-  SPEC_RULE("Parse-If-Expr");
+IfHeadResult ParseIfHeadNoElse(Parser parser) {
   Parser start = parser;
   Parser next = parser;
   Advance(next);  // consume "if"
@@ -217,7 +231,7 @@ ParseElemResult<ExprPtr> ParseIfExpr(Parser parser) {
         EmitParseSyntaxErr(case_list.parser, TokSpan(case_list.parser));
         Parser sync = case_list.parser;
         SyncStmt(sync);
-        return {sync, MakeExpr(SpanBetween(start, sync), ErrorExpr{})};
+        return {sync, MakeExpr(SpanBetween(start, sync), ErrorExpr{}), std::nullopt};
       }
       Parser after_rbrace = case_list.parser;
       Advance(after_rbrace);
@@ -226,7 +240,7 @@ ParseElemResult<ExprPtr> ParseIfExpr(Parser parser) {
         EmitParseSyntaxErr(after_is, TokSpan(after_is));
         Parser sync = after_rbrace;
         SyncStmt(sync);
-        return {sync, MakeExpr(SpanBetween(start, sync), ErrorExpr{})};
+        return {sync, MakeExpr(SpanBetween(start, sync), ErrorExpr{}), std::nullopt};
       }
 
       IfCaseExpr if_case;
@@ -234,31 +248,84 @@ ParseElemResult<ExprPtr> ParseIfExpr(Parser parser) {
       if_case.cases = std::move(case_list.cases);
       if_case.else_expr = case_list.else_opt;
 
-      return {after_rbrace, MakeExpr(SpanBetween(start, after_rbrace), if_case)};
+      return {after_rbrace, MakeExpr(SpanBetween(start, after_rbrace), if_case), std::nullopt};
     }
 
     SPEC_RULE("Parse-If-Is-Single");
     ParseElemResult<IfCaseClause> clause = ParseIfCaseClause(after_is);
-    ElseOptResult else_opt = ParseElseOpt(clause.parser);
 
-    IfIsExpr if_is;
-    if_is.scrutinee = first.elem;
-    if_is.pattern = clause.elem.pattern;
-    if_is.then_expr = clause.elem.body;
-    if_is.else_expr = else_opt.else_opt;
-    return {else_opt.parser, MakeExpr(SpanBetween(start, else_opt.parser), if_is)};
+    PendingIfArm arm;
+    arm.start = start;
+    arm.kind = PendingIfKind::IsSingle;
+    arm.cond_or_scrutinee = first.elem;
+    arm.pattern_opt = clause.elem.pattern;
+    arm.then_expr = clause.elem.body;
+    return {clause.parser, nullptr, std::move(arm)};
   }
 
   ParseElemResult<std::shared_ptr<Block>> then_block = ParseBlock(first.parser);
   ExprPtr then_node = WrapBlockExpr(first.parser, then_block);
-  ElseOptResult else_opt = ParseElseOpt(then_block.parser);
 
-  IfExpr ifexpr;
-  ifexpr.cond = first.elem;
-  ifexpr.then_expr = then_node;
-  ifexpr.else_expr = else_opt.else_opt;
+  PendingIfArm arm;
+  arm.start = start;
+  arm.kind = PendingIfKind::Plain;
+  arm.cond_or_scrutinee = first.elem;
+  arm.pattern_opt = nullptr;
+  arm.then_expr = then_node;
+  return {then_block.parser, nullptr, std::move(arm)};
+}
 
-  return {else_opt.parser, MakeExpr(SpanBetween(start, else_opt.parser), ifexpr)};
+}  // namespace
+
+ParseElemResult<ExprPtr> ParseIfExpr(Parser parser) {
+  SPEC_RULE("Parse-If-Expr");
+  IfHeadResult head = ParseIfHeadNoElse(parser);
+  if (head.completed_expr) {
+    return {head.parser, head.completed_expr};
+  }
+
+  std::vector<PendingIfArm> chain;
+  if (head.pending.has_value()) {
+    chain.push_back(std::move(*head.pending));
+  }
+
+  Parser cur = head.parser;
+  ExprPtr else_opt;
+
+  while (IsKw(cur, "else")) {
+    Parser after_else = cur;
+    Advance(after_else);
+    if (!IsKw(after_else, "if")) {
+      SPEC_RULE("Parse-ElseOpt-Block");
+      ParseElemResult<std::shared_ptr<Block>> block = ParseBlock(after_else);
+      else_opt = WrapBlockExpr(after_else, block);
+      cur = block.parser;
+      break;
+    }
+
+    SPEC_RULE("Parse-ElseOpt-If");
+    IfHeadResult next_head = ParseIfHeadNoElse(after_else);
+    if (next_head.completed_expr) {
+      else_opt = next_head.completed_expr;
+      cur = next_head.parser;
+      break;
+    }
+    if (next_head.pending.has_value()) {
+      chain.push_back(std::move(*next_head.pending));
+    }
+    cur = next_head.parser;
+  }
+
+  if (!IsKw(cur, "else")) {
+    SPEC_RULE("Parse-ElseOpt-None");
+  }
+
+  ExprPtr result = else_opt;
+  for (auto it = chain.rbegin(); it != chain.rend(); ++it) {
+    result = MaterializePendingIfArm(*it, cur, result);
+  }
+
+  return {cur, result};
 }
 
 }  // namespace cursive::ast

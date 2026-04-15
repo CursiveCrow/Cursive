@@ -32,12 +32,14 @@
 #include "04_analysis/attributes/attribute_registry.h"
 #include "04_analysis/contracts/verification.h"
 #include "04_analysis/composite/classes.h"
+#include "04_analysis/caps/cap_concurrency.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/subtyping.h"
 #include "04_analysis/typing/type_equiv.h"
 #include "04_analysis/typing/type_expr.h"
 #include "04_analysis/typing/type_infer.h"
 #include "04_analysis/typing/if_case_check.h"
+#include "04_analysis/typing/type_predicates.h"
 #include "04_analysis/typing/type_lower.h"
 #include "04_analysis/memory/regions.h"
 #include "02_source/ast/ast.h"
@@ -87,8 +89,22 @@ static inline void SpecDefsTypeStmt() {
   SPEC_DEF("RegionBind", "5.2.17");
   SPEC_DEF("InnermostActiveRegion", "5.2.17");
   SPEC_DEF("FrameBind", "5.2.17");
+  SPEC_DEF("CaptureSet", "16.9.4");
+  SPEC_DEF("ConstCaptures", "16.9.4");
+  SPEC_DEF("SharedCaptures", "16.9.4");
+  SPEC_DEF("UniqueCaptures", "16.9.4");
+  SPEC_DEF("GpuDomainJudg", "20.2.3");
+  SPEC_DEF("GpuContext", "20.2.3");
+  SPEC_DEF("GpuCaptureJudg", "20.3.3");
+  SPEC_DEF("HasHeapProvenance", "20.3.3");
+  SPEC_DEF("GpuCaptureOk-Const", "20.3.4");
+  SPEC_DEF("GpuCaptureOk-Unique-Move", "20.3.4");
+  SPEC_DEF("GpuCapture-Shared-Err", "20.3.4");
+  SPEC_DEF("GpuCapture-HeapProv-Err", "20.3.4");
+  SPEC_DEF("GpuCapture-NonGpuSafe-Err", "20.3.4");
   SPEC_DEF("StripPerm", "5.2.12");
   SPEC_DEF("NumericTypes", "5.2.12");
+  SPEC_DEF("T-CtStmt", "22.1.2");
 }
 
 static TypeRef StripPermOnce(const TypeRef& type) {
@@ -99,6 +115,47 @@ static TypeRef StripPermOnce(const TypeRef& type) {
     return perm->base;
   }
   return type;
+}
+
+static TypeRef StripPermRefine(const TypeRef& type) {
+  TypeRef cur = type;
+  while (cur) {
+    if (const auto* perm = std::get_if<TypePerm>(&cur->node)) {
+      cur = perm->base;
+      continue;
+    }
+    if (const auto* refine = std::get_if<TypeRefine>(&cur->node)) {
+      cur = refine->base;
+      continue;
+    }
+    break;
+  }
+  return cur;
+}
+
+static bool IsGpuDomainType(const TypeRef& type) {
+  const auto stripped = StripPermRefine(type);
+  if (!stripped) {
+    return false;
+  }
+  if (const auto* dyn = std::get_if<TypeDynamic>(&stripped->node)) {
+    return IsGpuDomainTypePath(dyn->path);
+  }
+  if (const auto* path = std::get_if<TypePathType>(&stripped->node)) {
+    return IsGpuDomainTypePath(path->path);
+  }
+  return false;
+}
+
+static bool IsUsizeType(const TypeRef& type) {
+  const auto stripped = StripPermRefine(type);
+  if (!stripped) {
+    return false;
+  }
+  if (const auto* prim = std::get_if<TypePrim>(&stripped->node)) {
+    return prim->name == "usize";
+  }
+  return false;
 }
 
 static constexpr std::array<std::string_view, 12> kIntTypes = {
@@ -156,10 +213,6 @@ static IntroResult IntroBinding(const TypeEnv& env,
     SPEC_RULE("Intro-Reserved-Gen-Err");
     return {false, "Intro-Reserved-Gen-Err", env};
   }
-  if (ReservedCursive(name)) {
-    SPEC_RULE("Intro-Reserved-Cursive-Err");
-    return {false, "Intro-Reserved-Cursive-Err", env};
-  }
 
   const auto key = IdKeyOf(name);
   if (env.scopes.empty()) {
@@ -189,10 +242,6 @@ static IntroResult ShadowIntroBinding(const TypeEnv& env,
     SPEC_RULE("Shadow-Reserved-Gen-Err");
     return {false, "Shadow-Reserved-Gen-Err", env};
   }
-  if (ReservedCursive(name)) {
-    SPEC_RULE("Shadow-Reserved-Cursive-Err");
-    return {false, "Shadow-Reserved-Cursive-Err", env};
-  }
 
   const auto key = IdKeyOf(name);
   if (env.scopes.empty()) {
@@ -216,6 +265,55 @@ static core::Span SpanOfStmt(const ast::Stmt& stmt) {
   return std::visit(
       [](const auto& node) -> core::Span { return node.span; },
       stmt);
+}
+
+static TypeRef StmtProjectFilesType() { return MakeTypePath({"ProjectFiles"}); }
+static TypeRef StmtTypeEmitterType() { return MakeTypePath({"TypeEmitter"}); }
+static TypeRef StmtIntrospectType() { return MakeTypePath({"Introspect"}); }
+static TypeRef StmtComptimeDiagnosticsType() {
+  return MakeTypePath({"ComptimeDiagnostics"});
+}
+
+static TypeEnv ExtendStmtComptimeEnv(const TypeEnv& env,
+                                     const ast::AttributeList& attrs) {
+  TypeEnv out = PushScope(env);
+  auto& scope = out.scopes.back();
+  scope[IdKeyOf("introspect")] =
+      TypeBinding{ast::Mutability::Let, StmtIntrospectType()};
+  scope[IdKeyOf("diagnostics")] =
+      TypeBinding{ast::Mutability::Let, StmtComptimeDiagnosticsType()};
+  if (HasAttribute(attrs, ::cursive::analysis::attrs::kFiles)) {
+    scope[IdKeyOf("files")] =
+        TypeBinding{ast::Mutability::Let, StmtProjectFilesType()};
+  }
+  if (HasAttribute(attrs, ::cursive::analysis::attrs::kEmit)) {
+    scope[IdKeyOf("emitter")] =
+        TypeBinding{ast::Mutability::Let, StmtTypeEmitterType()};
+  }
+  return out;
+}
+
+static StmtTypeResult TypeCtStmt(const ScopeContext& ctx,
+                                 const StmtTypeContext& type_ctx,
+                                 const ast::CtStmt& stmt,
+                                 const TypeEnv& env,
+                                 const ExprTypeFn& type_expr,
+                                 const IdentTypeFn& type_ident,
+                                 const PlaceTypeFn& type_place) {
+  if (!stmt.body) {
+    return {false, std::nullopt, env, {}};
+  }
+
+  const TypeEnv comptime_env = ExtendStmtComptimeEnv(env, stmt.attrs);
+  const auto check =
+      CheckBlock(ctx, type_ctx, *stmt.body, comptime_env, MakeTypePrim("()"),
+                 type_expr, type_ident, type_place, type_ctx.env_ref);
+  if (!check.ok) {
+    return {false, check.diag_id, env, {}, check.diag_detail, check.diag_span};
+  }
+
+  SPEC_RULE_AT("T-CtStmt", stmt.span);
+  return {true, std::nullopt, env, {}};
 }
 
 static bool WarnResultUnreachable(const std::vector<ast::Stmt>& stmts,
@@ -406,6 +504,7 @@ IntroResult IntroAll(const TypeEnv& env,
   TypeEnv current = env;
   for (const auto& [name, type] : binds) {
     TypeBinding binding{mut, type};
+    binding.storage_type = type;
     IntroResult res = shadow ? ShadowIntroBinding(current, name, binding)
                              : IntroBinding(current, name, binding);
     if (!res.ok) {
@@ -483,6 +582,15 @@ static std::optional<TypeRef> LoopTypeFin(const ScopeContext& ctx,
   return std::nullopt;
 }
 
+static std::optional<std::reference_wrapper<const ast::Stmt>> LastStmt(
+    const std::vector<ast::Stmt>& stmts) {
+  SpecDefsTypeStmt();
+  if (stmts.empty()) {
+    return std::nullopt;
+  }
+  return std::cref(stmts.back());
+}
+
 static std::optional<std::string_view> PlaceRootName(
     const ast::ExprPtr& expr) {
   if (!expr) {
@@ -534,16 +642,13 @@ static ExprTypeResult TypeExprWithEnv(const ScopeContext& ctx,
       return TypeIdentExpr(ctx, env, ident->name);
     }
   }
-  const auto via_callback = type_expr(expr);
-  if (via_callback.ok) {
-    return via_callback;
-  }
-
-  // Fallback to direct expression typing with the current block environment.
-  // This preserves local block bindings when the callback closes over an older env.
   const auto via_env = TypeExpr(ctx, type_ctx, expr, env);
   if (via_env.ok || via_env.diag_id.has_value()) {
     return via_env;
+  }
+  const auto via_callback = type_expr(expr);
+  if (via_callback.ok) {
+    return via_callback;
   }
   return via_callback;
 }
@@ -561,6 +666,28 @@ static PlaceTypeResult TypePlaceWithEnv(const TypeEnv& env,
     }
   }
   return type_place(expr);
+}
+
+struct FlowTypingFns {
+  ExprTypeFn type_expr;
+  IdentTypeFn type_ident;
+  PlaceTypeFn type_place;
+};
+
+static FlowTypingFns MakeFlowTypingFns(const ScopeContext& ctx,
+                                       const StmtTypeContext& type_ctx,
+                                       const TypeEnv& env) {
+  FlowTypingFns fns;
+  fns.type_expr = [&](const ast::ExprPtr& inner) {
+    return TypeExpr(ctx, type_ctx, inner, env);
+  };
+  fns.type_ident = [&](std::string_view name) -> ExprTypeResult {
+    return TypeIdentifierExpr(ctx, ast::IdentifierExpr{std::string(name)}, env);
+  };
+  fns.type_place = [&](const ast::ExprPtr& inner) {
+    return TypePlace(ctx, type_ctx, inner, env);
+  };
+  return fns;
 }
 
 static IdentTypeFn IdentTypeFnWithEnv(const ScopeContext& ctx,
@@ -587,6 +714,45 @@ static IfCaseCheckFn MakeIfCaseCheck(const ScopeContext& ctx,
 // Forward declarations for non-local control flow checking
 static bool HasNonLocalCtrlExpr(const ast::ExprPtr& expr, bool in_loop);
 static bool HasNonLocalCtrlBlock(const ast::Block& block, bool in_loop);
+
+static ast::ExprPtr StripAttributedExpr(const ast::ExprPtr& expr) {
+  ast::ExprPtr current = expr;
+  while (current) {
+    const auto* attributed = std::get_if<ast::AttributedExpr>(&current->node);
+    if (!attributed) {
+      break;
+    }
+    current = attributed->expr;
+  }
+  return current;
+}
+
+static std::shared_ptr<StaticProofContext> FallthroughProofContextForStmt(
+    const std::shared_ptr<StaticProofContext>& current_proof_ctx,
+    const ast::Stmt& stmt) {
+  const auto* expr_stmt = std::get_if<ast::ExprStmt>(&stmt);
+  if (!expr_stmt || !expr_stmt->value) {
+    return current_proof_ctx;
+  }
+
+  const auto stripped = StripAttributedExpr(expr_stmt->value);
+  if (!stripped) {
+    return current_proof_ctx;
+  }
+  const auto* if_expr = std::get_if<ast::IfExpr>(&stripped->node);
+  if (!if_expr || if_expr->else_expr || !if_expr->then_expr) {
+    return current_proof_ctx;
+  }
+  if (!HasNonLocalCtrlExpr(if_expr->then_expr, false)) {
+    return current_proof_ctx;
+  }
+
+  const auto negated = NegatedPredicate(if_expr->cond);
+  if (!negated.has_value()) {
+    return current_proof_ctx;
+  }
+  return ExtendProofContextWithPredicate(current_proof_ctx, *negated);
+}
 
 static bool HasNonLocalCtrlStmt(const ast::Stmt& stmt, bool in_loop) {
   return std::visit(
@@ -679,8 +845,6 @@ static bool HasNonLocalCtrlStmt(const ast::Stmt& stmt, bool in_loop) {
             SPEC_RULE("HasNonLocalCtrl-Child");
             return true;
           }
-          return false;
-        } else if constexpr (std::is_same_v<T, ast::StaticAssertStmt>) {
           return false;
         } else {
           return false;
@@ -951,8 +1115,6 @@ class OuterCaptureCollector {
           } else if constexpr (std::is_same_v<T, ast::ReturnStmt> ||
                                std::is_same_v<T, ast::BreakStmt>) {
             VisitExpr(node.value_opt);
-          } else if constexpr (std::is_same_v<T, ast::StaticAssertStmt>) {
-            VisitExpr(node.condition);
           } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
             for (const auto& path : node.paths) {
               VisitKeyPath(path);
@@ -1008,14 +1170,17 @@ class OuterCaptureCollector {
             VisitExpr(node.place);
           } else if constexpr (std::is_same_v<T, ast::AllocExpr>) {
             VisitExpr(node.value);
-          } else if constexpr (std::is_same_v<T, ast::TupleExpr> ||
-                               std::is_same_v<T, ast::ArrayExpr>) {
-            for (const auto& elem : node.elements) {
-              VisitExpr(elem);
-            }
-          } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
-            VisitExpr(node.value);
-            VisitExpr(node.count);
+        } else if constexpr (std::is_same_v<T, ast::TupleExpr>) {
+          for (const auto& elem : node.elements) {
+            VisitExpr(elem);
+          }
+        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            VisitExpr(elem);
+          });
+        } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
+          VisitExpr(node.value);
+          VisitExpr(node.count);
           } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
             for (const auto& field : node.fields) {
               VisitExpr(field.value);
@@ -1169,6 +1334,7 @@ class OuterCaptureCollector {
             }
             for (const auto& opt : node.opts) {
               VisitExpr(opt.chunk_expr);
+              VisitExpr(opt.workgroup_expr);
             }
             PushScope();
             DeclarePattern(node.pattern);
@@ -1192,7 +1358,305 @@ class OuterCaptureCollector {
   std::unordered_set<IdKey> captures_;
 };
 
-static bool ClosureTypeHasSharedDeps(const TypeRef& hint) {
+class SpawnExprPresenceFinder {
+ public:
+  bool Contains(const ast::ExprPtr& expr) {
+    found_ = false;
+    VisitExpr(expr);
+    return found_;
+  }
+
+ private:
+  void VisitKeyPath(const ast::KeyPathExpr& path) {
+    if (found_) {
+      return;
+    }
+    for (const auto& seg : path.segs) {
+      if (const auto* idx = std::get_if<ast::KeySegIndex>(&seg)) {
+        VisitExpr(idx->expr);
+      }
+    }
+  }
+
+  void VisitBlock(const ast::Block& block) {
+    if (found_) {
+      return;
+    }
+    for (const auto& stmt : block.stmts) {
+      VisitStmt(stmt);
+      if (found_) {
+        return;
+      }
+    }
+    VisitExpr(block.tail_opt);
+  }
+
+  void VisitStmt(const ast::Stmt& stmt) {
+    if (found_) {
+      return;
+    }
+    std::visit(
+        [&](const auto& node) {
+          using T = std::decay_t<decltype(node)>;
+
+          if constexpr (std::is_same_v<T, ast::LetStmt> ||
+                        std::is_same_v<T, ast::VarStmt>) {
+            VisitExpr(node.binding.init);
+          } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
+                               std::is_same_v<T, ast::ShadowVarStmt>) {
+            VisitExpr(node.init);
+          } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
+                               std::is_same_v<T, ast::CompoundAssignStmt>) {
+            VisitExpr(node.place);
+            VisitExpr(node.value);
+          } else if constexpr (std::is_same_v<T, ast::ExprStmt>) {
+            VisitExpr(node.value);
+          } else if constexpr (std::is_same_v<T, ast::DeferStmt> ||
+                               std::is_same_v<T, ast::UnsafeBlockStmt> ||
+                               std::is_same_v<T, ast::CtStmt>) {
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          } else if constexpr (std::is_same_v<T, ast::RegionStmt>) {
+            VisitExpr(node.opts_opt);
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          } else if constexpr (std::is_same_v<T, ast::FrameStmt>) {
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          } else if constexpr (std::is_same_v<T, ast::ReturnStmt> ||
+                               std::is_same_v<T, ast::BreakStmt>) {
+            VisitExpr(node.value_opt);
+          } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
+            for (const auto& path : node.paths) {
+              VisitKeyPath(path);
+            }
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          } else {
+            // ContinueStmt / LogStmt / ErrorStmt carry no nested expressions.
+          }
+        },
+        stmt);
+  }
+
+  void VisitExpr(const ast::ExprPtr& expr) {
+    if (!expr || found_) {
+      return;
+    }
+
+    std::visit(
+        [&](const auto& node) {
+          using T = std::decay_t<decltype(node)>;
+
+          if constexpr (std::is_same_v<T, ast::SpawnExpr>) {
+            found_ = true;
+          } else if constexpr (std::is_same_v<T, ast::QualifiedApplyExpr>) {
+            if (std::holds_alternative<ast::ParenArgs>(node.args)) {
+              for (const auto& arg : std::get<ast::ParenArgs>(node.args).args) {
+                VisitExpr(arg.value);
+              }
+            } else {
+              for (const auto& field : std::get<ast::BraceArgs>(node.args).fields) {
+                VisitExpr(field.value);
+              }
+            }
+          } else if constexpr (std::is_same_v<T, ast::RangeExpr> ||
+                               std::is_same_v<T, ast::BinaryExpr> ||
+                               std::is_same_v<T, ast::PipelineExpr>) {
+            VisitExpr(node.lhs);
+            VisitExpr(node.rhs);
+          } else if constexpr (std::is_same_v<T, ast::CastExpr> ||
+                               std::is_same_v<T, ast::UnaryExpr> ||
+                               std::is_same_v<T, ast::DerefExpr> ||
+                               std::is_same_v<T, ast::AllocExpr> ||
+                               std::is_same_v<T, ast::TransmuteExpr> ||
+                               std::is_same_v<T, ast::PropagateExpr> ||
+                               std::is_same_v<T, ast::YieldExpr> ||
+                               std::is_same_v<T, ast::YieldFromExpr> ||
+                               std::is_same_v<T, ast::SyncExpr>) {
+            VisitExpr(node.value);
+          } else if constexpr (std::is_same_v<T, ast::EntryExpr> ||
+                               std::is_same_v<T, ast::AttributedExpr>) {
+            VisitExpr(node.expr);
+          } else if constexpr (std::is_same_v<T, ast::AddressOfExpr> ||
+                               std::is_same_v<T, ast::MoveExpr>) {
+            VisitExpr(node.place);
+        } else if constexpr (std::is_same_v<T, ast::TupleExpr>) {
+          for (const auto& elem : node.elements) {
+            VisitExpr(elem);
+          }
+        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            VisitExpr(elem);
+          });
+        } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
+          VisitExpr(node.value);
+          VisitExpr(node.count);
+          } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
+            for (const auto& field : node.fields) {
+              VisitExpr(field.value);
+            }
+          } else if constexpr (std::is_same_v<T, ast::EnumLiteralExpr>) {
+            if (node.payload_opt.has_value()) {
+              if (std::holds_alternative<ast::EnumPayloadParen>(*node.payload_opt)) {
+                for (const auto& elem :
+                     std::get<ast::EnumPayloadParen>(*node.payload_opt).elements) {
+                  VisitExpr(elem);
+                }
+              } else {
+                for (const auto& field :
+                     std::get<ast::EnumPayloadBrace>(*node.payload_opt).fields) {
+                  VisitExpr(field.value);
+                }
+              }
+            }
+          } else if constexpr (std::is_same_v<T, ast::IfExpr>) {
+            VisitExpr(node.cond);
+            VisitExpr(node.then_expr);
+            VisitExpr(node.else_expr);
+          } else if constexpr (std::is_same_v<T, ast::IfCaseExpr>) {
+            VisitExpr(node.scrutinee);
+            for (const auto& arm : node.cases) {
+              VisitExpr(arm.body);
+            }
+            VisitExpr(node.else_expr);
+          } else if constexpr (std::is_same_v<T, ast::IfIsExpr>) {
+            VisitExpr(node.scrutinee);
+            VisitExpr(node.then_expr);
+            VisitExpr(node.else_expr);
+          } else if constexpr (std::is_same_v<T, ast::LoopInfiniteExpr>) {
+            if (node.invariant_opt.has_value()) {
+              VisitExpr(node.invariant_opt->predicate);
+            }
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          } else if constexpr (std::is_same_v<T, ast::LoopConditionalExpr>) {
+            VisitExpr(node.cond);
+            if (node.invariant_opt.has_value()) {
+              VisitExpr(node.invariant_opt->predicate);
+            }
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          } else if constexpr (std::is_same_v<T, ast::LoopIterExpr>) {
+            VisitExpr(node.iter);
+            if (node.invariant_opt.has_value()) {
+              VisitExpr(node.invariant_opt->predicate);
+            }
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          } else if constexpr (std::is_same_v<T, ast::BlockExpr> ||
+                               std::is_same_v<T, ast::UnsafeBlockExpr>) {
+            if (node.block) {
+              VisitBlock(*node.block);
+            }
+          } else if constexpr (std::is_same_v<T, ast::ClosureExpr>) {
+            VisitExpr(node.body);
+          } else if constexpr (std::is_same_v<T, ast::FieldAccessExpr> ||
+                               std::is_same_v<T, ast::TupleAccessExpr>) {
+            VisitExpr(node.base);
+          } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {
+            VisitExpr(node.base);
+            VisitExpr(node.index);
+          } else if constexpr (std::is_same_v<T, ast::CallExpr>) {
+            VisitExpr(node.callee);
+            for (const auto& arg : node.args) {
+              VisitExpr(arg.value);
+            }
+          } else if constexpr (std::is_same_v<T, ast::MethodCallExpr>) {
+            VisitExpr(node.receiver);
+            for (const auto& arg : node.args) {
+              VisitExpr(arg.value);
+            }
+          } else if constexpr (std::is_same_v<T, ast::RaceExpr>) {
+            for (const auto& arm : node.arms) {
+              VisitExpr(arm.expr);
+              VisitExpr(arm.handler.value);
+            }
+          } else if constexpr (std::is_same_v<T, ast::AllExpr>) {
+            for (const auto& sub : node.exprs) {
+              VisitExpr(sub);
+            }
+          } else if constexpr (std::is_same_v<T, ast::ParallelExpr>) {
+            VisitExpr(node.domain);
+            for (const auto& opt : node.opts) {
+              VisitExpr(opt.value);
+            }
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          } else if constexpr (std::is_same_v<T, ast::WaitExpr>) {
+            VisitExpr(node.handle);
+          } else if constexpr (std::is_same_v<T, ast::DispatchExpr>) {
+            VisitExpr(node.range);
+            if (node.key_clause.has_value()) {
+              VisitKeyPath(node.key_clause->key_path);
+            }
+            for (const auto& opt : node.opts) {
+              VisitExpr(opt.chunk_expr);
+              VisitExpr(opt.workgroup_expr);
+            }
+            if (node.body) {
+              VisitBlock(*node.body);
+            }
+          } else {
+            // Leaf forms carry no nested expressions.
+          }
+        },
+        expr->node);
+  }
+
+  bool found_ = false;
+};
+
+static bool ContainsSpawnExpr(const ast::ExprPtr& expr) {
+  return SpawnExprPresenceFinder{}.Contains(expr);
+}
+
+const ast::ExprPtr* StripClosureValueShells(const ast::ExprPtr& expr) {
+  if (!expr) {
+    return nullptr;
+  }
+  if (const auto* attributed = std::get_if<ast::AttributedExpr>(&expr->node)) {
+    return StripClosureValueShells(attributed->expr);
+  }
+  if (const auto* moved = std::get_if<ast::MoveExpr>(&expr->node)) {
+    return StripClosureValueShells(moved->place);
+  }
+  return &expr;
+}
+
+std::optional<TypeBinding::ClosureCaptureInfo> ClosureCaptureInfoOfValue(
+    const ast::ExprPtr& expr,
+    const TypeEnv& env,
+    const TypeRef& closure_type_hint) {
+  const auto* stripped = StripClosureValueShells(expr);
+  if (!stripped || !*stripped) {
+    return std::nullopt;
+  }
+  if (const auto* ident = std::get_if<ast::IdentifierExpr>(&(*stripped)->node)) {
+    const auto binding = BindOf(env, ident->name);
+    if (binding.has_value() && binding->closure_capture_info.has_value()) {
+      auto info = *binding->closure_capture_info;
+      info.has_shared_deps =
+          info.has_shared_deps || ClosureTypeHasSharedDeps(binding->type) ||
+          ClosureTypeHasSharedDeps(closure_type_hint);
+      return info;
+    }
+    return std::nullopt;
+  }
+  return AnalyzeClosureCaptureInfo(*stripped, env, closure_type_hint);
+}
+
+}  // namespace
+
+bool ClosureTypeHasSharedDeps(const TypeRef& hint) {
   const auto stripped = StripPerm(hint);
   if (!stripped) {
     return false;
@@ -1208,7 +1672,66 @@ static bool DeferSafe(const ast::Block& block) {
   return !HasNonLocalCtrlBlock(block, false);
 }
 
-}  // namespace
+std::optional<std::string_view> CheckEscapingClosureSpawn(
+    const ast::ExprPtr& expr,
+    const TypeEnv& env,
+    const TypeRef& expected_closure_type) {
+  if (!ClosureTypeHasSharedDeps(expected_closure_type)) {
+    return std::nullopt;
+  }
+  const auto info = ClosureCaptureInfoOfValue(expr, env, expected_closure_type);
+  if (!info.has_value() || !info->contains_spawn) {
+    return std::nullopt;
+  }
+  SPEC_RULE("Parallel-Escaping-Closure-Spawn-Err");
+  return "E-CON-0131";
+}
+
+std::optional<Dim3ConstValue> ExtractDim3Const(const ScopeContext& ctx,
+                                               const ast::ExprPtr& expr,
+                                               const ExprTypeFn& type_expr) {
+  SpecDefsTypeStmt();
+  if (!expr) {
+    return std::nullopt;
+  }
+  const auto* tuple = std::get_if<ast::TupleExpr>(&expr->node);
+  if (!tuple || tuple->elements.size() != 3) {
+    return std::nullopt;
+  }
+
+  Dim3ConstValue dims;
+  std::uint64_t* out[3] = {&dims.x, &dims.y, &dims.z};
+  for (std::size_t i = 0; i < 3; ++i) {
+    const auto elem_type = type_expr(tuple->elements[i]);
+    if (!elem_type.ok || !IsUsizeType(elem_type.type)) {
+      return std::nullopt;
+    }
+    const auto const_len = ConstLen(ctx, tuple->elements[i]);
+    if (!const_len.ok || !const_len.value.has_value() ||
+        *const_len.value == 0) {
+      return std::nullopt;
+    }
+    *out[i] = *const_len.value;
+  }
+
+  return dims;
+}
+
+bool ExceedsMaxWorkgroupSize(const Dim3ConstValue& dims) {
+  constexpr std::uint64_t kMaxWorkgroupSize = 1024;
+  if (dims.x == 0 || dims.y == 0 || dims.z == 0) {
+    return false;
+  }
+  if (dims.x > kMaxWorkgroupSize) {
+    return true;
+  }
+  const std::uint64_t xy_limit = kMaxWorkgroupSize / dims.x;
+  if (dims.y > xy_limit) {
+    return true;
+  }
+  const std::uint64_t xyz_limit = xy_limit / dims.y;
+  return dims.z > xyz_limit;
+}
 
 TypeEnv PushScope(const TypeEnv& env) {
   SpecDefsTypeStmt();
@@ -1273,6 +1796,10 @@ std::optional<TypeBinding> BindOf(const TypeEnv& env, std::string_view name) {
   return std::nullopt;
 }
 
+TypeRef StableBindingType(const TypeBinding& binding) {
+  return binding.storage_type ? binding.storage_type : binding.type;
+}
+
 std::optional<ast::Mutability> MutOf(const TypeEnv& env,
                                         std::string_view name) {
   SpecDefsTypeStmt();
@@ -1283,10 +1810,137 @@ std::optional<ast::Mutability> MutOf(const TypeEnv& env,
   return binding->mut;
 }
 
+std::optional<ParallelContextKind> ParallelContext(const TypeEnv& env) {
+  SpecDefsTypeStmt();
+  return env.parallel_context;
+}
+
+bool GpuContext(const TypeEnv& env) {
+  SpecDefsTypeStmt();
+  SPEC_RULE("GpuContext");
+  return env.parallel_context.has_value() &&
+         *env.parallel_context == ParallelContextKind::Gpu;
+}
+
+bool HasHeapProvenance(const TypeEnv& env, std::string_view name) {
+  SpecDefsTypeStmt();
+  SPEC_RULE("HasHeapProvenance");
+  const auto binding = BindOf(env, name);
+  return binding.has_value() &&
+         binding->provenance_kind == BindingProvenanceSeedKind::Heap;
+}
+
+bool IsOuterParallelBinding(const StmtTypeContext& type_ctx, const IdKey& name) {
+  if (type_ctx.parallel_capture_scopes) {
+    for (auto it = type_ctx.parallel_capture_scopes->rbegin();
+         it != type_ctx.parallel_capture_scopes->rend();
+         ++it) {
+      if (it->bindings && it->bindings->find(name) != it->bindings->end()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  if (type_ctx.parallel_bindings &&
+      type_ctx.parallel_bindings->find(name) != type_ctx.parallel_bindings->end()) {
+    return true;
+  }
+  return type_ctx.parallel_ancestor_bindings &&
+         type_ctx.parallel_ancestor_bindings->find(name) !=
+             type_ctx.parallel_ancestor_bindings->end();
+}
+
+bool ClaimFirstChildMove(const StmtTypeContext& type_ctx, const IdKey& name) {
+  if (type_ctx.parallel_capture_scopes) {
+    for (auto it = type_ctx.parallel_capture_scopes->rbegin();
+         it != type_ctx.parallel_capture_scopes->rend();
+         ++it) {
+      if (!it->bindings || !it->first_child_moves) {
+        continue;
+      }
+      if (it->bindings->find(name) == it->bindings->end()) {
+        continue;
+      }
+      return it->first_child_moves->insert(name).second;
+    }
+    return false;
+  }
+
+  if (!type_ctx.parallel_first_child_moves) {
+    return false;
+  }
+  return type_ctx.parallel_first_child_moves->insert(name).second;
+}
+
+GpuCaptureCheckResult CheckGpuCapture(const ScopeContext& ctx,
+                                      const TypeEnv& env,
+                                      std::string_view name,
+                                      bool explicit_move) {
+  SpecDefsTypeStmt();
+  GpuCaptureCheckResult result;
+
+  const auto binding = BindOf(env, name);
+  if (!binding.has_value()) {
+    return result;
+  }
+
+  if (PermOfType(binding->type) == Permission::Shared) {
+    SPEC_RULE("GpuCapture-Shared-Err");
+    result.diag_id = "E-CON-0151";
+    return result;
+  }
+
+  if (HasHeapProvenance(env, name)) {
+    SPEC_RULE("GpuCapture-HeapProv-Err");
+    result.diag_id = "E-CON-0150";
+    return result;
+  }
+
+  if (const auto gpu_diag = GpuSafeDiagForType(ctx, binding->type);
+      gpu_diag.has_value()) {
+    SPEC_RULE("GpuCapture-NonGpuSafe-Err");
+    result.diag_id = "E-CON-0153";
+    result.supplemental_diag_id = *gpu_diag;
+    return result;
+  }
+
+  if (PermOfType(binding->type) == Permission::Const) {
+    SPEC_RULE("GpuCaptureOk-Const");
+  } else if (PermOfType(binding->type) == Permission::Unique &&
+             explicit_move) {
+    SPEC_RULE("GpuCaptureOk-Unique-Move");
+  }
+
+  result.ok = true;
+  return result;
+}
+
 std::optional<TypeBinding::ClosureCaptureInfo> AnalyzeClosureCaptureInfo(
     const ast::ExprPtr& expr,
     const TypeEnv& env,
     const TypeRef& closure_type_hint) {
+  const auto capture_sets = AnalyzeClosureCaptureSets(expr, env);
+  if (!capture_sets.has_value()) {
+    return std::nullopt;
+  }
+
+  const auto* closure = std::get_if<ast::ClosureExpr>(&expr->node);
+  if (!closure) {
+    return std::nullopt;
+  }
+
+  TypeBinding::ClosureCaptureInfo info;
+  info.captures_any = !capture_sets->captures.empty();
+  info.captures_shared = !capture_sets->shared_captures.empty();
+  info.has_shared_deps = ClosureTypeHasSharedDeps(closure_type_hint);
+  info.contains_spawn = ContainsSpawnExpr(closure->body);
+  return info;
+}
+
+std::optional<ClosureCaptureSets> AnalyzeClosureCaptureSets(
+    const ast::ExprPtr& expr,
+    const TypeEnv& env) {
   if (!expr) {
     return std::nullopt;
   }
@@ -1295,22 +1949,89 @@ std::optional<TypeBinding::ClosureCaptureInfo> AnalyzeClosureCaptureInfo(
     return std::nullopt;
   }
 
-  TypeBinding::ClosureCaptureInfo info;
-  info.has_shared_deps = ClosureTypeHasSharedDeps(closure_type_hint);
+  ClosureCaptureSets sets;
+  SPEC_RULE("CaptureSet");
+  sets.captures = OuterCaptureCollector(env).CollectClosure(*closure);
 
-  const auto captures = OuterCaptureCollector(env).CollectClosure(*closure);
-  for (const auto& captured : captures) {
+  for (const auto& captured : sets.captures) {
     const auto binding = BindOf(env, captured);
     if (!binding.has_value()) {
       continue;
     }
-    info.captures_any = true;
-    if (PermOfType(binding->type) == Permission::Shared) {
-      info.captures_shared = true;
+    switch (PermOfType(binding->type)) {
+      case Permission::Const:
+        sets.const_captures.insert(captured);
+        break;
+      case Permission::Shared:
+        sets.shared_captures.insert(captured);
+        break;
+      case Permission::Unique:
+        sets.unique_captures.insert(captured);
+        break;
     }
   }
 
-  return info;
+  SPEC_RULE("ConstCaptures");
+  SPEC_RULE("SharedCaptures");
+  SPEC_RULE("UniqueCaptures");
+  return sets;
+}
+
+std::optional<ClosureCaptureSets> AnalyzeBlockCaptureSets(
+    const ast::Block& block,
+    const TypeEnv& env) {
+  ClosureCaptureSets sets;
+  SPEC_RULE("CaptureSet");
+  sets.captures = OuterCaptureCollector(env).CollectBlock(block);
+
+  for (const auto& captured : sets.captures) {
+    const auto binding = BindOf(env, captured);
+    if (!binding.has_value()) {
+      continue;
+    }
+    switch (PermOfType(binding->type)) {
+      case Permission::Const:
+        sets.const_captures.insert(captured);
+        break;
+      case Permission::Shared:
+        sets.shared_captures.insert(captured);
+        break;
+      case Permission::Unique:
+        sets.unique_captures.insert(captured);
+        break;
+    }
+  }
+
+  SPEC_RULE("ConstCaptures");
+  SPEC_RULE("SharedCaptures");
+  SPEC_RULE("UniqueCaptures");
+  return sets;
+}
+
+static void RecordParallelStmtBindings(const StmtTypeContext& type_ctx,
+                                       const ast::Stmt& stmt) {
+  if (!type_ctx.parallel_bindings) {
+    return;
+  }
+
+  std::visit(
+      [&](const auto& node) {
+        using T = std::decay_t<decltype(node)>;
+
+        if constexpr (std::is_same_v<T, ast::LetStmt> ||
+                      std::is_same_v<T, ast::VarStmt>) {
+          if (!node.binding.pat) {
+            return;
+          }
+          std::vector<IdKey> names;
+          CollectPatNames(*node.binding.pat, names);
+          type_ctx.parallel_bindings->insert(names.begin(), names.end());
+        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
+                             std::is_same_v<T, ast::ShadowVarStmt>) {
+          type_ctx.parallel_bindings->insert(IdKeyOf(node.name));
+        }
+      },
+      stmt);
 }
 
 StmtSeqResult TypeStmtSeq(const ScopeContext& ctx,
@@ -1328,6 +2049,7 @@ StmtSeqResult TypeStmtSeq(const ScopeContext& ctx,
     result.ok = true;
     result.env = env;
     result.flow = {};
+    result.proof_ctx = type_ctx.proof_ctx;
     if (type_ctx.env_ref) {
       *type_ctx.env_ref = env;
     }
@@ -1338,6 +2060,7 @@ StmtSeqResult TypeStmtSeq(const ScopeContext& ctx,
   }
 
   TypeEnv current = env;
+  std::shared_ptr<StaticProofContext> current_proof_ctx = type_ctx.proof_ctx;
   if (type_ctx.env_ref) {
     *type_ctx.env_ref = current;
   }
@@ -1349,14 +2072,18 @@ StmtSeqResult TypeStmtSeq(const ScopeContext& ctx,
   bool brk_void = false;
 
   for (const auto& stmt : stmts) {
+    StmtTypeContext stmt_ctx = type_ctx;
+    stmt_ctx.proof_ctx = current_proof_ctx;
+    const auto stmt_fns = MakeFlowTypingFns(ctx, stmt_ctx, current);
     if (type_ctx.env_ref) {
       *type_ctx.env_ref = current;
     }
     if (env_ref) {
       *env_ref = current;
     }
-    const auto typed = TypeStmt(ctx, type_ctx, stmt, current, type_expr,
-                                type_ident, type_place, env_ref);
+    const auto typed =
+        TypeStmt(ctx, stmt_ctx, stmt, current, stmt_fns.type_expr,
+                 stmt_fns.type_ident, stmt_fns.type_place, env_ref);
     if (!typed.ok) {
       result.diag_id = typed.diag_id;
       result.diag_detail = typed.diag_detail;
@@ -1371,6 +2098,8 @@ StmtSeqResult TypeStmtSeq(const ScopeContext& ctx,
       return result;
     }
     current = typed.env;
+    current_proof_ctx = FallthroughProofContextForStmt(current_proof_ctx, stmt);
+    RecordParallelStmtBindings(type_ctx, stmt);
     if (type_ctx.env_ref) {
       *type_ctx.env_ref = current;
     }
@@ -1383,9 +2112,10 @@ StmtSeqResult TypeStmtSeq(const ScopeContext& ctx,
     SPEC_RULE("StmtSeq-Cons");
   }
 
-  result.ok = true;
-  result.env = std::move(current);
-  result.flow.results = std::move(res);
+    result.ok = true;
+    result.env = std::move(current);
+    result.proof_ctx = std::move(current_proof_ctx);
+    result.flow.results = std::move(res);
   result.flow.breaks = std::move(brk);
   result.flow.break_void = brk_void;
   if (type_ctx.env_ref) {
@@ -1425,14 +2155,17 @@ BlockInfoResult TypeBlockInfo(const ScopeContext& ctx,
   const auto res_type = ResType(ctx, stmts_typed.flow.results);
   std::optional<ExprTypeResult> tail_type;
   if (block.tail_opt) {
+    StmtTypeContext tail_ctx = type_ctx;
+    tail_ctx.proof_ctx = stmts_typed.proof_ctx;
+    const auto tail_fns = MakeFlowTypingFns(ctx, tail_ctx, stmts_typed.env);
     if (type_ctx.env_ref) {
       *type_ctx.env_ref = stmts_typed.env;
     }
     if (env_ref) {
       *env_ref = stmts_typed.env;
     }
-    const auto typed =
-        TypeExprWithEnv(ctx, type_ctx, stmts_typed.env, type_expr, block.tail_opt);
+    const auto typed = TypeExprWithEnv(ctx, tail_ctx, stmts_typed.env,
+                                       tail_fns.type_expr, block.tail_opt);
     if (!typed.ok) {
       result.diag_id = typed.diag_id;
       result.diag_detail = typed.diag_detail;
@@ -1461,8 +2194,11 @@ BlockInfoResult TypeBlockInfo(const ScopeContext& ctx,
 
   if (block.tail_opt) {
     if (!tail_type.has_value()) {
-      const auto typed =
-          TypeExprWithEnv(ctx, type_ctx, stmts_typed.env, type_expr, block.tail_opt);
+      StmtTypeContext tail_ctx = type_ctx;
+      tail_ctx.proof_ctx = stmts_typed.proof_ctx;
+      const auto tail_fns = MakeFlowTypingFns(ctx, tail_ctx, stmts_typed.env);
+      const auto typed = TypeExprWithEnv(ctx, tail_ctx, stmts_typed.env,
+                                         tail_fns.type_expr, block.tail_opt);
       if (!typed.ok) {
         result.diag_id = typed.diag_id;
         result.diag_span =
@@ -1480,8 +2216,9 @@ BlockInfoResult TypeBlockInfo(const ScopeContext& ctx,
     return result;
   }
 
-  if (!block.stmts.empty() &&
-      std::holds_alternative<ast::ReturnStmt>(block.stmts.back())) {
+  if (const auto last = LastStmt(block.stmts);
+      last.has_value() &&
+      std::holds_alternative<ast::ReturnStmt>(last->get())) {
     SPEC_RULE("BlockInfo-ReturnTail");
     result.ok = true;
     result.type = MakeTypePrim("!");
@@ -1556,13 +2293,15 @@ CheckResult CheckBlock(const ScopeContext& ctx,
   }
 
   if (block.tail_opt) {
+    StmtTypeContext tail_ctx = type_ctx;
+    tail_ctx.proof_ctx = stmts_typed.proof_ctx;
     if (type_ctx.env_ref) {
       *type_ctx.env_ref = stmts_typed.env;
     }
     if (env_ref) {
       *env_ref = stmts_typed.env;
     }
-    const auto check = CheckExprAgainst(ctx, type_ctx, block.tail_opt, expected,
+    const auto check = CheckExprAgainst(ctx, tail_ctx, block.tail_opt, expected,
                                         stmts_typed.env);
     if (check.ok) {
       SPEC_RULE("Chk-Block-Tail");
@@ -1576,8 +2315,9 @@ CheckResult CheckBlock(const ScopeContext& ctx,
     return result;
   }
 
-  if (!block.stmts.empty() &&
-      std::holds_alternative<ast::ReturnStmt>(block.stmts.back())) {
+  if (const auto last = LastStmt(block.stmts);
+      last.has_value() &&
+      std::holds_alternative<ast::ReturnStmt>(last->get())) {
     SPEC_RULE("Chk-Block-Return");
     result.ok = true;
     return result;
@@ -1941,6 +2681,9 @@ StmtTypeResult TypeStmt(const ScopeContext& ctx,
           SPEC_RULE("T-UnsafeBlockStmt");
           return TypeUnsafeBlockStmt(ctx, type_ctx, node, env, type_expr, type_ident, type_place);
         }
+        else if constexpr (std::is_same_v<T, ast::CtStmt>) {
+          return TypeCtStmt(ctx, type_ctx, node, env, type_expr, type_ident, type_place);
+        }
         else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
           SPEC_RULE("T-KeyBlockStmt");
           return TypeKeyBlockStmt(ctx, type_ctx, node, env, type_expr, type_ident, type_place);
@@ -1948,11 +2691,6 @@ StmtTypeResult TypeStmt(const ScopeContext& ctx,
         else if constexpr (std::is_same_v<T, ast::ErrorStmt>) {
           SPEC_RULE("T-ErrorStmt");
           return TypeErrorStmt(ctx, node, env);
-        }
-        else if constexpr (std::is_same_v<T, ast::StaticAssertStmt>) {
-          // Static assert is handled at compile time, just pass through
-          SPEC_RULE("T-StaticAssertStmt");
-          return {true, std::nullopt, env, {}};
         }
         else if constexpr (std::is_same_v<T, ast::LogStmt>) {
           SPEC_RULE_AT("T-LogStmt", node.span);

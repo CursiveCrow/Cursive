@@ -92,6 +92,30 @@ void SetItemDoc(ASTItem& item, DocList docs) {
 }  // namespace
 
 // =============================================================================
+// DocSeq - Identity projection for the parser doc stream
+// =============================================================================
+//
+// SPEC: Section 5.7 line 2950
+//   DocSeq(D) = D
+
+const std::vector<DocComment>& DocSeq(const std::vector<DocComment>& docs) {
+  SPEC_RULE("DocSeq");
+  return docs;
+}
+
+// =============================================================================
+// ItemSeq - Identity projection for the parser item stream
+// =============================================================================
+//
+// SPEC: Section 5.7 line 2989
+//   ItemSeq(Items) = Items
+
+std::vector<ASTItem> ItemSeq(std::vector<ASTItem> items) {
+  SPEC_RULE("ItemSeq(Items)");
+  return items;
+}
+
+// =============================================================================
 // ModuleDocs - Extract module documentation comments
 // =============================================================================
 //
@@ -102,12 +126,9 @@ void SetItemDoc(ASTItem& item, DocList docs) {
 //
 //   ModuleDocs(D) = [d in D | d.kind = ModuleDoc]
 
-std::vector<DocComment> ModuleDocs(const std::vector<DocComment>* docs) {
+std::vector<DocComment> ModuleDocs(const std::vector<DocComment>& docs) {
   std::vector<DocComment> out;
-  if (!docs) {
-    return out;
-  }
-  for (const auto& doc : *docs) {
+  for (const auto& doc : docs) {
     if (doc.kind == DocKind::ModuleDoc) {
       SPEC_RULE("Attach-Doc-Module");
       out.push_back(doc);
@@ -132,15 +153,15 @@ std::vector<DocComment> ModuleDocs(const std::vector<DocComment>* docs) {
 // - Associates each line doc to the first item that begins at or after the doc
 
 void AttachLineDocs(std::vector<ASTItem>& items,
-                    const std::vector<DocComment>* docs) {
-  if (!docs || items.empty()) {
+                    const std::vector<DocComment>& docs) {
+  if (items.empty()) {
     return;
   }
 
   std::vector<DocList> item_docs(items.size());
   std::size_t item_index = 0;
 
-  for (const auto& doc : *docs) {
+  for (const auto& doc : docs) {
     if (doc.kind != DocKind::LineDoc) {
       continue;
     }

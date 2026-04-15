@@ -130,6 +130,9 @@ static std::optional<std::string_view> ValidateLoopInvariantExpr(
 
   if (!type_ctx.contract_dynamic) {
     StaticProofContext proof_ctx;
+    if (type_ctx.proof_ctx) {
+      proof_ctx = *type_ctx.proof_ctx;
+    }
     const auto proof = StaticProof(proof_ctx, invariant.predicate);
     if (!proof.provable) {
       return std::optional<std::string_view>("E-SEM-2830");

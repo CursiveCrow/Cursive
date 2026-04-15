@@ -1,11 +1,11 @@
-procedure CompilerNetworkRestrictHostConformanceMetricLabel(value: i32) -> string@View {
+procedure compilerNetworkRestrictHostConformanceMetricLabel(value: i32) -> string@View {
     if (value == 4) {
         return "4"
     }
     return "other"
 }
 
-public procedure RunCompilerNetworkRestrictHostRuntimeConformance(ctx: Context) -> i32 {
+public procedure runCompilerNetworkRestrictHostRuntimeConformance(ctx: Context) -> i32 {
     let net: $Network = ctx.net
     let service_only: $Network = net~>restrict_to_host("service.example")
     let admin_only: $Network = net~>restrict_to_host("admin.example")
@@ -38,7 +38,7 @@ public procedure RunCompilerNetworkRestrictHostRuntimeConformance(ctx: Context) 
         (chained_restriction_ok_log == true) &&
         (runtime_completed_log == true)
     ) { 4 } else { 0 }
-    let metric_label: string@View = CompilerNetworkRestrictHostConformanceMetricLabel(metric)
+    let metric_label: string@View = compilerNetworkRestrictHostConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
         [[log(label: "observed-compiler-runtime-network-restrict-host-metric", expected: "4")]]
         metric_label

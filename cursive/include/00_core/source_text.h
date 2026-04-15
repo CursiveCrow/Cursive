@@ -10,7 +10,43 @@
 
 namespace cursive::core {
 
-using UnicodeScalar = std::uint32_t;
+class UnicodeScalar {
+ public:
+  constexpr UnicodeScalar() = default;
+
+  constexpr UnicodeScalar(std::uint32_t value) : value_(Validate(value)) {}
+
+  [[nodiscard]] static constexpr bool IsValue(std::uint32_t value) {
+    return value <= 0x10FFFFu &&
+           !(value >= 0xD800u && value <= 0xDFFFu);
+  }
+
+  [[nodiscard]] constexpr std::uint32_t value() const {
+    return value_;
+  }
+
+  constexpr operator std::uint32_t() const {
+    return value_;
+  }
+
+ private:
+  [[nodiscard]] static constexpr std::uint32_t Validate(
+      std::uint32_t value) {
+    if (!IsValue(value)) {
+      throw "invalid Unicode scalar";
+    }
+    return value;
+  }
+
+  std::uint32_t value_ = 0;
+};
+
+using Scalars = std::vector<UnicodeScalar>;
+using String = Scalars;
+
+inline Scalars NormalizeOutsideIdentifiers(const Scalars& scalars) {
+  return scalars;
+}
 
 constexpr UnicodeScalar kLF = 0x0A;
 constexpr UnicodeScalar kCR = 0x0D;

@@ -944,18 +944,6 @@ namespace cursive::codegen
       return niche.has_value() && *niche == bits;
     }
 
-    const Value *FindFieldValue(const RecordVal &val, std::string_view name)
-    {
-      for (const auto &entry : val.fields)
-      {
-        if (cursive::analysis::IdEq(entry.first, name))
-        {
-          return &entry.second;
-        }
-      }
-      return nullptr;
-    }
-
     const cursive::ast::StateBlock *FindState(
         const cursive::ast::ModalDecl &decl,
         std::string_view name)
@@ -1543,6 +1531,96 @@ namespace cursive::codegen
     }
 
   } // namespace
+
+  std::optional<Value> TupleValue(const TupleVal& tuple, std::size_t index)
+  {
+    if (index >= tuple.elements.size())
+    {
+      return std::nullopt;
+    }
+    return tuple.elements[index];
+  }
+
+  std::optional<TupleVal> TupleUpdate(const TupleVal& tuple,
+                                      std::size_t index,
+                                      Value value)
+  {
+    if (index >= tuple.elements.size())
+    {
+      return std::nullopt;
+    }
+    TupleVal updated = tuple;
+    updated.elements[index] = std::move(value);
+    return updated;
+  }
+
+  const Value* FieldValue(const RecordVal& record, std::string_view name)
+  {
+    for (const auto& entry : record.fields)
+    {
+      if (cursive::analysis::IdEq(entry.first, name))
+      {
+        return &entry.second;
+      }
+    }
+    return nullptr;
+  }
+
+  std::optional<RecordVal> FieldUpdate(const RecordVal& record,
+                                       std::string_view name,
+                                       Value value)
+  {
+    RecordVal updated = record;
+    for (auto& entry : updated.fields)
+    {
+      if (cursive::analysis::IdEq(entry.first, name))
+      {
+        entry.second = std::move(value);
+        return updated;
+      }
+    }
+    return std::nullopt;
+  }
+
+  std::optional<ArrayVal> IndexUpdate(const ArrayVal& array,
+                                      std::size_t index,
+                                      Value value)
+  {
+    if (index >= array.elements.size())
+    {
+      return std::nullopt;
+    }
+    ArrayVal updated = array;
+    updated.elements[index] = std::move(value);
+    return updated;
+  }
+
+  std::size_t SliceLen(const ArrayVal& array)
+  {
+    return array.elements.size();
+  }
+
+  std::optional<std::size_t> SliceLen(const Value& value)
+  {
+    if (const auto* array = std::get_if<ArrayVal>(&value.node))
+    {
+      return SliceLen(*array);
+    }
+    if (const auto* slice = std::get_if<SliceVal>(&value.node))
+    {
+      return static_cast<std::size_t>(slice->length);
+    }
+    return std::nullopt;
+  }
+
+  std::optional<Value> SliceElem(const ArrayVal& array, std::size_t index)
+  {
+    if (index >= array.elements.size())
+    {
+      return std::nullopt;
+    }
+    return array.elements[index];
+  }
 
   std::optional<std::vector<std::uint8_t>> ValueBits(
       const cursive::analysis::ScopeContext &ctx,

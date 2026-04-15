@@ -1,5 +1,5 @@
 [toolchain]
-llvm_bin = "C:/Dev/Cursive/extern/llvm/llvm-21.1.8-x86_64/bin"
+target_profile = "x86_64-win64"
 
 [[assembly]]
 name = "main"

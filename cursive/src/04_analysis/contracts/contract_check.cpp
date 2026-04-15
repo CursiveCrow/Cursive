@@ -225,7 +225,9 @@ namespace cursive::analysis
         AddImplicationFacts(proof_ctx, antecedent, consequent->span);
       }
 
-      const auto proof = StaticProof(proof_ctx, consequent);
+      const auto proof =
+          StaticProofAt(proof_ctx, consequent ? consequent->span : core::Span{},
+                        consequent);
       return proof.provable;
     }
 
@@ -797,8 +799,7 @@ namespace cursive::analysis
                      IsImpureExpr(ctx, node.then_expr, purity_stack) ||
                      IsImpureExpr(ctx, node.else_expr, purity_stack);
             }
-            else if constexpr (std::is_same_v<T, ast::TupleExpr> ||
-                               std::is_same_v<T, ast::ArrayExpr>)
+            else if constexpr (std::is_same_v<T, ast::TupleExpr>)
             {
               for (const auto &elem : node.elements)
               {
@@ -808,6 +809,22 @@ namespace cursive::analysis
                 }
               }
               return false;
+            }
+            else if constexpr (std::is_same_v<T, ast::ArrayExpr>)
+            {
+              bool has_impure_subexpr = false;
+              ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr &elem)
+              {
+                if (has_impure_subexpr)
+                {
+                  return;
+                }
+                if (IsImpureExpr(ctx, elem, purity_stack))
+                {
+                  has_impure_subexpr = true;
+                }
+              });
+              return has_impure_subexpr;
             }
             else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>)
             {

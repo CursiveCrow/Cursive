@@ -39,14 +39,11 @@ using cursive::lexer::DocComment;
 using cursive::lexer::FilterNewlines;
 using cursive::lexer::Token;
 using cursive::lexer::TokenKind;
-using cursive::lexer::Tokenize;
-using cursive::lexer::TokenizeResult;
+using cursive::lexer::TokenizeWithDiagnostics;
 using cursive::lexer::UnsafeSpans;
 
-// Forward declarations for doc handling (implemented in parser_docs.cpp)
-std::vector<DocComment> ModuleDocs(const std::vector<DocComment>* docs);
-void AttachLineDocs(std::vector<ASTItem>& items,
-                    const std::vector<DocComment>* docs);
+// Forward declarations for item-level helpers.
+void SkipNewlines(Parser& parser);
 
 namespace {
 
@@ -71,6 +68,16 @@ core::Span SpanFrom(const Token& start, const Token& end) {
   span.end_line = end.span.end_line;
   span.end_col = end.span.end_col;
   return span;
+}
+
+std::optional<core::Span> FirstTopLevelErrorItemSpan(
+    const std::vector<ASTItem>& items) {
+  for (const auto& item : items) {
+    if (const auto* err = std::get_if<ErrorItem>(&item)) {
+      return err->span;
+    }
+  }
+  return std::nullopt;
 }
 
 }  // namespace
@@ -167,13 +174,7 @@ static ParseItemsResult ParseItemsInternal(
 
   Parser cur = parser;
   for (;;) {
-    while (!AtEof(cur)) {
-      const Token* tok = Tok(cur);
-      if (!tok || tok->kind != TokenKind::Newline) {
-        break;
-      }
-      Advance(cur);
-    }
+    SkipNewlines(cur);
 
     if (AtEof(cur)) {
       SPEC_RULE("ParseItems-Empty");
@@ -210,14 +211,6 @@ static ParseItemsResult ParseItemsInternal(
                 << " diags=" << item.parser.diags.size() << "\n";
     }
 
-    if (item.parser.tokens == cur.tokens && item.parser.index == cur.index) {
-      EmitParseSyntaxErr(cur, TokSpan(cur));
-      Parser next = AdvanceOrEOF(cur);
-      result.items.push_back(ErrorItem{SpanBetween(cur, next), {}});
-      cur = next;
-      continue;
-    }
-
     result.items.push_back(std::move(item.item));
     cur = item.parser;
   }
@@ -232,7 +225,10 @@ static ParseItemsResult ParseItemsInternal(
 // Extracts module docs before parsing.
 
 ParseItemsResult ParseItems(Parser parser) {
-  return ParseItemsInternal(parser, ModuleDocs(parser.docs));
+  if (!parser.docs) {
+    return ParseItemsInternal(parser, {});
+  }
+  return ParseItemsInternal(parser, ModuleDocs(DocSeq(*parser.docs)));
 }
 
 // =============================================================================
@@ -242,7 +238,8 @@ ParseItemsResult ParseItems(Parser parser) {
 // SPEC: Section 3.3.6 lines 3442-3450 (ParseFile-Ok)
 // Complete file parsing entry point.
 // Orchestrates: Tokenize -> FilterNewlines -> ParseItems -> AttachLineDocs
-// Returns ASTFile with items, module docs, unsafe spans.
+// Returns ASTFile with items and module docs, plus unsafe-span metadata in the
+// parse result.
 
 ParseFileResult ParseFile(const core::SourceFile& source) {
   ParseFileResult result;
@@ -250,7 +247,7 @@ ParseFileResult ParseFile(const core::SourceFile& source) {
   if (debug_phases) {
     std::cerr << "[cursive] parsefile: tokenize " << source.path << "\n";
   }
-  TokenizeResult tok = Tokenize(source);
+  lexer::TokenizeDiagnosticResult tok = TokenizeWithDiagnostics(source);
   result.diags = tok.diags;
 
   if (!tok.output.has_value()) {
@@ -261,27 +258,39 @@ ParseFileResult ParseFile(const core::SourceFile& source) {
     std::cerr << "[cursive] parsefile: filter-newlines " << source.path << "\n";
   }
   std::vector<Token> filtered = FilterNewlines(tok.output->tokens);
+  const std::vector<DocComment>& doc_seq = DocSeq(tok.output->docs);
   if (debug_phases) {
     std::cerr << "[cursive] parsefile: parse-items " << source.path << "\n";
   }
   std::vector<core::Span> unsafe_spans = UnsafeSpans(filtered);
-  Parser parser = MakeParser(filtered, tok.output->docs, source);
+  Parser parser = MakeParser(filtered, doc_seq, source);
   ParseItemsResult items = ParseItems(parser);
   if (debug_phases) {
     std::cerr << "[cursive] parsefile: attach-docs " << source.path << "\n";
   }
-  AttachLineDocs(items.items, parser.docs);
+  std::vector<ASTItem> item_seq = ItemSeq(std::move(items.items));
+  AttachLineDocs(item_seq, doc_seq);
   SPEC_RULE("ParseFile-Ok");
 
   AppendDiags(result.diags, items.parser.diags);
+  if (!core::HasError(result.diags)) {
+    const std::optional<core::Span> error_item_span =
+        FirstTopLevelErrorItemSpan(item_seq);
+    if (error_item_span.has_value()) {
+      auto diag = core::MakeDiagnosticById("E-SRC-0520", *error_item_span);
+      if (diag) {
+        core::Emit(result.diags, *diag);
+      }
+    }
+  }
 
   ASTFile file;
   file.path.clear();
   file.path.push_back(source.path);
-  file.items = std::move(items.items);
+  file.items = std::move(item_seq);
   file.module_doc = std::move(items.module_doc);
-  file.unsafe_spans = std::move(unsafe_spans);
   result.file = std::move(file);
+  result.unsafe_spans = std::move(unsafe_spans);
   return result;
 }
 
@@ -302,7 +311,10 @@ bool ParseFileBestEffort(const ParseFileResult& result) {
 // Returns true if file parsed without errors
 
 bool ParseFileOk(const ParseFileResult& result) {
-  return result.file.has_value() && !core::HasError(result.diags);
+  if (!result.file.has_value() || core::HasError(result.diags)) {
+    return false;
+  }
+  return !FirstTopLevelErrorItemSpan(result.file->items).has_value();
 }
 
 }  // namespace cursive::ast

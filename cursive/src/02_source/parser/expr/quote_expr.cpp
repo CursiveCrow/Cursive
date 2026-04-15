@@ -33,14 +33,13 @@ bool IsPatternHead(const Token& tok) {
          tok.lexeme == "pattern";
 }
 
-std::vector<Token> TokensBetween(const Parser& start, const Parser& end) {
+std::vector<Token> SliceTokensBetween(const Parser& start, const Parser& end) {
   std::vector<Token> out;
   if (!start.tokens || !end.tokens || start.tokens != end.tokens) {
     return out;
   }
 
-  const std::size_t from = start.index;
-  const std::size_t to = end.index;
+  const auto [from, to] = TokensBetween(start, end);
   if (to <= from || from >= start.tokens->size()) {
     return out;
   }
@@ -122,7 +121,7 @@ std::optional<ParseElemResult<ExprPtr>> TryParseQuoteExpr(Parser parser) {
 
   QuoteExpr quote;
   quote.kind = kind;
-  quote.tokens = TokensBetween(content_start, content_end);
+  quote.tokens = SliceTokensBetween(content_start, content_end);
   Advance(content_end);
   return ParseElemResult<ExprPtr>{
       content_end, MakeExpr(SpanBetween(start, content_end), quote)};

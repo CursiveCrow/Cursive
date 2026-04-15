@@ -67,7 +67,7 @@ namespace cursive::ast
   struct MethodSignatureResult
   {
     Parser parser;
-    std::optional<Receiver> receiver;
+    Receiver receiver;
     std::vector<Param> params;
     TypePtr return_type_opt;
   };
@@ -232,7 +232,9 @@ namespace cursive::ast
 
     std::shared_ptr<Block> body_block;
     Parser body_parser = contract.parser;
-    if (IsPunc(body_parser, "{"))
+    Parser body_probe = body_parser;
+    SkipNewlines(body_probe);
+    if (IsPunc(body_probe, "{"))
     {
       ParseElemResult<std::shared_ptr<Block>> body = ParseBlock(body_parser);
       body_parser = body.parser;
@@ -248,10 +250,8 @@ namespace cursive::ast
     method.vis = vis;
     method.override_flag = ov.override_flag;
     method.name = name.elem;
-    if (sig.receiver.has_value())
-    {
-      method.receiver = *sig.receiver;
-    }
+    method.generic_params = method_generics.elem;
+    method.receiver = sig.receiver;
     method.params = sig.params;
     method.return_type_opt = sig.return_type_opt;
     method.contract = contract.elem;
@@ -260,6 +260,48 @@ namespace cursive::ast
     method.doc_opt = std::nullopt;
 
     return {body_parser, method};
+  }
+
+  // =============================================================================
+  // ParseAssociatedTypeDeclAfterVis - Parse associated type after visibility
+  // =============================================================================
+
+  ParseElemResult<AssociatedTypeDecl> ParseAssociatedTypeDeclAfterVis(
+      Parser parser, Visibility vis, AttributeList attrs)
+  {
+    SPEC_RULE("Parse-RecordMember-AssociatedType");
+    Parser start = parser;
+
+    if (!IsKw(parser, "type"))
+    {
+      EmitParseSyntaxErr(parser, TokSpan(parser));
+    }
+    else
+    {
+      Advance(parser);
+    }
+
+    ParseElemResult<Identifier> name = ParseIdent(parser);
+    Parser after_name = name.parser;
+
+    std::shared_ptr<Type> default_type = nullptr;
+    if (IsOp(after_name, "="))
+    {
+      Advance(after_name);
+      ParseElemResult<std::shared_ptr<Type>> ty = ParseType(after_name);
+      default_type = ty.elem;
+      after_name = ty.parser;
+    }
+
+    AssociatedTypeDecl assoc;
+    assoc.attrs = attrs;
+    assoc.vis = vis;
+    assoc.name = name.elem;
+    assoc.default_type = default_type;
+    assoc.span = SpanBetween(start, after_name);
+    assoc.doc_opt = std::nullopt;
+
+    return {after_name, assoc};
   }
 
   // =============================================================================
@@ -281,6 +323,13 @@ namespace cursive::ast
       ParseElemResult<MethodDecl> method =
           ParseMethodDefAfterVis(vis.parser, vis.elem, attrs_list);
       return {method.parser, method.elem};
+    }
+
+    if (IsKw(vis.parser, "type"))
+    {
+      ParseElemResult<AssociatedTypeDecl> assoc =
+          ParseAssociatedTypeDeclAfterVis(vis.parser, vis.elem, attrs_list);
+      return {assoc.parser, assoc.elem};
     }
 
     SPEC_RULE("Parse-RecordMember-Field");
@@ -333,24 +382,9 @@ ParseElemResult<std::vector<RecordMember>> ParseRecordMemberList(
 
       Parser before = cur;
       ParseElemResult<RecordMember> mem = ParseRecordMember(cur);
-      members.push_back(mem.elem);
       cur = mem.parser;
-      SkipNewlines(cur);
-
-      if (IsPunc(cur, ","))
-      {
-        Advance(cur);
-        SkipNewlines(cur);
-        if (IsPunc(cur, "}"))
-        {
-          break;
-        }
-      }
-      else if (!IsPunc(cur, "}"))
-      {
-        EmitParseSyntaxErr(cur, TokSpan(cur));
-        cur = AdvanceOrEOF(cur);
-      }
+      ParseRecordMemberSep(cur);
+      members.push_back(std::move(mem.elem));
 
       // Prevent infinite loops during error recovery.
       if (cur.tokens == before.tokens && cur.index == before.index)
@@ -414,7 +448,7 @@ ParseElemResult<std::vector<RecordMember>> ParseRecordMemberList(
       return {parser, xs};
     }
 
-    const TokenKindMatch end_set[] = {MatchPunct("{")};
+    const EndSetToken end_set[] = {EndPunct("{")};
     Parser after = parser;
     Advance(after);
     SkipNewlines(after);
@@ -552,10 +586,10 @@ ParseElemResult<std::vector<RecordMember>> ParseRecordMemberList(
     ParseElemResult<std::vector<ClassPath>> impls = ParseImplementsOpt(parser);
     parser = impls.parser;
 
-    // Parse optional where clause (class constraints)
-    ParseElemResult<std::optional<WhereClause>> where_clause =
+    // Parse optional predicate clause
+    ParseElemResult<std::optional<WhereClause>> predicate_clause_opt =
         ParsePredicateClauseOpt(parser);
-    parser = where_clause.parser;
+    parser = predicate_clause_opt.parser;
 
     // Parse record body
     ParseElemResult<std::vector<RecordMember>> members = ParseRecordBody(parser);
@@ -571,10 +605,10 @@ ParseElemResult<std::vector<RecordMember>> ParseRecordMemberList(
     decl.vis = vis;
     decl.name = name.elem;
     decl.generic_params = gen_params.elem;
+    decl.predicate_clause_opt = predicate_clause_opt.elem;
     decl.implements = std::move(impls.elem);
-    decl.where_clause = where_clause.elem;
-    decl.invariant = invariant.elem;
     decl.members = std::move(members.elem);
+    decl.invariant_opt = invariant.elem;
     decl.span = SpanBetween(start, parser);
     decl.doc = {};
 

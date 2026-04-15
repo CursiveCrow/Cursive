@@ -136,10 +136,7 @@ namespace cursive::ast {
 
 // Forward declarations from other modules
 bool IsKw(const Parser& parser, std::string_view kw);
-bool IsOp(const Parser& parser, std::string_view op);
-ParseElemResult<Identifier> ParseIdent(Parser parser);
-ParseElemResult<std::shared_ptr<Type>> ParseTypeAnnotOpt(Parser parser);
-ParseElemResult<ExprPtr> ParseExpr(Parser parser);
+ParseElemResult<Stmt> ParseShadowBinding(Parser parser);
 
 // =============================================================================
 // ParseShadowVarStmt - Parse shadow var binding statement
@@ -150,41 +147,13 @@ ParseElemResult<ExprPtr> ParseExpr(Parser parser);
 
 ParseElemResult<Stmt> ParseShadowVarStmt(Parser parser) {
   SPEC_RULE("Parse-Shadow-Stmt");
-  SPEC_RULE("Parse-ShadowBinding");
-  Parser start = parser;
-
-  // Consume "shadow"
   Parser next = parser;
   Advance(next);
-
-  // Consume "var"
-  Advance(next);
-
-  // Parse identifier (name)
-  ParseElemResult<Identifier> name = ParseIdent(next);
-
-  // Parse optional type annotation
-  ParseElemResult<std::shared_ptr<Type>> ty = ParseTypeAnnotOpt(name.parser);
-
-  // Expect "=" operator (shadow bindings only use =, not :=)
-  Parser after_ty = ty.parser;
-  if (!IsOp(after_ty, "=")) {
-    EmitParseSyntaxErr(after_ty, TokSpan(after_ty));
-  } else {
-    Advance(after_ty);  // consume "="
+  auto result = ParseShadowBinding(next);
+  if (auto* stmt = std::get_if<ShadowVarStmt>(&result.elem)) {
+    stmt->span = SpanBetween(parser, result.parser);
   }
-
-  // Parse initializer expression
-  ParseElemResult<ExprPtr> init = ParseExpr(after_ty);
-
-  // Construct ShadowVarStmt
-  ShadowVarStmt stmt;
-  stmt.name = std::move(name.elem);
-  stmt.type_opt = ty.elem;
-  stmt.init = init.elem;
-  stmt.span = SpanBetween(start, init.parser);
-
-  return {init.parser, stmt};
+  return result;
 }
 
 // =============================================================================

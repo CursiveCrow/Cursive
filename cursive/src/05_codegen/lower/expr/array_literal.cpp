@@ -9,19 +9,19 @@
 //     Gamma |- LowerExpr(ArrayExpr(es)) => <IR, [v_1, ..., v_n]>
 //
 // SOURCE FILE: cursive-bootstrap/src/04_codegen/lower/lower_expr_core.cpp
-//   - ArrayExpr visitor lowers each element in order via LowerList
-//   - ArrayRepeatExpr visitor lowers value and count expressions
-//   - Creates DerivedValueInfo of kind ArrayLit or ArrayRepeat
+//   - ArrayExpr visitor lowers each segment in order via LowerExpr
+//   - Legacy ArrayRepeatExpr support is normalized onto ArraySegments
+//   - Creates DerivedValueInfo of kind ArraySegments
 //
 // DEPENDENCIES:
 //   - cursive/include/05_codegen/ir/ir_model.h (IRValue, IRPtr)
 //   - cursive/include/05_codegen/lower/lower_expr.h (LowerCtx, LowerResult, LowerList)
 //
 // IMPLEMENTATION NOTES:
-//   1. Array literals lower each element expression left-to-right via LowerList
-//   2. Array repeat expressions lower value and count, storing them in DerivedValueInfo
+//   1. Array literals lower each segment expression left-to-right
+//   2. Repeat segments lower both value and count expressions
 //   3. The resulting IRValue is a synthetic temp representing the array aggregate
-//   4. The elements/repeat info are stored in a DerivedValueInfo
+//   4. The segment/repeat info are stored in a DerivedValueInfo
 //   5. Materialization happens when the array value is used (stored, returned, etc.)
 //
 // =============================================================================
@@ -36,9 +36,9 @@ namespace cursive::codegen {
 // LowerArrayLiteral - Lower an array literal expression to IR
 // =============================================================================
 // SPEC: (Lower-Expr-Array)
-//   Gamma |- LowerList(es) => <IR, vec_v>
+//   Gamma |- LowerArraySegments(segs) => <IR, vec_v>
 //   ------------------------------------------
-//   Gamma |- LowerExpr(ArrayExpr(es)) => <IR, [v_1, ..., v_n]>
+//   Gamma |- LowerExpr(ArrayExpr(segs)) => <IR, [v_1, ..., v_n]>
 //
 // Array literal expressions lower their element expressions left-to-right,
 // then produce a synthetic array value that tracks the element values via the
@@ -49,66 +49,47 @@ namespace cursive::codegen {
 LowerResult LowerArrayLiteral(const ast::ArrayExpr& expr, LowerCtx& ctx) {
     SPEC_RULE("Lower-Expr-Array");
 
-    // Lower all element expressions in left-to-right order
-    auto [ir, values] = LowerList(expr.elements, ctx);
-
     // Create a synthetic value to represent the array
     IRValue array_value = ctx.FreshTempValue("array");
 
-    // Register the derived value info so materialization can access elements
+    IRPtr ir = EmptyIR();
     DerivedValueInfo info;
-    info.kind = DerivedValueInfo::Kind::ArrayLit;
-    info.elements = values;
+    info.kind = DerivedValueInfo::Kind::ArraySegments;
+    for (const auto& segment : expr.elements) {
+        std::visit(
+            [&](const auto& node) {
+                using T = std::decay_t<decltype(node)>;
+                if constexpr (std::is_same_v<T, ast::ArrayElemSegment>) {
+                    auto value_result = LowerExpr(*node.value, ctx);
+                    ir = SeqIR({ir, value_result.ir});
+                    DerivedArraySegment derived_segment;
+                    derived_segment.kind = DerivedArraySegment::Kind::Element;
+                    derived_segment.value = value_result.value;
+                    info.array_segments.push_back(std::move(derived_segment));
+                } else if constexpr (std::is_same_v<T, ast::ArrayRepeatSegment>) {
+                    auto value_result = LowerExpr(*node.value, ctx);
+                    auto count_result = LowerExpr(*node.count, ctx);
+                    ir = SeqIR({ir, value_result.ir, count_result.ir});
+                    DerivedArraySegment derived_segment;
+                    derived_segment.kind = DerivedArraySegment::Kind::Repeat;
+                    derived_segment.value = value_result.value;
+                    derived_segment.count = count_result.value;
+                    info.array_segments.push_back(std::move(derived_segment));
+                }
+            },
+            segment);
+    }
     ctx.RegisterDerivedValue(array_value, info);
-
-    // Preserve the concrete array type at the array-literal definition site.
-    // This keeps LLVM materialization on the typed array path instead of
-    // re-inferring an aggregate shape from already-materialized LLVM values.
-    analysis::TypeRef element_type;
-    bool all_typed = !values.empty();
-    for (const auto& value : values) {
-        analysis::TypeRef current_type = ctx.LookupValueType(value);
-        if (!current_type) {
-            all_typed = false;
-            break;
-        }
-        if (!element_type) {
-            element_type = current_type;
-            continue;
-        }
-        const auto equiv = analysis::TypeEquiv(element_type, current_type);
-        if (!equiv.ok || !equiv.equiv) {
-            all_typed = false;
-            break;
-        }
-    }
-    if (all_typed && element_type) {
-        ctx.RegisterValueType(
-            array_value,
-            analysis::MakeTypeArray(
-                element_type,
-                static_cast<std::uint64_t>(values.size())));
-    }
 
     return LowerResult{ir, array_value};
 }
 
 // =============================================================================
-// LowerArrayRepeat - Lower an array repeat expression to IR
-// =============================================================================
-// SPEC: (Lower-Expr-ArrayRepeat)
-//   Gamma |- LowerExpr(value) => <IR_v, v>
-//   Gamma |- LowerExpr(count) => <IR_c, c>
-//   ------------------------------------------
-//   Gamma |- LowerExpr(ArrayRepeatExpr(value, count)) => <SeqIR(IR_v, IR_c), [v; c]>
-//
-// Array repeat expressions lower the value expression and count expression,
-// then produce a synthetic array value that tracks these via DerivedValueInfo
-// with kind ArrayRepeat. The actual array is materialized when used.
+// LowerArrayRepeat - Lower a legacy array repeat expression to IR
 // =============================================================================
 
 LowerResult LowerArrayRepeat(const ast::ArrayRepeatExpr& expr, LowerCtx& ctx) {
-    SPEC_RULE("Lower-Expr-ArrayRepeat");
+    SPEC_RULE("Lower-Expr-Array");
 
     // Lower value and count expressions
     auto value_result = LowerExpr(*expr.value, ctx);
@@ -117,11 +98,15 @@ LowerResult LowerArrayRepeat(const ast::ArrayRepeatExpr& expr, LowerCtx& ctx) {
     // Create a synthetic value to represent the array
     IRValue array_value = ctx.FreshTempValue("array_repeat");
 
-    // Register the derived value info with repeat value and count
+    // Normalize the legacy repeat form onto the segmented-array path so all
+    // array aggregate materialization follows one implementation.
     DerivedValueInfo info;
-    info.kind = DerivedValueInfo::Kind::ArrayRepeat;
-    info.repeat_value = value_result.value;
-    info.repeat_count = count_result.value;
+    info.kind = DerivedValueInfo::Kind::ArraySegments;
+    DerivedArraySegment derived_segment;
+    derived_segment.kind = DerivedArraySegment::Kind::Repeat;
+    derived_segment.value = value_result.value;
+    derived_segment.count = count_result.value;
+    info.array_segments.push_back(std::move(derived_segment));
     ctx.RegisterDerivedValue(array_value, info);
 
     return LowerResult{SeqIR({value_result.ir, count_result.ir}), array_value};

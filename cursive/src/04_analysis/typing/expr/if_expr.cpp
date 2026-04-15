@@ -22,6 +22,7 @@
 
 #include "00_core/assert_spec.h"
 #include "04_analysis/caps/cap_concurrency.h"
+#include "04_analysis/contracts/verification.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/subtyping.h"
 #include "04_analysis/typing/type_expr.h"
@@ -171,15 +172,11 @@ static TypeEnv RefineEnvFromConditionFacts(const TypeEnv& env,
 }
 
 static ast::ExprPtr ElseFactCondition(const ast::ExprPtr& cond) {
-  if (!cond) {
+  const auto negated = NegatedPredicate(cond);
+  if (!negated.has_value()) {
     return nullptr;
   }
-  if (const auto* unary = std::get_if<ast::UnaryExpr>(&cond->node)) {
-    if (IdEq(unary->op, "!")) {
-      return unary->value;
-    }
-  }
-  return nullptr;
+  return *negated;
 }
 
 // Check if a type is the never type (!)
@@ -339,8 +336,6 @@ static bool ContainsGpuBarrierCallInStmt(const ast::Stmt& stmt) {
           return ContainsGpuBarrierCall(node.value_opt);
         } else if constexpr (std::is_same_v<T, ast::BreakStmt>) {
           return ContainsGpuBarrierCall(node.value_opt);
-        } else if constexpr (std::is_same_v<T, ast::StaticAssertStmt>) {
-          return ContainsGpuBarrierCall(node.condition);
         }
         return false;
       },
@@ -422,12 +417,16 @@ static bool ContainsGpuBarrierCall(const ast::ExprPtr& expr) {
           }
           return false;
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
-            if (ContainsGpuBarrierCall(elem)) {
-              return true;
+          bool contains_gpu_barrier_call = false;
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            if (contains_gpu_barrier_call) {
+              return;
             }
-          }
-          return false;
+            if (ContainsGpuBarrierCall(elem)) {
+              contains_gpu_barrier_call = true;
+            }
+          });
+          return contains_gpu_barrier_call;
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           return ContainsGpuBarrierCall(node.value) ||
                  ContainsGpuBarrierCall(node.count);
@@ -475,8 +474,8 @@ static bool ContainsGpuBarrierCall(const ast::ExprPtr& expr) {
 
 // Unify branch types - handles never type absorption
 static TypeRef UnifyBranchTypes(const ScopeContext& ctx,
-                                 const TypeRef& then_type,
-                                 const TypeRef& else_type) {
+                                const TypeRef& then_type,
+                                const TypeRef& else_type) {
   // If one branch is never (!), the result is the other type
   if (IsNeverType(then_type)) {
     return else_type;
@@ -506,6 +505,14 @@ static TypeRef UnifyBranchTypes(const ScopeContext& ctx,
   return nullptr;
 }
 
+static std::optional<std::string_view> IfNoElseDiagOrFallback(
+    std::optional<std::string_view> diag_id) {
+  if (diag_id.has_value()) {
+    return diag_id;
+  }
+  return std::optional<std::string_view>{"If-Branch-Mismatch"};
+}
+
 }  // namespace
 
 ExprTypeResult TypeIfExpr(const ScopeContext& ctx,
@@ -519,8 +526,7 @@ CheckResult CheckIfExpr(const ScopeContext& ctx,
                         const ast::IfExpr& expr,
                         const TypeRef& expected,
                         const TypeEnv& env,
-                        const ExprTypeFn& type_expr,
-                        const CheckExprFn& check_expr);
+                        const ExprTypeFn& type_expr);
 
 ExprTypeResult TypeIfExprImpl(const ScopeContext& ctx,
                               const StmtTypeContext& type_ctx,
@@ -543,18 +549,7 @@ CheckResult CheckIfExprImpl(const ScopeContext& ctx,
   const ExprTypeFn type_expr = [&](const ast::ExprPtr& inner) {
     return TypeExpr(ctx, type_ctx, inner, env);
   };
-  const PlaceTypeFn type_place_fn = [&](const ast::ExprPtr& inner) {
-    return TypePlace(ctx, type_ctx, inner, env);
-  };
-  const IdentTypeFn type_ident_fn = [&](std::string_view name) -> ExprTypeResult {
-    return TypeIdentifierExprImpl(ctx, ast::IdentifierExpr{std::string(name)}, env);
-  };
-  const CheckExprFn check_expr = [&](const ast::ExprPtr& inner,
-                                     const TypeRef& inner_expected) {
-    return CheckExpr(ctx, inner, inner_expected, type_expr, type_place_fn, type_ident_fn);
-  };
-
-  return CheckIfExpr(ctx, type_ctx, expr, expected, env, type_expr, check_expr);
+  return CheckIfExpr(ctx, type_ctx, expr, expected, env, type_expr);
 }
 
 // Full implementation with type_expr callback
@@ -585,7 +580,7 @@ ExprTypeResult TypeIfExpr(const ScopeContext& ctx,
     return result;
   }
 
-  if (type_ctx.in_parallel && IsGpuDomainType(type_ctx.parallel_domain)) {
+  if (GpuContext(env)) {
     const bool then_has_barrier = ContainsGpuBarrierCall(expr.then_expr);
     const bool else_has_barrier = ContainsGpuBarrierCall(expr.else_expr);
     if (then_has_barrier != else_has_barrier) {
@@ -600,16 +595,27 @@ ExprTypeResult TypeIfExpr(const ScopeContext& ctx,
   if (const auto else_fact_cond = ElseFactCondition(expr.cond)) {
     else_env = RefineEnvFromConditionFacts(env, else_fact_cond);
   }
+  StmtTypeContext then_ctx = type_ctx;
+  then_ctx.proof_ctx =
+      ExtendProofContextWithPredicate(type_ctx.proof_ctx, expr.cond);
+  StmtTypeContext else_ctx = type_ctx;
+  if (const auto else_fact_cond = ElseFactCondition(expr.cond)) {
+    else_ctx.proof_ctx =
+        ExtendProofContextWithPredicate(type_ctx.proof_ctx, else_fact_cond);
+  }
 
   // 3. Handle else branch
   if (!expr.else_expr) {
     const auto then_check =
-        CheckExprAgainst(ctx, type_ctx, expr.then_expr, MakeTypePrim("()"), then_env);
+        CheckExprAgainst(ctx, then_ctx, expr.then_expr, MakeTypePrim("()"),
+                         then_env);
     if (!then_check.ok) {
       SPEC_RULE("T-If-No-Else");
-      result.diag_id = then_check.diag_id;
+      result.diag_id = IfNoElseDiagOrFallback(then_check.diag_id);
       result.diag_detail = then_check.diag_detail;
-      result.diag_span = then_check.diag_span;
+      result.diag_span = then_check.diag_span.has_value()
+                             ? then_check.diag_span
+                             : std::optional<core::Span>(expr.then_expr->span);
       return result;
     }
     SPEC_RULE("T-If-Unit");
@@ -619,7 +625,7 @@ ExprTypeResult TypeIfExpr(const ScopeContext& ctx,
   }
 
   // 2. Type the then branch
-  const auto then_type = TypeExpr(ctx, type_ctx, expr.then_expr, then_env);
+  const auto then_type = TypeExpr(ctx, then_ctx, expr.then_expr, then_env);
   if (!then_type.ok) {
     result.diag_id = then_type.diag_id;
     result.diag_detail = then_type.diag_detail;
@@ -627,7 +633,7 @@ ExprTypeResult TypeIfExpr(const ScopeContext& ctx,
   }
 
   // 4. Type else branch
-  const auto else_type = TypeExpr(ctx, type_ctx, expr.else_expr, else_env);
+  const auto else_type = TypeExpr(ctx, else_ctx, expr.else_expr, else_env);
   if (!else_type.ok) {
     result.diag_id = else_type.diag_id;
     result.diag_detail = else_type.diag_detail;
@@ -655,19 +661,13 @@ CheckResult CheckIfExpr(const ScopeContext& ctx,
                         const ast::IfExpr& expr,
                         const TypeRef& expected,
                         const TypeEnv& env,
-                        const ExprTypeFn& type_expr,
-                        const CheckExprFn& check_expr) {
+                        const ExprTypeFn& type_expr) {
   SpecDefsIfExpr();
   CheckResult result;
 
   if (!expr.cond || !expr.then_expr || !expected) {
     return result;
   }
-
-  const auto check_branch_against =
-      [&](const ast::ExprPtr& branch, const TypeEnv& branch_env) -> CheckResult {
-    return CheckExprAgainst(ctx, type_ctx, branch, expected, branch_env);
-  };
 
   // 1. Type the condition
   const auto cond_type = type_expr(expr.cond);
@@ -684,7 +684,7 @@ CheckResult CheckIfExpr(const ScopeContext& ctx,
     return result;
   }
 
-  if (type_ctx.in_parallel && IsGpuDomainType(type_ctx.parallel_domain)) {
+  if (GpuContext(env)) {
     const bool then_has_barrier = ContainsGpuBarrierCall(expr.then_expr);
     const bool else_has_barrier = ContainsGpuBarrierCall(expr.else_expr);
     if (then_has_barrier != else_has_barrier) {
@@ -699,9 +699,18 @@ CheckResult CheckIfExpr(const ScopeContext& ctx,
   if (const auto else_fact_cond = ElseFactCondition(expr.cond)) {
     else_env = RefineEnvFromConditionFacts(env, else_fact_cond);
   }
+  StmtTypeContext then_ctx = type_ctx;
+  then_ctx.proof_ctx =
+      ExtendProofContextWithPredicate(type_ctx.proof_ctx, expr.cond);
+  StmtTypeContext else_ctx = type_ctx;
+  if (const auto else_fact_cond = ElseFactCondition(expr.cond)) {
+    else_ctx.proof_ctx =
+        ExtendProofContextWithPredicate(type_ctx.proof_ctx, else_fact_cond);
+  }
 
   // 2. Check then branch
-  const auto then_check = check_branch_against(expr.then_expr, then_env);
+  const auto then_check =
+      CheckExprAgainst(ctx, then_ctx, expr.then_expr, expected, then_env);
   if (!then_check.ok) {
     result.diag_id = then_check.diag_id;
     result.diag_detail = then_check.diag_detail;
@@ -712,11 +721,13 @@ CheckResult CheckIfExpr(const ScopeContext& ctx,
   if (!expr.else_expr) {
     const auto unit_type = MakeTypePrim("()");
     const auto then_check =
-        CheckExprAgainst(ctx, type_ctx, expr.then_expr, unit_type, then_env);
+        CheckExprAgainst(ctx, then_ctx, expr.then_expr, unit_type, then_env);
     if (!then_check.ok) {
-      result.diag_id = then_check.diag_id;
+      result.diag_id = IfNoElseDiagOrFallback(then_check.diag_id);
       result.diag_detail = then_check.diag_detail;
-      result.diag_span = then_check.diag_span;
+      result.diag_span = then_check.diag_span.has_value()
+                             ? then_check.diag_span
+                             : std::optional<core::Span>(expr.then_expr->span);
       return result;
     }
 
@@ -726,6 +737,7 @@ CheckResult CheckIfExpr(const ScopeContext& ctx,
       return result;
     }
     if (!sub.subtype) {
+      result.diag_id = IfNoElseDiagOrFallback(sub.diag_id);
       return result;
     }
 
@@ -735,7 +747,8 @@ CheckResult CheckIfExpr(const ScopeContext& ctx,
   }
 
   // 4. Check else branch
-  const auto else_check = check_branch_against(expr.else_expr, else_env);
+  const auto else_check =
+      CheckExprAgainst(ctx, else_ctx, expr.else_expr, expected, else_env);
   if (!else_check.ok) {
     result.diag_id = else_check.diag_id;
     result.diag_detail = else_check.diag_detail;

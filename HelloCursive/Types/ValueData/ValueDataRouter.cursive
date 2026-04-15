@@ -20,7 +20,7 @@ procedure LogFeatureStatus(
     let passed_with_log: bool = passed && (passed_log_actual == expected_zero)
 }
 
-public procedure RunGroup(ctx: Context) -> i32 {
+public procedure runGroup(ctx: Context) -> i32 {
     let section_name: string@View = "types/ValueData"
     let status_ok: string@View = "ok"
     let status_failed: string@View = "failed"

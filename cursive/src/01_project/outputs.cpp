@@ -13,21 +13,17 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#ifdef _WIN32
-#include <process.h>
-#else
-#include <unistd.h>
-#endif
-
 #include "00_core/assert_spec.h"
 #include "00_core/build_log_policy.h"
 #include "00_core/diagnostic_messages.h"
 #include "00_core/diagnostics.h"
+#include "00_core/host/services.h"
 #include "00_core/host_primitives.h"
 #include "00_core/path.h"
 #include "00_core/process_config.h"
 #include "00_core/hash.h"
 #include "00_core/symbols.h"
+#include "01_project/compiler_support_paths.h"
 #include "01_project/ir_assembly.h"
 #include "01_project/assembly_graph.h"
 #include "01_project/assemblies.h"
@@ -51,11 +47,7 @@ void EmitExternal(core::DiagnosticStream& diags, std::string_view code) {
 }
 
 unsigned long CurrentProcessId() {
-#ifdef _WIN32
-  return static_cast<unsigned long>(_getpid());
-#else
-  return static_cast<unsigned long>(getpid());
-#endif
+  return core::CurrentHostProcessId();
 }
 
 core::BuildLogMode ResolveOutputLogMode() {
@@ -205,6 +197,40 @@ bool ContainsHostExports(const std::vector<ast::ASTModule>& ast_modules) {
     }
   }
   return false;
+}
+
+bool CopyBundledRuntimeSidecars(const std::filesystem::path& bin_dir,
+                                TargetProfile target_profile,
+                                core::DiagnosticStream& diags) {
+  const auto sidecars = CompilerExecutableSidecarPaths(target_profile);
+  if (sidecars.empty()) {
+    return true;
+  }
+
+  std::error_code ec;
+  std::filesystem::create_directories(bin_dir, ec);
+  if (ec) {
+    EmitInternalDiagnostic(diags,
+                           "Failed to create artifact bin directory `" +
+                               bin_dir.generic_string() + "`");
+    return false;
+  }
+
+  for (const auto& source : sidecars) {
+    const std::filesystem::path destination = bin_dir / source.filename();
+    ec.clear();
+    std::filesystem::copy_file(source, destination,
+                               std::filesystem::copy_options::overwrite_existing,
+                               ec);
+    if (ec) {
+      EmitInternalDiagnostic(diags,
+                             "Failed to stage runtime sidecar `" +
+                                 source.generic_string() + "` into `" +
+                                 destination.generic_string() + "`");
+      return false;
+    }
+  }
+  return true;
 }
 
 void EmitUnsupportedArtifactDiagnostic(
@@ -495,9 +521,8 @@ std::string ComputeLinkFingerprint(
     std::string_view emit_ir) {
   std::vector<std::string> fields;
   fields.reserve(10 + project.modules.size() + link_inputs.size() +
-                 plan.export_symbols.size() + plan.data_export_symbols.size() +
-                 plan.delay_load_dlls.size());
-  fields.push_back("v5");
+                 plan.export_symbols.size() + plan.data_export_symbols.size());
+  fields.push_back("v6");
   fields.push_back(build_key);
   fields.push_back("target=" + std::string(TargetProfileName(plan.target_profile)));
   fields.push_back(project.assembly.name);
@@ -535,14 +560,6 @@ std::string ComputeLinkFingerprint(
                      data_exports.end());
   for (const auto& symbol : data_exports) {
     fields.push_back("export-data=" + symbol);
-  }
-  std::vector<std::string> delay_load_dlls = plan.delay_load_dlls;
-  std::sort(delay_load_dlls.begin(), delay_load_dlls.end());
-  delay_load_dlls.erase(
-      std::unique(delay_load_dlls.begin(), delay_load_dlls.end()),
-      delay_load_dlls.end());
-  for (const auto& dll_name : delay_load_dlls) {
-    fields.push_back("delay_load=" + dll_name);
   }
   if (runtime_lib.has_value()) {
     fields.push_back("runtime=" + LinkInputFingerprintField(*runtime_lib));
@@ -836,8 +853,8 @@ ParsedAstModulesResult ParseAstModulesForProject(const Project& project,
     return {std::move(parsed.modules), std::move(parsed.diags)};
   }
 
-  auto expanded = frontend::ExecuteComptime(
-      *parsed.modules, project.source_root.parent_path(), project.source_root);
+  auto expanded =
+      frontend::ExecuteComptime(*parsed.modules, project.root, project.source_root);
   for (const auto& diag : expanded.diags) {
     core::Emit(parsed.diags, diag);
   }
@@ -873,12 +890,6 @@ LinkPlan BuildOutputLinkPlan(const Project& project,
         diags, project, target_profile, "hosted library",
         "hosted-library lifecycle exports and session runtime are not yet implemented for this target profile");
     return plan;
-  }
-
-  const auto extern_specs = CollectExternLibrarySpecs(ast_modules);
-  if (target_profile == TargetProfile::X86_64Win64) {
-    plan.delay_load_dlls =
-        ResolveExternLibraryDelayLoadDlls(extern_specs, target_profile);
   }
 
   if (!IsSharedLibrary(project)) {
@@ -1862,6 +1873,17 @@ OutputPipelineResult OutputPipelineSingleAssembly(
           SPEC_RULE("Out-Final-Link-Err");
           SPEC_RULE("Output-Pipeline-Err");
           return result;
+      }
+    }
+
+    if (IsExecutable(project) || IsSharedLibrary(project)) {
+      if (!CopyBundledRuntimeSidecars(project.outputs.bin_dir, target_profile,
+                                      result.diags)) {
+        if (show_build_progress) {
+          LogBuildProgress("finalize-error mode=stage-runtime-sidecars");
+        }
+        SPEC_RULE("Output-Pipeline-Err");
+        return result;
       }
     }
 

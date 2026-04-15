@@ -169,6 +169,14 @@ std::string BuiltinSymBytesIsEmpty();
 std::string BuiltinSymBytesDropManaged();
 
 // =============================================================================
+// Section 14.10.6 Foundational intrinsic-call symbols
+// =============================================================================
+
+std::string BuiltinSymEqEq();
+std::string BuiltinSymStepSuccessor();
+std::string BuiltinSymStepPredecessor();
+
+// =============================================================================
 // Section 6.8 Panic symbol
 // =============================================================================
 

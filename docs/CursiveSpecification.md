@@ -1,4 +1,4 @@
-# Cursive Language Specification
+﻿# Cursive Language Specification
 
 ## 0. Front Matter
 
@@ -182,7 +182,7 @@ StmtKind(CompoundAssignStmt(_, _, _)) = `compound_assign`
 StmtKind(DeferStmt(_)) = `defer`
 StmtKind(RegionStmt(_, _, _)) = `region`
 StmtKind(FrameStmt(_, _)) = `frame`
-StmtKind(KeyBlockStmt(_, _, _, _)) = `key_block`
+StmtKind(KeyBlockStmt(_, _, _, _, _, _)) = `key_block`
 StmtKind(ReturnStmt(_)) = `return`
 StmtKind(BreakStmt(_)) = `break`
 StmtKind(ContinueStmt) = `continue`
@@ -268,7 +268,7 @@ NormativeKeywords = {`MUST`, `MUST NOT`, `SHOULD`, `SHOULD NOT`, `MAY`}
 The keywords in NormativeKeywords MUST be interpreted as described in RFC 2119.
 
 **DiagnosticCodeFormat.**
-DiagPrefix = {E, W, I}
+DiagPrefix = {E, W, I, P}
 DiagCategory = [A-Z]^3
 DiagDigits = [0-9]^4
 DiagCode = DiagPrefix ++ "-" ++ DiagCategory ++ "-" ++ DiagDigits
@@ -404,7 +404,11 @@ Token = ⟨kind, lexeme, span⟩
 ### 2.3 Diagnostic Records and Emission
 
 **Diagnostic.**
-Severity = {Error, Warning}
+Severity = {Error, Warning, Info, Panic, Note}
+DiagCodeOpt = DiagCode ∪ {⊥}
+Diagnostic = ⟨code, severity, message, span⟩    where code ∈ DiagCodeOpt ∧ severity ∈ Severity
+
+Normative diagnostic tables define only code-owned diagnostics. A diagnostic `d` is code-owned iff `d.code ≠ ⊥`. Auxiliary diagnostics use `d.code = ⊥`; they are admitted only where a feature section defines them explicitly.
 
 **Diagnostic Stream.**
 Δ = [d_1, …, d_n]
@@ -464,26 +468,35 @@ NoDiag(↑)
 ### 2.6 Diagnostic Rendering
 
 Render(d) =
- code ++ " (" ++ sev ++ ")" ++ msg ++ " @" ++ loc  if d.span ≠ ⊥
- code ++ " (" ++ sev ++ ")" ++ msg                if d.span = ⊥
+ head ++ msg ++ " @" ++ loc  if d.span ≠ ⊥
+ head ++ msg                if d.span = ⊥
 
-code = d.code
+head =
+ d.code ++ " (" ++ sev ++ ")"  if d.code ≠ ⊥
+ sev                           if d.code = ⊥
 sev =
  "error"   if d.severity = Error
  "warning" if d.severity = Warning
+ "info"    if d.severity = Info
+ "panic"   if d.severity = Panic
+ "note"    if d.severity = Note
 msg =
- "\""      if d.message = "\""
+ ""        if d.message = ""
  ": " ++ d.message  otherwise
 loc = d.span.file ++ ":" ++ d.span.start_line ++ ":" ++ d.span.start_col
 
 RenderRich(d, S) =
- sev ++ "[" ++ code ++ "]" ++ msg ++ "\n"
+ head_rich ++ msg ++ "\n"
   ++ "  --> " ++ loc ++ "\n"
   ++ gutter ++ " | " ++ SourceLine(S, d.span) ++ "\n"
   ++ gutter ++ " | " ++ Underline(d.span)
     if d.span ≠ ⊥ ∧ S(d.span.file) ≠ ⊥
- sev ++ "[" ++ code ++ "]" ++ msg
+ head_rich ++ msg
     otherwise
+
+head_rich =
+ sev ++ "[" ++ d.code ++ "]"  if d.code ≠ ⊥
+ sev                          if d.code = ⊥
 
 SourceLine(S, span) = Line(S(span.file), span.start_line)
 Underline(span) = Spaces(span.start_col - 1) ++ Repeat("^", span.end_col - span.start_col)
@@ -1379,8 +1392,8 @@ LinkJudg = {AssemblyGraph, ResolveRuntimeLib, BuildLibrariesSeq, BuildLibraries,
 RuntimeLibName = RuntimeLibNameFor(SelectedTargetProfile)
 CompilerExecutableDir(P) = DirectoryOf(CurrentCompilerExecutable)
 LegacySidecarsBeside(d) ⇔ exists(d / `runtime`) ∨ exists(d / `tools`) ∨ exists(d / `bin`) ∨ exists(d / `lib`)
-PackagedWindowsSidecarsBeside(d) ⇔ exists(d / `windows` / `tools`) ∨ exists(d / `windows` / `bin`) ∨ exists(d / `windows` / `lib`)
-CompilerSupportRoot(P) = CompilerExecutableDir(P)                  if PackagedWindowsSidecarsBeside(CompilerExecutableDir(P))
+PackagedHostSidecarsBeside(d) ⇔ exists(d / `windows` / `tools`) ∨ exists(d / `windows` / `bin`) ∨ exists(d / `windows` / `lib`) ∨ exists(d / `linux` / `tools`) ∨ exists(d / `linux` / `bin`) ∨ exists(d / `linux` / `lib`)
+CompilerSupportRoot(P) = CompilerExecutableDir(P)                  if PackagedHostSidecarsBeside(CompilerExecutableDir(P))
  CompilerExecutableDir(P)                                          if LegacySidecarsBeside(CompilerExecutableDir(P))
  Parent(CompilerExecutableDir(P))                                  if LegacySidecarsBeside(Parent(CompilerExecutableDir(P)))
  CompilerExecutableDir(P)                                          otherwise
@@ -1614,7 +1627,8 @@ SearchDirs(P) =
  [CompilerToolBinDir(P)]        if exists(CompilerToolBinDir(P))
  PATHDirs  otherwise
 
-CompilerToolBinDir(P) = CompilerSupportRoot(P) / `windows` / `tools`    if PackagedWindowsSidecarsBeside(CompilerSupportRoot(P))
+CompilerToolBinDir(P) = CompilerSupportRoot(P) / `windows` / `tools`    if ObjectFormatOf(P) = Coff ∧ PackagedHostSidecarsBeside(CompilerSupportRoot(P))
+ CompilerSupportRoot(P) / `linux` / `tools`                             if ObjectFormatOf(P) = Elf ∧ PackagedHostSidecarsBeside(CompilerSupportRoot(P))
  CompilerSupportRoot(P) / `tools`                                       otherwise
 
 ToolVersion(t) = v    where invoking t with `--version` reports v
@@ -1653,30 +1667,30 @@ Invoke(a, t) ⇑
 
 This section owns the manifest, assembly-selection, source-root, deterministic-ordering, and project-discovery diagnostics defined by the project-loading rules in Chapter 3.
 
-| Code         | Severity | Detection    | Condition                                                                                   |
-| ------------ | -------- | ------------ | ------------------------------------------------------------------------------------------- |
-| `E-PRJ-0101` | Error    | Compile-time | `Cursive.toml` not found at project root                                                    |
-| `E-PRJ-0102` | Error    | Compile-time | `Cursive.toml` is not valid TOML                                                            |
-| `E-PRJ-0103` | Error    | Compile-time | Missing required `assembly` table, empty assembly list, required keys, or required key type |
-| `E-PRJ-0104` | Error    | Compile-time | Unknown key in `assembly` table or unknown top-level key                                    |
-| `E-PRJ-0110` | Error    | Compile-time | Invalid `[toolchain]` section in manifest                                                   |
-| `E-PRJ-0111` | Error    | Compile-time | Invalid `[build]` section in manifest                                                       |
-| `E-PRJ-0112` | Error    | Compile-time | No target profile was selected by CLI override or `[toolchain].target_profile`              |
-| `E-PRJ-0201` | Error    | Compile-time | `assembly.kind` is not in `{ "executable", "library", "dependency" }`                       |
-| `E-PRJ-0202` | Error    | Compile-time | Duplicate `assembly.name` values                                                            |
-| `E-PRJ-0203` | Error    | Compile-time | `assembly.name` is not a valid identifier                                                   |
-| `E-PRJ-0204` | Error    | Compile-time | `emit_ir` has invalid value or type                                                         |
-| `E-PRJ-0205` | Error    | Compile-time | Assembly selection failed (missing target or target not found)                              |
-| `E-PRJ-0206` | Error    | Compile-time | Ambiguous assembly root ownership for overlapping source roots                              |
-| `E-PRJ-0207` | Error    | Compile-time | `link_kind` has invalid value or type                                                       |
-| `E-PRJ-0208` | Error    | Compile-time | `link_kind` is only valid when `assembly.kind = "library"`                                  |
+| Code         | Severity | Detection    | Condition                                                                                    |
+| ------------ | -------- | ------------ | -------------------------------------------------------------------------------------------- |
+| `E-PRJ-0101` | Error    | Compile-time | `Cursive.toml` not found at project root                                                     |
+| `E-PRJ-0102` | Error    | Compile-time | `Cursive.toml` is not valid TOML                                                             |
+| `E-PRJ-0103` | Error    | Compile-time | Missing required `assembly` table, empty assembly list, required keys, or required key type  |
+| `E-PRJ-0104` | Error    | Compile-time | Unknown key in `assembly` table or unknown top-level key                                     |
+| `E-PRJ-0110` | Error    | Compile-time | Invalid `[toolchain]` section in manifest                                                    |
+| `E-PRJ-0111` | Error    | Compile-time | Invalid `[build]` section in manifest                                                        |
+| `E-PRJ-0112` | Error    | Compile-time | No target profile was selected by CLI override or `[toolchain].target_profile`               |
+| `E-PRJ-0201` | Error    | Compile-time | `assembly.kind` is not in `{ "executable", "library", "dependency" }`                        |
+| `E-PRJ-0202` | Error    | Compile-time | Duplicate `assembly.name` values                                                             |
+| `E-PRJ-0203` | Error    | Compile-time | `assembly.name` is not a valid identifier                                                    |
+| `E-PRJ-0204` | Error    | Compile-time | `emit_ir` has invalid value or type                                                          |
+| `E-PRJ-0205` | Error    | Compile-time | Assembly selection failed (missing target or target not found)                               |
+| `E-PRJ-0206` | Error    | Compile-time | Ambiguous assembly root ownership for overlapping source roots                               |
+| `E-PRJ-0207` | Error    | Compile-time | `link_kind` has invalid value or type                                                        |
+| `E-PRJ-0208` | Error    | Compile-time | `link_kind` is only valid when `assembly.kind = "library"`                                   |
 | `E-PRJ-0209` | Error    | Compile-time | Assembly dependency graph imports an executable or contains a cycle through linked libraries |
-| `E-PRJ-0210` | Error    | Compile-time | Hosted library imports another linked library assembly                                      |
-| `E-PRJ-0301` | Error    | Compile-time | `assembly.root` or `out_dir` has invalid type, is absolute, or resolves outside root        |
-| `E-PRJ-0302` | Error    | Compile-time | `assembly.root` does not exist or is not a directory                                        |
-| `E-PRJ-0303` | Error    | Compile-time | Relative path derivation failed during deterministic ordering (file or directory)           |
-| `E-PRJ-0304` | Error    | Compile-time | Path canonicalization or module path derivation failed due to filesystem error              |
-| `E-PRJ-0305` | Error    | Compile-time | Directory enumeration failed during module discovery                                        |
+| `E-PRJ-0210` | Error    | Compile-time | Hosted library imports another linked library assembly                                       |
+| `E-PRJ-0301` | Error    | Compile-time | `assembly.root` or `out_dir` has invalid type, is absolute, or resolves outside root         |
+| `E-PRJ-0302` | Error    | Compile-time | `assembly.root` does not exist or is not a directory                                         |
+| `E-PRJ-0303` | Error    | Compile-time | Relative path derivation failed during deterministic ordering (file or directory)            |
+| `E-PRJ-0304` | Error    | Compile-time | Path canonicalization or module path derivation failed due to filesystem error               |
+| `E-PRJ-0305` | Error    | Compile-time | Directory enumeration failed during module discovery                                         |
 
 ## 4. Source Text and Lexical Structure
 
@@ -1845,7 +1859,7 @@ Next(K, i) = K[j] ⇔ j = min{ j | j > i ∧ K[j].kind ≠ newline }
 
 Ambig = {"+", "-", "*", "&", "|"}
 RangeCont = {"..", "..="}
-BeginsOperand(t) ⇔ t.kind ∈ {Identifier, IntLiteral, FloatLiteral, StringLiteral, CharLiteral, BoolLiteral, NullLiteral} ∨ (t.kind = Punctuator ∧ t.lexeme ∈ {"(", "[", "{"}) ∨ (t.kind = Operator ∧ t.lexeme ∈ {"!", "-", "&", "*", "^"}) ∨ (t.kind = Keyword ∧ t.lexeme ∈ {"if", "loop", "unsafe", "move", "transmute", "widen", "parallel", "spawn", "dispatch", "yield", "sync", "race", "all"})
+BeginsOperand(t) ⇔ t.kind ∈ {Identifier, IntLiteral, FloatLiteral, StringLiteral, CharLiteral, BoolLiteral, NullLiteral} ∨ (t.kind = Punctuator ∧ t.lexeme ∈ {"(", "[", "{"}) ∨ (t.kind = Operator ∧ t.lexeme ∈ {"!", "-", "&", "*", "^"}) ∨ (t.kind = Keyword ∧ t.lexeme ∈ {"if", "loop", "unsafe", "comptime", "quote", "move", "transmute", "widen", "parallel", "spawn", "dispatch", "yield", "sync", "race", "all"})
 UnaryOnly = {"!", "~", "?"}
 AttrClose(t) ⇔ t.kind = Punctuator ∧ t.lexeme = "]]"
 
@@ -2165,6 +2179,8 @@ escape_sequence  ::= "\n" | "\r" | "\t" | "\\" | "\"" | "\'" | "\0" | "\x" hex_d
 char_literal ::= "'" (char_content | escape_sequence) "'"
 char_content ::= char_content_unit
 
+The productions `string_literal` and `char_literal` define well-formed quoted literal spellings. During tokenization, any terminated quoted span with the corresponding delimiter MUST form a `StringLiteral` or `CharLiteral` token even when its interior is ill-formed. Bad escapes and invalid character-literal contents MUST emit their corresponding diagnostics and MUST NOT suppress token formation. Unterminated quoted spans are excluded from token formation and follow the recovery rules in §4.2.11.
+
 bool_literal ::= "true" | "false"
 null_literal ::= "null"
 ```
@@ -2230,8 +2246,10 @@ ExpEnd(T, i) =
  i                              otherwise
 
 DecCoreEnd(T, i) =
- ExpEnd(T, q)  if p = DecRun(T, i) ∧ p < |T| ∧ T[p] = "." ∧ q = DecRun(T, p+1)
- ExpEnd(T, p)  if p = DecRun(T, i) ∧ (p ≥ |T| ∨ T[p] ≠ ".")
+ ExpEnd(T, q)  if p = DecRun(T, i) ∧ p < |T| ∧ T[p] = "." ∧ (p+1 ≥ |T| ∨ T[p+1] ≠ ".") ∧ q = DecRun(T, p+1)
+ ExpEnd(T, p)  if p = DecRun(T, i) ∧ (p ≥ |T| ∨ T[p] ≠ "." ∨ (p+1 < |T| ∧ T[p+1] = "."))
+
+A decimal run immediately followed by `..` or `..=` MUST NOT form a float core. In that case `DecCoreEnd(T, i) = DecRun(T, i)`, and the following `.` remains available to operator tokenization.
 
 NumericCoreEnd(T, i) =
  HexRun(T, i+2)  if T[i..i+2] = "0x"
@@ -2246,7 +2264,7 @@ HasExp(T, i, j) ⇔ ∃ p. i ≤ p < j ∧ T[p] ∈ {"e", "E"}
 HasFloatCore(T, i, j) ⇔ HasDot(T, i, j)
 
 NumericKind(T, i) =
- FloatLiteral  if HasFloatCore(T, i, NumericCoreEnd(T, i)) ∨ SuffixMatch(T, NumericCoreEnd(T, i), FloatSuffixSet) > NumericCoreEnd(T, i)
+ FloatLiteral  if HasFloatCore(T, i, NumericCoreEnd(T, i))
  IntLiteral    otherwise
 
 **(Lex-Int)**
@@ -2287,9 +2305,9 @@ EscapeValue("\\x" h_1 h_2) = HexValue(h_1 h_2)
 EscapeValue("\\u{" h_1 … h_n "}") = EncodeUTF8(HexValue(h_1 … h_n))
 
 **(Lex-String)**
-Lexeme(T, i, j) matches string_literal
-────────────────────────────────────────────
-Γ ⊢ StringLiteral(T, i) ⇓ j
+T[i] = "\""    StringTerminator(T, i) = q    q < |T|    T[q] = "\""
+─────────────────────────────────────────────────────────────────────
+Γ ⊢ StringLiteral(T, i) ⇓ q + 1
 
 BackslashCount(T, p) = max{ k | 0 ≤ k ≤ p ∧ ∀ r ∈ [p-k, p). T[r] = "\\" }
 UnescapedQuote(T, p) ⇔ T[p] = "\"" ∧ BackslashCount(T, p) mod 2 = 0
@@ -2297,7 +2315,7 @@ StringTerminator(T, i) = min{ q | q > i ∧ (UnescapedQuote(T, q) ∨ T[q] = LF 
 LineFeedOrEOFBeforeClose(T, i) ⇔ StringTerminator(T, i) = |T| ∨ T[StringTerminator(T, i)] = LF
 EscapeMatch(T, p, q) ⇔ Lexeme(T, p, q) matches escape_sequence ∧ EscapeOk(Lexeme(T, p, q))
 BadEscapeAt(T, p) ⇔ T[p] = "\\" ∧ ¬ ∃ q. EscapeMatch(T, p, q)
-FirstBadEscape(T, i) = min{ p | i < p < StringTerminator(T, i) ∧ BadEscapeAt(T, p) }
+FirstBadStringEscape(T, i) = min{ p | i < p < StringTerminator(T, i) ∧ BadEscapeAt(T, p) }
 
 **(Lex-String-Unterminated)**
 LineFeedOrEOFBeforeClose(T, i)    c = Code(Lex-String-Unterminated)
@@ -2305,14 +2323,14 @@ LineFeedOrEOFBeforeClose(T, i)    c = Code(Lex-String-Unterminated)
 Γ ⊢ Emit(c, SpanOfText(S, i, i+1))
 
 **(Lex-String-BadEscape)**
-FirstBadEscape(T, i) = p    c = Code(Lex-String-BadEscape)
+FirstBadStringEscape(T, i) = p    c = Code(Lex-String-BadEscape)
 ───────────────────────────────────────────────────────────────
 Γ ⊢ Emit(c, SpanOfText(S, p, p+1))
 
 **(Lex-Char)**
-Lexeme(T, i, j) matches char_literal
-─────────────────────────────────────────
-Γ ⊢ CharLiteral(T, i) ⇓ j
+T[i] = "'"    CharTerminator(T, i) = q    q < |T|    T[q] = "'"
+─────────────────────────────────────────────────────────────────
+Γ ⊢ CharLiteral(T, i) ⇓ q + 1
 
 **Character Literal Encoding.**
 CharValueRange = { x | 0 ≤ x ≤ 0x10FFFF ∧ x ∉ [0xD800, 0xDFFF] }
@@ -2322,6 +2340,7 @@ AlignOf(`char`) = 4
 
 UnescapedApostrophe(T, p) ⇔ T[p] = "'" ∧ BackslashCount(T, p) mod 2 = 0
 CharTerminator(T, i) = min{ q | q > i ∧ (UnescapedApostrophe(T, q) ∨ T[q] = LF ∨ q = |T|) }
+FirstBadCharEscape(T, i) = min{ p | i < p < CharTerminator(T, i) ∧ BadEscapeAt(T, p) }
 CharLiteralInvalid(T, i) ⇔ CharScalarCount(T, i) ≠ 1
 CharScalarCountFrom(T, p, q) = 0 ⇔ p ≥ q
 CharScalarCountFrom(T, p, q) = 1 + CharScalarCountFrom(T, p+1, q) ⇔ p < q ∧ T[p] ≠ "\\"
@@ -2335,7 +2354,7 @@ LineFeedOrEOFBeforeClose(T, i)    c = Code(Lex-Char-Unterminated)
 Γ ⊢ Emit(c, SpanOfText(S, i, i+1))
 
 **(Lex-Char-BadEscape)**
-FirstBadEscape(T, i) = p    c = Code(Lex-Char-BadEscape)
+FirstBadCharEscape(T, i) = p    c = Code(Lex-Char-BadEscape)
 ─────────────────────────────────────────────────────────
 Γ ⊢ Emit(c, SpanOfText(S, p, p+1))
 
@@ -2349,6 +2368,7 @@ StringTok(T, i) = { (StringLiteral, j) | StringLiteral(T, i) ⇓ j }
 CharTok(T, i) = { (CharLiteral, j) | CharLiteral(T, i) ⇓ j }
 IntTok(T, i) = { (IntLiteral, j) | IntLiteral(T, i) ⇓ j }
 FloatTok(T, i) = { (FloatLiteral, j) | FloatLiteral(T, i) ⇓ j }
+
 
 #### 4.2.7 Identifier and Keyword Lexing
 
@@ -2553,6 +2573,9 @@ SensitiveTok(T, i, j, k) =
  []                    if k ∈ {StringLiteral, CharLiteral}
  SensitiveInSpan(T, i, j)  otherwise
 
+**Tuple Projection Lexical Disambiguation.**
+The postfix form `postfix_expr "." int_literal` takes precedence over a decimal-float token that would begin immediately after an already-emitted `.` token. If the most recently emitted token in `K` has lexeme `"."`, and the source at `i` admits both an `IntLiteral` token ending at `j_i` and a `FloatLiteral` token ending at `j_f` with `j_i < j_f`, the lexer MUST emit the `IntLiteral` token over `[i, j_i)` and continue from `j_i`. The following `.` remains available for subsequent tokenization.
+
 **(Lex-Token)**
 ¬ Whitespace(T[i])    T[i] ≠ LF    T[i..i+2] ∉ {"//", "/*"}    ¬ Sensitive(T[i])    Γ ⊢ NextToken(T, i) ⇓ (k, j)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -2646,7 +2669,7 @@ ParseCtor(n, P, P') = FillDocOpt(FillDoc(FillSpan(n, P, P')))
 
 DocList = [DocComment]
 
-ASTItem ∈ {ImportDecl, UsingDecl, ExternBlock, StaticDecl, ProcedureDecl, RecordDecl, EnumDecl, ModalDecl, ClassDecl, TypeAliasDecl, ErrorItem}
+ASTItem ∈ {ImportDecl, UsingDecl, ExternBlock, StaticDecl, ProcedureDecl, CtProc, RecordDecl, EnumDecl, ModalDecl, ClassDecl, TypeAliasDecl, DeriveTargetDecl, ErrorItem}
 
 **ErrorItem.**
 
@@ -2658,9 +2681,10 @@ Type = {TypePerm(perm, base), TypePrim(name), TypeTuple(elems), TypeArray(elem, 
 TypeApply = ⟨path, args⟩
 TypeOpaque = ⟨path⟩
 TypeRefine = ⟨base, pred⟩
-TypeClosure = ⟨params, ret, deps_opt⟩    params ∈ [(MoveMode, Type)], ret ∈ Type, deps_opt ∈ {⊥} ∪ SharedDeps
-SharedDeps = ⟨deps⟩    deps ∈ [(Identifier, Type)]
-MoveMode ∈ {true, false}
+TypeClosure = ⟨params, ret, deps_opt⟩    params ∈ [ParamType], ret ∈ Type, deps_opt ∈ {⊥} ∪ SharedDeps
+SharedDep = ⟨name, type⟩ where name ∈ Identifier ∧ type ∈ Type
+SharedDeps = [SharedDep]
+MoveMode = ParamMode
 
 Perm = {`const`, `unique`, `shared`}
 Qual = {`imm`, `mut`}
@@ -2741,9 +2765,9 @@ Ctx(t, s) ⇔ IsIdent(t) ∧ Lexeme(t) = s ∧ s ∈ CtxKeyword
 
 **Fixed Identifier Lexemes.**
 FixedIdent_Key = {"read", "write", "dynamic", "speculative", "release"}
-FixedIdent_Parallel = {"cancel", "name"}
+FixedIdent_Parallel = {"cancel", "name", "workgroup", "workgroups"}
 FixedIdent_Spawn = {"name", "affinity", "priority"}
-FixedIdent_Dispatch = {"reduce", "ordered", "chunk", "min", "max", "and", "or"}
+FixedIdent_Dispatch = {"reduce", "ordered", "chunk", "workgroup", "min", "max", "and", "or"}
 FixedIdent_Meta = {"pattern", "target", "requires", "emits"}
 FixedIdent = FixedIdent_Key ∪ FixedIdent_Parallel ∪ FixedIdent_Spawn ∪ FixedIdent_Dispatch ∪ FixedIdent_Meta
 FixedIdentTok(t, s) ⇔ IsIdent(t) ∧ Lexeme(t) = s ∧ s ∈ FixedIdent
@@ -4078,7 +4102,10 @@ ClosureCaptureProv(C, Ω) = [π_x | x ∈ CaptureSet(C) ∧ Lookup_π(Σ_π, x) 
 ClosureTargetProv(C, Ω) =
   { FrameProv(Γ, Ω)    if IsEscaping(C)
     StackProv(Σ_π)     otherwise }
-ClosureEscapeCheck(C, Ω) ⇔ ∀ π_x ∈ ClosureCaptureProv(C, Ω). ¬(π_x < ClosureTargetProv(C, Ω))
+ClosureLocalSharedCaptures(C, Γ) = [x | x ∈ CaptureSet(C) ∧ (∃ S ∈ LocalScopes(Γ). x ∈ dom(S)) ∧ (∃ T. BindOf(Γ, x) = ⟨_, shared T⟩)]
+ClosureEscapeCheck(C, Ω) ⇔
+  (∀ π_x ∈ ClosureCaptureProv(C, Ω). ¬(π_x < ClosureTargetProv(C, Ω))) ∧
+  (¬IsEscaping(C) ∨ ClosureLocalSharedCaptures(C, Γ) = ∅)
 
 **(P-Closure-NonCapturing)**
 C = ClosureExpr(params, ret_type_opt, body)    CaptureSet(C) = ∅    Γ; Ω ⊢ body ⇓ π_body
@@ -4093,12 +4120,12 @@ ClosureCaptureProv(C, Ω) = [π_1, …, π_n]    JoinAllProv([π_1, …, π_n]) 
 
 **(P-Closure-Escape-Err)**
 C = ClosureExpr(params, ret_type_opt, body)    CaptureSet(C) ≠ ∅    ¬ClosureEscapeCheck(C, Ω)
-∃ x ∈ CaptureSet(C). Lookup_π(Σ_π, x) = π_x ∧ π_x < ClosureTargetProv(C, Ω)    c = Code(E-CON-0086)
+∃ x ∈ CaptureSet(C). x ∈ ClosureLocalSharedCaptures(C, Γ) ∨ (Lookup_π(Σ_π, x) = π_x ∧ π_x < ClosureTargetProv(C, Ω))    c = Code(E-CON-0086)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; Ω ⊢ C ⇑ c
 
 FrameProv(Γ, ⟨Σ_π, RS⟩) =
-  { π_Region(r)    if InnermostActiveRegion(Γ) = r
+  { π_Region(r)    if ∃ r. InnermostFrameRegion(⟨Σ_π, RS⟩) = r
     StackProv(Σ_π) otherwise }
 
 **Loop Provenance.**
@@ -6315,11 +6342,9 @@ attribute_spec    ::= attribute_name ("(" attribute_args ")")?
 attribute_name    ::= identifier
                     | "dynamic"
                     | "static"
-                    | "trust"
                     | vendor_prefix "::" identifier
                     | vendor_prefix "::" "dynamic"
                     | vendor_prefix "::" "static"
-                    | vendor_prefix "::" "trust"
 vendor_prefix     ::= identifier ("::" identifier)*
 attribute_args    ::= attribute_arg ("," attribute_arg)* ","?
 attribute_arg     ::= literal
@@ -6329,7 +6354,7 @@ attribute_arg     ::= literal
                     | identifier "(" attribute_args ")"
 ```
 
-The reserved names `dynamic`, `static`, and `trust` are admitted only in the leaf position of `attribute_name`. They MUST NOT appear inside `vendor_prefix`.
+The reserved names `dynamic` and `static` are admitted only in the leaf position of `attribute_name`. They MUST NOT appear inside `vendor_prefix`.
 
 An attribute list MUST appear immediately before the declaration or expression it modifies.
 
@@ -6450,11 +6475,9 @@ Tok(P).kind ∈ LiteralKind
 AttrName ::= identifier
            | "dynamic"
            | "static"
-           | "trust"
            | ⟨vendor_prefix, identifier⟩
            | ⟨vendor_prefix, "dynamic"⟩
            | ⟨vendor_prefix, "static"⟩
-           | ⟨vendor_prefix, "trust"⟩
 vendor_prefix ::= identifier ("::" identifier)*
 AttrArg ::= literal | identifier | ⟨name, literal⟩ | ⟨name, identifier⟩ | ⟨name, args⟩
 AttributeSpec ::= Attr(name: AttrName, args: [AttrArg])
@@ -6482,7 +6505,7 @@ R_spec = {
   layout, inline, cold, deprecated,
   dynamic, stale_ok, log,
   relaxed, acquire, release, acqrel, seqcst,
-  static, trust,
+  static,
   mangle, library, unwind,
   reflect, derive, emit, files,
   export, host_export, ffi_pass_by_value
@@ -6501,7 +6524,6 @@ AttrTargets(release) = {Expression, KeyBlock}
 AttrTargets(acqrel) = {Expression, KeyBlock}
 AttrTargets(seqcst) = {Expression, KeyBlock}
 AttrTargets(static) = {Procedure}
-AttrTargets(trust) = {Procedure, ExternBlock}
 AttrTargets(mangle) = {Procedure}
 AttrTargets(library) = {ExternBlock}
 AttrTargets(unwind) = {Procedure}
@@ -6566,7 +6588,7 @@ This section introduces no additional concrete syntax beyond the scoped `attribu
 
 Vendor-qualified attribute names reuse the general attribute parser with the vendor-name delta below.
 
-AttrLeafTok(tok, id) ⇔ tok = Identifier(id) ∨ (tok = Keyword(kw) ∧ kw ∈ {`dynamic`, `static`, `trust`} ∧ id = kw)
+AttrLeafTok(tok, id) ⇔ tok = Identifier(id) ∨ (tok = Keyword(kw) ∧ kw ∈ {`dynamic`, `static`} ∧ id = kw)
 
 **(Parse-AttrName-Plain)**
 AttrLeafTok(Tok(P), id)    P_1 = Advance(P)    ¬ IsPunc(Tok(P_1), ".")    ¬ IsOp(Tok(P_1), "::")
@@ -6590,7 +6612,7 @@ IsOp(Tok(P), "::")    Γ ⊢ ParseIdent(Advance(P)) ⇓ (P_1, id)    Γ ⊢ Pars
 
 #### 9.2.3 AST Representation / Form
 
-Vendor-defined attribute names use the scoped `AttrName` form `⟨vendor_prefix, leaf⟩`, where `leaf` is an `identifier` or one of the reserved verification-mode names `dynamic`, `static`, or `trust`. `vendor_prefix` segments are always `identifier` tokens.
+Vendor-defined attribute names use the scoped `AttrName` form `⟨vendor_prefix, leaf⟩`, where `leaf` is an `identifier` or one of the reserved verification-mode names `dynamic` or `static`. `vendor_prefix` segments are always `identifier` tokens.
 
 #### 9.2.4 Static Semantics
 
@@ -6858,7 +6880,7 @@ If a `[[dynamic]]` scope results in no runtime checks or runtime synchronization
 
 **`[[stale_ok]]`.** Suppresses staleness warnings for bindings derived from `shared` data across `release` or `yield release` boundaries. Valid only on `let` and `var` bindings. See Chapters 19 and 21.
 
-**Verification-mode attributes.** `[[static]]` and `[[trust]]` are interpreted only in foreign-contract contexts. Semantics are defined by §23.6. `[[dynamic]]` reuses the dynamic verification mode defined above.
+**Verification-mode attributes.** `[[static]]` is interpreted only in foreign-contract contexts. Semantics are defined by §23.6. `[[dynamic]]` reuses the dynamic verification mode defined above.
 
 **`[[reflect]]`.** Marks a `record`, `enum`, or `modal` declaration as reflectable during Phase 2. Reflection queries over such declarations are defined by §22.3. A conforming implementation MUST expose the declaration's canonical shape, member order, and attached attributes to the compile-time reflection environment.
 
@@ -6883,7 +6905,7 @@ If a `[[dynamic]]` scope results in no runtime checks or runtime synchronization
 
 #### 9.5.5 Dynamic Semantics
 
-`[[deprecated]]`, `[[stale_ok]]`, `[[static]]`, and `[[trust]]` introduce no direct runtime behavior in this chapter.
+`[[deprecated]]`, `[[stale_ok]]`, and `[[static]]` introduce no direct runtime behavior in this chapter.
 
 For `[[dynamic]]`, runtime synchronization or runtime verification MUST be inserted exactly when required by the owning chapters for keys, contracts, refinements, and foreign contracts, and MUST NOT be inserted otherwise.
 
@@ -6932,7 +6954,7 @@ permission         ::= "const" | "unique" | "shared"
 receiver_shorthand ::= "~" | "~!" | "~%"
 ```
 
-Permission qualifiers appear in `type ::= permission? base_type refinement_clause?`. Receiver shorthand forms map to receiver permissions as defined by the parser and AST rules in Chapter 5.
+Permission qualifiers appear in `type ::= permission? non_permission_type refinement_clause?`. Receiver shorthand forms map to receiver permissions as defined by the parser and AST rules in Chapter 5.
 
 #### 10.1.2 Parsing
 
@@ -7482,12 +7504,12 @@ StaticSym(StaticDecl(_, _, _, binding, _, _), x) =
  Mangle(StaticBinding(StaticDecl(_, _, _, binding, _, _), x))    otherwise
 
 **(Emit-Static-Const)**
-item = StaticDecl(attrs_opt, vis, mut, binding, span, doc)    StaticName(binding) = name    binding = ⟨pat, ty_opt, op, init, _⟩    Γ ⊢ ConstInit(init) ⇓ bytes    Γ ⊢ Mangle(item) ⇓ sym
+item = StaticDecl(attrs_opt, vis, mut, binding, span, doc)    mut = `let`    StaticName(binding) = name    binding = ⟨pat, ty_opt, op, init, _⟩    Γ ⊢ ConstInit(init) ⇓ bytes    Γ ⊢ Mangle(item) ⇓ sym
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ EmitGlobal(item) ⇓ [GlobalConst(sym, bytes)]
 
 **(Emit-Static-Init)**
-item = StaticDecl(attrs_opt, vis, mut, binding, span, doc)    StaticName(binding) = name    binding = ⟨pat, ty_opt, op, init, _⟩    Γ ⊢ ConstInit(init) ⇑    T = ExprType(init)    Γ ⊢ Mangle(item) ⇓ sym
+item = StaticDecl(attrs_opt, vis, mut, binding, span, doc)    StaticName(binding) = name    binding = ⟨pat, ty_opt, op, init, _⟩    ((mut = `var`) ∨ (Γ ⊢ ConstInit(init) ⇑))    T = ExprType(init)    Γ ⊢ Mangle(item) ⇓ sym
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ EmitGlobal(item) ⇓ [GlobalZero(sym, sizeof(T))]
 
@@ -8467,7 +8489,7 @@ TypePos_Proc(P, m) = { t | ∃ attrs_opt, vis, name, gen_params_opt, predicate_c
 TypePos_Record(P, m) = { t | ∃ attrs_opt, vis, name, gen_params_opt, predicate_clause_opt, impls, members, invariant_opt, span, doc. RecordDecl(attrs_opt, vis, name, gen_params_opt, predicate_clause_opt, impls, members, invariant_opt, span, doc) ∈ ASTModule(P, m).items ∧ t ∈ (ClassPathTypeSet(impls) ∪ RecordMemberTypeSet(members)) }
 TypePos_Enum(P, m) = { t | ∃ attrs_opt, vis, name, gen_params_opt, predicate_clause_opt, impls, variants, invariant_opt, span, doc. EnumDecl(attrs_opt, vis, name, gen_params_opt, predicate_clause_opt, impls, variants, invariant_opt, span, doc) ∈ ASTModule(P, m).items ∧ t ∈ (ClassPathTypeSet(impls) ∪ EnumVariantTypeSet(variants)) }
 TypePos_Modal(P, m) = { t | ∃ attrs_opt, vis, name, gen_params_opt, predicate_clause_opt, impls, states, invariant_opt, span, doc. ModalDecl(attrs_opt, vis, name, gen_params_opt, predicate_clause_opt, impls, states, invariant_opt, span, doc) ∈ ASTModule(P, m).items ∧ t ∈ ClassPathTypeSet(impls) }
-TypePos_Class(P, m) = { t | ∃ attrs_opt, vis, modal_opt, name, gen_params_opt, predicate_clause_opt, supers, items, span, doc. ClassDecl(attrs_opt, vis, modal_opt, name, gen_params_opt, predicate_clause_opt, supers, items, span, doc) ∈ ASTModule(P, m).items ∧ t ∈ (ClassPathTypeSet(supers) ∪ ClassItemTypeSet(items)) }
+TypePos_Class(P, m) = { t | ∃ attrs_opt, vis, modal, name, gen_params_opt, predicate_clause_opt, supers, items, span, doc. ClassDecl(attrs_opt, vis, modal, name, gen_params_opt, predicate_clause_opt, supers, items, span, doc) ∈ ASTModule(P, m).items ∧ t ∈ (ClassPathTypeSet(supers) ∪ ClassItemTypeSet(items)) }
 TypePos_Alias(P, m) = { t | ∃ attrs_opt, vis, name, gen_params_opt, predicate_clause_opt, ty, span, doc. TypeAliasDecl(attrs_opt, vis, name, gen_params_opt, predicate_clause_opt, ty, span, doc) ∈ ASTModule(P, m).items ∧ t = ty }
 TypePositions(P, m) = TypePos_Static(P, m) ∪ TypePos_Proc(P, m) ∪ TypePos_Record(P, m) ∪ TypePos_Enum(P, m) ∪ TypePos_Modal(P, m) ∪ TypePos_Class(P, m) ∪ TypePos_Alias(P, m)
 
@@ -8852,7 +8874,9 @@ ValueBits(TypeTuple([T_1, …, T_n]), (v_1, …, v_n)) = bits ⇔ TupleLayout([T
 
 ```ebnf
 array_type    ::= "[" type ";" expr "]"
-array_expr    ::= "[" expr_list? "]"
+array_expr    ::= "[" array_segment_list? "]"
+array_segment_list ::= array_segment ("," array_segment)*
+array_segment ::= expr | expr ";" expr
 index_expr    ::= postfix_expr "[" expr "]"
 ```
 
@@ -8863,10 +8887,34 @@ IsPunc(Tok(P), "[")    Γ ⊢ ParseType(Advance(P)) ⇓ (P_1, t)    IsPunc(Tok(P
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseNonPermType(P) ⇓ (Advance(P_2), TypeArray(t, e))
 
+**(Parse-Array-Segment-Elem)**
+Γ ⊢ ParseExpr(P) ⇓ (P_1, value)    ¬ IsPunc(Tok(P_1), ";")
+────────────────────────────────────────────────────────────
+Γ ⊢ ParseArraySegment(P) ⇓ (P_1, ArrayElemSegment(value))
+
+**(Parse-Array-Segment-Repeat)**
+Γ ⊢ ParseExpr(P) ⇓ (P_1, value)    IsPunc(Tok(P_1), ";")    Γ ⊢ ParseExpr(Advance(P_1)) ⇓ (P_2, count)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseArraySegment(P) ⇓ (P_2, ArrayRepeatSegment(value, count))
+
+**(Parse-Array-Segment-List-Empty)**
+───────────────────────────────────────────────
+Γ ⊢ ParseArraySegmentList(P) ⇓ (P, [])
+
+**(Parse-Array-Segment-List-Single)**
+Γ ⊢ ParseArraySegment(P) ⇓ (P_1, seg)    ¬ IsPunc(Tok(P_1), ",")
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseArraySegmentList(P) ⇓ (P_1, [seg])
+
+**(Parse-Array-Segment-List-Comma)**
+Γ ⊢ ParseArraySegment(P) ⇓ (P_1, seg)    IsPunc(Tok(P_1), ",")    Γ ⊢ ParseArraySegmentList(Advance(P_1)) ⇓ (P_2, segs)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseArraySegmentList(P) ⇓ (P_2, [seg] ++ segs)
+
 **(Parse-Array-Literal)**
-IsPunc(Tok(P), "[")    Γ ⊢ ParseExprList(Advance(P)) ⇓ (P_1, elems)    IsPunc(Tok(P_1), "]")
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_1), ArrayExpr(elems))
+IsPunc(Tok(P), "[")    Γ ⊢ ParseArraySegmentList(Advance(P)) ⇓ (P_1, segs)    IsPunc(Tok(P_1), "]")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_1), ArrayExpr(segs))
 
 **(Postfix-Index)**
 IsPunc(Tok(P), "[")    Γ ⊢ ParseExpr(Advance(P)) ⇓ (P_1, idx)    IsPunc(Tok(P_1), "]")
@@ -8876,7 +8924,8 @@ IsPunc(Tok(P), "[")    Γ ⊢ ParseExpr(Advance(P)) ⇓ (P_1, idx)    IsPunc(Tok
 #### 12.3.3 AST Representation / Form
 
 TypeArray = ⟨elem, size_expr⟩ where elem ∈ Type ∧ size_expr ∈ Expr
-ArrayExpr = ⟨elems⟩ where elems ∈ [Expr]
+ArraySegment = ArrayElemSegment(value) | ArrayRepeatSegment(value, count) where value ∈ Expr ∧ count ∈ Expr
+ArrayExpr = ⟨segments⟩ where segments ∈ [ArraySegment]
 
 IndexAccess is shared by arrays and slices. This section owns the cases where the base type is `TypeArray`.
 
@@ -8889,10 +8938,21 @@ T = TypeArray(T_0, e)    Γ ⊢ ConstLen(e) ⇓ n    Γ ⊢ T_0 wf
 ────────────────────────────────────────────────────────
 Γ ⊢ T wf
 
-**(T-Array-Literal-List)**
-∀ i, Γ ⊢ e_i : T
-────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ArrayExpr([e_1, …, e_n]) : TypeArray(T, Literal(IntLiteral(n)))
+SegLen(ArrayElemSegment(_)) = 1
+SegLen(ArrayRepeatSegment(_, count)) = n where Γ ⊢ ConstLen(count) ⇓ n
+
+**(T-Array-Literal-Segments)**
+∀ i,
+  (s_i = ArrayElemSegment(value_i) ⇒ Γ ⊢ value_i : T) ∧
+  (s_i = ArrayRepeatSegment(value_i, count_i) ⇒
+      Γ ⊢ value_i : T ∧
+      BitcopyType(T) ∧
+      Γ ⊢ count_i : U_i ∧
+      (IntType(U_i) ∨ U_i = TypePrim("usize")) ∧
+      Γ ⊢ ConstLen(count_i) ⇓ n_i)
+N = Σ_i SegLen(s_i)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ArrayExpr([s_1, …, s_k]) : TypeArray(T, Literal(IntLiteral(N)))
 
 **(T-Index-Array)**
 Γ ⊢ e_1 : TypeArray(T, len)    Γ ⊢ e_2 : TypePrim("usize")    ConstIndex(e_2)    Γ ⊢ ConstLen(e_2) ⇓ i    Γ ⊢ ConstLen(len) ⇓ n    i < n    BitcopyType(T)
@@ -9000,9 +9060,9 @@ ArrayLen(e) = n ⇔ Γ ⊢ ConstLen(e) ⇓ n
 ValueBits(TypeArray(T, e), [v_0, …, v_{n-1}]) = bits ⇔ ArrayLen(e) = n ∧ s = sizeof(T) ∧ |bits| = n × s ∧ ∀ i. 0 ≤ i < n ⇒ (ValueBits(T, v_i) = b_i ∧ bits[i × s .. i × s + |b_i|) = b_i)
 
 **(Lower-Expr-Array)**
-Γ ⊢ LowerList(es) ⇓ ⟨IR, vec_v⟩
+Γ ⊢ LowerArraySegments(segs) ⇓ ⟨IR, vec_v⟩
 ──────────────────────────────────────────────────────────────
-Γ ⊢ LowerExpr(ArrayExpr(es)) ⇓ ⟨IR, [v_1, …, v_n]⟩
+Γ ⊢ LowerExpr(ArrayExpr(segs)) ⇓ ⟨IR, [v_1, …, v_n]⟩
 
 #### 12.3.7 Diagnostics
 
@@ -10560,14 +10620,14 @@ RegionProcSig(`Region::thaw`) = ⟨[⟨⊥, `self`, TypePerm(`unique`, TypeModal
 RegionProcSig(`Region::free_unchecked`) = ⟨[⟨⊥, `self`, TypePerm(`unique`, TypeUnion([TypeModalState(["Region"], `@Active`), TypeModalState(["Region"], `@Frozen`)]))⟩], TypeModalState(["Region"], `@Freed`)⟩
 
 ProvType(T, π) = T_π
-BaseType(T_π) = T
+BaseType(T_Ï€) = T
 ProvOf(T_π) = π
 
 ¬ BitcopyType(TypePath(["Region"]))
 
 **Region Arena Requirements.**
-1. `Region::alloc` MUST yield a value with provenance `π_Region(r)` where `r` is the receiver arena. The provenance tag is determined by the binding identifier introduced by `RegionBindName` and the current region stack.
-2. After `Region::reset_unchecked` or `Region::free_unchecked`, any dereference through a `Ptr<T>@Valid` whose address has an inactive `RegionTag` MUST behave as `Expired` per `PtrState` and `ReadPtrSigma`. Uses of non-pointer values with provenance `π_Region(r)` after reset/free are `OutsideConformance`.
+1. `Region::alloc` MUST yield a value with provenance `Ï€_Region(r)` where `r` is the receiver arena. The provenance tag is determined by the binding identifier introduced by `RegionBindName` and the current region stack.
+2. After `Region::reset_unchecked` or `Region::free_unchecked`, any dereference through a `Ptr<T>@Valid` whose address has an inactive `RegionTag` MUST behave as `Expired` per `PtrState` and `ReadPtrSigma`. Uses of non-pointer values with provenance `Ï€_Region(r)` after reset/free are `OutsideConformance`.
 3. `Region::free_unchecked` MUST be invoked exactly once on any `Region` that remains in `@Active` or `@Frozen` at scope exit. Implementations MAY invoke `Region::free_unchecked` implicitly during `RegionStmt` cleanup.
 
 **(Region-Unchecked-Unsafe-Err)**
@@ -12357,7 +12417,7 @@ ProcedureDecl = ⟨attrs_opt, vis, name, gen_params_opt, predicate_clause_opt, p
 RecordDecl = ⟨attrs_opt, vis, name, gen_params_opt, predicate_clause_opt, implements, members, invariant_opt, span, doc⟩
 EnumDecl = ⟨attrs_opt, vis, name, gen_params_opt, predicate_clause_opt, implements, variants, invariant_opt, span, doc⟩
 ModalDecl = ⟨attrs_opt, vis, name, gen_params_opt, predicate_clause_opt, implements, states, invariant_opt, span, doc⟩
-ClassDecl = ⟨attrs_opt, vis, modal_opt, name, gen_params_opt, predicate_clause_opt, supers, items, span, doc⟩
+ClassDecl = ⟨attrs_opt, vis, modal, name, gen_params_opt, predicate_clause_opt, supers, items, span, doc⟩
 TypeAliasDecl = ⟨attrs_opt, vis, name, gen_params_opt, predicate_clause_opt, type, span, doc⟩
 
 Type = TypeApply(path, args) | …
@@ -12474,7 +12534,7 @@ Diagnostics are defined for missing or excess type arguments, omitted-type-argum
 class_decl   ::= attribute_list? visibility? "modal"? "class" identifier generic_params? ("<:" superclass_bounds)? predicate_clause? "{" class_body? "}"
 class_item   ::= class_method | associated_type | abstract_field | abstract_state
 abstract_state ::= "@" identifier "{" abstract_field* "}"
-abstract_field ::= identifier ":" type
+abstract_field ::= attribute_list? visibility? key_boundary? identifier ":" type
 ```
 
 Associated type item syntax is defined canonically in §14.5.
@@ -12482,9 +12542,9 @@ Associated type item syntax is defined canonically in §14.5.
 #### 14.3.2 Parsing
 
 **(Parse-Class)**
-Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    Γ ⊢ ParseModalOpt(P_1) ⇓ (P_2, modal_opt)    IsKw(Tok(P_2), `class`)    Γ ⊢ ParseIdent(Advance(P_2)) ⇓ (P_3, name)    Γ ⊢ ParseGenericParamsOpt(P_3) ⇓ (P_4, gen_params_opt)    Γ ⊢ ParseSuperclassOpt(P_4) ⇓ (P_5, supers)    Γ ⊢ ParsePredicateClauseOpt(P_5) ⇓ (P_6, predicate_clause_opt)    Γ ⊢ ParseClassBody(P_6) ⇓ (P_7, items)
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseVis(P_0) ⇓ (P_1, vis)    Γ ⊢ ParseModalOpt(P_1) ⇓ (P_2, modal)    IsKw(Tok(P_2), `class`)    Γ ⊢ ParseIdent(Advance(P_2)) ⇓ (P_3, name)    Γ ⊢ ParseGenericParamsOpt(P_3) ⇓ (P_4, gen_params_opt)    Γ ⊢ ParseSuperclassOpt(P_4) ⇓ (P_5, supers)    Γ ⊢ ParsePredicateClauseOpt(P_5) ⇓ (P_6, predicate_clause_opt)    Γ ⊢ ParseClassBody(P_6) ⇓ (P_7, items)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseItem(P) ⇓ (P_7, ⟨ClassDecl, attrs_opt, vis, modal_opt, name, gen_params_opt, predicate_clause_opt, supers, items, SpanBetween(P, P_7), []⟩)
+Γ ⊢ ParseItem(P) ⇓ (P_7, ⟨ClassDecl, attrs_opt, vis, modal, name, gen_params_opt, predicate_clause_opt, supers, items, SpanBetween(P, P_7), []⟩)
 
 **(Parse-Superclass-None)**
 ¬ IsOp(Tok(P), "<:")
@@ -12553,7 +12613,7 @@ IsPunc(Tok(P), "{")    Γ ⊢ ParseBlock(P) ⇓ (P_1, body)
 
 #### 14.3.3 AST Representation / Form
 
-ClassDecl = ⟨attrs_opt, vis, modal_opt, name, gen_params_opt, predicate_clause_opt, supers, items, span, doc⟩
+ClassDecl = ⟨attrs_opt, vis, modal, name, gen_params_opt, predicate_clause_opt, supers, items, span, doc⟩
 ClassDecl.supers ∈ [ClassPath]
 
 ClassItem ∈ {
@@ -13588,15 +13648,16 @@ HasDropMethod(T) ⇔ ∃ p, R, m. T = TypePath(p) ∧ RecordDecl(p) = R ∧ m �
 CloneType(T) ⇔ BuiltinCloneType(T) ∨ HasCloneMethod(StripPerm(T)) ∨ BitcopyType(T)
 DropType(T) ⇔ BuiltinDropType(T) ∨ HasDropMethod(StripPerm(T))
 
-ImplementsEq(T) ⇔ `Eq` ∈ Implements(T)
+BuiltinStepType(T) ⇔ StripPerm(T) = TypePrim(t) ∧ t ∈ IntTypes ∪ UnsignedIntTypes ∪ {`char`}
+ImplementsEq(T) ⇔ EqType(T) ∨ `Eq` ∈ Implements(T)
 ImplementsHash(T) ⇔ `Hash` ∈ Implements(T)
 ImplementsIterator(T) ⇔ `Iterator` ∈ Implements(T)
-ImplementsStep(T) ⇔ `Step` ∈ Implements(T)
+ImplementsStep(T) ⇔ BuiltinStepType(T) ∨ `Step` ∈ Implements(T)
 ImplementsHasher(T) ⇔ `Hasher` ∈ Implements(T)
 
 #### 14.10.4 Static Semantics
 
-Foundational class bounds for `Bitcopy`, `Clone`, `Drop`, and `FfiSafe` are interpreted by intrinsic satisfaction judgments, not by user-defined class implementation lookup.
+Foundational class bounds for `Bitcopy`, `Clone`, `Drop`, and `FfiSafe` are interpreted by intrinsic satisfaction judgments, not by user-defined class implementation lookup. `Eq` is satisfied intrinsically when `EqType(T)` holds. `Step` is satisfied intrinsically when `BuiltinStepType(T)` holds. Other `Eq` and `Step` obligations are discharged through ordinary class implementation lookup.
 
 **(BitcopyDrop-Ok)**
 ¬(BitcopyType(T) ∧ DropType(T))
@@ -13667,9 +13728,15 @@ The built-in class signatures are:
 
 `Hasher` maintains an internal `u64` state. `write` appends bytes to the input stream. `finish` returns the FNV-1a 64-bit hash of the concatenated byte stream using `FNVOffset64` and `FNVPrime64`.
 
+For `BuiltinStepType(T)` with `StripPerm(T) = TypePrim(t)` and `t ∈ IntTypes ∪ UnsignedIntTypes`, `Step::successor` returns the least representable value greater than the receiver when one exists, or `()` otherwise; `Step::predecessor` returns the greatest representable value smaller than the receiver when one exists, or `()` otherwise.
+
+For `BuiltinStepType(T)` with `StripPerm(T) = TypePrim(`char`)`, `Step::successor` returns `CharVal(u')` where `u' = min { v ∈ UnicodeScalar | v > u }` for receiver `CharVal(u)` when such `u'` exists, or `()` otherwise; `Step::predecessor` returns `CharVal(u')` where `u' = max { v ∈ UnicodeScalar | v < u }` when such `u'` exists, or `()` otherwise.
+
 #### 14.10.6 Lowering
 
-These predicates and built-in classes do not introduce a separate representation. They influence lowering indirectly through copy semantics, drop-glue generation, and whether a dynamic-class-object vtable header carries a non-null drop entry.
+`Eq::eq` on `EqType(T)` lowers intrinsically to the built-in equality relation for `T`. `Step::successor` and `Step::predecessor` on `BuiltinStepType(T)` lower intrinsically to the built-in stepping relation for `T`. Other `Eq` and `Step` calls lower through ordinary method-call lowering.
+
+These predicates and built-in classes do not introduce a separate representation. They influence lowering indirectly through copy semantics, drop-glue generation, built-in `Eq`/`Step` call selection, and whether a dynamic-class-object vtable header carries a non-null drop entry.
 
 #### 14.10.7 Diagnostics
 
@@ -14056,14 +14123,9 @@ IsPunc(Tok(P), "(")    Γ ⊢ ParseReceiver(Advance(P)) ⇓ (P_1, r)    Γ ⊢ P
 Γ ⊢ ParseMethodSignature(P) ⇓ (P_3, r, params, ret_opt)
 
 **(Parse-StateMethodSignature-Receiver)**
-IsPunc(Tok(P), "(")    Γ ⊢ ParseReceiver(Advance(P)) ⇓ (P_1, r)    r = ReceiverShorthand(_)    Γ ⊢ ParseMethodParams(P_1) ⇓ (P_2, params)    IsPunc(Tok(P_2), ")")    Γ ⊢ ParseReturnOpt(Advance(P_2)) ⇓ (P_3, ret_opt)
+IsPunc(Tok(P), "(")    Γ ⊢ ParseReceiver(Advance(P)) ⇓ (P_1, r)    Γ ⊢ ParseMethodParams(P_1) ⇓ (P_2, params)    IsPunc(Tok(P_2), ")")    Γ ⊢ ParseReturnOpt(Advance(P_2)) ⇓ (P_3, ret_opt)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseStateMethodSignature(P) ⇓ (P_3, r, params, ret_opt)
-
-**(Parse-StateMethodSignature-Default)**
-IsPunc(Tok(P), "(")    ¬ IsOp(Tok(Advance(P)), "~")    ¬ IsOp(Tok(Advance(P)), "~!")    ¬ IsOp(Tok(Advance(P)), "~%")    Γ ⊢ ParseSignature(P) ⇓ (P_1, params, ret_opt)    r = ReceiverShorthand(`const`)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseStateMethodSignature(P) ⇓ (P_1, r, params, ret_opt)
 
 **(Parse-MethodParams-None)**
 IsPunc(Tok(P), ")")
@@ -14546,8 +14608,13 @@ PreconditionOf(⟨pre, post⟩) = pre                 if pre ≠ ⊥
 
 #### 15.5.4 Static Semantics
 
+Let `S_call` be the call-site program point for the invocation being checked.
+In this section, the proof context symbol `Gamma_S` denotes the active
+`ProofContextAt(S_call)` defined in SS15.8.4 after actual-parameter
+substitution into the callee precondition.
+
 **(Pre-Satisfied)**
-Γ ⊢ f : (T_1, …, T_n) → R    precondition(f) = P_pre    StaticProof(Γ_S, P_pre)
+Γ ⊢ f : (T_1, …, T_n) → R    precondition(f) = P_pre    StaticProofAt(S_call, Γ_S, P_pre)
 ──────────────────────────────────────────────────────────────────────────────
 Γ ⊢ f(a_1, …, a_n) @ S : valid
 
@@ -14604,6 +14671,10 @@ PostconditionOf(⟨pre, post⟩) = `true`            if post = ⊥
 PostconditionOf(⟨pre, post⟩) = post              if post ≠ ⊥
 
 #### 15.6.4 Static Semantics
+
+Let `ProofContextAt(r)` denote the active proof context at return point `r` as
+defined in SS15.8.4. Postcondition verification at `r` is performed after
+binding `@result` to the returned value and uses that proof context.
 
 **(Post-Valid)**
 postcondition(f) = P_post    ∀ r ∈ ReturnPoints(f). Γ_r ⊢ P_post : satisfied
@@ -14814,22 +14885,22 @@ ComputeDynamicContext(s, ancestors) =
   }
 
 **(Contract-Static-OK)**
-StaticProof(Γ_S, P)
+StaticProofAt(S, Γ_S, P)
 ──────────────────────────────────────────────
 P : verified
 
 **(Contract-Static-Fail)**
-¬ StaticProof(Γ_S, P)    ¬ InDynamicContext
+¬ StaticProofAt(S, Γ_S, P)    ¬ InDynamicContext
 ──────────────────────────────────────────────
 program is ill-formed
 
 **(Contract-Dynamic-Elide)**
-StaticProof(Γ_S, P)
+StaticProofAt(S, Γ_S, P)
 ──────────────────────────────────────────────
 P : verified
 
 **(Contract-Dynamic-Check)**
-¬ StaticProof(Γ_S, P)    InDynamicContext
+¬ StaticProofAt(S, Γ_S, P)    InDynamicContext
 ────────────────────────────────────────────────────
 emit runtime check ContractCheck(P, k, s, ρ)
 
@@ -14842,7 +14913,15 @@ Mandatory proof techniques:
 5. Type-derived bounds
 6. Verification facts
 
-Let `FactsAt(S) = { P | F(P, L) ∈ Facts ∧ L dom S }`.
+For this section, `Gamma_S` denotes the active proof context at program point
+`S`, written `ProofContextAt(S)`.
+
+Let `FlowFactsAt(S) = { P | F(P, L) ∈ Facts ∧ L dom S }`.
+
+Let `ContractFactsAt(S)` be the set of conjuncts imported from the enclosing
+procedure contract precondition that remain in scope at `S`.
+
+Let `ProofContextAt(S) = FlowFactsAt(S) ∪ ContractFactsAt(S)`.
 
 `Decidable(P)` is the smallest set closed under:
 
@@ -14856,32 +14935,32 @@ Entailment:
 **(Ent-True)**
 P ≡ `true`
 ──────────────────────────────
-FactsAt(S) ⊢ P
+ProofContextAt(S) ⊢ P
 
 **(Ent-Fact)**
-P ∈ FactsAt(S)
+P ∈ ProofContextAt(S)
 ──────────────────────────────
-FactsAt(S) ⊢ P
+ProofContextAt(S) ⊢ P
 
 **(Ent-And)**
-FactsAt(S) ⊢ P    FactsAt(S) ⊢ Q
+ProofContextAt(S) ⊢ P    ProofContextAt(S) ⊢ Q
 ────────────────────────────────────────
-FactsAt(S) ⊢ P ∧ Q
+ProofContextAt(S) ⊢ P ∧ Q
 
 **(Ent-Or-L)**
-FactsAt(S) ⊢ P
+ProofContextAt(S) ⊢ P
 ────────────────────────
-FactsAt(S) ⊢ P ∨ Q
+ProofContextAt(S) ⊢ P ∨ Q
 
 **(Ent-Or-R)**
-FactsAt(S) ⊢ Q
+ProofContextAt(S) ⊢ Q
 ────────────────────────
-FactsAt(S) ⊢ P ∨ Q
+ProofContextAt(S) ⊢ P ∨ Q
 
 **(Ent-Linear)**
-LinearEntails(FactsAt(S), P)
+LinearEntails(ProofContextAt(S), P)
 ─────────────────────────────
-FactsAt(S) ⊢ P
+ProofContextAt(S) ⊢ P
 
 **Linear Integer Entailment**
 
@@ -14889,15 +14968,26 @@ Let `LinExpr` be expressions of the form `∑_i a_i x_i + c` where `a_i, c ∈ �
 
 Let `LinPred` be predicates comparing two `LinExpr` with `==`, `!=`, `<`, `<=`, `>`, or `>=`.
 
-Define `LinFactsAt(S) = { P ∈ FactsAt(S) | P ∈ LinPred }`.
+Define `LinFactsAt(S) = { P ∈ ProofContextAt(S) | P ∈ LinPred }`.
 
 Then:
 
-LinearEntails(FactsAt(S), P) ⇔ P ∈ LinPred ∧ ⋀ LinFactsAt(S) ⊨_ℤ P
+LinearEntails(ProofContextAt(S), P) ⇔ P ∈ LinPred ∧ ⋀ LinFactsAt(S) ⊨_ℤ P
 
 Implementations MAY use any sound decision procedure; they MUST be complete for `LinPred` entailment.
 
-StaticProof(Γ_S, P) ⇔ Decidable(P) ∧ FactsAt(S) ⊢ P
+StaticProofAt(S, ProofContextAt(S), P) ⇔ Decidable(P) ∧ ProofContextAt(S) ⊢ P
+
+Define `NegFact(P)` on simple decidable predicates by:
+
+1. `NegFact(!P) = P`
+2. `NegFact(a < b) = (a >= b)`
+3. `NegFact(a <= b) = (a > b)`
+4. `NegFact(a > b) = (a <= b)`
+5. `NegFact(a >= b) = (a < b)`
+6. `NegFact(a == b) = (a != b)`
+7. `NegFact(a != b) = (a == b)`
+8. `NegFact(P)` is undefined otherwise
 
 Verification facts:
 
@@ -14913,10 +15003,14 @@ P satisfied at S
 Fact generation:
 
 1. `if P { ... }` generates `F(P, _)` on then-branch entry.
-2. `if !P { } else { ... }` generates `F(P, _)` on else-branch entry.
-3. A satisfied `if ... is` pattern generates pattern facts on selected-body entry.
-4. A runtime check for `P` generates `F(P, _)` after the check.
-5. A verified loop invariant generates `F(Inv, _)` after the loop.
+2. `if P { ... } else { ... }` generates `F(NegFact(P), _)` on else-branch
+   entry whenever `NegFact(P)` is defined.
+3. `if P { return ... }`, `if P { break ... }`, and `if P { continue ... }`
+   generate `F(NegFact(P), _)` on the subsequent fallthrough path whenever
+   `NegFact(P)` is defined.
+4. A satisfied `if ... is` pattern generates pattern facts on selected-body entry.
+5. A runtime check for `P` generates `F(P, _)` after the check.
+6. A verified loop invariant generates `F(Inv, _)` after the loop.
 
 Type narrowing under an active fact `F(P, L)` refines `typeof(x)` to `typeof(x) |: {P}`.
 
@@ -16087,6 +16181,11 @@ CastValid(S, T) ⇔ (S' = TypePrim(s) ∧ T' = TypePrim(t) ∧ s, t ∈ NumericT
 ────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ Cast(e, T) : T
 
+**(T-Cast-Invalid)**
+Γ; R; L ⊢ e : S    ¬ CastValid(S, T)    c = Code(E-SEM-2528)
+────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Cast(e, T) ⇑ c
+
 **(T-Transmute-SizeEq)**
 Γ ⊢ sizeof(t_1) = sizeof(t_2)
 ────────────────────────────────────────────────────────────────
@@ -16248,7 +16347,9 @@ Diagnostics are defined for invalid casts, `transmute` outside `unsafe`, `transm
 ```ebnf
 tuple_literal       ::= "(" tuple_expr_elements? ")"
 tuple_expr_elements ::= expression ";" | expression ("," expression)+
-array_literal       ::= "[" expression_list? "]"
+array_literal       ::= "[" array_segment_list? "]"
+array_segment_list  ::= array_segment ("," array_segment)*
+array_segment       ::= expression | expression ";" expression
 record_literal      ::= identifier "{" field_init_list "}" | state_specific_type "{" field_init_list? "}"
 field_init_list     ::= field_init ("," field_init)*
 field_init          ::= identifier ":" expression | identifier
@@ -16263,10 +16364,34 @@ IsPunc(Tok(P), "(")    TupleParen(P)    Γ ⊢ ParseTupleExprElems(Advance(P)) �
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_1), TupleExpr(elems))
 
+**(Parse-Array-Segment-Elem)**
+Γ ⊢ ParseExpr(P) ⇓ (P_1, value)    ¬ IsPunc(Tok(P_1), ";")
+────────────────────────────────────────────────────────────
+Γ ⊢ ParseArraySegment(P) ⇓ (P_1, ArrayElemSegment(value))
+
+**(Parse-Array-Segment-Repeat)**
+Γ ⊢ ParseExpr(P) ⇓ (P_1, value)    IsPunc(Tok(P_1), ";")    Γ ⊢ ParseExpr(Advance(P_1)) ⇓ (P_2, count)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseArraySegment(P) ⇓ (P_2, ArrayRepeatSegment(value, count))
+
+**(Parse-Array-Segment-List-Empty)**
+───────────────────────────────────────────────
+Γ ⊢ ParseArraySegmentList(P) ⇓ (P, [])
+
+**(Parse-Array-Segment-List-Single)**
+Γ ⊢ ParseArraySegment(P) ⇓ (P_1, seg)    ¬ IsPunc(Tok(P_1), ",")
+────────────────────────────────────────────────────────────────
+Γ ⊢ ParseArraySegmentList(P) ⇓ (P_1, [seg])
+
+**(Parse-Array-Segment-List-Comma)**
+Γ ⊢ ParseArraySegment(P) ⇓ (P_1, seg)    IsPunc(Tok(P_1), ",")    Γ ⊢ ParseArraySegmentList(Advance(P_1)) ⇓ (P_2, segs)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseArraySegmentList(P) ⇓ (P_2, [seg] ++ segs)
+
 **(Parse-Array-Literal)**
-IsPunc(Tok(P), "[")    Γ ⊢ ParseExprList(Advance(P)) ⇓ (P_1, elems)    IsPunc(Tok(P_1), "]")
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_1), ArrayExpr(elems))
+IsPunc(Tok(P), "[")    Γ ⊢ ParseArraySegmentList(Advance(P)) ⇓ (P_1, segs)    IsPunc(Tok(P_1), "]")
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParsePrimary(P) ⇓ (Advance(P_1), ArrayExpr(segs))
 
 **(Parse-Record-Literal-ModalState)**
 Γ ⊢ ParseModalTypeRef(P) ⇓ (P_1, modal_ref)    IsOp(Tok(P_1), "@")    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, state)    IsPunc(Tok(P_2), "{")    Γ ⊢ ParseFieldInitList(Advance(P_2)) ⇓ (P_3, fields)    IsPunc(Tok(P_3), "}")
@@ -16289,7 +16414,7 @@ IsPunc(Tok(P), "[")    Γ ⊢ ParseExprList(Advance(P)) ⇓ (P_1, elems)    IsPu
 
 FieldInit = ⟨name, expr⟩
 
-Expr = TupleExpr(elems) | ArrayExpr(elems) | RecordExpr(type_ref, fields) | EnumLiteral(path, payload_opt) | QualifiedApply(path, name, Brace(fields)) | …
+Expr = TupleExpr(elems) | ArrayExpr(segments) | RecordExpr(type_ref, fields) | EnumLiteral(path, payload_opt) | QualifiedApply(path, name, Brace(fields)) | …
 
 FieldInitNames(fields) = [ f | ⟨f, _⟩ ∈ fields ]
 FieldInitSet(fields) = { x | x ∈ FieldInitNames(fields) }
@@ -16312,10 +16437,22 @@ n ≥ 1    ∀ i, Γ ⊢ e_i : T_i
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ TupleExpr([e_1, …, e_n]) : TypeTuple([T_1, …, T_n])
 
-**(T-Array-Literal-List)**
-∀ i, Γ ⊢ e_i : T
-────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ArrayExpr([e_1, …, e_n]) : TypeArray(T, Literal(IntLiteral(n)))
+SegLen(ArrayElemSegment(_)) = 1
+SegLen(ArrayRepeatSegment(_, count)) = n where Γ ⊢ ConstLen(count) ⇓ n
+
+**(T-Array-Literal-Segments)**
+∀ i,
+  (s_i = ArrayElemSegment(value_i) ⇒ Γ ⊢ value_i : T) ∧
+  (s_i = ArrayRepeatSegment(value_i, count_i) ⇒
+      Γ ⊢ value_i : T ∧
+      BitcopyType(T) ∧
+      Γ ⊢ count_i : U_i ∧
+      (IntType(U_i) ∨ U_i = TypePrim("usize")) ∧
+      Γ ⊢ ConstLen(count_i) ⇓ n_i)
+N = Σ_i SegLen(s_i)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ArrayExpr([s_1, …, s_k]) : TypeArray(T, Literal(IntLiteral(N)))
+
 
 FieldNames(R) = [ f.name | f ∈ Fields(R) ]
 FieldNameSet(R) = { x | x ∈ FieldNames(R) }
@@ -16377,9 +16514,9 @@ Zero-argument default record construction uses `EvalSigma-Call-Record` from §16
 Γ ⊢ LowerExpr(TupleExpr(es)) ⇓ ⟨IR, (v_1, …, v_n)⟩
 
 **(Lower-Expr-Array)**
-Γ ⊢ LowerList(es) ⇓ ⟨IR, vec_v⟩
+Γ ⊢ LowerArraySegments(segs) ⇓ ⟨IR, vec_v⟩
 ──────────────────────────────────────────────────────────────
-Γ ⊢ LowerExpr(ArrayExpr(es)) ⇓ ⟨IR, [v_1, …, v_n]⟩
+Γ ⊢ LowerExpr(ArrayExpr(segs)) ⇓ ⟨IR, [v_1, …, v_n]⟩
 
 **(Lower-Expr-Record)**
 Γ ⊢ LowerFieldInits(fields) ⇓ ⟨IR, vec_f⟩
@@ -16519,7 +16656,7 @@ LoopInvOk(inv_opt)    Γ; R; `loop` ⊢ BlockInfo(body) ⇓ ⟨T_b, Brk, BrkVoid
 Γ ⊢ LoopConditional(cond, inv_opt, body) : T
 
 **(T-Loop-Iter)**
-(Γ; R; L ⊢ iter : TypePerm(p, TypeSlice(T)) ∨ Γ; R; L ⊢ iter : TypeSlice(T) ∨ Γ; R; L ⊢ iter : TypePerm(p, TypeArray(T, n)) ∨ Γ; R; L ⊢ iter : TypeArray(T, n))    (ty_opt = ⊥ ⇒ T_p = T)    (ty_opt = T_a ⇒ Γ ⊢ T <: T_a ∧ T_p = T_a)    Γ ⊢ pat ⇐ T_p ⊣ B    Distinct(PatNames(pat))    LoopInvOk(inv_opt)    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, B) ⇓ Γ_1    Γ_1; R; `loop` ⊢ BlockInfo(body) ⇓ ⟨T_b, Brk, BrkVoid⟩    LoopTypeFin(Brk, BrkVoid) = T_r
+(Γ; R; L ⊢ iter : T_iter)    LoopIterableType(T_iter, T)    (RangeLoopType(T_iter, T) ⇒ ImplementsStep(T))    (BoundedRangeLoopType(T_iter, T) ⇒ ImplementsEq(T))    (ty_opt = ⊥ ⇒ T_p = T)    (ty_opt = T_a ⇒ Γ ⊢ T <: T_a ∧ T_p = T_a)    Γ ⊢ pat ⇐ T_p ⊣ B    Distinct(PatNames(pat))    LoopInvOk(inv_opt)    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, B) ⇓ Γ_1    Γ_1; R; `loop` ⊢ BlockInfo(body) ⇓ ⟨T_b, Brk, BrkVoid⟩    LoopTypeFin(Brk, BrkVoid) = T_r
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LoopIter(pat, ty_opt, iter, inv_opt, body) : T_r
 
@@ -16574,11 +16711,34 @@ LoopInvOk(inv_opt)    Γ; R; `loop` ⊢ BlockInfo(body) ⇓ ⟨T_b, Brk, BrkVoid
 ──────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ EvalSigma(BlockExpr(stmts, tail_opt), σ) ⇓ (out, σ')
 
+LoopIterableType(T_iter, T) ⇔ T_iter = TypeSlice(T) ∨ T_iter = TypeArray(T, n) ∨ T_iter = TypeRange(T) ∨ T_iter = TypeRangeInclusive(T) ∨ T_iter = TypeRangeFrom(T)
+LoopIterableType(TypePerm(p, T_iter), T) ⇔ LoopIterableType(T_iter, T)
+RangeLoopType(T_iter, T) ⇔ T_iter = TypeRange(T) ∨ T_iter = TypeRangeInclusive(T) ∨ T_iter = TypeRangeFrom(T)
+RangeLoopType(TypePerm(p, T_iter), T) ⇔ RangeLoopType(T_iter, T)
+BoundedRangeLoopType(T_iter, T) ⇔ T_iter = TypeRange(T) ∨ T_iter = TypeRangeInclusive(T)
+BoundedRangeLoopType(TypePerm(p, T_iter), T) ⇔ BoundedRangeLoopType(T_iter, T)
+
 IterJudg = {IterInit(v) ⇓ it, IterNext(it) ⇓ (opt(v), it')}
-Iter = {⟨v, i⟩ | Len(v) defined ∧ i ∈ ℕ}
-IterInit(v) ⇓ ⟨v, 0⟩ ⇔ Len(v) defined
-IterNext(⟨v, i⟩) ⇓ (⊥, ⟨v, i⟩) ⇔ ¬ (0 ≤ i < Len(v))
-IterNext(⟨v, i⟩) ⇓ (v_i, ⟨v, i + 1⟩) ⇔ 0 ≤ i < Len(v) ∧ IndexValue(v, i) = v_i
+Iter = {SeqIter(v, i) | Len(v) defined ∧ i ∈ ℕ} ∪ {RangeIterExclusive(cur, hi)} ∪ {RangeIterInclusive(cur, hi)} ∪ {RangeIterFrom(cur)} ∪ {IterDone}
+Successor(v) ⇓ v' ⇔ `Step::successor` applied to v returns v'
+EqHolds(v_1, v_2) ⇔ `Eq::eq` applied to ⟨v_1, v_2⟩ returns `true`
+
+IterInit(v) ⇓ SeqIter(v, 0) ⇔ Len(v) defined
+IterInit(RangeVal(`Exclusive`, lo, hi)) ⇓ RangeIterExclusive(lo, hi)
+IterInit(RangeVal(`Inclusive`, lo, hi)) ⇓ RangeIterInclusive(lo, hi)
+IterInit(RangeVal(`From`, lo, ⊥)) ⇓ RangeIterFrom(lo)
+
+IterNext(SeqIter(v, i)) ⇓ (⊥, IterDone) ⇔ ¬ (0 ≤ i < Len(v))
+IterNext(SeqIter(v, i)) ⇓ (v_i, SeqIter(v, i + 1)) ⇔ 0 ≤ i < Len(v) ∧ IndexValue(v, i) = v_i
+IterNext(RangeIterExclusive(cur, hi)) ⇓ (⊥, IterDone) ⇔ EqHolds(cur, hi)
+IterNext(RangeIterExclusive(cur, hi)) ⇓ (cur, RangeIterExclusive(cur', hi)) ⇔ ¬ EqHolds(cur, hi) ∧ Successor(cur) ⇓ cur'
+IterNext(RangeIterExclusive(cur, hi)) ⇓ (cur, IterDone) ⇔ ¬ EqHolds(cur, hi) ∧ ¬ ∃ cur'. Successor(cur) ⇓ cur'
+IterNext(RangeIterInclusive(cur, hi)) ⇓ (cur, IterDone) ⇔ EqHolds(cur, hi)
+IterNext(RangeIterInclusive(cur, hi)) ⇓ (cur, RangeIterInclusive(cur', hi)) ⇔ ¬ EqHolds(cur, hi) ∧ Successor(cur) ⇓ cur'
+IterNext(RangeIterInclusive(cur, hi)) ⇓ (cur, IterDone) ⇔ ¬ EqHolds(cur, hi) ∧ ¬ ∃ cur'. Successor(cur) ⇓ cur'
+IterNext(RangeIterFrom(cur)) ⇓ (cur, RangeIterFrom(cur')) ⇔ Successor(cur) ⇓ cur'
+IterNext(RangeIterFrom(cur)) ⇓ (cur, IterDone) ⇔ ¬ ∃ cur'. Successor(cur) ⇓ cur'
+IterNext(IterDone) ⇓ (⊥, IterDone)
 
 LoopIterJudg = {Γ ⊢ LoopIterExec(pat, body, it, σ) ⇓ (out, σ')}
 
@@ -17082,7 +17242,7 @@ IsOp(Tok(P), "->")    Γ ⊢ ParseType(Advance(P)) ⇓ (P_1, ty)
 **(Parse-ClosureBody-Block)**
 IsPunc(Tok(P), "{")    Γ ⊢ ParseBlock(P) ⇓ (P_1, b)
 ────────────────────────────────────────────────────────────────
-Γ ⊢ ParseClosureBody(P) ⇓ (P_1, b)
+Γ ⊢ ParseClosureBody(P) ⇓ (P_1, BlockExpr(b))
 
 **(Parse-ClosureBody-Expr)**
 ¬ IsPunc(Tok(P), "{")    Γ ⊢ ParseExpr(P) ⇓ (P_1, e)
@@ -17095,14 +17255,15 @@ Expr = PipelineExpr(left, right) | ClosureExpr(params, ret_type_opt, body) | …
 
 ClosureParam = ⟨move_opt, name, type_opt⟩    move_opt ∈ {true, false}    type_opt ∈ {⊥} ∪ Type
 ClosureParams = [ClosureParam]
-ClosureBody = Expr ∪ BlockExpr
+ClosureBody = Expr
 
 #### 16.9.4 Static Semantics
 
 FreeVars(e) = { x | x ∈ Identifier ∧ Bound(x, e) ∧ ¬ LocallyBound(x, e) }
 CaptureSet(C) = FreeVars(C.body) ∖ { p.name | p ∈ C.params }
-MoveCaptureSet(C) = ∅
-RefCaptureSet(C) = CaptureSet(C)
+MoveCaptureSet(C) = { x | x ∈ CaptureSet(C) ∧ (∃ p ∈ C.params. p = ⟨true, x, _⟩) }
+                  ∪ { x | x ∈ CaptureSet(C) ∧ MoveExpr(e) ∈ C.body ∧ PlaceRoot(e) = x }
+RefCaptureSet(C) = CaptureSet(C) \ MoveCaptureSet(C)
 SharedCaptures(C) = { x | x ∈ CaptureSet(C) ∧ Γ(x) = TypePerm(`shared`, _) }
 ConstCaptures(C) = { x | x ∈ CaptureSet(C) ∧ Γ(x) = TypePerm(`const`, _) }
 UniqueCaptures(C) = { x | x ∈ CaptureSet(C) ∧ Γ(x) = TypePerm(`unique`, _) }
@@ -17263,25 +17424,28 @@ The shared dependency set MAY be inferred when the closure is checked against an
 
 BuildClosureEnv(σ, C) = env ⇔ env = { x ↦ CaptureVal(σ, C, x) | x ∈ CaptureSet(C) }
 
-CaptureVal(σ, C, x) = LookupVal(σ, x)    if x ∈ RefCaptureSet(C)
+CaptureVal(σ, C, x) = Ptr@Valid(AddrOfBind(x))    if x ∈ RefCaptureSet(C)
 CaptureVal(σ, C, x) = MoveVal(σ, x)      if x ∈ MoveCaptureSet(C)
 
 AllocEnv(σ, env) = (σ', env_ptr) ⇔ env_ptr = Alloc(EnvSize(env)) ∧ σ' = StoreEnv(σ, env_ptr, env)
 
 BindEnv(σ, env_ptr) = σ' ⇔
+  C = ClosureOf(env_ptr) ∧
   env = LoadEnv(σ, env_ptr) ∧
-  σ' = BindAll(σ, env)
+  BindCapturedList(σ, C, [⟨x, env[x]⟩ | x ∈ CaptureList(C)]) ⇓ (σ', bs)
 
 LoadEnv(σ, env_ptr) = env ⇔
   ∀ (x, offset) ∈ EnvOffsets(env_ptr). env[x] = ReadAddr(σ, GEP(env_ptr, offset))
 
 EnvOffsets(env_ptr) = [(x_i, offset_i) | C = ClosureOf(env_ptr) ∧ Γ ⊢ ClosureEnvLayout(C) ⇓ ⟨_, _, offsets⟩ ∧ CaptureSet(C) = [x_1, …, x_n] ∧ offsets = [offset_1, …, offset_n]]
 
-BindAll(σ, env) = σ' ⇔
-  ∀ x ∈ dom(env). σ'[x] = env[x] ∧
-  ∀ y ∉ dom(env). σ'[y] = σ[y]
+BindCapturedList(σ, C, []) ⇓ (σ, [])
+BindCapturedList(σ, C, [⟨x, v⟩] ++ xs) ⇓ (σ_2, b :: bs) ⇔ BindCaptured(σ, C, x, v) ⇓ (σ_1, b) ∧ BindCapturedList(σ_1, C, xs) ⇓ (σ_2, bs)
 
-EnvSize(env) = Σ_{x ∈ dom(env)} sizeof(TypeOf(env[x]))
+BindCaptured(σ, C, x, Ptr@Valid(addr)) ⇓ (σ', b) ⇔ x ∈ RefCaptureSet(C) ∧ BindVal(σ, x, Alias(addr)) ⇓ (σ', b)
+BindCaptured(σ, C, x, v) ⇓ (σ', b) ⇔ x ∈ MoveCaptureSet(C) ∧ BindVal(σ, x, v) ⇓ (σ', b)
+
+EnvSize(env) = size    ⇔ ClosureEnvLayout(ClosureOf(env)) ⇓ ⟨size, _, _⟩
 
 **(EvalSigma-Closure-NonCapturing)**
 C = ClosureExpr(params, ret_type_opt, body)    CaptureSet(C) = ∅    Γ ⊢ Mangle(C) ⇓ sym
@@ -17357,8 +17521,8 @@ Pipeline expressions desugar to function or closure application: `e_1 => e_2 ≡
 
 ClosureEnvFields(C) = [(x_i, T_i) | x_i ∈ CaptureSet(C) ∧ CaptureType(C, x_i) = T_i]
 
-CaptureType(C, x) = T_x ⇔ x ∈ ConstCaptures(C) ∪ SharedCaptures(C) ∧ Γ(x) = T_x
-CaptureType(C, x) = Ptr<T_x>@Valid ⇔ x ∈ MoveCaptureSet(C) ∧ Γ(x) = T_x
+CaptureType(C, x) = Ptr<T_x>@Valid ⇔ x ∈ ConstCaptures(C) ∪ SharedCaptures(C) ∧ Γ(x) = T_x
+CaptureType(C, x) = T_x ⇔ x ∈ MoveCaptureSet(C) ∧ Γ(x) = T_x
 
 **(Layout-ClosureEnv)**
 C = ClosureExpr(params, ret_type_opt, body)    ClosureEnvFields(C) = fields    RecordLayout(fields) ⇓ ⟨size, align, offsets⟩
@@ -17395,11 +17559,19 @@ IsCaptured(C, x) ⇔ x ∈ CaptureSet(C)
 CaptureOffset(C, x) = offset_i ⇔ Γ ⊢ ClosureEnvLayout(C) ⇓ ⟨_, _, offsets⟩ ∧ CaptureList(C) = [x_1, …, x_n] ∧ x = x_i ∧ offsets = [offset_1, …, offset_n]
 CaptureList(C) = [x | x ∈ CaptureSet(C)]    (deterministic ordering by lexicographic name)
 
-**(Lower-CapturedIdent)**
-InClosureBody(C)    IsCaptured(C, x)    CaptureOffset(C, x) = offset
-env_param = ClosureEnvParam    T = CaptureType(C, x)
+**(Lower-CapturedIdent-Ref)**
+InClosureBody(C)    IsCaptured(C, x)    x ∈ RefCaptureSet(C)    CaptureOffset(C, x) = offset
+env_param = ClosureEnvParam    Γ(x) = T_x
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ LowerExpr(Identifier(x)) ⇓ ⟨EmptyIR, LoadIR(GEP(env_param, offset), T)⟩
+Γ ⊢ LowerExpr(Identifier(x)) ⇓ ⟨SeqIR(LoadIR(GEP(env_param, offset), Ptr<T_x>@Valid), LoadIR(p_capture, T_x)), v_capture⟩
+
+where `p_capture` is the result of the first load and `v_capture` is the result of the second load.
+
+**(Lower-CapturedIdent-Move)**
+InClosureBody(C)    IsCaptured(C, x)    x ∈ MoveCaptureSet(C)    CaptureOffset(C, x) = offset
+env_param = ClosureEnvParam    Γ(x) = T_x
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LowerExpr(Identifier(x)) ⇓ ⟨LoadIR(GEP(env_param, offset), T_x), v_capture⟩
 
 ClosureEnvParam = first parameter of closure code function (the environment pointer)
 
@@ -17407,7 +17579,7 @@ ClosureCodeSig(C) = (params', R) ⇔
   C.params = params ∧
   C.ret_type_opt = R_opt ∧
   R = (R_opt if R_opt ≠ ⊥ else InferRetType(C.body)) ∧
-  params' = [⟨⊥, `__env`, TypeRawPtr(`imm`, TypePrim("u8"))⟩] ++ params
+  params' = CodegenParams([⟨⊥, `__env`, TypeRawPtr(`imm`, TypePrim("u8"))⟩] ++ params)
 
 **(Lower-Closure-Call)**
 Γ ⊢ LowerExpr(e_closure) ⇓ ⟨IR_c, v_closure⟩
@@ -17440,7 +17612,10 @@ This section owns diagnostics for general expression typing, calls, indexing res
 
 | Code          | Severity | Detection    | Condition                                                                           |
 | ------------- | -------- | ------------ | ----------------------------------------------------------------------------------- |
+| `E-SEM-2525`  | Error    | Compile-time | Operator operands are not compatible with the operator's type requirements          |
+| `E-SEM-2526`  | Error    | Compile-time | Expression type incompatible with expected type                                     |
 | `E-SEM-2527`  | Error    | Compile-time | Indexing applied to non-indexable type                                              |
+| `E-SEM-2528`  | Error    | Compile-time | Invalid cast                                                                        |
 | `E-SEM-2531`  | Error    | Compile-time | Callee expression is not of FUNCTION type                                           |
 | `E-SEM-2532`  | Error    | Compile-time | Argument count mismatch                                                             |
 | `E-SEM-2533`  | Error    | Compile-time | Argument type incompatible with parameter type                                      |
@@ -18260,7 +18435,7 @@ This section owns diagnostics for pattern exhaustiveness, irrefutability, and pa
 | `E-SEM-2721` | Error    | Compile-time | Range pattern bounds are not compile-time constants                |
 | `E-SEM-2722` | Error    | Compile-time | Range pattern start exceeds end (empty range)                      |
 | `E-SEM-2731` | Error    | Compile-time | Record pattern references non-existent field                       |
-| `E-SEM-2741` | Error    | Compile-time | `if ... is { ... }` case analysis is not exhaustive               |
+| `E-SEM-2741` | Error    | Compile-time | `if ... is { ... }` case analysis is not exhaustive                |
 | `E-SEM-2751` | Error    | Compile-time | Case clause is unreachable                                         |
 
 ## 18. Statements and Blocks
@@ -18284,10 +18459,14 @@ statement     ::= binding_stmt
                 | continue_stmt
                 | unsafe_block
                 | key_block_stmt
+                | log_statement
+                | comptime_stmt
 block_expr    ::= "{" statement_seq "}"
 ```
 
 `key_block_stmt` is defined in Chapter 19.
+`log_statement` is defined in §9.5.1.
+`comptime_stmt` is defined in §22.1.1.
 
 #### 18.1.2 Parsing
 
@@ -18295,15 +18474,24 @@ block_expr    ::= "{" statement_seq "}"
 StmtTerm = {Punctuator(";"), Newline}
 Terminates(t) ⇔ t ∈ StmtTerm
 
+If Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt) and attrs_opt is a non-empty list whose members all have name = "log", then Γ ⊢ ParseStmt(P) MUST parse a log statement by requiring ConsumeTerminatorReq at P_0.
+
+AttachStmtAttrs(⊥, s) = s. When attrs_opt ≠ ⊥, AttachStmtAttrs(attrs_opt, s) denotes the statement obtained by attaching attrs_opt to s according to Chapter 9.
+
+**(Parse-Statement-Log)**
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    attrs_opt ≠ ⊥    ∀ a ∈ attrs_opt. a.name = "log"    Γ ⊢ ConsumeTerminatorReq(P_0) ⇓ P_1
+───────────────────────────────────────────────────────
+Γ ⊢ ParseStmt(P) ⇓ (P_1, LogStmt(attrs_opt))
+
 **(Parse-Statement)**
-Γ ⊢ ParseStmtCore(P) ⇓ (P_1, s)    Γ ⊢ ConsumeTerminatorOpt(P_1, s) ⇓ P_2
-────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseStmtCore(P_0) ⇓ (P_1, s_0)    s = AttachStmtAttrs(attrs_opt, s_0)    Γ ⊢ ConsumeTerminatorOpt(P_1, s) ⇓ P_2
+───────────────────────────────────────────────────────
 Γ ⊢ ParseStmt(P) ⇓ (P_2, s)
 
 **(Parse-Statement-Err)**
-c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P).span)    P_1 = AdvanceOrEOF(P)    Γ ⊢ SyncStmt(P_1) ⇓ P_2
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseStmt(P) ⇓ (P_2, ErrorStmt(SpanBetween(P, P_2)))
+Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    c = Code(Parse-Syntax-Err)    Γ ⊢ Emit(c, Tok(P_0).span)    P_1 = AdvanceOrEOF(P_0)    Γ ⊢ SyncStmt(P_1) ⇓ P_2
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStmt(P) ⇓ (P_2, ErrorStmt(SpanBetween(P_0, P_2)))
 
 **(Parse-Block)**
 IsPunc(Tok(P), "{")    Γ ⊢ ParseStmtSeq(Advance(P)) ⇓ (P_1, stmts, tail)    IsPunc(Tok(P_1), "}")
@@ -18354,7 +18542,7 @@ SyncStmt = {Punctuator(";"), Newline, Punctuator("}"), EOF}
 
 #### 18.1.3 AST Representation / Form
 
-Stmt = {LetStmt(binding), VarStmt(binding), ErrorStmt(span), ShadowLetStmt(name, type_opt, init), ShadowVarStmt(name, type_opt, init), AssignStmt(place, expr), CompoundAssignStmt(place, op, expr), ExprStmt(expr), DeferStmt(block), RegionStmt(opts_opt, alias_opt, block), FrameStmt(target_opt, block), KeyBlockStmt(paths, mods, mode_opt, block), ReturnStmt(expr_opt), BreakStmt(expr_opt), ContinueStmt, UnsafeBlockStmt(block)}
+Stmt = {LetStmt(binding), VarStmt(binding), ErrorStmt(span), ShadowLetStmt(name, type_opt, init), ShadowVarStmt(name, type_opt, init), AssignStmt(place, expr), CompoundAssignStmt(place, op, expr), ExprStmt(expr), DeferStmt(block), RegionStmt(opts_opt, alias_opt, block), FrameStmt(target_opt, block), KeyBlockStmt(attrs_opt, paths, mods, mode_opt, block, span), ReturnStmt(expr_opt), BreakStmt(expr_opt), ContinueStmt, UnsafeBlockStmt(block), CtStmt(body, attrs_opt, span), LogStmt(attrs_opt)}
 
 LastStmt([]) = ⊥
 LastStmt([s_1, …, s_n]) = s_n    (n ≥ 1)
@@ -18473,12 +18661,12 @@ PlaceJudg = {Γ ⊢ ReadPlaceSigma(p, σ) ⇓ (out, σ'), Γ ⊢ WritePlaceSigma
 ExecState = {Exec(s, σ), ExecSeq(ss, σ), ExecCtrl(κ, σ), ExecDone(σ), RegionBody(r, scope, b, σ), RegionExit(r, scope, out, σ), FrameBody(r, scope, mark, b, σ), FrameExit(r, scope, mark, out, σ), KeyBody(keys, b, σ), KeyExit(keys, out, σ)}
 
 **(Step-Exec-Other-Ok)**
-s ∉ {DeferStmt(_), RegionStmt(_, _, _), FrameStmt(_, _), KeyBlockStmt(_, _, _, _)}    Γ ⊢ ExecSigma(s, σ) ⇓ (ok, σ')
+s ∉ {DeferStmt(_), RegionStmt(_, _, _), FrameStmt(_, _), KeyBlockStmt(_, _, _, _, _, _)}    Γ ⊢ ExecSigma(s, σ) ⇓ (ok, σ')
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ⟨Exec(s, σ)⟩ → ⟨ExecDone(σ')⟩
 
 **(Step-Exec-Other-Ctrl)**
-s ∉ {DeferStmt(_), RegionStmt(_, _, _), FrameStmt(_, _), KeyBlockStmt(_, _, _, _)}    Γ ⊢ ExecSigma(s, σ) ⇓ (Ctrl(κ), σ')
+s ∉ {DeferStmt(_), RegionStmt(_, _, _), FrameStmt(_, _), KeyBlockStmt(_, _, _, _, _, _)}    Γ ⊢ ExecSigma(s, σ) ⇓ (Ctrl(κ), σ')
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ⟨Exec(s, σ)⟩ → ⟨ExecCtrl(κ, σ')⟩
 
@@ -18619,12 +18807,12 @@ Tok(P) = Keyword(`var`)
 
 LetOrVarStmt(binding) ∈ {LetStmt(binding), VarStmt(binding)}
 
-Binding = ⟨pat, ty_opt, op, init, span⟩
-BindingForm(binding) = ⟨pat, ty_opt, op, init, _⟩
-BindingParts(binding) = ⟨pat, ty_opt, op, init, span⟩
+Binding = ⟨attrs_opt, pat, ty_opt, op, init, span⟩
+BindingForm(binding) = ⟨attrs_opt, pat, ty_opt, op, init, _⟩
+BindingParts(binding) = ⟨attrs_opt, pat, ty_opt, op, init, span⟩
 
-BindType(⟨pat, ty_opt, op, init, _⟩) = T ⇔ ty_opt = T
-BindType(⟨pat, ⊥, op, init, _⟩) = θ(T_i) ⇔ Γ; R; L ⊢ init ⇒ T_i ⊣ C ∧ Solve(C) ⇓ θ
+BindType(⟨attrs_opt, pat, ty_opt, op, init, _⟩) = T ⇔ ty_opt = T
+BindType(⟨attrs_opt, pat, ⊥, op, init, _⟩) = θ(T_i) ⇔ Γ; R; L ⊢ init ⇒ T_i ⊣ C ∧ Solve(C) ⇓ θ
 BindType(ShadowLetStmt(_, ty_opt, init)) = T ⇔ ty_opt = T
 BindType(ShadowLetStmt(_, ⊥, init)) = θ(T_i) ⇔ Γ; R; L ⊢ init ⇒ T_i ⊣ C ∧ Solve(C) ⇓ θ
 BindType(ShadowVarStmt(_, ty_opt, init)) = T ⇔ ty_opt = T
@@ -18720,12 +18908,12 @@ BindList(σ, [⟨x, v⟩] ++ xs) ⇓ (σ_2, b::bs)
 BindPattern(σ, p, v) ⇓ (σ', bs) ⇔ BindPatternVal(p, v) ⇓ B ∧ BindOrder(p, B) = binds ∧ BindList(σ, binds) ⇓ (σ', bs)
 
 **(ExecSigma-Let)**
-BindingForm(binding) = ⟨pat, ty_opt, op, init, _⟩    Γ ⊢ EvalSigma(init, σ) ⇓ (Val(v), σ_1)    BindPattern(σ_1, pat, v) ⇓ (σ_2, bs)
+BindingForm(binding) = ⟨attrs_opt, pat, ty_opt, op, init, _⟩    Γ ⊢ EvalSigma(init, σ) ⇓ (Val(v), σ_1)    BindPattern(σ_1, pat, v) ⇓ (σ_2, bs)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ExecSigma(LetStmt(binding), σ) ⇓ (ok, σ_2)
 
 **(ExecSigma-Let-Ctrl)**
-BindingForm(binding) = ⟨pat, ty_opt, op, init, _⟩    Γ ⊢ EvalSigma(init, σ) ⇓ (Ctrl(κ), σ_1)
+BindingForm(binding) = ⟨attrs_opt, pat, ty_opt, op, init, _⟩    Γ ⊢ EvalSigma(init, σ) ⇓ (Ctrl(κ), σ_1)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ExecSigma(LetStmt(binding), σ) ⇓ (Ctrl(κ), σ_1)
 
@@ -18734,12 +18922,12 @@ BindingForm(binding) = ⟨pat, ty_opt, op, init, _⟩    Γ ⊢ EvalSigma(init, 
 #### 18.2.6 Lowering
 
 **(Lower-Stmt-Let)**
-BindingParts(binding) = ⟨pat, ty_opt, op, init, span⟩    Γ ⊢ LowerExpr(init) ⇓ ⟨IR_i, v⟩    Γ ⊢ LowerBindPattern(pat, v) ⇓ IR_b
+BindingParts(binding) = ⟨attrs_opt, pat, ty_opt, op, init, span⟩    Γ ⊢ LowerExpr(init) ⇓ ⟨IR_i, v⟩    Γ ⊢ LowerBindPattern(pat, v) ⇓ IR_b
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LowerStmt(LetStmt(binding)) ⇓ SeqIR(IR_i, IR_b)
 
 **(Lower-Stmt-Var)**
-BindingParts(binding) = ⟨pat, ty_opt, op, init, span⟩    Γ ⊢ LowerExpr(init) ⇓ ⟨IR_i, v⟩    Γ ⊢ LowerBindPattern(pat, v) ⇓ IR_b
+BindingParts(binding) = ⟨attrs_opt, pat, ty_opt, op, init, span⟩    Γ ⊢ LowerExpr(init) ⇓ ⟨IR_i, v⟩    Γ ⊢ LowerBindPattern(pat, v) ⇓ IR_b
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LowerStmt(VarStmt(binding)) ⇓ SeqIR(IR_i, IR_b)
 
@@ -19735,13 +19923,15 @@ KeyPath(e) = P
 #### 19.2.1 Syntax
 
 ```ebnf
-key_block_stmt ::= "#" key_path_list key_block_mod* key_mode? block_expr
+key_block_stmt ::= "#" key_path_list key_block_mod* key_mode_spec? block_expr
 key_path_list  ::= key_path_expr ("," key_path_expr)*
-key_block_mod  ::= "dynamic" | "speculative" | "release" | "ordered"
+key_block_mod  ::= "dynamic" | "speculative" | "ordered"
+key_mode_spec  ::= key_mode | release_modifier
 key_mode       ::= "read" | "write"
+release_modifier ::= "release" key_mode
 ```
 
-`ordered` is valid only for key paths that share the same non-index base path and differ only in index segments. When present, it makes the canonical path order of §19.3.3 the observable acquisition and conflict-resolution order for that block.
+`ordered` requests the same-base indexed-path checking defined in �19.3.4. Canonical path order remains the deterministic acquisition and conflict-resolution order for key blocks under ��19.2.5 and 19.3.5.
 
 #### 19.2.2 Parsing
 
@@ -19763,7 +19953,7 @@ Key-block parsing is defined by the following source rules:
 - `Parse-KeyModeOpt-Some`
 - `Parse-KeyBlock-Stmt`
 
-`Parse-KeyBlockMod-Ordered` consumes the keyword `ordered` and contributes `Ordered` to the parsed modifier list.
+`Parse-KeyBlockMod-Ordered` consumes the keyword `ordered` and contributes `Ordered` to the parsed modifier list. `Parse-KeyBlockMod-Release` consumes `release` followed by the required target mode.
 
 #### 19.2.3 AST Representation / Form
 
@@ -19777,7 +19967,7 @@ KeyBlockMods = [KeyBlockMod]
 
 KeyPathList = [KeyPathExpr]
 
-KeyBlockStmt = ⟨paths, mods, mode_opt, body⟩
+KeyBlockStmt = ?attrs_opt, paths, mods, mode_opt, body, span?
 
 Key = ⟨Path, Mode, Scope⟩
 
@@ -19800,9 +19990,9 @@ Mode ordering:
 Read < Write
 
 ModeSufficient(M_held, M_required) ⇔ M_required ≤ M_held
-BlockMode(KeyBlockStmt(_, _, ⊥, _)) = Read
-BlockMode(KeyBlockStmt(_, _, Read, _)) = Read
-BlockMode(KeyBlockStmt(_, _, Write, _)) = Write
+BlockMode(KeyBlockStmt(_, _, _, ?, _, _)) = Read
+BlockMode(KeyBlockStmt(_, _, _, Read, _, _)) = Read
+BlockMode(KeyBlockStmt(_, _, _, Write, _, _)) = Write
 
 **(K-Mode-Read)**
 Γ ⊢ e : `shared` T    ReadContext(e)
@@ -19818,14 +20008,14 @@ If an expression appears in multiple contexts, the more restrictive context appl
 
 Read contexts:
 
-| Syntactic Position                           | Context |
-| -------------------------------------------- | ------- |
-| Right-hand side of `let`/`var` initializer   | Read    |
-| Right-hand side of assignment (`=`)          | Read    |
-| Operand of arithmetic/logical operator       | Read    |
-| Argument to `const` or `shared` parameter    | Read    |
+| Syntactic Position                                                 | Context |
+| ------------------------------------------------------------------ | ------- |
+| Right-hand side of `let`/`var` initializer                         | Read    |
+| Right-hand side of assignment (`=`)                                | Read    |
+| Operand of arithmetic/logical operator                             | Read    |
+| Argument to `const` or `shared` parameter                          | Read    |
 | Condition or case-scrutinee expression (`if`, `if ... is`, `loop`) | Read    |
-| Receiver of method with `~` receiver         | Read    |
+| Receiver of method with `~` receiver                               | Read    |
 
 Write contexts:
 
@@ -19905,7 +20095,7 @@ C : |vec_T| → R [`shared`: deps]    Access(x.p, M) ∈ C.body
 ─────────────────────────────────────────────────────────────────────────────
 KeyPath(C, x.p) = id(C.x).p
 
-An escaping closure MUST NOT outlive any captured `shared` binding.
+An escaping closure MUST NOT outlive any captured local `shared` binding.
 
 #### 19.2.5 Dynamic Semantics
 
@@ -19935,17 +20125,17 @@ ModeOf(Write) = Write
 **(ExecSigma-KeyBlock)**
 Speculative ∉ mods    Release ∉ mods    Γ ⊢ AcquireKeysSigma(paths, mode_opt, σ) ⇓ (σ_1, keys)    Γ ⊢ EvalBlockSigma(body, σ_1) ⇓ (out, σ_2)    Γ ⊢ ReleaseKeysSigma(keys, σ_2) ⇓ σ_3
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ExecSigma(KeyBlockStmt(paths, mods, mode_opt, body), σ) ⇓ (StmtOutOf(out), σ_3)
+G ? ExecSigma(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span), s) ? (StmtOutOf(out), s_3)
 
 **(ExecSigma-KeyBlock-Ctrl)**
 Speculative ∉ mods    Release ∉ mods    Γ ⊢ AcquireKeysSigma(paths, mode_opt, σ) ⇓ (σ_1, keys)    Γ ⊢ EvalBlockSigma(body, σ_1) ⇓ (Ctrl(κ), σ_2)    Γ ⊢ ReleaseKeysSigma(keys, σ_2) ⇓ σ_3
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ExecSigma(KeyBlockStmt(paths, mods, mode_opt, body), σ) ⇓ (Ctrl(κ), σ_3)
+G ? ExecSigma(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span), s) ? (Ctrl(?), s_3)
 
 **(Step-Exec-KeyBlock-Enter)**
 Speculative ∉ mods    Γ ⊢ AcquireKeysSigma(paths, mode_opt, σ) ⇓ (σ_1, keys)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-⟨Exec(KeyBlockStmt(paths, mods, mode_opt, body), σ)⟩ → ⟨KeyBody(keys, body, σ_1)⟩
+?Exec(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span), s)? ? ?KeyBody(keys, body, s_1)?
 
 **(Step-Exec-KeyBlock-Body)**
 Γ ⊢ EvalBlockSigma(body, σ) ⇓ (out, σ_1)
@@ -19992,7 +20182,7 @@ IR_enter = SeqIRList([SeqIR(CheckConflict(P_i, mode), AcquireKey(P_i, mode, S)) 
 Γ ⊢ LowerBlock(body) ⇓ ⟨IR_b, v_b⟩
 IR_exit = SeqIRList([ReleaseKey(P_i, S) | P_i ∈ Reverse(sorted)])
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ LowerStmt(KeyBlockStmt(paths, mods, mode_opt, body)) ⇓ SeqIR(IR_enter, IR_b, IR_exit)
+G ? LowerStmt(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)) ? SeqIR(IR_enter, IR_b, IR_exit)
 
 #### 19.2.7 Diagnostics
 
@@ -20005,7 +20195,7 @@ IR_exit = SeqIRList([ReleaseKey(P_i, S) | P_i ∈ Reverse(sorted)])
 | `E-CON-0032` | Error    | Compile-time | `#` block path is not `shared`                              |
 | `E-CON-0070` | Error    | Compile-time | Write operation in `#` block without `write` modifier       |
 | `E-CON-0085` | Error    | Compile-time | Escaping closure with `shared` capture lacks dependency set |
-| `E-CON-0086` | Error    | Compile-time | Escaping closure outlives captured `shared` binding         |
+| `E-CON-0086` | Error    | Compile-time | Escaping closure outlives captured local `shared` binding   |
 | `W-CON-0001` | Warning  | Compile-time | Fine-grained keys in tight loop (performance hint)          |
 | `W-CON-0002` | Warning  | Compile-time | Redundant key acquisition (already covered)                 |
 | `W-CON-0003` | Warning  | Compile-time | `#` redundant (matches type boundary)                       |
@@ -20110,7 +20300,11 @@ Reject
 
 **Read-Then-Write Prohibition**
 
-ReadThenWrite(P, S) ⇔ ∃ e_r, e_w ∈ Subexpressions(S) : ReadsPath(e_r, P) ∧ WritesPath(e_w, P)
+ReadThenWrite(P, S) ? ? e_r, e_w ? Subexpressions(S) : ReadsPath(e_r, P) ? WritesPath(e_w, P)
+
+CompoundRewriteOp(op) ? op ? {`+`, `-`, `*`, `/`, `%`}
+
+CompoundRewriteCandidate(P, S) ? S = AssignStmt(P, BinaryExpr(op, P, e), span) ? CompoundRewriteOp(op)
 
 **(K-Read-Write-Reject)**
 Γ ⊢ P : `shared` T    ReadThenWrite(P, S)    ¬ ∃ (Q, Write, S') ∈ Γ_keys : Prefix(Q, P)
@@ -20122,6 +20316,16 @@ Reject
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Permitted
 
+**(K-RMW-Explicit-Warn)**
+G ? P : `shared` T    ReadThenWrite(P, S)    ? (Q, Write, S') ? G_keys : Prefix(Q, P)    CompoundRewriteCandidate(P, S)    w = Code(K-RMW-Explicit-Warn)
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+G ? WarnRMW(S) ? w
+
+**(K-RMW-Contention-Warn)**
+G ? P : `shared` T    ReadThenWrite(P, S)    ? (Q, Write, S') ? G_keys : Prefix(Q, P)    � CompoundRewriteCandidate(P, S)    w = Code(K-RMW-Contention-Warn)
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+G ? WarnRMW(S) ? w
+
 NonIndexShape(P) = [seg | seg ∈ PathSegments(P) ∧ ¬ IsIndex(seg)]
 OrderedBase(P) = ⟨Root(P), NonIndexShape(P)⟩
 OrderedComparable(paths) ⇔ ∀ P, Q ∈ paths. OrderedBase(P) = OrderedBase(Q)
@@ -20130,17 +20334,17 @@ StaticallyComparableIndices(paths) ⇔ ∀ P, Q ∈ paths. OrderedBase(P) = Orde
 **(K-Ordered-Ok)**
 Ordered ∈ mods    OrderedComparable([KeyPath(p) | p ∈ paths])
 ────────────────────────────────────────────────────────────────────────────
-OrderedPathsOk(KeyBlockStmt(paths, mods, mode_opt, body))
+OrderedPathsOk(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span))
 
 **(K-Ordered-Base-Err)**
 Ordered ∈ mods    ¬ OrderedComparable([KeyPath(p) | p ∈ paths])    c = Code(K-Ordered-Base-Err)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ KeyBlockStmt(paths, mods, mode_opt, body) ⇑ c
+G ? KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span) ? c
 
 **(K-Ordered-Redundant-Warn)**
 Ordered ∈ mods    OrderedComparable([KeyPath(p) | p ∈ paths])    StaticallyComparableIndices([KeyPath(p) | p ∈ paths])    w = Code(K-Ordered-Redundant-Warn)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ WarnKeyBlock(KeyBlockStmt(paths, mods, mode_opt, body)) ⇓ w
+G ? WarnKeyBlock(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)) ? w
 
 #### 19.3.5 Dynamic Semantics
 
@@ -20177,7 +20381,7 @@ LowerConflictChecks(paths, mode_opt) ⇓ IR ⇔
 
 #### 19.4.1 Syntax
 
-This section introduces no additional surface syntax beyond the `release` modifier in §19.2.1.
+This section introduces no additional surface syntax beyond the `release_modifier` form in §19.2.1.
 
 #### 19.4.2 Parsing
 
@@ -20185,7 +20389,7 @@ This section introduces no additional parsing rules beyond §19.2.2.
 
 #### 19.4.3 AST Representation / Form
 
-Nested release is represented by `KeyBlockStmt(paths, mods, mode_opt, body)` with `Release ∈ mods`.
+Nested release is represented by `KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)` with `Release ? mods`.
 
 #### 19.4.4 Static Semantics
 
@@ -20200,36 +20404,31 @@ otherwise:
  Reject
 
 **(K-Reentrant)**
-Held(P, M, Γ_keys)    Prefix(P, Q)    CalleeAccesses(Q)
-──────────────────────────────────────────────────────────
+SharedParam(proc, i) ? the i-th formal parameter of proc has type `shared` T for some T
+DirectCalleeAccesses(proc) = {?i, rel, M? | SharedParam(proc, i) ? proc.body contains KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span) ? q ? paths ? KeyPath(q) = name(param_i) ++ rel ? M = BlockMode(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span))}
+CalleeAccessSummary(proc) is the least set A such that DirectCalleeAccesses(proc) ? A and, for every directly resolved call `g(a_1, �, a_n)` in proc.body, every ?j, rel, M? ? CalleeAccessSummary(g), and every i with SharedParam(proc, i) and KeyPath(a_j) = name(param_i) ++ rel_0, ?i, rel_0 ++ rel, M? ? A.
+InstantiateCalleeAccess(v, ?i, rel, M?) = ?Q, M? ? KeyPath(v) = Q_0 ? Q = Q_0 ++ rel
+CalleeAccesses(Q) at call site `call(f, a_1, �, a_n)` iff ? ?i, rel, M? ? CalleeAccessSummary(f). InstantiateCalleeAccess(a_i, ?i, rel, M?) = ?Q, M?
+CalleeCovered(Q) at call site iff the instantiated access for Q has required mode M_Q and Covered(Q, M_Q, G_keys).
+
+Held(P, M, G_keys)    Prefix(P, Q)    CalleeAccesses(Q)
+----------------------------------------------------------
 CalleeCovered(Q)
+
+If CalleeAccessSummary(f) cannot be computed because the callee is unresolved, bodyless, dynamically dispatched, or recursively unknown, the compiler MUST emit the unknown-callee-access warning defined in �19.4.7 once per call site whose `shared` actual argument path lies under a currently held prefix. For static analysis, that call site is treated as potentially accessing every subpath of the actual argument path in `Write` mode.
 
 Passing a `shared` value as a procedure argument does not itself acquire a key:
 
-Γ ⊢ f : (`shared` T) → R    Γ ⊢ v : `shared` T
-──────────────────────────────────────────────────────────────
-call(f, v) → no key acquisition at call site
+G ? f : (`shared` T) ? R    G ? v : `shared` T
+--------------------------------------------------------------
+call(f, v) ? no key acquisition at call site
 
-`[[stale_ok]]` suppresses the stale-after-release warning on a binding derived from `shared` data across a `release` boundary. Attribute syntax and attachment are defined in §9.5.
-
-CurrentProcedure(Γ) = proc
-AcquireSeq(KeyBlockStmt(paths, mods, mode_opt, body)) = CanonicalSort([KeyPath(p) | p ∈ paths])
-DetectableKeyCycle(proc) ⇔ ∃ B_1, B_2 ∈ KeyBlocks(proc), ∃ P, Q. P precedes Q in AcquireSeq(B_1) ∧ Q precedes P in AcquireSeq(B_2)
-
-**(K-Release-Mode-Missing-Err)**
-Release ∈ modifiers    mode_opt = ⊥    c = Code(K-Release-Mode-Missing-Err)
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ KeyBlockStmt(paths, modifiers, mode_opt, body) ⇑ c
+`[[stale_ok]]` suppresses the stale-after-release warning on a binding derived from `shared` data across a `release` boundary. Attribute syntax and attachment are defined in �9.5.
 
 **(K-Release-SameMode-Err)**
-Release ∈ modifiers    Held(P, M_outer, Γ_keys)    P ∈ {KeyPath(p) | p ∈ paths}    BlockMode(KeyBlockStmt(paths, modifiers, mode_opt, body)) = M_outer    c = Code(K-Release-SameMode-Err)
+Release ∈ modifiers    Held(P, M_outer, Γ_keys)    P ∈ {KeyPath(p) | p ∈ paths}    BlockMode(KeyBlockStmt(attrs_opt, paths, modifiers, mode_opt, body, span)) = M_outer    c = Code(K-Release-SameMode-Err)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ KeyBlockStmt(paths, modifiers, mode_opt, body) ⇑ c
-
-**(K-Release-Cycle-Err)**
-Release ∈ modifiers    CurrentProcedure(Γ) = proc    DetectableKeyCycle(proc)    c = Code(K-Release-Cycle-Err)
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ KeyBlockStmt(paths, modifiers, mode_opt, body) ⇑ c
+G ? KeyBlockStmt(attrs_opt, paths, modifiers, mode_opt, body, span) ? c
 
 #### 19.4.5 Dynamic Semantics
 
@@ -20269,7 +20468,7 @@ ReacquireHeldKeysSigma(keys, σ) ⇓ σ' ⇔
 **(ExecSigma-KeyBlock-Release)**
 Release ∈ mods    outer = HeldKeysForPaths(paths, σ)    Γ ⊢ ReleaseKeysSigma(outer, σ) ⇓ σ_1    σ_2 = MarkKeysReleased(σ_1, outer)    Γ ⊢ AcquireKeysSigma(paths, mode_opt, σ_2) ⇓ (σ_3, inner)    Γ ⊢ EvalBlockSigma(body, σ_3) ⇓ (out, σ_4)    Γ ⊢ ReleaseKeysSigma(inner, σ_4) ⇓ σ_5    σ_6 = ClearReleased(σ_5, outer)    Γ ⊢ ReacquireHeldKeysSigma(outer, σ_6) ⇓ σ_7
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ExecSigma(KeyBlockStmt(paths, mods, mode_opt, body), σ) ⇓ (StmtOutOf(out), σ_7)
+G ? ExecSigma(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span), s) ? (StmtOutOf(out), s_7)
 
 #### 19.4.6 Lowering
 
@@ -20281,20 +20480,17 @@ IR_acquire_inner = SeqIRList([SeqIR(CheckConflict(P_i, mode), AcquireKey(P_i, mo
 IR_release_inner = SeqIRList([ReleaseKey(P_i, CurrentScope) | P_i ∈ Reverse(sorted)])
 IR_reacquire_outer = SeqIRList([AcquireKey(PathOf(k), KeyModeOf(k), KeyScopeOf(k)) | k ∈ outer])
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ LowerStmt(KeyBlockStmt(paths, mods, mode_opt, body)) ⇓ SeqIR(IR_release_outer, IR_acquire_inner, IR_b, IR_release_inner, IR_reacquire_outer)
+G ? LowerStmt(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)) ? SeqIR(IR_release_outer, IR_acquire_inner, IR_b, IR_release_inner, IR_reacquire_outer)
 
 #### 19.4.7 Diagnostics
 
 | Code         | Severity | Detection    | Condition                                           |
 | ------------ | -------- | ------------ | --------------------------------------------------- |
-| `E-CON-0011` | Error    | Compile-time | Detectable key ordering cycle within procedure      |
 | `E-CON-0012` | Error    | Compile-time | Nested mode change without `release` modifier       |
-| `E-CON-0017` | Error    | Compile-time | `release` modifier without target mode              |
 | `E-CON-0018` | Error    | Compile-time | `release` with target mode matching outer mode      |
 | `W-CON-0005` | Warning  | Compile-time | Callee access pattern unknown; assuming full access |
 | `W-CON-0010` | Warning  | Compile-time | `release` block permits interleaving                |
 | `W-CON-0011` | Warning  | Compile-time | Access to potentially stale binding after release   |
-| `W-CON-0012` | Warning  | Compile-time | Nested `#` blocks with potential order cycle        |
 
 ### 19.5 Speculative Execution
 
@@ -20310,7 +20506,7 @@ Speculative blocks use the key-block parser in §19.2.2 together with `Parse-Key
 
 #### 19.5.3 AST Representation / Form
 
-Speculative execution is represented by `KeyBlockStmt(paths, mods, mode_opt, body)` with `Speculative ∈ mods`.
+Speculative execution is represented by `KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)` with `Speculative ? mods`.
 
 ReadSet = ℘(Path × Value)
 
@@ -20368,17 +20564,17 @@ Reject
 **(K-Spec-No-Wait)**
 #P `speculative write` {B}    WaitExpr(_) ∈ Subexpressions(B)    c = Code(K-Spec-No-Wait)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ KeyBlockStmt(paths, mods, mode_opt, B) ⇑ c
+G ? KeyBlockStmt(attrs_opt, paths, mods, mode_opt, B, span) ? c
 
 **(K-Spec-No-Defer)**
 #P `speculative write` {B}    DeferStmt(_) ∈ SubStatements(B)    c = Code(K-Spec-No-Defer)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ KeyBlockStmt(paths, mods, mode_opt, B) ⇑ c
+G ? KeyBlockStmt(attrs_opt, paths, mods, mode_opt, B, span) ? c
 
 **(K-Spec-No-Release)**
 Speculative ∈ mods    Release ∈ mods    c = Code(K-Spec-No-Release)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ KeyBlockStmt(paths, mods, mode_opt, body) ⇑ c
+G ? KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span) ? c
 
 #### 19.5.5 Dynamic Semantics
 
@@ -20387,7 +20583,7 @@ Speculative ∈ mods    Release ∈ mods    c = Code(K-Spec-No-Release)
 **(ExecSigma-KeyBlock-Speculative)**
 Speculative ∈ mods    retries = 0
 ────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ExecSigma(KeyBlockStmt(paths, mods, mode_opt, body), σ) ⇓ SpecLoop(paths, mods, mode_opt, body, retries, σ)
+G ? ExecSigma(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span), s) ? SpecLoop(paths, mods, mode_opt, body, retries, s)
 
 SpecLoop(paths, mods, mode_opt, body, retries, σ) ⇓ (out, σ') ⇔
   R = SnapshotKeyedPaths(paths, σ) ∧
@@ -20395,7 +20591,7 @@ SpecLoop(paths, mods, mode_opt, body, retries, σ) ⇓ (out, σ') ⇔
   W = CollectWrites(σ, σ_1) ∧
   (SpeculativeCommit(R, W) ⇒ out = out_body ∧ σ' = ApplyWrites(σ, W)) ∧
   (¬SpeculativeCommit(R, W) ∧ retries < MAX_SPECULATIVE_RETRIES ⇒ SpecLoop(paths, mods, mode_opt, body, retries + 1, σ) ⇓ (out, σ')) ∧
-  (¬SpeculativeCommit(R, W) ∧ retries ≥ MAX_SPECULATIVE_RETRIES ⇒ Γ ⊢ ExecSigma(KeyBlockStmt(paths, mods ∖ {Speculative}, mode_opt, body), σ) ⇓ (out, σ'))
+  (�SpeculativeCommit(R, W) ? retries = MAX_SPECULATIVE_RETRIES ? G ? ExecSigma(KeyBlockStmt(attrs_opt, paths, mods \ {Speculative}, mode_opt, body, span), s) ? (out, s'))
 
 **State Machine**
 
@@ -20475,7 +20671,7 @@ Speculative ∈ mods    Γ ⊢ LowerKeyPaths(paths) ⇓ Ps    sorted = Canonical
 IR_fallback = SeqIR(SeqIRList([SeqIR(CheckConflict(P_i, Write), AcquireKey(P_i, Write, CurrentScope)) | P_i ∈ sorted]), IR_b, SeqIRList([ReleaseKey(P_i, CurrentScope) | P_i ∈ Reverse(sorted)]))
 IR = SpecLoopIR(SpecSnapshotIR(sorted), IR_b, SpecValidateIR(sorted), SpecCommitIR(sorted), SpecRetryIR, SpecFallbackIR(IR_fallback))
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ LowerStmt(KeyBlockStmt(paths, mods, mode_opt, body)) ⇓ IR
+G ? LowerStmt(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)) ? IR
 
 #### 19.5.7 Diagnostics
 
@@ -20674,6 +20870,10 @@ domain_expr          ::= expression
 parallel_option_list ::= "[" parallel_option ("," parallel_option)* "]"
 parallel_option      ::= "cancel" ":" expression
                        | "name" ":" string_literal
+                       | "workgroup" ":" dim3_const
+                       | "workgroups" ":" dim3_const
+dim3_const           ::= "(" ct_usize_expr "," ct_usize_expr "," ct_usize_expr ")"
+ct_usize_expr        ::= expression
 ```
 
 #### 20.1.2 Parsing
@@ -20690,18 +20890,25 @@ Parallel-block parsing is defined by the following source rules:
 - `Parse-ParallelOptListTail-Comma`
 - `Parse-ParallelOpt-Cancel`
 - `Parse-ParallelOpt-Name`
+- `Parse-ParallelOpt-Workgroup`
+- `Parse-ParallelOpt-Workgroups`
 
 `Parse-Parallel-Expr` parses the domain expression with `ParseExpr_NoBrace`, then parses the optional option list, then parses the block body.
 
 #### 20.1.3 AST Representation / Form
 
-ParallelOpt = {Cancel(expr), Name(str)}
+ParallelOpt = {Cancel(expr), Name(str), Workgroup(dim3), Workgroups(dim3)}
 
 ParallelOpts = [ParallelOpt]
 
-Expr = … | ParallelExpr(domain, opts, body) | …
+Expr = � | ParallelExpr(domain, opts, body) | �
 
 ResolveParallelOptJudg = {ResolveParallelOpt, ResolveParallelOpts}
+
+ResolveParallelOpt is homomorphic on the option forms:
+
+- If Γ ⊢ ResolveExpr(e) ⇓ e' then Γ ⊢ ResolveParallelOpt(Workgroup(e)) ⇓ Workgroup(e').
+- If Γ ⊢ ResolveExpr(e) ⇓ e' then Γ ⊢ ResolveParallelOpt(Workgroups(e)) ⇓ Workgroups(e').
 
 ParallelOptExprs([]) = []
 
@@ -20709,21 +20916,39 @@ ParallelOptExprs(Cancel(e) :: os) = [e] ++ ParallelOptExprs(os)
 
 ParallelOptExprs(Name(_) :: os) = ParallelOptExprs(os)
 
+ParallelOptExprs(Workgroup(e) :: os) = [e] ++ ParallelOptExprs(os)
+
+ParallelOptExprs(Workgroups(e) :: os) = [e] ++ ParallelOptExprs(os)
+
 #### 20.1.4 Static Semantics
 
-BlockOptOk(Name(_)) ⇔ true
+BlockOptOk(Name(_)) ? true
 
-BlockOptOk(Cancel(e)) ⇔ Γ ⊢ e : TypePath(["CancelToken"])
+BlockOptOk(Cancel(e)) ? G ? e : TypePath(["CancelToken"])
 
-BlockOptsOk(opts) ⇔ ∀ opt ∈ opts. BlockOptOk(opt)
-DomainCtor(MethodCall(ctx, name, args)) ⇔ name ∈ {`cpu`, `gpu`, `inline`}
-DomainCtor(_) ⇔ false
+G ? Dim3Const((e_1, e_2, e_3)) ? (x, y, z) ?
+  G ? e_1 : TypePrim("usize") ? G ? ConstLen(e_1) ? x ? x > 0 ?
+  G ? e_2 : TypePrim("usize") ? G ? ConstLen(e_2) ? y ? y > 0 ?
+  G ? e_3 : TypePrim("usize") ? G ? ConstLen(e_3) ? z ? z > 0
+
+**(Dim3Const-Err)**
+¬∃ dims. G ⊢ Dim3Const(e) ⇓ dims    c = Code(Dim3Const-Err)
+────────────────────────────────────────────────────────────
+Reject
+
+BlockOptOk(Workgroup(e)) ? ? dims. G ? Dim3Const(e) ? dims
+
+BlockOptOk(Workgroups(e)) ? ? dims. G ? Dim3Const(e) ? dims
+
+BlockOptsOk(opts) ? ? opt ? opts. BlockOptOk(opt)
+DomainCtor(MethodCall(ctx, name, args)) ? name ? {`cpu`, `gpu`, `inline`}
+DomainCtor(_) ? false
 DomainCtorOk(MethodCall(ctx, `cpu`, []))
-DomainCtorOk(MethodCall(ctx, `cpu`, [mask])) ⇔ Γ ⊢ mask : TypePath(["CpuSet"])
-DomainCtorOk(MethodCall(ctx, `cpu`, [mask, prio])) ⇔ Γ ⊢ mask : TypePath(["CpuSet"]) ∧ Γ ⊢ prio : TypePath(["Priority"])
+DomainCtorOk(MethodCall(ctx, `cpu`, [mask])) ? G ? mask : TypePath(["CpuSet"])
+DomainCtorOk(MethodCall(ctx, `cpu`, [mask, prio])) ? G ? mask : TypePath(["CpuSet"]) ? G ? prio : TypePath(["Priority"])
 DomainCtorOk(MethodCall(ctx, `gpu`, []))
 DomainCtorOk(MethodCall(ctx, `inline`, []))
-DomainCtorOk(D) ⇔ ¬DomainCtor(D)
+DomainCtorOk(D) ? �DomainCtor(D)
 
 **(T-Parallel)**
 Γ ⊢ D : `$ExecutionDomain`    DomainCtorOk(D)    BlockOptsOk(opts)    Γ_P = Γ[parallel_context ↦ D]    Γ_P ⊢ B : T
@@ -20741,22 +20966,45 @@ DomainCtor(D)    ¬DomainCtorOk(D)    c = Code(Parallel-Domain-Param-Err)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ `parallel` D opts {B} ⇑ c
 
+The same rejection form applies when some option `Cancel(e)` is present and Γ ⊢ e : TypePath(["CancelToken"]) does not hold.
+
 #### 20.1.5 Dynamic Semantics
 
-ParallelState = {Domain : Value, Handles : List⟨Value⟩, CancelToken : CancelToken@Active | ⊥}
+ParallelState = {Domain : Value, Handles : List?Value?, CancelToken : CancelToken@Active | ?}
 
-ParallelInit(d, opts) ⇓ pstate ⇔ pstate = {Domain: d, Handles: [], CancelToken: CancelOpt(opts)}
+ParallelInit(d, opts) ? pstate ? pstate = {Domain: d, Handles: [], CancelToken: CancelOpt(opts)}
 
-CancelOpt(opts) = token ⇔ Cancel(token) ∈ opts
+CancelOpt(opts) = token ? Cancel(token) ? opts
 
-CancelOpt(opts) = ⊥ ⇔ ∀ opt ∈ opts. opt ≠ Cancel(_)
+CancelOpt(opts) = ? ? ? opt ? opts. opt ? Cancel(_)
 
-AwaitSpawned(pstate, σ) ⇓ (panic_opt, σ') ⇔ every handle in `pstate.Handles` reaches `Ready` or `Failed` between `σ` and `σ'`, and `panic_opt` is the failed completion associated with the least completion-sequence number among handles in `pstate.Handles` whose terminal state is `Failed`, or `⊥` if none fail.
+DEFAULT_GPU_WORKGROUP = (64, 1, 1)
+
+DEFAULT_GPU_WORKGROUPS = (1, 1, 1)
+
+WorkgroupOpt(opts) = dims ? Workgroup(dims) ? opts
+
+WorkgroupOpt(opts) = ? ? ? opt ? opts. opt ? Workgroup(_)
+
+WorkgroupsOpt(opts) = dims ? Workgroups(dims) ? opts
+
+WorkgroupsOpt(opts) = ? ? ? opt ? opts. opt ? Workgroups(_)
+
+ComputeTopologyParallel(opts) = topo ?
+  wg = if WorkgroupOpt(opts) ? ? then WorkgroupOpt(opts) else DEFAULT_GPU_WORKGROUP ?
+  ng = if WorkgroupsOpt(opts) ? ? then WorkgroupsOpt(opts) else DEFAULT_GPU_WORKGROUPS ?
+  topo = ?
+    WorkgroupSize := wg,
+    NumWorkgroups := ng,
+    GlobalSize := (wg.0 � ng.0, wg.1 � ng.1, wg.2 � ng.2)
+  ?
+
+AwaitSpawned(pstate, s) ? (panic_opt, s') ? every handle in `pstate.Handles` reaches `Ready` or `Failed` between `s` and `s'`, and `panic_opt` is the failed completion associated with the least completion-sequence number among handles in `pstate.Handles` whose terminal state is `Failed`, or `?` if none fail.
 
 **(EvalSigma-Parallel)**
-Γ ⊢ EvalSigma(D, σ) ⇓ (Val(d), σ_1)    ParallelInit(d, opts) ⇓ pstate_0    Γ ⊢ EvalSigma(B, σ_1[parallel_context ↦ pstate_0]) ⇓ (Val(v_body), σ_2)    LookupVal(σ_2, parallel_context) = pstate_n    AwaitSpawned(pstate_n, σ_2) ⇓ (⊥, σ_3)
+G ? EvalSigma(D, s) ? (Val(d), s_1)    ParallelInit(d, opts) ? pstate_0    topology = if IsGpuDomain(d) then ComputeTopologyParallel(opts) else ?    G ? EvalSigma(B, s_1[parallel_context ? pstate_0]) ? (Val(v_body), s_2)    LookupVal(s_2, parallel_context) = pstate_n    AwaitSpawned(pstate_n, s_2) ? (?, s_3)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ EvalSigma(ParallelExpr(D, opts, B), σ) ⇓ (Val(v_body), σ_3)
+G ? EvalSigma(ParallelExpr(D, opts, B), s) ? (Val(v_body), s_3)
 
 **(EvalSigma-Parallel-Body-Ctrl)**
 Γ ⊢ EvalSigma(D, σ) ⇓ (Val(d), σ_1)    ParallelInit(d, opts) ⇓ pstate_0    Γ ⊢ EvalSigma(B, σ_1[parallel_context ↦ pstate_0]) ⇓ (Ctrl(κ), σ_2)    LookupVal(σ_2, parallel_context) = pstate_n    AwaitSpawned(pstate_n, σ_2) ⇓ (⊥, σ_3)
@@ -20781,11 +21029,11 @@ ParallelLowerJudg = {LowerParallelBody}
 
 #### 20.1.7 Diagnostics
 
-| Code         | Severity | Detection    | Condition                               |
-| ------------ | -------- | ------------ | --------------------------------------- |
-| `E-CON-0101` | Error    | Compile-time | `spawn` or `dispatch` outside parallel  |
-| `E-CON-0102` | Error    | Compile-time | Domain expression not `ExecutionDomain` |
-| `E-CON-0103` | Error    | Compile-time | Invalid domain parameter type           |
+| Code         | Severity | Detection    | Condition                                        |
+| ------------ | -------- | ------------ | ------------------------------------------------ |
+| `E-CON-0101` | Error    | Compile-time | `spawn` outside parallel                         |
+| `E-CON-0102` | Error    | Compile-time | Domain expression not `ExecutionDomain`          |
+| `E-CON-0103` | Error    | Compile-time | Invalid parallel domain or option parameter type |
 
 ### 20.2 Execution Domains
 
@@ -20809,23 +21057,33 @@ This section introduces no additional parser productions beyond ordinary type, c
 
 GpuDomainJudg = {IsGpuDomain, GpuContext, GpuSafeType, GpuCaptureOk}
 
-IsGpuDomain(D) ⇔ DomainKind(D) = `GPU`
+IsGpuDomain(D) ? DomainKind(D) = `GPU`
 
-GpuContext(Γ) ⇔ Γ[parallel_context] = D ∧ IsGpuDomain(D)
+GpuContext(G) ? G[parallel_context] = D ? IsGpuDomain(D)
 
 GpuSafeJudg = {GpuSafeType}
 
 GpuAddressSpace = {Global, Shared, Private}
 
-GpuMemory = ⟨GlobalMem, SharedMem, PrivateMem⟩
-GlobalMem : Addr ⇀ Value
-SharedMem : WorkgroupId × Addr ⇀ Value
-PrivateMem : WorkItemId × Addr ⇀ Value
+GpuMemory = ?GlobalMem, SharedMem, PrivateMem?
+GlobalMem : Addr ? Value
+SharedMem : WorkgroupId � Addr ? Value
+PrivateMem : WorkItemId � Addr ? Value
 
 **GpuPtr Type.** `GpuPtr<T, S>` represents a pointer to GPU memory in address space `S`.
 
-TypeGpuPtr(T, S) where S ∈ GpuAddressSpace
+TypeGpuPtr(T, S) where S ? GpuAddressSpace
 GpuPtrAddrSpace(TypeGpuPtr(T, S)) = S
+
+ComputeTopologyDispatch(bounds, opts) = topo ?
+  wg = if WorkgroupOpt(opts) ? ? then WorkgroupOpt(opts) else DEFAULT_GPU_WORKGROUP ?
+  volume = wg.0 � wg.1 � wg.2 ?
+  groups = CeilDiv(|bounds|, volume) ?
+  topo = ?
+    WorkgroupSize := wg,
+    NumWorkgroups := (groups, 1, 1),
+    GlobalSize := (wg.0 � groups, wg.1, wg.2)
+  ?
 
 **GPU Execution Topology.** Work-items are organized into a 3-dimensional hierarchy of workgroups.
 
@@ -20910,8 +21168,7 @@ ProhibitedGpuType(T) ⇔
   T = TypeBytes(`@Managed`) ∨
   T = TypePtr(_, `@Valid`) ∨
   T = TypeModalState(_, _) ∨
-  ModalRefType(T) ∨
-  HasHeapProvenance(T)
+  ModalRefType(T)
 
 GpuSafeComponents(T) ⇔ BitcopyType(T) ∧ (CompoundType(T) ⇒ ∀ elem ∈ Elements(T). GpuSafeType(elem))
 
@@ -20990,14 +21247,14 @@ GpuContext(Γ)    ⟨name, [], ret⟩ ∈ GpuIntrinsicTable
 Γ ⊢ Call(PathExpr([name]), []) ⇑ c
 
 **(GpuIntrinsic-Outside-Err)**
-¬GpuContext(Γ)    name ∈ GpuIntrinsicNames ∖ {`gpu_barrier`, `gpu_memory_barrier`, `gpu_workgroup_barrier`}    c = Code(E-CON-0154)
+�GpuContext(G)    name ? GpuIntrinsicNames \ {`gpu_barrier`, `gpu_memory_barrier`, `gpu_workgroup_barrier`}    c = Code(E-CON-0154)
 ──────────────────────────────────────────────────────────────────────
-Γ ⊢ Call(PathExpr([name]), []) ⇑ c
+G ? Call(PathExpr([name]), []) ? c
 
 **(GpuPtr-AddrSpace-Err)**
-Γ; R; L ⊢ e : TypeGpuPtr(T, S_1)    ExpectedType(e) = TypeGpuPtr(T, S_2)    S_1 ≠ S_2    c = Code(GpuPtr-AddrSpace-Err)
+G; R; L ? e : TypeGpuPtr(T, S_1)    ExpectedType(e) = TypeGpuPtr(T, S_2)    S_1 ? S_2    c = Code(GpuPtr-AddrSpace-Err)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ; R; L ⊢ e ⇑ c
+G; R; L ? e ? c
 
 `ExecutionDomain` is a dispatchable class used for heterogeneous domain handling.
 
@@ -21014,25 +21271,25 @@ Inline-domain semantics:
 3. No actual parallelism occurs.
 4. Capture and permission rules remain enforced.
 
-GpuMemVisible(addr, S, wg, wi) ⇔
-  (S = Global) ∨
-  (S = Shared ∧ WorkgroupOf(wi) = wg) ∨
+GpuMemVisible(addr, S, wg, wi) ?
+  (S = Global) ?
+  (S = Shared ? WorkgroupOf(wi) = wg) ?
   (S = Private ∧ wi = CurrentWorkItem)
 
 **(GpuPtr-Deref-Visible)**
-Γ[gpu_workitem] = wi    Γ[gpu_workgroup] = wg    GpuMemVisible(addr, S, wg, wi)
+G[gpu_workitem] = wi    G[gpu_workgroup] = wg    GpuMemVisible(addr, S, wg, wi)
 ────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ Deref(GpuPtr(addr, S)) ⇓ ok
+G ? Deref(GpuPtr(addr, S)) ? ok
 
 **(GpuPtr-Deref-Err)**
-Γ[gpu_workitem] = wi    Γ[gpu_workgroup] = wg    ¬GpuMemVisible(addr, S, wg, wi)    c = Code(E-CON-0150)
+G[gpu_workitem] = wi    G[gpu_workgroup] = wg    �GpuMemVisible(addr, S, wg, wi)    c = Code(E-CON-0150)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ Deref(GpuPtr(addr, S)) ⇑ c
+G ? Deref(GpuPtr(addr, S)) ? c
 
-TopologyValid(topo) ⇔
-  topo.WorkgroupSize.0 × topo.WorkgroupSize.1 × topo.WorkgroupSize.2 ≤ MAX_WORKGROUP_SIZE ∧
-  topo.GlobalSize.0 = topo.WorkgroupSize.0 × topo.NumWorkgroups.0 ∧
-  topo.GlobalSize.1 = topo.WorkgroupSize.1 × topo.NumWorkgroups.1 ∧
+TopologyValid(topo) ?
+  topo.WorkgroupSize.0 � topo.WorkgroupSize.1 � topo.WorkgroupSize.2 = MAX_WORKGROUP_SIZE ?
+  topo.GlobalSize.0 = topo.WorkgroupSize.0 � topo.NumWorkgroups.0 ?
+  topo.GlobalSize.1 = topo.WorkgroupSize.1 � topo.NumWorkgroups.1 ?
   topo.GlobalSize.2 = topo.WorkgroupSize.2 × topo.NumWorkgroups.2
 
 MAX_WORKGROUP_SIZE = 1024
@@ -21114,6 +21371,7 @@ topology = ComputeTopology(bounds, opts)    ¬TopologyValid(topology)    c = Cod
 | `E-CON-0156` | Error    | Compile-time | Barrier outside workgroup context                  |
 | `E-CON-0157` | Error    | Compile-time | Workgroup size exceeds device limit                |
 | `E-CON-0158` | Error    | Compile-time | Non-uniform control flow at barrier                |
+| `E-CON-0159` | Error    | Compile-time | Invalid `dim3_const` in GPU topology option        |
 | `E-TYP-2640` | Error    | Compile-time | Type not `GpuSafeType`                             |
 | `E-TYP-2641` | Error    | Compile-time | `GpuPtr` address space mismatch                    |
 | `E-TYP-2642` | Error    | Compile-time | Generic `GpuSafeType` with unconstrained parameter |
@@ -21182,11 +21440,11 @@ C = ClosureExpr(params, ret_type_opt, body)    Context(C) ⊆ {SpawnBody, Dispat
 Γ ⊢ ParallelClosureCapture(C, x) ⇑ c
 
 **(Parallel-Escaping-Closure-Spawn-Err)**
-C = ClosureExpr(params, ret_type_opt, body)    Context(C) = SpawnBody    IsEscaping(C)
+C = ClosureExpr(params, ret_type_opt, body)    IsEscaping(C)    SpawnExpr(_, _) ? body
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Reject
 
-All closures in parallel contexts are classified as local closures for Chapter 19 key analysis. Escaping closures are forbidden as `spawn` bodies.
+All closures in parallel contexts are classified as local closures for Chapter 19 key analysis. A `spawn` expression is forbidden in the body of an escaping closure.
 
 **(GpuCaptureOk-Const)**
 GpuContext(Γ)    Γ[x] = ⟨`const`, T, _, _⟩    GpuSafeType(T)    ¬HasHeapProvenance(Γ, x)
@@ -21235,7 +21493,7 @@ No parallel-specific lowering rule was found. Generic closure-environment loweri
 | `E-CON-0121` | Error    | Compile-time | Move of already-moved binding             |
 | `E-CON-0122` | Error    | Compile-time | Move of binding from outer parallel scope |
 | `E-CON-0131` | Error    | Compile-time | `spawn` in escaping closure               |
-| `E-CON-0151` | Error    | Compile-time | `shared` capture in GPU dispatch          |
+| `E-CON-0151` | Error    | Compile-time | `shared` capture in GPU context           |
 | `E-CON-0153` | Error    | Compile-time | Non-GpuSafe type in GPU capture           |
 
 ### 20.4 Spawn
@@ -21354,6 +21612,7 @@ dispatch_option_list  ::= "[" dispatch_option ("," dispatch_option)* "]"
 dispatch_option       ::= "reduce" ":" reduce_op
                         | "ordered"
                         | "chunk" ":" expression
+                        | "workgroup" ":" dim3_const
 reduce_op             ::= "+" | "*" | "min" | "max" | "and" | "or" | identifier
 ```
 
@@ -21376,22 +21635,23 @@ Dispatch parsing is defined by the following source rules:
 - `Parse-DispatchOpt-Reduce`
 - `Parse-DispatchOpt-Ordered`
 - `Parse-DispatchOpt-Chunk`
+- `Parse-DispatchOpt-Workgroup`
 
 The fixed identifiers `min`, `max`, `and`, and `or` are tokenized as identifiers by Chapter 4 and are accepted in dispatch position by `Parse-ReduceOp-Ident`.
 
 #### 20.5.3 AST Representation / Form
 
-ReduceOp = {`+`, `*`, `min`, `max`, `and`, `or`} ∪ Identifier
+ReduceOp = {`+`, `*`, `min`, `max`, `and`, `or`} ? Identifier
 
-DispatchOpt = {Reduce(op), Ordered, Chunk(expr)}    op ∈ ReduceOp
+DispatchOpt = {Reduce(op), Ordered, Chunk(expr), Workgroup(dim3)}    op ? ReduceOp
 
 DispatchOpts = [DispatchOpt]
 
-KeyClause = ⟨path, mode⟩
+KeyClause = ?path, mode?
 
-KeyClauseOpt ∈ {⊥} ∪ KeyClause
+KeyClauseOpt ? {?} ? KeyClause
 
-Expr = … | DispatchExpr(pat, range, key_clause_opt, opts, body) | …
+Expr = � | DispatchExpr(pat, range, key_clause_opt, opts, body) | �
 
 ResolveKeyClauseJudg = {ResolveKeyClauseOpt}
 
@@ -21405,7 +21665,9 @@ DispatchOptExprs(Ordered :: os) = DispatchOptExprs(os)
 
 DispatchOptExprs(Chunk(e) :: os) = [e] ++ DispatchOptExprs(os)
 
-DispatchAccess = ⟨schema, mode⟩    mode ∈ {Read, Write}
+DispatchOptExprs(Workgroup(e) :: os) = [e] ++ DispatchOptExprs(os)
+
+DispatchAccess = ?schema, mode?    mode ? {Read, Write}
 
 DispatchAccessSet = [DispatchAccess]
 
@@ -21414,28 +21676,30 @@ DispatchAccessSet = [DispatchAccess]
 An enclosing `parallel_context` is required. The enclosing-context diagnostics are owned by §§20.1.7 and 20.5.7.
 
 **(T-Dispatch)**
-Γ ⊢ range : Range⟨I⟩    Γ, i : I ⊢ B : T
+G ? range : Range?I?    G, i : I ? B : T
 ──────────────────────────────────────────────────────────
-Γ ⊢ `dispatch` i `in range` {B} : ()
+G ? `dispatch` i `in range` {B} : ()
 
 **(T-Dispatch-Reduce)**
-Γ ⊢ range : Range⟨I⟩    Γ, i : I ⊢ B : T    Γ ⊢ ⊕ : (T, T) → T
+G ? range : Range?I?    G, i : I ? B : T    G ? ? : (T, T) ? T
 ─────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ `dispatch` i `in range [reduce: ⊕]` {B} : T
+G ? `dispatch` i `in range [reduce: ?]` {B} : T
 
 **(T-GPU-Dispatch)**
-GpuContext(Γ)    Γ ⊢ range : Range⟨I⟩    Γ, i : I ⊢ B : T    ∀ x ∈ FreeVars(B). GpuCaptureOk(Γ, x, Γ[x].type)
+GpuContext(G)    G ? range : Range?I?    G, i : I ? B : T    topology = ComputeTopologyDispatch(RangeBounds(range), opts)    TopologyValid(topology)    ? x ? FreeVars(B). GpuCaptureOk(G, x, G[x].type)
 ────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ DispatchExpr(i, range, ⊥, opts, B) : ()
+G ? DispatchExpr(i, range, ?, opts, B) : ()
 
 **(T-GPU-Dispatch-Reduce)**
-GpuContext(Γ)    Γ ⊢ range : Range⟨I⟩    Γ, i : I ⊢ B : T    Γ ⊢ ⊕ : (T, T) → T    GpuSafeType(T)    ∀ x ∈ FreeVars(B). GpuCaptureOk(Γ, x, Γ[x].type)
+GpuContext(G)    G ? range : Range?I?    G, i : I ? B : T    G ? ? : (T, T) ? T    GpuSafeType(T)    topology = ComputeTopologyDispatch(RangeBounds(range), opts)    TopologyValid(topology)    ? x ? FreeVars(B). GpuCaptureOk(G, x, G[x].type)
 ────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ DispatchExpr(i, range, Reduce(⊕), opts, B) : T
+G ? DispatchExpr(i, range, Reduce(?), opts, B) : T
 
 DispatchPatternVars(pat) = PatNames(pat)
 
-DispatchInvariant(expr, pat) ⇔ FreeVars(expr) ⊆ DispatchPatternVars(pat) ∪ { x | x ∈ dom(Γ) ∧ Γ[x] = TypePerm(`const`, _) }
+PathRootVar(expr) = x ⇔ KeyPath(expr) is rooted at binding `x`
+
+DispatchInvariant(expr, pat) ⇔ FreeVars(expr) \ {PathRootVar(expr)} ⊆ DispatchPatternVars(pat) ∪ { x | x ∈ dom(Γ) ∧ Γ[x] = TypePerm(`const`, _) }
 
 InsideKeyBlock(B, e) ⇔ ∃ K. K is a key block in `B` and `e` is a proper subexpression of `K.body`
 
@@ -21467,7 +21731,16 @@ AssociativeReduce(`max`) ⇔ true
 AssociativeReduce(`and`) ⇔ true
 AssociativeReduce(`or`) ⇔ true
 AssociativeReduce(_) ⇔ false
-DynamicKeyPattern(spec) ⇔ ∃ ⟨S, _⟩ ∈ spec. S contains a non-constant index expression
+DispatchStaticIndexExpr(pat, e) ⇔
+  e is a compile-time constant expression ∨
+  (e = x ∧ x ∈ DispatchPatternVars(pat)) ∨
+  (e = e_0.f ∧ DispatchStaticIndexExpr(pat, e_0)) ∨
+  (e = e_0.n ∧ DispatchStaticIndexExpr(pat, e_0)) ∨
+  (e = e_0[e_1] ∧ DispatchStaticIndexExpr(pat, e_0) ∧ DispatchStaticIndexExpr(pat, e_1)) ∨
+  (e = op e_0 ∧ DispatchStaticIndexExpr(pat, e_0)) ∨
+  (e = e_0 op e_1 ∧ DispatchStaticIndexExpr(pat, e_0) ∧ DispatchStaticIndexExpr(pat, e_1)) ∨
+  (e = cast(e_0, _) ∧ DispatchStaticIndexExpr(pat, e_0))
+DynamicKeyPattern(pat, spec) ⇔ ∃ ⟨S, _⟩ ∈ spec. S contains an index expression e ∧ ¬ DispatchStaticIndexExpr(pat, e)
 
 **(Dispatch-Infer-Err)**
 e ∈ Subexpressions(B)    ImplicitDispatchUse(B, e)    ¬ DispatchInvariant(KeyPath(e), pat)
@@ -21495,7 +21768,7 @@ Reduce(op) ∈ opts    Ordered ∉ opts    ¬ AssociativeReduce(op)    c = Code(
 Γ ⊢ DispatchExpr(pat, range, key_clause_opt, opts, body) ⇑ c
 
 **(Dispatch-DynamicKey-Warn)**
-DispatchPartitionSpec(pat, key_clause_opt, B) = spec    DynamicKeyPattern(spec)    w = Code(Dispatch-DynamicKey-Warn)
+DispatchPartitionSpec(pat, key_clause_opt, B) = spec    DynamicKeyPattern(pat, spec)    w = Code(Dispatch-DynamicKey-Warn)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ WarnDispatch(DispatchExpr(pat, range, key_clause_opt, opts, body)) ⇓ w
 
@@ -21516,6 +21789,20 @@ DispatchPartitionSpec(pat, key_clause, B) = [⟨SchemaOf(pat, key_e), ModeOf(key
 DispatchPartitionSpec(pat, ⊥, B) = ks ⇔ InferDispatchAccesses(pat, B) = ks
 
 InstantiateSchema(S, v) = P ⇔ `P` is obtained by substituting `v` for the dispatch-pattern bindings in `S`
+
+IdxNorm(e) is `e` with harmless parentheses and expression attributes removed
+
+e₁ ≡_idx e₂ ⇔ IdxNorm(e₁) and IdxNorm(e₂) are syntactically identical
+
+AffineDispatchIndex(e) = ⟨x, k⟩ ⇔
+  (e = x ∧ k = 0) ∨
+  (e = x + n ∧ n is a compile-time constant integer expression with value k) ∨
+  (e = x - n ∧ n is a compile-time constant integer expression with value n₀ ∧ k = -n₀) ∨
+  (e = n + x ∧ n is a compile-time constant integer expression with value k)
+
+ProvablyDisjoint(e₁, e₂) ⇔
+  (e₁ and e₂ are distinct integer literals) ∨
+  (AffineDispatchIndex(e₁) = ⟨x, k₁⟩ ∧ AffineDispatchIndex(e₂) = ⟨x, k₂⟩ ∧ k₁ ≠ k₂)
 
 ProvablyDisjointPath(P, Q) ⇔ ∃ k. PrefixEqThrough(P, Q, k-1) ∧ SegmentProvablyDisjoint(P[k], Q[k])
 PrefixEqThrough(P, Q, 0) ⇔ true
@@ -21705,7 +21992,9 @@ CancelIR = {CancelCreateIR, CancelRequestIR, CancelCheckIR, CancelWaitIR, Cancel
 ──────────────────────────────────────────────
 Γ ⊢ LowerExpr(MethodCall(tok, `wait_cancelled`, [])) ⇓ ⟨CancelWaitIR(tok), AsyncVal⟩
 
-Spawn and dispatch lowerings MUST insert `CancelCheckIR` at each explicit cancellation check point and `CancelSuppressIR` for dequeued-but-unstarted work that is cancelled before execution begins.
+For this rule, explicit cancellation check points are the built-in `CancelToken@Active::is_cancelled()` and `CancelToken@Active::wait_cancelled()` surfaces.
+
+Spawn and dispatch lowerings MUST lower `CancelToken@Active::is_cancelled()` through `CancelCheckIR`, lower `CancelToken@Active::wait_cancelled()` through `CancelWaitIR`, and preserve the `CancelSuppressIR` semantics for dequeued-but-unstarted work that is cancelled before execution begins.
 
 #### 20.6.7 Diagnostics
 
@@ -22224,7 +22513,7 @@ Key restrictions for `wait`, `yield`, and `yield from` are defined in §21.5.4.
 1. Evaluate `h`.
 2. If the handle is ready, return its settled value.
 3. If the handle is pending, block the current task until the handle settles.
-4. If a `Spawned<T>` handle settles by panic, `wait` produces `Ctrl(Panic)`.
+4. If a `Spawned<T>` handle settles by panic, that failure is consumed by the enclosing `parallel` panic propagation defined by §20.7.5.
 
 Formal `wait` rules:
 
@@ -22256,20 +22545,7 @@ BlockUntilSettledSpawned(handle, σ_1) ⇓ (handle', σ_2)    SpawnHandleState(h
 Γ ⊢ EvalSigma(WaitExpr(h), σ) ⇓ (Val(v), σ_2)
 ```
 
-**(EvalSigma-Wait-Spawned-Pending-Failed)**
-```text
-Γ ⊢ EvalSigma(h, σ) ⇓ (Val(handle), σ_1)    SpawnHandleState(handle) = Pending
-BlockUntilSettledSpawned(handle, σ_1) ⇓ (handle', σ_2)    SpawnHandleState(handle') = Failed(p)
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ EvalSigma(WaitExpr(h), σ) ⇓ (Ctrl(Panic), σ_2)
-```
-
-**(EvalSigma-Wait-Spawned-Failed)**
-```text
-Γ ⊢ EvalSigma(h, σ) ⇓ (Val(handle), σ_1)    SpawnHandleState(handle) = Failed(p)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ EvalSigma(WaitExpr(h), σ) ⇓ (Ctrl(Panic), σ_1)
-```
+Failed `Spawned<T>` settlement is not independently observed by `wait`; it is consumed by the enclosing `AwaitSpawned(...)` / §20.7.5 parallel panic propagation.
 
 **(EvalSigma-Wait-Tracked-Ready)**
 ```text
@@ -24153,17 +24429,20 @@ CtCapBindings(node) = [⟨`introspect`, TypePath(["Introspect"])⟩, ⟨`diagnos
 
 #### 22.2.5 Dynamic Semantics
 
-CtEmitItem(Φ, a) = Φ' ⇔ AstKindOf(a) = `Item` ∧ Φ' = ⟨CtFiles(Φ), CtProjectRoot(Φ), CtDiags(Φ), CtPendingEmits(Φ) ++ [AstPayloadOf(a)], CtFreshSeed(Φ)⟩
+CtEmitItem(Ξ, Φ, a) = Φ' ⇔ AstKindOf(a) = `Item` ∧ AstHygieneOf(a) = ⟨quote_site, _, _⟩ ∧ HygienizeAst(a, quote_site, CtSiteOf(Ξ), CtFreshSeed(Φ)) ⇓ (a', n') ∧ Φ' = ⟨CtFiles(Φ), CtProjectRoot(Φ), CtDiags(Φ), CtPendingEmits(Φ) ++ [AstPayloadOf(a')], n'⟩
 CtProjectPath(Φ, path) = q ⇔ RestrictPath(CtProjectRoot(Φ), path) = q
 CtProjectPath(Φ, path) = ⊥ ⇔ RestrictPath(CtProjectRoot(Φ), path) = ⊥
-CtDiagAppend(Ξ, Φ, sev, msg) = Φ' ⇔ Φ' = ⟨CtFiles(Φ), CtProjectRoot(Φ), CtDiags(Φ) ++ [⟨sev, CtSiteOf(Ξ), msg⟩], CtPendingEmits(Φ), CtFreshSeed(Φ)⟩
+CtDiagAppend(Ξ, Φ, d) = Φ' ⇔ Φ' = ⟨CtFiles(Φ), CtProjectRoot(Φ), CtDiags(Φ) ++ [d], CtPendingEmits(Φ), CtFreshSeed(Φ)⟩
+CtUserErrorDiag(Ξ, msg) = d ⇔ CtSiteOf(Ξ) = ⟨_, _, sp⟩ ∧ d = ⟨`E-CTE-0070`, Error, msg, sp⟩
+CtUserWarningDiag(Ξ, msg) = d ⇔ CtSiteOf(Ξ) = ⟨_, _, sp⟩ ∧ d = ⟨`W-CTE-0071`, Warning, msg, sp⟩
+CtUserNoteDiag(Ξ, msg) = d ⇔ CtSiteOf(Ξ) = ⟨_, _, sp⟩ ∧ d = ⟨⊥, Note, msg, sp⟩
 CtListDirResult(fs, q) = CtSlice([CtString(entry.name) | entry ∈ entries]) ⇔ ∃ ω. DirEntries(fs, q, ω) = entries
 CtListDirResult(fs, q) = CtEnum([`IoError`], IoErrorVariant(r), ⊥) ⇔ FSOpenDir(fs, q) ⇓ r ∧ r ∈ IoError
 CtExistsResult(fs, q) = CtPrim(b) ⇔ FSExists(fs, q) ⇓ b ∧ b ∈ Bool
 CtExistsResult(fs, q) = CtEnum([`IoError`], IoErrorVariant(r), ⊥) ⇔ FSExists(fs, q) ⇓ r ∧ r ∈ IoError
 
 **(CtBuiltin-Emit)**
-owner = `emitter`    name = `emit`    args = [CtAst(a)]    CtEmitItem(Φ, a) = Φ'
+owner = `emitter`    name = `emit`    args = [CtAst(a)]    CtEmitItem(Ξ, Φ, a) = Φ'
 ────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (CtPrim(UnitVal), Φ')
 
@@ -24213,17 +24492,17 @@ owner = `files`    name = `list_dir`    args = [CtString(path)]    CtProjectPath
 Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (CtEnum([`IoError`], `InvalidPath`, ⊥), Φ)
 
 **(CtBuiltin-Diagnostics-Error)**
-owner = `diagnostics`    name = `error`    args = [CtString(msg)]    CtDiagAppend(Ξ, Φ, `error`, msg) = Φ'
+owner = `diagnostics`    name = `error`    args = [CtString(msg)]    CtUserErrorDiag(Ξ, msg) = d    CtDiagAppend(Ξ, Φ, d) = Φ'
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇑ Φ'
 
 **(CtBuiltin-Diagnostics-Warning)**
-owner = `diagnostics`    name = `warning`    args = [CtString(msg)]    CtDiagAppend(Ξ, Φ, `warning`, msg) = Φ'
+owner = `diagnostics`    name = `warning`    args = [CtString(msg)]    CtUserWarningDiag(Ξ, msg) = d    CtDiagAppend(Ξ, Φ, d) = Φ'
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (CtPrim(UnitVal), Φ')
 
 **(CtBuiltin-Diagnostics-Note)**
-owner = `diagnostics`    name = `note`    args = [CtString(msg)]    CtDiagAppend(Ξ, Φ, `note`, msg) = Φ'
+owner = `diagnostics`    name = `note`    args = [CtString(msg)]    CtUserNoteDiag(Ξ, msg) = d    CtDiagAppend(Ξ, Φ, d) = Φ'
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (CtPrim(UnitVal), Φ')
 
@@ -24464,6 +24743,7 @@ QuoteNode(kind_opt, body, span)
 QuotedBody = QuotedRaw(tokens) | QuotedResolved(kind, payload)
 SpliceNode = SpliceExprNode(expr, span) | SpliceIdentNode(name_expr, span)
 Hygiene = ⟨quote_site, emit_site, mark⟩
+`quote_site` is the lexical origin of the quoted fragment. `emit_site` is the insertion site at which the fragment becomes part of the expanded program. `HygienizeAst` is applied when a quoted `Ast` fragment is inserted into the expanded program.
 
 QuoteJudg = {ResolveQuoteKind, ParseQuotedBody, RenderSplice, QuoteBuild, HygienizeAst}
 
@@ -24474,7 +24754,17 @@ ExpectedAstKind(TypePath([`Ast`, `Type`])) = `Type`
 ExpectedAstKind(TypePath([`Ast`, `Pattern`])) = `Pattern`
 ExpectedAstKind(TypePath([`Ast`])) = ⊥
 
-SpliceCompat(`Expr`, T) ⇔ T = TypePath(["Ast", "Expr"]) ∨ CtAvail(T)
+CtLiteralType(TypePrim(t)) ⇔ t ∈ PrimitiveTypeName \ {`!`}
+CtLiteralType(TypeString(st)) ⇔ st ∈ {`@View`, `@Managed`}
+CtLiteralType(TypeTuple([T_1, …, T_n])) ⇔ ∀ i. CtLiteralType(T_i)
+CtLiteralType(TypeArray(T, _)) ⇔ CtLiteralType(T)
+CtLiteralType(TypePerm(_, T)) ⇔ CtLiteralType(T)
+CtLiteralType(TypeRefine(T, _)) ⇔ CtLiteralType(T)
+CtLiteralType(TypePath(p)) ⇔ RecordDecl(p) = R ∧ ∀ f ∈ Fields(R). CtLiteralType(FieldType(f))
+CtLiteralType(TypePath(p)) ⇔ EnumDecl(p) = E ∧ ∀ v ∈ Variants(E). (Payload(v) = ⊥ ∨ (Payload(v) = TuplePayload([T_1, …, T_n]) ∧ ∀ i. CtLiteralType(T_i)) ∨ (Payload(v) = RecordPayload(fs) ∧ ∀ f ∈ fs. CtLiteralType(FieldType(f))))
+CtLiteralType(TypeApply(p, [T_1, …, T_n])) ⇔ CtLiteralType(TypePath(p)<T_1, …, T_n>)
+
+SpliceCompat(`Expr`, T) ⇔ T = TypePath(["Ast"]) ∨ T = TypePath(["Ast", "Expr"]) ∨ CtLiteralType(T)
 SpliceCompat(`Stmt`, T) ⇔ T = TypePath(["Ast", "Stmt"]) ∨ T = TypePath(["Ast", "Expr"])
 SpliceCompat(`Item`, T) ⇔ T = TypePath(["Ast", "Item"])
 SpliceCompat(`Type`, T) ⇔ T = TypePath(["Ast", "Type"]) ∨ T = TypePath(["Type"])
@@ -24493,7 +24783,7 @@ Quoted content MUST be syntactically valid in the resolved category. If `Resolve
 
 `$(e)` and `$ident` are valid only inside a quoted token slice. The compile-time type of the splice source MUST satisfy `SpliceCompat` for the surrounding quoted position.
 
-`$ident` is an identifier-position splice only. In every other quoted position, including quoted type position, splicing MUST use `$(e)`. Ordinary language syntax retains precedence where it already uses `$`; for example, in `quote type { $FileSystem }`, `$FileSystem` is parsed as `TypeDynamic(["FileSystem"])`, not as a splice.
+`$ident` is an identifier-position splice only. `SpliceIdentNode` MAY occur only in identifier expressions, identifier-pattern bindings, typed-pattern bindings, `shadow` binding names, `region as` aliases, and procedure or method parameter bindings. `SpliceIdentNode` MUST NOT occur in structural identifier positions, including module or type path segments, field labels, variant names, type-parameter names, item declaration names, or modal state names. In every other quoted position, including quoted type position, splicing MUST use `$(e)`. Ordinary language syntax retains precedence where it already uses `$`; for example, in `quote type { $FileSystem }`, `$FileSystem` is parsed as `TypeDynamic(["FileSystem"])`, not as a splice.
 
 If a string-valued splice occupies identifier position, the resulting identifier is intentionally unhygienic and binds in the emission environment.
 
@@ -24516,13 +24806,17 @@ RenderSplice(`Identifier`, cv) ⇓ payload iff cv = CtString(name) ∧ payload =
 
 HygienizeAst(a, quote_site, emit_site, n) ⇓ (a', n') MUST satisfy all of the following:
 1. Any capture from the quote site resolves to the same binding after emission.
-2. Any binder introduced by hygienic quoted content MUST NOT capture names from the emission site unless the splice was string-valued in identifier position.
+2. Any binder introduced by hygienic quoted content, including top-level declaration names in quoted item fragments, MUST NOT capture names from the emission site unless the splice was string-valued in identifier position.
 3. Fresh hygienic marks are deterministic functions of `quote_site`, `emit_site`, and the input counter `n`.
 
+If a reference inside the quoted fragment resolves to a hygienic binder introduced by that same fragment before emission, it MUST resolve to the renamed binding after emission.
+
+For `using` and `import`, only explicit alias names are hygienic binders. Unaliased imported names are preserved as written.
+
 **(CtEval-Quote)**
-q = QuoteNode(kind_opt, body, span)    T_q = ExprType(q)    ResolveQuoteKind(q, T_q) = kind    ParseQuotedBody(kind, body) ⇓ payload_0    Γ ⊢ QuoteBuild(Ξ, Φ, kind, payload_0) ⇓ (payload_1, Φ_1)    HygienizeAst(AstOf(kind, payload_1), CtSiteOf(Ξ), CtSiteOf(Ξ), CtFreshSeed(Φ_1)) ⇓ (a, n_1)    Φ_2 = ⟨CtFiles(Φ_1), CtProjectRoot(Φ_1), CtDiags(Φ_1), CtPendingEmits(Φ_1), n_1⟩
+q = QuoteNode(kind_opt, body, span)    T_q = ExprType(q)    ResolveQuoteKind(q, T_q) = kind    ParseQuotedBody(kind, body) ⇓ payload_0    Γ ⊢ QuoteBuild(Ξ, Φ, kind, payload_0) ⇓ (payload_1, Φ_1)    a = AstNode(kind, payload_1, span, ⟨CtSiteOf(Ξ), CtSiteOf(Ξ), 0⟩)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ CtEval(Ξ, Φ, q) ⇓ (CtAst(a), Ξ, Φ_2)
+Γ ⊢ CtEval(Ξ, Φ, q) ⇓ (CtAst(a), Ξ, Φ_1)
 
 `QuoteBuild` evaluates splice expressions in left-to-right source order. Each splice value is rendered by `RenderSplice`, substituted into the quoted payload, and the resulting fragment becomes the payload of the returned `Ast`.
 
@@ -24748,6 +25042,10 @@ This section owns compile-time execution, reflection, quoting, emission, file-ac
 | `E-CTE-0440` | Error    | Compile-time | Reflection `variants` query on non-enum type                   |
 | `E-CTE-0450` | Error    | Compile-time | Reflection `states` query on non-modal type                    |
 | `E-CTE-0470` | Error    | Compile-time | Reflection type-predicate query on incomplete declaration      |
+
+`diagnostics.error(msg)` MUST append `⟨`E-CTE-0070`, Error, msg, sp⟩`, where `sp` is the current compile-time site span.
+`diagnostics.warning(msg)` MUST append `⟨`W-CTE-0071`, Warning, msg, sp⟩`, where `sp` is the current compile-time site span.
+`diagnostics.note(msg)` MUST append `⟨⊥, Note, msg, sp⟩`, where `sp` is the current compile-time site span.
 
 ## 23. Foreign Function Interface
 
@@ -25365,12 +25663,12 @@ These hosted-export thunks are backend-generated boundary declarations. They are
 
 #### 23.3.14 Diagnostics
 
-| Code         | Severity | Detection    | Condition                                                                  |
-| ------------ | -------- | ------------ | -------------------------------------------------------------------------- |
-| `E-TYP-2632` | Error    | Compile-time | `[[host_export]]` requires a leading `Context` bundle parameter            |
-| `E-TYP-2633` | Error    | Compile-time | `[[host_export]]` leading `Context` bundle parameter MUST NOT use `move`   |
-| `E-TYP-2634` | Error    | Compile-time | Generic `[[host_export]]` procedure                                        |
-| `E-TYP-2635` | Error    | Compile-time | `[[host_export]]` catch requires zeroable return type                      |
+| Code         | Severity | Detection    | Condition                                                                            |
+| ------------ | -------- | ------------ | ------------------------------------------------------------------------------------ |
+| `E-TYP-2632` | Error    | Compile-time | `[[host_export]]` requires a leading `Context` bundle parameter                      |
+| `E-TYP-2633` | Error    | Compile-time | `[[host_export]]` leading `Context` bundle parameter MUST NOT use `move`             |
+| `E-TYP-2634` | Error    | Compile-time | Generic `[[host_export]]` procedure                                                  |
+| `E-TYP-2635` | Error    | Compile-time | `[[host_export]]` catch requires zeroable return type                                |
 | `E-TYP-2636` | Error    | Compile-time | `[[host_export]]` MUST use an explicit projected `Context` bundle, not raw `Context` |
 
 Type-admissibility failures in `FfiSafeType` and by-value FFI use for hosted-export visible parameters and returns are owned by §23.1.7.
@@ -25431,7 +25729,7 @@ FFI attributes are ordinary attribute-list entries attached to their owning decl
 | `"dylib"`     | Dynamic library (default) |
 | `"static"`    | Static library            |
 | `"framework"` | macOS framework           |
-| `"raw-dylib"` | Windows delay-load        |
+| `"raw-dylib"` | Windows named DLL import  |
 
 1. Valid only on `extern` blocks.
 2. The `name` argument specifies the library name without platform prefix or suffix.
@@ -25456,6 +25754,11 @@ LibraryKindSupported(kind, profile) ⇔ kind ∈ {`dylib`, `static`}
 ```
 
 If `LibraryKindSupported(kind, SelectedTargetProfile)` does not hold, the declaration is ill-formed.
+
+For `raw-dylib` imports, the implementation MUST resolve the named Windows DLL
+and foreign symbol using the resolved DLL name and declared foreign symbol
+name. Resolution strategy is implementation-defined and MAY be lazy; an
+implementation is not required to use PE `/DELAYLOAD`.
 
 ##### 23.4.4.3 `[[unwind]]`
 
@@ -25524,23 +25827,23 @@ FFI attributes do not directly evaluate to runtime values. `[[unwind]]` selects 
 
 #### 23.4.7 Diagnostics
 
-| Code         | Severity | Detection                 | Condition                                             |
-| ------------ | -------- | ------------------------- | ----------------------------------------------------- |
-| `E-SYS-3340` | Error    | Compile-time              | `[[mangle(...)]]` on non-FFI procedure                |
-| `E-SYS-3341` | Error    | Compile-time              | Invalid `[[mangle(mode)]]` argument                   |
-| `E-SYS-3342` | Error    | Compile-time or Link-time | Duplicate symbol name in compilation unit             |
-| `E-SYS-3345` | Error    | Compile-time              | `[[library]]` outside `extern` block                  |
-| `E-SYS-3346` | Error    | Compile-time              | Unknown or unsupported library kind                   |
-| `E-SYS-3347` | Error    | Link-time                 | Library not found                                     |
-| `E-SYS-3350` | Error    | Compile-time              | `[[mangle(none)]]` on non-exportable procedure        |
-| `E-SYS-3351` | Error    | Compile-time              | Conflicting explicit mangling directives              |
-| `E-SYS-3355` | Error    | Compile-time              | Unknown unwind mode                                   |
-| `E-SYS-3356` | Error    | Compile-time              | `[[unwind]]` on non-FFI procedure                     |
-| `E-SYS-3357` | Error    | Compile-time              | `[[host_export]]` requires `assembly.kind = "library"` |
+| Code         | Severity | Detection                 | Condition                                                |
+| ------------ | -------- | ------------------------- | -------------------------------------------------------- |
+| `E-SYS-3340` | Error    | Compile-time              | `[[mangle(...)]]` on non-FFI procedure                   |
+| `E-SYS-3341` | Error    | Compile-time              | Invalid `[[mangle(mode)]]` argument                      |
+| `E-SYS-3342` | Error    | Compile-time or Link-time | Duplicate symbol name in compilation unit                |
+| `E-SYS-3345` | Error    | Compile-time              | `[[library]]` outside `extern` block                     |
+| `E-SYS-3346` | Error    | Compile-time              | Unknown or unsupported library kind                      |
+| `E-SYS-3347` | Error    | Link-time                 | Library not found                                        |
+| `E-SYS-3350` | Error    | Compile-time              | `[[mangle(none)]]` on non-exportable procedure           |
+| `E-SYS-3351` | Error    | Compile-time              | Conflicting explicit mangling directives                 |
+| `E-SYS-3355` | Error    | Compile-time              | Unknown unwind mode                                      |
+| `E-SYS-3356` | Error    | Compile-time              | `[[unwind]]` on non-FFI procedure                        |
+| `E-SYS-3357` | Error    | Compile-time              | `[[host_export]]` requires `assembly.kind = "library"`   |
 | `E-SYS-3358` | Error    | Compile-time              | `[[host_export]]` and `[[export]]` mixed in one assembly |
-| `E-FFI-0350` | Error    | Compile-time              | Multiple `[[unwind]]` attributes                      |
-| `W-SYS-3350` | Warning  | Compile-time              | `[[mangle(none)]]` with `[[export("C")]]` (redundant) |
-| `W-SYS-3355` | Warning  | Compile-time              | `[[unwind("abort")]]` (redundant)                     |
+| `E-FFI-0350` | Error    | Compile-time              | Multiple `[[unwind]]` attributes                         |
+| `W-SYS-3350` | Warning  | Compile-time              | `[[mangle(none)]]` with `[[export("C")]]` (redundant)    |
+| `W-SYS-3355` | Warning  | Compile-time              | `[[unwind("abort")]]` (redundant)                        |
 
 ### 23.5 Capability Isolation
 
@@ -25605,7 +25908,7 @@ Capability-bearing-type violations other than region-local raw-pointer escape ar
 
 ```ebnf
 ffi_verification_attr    ::= "[[" ffi_verification_mode "]]"
-ffi_verification_mode    ::= "static" | "dynamic" | "trust"
+ffi_verification_mode    ::= "static" | "dynamic"
 
 foreign_contract         ::= "|:" "@foreign_assumes" "(" predicate_expr ")"
                            | "|:" "@foreign_ensures" "(" ensures_predicate ")"
@@ -25724,13 +26027,12 @@ Predicates MUST NOT reference:
 | :--------------------- | :------------------------------------------------- |
 | `[[static]]` (default) | Caller must prove predicates at compile time       |
 | `[[dynamic]]`          | Runtime checks inserted before `unsafe` call       |
-| `[[trust]]`            | No static proof and no runtime precondition checks |
 
-`[[static]]` uses `StaticProof` as defined in §15.8. `[[dynamic]]` inserts `ContractCheck(P, ForeignPre, s, ρ_emptyset)` immediately before the foreign call. In `[[trust]]` mode, the implementation MUST NOT require static proof of foreign preconditions and MUST NOT insert runtime `ForeignPre` checks.
+`[[static]]` uses `StaticProof` as defined in §15.8. `[[dynamic]]` inserts `ContractCheck(P, ForeignPre, s, ρ_emptyset)` immediately before the foreign call.
 
 ##### 23.6.4.2 Foreign Postconditions
 
-**Foreign Postconditions.** Conditions that foreign code guarantees upon successful return, specified using the `@foreign_ensures` clause. These are trusted assertions about foreign behavior.
+**Foreign Postconditions.** Conditions that foreign code guarantees upon successful return, specified using the `@foreign_ensures` clause.
 
 **Predicate Bindings**
 
@@ -25789,29 +26091,17 @@ NullResultEnsures(proc) ≠ []    R = ProcReturn(ret_opt)    ¬ NullableFfiResul
 | :--------------------- | :------------------------------------------------------------ |
 | `[[static]]` (default) | Postconditions available as assumptions for downstream proofs |
 | `[[dynamic]]`          | Runtime assertions after foreign call returns                 |
-| `[[trust]]`            | Postconditions trusted without runtime checks (audited code)  |
 
-`[[static]]` uses `StaticProof` as defined in §15.8 with `SuccessCond` and `ErrCond` gating the obligations. In `[[trust]]` mode, the implementation MUST treat declared postconditions as trusted assumptions and MUST NOT insert runtime `ForeignPost` checks.
+`[[static]]` uses `StaticProof` as defined in §15.8 with `SuccessCond` and `ErrCond` gating the obligations.
 
-##### 23.6.4.3 Trust Boundaries
+##### 23.6.4.3 Verification Summary
 
-**Trust Boundaries.** Verification behavior definitions for foreign contracts, controlling the trade-off between safety guarantees and performance.
-
-**Trust Annotation**
-
-The `[[trust]]` attribute on an extern block suppresses runtime checks for all contracts within that block. Postconditions are assumed true without verification.
-
-**Safety Implications**
-
-Incorrect postconditions under `[[trust]]` place the program outside conformance. The programmer asserts that the foreign code satisfies declared contracts.
-
-**Verification Hierarchy**
+**Verification Summary.** Foreign-contract verification uses the following mode table:
 
 | Level         | Precondition Check | Postcondition Check      |
 | :------------ | :----------------- | :----------------------- |
 | `[[static]]`  | Compile-time proof | Available as assumptions |
 | `[[dynamic]]` | Runtime assertion  | Runtime assertion        |
-| `[[trust]]`   | No check           | No check (trusted)       |
 
 #### 23.6.5 Dynamic Semantics
 
@@ -25819,11 +26109,9 @@ For foreign preconditions, a failed `ForeignPre` check triggers a panic.
 
 For foreign postconditions, in `[[dynamic]]` mode, the implementation MUST evaluate `ErrCond` and `NullCond` in left-to-right predicate order and insert runtime checks enforcing the implications above immediately after the foreign call returns. Each inserted check is `ContractCheck(P, ForeignPost, s, ρ_foreign_post)`. A failed runtime check triggers a panic with payload `ContractViolation(ForeignPost, P, s)` at the call site.
 
-In `[[trust]]` mode, the implementation MUST NOT insert runtime precondition or postcondition checks.
-
 #### 23.6.6 Lowering
 
-`[[dynamic]]` lowers foreign contracts by inserting `ContractCheck` before the foreign call for `ForeignPre` and after the foreign call for `ForeignPost`. `[[static]]` introduces no runtime checks. `[[trust]]` suppresses runtime contract lowering.
+`[[dynamic]]` lowers foreign contracts by inserting `ContractCheck` before the foreign call for `ForeignPre` and after the foreign call for `ForeignPost`. `[[static]]` introduces no runtime checks.
 
 #### 23.6.7 Diagnostics
 
@@ -25921,9 +26209,9 @@ General destruction and unwind cleanup semantics remain defined by §24.5.
 
 The `UnwindMode` affects generated code at FFI boundaries:
 
-| Mode    | Import (calling extern)                            | Export / Hosted Export (called from foreign)                   |
-| :------ | :------------------------------------------------- | :------------------------------------------------------------- |
-| `abort` | Install landing pad that aborts on foreign unwind  | Install frame that aborts if Cursive panic escapes             |
+| Mode    | Import (calling extern)                            | Export / Hosted Export (called from foreign)                    |
+| :------ | :------------------------------------------------- | :-------------------------------------------------------------- |
+| `abort` | Install landing pad that aborts on foreign unwind  | Install frame that aborts if Cursive panic escapes              |
 | `catch` | Install landing pad that converts to Cursive panic | Install frame that catches unwind and returns the boundary zero |
 
 **(CodeGen-UnwindAbort-Import)**
@@ -26698,9 +26986,9 @@ EmitsImportLib(`x86_64-sysv`) ⇔ false
 EmitsImportLib(`x86_64-win64`) ⇔ true
 EmitsImportLib(`aarch64-aapcs64`) ⇔ false
 
-RuntimeLibNameFor(`x86_64-sysv`) = "libcursive0_rt.a"
-RuntimeLibNameFor(`x86_64-win64`) = "cursive0_rt.lib"
-RuntimeLibNameFor(`aarch64-aapcs64`) = "libcursive0_rt.a"
+RuntimeLibNameFor(`x86_64-sysv`) = "CursiveRT.a"
+RuntimeLibNameFor(`x86_64-win64`) = "CursiveRT.lib"
+RuntimeLibNameFor(`aarch64-aapcs64`) = "CursiveRT.a"
 
 LinkerToolName(`x86_64-sysv`) = `ld.lld`
 LinkerToolName(`x86_64-win64`) = `lld-link`
@@ -26712,11 +27000,11 @@ ArchiverToolName(`x86_64-sysv`) = `llvm-ar`
 ArchiverToolName(`x86_64-win64`) = `llvm-lib`
 ArchiverToolName(`aarch64-aapcs64`) = `llvm-ar`
 
-LinkFlagsFor(`x86_64-sysv`, `exe`, out, _) = ["-o", out, "--entry=main", "--nostdlib"]
+LinkFlagsFor(`x86_64-sysv`, `exe`, out, _) = ["-o", out, "--entry=_start", "--nostdlib", "--dynamic-linker=/lib64/ld-linux-x86-64.so.2"]
 LinkFlagsFor(`x86_64-sysv`, `shared`, out, _) = ["-o", out, "--shared", "--nostdlib"]
 LinkFlagsFor(`x86_64-win64`, `exe`, out, _) = ["/OUT:" ++ out, "/ENTRY:main", "/SUBSYSTEM:CONSOLE", "/NODEFAULTLIB"]
 LinkFlagsFor(`x86_64-win64`, `shared`, out, import_lib) = ["/OUT:" ++ out, "/DLL", "/ENTRY:" ++ LibraryEntrySym(`x86_64-win64`), "/NODEFAULTLIB", "/IMPLIB:" ++ import_lib]
-LinkFlagsFor(`aarch64-aapcs64`, `exe`, out, _) = ["-o", out, "--entry=main", "--nostdlib"]
+LinkFlagsFor(`aarch64-aapcs64`, `exe`, out, _) = ["-o", out, "--entry=main", "--nostdlib", "--dynamic-linker=/lib/ld-linux-aarch64.so.1"]
 LinkFlagsFor(`aarch64-aapcs64`, `shared`, out, _) = ["-o", out, "--shared", "--nostdlib"]
 
 ArchiveFlagsFor(`x86_64-sysv`, out) = ["rcs", out]
@@ -27303,12 +27591,12 @@ StaticSym(StaticDecl(_, _, _, binding, _, _), x) =
  Mangle(StaticBinding(StaticDecl(_, _, _, binding, _, _), x))    otherwise
 
 **(Emit-Static-Const)**
-item = StaticDecl(attrs_opt, vis, mut, binding, span, doc)    StaticName(binding) = name    binding = ⟨pat, ty_opt, op, init, _⟩    Γ ⊢ ConstInit(init) ⇓ bytes    Γ ⊢ Mangle(item) ⇓ sym
+item = StaticDecl(attrs_opt, vis, mut, binding, span, doc)    mut = `let`    StaticName(binding) = name    binding = ⟨pat, ty_opt, op, init, _⟩    Γ ⊢ ConstInit(init) ⇓ bytes    Γ ⊢ Mangle(item) ⇓ sym
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ EmitGlobal(item) ⇓ [GlobalConst(sym, bytes)]
 
 **(Emit-Static-Init)**
-item = StaticDecl(attrs_opt, vis, mut, binding, span, doc)    StaticName(binding) = name    binding = ⟨pat, ty_opt, op, init, _⟩    Γ ⊢ ConstInit(init) ⇑    T = ExprType(init)    Γ ⊢ Mangle(item) ⇓ sym
+item = StaticDecl(attrs_opt, vis, mut, binding, span, doc)    StaticName(binding) = name    binding = ⟨pat, ty_opt, op, init, _⟩    ((mut = `var`) ∨ (Γ ⊢ ConstInit(init) ⇑))    T = ExprType(init)    Γ ⊢ Mangle(item) ⇓ sym
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ EmitGlobal(item) ⇓ [GlobalZero(sym, sizeof(T))]
 
@@ -28379,7 +28667,7 @@ pad_mid = payload_off - disc_size
 pad_tail = size - (payload_off + payload_size)
 
 **(LLVMTy-Prim)**
-T = TypePrim(name)    LLVMPrim(name) = τ
+T = TypePrim(name)    LLVMPrim(name) = Ï"
 ────────────────────────────────────────────
 Γ ⊢ LLVMTy(T) ⇓ τ
 
@@ -28394,17 +28682,17 @@ T = TypePrim(name)    LLVMPrim(name) = τ
 Γ ⊢ LLVMTy(TypeRefine(T, P)) ⇓ τ
 
 **(LLVMTy-Ptr)**
-T = TypePtr(U, s)    LLVMPtrTy(T) = τ
+T = TypePtr(U, s)    LLVMPtrTy(T) = Ï"
 ──────────────────────────────────────────────
 Γ ⊢ LLVMTy(T) ⇓ τ
 
 **(LLVMTy-RawPtr)**
-T = TypeRawPtr(q, U)    LLVMPtrTy(T) = τ
+T = TypeRawPtr(q, U)    LLVMPtrTy(T) = Ï"
 ──────────────────────────────────────────────
 Γ ⊢ LLVMTy(T) ⇓ τ
 
 **(LLVMTy-Func)**
-T = TypeFunc(params, R)    LLVMPtrTy(T) = τ
+T = TypeFunc(params, R)    LLVMPtrTy(T) = Ï"
 ──────────────────────────────────────────────
 Γ ⊢ LLVMTy(T) ⇓ τ
 
@@ -28579,14 +28867,14 @@ ByteInt(bytes) = i{8|bytes|} LEValue(bytes)
 AllZero(bytes) ⇔ ∀ b ∈ bytes. b = 0x00
 ByteArray(bytes) = LLVMArrayConst(|bytes|, i8, bytes)
 ConstBytes(τ, bytes) = c ⇔ ∃ T. Γ ⊢ LLVMTy(T) ⇓ τ ∧ |bytes| = sizeof(T) ∧ c = ConstBytesCase(τ, bytes)
-ConstBytesCase(τ, bytes) =
+ConstBytesCase(Ï", bytes) =
  `zeroinitializer`    if |bytes| = 0
- ByteArray(bytes)     if τ = LLVMArray(|bytes|, i8)
- ByteInt(bytes)       if τ = i{8|bytes|}
+ ByteArray(bytes)     if Ï" = LLVMArray(|bytes|, i8)
+ ByteInt(bytes)       if Ï" = i{8|bytes|}
  `bitcast`(ByteInt(bytes) to τ)    if τ ∈ {`half`, `float`, `double`}
  `null`               if τ = LLVMPtrTy(U) ∧ AllZero(bytes)
  ⊥                    otherwise
-LLVMGlobalZero(sym, τ, align) = LLVMGlobalConst(sym, τ, `zeroinitializer`, align)
+LLVMGlobalZero(sym, Ï", align) = LLVMGlobalConst(sym, Ï", `zeroinitializer`, align)
 
 StaticType(sym) = TypeArray(TypePrim("u8"), Literal(IntLiteral(|bytes|)))    if sym = Mangle(LiteralData(kind, bytes))
 StaticType(sym) = T ⇔ StaticSymPath(path, name) = sym ∧ StaticType(path, name) = T
@@ -28942,7 +29230,7 @@ BindState(Γ) = Γ.bind_state
 ResolveEntry_π([], tag) = ⊥
 ResolveEntry_π(⟨tag, target⟩ :: es, t) =
  ⟨tag, target⟩             if t = tag
- ResolveEntry_π(es, t)      otherwise
+ ResolveEntry_Ï€(es, t)      otherwise
 ResolveTarget_π(⟨Σ_π, RS⟩, tag) = target ⇔ ResolveEntry_π(RS, tag) = ⟨tag, target⟩
 BindProv_Γ(x) = π ⇔ Γ has provenance environment Ω ∧ Γ; Ω ⊢ Identifier(x) ⇓ π
 BindRegionTarget(x) = r ⇔ BindProv_Γ(x) = π_Region(tag) ∧ ResolveTarget_π(Ω, tag) = r
@@ -29309,17 +29597,17 @@ Only sections that define named diagnostics are listed below.
 - `§13.12 Modal and Pointer Diagnostics Supplement`: `E-TYP-2050`, `E-TYP-2051`, `E-TYP-2052`, `E-TYP-2053`, `E-TYP-2054`, `E-TYP-2055`, `E-TYP-2056`, `E-TYP-2057`, `E-TYP-2058`, `E-TYP-2059`, `E-TYP-2060`, `E-TYP-2061`, `E-TYP-2062`, `E-TYP-2063`, `E-TYP-2064`, `E-TYP-2065`, `E-TYP-2070`, `E-TYP-2071`, `E-TYP-2072`, `E-TYP-2073`, `W-SYS-4010`, `E-TYP-2101`, `E-TYP-2102`, `E-TYP-2103`, `E-TYP-2104`
 - `§14.11 Refinement and Polymorphism Diagnostics Supplement`: `E-TYP-1953`, `E-TYP-1954`, `E-TYP-1955`, `E-TYP-1956`, `E-TYP-1957`, `P-TYP-1953`, `E-TYP-2301`, `E-TYP-2302`, `E-TYP-2303`, `E-TYP-2304`, `E-TYP-2305`, `E-TYP-2307`, `E-TYP-2308`, `E-TYP-2401`, `E-TYP-2402`, `E-TYP-2403`, `E-TYP-2404`, `E-TYP-2405`, `E-TYP-2406`, `E-TYP-2407`, `E-TYP-2408`, `E-TYP-2409`, `E-TYP-2500`, `E-TYP-2501`, `E-TYP-2502`, `E-TYP-2503`, `E-TYP-2504`, `E-TYP-2505`, `E-TYP-2506`, `E-TYP-2507`, `E-TYP-2508`, `E-TYP-2509`, `E-TYP-2510`, `E-TYP-2511`, `E-TYP-2512`, `E-TYP-2530`, `E-TYP-2531`, `E-TYP-2540`, `E-TYP-2541`, `E-TYP-2542`, `E-TYP-2621`, `E-TYP-2622`, `E-UNS-0105`, `E-UNS-0106`
 - `§15.10 Procedure, Contract, and Entry Diagnostics Supplement`: `E-TYP-1507`, `E-TYP-1912`, `E-MOD-2411`, `E-MOD-2430`, `E-MOD-2431`, `E-MOD-2432`, `E-MOD-2434`, `E-CON-0415`, `E-CON-0416`, `P-SEM-2850`, `E-SEM-2801`, `E-SEM-2802`, `E-SEM-2803`, `E-SEM-2804`, `E-SEM-2805`, `E-SEM-2806`, `E-SEM-2807`, `E-SEM-2820`, `E-SEM-2821`, `E-SEM-2822`, `E-SEM-2823`, `E-SEM-2824`, `E-SEM-2830`, `E-SEM-2831`, `E-SEM-3004`
-- `§16.10 Expression Diagnostics Supplement`: `E-SEM-2527`, `E-SEM-2531`, `E-SEM-2532`, `E-SEM-2533`, `E-SEM-2534`, `E-SEM-2535`, `E-SEM-2536`, `E-SEM-2538`, `E-SEM-2539`, `E-SEM-2591`, `E-MEM-3031`, `E-UNS-0102`, `E-UNS-0103`, `E-UNS-0104`, `E-UNS-0107`, `W-SAFE-0100`
+- `§16.10 Expression Diagnostics Supplement`: `E-SEM-2527`, `E-SEM-2528`, `E-SEM-2531`, `E-SEM-2532`, `E-SEM-2533`, `E-SEM-2534`, `E-SEM-2535`, `E-SEM-2536`, `E-SEM-2538`, `E-SEM-2539`, `E-SEM-2591`, `E-MEM-3031`, `E-UNS-0102`, `E-UNS-0103`, `E-UNS-0104`, `E-UNS-0107`, `W-SAFE-0100`
 - `§17.7 Pattern Diagnostics Supplement`: `E-SEM-2705`, `E-SEM-2711`, `E-SEM-2713`, `E-SEM-2721`, `E-SEM-2722`, `E-SEM-2731`
 - `§18.11 Statement Diagnostics Supplement`: `E-MOD-2401`, `E-SEM-3011`, `E-SEM-3012`, `E-SEM-3131`, `E-SEM-3132`, `E-SEM-3133`, `E-SEM-3151`, `E-SEM-3152`, `E-SEM-3161`, `E-SEM-3162`, `E-SEM-3163`, `E-SEM-3165`
 - `§19.1.7 Key Paths`: `E-CON-0002`, `E-CON-0003`, `E-CON-0030`, `E-CON-0033`, `E-CON-0034`, `E-CON-0083`
 - `§19.2.7 Key Acquisition Blocks`: `E-CON-0001`, `E-CON-0004`, `E-CON-0006`, `E-CON-0031`, `E-CON-0032`, `E-CON-0070`, `E-CON-0085`, `E-CON-0086`, `W-CON-0001`, `W-CON-0002`, `W-CON-0003`, `W-CON-0009`
 - `§19.3.7 Conflict Detection`: `E-CON-0005`, `E-CON-0010`, `E-CON-0014`, `E-CON-0060`, `W-CON-0004`, `W-CON-0006`, `W-CON-0013`
-- `§19.4.7 Nested Release`: `E-CON-0011`, `E-CON-0012`, `E-CON-0017`, `E-CON-0018`, `W-CON-0005`, `W-CON-0010`, `W-CON-0011`, `W-CON-0012`
+- `§19.4.7 Nested Release`: `E-CON-0012`, `E-CON-0018`, `W-CON-0005`, `W-CON-0010`, `W-CON-0011`
 - `§19.5.7 Speculative Execution`: `E-CON-0090`, `E-CON-0091`, `E-CON-0092`, `E-CON-0093`, `E-CON-0094`, `E-CON-0095`, `E-CON-0096`, `W-CON-0020`, `W-CON-0021`
 - `§19.6.7 Dynamic Key Verification`: `E-CON-0020`, `I-CON-0011`, `I-CON-0013`
 - `§20.1.7 Parallel Blocks`: `E-CON-0101`, `E-CON-0102`, `E-CON-0103`
-- `§20.2.7 Execution Domains`: `E-CON-0150`, `E-CON-0154`, `E-CON-0155`, `E-CON-0156`, `E-CON-0157`, `E-CON-0158`, `E-TYP-2640`, `E-TYP-2641`, `E-TYP-2642`
+- `§20.2.7 Execution Domains`: `E-CON-0150`, `E-CON-0154`, `E-CON-0155`, `E-CON-0156`, `E-CON-0157`, `E-CON-0158`, `E-CON-0159`, `E-TYP-2640`, `E-TYP-2641`, `E-TYP-2642`
 - `§20.3.7 Capture Semantics`: `E-CON-0120`, `E-CON-0121`, `E-CON-0122`, `E-CON-0131`, `E-CON-0151`, `E-CON-0153`
 - `§20.4.7 Spawn`: `E-CON-0130`
 - `§20.5.7 Dispatch`: `E-CON-0140`, `E-CON-0141`, `E-CON-0142`, `E-CON-0143`, `W-CON-0140`
@@ -29362,7 +29650,7 @@ decimal_integer  ::= dec_digit ("_"* dec_digit)*
 hex_integer      ::= "0x" hex_digit ("_"* hex_digit)*
 octal_integer    ::= "0o" oct_digit ("_"* oct_digit)*
 binary_integer   ::= "0b" bin_digit ("_"* bin_digit)*
-int_suffix       ::= "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128"
+int_suffix       ::= "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" | "isize" | "usize"
 dec_digit        ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
 hex_digit        ::= dec_digit | "a" | "b" | "c" | "d" | "e" | "f" | "A" | "B" | "C" | "D" | "E" | "F"
 oct_digit        ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7"
@@ -29370,7 +29658,7 @@ bin_digit        ::= "0" | "1"
 
 float_literal ::= decimal_integer "." decimal_integer? exponent? float_suffix?
 exponent      ::= ("e" | "E") ("+" | "-")? decimal_integer
-float_suffix  ::= "f16" | "f32" | "f64"
+float_suffix  ::= "f" | "f16" | "f32" | "f64"
 
 string_literal   ::= '"' (string_char | escape_sequence)* '"'
 string_char      ::= (* Unicode scalar except ", \\, or U+000A *)
@@ -29387,7 +29675,7 @@ unit_literal ::= "(" ")"
 ### B.2 Type Grammar
 
 ```ebnf
-type                ::= permission? non_permission_type
+type                ::= permission? non_permission_type refinement_clause?
 non_permission_type ::= union_type | non_union_type
 permission          ::= "const" | "unique" | "shared"
 
@@ -29446,7 +29734,8 @@ class_bound        ::= type_path generic_args?
 generic_args       ::= "<" type_arg_list ">"
 type_arg_list      ::= type ("," type)* ","?
 
-refinement_type       ::= type "|:" "{" predicate_expr "}"
+refinement_clause     ::= "|:" "{" predicate_expr "}"
+refinement_type       ::= type refinement_clause
 param_with_constraint ::= identifier ":" type "|:" "{" predicate_expr "}"
 
 modal_type_name     ::= type_path generic_args?
@@ -29501,7 +29790,9 @@ path_expr       ::= type_path "::" identifier
 
 tuple_literal       ::= "(" tuple_expr_elements? ")"
 tuple_expr_elements ::= expression ";" | expression ("," expression)+
-array_literal       ::= "[" expression_list? "]"
+array_literal       ::= "[" array_segment_list? "]"
+array_segment_list  ::= array_segment ("," array_segment)*
+array_segment       ::= expression | expression ";" expression
 expression_list     ::= expression ("," expression)* ","?
 record_literal      ::= identifier "{" field_init_list "}" | state_specific_type "{" field_init_list? "}"
 field_init_list     ::= field_init ("," field_init)* ","?
@@ -29564,22 +29855,22 @@ range_pattern          ::= pattern (".." | "..=") pattern
 ### B.5 Statement Grammar
 
 ```ebnf
-statement ::= binding_decl terminator | assignment_stmt terminator | compound_assign terminator | expr_stmt | return_stmt | break_stmt | continue_stmt | defer_stmt | region_stmt | frame_stmt | unsafe_block | key_block_stmt | comptime_stmt
+statement ::= binding_stmt | shadow_binding | assignment_stmt | compound_assign | expr_stmt | return_stmt | break_stmt | continue_stmt | defer_stmt | region_stmt | frame_stmt | unsafe_block | key_block_stmt | log_statement | comptime_stmt
 
-binding_decl     ::= let_decl | var_decl | shadowed_binding
-let_decl         ::= "let" pattern (":" type)? binding_op expression
-var_decl         ::= "var" pattern (":" type)? binding_op expression
-shadowed_binding ::= "shadow" "let" identifier (":" type)? "=" expression
+binding_stmt   ::= ("let" | "var") pattern (":" type)? binding_op expression terminator
+shadow_binding ::= "shadow" ("let" | "var") identifier (":" type)? "=" expression terminator
 binding_op       ::= "=" | ":="
 
-assignment_stmt ::= place_expr "=" expression
-compound_assign ::= place_expr compound_op expression
+assignment_stmt ::= place_expr "=" expression terminator
+compound_assign ::= place_expr compound_op expression terminator
 compound_op     ::= "+=" | "-=" | "*=" | "/=" | "%="
 place_expr      ::= identifier | postfix_expr "." identifier | postfix_expr "[" expression "]"
 
 expr_stmt  ::= expression terminator
 terminator ::= ";" | newline
 newline    ::= "\n"
+
+log_statement ::= log_attribute terminator
 
 return_stmt   ::= "return" expression?
 break_stmt    ::= "break" expression?
@@ -29607,7 +29898,7 @@ static_decl ::= attribute_list? visibility? ("let" | "var") binding_decl
 
 visibility ::= "public" | "internal" | "private"
 
-procedure_decl ::= attribute_list? visibility? "procedure" identifier generic_params? signature predicate_clause? contract_clause? block_expr?
+procedure_decl ::= attribute_list? visibility? "procedure" identifier generic_params? signature predicate_clause? contract_clause? block_expr
 signature      ::= "(" param_list? ")" ("->" return_type)?
 param_list     ::= param ("," param)* ","?
 param          ::= param_mode? identifier ":" type
@@ -29649,7 +29940,7 @@ superclass_bounds   ::= class_bound ("+" class_bound)*
 class_item          ::= abstract_procedure | concrete_procedure | abstract_field | abstract_state | associated_type
 abstract_procedure  ::= "procedure" identifier signature contract_clause?
 concrete_procedure  ::= "procedure" identifier signature contract_clause? block_expr
-abstract_field      ::= identifier ":" type
+abstract_field      ::= attribute_list? visibility? key_boundary? identifier ":" type
 abstract_state      ::= "@" identifier "{" field_list? "}"
 field_list          ::= abstract_field ("," abstract_field)* ","?
 associated_type     ::= "type" identifier ("=" type)?
@@ -29687,15 +29978,13 @@ attribute_spec ::= attribute_name ("(" attribute_args ")")?
 attribute_name ::= identifier
                  | "dynamic"
                  | "static"
-                 | "trust"
                  | vendor_prefix "::" identifier
                  | vendor_prefix "::" "dynamic"
                  | vendor_prefix "::" "static"
-                 | vendor_prefix "::" "trust"
 vendor_prefix  ::= identifier ("::" identifier)*
 attribute_args ::= attribute_arg ("," attribute_arg)* ","?
 attribute_arg  ::= literal
-                 | identifier
+                  | identifier
                  | identifier ":" literal
                  | identifier ":" identifier
                  | identifier "(" attribute_args ")"
@@ -29731,10 +30020,11 @@ path_segment    ::= key_marker? identifier index_suffix?
 key_marker      ::= "#"
 index_suffix    ::= "[" expression "]"
 
-key_block        ::= "#" path_list mode_modifier* block_expr
+key_block        ::= "#" path_list key_block_mod* key_mode_spec? block_expr
 path_list        ::= key_path_expr ("," key_path_expr)*
-mode_modifier    ::= "write" | "read" | release_modifier | "ordered" | "speculative"
-release_modifier ::= "release" ("write" | "read")
+key_block_mod    ::= "dynamic" | "speculative" | "ordered"
+key_mode_spec    ::= key_mode | release_modifier
+release_modifier ::= "release" key_mode
 
 speculative_block ::= "#" path_list "speculative" "write" block_expr
 coarsened_path    ::= path_segment* "#" path_segment+
@@ -29812,7 +30102,7 @@ extern_item                  ::= foreign_procedure
 foreign_procedure            ::= attribute_list? visibility? "procedure" identifier generic_params? signature predicate_clause? contract_clause? foreign_contract_clause_list? terminator
 
 ffi_verification_attr        ::= "[[" ffi_verification_mode "]]"
-ffi_verification_mode        ::= "static" | "dynamic" | "trust"
+ffi_verification_mode        ::= "static" | "dynamic"
 foreign_contract             ::= "|:" "@foreign_assumes" "(" predicate_expr ")"
                                | "|:" "@foreign_ensures" "(" ensures_predicate ")"
 ensures_predicate            ::= predicate_expr | "@error" ":" predicate_expr | "@null_result" ":" predicate_expr
@@ -29874,15 +30164,15 @@ Informative. Appendix C catalogs canonical AST ownership in the reorganized draf
 
 ### C.3 Expression, Pattern, and Statement Families
 
-| AST Family                                                                        | Canonical Owner                                  |
-| --------------------------------------------------------------------------------- | ------------------------------------------------ |
-| Non-concurrency expressions other than key blocks                                 | `16. Expressions`                                |
-| Key-path and key-block expression and statement forms                             | `19. The Key System`                             |
-| `ParallelExpr`, `SpawnExpr`, `DispatchExpr`                                       | `20. Structured Parallelism`                     |
-| `WaitExpr`, `YieldExpr`, `YieldFromExpr`, `SyncExpr`, `RaceExpr`, `AllExpr`       | `21. Asynchronous Operations`                    |
+| AST Family                                                                             | Canonical Owner                                  |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Non-concurrency expressions other than key blocks                                      | `16. Expressions`                                |
+| Key-path and key-block expression and statement forms                                  | `19. The Key System`                             |
+| `ParallelExpr`, `SpawnExpr`, `DispatchExpr`                                            | `20. Structured Parallelism`                     |
+| `WaitExpr`, `YieldExpr`, `YieldFromExpr`, `SyncExpr`, `RaceExpr`, `AllExpr`            | `21. Asynchronous Operations`                    |
 | `CtExpr`, `CtStmt`, `CtIf`, `CtLoopIter`, `Type::<...>`, quote forms, and splice forms | `22. Compile-Time Execution and Metaprogramming` |
-| All pattern forms                                                                 | `17. Patterns`                                   |
-| All statement forms other than key-system-owned statements                        | `18. Statements and Blocks`                      |
+| All pattern forms                                                                      | `17. Patterns`                                   |
+| All statement forms other than key-system-owned statements                             | `18. Statements and Blocks`                      |
 
 ## Appendix D. Layout, ABI, and Runtime Reference
 
@@ -29902,3 +30192,6 @@ Informative. Appendix D cross-indexes layout, ABI, and runtime ownership after r
 | Runtime symbol surface                                           | `§24.6`                                                            | `BuiltinModalSym`, `BuiltinSym`, `RuntimeSig`, `RuntimeDecls`                |
 | Calling convention and ABI lowering                              | `§24.2.3` to `§24.2.5`                                             | `ABITy`, `ABIParam`, `ABIRet`, `ABICall`                                     |
 | Backend requirements and LLVM mapping                            | `§24.7`                                                            | `LLVMPtrAttrs`, `LLVMArgAttrs`, `LLVMUBSafe`, `LLVMTy`                       |
+
+
+

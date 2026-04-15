@@ -54,20 +54,49 @@ Diagnostic ApplyNoSpanExternal(const Diagnostic& diag, DiagnosticOrigin origin) 
 
 std::string Render(const Diagnostic& diag) {
   SPEC_DEF("Render", "1.6.6");
-  std::string out = diag.code;
-  out += " (";
+  std::string out;
   switch (diag.severity) {
     case Severity::Error:
-      out += "error";
+      if (diag.code.empty()) {
+        out += "error";
+      } else {
+        out += diag.code;
+        out += " (error)";
+      }
       break;
     case Severity::Warning:
-      out += "warning";
+      if (diag.code.empty()) {
+        out += "warning";
+      } else {
+        out += diag.code;
+        out += " (warning)";
+      }
+      break;
+    case Severity::Info:
+      if (diag.code.empty()) {
+        out += "info";
+      } else {
+        out += diag.code;
+        out += " (info)";
+      }
+      break;
+    case Severity::Panic:
+      if (diag.code.empty()) {
+        out += "panic";
+      } else {
+        out += diag.code;
+        out += " (panic)";
+      }
       break;
     case Severity::Note:
-      out += "note";
+      if (diag.code.empty()) {
+        out += "note";
+      } else {
+        out += diag.code;
+        out += " (note)";
+      }
       break;
   }
-  out += ")";
   if (!diag.message.empty()) {
     out += ": ";
     out += diag.message;
@@ -93,6 +122,8 @@ std::string_view SeverityLabel(Severity sev) {
   switch (sev) {
     case Severity::Error: return "error";
     case Severity::Warning: return "warning";
+    case Severity::Info: return "info";
+    case Severity::Panic: return "panic";
     case Severity::Note: return "note";
   }
   return "error";
@@ -102,6 +133,8 @@ Color SeverityColor(Severity sev) {
   switch (sev) {
     case Severity::Error: return Color::BoldRed;
     case Severity::Warning: return Color::BoldYellow;
+    case Severity::Info: return Color::BoldBlue;
+    case Severity::Panic: return Color::BoldMagenta;
     case Severity::Note: return Color::BoldCyan;
   }
   return Color::BoldRed;
@@ -224,9 +257,11 @@ std::string RenderRich(const Diagnostic& diag,
 
   std::string head;
   head += Colorize(std::string(sev_label), sev_color, c);
-  head += Colorize("[", sev_color, c);
-  head += Colorize(diag.code, sev_color, c);
-  head += Colorize("]", sev_color, c);
+  if (!diag.code.empty()) {
+    head += Colorize("[", sev_color, c);
+    head += Colorize(diag.code, sev_color, c);
+    head += Colorize("]", sev_color, c);
+  }
   if (!diag.message.empty()) {
     head += ": ";
     head += diag.message;
@@ -270,41 +305,43 @@ std::string RenderRich(const Diagnostic& diag,
 std::string DiagnosticSummary(const DiagnosticStream& stream, bool color) {
   int errors = 0;
   int warnings = 0;
+  int infos = 0;
+  int panics = 0;
   int notes = 0;
   for (const auto& d : stream) {
     if (d.severity == Severity::Error) {
       ++errors;
     } else if (d.severity == Severity::Warning) {
       ++warnings;
+    } else if (d.severity == Severity::Info) {
+      ++infos;
+    } else if (d.severity == Severity::Panic) {
+      ++panics;
     } else if (d.severity == Severity::Note) {
       ++notes;
     }
   }
-  if (errors == 0 && warnings == 0 && notes == 0) {
+  if (errors == 0 && warnings == 0 && infos == 0 && panics == 0 && notes == 0) {
     return {};
   }
   std::string out;
-  if (errors > 0) {
-    out += Colorize(
-        std::to_string(errors) + " error" + (errors != 1 ? "s" : ""),
-        Color::BoldRed, color);
-  }
-  if (errors > 0 && warnings > 0) {
-    out += ", ";
-  }
-  if (warnings > 0) {
-    out += Colorize(
-        std::to_string(warnings) + " warning" + (warnings != 1 ? "s" : ""),
-        Color::BoldYellow, color);
-  }
-  if ((errors > 0 || warnings > 0) && notes > 0) {
-    out += ", ";
-  }
-  if (notes > 0) {
-    out += Colorize(
-        std::to_string(notes) + " note" + (notes != 1 ? "s" : ""),
-        Color::BoldCyan, color);
-  }
+  auto append_count =
+      [&](int count, std::string_view singular, Color count_color) {
+        if (count == 0) {
+          return;
+        }
+        if (!out.empty()) {
+          out += ", ";
+        }
+        out += Colorize(std::to_string(count) + " " + std::string(singular) +
+                            (count != 1 ? "s" : ""),
+                        count_color, color);
+      };
+  append_count(errors, "error", Color::BoldRed);
+  append_count(warnings, "warning", Color::BoldYellow);
+  append_count(infos, "info", Color::BoldBlue);
+  append_count(panics, "panic", Color::BoldMagenta);
+  append_count(notes, "note", Color::BoldCyan);
   out += " emitted";
   return out;
 }

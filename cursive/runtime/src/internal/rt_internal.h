@@ -1,12 +1,12 @@
-﻿#ifndef CURSIVE_RT_INTERNAL_H
+#ifndef CURSIVE_RT_INTERNAL_H
 #define CURSIVE_RT_INTERNAL_H
 
 #include "../../include/cursive_rt.h"
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include "rt_platform.h"
 
 // -----------------------------------------------------------------------------
 // Internal runtime state
@@ -107,10 +107,10 @@ static __inline uint64_t c0_align_up(uint64_t value, uint64_t align) {
   return value + (align - rem);
 }
 
-static __inline HANDLE c0_process_heap(void) {
-  static HANDLE heap = NULL;
+static __inline cursive_rt_handle_t c0_process_heap(void) {
+  static cursive_rt_handle_t heap = NULL;
   if (!heap) {
-    heap = GetProcessHeap();
+    heap = cursive_rt_heap_handle();
   }
   return heap;
 }
@@ -121,17 +121,21 @@ static __inline void c0_trace_emit_rule_with_meta(const char* rule_id,
                                                   const char* level);
 
 static __inline void* c0_heap_alloc_raw(size_t size) {
-  return HeapAlloc(c0_process_heap(), 0, size);
+  return cursive_rt_heap_alloc(c0_process_heap(), 0, size);
 }
 
 static __inline void c0_heap_free_raw(void* ptr) {
   if (ptr) {
-    HANDLE heap = c0_process_heap();
-    if (HeapValidate(heap, 0, ptr) == 0) {
+    cursive_rt_dword_t saved_error = cursive_rt_last_error_get();
+    cursive_rt_handle_t heap = c0_process_heap();
+    if (cursive_rt_heap_validate(heap, 0, ptr) == 0) {
       c0_trace_emit_rule("Log-HeapFreeRaw-InvalidPointer");
+      cursive_rt_last_error_set(saved_error);
       return;
     }
-    HeapFree(heap, 0, ptr);
+    if (cursive_rt_heap_free(heap, 0, ptr) != 0) {
+      cursive_rt_last_error_set(saved_error);
+    }
   }
 }
 
@@ -279,7 +283,7 @@ static __inline int c0_heap_can_alloc(C0HeapState* heap,
   }
   uint32_t guard = 0;
   for (C0HeapState* cur = heap; cur; cur = cur->parent) {
-    if (HeapValidate(c0_process_heap(), 0, cur) == 0) {
+    if (cursive_rt_heap_validate(c0_process_heap(), 0, cur) == 0) {
       c0_trace_emit_rule("Log-HeapCanAlloc-InvalidState");
       return 0;
     }
@@ -368,7 +372,7 @@ static __inline void c0_heap_dealloc_recorded(C0HeapState* heap,
   if (!header) {
     return;
   }
-  if (HeapValidate(c0_process_heap(), 0, header) == 0) {
+  if (cursive_rt_heap_validate(c0_process_heap(), 0, header) == 0) {
     c0_trace_emit_rule("Log-HeapRawDealloc-InvalidPointer");
     return;
   }
@@ -519,9 +523,10 @@ static __inline wchar_t* c0_utf8_to_wide(
   if (c0_utf8_has_null(data, len)) {
     return NULL;
   }
-  int wide_len = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
-                                     (const char*)data, (int)len,
-                                     NULL, 0);
+  int wide_len = cursive_rt_utf8_to_wide_chars((const char*)data,
+                                               (int)len,
+                                               NULL,
+                                               0);
   if (wide_len <= 0) {
     return NULL;
   }
@@ -530,9 +535,10 @@ static __inline wchar_t* c0_utf8_to_wide(
   if (!out) {
     return NULL;
   }
-  int written = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
-                                    (const char*)data, (int)len,
-                                    out, wide_len);
+  int written = cursive_rt_utf8_to_wide_chars((const char*)data,
+                                              (int)len,
+                                              out,
+                                              wide_len);
   if (written != wide_len) {
     c0_heap_free_raw(out);
     return NULL;
@@ -558,10 +564,10 @@ static __inline uint8_t* c0_wide_to_utf8(
   if (len > (uint32_t)INT32_MAX) {
     return NULL;
   }
-  int byte_len = WideCharToMultiByte(CP_UTF8, 0,
-                                     data, (int)len,
-                                     NULL, 0,
-                                     NULL, NULL);
+  int byte_len = cursive_rt_wide_to_utf8_chars(data,
+                                               (int)len,
+                                               NULL,
+                                               0);
   if (byte_len <= 0) {
     return NULL;
   }
@@ -569,10 +575,10 @@ static __inline uint8_t* c0_wide_to_utf8(
   if (!out) {
     return NULL;
   }
-  int written = WideCharToMultiByte(CP_UTF8, 0,
-                                    data, (int)len,
-                                    (char*)out, byte_len,
-                                    NULL, NULL);
+  int written = cursive_rt_wide_to_utf8_chars(data,
+                                              (int)len,
+                                              (char*)out,
+                                              byte_len);
   if (written != byte_len) {
     c0_heap_free_raw(out);
     return NULL;

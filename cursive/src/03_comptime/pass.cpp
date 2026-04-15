@@ -131,10 +131,16 @@ ComptimeResult ComptimePass(const std::vector<ast::ASTModule>& modules,
   std::vector<ast::ASTModule> expanded = modules;
   std::vector<const ast::ASTModule*> available_modules;
   available_modules.reserve(order.size());
+  std::vector<std::size_t> processed_modules;
+  processed_modules.reserve(order.size());
   for (const std::size_t module_index : order) {
     SPEC_RULE("Phase2-Deterministic-Dependency-Order");
     const auto& module = modules[module_index];
-    available_modules.push_back(&module);
+    available_modules.clear();
+    for (const std::size_t processed_index : processed_modules) {
+      available_modules.push_back(&expanded[processed_index]);
+    }
+    available_modules.push_back(&expanded[module_index]);
 
     source::ModuleNames available_module_names;
     available_module_names.reserve(available_modules.size());
@@ -144,14 +150,11 @@ ComptimeResult ComptimePass(const std::vector<ast::ASTModule>& modules,
       }
     }
 
-    comptime_internal::CtEnv env;
+    comptime_internal::CtEnv env = comptime_internal::CtEmptyEnv(module);
     env.diags = &result.diags;
     env.project_root = project_root;
     env.source_root = source_root;
     env.next_hygiene = 0;
-    env.current_module = module.path;
-    env.site.module_path = module.path;
-    env.site.ordinal = 0;
     env.available_modules = available_modules;
     env.available_module_names = std::move(available_module_names);
     env.files = project_files;
@@ -163,6 +166,7 @@ ComptimeResult ComptimePass(const std::vector<ast::ASTModule>& modules,
     }
     out.items = std::move(*expanded_items);
     expanded[module_index] = std::move(out);
+    processed_modules.push_back(module_index);
   }
 
   result.modules = std::move(expanded);

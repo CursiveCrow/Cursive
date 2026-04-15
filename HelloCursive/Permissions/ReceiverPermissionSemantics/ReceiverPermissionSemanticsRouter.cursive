@@ -1,10 +1,16 @@
-public procedure RunGroup(ctx: Context) -> i32 {
+public procedure runGroup(ctx: Context) -> i32 {
     [[log(label: "permissions-log-section_start", expected: "section-start")]] "section-start"
 
     let status_shorthand: i32 = RunReceiverShorthandParsingAndTyping(ctx)
     if (status_shorthand != 0) {
         [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
         return status_shorthand
+    }
+
+    let status_token_inventory: i32 = RunPermissionTokenInventoryCoverage(ctx)
+    if (status_token_inventory != 0) {
+        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        return status_token_inventory
     }
 
     let status_compat: i32 = RunMethodReceiverCompatibility(ctx)

@@ -9,7 +9,7 @@ public procedure RunContractSpecConsistencyMatrix(ctx: Context) -> i32 {
     [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
 
     let status_entry_scope: i32 = EntryCaptureAndBinding::RunEntryScopeCapabilityAndSideEffectRejections(ctx)
-    let status_assume_mode: i32 = ForeignContractsAndTrustBoundaries::RunForeignAssumeModeSemantics(ctx)
+    let status_assume_mode: i32 = ForeignContractsAndVerificationModes::RunForeignAssumeModeSemantics(ctx)
 
     let status_entry_scope_log: i32 =
         [[log(label: "observed-contracts-spec-consistency-entry-scope-status", expected: 0)]]

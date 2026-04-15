@@ -2,7 +2,7 @@
 // File: 03_analysis/types/expr/array_repeat.h
 // Construct: Array Repeat Expression Type Checking
 // Spec Section: 5.2.12
-// Spec Rules: T-Array-Repeat
+// Spec Rules: T-Array-Literal-Segments
 // =================================================================
 #pragma once
 

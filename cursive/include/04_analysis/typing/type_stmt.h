@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+#include <memory>
 #include <optional>
 #include <string_view>
 #include <string>
@@ -9,6 +11,7 @@
 #include <vector>
 
 #include "00_core/diagnostics.h"
+#include "04_analysis/keys/key_context.h"
 #include "04_analysis/memory/calls.h"
 #include "04_analysis/typing/context.h"
 #include "04_analysis/typing/place_types.h"
@@ -34,16 +37,27 @@ struct TypeBinding {
     bool captures_any = false;
     bool captures_shared = false;
     bool has_shared_deps = false;
+    bool contains_spawn = false;
   };
 
   ast::Mutability mut = ast::Mutability::Let;
   TypeRef type;
+  // Stable declared/storage type used for writes. `type` may be flow-refined
+  // for reads/proofs inside a control-flow branch; `storage_type` preserves
+  // the assignment contract defined by the binding itself.
+  TypeRef storage_type;
   std::optional<ClosureCaptureInfo> closure_capture_info;
   bool deprecated = false;
   std::optional<std::string> deprecated_message;
   BindingProvenanceSeedKind provenance_kind =
       BindingProvenanceSeedKind::Stack;
   std::optional<IdKey> provenance_region;
+};
+
+enum class ParallelContextKind {
+  Cpu,
+  Gpu,
+  Inline,
 };
 
 BindingProvenanceSeedKind NormalizeBindingProvenanceSeed(
@@ -57,18 +71,71 @@ using TypeScope = std::unordered_map<IdKey, TypeBinding>;
 
 struct TypeEnv {
   std::vector<TypeScope> scopes;
+  std::optional<ParallelContextKind> parallel_context;
+};
+
+struct GpuCaptureCheckResult {
+  bool ok = false;
+  std::optional<std::string_view> diag_id;
+  std::optional<std::string_view> supplemental_diag_id;
+};
+
+struct Dim3ConstValue {
+  std::uint64_t x = 0;
+  std::uint64_t y = 0;
+  std::uint64_t z = 0;
+};
+
+struct ClosureCaptureSets {
+  std::unordered_set<IdKey> captures;
+  std::unordered_set<IdKey> const_captures;
+  std::unordered_set<IdKey> shared_captures;
+  std::unordered_set<IdKey> unique_captures;
+};
+
+struct StmtTypeContext;
+struct StaticProofContext;
+
+struct ParallelCaptureScopeView {
+  const std::unordered_set<IdKey>* bindings = nullptr;
+  std::unordered_set<IdKey>* first_child_moves = nullptr;
 };
 
 TypeEnv PushScope(const TypeEnv& env);
 TypeEnv PopScope(const TypeEnv& env);
 TypeEnv ProjectTypeEnvToDepth(const TypeEnv& env, std::size_t depth);
 std::optional<TypeBinding> BindOf(const TypeEnv& env, std::string_view name);
+TypeRef StableBindingType(const TypeBinding& binding);
 std::optional<ast::Mutability> MutOf(const TypeEnv& env,
                                         std::string_view name);
+std::optional<ParallelContextKind> ParallelContext(const TypeEnv& env);
+bool GpuContext(const TypeEnv& env);
+bool HasHeapProvenance(const TypeEnv& env, std::string_view name);
+bool IsOuterParallelBinding(const StmtTypeContext& type_ctx, const IdKey& name);
+bool ClaimFirstChildMove(const StmtTypeContext& type_ctx, const IdKey& name);
+std::optional<Dim3ConstValue> ExtractDim3Const(const ScopeContext& ctx,
+                                               const ast::ExprPtr& expr,
+                                               const ExprTypeFn& type_expr);
+bool ExceedsMaxWorkgroupSize(const Dim3ConstValue& dims);
+GpuCaptureCheckResult CheckGpuCapture(const ScopeContext& ctx,
+                                      const TypeEnv& env,
+                                      std::string_view name,
+                                      bool explicit_move);
+std::optional<ClosureCaptureSets> AnalyzeClosureCaptureSets(
+    const ast::ExprPtr& expr,
+    const TypeEnv& env);
+std::optional<ClosureCaptureSets> AnalyzeBlockCaptureSets(
+    const ast::Block& block,
+    const TypeEnv& env);
 std::optional<TypeBinding::ClosureCaptureInfo> AnalyzeClosureCaptureInfo(
     const ast::ExprPtr& expr,
     const TypeEnv& env,
     const TypeRef& closure_type_hint);
+bool ClosureTypeHasSharedDeps(const TypeRef& type);
+std::optional<std::string_view> CheckEscapingClosureSpawn(
+    const ast::ExprPtr& expr,
+    const TypeEnv& env,
+    const TypeRef& expected_closure_type);
 
 struct FlowInfo {
   std::vector<TypeRef> results;
@@ -90,6 +157,7 @@ struct StmtSeqResult {
   std::optional<std::string_view> diag_id;
   TypeEnv env;
   FlowInfo flow;
+  std::shared_ptr<StaticProofContext> proof_ctx;
   std::string diag_detail;
   std::optional<core::Span> diag_span;
 };
@@ -124,6 +192,11 @@ enum class ContractPhase {
   Postcondition,
 };
 
+struct HeldKeyTypingInfo {
+  KeyPath path;
+  ast::KeyMode mode = ast::KeyMode::Read;
+};
+
 struct StmtTypeContext {
   TypeRef return_type;
   LoopFlag loop_flag = LoopFlag::None;
@@ -139,8 +212,14 @@ struct StmtTypeContext {
   std::unordered_set<IdKey>* parallel_bindings = nullptr;
   // Union of bindings introduced by enclosing parallel block bodies.
   const std::unordered_set<IdKey>* parallel_ancestor_bindings = nullptr;
+  // Ordered innermost-last stack of enclosing parallel binding scopes.
+  const std::vector<ParallelCaptureScopeView>* parallel_capture_scopes = nullptr;
+  // Outer unique bindings already selected by the enclosing parallel analysis
+  // for one child task via explicit move capture.
+  std::unordered_set<IdKey>* parallel_first_child_moves = nullptr;
   bool keys_held = false;            // true when keys are held (for wait restriction)
   std::optional<ast::KeyMode> key_mode;  // key block mode when keys_held is true
+  std::vector<HeldKeyTypingInfo> held_key_paths;  // canonical held key paths for nested key checks
   bool in_speculative = false;       // true when inside a speculative key block
   std::unordered_set<IdKey>* unique_captures = nullptr;  // track unique captures
   // C0X Extension: Contract predicates / invariants
@@ -148,6 +227,7 @@ struct StmtTypeContext {
   bool require_pure = false;
   const ast::ContractClause* contract = nullptr;
   bool contract_dynamic = false;
+  std::shared_ptr<StaticProofContext> proof_ctx;
 };
 
 StmtTypeResult TypeScopedStmtBody(const ScopeContext& ctx,

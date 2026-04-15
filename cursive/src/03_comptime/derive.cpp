@@ -27,33 +27,19 @@ struct RunDeriveResult {
   std::vector<ASTItem> items;
 };
 
-std::optional<std::vector<std::string>> DeriveTargetsOf(const AttributeList& attrs,
-                                                        core::DiagnosticStream& diags,
-                                                        const core::Span& span) {
+std::optional<std::vector<std::string>> DeriveTargetsOf(const AttributeList& attrs) {
   const auto* derive = FindAttribute(attrs, "derive");
   if (!derive) {
     return std::vector<std::string>{};
   }
 
   std::vector<std::string> out;
+  out.reserve(derive->args.size());
   for (const auto& arg : derive->args) {
-    if (arg.key.has_value()) {
-      if (auto diag = core::MakeDiagnosticById("E-CTE-0310", span)) {
-        core::Emit(diags, *diag);
-      }
-      return std::nullopt;
-    }
     const auto* tok = std::get_if<ast::Token>(&arg.value);
-    if (!tok || tok->kind != ast::TokenKind::Identifier) {
-      if (auto diag = core::MakeDiagnosticById("E-CTE-0310", span)) {
-        core::Emit(diags, *diag);
-      }
-      return std::nullopt;
-    }
-    if (std::find(out.begin(), out.end(), tok->lexeme) != out.end()) {
-      if (auto diag = core::MakeDiagnosticById("E-CTE-0312", span)) {
-        core::Emit(diags, *diag);
-      }
+    // Malformed [[derive(... )]] arguments are rejected earlier by the shared
+    // attribute validator before Phase 2 derive expansion begins.
+    if (arg.key.has_value() || !tok || tok->kind != ast::TokenKind::Identifier) {
       return std::nullopt;
     }
     out.push_back(tok->lexeme);
@@ -222,8 +208,8 @@ std::optional<ast::ModulePath> ExpandImportAliasPrefix(const CtEnv& env,
     }
 
     const ast::Identifier alias =
-        import->alias.value_or(resolved->empty() ? ast::Identifier{}
-                                                 : resolved->back());
+        import->alias_opt.value_or(resolved->empty() ? ast::Identifier{}
+                                                     : resolved->back());
     if (alias.empty() || alias != path.front()) {
       continue;
     }
@@ -499,7 +485,7 @@ std::optional<std::vector<DeriveRequest>> ResolveDeriveRequests(
         if constexpr (std::is_same_v<T, ast::RecordDecl> ||
                       std::is_same_v<T, ast::EnumDecl> ||
                       std::is_same_v<T, ast::ModalDecl>) {
-          return DeriveTargetsOf(node.attrs, *env.diags, node.span);
+          return DeriveTargetsOf(node.attrs);
         }
         return std::vector<std::string>{};
       },

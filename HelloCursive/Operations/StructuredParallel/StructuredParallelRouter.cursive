@@ -1,5 +1,5 @@
 
-public procedure RunGroup(ctx: Context) -> i32 {
+public procedure runGroup(ctx: Context) -> i32 {
     let section_name: string@View = "operations/StructuredParallel"
     let status_ok: string@View = "ok"
     let status_failed: string@View = "failed"
@@ -15,6 +15,7 @@ public procedure RunGroup(ctx: Context) -> i32 {
     let feature_ParallelExpressionOperations: string@View = "StructuredParallel::ParallelExpressionOperations"
     let feature_SpawnExpressionOperations: string@View = "StructuredParallel::SpawnExpressionOperations"
     let feature_WaitExpressionOperations: string@View = "StructuredParallel::WaitExpressionOperations"
+    let feature_ContextualKeywordSurfaceOperations: string@View = "StructuredParallel::ContextualKeywordSurfaceOperations"
     let feature_DispatchExpressionOperations: string@View = "StructuredParallel::DispatchExpressionOperations"
     let feature_ParallelPanicHandlingSemantics: string@View = "StructuredParallel::ParallelPanicHandlingSemantics"
     let feature_ParallelMemoryAllocationOperations: string@View = "StructuredParallel::ParallelMemoryAllocationOperations"
@@ -42,6 +43,14 @@ public procedure RunGroup(ctx: Context) -> i32 {
         [[log(label: "operations-log-transition")]]
         [[log(label: "operations-log-section_end")]]
         return status_WaitExpressionOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_ContextualKeywordSurfaceOperations: i32 = RunContextualKeywordSurfaceOperations(ctx)
+    if (status_ContextualKeywordSurfaceOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_ContextualKeywordSurfaceOperations
     }
     [[log(label: "operations-log-transition")]]
     [[log(label: "operations-log-transition")]]

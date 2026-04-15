@@ -80,6 +80,18 @@ procedure EvaluateArrayControlProbe(counter: *mut i32) -> i32 {
     return 0
 }
 
+record TupleParenRecordProbe {
+    left: i32
+    right: i32
+}
+
+procedure ParenthesizedNonParenDelimiterMetric() -> i32 {
+    let array_metric: i32 = ([7, 11])[0usize]
+    let record_left: i32 = (TupleParenRecordProbe { left: 4, right: 6 }).left
+    let record_right: i32 = (TupleParenRecordProbe { left: 4, right: 6 }).right
+    return array_metric + record_left + record_right
+}
+
 procedure LogCompoundObject(
     fs: $FileSystem,
     scope: string@View,
@@ -264,6 +276,8 @@ procedure VerifyTuplesArraysSlicesRangesItem(ctx: Context, scope: string@View, m
     let observed_tuple_ctrl_step: string@View = "observed-tuple-control-propagation-metric"
     let observed_array_eval_step: string@View = "observed-array-eval-order-metric"
     let observed_array_ctrl_step: string@View = "observed-array-control-propagation-metric"
+    let observed_tuple_paren_non_paren_step: string@View =
+        "observed-tuple-paren-non-paren-delimiter-metric"
     let expected_tuple: string@View = "14"
     let expected_array: string@View = "6"
     let expected_slice: string@View = "5"
@@ -273,6 +287,7 @@ procedure VerifyTuplesArraysSlicesRangesItem(ctx: Context, scope: string@View, m
     let expected_tuple_ctrl: string@View = "17"
     let expected_array_eval: string@View = "259"
     let expected_array_ctrl: string@View = "17"
+    let expected_tuple_paren_non_paren: string@View = "17"
     let tuple_metric_label: string@View = CompoundMetricLabel(tuple_total)
     let array_metric_label: string@View = CompoundMetricLabel(array_total)
     let slice_metric_label: string@View = CompoundMetricLabel(slice_total)
@@ -282,6 +297,9 @@ procedure VerifyTuplesArraysSlicesRangesItem(ctx: Context, scope: string@View, m
     let tuple_ctrl_metric_label: string@View = CompoundMetricLabel(tuple_ctrl_result)
     let array_eval_metric_label: string@View = CompoundMetricLabel(array_eval_metric)
     let array_ctrl_metric_label: string@View = CompoundMetricLabel(array_ctrl_result)
+    let tuple_paren_non_paren_metric: i32 = ParenthesizedNonParenDelimiterMetric()
+    let tuple_paren_non_paren_metric_label: string@View =
+        CompoundMetricLabel(tuple_paren_non_paren_metric)
     let tuple_metric_passed: bool = tuple_total == 14
     let array_metric_passed: bool = array_total == 6
     let slice_catch_in_bounds_metric_log: i32 =
@@ -329,6 +347,8 @@ procedure VerifyTuplesArraysSlicesRangesItem(ctx: Context, scope: string@View, m
     let array_ctrl_metric_passed: bool =
         (array_ctrl_result == 17) &&
         (array_ctrl_order == 4)
+    let tuple_paren_non_paren_metric_passed: bool =
+        tuple_paren_non_paren_metric == 17
 
     let tuple_metric_passed_log_actual = [[log(label: "observed-tuple-forms-metric", expected: "14")]] tuple_metric_label
     let tuple_metric_passed_with_log: bool = tuple_metric_passed && (tuple_metric_passed_log_actual == expected_tuple)
@@ -355,6 +375,11 @@ procedure VerifyTuplesArraysSlicesRangesItem(ctx: Context, scope: string@View, m
         [[log(label: "observed-array-control-propagation-metric", expected: "17")]] array_ctrl_metric_label
     let array_ctrl_metric_passed_with_log: bool =
         array_ctrl_metric_passed && (array_ctrl_metric_passed_log_actual == expected_array_ctrl)
+    let tuple_paren_non_paren_metric_passed_log_actual =
+        [[log(label: "observed-tuple-paren-non-paren-delimiter-metric", expected: "17")]] tuple_paren_non_paren_metric_label
+    let tuple_paren_non_paren_metric_passed_with_log: bool =
+        tuple_paren_non_paren_metric_passed &&
+        (tuple_paren_non_paren_metric_passed_log_actual == expected_tuple_paren_non_paren)
     [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunTuplesArraysSlicesRangesItem(
@@ -509,6 +534,23 @@ procedure VerifyTuplesArraysSlicesRangesItem(ctx: Context, scope: string@View, m
         )
     }
 
+    if (item_index == 9) {
+        return RunTuplesArraysSlicesRangesItem(
+            ctx,
+            scope,
+            "TupleParenNonParenDelimiters",
+            "tuple-vs-parenthesized disambiguation ignores commas nested inside non-paren delimiters while preserving parenthesized array and record expressions",
+            "validated parenthesized-expression scanning around nested `[]` and `{}` delimiters",
+            "tuple-paren-non-paren-delimiters",
+            "evaluate parenthesized array and record expressions whose inner commas must not be treated as outer tuple separators",
+            "17",
+            "17",
+            "not-17",
+            move tuple_paren_non_paren_metric_passed_with_log,
+            "tuple-vs-parenthesized disambiguation with nested non-paren delimiters check failed"
+        )
+    }
+
     return RunTuplesArraysSlicesRangesItem(
         ctx,
         scope,
@@ -572,6 +614,11 @@ procedure RunTuplesArraysSlicesRanges(ctx: Context) -> i32 {
     let status_ArrayControlPropagation: i32 = VerifyTuplesArraysSlicesRangesItem(ctx, scope, 8, "ArrayControlPropagation")
     if (status_ArrayControlPropagation != 0) {
         return status_ArrayControlPropagation
+    }
+
+    let status_TupleParenNonParenDelimiters: i32 = VerifyTuplesArraysSlicesRangesItem(ctx, scope, 9, "TupleParenNonParenDelimiters")
+    if (status_TupleParenNonParenDelimiters != 0) {
+        return status_TupleParenNonParenDelimiters
     }
 
     [[log(label: "types-log-checkpoint")]]

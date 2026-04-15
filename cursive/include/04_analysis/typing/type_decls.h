@@ -292,6 +292,13 @@ SignatureResult BuildMethodSignature(
     const std::shared_ptr<ast::Type>& return_type_opt,
     const TypeSubst* assoc_subst = nullptr);
 
+SignatureResult BuildTransitionSignature(
+    const ScopeContext& ctx,
+    const TypeRef& source_self_type,
+    const TypeRef& target_self_type,
+    const std::vector<ast::Param>& params,
+    const TypeSubst* assoc_subst = nullptr);
+
 // Import functions
 ImportDeclResult TypeImportDecl(
     const ScopeContext& ctx,
@@ -500,8 +507,7 @@ bool IsModuleVisible(const ScopeContext& ctx,
 
 enum class ForeignVerificationMode {
   Static,
-  Dynamic,
-  Trust
+  Dynamic
 };
 
 struct ExternProcInfo {

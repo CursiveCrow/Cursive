@@ -348,4 +348,43 @@ SignatureResult BuildMethodSignature(
   return result;
 }
 
+SignatureResult BuildTransitionSignature(
+    const ScopeContext& ctx,
+    const TypeRef& source_self_type,
+    const TypeRef& target_self_type,
+    const std::vector<ast::Param>& params,
+    const TypeSubst* assoc_subst) {
+  SpecDefsSignature();
+  SignatureResult result;
+  result.ok = true;
+
+  std::vector<TypeFuncParam> func_params;
+  func_params.reserve(params.size() + 1);
+
+  const auto recv_type = MakeTypePerm(Permission::Unique, source_self_type);
+  result.bindings.emplace_back("self", recv_type);
+  func_params.push_back({ParamMode::Move, recv_type});
+
+  for (const auto& param : params) {
+    const auto lowered = LowerTypeWithWF(ctx, param.type);
+    if (!lowered.ok) {
+      result.ok = false;
+      result.diag_id = lowered.diag_id;
+      return result;
+    }
+
+    const auto subst = SubstSelfType(source_self_type, lowered.type, assoc_subst);
+    func_params.push_back({
+        LowerParamMode(param.mode),
+        subst
+    });
+    result.bindings.emplace_back(param.name, subst);
+  }
+
+  result.func_type = MakeTypeFunc(func_params, target_self_type);
+  result.return_type = target_self_type;
+  SPEC_RULE("TypeFunc-Construct");
+  return result;
+}
+
 }  // namespace cursive::analysis

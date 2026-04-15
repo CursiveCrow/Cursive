@@ -156,9 +156,9 @@ ScopeKeyState TrackKeyLifetime(const ast::KeyBlockStmt& block,
   // Get all keys that would be acquired for this block
   for (const auto& path_expr : block.paths) {
     KeyPath path = ParseKeyPathSpec(path_expr);
-    KeyAccessMode mode = KeyAccessMode::Write;  // Default mode
-    if (block.mode.has_value() && *block.mode == ast::KeyMode::Read) {
-      mode = KeyAccessMode::Read;
+    KeyAccessMode mode = KeyAccessMode::Read;
+    if (block.mode.has_value() && *block.mode == ast::KeyMode::Write) {
+      mode = KeyAccessMode::Write;
     }
 
     KeyLifetime lifetime;
@@ -206,9 +206,9 @@ ScopeKeyState TrackStatementKeys(const ast::Stmt& stmt,
 
     for (const auto& path_expr : key_block->paths) {
       KeyPath path = ParseKeyPathSpec(path_expr);
-      KeyAccessMode mode = KeyAccessMode::Write;
-      if (key_block->mode.has_value() && *key_block->mode == ast::KeyMode::Read) {
-        mode = KeyAccessMode::Read;
+      KeyAccessMode mode = KeyAccessMode::Read;
+      if (key_block->mode.has_value() && *key_block->mode == ast::KeyMode::Write) {
+        mode = KeyAccessMode::Write;
       }
       ctx.Acquire(path, mode);
     }

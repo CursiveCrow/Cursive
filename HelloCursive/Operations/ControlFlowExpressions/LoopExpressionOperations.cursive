@@ -60,22 +60,29 @@ procedure VerifyLoopExpressionOperationsItem(ctx: Context, scope: string@View, m
 
     [[log(label: "operations-log-runtime_phase_move")]]
     [[log(label: "operations-log-transition_move")]]
-    let loop_syntax_metric: i32 = loop {
-        break 7
+    let loop_syntax_pair: (i32, i32) = loop {
+        break (3, 4)
     }
+    let loop_syntax_metric: i32 = loop_syntax_pair.0 + loop_syntax_pair.1
     [[log(label: "operations-log-transition_move")]]
     [[log(label: "operations-log-transition_move")]]
-    loop conditional_counter < 3 {
-        conditional_counter = conditional_counter + 2
+    let conditional_pair_or_unit: (i32, i32) | () = loop conditional_counter < 3 {
+        break (conditional_counter, 4)
     }
-    let loop_static_metric: i32 = conditional_counter
+    let loop_static_metric: i32 = if conditional_pair_or_unit is {
+        (left, right) { left + right }
+        _: () { 0 }
+    }
     [[log(label: "operations-log-transition_move")]]
     [[log(label: "operations-log-transition_move")]]
     let iter_values: [i32; 3] = [1, 2, 3]
-    loop value in iter_values {
+    let iter_pair: (i32, i32) = loop value in iter_values {
         iter_sum = iter_sum + value
+        if (value == 2) {
+            break (iter_sum, 7)
+        }
     }
-    let loop_runtime_metric: i32 = conditional_counter + iter_sum
+    let loop_runtime_metric: i32 = iter_pair.0 + iter_pair.1
     [[log(label: "operations-log-transition_move")]]
     let syntax_passed: bool = loop_syntax_metric == 7
     let static_passed: bool = loop_static_metric == 4
@@ -96,10 +103,10 @@ procedure VerifyLoopExpressionOperationsItem(ctx: Context, scope: string@View, m
             ctx,
             scope,
             "LoopExpressionOperationsSyntaxForms",
-            "loop expression syntax forms including break-with-value loop result",
+            "loop expression syntax forms including aggregate break-with-value loop result",
             "validated loop-expression syntax forms",
             "loop-expression-syntax",
-            "parse and evaluate infinite loop with break value",
+            "parse and evaluate infinite loop with aggregate break value",
             "7",
             "7",
             "not-7",
@@ -113,10 +120,10 @@ procedure VerifyLoopExpressionOperationsItem(ctx: Context, scope: string@View, m
             ctx,
             scope,
             "LoopExpressionOperationsStaticSemantics",
-            "conditional loop condition typing and loop-body statement typing",
+            "conditional loop result typing and aggregate loop-expression preservation",
             "validated loop-expression static semantics",
             "loop-expression-static",
-            "type-check conditional loop form and resulting state-carrier type",
+            "type-check conditional loop form and preserve aggregate loop result type",
             "4",
             "4",
             "not-4",
@@ -130,10 +137,10 @@ procedure VerifyLoopExpressionOperationsItem(ctx: Context, scope: string@View, m
             ctx,
             scope,
             "LoopExpressionOperationsRuntimeDiagnostics",
-            "runtime loop execution across condition-based and iterator-based loop forms",
+            "runtime loop execution with aggregate iterator-loop result preservation",
             "validated loop-expression runtime behavior and diagnostics",
             "loop-expression-runtime",
-            "execute conditional and iterator loop paths and verify runtime aggregate",
+            "execute iterator loop path and verify aggregate loop result",
             "10",
             "10",
             "not-10",

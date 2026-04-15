@@ -1,0 +1,11 @@
+[toolchain]
+llvm_bin = "../cursive/build/linux/out/linux/tools"
+runtime_lib = "../cursive/build/linux/out/CursiveRT.a"
+target_profile = "x86_64-sysv"
+
+[[assembly]]
+name = "main"
+kind = "executable"
+root = "."
+out_dir = "build/main"
+emit_ir = "ll"

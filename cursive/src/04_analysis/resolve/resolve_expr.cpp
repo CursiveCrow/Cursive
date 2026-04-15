@@ -572,6 +572,175 @@ ResolveResult<std::optional<ast::DispatchKeyClause>> ResolveKeyClauseOpt(
   return {true, std::nullopt, std::nullopt, std::move(out)};
 }
 
+ResolveResult<ast::SpawnOption> ResolveSpawnOpt(ResolveContext& ctx,
+                                                const ast::SpawnOption& opt) {
+  if (!opt.value || opt.kind == ast::SpawnOptionKind::Name) {
+    SPEC_RULE("ResolveSpawnOpt-Name");
+    return {true, std::nullopt, std::nullopt, opt};
+  }
+
+  const auto resolved_value = ResolveExpr(ctx, opt.value);
+  if (!resolved_value.ok) {
+    return {false, resolved_value.diag_id, resolved_value.span, {},
+            resolved_value.diag_detail, resolved_value.diag_children};
+  }
+
+  auto out = opt;
+  out.value = resolved_value.value;
+  if (opt.kind == ast::SpawnOptionKind::Affinity) {
+    SPEC_RULE("ResolveSpawnOpt-Affinity");
+  } else {
+    SPEC_RULE("ResolveSpawnOpt-Priority");
+  }
+  return {true, std::nullopt, std::nullopt, std::move(out)};
+}
+
+ResolveResult<std::vector<ast::SpawnOption>> ResolveSpawnOpts(
+    ResolveContext& ctx,
+    const std::vector<ast::SpawnOption>& opts) {
+  ResolveResult<std::vector<ast::SpawnOption>> result;
+  result.ok = true;
+  result.value.reserve(opts.size());
+  if (opts.empty()) {
+    SPEC_RULE("ResolveSpawnOpts-Empty");
+    return result;
+  }
+
+  for (const auto& opt : opts) {
+    const auto resolved_opt = ResolveSpawnOpt(ctx, opt);
+    if (!resolved_opt.ok) {
+      return {false, resolved_opt.diag_id, resolved_opt.span, {},
+              resolved_opt.diag_detail, resolved_opt.diag_children};
+    }
+    result.value.push_back(resolved_opt.value);
+    SPEC_RULE("ResolveSpawnOpts-Cons");
+  }
+  return result;
+}
+
+ResolveResult<ast::ParallelOption> ResolveParallelOpt(
+    ResolveContext& ctx,
+    const ast::ParallelOption& opt) {
+  if (opt.kind == ast::ParallelOptionKind::Name) {
+    SPEC_RULE("ResolveParallelOpt-Name");
+    return {true, std::nullopt, std::nullopt, opt};
+  }
+
+  if (!opt.value) {
+    if (opt.kind == ast::ParallelOptionKind::Cancel) {
+      SPEC_RULE("ResolveParallelOpt-Cancel");
+    } else if (opt.kind == ast::ParallelOptionKind::Workgroup) {
+      SPEC_RULE("ResolveParallelOpt-Workgroup");
+    } else {
+      SPEC_RULE("ResolveParallelOpt-Workgroups");
+    }
+    return {true, std::nullopt, std::nullopt, opt};
+  }
+
+  const auto resolved_value = ResolveExpr(ctx, opt.value);
+  if (!resolved_value.ok) {
+    return {false, resolved_value.diag_id, resolved_value.span, {},
+            resolved_value.diag_detail, resolved_value.diag_children};
+  }
+
+  auto out = opt;
+  out.value = resolved_value.value;
+  if (opt.kind == ast::ParallelOptionKind::Cancel) {
+    SPEC_RULE("ResolveParallelOpt-Cancel");
+  } else if (opt.kind == ast::ParallelOptionKind::Workgroup) {
+    SPEC_RULE("ResolveParallelOpt-Workgroup");
+  } else {
+    SPEC_RULE("ResolveParallelOpt-Workgroups");
+  }
+  return {true, std::nullopt, std::nullopt, std::move(out)};
+}
+
+ResolveResult<std::vector<ast::ParallelOption>> ResolveParallelOpts(
+    ResolveContext& ctx,
+    const std::vector<ast::ParallelOption>& opts) {
+  ResolveResult<std::vector<ast::ParallelOption>> result;
+  result.ok = true;
+  result.value.reserve(opts.size());
+  if (opts.empty()) {
+    SPEC_RULE("ResolveParallelOpts-Empty");
+    return result;
+  }
+
+  for (const auto& opt : opts) {
+    const auto resolved_opt = ResolveParallelOpt(ctx, opt);
+    if (!resolved_opt.ok) {
+      return {false, resolved_opt.diag_id, resolved_opt.span, {},
+              resolved_opt.diag_detail, resolved_opt.diag_children};
+    }
+    result.value.push_back(resolved_opt.value);
+    SPEC_RULE("ResolveParallelOpts-Cons");
+  }
+  return result;
+}
+
+ResolveResult<ast::DispatchOption> ResolveDispatchOpt(
+    ResolveContext& ctx,
+    const ast::DispatchOption& opt) {
+  if (opt.kind == ast::DispatchOptionKind::Reduce) {
+    SPEC_RULE("ResolveDispatchOpt-Reduce");
+    return {true, std::nullopt, std::nullopt, opt};
+  }
+  if (opt.kind == ast::DispatchOptionKind::Ordered) {
+    SPEC_RULE("ResolveDispatchOpt-Ordered");
+    return {true, std::nullopt, std::nullopt, opt};
+  }
+
+  ast::ExprPtr value =
+      opt.kind == ast::DispatchOptionKind::Chunk ? opt.chunk_expr : opt.workgroup_expr;
+  if (!value) {
+    if (opt.kind == ast::DispatchOptionKind::Chunk) {
+      SPEC_RULE("ResolveDispatchOpt-Chunk");
+    } else {
+      SPEC_RULE("ResolveDispatchOpt-Workgroup");
+    }
+    return {true, std::nullopt, std::nullopt, opt};
+  }
+
+  const auto resolved_value = ResolveExpr(ctx, value);
+  if (!resolved_value.ok) {
+    return {false, resolved_value.diag_id, resolved_value.span, {},
+            resolved_value.diag_detail, resolved_value.diag_children};
+  }
+
+  auto out = opt;
+  if (opt.kind == ast::DispatchOptionKind::Chunk) {
+    out.chunk_expr = resolved_value.value;
+    SPEC_RULE("ResolveDispatchOpt-Chunk");
+  } else {
+    out.workgroup_expr = resolved_value.value;
+    SPEC_RULE("ResolveDispatchOpt-Workgroup");
+  }
+  return {true, std::nullopt, std::nullopt, std::move(out)};
+}
+
+ResolveResult<std::vector<ast::DispatchOption>> ResolveDispatchOpts(
+    ResolveContext& ctx,
+    const std::vector<ast::DispatchOption>& opts) {
+  ResolveResult<std::vector<ast::DispatchOption>> result;
+  result.ok = true;
+  result.value.reserve(opts.size());
+  if (opts.empty()) {
+    SPEC_RULE("ResolveDispatchOpts-Empty");
+    return result;
+  }
+
+  for (const auto& opt : opts) {
+    const auto resolved_opt = ResolveDispatchOpt(ctx, opt);
+    if (!resolved_opt.ok) {
+      return {false, resolved_opt.diag_id, resolved_opt.span, {},
+              resolved_opt.diag_detail, resolved_opt.diag_children};
+    }
+    result.value.push_back(resolved_opt.value);
+    SPEC_RULE("ResolveDispatchOpts-Cons");
+  }
+  return result;
+}
+
 ResolveResult<std::variant<ast::TypePath, ast::GenericTypeRef, ast::ModalStateRef>>
 ResolveTypeRef(ResolveContext& ctx,
                const std::variant<ast::TypePath, ast::GenericTypeRef, ast::ModalStateRef>& target) {
@@ -1274,13 +1443,34 @@ ResExprResult ResolveExpr(ResolveContext& ctx,
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
           auto out = *expr;
           auto& out_node = std::get<ast::ArrayExpr>(out.node);
-          for (auto& elem : out_node.elements) {
-            const auto resolved = ResolveExpr(ctx, elem);
-            if (!resolved.ok) {
-              return {false, resolved.diag_id, resolved.span, {},
-                      resolved.diag_detail, resolved.diag_children};
+          for (auto& segment : out_node.elements) {
+            std::optional<ResExprResult> failure;
+            std::visit(
+                [&](auto& seg) {
+                  if (failure.has_value()) {
+                    return;
+                  }
+                  const auto resolved_value = ResolveExpr(ctx, seg.value);
+                  if (!resolved_value.ok) {
+                    failure = resolved_value;
+                    return;
+                  }
+                  seg.value = resolved_value.value;
+                  if constexpr (std::is_same_v<std::decay_t<decltype(seg)>,
+                                               ast::ArrayRepeatSegment>) {
+                    const auto resolved_count = ResolveExpr(ctx, seg.count);
+                    if (!resolved_count.ok) {
+                      failure = resolved_count;
+                      return;
+                    }
+                    seg.count = resolved_count.value;
+                  }
+                },
+                segment);
+            if (failure.has_value()) {
+              return {false, failure->diag_id, failure->span, {},
+                      failure->diag_detail, failure->diag_children};
             }
-            elem = resolved.value;
           }
           SPEC_RULE("ResolveExpr-Hom");
           return {true, std::nullopt, std::nullopt,
@@ -1625,17 +1815,12 @@ ResExprResult ResolveExpr(ResolveContext& ctx,
           auto out = *expr;
           auto& out_node = std::get<ast::ParallelExpr>(out.node);
           out_node.domain = resolved_domain.value;
-          // Resolve options
-          for (auto& opt : out_node.opts) {
-            if (opt.value) {
-              const auto resolved_opt = ResolveExpr(ctx, opt.value);
-              if (!resolved_opt.ok) {
-                return {false, resolved_opt.diag_id, resolved_opt.span, {},
-                        resolved_opt.diag_detail, resolved_opt.diag_children};
-              }
-              opt.value = resolved_opt.value;
-            }
+          const auto resolved_opts = ResolveParallelOpts(ctx, node.opts);
+          if (!resolved_opts.ok) {
+            return {false, resolved_opts.diag_id, resolved_opts.span, {},
+                    resolved_opts.diag_detail, resolved_opts.diag_children};
           }
+          out_node.opts = resolved_opts.value;
           if (node.body) {
             const auto body = ResolveBlock(ctx, *node.body);
             if (!body.ok) {
@@ -1650,17 +1835,12 @@ ResExprResult ResolveExpr(ResolveContext& ctx,
         } else if constexpr (std::is_same_v<T, ast::SpawnExpr>) {
           auto out = *expr;
           auto& out_node = std::get<ast::SpawnExpr>(out.node);
-          // Resolve options
-          for (auto& opt : out_node.opts) {
-            if (opt.value) {
-              const auto resolved_opt = ResolveExpr(ctx, opt.value);
-              if (!resolved_opt.ok) {
-                return {false, resolved_opt.diag_id, resolved_opt.span, {},
-                        resolved_opt.diag_detail, resolved_opt.diag_children};
-              }
-              opt.value = resolved_opt.value;
-            }
+          const auto resolved_opts = ResolveSpawnOpts(ctx, node.opts);
+          if (!resolved_opts.ok) {
+            return {false, resolved_opts.diag_id, resolved_opts.span, {},
+                    resolved_opts.diag_detail, resolved_opts.diag_children};
           }
+          out_node.opts = resolved_opts.value;
           if (node.body) {
             const auto body = ResolveBlock(ctx, *node.body);
             if (!body.ok) {
@@ -1715,17 +1895,12 @@ ResExprResult ResolveExpr(ResolveContext& ctx,
           out_node.range = resolved_range.value;
           out_node.pattern = resolved_pat.value;
           out_node.key_clause = resolved_key_clause.value;
-          // Resolve options
-          for (auto& opt : out_node.opts) {
-            if (opt.chunk_expr) {
-              const auto resolved_chunk = ResolveExpr(ctx, opt.chunk_expr);
-              if (!resolved_chunk.ok) {
-                return {false, resolved_chunk.diag_id, resolved_chunk.span, {},
-                        resolved_chunk.diag_detail, resolved_chunk.diag_children};
-              }
-              opt.chunk_expr = resolved_chunk.value;
-            }
+          const auto resolved_opts = ResolveDispatchOpts(ctx, node.opts);
+          if (!resolved_opts.ok) {
+            return {false, resolved_opts.diag_id, resolved_opts.span, {},
+                    resolved_opts.diag_detail, resolved_opts.diag_children};
           }
+          out_node.opts = resolved_opts.value;
           if (node.body) {
             const auto body = ResolveBlock(ctx, *node.body);
             if (!body.ok) {
@@ -1985,16 +2160,19 @@ ResolveStmtResult ResolveStmt(ResolveContext& ctx,
             out.body = std::make_shared<ast::Block>(resolved.block);
           }
           return {true, std::nullopt, std::nullopt, out};
-        } else if constexpr (std::is_same_v<T, ast::StaticAssertStmt>) {
+        } else if constexpr (std::is_same_v<T, ast::ComptimeStmt>) {
           auto out = node;
-          if (node.condition) {
-            const auto cond = ResolveExpr(ctx, node.condition);
-            if (!cond.ok) {
-              return {false, cond.diag_id, cond.span, {},
-                      cond.diag_detail, cond.diag_children};
+          if (node.body) {
+            ScopedLeadingScope comptime_scope(*ctx.ctx);
+            comptime_scope.scope() = BuildComptimeCapabilityScope(&node.attrs);
+            const auto resolved = ResolveBlock(ctx, *node.body);
+            if (!resolved.ok) {
+              return {false, resolved.diag_id, resolved.span, {},
+                      resolved.diag_detail, resolved.diag_children};
             }
-            out.condition = cond.value;
+            out.body = std::make_shared<ast::Block>(resolved.block);
           }
+          SPEC_RULE("ResolveStmt-CtStmt");
           return {true, std::nullopt, std::nullopt, out};
         } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
           auto out = node;

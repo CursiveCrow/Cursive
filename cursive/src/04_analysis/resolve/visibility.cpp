@@ -387,8 +387,6 @@ void CheckStmt(const ScopeContext& ctx,
           if (node.body) {
             CheckBlock(ctx, *node.body, diags);
           }
-        } else if constexpr (std::is_same_v<T, ast::StaticAssertStmt>) {
-          CheckExpr(ctx, node.condition, diags);
         } else {
           return;
         }
@@ -463,13 +461,13 @@ void CheckExpr(const ScopeContext& ctx,
           for (const auto& elem : node.elements) {
             CheckExpr(ctx, elem, diags);
           }
-        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
-            CheckExpr(ctx, elem, diags);
-          }
-        } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
-          CheckExpr(ctx, node.value, diags);
-          CheckExpr(ctx, node.count, diags);
+      } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+        ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+          CheckExpr(ctx, elem, diags);
+        });
+      } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
+        CheckExpr(ctx, node.value, diags);
+        CheckExpr(ctx, node.count, diags);
         } else if constexpr (std::is_same_v<T, ast::SizeofExpr>) {
           // sizeof(type) - type visibility is checked during type resolution
         } else if constexpr (std::is_same_v<T, ast::AlignofExpr>) {
@@ -580,8 +578,8 @@ void CheckItem(const ScopeContext& ctx,
             CheckBlock(ctx, *node.body, diags);
           }
         } else if constexpr (std::is_same_v<T, ast::RecordDecl>) {
-          if (node.invariant.has_value()) {
-            CheckExpr(ctx, node.invariant->predicate, diags);
+          if (node.invariant_opt.has_value()) {
+            CheckExpr(ctx, node.invariant_opt->predicate, diags);
           }
           for (const auto& member : node.members) {
             if (const auto* field =
@@ -595,12 +593,12 @@ void CheckItem(const ScopeContext& ctx,
             }
           }
         } else if constexpr (std::is_same_v<T, ast::EnumDecl>) {
-          if (node.invariant.has_value()) {
-            CheckExpr(ctx, node.invariant->predicate, diags);
+          if (node.invariant_opt.has_value()) {
+            CheckExpr(ctx, node.invariant_opt->predicate, diags);
           }
         } else if constexpr (std::is_same_v<T, ast::ModalDecl>) {
-          if (node.invariant.has_value()) {
-            CheckExpr(ctx, node.invariant->predicate, diags);
+          if (node.invariant_opt.has_value()) {
+            CheckExpr(ctx, node.invariant_opt->predicate, diags);
           }
           for (const auto& state : node.states) {
             for (const auto& member : state.members) {

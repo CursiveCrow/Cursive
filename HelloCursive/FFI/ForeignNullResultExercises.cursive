@@ -1,5 +1,5 @@
 [[mangle("hc_ffi_null_probe"), export("C")]]
-public procedure FfiNullProbeImpl(flag: i32) -> *imm u8 {
+public procedure ffiNullProbeImpl(flag: i32) -> *imm u8 {
     if (flag == 0) {
         let np: *imm u8 = null
         return np
@@ -14,17 +14,7 @@ extern "C" {
         |: @foreign_ensures(@null_result: @result == null)
 }
 
-procedure FfiNullResultMetricLabel(value: i32) -> string@View {
-    if (value == 0) {
-        return "0"
-    }
-    if (value == 1) {
-        return "1"
-    }
-    return "other"
-}
-
-public procedure RunFfiForeignNullResultExercise(ctx: Context) -> i32 {
+public procedure runFfiForeignNullResultExercise(ctx: Context) -> i32 {
     let _ = ctx
     [[log(label: "ffi-log-item_begin")]]
 
@@ -48,8 +38,8 @@ public procedure RunFfiForeignNullResultExercise(ctx: Context) -> i32 {
     return 0
 }
 
-procedure RunForeignNullResultExercises(ctx: Context) -> i32 {
-    let status_null_result: i32 = RunFfiForeignNullResultExercise(ctx)
+procedure runForeignNullResultExercises(ctx: Context) -> i32 {
+    let status_null_result: i32 = runFfiForeignNullResultExercise(ctx)
     if (status_null_result != 0) {
         return status_null_result
     }

@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "00_core/diagnostic_messages.h"
+#include "00_core/ident.h"
 
 namespace cursive::frontend::comptime_internal {
 
@@ -19,9 +20,6 @@ ast::Parser MakeTokenParser(const std::vector<ast::Token>& tokens,
   parser.tokens = parser.owned_tokens.get();
   parser.docs = &kNoDocs;
   parser.quote_mode = quote_mode;
-  if (!tokens.empty()) {
-    parser.eof.span = tokens.back().span;
-  }
   return parser;
 }
 
@@ -113,11 +111,13 @@ bool QuoteParsesAsKind(const QuoteExpr& quote, ast::QuoteKind kind) {
       return parsed.parser.index != start_index && parsed.elem &&
              ast::AtEof(parsed.parser);
     }
-    case ast::QuoteKind::Unspecified: {
+    case ast::QuoteKind::Stmt: {
       ast::ParseElemResult<Stmt> parsed = ast::ParseStmt(parser);
       return parsed.parser.index != start_index && IsQuotedStatementForm(parsed.elem) &&
              ast::AtEof(parsed.parser);
     }
+    case ast::QuoteKind::Unspecified:
+      return false;
     case ast::QuoteKind::Item: {
       ast::ParseItemResult parsed = ast::ParseItem(parser);
       return parsed.parser.index != start_index && ast::AtEof(parsed.parser);
@@ -227,6 +227,48 @@ bool RenderPatternSplice(const CtValue& value, PatternPtr& out) {
       out = *pattern;
       return static_cast<bool>(out);
     }
+  }
+  return false;
+}
+
+enum class RenderIdentifierStatus {
+  Ok,
+  Incompatible,
+  Invalid,
+};
+
+RenderIdentifierStatus RenderIdentifierSplice(const CtValue& value,
+                                              Identifier& out) {
+  const auto* text = std::get_if<CtString>(&value);
+  if (!text) {
+    return RenderIdentifierStatus::Incompatible;
+  }
+  if (!core::IsName(text->value)) {
+    return RenderIdentifierStatus::Invalid;
+  }
+  out = text->value;
+  return RenderIdentifierStatus::Ok;
+}
+
+bool BuildSplicedIdentifierInPlace(std::optional<ast::SpliceIdentNode>& splice_opt,
+                                   Identifier& name,
+                                   CtEnv& env) {
+  if (!splice_opt.has_value()) {
+    return true;
+  }
+  auto value = EvalSpliceValue(splice_opt->name_expr, env, splice_opt->span);
+  if (!value.has_value()) {
+    return false;
+  }
+  switch (RenderIdentifierSplice(*value, name)) {
+    case RenderIdentifierStatus::Ok:
+      return true;
+    case RenderIdentifierStatus::Incompatible:
+      EmitComptimeDiag(env, "E-CTE-0230", splice_opt->span);
+      return false;
+    case RenderIdentifierStatus::Invalid:
+      EmitComptimeDiag(env, "E-CTE-0232", splice_opt->span);
+      return false;
   }
   return false;
 }
@@ -342,6 +384,29 @@ bool BuildLoopInvariantInPlace(std::optional<ast::LoopInvariant>& invariant_opt,
     return true;
   }
   return BuildExprInPlace(invariant_opt->predicate, env);
+}
+
+bool BuildRaceHandlerInPlace(ast::RaceHandler& handler, CtEnv& env) {
+  return BuildExprInPlace(handler.value, env);
+}
+
+bool BuildRaceArmInPlace(ast::RaceArm& arm, CtEnv& env) {
+  return BuildExprInPlace(arm.expr, env) &&
+         BuildPatternInPlace(arm.pattern, env) &&
+         BuildRaceHandlerInPlace(arm.handler, env);
+}
+
+bool BuildParallelOptionInPlace(ast::ParallelOption& opt, CtEnv& env) {
+  return BuildExprInPlace(opt.value, env);
+}
+
+bool BuildSpawnOptionInPlace(ast::SpawnOption& opt, CtEnv& env) {
+  return BuildExprInPlace(opt.value, env);
+}
+
+bool BuildDispatchOptionInPlace(ast::DispatchOption& opt, CtEnv& env) {
+  return BuildExprInPlace(opt.chunk_expr, env) &&
+         BuildExprInPlace(opt.workgroup_expr, env);
 }
 
 bool BuildIfCaseClauseInPlace(ast::IfCaseClause& clause, CtEnv& env) {
@@ -520,9 +585,16 @@ std::optional<PatternPtr> BuildPattern(const PatternPtr& pattern, CtEnv& env) {
             return std::nullopt;
           }
           return rendered;
+        } else if constexpr (std::is_same_v<T, ast::IdentifierPattern>) {
+          auto out = node;
+          if (!BuildSplicedIdentifierInPlace(out.name_splice_opt, out.name, env)) {
+            return std::nullopt;
+          }
+          return MakePattern(pattern->span, std::move(out));
         } else if constexpr (std::is_same_v<T, ast::TypedPattern>) {
           auto out = node;
-          if (!BuildTypeInPlace(out.type, env)) {
+          if (!BuildSplicedIdentifierInPlace(out.name_splice_opt, out.name, env) ||
+              !BuildTypeInPlace(out.type, env)) {
             return std::nullopt;
           }
           return MakePattern(pattern->span, std::move(out));
@@ -617,7 +689,8 @@ std::optional<Stmt> BuildStmt(const Stmt& stmt, CtEnv& env) {
         } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
                              std::is_same_v<T, ast::ShadowVarStmt>) {
           auto out = node;
-          if (!BuildTypeInPlace(out.type_opt, env) ||
+          if (!BuildSplicedIdentifierInPlace(out.name_splice_opt, out.name, env) ||
+              !BuildTypeInPlace(out.type_opt, env) ||
               !BuildExprInPlace(out.init, env)) {
             return std::nullopt;
           }
@@ -648,6 +721,14 @@ std::optional<Stmt> BuildStmt(const Stmt& stmt, CtEnv& env) {
           auto out = node;
           if (!BuildExprInPlace(out.opts_opt, env)) {
             return std::nullopt;
+          }
+          if (out.alias_splice_opt.has_value()) {
+            out.alias_opt.emplace("_");
+            if (!BuildSplicedIdentifierInPlace(out.alias_splice_opt,
+                                               *out.alias_opt, env)) {
+              out.alias_opt.reset();
+              return std::nullopt;
+            }
           }
           auto body = BuildBlock(*out.body, env);
           if (!body.has_value()) {
@@ -701,12 +782,6 @@ std::optional<Stmt> BuildStmt(const Stmt& stmt, CtEnv& env) {
           }
           out.body = std::make_shared<Block>(std::move(*body));
           return Stmt{std::move(out)};
-        } else if constexpr (std::is_same_v<T, ast::StaticAssertStmt>) {
-          auto out = node;
-          if (!BuildExprInPlace(out.condition, env)) {
-            return std::nullopt;
-          }
-          return Stmt{std::move(out)};
         } else if constexpr (std::is_same_v<T, ast::LogStmt> ||
                              std::is_same_v<T, ast::ErrorStmt>) {
           return stmt;
@@ -733,7 +808,8 @@ std::optional<Block> BuildBlock(const Block& block, CtEnv& env) {
 }
 
 bool BuildParamInPlace(ast::Param& param, CtEnv& env) {
-  return BuildTypeInPlace(param.type, env);
+  return BuildSplicedIdentifierInPlace(param.name_splice_opt, param.name, env) &&
+         BuildTypeInPlace(param.type, env);
 }
 
 bool BuildGenericParamsInPlace(std::optional<ast::GenericParams>& params_opt,
@@ -792,7 +868,8 @@ bool BuildFieldDeclInPlace(ast::FieldDecl& field, CtEnv& env) {
 }
 
 bool BuildMethodDeclInPlace(ast::MethodDecl& method, CtEnv& env) {
-  if (!BuildReceiverInPlace(method.receiver, env)) {
+  if (!BuildGenericParamsInPlace(method.generic_params, env) ||
+      !BuildReceiverInPlace(method.receiver, env)) {
     return false;
   }
   for (auto& param : method.params) {
@@ -977,7 +1054,7 @@ std::optional<ASTItem> BuildItem(const ASTItem& item, CtEnv& env) {
             }
           }
           if (!BuildTypeInPlace(out.return_type_opt, env) ||
-              !BuildWhereClauseInPlace(out.where_clause, env) ||
+              !BuildWhereClauseInPlace(out.predicate_clause_opt, env) ||
               !BuildContractClauseInPlace(out.contract, env)) {
             return std::nullopt;
           }
@@ -1010,8 +1087,8 @@ std::optional<ASTItem> BuildItem(const ASTItem& item, CtEnv& env) {
         } else if constexpr (std::is_same_v<T, ast::RecordDecl>) {
           auto out = node;
           if (!BuildGenericParamsInPlace(out.generic_params, env) ||
-              !BuildWhereClauseInPlace(out.where_clause, env) ||
-              !BuildTypeInvariantInPlace(out.invariant, env)) {
+              !BuildWhereClauseInPlace(out.predicate_clause_opt, env) ||
+              !BuildTypeInvariantInPlace(out.invariant_opt, env)) {
             return std::nullopt;
           }
           for (auto& member : out.members) {
@@ -1023,8 +1100,8 @@ std::optional<ASTItem> BuildItem(const ASTItem& item, CtEnv& env) {
         } else if constexpr (std::is_same_v<T, ast::EnumDecl>) {
           auto out = node;
           if (!BuildGenericParamsInPlace(out.generic_params, env) ||
-              !BuildWhereClauseInPlace(out.where_clause, env) ||
-              !BuildTypeInvariantInPlace(out.invariant, env)) {
+              !BuildWhereClauseInPlace(out.predicate_clause_opt, env) ||
+              !BuildTypeInvariantInPlace(out.invariant_opt, env)) {
             return std::nullopt;
           }
           for (auto& variant : out.variants) {
@@ -1058,8 +1135,8 @@ std::optional<ASTItem> BuildItem(const ASTItem& item, CtEnv& env) {
         } else if constexpr (std::is_same_v<T, ast::ModalDecl>) {
           auto out = node;
           if (!BuildGenericParamsInPlace(out.generic_params, env) ||
-              !BuildWhereClauseInPlace(out.where_clause, env) ||
-              !BuildTypeInvariantInPlace(out.invariant, env)) {
+              !BuildWhereClauseInPlace(out.predicate_clause_opt, env) ||
+              !BuildTypeInvariantInPlace(out.invariant_opt, env)) {
             return std::nullopt;
           }
           for (auto& state : out.states) {
@@ -1073,7 +1150,7 @@ std::optional<ASTItem> BuildItem(const ASTItem& item, CtEnv& env) {
         } else if constexpr (std::is_same_v<T, ast::ClassDecl>) {
           auto out = node;
           if (!BuildGenericParamsInPlace(out.generic_params, env) ||
-              !BuildWhereClauseInPlace(out.where_clause, env)) {
+              !BuildWhereClauseInPlace(out.predicate_clause_opt, env)) {
             return std::nullopt;
           }
           for (auto& class_item : out.items) {
@@ -1086,7 +1163,7 @@ std::optional<ASTItem> BuildItem(const ASTItem& item, CtEnv& env) {
           auto out = node;
           if (!BuildGenericParamsInPlace(out.generic_params, env) ||
               !BuildTypeInPlace(out.type, env) ||
-              !BuildWhereClauseInPlace(out.where_clause, env)) {
+              !BuildWhereClauseInPlace(out.predicate_clause_opt, env)) {
             return std::nullopt;
           }
           return ASTItem{std::move(out)};
@@ -1125,12 +1202,36 @@ std::optional<ExprPtr> BuildExpr(const ExprPtr& expr, CtEnv& env) {
           }
           return rendered;
         } else if constexpr (std::is_same_v<T, ast::SpliceIdentNode>) {
-          EmitComptimeDiag(env, "E-CTE-0230", node.span);
+          auto value = EvalSpliceValue(node.name_expr, env, node.span);
+          if (!value.has_value()) {
+            return std::nullopt;
+          }
+          Identifier rendered;
+          switch (RenderIdentifierSplice(*value, rendered)) {
+            case RenderIdentifierStatus::Ok: {
+              ast::IdentifierExpr ident;
+              ident.name = std::move(rendered);
+              ident.from_splice = true;
+              return MakeExpr(expr->span, std::move(ident));
+            }
+            case RenderIdentifierStatus::Incompatible:
+              EmitComptimeDiag(env, "E-CTE-0230", node.span);
+              return std::nullopt;
+            case RenderIdentifierStatus::Invalid:
+              EmitComptimeDiag(env, "E-CTE-0232", node.span);
+              return std::nullopt;
+          }
           return std::nullopt;
         } else if constexpr (std::is_same_v<T, ast::BinaryExpr>) {
           auto out = node;
           if (!BuildExprInPlace(out.lhs, env) ||
               !BuildExprInPlace(out.rhs, env)) {
+            return std::nullopt;
+          }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::QualifiedApplyExpr>) {
+          auto out = node;
+          if (!BuildApplyArgsInPlace(out.args, env)) {
             return std::nullopt;
           }
           return MakeExpr(expr->span, std::move(out));
@@ -1161,13 +1262,70 @@ std::optional<ExprPtr> BuildExpr(const ExprPtr& expr, CtEnv& env) {
             }
           }
           return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::RangeExpr>) {
+          auto out = node;
+          if (!BuildExprInPlace(out.lhs, env) ||
+              !BuildExprInPlace(out.rhs, env)) {
+            return std::nullopt;
+          }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::CastExpr>) {
+          auto out = node;
+          if (!BuildExprInPlace(out.value, env) ||
+              !BuildTypeInPlace(out.type, env)) {
+            return std::nullopt;
+          }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::DerefExpr>) {
+          auto out = node;
+          if (!BuildExprInPlace(out.value, env)) {
+            return std::nullopt;
+          }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::AddressOfExpr>) {
+          auto out = node;
+          if (!BuildExprInPlace(out.place, env)) {
+            return std::nullopt;
+          }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::MoveExpr>) {
+          auto out = node;
+          if (!BuildExprInPlace(out.place, env)) {
+            return std::nullopt;
+          }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::AllocExpr>) {
+          auto out = node;
+          if (!BuildExprInPlace(out.value, env)) {
+            return std::nullopt;
+          }
+          return MakeExpr(expr->span, std::move(out));
         } else if constexpr (std::is_same_v<T, ast::TupleExpr> ||
                              std::is_same_v<T, ast::ArrayExpr>) {
           auto out = node;
-          for (auto& elem : out.elements) {
-            if (!BuildExprInPlace(elem, env)) {
+          if constexpr (std::is_same_v<T, ast::TupleExpr>) {
+            for (auto& elem : out.elements) {
+              if (!BuildExprInPlace(elem, env)) {
+                return std::nullopt;
+              }
+            }
+          } else {
+            bool ok = true;
+            ast::ForEachArrayExprSubexpr(out, [&](auto& elem) {
+              if (!ok || !BuildExprInPlace(elem, env)) {
+                ok = false;
+              }
+            });
+            if (!ok) {
               return std::nullopt;
             }
+          }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
+          auto out = node;
+          if (!BuildExprInPlace(out.value, env) ||
+              !BuildExprInPlace(out.count, env)) {
+            return std::nullopt;
           }
           return MakeExpr(expr->span, std::move(out));
         } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
@@ -1206,6 +1364,18 @@ std::optional<ExprPtr> BuildExpr(const ExprPtr& expr, CtEnv& env) {
             return std::nullopt;
           }
           return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::SizeofExpr>) {
+          auto out = node;
+          if (!BuildTypeInPlace(out.type, env)) {
+            return std::nullopt;
+          }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::AlignofExpr>) {
+          auto out = node;
+          if (!BuildTypeInPlace(out.type, env)) {
+            return std::nullopt;
+          }
+          return MakeExpr(expr->span, std::move(out));
         } else if constexpr (std::is_same_v<T, ast::IfExpr>) {
           auto out = node;
           if (!BuildExprInPlace(out.cond, env) ||
@@ -1223,6 +1393,65 @@ std::optional<ExprPtr> BuildExpr(const ExprPtr& expr, CtEnv& env) {
             return std::nullopt;
           }
           return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::IfCaseExpr>) {
+          auto out = node;
+          if (!BuildExprInPlace(out.scrutinee, env)) {
+            return std::nullopt;
+          }
+          for (auto& clause : out.cases) {
+            if (!BuildIfCaseClauseInPlace(clause, env)) {
+              return std::nullopt;
+            }
+          }
+          if (!BuildExprInPlace(out.else_expr, env)) {
+            return std::nullopt;
+          }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::LoopInfiniteExpr>) {
+          auto out = node;
+          if (!BuildLoopInvariantInPlace(out.invariant_opt, env)) {
+            return std::nullopt;
+          }
+          auto body = BuildBlock(*out.body, env);
+          if (!body.has_value()) {
+            return std::nullopt;
+          }
+          out.body = std::make_shared<Block>(std::move(*body));
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::LoopConditionalExpr>) {
+          auto out = node;
+          if (!BuildExprInPlace(out.cond, env) ||
+              !BuildLoopInvariantInPlace(out.invariant_opt, env)) {
+            return std::nullopt;
+          }
+          auto body = BuildBlock(*out.body, env);
+          if (!body.has_value()) {
+            return std::nullopt;
+          }
+          out.body = std::make_shared<Block>(std::move(*body));
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::LoopIterExpr>) {
+          auto out = node;
+          if (!BuildPatternInPlace(out.pattern, env) ||
+              !BuildTypeInPlace(out.type_opt, env) ||
+              !BuildExprInPlace(out.iter, env) ||
+              !BuildLoopInvariantInPlace(out.invariant_opt, env)) {
+            return std::nullopt;
+          }
+          auto body = BuildBlock(*out.body, env);
+          if (!body.has_value()) {
+            return std::nullopt;
+          }
+          out.body = std::make_shared<Block>(std::move(*body));
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::UnsafeBlockExpr>) {
+          auto out = node;
+          auto block = BuildBlock(*out.block, env);
+          if (!block.has_value()) {
+            return std::nullopt;
+          }
+          out.block = std::make_shared<Block>(std::move(*block));
+          return MakeExpr(expr->span, std::move(out));
         } else if constexpr (std::is_same_v<T, ast::BlockExpr>) {
           auto out = node;
           auto block = BuildBlock(*out.block, env);
@@ -1236,6 +1465,37 @@ std::optional<ExprPtr> BuildExpr(const ExprPtr& expr, CtEnv& env) {
           if (!BuildExprInPlace(out.body, env)) {
             return std::nullopt;
           }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::CtIfExpr>) {
+          auto out = node;
+          if (!BuildExprInPlace(out.cond, env)) {
+            return std::nullopt;
+          }
+          auto then_block = BuildBlock(*out.then_block, env);
+          if (!then_block.has_value()) {
+            return std::nullopt;
+          }
+          out.then_block = std::make_shared<Block>(std::move(*then_block));
+          if (out.else_block_opt) {
+            auto else_block = BuildBlock(*out.else_block_opt, env);
+            if (!else_block.has_value()) {
+              return std::nullopt;
+            }
+            out.else_block_opt = std::make_shared<Block>(std::move(*else_block));
+          }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::CtLoopIterExpr>) {
+          auto out = node;
+          if (!BuildPatternInPlace(out.pattern, env) ||
+              !BuildTypeInPlace(out.type_opt, env) ||
+              !BuildExprInPlace(out.iter, env)) {
+            return std::nullopt;
+          }
+          auto body = BuildBlock(*out.body, env);
+          if (!body.has_value()) {
+            return std::nullopt;
+          }
+          out.body = std::make_shared<Block>(std::move(*body));
           return MakeExpr(expr->span, std::move(out));
         } else if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
           auto out = node;
@@ -1255,7 +1515,40 @@ std::optional<ExprPtr> BuildExpr(const ExprPtr& expr, CtEnv& env) {
             return std::nullopt;
           }
           return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::TransmuteExpr>) {
+          auto out = node;
+          if (!BuildTypeInPlace(out.from, env) ||
+              !BuildTypeInPlace(out.to, env) ||
+              !BuildExprInPlace(out.value, env)) {
+            return std::nullopt;
+          }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::ClosureExpr>) {
+          auto out = node;
+          for (auto& param : out.params) {
+            if (!BuildTypeInPlace(param.type_opt, env)) {
+              return std::nullopt;
+            }
+          }
+          if (!BuildTypeInPlace(out.ret_type_opt, env) ||
+              !BuildExprInPlace(out.body, env)) {
+            return std::nullopt;
+          }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::PipelineExpr>) {
+          auto out = node;
+          if (!BuildExprInPlace(out.lhs, env) ||
+              !BuildExprInPlace(out.rhs, env)) {
+            return std::nullopt;
+          }
+          return MakeExpr(expr->span, std::move(out));
         } else if constexpr (std::is_same_v<T, ast::FieldAccessExpr>) {
+          auto out = node;
+          if (!BuildExprInPlace(out.base, env)) {
+            return std::nullopt;
+          }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::TupleAccessExpr>) {
           auto out = node;
           if (!BuildExprInPlace(out.base, env)) {
             return std::nullopt;
@@ -1268,11 +1561,113 @@ std::optional<ExprPtr> BuildExpr(const ExprPtr& expr, CtEnv& env) {
             return std::nullopt;
           }
           return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::CallTypeArgsExpr>) {
+          auto out = node;
+          if (!BuildExprInPlace(out.callee, env)) {
+            return std::nullopt;
+          }
+          for (auto& arg : out.type_args) {
+            if (!BuildTypeInPlace(arg, env)) {
+              return std::nullopt;
+            }
+          }
+          for (auto& arg : out.args) {
+            if (!BuildArgInPlace(arg, env)) {
+              return std::nullopt;
+            }
+          }
+          return MakeExpr(expr->span, std::move(out));
         } else if constexpr (std::is_same_v<T, ast::UnaryExpr>) {
           auto out = node;
           if (!BuildExprInPlace(out.value, env)) {
             return std::nullopt;
           }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::PropagateExpr>) {
+          auto out = node;
+          if (!BuildExprInPlace(out.value, env)) {
+            return std::nullopt;
+          }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::YieldExpr> ||
+                             std::is_same_v<T, ast::YieldFromExpr> ||
+                             std::is_same_v<T, ast::SyncExpr>) {
+          auto out = node;
+          if (!BuildExprInPlace(out.value, env)) {
+            return std::nullopt;
+          }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::RaceExpr>) {
+          auto out = node;
+          for (auto& arm : out.arms) {
+            if (!BuildRaceArmInPlace(arm, env)) {
+              return std::nullopt;
+            }
+          }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::AllExpr>) {
+          auto out = node;
+          for (auto& elem : out.exprs) {
+            if (!BuildExprInPlace(elem, env)) {
+              return std::nullopt;
+            }
+          }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::ParallelExpr>) {
+          auto out = node;
+          if (!BuildExprInPlace(out.domain, env)) {
+            return std::nullopt;
+          }
+          for (auto& opt : out.opts) {
+            if (!BuildParallelOptionInPlace(opt, env)) {
+              return std::nullopt;
+            }
+          }
+          auto body = BuildBlock(*out.body, env);
+          if (!body.has_value()) {
+            return std::nullopt;
+          }
+          out.body = std::make_shared<Block>(std::move(*body));
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::SpawnExpr>) {
+          auto out = node;
+          for (auto& opt : out.opts) {
+            if (!BuildSpawnOptionInPlace(opt, env)) {
+              return std::nullopt;
+            }
+          }
+          auto body = BuildBlock(*out.body, env);
+          if (!body.has_value()) {
+            return std::nullopt;
+          }
+          out.body = std::make_shared<Block>(std::move(*body));
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::WaitExpr>) {
+          auto out = node;
+          if (!BuildExprInPlace(out.handle, env)) {
+            return std::nullopt;
+          }
+          return MakeExpr(expr->span, std::move(out));
+        } else if constexpr (std::is_same_v<T, ast::DispatchExpr>) {
+          auto out = node;
+          if (!BuildPatternInPlace(out.pattern, env) ||
+              !BuildExprInPlace(out.range, env)) {
+            return std::nullopt;
+          }
+          if (out.key_clause.has_value() &&
+              !BuildKeyPathExprInPlace(out.key_clause->key_path, env)) {
+            return std::nullopt;
+          }
+          for (auto& opt : out.opts) {
+            if (!BuildDispatchOptionInPlace(opt, env)) {
+              return std::nullopt;
+            }
+          }
+          auto body = BuildBlock(*out.body, env);
+          if (!body.has_value()) {
+            return std::nullopt;
+          }
+          out.body = std::make_shared<Block>(std::move(*body));
           return MakeExpr(expr->span, std::move(out));
         } else {
           return expr;
@@ -1303,23 +1698,25 @@ std::optional<CtAst> ParseQuotedAstAsKind(const QuoteExpr& quote,
           EmitComptimeDiag(env, "E-CTE-0230", splice_span);
           return std::nullopt;
         }
-        return CtAst{CtAstKind::Expr, rendered};
+        return AstOf(CtAstKind::Expr, rendered);
       }
-      case ast::QuoteKind::Unspecified: {
+      case ast::QuoteKind::Stmt: {
         Stmt rendered;
         if (!RenderStmtSplice(*value, rendered)) {
           EmitComptimeDiag(env, "E-CTE-0230", splice_span);
           return std::nullopt;
         }
-        return CtAst{CtAstKind::Stmt, rendered};
+        return AstOf(CtAstKind::Stmt, rendered);
       }
+      case ast::QuoteKind::Unspecified:
+        return std::nullopt;
       case ast::QuoteKind::Item: {
         ASTItem rendered;
         if (!RenderItemSplice(*value, rendered)) {
           EmitComptimeDiag(env, "E-CTE-0230", splice_span);
           return std::nullopt;
         }
-        return CtAst{CtAstKind::Item, rendered};
+        return AstOf(CtAstKind::Item, rendered);
       }
       case ast::QuoteKind::Type: {
         TypePtr rendered;
@@ -1327,7 +1724,7 @@ std::optional<CtAst> ParseQuotedAstAsKind(const QuoteExpr& quote,
           EmitComptimeDiag(env, "E-CTE-0230", splice_span);
           return std::nullopt;
         }
-        return CtAst{CtAstKind::Type, rendered};
+        return AstOf(CtAstKind::Type, rendered);
       }
       case ast::QuoteKind::Pattern: {
         PatternPtr rendered;
@@ -1335,7 +1732,7 @@ std::optional<CtAst> ParseQuotedAstAsKind(const QuoteExpr& quote,
           EmitComptimeDiag(env, "E-CTE-0230", splice_span);
           return std::nullopt;
         }
-        return CtAst{CtAstKind::Pattern, rendered};
+        return AstOf(CtAstKind::Pattern, rendered);
       }
     }
   }
@@ -1355,9 +1752,9 @@ std::optional<CtAst> ParseQuotedAstAsKind(const QuoteExpr& quote,
       if (!payload.has_value()) {
         return std::nullopt;
       }
-      return CtAst{CtAstKind::Expr, std::move(*payload)};
+      return AstOf(CtAstKind::Expr, std::move(*payload));
     }
-    case ast::QuoteKind::Unspecified: {
+    case ast::QuoteKind::Stmt: {
       auto parsed = ast::ParseStmt(parser);
       AppendDiags(diags, parsed.parser.diags);
       if (parsed.parser.index == start_index || !IsQuotedStatementForm(parsed.elem) ||
@@ -1369,8 +1766,11 @@ std::optional<CtAst> ParseQuotedAstAsKind(const QuoteExpr& quote,
       if (!payload.has_value()) {
         return std::nullopt;
       }
-      return CtAst{CtAstKind::Stmt, std::move(*payload)};
+      return AstOf(CtAstKind::Stmt, std::move(*payload));
     }
+    case ast::QuoteKind::Unspecified:
+      parse_failed = true;
+      return std::nullopt;
     case ast::QuoteKind::Item: {
       auto parsed = ast::ParseItem(parser);
       AppendDiags(diags, parsed.parser.diags);
@@ -1382,7 +1782,7 @@ std::optional<CtAst> ParseQuotedAstAsKind(const QuoteExpr& quote,
       if (!payload.has_value()) {
         return std::nullopt;
       }
-      return CtAst{CtAstKind::Item, std::move(*payload)};
+      return AstOf(CtAstKind::Item, std::move(*payload));
     }
     case ast::QuoteKind::Type: {
       auto parsed = ast::ParseType(parser);
@@ -1396,7 +1796,7 @@ std::optional<CtAst> ParseQuotedAstAsKind(const QuoteExpr& quote,
       if (!payload.has_value()) {
         return std::nullopt;
       }
-      return CtAst{CtAstKind::Type, std::move(*payload)};
+      return AstOf(CtAstKind::Type, std::move(*payload));
     }
     case ast::QuoteKind::Pattern: {
       auto parsed = ast::ParsePattern(parser);
@@ -1410,7 +1810,7 @@ std::optional<CtAst> ParseQuotedAstAsKind(const QuoteExpr& quote,
       if (!payload.has_value()) {
         return std::nullopt;
       }
-      return CtAst{CtAstKind::Pattern, std::move(*payload)};
+      return AstOf(CtAstKind::Pattern, std::move(*payload));
     }
   }
   return std::nullopt;
@@ -1442,7 +1842,7 @@ std::optional<CtAst> ParseQuotedAst(const QuoteExpr& quote,
   std::optional<ast::QuoteKind> resolved_kind;
   std::size_t match_count = 0;
   for (ast::QuoteKind kind :
-       {ast::QuoteKind::Expr, ast::QuoteKind::Unspecified, ast::QuoteKind::Item}) {
+       {ast::QuoteKind::Expr, ast::QuoteKind::Stmt, ast::QuoteKind::Item}) {
     if (!QuoteParsesAsKind(quote, kind)) {
       continue;
     }

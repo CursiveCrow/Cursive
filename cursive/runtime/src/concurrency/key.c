@@ -19,7 +19,7 @@ struct C0KeyScope {
 };
 
 struct C0HeldKey {
-    DWORD owner_tid;
+    cursive_platform_thread_id_t owner_tid;
     uint8_t mode;
     char* path;
     uint64_t path_len;
@@ -64,12 +64,12 @@ typedef struct C0ParsedKeyPath {
     C0KeySegView segs[C0_KEY_MAX_SEGMENTS];
 } C0ParsedKeyPath;
 
-static INIT_ONCE c0_key_once = INIT_ONCE_STATIC_INIT;
-static DWORD c0_key_tls_index = TLS_OUT_OF_INDEXES;
+static cursive_platform_once_t c0_key_once = CURSIVE_PLATFORM_ONCE_INIT;
+static cursive_platform_tls_key_t c0_key_tls_index = CURSIVE_PLATFORM_TLS_KEY_INVALID;
 static C0KeyThreadState c0_key_tls_fallback = {0};
 
-static CRITICAL_SECTION c0_key_lock;
-static CONDITION_VARIABLE c0_key_cv;
+static cursive_platform_mutex_t c0_key_lock;
+static cursive_platform_condition_t c0_key_cv;
 static C0HeldKey* c0_key_global_head = NULL;
 static C0HeldKey* c0_key_global_tail = NULL;
 
@@ -116,23 +116,25 @@ static int c0_key_mem_lex(const char* lhs, uint32_t lhs_len,
     return 0;
 }
 
-static BOOL CALLBACK c0_key_init(PINIT_ONCE init_once, PVOID param, PVOID* context) {
+static cursive_platform_bool_t c0_key_init(cursive_platform_once_t* init_once,
+                                     void* param,
+                                     void** context) {
     (void)init_once;
     (void)param;
     (void)context;
 
-    InitializeCriticalSection(&c0_key_lock);
-    InitializeConditionVariable(&c0_key_cv);
+    cursive_platform_mutex_init(&c0_key_lock);
+    cursive_platform_condition_init(&c0_key_cv);
 
-    c0_key_tls_index = TlsAlloc();
-    if (c0_key_tls_index == TLS_OUT_OF_INDEXES) {
-        return FALSE;
+    c0_key_tls_index = cursive_platform_tls_key_create();
+    if (c0_key_tls_index == CURSIVE_PLATFORM_TLS_KEY_INVALID) {
+        return CURSIVE_PLATFORM_FALSE;
     }
-    return TRUE;
+    return CURSIVE_PLATFORM_TRUE;
 }
 
 static int c0_key_ensure_init(void) {
-    if (!InitOnceExecuteOnce(&c0_key_once, c0_key_init, NULL, NULL)) {
+    if (!cursive_platform_once_execute(&c0_key_once, c0_key_init, NULL, NULL)) {
         return 0;
     }
     return 1;
@@ -144,14 +146,14 @@ static C0KeyThreadState* c0_key_thread_state(void) {
         return &c0_key_tls_fallback;
     }
 
-    state = (C0KeyThreadState*)TlsGetValue(c0_key_tls_index);
+    state = (C0KeyThreadState*)cursive_platform_tls_get(c0_key_tls_index);
     if (!state) {
         state = (C0KeyThreadState*)c0_heap_alloc_raw(sizeof(C0KeyThreadState));
         if (!state) {
             return &c0_key_tls_fallback;
         }
         c0_memset(state, 0, sizeof(C0KeyThreadState));
-        TlsSetValue(c0_key_tls_index, state);
+        cursive_platform_tls_set(c0_key_tls_index, state);
     }
     return state;
 }
@@ -425,7 +427,7 @@ static int c0_key_modes_conflict(uint8_t lhs, uint8_t rhs) {
     return !(lhs == C0_KEY_MODE_READ && rhs == C0_KEY_MODE_READ);
 }
 
-static int c0_key_has_conflict(DWORD owner_tid,
+static int c0_key_has_conflict(cursive_platform_thread_id_t owner_tid,
                                const char* path,
                                uint64_t path_len,
                                uint8_t mode) {
@@ -531,7 +533,7 @@ void cursive_key_scope_exit(void* scope_ptr) {
         return;
     }
 
-    EnterCriticalSection(&c0_key_lock);
+    cursive_platform_mutex_lock(&c0_key_lock);
     key = scope->tail;
     while (key) {
         C0HeldKey* prev = key->scope_prev;
@@ -541,8 +543,8 @@ void cursive_key_scope_exit(void* scope_ptr) {
         c0_key_free(key);
         key = prev;
     }
-    LeaveCriticalSection(&c0_key_lock);
-    WakeAllConditionVariable(&c0_key_cv);
+    cursive_platform_mutex_unlock(&c0_key_lock);
+    cursive_platform_condition_wake_all(&c0_key_cv);
 
     c0_heap_free_raw(scope);
 }
@@ -573,18 +575,18 @@ void cursive_key_acquire(void* scope_ptr, C0StringView path, uint8_t mode) {
     }
 
     key->mode = (mode == C0_KEY_MODE_READ) ? C0_KEY_MODE_READ : C0_KEY_MODE_WRITE;
-    key->owner_tid = GetCurrentThreadId();
+    key->owner_tid = cursive_platform_current_thread_id();
 
-    EnterCriticalSection(&c0_key_lock);
+    cursive_platform_mutex_lock(&c0_key_lock);
     while (c0_key_has_conflict(key->owner_tid, key->path, key->path_len, key->mode)) {
-        SleepConditionVariableCS(&c0_key_cv, &c0_key_lock, INFINITE);
+        cursive_platform_condition_wait(&c0_key_cv, &c0_key_lock, CURSIVE_PLATFORM_INFINITE);
     }
 
     c0_key_global_link(key);
     c0_key_thread_link(state, key);
     c0_key_scope_link(scope, key);
 
-    LeaveCriticalSection(&c0_key_lock);
+    cursive_platform_mutex_unlock(&c0_key_lock);
 }
 
 void* cursive_key_release_all(void) {
@@ -603,7 +605,7 @@ void* cursive_key_release_all(void) {
     }
     c0_memset(released, 0, sizeof(C0ReleasedSet));
 
-    EnterCriticalSection(&c0_key_lock);
+    cursive_platform_mutex_lock(&c0_key_lock);
     key = state->held_tail;
     while (key) {
         C0HeldKey* prev = key->thread_prev;
@@ -613,9 +615,9 @@ void* cursive_key_release_all(void) {
         c0_key_release_link(released, key);
         key = prev;
     }
-    LeaveCriticalSection(&c0_key_lock);
+    cursive_platform_mutex_unlock(&c0_key_lock);
 
-    WakeAllConditionVariable(&c0_key_cv);
+    cursive_platform_condition_wake_all(&c0_key_cv);
 
     if (released->count == 0) {
         c0_heap_free_raw(released);
@@ -631,7 +633,7 @@ void cursive_key_reacquire(void* released_ptr) {
     C0HeldKey* key;
     uint64_t idx = 0;
     uint64_t count;
-    DWORD owner_tid;
+    cursive_platform_thread_id_t owner_tid;
 
     c0_trace_emit_rule("K-Reacquire-After-Release");
     if (!released) {
@@ -663,8 +665,8 @@ void cursive_key_reacquire(void* released_ptr) {
 
     c0_key_insertion_sort(ordered, count);
 
-    owner_tid = GetCurrentThreadId();
-    EnterCriticalSection(&c0_key_lock);
+    owner_tid = cursive_platform_current_thread_id();
+    cursive_platform_mutex_lock(&c0_key_lock);
     for (idx = 0; idx < count; ++idx) {
         C0HeldKey* held = ordered[idx];
         held->released_prev = NULL;
@@ -672,16 +674,16 @@ void cursive_key_reacquire(void* released_ptr) {
         held->owner_tid = owner_tid;
 
         while (c0_key_has_conflict(owner_tid, held->path, held->path_len, held->mode)) {
-            SleepConditionVariableCS(&c0_key_cv, &c0_key_lock, INFINITE);
+            cursive_platform_condition_wait(&c0_key_cv, &c0_key_lock, CURSIVE_PLATFORM_INFINITE);
         }
 
         c0_key_global_link(held);
         c0_key_thread_link(state, held);
         c0_key_scope_link(held->scope, held);
     }
-    LeaveCriticalSection(&c0_key_lock);
+    cursive_platform_mutex_unlock(&c0_key_lock);
 
-    WakeAllConditionVariable(&c0_key_cv);
+    cursive_platform_condition_wake_all(&c0_key_cv);
 
     c0_heap_free_raw(ordered);
     c0_heap_free_raw(released);

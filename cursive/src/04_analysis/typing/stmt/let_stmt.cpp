@@ -156,11 +156,12 @@ StmtTypeResult TypeLetStmt(const ScopeContext& ctx,
   const bool binding_deprecated =
       HasAttribute(binding.attrs, ::cursive::analysis::attrs::kDeprecated);
   const auto deprecated_message = NormalizeDeprecatedMessage(binding.attrs);
+  const auto ann_type = ast::BindingAnnotationTypeOpt(binding);
 
   // Case 1: Type annotation provided
-  if (binding.type_opt) {
+  if (ann_type) {
     // Lower the type annotation
-    const auto ann = LowerType(ctx, binding.type_opt);
+    const auto ann = LowerType(ctx, ann_type);
     if (!ann.ok) {
       return {false, ann.diag_id, {}, {}};
     }

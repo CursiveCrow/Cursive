@@ -35,6 +35,7 @@
 #include "04_analysis/modal/modal_transitions.h"
 #include "04_analysis/memory/string_bytes.h"
 #include "04_analysis/typing/type_expr.h"
+#include "04_analysis/typing/type_predicates.h"
 #include "04_analysis/memory/calls.h"
 #include "00_core/assert_spec.h"
 #include "00_core/symbols.h"
@@ -523,6 +524,54 @@ LowerResult LowerMethodCall(const ast::MethodCallExpr& expr, LowerCtx& ctx) {
         }
     }
 
+    if (stripped) {
+        if (const auto foundational_sig =
+                analysis::LookupFoundationalBuiltinMethodSig(stripped, expr.name)) {
+            SPEC_RULE("Lower-MethodCall-FoundationalBuiltin");
+            auto recv_result = LowerExpr(*expr.receiver, ctx);
+            std::vector<IRPtr> arg_ir_parts;
+            std::vector<IRValue> arg_values;
+            arg_ir_parts.reserve(expr.args.size());
+            arg_values.reserve(expr.args.size());
+            for (const auto& arg : expr.args) {
+                if (!arg.value) {
+                    continue;
+                }
+                auto arg_result =
+                    arg.moved ? LowerExpr(*analysis::MovedArgExpr(arg), ctx)
+                              : LowerExpr(*arg.value, ctx);
+                arg_ir_parts.push_back(arg_result.ir);
+                arg_values.push_back(arg_result.value);
+            }
+            IRPtr args_ir = SeqIR(std::move(arg_ir_parts));
+
+            std::vector<IRValue> all_args;
+            all_args.push_back(recv_result.value);
+            all_args.insert(all_args.end(), arg_values.begin(), arg_values.end());
+
+            std::string callee_sym;
+            if (analysis::IdEq(expr.name, "eq")) {
+                callee_sym = BuiltinSymEqEq();
+            } else if (analysis::IdEq(expr.name, "successor")) {
+                callee_sym = BuiltinSymStepSuccessor();
+            } else {
+                callee_sym = BuiltinSymStepPredecessor();
+            }
+
+            IRValue result_value = ctx.FreshTempValue("method_call");
+            ctx.RegisterValueType(result_value, foundational_sig->ret);
+
+            IRCall call;
+            call.callee = IRValue{IRValue::Kind::Symbol, callee_sym, {}};
+            call.args = std::move(all_args);
+            call.result = result_value;
+
+            return LowerResult{
+                SeqIR({recv_result.ir, args_ir, MakeIR(std::move(call))}),
+                result_value};
+        }
+    }
+
     // Handle dynamic dispatch ($ClassName)
     if (dyn_type && ctx.sigma) {
         const bool is_builtin = ::cursive::codegen::IsBuiltinCapClass(dyn_type->path);
@@ -673,6 +722,15 @@ LowerResult LowerMethodCall(const ast::MethodCallExpr& expr, LowerCtx& ctx) {
     }
 
     IRValue result_value = ctx.FreshTempValue("method_call");
+
+    if (callee_sym == BuiltinSymCancelTokenActiveIsCancelled()) {
+        IRCancelCheck check;
+        check.token = recv_result.value;
+        check.result = result_value;
+        return LowerResult{
+            SeqIR({recv_result.ir, args_ir, MakeIR(std::move(check))}),
+            result_value};
+    }
 
     IRCall call;
     call.callee = IRValue{IRValue::Kind::Symbol, callee_sym, {}};

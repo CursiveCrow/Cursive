@@ -19,8 +19,8 @@
 //
 // REFACTORING NOTES:
 //   1. Static declarations generate global IR:
-//      - Const statics with init: GlobalConst (immutable data)
-//      - Mutable statics: GlobalZero (zeroed, runtime init)
+//      - `let` statics with const init: GlobalConst (immutable data)
+//      - `var` statics: GlobalZero (zeroed, runtime init)
 //   2. EmitGlobal returns IRDecls for the static
 //   3. Symbol mangled per Section 6.3.1
 //   4. Linkage determined by visibility
@@ -164,12 +164,13 @@ std::vector<std::pair<std::string, analysis::TypeRef>> StaticBindTypes(
   if (binding.init && ctx.expr_type) {
     bind_type = ctx.expr_type(*binding.init);
   }
-  if (!bind_type && binding.type_opt && ctx.sigma) {
+  const auto ann_type = ast::BindingAnnotationTypeOpt(binding);
+  if (!bind_type && ann_type && ctx.sigma) {
     analysis::ScopeContext scope;
     scope.sigma = *ctx.sigma;
     scope.sigma_source = ctx.sigma;
     scope.current_module = module_path;
-    if (auto lowered = LowerTypeForLayout(scope, binding.type_opt)) {
+    if (auto lowered = LowerTypeForLayout(scope, ann_type)) {
       bind_type = *lowered;
     }
   }
@@ -239,12 +240,13 @@ EmitGlobalResult EmitGlobal(const ast::StaticDecl& item,
   if (binding.init && ctx.expr_type) {
     init_type = ctx.expr_type(*binding.init);
   }
-  if (!init_type && binding.type_opt && ctx.sigma) {
+  const auto ann_type = ast::BindingAnnotationTypeOpt(binding);
+  if (!init_type && ann_type && ctx.sigma) {
     analysis::ScopeContext scope;
     scope.sigma = *ctx.sigma;
     scope.sigma_source = ctx.sigma;
     scope.current_module = module_path;
-    if (auto lowered = LowerTypeForLayout(scope, binding.type_opt)) {
+    if (auto lowered = LowerTypeForLayout(scope, ann_type)) {
       init_type = *lowered;
     }
   }
@@ -266,15 +268,17 @@ EmitGlobalResult EmitGlobal(const ast::StaticDecl& item,
     }
 
     if (binding.init) {
-      if (auto bytes = ConstInit(init_type, *binding.init)) {
-        SPEC_RULE("Emit-Static-Const");
-        GlobalConst gc;
-        gc.symbol = sym;
-        gc.bytes = std::move(*bytes);
-        gc.externally_visible = externally_visible;
-        gc.export_from_shared_library = export_from_shared_library;
-        result.decls.push_back(std::move(gc));
-        return result;
+      if (item.mut == ast::Mutability::Let) {
+        if (auto bytes = ConstInit(init_type, *binding.init)) {
+          SPEC_RULE("Emit-Static-Const");
+          GlobalConst gc;
+          gc.symbol = sym;
+          gc.bytes = std::move(*bytes);
+          gc.externally_visible = externally_visible;
+          gc.export_from_shared_library = export_from_shared_library;
+          result.decls.push_back(std::move(gc));
+          return result;
+        }
       }
 
       SPEC_RULE("Emit-Static-Init");
@@ -445,5 +449,3 @@ void AnchorGlobalsRules() {
 }
 
 }  // namespace cursive::codegen
-
-

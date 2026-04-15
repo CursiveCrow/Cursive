@@ -75,10 +75,10 @@ ParseItemResult ParseTypeAliasDecl(Parser parser, Visibility vis,
       ParseGenericParamsOpt(parser);
   parser = gen_params.parser;
 
-  // Parse optional where clause (constraints on generic parameters)
-  ParseElemResult<std::optional<WhereClause>> where_clause =
+  // Parse optional predicate clause (constraints on generic parameters)
+  ParseElemResult<std::optional<WhereClause>> predicate_clause_opt =
       ParsePredicateClauseOpt(parser);
-  parser = where_clause.parser;
+  parser = predicate_clause_opt.parser;
 
   // Expect = operator
   if (!IsOp(parser, "=")) {
@@ -96,8 +96,8 @@ ParseItemResult ParseTypeAliasDecl(Parser parser, Visibility vis,
   decl.vis = vis;
   decl.name = name.elem;
   decl.generic_params = gen_params.elem;
+  decl.predicate_clause_opt = predicate_clause_opt.elem;
   decl.type = ty.elem;
-  decl.where_clause = where_clause.elem;
   decl.span = SpanBetween(start, parser);
   decl.doc = {};
 

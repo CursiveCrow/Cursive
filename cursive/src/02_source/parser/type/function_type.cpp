@@ -99,13 +99,16 @@ ParseElemResult<std::vector<TypeFuncParam>> ParseParamTypeListTail(
   }
 
   // Check for trailing comma
-  const TokenKindMatch end_set[] = {MatchPunct(")")};
+  const EndSetToken end_set[] = {EndPunct(")")};
   Parser after = parser;
   Advance(after);
   SkipNewlinesType(after);
   if (IsPuncType(after, ")")) {
-    SPEC_RULE("Parse-ParamTypeListTail-TrailingComma");
+    if (TrailingCommaAllowed(parser, end_set)) {
+      SPEC_RULE("Parse-ParamTypeListTail-TrailingComma");
+    }
     EmitTrailingCommaErr(parser, end_set);
+    after.diags = parser.diags;
     return {after, ps};
   }
 

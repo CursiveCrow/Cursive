@@ -43,7 +43,7 @@ namespace cursive::codegen {
 
 // Create a boolean immediate value for short-circuit results
 // This is the canonical location; declared in other files that need it.
-IRValue BoolImmediate(bool value) {
+static IRValue BoolImmediate(bool value) {
   IRValue v;
   v.kind = IRValue::Kind::Immediate;
   v.name = value ? "true" : "false";

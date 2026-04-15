@@ -16,6 +16,7 @@
 
 namespace cursive::ast {
 
+using cursive::lexer::Ctx;
 using cursive::lexer::Token;
 using cursive::lexer::TokenKind;
 
@@ -33,6 +34,46 @@ ParseElemResult<std::shared_ptr<Block>> ParseBlock(Parser parser);
 ParseElemResult<KeyPathExpr> ParseKeyPathExpr(Parser parser);
 
 namespace {
+
+ParseElemResult<ExprPtr> ParseDim3Const(Parser parser) {
+  if (!IsPunc(parser, "(")) {
+    EmitParseSyntaxErr(parser, TokSpan(parser));
+    return {parser, MakeExpr(TokSpan(parser), ErrorExpr{})};
+  }
+
+  Parser cur = parser;
+  core::Span start = TokSpan(cur);
+  Advance(cur);
+  SkipNewlines(cur);
+
+  std::vector<ExprPtr> elems;
+  elems.reserve(3);
+  for (int i = 0; i < 3; ++i) {
+    ParseElemResult<ExprPtr> elem = ParseExpr(cur);
+    elems.push_back(elem.elem);
+    cur = elem.parser;
+    SkipNewlines(cur);
+    if (i < 2) {
+      if (!IsPunc(cur, ",")) {
+        EmitParseSyntaxErr(cur, TokSpan(cur));
+        return {cur, MakeExpr(SpanCover(start, TokSpan(cur)), ErrorExpr{})};
+      }
+      Advance(cur);
+      SkipNewlines(cur);
+    }
+  }
+
+  if (!IsPunc(cur, ")")) {
+    EmitParseSyntaxErr(cur, TokSpan(cur));
+    return {cur, MakeExpr(SpanCover(start, TokSpan(cur)), ErrorExpr{})};
+  }
+  core::Span end = TokSpan(cur);
+  Advance(cur);
+
+  TupleExpr tuple;
+  tuple.elements = std::move(elems);
+  return {cur, MakeExpr(SpanCover(start, end), tuple)};
+}
 
 ParseElemResult<KeyMode> ParseKeyMode(Parser parser) {
   const Token* tok = Tok(parser);
@@ -62,8 +103,7 @@ ParseElemResult<KeyMode> ParseKeyMode(Parser parser) {
 
 ParseElemResult<std::optional<DispatchKeyClause>> ParseKeyClauseOpt(
     Parser parser) {
-  if (!(Tok(parser) && Tok(parser)->kind == TokenKind::Identifier &&
-        Tok(parser)->lexeme == "key")) {
+  if (!(Tok(parser) && Ctx(*Tok(parser), "key"))) {
     SPEC_RULE("Parse-KeyClauseOpt-None");
     return {parser, std::nullopt};
   }
@@ -187,6 +227,24 @@ ParseElemResult<DispatchOption> ParseDispatchOpt(Parser parser) {
     return {chunk_expr.parser, opt};
   }
 
+  if (tok->lexeme == "workgroup") {
+    SPEC_RULE("Parse-DispatchOpt-Workgroup");
+    opt.kind = DispatchOptionKind::Workgroup;
+    Parser cur = parser;
+    Advance(cur);
+    if (!IsPunc(cur, ":")) {
+      EmitParseSyntaxErr(cur, TokSpan(cur));
+      opt.span = SpanCover(opt_start, TokSpan(cur));
+      return {cur, opt};
+    }
+    Advance(cur);
+
+    ParseElemResult<ExprPtr> dims = ParseDim3Const(cur);
+    opt.workgroup_expr = dims.elem;
+    opt.span = SpanCover(opt_start, TokSpan(dims.parser));
+    return {dims.parser, opt};
+  }
+
   EmitParseSyntaxErr(parser, TokSpan(parser));
   opt.kind = DispatchOptionKind::Ordered;
   return {parser, opt};
@@ -210,8 +268,10 @@ ParseElemResult<std::vector<DispatchOption>> ParseDispatchOptListTail(
   Advance(after_comma);
   SkipNewlines(after_comma);
   if (IsPunc(after_comma, "]")) {
-    const std::array<TokenKindMatch, 1> end_set = {MatchPunct("]")};
-    SPEC_RULE("Parse-DispatchOptListTail-TrailingComma");
+    const std::array<EndSetToken, 1> end_set = {EndPunct("]")};
+    if (TrailingCommaAllowed(parser, end_set)) {
+      SPEC_RULE("Parse-DispatchOptListTail-TrailingComma");
+    }
     EmitTrailingCommaErr(parser, end_set);
     after_comma.diags = parser.diags;
     return {after_comma, std::move(opts)};
@@ -277,7 +337,7 @@ ParseElemResult<ExprPtr> ParseDispatchExpr(Parser parser) {
   ParseElemResult<std::shared_ptr<Pattern>> pat = ParsePattern(next);
 
   const Token* in_tok = Tok(pat.parser);
-  if (!in_tok || in_tok->kind != TokenKind::Identifier || in_tok->lexeme != "in") {
+  if (!in_tok || !Ctx(*in_tok, "in")) {
     EmitParseSyntaxErr(pat.parser, TokSpan(pat.parser));
     Parser sync = pat.parser;
     SyncStmt(sync);

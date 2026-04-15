@@ -69,15 +69,19 @@ IRPtr LowerContinueStmt(const ast::ContinueStmt& stmt,
 // ============================================================================
 
 // §6.5 Lower-Loop-Infinite
-LowerResult LowerLoopInfinite(const ast::LoopInfiniteExpr& expr,
+LowerResult LowerLoopInfinite(const ast::Expr& expr,
+                              const ast::LoopInfiniteExpr& loop_expr,
                               LowerCtx& ctx);
 
 // §6.5 Lower-Loop-Conditional
-LowerResult LowerLoopConditional(const ast::LoopConditionalExpr& expr,
+LowerResult LowerLoopConditional(const ast::Expr& expr,
+                                 const ast::LoopConditionalExpr& loop_expr,
                                  LowerCtx& ctx);
 
 // §6.5 Lower-Loop-Iter
-LowerResult LowerLoopIter(const ast::LoopIterExpr& expr, LowerCtx& ctx);
+LowerResult LowerLoopIter(const ast::Expr& expr,
+                          const ast::LoopIterExpr& loop_expr,
+                          LowerCtx& ctx);
 
 // §6.5 LowerLoop - dispatch to appropriate loop lowering
 LowerResult LowerLoop(const ast::Expr& loop, LowerCtx& ctx);

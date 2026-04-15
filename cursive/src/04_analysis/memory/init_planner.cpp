@@ -276,10 +276,14 @@ std::vector<ast::ExprPtr> ChildrenLtr(const ast::Expr& expr) {
                       std::is_same_v<T, ast::PathExpr> ||
                       std::is_same_v<T, ast::ErrorExpr>) {
           return {};
-        } else if constexpr (std::is_same_v<T, ast::TupleExpr>) {
-          return node.elements;
-        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          return node.elements;
+  } else if constexpr (std::is_same_v<T, ast::TupleExpr>) {
+    return node.elements;
+  } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+    std::vector<ast::ExprPtr> out;
+    ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+      out.push_back(elem);
+    });
+    return out;
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           return {node.value, node.count};
         } else if constexpr (std::is_same_v<T, ast::SizeofExpr>) {
@@ -1133,13 +1137,13 @@ void CollectExprNodes(const ast::ExprPtr& expr,
           for (const auto& elem : node.elements) {
             CollectExprNodes(elem, out);
           }
-        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
-            CollectExprNodes(elem, out);
-          }
-        } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
-          CollectExprNodes(node.value, out);
-          CollectExprNodes(node.count, out);
+    } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+      ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+        CollectExprNodes(elem, out);
+      });
+    } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
+      CollectExprNodes(node.value, out);
+      CollectExprNodes(node.count, out);
         } else if constexpr (std::is_same_v<T, ast::SizeofExpr>) {
           // sizeof(type) has no runtime sub-expressions
         } else if constexpr (std::is_same_v<T, ast::AlignofExpr>) {

@@ -163,6 +163,7 @@
 #include "00_core/assert_spec.h"
 #include "00_core/diagnostic_messages.h"
 #include "00_core/diagnostics.h"
+#include "00_core/host/services.h"
 #include "00_core/ident.h"
 #include "00_core/path.h"
 #include "01_project/deterministic_order.h"
@@ -353,12 +354,11 @@ bool ValidateModulePath(const std::vector<std::string>& components,
 
 CompilationUnitResult CompilationUnit(const std::filesystem::path& module_dir) {
   CompilationUnitResult result;
-  if (const char* force = std::getenv("CURSIVE_TEST_COMPILATION_UNIT_FAIL")) {
-    if (*force != '\0') {
-      SPEC_RULE("CompilationUnit-Rel-Fail");
-      EmitExternal(result.diags, "E-PRJ-0303");
-      return result;
-    }
+  if (const auto force = core::HostGetEnvUtf8("CURSIVE_TEST_COMPILATION_UNIT_FAIL");
+      force.has_value() && !force->empty()) {
+    SPEC_RULE("CompilationUnit-Rel-Fail");
+    EmitExternal(result.diags, "E-PRJ-0303");
+    return result;
   }
   std::error_code ec;
   std::filesystem::directory_iterator it(module_dir, ec);

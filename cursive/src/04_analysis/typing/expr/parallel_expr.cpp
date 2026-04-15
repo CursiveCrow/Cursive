@@ -26,11 +26,13 @@
 #include "00_core/diagnostic_messages.h"
 #include "00_core/diagnostics.h"
 #include "04_analysis/caps/cap_concurrency.h"
+#include "04_analysis/caps/cap_system.h"
 #include "04_analysis/typing/context.h"
 #include "04_analysis/typing/place_types.h"
 #include "04_analysis/typing/type_expr.h"
 #include "04_analysis/typing/type_infer.h"
 #include "04_analysis/typing/type_lookup.h"
+#include "04_analysis/typing/type_predicates.h"
 #include "04_analysis/typing/type_stmt.h"
 #include "04_analysis/typing/types.h"
 #include "02_source/ast/ast.h"
@@ -49,6 +51,9 @@ static inline void SpecDefsParallel() {
   SPEC_DEF("ForkJoin", "17.2");
   SPEC_DEF("ExecutionDomain", "17.2");
   SPEC_DEF("T-GPU-Nested-Err", "18.1.1");
+  SPEC_DEF("GpuCapture-HeapProv-Err", "20.3.4");
+  SPEC_DEF("Dim3Const-Err", "20.2.4");
+  SPEC_DEF("WorkgroupSize-Err", "20.2.4");
 }
 
 core::Diagnostic MakeInternalTypingDiagnostic(core::Severity severity,
@@ -103,18 +108,117 @@ static bool IsExecutionDomainType(const TypeRef& type) {
   return false;
 }
 
-static bool IsGpuDomainType(const TypeRef& type) {
+static bool IsNamedTypePathLocal(const TypeRef& type, std::string_view name) {
   const auto stripped = StripPermLocal(type);
   if (!stripped) {
     return false;
   }
-  if (const auto* dyn = std::get_if<TypeDynamic>(&stripped->node)) {
-    return IsGpuDomainTypePath(dyn->path);
+  const auto* path = std::get_if<TypePathType>(&stripped->node);
+  if (!path || path->path.empty()) {
+    return false;
   }
-  if (const auto* path = std::get_if<TypePathType>(&stripped->node)) {
-    return IsGpuDomainTypePath(path->path);
+  return path->path.back() == name;
+}
+
+static const ast::Expr* StripParallelDomainExpr(const ast::ExprPtr& expr) {
+  const ast::Expr* cur = expr.get();
+  while (cur) {
+    if (const auto* attributed = std::get_if<ast::AttributedExpr>(&cur->node)) {
+      cur = attributed->expr.get();
+      continue;
+    }
+    return cur;
   }
-  return false;
+  return nullptr;
+}
+
+static std::optional<ParallelContextKind> ParallelContextKindOf(
+    const ast::ExprPtr& expr) {
+  const ast::Expr* core = StripParallelDomainExpr(expr);
+  if (!core) {
+    return std::nullopt;
+  }
+  const auto* method = std::get_if<ast::MethodCallExpr>(&core->node);
+  if (!method) {
+    return std::nullopt;
+  }
+  if (method->name == "cpu") {
+    return ParallelContextKind::Cpu;
+  }
+  if (method->name == "gpu") {
+    return ParallelContextKind::Gpu;
+  }
+  if (method->name == "inline") {
+    return ParallelContextKind::Inline;
+  }
+  return std::nullopt;
+}
+
+static bool IsGpuDomain(const ast::ExprPtr& expr) {
+  SPEC_RULE("IsGpuDomain");
+  return ParallelContextKindOf(expr) == ParallelContextKind::Gpu;
+}
+
+static const ast::MethodCallExpr* ParallelDomainCtorCallOf(
+    const ast::ExprPtr& expr) {
+  const ast::Expr* core = StripParallelDomainExpr(expr);
+  if (!core) {
+    return nullptr;
+  }
+  return std::get_if<ast::MethodCallExpr>(&core->node);
+}
+
+static std::optional<std::string_view> ParallelDomainParamDiag(
+    const ScopeContext& ctx,
+    const ast::ExprPtr& domain_expr,
+    const ExprTypeFn& type_expr) {
+  const auto* call = ParallelDomainCtorCallOf(domain_expr);
+  if (!call || !call->receiver) {
+    return std::nullopt;
+  }
+
+  const auto receiver_type = type_expr(call->receiver);
+  if (!receiver_type.ok) {
+    return std::nullopt;
+  }
+
+  const auto stripped_receiver = StripPermLocal(receiver_type.type);
+  const auto* receiver_path =
+      stripped_receiver ? std::get_if<TypePathType>(&stripped_receiver->node)
+                        : nullptr;
+  if (!receiver_path || !IsContextTypePath(receiver_path->path)) {
+    return std::nullopt;
+  }
+
+  const auto sig = LookupContextMethodSig(call->name, call->args.size());
+  if (!sig.has_value()) {
+    return "E-CON-0103";
+  }
+
+  for (std::size_t i = 0; i < call->args.size(); ++i) {
+    const auto& arg = call->args[i];
+    if (!arg.value) {
+      return "E-CON-0103";
+    }
+    const auto arg_type = type_expr(arg.value);
+    if (!arg_type.ok) {
+      return arg_type.diag_id;
+    }
+    if (IdEq(call->name, "cpu")) {
+      if (i == 0 && !IsNamedTypePathLocal(arg_type.type, "CpuSet")) {
+        return "E-CON-0103";
+      }
+      if (i == 1 && !IsNamedTypePathLocal(arg_type.type, "Priority")) {
+        return "E-CON-0103";
+      }
+    }
+  }
+
+  return std::nullopt;
+}
+
+static bool BindingHasHeapProvenance(const TypeBinding& binding) {
+  return binding.provenance_kind == BindingProvenanceSeedKind::Heap;
 }
 
 // Check if type is CancelToken
@@ -267,461 +371,6 @@ static ParallelResultCollect CollectParallelResultStmt(
   return in;
 }
 
-class ParallelCaptureCollector {
- public:
-  explicit ParallelCaptureCollector(const TypeEnv& env) : env_(env) {
-    local_scopes_.emplace_back();
-  }
-
-  std::unordered_set<IdKey> Collect(const ast::Block& block) {
-    VisitBlock(block);
-    return captures_;
-  }
-
- private:
-  void PushScope() { local_scopes_.emplace_back(); }
-
-  void PopScope() {
-    if (!local_scopes_.empty()) {
-      local_scopes_.pop_back();
-    }
-  }
-
-  bool IsLocal(std::string_view name) const {
-    const IdKey key{name};
-    for (auto it = local_scopes_.rbegin(); it != local_scopes_.rend(); ++it) {
-      if (it->find(key) != it->end()) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  void DeclareName(std::string_view name) {
-    if (local_scopes_.empty()) {
-      local_scopes_.emplace_back();
-    }
-    local_scopes_.back().insert(IdKey{name});
-  }
-
-  void DeclarePattern(const ast::PatternPtr& pattern) {
-    if (!pattern) {
-      return;
-    }
-    std::vector<IdKey> names;
-    CollectPatNames(*pattern, names);
-    for (const auto& name : names) {
-      DeclareName(name);
-    }
-  }
-
-  void CaptureIfOuter(std::string_view name) {
-    if (IsLocal(name)) {
-      return;
-    }
-    if (BindOf(env_, name).has_value()) {
-      captures_.insert(IdKey{name});
-    }
-  }
-
-  void VisitKeyPath(const ast::KeyPathExpr& path) {
-    CaptureIfOuter(path.root);
-    for (const auto& seg : path.segs) {
-      if (const auto* idx = std::get_if<ast::KeySegIndex>(&seg)) {
-        VisitExpr(idx->expr);
-      }
-    }
-  }
-
-  void VisitBlock(const ast::Block& block) {
-    PushScope();
-    for (const auto& stmt : block.stmts) {
-      VisitStmt(stmt);
-    }
-    VisitExpr(block.tail_opt);
-    PopScope();
-  }
-
-  void VisitStmt(const ast::Stmt& stmt) {
-    std::visit(
-        [&](const auto& node) {
-          using T = std::decay_t<decltype(node)>;
-          if constexpr (std::is_same_v<T, ast::LetStmt> ||
-                        std::is_same_v<T, ast::VarStmt>) {
-            VisitExpr(node.binding.init);
-            DeclarePattern(node.binding.pat);
-          } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                               std::is_same_v<T, ast::ShadowVarStmt>) {
-            VisitExpr(node.init);
-            DeclareName(node.name);
-          } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
-                               std::is_same_v<T, ast::CompoundAssignStmt>) {
-            VisitExpr(node.place);
-            VisitExpr(node.value);
-          } else if constexpr (std::is_same_v<T, ast::ExprStmt>) {
-            VisitExpr(node.value);
-          } else if constexpr (std::is_same_v<T, ast::DeferStmt> ||
-                               std::is_same_v<T, ast::UnsafeBlockStmt>) {
-            if (node.body) {
-              VisitBlock(*node.body);
-            }
-          } else if constexpr (std::is_same_v<T, ast::RegionStmt>) {
-            VisitExpr(node.opts_opt);
-            if (node.body) {
-              PushScope();
-              if (node.alias_opt.has_value()) {
-                DeclareName(*node.alias_opt);
-              }
-              for (const auto& inner : node.body->stmts) {
-                VisitStmt(inner);
-              }
-              VisitExpr(node.body->tail_opt);
-              PopScope();
-            }
-          } else if constexpr (std::is_same_v<T, ast::FrameStmt>) {
-            if (node.target_opt.has_value()) {
-              CaptureIfOuter(*node.target_opt);
-            }
-            if (node.body) {
-              VisitBlock(*node.body);
-            }
-          } else if constexpr (std::is_same_v<T, ast::ReturnStmt> ||
-                               std::is_same_v<T, ast::BreakStmt>) {
-            VisitExpr(node.value_opt);
-          } else if constexpr (std::is_same_v<T, ast::StaticAssertStmt>) {
-            VisitExpr(node.condition);
-          } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
-            for (const auto& path : node.paths) {
-              VisitKeyPath(path);
-            }
-            if (node.body) {
-              VisitBlock(*node.body);
-            }
-          }
-        },
-        stmt);
-  }
-
-  void VisitExpr(const ast::ExprPtr& expr) {
-    if (!expr) {
-      return;
-    }
-
-    std::visit(
-        [&](const auto& node) {
-          using T = std::decay_t<decltype(node)>;
-          if constexpr (std::is_same_v<T, ast::IdentifierExpr>) {
-            CaptureIfOuter(node.name);
-          } else if constexpr (std::is_same_v<T, ast::RangeExpr>) {
-            VisitExpr(node.lhs);
-            VisitExpr(node.rhs);
-          } else if constexpr (std::is_same_v<T, ast::BinaryExpr>) {
-            VisitExpr(node.lhs);
-            VisitExpr(node.rhs);
-          } else if constexpr (std::is_same_v<T, ast::CastExpr>) {
-            VisitExpr(node.value);
-          } else if constexpr (std::is_same_v<T, ast::UnaryExpr>) {
-            VisitExpr(node.value);
-          } else if constexpr (std::is_same_v<T, ast::DerefExpr>) {
-            VisitExpr(node.value);
-          } else if constexpr (std::is_same_v<T, ast::AddressOfExpr>) {
-            VisitExpr(node.place);
-          } else if constexpr (std::is_same_v<T, ast::MoveExpr>) {
-            VisitExpr(node.place);
-          } else if constexpr (std::is_same_v<T, ast::AllocExpr>) {
-            VisitExpr(node.value);
-          } else if constexpr (std::is_same_v<T, ast::TupleExpr> ||
-                               std::is_same_v<T, ast::ArrayExpr>) {
-            for (const auto& elem : node.elements) {
-              VisitExpr(elem);
-            }
-          } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
-            VisitExpr(node.value);
-            VisitExpr(node.count);
-          } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
-            for (const auto& field : node.fields) {
-              VisitExpr(field.value);
-            }
-          } else if constexpr (std::is_same_v<T, ast::IfExpr>) {
-            VisitExpr(node.cond);
-            VisitExpr(node.then_expr);
-            VisitExpr(node.else_expr);
-          } else if constexpr (std::is_same_v<T, ast::IfCaseExpr>) {
-            VisitExpr(node.scrutinee);
-            for (const auto& arm : node.cases) {
-              PushScope();
-              DeclarePattern(arm.pattern);
-              VisitExpr(arm.body);
-              PopScope();
-            }
-            VisitExpr(node.else_expr);
-          } else if constexpr (std::is_same_v<T, ast::IfIsExpr>) {
-            VisitExpr(node.scrutinee);
-            PushScope();
-            DeclarePattern(node.pattern);
-            VisitExpr(node.then_expr);
-            PopScope();
-            VisitExpr(node.else_expr);
-          } else if constexpr (std::is_same_v<T, ast::LoopInfiniteExpr>) {
-            if (node.invariant_opt.has_value()) {
-              VisitExpr(node.invariant_opt->predicate);
-            }
-            if (node.body) {
-              VisitBlock(*node.body);
-            }
-          } else if constexpr (std::is_same_v<T, ast::LoopConditionalExpr>) {
-            VisitExpr(node.cond);
-            if (node.invariant_opt.has_value()) {
-              VisitExpr(node.invariant_opt->predicate);
-            }
-            if (node.body) {
-              VisitBlock(*node.body);
-            }
-          } else if constexpr (std::is_same_v<T, ast::LoopIterExpr>) {
-            VisitExpr(node.iter);
-            PushScope();
-            DeclarePattern(node.pattern);
-            if (node.invariant_opt.has_value()) {
-              VisitExpr(node.invariant_opt->predicate);
-            }
-            if (node.body) {
-              for (const auto& stmt : node.body->stmts) {
-                VisitStmt(stmt);
-              }
-              VisitExpr(node.body->tail_opt);
-            }
-            PopScope();
-          } else if constexpr (std::is_same_v<T, ast::BlockExpr> ||
-                               std::is_same_v<T, ast::UnsafeBlockExpr>) {
-            if (node.block) {
-              VisitBlock(*node.block);
-            }
-          } else if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
-            VisitExpr(node.expr);
-          } else if constexpr (std::is_same_v<T, ast::TransmuteExpr>) {
-            VisitExpr(node.value);
-          } else if constexpr (std::is_same_v<T, ast::ClosureExpr>) {
-            PushScope();
-            for (const auto& param : node.params) {
-              DeclareName(param.name);
-            }
-            VisitExpr(node.body);
-            PopScope();
-          } else if constexpr (std::is_same_v<T, ast::PipelineExpr>) {
-            VisitExpr(node.lhs);
-            VisitExpr(node.rhs);
-          } else if constexpr (std::is_same_v<T, ast::FieldAccessExpr>) {
-            VisitExpr(node.base);
-          } else if constexpr (std::is_same_v<T, ast::TupleAccessExpr>) {
-            VisitExpr(node.base);
-          } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {
-            VisitExpr(node.base);
-            VisitExpr(node.index);
-          } else if constexpr (std::is_same_v<T, ast::CallExpr>) {
-            VisitExpr(node.callee);
-            for (const auto& arg : node.args) {
-              VisitExpr(arg.value);
-            }
-          } else if constexpr (std::is_same_v<T, ast::MethodCallExpr>) {
-            VisitExpr(node.receiver);
-            for (const auto& arg : node.args) {
-              VisitExpr(arg.value);
-            }
-          } else if constexpr (std::is_same_v<T, ast::PropagateExpr>) {
-            VisitExpr(node.value);
-          } else if constexpr (std::is_same_v<T, ast::EntryExpr>) {
-            VisitExpr(node.expr);
-          } else if constexpr (std::is_same_v<T, ast::YieldExpr> ||
-                               std::is_same_v<T, ast::YieldFromExpr> ||
-                               std::is_same_v<T, ast::SyncExpr>) {
-            VisitExpr(node.value);
-          } else if constexpr (std::is_same_v<T, ast::RaceExpr>) {
-            for (const auto& arm : node.arms) {
-              VisitExpr(arm.expr);
-              if (arm.pattern) {
-                PushScope();
-                DeclarePattern(arm.pattern);
-                VisitExpr(arm.handler.value);
-                PopScope();
-              } else {
-                VisitExpr(arm.handler.value);
-              }
-            }
-          } else if constexpr (std::is_same_v<T, ast::AllExpr>) {
-            for (const auto& sub : node.exprs) {
-              VisitExpr(sub);
-            }
-          } else if constexpr (std::is_same_v<T, ast::ParallelExpr>) {
-            VisitExpr(node.domain);
-            for (const auto& opt : node.opts) {
-              VisitExpr(opt.value);
-            }
-            if (node.body) {
-              VisitBlock(*node.body);
-            }
-          } else if constexpr (std::is_same_v<T, ast::SpawnExpr>) {
-            for (const auto& opt : node.opts) {
-              VisitExpr(opt.value);
-            }
-            if (node.body) {
-              VisitBlock(*node.body);
-            }
-          } else if constexpr (std::is_same_v<T, ast::WaitExpr>) {
-            VisitExpr(node.handle);
-          } else if constexpr (std::is_same_v<T, ast::DispatchExpr>) {
-            VisitExpr(node.range);
-            if (node.key_clause.has_value()) {
-              VisitKeyPath(node.key_clause->key_path);
-            }
-            for (const auto& opt : node.opts) {
-              VisitExpr(opt.chunk_expr);
-            }
-            PushScope();
-            DeclarePattern(node.pattern);
-            if (node.body) {
-              for (const auto& stmt : node.body->stmts) {
-                VisitStmt(stmt);
-              }
-              VisitExpr(node.body->tail_opt);
-            }
-            PopScope();
-          }
-        },
-        expr->node);
-  }
-
-  const TypeEnv& env_;
-  std::vector<std::unordered_set<IdKey>> local_scopes_;
-  std::unordered_set<IdKey> captures_;
-};
-
-enum class GpuSafeCaptureCheck {
-  Safe,
-  Unsafe,
-  GenericUnbounded,
-};
-
-static GpuSafeCaptureCheck MergeGpuSafeCaptureCheck(
-    GpuSafeCaptureCheck lhs,
-    GpuSafeCaptureCheck rhs) {
-  if (lhs == GpuSafeCaptureCheck::GenericUnbounded ||
-      rhs == GpuSafeCaptureCheck::GenericUnbounded) {
-    return GpuSafeCaptureCheck::GenericUnbounded;
-  }
-  if (lhs == GpuSafeCaptureCheck::Unsafe ||
-      rhs == GpuSafeCaptureCheck::Unsafe) {
-    return GpuSafeCaptureCheck::Unsafe;
-  }
-  return GpuSafeCaptureCheck::Safe;
-}
-
-static bool HasGpuSafePredicateForParam(const ast::WhereClause& where_clause,
-                                        const std::string& param_name) {
-  for (const auto& pred : where_clause.predicates) {
-    if (!IdEq(pred.predicate, "GpuSafe") || !pred.type) {
-      continue;
-    }
-    const auto* path = std::get_if<ast::TypePathType>(&pred.type->node);
-    if (!path || path->path.size() != 1) {
-      continue;
-    }
-    if (IdEq(path->path[0], param_name)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-static bool MissingGpuSafeWhereBounds(
-    const std::optional<ast::GenericParams>& generic_params_opt,
-    const std::optional<ast::WhereClause>& where_clause_opt) {
-  if (!generic_params_opt.has_value() || generic_params_opt->params.empty()) {
-    return false;
-  }
-  if (!where_clause_opt.has_value()) {
-    return true;
-  }
-  for (const auto& param : generic_params_opt->params) {
-    if (!HasGpuSafePredicateForParam(*where_clause_opt, param.name)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-static GpuSafeCaptureCheck EvaluateGpuSafeCaptureType(
-    const ScopeContext& ctx, const TypeRef& type) {
-  const auto stripped = StripPermLocal(type);
-  if (!stripped) {
-    return GpuSafeCaptureCheck::Safe;
-  }
-
-  return std::visit(
-      [&](const auto& node) -> GpuSafeCaptureCheck {
-        using T = std::decay_t<decltype(node)>;
-        if constexpr (std::is_same_v<T, TypePrim> ||
-                      std::is_same_v<T, TypeRange> ||
-                      std::is_same_v<T, TypeRangeInclusive> ||
-                      std::is_same_v<T, TypeRangeFrom> ||
-                      std::is_same_v<T, TypeRangeTo> ||
-                      std::is_same_v<T, TypeRangeToInclusive> ||
-                      std::is_same_v<T, TypeRangeFull> ||
-                      std::is_same_v<T, TypeModalState> ||
-                      std::is_same_v<T, TypeOpaque>) {
-          return GpuSafeCaptureCheck::Safe;
-        } else if constexpr (std::is_same_v<T, TypePathType>) {
-          if (const auto* record = LookupRecordDecl(ctx, node.path)) {
-            if (MissingGpuSafeWhereBounds(record->generic_params,
-                                          record->where_clause)) {
-              return GpuSafeCaptureCheck::GenericUnbounded;
-            }
-            return GpuSafeCaptureCheck::Safe;
-          }
-          if (const auto* enm = LookupEnumDecl(ctx, node.path)) {
-            if (MissingGpuSafeWhereBounds(enm->generic_params,
-                                          enm->where_clause)) {
-              return GpuSafeCaptureCheck::GenericUnbounded;
-            }
-            return GpuSafeCaptureCheck::Safe;
-          }
-          return GpuSafeCaptureCheck::Safe;
-        } else if constexpr (std::is_same_v<T, TypePtr> ||
-                             std::is_same_v<T, TypeRawPtr> ||
-                             std::is_same_v<T, TypeDynamic> ||
-                             std::is_same_v<T, TypeFunc> ||
-                             std::is_same_v<T, TypeClosure> ||
-                             std::is_same_v<T, TypeSlice>) {
-          return GpuSafeCaptureCheck::Unsafe;
-        } else if constexpr (std::is_same_v<T, TypeString> ||
-                             std::is_same_v<T, TypeBytes>) {
-          return GpuSafeCaptureCheck::Unsafe;
-        } else if constexpr (std::is_same_v<T, TypeTuple>) {
-          auto status = GpuSafeCaptureCheck::Safe;
-          for (const auto& elem : node.elements) {
-            status = MergeGpuSafeCaptureCheck(
-                status, EvaluateGpuSafeCaptureType(ctx, elem));
-          }
-          return status;
-        } else if constexpr (std::is_same_v<T, TypeArray>) {
-          return EvaluateGpuSafeCaptureType(ctx, node.element);
-        } else if constexpr (std::is_same_v<T, TypeUnion>) {
-          auto status = GpuSafeCaptureCheck::Safe;
-          for (const auto& member : node.members) {
-            status = MergeGpuSafeCaptureCheck(
-                status, EvaluateGpuSafeCaptureType(ctx, member));
-          }
-          return status;
-        } else if constexpr (std::is_same_v<T, TypeRefine>) {
-          return EvaluateGpuSafeCaptureType(ctx, node.base);
-        } else if constexpr (std::is_same_v<T, TypePerm>) {
-          return EvaluateGpuSafeCaptureType(ctx, node.base);
-        } else {
-          return GpuSafeCaptureCheck::Unsafe;
-        }
-      },
-      stripped->node);
-}
-
 static void EmitSupplementalTypeDiag(const StmtTypeContext& type_ctx,
                                      std::string_view code) {
   if (!type_ctx.diags) {
@@ -757,7 +406,13 @@ ExprTypeResult TypeParallelExpr(const ScopeContext& ctx,
   SPEC_RULE("ExecutionDomain");
   const auto domain_type = type_expr(expr.domain);
   if (!domain_type.ok) {
-    result.diag_id = domain_type.diag_id;
+    if (const auto domain_diag =
+            ParallelDomainParamDiag(ctx, expr.domain, type_expr);
+        domain_diag.has_value()) {
+      result.diag_id = *domain_diag;
+    } else {
+      result.diag_id = domain_type.diag_id;
+    }
     return result;
   }
 
@@ -767,9 +422,9 @@ ExprTypeResult TypeParallelExpr(const ScopeContext& ctx,
     return result;
   }
 
-  if (type_ctx.in_parallel &&
-      IsGpuDomainType(type_ctx.parallel_domain) &&
-      IsGpuDomainType(domain_type.type)) {
+  const bool gpu_domain = IsGpuDomain(expr.domain);
+
+  if (GpuContext(env) && gpu_domain) {
     SPEC_RULE("T-GPU-Nested-Err");
     result.diag_id = "T-GPU-Nested-Err";
     return result;
@@ -778,6 +433,10 @@ ExprTypeResult TypeParallelExpr(const ScopeContext& ctx,
   // 2. Check block options
   SPEC_RULE("ParallelBlockOpts");
   for (const auto& opt : expr.opts) {
+    if (opt.kind == ast::ParallelOptionKind::Name) {
+      continue;
+    }
+
     if (!opt.value) {
       continue;
     }
@@ -789,18 +448,32 @@ ExprTypeResult TypeParallelExpr(const ScopeContext& ctx,
     }
 
     switch (opt.kind) {
-      case ast::ParallelOptionKind::Name:
-        if (!IsStringType(opt_type.type)) {
-          result.diag_id = "E-CON-0103";
-          return result;
-        }
-        break;
-
       case ast::ParallelOptionKind::Cancel:
         if (!IsCancelTokenType(opt_type.type)) {
           result.diag_id = "E-CON-0103";
           return result;
         }
+        break;
+
+      case ast::ParallelOptionKind::Workgroup:
+      case ast::ParallelOptionKind::Workgroups: {
+        const auto dims = ExtractDim3Const(ctx, opt.value, type_expr);
+        if (!dims.has_value()) {
+          SPEC_RULE("Dim3Const-Err");
+          result.diag_id = "E-CON-0159";
+          return result;
+        }
+        if (opt.kind == ast::ParallelOptionKind::Workgroup &&
+            gpu_domain &&
+            ExceedsMaxWorkgroupSize(*dims)) {
+            SPEC_RULE("WorkgroupSize-Err");
+            result.diag_id = "E-CON-0157";
+            return result;
+        }
+        break;
+      }
+
+      case ast::ParallelOptionKind::Name:
         break;
     }
   }
@@ -819,9 +492,37 @@ ExprTypeResult TypeParallelExpr(const ScopeContext& ctx,
                                       type_ctx.parallel_bindings->end());
   }
   std::unordered_set<IdKey> parallel_bindings;
+  std::unordered_set<IdKey> parallel_first_child_moves;
+  std::vector<ParallelCaptureScopeView> parallel_capture_scopes;
+  if (type_ctx.parallel_capture_scopes) {
+    parallel_capture_scopes = *type_ctx.parallel_capture_scopes;
+  } else {
+    if (type_ctx.parallel_ancestor_bindings &&
+        type_ctx.parallel_first_child_moves) {
+      parallel_capture_scopes.push_back(ParallelCaptureScopeView{
+          .bindings = type_ctx.parallel_ancestor_bindings,
+          .first_child_moves = type_ctx.parallel_first_child_moves,
+      });
+    }
+    if (type_ctx.parallel_bindings &&
+        type_ctx.parallel_first_child_moves &&
+        type_ctx.parallel_bindings != type_ctx.parallel_ancestor_bindings) {
+      parallel_capture_scopes.push_back(ParallelCaptureScopeView{
+          .bindings = type_ctx.parallel_bindings,
+          .first_child_moves = type_ctx.parallel_first_child_moves,
+      });
+    }
+  }
+  parallel_capture_scopes.push_back(ParallelCaptureScopeView{
+      .bindings = &parallel_bindings,
+      .first_child_moves = &parallel_first_child_moves,
+  });
   parallel_ctx.parallel_bindings = &parallel_bindings;
   parallel_ctx.parallel_ancestor_bindings = &parallel_ancestor_bindings;
+  parallel_ctx.parallel_capture_scopes = &parallel_capture_scopes;
+  parallel_ctx.parallel_first_child_moves = &parallel_first_child_moves;
   TypeEnv parallel_env = env;
+  parallel_env.parallel_context = ParallelContextKindOf(expr.domain);
   parallel_ctx.env_ref = &parallel_env;
 
   // Rebind recursive typing callbacks to the parallel context so nested
@@ -847,9 +548,9 @@ ExprTypeResult TypeParallelExpr(const ScopeContext& ctx,
   }
 
   // GPU domains have additional capture restrictions.
-  if (IsGpuDomainType(domain_type.type)) {
-    const auto captures = ParallelCaptureCollector(env).Collect(*expr.body);
-    for (const auto& captured_name : captures) {
+  if (gpu_domain) {
+    const auto capture_sets = *AnalyzeBlockCaptureSets(*expr.body, env);
+    for (const auto& captured_name : capture_sets.captures) {
       const auto binding = BindOf(env, captured_name);
       if (!binding.has_value()) {
         continue;
@@ -858,13 +559,15 @@ ExprTypeResult TypeParallelExpr(const ScopeContext& ctx,
         result.diag_id = "E-CON-0151";
         return result;
       }
-      const auto gpu_safe = EvaluateGpuSafeCaptureType(ctx, binding->type);
-      if (gpu_safe == GpuSafeCaptureCheck::GenericUnbounded) {
-        result.diag_id = "GpuSafe-Generic-Unbounded-Err";
+      if (BindingHasHeapProvenance(*binding)) {
+        SPEC_RULE("GpuCapture-HeapProv-Err");
+        result.diag_id = "E-CON-0150";
         return result;
       }
-      if (gpu_safe == GpuSafeCaptureCheck::Unsafe) {
-        EmitSupplementalTypeDiag(type_ctx, "E-TYP-2640");
+      if (const auto gpu_diag = GpuSafeDiagForType(ctx, binding->type);
+          gpu_diag.has_value()) {
+        SPEC_RULE("GpuCapture-NonGpuSafe-Err");
+        EmitSupplementalTypeDiag(type_ctx, *gpu_diag);
         result.diag_id = "E-CON-0153";
         return result;
       }

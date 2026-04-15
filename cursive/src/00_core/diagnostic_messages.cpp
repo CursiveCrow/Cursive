@@ -11,29 +11,42 @@ namespace cursive::core {
 
 namespace {
 
-struct DiagMessageEntry {
-  const char* code;
-  Severity severity;
-  const char* message;
-};
-
-#include "diagnostic_messages_table.inc"
+#include "generated/diag_registry.inc"
 
 static void SpecDefsDiagMessages() {
-  SPEC_DEF("DiagId-Code-Map", "8.0");
-  SPEC_DEF("SeverityColumn", "8.0");
-  SPEC_DEF("ConditionColumn", "8.0");
-  SPEC_DEF("Message", "1.6.3");
+  SPEC_DEF("DiagId-Code-Map", "2.4");
+  SPEC_DEF("SeverityColumn", "2.3");
+  SPEC_DEF("ConditionColumn", "2.3");
+  SPEC_DEF("Message", "2.3");
 }
 
-static const DiagMessageEntry* FindEntry(std::string_view code) {
-  const auto begin = std::begin(kDiagMessages);
-  const auto end = std::end(kDiagMessages);
+static std::optional<Severity> ParseSeverity(std::string_view severity) {
+  if (severity == "Error") {
+    return Severity::Error;
+  }
+  if (severity == "Warning") {
+    return Severity::Warning;
+  }
+  if (severity == "Info") {
+    return Severity::Info;
+  }
+  if (severity == "Panic") {
+    return Severity::Panic;
+  }
+  if (severity == "Note") {
+    return Severity::Note;
+  }
+  return std::nullopt;
+}
+
+static const DiagRegistryRow* FindEntry(std::string_view code) {
+  const auto begin = std::begin(kDiagRegistryRows);
+  const auto end = std::end(kDiagRegistryRows);
   auto it = std::lower_bound(
       begin,
       end,
       code,
-      [](const DiagMessageEntry& entry, std::string_view value) {
+      [](const DiagRegistryRow& entry, std::string_view value) {
         return std::string_view(entry.code) < value;
       });
   if (it == end) {
@@ -55,7 +68,7 @@ std::optional<std::string_view> MessageForCode(
   if (!entry) {
     return std::nullopt;
   }
-  return std::string_view(entry->message);
+  return std::string_view(entry->condition);
 }
 
 std::optional<Severity> SeverityForCode(
@@ -66,7 +79,7 @@ std::optional<Severity> SeverityForCode(
   if (!entry) {
     return std::nullopt;
   }
-  return entry->severity;
+  return ParseSeverity(entry->severity);
 }
 
 std::string FormatMessage(std::string_view message_template,
@@ -118,10 +131,14 @@ std::optional<Diagnostic> MakeDiagnostic(
   if (!entry) {
     return std::nullopt;
   }
+  const auto severity = ParseSeverity(entry->severity);
+  if (!severity.has_value()) {
+    return std::nullopt;
+  }
   Diagnostic diag;
   diag.code = std::string(entry->code);
-  diag.severity = entry->severity;
-  diag.message = entry->message;
+  diag.severity = *severity;
+  diag.message = entry->condition;
   diag.span = span;
   return diag;
 }

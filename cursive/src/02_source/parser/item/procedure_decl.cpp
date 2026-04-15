@@ -53,45 +53,6 @@ namespace cursive::ast
     ParseElemResult<std::optional<ContractClause>> ParseContractClauseOpt(
         Parser parser);
 
-    namespace {
-
-    std::shared_ptr<Block> MakeEmptyBlock(const core::Span &span)
-    {
-        auto block = std::make_shared<Block>();
-        block->stmts.clear();
-        block->tail_opt = nullptr;
-        block->span = span;
-        return block;
-    }
-
-    bool StartsWherePredicateClause(Parser parser)
-    {
-        if (!IsOp(parser, "|:"))
-        {
-            return false;
-        }
-        Parser probe = parser;
-        Advance(probe); // consume |:
-        while (Tok(probe) && Tok(probe)->kind == TokenKind::Newline)
-        {
-            Advance(probe);
-        }
-        const Token *pred_tok = Tok(probe);
-        if (!pred_tok || pred_tok->kind != TokenKind::Identifier)
-        {
-            return false;
-        }
-        Parser after_pred = probe;
-        Advance(after_pred);
-        while (Tok(after_pred) && Tok(after_pred)->kind == TokenKind::Newline)
-        {
-            Advance(after_pred);
-        }
-        return IsPunc(after_pred, "(");
-    }
-
-    } // namespace
-
     ParseItemResult ParseProcedureLikeDeclImpl(Parser parser, Visibility vis,
                                                AttributeList attrs,
                                                bool comptime_prefix)
@@ -110,14 +71,14 @@ namespace cursive::ast
         SignatureResult sig = ParseSignature(parser);
         parser = sig.parser;
 
-        std::optional<WhereClause> where_clause_opt = std::nullopt;
+        std::optional<WhereClause> predicate_clause_opt = std::nullopt;
         std::optional<ContractClause> contract_opt = std::nullopt;
-        if (!comptime_prefix && StartsWherePredicateClause(parser))
+        if (!comptime_prefix)
         {
-            ParseElemResult<std::optional<WhereClause>> where_clause =
+            ParseElemResult<std::optional<WhereClause>> predicate_clause =
                 ParsePredicateClauseOpt(parser);
-            parser = where_clause.parser;
-            where_clause_opt = where_clause.elem;
+            parser = predicate_clause.parser;
+            predicate_clause_opt = predicate_clause.elem;
         }
 
         ParseElemResult<std::optional<ContractClause>> contract =
@@ -125,21 +86,9 @@ namespace cursive::ast
         parser = contract.parser;
         contract_opt = contract.elem;
 
-        std::shared_ptr<Block> body_block;
-        if (IsPunc(parser, "{"))
-        {
-            ParseElemResult<std::shared_ptr<Block>> body = ParseBlock(parser);
-            parser = body.parser;
-            body_block = body.elem;
-        }
-        else
-        {
-            if (comptime_prefix)
-            {
-                EmitParseSyntaxErr(parser, TokSpan(parser));
-            }
-            body_block = MakeEmptyBlock(TokSpan(parser));
-        }
+        ParseElemResult<std::shared_ptr<Block>> body = ParseBlock(parser);
+        parser = body.parser;
+        std::shared_ptr<Block> body_block = body.elem;
 
         if (comptime_prefix)
         {
@@ -162,9 +111,9 @@ namespace cursive::ast
         decl.vis = vis;
         decl.name = name.elem;
         decl.generic_params = gen_params.elem;
+        decl.predicate_clause_opt = predicate_clause_opt;
         decl.params = sig.params;
         decl.return_type_opt = sig.return_type_opt;
-        decl.where_clause = where_clause_opt;
         decl.contract = contract_opt;
         decl.body = body_block;
         decl.span = SpanBetween(start, parser);
@@ -183,12 +132,12 @@ namespace cursive::ast
     //   Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, name)
     //   Γ ⊢ ParseGenericParamsOpt(P_2) ⇓ (P_3, gen_params_opt)
     //   Γ ⊢ ParseSignature(P_3) ⇓ (P_4, params, ret_opt)
-    //   Γ ⊢ ParseWhereClauseOpt(P_4) ⇓ (P_5, where_clause_opt)
+    //   Γ ⊢ ParsePredicateClauseOpt(P_4) ⇓ (P_5, predicate_clause_opt)
     //   Γ ⊢ ParseContractClauseOpt(P_5) ⇓ (P_6, contract_opt)
     //   Γ ⊢ ParseBlock(P_6) ⇓ (P_7, body)
     //   ────────────────────────────────────────────────────────────────────
     //   Γ ⊢ ParseItem(P) ⇓ (P_7, ⟨ProcedureDecl, attrs_opt, vis, name,
-    //       gen_params_opt, where_clause_opt, params, ret_opt, contract_opt,
+    //       gen_params_opt, predicate_clause_opt, params, ret_opt, contract_opt,
     //       body, SpanBetween(P, P_7), []⟩)
 
     ParseItemResult ParseProcedureDecl(Parser parser, Visibility vis,

@@ -135,8 +135,6 @@ static inline void SpecDefsReserved() {
   SPEC_DEF("BytePrefix", "5.1.1");
   SPEC_DEF("Prefix", "5.1.1");
   SPEC_DEF("ReservedGen", "5.1.1");
-  SPEC_DEF("ReservedCursive", "5.1.1");
-  SPEC_DEF("ReservedId", "5.1.1");
   SPEC_DEF("ReservedModulePath", "5.1.1");
   SPEC_DEF("KeywordKey", "5.1.1");
 }
@@ -150,9 +148,7 @@ const std::vector<std::string_view>& UniverseProtectedNames() {
       "Drop", "Bitcopy", "Clone", "Eq", "Hash", "Hasher", "Iterator", "Step",
       "FfiSafe", "string", "bytes",  "Modal",  "Region", "RegionOptions",
       "CancelToken", "Context", "System", "ExecutionDomain", "Reactor",
-      "Network", "ProjectFiles", "TypeEmitter", "Introspect", "ComptimeDiagnostics",
-      "Type", "Ast", "TypeCategory", "FieldInfo", "VariantInfo", "StateInfo",
-      "SourceSpan", "CpuSet", "Priority", "Async", "Future", "Sequence", "Stream",
+      "Network", "CpuSet", "Priority", "Async", "Future", "Sequence", "Stream",
       "Pipe", "Exchange", "Tracked", "Spawned"};
   return names;
 }
@@ -218,16 +214,6 @@ bool Prefix(std::string_view s, std::string_view p) {
 bool ReservedGen(std::string_view x) {
   SpecDefsReserved();
   return Prefix(IdKeyOf(x), IdKeyOf("gen_"));
-}
-
-bool ReservedCursive(std::string_view x) {
-  SpecDefsReserved();
-  return IdEq(x, "cursive");
-}
-
-bool ReservedId(std::string_view x) {
-  SpecDefsReserved();
-  return ReservedGen(x) || ReservedCursive(x);
 }
 
 bool ReservedModulePath(const ast::ModulePath& path) {
@@ -301,9 +287,6 @@ Scope UniverseBindings() {
                   Entity{EntityKind::Type, std::nullopt, std::nullopt,
                          EntitySource::Decl});
   }
-  scope.emplace(IdKeyOf("cursive"),
-                Entity{EntityKind::ModuleAlias, ast::ModulePath{"cursive"},
-                       std::nullopt, EntitySource::Decl});
   return scope;
 }
 

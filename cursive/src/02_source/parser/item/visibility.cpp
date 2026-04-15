@@ -12,7 +12,6 @@
 //   - public: Visible everywhere
 //   - internal: Visible within the assembly (DEFAULT)
 //   - private: Visible only in declaring module
-//   - protected: Visible in declaring module and submodules
 //
 // NOTE: ParseVis is implemented in parser_paths.cpp as it's part of the
 // path parsing utilities. This file serves as documentation and for any

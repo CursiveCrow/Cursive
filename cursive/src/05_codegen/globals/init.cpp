@@ -793,8 +793,6 @@ std::vector<std::size_t> ValueDepsEager(
           } else if constexpr (std::is_same_v<T, ast::ReturnStmt> ||
                                std::is_same_v<T, ast::BreakStmt>) {
             scan_expr(node.value_opt);
-          } else if constexpr (std::is_same_v<T, ast::StaticAssertStmt>) {
-            scan_expr(node.condition);
           } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
             for (const auto& key_path : node.paths) {
               for (const auto& seg : key_path.segs) {
@@ -876,11 +874,14 @@ std::vector<std::size_t> ValueDepsEager(
             }
           } else if constexpr (std::is_same_v<T, ast::EntryExpr>) {
             scan_expr(node.expr);
-          } else if constexpr (std::is_same_v<T, ast::TupleExpr> ||
-                               std::is_same_v<T, ast::ArrayExpr>) {
+          } else if constexpr (std::is_same_v<T, ast::TupleExpr>) {
             for (const auto& elem : node.elements) {
               scan_expr(elem);
             }
+          } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+            ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+              scan_expr(elem);
+            });
           } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
             scan_expr(node.value);
             scan_expr(node.count);
@@ -974,6 +975,7 @@ std::vector<std::size_t> ValueDepsEager(
             }
             for (const auto& opt : node.opts) {
               scan_expr(opt.chunk_expr);
+              scan_expr(opt.workgroup_expr);
             }
             scan_block(node.body);
           }

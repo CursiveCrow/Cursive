@@ -188,48 +188,94 @@ CommentScanResult ScanBlockComment(const core::SourceFile& source,
   CommentScanResult result;
   const auto& scalars = source.scalars;
   const std::size_t n = scalars.size();
-  std::size_t i = start;
-  std::size_t depth = 0;
+  BlockState state = BlockScanState{start, 0, start};
 
-  if (!Match2(scalars, i, '/', '*')) {
+  if (!Match2(scalars, start, '/', '*')) {
     result.ok = false;
     return result;
   }
 
-  depth = 1;
-  i += 2;
+  auto* scan = std::get_if<BlockScanState>(&state);
+  scan->depth = 1;
+  scan->index = start + 2;
 
-  while (i < n) {
-    if (Match2(scalars, i, '/', '*')) {
-      ++depth;
-      i += 2;
+  while ((scan = std::get_if<BlockScanState>(&state)) != nullptr &&
+         scan->index < n) {
+    if (Match2(scalars, scan->index, '/', '*')) {
+      ++scan->depth;
+      scan->index += 2;
       continue;
     }
-    if (Match2(scalars, i, '*', '/')) {
-      if (depth == 1) {
-        i += 2;
-        result.ok = true;
-        result.next = i;
-        result.range = ScalarRange{start, i};
-        return result;
+    if (Match2(scalars, scan->index, '*', '/')) {
+      if (scan->depth == 1) {
+        state = BlockDoneState{scan->index + 2};
+        break;
       }
-      --depth;
-      i += 2;
+      --scan->depth;
+      scan->index += 2;
       continue;
     }
-    ++i;
+    ++scan->index;
+  }
+
+  if (const auto* done = std::get_if<BlockDoneState>(&state)) {
+    result.ok = true;
+    result.next = done->next;
+    result.range = ScalarRange{start, done->next};
+    return result;
   }
 
   SPEC_RULE("Block-Comment-Unterminated");
-  const auto span = SpanOfText(source, scalars, start, start + 2);
+  const auto* unterminated = std::get_if<BlockScanState>(&state);
+  const std::size_t start_index =
+      unterminated != nullptr ? unterminated->start_index : start;
+  const auto span = SpanOfText(source, scalars, start_index, start_index + 2);
   const auto diag = core::MakeDiagnosticById("E-SRC-0306", span);
   if (diag.has_value()) {
     core::Emit(result.diags, *diag);
   }
   result.ok = false;
   result.next = n;
-  result.range = ScalarRange{start, n};
+  result.range = ScalarRange{start_index, n};
   return result;
+}
+
+bool TokenInComment(const core::SourceFile& source, const Token& token) {
+  const auto range = TokenRange(source, token);
+  if (!range.has_value()) {
+    return false;
+  }
+
+  const auto [i, j] = *range;
+  const auto& scalars = source.scalars;
+  std::size_t p = 0;
+  while (p < scalars.size()) {
+    if (Match2(scalars, p, '/', '/')) {
+      CommentScanResult line = ScanLineComment(source, p);
+      if (line.ok && line.next > p) {
+        if (p <= i && j <= line.next) {
+          return true;
+        }
+        p = line.next;
+        continue;
+      }
+    }
+
+    if (Match2(scalars, p, '/', '*')) {
+      CommentScanResult block = ScanBlockComment(source, p);
+      if (block.next > p) {
+        if (p <= i && j <= block.next) {
+          return true;
+        }
+        p = block.next;
+        continue;
+      }
+    }
+
+    ++p;
+  }
+
+  return false;
 }
 
 }  // namespace cursive::lexer

@@ -122,11 +122,11 @@ std::string_view RuntimeLibNameFor(TargetProfile profile) {
   switch (profile) {
     case TargetProfile::X86_64SysV:
     case TargetProfile::AArch64AAPCS64:
-      return "libcursive0_rt.a";
+      return "CursiveRT.a";
     case TargetProfile::X86_64Win64:
-      return "cursive0_rt.lib";
+      return "CursiveRT.lib";
   }
-  return "cursive0_rt.lib";
+  return "CursiveRT.lib";
 }
 
 std::string_view LinkerToolName(TargetProfile profile) {
@@ -193,11 +193,15 @@ ObjectFormat ObjectFormatOf(TargetProfile profile) {
 }
 
 bool SupportsSharedLibraries(TargetProfile profile) {
-  return profile == TargetProfile::X86_64Win64;
+  return profile == TargetProfile::X86_64Win64 ||
+         profile == TargetProfile::X86_64SysV ||
+         profile == TargetProfile::AArch64AAPCS64;
 }
 
 bool SupportsHostedLibraries(TargetProfile profile) {
-  return profile == TargetProfile::X86_64Win64;
+  return profile == TargetProfile::X86_64Win64 ||
+         profile == TargetProfile::X86_64SysV ||
+         profile == TargetProfile::AArch64AAPCS64;
 }
 
 bool LibraryKindSupported(std::string_view kind, TargetProfile profile) {

@@ -199,8 +199,9 @@ EnumDeclResult TypeEnumDecl(
   for (const auto& gp : gen_params.params) {
     type_param_names.push_back(gp.name);
   }
-  if (decl.where_clause.has_value()) {
-    const auto where_result = ProcessWhereClause(ctx, decl.where_clause->predicates, type_param_names);
+  if (decl.predicate_clause_opt.has_value()) {
+    const auto where_result = ProcessWhereClause(
+        ctx, decl.predicate_clause_opt->predicates, type_param_names);
     if (!where_result.ok) {
       result.ok = false;
       result.diag_id = where_result.diag_id;
@@ -332,12 +333,13 @@ EnumDeclResult TypeEnumDecl(
   }
 
   // Process type invariant if present
-  if (decl.invariant.has_value()) {
+  if (decl.invariant_opt.has_value()) {
     ContractContext contract_ctx;
     contract_ctx.scope_ctx = &ctx;
     contract_ctx.receiver_type = result.self_type;
     contract_ctx.in_type_invariant = true;
-    const auto inv_result = CheckTypeInvariant(contract_ctx, *decl.invariant);
+    const auto inv_result =
+        CheckTypeInvariant(contract_ctx, *decl.invariant_opt);
     if (!inv_result.ok) {
       result.ok = false;
       result.diag_id = inv_result.diag_id;

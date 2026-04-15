@@ -1,32 +1,4 @@
-procedure ConcurrencyDomainMetricLabel(value: i32) -> string@View {
-    if (value == 0) {
-        return "0"
-    }
-    if (value == 1) {
-        return "1"
-    }
-    if (value == 3) {
-        return "3"
-    }
-    if (value == 5) {
-        return "5"
-    }
-    if (value == 6) {
-        return "6"
-    }
-    if (value == 10) {
-        return "10"
-    }
-    if (value == 15) {
-        return "15"
-    }
-    if (value == 21) {
-        return "21"
-    }
-    return "other"
-}
-
-public procedure RunConcurrencySpawnWaitExercise(ctx: Context) -> i32 {
+public procedure runConcurrencySpawnWaitExercise(ctx: Context) -> i32 {
     [[log(label: "concurrency-log-item_begin")]]
 
     let spawn_result: i32 = parallel ctx~>cpu() {
@@ -49,7 +21,7 @@ public procedure RunConcurrencySpawnWaitExercise(ctx: Context) -> i32 {
     return 0
 }
 
-public procedure RunConcurrencyDispatchReductionExercise(ctx: Context) -> i32 {
+public procedure runConcurrencyDispatchReductionExercise(ctx: Context) -> i32 {
     [[log(label: "concurrency-log-item_begin")]]
 
     let dispatch_sum: i32 = parallel ctx~>cpu() {
@@ -70,7 +42,7 @@ public procedure RunConcurrencyDispatchReductionExercise(ctx: Context) -> i32 {
     return 0
 }
 
-public procedure RunConcurrencyCancelTokenExercise(ctx: Context) -> i32 {
+public procedure runConcurrencyCancelTokenExercise(ctx: Context) -> i32 {
     [[log(label: "concurrency-log-item_begin")]]
 
     let cancel_token_owner: unique (CancelToken@Active;) = (CancelToken::new();)
@@ -96,7 +68,7 @@ public procedure RunConcurrencyCancelTokenExercise(ctx: Context) -> i32 {
     return 0
 }
 
-public procedure RunConcurrencyNamedBlockExercise(ctx: Context) -> i32 {
+public procedure runConcurrencyNamedBlockExercise(ctx: Context) -> i32 {
     [[log(label: "concurrency-log-item_begin")]]
 
     let named_result: i32 = parallel ctx~>cpu() [name: "concurrency-named-block"] {
@@ -115,7 +87,7 @@ public procedure RunConcurrencyNamedBlockExercise(ctx: Context) -> i32 {
     return 0
 }
 
-public procedure RunConcurrencyInlineDomainExercise(ctx: Context) -> i32 {
+public procedure runConcurrencyInlineDomainExercise(ctx: Context) -> i32 {
     [[log(label: "concurrency-log-item_begin")]]
 
     let inline_result: i32 = parallel ctx~>inline() {

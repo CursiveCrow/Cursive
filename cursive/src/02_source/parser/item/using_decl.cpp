@@ -57,10 +57,12 @@ ParseElemResult<ModulePath> ParseUsingModulePath(Parser parser) {
     if (IsPunc(after_colons, "{") || IsOp(after_colons, "*")) {
       break;
     }
-    ParseElemResult<Identifier> seg = ParseIdent(after_colons);
-    if (!IsOp(seg.parser, "::")) {
+    Parser probe = Clone(after_colons);
+    ParseElemResult<Identifier> seg_probe = ParseIdent(probe);
+    if (!IsOp(seg_probe.parser, "::")) {
       break;
     }
+    ParseElemResult<Identifier> seg = ParseIdent(after_colons);
     path.push_back(seg.elem);
     cur = seg.parser;
   }
@@ -96,12 +98,14 @@ ParseElemResult<std::vector<UsingSpec>> ParseUsingListTail(
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
-    const TokenKindMatch end_set[] = {MatchPunct("}")};
+    const EndSetToken end_set[] = {EndPunct("}")};
     Parser after_comma = parser;
     Advance(after_comma);
     SkipNewlines(after_comma);
     if (IsPunc(after_comma, "}")) {
-      SPEC_RULE("Parse-UsingListTail-TrailingComma");
+      if (TrailingCommaAllowed(parser, end_set)) {
+        SPEC_RULE("Parse-UsingListTail-TrailingComma");
+      }
       EmitTrailingCommaErr(parser, end_set);
       after_comma.diags = parser.diags;
       return {after_comma, xs};
@@ -148,10 +152,8 @@ ParseElemResult<std::vector<UsingSpec>> ParseUsingList(Parser parser) {
 // Determines variant (single item, list, wildcard) based on what follows the
 // module path. Bare `using module` and `using module as alias` are rejected.
 
-ParseItemResult ParseUsingDecl(Parser parser, Visibility vis,
-                               AttributeList attrs) {
-  Parser start = parser;
-
+ParseItemResult ParseUsingDecl(Parser item_start, Parser parser, Visibility vis,
+                               AttrOpt attrs_opt) {
   // Already know we're at "using" keyword
   Advance(parser);  // consume "using"
 
@@ -161,7 +163,7 @@ ParseItemResult ParseUsingDecl(Parser parser, Visibility vis,
   if (!IsOp(parser, "::")) {
     EmitParseSyntaxErr(parser, TokSpan(parser));
     SyncItem(parser);
-    return {parser, ErrorItem{SpanBetween(start, parser), {}}};
+    return {parser, ErrorItem{SpanBetween(item_start, parser), {}}};
   }
   Parser after_colons = parser;
   Advance(after_colons);
@@ -172,10 +174,10 @@ ParseItemResult ParseUsingDecl(Parser parser, Visibility vis,
     Advance(after_brace);
     ParseElemResult<std::vector<UsingSpec>> specs = ParseUsingList(after_brace);
     UsingDecl decl;
-    decl.attrs = attrs;
+    decl.attrs_opt = std::move(attrs_opt);
     decl.vis = vis;
     decl.clause = UsingList{module_path.elem, std::move(specs.elem)};
-    decl.span = SpanBetween(start, specs.parser);
+    decl.span = SpanBetween(item_start, specs.parser);
     decl.doc = {};
     return {specs.parser, decl};
   }
@@ -185,32 +187,34 @@ ParseItemResult ParseUsingDecl(Parser parser, Visibility vis,
     Parser after_star = after_colons;
     Advance(after_star);
     UsingDecl decl;
-    decl.attrs = attrs;
+    decl.attrs_opt = std::move(attrs_opt);
     decl.vis = vis;
     decl.clause = UsingWildcard{module_path.elem};
-    decl.span = SpanBetween(start, after_star);
+    decl.span = SpanBetween(item_start, after_star);
     decl.doc = {};
     return {after_star, decl};
   }
 
-  if (!Tok(after_colons) || Tok(after_colons)->kind != TokenKind::Identifier) {
+  if (!Tok(after_colons) ||
+      (Tok(after_colons)->kind != TokenKind::Identifier &&
+       Tok(after_colons)->kind != TokenKind::Keyword)) {
     EmitParseSyntaxErr(after_colons, TokSpan(after_colons));
     SyncItem(after_colons);
-    return {after_colons, ErrorItem{SpanBetween(start, after_colons), {}}};
+    return {after_colons, ErrorItem{SpanBetween(item_start, after_colons), {}}};
   }
 
   SPEC_RULE("Parse-Using-Item");
   ParseElemResult<Identifier> name = ParseIdent(after_colons);
   ParseElemResult<std::optional<Identifier>> alias = ParseAliasOpt(name.parser);
   UsingDecl decl;
-  decl.attrs = attrs;
+  decl.attrs_opt = std::move(attrs_opt);
   decl.vis = vis;
   decl.clause = UsingItem{
       module_path.elem,
       name.elem,
       alias.elem,
   };
-  decl.span = SpanBetween(start, alias.parser);
+  decl.span = SpanBetween(item_start, alias.parser);
   decl.doc = {};
   return {alias.parser, decl};
 }

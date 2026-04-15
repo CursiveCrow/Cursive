@@ -20,16 +20,16 @@ typedef struct C0HostThreadState {
 } C0HostThreadState;
 
 typedef struct C0HostSharedState {
-  volatile LONG64 next_handle;
+  volatile cursive_platform_i64_t next_handle;
 } C0HostSharedState;
 
-static INIT_ONCE c0_host_once = INIT_ONCE_STATIC_INIT;
-static CRITICAL_SECTION c0_host_lock;
+static cursive_platform_once_t c0_host_once = CURSIVE_PLATFORM_ONCE_INIT;
+static cursive_platform_mutex_t c0_host_lock;
 static int c0_host_lock_ready = 0;
-static DWORD c0_host_tls_index = TLS_OUT_OF_INDEXES;
+static cursive_platform_tls_key_t c0_host_tls_index = CURSIVE_PLATFORM_TLS_KEY_INVALID;
 static C0HostThreadState c0_host_tls_fallback = {0};
 static C0HostSessionNode* c0_host_sessions = NULL;
-static HANDLE c0_host_shared_mapping = NULL;
+static cursive_platform_handle_t c0_host_shared_mapping = NULL;
 static C0HostSharedState* c0_host_shared = NULL;
 
 enum {
@@ -43,42 +43,43 @@ enum {
   C0_HOST_SESSION_RETIRED_BUSY = 3,
 };
 
-static BOOL CALLBACK c0_host_init(PINIT_ONCE init_once,
-                                  PVOID param,
-                                  PVOID* context) {
+static cursive_platform_bool_t c0_host_init(cursive_platform_once_t* init_once,
+                                      void* param,
+                                      void** context) {
   static const wchar_t kHostSharedCounterName[] =
       L"Local\\CursiveHostSessionCounterV1";
   (void)init_once;
   (void)param;
   (void)context;
-  InitializeCriticalSection(&c0_host_lock);
-  c0_host_tls_index = TlsAlloc();
-  if (c0_host_tls_index == TLS_OUT_OF_INDEXES) {
-    return FALSE;
+  cursive_platform_mutex_init(&c0_host_lock);
+  c0_host_tls_index = cursive_platform_tls_key_create();
+  if (c0_host_tls_index == CURSIVE_PLATFORM_TLS_KEY_INVALID) {
+    return CURSIVE_PLATFORM_FALSE;
   }
-  c0_host_shared_mapping = CreateFileMappingW(INVALID_HANDLE_VALUE,
-                                              NULL,
-                                              PAGE_READWRITE,
-                                              0,
-                                              (DWORD)sizeof(C0HostSharedState),
-                                              kHostSharedCounterName);
+  c0_host_shared_mapping = cursive_platform_mapping_create(CURSIVE_PLATFORM_INVALID_HANDLE,
+                                                     NULL,
+                                                     CURSIVE_PLATFORM_PAGE_READWRITE,
+                                                     0,
+                                                     (cursive_platform_u32_t)sizeof(C0HostSharedState),
+                                                     kHostSharedCounterName);
   if (!c0_host_shared_mapping) {
-    return FALSE;
+    return CURSIVE_PLATFORM_FALSE;
   }
-  c0_host_shared = (C0HostSharedState*)MapViewOfFile(c0_host_shared_mapping,
-                                                     FILE_MAP_ALL_ACCESS,
-                                                     0,
-                                                     0,
-                                                     sizeof(C0HostSharedState));
+  c0_host_shared =
+      (C0HostSharedState*)cursive_platform_mapping_view(c0_host_shared_mapping,
+                                                  CURSIVE_PLATFORM_FILE_MAP_ALL_ACCESS,
+                                                  0,
+                                                  0,
+                                                  sizeof(C0HostSharedState));
   if (!c0_host_shared) {
-    return FALSE;
+    return CURSIVE_PLATFORM_FALSE;
   }
   c0_host_lock_ready = 1;
-  return TRUE;
+  return CURSIVE_PLATFORM_TRUE;
 }
 
 static int c0_host_ensure_init(void) {
-  return InitOnceExecuteOnce(&c0_host_once, c0_host_init, NULL, NULL) != 0;
+  return cursive_platform_once_execute(&c0_host_once, c0_host_init, NULL, NULL) != 0;
 }
 
 static C0HostThreadState* c0_host_thread_state(void) {
@@ -87,14 +88,14 @@ static C0HostThreadState* c0_host_thread_state(void) {
     return &c0_host_tls_fallback;
   }
 
-  state = (C0HostThreadState*)TlsGetValue(c0_host_tls_index);
+  state = (C0HostThreadState*)cursive_platform_tls_get(c0_host_tls_index);
   if (!state) {
     state = (C0HostThreadState*)c0_heap_alloc_raw(sizeof(C0HostThreadState));
     if (!state) {
       return &c0_host_tls_fallback;
     }
     c0_memset(state, 0, sizeof(C0HostThreadState));
-    TlsSetValue(c0_host_tls_index, state);
+    cursive_platform_tls_set(c0_host_tls_index, state);
   }
   return state;
 }
@@ -177,11 +178,11 @@ static int c0_host_session_is_busy(const C0HostSessionNode* node) {
 }
 
 static uint64_t c0_host_allocate_handle(void) {
-  LONGLONG next = 0;
+  cursive_platform_signed_size64_t next = 0;
   if (!c0_host_shared) {
     return 0u;
   }
-  next = InterlockedIncrement64(&c0_host_shared->next_handle);
+  next = cursive_platform_atomic_increment64(&c0_host_shared->next_handle);
   if (next <= 0) {
     return 0u;
   }
@@ -245,10 +246,10 @@ uint64_t cursive_host_session_register(const void* owner, void* env) {
     return 0u;
   }
 
-  EnterCriticalSection(&c0_host_lock);
+  cursive_platform_mutex_lock(&c0_host_lock);
   node->handle = c0_host_allocate_handle();
   if (node->handle == 0u) {
-    LeaveCriticalSection(&c0_host_lock);
+    cursive_platform_mutex_unlock(&c0_host_lock);
     c0_heap_free_raw(node);
     return 0u;
   }
@@ -257,7 +258,7 @@ uint64_t cursive_host_session_register(const void* owner, void* env) {
   node->state = C0_HOST_SESSION_LIVE_IDLE;
   node->next = c0_host_sessions;
   c0_host_sessions = node;
-  LeaveCriticalSection(&c0_host_lock);
+  cursive_platform_mutex_unlock(&c0_host_lock);
   return node->handle;
 }
 
@@ -272,25 +273,25 @@ int cursive_host_session_try_enter(uint64_t handle,
   }
 
   void* env = NULL;
-  EnterCriticalSection(&c0_host_lock);
+  cursive_platform_mutex_lock(&c0_host_lock);
   C0HostSessionNode* node = c0_host_find_session(handle, NULL);
   if (!node || !c0_host_owner_eq(node->owner, owner) ||
       !c0_host_session_is_live(node) || c0_host_session_is_busy(node)) {
-    LeaveCriticalSection(&c0_host_lock);
+    cursive_platform_mutex_unlock(&c0_host_lock);
     return 0;
   }
   node->state = C0_HOST_SESSION_LIVE_ENTERED;
   env = node->env;
-  LeaveCriticalSection(&c0_host_lock);
+  cursive_platform_mutex_unlock(&c0_host_lock);
 
   if (!c0_host_push_frame(handle, C0_HOST_FRAME_LIVE, env)) {
-    EnterCriticalSection(&c0_host_lock);
+    cursive_platform_mutex_lock(&c0_host_lock);
     node = c0_host_find_session(handle, NULL);
     if (node && c0_host_owner_eq(node->owner, owner) &&
         node->state == C0_HOST_SESSION_LIVE_ENTERED) {
       node->state = C0_HOST_SESSION_LIVE_IDLE;
     }
-    LeaveCriticalSection(&c0_host_lock);
+    cursive_platform_mutex_unlock(&c0_host_lock);
     return 0;
   }
 
@@ -305,28 +306,28 @@ int cursive_host_session_leave(uint64_t handle, const void* owner) {
     return 0;
   }
 
-  EnterCriticalSection(&c0_host_lock);
+  cursive_platform_mutex_lock(&c0_host_lock);
   C0HostSessionNode* node = c0_host_find_session(handle, NULL);
   if (!node || !c0_host_owner_eq(node->owner, owner) ||
       node->state != C0_HOST_SESSION_LIVE_ENTERED) {
-    LeaveCriticalSection(&c0_host_lock);
+    cursive_platform_mutex_unlock(&c0_host_lock);
     return 0;
   }
-  LeaveCriticalSection(&c0_host_lock);
+  cursive_platform_mutex_unlock(&c0_host_lock);
 
   if (!c0_host_pop_frame(handle, C0_HOST_FRAME_LIVE)) {
     return 0;
   }
 
-  EnterCriticalSection(&c0_host_lock);
+  cursive_platform_mutex_lock(&c0_host_lock);
   node = c0_host_find_session(handle, NULL);
   if (node && c0_host_owner_eq(node->owner, owner) &&
       node->state == C0_HOST_SESSION_LIVE_ENTERED) {
     node->state = C0_HOST_SESSION_LIVE_IDLE;
-    LeaveCriticalSection(&c0_host_lock);
+    cursive_platform_mutex_unlock(&c0_host_lock);
     return 1;
   }
-  LeaveCriticalSection(&c0_host_lock);
+  cursive_platform_mutex_unlock(&c0_host_lock);
   return 0;
 }
 
@@ -343,16 +344,16 @@ int cursive_host_session_try_retire(uint64_t handle,
   C0HostSessionNode* node = NULL;
   void* env = NULL;
 
-  EnterCriticalSection(&c0_host_lock);
+  cursive_platform_mutex_lock(&c0_host_lock);
   node = c0_host_find_session(handle, NULL);
   if (!node || !c0_host_owner_eq(node->owner, owner) ||
       node->state != C0_HOST_SESSION_LIVE_IDLE) {
-    LeaveCriticalSection(&c0_host_lock);
+    cursive_platform_mutex_unlock(&c0_host_lock);
     return 0;
   }
   env = node->env;
   node->state = C0_HOST_SESSION_RETIRED_BUSY;
-  LeaveCriticalSection(&c0_host_lock);
+  cursive_platform_mutex_unlock(&c0_host_lock);
 
   if (out_env) {
     *out_env = env;
@@ -373,9 +374,9 @@ int cursive_host_session_abort_live(uint64_t handle,
     return 0;
   }
 
-  EnterCriticalSection(&c0_host_lock);
+  cursive_platform_mutex_lock(&c0_host_lock);
   removed = c0_host_remove_session_for_owner(handle, owner, &env);
-  LeaveCriticalSection(&c0_host_lock);
+  cursive_platform_mutex_unlock(&c0_host_lock);
   if (!removed) {
     return 0;
   }
@@ -408,14 +409,14 @@ int cursive_host_session_enter_retired(uint64_t handle,
   if (handle == 0u || !owner || !env || !c0_host_ensure_init()) {
     return 0;
   }
-  EnterCriticalSection(&c0_host_lock);
+  cursive_platform_mutex_lock(&c0_host_lock);
   node = c0_host_find_session(handle, NULL);
   if (!node || !c0_host_owner_eq(node->owner, owner) ||
       node->state != C0_HOST_SESSION_RETIRED_BUSY || node->env != env) {
-    LeaveCriticalSection(&c0_host_lock);
+    cursive_platform_mutex_unlock(&c0_host_lock);
     return 0;
   }
-  LeaveCriticalSection(&c0_host_lock);
+  cursive_platform_mutex_unlock(&c0_host_lock);
   result = c0_host_push_frame(handle, C0_HOST_FRAME_RETIRED, env);
   if (!result) {
     return 0;
@@ -433,9 +434,9 @@ int cursive_host_session_leave_retired(uint64_t handle, const void* owner) {
   if (!popped) {
     return 0;
   }
-  EnterCriticalSection(&c0_host_lock);
+  cursive_platform_mutex_lock(&c0_host_lock);
   removed = c0_host_remove_session_for_owner(handle, owner, NULL);
-  LeaveCriticalSection(&c0_host_lock);
+  cursive_platform_mutex_unlock(&c0_host_lock);
   return removed;
 }
 
@@ -450,9 +451,9 @@ int cursive_host_session_abort_retired(uint64_t handle,
   }
   removed_frame =
       c0_host_remove_matching_frame(handle, C0_HOST_FRAME_RETIRED, &frame_env);
-  EnterCriticalSection(&c0_host_lock);
+  cursive_platform_mutex_lock(&c0_host_lock);
   removed = c0_host_remove_session_for_owner(handle, owner, NULL);
-  LeaveCriticalSection(&c0_host_lock);
+  cursive_platform_mutex_unlock(&c0_host_lock);
   if (!removed) {
     return 0;
   }

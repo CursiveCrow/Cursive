@@ -1,5 +1,5 @@
 param(
-    [string]$CompilerPath = "C:\Dev\Cursive\cursive\build\Debug\cursive.exe"
+    [string]$CompilerPath = ""
 )
 
 Set-StrictMode -Version Latest
@@ -7,6 +7,8 @@ $ErrorActionPreference = "Stop"
 
 Set-Location $PSScriptRoot
 $workspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$resolveCompilerPath = Join-Path $PSScriptRoot "ResolveCompilerPath.ps1"
+$CompilerPath = (& $resolveCompilerPath -RepoRoot $workspaceRoot -RequestedPath $CompilerPath)
 $llvmBinManifestPath = ((Join-Path $workspaceRoot "extern\\llvm\\llvm-21.1.8-x86_64\\bin") -replace "\\", "/")
 $runId = Get-Date -Format "yyyyMMdd_HHmmss_fff"
 $logsRoot = Join-Path ([System.IO.Path]::GetTempPath()) "cursive_hello_runs"

@@ -5,7 +5,7 @@ public procedure ContractsForeignAssumeModeSemanticsImpl(value: i32) -> i32 {
 }
 
 extern "C" {
-    [[trust]]
+    [[static]]
     procedure hc_contracts_foreign_assume_mode_semantics_impl(value: i32) -> i32
         |: @foreign_ensures(@result >= 0)
 }
@@ -65,9 +65,9 @@ public procedure RunForeignAssumeModeSemantics(ctx: Context) -> i32 {
         [[log(label: "observed-contracts-foreign-assume-mode-dynamic-catch", expected: 0)]]
         dynamic_panic_catch_metric
 
-    let assume_mode_marker: string@View = "[[trust]]"
+    let assume_mode_marker: string@View = "[[static]]"
     let assume_mode_marker_log: string@View =
-        [[log(label: "contracts-foreign-assume-mode-marker", expected: "[[trust]]")]]
+        [[log(label: "contracts-foreign-assume-mode-marker", expected: "[[static]]")]]
         assume_mode_marker
 
     let assume_skips_runtime_check: bool = assume_value_log < 0
@@ -94,7 +94,7 @@ public procedure RunForeignAssumeModeSemantics(ctx: Context) -> i32 {
 
     let runtime_ok: bool =
         (con_075_log == "CON-075") &&
-        (assume_mode_marker_log == "[[trust]]") &&
+        (assume_mode_marker_log == "[[static]]") &&
         (assume_value_log == -1) &&
         (dynamic_panic_catch_metric_log == 0) &&
         (assume_skips_runtime_check_log == true) &&

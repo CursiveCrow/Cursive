@@ -58,6 +58,7 @@ namespace cursive::ast
     {
         std::optional<ParamMode> mode;
         Identifier name;
+        std::optional<SpliceIdentNode> name_splice_opt;
         TypePtr type;
         core::Span span;
     };
@@ -100,7 +101,7 @@ namespace cursive::ast
     // Using declaration: using module::item | using module::item as alias | using module::{items} | using module::*
     struct UsingDecl
     {
-        AttributeList attrs;
+        AttrOpt attrs_opt;
         Visibility vis;
         UsingClause clause;
         core::Span span;
@@ -114,14 +115,12 @@ namespace cursive::ast
     // Import declaration for cross-assembly imports
     // import path;
     // import path as alias;
-    // import path::{item1, item2};
     struct ImportDecl
     {
-        AttributeList attrs;
+        AttrOpt attrs_opt;
         Visibility vis;
         Path path;
-        std::optional<Identifier> alias; // import path as alias
-        std::vector<Identifier> items;   // import path::{items} (empty = import all)
+        std::optional<Identifier> alias_opt;
         core::Span span;
         DocList doc;
     };
@@ -133,7 +132,7 @@ namespace cursive::ast
     // Static/const declaration: public let NAME: Type = value
     struct StaticDecl
     {
-        AttributeList attrs;
+        AttrOpt attrs_opt;
         Visibility vis;
         Mutability mut;
         Binding binding;
@@ -241,9 +240,9 @@ namespace cursive::ast
         Visibility vis;
         Identifier name;
         std::optional<GenericParams> generic_params;
+        std::optional<WhereClause> predicate_clause_opt;
         std::vector<Param> params;
         TypePtr return_type_opt; // may be null if not specified
-        std::optional<WhereClause> where_clause;
         std::optional<ContractClause> contract;
         BlockPtr body;
         core::Span span;
@@ -306,7 +305,7 @@ namespace cursive::ast
     // Extern block: extern "C" { procedures... }
     struct ExternBlock
     {
-        AttributeList attrs;
+        AttrOpt attrs_opt;
         Visibility vis;
         std::optional<ExternAbi> abi_opt;
         std::vector<ExternItem> items;
@@ -338,6 +337,7 @@ namespace cursive::ast
         Visibility vis;
         bool override_flag = false; // override keyword present
         Identifier name;
+        std::optional<GenericParams> generic_params;
         Receiver receiver;
         std::vector<Param> params;
         TypePtr return_type_opt;
@@ -358,10 +358,10 @@ namespace cursive::ast
         Visibility vis;
         Identifier name;
         std::optional<GenericParams> generic_params;
+        std::optional<WhereClause> predicate_clause_opt;
         std::vector<ClassPath> implements; // <: implemented classes
-        std::optional<WhereClause> where_clause;
-        std::optional<TypeInvariant> invariant;
         std::vector<RecordMember> members;
+        std::optional<TypeInvariant> invariant_opt;
         core::Span span;
         DocList doc;
     };
@@ -403,10 +403,10 @@ namespace cursive::ast
         Visibility vis;
         Identifier name;
         std::optional<GenericParams> generic_params;
+        std::optional<WhereClause> predicate_clause_opt;
         std::vector<ClassPath> implements;
-        std::optional<WhereClause> where_clause;
-        std::optional<TypeInvariant> invariant;
         std::vector<VariantDecl> variants;
+        std::optional<TypeInvariant> invariant_opt;
         core::Span span;
         DocList doc;
     };
@@ -434,7 +434,7 @@ namespace cursive::ast
         Visibility vis;
         Identifier name;
         std::optional<GenericParams> generic_params;
-        Receiver receiver = ReceiverShorthand{ReceiverPerm::Const};
+        Receiver receiver;
         std::vector<Param> params;
         TypePtr return_type_opt;
         std::optional<ContractClause> contract;
@@ -476,10 +476,10 @@ namespace cursive::ast
         Visibility vis;
         Identifier name;
         std::optional<GenericParams> generic_params;
+        std::optional<WhereClause> predicate_clause_opt;
         std::vector<ClassPath> implements;
-        std::optional<WhereClause> where_clause;
-        std::optional<TypeInvariant> invariant;
         std::vector<StateBlock> states;
+        std::optional<TypeInvariant> invariant_opt;
         core::Span span;
         DocList doc;
     };
@@ -568,8 +568,8 @@ namespace cursive::ast
         bool modal = false; // modal class flag
         Identifier name;
         std::optional<GenericParams> generic_params;
+        std::optional<WhereClause> predicate_clause_opt;
         std::vector<ClassPath> supers; // <: super classes
-        std::optional<WhereClause> where_clause;
         std::vector<ClassItem> items;
         core::Span span;
         DocList doc;
@@ -587,8 +587,8 @@ namespace cursive::ast
         Visibility vis;
         Identifier name;
         std::optional<GenericParams> generic_params;
+        std::optional<WhereClause> predicate_clause_opt;
         TypePtr type;
-        std::optional<WhereClause> where_clause;
         core::Span span;
         DocList doc;
     };
@@ -647,10 +647,18 @@ namespace cursive::ast
         DeriveTargetDecl,
         ErrorItem>;
 
-    inline const AttributeList& AttrListOf(const UsingDecl& item) { return item.attrs; }
-    inline const AttributeList& AttrListOf(const ImportDecl& item) { return item.attrs; }
-    inline const AttributeList& AttrListOf(const ExternBlock& item) { return item.attrs; }
-    inline const AttributeList& AttrListOf(const StaticDecl& item) { return item.attrs; }
+    inline const AttributeList& AttrListOf(const UsingDecl& item) {
+        return AttrListOf(item.attrs_opt);
+    }
+    inline const AttributeList& AttrListOf(const ImportDecl& item) {
+        return AttrListOf(item.attrs_opt);
+    }
+    inline const AttributeList& AttrListOf(const ExternBlock& item) {
+        return AttrListOf(item.attrs_opt);
+    }
+    inline const AttributeList& AttrListOf(const StaticDecl& item) {
+        return AttrListOf(item.attrs_opt);
+    }
     inline const AttributeList& AttrListOf(const ProcedureDecl& item) { return item.attrs; }
     inline const AttributeList& AttrListOf(const ComptimeProcedureDecl& item) { return item.attrs; }
     inline const AttributeList& AttrListOf(const RecordDecl& item) { return item.attrs; }

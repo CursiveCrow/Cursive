@@ -239,7 +239,9 @@ void MergeFailures(LowerCtx& base, const LowerCtx& branch) {
 // 5. Build IRIf node with condition value, branch IR, and branch values
 // =============================================================================
 
-LowerResult LowerIfExpr(const ast::IfExpr& expr, LowerCtx& ctx) {
+LowerResult LowerIfExpr(const ast::Expr& expr,
+                        const ast::IfExpr& if_expr,
+                        LowerCtx& ctx) {
   SPEC_RULE("Lower-Expr-If");
 
   // Lower condition
@@ -248,7 +250,7 @@ LowerResult LowerIfExpr(const ast::IfExpr& expr, LowerCtx& ctx) {
   ctx.temp_sink = &cond_temps;
   auto prev_suppress = ctx.suppress_temp_at_depth;
   ctx.suppress_temp_at_depth = ctx.temp_depth + 1;
-  auto cond_result = LowerExpr(*expr.cond, ctx);
+  auto cond_result = LowerExpr(*if_expr.cond, ctx);
   ctx.suppress_temp_at_depth = prev_suppress;
   ctx.temp_sink = prev_sink;
   IRPtr cond_cleanup = CleanupTemps(cond_temps, ctx);
@@ -262,7 +264,7 @@ LowerResult LowerIfExpr(const ast::IfExpr& expr, LowerCtx& ctx) {
   then_ctx.temp_sink = &then_temps;
   auto then_prev_suppress = then_ctx.suppress_temp_at_depth;
   then_ctx.suppress_temp_at_depth = then_ctx.temp_depth + 1;
-  auto then_result = LowerExpr(*expr.then_expr, then_ctx);
+  auto then_result = LowerExpr(*if_expr.then_expr, then_ctx);
   then_ctx.suppress_temp_at_depth = then_prev_suppress;
   IRPtr then_cleanup = CleanupTemps(then_temps, then_ctx);
   if (!IsNoopIR(then_cleanup) && !EndsWithTerminator(then_result.ir)) {
@@ -273,12 +275,12 @@ LowerResult LowerIfExpr(const ast::IfExpr& expr, LowerCtx& ctx) {
   LowerCtx else_ctx = MakeBranchCtx(ctx);
   else_ctx.temp_counter = std::max(else_ctx.temp_counter, then_ctx.temp_counter);
   LowerResult else_result;
-  if (expr.else_expr) {
+  if (if_expr.else_expr) {
     std::vector<TempValue> else_temps;
     else_ctx.temp_sink = &else_temps;
     auto else_prev_suppress = else_ctx.suppress_temp_at_depth;
     else_ctx.suppress_temp_at_depth = else_ctx.temp_depth + 1;
-    else_result = LowerExpr(*expr.else_expr, else_ctx);
+    else_result = LowerExpr(*if_expr.else_expr, else_ctx);
     else_ctx.suppress_temp_at_depth = else_prev_suppress;
     IRPtr else_cleanup = CleanupTemps(else_temps, else_ctx);
     if (!IsNoopIR(else_cleanup) && !EndsWithTerminator(else_result.ir)) {
@@ -297,6 +299,11 @@ LowerResult LowerIfExpr(const ast::IfExpr& expr, LowerCtx& ctx) {
 
   // Create if IR
   IRValue result_value = ctx.FreshTempValue("if");
+  if (ctx.expr_type) {
+    if (analysis::TypeRef result_type = ctx.expr_type(expr)) {
+      ctx.RegisterValueType(result_value, result_type);
+    }
+  }
 
   IRIf if_ir;
   if_ir.cond = cond_result.value;

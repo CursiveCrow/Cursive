@@ -56,21 +56,14 @@ ParseElemResult<std::optional<ContractClause>> ParseContractClauseOpt(
     Parser parser);
 
 // Forward declaration from signature.cpp
-struct SignatureResult {
-  Parser parser;
-  std::vector<Param> params;
-  TypePtr return_type_opt;
-};
 struct MethodSignatureResult {
   Parser parser;
-  std::optional<Receiver> receiver;
+  Receiver receiver;
   std::vector<Param> params;
   TypePtr return_type_opt;
 };
 
 MethodSignatureResult ParseMethodSignature(Parser parser);
-MethodSignatureResult ParseClassMethodSignature(Parser parser);
-SignatureResult ParseSignature(Parser parser);
 
 ParseElemResult<TypeParam> ParseAsyncTypeParam(Parser parser) {
   Parser start = parser;
@@ -126,6 +119,72 @@ ParseElemResult<std::optional<GenericParams>> ParseAsyncTypeParamsOpt(
 }
 
 // =============================================================================
+// ParseAbstractFieldDecl / ParseAbstractFieldList
+// =============================================================================
+
+static ParseElemResult<AbstractFieldDecl> ParseAbstractFieldDecl(Parser parser) {
+  Parser start = parser;
+
+  ParseElemResult<AttrOpt> attrs = ParseAttributeListOpt(parser);
+  Parser after_attrs = attrs.parser;
+  SkipNewlines(after_attrs);
+  ParseElemResult<Visibility> vis = ParseVis(after_attrs);
+  Parser cur = vis.parser;
+  AttributeList attrs_list = attrs.elem.value_or(AttributeList{});
+
+  ParseElemResult<bool> boundary = ParseKeyBoundaryOpt(cur);
+  ParseElemResult<Identifier> name = ParseIdent(boundary.parser);
+
+  if (!IsPunc(name.parser, ":")) {
+    EmitParseSyntaxErr(name.parser, TokSpan(name.parser));
+  } else {
+    Advance(name.parser);
+  }
+
+  ParseElemResult<std::shared_ptr<Type>> ty = ParseType(name.parser);
+  Parser after_type = ty.parser;
+
+  AbstractFieldDecl field;
+  field.attrs = attrs_list;
+  field.vis = vis.elem;
+  field.key_boundary = boundary.elem;
+  field.name = name.elem;
+  field.type = ty.elem;
+  field.span = SpanBetween(start, after_type);
+  field.doc_opt = std::nullopt;
+
+  return {after_type, field};
+}
+
+static ParseElemResult<std::vector<AbstractFieldDecl>> ParseAbstractFieldList(
+    Parser parser) {
+  std::vector<AbstractFieldDecl> fields;
+  Parser cur = parser;
+  SkipNewlines(cur);
+
+  while (!IsPunc(cur, "}")) {
+    Parser before = cur;
+    ParseElemResult<AbstractFieldDecl> field = ParseAbstractFieldDecl(cur);
+    Parser after_field = field.parser;
+    if (!IsPunc(after_field, "}")) {
+      ConsumeTerminatorReq(after_field);
+    }
+
+    field.elem.span = SpanBetween(before, after_field);
+    fields.push_back(std::move(field.elem));
+    cur = after_field;
+    SkipNewlines(cur);
+
+    if (cur.tokens == before.tokens && cur.index == before.index) {
+      EmitParseSyntaxErr(cur, TokSpan(cur));
+      cur = AdvanceOrEOF(cur);
+    }
+  }
+
+  return {cur, fields};
+}
+
+// =============================================================================
 // ParseClassItem - Parse method, associated type, or field in class body
 // =============================================================================
 
@@ -161,47 +220,9 @@ ParseElemResult<ClassItem> ParseClassItem(Parser parser) {
     Parser after_l = after_name;
     Advance(after_l);
 
-    std::vector<AbstractFieldDecl> fields;
-    Parser field_cur = after_l;
-    SkipNewlines(field_cur);
-    while (!IsPunc(field_cur, "}")) {
-      Parser field_start = field_cur;
-      ParseElemResult<Identifier> field_name = ParseIdent(field_cur);
-      if (!IsPunc(field_name.parser, ":")) {
-        EmitParseSyntaxErr(field_name.parser, TokSpan(field_name.parser));
-      } else {
-        Advance(field_name.parser);
-      }
-      ParseElemResult<std::shared_ptr<Type>> field_ty =
-          ParseType(field_name.parser);
-      Parser after_field = field_ty.parser;
-      SkipNewlines(after_field);
-      if (IsPunc(after_field, ",")) {
-        Advance(after_field);
-        SkipNewlines(after_field);
-      } else if (!IsPunc(after_field, "}")) {
-        EmitParseSyntaxErr(after_field, TokSpan(after_field));
-        after_field = AdvanceOrEOF(after_field);
-      }
-
-      AbstractFieldDecl field;
-      field.attrs = {};
-      field.vis = Visibility::Internal;
-      field.key_boundary = false;
-      field.name = field_name.elem;
-      field.type = field_ty.elem;
-      field.span = SpanBetween(field_start, after_field);
-      field.doc_opt = std::nullopt;
-      fields.push_back(field);
-
-      field_cur = after_field;
-      SkipNewlines(field_cur);
-      if (field_cur.tokens == field_start.tokens &&
-          field_cur.index == field_start.index) {
-        EmitParseSyntaxErr(field_cur, TokSpan(field_cur));
-        field_cur = AdvanceOrEOF(field_cur);
-      }
-    }
+    ParseElemResult<std::vector<AbstractFieldDecl>> fields =
+        ParseAbstractFieldList(after_l);
+    Parser field_cur = fields.parser;
 
     Parser after_r = field_cur;
     if (!IsPunc(after_r, "}")) {
@@ -212,7 +233,7 @@ ParseElemResult<ClassItem> ParseClassItem(Parser parser) {
       state.attrs = attrs_list;
       state.vis = vis.elem;
       state.name = name.elem;
-      state.fields = std::move(fields);
+      state.fields = std::move(fields.elem);
       state.span = SpanBetween(start, sync);
       state.doc_opt = std::nullopt;
       return {sync, state};
@@ -224,7 +245,7 @@ ParseElemResult<ClassItem> ParseClassItem(Parser parser) {
     state.attrs = attrs_list;
     state.vis = vis.elem;
     state.name = name.elem;
-    state.fields = std::move(fields);
+    state.fields = std::move(fields.elem);
     state.span = SpanBetween(start, after_r);
     state.doc_opt = std::nullopt;
     return {after_r, state};
@@ -238,7 +259,9 @@ ParseElemResult<ClassItem> ParseClassItem(Parser parser) {
     Advance(start_proc);  // consume 'procedure'
 
     ParseElemResult<Identifier> name = ParseIdent(start_proc);
-    SignatureResult sig = ParseSignature(name.parser);
+    ParseElemResult<std::optional<GenericParams>> gen_params =
+        ParseGenericParamsOpt(name.parser);
+    MethodSignatureResult sig = ParseMethodSignature(gen_params.parser);
 
     // Optional contract clause
     ParseElemResult<std::optional<ContractClause>> contract =
@@ -263,8 +286,8 @@ ParseElemResult<ClassItem> ParseClassItem(Parser parser) {
     method.attrs = attrs_list;
     method.vis = vis.elem;
     method.name = name.elem;
-    method.generic_params = std::nullopt;
-    method.receiver = ReceiverShorthand{ReceiverPerm::Const};
+    method.generic_params = gen_params.elem;
+    method.receiver = sig.receiver;
     method.params = sig.params;
     method.return_type_opt = sig.return_type_opt;
     method.contract = contract.elem;
@@ -529,10 +552,10 @@ ParseItemResult ParseClassDecl(Parser parser, Visibility vis,
   ParseElemResult<std::vector<ClassPath>> supers = ParseSuperclassOpt(parser);
   parser = supers.parser;
 
-  // Parse optional where clause
-  ParseElemResult<std::optional<WhereClause>> where_clause =
+  // Parse optional predicate clause
+  ParseElemResult<std::optional<WhereClause>> predicate_clause_opt =
       ParsePredicateClauseOpt(parser);
-  parser = where_clause.parser;
+  parser = predicate_clause_opt.parser;
 
   // Parse class body
   ParseElemResult<std::vector<ClassItem>> items = ParseClassBody(parser);
@@ -544,8 +567,8 @@ ParseItemResult ParseClassDecl(Parser parser, Visibility vis,
   decl.modal = is_modal;
   decl.name = name.elem;
   decl.generic_params = gen_params.elem;
+  decl.predicate_clause_opt = predicate_clause_opt.elem;
   decl.supers = std::move(supers.elem);
-  decl.where_clause = where_clause.elem;
   decl.items = std::move(items.elem);
   decl.span = SpanBetween(start, parser);
   decl.doc = {};

@@ -224,12 +224,16 @@ static bool EntryExprHasCapabilityOp(const ast::ExprPtr& expr,
           }
           return false;
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
-            if (EntryExprHasCapabilityOp(elem, ctx)) {
-              return true;
+          bool has_capability_op = false;
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            if (has_capability_op) {
+              return;
             }
-          }
-          return false;
+            if (EntryExprHasCapabilityOp(elem, ctx)) {
+              has_capability_op = true;
+            }
+          });
+          return has_capability_op;
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           return EntryExprHasCapabilityOp(node.value, ctx) ||
                  EntryExprHasCapabilityOp(node.count, ctx);
@@ -320,12 +324,16 @@ static bool EntryExprHasSideEffectOp(const ast::ExprPtr& expr) {
           }
           return false;
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
-            if (EntryExprHasSideEffectOp(elem)) {
-              return true;
+          bool has_side_effect = false;
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            if (has_side_effect) {
+              return;
             }
-          }
-          return false;
+            if (EntryExprHasSideEffectOp(elem)) {
+              has_side_effect = true;
+            }
+          });
+          return has_side_effect;
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           return EntryExprHasSideEffectOp(node.value) ||
                  EntryExprHasSideEffectOp(node.count);
@@ -450,13 +458,17 @@ static bool EntryExprReferencesMovedParam(
           }
           return false;
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
+          bool references_moved_param = false;
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            if (references_moved_param) {
+              return;
+            }
             if (EntryExprReferencesMovedParam(
                     elem, moved_params, offending_span)) {
-              return true;
+              references_moved_param = true;
             }
-          }
-          return false;
+          });
+          return references_moved_param;
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           return EntryExprReferencesMovedParam(
                      node.value, moved_params, offending_span) ||
@@ -567,9 +579,9 @@ void FindResultExprs(const ast::ExprPtr& expr,
             FindResultExprs(elem, results);
           }
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
             FindResultExprs(elem, results);
-          }
+          });
         } else if constexpr (std::is_same_v<T, ast::RangeExpr>) {
           FindResultExprs(node.lhs, results);
           FindResultExprs(node.rhs, results);
@@ -639,9 +651,9 @@ void FindEntryExprs(const ast::ExprPtr& expr,
             FindEntryExprs(elem, entries);
           }
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
             FindEntryExprs(elem, entries);
-          }
+          });
         } else if constexpr (std::is_same_v<T, ast::RangeExpr>) {
           FindEntryExprs(node.lhs, entries);
           FindEntryExprs(node.rhs, entries);
@@ -1157,10 +1169,16 @@ bool ContainsContractIntrinsics(const ast::ExprPtr& expr) {
           }
           return false;
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
-            if (ContainsContractIntrinsics(elem)) return true;
-          }
-          return false;
+          bool contains_contract_intrinsics = false;
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            if (contains_contract_intrinsics) {
+              return;
+            }
+            if (ContainsContractIntrinsics(elem)) {
+              contains_contract_intrinsics = true;
+            }
+          });
+          return contains_contract_intrinsics;
         }
 
         return false;

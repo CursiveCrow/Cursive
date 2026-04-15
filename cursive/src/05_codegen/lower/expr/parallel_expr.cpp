@@ -19,6 +19,7 @@
 
 #include "04_analysis/caps/cap_concurrency.h"
 #include "04_analysis/typing/type_predicates.h"
+#include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/lower/lower_expr.h"
 #include "05_codegen/ir/ir_model.h"
 #include "04_analysis/typing/types.h"
@@ -83,6 +84,12 @@ LowerResult LowerParallelExpr(const ast::ParallelExpr& node, LowerCtx& ctx) {
 
   // Lower domain expression
   auto domain_result = LowerExpr(*node.domain, ctx);
+  IRValue parallel_ctx = ctx.FreshTempValue("parallel_join");
+
+  // The parallel boundary must await started work even when the body exits
+  // via return/break/continue, so model the join as scope cleanup.
+  ctx.PushScope(false, false);
+  ctx.RegisterParallelJoin(parallel_ctx);
 
   // Lower body
   std::vector<ParallelCollectItem> collected;
@@ -113,6 +120,10 @@ LowerResult LowerParallelExpr(const ast::ParallelExpr& node, LowerCtx& ctx) {
 
   ctx.parallel_collect = prev_collect;
   ctx.parallel_collect_depth = prev_depth;
+
+  CleanupPlan cleanup_plan = ComputeCleanupPlanForCurrentScope(ctx);
+  IRPtr join_ir = EmitCleanup(cleanup_plan, ctx);
+  ctx.PopScope();
 
   IRPtr parallel_body = body_result.ir;
   IRValue result_value;
@@ -203,7 +214,7 @@ LowerResult LowerParallelExpr(const ast::ParallelExpr& node, LowerCtx& ctx) {
   IRParallel parallel;
   parallel.domain = domain_result.value;
   parallel.body = parallel_body;
-  parallel.result = ctx.FreshTempValue("parallel_join");
+  parallel.result = parallel_ctx;
 
   // Handle options (cancel, name)
   for (const auto& opt : node.opts) {
@@ -220,6 +231,7 @@ LowerResult LowerParallelExpr(const ast::ParallelExpr& node, LowerCtx& ctx) {
   std::vector<IRPtr> parts;
   parts.push_back(domain_result.ir);
   parts.push_back(MakeIR(std::move(parallel)));
+  parts.push_back(join_ir);
 
   return LowerResult{SeqIR(std::move(parts)), result_value};
 }

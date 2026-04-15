@@ -75,7 +75,7 @@ ConflictResult CheckAcquisitionConflict(const KeyContext& ctx,
   for (const auto& held : ctx.HeldKeys()) {
     if (KeysConflict(held.path, held.mode, path, mode)) {
       result.conflict = true;
-      result.diag_id = "E-CON-0012";  // Key conflict error
+      result.diag_id = "E-CON-0060";  // Read/write conflict on overlapping shared paths
       result.span = span;
       result.path1 = held.path;
       result.path2 = path;

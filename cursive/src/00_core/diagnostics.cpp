@@ -67,9 +67,9 @@
 namespace cursive::core {
 
 static inline void SpecDefsDiagnosticTypes() {
-  SPEC_DEF("Severity", "1.6.3");
-  SPEC_DEF("Diagnostic", "1.6.3");
-  SPEC_DEF("DiagnosticStream", "1.6.3");
+  SPEC_DEF("Severity", "2.3");
+  SPEC_DEF("Diagnostic", "2.3");
+  SPEC_DEF("DiagnosticStream", "2.3");
 }
 
 static std::string SeverityLabel(Severity severity) {
@@ -78,6 +78,10 @@ static std::string SeverityLabel(Severity severity) {
       return "error";
     case Severity::Warning:
       return "warning";
+    case Severity::Info:
+      return "info";
+    case Severity::Panic:
+      return "panic";
     case Severity::Note:
       return "note";
   }
@@ -88,7 +92,7 @@ static std::string DiagPayload(const Diagnostic& diag) {
   std::string payload;
   payload.reserve(diag.code.size() + diag.message.size() + 32);
   payload += "code=";
-  payload += diag.code;
+  payload += diag.code.empty() ? "<none>" : diag.code;
   payload += ";severity=";
   payload += SeverityLabel(diag.severity);
   payload += ";message=";
@@ -136,7 +140,7 @@ DiagnosticStream Emit(const DiagnosticStream& stream, const Diagnostic& diag) {
 #endif
 
 bool HasError(const DiagnosticStream& stream) {
-  SPEC_DEF("HasError", "1.6.3");
+  SPEC_DEF("HasError", "2.3");
   SpecDefsDiagnosticTypes();
   for (const auto& diag : stream) {
     if (diag.severity == Severity::Error) {
@@ -147,7 +151,7 @@ bool HasError(const DiagnosticStream& stream) {
 }
 
 CompileStatusResult CompileStatus(const DiagnosticStream& stream) {
-  SPEC_DEF("CompileStatus", "1.6.3");
+  SPEC_DEF("CompileStatus", "2.3");
   return HasError(stream) ? CompileStatusResult::Fail
                           : CompileStatusResult::Ok;
 }

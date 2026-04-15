@@ -8,12 +8,13 @@ public procedure ContractsForeignModeDynamicImpl(value: i32) -> i32 {
     return value + 2
 }
 
-[[mangle("hc_contracts_foreign_mode_trust_impl"), export("C-unwind")]]
-public procedure ContractsForeignModeTrustImpl(value: i32) -> i32 {
+[[mangle("hc_contracts_foreign_mode_default_impl"), export("C-unwind")]]
+public procedure ContractsForeignModeDefaultImpl(value: i32) -> i32 {
     return value + 3
 }
 
 extern "C" {
+    [[static]]
     procedure hc_contracts_foreign_mode_static_impl(value: i32) -> i32
         |: @foreign_assumes(value >= 0)
 }
@@ -24,9 +25,8 @@ extern "C" {
         |: @foreign_assumes(value >= 0)
 }
 
-[[trust]]
 extern "C" {
-    procedure hc_contracts_foreign_mode_trust_impl(value: i32) -> i32
+    procedure hc_contracts_foreign_mode_default_impl(value: i32) -> i32
         |: @foreign_assumes(value >= 0)
 }
 
@@ -55,7 +55,7 @@ public procedure RunForeignAssumesVerificationModes(ctx: Context) -> i32 {
 
     let static_value: i32 = unsafe { hc_contracts_foreign_mode_static_impl(7) }
     let dynamic_value: i32 = unsafe { hc_contracts_foreign_mode_dynamic_impl(7) }
-    let trust_value: i32 = unsafe { hc_contracts_foreign_mode_trust_impl(7) }
+    let default_value: i32 = unsafe { hc_contracts_foreign_mode_default_impl(7) }
     let dynamic_pre_fail_catch_metric: i32 = unsafe {
         hc_contracts_foreign_mode_dynamic_pre_fail_catch()
     }
@@ -66,9 +66,9 @@ public procedure RunForeignAssumesVerificationModes(ctx: Context) -> i32 {
     let dynamic_value_log: i32 =
         [[log(label: "observed-contracts-foreign-assumes-dynamic", expected: 9)]]
         dynamic_value
-    let trust_value_log: i32 =
-        [[log(label: "observed-contracts-foreign-assumes-trust", expected: 10)]]
-        trust_value
+    let default_value_log: i32 =
+        [[log(label: "observed-contracts-foreign-assumes-default", expected: 10)]]
+        default_value
     let dynamic_pre_fail_catch_metric_log: i32 =
         [[log(label: "observed-contracts-foreign-assumes-dynamic-pre-fail-catch", expected: 0)]]
         dynamic_pre_fail_catch_metric
@@ -91,7 +91,7 @@ public procedure RunForeignAssumesVerificationModes(ctx: Context) -> i32 {
     let runtime_ok: bool =
         (static_value_log == 8) &&
         (dynamic_value_log == 9) &&
-        (trust_value_log == 10) &&
+        (default_value_log == 10) &&
         (dynamic_pre_fail_catch_metric_log == 0) &&
         (con_068_log == "CON-068") &&
         (panic_2860_log == "P-SEM-2860")

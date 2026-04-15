@@ -126,7 +126,10 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
                          bool use_c_abi_aggregate_sret = false,
                          bool ffi_import_boundary = false,
                          bool ffi_import_catch = false,
-                         std::optional<unsigned> call_conv_override = std::nullopt);
+                         std::optional<unsigned> call_conv_override = std::nullopt,
+                         const std::vector<IRValue>* source_args = nullptr,
+                         llvm::Value** result_storage_out = nullptr,
+                         llvm::Value* preferred_result_storage = nullptr);
 
 // -----------------------------------------------------------------------------
 // Calling Convention

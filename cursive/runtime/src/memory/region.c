@@ -61,11 +61,11 @@ typedef struct C0RegionState {
   size_t addr_count;
   size_t addr_cap;
   uint64_t next_region_token;
-  SRWLOCK lock;
+  cursive_platform_rwlock_t lock;
 } C0RegionState;
 
 static C0RegionState g_region_state;
-static INIT_ONCE g_region_once = INIT_ONCE_STATIC_INIT;
+static cursive_platform_once_t g_region_once = CURSIVE_PLATFORM_ONCE_INIT;
 
 static const uint64_t C0_SCOPE_TAG_MASK = 0x8000000000000000ull;
 
@@ -84,19 +84,21 @@ static uint64_t c0_scope_id_from_tag(uint64_t tag) {
   return tag & ~C0_SCOPE_TAG_MASK;
 }
 
-static BOOL CALLBACK c0_region_init_once(PINIT_ONCE init_once, PVOID param,
-                                         PVOID* context) {
+static cursive_platform_bool_t c0_region_init_once(
+    cursive_platform_once_t* init_once,
+    void* param,
+    void** context) {
   (void)init_once;
   (void)param;
   (void)context;
   c0_memset(&g_region_state, 0, sizeof(g_region_state));
   g_region_state.next_region_token = 1;
-  InitializeSRWLock(&g_region_state.lock);
-  return TRUE;
+  cursive_platform_rwlock_init(&g_region_state.lock);
+  return CURSIVE_PLATFORM_TRUE;
 }
 
 static C0RegionState* c0_region_state(void) {
-  InitOnceExecuteOnce(&g_region_once, c0_region_init_once, NULL, NULL);
+  cursive_platform_once_execute(&g_region_once, c0_region_init_once, NULL, NULL);
   return &g_region_state;
 }
 
@@ -592,12 +594,12 @@ void* cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aalloc(
     uint64_t align) {
   c0_trace_emit_rule("RegionSym-Alloc");
   C0RegionState* state = c0_region_state();
-  AcquireSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_lock_exclusive(&state->lock);
 
   C0RegionArena* arena = c0_region_find(state, self.handle);
   const C0RegionEntry* entry = c0_region_resolve_entry(state, self.handle);
   if (!arena || !entry) {
-    ReleaseSRWLockExclusive(&state->lock);
+    cursive_platform_rwlock_unlock_exclusive(&state->lock);
     return NULL;
   }
 
@@ -612,18 +614,18 @@ void* cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aalloc(
     }
   }
 
-  ReleaseSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_unlock_exclusive(&state->lock);
   return ptr;
 }
 
 uint64_t cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3amark(C0Region self) {
   c0_trace_emit_rule("RegionSym-Mark");
   C0RegionState* state = c0_region_state();
-  AcquireSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_lock_exclusive(&state->lock);
 
   C0RegionArena* arena = c0_region_find(state, self.handle);
   if (!arena) {
-    ReleaseSRWLockExclusive(&state->lock);
+    cursive_platform_rwlock_unlock_exclusive(&state->lock);
     return 0;
   }
 
@@ -631,11 +633,11 @@ uint64_t cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3amark(C0Region self) {
   const uint64_t mark = (uint64_t)arena->alloc_count;
   const uint64_t tag = c0_region_fresh_token(state);
   if (!c0_region_stack_push(state, tag, self.handle, scope, mark, 1)) {
-    ReleaseSRWLockExclusive(&state->lock);
+    cursive_platform_rwlock_unlock_exclusive(&state->lock);
     return 0;
   }
 
-  ReleaseSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_unlock_exclusive(&state->lock);
   return mark;
 }
 
@@ -644,12 +646,12 @@ void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5fto(
     uint64_t mark_value) {
   c0_trace_emit_rule("RegionSym-ResetTo");
   C0RegionState* state = c0_region_state();
-  AcquireSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_lock_exclusive(&state->lock);
 
   C0RegionArena* arena = c0_region_find(state, self.handle);
   size_t entry_index = c0_region_find_mark_entry_index(state, self.handle, mark_value);
   if (!arena || entry_index == SIZE_MAX) {
-    ReleaseSRWLockExclusive(&state->lock);
+    cursive_platform_rwlock_unlock_exclusive(&state->lock);
     return;
   }
 
@@ -658,7 +660,7 @@ void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5fto(
   }
 
   c0_region_stack_pop_scope(state, state->region_stack[entry_index].scope);
-  ReleaseSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_unlock_exclusive(&state->lock);
 }
 
 C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5funchecked(
@@ -666,7 +668,7 @@ C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5funchecked(
   c0_trace_emit_rule("Region-Reset-Proc");
   c0_trace_emit_rule("RegionSym-ResetUnchecked");
   C0RegionState* state = c0_region_state();
-  AcquireSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_lock_exclusive(&state->lock);
 
   C0RegionArena* arena = c0_region_find(state, self.handle);
   if (arena) {
@@ -691,7 +693,7 @@ C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5funchecked(
     c0_heap_free_raw(fresh_tags);
   }
 
-  ReleaseSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_unlock_exclusive(&state->lock);
   return c0_region_make(C0_REGION_ACTIVE, self.handle);
 }
 
@@ -712,7 +714,7 @@ C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(
   c0_trace_emit_rule("Region-Free-Proc");
   c0_trace_emit_rule("RegionSym-FreeUnchecked");
   C0RegionState* state = c0_region_state();
-  AcquireSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_lock_exclusive(&state->lock);
 
   C0RegionArena* arena = c0_region_find(state, self.handle);
   if (arena) {
@@ -725,7 +727,7 @@ C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(
     c0_region_discard_arena(arena, 0);
   }
 
-  ReleaseSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_unlock_exclusive(&state->lock);
   return c0_region_make(C0_REGION_FREED, self.handle);
 }
 
@@ -733,7 +735,7 @@ uint8_t cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aaddr_x5fis_x5factive(
     const void* addr) {
   c0_trace_emit_rule("RegionSym-AddrIsActive");
   C0RegionState* state = c0_region_state();
-  AcquireSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_lock_exclusive(&state->lock);
 
   const uint64_t tag = c0_region_addr_tag_get(state, addr);
   const bool ok = (tag == 0) ? true : c0_region_tag_active(state, tag);
@@ -747,7 +749,7 @@ uint8_t cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aaddr_x5fis_x5factive(
                           : "RegionAddrIsActive-TagRegion-Inactive");
   }
 
-  ReleaseSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_unlock_exclusive(&state->lock);
   return ok ? 1 : 0;
 }
 
@@ -760,32 +762,32 @@ void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aaddr_x5ftag_x5ffrom(
   }
 
   C0RegionState* state = c0_region_state();
-  AcquireSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_lock_exclusive(&state->lock);
 
   const uint64_t tag = c0_region_addr_tag_get(state, base);
   if (tag != 0) {
     c0_region_addr_tag_set(state, (void*)addr, tag);
   }
 
-  ReleaseSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_unlock_exclusive(&state->lock);
 }
 
 void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3ascope_x5fenter(
     uint64_t scope_id) {
   c0_trace_emit_rule("RegionSym-ScopeEnter");
   C0RegionState* state = c0_region_state();
-  AcquireSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_lock_exclusive(&state->lock);
   c0_scope_enter(state, scope_id);
-  ReleaseSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_unlock_exclusive(&state->lock);
 }
 
 void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3ascope_x5fexit(
     uint64_t scope_id) {
   c0_trace_emit_rule("RegionSym-ScopeExit");
   C0RegionState* state = c0_region_state();
-  AcquireSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_lock_exclusive(&state->lock);
   c0_scope_exit(state, scope_id);
-  ReleaseSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_unlock_exclusive(&state->lock);
 }
 
 void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aaddr_x5ftag_x5fscope(
@@ -797,14 +799,14 @@ void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aaddr_x5ftag_x5fscope(
   }
 
   C0RegionState* state = c0_region_state();
-  AcquireSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_lock_exclusive(&state->lock);
 
   const uint64_t existing = c0_region_addr_tag_get(state, addr);
   if (existing == 0 || c0_tag_is_scope(existing)) {
     c0_region_addr_tag_set(state, (void*)addr, c0_scope_tag(scope_id));
   }
 
-  ReleaseSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_unlock_exclusive(&state->lock);
 }
 
 C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3anew_x5fscoped(
@@ -827,7 +829,7 @@ C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3anew_x5fscoped(
     }
   }
 
-  AcquireSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_lock_exclusive(&state->lock);
 
   arena->handle = c0_region_fresh_token(state);
   if (!c0_region_insert(state, arena) ||
@@ -838,11 +840,11 @@ C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3anew_x5fscoped(
                             0,
                             0)) {
     c0_region_remove(state, arena->handle);
-    ReleaseSRWLockExclusive(&state->lock);
+    cursive_platform_rwlock_unlock_exclusive(&state->lock);
     c0_region_discard_arena(arena, 1);
     return c0_region_make(C0_REGION_FREED, 0);
   }
 
-  ReleaseSRWLockExclusive(&state->lock);
+  cursive_platform_rwlock_unlock_exclusive(&state->lock);
   return c0_region_make(C0_REGION_ACTIVE, arena->handle);
 }

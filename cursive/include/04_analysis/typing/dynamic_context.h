@@ -6,11 +6,23 @@
 
 namespace cursive::analysis {
 
-bool FindInnermostDynamic(std::span<const ast::AttributeList* const> ancestors);
+struct DynamicScopeAncestor {
+  const ast::AttributeList* attrs = nullptr;
+  const core::Span* span = nullptr;
+};
+
+inline DynamicScopeAncestor MakeDynamicScopeAncestor(
+    const ast::AttributeList& attrs,
+    const core::Span& span) {
+  return DynamicScopeAncestor{&attrs, &span};
+}
+
+const core::Span* FindInnermostDynamic(
+    const core::Span& current_span,
+    std::span<const DynamicScopeAncestor> ancestors);
 
 bool ComputeDynamicContext(
-    std::span<const ast::AttributeList* const> ancestors,
-    bool fallback_dynamic = false);
+    const core::Span& current_span,
+    std::span<const DynamicScopeAncestor> ancestors);
 
 }  // namespace cursive::analysis
-

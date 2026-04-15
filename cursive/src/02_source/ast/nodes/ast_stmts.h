@@ -7,7 +7,7 @@
 //   statement nodes in the Cursive grammar, plus the Stmt variant and
 //   Block structure.
 //
-// SPEC REFERENCE: C:\Dev\Cursive\CursiveSpecification.md Section 3.3.2.6
+// SPEC REFERENCE: docs/CursiveSpecification.md Section 3.3.2.6
 //
 // ===========================================================================
 
@@ -22,6 +22,7 @@
 #include "00_core/span.h"
 #include "cursive/src/02_source/ast/ast_common.h"
 #include "cursive/src/02_source/ast/nodes/ast_attributes.h"
+#include "cursive/src/02_source/ast/nodes/ast_patterns.h"
 
 namespace cursive::ast
 {
@@ -42,6 +43,20 @@ namespace cursive::ast
     ExprPtr init;
     cursive::core::Span span;
   };
+
+  inline TypePtr BindingAnnotationTypeOpt(const Binding& binding)
+  {
+    if (binding.type_opt) {
+      return binding.type_opt;
+    }
+    if (!binding.pat) {
+      return nullptr;
+    }
+    if (const auto* typed = std::get_if<TypedPattern>(&binding.pat->node)) {
+      return typed->type;
+    }
+    return nullptr;
+  }
 
   // ===========================================================================
   // Binding Statements
@@ -72,6 +87,7 @@ namespace cursive::ast
   {
     AttributeList attrs;
     Identifier name;
+    std::optional<SpliceIdentNode> name_splice_opt;
     TypePtr type_opt;
     ExprPtr init;
     cursive::core::Span span;
@@ -84,6 +100,7 @@ namespace cursive::ast
   {
     AttributeList attrs;
     Identifier name;
+    std::optional<SpliceIdentNode> name_splice_opt;
     TypePtr type_opt;
     ExprPtr init;
     cursive::core::Span span;
@@ -148,6 +165,7 @@ namespace cursive::ast
   {
     ExprPtr opts_opt;
     std::optional<Identifier> alias_opt;
+    std::optional<SpliceIdentNode> alias_splice_opt;
     BlockPtr body;
     cursive::core::Span span;
   };
@@ -204,32 +222,16 @@ namespace cursive::ast
     cursive::core::Span span;
   };
 
-  /// ComptimeStmt: compile-time statement block (comptime { ... })
+  /// CtStmt: compile-time statement block (comptime { ... })
   /// Executes only during Phase 2 expansion and does not survive into runtime
   /// statement lowering.
-  struct ComptimeStmt
+  struct CtStmt
   {
     AttributeList attrs;
     BlockPtr body;
     cursive::core::Span span;
   };
-
-  /// ErrorStmt: parse-error sentinel node
-  /// Represents a statement that failed to parse. Allows the parser
-  /// to continue after errors for better error recovery.
-  struct ErrorStmt
-  {
-    cursive::core::Span span;
-  };
-
-  /// StaticAssertStmt: static assert (static_assert(cond))
-  /// Verifies a condition at compile time. If the condition is false,
-  /// compilation fails with an error.
-  struct StaticAssertStmt
-  {
-    ExprPtr condition;
-    cursive::core::Span span;
-  };
+  using ComptimeStmt = CtStmt;
 
   // ===========================================================================
   // Key Block Statement
@@ -241,7 +243,7 @@ namespace cursive::ast
   /// Acquires keys for synchronized access to shared data.
   /// - paths: Key paths identifying the data to access
   /// - mods: Modifiers (Dynamic, Speculative, Release)
-  /// - mode: Access mode (Read or Write, defaults to Write)
+  /// - mode: Access mode (Read or Write, defaults to Read)
   /// - body: Block executed while holding the keys
   ///
   /// Note: KeyMode and KeyBlockMod are defined in ast_common.h
@@ -258,10 +260,18 @@ namespace cursive::ast
 
   /// LogStmt: standalone [[log(...)]] checkpoint statement
   /// Emits a trace record with the observed value () and type ().
-  /// The attribute must carry at least a label argument.
+  /// The label argument is optional; when omitted the record still logs ().
   struct LogStmt
   {
     AttributeList attrs;
+    cursive::core::Span span;
+  };
+
+  /// ErrorStmt: parse-error sentinel node
+  /// Represents a statement that failed to parse. Allows the parser
+  /// to continue after errors for better error recovery.
+  struct ErrorStmt
+  {
     cursive::core::Span span;
   };
 
@@ -291,9 +301,8 @@ namespace cursive::ast
       ContinueStmt,
       // Unsafe and special statements
       UnsafeBlockStmt,
-      ComptimeStmt,
+      CtStmt,
       KeyBlockStmt,
-      StaticAssertStmt,
       // Log checkpoint statement
       LogStmt,
       ErrorStmt>;

@@ -26,6 +26,7 @@
 #include "00_core/diagnostic_messages.h"
 #include "00_core/process_config.h"
 #include "00_core/diagnostics.h"
+#include "00_core/host/services.h"
 #include "00_core/host_primitives.h"
 #include "02_source/lexer/keyword_policy.h"
 
@@ -48,13 +49,12 @@ namespace cursive::frontend {
 
 ReadBytesResult ReadBytesDefault(const std::filesystem::path& path) {
   ReadBytesResult result;
-  if (const char* force = std::getenv("CURSIVE_TEST_READ_BYTES_FAIL")) {
-    if (*force != '\0') {
-      SPEC_RULE("ReadBytes-Err");
-      core::HostPrimFail(core::HostPrim::ReadBytes, true);
-      core::EmitExternalDiagnostic(result.diags, "E-SRC-0102");
-      return result;
-    }
+  if (const auto force = core::HostGetEnvUtf8("CURSIVE_TEST_READ_BYTES_FAIL");
+      force.has_value() && !force->empty()) {
+    SPEC_RULE("ReadBytes-Err");
+    core::HostPrimFail(core::HostPrim::ReadBytes, true);
+    core::EmitExternalDiagnostic(result.diags, "E-SRC-0102");
+    return result;
   }
   std::ifstream in(path, std::ios::binary | std::ios::ate);
   if (!in) {
@@ -242,7 +242,6 @@ ParseModuleResult ParseModuleWithDeps(std::string_view module_path,
 
   std::vector<ast::ASTItem> items;
   std::vector<lexer::DocComment> docs;
-  std::vector<ast::UnsafeSpanSet> unsafe_spans;
   for (const auto& file : unit.files) {
     log_phase("read", file);
     const ReadBytesResult bytes = deps.read_bytes(file);
@@ -289,10 +288,8 @@ ParseModuleResult ParseModuleWithDeps(std::string_view module_path,
                  parsed.file->items.end());
     docs.insert(docs.end(), parsed.file->module_doc.begin(),
                 parsed.file->module_doc.end());
-    ast::UnsafeSpanSet file_spans;
-    file_spans.path = load.source->path;
-    file_spans.spans = parsed.file->unsafe_spans;
-    unsafe_spans.push_back(std::move(file_spans));
+    result.unsafe_spans_by_file[load.source->path] =
+        std::move(parsed.unsafe_spans);
   }
 
   SPEC_RULE("Mod-Done");
@@ -300,7 +297,6 @@ ParseModuleResult ParseModuleWithDeps(std::string_view module_path,
   module.path = SplitModulePath(module_path);
   module.items = std::move(items);
   module.module_doc = std::move(docs);
-  module.unsafe_spans = std::move(unsafe_spans);
   result.module = std::move(module);
   SPEC_RULE("ParseModule-Ok");
   return result;
@@ -322,9 +318,13 @@ ParseModulesResult ParseModulesWithDeps(
   std::vector<ast::ASTModule> parsed_modules;
   parsed_modules.reserve(modules.size());
   for (const auto& module : modules) {
-    const ParseModuleResult parsed =
+    ParseModuleResult parsed =
         ParseModuleWithDeps(module.path, source_root, assembly_name, deps);
     AppendDiags(result.diags, parsed.diags);
+    for (auto& [path, spans] : parsed.unsafe_spans_by_file) {
+      result.unsafe_spans_by_file.insert_or_assign(std::move(path),
+                                                   std::move(spans));
+    }
     if (!parsed.module.has_value()) {
       SPEC_RULE("ParseModules-Err");
       return result;

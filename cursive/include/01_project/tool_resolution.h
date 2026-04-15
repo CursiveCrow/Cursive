@@ -12,7 +12,8 @@ namespace cursive::project {
 
 struct Project;
 
-std::vector<std::filesystem::path> SearchDirs(const Project& project);
+std::vector<std::filesystem::path> SearchDirs(const Project& project,
+                                             TargetProfile target_profile);
 
 std::optional<std::filesystem::path> ResolveTool(const Project& project,
                                                  TargetProfile target_profile,
@@ -21,6 +22,7 @@ std::optional<std::filesystem::path> ResolveTool(const Project& project,
 // Returns a formatted string listing the directories that were searched
 // for the given tool. Used for error reporting when tool resolution fails.
 std::string FormatSearchedPaths(const Project& project,
+                                TargetProfile target_profile,
                                 std::string_view tool);
 
 }  // namespace cursive::project

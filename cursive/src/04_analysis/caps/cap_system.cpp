@@ -179,26 +179,49 @@ std::optional<SystemMethodSig> LookupSystemMethodSig(std::string_view name) {
 }
 
 // C0X Extension: Context method lookup for execution domains (Section 18.2)
-std::optional<ContextMethodSig> LookupContextMethodSig(std::string_view name) {
+std::optional<ContextMethodSig> LookupContextMethodSig(
+    std::string_view name,
+    std::optional<std::size_t> arg_count) {
   SpecDefsCapSystem();
   ContextMethodSig sig{};
   sig.recv_perm = Permission::Const;
 
-  struct ContextMethodBuiltin {
-    std::string_view method_name;
-    std::string_view domain_type;
-  };
-  static constexpr std::array<ContextMethodBuiltin, 3> kContextDomainMethods = {{
-      {"cpu", "CpuDomain"},
-      {"gpu", "GpuDomain"},
-      {"inline", "InlineDomain"},
-  }};
-  for (const auto& entry : kContextDomainMethods) {
-    if (IdEq(name, entry.method_name)) {
+  if (IdEq(name, "cpu")) {
+    if (!arg_count.has_value() || *arg_count == 0) {
       sig.params = {};
-      sig.ret = MakeTypeDynamic(TypePath{std::string(entry.domain_type)});
+      sig.ret = MakeTypeDynamic(TypePath{"CpuDomain"});
       return sig;
     }
+    if (*arg_count == 1) {
+      sig.params = {MakeParam("mask", MakeTypePathAst({"CpuSet"}))};
+      sig.ret = MakeTypeDynamic(TypePath{"CpuDomain"});
+      return sig;
+    }
+    if (*arg_count == 2) {
+      sig.params = {
+          MakeParam("mask", MakeTypePathAst({"CpuSet"})),
+          MakeParam("prio", MakeTypePathAst({"Priority"})),
+      };
+      sig.ret = MakeTypeDynamic(TypePath{"CpuDomain"});
+      return sig;
+    }
+    return std::nullopt;
+  }
+  if (IdEq(name, "gpu")) {
+    if (arg_count.has_value() && *arg_count != 0) {
+      return std::nullopt;
+    }
+    sig.params = {};
+    sig.ret = MakeTypeDynamic(TypePath{"GpuDomain"});
+    return sig;
+  }
+  if (IdEq(name, "inline")) {
+    if (arg_count.has_value() && *arg_count != 0) {
+      return std::nullopt;
+    }
+    sig.params = {};
+    sig.ret = MakeTypeDynamic(TypePath{"InlineDomain"});
+    return sig;
   }
 
   return std::nullopt;
@@ -212,8 +235,8 @@ ast::RecordDecl BuildContextRecordDecl() {
   record.name = ast::Identifier{"Context"};
   record.generic_params = std::nullopt;
   record.implements = {ast::ClassPath{"Bitcopy"}};
-  record.where_clause = std::nullopt;
-  record.invariant = std::nullopt;
+  record.predicate_clause_opt = std::nullopt;
+  record.invariant_opt = std::nullopt;
   record.members = {
       MakeField("fs", MakeTypeDynamicAst({"FileSystem"})),
       MakeField("net", MakeTypeDynamicAst({"Network"})),
@@ -234,8 +257,8 @@ ast::RecordDecl BuildRegionOptionsRecordDecl() {
   record.name = ast::Identifier{"RegionOptions"};
   record.generic_params = std::nullopt;
   record.implements = {};
-  record.where_clause = std::nullopt;
-  record.invariant = std::nullopt;
+  record.predicate_clause_opt = std::nullopt;
+  record.invariant_opt = std::nullopt;
   record.members = {
       MakeFieldWithInit("stack_size",
                         MakeTypePrimAst("usize"),
@@ -257,8 +280,8 @@ ast::RecordDecl BuildSystemRecordDecl() {
   record.name = ast::Identifier{"System"};
   record.generic_params = std::nullopt;
   record.implements = {ast::ClassPath{"Bitcopy"}};
-  record.where_clause = std::nullopt;
-  record.invariant = std::nullopt;
+  record.predicate_clause_opt = std::nullopt;
+  record.invariant_opt = std::nullopt;
   record.members = {};
   record.span = core::Span{};
   record.doc = {};

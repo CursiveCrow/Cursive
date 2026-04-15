@@ -13,6 +13,8 @@ using DiagCode = std::string;
 enum class Severity {
   Error,
   Warning,
+  Info,
+  Panic,
   Note,
 };
 
@@ -32,7 +34,7 @@ struct SubDiagnostic {
 };
 
 struct Diagnostic {
-  DiagCode code;
+  DiagCode code;  // Empty for auxiliary diagnostics with no code.
   Severity severity = Severity::Error;
   std::string message;
   std::optional<Span> span;

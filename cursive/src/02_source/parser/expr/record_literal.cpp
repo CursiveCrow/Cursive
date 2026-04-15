@@ -81,12 +81,14 @@ ParseElemResult<std::vector<FieldInit>> ParseFieldInitTail(
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
-    const std::array<TokenKindMatch, 1> end_set = {MatchPunct("}")};
+    const std::array<EndSetToken, 1> end_set = {EndPunct("}")};
     Parser after = parser;
     Advance(after);
     SkipNewlines(after);
     if (IsPunc(after, "}")) {
-      SPEC_RULE("Parse-FieldInitTail-TrailingComma");
+      if (TrailingCommaAllowed(parser, end_set)) {
+        SPEC_RULE("Parse-FieldInitTail-TrailingComma");
+      }
       EmitTrailingCommaErr(parser, end_set);
       after.diags = parser.diags;
       return {after, xs};

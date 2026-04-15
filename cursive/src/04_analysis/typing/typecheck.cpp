@@ -89,7 +89,7 @@ ast::ProcedureDecl AsProcedureDecl(const ast::ComptimeProcedureDecl& decl) {
   proc.generic_params = decl.generic_params;
   proc.params = decl.params;
   proc.return_type_opt = decl.return_type_opt;
-  proc.where_clause = std::nullopt;
+  proc.predicate_clause_opt = std::nullopt;
   proc.contract = decl.contract;
   proc.body = decl.body;
   proc.span = decl.span;

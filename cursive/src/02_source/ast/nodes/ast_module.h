@@ -4,10 +4,9 @@
 //
 // PURPOSE:
 //   Module and file-level AST structures. Contains ASTModule and ASTFile
-//   definitions that represent complete parsed compilation units, along
-//   with supporting types like UnsafeSpanSet.
+//   definitions that represent complete parsed compilation units.
 //
-// SPEC REFERENCE: C:\Dev\Cursive\CursiveSpecification.md Section 3.3.2.2
+// SPEC REFERENCE: docs/CursiveSpecification.md Section 3.3.2.2
 //   ASTModule = (path: ModulePath, items: [ASTItem], module_doc: DocList)
 //   ASTFile = (path: Path, items: [ASTItem], module_doc: DocList)
 //
@@ -49,24 +48,6 @@ using ASTItem = std::variant<
     DeriveTargetDecl,
     ErrorItem>;
 
-// ===========================================================================
-// Unsafe Span Tracking
-// ===========================================================================
-// UnsafeSpanSet tracks the locations of unsafe blocks within a single source
-// file. This information is used by:
-// - The C0 conformance checker (to warn about unsafe usage)
-// - The safety analyzer (to track unsafe context)
-// - The documentation generator (to annotate unsafe code)
-
-/// UnsafeSpanSet: tracks unsafe block locations in a single file
-/// - path: file system path to the source file
-/// - spans: locations of unsafe { } blocks within that file
-struct UnsafeSpanSet {
-  std::string path;
-  std::vector<cursive::core::Span> spans;
-};
-
-// ===========================================================================
 // ASTModule
 // ===========================================================================
 // ASTModule represents a logical module (possibly spanning multiple files).
@@ -77,12 +58,10 @@ struct UnsafeSpanSet {
 /// - path: the module path (e.g., ["mylib", "utils"])
 /// - items: merged top-level declarations from all files in the module
 /// - module_doc: merged //! module documentation comments
-/// - unsafe_spans: unsafe block locations grouped by source file
 struct ASTModule {
   Path path;
   std::vector<ASTItem> items;
   DocList module_doc;
-  std::vector<UnsafeSpanSet> unsafe_spans;
 };
 
 // ===========================================================================
@@ -95,12 +74,10 @@ struct ASTModule {
 /// - path: source file path segments
 /// - items: parsed top-level declarations in order of appearance
 /// - module_doc: accumulated //! comments at the start of the file
-/// - unsafe_spans: locations of unsafe { } blocks within the file
 struct ASTFile {
   Path path;
   std::vector<ASTItem> items;
   DocList module_doc;
-  std::vector<cursive::core::Span> unsafe_spans;
 };
 
 }  // namespace cursive::ast

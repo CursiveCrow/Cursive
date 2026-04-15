@@ -55,7 +55,6 @@
  * VERIFICATION MODES:
  *   - [[static]] (default): Must prove at compile time
  *   - [[dynamic]]: Generate runtime checks
- *   - [[trust]]: Skip proof obligations at this boundary
  *
  * DIAGNOSTIC CODES:
  *   - E-VER-0001: Contract cannot be statically verified
@@ -72,6 +71,7 @@
 #include <cmath>
 #include <limits>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -92,6 +92,36 @@ static inline void SpecDefsVerification() {
   SPEC_DEF("Ent-And", "C0X.5.W");
   SPEC_DEF("Ent-Or", "C0X.5.W");
   SPEC_DEF("Ent-Linear", "C0X.5.W");
+}
+
+static ast::ExprPtr MakeExprNode(const core::Span& span, ast::ExprNode node) {
+  auto expr = std::make_shared<ast::Expr>();
+  expr->span = span;
+  expr->node = std::move(node);
+  return expr;
+}
+
+static std::optional<std::string> NegatedComparisonOperator(
+    std::string_view op) {
+  if (op == "<") {
+    return std::string(">=");
+  }
+  if (op == "<=") {
+    return std::string(">");
+  }
+  if (op == ">") {
+    return std::string("<=");
+  }
+  if (op == ">=") {
+    return std::string("<");
+  }
+  if (op == "==") {
+    return std::string("!=");
+  }
+  if (op == "!=") {
+    return std::string("==");
+  }
+  return std::nullopt;
 }
 
 // Check if expression is a literal true
@@ -1159,8 +1189,24 @@ bool ExprStructEqual(const ast::ExprPtr& a, const ast::ExprPtr& b) {
   return ExprStructEqualInternal(a, b);
 }
 
-StaticProofResult StaticProof(
+static bool EntFactAt(const StaticProofContext& ctx,
+                      const core::Span& location,
+                      const ast::ExprPtr& expr);
+static bool EntAndAt(const StaticProofContext& ctx,
+                     const core::Span& location,
+                     const ast::ExprPtr& left,
+                     const ast::ExprPtr& right);
+static bool EntOrAt(const StaticProofContext& ctx,
+                    const core::Span& location,
+                    const ast::ExprPtr& left,
+                    const ast::ExprPtr& right);
+static bool EntLinearAt(const StaticProofContext& ctx,
+                        const core::Span& location,
+                        const ast::ExprPtr& expr);
+
+StaticProofResult StaticProofAt(
     const StaticProofContext& ctx,
+    const core::Span& location,
     const ast::ExprPtr& predicate) {
   SpecDefsVerification();
   SPEC_RULE("StaticProof");
@@ -1188,7 +1234,7 @@ StaticProofResult StaticProof(
   }
 
   // Ent-Fact
-  if (EntFact(ctx, predicate)) {
+  if (EntFactAt(ctx, location, predicate)) {
     result.provable = true;
     result.explanation = "Matches known fact";
     return result;
@@ -1197,7 +1243,7 @@ StaticProofResult StaticProof(
   // Ent-And
   if (const auto* binary = std::get_if<ast::BinaryExpr>(&predicate->node)) {
     if (binary->op == "&&") {
-      if (EntAnd(ctx, binary->lhs, binary->rhs)) {
+      if (EntAndAt(ctx, location, binary->lhs, binary->rhs)) {
         result.provable = true;
         result.explanation = "Both conjuncts provable";
         return result;
@@ -1206,7 +1252,7 @@ StaticProofResult StaticProof(
 
     // Ent-Or
     if (binary->op == "||") {
-      if (EntOr(ctx, binary->lhs, binary->rhs)) {
+      if (EntOrAt(ctx, location, binary->lhs, binary->rhs)) {
         result.provable = true;
         result.explanation = "At least one disjunct provable";
         return result;
@@ -1215,7 +1261,7 @@ StaticProofResult StaticProof(
   }
 
   // Ent-Linear
-  if (EntLinear(ctx, predicate)) {
+  if (EntLinearAt(ctx, location, predicate)) {
     result.provable = true;
     result.explanation = "Linear integer reasoning";
     return result;
@@ -1226,18 +1272,27 @@ StaticProofResult StaticProof(
   return result;
 }
 
+StaticProofResult StaticProof(
+    const StaticProofContext& ctx,
+    const ast::ExprPtr& predicate) {
+  const auto location = predicate ? predicate->span : core::Span{};
+  return StaticProofAt(ctx, location, predicate);
+}
+
 bool EntTrue(const ast::ExprPtr& expr) {
   SpecDefsVerification();
   SPEC_RULE("Ent-True");
   return IsLiteralTrue(expr);
 }
 
-bool EntFact(const StaticProofContext& ctx, const ast::ExprPtr& expr) {
+static bool EntFactAt(const StaticProofContext& ctx,
+                      const core::Span& location,
+                      const ast::ExprPtr& expr) {
   SpecDefsVerification();
   SPEC_RULE("Ent-Fact");
 
   for (const auto& fact : ctx.facts) {
-    if (FactDominates(fact, expr->span) &&
+    if (FactDominates(fact, location) &&
         ExprStructEqual(fact.predicate, expr)) {
       return true;
     }
@@ -1245,33 +1300,62 @@ bool EntFact(const StaticProofContext& ctx, const ast::ExprPtr& expr) {
   return false;
 }
 
-bool EntAnd(const StaticProofContext& ctx,
-            const ast::ExprPtr& left,
-            const ast::ExprPtr& right) {
+bool EntFact(const StaticProofContext& ctx, const ast::ExprPtr& expr) {
+  if (!expr) {
+    return false;
+  }
+  return EntFactAt(ctx, expr->span, expr);
+}
+
+static bool EntAndAt(const StaticProofContext& ctx,
+                     const core::Span& location,
+                     const ast::ExprPtr& left,
+                     const ast::ExprPtr& right) {
   SpecDefsVerification();
   SPEC_RULE("Ent-And");
 
-  auto left_proof = StaticProof(ctx, left);
+  auto left_proof = StaticProofAt(ctx, location, left);
   if (!left_proof.provable) return false;
 
-  auto right_proof = StaticProof(ctx, right);
+  auto right_proof = StaticProofAt(ctx, location, right);
+  return right_proof.provable;
+}
+
+bool EntAnd(const StaticProofContext& ctx,
+            const ast::ExprPtr& left,
+            const ast::ExprPtr& right) {
+  if (!left || !right) {
+    return false;
+  }
+  return EntAndAt(ctx, left->span, left, right);
+}
+
+static bool EntOrAt(const StaticProofContext& ctx,
+                    const core::Span& location,
+                    const ast::ExprPtr& left,
+                    const ast::ExprPtr& right) {
+  SpecDefsVerification();
+  SPEC_RULE("Ent-Or");
+
+  auto left_proof = StaticProofAt(ctx, location, left);
+  if (left_proof.provable) return true;
+
+  auto right_proof = StaticProofAt(ctx, location, right);
   return right_proof.provable;
 }
 
 bool EntOr(const StaticProofContext& ctx,
            const ast::ExprPtr& left,
            const ast::ExprPtr& right) {
-  SpecDefsVerification();
-  SPEC_RULE("Ent-Or");
-
-  auto left_proof = StaticProof(ctx, left);
-  if (left_proof.provable) return true;
-
-  auto right_proof = StaticProof(ctx, right);
-  return right_proof.provable;
+  if (!left || !right) {
+    return false;
+  }
+  return EntOrAt(ctx, left->span, left, right);
 }
 
-bool EntLinear(const StaticProofContext& ctx, const ast::ExprPtr& expr) {
+static bool EntLinearAt(const StaticProofContext& ctx,
+                        const core::Span& location,
+                        const ast::ExprPtr& expr) {
   SpecDefsVerification();
   SPEC_RULE("Ent-Linear");
   if (!expr) {
@@ -1286,7 +1370,7 @@ bool EntLinear(const StaticProofContext& ctx, const ast::ExprPtr& expr) {
   std::vector<LinearConstraint> facts;
   bool contradiction = false;
   for (const auto& fact : ctx.facts) {
-    if (!FactDominates(fact, expr->span)) {
+    if (!FactDominates(fact, location)) {
       continue;
     }
     CollectLinearFacts(fact.predicate, facts, contradiction);
@@ -1296,6 +1380,13 @@ bool EntLinear(const StaticProofContext& ctx, const ast::ExprPtr& expr) {
   }
 
   return EntailsParsedComparison(facts, target);
+}
+
+bool EntLinear(const StaticProofContext& ctx, const ast::ExprPtr& expr) {
+  if (!expr) {
+    return false;
+  }
+  return EntLinearAt(ctx, expr->span, expr);
 }
 
 ConstValue EvaluateConstant(const ast::ExprPtr& expr) {
@@ -1514,6 +1605,60 @@ void AddFact(StaticProofContext& ctx,
   fact.location = location;
   fact.scope_id = ctx.current_scope;
   ctx.facts.push_back(fact);
+}
+
+void AddPredicateFacts(StaticProofContext& ctx,
+                       const ast::ExprPtr& predicate) {
+  if (!predicate) {
+    return;
+  }
+  if (const auto* binary = std::get_if<ast::BinaryExpr>(&predicate->node);
+      binary && binary->op == "&&") {
+    AddPredicateFacts(ctx, binary->lhs);
+    AddPredicateFacts(ctx, binary->rhs);
+    return;
+  }
+  AddFact(ctx, predicate, predicate->span);
+}
+
+std::shared_ptr<StaticProofContext> ExtendProofContextWithPredicate(
+    const std::shared_ptr<StaticProofContext>& base,
+    const ast::ExprPtr& predicate) {
+  if (!base && !predicate) {
+    return nullptr;
+  }
+
+  auto proof_ctx = std::make_shared<StaticProofContext>();
+  if (base) {
+    *proof_ctx = *base;
+  }
+  AddPredicateFacts(*proof_ctx, predicate);
+  return proof_ctx;
+}
+
+std::optional<ast::ExprPtr> NegatedPredicate(const ast::ExprPtr& predicate) {
+  if (!predicate) {
+    return std::nullopt;
+  }
+
+  if (const auto* unary = std::get_if<ast::UnaryExpr>(&predicate->node)) {
+    if (unary->op == "!" && unary->value) {
+      return unary->value;
+    }
+    return std::nullopt;
+  }
+
+  if (const auto* binary = std::get_if<ast::BinaryExpr>(&predicate->node)) {
+    const auto negated_op = NegatedComparisonOperator(binary->op);
+    if (!negated_op.has_value()) {
+      return std::nullopt;
+    }
+    ast::BinaryExpr negated = *binary;
+    negated.op = *negated_op;
+    return MakeExprNode(predicate->span, std::move(negated));
+  }
+
+  return std::nullopt;
 }
 
 bool FactDominates(const VerificationFact& fact, const core::Span& location) {

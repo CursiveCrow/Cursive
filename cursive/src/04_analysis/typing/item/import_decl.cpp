@@ -47,8 +47,8 @@ static inline void SpecDefsImportDecl() {
 
 // Get the alias name for an import (last segment or explicit alias)
 static std::string GetImportAlias(const ast::ImportDecl& decl) {
-  if (decl.alias.has_value() && !decl.alias->empty()) {
-    return *decl.alias;
+  if (decl.alias_opt.has_value() && !decl.alias_opt->empty()) {
+    return *decl.alias_opt;
   }
   if (!decl.path.empty()) {
     return decl.path.back();
@@ -94,7 +94,8 @@ ImportDeclResult TypeImportDecl(
   result.ok = true;
 
   const auto attr_validation =
-      ValidateAttributes(decl.attrs, AttributeTarget::Import);
+      ValidateUnsupportedAttributeTarget(ast::AttrListOf(decl.attrs_opt),
+                                         "import declarations");
   if (!attr_validation.ok) {
     result.ok = false;
     result.diag_id = attr_validation.diag_id;

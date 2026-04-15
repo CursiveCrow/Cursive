@@ -128,6 +128,7 @@
 #include "02_source/lexer/lexer.h"
 
 #include <cstddef>
+#include <iostream>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -135,6 +136,7 @@
 
 #include "00_core/assert_spec.h"
 #include "00_core/diagnostic_messages.h"
+#include "00_core/process_config.h"
 #include "00_core/source_text.h"
 #include "00_core/span.h"
 #include "00_core/unicode.h"
@@ -229,10 +231,66 @@ struct SeenIdentifier {
   std::string normalized;
 };
 
+bool MatchCommentPrefix(const std::vector<core::UnicodeScalar>& scalars,
+                        std::size_t start,
+                        core::UnicodeScalar a,
+                        core::UnicodeScalar b) {
+  return start + 1 < scalars.size() && scalars[start] == a &&
+         scalars[start + 1] == b;
+}
+
 }  // namespace
 
 std::vector<core::Span> UnsafeSpans(const std::vector<Token>& tokens) {
   return ComputeUnsafeSpans(tokens);
+}
+
+std::vector<std::size_t> LexSensitivePos(const core::SourceFile& source) {
+  const auto& scalars = source.scalars;
+  std::vector<std::size_t> sensitive;
+  sensitive.reserve(scalars.size());
+
+  std::size_t i = 0;
+  while (i < scalars.size()) {
+    if (MatchCommentPrefix(scalars, i, '/', '/')) {
+      CommentScanResult line = ScanLineComment(source, i);
+      if (line.ok && line.next > i) {
+        i = line.next;
+        continue;
+      }
+    }
+
+    if (MatchCommentPrefix(scalars, i, '/', '*')) {
+      CommentScanResult block = ScanBlockComment(source, i);
+      if (block.next > i) {
+        i = block.next;
+        continue;
+      }
+    }
+
+    if (scalars[i] == '"') {
+      LiteralScanResult lit = ScanStringLiteral(source, i);
+      if (lit.ok || lit.next > i) {
+        i = lit.next;
+        continue;
+      }
+    }
+
+    if (scalars[i] == '\'') {
+      LiteralScanResult lit = ScanCharLiteral(source, i);
+      if (lit.ok || lit.next > i) {
+        i = lit.next;
+        continue;
+      }
+    }
+
+    if (core::IsSensitive(scalars[i])) {
+      sensitive.push_back(i);
+    }
+    ++i;
+  }
+
+  return sensitive;
 }
 
 LexSecureResult LexSecure(const core::SourceFile& source,
@@ -282,6 +340,11 @@ LexSecureResult ConfusableCheck(const core::SourceFile& source,
   for (const Token& tok : tokens) {
     if (tok.kind != TokenKind::Identifier) {
       continue;
+    }
+
+    if (core::IsDebugEnabled("lex") || core::IsDebugEnabled("parse")) {
+      std::cerr << "[cursive] unicode: ConfusableCheck token=\"" << tok.lexeme
+                << "\"\n";
     }
 
     const core::IdentifierSecurityInfo security =

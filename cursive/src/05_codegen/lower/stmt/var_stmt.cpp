@@ -140,7 +140,7 @@ IRPtr LowerVarStmt(const ast::VarStmt& stmt, LowerCtx& ctx) {
   // 1. From explicit type annotation if present
   // 2. From expression type inference if available
   analysis::TypeRef var_type;
-  var_type = LowerBindingType(binding.type_opt, ctx);
+  var_type = LowerBindingType(ast::BindingAnnotationTypeOpt(binding), ctx);
   if (!var_type && ctx.expr_type && binding.init) {
     var_type = ctx.expr_type(*binding.init);
   }

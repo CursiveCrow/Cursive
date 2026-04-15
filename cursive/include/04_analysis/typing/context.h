@@ -50,6 +50,7 @@ using TypeDecl = std::variant<ast::RecordDecl,
 
 struct Sigma {
   std::vector<ast::ASTModule> mods;
+  std::unordered_map<std::string, std::vector<core::Span>> unsafe_spans_by_file;
   std::map<PathKey, TypeDecl> types;
   std::map<PathKey, ast::ClassDecl> classes;
   std::unordered_map<const ast::Type*, TypeRef> opaque_underlying;

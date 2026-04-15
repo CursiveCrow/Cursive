@@ -59,12 +59,15 @@ LowerResult LowerAllocExpr(const ast::Expr& expr,
     ir_alloc.value = value_result.value;
     ir_alloc.type = value_type;
 
-    // Handle optional region specifier
-    if (alloc.region_opt) {
-        // Named region allocation: r^expr
-        // Create an identifier expression for the region name
+    std::optional<ast::Identifier> resolved_region = alloc.region_opt;
+    if (!resolved_region.has_value() && !ctx.active_region_aliases.empty()) {
+        resolved_region = ctx.active_region_aliases.back();
+    }
+
+    // Handle named or inherited active-region allocation.
+    if (resolved_region) {
         ast::IdentifierExpr ident;
-        ident.name = *alloc.region_opt;
+        ident.name = *resolved_region;
         ast::Expr region_expr;
         region_expr.span = expr.span;
         region_expr.node = ident;
@@ -72,7 +75,6 @@ LowerResult LowerAllocExpr(const ast::Expr& expr,
         auto region_result = LowerExpr(region_expr, ctx);
         ir_alloc.region = region_result.value;
 
-        // Create result values
         IRValue ptr_value = ctx.FreshTempValue("alloc_ptr");
         ir_alloc.result = ptr_value;
 

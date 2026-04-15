@@ -79,6 +79,18 @@ const ast::ASTModule* FindAvailableModule(const CtEnv& env,
   return nullptr;
 }
 
+const std::vector<ASTItem>* FindVisibleModuleItems(const CtEnv& env,
+                                                   const ast::ModulePath& path) {
+  if (PathEq(path, env.current_module) && env.current_module_items != nullptr) {
+    return env.current_module_items;
+  }
+  const ast::ASTModule* module = FindAvailableModule(env, path);
+  if (module == nullptr) {
+    return nullptr;
+  }
+  return &module->items;
+}
+
 bool CanAccessVis(const ast::ModulePath& accessor_module,
                   const ast::ModulePath& decl_module,
                   ast::Visibility vis) {
@@ -130,12 +142,13 @@ std::optional<ast::ModulePath> ExpandImportAliasPrefix(const CtEnv& env,
     return std::nullopt;
   }
 
-  const ast::ASTModule* current = FindAvailableModule(env, env.current_module);
-  if (current == nullptr) {
+  const std::vector<ASTItem>* current_items =
+      FindVisibleModuleItems(env, env.current_module);
+  if (current_items == nullptr) {
     return std::nullopt;
   }
 
-  for (const ASTItem& item : current->items) {
+  for (const ASTItem& item : *current_items) {
     const auto* import = std::get_if<ast::ImportDecl>(&item);
     if (import == nullptr) {
       continue;
@@ -148,8 +161,8 @@ std::optional<ast::ModulePath> ExpandImportAliasPrefix(const CtEnv& env,
     }
 
     const ast::Identifier alias =
-        import->alias.value_or(resolved->empty() ? ast::Identifier{}
-                                                 : resolved->back());
+        import->alias_opt.value_or(resolved->empty() ? ast::Identifier{}
+                                                     : resolved->back());
     if (alias.empty() || !IdEq(alias, path.front())) {
       continue;
     }
@@ -185,12 +198,13 @@ bool ImportRequired(const ast::ModulePath& current_module,
 }
 
 bool ImportCovers(const CtEnv& env, const ast::ModulePath& path) {
-  const ast::ASTModule* current = FindAvailableModule(env, env.current_module);
-  if (current == nullptr) {
+  const std::vector<ASTItem>* current_items =
+      FindVisibleModuleItems(env, env.current_module);
+  if (current_items == nullptr) {
     return false;
   }
 
-  for (const ASTItem& item : current->items) {
+  for (const ASTItem& item : *current_items) {
     const auto* import = std::get_if<ast::ImportDecl>(&item);
     if (import == nullptr) {
       continue;
@@ -268,11 +282,11 @@ std::vector<NamedDeclRef> FindNamedDeclsInModule(
     const ast::ModulePath& accessor_module,
     std::string_view name) {
   std::vector<NamedDeclRef> out;
-  const ast::ASTModule* module = FindAvailableModule(env, module_path);
-  if (module == nullptr) {
+  const std::vector<ASTItem>* items = FindVisibleModuleItems(env, module_path);
+  if (items == nullptr) {
     return out;
   }
-  for (const ASTItem& item : module->items) {
+  for (const ASTItem& item : *items) {
     MaybeAddNamedDecl(out, item, module_path, accessor_module, name);
   }
   return out;
@@ -363,9 +377,10 @@ std::vector<NamedDeclRef> ResolveNamedDeclsInContext(
         FindNamedDeclsInModule(env, accessor_module, accessor_module, path.front());
     out.insert(out.end(), current.begin(), current.end());
 
-    const ast::ASTModule* module = FindAvailableModule(env, accessor_module);
-    if (module != nullptr) {
-      for (const ASTItem& item : module->items) {
+    const std::vector<ASTItem>* items =
+        FindVisibleModuleItems(env, accessor_module);
+    if (items != nullptr) {
+      for (const ASTItem& item : *items) {
         if (const auto* using_decl = std::get_if<ast::UsingDecl>(&item)) {
           AppendUsingBoundNamedDecls(out, env, accessor_module, *using_decl,
                                      path.front());
@@ -1363,7 +1378,7 @@ std::optional<EvalResult> EvalIntrospectMethod(const ast::MethodCallExpr& call,
   if (IdEq(call.name, "category")) {
     const auto type = eval_type_arg(0);
     if (!type.has_value()) {
-      return EvalResult{};
+      return std::optional<EvalResult>{EvalResult{}};
     }
     std::unordered_set<const ast::Type*> visiting;
     EvalResult result;
@@ -1371,23 +1386,23 @@ std::optional<EvalResult> EvalIntrospectMethod(const ast::MethodCallExpr& call,
       result.ok = true;
       result.value = *category;
     }
-    return result;
+    return std::optional<EvalResult>{std::move(result)};
   }
 
   if (IdEq(call.name, "type_name")) {
     const auto type = eval_type_arg(0);
     if (!type.has_value()) {
-      return EvalResult{};
+      return std::optional<EvalResult>{EvalResult{}};
     }
-    return MakeStringResult(ast::to_string(**type));
+    return std::optional<EvalResult>{MakeStringResult(ast::to_string(**type))};
   }
 
   if (IdEq(call.name, "module_path")) {
     const auto type = eval_type_arg(0);
     if (!type.has_value()) {
-      return EvalResult{};
+      return std::optional<EvalResult>{EvalResult{}};
     }
-    return std::visit(
+    return std::optional<EvalResult>{std::visit(
         [&](const auto& node) -> EvalResult {
           using T = std::decay_t<decltype(node)>;
           if constexpr (std::is_same_v<T, ast::TypePathType>) {
@@ -1399,24 +1414,24 @@ std::optional<EvalResult> EvalIntrospectMethod(const ast::MethodCallExpr& call,
           }
           return MakeStringResult("");
         },
-        (*type)->node);
+        (*type)->node)};
   }
 
   if (IdEq(call.name, "fields")) {
     const auto type = eval_type_arg(0);
     if (!type.has_value()) {
-      return EvalResult{};
+      return std::optional<EvalResult>{EvalResult{}};
     }
     if (!ReflectableType(env, *type)) {
       EmitReflectionDeclDiag(env, ReflectionDiagSpan(call));
-      return EvalResult{};
+      return std::optional<EvalResult>{EvalResult{}};
     }
 
     const auto target = ResolveReflectNominalTarget(env, *type);
     if (!target.has_value() || target->decl.kind != NamedDeclKind::Record ||
         target->decl.record == nullptr) {
       EmitReflectionDeclDiag(env, ReflectionDiagSpan(call));
-      return EvalResult{};
+      return std::optional<EvalResult>{EvalResult{}};
     }
 
     std::vector<CtValue> infos;
@@ -1430,24 +1445,24 @@ std::optional<EvalResult> EvalIntrospectMethod(const ast::MethodCallExpr& call,
         ++field_index;
       }
     }
-    return MakeArrayResult(std::move(infos));
+    return std::optional<EvalResult>{MakeArrayResult(std::move(infos))};
   }
 
   if (IdEq(call.name, "variants")) {
     const auto type = eval_type_arg(0);
     if (!type.has_value()) {
-      return EvalResult{};
+      return std::optional<EvalResult>{EvalResult{}};
     }
     if (!ReflectableType(env, *type)) {
       EmitReflectionDeclDiag(env, ReflectionDiagSpan(call));
-      return EvalResult{};
+      return std::optional<EvalResult>{EvalResult{}};
     }
 
     const auto target = ResolveReflectNominalTarget(env, *type);
     if (!target.has_value() || target->decl.kind != NamedDeclKind::Enum ||
         target->decl.enum_decl == nullptr) {
       EmitReflectionDeclDiag(env, ReflectionDiagSpan(call));
-      return EvalResult{};
+      return std::optional<EvalResult>{EvalResult{}};
     }
 
     std::vector<CtValue> infos;
@@ -1478,24 +1493,24 @@ std::optional<EvalResult> EvalIntrospectMethod(const ast::MethodCallExpr& call,
           std::move(payload_types), PayloadFieldNames(variant.payload_opt),
           variant.span));
     }
-    return MakeArrayResult(std::move(infos));
+    return std::optional<EvalResult>{MakeArrayResult(std::move(infos))};
   }
 
   if (IdEq(call.name, "states")) {
     const auto type = eval_type_arg(0);
     if (!type.has_value()) {
-      return EvalResult{};
+      return std::optional<EvalResult>{EvalResult{}};
     }
     if (!ReflectableType(env, *type)) {
       EmitReflectionDeclDiag(env, ReflectionDiagSpan(call));
-      return EvalResult{};
+      return std::optional<EvalResult>{EvalResult{}};
     }
 
     const auto target = ResolveReflectNominalTarget(env, *type);
     if (!target.has_value() || target->decl.kind != NamedDeclKind::Modal ||
         target->decl.modal == nullptr) {
       EmitReflectionDeclDiag(env, ReflectionDiagSpan(call));
-      return EvalResult{};
+      return std::optional<EvalResult>{EvalResult{}};
     }
 
     std::vector<CtValue> infos;
@@ -1503,14 +1518,14 @@ std::optional<EvalResult> EvalIntrospectMethod(const ast::MethodCallExpr& call,
     for (const auto& state : target->decl.modal->states) {
       infos.push_back(MakeStateInfoValue(state));
     }
-    return MakeArrayResult(std::move(infos));
+    return std::optional<EvalResult>{MakeArrayResult(std::move(infos))};
   }
 
   if (IdEq(call.name, "implements_form")) {
     const auto type = eval_type_arg(0);
     const auto form = eval_type_arg(1);
     if (!type.has_value() || !form.has_value()) {
-      return EvalResult{};
+      return std::optional<EvalResult>{EvalResult{}};
     }
 
     ast::ClassPath form_path;
@@ -1522,12 +1537,29 @@ std::optional<EvalResult> EvalIntrospectMethod(const ast::MethodCallExpr& call,
       form_path =
           ResolveReflectClassPathInContext(env, env.current_module, form_node->path);
     } else {
-      return MakeBoolResult(false);
+      return std::optional<EvalResult>{MakeBoolResult(false)};
     }
     const auto canonical_type = CanonicalizeReflectType(env, *type);
-    return MakeBoolResult(analysis::ReflectImplementsForm(
-        env.available_modules, env.available_module_names, env.current_module,
-        canonical_type, form_path));
+    ast::ASTModule current_overlay;
+    current_overlay.path = env.current_module;
+    if (env.current_module_items != nullptr) {
+      current_overlay.items = *env.current_module_items;
+    }
+    std::vector<const ast::ASTModule*> reflect_modules = env.available_modules;
+    bool replaced_current = false;
+    for (const ast::ASTModule*& module : reflect_modules) {
+      if (module != nullptr && PathEq(module->path, env.current_module)) {
+        module = &current_overlay;
+        replaced_current = true;
+        break;
+      }
+    }
+    if (!replaced_current) {
+      reflect_modules.push_back(&current_overlay);
+    }
+    return std::optional<EvalResult>{MakeBoolResult(analysis::ReflectImplementsForm(
+        reflect_modules, env.available_module_names, env.current_module,
+        canonical_type, form_path))};
   }
 
   return std::nullopt;

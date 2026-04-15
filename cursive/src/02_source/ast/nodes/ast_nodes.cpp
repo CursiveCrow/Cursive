@@ -65,6 +65,26 @@ core::Span span_of(const ASTItem& item) {
 // DocOf : ASTNode -> (DocList | bottom)
 // Extracts documentation from AST items that have doc fields.
 
+const DocList* doc_of(const Expr& e) {
+  (void)e;
+  return nullptr;
+}
+
+const DocList* doc_of(const Type& t) {
+  (void)t;
+  return nullptr;
+}
+
+const DocList* doc_of(const Pattern& p) {
+  (void)p;
+  return nullptr;
+}
+
+const DocList* doc_of(const Stmt& s) {
+  (void)s;
+  return nullptr;
+}
+
 const DocList* doc_of(const ASTItem& item) {
   return std::visit(
       [](const auto& decl) -> const DocList* {
@@ -236,9 +256,8 @@ const char* node_kind(const Stmt& s) {
         if constexpr (std::is_same_v<T, BreakStmt>) return "BreakStmt";
         if constexpr (std::is_same_v<T, ContinueStmt>) return "ContinueStmt";
         if constexpr (std::is_same_v<T, UnsafeBlockStmt>) return "UnsafeBlockStmt";
-        if constexpr (std::is_same_v<T, ComptimeStmt>) return "ComptimeStmt";
+        if constexpr (std::is_same_v<T, CtStmt>) return "CtStmt";
         if constexpr (std::is_same_v<T, KeyBlockStmt>) return "KeyBlockStmt";
-        if constexpr (std::is_same_v<T, StaticAssertStmt>) return "StaticAssertStmt";
         if constexpr (std::is_same_v<T, LogStmt>) return "LogStmt";
         if constexpr (std::is_same_v<T, ErrorStmt>) return "ErrorStmt";
         return "UnknownStmt";
@@ -475,7 +494,7 @@ void collect_stmt_nodes_from_block(const BlockPtr& block,
           if constexpr (std::is_same_v<T, DeferStmt> ||
                         std::is_same_v<T, RegionStmt> ||
                         std::is_same_v<T, FrameStmt> ||
-                        std::is_same_v<T, ComptimeStmt> ||
+                        std::is_same_v<T, CtStmt> ||
                         std::is_same_v<T, UnsafeBlockStmt> ||
                         std::is_same_v<T, KeyBlockStmt>) {
             collect_stmt_nodes_from_block(node.body, out);
@@ -511,7 +530,7 @@ void collect_expr_nodes_from_stmt(const Stmt& stmt,
         } else if constexpr (std::is_same_v<T, DeferStmt> ||
                              std::is_same_v<T, RegionStmt> ||
                              std::is_same_v<T, FrameStmt> ||
-                             std::is_same_v<T, ComptimeStmt> ||
+                             std::is_same_v<T, CtStmt> ||
                              std::is_same_v<T, UnsafeBlockStmt> ||
                              std::is_same_v<T, KeyBlockStmt>) {
           if (node.body) {
@@ -534,6 +553,55 @@ void collect_expr_nodes_from_block(const BlockPtr& block,
     collect_expr_nodes_from_stmt(stmt, out);
   }
   collect_expr_nodes_from_expr(block->tail_opt, out);
+}
+
+static void collect_parallel_option_expr_nodes(
+    const std::vector<ParallelOption>& opts,
+    std::vector<const Expr*>& out) {
+  for (const auto& opt : opts) {
+    switch (opt.kind) {
+      case ParallelOptionKind::Cancel:
+      case ParallelOptionKind::Workgroup:
+      case ParallelOptionKind::Workgroups:
+        collect_expr_nodes_from_expr(opt.value, out);
+        break;
+      case ParallelOptionKind::Name:
+        break;
+    }
+  }
+}
+
+static void collect_dispatch_option_expr_nodes(
+    const std::vector<DispatchOption>& opts,
+    std::vector<const Expr*>& out) {
+  for (const auto& opt : opts) {
+    switch (opt.kind) {
+      case DispatchOptionKind::Chunk:
+        collect_expr_nodes_from_expr(opt.chunk_expr, out);
+        break;
+      case DispatchOptionKind::Workgroup:
+        collect_expr_nodes_from_expr(opt.workgroup_expr, out);
+        break;
+      case DispatchOptionKind::Reduce:
+      case DispatchOptionKind::Ordered:
+        break;
+    }
+  }
+}
+
+static void collect_spawn_option_expr_nodes(
+    const std::vector<SpawnOption>& opts,
+    std::vector<const Expr*>& out) {
+  for (const auto& opt : opts) {
+    switch (opt.kind) {
+      case SpawnOptionKind::Affinity:
+      case SpawnOptionKind::Priority:
+        collect_expr_nodes_from_expr(opt.value, out);
+        break;
+      case SpawnOptionKind::Name:
+        break;
+    }
+  }
 }
 
 void collect_expr_nodes_from_expr(const ExprPtr& expr,
@@ -565,9 +633,9 @@ void collect_expr_nodes_from_expr(const ExprPtr& expr,
             collect_expr_nodes_from_expr(e, out);
           }
         } else if constexpr (std::is_same_v<T, ArrayExpr>) {
-          for (const auto& e : node.elements) {
+          ForEachArrayExprSubexpr(node, [&](const auto& e) {
             collect_expr_nodes_from_expr(e, out);
-          }
+          });
         } else if constexpr (std::is_same_v<T, ArrayRepeatExpr>) {
           collect_expr_nodes_from_expr(node.value, out);
           collect_expr_nodes_from_expr(node.count, out);
@@ -688,22 +756,16 @@ void collect_expr_nodes_from_expr(const ExprPtr& expr,
           }
         } else if constexpr (std::is_same_v<T, ParallelExpr>) {
           collect_expr_nodes_from_expr(node.domain, out);
-          for (const auto& opt : node.opts) {
-            collect_expr_nodes_from_expr(opt.value, out);
-          }
+          collect_parallel_option_expr_nodes(node.opts, out);
           collect_expr_nodes_from_block(node.body, out);
         } else if constexpr (std::is_same_v<T, SpawnExpr>) {
-          for (const auto& opt : node.opts) {
-            collect_expr_nodes_from_expr(opt.value, out);
-          }
+          collect_spawn_option_expr_nodes(node.opts, out);
           collect_expr_nodes_from_block(node.body, out);
         } else if constexpr (std::is_same_v<T, WaitExpr>) {
           collect_expr_nodes_from_expr(node.handle, out);
         } else if constexpr (std::is_same_v<T, DispatchExpr>) {
           collect_expr_nodes_from_expr(node.range, out);
-          for (const auto& opt : node.opts) {
-            collect_expr_nodes_from_expr(opt.chunk_expr, out);
-          }
+          collect_dispatch_option_expr_nodes(node.opts, out);
           collect_expr_nodes_from_block(node.body, out);
           if (node.key_clause.has_value()) {
             for (const auto& seg : node.key_clause->key_path.segs) {
@@ -734,12 +796,12 @@ void collect_type_nodes_from_item(const ASTItem& item,
       [&](const auto& node) {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, StaticDecl>) {
-          push_type(node.binding.type_opt);
+          push_type(BindingAnnotationTypeOpt(node.binding));
         } else if constexpr (std::is_same_v<T, ProcedureDecl>) {
           push_params(node.params);
           push_type(node.return_type_opt);
-          if (node.where_clause.has_value()) {
-            for (const auto& pred : node.where_clause->predicates) {
+          if (node.predicate_clause_opt.has_value()) {
+            for (const auto& pred : node.predicate_clause_opt->predicates) {
               push_type(pred.type);
             }
           }
@@ -761,6 +823,11 @@ void collect_type_nodes_from_item(const ASTItem& item,
                 ext);
           }
         } else if constexpr (std::is_same_v<T, RecordDecl>) {
+          if (node.predicate_clause_opt.has_value()) {
+            for (const auto& pred : node.predicate_clause_opt->predicates) {
+              push_type(pred.type);
+            }
+          }
           for (const auto& member : node.members) {
             std::visit(
                 [&](const auto& m) {
@@ -781,6 +848,11 @@ void collect_type_nodes_from_item(const ASTItem& item,
                 member);
           }
         } else if constexpr (std::is_same_v<T, EnumDecl>) {
+          if (node.predicate_clause_opt.has_value()) {
+            for (const auto& pred : node.predicate_clause_opt->predicates) {
+              push_type(pred.type);
+            }
+          }
           for (const auto& variant : node.variants) {
             if (!variant.payload_opt.has_value()) {
               continue;
@@ -801,6 +873,11 @@ void collect_type_nodes_from_item(const ASTItem& item,
                 *variant.payload_opt);
           }
         } else if constexpr (std::is_same_v<T, ModalDecl>) {
+          if (node.predicate_clause_opt.has_value()) {
+            for (const auto& pred : node.predicate_clause_opt->predicates) {
+              push_type(pred.type);
+            }
+          }
           for (const auto& state : node.states) {
             for (const auto& member : state.members) {
               std::visit(
@@ -823,6 +900,11 @@ void collect_type_nodes_from_item(const ASTItem& item,
             }
           }
         } else if constexpr (std::is_same_v<T, ClassDecl>) {
+          if (node.predicate_clause_opt.has_value()) {
+            for (const auto& pred : node.predicate_clause_opt->predicates) {
+              push_type(pred.type);
+            }
+          }
           for (const auto& class_item : node.items) {
             std::visit(
                 [&](const auto& m) {
@@ -849,8 +931,8 @@ void collect_type_nodes_from_item(const ASTItem& item,
           }
         } else if constexpr (std::is_same_v<T, TypeAliasDecl>) {
           push_type(node.type);
-          if (node.where_clause.has_value()) {
-            for (const auto& pred : node.where_clause->predicates) {
+          if (node.predicate_clause_opt.has_value()) {
+            for (const auto& pred : node.predicate_clause_opt->predicates) {
               push_type(pred.type);
             }
           }
@@ -922,7 +1004,7 @@ std::string AppendixItemFormTag(const ASTItem& item) {
       [](const auto& node) -> std::string {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, ComptimeProcedureDecl>) return "CtProc";
-        if constexpr (std::is_same_v<T, ComptimeStmt>) return "CtStmt";
+        if constexpr (std::is_same_v<T, CtStmt>) return "CtStmt";
         if constexpr (std::is_same_v<T, TypeAliasDecl>) return "TypeAliasDecl";
         if constexpr (std::is_same_v<T, UsingDecl>) return "UsingDecl";
         if constexpr (std::is_same_v<T, ImportDecl>) return "ImportDecl";
@@ -970,7 +1052,7 @@ std::string StmtKindTag(const Stmt& s) {
         if constexpr (std::is_same_v<T, BreakStmt>) return "break";
         if constexpr (std::is_same_v<T, ContinueStmt>) return "continue";
         if constexpr (std::is_same_v<T, UnsafeBlockStmt>) return "unsafe";
-        if constexpr (std::is_same_v<T, ComptimeStmt>) return "comptime";
+        if constexpr (std::is_same_v<T, CtStmt>) return "comptime";
         return "";
       },
       s);
@@ -1098,6 +1180,70 @@ std::vector<std::string> type_constructs(const ASTModule& module) {
   return std::vector<std::string>(out.begin(), out.end());
 }
 
+namespace {
+
+void InsertReceiverShorthandPerm(const Receiver& receiver, std::set<std::string>& out) {
+  const auto* recv = std::get_if<ReceiverShorthand>(&receiver);
+  if (recv == nullptr) {
+    return;
+  }
+
+  switch (recv->perm) {
+    case ReceiverPerm::Const:
+      out.insert("const");
+      break;
+    case ReceiverPerm::Unique:
+      out.insert("unique");
+      break;
+    case ReceiverPerm::Shared:
+      out.insert("shared");
+      break;
+  }
+}
+
+}  // namespace
+
+std::vector<std::string> recv_perms(const std::vector<RecordMember>& members) {
+  std::set<std::string> out;
+  for (const auto& member : members) {
+    const auto* method = std::get_if<MethodDecl>(&member);
+    if (method == nullptr) {
+      continue;
+    }
+
+    InsertReceiverShorthandPerm(method->receiver, out);
+  }
+  return std::vector<std::string>(out.begin(), out.end());
+}
+
+std::vector<std::string> class_recv_perms(const std::vector<ClassItem>& items) {
+  std::set<std::string> out;
+  for (const auto& item : items) {
+    const auto* method = std::get_if<ClassMethodDecl>(&item);
+    if (method == nullptr) {
+      continue;
+    }
+
+    InsertReceiverShorthandPerm(method->receiver, out);
+  }
+  return std::vector<std::string>(out.begin(), out.end());
+}
+
+std::vector<std::string> state_recv_perms(const std::vector<StateBlock>& states) {
+  std::set<std::string> out;
+  for (const auto& state : states) {
+    for (const auto& member : state.members) {
+      const auto* method = std::get_if<StateMethodDecl>(&member);
+      if (method == nullptr) {
+        continue;
+      }
+
+      InsertReceiverShorthandPerm(method->receiver, out);
+    }
+  }
+  return std::vector<std::string>(out.begin(), out.end());
+}
+
 std::vector<std::string> perm_constructs(const ASTModule& module) {
   std::set<std::string> out;
   for (const auto* type : type_nodes(module)) {
@@ -1186,7 +1332,7 @@ std::vector<std::string> appendix_type_forms(const ASTModule& module) {
 std::vector<std::string> appendix_ct_family_forms(const ASTModule& module) {
   std::set<std::string> out;
   for (const auto* stmt : stmt_nodes(module)) {
-    if (stmt != nullptr && std::holds_alternative<ComptimeStmt>(*stmt)) {
+    if (stmt != nullptr && std::holds_alternative<CtStmt>(*stmt)) {
       out.insert("CtStmt");
     }
   }

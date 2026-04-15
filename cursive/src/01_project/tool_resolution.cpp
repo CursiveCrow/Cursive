@@ -106,16 +106,11 @@
 #include <unordered_map>
 #include <vector>
 
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <sys/wait.h>
-#include <unistd.h>
-#endif
-
 #include "00_core/assert_spec.h"
+#include "00_core/host/services.h"
 #include "00_core/host_primitives.h"
-#include "00_core/windows_bundle.h"
+#include "00_core/path.h"
+#include "01_project/compiler_support_paths.h"
 #include "05_codegen/llvm/llvm_module.h"
 #include "01_project/project.h"
 #include "01_project/target_profile.h"
@@ -124,25 +119,9 @@ namespace cursive::project {
 
 namespace {
 
-std::optional<std::string> GetEnv(const char* name) {
-  const char* value = std::getenv(name);
-  if (!value) {
-    return std::nullopt;
-  }
-  return std::string(value);
-}
-
-char PathSeparator() {
-#ifdef _WIN32
-  return ';';
-#else
-  return ':';
-#endif
-}
-
 std::vector<std::filesystem::path> SplitPathList(std::string_view path_list) {
   std::vector<std::filesystem::path> out;
-  const char sep = PathSeparator();
+  const char sep = core::HostPathListSeparator();
   std::size_t start = 0;
   for (std::size_t i = 0; i <= path_list.size(); ++i) {
     if (i == path_list.size() || path_list[i] == sep) {
@@ -158,128 +137,16 @@ std::vector<std::filesystem::path> SplitPathList(std::string_view path_list) {
 
 std::optional<std::string> RunToolVersionCommand(
     const std::filesystem::path& tool) {
-#ifdef _WIN32
-  auto quote_arg = [](std::wstring_view arg) {
-    std::wstring out;
-    out.push_back(L'"');
-    for (const wchar_t ch : arg) {
-      if (ch == L'"') {
-        out.push_back(L'\\');
-      }
-      out.push_back(ch);
-    }
-    out.push_back(L'"');
-    return out;
-  };
-
-  std::vector<std::wstring> args;
-  args.push_back(tool.wstring());
-  args.push_back(L"--version");
-
-  std::wstring cmd_line;
-  for (std::size_t i = 0; i < args.size(); ++i) {
-    if (i != 0) {
-      cmd_line.push_back(L' ');
-    }
-    cmd_line += quote_arg(args[i]);
-  }
-
-  SECURITY_ATTRIBUTES sa;
-  ZeroMemory(&sa, sizeof(sa));
-  sa.nLength = sizeof(sa);
-  sa.bInheritHandle = TRUE;
-
-  HANDLE read_pipe = nullptr;
-  HANDLE write_pipe = nullptr;
-  if (!CreatePipe(&read_pipe, &write_pipe, &sa, 0)) {
+  core::HostProcessSpec spec;
+  spec.program = tool;
+  spec.arguments.push_back("--version");
+  spec.output_mode = core::HostProcessOutputMode::CaptureMerged;
+  spec.hide_window = true;
+  const auto result = core::RunHostProcess(spec);
+  if (!result.launched || result.exit_code != 0) {
     return std::nullopt;
   }
-  SetHandleInformation(read_pipe, HANDLE_FLAG_INHERIT, 0);
-
-  STARTUPINFOW si;
-  ZeroMemory(&si, sizeof(si));
-  si.cb = sizeof(si);
-  si.dwFlags |= STARTF_USESTDHANDLES;
-  si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
-  si.hStdOutput = write_pipe;
-  si.hStdError = write_pipe;
-
-  PROCESS_INFORMATION pi;
-  ZeroMemory(&pi, sizeof(pi));
-
-  std::vector<wchar_t> cmd_buf(cmd_line.begin(), cmd_line.end());
-  cmd_buf.push_back(L'\0');
-
-  const BOOL ok = CreateProcessW(tool.wstring().c_str(), cmd_buf.data(),
-                                 nullptr, nullptr, TRUE, CREATE_NO_WINDOW,
-                                 nullptr, nullptr, &si, &pi);
-  CloseHandle(write_pipe);
-  if (!ok) {
-    CloseHandle(read_pipe);
-    return std::nullopt;
-  }
-
-  std::string output;
-  char buffer[4096];
-  DWORD bytes_read = 0;
-  while (ReadFile(read_pipe, buffer, sizeof(buffer), &bytes_read, nullptr) &&
-         bytes_read > 0) {
-    output.append(buffer, buffer + bytes_read);
-  }
-  CloseHandle(read_pipe);
-
-  WaitForSingleObject(pi.hProcess, INFINITE);
-  DWORD exit_code = 1;
-  GetExitCodeProcess(pi.hProcess, &exit_code);
-  CloseHandle(pi.hProcess);
-  CloseHandle(pi.hThread);
-  if (exit_code != 0) {
-    return std::nullopt;
-  }
-  return output;
-#else
-  int pipefd[2];
-  if (pipe(pipefd) != 0) {
-    return std::nullopt;
-  }
-
-  const pid_t pid = fork();
-  if (pid < 0) {
-    close(pipefd[0]);
-    close(pipefd[1]);
-    return std::nullopt;
-  }
-  if (pid == 0) {
-    dup2(pipefd[1], STDOUT_FILENO);
-    dup2(pipefd[1], STDERR_FILENO);
-    close(pipefd[0]);
-    close(pipefd[1]);
-
-    std::string tool_str = tool.string();
-    std::string version_arg = "--version";
-    char* argv[] = {tool_str.data(), version_arg.data(), nullptr};
-    execv(argv[0], argv);
-    _exit(127);
-  }
-
-  close(pipefd[1]);
-  std::string output;
-  char buffer[4096];
-  ssize_t count = 0;
-  while ((count = read(pipefd[0], buffer, sizeof(buffer))) > 0) {
-    output.append(buffer, buffer + count);
-  }
-  close(pipefd[0]);
-
-  int status = 0;
-  if (waitpid(pid, &status, 0) < 0) {
-    return std::nullopt;
-  }
-  if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-    return std::nullopt;
-  }
-  return output;
-#endif
+  return result.output;
 }
 
 bool IsPinnedLlvmAssembler(std::string_view tool) {
@@ -310,86 +177,12 @@ bool CandidateMatchesLLVMToolchain(const std::filesystem::path& candidate) {
   return matches;
 }
 
-std::filesystem::path CurrentExecutableDir() {
-#ifdef _WIN32
-  wchar_t path[MAX_PATH];
-  const DWORD len = GetModuleFileNameW(nullptr, path, MAX_PATH);
-  if (len == 0 || len >= MAX_PATH) {
-    return std::filesystem::path();
-  }
-  return std::filesystem::path(path).parent_path();
-#else
-  char path[4096];
-  const ssize_t len = readlink("/proc/self/exe", path, sizeof(path) - 1);
-  if (len <= 0) {
-    return std::filesystem::path();
-  }
-  path[len] = '\0';
-  return std::filesystem::path(path).parent_path();
-#endif
-}
 
-bool HasCompilerSupportLayout(const std::filesystem::path& candidate) {
-  if (candidate.empty()) {
-    return false;
-  }
-  std::error_code ec;
-  for (const char* rel : {"runtime", "tools", "bin", "lib"}) {
-    ec.clear();
-    if (std::filesystem::is_directory(candidate / rel, ec) && !ec) {
-      return true;
-    }
-  }
-  return false;
-}
-
-std::optional<std::filesystem::path> CompilerSidecarToolsDir() {
-#ifdef _WIN32
-  if (const auto bundled_tools = core::BundledWindowsToolsDirPath();
-      bundled_tools.has_value()) {
-    return bundled_tools;
-  }
-#endif
-
-  const auto compiler_dir = CurrentExecutableDir();
-  if (HasCompilerSupportLayout(compiler_dir)) {
-    const auto tools_dir = compiler_dir / "tools";
-    std::error_code ec;
-    if (std::filesystem::is_directory(tools_dir, ec) && !ec) {
-      return tools_dir;
-    }
-  }
-
-  const auto parent = compiler_dir.parent_path();
-  if (HasCompilerSupportLayout(parent)) {
-    const auto tools_dir = parent / "tools";
-    std::error_code ec;
-    if (std::filesystem::is_directory(tools_dir, ec) && !ec) {
-      return tools_dir;
-    }
-  }
-
-  return std::nullopt;
-}
-
-bool EndsWithExe(std::string_view name) {
-  if (name.size() < 4) {
-    return false;
-  }
-  const auto tail = name.substr(name.size() - 4);
-  return tail[0] == '.' &&
-         (tail[1] == 'e' || tail[1] == 'E') &&
-         (tail[2] == 'x' || tail[2] == 'X') &&
-         (tail[3] == 'e' || tail[3] == 'E');
-}
 
 std::vector<std::string> ToolCandidates(std::string_view tool) {
-  std::vector<std::string> out;
-  out.emplace_back(tool);
-  if (!EndsWithExe(tool)) {
-    std::string with_exe(tool);
-    with_exe += ".exe";
-    out.push_back(std::move(with_exe));
+  auto out = core::HostToolNameCandidates(tool);
+  if (out.empty()) {
+    out.emplace_back(tool);
   }
   return out;
 }
@@ -404,21 +197,32 @@ void AddUniquePath(std::vector<std::filesystem::path>& out,
   }
 }
 
+std::filesystem::path ResolveManifestToolchainPath(
+    const Project& project,
+    std::string_view raw_path) {
+  const std::filesystem::path path(raw_path);
+  if (path.is_absolute() || !core::IsRelative(raw_path)) {
+    return path;
+  }
+  return (project.root / path).lexically_normal();
+}
+
 }  // namespace
 
-std::vector<std::filesystem::path> SearchDirs(const Project& project) {
+std::vector<std::filesystem::path> SearchDirs(const Project& project,
+                                             TargetProfile target_profile) {
   if (project.toolchain.llvm_bin.has_value() &&
       !project.toolchain.llvm_bin->empty()) {
-    return {std::filesystem::path(*project.toolchain.llvm_bin)};
+    return {ResolveManifestToolchainPath(project, *project.toolchain.llvm_bin)};
   }
 
-  if (const auto sidecar_tools = CompilerSidecarToolsDir();
+  if (const auto sidecar_tools = CompilerSupportToolBinDir(target_profile);
       sidecar_tools.has_value()) {
     return {*sidecar_tools};
   }
 
   std::vector<std::filesystem::path> dirs;
-  const auto path_env = GetEnv("PATH");
+  const auto path_env = core::HostGetEnvUtf8("PATH");
   if (path_env.has_value() && !path_env->empty()) {
     for (const auto& path : SplitPathList(*path_env)) {
       AddUniquePath(dirs, path);
@@ -430,7 +234,7 @@ std::vector<std::filesystem::path> SearchDirs(const Project& project) {
 std::optional<std::filesystem::path> ResolveTool(const Project& project,
                                                  TargetProfile target_profile,
                                                  std::string_view tool) {
-  const auto dirs = SearchDirs(project);
+  const auto dirs = SearchDirs(project, target_profile);
   const auto candidates = ToolCandidates(tool);
   for (const auto& dir : dirs) {
     for (const auto& name : candidates) {
@@ -459,8 +263,9 @@ std::optional<std::filesystem::path> ResolveTool(const Project& project,
 }
 
 std::string FormatSearchedPaths(const Project& project,
+                                TargetProfile target_profile,
                                 std::string_view tool) {
-  const auto dirs = SearchDirs(project);
+  const auto dirs = SearchDirs(project, target_profile);
   const auto candidates = ToolCandidates(tool);
   std::string result = "searched for '" + std::string(tool) + "' in:";
   if (dirs.empty()) {

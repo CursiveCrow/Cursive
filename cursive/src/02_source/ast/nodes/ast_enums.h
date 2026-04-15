@@ -8,7 +8,7 @@
 //   related values together.
 //
 // ---------------------------------------------------------------------------
-// SPEC REFERENCE: C:\Dev\Cursive\CursiveSpecification.md
+// SPEC REFERENCE: docs/CursiveSpecification.md
 // ---------------------------------------------------------------------------
 //   Section 3.3.2.3 - Type Nodes (Lines 2875-2898)
 //     - Perm = const | unique | shared (2886)
@@ -162,6 +162,7 @@ enum class FenceOrder {
 enum class QuoteKind {
   Unspecified,
   Expr,
+  Stmt,
   Item,
   Type,
   Pattern,
@@ -186,6 +187,8 @@ enum class ReduceOp {
 enum class ParallelOptionKind {
   Cancel,  // cancel: CancelToken
   Name,    // name: string literal
+  Workgroup,   // workgroup: dim3 const
+  Workgroups,  // workgroups: dim3 const
 };
 
 /// Spawn expression option kinds.
@@ -193,7 +196,6 @@ enum class SpawnOptionKind {
   Name,         // name: string literal
   Affinity,     // affinity: CpuSet expression
   Priority,     // priority: Priority expression
-  MoveCapture,  // move <expr> capture
 };
 
 /// Dispatch expression option kinds.
@@ -201,6 +203,7 @@ enum class DispatchOptionKind {
   Reduce,   // reduce: operator
   Ordered,  // ordered flag
   Chunk,    // chunk: usize expression
+  Workgroup,  // workgroup: dim3 const
 };
 
 // ===========================================================================

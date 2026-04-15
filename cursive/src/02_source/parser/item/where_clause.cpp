@@ -55,6 +55,22 @@ bool IsPredicateReqName(std::string_view name) {
          name == "FfiSafe";
 }
 
+bool StartsPredicateReq(Parser parser) {
+  while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+    Advance(parser);
+  }
+
+  const Token* pred_tok = Tok(parser);
+  if (!pred_tok || !IsIdentTok(*pred_tok) ||
+      !IsPredicateReqName(pred_tok->lexeme)) {
+    return false;
+  }
+
+  Parser after_name = parser;
+  Advance(after_name);
+  return IsPunc(after_name, "(");
+}
+
 ParseElemResult<std::optional<WhereClause>> ParsePredicateClauseImpl(Parser parser) {
   // Skip any newlines before clause start.
   while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
@@ -64,6 +80,14 @@ ParseElemResult<std::optional<WhereClause>> ParsePredicateClauseImpl(Parser pars
   const bool legacy_where = IsKw(parser, "where");
   if (!legacy_where && !IsOp(parser, "|:")) {
     return {parser, std::nullopt};
+  }
+
+  if (!legacy_where) {
+    Parser after_clause = parser;
+    Advance(after_clause);
+    if (!StartsPredicateReq(after_clause)) {
+      return {parser, std::nullopt};
+    }
   }
 
   SPEC_RULE("Parse-Where-Clause");

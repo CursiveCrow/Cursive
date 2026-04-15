@@ -400,30 +400,20 @@ IRParam LowerParam(const ast::Param& param,
 }
 
 analysis::VerificationModeAttribute ResolveForeignVerificationMode(
-    const ast::AttributeList& block_attrs,
     const ast::AttributeList& proc_attrs) {
-  // Procedure-level verification-mode attributes override block defaults.
   if (const auto proc_mode = analysis::ResolveVerificationModeAttribute(proc_attrs);
       proc_mode.has_value()) {
     return *proc_mode;
   }
 
-  // Block-level mode applies when no procedure override is present.
-  if (const auto block_mode = analysis::ResolveVerificationModeAttribute(block_attrs);
-      block_mode.has_value()) {
-    return *block_mode;
-  }
-
   return analysis::VerificationModeAttribute::Static;
 }
 
-bool ForeignDynamicChecksEnabled(const ast::AttributeList& block_attrs,
-                                 const ast::AttributeList& proc_attrs) {
-  switch (ResolveForeignVerificationMode(block_attrs, proc_attrs)) {
+bool ForeignDynamicChecksEnabled(const ast::AttributeList& proc_attrs) {
+  switch (ResolveForeignVerificationMode(proc_attrs)) {
     case analysis::VerificationModeAttribute::Dynamic:
       return true;
     case analysis::VerificationModeAttribute::Static:
-    case analysis::VerificationModeAttribute::Trust:
       return false;
   }
   return false;
@@ -637,8 +627,7 @@ ProcIR LowerRecordMethod(const ast::RecordDecl& record,
 
   const bool prev_dynamic_checks = ctx.dynamic_checks;
   const bool record_method_dynamic =
-      analysis::HasAttribute(method.attrs, analysis::attrs::kDynamic) ||
-      analysis::HasAttribute(record.attrs, analysis::attrs::kDynamic);
+      analysis::IsDynamicDecl(method) || analysis::IsDynamicDecl(record);
   ctx.dynamic_checks = record_method_dynamic;
   auto proc = LowerProcLike(sym, params, ret_type, *method.body, module_path, ctx);
   ctx.dynamic_checks = prev_dynamic_checks;
@@ -666,7 +655,11 @@ ProcIR LowerStateMethod(const ast::ModalDecl& modal,
 
   const auto ret_type = LowerReturnType(scope, method.return_type_opt, nullptr);
   const std::string sym = MangleStateMethod(modal_path, state.name, method);
+  const bool prev_dynamic_checks = ctx.dynamic_checks;
+  ctx.dynamic_checks =
+      analysis::IsDynamicDecl(method) || analysis::IsDynamicDecl(modal);
   auto proc = LowerProcLike(sym, params, ret_type, *method.body, module_path, ctx);
+  ctx.dynamic_checks = prev_dynamic_checks;
   ApplyProcAttrs(method.attrs, proc);
   return proc;
 }
@@ -691,7 +684,11 @@ ProcIR LowerTransition(const ast::ModalDecl& modal,
 
   auto ret_type = analysis::MakeTypeModalState(modal_path, trans.target_state);
   const std::string sym = MangleTransition(modal_path, state.name, trans);
+  const bool prev_dynamic_checks = ctx.dynamic_checks;
+  ctx.dynamic_checks =
+      analysis::IsDynamicDecl(trans) || analysis::IsDynamicDecl(modal);
   auto proc = LowerProcLike(sym, params, ret_type, *trans.body, module_path, ctx);
+  ctx.dynamic_checks = prev_dynamic_checks;
   ApplyProcAttrs(trans.attrs, proc);
   return proc;
 }
@@ -1008,8 +1005,9 @@ bool RegisterModuleSignatures(const ast::ASTModule& module, LowerCtx& ctx) {
             }
           } else if constexpr (std::is_same_v<T, ast::ExternBlock>) {
             const auto& scope = BuildScope(module.path, ctx);
+            const auto& block_attrs = ast::AttrListOf(node);
             const auto block_unwind_mode = ParseExternUnwindMode(
-                node.attrs,
+                block_attrs,
                 LowerCtx::FfiImportUnwindMode::Abort);
             for (const auto& ext_item : node.items) {
               std::visit(
@@ -1231,8 +1229,9 @@ IRDecls LowerModule(const ast::ASTModule& module, LowerCtx& ctx) {
             SPEC_RULE("CG-Item-ExternBlock");
             // Emit external declarations for each procedure in the extern block
             const auto& scope = BuildScope(module.path, ctx);
+            const auto& block_attrs = ast::AttrListOf(node);
             const auto block_unwind_mode = ParseExternUnwindMode(
-                node.attrs,
+                block_attrs,
                 LowerCtx::FfiImportUnwindMode::Abort);
             for (const auto& ext_item : node.items) {
               std::visit(
@@ -1281,7 +1280,7 @@ IRDecls LowerModule(const ast::ASTModule& module, LowerCtx& ctx) {
 
                       LowerCtx::ForeignContractInfo foreign_info;
                       foreign_info.dynamic =
-                          ForeignDynamicChecksEnabled(node.attrs, proc.attrs);
+                          ForeignDynamicChecksEnabled(proc.attrs);
                       if (proc.foreign_contracts_opt.has_value()) {
                         for (const auto& clause : *proc.foreign_contracts_opt) {
                           switch (clause.kind) {

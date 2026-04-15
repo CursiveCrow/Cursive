@@ -16,14 +16,13 @@
 
 #include "04_analysis/resolve/resolver.h"
 
-#include <algorithm>
-#include <array>
 #include <string_view>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "00_core/assert_spec.h"
+#include "04_analysis/attributes/attribute_registry.h"
 #include "04_analysis/resolve/scopes.h"
 
 namespace cursive::analysis {
@@ -38,130 +37,44 @@ static inline void SpecDefsAttributes() {
   SPEC_DEF("KnownAttributes", "3.3.2.8");
 }
 
-// -----------------------------------------------------------------------------
-// Known Attribute Names
-// -----------------------------------------------------------------------------
-// Complete list from the current specification subset implemented here.
-// -----------------------------------------------------------------------------
-
-const std::array<std::string_view, 24> KnownAttributeNames = {
-    "inline",
-    "cold",
-    "deprecated",
-    "reflect",
-    "dynamic",
-    "stale_ok",
-    "emit",
-    "files",
-    "export",
-    "host_export",
-    "mangle",
-    "library",
-    "unwind",
-    "layout",
-    "ffi_pass_by_value",
-    "static",
-    "trust",
-    "test",       // Common testing attribute
-    "doc",        // Documentation attribute
-    "relaxed",
-    "acquire",
-    "release",
-    "acqrel",
-    "seqcst",
-};
-
-// Inline variants
-const std::array<std::string_view, 3> InlineVariants = {
-    "always",
-    "never",
-    "default",
-};
-
-// Layout variants
-const std::array<std::string_view, 1> LayoutVariants = {
-    "C",
-};
-
-bool IsKnownAttributeName(std::string_view name) {
-  for (const auto& known : KnownAttributeNames) {
-    if (IdEq(name, known)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool IsKnownInlineVariant(std::string_view variant) {
-  for (const auto& known : InlineVariants) {
-    if (IdEq(variant, known)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool IsKnownLayoutVariant(std::string_view variant) {
-  for (const auto& known : LayoutVariants) {
-    if (IdEq(variant, known)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// -----------------------------------------------------------------------------
-// Attribute Target Validation
-// -----------------------------------------------------------------------------
-// Certain attributes are only valid on certain item kinds.
-// -----------------------------------------------------------------------------
-
-enum class AttributeTarget {
-  Procedure,
-  ExternBlock,
-  Record,
-  Enum,
-  Modal,
-  Class,
-  TypeAlias,
-  Static,
-  Field,
-  Expr,
-  Any,
-};
-
-AttributeTarget TargetOfAttribute(std::string_view name) {
-  // Attributes that apply to procedures
-  if (IdEq(name, "inline") || IdEq(name, "cold") || IdEq(name, "export") ||
-      IdEq(name, "host_export") || IdEq(name, "mangle") ||
-      IdEq(name, "trust") || IdEq(name, "static") ||
-      IdEq(name, "unwind") || IdEq(name, "test")) {
+std::optional<AttributeTarget> TargetFromKindString(std::string_view target_kind) {
+  if (IdEq(target_kind, "procedure")) {
     return AttributeTarget::Procedure;
   }
-
-  if (IdEq(name, "library")) {
+  if (IdEq(target_kind, "extern_block") || IdEq(target_kind, "extern block")) {
     return AttributeTarget::ExternBlock;
   }
-
-  // Layout applies to records, enums, modals
-  if (IdEq(name, "layout")) {
-    return AttributeTarget::Record; // Also valid on enums/modals
+  if (IdEq(target_kind, "record")) {
+    return AttributeTarget::Record;
   }
-  if (IdEq(name, "ffi_pass_by_value")) {
+  if (IdEq(target_kind, "enum")) {
     return AttributeTarget::Enum;
   }
-
-  // Dynamic applies to procedures with contracts or expressions
-  if (IdEq(name, "dynamic")) {
-    return AttributeTarget::Any;
+  if (IdEq(target_kind, "modal")) {
+    return AttributeTarget::Modal;
   }
-
-  // Deprecated and doc apply to anything
-  if (IdEq(name, "deprecated") || IdEq(name, "doc")) {
-    return AttributeTarget::Any;
+  if (IdEq(target_kind, "type_alias") || IdEq(target_kind, "type alias")) {
+    return AttributeTarget::TypeAlias;
   }
-
-  return AttributeTarget::Any;
+  if (IdEq(target_kind, "field")) {
+    return AttributeTarget::Field;
+  }
+  if (IdEq(target_kind, "method")) {
+    return AttributeTarget::Method;
+  }
+  if (IdEq(target_kind, "binding")) {
+    return AttributeTarget::Binding;
+  }
+  if (IdEq(target_kind, "statement")) {
+    return AttributeTarget::Statement;
+  }
+  if (IdEq(target_kind, "expression") || IdEq(target_kind, "expr")) {
+    return AttributeTarget::Expression;
+  }
+  if (IdEq(target_kind, "key_block") || IdEq(target_kind, "key block")) {
+    return AttributeTarget::KeyBlock;
+  }
+  return std::nullopt;
 }
 
 }  // namespace
@@ -179,7 +92,7 @@ AttributeTarget TargetOfAttribute(std::string_view name) {
 
 bool ValidateAttributeName(std::string_view name) {
   SpecDefsAttributes();
-  const bool known = IsKnownAttributeName(name);
+  const bool known = GetAttributeRegistry().Lookup(name) != nullptr;
   if (known) {
     SPEC_RULE("ValidateAttributeName-Ok");
   } else {
@@ -328,25 +241,10 @@ ResolveResult<ast::AttributeList> ResolveAttributes(
 bool ValidateAttributeTarget(std::string_view attr_name,
                              std::string_view target_kind) {
   SpecDefsAttributes();
-  const auto expected = TargetOfAttribute(attr_name);
-
-  // "Any" target means the attribute applies to everything
-  if (expected == AttributeTarget::Any) {
-    SPEC_RULE("ValidateAttributeTarget-Any");
-    return true;
-  }
-
-  // Check specific targets
-  bool valid = false;
-  if (expected == AttributeTarget::Procedure && IdEq(target_kind, "procedure")) {
-    valid = true;
-  } else if (expected == AttributeTarget::Record &&
-             (IdEq(target_kind, "record") || IdEq(target_kind, "enum") ||
-              IdEq(target_kind, "modal"))) {
-    valid = true;
-  } else if (expected == AttributeTarget::Static && IdEq(target_kind, "static")) {
-    valid = true;
-  }
+  const auto target = TargetFromKindString(target_kind);
+  const bool valid =
+      target.has_value() &&
+      GetAttributeRegistry().IsValidForTarget(attr_name, *target);
 
   if (valid) {
     SPEC_RULE("ValidateAttributeTarget-Ok");

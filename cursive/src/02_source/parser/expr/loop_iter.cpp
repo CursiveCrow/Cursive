@@ -242,7 +242,7 @@
 namespace cursive::ast {
 
 // Use lexer types
-using cursive::lexer::IsIdentTok;
+using cursive::lexer::Ctx;
 using cursive::lexer::Token;
 using cursive::lexer::TokenKind;
 
@@ -274,7 +274,7 @@ TryPatternInResult TryParsePatternIn(Parser parser) {
   ParseElemResult<std::shared_ptr<Pattern>> pat = ParsePattern(clone);
   ParseElemResult<std::shared_ptr<Type>> ty = ParseTypeAnnotOpt(pat.parser);
   const Token* tok = Tok(ty.parser);
-  if (tok && IsIdentTok(*tok) && tok->lexeme == "in") {
+  if (tok && Ctx(*tok, "in")) {
     SPEC_RULE("TryParsePatternIn-Ok");
     Parser merged = MergeDiag(parser, ty.parser, pat.parser);
     TryPatternInResult out;
@@ -313,7 +313,7 @@ ParseElemResult<ExprPtr> ParseLoopIterExpr(Parser parser, TryPatternInResult try
 
   // Verify "in" keyword
   const Token* tok = Tok(ty.parser);
-  if (!tok || !IsIdentTok(*tok) || tok->lexeme != "in") {
+  if (!tok || !Ctx(*tok, "in")) {
     EmitParseSyntaxErr(ty.parser, TokSpan(ty.parser));
     Parser sync = ty.parser;
     SyncStmt(sync);

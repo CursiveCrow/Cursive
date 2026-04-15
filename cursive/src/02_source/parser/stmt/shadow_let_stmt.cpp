@@ -136,31 +136,31 @@ namespace cursive::ast {
 // Forward declarations from other modules
 bool IsKw(const Parser& parser, std::string_view kw);
 bool IsOp(const Parser& parser, std::string_view op);
-ParseElemResult<Identifier> ParseIdent(Parser parser);
+ParseLocalIdentResult ParseLocalIdent(Parser parser);
 ParseElemResult<std::shared_ptr<Type>> ParseTypeAnnotOpt(Parser parser);
 ParseElemResult<ExprPtr> ParseExpr(Parser parser);
 
 // =============================================================================
-// ParseShadowLetStmt - Parse shadow let binding statement
+// ParseShadowBinding - Parse shadow let/var binding after `shadow`
 // =============================================================================
 //
-// SPEC: Lines 6270-6273 (Parse-Shadow-Stmt) + 4098-4101 (Parse-ShadowBinding)
-// Assumes parser is at "shadow" keyword, followed by "let".
+// SPEC: Lines 4098-4101 (Parse-ShadowBinding)
+// Assumes parser is at `let` or `var`, immediately after `shadow`.
 
-ParseElemResult<Stmt> ParseShadowLetStmt(Parser parser) {
-  SPEC_RULE("Parse-Shadow-Stmt");
+ParseElemResult<Stmt> ParseShadowBinding(Parser parser) {
   SPEC_RULE("Parse-ShadowBinding");
   Parser start = parser;
+  const bool is_let = IsKw(parser, "let");
+  const bool is_var = IsKw(parser, "var");
+  if (!is_let && !is_var) {
+    EmitParseSyntaxErr(parser, TokSpan(parser));
+  }
 
-  // Consume "shadow"
   Parser next = parser;
   Advance(next);
 
-  // Consume "let"
-  Advance(next);
-
   // Parse identifier (name)
-  ParseElemResult<Identifier> name = ParseIdent(next);
+  ParseLocalIdentResult name = ParseLocalIdent(next);
 
   // Parse optional type annotation
   ParseElemResult<std::shared_ptr<Type>> ty = ParseTypeAnnotOpt(name.parser);
@@ -176,14 +176,41 @@ ParseElemResult<Stmt> ParseShadowLetStmt(Parser parser) {
   // Parse initializer expression
   ParseElemResult<ExprPtr> init = ParseExpr(after_ty);
 
-  // Construct ShadowLetStmt
-  ShadowLetStmt stmt;
-  stmt.name = std::move(name.elem);
+  if (is_let) {
+    ShadowLetStmt stmt;
+    stmt.name = std::move(name.name);
+    stmt.name_splice_opt = std::move(name.splice_opt);
+    stmt.type_opt = ty.elem;
+    stmt.init = init.elem;
+    stmt.span = SpanBetween(start, init.parser);
+    return {init.parser, stmt};
+  }
+
+  ShadowVarStmt stmt;
+  stmt.name = std::move(name.name);
+  stmt.name_splice_opt = std::move(name.splice_opt);
   stmt.type_opt = ty.elem;
   stmt.init = init.elem;
   stmt.span = SpanBetween(start, init.parser);
-
   return {init.parser, stmt};
+}
+
+// =============================================================================
+// ParseShadowLetStmt - Parse shadow let binding statement
+// =============================================================================
+//
+// SPEC: Lines 6270-6273 (Parse-Shadow-Stmt) + 4098-4101 (Parse-ShadowBinding)
+// Assumes parser is at "shadow" keyword, followed by "let".
+
+ParseElemResult<Stmt> ParseShadowLetStmt(Parser parser) {
+  SPEC_RULE("Parse-Shadow-Stmt");
+  Parser next = parser;
+  Advance(next);
+  auto result = ParseShadowBinding(next);
+  if (auto* stmt = std::get_if<ShadowLetStmt>(&result.elem)) {
+    stmt->span = SpanBetween(parser, result.parser);
+  }
+  return result;
 }
 
 // =============================================================================

@@ -29,6 +29,8 @@ static inline void SpecDefsTypeLookup() {
   SPEC_DEF("FieldType", "5.2.12");
   SPEC_DEF("LookupRecordDecl", "5.2.12");
   SPEC_DEF("LookupEnumDecl", "5.2.12");
+  SPEC_DEF("TypeParamsOf", "14.1.3");
+  SPEC_DEF("TypePredicateClauseOf", "14.1.3");
 }
 
 struct RecordFieldIndex {
@@ -95,6 +97,47 @@ const ast::EnumDecl* LookupEnumDecl(const ScopeContext& ctx,
     return nullptr;
   }
   return std::get_if<ast::EnumDecl>(&it->second);
+}
+
+const std::optional<ast::GenericParams>* TypeParamsOf(const ScopeContext& ctx,
+                                                      const TypePath& path) {
+  SpecDefsTypeLookup();
+  ast::Path syntax_path;
+  syntax_path.reserve(path.size());
+  for (const auto& comp : path) {
+    syntax_path.push_back(comp);
+  }
+  const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
+  if (it == ctx.sigma.types.end()) {
+    return nullptr;
+  }
+
+  return std::visit(
+      [](const auto& decl) -> const std::optional<ast::GenericParams>* {
+        return &decl.generic_params;
+      },
+      it->second);
+}
+
+const std::optional<ast::WhereClause>* TypePredicateClauseOf(
+    const ScopeContext& ctx,
+    const TypePath& path) {
+  SpecDefsTypeLookup();
+  ast::Path syntax_path;
+  syntax_path.reserve(path.size());
+  for (const auto& comp : path) {
+    syntax_path.push_back(comp);
+  }
+  const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
+  if (it == ctx.sigma.types.end()) {
+    return nullptr;
+  }
+
+  return std::visit(
+      [](const auto& decl) -> const std::optional<ast::WhereClause>* {
+        return &decl.predicate_clause_opt;
+      },
+      it->second);
 }
 
 bool FieldExists(const ast::RecordDecl& record, std::string_view field_name) {

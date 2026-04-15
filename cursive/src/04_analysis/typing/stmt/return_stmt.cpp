@@ -66,13 +66,13 @@ static ExprTypeResult TypeExprWithCurrentEnv(const ScopeContext& ctx,
   if (!expr) {
     return {};
   }
-  const auto via_callback = type_expr(expr);
-  if (via_callback.ok) {
-    return via_callback;
-  }
   const auto via_env = TypeExpr(ctx, type_ctx, expr, env);
   if (via_env.ok || via_env.diag_id.has_value()) {
     return via_env;
+  }
+  const auto via_callback = type_expr(expr);
+  if (via_callback.ok) {
+    return via_callback;
   }
   return via_callback;
 }
@@ -91,13 +91,13 @@ static PlaceTypeResult TypePlaceWithCurrentEnv(const ScopeContext& ctx,
       return {true, std::nullopt, binding->type};
     }
   }
-  const auto via_callback = type_place(expr);
-  if (via_callback.ok) {
-    return via_callback;
-  }
   const auto via_env = TypePlace(ctx, type_ctx, expr, env);
   if (via_env.ok || via_env.diag_id.has_value()) {
     return via_env;
+  }
+  const auto via_callback = type_place(expr);
+  if (via_callback.ok) {
+    return via_callback;
   }
   return via_callback;
 }
@@ -114,18 +114,6 @@ static IdentTypeFn IdentTypeWithCurrentEnv(const TypeEnv& env,
     }
     return type_ident(name);
   };
-}
-
-static bool ClosureTypeHasSharedDeps(const TypeRef& type) {
-  const auto stripped = StripPerm(type);
-  if (!stripped) {
-    return false;
-  }
-  const auto* closure = std::get_if<TypeClosure>(&stripped->node);
-  if (!closure) {
-    return false;
-  }
-  return closure->deps_opt.has_value();
 }
 
 static TypeRef StripPermDeepLocal(const TypeRef& type) {
@@ -257,6 +245,10 @@ static std::optional<std::string_view> CheckEscapingClosureReturn(
   if (!info.has_value() || !info->captures_any) {
     return std::nullopt;
   }
+  if (ClosureTypeHasSharedDeps(expected_closure_type) && info->contains_spawn) {
+    SPEC_RULE("Parallel-Escaping-Closure-Spawn-Err");
+    return "E-CON-0131";
+  }
   if (info->captures_shared && !info->has_shared_deps) {
     SPEC_RULE("K-Closure-Missing-SharedDeps-Err");
     return "E-CON-0085";
@@ -266,17 +258,7 @@ static std::optional<std::string_view> CheckEscapingClosureReturn(
 
 static void CollectContractFacts(const ast::ExprPtr& expr,
                                  StaticProofContext& ctx) {
-  if (!expr) {
-    return;
-  }
-  if (const auto* binary = std::get_if<ast::BinaryExpr>(&expr->node)) {
-    if (binary->op == "&&") {
-      CollectContractFacts(binary->lhs, ctx);
-      CollectContractFacts(binary->rhs, ctx);
-      return;
-    }
-  }
-  AddFact(ctx, expr, expr->span);
+  AddPredicateFacts(ctx, expr);
 }
 
 static std::optional<std::string_view> VerifyPostconditionAtReturn(
@@ -291,10 +273,15 @@ static std::optional<std::string_view> VerifyPostconditionAtReturn(
   const auto pred =
       SubstituteResultEntry(type_ctx.contract->postcondition, result_expr);
   StaticProofContext proof_ctx;
+  if (type_ctx.proof_ctx) {
+    proof_ctx = *type_ctx.proof_ctx;
+  }
   if (type_ctx.contract->precondition) {
     CollectContractFacts(type_ctx.contract->precondition, proof_ctx);
   }
-  const auto proof = StaticProof(proof_ctx, pred);
+  const auto proof = StaticProofAt(proof_ctx, return_value ? return_value->span
+                                                           : pred->span,
+                                   pred);
   if (!proof.provable && !type_ctx.contract_dynamic) {
     return "E-SEM-2801";
   }

@@ -7,6 +7,8 @@
 
 namespace cursive::core {
 
+std::string PathString(const std::vector<std::string>& comps);
+std::string PathString(std::initializer_list<std::string_view> comps);
 std::string StringOfPath(const std::vector<std::string>& comps);
 std::string StringOfPath(std::initializer_list<std::string_view> comps);
 

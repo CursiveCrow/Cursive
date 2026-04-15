@@ -172,35 +172,37 @@ IRPtr EmitLoopInvariantCheck(const ast::LoopInvariant& invariant,
 // 7. Create IRLoop with kind Iter
 // =============================================================================
 
-LowerResult LowerLoopIter(const ast::LoopIterExpr& expr, LowerCtx& ctx) {
+LowerResult LowerLoopIter(const ast::Expr& expr,
+                          const ast::LoopIterExpr& loop_expr,
+                          LowerCtx& ctx) {
   SPEC_RULE("Lower-Loop-Iter");
 
   // Push a loop scope for break/continue cleanup tracking
   ctx.PushScope(true, false);
 
   // Lower the iterator expression
-  auto iter_result = LowerExpr(*expr.iter, ctx);
+  auto iter_result = LowerExpr(*loop_expr.iter, ctx);
 
   // Determine the pattern type from the iterator's element type
   analysis::TypeRef pattern_type;
   if (ctx.expr_type) {
-    pattern_type = LoopPatternType(ctx.expr_type(*expr.iter));
+    pattern_type = LoopPatternType(ctx.expr_type(*loop_expr.iter));
   }
 
   // Compute provenance for the loop binding
-  const ProvInfo iter_prov = ExprProvInfo(*expr.iter, ctx);
+  const ProvInfo iter_prov = ExprProvInfo(*loop_expr.iter, ctx);
   const ProvInfo bind_prov = BindProvInfo(iter_prov);
 
   // Register pattern bindings with the computed provenance
-  RegisterPatternBindings(*expr.pattern, pattern_type, ctx, false,
+  RegisterPatternBindings(*loop_expr.pattern, pattern_type, ctx, false,
                           bind_prov.kind, bind_prov.region);
 
   // Lower the body
-  LowerResult body_result = LowerBlock(*expr.body, ctx);
+  LowerResult body_result = LowerBlock(*loop_expr.body, ctx);
 
-  if (expr.invariant_opt.has_value()) {
+  if (loop_expr.invariant_opt.has_value()) {
     IRPtr maintenance_check =
-        EmitLoopInvariantCheck(*expr.invariant_opt, "for_inv_maint", ctx);
+        EmitLoopInvariantCheck(*loop_expr.invariant_opt, "for_inv_maint", ctx);
     if (!IsNoOpIR(maintenance_check)) {
       body_result.ir = SeqIR({body_result.ir, maintenance_check});
     }
@@ -212,20 +214,25 @@ LowerResult LowerLoopIter(const ast::LoopIterExpr& expr, LowerCtx& ctx) {
   // Create iter loop IR
   IRLoop loop;
   loop.kind = IRLoopKind::Iter;
-  loop.pattern = expr.pattern;
-  loop.type_opt = expr.type_opt;
+  loop.pattern = loop_expr.pattern;
+  loop.type_opt = loop_expr.type_opt;
   loop.iter_ir = iter_result.ir;
   loop.iter_value = iter_result.value;
   loop.body_ir = body_result.ir;
   loop.body_value = body_result.value;
 
   IRValue result = ctx.FreshTempValue("for");
+  if (ctx.expr_type) {
+    if (analysis::TypeRef result_type = ctx.expr_type(expr)) {
+      ctx.RegisterValueType(result, result_type);
+    }
+  }
   loop.result = result;
   IRPtr loop_ir = MakeIR(std::move(loop));
 
-  if (expr.invariant_opt.has_value()) {
+  if (loop_expr.invariant_opt.has_value()) {
     IRPtr init_check =
-        EmitLoopInvariantCheck(*expr.invariant_opt, "for_inv_init", ctx);
+        EmitLoopInvariantCheck(*loop_expr.invariant_opt, "for_inv_init", ctx);
     if (!IsNoOpIR(init_check)) {
       return LowerResult{SeqIR({init_check, loop_ir}), result};
     }

@@ -129,7 +129,7 @@ IRPtr LowerKeyBlockStmt(const ast::KeyBlockStmt& stmt, LowerCtx& ctx) {
   ctx.RegisterKeyScopeExit(scope_local_name);
 
   const std::uint8_t key_mode =
-      stmt.mode.has_value() && *stmt.mode == ast::KeyMode::Read ? 0u : 1u;
+      stmt.mode.has_value() && *stmt.mode == ast::KeyMode::Write ? 1u : 0u;
   for (const auto& encoded_path : CanonicalizeKeyPaths(stmt)) {
     IRCall acquire;
     acquire.callee.kind = IRValue::Kind::Symbol;

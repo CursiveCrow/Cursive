@@ -12,127 +12,101 @@ import CrossAssemblyOperationIntegrations
 import OperationDiagnostics
 
 public procedure run(ctx: Context) -> i32 {
-    let section_name: string@View = "operations"
-    let status_ok: string@View = "ok"
-    let status_failed: string@View = "failed"
-    let checkpoint: string@View = "completed full operations assembly routing"
-
-    let phase_planned: string@View = "planned"
-    let phase_running: string@View = "running"
-    let phase_complete: string@View = "complete"
-    let phase_failed: string@View = "failed"
-    let dispatch_reason: string@View = "dispatching operations group router"
-    let complete_reason: string@View = "operations group router completed"
-    let failed_reason: string@View = "operations group router returned non-zero status"
-
-    let group_ExpressionSemantics: string@View = "operations::ExpressionSemantics"
-    let group_AccessAndInvocation: string@View = "operations::AccessAndInvocation"
-    let group_TypeConversionAndUnsafe: string@View = "operations::TypeConversionAndUnsafe"
-    let group_MutationAndStatements: string@View = "operations::MutationAndStatements"
-    let group_ControlFlowExpressions: string@View = "operations::ControlFlowExpressions"
-    let group_ScopeCleanupAndAllocation: string@View = "operations::ScopeCleanupAndAllocation"
-    let group_KeySystemOperations: string@View = "operations::KeySystemOperations"
-    let group_TextAndBufferOperations: string@View = "operations::TextAndBufferOperations"
-    let group_StructuredParallel: string@View = "operations::StructuredParallel"
-    let group_AsyncFlow: string@View = "operations::AsyncFlow"
-    let group_CrossAssemblyOperationIntegrations: string@View = "operations::CrossAssemblyOperationIntegrations"
-    let group_OperationDiagnostics: string@View = "operations::OperationDiagnostics"
-
     [[log(label: "operations-log-section_start")]]
     [[log(label: "operations-log-transition")]]
-    let status_ExpressionSemantics: i32 = ExpressionSemantics::RunGroup(ctx)
-    if (status_ExpressionSemantics != 0) {
+    let status_expression_semantics: i32 = ExpressionSemantics::runGroup(ctx)
+    if (status_expression_semantics != 0) {
         [[log(label: "operations-log-transition")]]
         [[log(label: "operations-log-section_end")]]
-        return status_ExpressionSemantics
+        return status_expression_semantics
     }
     [[log(label: "operations-log-transition")]]
     [[log(label: "operations-log-transition")]]
-    let status_AccessAndInvocation: i32 = AccessAndInvocation::RunGroup(ctx)
-    if (status_AccessAndInvocation != 0) {
+    let status_access_and_invocation: i32 = AccessAndInvocation::runGroup(ctx)
+    if (status_access_and_invocation != 0) {
         [[log(label: "operations-log-transition")]]
         [[log(label: "operations-log-section_end")]]
-        return status_AccessAndInvocation
+        return status_access_and_invocation
     }
     [[log(label: "operations-log-transition")]]
     [[log(label: "operations-log-transition")]]
-    let status_TypeConversionAndUnsafe: i32 = TypeConversionAndUnsafe::RunGroup(ctx)
-    if (status_TypeConversionAndUnsafe != 0) {
+    let status_type_conversion_and_unsafe: i32 = TypeConversionAndUnsafe::runGroup(ctx)
+    if (status_type_conversion_and_unsafe != 0) {
         [[log(label: "operations-log-transition")]]
         [[log(label: "operations-log-section_end")]]
-        return status_TypeConversionAndUnsafe
+        return status_type_conversion_and_unsafe
     }
     [[log(label: "operations-log-transition")]]
     [[log(label: "operations-log-transition")]]
-    let status_MutationAndStatements: i32 = MutationAndStatements::RunGroup(ctx)
-    if (status_MutationAndStatements != 0) {
+    let status_mutation_and_statements: i32 = MutationAndStatements::runGroup(ctx)
+    if (status_mutation_and_statements != 0) {
         [[log(label: "operations-log-transition")]]
         [[log(label: "operations-log-section_end")]]
-        return status_MutationAndStatements
+        return status_mutation_and_statements
     }
     [[log(label: "operations-log-transition")]]
     [[log(label: "operations-log-transition")]]
-    let status_ControlFlowExpressions: i32 = ControlFlowExpressions::RunGroup(ctx)
-    if (status_ControlFlowExpressions != 0) {
+    let status_control_flow_expressions: i32 = ControlFlowExpressions::runGroup(ctx)
+    if (status_control_flow_expressions != 0) {
         [[log(label: "operations-log-transition")]]
         [[log(label: "operations-log-section_end")]]
-        return status_ControlFlowExpressions
+        return status_control_flow_expressions
     }
     [[log(label: "operations-log-transition")]]
     [[log(label: "operations-log-transition")]]
-    let status_ScopeCleanupAndAllocation: i32 = ScopeCleanupAndAllocation::RunGroup(ctx)
-    if (status_ScopeCleanupAndAllocation != 0) {
+    let status_scope_cleanup_and_allocation: i32 = ScopeCleanupAndAllocation::runGroup(ctx)
+    if (status_scope_cleanup_and_allocation != 0) {
         [[log(label: "operations-log-transition")]]
         [[log(label: "operations-log-section_end")]]
-        return status_ScopeCleanupAndAllocation
+        return status_scope_cleanup_and_allocation
     }
     [[log(label: "operations-log-transition")]]
     [[log(label: "operations-log-transition")]]
-    let status_KeySystemOperations: i32 = KeySystemOperations::RunGroup(ctx)
-    if (status_KeySystemOperations != 0) {
+    let status_key_system_operations: i32 = KeySystemOperations::runGroup(ctx)
+    if (status_key_system_operations != 0) {
         [[log(label: "operations-log-transition")]]
         [[log(label: "operations-log-section_end")]]
-        return status_KeySystemOperations
+        return status_key_system_operations
     }
     [[log(label: "operations-log-transition")]]
     [[log(label: "operations-log-transition")]]
-    let status_TextAndBufferOperations: i32 = TextAndBufferOperations::RunGroup(ctx)
-    if (status_TextAndBufferOperations != 0) {
+    let status_text_and_buffer_operations: i32 = TextAndBufferOperations::runGroup(ctx)
+    if (status_text_and_buffer_operations != 0) {
         [[log(label: "operations-log-transition")]]
         [[log(label: "operations-log-section_end")]]
-        return status_TextAndBufferOperations
+        return status_text_and_buffer_operations
     }
     [[log(label: "operations-log-transition")]]
     [[log(label: "operations-log-transition")]]
-    let status_StructuredParallel: i32 = StructuredParallel::RunGroup(ctx)
-    if (status_StructuredParallel != 0) {
+    let status_structured_parallel: i32 = StructuredParallel::runGroup(ctx)
+    if (status_structured_parallel != 0) {
         [[log(label: "operations-log-transition")]]
         [[log(label: "operations-log-section_end")]]
-        return status_StructuredParallel
+        return status_structured_parallel
     }
     [[log(label: "operations-log-transition")]]
     [[log(label: "operations-log-transition")]]
-    let status_AsyncFlow: i32 = AsyncFlow::RunGroup(ctx)
-    if (status_AsyncFlow != 0) {
+    let status_async_flow: i32 = AsyncFlow::runGroup(ctx)
+    if (status_async_flow != 0) {
         [[log(label: "operations-log-transition")]]
         [[log(label: "operations-log-section_end")]]
-        return status_AsyncFlow
+        return status_async_flow
     }
     [[log(label: "operations-log-transition")]]
     [[log(label: "operations-log-transition")]]
-    let status_CrossAssemblyOperationIntegrations: i32 = CrossAssemblyOperationIntegrations::RunGroup(ctx)
-    if (status_CrossAssemblyOperationIntegrations != 0) {
+    let status_cross_assembly_operation_integrations: i32 = CrossAssemblyOperationIntegrations::runGroup(ctx)
+    if (status_cross_assembly_operation_integrations != 0) {
         [[log(label: "operations-log-transition")]]
         [[log(label: "operations-log-section_end")]]
-        return status_CrossAssemblyOperationIntegrations
+        return status_cross_assembly_operation_integrations
     }
     [[log(label: "operations-log-transition")]]
     [[log(label: "operations-log-transition")]]
-    let status_OperationDiagnostics: i32 = OperationDiagnostics::RunGroup(ctx)
-    if (status_OperationDiagnostics != 0) {
+    let status_operation_diagnostics: i32 = OperationDiagnostics::runGroup(ctx)
+    if (status_operation_diagnostics != 0) {
         [[log(label: "operations-log-transition")]]
         [[log(label: "operations-log-section_end")]]
-        return status_OperationDiagnostics
+        return status_operation_diagnostics
     }
     [[log(label: "operations-log-transition")]]
     [[log(label: "operations-log-checkpoint")]]

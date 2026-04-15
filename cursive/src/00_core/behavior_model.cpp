@@ -137,10 +137,10 @@ static bool IsDigitAscii(char c) {
 
 static bool IsDiagnosticCodeLike(std::string_view id) {
   // DiagCode = DiagPrefix ++ "-" ++ DiagCategory ++ "-" ++ DiagDigits
-  // where DiagPrefix in {E, W}, DiagCategory is 3 uppercase letters,
+  // where DiagPrefix in {E, W, I, P}, DiagCategory is 3 uppercase letters,
   // and DiagDigits is 4 decimal digits.
   return id.size() == 10 &&
-         (id[0] == 'E' || id[0] == 'W' || id[0] == 'I') &&
+         (id[0] == 'E' || id[0] == 'W' || id[0] == 'I' || id[0] == 'P') &&
          id[1] == '-' &&
          IsUpperAscii(id[2]) &&
          IsUpperAscii(id[3]) &&
@@ -153,10 +153,30 @@ static bool IsDiagnosticCodeLike(std::string_view id) {
 }
 
 static bool HasBottomPremiseSignal(std::string_view rule_id) {
-  // The generated registry does not currently carry explicit premise terms.
-  // Use a conservative name-level signal for error-producing rules.
+  // StaticUndefined still uses a conservative name-level signal until
+  // PremisesHold/RuleId/SectionId are implemented against the full rule model.
   return rule_id.find("Err") != std::string_view::npos ||
          rule_id.find("Fail") != std::string_view::npos;
+}
+
+std::vector<std::string_view> SplitPremises(std::string_view premises_text) {
+  std::vector<std::string_view> premises;
+  std::size_t start = 0;
+  while (start <= premises_text.size()) {
+    const std::size_t end = premises_text.find('\n', start);
+    const std::size_t length =
+        (end == std::string_view::npos) ? premises_text.size() - start
+                                        : end - start;
+    const std::string_view premise = premises_text.substr(start, length);
+    if (!premise.empty()) {
+      premises.push_back(premise);
+    }
+    if (end == std::string_view::npos) {
+      break;
+    }
+    start = end + 1;
+  }
+  return premises;
 }
 
 }  // namespace
@@ -174,6 +194,7 @@ static inline void SpecDefsBehaviorModel() {
   SPEC_DEF("RuntimeBehavior", "1.2");
   SPEC_DEF("StaticJudgSet", "1.2");
   SPEC_DEF("StaticRuleSet", "1.2");
+  SPEC_DEF("Premises", "1.2");
   SPEC_DEF("MaxErrorCount", "1.2");
   SPEC_DEF("AbortOnErrorCount", "1.2");
 }
@@ -271,6 +292,16 @@ std::optional<std::string_view> ConclusionOfRule(std::string_view rule_id) {
 
 std::optional<std::string_view> ConclusionFamilyOfRule(std::string_view rule_id) {
   return ConclusionOfRule(rule_id);
+}
+
+std::optional<std::vector<std::string_view>> PremisesOfRule(
+    std::string_view rule_id) {
+  SpecDefsBehaviorModel();
+  const auto meta = LookupStaticRule(rule_id);
+  if (!meta.has_value() || !meta->premises_text.has_value()) {
+    return std::nullopt;
+  }
+  return SplitPremises(*meta->premises_text);
 }
 
 std::optional<std::string_view> DiagIdOfJudgment(

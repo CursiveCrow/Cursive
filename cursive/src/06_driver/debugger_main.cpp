@@ -18,7 +18,7 @@ namespace {
 void PrintUsage() {
   std::cout
       << "Usage:\n"
-      << "  cursive-debug run [options] <program> [-- arg...]\n"
+      << "  Cursive_Debug run [options] <program> [-- arg...]\n"
       << "\n"
       << "Options:\n"
       << "  --report-dir <path>    Override crash report directory\n"
@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
   }
 
   core::DebugRunOptions options;
-  options.tool_name = "cursive-debug";
+  options.tool_name = "Cursive_Debug";
   options.tool_version = driver::GetVersionString();
 
   bool passthrough_args = false;

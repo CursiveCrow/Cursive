@@ -264,29 +264,36 @@ ParseElemResult<Arg> ParseArg(Parser parser) {
 // SPEC: Lines 5943-5958
 
 ParseElemResult<std::vector<Arg>> ParseArgTail(ListState<Arg> state) {
-  SkipNewlines(state.parser);
-  const std::array<TokenKindMatch, 1> end_set = {MatchPunct(")")};
-  if (ListDone(state, end_set)) {
-    SPEC_RULE("Parse-ArgTail-End");
-    return {state.parser, state.elems};
-  }
-  if (IsPunc(state.parser, ",")) {
+  const std::array<EndSetToken, 1> end_set = {EndPunct(")")};
+
+  for (;;) {
+    SkipNewlines(state.parser);
+    if (ListDone(state, end_set)) {
+      SPEC_RULE("Parse-ArgTail-End");
+      return {state.parser, std::move(state.elems)};
+    }
+
+    if (!IsPunc(state.parser, ",")) {
+      EmitParseSyntaxErr(state.parser, TokSpan(state.parser));
+      return {state.parser, std::move(state.elems)};
+    }
+
     Parser after = state.parser;
     Advance(after);
     SkipNewlines(after);
     if (IsPunc(after, ")")) {
-      SPEC_RULE("Parse-ArgTail-TrailingComma");
+      if (TrailingCommaAllowed(state.parser, end_set)) {
+        SPEC_RULE("Parse-ArgTail-TrailingComma");
+      }
       EmitTrailingCommaErr(state.parser, end_set);
       after.diags = state.parser.diags;
-      return {after, state.elems};
+      return {after, std::move(state.elems)};
     }
+
     SPEC_RULE("Parse-ArgTail-Comma");
     state.parser = after;
-    state = ListCons(state, ParseArg);
-    return ParseArgTail(std::move(state));
+    state = ListCons(std::move(state), ParseArg);
   }
-  EmitParseSyntaxErr(state.parser, TokSpan(state.parser));
-  return {state.parser, state.elems};
 }
 
 // =============================================================================
@@ -298,14 +305,14 @@ ParseElemResult<std::vector<Arg>> ParseArgTail(ListState<Arg> state) {
 
 ParseElemResult<std::vector<Arg>> ParseArgList(Parser parser) {
   SkipNewlines(parser);
-  const std::array<TokenKindMatch, 1> end_set = {MatchPunct(")")};
+  const std::array<EndSetToken, 1> end_set = {EndPunct(")")};
   ListState<Arg> state = ListStart<Arg>(parser);
   if (ListDone(state, end_set)) {
     SPEC_RULE("Parse-ArgList-Empty");
     return {state.parser, {}};
   }
   SPEC_RULE("Parse-ArgList-Cons");
-  state = ListCons(state, ParseArg);
+  state = ListCons(std::move(state), ParseArg);
   return ParseArgTail(std::move(state));
 }
 

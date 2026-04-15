@@ -285,12 +285,13 @@ static ModuleStaticLookupResult LookupModuleStaticInModule(
       continue;
     }
     const auto& pat = *decl->binding.pat;
-    if (!decl->binding.type_opt) {
+    const auto ann_type = ast::BindingAnnotationTypeOpt(decl->binding);
+    if (!ann_type) {
       continue;
     }
     if (const auto* ident = std::get_if<ast::IdentifierPattern>(&pat.node)) {
       if (IdEq(ident->name, name)) {
-        const auto lowered = LowerTypeLocal(ctx, decl->binding.type_opt);
+        const auto lowered = LowerTypeLocal(ctx, ann_type);
         if (!lowered.ok) {
           return {false, lowered.diag_id, {}, false};
         }
@@ -300,7 +301,7 @@ static ModuleStaticLookupResult LookupModuleStaticInModule(
     } else if (const auto* typed =
                    std::get_if<ast::TypedPattern>(&pat.node)) {
       if (IdEq(typed->name, name)) {
-        const auto lowered = LowerTypeLocal(ctx, decl->binding.type_opt);
+        const auto lowered = LowerTypeLocal(ctx, ann_type);
         if (!lowered.ok) {
           return {false, lowered.diag_id, {}, false};
         }

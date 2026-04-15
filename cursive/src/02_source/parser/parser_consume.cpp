@@ -2,9 +2,10 @@
 // parser_consume.cpp - Token Consumption Helpers
 // =============================================================================
 //
-// SPEC REFERENCE: CursiveSpecification.md Section 3.3.5 (Lines 3385-3438)
+// SPEC REFERENCE: CursiveSpecification.md Section 5.5 (Lines 2836-2921)
 //
 // This file implements token consumption operations:
+//   - ConsumeState / TryAdvanceConsume: canonical token-consumption state model
 //   - TokenMatches: Check if token matches a specification
 //   - TokenInEndSet: Check if token is in end set (for list parsing)
 //   - RecordListStart/RecordListCons/ListDone: canonical list small-step traces
@@ -43,7 +44,81 @@ bool MatchLexeme(TokenKind kind) {
          kind == TokenKind::Punctuator;
 }
 
+template <typename MatchSpec>
+bool TokenMatchesImpl(const Token& tok, const MatchSpec& match) {
+  if (tok.kind != match.kind) {
+    return false;
+  }
+  if (MatchLexeme(match.kind)) {
+    return tok.lexeme == match.lexeme;
+  }
+  return true;
+}
+
+bool ConsumeByMatch(Parser& parser,
+                    TokenKindMatch expected,
+                    const char* rule_name) {
+  SPEC_RULE(rule_name);
+  ConsumeState state = Consume(parser, expected);
+  const ConsumePendingState* pending = std::get_if<ConsumePendingState>(&state);
+  if (!pending) {
+    return false;
+  }
+
+  std::optional<ConsumeDoneState> done = TryAdvanceConsume(*pending);
+  if (!done) {
+    return false;
+  }
+
+  parser = std::move(done->parser);
+  return true;
+}
+
+struct InvalidTrailingCommaEmitState {
+  const Token* comma = nullptr;
+  const Token* end_tok = nullptr;
+};
+
+std::optional<InvalidTrailingCommaEmitState> InvalidTrailingCommaForEmit(
+    const Parser& parser, std::span<const EndSetToken> end_set) {
+  const Token* comma = Tok(parser);
+  if (!comma || comma->kind != TokenKind::Punctuator ||
+      comma->lexeme != ",") {
+    return std::nullopt;
+  }
+
+  const Parser next = AdvanceOrEOF(parser);
+  const Token* end_tok = Tok(next);
+  if (!end_tok || !TokenInEndSet(*end_tok, end_set)) {
+    return std::nullopt;
+  }
+
+  if (comma->span.start_line < end_tok->span.start_line) {
+    return std::nullopt;
+  }
+
+  return InvalidTrailingCommaEmitState{comma, end_tok};
+}
+
 }  // namespace
+
+// =============================================================================
+// TryAdvanceConsume - Execute the canonical Consume(P, k) -> ConsumeDone(P)
+// =============================================================================
+//
+// SPEC: ConsumeState / Tok-Consume-* (lines 2836-2857)
+
+std::optional<ConsumeDoneState> TryAdvanceConsume(
+    const ConsumePendingState& state) {
+  const Token* tok = Tok(state.parser);
+  if (!tok || !TokenMatches(*tok, state.expected)) {
+    return std::nullopt;
+  }
+
+  Parser next = state.parser;
+  Advance(next);
+  return ConsumeDone(std::move(next));
+}
 
 // =============================================================================
 // TokenMatches - Check if token matches specification
@@ -54,20 +129,18 @@ bool MatchLexeme(TokenKind kind) {
 // For other token kinds, only the kind needs to match.
 
 bool TokenMatches(const Token& tok, const TokenKindMatch& match) {
-  if (tok.kind != match.kind) {
-    return false;
-  }
-  if (MatchLexeme(match.kind)) {
-    return tok.lexeme == match.lexeme;
-  }
-  return true;
+  return TokenMatchesImpl(tok, match);
+}
+
+bool TokenMatches(const Token& tok, const EndSetToken& match) {
+  return TokenMatchesImpl(tok, match);
 }
 
 // =============================================================================
 // TokenInEndSet - Check if token is in end set
 // =============================================================================
 //
-// SPEC: Section 3.3.5 lines 3410-3427 (List Parsing)
+// SPEC: Section 5.5 lines 2896-2921 (List Parsing)
 // Used for list parsing to detect list terminators.
 
 bool TokenInEndSet(const Token& tok,
@@ -80,11 +153,20 @@ bool TokenInEndSet(const Token& tok,
   return false;
 }
 
+bool TokenInEndSet(const Token& tok, std::span<const EndSetToken> end_set) {
+  for (const auto& match : end_set) {
+    if (TokenMatches(tok, match)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // =============================================================================
 // RecordListStart / RecordListCons / ListDone - Canonical List Parsing Steps
 // =============================================================================
 //
-// SPEC: List-Start / List-Cons / List-Done (lines 3416-3427)
+// SPEC: List-Start / List-Cons / List-Done (lines 2898-2909)
 // These helpers back the parser-wide list combinators in parser.h so the
 // canonical list rules live in a source file that the generated rule registry
 // can see, and so real parser paths can emit the generic list traces.
@@ -103,93 +185,77 @@ bool ListDone(const Parser& parser,
   return true;
 }
 
+bool ListDone(const Parser& parser, std::span<const EndSetToken> end_set) {
+  const Token* tok = Tok(parser);
+  if (!tok || !TokenInEndSet(*tok, end_set)) {
+    return false;
+  }
+  SPEC_RULE("List-Done");
+  return true;
+}
+
 // =============================================================================
 // ConsumeKind - Consume token by kind
 // =============================================================================
 //
-// SPEC: Tok-Consume-Kind (lines 3390-3393)
+// SPEC: Tok-Consume-Kind (lines 2839-2842)
 //   Tok(P).kind = k
 //   ----------------------------------------
 //   <Consume(P, k)> -> <ConsumeDone(Advance(P))>
 
 bool ConsumeKind(Parser& parser, TokenKind kind) {
-  SPEC_RULE("Tok-Consume-Kind");
-  const Token* tok = Tok(parser);
-  if (!tok || tok->kind != kind) {
-    return false;
-  }
-  Advance(parser);
-  return true;
+  return ConsumeByMatch(parser, MatchKind(kind), "Tok-Consume-Kind");
 }
 
 // =============================================================================
 // ConsumeKeyword - Consume keyword token
 // =============================================================================
 //
-// SPEC: Tok-Consume-Keyword (lines 3395-3398)
+// SPEC: Tok-Consume-Keyword (lines 2844-2847)
 //   IsKw(Tok(P), s)
 //   ----------------------------------------
 //   <Consume(P, Keyword(s))> -> <ConsumeDone(Advance(P))>
 
 bool ConsumeKeyword(Parser& parser, std::string_view keyword) {
-  SPEC_RULE("Tok-Consume-Keyword");
-  const Token* tok = Tok(parser);
-  if (!tok || tok->kind != TokenKind::Keyword || tok->lexeme != keyword) {
-    return false;
-  }
-  Advance(parser);
-  return true;
+  return ConsumeByMatch(parser, MatchKeyword(keyword), "Tok-Consume-Keyword");
 }
 
 // =============================================================================
 // ConsumeOperator - Consume operator token
 // =============================================================================
 //
-// SPEC: Tok-Consume-Operator (lines 3400-3403)
+// SPEC: Tok-Consume-Operator (lines 2849-2852)
 //   IsOp(Tok(P), s)
 //   ----------------------------------------
 //   <Consume(P, Operator(s))> -> <ConsumeDone(Advance(P))>
 
 bool ConsumeOperator(Parser& parser, std::string_view op) {
-  SPEC_RULE("Tok-Consume-Operator");
-  const Token* tok = Tok(parser);
-  if (!tok || tok->kind != TokenKind::Operator || tok->lexeme != op) {
-    return false;
-  }
-  Advance(parser);
-  return true;
+  return ConsumeByMatch(parser, MatchOperator(op), "Tok-Consume-Operator");
 }
 
 // =============================================================================
 // ConsumePunct - Consume punctuator token
 // =============================================================================
 //
-// SPEC: Tok-Consume-Punct (lines 3405-3408)
+// SPEC: Tok-Consume-Punct (lines 2854-2857)
 //   IsPunc(Tok(P), s)
 //   ----------------------------------------
 //   <Consume(P, Punctuator(s))> -> <ConsumeDone(Advance(P))>
 
 bool ConsumePunct(Parser& parser, std::string_view punct) {
-  SPEC_RULE("Tok-Consume-Punct");
-  const Token* tok = Tok(parser);
-  if (!tok || tok->kind != TokenKind::Punctuator || tok->lexeme != punct) {
-    return false;
-  }
-  Advance(parser);
-  return true;
+  return ConsumeByMatch(parser, MatchPunct(punct), "Tok-Consume-Punct");
 }
 
 // =============================================================================
 // TrailingComma - Detect trailing comma
 // =============================================================================
 //
-// SPEC: TrailingComma predicate (line 3430)
+// SPEC: TrailingComma predicate (line 2913)
 //   TrailingComma(P, EndSet) <=> IsPunc(Tok(P), ",") && Tok(Advance(P)) in EndSet
 //
 // Detects trailing comma before end delimiter.
 
-bool TrailingComma(const Parser& parser,
-                   std::span<const TokenKindMatch> end_set) {
+bool TrailingComma(const Parser& parser, std::span<const EndSetToken> end_set) {
   const Token* tok = Tok(parser);
   if (!tok || tok->kind != TokenKind::Punctuator || tok->lexeme != ",") {
     return false;
@@ -206,14 +272,14 @@ bool TrailingComma(const Parser& parser,
 // TrailingCommaAllowed - Check if trailing comma is valid
 // =============================================================================
 //
-// SPEC: TrailingCommaAllowed predicate (line 3433)
+// SPEC: TrailingCommaAllowed predicate (line 2917)
 //   TrailingCommaAllowed(P_0, P, EndSet) <=>
 //     TrailingComma(P, EndSet) && TokLine(Tok(P)) < TokLine(Tok(Advance(P)))
 //
 // Trailing comma is allowed only when closing delimiter is on different line.
 
 bool TrailingCommaAllowed(const Parser& parser,
-                          std::span<const TokenKindMatch> end_set) {
+                          std::span<const EndSetToken> end_set) {
   if (!TrailingComma(parser, end_set)) {
     return false;
   }
@@ -230,21 +296,20 @@ bool TrailingCommaAllowed(const Parser& parser,
 // EmitTrailingCommaErr - Emit error for invalid trailing comma
 // =============================================================================
 //
-// SPEC: Trailing-Comma-Err (lines 3435-3438)
+// SPEC: Trailing-Comma-Err (lines 2919-2921)
 //   TrailingComma && !TrailingCommaAllowed => Emit(Code(Trailing-Comma-Err))
 //
 // Emits E-SRC-0521 diagnostic for single-line trailing commas.
 
 bool EmitTrailingCommaErr(Parser& parser,
-                          std::span<const TokenKindMatch> end_set) {
+                          std::span<const EndSetToken> end_set) {
+  const std::optional<InvalidTrailingCommaEmitState> invalid =
+      InvalidTrailingCommaForEmit(parser, end_set);
+  if (!invalid) {
+    return false;
+  }
   SPEC_RULE("Trailing-Comma-Err");
-  if (!TrailingComma(parser, end_set)) {
-    return false;
-  }
-  if (TrailingCommaAllowed(parser, end_set)) {
-    return false;
-  }
-  auto diag = core::MakeDiagnosticById("E-SRC-0521", TokSpan(parser));
+  auto diag = core::MakeDiagnosticById("E-SRC-0521", invalid->comma->span);
   if (!diag) {
     return true;
   }

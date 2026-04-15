@@ -13,7 +13,7 @@
 
 namespace cursive::ast {
 
-using cursive::lexer::IsIdentTok;
+using cursive::lexer::Ctx;
 using cursive::lexer::IsKwTok;
 using cursive::lexer::Token;
 
@@ -143,7 +143,7 @@ ParseElemResult<ExprPtr> ParseCtLoopIterExpr(Parser parser) {
 
   ParseElemResult<TypePtr> ty = ParseTypeAnnotOpt(try_in.parser);
   const Token* in_tok = Tok(ty.parser);
-  if (!in_tok || !IsIdentTok(*in_tok) || in_tok->lexeme != "in") {
+  if (!in_tok || !Ctx(*in_tok, "in")) {
     EmitParseSyntaxErr(ty.parser, TokSpan(ty.parser));
     Parser sync = ty.parser;
     SyncStmt(sync);

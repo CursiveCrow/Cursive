@@ -18,7 +18,8 @@ bool IsDigitAscii(char c) {
 
 bool IsDiagCodeLike(std::string_view value) {
   return value.size() == 10 &&
-         (value[0] == 'E' || value[0] == 'W' || value[0] == 'I') &&
+         (value[0] == 'E' || value[0] == 'W' || value[0] == 'I' ||
+          value[0] == 'P') &&
          value[1] == '-' &&
          IsUpperAscii(value[2]) &&
          IsUpperAscii(value[3]) &&

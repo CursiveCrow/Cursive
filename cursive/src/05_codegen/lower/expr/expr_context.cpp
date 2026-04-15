@@ -1,0 +1,1003 @@
+// =============================================================================
+// Expression Lowering Context Infrastructure
+// =============================================================================
+
+#include "05_codegen/lower/expr/expr_common.h"
+
+#include <algorithm>
+#include <iostream>
+
+#include "00_core/assert_spec.h"
+#include "04_analysis/resolve/scopes.h"
+#include "05_codegen/abi/abi.h"
+#include "05_codegen/intrinsics/builtins.h"
+
+namespace cursive::codegen {
+
+namespace {
+
+analysis::Permission PermissionOfType(const analysis::TypeRef& type) {
+  if (!type) {
+    return analysis::Permission::Const;
+  }
+  if (const auto* perm = std::get_if<analysis::TypePerm>(&type->node)) {
+    return perm->perm;
+  }
+  return analysis::Permission::Const;
+}
+
+}  // namespace
+
+const analysis::ScopeContext& ScopeForLowering(const LowerCtx& ctx) {
+  static const analysis::ScopeContext kEmptyScope{};
+
+  struct ScopeCache {
+    const analysis::Sigma* sigma = nullptr;
+    analysis::ExprTypeMap* expr_types = nullptr;
+    analysis::DynamicRefineExprMap* dynamic_refine_checks = nullptr;
+    std::vector<std::string> module_path;
+    analysis::ScopeContext scope;
+  };
+
+  thread_local ScopeCache cache;
+  if (!ctx.sigma) {
+    return kEmptyScope;
+  }
+
+  if (cache.sigma != ctx.sigma || cache.expr_types != ctx.expr_types ||
+      cache.dynamic_refine_checks != ctx.dynamic_refine_checks ||
+      cache.module_path != ctx.module_path) {
+    cache.sigma = ctx.sigma;
+    cache.expr_types = ctx.expr_types;
+    cache.dynamic_refine_checks = ctx.dynamic_refine_checks;
+    cache.module_path = ctx.module_path;
+    cache.scope = analysis::ScopeContext{};
+    cache.scope.sigma = *ctx.sigma;
+    cache.scope.sigma_source = ctx.sigma;
+    cache.scope.current_module = ctx.module_path;
+    cache.scope.expr_types = ctx.expr_types;
+    cache.scope.dynamic_refine_checks = ctx.dynamic_refine_checks;
+  }
+
+  return cache.scope;
+}
+
+const analysis::ScopeContext& ScopeForLowering(const LowerCtx* ctx) {
+  static const analysis::ScopeContext kEmptyScope{};
+  if (!ctx) {
+    return kEmptyScope;
+  }
+  return ScopeForLowering(*ctx);
+}
+
+IRValue USizeConstValue(std::uint64_t value) {
+  IRValue v;
+  v.kind = IRValue::Kind::Immediate;
+  v.name = std::to_string(value);
+  v.bytes.reserve(8);
+  for (std::size_t i = 0; i < 8; ++i) {
+    v.bytes.push_back(static_cast<std::uint8_t>((value >> (8 * i)) & 0xFFu));
+  }
+  return v;
+}
+
+IRPtr EmitRuntimeScopeEnter(std::uint64_t scope_id, LowerCtx& ctx) {
+  IRCall call;
+  call.callee.kind = IRValue::Kind::Symbol;
+  call.callee.name = BuiltinModalSymRegionScopeEnter();
+  call.args.push_back(USizeConstValue(scope_id));
+  IRValue result = ctx.FreshTempValue("scope_enter");
+  call.result = result;
+  ctx.RegisterValueType(result, analysis::MakeTypePrim("()"));
+  return MakeIR(std::move(call));
+}
+
+void LowerCtx::PushScope(bool is_loop, bool is_region) {
+  ScopeInfo scope;
+  scope.is_loop = is_loop;
+  scope.is_region = is_region;
+  scope.runtime_scope_id = next_runtime_scope_id++;
+  scope_stack.push_back(std::move(scope));
+}
+
+void LowerCtx::PopScope() {
+  if (scope_stack.empty()) {
+    return;
+  }
+
+  const auto& vars = scope_stack.back().variables;
+  for (auto it = vars.rbegin(); it != vars.rend(); ++it) {
+    auto map_it = binding_states.find(*it);
+    if (map_it == binding_states.end()) {
+      continue;
+    }
+    if (!map_it->second.empty()) {
+      map_it->second.pop_back();
+    }
+    if (map_it->second.empty()) {
+      binding_states.erase(map_it);
+    }
+  }
+
+  scope_stack.pop_back();
+}
+
+std::vector<std::string> LowerCtx::CurrentScopeVars() const {
+  if (scope_stack.empty()) {
+    return {};
+  }
+  return scope_stack.back().variables;
+}
+
+std::vector<std::string> LowerCtx::VarsToLoopScope() const {
+  std::vector<std::string> vars;
+
+  for (auto it = scope_stack.rbegin(); it != scope_stack.rend(); ++it) {
+    for (const auto& var : it->variables) {
+      vars.push_back(var);
+    }
+    if (it->is_loop) {
+      break;
+    }
+  }
+
+  return vars;
+}
+
+std::vector<std::string> LowerCtx::VarsToFunctionRoot() const {
+  std::vector<std::string> vars;
+
+  for (auto it = scope_stack.rbegin(); it != scope_stack.rend(); ++it) {
+    for (const auto& var : it->variables) {
+      vars.push_back(var);
+    }
+  }
+
+  return vars;
+}
+
+void LowerCtx::RegisterVar(const std::string& name,
+                           analysis::TypeRef type,
+                           bool has_responsibility,
+                           bool is_immovable,
+                           analysis::ProvenanceKind prov,
+                           std::optional<std::string> prov_region,
+                           bool preserve_addr_provenance) {
+  if (!scope_stack.empty()) {
+    scope_stack.back().variables.push_back(name);
+    if (has_responsibility) {
+      CleanupItem item;
+      item.kind = CleanupItem::Kind::DropBinding;
+      item.name = name;
+      scope_stack.back().cleanup_items.push_back(std::move(item));
+    }
+  }
+
+  BindingState state;
+  state.type = type;
+  state.has_responsibility = has_responsibility;
+  state.is_immovable = is_immovable;
+  state.is_moved = false;
+  state.prov = prov;
+  state.prov_region = std::move(prov_region);
+  state.preserve_addr_provenance = preserve_addr_provenance;
+  if (!scope_stack.empty()) {
+    state.scope_runtime_id = scope_stack.back().runtime_scope_id;
+  }
+
+  binding_states[name].push_back(std::move(state));
+}
+
+void LowerCtx::RegisterRuntimeScopeExit() {
+  if (scope_stack.empty()) {
+    return;
+  }
+  CleanupItem item;
+  item.kind = CleanupItem::Kind::RuntimeScopeExit;
+  item.scope_runtime_id = scope_stack.back().runtime_scope_id;
+  scope_stack.back().cleanup_items.push_back(std::move(item));
+}
+
+std::optional<std::uint64_t> LowerCtx::CurrentRuntimeScopeId() const {
+  if (scope_stack.empty()) {
+    return std::nullopt;
+  }
+  return scope_stack.back().runtime_scope_id;
+}
+
+void LowerCtx::MarkMoved(const std::string& name) {
+  auto it = binding_states.find(name);
+  if (it == binding_states.end() || it->second.empty()) {
+    SPEC_RULE("UpdateValid-Err");
+    ReportCodegenFailure();
+    return;
+  }
+  SPEC_RULE("UpdateValid-MoveRoot");
+  it->second.back().is_moved = true;
+}
+
+void LowerCtx::MarkMoved(const std::vector<std::string>& names) {
+  SPEC_RULE("MarkMoved");
+  for (const auto& name : names) {
+    auto it = binding_states.find(name);
+    if (it != binding_states.end() && !it->second.empty()) {
+      MarkMoved(name);
+      continue;
+    }
+    if (LookupCapture(name) != nullptr) {
+      continue;
+    }
+    MarkMoved(name);
+  }
+}
+
+void LowerCtx::MarkFieldMoved(const std::string& name, const std::string& field) {
+  auto it = binding_states.find(name);
+  if (it == binding_states.end() || it->second.empty()) {
+    SPEC_RULE("UpdateValid-Err");
+    ReportCodegenFailure();
+    return;
+  }
+  SPEC_RULE("UpdateValid-PartialMove-Init");
+  SPEC_RULE("UpdateValid-PartialMove-Step");
+  it->second.back().moved_fields.push_back(field);
+}
+
+const BindingState* LowerCtx::GetBindingState(const std::string& name) const {
+  auto it = binding_states.find(name);
+  if (it != binding_states.end() && !it->second.empty()) {
+    return &it->second.back();
+  }
+  return nullptr;
+}
+
+std::optional<analysis::ProvenanceKind> LowerCtx::LookupExprProv(
+    const ast::Expr& expr) const {
+  if (!expr_prov) {
+    return std::nullopt;
+  }
+  const auto it = expr_prov->find(&expr);
+  if (it == expr_prov->end()) {
+    return std::nullopt;
+  }
+  return it->second;
+}
+
+std::optional<std::string> LowerCtx::LookupExprRegion(
+    const ast::Expr& expr) const {
+  if (!expr_region) {
+    return std::nullopt;
+  }
+  const auto it = expr_region->find(&expr);
+  if (it == expr_region->end()) {
+    return std::nullopt;
+  }
+  return it->second;
+}
+
+const std::vector<analysis::TypeRef>* LowerCtx::LookupDynamicRefinementTypes(
+    const ast::Expr& expr) const {
+  if (!dynamic_refine_checks) {
+    return nullptr;
+  }
+  const auto it = dynamic_refine_checks->find(&expr);
+  if (it == dynamic_refine_checks->end()) {
+    return nullptr;
+  }
+  return &it->second;
+}
+
+void LowerCtx::RegisterDefer(const IRPtr& defer_ir) {
+  if (!scope_stack.empty()) {
+    CleanupItem item;
+    item.kind = CleanupItem::Kind::DeferBlock;
+    item.defer_ir = defer_ir;
+    scope_stack.back().cleanup_items.push_back(std::move(item));
+  }
+}
+
+void LowerCtx::RegisterRegionRelease(const std::string& name) {
+  if (!scope_stack.empty()) {
+    CleanupItem item;
+    item.kind = CleanupItem::Kind::ReleaseRegion;
+    item.name = name;
+    scope_stack.back().cleanup_items.push_back(std::move(item));
+  }
+}
+
+void LowerCtx::RegisterKeyScopeExit(const std::string& scope_name) {
+  if (!scope_stack.empty()) {
+    CleanupItem item;
+    item.kind = CleanupItem::Kind::ReleaseKeyScope;
+    item.name = scope_name;
+    scope_stack.back().cleanup_items.push_back(std::move(item));
+  }
+}
+
+void LowerCtx::RegisterParallelJoin(const IRValue& parallel_ctx) {
+  if (scope_stack.empty() || parallel_ctx.name.empty()) {
+    return;
+  }
+  CleanupItem item;
+  item.kind = CleanupItem::Kind::ParallelJoin;
+  item.name = parallel_ctx.name;
+  scope_stack.back().cleanup_items.push_back(std::move(item));
+}
+
+void LowerCtx::RegisterTempValue(const IRValue& value, const analysis::TypeRef& type) {
+  if (!temp_sink) {
+    return;
+  }
+  TempValue temp;
+  temp.value = value;
+  temp.type = type;
+  temp_sink->push_back(std::move(temp));
+}
+
+void LowerCtx::RegisterDerivedValue(const IRValue& value, const DerivedValueInfo& info) {
+  auto derived_key = [](const IRValue& v) -> std::string {
+    if (v.kind == IRValue::Kind::Opaque) {
+      return "o:" + v.name;
+    }
+    if (v.kind == IRValue::Kind::Local) {
+      return "l:" + v.name;
+    }
+    return "";
+  };
+  const std::string key = derived_key(value);
+  if (key.empty()) {
+    return;
+  }
+  derived_values[key] = info;
+}
+
+const DerivedValueInfo* LowerCtx::LookupDerivedValue(const IRValue& value) const {
+  auto derived_key = [](const IRValue& v) -> std::string {
+    if (v.kind == IRValue::Kind::Opaque) {
+      return "o:" + v.name;
+    }
+    if (v.kind == IRValue::Kind::Local) {
+      return "l:" + v.name;
+    }
+    return "";
+  };
+  const std::string key = derived_key(value);
+  if (key.empty()) {
+    return nullptr;
+  }
+  auto it = derived_values.find(key);
+  if (it == derived_values.end()) {
+    if (map_parent != nullptr) {
+      return map_parent->LookupDerivedValue(value);
+    }
+    return nullptr;
+  }
+  return &it->second;
+}
+
+const CaptureAccess* LowerCtx::LookupCapture(const std::string& name) const {
+  if (!capture_env.has_value()) {
+    return nullptr;
+  }
+  auto it = capture_env->captures.find(name);
+  if (it == capture_env->captures.end()) {
+    return nullptr;
+  }
+  return &it->second;
+}
+
+CaptureEnvInfo LowerCtx::LoadEnv(
+    const IRValue& env_param,
+    analysis::TypeRef env_type,
+    const std::unordered_map<std::string, CaptureAccess>& captures) const {
+  CaptureEnvInfo env;
+  env.env_param = env_param;
+  env.env_type = std::move(env_type);
+  env.captures = captures;
+  return env;
+}
+
+void LowerCtx::BindAll(CaptureEnvInfo env) {
+  capture_env = std::move(env);
+}
+
+void LowerCtx::BindEnv(CaptureEnvInfo env) {
+  BindAll(std::move(env));
+}
+
+LoweredCaptureEnv LowerCtx::LowerParallelCaptureEnv(
+    const std::vector<ParallelCaptureBinding>& captures,
+    std::string_view env_prefix) {
+  LoweredCaptureEnv lowered;
+
+  std::vector<analysis::TypeRef> env_fields;
+  env_fields.reserve(captures.size());
+  for (const auto& cap : captures) {
+    const auto perm = PermissionOfType(cap.type);
+    const bool by_ref = perm == analysis::Permission::Const ||
+                        perm == analysis::Permission::Shared;
+    if (by_ref) {
+      env_fields.push_back(
+          analysis::MakeTypePtr(cap.type, analysis::PtrState::Valid));
+    } else {
+      env_fields.push_back(cap.type);
+    }
+  }
+
+  auto env_type = analysis::MakeTypeTuple(env_fields);
+  lowered.env_info.env_type = env_type;
+
+  IRValue env_ptr = FreshTempValue(std::string(env_prefix) + "_env_ptr");
+  RegisterValueType(env_ptr,
+                    analysis::MakeTypePtr(env_type, analysis::PtrState::Valid));
+
+  IRValue env_zero = FreshTempValue(std::string(env_prefix) + "_env_zero");
+  RegisterValueType(env_zero, env_type);
+
+  IRAlloc alloc_env;
+  alloc_env.value = env_zero;
+  alloc_env.result = env_ptr;
+  alloc_env.type = env_type;
+  lowered.ir_parts.push_back(MakeIR(std::move(alloc_env)));
+
+  for (std::size_t i = 0; i < captures.size(); ++i) {
+    const auto& cap = captures[i];
+    const auto perm = PermissionOfType(cap.type);
+    const bool by_ref = perm == analysis::Permission::Const ||
+                        perm == analysis::Permission::Shared;
+
+    CaptureAccess access;
+    access.index = i;
+    access.value_type = cap.type;
+    access.by_ref = by_ref;
+    access.field_type = by_ref
+                            ? analysis::MakeTypePtr(cap.type,
+                                                    analysis::PtrState::Valid)
+                            : cap.type;
+    lowered.env_info.captures[cap.name] = access;
+
+    IRValue field_val;
+    IRPtr field_ir = EmptyIR();
+    if (by_ref) {
+      IRValue ptr = FreshTempValue("capture_addr");
+      DerivedValueInfo addr_info;
+      addr_info.kind = DerivedValueInfo::Kind::AddrLocal;
+      addr_info.name = cap.name;
+      RegisterDerivedValue(ptr, addr_info);
+      RegisterValueType(
+          ptr, analysis::MakeTypePtr(cap.type, analysis::PtrState::Valid));
+      field_val = ptr;
+    } else if (cap.explicit_move) {
+      ast::Expr ident_expr;
+      ident_expr.node = ast::IdentifierExpr{cap.name};
+      auto move_res = LowerMovePlace(ident_expr, *this);
+      field_val = move_res.value;
+      field_ir = move_res.ir;
+    } else {
+      field_val.kind = IRValue::Kind::Local;
+      field_val.name = cap.name;
+    }
+
+    if (field_ir && !std::holds_alternative<IROpaque>(field_ir->node)) {
+      lowered.ir_parts.push_back(field_ir);
+    }
+
+    IRValue field_ptr = FreshTempValue("capture_field_ptr");
+    DerivedValueInfo field_info;
+    field_info.kind = DerivedValueInfo::Kind::AddrTuple;
+    field_info.base = env_ptr;
+    field_info.tuple_index = i;
+    RegisterDerivedValue(field_ptr, field_info);
+    RegisterValueType(
+        field_ptr,
+        analysis::MakeTypeRawPtr(analysis::RawPtrQual::Mut, access.field_type));
+
+    IRWritePtr store_field;
+    store_field.ptr = field_ptr;
+    store_field.value = field_val;
+    lowered.ir_parts.push_back(MakeIR(std::move(store_field)));
+  }
+
+  lowered.env_info.env_param = env_ptr;
+  return lowered;
+}
+
+IRValue LowerCtx::CaptureFieldPtr(const CaptureAccess& access) {
+  IRValue ptr = FreshTempValue("capture_ptr");
+  if (!capture_env.has_value()) {
+    return ptr;
+  }
+  DerivedValueInfo info;
+  info.kind = DerivedValueInfo::Kind::AddrTuple;
+  info.base = capture_env->env_param;
+  info.tuple_index = access.index;
+  info.byte_offset = access.byte_offset;
+  RegisterDerivedValue(ptr, info);
+  auto elem_ptr = analysis::MakeTypeRawPtr(analysis::RawPtrQual::Mut, access.field_type);
+  RegisterValueType(ptr, elem_ptr);
+  return ptr;
+}
+
+IRValue LowerCtx::FreshTempValue(std::string_view prefix) {
+  IRValue value;
+  value.kind = IRValue::Kind::Opaque;
+  value.name = std::string(prefix) + "_" + std::to_string(temp_counter++);
+  return value;
+}
+
+std::string LowerCtx::FreshRegionAlias() {
+  auto name_used = [this](const std::string& name) -> bool {
+    auto it = binding_states.find(name);
+    if (it != binding_states.end() && !it->second.empty()) {
+      return true;
+    }
+    for (const auto& scope : scope_stack) {
+      if (std::find(scope.region_tags.begin(), scope.region_tags.end(), name) !=
+          scope.region_tags.end()) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  for (std::size_t i = 0;; ++i) {
+    std::string name = std::string("region$") + std::to_string(i);
+    if (!name_used(name)) {
+      return name;
+    }
+  }
+}
+
+void LowerCtx::ReserveRegionTag(const std::string& name) {
+  if (!scope_stack.empty()) {
+    scope_stack.back().region_tags.push_back(name);
+  }
+}
+
+void LowerCtx::ReportResolveFailure(const std::string& name) {
+  resolve_failed = true;
+  if (std::find(resolve_failures.begin(), resolve_failures.end(), name) ==
+      resolve_failures.end()) {
+    resolve_failures.push_back(name);
+  }
+}
+
+void LowerCtx::ReportCodegenFailure(std::source_location loc) {
+  codegen_failed = true;
+  std::cerr << "[cursive] codegen failure at " << loc.file_name() << ":"
+            << loc.line() << "\n";
+}
+
+void LowerCtx::RegisterValueType(const IRValue& value, analysis::TypeRef type) {
+  if (!type) {
+    return;
+  }
+  if (value.kind == IRValue::Kind::Symbol) {
+    std::string key = "sym:";
+    key += value.name;
+    const auto [it, inserted] = value_types.emplace(key, type);
+    if (!inserted) {
+      it->second = type;
+    } else if (value_type_insert_sink) {
+      value_type_insert_sink->push_back(key);
+    }
+    return;
+  }
+  if (value.kind == IRValue::Kind::Opaque) {
+    const auto [it, inserted] = value_types.emplace(value.name, type);
+    if (!inserted) {
+      it->second = type;
+    } else if (value_type_insert_sink) {
+      value_type_insert_sink->push_back(value.name);
+    }
+    return;
+  }
+  if (value.kind == IRValue::Kind::Immediate) {
+    std::string key = "imm:";
+    key += std::to_string(value.literal_id);
+    const auto [it, inserted] = value_types.emplace(key, type);
+    if (!inserted) {
+      it->second = type;
+    } else if (value_type_insert_sink) {
+      value_type_insert_sink->push_back(key);
+    }
+  }
+}
+
+analysis::TypeRef LowerCtx::LookupValueType(const IRValue& value) const {
+  if (value.kind == IRValue::Kind::Local) {
+    if (const auto* state = GetBindingState(value.name)) {
+      return state->type;
+    }
+    if (map_parent != nullptr) {
+      return map_parent->LookupValueType(value);
+    }
+    return nullptr;
+  }
+  if (value.kind == IRValue::Kind::Symbol) {
+    std::string key = "sym:";
+    key += value.name;
+    auto sym_it = value_types.find(key);
+    if (sym_it != value_types.end()) {
+      return sym_it->second;
+    }
+    if (map_parent != nullptr) {
+      if (analysis::TypeRef inherited = map_parent->LookupValueType(value)) {
+        return inherited;
+      }
+    }
+    if (analysis::TypeRef static_type = LookupStaticType(value.name)) {
+      return static_type;
+    }
+    if (const auto* state = GetBindingState(value.name)) {
+      return state->type;
+    }
+    if (const auto* capture = LookupCapture(value.name)) {
+      return capture->value_type;
+    }
+    return nullptr;
+  }
+  if (value.kind == IRValue::Kind::Opaque) {
+    auto it = value_types.find(value.name);
+    if (it != value_types.end()) {
+      return it->second;
+    }
+    if (map_parent != nullptr) {
+      return map_parent->LookupValueType(value);
+    }
+    return nullptr;
+  }
+  if (value.kind == IRValue::Kind::Immediate && value.literal_id != 0) {
+    std::string key = "imm:";
+    key += std::to_string(value.literal_id);
+    auto it = value_types.find(key);
+    if (it != value_types.end()) {
+      return it->second;
+    }
+    if (map_parent != nullptr) {
+      return map_parent->LookupValueType(value);
+    }
+  }
+  return nullptr;
+}
+
+void LowerCtx::FreezeLookupTables() {
+  if (baseline_tables != nullptr) {
+    return;
+  }
+  auto tables = std::make_shared<LookupTables>();
+  tables->static_types = std::move(static_types);
+  tables->static_modules = std::move(static_modules);
+  tables->record_ctor_paths = std::move(record_ctor_paths);
+  tables->proc_sigs = std::move(proc_sigs);
+  tables->proc_linkages = std::move(proc_linkages);
+  tables->proc_visibilities = std::move(proc_visibilities);
+  tables->proc_modules = std::move(proc_modules);
+  tables->export_unwind_modes = std::move(export_unwind_modes);
+  tables->foreign_contracts = std::move(foreign_contracts);
+  tables->local_contracts = std::move(local_contracts);
+  tables->async_procs = std::move(async_procs);
+  baseline_tables = std::move(tables);
+}
+
+void LowerCtx::RegisterStaticType(const std::string& sym, analysis::TypeRef type) {
+  if (!type) {
+    return;
+  }
+  static_types[sym] = type;
+}
+
+analysis::TypeRef LowerCtx::LookupStaticType(const std::string& sym) const {
+  auto it = static_types.find(sym);
+  if (it != static_types.end()) {
+    return it->second;
+  }
+  if (baseline_tables != nullptr) {
+    const auto base_it = baseline_tables->static_types.find(sym);
+    if (base_it != baseline_tables->static_types.end()) {
+      return base_it->second;
+    }
+  }
+  return nullptr;
+}
+
+void LowerCtx::RegisterStaticModule(const std::string& sym,
+                                    const ast::ModulePath& module_path) {
+  static_modules[sym] = module_path;
+}
+
+const std::vector<std::string>* LowerCtx::LookupStaticModule(
+    const std::string& sym) const {
+  auto it = static_modules.find(sym);
+  if (it != static_modules.end()) {
+    return &it->second;
+  }
+  if (baseline_tables != nullptr) {
+    const auto base_it = baseline_tables->static_modules.find(sym);
+    if (base_it != baseline_tables->static_modules.end()) {
+      return &base_it->second;
+    }
+  }
+  return nullptr;
+}
+
+void LowerCtx::RegisterDropGlueType(const std::string& sym, analysis::TypeRef type) {
+  if (!type) {
+    return;
+  }
+  drop_glue_types[sym] = type;
+}
+
+analysis::TypeRef LowerCtx::LookupDropGlueType(const std::string& sym) const {
+  auto it = drop_glue_types.find(sym);
+  if (it != drop_glue_types.end()) {
+    return it->second;
+  }
+  if (map_parent != nullptr) {
+    if (analysis::TypeRef inherited = map_parent->LookupDropGlueType(sym)) {
+      return inherited;
+    }
+  }
+  return nullptr;
+}
+
+void LowerCtx::RegisterRecordCtor(const std::string& sym,
+                                  const std::vector<std::string>& path) {
+  record_ctor_paths[sym] = path;
+}
+
+const std::vector<std::string>* LowerCtx::LookupRecordCtor(
+    const std::string& sym) const {
+  auto it = record_ctor_paths.find(sym);
+  if (it != record_ctor_paths.end()) {
+    return &it->second;
+  }
+  if (baseline_tables != nullptr) {
+    const auto base_it = baseline_tables->record_ctor_paths.find(sym);
+    if (base_it != baseline_tables->record_ctor_paths.end()) {
+      return &base_it->second;
+    }
+  }
+  return nullptr;
+}
+
+void LowerCtx::RegisterProcSig(const ProcIR& proc) {
+  ProcSigInfo info;
+  info.params = proc.params;
+  info.ret = proc.ret;
+  info.abi = proc.abi;
+
+  if (auto existing = proc_sigs.find(proc.symbol); existing != proc_sigs.end()) {
+    info.ffi_import = existing->second.ffi_import;
+    info.ffi_import_unwind_mode = existing->second.ffi_import_unwind_mode;
+    if (!info.abi.has_value()) {
+      info.abi = existing->second.abi;
+    }
+  } else if (baseline_tables != nullptr) {
+    const auto base_it = baseline_tables->proc_sigs.find(proc.symbol);
+    if (base_it != baseline_tables->proc_sigs.end()) {
+      info.ffi_import = base_it->second.ffi_import;
+      info.ffi_import_unwind_mode = base_it->second.ffi_import_unwind_mode;
+      if (!info.abi.has_value()) {
+        info.abi = base_it->second.abi;
+      }
+    }
+  }
+
+  proc_sigs[proc.symbol] = std::move(info);
+}
+
+const LowerCtx::ProcSigInfo* LowerCtx::LookupProcSig(const std::string& sym) const {
+  auto it = proc_sigs.find(sym);
+  if (it != proc_sigs.end()) {
+    return &it->second;
+  }
+  if (baseline_tables != nullptr) {
+    const auto base_it = baseline_tables->proc_sigs.find(sym);
+    if (base_it != baseline_tables->proc_sigs.end()) {
+      return &base_it->second;
+    }
+  }
+  return nullptr;
+}
+
+void LowerCtx::RegisterProcLinkage(const std::string& sym,
+                                   LinkageKind linkage) {
+  proc_linkages[sym] = linkage;
+}
+
+std::optional<LinkageKind> LowerCtx::LookupProcLinkage(
+    const std::string& sym) const {
+  auto it = proc_linkages.find(sym);
+  if (it != proc_linkages.end()) {
+    return it->second;
+  }
+  if (baseline_tables != nullptr) {
+    const auto base_it = baseline_tables->proc_linkages.find(sym);
+    if (base_it != baseline_tables->proc_linkages.end()) {
+      return base_it->second;
+    }
+  }
+  return std::nullopt;
+}
+
+const std::unordered_map<std::string, LinkageKind>& LowerCtx::AllProcLinkages()
+    const {
+  if (baseline_tables != nullptr) {
+    return baseline_tables->proc_linkages;
+  }
+  return proc_linkages;
+}
+
+void LowerCtx::RegisterProcVisibility(const std::string& sym,
+                                      ast::Visibility visibility) {
+  proc_visibilities[sym] = visibility;
+}
+
+std::optional<ast::Visibility> LowerCtx::LookupProcVisibility(
+    const std::string& sym) const {
+  auto it = proc_visibilities.find(sym);
+  if (it != proc_visibilities.end()) {
+    return it->second;
+  }
+  if (baseline_tables != nullptr) {
+    const auto base_it = baseline_tables->proc_visibilities.find(sym);
+    if (base_it != baseline_tables->proc_visibilities.end()) {
+      return base_it->second;
+    }
+  }
+  return std::nullopt;
+}
+
+void LowerCtx::RegisterProcFfiImport(const std::string& sym,
+                                     FfiImportUnwindMode mode) {
+  auto mark_import = [&](ProcSigInfo& info) {
+    info.ffi_import = true;
+    info.ffi_import_unwind_mode = mode;
+  };
+
+  auto it = proc_sigs.find(sym);
+  if (it != proc_sigs.end()) {
+    mark_import(it->second);
+    return;
+  }
+
+  if (baseline_tables != nullptr) {
+    const auto base_it = baseline_tables->proc_sigs.find(sym);
+    if (base_it != baseline_tables->proc_sigs.end()) {
+      ProcSigInfo copied = base_it->second;
+      mark_import(copied);
+      proc_sigs[sym] = std::move(copied);
+      return;
+    }
+  }
+
+  ProcSigInfo info;
+  mark_import(info);
+  proc_sigs[sym] = std::move(info);
+}
+
+bool LowerCtx::NeedsPanicOutForSymbol(const std::string& sym) const {
+  if (const auto* sig = LookupProcSig(sym)) {
+    return !sig->params.empty() &&
+           sig->params.back().name == std::string(kPanicOutName);
+  }
+  return NeedsPanicOut(sym);
+}
+
+void LowerCtx::RegisterProcModule(const std::string& sym, const ast::ModulePath& module_path) {
+  if (proc_modules.find(sym) != proc_modules.end()) {
+    return;
+  }
+  if (proc_modules.find(sym) == proc_modules.end() &&
+      baseline_tables != nullptr) {
+    if (baseline_tables->proc_modules.find(sym) !=
+        baseline_tables->proc_modules.end()) {
+      return;
+    }
+  }
+  proc_modules[sym] = module_path;
+}
+
+const std::vector<std::string>* LowerCtx::LookupProcModule(const std::string& sym) const {
+  auto it = proc_modules.find(sym);
+  if (it != proc_modules.end()) {
+    return &it->second;
+  }
+  if (baseline_tables != nullptr) {
+    const auto base_it = baseline_tables->proc_modules.find(sym);
+    if (base_it != baseline_tables->proc_modules.end()) {
+      return &base_it->second;
+    }
+  }
+  return nullptr;
+}
+
+void LowerCtx::QueueExtraProc(ProcIR proc,
+                              std::optional<LinkageKind> linkage,
+                              const ast::ModulePath* module_path) {
+  RegisterProcSig(proc);
+  if (linkage.has_value()) {
+    RegisterProcLinkage(proc.symbol, *linkage);
+  }
+  if (module_path != nullptr) {
+    RegisterProcModule(proc.symbol, *module_path);
+  }
+  extra_procs.push_back(std::move(proc));
+}
+
+void LowerCtx::RegisterExportUnwindMode(const std::string& sym,
+                                        ExportUnwindMode mode) {
+  export_unwind_modes[sym] = mode;
+}
+
+std::optional<LowerCtx::ExportUnwindMode> LowerCtx::LookupExportUnwindMode(
+    const std::string& sym) const {
+  auto it = export_unwind_modes.find(sym);
+  if (it != export_unwind_modes.end()) {
+    return it->second;
+  }
+  if (baseline_tables != nullptr) {
+    const auto base_it = baseline_tables->export_unwind_modes.find(sym);
+    if (base_it != baseline_tables->export_unwind_modes.end()) {
+      return base_it->second;
+    }
+  }
+  return std::nullopt;
+}
+
+void LowerCtx::RegisterForeignContractInfo(const std::string& sym,
+                                           ForeignContractInfo info) {
+  foreign_contracts[sym] = std::move(info);
+}
+
+const LowerCtx::ForeignContractInfo* LowerCtx::LookupForeignContractInfo(
+    const std::string& sym) const {
+  auto it = foreign_contracts.find(sym);
+  if (it != foreign_contracts.end()) {
+    return &it->second;
+  }
+  if (baseline_tables != nullptr) {
+    const auto base_it = baseline_tables->foreign_contracts.find(sym);
+    if (base_it != baseline_tables->foreign_contracts.end()) {
+      return &base_it->second;
+    }
+  }
+  return nullptr;
+}
+
+void LowerCtx::RegisterLocalContractInfo(const std::string& sym,
+                                         LocalContractInfo info) {
+  local_contracts[sym] = std::move(info);
+}
+
+const LowerCtx::LocalContractInfo* LowerCtx::LookupLocalContractInfo(
+    const std::string& sym) const {
+  auto it = local_contracts.find(sym);
+  if (it != local_contracts.end()) {
+    return &it->second;
+  }
+  if (baseline_tables != nullptr) {
+    const auto base_it = baseline_tables->local_contracts.find(sym);
+    if (base_it != baseline_tables->local_contracts.end()) {
+      return &base_it->second;
+    }
+  }
+  return nullptr;
+}
+
+const LowerCtx::AsyncProcInfo* LowerCtx::LookupAsyncProc(const std::string& sym) const {
+  auto it = async_procs.find(sym);
+  if (it != async_procs.end()) {
+    return &it->second;
+  }
+  if (baseline_tables != nullptr) {
+    const auto base_it = baseline_tables->async_procs.find(sym);
+    if (base_it != baseline_tables->async_procs.end()) {
+      return &base_it->second;
+    }
+  }
+  return nullptr;
+}
+
+}  // namespace cursive::codegen

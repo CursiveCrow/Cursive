@@ -8,8 +8,8 @@ public procedure MemoryBoundaryForeignDynamicImpl(value: i32) -> i32 {
     return value
 }
 
-[[mangle("hc_memory_boundary_foreign_trust_impl"), export("C-unwind")]]
-public procedure MemoryBoundaryForeignTrustImpl(value: i32) -> i32 {
+[[mangle("hc_memory_boundary_foreign_default_impl"), export("C-unwind")]]
+public procedure MemoryBoundaryForeignDefaultImpl(value: i32) -> i32 {
     return value
 }
 
@@ -32,9 +32,8 @@ extern "C" {
         |: @foreign_ensures(@result >= 0)
 }
 
-[[trust]]
 extern "C" {
-    procedure hc_memory_boundary_foreign_trust_impl(value: i32) -> i32
+    procedure hc_memory_boundary_foreign_default_impl(value: i32) -> i32
         |: @foreign_assumes(value >= 0)
         |: @foreign_ensures(@result >= 0)
 }
@@ -56,23 +55,23 @@ public procedure RunFfiUnwindAndVerificationModes(ctx: Context) -> i32 {
 
     let static_value: i32 = unsafe { hc_memory_boundary_foreign_static_impl(12) }
     let dynamic_value: i32 = unsafe { hc_memory_boundary_foreign_dynamic_impl(13) }
-    let trust_value: i32 = unsafe { hc_memory_boundary_foreign_trust_impl(14) }
+    let default_value: i32 = unsafe { hc_memory_boundary_foreign_default_impl(14) }
 
     let catch_value: i32 = unsafe { hc_memory_boundary_unwind_catch_impl(7) }
 
     let static_value_log: i32 = [[log(label: "observed-memory-boundary-ffi-static-mode", expected: 12)]] static_value
     let dynamic_value_log: i32 = [[log(label: "observed-memory-boundary-ffi-dynamic-mode", expected: 13)]] dynamic_value
-    let trust_value_log: i32 = [[log(label: "observed-memory-boundary-ffi-trust-mode", expected: 14)]] trust_value
+    let default_value_log: i32 = [[log(label: "observed-memory-boundary-ffi-default-mode", expected: 14)]] default_value
     let catch_value_log: i32 = [[log(label: "observed-memory-boundary-ffi-catch-mode", expected: 0)]] catch_value
 
     let static_mode_ok: bool = static_value_log == 12
     let dynamic_mode_ok: bool = dynamic_value_log == 13
-    let trust_mode_ok: bool = trust_value_log == 14
+    let default_mode_ok: bool = default_value_log == 14
     let catch_mode_ok: bool = catch_value_log == 0
 
     let static_mode_ok_log: bool = [[log(label: "memory-boundary-ffi-static-mode", expected: true)]] static_mode_ok
     let dynamic_mode_ok_log: bool = [[log(label: "memory-boundary-ffi-dynamic-mode", expected: true)]] dynamic_mode_ok
-    let trust_mode_ok_log: bool = [[log(label: "memory-boundary-ffi-trust-mode", expected: true)]] trust_mode_ok
+    let default_mode_ok_log: bool = [[log(label: "memory-boundary-ffi-default-mode", expected: true)]] default_mode_ok
     let catch_mode_ok_log: bool = [[log(label: "memory-boundary-ffi-unwind-catch-mode", expected: true)]] catch_mode_ok
 
     let diag_extern_unsafe: string@View = "E-TYP-2106"
@@ -95,7 +94,7 @@ public procedure RunFfiUnwindAndVerificationModes(ctx: Context) -> i32 {
     let metric_ok: bool =
         (static_mode_ok_log == true) &&
         (dynamic_mode_ok_log == true) &&
-        (trust_mode_ok_log == true) &&
+        (default_mode_ok_log == true) &&
         (catch_mode_ok_log == true) &&
         (diag_matrix_ok_log == true)
 

@@ -1,31 +1,14 @@
 #include "01_project/ffi_library.h"
 
-#include <cctype>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <algorithm>
 #include <unordered_set>
 #include <vector>
-
-#include "01_project/deterministic_order.h"
 
 namespace cursive::project {
 
 namespace {
-
-std::string LowerAscii(std::string_view text) {
-  std::string out;
-  out.reserve(text.size());
-  for (unsigned char ch : text) {
-    out.push_back(static_cast<char>(std::tolower(ch)));
-  }
-  return out;
-}
-
-bool IsWindowsFoundationalDelayLoadDll(std::string_view dll_name) {
-  return LowerAscii(dll_name) == "kernel32.dll";
-}
 
 std::string NormalizeAttributeStringLiteral(std::string value) {
   if (value.size() >= 2 &&
@@ -100,7 +83,7 @@ std::vector<FfiLibrarySpec> CollectExternLibrarySpecs(
       if (!block) {
         continue;
       }
-      for (const auto& attr : block->attrs) {
+      for (const auto& attr : ast::AttrListOf(*block)) {
         const auto spec = NormalizeLibraryAttribute(attr);
         if (!spec.has_value()) {
           continue;
@@ -166,56 +149,6 @@ std::vector<std::filesystem::path> ResolveExternLibraryInputs(
     }
     out.push_back(*resolved);
   }
-  return out;
-}
-
-std::optional<std::string> ResolveLibraryDelayLoadNameForCurrentTarget(
-    std::string_view name,
-    std::string_view kind,
-    TargetProfile profile) {
-  if (kind != "raw-dylib" || profile != TargetProfile::X86_64Win64) {
-    return std::nullopt;
-  }
-
-  const auto resolved = ResolveLibraryNameForCurrentTarget(name, kind, profile);
-  if (!resolved.has_value()) {
-    return std::nullopt;
-  }
-
-  return std::filesystem::path(*resolved).filename().generic_string();
-}
-
-std::vector<std::string> ResolveExternLibraryDelayLoadDlls(
-    const std::vector<FfiLibrarySpec>& specs,
-    TargetProfile profile) {
-  std::vector<std::string> out;
-  std::unordered_set<std::string> seen;
-  out.reserve(specs.size());
-  for (const auto& spec : specs) {
-    if (spec.kind != "raw-dylib") {
-      continue;
-    }
-    const auto resolved =
-        ResolveLibraryDelayLoadNameForCurrentTarget(spec.name, spec.kind,
-                                                    profile);
-    if (!resolved.has_value()) {
-      continue;
-    }
-    // Delay-loading kernel32 recurses inside the PE delay-load helper because
-    // the helper itself resolves imports through kernel32 loader APIs.
-    if (IsWindowsFoundationalDelayLoadDll(*resolved)) {
-      continue;
-    }
-    if (!seen.insert(*resolved).second) {
-      continue;
-    }
-    out.push_back(*resolved);
-  }
-  std::sort(out.begin(), out.end(),
-            [](const std::string& lhs, const std::string& rhs) {
-              return Utf8LexLess(lhs, rhs);
-            });
-  out.erase(std::unique(out.begin(), out.end()), out.end());
   return out;
 }
 

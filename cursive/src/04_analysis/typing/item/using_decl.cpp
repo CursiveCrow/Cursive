@@ -398,7 +398,8 @@ UsingDeclResult TypeUsingDecl(
   result.ok = true;
 
   const auto attr_validation =
-      ValidateAttributes(decl.attrs, AttributeTarget::Using);
+      ValidateUnsupportedAttributeTarget(ast::AttrListOf(decl.attrs_opt),
+                                         "using declarations");
   if (!attr_validation.ok) {
     result.ok = false;
     result.diag_id = attr_validation.diag_id;

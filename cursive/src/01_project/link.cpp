@@ -9,22 +9,18 @@
 #include <fstream>
 #include <optional>
 #include <sstream>
+#include <string_view>
 #include <unordered_set>
 
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#endif
-
 #include "00_core/assert_spec.h"
+#include "00_core/host/services.h"
+#include "00_core/path.h"
 #include "00_core/crash_debug.h"
 #include "00_core/diagnostic_messages.h"
 #include "00_core/host_primitives.h"
 #include "00_core/process_config.h"
-#include "00_core/windows_bundle.h"
+#include "00_core/compiler_support.h"
+#include "01_project/compiler_support_paths.h"
 #include "01_project/outputs.h"
 #include "01_project/project.h"
 #include "01_project/target_profile.h"
@@ -36,23 +32,30 @@ namespace cursive::project {
 namespace {
 
 constexpr std::string_view kLibraryEntrySym = "__cursive_library_entry";
-constexpr std::string_view kDelayImpLibraryName = "delayimp.lib";
 constexpr std::uint64_t kWindowsExeStackReserveBytes = 1ull << 20;
 constexpr std::uint64_t kWindowsExeStackCommitBytes = 64ull << 10;
-
-#ifdef _WIN32
-std::filesystem::path DelayImpLibraryPath() {
-  if (const auto bundled = core::BundledWindowsDelayImpLibPath();
-      bundled.has_value()) {
-    return *bundled;
-  }
-  return std::filesystem::path(std::string(kDelayImpLibraryName));
-}
-#endif
 constexpr std::string_view kRuntimeInitPrefix =
     "cursive_x3a_x3aruntime_x3a_x3ainit_x3a_x3a";
 constexpr std::string_view kRuntimeDeinitPrefix =
     "cursive_x3a_x3aruntime_x3a_x3adeinit_x3a_x3a";
+constexpr std::string_view kLinuxStartupObjectX86_64SysV =
+    "cursive0_start_x86_64_sysv.o";
+constexpr std::string_view kLinuxRuntimeSupportSidecar =
+    "libCursiveRTSupport.so";
+constexpr std::string_view kLinuxIcuI18nSidecar = "libicui18n.so.72";
+constexpr std::string_view kLinuxIcuUcSidecar = "libicuuc.so.72";
+constexpr std::string_view kLinuxIcuDataSidecar = "libicudata.so.72";
+constexpr std::string_view kLinuxIcuDataBlobSidecar = "icudt72l.dat";
+
+std::string PathArgString(const std::filesystem::path& path) {
+  const auto utf8 = path.generic_u8string();
+  std::string out;
+  out.reserve(utf8.size());
+  for (const auto ch : utf8) {
+    out.push_back(static_cast<char>(ch));
+  }
+  return out;
+}
 
 bool IsHiddenSharedLibraryExportSymbolImpl(std::string_view symbol) {
   return symbol == kLibraryEntrySym ||
@@ -88,6 +91,10 @@ std::optional<std::string> ReadFileBytes(const std::filesystem::path& path) {
 bool CanReadFile(const std::filesystem::path& path) {
   std::ifstream in(path, std::ios::binary);
   return static_cast<bool>(in);
+}
+
+bool IsLinkableElfSidecar(const std::filesystem::path& path) {
+  return path.filename().generic_string().find(".so") != std::string::npos;
 }
 
 bool IsLinkerResolvedLibraryName(const std::filesystem::path& path) {
@@ -666,6 +673,11 @@ std::string LowerAscii(std::string_view text) {
   return out;
 }
 
+bool ArchiverUsesWindowsFlags(const std::filesystem::path& tool) {
+  const std::string filename = LowerAscii(tool.filename().string());
+  return filename == "llvm-lib" || filename == "llvm-lib.exe";
+}
+
 bool OutputSuggestsMissingLibrary(std::string_view output) {
   static constexpr std::string_view kNeedles[] = {
       "unable to find library",
@@ -717,54 +729,273 @@ bool IsMissingNamedLibraryFailure(
   return false;
 }
 
-#ifdef _WIN32
-std::vector<std::wstring> BuildWindowsLinkArgs(
+std::string SummarizeToolOutput(std::string_view output) {
+  std::string summary;
+  bool saw_non_space = false;
+  for (const char ch : output) {
+    if (ch == '\r' || ch == '\n') {
+      if (saw_non_space) {
+        break;
+      }
+      continue;
+    }
+    if (summary.empty() && (ch == ' ' || ch == '\t')) {
+      continue;
+    }
+    saw_non_space = true;
+    summary.push_back(ch);
+    if (summary.size() >= 240) {
+      summary += "...";
+      break;
+    }
+  }
+  return summary;
+}
+
+void AppendExistingUniqueDir(std::vector<std::filesystem::path>& out,
+                             const std::filesystem::path& dir) {
+  if (dir.empty()) {
+    return;
+  }
+  std::error_code ec;
+  const auto normalized = dir.lexically_normal();
+  if (!std::filesystem::is_directory(normalized, ec) || ec) {
+    return;
+  }
+  if (std::find(out.begin(), out.end(), normalized) == out.end()) {
+    out.push_back(normalized);
+  }
+}
+
+void AppendCandidateDir(std::vector<std::filesystem::path>& out,
+                        const std::filesystem::path& dir) {
+  if (dir.empty()) {
+    return;
+  }
+  AppendExistingUniqueDir(out, dir.lexically_normal());
+}
+
+std::vector<std::filesystem::path> LinuxBundledRuntimeSidecars(
+    TargetProfile target_profile,
+    const std::filesystem::path& runtime_lib) {
+  if (ObjectFormatOf(target_profile) != ObjectFormat::Elf) {
+    return {};
+  }
+
+  std::vector<std::filesystem::path> roots;
+  if (const auto support_lib_dir = CompilerSupportLibDir(target_profile);
+      support_lib_dir.has_value()) {
+    AppendCandidateDir(roots, *support_lib_dir);
+  }
+
+  if (!runtime_lib.empty()) {
+    const auto runtime_dir = runtime_lib.parent_path();
+    AppendCandidateDir(roots, runtime_dir / "linux" / "lib");
+    AppendCandidateDir(roots, runtime_dir / "lib");
+    if (!runtime_dir.empty()) {
+      AppendCandidateDir(roots, runtime_dir.parent_path() / "lib");
+    }
+  }
+
+  std::vector<std::filesystem::path> out;
+  for (const auto* name : {kLinuxRuntimeSupportSidecar.data(),
+                           kLinuxIcuI18nSidecar.data(),
+                           kLinuxIcuUcSidecar.data(),
+                           kLinuxIcuDataSidecar.data(),
+                           kLinuxIcuDataBlobSidecar.data()}) {
+    bool found = false;
+    for (const auto& root : roots) {
+      const auto candidate = root / name;
+      if (CanReadFile(candidate)) {
+        out.push_back(candidate);
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      return {};
+    }
+  }
+
+  return out;
+}
+
+std::optional<std::string> RunProgramCapture(
+    const std::filesystem::path& tool,
+    const std::vector<std::string>& extra_args) {
+  core::HostProcessSpec spec;
+  spec.program = tool;
+  spec.arguments = extra_args;
+  spec.output_mode = core::HostProcessOutputMode::CaptureMerged;
+  spec.hide_window = true;
+  const auto result = core::RunHostProcess(spec);
+  if (!result.launched || result.exit_code != 0) {
+    return std::nullopt;
+  }
+  return result.output;
+}
+
+void AppendSearchDirsFromDelimitedList(std::vector<std::filesystem::path>& out,
+                                       std::string_view text) {
+  std::size_t start = 0;
+  for (std::size_t i = 0; i <= text.size(); ++i) {
+    if (i == text.size() || text[i] == ':') {
+      const std::string_view segment = text.substr(start, i - start);
+      if (!segment.empty()) {
+        AppendExistingUniqueDir(out, std::filesystem::path(segment));
+      }
+      start = i + 1;
+    }
+  }
+}
+
+void AppendClangSearchDirs(std::vector<std::filesystem::path>& out,
+                           const std::filesystem::path& linker_tool) {
+  const std::filesystem::path tool_dir = linker_tool.parent_path();
+  const std::vector<std::string> driver_names = {
+      "clang++",
+      "clang++-21",
+      "clang++-20",
+      "clang++-19",
+      "clang++-18",
+  };
+
+  for (const auto& driver_name : driver_names) {
+    const std::filesystem::path driver = tool_dir / driver_name;
+    if (!CanReadFile(driver)) {
+      continue;
+    }
+    const auto output = RunProgramCapture(driver, {"--print-search-dirs"});
+    if (!output.has_value()) {
+      continue;
+    }
+
+    std::istringstream lines(*output);
+    std::string line;
+    while (std::getline(lines, line)) {
+      constexpr std::string_view prefix = "libraries: =";
+      if (line.rfind(prefix.data(), 0) != 0) {
+        continue;
+      }
+      AppendSearchDirsFromDelimitedList(
+          out, std::string_view(line).substr(prefix.size()));
+      return;
+    }
+  }
+}
+
+void AppendTargetLibDirs(std::vector<std::filesystem::path>& out,
+                         TargetProfile target_profile) {
+  switch (target_profile) {
+    case TargetProfile::X86_64SysV: {
+      const std::filesystem::path gcc_root("/usr/lib/gcc/x86_64-linux-gnu");
+      std::vector<std::filesystem::path> gcc_versions;
+      std::error_code ec;
+      if (std::filesystem::is_directory(gcc_root, ec) && !ec) {
+        for (const auto& entry : std::filesystem::directory_iterator(gcc_root, ec)) {
+          if (ec) {
+            break;
+          }
+          if (entry.is_directory(ec) && !ec) {
+            gcc_versions.push_back(entry.path());
+          }
+        }
+      }
+      std::sort(gcc_versions.begin(), gcc_versions.end());
+      for (const auto& version_dir : gcc_versions) {
+        AppendExistingUniqueDir(out, version_dir);
+        AppendExistingUniqueDir(out,
+                                (version_dir / ".." / ".." / ".." / ".." /
+                                 "lib64")
+                                    .lexically_normal());
+      }
+
+      for (const auto* dir : {"/lib/x86_64-linux-gnu",
+                              "/usr/lib/x86_64-linux-gnu",
+                              "/lib64",
+                              "/usr/lib64",
+                              "/lib",
+                              "/usr/lib",
+                              "/usr/local/lib"}) {
+        AppendExistingUniqueDir(out, dir);
+      }
+      break;
+    }
+    case TargetProfile::AArch64AAPCS64:
+      for (const auto* dir : {"/lib/aarch64-linux-gnu",
+                              "/usr/lib/aarch64-linux-gnu",
+                              "/lib64",
+                              "/usr/lib64",
+                              "/lib",
+                              "/usr/lib",
+                              "/usr/local/lib"}) {
+        AppendExistingUniqueDir(out, dir);
+      }
+      break;
+    case TargetProfile::X86_64Win64:
+      break;
+  }
+}
+
+std::vector<std::filesystem::path> PosixLibrarySearchDirs(
+    const std::filesystem::path& linker_tool,
+    TargetProfile target_profile) {
+  std::vector<std::filesystem::path> out;
+  AppendClangSearchDirs(out, linker_tool);
+  AppendTargetLibDirs(out, target_profile);
+  return out;
+}
+
+const char* ElfInterpreterPath(TargetProfile target_profile) {
+  switch (target_profile) {
+    case TargetProfile::X86_64SysV:
+      return "/lib64/ld-linux-x86-64.so.2";
+    case TargetProfile::AArch64AAPCS64:
+      return "/lib/ld-linux-aarch64.so.1";
+    case TargetProfile::X86_64Win64:
+      return nullptr;
+  }
+  return nullptr;
+}
+
+std::vector<std::string> BuildWindowsLinkArgs(
     const std::filesystem::path& tool,
     const std::vector<std::filesystem::path>& inputs,
     const std::filesystem::path& output,
     const std::optional<std::filesystem::path>& import_lib,
     const LinkPlan& plan) {
   const bool shared_library = plan.output_kind == LinkOutputKind::SharedLibrary;
-  std::vector<std::wstring> args;
+  std::vector<std::string> args;
   args.reserve(inputs.size() + plan.export_symbols.size() +
-               plan.data_export_symbols.size() +
-               plan.delay_load_dlls.size() + 8);
-  args.push_back(tool.wstring());
-  args.push_back(L"/NOLOGO");
-  args.push_back(L"/OUT:" + output.wstring());
+               plan.data_export_symbols.size() + 8);
+  args.push_back(PathArgString(tool));
+  args.push_back("/NOLOGO");
+  args.push_back("/OUT:" + PathArgString(output));
   auto map_output = output;
-  map_output.replace_extension(L".map");
+  map_output.replace_extension(".map");
   if (shared_library) {
-    args.push_back(L"/DLL");
+    args.push_back("/DLL");
     if (plan.shared_library_lifecycle_mode ==
         SharedLibraryLifecycleMode::WindowsEntry) {
       const std::string entry_symbol =
           plan.entry_symbol.value_or(std::string(kLibraryEntrySym));
-      args.push_back(L"/ENTRY:" +
-                     std::wstring(entry_symbol.begin(), entry_symbol.end()));
+      args.push_back("/ENTRY:" + entry_symbol);
     }
     if (import_lib.has_value()) {
-      args.push_back(L"/IMPLIB:" + import_lib->wstring());
+      args.push_back("/IMPLIB:" + PathArgString(*import_lib));
     }
   } else {
-    args.push_back(L"/ENTRY:main");
-    args.push_back(L"/SUBSYSTEM:CONSOLE");
-    args.push_back(L"/STACK:" +
-                   std::to_wstring(kWindowsExeStackReserveBytes) +
-                   L"," +
-                   std::to_wstring(kWindowsExeStackCommitBytes));
+    args.push_back("/ENTRY:main");
+    args.push_back("/SUBSYSTEM:CONSOLE");
+    args.push_back("/STACK:" +
+                   std::to_string(kWindowsExeStackReserveBytes) +
+                   "," +
+                   std::to_string(kWindowsExeStackCommitBytes));
   }
-  args.push_back(L"/MAP:" + map_output.wstring());
-  args.push_back(L"/NODEFAULTLIB");
-  if (!plan.delay_load_dlls.empty()) {
-    args.push_back(DelayImpLibraryPath().wstring());
-  }
+  args.push_back("/MAP:" + PathArgString(map_output));
+  args.push_back("/NODEFAULTLIB");
   for (const auto& input : inputs) {
-    args.push_back(input.wstring());
-  }
-  for (const auto& dll_name : plan.delay_load_dlls) {
-    args.push_back(L"/DELAYLOAD:" +
-                   std::wstring(dll_name.begin(), dll_name.end()));
+    args.push_back(PathArgString(input));
   }
 
   std::vector<std::string> export_symbols = plan.export_symbols;
@@ -799,41 +1030,14 @@ std::vector<std::wstring> BuildWindowsLinkArgs(
         export_symbols.end());
   }
   for (const auto& symbol : export_symbols) {
-    args.push_back(L"/EXPORT:" +
-                   std::wstring(symbol.begin(), symbol.end()));
+    args.push_back("/EXPORT:" + symbol);
   }
   for (const auto& symbol : data_export_symbols) {
-    args.push_back(L"/EXPORT:" +
-                   std::wstring(symbol.begin(), symbol.end()) +
-                   L",DATA");
+    args.push_back("/EXPORT:" + symbol + ",DATA");
   }
   return args;
 }
 
-std::vector<std::wstring> BuildPosixLinkArgsWide(
-    const std::filesystem::path& tool,
-    const std::vector<std::filesystem::path>& inputs,
-    const std::filesystem::path& output,
-    const std::optional<std::filesystem::path>& import_lib,
-    const LinkPlan& plan) {
-  (void)import_lib;
-  std::vector<std::wstring> args;
-  args.reserve(inputs.size() + 5);
-  args.push_back(tool.wstring());
-  args.push_back(L"-o");
-  args.push_back(output.wstring());
-  if (plan.output_kind == LinkOutputKind::SharedLibrary) {
-    args.push_back(L"--shared");
-  } else {
-    args.push_back(L"--entry=main");
-  }
-  args.push_back(L"--nostdlib");
-  for (const auto& input : inputs) {
-    args.push_back(input.wstring());
-  }
-  return args;
-}
-#else
 std::vector<std::string> BuildPosixLinkArgs(
     const std::filesystem::path& tool,
     const std::vector<std::filesystem::path>& inputs,
@@ -841,84 +1045,60 @@ std::vector<std::string> BuildPosixLinkArgs(
     const std::optional<std::filesystem::path>& import_lib,
     const LinkPlan& plan) {
   (void)import_lib;
+  const bool sysv_executable =
+      plan.output_kind != LinkOutputKind::SharedLibrary &&
+      plan.target_profile == TargetProfile::X86_64SysV;
+  const auto search_dirs = PosixLibrarySearchDirs(tool, plan.target_profile);
   std::vector<std::string> args;
-  args.reserve(inputs.size() + 5 + plan.delay_load_dlls.size());
-  args.push_back(tool.string());
+  args.reserve(inputs.size() + search_dirs.size() + 7);
+  args.push_back(PathArgString(tool));
   args.push_back("-o");
-  args.push_back(output.string());
+  args.push_back(PathArgString(output));
   if (plan.output_kind == LinkOutputKind::SharedLibrary) {
     args.push_back("--shared");
+  } else if (sysv_executable) {
+    args.push_back("--entry=_start");
   } else {
     args.push_back("--entry=main");
   }
+  if (sysv_executable) {
+    args.push_back("--undefined=_start");
+  }
   args.push_back("--nostdlib");
+  args.push_back("-rpath=$ORIGIN");
+  if (plan.output_kind != LinkOutputKind::SharedLibrary) {
+    if (const char* interpreter = ElfInterpreterPath(plan.target_profile);
+        interpreter != nullptr) {
+      args.push_back(std::string("--dynamic-linker=") + interpreter);
+    }
+  }
+  for (const auto& dir : search_dirs) {
+    args.push_back("-L" + dir.string());
+  }
   for (const auto& input : inputs) {
-    args.push_back(input.string());
+    args.push_back(PathArgString(input));
   }
   return args;
 }
-#endif
 
-// Get the directory containing the compiler executable
-std::filesystem::path GetCompilerDir() {
-#ifdef _WIN32
-  wchar_t path[MAX_PATH];
-  DWORD len = GetModuleFileNameW(nullptr, path, MAX_PATH);
-  if (len > 0 && len < MAX_PATH) {
-    return std::filesystem::path(path).parent_path();
+std::filesystem::path ResolveManifestToolchainPath(
+    const Project& project,
+    std::string_view raw_path) {
+  const std::filesystem::path path(raw_path);
+  if (path.is_absolute() || !core::IsRelative(raw_path)) {
+    return path;
   }
-#else
-  // On Unix, read /proc/self/exe
-  char path[4096];
-  ssize_t len = readlink("/proc/self/exe", path, sizeof(path) - 1);
-  if (len > 0) {
-    path[len] = '\0';
-    return std::filesystem::path(path).parent_path();
-  }
-#endif
-  return std::filesystem::path();
-}
-
-bool HasCompilerSupportLayout(const std::filesystem::path& candidate) {
-  if (candidate.empty()) {
-    return false;
-  }
-  std::error_code ec;
-  for (const char* rel : {"runtime", "tools", "bin", "lib"}) {
-    ec.clear();
-    if (std::filesystem::is_directory(candidate / rel, ec) && !ec) {
-      return true;
-    }
-  }
-  return false;
+  return (project.root / path).lexically_normal();
 }
 
 std::filesystem::path DefaultRuntimeLibPath(const Project& project,
                                             TargetProfile target_profile) {
-#ifdef _WIN32
-  if (const auto bundled_runtime = core::BundledWindowsRuntimeLibPath();
-      bundled_runtime.has_value()) {
-    return *bundled_runtime;
-  }
-#endif
-
-  const std::string runtime_name(
-      RuntimeLibNameFor(target_profile));
-  const auto compiler_dir = GetCompilerDir();
-  if (!compiler_dir.empty()) {
-    const auto packaged_runtime = compiler_dir / runtime_name;
-    if (CanReadFile(packaged_runtime)) {
-      return packaged_runtime;
-    }
-
-    if (HasCompilerSupportLayout(compiler_dir)) {
-      return compiler_dir / "runtime" / runtime_name;
-    }
-
-    const auto parent = compiler_dir.parent_path();
-    if (HasCompilerSupportLayout(parent)) {
-      return parent / "runtime" / runtime_name;
-    }
+  const std::string runtime_name(RuntimeLibNameFor(target_profile));
+  if (const auto support_runtime = core::CompilerSupportAssetPath(
+          std::filesystem::path(runtime_name),
+          std::filesystem::path("runtime") / runtime_name);
+      support_runtime.has_value()) {
+    return *support_runtime;
   }
 
   std::filesystem::path build_root = project.outputs.root;
@@ -942,10 +1122,52 @@ std::filesystem::path RuntimeLibPath(const Project& project,
 
   if (const auto manifest_lib = core::ManifestRuntimeLib();
       manifest_lib.has_value() && !manifest_lib->empty()) {
-    return std::filesystem::path(*manifest_lib);
+    return ResolveManifestToolchainPath(project, *manifest_lib);
   }
 
   return DefaultRuntimeLibPath(project, target_profile);
+}
+
+std::optional<std::filesystem::path> RuntimeStartupObjectPath(
+    const Project& project,
+    TargetProfile target_profile,
+    const std::filesystem::path& runtime_lib) {
+  if (target_profile != TargetProfile::X86_64SysV) {
+    return std::nullopt;
+  }
+
+  const std::filesystem::path startup_name(kLinuxStartupObjectX86_64SysV);
+  std::vector<std::filesystem::path> candidates;
+  candidates.reserve(6);
+
+  if (!runtime_lib.empty()) {
+    const auto runtime_dir = runtime_lib.parent_path();
+    if (!runtime_dir.empty()) {
+      candidates.push_back(runtime_dir / startup_name);
+      candidates.push_back(runtime_dir / "runtime" / startup_name);
+      candidates.push_back(runtime_dir / "linux" / "runtime" / startup_name);
+    }
+  }
+
+  if (const auto support_startup = core::CompilerSupportAssetPath(
+          std::filesystem::path("linux") / "runtime" / startup_name,
+          std::filesystem::path("runtime") / startup_name);
+      support_startup.has_value()) {
+    candidates.push_back(*support_startup);
+  }
+
+  std::filesystem::path build_root = project.outputs.root;
+  if (build_root.empty()) {
+    build_root = project.root / "build";
+  }
+  candidates.push_back(build_root / "runtime" / startup_name);
+
+  for (const auto& candidate : candidates) {
+    if (CanReadFile(candidate)) {
+      return candidate;
+    }
+  }
+  return std::nullopt;
 }
 
 std::vector<std::string> RuntimeRequiredSyms() {
@@ -991,88 +1213,26 @@ LinkInvocationResult InvokeLinker(
     const std::optional<std::filesystem::path>& import_lib,
     const LinkPlan& plan) {
   LinkInvocationResult result;
-#ifdef _WIN32
   const std::optional<bool> debug_override = core::LinkDebugOverride();
   const bool debug_link =
       debug_override.has_value() ? *debug_override
                                  : core::IsDebugEnabled("link");
-  auto wide_to_utf8_lossy = [](std::wstring_view text) {
-    if (text.empty()) {
-      return std::string{};
-    }
-    const int size = WideCharToMultiByte(CP_UTF8, 0, text.data(),
-                                         static_cast<int>(text.size()),
-                                         nullptr, 0, nullptr, nullptr);
-    if (size <= 0) {
-      std::string out;
-      out.reserve(text.size());
-      for (const wchar_t ch : text) {
-        out.push_back((ch >= 0 && ch <= 0x7F) ? static_cast<char>(ch) : '?');
-      }
-      return out;
-    }
-    std::string out(size, '\0');
-    WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()),
-                        out.data(), size, nullptr, nullptr);
-    return out;
-  };
-  auto quote_arg = [](std::wstring_view arg) -> std::wstring {
-    if (arg.empty()) {
-      return L"\"\"";
-    }
-    bool needs_quotes = false;
-    for (wchar_t c : arg) {
-      if (c == L' ' || c == L'\t' || c == L'\"') {
-        needs_quotes = true;
-        break;
-      }
-    }
-    if (!needs_quotes) {
-      return std::wstring(arg);
-    }
-    std::wstring out;
-    out.push_back(L'\"');
-    int backslashes = 0;
-    for (wchar_t c : arg) {
-      if (c == L'\\') {
-        ++backslashes;
-        continue;
-      }
-      if (c == L'\"') {
-        out.append(backslashes * 2 + 1, L'\\');
-        out.push_back(L'\"');
-        backslashes = 0;
-        continue;
-      }
-      if (backslashes > 0) {
-        out.append(backslashes, L'\\');
-        backslashes = 0;
-      }
-      out.push_back(c);
-    }
-    if (backslashes > 0) {
-      out.append(backslashes * 2, L'\\');
-    }
-    out.push_back(L'\"');
-    return out;
-  };
-
   const bool target_is_coff =
       ObjectFormatOf(plan.target_profile) == ObjectFormat::Coff;
-  std::vector<std::wstring> args =
+  std::vector<std::string> args =
       target_is_coff ? BuildWindowsLinkArgs(tool, inputs, output, import_lib,
                                             plan)
-                     : BuildPosixLinkArgsWide(tool, inputs, output, import_lib,
-                                              plan);
+                     : BuildPosixLinkArgs(tool, inputs, output, import_lib,
+                                          plan);
 
-  if (core::CrashReportingEnabled()) {
+  if (core::CrashReportingEnabled() && core::CrashCaptureSupported()) {
     core::DebugRunOptions run_options;
     run_options.program = tool;
     run_options.working_directory = output.parent_path();
     run_options.report_root = core::DefaultTargetCrashReportRoot(output);
     run_options.tool_name = "cursive-link";
     for (std::size_t i = 1; i < args.size(); ++i) {
-      run_options.arguments.push_back(wide_to_utf8_lossy(args[i]));
+      run_options.arguments.push_back(args[i]);
     }
     const auto debug_result = core::DebugRunProcess(run_options);
     result.ok = debug_result.launched && debug_result.exit_code == 0;
@@ -1091,288 +1251,118 @@ LinkInvocationResult InvokeLinker(
     return result;
   }
 
-  std::wstring cmd;
-  for (std::size_t i = 0; i < args.size(); ++i) {
-    if (i != 0) {
-      cmd.push_back(L' ');
-    }
-    cmd += quote_arg(args[i]);
-  }
-
-  SECURITY_ATTRIBUTES sa;
-  ZeroMemory(&sa, sizeof(sa));
-  sa.nLength = sizeof(sa);
-  sa.bInheritHandle = TRUE;
-  HANDLE read_pipe = nullptr;
-  HANDLE write_pipe = nullptr;
-  if (!CreatePipe(&read_pipe, &write_pipe, &sa, 0)) {
-    result.output = "CreatePipe failed";
-    return result;
-  }
-  SetHandleInformation(read_pipe, HANDLE_FLAG_INHERIT, 0);
-
-  STARTUPINFOW si;
-  ZeroMemory(&si, sizeof(si));
-  si.cb = sizeof(si);
-  si.dwFlags |= STARTF_USESTDHANDLES;
-  si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
-  si.hStdOutput = write_pipe;
-  si.hStdError = write_pipe;
-  PROCESS_INFORMATION pi;
-  ZeroMemory(&pi, sizeof(pi));
-
-  std::vector<wchar_t> cmd_buf(cmd.begin(), cmd.end());
-  cmd_buf.push_back(L'\0');
-
   if (debug_link) {
-    std::fprintf(stderr, "[link-debug] tool=%ls\n", tool.wstring().c_str());
-    std::fprintf(stderr, "[link-debug] out=%ls\n", output.wstring().c_str());
+    std::fprintf(stderr, "[link-debug] tool=%s\n", tool.string().c_str());
+    std::fprintf(stderr, "[link-debug] out=%s\n", output.string().c_str());
     std::fprintf(stderr, "[link-debug] input_count=%zu\n", inputs.size());
-    std::fprintf(stderr, "[link-debug] cmd=%ls\n", cmd.c_str());
+    for (const auto& arg : args) {
+      std::fprintf(stderr, "[link-debug] arg=%s\n", arg.c_str());
+    }
   }
 
-  const BOOL ok = CreateProcessW(tool.wstring().c_str(), cmd_buf.data(),
-                                 nullptr, nullptr, TRUE, CREATE_NO_WINDOW,
-                                 nullptr, nullptr, &si, &pi);
-  CloseHandle(write_pipe);
-  if (!ok) {
-    CloseHandle(read_pipe);
-    result.output = "CreateProcessW failed err=" +
-                    std::to_string(static_cast<unsigned long>(GetLastError()));
-    if (debug_link) {
-      std::fprintf(stderr, "[link-debug] CreateProcessW failed err=%lu\n",
-                   static_cast<unsigned long>(GetLastError()));
+  core::HostProcessSpec spec;
+  spec.program = tool;
+  spec.working_directory = output.parent_path();
+  spec.output_mode = core::HostProcessOutputMode::CaptureMerged;
+  spec.hide_window = true;
+  for (std::size_t i = 1; i < args.size(); ++i) {
+    spec.arguments.push_back(args[i]);
+  }
+
+  const auto host_result = core::RunHostProcess(spec);
+  result.output = host_result.output;
+  if (!host_result.launched) {
+    result.output = host_result.error_message;
+    if (debug_link && !host_result.error_message.empty()) {
+      std::fprintf(stderr, "[link-debug] launch-failed=%s\n",
+                   host_result.error_message.c_str());
     }
     return result;
   }
 
-  char buffer[4096];
-  DWORD bytes_read = 0;
-  while (ReadFile(read_pipe, buffer, sizeof(buffer), &bytes_read, nullptr) &&
-         bytes_read > 0) {
-    result.output.append(buffer, buffer + bytes_read);
-  }
-  CloseHandle(read_pipe);
-
-  WaitForSingleObject(pi.hProcess, INFINITE);
-  DWORD exit_code = 1;
-  GetExitCodeProcess(pi.hProcess, &exit_code);
-  result.exit_code = static_cast<int>(exit_code);
-  result.ok = exit_code == 0;
+  result.exit_code = host_result.exit_code;
+  result.ok = host_result.exit_code == 0;
   if (debug_link) {
-    std::fprintf(stderr, "[link-debug] exit=%lu\n",
-                 static_cast<unsigned long>(exit_code));
+    std::fprintf(stderr, "[link-debug] exit=%d\n", host_result.exit_code);
     if (!result.output.empty()) {
       std::fprintf(stderr, "[link-debug] output=%s\n", result.output.c_str());
     }
   }
-  CloseHandle(pi.hProcess);
-  CloseHandle(pi.hThread);
   return result;
-#else
-  std::vector<std::string> args =
-      BuildPosixLinkArgs(tool, inputs, output, import_lib, plan);
-
-  std::vector<char*> argv;
-  argv.reserve(args.size() + 1);
-  for (auto& arg : args) {
-    argv.push_back(arg.data());
-  }
-  argv.push_back(nullptr);
-
-  int pipe_fds[2] = {-1, -1};
-  if (pipe(pipe_fds) != 0) {
-    result.output = "pipe failed";
-    return result;
-  }
-
-  const pid_t pid = fork();
-  if (pid < 0) {
-    close(pipe_fds[0]);
-    close(pipe_fds[1]);
-    result.output = "fork failed";
-    return result;
-  }
-  if (pid == 0) {
-    close(pipe_fds[0]);
-    dup2(pipe_fds[1], STDOUT_FILENO);
-    dup2(pipe_fds[1], STDERR_FILENO);
-    close(pipe_fds[1]);
-    execv(argv[0], argv.data());
-    std::perror("execv");
-    _exit(127);
-  }
-  close(pipe_fds[1]);
-  char buffer[4096];
-  ssize_t bytes_read = 0;
-  while ((bytes_read = read(pipe_fds[0], buffer, sizeof(buffer))) > 0) {
-    result.output.append(buffer, buffer + bytes_read);
-  }
-  close(pipe_fds[0]);
-  int status = 0;
-  if (waitpid(pid, &status, 0) < 0) {
-    return result;
-  }
-  if (WIFEXITED(status)) {
-    result.exit_code = WEXITSTATUS(status);
-    result.ok = result.exit_code == 0;
-  }
-  return result;
-#endif
 }
 
 bool InvokeArchiver(const std::filesystem::path& tool,
                     const std::vector<std::filesystem::path>& inputs,
                     const std::filesystem::path& output) {
-#ifdef _WIN32
-  if (core::CrashReportingEnabled()) {
+  if (core::CrashReportingEnabled() && core::CrashCaptureSupported()) {
     core::DebugRunOptions run_options;
     run_options.program = tool;
     run_options.working_directory = output.parent_path();
     run_options.report_root = core::DefaultTargetCrashReportRoot(output);
     run_options.tool_name = "cursive-archiver";
     run_options.arguments.push_back("/NOLOGO");
-    run_options.arguments.push_back("/OUT:" + output.generic_string());
+    run_options.arguments.push_back("/OUT:" + PathArgString(output));
     for (const auto& input : inputs) {
-      run_options.arguments.push_back(input.generic_string());
+      run_options.arguments.push_back(PathArgString(input));
     }
     const auto debug_result = core::DebugRunProcess(run_options);
     return debug_result.launched && debug_result.exit_code == 0;
   }
+
   const bool debug_link =
       core::LinkDebugOverride().value_or(core::IsDebugEnabled("link"));
-  auto quote_arg = [](std::wstring_view arg) -> std::wstring {
-    if (arg.empty()) {
-      return L"\"\"";
-    }
-    bool needs_quotes = false;
-    for (wchar_t c : arg) {
-      if (c == L' ' || c == L'\t' || c == L'\"') {
-        needs_quotes = true;
-        break;
-      }
-    }
-    if (!needs_quotes) {
-      return std::wstring(arg);
-    }
-    std::wstring out;
-    out.push_back(L'\"');
-    int backslashes = 0;
-    for (wchar_t c : arg) {
-      if (c == L'\\') {
-        ++backslashes;
-        continue;
-      }
-      if (c == L'\"') {
-        out.append(backslashes * 2 + 1, L'\\');
-        out.push_back(L'\"');
-        backslashes = 0;
-        continue;
-      }
-      if (backslashes > 0) {
-        out.append(backslashes, L'\\');
-        backslashes = 0;
-      }
-      out.push_back(c);
-    }
-    if (backslashes > 0) {
-      out.append(backslashes * 2, L'\\');
-    }
-    out.push_back(L'\"');
-    return out;
-  };
-
-  std::vector<std::wstring> args;
-  args.reserve(inputs.size() + 3);
-  args.push_back(tool.wstring());
-  args.push_back(L"/NOLOGO");
-  args.push_back(L"/OUT:" + output.wstring());
-  for (const auto& input : inputs) {
-    args.push_back(input.wstring());
-  }
-
-  std::wstring cmd;
-  for (std::size_t i = 0; i < args.size(); ++i) {
-    if (i != 0) {
-      cmd.push_back(L' ');
-    }
-    cmd += quote_arg(args[i]);
-  }
-
-  STARTUPINFOW si;
-  ZeroMemory(&si, sizeof(si));
-  si.cb = sizeof(si);
-  if (debug_link) {
-    si.dwFlags |= STARTF_USESTDHANDLES;
-    si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
-    si.hStdOutput = GetStdHandle(STD_ERROR_HANDLE);
-    si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
-  }
-  PROCESS_INFORMATION pi;
-  ZeroMemory(&pi, sizeof(pi));
-
-  std::vector<wchar_t> cmd_buf(cmd.begin(), cmd.end());
-  cmd_buf.push_back(L'\0');
-
-  if (debug_link) {
-    std::fprintf(stderr, "[link-debug] archiver=%ls\n", tool.wstring().c_str());
-    std::fprintf(stderr, "[link-debug] archive-out=%ls\n", output.wstring().c_str());
-    std::fprintf(stderr, "[link-debug] archive-input-count=%zu\n", inputs.size());
-    std::fprintf(stderr, "[link-debug] archive-cmd=%ls\n", cmd.c_str());
-  }
-
-  const BOOL ok = CreateProcessW(tool.wstring().c_str(), cmd_buf.data(),
-                                 nullptr, nullptr, TRUE, CREATE_NO_WINDOW,
-                                 nullptr, nullptr, &si, &pi);
-  if (!ok) {
-    if (debug_link) {
-      std::fprintf(stderr, "[link-debug] archive CreateProcessW failed err=%lu\n",
-                   static_cast<unsigned long>(GetLastError()));
-    }
-    return false;
-  }
-
-  WaitForSingleObject(pi.hProcess, INFINITE);
-  DWORD exit_code = 1;
-  GetExitCodeProcess(pi.hProcess, &exit_code);
-  if (debug_link) {
-    std::fprintf(stderr, "[link-debug] archive exit=%lu\n",
-                 static_cast<unsigned long>(exit_code));
-  }
-  CloseHandle(pi.hProcess);
-  CloseHandle(pi.hThread);
-  return exit_code == 0;
-#else
   std::vector<std::string> args;
-  args.reserve(inputs.size() + 2);
-  args.push_back(tool.string());
-  args.push_back("rcs");
-  args.push_back(output.string());
-  for (const auto& input : inputs) {
-    args.push_back(input.string());
+  if (ArchiverUsesWindowsFlags(tool)) {
+    args.reserve(inputs.size() + 3);
+    args.push_back(PathArgString(tool));
+    args.push_back("/NOLOGO");
+    args.push_back("/OUT:" + PathArgString(output));
+    for (const auto& input : inputs) {
+      args.push_back(PathArgString(input));
+    }
+  } else {
+    args.reserve(inputs.size() + 3);
+    args.push_back(PathArgString(tool));
+    args.push_back("rcs");
+    args.push_back(PathArgString(output));
+    for (const auto& input : inputs) {
+      args.push_back(PathArgString(input));
+    }
   }
 
-  std::vector<char*> argv;
-  argv.reserve(args.size() + 1);
-  for (auto& arg : args) {
-    argv.push_back(arg.data());
+  if (debug_link) {
+    std::fprintf(stderr, "[link-debug] archiver=%s\n", tool.string().c_str());
+    std::fprintf(stderr, "[link-debug] archive-out=%s\n", output.string().c_str());
+    std::fprintf(stderr, "[link-debug] archive-input-count=%zu\n", inputs.size());
+    for (const auto& arg : args) {
+      std::fprintf(stderr, "[link-debug] archive-arg=%s\n", arg.c_str());
+    }
   }
-  argv.push_back(nullptr);
 
-  const pid_t pid = fork();
-  if (pid < 0) {
-    return false;
+  core::HostProcessSpec spec;
+  spec.program = tool;
+  spec.working_directory = output.parent_path();
+  spec.output_mode = core::HostProcessOutputMode::CaptureMerged;
+  spec.hide_window = true;
+  for (std::size_t i = 1; i < args.size(); ++i) {
+    spec.arguments.push_back(args[i]);
   }
-  if (pid == 0) {
-    execv(argv[0], argv.data());
-    _exit(127);
+
+  const auto host_result = core::RunHostProcess(spec);
+  if (debug_link) {
+    if (!host_result.error_message.empty()) {
+      std::fprintf(stderr, "[link-debug] archive-launch-failed=%s\n",
+                   host_result.error_message.c_str());
+    } else {
+      std::fprintf(stderr, "[link-debug] archive-exit=%d\n",
+                   host_result.exit_code);
+      if (!host_result.output.empty()) {
+        std::fprintf(stderr, "[link-debug] archive-output=%s\n",
+                     host_result.output.c_str());
+      }
+    }
   }
-  int status = 0;
-  if (waitpid(pid, &status, 0) < 0) {
-    return false;
-  }
-  return WIFEXITED(status) && WEXITSTATUS(status) == 0;
-#endif
+  return host_result.launched && host_result.exit_code == 0;
 }
 
 std::vector<std::filesystem::path> MaterializeLinkInputsForTool(
@@ -1423,7 +1413,7 @@ LinkResult Link(const std::vector<std::filesystem::path>& objs,
 
       core::SubDiagnostic search_note;
       search_note.kind = core::SubDiagnosticKind::Note;
-      search_note.message = FormatSearchedPaths(project, linker_name);
+      search_note.message = FormatSearchedPaths(project, plan.target_profile, linker_name);
       diag->children.push_back(std::move(search_note));
       core::Emit(result.diags, *diag);
     }
@@ -1488,19 +1478,104 @@ LinkResult Link(const std::vector<std::filesystem::path>& objs,
   std::vector<std::filesystem::path> sym_inputs = objs;
   sym_inputs.insert(sym_inputs.end(), materialized_extra_inputs.begin(),
                     materialized_extra_inputs.end());
+  const auto runtime_sidecars =
+      LinuxBundledRuntimeSidecars(plan.target_profile, *runtime_lib);
+  if (ObjectFormatOf(plan.target_profile) == ObjectFormat::Elf &&
+      runtime_sidecars.size() != 5u) {
+    if (auto diag = core::MakeExternalDiagnostic("E-OUT-0407")) {
+      core::SubDiagnostic note;
+      note.kind = core::SubDiagnosticKind::Note;
+      note.message =
+          "missing Linux runtime sidecar assets under the compiler support "
+          "lib directory";
+      diag->children.push_back(std::move(note));
+      core::Emit(result.diags, *diag);
+    } else {
+      EmitExternal(result.diags, "E-OUT-0407");
+    }
+    result.status = LinkStatus::RuntimeMissing;
+    return result;
+  }
+  std::optional<std::filesystem::path> startup_object;
+  if (plan.output_kind == LinkOutputKind::Executable &&
+      plan.target_profile == TargetProfile::X86_64SysV) {
+    startup_object = RuntimeStartupObjectPath(project, plan.target_profile,
+                                              *runtime_lib);
+    if (!startup_object.has_value()) {
+      if (auto diag = core::MakeExternalDiagnostic("E-OUT-0407")) {
+        core::SubDiagnostic note;
+        note.kind = core::SubDiagnosticKind::Note;
+        note.message =
+            "missing Linux runtime startup object `" +
+            std::string(kLinuxStartupObjectX86_64SysV) + "`";
+        diag->children.push_back(std::move(note));
+        core::Emit(result.diags, *diag);
+      } else {
+        EmitExternal(result.diags, "E-OUT-0407");
+      }
+      result.status = LinkStatus::RuntimeMissing;
+      return result;
+    }
+    if (!LinkInputMatchesObjectFormat(*startup_object,
+                                      ObjectFormatOf(plan.target_profile))) {
+      if (auto diag = core::MakeExternalDiagnostic("E-OUT-0408")) {
+        core::SubDiagnostic note;
+        note.kind = core::SubDiagnosticKind::Note;
+        note.message = "runtime startup object `" +
+                       startup_object->string() +
+                       "` does not match target object format for `" +
+                       std::string(TargetProfileName(plan.target_profile)) +
+                       "`";
+        diag->children.push_back(std::move(note));
+        core::Emit(result.diags, *diag);
+      } else {
+        EmitExternal(result.diags, "E-OUT-0408");
+      }
+      result.status = LinkStatus::RuntimeIncompatible;
+      return result;
+    }
+    sym_inputs.push_back(*startup_object);
+  }
   sym_inputs.push_back(*runtime_lib);
 
   std::vector<std::filesystem::path> inputs = objs;
-  inputs.reserve(objs.size() + materialized_extra_inputs.size() + 1);
+  inputs.reserve(objs.size() + materialized_extra_inputs.size() +
+                 (startup_object.has_value() ? 2u : 1u) +
+                 runtime_sidecars.size() + 4u);
   for (const auto& input : materialized_extra_inputs) {
     inputs.push_back(input);
   }
+  if (startup_object.has_value()) {
+    inputs.push_back(*startup_object);
+  }
   inputs.push_back(*runtime_lib);
+  if (ObjectFormatOf(plan.target_profile) == ObjectFormat::Elf) {
+    std::vector<std::filesystem::path> linkable_runtime_sidecars;
+    linkable_runtime_sidecars.reserve(runtime_sidecars.size());
+    for (const auto& sidecar : runtime_sidecars) {
+      if (IsLinkableElfSidecar(sidecar)) {
+        linkable_runtime_sidecars.push_back(sidecar);
+      }
+    }
+    if (!linkable_runtime_sidecars.empty()) {
+      inputs.push_back("--no-as-needed");
+      inputs.insert(inputs.end(), linkable_runtime_sidecars.begin(),
+                    linkable_runtime_sidecars.end());
+      inputs.push_back("--as-needed");
+    }
+  } else {
+    inputs.insert(inputs.end(), runtime_sidecars.begin(),
+                  runtime_sidecars.end());
+  }
 
   std::vector<std::filesystem::path> duplicate_symbol_inputs = objs;
-  duplicate_symbol_inputs.reserve(objs.size() + materialized_extra_inputs.size());
+  duplicate_symbol_inputs.reserve(objs.size() + materialized_extra_inputs.size() +
+                                  (startup_object.has_value() ? 1u : 0u));
   for (const auto& input : materialized_extra_inputs) {
     duplicate_symbol_inputs.push_back(input);
+  }
+  if (startup_object.has_value()) {
+    duplicate_symbol_inputs.push_back(*startup_object);
   }
   const auto duplicate_symbols =
       DuplicateDefinedExternalSymbolsForObjectInputs(duplicate_symbol_inputs);
@@ -1556,6 +1631,13 @@ LinkResult Link(const std::vector<std::filesystem::path>& objs,
             link_result.crash_report_json_path.generic_string();
         diag->children.push_back(std::move(note));
       }
+      const std::string linker_output = SummarizeToolOutput(link_result.output);
+      if (!linker_output.empty()) {
+        core::SubDiagnostic note;
+        note.kind = core::SubDiagnosticKind::Note;
+        note.message = "linker output: " + linker_output;
+        diag->children.push_back(std::move(note));
+      }
       if (link_result.crashed && !link_result.crash_kind.empty()) {
         core::SubDiagnostic note;
         note.kind = core::SubDiagnosticKind::Note;
@@ -1607,7 +1689,7 @@ LinkResult Archive(const std::vector<std::filesystem::path>& objs,
 
       core::SubDiagnostic search_note;
       search_note.kind = core::SubDiagnosticKind::Note;
-      search_note.message = FormatSearchedPaths(project, archiver_name);
+      search_note.message = FormatSearchedPaths(project, target_profile, archiver_name);
       diag->children.push_back(std::move(search_note));
       core::Emit(result.diags, *diag);
     }

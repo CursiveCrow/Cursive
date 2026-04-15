@@ -1,11 +1,11 @@
-procedure CompilerRunnerStatusLabel(status: i32) -> string@View {
+procedure compilerRunnerStatusLabel(status: i32) -> string@View {
     if (status == 0) {
         return "0"
     }
     return "non-zero"
 }
 
-public procedure RunGroup(ctx: Context) -> i32 {
+public procedure runGroup(ctx: Context) -> i32 {
     let script_path: string@View = "Compiler/RunCompilerStaticConformance.ps1"
     let script_exists: bool = ctx.fs~>exists(script_path)
     let script_exists_log_actual = [[log(label: "observed-compiler-static-runner-script-exists", expected: true)]] script_exists
@@ -17,7 +17,7 @@ public procedure RunGroup(ctx: Context) -> i32 {
 
     let command_line: string@View = "powershell -NoProfile -ExecutionPolicy Bypass -File ./Compiler/RunCompilerStaticConformance.ps1"
     let runner_status: i32 = ctx.sys~>run(command_line)
-    let runner_status_label: string@View = CompilerRunnerStatusLabel(runner_status)
+    let runner_status_label: string@View = compilerRunnerStatusLabel(runner_status)
     let runner_status_log_actual = [[log(label: "observed-compiler-static-runner-status", expected: "0")]] runner_status_label
 
     if (runner_status_log_actual != "0") {

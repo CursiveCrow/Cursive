@@ -14,21 +14,17 @@ namespace cursive::analysis {
 
 // C0X Extension: Attribute System - Registry
 
-// Attribute target (where attribute can be applied)
+// Attribute target (where attribute can be applied). This enum mirrors the
+// spec-defined AttrTarget set exactly.
 enum class AttributeTarget {
   Procedure,
   ExternBlock,
-  Import,
-  Using,
   Record,
   Enum,
   Modal,
-  Class,
   Field,
   Method,
-  Param,
   TypeAlias,
-  Static,
   Binding,
   Statement,
   Expression,
@@ -104,14 +100,12 @@ namespace attrs {
 
   // Verification-mode attributes
   constexpr std::string_view kStatic = "static";
-  constexpr std::string_view kTrust = "trust";
 }
 
 // Verification-mode attributes used on foreign declarations and contracts.
 enum class VerificationModeAttribute {
   Static,
   Dynamic,
-  Trust,
 };
 
 // Attribute registry
@@ -146,13 +140,30 @@ struct AttributeValidationResult {
   std::string message;
 };
 
-// Validate attribute list
+// Validate attribute-list well-formedness (`AttrListJudg = {AttrListWf}`).
 AttributeValidationResult ValidateAttributes(
     const ast::AttributeList& attrs,
     AttributeTarget target);
 
+// Validate attributes on a declaration form that is syntax-bearing but not a
+// spec-defined AttrTarget.
+AttributeValidationResult ValidateUnsupportedAttributeTarget(
+    const ast::AttributeList& attrs,
+    std::string_view target_name);
+
 // Check for specific attribute
 bool HasAttribute(const ast::AttributeList& attrs, std::string_view name);
+
+// Declaration-level AttrByName relation used by declaration-scoped semantics.
+template <typename Decl>
+bool HasAttributeByName(const Decl& decl, std::string_view name) {
+  return HasAttribute(decl.attrs, name);
+}
+
+template <typename Decl>
+bool IsDynamicDecl(const Decl& decl) {
+  return HasAttributeByName(decl, attrs::kDynamic);
+}
 
 // Resolve verification mode attribute from an attribute list.
 // Returns nullopt when no verification-mode attribute is present.

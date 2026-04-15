@@ -40,7 +40,8 @@ namespace cursive::codegen {
 //   LowerResult containing the IRLoop node and result value
 //
 // =============================================================================
-LowerResult LowerLoopConditional(const ast::LoopConditionalExpr& expr,
+LowerResult LowerLoopConditional(const ast::Expr& expr,
+                                 const ast::LoopConditionalExpr& loop_expr,
                                  LowerCtx& ctx);
 
 }  // namespace cursive::codegen

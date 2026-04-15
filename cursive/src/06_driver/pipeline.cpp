@@ -27,15 +27,10 @@
 #include <unordered_set>
 #include <vector>
 
-#ifdef _WIN32
-#include <process.h>
-#else
-#include <unistd.h>
-#endif
-
 #include "00_core/assert_spec.h"
 #include "00_core/build_log_policy.h"
 #include "00_core/diagnostics.h"
+#include "00_core/host/services.h"
 #include "00_core/host_primitives.h"
 #include "00_core/process_config.h"
 #include "00_core/source_text.h"
@@ -136,11 +131,7 @@ bool WriteFile(const std::filesystem::path& path, std::string_view bytes) {
 namespace {
 
 unsigned long CurrentProcessId() {
-#ifdef _WIN32
-  return static_cast<unsigned long>(_getpid());
-#else
-  return static_cast<unsigned long>(getpid());
-#endif
+  return core::CurrentHostProcessId();
 }
 
 void LogCodegenProgress(const std::string& message) {

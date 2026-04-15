@@ -27,7 +27,6 @@
 #include <utility>
 
 #include "00_core/assert_spec.h"
-#include "00_core/diagnostic_messages.h"
 
 namespace cursive::ast {
 
@@ -38,8 +37,6 @@ using cursive::lexer::TokenKind;
 // Forward declarations for helper functions
 bool IsKw(const Parser& parser, std::string_view kw);
 bool IsOp(const Parser& parser, std::string_view op);
-void NormalizeBindingPattern(std::shared_ptr<Pattern>& pat,
-                             std::shared_ptr<Type>& ty);
 
 // Forward declaration for pattern and type parsing
 ParseElemResult<std::shared_ptr<Pattern>> ParsePattern(Parser parser);
@@ -68,32 +65,14 @@ ParseElemResult<ExprPtr> ParseExpr(Parser parser);
 ParseElemResult<Binding> ParseBindingAfterLetVar(Parser parser) {
   SPEC_RULE("Parse-BindingAfterLetVar");
   Parser start = parser;
-  const bool is_let = IsKw(parser, "let");
   Parser after_kw = parser;
   Advance(after_kw);  // consume let/var
-
-  // Detect Rust-style "let mut" and emit targeted diagnostic
-  if (is_let && IsKw(after_kw, "mut")) {
-    auto diag = core::MakeDiagnosticById("E-SRC-0520", TokSpan(after_kw));
-    if (diag) {
-      diag->children.push_back({core::SubDiagnosticKind::FixIt,
-                                "use `var` instead of `let mut`",
-                                TokSpan(start), "var"});
-      // Emit on the continuation parser so the error is not dropped.
-      core::Emit(after_kw.diags, *diag);
-    }
-    // Skip "mut" and continue parsing as if it were "var"
-    Advance(after_kw);
-  }
 
   // Parse pattern
   ParseElemResult<std::shared_ptr<Pattern>> pat = ParsePattern(after_kw);
 
   // Parse optional type annotation
   ParseElemResult<std::shared_ptr<Type>> ty = ParseTypeAnnotOpt(pat.parser);
-
-  // Normalize pattern if needed (e.g., "name: Type" patterns)
-  NormalizeBindingPattern(pat.elem, ty.elem);
 
   // Expect = or :=
   const Token* tok = Tok(ty.parser);
@@ -133,7 +112,7 @@ ParseElemResult<Binding> ParseBindingAfterLetVar(Parser parser) {
 //                           SpanBetween(P, P_2), []⟩)
 
 ParseItemResult ParseStaticDecl(Parser parser, Visibility vis,
-                                AttributeList attrs) {
+                                AttrOpt attrs_opt) {
   SPEC_RULE("Parse-Static-Decl");
   Parser start = parser;
 
@@ -150,7 +129,7 @@ ParseItemResult ParseStaticDecl(Parser parser, Visibility vis,
   parser = binding.parser;
 
   StaticDecl decl;
-  decl.attrs = std::move(attrs);
+  decl.attrs_opt = std::move(attrs_opt);
   decl.vis = vis;
   decl.mut = mut;
   decl.binding = binding.elem;

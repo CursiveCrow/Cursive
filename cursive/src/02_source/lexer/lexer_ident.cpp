@@ -140,9 +140,7 @@ IdentScanResult ScanIdentToken(const core::SourceFile& source,
   }
 
   const auto offsets = core::Utf8Offsets(scalars);
-  const std::size_t byte_start = offsets[start];
-  const std::size_t byte_end = offsets[end];
-  result.lexeme = source.text.substr(byte_start, byte_end - byte_start);
+  result.lexeme = core::EncodeUtf8(LexemeSliceScalars(scalars, start, end));
   result.ok = true;
   result.next = end;
 

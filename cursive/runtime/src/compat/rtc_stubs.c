@@ -27,6 +27,15 @@ void _RTC_CheckStackVars2(void* frame, void* desc) {
 }
 
 /*
+ * Debug runtime checks may emit a call to _RTC_UninitUse when MSVC instruments
+ * reads from potentially uninitialized locals. Provide a no-op stub so the
+ * CRT-free runtime archive remains self-contained under /NODEFAULTLIB.
+ */
+void __cdecl _RTC_UninitUse(const char* varname) {
+  (void)varname;
+}
+
+/*
  * MSVC may emit SEH unwind metadata that references __C_specific_handler.
  * Provide a minimal CRT-free stub so linking succeeds under /NODEFAULTLIB.
  */

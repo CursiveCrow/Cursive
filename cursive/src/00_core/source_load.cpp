@@ -94,6 +94,7 @@
 #include <cstdint>
 #include <optional>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "00_core/assert_spec.h"
@@ -209,6 +210,43 @@ SourceFile BuildSpanSource(std::string_view path,
   return source;
 }
 
+struct SourceLoadSpanTemp {
+  std::string path;
+  std::vector<std::uint8_t> bytes;
+  std::string text;
+  std::size_t byte_len = 0;
+  std::vector<std::size_t> line_starts;
+  std::size_t line_count = 0;
+};
+
+SourceLoadSpanTemp BuildSpanTemp(const SourceFile& source) {
+  SourceLoadSpanTemp temp;
+  temp.path = source.path;
+  temp.bytes = source.bytes;
+  temp.text = source.text;
+  temp.byte_len = source.byte_len;
+  temp.line_starts = source.line_starts;
+  temp.line_count = source.line_count;
+  return temp;
+}
+
+SourceFile ToSpanSource(const SourceLoadSpanTemp& source) {
+  SourceFile span_source;
+  span_source.path = source.path;
+  span_source.bytes = source.bytes;
+  span_source.text = source.text;
+  span_source.byte_len = source.byte_len;
+  span_source.line_starts = source.line_starts;
+  span_source.line_count = source.line_count;
+  return span_source;
+}
+
+Span SpanOfTemp(const SourceLoadSpanTemp& source,
+                std::size_t start,
+                std::size_t end) {
+  return SpanOf(ToSpanSource(source), start, end);
+}
+
 std::optional<std::size_t> FirstBomIndex(
     const std::vector<UnicodeScalar>& scalars) {
   for (std::size_t i = 0; i < scalars.size(); ++i) {
@@ -225,6 +263,95 @@ Span SpanAtIndex(const SourceFile& source,
   const std::size_t start = offsets[index];
   const std::size_t end = offsets[index + 1];
   return SpanOf(source, start, end);
+}
+
+Span SpanAtIndex(const SourceLoadSpanTemp& source,
+                 const std::vector<std::size_t>& offsets,
+                 std::size_t index) {
+  const std::size_t start = offsets[index];
+  const std::size_t end = offsets[index + 1];
+  return SpanOfTemp(source, start, end);
+}
+
+Span SpanAtLineStart(const SourceLoadSpanTemp& source, std::size_t index) {
+  const std::size_t start =
+      index < source.line_starts.size() ? source.line_starts[index] : source.byte_len;
+  const std::size_t end =
+      start < source.byte_len ? std::min(start + 1, source.byte_len) : source.byte_len;
+  return SpanOfTemp(source, start, end);
+}
+
+SourceLoadSizedState StepSize(SourceLoadStartState start) {
+  SPEC_RULE("Step-Size");
+  return SourceLoadSizedState{std::move(start.path), std::move(start.bytes)};
+}
+
+SourceLoadDecodedState StepDecode(SourceLoadSizedState sized, Scalars scalars) {
+  SPEC_RULE("Step-Decode");
+  return SourceLoadDecodedState{
+      std::move(sized.path),
+      std::move(sized.bytes),
+      std::move(scalars)};
+}
+
+SourceLoadErrorState StepDecodeErr(SourceLoadSizedState sized) {
+  static_cast<void>(sized);
+  SPEC_RULE("Step-Decode-Err");
+  return SourceLoadErrorState{"E-SRC-0101"};
+}
+
+SourceLoadBomStrippedState StepBOM(SourceLoadDecodedState decoded,
+                                   StripBOMResult stripped) {
+  SPEC_RULE("Step-BOM");
+  return SourceLoadBomStrippedState{
+      std::move(decoded.path),
+      std::move(decoded.bytes),
+      std::move(stripped.scalars),
+      stripped.had_bom,
+      stripped.embedded_index};
+}
+
+SourceLoadNormalizedState StepNorm(SourceLoadBomStrippedState stripped,
+                                   Scalars scalars) {
+  SPEC_RULE("Step-Norm");
+  return SourceLoadNormalizedState{
+      std::move(stripped.path),
+      std::move(stripped.bytes),
+      std::move(scalars),
+      stripped.j};
+}
+
+SourceLoadErrorState StepEmbeddedBOMErr(SourceLoadNormalizedState normalized) {
+  static_cast<void>(normalized);
+  SPEC_RULE("Step-EmbeddedBOM-Err");
+  return SourceLoadErrorState{"E-SRC-0103"};
+}
+
+SourceLoadLineMappedState StepLineMap(SourceLoadNormalizedState normalized) {
+  std::vector<std::size_t> line_starts = LineStarts(normalized.scalars);
+  SPEC_RULE("Step-LineMap");
+  return SourceLoadLineMappedState{
+      std::move(normalized.path),
+      std::move(normalized.bytes),
+      std::move(normalized.scalars),
+      std::move(line_starts)};
+}
+
+SourceLoadValidatedState StepProhibited(SourceLoadLineMappedState line_mapped) {
+  SPEC_RULE("Step-Prohibited");
+  SourceFile source = BuildSpanSource(
+      line_mapped.path,
+      line_mapped.bytes,
+      std::move(line_mapped.scalars));
+  source.line_starts = std::move(line_mapped.line_starts);
+  source.line_count = source.line_starts.size();
+  return SourceLoadValidatedState{std::move(source)};
+}
+
+SourceLoadErrorState StepProhibitedErr(SourceLoadLineMappedState line_mapped) {
+  static_cast<void>(line_mapped);
+  SPEC_RULE("Step-Prohibited-Err");
+  return SourceLoadErrorState{"E-SRC-0104"};
 }
 
 }  // namespace
@@ -314,69 +441,84 @@ std::vector<UnicodeScalar> NormalizeLF(const std::vector<UnicodeScalar>& scalars
 SourceLoadResult LoadSource(std::string_view path,
                             const std::vector<std::uint8_t>& bytes) {
   SourceLoadResult result;
-  SPEC_RULE("Step-Size");
+  SourceLoadStartState start{std::string(path), bytes};
+  SourceLoadSizedState sized = StepSize(std::move(start));
 
-  const DecodeResult decoded = Decode(bytes);
-  if (!decoded.ok) {
-    SPEC_RULE("Step-Decode-Err");
+  const DecodeResult decode_result = Decode(sized.bytes);
+  if (!decode_result.ok) {
+    const SourceLoadErrorState error = StepDecodeErr(std::move(sized));
     SPEC_RULE("NoSpan-Decode");
-    if (auto diag = MakeDiagnosticById("E-SRC-0101")) {
+    if (auto diag = MakeDiagnosticById(error.code)) {
       Emit(result.diags, *diag);
     }
     SPEC_RULE("LoadSource-Err");
     return result;
   }
-  SPEC_RULE("Step-Decode");
+  SourceLoadDecodedState decoded =
+      StepDecode(std::move(sized), std::move(decode_result.scalars));
 
-  const StripBOMResult stripped = StripBOM(decoded.scalars);
-  SPEC_RULE("Step-BOM");
+  StripBOMResult strip_result = StripBOM(decoded.scalars);
+  SourceLoadBomStrippedState stripped =
+      StepBOM(std::move(decoded), std::move(strip_result));
 
-  std::vector<UnicodeScalar> normalized = NormalizeLF(stripped.scalars);
-  SPEC_RULE("Step-Norm");
+  const bool had_bom = stripped.had_bom;
+  Scalars normalized_outside_identifiers =
+      NormalizeOutsideIdentifiers(stripped.scalars);
+  Scalars normalized_scalars = NormalizeLF(normalized_outside_identifiers);
+  SourceLoadNormalizedState normalized =
+      StepNorm(std::move(stripped), std::move(normalized_scalars));
 
-  SourceFile source = BuildSpanSource(path, bytes, std::move(normalized));
-  const std::vector<std::size_t> offsets = Utf8Offsets(source.scalars);
+  SourceFile source =
+      BuildSpanSource(normalized.path, normalized.bytes, normalized.scalars);
+  const SourceLoadSpanTemp span_source = BuildSpanTemp(source);
+  std::vector<std::size_t> offsets = Utf8Offsets(source.scalars);
 
-  if (stripped.had_bom) {
+  if (had_bom) {
     SPEC_RULE("Span-BOM-Warn");
-    const std::size_t end = std::min<std::size_t>(1, source.byte_len);
-    if (auto diag = MakeDiagnosticById("W-SRC-0101", SpanOf(source, 0, end))) {
+    const std::size_t end = std::min<std::size_t>(1, span_source.byte_len);
+    if (auto diag = MakeDiagnosticById("W-SRC-0101", SpanOfTemp(span_source, 0, end))) {
       Emit(result.diags, *diag);
     }
   }
 
-  if (stripped.embedded_index.has_value()) {
-    SPEC_RULE("Step-EmbeddedBOM-Err");
+  if (normalized.j.has_value()) {
+    const SourceLoadErrorState error = StepEmbeddedBOMErr(std::move(normalized));
     std::size_t bom_index = 0;
     if (auto index = FirstBomIndex(source.scalars)) {
       bom_index = *index;
     }
     SPEC_RULE("Span-BOM-Embedded");
-    if (auto diag = MakeDiagnosticById("E-SRC-0103", SpanAtIndex(source, offsets, bom_index))) {
+    if (auto diag = MakeDiagnosticById(error.code, SpanAtIndex(span_source, offsets, bom_index))) {
       Emit(result.diags, *diag);
     }
     SPEC_RULE("LoadSource-Err");
     return result;
   }
 
-  SPEC_RULE("Step-LineMap");
+  SourceLoadLineMappedState line_mapped = StepLineMap(std::move(normalized));
+  source = BuildSpanSource(
+      line_mapped.path,
+      line_mapped.bytes,
+      line_mapped.scalars);
+  source.line_starts = line_mapped.line_starts;
+  source.line_count = source.line_starts.size();
+  offsets = Utf8Offsets(source.scalars);
 
   if (!NoProhibited(source.scalars)) {
-    SPEC_RULE("Step-Prohibited-Err");
+    const SourceLoadErrorState error = StepProhibitedErr(std::move(line_mapped));
     std::size_t prohibited_index = 0;
     if (auto index = FirstProhibitedOutsideLiteral(source.scalars)) {
       prohibited_index = *index;
     }
     SPEC_RULE("Span-Prohibited");
-    if (auto diag = MakeDiagnosticById("E-SRC-0104", SpanAtIndex(source, offsets, prohibited_index))) {
+    if (auto diag = MakeDiagnosticById(error.code, SpanAtIndex(span_source, offsets, prohibited_index))) {
       Emit(result.diags, *diag);
     }
     SPEC_RULE("LoadSource-Err");
     return result;
   }
-  SPEC_RULE("Step-Prohibited");
-
-  result.source = std::move(source);
+  SourceLoadValidatedState validated = StepProhibited(std::move(line_mapped));
+  result.source = std::move(validated.source);
   SPEC_RULE("LoadSource-Ok");
   return result;
 }

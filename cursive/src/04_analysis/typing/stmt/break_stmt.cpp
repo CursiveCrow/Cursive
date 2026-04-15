@@ -38,13 +38,13 @@ static ExprTypeResult TypeExprWithCurrentEnv(const ScopeContext& ctx,
   if (!expr) {
     return {};
   }
-  const auto via_callback = type_expr(expr);
-  if (via_callback.ok) {
-    return via_callback;
-  }
   const auto via_env = TypeExpr(ctx, type_ctx, expr, env);
   if (via_env.ok || via_env.diag_id.has_value()) {
     return via_env;
+  }
+  const auto via_callback = type_expr(expr);
+  if (via_callback.ok) {
+    return via_callback;
   }
   return via_callback;
 }

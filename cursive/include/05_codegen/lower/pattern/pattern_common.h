@@ -34,7 +34,6 @@ namespace cursive::codegen {
 // =============================================================================
 
 // Create a boolean immediate value (for pattern match conditions)
-IRValue BoolImmediate(bool value);
 
 // =============================================================================
 // §6.6 Type Lookup Utilities

@@ -395,6 +395,50 @@ std::optional<cursive::analysis::TypeRef> LowerTypeForLayoutWithSubst(
 
 }  // namespace
 
+std::optional<LoweredAsyncType> LowerAsyncType(
+    const cursive::analysis::AsyncSig& sig) {
+  SPEC_RULE("Lower-Async-Type");
+
+  std::vector<cursive::analysis::TypeRef> async_args;
+  async_args.reserve(4);
+  async_args.push_back(sig.out);
+  async_args.push_back(sig.in);
+  async_args.push_back(sig.result);
+  async_args.push_back(sig.err);
+
+  std::vector<std::string> states;
+  states.reserve(3);
+  states.push_back("Suspended");
+  states.push_back("Completed");
+
+  std::vector<cursive::analysis::TypeRef> members;
+  members.reserve(3);
+  members.push_back(cursive::analysis::MakeTypeModalState(
+      {"Async"}, "Suspended", async_args));
+  members.push_back(cursive::analysis::MakeTypeModalState(
+      {"Async"}, "Completed", async_args));
+  if (!IsNeverType(sig.err)) {
+    states.push_back("Failed");
+    members.push_back(cursive::analysis::MakeTypeModalState(
+        {"Async"}, "Failed", std::move(async_args)));
+  }
+
+  return LoweredAsyncType{
+      .states = std::move(states),
+      .resume_type = cursive::analysis::MakeTypeUnion(std::move(members)),
+  };
+}
+
+std::optional<LoweredAsyncType> LowerAsyncType(
+    const cursive::analysis::TypeRef& type) {
+  SPEC_RULE("Lower-Async-Type");
+  const auto sig = cursive::analysis::GetAsyncSig(type);
+  if (!sig.has_value()) {
+    return std::nullopt;
+  }
+  return LowerAsyncType(*sig);
+}
+
 RecordLayoutOptions ResolveRecordLayoutOptions(
     const cursive::ast::AttributeList& attrs) {
   RecordLayoutOptions options{};

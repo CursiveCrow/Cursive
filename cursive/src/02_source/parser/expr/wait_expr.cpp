@@ -34,8 +34,8 @@
 namespace cursive::ast {
 
 // Use lexer types
+using cursive::lexer::Ctx;
 using cursive::lexer::Token;
-using cursive::lexer::TokenKind;
 
 // Forward declarations from other parser modules
 ExprPtr MakeExpr(const core::Span& span, ExprNode node);
@@ -48,10 +48,11 @@ bool IsExprStart(const Token& tok);
 //
 // CRITICAL: The wait expression check MUST appear before general identifier
 // parsing to prevent "wait" from being consumed as a simple IdentifierExpr.
-// This helper makes the intent clear - "wait" is contextual, not reserved.
+// This helper makes the intent clear and routes through the shared Ctx
+// predicate so every parser site agrees on contextual keyword handling.
 
 bool IsWaitContextualKeyword(const Token* tok) {
-  return tok && tok->kind == TokenKind::Identifier && tok->lexeme == "wait";
+  return tok && Ctx(*tok, "wait");
 }
 
 // =============================================================================

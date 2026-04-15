@@ -105,7 +105,8 @@ StaticDeclResult TypeStaticDecl(
   result.ok = true;
 
   const auto attr_validation =
-      ValidateAttributes(decl.attrs, AttributeTarget::Static);
+      ValidateUnsupportedAttributeTarget(ast::AttrListOf(decl.attrs_opt),
+                                         "static declarations");
   if (!attr_validation.ok) {
     result.ok = false;
     result.diag_id = attr_validation.diag_id;
@@ -119,7 +120,8 @@ StaticDeclResult TypeStaticDecl(
   }
   result.is_mutable = (decl.mut == ast::Mutability::Var);
 
-  const bool missing_type = !decl.binding.type_opt;
+  const auto ann_type = ast::BindingAnnotationTypeOpt(decl.binding);
+  const bool missing_type = !ann_type;
   const bool vis_error = !StaticVisOk(decl.vis, decl.mut);
 
   // Lower the type annotation (required for statics)
@@ -145,7 +147,7 @@ StaticDeclResult TypeStaticDecl(
     return result;
   }
 
-  const auto lowered = LowerTypeWithWF(ctx, decl.binding.type_opt);
+  const auto lowered = LowerTypeWithWF(ctx, ann_type);
   if (!lowered.ok) {
     result.ok = false;
     result.diag_id = lowered.diag_id;
@@ -182,7 +184,6 @@ StaticDeclResult TypeStaticDecl(
     }
   } else {
     // Parser guarantees an initializer shape; if missing, report syntax failure.
-    SPEC_RULE("Parse-Syntax-Err");
     result.ok = false;
     result.diag_id = "Parse-Syntax-Err";
     return result;
@@ -208,7 +209,8 @@ StaticDeclResult TypeStaticDeclSignature(
   result.ok = true;
 
   const auto attr_validation =
-      ValidateAttributes(decl.attrs, AttributeTarget::Static);
+      ValidateUnsupportedAttributeTarget(ast::AttrListOf(decl.attrs_opt),
+                                         "static declarations");
   if (!attr_validation.ok) {
     result.ok = false;
     result.diag_id = attr_validation.diag_id;
@@ -222,7 +224,8 @@ StaticDeclResult TypeStaticDeclSignature(
   result.is_mutable = (decl.mut == ast::Mutability::Var);
 
   // Lower the type (required for statics)
-  if (!decl.binding.type_opt) {
+  const auto ann_type = ast::BindingAnnotationTypeOpt(decl.binding);
+  if (!ann_type) {
     SPEC_RULE("WF-StaticDecl-MissingType");
     result.ok = false;
     result.diag_id = "WF-StaticDecl-MissingType";
@@ -237,7 +240,7 @@ StaticDeclResult TypeStaticDeclSignature(
     return result;
   }
 
-  const auto lowered = LowerTypeWithWF(ctx, decl.binding.type_opt);
+  const auto lowered = LowerTypeWithWF(ctx, ann_type);
   if (!lowered.ok) {
     result.ok = false;
     result.diag_id = lowered.diag_id;

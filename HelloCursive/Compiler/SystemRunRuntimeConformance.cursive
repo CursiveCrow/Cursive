@@ -1,4 +1,4 @@
-procedure CompilerSystemRunStatusLabel(status: i32) -> string@View {
+procedure compilerSystemRunStatusLabel(status: i32) -> string@View {
     if (status == 0) {
         return "0"
     }
@@ -8,7 +8,7 @@ procedure CompilerSystemRunStatusLabel(status: i32) -> string@View {
     return "other"
 }
 
-public procedure RunCompilerSystemRunRuntimeConformance(ctx: Context) -> i32 {
+public procedure runCompilerSystemRunRuntimeConformance(ctx: Context) -> i32 {
     let zero_exit_command: string@View =
         "powershell -NoProfile -Command \"exit 0\""
     let nonzero_exit_command: string@View =
@@ -16,8 +16,8 @@ public procedure RunCompilerSystemRunRuntimeConformance(ctx: Context) -> i32 {
 
     let zero_status: i32 = ctx.sys~>run(zero_exit_command)
     let nonzero_status: i32 = ctx.sys~>run(nonzero_exit_command)
-    let zero_status_label: string@View = CompilerSystemRunStatusLabel(zero_status)
-    let nonzero_status_label: string@View = CompilerSystemRunStatusLabel(nonzero_status)
+    let zero_status_label: string@View = compilerSystemRunStatusLabel(zero_status)
+    let nonzero_status_label: string@View = compilerSystemRunStatusLabel(nonzero_status)
     let zero_status_log_actual =
         [[log(label: "observed-compiler-runtime-system-run-zero-status", expected: "0")]]
         zero_status_label

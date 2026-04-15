@@ -1,0 +1,111 @@
+[[dynamic]]
+modal AttributeDynamicDeclarationModalProbe {
+    @Ready {
+        base: i32
+
+        procedure dynamicIndex(~) -> i32 {
+            let values: [i32; 3] = [self.base, self.base + 2, self.base + 4]
+            let idx: usize = 1usize
+            return values[idx]
+        }
+
+        transition advance() -> @Done {
+            let values: [i32; 3] = [3, 5, 7]
+            let idx: usize = 2usize
+            let selected: i32 = values[idx]
+            return AttributeDynamicDeclarationModalProbe@Done {
+                total: self.base + selected
+            }
+        }
+    }
+
+    @Done {
+        total: i32
+    }
+}
+
+[[dynamic]]
+record AttributeDynamicDeclarationRecordProbe {
+    base: i32,
+
+    procedure dynamicIndex(~) -> i32 {
+        let values: [i32; 3] = [self.base, self.base + 3, self.base + 6]
+        let idx: usize = 2usize
+        return values[idx]
+    },
+}
+
+procedure DynamicDeclarationRelationsMetricLabel(value: i32) -> string@View {
+    if (value == 29) {
+        return "29"
+    }
+    return "other"
+}
+
+public procedure RunDynamicDeclarationRelations(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    var probe: unique AttributeDynamicDeclarationModalProbe@Ready =
+        AttributeDynamicDeclarationModalProbe@Ready { base: 4 }
+    let record_probe: AttributeDynamicDeclarationRecordProbe =
+        AttributeDynamicDeclarationRecordProbe { base: 5 }
+    let observed: i32 = probe~>dynamicIndex()
+    let advanced: AttributeDynamicDeclarationModalProbe@Done = probe~>advance()
+    let record_observed: i32 = record_probe~>dynamicIndex()
+    let expr_values: [i32; 3] = [11, 13, 17]
+    let expr_idx: usize = 1usize
+    let expr_observed: i32 = [[dynamic]] expr_values[expr_idx]
+
+    let observed_log: i32 =
+        [[log(label: "observed-attributes-dynamic-decl-modal-method", expected: 6)]]
+        observed
+    let advanced_total_log: i32 =
+        [[log(label: "observed-attributes-dynamic-decl-modal-transition", expected: 11)]]
+        advanced.total
+    let record_observed_log: i32 =
+        [[log(label: "observed-attributes-dynamic-decl-record-method", expected: 11)]]
+        record_observed
+    let expr_observed_log: i32 =
+        [[log(label: "observed-attributes-dynamic-expr-scope", expected: 13)]]
+        expr_observed
+
+    let atr_035: string@View =
+        [[log(label: "attributes-dynamic-feature-035", expected: "ATR-035")]]
+        "ATR-035"
+    let atr_036: string@View =
+        [[log(label: "attributes-dynamic-feature-036", expected: "ATR-036")]]
+        "ATR-036"
+    let atr_037: string@View =
+        [[log(label: "attributes-dynamic-feature-037", expected: "ATR-037")]]
+        "ATR-037"
+    let atr_038: string@View =
+        [[log(label: "attributes-dynamic-feature-038", expected: "ATR-038")]]
+        "ATR-038"
+
+    let runtime_ok: bool =
+        (observed_log == 6) &&
+        (advanced_total_log == 11) &&
+        (record_observed_log == 11) &&
+        (expr_observed_log == 13) &&
+        (atr_035 == "ATR-035") &&
+        (atr_036 == "ATR-036") &&
+        (atr_037 == "ATR-037") &&
+        (atr_038 == "ATR-038")
+    let runtime_ok_log: bool =
+        [[log(label: "attributes-dynamic-declaration-relations-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 29 } else { 0 }
+    let metric_label: string@View = DynamicDeclarationRelationsMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-attributes-dynamic-declaration-relations-metric", expected: "29")]]
+        metric_label
+    if (metric_log_actual != "29") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}

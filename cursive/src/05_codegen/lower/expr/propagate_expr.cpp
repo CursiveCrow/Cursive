@@ -13,6 +13,7 @@
 
 #include "05_codegen/lower/expr/propagate_expr.h"
 #include "05_codegen/cleanup/cleanup.h"
+#include "05_codegen/checks/checks.h"
 #include "04_analysis/typing/subtyping.h"
 #include "04_analysis/typing/type_predicates.h"
 #include "04_analysis/typing/type_equiv.h"
@@ -90,6 +91,20 @@ bool IsUnitType(const analysis::TypeRef& type) {
     }
     if (const auto* prim = std::get_if<analysis::TypePrim>(&stripped->node)) {
         return prim->name == "()";
+    }
+    return false;
+}
+
+bool IsNeverType(const analysis::TypeRef& type) {
+    if (!type) {
+        return false;
+    }
+    analysis::TypeRef stripped = analysis::StripPerm(type);
+    if (!stripped) {
+        return false;
+    }
+    if (const auto* prim = std::get_if<analysis::TypePrim>(&stripped->node)) {
+        return prim->name == "!";
     }
     return false;
 }
@@ -245,8 +260,37 @@ LowerResult LowerPropagateExpr(const ast::PropagateExpr& expr, LowerCtx& ctx) {
             CleanupPlan cleanup_plan = ComputeCleanupPlanToFunctionRoot(ctx);
             IRPtr cleanup_ir = EmitCleanup(cleanup_plan, ctx);
             if (async_sig.has_value()) {
+                if (IsNeverType(async_sig->err) || IsNeverType(member_type)) {
+                    // Infallible asyncs have no concrete Failed arm. Preserve
+                    // the impossible-path semantics without synthesizing
+                    // IRAsyncFail in this branch.
+                    arm.body = LowerPanic(PanicReason::AsyncFailed, ctx);
+                    arm.value = ctx.FreshTempValue("propagate_unreach");
+                    if_case_ir.arms.push_back(std::move(arm));
+                    continue;
+                }
+                const std::string saved_error_name =
+                    "__c0_async_error_" + std::to_string(i);
+                IRBindVar save_error;
+                save_error.name = saved_error_name;
+                save_error.value = case_value;
+                save_error.type = member_type;
+                save_error.prov = analysis::ProvenanceKind::Bottom;
+                ctx.RegisterVar(saved_error_name,
+                                member_type,
+                                /*has_responsibility=*/false,
+                                /*is_immovable=*/false,
+                                analysis::ProvenanceKind::Bottom);
+
+                IRValue saved_error;
+                saved_error.kind = IRValue::Kind::Local;
+                saved_error.name = saved_error_name;
+                if (member_type) {
+                    ctx.RegisterValueType(saved_error, member_type);
+                }
+
                 IRAsyncFail async_fail;
-                async_fail.value = case_value;
+                async_fail.value = saved_error;
                 async_fail.result = ctx.FreshTempValue("propagate_failed_async");
                 async_fail.async_type = ctx.proc_ret_type;
                 async_fail.error_type =
@@ -256,8 +300,9 @@ LowerResult LowerPropagateExpr(const ast::PropagateExpr& expr, LowerCtx& ctx) {
                 IRReturn ret;
                 ret.value = async_fail.result;
                 arm.body = SeqIR({
-                    MakeIR(std::move(async_fail)),
+                    MakeIR(std::move(save_error)),
                     cleanup_ir,
+                    MakeIR(std::move(async_fail)),
                     MakeIR(std::move(ret)),
                 });
             } else {

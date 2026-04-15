@@ -47,8 +47,11 @@
 #include "00_core/assert_spec.h"
 #include "00_core/diagnostics.h"
 #include "00_core/process_config.h"
+#include "04_analysis/caps/cap_heap.h"
 #include "04_analysis/composite/function_types.h"
+#include "04_analysis/composite/record_methods.h"
 #include "04_analysis/modal/builtin_modal_intrinsics.h"
+#include "04_analysis/memory/string_bytes.h"
 #include "04_analysis/resolve/resolve_items.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/resolve/scopes_lookup.h"
@@ -283,6 +286,17 @@ static bool IsSharedBindingType(const TypeRef& type) {
   return false;
 }
 
+static bool IsCapturedLocalSharedBinding(const TypeEnv& env,
+                                         std::string_view name) {
+  const auto binding = LookupBindingWithScope(env, name);
+  if (!binding.has_value()) {
+    return false;
+  }
+  // The provenance checker seeds scope 0 with static/module bindings and scope
+  // 1 with procedure self/parameters. Deeper scopes are local block scopes.
+  return binding->scope_index >= 2 && IsSharedBindingType(binding->binding.type);
+}
+
 static void ParamTypeMap(const ScopeContext& ctx,
                          const std::vector<ast::Param>& params,
                          const std::optional<BindSelfParam>& self_param,
@@ -366,8 +380,9 @@ static std::optional<TypeRef> BindingType(const ScopeContext& ctx,
                                           const ast::Binding& binding,
                                           const TypeEnv& env,
                                           bool allow_type_infer = true) {
-  if (binding.type_opt) {
-    const auto lowered = LocalLowerType(ctx, binding.type_opt);
+  const auto ann_type = ast::BindingAnnotationTypeOpt(binding);
+  if (ann_type) {
+    const auto lowered = LocalLowerType(ctx, ann_type);
     if (!lowered.ok) {
       return std::nullopt;
     }
@@ -514,10 +529,11 @@ static std::vector<StaticBindingInfo> StaticBindings(
     if (!decl) {
       continue;
     }
-    if (!decl->binding.type_opt) {
+    const auto ann_type = ast::BindingAnnotationTypeOpt(decl->binding);
+    if (!ann_type) {
       continue;
     }
-    const auto ann = LocalLowerType(ctx, decl->binding.type_opt);
+    const auto ann = LocalLowerType(ctx, ann_type);
     if (!ann.ok) {
       continue;
     }
@@ -798,6 +814,267 @@ static ProvTag FrameProv(const TypeEnv& gamma, const ProvEnv& env) {
     return RegionTag(*region);
   }
   return StackProv(env);
+}
+
+static std::optional<TypeRef> ExprTypeForProvenance(const ScopeContext& ctx,
+                                                    const TypeEnv& env,
+                                                    const ast::ExprPtr& expr,
+                                                    bool allow_type_infer = true) {
+  if (!expr) {
+    return std::nullopt;
+  }
+  if (const auto cached = CachedExprTypeOf(ctx, expr)) {
+    return cached;
+  }
+  if (!allow_type_infer) {
+    return std::nullopt;
+  }
+
+  StmtTypeContext type_ctx;
+  type_ctx.return_type = {};
+  type_ctx.loop_flag = LoopFlag::None;
+  type_ctx.in_unsafe = false;
+  type_ctx.diags = nullptr;
+
+  const auto typed = TypeExpr(ctx, type_ctx, expr, env);
+  if (!typed.ok || !typed.type) {
+    return std::nullopt;
+  }
+  return typed.type;
+}
+
+static bool IsHeapAllocatorType(const TypeRef& type) {
+  const auto stripped = StripPerm(type);
+  if (!stripped) {
+    return false;
+  }
+  const auto* dyn = std::get_if<TypeDynamic>(&stripped->node);
+  return dyn && dyn->path.size() == 1 && IdEq(dyn->path[0], "HeapAllocator");
+}
+
+static bool IsManagedHeapValueType(const TypeRef& type) {
+  const auto stripped = StripPerm(type);
+  if (!stripped) {
+    return false;
+  }
+  if (const auto* str = std::get_if<TypeString>(&stripped->node)) {
+    return str->state == StringState::Managed;
+  }
+  if (const auto* bytes = std::get_if<TypeBytes>(&stripped->node)) {
+    return bytes->state == BytesState::Managed;
+  }
+  if (const auto* union_ty = std::get_if<TypeUnion>(&stripped->node)) {
+    for (const auto& member : union_ty->members) {
+      if (IsManagedHeapValueType(member)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+static bool AcceptsHeapAllocator(
+    const std::vector<TypeFuncParam>& params) {
+  for (const auto& param : params) {
+    if (IsHeapAllocatorType(param.type)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool CallableIntroducesHeapProvenance(const TypeRef& callable_type) {
+  const auto stripped = StripPerm(callable_type);
+  if (!stripped) {
+    return false;
+  }
+
+  if (const auto* fn = std::get_if<TypeFunc>(&stripped->node)) {
+    return AcceptsHeapAllocator(fn->params) &&
+           IsManagedHeapValueType(fn->ret);
+  }
+
+  if (const auto* closure = std::get_if<TypeClosure>(&stripped->node)) {
+    bool accepts_heap = false;
+    for (const auto& [is_move, type] : closure->params) {
+      (void)is_move;
+      if (IsHeapAllocatorType(type)) {
+        accepts_heap = true;
+        break;
+      }
+    }
+    return accepts_heap && IsManagedHeapValueType(closure->ret);
+  }
+
+  return false;
+}
+
+static std::optional<TypeRef> DirectCalleeTypeForProvenance(
+    const ScopeContext& ctx,
+    const ast::ExprPtr& callee) {
+  if (!callee) {
+    return std::nullopt;
+  }
+
+  std::optional<ast::ModulePath> origin;
+  std::string target_name;
+  std::optional<std::string> current_module_fallback_name;
+
+  if (const auto* ident = std::get_if<ast::IdentifierExpr>(&callee->node)) {
+    current_module_fallback_name = ident->name;
+    const auto ent = ResolveValueName(ctx, ident->name);
+    if (ent.has_value() && ent->origin_opt.has_value()) {
+      origin = ent->origin_opt;
+      target_name = ent->target_opt.value_or(std::string(ident->name));
+    } else {
+      const auto local_callee =
+          ValuePathType(ctx, CurrentModule(ctx), ident->name);
+      if (local_callee.ok && local_callee.type) {
+        return local_callee.type;
+      }
+      return std::nullopt;
+    }
+  } else if (const auto* path_expr = std::get_if<ast::PathExpr>(&callee->node)) {
+    origin = path_expr->path;
+    target_name = path_expr->name;
+    if (path_expr->path.empty()) {
+      current_module_fallback_name = path_expr->name;
+    }
+  } else if (const auto* qualified =
+                 std::get_if<ast::QualifiedNameExpr>(&callee->node)) {
+    origin = qualified->path;
+    target_name = qualified->name;
+  } else {
+    return std::nullopt;
+  }
+
+  if (!origin.has_value()) {
+    return std::nullopt;
+  }
+  const auto callee_path_type = ValuePathType(ctx, *origin, target_name);
+  if (callee_path_type.ok && callee_path_type.type) {
+    return callee_path_type.type;
+  }
+
+  if (current_module_fallback_name.has_value()) {
+    const auto fallback =
+        ValuePathType(ctx, CurrentModule(ctx), *current_module_fallback_name);
+    if (fallback.ok && fallback.type) {
+      return fallback.type;
+    }
+  }
+
+  return std::nullopt;
+}
+
+static bool CallExprIntroducesHeapProvenance(const ScopeContext& ctx,
+                                             const TypeEnv& env,
+                                             const ast::CallExpr& call,
+                                             bool allow_type_infer = true) {
+  if (const auto callee_type =
+          ExprTypeForProvenance(ctx, env, call.callee, allow_type_infer)) {
+    if (CallableIntroducesHeapProvenance(*callee_type)) {
+      return true;
+    }
+  }
+
+  if (const auto callee_type = DirectCalleeTypeForProvenance(ctx, call.callee)) {
+    if (CallableIntroducesHeapProvenance(*callee_type)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool LoweredMethodIntroducesHeapProvenance(const ScopeContext& ctx,
+                                                  const ast::MethodDecl& method) {
+  std::vector<TypeFuncParam> params;
+  params.reserve(method.params.size());
+  for (const auto& param : method.params) {
+    const auto lowered = LocalLowerType(ctx, param.type);
+    if (!lowered.ok || !lowered.type) {
+      return false;
+    }
+    params.push_back(TypeFuncParam{LowerParamMode(param.mode), lowered.type});
+  }
+
+  TypeRef ret = MakeTypePrim("()");
+  if (method.return_type_opt) {
+    const auto lowered = LocalLowerType(ctx, method.return_type_opt);
+    if (!lowered.ok || !lowered.type) {
+      return false;
+    }
+    ret = lowered.type;
+  }
+
+  return AcceptsHeapAllocator(params) && IsManagedHeapValueType(ret);
+}
+
+static bool LoweredMethodIntroducesHeapProvenance(
+    const ScopeContext& ctx,
+    const ast::ClassMethodDecl& method) {
+  std::vector<TypeFuncParam> params;
+  params.reserve(method.params.size());
+  for (const auto& param : method.params) {
+    const auto lowered = LocalLowerType(ctx, param.type);
+    if (!lowered.ok || !lowered.type) {
+      return false;
+    }
+    params.push_back(TypeFuncParam{LowerParamMode(param.mode), lowered.type});
+  }
+
+  TypeRef ret = MakeTypePrim("()");
+  if (method.return_type_opt) {
+    const auto lowered = LocalLowerType(ctx, method.return_type_opt);
+    if (!lowered.ok || !lowered.type) {
+      return false;
+    }
+    ret = lowered.type;
+  }
+
+  return AcceptsHeapAllocator(params) && IsManagedHeapValueType(ret);
+}
+
+static bool MethodCallIntroducesHeapProvenance(const ScopeContext& ctx,
+                                               const TypeEnv& env,
+                                               const ast::MethodCallExpr& call,
+                                               bool allow_type_infer = true) {
+  const auto receiver_type =
+      ExprTypeForProvenance(ctx, env, call.receiver, allow_type_infer);
+  if (!receiver_type.has_value()) {
+    return false;
+  }
+  const auto receiver_base = StripPerm(*receiver_type);
+  if (!receiver_base) {
+    return false;
+  }
+
+  if (const auto sig =
+          LookupStringBytesBuiltinMethodSig(receiver_base, call.name)) {
+    return AcceptsHeapAllocator(sig->params) &&
+           IsManagedHeapValueType(sig->ret);
+  }
+
+  if (const auto* dyn = std::get_if<TypeDynamic>(&receiver_base->node)) {
+    if (dyn->path.size() == 1 && IdEq(dyn->path[0], "HeapAllocator")) {
+      const auto sig = LookupHeapAllocatorMethodSig(call.name);
+      return sig.has_value() &&
+             sig->kind == HeapAllocatorMethodKind::AllocRaw;
+    }
+  }
+
+  const auto lookup = LookupMethodStatic(ctx, receiver_base, call.name);
+  if (!lookup.ok) {
+    return false;
+  }
+  if (lookup.record_method) {
+    return LoweredMethodIntroducesHeapProvenance(ctx, *lookup.record_method);
+  }
+  if (lookup.class_method) {
+    return LoweredMethodIntroducesHeapProvenance(ctx, *lookup.class_method);
+  }
+  return false;
 }
 
 static std::optional<AsyncSig> AsyncSigForExpr(const ScopeContext& ctx,
@@ -1137,8 +1414,6 @@ class ClosureCaptureCollector {
             if (node.body) {
               VisitBlock(*node.body);
             }
-          } else if constexpr (std::is_same_v<T, ast::StaticAssertStmt>) {
-            VisitExpr(node.condition);
           } else if constexpr (std::is_same_v<T, ast::LogStmt> ||
                                std::is_same_v<T, ast::ErrorStmt>) {
           }
@@ -1190,9 +1465,9 @@ class ClosureCaptureCollector {
               VisitExpr(elem);
             }
           } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-            for (const auto& elem : node.elements) {
+            ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
               VisitExpr(elem);
-            }
+            });
           } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
             VisitExpr(node.value);
             VisitExpr(node.count);
@@ -1344,6 +1619,7 @@ class ClosureCaptureCollector {
             }
             for (const auto& opt : node.opts) {
               VisitExpr(opt.chunk_expr);
+              VisitExpr(opt.workgroup_expr);
             }
             PushScope();
             DeclarePattern(node.pattern);
@@ -1456,9 +1732,9 @@ static void ForEachChildLtr(const ast::ExprPtr& expr, Fn&& fn) {
             fn(elem);
           }
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
             fn(elem);
-          }
+          });
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           fn(node.value);
           fn(node.count);
@@ -2099,9 +2375,7 @@ static ProvExprResult ProvExpr(const ScopeContext& ctx,
         continue;
       }
       if (escaping) {
-        const auto binding = LookupBindingWithScope(gamma, capture);
-        if (binding.has_value() && binding->scope_index >= 2 &&
-            IsSharedBindingType(binding->binding.type)) {
+        if (IsCapturedLocalSharedBinding(gamma, capture)) {
           SPEC_RULE("P-Closure-Escape-Err");
           ProvExprResult err;
           err.ok = false;
@@ -2153,6 +2427,46 @@ static ProvExprResult ProvExpr(const ScopeContext& ctx,
     result.ok = true;
     result.prov = frame_prov;
     return finish(result);
+  }
+
+  if (const auto* call = std::get_if<ast::CallExpr>(&expr->node)) {
+    if (CallExprIntroducesHeapProvenance(ctx, gamma, *call,
+                                         expr_map == nullptr)) {
+      const auto callee = ProvExpr(ctx, call->callee, env, gamma, expr_map);
+      if (!callee.ok) {
+        return finish(callee);
+      }
+      for (const auto& arg : call->args) {
+        const auto arg_res = ProvExpr(ctx, arg.value, env, gamma, expr_map);
+        if (!arg_res.ok) {
+          return finish(arg_res);
+        }
+      }
+      SPEC_RULE("P-Expr-Heap");
+      result.ok = true;
+      result.prov = HeapTag();
+      return finish(result);
+    }
+  }
+
+  if (const auto* call = std::get_if<ast::MethodCallExpr>(&expr->node)) {
+    if (MethodCallIntroducesHeapProvenance(ctx, gamma, *call,
+                                           expr_map == nullptr)) {
+      const auto recv = ProvExpr(ctx, call->receiver, env, gamma, expr_map);
+      if (!recv.ok) {
+        return finish(recv);
+      }
+      for (const auto& arg : call->args) {
+        const auto arg_res = ProvExpr(ctx, arg.value, env, gamma, expr_map);
+        if (!arg_res.ok) {
+          return finish(arg_res);
+        }
+      }
+      SPEC_RULE("P-Expr-Heap");
+      result.ok = true;
+      result.prov = HeapTag();
+      return finish(result);
+    }
   }
 
   if (IsPlaceExpr(expr)) {

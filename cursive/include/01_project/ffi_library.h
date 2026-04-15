@@ -39,13 +39,4 @@ std::vector<std::filesystem::path> ResolveExternLibraryInputs(
     const std::vector<FfiLibrarySpec>& specs,
     TargetProfile profile);
 
-std::optional<std::string> ResolveLibraryDelayLoadNameForCurrentTarget(
-    std::string_view name,
-    std::string_view kind,
-    TargetProfile profile);
-
-std::vector<std::string> ResolveExternLibraryDelayLoadDlls(
-    const std::vector<FfiLibrarySpec>& specs,
-    TargetProfile profile);
-
 }  // namespace cursive::project

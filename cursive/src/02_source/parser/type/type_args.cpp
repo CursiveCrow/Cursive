@@ -20,7 +20,7 @@ namespace cursive::ast {
 namespace {
 
 bool IsTypeListEnd(const Parser& parser,
-                   std::span<const TokenKindMatch> end_set) {
+                   std::span<const EndSetToken> end_set) {
   const Token* tok = Tok(parser);
   return tok && TokenInEndSet(*tok, end_set);
 }
@@ -28,7 +28,7 @@ bool IsTypeListEnd(const Parser& parser,
 ParseElemResult<std::vector<std::shared_ptr<Type>>> ParseTypeListTailImpl(
     Parser parser,
     std::vector<std::shared_ptr<Type>> xs,
-    std::span<const TokenKindMatch> end_set) {
+    std::span<const EndSetToken> end_set) {
   SkipNewlinesType(parser);
 
   // Parse-TypeListTail-End: End of list
@@ -45,8 +45,11 @@ ParseElemResult<std::vector<std::shared_ptr<Type>>> ParseTypeListTailImpl(
 
     // Parse-TypeListTail-TrailingComma
     if (IsTypeListEnd(after, end_set)) {
-      SPEC_RULE("Parse-TypeListTail-TrailingComma");
+      if (TrailingCommaAllowed(parser, end_set)) {
+        SPEC_RULE("Parse-TypeListTail-TrailingComma");
+      }
       EmitTrailingCommaErr(parser, end_set);
+      after.diags = parser.diags;
       return {after, xs};
     }
 
@@ -71,14 +74,14 @@ ParseElemResult<std::vector<std::shared_ptr<Type>>> ParseTypeListTailImpl(
 
 ParseElemResult<std::vector<std::shared_ptr<Type>>> ParseTypeListTail(
     Parser parser, std::vector<std::shared_ptr<Type>> xs) {
-  const TokenKindMatch end_set[] = {MatchPunct(")"), MatchPunct("}")};
+  const EndSetToken end_set[] = {EndPunct(")"), EndPunct("}")};
   return ParseTypeListTailImpl(parser, std::move(xs), end_set);
 }
 
 ParseElemResult<std::vector<std::shared_ptr<Type>>> ParseTypeListTailWithEndSet(
     Parser parser,
     std::vector<std::shared_ptr<Type>> xs,
-    std::span<const TokenKindMatch> end_set) {
+    std::span<const EndSetToken> end_set) {
   return ParseTypeListTailImpl(parser, std::move(xs), end_set);
 }
 

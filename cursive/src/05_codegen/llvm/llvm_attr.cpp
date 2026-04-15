@@ -281,6 +281,29 @@ bool DeclAttrsOk(std::string_view symbol, const AttrSet& attrs) {
   return true;
 }
 
+// -----------------------------------------------------------------------------
+// LLVMEmitter Attribute Wrapper
+// -----------------------------------------------------------------------------
+
+void LLVMEmitter::AddPtrAttributes(llvm::Function *func,
+                                   unsigned arg_idx,
+                                   analysis::TypeRef type) {
+  SPEC_RULE("LLVM-PtrAttrs-Valid");
+  SPEC_RULE("LLVM-ArgAttrs-Ptr");
+
+  if (!func || !type) {
+    return;
+  }
+
+  llvm::AttrBuilder b(context_);
+  AddArgAttrsToBuilder(b, type);
+  AddPtrAttrsToBuilder(b, type, current_ctx_);
+
+  if (b.hasAttributes()) {
+    func->addParamAttrs(arg_idx, b);
+  }
+}
+
 }  // namespace cursive::codegen
 
 

@@ -64,7 +64,6 @@ ParseElemResult<ExprPtr> ParseQualifiedApply(Parser parser, bool allow_brace) {
 
   // Check for unsupported generic qualifiers (path<T>::name)
   if (after_head && IsOpTok(*after_head, "<")) {
-    SPEC_RULE("Parse-Syntax-Err");
     EmitParseSyntaxErr(head.parser, TokSpan(head.parser));
     Parser skip = SkipAngles(head.parser);
     SyncStmt(skip);

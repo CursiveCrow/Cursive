@@ -1,29 +1,28 @@
-record ProtectedVisibilityProbe {
-    protected value: i32
-    protected tag: i32
+record VisibilityAccessProbe {
+    private value: i32
     label: i32
 
-    public procedure get_restricted_sum(~) -> i32 {
-        return self.value + self.tag
+    procedure get_internal_sum(~) -> i32 {
+        return self.value + self.label
     }
 }
 
-public modal ProtectedVisibilityModal {
+public modal VisibilityAccessModal {
     @Idle {
-        protected secret: i32
+        private secret: i32
         visible: i32
 
         public procedure reveal(~) -> i32 {
             return self.secret + self.visible
         }
 
-        public transition activate() -> @Active {
-            return ProtectedVisibilityModal@Active { secret: self.secret, visible: self.visible }
+        transition activate() -> @Active {
+            return VisibilityAccessModal@Active { secret: self.secret, visible: self.visible }
         }
     }
 
     @Active {
-        protected secret: i32
+        private secret: i32
         visible: i32
 
         public procedure reveal(~) -> i32 {
@@ -32,52 +31,52 @@ public modal ProtectedVisibilityModal {
     }
 }
 
-procedure ProtectedVisibilityMetricLabel(value: i32) -> string@View {
+procedure VisibilityAccessMetricLabel(value: i32) -> string@View {
     if (value == 27) {
         return "27"
     }
     return "other"
 }
 
-public procedure RunProtectedVisibilityAccess(ctx: Context) -> i32 {
+public procedure RunVisibilityAccessConformance(ctx: Context) -> i32 {
     let _ = ctx
     [[log(label: "modals-log-item_begin", expected: "running")]] "running"
 
-    let probe: ProtectedVisibilityProbe = ProtectedVisibilityProbe { value: 5, tag: 3, label: 1 }
+    let probe: VisibilityAccessProbe = VisibilityAccessProbe { value: 7, label: 1 }
     let field_label: i32 = probe.label
-    let restricted_sum: i32 = probe~>get_restricted_sum()
+    let internal_sum: i32 = probe~>get_internal_sum()
 
-    var modal_idle: unique ProtectedVisibilityModal@Idle =
-        ProtectedVisibilityModal@Idle { secret: 7, visible: 2 }
+    var modal_idle: unique VisibilityAccessModal@Idle =
+        VisibilityAccessModal@Idle { secret: 7, visible: 2 }
     let idle_metric: i32 = modal_idle~>reveal()
-    let modal_active: ProtectedVisibilityModal@Active = modal_idle~>activate()
+    let modal_active: VisibilityAccessModal@Active = modal_idle~>activate()
     let active_metric: i32 = modal_active~>reveal()
 
-    let field_label_log: i32 = [[log(label: "observed-modals-protected-field-label", expected: 1)]] field_label
-    let restricted_sum_log: i32 = [[log(label: "observed-modals-protected-sum", expected: 8)]] restricted_sum
-    let idle_metric_log: i32 = [[log(label: "observed-modals-protected-idle-reveal", expected: 9)]] idle_metric
-    let active_metric_log: i32 = [[log(label: "observed-modals-protected-active-reveal", expected: 9)]] active_metric
+    let field_label_log: i32 = [[log(label: "observed-modals-visibility-field-label", expected: 1)]] field_label
+    let internal_sum_log: i32 = [[log(label: "observed-modals-visibility-internal-sum", expected: 8)]] internal_sum
+    let idle_metric_log: i32 = [[log(label: "observed-modals-visibility-idle-reveal", expected: 9)]] idle_metric
+    let active_metric_log: i32 = [[log(label: "observed-modals-visibility-active-reveal", expected: 9)]] active_metric
 
-    let vis_001: string@View = [[log(label: "modals-protected-visibility-feature-001", expected: "VIS-PROT-001")]] "VIS-PROT-001"
-    let vis_002: string@View = [[log(label: "modals-protected-visibility-feature-002", expected: "VIS-PROT-002")]] "VIS-PROT-002"
-    let vis_003: string@View = [[log(label: "modals-protected-visibility-feature-003", expected: "VIS-PROT-003")]] "VIS-PROT-003"
+    let vis_001: string@View = [[log(label: "modals-visibility-access-feature-001", expected: "VIS-ACC-001")]] "VIS-ACC-001"
+    let vis_002: string@View = [[log(label: "modals-visibility-access-feature-002", expected: "VIS-ACC-002")]] "VIS-ACC-002"
+    let vis_003: string@View = [[log(label: "modals-visibility-access-feature-003", expected: "VIS-ACC-003")]] "VIS-ACC-003"
 
-    let total_metric: i32 = field_label + restricted_sum + idle_metric + active_metric
+    let total_metric: i32 = field_label + internal_sum + idle_metric + active_metric
 
     let runtime_ok: bool =
         (field_label_log == 1) &&
-        (restricted_sum_log == 8) &&
+        (internal_sum_log == 8) &&
         (idle_metric_log == 9) &&
         (active_metric_log == 9) &&
         (total_metric == 27) &&
-        (vis_001 == "VIS-PROT-001") &&
-        (vis_002 == "VIS-PROT-002") &&
-        (vis_003 == "VIS-PROT-003")
-    let runtime_ok_log: bool = [[log(label: "modals-protected-visibility-runtime", expected: true)]] runtime_ok
+        (vis_001 == "VIS-ACC-001") &&
+        (vis_002 == "VIS-ACC-002") &&
+        (vis_003 == "VIS-ACC-003")
+    let runtime_ok_log: bool = [[log(label: "modals-visibility-access-runtime", expected: true)]] runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 27 } else { 0 }
-    let metric_label: string@View = ProtectedVisibilityMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-modals-protected-visibility-metric", expected: "27")]] metric_label
+    let metric_label: string@View = VisibilityAccessMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-modals-visibility-access-metric", expected: "27")]] metric_label
     if (metric_log_actual != "27") {
         [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
         return 1

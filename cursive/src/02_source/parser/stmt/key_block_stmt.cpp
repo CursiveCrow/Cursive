@@ -478,12 +478,54 @@ ParseElemResult<std::vector<KeyPathExpr>> ParseKeyPathList(Parser parser) {
 struct ModeModifiersResult {
   Parser parser;
   std::vector<KeyBlockMod> mods;
-  std::optional<KeyMode> mode;
 };
 
-ModeModifiersResult ParseModeModifiers(Parser parser) {
+static bool HasKeyBlockMod(const std::vector<KeyBlockMod>& mods,
+                           KeyBlockMod mod) {
+  for (const auto candidate : mods) {
+    if (candidate == mod) {
+      return true;
+    }
+  }
+  return false;
+}
+
+ParseElemResult<KeyMode> ParseKeyMode(Parser parser) {
+  const Token* tok = Tok(parser);
+  if (tok && tok->kind == TokenKind::Identifier && tok->lexeme == "read") {
+    SPEC_RULE("Parse-KeyMode-Read");
+    Parser next = parser;
+    Advance(next);
+    return {next, KeyMode::Read};
+  }
+
+  if (tok && tok->kind == TokenKind::Identifier && tok->lexeme == "write") {
+    SPEC_RULE("Parse-KeyMode-Write");
+    Parser next = parser;
+    Advance(next);
+    return {next, KeyMode::Write};
+  }
+
+  SPEC_RULE("Parse-KeyMode-Err");
+  EmitParseSyntaxErr(parser, TokSpan(parser));
+  return {parser, KeyMode::Read};
+}
+
+ParseElemResult<std::optional<KeyMode>> ParseKeyModeOpt(Parser parser) {
+  const Token* tok = Tok(parser);
+  if (!tok || tok->kind != TokenKind::Identifier ||
+      (tok->lexeme != "read" && tok->lexeme != "write")) {
+    SPEC_RULE("Parse-KeyModeOpt-None");
+    return {parser, std::nullopt};
+  }
+
+  ParseElemResult<KeyMode> mode = ParseKeyMode(parser);
+  SPEC_RULE("Parse-KeyModeOpt-Some");
+  return {mode.parser, mode.elem};
+}
+
+ModeModifiersResult ParseKeyBlockModsOpt(Parser parser) {
   std::vector<KeyBlockMod> mods;
-  std::optional<KeyMode> mode;
 
   while (true) {
     const Token* tok = Tok(parser);
@@ -491,16 +533,9 @@ ModeModifiersResult ParseModeModifiers(Parser parser) {
       break;
     }
 
-    if (tok->lexeme == "read") {
-      SPEC_RULE("Parse-KeyMode-Read");
-      mode = KeyMode::Read;
-      Advance(parser);
-      continue;
-    }
-
-    if (tok->lexeme == "write") {
-      SPEC_RULE("Parse-KeyMode-Write");
-      mode = KeyMode::Write;
+    if (tok->lexeme == "dynamic") {
+      SPEC_RULE("Parse-KeyBlockMod-Dynamic");
+      mods.push_back(KeyBlockMod::Dynamic);
       Advance(parser);
       continue;
     }
@@ -519,28 +554,45 @@ ModeModifiersResult ParseModeModifiers(Parser parser) {
       continue;
     }
 
-    if (tok->lexeme == "release") {
-      SPEC_RULE("Parse-KeyBlockMod-Release");
-      Parser after_release = parser;
-      Advance(after_release);
-      const Token* mode_tok = Tok(after_release);
-      if (!mode_tok || mode_tok->kind != TokenKind::Identifier ||
-          (mode_tok->lexeme != "read" && mode_tok->lexeme != "write")) {
-        EmitParseSyntaxErr(after_release, TokSpan(after_release));
-        return {after_release, std::move(mods), mode};
-      }
-      mode = (mode_tok->lexeme == "read") ? std::optional<KeyMode>(KeyMode::Read)
-                                           : std::optional<KeyMode>(KeyMode::Write);
-      Advance(after_release);
-      mods.push_back(KeyBlockMod::Release);
-      parser = after_release;
-      continue;
-    }
-
     break;
   }
 
-  return {parser, std::move(mods), mode};
+  if (mods.empty()) {
+    SPEC_RULE("Parse-KeyBlockModsOpt-None");
+  } else {
+    SPEC_RULE("Parse-KeyBlockModsOpt-Cons");
+  }
+  return {parser, std::move(mods)};
+}
+
+struct KeyModeSpecOptResult {
+  Parser parser;
+  std::vector<KeyBlockMod> mods;
+  std::optional<KeyMode> mode;
+};
+
+KeyModeSpecOptResult ParseKeyModeSpecOpt(Parser parser) {
+  const Token* tok = Tok(parser);
+  if (!tok || tok->kind != TokenKind::Identifier) {
+    SPEC_RULE("Parse-KeyModeOpt-None");
+    return {parser, {}, std::nullopt};
+  }
+
+  if (tok->lexeme == "release") {
+    SPEC_RULE("Parse-KeyBlockMod-Release");
+    Parser after_release = parser;
+    Advance(after_release);
+
+    ParseElemResult<KeyMode> release_mode = ParseKeyMode(after_release);
+    if (release_mode.parser.index == after_release.index) {
+      return {after_release, {}, std::nullopt};
+    }
+
+    return {release_mode.parser, {KeyBlockMod::Release}, release_mode.elem};
+  }
+
+  ParseElemResult<std::optional<KeyMode>> mode = ParseKeyModeOpt(parser);
+  return {mode.parser, {}, mode.elem};
 }
 
 // =============================================================================
@@ -558,16 +610,27 @@ ParseElemResult<Stmt> ParseKeyBlockStmt(Parser parser) {
   // Parse key path list
   ParseElemResult<std::vector<KeyPathExpr>> paths = ParseKeyPathList(next);
 
-  // Parse mode modifiers.
-  ModeModifiersResult modifiers = ParseModeModifiers(paths.parser);
+  // Parse key-block prefix modifiers.
+  ModeModifiersResult modifiers = ParseKeyBlockModsOpt(paths.parser);
+
+  // Parse the optional mode specifier: `read`, `write`, or `release read|write`.
+  Parser mode_start = modifiers.parser;
+  KeyModeSpecOptResult mode_spec = ParseKeyModeSpecOpt(modifiers.parser);
+
+  if (HasKeyBlockMod(modifiers.mods, KeyBlockMod::Speculative) &&
+      (!mode_spec.mode.has_value() || *mode_spec.mode != KeyMode::Write)) {
+    EmitParseSyntaxErr(mode_start, TokSpan(mode_start));
+    mode_spec.mode = KeyMode::Write;
+  }
 
   // Parse block body
-  ParseElemResult<std::shared_ptr<Block>> body = ParseBlock(modifiers.parser);
+  ParseElemResult<std::shared_ptr<Block>> body = ParseBlock(mode_spec.parser);
 
   KeyBlockStmt stmt;
   stmt.paths = std::move(paths.elem);
   stmt.mods = std::move(modifiers.mods);
-  stmt.mode = modifiers.mode;
+  stmt.mods.insert(stmt.mods.end(), mode_spec.mods.begin(), mode_spec.mods.end());
+  stmt.mode = mode_spec.mode;
   stmt.body = body.elem;
   stmt.span = SpanBetween(start, body.parser);
   return {body.parser, stmt};

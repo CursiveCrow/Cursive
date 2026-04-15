@@ -13,6 +13,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -26,6 +27,7 @@
 #include "04_analysis/composite/records.h"
 #include "04_analysis/contracts/verification.h"
 #include "04_analysis/generics/monomorphize.h"
+#include "04_analysis/keys/key_paths.h"
 #include "04_analysis/memory/calls.h"
 #include "04_analysis/memory/regions.h"
 #include "04_analysis/resolve/scopes.h"
@@ -47,6 +49,8 @@ static inline void SpecDefsCall() {
   SPEC_DEF("T-Generic-Call", "13.1.2");
   SPEC_DEF("T-Record-Default", "5.2.12");
   SPEC_DEF("FFI-Arg-RegionLocalRawPtr-Err", "23.5.4");
+  SPEC_DEF("Barrier-Outside-Err", "20.2.4");
+  SPEC_DEF("GpuIntrinsic-Outside-Err", "20.2.4");
 }
 
 struct CallLookupPerfStats {
@@ -222,7 +226,7 @@ static ast::ProcedureDecl AsProcedureDecl(const ast::ComptimeProcedureDecl& decl
   proc.generic_params = decl.generic_params;
   proc.params = decl.params;
   proc.return_type_opt = decl.return_type_opt;
-  proc.where_clause = std::nullopt;
+  proc.predicate_clause_opt = std::nullopt;
   proc.contract = decl.contract;
   proc.body = decl.body;
   proc.span = decl.span;
@@ -300,6 +304,596 @@ static std::optional<CalleeProcedureLookupResult> LookupProcedureForCallee(
   result.origin = *origin;
   result.name = std::move(name);
   return result;
+}
+
+struct FormalSharedPathRef {
+  std::size_t param_index = 0;
+  std::vector<KeyPathSeg> prefix;
+};
+
+struct FormalKeyAccess {
+  std::size_t param_index = 0;
+  std::vector<KeyPathSeg> suffix;
+  ast::KeyMode mode = ast::KeyMode::Read;
+};
+
+struct ProcedureKeyAccessSummary {
+  std::vector<FormalKeyAccess> accesses;
+  bool unknown = false;
+};
+
+static bool TypeIsSharedParamSurface(const ast::TypePtr& type) {
+  if (!type) {
+    return false;
+  }
+
+  return std::visit(
+      [](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::TypePermType>) {
+          return node.perm == ast::TypePerm::Shared;
+        } else if constexpr (std::is_same_v<T, ast::TypeRefine>) {
+          return TypeIsSharedParamSurface(node.base);
+        }
+        return false;
+      },
+      type->node);
+}
+
+static std::unordered_map<IdKey, std::size_t> SharedParamIndexMap(
+    const ast::ProcedureDecl& proc) {
+  std::unordered_map<IdKey, std::size_t> indices;
+  for (std::size_t i = 0; i < proc.params.size(); ++i) {
+    if (TypeIsSharedParamSurface(proc.params[i].type)) {
+      indices.emplace(IdKeyOf(proc.params[i].name), i);
+    }
+  }
+  return indices;
+}
+
+static bool KeyModeSufficient(ast::KeyMode held, ast::KeyMode required) {
+  if (held == ast::KeyMode::Write) {
+    return true;
+  }
+  return held == required;
+}
+
+static bool HeldPrefixExistsForPath(
+    const std::vector<HeldKeyTypingInfo>& held_key_paths,
+    const KeyPath& path,
+    std::optional<ast::KeyMode> required_mode = std::nullopt) {
+  for (const auto& held : held_key_paths) {
+    if (!KeyPathContains(held.path, path)) {
+      continue;
+    }
+    if (!required_mode.has_value() ||
+        KeyModeSufficient(held.mode, *required_mode)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+class ProcedureKeyAccessSummaryBuilder {
+ public:
+  explicit ProcedureKeyAccessSummaryBuilder(const ScopeContext& ctx)
+      : ctx_(ctx) {}
+
+  ProcedureKeyAccessSummary Summarize(const ast::ProcedureDecl& proc) {
+    if (const auto it = cache_.find(&proc); it != cache_.end()) {
+      return it->second;
+    }
+    if (active_.find(&proc) != active_.end()) {
+      ProcedureKeyAccessSummary recursive;
+      recursive.unknown = true;
+      return recursive;
+    }
+
+    active_.insert(&proc);
+    ProcedureKeyAccessSummary summary;
+    if (!proc.body) {
+      summary.unknown = true;
+    } else {
+      const auto shared_params = SharedParamIndexMap(proc);
+      AliasEnv aliases;
+      VisitBlock(*proc.body, shared_params, aliases, summary);
+    }
+    active_.erase(&proc);
+    cache_[&proc] = summary;
+    return summary;
+  }
+
+ private:
+  using SharedParamMap = std::unordered_map<IdKey, std::size_t>;
+  using AliasEnv = std::unordered_map<IdKey, FormalSharedPathRef>;
+
+  const ScopeContext& ctx_;
+  std::unordered_map<const ast::ProcedureDecl*, ProcedureKeyAccessSummary> cache_;
+  std::unordered_set<const ast::ProcedureDecl*> active_;
+
+  static void AppendSegments(std::vector<KeyPathSeg>& out,
+                             const std::vector<KeyPathSeg>& extra) {
+    out.insert(out.end(), extra.begin(), extra.end());
+  }
+
+  static std::optional<IdKey> SimpleAssignedRoot(const ast::ExprPtr& place) {
+    if (!place) {
+      return std::nullopt;
+    }
+    if (const auto* ident = std::get_if<ast::IdentifierExpr>(&place->node)) {
+      return IdKeyOf(ident->name);
+    }
+    return std::nullopt;
+  }
+
+  static std::optional<IdKey> BindingNameOf(const ast::PatternPtr& pat) {
+    if (!pat) {
+      return std::nullopt;
+    }
+    if (const auto* ident = std::get_if<ast::IdentifierPattern>(&pat->node)) {
+      return IdKeyOf(ident->name);
+    }
+    if (const auto* typed = std::get_if<ast::TypedPattern>(&pat->node)) {
+      return IdKeyOf(typed->name);
+    }
+    return std::nullopt;
+  }
+
+  static std::optional<FormalSharedPathRef> ResolveFormalPathFromKeyPath(
+      const KeyPath& path,
+      const SharedParamMap& shared_params,
+      const AliasEnv& aliases) {
+    if (const auto it = shared_params.find(IdKey(path.root));
+        it != shared_params.end()) {
+      FormalSharedPathRef ref;
+      ref.param_index = it->second;
+      ref.prefix = path.segs;
+      return ref;
+    }
+
+    const auto alias_it = aliases.find(IdKey(path.root));
+    if (alias_it == aliases.end()) {
+      return std::nullopt;
+    }
+
+    FormalSharedPathRef ref = alias_it->second;
+    AppendSegments(ref.prefix, path.segs);
+    return ref;
+  }
+
+  static std::optional<FormalSharedPathRef> ResolveFormalPath(
+      const ast::ExprPtr& expr,
+      const SharedParamMap& shared_params,
+      const AliasEnv& aliases) {
+    const auto built = BuildKeyPath(expr);
+    if (!built.success) {
+      return std::nullopt;
+    }
+    return ResolveFormalPathFromKeyPath(built.path, shared_params, aliases);
+  }
+
+  static void AddAccess(ProcedureKeyAccessSummary& summary,
+                        const FormalSharedPathRef& ref,
+                        ast::KeyMode mode) {
+    for (const auto& existing : summary.accesses) {
+      if (existing.param_index != ref.param_index || existing.mode != mode ||
+          existing.suffix.size() != ref.prefix.size()) {
+        continue;
+      }
+      bool same = true;
+      for (std::size_t i = 0; i < existing.suffix.size(); ++i) {
+        if (!SegmentsEqual(existing.suffix[i], ref.prefix[i])) {
+          same = false;
+          break;
+        }
+      }
+      if (same) {
+        return;
+      }
+    }
+
+    FormalKeyAccess access;
+    access.param_index = ref.param_index;
+    access.suffix = ref.prefix;
+    access.mode = mode;
+    summary.accesses.push_back(std::move(access));
+  }
+
+  void MarkUnknownIfSharedActual(const ast::ProcedureDecl& callee,
+                                 const std::vector<ast::Arg>& args,
+                                 const SharedParamMap& shared_params,
+                                 const AliasEnv& aliases,
+                                 ProcedureKeyAccessSummary& summary) {
+    for (std::size_t i = 0; i < args.size() && i < callee.params.size(); ++i) {
+      if (!TypeIsSharedParamSurface(callee.params[i].type)) {
+        continue;
+      }
+      if (ResolveFormalPath(args[i].value, shared_params, aliases).has_value()) {
+        summary.unknown = true;
+        return;
+      }
+    }
+  }
+
+  void MergeNestedCallSummary(const ast::ProcedureDecl& callee,
+                              const std::vector<ast::Arg>& args,
+                              const SharedParamMap& shared_params,
+                              const AliasEnv& aliases,
+                              ProcedureKeyAccessSummary& summary) {
+    const auto nested = Summarize(callee);
+    if (nested.unknown) {
+      MarkUnknownIfSharedActual(callee, args, shared_params, aliases, summary);
+    }
+
+    for (const auto& access : nested.accesses) {
+      if (access.param_index >= args.size()) {
+        continue;
+      }
+      const auto actual_ref =
+          ResolveFormalPath(args[access.param_index].value, shared_params, aliases);
+      if (!actual_ref.has_value()) {
+        continue;
+      }
+
+      FormalSharedPathRef lifted = *actual_ref;
+      AppendSegments(lifted.prefix, access.suffix);
+      AddAccess(summary, lifted, access.mode);
+    }
+  }
+
+  void HandleCallExpr(const ast::CallExpr& call,
+                      const SharedParamMap& shared_params,
+                      AliasEnv& aliases,
+                      ProcedureKeyAccessSummary& summary) {
+    if (!call.callee) {
+      return;
+    }
+
+    const auto lookup = LookupProcedureForCallee(ctx_, call.callee);
+    if (!lookup.has_value() || !lookup->proc || lookup->proc_view.has_value()) {
+      // Extern / unresolved / compiler-synthesized callees remain unknown.
+      summary.unknown = true;
+      return;
+    }
+
+    MergeNestedCallSummary(*lookup->proc, call.args, shared_params, aliases,
+                           summary);
+  }
+
+  void VisitApplyArgs(const ast::ApplyArgs& args,
+                      const SharedParamMap& shared_params,
+                      AliasEnv& aliases,
+                      ProcedureKeyAccessSummary& summary) {
+    std::visit(
+        [&](const auto& apply_args) {
+          using T = std::decay_t<decltype(apply_args)>;
+          if constexpr (std::is_same_v<T, ast::ParenArgs>) {
+            for (const auto& arg : apply_args.args) {
+              VisitExpr(arg.value, shared_params, aliases, summary);
+            }
+          } else if constexpr (std::is_same_v<T, ast::BraceArgs>) {
+            for (const auto& field : apply_args.fields) {
+              VisitExpr(field.value, shared_params, aliases, summary);
+            }
+          }
+        },
+        args);
+  }
+
+  void VisitExpr(const ast::ExprPtr& expr,
+                 const SharedParamMap& shared_params,
+                 AliasEnv& aliases,
+                 ProcedureKeyAccessSummary& summary) {
+    if (!expr) {
+      return;
+    }
+
+    std::visit(
+        [&](const auto& node) {
+          using T = std::decay_t<decltype(node)>;
+
+          if constexpr (std::is_same_v<T, ast::CallExpr>) {
+            HandleCallExpr(node, shared_params, aliases, summary);
+            VisitExpr(node.callee, shared_params, aliases, summary);
+            for (const auto& arg : node.args) {
+              VisitExpr(arg.value, shared_params, aliases, summary);
+            }
+          } else if constexpr (std::is_same_v<T, ast::QualifiedApplyExpr>) {
+            VisitApplyArgs(node.args, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::MethodCallExpr>) {
+            if (ResolveFormalPath(node.receiver, shared_params, aliases).has_value()) {
+              summary.unknown = true;
+            }
+            VisitExpr(node.receiver, shared_params, aliases, summary);
+            for (const auto& arg : node.args) {
+              VisitExpr(arg.value, shared_params, aliases, summary);
+            }
+          } else if constexpr (std::is_same_v<T, ast::BlockExpr>) {
+            if (node.block) {
+              AliasEnv inner_aliases = aliases;
+              VisitBlock(*node.block, shared_params, inner_aliases, summary);
+            }
+          } else if constexpr (std::is_same_v<T, ast::IfExpr>) {
+            VisitExpr(node.cond, shared_params, aliases, summary);
+            VisitExpr(node.then_expr, shared_params, aliases, summary);
+            VisitExpr(node.else_expr, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::IfCaseExpr>) {
+            VisitExpr(node.scrutinee, shared_params, aliases, summary);
+            for (const auto& arm : node.cases) {
+              VisitExpr(arm.body, shared_params, aliases, summary);
+            }
+            VisitExpr(node.else_expr, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::IfIsExpr>) {
+            VisitExpr(node.scrutinee, shared_params, aliases, summary);
+            VisitExpr(node.then_expr, shared_params, aliases, summary);
+            VisitExpr(node.else_expr, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::LoopInfiniteExpr>) {
+            if (node.invariant_opt) {
+              VisitExpr(node.invariant_opt->predicate, shared_params, aliases,
+                        summary);
+            }
+            if (node.body) {
+              AliasEnv inner_aliases = aliases;
+              VisitBlock(*node.body, shared_params, inner_aliases, summary);
+            }
+          } else if constexpr (std::is_same_v<T, ast::LoopConditionalExpr>) {
+            VisitExpr(node.cond, shared_params, aliases, summary);
+            if (node.invariant_opt) {
+              VisitExpr(node.invariant_opt->predicate, shared_params, aliases,
+                        summary);
+            }
+            if (node.body) {
+              AliasEnv inner_aliases = aliases;
+              VisitBlock(*node.body, shared_params, inner_aliases, summary);
+            }
+          } else if constexpr (std::is_same_v<T, ast::LoopIterExpr>) {
+            VisitExpr(node.iter, shared_params, aliases, summary);
+            if (node.invariant_opt) {
+              VisitExpr(node.invariant_opt->predicate, shared_params, aliases,
+                        summary);
+            }
+            if (node.body) {
+              AliasEnv inner_aliases = aliases;
+              VisitBlock(*node.body, shared_params, inner_aliases, summary);
+            }
+          } else if constexpr (std::is_same_v<T, ast::BinaryExpr>) {
+            VisitExpr(node.lhs, shared_params, aliases, summary);
+            VisitExpr(node.rhs, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::UnaryExpr>) {
+            VisitExpr(node.value, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::CastExpr>) {
+            VisitExpr(node.value, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::MoveExpr>) {
+            VisitExpr(node.place, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::AddressOfExpr>) {
+            VisitExpr(node.place, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::DerefExpr>) {
+            VisitExpr(node.value, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::PropagateExpr>) {
+            VisitExpr(node.value, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::TupleExpr>) {
+            for (const auto& elem : node.elements) {
+              VisitExpr(elem, shared_params, aliases, summary);
+            }
+        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            VisitExpr(elem, shared_params, aliases, summary);
+          });
+        } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
+          VisitExpr(node.value, shared_params, aliases, summary);
+          VisitExpr(node.count, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
+            for (const auto& field : node.fields) {
+              VisitExpr(field.value, shared_params, aliases, summary);
+            }
+          } else if constexpr (std::is_same_v<T, ast::EnumLiteralExpr>) {
+            if (node.payload_opt) {
+              std::visit(
+                  [&](const auto& payload) {
+                    using P = std::decay_t<decltype(payload)>;
+                    if constexpr (std::is_same_v<P, ast::EnumPayloadParen>) {
+                      for (const auto& elem : payload.elements) {
+                        VisitExpr(elem, shared_params, aliases, summary);
+                      }
+                    } else if constexpr (std::is_same_v<P, ast::EnumPayloadBrace>) {
+                      for (const auto& field : payload.fields) {
+                        VisitExpr(field.value, shared_params, aliases, summary);
+                      }
+                    }
+                  },
+                  *node.payload_opt);
+            }
+          } else if constexpr (std::is_same_v<T, ast::FieldAccessExpr>) {
+            VisitExpr(node.base, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::TupleAccessExpr>) {
+            VisitExpr(node.base, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {
+            VisitExpr(node.base, shared_params, aliases, summary);
+            VisitExpr(node.index, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::RangeExpr>) {
+            VisitExpr(node.lhs, shared_params, aliases, summary);
+            VisitExpr(node.rhs, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
+            VisitExpr(node.expr, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::ParallelExpr>) {
+            if (node.body) {
+              AliasEnv inner_aliases = aliases;
+              VisitBlock(*node.body, shared_params, inner_aliases, summary);
+            }
+          } else if constexpr (std::is_same_v<T, ast::SpawnExpr>) {
+            if (node.body) {
+              AliasEnv inner_aliases = aliases;
+              VisitBlock(*node.body, shared_params, inner_aliases, summary);
+            }
+          } else if constexpr (std::is_same_v<T, ast::DispatchExpr>) {
+            VisitExpr(node.range, shared_params, aliases, summary);
+            if (node.body) {
+              AliasEnv inner_aliases = aliases;
+              VisitBlock(*node.body, shared_params, inner_aliases, summary);
+            }
+          } else if constexpr (std::is_same_v<T, ast::UnsafeBlockExpr>) {
+            if (node.block) {
+              AliasEnv inner_aliases = aliases;
+              VisitBlock(*node.block, shared_params, inner_aliases, summary);
+            }
+          } else if constexpr (std::is_same_v<T, ast::ComptimeExpr>) {
+            VisitExpr(node.body, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::CtIfExpr>) {
+            VisitExpr(node.cond, shared_params, aliases, summary);
+            if (node.then_block) {
+              AliasEnv inner_aliases = aliases;
+              VisitBlock(*node.then_block, shared_params, inner_aliases, summary);
+            }
+            if (node.else_block_opt) {
+              AliasEnv inner_aliases = aliases;
+              VisitBlock(*node.else_block_opt, shared_params, inner_aliases,
+                         summary);
+            }
+          } else if constexpr (std::is_same_v<T, ast::CtLoopIterExpr>) {
+            VisitExpr(node.iter, shared_params, aliases, summary);
+            if (node.body) {
+              AliasEnv inner_aliases = aliases;
+              VisitBlock(*node.body, shared_params, inner_aliases, summary);
+            }
+          }
+        },
+        expr->node);
+  }
+
+  void VisitStmt(const ast::Stmt& stmt,
+                 const SharedParamMap& shared_params,
+                 AliasEnv& aliases,
+                 ProcedureKeyAccessSummary& summary) {
+    std::visit(
+        [&](const auto& node) {
+          using T = std::decay_t<decltype(node)>;
+
+          if constexpr (std::is_same_v<T, ast::LetStmt> ||
+                        std::is_same_v<T, ast::VarStmt>) {
+            VisitExpr(node.binding.init, shared_params, aliases, summary);
+            if (const auto bind_name = BindingNameOf(node.binding.pat)) {
+              if (const auto formal_ref =
+                      ResolveFormalPath(node.binding.init, shared_params, aliases);
+                  formal_ref.has_value()) {
+                aliases[*bind_name] = *formal_ref;
+              } else {
+                aliases.erase(*bind_name);
+              }
+            }
+          } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
+                               std::is_same_v<T, ast::ShadowVarStmt>) {
+            VisitExpr(node.init, shared_params, aliases, summary);
+            if (const auto formal_ref =
+                    ResolveFormalPath(node.init, shared_params, aliases);
+                formal_ref.has_value()) {
+              aliases[IdKeyOf(node.name)] = *formal_ref;
+            } else {
+              aliases.erase(IdKeyOf(node.name));
+            }
+          } else if constexpr (std::is_same_v<T, ast::ExprStmt>) {
+            VisitExpr(node.value, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
+                               std::is_same_v<T, ast::CompoundAssignStmt>) {
+            VisitExpr(node.place, shared_params, aliases, summary);
+            VisitExpr(node.value, shared_params, aliases, summary);
+            if (const auto root = SimpleAssignedRoot(node.place)) {
+              aliases.erase(*root);
+            }
+          } else if constexpr (std::is_same_v<T, ast::ReturnStmt>) {
+            VisitExpr(node.value_opt, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::BreakStmt>) {
+            VisitExpr(node.value_opt, shared_params, aliases, summary);
+          } else if constexpr (std::is_same_v<T, ast::DeferStmt> ||
+                               std::is_same_v<T, ast::UnsafeBlockStmt>) {
+            if (node.body) {
+              AliasEnv inner_aliases = aliases;
+              VisitBlock(*node.body, shared_params, inner_aliases, summary);
+            }
+          } else if constexpr (std::is_same_v<T, ast::RegionStmt>) {
+            VisitExpr(node.opts_opt, shared_params, aliases, summary);
+            if (node.body) {
+              AliasEnv inner_aliases = aliases;
+              VisitBlock(*node.body, shared_params, inner_aliases, summary);
+            }
+          } else if constexpr (std::is_same_v<T, ast::FrameStmt> ||
+                               std::is_same_v<T, ast::CtStmt>) {
+            if (node.body) {
+              AliasEnv inner_aliases = aliases;
+              VisitBlock(*node.body, shared_params, inner_aliases, summary);
+            }
+          } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
+            const auto mode = node.mode.value_or(ast::KeyMode::Read);
+            for (const auto& path_expr : node.paths) {
+              const auto lowered = ParseKeyPathSpec(path_expr);
+              if (const auto ref =
+                      ResolveFormalPathFromKeyPath(lowered, shared_params, aliases);
+                  ref.has_value()) {
+                AddAccess(summary, *ref, mode);
+              }
+            }
+            if (node.body) {
+              AliasEnv inner_aliases = aliases;
+              VisitBlock(*node.body, shared_params, inner_aliases, summary);
+            }
+          }
+        },
+        stmt);
+  }
+
+  void VisitBlock(const ast::Block& block,
+                  const SharedParamMap& shared_params,
+                  AliasEnv& aliases,
+                  ProcedureKeyAccessSummary& summary) {
+    for (const auto& stmt : block.stmts) {
+      VisitStmt(stmt, shared_params, aliases, summary);
+    }
+    VisitExpr(block.tail_opt, shared_params, aliases, summary);
+  }
+};
+
+static bool SharedArgUnderHeldPrefix(const ast::ExprPtr& arg,
+                                     const std::vector<HeldKeyTypingInfo>& held) {
+  const auto built = BuildKeyPath(arg);
+  if (!built.success) {
+    return false;
+  }
+  return HeldPrefixExistsForPath(held, built.path);
+}
+
+static void EmitUnknownCalleeAccessWarningIfNeeded(
+    const ScopeContext& ctx,
+    const StmtTypeContext& type_ctx,
+    const ast::CallExpr& node) {
+  if (!type_ctx.keys_held || !type_ctx.diags || type_ctx.held_key_paths.empty()) {
+    return;
+  }
+
+  const auto lookup = LookupProcedureForCallee(ctx, node.callee);
+  if (!lookup.has_value() || !lookup->proc || lookup->proc_view.has_value()) {
+    return;
+  }
+
+  ProcedureKeyAccessSummaryBuilder builder(ctx);
+  const auto summary = builder.Summarize(*lookup->proc);
+  if (!summary.unknown) {
+    return;
+  }
+
+  for (std::size_t i = 0; i < node.args.size() && i < lookup->proc->params.size();
+       ++i) {
+    if (!TypeIsSharedParamSurface(lookup->proc->params[i].type)) {
+      continue;
+    }
+    if (!SharedArgUnderHeldPrefix(node.args[i].value, type_ctx.held_key_paths)) {
+      continue;
+    }
+    const core::Span diag_span =
+        node.callee ? node.callee->span : core::Span{};
+    if (auto diag = core::MakeDiagnosticById("W-CON-0005", diag_span)) {
+      core::Emit(*type_ctx.diags, *diag);
+    }
+    return;
+  }
 }
 
 static void EmitDeprecatedReferenceWarning(
@@ -686,11 +1280,11 @@ static std::optional<std::string_view> ValidateProcedureTypeArgConstraints(
     }
   }
 
-  if (!proc.where_clause.has_value()) {
+  if (!proc.predicate_clause_opt.has_value()) {
     return std::nullopt;
   }
 
-  for (const auto& wp : proc.where_clause->predicates) {
+  for (const auto& wp : proc.predicate_clause_opt->predicates) {
     if (!IsWherePredicateName(wp.predicate)) {
       return std::optional<std::string_view>{"E-TYP-2302"};
     }
@@ -1097,6 +1691,11 @@ static std::optional<std::string_view> ExtractDirectCalleeName(
   return std::nullopt;
 }
 
+static bool IsGpuBarrierName(std::string_view name) {
+  return name == "gpu_barrier" || name == "gpu_memory_barrier" ||
+         name == "gpu_workgroup_barrier";
+}
+
 static bool IsExternCallee(const ScopeContext& ctx, const ast::ExprPtr& callee) {
   auto& perf = CallPerfStats();
   const bool perf_on = CallPerfActive();
@@ -1206,22 +1805,15 @@ static ForeignVerificationMode ToForeignVerificationMode(
       return ForeignVerificationMode::Static;
     case VerificationModeAttribute::Dynamic:
       return ForeignVerificationMode::Dynamic;
-    case VerificationModeAttribute::Trust:
-      return ForeignVerificationMode::Trust;
   }
   return ForeignVerificationMode::Static;
 }
 
 static ForeignVerificationMode ResolveForeignVerificationMode(
-    const ast::ExternBlock& block,
     const ast::ExternProcDecl& proc) {
-  const auto block_attr_mode = ResolveVerificationModeAttribute(block.attrs);
-  const auto block_mode = block_attr_mode.has_value()
-                              ? ToForeignVerificationMode(*block_attr_mode)
-                              : ForeignVerificationMode::Static;
   const auto proc_attr_mode = ResolveVerificationModeAttribute(proc.attrs);
   return proc_attr_mode.has_value() ? ToForeignVerificationMode(*proc_attr_mode)
-                                    : block_mode;
+                                    : ForeignVerificationMode::Static;
 }
 
 static ast::ExprPtr MakeExprNode(const core::Span& span, ast::ExprNode node) {
@@ -1438,20 +2030,6 @@ static std::optional<ExternProcLookupResult> LookupExternProcedureForCallee(
   return std::nullopt;
 }
 
-static void CollectProofFactsFromPredicate(const ast::ExprPtr& expr,
-                                           StaticProofContext& proof_ctx) {
-  if (!expr) {
-    return;
-  }
-  if (const auto* binary = std::get_if<ast::BinaryExpr>(&expr->node);
-      binary && binary->op == "&&") {
-    CollectProofFactsFromPredicate(binary->lhs, proof_ctx);
-    CollectProofFactsFromPredicate(binary->rhs, proof_ctx);
-    return;
-  }
-  AddFact(proof_ctx, expr, expr->span);
-}
-
 static std::optional<std::string_view> CheckForeignStaticAssumes(
     const ScopeContext& ctx,
     const StmtTypeContext& type_ctx,
@@ -1461,14 +2039,12 @@ static std::optional<std::string_view> CheckForeignStaticAssumes(
     return std::nullopt;
   }
 
-  const auto mode =
-      ResolveForeignVerificationMode(*lookup->block, *lookup->proc);
+  const auto mode = ResolveForeignVerificationMode(*lookup->proc);
   const bool requires_static_proof = [&]() {
     switch (mode) {
       case ForeignVerificationMode::Static:
         return true;
       case ForeignVerificationMode::Dynamic:
-      case ForeignVerificationMode::Trust:
         return false;
     }
     return true;
@@ -1522,10 +2098,16 @@ static std::optional<std::string_view> CheckForeignStaticAssumes(
       }
       const auto substituted = SubstituteForeignPredicate(pred, bindings);
       StaticProofContext proof_ctx;
-      if (type_ctx.contract && type_ctx.contract->precondition) {
-        CollectProofFactsFromPredicate(type_ctx.contract->precondition, proof_ctx);
+      if (type_ctx.proof_ctx) {
+        proof_ctx = *type_ctx.proof_ctx;
       }
-      const auto proof = StaticProof(proof_ctx, substituted);
+      if (type_ctx.contract && type_ctx.contract->precondition) {
+        AddPredicateFacts(proof_ctx, type_ctx.contract->precondition);
+      }
+      const auto proof_location =
+          call.callee ? call.callee->span
+                      : (substituted ? substituted->span : core::Span{});
+      const auto proof = StaticProofAt(proof_ctx, proof_location, substituted);
       if (!proof.provable) {
         SPEC_RULE("Foreign-Assumes-Static-Proof-Err");
         return std::optional<std::string_view>{"E-SEM-2850"};
@@ -1561,10 +2143,16 @@ static std::optional<std::string_view> CheckCallSitePrecondition(
   const auto pre_subst =
       SubstituteForeignPredicate(lookup->proc->contract->precondition, bindings);
   StaticProofContext proof_ctx;
-  if (type_ctx.contract && type_ctx.contract->precondition) {
-    CollectProofFactsFromPredicate(type_ctx.contract->precondition, proof_ctx);
+  if (type_ctx.proof_ctx) {
+    proof_ctx = *type_ctx.proof_ctx;
   }
-  const auto proof = StaticProof(proof_ctx, pre_subst);
+  if (type_ctx.contract && type_ctx.contract->precondition) {
+    AddPredicateFacts(proof_ctx, type_ctx.contract->precondition);
+  }
+  const auto proof_location =
+      call.callee ? call.callee->span
+                  : (pre_subst ? pre_subst->span : core::Span{});
+  const auto proof = StaticProofAt(proof_ctx, proof_location, pre_subst);
   if (proof.provable) {
     return std::nullopt;
   }
@@ -1805,12 +2393,16 @@ ExprTypeResult TypeCallExprImpl(const ScopeContext& ctx,
 
   if (const auto callee_name = ExtractDirectCalleeName(node.callee);
       callee_name && IsGpuIntrinsicName(*callee_name)) {
-    const bool in_gpu_context =
-        type_ctx.in_parallel && IsGpuDomainType(type_ctx.parallel_domain);
+    const bool in_gpu_context = GpuContext(env);
     if (!in_gpu_context) {
       ExprTypeResult r;
-      SPEC_RULE("GpuIntrinsic-Outside-Err");
-      r.diag_id = "GpuIntrinsic-Outside-Err";
+      if (IsGpuBarrierName(*callee_name)) {
+        SPEC_RULE("Barrier-Outside-Err");
+        r.diag_id = "Barrier-Outside-Err";
+      } else {
+        SPEC_RULE("GpuIntrinsic-Outside-Err");
+        r.diag_id = "GpuIntrinsic-Outside-Err";
+      }
       return r;
     }
   }
@@ -1880,6 +2472,7 @@ ExprTypeResult TypeCallExprImpl(const ScopeContext& ctx,
       r.diag_id = *ffi_diag;
       return r;
     }
+    EmitUnknownCalleeAccessWarningIfNeeded(ctx, type_ctx, node);
     EmitDeprecatedReferenceWarning(ctx, type_ctx, node.callee);
     r.ok = true;
     r.type = call.type;
@@ -1929,6 +2522,7 @@ ExprTypeResult TypeCallExprImpl(const ScopeContext& ctx,
       r.diag_id = *ffi_diag;
       return r;
     }
+    EmitUnknownCalleeAccessWarningIfNeeded(ctx, type_ctx, node);
     EmitDeprecatedReferenceWarning(ctx, type_ctx, node.callee);
     r.ok = true;
     r.type = call.type;
@@ -1969,6 +2563,7 @@ ExprTypeResult TypeCallExprImpl(const ScopeContext& ctx,
     r.diag_id = *ffi_diag;
     return r;
   }
+  EmitUnknownCalleeAccessWarningIfNeeded(ctx, type_ctx, node);
   EmitDeprecatedReferenceWarning(ctx, type_ctx, node.callee);
   r.ok = true;
   r.type = call.type;

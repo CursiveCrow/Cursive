@@ -12,8 +12,8 @@ procedure RunImportAliasResolution(ctx: Context) -> i32 {
     let scope: string@View = "types::QualityIntegration::ImportAliasResolution"
     [[log(label: "types-log-item_begin")]]
 
-    let ffi_metric: i32 = ffi_asm::FfiBoundaryMetric()
-    let conc_metric: i32 = conc_asm::ConcurrencyBoundaryMetric(ctx)
+    let ffi_metric: i32 = ffi_asm::ffiBoundaryMetric()
+    let conc_metric: i32 = conc_asm::concurrencyBoundaryMetric(ctx)
 
     let ffi_metric_log: i32 = [[log(label: "observed-import-alias-ffi-metric", expected: 1)]] ffi_metric
     let conc_metric_log: i32 = [[log(label: "observed-import-alias-conc-metric", expected: 1)]] conc_metric

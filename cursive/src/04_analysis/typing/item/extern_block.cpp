@@ -99,22 +99,15 @@ static ForeignVerificationMode ToForeignVerificationMode(
       return ForeignVerificationMode::Static;
     case VerificationModeAttribute::Dynamic:
       return ForeignVerificationMode::Dynamic;
-    case VerificationModeAttribute::Trust:
-      return ForeignVerificationMode::Trust;
   }
   return ForeignVerificationMode::Static;
 }
 
 static ForeignVerificationMode ResolveForeignVerificationMode(
-    const ast::ExternBlock& block,
     const ast::ExternProcDecl& proc) {
-  const auto block_attr_mode = ResolveVerificationModeAttribute(block.attrs);
-  const auto block_mode = block_attr_mode.has_value()
-                              ? ToForeignVerificationMode(*block_attr_mode)
-                              : ForeignVerificationMode::Static;
   const auto proc_attr_mode = ResolveVerificationModeAttribute(proc.attrs);
   return proc_attr_mode.has_value() ? ToForeignVerificationMode(*proc_attr_mode)
-                                    : block_mode;
+                                    : ForeignVerificationMode::Static;
 }
 
 // Extract ABI string from ExternAbi variant
@@ -270,7 +263,7 @@ static bool ValidateLibraryKindsForCurrentTarget(
     const ast::ExternBlock& block,
     ExternBlockResult& result) {
   const auto profile = SelectedTargetProfile(ctx);
-  for (const auto& attr : block.attrs) {
+  for (const auto& attr : ast::AttrListOf(block)) {
     const auto library = project::NormalizeLibraryAttribute(attr);
     if (!library.has_value()) {
       continue;
@@ -398,7 +391,7 @@ static bool BuildExternProcInfo(const ScopeContext& ctx,
 
   proc_info.return_type = lowered_return.type;
   proc_info.func_type = MakeTypeFunc(params, lowered_return.type);
-  proc_info.verification_mode = ResolveForeignVerificationMode(block, proc);
+  proc_info.verification_mode = ResolveForeignVerificationMode(proc);
 
   if (proc.foreign_contracts_opt.has_value()) {
     for (const auto& clause : *proc.foreign_contracts_opt) {
@@ -446,8 +439,8 @@ ExternBlockResult TypeExternBlock(
   result.ok = true;
   result.abi = ExtractAbiString(block.abi_opt);
 
-  const auto attr_validation =
-      ValidateAttributes(block.attrs, AttributeTarget::ExternBlock);
+  const auto attr_validation = ValidateAttributes(
+      ast::AttrListOf(block), AttributeTarget::ExternBlock);
   if (!attr_validation.ok) {
     result.ok = false;
     result.diag_id = attr_validation.diag_id;
@@ -472,7 +465,7 @@ ExternBlockResult TypeExternBlock(
     return result;
   }
 
-  const auto block_unwind = CheckUnwindAttr(block.attrs);
+  const auto block_unwind = CheckUnwindAttr(ast::AttrListOf(block));
   if (block_unwind.duplicate) {
     SPEC_RULE("UnwindMode-Duplicate-Err");
     result.ok = false;
@@ -530,8 +523,8 @@ ExternBlockResult TypeExternBlockSignature(
   result.ok = true;
   result.abi = ExtractAbiString(block.abi_opt);
 
-  const auto attr_validation =
-      ValidateAttributes(block.attrs, AttributeTarget::ExternBlock);
+  const auto attr_validation = ValidateAttributes(
+      ast::AttrListOf(block), AttributeTarget::ExternBlock);
   if (!attr_validation.ok) {
     result.ok = false;
     result.diag_id = attr_validation.diag_id;
@@ -556,7 +549,7 @@ ExternBlockResult TypeExternBlockSignature(
     return result;
   }
 
-  const auto block_unwind = CheckUnwindAttr(block.attrs);
+  const auto block_unwind = CheckUnwindAttr(ast::AttrListOf(block));
   if (block_unwind.duplicate) {
     SPEC_RULE("UnwindMode-Duplicate-Err");
     result.ok = false;

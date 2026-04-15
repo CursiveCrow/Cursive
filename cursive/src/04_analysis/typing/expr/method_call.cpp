@@ -45,6 +45,7 @@
 #include "04_analysis/typing/deprecation_warnings.h"
 #include "04_analysis/typing/type_equiv.h"
 #include "04_analysis/typing/type_expr.h"
+#include "04_analysis/typing/type_predicates.h"
 #include "04_analysis/typing/type_infer.h"
 #include "04_analysis/typing/type_lower.h"
 #include "04_analysis/typing/types.h"
@@ -1299,6 +1300,35 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
     return result;
   }
 
+  if (const auto builtin_sig =
+          LookupFoundationalBuiltinMethodSig(lookup_base, expr.name)) {
+    if (!PermSubLocal(caller_perm, builtin_sig->recv_perm)) {
+      SPEC_RULE("MethodCall-RecvPerm-Err");
+      result.diag_id = "MethodCall-RecvPerm-Err";
+      return result;
+    }
+    const auto recv_sub = Subtyping(ctx, lookup_base, builtin_sig->recv_type);
+    if (!recv_sub.ok) {
+      result.diag_id = recv_sub.diag_id;
+      return result;
+    }
+    if (!recv_sub.subtype) {
+      SPEC_RULE("LookupMethod-NotFound");
+      result.diag_id = "LookupMethod-NotFound";
+      result.diag_detail = "method '" + std::string(expr.name) +
+                           "' on type '" + TypeToString(lookup_base) + "'";
+      return result;
+    }
+    if (!CheckBuiltinMethodArgs(ctx, type_ctx, builtin_sig->params, expr.args,
+                                env, result)) {
+      return result;
+    }
+    SPEC_RULE("T-MethodCall");
+    result.ok = true;
+    result.type = builtin_sig->ret;
+    return result;
+  }
+
   // Get the type path for method lookup
   TypePath type_path;
   if (const auto* path_type = std::get_if<TypePathType>(&lookup_base->node)) {
@@ -1419,8 +1449,10 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
             arg_types.push_back(arg_type.type);
           }
         } else {
+          const bool uses_call_temp =
+              UsesCallTempForConsuming(param.mode, arg);
           const auto moved = MovedArgExpr(arg);
-          if (param.type && !HasSourceProvenance(arg.value)) {
+          if (param.type && uses_call_temp) {
             const auto checked = check_expr(moved, param.type);
             if (checked.ok) {
               arg_types.push_back(param.type);
@@ -1502,6 +1534,13 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       if (!PermSubLocal(caller_perm, Permission::Unique)) {
         SPEC_RULE("Transition-Source-Err");
         result.diag_id = "Transition-Source-Err";
+        return result;
+      }
+      if (HasSourceProvenance(expr.receiver) &&
+          (!expr.receiver ||
+           !std::holds_alternative<ast::MoveExpr>(expr.receiver->node))) {
+        SPEC_RULE("Call-Move-Missing");
+        result.diag_id = "Call-Move-Missing";
         return result;
       }
       if (!StateMemberVisible(ctx, modal->path, modal_member.transition->vis)) {
@@ -1909,7 +1948,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       }
     }
     if (IsContextTypePath(path_type->path)) {
-      const auto sig = LookupContextMethodSig(expr.name);
+      const auto sig = LookupContextMethodSig(expr.name, expr.args.size());
       if (sig.has_value()) {
         if (handle_cap_method(sig->recv_perm, sig->params, sig->ret)) {
           return result;

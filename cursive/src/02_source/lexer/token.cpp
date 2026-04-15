@@ -48,7 +48,8 @@
 // =============================================================================
 //
 // - Consider renaming AttachSpan/AttachSpans to more descriptive names
-// - The spec defines TokenKind_C0 = TokenKind_(3.2.4) + {Unknown}
+// - The parser-facing EOF token is represented explicitly as TokenKind::Eof.
+//   Unknown remains the lexer-error sentinel for real token streams.
 //   Ensure TokenKind enum includes all spec-defined kinds
 // - Spec 3.2.4 line 2109 defines:
 //   TokenKind in {Identifier, Keyword(k), IntLiteral, FloatLiteral,
@@ -60,6 +61,8 @@
 // =============================================================================
 
 #include "02_source/lexer/token.h"
+
+#include <algorithm>
 
 #include "00_core/assert_spec.h"
 
@@ -108,10 +111,38 @@ std::vector<Token> AttachSpans(const core::SourceFile& source,
   return out;
 }
 
+std::optional<std::pair<std::size_t, std::size_t>> TokenRange(
+    const core::SourceFile& source,
+    const Token& token) {
+  const auto offsets = core::Utf8Offsets(source.scalars);
+  const auto start_it =
+      std::find(offsets.begin(), offsets.end(), token.span.start_offset);
+  const auto end_it =
+      std::find(offsets.begin(), offsets.end(), token.span.end_offset);
+  if (start_it == offsets.end() || end_it == offsets.end()) {
+    return std::nullopt;
+  }
+
+  const std::size_t i = static_cast<std::size_t>(start_it - offsets.begin());
+  const std::size_t j = static_cast<std::size_t>(end_it - offsets.begin());
+  const core::Span expected = core::SpanOf(source, offsets[i], offsets[j]);
+  if (token.span.file != expected.file ||
+      token.span.start_offset != expected.start_offset ||
+      token.span.end_offset != expected.end_offset ||
+      token.span.start_line != expected.start_line ||
+      token.span.start_col != expected.start_col ||
+      token.span.end_line != expected.end_line ||
+      token.span.end_col != expected.end_col) {
+    return std::nullopt;
+  }
+
+  return std::pair<std::size_t, std::size_t>{i, j};
+}
+
 Token MakeEofToken(const core::SourceFile& source) {
   SPEC_DEF("TokenEOF", "3.2.1");
   Token eof;
-  eof.kind = TokenKind::Unknown;
+  eof.kind = TokenKind::Eof;
   eof.lexeme.clear();
   eof.span = core::SpanOf(source, source.byte_len, source.byte_len);
   return eof;

@@ -555,13 +555,17 @@ static bool ExprContainsIdent(const ast::ExprPtr& expr,
             }
           }
           return false;
-        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
-            if (ExprContainsIdent(elem, name)) {
-              return true;
-            }
+      } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+        bool contains_ident = false;
+        ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+          if (contains_ident) {
+            return;
           }
-          return false;
+          if (ExprContainsIdent(elem, name)) {
+            contains_ident = true;
+          }
+        });
+        return contains_ident;
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           return ExprContainsIdent(node.value, name) ||
                  ExprContainsIdent(node.count, name);
@@ -722,12 +726,20 @@ static ast::ExprPtr SubstituteIdent(const ast::ExprPtr& expr,
             elem = SubstituteIdent(elem, name, replacement);
           }
           return MakeExpr(expr->span, out);
-        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          auto out = node;
-          for (auto& elem : out.elements) {
-            elem = SubstituteIdent(elem, name, replacement);
-          }
-          return MakeExpr(expr->span, out);
+      } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+        auto out = node;
+        for (auto& segment : out.elements) {
+          std::visit(
+              [&](auto& seg) {
+                seg.value = SubstituteIdent(seg.value, name, replacement);
+                if constexpr (std::is_same_v<std::decay_t<decltype(seg)>,
+                                             ast::ArrayRepeatSegment>) {
+                  seg.count = SubstituteIdent(seg.count, name, replacement);
+                }
+              },
+              segment);
+        }
+        return MakeExpr(expr->span, out);
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           auto out = node;
           out.value = SubstituteIdent(node.value, name, replacement);

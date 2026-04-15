@@ -68,6 +68,7 @@
 
 #include "05_codegen/cleanup/cleanup.h"
 
+#include "05_codegen/checks/checks.h"
 #include "05_codegen/cleanup/drop_hooks.h"
 #include "05_codegen/cleanup/unwind.h"
 #include "05_codegen/abi/abi.h"
@@ -164,6 +165,7 @@ static std::optional<CleanupTraceIds> CleanupTraceIdsFor(const CleanupAction& ac
     case CleanupAction::Kind::DropField:
     case CleanupAction::Kind::ReleaseRegion:
     case CleanupAction::Kind::ReleaseKeyScope:
+    case CleanupAction::Kind::ParallelJoin:
     case CleanupAction::Kind::RuntimeScopeExit:
       return CleanupTraceIds{
           "Cleanup-Step-Drop-Ok",
@@ -190,6 +192,8 @@ static const char* CleanupActionEnterTraceIdFor(const CleanupAction& action) {
       return "Cleanup-Action-ReleaseRegion-Enter";
     case CleanupAction::Kind::ReleaseKeyScope:
       return "Cleanup-Action-ReleaseKeyScope-Enter";
+    case CleanupAction::Kind::ParallelJoin:
+      return "Cleanup-Action-ParallelJoin-Enter";
     case CleanupAction::Kind::RuntimeScopeExit:
       return "Cleanup-Action-ScopeExit-Enter";
   }
@@ -206,6 +210,7 @@ static bool CleanupActionCanPanic(const CleanupAction& action) {
       return true;
     case CleanupAction::Kind::ReleaseRegion:
     case CleanupAction::Kind::ReleaseKeyScope:
+    case CleanupAction::Kind::ParallelJoin:
     case CleanupAction::Kind::RuntimeScopeExit:
       // These lower to runtime no-panic helpers and do not carry a hidden
       // panic out-parameter. Treating them as panic-capable bloats cleanup CFG
@@ -370,6 +375,13 @@ static void AppendCleanupItemToPlan(const CleanupItem& item,
     case CleanupItem::Kind::ReleaseKeyScope: {
       CleanupAction action;
       action.kind = CleanupAction::Kind::ReleaseKeyScope;
+      action.name = item.name;
+      plan.push_back(std::move(action));
+      return;
+    }
+    case CleanupItem::Kind::ParallelJoin: {
+      CleanupAction action;
+      action.kind = CleanupAction::Kind::ParallelJoin;
       action.name = item.name;
       plan.push_back(std::move(action));
       return;
@@ -545,6 +557,38 @@ static IRPtr EmitCleanupAction(const CleanupAction& action, LowerCtx& ctx) {
       call.result = ctx.FreshTempValue("key_scope_exit");
       ctx.RegisterValueType(call.result, analysis::MakeTypePrim("()"));
       return MakeIR(std::move(call));
+    }
+    case CleanupAction::Kind::ParallelJoin: {
+      IRValue parallel_ctx;
+      if (action.value) {
+        parallel_ctx = *action.value;
+      } else {
+        parallel_ctx.kind = IRValue::Kind::Local;
+        parallel_ctx.name = action.name;
+      }
+
+      IRCall call;
+      call.callee.kind = IRValue::Kind::Symbol;
+      call.callee.name = ConcurrencySymParallelJoin();
+      call.args.push_back(parallel_ctx);
+      call.result = ctx.FreshTempValue("parallel_join_status");
+      ctx.RegisterValueType(call.result, analysis::MakeTypePrim("i32"));
+
+      IRBinaryOp ok_cmp;
+      ok_cmp.op = "==";
+      ok_cmp.lhs = call.result;
+      ok_cmp.rhs = U32Immediate(0);
+      ok_cmp.result = ctx.FreshTempValue("parallel_join_ok");
+      ctx.RegisterValueType(ok_cmp.result, analysis::MakeTypePrim("bool"));
+
+      IRCheckOp check;
+      check.op = "nonnull";
+      check.reason = PanicReasonString(PanicReason::Other);
+      check.lhs = ok_cmp.result;
+
+      return SeqIR({MakeIR(std::move(call)),
+                    MakeIR(std::move(ok_cmp)),
+                    MakeIR(std::move(check))});
     }
     case CleanupAction::Kind::RunDefer: {
       if (action.defer_ir) {

@@ -8,6 +8,7 @@
 
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include "04_analysis/typing/context.h"
 #include "04_analysis/typing/types.h"
@@ -38,11 +39,33 @@ std::optional<std::string_view> FfiSafeDiagForType(
     const ast::ModulePath& current_module,
     const TypeRef& type);
 
+// Structural diagnostic for why a type is not GpuSafeType. Returns std::nullopt
+// when the type satisfies the currently implemented GPU-safety rules.
+std::optional<std::string_view> GpuSafeDiagForType(
+    const ScopeContext& ctx,
+    const TypeRef& type);
+
 // Check if a type has a unique all-zero object representation.
 bool ZeroableType(const ScopeContext& ctx, const TypeRef& type);
 
 // Check if a type supports equality comparison
 bool EqType(const TypeRef& type);
+
+// Check if a type has intrinsic built-in Step support.
+bool BuiltinStepType(const TypeRef& type);
+
+struct FoundationalBuiltinMethodSig {
+  Permission recv_perm = Permission::Const;
+  TypeRef recv_type;
+  std::vector<TypeFuncParam> params;
+  TypeRef ret;
+};
+
+// Lookup intrinsic built-in Eq/Step method signatures on types that satisfy
+// the corresponding foundational predicates intrinsically.
+std::optional<FoundationalBuiltinMethodSig> LookupFoundationalBuiltinMethodSig(
+    const TypeRef& recv_base,
+    std::string_view name);
 
 // Check if a type supports ordering comparison
 bool OrdType(const TypeRef& type);

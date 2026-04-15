@@ -18,6 +18,37 @@
 
 namespace cursive::ast {
 
+namespace {
+
+bool IsGpuPtrHead(const TypePath& path) {
+  return path.size() == 1 && path.front() == "GpuPtr";
+}
+
+bool IsGpuPtrAddrSpaceArg(const std::shared_ptr<Type>& arg) {
+  if (!arg) {
+    return false;
+  }
+  const auto* path = std::get_if<TypePathType>(&arg->node);
+  if (!path || !path->generic_args.empty() || path->path.size() != 1) {
+    return false;
+  }
+  return path->path[0] == "Global" || path->path[0] == "Shared" ||
+         path->path[0] == "Private";
+}
+
+void ValidateGpuPtrArgs(Parser parser,
+                        const TypePath& path,
+                        const std::vector<std::shared_ptr<Type>>& args) {
+  if (!IsGpuPtrHead(path) || args.empty()) {
+    return;
+  }
+  if (args.size() != 2 || !IsGpuPtrAddrSpaceArg(args[1])) {
+    EmitParseSyntaxErr(parser, TokSpan(parser));
+  }
+}
+
+}  // namespace
+
 // =============================================================================
 // ParseGenericTypeArgs - Parse Optional Generic Type Arguments <T, U>
 // =============================================================================
@@ -40,7 +71,7 @@ ParseGenericArgsResult ParseGenericTypeArgs(Parser parser) {
   // Parse first type arg
   ParseElemResult<std::shared_ptr<Type>> first_arg = ParseType(after_lt);
   args.push_back(first_arg.elem);
-  const TokenKindMatch end_set[] = {MatchOperator(">"), MatchOperator(">>")};
+  const EndSetToken end_set[] = {EndOperator(">"), EndOperator(">>")};
   ParseElemResult<std::vector<std::shared_ptr<Type>>> tail =
       ParseTypeListTailWithEndSet(first_arg.parser, std::move(args), end_set);
   Parser cur = tail.parser;
@@ -74,6 +105,7 @@ ParseElemResult<std::shared_ptr<Type>> ParseTypePathType(
   // Parse optional generic arguments
   ParseGenericArgsResult gen = ParseGenericTypeArgs(parser);
   if (!gen.args.empty()) {
+    ValidateGpuPtrArgs(gen.parser, path, gen.args);
     SPEC_RULE("Parse-Type-Apply");
     TypeApply apply;
     apply.path = std::move(path);

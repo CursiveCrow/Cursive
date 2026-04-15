@@ -187,4 +187,20 @@ bool VerifyModule(llvm::Module& module) {
   return !llvm::verifyModule(module, &os);
 }
 
+// -----------------------------------------------------------------------------
+// LLVMEmitter Module Setup Wrappers
+// -----------------------------------------------------------------------------
+
+  void LLVMEmitter::SetupModule()
+  {
+    SetupModuleHeader(*module_, target_profile_);
+  }
+  // T-LLVM-006: Runtime Declarations
+  void LLVMEmitter::DeclareRuntime()
+  {
+    // Declare essential runtime functions
+    // Actual runtime declarations depend on what the runtime provides
+    // The current backend relies on runtime symbols linked from the staged
+    // runtime archive.
+  }
 }  // namespace cursive::codegen

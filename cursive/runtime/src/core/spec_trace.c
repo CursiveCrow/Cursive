@@ -1,4 +1,4 @@
-﻿#include "../internal/rt_internal.h"
+#include "../internal/rt_internal.h"
 
 #define C0_TRACE_SINK_CONSOLE 0u
 #define C0_TRACE_SINK_FILE 1u
@@ -14,10 +14,10 @@
 #define C0_TRACE_LEVEL_WARNING 2u
 #define C0_TRACE_LEVEL_ERROR 3u
 
-static HANDLE c0_trace_file_handle = NULL;
-static HANDLE c0_trace_console_handle = NULL;
-static LONG c0_trace_init = 0;
-static volatile LONG c0_trace_enabled = 0;
+static cursive_platform_handle_t c0_trace_file_handle = NULL;
+static cursive_platform_handle_t c0_trace_console_handle = NULL;
+static cursive_platform_i32_t c0_trace_init = 0;
+static volatile cursive_platform_i32_t c0_trace_enabled = 0;
 static int c0_trace_file_sink = 0;
 static int c0_trace_console_sink = 0;
 static int c0_trace_policy_configured = 0;
@@ -26,28 +26,29 @@ static uint8_t *c0_trace_policy_path_utf8 = NULL;
 static uint64_t c0_trace_policy_path_len = 0;
 static uint8_t *c0_trace_root_utf8 = NULL;
 static uint64_t c0_trace_root_len = 0;
-static volatile LONG c0_trace_filter_mask = (LONG)C0_TRACE_FILTER_ALL;
-static volatile LONG c0_trace_min_level = 0;
+static volatile cursive_platform_i32_t c0_trace_filter_mask =
+    (cursive_platform_i32_t)C0_TRACE_FILTER_ALL;
+static volatile cursive_platform_i32_t c0_trace_min_level = 0;
 static uint8_t *c0_trace_rule_filter_utf8 = NULL;
 static uint64_t c0_trace_rule_filter_len = 0u;
 static uint8_t *c0_trace_file_filter_utf8 = NULL;
 static uint64_t c0_trace_file_filter_len = 0u;
 static uint8_t *c0_trace_label_filter_utf8 = NULL;
 static uint64_t c0_trace_label_filter_len = 0u;
-static volatile LONG c0_trace_fail_only = 0;
-static volatile LONG c0_trace_break_on_fail = 0;
-static volatile LONG c0_trace_break_latched = 0;
-static volatile LONG c0_trace_env_loaded = 0;
+static volatile cursive_platform_i32_t c0_trace_fail_only = 0;
+static volatile cursive_platform_i32_t c0_trace_break_on_fail = 0;
+static volatile cursive_platform_i32_t c0_trace_break_latched = 0;
+static volatile cursive_platform_i32_t c0_trace_env_loaded = 0;
 static uint32_t c0_trace_records_since_flush = 0;
 static uint64_t c0_trace_next_sequence = 0u;
-static SRWLOCK c0_trace_lock = SRWLOCK_INIT;
+static cursive_platform_rwlock_t c0_trace_lock = CURSIVE_PLATFORM_RWLOCK_INIT;
 
 static void c0_conformance_init(void);
 static void c0_trace_close_file_sink(void);
 static void c0_trace_refresh_console_sink(void);
 static int c0_trace_open_file_sink_utf8(const uint8_t *path_utf8,
                                         uint64_t path_len,
-                                        HANDLE *out_handle);
+                                        cursive_platform_handle_t *out_handle);
 static void c0_trace_apply_sink_policy_locked(void);
 static void c0_trace_apply_env_overrides_locked(void);
 
@@ -55,7 +56,7 @@ static void c0_trace_close_file_sink(void)
 {
   if (c0_trace_file_sink != 0 && c0_trace_file_handle)
   {
-    CloseHandle(c0_trace_file_handle);
+    cursive_platform_close_handle(c0_trace_file_handle);
   }
   c0_trace_file_handle = NULL;
   c0_trace_file_sink = 0;
@@ -63,11 +64,11 @@ static void c0_trace_close_file_sink(void)
 
 static void c0_trace_refresh_console_sink(void)
 {
-  c0_trace_console_handle = GetStdHandle(STD_ERROR_HANDLE);
-  if (c0_trace_console_handle == INVALID_HANDLE_VALUE)
+  c0_trace_console_handle = cursive_platform_std_handle(CURSIVE_PLATFORM_STD_ERROR_HANDLE);
+  if (c0_trace_console_handle == CURSIVE_PLATFORM_INVALID_HANDLE)
   {
-    c0_trace_console_handle = GetStdHandle(STD_OUTPUT_HANDLE);
-    if (c0_trace_console_handle == INVALID_HANDLE_VALUE)
+    c0_trace_console_handle = cursive_platform_std_handle(CURSIVE_PLATFORM_STD_OUTPUT_HANDLE);
+    if (c0_trace_console_handle == CURSIVE_PLATFORM_INVALID_HANDLE)
     {
       c0_trace_console_handle = NULL;
     }
@@ -77,7 +78,7 @@ static void c0_trace_refresh_console_sink(void)
 
 static int c0_trace_open_file_sink_utf8(const uint8_t *path_utf8,
                                         uint64_t path_len,
-                                        HANDLE *out_handle)
+                                        cursive_platform_handle_t *out_handle)
 {
   if (!out_handle)
   {
@@ -93,8 +94,9 @@ static int c0_trace_open_file_sink_utf8(const uint8_t *path_utf8,
     return 0;
   }
 
-  int needed = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
-                                   (LPCCH)path_utf8, (int)path_len, NULL, 0);
+  int needed =
+      cursive_platform_utf8_to_wide_chars((const char *)path_utf8, (int)path_len,
+                                    NULL, 0);
   if (needed <= 0)
   {
     return 0;
@@ -109,9 +111,10 @@ static int c0_trace_open_file_sink_utf8(const uint8_t *path_utf8,
   {
     return 0;
   }
-  int written = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
-                                    (LPCCH)path_utf8, (int)path_len,
-                                    wide_path, needed);
+  int written = cursive_platform_utf8_to_wide_chars((const char *)path_utf8,
+                                              (int)path_len,
+                                              wide_path,
+                                              needed);
   if (written <= 0 || written != needed)
   {
     c0_heap_free_raw(wide_path);
@@ -119,10 +122,11 @@ static int c0_trace_open_file_sink_utf8(const uint8_t *path_utf8,
   }
   wide_path[needed] = L'\0';
 
-  HANDLE file = CreateFileW(wide_path, GENERIC_WRITE, FILE_SHARE_READ, NULL,
-                            CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  cursive_platform_handle_t file = cursive_platform_file_open_wide(
+      wide_path, CURSIVE_PLATFORM_GENERIC_WRITE, CURSIVE_PLATFORM_FILE_SHARE_READ, NULL,
+      CURSIVE_PLATFORM_CREATE_ALWAYS, CURSIVE_PLATFORM_FILE_ATTRIBUTE_NORMAL, NULL);
   c0_heap_free_raw(wide_path);
-  if (file == INVALID_HANDLE_VALUE)
+  if (file == CURSIVE_PLATFORM_INVALID_HANDLE)
   {
     return 0;
   }
@@ -160,7 +164,7 @@ static void c0_trace_apply_sink_policy_locked(void)
 
   if (want_file != 0)
   {
-    HANDLE sink = NULL;
+    cursive_platform_handle_t sink = NULL;
     if (c0_trace_open_file_sink_utf8(c0_trace_policy_path_utf8,
                                      c0_trace_policy_path_len,
                                      &sink) != 0)
@@ -271,7 +275,7 @@ static int c0_trace_read_env_utf8(const char *name,
   {
     return 0;
   }
-  const DWORD needed = GetEnvironmentVariableA(name, NULL, 0u);
+  const cursive_platform_u32_t needed = cursive_platform_env_get_utf8(name, NULL, 0u);
   if (needed == 0u)
   {
     return 0;
@@ -281,7 +285,7 @@ static int c0_trace_read_env_utf8(const char *name,
   {
     return 0;
   }
-  const DWORD copied = GetEnvironmentVariableA(name, raw, needed);
+  const cursive_platform_u32_t copied = cursive_platform_env_get_utf8(name, raw, needed);
   if (copied == 0u || copied >= needed)
   {
     c0_heap_free_raw(raw);
@@ -501,7 +505,7 @@ static int c0_trace_parse_filter_mask_csv(const uint8_t *data,
 
 static void c0_trace_apply_env_overrides_locked(void)
 {
-  if (InterlockedCompareExchange(&c0_trace_env_loaded, 1, 0) != 0)
+  if (cursive_platform_atomic_compare_exchange(&c0_trace_env_loaded, 1, 0) != 0)
   {
     return;
   }
@@ -554,7 +558,8 @@ static void c0_trace_apply_env_overrides_locked(void)
   {
     if (c0_trace_parse_filter_mask_csv(env_data, env_len, &parsed_u32))
     {
-      InterlockedExchange(&c0_trace_filter_mask, (LONG)parsed_u32);
+      cursive_platform_atomic_exchange(&c0_trace_filter_mask,
+                                 (cursive_platform_i32_t)parsed_u32);
       has_any_override = 1;
     }
     c0_heap_free_raw(env_data);
@@ -566,7 +571,8 @@ static void c0_trace_apply_env_overrides_locked(void)
   {
     if (c0_trace_parse_level(env_data, env_len, &parsed_u8))
     {
-      InterlockedExchange(&c0_trace_min_level, (LONG)parsed_u8);
+      cursive_platform_atomic_exchange(&c0_trace_min_level,
+                                 (cursive_platform_i32_t)parsed_u8);
       has_any_override = 1;
     }
     c0_heap_free_raw(env_data);
@@ -608,7 +614,7 @@ static void c0_trace_apply_env_overrides_locked(void)
   {
     if (c0_trace_parse_bool(env_data, env_len, &parsed_u8))
     {
-      InterlockedExchange(&c0_trace_fail_only, parsed_u8 ? 1 : 0);
+      cursive_platform_atomic_exchange(&c0_trace_fail_only, parsed_u8 ? 1 : 0);
       has_any_override = 1;
     }
     c0_heap_free_raw(env_data);
@@ -620,7 +626,7 @@ static void c0_trace_apply_env_overrides_locked(void)
   {
     if (c0_trace_parse_bool(env_data, env_len, &parsed_u8))
     {
-      InterlockedExchange(&c0_trace_break_on_fail, parsed_u8 ? 1 : 0);
+      cursive_platform_atomic_exchange(&c0_trace_break_on_fail, parsed_u8 ? 1 : 0);
       has_any_override = 1;
     }
     c0_heap_free_raw(env_data);
@@ -634,7 +640,7 @@ static void c0_trace_apply_env_overrides_locked(void)
   }
 }
 
-static void c0_trace_write_to_handle(HANDLE handle,
+static void c0_trace_write_to_handle(cursive_platform_handle_t handle,
                                      int allow_console_fallback,
                                      const uint8_t *data,
                                      uint64_t len)
@@ -647,15 +653,16 @@ static void c0_trace_write_to_handle(HANDLE handle,
   while (offset < len)
   {
     uint64_t remaining = len - offset;
-    DWORD chunk = remaining > 0xFFFFFFFFu ? 0xFFFFFFFFu : (DWORD)remaining;
-    DWORD written = 0;
-    if (!WriteFile(handle, data + offset, chunk, &written, NULL))
+    cursive_platform_u32_t chunk =
+        remaining > 0xFFFFFFFFu ? 0xFFFFFFFFu : (cursive_platform_u32_t)remaining;
+    cursive_platform_u32_t written = 0;
+    if (!cursive_platform_handle_write(handle, data + offset, chunk, &written))
     {
       if (allow_console_fallback != 0)
       {
-        DWORD mode = 0;
-        if (GetConsoleMode(handle, &mode) &&
-            WriteConsoleA(handle, data + offset, chunk, &written, NULL))
+        cursive_platform_u32_t mode = 0;
+        if (cursive_platform_console_mode_get(handle, &mode) &&
+            cursive_platform_console_write_utf8(handle, data + offset, chunk, &written))
         {
           if (written != 0)
           {
@@ -1500,17 +1507,17 @@ static int c0_trace_path_starts_with_root(const C0StringView *file,
 
 static uint64_t c0_trace_timestamp_ms(void)
 {
-  FILETIME ft;
-  ULARGE_INTEGER value;
+  cursive_platform_filetime_t ft;
+  cursive_platform_ularge_integer_t value;
   const uint64_t epoch_delta_100ns = 116444736000000000ULL;
-  GetSystemTimeAsFileTime(&ft);
-  value.LowPart = ft.dwLowDateTime;
-  value.HighPart = ft.dwHighDateTime;
-  if (value.QuadPart <= epoch_delta_100ns)
+  cursive_platform_system_time_filetime(&ft);
+  value.low_part = ft.low_date_time;
+  value.high_part = ft.high_date_time;
+  if (value.quad_part <= epoch_delta_100ns)
   {
     return 0u;
   }
-  return (value.QuadPart - epoch_delta_100ns) / 10000ULL;
+  return (value.quad_part - epoch_delta_100ns) / 10000ULL;
 }
 
 static void c0_trace_write_u64_field(uint64_t value)
@@ -1761,9 +1768,9 @@ static uint8_t c0_trace_allow_record(const C0StringView *rule_id,
     return 0u;
   }
   const uint32_t active_filter =
-      (uint32_t)InterlockedCompareExchange(&c0_trace_filter_mask, 0, 0);
+      (uint32_t)cursive_platform_atomic_compare_exchange(&c0_trace_filter_mask, 0, 0);
   const uint8_t min_level =
-      (uint8_t)InterlockedCompareExchange(&c0_trace_min_level, 0, 0);
+      (uint8_t)cursive_platform_atomic_compare_exchange(&c0_trace_min_level, 0, 0);
   if ((info->required_filter & active_filter) == 0u)
   {
     return 0u;
@@ -1784,7 +1791,7 @@ static uint8_t c0_trace_allow_record(const C0StringView *rule_id,
   {
     return 0u;
   }
-  if (InterlockedCompareExchange(&c0_trace_fail_only, 0, 0) != 0 &&
+  if (cursive_platform_atomic_compare_exchange(&c0_trace_fail_only, 0, 0) != 0 &&
       info->cmp_fail == 0u)
   {
     return 0u;
@@ -1803,20 +1810,20 @@ static int c0_trace_begin_locked(const C0StringView *rule_id,
                                  C0TraceRecordMeta *out_meta)
 {
   c0_conformance_init();
-  if (InterlockedCompareExchange(&c0_trace_enabled, 0, 0) == 0 ||
+  if (cursive_platform_atomic_compare_exchange(&c0_trace_enabled, 0, 0) == 0 ||
       c0_trace_allow_record(rule_id, file, payload, info) == 0u)
   {
     return 0;
   }
-  AcquireSRWLockExclusive(&c0_trace_lock);
-  if (InterlockedCompareExchange(&c0_trace_enabled, 0, 0) == 0 ||
+  cursive_platform_rwlock_lock_exclusive(&c0_trace_lock);
+  if (cursive_platform_atomic_compare_exchange(&c0_trace_enabled, 0, 0) == 0 ||
       c0_trace_allow_record(rule_id, file, payload, info) == 0u)
   {
-    ReleaseSRWLockExclusive(&c0_trace_lock);
+    cursive_platform_rwlock_unlock_exclusive(&c0_trace_lock);
     return 0;
   }
   C0TraceRecordMeta meta;
-  meta.thread_id = (uint64_t)GetCurrentThreadId();
+  meta.thread_id = (uint64_t)cursive_platform_current_thread_id();
   meta.sequence = ++c0_trace_next_sequence;
   if (out_meta)
   {
@@ -1846,7 +1853,7 @@ static int c0_trace_begin_locked(const C0StringView *rule_id,
   c0_trace_write_cstr("ts_ms=");
   c0_trace_write_u64_field(c0_trace_timestamp_ms());
   c0_trace_write_cstr(";pid=");
-  c0_trace_write_u64_field((uint64_t)GetCurrentProcessId());
+  c0_trace_write_u64_field((uint64_t)cursive_platform_current_process_id());
   c0_trace_write_cstr(";tid=");
   c0_trace_write_u64_field(meta.thread_id);
   c0_trace_write_cstr(";seq=");
@@ -1867,11 +1874,11 @@ static void c0_trace_end_locked(void)
     ++c0_trace_records_since_flush;
     if (c0_trace_records_since_flush >= C0_TRACE_FLUSH_INTERVAL)
     {
-      FlushFileBuffers(c0_trace_file_handle);
+      cursive_platform_handle_flush(c0_trace_file_handle);
       c0_trace_records_since_flush = 0;
     }
   }
-  ReleaseSRWLockExclusive(&c0_trace_lock);
+  cursive_platform_rwlock_unlock_exclusive(&c0_trace_lock);
 }
 
 static uint8_t c0_trace_should_break_on_fail(const C0TraceRecordInfo *info)
@@ -1880,7 +1887,7 @@ static uint8_t c0_trace_should_break_on_fail(const C0TraceRecordInfo *info)
   {
     return 0u;
   }
-  return (uint8_t)(InterlockedCompareExchange(&c0_trace_break_on_fail, 0, 0) != 0);
+  return (uint8_t)(cursive_platform_atomic_compare_exchange(&c0_trace_break_on_fail, 0, 0) != 0);
 }
 
 static void c0_trace_maybe_trigger_break(const C0TraceRecordInfo *info)
@@ -1889,13 +1896,13 @@ static void c0_trace_maybe_trigger_break(const C0TraceRecordInfo *info)
   {
     return;
   }
-  if (InterlockedCompareExchange(&c0_trace_break_latched, 1, 0) != 0)
+  if (cursive_platform_atomic_compare_exchange(&c0_trace_break_latched, 1, 0) != 0)
   {
     return;
   }
   c0_trace_write_console_cstr(
       "[error][log] cmp=fail break triggered (CURSIVE_RUNTIME_BREAK_ON_FAIL=1)\n");
-  DebugBreak();
+  cursive_platform_debug_break();
 }
 
 static void c0_trace_write_payload_prefix(const C0StringView *payload_prefix)
@@ -1935,29 +1942,29 @@ static void c0_trace_write_hex_bytes(const uint8_t *data, uint64_t len)
 
 static void c0_conformance_init(void)
 {
-  if (InterlockedCompareExchange(&c0_trace_init, 1, 0) != 0)
+  if (cursive_platform_atomic_compare_exchange(&c0_trace_init, 1, 0) != 0)
   {
     return;
   }
-  AcquireSRWLockExclusive(&c0_trace_lock);
+  cursive_platform_rwlock_lock_exclusive(&c0_trace_lock);
   c0_trace_apply_env_overrides_locked();
   if (c0_trace_policy_configured == 0)
   {
-    InterlockedExchange(&c0_trace_enabled, 0);
-    ReleaseSRWLockExclusive(&c0_trace_lock);
+    cursive_platform_atomic_exchange(&c0_trace_enabled, 0);
+    cursive_platform_rwlock_unlock_exclusive(&c0_trace_lock);
     return;
   }
   c0_trace_apply_sink_policy_locked();
   if (c0_trace_file_sink != 0 || c0_trace_console_sink != 0)
   {
-    InterlockedExchange(&c0_trace_enabled, 1);
+    cursive_platform_atomic_exchange(&c0_trace_enabled, 1);
     c0_trace_write_cstr("runtime_trace_v1\n");
   }
   else
   {
-    InterlockedExchange(&c0_trace_enabled, 0);
+    cursive_platform_atomic_exchange(&c0_trace_enabled, 0);
   }
-  ReleaseSRWLockExclusive(&c0_trace_lock);
+  cursive_platform_rwlock_unlock_exclusive(&c0_trace_lock);
 }
 
 void cursive_x3a_x3aruntime_x3a_x3aconformance_x3a_x3aset_x5fsink(
@@ -1965,7 +1972,7 @@ void cursive_x3a_x3aruntime_x3a_x3aconformance_x3a_x3aset_x5fsink(
     const uint8_t *path_utf8,
     uint64_t path_len)
 {
-  AcquireSRWLockExclusive(&c0_trace_lock);
+  cursive_platform_rwlock_lock_exclusive(&c0_trace_lock);
 
   c0_trace_policy_configured = 1;
   if (sink_kind == C0_TRACE_SINK_FILE)
@@ -2000,23 +2007,23 @@ void cursive_x3a_x3aruntime_x3a_x3aconformance_x3a_x3aset_x5fsink(
     c0_trace_apply_sink_policy_locked();
     if (c0_trace_file_sink != 0 || c0_trace_console_sink != 0)
     {
-      InterlockedExchange(&c0_trace_enabled, 1);
+      cursive_platform_atomic_exchange(&c0_trace_enabled, 1);
       c0_trace_write_cstr("runtime_trace_v1\n");
     }
     else
     {
-      InterlockedExchange(&c0_trace_enabled, 0);
+      cursive_platform_atomic_exchange(&c0_trace_enabled, 0);
     }
   }
 
-  ReleaseSRWLockExclusive(&c0_trace_lock);
+  cursive_platform_rwlock_unlock_exclusive(&c0_trace_lock);
 }
 
 void cursive_x3a_x3aruntime_x3a_x3aconformance_x3a_x3aset_x5froot(
     const uint8_t *path_utf8,
     uint64_t path_len)
 {
-  AcquireSRWLockExclusive(&c0_trace_lock);
+  cursive_platform_rwlock_lock_exclusive(&c0_trace_lock);
   if (c0_trace_root_utf8)
   {
     c0_heap_free_raw(c0_trace_root_utf8);
@@ -2034,7 +2041,7 @@ void cursive_x3a_x3aruntime_x3a_x3aconformance_x3a_x3aset_x5froot(
       c0_trace_root_len = path_len;
     }
   }
-  ReleaseSRWLockExclusive(&c0_trace_lock);
+  cursive_platform_rwlock_unlock_exclusive(&c0_trace_lock);
 }
 
 void cursive_x3a_x3aruntime_x3a_x3aconformance_x3a_x3aset_x5flog_x5ffilter(
@@ -2045,7 +2052,7 @@ void cursive_x3a_x3aruntime_x3a_x3aconformance_x3a_x3aset_x5flog_x5ffilter(
   {
     mask = C0_TRACE_FILTER_ALL;
   }
-  InterlockedExchange(&c0_trace_filter_mask, (LONG)mask);
+  cursive_platform_atomic_exchange(&c0_trace_filter_mask, (cursive_platform_i32_t)mask);
 }
 
 void cursive_x3a_x3aruntime_x3a_x3aconformance_x3a_x3aset_x5fmin_x5flevel(
@@ -2056,7 +2063,7 @@ void cursive_x3a_x3aruntime_x3a_x3aconformance_x3a_x3aset_x5fmin_x5flevel(
   {
     clamped = C0_TRACE_LEVEL_ERROR;
   }
-  InterlockedExchange(&c0_trace_min_level, (LONG)clamped);
+  cursive_platform_atomic_exchange(&c0_trace_min_level, (cursive_platform_i32_t)clamped);
 }
 
 static uint64_t c0_format_string_preview(const uint8_t *data,

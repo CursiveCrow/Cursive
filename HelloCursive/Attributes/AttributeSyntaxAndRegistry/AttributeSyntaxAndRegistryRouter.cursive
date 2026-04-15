@@ -1,4 +1,4 @@
-public procedure RunGroup(ctx: Context) -> i32 {
+public procedure runGroup(ctx: Context) -> i32 {
     [[log(label: "attributes-log-section_start", expected: "section-start")]] "section-start"
 
     let status_grammar: i32 = RunAttributeGrammarAndAstAttachment(ctx)
@@ -28,4 +28,3 @@ public procedure RunGroup(ctx: Context) -> i32 {
     [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
     return 0
 }
-

@@ -582,7 +582,7 @@ BindingsResult ItemBindings(const ScopeContext& ctx,
             SPEC_RULE("Import-Path-Err");
             return {false, "Resolve-Import-Err", node.span, {}};
           }
-          const ast::Identifier alias_name = node.alias.value_or(
+          const ast::Identifier alias_name = node.alias_opt.value_or(
               resolved_path->empty() ? ast::Identifier{} : resolved_path->back());
           if (alias_name.empty()) {
             SPEC_RULE("Import-Path-Err");

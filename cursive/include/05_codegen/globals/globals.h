@@ -67,8 +67,8 @@ struct EmitGlobalResult {
   bool needs_runtime_init;
 };
 
-// (Emit-Static-Const): Constant initializer -> GlobalConst
-// (Emit-Static-Init): Non-constant initializer -> GlobalZero
+// (Emit-Static-Const): `let` + constant initializer -> GlobalConst
+// (Emit-Static-Init): `var` or non-constant initializer -> GlobalZero
 // (Emit-Static-Multi): Destructuring pattern -> multiple globals
 EmitGlobalResult EmitGlobal(const ast::StaticDecl& item,
                             const ast::ModulePath& module_path,

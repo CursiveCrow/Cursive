@@ -65,11 +65,18 @@
 
 #include <cstddef>
 
+#include "00_core/assert_spec.h"
 #include "00_core/unicode.h"
 
 namespace cursive::core {
 
 namespace {
+
+void SpecDefsPathStrings() {
+  SPEC_DEF("StringOfPath", "3.4.1");
+  SPEC_DEF("StringOfPathRef", "3.4.1");
+  SPEC_DEF("PathString", "11.5.3");
+}
 
 bool IsAsciiAlnum(unsigned char c) {
   return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') ||
@@ -113,11 +120,23 @@ std::vector<std::string> SplitModulePath(std::string_view path) {
 
 }  // namespace
 
+std::string PathString(const std::vector<std::string>& comps) {
+  SpecDefsPathStrings();
+  return StringOfPath(comps);
+}
+
+std::string PathString(std::initializer_list<std::string_view> comps) {
+  SpecDefsPathStrings();
+  return StringOfPath(comps);
+}
+
 std::string StringOfPath(const std::vector<std::string>& comps) {
+  SpecDefsPathStrings();
   return JoinWithDoubleColon(comps);
 }
 
 std::string StringOfPath(std::initializer_list<std::string_view> comps) {
+  SpecDefsPathStrings();
   if (comps.size() == 0) {
     return "";
   }
@@ -154,7 +173,7 @@ std::string Mangle(std::string_view s) {
 }
 
 std::string PathSig(std::initializer_list<std::string_view> comps) {
-  return Mangle(StringOfPath(comps));
+  return Mangle(PathString(comps));
 }
 
 std::string MangleModulePath(std::string_view module_path) {
@@ -162,7 +181,7 @@ std::string MangleModulePath(std::string_view module_path) {
   for (auto& part : parts) {
     part = NFC(part);
   }
-  return Mangle(StringOfPath(parts));
+  return Mangle(PathString(parts));
 }
 
 }  // namespace cursive::core

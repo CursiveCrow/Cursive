@@ -64,6 +64,7 @@
 // =============================================================================
 
 #include "00_core/spec_trace.h"
+#include "00_core/host/services.h"
 
 #include <array>
 #include <atomic>
@@ -74,13 +75,6 @@
 #include <mutex>
 #include <sstream>
 #include <thread>
-
-#ifdef _WIN32
-#include <process.h>
-#include <windows.h>
-#else
-#include <unistd.h>
-#endif
 
 #include "00_core/path.h"
 
@@ -136,20 +130,11 @@ std::string EncodePayload(std::string_view payload) {
 }
 
 unsigned long CurrentProcessId() {
-#ifdef _WIN32
-  return static_cast<unsigned long>(_getpid());
-#else
-  return static_cast<unsigned long>(getpid());
-#endif
+  return CurrentHostProcessId();
 }
 
 std::uint64_t CurrentThreadId() {
-#ifdef _WIN32
-  return static_cast<std::uint64_t>(::GetCurrentThreadId());
-#else
-  const auto tid = std::this_thread::get_id();
-  return static_cast<std::uint64_t>(std::hash<std::thread::id>{}(tid));
-#endif
+  return CurrentHostThreadId();
 }
 
 std::uint64_t TimestampMs() {

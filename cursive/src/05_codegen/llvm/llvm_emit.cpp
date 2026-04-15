@@ -29,6 +29,7 @@
 #include "05_codegen/llvm/llvm_emit.h"
 
 #include "00_core/process_config.h"
+#include "00_core/host/services.h"
 #include "00_core/spec_trace.h"
 #include "00_core/symbols.h"
 #include "04_analysis/caps/cap_concurrency.h"
@@ -211,6 +212,362 @@ namespace cursive::codegen
       return false;
     }
 
+    llvm::Value *EmitSliceLenFromAddr(LLVMEmitter &emitter,
+                                      llvm::IRBuilder<> &builder,
+                                      const analysis::TypeRef &type,
+                                      llvm::Value *addr)
+    {
+      if (!type || !addr || !addr->getType()->isPointerTy())
+      {
+        return nullptr;
+      }
+
+      analysis::TypeRef normalized = analysis::StripPerm(type);
+      if (!normalized)
+      {
+        normalized = type;
+      }
+
+      if (!std::holds_alternative<analysis::TypeSlice>(normalized->node) &&
+          !std::holds_alternative<analysis::TypeString>(normalized->node) &&
+          !std::holds_alternative<analysis::TypeBytes>(normalized->node))
+      {
+        return nullptr;
+      }
+
+      llvm::Type *slice_ll = emitter.GetLLVMType(normalized);
+      auto *slice_struct_ty = llvm::dyn_cast_or_null<llvm::StructType>(slice_ll);
+      if (!slice_struct_ty || slice_struct_ty->getNumElements() < 2 ||
+          !slice_struct_ty->getElementType(1)->isIntegerTy())
+      {
+        return nullptr;
+      }
+
+      llvm::Value *typed_ptr =
+          builder.CreateBitCast(addr, llvm::PointerType::get(slice_ll, 0));
+      llvm::Value *loaded_slice = builder.CreateLoad(slice_ll, typed_ptr);
+      if (!loaded_slice || !loaded_slice->getType()->isStructTy())
+      {
+        return nullptr;
+      }
+      return builder.CreateExtractValue(loaded_slice, {1u});
+    }
+
+    llvm::Value *EmitIndexLenFromAddr(LLVMEmitter &emitter,
+                                      llvm::IRBuilder<> &builder,
+                                      const analysis::TypeRef &type,
+                                      llvm::Value *addr)
+    {
+      if (!type || !addr)
+      {
+        return nullptr;
+      }
+
+      analysis::TypeRef normalized = analysis::StripPerm(type);
+      if (!normalized)
+      {
+        normalized = type;
+      }
+
+      if (const auto *arr = std::get_if<analysis::TypeArray>(&normalized->node))
+      {
+        return llvm::ConstantInt::get(llvm::Type::getInt64Ty(emitter.GetContext()),
+                                      static_cast<std::uint64_t>(arr->length));
+      }
+
+      return EmitSliceLenFromAddr(emitter, builder, normalized, addr);
+    }
+
+    llvm::Value *EmitSequenceDataPtrFromAddr(LLVMEmitter &emitter,
+                                             llvm::IRBuilder<> &builder,
+                                             const analysis::TypeRef &type,
+                                             llvm::Value *addr)
+    {
+      if (!type || !addr || !addr->getType()->isPointerTy())
+      {
+        return nullptr;
+      }
+
+      analysis::TypeRef normalized = analysis::StripPerm(type);
+      if (!normalized)
+      {
+        normalized = type;
+      }
+
+      if (!std::holds_alternative<analysis::TypeSlice>(normalized->node))
+      {
+        return nullptr;
+      }
+
+      llvm::Type *sequence_ll = emitter.GetLLVMType(normalized);
+      auto *sequence_struct_ty = llvm::dyn_cast_or_null<llvm::StructType>(sequence_ll);
+      if (!sequence_struct_ty || sequence_struct_ty->getNumElements() < 2 ||
+          !sequence_struct_ty->getElementType(0)->isPointerTy())
+      {
+        return nullptr;
+      }
+
+      llvm::Value *typed_ptr =
+          builder.CreateBitCast(addr, llvm::PointerType::get(sequence_ll, 0));
+      llvm::Value *loaded_sequence = builder.CreateLoad(sequence_ll, typed_ptr);
+      if (!loaded_sequence || !loaded_sequence->getType()->isStructTy())
+      {
+        return nullptr;
+      }
+      return builder.CreateExtractValue(loaded_sequence, {0u});
+    }
+
+    struct IndexedSequenceIterState
+    {
+      analysis::TypeRef element_type = nullptr;
+      llvm::Value *length = nullptr;
+      llvm::Value *array_ptr = nullptr;
+      llvm::ArrayType *array_type = nullptr;
+      llvm::Value *data_ptr = nullptr;
+    };
+
+    struct IndexedSequenceLoweredIterState
+    {
+      IndexedSequenceIterState iter;
+      llvm::AllocaInst *idx_slot = nullptr;
+      llvm::AllocaInst *elem_slot = nullptr;
+    };
+
+    bool PrepareIndexedSequenceIter(LLVMEmitter &emitter,
+                                    llvm::IRBuilder<> &entry_builder,
+                                    llvm::IRBuilder<> &builder,
+                                    const analysis::TypeRef &type,
+                                    llvm::Value *value,
+                                    IndexedSequenceIterState &out)
+    {
+      if (!type || !value)
+      {
+        return false;
+      }
+
+      analysis::TypeRef normalized = analysis::StripPerm(type);
+      if (!normalized)
+      {
+        normalized = type;
+      }
+
+      llvm::Type *i64_ty = llvm::Type::getInt64Ty(emitter.GetContext());
+
+      if (const auto *arr = std::get_if<analysis::TypeArray>(&normalized->node))
+      {
+        out.element_type = arr->element;
+        out.length = llvm::ConstantInt::get(
+            i64_ty, static_cast<std::uint64_t>(arr->length));
+
+        if (auto *array_ty = llvm::dyn_cast<llvm::ArrayType>(value->getType()))
+        {
+          llvm::AllocaInst *array_slot =
+              entry_builder.CreateAlloca(array_ty, nullptr, "iter.value.slot");
+          builder.CreateStore(value, array_slot);
+          out.array_ptr = array_slot;
+          out.array_type = array_ty;
+          return true;
+        }
+
+        llvm::Type *array_ll = emitter.GetLLVMType(normalized);
+        auto *array_ty = llvm::dyn_cast_or_null<llvm::ArrayType>(array_ll);
+        if (array_ty && value->getType()->isPointerTy())
+        {
+          out.array_ptr =
+              builder.CreateBitCast(value, llvm::PointerType::get(array_ty, 0));
+          out.array_type = array_ty;
+          return true;
+        }
+
+        return false;
+      }
+
+      if (const auto *slice = std::get_if<analysis::TypeSlice>(&normalized->node))
+      {
+        out.element_type = slice->element;
+
+        llvm::Value *len = nullptr;
+        llvm::Value *data_ptr = nullptr;
+        if (value->getType()->isStructTy())
+        {
+          len = builder.CreateExtractValue(value, {1u});
+          data_ptr = builder.CreateExtractValue(value, {0u});
+        }
+        else if (value->getType()->isPointerTy())
+        {
+          len = EmitSliceLenFromAddr(emitter, builder, normalized, value);
+          data_ptr = EmitSequenceDataPtrFromAddr(emitter, builder, normalized, value);
+        }
+
+        if (!len || !len->getType()->isIntegerTy() || !data_ptr ||
+            !data_ptr->getType()->isPointerTy())
+        {
+          return false;
+        }
+
+        if (len->getType()->getIntegerBitWidth() != 64)
+        {
+          len = builder.CreateIntCast(len, i64_ty, false);
+        }
+
+        out.length = len;
+        out.data_ptr = data_ptr;
+        return true;
+      }
+
+      return false;
+    }
+
+    llvm::Value *EmitIndexedSequenceElem(LLVMEmitter &emitter,
+                                         llvm::IRBuilder<> &builder,
+                                         const IndexedSequenceIterState &iter,
+                                         llvm::Value *index);
+
+    bool EmitSeqIterInit(LLVMEmitter &emitter,
+                         llvm::IRBuilder<> &entry_builder,
+                         llvm::IRBuilder<> &builder,
+                         const analysis::TypeRef &type,
+                         llvm::Value *value,
+                         IndexedSequenceLoweredIterState &out)
+    {
+      IndexedSequenceIterState prepared;
+      if (!PrepareIndexedSequenceIter(
+              emitter, entry_builder, builder, type, value, prepared))
+      {
+        return false;
+      }
+
+      llvm::Type *elem_ll = emitter.GetLLVMType(prepared.element_type);
+      if (!elem_ll || elem_ll->isVoidTy())
+      {
+        return false;
+      }
+
+      llvm::Type *i64_ty = llvm::Type::getInt64Ty(emitter.GetContext());
+      out.iter = std::move(prepared);
+      out.idx_slot =
+          entry_builder.CreateAlloca(i64_ty, nullptr, "iter.seq.idx");
+      out.elem_slot =
+          entry_builder.CreateAlloca(elem_ll, nullptr, "iter.seq.elem");
+      builder.CreateStore(llvm::ConstantInt::get(i64_ty, 0), out.idx_slot);
+      builder.CreateStore(llvm::Constant::getNullValue(elem_ll), out.elem_slot);
+      return true;
+    }
+
+    llvm::Value *EmitSeqIterNext(LLVMEmitter &emitter,
+                                 llvm::IRBuilder<> &builder,
+                                 const IndexedSequenceLoweredIterState &iter)
+    {
+      if (!iter.idx_slot || !iter.elem_slot || !iter.iter.length ||
+          !iter.iter.length->getType()->isIntegerTy())
+      {
+        return llvm::ConstantInt::getFalse(emitter.GetContext());
+      }
+
+      llvm::Function *func = builder.GetInsertBlock()
+                                 ? builder.GetInsertBlock()->getParent()
+                                 : nullptr;
+      if (!func)
+      {
+        return llvm::ConstantInt::getFalse(emitter.GetContext());
+      }
+
+      llvm::Type *i64_ty = llvm::Type::getInt64Ty(emitter.GetContext());
+      llvm::Value *idx_cur = builder.CreateLoad(i64_ty, iter.idx_slot);
+      llvm::Value *iter_len = iter.iter.length;
+      if (iter_len->getType()->getIntegerBitWidth() != 64)
+      {
+        iter_len = builder.CreateIntCast(iter_len, i64_ty, false);
+      }
+      llvm::Value *in_range = builder.CreateICmpULT(idx_cur, iter_len);
+
+      llvm::BasicBlock *next_ok =
+          llvm::BasicBlock::Create(emitter.GetContext(), "iter.seq.next.ok", func);
+      llvm::BasicBlock *next_done =
+          llvm::BasicBlock::Create(emitter.GetContext(), "iter.seq.next.done", func);
+      llvm::BasicBlock *next_cont =
+          llvm::BasicBlock::Create(emitter.GetContext(), "iter.seq.next.cont", func);
+
+      builder.CreateCondBr(in_range, next_ok, next_done);
+
+      builder.SetInsertPoint(next_ok);
+      llvm::Value *elem = EmitIndexedSequenceElem(emitter, builder, iter.iter, idx_cur);
+      if (!elem)
+      {
+        elem = llvm::Constant::getNullValue(iter.elem_slot->getAllocatedType());
+      }
+      builder.CreateStore(elem, iter.elem_slot);
+      llvm::Value *idx_next =
+          builder.CreateAdd(idx_cur, llvm::ConstantInt::get(i64_ty, 1));
+      builder.CreateStore(idx_next, iter.idx_slot);
+      builder.CreateBr(next_cont);
+
+      builder.SetInsertPoint(next_done);
+      builder.CreateBr(next_cont);
+
+      builder.SetInsertPoint(next_cont);
+      llvm::PHINode *has_value =
+          builder.CreatePHI(llvm::Type::getInt1Ty(emitter.GetContext()), 2);
+      has_value->addIncoming(
+          llvm::ConstantInt::getTrue(emitter.GetContext()), next_ok);
+      has_value->addIncoming(
+          llvm::ConstantInt::getFalse(emitter.GetContext()), next_done);
+      return has_value;
+    }
+
+    llvm::Value *LoadSeqIterElem(llvm::IRBuilder<> &builder,
+                                 const IndexedSequenceLoweredIterState &iter)
+    {
+      if (!iter.elem_slot)
+      {
+        return nullptr;
+      }
+      return builder.CreateLoad(iter.elem_slot->getAllocatedType(), iter.elem_slot);
+    }
+
+    llvm::Value *EmitIndexedSequenceElem(LLVMEmitter &emitter,
+                                         llvm::IRBuilder<> &builder,
+                                         const IndexedSequenceIterState &iter,
+                                         llvm::Value *index)
+    {
+      if (!iter.element_type || !index || !index->getType()->isIntegerTy())
+      {
+        return nullptr;
+      }
+
+      llvm::Type *elem_ll = emitter.GetLLVMType(iter.element_type);
+      if (!elem_ll)
+      {
+        return nullptr;
+      }
+
+      llvm::Value *i64_index = index;
+      llvm::Type *i64_ty = llvm::Type::getInt64Ty(emitter.GetContext());
+      if (i64_index->getType()->getIntegerBitWidth() != 64)
+      {
+        i64_index = builder.CreateIntCast(i64_index, i64_ty, false);
+      }
+
+      if (iter.array_ptr && iter.array_type)
+      {
+        llvm::Value *zero = llvm::ConstantInt::get(i64_ty, 0);
+        llvm::Value *elem_ptr = builder.CreateInBoundsGEP(
+            iter.array_type, iter.array_ptr, {zero, i64_index});
+        return builder.CreateLoad(elem_ll, elem_ptr);
+      }
+
+      if (iter.data_ptr && iter.data_ptr->getType()->isPointerTy())
+      {
+        llvm::Value *typed_data_ptr = builder.CreateBitCast(
+            iter.data_ptr, llvm::PointerType::get(elem_ll, 0));
+        llvm::Value *elem_ptr =
+            builder.CreateInBoundsGEP(elem_ll, typed_data_ptr, i64_index);
+        return builder.CreateLoad(elem_ll, elem_ptr);
+      }
+
+      return nullptr;
+    }
+
     llvm::GlobalValue::LinkageTypes ProcLLVMLinkageFor(const LowerCtx *ctx,
                                                        std::string_view symbol)
     {
@@ -286,10 +643,10 @@ namespace cursive::codegen
     {
       static const bool enabled = []
       {
-        if (const char *env = std::getenv("CURSIVE_EMIT_PERF");
-            env != nullptr && *env != '\0')
+        if (const auto env = core::HostGetEnvUtf8("CURSIVE_EMIT_PERF");
+            env.has_value() && !env->empty())
         {
-          return !IsDisabledPerfValue(env);
+          return !IsDisabledPerfValue(env->c_str());
         }
         return core::IsDebugEnabled("codegen") || core::IsDebugEnabled("pipeline");
       }();
@@ -345,12 +702,12 @@ namespace cursive::codegen
     {
       static const long long threshold = []
       {
-        if (const char *env = std::getenv("CURSIVE_EMIT_PERF_SLOW_DECL_MS");
-            env != nullptr && *env != '\0')
+        if (const auto env = core::HostGetEnvUtf8("CURSIVE_EMIT_PERF_SLOW_DECL_MS");
+            env.has_value() && !env->empty())
         {
           char *end = nullptr;
-          const long parsed = std::strtol(env, &end, 10);
-          if (end != env && parsed >= 0)
+          const long parsed = std::strtol(env->c_str(), &end, 10);
+          if (end != env->c_str() && parsed >= 0)
           {
             return static_cast<long long>(parsed);
           }
@@ -364,12 +721,12 @@ namespace cursive::codegen
     {
       static const long long threshold = []
       {
-        if (const char *env = std::getenv("CURSIVE_EMIT_PERF_SLOW_PROC_MS");
-            env != nullptr && *env != '\0')
+        if (const auto env = core::HostGetEnvUtf8("CURSIVE_EMIT_PERF_SLOW_PROC_MS");
+            env.has_value() && !env->empty())
         {
           char *end = nullptr;
-          const long parsed = std::strtol(env, &end, 10);
-          if (end != env && parsed >= 0)
+          const long parsed = std::strtol(env->c_str(), &end, 10);
+          if (end != env->c_str() && parsed >= 0)
           {
             return static_cast<long long>(parsed);
           }
@@ -416,10 +773,10 @@ namespace cursive::codegen
     {
       static const bool enabled = []
       {
-        if (const char *env = std::getenv("CURSIVE_EMIT_PERF_PROC_ALL");
-            env != nullptr && *env != '\0')
+        if (const auto env = core::HostGetEnvUtf8("CURSIVE_EMIT_PERF_PROC_ALL");
+            env.has_value() && !env->empty())
         {
-          return !IsDisabledPerfValue(env);
+          return !IsDisabledPerfValue(env->c_str());
         }
         return false;
       }();
@@ -516,7 +873,7 @@ namespace cursive::codegen
       long long child_ms = 0;
     };
 
-    constexpr std::size_t kIRNodePerfKindCount = 57;
+    constexpr std::size_t kIRNodePerfKindCount = 59;
 
     struct IRProcPerfContext
     {
@@ -577,6 +934,8 @@ namespace cursive::codegen
           "IRParallel",
           "IRSpawn",
           "IRWait",
+          "IRCancelCheck",
+          "IRCancelSuppress",
           "IRDispatch",
           "IRYield",
           "IRYieldFrom",
@@ -930,6 +1289,58 @@ namespace cursive::codegen
         }
       }
       return fallback;
+    }
+
+    struct AsyncStateDiscs
+    {
+      std::uint64_t suspended = 0;
+      std::uint64_t completed = 1;
+      std::optional<std::uint64_t> failed;
+    };
+
+    AsyncStateDiscs LoweredAsyncStateDiscs(
+        const analysis::ScopeContext &scope,
+        const std::optional<LoweredAsyncType> &lowered)
+    {
+      AsyncStateDiscs discs;
+      if (lowered.has_value())
+      {
+        for (std::size_t i = 0; i < lowered->states.size(); ++i)
+        {
+          if (lowered->states[i] == "Suspended")
+          {
+            discs.suspended = static_cast<std::uint64_t>(i);
+          }
+          else if (lowered->states[i] == "Completed")
+          {
+            discs.completed = static_cast<std::uint64_t>(i);
+          }
+          else if (lowered->states[i] == "Failed")
+          {
+            discs.failed = static_cast<std::uint64_t>(i);
+          }
+        }
+        return discs;
+      }
+
+      discs.suspended = AsyncStateIndexOrDefault(scope, "Suspended", 0);
+      discs.completed = AsyncStateIndexOrDefault(scope, "Completed", 1);
+      discs.failed = AsyncStateIndexOrDefault(scope, "Failed", 2);
+      return discs;
+    }
+
+    AsyncStateDiscs LoweredAsyncStateDiscs(
+        const analysis::ScopeContext &scope,
+        const analysis::TypeRef &async_type)
+    {
+      return LoweredAsyncStateDiscs(scope, LowerAsyncType(async_type));
+    }
+
+    AsyncStateDiscs LoweredAsyncStateDiscs(
+        const analysis::ScopeContext &scope,
+        const analysis::AsyncSig &sig)
+    {
+      return LoweredAsyncStateDiscs(scope, LowerAsyncType(sig));
     }
 
     constexpr std::uint64_t kAsyncPayloadFramePtrOffset = 8;
@@ -1298,6 +1709,67 @@ namespace cursive::codegen
       }
 
       return store_to_ptr(func->getArg(0));
+    }
+
+    llvm::Value *ResolveProcedureOutPtr(LLVMEmitter &emitter,
+                                        llvm::IRBuilder<> *builder,
+                                        llvm::Function *func,
+                                        const std::string &symbol,
+                                        const LowerCtx::ProcSigInfo *sig)
+    {
+      if (!builder || !func || !sig)
+      {
+        return nullptr;
+      }
+
+      llvm::Type *out_ty = emitter.GetLLVMType(sig->ret);
+      if (!out_ty || out_ty->isVoidTy())
+      {
+        return nullptr;
+      }
+
+      auto normalize_out_ptr = [&](llvm::Value *out_ptr) -> llvm::Value *
+      {
+        if (!out_ptr)
+        {
+          return nullptr;
+        }
+
+        llvm::Type *target_ptr_ty = llvm::PointerType::get(out_ty, 0);
+        if (out_ptr->getType()->isIntegerTy())
+        {
+          out_ptr = builder->CreateIntToPtr(out_ptr, target_ptr_ty);
+        }
+        else
+        {
+          llvm::Value *coerced = CoerceTo(builder, out_ptr, target_ptr_ty);
+          if (coerced)
+          {
+            out_ptr = coerced;
+          }
+          else if (out_ptr->getType()->isPointerTy())
+          {
+            out_ptr = builder->CreateBitCast(out_ptr, target_ptr_ty);
+          }
+        }
+
+        return (out_ptr && out_ptr->getType()->isPointerTy()) ? out_ptr : nullptr;
+      };
+
+      if (HasNamedParam(sig->params, kAsyncOutParamName))
+      {
+        llvm::Value *explicit_out =
+            LoadLocalValue(emitter, builder, std::string(kAsyncOutParamName));
+        return normalize_out_ptr(explicit_out);
+      }
+
+      ABICallResult abi = emitter.ComputeProcABI(symbol, sig->params, sig->ret);
+      if (!abi.has_sret || func->arg_size() == 0)
+      {
+        return nullptr;
+      }
+
+      return normalize_out_ptr(func->getArg(0));
     }
 
     std::optional<std::size_t> ParseTupleFieldIndex(std::string_view text)
@@ -2374,10 +2846,7 @@ namespace cursive::codegen
   }
 
   // T-LLVM-001: Set module header (triple, datalayout)
-  void LLVMEmitter::SetupModule()
-  {
-    SetupModuleHeader(*module_, target_profile_);
-  }
+
 
   // T-LLVM-002: Opaque Pointer Model
   llvm::Type *LLVMEmitter::GetOpaquePtr()
@@ -3045,327 +3514,13 @@ namespace cursive::codegen
     return ll_ty;
   }
 
-  // T-LLVM-006: Runtime Declarations
-  void LLVMEmitter::DeclareRuntime()
-  {
-    // Declare essential runtime functions
-    // Actual runtime declarations depend on what the runtime provides
-    // The current backend relies on runtime symbols linked from the staged
-    // runtime archive.
-  }
 
-  bool LLVMEmitter::IsHostedLibraryBuild() const
-  {
-    return current_ctx_ && current_ctx_->hosted_library;
-  }
 
-  bool LLVMEmitter::RequiresHostedEnvParam(const std::string &symbol) const
-  {
-    if (!IsHostedLibraryBuild() || symbol.empty() || !current_ctx_)
-    {
-      return false;
-    }
-    return current_ctx_->hosted_explicit_env_procs.find(symbol) !=
-           current_ctx_->hosted_explicit_env_procs.end();
-  }
 
-  bool LLVMEmitter::HasHostedStateSlot(const std::string &symbol) const
-  {
-    if (!IsHostedLibraryBuild() || symbol.empty())
-    {
-      return false;
-    }
-    return hosted_layout_.slots.find(symbol) != hosted_layout_.slots.end();
-  }
 
-  ABICallResult LLVMEmitter::ComputeProcABI(
-      const std::string &symbol,
-      const std::vector<IRParam> &params,
-      analysis::TypeRef ret_type,
-      bool use_c_abi_aggregate_sret,
-      bool foreign_boundary_mode_independent)
-  {
-    std::vector<IRParam> augmented = params;
-    if (RequiresHostedEnvParam(symbol) && !HasLeadingHostedEnvParam(augmented))
-    {
-      augmented.insert(augmented.begin(), HostedEnvParam());
-    }
 
-    analysis::TypeRef abi_ret = ret_type;
-    if (const LowerCtx::AsyncProcInfo *async_info =
-            current_ctx_ ? current_ctx_->LookupAsyncProc(symbol) : nullptr;
-        async_info && async_info->is_resume &&
-        HasNamedParam(augmented, kAsyncOutParamName))
-    {
-      abi_ret = analysis::MakeTypePrim("()");
-    }
 
-    if (!use_c_abi_aggregate_sret && current_ctx_)
-    {
-      if (const auto *sig = current_ctx_->LookupProcSig(symbol);
-          sig && sig->abi.has_value())
-      {
-        use_c_abi_aggregate_sret = true;
-        foreign_boundary_mode_independent = true;
-      }
-    }
 
-    return ComputeCallABI(augmented,
-                          abi_ret,
-                          use_c_abi_aggregate_sret,
-                          foreign_boundary_mode_independent);
-  }
-
-  llvm::Value *LLVMEmitter::GetHostedCurrentEnvPtr()
-  {
-    if (!IsHostedLibraryBuild())
-    {
-      return nullptr;
-    }
-    if (hosted_env_value_)
-    {
-      return hosted_env_value_;
-    }
-    auto *builder = static_cast<llvm::IRBuilder<> *>(builder_.get());
-    if (!builder || !builder->GetInsertBlock())
-    {
-      return nullptr;
-    }
-    llvm::Type *opaque_ptr_ty = GetOpaquePtr();
-    if (!opaque_ptr_ty)
-    {
-      return nullptr;
-    }
-    llvm::Function *fn = module_->getFunction(kHostRuntimeCurrentEnvSym);
-    if (!fn)
-    {
-      llvm::FunctionType *fn_ty =
-          llvm::FunctionType::get(opaque_ptr_ty, {}, false);
-      fn = llvm::Function::Create(
-          fn_ty,
-          llvm::GlobalValue::ExternalLinkage,
-          kHostRuntimeCurrentEnvSym,
-          module_.get());
-      fn->setCallingConv(llvm::CallingConv::C);
-    }
-    llvm::CallInst *call = builder->CreateCall(fn->getFunctionType(), fn, {});
-    call->setCallingConv(fn->getCallingConv());
-    return call;
-  }
-
-  llvm::Value *LLVMEmitter::GetSharedLibraryImagePanicPtr(
-      llvm::Value *fallback_ptr)
-  {
-    if (!current_ctx_ || !current_ctx_->shared_library_project)
-    {
-      return fallback_ptr;
-    }
-    llvm::Type *panic_ty = GetLLVMType(PanicRecordType());
-    if (!panic_ty)
-    {
-      return fallback_ptr;
-    }
-
-    llvm::GlobalVariable *panic_gv =
-        module_->getNamedGlobal(kImagePanicRecordSym);
-    if (!panic_gv)
-    {
-      panic_gv = new llvm::GlobalVariable(
-          *module_,
-          panic_ty,
-          false,
-          llvm::GlobalValue::CommonLinkage,
-          llvm::Constant::getNullValue(panic_ty),
-          kImagePanicRecordSym);
-      panic_gv->setAlignment(llvm::Align(4));
-    }
-    return panic_gv ? static_cast<llvm::Value *>(panic_gv) : fallback_ptr;
-  }
-
-  llvm::Value *LLVMEmitter::GetHostedStatePtr(const std::string &symbol,
-                                              llvm::Type *value_ty,
-                                              llvm::Value *fallback_ptr)
-  {
-    if (!IsHostedLibraryBuild() || !value_ty)
-    {
-      return fallback_ptr;
-    }
-    const auto it = hosted_layout_.slots.find(symbol);
-    if (it == hosted_layout_.slots.end())
-    {
-      return fallback_ptr;
-    }
-    auto *builder = static_cast<llvm::IRBuilder<> *>(builder_.get());
-    if (!builder || !builder->GetInsertBlock())
-    {
-      return fallback_ptr;
-    }
-
-    llvm::Type *ptr_ty = llvm::PointerType::get(value_ty, 0);
-    auto coerce_fallback = [&]() -> llvm::Value * {
-      if (!fallback_ptr)
-      {
-        return nullptr;
-      }
-      llvm::Value *typed_fallback = CoerceTo(builder, fallback_ptr, ptr_ty);
-      if (!typed_fallback && fallback_ptr->getType()->isPointerTy())
-      {
-        typed_fallback = builder->CreateBitCast(fallback_ptr, ptr_ty);
-      }
-      return typed_fallback;
-    };
-
-    llvm::Value *env = GetHostedCurrentEnvPtr();
-    if (!env)
-    {
-      return coerce_fallback();
-    }
-
-    llvm::Type *i8_ty = llvm::Type::getInt8Ty(context_);
-    llvm::Value *env_i8 = CoerceTo(builder, env, llvm::PointerType::get(i8_ty, 0));
-    if (!env_i8)
-    {
-      env_i8 = builder->CreateBitCast(env, llvm::PointerType::get(i8_ty, 0));
-    }
-
-    auto build_slot_ptr = [&](llvm::Value *session_env_i8) -> llvm::Value * {
-      llvm::Value *slot_ptr = session_env_i8;
-      if (it->second.offset != 0u)
-      {
-        slot_ptr = builder->CreateInBoundsGEP(
-            i8_ty,
-            session_env_i8,
-            llvm::ConstantInt::get(llvm::Type::getInt64Ty(context_),
-                                   it->second.offset));
-      }
-      return builder->CreateBitCast(slot_ptr, ptr_ty);
-    };
-
-    llvm::Value *typed_fallback = coerce_fallback();
-    if (!typed_fallback)
-    {
-      return build_slot_ptr(env_i8);
-    }
-
-    llvm::Function *fn = builder->GetInsertBlock()->getParent();
-    llvm::BasicBlock *session_bb =
-        llvm::BasicBlock::Create(context_, "hosted.state.session", fn);
-    llvm::BasicBlock *fallback_bb =
-        llvm::BasicBlock::Create(context_, "hosted.state.fallback", fn);
-    llvm::BasicBlock *merge_bb =
-        llvm::BasicBlock::Create(context_, "hosted.state.merge", fn);
-    llvm::Value *has_env = builder->CreateICmpNE(
-        env_i8,
-        llvm::ConstantPointerNull::get(
-            llvm::cast<llvm::PointerType>(env_i8->getType())));
-    builder->CreateCondBr(has_env, session_bb, fallback_bb);
-
-    builder->SetInsertPoint(session_bb);
-    llvm::Value *session_ptr = build_slot_ptr(env_i8);
-    builder->CreateBr(merge_bb);
-    session_bb = builder->GetInsertBlock();
-
-    builder->SetInsertPoint(fallback_bb);
-    builder->CreateBr(merge_bb);
-    fallback_bb = builder->GetInsertBlock();
-
-    builder->SetInsertPoint(merge_bb);
-    llvm::PHINode *phi = builder->CreatePHI(ptr_ty, 2);
-    phi->addIncoming(session_ptr, session_bb);
-    phi->addIncoming(typed_fallback, fallback_bb);
-    return phi;
-  }
-
-  llvm::Value *LLVMEmitter::GetHostedSessionPanicPtr(llvm::Value *fallback_ptr)
-  {
-    if (!IsHostedLibraryBuild())
-    {
-      return fallback_ptr;
-    }
-    auto *builder = static_cast<llvm::IRBuilder<> *>(builder_.get());
-    if (!builder || !builder->GetInsertBlock())
-    {
-      return fallback_ptr;
-    }
-    llvm::Type *panic_ty = GetLLVMType(PanicRecordType());
-    if (!panic_ty)
-    {
-      return fallback_ptr;
-    }
-    llvm::Type *panic_ptr_ty = llvm::PointerType::get(panic_ty, 0);
-    auto coerce_fallback = [&]() -> llvm::Value * {
-      if (!fallback_ptr)
-      {
-        return nullptr;
-      }
-      llvm::Value *typed_fallback = CoerceTo(builder, fallback_ptr, panic_ptr_ty);
-      if (!typed_fallback && fallback_ptr->getType()->isPointerTy())
-      {
-        typed_fallback = builder->CreateBitCast(fallback_ptr, panic_ptr_ty);
-      }
-      return typed_fallback;
-    };
-
-    llvm::Value *env = GetHostedCurrentEnvPtr();
-    if (!env)
-    {
-      return coerce_fallback();
-    }
-
-    llvm::Type *i8_ty = llvm::Type::getInt8Ty(context_);
-    llvm::Value *env_i8 = CoerceTo(builder, env, llvm::PointerType::get(i8_ty, 0));
-    if (!env_i8)
-    {
-      env_i8 = builder->CreateBitCast(env, llvm::PointerType::get(i8_ty, 0));
-    }
-
-    auto build_session_panic_ptr = [&](llvm::Value *session_env_i8) -> llvm::Value * {
-      llvm::Value *panic_i8 = session_env_i8;
-      if (hosted_layout_.panic_offset != 0u)
-      {
-        panic_i8 = builder->CreateInBoundsGEP(
-            i8_ty,
-            session_env_i8,
-            llvm::ConstantInt::get(llvm::Type::getInt64Ty(context_),
-                                   hosted_layout_.panic_offset));
-      }
-      return builder->CreateBitCast(panic_i8, panic_ptr_ty);
-    };
-
-    llvm::Value *typed_fallback = coerce_fallback();
-    if (!typed_fallback)
-    {
-      return build_session_panic_ptr(env_i8);
-    }
-
-    llvm::Function *fn = builder->GetInsertBlock()->getParent();
-    llvm::BasicBlock *session_bb =
-        llvm::BasicBlock::Create(context_, "hosted.panic.session", fn);
-    llvm::BasicBlock *fallback_bb =
-        llvm::BasicBlock::Create(context_, "hosted.panic.fallback", fn);
-    llvm::BasicBlock *merge_bb =
-        llvm::BasicBlock::Create(context_, "hosted.panic.merge", fn);
-    llvm::Value *has_env = builder->CreateICmpNE(
-        env_i8,
-        llvm::ConstantPointerNull::get(
-            llvm::cast<llvm::PointerType>(env_i8->getType())));
-    builder->CreateCondBr(has_env, session_bb, fallback_bb);
-
-    builder->SetInsertPoint(session_bb);
-    llvm::Value *session_ptr = build_session_panic_ptr(env_i8);
-    builder->CreateBr(merge_bb);
-    session_bb = builder->GetInsertBlock();
-
-    builder->SetInsertPoint(fallback_bb);
-    builder->CreateBr(merge_bb);
-    fallback_bb = builder->GetInsertBlock();
-
-    builder->SetInsertPoint(merge_bb);
-    llvm::PHINode *phi = builder->CreatePHI(panic_ptr_ty, 2);
-    phi->addIncoming(session_ptr, session_bb);
-    phi->addIncoming(typed_fallback, fallback_bb);
-    return phi;
-  }
 
   // T-LLVM-011: Call ABI
   ABICallResult LLVMEmitter::ComputeCallABI(const std::vector<IRParam> &params,
@@ -3562,552 +3717,7 @@ namespace cursive::codegen
   }
 
   // T-LLVM-008: Emit the full module
-  llvm::Module *LLVMEmitter::EmitModule(const IRDecls &decls, LowerCtx &ctx)
-  {
-    SPEC_RULE("LowerIR-Module");
-    SPEC_RULE("EmitLLVM-Ok");
-    current_ctx_ = &ctx;
-    using Clock = std::chrono::steady_clock;
 
-    const bool perf_enabled = EmitPerfLoggingEnabled();
-    const long long slow_decl_threshold_ms =
-        perf_enabled ? EmitPerfSlowDeclThresholdMs() : 0;
-    const std::string perf_module_label =
-        perf_enabled ? ModulePerfLabel(ctx) : std::string();
-    const auto module_start = perf_enabled ? Clock::now() : Clock::time_point{};
-    auto phase_start = module_start;
-    long long setup_ms = 0;
-    long long declare_runtime_ms = 0;
-    long long declare_functions_ms = 0;
-    long long emit_defs_ms = 0;
-    long long entrypoint_ms = 0;
-    long long debug_ir_dump_ms = 0;
-
-    std::size_t pass1_proc_count = 0;
-    std::size_t pass1_extern_count = 0;
-    std::size_t pass1_reused = 0;
-    std::size_t pass1_created = 0;
-    std::size_t pass1_signature_mismatch = 0;
-    std::array<DeclPerfBucket, static_cast<std::size_t>(DeclPerfKind::Count)>
-        decl_perf{};
-
-    SetupModule();
-    if (perf_enabled)
-    {
-      const auto now = Clock::now();
-      setup_ms = ElapsedMs(phase_start, now);
-      phase_start = now;
-    }
-
-    DeclareRuntime();
-    if (perf_enabled)
-    {
-      const auto now = Clock::now();
-      declare_runtime_ms = ElapsedMs(phase_start, now);
-      phase_start = now;
-    }
-
-    hosted_layout_ = HostedSessionLayout{};
-    hosted_env_value_ = nullptr;
-    if (ctx.hosted_library)
-    {
-      const analysis::ScopeContext &scope = BuildScope(&ctx);
-      const analysis::TypeRef context_type = analysis::MakeTypePath({"Context"});
-      const analysis::TypeRef panic_type = PanicRecordType();
-      const std::optional<std::uint64_t> ctx_size = SizeOf(scope, context_type);
-      const std::optional<std::uint64_t> ctx_align = AlignOf(scope, context_type);
-      const std::optional<std::uint64_t> panic_size = SizeOf(scope, panic_type);
-      const std::optional<std::uint64_t> panic_align = AlignOf(scope, panic_type);
-
-      hosted_layout_.active = true;
-      hosted_layout_.align = 1u;
-      hosted_layout_.size = 0u;
-
-      auto reserve_slot = [&](const std::string &symbol,
-                              std::uint64_t size,
-                              std::uint64_t align,
-                              bool zero_init,
-                              std::vector<std::uint8_t> bytes) {
-        HostedStateSlot slot;
-        slot.align = std::max<std::uint64_t>(1u, align);
-        slot.size = size;
-        slot.zero_init = zero_init;
-        slot.bytes = std::move(bytes);
-        hosted_layout_.size = AlignUpU64(hosted_layout_.size, slot.align);
-        slot.offset = hosted_layout_.size;
-        hosted_layout_.size += slot.size;
-        hosted_layout_.align = std::max(hosted_layout_.align, slot.align);
-        hosted_layout_.slots.emplace(symbol, std::move(slot));
-      };
-
-      hosted_layout_.context_offset =
-          AlignUpU64(hosted_layout_.size, std::max<std::uint64_t>(1u, ctx_align.value_or(1u)));
-      hosted_layout_.size = hosted_layout_.context_offset + ctx_size.value_or(0u);
-      hosted_layout_.align =
-          std::max(hosted_layout_.align, std::max<std::uint64_t>(1u, ctx_align.value_or(1u)));
-
-      hosted_layout_.panic_offset =
-          AlignUpU64(hosted_layout_.size, std::max<std::uint64_t>(1u, panic_align.value_or(1u)));
-      hosted_layout_.size = hosted_layout_.panic_offset + panic_size.value_or(0u);
-      hosted_layout_.align =
-          std::max(hosted_layout_.align, std::max<std::uint64_t>(1u, panic_align.value_or(1u)));
-
-      std::vector<std::string> template_symbols;
-      template_symbols.reserve(ctx.hosted_state_templates.size());
-      for (const auto &[symbol, _tmpl] : ctx.hosted_state_templates)
-      {
-        template_symbols.push_back(symbol);
-      }
-      std::sort(template_symbols.begin(), template_symbols.end());
-      for (const auto &symbol : template_symbols)
-      {
-        const auto tmpl_it = ctx.hosted_state_templates.find(symbol);
-        if (tmpl_it == ctx.hosted_state_templates.end())
-        {
-          continue;
-        }
-        reserve_slot(symbol,
-                     tmpl_it->second.size,
-                     tmpl_it->second.align,
-                     tmpl_it->second.zero_init,
-                     tmpl_it->second.bytes);
-      }
-
-      for (const auto &module_key : ctx.hosted_project_modules)
-      {
-        std::vector<std::string> full = {"cursive", "runtime", "poison"};
-        const auto path = SplitModulePathKey(module_key);
-        full.insert(full.end(), path.begin(), path.end());
-        const std::string poison_sym = core::Mangle(core::StringOfPath(full));
-        if (hosted_layout_.slots.find(poison_sym) == hosted_layout_.slots.end())
-        {
-          reserve_slot(poison_sym, 1u, 1u, true, {});
-        }
-      }
-
-      hosted_layout_.size = AlignUpU64(hosted_layout_.size, hosted_layout_.align);
-    }
-
-    // Pass 1: declare all functions
-    for (const auto &decl : decls)
-    {
-      if (auto *proc = std::get_if<ProcIR>(&decl))
-      {
-        ++pass1_proc_count;
-        ABICallResult abi = ComputeProcABI(proc->symbol, proc->params, proc->ret);
-        llvm::FunctionType *ft = abi.func_type;
-        llvm::GlobalValue::LinkageTypes linkage =
-            ProcLLVMLinkageFor(current_ctx_, proc->symbol);
-        if (!ft)
-        {
-          ft = llvm::FunctionType::get(llvm::Type::getVoidTy(context_), {}, false);
-        }
-
-        llvm::Function *f = module_->getFunction(proc->symbol);
-        if (f)
-        {
-          ++pass1_reused;
-          if (f->getFunctionType() != ft && current_ctx_)
-          {
-            ++pass1_signature_mismatch;
-            std::string existing_ty_text;
-            std::string expected_ty_text;
-            {
-              llvm::raw_string_ostream existing_os(existing_ty_text);
-              f->getFunctionType()->print(existing_os);
-            }
-            {
-              llvm::raw_string_ostream expected_os(expected_ty_text);
-              ft->print(expected_os);
-            }
-            std::cerr << "[cursive] pass1 signature mismatch kind=proc symbol="
-                      << proc->symbol << " existing=" << existing_ty_text
-                      << " expected=" << expected_ty_text << "\n";
-            current_ctx_->ReportCodegenFailure();
-          }
-        }
-        else
-        {
-          f = llvm::Function::Create(
-              ft, linkage, proc->symbol, module_.get());
-          ++pass1_created;
-        }
-        f->setLinkage(linkage);
-        f->setCallingConv(CallingConvForAbi(proc->abi));
-        ApplyProcFunctionAttrs(*proc, f);
-
-        if (IsDropGlueSymbol(proc->symbol))
-        {
-          f->setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
-          f->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
-          if (auto *comdat = module_->getOrInsertComdat(proc->symbol))
-          {
-            comdat->setSelectionKind(llvm::Comdat::Any);
-            f->setComdat(comdat);
-          }
-        }
-
-        functions_[proc->symbol] = f;
-      }
-      else if (auto *ext = std::get_if<ExternProcIR>(&decl))
-      {
-        ++pass1_extern_count;
-        // Extern procedures always cross a foreign ABI boundary. Aggregate
-        // returns must therefore follow platform C ABI lowering.
-        ABICallResult abi = ComputeCallABI(
-            ext->params,
-            ext->ret,
-            /*use_c_abi_aggregate_sret=*/true,
-            /*foreign_boundary_mode_independent=*/true);
-        llvm::FunctionType *ft = abi.func_type;
-        if (!ft)
-        {
-          ft = llvm::FunctionType::get(llvm::Type::getVoidTy(context_), {}, false);
-        }
-
-        llvm::Function *f = module_->getFunction(ext->symbol);
-        if (f)
-        {
-          ++pass1_reused;
-          if (f->getFunctionType() != ft && current_ctx_)
-          {
-            ++pass1_signature_mismatch;
-            std::string existing_ty_text;
-            std::string expected_ty_text;
-            {
-              llvm::raw_string_ostream existing_os(existing_ty_text);
-              f->getFunctionType()->print(existing_os);
-            }
-            {
-              llvm::raw_string_ostream expected_os(expected_ty_text);
-              ft->print(expected_os);
-            }
-            std::cerr << "[cursive] pass1 signature mismatch kind=extern symbol="
-                      << ext->symbol << " existing=" << existing_ty_text
-                      << " expected=" << expected_ty_text << "\n";
-            current_ctx_->ReportCodegenFailure();
-          }
-        }
-        else
-        {
-          f = llvm::Function::Create(
-              ft, llvm::GlobalValue::ExternalLinkage, ext->symbol, module_.get());
-          ++pass1_created;
-        }
-        f->setCallingConv(CallingConvForAbi(ext->abi));
-        functions_[ext->symbol] = f;
-      }
-    }
-    if (perf_enabled)
-    {
-      const auto now = Clock::now();
-      declare_functions_ms = ElapsedMs(phase_start, now);
-      phase_start = now;
-    }
-
-    // Pass 2: emit definitions
-    for (const auto &decl : decls)
-    {
-      const DeclPerfKind decl_kind =
-          perf_enabled ? DeclPerfKindOf(decl) : DeclPerfKind::Count;
-      const auto decl_start = perf_enabled ? Clock::now() : Clock::time_point{};
-
-      EmitDecl(decl);
-
-      if (perf_enabled)
-      {
-        const auto decl_end = Clock::now();
-        const long long decl_ms = ElapsedMs(decl_start, decl_end);
-        auto &bucket = decl_perf[static_cast<std::size_t>(decl_kind)];
-        bucket.count += 1;
-        bucket.total_ms += decl_ms;
-
-        const bool is_slowest = decl_ms > bucket.max_ms;
-        const bool log_decl =
-            DeclPerfKindHasBody(decl_kind) && decl_ms >= slow_decl_threshold_ms;
-        std::string decl_label;
-        if (is_slowest || log_decl)
-        {
-          decl_label = DeclPerfLabel(decl);
-        }
-        if (is_slowest)
-        {
-          bucket.max_ms = decl_ms;
-          bucket.slowest_label = decl_label;
-        }
-        if (log_decl)
-        {
-          EmitPerfLogLine("module=" + perf_module_label + " stage=emit-decl kind=" +
-                          DeclPerfKindName(decl_kind) + " ms=" +
-                          std::to_string(decl_ms) + " label=" + decl_label);
-        }
-      }
-    }
-    if (perf_enabled)
-    {
-      const auto now = Clock::now();
-      emit_defs_ms = ElapsedMs(phase_start, now);
-      phase_start = now;
-    }
-
-    if (ctx.shared_library_project)
-    {
-      EmitLibraryEntryPoint();
-      EmitPosixLibraryLifecycleHooks();
-    }
-
-    if (ctx.hosted_library && !ctx.hosted_exports.empty())
-    {
-      EmitHostedLifecycleExports();
-      EmitHostedExportThunks();
-    }
-
-    if (ctx.main_symbol.has_value())
-    {
-      EmitEntryPoint();
-    }
-    ApplySharedLibraryDefinitionVisibility();
-    if (perf_enabled)
-    {
-      const auto now = Clock::now();
-      entrypoint_ms = ElapsedMs(phase_start, now);
-      phase_start = now;
-    }
-
-    if (core::IsDebugEnabled("obj"))
-    {
-      // Optional IR dump for dynamic-dispatch debugging when --debug obj is enabled.
-      for (auto &fn : *module_)
-      {
-        const std::string fn_name = fn.getName().str();
-        if (core::IsDebugEnabled("obj") &&
-            (fn_name.find("InvokeDescribable") != std::string::npos ||
-             fn_name.find("describe_value") != std::string::npos ||
-             fn_name.find("RunDynamicDispatchAlphaBeta") != std::string::npos))
-        {
-          std::string ir_str;
-          llvm::raw_string_ostream os(ir_str);
-          fn.print(os);
-          os.flush();
-          std::fprintf(stderr, "[llvm-ir-dump] %s:\n%s\n", fn_name.c_str(), ir_str.c_str());
-        }
-      }
-    }
-    if (perf_enabled)
-    {
-      const auto now = Clock::now();
-      debug_ir_dump_ms = ElapsedMs(phase_start, now);
-      phase_start = now;
-
-      for (std::size_t i = 0; i < decl_perf.size(); ++i)
-      {
-        const auto kind = static_cast<DeclPerfKind>(i);
-        const auto &bucket = decl_perf[i];
-        if (bucket.count == 0)
-        {
-          continue;
-        }
-        const long long avg_ms =
-            bucket.total_ms / static_cast<long long>(bucket.count);
-        std::string summary = "module=" + perf_module_label +
-                              " stage=emit-decls kind=" + DeclPerfKindName(kind) +
-                              " count=" + std::to_string(bucket.count) +
-                              " total_ms=" + std::to_string(bucket.total_ms) +
-                              " avg_ms=" + std::to_string(avg_ms) +
-                              " max_ms=" + std::to_string(bucket.max_ms);
-        if (!bucket.slowest_label.empty())
-        {
-          summary += " max_label=" + bucket.slowest_label;
-        }
-        EmitPerfLogLine(summary);
-      }
-
-      EmitPerfLogLine(
-          "module=" + perf_module_label + " stage=emit-module total_ms=" +
-          std::to_string(ElapsedMs(module_start, phase_start)) + " setup_ms=" +
-          std::to_string(setup_ms) + " declare_runtime_ms=" +
-          std::to_string(declare_runtime_ms) + " declare_functions_ms=" +
-          std::to_string(declare_functions_ms) + " emit_defs_ms=" +
-          std::to_string(emit_defs_ms) + " entrypoint_ms=" +
-          std::to_string(entrypoint_ms) + " debug_ir_dump_ms=" +
-          std::to_string(debug_ir_dump_ms) + " decl_count=" +
-          std::to_string(decls.size()) + " pass1_proc_count=" +
-          std::to_string(pass1_proc_count) + " pass1_extern_count=" +
-          std::to_string(pass1_extern_count) + " pass1_reused=" +
-          std::to_string(pass1_reused) + " pass1_created=" +
-          std::to_string(pass1_created) + " pass1_sig_mismatch=" +
-          std::to_string(pass1_signature_mismatch) + " has_main_symbol=" +
-          (ctx.main_symbol.has_value() ? "1" : "0"));
-    }
-
-    return module_.get();
-  }
-
-  void LLVMEmitter::EmitDecl(const IRDecl &decl)
-  {
-    struct Visitor
-    {
-      LLVMEmitter &emitter;
-      void operator()(const ProcIR &proc) { emitter.EmitProc(proc); }
-      void operator()(const ExternProcIR &proc) { emitter.EmitExternProc(proc); }
-      void operator()(const GlobalConst &global) { emitter.EmitGlobalConst(global); }
-      void operator()(const GlobalZero &global) { emitter.EmitGlobalZero(global); }
-      void operator()(const GlobalVTable &vtable) { emitter.EmitVTable(vtable); }
-    };
-    std::visit(Visitor{*this}, decl);
-    if (current_ctx_ && current_ctx_->codegen_failed)
-    {
-      SPEC_RULE("LowerIRDecl-Err");
-    }
-  }
-
-  void LLVMEmitter::EmitExternProc(const ExternProcIR &proc)
-  {
-    if (!proc.raw_dylib_library_name.has_value() ||
-        !proc.raw_dylib_foreign_symbol.has_value())
-    {
-      return;
-    }
-
-    llvm::Function *func = functions_[proc.symbol];
-    if (!func || !func->empty())
-    {
-      return;
-    }
-
-    SPEC_RULE("CG-Item-ExternProc");
-
-    auto *opaque_ptr_ty =
-        llvm::cast<llvm::PointerType>(GetOpaquePtr());
-    llvm::GlobalVariable *cache =
-        module_->getGlobalVariable(proc.symbol + "__raw_dylib_cache");
-    if (!cache)
-    {
-      cache = new llvm::GlobalVariable(
-          *module_,
-          opaque_ptr_ty,
-          false,
-          llvm::GlobalValue::InternalLinkage,
-          llvm::ConstantPointerNull::get(opaque_ptr_ty),
-          proc.symbol + "__raw_dylib_cache");
-      cache->setAlignment(llvm::Align(8));
-    }
-
-    llvm::BasicBlock *entry =
-        llvm::BasicBlock::Create(context_, "entry", func);
-    llvm::BasicBlock *resolve_block =
-        llvm::BasicBlock::Create(context_, "raw_dylib.resolve", func);
-    llvm::BasicBlock *call_block =
-        llvm::BasicBlock::Create(context_, "raw_dylib.call", func);
-    llvm::BasicBlock *call_cont =
-        llvm::BasicBlock::Create(context_, "raw_dylib.call.cont", func);
-    llvm::BasicBlock *panic_block =
-        llvm::BasicBlock::Create(context_, "raw_dylib.panic", func);
-
-    llvm::IRBuilder<> builder(entry);
-    llvm::Value *cached_ptr =
-        builder.CreateLoad(opaque_ptr_ty, cache, "raw_dylib.cached");
-    llvm::Value *cache_miss = builder.CreateICmpEQ(
-        cached_ptr, llvm::ConstantPointerNull::get(opaque_ptr_ty));
-    builder.CreateCondBr(cache_miss, resolve_block, call_block);
-
-    builder.SetInsertPoint(resolve_block);
-    llvm::Function *resolve_fn = module_->getFunction(kRawDylibResolveSym);
-    if (!resolve_fn)
-    {
-      llvm::FunctionType *resolve_ty = llvm::FunctionType::get(
-          opaque_ptr_ty,
-          {opaque_ptr_ty, opaque_ptr_ty},
-          false);
-      resolve_fn = llvm::Function::Create(
-          resolve_ty,
-          llvm::GlobalValue::ExternalLinkage,
-          kRawDylibResolveSym,
-          module_.get());
-      resolve_fn->setCallingConv(llvm::CallingConv::C);
-    }
-
-    llvm::Value *dll_name = builder.CreateGlobalStringPtr(
-        *proc.raw_dylib_library_name,
-        proc.symbol + "__raw_dylib_dll");
-    llvm::Value *foreign_symbol = builder.CreateGlobalStringPtr(
-        *proc.raw_dylib_foreign_symbol,
-        proc.symbol + "__raw_dylib_symbol");
-    llvm::CallInst *resolved_call = builder.CreateCall(
-        resolve_fn->getFunctionType(),
-        resolve_fn,
-        {dll_name, foreign_symbol});
-    resolved_call->setCallingConv(llvm::CallingConv::C);
-    builder.CreateStore(resolved_call, cache);
-    builder.CreateBr(call_block);
-
-    builder.SetInsertPoint(call_block);
-    llvm::PHINode *callee_ptr = builder.CreatePHI(
-        opaque_ptr_ty, 2, "raw_dylib.callee");
-    callee_ptr->addIncoming(cached_ptr, entry);
-    callee_ptr->addIncoming(resolved_call, resolve_block);
-    llvm::Value *resolve_failed = builder.CreateICmpEQ(
-        callee_ptr, llvm::ConstantPointerNull::get(opaque_ptr_ty));
-    builder.CreateCondBr(resolve_failed, panic_block, call_cont);
-
-    builder.SetInsertPoint(call_cont);
-    std::vector<llvm::Value *> args;
-    args.reserve(func->arg_size());
-    for (llvm::Argument &arg : func->args())
-    {
-      args.push_back(&arg);
-    }
-    llvm::Value *result = EmitABICall(
-        *this,
-        &builder,
-        callee_ptr,
-        proc.params,
-        proc.ret,
-        args,
-        /*use_c_abi_aggregate_sret=*/false,
-        /*ffi_import_boundary=*/false,
-        /*ffi_import_catch=*/false,
-        CallingConvForAbi(proc.abi));
-    if (func->getReturnType()->isVoidTy())
-    {
-      builder.CreateRetVoid();
-    }
-    else
-    {
-      if (!result)
-      {
-        result = llvm::Constant::getNullValue(func->getReturnType());
-      }
-      if (result->getType() != func->getReturnType())
-      {
-        result = CoerceValue(&builder, result, func->getReturnType());
-      }
-      builder.CreateRet(result);
-    }
-
-    builder.SetInsertPoint(panic_block);
-    const std::string panic_sym = PanicSym();
-    llvm::Function *panic_fn = module_->getFunction(panic_sym);
-    if (!panic_fn)
-    {
-      llvm::FunctionType *panic_ty = llvm::FunctionType::get(
-          llvm::Type::getVoidTy(context_),
-          {llvm::Type::getInt32Ty(context_)},
-          false);
-      panic_fn = llvm::Function::Create(
-          panic_ty,
-          llvm::GlobalValue::ExternalLinkage,
-          panic_sym,
-          module_.get());
-      panic_fn->setCallingConv(llvm::CallingConv::C);
-    }
-    builder.CreateCall(
-        panic_fn->getFunctionType(),
-        panic_fn,
-        {llvm::ConstantInt::get(llvm::Type::getInt32Ty(context_),
-                                PanicCode(PanicReason::Other))});
-    builder.CreateUnreachable();
-  }
 
   void LLVMEmitter::EmitProc(const ProcIR &proc)
   {
@@ -4402,8 +4012,14 @@ namespace cursive::codegen
       async_resume_mode = async_info->is_resume;
 
       llvm::IRBuilder<> entry_builder(&func->getEntryBlock(), func->getEntryBlock().begin());
-      for (const auto &[slot_name, slot] : async_info->slots)
+      for (const auto &slot_name : async_info->slot_order)
       {
+        const auto slot_it = async_info->slots.find(slot_name);
+        if (slot_it == async_info->slots.end())
+        {
+          continue;
+        }
+        const auto &slot = slot_it->second;
         llvm::Type *slot_ty = GetLLVMType(slot.type);
         if (!slot_ty || slot_ty->isVoidTy())
         {
@@ -4427,8 +4043,14 @@ namespace cursive::codegen
 
         if (async_state_storage.frame_ptr)
         {
-          for (const auto &[slot_name, slot] : async_info->slots)
+          for (const auto &slot_name : async_info->slot_order)
           {
+            const auto slot_it = async_info->slots.find(slot_name);
+            if (slot_it == async_info->slots.end())
+            {
+              continue;
+            }
+            const auto &slot = slot_it->second;
             llvm::Value *local_slot = GetLocal(slot_name);
             if (!local_slot || !local_slot->getType()->isPointerTy())
             {
@@ -4710,999 +4332,284 @@ namespace cursive::codegen
     globals_[vtable.symbol] = gv;
   }
 
-  void LLVMEmitter::EmitEntryPoint()
+
+
+
+
+
+  bool LLVMEmitter::IsHostedLibraryBuild() const
   {
-    SPEC_RULE("LowerIRDecl-EntryPoint");
-
-    if (!current_ctx_ || !current_ctx_->main_symbol.has_value())
-    {
-      return;
-    }
-
-    // Create process entrypoint symbol expected by linker /ENTRY:main.
-    // No CRT is linked, so this entrypoint must terminate explicitly.
-    llvm::FunctionType *main_ty =
-        llvm::FunctionType::get(llvm::Type::getVoidTy(context_), {}, false);
-
-    llvm::Function *main_fn = llvm::Function::Create(
-        main_ty,
-        llvm::GlobalValue::ExternalLinkage,
-        "main",
-        module_.get());
-
-    llvm::BasicBlock *entry = llvm::BasicBlock::Create(context_, "entry", main_fn);
-    auto *builder = static_cast<llvm::IRBuilder<> *>(builder_.get());
-    builder->SetInsertPoint(entry);
-
-    // Configure runtime log/trace sink when --log, --log-file, or --trace is used.
-    if (current_ctx_->log_enabled)
-    {
-      const std::string set_sink_sym = RuntimeConformanceSetSinkSym();
-      llvm::Function *set_sink_fn = module_->getFunction(set_sink_sym);
-      llvm::Type *void_ty = llvm::Type::getVoidTy(context_);
-      llvm::Type *i8_ty = llvm::Type::getInt8Ty(context_);
-      llvm::Type *i64_ty = llvm::Type::getInt64Ty(context_);
-      if (!set_sink_fn)
-      {
-        llvm::FunctionType *set_sink_ty = llvm::FunctionType::get(
-            void_ty, {i8_ty, GetOpaquePtr(), i64_ty}, false);
-        set_sink_fn = llvm::Function::Create(set_sink_ty,
-                                             llvm::GlobalValue::ExternalLinkage,
-                                             set_sink_sym,
-                                             module_.get());
-      }
-
-      if (set_sink_fn)
-      {
-        const bool to_file =
-            current_ctx_->log_to_file &&
-            !current_ctx_->log_file_path.empty();
-        const bool to_console = current_ctx_->log_to_console || !to_file;
-        std::uint8_t sink_mode = 0u;
-        if (to_file && to_console)
-        {
-          sink_mode = 2u;
-        }
-        else if (to_file)
-        {
-          sink_mode = 1u;
-        }
-        llvm::Value *sink_kind =
-            llvm::ConstantInt::get(i8_ty, sink_mode);
-        llvm::Value *path_ptr =
-            llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(GetOpaquePtr()));
-        llvm::Value *path_len = llvm::ConstantInt::get(i64_ty, 0u);
-        if (to_file)
-        {
-          llvm::Value *raw_path =
-              builder->CreateGlobalStringPtr(current_ctx_->log_file_path);
-          path_ptr = CoerceTo(builder, raw_path, GetOpaquePtr());
-          if (!path_ptr)
-          {
-            path_ptr = llvm::ConstantPointerNull::get(
-                llvm::cast<llvm::PointerType>(GetOpaquePtr()));
-          }
-          path_len = llvm::ConstantInt::get(
-              i64_ty, static_cast<uint64_t>(current_ctx_->log_file_path.size()));
-        }
-
-        llvm::FunctionType *set_sink_ty = set_sink_fn->getFunctionType();
-        std::vector<llvm::Value *> set_sink_args;
-        set_sink_args.reserve(set_sink_ty->getNumParams());
-        for (unsigned i = 0; i < set_sink_ty->getNumParams(); ++i)
-        {
-          llvm::Type *param_ty = set_sink_ty->getParamType(i);
-          llvm::Value *arg = nullptr;
-          if (i == 0)
-          {
-            arg = CoerceTo(builder, sink_kind, param_ty);
-          }
-          else if (i == 1)
-          {
-            arg = CoerceTo(builder, path_ptr, param_ty);
-          }
-          else if (i == 2)
-          {
-            arg = CoerceTo(builder, path_len, param_ty);
-          }
-          if (!arg)
-          {
-            arg = llvm::Constant::getNullValue(param_ty);
-          }
-          set_sink_args.push_back(arg);
-        }
-
-        llvm::CallInst *set_sink_call =
-            builder->CreateCall(set_sink_ty, set_sink_fn, set_sink_args);
-        set_sink_call->setCallingConv(set_sink_fn->getCallingConv());
-      }
-
-      if (!current_ctx_->trace_root.empty())
-      {
-        const std::string set_root_sym = RuntimeConformanceSetRootSym();
-        llvm::Function *set_root_fn = module_->getFunction(set_root_sym);
-        if (!set_root_fn)
-        {
-          llvm::FunctionType *set_root_ty = llvm::FunctionType::get(
-              void_ty, {GetOpaquePtr(), i64_ty}, false);
-          set_root_fn = llvm::Function::Create(set_root_ty,
-                                               llvm::GlobalValue::ExternalLinkage,
-                                               set_root_sym,
-                                               module_.get());
-        }
-        if (set_root_fn)
-        {
-          llvm::Value *raw_root =
-              builder->CreateGlobalStringPtr(current_ctx_->trace_root);
-          llvm::Value *root_ptr = CoerceTo(builder, raw_root, GetOpaquePtr());
-          if (!root_ptr)
-          {
-            root_ptr = llvm::ConstantPointerNull::get(
-                llvm::cast<llvm::PointerType>(GetOpaquePtr()));
-          }
-          llvm::Value *root_len = llvm::ConstantInt::get(
-              i64_ty, static_cast<uint64_t>(current_ctx_->trace_root.size()));
-          llvm::FunctionType *set_root_ty = set_root_fn->getFunctionType();
-          llvm::Value *root_arg0 = CoerceTo(builder, root_ptr, set_root_ty->getParamType(0));
-          llvm::Value *root_arg1 = CoerceTo(builder, root_len, set_root_ty->getParamType(1));
-          if (!root_arg0)
-          {
-            root_arg0 = llvm::Constant::getNullValue(set_root_ty->getParamType(0));
-          }
-          if (!root_arg1)
-          {
-            root_arg1 = llvm::Constant::getNullValue(set_root_ty->getParamType(1));
-          }
-          llvm::CallInst *set_root_call =
-              builder->CreateCall(set_root_ty, set_root_fn, {root_arg0, root_arg1});
-          set_root_call->setCallingConv(set_root_fn->getCallingConv());
-        }
-      }
-
-      // Configure runtime category filtering as an explicit bitmask:
-      // bit0=log, bit1=diagnostic, bit2=runtime.
-      const std::string log_filter_sym = RuntimeConformanceSetLogFilterSym();
-      llvm::Function *log_filter_fn = module_->getFunction(log_filter_sym);
-      if (!log_filter_fn)
-      {
-        llvm::FunctionType *log_filter_ty = llvm::FunctionType::get(
-            void_ty, {i8_ty}, false);
-        log_filter_fn = llvm::Function::Create(log_filter_ty,
-                                               llvm::GlobalValue::ExternalLinkage,
-                                               log_filter_sym,
-                                               module_.get());
-      }
-      if (log_filter_fn)
-      {
-        std::uint8_t filter_mode = current_ctx_->trace ? 0x7u : 0x1u;
-        if (current_ctx_->trace_filter_mask.has_value())
-        {
-          filter_mode = *current_ctx_->trace_filter_mask;
-        }
-        llvm::Value *enabled = llvm::ConstantInt::get(i8_ty, filter_mode);
-        llvm::FunctionType *log_filter_ty = log_filter_fn->getFunctionType();
-        llvm::Value *arg = CoerceTo(builder, enabled, log_filter_ty->getParamType(0));
-        if (!arg)
-        {
-          arg = llvm::Constant::getNullValue(log_filter_ty->getParamType(0));
-        }
-        llvm::CallInst *log_filter_call =
-            builder->CreateCall(log_filter_ty, log_filter_fn, {arg});
-        log_filter_call->setCallingConv(log_filter_fn->getCallingConv());
-      }
-
-      if (current_ctx_->trace_min_level.has_value())
-      {
-        const std::string min_level_sym = RuntimeConformanceSetMinLevelSym();
-        llvm::Function *min_level_fn = module_->getFunction(min_level_sym);
-        if (!min_level_fn)
-        {
-          llvm::FunctionType *min_level_ty = llvm::FunctionType::get(
-              void_ty, {i8_ty}, false);
-          min_level_fn = llvm::Function::Create(min_level_ty,
-                                                llvm::GlobalValue::ExternalLinkage,
-                                                min_level_sym,
-                                                module_.get());
-        }
-        if (min_level_fn)
-        {
-          llvm::Value *level = llvm::ConstantInt::get(i8_ty, *current_ctx_->trace_min_level);
-          llvm::FunctionType *min_level_ty = min_level_fn->getFunctionType();
-          llvm::Value *arg = CoerceTo(builder, level, min_level_ty->getParamType(0));
-          if (!arg)
-          {
-            arg = llvm::Constant::getNullValue(min_level_ty->getParamType(0));
-          }
-          llvm::CallInst *min_level_call =
-              builder->CreateCall(min_level_ty, min_level_fn, {arg});
-          min_level_call->setCallingConv(min_level_fn->getCallingConv());
-        }
-      }
-    }
-
-    // Call the Cursive main function
-    llvm::Function *cursive_main = nullptr;
-    if (const auto it = functions_.find(*current_ctx_->main_symbol);
-        it != functions_.end())
-    {
-      cursive_main = it->second;
-    }
-    if (!cursive_main)
-    {
-      llvm::FunctionCallee exit_fn = module_->getOrInsertFunction(
-          "ExitProcess",
-          llvm::FunctionType::get(
-              llvm::Type::getVoidTy(context_),
-              {llvm::Type::getInt32Ty(context_)},
-              false));
-      builder->CreateCall(exit_fn, {llvm::ConstantInt::get(llvm::Type::getInt32Ty(context_), 1)});
-      builder->CreateUnreachable();
-      return;
-    }
-
-    llvm::Type *i8_ty = llvm::Type::getInt8Ty(context_);
-    llvm::Type *i32_ty = llvm::Type::getInt32Ty(context_);
-    llvm::Type *i64_ty = llvm::Type::getInt64Ty(context_);
-    llvm::Type *i8_ptr_ty = llvm::PointerType::get(i8_ty, 0);
-
-    llvm::Type *panic_storage_ty = GetLLVMType(PanicRecordType());
-    if (!panic_storage_ty || panic_storage_ty->isVoidTy())
-    {
-      panic_storage_ty = llvm::ArrayType::get(i8_ty, 8);
-    }
-    llvm::AllocaInst *panic_storage =
-        builder->CreateAlloca(panic_storage_ty, nullptr, "entry_panic");
-    builder->CreateStore(llvm::Constant::getNullValue(panic_storage_ty), panic_storage);
-
-    llvm::Value *panic_ptr = CoerceTo(builder, panic_storage, GetOpaquePtr());
-    if (!panic_ptr)
-    {
-      panic_ptr = builder->CreatePointerCast(panic_storage, GetOpaquePtr());
-    }
-
-    std::uint64_t panic_flag_offset = 0;
-    std::uint64_t panic_code_offset = 4;
-    {
-      const analysis::ScopeContext &scope = BuildScope(current_ctx_);
-      const auto layout = RecordLayoutOf(scope, {
-                                                    analysis::MakeTypePrim("bool"),
-                                                    analysis::MakeTypePrim("u32"),
-                                                });
-      if (layout.has_value() && layout->offsets.size() >= 2)
-      {
-        panic_flag_offset = layout->offsets[0];
-        panic_code_offset = layout->offsets[1];
-      }
-    }
-
-    auto load_panic_flag = [&]() -> llvm::Value *
-    {
-      if (!panic_ptr)
-      {
-        return nullptr;
-      }
-      llvm::Value *panic_i8 = CoerceTo(builder, panic_ptr, i8_ptr_ty);
-      if (!panic_i8)
-      {
-        return nullptr;
-      }
-      llvm::Value *flag_ptr = panic_i8;
-      if (panic_flag_offset != 0)
-      {
-        flag_ptr = builder->CreateInBoundsGEP(
-            i8_ty,
-            panic_i8,
-            llvm::ConstantInt::get(i64_ty, panic_flag_offset));
-      }
-      llvm::Value *flag = builder->CreateLoad(i8_ty, flag_ptr);
-      return builder->CreateICmpNE(flag, llvm::ConstantInt::get(i8_ty, 0));
-    };
-
-    auto load_panic_code = [&]() -> llvm::Value *
-    {
-      if (!panic_ptr)
-      {
-        return llvm::ConstantInt::get(i32_ty, 1);
-      }
-      llvm::Value *panic_i8 = CoerceTo(builder, panic_ptr, i8_ptr_ty);
-      if (!panic_i8)
-      {
-        return llvm::ConstantInt::get(i32_ty, 1);
-      }
-      llvm::Value *code_i8 = panic_i8;
-      if (panic_code_offset != 0)
-      {
-        code_i8 = builder->CreateInBoundsGEP(
-            i8_ty,
-            panic_i8,
-            llvm::ConstantInt::get(i64_ty, panic_code_offset));
-      }
-      llvm::Value *code_ptr =
-          builder->CreatePointerCast(code_i8, llvm::PointerType::get(i32_ty, 0));
-      return builder->CreateLoad(i32_ty, code_ptr);
-    };
-
-    const std::string runtime_panic_sym = RuntimePanicSym();
-    llvm::Function *runtime_panic_fn = module_->getFunction(runtime_panic_sym);
-    if (!runtime_panic_fn)
-    {
-      llvm::FunctionType *panic_ty =
-          llvm::FunctionType::get(llvm::Type::getVoidTy(context_), {i32_ty}, false);
-      runtime_panic_fn = llvm::Function::Create(
-          panic_ty,
-          llvm::GlobalValue::ExternalLinkage,
-          runtime_panic_sym,
-          module_.get());
-      runtime_panic_fn->setCallingConv(llvm::CallingConv::C);
-    }
-
-    std::vector<llvm::Value *> call_args;
-    llvm::FunctionType *callee_ty = cursive_main->getFunctionType();
-    call_args.reserve(callee_ty->getNumParams());
-    for (unsigned i = 0; i < callee_ty->getNumParams(); ++i)
-    {
-      llvm::Type *param_ty = callee_ty->getParamType(i);
-      call_args.push_back(llvm::Constant::getNullValue(param_ty));
-    }
-
-    analysis::TypeRef ctx_type = analysis::MakeTypePath({"Context"});
-    llvm::Type *ctx_storage_ty = GetLLVMType(ctx_type);
-    if (!ctx_storage_ty || ctx_storage_ty->isVoidTy())
-    {
-      ctx_storage_ty = llvm::ArrayType::get(i8_ty, 64);
-    }
-    llvm::AllocaInst *ctx_storage =
-        builder->CreateAlloca(ctx_storage_ty, nullptr, "entry_ctx");
-    builder->CreateStore(llvm::Constant::getNullValue(ctx_storage_ty), ctx_storage);
-
-    const std::string context_init_sym = ContextInitSym();
-    bool context_initialized = false;
-    if (std::optional<RuntimeFuncInfo> init_info = GetRuntimeFuncInfo(context_init_sym))
-    {
-      const bool use_c_abi_aggregate_sret = true;
-      ABICallResult init_abi =
-          ComputeCallABI(init_info->params, init_info->ret, use_c_abi_aggregate_sret);
-      llvm::FunctionType *init_ty = init_abi.func_type;
-      if (!init_ty)
-      {
-        init_ty = llvm::FunctionType::get(llvm::Type::getVoidTy(context_), {}, false);
-      }
-      llvm::Function *context_init_fn = module_->getFunction(context_init_sym);
-      if (!context_init_fn)
-      {
-        context_init_fn = llvm::Function::Create(
-            init_ty,
-            llvm::GlobalValue::ExternalLinkage,
-            context_init_sym,
-            module_.get());
-      }
-
-      if (context_init_fn)
-      {
-        std::vector<llvm::Value *> init_args;
-        init_args.reserve(init_ty->getNumParams());
-        for (unsigned i = 0; i < init_ty->getNumParams(); ++i)
-        {
-          llvm::Type *param_ty = init_ty->getParamType(i);
-          llvm::Value *arg = nullptr;
-          if (init_abi.has_sret && i == 0)
-          {
-            arg = CoerceTo(builder, ctx_storage, param_ty);
-          }
-          if (!arg)
-          {
-            arg = llvm::Constant::getNullValue(param_ty);
-          }
-          init_args.push_back(arg);
-        }
-        llvm::CallInst *init_call =
-            builder->CreateCall(init_ty, context_init_fn, init_args);
-        init_call->setCallingConv(context_init_fn->getCallingConv());
-        context_initialized = true;
-
-        if (!init_abi.has_sret && !init_call->getType()->isVoidTy())
-        {
-          llvm::Value *out_ptr = CoerceTo(
-              builder,
-              ctx_storage,
-              llvm::PointerType::get(init_call->getType(), 0));
-          if (out_ptr && out_ptr->getType()->isPointerTy())
-          {
-            builder->CreateStore(init_call, out_ptr);
-          }
-        }
-      }
-    }
-
-    if (!context_initialized)
-    {
-      llvm::Function *context_init_fn = module_->getFunction(context_init_sym);
-      if (!context_init_fn)
-      {
-        llvm::FunctionType *init_ty =
-            llvm::FunctionType::get(llvm::Type::getVoidTy(context_),
-                                    {GetOpaquePtr()},
-                                    false);
-        context_init_fn = llvm::Function::Create(
-            init_ty,
-            llvm::GlobalValue::ExternalLinkage,
-            context_init_sym,
-            module_.get());
-      }
-      if (context_init_fn)
-      {
-        llvm::FunctionType *init_ty = context_init_fn->getFunctionType();
-        std::vector<llvm::Value *> init_args;
-        init_args.reserve(init_ty->getNumParams());
-        for (unsigned i = 0; i < init_ty->getNumParams(); ++i)
-        {
-          llvm::Type *param_ty = init_ty->getParamType(i);
-          llvm::Value *arg = nullptr;
-          if (i == 0)
-          {
-            arg = CoerceTo(builder, ctx_storage, param_ty);
-          }
-          if (!arg)
-          {
-            arg = llvm::Constant::getNullValue(param_ty);
-          }
-          init_args.push_back(arg);
-        }
-        llvm::CallInst *init_call =
-            builder->CreateCall(init_ty, context_init_fn, init_args);
-        init_call->setCallingConv(context_init_fn->getCallingConv());
-      }
-    }
-
-    if (callee_ty->getNumParams() >= 1)
-    {
-      llvm::Type *param_ty = callee_ty->getParamType(0);
-      if (param_ty->isPointerTy())
-      {
-        llvm::Value *arg = CoerceTo(builder, ctx_storage, param_ty);
-        if (!arg)
-        {
-          arg = llvm::Constant::getNullValue(param_ty);
-        }
-        call_args[0] = arg;
-      }
-    }
-    if (callee_ty->getNumParams() >= 2)
-    {
-      llvm::Type *param_ty = callee_ty->getParamType(1);
-      if (param_ty->isPointerTy())
-      {
-        llvm::Value *arg = CoerceTo(builder, panic_ptr, param_ty);
-        if (!arg)
-        {
-          arg = llvm::Constant::getNullValue(param_ty);
-        }
-        call_args[1] = arg;
-      }
-    }
-
-    llvm::CallInst *call = builder->CreateCall(callee_ty, cursive_main, call_args);
-    call->setCallingConv(cursive_main->getCallingConv());
-
-    llvm::Value *exit_code = nullptr;
-    if (call->getType()->isVoidTy())
-    {
-      exit_code = llvm::ConstantInt::get(i32_ty, 0);
-    }
-    else
-    {
-      exit_code = CoerceTo(builder, call, i32_ty);
-      if (!exit_code)
-      {
-        exit_code = llvm::ConstantInt::get(i32_ty, 0);
-      }
-    }
-
-    llvm::BasicBlock *panic_bb =
-        llvm::BasicBlock::Create(context_, "entry.panic", main_fn);
-    llvm::BasicBlock *deinit_bb =
-        llvm::BasicBlock::Create(context_, "entry.deinit", main_fn);
-    if (llvm::Value *has_panic = load_panic_flag())
-    {
-      builder->CreateCondBr(has_panic, panic_bb, deinit_bb);
-    }
-    else
-    {
-      builder->CreateBr(deinit_bb);
-    }
-
-    builder->SetInsertPoint(panic_bb);
-    llvm::Value *panic_code = load_panic_code();
-    panic_code = CoerceTo(builder, panic_code, i32_ty);
-    if (!panic_code)
-    {
-      panic_code = llvm::ConstantInt::get(i32_ty, 1);
-    }
-    if (runtime_panic_fn)
-    {
-      llvm::FunctionType *panic_ty = runtime_panic_fn->getFunctionType();
-      llvm::Value *panic_arg = CoerceTo(builder, panic_code, panic_ty->getParamType(0));
-      if (!panic_arg)
-      {
-        panic_arg = llvm::Constant::getNullValue(panic_ty->getParamType(0));
-      }
-      llvm::CallInst *panic_call =
-          builder->CreateCall(panic_ty, runtime_panic_fn, {panic_arg});
-      panic_call->setCallingConv(runtime_panic_fn->getCallingConv());
-      builder->CreateUnreachable();
-    }
-    else
-    {
-      llvm::FunctionCallee exit_fn = module_->getOrInsertFunction(
-          "ExitProcess",
-          llvm::FunctionType::get(
-              llvm::Type::getVoidTy(context_),
-              {i32_ty},
-              false));
-      builder->CreateCall(exit_fn, {panic_code});
-      builder->CreateUnreachable();
-    }
-
-    builder->SetInsertPoint(deinit_bb);
-    std::vector<ast::ModulePath> init_order = ComputeEntryInitOrder(*current_ctx_);
-    for (auto it = init_order.rbegin(); it != init_order.rend(); ++it)
-    {
-      const std::string deinit_sym = DeinitFn(*it);
-      llvm::Function *deinit_fn = nullptr;
-      if (const auto fn_it = functions_.find(deinit_sym); fn_it != functions_.end())
-      {
-        deinit_fn = fn_it->second;
-      }
-      else
-      {
-        deinit_fn = module_->getFunction(deinit_sym);
-      }
-      if (!deinit_fn)
-      {
-        llvm::FunctionType *deinit_ty = llvm::FunctionType::get(
-            llvm::Type::getVoidTy(context_),
-            {GetOpaquePtr()},
-            false);
-        deinit_fn = llvm::Function::Create(
-            deinit_ty,
-            llvm::GlobalValue::ExternalLinkage,
-            deinit_sym,
-            module_.get());
-      }
-
-      if (deinit_fn)
-      {
-        llvm::FunctionType *deinit_ty = deinit_fn->getFunctionType();
-        std::vector<llvm::Value *> deinit_args;
-        deinit_args.reserve(deinit_ty->getNumParams());
-        for (unsigned i = 0; i < deinit_ty->getNumParams(); ++i)
-        {
-          llvm::Type *param_ty = deinit_ty->getParamType(i);
-          llvm::Value *arg = nullptr;
-          if (i == 0)
-          {
-            arg = CoerceTo(builder, panic_ptr, param_ty);
-          }
-          if (!arg)
-          {
-            arg = llvm::Constant::getNullValue(param_ty);
-          }
-          deinit_args.push_back(arg);
-        }
-        llvm::CallInst *deinit_call =
-            builder->CreateCall(deinit_ty, deinit_fn, deinit_args);
-        deinit_call->setCallingConv(deinit_fn->getCallingConv());
-      }
-      else if (current_ctx_)
-      {
-        current_ctx_->ReportCodegenFailure();
-      }
-
-      if (llvm::Value *has_panic = load_panic_flag())
-      {
-        llvm::BasicBlock *cont_bb =
-            llvm::BasicBlock::Create(context_, "entry.deinit.cont", main_fn);
-        builder->CreateCondBr(has_panic, panic_bb, cont_bb);
-        builder->SetInsertPoint(cont_bb);
-      }
-    }
-
-    llvm::FunctionCallee exit_fn = module_->getOrInsertFunction(
-        "ExitProcess",
-        llvm::FunctionType::get(
-            llvm::Type::getVoidTy(context_),
-            {i32_ty},
-            false));
-    builder->CreateCall(exit_fn, {exit_code});
-    builder->CreateUnreachable();
+    return current_ctx_ && current_ctx_->hosted_library;
   }
 
-  void LLVMEmitter::EmitLibraryEntryPoint()
+  bool LLVMEmitter::RequiresHostedEnvParam(const std::string &symbol) const
+  {
+    if (!IsHostedLibraryBuild() || symbol.empty() || !current_ctx_)
+    {
+      return false;
+    }
+    return current_ctx_->hosted_explicit_env_procs.find(symbol) !=
+           current_ctx_->hosted_explicit_env_procs.end();
+  }
+
+  bool LLVMEmitter::HasHostedStateSlot(const std::string &symbol) const
+  {
+    if (!IsHostedLibraryBuild() || symbol.empty())
+    {
+      return false;
+    }
+    return hosted_layout_.slots.find(symbol) != hosted_layout_.slots.end();
+  }
+
+  llvm::Value *LLVMEmitter::GetHostedCurrentEnvPtr()
+  {
+    if (!IsHostedLibraryBuild())
+    {
+      return nullptr;
+    }
+    if (hosted_env_value_)
+    {
+      return hosted_env_value_;
+    }
+    auto *builder = static_cast<llvm::IRBuilder<> *>(builder_.get());
+    if (!builder || !builder->GetInsertBlock())
+    {
+      return nullptr;
+    }
+    llvm::Type *opaque_ptr_ty = GetOpaquePtr();
+    if (!opaque_ptr_ty)
+    {
+      return nullptr;
+    }
+    llvm::Function *fn = module_->getFunction(kHostRuntimeCurrentEnvSym);
+    if (!fn)
+    {
+      llvm::FunctionType *fn_ty =
+          llvm::FunctionType::get(opaque_ptr_ty, {}, false);
+      fn = llvm::Function::Create(
+          fn_ty,
+          llvm::GlobalValue::ExternalLinkage,
+          kHostRuntimeCurrentEnvSym,
+          module_.get());
+      fn->setCallingConv(llvm::CallingConv::C);
+    }
+    llvm::CallInst *call = builder->CreateCall(fn->getFunctionType(), fn, {});
+    call->setCallingConv(fn->getCallingConv());
+    return call;
+  }
+
+  llvm::Value *LLVMEmitter::GetSharedLibraryImagePanicPtr(
+      llvm::Value *fallback_ptr)
   {
     if (!current_ctx_ || !current_ctx_->shared_library_project)
     {
-      return;
+      return fallback_ptr;
     }
-    if (!IsProjectEntryModule(current_ctx_))
+    llvm::Type *panic_ty = GetLLVMType(PanicRecordType());
+    if (!panic_ty)
     {
-      return;
+      return fallback_ptr;
     }
 
-    auto *i1_ty = llvm::Type::getInt1Ty(context_);
-    auto *i8_ty = llvm::Type::getInt8Ty(context_);
-    auto *i32_ty = llvm::Type::getInt32Ty(context_);
-    auto *i64_ty = llvm::Type::getInt64Ty(context_);
-    llvm::Type *opaque_ptr_ty = GetOpaquePtr();
-    llvm::Type *panic_record_ty = GetLLVMType(PanicRecordType());
-    if (!opaque_ptr_ty || !panic_record_ty)
+    llvm::GlobalVariable *panic_gv =
+        module_->getNamedGlobal(kImagePanicRecordSym);
+    if (!panic_gv)
     {
-      if (current_ctx_)
-      {
-        current_ctx_->ReportCodegenFailure();
-      }
-      return;
+      panic_gv = new llvm::GlobalVariable(
+          *module_,
+          panic_ty,
+          false,
+          llvm::GlobalValue::CommonLinkage,
+          llvm::Constant::getNullValue(panic_ty),
+          kImagePanicRecordSym);
+      panic_gv->setAlignment(llvm::Align(4));
     }
-
-    llvm::Function *entry_fn = module_->getFunction(kLibraryEntrySym);
-    if (!entry_fn)
-    {
-      llvm::FunctionType *entry_ty = llvm::FunctionType::get(
-          i32_ty, {opaque_ptr_ty, i32_ty, opaque_ptr_ty}, false);
-      entry_fn = llvm::Function::Create(entry_ty,
-                                        llvm::GlobalValue::ExternalLinkage,
-                                        kLibraryEntrySym,
-                                        module_.get());
-      entry_fn->setCallingConv(llvm::CallingConv::C);
-    }
-    if (!entry_fn->empty())
-    {
-      return;
-    }
-
-    llvm::GlobalVariable *attached_gv = module_->getNamedGlobal("__cursive_library_attached");
-    if (!attached_gv)
-    {
-      attached_gv = new llvm::GlobalVariable(*module_,
-                                             i1_ty,
-                                             false,
-                                             llvm::GlobalValue::InternalLinkage,
-                                             llvm::ConstantInt::getFalse(context_),
-                                             "__cursive_library_attached");
-    }
-
-    llvm::BasicBlock *entry_bb = llvm::BasicBlock::Create(context_, "entry", entry_fn);
-    llvm::BasicBlock *attach_bb =
-        llvm::BasicBlock::Create(context_, "dll.attach", entry_fn);
-    llvm::BasicBlock *detach_bb =
-        llvm::BasicBlock::Create(context_, "dll.detach", entry_fn);
-    llvm::BasicBlock *other_bb =
-        llvm::BasicBlock::Create(context_, "dll.other", entry_fn);
-    auto *builder = static_cast<llvm::IRBuilder<> *>(builder_.get());
-    builder->SetInsertPoint(entry_bb);
-
-    llvm::Argument *reason_arg = entry_fn->getArg(1);
-    reason_arg->setName("fdwReason");
-
-    llvm::SwitchInst *dispatch =
-        builder->CreateSwitch(reason_arg, other_bb, 2);
-    dispatch->addCase(llvm::ConstantInt::get(i32_ty, 1), attach_bb);
-    dispatch->addCase(llvm::ConstantInt::get(i32_ty, 0), detach_bb);
-
-    auto panic_offsets = [&]() {
-      std::uint64_t flag_offset = 0;
-      std::uint64_t code_offset = 4;
-      const analysis::ScopeContext &scope = BuildScope(current_ctx_);
-      const auto layout = RecordLayoutOf(
-          scope,
-          {analysis::MakeTypePrim("bool"), analysis::MakeTypePrim("u32")});
-      if (layout.has_value() && layout->offsets.size() >= 2)
-      {
-        flag_offset = layout->offsets[0];
-        code_offset = layout->offsets[1];
-      }
-      return std::pair<std::uint64_t, std::uint64_t>{flag_offset, code_offset};
-    }();
-
-    auto panic_field_ptr = [&](llvm::IRBuilder<> &irb,
-                               llvm::Value *panic_ptr,
-                               std::uint64_t offset,
-                               llvm::Type *field_ty) -> llvm::Value * {
-      llvm::Value *panic_i8 =
-          CoerceTo(&irb, panic_ptr, llvm::PointerType::get(i8_ty, 0));
-      if (!panic_i8)
-      {
-        panic_i8 =
-            irb.CreateBitCast(panic_ptr, llvm::PointerType::get(i8_ty, 0));
-      }
-      llvm::Value *field_i8 = panic_i8;
-      if (offset != 0u)
-      {
-        field_i8 = irb.CreateInBoundsGEP(
-            i8_ty, panic_i8, llvm::ConstantInt::get(i64_ty, offset));
-      }
-      return irb.CreateBitCast(field_i8, llvm::PointerType::get(field_ty, 0));
-    };
-
-    auto clear_panic_record = [&](llvm::IRBuilder<> &irb, llvm::Value *panic_ptr) {
-      irb.CreateStore(llvm::ConstantInt::get(i8_ty, 0),
-                      panic_field_ptr(irb, panic_ptr, panic_offsets.first, i8_ty));
-      irb.CreateStore(llvm::ConstantInt::get(i32_ty, 0),
-                      panic_field_ptr(irb, panic_ptr, panic_offsets.second, i32_ty));
-    };
-
-    auto load_panic_flag = [&](llvm::IRBuilder<> &irb,
-                               llvm::Value *panic_ptr) -> llvm::Value * {
-      return irb.CreateICmpNE(
-          irb.CreateLoad(
-              i8_ty,
-              panic_field_ptr(irb, panic_ptr, panic_offsets.first, i8_ty)),
-          llvm::ConstantInt::get(i8_ty, 0));
-    };
-
-    auto ensure_proc_fn = [&](const std::string &sym) -> llvm::Function * {
-      const LowerCtx::ProcSigInfo *sig =
-          current_ctx_ ? current_ctx_->LookupProcSig(sym) : nullptr;
-      if (!sig)
-      {
-        if (current_ctx_)
-        {
-          current_ctx_->ReportCodegenFailure();
-        }
-        return nullptr;
-      }
-      ABICallResult abi = ComputeCallABI(sig->params, sig->ret);
-      llvm::FunctionType *fn_ty =
-          abi.func_type ? abi.func_type
-                        : llvm::FunctionType::get(
-                              llvm::Type::getVoidTy(context_), {}, false);
-      llvm::Function *fn = module_->getFunction(sym);
-      if (!fn)
-      {
-        fn = llvm::Function::Create(fn_ty,
-                                    llvm::GlobalValue::ExternalLinkage,
-                                    sym,
-                                    module_.get());
-      }
-      fn->setCallingConv(CallingConvForAbi(sig->abi));
-      return fn;
-    };
-
-    auto call_proc_with_panic = [&](llvm::IRBuilder<> &irb,
-                                    const std::string &sym,
-                                    llvm::Value *panic_ptr) {
-      const LowerCtx::ProcSigInfo *sig =
-          current_ctx_ ? current_ctx_->LookupProcSig(sym) : nullptr;
-      llvm::Function *fn = ensure_proc_fn(sym);
-      if (!sig || !fn)
-      {
-        return;
-      }
-      ABICallResult abi = ComputeCallABI(sig->params, sig->ret);
-      std::vector<llvm::Value *> args;
-      args.reserve(fn->arg_size());
-      for (unsigned i = 0; i < fn->arg_size(); ++i)
-      {
-        llvm::Value *arg = nullptr;
-        if (!abi.param_indices.empty() && abi.param_indices.back().has_value() &&
-            *abi.param_indices.back() == i)
-        {
-          arg = CoerceTo(&irb, panic_ptr, fn->getFunctionType()->getParamType(i));
-          if (!arg && panic_ptr &&
-              panic_ptr->getType() == fn->getFunctionType()->getParamType(i))
-          {
-            arg = panic_ptr;
-          }
-        }
-        if (!arg)
-        {
-          if (current_ctx_)
-          {
-            current_ctx_->ReportCodegenFailure();
-          }
-          return;
-        }
-        args.push_back(arg);
-      }
-      llvm::CallInst *call =
-          irb.CreateCall(fn->getFunctionType(), fn, args);
-      call->setCallingConv(fn->getCallingConv());
-    };
-
-    builder->SetInsertPoint(attach_bb);
-    llvm::LoadInst *attached_before = builder->CreateLoad(i1_ty, attached_gv);
-    llvm::BasicBlock *attach_work_bb =
-        llvm::BasicBlock::Create(context_, "dll.attach.work", entry_fn);
-    llvm::BasicBlock *attach_done_bb =
-        llvm::BasicBlock::Create(context_, "dll.attach.done", entry_fn);
-    builder->CreateCondBr(attached_before, attach_done_bb, attach_work_bb);
-
-    builder->SetInsertPoint(attach_done_bb);
-    builder->CreateRet(llvm::ConstantInt::get(i32_ty, 1));
-
-    builder->SetInsertPoint(attach_work_bb);
-    llvm::Value *panic_record_ptr = GetSharedLibraryImagePanicPtr();
-    if (!panic_record_ptr)
-    {
-      if (current_ctx_)
-      {
-        current_ctx_->ReportCodegenFailure();
-      }
-      builder->CreateRet(llvm::ConstantInt::get(i32_ty, 0));
-      return;
-    }
-    clear_panic_record(*builder, panic_record_ptr);
-
-    for (std::size_t module_index = 0;
-         module_index < current_ctx_->init_order.size();
-         ++module_index)
-    {
-      const auto &module_path = current_ctx_->init_order[module_index];
-      call_proc_with_panic(*builder, InitFn(module_path), panic_record_ptr);
-      llvm::BasicBlock *cont_bb =
-          llvm::BasicBlock::Create(context_, "dll.attach.cont", entry_fn);
-      llvm::BasicBlock *fail_bb =
-          llvm::BasicBlock::Create(context_, "dll.attach.fail", entry_fn);
-      builder->CreateCondBr(load_panic_flag(*builder, panic_record_ptr),
-                            fail_bb,
-                            cont_bb);
-      builder->SetInsertPoint(fail_bb);
-      clear_panic_record(*builder, panic_record_ptr);
-      for (std::size_t deinit_index = module_index; deinit_index > 0; --deinit_index)
-      {
-        const auto &deinit_path = current_ctx_->init_order[deinit_index - 1];
-        call_proc_with_panic(*builder, DeinitFn(deinit_path), panic_record_ptr);
-        clear_panic_record(*builder, panic_record_ptr);
-      }
-      builder->CreateStore(llvm::ConstantInt::getFalse(context_), attached_gv);
-      builder->CreateRet(llvm::ConstantInt::get(i32_ty, 0));
-      builder->SetInsertPoint(cont_bb);
-    }
-
-    builder->CreateStore(llvm::ConstantInt::getTrue(context_), attached_gv);
-    builder->CreateRet(llvm::ConstantInt::get(i32_ty, 1));
-
-    builder->SetInsertPoint(detach_bb);
-    llvm::LoadInst *attached_now = builder->CreateLoad(i1_ty, attached_gv);
-    llvm::BasicBlock *detach_work_bb =
-        llvm::BasicBlock::Create(context_, "dll.detach.work", entry_fn);
-    llvm::BasicBlock *detach_done_bb =
-        llvm::BasicBlock::Create(context_, "dll.detach.done", entry_fn);
-    builder->CreateCondBr(attached_now, detach_work_bb, detach_done_bb);
-
-    builder->SetInsertPoint(detach_work_bb);
-    clear_panic_record(*builder, panic_record_ptr);
-    for (auto it = current_ctx_->init_order.rbegin();
-         it != current_ctx_->init_order.rend();
-         ++it)
-    {
-      const auto &module_path = *it;
-      call_proc_with_panic(*builder, DeinitFn(module_path), panic_record_ptr);
-      clear_panic_record(*builder, panic_record_ptr);
-    }
-    builder->CreateStore(llvm::ConstantInt::getFalse(context_), attached_gv);
-    builder->CreateBr(detach_done_bb);
-
-    builder->SetInsertPoint(detach_done_bb);
-    builder->CreateRet(llvm::ConstantInt::get(i32_ty, 1));
-
-    builder->SetInsertPoint(other_bb);
-    builder->CreateRet(llvm::ConstantInt::get(i32_ty, 1));
+    return panic_gv ? static_cast<llvm::Value *>(panic_gv) : fallback_ptr;
   }
 
-  void LLVMEmitter::EmitPosixLibraryLifecycleHooks()
+  llvm::Value *LLVMEmitter::GetHostedStatePtr(const std::string &symbol,
+                                              llvm::Type *value_ty,
+                                              llvm::Value *fallback_ptr)
   {
-    if (!current_ctx_ || !current_ctx_->shared_library_project ||
-        project::ObjectFormatOf(target_profile_) != project::ObjectFormat::Elf ||
-        !IsProjectEntryModule(current_ctx_))
+    if (!IsHostedLibraryBuild() || !value_ty)
     {
-      return;
+      return fallback_ptr;
+    }
+    const auto it = hosted_layout_.slots.find(symbol);
+    if (it == hosted_layout_.slots.end())
+    {
+      return fallback_ptr;
+    }
+    auto *builder = static_cast<llvm::IRBuilder<> *>(builder_.get());
+    if (!builder || !builder->GetInsertBlock())
+    {
+      return fallback_ptr;
     }
 
-    llvm::Function *entry_fn = module_->getFunction(kLibraryEntrySym);
-    llvm::Type *opaque_ptr_ty = GetOpaquePtr();
-    if (!entry_fn || !opaque_ptr_ty)
-    {
-      if (current_ctx_)
+    llvm::Type *ptr_ty = llvm::PointerType::get(value_ty, 0);
+    auto coerce_fallback = [&]() -> llvm::Value * {
+      if (!fallback_ptr)
       {
-        current_ctx_->ReportCodegenFailure();
+        return nullptr;
       }
-      return;
-    }
-
-    auto *i32_ty = llvm::Type::getInt32Ty(context_);
-    auto *opaque_ptr_ptr_ty = llvm::cast<llvm::PointerType>(opaque_ptr_ty);
-    auto ensure_runtime_panic = [&]() -> llvm::Function * {
-      llvm::Function *fn = module_->getFunction(RuntimePanicSym());
-      if (!fn)
+      llvm::Value *typed_fallback = CoerceTo(builder, fallback_ptr, ptr_ty);
+      if (!typed_fallback && fallback_ptr->getType()->isPointerTy())
       {
-        llvm::FunctionType *fn_ty =
-            llvm::FunctionType::get(llvm::Type::getVoidTy(context_),
-                                    {i32_ty},
-                                    false);
-        fn = llvm::Function::Create(fn_ty,
-                                    llvm::GlobalValue::ExternalLinkage,
-                                    RuntimePanicSym(),
-                                    module_.get());
-        fn->setCallingConv(llvm::CallingConv::C);
+        typed_fallback = builder->CreateBitCast(fallback_ptr, ptr_ty);
       }
-      return fn;
+      return typed_fallback;
     };
 
-    auto ensure_hook = [&](const char *name) -> llvm::Function * {
-      llvm::Function *fn = module_->getFunction(name);
-      if (!fn)
+    llvm::Value *env = GetHostedCurrentEnvPtr();
+    if (!env)
+    {
+      return coerce_fallback();
+    }
+
+    llvm::Type *i8_ty = llvm::Type::getInt8Ty(context_);
+    llvm::Value *env_i8 = CoerceTo(builder, env, llvm::PointerType::get(i8_ty, 0));
+    if (!env_i8)
+    {
+      env_i8 = builder->CreateBitCast(env, llvm::PointerType::get(i8_ty, 0));
+    }
+
+    auto build_slot_ptr = [&](llvm::Value *session_env_i8) -> llvm::Value * {
+      llvm::Value *slot_ptr = session_env_i8;
+      if (it->second.offset != 0u)
       {
-        llvm::FunctionType *fn_ty =
-            llvm::FunctionType::get(llvm::Type::getVoidTy(context_), {}, false);
-        fn = llvm::Function::Create(fn_ty,
-                                    llvm::GlobalValue::InternalLinkage,
-                                    name,
-                                    module_.get());
-        fn->setCallingConv(llvm::CallingConv::C);
+        slot_ptr = builder->CreateInBoundsGEP(
+            i8_ty,
+            session_env_i8,
+            llvm::ConstantInt::get(llvm::Type::getInt64Ty(context_),
+                                   it->second.offset));
       }
-      return fn;
+      return builder->CreateBitCast(slot_ptr, ptr_ty);
     };
 
-    llvm::Function *ctor_fn = ensure_hook(kLibraryCtorSym);
-    if (ctor_fn && ctor_fn->empty())
+    llvm::Value *typed_fallback = coerce_fallback();
+    if (!typed_fallback)
     {
-      llvm::BasicBlock *entry_bb =
-          llvm::BasicBlock::Create(context_, "entry", ctor_fn);
-      llvm::BasicBlock *ok_bb =
-          llvm::BasicBlock::Create(context_, "ctor.ok", ctor_fn);
-      llvm::BasicBlock *fail_bb =
-          llvm::BasicBlock::Create(context_, "ctor.fail", ctor_fn);
-      auto *builder = static_cast<llvm::IRBuilder<> *>(builder_.get());
-      builder->SetInsertPoint(entry_bb);
-      llvm::CallInst *attach_call =
-          builder->CreateCall(entry_fn->getFunctionType(),
-                              entry_fn,
-                              {llvm::ConstantPointerNull::get(opaque_ptr_ptr_ty),
-                               llvm::ConstantInt::get(i32_ty, 1),
-                               llvm::ConstantPointerNull::get(opaque_ptr_ptr_ty)});
-      attach_call->setCallingConv(entry_fn->getCallingConv());
-      builder->CreateCondBr(
-          builder->CreateICmpNE(attach_call, llvm::ConstantInt::get(i32_ty, 0)),
-          ok_bb,
-          fail_bb);
-
-      builder->SetInsertPoint(fail_bb);
-      llvm::Function *runtime_panic_fn = ensure_runtime_panic();
-      builder->CreateCall(runtime_panic_fn,
-                          {llvm::ConstantInt::get(
-                              i32_ty,
-                              PanicCode(PanicReason::ForeignPre))});
-      builder->CreateUnreachable();
-
-      builder->SetInsertPoint(ok_bb);
-      builder->CreateRetVoid();
+      return build_slot_ptr(env_i8);
     }
 
-    llvm::Function *dtor_fn = ensure_hook(kLibraryDtorSym);
-    if (dtor_fn && dtor_fn->empty())
+    llvm::Function *fn = builder->GetInsertBlock()->getParent();
+    llvm::BasicBlock *session_bb =
+        llvm::BasicBlock::Create(context_, "hosted.state.session", fn);
+    llvm::BasicBlock *fallback_bb =
+        llvm::BasicBlock::Create(context_, "hosted.state.fallback", fn);
+    llvm::BasicBlock *merge_bb =
+        llvm::BasicBlock::Create(context_, "hosted.state.merge", fn);
+    llvm::Value *has_env = builder->CreateICmpNE(
+        env_i8,
+        llvm::ConstantPointerNull::get(
+            llvm::cast<llvm::PointerType>(env_i8->getType())));
+    builder->CreateCondBr(has_env, session_bb, fallback_bb);
+
+    builder->SetInsertPoint(session_bb);
+    llvm::Value *session_ptr = build_slot_ptr(env_i8);
+    builder->CreateBr(merge_bb);
+    session_bb = builder->GetInsertBlock();
+
+    builder->SetInsertPoint(fallback_bb);
+    builder->CreateBr(merge_bb);
+    fallback_bb = builder->GetInsertBlock();
+
+    builder->SetInsertPoint(merge_bb);
+    llvm::PHINode *phi = builder->CreatePHI(ptr_ty, 2);
+    phi->addIncoming(session_ptr, session_bb);
+    phi->addIncoming(typed_fallback, fallback_bb);
+    return phi;
+  }
+
+  llvm::Value *LLVMEmitter::GetHostedSessionPanicPtr(llvm::Value *fallback_ptr)
+  {
+    if (!IsHostedLibraryBuild())
     {
-      llvm::BasicBlock *entry_bb =
-          llvm::BasicBlock::Create(context_, "entry", dtor_fn);
-      auto *builder = static_cast<llvm::IRBuilder<> *>(builder_.get());
-      builder->SetInsertPoint(entry_bb);
-      llvm::CallInst *detach_call =
-          builder->CreateCall(entry_fn->getFunctionType(),
-                              entry_fn,
-                              {llvm::ConstantPointerNull::get(opaque_ptr_ptr_ty),
-                               llvm::ConstantInt::get(i32_ty, 0),
-                               llvm::ConstantPointerNull::get(opaque_ptr_ptr_ty)});
-      detach_call->setCallingConv(entry_fn->getCallingConv());
-      builder->CreateRetVoid();
+      return fallback_ptr;
+    }
+    auto *builder = static_cast<llvm::IRBuilder<> *>(builder_.get());
+    if (!builder || !builder->GetInsertBlock())
+    {
+      return fallback_ptr;
+    }
+    llvm::Type *panic_ty = GetLLVMType(PanicRecordType());
+    if (!panic_ty)
+    {
+      return fallback_ptr;
+    }
+    llvm::Type *panic_ptr_ty = llvm::PointerType::get(panic_ty, 0);
+    auto coerce_fallback = [&]() -> llvm::Value * {
+      if (!fallback_ptr)
+      {
+        return nullptr;
+      }
+      llvm::Value *typed_fallback = CoerceTo(builder, fallback_ptr, panic_ptr_ty);
+      if (!typed_fallback && fallback_ptr->getType()->isPointerTy())
+      {
+        typed_fallback = builder->CreateBitCast(fallback_ptr, panic_ptr_ty);
+      }
+      return typed_fallback;
+    };
+
+    llvm::Value *env = GetHostedCurrentEnvPtr();
+    if (!env)
+    {
+      return coerce_fallback();
     }
 
-    if (ctor_fn)
+    llvm::Type *i8_ty = llvm::Type::getInt8Ty(context_);
+    llvm::Value *env_i8 = CoerceTo(builder, env, llvm::PointerType::get(i8_ty, 0));
+    if (!env_i8)
     {
-      llvm::appendToGlobalCtors(*module_, ctor_fn, 65535);
+      env_i8 = builder->CreateBitCast(env, llvm::PointerType::get(i8_ty, 0));
     }
-    if (dtor_fn)
+
+    auto build_session_panic_ptr = [&](llvm::Value *session_env_i8) -> llvm::Value * {
+      llvm::Value *panic_i8 = session_env_i8;
+      if (hosted_layout_.panic_offset != 0u)
+      {
+        panic_i8 = builder->CreateInBoundsGEP(
+            i8_ty,
+            session_env_i8,
+            llvm::ConstantInt::get(llvm::Type::getInt64Ty(context_),
+                                   hosted_layout_.panic_offset));
+      }
+      return builder->CreateBitCast(panic_i8, panic_ptr_ty);
+    };
+
+    llvm::Value *typed_fallback = coerce_fallback();
+    if (!typed_fallback)
     {
-      llvm::appendToGlobalDtors(*module_, dtor_fn, 65535);
+      return build_session_panic_ptr(env_i8);
     }
+
+    llvm::Function *fn = builder->GetInsertBlock()->getParent();
+    llvm::BasicBlock *session_bb =
+        llvm::BasicBlock::Create(context_, "hosted.panic.session", fn);
+    llvm::BasicBlock *fallback_bb =
+        llvm::BasicBlock::Create(context_, "hosted.panic.fallback", fn);
+    llvm::BasicBlock *merge_bb =
+        llvm::BasicBlock::Create(context_, "hosted.panic.merge", fn);
+    llvm::Value *has_env = builder->CreateICmpNE(
+        env_i8,
+        llvm::ConstantPointerNull::get(
+            llvm::cast<llvm::PointerType>(env_i8->getType())));
+    builder->CreateCondBr(has_env, session_bb, fallback_bb);
+
+    builder->SetInsertPoint(session_bb);
+    llvm::Value *session_ptr = build_session_panic_ptr(env_i8);
+    builder->CreateBr(merge_bb);
+    session_bb = builder->GetInsertBlock();
+
+    builder->SetInsertPoint(fallback_bb);
+    builder->CreateBr(merge_bb);
+    fallback_bb = builder->GetInsertBlock();
+
+    builder->SetInsertPoint(merge_bb);
+    llvm::PHINode *phi = builder->CreatePHI(panic_ptr_ty, 2);
+    phi->addIncoming(session_ptr, session_bb);
+    phi->addIncoming(typed_fallback, fallback_bb);
+    return phi;
   }
 
   void LLVMEmitter::EmitHostedLifecycleExports()
@@ -7364,6 +6271,1025 @@ namespace cursive::codegen
     }
   }
 
+  void LLVMEmitter::EmitEntryPoint()
+  {
+    SPEC_RULE("LowerIRDecl-EntryPoint");
+
+    if (!current_ctx_ || !current_ctx_->main_symbol.has_value())
+    {
+      return;
+    }
+
+    const bool returns_exit_code =
+        target_profile_ == project::TargetProfile::X86_64SysV;
+    // Create the generated entry stub symbol. Windows uses it as the process
+    // entrypoint directly; x86_64 SysV links a runtime-provided _start shim
+    // that calls this stub and exits with its return code.
+    llvm::FunctionType *main_ty =
+        llvm::FunctionType::get(
+            returns_exit_code ? llvm::Type::getInt32Ty(context_)
+                              : llvm::Type::getVoidTy(context_),
+            {},
+            false);
+
+    llvm::Function *main_fn = llvm::Function::Create(
+        main_ty,
+        llvm::GlobalValue::ExternalLinkage,
+        "main",
+        module_.get());
+
+    llvm::BasicBlock *entry = llvm::BasicBlock::Create(context_, "entry", main_fn);
+    auto *builder = static_cast<llvm::IRBuilder<> *>(builder_.get());
+    builder->SetInsertPoint(entry);
+
+    // Configure runtime log/trace sink when --log, --log-file, or --trace is used.
+    if (current_ctx_->log_enabled)
+    {
+      const std::string set_sink_sym = RuntimeConformanceSetSinkSym();
+      llvm::Function *set_sink_fn = module_->getFunction(set_sink_sym);
+      llvm::Type *void_ty = llvm::Type::getVoidTy(context_);
+      llvm::Type *i8_ty = llvm::Type::getInt8Ty(context_);
+      llvm::Type *i64_ty = llvm::Type::getInt64Ty(context_);
+      if (!set_sink_fn)
+      {
+        llvm::FunctionType *set_sink_ty = llvm::FunctionType::get(
+            void_ty, {i8_ty, GetOpaquePtr(), i64_ty}, false);
+        set_sink_fn = llvm::Function::Create(set_sink_ty,
+                                             llvm::GlobalValue::ExternalLinkage,
+                                             set_sink_sym,
+                                             module_.get());
+      }
+
+      if (set_sink_fn)
+      {
+        const bool to_file =
+            current_ctx_->log_to_file &&
+            !current_ctx_->log_file_path.empty();
+        const bool to_console = current_ctx_->log_to_console || !to_file;
+        std::uint8_t sink_mode = 0u;
+        if (to_file && to_console)
+        {
+          sink_mode = 2u;
+        }
+        else if (to_file)
+        {
+          sink_mode = 1u;
+        }
+        llvm::Value *sink_kind =
+            llvm::ConstantInt::get(i8_ty, sink_mode);
+        llvm::Value *path_ptr =
+            llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(GetOpaquePtr()));
+        llvm::Value *path_len = llvm::ConstantInt::get(i64_ty, 0u);
+        if (to_file)
+        {
+          llvm::Value *raw_path =
+              builder->CreateGlobalStringPtr(current_ctx_->log_file_path);
+          path_ptr = CoerceTo(builder, raw_path, GetOpaquePtr());
+          if (!path_ptr)
+          {
+            path_ptr = llvm::ConstantPointerNull::get(
+                llvm::cast<llvm::PointerType>(GetOpaquePtr()));
+          }
+          path_len = llvm::ConstantInt::get(
+              i64_ty, static_cast<uint64_t>(current_ctx_->log_file_path.size()));
+        }
+
+        llvm::FunctionType *set_sink_ty = set_sink_fn->getFunctionType();
+        std::vector<llvm::Value *> set_sink_args;
+        set_sink_args.reserve(set_sink_ty->getNumParams());
+        for (unsigned i = 0; i < set_sink_ty->getNumParams(); ++i)
+        {
+          llvm::Type *param_ty = set_sink_ty->getParamType(i);
+          llvm::Value *arg = nullptr;
+          if (i == 0)
+          {
+            arg = CoerceTo(builder, sink_kind, param_ty);
+          }
+          else if (i == 1)
+          {
+            arg = CoerceTo(builder, path_ptr, param_ty);
+          }
+          else if (i == 2)
+          {
+            arg = CoerceTo(builder, path_len, param_ty);
+          }
+          if (!arg)
+          {
+            arg = llvm::Constant::getNullValue(param_ty);
+          }
+          set_sink_args.push_back(arg);
+        }
+
+        llvm::CallInst *set_sink_call =
+            builder->CreateCall(set_sink_ty, set_sink_fn, set_sink_args);
+        set_sink_call->setCallingConv(set_sink_fn->getCallingConv());
+      }
+
+      if (!current_ctx_->trace_root.empty())
+      {
+        const std::string set_root_sym = RuntimeConformanceSetRootSym();
+        llvm::Function *set_root_fn = module_->getFunction(set_root_sym);
+        if (!set_root_fn)
+        {
+          llvm::FunctionType *set_root_ty = llvm::FunctionType::get(
+              void_ty, {GetOpaquePtr(), i64_ty}, false);
+          set_root_fn = llvm::Function::Create(set_root_ty,
+                                               llvm::GlobalValue::ExternalLinkage,
+                                               set_root_sym,
+                                               module_.get());
+        }
+        if (set_root_fn)
+        {
+          llvm::Value *raw_root =
+              builder->CreateGlobalStringPtr(current_ctx_->trace_root);
+          llvm::Value *root_ptr = CoerceTo(builder, raw_root, GetOpaquePtr());
+          if (!root_ptr)
+          {
+            root_ptr = llvm::ConstantPointerNull::get(
+                llvm::cast<llvm::PointerType>(GetOpaquePtr()));
+          }
+          llvm::Value *root_len = llvm::ConstantInt::get(
+              i64_ty, static_cast<uint64_t>(current_ctx_->trace_root.size()));
+          llvm::FunctionType *set_root_ty = set_root_fn->getFunctionType();
+          llvm::Value *root_arg0 = CoerceTo(builder, root_ptr, set_root_ty->getParamType(0));
+          llvm::Value *root_arg1 = CoerceTo(builder, root_len, set_root_ty->getParamType(1));
+          if (!root_arg0)
+          {
+            root_arg0 = llvm::Constant::getNullValue(set_root_ty->getParamType(0));
+          }
+          if (!root_arg1)
+          {
+            root_arg1 = llvm::Constant::getNullValue(set_root_ty->getParamType(1));
+          }
+          llvm::CallInst *set_root_call =
+              builder->CreateCall(set_root_ty, set_root_fn, {root_arg0, root_arg1});
+          set_root_call->setCallingConv(set_root_fn->getCallingConv());
+        }
+      }
+
+      // Configure runtime category filtering as an explicit bitmask:
+      // bit0=log, bit1=diagnostic, bit2=runtime.
+      const std::string log_filter_sym = RuntimeConformanceSetLogFilterSym();
+      llvm::Function *log_filter_fn = module_->getFunction(log_filter_sym);
+      if (!log_filter_fn)
+      {
+        llvm::FunctionType *log_filter_ty = llvm::FunctionType::get(
+            void_ty, {i8_ty}, false);
+        log_filter_fn = llvm::Function::Create(log_filter_ty,
+                                               llvm::GlobalValue::ExternalLinkage,
+                                               log_filter_sym,
+                                               module_.get());
+      }
+      if (log_filter_fn)
+      {
+        std::uint8_t filter_mode = current_ctx_->trace ? 0x7u : 0x1u;
+        if (current_ctx_->trace_filter_mask.has_value())
+        {
+          filter_mode = *current_ctx_->trace_filter_mask;
+        }
+        llvm::Value *enabled = llvm::ConstantInt::get(i8_ty, filter_mode);
+        llvm::FunctionType *log_filter_ty = log_filter_fn->getFunctionType();
+        llvm::Value *arg = CoerceTo(builder, enabled, log_filter_ty->getParamType(0));
+        if (!arg)
+        {
+          arg = llvm::Constant::getNullValue(log_filter_ty->getParamType(0));
+        }
+        llvm::CallInst *log_filter_call =
+            builder->CreateCall(log_filter_ty, log_filter_fn, {arg});
+        log_filter_call->setCallingConv(log_filter_fn->getCallingConv());
+      }
+
+      if (current_ctx_->trace_min_level.has_value())
+      {
+        const std::string min_level_sym = RuntimeConformanceSetMinLevelSym();
+        llvm::Function *min_level_fn = module_->getFunction(min_level_sym);
+        if (!min_level_fn)
+        {
+          llvm::FunctionType *min_level_ty = llvm::FunctionType::get(
+              void_ty, {i8_ty}, false);
+          min_level_fn = llvm::Function::Create(min_level_ty,
+                                                llvm::GlobalValue::ExternalLinkage,
+                                                min_level_sym,
+                                                module_.get());
+        }
+        if (min_level_fn)
+        {
+          llvm::Value *level = llvm::ConstantInt::get(i8_ty, *current_ctx_->trace_min_level);
+          llvm::FunctionType *min_level_ty = min_level_fn->getFunctionType();
+          llvm::Value *arg = CoerceTo(builder, level, min_level_ty->getParamType(0));
+          if (!arg)
+          {
+            arg = llvm::Constant::getNullValue(min_level_ty->getParamType(0));
+          }
+          llvm::CallInst *min_level_call =
+              builder->CreateCall(min_level_ty, min_level_fn, {arg});
+          min_level_call->setCallingConv(min_level_fn->getCallingConv());
+        }
+      }
+    }
+
+    // Call the Cursive main function
+    llvm::Function *cursive_main = nullptr;
+    if (const auto it = functions_.find(*current_ctx_->main_symbol);
+        it != functions_.end())
+    {
+      cursive_main = it->second;
+    }
+    if (!cursive_main)
+    {
+      if (returns_exit_code)
+      {
+        builder->CreateRet(
+            llvm::ConstantInt::get(llvm::Type::getInt32Ty(context_), 1));
+      }
+      else
+      {
+        llvm::FunctionCallee exit_fn = module_->getOrInsertFunction(
+            "ExitProcess",
+            llvm::FunctionType::get(
+                llvm::Type::getVoidTy(context_),
+                {llvm::Type::getInt32Ty(context_)},
+                false));
+        builder->CreateCall(
+            exit_fn,
+            {llvm::ConstantInt::get(llvm::Type::getInt32Ty(context_), 1)});
+        builder->CreateUnreachable();
+      }
+      return;
+    }
+
+    llvm::Type *i8_ty = llvm::Type::getInt8Ty(context_);
+    llvm::Type *i32_ty = llvm::Type::getInt32Ty(context_);
+    llvm::Type *i64_ty = llvm::Type::getInt64Ty(context_);
+    llvm::Type *i8_ptr_ty = llvm::PointerType::get(i8_ty, 0);
+
+    llvm::Type *panic_storage_ty = GetLLVMType(PanicRecordType());
+    if (!panic_storage_ty || panic_storage_ty->isVoidTy())
+    {
+      panic_storage_ty = llvm::ArrayType::get(i8_ty, 8);
+    }
+    llvm::AllocaInst *panic_storage =
+        builder->CreateAlloca(panic_storage_ty, nullptr, "entry_panic");
+    builder->CreateStore(llvm::Constant::getNullValue(panic_storage_ty), panic_storage);
+
+    llvm::Value *panic_ptr = CoerceTo(builder, panic_storage, GetOpaquePtr());
+    if (!panic_ptr)
+    {
+      panic_ptr = builder->CreatePointerCast(panic_storage, GetOpaquePtr());
+    }
+
+    std::uint64_t panic_flag_offset = 0;
+    std::uint64_t panic_code_offset = 4;
+    {
+      const analysis::ScopeContext &scope = BuildScope(current_ctx_);
+      const auto layout = RecordLayoutOf(scope, {
+                                                    analysis::MakeTypePrim("bool"),
+                                                    analysis::MakeTypePrim("u32"),
+                                                });
+      if (layout.has_value() && layout->offsets.size() >= 2)
+      {
+        panic_flag_offset = layout->offsets[0];
+        panic_code_offset = layout->offsets[1];
+      }
+    }
+
+    auto load_panic_flag = [&]() -> llvm::Value *
+    {
+      if (!panic_ptr)
+      {
+        return nullptr;
+      }
+      llvm::Value *panic_i8 = CoerceTo(builder, panic_ptr, i8_ptr_ty);
+      if (!panic_i8)
+      {
+        return nullptr;
+      }
+      llvm::Value *flag_ptr = panic_i8;
+      if (panic_flag_offset != 0)
+      {
+        flag_ptr = builder->CreateInBoundsGEP(
+            i8_ty,
+            panic_i8,
+            llvm::ConstantInt::get(i64_ty, panic_flag_offset));
+      }
+      llvm::Value *flag = builder->CreateLoad(i8_ty, flag_ptr);
+      return builder->CreateICmpNE(flag, llvm::ConstantInt::get(i8_ty, 0));
+    };
+
+    auto load_panic_code = [&]() -> llvm::Value *
+    {
+      if (!panic_ptr)
+      {
+        return llvm::ConstantInt::get(i32_ty, 1);
+      }
+      llvm::Value *panic_i8 = CoerceTo(builder, panic_ptr, i8_ptr_ty);
+      if (!panic_i8)
+      {
+        return llvm::ConstantInt::get(i32_ty, 1);
+      }
+      llvm::Value *code_i8 = panic_i8;
+      if (panic_code_offset != 0)
+      {
+        code_i8 = builder->CreateInBoundsGEP(
+            i8_ty,
+            panic_i8,
+            llvm::ConstantInt::get(i64_ty, panic_code_offset));
+      }
+      llvm::Value *code_ptr =
+          builder->CreatePointerCast(code_i8, llvm::PointerType::get(i32_ty, 0));
+      return builder->CreateLoad(i32_ty, code_ptr);
+    };
+
+    const std::string runtime_panic_sym = RuntimePanicSym();
+    llvm::Function *runtime_panic_fn = module_->getFunction(runtime_panic_sym);
+    if (!runtime_panic_fn)
+    {
+      llvm::FunctionType *panic_ty =
+          llvm::FunctionType::get(llvm::Type::getVoidTy(context_), {i32_ty}, false);
+      runtime_panic_fn = llvm::Function::Create(
+          panic_ty,
+          llvm::GlobalValue::ExternalLinkage,
+          runtime_panic_sym,
+          module_.get());
+      runtime_panic_fn->setCallingConv(llvm::CallingConv::C);
+    }
+
+    std::vector<llvm::Value *> call_args;
+    llvm::FunctionType *callee_ty = cursive_main->getFunctionType();
+    call_args.reserve(callee_ty->getNumParams());
+    for (unsigned i = 0; i < callee_ty->getNumParams(); ++i)
+    {
+      llvm::Type *param_ty = callee_ty->getParamType(i);
+      call_args.push_back(llvm::Constant::getNullValue(param_ty));
+    }
+
+    analysis::TypeRef ctx_type = analysis::MakeTypePath({"Context"});
+    llvm::Type *ctx_storage_ty = GetLLVMType(ctx_type);
+    if (!ctx_storage_ty || ctx_storage_ty->isVoidTy())
+    {
+      ctx_storage_ty = llvm::ArrayType::get(i8_ty, 64);
+    }
+    llvm::AllocaInst *ctx_storage =
+        builder->CreateAlloca(ctx_storage_ty, nullptr, "entry_ctx");
+    builder->CreateStore(llvm::Constant::getNullValue(ctx_storage_ty), ctx_storage);
+
+    const std::string context_init_sym = ContextInitSym();
+    bool context_initialized = false;
+    if (std::optional<RuntimeFuncInfo> init_info = GetRuntimeFuncInfo(context_init_sym))
+    {
+      const bool use_c_abi_aggregate_sret = true;
+      ABICallResult init_abi =
+          ComputeCallABI(init_info->params, init_info->ret, use_c_abi_aggregate_sret);
+      llvm::FunctionType *init_ty = init_abi.func_type;
+      if (!init_ty)
+      {
+        init_ty = llvm::FunctionType::get(llvm::Type::getVoidTy(context_), {}, false);
+      }
+      llvm::Function *context_init_fn = module_->getFunction(context_init_sym);
+      if (!context_init_fn)
+      {
+        context_init_fn = llvm::Function::Create(
+            init_ty,
+            llvm::GlobalValue::ExternalLinkage,
+            context_init_sym,
+            module_.get());
+      }
+
+      if (context_init_fn)
+      {
+        std::vector<llvm::Value *> init_args;
+        init_args.reserve(init_ty->getNumParams());
+        for (unsigned i = 0; i < init_ty->getNumParams(); ++i)
+        {
+          llvm::Type *param_ty = init_ty->getParamType(i);
+          llvm::Value *arg = nullptr;
+          if (init_abi.has_sret && i == 0)
+          {
+            arg = CoerceTo(builder, ctx_storage, param_ty);
+          }
+          if (!arg)
+          {
+            arg = llvm::Constant::getNullValue(param_ty);
+          }
+          init_args.push_back(arg);
+        }
+        llvm::CallInst *init_call =
+            builder->CreateCall(init_ty, context_init_fn, init_args);
+        init_call->setCallingConv(context_init_fn->getCallingConv());
+        context_initialized = true;
+
+        if (!init_abi.has_sret && !init_call->getType()->isVoidTy())
+        {
+          llvm::Value *out_ptr = CoerceTo(
+              builder,
+              ctx_storage,
+              llvm::PointerType::get(init_call->getType(), 0));
+          if (out_ptr && out_ptr->getType()->isPointerTy())
+          {
+            builder->CreateStore(init_call, out_ptr);
+          }
+        }
+      }
+    }
+
+    if (!context_initialized)
+    {
+      llvm::Function *context_init_fn = module_->getFunction(context_init_sym);
+      if (!context_init_fn)
+      {
+        llvm::FunctionType *init_ty =
+            llvm::FunctionType::get(llvm::Type::getVoidTy(context_),
+                                    {GetOpaquePtr()},
+                                    false);
+        context_init_fn = llvm::Function::Create(
+            init_ty,
+            llvm::GlobalValue::ExternalLinkage,
+            context_init_sym,
+            module_.get());
+      }
+      if (context_init_fn)
+      {
+        llvm::FunctionType *init_ty = context_init_fn->getFunctionType();
+        std::vector<llvm::Value *> init_args;
+        init_args.reserve(init_ty->getNumParams());
+        for (unsigned i = 0; i < init_ty->getNumParams(); ++i)
+        {
+          llvm::Type *param_ty = init_ty->getParamType(i);
+          llvm::Value *arg = nullptr;
+          if (i == 0)
+          {
+            arg = CoerceTo(builder, ctx_storage, param_ty);
+          }
+          if (!arg)
+          {
+            arg = llvm::Constant::getNullValue(param_ty);
+          }
+          init_args.push_back(arg);
+        }
+        llvm::CallInst *init_call =
+            builder->CreateCall(init_ty, context_init_fn, init_args);
+        init_call->setCallingConv(context_init_fn->getCallingConv());
+      }
+    }
+
+    if (callee_ty->getNumParams() >= 1)
+    {
+      llvm::Type *param_ty = callee_ty->getParamType(0);
+      if (param_ty->isPointerTy())
+      {
+        llvm::Value *arg = CoerceTo(builder, ctx_storage, param_ty);
+        if (!arg)
+        {
+          arg = llvm::Constant::getNullValue(param_ty);
+        }
+        call_args[0] = arg;
+      }
+    }
+    if (callee_ty->getNumParams() >= 2)
+    {
+      llvm::Type *param_ty = callee_ty->getParamType(1);
+      if (param_ty->isPointerTy())
+      {
+        llvm::Value *arg = CoerceTo(builder, panic_ptr, param_ty);
+        if (!arg)
+        {
+          arg = llvm::Constant::getNullValue(param_ty);
+        }
+        call_args[1] = arg;
+      }
+    }
+
+    llvm::CallInst *call = builder->CreateCall(callee_ty, cursive_main, call_args);
+    call->setCallingConv(cursive_main->getCallingConv());
+
+    llvm::Value *exit_code = nullptr;
+    if (call->getType()->isVoidTy())
+    {
+      exit_code = llvm::ConstantInt::get(i32_ty, 0);
+    }
+    else
+    {
+      exit_code = CoerceTo(builder, call, i32_ty);
+      if (!exit_code)
+      {
+        exit_code = llvm::ConstantInt::get(i32_ty, 0);
+      }
+    }
+
+    llvm::BasicBlock *panic_bb =
+        llvm::BasicBlock::Create(context_, "entry.panic", main_fn);
+    llvm::BasicBlock *deinit_bb =
+        llvm::BasicBlock::Create(context_, "entry.deinit", main_fn);
+    if (llvm::Value *has_panic = load_panic_flag())
+    {
+      builder->CreateCondBr(has_panic, panic_bb, deinit_bb);
+    }
+    else
+    {
+      builder->CreateBr(deinit_bb);
+    }
+
+    builder->SetInsertPoint(panic_bb);
+    llvm::Value *panic_code = load_panic_code();
+    panic_code = CoerceTo(builder, panic_code, i32_ty);
+    if (!panic_code)
+    {
+      panic_code = llvm::ConstantInt::get(i32_ty, 1);
+    }
+    if (runtime_panic_fn)
+    {
+      llvm::FunctionType *panic_ty = runtime_panic_fn->getFunctionType();
+      llvm::Value *panic_arg = CoerceTo(builder, panic_code, panic_ty->getParamType(0));
+      if (!panic_arg)
+      {
+        panic_arg = llvm::Constant::getNullValue(panic_ty->getParamType(0));
+      }
+      llvm::CallInst *panic_call =
+          builder->CreateCall(panic_ty, runtime_panic_fn, {panic_arg});
+      panic_call->setCallingConv(runtime_panic_fn->getCallingConv());
+      builder->CreateUnreachable();
+    }
+    else
+    {
+      llvm::FunctionCallee exit_fn = module_->getOrInsertFunction(
+          "ExitProcess",
+          llvm::FunctionType::get(
+              llvm::Type::getVoidTy(context_),
+              {i32_ty},
+              false));
+      builder->CreateCall(exit_fn, {panic_code});
+      builder->CreateUnreachable();
+    }
+
+    builder->SetInsertPoint(deinit_bb);
+    std::vector<ast::ModulePath> init_order = ComputeEntryInitOrder(*current_ctx_);
+    for (auto it = init_order.rbegin(); it != init_order.rend(); ++it)
+    {
+      const std::string deinit_sym = DeinitFn(*it);
+      llvm::Function *deinit_fn = nullptr;
+      if (const auto fn_it = functions_.find(deinit_sym); fn_it != functions_.end())
+      {
+        deinit_fn = fn_it->second;
+      }
+      else
+      {
+        deinit_fn = module_->getFunction(deinit_sym);
+      }
+      if (!deinit_fn)
+      {
+        llvm::FunctionType *deinit_ty = llvm::FunctionType::get(
+            llvm::Type::getVoidTy(context_),
+            {GetOpaquePtr()},
+            false);
+        deinit_fn = llvm::Function::Create(
+            deinit_ty,
+            llvm::GlobalValue::ExternalLinkage,
+            deinit_sym,
+            module_.get());
+      }
+
+      if (deinit_fn)
+      {
+        llvm::FunctionType *deinit_ty = deinit_fn->getFunctionType();
+        std::vector<llvm::Value *> deinit_args;
+        deinit_args.reserve(deinit_ty->getNumParams());
+        for (unsigned i = 0; i < deinit_ty->getNumParams(); ++i)
+        {
+          llvm::Type *param_ty = deinit_ty->getParamType(i);
+          llvm::Value *arg = nullptr;
+          if (i == 0)
+          {
+            arg = CoerceTo(builder, panic_ptr, param_ty);
+          }
+          if (!arg)
+          {
+            arg = llvm::Constant::getNullValue(param_ty);
+          }
+          deinit_args.push_back(arg);
+        }
+        llvm::CallInst *deinit_call =
+            builder->CreateCall(deinit_ty, deinit_fn, deinit_args);
+        deinit_call->setCallingConv(deinit_fn->getCallingConv());
+      }
+      else if (current_ctx_)
+      {
+        current_ctx_->ReportCodegenFailure();
+      }
+
+      if (llvm::Value *has_panic = load_panic_flag())
+      {
+        llvm::BasicBlock *cont_bb =
+            llvm::BasicBlock::Create(context_, "entry.deinit.cont", main_fn);
+        builder->CreateCondBr(has_panic, panic_bb, cont_bb);
+        builder->SetInsertPoint(cont_bb);
+      }
+    }
+
+    if (returns_exit_code)
+    {
+      builder->CreateRet(exit_code);
+    }
+    else
+    {
+      llvm::FunctionCallee exit_fn = module_->getOrInsertFunction(
+          "ExitProcess",
+          llvm::FunctionType::get(
+              llvm::Type::getVoidTy(context_),
+              {i32_ty},
+              false));
+      builder->CreateCall(exit_fn, {exit_code});
+      builder->CreateUnreachable();
+    }
+  }
+
+  void LLVMEmitter::EmitLibraryEntryPoint()
+  {
+    if (!current_ctx_ || !current_ctx_->shared_library_project)
+    {
+      return;
+    }
+    if (!IsProjectEntryModule(current_ctx_))
+    {
+      return;
+    }
+
+    auto *i1_ty = llvm::Type::getInt1Ty(context_);
+    auto *i8_ty = llvm::Type::getInt8Ty(context_);
+    auto *i32_ty = llvm::Type::getInt32Ty(context_);
+    auto *i64_ty = llvm::Type::getInt64Ty(context_);
+    llvm::Type *opaque_ptr_ty = GetOpaquePtr();
+    llvm::Type *panic_record_ty = GetLLVMType(PanicRecordType());
+    if (!opaque_ptr_ty || !panic_record_ty)
+    {
+      if (current_ctx_)
+      {
+        current_ctx_->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    llvm::Function *entry_fn = module_->getFunction(kLibraryEntrySym);
+    if (!entry_fn)
+    {
+      llvm::FunctionType *entry_ty = llvm::FunctionType::get(
+          i32_ty, {opaque_ptr_ty, i32_ty, opaque_ptr_ty}, false);
+      entry_fn = llvm::Function::Create(entry_ty,
+                                        llvm::GlobalValue::ExternalLinkage,
+                                        kLibraryEntrySym,
+                                        module_.get());
+      entry_fn->setCallingConv(llvm::CallingConv::C);
+    }
+    if (!entry_fn->empty())
+    {
+      return;
+    }
+
+    llvm::GlobalVariable *attached_gv = module_->getNamedGlobal("__cursive_library_attached");
+    if (!attached_gv)
+    {
+      attached_gv = new llvm::GlobalVariable(*module_,
+                                             i1_ty,
+                                             false,
+                                             llvm::GlobalValue::InternalLinkage,
+                                             llvm::ConstantInt::getFalse(context_),
+                                             "__cursive_library_attached");
+    }
+
+    llvm::BasicBlock *entry_bb = llvm::BasicBlock::Create(context_, "entry", entry_fn);
+    llvm::BasicBlock *attach_bb =
+        llvm::BasicBlock::Create(context_, "dll.attach", entry_fn);
+    llvm::BasicBlock *detach_bb =
+        llvm::BasicBlock::Create(context_, "dll.detach", entry_fn);
+    llvm::BasicBlock *other_bb =
+        llvm::BasicBlock::Create(context_, "dll.other", entry_fn);
+    auto *builder = static_cast<llvm::IRBuilder<> *>(builder_.get());
+    builder->SetInsertPoint(entry_bb);
+
+    llvm::Argument *reason_arg = entry_fn->getArg(1);
+    reason_arg->setName("fdwReason");
+
+    llvm::SwitchInst *dispatch =
+        builder->CreateSwitch(reason_arg, other_bb, 2);
+    dispatch->addCase(llvm::ConstantInt::get(i32_ty, 1), attach_bb);
+    dispatch->addCase(llvm::ConstantInt::get(i32_ty, 0), detach_bb);
+
+    auto panic_offsets = [&]() {
+      std::uint64_t flag_offset = 0;
+      std::uint64_t code_offset = 4;
+      const analysis::ScopeContext &scope = BuildScope(current_ctx_);
+      const auto layout = RecordLayoutOf(
+          scope,
+          {analysis::MakeTypePrim("bool"), analysis::MakeTypePrim("u32")});
+      if (layout.has_value() && layout->offsets.size() >= 2)
+      {
+        flag_offset = layout->offsets[0];
+        code_offset = layout->offsets[1];
+      }
+      return std::pair<std::uint64_t, std::uint64_t>{flag_offset, code_offset};
+    }();
+
+    auto panic_field_ptr = [&](llvm::IRBuilder<> &irb,
+                               llvm::Value *panic_ptr,
+                               std::uint64_t offset,
+                               llvm::Type *field_ty) -> llvm::Value * {
+      llvm::Value *panic_i8 =
+          CoerceTo(&irb, panic_ptr, llvm::PointerType::get(i8_ty, 0));
+      if (!panic_i8)
+      {
+        panic_i8 =
+            irb.CreateBitCast(panic_ptr, llvm::PointerType::get(i8_ty, 0));
+      }
+      llvm::Value *field_i8 = panic_i8;
+      if (offset != 0u)
+      {
+        field_i8 = irb.CreateInBoundsGEP(
+            i8_ty, panic_i8, llvm::ConstantInt::get(i64_ty, offset));
+      }
+      return irb.CreateBitCast(field_i8, llvm::PointerType::get(field_ty, 0));
+    };
+
+    auto clear_panic_record = [&](llvm::IRBuilder<> &irb, llvm::Value *panic_ptr) {
+      irb.CreateStore(llvm::ConstantInt::get(i8_ty, 0),
+                      panic_field_ptr(irb, panic_ptr, panic_offsets.first, i8_ty));
+      irb.CreateStore(llvm::ConstantInt::get(i32_ty, 0),
+                      panic_field_ptr(irb, panic_ptr, panic_offsets.second, i32_ty));
+    };
+
+    auto load_panic_flag = [&](llvm::IRBuilder<> &irb,
+                               llvm::Value *panic_ptr) -> llvm::Value * {
+      return irb.CreateICmpNE(
+          irb.CreateLoad(
+              i8_ty,
+              panic_field_ptr(irb, panic_ptr, panic_offsets.first, i8_ty)),
+          llvm::ConstantInt::get(i8_ty, 0));
+    };
+
+    auto ensure_proc_fn = [&](const std::string &sym) -> llvm::Function * {
+      const LowerCtx::ProcSigInfo *sig =
+          current_ctx_ ? current_ctx_->LookupProcSig(sym) : nullptr;
+      if (!sig)
+      {
+        if (current_ctx_)
+        {
+          current_ctx_->ReportCodegenFailure();
+        }
+        return nullptr;
+      }
+      ABICallResult abi = ComputeCallABI(sig->params, sig->ret);
+      llvm::FunctionType *fn_ty =
+          abi.func_type ? abi.func_type
+                        : llvm::FunctionType::get(
+                              llvm::Type::getVoidTy(context_), {}, false);
+      llvm::Function *fn = module_->getFunction(sym);
+      if (!fn)
+      {
+        fn = llvm::Function::Create(fn_ty,
+                                    llvm::GlobalValue::ExternalLinkage,
+                                    sym,
+                                    module_.get());
+      }
+      fn->setCallingConv(CallingConvForAbi(sig->abi));
+      return fn;
+    };
+
+    auto call_proc_with_panic = [&](llvm::IRBuilder<> &irb,
+                                    const std::string &sym,
+                                    llvm::Value *panic_ptr) {
+      const LowerCtx::ProcSigInfo *sig =
+          current_ctx_ ? current_ctx_->LookupProcSig(sym) : nullptr;
+      llvm::Function *fn = ensure_proc_fn(sym);
+      if (!sig || !fn)
+      {
+        return;
+      }
+      ABICallResult abi = ComputeCallABI(sig->params, sig->ret);
+      std::vector<llvm::Value *> args;
+      args.reserve(fn->arg_size());
+      for (unsigned i = 0; i < fn->arg_size(); ++i)
+      {
+        llvm::Value *arg = nullptr;
+        if (!abi.param_indices.empty() && abi.param_indices.back().has_value() &&
+            *abi.param_indices.back() == i)
+        {
+          arg = CoerceTo(&irb, panic_ptr, fn->getFunctionType()->getParamType(i));
+          if (!arg && panic_ptr &&
+              panic_ptr->getType() == fn->getFunctionType()->getParamType(i))
+          {
+            arg = panic_ptr;
+          }
+        }
+        if (!arg)
+        {
+          if (current_ctx_)
+          {
+            current_ctx_->ReportCodegenFailure();
+          }
+          return;
+        }
+        args.push_back(arg);
+      }
+      llvm::CallInst *call =
+          irb.CreateCall(fn->getFunctionType(), fn, args);
+      call->setCallingConv(fn->getCallingConv());
+    };
+
+    builder->SetInsertPoint(attach_bb);
+    llvm::LoadInst *attached_before = builder->CreateLoad(i1_ty, attached_gv);
+    llvm::BasicBlock *attach_work_bb =
+        llvm::BasicBlock::Create(context_, "dll.attach.work", entry_fn);
+    llvm::BasicBlock *attach_done_bb =
+        llvm::BasicBlock::Create(context_, "dll.attach.done", entry_fn);
+    builder->CreateCondBr(attached_before, attach_done_bb, attach_work_bb);
+
+    builder->SetInsertPoint(attach_done_bb);
+    builder->CreateRet(llvm::ConstantInt::get(i32_ty, 1));
+
+    builder->SetInsertPoint(attach_work_bb);
+    llvm::Value *panic_record_ptr = GetSharedLibraryImagePanicPtr();
+    if (!panic_record_ptr)
+    {
+      if (current_ctx_)
+      {
+        current_ctx_->ReportCodegenFailure();
+      }
+      builder->CreateRet(llvm::ConstantInt::get(i32_ty, 0));
+      return;
+    }
+    clear_panic_record(*builder, panic_record_ptr);
+
+    for (std::size_t module_index = 0;
+         module_index < current_ctx_->init_order.size();
+         ++module_index)
+    {
+      const auto &module_path = current_ctx_->init_order[module_index];
+      call_proc_with_panic(*builder, InitFn(module_path), panic_record_ptr);
+      llvm::BasicBlock *cont_bb =
+          llvm::BasicBlock::Create(context_, "dll.attach.cont", entry_fn);
+      llvm::BasicBlock *fail_bb =
+          llvm::BasicBlock::Create(context_, "dll.attach.fail", entry_fn);
+      builder->CreateCondBr(load_panic_flag(*builder, panic_record_ptr),
+                            fail_bb,
+                            cont_bb);
+      builder->SetInsertPoint(fail_bb);
+      clear_panic_record(*builder, panic_record_ptr);
+      for (std::size_t deinit_index = module_index; deinit_index > 0; --deinit_index)
+      {
+        const auto &deinit_path = current_ctx_->init_order[deinit_index - 1];
+        call_proc_with_panic(*builder, DeinitFn(deinit_path), panic_record_ptr);
+        clear_panic_record(*builder, panic_record_ptr);
+      }
+      builder->CreateStore(llvm::ConstantInt::getFalse(context_), attached_gv);
+      builder->CreateRet(llvm::ConstantInt::get(i32_ty, 0));
+      builder->SetInsertPoint(cont_bb);
+    }
+
+    builder->CreateStore(llvm::ConstantInt::getTrue(context_), attached_gv);
+    builder->CreateRet(llvm::ConstantInt::get(i32_ty, 1));
+
+    builder->SetInsertPoint(detach_bb);
+    llvm::LoadInst *attached_now = builder->CreateLoad(i1_ty, attached_gv);
+    llvm::BasicBlock *detach_work_bb =
+        llvm::BasicBlock::Create(context_, "dll.detach.work", entry_fn);
+    llvm::BasicBlock *detach_done_bb =
+        llvm::BasicBlock::Create(context_, "dll.detach.done", entry_fn);
+    builder->CreateCondBr(attached_now, detach_work_bb, detach_done_bb);
+
+    builder->SetInsertPoint(detach_work_bb);
+    clear_panic_record(*builder, panic_record_ptr);
+    for (auto it = current_ctx_->init_order.rbegin();
+         it != current_ctx_->init_order.rend();
+         ++it)
+    {
+      const auto &module_path = *it;
+      call_proc_with_panic(*builder, DeinitFn(module_path), panic_record_ptr);
+      clear_panic_record(*builder, panic_record_ptr);
+    }
+    builder->CreateStore(llvm::ConstantInt::getFalse(context_), attached_gv);
+    builder->CreateBr(detach_done_bb);
+
+    builder->SetInsertPoint(detach_done_bb);
+    builder->CreateRet(llvm::ConstantInt::get(i32_ty, 1));
+
+    builder->SetInsertPoint(other_bb);
+    builder->CreateRet(llvm::ConstantInt::get(i32_ty, 1));
+  }
+
+  void LLVMEmitter::EmitPosixLibraryLifecycleHooks()
+  {
+    if (!current_ctx_ || !current_ctx_->shared_library_project ||
+        project::ObjectFormatOf(target_profile_) != project::ObjectFormat::Elf ||
+        !IsProjectEntryModule(current_ctx_))
+    {
+      return;
+    }
+
+    llvm::Function *entry_fn = module_->getFunction(kLibraryEntrySym);
+    llvm::Type *opaque_ptr_ty = GetOpaquePtr();
+    if (!entry_fn || !opaque_ptr_ty)
+    {
+      if (current_ctx_)
+      {
+        current_ctx_->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    auto *i32_ty = llvm::Type::getInt32Ty(context_);
+    auto *opaque_ptr_ptr_ty = llvm::cast<llvm::PointerType>(opaque_ptr_ty);
+    auto ensure_runtime_panic = [&]() -> llvm::Function * {
+      llvm::Function *fn = module_->getFunction(RuntimePanicSym());
+      if (!fn)
+      {
+        llvm::FunctionType *fn_ty =
+            llvm::FunctionType::get(llvm::Type::getVoidTy(context_),
+                                    {i32_ty},
+                                    false);
+        fn = llvm::Function::Create(fn_ty,
+                                    llvm::GlobalValue::ExternalLinkage,
+                                    RuntimePanicSym(),
+                                    module_.get());
+        fn->setCallingConv(llvm::CallingConv::C);
+      }
+      return fn;
+    };
+
+    auto ensure_hook = [&](const char *name) -> llvm::Function * {
+      llvm::Function *fn = module_->getFunction(name);
+      if (!fn)
+      {
+        llvm::FunctionType *fn_ty =
+            llvm::FunctionType::get(llvm::Type::getVoidTy(context_), {}, false);
+        fn = llvm::Function::Create(fn_ty,
+                                    llvm::GlobalValue::InternalLinkage,
+                                    name,
+                                    module_.get());
+        fn->setCallingConv(llvm::CallingConv::C);
+      }
+      return fn;
+    };
+
+    llvm::Function *ctor_fn = ensure_hook(kLibraryCtorSym);
+    if (ctor_fn && ctor_fn->empty())
+    {
+      llvm::BasicBlock *entry_bb =
+          llvm::BasicBlock::Create(context_, "entry", ctor_fn);
+      llvm::BasicBlock *ok_bb =
+          llvm::BasicBlock::Create(context_, "ctor.ok", ctor_fn);
+      llvm::BasicBlock *fail_bb =
+          llvm::BasicBlock::Create(context_, "ctor.fail", ctor_fn);
+      auto *builder = static_cast<llvm::IRBuilder<> *>(builder_.get());
+      builder->SetInsertPoint(entry_bb);
+      llvm::CallInst *attach_call =
+          builder->CreateCall(entry_fn->getFunctionType(),
+                              entry_fn,
+                              {llvm::ConstantPointerNull::get(opaque_ptr_ptr_ty),
+                               llvm::ConstantInt::get(i32_ty, 1),
+                               llvm::ConstantPointerNull::get(opaque_ptr_ptr_ty)});
+      attach_call->setCallingConv(entry_fn->getCallingConv());
+      builder->CreateCondBr(
+          builder->CreateICmpNE(attach_call, llvm::ConstantInt::get(i32_ty, 0)),
+          ok_bb,
+          fail_bb);
+
+      builder->SetInsertPoint(fail_bb);
+      llvm::Function *runtime_panic_fn = ensure_runtime_panic();
+      builder->CreateCall(runtime_panic_fn,
+                          {llvm::ConstantInt::get(
+                              i32_ty,
+                              PanicCode(PanicReason::ForeignPre))});
+      builder->CreateUnreachable();
+
+      builder->SetInsertPoint(ok_bb);
+      builder->CreateRetVoid();
+    }
+
+    llvm::Function *dtor_fn = ensure_hook(kLibraryDtorSym);
+    if (dtor_fn && dtor_fn->empty())
+    {
+      llvm::BasicBlock *entry_bb =
+          llvm::BasicBlock::Create(context_, "entry", dtor_fn);
+      auto *builder = static_cast<llvm::IRBuilder<> *>(builder_.get());
+      builder->SetInsertPoint(entry_bb);
+      llvm::CallInst *detach_call =
+          builder->CreateCall(entry_fn->getFunctionType(),
+                              entry_fn,
+                              {llvm::ConstantPointerNull::get(opaque_ptr_ptr_ty),
+                               llvm::ConstantInt::get(i32_ty, 0),
+                               llvm::ConstantPointerNull::get(opaque_ptr_ptr_ty)});
+      detach_call->setCallingConv(entry_fn->getCallingConv());
+      builder->CreateRetVoid();
+    }
+
+    if (ctor_fn)
+    {
+      llvm::appendToGlobalCtors(*module_, ctor_fn, 65535);
+    }
+    if (dtor_fn)
+    {
+      llvm::appendToGlobalDtors(*module_, dtor_fn, 65535);
+    }
+  }
+
   void LLVMEmitter::ApplySharedLibraryDefinitionVisibility()
   {
     if (!current_ctx_ || !current_ctx_->shared_library_project ||
@@ -7407,26 +7333,6 @@ namespace cursive::codegen
     // Implementation depends on runtime poison tracking
   }
 
-  // T-LLVM-003: Attribute helpers
-  void LLVMEmitter::AddPtrAttributes(llvm::Function *func, unsigned arg_idx, analysis::TypeRef type)
-  {
-    SPEC_RULE("LLVM-PtrAttrs-Valid");
-    SPEC_RULE("LLVM-ArgAttrs-Ptr");
-
-    if (!func || !type)
-    {
-      return;
-    }
-
-    llvm::AttrBuilder b(context_);
-    AddArgAttrsToBuilder(b, type);
-    AddPtrAttrsToBuilder(b, type, current_ctx_);
-
-    if (b.hasAttributes())
-    {
-      func->addParamAttrs(arg_idx, b);
-    }
-  }
 
   // T-LLVM-009: Instruction emission
   void LLVMEmitter::EmitIR(const IRPtr &ir)
@@ -7514,6 +7420,58 @@ namespace cursive::codegen
           out = DefaultFor(value);
         }
         return out;
+      }
+
+      bool IsAddressBackedAggregateType(llvm::Type *ty) const
+      {
+        if (!ty)
+        {
+          return false;
+        }
+        if (ty->isArrayTy())
+        {
+          return true;
+        }
+        if (auto *struct_ty = llvm::dyn_cast<llvm::StructType>(ty))
+        {
+          return struct_ty->getNumElements() != 0;
+        }
+        return false;
+      }
+
+      llvm::Value *ForwardedAggregateStorage(const IRValue &value) const
+      {
+        if (value.kind != IRValue::Kind::Opaque)
+        {
+          return nullptr;
+        }
+        llvm::Type *result_ty = ExpectedLLVMType(value);
+        if (!IsAddressBackedAggregateType(result_ty))
+        {
+          return nullptr;
+        }
+        llvm::Value *storage = emitter.GetAddressableStorage(value);
+        if (!storage || !storage->getType()->isPointerTy())
+        {
+          return nullptr;
+        }
+        llvm::Type *expected_ptr_ty = llvm::PointerType::get(result_ty, 0);
+        if (storage->getType() != expected_ptr_ty)
+        {
+          storage = builder.CreateBitCast(storage, expected_ptr_ty);
+        }
+        return storage;
+      }
+
+      void SetForwardedOrMaterializedResult(const IRValue &value) const
+      {
+        if (llvm::Value *storage = ForwardedAggregateStorage(value))
+        {
+          emitter.ForgetTempStorage(value);
+          emitter.SetTempStorage(value, storage);
+          return;
+        }
+        emitter.SetTempValue(value, EvaluateOrDefault(value));
       }
 
       std::optional<std::uint64_t> StaticRangeLength(const IRRange &range,
@@ -7676,6 +7634,40 @@ namespace cursive::codegen
           {
           case DerivedValueInfo::Kind::ArrayLit:
             return static_cast<std::uint64_t>(derived->elements.size());
+          case DerivedValueInfo::Kind::ArrayRepeat:
+          {
+            llvm::Value *count_value = emitter.EvaluateIRValue(derived->repeat_count);
+            auto *count_int = llvm::dyn_cast_or_null<llvm::ConstantInt>(count_value);
+            if (!count_int)
+            {
+              return std::nullopt;
+            }
+            return count_int->getZExtValue();
+          }
+          case DerivedValueInfo::Kind::ArraySegments:
+          {
+            std::uint64_t total = 0;
+            for (const auto &segment : derived->array_segments)
+            {
+              if (segment.kind == DerivedArraySegment::Kind::Element)
+              {
+                total += 1;
+                continue;
+              }
+              if (!segment.count.has_value())
+              {
+                return std::nullopt;
+              }
+              llvm::Value *count_value = emitter.EvaluateIRValue(*segment.count);
+              auto *count_int = llvm::dyn_cast_or_null<llvm::ConstantInt>(count_value);
+              if (!count_int)
+              {
+                return std::nullopt;
+              }
+              total += count_int->getZExtValue();
+            }
+            return total;
+          }
           case DerivedValueInfo::Kind::Slice:
           {
             auto base_len = StaticLengthOf(derived->base);
@@ -7805,24 +7797,7 @@ namespace cursive::codegen
         {
           return nullptr;
         }
-
-        llvm::Type *seq_ll = emitter.GetLLVMType(normalized_type);
-        if (!seq_ll)
-        {
-          return nullptr;
-        }
-        llvm::Value *typed_ptr =
-            builder.CreateBitCast(runtime_value, llvm::PointerType::get(seq_ll, 0));
-        llvm::Value *loaded_seq = builder.CreateLoad(seq_ll, typed_ptr);
-        if (auto *struct_ty = llvm::dyn_cast<llvm::StructType>(loaded_seq->getType()))
-        {
-          if (struct_ty->getNumElements() >= 2 &&
-              struct_ty->getElementType(1)->isIntegerTy())
-          {
-            return builder.CreateExtractValue(loaded_seq, {1u});
-          }
-        }
-        return nullptr;
+        return EmitSliceLenFromAddr(emitter, builder, normalized_type, runtime_value);
       }
 
       std::optional<std::uint64_t> ImmediateU64(const IRValue &value) const
@@ -7857,6 +7832,140 @@ namespace cursive::codegen
           return true;
         }
         return !name.empty() && name[0] == 'i' && name != "i1";
+      }
+
+      bool IsCharType(const analysis::TypeRef &type) const
+      {
+        analysis::TypeRef stripped = analysis::StripPerm(type);
+        if (!stripped)
+        {
+          return false;
+        }
+        const auto *prim = std::get_if<analysis::TypePrim>(&stripped->node);
+        return prim && prim->name == "char";
+      }
+
+      llvm::Value *EmitBuiltinEqCall(llvm::IRBuilder<> &builder,
+                                     const analysis::TypeRef &type,
+                                     llvm::Value *lhs,
+                                     llvm::Value *rhs) const
+      {
+        if (!lhs || !rhs || !analysis::EqType(type))
+        {
+          return nullptr;
+        }
+        return EmitTypedEq(&builder, lhs, rhs);
+      }
+
+      struct BuiltinSuccessorResult
+      {
+        llvm::Value *has_next = nullptr;
+        llvm::Value *next = nullptr;
+      };
+
+      std::optional<BuiltinSuccessorResult> EmitBuiltinSuccessor(
+          llvm::IRBuilder<> &builder,
+          const analysis::TypeRef &type,
+          llvm::Value *value) const
+      {
+        if (!value || !value->getType()->isIntegerTy() ||
+            !analysis::BuiltinStepType(type))
+        {
+          return std::nullopt;
+        }
+
+        if (IsCharType(type))
+        {
+          llvm::Constant *max_scalar =
+              llvm::ConstantInt::get(value->getType(), 0x10FFFFu);
+          llvm::Constant *one = llvm::ConstantInt::get(value->getType(), 1u);
+          llvm::Constant *surrogate_start =
+              llvm::ConstantInt::get(value->getType(), 0xD800u);
+          llvm::Constant *surrogate_end =
+              llvm::ConstantInt::get(value->getType(), 0xE000u);
+          llvm::Value *has_next = builder.CreateICmpNE(value, max_scalar);
+          llvm::Value *plus_one = builder.CreateAdd(value, one);
+          llvm::Value *is_surrogate_start =
+              builder.CreateICmpEQ(plus_one, surrogate_start);
+          llvm::Value *next =
+              builder.CreateSelect(is_surrogate_start, surrogate_end, plus_one);
+          return BuiltinSuccessorResult{
+              .has_next = has_next,
+              .next = next,
+          };
+        }
+
+        const unsigned width = value->getType()->getIntegerBitWidth();
+        llvm::Constant *max_value = nullptr;
+        if (IsSignedIntegerType(type))
+        {
+          max_value = llvm::ConstantInt::get(
+              value->getType(), llvm::APInt::getSignedMaxValue(width));
+        }
+        else
+        {
+          max_value = llvm::ConstantInt::get(
+              value->getType(), llvm::APInt::getAllOnes(width));
+        }
+        llvm::Value *has_next = builder.CreateICmpNE(value, max_value);
+        llvm::Value *next =
+            builder.CreateAdd(value, llvm::ConstantInt::get(value->getType(), 1u));
+        return BuiltinSuccessorResult{
+            .has_next = has_next,
+            .next = next,
+        };
+      }
+
+      std::optional<BuiltinSuccessorResult> EmitBuiltinPredecessor(
+          llvm::IRBuilder<> &builder,
+          const analysis::TypeRef &type,
+          llvm::Value *value) const
+      {
+        if (!value || !value->getType()->isIntegerTy() ||
+            !analysis::BuiltinStepType(type))
+        {
+          return std::nullopt;
+        }
+
+        if (IsCharType(type))
+        {
+          llvm::Constant *min_scalar =
+              llvm::ConstantInt::get(value->getType(), 0u);
+          llvm::Constant *one = llvm::ConstantInt::get(value->getType(), 1u);
+          llvm::Constant *surrogate_last =
+              llvm::ConstantInt::get(value->getType(), 0xDFFFu);
+          llvm::Constant *scalar_before_surrogates =
+              llvm::ConstantInt::get(value->getType(), 0xD7FFu);
+          llvm::Value *has_prev = builder.CreateICmpNE(value, min_scalar);
+          llvm::Value *minus_one = builder.CreateSub(value, one);
+          llvm::Value *is_surrogate_last =
+              builder.CreateICmpEQ(minus_one, surrogate_last);
+          llvm::Value *prev = builder.CreateSelect(
+              is_surrogate_last, scalar_before_surrogates, minus_one);
+          return BuiltinSuccessorResult{
+              .has_next = has_prev,
+              .next = prev,
+          };
+        }
+
+        const unsigned width = value->getType()->getIntegerBitWidth();
+        llvm::Constant *min_value = nullptr;
+        if (IsSignedIntegerType(type))
+        {
+          min_value = llvm::ConstantInt::get(
+              value->getType(), llvm::APInt::getSignedMinValue(width));
+        }
+        else
+        {
+          min_value = llvm::ConstantInt::get(value->getType(), 0u);
+        }
+        llvm::Value *has_prev = builder.CreateICmpNE(value, min_value);
+        llvm::Value *prev =
+            builder.CreateSub(value, llvm::ConstantInt::get(value->getType(), 1u));
+        return BuiltinSuccessorResult{
+            .has_next = has_prev,
+            .next = prev,
+        };
       }
 
       struct MaterializedRangeValue
@@ -8050,11 +8159,222 @@ namespace cursive::codegen
 
       void operator()(const IRSeq &seq) const
       {
-        for (const auto &item : seq.items)
+        struct ForwardTargetInfo
+        {
+          const std::string *name = nullptr;
+          const IRValue *value = nullptr;
+          analysis::TypeRef bind_type = nullptr;
+          llvm::Value *direct_storage = nullptr;
+        };
+
+        auto find_call_producing = [&](auto &&self,
+                                       const IRPtr &ir,
+                                       const IRValue &target_value) -> const IRCall *
+        {
+          if (!ir)
+          {
+            return nullptr;
+          }
+          if (const auto *call = std::get_if<IRCall>(&ir->node))
+          {
+            if (call->result.kind == target_value.kind &&
+                call->result.name == target_value.name)
+            {
+              return call;
+            }
+            return nullptr;
+          }
+          const auto *nested = std::get_if<IRSeq>(&ir->node);
+          if (nested)
+          {
+            for (const auto &child : nested->items)
+            {
+              if (const IRCall *call = self(self, child, target_value))
+              {
+                return call;
+              }
+            }
+            return nullptr;
+          }
+          if (const auto *if_ir = std::get_if<IRIf>(&ir->node))
+          {
+            if (const IRCall *call = self(self, if_ir->then_ir, target_value))
+            {
+              return call;
+            }
+            return self(self, if_ir->else_ir, target_value);
+          }
+          if (const auto *block = std::get_if<IRBlock>(&ir->node))
+          {
+            if (const IRCall *call = self(self, block->setup, target_value))
+            {
+              return call;
+            }
+            return self(self, block->body, target_value);
+          }
+          if (const auto *loop = std::get_if<IRLoop>(&ir->node))
+          {
+            if (const IRCall *call = self(self, loop->iter_ir, target_value))
+            {
+              return call;
+            }
+            if (const IRCall *call = self(self, loop->cond_ir, target_value))
+            {
+              return call;
+            }
+            return self(self, loop->body_ir, target_value);
+          }
+          if (const auto *if_case = std::get_if<IRIfCase>(&ir->node))
+          {
+            for (const auto &arm : if_case->arms)
+            {
+              if (const IRCall *call = self(self, arm.body, target_value))
+              {
+                return call;
+              }
+            }
+            return nullptr;
+          }
+          if (const auto *region = std::get_if<IRRegion>(&ir->node))
+          {
+            return self(self, region->body, target_value);
+          }
+          if (const auto *frame = std::get_if<IRFrame>(&ir->node))
+          {
+            return self(self, frame->body, target_value);
+          }
+          return nullptr;
+        };
+
+        auto target_info = [&](const IRPtr &ir) -> ForwardTargetInfo
+        {
+          if (!ir)
+          {
+            return {};
+          }
+          if (const auto *store = std::get_if<IRStoreVar>(&ir->node))
+          {
+            return ForwardTargetInfo{&store->name, &store->value, nullptr};
+          }
+          if (const auto *store_nodrop = std::get_if<IRStoreVarNoDrop>(&ir->node))
+          {
+            return ForwardTargetInfo{&store_nodrop->name, &store_nodrop->value, nullptr};
+          }
+          if (const auto *bind = std::get_if<IRBindVar>(&ir->node))
+          {
+            return ForwardTargetInfo{&bind->name, &bind->value, bind->type};
+          }
+          if (const auto *ret = std::get_if<IRReturn>(&ir->node))
+          {
+            llvm::Function *func =
+                builder.GetInsertBlock() ? builder.GetInsertBlock()->getParent() : nullptr;
+            const LowerCtx *active_ctx = emitter.GetCurrentCtx();
+            if (!func || !active_ctx)
+            {
+              return {};
+            }
+            const std::string symbol = std::string(func->getName());
+            const LowerCtx::ProcSigInfo *sig = active_ctx->LookupProcSig(symbol);
+            if (!sig || !sig->ret)
+            {
+              return {};
+            }
+            llvm::Type *ret_ty = emitter.GetLLVMType(sig->ret);
+            if (!ret_ty || ret_ty->isVoidTy())
+            {
+              return {};
+            }
+            const bool aggregate_ret =
+                ret_ty->isArrayTy() ||
+                (llvm::isa<llvm::StructType>(ret_ty) &&
+                 llvm::cast<llvm::StructType>(ret_ty)->getNumElements() != 0);
+            if (!aggregate_ret)
+            {
+              return {};
+            }
+            ABICallResult abi = emitter.ComputeProcABI(symbol, sig->params, sig->ret);
+            if (!abi.has_sret || func->arg_size() == 0)
+            {
+              return {};
+            }
+            return ForwardTargetInfo{nullptr, &ret->value, nullptr, func->getArg(0)};
+          }
+          return {};
+        };
+
+        auto ensure_home_slot = [&](const ForwardTargetInfo &target) -> llvm::Value *
+        {
+          if (target.direct_storage)
+          {
+            return target.direct_storage;
+          }
+          if (!target.name)
+          {
+            return nullptr;
+          }
+
+          llvm::Value *home_slot = emitter.GetLocalHomeStorage(*target.name);
+          if (!home_slot)
+          {
+            home_slot = emitter.GetLocal(*target.name);
+            if (home_slot && home_slot->getType()->isPointerTy())
+            {
+              emitter.SetLocalHomeStorage(*target.name, home_slot);
+            }
+          }
+          if (home_slot || !target.bind_type)
+          {
+            return home_slot;
+          }
+
+          llvm::Type *slot_ty = emitter.GetLLVMType(target.bind_type);
+          if (!slot_ty || slot_ty->isVoidTy())
+          {
+            return nullptr;
+          }
+
+          llvm::Function *func = builder.GetInsertBlock()->getParent();
+          llvm::IRBuilder<> entry_builder(&func->getEntryBlock(),
+                                          func->getEntryBlock().begin());
+          home_slot = entry_builder.CreateAlloca(slot_ty, nullptr, *target.name);
+          emitter.SetLocalHomeStorage(*target.name, home_slot);
+          return home_slot;
+        };
+
+        for (std::size_t index = 0; index < seq.items.size(); ++index)
         {
           if (builder.GetInsertBlock()->getTerminator())
           {
             break;
+          }
+          const auto &item = seq.items[index];
+          if (index + 1 < seq.items.size())
+          {
+            for (std::size_t lookahead = index + 1;
+                 lookahead < seq.items.size();
+                 ++lookahead)
+            {
+              if (std::holds_alternative<IROpaque>(seq.items[lookahead]->node) ||
+                  std::holds_alternative<IRPanicCheck>(seq.items[lookahead]->node))
+              {
+                continue;
+              }
+              const ForwardTargetInfo target = target_info(seq.items[lookahead]);
+              if (!target.value || (!target.name && !target.direct_storage))
+              {
+                continue;
+              }
+              if (const auto *call =
+                      find_call_producing(find_call_producing, item, *target.value))
+              {
+                llvm::Value *home_slot = ensure_home_slot(target);
+                if (home_slot && home_slot->getType()->isPointerTy())
+                {
+                  emitter.SetPreferredResultStorage(call->result, home_slot);
+                  break;
+                }
+              }
+            }
           }
           emitter.EmitIR(item);
         }
@@ -8098,9 +8418,64 @@ namespace cursive::codegen
       void operator()(const IRStoreVar &store) const
       {
         llvm::Value *slot = emitter.GetLocal(store.name);
+        llvm::Value *source_storage = emitter.GetAddressableStorage(store.value);
         if (!slot)
         {
+          slot = emitter.GetLocalHomeStorage(store.name);
+          if (slot)
+          {
+            emitter.SetLocal(store.name, slot);
+          }
+        }
+        if (!slot)
+        {
+          llvm::Value *value = EvaluateOrDefault(store.value);
+          llvm::Type *slot_ty = nullptr;
+          if (auto *alloca = llvm::dyn_cast<llvm::AllocaInst>(source_storage))
+          {
+            slot_ty = alloca->getAllocatedType();
+          }
+          if (!slot_ty && value)
+          {
+            slot_ty = value->getType();
+          }
+          if (!slot_ty || slot_ty->isVoidTy())
+          {
+            slot_ty = llvm::Type::getInt64Ty(emitter.GetContext());
+          }
+
+          llvm::Function *func = builder.GetInsertBlock()->getParent();
+          llvm::IRBuilder<> entry_builder(&func->getEntryBlock(),
+                                         func->getEntryBlock().begin());
+          llvm::Value *new_slot =
+              entry_builder.CreateAlloca(slot_ty, nullptr, store.name);
+          emitter.SetLocal(store.name, new_slot);
+          emitter.SetLocalHomeStorage(store.name, new_slot);
+
+          if (!value)
+          {
+            value = llvm::Constant::getNullValue(slot_ty);
+          }
+          else if (auto *alloca = llvm::dyn_cast<llvm::AllocaInst>(new_slot))
+          {
+            value = CoerceTo(&builder, value, alloca->getAllocatedType());
+            if (!value)
+            {
+              value = llvm::Constant::getNullValue(alloca->getAllocatedType());
+            }
+          }
+
+          builder.CreateStore(value, new_slot);
+          emitter.ReleaseTempStorage(store.value);
           return;
+        }
+        if (source_storage)
+        {
+          if (source_storage == slot)
+          {
+            emitter.ForgetTempStorage(store.value);
+            return;
+          }
         }
         llvm::Value *value = EvaluateOrDefault(store.value);
         if (auto *alloca = llvm::dyn_cast<llvm::AllocaInst>(slot))
@@ -8112,6 +8487,7 @@ namespace cursive::codegen
           }
         }
         builder.CreateStore(value, slot);
+        emitter.ReleaseTempStorage(store.value);
       }
 
       void operator()(const IRStoreVarNoDrop &store) const
@@ -8598,12 +8974,11 @@ namespace cursive::codegen
             };
 
             const analysis::ScopeContext &scope = BuildScope(comb_ctx);
-            const std::uint64_t suspended_disc =
-                AsyncStateIndexOrDefault(scope, "Suspended", 0);
-            const std::uint64_t completed_disc =
-                AsyncStateIndexOrDefault(scope, "Completed", 1);
-            const std::uint64_t failed_disc =
-                AsyncStateIndexOrDefault(scope, "Failed", 2);
+            const AsyncStateDiscs source_discs =
+                LoweredAsyncStateDiscs(scope, *source_sig);
+            const std::uint64_t suspended_disc = source_discs.suspended;
+            const std::uint64_t completed_disc = source_discs.completed;
+            const std::optional<std::uint64_t> failed_disc = source_discs.failed;
 
             llvm::Type *i8_ty = llvm::Type::getInt8Ty(emitter.GetContext());
             llvm::Type *opaque_ptr_ty = emitter.GetOpaquePtr();
@@ -8701,10 +9076,14 @@ namespace cursive::codegen
               llvm::Value *current_async = builder.CreateLoad(async_struct, async_slot);
               llvm::Value *disc = builder.CreateExtractValue(current_async, {0u});
               auto *disc_ty = llvm::cast<llvm::IntegerType>(disc->getType());
-              llvm::SwitchInst *sw = builder.CreateSwitch(disc, exit_bb, 3);
+              llvm::SwitchInst *sw = builder.CreateSwitch(
+                  disc, exit_bb, failed_disc.has_value() ? 3 : 2);
               sw->addCase(llvm::ConstantInt::get(disc_ty, suspended_disc), suspended_bb);
               sw->addCase(llvm::ConstantInt::get(disc_ty, completed_disc), exit_bb);
-              sw->addCase(llvm::ConstantInt::get(disc_ty, failed_disc), exit_bb);
+              if (failed_disc.has_value())
+              {
+                sw->addCase(llvm::ConstantInt::get(disc_ty, *failed_disc), exit_bb);
+              }
 
               builder.SetInsertPoint(suspended_bb);
               llvm::Value *output = load_payload_from_slot(async_slot, source_sig->out);
@@ -8809,8 +9188,12 @@ namespace cursive::codegen
                   llvm::BasicBlock::Create(emitter.GetContext(), "ac.fold.resume", func);
               llvm::BasicBlock *completed_bb =
                   llvm::BasicBlock::Create(emitter.GetContext(), "ac.fold.completed", func);
-              llvm::BasicBlock *failed_bb =
-                  llvm::BasicBlock::Create(emitter.GetContext(), "ac.fold.failed", func);
+              llvm::BasicBlock *failed_bb = failed_disc.has_value()
+                                                ? llvm::BasicBlock::Create(
+                                                      emitter.GetContext(),
+                                                      "ac.fold.failed",
+                                                      func)
+                                                : nullptr;
               llvm::BasicBlock *merge_bb =
                   llvm::BasicBlock::Create(emitter.GetContext(), "ac.fold.merge", func);
               builder.CreateBr(loop_bb);
@@ -8819,10 +9202,14 @@ namespace cursive::codegen
               llvm::Value *current_async = builder.CreateLoad(async_struct, async_slot);
               llvm::Value *disc = builder.CreateExtractValue(current_async, {0u});
               auto *disc_ty = llvm::cast<llvm::IntegerType>(disc->getType());
-              llvm::SwitchInst *sw = builder.CreateSwitch(disc, completed_bb, 3);
+              llvm::SwitchInst *sw = builder.CreateSwitch(
+                  disc, completed_bb, failed_disc.has_value() ? 3 : 2);
               sw->addCase(llvm::ConstantInt::get(disc_ty, suspended_disc), suspended_bb);
               sw->addCase(llvm::ConstantInt::get(disc_ty, completed_disc), completed_bb);
-              sw->addCase(llvm::ConstantInt::get(disc_ty, failed_disc), failed_bb);
+              if (failed_disc.has_value())
+              {
+                sw->addCase(llvm::ConstantInt::get(disc_ty, *failed_disc), failed_bb);
+              }
 
               builder.SetInsertPoint(suspended_bb);
               llvm::Value *out = load_payload_from_slot(async_slot, source_sig->out);
@@ -8859,11 +9246,14 @@ namespace cursive::codegen
               store_result(complete);
               builder.CreateBr(merge_bb);
 
-              builder.SetInsertPoint(failed_bb);
-              llvm::Value *err = load_payload_from_slot(async_slot, source_sig->err);
-              llvm::Value *fail = make_async_fail(err, source_sig->err);
-              store_result(fail);
-              builder.CreateBr(merge_bb);
+              if (failed_bb)
+              {
+                builder.SetInsertPoint(failed_bb);
+                llvm::Value *err = load_payload_from_slot(async_slot, source_sig->err);
+                llvm::Value *fail = make_async_fail(err, source_sig->err);
+                store_result(fail);
+                builder.CreateBr(merge_bb);
+              }
 
               builder.SetInsertPoint(merge_bb);
               finish_from(nullptr);
@@ -8885,8 +9275,12 @@ namespace cursive::codegen
                   llvm::BasicBlock::Create(emitter.GetContext(), "ac.chain.resume", func);
               llvm::BasicBlock *completed_bb =
                   llvm::BasicBlock::Create(emitter.GetContext(), "ac.chain.completed", func);
-              llvm::BasicBlock *failed_bb =
-                  llvm::BasicBlock::Create(emitter.GetContext(), "ac.chain.failed", func);
+              llvm::BasicBlock *failed_bb = failed_disc.has_value()
+                                                ? llvm::BasicBlock::Create(
+                                                      emitter.GetContext(),
+                                                      "ac.chain.failed",
+                                                      func)
+                                                : nullptr;
               llvm::BasicBlock *merge_bb =
                   llvm::BasicBlock::Create(emitter.GetContext(), "ac.chain.merge", func);
               builder.CreateBr(loop_bb);
@@ -8895,10 +9289,14 @@ namespace cursive::codegen
               llvm::Value *current_async = builder.CreateLoad(async_struct, async_slot);
               llvm::Value *disc = builder.CreateExtractValue(current_async, {0u});
               auto *disc_ty = llvm::cast<llvm::IntegerType>(disc->getType());
-              llvm::SwitchInst *sw = builder.CreateSwitch(disc, failed_bb, 3);
+              llvm::SwitchInst *sw = builder.CreateSwitch(
+                  disc, completed_bb, failed_disc.has_value() ? 3 : 2);
               sw->addCase(llvm::ConstantInt::get(disc_ty, suspended_disc), suspended_bb);
               sw->addCase(llvm::ConstantInt::get(disc_ty, completed_disc), completed_bb);
-              sw->addCase(llvm::ConstantInt::get(disc_ty, failed_disc), failed_bb);
+              if (failed_disc.has_value())
+              {
+                sw->addCase(llvm::ConstantInt::get(disc_ty, *failed_disc), failed_bb);
+              }
 
               builder.SetInsertPoint(suspended_bb);
               builder.CreateBr(resume_bb);
@@ -8916,11 +9314,14 @@ namespace cursive::codegen
               store_result(chained_async);
               builder.CreateBr(merge_bb);
 
-              builder.SetInsertPoint(failed_bb);
-              llvm::Value *err = load_payload_from_slot(async_slot, source_sig->err);
-              llvm::Value *fail = make_async_fail(err, source_sig->err);
-              store_result(fail);
-              builder.CreateBr(merge_bb);
+              if (failed_bb)
+              {
+                builder.SetInsertPoint(failed_bb);
+                llvm::Value *err = load_payload_from_slot(async_slot, source_sig->err);
+                llvm::Value *fail = make_async_fail(err, source_sig->err);
+                store_result(fail);
+                builder.CreateBr(merge_bb);
+              }
 
               builder.SetInsertPoint(merge_bb);
               finish_from(nullptr);
@@ -8976,6 +9377,118 @@ namespace cursive::codegen
           {
             args[2] = panic_arg_value;
           }
+        }
+        const bool is_foundational_eq_symbol =
+            (call.callee.kind == IRValue::Kind::Symbol) &&
+            (call.callee.name == BuiltinSymEqEq());
+        const bool is_foundational_step_successor_symbol =
+            (call.callee.kind == IRValue::Kind::Symbol) &&
+            (call.callee.name == BuiltinSymStepSuccessor());
+        const bool is_foundational_step_predecessor_symbol =
+            (call.callee.kind == IRValue::Kind::Symbol) &&
+            (call.callee.name == BuiltinSymStepPredecessor());
+        if (is_foundational_eq_symbol ||
+            is_foundational_step_successor_symbol ||
+            is_foundational_step_predecessor_symbol)
+        {
+          auto report_builtin_failure = [&]()
+          {
+            if (ctx)
+            {
+              const_cast<LowerCtx *>(ctx)->ReportCodegenFailure();
+            }
+            emitter.SetTempValue(call.result, DefaultFor(call.result));
+          };
+
+          if (args.empty())
+          {
+            report_builtin_failure();
+            return;
+          }
+
+          const analysis::TypeRef recv_type = NormalizeValueType(call.args[0]);
+          if (!recv_type)
+          {
+            report_builtin_failure();
+            return;
+          }
+
+          if (is_foundational_eq_symbol)
+          {
+            if (args.size() < 2)
+            {
+              report_builtin_failure();
+              return;
+            }
+            llvm::Value *eq = EmitBuiltinEqCall(builder, recv_type, args[0], args[1]);
+            if (!eq)
+            {
+              report_builtin_failure();
+              return;
+            }
+            emitter.SetTempValue(call.result, eq);
+            return;
+          }
+
+          const analysis::TypeRef result_type = NormalizeValueType(call.result);
+          llvm::Type *target_ll = ExpectedLLVMType(call.result);
+          if (!target_ll && result_type)
+          {
+            target_ll = emitter.GetLLVMType(result_type);
+          }
+          if (!result_type || !target_ll)
+          {
+            report_builtin_failure();
+            return;
+          }
+
+          const auto step_result =
+              is_foundational_step_successor_symbol
+                  ? EmitBuiltinSuccessor(builder, recv_type, args[0])
+                  : EmitBuiltinPredecessor(builder, recv_type, args[0]);
+          if (!step_result.has_value())
+          {
+            report_builtin_failure();
+            return;
+          }
+
+          llvm::Value *packed_some = PackUnionFromMember(
+              emitter, &builder, step_result->next, target_ll, recv_type, result_type);
+          const analysis::TypeRef unit_type = analysis::MakeTypePrim("()");
+          llvm::Type *unit_ll = emitter.GetLLVMType(unit_type);
+          llvm::Value *unit_value = unit_ll ? llvm::UndefValue::get(unit_ll) : nullptr;
+          llvm::Value *packed_none = PackUnionFromMember(
+              emitter, &builder, unit_value, target_ll, unit_type, result_type);
+          llvm::Function *fn =
+              builder.GetInsertBlock() ? builder.GetInsertBlock()->getParent() : nullptr;
+          if (!packed_some || !packed_none || !fn)
+          {
+            report_builtin_failure();
+            return;
+          }
+
+          llvm::BasicBlock *step_some_bb =
+              llvm::BasicBlock::Create(emitter.GetContext(), "step.some", fn);
+          llvm::BasicBlock *step_none_bb =
+              llvm::BasicBlock::Create(emitter.GetContext(), "step.none", fn);
+          llvm::BasicBlock *step_merge_bb =
+              llvm::BasicBlock::Create(emitter.GetContext(), "step.merge", fn);
+          builder.CreateCondBr(step_result->has_next, step_some_bb, step_none_bb);
+
+          builder.SetInsertPoint(step_some_bb);
+          builder.CreateBr(step_merge_bb);
+          llvm::BasicBlock *step_some_end = builder.GetInsertBlock();
+
+          builder.SetInsertPoint(step_none_bb);
+          builder.CreateBr(step_merge_bb);
+          llvm::BasicBlock *step_none_end = builder.GetInsertBlock();
+
+          builder.SetInsertPoint(step_merge_bb);
+          llvm::PHINode *phi = builder.CreatePHI(target_ll, 2);
+          phi->addIncoming(packed_some, step_some_end);
+          phi->addIncoming(packed_none, step_none_end);
+          emitter.SetTempValue(call.result, phi);
+          return;
         }
         bool use_c_abi_aggregate_sret = false;
         if (call.callee.kind == IRValue::Kind::Symbol)
@@ -9423,6 +9936,7 @@ namespace cursive::codegen
         }
 
         llvm::Value *call_result = nullptr;
+        llvm::Value *call_result_storage = nullptr;
         llvm::Function *debug_current_fn =
             builder.GetInsertBlock() ? builder.GetInsertBlock()->getParent() : nullptr;
         const std::string debug_current_name =
@@ -9470,6 +9984,8 @@ namespace cursive::codegen
                            sig->params[i].type ? analysis::TypeToString(sig->params[i].type).c_str() : "<null>");
             }
           }
+          llvm::Value *preferred_result_storage =
+              emitter.TakePreferredResultStorage(call.result);
           const bool ffi_import_boundary = sig->ffi_import;
           const bool ffi_import_catch = ffi_import_boundary &&
               sig->ffi_import_unwind_mode ==
@@ -9483,7 +9999,11 @@ namespace cursive::codegen
               args,
               use_c_abi_aggregate_sret,
               ffi_import_boundary,
-              ffi_import_catch);
+              ffi_import_catch,
+              std::nullopt,
+              &call.args,
+              &call_result_storage,
+              preferred_result_storage);
         }
         else
         {
@@ -9690,12 +10210,11 @@ namespace cursive::codegen
               return raw_result;
             }
 
-            const std::uint64_t suspended_disc =
-                AsyncStateIndexOrDefault(scope, "Suspended", 0);
-            const std::uint64_t completed_disc =
-                AsyncStateIndexOrDefault(scope, "Completed", 1);
-            const std::uint64_t failed_disc =
-                AsyncStateIndexOrDefault(scope, "Failed", 2);
+            const AsyncStateDiscs async_discs =
+                LoweredAsyncStateDiscs(scope, stripped_target);
+            const std::uint64_t suspended_disc = async_discs.suspended;
+            const std::uint64_t completed_disc = async_discs.completed;
+            const std::optional<std::uint64_t> failed_disc = async_discs.failed;
 
             llvm::Value *mapped = nullptr;
             if (packed_failed)
@@ -9734,7 +10253,10 @@ namespace cursive::codegen
 
             select_state(packed_suspended, suspended_disc);
             select_state(packed_completed, completed_disc);
-            select_state(packed_failed, failed_disc);
+            if (failed_disc.has_value())
+            {
+              select_state(packed_failed, *failed_disc);
+            }
             return mapped;
           };
 
@@ -9761,11 +10283,18 @@ namespace cursive::codegen
                        sig_ret_text.c_str(), result_ty_text.c_str(), never_call ? 1 : 0);
         }
 
-        if (!call_result)
+        if (call_result_storage)
+        {
+          emitter.SetTempStorage(call.result, call_result_storage);
+        }
+        if (!call_result && !call_result_storage)
         {
           call_result = DefaultFor(call.result);
         }
-        emitter.SetTempValue(call.result, call_result);
+        if (call_result)
+        {
+          emitter.SetTempValue(call.result, call_result);
+        }
 
         if (never_call && !builder.GetInsertBlock()->getTerminator())
         {
@@ -10469,30 +10998,44 @@ namespace cursive::codegen
             llvm::BasicBlock::Create(emitter.GetContext(), "if.merge", func);
 
         builder.CreateCondBr(cond, then_bb, else_bb);
+        const LLVMEmitter::FlowStateSnapshot branch_state =
+            emitter.SaveFlowState();
 
-        std::vector<std::pair<llvm::BasicBlock *, llvm::Value *>> incoming;
+        struct IncomingValue
+        {
+          llvm::BasicBlock *pred = nullptr;
+          llvm::Value *value = nullptr;
+          llvm::Value *storage = nullptr;
+        };
+
+        std::vector<IncomingValue> incoming;
 
         builder.SetInsertPoint(then_bb);
+        emitter.RestoreFlowState(branch_state);
         emitter.EmitIR(node.then_ir);
         llvm::BasicBlock *then_end = builder.GetInsertBlock();
         if (!then_end->getTerminator())
         {
+          llvm::Value *then_storage = emitter.GetAddressableStorage(node.then_value);
           llvm::Value *then_val = EvaluateOrDefault(node.then_value);
           builder.CreateBr(merge_bb);
-          incoming.push_back({then_end, then_val});
+          incoming.push_back({then_end, then_val, then_storage});
         }
 
         builder.SetInsertPoint(else_bb);
+        emitter.RestoreFlowState(branch_state);
         emitter.EmitIR(node.else_ir);
         llvm::BasicBlock *else_end = builder.GetInsertBlock();
         if (!else_end->getTerminator())
         {
+          llvm::Value *else_storage = emitter.GetAddressableStorage(node.else_value);
           llvm::Value *else_val = EvaluateOrDefault(node.else_value);
           builder.CreateBr(merge_bb);
-          incoming.push_back({else_end, else_val});
+          incoming.push_back({else_end, else_val, else_storage});
         }
 
         builder.SetInsertPoint(merge_bb);
+        emitter.RestoreFlowState(branch_state);
         if (incoming.empty())
         {
           return;
@@ -10501,13 +11044,104 @@ namespace cursive::codegen
         llvm::Type *result_ty = ExpectedLLVMType(node.result);
         if (!result_ty)
         {
-          result_ty = incoming.front().second
-                          ? incoming.front().second->getType()
+          result_ty = incoming.front().value
+                          ? incoming.front().value->getType()
                           : llvm::Type::getInt64Ty(emitter.GetContext());
         }
         if (!result_ty || result_ty->isVoidTy())
         {
           return;
+        }
+
+        const bool aggregate_result = IsAddressBackedAggregateType(result_ty);
+
+        if (aggregate_result)
+        {
+          auto coerce_storage_in_predecessor =
+              [&](llvm::BasicBlock *pred, llvm::Value *storage) -> llvm::Value *
+          {
+            if (!storage || !storage->getType()->isPointerTy())
+            {
+              return nullptr;
+            }
+            llvm::Type *expected_ptr_ty = llvm::PointerType::get(result_ty, 0);
+            if (storage->getType() == expected_ptr_ty)
+            {
+              return storage;
+            }
+            if (pred && pred->getTerminator())
+            {
+              llvm::IRBuilder<> pred_builder(pred->getTerminator());
+              return pred_builder.CreateBitCast(storage, expected_ptr_ty);
+            }
+            return builder.CreateBitCast(storage, expected_ptr_ty);
+          };
+
+          bool all_have_storage = !incoming.empty();
+          for (const auto &entry : incoming)
+          {
+            if (!entry.storage)
+            {
+              all_have_storage = false;
+              break;
+            }
+          }
+
+          llvm::Value *merged_storage = nullptr;
+          if (all_have_storage)
+          {
+            if (incoming.size() == 1)
+            {
+              merged_storage = coerce_storage_in_predecessor(
+                  incoming.front().pred, incoming.front().storage);
+            }
+            else
+            {
+              llvm::Type *expected_ptr_ty = llvm::PointerType::get(result_ty, 0);
+              llvm::PHINode *phi =
+                  builder.CreatePHI(expected_ptr_ty, incoming.size(), "if.result.addr");
+              for (const auto &entry : incoming)
+              {
+                llvm::Value *coerced =
+                    coerce_storage_in_predecessor(entry.pred, entry.storage);
+                phi->addIncoming(
+                    coerced ? coerced
+                            : llvm::ConstantPointerNull::get(
+                                  llvm::cast<llvm::PointerType>(expected_ptr_ty)),
+                    entry.pred);
+              }
+              merged_storage = phi;
+            }
+          }
+          else
+          {
+            merged_storage =
+                emitter.AcquireReusableAggregateStorage(func, result_ty, "if.result");
+            llvm::Type *expected_ptr_ty = llvm::PointerType::get(result_ty, 0);
+            if (merged_storage && merged_storage->getType() != expected_ptr_ty)
+            {
+              merged_storage = builder.CreateBitCast(merged_storage, expected_ptr_ty);
+            }
+            for (const auto &entry : incoming)
+            {
+              llvm::Value *candidate =
+                  entry.value ? entry.value : llvm::Constant::getNullValue(result_ty);
+              llvm::IRBuilder<> pred_builder(entry.pred->getTerminator());
+              llvm::Value *coerced = CoerceTo(&pred_builder, candidate, result_ty);
+              if (!coerced)
+              {
+                coerced = llvm::Constant::getNullValue(result_ty);
+              }
+              pred_builder.CreateStore(coerced, merged_storage);
+            }
+          }
+
+          if (merged_storage)
+          {
+            emitter.ForgetTempStorage(node.result);
+            emitter.SetTempStorage(node.result, merged_storage);
+            return;
+          }
         }
 
         llvm::Value *merged = nullptr;
@@ -10529,15 +11163,15 @@ namespace cursive::codegen
         };
         if (incoming.size() == 1)
         {
-          merged = coerce_in_predecessor(incoming.front().first, incoming.front().second);
+          merged = coerce_in_predecessor(incoming.front().pred, incoming.front().value);
         }
         else
         {
           llvm::PHINode *phi = builder.CreatePHI(result_ty, incoming.size(), "if.result");
-          for (const auto &[pred, val] : incoming)
+          for (const auto &entry : incoming)
           {
-            llvm::Value *coerced = coerce_in_predecessor(pred, val);
-            phi->addIncoming(coerced, pred);
+            llvm::Value *coerced = coerce_in_predecessor(entry.pred, entry.value);
+            phi->addIncoming(coerced, entry.pred);
           }
           merged = phi;
         }
@@ -10579,6 +11213,50 @@ namespace cursive::codegen
 
         if (ret_ty->isVoidTy())
         {
+          if (sig && sig->ret)
+          {
+            llvm::Value *out_ptr =
+                ResolveProcedureOutPtr(emitter, &builder, func, sym, sig);
+            llvm::Value *source_storage = emitter.GetAddressableStorage(ret.value);
+            if (out_ptr && source_storage)
+            {
+              llvm::Value *normalized_source = source_storage;
+              llvm::Type *out_ty = emitter.GetLLVMType(sig->ret);
+              llvm::Type *target_ptr_ty =
+                  out_ty ? llvm::PointerType::get(out_ty, 0) : nullptr;
+              if (target_ptr_ty)
+              {
+                if (normalized_source->getType()->isIntegerTy())
+                {
+                  normalized_source =
+                      builder.CreateIntToPtr(normalized_source, target_ptr_ty);
+                }
+                else
+                {
+                  llvm::Value *coerced =
+                      CoerceTo(&builder, normalized_source, target_ptr_ty);
+                  if (coerced)
+                  {
+                    normalized_source = coerced;
+                  }
+                  else if (normalized_source->getType()->isPointerTy())
+                  {
+                    normalized_source =
+                        builder.CreateBitCast(normalized_source, target_ptr_ty);
+                  }
+                }
+              }
+
+              if (normalized_source && normalized_source->getType()->isPointerTy() &&
+                  out_ptr->stripPointerCasts() ==
+                      normalized_source->stripPointerCasts())
+              {
+                builder.CreateRetVoid();
+                return;
+              }
+            }
+          }
+
           llvm::Value *value = EvaluateOrDefault(ret.value);
           if (debug_return && value)
           {
@@ -10635,7 +11313,7 @@ namespace cursive::codegen
 
       void operator()(const IRResult &result) const
       {
-        emitter.SetTempValue(result.value, EvaluateOrDefault(result.value));
+        SetForwardedOrMaterializedResult(result.value);
       }
 
       void operator()(const IRClearPanic &) const
@@ -11952,7 +12630,7 @@ namespace cursive::codegen
       {
         emitter.EmitIR(block.setup);
         emitter.EmitIR(block.body);
-        emitter.SetTempValue(block.value, EvaluateOrDefault(block.value));
+        SetForwardedOrMaterializedResult(block.value);
       }
       void operator()(const IRLoop &loop) const
       {
@@ -12260,12 +12938,12 @@ namespace cursive::codegen
                   };
 
                   const analysis::ScopeContext &scope = BuildScope(active_ctx);
-                  const std::uint64_t suspended_disc =
-                      AsyncStateIndexOrDefault(scope, "Suspended", 0);
-                  const std::uint64_t completed_disc =
-                      AsyncStateIndexOrDefault(scope, "Completed", 1);
-                  const std::uint64_t failed_disc =
-                      AsyncStateIndexOrDefault(scope, "Failed", 2);
+                  const AsyncStateDiscs iter_discs =
+                      LoweredAsyncStateDiscs(scope, *async_sig);
+                  const std::uint64_t suspended_disc = iter_discs.suspended;
+                  const std::uint64_t completed_disc = iter_discs.completed;
+                  const std::optional<std::uint64_t> failed_disc =
+                      iter_discs.failed;
                   const std::string fn_sym = std::string(func->getName());
                   const LowerCtx::ProcSigInfo *proc_sig =
                       active_ctx ? active_ctx->LookupProcSig(fn_sym) : nullptr;
@@ -12336,21 +13014,29 @@ namespace cursive::codegen
                       llvm::BasicBlock::Create(emitter.GetContext(), "loop.body", func);
                   auto *loop_resume =
                       llvm::BasicBlock::Create(emitter.GetContext(), "loop.resume", func);
-                  auto *loop_failed =
-                      llvm::BasicBlock::Create(emitter.GetContext(), "loop.failed", func);
+                  auto *loop_failed = failed_disc.has_value()
+                                          ? llvm::BasicBlock::Create(
+                                                emitter.GetContext(),
+                                                "loop.failed",
+                                                func)
+                                          : nullptr;
                   builder.CreateBr(loop_cond);
 
                   builder.SetInsertPoint(loop_cond);
                   llvm::Value *current_async = builder.CreateLoad(iter_async_ty, iter_async_slot);
                   llvm::Value *disc = builder.CreateExtractValue(current_async, {0u});
                   auto *disc_ty = llvm::cast<llvm::IntegerType>(disc->getType());
-                  llvm::SwitchInst *state_sw = builder.CreateSwitch(disc, loop_end, 3);
+                  llvm::SwitchInst *state_sw = builder.CreateSwitch(
+                      disc, loop_end, failed_disc.has_value() ? 3 : 2);
                   state_sw->addCase(
                       llvm::ConstantInt::get(disc_ty, suspended_disc), loop_body);
                   state_sw->addCase(
                       llvm::ConstantInt::get(disc_ty, completed_disc), loop_end);
-                  state_sw->addCase(
-                      llvm::ConstantInt::get(disc_ty, failed_disc), loop_failed);
+                  if (failed_disc.has_value())
+                  {
+                    state_sw->addCase(
+                        llvm::ConstantInt::get(disc_ty, *failed_disc), loop_failed);
+                  }
 
                   builder.SetInsertPoint(loop_body);
                   bind_async_iter_pattern(extract_async_payload(current_async, async_sig->out));
@@ -12399,125 +13085,135 @@ namespace cursive::codegen
                     builder.CreateBr(loop_cond);
                   }
 
-                  builder.SetInsertPoint(loop_failed);
-                  bool propagated_failure = false;
-                  const auto outer_sig = proc_sig ? analysis::GetAsyncSig(proc_sig->ret)
-                                                  : std::nullopt;
-                  if (outer_sig && async_sig->err)
+                  if (loop_failed)
                   {
-                    llvm::Value *failed_async = builder.CreateLoad(iter_async_ty, iter_async_slot);
-                    llvm::Value *failed_payload =
-                        extract_async_payload(failed_async, async_sig->err);
-                    if (!failed_payload &&
-                        !IsUnitTypeRef(async_sig->err) &&
-                        !IsNeverTypeRef(async_sig->err))
+                    builder.SetInsertPoint(loop_failed);
+                    bool propagated_failure = false;
+                    const auto outer_sig =
+                        proc_sig ? analysis::GetAsyncSig(proc_sig->ret) : std::nullopt;
+                    const std::optional<std::uint64_t> outer_failed_disc =
+                        outer_sig ? LoweredAsyncStateDiscs(scope, *outer_sig).failed
+                                  : std::nullopt;
+                    if (outer_sig && outer_failed_disc.has_value() && async_sig->err)
                     {
-                      if (llvm::Type *err_ty = emitter.GetLLVMType(async_sig->err))
+                      llvm::Value *failed_async =
+                          builder.CreateLoad(iter_async_ty, iter_async_slot);
+                      llvm::Value *failed_payload =
+                          extract_async_payload(failed_async, async_sig->err);
+                      if (!failed_payload &&
+                          !IsUnitTypeRef(async_sig->err) &&
+                          !IsNeverTypeRef(async_sig->err))
                       {
-                        if (!err_ty->isVoidTy())
+                        if (llvm::Type *err_ty = emitter.GetLLVMType(async_sig->err))
                         {
-                          failed_payload = llvm::Constant::getNullValue(err_ty);
+                          if (!err_ty->isVoidTy())
+                          {
+                            failed_payload = llvm::Constant::getNullValue(err_ty);
+                          }
                         }
                       }
-                    }
-                    llvm::Value *propagated_value = failed_payload;
-                    analysis::TypeRef propagated_type = async_sig->err;
 
-                    llvm::Type *outer_async_ty = emitter.GetLLVMType(proc_sig->ret);
-                    auto *outer_async_struct =
-                        llvm::dyn_cast_or_null<llvm::StructType>(outer_async_ty);
-                    if (outer_async_struct &&
-                        outer_async_struct->getNumElements() >= 1 &&
-                        outer_async_struct->getElementType(0)->isIntegerTy())
-                    {
-                      llvm::AllocaInst *outer_async_slot =
-                          entry_builder.CreateAlloca(outer_async_struct);
-                      builder.CreateStore(
-                          llvm::Constant::getNullValue(outer_async_struct),
-                          outer_async_slot);
-
-                      llvm::Type *outer_disc_ty = outer_async_struct->getElementType(0);
-                      llvm::Value *outer_disc_ptr =
-                          builder.CreateStructGEP(outer_async_struct, outer_async_slot, 0);
-                      builder.CreateStore(
-                          llvm::ConstantInt::get(outer_disc_ty, failed_disc),
-                          outer_disc_ptr);
-
-                      llvm::Value *outer_payload_i8 = CreateTaggedPayloadI8Ptr(
-                          emitter,
-                          &builder,
-                          outer_async_struct,
-                          outer_async_slot,
-                          kPtrAlign);
-
-                      if (outer_payload_i8 &&
-                          outer_sig->err &&
-                          !IsUnitTypeRef(outer_sig->err) &&
-                          !IsNeverTypeRef(outer_sig->err))
+                      llvm::Value *propagated_value = failed_payload;
+                      analysis::TypeRef propagated_type = async_sig->err;
+                      llvm::Type *outer_async_ty = emitter.GetLLVMType(proc_sig->ret);
+                      auto *outer_async_struct =
+                          llvm::dyn_cast_or_null<llvm::StructType>(outer_async_ty);
+                      if (outer_async_struct &&
+                          outer_async_struct->getNumElements() >= 1 &&
+                          outer_async_struct->getElementType(0)->isIntegerTy())
                       {
-                        llvm::Type *outer_err_ty = emitter.GetLLVMType(outer_sig->err);
-                        if (outer_err_ty && !outer_err_ty->isVoidTy())
+                        llvm::AllocaInst *outer_async_slot =
+                            entry_builder.CreateAlloca(outer_async_struct);
+                        builder.CreateStore(
+                            llvm::Constant::getNullValue(outer_async_struct),
+                            outer_async_slot);
+
+                        llvm::Type *outer_disc_ty = outer_async_struct->getElementType(0);
+                        llvm::Value *outer_disc_ptr =
+                            builder.CreateStructGEP(outer_async_struct, outer_async_slot, 0);
+                        builder.CreateStore(
+                            llvm::ConstantInt::get(outer_disc_ty, *outer_failed_disc),
+                            outer_disc_ptr);
+
+                        llvm::Value *outer_payload_i8 = CreateTaggedPayloadI8Ptr(
+                            emitter,
+                            &builder,
+                            outer_async_struct,
+                            outer_async_slot,
+                            kPtrAlign);
+                        if (outer_payload_i8 &&
+                            outer_sig->err &&
+                            !IsUnitTypeRef(outer_sig->err) &&
+                            !IsNeverTypeRef(outer_sig->err))
                         {
-                          llvm::Value *outer_err_value = failed_payload;
-                          if (!outer_err_value)
+                          llvm::Type *outer_err_ty = emitter.GetLLVMType(outer_sig->err);
+                          if (outer_err_ty && !outer_err_ty->isVoidTy())
                           {
-                            outer_err_value = llvm::Constant::getNullValue(outer_err_ty);
-                          }
-                          else if (outer_err_value->getType() != outer_err_ty)
-                          {
-                            if (llvm::Value *coerced = CoerceToTyped(
-                                    emitter,
-                                    &builder,
-                                    outer_err_value,
-                                    outer_err_ty,
-                                    async_sig->err,
-                                    outer_sig->err))
-                            {
-                              outer_err_value = coerced;
-                            }
-                            else if (llvm::Value *coerced_plain =
-                                         CoerceTo(&builder, outer_err_value, outer_err_ty))
-                            {
-                              outer_err_value = coerced_plain;
-                            }
-                            else
+                            llvm::Value *outer_err_value = failed_payload;
+                            if (!outer_err_value)
                             {
                               outer_err_value = llvm::Constant::getNullValue(outer_err_ty);
                             }
-                          }
+                            else if (outer_err_value->getType() != outer_err_ty)
+                            {
+                              if (llvm::Value *coerced = CoerceToTyped(
+                                      emitter,
+                                      &builder,
+                                      outer_err_value,
+                                      outer_err_ty,
+                                      async_sig->err,
+                                      outer_sig->err))
+                              {
+                                outer_err_value = coerced;
+                              }
+                              else if (llvm::Value *coerced_plain =
+                                           CoerceTo(&builder, outer_err_value, outer_err_ty))
+                              {
+                                outer_err_value = coerced_plain;
+                              }
+                              else
+                              {
+                                outer_err_value = llvm::Constant::getNullValue(outer_err_ty);
+                              }
+                            }
 
-                          llvm::AllocaInst *src_slot = entry_builder.CreateAlloca(outer_err_ty);
-                          builder.CreateStore(outer_err_value, src_slot);
-                          llvm::Value *src_i8 = builder.CreateBitCast(
-                              src_slot, llvm::PointerType::get(i8_ty, 0));
-                          const llvm::DataLayout &dl = emitter.GetModule().getDataLayout();
-                          const std::uint64_t copy_size =
-                              static_cast<std::uint64_t>(dl.getTypeAllocSize(outer_err_ty));
-                          if (copy_size > 0)
-                          {
-                            builder.CreateMemCpy(
-                                outer_payload_i8,
-                                llvm::Align(1),
-                                src_i8,
-                                llvm::Align(1),
-                                llvm::ConstantInt::get(i64_ty, copy_size));
+                            llvm::AllocaInst *src_slot =
+                                entry_builder.CreateAlloca(outer_err_ty);
+                            builder.CreateStore(outer_err_value, src_slot);
+                            llvm::Value *src_i8 = builder.CreateBitCast(
+                                src_slot, llvm::PointerType::get(i8_ty, 0));
+                            const llvm::DataLayout &dl = emitter.GetModule().getDataLayout();
+                            const std::uint64_t copy_size = static_cast<std::uint64_t>(
+                                dl.getTypeAllocSize(outer_err_ty));
+                            if (copy_size > 0)
+                            {
+                              builder.CreateMemCpy(
+                                  outer_payload_i8,
+                                  llvm::Align(1),
+                                  src_i8,
+                                  llvm::Align(1),
+                                  llvm::ConstantInt::get(i64_ty, copy_size));
+                            }
                           }
                         }
+
+                        propagated_value =
+                            builder.CreateLoad(outer_async_struct, outer_async_slot);
+                        propagated_type = proc_sig->ret;
                       }
 
-                      propagated_value = builder.CreateLoad(outer_async_struct, outer_async_slot);
-                      propagated_type = proc_sig->ret;
+                      if (propagated_value)
+                      {
+                        emit_async_return(propagated_value, propagated_type);
+                        propagated_failure =
+                            builder.GetInsertBlock()->getTerminator() != nullptr;
+                      }
                     }
 
-                    if (propagated_value)
+                    if (!propagated_failure || !builder.GetInsertBlock()->getTerminator())
                     {
-                      emit_async_return(propagated_value, propagated_type);
-                      propagated_failure = builder.GetInsertBlock()->getTerminator() != nullptr;
+                      builder.CreateBr(loop_end);
                     }
-                  }
-                  if (!propagated_failure || !builder.GetInsertBlock()->getTerminator())
-                  {
-                    builder.CreateBr(loop_end);
                   }
                 }
               }
@@ -12529,7 +13225,6 @@ namespace cursive::codegen
               analysis::TypeRef iter_elem_type = nullptr;
               bool iter_is_range_type = false;
               bool range_iter = false;
-              bool range_iter_signed = false;
               ast::RangeKind range_iter_kind = ast::RangeKind::Exclusive;
               llvm::Type *range_bound_ty = nullptr;
               llvm::Value *range_lo = nullptr;
@@ -12580,26 +13275,17 @@ namespace cursive::codegen
                       range_iter = true;
                       range_iter_kind = ast::RangeKind::From;
                     }
-                    else if (const auto *range =
-                                 std::get_if<analysis::TypeRangeTo>(&iter_type->node))
+                  }
+                }
+                if (range_iter)
+                {
+                  if (!iter_elem_type || !analysis::BuiltinStepType(iter_elem_type))
+                  {
+                    if (active_ctx)
                     {
-                      iter_is_range_type = true;
-                      iter_elem_type = range->base;
-                      range_iter = true;
-                      range_iter_kind = ast::RangeKind::To;
+                      const_cast<LowerCtx *>(active_ctx)->ReportCodegenFailure();
                     }
-                    else if (const auto *range = std::get_if<analysis::TypeRangeToInclusive>(
-                                 &iter_type->node))
-                    {
-                      iter_is_range_type = true;
-                      iter_elem_type = range->base;
-                      range_iter = true;
-                      range_iter_kind = ast::RangeKind::ToInclusive;
-                    }
-                    if (range_iter)
-                    {
-                      range_iter_signed = IsSignedIntegerType(iter_elem_type);
-                    }
+                    range_iter = false;
                   }
                 }
                 if (range_iter)
@@ -12608,15 +13294,20 @@ namespace cursive::codegen
                       iter_elem_type ? emitter.GetLLVMType(iter_elem_type) : nullptr;
                   if (!range_bound_ty || !range_bound_ty->isIntegerTy())
                   {
-                    range_bound_ty = llvm::Type::getInt64Ty(emitter.GetContext());
-                    range_iter_signed = false;
+                    if (active_ctx)
+                    {
+                      const_cast<LowerCtx *>(active_ctx)->ReportCodegenFailure();
+                    }
+                    range_iter = false;
                   }
-
-                  auto range_value = ResolveRangeValue(
-                      *loop.iter_value,
-                      range_bound_ty,
-                      std::optional<ast::RangeKind>(range_iter_kind));
-                  if (range_value.has_value())
+                }
+                if (range_iter)
+                {
+                  if (auto range_value = ResolveRangeValue(
+                          *loop.iter_value,
+                          range_bound_ty,
+                          std::optional<ast::RangeKind>(range_iter_kind));
+                      range_value.has_value())
                   {
                     range_iter_kind = range_value->kind;
                     range_lo = range_value->lo;
@@ -12625,17 +13316,19 @@ namespace cursive::codegen
 
                   if (!range_lo)
                   {
-                    range_lo = llvm::ConstantInt::get(range_bound_ty, 0);
-                  }
-                  if (range_iter_kind == ast::RangeKind::Full)
-                  {
+                    if (active_ctx)
+                    {
+                      const_cast<LowerCtx *>(active_ctx)->ReportCodegenFailure();
+                    }
                     range_iter = false;
                   }
-                  const bool finite_range =
-                      range_iter_kind != ast::RangeKind::From &&
-                      range_iter_kind != ast::RangeKind::Full;
+                  const bool finite_range = range_iter_kind != ast::RangeKind::From;
                   if (finite_range && !range_hi)
                   {
+                    if (active_ctx)
+                    {
+                      const_cast<LowerCtx *>(active_ctx)->ReportCodegenFailure();
+                    }
                     range_iter = false;
                   }
                 }
@@ -12653,58 +13346,66 @@ namespace cursive::codegen
                           << "\n";
               }
 
+              llvm::Type *i64_ty = llvm::Type::getInt64Ty(emitter.GetContext());
+              llvm::IRBuilder<> entry_builder(
+                  &func->getEntryBlock(),
+                  func->getEntryBlock().begin());
+              llvm::AllocaInst *range_cur_slot = nullptr;
+              llvm::AllocaInst *range_done_slot = nullptr;
+              std::optional<IndexedSequenceLoweredIterState> indexed_iter;
+              if (range_iter)
+              {
+                range_cur_slot = entry_builder.CreateAlloca(
+                    range_bound_ty, nullptr, "iter.range.cur");
+                range_done_slot = entry_builder.CreateAlloca(
+                    llvm::Type::getInt1Ty(emitter.GetContext()),
+                    nullptr,
+                    "iter.range.done");
+                builder.CreateStore(range_lo, range_cur_slot);
+                builder.CreateStore(
+                    llvm::ConstantInt::getFalse(emitter.GetContext()),
+                    range_done_slot);
+              }
+              else
+              {
+                if (loop.iter_value.has_value() && active_ctx)
+                {
+                  llvm::Value *iter_value = EvaluateOrDefault(*loop.iter_value);
+                  analysis::TypeRef iter_type =
+                      analysis::StripPerm(active_ctx->LookupValueType(*loop.iter_value));
+                  if (iter_value &&
+                      EmitSeqIterInit(
+                          emitter,
+                          entry_builder,
+                          builder,
+                          iter_type,
+                          iter_value,
+                          indexed_iter.emplace()))
+                  {
+                  }
+                  else
+                  {
+                    indexed_iter.reset();
+                  }
+                }
+              }
+              if (debug_loop_iter)
+              {
+                const std::string fn_name = func ? func->getName().str() : std::string("<no-func>");
+                std::cerr << "[loop-iter-debug] fn=" << fn_name
+                          << " indexed_iter=" << (indexed_iter.has_value() ? "yes" : "no")
+                          << " range_iter=" << (range_iter ? "yes" : "no")
+                          << "\n";
+              }
+
               if ((iter_is_range_type && !range_iter) ||
-                  (!range_iter && (!trip_count.has_value() || *trip_count == 0)) ||
+                  (!range_iter && !indexed_iter.has_value()) ||
                   (range_iter && trip_count.has_value() && *trip_count == 0))
               {
                 builder.CreateBr(loop_end);
               }
               else
               {
-                llvm::Type *i64_ty = llvm::Type::getInt64Ty(emitter.GetContext());
-                llvm::IRBuilder<> entry_builder(
-                    &func->getEntryBlock(),
-                    func->getEntryBlock().begin());
-                llvm::AllocaInst *idx_slot = nullptr;
-                llvm::AllocaInst *range_cur_slot = nullptr;
-                if (range_iter)
-                {
-                  range_cur_slot = entry_builder.CreateAlloca(
-                      range_bound_ty, nullptr, "iter.range.cur");
-                  builder.CreateStore(range_lo, range_cur_slot);
-                }
-                else
-                {
-                  idx_slot = entry_builder.CreateAlloca(i64_ty, nullptr, "iter.idx");
-                  builder.CreateStore(llvm::ConstantInt::get(i64_ty, 0), idx_slot);
-                }
-
-                llvm::AllocaInst *iter_array_slot = nullptr;
-                llvm::ArrayType *iter_array_ty = nullptr;
-                if (!range_iter && loop.iter_value.has_value())
-                {
-                  llvm::Value *iter_value = EvaluateOrDefault(*loop.iter_value);
-                  if (iter_value)
-                  {
-                    iter_array_ty = llvm::dyn_cast<llvm::ArrayType>(iter_value->getType());
-                    if (iter_array_ty)
-                    {
-                      iter_array_slot = entry_builder.CreateAlloca(
-                          iter_array_ty,
-                          nullptr,
-                          "iter.value.slot");
-                      builder.CreateStore(iter_value, iter_array_slot);
-                    }
-                  }
-                }
-                if (debug_loop_iter)
-                {
-                  const std::string fn_name = func ? func->getName().str() : std::string("<no-func>");
-                  std::cerr << "[loop-iter-debug] fn=" << fn_name
-                            << " iter_array_slot=" << (iter_array_slot ? "yes" : "no")
-                            << " iter_array_ty=" << (iter_array_ty ? "array" : "other")
-                            << "\n";
-                }
 
                 auto bind_iter_identifier =
                     [&](std::string_view name, llvm::Value *elem_value)
@@ -12802,22 +13503,40 @@ namespace cursive::codegen
                 llvm::Value *in_range = nullptr;
                 if (range_iter)
                 {
+                  llvm::Value *done = builder.CreateLoad(
+                      llvm::Type::getInt1Ty(emitter.GetContext()),
+                      range_done_slot);
                   llvm::Value *cur = builder.CreateLoad(range_bound_ty, range_cur_slot);
                   switch (range_iter_kind)
                   {
                   case ast::RangeKind::Exclusive:
-                  case ast::RangeKind::To:
-                    in_range = range_iter_signed ? builder.CreateICmpSLT(cur, range_hi)
-                                                 : builder.CreateICmpULT(cur, range_hi);
+                  {
+                    llvm::Value *at_hi =
+                        EmitBuiltinEqCall(builder, iter_elem_type, cur, range_hi);
+                    if (!at_hi)
+                    {
+                      if (active_ctx)
+                      {
+                        const_cast<LowerCtx *>(active_ctx)->ReportCodegenFailure();
+                      }
+                      in_range = llvm::ConstantInt::getFalse(emitter.GetContext());
+                    }
+                    else
+                    {
+                      in_range = builder.CreateAnd(
+                          builder.CreateNot(done),
+                          builder.CreateNot(at_hi));
+                    }
                     break;
+                  }
                   case ast::RangeKind::Inclusive:
-                  case ast::RangeKind::ToInclusive:
-                    in_range = range_iter_signed ? builder.CreateICmpSLE(cur, range_hi)
-                                                 : builder.CreateICmpULE(cur, range_hi);
+                    in_range = builder.CreateNot(done);
                     break;
                   case ast::RangeKind::From:
-                    in_range = llvm::ConstantInt::getTrue(emitter.GetContext());
+                    in_range = builder.CreateNot(done);
                     break;
+                  case ast::RangeKind::To:
+                  case ast::RangeKind::ToInclusive:
                   case ast::RangeKind::Full:
                     in_range = llvm::ConstantInt::getFalse(emitter.GetContext());
                     break;
@@ -12825,10 +13544,14 @@ namespace cursive::codegen
                 }
                 else
                 {
-                  llvm::Value *idx_cur = builder.CreateLoad(i64_ty, idx_slot);
-                  in_range = builder.CreateICmpULT(
-                      idx_cur,
-                      llvm::ConstantInt::get(i64_ty, *trip_count));
+                  if (indexed_iter.has_value())
+                  {
+                    in_range = EmitSeqIterNext(emitter, builder, *indexed_iter);
+                  }
+                  else
+                  {
+                    in_range = llvm::ConstantInt::getFalse(emitter.GetContext());
+                  }
                 }
                 builder.CreateCondBr(in_range, loop_body, loop_end);
 
@@ -12837,16 +13560,12 @@ namespace cursive::codegen
                 {
                   bind_iter_pattern_value(builder.CreateLoad(range_bound_ty, range_cur_slot));
                 }
-                else if (idx_slot && iter_array_slot && iter_array_ty)
+                else if (indexed_iter.has_value())
                 {
-                  llvm::Value *idx_cur = builder.CreateLoad(i64_ty, idx_slot);
-                  llvm::Value *zero = llvm::ConstantInt::get(i64_ty, 0);
-                  llvm::Value *elem_ptr = builder.CreateInBoundsGEP(
-                      iter_array_ty,
-                      iter_array_slot,
-                      {zero, idx_cur});
-                  llvm::Type *elem_ty = iter_array_ty->getElementType();
-                  bind_iter_pattern_value(builder.CreateLoad(elem_ty, elem_ptr));
+                  if (llvm::Value *elem = LoadSeqIterElem(builder, *indexed_iter))
+                  {
+                    bind_iter_pattern_value(elem);
+                  }
                 }
                 emitter.PushLoopTargets(loop_end, loop_inc, loop_result_slot, loop_result_type);
                 emitter.EmitIR(loop.body_ir);
@@ -12860,14 +13579,74 @@ namespace cursive::codegen
                 if (range_iter)
                 {
                   llvm::Value *cur = builder.CreateLoad(range_bound_ty, range_cur_slot);
-                  llvm::Value *one = llvm::ConstantInt::get(range_bound_ty, 1);
-                  builder.CreateStore(builder.CreateAdd(cur, one), range_cur_slot);
+                  const auto successor =
+                      EmitBuiltinSuccessor(builder, iter_elem_type, cur);
+                  if (!successor.has_value())
+                  {
+                    if (active_ctx)
+                    {
+                      const_cast<LowerCtx *>(active_ctx)->ReportCodegenFailure();
+                    }
+                    builder.CreateStore(
+                        llvm::ConstantInt::getTrue(emitter.GetContext()),
+                        range_done_slot);
+                  }
+                  else
+                  {
+                    llvm::Value *next_or_cur = builder.CreateSelect(
+                        successor->has_next,
+                        successor->next,
+                        cur);
+                    switch (range_iter_kind)
+                    {
+                    case ast::RangeKind::Exclusive:
+                      builder.CreateStore(
+                          builder.CreateNot(successor->has_next),
+                          range_done_slot);
+                      builder.CreateStore(next_or_cur, range_cur_slot);
+                      break;
+                    case ast::RangeKind::Inclusive:
+                    {
+                      llvm::Value *at_hi =
+                          EmitBuiltinEqCall(builder, iter_elem_type, cur, range_hi);
+                      if (!at_hi)
+                      {
+                        if (active_ctx)
+                        {
+                          const_cast<LowerCtx *>(active_ctx)->ReportCodegenFailure();
+                        }
+                        builder.CreateStore(
+                            llvm::ConstantInt::getTrue(emitter.GetContext()),
+                            range_done_slot);
+                      }
+                      else
+                      {
+                        llvm::Value *done_next = builder.CreateOr(
+                            at_hi,
+                            builder.CreateNot(successor->has_next));
+                        builder.CreateStore(done_next, range_done_slot);
+                        builder.CreateStore(next_or_cur, range_cur_slot);
+                      }
+                      break;
+                    }
+                    case ast::RangeKind::From:
+                      builder.CreateStore(
+                          builder.CreateNot(successor->has_next),
+                          range_done_slot);
+                      builder.CreateStore(next_or_cur, range_cur_slot);
+                      break;
+                    case ast::RangeKind::To:
+                    case ast::RangeKind::ToInclusive:
+                    case ast::RangeKind::Full:
+                      builder.CreateStore(
+                          llvm::ConstantInt::getTrue(emitter.GetContext()),
+                          range_done_slot);
+                      break;
+                    }
+                  }
                 }
                 else
                 {
-                  llvm::Value *idx_next = builder.CreateLoad(i64_ty, idx_slot);
-                  idx_next = builder.CreateAdd(idx_next, llvm::ConstantInt::get(i64_ty, 1));
-                  builder.CreateStore(idx_next, idx_slot);
                 }
                 builder.CreateBr(loop_cond);
               }
@@ -12878,7 +13657,22 @@ namespace cursive::codegen
         builder.SetInsertPoint(loop_end);
         if (loop_result_slot && loop_result_ty && !loop_result_ty->isVoidTy())
         {
-          emitter.SetTempValue(loop.result, builder.CreateLoad(loop_result_ty, loop_result_slot));
+          if (loop.result.kind == IRValue::Kind::Opaque &&
+              IsAddressBackedAggregateType(loop_result_ty))
+          {
+            llvm::Value *typed_ptr = loop_result_slot;
+            llvm::Type *expected_ptr_ty = llvm::PointerType::get(loop_result_ty, 0);
+            if (typed_ptr->getType() != expected_ptr_ty)
+            {
+              typed_ptr = builder.CreateBitCast(typed_ptr, expected_ptr_ty);
+            }
+            emitter.ForgetTempStorage(loop.result);
+            emitter.SetTempStorage(loop.result, typed_ptr);
+          }
+          else
+          {
+            emitter.SetTempValue(loop.result, builder.CreateLoad(loop_result_ty, loop_result_slot));
+          }
         }
         else
         {
@@ -14045,8 +14839,16 @@ namespace cursive::codegen
 
         llvm::BasicBlock *merge_bb =
             llvm::BasicBlock::Create(emitter.GetContext(), "ifcase.merge", func);
-        std::vector<std::pair<llvm::BasicBlock *, llvm::Value *>> incoming;
+        struct IncomingValue
+        {
+          llvm::BasicBlock *pred = nullptr;
+          llvm::Value *value = nullptr;
+          llvm::Value *storage = nullptr;
+        };
+        std::vector<IncomingValue> incoming;
         llvm::BasicBlock *fallback_pred = nullptr;
+        const LLVMEmitter::FlowStateSnapshot branch_state =
+            emitter.SaveFlowState();
 
         for (std::size_t i = 0; i < if_case.arms.size(); ++i)
         {
@@ -14059,6 +14861,7 @@ namespace cursive::codegen
                                           ? nullptr
                                           : llvm::BasicBlock::Create(emitter.GetContext(), "ifcase.next", func);
 
+          emitter.RestoreFlowState(branch_state);
           llvm::Value *cond = AsBool(&builder, emit_pattern_cond(arm.pattern));
           if (is_last)
           {
@@ -14071,14 +14874,16 @@ namespace cursive::codegen
           }
 
           builder.SetInsertPoint(arm_bb);
-          emitter.EmitIR(arm.body);
-          llvm::BasicBlock *arm_end = builder.GetInsertBlock();
-          if (!arm_end->getTerminator())
-          {
-            llvm::Value *arm_value = EvaluateOrDefault(arm.value);
-            builder.CreateBr(merge_bb);
-            incoming.push_back({arm_end, arm_value});
-          }
+          emitter.RestoreFlowState(branch_state);
+        emitter.EmitIR(arm.body);
+        llvm::BasicBlock *arm_end = builder.GetInsertBlock();
+        if (!arm_end->getTerminator())
+        {
+          llvm::Value *arm_storage = emitter.GetAddressableStorage(arm.value);
+          llvm::Value *arm_value = EvaluateOrDefault(arm.value);
+          builder.CreateBr(merge_bb);
+          incoming.push_back({arm_end, arm_value, arm_storage});
+        }
 
           if (!is_last)
           {
@@ -14087,12 +14892,13 @@ namespace cursive::codegen
         }
 
         builder.SetInsertPoint(merge_bb);
+        emitter.RestoreFlowState(branch_state);
         llvm::Type *result_ty = ExpectedLLVMType(if_case.result);
         if (!result_ty)
         {
-          if (!incoming.empty() && incoming.front().second)
+          if (!incoming.empty() && incoming.front().value)
           {
-            result_ty = incoming.front().second->getType();
+            result_ty = incoming.front().value->getType();
           }
           else
           {
@@ -14106,7 +14912,99 @@ namespace cursive::codegen
 
         if (fallback_pred)
         {
-          incoming.push_back({fallback_pred, llvm::Constant::getNullValue(result_ty)});
+          incoming.push_back({fallback_pred, llvm::Constant::getNullValue(result_ty), nullptr});
+        }
+
+        const bool aggregate_result = IsAddressBackedAggregateType(result_ty);
+
+        if (aggregate_result)
+        {
+          auto coerce_storage_in_predecessor =
+              [&](llvm::BasicBlock *pred, llvm::Value *storage) -> llvm::Value *
+          {
+            if (!storage || !storage->getType()->isPointerTy())
+            {
+              return nullptr;
+            }
+            llvm::Type *expected_ptr_ty = llvm::PointerType::get(result_ty, 0);
+            if (storage->getType() == expected_ptr_ty)
+            {
+              return storage;
+            }
+            if (pred && pred->getTerminator())
+            {
+              llvm::IRBuilder<> pred_builder(pred->getTerminator());
+              return pred_builder.CreateBitCast(storage, expected_ptr_ty);
+            }
+            return builder.CreateBitCast(storage, expected_ptr_ty);
+          };
+
+          bool all_have_storage = !incoming.empty();
+          for (const auto &entry : incoming)
+          {
+            if (!entry.storage)
+            {
+              all_have_storage = false;
+              break;
+            }
+          }
+
+          llvm::Value *merged_storage = nullptr;
+          if (all_have_storage)
+          {
+            if (incoming.size() == 1)
+            {
+              merged_storage = coerce_storage_in_predecessor(
+                  incoming.front().pred, incoming.front().storage);
+            }
+            else
+            {
+              llvm::Type *expected_ptr_ty = llvm::PointerType::get(result_ty, 0);
+              llvm::PHINode *phi =
+                  builder.CreatePHI(expected_ptr_ty, incoming.size(), "ifcase.result.addr");
+              for (const auto &entry : incoming)
+              {
+                llvm::Value *coerced =
+                    coerce_storage_in_predecessor(entry.pred, entry.storage);
+                phi->addIncoming(
+                    coerced ? coerced
+                            : llvm::ConstantPointerNull::get(
+                                  llvm::cast<llvm::PointerType>(expected_ptr_ty)),
+                    entry.pred);
+              }
+              merged_storage = phi;
+            }
+          }
+          else
+          {
+            llvm::Value *slot =
+                emitter.AcquireReusableAggregateStorage(func, result_ty, "ifcase.result");
+            llvm::Type *expected_ptr_ty = llvm::PointerType::get(result_ty, 0);
+            if (slot && slot->getType() != expected_ptr_ty)
+            {
+              slot = builder.CreateBitCast(slot, expected_ptr_ty);
+            }
+            for (const auto &entry : incoming)
+            {
+              llvm::IRBuilder<> pred_builder(entry.pred->getTerminator());
+              llvm::Value *candidate =
+                  entry.value ? entry.value : llvm::Constant::getNullValue(result_ty);
+              llvm::Value *coerced = CoerceTo(&pred_builder, candidate, result_ty);
+              if (!coerced)
+              {
+                coerced = llvm::Constant::getNullValue(result_ty);
+              }
+              pred_builder.CreateStore(coerced, slot);
+            }
+            merged_storage = slot;
+          }
+
+          if (merged_storage)
+          {
+            emitter.ForgetTempStorage(if_case.result);
+            emitter.SetTempStorage(if_case.result, merged_storage);
+            return;
+          }
         }
 
         auto coerce_in_predecessor = [&](llvm::BasicBlock *pred, llvm::Value *value) -> llvm::Value *
@@ -14135,14 +15033,14 @@ namespace cursive::codegen
         {
           emitter.SetTempValue(
               if_case.result,
-              coerce_in_predecessor(incoming.front().first, incoming.front().second));
+              coerce_in_predecessor(incoming.front().pred, incoming.front().value));
           return;
         }
 
         llvm::PHINode *phi = builder.CreatePHI(result_ty, incoming.size(), "ifcase.result");
-        for (const auto &[pred, val] : incoming)
+        for (const auto &entry : incoming)
         {
-          phi->addIncoming(coerce_in_predecessor(pred, val), pred);
+          phi->addIncoming(coerce_in_predecessor(entry.pred, entry.value), entry.pred);
         }
         emitter.SetTempValue(if_case.result, phi);
       }
@@ -14152,7 +15050,7 @@ namespace cursive::codegen
         if (!opts_value)
         {
           emitter.EmitIR(region.body);
-          emitter.SetTempValue(region.value, EvaluateOrDefault(region.value));
+          SetForwardedOrMaterializedResult(region.value);
           return;
         }
 
@@ -14164,7 +15062,7 @@ namespace cursive::codegen
         if (!region_llvm_ty || region_llvm_ty->isVoidTy())
         {
           emitter.EmitIR(region.body);
-          emitter.SetTempValue(region.value, EvaluateOrDefault(region.value));
+          SetForwardedOrMaterializedResult(region.value);
           return;
         }
 
@@ -14173,7 +15071,7 @@ namespace cursive::codegen
         if (!current_fn)
         {
           emitter.EmitIR(region.body);
-          emitter.SetTempValue(region.value, EvaluateOrDefault(region.value));
+          SetForwardedOrMaterializedResult(region.value);
           return;
         }
 
@@ -14226,7 +15124,7 @@ namespace cursive::codegen
         if (!region_value)
         {
           emitter.EmitIR(region.body);
-          emitter.SetTempValue(region.value, EvaluateOrDefault(region.value));
+          SetForwardedOrMaterializedResult(region.value);
           return;
         }
 
@@ -14274,12 +15172,12 @@ namespace cursive::codegen
           emitter.RemoveLocal(*alias);
         }
 
-        emitter.SetTempValue(region.value, EvaluateOrDefault(region.value));
+        SetForwardedOrMaterializedResult(region.value);
       }
       void operator()(const IRFrame &frame) const
       {
         emitter.EmitIR(frame.body);
-        emitter.SetTempValue(frame.value, EvaluateOrDefault(frame.value));
+        SetForwardedOrMaterializedResult(frame.value);
       }
       void operator()(const IRBranch &) const {}
       void operator()(const IRPhi &) const {}
@@ -14396,63 +15294,6 @@ namespace cursive::codegen
         emitter.PushParallelContext(parallel.result);
         emitter.EmitIR(parallel.body);
         emitter.PopParallelContext();
-
-        const std::string join_sym = ConcurrencySymParallelJoin();
-        if (std::optional<RuntimeFuncInfo> join_info = GetRuntimeFuncInfo(join_sym))
-        {
-          llvm::Function *join_fn = emitter.GetModule().getFunction(join_sym);
-          const bool use_c_abi_aggregate_sret = true;
-          if (!join_fn)
-          {
-            ABICallResult join_abi = emitter.ComputeCallABI(
-                join_info->params,
-                join_info->ret,
-                use_c_abi_aggregate_sret);
-            if (join_abi.func_type)
-            {
-              join_fn = llvm::Function::Create(
-                  join_abi.func_type,
-                  llvm::GlobalValue::ExternalLinkage,
-                  join_sym,
-                  &emitter.GetModule());
-              join_fn->setCallingConv(llvm::CallingConv::C);
-            }
-          }
-          if (join_fn)
-          {
-            std::vector<llvm::Value *> join_args;
-            join_args.reserve(1);
-            join_args.push_back(ctx_ptr);
-            llvm::Value *join_result = EmitABICall(
-                emitter,
-                &builder,
-                join_fn,
-                join_info->params,
-                join_info->ret,
-                join_args,
-                use_c_abi_aggregate_sret);
-            if (join_result)
-            {
-              if (!join_result->getType()->isIntegerTy())
-              {
-                join_result =
-                    CoerceTo(&builder, join_result, llvm::Type::getInt32Ty(emitter.GetContext()));
-              }
-              if (join_result && join_result->getType()->isIntegerTy())
-              {
-                llvm::Value *had_panic = builder.CreateICmpNE(
-                    join_result,
-                    llvm::ConstantInt::get(join_result->getType(), 0));
-                llvm::Value *no_panic = builder.CreateNot(had_panic);
-                EmitPanicReturnIfFalse(
-                    emitter,
-                    &builder,
-                    no_panic,
-                    PanicCode(PanicReason::Other));
-              }
-            }
-          }
-        }
       }
       void operator()(const IRSpawn &spawn) const
       {
@@ -14677,6 +15518,65 @@ namespace cursive::codegen
           out = DefaultFor(wait.result);
         }
         emitter.SetTempValue(wait.result, out);
+      }
+      void operator()(const IRCancelCheck &check) const
+      {
+        llvm::Type *ptr_ty = emitter.GetOpaquePtr();
+        llvm::Type *i1_ty = llvm::Type::getInt1Ty(emitter.GetContext());
+        llvm::Value *token = CoerceTo(&builder, EvaluateOrDefault(check.token), ptr_ty);
+        if (!token)
+        {
+          token = llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(ptr_ty));
+        }
+
+        llvm::Value *out = nullptr;
+        const std::string check_sym = BuiltinSymCancelTokenActiveIsCancelled();
+        if (std::optional<RuntimeFuncInfo> check_info = GetRuntimeFuncInfo(check_sym))
+        {
+          llvm::Function *check_fn = emitter.GetModule().getFunction(check_sym);
+          const bool use_c_abi_aggregate_sret = true;
+          if (!check_fn)
+          {
+            ABICallResult check_abi = emitter.ComputeCallABI(
+                check_info->params,
+                check_info->ret,
+                use_c_abi_aggregate_sret);
+            if (check_abi.func_type)
+            {
+              check_fn = llvm::Function::Create(
+                  check_abi.func_type,
+                  llvm::GlobalValue::ExternalLinkage,
+                  check_sym,
+                  &emitter.GetModule());
+              check_fn->setCallingConv(llvm::CallingConv::C);
+            }
+          }
+          if (check_fn)
+          {
+            std::vector<llvm::Value *> check_args;
+            check_args.push_back(token);
+            llvm::Value *raw = EmitABICall(
+                emitter,
+                &builder,
+                check_fn,
+                check_info->params,
+                check_info->ret,
+                check_args,
+                use_c_abi_aggregate_sret);
+            out = CoerceTo(&builder, raw, i1_ty);
+          }
+        }
+        if (!out)
+        {
+          out = llvm::ConstantInt::getFalse(i1_ty);
+        }
+        emitter.SetTempValue(check.result, out);
+      }
+      void operator()(const IRCancelSuppress &) const
+      {
+        // Runtime scheduling already suppresses dequeued-but-unstarted
+        // cancelled work before wrapper body execution. This IR node exists
+        // to preserve the explicit lowering surface required by the spec.
       }
       void operator()(const IRDispatch &dispatch) const
       {
@@ -15213,8 +16113,14 @@ namespace cursive::codegen
           {
             return;
           }
-          for (const auto &[slot_name, slot] : info.slots)
+          for (const auto &slot_name : info.slot_order)
           {
+            const auto slot_it = info.slots.find(slot_name);
+            if (slot_it == info.slots.end())
+            {
+              continue;
+            }
+            const auto &slot = slot_it->second;
             llvm::Type *slot_ty = emitter.GetLLVMType(slot.type);
             if (!slot_ty || slot_ty->isVoidTy())
             {
@@ -15306,8 +16212,9 @@ namespace cursive::codegen
           builder.CreateStore(llvm::Constant::getNullValue(async_struct), async_slot);
 
           llvm::Type *disc_ty = async_struct->getElementType(0);
-          const std::uint64_t suspended_disc =
-              AsyncStateIndexOrDefault(scope, "Suspended", 0);
+          const AsyncStateDiscs async_discs =
+              LoweredAsyncStateDiscs(scope, async_type);
+          const std::uint64_t suspended_disc = async_discs.suspended;
           llvm::Value *disc_ptr = builder.CreateStructGEP(async_struct, async_slot, 0);
           builder.CreateStore(
               llvm::ConstantInt::get(disc_ty, suspended_disc),
@@ -15586,12 +16493,11 @@ namespace cursive::codegen
 
         const LowerCtx::AsyncProcInfo &info = *async_state->info;
         const analysis::ScopeContext &scope = BuildScope(active_ctx);
-        const std::uint64_t suspended_disc =
-            AsyncStateIndexOrDefault(scope, "Suspended", 0);
-        const std::uint64_t completed_disc =
-            AsyncStateIndexOrDefault(scope, "Completed", 1);
-        const std::uint64_t failed_disc =
-            AsyncStateIndexOrDefault(scope, "Failed", 2);
+        const AsyncStateDiscs source_discs =
+            LoweredAsyncStateDiscs(scope, *source_sig);
+        const std::uint64_t suspended_disc = source_discs.suspended;
+        const std::uint64_t completed_disc = source_discs.completed;
+        const std::optional<std::uint64_t> failed_disc = source_discs.failed;
 
         const std::string sym = std::string(func->getName());
         const LowerCtx::ProcSigInfo *proc_sig =
@@ -15890,8 +16796,14 @@ namespace cursive::codegen
           {
             return;
           }
-          for (const auto &[slot_name, slot] : info.slots)
+          for (const auto &slot_name : info.slot_order)
           {
+            const auto slot_it = info.slots.find(slot_name);
+            if (slot_it == info.slots.end())
+            {
+              continue;
+            }
+            const auto &slot = slot_it->second;
             llvm::Type *slot_ty = emitter.GetLLVMType(slot.type);
             if (!slot_ty || slot_ty->isVoidTy())
             {
@@ -16098,8 +17010,12 @@ namespace cursive::codegen
             llvm::BasicBlock::Create(emitter.GetContext(), "yield_from.suspended", func);
         llvm::BasicBlock *completed_bb =
             llvm::BasicBlock::Create(emitter.GetContext(), "yield_from.completed", func);
-        llvm::BasicBlock *failed_bb =
-            llvm::BasicBlock::Create(emitter.GetContext(), "yield_from.failed", func);
+        llvm::BasicBlock *failed_bb = failed_disc.has_value()
+                                          ? llvm::BasicBlock::Create(
+                                                emitter.GetContext(),
+                                                "yield_from.failed",
+                                                func)
+                                          : nullptr;
         llvm::BasicBlock *fallback_bb =
             llvm::BasicBlock::Create(emitter.GetContext(), "yield_from.fallback", func);
         llvm::BasicBlock *panic_bb =
@@ -16250,10 +17166,14 @@ namespace cursive::codegen
         llvm::Value *current_async = builder.CreateLoad(async_struct, source_slot);
         llvm::Value *disc = builder.CreateExtractValue(current_async, {0u});
         auto *disc_ty = llvm::cast<llvm::IntegerType>(disc->getType());
-        llvm::SwitchInst *state_sw = builder.CreateSwitch(disc, fallback_bb, 3);
+        llvm::SwitchInst *state_sw = builder.CreateSwitch(
+            disc, fallback_bb, failed_disc.has_value() ? 3 : 2);
         state_sw->addCase(llvm::ConstantInt::get(disc_ty, suspended_disc), suspended_bb);
         state_sw->addCase(llvm::ConstantInt::get(disc_ty, completed_disc), completed_bb);
-        state_sw->addCase(llvm::ConstantInt::get(disc_ty, failed_disc), failed_bb);
+        if (failed_disc.has_value())
+        {
+          state_sw->addCase(llvm::ConstantInt::get(disc_ty, *failed_disc), failed_bb);
+        }
 
         builder.SetInsertPoint(suspended_bb);
         llvm::Value *yielded_value = extract_async_payload(source_sig->out);
@@ -16287,25 +17207,28 @@ namespace cursive::codegen
         }
         builder.CreateBr(cont_bb);
 
-        builder.SetInsertPoint(failed_bb);
-        llvm::Value *failed_payload = extract_async_payload(source_sig->err);
-        if (!failed_payload &&
-            source_sig->err &&
-            !IsUnitTypeRef(source_sig->err) &&
-            !IsNeverTypeRef(source_sig->err))
+        if (failed_bb)
         {
-          if (llvm::Type *err_ty = emitter.GetLLVMType(source_sig->err))
+          builder.SetInsertPoint(failed_bb);
+          llvm::Value *failed_payload = extract_async_payload(source_sig->err);
+          if (!failed_payload &&
+              source_sig->err &&
+              !IsUnitTypeRef(source_sig->err) &&
+              !IsNeverTypeRef(source_sig->err))
           {
-            if (!err_ty->isVoidTy())
+            if (llvm::Type *err_ty = emitter.GetLLVMType(source_sig->err))
             {
-              failed_payload = llvm::Constant::getNullValue(err_ty);
+              if (!err_ty->isVoidTy())
+              {
+                failed_payload = llvm::Constant::getNullValue(err_ty);
+              }
             }
           }
-        }
-        emit_async_return(failed_payload, source_sig->err);
-        if (!builder.GetInsertBlock()->getTerminator())
-        {
-          builder.CreateBr(cont_bb);
+          emit_async_return(failed_payload, source_sig->err);
+          if (!builder.GetInsertBlock()->getTerminator())
+          {
+            builder.CreateBr(cont_bb);
+          }
         }
 
         builder.SetInsertPoint(fallback_bb);
@@ -16548,12 +17471,11 @@ namespace cursive::codegen
         };
 
         const analysis::ScopeContext &scope = BuildScope(active_ctx);
-        const std::uint64_t suspended_disc =
-            AsyncStateIndexOrDefault(scope, "Suspended", 0);
-        const std::uint64_t completed_disc =
-            AsyncStateIndexOrDefault(scope, "Completed", 1);
-        const std::uint64_t failed_disc =
-            AsyncStateIndexOrDefault(scope, "Failed", 2);
+        const AsyncStateDiscs async_discs =
+            LoweredAsyncStateDiscs(scope, s.async_type);
+        const std::uint64_t suspended_disc = async_discs.suspended;
+        const std::uint64_t completed_disc = async_discs.completed;
+        const std::optional<std::uint64_t> failed_disc = async_discs.failed;
 
         analysis::TypeRef completed_type = s.result_type;
         analysis::TypeRef error_type = s.error_type;
@@ -16603,8 +17525,12 @@ namespace cursive::codegen
             llvm::BasicBlock::Create(emitter.GetContext(), "sync.suspended", func);
         llvm::BasicBlock *completed_bb =
             llvm::BasicBlock::Create(emitter.GetContext(), "sync.completed", func);
-        llvm::BasicBlock *failed_bb =
-            llvm::BasicBlock::Create(emitter.GetContext(), "sync.failed", func);
+        llvm::BasicBlock *failed_bb = failed_disc.has_value()
+                                          ? llvm::BasicBlock::Create(
+                                                emitter.GetContext(),
+                                                "sync.failed",
+                                                func)
+                                          : nullptr;
         llvm::BasicBlock *fallback_bb =
             llvm::BasicBlock::Create(emitter.GetContext(), "sync.fallback", func);
         llvm::BasicBlock *panic_bb =
@@ -16618,10 +17544,14 @@ namespace cursive::codegen
         llvm::Value *current_async = builder.CreateLoad(async_struct, async_slot);
         llvm::Value *disc = builder.CreateExtractValue(current_async, {0u});
         auto *disc_ty = llvm::cast<llvm::IntegerType>(disc->getType());
-        llvm::SwitchInst *state_sw = builder.CreateSwitch(disc, fallback_bb, 3);
+        llvm::SwitchInst *state_sw = builder.CreateSwitch(
+            disc, fallback_bb, failed_disc.has_value() ? 3 : 2);
         state_sw->addCase(llvm::ConstantInt::get(disc_ty, suspended_disc), suspended_bb);
         state_sw->addCase(llvm::ConstantInt::get(disc_ty, completed_disc), completed_bb);
-        state_sw->addCase(llvm::ConstantInt::get(disc_ty, failed_disc), failed_bb);
+        if (failed_disc.has_value())
+        {
+          state_sw->addCase(llvm::ConstantInt::get(disc_ty, *failed_disc), failed_bb);
+        }
 
         builder.SetInsertPoint(suspended_bb);
         llvm::Value *suspended_ptr = builder.CreateBitCast(async_slot, opaque_ptr_ty);
@@ -16672,19 +17602,22 @@ namespace cursive::codegen
         }
         builder.CreateBr(merge_bb);
 
-        builder.SetInsertPoint(failed_bb);
-        llvm::Value *failed_async = builder.CreateLoad(async_struct, async_slot);
-        llvm::Value *failed_payload = extract_async_payload(failed_async, error_type);
-        llvm::Value *failed_result = coerce_to_result(failed_payload, error_type);
-        if (result_slot && !failed_result)
+        if (failed_bb)
         {
-          failed_result = llvm::Constant::getNullValue(expected);
+          builder.SetInsertPoint(failed_bb);
+          llvm::Value *failed_async = builder.CreateLoad(async_struct, async_slot);
+          llvm::Value *failed_payload = extract_async_payload(failed_async, error_type);
+          llvm::Value *failed_result = coerce_to_result(failed_payload, error_type);
+          if (result_slot && !failed_result)
+          {
+            failed_result = llvm::Constant::getNullValue(expected);
+          }
+          if (result_slot && failed_result)
+          {
+            builder.CreateStore(failed_result, result_slot);
+          }
+          builder.CreateBr(merge_bb);
         }
-        if (result_slot && failed_result)
-        {
-          builder.CreateStore(failed_result, result_slot);
-        }
-        builder.CreateBr(merge_bb);
 
         builder.SetInsertPoint(fallback_bb);
         llvm::Value *fallback_async = builder.CreateLoad(async_struct, async_slot);
@@ -16728,12 +17661,6 @@ namespace cursive::codegen
 
         const LowerCtx *active_ctx = emitter.GetCurrentCtx();
         const analysis::ScopeContext &scope = BuildScope(active_ctx);
-        const std::uint64_t suspended_disc =
-            AsyncStateIndexOrDefault(scope, "Suspended", 0);
-        const std::uint64_t completed_disc =
-            AsyncStateIndexOrDefault(scope, "Completed", 1);
-        const std::uint64_t failed_disc =
-            AsyncStateIndexOrDefault(scope, "Failed", 2);
 
         llvm::Type *expected = ExpectedLLVMType(r.result);
         analysis::TypeRef target_type =
@@ -16769,6 +17696,7 @@ namespace cursive::codegen
           analysis::TypeRef async_type = nullptr;
           analysis::TypeRef result_type = nullptr;
           analysis::TypeRef error_type = nullptr;
+          AsyncStateDiscs discs{};
         };
 
         std::vector<RaceArmEval> evaluated;
@@ -16789,6 +17717,10 @@ namespace cursive::codegen
               entry.result_type = sig->result;
               entry.error_type = sig->err;
             }
+          }
+          if (entry.async_type)
+          {
+            entry.discs = LoweredAsyncStateDiscs(scope, entry.async_type);
           }
           evaluated.push_back(std::move(entry));
         }
@@ -17047,7 +17979,7 @@ namespace cursive::codegen
           llvm::Value *is_completed = EmitTypedEq(
               &builder,
               disc,
-              llvm::ConstantInt::get(disc->getType(), completed_disc));
+              llvm::ConstantInt::get(disc->getType(), arm_eval.discs.completed));
           builder.CreateCondBr(
               AsBool(&builder, is_completed),
               completed_hit[i],
@@ -17068,14 +18000,21 @@ namespace cursive::codegen
           llvm::Value *current_async =
               builder.CreateLoad(arm_eval.async_struct, arm_eval.async_slot);
           llvm::Value *disc = builder.CreateExtractValue(current_async, {0u});
-          llvm::Value *is_failed = EmitTypedEq(
-              &builder,
-              disc,
-              llvm::ConstantInt::get(disc->getType(), failed_disc));
-          builder.CreateCondBr(
-              AsBool(&builder, is_failed),
-              failed_hit[i],
-              failed_check[i + 1]);
+          if (arm_eval.discs.failed.has_value())
+          {
+            llvm::Value *is_failed = EmitTypedEq(
+                &builder,
+                disc,
+                llvm::ConstantInt::get(disc->getType(), *arm_eval.discs.failed));
+            builder.CreateCondBr(
+                AsBool(&builder, is_failed),
+                failed_hit[i],
+                failed_check[i + 1]);
+          }
+          else
+          {
+            builder.CreateBr(failed_check[i + 1]);
+          }
 
           builder.SetInsertPoint(failed_hit[i]);
           emit_failed_arm(arm_eval);
@@ -17095,7 +18034,7 @@ namespace cursive::codegen
           llvm::Value *is_suspended = EmitTypedEq(
               &builder,
               disc,
-              llvm::ConstantInt::get(disc->getType(), suspended_disc));
+              llvm::ConstantInt::get(disc->getType(), arm_eval.discs.suspended));
           builder.CreateCondBr(
               AsBool(&builder, is_suspended),
               resume_hit[i],
@@ -17164,12 +18103,6 @@ namespace cursive::codegen
 
         const LowerCtx *active_ctx = emitter.GetCurrentCtx();
         const analysis::ScopeContext &scope = BuildScope(active_ctx);
-        const std::uint64_t suspended_disc =
-            AsyncStateIndexOrDefault(scope, "Suspended", 0);
-        const std::uint64_t completed_disc =
-            AsyncStateIndexOrDefault(scope, "Completed", 1);
-        const std::uint64_t failed_disc =
-            AsyncStateIndexOrDefault(scope, "Failed", 2);
 
         const auto stream_sig = analysis::GetAsyncSig(r.stream_type);
         llvm::Type *expected = ExpectedLLVMType(r.result);
@@ -17195,6 +18128,9 @@ namespace cursive::codegen
         llvm::IRBuilder<> entry_builder(
             &func->getEntryBlock(),
             func->getEntryBlock().begin());
+        const AsyncStateDiscs stream_discs =
+            LoweredAsyncStateDiscs(scope, r.stream_type);
+        const std::uint64_t suspended_disc = stream_discs.suspended;
 
         auto extract_async_payload = [&](llvm::Value *async_value,
                                          llvm::StructType *async_struct,
@@ -17352,6 +18288,7 @@ namespace cursive::codegen
           llvm::StructType *async_struct = nullptr;
           analysis::TypeRef out_type = nullptr;
           analysis::TypeRef err_type = nullptr;
+          AsyncStateDiscs discs{};
         };
 
         std::vector<YieldArmEval> evaluated;
@@ -17370,6 +18307,7 @@ namespace cursive::codegen
             {
               eval.out_type = sig->out;
               eval.err_type = sig->err;
+              eval.discs = LoweredAsyncStateDiscs(scope, *sig);
             }
           }
           evaluated.push_back(std::move(eval));
@@ -17395,15 +18333,17 @@ namespace cursive::codegen
             continue;
           }
           const std::uint64_t v = state->getZExtValue();
-          if (v == failed_disc && !first_failed.has_value())
+          if (eval.discs.failed.has_value() &&
+              v == *eval.discs.failed &&
+              !first_failed.has_value())
           {
             first_failed = i;
           }
-          if (v == suspended_disc && !first_suspended.has_value())
+          if (v == eval.discs.suspended && !first_suspended.has_value())
           {
             first_suspended = i;
           }
-          if (v != completed_disc)
+          if (v != eval.discs.completed)
           {
             all_completed = false;
           }
@@ -17467,12 +18407,6 @@ namespace cursive::codegen
 
         const LowerCtx *active_ctx = emitter.GetCurrentCtx();
         const analysis::ScopeContext &scope = BuildScope(active_ctx);
-        const std::uint64_t suspended_disc =
-            AsyncStateIndexOrDefault(scope, "Suspended", 0);
-        const std::uint64_t completed_disc =
-            AsyncStateIndexOrDefault(scope, "Completed", 1);
-        const std::uint64_t failed_disc =
-            AsyncStateIndexOrDefault(scope, "Failed", 2);
 
         std::vector<analysis::TypeRef> tuple_elem_types;
         if (all.tuple_type)
@@ -17491,6 +18425,7 @@ namespace cursive::codegen
           analysis::TypeRef async_type = nullptr;
           analysis::TypeRef result_type = nullptr;
           analysis::TypeRef error_type = nullptr;
+          AsyncStateDiscs discs{};
         };
 
         std::vector<AllEval> evaluated;
@@ -17514,6 +18449,10 @@ namespace cursive::codegen
               entry.result_type = sig->result;
               entry.error_type = sig->err;
             }
+          }
+          if (entry.async_type)
+          {
+            entry.discs = LoweredAsyncStateDiscs(scope, entry.async_type);
           }
           if (!entry.result_type && i < tuple_elem_types.size())
           {
@@ -17765,14 +18704,21 @@ namespace cursive::codegen
           const AllEval &eval = evaluated[i];
           llvm::Value *current_async = builder.CreateLoad(eval.async_struct, eval.async_slot);
           llvm::Value *disc = builder.CreateExtractValue(current_async, {0u});
-          llvm::Value *is_failed = EmitTypedEq(
-              &builder,
-              disc,
-              llvm::ConstantInt::get(disc->getType(), failed_disc));
-          builder.CreateCondBr(
-              AsBool(&builder, is_failed),
-              failed_hit[i],
-              failed_check[i + 1]);
+          if (eval.discs.failed.has_value())
+          {
+            llvm::Value *is_failed = EmitTypedEq(
+                &builder,
+                disc,
+                llvm::ConstantInt::get(disc->getType(), *eval.discs.failed));
+            builder.CreateCondBr(
+                AsBool(&builder, is_failed),
+                failed_hit[i],
+                failed_check[i + 1]);
+          }
+          else
+          {
+            builder.CreateBr(failed_check[i + 1]);
+          }
 
           builder.SetInsertPoint(failed_hit[i]);
           llvm::Value *error_payload =
@@ -17794,7 +18740,7 @@ namespace cursive::codegen
           llvm::Value *is_completed = EmitTypedEq(
               &builder,
               disc,
-              llvm::ConstantInt::get(disc->getType(), completed_disc));
+              llvm::ConstantInt::get(disc->getType(), eval.discs.completed));
           builder.CreateCondBr(
               AsBool(&builder, is_completed),
               complete_check[i + 1],
@@ -17813,7 +18759,7 @@ namespace cursive::codegen
           llvm::Value *is_suspended = EmitTypedEq(
               &builder,
               disc,
-              llvm::ConstantInt::get(disc->getType(), suspended_disc));
+              llvm::ConstantInt::get(disc->getType(), eval.discs.suspended));
           builder.CreateCondBr(
               AsBool(&builder, is_suspended),
               resume_hit[i],
@@ -17958,8 +18904,9 @@ namespace cursive::codegen
             builder.CreateStore(llvm::Constant::getNullValue(async_struct), async_slot);
 
             llvm::Type *disc_ty = async_struct->getElementType(0);
-            const std::uint64_t completed_disc =
-                AsyncStateIndexOrDefault(scope, "Completed", 1);
+            const AsyncStateDiscs async_discs =
+                LoweredAsyncStateDiscs(scope, async_type);
+            const std::uint64_t completed_disc = async_discs.completed;
             llvm::Value *disc_ptr = builder.CreateStructGEP(async_struct, async_slot, 0);
             llvm::Value *disc_val = llvm::ConstantInt::get(disc_ty, completed_disc);
             builder.CreateStore(disc_val, disc_ptr);
@@ -18103,8 +19050,19 @@ namespace cursive::codegen
             builder.CreateStore(llvm::Constant::getNullValue(async_struct), async_slot);
 
             llvm::Type *disc_ty = async_struct->getElementType(0);
-            const std::uint64_t failed_disc =
-                AsyncStateIndexOrDefault(scope, "Failed", 2);
+            const auto lowered_async = LowerAsyncType(async_type);
+            const AsyncStateDiscs async_discs =
+                LoweredAsyncStateDiscs(scope, lowered_async);
+            if (!async_discs.failed.has_value())
+            {
+              // Infallible asyncs have no concrete Failed arm. This path should
+              // already be unreachable after typing, so preserve the zero
+              // initialized value instead of fabricating a failed discriminator.
+              emitter.SetTempValue(async_fail.result,
+                                   llvm::Constant::getNullValue(async_struct));
+              return;
+            }
+            const std::uint64_t failed_disc = *async_discs.failed;
             llvm::Value *disc_ptr = builder.CreateStructGEP(async_struct, async_slot, 0);
             llvm::Value *disc_val = llvm::ConstantInt::get(disc_ty, failed_disc);
             builder.CreateStore(disc_val, disc_ptr);
@@ -18515,6 +19473,200 @@ namespace cursive::codegen
     }
   }
 
+  llvm::Value *LLVMEmitter::GetAddressableStorage(const IRValue &value)
+  {
+    auto *builder = static_cast<llvm::IRBuilder<> *>(builder_.get());
+    if (!builder)
+    {
+      return nullptr;
+    }
+
+    switch (value.kind)
+    {
+    case IRValue::Kind::Local:
+    {
+      llvm::Value *local = GetLocal(value.name);
+      return (local && local->getType()->isPointerTy()) ? local : nullptr;
+    }
+    case IRValue::Kind::Symbol:
+    {
+      if (llvm::Value *global = GetGlobal(value.name))
+      {
+        return global->getType()->isPointerTy() ? global : nullptr;
+      }
+      if (llvm::GlobalVariable *global = module_->getNamedGlobal(value.name))
+      {
+        return global;
+      }
+      return nullptr;
+    }
+    case IRValue::Kind::Opaque:
+    {
+      if (llvm::Value *storage = GetTempStorage(value))
+      {
+        return storage;
+      }
+      const LowerCtx *ctx = GetCurrentCtx();
+      if (!ctx)
+      {
+        return nullptr;
+      }
+      const DerivedValueInfo *derived = ctx->LookupDerivedValue(value);
+      if (!derived)
+      {
+        return nullptr;
+      }
+      switch (derived->kind)
+      {
+      case DerivedValueInfo::Kind::AddrLocal:
+      case DerivedValueInfo::Kind::AddrStatic:
+      case DerivedValueInfo::Kind::AddrField:
+      case DerivedValueInfo::Kind::AddrTuple:
+      case DerivedValueInfo::Kind::AddrIndex:
+      case DerivedValueInfo::Kind::AddrDeref:
+      {
+        llvm::Value *addr = EvaluateIRValue(value);
+        return (addr && addr->getType()->isPointerTy()) ? addr : nullptr;
+      }
+      case DerivedValueInfo::Kind::LoadFromAddr:
+        return GetAddressableStorage(derived->base);
+      default:
+        return nullptr;
+      }
+    }
+    default:
+      return nullptr;
+    }
+  }
+
+  LLVMEmitter::FlowStateSnapshot LLVMEmitter::SaveFlowState() const
+  {
+    FlowStateSnapshot snapshot;
+    snapshot.locals = locals_;
+    snapshot.local_home_storage = local_home_storage_;
+    snapshot.local_types = local_types_;
+    snapshot.values = values_;
+    snapshot.storage_values = storage_values_;
+    snapshot.preferred_result_storage = preferred_result_storage_;
+    snapshot.reusable_aggregate_storage = reusable_aggregate_storage_;
+    return snapshot;
+  }
+
+  void LLVMEmitter::RestoreFlowState(const FlowStateSnapshot &snapshot)
+  {
+    locals_ = snapshot.locals;
+    local_home_storage_ = snapshot.local_home_storage;
+    local_types_ = snapshot.local_types;
+    values_ = snapshot.values;
+    storage_values_ = snapshot.storage_values;
+    preferred_result_storage_ = snapshot.preferred_result_storage;
+    reusable_aggregate_storage_ = snapshot.reusable_aggregate_storage;
+  }
+
+  llvm::AllocaInst *LLVMEmitter::AcquireReusableAggregateStorage(
+      llvm::Function *func,
+      llvm::Type *ty,
+      std::string_view name)
+  {
+    if (!func || !ty) {
+      return nullptr;
+    }
+    if (!ty->isStructTy() && !ty->isArrayTy()) {
+      return nullptr;
+    }
+
+    auto func_it = reusable_aggregate_storage_.find(func);
+    if (func_it != reusable_aggregate_storage_.end()) {
+      auto type_it = func_it->second.find(ty);
+      if (type_it != func_it->second.end() && !type_it->second.empty()) {
+        llvm::AllocaInst *slot = type_it->second.back();
+        type_it->second.pop_back();
+        return slot;
+      }
+    }
+
+    return CreateEntryAlloca(func, ty, std::string(name));
+  }
+
+  void LLVMEmitter::ReleaseReusableAggregateStorage(llvm::Value *storage)
+  {
+    auto *alloca = llvm::dyn_cast_or_null<llvm::AllocaInst>(storage);
+    if (!alloca) {
+      return;
+    }
+    llvm::Type *ty = alloca->getAllocatedType();
+    if (!ty || (!ty->isStructTy() && !ty->isArrayTy())) {
+      return;
+    }
+    llvm::Function *func = alloca->getFunction();
+    if (!func) {
+      return;
+    }
+    reusable_aggregate_storage_[func][ty].push_back(alloca);
+  }
+
+  void LLVMEmitter::ForgetTempStorage(const IRValue &value)
+  {
+    if (value.kind != IRValue::Kind::Opaque) {
+      return;
+    }
+    storage_values_.erase(value.name);
+    values_.erase(value.name);
+  }
+
+  void LLVMEmitter::ReleaseTempStorage(const IRValue &value)
+  {
+    if (value.kind != IRValue::Kind::Opaque) {
+      return;
+    }
+    auto it = storage_values_.find(value.name);
+    if (it == storage_values_.end()) {
+      return;
+    }
+    ReleaseReusableAggregateStorage(it->second);
+    storage_values_.erase(it);
+    values_.erase(value.name);
+  }
+
+  void LLVMEmitter::ReleaseMoveConsumedStorage(const IRValue &value)
+  {
+    if (value.kind == IRValue::Kind::Opaque)
+    {
+      ReleaseTempStorage(value);
+      return;
+    }
+
+    if (value.kind != IRValue::Kind::Local)
+    {
+      return;
+    }
+
+    auto local_it = locals_.find(value.name);
+    if (local_it == locals_.end())
+    {
+      return;
+    }
+
+    llvm::Value *storage = local_it->second;
+    auto *alloca = llvm::dyn_cast_or_null<llvm::AllocaInst>(storage);
+    if (!alloca)
+    {
+      return;
+    }
+
+    llvm::Type *ty = alloca->getAllocatedType();
+    if (!ty || (!ty->isStructTy() && !ty->isArrayTy()))
+    {
+      return;
+    }
+
+    if (GetLocalHomeStorage(value.name) != storage)
+    {
+      SetLocalHomeStorage(value.name, storage);
+    }
+    locals_.erase(local_it);
+  }
+
   // T-LLVM-010: Bind local variable
   void LLVMEmitter::EmitBindVar(const IRBindVar &bind)
   {
@@ -18528,7 +19680,7 @@ namespace cursive::codegen
         (bind.name.find("parallel_") != std::string::npos ||
          bind.name.find("spawn_") != std::string::npos ||
          bind.name.find("wait_result") != std::string::npos);
-    llvm::Value *init_val = EvaluateIRValue(bind.value);
+    llvm::Value *init_val = nullptr;
     llvm::Type *ty = nullptr;
     if (bind.type)
     {
@@ -18563,10 +19715,26 @@ namespace cursive::codegen
     llvm::Function *func = builder->GetInsertBlock()->getParent();
     llvm::IRBuilder<> entry_builder(&func->getEntryBlock(), func->getEntryBlock().begin());
     llvm::Value *bind_slot = nullptr;
+    bool adopted_existing_storage = false;
     if (async_state_ && async_state_->info &&
         async_state_->info->slots.contains(bind.name))
     {
       bind_slot = GetLocal(bind.name);
+    }
+
+    const bool aggregate_bind_ty = ty && (ty->isStructTy() || ty->isArrayTy());
+    if ((!bind_slot || !bind_slot->getType()->isPointerTy()) && aggregate_bind_ty)
+    {
+      if (llvm::Value *existing_storage = GetAddressableStorage(bind.value))
+      {
+        llvm::Type *slot_ptr_ty = llvm::PointerType::get(ty, 0);
+        if (existing_storage->getType() != slot_ptr_ty)
+        {
+          existing_storage = builder->CreateBitCast(existing_storage, slot_ptr_ty);
+        }
+        bind_slot = existing_storage;
+        adopted_existing_storage = true;
+      }
     }
     if (!bind_slot || !bind_slot->getType()->isPointerTy())
     {
@@ -18584,8 +19752,13 @@ namespace cursive::codegen
       }
     }
 
+    if (!adopted_existing_storage)
+    {
+      init_val = EvaluateIRValue(bind.value);
+    }
+
     // Store the initial value
-    if (!init_val)
+    if (!adopted_existing_storage && !init_val)
     {
       init_val = llvm::Constant::getNullValue(ty);
       if (log_this_bind)
@@ -18599,7 +19772,7 @@ namespace cursive::codegen
                                                                    : "other");
       }
     }
-    else
+    else if (!adopted_existing_storage)
     {
       analysis::TypeRef source_type = nullptr;
       if (const LowerCtx *ctx = GetCurrentCtx())
@@ -18681,13 +19854,26 @@ namespace cursive::codegen
                                                                                                      : "other");
       }
     }
-    llvm::Value *typed_slot = bind_slot;
-    llvm::Type *slot_ptr_ty = llvm::PointerType::get(ty, 0);
-    if (typed_slot->getType() != slot_ptr_ty)
+    if (!adopted_existing_storage)
     {
-      typed_slot = builder->CreateBitCast(typed_slot, slot_ptr_ty);
+      llvm::Value *typed_slot = bind_slot;
+      llvm::Type *slot_ptr_ty = llvm::PointerType::get(ty, 0);
+      if (typed_slot->getType() != slot_ptr_ty)
+      {
+        typed_slot = builder->CreateBitCast(typed_slot, slot_ptr_ty);
+      }
+      builder->CreateStore(init_val, typed_slot);
     }
-    builder->CreateStore(init_val, typed_slot);
+    else
+    {
+      storage_values_.erase(bind.value.name);
+      values_.erase(bind.value.name);
+    }
+
+    if (!adopted_existing_storage)
+    {
+      ReleaseTempStorage(bind.value);
+    }
 
     SetLocal(bind.name, bind_slot);
     if (bind.type)
@@ -18738,6 +19924,21 @@ namespace cursive::codegen
       if (llvm::Value *cached = GetTempValue(val))
       {
         return cached;
+      }
+      if (llvm::Value *storage = GetTempStorage(val))
+      {
+        analysis::TypeRef storage_type = lookup_value_type(val);
+        llvm::Type *storage_llvm_ty = storage_type ? GetLLVMType(storage_type) : nullptr;
+        if (storage_llvm_ty && !storage_llvm_ty->isVoidTy())
+        {
+          llvm::Value *typed_ptr = storage;
+          llvm::Type *expected_ptr_ty = llvm::PointerType::get(storage_llvm_ty, 0);
+          if (typed_ptr->getType() != expected_ptr_ty)
+          {
+            typed_ptr = builder->CreateBitCast(typed_ptr, expected_ptr_ty);
+          }
+          return builder->CreateLoad(storage_llvm_ty, typed_ptr);
+        }
       }
     }
 
@@ -20030,17 +21231,13 @@ namespace cursive::codegen
       {
       case DerivedValueInfo::Kind::Field:
       {
-        llvm::Value *base = EvaluateIRValue(derived->base);
-        if (!base)
-        {
-          break;
-        }
         auto meta = field_meta_for(derived->base, derived->field);
-        auto load_field_by_offset = [&](llvm::Value *base_value,
-                                        const FieldAccessMeta &field_meta)
+        auto load_field_from_ptr = [&](llvm::Value *base_ptr,
+                                       const FieldAccessMeta &field_meta)
             -> llvm::Value *
         {
-          if (!base_value || !field_meta.field_type ||
+          if (!base_ptr || !base_ptr->getType()->isPointerTy() ||
+              !field_meta.field_type ||
               field_meta.index >= field_meta.aggregate_fields.size())
           {
             return nullptr;
@@ -20057,23 +21254,6 @@ namespace cursive::codegen
             return nullptr;
           }
 
-          llvm::Value *base_ptr = base_value;
-          if (!base_ptr->getType()->isPointerTy())
-          {
-            llvm::Function *current_fn =
-                builder->GetInsertBlock() ? builder->GetInsertBlock()->getParent() : nullptr;
-            if (!current_fn)
-            {
-              return nullptr;
-            }
-            llvm::IRBuilder<> entry_builder(
-                &current_fn->getEntryBlock(),
-                current_fn->getEntryBlock().begin());
-            llvm::AllocaInst *base_slot = entry_builder.CreateAlloca(base_value->getType());
-            builder->CreateStore(base_value, base_slot);
-            base_ptr = base_slot;
-          }
-
           llvm::Value *base_i8 = builder->CreateBitCast(
               base_ptr, llvm::PointerType::get(llvm::Type::getInt8Ty(context_), 0));
           llvm::Value *field_i8 = builder->CreateInBoundsGEP(
@@ -20088,10 +21268,54 @@ namespace cursive::codegen
           load->setAlignment(llvm::Align(1));
           return load;
         };
+        auto load_field_by_offset = [&](llvm::Value *base_value,
+                                        const FieldAccessMeta &field_meta)
+            -> llvm::Value *
+        {
+          if (!base_value)
+          {
+            return nullptr;
+          }
+          if (base_value->getType()->isPointerTy())
+          {
+            return load_field_from_ptr(base_value, field_meta);
+          }
+
+          llvm::Function *current_fn =
+              builder->GetInsertBlock() ? builder->GetInsertBlock()->getParent() : nullptr;
+          if (!current_fn)
+          {
+            return nullptr;
+          }
+          llvm::IRBuilder<> entry_builder(
+              &current_fn->getEntryBlock(),
+              current_fn->getEntryBlock().begin());
+          llvm::AllocaInst *base_slot = entry_builder.CreateAlloca(base_value->getType());
+          builder->CreateStore(base_value, base_slot);
+          return load_field_from_ptr(base_slot, field_meta);
+        };
 
         // Field metadata provides semantic field order (excluding ABI padding).
         // Materialize by byte offset instead of aggregate index to avoid reading
         // synthetic padding members from LLVM struct representations.
+        if (meta.has_value())
+        {
+          if (llvm::Value *base_storage = GetAddressableStorage(derived->base))
+          {
+            if (llvm::Value *by_offset = load_field_from_ptr(base_storage, *meta))
+            {
+              materialized = by_offset;
+              break;
+            }
+          }
+        }
+
+        llvm::Value *base = EvaluateIRValue(derived->base);
+        if (!base)
+        {
+          break;
+        }
+
         if (meta.has_value())
         {
           if (llvm::Value *by_offset = load_field_by_offset(base, *meta))
@@ -20252,7 +21476,11 @@ namespace cursive::codegen
       }
       case DerivedValueInfo::Kind::AddrTuple:
       {
-        llvm::Value *base = pointer_from_value(EvaluateIRValue(derived->base));
+        llvm::Value *base = GetAddressableStorage(derived->base);
+        if (!base)
+        {
+          base = pointer_from_value(EvaluateIRValue(derived->base));
+        }
         if (!base)
         {
           break;
@@ -20318,8 +21546,14 @@ namespace cursive::codegen
                                                            derived->range.kind)
                                  : std::nullopt;
 
-        llvm::Value *base_value = EvaluateIRValue(derived->base);
-        llvm::Value *base_ptr = pointer_from_value(base_value);
+        llvm::Value *base_storage = GetAddressableStorage(derived->base);
+        llvm::Value *base_value = nullptr;
+        llvm::Value *base_ptr = base_storage;
+        if (!base_ptr)
+        {
+          base_value = EvaluateIRValue(derived->base);
+          base_ptr = pointer_from_value(base_value);
+        }
         if (!base_ptr)
         {
           break;
@@ -20377,6 +21611,10 @@ namespace cursive::codegen
         bool used_slice_data_ptr = false;
         if (base_type && std::holds_alternative<analysis::TypeSlice>(base_type->node))
         {
+          if (!base_value)
+          {
+            base_value = EvaluateIRValue(derived->base);
+          }
           llvm::Value *data_ptr = nullptr;
 
           if (base_value && base_value->getType()->isStructTy())
@@ -20439,7 +21677,11 @@ namespace cursive::codegen
       }
       case DerivedValueInfo::Kind::AddrField:
       {
-        llvm::Value *base = pointer_from_value(EvaluateIRValue(derived->base));
+        llvm::Value *base = GetAddressableStorage(derived->base);
+        if (!base)
+        {
+          base = pointer_from_value(EvaluateIRValue(derived->base));
+        }
         if (!base)
         {
           break;
@@ -20673,17 +21915,7 @@ namespace cursive::codegen
           }
           else if (base->getType()->isPointerTy())
           {
-            llvm::Type *base_slice_ll = GetLLVMType(base_type);
-            if (base_slice_ll)
-            {
-              llvm::Value *typed_slice_ptr = builder->CreateBitCast(
-                  base, llvm::PointerType::get(base_slice_ll, 0));
-              llvm::Value *loaded_slice = builder->CreateLoad(base_slice_ll, typed_slice_ptr);
-              if (loaded_slice && loaded_slice->getType()->isStructTy())
-              {
-                base_len = builder->CreateExtractValue(loaded_slice, {1u});
-              }
-            }
+            base_len = EmitIndexLenFromAddr(*this, *builder, base_type, base);
           }
         }
         if (!base_len || !base_len->getType()->isIntegerTy())
@@ -21749,6 +22981,8 @@ namespace cursive::codegen
         break;
       }
       case DerivedValueInfo::Kind::ArrayLit:
+      case DerivedValueInfo::Kind::ArrayRepeat:
+      case DerivedValueInfo::Kind::ArraySegments:
       case DerivedValueInfo::Kind::TupleLit:
       {
         llvm::Type *agg_ty = nullptr;
@@ -21759,14 +22993,70 @@ namespace cursive::codegen
         if (!agg_ty || (!agg_ty->isArrayTy() && !agg_ty->isStructTy()))
         {
           std::vector<llvm::Type *> inferred_elem_tys;
-          inferred_elem_tys.reserve(derived->elements.size());
-          llvm::Type *first_elem_ty = nullptr;
-          bool all_same = true;
-          for (const auto &elem_value : derived->elements)
+          if (derived->kind == DerivedValueInfo::Kind::ArrayRepeat)
           {
-            llvm::Value *elem = EvaluateIRValue(elem_value);
+            llvm::Value *elem = EvaluateIRValue(derived->repeat_value);
             llvm::Type *elem_ty =
                 elem ? elem->getType() : llvm::Type::getInt64Ty(context_);
+            llvm::Value *count_value = EvaluateIRValue(derived->repeat_count);
+            auto *count_int = llvm::dyn_cast_or_null<llvm::ConstantInt>(count_value);
+            if (!count_int)
+            {
+              agg_ty = llvm::StructType::get(context_, inferred_elem_tys);
+            }
+            else
+            {
+              for (std::uint64_t i = 0; i < count_int->getZExtValue(); ++i)
+              {
+                inferred_elem_tys.push_back(elem_ty);
+              }
+            }
+          }
+          else if (derived->kind == DerivedValueInfo::Kind::ArraySegments)
+          {
+            for (const auto &segment : derived->array_segments)
+            {
+              llvm::Value *elem = EvaluateIRValue(segment.value);
+              llvm::Type *elem_ty =
+                  elem ? elem->getType() : llvm::Type::getInt64Ty(context_);
+              if (segment.kind == DerivedArraySegment::Kind::Element)
+              {
+                inferred_elem_tys.push_back(elem_ty);
+                continue;
+              }
+              if (!segment.count.has_value())
+              {
+                agg_ty = llvm::StructType::get(context_, inferred_elem_tys);
+                break;
+              }
+              llvm::Value *count_value = EvaluateIRValue(*segment.count);
+              auto *count_int = llvm::dyn_cast_or_null<llvm::ConstantInt>(count_value);
+              if (!count_int)
+              {
+                agg_ty = llvm::StructType::get(context_, inferred_elem_tys);
+                break;
+              }
+              for (std::uint64_t i = 0; i < count_int->getZExtValue(); ++i)
+              {
+                inferred_elem_tys.push_back(elem_ty);
+              }
+            }
+          }
+          else
+          {
+            inferred_elem_tys.reserve(derived->elements.size());
+            for (const auto &elem_value : derived->elements)
+            {
+              llvm::Value *elem = EvaluateIRValue(elem_value);
+              llvm::Type *elem_ty =
+                  elem ? elem->getType() : llvm::Type::getInt64Ty(context_);
+              inferred_elem_tys.push_back(elem_ty);
+            }
+          }
+          llvm::Type *first_elem_ty = nullptr;
+          bool all_same = true;
+          for (const auto &elem_ty : inferred_elem_tys)
+          {
             if (!first_elem_ty)
             {
               first_elem_ty = elem_ty;
@@ -21775,14 +23065,16 @@ namespace cursive::codegen
             {
               all_same = false;
             }
-            inferred_elem_tys.push_back(elem_ty);
           }
-          if (derived->kind == DerivedValueInfo::Kind::ArrayLit && all_same &&
+          if ((derived->kind == DerivedValueInfo::Kind::ArrayLit ||
+               derived->kind == DerivedValueInfo::Kind::ArrayRepeat ||
+               derived->kind == DerivedValueInfo::Kind::ArraySegments) &&
+              all_same &&
               first_elem_ty)
           {
             agg_ty = llvm::ArrayType::get(
                 first_elem_ty,
-                static_cast<std::uint64_t>(derived->elements.size()));
+                static_cast<std::uint64_t>(inferred_elem_tys.size()));
           }
           else
           {
@@ -21792,10 +23084,52 @@ namespace cursive::codegen
         if (agg_ty && (agg_ty->isArrayTy() || agg_ty->isStructTy()))
         {
           llvm::Value *agg = llvm::Constant::getNullValue(agg_ty);
-          const std::size_t count = derived->elements.size();
+          std::vector<IRValue> materialized_elems;
+          if (derived->kind == DerivedValueInfo::Kind::ArrayRepeat)
+          {
+            llvm::Value *count_value = EvaluateIRValue(derived->repeat_count);
+            auto *count_int = llvm::dyn_cast_or_null<llvm::ConstantInt>(count_value);
+            if (count_int)
+            {
+              for (std::uint64_t j = 0; j < count_int->getZExtValue(); ++j)
+              {
+                materialized_elems.push_back(derived->repeat_value);
+              }
+            }
+          }
+          else if (derived->kind == DerivedValueInfo::Kind::ArraySegments)
+          {
+            for (const auto &segment : derived->array_segments)
+            {
+              if (segment.kind == DerivedArraySegment::Kind::Element)
+              {
+                materialized_elems.push_back(segment.value);
+                continue;
+              }
+              if (!segment.count.has_value())
+              {
+                continue;
+              }
+              llvm::Value *count_value = EvaluateIRValue(*segment.count);
+              auto *count_int = llvm::dyn_cast_or_null<llvm::ConstantInt>(count_value);
+              if (!count_int)
+              {
+                continue;
+              }
+              for (std::uint64_t j = 0; j < count_int->getZExtValue(); ++j)
+              {
+                materialized_elems.push_back(segment.value);
+              }
+            }
+          }
+          else
+          {
+            materialized_elems = derived->elements;
+          }
+          const std::size_t count = materialized_elems.size();
           for (std::size_t i = 0; i < count; ++i)
           {
-            llvm::Value *elem = EvaluateIRValue(derived->elements[i]);
+            llvm::Value *elem = EvaluateIRValue(materialized_elems[i]);
             if (!elem)
             {
               continue;
@@ -21851,58 +23185,6 @@ namespace cursive::codegen
     default:
       return nullptr;
     }
-  }
-
-  // T-LLVM-004: Checked Arithmetic
-  llvm::Value *LLVMEmitter::EmitCheckedAdd(llvm::Value *lhs, llvm::Value *rhs, bool is_signed)
-  {
-    return cursive::codegen::EmitCheckedAdd(*this, lhs, rhs, is_signed);
-  }
-
-  llvm::Value *LLVMEmitter::EmitCheckedSub(llvm::Value *lhs, llvm::Value *rhs, bool is_signed)
-  {
-    return cursive::codegen::EmitCheckedSub(*this, lhs, rhs, is_signed);
-  }
-
-  llvm::Value *LLVMEmitter::EmitCheckedMul(llvm::Value *lhs, llvm::Value *rhs, bool is_signed)
-  {
-    return cursive::codegen::EmitCheckedMul(*this, lhs, rhs, is_signed);
-  }
-
-  llvm::Value *LLVMEmitter::EmitCheckedDiv(llvm::Value *lhs, llvm::Value *rhs, bool is_signed)
-  {
-    return cursive::codegen::EmitCheckedDiv(*this, lhs, rhs, is_signed);
-  }
-
-  llvm::Value *LLVMEmitter::EmitCheckedRem(llvm::Value *lhs, llvm::Value *rhs, bool is_signed)
-  {
-    return cursive::codegen::EmitCheckedRem(*this, lhs, rhs, is_signed);
-  }
-
-  llvm::Value *LLVMEmitter::EmitCheckedShl(llvm::Value *lhs, llvm::Value *rhs)
-  {
-    return cursive::codegen::EmitCheckedShl(*this, lhs, rhs);
-  }
-
-  llvm::Value *LLVMEmitter::EmitCheckedShr(llvm::Value *lhs, llvm::Value *rhs, bool is_signed)
-  {
-    return cursive::codegen::EmitCheckedShr(*this, lhs, rhs, is_signed);
-  }
-
-  // T-LLVM-005: Memory Intrinsics
-  void LLVMEmitter::EmitMemCpy(llvm::Value *dst, llvm::Value *src, llvm::Value *size, uint64_t align)
-  {
-    cursive::codegen::EmitMemCpy(*this, dst, src, size, align);
-  }
-
-  void LLVMEmitter::EmitMemSet(llvm::Value *dst, llvm::Value *val, llvm::Value *size, uint64_t align)
-  {
-    cursive::codegen::EmitMemSet(*this, dst, val, size, align);
-  }
-
-  void LLVMEmitter::EmitMemMove(llvm::Value *dst, llvm::Value *src, llvm::Value *size, uint64_t align)
-  {
-    cursive::codegen::EmitMemMove(*this, dst, src, size, align);
   }
 
   // Main entry point for T-LLVM-008

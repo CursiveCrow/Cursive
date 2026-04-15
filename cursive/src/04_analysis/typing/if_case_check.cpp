@@ -536,10 +536,6 @@ static IntroResult IntroBinding(const TypeEnv& env,
     SPEC_RULE("Intro-Reserved-Gen-Err");
     return {false, "Intro-Reserved-Gen-Err", env};
   }
-  if (ReservedCursive(name)) {
-    SPEC_RULE("Intro-Reserved-Cursive-Err");
-    return {false, "Intro-Reserved-Cursive-Err", env};
-  }
 
   const auto key = IdKeyOf(name);
   if (env.scopes.empty()) {

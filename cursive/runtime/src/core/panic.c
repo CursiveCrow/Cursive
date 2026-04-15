@@ -6,7 +6,7 @@ void cursive_x3a_x3aruntime_x3a_x3apanic(uint32_t code) {
     c0_parallel_raise_panic(code);
     return;
   }
-  ExitProcess(code);
+  cursive_platform_exit_process((cursive_platform_uint_t)code);
 }
 
 void cursive_panic(uint32_t code) {

@@ -33,6 +33,12 @@ using cursive::lexer::TokenKind;
 
 namespace {
 
+static inline void SpecDefsParserRecovery() {
+  SPEC_DEF("StmtParseErrRule", "5.8");
+  SPEC_DEF("ItemParseErrRule", "5.8");
+  SPEC_DEF("Phase1DiagRules", "5.9");
+}
+
 // =============================================================================
 // IsSyncItemToken - Check if token is in item synchronization set
 // =============================================================================
@@ -68,18 +74,37 @@ bool IsTerminatorToken(const Token& tok) {
 // EmitParseSyntaxErr - Emit syntax error diagnostic
 // =============================================================================
 //
+// Emits E-SRC-0520 diagnostic for syntax errors without claiming a specific
+// spec rule. Generic parse rules that normatively emit Parse-Syntax-Err must
+// use EmitGenericParseSyntaxErr instead.
+
+void EmitParseSyntaxErr(Parser& parser, const core::Span& span) {
+  auto diag = core::MakeDiagnosticById("E-SRC-0520", span);
+  if (!diag) {
+    return;
+  }
+  core::Emit(parser.diags, *diag);
+}
+
+// =============================================================================
+// EmitGenericParseSyntaxErr - Emit generic parse syntax diagnostic
+// =============================================================================
+//
 // SPEC: Parse-Syntax-Err (Section 3.3.13 lines 6513-6518)
 //   GenericParseRules = {Parse-Ident-Err, Parse-Type-Err, Parse-Pattern-Err,
 //                        Parse-Primary-Err, Parse-Statement-Err, Parse-Item-Err}
 //   r in GenericParseRules    PremisesHold(r, P)
 //   ----------------------------------------
 //   Emit(Code(Parse-Syntax-Err))
-//
-// Emits E-SRC-0520 diagnostic for syntax errors.
 
-void EmitParseSyntaxErr(Parser& parser, const core::Span& span) {
+void EmitGenericParseSyntaxErr(Parser& parser, const core::Span& span) {
+  SpecDefsParserRecovery();
   SPEC_RULE("Parse-Syntax-Err");
-  auto diag = core::MakeDiagnosticById("E-SRC-0520", span);
+  EmitParseSyntaxErr(parser, span);
+}
+
+void EmitSpliceOutsideQuoteErr(Parser& parser, const core::Span& span) {
+  auto diag = core::MakeDiagnosticById("E-CTE-0233", span);
   if (!diag) {
     return;
   }

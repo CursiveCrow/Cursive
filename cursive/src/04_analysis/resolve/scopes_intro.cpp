@@ -71,10 +71,6 @@ IntroResult Intro(ScopeContext& ctx, std::string_view name, const Entity& ent) {
     SPEC_RULE("Intro-Reserved-Gen-Err");
     return {false, "Intro-Reserved-Gen-Err"};
   }
-  if (ReservedCursive(name)) {
-    SPEC_RULE("Intro-Reserved-Cursive-Err");
-    return {false, "Intro-Reserved-Cursive-Err"};
-  }
 
   auto& scopes = Scopes(ctx);
   if (scopes.empty()) {
@@ -119,10 +115,6 @@ IntroResult ShadowIntro(ScopeContext& ctx,
   if (ReservedGen(name)) {
     SPEC_RULE("Shadow-Reserved-Gen-Err");
     return {false, "Shadow-Reserved-Gen-Err"};
-  }
-  if (ReservedCursive(name)) {
-    SPEC_RULE("Shadow-Reserved-Cursive-Err");
-    return {false, "Shadow-Reserved-Cursive-Err"};
   }
 
   auto& scopes = Scopes(ctx);
@@ -178,13 +170,6 @@ ValidateModuleNamesResult ValidateModuleNames(
     if (ReservedGen(key)) {
       SPEC_RULE("Intro-Reserved-Gen-Err");
       return {false, "Intro-Reserved-Gen-Err", SpanForKey(name_spans, key)};
-    }
-  }
-  // Check for reserved cursive namespace prefix
-  for (const auto& key : keys) {
-    if (ReservedCursive(key)) {
-      SPEC_RULE("Intro-Reserved-Cursive-Err");
-      return {false, "Intro-Reserved-Cursive-Err", SpanForKey(name_spans, key)};
     }
   }
   for (const auto& key : keys) {

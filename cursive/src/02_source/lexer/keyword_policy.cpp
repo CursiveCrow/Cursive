@@ -52,7 +52,7 @@ bool IsFixedIdentifier(std::string_view s) {
 }
 
 bool IsFixedIdentTok(const Token& tok, std::string_view s) {
-  return tok.kind == TokenKind::Identifier && tok.lexeme == s;
+  return IsIdentTok(tok) && tok.lexeme == s && IsFixedIdentifier(s);
 }
 
 // Contextual keywords: "in", "key", "wait"

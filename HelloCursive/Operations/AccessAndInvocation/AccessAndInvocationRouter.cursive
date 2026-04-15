@@ -1,5 +1,5 @@
 
-public procedure RunGroup(ctx: Context) -> i32 {
+public procedure runGroup(ctx: Context) -> i32 {
     let section_name: string@View = "operations/AccessAndInvocation"
     let status_ok: string@View = "ok"
     let status_failed: string@View = "failed"

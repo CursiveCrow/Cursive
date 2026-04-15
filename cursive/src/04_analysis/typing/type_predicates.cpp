@@ -24,6 +24,7 @@
 #include "04_analysis/typing/context.h"
 #include "04_analysis/typing/type_decls.h"
 #include "04_analysis/typing/type_equiv.h"
+#include "04_analysis/typing/type_expr.h"
 #include "04_analysis/typing/type_lower.h"
 #include "04_analysis/typing/type_lookup.h"
 #include "04_analysis/typing/types.h"
@@ -39,7 +40,49 @@ static inline void SpecDefsTypePredicates() {
   SPEC_DEF("CloneType", "9.2");
   SPEC_DEF("DropType", "9.2");
   SPEC_DEF("FfiSafeType", "9.2");
+  SPEC_DEF("GpuSafeType", "20.2.4");
+  SPEC_DEF("GpuSafePrimTypes", "20.2.4");
+  SPEC_DEF("ProhibitedGpuType", "20.2.4");
+  SPEC_DEF("GpuSafeComponents", "20.2.4");
+  SPEC_DEF("HasGpuSafeReq", "20.2.4");
+  SPEC_DEF("GpuSafePredicateClauseOk", "20.2.4");
+  SPEC_DEF("GpuSafe-Prim", "20.2.4");
+  SPEC_DEF("GpuSafe-RawPtr", "20.2.4");
+  SPEC_DEF("GpuSafe-Array", "20.2.4");
+  SPEC_DEF("GpuSafe-Tuple", "20.2.4");
+  SPEC_DEF("GpuSafe-Perm", "20.2.4");
+  SPEC_DEF("GpuSafe-Record", "20.2.4");
+  SPEC_DEF("GpuSafe-Enum", "20.2.4");
+  SPEC_DEF("GpuSafe-StringView", "20.2.4");
+  SPEC_DEF("GpuSafe-BytesView", "20.2.4");
+  SPEC_DEF("GpuSafeType-Err", "20.2.4");
+  SPEC_DEF("GpuSafe-Record-Field-Err", "20.2.4");
+  SPEC_DEF("GpuSafe-Generic-Unbounded-Err", "20.2.4");
   SPEC_DEF("ZeroableType", "23.3.4");
+  SPEC_DEF("BuiltinStepType", "14.10.4");
+}
+
+TypeRef NormalizeFoundationalBuiltinBase(const TypeRef& type) {
+  if (!type) {
+    return nullptr;
+  }
+
+  return std::visit(
+      [&](const auto& node) -> TypeRef {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, TypePerm>) {
+          return NormalizeFoundationalBuiltinBase(node.base);
+        } else if constexpr (std::is_same_v<T, TypeRefine>) {
+          return NormalizeFoundationalBuiltinBase(node.base);
+        } else {
+          return type;
+        }
+      },
+      type->node);
+}
+
+TypeRef ConstType(const TypeRef& base) {
+  return MakeTypePerm(Permission::Const, base);
 }
 
 static bool HasLayoutC(const ast::AttributeList& attrs) {
@@ -181,7 +224,53 @@ static bool HasFfiSafeReq(const std::optional<ast::WhereClause>& where_clause_op
   return false;
 }
 
+static bool HasGpuSafeReq(const std::optional<ast::WhereClause>& where_clause_opt,
+                         std::string_view param_name) {
+  SPEC_RULE("HasGpuSafeReq");
+  if (!where_clause_opt.has_value()) {
+    return false;
+  }
+  for (const auto& pred : where_clause_opt->predicates) {
+    if (!IdEq(pred.predicate, "GpuSafe") || !pred.type) {
+      continue;
+    }
+    const auto* path = std::get_if<ast::TypePathType>(&pred.type->node);
+    if (!path || path->path.size() != 1) {
+      continue;
+    }
+    if (IdEq(path->path[0], param_name)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static std::vector<std::string> FfiSafeRecordTypeParamsInFields(
+    const ast::RecordDecl& decl) {
+  std::vector<std::string> used;
+  if (!decl.generic_params.has_value()) {
+    return used;
+  }
+  for (const auto& param : decl.generic_params->params) {
+    bool mentioned = false;
+    for (const auto& member : decl.members) {
+      const auto* field = std::get_if<ast::FieldDecl>(&member);
+      if (!field || !field->type) {
+        continue;
+      }
+      if (AstTypeMentionsParam(field->type, param.name)) {
+        mentioned = true;
+        break;
+      }
+    }
+    if (mentioned) {
+      used.push_back(param.name);
+    }
+  }
+  return used;
+}
+
+static std::vector<std::string> GpuSafeRecordTypeParamsInFields(
     const ast::RecordDecl& decl) {
   std::vector<std::string> used;
   if (!decl.generic_params.has_value()) {
@@ -252,6 +341,52 @@ static std::vector<std::string> FfiSafeEnumTypeParamsInPayloads(
   return used;
 }
 
+static std::vector<std::string> GpuSafeEnumTypeParamsInPayloads(
+    const ast::EnumDecl& decl) {
+  std::vector<std::string> used;
+  if (!decl.generic_params.has_value()) {
+    return used;
+  }
+  for (const auto& param : decl.generic_params->params) {
+    bool mentioned = false;
+    for (const auto& variant : decl.variants) {
+      if (!variant.payload_opt.has_value()) {
+        continue;
+      }
+      std::visit(
+          [&](const auto& payload) {
+            using P = std::decay_t<decltype(payload)>;
+            if (mentioned) {
+              return;
+            }
+            if constexpr (std::is_same_v<P, ast::VariantPayloadTuple>) {
+              for (const auto& elem : payload.elements) {
+                if (AstTypeMentionsParam(elem, param.name)) {
+                  mentioned = true;
+                  return;
+                }
+              }
+            } else if constexpr (std::is_same_v<P, ast::VariantPayloadRecord>) {
+              for (const auto& field : payload.fields) {
+                if (AstTypeMentionsParam(field.type, param.name)) {
+                  mentioned = true;
+                  return;
+                }
+              }
+            }
+          },
+          *variant.payload_opt);
+      if (mentioned) {
+        break;
+      }
+    }
+    if (mentioned) {
+      used.push_back(param.name);
+    }
+  }
+  return used;
+}
+
 static bool GenericParamsMissingFfiSafeReqs(
     const std::optional<ast::GenericParams>& generic_params_opt,
     const std::optional<ast::WhereClause>& where_clause_opt,
@@ -261,6 +396,22 @@ static bool GenericParamsMissingFfiSafeReqs(
   }
   for (const auto& name : used_params) {
     if (!HasFfiSafeReq(where_clause_opt, name)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool GenericParamsMissingGpuSafeReqs(
+    const std::optional<ast::GenericParams>& generic_params_opt,
+    const std::optional<ast::WhereClause>& where_clause_opt,
+    const std::vector<std::string>& used_params) {
+  SPEC_RULE("GpuSafePredicateClauseOk");
+  if (!generic_params_opt.has_value() || used_params.empty()) {
+    return false;
+  }
+  for (const auto& name : used_params) {
+    if (!HasGpuSafeReq(where_clause_opt, name)) {
       return true;
     }
   }
@@ -393,6 +544,14 @@ static bool IsBuiltinBitcopyPath(const TypePath& path) {
           IdEq(path[0], "IoError") ||
           IdEq(path[0], "Context") ||
           IdEq(path[0], "System"));
+}
+
+static bool IsGpuSafePrim(std::string_view name) {
+  SPEC_RULE("GpuSafePrimTypes");
+  return name == "i8" || name == "i16" || name == "i32" || name == "i64" ||
+         name == "u8" || name == "u16" || name == "u32" || name == "u64" ||
+         name == "isize" || name == "usize" || name == "f16" ||
+         name == "f32" || name == "f64" || name == "bool" || name == "()";
 }
 
 static std::vector<std::string> GenericParamNames(
@@ -830,7 +989,8 @@ static std::optional<std::string_view> FfiSafeRecordDiag(
   if (!HasLayoutC(decl.attrs)) {
     return std::optional<std::string_view>{"FfiSafe-Record-LayoutC-Err"};
   }
-  if (GenericParamsMissingFfiSafeReqs(decl.generic_params, decl.where_clause,
+  if (GenericParamsMissingFfiSafeReqs(decl.generic_params,
+                                      decl.predicate_clause_opt,
                                       FfiSafeRecordTypeParamsInFields(decl))) {
     return std::optional<std::string_view>{"FfiSafe-Generic-Unbounded-Err"};
   }
@@ -864,7 +1024,8 @@ static std::optional<std::string_view> FfiSafeEnumDiag(
   if (!HasLayoutC(decl.attrs)) {
     return std::optional<std::string_view>{"FfiSafe-Enum-LayoutC-Err"};
   }
-  if (GenericParamsMissingFfiSafeReqs(decl.generic_params, decl.where_clause,
+  if (GenericParamsMissingFfiSafeReqs(decl.generic_params,
+                                      decl.predicate_clause_opt,
                                       FfiSafeEnumTypeParamsInPayloads(decl))) {
     return std::optional<std::string_view>{"FfiSafe-Generic-Unbounded-Err"};
   }
@@ -1319,6 +1480,350 @@ std::optional<std::string_view> FfiSafeDiagForType(
 }
 
 // =============================================================================
+// EXPORTED: GpuSafeType / GpuSafeDiagForType
+// =============================================================================
+
+static std::optional<std::string_view> GpuSafeDiagForTypeImpl(
+    const ScopeContext& ctx,
+    const TypeRef& type,
+    std::set<PathKey>& active_paths);
+
+static std::optional<std::string_view> GpuSafeRecordDiag(
+    const ScopeContext& ctx,
+    const ast::RecordDecl& decl,
+    const TypeRef& record_type,
+    const std::vector<TypeRef>& generic_args,
+    std::set<PathKey>& active_paths) {
+  if (GenericParamsMissingGpuSafeReqs(decl.generic_params,
+                                      decl.predicate_clause_opt,
+                                      GpuSafeRecordTypeParamsInFields(decl))) {
+    SPEC_RULE("GpuSafe-Generic-Unbounded-Err");
+    return std::optional<std::string_view>{"E-TYP-2642"};
+  }
+  if (!BitcopyType(ctx, record_type)) {
+    SPEC_RULE("GpuSafeType-Err");
+    return std::optional<std::string_view>{"E-TYP-2640"};
+  }
+
+  const auto param_names = GenericParamNames(decl.generic_params);
+  for (const auto& member : decl.members) {
+    const auto* field = std::get_if<ast::FieldDecl>(&member);
+    if (!field || !field->type) {
+      continue;
+    }
+    const auto lowered = LowerType(ctx, field->type);
+    if (!lowered.ok) {
+      SPEC_RULE("GpuSafe-Record-Field-Err");
+      return std::optional<std::string_view>{"E-TYP-2640"};
+    }
+    const auto instantiated =
+        ApplyDeclGenericArgs(lowered.type, param_names, generic_args);
+    if (GpuSafeDiagForTypeImpl(ctx, instantiated, active_paths).has_value()) {
+      SPEC_RULE("GpuSafe-Record-Field-Err");
+      return std::optional<std::string_view>{"E-TYP-2640"};
+    }
+  }
+  SPEC_RULE("GpuSafe-Record");
+  return std::nullopt;
+}
+
+static std::optional<std::string_view> GpuSafeEnumDiag(
+    const ScopeContext& ctx,
+    const ast::EnumDecl& decl,
+    const TypeRef& enum_type,
+    const std::vector<TypeRef>& generic_args,
+    std::set<PathKey>& active_paths) {
+  if (GenericParamsMissingGpuSafeReqs(decl.generic_params,
+                                      decl.predicate_clause_opt,
+                                      GpuSafeEnumTypeParamsInPayloads(decl))) {
+    SPEC_RULE("GpuSafe-Generic-Unbounded-Err");
+    return std::optional<std::string_view>{"E-TYP-2642"};
+  }
+  if (!BitcopyType(ctx, enum_type)) {
+    SPEC_RULE("GpuSafeType-Err");
+    return std::optional<std::string_view>{"E-TYP-2640"};
+  }
+
+  const auto param_names = GenericParamNames(decl.generic_params);
+  for (const auto& variant : decl.variants) {
+    if (!variant.payload_opt.has_value()) {
+      continue;
+    }
+    std::optional<std::string_view> bad_payload = std::nullopt;
+    std::visit(
+        [&](const auto& payload) {
+          using P = std::decay_t<decltype(payload)>;
+          if constexpr (std::is_same_v<P, ast::VariantPayloadTuple>) {
+            for (const auto& elem : payload.elements) {
+              const auto lowered = LowerType(ctx, elem);
+              if (!lowered.ok) {
+                bad_payload = "E-TYP-2640";
+                return;
+              }
+              const auto instantiated =
+                  ApplyDeclGenericArgs(lowered.type, param_names, generic_args);
+              if (GpuSafeDiagForTypeImpl(ctx, instantiated, active_paths)
+                      .has_value()) {
+                bad_payload = "E-TYP-2640";
+                return;
+              }
+            }
+          } else if constexpr (std::is_same_v<P, ast::VariantPayloadRecord>) {
+            for (const auto& field : payload.fields) {
+              const auto lowered = LowerType(ctx, field.type);
+              if (!lowered.ok) {
+                bad_payload = "E-TYP-2640";
+                return;
+              }
+              const auto instantiated =
+                  ApplyDeclGenericArgs(lowered.type, param_names, generic_args);
+              if (GpuSafeDiagForTypeImpl(ctx, instantiated, active_paths)
+                      .has_value()) {
+                bad_payload = "E-TYP-2640";
+                return;
+              }
+            }
+          }
+        },
+        *variant.payload_opt);
+    if (bad_payload.has_value()) {
+      SPEC_RULE("GpuSafeType-Err");
+      return bad_payload;
+    }
+  }
+  SPEC_RULE("GpuSafe-Enum");
+  return std::nullopt;
+}
+
+static std::optional<std::string_view> GpuSafeDiagForTypeImpl(
+    const ScopeContext& ctx,
+    const TypeRef& type,
+    std::set<PathKey>& active_paths) {
+  if (!type) {
+    return std::nullopt;
+  }
+
+  const auto stripped = StripPermAndRefine(type);
+  if (!stripped) {
+    return std::nullopt;
+  }
+
+  if (IsCapabilityType(stripped)) {
+    SPEC_RULE("ProhibitedGpuType");
+    SPEC_RULE("GpuSafeType-Err");
+    return std::optional<std::string_view>{"E-TYP-2640"};
+  }
+
+  return std::visit(
+      [&](const auto& node) -> std::optional<std::string_view> {
+        using T = std::decay_t<decltype(node)>;
+
+        if constexpr (std::is_same_v<T, TypePerm>) {
+          SPEC_RULE("GpuSafe-Perm");
+          return GpuSafeDiagForTypeImpl(ctx, node.base, active_paths);
+        } else if constexpr (std::is_same_v<T, TypeRefine>) {
+          return GpuSafeDiagForTypeImpl(ctx, node.base, active_paths);
+        } else if constexpr (std::is_same_v<T, TypePrim>) {
+          if (IsGpuSafePrim(node.name)) {
+            SPEC_RULE("GpuSafe-Prim");
+            return std::nullopt;
+          }
+          SPEC_RULE("GpuSafeType-Err");
+          return std::optional<std::string_view>{"E-TYP-2640"};
+        } else if constexpr (std::is_same_v<T, TypeRawPtr>) {
+          const auto diag =
+              GpuSafeDiagForTypeImpl(ctx, node.element, active_paths);
+          if (!diag.has_value()) {
+            SPEC_RULE("GpuSafe-RawPtr");
+          }
+          return diag;
+        } else if constexpr (std::is_same_v<T, TypeArray>) {
+          if (!BitcopyType(ctx, stripped)) {
+            SPEC_RULE("GpuSafeType-Err");
+            return std::optional<std::string_view>{"E-TYP-2640"};
+          }
+          const auto diag =
+              GpuSafeDiagForTypeImpl(ctx, node.element, active_paths);
+          if (!diag.has_value()) {
+            SPEC_RULE("GpuSafe-Array");
+          }
+          return diag;
+        } else if constexpr (std::is_same_v<T, TypeTuple>) {
+          if (!BitcopyType(ctx, stripped)) {
+            SPEC_RULE("GpuSafeType-Err");
+            return std::optional<std::string_view>{"E-TYP-2640"};
+          }
+          for (const auto& elem : node.elements) {
+            if (const auto diag =
+                    GpuSafeDiagForTypeImpl(ctx, elem, active_paths);
+                diag.has_value()) {
+              return diag;
+            }
+          }
+          SPEC_RULE("GpuSafe-Tuple");
+          return std::nullopt;
+        } else if constexpr (std::is_same_v<T, TypeUnion>) {
+          if (!BitcopyType(ctx, stripped)) {
+            SPEC_RULE("GpuSafeType-Err");
+            return std::optional<std::string_view>{"E-TYP-2640"};
+          }
+          for (const auto& member : node.members) {
+            if (const auto diag =
+                    GpuSafeDiagForTypeImpl(ctx, member, active_paths);
+                diag.has_value()) {
+              return diag;
+            }
+          }
+          return std::nullopt;
+        } else if constexpr (std::is_same_v<T, TypeSlice>) {
+          if (!BitcopyType(ctx, stripped)) {
+            SPEC_RULE("GpuSafeType-Err");
+            return std::optional<std::string_view>{"E-TYP-2640"};
+          }
+          return GpuSafeDiagForTypeImpl(ctx, node.element, active_paths);
+        } else if constexpr (std::is_same_v<T, TypeString>) {
+          if (node.state.has_value() && node.state == StringState::View) {
+            SPEC_RULE("GpuSafe-StringView");
+            return std::nullopt;
+          }
+          SPEC_RULE("ProhibitedGpuType");
+          SPEC_RULE("GpuSafeType-Err");
+          return std::optional<std::string_view>{"E-TYP-2640"};
+        } else if constexpr (std::is_same_v<T, TypeBytes>) {
+          if (node.state.has_value() && node.state == BytesState::View) {
+            SPEC_RULE("GpuSafe-BytesView");
+            return std::nullopt;
+          }
+          SPEC_RULE("ProhibitedGpuType");
+          SPEC_RULE("GpuSafeType-Err");
+          return std::optional<std::string_view>{"E-TYP-2640"};
+        } else if constexpr (std::is_same_v<T, TypePtr>) {
+          if (node.state.has_value() && node.state == PtrState::Valid) {
+            SPEC_RULE("ProhibitedGpuType");
+            SPEC_RULE("GpuSafeType-Err");
+            return std::optional<std::string_view>{"E-TYP-2640"};
+          }
+          if (!BitcopyType(ctx, stripped)) {
+            SPEC_RULE("GpuSafeType-Err");
+            return std::optional<std::string_view>{"E-TYP-2640"};
+          }
+          return std::nullopt;
+        } else if constexpr (std::is_same_v<T, TypeRange> ||
+                             std::is_same_v<T, TypeRangeInclusive> ||
+                             std::is_same_v<T, TypeRangeFrom> ||
+                             std::is_same_v<T, TypeRangeTo> ||
+                             std::is_same_v<T, TypeRangeToInclusive>) {
+          if (!BitcopyType(ctx, stripped)) {
+            SPEC_RULE("GpuSafeType-Err");
+            return std::optional<std::string_view>{"E-TYP-2640"};
+          }
+          return GpuSafeDiagForTypeImpl(ctx, node.base, active_paths);
+        } else if constexpr (std::is_same_v<T, TypeRangeFull>) {
+          if (!BitcopyType(ctx, stripped)) {
+            SPEC_RULE("GpuSafeType-Err");
+            return std::optional<std::string_view>{"E-TYP-2640"};
+          }
+          return std::nullopt;
+        } else if constexpr (std::is_same_v<T, TypeDynamic> ||
+                             std::is_same_v<T, TypeModalState>) {
+          SPEC_RULE("ProhibitedGpuType");
+          SPEC_RULE("GpuSafeType-Err");
+          return std::optional<std::string_view>{"E-TYP-2640"};
+        } else if constexpr (std::is_same_v<T, TypePathType>) {
+          if (const auto* record = LookupRecordDecl(ctx, node.path)) {
+            ast::Path ast_path(node.path.begin(), node.path.end());
+            const auto key = PathKeyOf(ast_path);
+            if (active_paths.find(key) != active_paths.end()) {
+              return std::optional<std::string_view>{"E-TYP-2640"};
+            }
+            const auto args = ResolveDeclGenericArgs(
+                ctx, record->generic_params, node.generic_args);
+            if (!args.has_value()) {
+              return std::optional<std::string_view>{"E-TYP-2640"};
+            }
+            active_paths.insert(key);
+            const auto diag =
+                GpuSafeRecordDiag(ctx, *record, stripped, *args, active_paths);
+            active_paths.erase(key);
+            return diag;
+          }
+          if (const auto* enm = LookupEnumDecl(ctx, node.path)) {
+            ast::Path ast_path(node.path.begin(), node.path.end());
+            const auto key = PathKeyOf(ast_path);
+            if (active_paths.find(key) != active_paths.end()) {
+              return std::optional<std::string_view>{"E-TYP-2640"};
+            }
+            const auto args = ResolveDeclGenericArgs(
+                ctx, enm->generic_params, node.generic_args);
+            if (!args.has_value()) {
+              return std::optional<std::string_view>{"E-TYP-2640"};
+            }
+            active_paths.insert(key);
+            const auto diag = GpuSafeEnumDiag(ctx, *enm, stripped, *args,
+                                              active_paths);
+            active_paths.erase(key);
+            return diag;
+          }
+          if (LookupModalDecl(ctx, node.path)) {
+            SPEC_RULE("ProhibitedGpuType");
+            SPEC_RULE("GpuSafeType-Err");
+            return std::optional<std::string_view>{"E-TYP-2640"};
+          }
+
+          ast::Path ast_path(node.path.begin(), node.path.end());
+          const auto it = ctx.sigma.types.find(PathKeyOf(ast_path));
+          if (it != ctx.sigma.types.end()) {
+            if (const auto* alias = std::get_if<ast::TypeAliasDecl>(&it->second)) {
+              if (!alias->type) {
+                return std::optional<std::string_view>{"E-TYP-2640"};
+              }
+              const auto lowered = LowerType(ctx, alias->type);
+              if (!lowered.ok) {
+                return std::optional<std::string_view>{"E-TYP-2640"};
+              }
+              const auto args = ResolveDeclGenericArgs(
+                  ctx, alias->generic_params, node.generic_args);
+              if (!args.has_value()) {
+                return std::optional<std::string_view>{"E-TYP-2640"};
+              }
+              const auto param_names = GenericParamNames(alias->generic_params);
+              const auto target =
+                  ApplyDeclGenericArgs(lowered.type, param_names, *args);
+              return GpuSafeDiagForTypeImpl(ctx, target, active_paths);
+            }
+          }
+
+          if (!BitcopyType(ctx, stripped)) {
+            SPEC_RULE("GpuSafeType-Err");
+            return std::optional<std::string_view>{"E-TYP-2640"};
+          }
+          return std::nullopt;
+        } else if constexpr (std::is_same_v<T, TypeFunc> ||
+                             std::is_same_v<T, TypeOpaque>) {
+          if (!BitcopyType(ctx, stripped)) {
+            SPEC_RULE("GpuSafeType-Err");
+            return std::optional<std::string_view>{"E-TYP-2640"};
+          }
+          return std::nullopt;
+        } else {
+          SPEC_RULE("GpuSafeType-Err");
+          return std::optional<std::string_view>{"E-TYP-2640"};
+        }
+      },
+      stripped->node);
+}
+
+std::optional<std::string_view> GpuSafeDiagForType(
+    const ScopeContext& ctx,
+    const TypeRef& type) {
+  SpecDefsTypePredicates();
+  SPEC_RULE("GpuSafeType");
+  SPEC_RULE("GpuSafeComponents");
+  std::set<PathKey> active_paths;
+  return GpuSafeDiagForTypeImpl(ctx, type, active_paths);
+}
+
+// =============================================================================
 // EXPORTED: ZeroableType
 // =============================================================================
 
@@ -1370,6 +1875,72 @@ bool EqType(const TypeRef& type) {
         }
       },
       type->node);
+}
+
+// =============================================================================
+// EXPORTED: BuiltinStepType
+// =============================================================================
+
+bool BuiltinStepType(const TypeRef& type) {
+  SPEC_RULE("BuiltinStepType");
+  if (!type) {
+    return false;
+  }
+
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+
+        if constexpr (std::is_same_v<T, TypePrim>) {
+          return node.name == "i8" || node.name == "i16" ||
+                 node.name == "i32" || node.name == "i64" ||
+                 node.name == "i128" || node.name == "isize" ||
+                 node.name == "u8" || node.name == "u16" ||
+                 node.name == "u32" || node.name == "u64" ||
+                 node.name == "u128" || node.name == "usize" ||
+                 node.name == "char";
+        } else if constexpr (std::is_same_v<T, TypePerm>) {
+          return BuiltinStepType(node.base);
+        } else if constexpr (std::is_same_v<T, TypeRefine>) {
+          return BuiltinStepType(node.base);
+        } else {
+          return false;
+        }
+      },
+      type->node);
+}
+
+std::optional<FoundationalBuiltinMethodSig> LookupFoundationalBuiltinMethodSig(
+    const TypeRef& recv_base,
+    std::string_view name) {
+  SPEC_RULE("ImplementsEq");
+  SPEC_RULE("ImplementsStep");
+  if (!recv_base) {
+    return std::nullopt;
+  }
+
+  const TypeRef base = NormalizeFoundationalBuiltinBase(recv_base);
+  if (!base) {
+    return std::nullopt;
+  }
+
+  FoundationalBuiltinMethodSig sig{};
+  sig.recv_perm = Permission::Const;
+  sig.recv_type = base;
+
+  if (IdEq(name, "eq") && EqType(base)) {
+    sig.params.push_back(TypeFuncParam{std::nullopt, ConstType(base)});
+    sig.ret = MakeTypePrim("bool");
+    return sig;
+  }
+
+  if ((IdEq(name, "successor") || IdEq(name, "predecessor")) &&
+      BuiltinStepType(base)) {
+    sig.ret = MakeTypeUnion({base, MakeTypePrim("()")});
+    return sig;
+  }
+
+  return std::nullopt;
 }
 
 // =============================================================================

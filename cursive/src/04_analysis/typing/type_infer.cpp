@@ -95,8 +95,10 @@
 #include "04_analysis/memory/safe_ptr.h"
 #include "04_analysis/contracts/verification.h"
 #include "04_analysis/typing/subtyping.h"
+#include "04_analysis/typing/expr/expr_common.h"
 #include "04_analysis/typing/type_equiv.h"
 #include "04_analysis/typing/type_expr.h"
+#include "04_analysis/typing/type_predicates.h"
 #include "04_analysis/typing/expr/call.h"
 #include "04_analysis/attributes/attribute_registry.h"
 #include "04_analysis/generics/monomorphize.h"
@@ -116,7 +118,37 @@ static inline void SpecDefsTypeInfer() {
   SPEC_DEF("UnsafeSpan", "5.2.12");
   SPEC_DEF("PtrNullExpected", "5.2.9");
   SPEC_DEF("NicheCompatible", "5.7");
+  SPEC_DEF("GpuPtr-AddrSpace-Err", "20.2.4");
+  SPEC_DEF("Chk-Subsumption-Err", "5.2.12");
   SpecDefsSafePtr();
+}
+
+static const TypePathType* AsGpuPtrType(const TypeRef& type) {
+  const auto stripped = StripPerm(type);
+  const auto* path = stripped ? std::get_if<TypePathType>(&stripped->node)
+                              : nullptr;
+  if (!path || path->path != TypePath{"GpuPtr"} ||
+      path->generic_args.size() != 2) {
+    return nullptr;
+  }
+  return path;
+}
+
+static bool IsGpuPtrAddrSpaceMismatch(const TypeRef& actual,
+                                      const TypeRef& expected) {
+  const auto* actual_gpu = AsGpuPtrType(actual);
+  const auto* expected_gpu = AsGpuPtrType(expected);
+  if (!actual_gpu || !expected_gpu) {
+    return false;
+  }
+  const auto pointee_eq =
+      TypeEquiv(actual_gpu->generic_args[0], expected_gpu->generic_args[0]);
+  if (!pointee_eq.ok || !pointee_eq.equiv) {
+    return false;
+  }
+  const auto addr_space_eq =
+      TypeEquiv(actual_gpu->generic_args[1], expected_gpu->generic_args[1]);
+  return addr_space_eq.ok && !addr_space_eq.equiv;
 }
 
 static bool HasMemoryOrderAttribute(const ast::AttributeList& attrs_list) {
@@ -443,12 +475,20 @@ static ast::ExprPtr SubstituteIdent(const ast::ExprPtr& expr,
             elem = SubstituteIdent(elem, name, replacement);
           }
           return MakeExpr(expr->span, out);
-        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          auto out = node;
-          for (auto& elem : out.elements) {
-            elem = SubstituteIdent(elem, name, replacement);
-          }
-          return MakeExpr(expr->span, out);
+      } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+        auto out = node;
+        for (auto& segment : out.elements) {
+          std::visit(
+              [&](auto& seg) {
+                seg.value = SubstituteIdent(seg.value, name, replacement);
+                if constexpr (std::is_same_v<std::decay_t<decltype(seg)>,
+                                             ast::ArrayRepeatSegment>) {
+                  seg.count = SubstituteIdent(seg.count, name, replacement);
+                }
+              },
+              segment);
+        }
+        return MakeExpr(expr->span, out);
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           auto out = node;
           out.value = SubstituteIdent(node.value, name, replacement);
@@ -526,7 +566,8 @@ static bool ProveRefinePredicate(const ast::ExprPtr& value,
   const auto substituted =
       SubstituteIdent(refine.predicate, "self", value);
   StaticProofContext proof_ctx;
-  const auto proof = StaticProof(proof_ctx, substituted);
+  const auto proof = StaticProofAt(proof_ctx, value ? value->span : substituted->span,
+                                   substituted);
   if (!proof.provable) {
     diag_id = "E-TYP-1953";
     return false;
@@ -1295,6 +1336,25 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
       }
     }
 
+    const auto observed = type_expr(expr);
+    if (observed.ok) {
+      const auto sub = Subtyping(ctx, observed.type, expected);
+      if (!sub.ok) {
+        result.diag_id = sub.diag_id;
+        return result;
+      }
+      if (sub.subtype) {
+        if (const auto log_diag = ValidateAttributedExprLogExpected(
+                ctx, attributed->attrs, observed.type, type_ident)) {
+          result.diag_id = *log_diag;
+          return result;
+        }
+
+        result.ok = true;
+        return result;
+      }
+    }
+
     const auto checked_inner =
         CheckExprImpl(ctx, attributed->expr, expected, type_expr, type_place,
                       type_ident, if_case_check);
@@ -1364,19 +1424,57 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
                                      ? std::get_if<TypeArray>(&expected_strip->node)
                                      : nullptr;
     if (expected_array) {
-      if (array_expr->elements.size() != expected_array->length) {
-        return result;
-      }
-      for (const auto& elem : array_expr->elements) {
-        const auto elem_check =
-            CheckExprImpl(ctx, elem, expected_array->element, type_expr,
-                          type_place, type_ident, if_case_check);
-        if (!elem_check.ok) {
-          result.diag_id = elem_check.diag_id;
+      std::uint64_t total_length = 0;
+      for (const auto& segment : array_expr->elements) {
+        if (const auto* elem = std::get_if<ast::ArrayElemSegment>(&segment)) {
+          const auto elem_check =
+              CheckExprImpl(ctx, elem->value, expected_array->element, type_expr,
+                            type_place, type_ident, if_case_check);
+          if (!elem_check.ok) {
+            result.diag_id = elem_check.diag_id;
+            return result;
+          }
+          total_length += 1;
+          continue;
+        }
+
+        const auto* repeat = std::get_if<ast::ArrayRepeatSegment>(&segment);
+        if (!repeat || !repeat->value || !repeat->count) {
           return result;
         }
+        const auto count_type = type_expr(repeat->count);
+        if (!count_type.ok) {
+          result.diag_id = count_type.diag_id;
+          return result;
+        }
+        const auto count_prim = expr::GetPrimName(count_type.type);
+        if (!count_prim.has_value() ||
+            (!expr::IsIntType(*count_prim) && *count_prim != "usize")) {
+          result.diag_id = "E-TYP-1812";
+          return result;
+        }
+        const auto repeat_len = ConstLen(ctx, repeat->count);
+        if (!repeat_len.ok || !repeat_len.value.has_value()) {
+          result.diag_id = repeat_len.diag_id.value_or("E-TYP-1812");
+          return result;
+        }
+        const auto value_check =
+            CheckExprImpl(ctx, repeat->value, expected_array->element,
+                          type_expr, type_place, type_ident, if_case_check);
+        if (!value_check.ok) {
+          result.diag_id = value_check.diag_id;
+          return result;
+        }
+        if (!BitcopyType(ctx, expected_array->element)) {
+          result.diag_id = "E-UNS-0107";
+          return result;
+        }
+        total_length += *repeat_len.value;
       }
-      SPEC_RULE("T-Array-Literal-List");
+      if (total_length != expected_array->length) {
+        return result;
+      }
+      SPEC_RULE("T-Array-Literal-Segments");
       result.ok = true;
       return result;
     }
@@ -1385,16 +1483,115 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
                                      ? std::get_if<TypeSlice>(&expected_strip->node)
                                      : nullptr;
     if (expected_slice) {
-      for (const auto& elem : array_expr->elements) {
-        const auto elem_check =
-            CheckExprImpl(ctx, elem, expected_slice->element, type_expr,
-                          type_place, type_ident, if_case_check);
-        if (!elem_check.ok) {
-          result.diag_id = elem_check.diag_id;
+      for (const auto& segment : array_expr->elements) {
+        if (const auto* elem = std::get_if<ast::ArrayElemSegment>(&segment)) {
+          const auto elem_check =
+              CheckExprImpl(ctx, elem->value, expected_slice->element, type_expr,
+                            type_place, type_ident, if_case_check);
+          if (!elem_check.ok) {
+            result.diag_id = elem_check.diag_id;
+            return result;
+          }
+          continue;
+        }
+
+        const auto* repeat = std::get_if<ast::ArrayRepeatSegment>(&segment);
+        if (!repeat || !repeat->value || !repeat->count) {
+          return result;
+        }
+        const auto count_type = type_expr(repeat->count);
+        if (!count_type.ok) {
+          result.diag_id = count_type.diag_id;
+          return result;
+        }
+        const auto count_prim = expr::GetPrimName(count_type.type);
+        if (!count_prim.has_value() ||
+            (!expr::IsIntType(*count_prim) && *count_prim != "usize")) {
+          result.diag_id = "E-TYP-1812";
+          return result;
+        }
+        const auto repeat_len = ConstLen(ctx, repeat->count);
+        if (!repeat_len.ok || !repeat_len.value.has_value()) {
+          result.diag_id = repeat_len.diag_id.value_or("E-TYP-1812");
+          return result;
+        }
+        (void)repeat_len;
+        const auto value_check =
+            CheckExprImpl(ctx, repeat->value, expected_slice->element,
+                          type_expr, type_place, type_ident, if_case_check);
+        if (!value_check.ok) {
+          result.diag_id = value_check.diag_id;
+          return result;
+        }
+        if (!BitcopyType(ctx, expected_slice->element)) {
+          result.diag_id = "E-UNS-0107";
           return result;
         }
       }
-      SPEC_RULE("T-Array-Literal-List");
+      SPEC_RULE("T-Array-Literal-Segments");
+      result.ok = true;
+      return result;
+    }
+  }
+
+  if (const auto* array_repeat = std::get_if<ast::ArrayRepeatExpr>(&expr->node)) {
+    const auto expected_strip = StripPerm(expected);
+    const auto count_type = type_expr(array_repeat->count);
+    if (!count_type.ok) {
+      result.diag_id = count_type.diag_id;
+      return result;
+    }
+    const auto count_prim = expr::GetPrimName(count_type.type);
+    if (!count_prim.has_value() ||
+        (!expr::IsIntType(*count_prim) && *count_prim != "usize")) {
+      result.diag_id = "E-TYP-1812";
+      return result;
+    }
+    const auto repeat_len = ConstLen(ctx, array_repeat->count);
+    if (!repeat_len.ok || !repeat_len.value.has_value()) {
+      result.diag_id = repeat_len.diag_id.value_or("E-TYP-1812");
+      return result;
+    }
+
+    const auto* expected_array = expected_strip
+                                     ? std::get_if<TypeArray>(&expected_strip->node)
+                                     : nullptr;
+    if (expected_array) {
+      if (*repeat_len.value != expected_array->length) {
+        return result;
+      }
+      const auto value_check =
+          CheckExprImpl(ctx, array_repeat->value, expected_array->element,
+                        type_expr, type_place, type_ident, if_case_check);
+      if (!value_check.ok) {
+        result.diag_id = value_check.diag_id;
+        return result;
+      }
+      if (!BitcopyType(ctx, expected_array->element)) {
+        result.diag_id = "E-UNS-0107";
+        return result;
+      }
+      SPEC_RULE("T-Array-Literal-Segments");
+      result.ok = true;
+      return result;
+    }
+
+    const auto* expected_slice = expected_strip
+                                     ? std::get_if<TypeSlice>(&expected_strip->node)
+                                     : nullptr;
+    if (expected_slice) {
+      const auto value_check =
+          CheckExprImpl(ctx, array_repeat->value, expected_slice->element,
+                        type_expr, type_place, type_ident, if_case_check);
+      if (!value_check.ok) {
+        result.diag_id = value_check.diag_id;
+        return result;
+      }
+      if (!BitcopyType(ctx, expected_slice->element)) {
+        result.diag_id = "E-UNS-0107";
+        return result;
+      }
+      SPEC_RULE("T-Array-Literal-Segments");
       result.ok = true;
       return result;
     }
@@ -1614,6 +1811,11 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
       result.diag_id = sub.diag_id;
       return result;
     }
+    if (IsGpuPtrAddrSpaceMismatch(inferred.type, expected)) {
+      SPEC_RULE("GpuPtr-AddrSpace-Err");
+      result.diag_id = "GpuPtr-AddrSpace-Err";
+      return result;
+    }
     TypeRef expected_norm = expected;
     const auto norm = NormalizeAliasType(ctx, expected);
     if (!norm.ok) {
@@ -1649,6 +1851,8 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
       result.ok = true;
       return result;
     }
+    SPEC_RULE("Chk-Subsumption-Err");
+    result.diag_id = "E-SEM-2526";
     return result;
   }
 

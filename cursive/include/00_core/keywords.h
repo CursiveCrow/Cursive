@@ -20,7 +20,7 @@ namespace cursive::core
     }
   } // namespace detail
 
-  inline constexpr std::array<std::string_view, 53> kCursive0Keywords = {
+  inline constexpr std::array<std::string_view, 54> kCursive0Keywords = {
       "all",
       "as",
       "break",
@@ -31,6 +31,7 @@ namespace cursive::core
       "dispatch", // C0X Extension: structured concurrency
       "else",
       "enum",
+      "extern",
       "false",
       "defer",
       "frame",
@@ -77,7 +78,7 @@ namespace cursive::core
 
   // §3.3.4 Fixed identifiers - these are identifiers, not keywords
   // They have special meaning in specific contexts only
-  inline constexpr std::array<std::string_view, 20> kCursive0FixedIdentifiers = {
+  inline constexpr std::array<std::string_view, 22> kCursive0FixedIdentifiers = {
       "read",
       "write",
       "dynamic",
@@ -85,6 +86,8 @@ namespace cursive::core
       "release",
       "cancel",
       "name",
+      "workgroup",
+      "workgroups",
       "affinity",
       "priority",
       "reduce",

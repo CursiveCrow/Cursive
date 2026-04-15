@@ -17,6 +17,7 @@
 #include "04_analysis/typing/type_decls.h"
 
 #include <algorithm>
+#include <array>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -26,7 +27,9 @@
 
 #include "00_core/assert_spec.h"
 #include "00_core/diagnostic_messages.h"
+#include "04_analysis/attributes/attribute_registry.h"
 #include "04_analysis/typing/context.h"
+#include "04_analysis/typing/dynamic_context.h"
 #include "04_analysis/typing/type_lower.h"
 #include "04_analysis/typing/types.h"
 #include "04_analysis/typing/type_wf.h"
@@ -203,6 +206,18 @@ static bool StateMemberNamesDisjointAll(
     }
   }
   return true;
+}
+
+static std::vector<TypeRef> ModalSelfGenericArgs(
+    const GenericParamsResult& gen_params) {
+  std::vector<TypeRef> args;
+  args.reserve(gen_params.params.size());
+  for (const auto& param : gen_params.params) {
+    TypePath path;
+    path.push_back(param.name);
+    args.push_back(MakeTypePath(std::move(path)));
+  }
+  return args;
 }
 
 // Visibility ranking
@@ -422,7 +437,6 @@ ModalDeclResult TypeModalDecl(
     type_path.push_back(seg);
   }
   type_path.push_back(decl.name);
-  result.self_type = MakeTypePath(type_path);
 
   // Process generic parameters
   GenericParamsResult gen_params;
@@ -434,14 +448,18 @@ ModalDeclResult TypeModalDecl(
       return result;
     }
   }
+  const auto self_generic_args = ModalSelfGenericArgs(gen_params);
+  result.self_type = MakeTypePath(type_path, self_generic_args);
 
   // Process where clauses
   std::vector<std::string> type_param_names;
   for (const auto& gp : gen_params.params) {
     type_param_names.push_back(gp.name);
   }
-  if (decl.where_clause.has_value() && !decl.where_clause->predicates.empty()) {
-    const auto where_result = ProcessWhereClause(ctx, decl.where_clause->predicates, type_param_names);
+  if (decl.predicate_clause_opt.has_value() &&
+      !decl.predicate_clause_opt->predicates.empty()) {
+    const auto where_result = ProcessWhereClause(
+        ctx, decl.predicate_clause_opt->predicates, type_param_names);
     if (!where_result.ok) {
       result.ok = false;
       result.diag_id = where_result.diag_id;
@@ -568,7 +586,8 @@ ModalDeclResult TypeModalDecl(
       }
 
       // Build method signature with modal state as receiver type.
-      const auto state_type = MakeTypeModalState(type_path, state.name, {});
+      const auto state_type =
+          MakeTypeModalState(type_path, state.name, self_generic_args);
       const auto sig = BuildMethodSignature(
           ctx, state_type, method.receiver, method.params, method.return_type_opt);
       if (!sig.ok) {
@@ -601,6 +620,11 @@ ModalDeclResult TypeModalDecl(
         type_ctx.return_type = sig.return_type;
         type_ctx.diags = &diags;
         type_ctx.env_ref = &env;
+        const std::array<DynamicScopeAncestor, 2> ancestors{
+            MakeDynamicScopeAncestor(decl.attrs, decl.span),
+            MakeDynamicScopeAncestor(method.attrs, method.span)};
+        type_ctx.contract_dynamic =
+            ComputeDynamicContext(method.body->span, ancestors);
 
         ExprTypeFn type_expr = [&](const ast::ExprPtr& inner) {
           return TypeExpr(ctx, type_ctx, inner, env);
@@ -669,17 +693,13 @@ ModalDeclResult TypeModalDecl(
         return result;
       }
 
-      // Build transition signature
-      // Receiver is the current state type
-      // TransitionDecl doesn't have a receiver field, use default unique receiver (~!)
-      // since transitions typically consume/modify the modal state
-      const auto source_type = MakeTypeModalState(type_path, state.name, {});
-      const auto target_type = MakeTypeModalState(type_path, transition.target_state, {});
-      const ast::Receiver transition_receiver = ast::ReceiverShorthand{ast::ReceiverPerm::Unique};
-
-      const auto sig = BuildMethodSignature(
-          ctx, source_type, transition_receiver,
-          transition.params, nullptr);  // Return type is implicit (target state)
+      const auto source_type =
+          MakeTypeModalState(type_path, state.name, self_generic_args);
+      const auto target_type = MakeTypeModalState(type_path,
+                                                  transition.target_state,
+                                                  self_generic_args);
+      const auto sig = BuildTransitionSignature(
+          ctx, source_type, target_type, transition.params);
       if (!sig.ok) {
         result.ok = false;
         result.diag_id = sig.diag_id;
@@ -699,6 +719,11 @@ ModalDeclResult TypeModalDecl(
 
         StmtTypeContext type_ctx;
         type_ctx.return_type = target_type;
+        const std::array<DynamicScopeAncestor, 2> ancestors{
+            MakeDynamicScopeAncestor(decl.attrs, decl.span),
+            MakeDynamicScopeAncestor(transition.attrs, transition.span)};
+        type_ctx.contract_dynamic =
+            ComputeDynamicContext(transition.body->span, ancestors);
         auto type_expr = [&](const ast::ExprPtr& inner) {
           return TypeExpr(ctx, type_ctx, inner, env);
         };
@@ -712,9 +737,8 @@ ModalDeclResult TypeModalDecl(
         const auto body_result = TypeBlock(
             ctx, type_ctx, *transition.body, env, type_expr, type_ident, type_place);
         if (!body_result.ok) {
-          SPEC_RULE("Transition-Body-Err");
           result.ok = false;
-          result.diag_id = "Transition-Body-Err";
+          result.diag_id = body_result.diag_id;
           return result;
         }
 
@@ -726,6 +750,17 @@ ModalDeclResult TypeModalDecl(
           return result;
         }
         SPEC_RULE("T-Modal-Transition-Body");
+
+        const std::optional<BindSelfParam> self_param = BindSelfParam{
+            source_type, std::optional<ParamMode>(ParamMode::Move),
+            Permission::Unique};
+        const auto bind_result = BindCheckBody(
+            ctx, module_path, transition.params, transition.body, self_param);
+        if (!bind_result.ok) {
+          result.ok = false;
+          result.diag_id = bind_result.diag_id;
+          return result;
+        }
       }
 
       TransitionInfo trans_info;
@@ -739,12 +774,13 @@ ModalDeclResult TypeModalDecl(
   }
 
   // Process type invariant if present
-  if (decl.invariant) {
+  if (decl.invariant_opt) {
     ContractContext contract_ctx;
     contract_ctx.scope_ctx = &ctx;
     contract_ctx.receiver_type = result.self_type;
     contract_ctx.in_type_invariant = true;
-    const auto inv_result = CheckTypeInvariant(contract_ctx, *decl.invariant);
+    const auto inv_result =
+        CheckTypeInvariant(contract_ctx, *decl.invariant_opt);
     if (!inv_result.ok) {
       result.ok = false;
       result.diag_id = inv_result.diag_id;
@@ -882,17 +918,19 @@ ModalDeclResult TypeModalDeclSignature(
     type_path.push_back(seg);
   }
   type_path.push_back(decl.name);
-  result.self_type = MakeTypePath(type_path);
 
   // Process generic parameters
+  GenericParamsResult gen_params;
   if (decl.generic_params.has_value()) {
-    const auto gen_params = ProcessGenericParams(ctx, decl.generic_params->params);
+    gen_params = ProcessGenericParams(ctx, decl.generic_params->params);
     if (!gen_params.ok) {
       result.ok = false;
       result.diag_id = gen_params.diag_id;
       return result;
     }
   }
+  const auto self_generic_args = ModalSelfGenericArgs(gen_params);
+  result.self_type = MakeTypePath(type_path, self_generic_args);
 
   // Check state names are distinct
   if (!DistinctStateNames(decl.states)) {
@@ -971,7 +1009,8 @@ ModalDeclResult TypeModalDeclSignature(
         return result;
       }
 
-      const auto state_type = MakeTypeModalState(type_path, state.name, {});
+      const auto state_type =
+          MakeTypeModalState(type_path, state.name, self_generic_args);
       const auto sig = BuildMethodSignature(
           ctx, state_type, method.receiver, method.params, method.return_type_opt);
       if (!sig.ok) {
@@ -1004,11 +1043,13 @@ ModalDeclResult TypeModalDeclSignature(
         return result;
       }
 
-      const auto source_type = MakeTypeModalState(type_path, state.name, {});
-      // TransitionDecl doesn't have a receiver field, use default unique receiver (~!)
-      const ast::Receiver transition_receiver = ast::ReceiverShorthand{ast::ReceiverPerm::Unique};
-      const auto sig = BuildMethodSignature(
-          ctx, source_type, transition_receiver, transition.params, nullptr);
+      const auto source_type =
+          MakeTypeModalState(type_path, state.name, self_generic_args);
+      const auto target_type = MakeTypeModalState(type_path,
+                                                  transition.target_state,
+                                                  self_generic_args);
+      const auto sig = BuildTransitionSignature(
+          ctx, source_type, target_type, transition.params);
       if (!sig.ok) {
         result.ok = false;
         result.diag_id = sig.diag_id;

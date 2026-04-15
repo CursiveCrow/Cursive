@@ -71,17 +71,22 @@ procedure VerifyIfExpressionOperationsItem(ctx: Context, scope: string@View, mov
     }
     [[log(label: "operations-log-transition_move")]]
     [[log(label: "operations-log-transition_move")]]
-    let if_static_metric: i32 = if (static_guard) { 9 } else { 0 }
+    let if_static_pair: (i32, i32) = if (static_guard) {
+        (4, 5)
+    } else {
+        (0, 0)
+    }
+    let if_static_metric: i32 = if_static_pair.0 + if_static_pair.1
     [[log(label: "operations-log-transition_move")]]
     [[log(label: "operations-log-transition_move")]]
-    let if_runtime_value: i32 = if (true) {
+    let if_runtime_pair: (i32, i32) = if (true) {
         runtime_counter = runtime_counter + 2;
-        4
+        (4, runtime_counter)
     } else {
         runtime_counter = runtime_counter + 100;
-        0
+        (0, runtime_counter)
     }
-    let if_runtime_metric: i32 = if_runtime_value + runtime_counter
+    let if_runtime_metric: i32 = if_runtime_pair.0 + if_runtime_pair.1
     [[log(label: "operations-log-transition_move")]]
     let syntax_passed: bool = if_syntax_metric == 7
     let static_passed: bool = if_static_metric == 9
@@ -119,10 +124,10 @@ procedure VerifyIfExpressionOperationsItem(ctx: Context, scope: string@View, mov
             ctx,
             scope,
             "IfExpressionOperationsStaticSemantics",
-            "if-expression branch type unification and result typing",
+            "if-expression branch type unification and aggregate result typing",
             "validated if-expression static semantics",
             "if-expression-static",
-            "type-check branch expressions and unify branch result type",
+            "type-check branch expressions and preserve aggregate branch result type",
             "9",
             "9",
             "not-9",
@@ -136,10 +141,10 @@ procedure VerifyIfExpressionOperationsItem(ctx: Context, scope: string@View, mov
             ctx,
             scope,
             "IfExpressionOperationsRuntimeDiagnostics",
-            "runtime single-branch selection and branch side-effect behavior",
+            "runtime single-branch selection and aggregate branch-result behavior",
             "validated if-expression runtime behavior and diagnostics",
             "if-expression-runtime",
-            "execute runtime branch path and verify selected-branch aggregate",
+            "execute runtime branch path and verify selected aggregate result",
             "6",
             "6",
             "not-6",

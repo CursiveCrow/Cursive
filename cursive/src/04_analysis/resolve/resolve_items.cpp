@@ -681,11 +681,11 @@ ResolveResult<ast::ASTItem> ResolveItem(ResolveContext& ctx,
           }
           out.generic_params = resolved_gen.value;
           const auto resolved_where =
-              ResolveWhereClauseOpt(proc_res, node.where_clause);
+              ResolveWhereClauseOpt(proc_res, node.predicate_clause_opt);
           if (!resolved_where.ok) {
             return {false, resolved_where.diag_id, resolved_where.span, {}};
           }
-          out.where_clause = resolved_where.value;
+          out.predicate_clause_opt = resolved_where.value;
 
           const auto resolved_params = ResolveParams(proc_res, node.params);
           if (!resolved_params.ok) {
@@ -785,11 +785,11 @@ ResolveResult<ast::ASTItem> ResolveItem(ResolveContext& ctx,
           }
           out.generic_params = resolved_gen.value;
           const auto resolved_where =
-              ResolveWhereClauseOpt(alias_ctx, node.where_clause);
+              ResolveWhereClauseOpt(alias_ctx, node.predicate_clause_opt);
           if (!resolved_where.ok) {
             return {false, resolved_where.diag_id, resolved_where.span, {}};
           }
-          out.where_clause = resolved_where.value;
+          out.predicate_clause_opt = resolved_where.value;
           const auto resolved = ResolveType(alias_ctx, node.type);
           if (!resolved.ok) {
             return {false, resolved.diag_id, resolved.span, {}};
@@ -809,21 +809,22 @@ ResolveResult<ast::ASTItem> ResolveItem(ResolveContext& ctx,
           }
           out.generic_params = resolved_gen.value;
           const auto resolved_where =
-              ResolveWhereClauseOpt(record_ctx, node.where_clause);
+              ResolveWhereClauseOpt(record_ctx, node.predicate_clause_opt);
           if (!resolved_where.ok) {
             return {false, resolved_where.diag_id, resolved_where.span, {}};
           }
-          out.where_clause = resolved_where.value;
+          out.predicate_clause_opt = resolved_where.value;
           const auto impls = ResolveClassPathList(record_ctx, node.implements);
           if (!impls.ok) {
             return {false, impls.diag_id, impls.span, {}};
           }
           out.implements = impls.value;
-          const auto invariant = ResolveInvariantOpt(record_ctx, node.invariant);
+          const auto invariant =
+              ResolveInvariantOpt(record_ctx, node.invariant_opt);
           if (!invariant.ok) {
             return {false, invariant.diag_id, invariant.span, {}};
           }
-          out.invariant = invariant.value;
+          out.invariant_opt = invariant.value;
           const auto members = ResolveRecordMemberList(record_ctx, node, node.members);
           if (!members.ok) {
             return {false, members.diag_id, members.span, {},
@@ -844,21 +845,22 @@ ResolveResult<ast::ASTItem> ResolveItem(ResolveContext& ctx,
           }
           out.generic_params = resolved_gen.value;
           const auto resolved_where =
-              ResolveWhereClauseOpt(enum_ctx, node.where_clause);
+              ResolveWhereClauseOpt(enum_ctx, node.predicate_clause_opt);
           if (!resolved_where.ok) {
             return {false, resolved_where.diag_id, resolved_where.span, {}};
           }
-          out.where_clause = resolved_where.value;
+          out.predicate_clause_opt = resolved_where.value;
           const auto impls = ResolveClassPathList(enum_ctx, node.implements);
           if (!impls.ok) {
             return {false, impls.diag_id, impls.span, {}};
           }
           out.implements = impls.value;
-          const auto invariant = ResolveInvariantOpt(enum_ctx, node.invariant);
+          const auto invariant =
+              ResolveInvariantOpt(enum_ctx, node.invariant_opt);
           if (!invariant.ok) {
             return {false, invariant.diag_id, invariant.span, {}};
           }
-          out.invariant = invariant.value;
+          out.invariant_opt = invariant.value;
           const auto vars = ResolveVariantList(enum_ctx, node.variants);
           if (!vars.ok) {
             return {false, vars.diag_id, vars.span, {}};
@@ -878,21 +880,22 @@ ResolveResult<ast::ASTItem> ResolveItem(ResolveContext& ctx,
           }
           out.generic_params = resolved_gen.value;
           const auto resolved_where =
-              ResolveWhereClauseOpt(modal_ctx, node.where_clause);
+              ResolveWhereClauseOpt(modal_ctx, node.predicate_clause_opt);
           if (!resolved_where.ok) {
             return {false, resolved_where.diag_id, resolved_where.span, {}};
           }
-          out.where_clause = resolved_where.value;
+          out.predicate_clause_opt = resolved_where.value;
           const auto impls = ResolveClassPathList(modal_ctx, node.implements);
           if (!impls.ok) {
             return {false, impls.diag_id, impls.span, {}};
           }
           out.implements = impls.value;
-          const auto invariant = ResolveInvariantOpt(modal_ctx, node.invariant);
+          const auto invariant =
+              ResolveInvariantOpt(modal_ctx, node.invariant_opt);
           if (!invariant.ok) {
             return {false, invariant.diag_id, invariant.span, {}};
           }
-          out.invariant = invariant.value;
+          out.invariant_opt = invariant.value;
           const auto states = ResolveStateBlockList(modal_ctx, node.states);
           if (!states.ok) {
             return {false, states.diag_id, states.span, {},
@@ -913,11 +916,11 @@ ResolveResult<ast::ASTItem> ResolveItem(ResolveContext& ctx,
           }
           out.generic_params = resolved_gen.value;
           const auto resolved_where =
-              ResolveWhereClauseOpt(class_ctx, node.where_clause);
+              ResolveWhereClauseOpt(class_ctx, node.predicate_clause_opt);
           if (!resolved_where.ok) {
             return {false, resolved_where.diag_id, resolved_where.span, {}};
           }
-          out.where_clause = resolved_where.value;
+          out.predicate_clause_opt = resolved_where.value;
           const auto supers = ResolveClassPathList(class_ctx, node.supers);
           if (!supers.ok) {
             return {false, supers.diag_id, supers.span, {}};

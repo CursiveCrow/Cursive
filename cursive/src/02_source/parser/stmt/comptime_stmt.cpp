@@ -20,7 +20,7 @@ ParseElemResult<Stmt> ParseComptimeStmt(Parser parser) {
   ParseElemResult<std::shared_ptr<Block>> body = ParseBlock(parser);
   parser = body.parser;
 
-  ComptimeStmt stmt;
+  CtStmt stmt;
   stmt.attrs = {};
   stmt.body = body.elem;
   stmt.span = SpanBetween(start, parser);

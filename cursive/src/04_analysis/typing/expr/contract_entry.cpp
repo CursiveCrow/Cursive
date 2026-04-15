@@ -211,12 +211,16 @@ static bool ExprContainsCapabilityOp(const ScopeContext& ctx,
           }
           return false;
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
-            if (ExprContainsCapabilityOp(ctx, type_ctx, env, elem)) {
-              return true;
+          bool contains_capability_op = false;
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            if (contains_capability_op) {
+              return;
             }
-          }
-          return false;
+            if (ExprContainsCapabilityOp(ctx, type_ctx, env, elem)) {
+              contains_capability_op = true;
+            }
+          });
+          return contains_capability_op;
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           return ExprContainsCapabilityOp(ctx, type_ctx, env, node.value) ||
                  ExprContainsCapabilityOp(ctx, type_ctx, env, node.count);
@@ -325,12 +329,16 @@ static bool ExprContainsSideEffectOp(const ast::ExprPtr& expr) {
           }
           return false;
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
-            if (ExprContainsSideEffectOp(elem)) {
-              return true;
+          bool contains_side_effect_op = false;
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            if (contains_side_effect_op) {
+              return;
             }
-          }
-          return false;
+            if (ExprContainsSideEffectOp(elem)) {
+              contains_side_effect_op = true;
+            }
+          });
+          return contains_side_effect_op;
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           return ExprContainsSideEffectOp(node.value) ||
                  ExprContainsSideEffectOp(node.count);

@@ -99,7 +99,8 @@ IRPtr EmitLoopInvariantCheck(const ast::LoopInvariant& invariant,
 // no break with value exists, since the loop may not execute at all).
 // =============================================================================
 
-LowerResult LowerLoopConditional(const ast::LoopConditionalExpr& expr,
+LowerResult LowerLoopConditional(const ast::Expr& expr,
+                                 const ast::LoopConditionalExpr& loop_expr,
                                  LowerCtx& ctx) {
   SPEC_RULE("Lower-Loop-Cond");
 
@@ -109,14 +110,14 @@ LowerResult LowerLoopConditional(const ast::LoopConditionalExpr& expr,
   ctx.PushScope(true, false);
 
   // Lower the condition expression
-  auto cond_result = LowerExpr(*expr.cond, ctx);
+  auto cond_result = LowerExpr(*loop_expr.cond, ctx);
 
   // Lower the body block
-  LowerResult body_result = LowerBlock(*expr.body, ctx);
+  LowerResult body_result = LowerBlock(*loop_expr.body, ctx);
 
-  if (expr.invariant_opt.has_value()) {
+  if (loop_expr.invariant_opt.has_value()) {
     IRPtr maintenance_check =
-        EmitLoopInvariantCheck(*expr.invariant_opt, "while_inv_maint", ctx);
+        EmitLoopInvariantCheck(*loop_expr.invariant_opt, "while_inv_maint", ctx);
     if (!IsNoOpIR(maintenance_check)) {
       body_result.ir = SeqIR({body_result.ir, maintenance_check});
     }
@@ -135,12 +136,17 @@ LowerResult LowerLoopConditional(const ast::LoopConditionalExpr& expr,
 
   // Generate fresh result value for the loop expression
   IRValue result = ctx.FreshTempValue("while");
+  if (ctx.expr_type) {
+    if (analysis::TypeRef result_type = ctx.expr_type(expr)) {
+      ctx.RegisterValueType(result, result_type);
+    }
+  }
   loop.result = result;
   IRPtr loop_ir = MakeIR(std::move(loop));
 
-  if (expr.invariant_opt.has_value()) {
+  if (loop_expr.invariant_opt.has_value()) {
     IRPtr init_check =
-        EmitLoopInvariantCheck(*expr.invariant_opt, "while_inv_init", ctx);
+        EmitLoopInvariantCheck(*loop_expr.invariant_opt, "while_inv_init", ctx);
     if (!IsNoOpIR(init_check)) {
       return LowerResult{SeqIR({init_check, loop_ir}), result};
     }

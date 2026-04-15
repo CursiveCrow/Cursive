@@ -1,53 +1,17 @@
 #include "00_core/terminal.h"
+#include "00_core/host/services.h"
 
 #include <cstdlib>
-
-#ifdef _WIN32
-#include <io.h>
-#include <windows.h>
-#else
-#include <sys/ioctl.h>
-#include <unistd.h>
-#endif
 
 namespace cursive::core {
 
 bool IsColorEnabled(FILE* stream) {
   // NO_COLOR convention: https://no-color.org/
-  const char* no_color = std::getenv("NO_COLOR");
-  if (no_color != nullptr) {
+  if (const auto no_color = HostGetEnvUtf8("NO_COLOR");
+      no_color.has_value()) {
     return false;
   }
-
-#ifdef _WIN32
-  int fd = _fileno(stream);
-  if (fd < 0) {
-    return false;
-  }
-  if (!_isatty(fd)) {
-    return false;
-  }
-  // Enable virtual terminal processing on Windows 10+
-  HANDLE h = INVALID_HANDLE_VALUE;
-  if (stream == stderr) {
-    h = GetStdHandle(STD_ERROR_HANDLE);
-  } else if (stream == stdout) {
-    h = GetStdHandle(STD_OUTPUT_HANDLE);
-  }
-  if (h != INVALID_HANDLE_VALUE && h != nullptr) {
-    DWORD mode = 0;
-    if (GetConsoleMode(h, &mode)) {
-      SetConsoleMode(h, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-    }
-  }
-  return true;
-#else
-  int fd = fileno(stream);
-  if (fd < 0) {
-    return false;
-  }
-  return isatty(fd) != 0;
-#endif
+  return QueryHostTerminal(stream).ansi_enabled;
 }
 
 bool IsColorEnabledWithOverride(FILE* stream, ColorOverride override_mode) {
@@ -63,24 +27,14 @@ bool IsColorEnabledWithOverride(FILE* stream, ColorOverride override_mode) {
 }
 
 int TerminalWidth() {
-#ifdef _WIN32
-  HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
-  if (h != INVALID_HANDLE_VALUE && h != nullptr) {
-    CONSOLE_SCREEN_BUFFER_INFO info;
-    if (GetConsoleScreenBufferInfo(h, &info)) {
-      return static_cast<int>(info.dwSize.X);
-    }
+  const HostTerminalInfo info = QueryHostTerminal(stderr);
+  if (info.width > 0) {
+    return info.width;
   }
-#else
-  struct winsize w;
-  if (ioctl(STDERR_FILENO, TIOCGWINSZ, &w) == 0 && w.ws_col > 0) {
-    return static_cast<int>(w.ws_col);
-  }
-#endif
   // Fallback: check COLUMNS environment variable
-  const char* columns = std::getenv("COLUMNS");
-  if (columns != nullptr) {
-    int val = std::atoi(columns);
+  if (const auto columns = HostGetEnvUtf8("COLUMNS");
+      columns.has_value() && !columns->empty()) {
+    int val = std::atoi(columns->c_str());
     if (val > 0) {
       return val;
     }

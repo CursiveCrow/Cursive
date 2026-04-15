@@ -1,7 +1,5 @@
 #include "cursive_rt.h"
-
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+#include "../src/internal/rt_platform.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -24,7 +22,7 @@ typedef struct Task104RecordList {
 
 typedef struct Task104ThreadArgs {
   uint32_t thread_index;
-  DWORD thread_id;
+  cursive_rt_thread_id_t thread_id;
   uint32_t emit_count;
 } Task104ThreadArgs;
 
@@ -46,7 +44,7 @@ static char* utf8_from_wide(const wchar_t* wide) {
   if (!wide) {
     return NULL;
   }
-  needed = WideCharToMultiByte(CP_UTF8, 0, wide, -1, NULL, 0, NULL, NULL);
+  needed = cursive_rt_wide_to_utf8_chars(wide, -1, NULL, 0);
   if (needed <= 0) {
     return NULL;
   }
@@ -54,20 +52,42 @@ static char* utf8_from_wide(const wchar_t* wide) {
   if (!utf8) {
     return NULL;
   }
-  if (WideCharToMultiByte(CP_UTF8, 0, wide, -1, utf8, needed, NULL, NULL) <= 0) {
+  if (cursive_rt_wide_to_utf8_chars(wide, -1, utf8, needed) <= 0) {
     free(utf8);
     return NULL;
   }
   return utf8;
 }
 
-static char* make_temp_file_utf8(const wchar_t* prefix) {
-  wchar_t temp_root[MAX_PATH];
-  wchar_t temp_path[MAX_PATH];
-  if (GetTempPathW(MAX_PATH, temp_root) == 0) {
+static wchar_t* wide_from_utf8(const char* utf8) {
+  int needed;
+  wchar_t* wide;
+  if (!utf8) {
     return NULL;
   }
-  if (GetTempFileNameW(temp_root, prefix, 0, temp_path) == 0) {
+  needed = cursive_rt_utf8_to_wide_chars(utf8, -1, NULL, 0);
+  if (needed <= 0) {
+    return NULL;
+  }
+  wide = (wchar_t*)malloc(sizeof(wchar_t) * (size_t)needed);
+  if (!wide) {
+    return NULL;
+  }
+  if (cursive_rt_utf8_to_wide_chars(utf8, -1, wide, needed) <= 0) {
+    free(wide);
+    return NULL;
+  }
+  return wide;
+}
+
+static char* make_temp_file_utf8(const wchar_t* prefix) {
+  wchar_t temp_root[4096];
+  wchar_t temp_path[4096];
+  if (cursive_rt_temp_path_get_wide((cursive_rt_dword_t)(sizeof(temp_root) / sizeof(temp_root[0])),
+                                    temp_root) == 0) {
+    return NULL;
+  }
+  if (cursive_rt_temp_file_name_wide(temp_root, prefix, 0u, temp_path) == 0u) {
     return NULL;
   }
   return utf8_from_wide(temp_path);
@@ -75,79 +95,71 @@ static char* make_temp_file_utf8(const wchar_t* prefix) {
 
 static char* read_file_utf8(const char* path_utf8) {
   wchar_t* wide_path;
-  HANDLE file;
-  LARGE_INTEGER size;
-  DWORD read = 0;
+  cursive_rt_handle_t file;
+  cursive_rt_large_integer_t size;
   char* bytes;
-  int needed;
+  size_t total_read = 0u;
+  cursive_rt_dword_t read = 0u;
   if (!path_utf8) {
     return NULL;
   }
-  needed = MultiByteToWideChar(CP_UTF8, 0, path_utf8, -1, NULL, 0);
-  if (needed <= 0) {
-    return NULL;
-  }
-  wide_path = (wchar_t*)malloc(sizeof(wchar_t) * (size_t)needed);
+  wide_path = wide_from_utf8(path_utf8);
   if (!wide_path) {
     return NULL;
   }
-  if (MultiByteToWideChar(CP_UTF8, 0, path_utf8, -1, wide_path, needed) <= 0) {
-    free(wide_path);
-    return NULL;
-  }
-  file = CreateFileW(wide_path,
-                     GENERIC_READ,
-                     FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                     NULL,
-                     OPEN_EXISTING,
-                     FILE_ATTRIBUTE_NORMAL,
-                     NULL);
+  file = cursive_rt_file_open_wide(wide_path,
+                                   CURSIVE_RT_GENERIC_READ,
+                                   CURSIVE_RT_FILE_SHARE_READ |
+                                       CURSIVE_RT_FILE_SHARE_WRITE |
+                                       CURSIVE_RT_FILE_SHARE_DELETE,
+                                   NULL,
+                                   CURSIVE_RT_OPEN_EXISTING,
+                                   CURSIVE_RT_FILE_ATTRIBUTE_NORMAL,
+                                   NULL);
   free(wide_path);
-  if (file == INVALID_HANDLE_VALUE) {
+  if (file == CURSIVE_RT_INVALID_HANDLE) {
     return NULL;
   }
-  if (!GetFileSizeEx(file, &size) || size.QuadPart < 0) {
-    CloseHandle(file);
+  if (!cursive_rt_file_size_get(file, &size) || size.quad_part < 0) {
+    cursive_rt_close_handle(file);
     return NULL;
   }
-  if ((uint64_t)size.QuadPart > (uint64_t)SIZE_MAX - 1u) {
-    CloseHandle(file);
+  if ((uint64_t)size.quad_part > (uint64_t)SIZE_MAX - 1u) {
+    cursive_rt_close_handle(file);
     return NULL;
   }
-  bytes = (char*)malloc((size_t)size.QuadPart + 1u);
+  bytes = (char*)malloc((size_t)size.quad_part + 1u);
   if (!bytes) {
-    CloseHandle(file);
+    cursive_rt_close_handle(file);
     return NULL;
   }
-  if (size.QuadPart != 0) {
-    if (!ReadFile(file, bytes, (DWORD)size.QuadPart, &read, NULL)) {
+  while (total_read < (size_t)size.quad_part) {
+    cursive_rt_dword_t remaining = (cursive_rt_dword_t)((size_t)size.quad_part - total_read);
+    if (!cursive_rt_handle_read(file, bytes + total_read, remaining, &read)) {
       free(bytes);
-      CloseHandle(file);
+      cursive_rt_close_handle(file);
       return NULL;
     }
+    if (read == 0u) {
+      break;
+    }
+    total_read += (size_t)read;
   }
-  bytes[read] = '\0';
-  CloseHandle(file);
+  bytes[total_read] = '\0';
+  cursive_rt_close_handle(file);
   return bytes;
 }
 
 static void delete_file_utf8(const char* path_utf8) {
-  int needed;
   wchar_t* wide_path;
   if (!path_utf8) {
     return;
   }
-  needed = MultiByteToWideChar(CP_UTF8, 0, path_utf8, -1, NULL, 0);
-  if (needed <= 0) {
-    return;
-  }
-  wide_path = (wchar_t*)malloc(sizeof(wchar_t) * (size_t)needed);
+  wide_path = wide_from_utf8(path_utf8);
   if (!wide_path) {
     return;
   }
-  if (MultiByteToWideChar(CP_UTF8, 0, path_utf8, -1, wide_path, needed) > 0) {
-    DeleteFileW(wide_path);
-  }
+  cursive_rt_file_delete_wide(wide_path);
   free(wide_path);
 }
 
@@ -262,7 +274,7 @@ static int every_tid_matches(const Task104RecordList* records, uint64_t tid) {
 }
 
 static int every_tid_known(const Task104RecordList* records,
-                           const DWORD* tids,
+                           const cursive_rt_thread_id_t* tids,
                            size_t tid_count) {
   size_t i;
   if (!records || !tids || tid_count == 0u) {
@@ -293,10 +305,10 @@ static void free_record_list(Task104RecordList* records) {
   records->count = 0u;
 }
 
-static DWORD WINAPI task104_emit_thread(LPVOID param) {
+static cursive_rt_dword_t task104_emit_thread(void* param) {
   Task104ThreadArgs* args = (Task104ThreadArgs*)param;
   uint32_t i;
-  args->thread_id = GetCurrentThreadId();
+  args->thread_id = cursive_rt_current_thread_id();
   for (i = 0u; i < args->emit_count; ++i) {
     char payload[128];
     C0StringView rule_id = sv_from_cstr("Log-Thread");
@@ -329,7 +341,7 @@ static int test_file_sequence_and_no_reset(void) {
   C0StringView file = sv_from_cstr("task104_runtime_file");
   C0StringView payload_a = sv_from_cstr("category=log;level=info;label=file-a");
   C0StringView payload_b = sv_from_cstr("category=log;level=info;label=file-b");
-  DWORD current_tid = GetCurrentThreadId();
+  cursive_rt_thread_id_t current_tid = cursive_rt_current_thread_id();
   uint64_t last_seq_a = 0u;
 
   memset(&records_a, 0, sizeof(records_a));
@@ -487,10 +499,9 @@ static int test_multithreaded_sequence_order(void) {
   char* path = make_temp_file_utf8(L"c14");
   char* text = NULL;
   Task104RecordList records;
-  HANDLE threads[TASK104_THREAD_COUNT];
+  cursive_rt_handle_t threads[TASK104_THREAD_COUNT];
   Task104ThreadArgs args[TASK104_THREAD_COUNT];
-  DWORD tids[TASK104_THREAD_COUNT];
-  DWORD waits;
+  cursive_rt_thread_id_t tids[TASK104_THREAD_COUNT];
   size_t i;
 
   memset(&records, 0, sizeof(records));
@@ -508,13 +519,13 @@ static int test_multithreaded_sequence_order(void) {
   for (i = 0u; i < TASK104_THREAD_COUNT; ++i) {
     args[i].thread_index = (uint32_t)i;
     args[i].emit_count = TASK104_RECORDS_PER_THREAD;
-    threads[i] = CreateThread(NULL, 0u, task104_emit_thread, &args[i], 0u, NULL);
+    threads[i] = cursive_rt_thread_create(NULL, 0u, task104_emit_thread, &args[i], 0u, NULL);
     if (!threads[i]) {
       size_t j;
       for (j = 0u; j < i; ++j) {
         if (threads[j]) {
-          WaitForSingleObject(threads[j], INFINITE);
-          CloseHandle(threads[j]);
+          cursive_rt_wait_one(threads[j], CURSIVE_RT_INFINITE);
+          cursive_rt_close_handle(threads[j]);
         }
       }
       delete_file_utf8(path);
@@ -523,30 +534,33 @@ static int test_multithreaded_sequence_order(void) {
     }
   }
 
-  waits = WaitForMultipleObjects(TASK104_THREAD_COUNT, threads, TRUE, INFINITE);
-  if (waits == WAIT_FAILED) {
-    size_t j;
-    for (j = 0u; j < TASK104_THREAD_COUNT; ++j) {
-      CloseHandle(threads[j]);
-    }
-    delete_file_utf8(path);
-    free(path);
-    return report_failure("thread wait");
-  }
-
   for (i = 0u; i < TASK104_THREAD_COUNT; ++i) {
-    DWORD exit_code = 0u;
-    if (!GetExitCodeThread(threads[i], &exit_code) || exit_code != 0u) {
+    cursive_rt_dword_t exit_code = 0u;
+    if (cursive_rt_wait_one(threads[i], CURSIVE_RT_INFINITE) != CURSIVE_RT_WAIT_OBJECT_0) {
+      size_t j;
+      for (j = i; j < TASK104_THREAD_COUNT; ++j) {
+        if (threads[j]) {
+          cursive_rt_close_handle(threads[j]);
+        }
+      }
+      delete_file_utf8(path);
+      free(path);
+      return report_failure("thread wait");
+    }
+    if (!cursive_rt_thread_exit_code(threads[i], &exit_code) || exit_code != 0u) {
       size_t j;
       for (j = 0u; j < TASK104_THREAD_COUNT; ++j) {
-        CloseHandle(threads[j]);
+        if (threads[j]) {
+          cursive_rt_close_handle(threads[j]);
+        }
       }
       delete_file_utf8(path);
       free(path);
       return report_failure("thread exit");
     }
     tids[i] = args[i].thread_id;
-    CloseHandle(threads[i]);
+    cursive_rt_close_handle(threads[i]);
+    threads[i] = NULL;
   }
 
   text = read_file_utf8(path);
@@ -599,16 +613,15 @@ static int test_multithreaded_sequence_order(void) {
 
 static int test_console_sink_metadata(void) {
   char* capture_path = make_temp_file_utf8(L"c14");
-  HANDLE saved_stderr = GetStdHandle(STD_ERROR_HANDLE);
-  HANDLE capture = INVALID_HANDLE_VALUE;
+  cursive_rt_handle_t saved_stderr = cursive_rt_std_handle(CURSIVE_RT_STD_ERROR_HANDLE);
+  cursive_rt_handle_t capture = CURSIVE_RT_INVALID_HANDLE;
   char* text = NULL;
-  int needed;
   wchar_t* wide_path = NULL;
   Task104RecordList records;
   C0StringView rule = sv_from_cstr("Log-Console");
   C0StringView file = sv_from_cstr("task104_runtime_console");
   C0StringView payload = sv_from_cstr("category=log;level=info;label=console");
-  DWORD current_tid = GetCurrentThreadId();
+  cursive_rt_thread_id_t current_tid = cursive_rt_current_thread_id();
 
   memset(&records, 0, sizeof(records));
 
@@ -616,37 +629,29 @@ static int test_console_sink_metadata(void) {
     return report_failure("console capture path");
   }
 
-  needed = MultiByteToWideChar(CP_UTF8, 0, capture_path, -1, NULL, 0);
-  if (needed <= 0) {
+  wide_path = wide_from_utf8(capture_path);
+  if (!wide_path) {
     free(capture_path);
     return report_failure("console capture path conversion");
   }
-  wide_path = (wchar_t*)malloc(sizeof(wchar_t) * (size_t)needed);
-  if (!wide_path) {
-    free(capture_path);
-    return report_failure("console capture wide allocation");
-  }
-  if (MultiByteToWideChar(CP_UTF8, 0, capture_path, -1, wide_path, needed) <= 0) {
-    free(wide_path);
-    free(capture_path);
-    return report_failure("console capture wide conversion");
-  }
 
-  capture = CreateFileW(wide_path,
-                        GENERIC_WRITE | GENERIC_READ,
-                        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                        NULL,
-                        CREATE_ALWAYS,
-                        FILE_ATTRIBUTE_NORMAL,
-                        NULL);
+  capture = cursive_rt_file_open_wide(wide_path,
+                                      CURSIVE_RT_GENERIC_WRITE | CURSIVE_RT_GENERIC_READ,
+                                      CURSIVE_RT_FILE_SHARE_READ |
+                                          CURSIVE_RT_FILE_SHARE_WRITE |
+                                          CURSIVE_RT_FILE_SHARE_DELETE,
+                                      NULL,
+                                      CURSIVE_RT_CREATE_ALWAYS,
+                                      CURSIVE_RT_FILE_ATTRIBUTE_NORMAL,
+                                      NULL);
   free(wide_path);
-  if (capture == INVALID_HANDLE_VALUE) {
+  if (capture == CURSIVE_RT_INVALID_HANDLE) {
     free(capture_path);
     return report_failure("console capture open");
   }
 
-  if (!SetStdHandle(STD_ERROR_HANDLE, capture)) {
-    CloseHandle(capture);
+  if (!cursive_rt_std_handle_set(CURSIVE_RT_STD_ERROR_HANDLE, capture)) {
+    cursive_rt_close_handle(capture);
     free(capture_path);
     return report_failure("console redirect stderr");
   }
@@ -654,15 +659,15 @@ static int test_console_sink_metadata(void) {
   cursive_x3a_x3aruntime_x3a_x3aconformance_x3a_x3aset_x5fsink(0u, NULL, 0u);
   cursive_x3a_x3aruntime_x3a_x3aconformance_x3a_x3aemit(
       &rule, &file, 20u, 1u, 20u, 4u, &payload);
-  FlushFileBuffers(capture);
+  cursive_rt_handle_flush(capture);
 
-  if (!SetStdHandle(STD_ERROR_HANDLE, saved_stderr)) {
-    CloseHandle(capture);
+  if (!cursive_rt_std_handle_set(CURSIVE_RT_STD_ERROR_HANDLE, saved_stderr)) {
+    cursive_rt_close_handle(capture);
     delete_file_utf8(capture_path);
     free(capture_path);
     return report_failure("console restore stderr");
   }
-  CloseHandle(capture);
+  cursive_rt_close_handle(capture);
 
   text = read_file_utf8(capture_path);
   if (!text) {

@@ -1,11 +1,10 @@
-procedure CompilerRouterStatusLabel(status: i32) -> string@View {
-    if (status == 0) {
-        return "0"
-    }
-    return "non-zero"
-}
+import CompilerStaticConformanceRunner
+import NetworkRestrictHostConformance
+import SystemExitRuntimeConformance
+import SystemGetEnvRuntimeConformance
+import SystemRunRuntimeConformance
 
-procedure CompilerWriteStage(fs: $FileSystem, label: string@View) -> () {
+procedure compilerWriteStage(fs: $FileSystem, label: string@View) -> () {
     let _ = if fs~>write_stdout(label) is {
         _: () { true }
         _: IoError { false }
@@ -13,7 +12,7 @@ procedure CompilerWriteStage(fs: $FileSystem, label: string@View) -> () {
     return ()
 }
 
-public procedure run_system_exit_probe_if_requested(ctx: Context) -> bool {
+public procedure runSystemExitProbeIfRequested(ctx: Context) -> bool {
     let armed: string@View =
         ctx.sys~>get_env("CURSIVE_HELLOCURSIVE_SYSTEM_EXIT_PROBE_BA82D7004C4B4E8A8D4CA7D0A6F66252")
     if (string::is_empty(armed) == false) {
@@ -24,7 +23,7 @@ public procedure run_system_exit_probe_if_requested(ctx: Context) -> bool {
 }
 
 [[dynamic, mangle("hc_compiler_runtime_contract_fail_catch"), export("C-unwind"), unwind("catch")]]
-public procedure CompilerRuntimeContractFailCatch(value: i32) -> i32
+public procedure compilerRuntimeContractFailCatch(value: i32) -> i32
     |: value > 0
 {
     return value
@@ -34,36 +33,12 @@ extern "C" {
     procedure hc_compiler_runtime_contract_fail_catch(value: i32) -> i32
 }
 
-procedure RunCompilerStaticConformanceFromRouter(ctx: Context) -> i32 {
-    let script_path: string@View = "Compiler/RunCompilerStaticConformance.ps1"
-    let script_exists: bool = ctx.fs~>exists(script_path)
-    let script_exists_log_actual = [[log(label: "observed-compiler-static-runner-script-exists", expected: true)]] script_exists
-
-    if ((script_exists == false) || (script_exists_log_actual == false)) {
-        [[log(label: "compiler-log-item_fail")]]
-        return 1
-    }
-
-    let command_line: string@View = "powershell -NoProfile -ExecutionPolicy Bypass -File ./Compiler/RunCompilerStaticConformance.ps1"
-    let runner_status: i32 = ctx.sys~>run(command_line)
-    let runner_status_label: string@View = CompilerRouterStatusLabel(runner_status)
-    let runner_status_log_actual = [[log(label: "observed-compiler-static-runner-status", expected: "0")]] runner_status_label
-
-    if (runner_status_log_actual != "0") {
-        [[log(label: "compiler-log-item_fail")]]
-        return 1
-    }
-
-    [[log(label: "compiler-log-item_success")]]
-    return 0
-}
-
-procedure RunCompilerRuntimeConformanceFromRouter(ctx: Context) -> i32 {
-    CompilerWriteStage(ctx.fs, "compiler-runtime-stage:start\n")
+procedure runCompilerRuntimeConformance(ctx: Context) -> i32 {
+    compilerWriteStage(ctx.fs, "compiler-runtime-stage:start\n")
     let catch_boundary_metric: i32 = unsafe {
         hc_compiler_runtime_contract_fail_catch(0)
     }
-    CompilerWriteStage(ctx.fs, "compiler-runtime-stage:catch\n")
+    compilerWriteStage(ctx.fs, "compiler-runtime-stage:catch\n")
     let catch_boundary_ok: bool = catch_boundary_metric == 0
     let catch_boundary_ok_log: bool =
         [[log(label: "observed-compiler-runtime-catch-boundary", expected: true)]]
@@ -76,31 +51,31 @@ procedure RunCompilerRuntimeConformanceFromRouter(ctx: Context) -> i32 {
     let attenuation_ok_log: bool =
         [[log(label: "observed-compiler-runtime-capability-attenuation", expected: true)]]
         attenuation_ok
-    CompilerWriteStage(ctx.fs, "compiler-runtime-stage:attenuation\n")
+    compilerWriteStage(ctx.fs, "compiler-runtime-stage:attenuation\n")
 
-    let system_run_status: i32 = RunCompilerSystemRunRuntimeConformance(ctx)
-    CompilerWriteStage(ctx.fs, "compiler-runtime-stage:system-run\n")
+    let system_run_status: i32 = SystemRunRuntimeConformance::runCompilerSystemRunRuntimeConformance(ctx)
+    compilerWriteStage(ctx.fs, "compiler-runtime-stage:system-run\n")
     if (system_run_status != 0) {
         [[log(label: "compiler-log-item_fail")]]
         return 1
     }
 
-    let system_get_env_status: i32 = RunCompilerSystemGetEnvRuntimeConformance(ctx)
-    CompilerWriteStage(ctx.fs, "compiler-runtime-stage:get-env\n")
+    let system_get_env_status: i32 = SystemGetEnvRuntimeConformance::runCompilerSystemGetEnvRuntimeConformance(ctx)
+    compilerWriteStage(ctx.fs, "compiler-runtime-stage:get-env\n")
     if (system_get_env_status != 0) {
         [[log(label: "compiler-log-item_fail")]]
         return 1
     }
 
-    let system_exit_status: i32 = RunCompilerSystemExitRuntimeConformance(ctx)
-    CompilerWriteStage(ctx.fs, "compiler-runtime-stage:system-exit\n")
+    let system_exit_status: i32 = SystemExitRuntimeConformance::runCompilerSystemExitRuntimeConformance(ctx)
+    compilerWriteStage(ctx.fs, "compiler-runtime-stage:system-exit\n")
     if (system_exit_status != 0) {
         [[log(label: "compiler-log-item_fail")]]
         return 1
     }
 
-    let network_restrict_status: i32 = RunCompilerNetworkRestrictHostRuntimeConformance(ctx)
-    CompilerWriteStage(ctx.fs, "compiler-runtime-stage:network\n")
+    let network_restrict_status: i32 = NetworkRestrictHostConformance::runCompilerNetworkRestrictHostRuntimeConformance(ctx)
+    compilerWriteStage(ctx.fs, "compiler-runtime-stage:network\n")
     if (network_restrict_status != 0) {
         [[log(label: "compiler-log-item_fail")]]
         return 1
@@ -112,15 +87,21 @@ procedure RunCompilerRuntimeConformanceFromRouter(ctx: Context) -> i32 {
         return 1
     }
 
-    CompilerWriteStage(ctx.fs, "compiler-runtime-stage:done\n")
+    compilerWriteStage(ctx.fs, "compiler-runtime-stage:done\n")
     [[log(label: "compiler-log-item_success")]]
     return 0
 }
 
 public procedure run(ctx: Context) -> i32 {
-    let probe_exit_taken: bool = run_system_exit_probe_if_requested(ctx)
+    let probe_exit_taken: bool = runSystemExitProbeIfRequested(ctx)
     if (probe_exit_taken) {
         return 0
     }
-    return RunCompilerRuntimeConformanceFromRouter(ctx)
+
+    let static_status: i32 = CompilerStaticConformanceRunner::runGroup(ctx)
+    if (static_status != 0) {
+        return static_status
+    }
+
+    return runCompilerRuntimeConformance(ctx)
 }

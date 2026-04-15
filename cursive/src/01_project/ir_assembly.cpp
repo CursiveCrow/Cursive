@@ -10,15 +10,9 @@
 #include <string_view>
 #include <vector>
 
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <sys/wait.h>
-#include <unistd.h>
-#endif
-
 #include "00_core/assert_spec.h"
 #include "00_core/crash_debug.h"
+#include "00_core/host/services.h"
 #include "00_core/host_primitives.h"
 
 namespace cursive::project {
@@ -68,8 +62,7 @@ void RemoveTempFile(const std::filesystem::path& path) {
 bool RunAssemblerProcess(const std::filesystem::path& tool,
                          const std::filesystem::path& input_path,
                          const std::filesystem::path& output_path) {
-#ifdef _WIN32
-  if (core::CrashReportingEnabled()) {
+  if (core::CrashReportingEnabled() && core::CrashCaptureSupported()) {
     core::DebugRunOptions options;
     options.program = tool;
     options.working_directory = output_path.parent_path();
@@ -81,85 +74,14 @@ bool RunAssemblerProcess(const std::filesystem::path& tool,
     const auto result = core::DebugRunProcess(options);
     return result.launched && result.exit_code == 0;
   }
-  auto quote_arg = [](std::wstring_view arg) {
-    std::wstring out;
-    out.push_back(L'"');
-    for (const wchar_t ch : arg) {
-      if (ch == L'"') {
-        out.push_back(L'\\');
-      }
-      out.push_back(ch);
-    }
-    out.push_back(L'"');
-    return out;
-  };
-
-  std::vector<std::wstring> args;
-  args.push_back(tool.wstring());
-  args.push_back(input_path.wstring());
-  args.push_back(L"-o");
-  args.push_back(output_path.wstring());
-
-  std::wstring cmd;
-  for (std::size_t i = 0; i < args.size(); ++i) {
-    if (i != 0) {
-      cmd.push_back(L' ');
-    }
-    cmd += quote_arg(args[i]);
-  }
-
-  STARTUPINFOW si;
-  ZeroMemory(&si, sizeof(si));
-  si.cb = sizeof(si);
-  PROCESS_INFORMATION pi;
-  ZeroMemory(&pi, sizeof(pi));
-
-  std::vector<wchar_t> cmd_buf(cmd.begin(), cmd.end());
-  cmd_buf.push_back(L'\0');
-
-  const BOOL ok = CreateProcessW(tool.wstring().c_str(), cmd_buf.data(),
-                                 nullptr, nullptr, FALSE, CREATE_NO_WINDOW,
-                                 nullptr, nullptr, &si, &pi);
-  if (!ok) {
-    return false;
-  }
-
-  WaitForSingleObject(pi.hProcess, INFINITE);
-  DWORD exit_code = 1;
-  GetExitCodeProcess(pi.hProcess, &exit_code);
-  CloseHandle(pi.hProcess);
-  CloseHandle(pi.hThread);
-  return exit_code == 0;
-#else
-  std::vector<std::string> args;
-  args.push_back(tool.string());
-  args.push_back(input_path.string());
-  args.push_back("-o");
-  args.push_back(output_path.string());
-
-  std::vector<char*> argv;
-  argv.reserve(args.size() + 1);
-  for (auto& arg : args) {
-    argv.push_back(arg.data());
-  }
-  argv.push_back(nullptr);
-
-  const pid_t pid = fork();
-  if (pid < 0) {
-    return false;
-  }
-  if (pid == 0) {
-    execv(argv[0], argv.data());
-    std::perror("execv");
-    _exit(127);
-  }
-
-  int status = 0;
-  if (waitpid(pid, &status, 0) < 0) {
-    return false;
-  }
-  return WIFEXITED(status) && WEXITSTATUS(status) == 0;
-#endif
+  core::HostProcessSpec spec;
+  spec.program = tool;
+  spec.arguments.push_back(input_path.generic_string());
+  spec.arguments.push_back("-o");
+  spec.arguments.push_back(output_path.generic_string());
+  spec.hide_window = true;
+  const auto result = core::RunHostProcess(spec);
+  return result.launched && result.exit_code == 0;
 }
 
 std::optional<std::string> AssembleIRViaTool(const std::filesystem::path& tool,

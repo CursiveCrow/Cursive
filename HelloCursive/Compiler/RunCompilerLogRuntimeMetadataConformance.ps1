@@ -6,7 +6,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 if ([string]::IsNullOrWhiteSpace($CompilerPath)) {
-    $CompilerPath = (Join-Path $PSScriptRoot "..\..\cursive\build\Debug\cursive.exe")
+    $workspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+    $resolveCompilerPath = Join-Path $workspaceRoot "HelloCursive\ResolveCompilerPath.ps1"
+    $CompilerPath = (& $resolveCompilerPath -RepoRoot $workspaceRoot -RequestedPath $CompilerPath)
 }
 
 $workspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path

@@ -1,11 +1,11 @@
-procedure CompilerSystemExitRuntimeConformanceMetricLabel(value: i32) -> string@View {
+procedure compilerSystemExitRuntimeConformanceMetricLabel(value: i32) -> string@View {
     if (value == 1) {
         return "1"
     }
     return "other"
 }
 
-public procedure RunCompilerSystemExitRuntimeConformance(ctx: Context) -> i32 {
+public procedure runCompilerSystemExitRuntimeConformance(ctx: Context) -> i32 {
     let exit_probe_command: string@View =
         "powershell -NoProfile -Command \"$env:CURSIVE_HELLOCURSIVE_SYSTEM_EXIT_PROBE_BA82D7004C4B4E8A8D4CA7D0A6F66252='armed'; & './build/main/bin/main.exe'; exit $LASTEXITCODE\""
     let exit_probe_status: i32 = ctx.sys~>run(exit_probe_command)
@@ -21,7 +21,7 @@ public procedure RunCompilerSystemExitRuntimeConformance(ctx: Context) -> i32 {
         (exit_probe_status_log == 73) &&
         (exit_probe_ok_log == true)
     ) { 1 } else { 0 }
-    let metric_label: string@View = CompilerSystemExitRuntimeConformanceMetricLabel(metric)
+    let metric_label: string@View = compilerSystemExitRuntimeConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
         [[log(label: "observed-compiler-runtime-system-exit-metric", expected: "1")]]
         metric_label

@@ -78,10 +78,10 @@ procedure VerifyCrossAssemblyTypeBoundariesItem(ctx: Context, scope: string@View
     let contracts_metric: i32 = contracts::ContractsBoundaryMetric()
     LogBoundaryObject(ctx.fs, scope, "contracts_metric", "i32", "constructed", "contracts assembly boundary metric computed")
     [[log(label: "types-log-transition_move")]]
-    let concurrency_metric: i32 = concurrency::ConcurrencyBoundaryMetric(ctx)
+    let concurrency_metric: i32 = concurrency::concurrencyBoundaryMetric(ctx)
     LogBoundaryObject(ctx.fs, scope, "concurrency_metric", "i32", "constructed", "concurrency assembly boundary metric computed")
     [[log(label: "types-log-transition_move")]]
-    let ffi_metric: i32 = ffi::FfiBoundaryMetric()
+    let ffi_metric: i32 = ffi::ffiBoundaryMetric()
     LogBoundaryObject(ctx.fs, scope, "ffi_metric", "i32", "constructed", "ffi assembly boundary metric computed")
 
     let observed_permissions_step: string@View = "observed-permissions-boundary-metric"

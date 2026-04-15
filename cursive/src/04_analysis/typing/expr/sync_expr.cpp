@@ -61,14 +61,17 @@ struct YieldUsageFinder {
           } else if constexpr (std::is_same_v<T, ast::AddressOfExpr> ||
                                std::is_same_v<T, ast::MoveExpr>) {
             VisitExpr(node.place);
-          } else if constexpr (std::is_same_v<T, ast::TupleExpr> ||
-                               std::is_same_v<T, ast::ArrayExpr>) {
-            for (const auto& elem : node.elements) {
-              VisitExpr(elem);
-            }
-          } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
-            VisitExpr(node.value);
-            VisitExpr(node.count);
+      } else if constexpr (std::is_same_v<T, ast::TupleExpr>) {
+        for (const auto& elem : node.elements) {
+          VisitExpr(elem);
+        }
+      } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+        ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+          VisitExpr(elem);
+        });
+      } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
+        VisitExpr(node.value);
+        VisitExpr(node.count);
           } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
             for (const auto& field : node.fields) {
               VisitExpr(field.value);
@@ -169,6 +172,7 @@ struct YieldUsageFinder {
             }
             for (const auto& opt : node.opts) {
               VisitExpr(opt.chunk_expr);
+              VisitExpr(opt.workgroup_expr);
             }
             VisitBlock(node.body);
           } else {
@@ -223,8 +227,6 @@ struct YieldUsageFinder {
           } else if constexpr (std::is_same_v<T, ast::ReturnStmt> ||
                                std::is_same_v<T, ast::BreakStmt>) {
             VisitExpr(node.value_opt);
-          } else if constexpr (std::is_same_v<T, ast::StaticAssertStmt>) {
-            VisitExpr(node.condition);
           } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
             for (const auto& path : node.paths) {
               VisitKeyPath(path);

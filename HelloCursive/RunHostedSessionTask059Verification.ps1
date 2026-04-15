@@ -1,11 +1,14 @@
 param(
-    [string]$CompilerPath = "C:\Dev\Cursive\cursive\build\out\cursive.exe"
+    [string]$CompilerPath = ""
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 Set-Location $PSScriptRoot
+$workspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$resolveCompilerPath = Join-Path $PSScriptRoot "ResolveCompilerPath.ps1"
+$CompilerPath = (& $resolveCompilerPath -RepoRoot $workspaceRoot -RequestedPath $CompilerPath)
 
 $runId = Get-Date -Format "yyyyMMdd_HHmmss_fff"
 $logsRoot = Join-Path ([System.IO.Path]::GetTempPath()) "cursive_task059_verification"

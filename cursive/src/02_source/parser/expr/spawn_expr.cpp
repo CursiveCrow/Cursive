@@ -23,9 +23,14 @@ core::Span SpanCover(const core::Span& start, const core::Span& end);
 bool IsPunc(const Parser& parser, std::string_view punc);
 void SkipNewlines(Parser& parser);
 ParseElemResult<ExprPtr> ParseExpr(Parser parser);
+ParseElemResult<ExprPtr> ParseLiteralExpr(Parser parser);
 ParseElemResult<std::shared_ptr<Block>> ParseBlock(Parser parser);
 
 namespace {
+
+bool IsStringLiteralToken(const Token* tok) {
+  return tok && tok->kind == TokenKind::StringLiteral;
+}
 
 ParseElemResult<SpawnOption> ParseSpawnOpt(Parser parser) {
   const Token* tok = Tok(parser);
@@ -43,6 +48,12 @@ ParseElemResult<SpawnOption> ParseSpawnOpt(Parser parser) {
   if (tok->lexeme == "name") {
     SPEC_RULE("Parse-SpawnOpt-Name");
     opt.kind = SpawnOptionKind::Name;
+  } else if (tok->lexeme == "affinity") {
+    SPEC_RULE("Parse-SpawnOpt-Affinity");
+    opt.kind = SpawnOptionKind::Affinity;
+  } else if (tok->lexeme == "priority") {
+    SPEC_RULE("Parse-SpawnOpt-Priority");
+    opt.kind = SpawnOptionKind::Priority;
   } else {
     EmitParseSyntaxErr(parser, TokSpan(parser));
     opt.kind = SpawnOptionKind::Name;
@@ -59,9 +70,16 @@ ParseElemResult<SpawnOption> ParseSpawnOpt(Parser parser) {
   }
   Advance(cur);
 
-  const Token* value_tok = Tok(cur);
-  if (!value_tok || value_tok->kind != TokenKind::StringLiteral) {
-    EmitParseSyntaxErr(cur, TokSpan(cur));
+  if (opt.kind == SpawnOptionKind::Name) {
+    if (!IsStringLiteralToken(Tok(cur))) {
+      EmitParseSyntaxErr(cur, TokSpan(cur));
+      opt.span = SpanCover(opt_start, TokSpan(cur));
+      return {cur, opt};
+    }
+    ParseElemResult<ExprPtr> value = ParseLiteralExpr(cur);
+    opt.value = value.elem;
+    opt.span = SpanCover(opt_start, TokSpan(value.parser));
+    return {value.parser, opt};
   }
 
   ParseElemResult<ExprPtr> value = ParseExpr(cur);
@@ -88,8 +106,10 @@ ParseElemResult<std::vector<SpawnOption>> ParseSpawnOptListTail(
   Advance(after_comma);
   SkipNewlines(after_comma);
   if (IsPunc(after_comma, "]")) {
-    const std::array<TokenKindMatch, 1> end_set = {MatchPunct("]")};
-    SPEC_RULE("Parse-SpawnOptListTail-TrailingComma");
+    const std::array<EndSetToken, 1> end_set = {EndPunct("]")};
+    if (TrailingCommaAllowed(parser, end_set)) {
+      SPEC_RULE("Parse-SpawnOptListTail-TrailingComma");
+    }
     EmitTrailingCommaErr(parser, end_set);
     after_comma.diags = parser.diags;
     return {after_comma, std::move(opts)};

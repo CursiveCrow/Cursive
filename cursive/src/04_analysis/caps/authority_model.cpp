@@ -311,12 +311,16 @@ bool CheckExprForAmbientAuthority(const ast::Expr& expr,
           }
           return false;
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& element : node.elements) {
-            if (element && CheckExprForAmbientAuthority(*element, ctx)) {
-              return true;
+          bool has_ambient_authority = false;
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& element) {
+            if (has_ambient_authority || !element) {
+              return;
             }
-          }
-          return false;
+            if (CheckExprForAmbientAuthority(*element, ctx)) {
+              has_ambient_authority = true;
+            }
+          });
+          return has_ambient_authority;
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           if (node.value && CheckExprForAmbientAuthority(*node.value, ctx)) {
             return true;
@@ -560,6 +564,10 @@ bool CheckExprForAmbientAuthority(const ast::Expr& expr,
                 CheckExprForAmbientAuthority(*opt.chunk_expr, ctx)) {
               return true;
             }
+            if (opt.workgroup_expr &&
+                CheckExprForAmbientAuthority(*opt.workgroup_expr, ctx)) {
+              return true;
+            }
           }
           PushLocalScope(ctx);
           if (node.pattern) {
@@ -662,9 +670,6 @@ bool CheckStmtForAmbientAuthority(const ast::Stmt& stmt,
             }
           }
           return node.body && CheckBlockForAmbientAuthority(*node.body, ctx);
-        } else if constexpr (std::is_same_v<T, ast::StaticAssertStmt>) {
-          return node.condition &&
-                 CheckExprForAmbientAuthority(*node.condition, ctx);
         } else {
           return false;
         }

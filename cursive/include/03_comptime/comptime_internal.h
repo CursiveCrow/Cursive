@@ -22,6 +22,7 @@ using ASTItem = ast::ASTItem;
 using AttributeItem = ast::AttributeItem;
 using AttributeList = ast::AttributeList;
 using Block = ast::Block;
+using BlockPtr = ast::BlockPtr;
 using ComptimeProcedureDecl = ast::ComptimeProcedureDecl;
 using Expr = ast::Expr;
 using ExprPtr = ast::ExprPtr;
@@ -77,10 +78,25 @@ enum class CtAstKind {
   Pattern,
 };
 
+struct CtSite {
+  ast::ModulePath module_path;
+  std::size_t ordinal = 0;
+  core::Span span;
+};
+
+struct CtHygiene {
+  CtSite quote_site;
+  CtSite emit_site;
+  std::size_t mark = 0;
+};
+
 struct CtAst {
   CtAstKind kind = CtAstKind::Expr;
   std::variant<ExprPtr, Stmt, ASTItem, TypePtr, PatternPtr> payload;
+  std::optional<core::Span> span;
+  std::optional<CtHygiene> hygiene;
 };
+
 struct CtTuple;
 struct CtArray;
 struct CtSlice;
@@ -154,12 +170,6 @@ struct ProjectFileSnapshot {
   std::unordered_map<std::string, ProjectFileSnapshotEntry> entries;
 };
 
-struct CtSite {
-  ast::ModulePath module_path;
-  std::size_t ordinal = 0;
-  core::Span span;
-};
-
 struct CtQuoteCtx {
   ast::QuoteKind kind = ast::QuoteKind::Unspecified;
   CtSite quote_site;
@@ -173,6 +183,7 @@ struct CtEnv {
   std::optional<CtQuoteCtx> quote_ctx;
   std::vector<const ast::ASTModule*> available_modules;
   source::ModuleNames available_module_names;
+  const std::vector<ASTItem>* current_module_items = nullptr;
   std::vector<ASTItem>* pending_emits = nullptr;
   core::DiagnosticStream* diags = nullptr;
   std::filesystem::path project_root;
@@ -197,7 +208,10 @@ const AttributeItem* FindAttribute(const AttributeList& attrs,
                                    std::string_view name);
 AttributeList StripAttribute(const AttributeList& attrs,
                              std::string_view name);
+CtEnv CtEmptyEnv(const ast::ASTModule& module);
 CtEnv WithCtCaps(CtEnv env, const AttributeList& attrs, bool derive_body = false);
+CtEnv WithCtSite(CtEnv env, std::size_t ord, const core::Span& sp);
+CtEnv BindCtProc(CtEnv env, const ComptimeProcedureDecl& proc);
 
 const std::unordered_map<std::string, CtValue>& CtVals(const CtEnv& env);
 const std::unordered_map<std::string, ComptimeProcedureDecl>& CtProcs(
@@ -211,6 +225,22 @@ core::DiagnosticStream* CtDiags(const CtEnv& env);
 std::vector<ASTItem>* CtPendingEmits(const CtEnv& env);
 std::size_t CtFreshSeed(const CtEnv& env);
 std::size_t TakeFreshSeed(CtEnv& env);
+CtAstKind AstKindOf(const CtAst& ast);
+const std::variant<ExprPtr, Stmt, ASTItem, TypePtr, PatternPtr>& AstPayloadOf(
+    const CtAst& ast);
+std::optional<core::Span> AstSpanOf(const CtAst& ast);
+const std::optional<CtHygiene>& AstHygieneOf(const CtAst& ast);
+CtAst AstOf(CtAstKind kind,
+            std::variant<ExprPtr, Stmt, ASTItem, TypePtr, PatternPtr> payload);
+std::optional<CtAst> HygienizeAst(const CtAst& ast,
+                                  const CtSite& quote_site,
+                                  const CtSite& emit_site,
+                                  std::size_t seed,
+                                  std::size_t& next_seed,
+                                  CtEnv& env);
+std::optional<CtAst> PrepareAstForInsertion(const CtAst& ast,
+                                            const CtSite& emit_site,
+                                            CtEnv& env);
 CtValue MakeCtUnit();
 CtValue MakeCtBool(bool value);
 CtValue MakeCtInt(unsigned long long value,

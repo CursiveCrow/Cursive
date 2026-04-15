@@ -59,6 +59,49 @@ static bool HasOnlyPositionalTokenArg(const ast::AttributeItem& attr) {
          GetTokenArg(attr.args.front()) != nullptr;
 }
 
+static bool ValidateDeriveAttributeArgs(const ast::AttributeItem& attr,
+                                        AttributeValidationResult& result) {
+  if (attr.name != attrs::kDerive) {
+    return true;
+  }
+
+  if (attr.args.empty()) {
+    result.ok = false;
+    result.diag_id = "E-MOD-2450";
+    result.span = attr.span;
+    result.message =
+        "[[derive(... )]] requires one or more identifier arguments";
+    return false;
+  }
+
+  std::vector<std::string_view> seen_targets;
+  seen_targets.reserve(attr.args.size());
+  for (const auto& arg : attr.args) {
+    const auto* token = GetTokenArg(arg);
+    if (arg.key.has_value() || token == nullptr ||
+        token->kind != lexer::TokenKind::Identifier) {
+      result.ok = false;
+      result.diag_id = "E-MOD-2450";
+      result.span = attr.span;
+      result.message =
+          "[[derive(... )]] requires one or more identifier arguments";
+      return false;
+    }
+
+    if (std::find(seen_targets.begin(), seen_targets.end(), token->lexeme) !=
+        seen_targets.end()) {
+      result.ok = false;
+      result.diag_id = "E-CTE-0312";
+      result.span = attr.span;
+      result.message = "Duplicate derive target in one derive attribute";
+      return false;
+    }
+    seen_targets.push_back(token->lexeme);
+  }
+
+  return true;
+}
+
 static bool RejectArgumentBearingAttribute(const ast::AttributeItem& attr,
                                            AttributeValidationResult& result) {
   if (attr.args.empty()) {
@@ -318,13 +361,6 @@ AttributeRegistry InitializeRegistry() {
     spec.valid_targets = {AttributeTarget::Procedure};
     registry.Register(spec);
   }
-  {
-    AttributeSpec spec;
-    spec.name = attrs::kTrust;
-    spec.valid_targets = {AttributeTarget::ExternBlock, AttributeTarget::Procedure};
-    registry.Register(spec);
-  }
-
   return registry;
 }
 
@@ -362,6 +398,10 @@ AttributeValidationResult ValidateAttributes(
     const ast::AttributeList& attrs,
     AttributeTarget target) {
   SpecDefsAttributes();
+  // AttrListJudg is the aggregate attribute-list judgment, and AttrListWf is
+  // the concrete well-formedness check this entry point enforces.
+  SPEC_RULE("AttrListJudg");
+  SPEC_RULE("AttrListWf");
   SPEC_RULE("AttrValidation");
 
   AttributeValidationResult result;
@@ -370,7 +410,9 @@ AttributeValidationResult ValidateAttributes(
   for (const auto& attr : attrs) {
     const auto* spec = registry.Lookup(attr.name);
 
-    // Unknown attribute
+    // Unknown attributes use the generic §9.1.7 diagnostic unless the
+    // miss falls into the reserved `cursive::...` vendor namespace, which
+    // §9.2.7 assigns to E-CNF-0402 instead.
     if (!spec) {
       result.ok = false;
       if (attr.name.rfind("cursive::", 0) == 0) {
@@ -407,6 +449,10 @@ AttributeValidationResult ValidateAttributes(
       }
       result.span = attr.span;
       result.message = "Attribute '" + attr.name + "' cannot be applied here";
+      return result;
+    }
+
+    if (!ValidateDeriveAttributeArgs(attr, result)) {
       return result;
     }
 
@@ -483,7 +529,6 @@ AttributeValidationResult ValidateAttributes(
         attr.name == ::cursive::analysis::attrs::kFiles ||
         attr.name == ::cursive::analysis::attrs::kFfiPassByValue ||
         attr.name == ::cursive::analysis::attrs::kStatic ||
-        attr.name == ::cursive::analysis::attrs::kTrust ||
         attr.name == ::cursive::analysis::attrs::kRelaxed ||
         attr.name == ::cursive::analysis::attrs::kAcquire ||
         attr.name == ::cursive::analysis::attrs::kRelease ||
@@ -596,7 +641,8 @@ AttributeValidationResult ValidateAttributes(
         result.ok = false;
         result.diag_id = "E-MOD-2450";
         result.span = attr.span;
-        result.message = "Missing required argument: kind";
+        result.message =
+            "Malformed [[layout]] syntax: missing required layout kind";
         return result;
       }
       if (saw_packed && target != AttributeTarget::Record) {
@@ -809,7 +855,8 @@ AttributeValidationResult ValidateAttributes(
         result.ok = false;
         result.diag_id = "E-MOD-2450";
         result.span = attr.span;
-        result.message = "Missing required argument: name";
+        result.message =
+            "Malformed [[library]] syntax: missing required `name` argument";
         return result;
       }
     }
@@ -859,11 +906,46 @@ AttributeValidationResult ValidateAttributes(
           result.ok = false;
           result.diag_id = "E-MOD-2450";  // Malformed attribute syntax
           result.span = attr.span;
-          result.message = "Missing required argument: " + arg_spec.name;
+          result.message = "Malformed [[" + attr.name +
+                           "]] syntax: missing required argument `" +
+                           arg_spec.name + "`";
           return result;
         }
       }
     }
+  }
+
+  return result;
+}
+
+AttributeValidationResult ValidateUnsupportedAttributeTarget(
+    const ast::AttributeList& attrs,
+    std::string_view target_name) {
+  AttributeValidationResult result;
+  const auto& registry = GetAttributeRegistry();
+
+  for (const auto& attr : attrs) {
+    const auto* spec = registry.Lookup(attr.name);
+    if (!spec) {
+      result.ok = false;
+      if (attr.name.rfind("cursive::", 0) == 0) {
+        result.diag_id = "E-CNF-0402";
+      } else {
+        result.diag_id = "E-MOD-2451";
+      }
+      result.span = attr.span;
+      result.message = "Unknown attribute: " + attr.name;
+      return result;
+    }
+
+    result.ok = false;
+    result.diag_id =
+        attr.name == ::cursive::analysis::attrs::kLibrary ? "E-SYS-3345"
+                                                          : "E-MOD-2452";
+    result.span = attr.span;
+    result.message = "Attribute '" + attr.name + "' cannot be applied to " +
+                     std::string(target_name);
+    return result;
   }
 
   return result;
@@ -885,9 +967,6 @@ std::optional<VerificationModeAttribute> ResolveVerificationModeAttribute(
   }
   if (HasAttribute(attrs, attrs::kDynamic)) {
     return VerificationModeAttribute::Dynamic;
-  }
-  if (HasAttribute(attrs, attrs::kTrust)) {
-    return VerificationModeAttribute::Trust;
   }
   return std::nullopt;
 }

@@ -31,6 +31,17 @@
 
 namespace cursive::lexer {
 
+LexemeScalars LexemeSliceScalars(
+    const std::vector<core::UnicodeScalar>& scalars,
+    std::size_t i,
+    std::size_t j) {
+  if (j < i || j > scalars.size()) {
+    return {};
+  }
+  return LexemeScalars(scalars.begin() + static_cast<std::ptrdiff_t>(i),
+                       scalars.begin() + static_cast<std::ptrdiff_t>(j));
+}
+
 namespace {
 
 // Debug output for lex failures.
@@ -46,7 +57,8 @@ void DebugLexFail(const core::SourceFile& source,
 
   const std::size_t n = scalars.size();
   const std::size_t byte_index = index < offsets.size() ? offsets[index] : 0;
-  const core::UnicodeScalar cp = index < n ? scalars[index] : 0;
+  const core::UnicodeScalar cp =
+      index < n ? scalars[index] : core::UnicodeScalar{};
 
   std::cerr << "[cursive] lex: Max-Munch-Err at scalar=" << index
             << " byte=" << byte_index
@@ -175,13 +187,20 @@ core::Span SpanOfText(const core::SourceFile& source,
 
 // Implements spec Lexeme(T, i, j) from line 2046.
 // Extract lexeme substring.
-std::string LexemeSlice(const core::SourceFile& source,
+std::string LexemeSlice(const LexerInput& input,
                         const std::vector<std::size_t>& offsets,
                         std::size_t i,
                         std::size_t j) {
+  if (input.scalars == nullptr) {
+    return {};
+  }
   const std::size_t start = offsets[i];
   const std::size_t end = offsets[j];
-  return source.text.substr(start, end - start);
+  if (end < start || end > input.byte_len) {
+    return {};
+  }
+  const LexemeScalars lexeme = LexemeSliceScalars(*input.scalars, i, j);
+  return core::EncodeUtf8(lexeme);
 }
 
 // Diagnostic stream merge.
@@ -232,6 +251,10 @@ std::vector<RawToken> ToRawTokens(const std::vector<Token>& tokens) {
 
 }  // namespace
 
+LexerInput MakeLexerInput(const core::SourceFile& source) {
+  return LexerInput{&source.scalars, source.text, source.byte_len};
+}
+
 // Small-step tokenization.
 // Implements spec rules from 3.2.11:
 // - Lex-Start (line 2505-2507)
@@ -249,7 +272,8 @@ std::vector<RawToken> ToRawTokens(const std::vector<Token>& tokens) {
 LexSmallStepResult LexSmallStep(const core::SourceFile& source) {
   SPEC_RULE("Lex-Start");
   LexSmallStepResult result;
-  const auto& scalars = source.scalars;
+  const LexerInput input = MakeLexerInput(source);
+  const auto& scalars = *input.scalars;
   const auto offsets = core::Utf8Offsets(scalars);
 
   std::size_t i = 0;
@@ -276,7 +300,7 @@ LexSmallStepResult LexSmallStep(const core::SourceFile& source) {
       SPEC_RULE("Lex-Newline");
       Token tok;
       tok.kind = TokenKind::Newline;
-      tok.lexeme = LexemeSlice(source, offsets, i, i + 1);
+      tok.lexeme = LexemeSlice(input, offsets, i, i + 1);
       tok.span = SpanOfText(source, offsets, i, i + 1);
       tokens.push_back(tok);
       ++i;
@@ -324,7 +348,6 @@ LexSmallStepResult LexSmallStep(const core::SourceFile& source) {
         core::Emit(result.diags, *diag);
       }
       const std::size_t term = StringTerminator(scalars, i);
-      AppendSensitiveInSpan(scalars, i, term, sensitive);
       i = term;
       continue;
     }
@@ -336,7 +359,6 @@ LexSmallStepResult LexSmallStep(const core::SourceFile& source) {
         core::Emit(result.diags, *diag);
       }
       const std::size_t term = CharTerminator(scalars, i);
-      AppendSensitiveInSpan(scalars, i, term, sensitive);
       i = term;
       continue;
     }
@@ -365,16 +387,16 @@ LexSmallStepResult LexSmallStep(const core::SourceFile& source) {
     SPEC_RULE("Lex-Token");
     AppendDiags(result.diags, next.diags);
 
-    // Preserve tuple/index chaining disambiguation: if a decimal-float token
-    // candidate appears immediately after a `.` token, treat the leading digits
-    // as an integer token (e.g. `t.0.0` => `t` `.` `0` `.` `0`).
+    // Spec tuple-projection lexical disambiguation: if a decimal-float token
+    // candidate appears immediately after a `.` token, emit the shorter integer
+    // token instead so `t.0.0` tokenizes as `t` `.` `0` `.` `0`.
     if (next.kind == TokenKind::FloatLiteral && PrevSignificantTokenIsDot(tokens)) {
       LiteralScanResult int_scan = ScanIntLiteral(source, i);
       if ((int_scan.ok || int_scan.next > i) && int_scan.next < next.next) {
         AppendDiags(result.diags, int_scan.diags);
         Token int_tok;
         int_tok.kind = TokenKind::IntLiteral;
-        int_tok.lexeme = LexemeSlice(source, offsets, i, int_scan.next);
+        int_tok.lexeme = LexemeSlice(input, offsets, i, int_scan.next);
         int_tok.span = SpanOfText(source, offsets, i, int_scan.next);
         tokens.push_back(int_tok);
         AppendSensitiveInSpan(scalars, i, int_scan.next, sensitive);
@@ -385,7 +407,7 @@ LexSmallStepResult LexSmallStep(const core::SourceFile& source) {
 
     Token tok;
     tok.kind = next.kind;
-    tok.lexeme = LexemeSlice(source, offsets, i, next.next);
+    tok.lexeme = LexemeSlice(input, offsets, i, next.next);
     tok.span = SpanOfText(source, offsets, i, next.next);
     tokens.push_back(tok);
 
@@ -417,8 +439,8 @@ LexSmallStepResult LexSmallStep(const core::SourceFile& source) {
 //   4. Run ConfusableCheck on identifier tokens
 //   5. If either security check fails, return error (Tokenize-Secure-Err)
 //   6. Return success (Tokenize-Ok)
-TokenizeResult Tokenize(const core::SourceFile& source) {
-  TokenizeResult result;
+TokenizeDiagnosticResult TokenizeWithDiagnostics(const core::SourceFile& source) {
+  TokenizeDiagnosticResult result;
   LexSmallStepResult lexed = LexSmallStep(source);
   result.diags = lexed.diags;
 
@@ -428,7 +450,8 @@ TokenizeResult Tokenize(const core::SourceFile& source) {
     return result;
   }
 
-  LexSecureResult secure = LexSecure(source, lexed.output.tokens, lexed.sensitive);
+  LexSecureResult secure =
+      LexSecure(source, lexed.output.tokens, LexSensitivePos(source));
   AppendDiags(result.diags, secure.diags);
   if (!secure.ok) {
     SPEC_RULE("Tokenize-Secure-Err");
@@ -436,6 +459,10 @@ TokenizeResult Tokenize(const core::SourceFile& source) {
     return result;
   }
 
+  if (core::IsDebugEnabled("lex") || core::IsDebugEnabled("parse")) {
+    std::cerr << "[cursive] unicode: token-count=" << lexed.output.tokens.size()
+              << " running ConfusableCheck\n";
+  }
   LexSecureResult confusable = ConfusableCheck(source, lexed.output.tokens);
   AppendDiags(result.diags, confusable.diags);
   if (!confusable.ok) {
@@ -466,6 +493,10 @@ TokenizeResult Tokenize(const core::SourceFile& source) {
   SPEC_RULE("Tokenize-Ok");
   result.output = std::move(lexed.output);
   return result;
+}
+
+TokenizeResult Tokenize(const core::SourceFile& source) {
+  return TokenizeWithDiagnostics(source).output;
 }
 
 }  // namespace cursive::lexer

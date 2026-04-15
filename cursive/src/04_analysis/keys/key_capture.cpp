@@ -136,10 +136,16 @@ bool ContainsLoopVar(const ast::ExprPtr& expr, const std::string& loop_var) {
     return false;
   }
   if (const auto* array = std::get_if<ast::ArrayExpr>(&expr->node)) {
-    for (const auto& element : array->elements) {
-      if (ContainsLoopVar(element, loop_var)) return true;
-    }
-    return false;
+    bool contains_loop_var = false;
+    ast::ForEachArrayExprSubexpr(*array, [&](const ast::ExprPtr& element) {
+      if (contains_loop_var) {
+        return;
+      }
+      if (ContainsLoopVar(element, loop_var)) {
+        contains_loop_var = true;
+      }
+    });
+    return contains_loop_var;
   }
   if (const auto* repeat = std::get_if<ast::ArrayRepeatExpr>(&expr->node)) {
     return ContainsLoopVar(repeat->value, loop_var) ||
@@ -258,9 +264,9 @@ void CollectIndexAccessesInExpr(const ast::ExprPtr& expr,
   }
 
   if (const auto* array = std::get_if<ast::ArrayExpr>(&expr->node)) {
-    for (const auto& element : array->elements) {
+    ast::ForEachArrayExprSubexpr(*array, [&](const ast::ExprPtr& element) {
       CollectIndexAccessesInExpr(element, accesses);
-    }
+    });
     return;
   }
 
@@ -469,10 +475,6 @@ void CollectIndexAccessesInStmt(const ast::Stmt& stmt,
       CollectIndexAccessesInExpr(key_block->body->tail_opt, accesses);
     }
     return;
-  }
-
-  if (const auto* static_assert_stmt = std::get_if<ast::StaticAssertStmt>(&stmt)) {
-    CollectIndexAccessesInExpr(static_assert_stmt->condition, accesses);
   }
 }
 

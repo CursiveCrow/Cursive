@@ -19,10 +19,7 @@ namespace llvm {
   class IRBuilderBase;
   template <typename T, typename Inserter> class IRBuilder;
   class Type;
-
-  class Value;
-  class Function;
-  class BasicBlock;
+  class AllocaInst;
   class Value;
   class Function;
   class BasicBlock;
@@ -121,6 +118,13 @@ public:
   
   // Local variable management
   void SetLocal(const std::string& name, llvm::Value* val) { locals_[name] = val; }
+  void SetLocalHomeStorage(const std::string& name, llvm::Value* val) {
+    if (val) {
+      local_home_storage_[name] = val;
+    } else {
+      local_home_storage_.erase(name);
+    }
+  }
   void SetLocalType(const std::string& name, analysis::TypeRef type) {
     if (!type) {
       return;
@@ -128,6 +132,9 @@ public:
     local_types_[name] = type;
   }
   llvm::Value* GetLocal(const std::string& name) { return locals_.count(name) ? locals_[name] : nullptr; }
+  llvm::Value* GetLocalHomeStorage(const std::string& name) {
+    return local_home_storage_.count(name) ? local_home_storage_[name] : nullptr;
+  }
   analysis::TypeRef LookupLocalType(const std::string& name) const {
     auto it = local_types_.find(name);
     return it != local_types_.end() ? it->second : nullptr;
@@ -135,7 +142,7 @@ public:
   llvm::Value* GetGlobal(const std::string& name) { return globals_.count(name) ? globals_[name] : nullptr; }
   llvm::Function* GetFunction(const std::string& name) { return functions_.count(name) ? functions_[name] : nullptr; }
   void RemoveLocal(const std::string& name) { locals_.erase(name); }
-  void ClearLocals() { locals_.clear(); local_types_.clear(); }
+  void ClearLocals() { locals_.clear(); local_home_storage_.clear(); local_types_.clear(); }
   bool IsHostedLibraryBuild() const;
   bool RequiresHostedEnvParam(const std::string& symbol) const;
   bool HasHostedStateSlot(const std::string& symbol) const;
@@ -159,7 +166,57 @@ public:
     auto it = values_.find(value.name);
     return it != values_.end() ? it->second : nullptr;
   }
-  void ClearTempValues() { values_.clear(); }
+  void SetTempStorage(const IRValue& value, llvm::Value* llvm_storage) {
+    if (value.kind == IRValue::Kind::Opaque) {
+      storage_values_[value.name] = llvm_storage;
+    }
+  }
+  llvm::Value* GetTempStorage(const IRValue& value) const {
+    if (value.kind != IRValue::Kind::Opaque) {
+      return nullptr;
+    }
+    auto it = storage_values_.find(value.name);
+    return it != storage_values_.end() ? it->second : nullptr;
+  }
+  llvm::Value* GetAddressableStorage(const IRValue& value);
+  struct FlowStateSnapshot {
+    std::unordered_map<std::string, llvm::Value*> locals;
+    std::unordered_map<std::string, llvm::Value*> local_home_storage;
+    std::unordered_map<std::string, analysis::TypeRef> local_types;
+    std::unordered_map<std::string, llvm::Value*> values;
+    std::unordered_map<std::string, llvm::Value*> storage_values;
+    std::unordered_map<std::string, llvm::Value*> preferred_result_storage;
+    std::unordered_map<llvm::Function*,
+                       std::unordered_map<llvm::Type*, std::vector<llvm::AllocaInst*>>>
+        reusable_aggregate_storage;
+  };
+  FlowStateSnapshot SaveFlowState() const;
+  void RestoreFlowState(const FlowStateSnapshot& snapshot);
+  void SetPreferredResultStorage(const IRValue& value, llvm::Value* storage) {
+    if (value.kind == IRValue::Kind::Opaque && storage) {
+      preferred_result_storage_[value.name] = storage;
+    }
+  }
+  llvm::Value* TakePreferredResultStorage(const IRValue& value) {
+    if (value.kind != IRValue::Kind::Opaque) {
+      return nullptr;
+    }
+    auto it = preferred_result_storage_.find(value.name);
+    if (it == preferred_result_storage_.end()) {
+      return nullptr;
+    }
+    llvm::Value* storage = it->second;
+    preferred_result_storage_.erase(it);
+    return storage;
+  }
+  llvm::AllocaInst* AcquireReusableAggregateStorage(llvm::Function* func,
+                                                    llvm::Type* ty,
+                                                    std::string_view name);
+  void ReleaseReusableAggregateStorage(llvm::Value* storage);
+  void ForgetTempStorage(const IRValue& value);
+  void ReleaseTempStorage(const IRValue& value);
+  void ReleaseMoveConsumedStorage(const IRValue& value);
+  void ClearTempValues() { values_.clear(); storage_values_.clear(); preferred_result_storage_.clear(); }
 
   // Async lowering state (active only while emitting async resume proc)
   void SetAsyncState(AsyncEmitState* state) { async_state_ = state; }
@@ -232,9 +289,14 @@ private:
   std::unordered_map<std::string, llvm::Function*> functions_;
   std::unordered_map<std::string, llvm::Value*> globals_;
   std::unordered_map<std::string, llvm::Value*> locals_;
+  std::unordered_map<std::string, llvm::Value*> local_home_storage_;
   std::unordered_map<std::string, analysis::TypeRef> local_types_;
 
   std::unordered_map<std::string, llvm::Value*> values_;
+  std::unordered_map<std::string, llvm::Value*> storage_values_;
+  std::unordered_map<std::string, llvm::Value*> preferred_result_storage_;
+  std::unordered_map<llvm::Function*,
+                     std::unordered_map<llvm::Type*, std::vector<llvm::AllocaInst*>>> reusable_aggregate_storage_;
   AsyncEmitState* async_state_ = nullptr;
   std::unordered_map<std::string, std::string> symbol_aliases_;
   std::vector<IRValue> active_regions_;

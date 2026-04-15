@@ -1,4 +1,5 @@
 #include "../internal/rt_internal.h"
+#include "../internal/rt_path.h"
 
 #include <unicode/unorm2.h>
 #include <unicode/ustring.h>
@@ -8,378 +9,28 @@
 #define SPEC_RULE(id) ((void)0)
 #endif
 
-static int c0_is_sep(uint8_t c) {
-  return c == '/' || c == '\\';
-}
-
-static int c0_is_ascii_letter(uint8_t c) {
-  return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
-}
-
-static int c0_path_is_drive_rooted(const uint8_t* data, uint64_t len) {
-  if (!data || len < 3) {
-    return 0;
-  }
-  if (!c0_is_ascii_letter(data[0])) {
-    return 0;
-  }
-  if (data[1] != ':') {
-    return 0;
-  }
-  return c0_is_sep(data[2]);
-}
-
-static int c0_path_is_unc(const uint8_t* data, uint64_t len) {
-  if (!data || len < 2) {
-    return 0;
-  }
-  return (data[0] == '/' && data[1] == '/') || (data[0] == '\\' && data[1] == '\\');
-}
-
-static int c0_path_is_root_relative(const uint8_t* data, uint64_t len) {
-  if (!data || len == 0) {
-    return 0;
-  }
-  if (c0_path_is_unc(data, len)) {
-    return 0;
-  }
-  if (c0_path_is_drive_rooted(data, len)) {
-    return 0;
-  }
-  return data[0] == '/' || data[0] == '\\';
-}
-
-static int c0_path_is_abs(const uint8_t* data, uint64_t len) {
-  return c0_path_is_drive_rooted(data, len) ||
-         c0_path_is_unc(data, len) ||
-         c0_path_is_root_relative(data, len);
-}
-
-typedef struct C0Seg {
-  const uint8_t* ptr;
-  uint32_t len;
-} C0Seg;
-static uint8_t* c0_path_canon(const uint8_t* data,
-                              uint64_t len,
-                              uint32_t* out_len) {
-  if (out_len) {
-    *out_len = 0;
-  }
-  if (!data && len != 0) {
-    return NULL;
-  }
-  if (len > UINT32_MAX) {
-    return NULL;
-  }
-
-  uint8_t root_tag[2];
-  uint32_t root_len = 0;
-  uint64_t pos = 0;
-  int drive_rooted = 0;
-
-  if (c0_path_is_drive_rooted(data, len)) {
-    root_tag[0] = data[0];
-    root_tag[1] = ':';
-    root_len = 2;
-    pos = 3;
-    drive_rooted = 1;
-  } else if (c0_path_is_unc(data, len)) {
-    root_tag[0] = '/';
-    root_tag[1] = '/';
-    root_len = 2;
-    pos = 2;
-  } else if (c0_path_is_root_relative(data, len)) {
-    root_tag[0] = '/';
-    root_len = 1;
-    pos = 1;
-  }
-
-  uint32_t seg_count = 0;
-  uint64_t seg_start = pos;
-  for (uint64_t i = pos; i <= len; ++i) {
-    if (i == len || c0_is_sep(data[i])) {
-      if (i > seg_start) {
-        ++seg_count;
-      }
-      seg_start = i + 1;
-    }
-  }
-
-  C0Seg* segs = NULL;
-  if (seg_count > 0) {
-    segs = (C0Seg*)c0_heap_alloc_raw(sizeof(C0Seg) * seg_count);
-    if (!segs) {
-      return NULL;
-    }
-  }
-
-  uint32_t out_count = 0;
-  seg_start = pos;
-  for (uint64_t i = pos; i <= len; ++i) {
-    if (i == len || c0_is_sep(data[i])) {
-      if (i > seg_start) {
-        uint32_t seg_len = (uint32_t)(i - seg_start);
-        const uint8_t* seg_ptr = data + seg_start;
-        if (seg_len == 1 && seg_ptr[0] == '.') {
-          // skip
-        } else if (seg_len == 2 && seg_ptr[0] == '.' && seg_ptr[1] == '.') {
-          if (segs) {
-            c0_heap_free_raw(segs);
-          }
-          return NULL;
-        } else {
-          if (segs) {
-            segs[out_count].ptr = seg_ptr;
-            segs[out_count].len = seg_len;
-          }
-          ++out_count;
-        }
-      }
-      seg_start = i + 1;
-    }
-  }
-
-  uint64_t out_len64 = root_len;
-  if (out_count > 0) {
-    if (root_len > 0 && drive_rooted) {
-      out_len64 += 1;
-    }
-    for (uint32_t i = 0; i < out_count; ++i) {
-      out_len64 += segs[i].len;
-    }
-    if (out_count > 1) {
-      out_len64 += (uint64_t)(out_count - 1);
-    }
-  }
-
-  if (out_len64 > UINT32_MAX) {
-    if (segs) {
-      c0_heap_free_raw(segs);
-    }
-    return NULL;
-  }
-
-  uint32_t out_len_u32 = (uint32_t)out_len64;
-  uint64_t alloc_size = (uint64_t)out_len_u32 + 1;
-  if (alloc_size > (uint64_t)SIZE_MAX) {
-    if (segs) {
-      c0_heap_free_raw(segs);
-    }
-    return NULL;
-  }
-
-  uint8_t* out = (uint8_t*)c0_heap_alloc_raw((size_t)alloc_size);
-  if (!out) {
-    if (segs) {
-      c0_heap_free_raw(segs);
-    }
-    return NULL;
-  }
-
-  uint32_t offset = 0;
-  if (root_len > 0) {
-    c0_memcpy(out + offset, root_tag, root_len);
-    offset += root_len;
-  }
-  if (out_count > 0) {
-    if (root_len > 0 && drive_rooted) {
-      out[offset++] = '/';
-    }
-    for (uint32_t i = 0; i < out_count; ++i) {
-      c0_memcpy(out + offset, segs[i].ptr, segs[i].len);
-      offset += segs[i].len;
-      if (i + 1 < out_count) {
-        out[offset++] = '/';
-      }
-    }
-  }
-  out[offset] = 0;
-
-  if (segs) {
-    c0_heap_free_raw(segs);
-  }
-  if (out_len) {
-    *out_len = out_len_u32;
-  }
-  return out;
-}
-static uint8_t* c0_path_join(const uint8_t* base,
-                             uint32_t base_len,
-                             const uint8_t* rel,
-                             uint64_t rel_len,
-                             uint32_t* out_len) {
-  if (out_len) {
-    *out_len = 0;
-  }
-  if (!base && base_len != 0) {
-    return NULL;
-  }
-  if (!rel && rel_len != 0) {
-    return NULL;
-  }
-  if (rel_len > UINT32_MAX) {
-    return NULL;
-  }
-
-  if (base_len == 0) {
-    uint32_t len = (uint32_t)rel_len;
-    uint64_t alloc_size = (uint64_t)len + 1;
-    if (alloc_size > (uint64_t)SIZE_MAX) {
-      return NULL;
-    }
-    uint8_t* out = (uint8_t*)c0_heap_alloc_raw((size_t)alloc_size);
-    if (!out) {
-      return NULL;
-    }
-    if (len > 0) {
-      c0_memcpy(out, rel, len);
-    }
-    out[len] = 0;
-    if (out_len) {
-      *out_len = len;
-    }
-    return out;
-  }
-
-  if (rel_len == 0) {
-    uint64_t alloc_size = (uint64_t)base_len + 1;
-    if (alloc_size > (uint64_t)SIZE_MAX) {
-      return NULL;
-    }
-    uint8_t* out = (uint8_t*)c0_heap_alloc_raw((size_t)alloc_size);
-    if (!out) {
-      return NULL;
-    }
-    c0_memcpy(out, base, base_len);
-    out[base_len] = 0;
-    if (out_len) {
-      *out_len = base_len;
-    }
-    return out;
-  }
-
-  uint32_t extra = (base[base_len - 1] == '/') ? 0 : 1;
-  uint64_t total = (uint64_t)base_len + extra + rel_len;
-  if (total > UINT32_MAX) {
-    return NULL;
-  }
-  uint64_t alloc_size = total + 1;
-  if (alloc_size > (uint64_t)SIZE_MAX) {
-    return NULL;
-  }
-
-  uint8_t* out = (uint8_t*)c0_heap_alloc_raw((size_t)alloc_size);
-  if (!out) {
-    return NULL;
-  }
-  c0_memcpy(out, base, base_len);
-  uint32_t offset = base_len;
-  if (extra) {
-    out[offset++] = '/';
-  }
-  c0_memcpy(out + offset, rel, (uint32_t)rel_len);
-  offset += (uint32_t)rel_len;
-  out[offset] = 0;
-  if (out_len) {
-    *out_len = (uint32_t)total;
-  }
-  return out;
-}
-
-static int c0_path_prefix(const uint8_t* path,
-                          uint32_t path_len,
-                          const uint8_t* base,
-                          uint32_t base_len) {
-  if (base_len == 0) {
-    return 1;
-  }
-  if (!path || !base) {
-    return 0;
-  }
-  if (path_len < base_len) {
-    return 0;
-  }
-  for (uint32_t i = 0; i < base_len; ++i) {
-    if (path[i] != base[i]) {
-      return 0;
-    }
-  }
-  if (path_len == base_len) {
-    return 1;
-  }
-  if (base[base_len - 1] == '/') {
-    return 1;
-  }
-  return path[base_len] == '/';
-}
-static wchar_t* c0_path_utf8_to_wide(const uint8_t* utf8,
-                                     uint32_t len,
-                                     uint32_t* out_len) {
-  if (out_len) {
-    *out_len = 0;
-  }
-  if (len == 0) {
-    wchar_t* out = (wchar_t*)c0_heap_alloc_raw(sizeof(wchar_t));
-    if (!out) {
-      return NULL;
-    }
-    out[0] = 0;
-    if (out_len) {
-      *out_len = 0;
-    }
-    return out;
-  }
-  wchar_t* wide = c0_utf8_to_wide(utf8, len, out_len);
-  if (!wide) {
-    return NULL;
-  }
-  uint32_t wlen = out_len ? *out_len : (uint32_t)c0_wcslen(wide);
-  for (uint32_t i = 0; i < wlen; ++i) {
-    if (wide[i] == L'/') {
-      wide[i] = L'\\';
-    }
-  }
-  if (wlen == 2 && wide[1] == L':') {
-    wchar_t* out = (wchar_t*)c0_heap_alloc_raw(sizeof(wchar_t) * 4);
-    if (!out) {
-      c0_heap_free_raw(wide);
-      return NULL;
-    }
-    out[0] = wide[0];
-    out[1] = wide[1];
-    out[2] = L'\\';
-    out[3] = 0;
-    c0_heap_free_raw(wide);
-    if (out_len) {
-      *out_len = 3;
-    }
-    return out;
-  }
-  return wide;
-}
-
-static C0IoError c0_map_win_error(DWORD err) {
+static C0IoError c0_map_platform_error(cursive_rt_u32_t err) {
   switch (err) {
-    case ERROR_FILE_NOT_FOUND:
-    case ERROR_PATH_NOT_FOUND:
-    case ERROR_INVALID_DRIVE:
+    case CURSIVE_RT_ERROR_FILE_NOT_FOUND:
+    case CURSIVE_RT_ERROR_PATH_NOT_FOUND:
+    case CURSIVE_RT_ERROR_INVALID_DRIVE:
       return C0_IO_NOTFOUND;
-    case ERROR_ACCESS_DENIED:
-    case ERROR_PRIVILEGE_NOT_HELD:
+    case CURSIVE_RT_ERROR_ACCESS_DENIED:
+    case CURSIVE_RT_ERROR_PRIVILEGE_NOT_HELD:
       return C0_IO_PERMISSION_DENIED;
-    case ERROR_FILE_EXISTS:
-    case ERROR_ALREADY_EXISTS:
+    case CURSIVE_RT_ERROR_FILE_EXISTS:
+    case CURSIVE_RT_ERROR_ALREADY_EXISTS:
       return C0_IO_ALREADY_EXISTS;
-    case ERROR_INVALID_NAME:
-    case ERROR_BAD_PATHNAME:
-    case ERROR_FILENAME_EXCED_RANGE:
-    case ERROR_DIRECTORY:
-    case ERROR_INVALID_PARAMETER:
+    case CURSIVE_RT_ERROR_INVALID_NAME:
+    case CURSIVE_RT_ERROR_BAD_PATHNAME:
+    case CURSIVE_RT_ERROR_FILENAME_EXCED_RANGE:
+    case CURSIVE_RT_ERROR_DIRECTORY:
+    case CURSIVE_RT_ERROR_INVALID_PARAMETER:
       return C0_IO_INVALID_PATH;
-    case ERROR_BUSY:
-    case ERROR_SHARING_VIOLATION:
-    case ERROR_LOCK_VIOLATION:
-    case ERROR_PIPE_BUSY:
+    case CURSIVE_RT_ERROR_BUSY:
+    case CURSIVE_RT_ERROR_SHARING_VIOLATION:
+    case CURSIVE_RT_ERROR_LOCK_VIOLATION:
+    case CURSIVE_RT_ERROR_PIPE_BUSY:
       return C0_IO_BUSY;
     default:
       return C0_IO_FAILURE;
@@ -387,11 +38,11 @@ static C0IoError c0_map_win_error(DWORD err) {
 }
 
 static C0IoError c0_last_io_error(void) {
-  DWORD err = GetLastError();
+  cursive_rt_u32_t err = cursive_rt_last_error_get();
   if (err == 0) {
     return C0_IO_FAILURE;
   }
-  return c0_map_win_error(err);
+  return c0_map_platform_error(err);
 }
 
 static C0FsState* c0_fs_state(const C0DynObject* fs) {
@@ -410,7 +61,7 @@ typedef enum C0TrackedFileStateTag {
 
 typedef struct C0TrackedFile {
   uint64_t id;
-  HANDLE handle;
+  cursive_rt_handle_t handle;
   uint64_t position;
   uint64_t length;
   uint8_t state;
@@ -424,7 +75,7 @@ typedef struct C0TrackedDirIter {
   struct C0TrackedDirIter* next;
 } C0TrackedDirIter;
 
-static SRWLOCK g_c0_io_registry_lock = SRWLOCK_INIT;
+static cursive_rt_rwlock_t g_c0_io_registry_lock = CURSIVE_RT_RWLOCK_INIT;
 static uint64_t g_c0_next_file_id = 1;
 static uint64_t g_c0_next_dir_iter_id = 1;
 static C0TrackedFile* g_c0_tracked_files = NULL;
@@ -442,16 +93,16 @@ static uint64_t c0_next_tracked_id(uint64_t* counter) {
   return id;
 }
 
-static uint64_t c0_file_length_handle(HANDLE handle) {
-  LARGE_INTEGER size;
-  size.QuadPart = 0;
-  if (!handle || handle == INVALID_HANDLE_VALUE) {
+static uint64_t c0_file_length_handle(cursive_rt_handle_t handle) {
+  cursive_rt_file_offset_t size;
+  size.quad_part = 0;
+  if (!handle || handle == CURSIVE_RT_INVALID_HANDLE) {
     return 0;
   }
-  if (!GetFileSizeEx(handle, &size) || size.QuadPart < 0) {
+  if (!cursive_rt_file_size(handle, &size) || size.quad_part < 0) {
     return 0;
   }
-  return (uint64_t)size.QuadPart;
+  return (uint64_t)size.quad_part;
 }
 
 static C0TrackedFile* c0_find_tracked_file_locked(uint64_t id) {
@@ -465,7 +116,7 @@ static C0TrackedFile* c0_find_tracked_file_locked(uint64_t id) {
   return NULL;
 }
 
-static uint64_t c0_track_file_handle(HANDLE handle,
+static uint64_t c0_track_file_handle(cursive_rt_handle_t handle,
                                      C0TrackedFileStateTag state,
                                      uint64_t position,
                                      uint64_t length) {
@@ -475,7 +126,7 @@ static uint64_t c0_track_file_handle(HANDLE handle,
     return 0;
   }
 
-  AcquireSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_lock_exclusive(&g_c0_io_registry_lock);
   tracked->id = c0_next_tracked_id(&g_c0_next_file_id);
   tracked->handle = handle;
   tracked->position = position;
@@ -484,7 +135,7 @@ static uint64_t c0_track_file_handle(HANDLE handle,
   tracked->flushed = 0;
   tracked->next = g_c0_tracked_files;
   g_c0_tracked_files = tracked;
-  ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
   return tracked->id;
 }
 
@@ -533,12 +184,12 @@ static uint64_t c0_track_dir_iter_state(C0DirIterState* state) {
     return 0;
   }
 
-  AcquireSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_lock_exclusive(&g_c0_io_registry_lock);
   tracked->id = c0_next_tracked_id(&g_c0_next_dir_iter_id);
   tracked->state = state;
   tracked->next = g_c0_tracked_dir_iters;
   g_c0_tracked_dir_iters = tracked;
-  ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
   return tracked->id;
 }
 
@@ -550,7 +201,7 @@ static C0TrackedFile* c0_require_open_file_locked(uint64_t id) {
   if (tracked->state == (uint8_t)C0_TRACKED_FILE_CLOSED) {
     return NULL;
   }
-  if (!tracked->handle || tracked->handle == INVALID_HANDLE_VALUE) {
+  if (!tracked->handle || tracked->handle == CURSIVE_RT_INVALID_HANDLE) {
     return NULL;
   }
   return tracked;
@@ -568,14 +219,14 @@ static int c0_close_tracked_file_locked(uint64_t id, C0IoError* out_err) {
     return 0;
   }
 
-  HANDLE handle = tracked->handle;
-  tracked->handle = INVALID_HANDLE_VALUE;
+  cursive_rt_handle_t handle = tracked->handle;
+  tracked->handle = CURSIVE_RT_INVALID_HANDLE;
   tracked->state = (uint8_t)C0_TRACKED_FILE_CLOSED;
   tracked->flushed = 0;
-  if (!handle || handle == INVALID_HANDLE_VALUE) {
+  if (!handle || handle == CURSIVE_RT_INVALID_HANDLE) {
     return 0;
   }
-  if (!CloseHandle(handle)) {
+  if (!cursive_rt_handle_release(handle)) {
     if (out_err) {
       *out_err = c0_last_io_error();
     }
@@ -628,6 +279,48 @@ static uint8_t* c0_ascii_casefold_utf8_from_wide(const wchar_t* text,
   return folded;
 }
 
+static UChar* c0_wide_to_uchar(const wchar_t* text,
+                               uint32_t len,
+                               int32_t* out_len) {
+  UErrorCode status = U_ZERO_ERROR;
+  int32_t converted_len = 0;
+  UChar* converted = NULL;
+
+  if (out_len) {
+    *out_len = 0;
+  }
+  if (!text) {
+    return NULL;
+  }
+
+  u_strFromWCS(NULL, 0, &converted_len, text, (int32_t)len, &status);
+  if (status != U_BUFFER_OVERFLOW_ERROR && U_FAILURE(status)) {
+    return NULL;
+  }
+
+  converted = (UChar*)c0_heap_alloc_raw(sizeof(UChar) * (size_t)(converted_len + 1));
+  if (!converted) {
+    return NULL;
+  }
+
+  status = U_ZERO_ERROR;
+  u_strFromWCS(converted,
+               converted_len + 1,
+               &converted_len,
+               text,
+               (int32_t)len,
+               &status);
+  if (U_FAILURE(status)) {
+    c0_heap_free_raw(converted);
+    return NULL;
+  }
+  converted[converted_len] = 0;
+  if (out_len) {
+    *out_len = converted_len;
+  }
+  return converted;
+}
+
 static int c0_fs_resolve_path(const C0FsState* fs,
                               const C0StringView* path,
                               uint8_t** out_utf8,
@@ -655,27 +348,28 @@ static int c0_fs_resolve_path(const C0FsState* fs,
     if (!fs->valid) {
       return 0;
     }
-    if (c0_path_is_abs(path->data, path->len)) {
+    if (cursive_rt_path_is_absolute_utf8(path->data, path->len)) {
       return 0;
     }
     uint32_t joined_len = 0;
-    uint8_t* joined = c0_path_join(fs->base_utf8, fs->base_len,
-                                   path->data, path->len,
-                                   &joined_len);
+    uint8_t* joined = cursive_rt_path_join_utf8(fs->base_utf8, fs->base_len,
+                                                path->data, path->len,
+                                                &joined_len);
     if (!joined && (fs->base_len != 0 || path->len != 0)) {
       return 0;
     }
     uint32_t canon_len = 0;
-    uint8_t* canon = c0_path_canon(joined ? joined : path->data,
-                                   joined ? joined_len : path->len,
-                                   &canon_len);
+    uint8_t* canon = cursive_rt_path_canonicalize_utf8(
+        joined ? joined : path->data, joined ? joined_len : path->len,
+        &canon_len);
     if (joined) {
       c0_heap_free_raw(joined);
     }
     if (!canon) {
       return 0;
     }
-    if (!c0_path_prefix(canon, canon_len, fs->base_utf8, fs->base_len)) {
+    if (!cursive_rt_path_has_prefix_utf8(canon, canon_len, fs->base_utf8,
+                                         fs->base_len)) {
       c0_heap_free_raw(canon);
       return 0;
     }
@@ -689,7 +383,8 @@ static int c0_fs_resolve_path(const C0FsState* fs,
   }
 
   uint32_t canon_len = 0;
-  uint8_t* canon = c0_path_canon(path->data, path->len, &canon_len);
+  uint8_t* canon =
+      cursive_rt_path_canonicalize_utf8(path->data, path->len, &canon_len);
   if (!canon) {
     return 0;
   }
@@ -757,23 +452,23 @@ static C0Union_BytesManaged_IoError c0_bytes_io_err(C0IoError err) {
   out.payload.io_error = err;
   return out;
 }
-static C0Union_BytesManaged_IoError c0_read_all_bytes_handle(HANDLE handle) {
-  if (!handle || handle == INVALID_HANDLE_VALUE) {
+static C0Union_BytesManaged_IoError c0_read_all_bytes_handle(cursive_rt_handle_t handle) {
+  if (!handle || handle == CURSIVE_RT_INVALID_HANDLE) {
     return c0_bytes_io_err(C0_IO_FAILURE);
   }
 
-  LARGE_INTEGER size;
-  if (!GetFileSizeEx(handle, &size)) {
+  cursive_rt_file_offset_t size;
+  if (!cursive_rt_file_size(handle, &size)) {
     return c0_bytes_io_err(c0_last_io_error());
   }
-  if (size.QuadPart < 0) {
+  if (size.quad_part < 0) {
     return c0_bytes_io_err(C0_IO_FAILURE);
   }
-  if ((uint64_t)size.QuadPart > (uint64_t)SIZE_MAX) {
+  if ((uint64_t)size.quad_part > (uint64_t)SIZE_MAX) {
     return c0_bytes_io_err(C0_IO_FAILURE);
   }
 
-  uint64_t len = (uint64_t)size.QuadPart;
+  uint64_t len = (uint64_t)size.quad_part;
   if (len == 0) {
     C0Union_BytesManaged_IoError out;
     out.disc = 1;
@@ -790,9 +485,9 @@ static C0Union_BytesManaged_IoError c0_read_all_bytes_handle(HANDLE handle) {
 
   uint64_t total = 0;
   while (total < len) {
-    DWORD chunk = 0;
-    DWORD to_read = (DWORD)c0_min_u64(len - total, 0x7FFFFFFF);
-    if (!ReadFile(handle, data + total, to_read, &chunk, NULL)) {
+    cursive_rt_u32_t chunk = 0;
+    cursive_rt_u32_t to_read = (cursive_rt_u32_t)c0_min_u64(len - total, 0x7FFFFFFF);
+    if (!cursive_rt_handle_read(handle, data + total, to_read, &chunk)) {
       c0_free_managed_bytes(data);
       return c0_bytes_io_err(c0_last_io_error());
     }
@@ -815,7 +510,7 @@ static C0Union_BytesManaged_IoError c0_read_all_bytes_handle(HANDLE handle) {
   return out;
 }
 
-static C0Union_StringManaged_IoError c0_read_all_string_handle(HANDLE handle) {
+static C0Union_StringManaged_IoError c0_read_all_string_handle(cursive_rt_handle_t handle) {
   C0Union_BytesManaged_IoError bytes = c0_read_all_bytes_handle(handle);
   if (bytes.disc == 0) {
     return c0_string_io_err(bytes.payload.io_error);
@@ -844,17 +539,23 @@ C0Union_File_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fread(
   if (!c0_fs_resolve_path(fs, path, &canon, &canon_len)) {
     return c0_file_err(C0_IO_INVALID_PATH);
   }
-  wchar_t* wide = c0_path_utf8_to_wide(canon, canon_len, NULL);
+  wchar_t* wide = cursive_rt_path_utf8_to_native_wide(canon, canon_len, NULL);
   c0_heap_free_raw(canon);
   if (!wide) {
     return c0_file_err(C0_IO_INVALID_PATH);
   }
 
-  HANDLE h = CreateFileW(wide, GENERIC_READ,
-                         FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                         NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  cursive_rt_handle_t h = cursive_rt_file_open_path_wide(
+      wide,
+      CURSIVE_RT_FILE_ACCESS_READ,
+      CURSIVE_RT_FILE_SHARE_READ | CURSIVE_RT_FILE_SHARE_WRITE |
+          CURSIVE_RT_FILE_SHARE_DELETE,
+      NULL,
+      CURSIVE_RT_FILE_OPEN_EXISTING,
+      CURSIVE_RT_FILE_ATTRIBUTE_NORMAL,
+      NULL);
   c0_heap_free_raw(wide);
-  if (h == INVALID_HANDLE_VALUE) {
+  if (h == CURSIVE_RT_INVALID_HANDLE) {
     return c0_file_err(c0_last_io_error());
   }
 
@@ -864,7 +565,7 @@ C0Union_File_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fread(
                            0,
                            c0_file_length_handle(h));
   if (tracked_id == 0) {
-    CloseHandle(h);
+    cursive_rt_handle_release(h);
     return c0_file_err(C0_IO_FAILURE);
   }
 
@@ -885,17 +586,22 @@ C0Union_File_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fwrite(
   if (!c0_fs_resolve_path(fs, path, &canon, &canon_len)) {
     return c0_file_err(C0_IO_INVALID_PATH);
   }
-  wchar_t* wide = c0_path_utf8_to_wide(canon, canon_len, NULL);
+  wchar_t* wide = cursive_rt_path_utf8_to_native_wide(canon, canon_len, NULL);
   c0_heap_free_raw(canon);
   if (!wide) {
     return c0_file_err(C0_IO_INVALID_PATH);
   }
 
-  HANDLE h = CreateFileW(wide, GENERIC_WRITE,
-                         FILE_SHARE_READ,
-                         NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  cursive_rt_handle_t h = cursive_rt_file_open_path_wide(
+      wide,
+      CURSIVE_RT_FILE_ACCESS_WRITE,
+      CURSIVE_RT_FILE_SHARE_READ,
+      NULL,
+      CURSIVE_RT_FILE_OPEN_EXISTING,
+      CURSIVE_RT_FILE_ATTRIBUTE_NORMAL,
+      NULL);
   c0_heap_free_raw(wide);
-  if (h == INVALID_HANDLE_VALUE) {
+  if (h == CURSIVE_RT_INVALID_HANDLE) {
     return c0_file_err(c0_last_io_error());
   }
 
@@ -905,7 +611,7 @@ C0Union_File_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fwrite(
                            0,
                            c0_file_length_handle(h));
   if (tracked_id == 0) {
-    CloseHandle(h);
+    cursive_rt_handle_release(h);
     return c0_file_err(C0_IO_FAILURE);
   }
 
@@ -926,24 +632,29 @@ C0Union_File_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fappend(
   if (!c0_fs_resolve_path(fs, path, &canon, &canon_len)) {
     return c0_file_err(C0_IO_INVALID_PATH);
   }
-  wchar_t* wide = c0_path_utf8_to_wide(canon, canon_len, NULL);
+  wchar_t* wide = cursive_rt_path_utf8_to_native_wide(canon, canon_len, NULL);
   c0_heap_free_raw(canon);
   if (!wide) {
     return c0_file_err(C0_IO_INVALID_PATH);
   }
 
-  HANDLE h = CreateFileW(wide, FILE_APPEND_DATA | GENERIC_WRITE,
-                         FILE_SHARE_READ,
-                         NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  cursive_rt_handle_t h = cursive_rt_file_open_path_wide(
+      wide,
+      CURSIVE_RT_FILE_ACCESS_APPEND | CURSIVE_RT_FILE_ACCESS_WRITE,
+      CURSIVE_RT_FILE_SHARE_READ,
+      NULL,
+      CURSIVE_RT_FILE_OPEN_EXISTING,
+      CURSIVE_RT_FILE_ATTRIBUTE_NORMAL,
+      NULL);
   c0_heap_free_raw(wide);
-  if (h == INVALID_HANDLE_VALUE) {
+  if (h == CURSIVE_RT_INVALID_HANDLE) {
     return c0_file_err(c0_last_io_error());
   }
-  LARGE_INTEGER eof;
-  eof.QuadPart = 0;
-  if (!SetFilePointerEx(h, eof, NULL, FILE_END)) {
+  cursive_rt_file_offset_t eof;
+  eof.quad_part = 0;
+  if (!cursive_rt_file_seek(h, eof, NULL, CURSIVE_RT_FILE_SEEK_END)) {
     C0IoError err = c0_last_io_error();
-    CloseHandle(h);
+    cursive_rt_handle_release(h);
     return c0_file_err(err);
   }
 
@@ -954,7 +665,7 @@ C0Union_File_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fappend(
                            length,
                            length);
   if (tracked_id == 0) {
-    CloseHandle(h);
+    cursive_rt_handle_release(h);
     return c0_file_err(C0_IO_FAILURE);
   }
 
@@ -975,17 +686,22 @@ C0Union_File_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3acreate_x5fwrite(
   if (!c0_fs_resolve_path(fs, path, &canon, &canon_len)) {
     return c0_file_err(C0_IO_INVALID_PATH);
   }
-  wchar_t* wide = c0_path_utf8_to_wide(canon, canon_len, NULL);
+  wchar_t* wide = cursive_rt_path_utf8_to_native_wide(canon, canon_len, NULL);
   c0_heap_free_raw(canon);
   if (!wide) {
     return c0_file_err(C0_IO_INVALID_PATH);
   }
 
-  HANDLE h = CreateFileW(wide, GENERIC_WRITE,
-                         FILE_SHARE_READ,
-                         NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+  cursive_rt_handle_t h = cursive_rt_file_open_path_wide(
+      wide,
+      CURSIVE_RT_FILE_ACCESS_WRITE,
+      CURSIVE_RT_FILE_SHARE_READ,
+      NULL,
+      CURSIVE_RT_FILE_OPEN_CREATE_NEW,
+      CURSIVE_RT_FILE_ATTRIBUTE_NORMAL,
+      NULL);
   c0_heap_free_raw(wide);
-  if (h == INVALID_HANDLE_VALUE) {
+  if (h == CURSIVE_RT_INVALID_HANDLE) {
     return c0_file_err(c0_last_io_error());
   }
 
@@ -995,7 +711,7 @@ C0Union_File_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3acreate_x5fwrite(
                            0,
                            0);
   if (tracked_id == 0) {
-    CloseHandle(h);
+    cursive_rt_handle_release(h);
     return c0_file_err(C0_IO_FAILURE);
   }
 
@@ -1061,18 +777,23 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3awrite_x5ffile(
     C0Union_Unit_IoError out = c0_unit_err(C0_IO_INVALID_PATH);
     return out;
   }
-  wchar_t* wide = c0_path_utf8_to_wide(canon, canon_len, NULL);
+  wchar_t* wide = cursive_rt_path_utf8_to_native_wide(canon, canon_len, NULL);
   c0_heap_free_raw(canon);
   if (!wide) {
     C0Union_Unit_IoError out = c0_unit_err(C0_IO_INVALID_PATH);
     return out;
   }
 
-  HANDLE h = CreateFileW(wide, GENERIC_WRITE,
-                         FILE_SHARE_READ,
-                         NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  cursive_rt_handle_t h = cursive_rt_file_open_path_wide(
+      wide,
+      CURSIVE_RT_FILE_ACCESS_WRITE,
+      CURSIVE_RT_FILE_SHARE_READ,
+      NULL,
+      CURSIVE_RT_FILE_OPEN_REPLACE_ALWAYS,
+      CURSIVE_RT_FILE_ATTRIBUTE_NORMAL,
+      NULL);
   c0_heap_free_raw(wide);
-  if (h == INVALID_HANDLE_VALUE) {
+  if (h == CURSIVE_RT_INVALID_HANDLE) {
     C0Union_Unit_IoError out = c0_unit_err(c0_last_io_error());
     return out;
   }
@@ -1080,10 +801,10 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3awrite_x5ffile(
   uint64_t len = data ? data->len : 0;
   uint64_t written = 0;
   while (written < len) {
-    DWORD chunk = 0;
-    DWORD to_write = (DWORD)c0_min_u64(len - written, 0x7FFFFFFF);
-    if (!WriteFile(h, data->data + written, to_write, &chunk, NULL)) {
-      CloseHandle(h);
+    cursive_rt_u32_t chunk = 0;
+    cursive_rt_u32_t to_write = (cursive_rt_u32_t)c0_min_u64(len - written, 0x7FFFFFFF);
+    if (!cursive_rt_handle_write(h, data->data + written, to_write, &chunk)) {
+      cursive_rt_handle_release(h);
       C0Union_Unit_IoError out = c0_unit_err(c0_last_io_error());
       return out;
     }
@@ -1093,7 +814,7 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3awrite_x5ffile(
     written += (uint64_t)chunk;
   }
 
-  CloseHandle(h);
+  cursive_rt_handle_release(h);
   if (written != len) {
     C0Union_Unit_IoError out = c0_unit_err(C0_IO_FAILURE);
     return out;
@@ -1104,55 +825,55 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3awrite_x5ffile(
   }
 }
 
-static HANDLE c0_open_console_out(void) {
-  return CreateFileW(L"CONOUT$",
-                     GENERIC_WRITE,
-                     FILE_SHARE_READ | FILE_SHARE_WRITE,
-                     NULL,
-                     OPEN_EXISTING,
-                     FILE_ATTRIBUTE_NORMAL,
-                     NULL);
+static cursive_rt_handle_t c0_open_console_out(void) {
+  return cursive_rt_file_open_path_wide(L"CONOUT$",
+                                        CURSIVE_RT_FILE_ACCESS_WRITE,
+                                        CURSIVE_RT_FILE_SHARE_READ |
+                                            CURSIVE_RT_FILE_SHARE_WRITE,
+                                        NULL,
+                                        CURSIVE_RT_FILE_OPEN_EXISTING,
+                                        CURSIVE_RT_FILE_ATTRIBUTE_NORMAL,
+                                        NULL);
 }
 
-static C0Union_Unit_IoError c0_write_stream_utf8(DWORD std_handle_id,
+static C0Union_Unit_IoError c0_write_stream_utf8(cursive_rt_u32_t std_handle_id,
                                                   const C0StringView* data) {
   uint64_t len = data ? data->len : 0;
-  HANDLE h = GetStdHandle(std_handle_id);
+  cursive_rt_handle_t h = cursive_rt_std_stream(std_handle_id);
   int close_handle = 0;
 
-  if (!h || h == INVALID_HANDLE_VALUE) {
+  if (!h || h == CURSIVE_RT_INVALID_HANDLE) {
     h = c0_open_console_out();
     close_handle = 1;
   }
-  if (!h || h == INVALID_HANDLE_VALUE) {
+  if (!h || h == CURSIVE_RT_INVALID_HANDLE) {
     return c0_unit_err(C0_IO_FAILURE);
   }
 
   uint64_t written = 0;
   while (written < len) {
-    DWORD chunk = 0;
-    DWORD to_write = (DWORD)c0_min_u64(len - written, 0x7FFFFFFF);
+    cursive_rt_u32_t chunk = 0;
+    cursive_rt_u32_t to_write = (cursive_rt_u32_t)c0_min_u64(len - written, 0x7FFFFFFF);
 
-    if (!WriteFile(h, data->data + written, to_write, &chunk, NULL)) {
-      DWORD mode = 0;
-      if (GetConsoleMode(h, &mode)) {
-        if (!WriteConsoleA(h,
-                           (LPCVOID)(data->data + written),
+    if (!cursive_rt_handle_write(h, data->data + written, to_write, &chunk)) {
+      cursive_rt_u32_t mode = 0;
+      if (cursive_rt_console_mode_get(h, &mode)) {
+        if (!cursive_rt_console_write_utf8(h,
+                           (const char*)(data->data + written),
                            to_write,
-                           &chunk,
-                           NULL)) {
-          DWORD err = GetLastError();
+                           &chunk)) {
+          cursive_rt_u32_t err = cursive_rt_last_error_get();
           if (close_handle) {
-            CloseHandle(h);
+            cursive_rt_handle_release(h);
           }
-          return c0_unit_err(c0_map_win_error(err));
+          return c0_unit_err(c0_map_platform_error(err));
         }
       } else {
-        DWORD err = GetLastError();
+        cursive_rt_u32_t err = cursive_rt_last_error_get();
         if (close_handle) {
-          CloseHandle(h);
+          cursive_rt_handle_release(h);
         }
-        return c0_unit_err(c0_map_win_error(err));
+        return c0_unit_err(c0_map_platform_error(err));
       }
     }
 
@@ -1163,7 +884,7 @@ static C0Union_Unit_IoError c0_write_stream_utf8(DWORD std_handle_id,
   }
 
   if (close_handle) {
-    CloseHandle(h);
+    cursive_rt_handle_release(h);
   }
 
   if (written != len) {
@@ -1178,7 +899,7 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3awrite_x5fstdout(
   SPEC_RULE("Prim-FS-WriteStdout");
   c0_trace_emit_rule("Prim-FS-WriteStdout");
   (void)self;
-  return c0_write_stream_utf8(STD_OUTPUT_HANDLE, data);
+  return c0_write_stream_utf8(CURSIVE_RT_STD_STREAM_OUTPUT, data);
 }
 
 C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3awrite_x5fstderr(
@@ -1187,7 +908,7 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3awrite_x5fstderr(
   SPEC_RULE("Prim-FS-WriteStderr");
   c0_trace_emit_rule("Prim-FS-WriteStderr");
   (void)self;
-  return c0_write_stream_utf8(STD_ERROR_HANDLE, data);
+  return c0_write_stream_utf8(CURSIVE_RT_STD_STREAM_ERROR, data);
 }
 
 
@@ -1202,14 +923,14 @@ uint8_t cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aexists(
   if (!c0_fs_resolve_path(fs, path, &canon, &canon_len)) {
     return 0;
   }
-  wchar_t* wide = c0_path_utf8_to_wide(canon, canon_len, NULL);
+  wchar_t* wide = cursive_rt_path_utf8_to_native_wide(canon, canon_len, NULL);
   c0_heap_free_raw(canon);
   if (!wide) {
     return 0;
   }
-  DWORD attrs = GetFileAttributesW(wide);
+  cursive_rt_u32_t attrs = cursive_rt_path_attributes_wide(wide);
   c0_heap_free_raw(wide);
-  if (attrs == INVALID_FILE_ATTRIBUTES) {
+  if (attrs == CURSIVE_RT_FILE_ATTRIBUTES_INVALID) {
     return 0;
   }
   return 1;
@@ -1226,21 +947,21 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aremove(
   if (!c0_fs_resolve_path(fs, path, &canon, &canon_len)) {
     return c0_unit_err(C0_IO_INVALID_PATH);
   }
-  wchar_t* wide = c0_path_utf8_to_wide(canon, canon_len, NULL);
+  wchar_t* wide = cursive_rt_path_utf8_to_native_wide(canon, canon_len, NULL);
   c0_heap_free_raw(canon);
   if (!wide) {
     return c0_unit_err(C0_IO_INVALID_PATH);
   }
-  DWORD attrs = GetFileAttributesW(wide);
-  if (attrs == INVALID_FILE_ATTRIBUTES) {
+  cursive_rt_u32_t attrs = cursive_rt_path_attributes_wide(wide);
+  if (attrs == CURSIVE_RT_FILE_ATTRIBUTES_INVALID) {
     c0_heap_free_raw(wide);
     return c0_unit_err(c0_last_io_error());
   }
-  BOOL ok = FALSE;
-  if (attrs & FILE_ATTRIBUTE_DIRECTORY) {
-    ok = RemoveDirectoryW(wide);
+  cursive_rt_bool_t ok = CURSIVE_RT_FALSE;
+  if (attrs & CURSIVE_RT_FILE_ATTRIBUTE_DIRECTORY) {
+    ok = cursive_rt_directory_remove_path_wide(wide);
   } else {
-    ok = DeleteFileW(wide);
+    ok = cursive_rt_file_remove_wide(wide);
   }
   if (!ok) {
     C0IoError err = c0_last_io_error();
@@ -1253,6 +974,8 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aremove(
 static uint8_t* c0_entry_key_utf8(const wchar_t* name,
                                   uint32_t name_len,
                                   uint32_t* out_len) {
+  int32_t name_utf16_len = 0;
+  UChar* name_utf16 = NULL;
   if (out_len) {
     *out_len = 0;
   }
@@ -1272,37 +995,43 @@ static uint8_t* c0_entry_key_utf8(const wchar_t* name,
     return c0_ascii_casefold_utf8_from_wide(name, name_len, out_len);
   }
 
-  _Static_assert(sizeof(wchar_t) == sizeof(UChar),
-                 "Windows wchar_t must match ICU UChar width");
-
+  cursive_rt_icu_data_configure();
   UErrorCode status = U_ZERO_ERROR;
   const UNormalizer2* nfc = unorm2_getNFCInstance(&status);
   if (U_FAILURE(status) || !nfc) {
     return NULL;
   }
 
+  name_utf16 = c0_wide_to_uchar(name, name_len, &name_utf16_len);
+  if (!name_utf16) {
+    return NULL;
+  }
+
   status = U_ZERO_ERROR;
   int32_t nfc_len = unorm2_normalize(nfc,
-                                     (const UChar*)name,
-                                     (int32_t)name_len,
+                                     name_utf16,
+                                     name_utf16_len,
                                      NULL,
                                      0,
                                      &status);
   if (status != U_BUFFER_OVERFLOW_ERROR && U_FAILURE(status)) {
+    c0_heap_free_raw(name_utf16);
     return NULL;
   }
   status = U_ZERO_ERROR;
   UChar* normalized =
       (UChar*)c0_heap_alloc_raw(sizeof(UChar) * (size_t)(nfc_len + 1));
   if (!normalized) {
+    c0_heap_free_raw(name_utf16);
     return NULL;
   }
   nfc_len = unorm2_normalize(nfc,
-                             (const UChar*)name,
-                             (int32_t)name_len,
+                             name_utf16,
+                             name_utf16_len,
                              normalized,
                              nfc_len + 1,
                              &status);
+  c0_heap_free_raw(name_utf16);
   if (U_FAILURE(status)) {
     c0_heap_free_raw(normalized);
     return NULL;
@@ -1430,20 +1159,21 @@ C0Union_DirIter_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fdir(
     return c0_dir_err(C0_IO_INVALID_PATH);
   }
   uint32_t wide_len = 0;
-  wchar_t* wide = c0_path_utf8_to_wide(canon, canon_len, &wide_len);
+  wchar_t* wide =
+      cursive_rt_path_utf8_to_native_wide(canon, canon_len, &wide_len);
   if (!wide) {
     c0_heap_free_raw(canon);
     return c0_dir_err(C0_IO_INVALID_PATH);
   }
 
-  DWORD attrs = GetFileAttributesW(wide);
-  if (attrs == INVALID_FILE_ATTRIBUTES) {
+  cursive_rt_u32_t attrs = cursive_rt_path_attributes_wide(wide);
+  if (attrs == CURSIVE_RT_FILE_ATTRIBUTES_INVALID) {
     C0IoError err = c0_last_io_error();
     c0_heap_free_raw(wide);
     c0_heap_free_raw(canon);
     return c0_dir_err(err);
   }
-  if ((attrs & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+  if ((attrs & CURSIVE_RT_FILE_ATTRIBUTE_DIRECTORY) == 0) {
     c0_heap_free_raw(wide);
     c0_heap_free_raw(canon);
     return c0_dir_err(C0_IO_INVALID_PATH);
@@ -1466,10 +1196,10 @@ C0Union_DirIter_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fdir(
     pattern[wide_len + 1] = 0;
   }
 
-  WIN32_FIND_DATAW data;
-  HANDLE find = FindFirstFileW(pattern, &data);
+  cursive_rt_find_data_t data;
+  cursive_rt_handle_t find = cursive_rt_directory_scan_first_wide(pattern, &data);
   c0_heap_free_raw(pattern);
-  if (find == INVALID_HANDLE_VALUE) {
+  if (find == CURSIVE_RT_INVALID_HANDLE) {
     C0IoError err = c0_last_io_error();
     c0_heap_free_raw(wide);
     c0_heap_free_raw(canon);
@@ -1480,14 +1210,14 @@ C0Union_DirIter_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fdir(
   uint32_t count = 0;
   DirEntryTmp* entries = (DirEntryTmp*)c0_heap_alloc_raw(sizeof(DirEntryTmp) * cap);
   if (!entries) {
-    FindClose(find);
+    cursive_rt_directory_scan_close(find);
     c0_heap_free_raw(wide);
     c0_heap_free_raw(canon);
     return c0_dir_err(C0_IO_FAILURE);
   }
 
   do {
-    const wchar_t* name = data.cFileName;
+    const wchar_t* name = data.file_name;
     if (name[0] == L'.' && name[1] == 0) {
       continue;
     }
@@ -1498,7 +1228,7 @@ C0Union_DirIter_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fdir(
     uint32_t name_len = (uint32_t)c0_wcslen(name);
     wchar_t* name_copy = (wchar_t*)c0_heap_alloc_raw(sizeof(wchar_t) * (name_len + 1));
     if (!name_copy) {
-      FindClose(find);
+      cursive_rt_directory_scan_close(find);
       for (uint32_t i = 0; i < count; ++i) {
         c0_heap_free_raw(entries[i].name_w);
         c0_heap_free_raw(entries[i].name_utf8);
@@ -1516,7 +1246,7 @@ C0Union_DirIter_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fdir(
     uint8_t* name_utf8 = c0_wide_to_utf8(name_copy, name_len, &name_utf8_len);
     if (!name_utf8) {
       c0_heap_free_raw(name_copy);
-      FindClose(find);
+      cursive_rt_directory_scan_close(find);
       for (uint32_t i = 0; i < count; ++i) {
         c0_heap_free_raw(entries[i].name_w);
         c0_heap_free_raw(entries[i].name_utf8);
@@ -1544,7 +1274,7 @@ C0Union_DirIter_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fdir(
         }
         c0_heap_free_raw(name_utf8);
         c0_heap_free_raw(name_copy);
-        FindClose(find);
+        cursive_rt_directory_scan_close(find);
         for (uint32_t i = 0; i < count; ++i) {
           c0_heap_free_raw(entries[i].name_w);
           c0_heap_free_raw(entries[i].name_utf8);
@@ -1569,13 +1299,13 @@ C0Union_DirIter_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fdir(
     entries[count].name_utf8_len = name_utf8_len;
     entries[count].key_utf8 = key_utf8;
     entries[count].key_utf8_len = key_utf8_len;
-    entries[count].kind = (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+    entries[count].kind = (data.file_attributes & CURSIVE_RT_FILE_ATTRIBUTE_DIRECTORY)
         ? C0_FILE_KIND_DIR
         : C0_FILE_KIND_FILE;
     ++count;
-  } while (FindNextFileW(find, &data));
+  } while (cursive_rt_directory_scan_next(find, &data));
 
-  FindClose(find);
+  cursive_rt_directory_scan_close(find);
 
   if (count > 1) {
     c0_sort_entries(entries, count);
@@ -1669,12 +1399,12 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3acreate_x5fdir(
   if (!c0_fs_resolve_path(fs, path, &canon, &canon_len)) {
     return c0_unit_err(C0_IO_INVALID_PATH);
   }
-  wchar_t* wide = c0_path_utf8_to_wide(canon, canon_len, NULL);
+  wchar_t* wide = cursive_rt_path_utf8_to_native_wide(canon, canon_len, NULL);
   c0_heap_free_raw(canon);
   if (!wide) {
     return c0_unit_err(C0_IO_INVALID_PATH);
   }
-  BOOL ok = CreateDirectoryW(wide, NULL);
+  cursive_rt_bool_t ok = cursive_rt_directory_create_path_wide(wide, NULL);
   if (!ok) {
     C0IoError err = c0_last_io_error();
     c0_heap_free_raw(wide);
@@ -1696,7 +1426,8 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aensure_x5fdir(
     return c0_unit_err(C0_IO_INVALID_PATH);
   }
   uint32_t wide_len = 0;
-  wchar_t* wide = c0_path_utf8_to_wide(canon, canon_len, &wide_len);
+  wchar_t* wide =
+      cursive_rt_path_utf8_to_native_wide(canon, canon_len, &wide_len);
   c0_heap_free_raw(canon);
   if (!wide) {
     return c0_unit_err(C0_IO_INVALID_PATH);
@@ -1707,9 +1438,9 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aensure_x5fdir(
     return c0_unit_err(C0_IO_INVALID_PATH);
   }
 
-  DWORD attrs = GetFileAttributesW(wide);
-  if (attrs != INVALID_FILE_ATTRIBUTES) {
-    if (attrs & FILE_ATTRIBUTE_DIRECTORY) {
+  cursive_rt_u32_t attrs = cursive_rt_path_attributes_wide(wide);
+  if (attrs != CURSIVE_RT_FILE_ATTRIBUTES_INVALID) {
+    if (attrs & CURSIVE_RT_FILE_ATTRIBUTE_DIRECTORY) {
       c0_heap_free_raw(wide);
       return c0_unit_ok();
     }
@@ -1752,18 +1483,18 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aensure_x5fdir(
       wchar_t saved = buf[i];
       buf[i] = 0;
       if (buf[0] != 0) {
-        if (!CreateDirectoryW(buf, NULL)) {
-          DWORD err = GetLastError();
-          if (err == ERROR_ALREADY_EXISTS) {
-            DWORD a = GetFileAttributesW(buf);
-            if (a == INVALID_FILE_ATTRIBUTES || !(a & FILE_ATTRIBUTE_DIRECTORY)) {
+        if (!cursive_rt_directory_create_path_wide(buf, NULL)) {
+          cursive_rt_u32_t err = cursive_rt_last_error_get();
+          if (err == CURSIVE_RT_ERROR_ALREADY_EXISTS) {
+            cursive_rt_u32_t a = cursive_rt_path_attributes_wide(buf);
+            if (a == CURSIVE_RT_FILE_ATTRIBUTES_INVALID || !(a & CURSIVE_RT_FILE_ATTRIBUTE_DIRECTORY)) {
               buf[i] = saved;
               c0_heap_free_raw(buf);
               c0_heap_free_raw(wide);
               return c0_unit_err(C0_IO_ALREADY_EXISTS);
             }
           } else {
-            C0IoError mapped = c0_map_win_error(err);
+            C0IoError mapped = c0_map_platform_error(err);
             buf[i] = saved;
             c0_heap_free_raw(buf);
             c0_heap_free_raw(wide);
@@ -1792,20 +1523,20 @@ C0Union_FileKind_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3akind(
     C0Union_FileKind_IoError out = c0_kind_err(C0_IO_INVALID_PATH);
     return out;
   }
-  wchar_t* wide = c0_path_utf8_to_wide(canon, canon_len, NULL);
+  wchar_t* wide = cursive_rt_path_utf8_to_native_wide(canon, canon_len, NULL);
   c0_heap_free_raw(canon);
   if (!wide) {
     C0Union_FileKind_IoError out = c0_kind_err(C0_IO_INVALID_PATH);
     return out;
   }
 
-  DWORD attrs = GetFileAttributesW(wide);
+  cursive_rt_u32_t attrs = cursive_rt_path_attributes_wide(wide);
   c0_heap_free_raw(wide);
-  if (attrs == INVALID_FILE_ATTRIBUTES) {
+  if (attrs == CURSIVE_RT_FILE_ATTRIBUTES_INVALID) {
     C0Union_FileKind_IoError out = c0_kind_err(c0_last_io_error());
     return out;
   }
-  if (attrs & FILE_ATTRIBUTE_DIRECTORY) {
+  if (attrs & CURSIVE_RT_FILE_ATTRIBUTE_DIRECTORY) {
     C0Union_FileKind_IoError out = c0_kind_ok(C0_FILE_KIND_DIR);
     return out;
   }
@@ -1854,17 +1585,17 @@ C0Union_StringManaged_IoError File_x3a_x3aRead_x3a_x3aread_x5fall(
   if (!self) {
     return c0_string_io_err(C0_IO_FAILURE);
   }
-  AcquireSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_lock_exclusive(&g_c0_io_registry_lock);
   C0TrackedFile* tracked = c0_require_open_file_locked(self->handle);
   if (!tracked) {
-    ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+    cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return c0_string_io_err(C0_IO_FAILURE);
   }
   C0Union_StringManaged_IoError out = c0_read_all_string_handle(tracked->handle);
   if (out.disc == 1) {
     tracked->position = tracked->length;
   }
-  ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
   return out;
 }
 
@@ -1875,39 +1606,39 @@ C0Union_BytesManaged_IoError File_x3a_x3aRead_x3a_x3aread_x5fall_x5fbytes(
   if (!self) {
     return c0_bytes_io_err(C0_IO_FAILURE);
   }
-  AcquireSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_lock_exclusive(&g_c0_io_registry_lock);
   C0TrackedFile* tracked = c0_require_open_file_locked(self->handle);
   if (!tracked) {
-    ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+    cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return c0_bytes_io_err(C0_IO_FAILURE);
   }
   C0Union_BytesManaged_IoError out = c0_read_all_bytes_handle(tracked->handle);
   if (out.disc == 1) {
     tracked->position = tracked->length;
   }
-  ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
   return out;
 }
 
 void File_x3a_x3aRead_x3a_x3aclose(C0FileHandle self) {
   SPEC_RULE("Prim-File-Close-Read");
   c0_trace_emit_rule("Prim-File-Close-Read");
-  AcquireSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_lock_exclusive(&g_c0_io_registry_lock);
   (void)c0_close_tracked_file_locked(self.handle, NULL);
-  ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
 }
 
-static C0Union_Unit_IoError c0_file_write_handle(HANDLE h,
+static C0Union_Unit_IoError c0_file_write_handle(cursive_rt_handle_t h,
                                                  const C0BytesView* data) {
-  if (!h || h == INVALID_HANDLE_VALUE) {
+  if (!h || h == CURSIVE_RT_INVALID_HANDLE) {
     return c0_unit_err(C0_IO_FAILURE);
   }
   uint64_t len = data ? data->len : 0;
   uint64_t written = 0;
   while (written < len) {
-    DWORD chunk = 0;
-    DWORD to_write = (DWORD)c0_min_u64(len - written, 0x7FFFFFFF);
-    if (!WriteFile(h, data->data + written, to_write, &chunk, NULL)) {
+    cursive_rt_u32_t chunk = 0;
+    cursive_rt_u32_t to_write = (cursive_rt_u32_t)c0_min_u64(len - written, 0x7FFFFFFF);
+    if (!cursive_rt_handle_write(h, data->data + written, to_write, &chunk)) {
       return c0_unit_err(c0_last_io_error());
     }
     if (chunk == 0) {
@@ -1929,10 +1660,10 @@ C0Union_Unit_IoError File_x3a_x3aWrite_x3a_x3awrite(
   if (!self) {
     return c0_unit_err(C0_IO_FAILURE);
   }
-  AcquireSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_lock_exclusive(&g_c0_io_registry_lock);
   C0TrackedFile* tracked = c0_require_open_file_locked(self->handle);
   if (!tracked) {
-    ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+    cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return c0_unit_err(C0_IO_FAILURE);
   }
   C0Union_Unit_IoError out = c0_file_write_handle(tracked->handle, data);
@@ -1945,7 +1676,7 @@ C0Union_Unit_IoError File_x3a_x3aWrite_x3a_x3awrite(
     }
     tracked->flushed = 0;
   }
-  ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
   return out;
 }
 
@@ -1956,28 +1687,28 @@ C0Union_Unit_IoError File_x3a_x3aWrite_x3a_x3aflush(
   if (!self) {
     return c0_unit_err(C0_IO_FAILURE);
   }
-  AcquireSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_lock_exclusive(&g_c0_io_registry_lock);
   C0TrackedFile* tracked = c0_require_open_file_locked(self->handle);
   if (!tracked) {
-    ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+    cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return c0_unit_err(C0_IO_FAILURE);
   }
-  if (!FlushFileBuffers(tracked->handle)) {
+  if (!cursive_rt_file_sync(tracked->handle)) {
     C0Union_Unit_IoError out = c0_unit_err(c0_last_io_error());
-    ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+    cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return out;
   }
   tracked->flushed = 1;
-  ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
   return c0_unit_ok();
 }
 
 void File_x3a_x3aWrite_x3a_x3aclose(C0FileHandle self) {
   SPEC_RULE("Prim-File-Close-Write");
   c0_trace_emit_rule("Prim-File-Close-Write");
-  AcquireSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_lock_exclusive(&g_c0_io_registry_lock);
   (void)c0_close_tracked_file_locked(self.handle, NULL);
-  ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
 }
 
 C0Union_Unit_IoError File_x3a_x3aAppend_x3a_x3awrite(
@@ -1988,10 +1719,10 @@ C0Union_Unit_IoError File_x3a_x3aAppend_x3a_x3awrite(
   if (!self) {
     return c0_unit_err(C0_IO_FAILURE);
   }
-  AcquireSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_lock_exclusive(&g_c0_io_registry_lock);
   C0TrackedFile* tracked = c0_require_open_file_locked(self->handle);
   if (!tracked) {
-    ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+    cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return c0_unit_err(C0_IO_FAILURE);
   }
   C0Union_Unit_IoError out = c0_file_write_handle(tracked->handle, data);
@@ -2002,7 +1733,7 @@ C0Union_Unit_IoError File_x3a_x3aAppend_x3a_x3awrite(
     tracked->length = new_pos;
     tracked->flushed = 0;
   }
-  ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
   return out;
 }
 
@@ -2013,28 +1744,28 @@ C0Union_Unit_IoError File_x3a_x3aAppend_x3a_x3aflush(
   if (!self) {
     return c0_unit_err(C0_IO_FAILURE);
   }
-  AcquireSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_lock_exclusive(&g_c0_io_registry_lock);
   C0TrackedFile* tracked = c0_require_open_file_locked(self->handle);
   if (!tracked) {
-    ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+    cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return c0_unit_err(C0_IO_FAILURE);
   }
-  if (!FlushFileBuffers(tracked->handle)) {
+  if (!cursive_rt_file_sync(tracked->handle)) {
     C0Union_Unit_IoError out = c0_unit_err(c0_last_io_error());
-    ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+    cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return out;
   }
   tracked->flushed = 1;
-  ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
   return c0_unit_ok();
 }
 
 void File_x3a_x3aAppend_x3a_x3aclose(C0FileHandle self) {
   SPEC_RULE("Prim-File-Close-Append");
   c0_trace_emit_rule("Prim-File-Close-Append");
-  AcquireSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_lock_exclusive(&g_c0_io_registry_lock);
   (void)c0_close_tracked_file_locked(self.handle, NULL);
-  ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
 }
 C0Union_DirEntry_Unit_IoError DirIter_x3a_x3aOpen_x3a_x3anext(
     C0DirIterHandle* self) {
@@ -2046,19 +1777,19 @@ C0Union_DirEntry_Unit_IoError DirIter_x3a_x3aOpen_x3a_x3anext(
     out.payload.io_error = C0_IO_FAILURE;
     return out;
   }
-  AcquireSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_lock_exclusive(&g_c0_io_registry_lock);
   C0TrackedDirIter* tracked = c0_require_open_dir_iter_locked(self->handle);
   if (!tracked) {
     out.disc = 2;
     out.payload.io_error = C0_IO_FAILURE;
-    ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+    cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return out;
   }
   C0DirIterState* state = tracked->state;
   if (state->index >= state->count) {
     out.disc = 0;
     out.payload.io_error = 0;
-    ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+    cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return out;
   }
 
@@ -2070,20 +1801,21 @@ C0Union_DirEntry_Unit_IoError DirIter_x3a_x3aOpen_x3a_x3anext(
   if (!name_utf8 && name_w_len != 0) {
     out.disc = 2;
     out.payload.io_error = C0_IO_FAILURE;
-    ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+    cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return out;
   }
 
   uint32_t path_len = 0;
-  uint8_t* path_utf8 = c0_path_join(state->base_utf8, state->base_utf8_len,
-                                    name_utf8, name_utf8_len, &path_len);
+  uint8_t* path_utf8 = cursive_rt_path_join_utf8(
+      state->base_utf8, state->base_utf8_len, name_utf8, name_utf8_len,
+      &path_len);
   if (!path_utf8 && (state->base_utf8_len != 0 || name_utf8_len != 0)) {
     if (name_utf8) {
       c0_heap_free_raw(name_utf8);
     }
     out.disc = 2;
     out.payload.io_error = C0_IO_FAILURE;
-    ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+    cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return out;
   }
 
@@ -2103,7 +1835,7 @@ C0Union_DirEntry_Unit_IoError DirIter_x3a_x3aOpen_x3a_x3anext(
     }
     out.disc = 2;
     out.payload.io_error = C0_IO_FAILURE;
-    ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return out;
   }
 
@@ -2126,7 +1858,7 @@ C0Union_DirEntry_Unit_IoError DirIter_x3a_x3aOpen_x3a_x3anext(
     }
     out.disc = 2;
     out.payload.io_error = C0_IO_FAILURE;
-    ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return out;
   }
 
@@ -2157,19 +1889,19 @@ C0Union_DirEntry_Unit_IoError DirIter_x3a_x3aOpen_x3a_x3anext(
 
   out.disc = 1;
   out.payload.entry = entry;
-  ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
   return out;
 }
 
 void DirIter_x3a_x3aOpen_x3a_x3aclose(C0DirIterHandle self) {
   SPEC_RULE("Prim-Dir-Close");
   c0_trace_emit_rule("Prim-Dir-Close");
-  AcquireSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_lock_exclusive(&g_c0_io_registry_lock);
   C0TrackedDirIter* tracked = c0_find_tracked_dir_iter_locked(self.handle);
   if (tracked && tracked->state) {
     C0DirIterState* state = tracked->state;
     tracked->state = NULL;
     c0_free_dir_state(state);
   }
-  ReleaseSRWLockExclusive(&g_c0_io_registry_lock);
+  cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
 }

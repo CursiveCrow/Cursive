@@ -67,8 +67,8 @@
 //     [spec EscapeOk predicates at lines 2206-2208]
 //
 // 11. FirstBadEscape() (lines 227-244)
-//     Implements spec FirstBadEscape from line 2311:
-//     Find first invalid escape sequence in literal
+//     Shared scanner used for spec FirstBadStringEscape / FirstBadCharEscape:
+//     Find first invalid escape sequence in a terminated quoted literal
 //
 // 12. CharScalarCount() (lines 246-267)
 //     Implements spec CharScalarCount from line 2341:
@@ -83,11 +83,11 @@
 //
 // 15. MatchIntSuffix() (lines 312-326)
 //     Implements spec IntSuffixSet from line 2217:
-//     {i8, i16, i32, i64, i128, u8, u16, u32, u64, u128}
+//     {i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, isize, usize}
 //
 // 16. MatchFloatSuffix() (lines 328-350)
 //     Implements spec FloatSuffixSet from line 2218:
-//     {f16, f32, f64}
+//     {f, f16, f32, f64}
 //
 // 17. SpanOfText(), LexemeSlice() (lines 352-371)
 //     Utility functions for span/lexeme extraction
@@ -126,7 +126,7 @@
 //     Special case: "1.." (range) NOT float - check T[p+1] != '.'
 //
 // 21. ScanStringLiteral() (lines 557-593)
-//     Implements spec (Lex-String) from lines 2300-2303
+//     Implements spec (Lex-String) for terminated quoted spans.
 //
 //     Related rules:
 //     - (Lex-String-Unterminated) line 2313-2316
@@ -137,7 +137,7 @@
 //     - E-SRC-0302 for bad escape
 //
 // 22. ScanCharLiteral() (lines 595-638)
-//     Implements spec (Lex-Char) from lines 2323-2326
+//     Implements spec (Lex-Char) for terminated quoted spans.
 //
 //     Related rules:
 //     - (Lex-Char-Unterminated) line 2343-2346
@@ -157,11 +157,11 @@
 // hex_integer      ::= "0x" hex_digit ("_"* hex_digit)*
 // octal_integer    ::= "0o" oct_digit ("_"* oct_digit)*
 // binary_integer   ::= "0b" bin_digit ("_"* bin_digit)*
-// int_suffix       ::= "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128"
+// int_suffix       ::= "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" | "isize" | "usize"
 //
 // float_literal ::= decimal_integer "." decimal_integer? exponent? float_suffix?
 // exponent      ::= ("e" | "E") ("+" | "-")? decimal_integer
-// float_suffix  ::= "f16" | "f32" | "f64"
+// float_suffix  ::= "f" | "f16" | "f32" | "f64"
 //
 // string_literal   ::= '"' (string_char | escape_sequence)* '"'
 // char_literal     ::= "'" (char_content | escape_sequence) "'"
@@ -194,6 +194,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -237,20 +238,61 @@ bool IsBinDigit(UnicodeScalar c) {
 }
 
 bool IsUnicodeScalarValue(std::uint32_t value) {
-  if (value > 0x10FFFF) {
-    return false;
+  return UnicodeScalar::IsValue(value);
+}
+
+unsigned int DecDigitValue(UnicodeScalar c) {
+  return static_cast<unsigned int>(c - '0');
+}
+
+unsigned int OctDigitValue(UnicodeScalar c) {
+  return static_cast<unsigned int>(c - '0');
+}
+
+unsigned int BinDigitValue(UnicodeScalar c) {
+  return static_cast<unsigned int>(c - '0');
+}
+
+std::uint64_t DecValue(std::span<const UnicodeScalar> digits) {
+  std::uint64_t value = 0;
+  for (UnicodeScalar digit : digits) {
+    value = (value * 10u) + DecDigitValue(digit);
   }
-  return !(value >= 0xD800 && value <= 0xDFFF);
+  return value;
+}
+
+std::uint64_t OctValue(std::span<const UnicodeScalar> digits) {
+  std::uint64_t value = 0;
+  for (UnicodeScalar digit : digits) {
+    value = (value * 8u) + OctDigitValue(digit);
+  }
+  return value;
+}
+
+std::uint64_t BinValue(std::span<const UnicodeScalar> digits) {
+  std::uint64_t value = 0;
+  for (UnicodeScalar digit : digits) {
+    value = (value * 2u) + BinDigitValue(digit);
+  }
+  return value;
 }
 
 unsigned int HexValue(UnicodeScalar c) {
   if (c >= '0' && c <= '9') {
-    return static_cast<unsigned int>(c - '0');
+    return DecDigitValue(c);
   }
   if (c >= 'a' && c <= 'f') {
     return 10u + static_cast<unsigned int>(c - 'a');
   }
   return 10u + static_cast<unsigned int>(c - 'A');
+}
+
+std::uint64_t HexValue(std::span<const UnicodeScalar> digits) {
+  std::uint64_t value = 0;
+  for (UnicodeScalar digit : digits) {
+    value = (value << 4) | HexValue(digit);
+  }
+  return value;
 }
 
 bool StartsWith(std::string_view s, std::string_view prefix) {
@@ -262,48 +304,89 @@ bool EndsWith(std::string_view s, std::string_view suffix) {
          s.substr(s.size() - suffix.size()) == suffix;
 }
 
+char At(std::string_view s, std::size_t i) {
+  return s[i];
+}
+
+std::string Remove(std::string_view s, char c) {
+  std::string out;
+  out.reserve(s.size());
+  for (char x : s) {
+    if (x != c) {
+      out.push_back(x);
+    }
+  }
+  return out;
+}
+
+std::string ConcatSuffix(
+    std::initializer_list<std::string_view> parts,
+    std::initializer_list<std::string_view>::const_iterator first) {
+  auto next = first;
+  ++next;
+  if (next == parts.end()) {
+    return std::string(*first);
+  }
+  return std::string(*first) + ConcatSuffix(parts, next);
+}
+
+std::string Concat(std::initializer_list<std::string_view> parts) {
+  if (parts.size() == 0) {
+    return std::string();
+  }
+  if (parts.size() == 1) {
+    return std::string(*parts.begin());
+  }
+  auto tail = parts.begin();
+  ++tail;
+  return std::string(*parts.begin()) + ConcatSuffix(parts, tail);
+}
+
+constexpr std::string_view kIntSuffixes[] = {
+    "isize", "usize", "i128", "u128", "i64", "u64",
+    "i32",   "u32",   "i16",  "u16",  "i8",  "u8",
+};
+
+constexpr std::string_view kFloatSuffixes[] = {
+    "f16",
+    "f32",
+    "f64",
+    "f",
+};
+
 bool NumericUnderscoreOk(std::string_view s) {
   if (s.empty()) {
     return true;
   }
-  if (s.front() == '_' || s.back() == '_') {
+  if (At(s, 0) == '_' || At(s, s.size() - 1) == '_') {
     return false;
   }
-  if (StartsWith(s, "0x_") || StartsWith(s, "0o_") || StartsWith(s, "0b_")) {
+  if (StartsWith(s, Concat({"0x", "_"})) ||
+      StartsWith(s, Concat({"0o", "_"})) ||
+      StartsWith(s, Concat({"0b", "_"}))) {
     return false;
   }
 
   for (std::size_t i = 0; i < s.size(); ++i) {
-    if (s[i] != '_') {
+    if (At(s, i) != '_') {
       continue;
     }
-    if (i > 0 && (s[i - 1] == 'e' || s[i - 1] == 'E')) {
+    if (i > 0 && (At(s, i - 1) == 'e' || At(s, i - 1) == 'E')) {
       return false;
     }
-    if (i + 1 < s.size() && (s[i + 1] == 'e' || s[i + 1] == 'E')) {
+    if (i + 1 < s.size() &&
+        (At(s, i + 1) == 'e' || At(s, i + 1) == 'E')) {
       return false;
     }
   }
 
-  static constexpr std::string_view kIntSuffixes[] = {
-      "i8",   "i16",  "i32",  "i64",  "i128",
-      "u8",   "u16",  "u32",  "u64",  "u128",
-  };
-  static constexpr std::string_view kFloatSuffixes[] = {
-      "f16",
-      "f32",
-      "f64",
-  };
-
   for (std::string_view suf : kIntSuffixes) {
-    if (s.size() > suf.size() + 1 &&
-        s[s.size() - suf.size() - 1] == '_' && EndsWith(s, suf)) {
+    if (s.size() > suf.size() + 1 && EndsWith(s, Concat({"_", suf}))) {
       return false;
     }
   }
   for (std::string_view suf : kFloatSuffixes) {
-    if (s.size() > suf.size() + 1 &&
-        s[s.size() - suf.size() - 1] == '_' && EndsWith(s, suf)) {
+    if (s.size() > suf.size() + 1 && EndsWith(s, Concat({"_", suf}))) {
       return false;
     }
   }
@@ -312,14 +395,8 @@ bool NumericUnderscoreOk(std::string_view s) {
 }
 
 bool DecimalLeadingZero(std::string_view s) {
-  std::string digits;
-  digits.reserve(s.size());
-  for (char c : s) {
-    if (c != '_') {
-      digits.push_back(c);
-    }
-  }
-  return digits.size() > 1 && digits.front() == '0';
+  const std::string digits = Remove(s, '_');
+  return digits.size() > 1 && At(digits, 0) == '0';
 }
 
 DigitScanResult ScanDigits(const std::vector<UnicodeScalar>& scalars,
@@ -367,6 +444,34 @@ std::size_t ScanRunWithUnderscore(const std::vector<UnicodeScalar>& scalars,
   return p;
 }
 
+bool HasDot(const std::vector<UnicodeScalar>& scalars,
+            std::size_t start,
+            std::size_t end) {
+  for (std::size_t p = start; p < end; ++p) {
+    if (scalars[p] == '.') {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool HasExp(const std::vector<UnicodeScalar>& scalars,
+            std::size_t start,
+            std::size_t end) {
+  for (std::size_t p = start; p < end; ++p) {
+    if (scalars[p] == 'e' || scalars[p] == 'E') {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool HasFloatCore(const std::vector<UnicodeScalar>& scalars,
+                  std::size_t start,
+                  std::size_t end) {
+  return HasDot(scalars, start, end);
+}
+
 std::size_t ScanExponentTail(const std::vector<UnicodeScalar>& scalars,
                              std::size_t exp_marker) {
   if (exp_marker >= scalars.size() ||
@@ -397,24 +502,29 @@ bool IsBinDigitChar(char c) {
 }
 
 bool MatchDigitRunChars(std::string_view s, bool (*pred)(char)) {
+  if (s.empty()) {
+    return false;
+  }
   bool saw_digit = false;
+  bool last_was_underscore = false;
   for (char c : s) {
     if (c == '_') {
+      if (!saw_digit) {
+        return false;
+      }
+      last_was_underscore = true;
       continue;
     }
     if (!pred(c)) {
       return false;
     }
     saw_digit = true;
+    last_was_underscore = false;
   }
-  return saw_digit;
+  return saw_digit && !last_was_underscore;
 }
 
 std::optional<std::string_view> MatchIntSuffixLexeme(std::string_view lexeme) {
-  static constexpr std::string_view kIntSuffixes[] = {
-      "i8",   "i16",  "i32",  "i64",  "i128",
-      "u8",   "u16",  "u32",  "u64",  "u128",
-  };
   for (std::string_view suffix : kIntSuffixes) {
     if (lexeme.size() <= suffix.size()) {
       continue;
@@ -453,6 +563,54 @@ bool MatchesDecimalIntegerLexeme(std::string_view lexeme) {
   return MatchDigitRunChars(lexeme, IsDecDigitChar);
 }
 
+bool MatchesExponentLexeme(std::string_view lexeme) {
+  if (lexeme.empty()) {
+    return false;
+  }
+  if (lexeme.front() == '+' || lexeme.front() == '-') {
+    lexeme.remove_prefix(1);
+  }
+  return !lexeme.empty() && MatchesDecimalIntegerLexeme(lexeme);
+}
+
+bool MatchesFloatCoreLexeme(std::string_view lexeme) {
+  const std::size_t dot = lexeme.find('.');
+  if (dot == std::string_view::npos) {
+    return false;
+  }
+
+  const std::string_view int_part = lexeme.substr(0, dot);
+  if (!MatchesDecimalIntegerLexeme(int_part)) {
+    return false;
+  }
+
+  const std::string_view after_dot = lexeme.substr(dot + 1);
+  const std::size_t exp_pos = after_dot.find_first_of("eE");
+  const std::string_view frac_part =
+      exp_pos == std::string_view::npos ? after_dot : after_dot.substr(0, exp_pos);
+  if (!frac_part.empty() && !MatchesDecimalIntegerLexeme(frac_part)) {
+    return false;
+  }
+
+  if (exp_pos == std::string_view::npos) {
+    return true;
+  }
+  return MatchesExponentLexeme(after_dot.substr(exp_pos + 1));
+}
+
+bool MatchesFloatLiteralLexeme(std::string_view lexeme) {
+  for (std::string_view suffix : kFloatSuffixes) {
+    if (lexeme.size() <= suffix.size() || !EndsWith(lexeme, suffix)) {
+      continue;
+    }
+    if (MatchesFloatCoreLexeme(
+            lexeme.substr(0, lexeme.size() - suffix.size()))) {
+      return true;
+    }
+  }
+  return MatchesFloatCoreLexeme(lexeme);
+}
+
 std::optional<std::size_t> ScanEscapeMatch(
     const std::vector<UnicodeScalar>& scalars,
     std::size_t start) {
@@ -482,25 +640,23 @@ std::optional<std::size_t> ScanEscapeMatch(
       if (start + 2 >= scalars.size() || scalars[start + 2] != '{') {
         return std::nullopt;
       }
-      std::size_t p = start + 3;
-      std::uint64_t value = 0;
-      bool out_of_range = false;
-      std::size_t digits = 0;
+      const std::size_t digits_start = start + 3;
+      std::size_t p = digits_start;
       while (p < scalars.size() && IsHexDigit(scalars[p])) {
-        value = (value << 4) | HexValue(scalars[p]);
-        if (value > 0x10FFFFu) {
-          out_of_range = true;
-        }
-        ++digits;
         ++p;
       }
+      const std::size_t digits = p - digits_start;
       if (digits == 0) {
         return std::nullopt;
       }
       if (p >= scalars.size() || scalars[p] != '}') {
         return std::nullopt;
       }
-      if (out_of_range || !IsUnicodeScalarValue(static_cast<std::uint32_t>(value))) {
+      const auto hex_digits =
+          std::span<const UnicodeScalar>(scalars.data() + digits_start, digits);
+      const std::uint64_t value = HexValue(hex_digits);
+      if (value > 0x10FFFFu ||
+          !IsUnicodeScalarValue(static_cast<std::uint32_t>(value))) {
         return std::nullopt;
       }
       return p + 1;
@@ -595,35 +751,27 @@ std::size_t MatchSuffix(const std::vector<UnicodeScalar>& scalars,
   return suffix.size();
 }
 
-std::size_t MatchIntSuffix(const std::vector<UnicodeScalar>& scalars,
-                           std::size_t start) {
-  static constexpr std::string_view kIntSuffixes[] = {
-      "i8",   "i16",  "i32",  "i64",  "i128",
-      "u8",   "u16",  "u32",  "u64",  "u128",
-  };
-  for (std::string_view suf : kIntSuffixes) {
-    const std::size_t len = MatchSuffix(scalars, start, suf);
-    if (len > 0) {
-      return len;
+std::size_t SuffixMatch(const std::vector<UnicodeScalar>& scalars,
+                        std::size_t start,
+                        std::span<const std::string_view> suffixes) {
+  std::size_t longest = 0;
+  for (std::string_view suffix : suffixes) {
+    const std::size_t len = MatchSuffix(scalars, start, suffix);
+    if (len > longest) {
+      longest = len;
     }
   }
-  return 0;
+  return longest;
+}
+
+std::size_t MatchIntSuffix(const std::vector<UnicodeScalar>& scalars,
+                           std::size_t start) {
+  return SuffixMatch(scalars, start, kIntSuffixes);
 }
 
 std::size_t MatchFloatSuffix(const std::vector<UnicodeScalar>& scalars,
                              std::size_t start) {
-  static constexpr std::string_view kFloatSuffixes[] = {
-      "f16",
-      "f32",
-      "f64",
-  };
-  for (std::string_view suf : kFloatSuffixes) {
-    const std::size_t len = MatchSuffix(scalars, start, suf);
-    if (len > 0) {
-      return len;
-    }
-  }
-  return 0;
+  return SuffixMatch(scalars, start, kFloatSuffixes);
 }
 
 core::Span SpanOfText(const core::SourceFile& source,
@@ -644,7 +792,15 @@ std::string LexemeSlice(const core::SourceFile& source,
   if (start >= source.text.size() || end < start) {
     return std::string();
   }
-  return source.text.substr(start, end - start);
+  return core::EncodeUtf8(LexemeSliceScalars(source.scalars, i, j));
+}
+
+bool DecimalLeadingZero(const core::SourceFile& source,
+                        const std::vector<std::size_t>& offsets,
+                        std::size_t i,
+                        std::size_t j) {
+  const std::string lexeme = LexemeSlice(source, offsets, i, j);
+  return MatchesDecimalIntegerLexeme(lexeme) && DecimalLeadingZero(lexeme);
 }
 
 void EmitDiag(core::DiagnosticStream& diags,
@@ -701,9 +857,9 @@ LiteralScanResult ScanIntLiteral(const core::SourceFile& source,
       return result;
     }
     if (p < n && (scalars[p] == 'e' || scalars[p] == 'E')) {
-      saw_exp = true;
       p = ScanExponentTail(scalars, p);
     }
+    saw_exp = HasExp(scalars, start, p);
   }
 
   const std::size_t int_suffix_len = MatchIntSuffix(scalars, p);
@@ -725,8 +881,7 @@ LiteralScanResult ScanIntLiteral(const core::SourceFile& source,
   }
 
   if (!is_based && !saw_exp && !used_int_suffix && !used_float_suffix &&
-      underscore_ok && MatchesDecimalIntegerLexeme(lexeme) &&
-      DecimalLeadingZero(lexeme)) {
+      underscore_ok && DecimalLeadingZero(source, offsets, start, j)) {
     EmitDiag(result.diags, "W-SRC-0301", SpanOfText(source, offsets, start, j));
   }
 
@@ -748,18 +903,10 @@ LiteralScanResult ScanFloatLiteral(const core::SourceFile& source,
   }
 
   const auto offsets = core::Utf8Offsets(scalars);
-  DigitScanResult int_digits = ScanDigits(scalars, start, IsDecDigit);
-  if (!int_digits.ok) {
+  std::size_t p = ScanRunWithUnderscore(scalars, start, IsDecDigit);
+  if (p == start) {
     return result;
   }
-  if (int_digits.malformed) {
-    EmitDiag(result.diags, "E-SRC-0304",
-             SpanOfText(source, offsets, start, int_digits.next));
-    result.next = int_digits.next;
-    return result;
-  }
-
-  std::size_t p = int_digits.next;
   if (p >= n || scalars[p] != '.') {
     return result;
   }
@@ -767,57 +914,32 @@ LiteralScanResult ScanFloatLiteral(const core::SourceFile& source,
     return result;
   }
   ++p;
-
-  if (p < n && scalars[p] == '_') {
-    std::size_t q = p;
-    while (q < n && scalars[q] == '_') {
-      ++q;
-    }
-    EmitDiag(result.diags, "E-SRC-0304", SpanOfText(source, offsets, start, q));
-    result.next = q;
+  p = ScanRunWithUnderscore(scalars, p, IsDecDigit);
+  if (!HasFloatCore(scalars, start, p)) {
     return result;
   }
 
-  if (p < n && IsDecDigit(scalars[p])) {
-    DigitScanResult frac_digits = ScanDigits(scalars, p, IsDecDigit);
-    if (frac_digits.malformed) {
-      EmitDiag(result.diags, "E-SRC-0304",
-               SpanOfText(source, offsets, start, frac_digits.next));
-      result.next = frac_digits.next;
-      return result;
-    }
-    p = frac_digits.next;
-  }
-
   if (p < n && (scalars[p] == 'e' || scalars[p] == 'E')) {
-    std::size_t exp_pos = p + 1;
-    if (exp_pos < n && (scalars[exp_pos] == '+' || scalars[exp_pos] == '-')) {
-      ++exp_pos;
+    std::size_t exp_run = p + 1;
+    if (exp_run < n && (scalars[exp_run] == '+' || scalars[exp_run] == '-')) {
+      ++exp_run;
     }
-    if (exp_pos >= n || !IsDecDigit(scalars[exp_pos])) {
-      EmitDiag(result.diags, "E-SRC-0304",
-               SpanOfText(source, offsets, start, exp_pos));
-      result.next = exp_pos;
-      return result;
-    }
-    DigitScanResult exp_digits = ScanDigits(scalars, exp_pos, IsDecDigit);
-    if (exp_digits.malformed) {
-      EmitDiag(result.diags, "E-SRC-0304",
-               SpanOfText(source, offsets, start, exp_digits.next));
-      result.next = exp_digits.next;
-      return result;
-    }
-    p = exp_digits.next;
+    p = ScanRunWithUnderscore(scalars, exp_run, IsDecDigit);
   }
 
-  const std::size_t suffix_len = MatchFloatSuffix(scalars, p);
+  const std::size_t int_suffix_len = MatchIntSuffix(scalars, p);
+  const std::size_t float_suffix_len = MatchFloatSuffix(scalars, p);
+  const std::size_t suffix_len =
+      int_suffix_len >= float_suffix_len ? int_suffix_len : float_suffix_len;
   const std::size_t j = p + suffix_len;
 
   result.ok = true;
   result.next = j;
 
   const std::string lexeme = LexemeSlice(source, offsets, start, j);
-  if (!NumericUnderscoreOk(lexeme)) {
+  const bool underscore_ok = NumericUnderscoreOk(lexeme);
+  const bool float_grammar_ok = MatchesFloatLiteralLexeme(lexeme);
+  if (!underscore_ok || !float_grammar_ok) {
     EmitDiag(result.diags, "E-SRC-0304", SpanOfText(source, offsets, start, j));
   }
 

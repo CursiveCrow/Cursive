@@ -206,21 +206,442 @@ std::size_t CountMemoryOrderAttributes(const ast::AttributeList& attrs) {
   return count;
 }
 
-bool IsMemoryOrderExpressionShape(const ast::ExprPtr& expr) {
+bool ComputeExprDynamicContext(const ast::Expr& expr, bool inherited) {
+  if (!ast::DynamicExpr(expr)) {
+    return inherited;
+  }
+
+  const ast::AttributeList& attrs = ast::ExprAttrList(expr);
+  const std::array<DynamicScopeAncestor, 1> ancestors{
+      MakeDynamicScopeAncestor(attrs, expr.span)};
+  return inherited || ComputeDynamicContext(expr.span, ancestors);
+}
+
+bool ExprContainsKeyedOrSharedDataAccess(const ScopeContext& ctx,
+                                         const StmtTypeContext& type_ctx,
+                                         const ast::ExprPtr& expr,
+                                         const TypeEnv& env);
+
+bool BlockContainsKeyedOrSharedDataAccess(const ScopeContext& ctx,
+                                          const StmtTypeContext& type_ctx,
+                                          const ast::Block& block,
+                                          const TypeEnv& env);
+
+std::optional<std::string_view> ValidateMemoryOrderAttributePlacement(
+    const ScopeContext& ctx,
+    const StmtTypeContext& type_ctx,
+    const ast::AttributeList& attrs,
+    const ast::ExprPtr& expr,
+    const TypeEnv& env) {
+  if (!HasMemoryOrderAttribute(attrs)) {
+    return std::nullopt;
+  }
+  if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, expr, env)) {
+    return std::nullopt;
+  }
+  return "E-MOD-2450";
+}
+
+bool HasSharedPlacePermission(const ScopeContext& ctx,
+                              const StmtTypeContext& type_ctx,
+                              const ast::ExprPtr& expr,
+                              const TypeEnv& env) {
   if (!expr) {
     return false;
   }
+
+  const auto place = TypePlace(ctx, type_ctx, expr, env);
+  return place.ok && place.type &&
+         PermOfType(place.type) == Permission::Shared;
+}
+
+bool HasSharedReceiverPermission(const ScopeContext& ctx,
+                                 const StmtTypeContext& type_ctx,
+                                 const ast::ExprPtr& receiver,
+                                 const TypeEnv& env) {
+  if (!receiver) {
+    return false;
+  }
+
+  const auto place = TypePlace(ctx, type_ctx, receiver, env);
+  if (place.ok && place.type &&
+      PermOfType(place.type) == Permission::Shared) {
+    return true;
+  }
+
+  const auto value = TypeExpr(ctx, type_ctx, receiver, env);
+  return value.ok && value.type &&
+         PermOfType(value.type) == Permission::Shared;
+}
+
+bool StmtContainsKeyedOrSharedDataAccess(const ScopeContext& ctx,
+                                         const StmtTypeContext& type_ctx,
+                                         const ast::Stmt& stmt,
+                                         const TypeEnv& env) {
   return std::visit(
       [&](const auto& node) -> bool {
         using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::LetStmt> ||
+                      std::is_same_v<T, ast::VarStmt>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                     node.binding.init, env);
+        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
+                             std::is_same_v<T, ast::ShadowVarStmt>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.init,
+                                                     env);
+        } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
+                             std::is_same_v<T, ast::CompoundAssignStmt>) {
+          return HasSharedPlacePermission(ctx, type_ctx, node.place, env) ||
+                 ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.place,
+                                                     env) ||
+                 ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.value,
+                                                     env);
+        } else if constexpr (std::is_same_v<T, ast::ExprStmt>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.value,
+                                                     env);
+        } else if constexpr (std::is_same_v<T, ast::DeferStmt> ||
+                             std::is_same_v<T, ast::UnsafeBlockStmt> ||
+                             std::is_same_v<T, ast::CtStmt>) {
+          return node.body &&
+                 BlockContainsKeyedOrSharedDataAccess(ctx, type_ctx, *node.body,
+                                                      env);
+        } else if constexpr (std::is_same_v<T, ast::RegionStmt>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                     node.opts_opt, env) ||
+                 (node.body &&
+                  BlockContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                       *node.body, env));
+        } else if constexpr (std::is_same_v<T, ast::FrameStmt>) {
+          return node.body &&
+                 BlockContainsKeyedOrSharedDataAccess(ctx, type_ctx, *node.body,
+                                                      env);
+        } else if constexpr (std::is_same_v<T, ast::ReturnStmt> ||
+                             std::is_same_v<T, ast::BreakStmt>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                     node.value_opt, env);
+        } else if constexpr (std::is_same_v<T, ast::ContinueStmt> ||
+                             std::is_same_v<T, ast::LogStmt> ||
+                             std::is_same_v<T, ast::ErrorStmt>) {
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
+          return true;
+        } else {
+          return false;
+        }
+      },
+      stmt);
+}
+
+bool BlockContainsKeyedOrSharedDataAccess(const ScopeContext& ctx,
+                                          const StmtTypeContext& type_ctx,
+                                          const ast::Block& block,
+                                          const TypeEnv& env) {
+  for (const auto& stmt : block.stmts) {
+    if (StmtContainsKeyedOrSharedDataAccess(ctx, type_ctx, stmt, env)) {
+      return true;
+    }
+  }
+
+  return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, block.tail_opt,
+                                             env);
+}
+
+bool ExprContainsKeyedOrSharedDataAccess(const ScopeContext& ctx,
+                                         const StmtTypeContext& type_ctx,
+                                         const ast::ExprPtr& expr,
+                                         const TypeEnv& env) {
+  if (!expr) {
+    return false;
+  }
+
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+
         if constexpr (std::is_same_v<T, ast::IdentifierExpr> ||
                       std::is_same_v<T, ast::FieldAccessExpr> ||
                       std::is_same_v<T, ast::TupleAccessExpr> ||
                       std::is_same_v<T, ast::IndexAccessExpr> ||
                       std::is_same_v<T, ast::DerefExpr>) {
-          return true;
+          if (HasSharedPlacePermission(ctx, type_ctx, expr, env)) {
+            return true;
+          }
+        } else if constexpr (std::is_same_v<T, ast::MethodCallExpr>) {
+          if (HasSharedReceiverPermission(ctx, type_ctx, node.receiver, env)) {
+            return true;
+          }
+        }
+
+        if constexpr (std::is_same_v<T, ast::QualifiedApplyExpr>) {
+          if (const auto* paren = std::get_if<ast::ParenArgs>(&node.args)) {
+            for (const auto& arg : paren->args) {
+              if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, arg.value,
+                                                      env)) {
+                return true;
+              }
+            }
+          } else if (const auto* brace =
+                         std::get_if<ast::BraceArgs>(&node.args)) {
+            for (const auto& field : brace->fields) {
+              if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                      field.value, env)) {
+                return true;
+              }
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::RangeExpr>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.lhs,
+                                                     env) ||
+                 ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.rhs,
+                                                     env);
+        } else if constexpr (std::is_same_v<T, ast::BinaryExpr>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.lhs,
+                                                     env) ||
+                 ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.rhs,
+                                                     env);
+        } else if constexpr (std::is_same_v<T, ast::CastExpr> ||
+                             std::is_same_v<T, ast::UnaryExpr> ||
+                             std::is_same_v<T, ast::AllocExpr> ||
+                             std::is_same_v<T, ast::TransmuteExpr> ||
+                             std::is_same_v<T, ast::PropagateExpr> ||
+                             std::is_same_v<T, ast::YieldExpr> ||
+                             std::is_same_v<T, ast::YieldFromExpr> ||
+                             std::is_same_v<T, ast::SyncExpr>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.value,
+                                                     env);
+        } else if constexpr (std::is_same_v<T, ast::EntryExpr>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.expr,
+                                                     env);
+        } else if constexpr (std::is_same_v<T, ast::AddressOfExpr> ||
+                             std::is_same_v<T, ast::MoveExpr>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.place,
+                                                     env);
+        } else if constexpr (std::is_same_v<T, ast::TupleExpr>) {
+          for (const auto& elem : node.elements) {
+            if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, elem, env)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+          bool found = false;
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            found = found || ExprContainsKeyedOrSharedDataAccess(
+                                 ctx, type_ctx, elem, env);
+          });
+          return found;
+        } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.value,
+                                                     env) ||
+                 ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.count,
+                                                     env);
+        } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
+          for (const auto& field : node.fields) {
+            if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, field.value,
+                                                    env)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::EnumLiteralExpr>) {
+          if (!node.payload_opt.has_value()) {
+            return false;
+          }
+          return std::visit(
+              [&](const auto& payload) -> bool {
+                using P = std::decay_t<decltype(payload)>;
+                if constexpr (std::is_same_v<P, ast::EnumPayloadParen>) {
+                  for (const auto& elem : payload.elements) {
+                    if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, elem,
+                                                            env)) {
+                      return true;
+                    }
+                  }
+                } else if constexpr (std::is_same_v<P,
+                                                    ast::EnumPayloadBrace>) {
+                  for (const auto& field : payload.fields) {
+                    if (ExprContainsKeyedOrSharedDataAccess(
+                            ctx, type_ctx, field.value, env)) {
+                      return true;
+                    }
+                  }
+                }
+                return false;
+              },
+              *node.payload_opt);
+        } else if constexpr (std::is_same_v<T, ast::IfExpr>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.cond,
+                                                     env) ||
+                 ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                     node.then_expr, env) ||
+                 ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                     node.else_expr, env);
+        } else if constexpr (std::is_same_v<T, ast::IfCaseExpr>) {
+          if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.scrutinee,
+                                                  env)) {
+            return true;
+          }
+          for (const auto& case_clause : node.cases) {
+            if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                    case_clause.body, env)) {
+              return true;
+            }
+          }
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                     node.else_expr, env);
+        } else if constexpr (std::is_same_v<T, ast::IfIsExpr>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                     node.scrutinee, env) ||
+                 ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                     node.then_expr, env) ||
+                 ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                     node.else_expr, env);
+        } else if constexpr (std::is_same_v<T, ast::LoopInfiniteExpr>) {
+          return (node.invariant_opt.has_value() &&
+                  ExprContainsKeyedOrSharedDataAccess(
+                      ctx, type_ctx, node.invariant_opt->predicate, env)) ||
+                 (node.body &&
+                  BlockContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                       *node.body, env));
+        } else if constexpr (std::is_same_v<T, ast::LoopConditionalExpr>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.cond,
+                                                     env) ||
+                 (node.invariant_opt.has_value() &&
+                  ExprContainsKeyedOrSharedDataAccess(
+                      ctx, type_ctx, node.invariant_opt->predicate, env)) ||
+                 (node.body &&
+                  BlockContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                       *node.body, env));
+        } else if constexpr (std::is_same_v<T, ast::LoopIterExpr>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.iter,
+                                                     env) ||
+                 (node.invariant_opt.has_value() &&
+                  ExprContainsKeyedOrSharedDataAccess(
+                      ctx, type_ctx, node.invariant_opt->predicate, env)) ||
+                 (node.body &&
+                  BlockContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                       *node.body, env));
+        } else if constexpr (std::is_same_v<T, ast::BlockExpr> ||
+                             std::is_same_v<T, ast::UnsafeBlockExpr>) {
+          return node.block &&
+                 BlockContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                      *node.block, env);
+        } else if constexpr (std::is_same_v<T, ast::ComptimeExpr>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.body,
+                                                     env);
+        } else if constexpr (std::is_same_v<T, ast::CtIfExpr>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.cond,
+                                                     env) ||
+                 (node.then_block &&
+                  BlockContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                       *node.then_block, env)) ||
+                 (node.else_block_opt &&
+                  BlockContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                       *node.else_block_opt,
+                                                       env));
+        } else if constexpr (std::is_same_v<T, ast::CtLoopIterExpr>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.iter,
+                                                     env) ||
+                 (node.body &&
+                  BlockContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                       *node.body, env));
         } else if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
-          return IsMemoryOrderExpressionShape(node.expr);
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.expr,
+                                                     env);
+        } else if constexpr (std::is_same_v<T, ast::ClosureExpr>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.body,
+                                                     env);
+        } else if constexpr (std::is_same_v<T, ast::PipelineExpr>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.lhs,
+                                                     env) ||
+                 ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.rhs,
+                                                     env);
+        } else if constexpr (std::is_same_v<T, ast::CallExpr> ||
+                             std::is_same_v<T, ast::CallTypeArgsExpr>) {
+          if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.callee,
+                                                  env)) {
+            return true;
+          }
+          for (const auto& arg : node.args) {
+            if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, arg.value,
+                                                    env)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::MethodCallExpr>) {
+          if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.receiver,
+                                                  env)) {
+            return true;
+          }
+          for (const auto& arg : node.args) {
+            if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, arg.value,
+                                                    env)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::RaceExpr>) {
+          for (const auto& arm : node.arms) {
+            if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, arm.expr,
+                                                    env) ||
+                ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                    arm.handler.value, env)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::AllExpr>) {
+          for (const auto& sub : node.exprs) {
+            if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, sub, env)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::ParallelExpr>) {
+          if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.domain,
+                                                  env)) {
+            return true;
+          }
+          for (const auto& opt : node.opts) {
+            if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, opt.value,
+                                                    env)) {
+              return true;
+            }
+          }
+          return node.body &&
+                 BlockContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                      *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::SpawnExpr>) {
+          for (const auto& opt : node.opts) {
+            if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, opt.value,
+                                                    env)) {
+              return true;
+            }
+          }
+          return node.body &&
+                 BlockContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                      *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::WaitExpr>) {
+          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.handle,
+                                                     env);
+        } else if constexpr (std::is_same_v<T, ast::DispatchExpr>) {
+          if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.range,
+                                                  env)) {
+            return true;
+          }
+          for (const auto& opt : node.opts) {
+            if (ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                    opt.chunk_expr, env) ||
+                ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                    opt.workgroup_expr, env)) {
+              return true;
+            }
+          }
+          return node.body &&
+                 BlockContainsKeyedOrSharedDataAccess(ctx, type_ctx,
+                                                      *node.body, env);
         } else {
           return false;
         }
@@ -260,7 +681,7 @@ static std::optional<ast::QuoteKind> ExpectedQuoteKind(const TypeRef& type) {
     return ast::QuoteKind::Expr;
   }
   if (path->path == TypePath{"Ast", "Stmt"}) {
-    return ast::QuoteKind::Unspecified;
+    return ast::QuoteKind::Stmt;
   }
   if (path->path == TypePath{"Ast", "Item"}) {
     return ast::QuoteKind::Item;
@@ -283,8 +704,10 @@ static TypeRef QuoteKindType(ast::QuoteKind kind) {
   switch (kind) {
     case ast::QuoteKind::Expr:
       return AstExprMetaType();
-    case ast::QuoteKind::Unspecified:
+    case ast::QuoteKind::Stmt:
       return AstStmtMetaType();
+    case ast::QuoteKind::Unspecified:
+      return AstMetaType();
     case ast::QuoteKind::Item:
       return AstItemMetaType();
     case ast::QuoteKind::Type:
@@ -303,9 +726,6 @@ static ast::Parser MakeQuoteTokenParser(const std::vector<ast::Token>& tokens) {
   parser.tokens = parser.owned_tokens.get();
   parser.docs = &kNoDocs;
   parser.quote_mode = true;
-  if (!tokens.empty()) {
-    parser.eof.span = tokens.back().span;
-  }
   return parser;
 }
 
@@ -342,11 +762,13 @@ static bool QuoteParsesAs(const ast::QuoteExpr& quote, ast::QuoteKind kind) {
       return parsed.parser.index != start_index && parsed.elem &&
              ast::AtEof(parsed.parser);
     }
-    case ast::QuoteKind::Unspecified: {
+    case ast::QuoteKind::Stmt: {
       auto parsed = ast::ParseStmt(parser);
       return parsed.parser.index != start_index &&
              IsQuotedStatementForm(parsed.elem) && ast::AtEof(parsed.parser);
     }
+    case ast::QuoteKind::Unspecified:
+      return false;
     case ast::QuoteKind::Item: {
       auto parsed = ast::ParseItem(parser);
       return parsed.parser.index != start_index && ast::AtEof(parsed.parser);
@@ -382,7 +804,7 @@ static std::optional<ast::QuoteKind> ResolveQuoteKindStatic(
   std::optional<ast::QuoteKind> resolved;
   std::size_t matches = 0;
   for (ast::QuoteKind kind :
-       {ast::QuoteKind::Expr, ast::QuoteKind::Unspecified, ast::QuoteKind::Item}) {
+       {ast::QuoteKind::Expr, ast::QuoteKind::Stmt, ast::QuoteKind::Item}) {
     if (!QuoteParsesAs(quote, kind)) {
       continue;
     }
@@ -641,6 +1063,1700 @@ static bool CtAvailType(const ScopeContext& ctx, const TypeRef& type) {
   return CtAvailTypeImpl(ctx, type, active_paths);
 }
 
+enum class QuoteSplicePosition {
+  Expr,
+  Stmt,
+  Item,
+  Type,
+  Pattern,
+  Identifier,
+};
+
+static CheckResult OkCheckResult() {
+  CheckResult result;
+  result.ok = true;
+  return result;
+}
+
+static CheckResult MakeDiagCheckResult(std::string_view diag_id,
+                                       const core::Span& span) {
+  CheckResult result;
+  result.ok = false;
+  result.diag_id = diag_id;
+  result.diag_span = span;
+  return result;
+}
+
+static bool IsExactTypePath(const TypeRef& type, const TypePath& path) {
+  const auto stripped = StripPerm(type);
+  const auto* node = stripped ? std::get_if<TypePathType>(&stripped->node) : nullptr;
+  return node && node->generic_args.empty() && node->path == path;
+}
+
+static bool IsAnyAstType(const TypeRef& type) {
+  const auto stripped = StripPerm(type);
+  const auto* node = stripped ? std::get_if<TypePathType>(&stripped->node) : nullptr;
+  return node && node->generic_args.empty() && !node->path.empty() &&
+         node->path.front() == "Ast";
+}
+
+static bool IsStringStateType(const TypeRef& type, StringState state) {
+  const auto stripped = StripPerm(type);
+  const auto* node = stripped ? std::get_if<TypeString>(&stripped->node) : nullptr;
+  return node && node->state.has_value() && *node->state == state;
+}
+
+static bool CtLiteralTypeImpl(const ScopeContext& ctx,
+                              const TypeRef& type,
+                              std::set<std::string>& active_paths);
+
+static bool CtLiteralRecordFields(const ScopeContext& ctx,
+                                  const ast::RecordDecl& decl,
+                                  const std::vector<TypeRef>& args,
+                                  std::set<std::string>& active_paths) {
+  const auto param_names = GenericParamNamesForCt(decl.generic_params);
+  for (const auto& member : decl.members) {
+    const auto* field = std::get_if<ast::FieldDecl>(&member);
+    if (!field || !field->type) {
+      continue;
+    }
+    const auto lowered = LowerType(ctx, field->type);
+    if (!lowered.ok || !lowered.type) {
+      return false;
+    }
+    const auto field_type =
+        ApplyGenericSubstitution(lowered.type, param_names, args);
+    if (!CtLiteralTypeImpl(ctx, StripPerm(field_type), active_paths)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool CtLiteralEnumPayloads(const ScopeContext& ctx,
+                                  const ast::EnumDecl& decl,
+                                  const std::vector<TypeRef>& args,
+                                  std::set<std::string>& active_paths) {
+  const auto param_names = GenericParamNamesForCt(decl.generic_params);
+  for (const auto& variant : decl.variants) {
+    if (!variant.payload_opt.has_value()) {
+      continue;
+    }
+    bool ok = true;
+    std::visit(
+        [&](const auto& payload) {
+          using P = std::decay_t<decltype(payload)>;
+          if constexpr (std::is_same_v<P, ast::VariantPayloadTuple>) {
+            for (const auto& elem : payload.elements) {
+              const auto lowered = LowerType(ctx, elem);
+              if (!lowered.ok || !lowered.type) {
+                ok = false;
+                return;
+              }
+              const auto elem_type =
+                  ApplyGenericSubstitution(lowered.type, param_names, args);
+              if (!CtLiteralTypeImpl(ctx, StripPerm(elem_type), active_paths)) {
+                ok = false;
+                return;
+              }
+            }
+          } else if constexpr (std::is_same_v<P, ast::VariantPayloadRecord>) {
+            for (const auto& field : payload.fields) {
+              const auto lowered = LowerType(ctx, field.type);
+              if (!lowered.ok || !lowered.type) {
+                ok = false;
+                return;
+              }
+              const auto field_type =
+                  ApplyGenericSubstitution(lowered.type, param_names, args);
+              if (!CtLiteralTypeImpl(ctx, StripPerm(field_type), active_paths)) {
+                ok = false;
+                return;
+              }
+            }
+          }
+        },
+        *variant.payload_opt);
+    if (!ok) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool CtLiteralTypeImpl(const ScopeContext& ctx,
+                              const TypeRef& type,
+                              std::set<std::string>& active_paths) {
+  if (!type) {
+    return false;
+  }
+
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, TypePrim>) {
+          return node.name != "!";
+        } else if constexpr (std::is_same_v<T, TypeString>) {
+          return node.state.has_value() &&
+                 (*node.state == StringState::View ||
+                  *node.state == StringState::Managed);
+        } else if constexpr (std::is_same_v<T, TypeTuple>) {
+          for (const auto& elem : node.elements) {
+            if (!CtLiteralTypeImpl(ctx, elem, active_paths)) {
+              return false;
+            }
+          }
+          return true;
+        } else if constexpr (std::is_same_v<T, TypeArray>) {
+          return CtLiteralTypeImpl(ctx, node.element, active_paths);
+        } else if constexpr (std::is_same_v<T, TypePerm>) {
+          return CtLiteralTypeImpl(ctx, node.base, active_paths);
+        } else if constexpr (std::is_same_v<T, TypeRefine>) {
+          return CtLiteralTypeImpl(ctx, node.base, active_paths);
+        } else if constexpr (std::is_same_v<T, TypePathType>) {
+          const std::string key = TypePathKeyString(node.path);
+          if (!active_paths.insert(key).second) {
+            return false;
+          }
+
+          if (const auto* record = LookupRecordDecl(ctx, node.path)) {
+            const auto args =
+                ResolveDeclGenericArgsForCt(ctx, record->generic_params,
+                                            node.generic_args);
+            const bool ok = args.has_value() &&
+                            CtLiteralRecordFields(ctx, *record, *args, active_paths);
+            active_paths.erase(key);
+            return ok;
+          }
+
+          if (const auto* en = LookupEnumDecl(ctx, node.path)) {
+            const auto args =
+                ResolveDeclGenericArgsForCt(ctx, en->generic_params,
+                                            node.generic_args);
+            const bool ok = args.has_value() &&
+                            CtLiteralEnumPayloads(ctx, *en, *args, active_paths);
+            active_paths.erase(key);
+            return ok;
+          }
+
+          active_paths.erase(key);
+          return false;
+        } else {
+          return false;
+        }
+      },
+      type->node);
+}
+
+static bool CtLiteralType(const ScopeContext& ctx, const TypeRef& type) {
+  std::set<std::string> active_paths;
+  return CtLiteralTypeImpl(ctx, type, active_paths);
+}
+
+static bool IsSpliceCompatible(const ScopeContext& ctx,
+                               QuoteSplicePosition pos,
+                               const TypeRef& type) {
+  switch (pos) {
+    case QuoteSplicePosition::Expr:
+      return IsAstMetaType(type) || IsExactTypePath(type, {"Ast", "Expr"}) ||
+             (!IsAnyAstType(type) && CtLiteralType(ctx, type));
+    case QuoteSplicePosition::Stmt:
+      return IsExactTypePath(type, {"Ast", "Stmt"}) ||
+             IsExactTypePath(type, {"Ast", "Expr"});
+    case QuoteSplicePosition::Item:
+      return IsExactTypePath(type, {"Ast", "Item"});
+    case QuoteSplicePosition::Type:
+      return IsExactTypePath(type, {"Ast", "Type"}) ||
+             IsExactTypePath(type, {"Type"});
+    case QuoteSplicePosition::Pattern:
+      return IsExactTypePath(type, {"Ast", "Pattern"});
+    case QuoteSplicePosition::Identifier:
+      return IsStringStateType(type, StringState::Managed) ||
+             IsStringStateType(type, StringState::View);
+  }
+  return false;
+}
+
+static CheckResult CheckQuoteExprSplices(const ScopeContext& ctx,
+                                         const StmtTypeContext& type_ctx,
+                                         const ast::ExprPtr& expr,
+                                         const TypeEnv& env);
+
+static CheckResult CheckQuoteTypeSplices(const ScopeContext& ctx,
+                                         const StmtTypeContext& type_ctx,
+                                         const ast::TypePtr& type,
+                                         const TypeEnv& env);
+
+static CheckResult CheckQuotePatternSplices(const ScopeContext& ctx,
+                                            const StmtTypeContext& type_ctx,
+                                            const ast::PatternPtr& pattern,
+                                            const TypeEnv& env);
+
+static CheckResult CheckQuoteStmtSplices(const ScopeContext& ctx,
+                                         const StmtTypeContext& type_ctx,
+                                         const ast::Stmt& stmt,
+                                         const TypeEnv& env);
+
+static CheckResult CheckQuoteItemSplices(const ScopeContext& ctx,
+                                         const StmtTypeContext& type_ctx,
+                                         const ast::ASTItem& item,
+                                         const TypeEnv& env);
+
+static CheckResult CheckQuoteApplyArgsSplices(const ScopeContext& ctx,
+                                              const StmtTypeContext& type_ctx,
+                                              const ast::ApplyArgs& args,
+                                              const TypeEnv& env);
+
+static CheckResult CheckQuoteKeyPathSplices(const ScopeContext& ctx,
+                                            const StmtTypeContext& type_ctx,
+                                            const ast::KeyPathExpr& key_path,
+                                            const TypeEnv& env);
+
+static CheckResult CheckSpliceSource(const ScopeContext& ctx,
+                                     const StmtTypeContext& type_ctx,
+                                     const ast::ExprPtr& source,
+                                     const TypeEnv& env,
+                                     QuoteSplicePosition pos,
+                                     const core::Span& span) {
+  const auto typed = TypeExpr(ctx, type_ctx, source, env);
+  if (!typed.ok) {
+    CheckResult result;
+    result.ok = false;
+    result.diag_id = typed.diag_id;
+    result.diag_detail = typed.diag_detail;
+    result.diag_span = typed.diag_span.has_value() ? typed.diag_span : span;
+    return result;
+  }
+  if (!IsSpliceCompatible(ctx, pos, typed.type)) {
+    return MakeDiagCheckResult("E-CTE-0230", span);
+  }
+  return OkCheckResult();
+}
+
+static CheckResult CheckSplicedIdentifier(
+    const ScopeContext& ctx,
+    const StmtTypeContext& type_ctx,
+    const std::optional<ast::SpliceIdentNode>& splice_opt,
+    const TypeEnv& env) {
+  if (!splice_opt.has_value()) {
+    return OkCheckResult();
+  }
+  return CheckSpliceSource(ctx, type_ctx, splice_opt->name_expr, env,
+                           QuoteSplicePosition::Identifier, splice_opt->span);
+}
+
+static CheckResult CheckQuoteArgSplices(const ScopeContext& ctx,
+                                        const StmtTypeContext& type_ctx,
+                                        const ast::Arg& arg,
+                                        const TypeEnv& env) {
+  return CheckQuoteExprSplices(ctx, type_ctx, arg.value, env);
+}
+
+static CheckResult CheckQuoteFieldInitSplices(const ScopeContext& ctx,
+                                              const StmtTypeContext& type_ctx,
+                                              const ast::FieldInit& field,
+                                              const TypeEnv& env) {
+  return CheckQuoteExprSplices(ctx, type_ctx, field.value, env);
+}
+
+static CheckResult CheckQuoteApplyArgsSplices(const ScopeContext& ctx,
+                                              const StmtTypeContext& type_ctx,
+                                              const ast::ApplyArgs& args,
+                                              const TypeEnv& env) {
+  return std::visit(
+      [&](const auto& node) -> CheckResult {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::ParenArgs>) {
+          for (const auto& arg : node.args) {
+            auto checked = CheckQuoteArgSplices(ctx, type_ctx, arg, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        } else {
+          for (const auto& field : node.fields) {
+            auto checked =
+                CheckQuoteFieldInitSplices(ctx, type_ctx, field, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        }
+      },
+      args);
+}
+
+static CheckResult CheckQuoteRaceHandlerSplices(const ScopeContext& ctx,
+                                                const StmtTypeContext& type_ctx,
+                                                const ast::RaceHandler& handler,
+                                                const TypeEnv& env) {
+  return CheckQuoteExprSplices(ctx, type_ctx, handler.value, env);
+}
+
+static CheckResult CheckQuoteRaceArmSplices(const ScopeContext& ctx,
+                                            const StmtTypeContext& type_ctx,
+                                            const ast::RaceArm& arm,
+                                            const TypeEnv& env) {
+  auto checked = CheckQuoteExprSplices(ctx, type_ctx, arm.expr, env);
+  if (!checked.ok) {
+    return checked;
+  }
+  checked = CheckQuotePatternSplices(ctx, type_ctx, arm.pattern, env);
+  if (!checked.ok) {
+    return checked;
+  }
+  return CheckQuoteRaceHandlerSplices(ctx, type_ctx, arm.handler, env);
+}
+
+static CheckResult CheckQuoteParallelOptionSplices(
+    const ScopeContext& ctx,
+    const StmtTypeContext& type_ctx,
+    const ast::ParallelOption& opt,
+    const TypeEnv& env) {
+  return CheckQuoteExprSplices(ctx, type_ctx, opt.value, env);
+}
+
+static CheckResult CheckQuoteSpawnOptionSplices(const ScopeContext& ctx,
+                                                const StmtTypeContext& type_ctx,
+                                                const ast::SpawnOption& opt,
+                                                const TypeEnv& env) {
+  return CheckQuoteExprSplices(ctx, type_ctx, opt.value, env);
+}
+
+static CheckResult CheckQuoteDispatchOptionSplices(
+    const ScopeContext& ctx,
+    const StmtTypeContext& type_ctx,
+    const ast::DispatchOption& opt,
+    const TypeEnv& env) {
+  auto checked = CheckQuoteExprSplices(ctx, type_ctx, opt.chunk_expr, env);
+  if (!checked.ok) {
+    return checked;
+  }
+  return CheckQuoteExprSplices(ctx, type_ctx, opt.workgroup_expr, env);
+}
+
+static CheckResult CheckQuoteEnumPayloadSplices(
+    const ScopeContext& ctx,
+    const StmtTypeContext& type_ctx,
+    const std::optional<ast::EnumPayload>& payload_opt,
+    const TypeEnv& env) {
+  if (!payload_opt.has_value()) {
+    return OkCheckResult();
+  }
+  return std::visit(
+      [&](const auto& payload) -> CheckResult {
+        using P = std::decay_t<decltype(payload)>;
+        if constexpr (std::is_same_v<P, ast::EnumPayloadParen>) {
+          for (const auto& elem : payload.elements) {
+            auto checked = CheckQuoteExprSplices(ctx, type_ctx, elem, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+        } else {
+          for (const auto& field : payload.fields) {
+            auto checked = CheckQuoteFieldInitSplices(ctx, type_ctx, field, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+        }
+        return OkCheckResult();
+      },
+      *payload_opt);
+}
+
+static CheckResult CheckQuoteBlockSplices(const ScopeContext& ctx,
+                                          const StmtTypeContext& type_ctx,
+                                          const ast::Block& block,
+                                          const TypeEnv& env) {
+  for (const auto& stmt : block.stmts) {
+    auto checked = CheckQuoteStmtSplices(ctx, type_ctx, stmt, env);
+    if (!checked.ok) {
+      return checked;
+    }
+  }
+  return CheckQuoteExprSplices(ctx, type_ctx, block.tail_opt, env);
+}
+
+static CheckResult CheckQuoteOptionalBlockSplices(
+    const ScopeContext& ctx,
+    const StmtTypeContext& type_ctx,
+    const ast::BlockPtr& block_opt,
+    const TypeEnv& env) {
+  if (!block_opt) {
+    return OkCheckResult();
+  }
+  return CheckQuoteBlockSplices(ctx, type_ctx, *block_opt, env);
+}
+
+static CheckResult CheckQuoteLoopInvariantSplices(
+    const ScopeContext& ctx,
+    const StmtTypeContext& type_ctx,
+    const std::optional<ast::LoopInvariant>& invariant_opt,
+    const TypeEnv& env) {
+  if (!invariant_opt.has_value()) {
+    return OkCheckResult();
+  }
+  return CheckQuoteExprSplices(ctx, type_ctx, invariant_opt->predicate, env);
+}
+
+static CheckResult CheckQuoteExprSplices(const ScopeContext& ctx,
+                                         const StmtTypeContext& type_ctx,
+                                         const ast::ExprPtr& expr,
+                                         const TypeEnv& env) {
+  if (!expr) {
+    return OkCheckResult();
+  }
+  return std::visit(
+      [&](const auto& node) -> CheckResult {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::SpliceExprNode>) {
+          return CheckSpliceSource(ctx, type_ctx, node.expr, env,
+                                   QuoteSplicePosition::Expr, node.span);
+        } else if constexpr (std::is_same_v<T, ast::SpliceIdentNode>) {
+          return CheckSpliceSource(ctx, type_ctx, node.name_expr, env,
+                                   QuoteSplicePosition::Identifier, node.span);
+        } else if constexpr (std::is_same_v<T, ast::BinaryExpr>) {
+          auto checked = CheckQuoteExprSplices(ctx, type_ctx, node.lhs, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteExprSplices(ctx, type_ctx, node.rhs, env);
+        } else if constexpr (std::is_same_v<T, ast::QualifiedApplyExpr>) {
+          return CheckQuoteApplyArgsSplices(ctx, type_ctx, node.args, env);
+        } else if constexpr (std::is_same_v<T, ast::CallExpr>) {
+          auto checked = CheckQuoteExprSplices(ctx, type_ctx, node.callee, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          for (const auto& arg : node.generic_args) {
+            checked = CheckQuoteTypeSplices(ctx, type_ctx, arg, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          for (const auto& arg : node.args) {
+            checked = CheckQuoteArgSplices(ctx, type_ctx, arg, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::MethodCallExpr>) {
+          auto checked =
+              CheckQuoteExprSplices(ctx, type_ctx, node.receiver, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          for (const auto& arg : node.args) {
+            checked = CheckQuoteArgSplices(ctx, type_ctx, arg, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::RangeExpr>) {
+          auto checked = CheckQuoteExprSplices(ctx, type_ctx, node.lhs, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteExprSplices(ctx, type_ctx, node.rhs, env);
+        } else if constexpr (std::is_same_v<T, ast::CastExpr>) {
+          auto checked = CheckQuoteExprSplices(ctx, type_ctx, node.value, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteTypeSplices(ctx, type_ctx, node.type, env);
+        } else if constexpr (std::is_same_v<T, ast::DerefExpr>) {
+          return CheckQuoteExprSplices(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::AddressOfExpr>) {
+          return CheckQuoteExprSplices(ctx, type_ctx, node.place, env);
+        } else if constexpr (std::is_same_v<T, ast::MoveExpr>) {
+          return CheckQuoteExprSplices(ctx, type_ctx, node.place, env);
+        } else if constexpr (std::is_same_v<T, ast::AllocExpr>) {
+          return CheckQuoteExprSplices(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::TupleExpr>) {
+          for (const auto& elem : node.elements) {
+            auto checked = CheckQuoteExprSplices(ctx, type_ctx, elem, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+          CheckResult result = OkCheckResult();
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            if (!result.ok) {
+              return;
+            }
+            result = CheckQuoteExprSplices(ctx, type_ctx, elem, env);
+          });
+          return result;
+        } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
+          auto checked = CheckQuoteExprSplices(ctx, type_ctx, node.value, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteExprSplices(ctx, type_ctx, node.count, env);
+        } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
+          for (const auto& field : node.fields) {
+            auto checked = CheckQuoteFieldInitSplices(ctx, type_ctx, field, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return std::visit(
+              [&](const auto& target) -> CheckResult {
+                using Target = std::decay_t<decltype(target)>;
+                if constexpr (std::is_same_v<Target, ast::GenericTypeRef> ||
+                              std::is_same_v<Target, ast::ModalStateRef>) {
+                  for (const auto& arg : target.generic_args) {
+                    auto checked =
+                        CheckQuoteTypeSplices(ctx, type_ctx, arg, env);
+                    if (!checked.ok) {
+                      return checked;
+                    }
+                  }
+                }
+                return OkCheckResult();
+              },
+              node.target);
+        } else if constexpr (std::is_same_v<T, ast::EnumLiteralExpr>) {
+          return CheckQuoteEnumPayloadSplices(ctx, type_ctx, node.payload_opt, env);
+        } else if constexpr (std::is_same_v<T, ast::SizeofExpr>) {
+          return CheckQuoteTypeSplices(ctx, type_ctx, node.type, env);
+        } else if constexpr (std::is_same_v<T, ast::AlignofExpr>) {
+          return CheckQuoteTypeSplices(ctx, type_ctx, node.type, env);
+        } else if constexpr (std::is_same_v<T, ast::IfExpr>) {
+          auto checked = CheckQuoteExprSplices(ctx, type_ctx, node.cond, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked = CheckQuoteExprSplices(ctx, type_ctx, node.then_expr, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteExprSplices(ctx, type_ctx, node.else_expr, env);
+        } else if constexpr (std::is_same_v<T, ast::IfIsExpr>) {
+          auto checked =
+              CheckQuoteExprSplices(ctx, type_ctx, node.scrutinee, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked = CheckQuotePatternSplices(ctx, type_ctx, node.pattern, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked = CheckQuoteExprSplices(ctx, type_ctx, node.then_expr, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteExprSplices(ctx, type_ctx, node.else_expr, env);
+        } else if constexpr (std::is_same_v<T, ast::IfCaseExpr>) {
+          auto checked =
+              CheckQuoteExprSplices(ctx, type_ctx, node.scrutinee, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          for (const auto& clause : node.cases) {
+            checked = CheckQuotePatternSplices(ctx, type_ctx, clause.pattern, env);
+            if (!checked.ok) {
+              return checked;
+            }
+            checked = CheckQuoteExprSplices(ctx, type_ctx, clause.body, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return CheckQuoteExprSplices(ctx, type_ctx, node.else_expr, env);
+        } else if constexpr (std::is_same_v<T, ast::LoopInfiniteExpr>) {
+          auto checked = CheckQuoteLoopInvariantSplices(ctx, type_ctx,
+                                                        node.invariant_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::LoopConditionalExpr>) {
+          auto checked = CheckQuoteExprSplices(ctx, type_ctx, node.cond, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked = CheckQuoteLoopInvariantSplices(ctx, type_ctx,
+                                                   node.invariant_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::LoopIterExpr>) {
+          auto checked =
+              CheckQuotePatternSplices(ctx, type_ctx, node.pattern, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked = CheckQuoteTypeSplices(ctx, type_ctx, node.type_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked = CheckQuoteExprSplices(ctx, type_ctx, node.iter, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked = CheckQuoteLoopInvariantSplices(ctx, type_ctx,
+                                                   node.invariant_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::UnsafeBlockExpr>) {
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.block, env);
+        } else if constexpr (std::is_same_v<T, ast::BlockExpr>) {
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.block, env);
+        } else if constexpr (std::is_same_v<T, ast::ComptimeExpr>) {
+          return CheckQuoteExprSplices(ctx, type_ctx, node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::CtIfExpr>) {
+          auto checked = CheckQuoteExprSplices(ctx, type_ctx, node.cond, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked = CheckQuoteBlockSplices(ctx, type_ctx, *node.then_block, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteOptionalBlockSplices(ctx, type_ctx,
+                                                node.else_block_opt, env);
+        } else if constexpr (std::is_same_v<T, ast::CtLoopIterExpr>) {
+          auto checked =
+              CheckQuotePatternSplices(ctx, type_ctx, node.pattern, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked = CheckQuoteTypeSplices(ctx, type_ctx, node.type_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked = CheckQuoteExprSplices(ctx, type_ctx, node.iter, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
+          return CheckQuoteExprSplices(ctx, type_ctx, node.expr, env);
+        } else if constexpr (std::is_same_v<T, ast::EntryExpr>) {
+          return CheckQuoteExprSplices(ctx, type_ctx, node.expr, env);
+        } else if constexpr (std::is_same_v<T, ast::TypeLiteralExpr>) {
+          return CheckQuoteTypeSplices(ctx, type_ctx, node.type, env);
+        } else if constexpr (std::is_same_v<T, ast::TransmuteExpr>) {
+          auto checked = CheckQuoteTypeSplices(ctx, type_ctx, node.from, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked = CheckQuoteTypeSplices(ctx, type_ctx, node.to, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteExprSplices(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::ClosureExpr>) {
+          for (const auto& param : node.params) {
+            auto checked =
+                CheckQuoteTypeSplices(ctx, type_ctx, param.type_opt, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          auto checked =
+              CheckQuoteTypeSplices(ctx, type_ctx, node.ret_type_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteExprSplices(ctx, type_ctx, node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::PipelineExpr>) {
+          auto checked = CheckQuoteExprSplices(ctx, type_ctx, node.lhs, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteExprSplices(ctx, type_ctx, node.rhs, env);
+        } else if constexpr (std::is_same_v<T, ast::FieldAccessExpr>) {
+          return CheckQuoteExprSplices(ctx, type_ctx, node.base, env);
+        } else if constexpr (std::is_same_v<T, ast::TupleAccessExpr>) {
+          return CheckQuoteExprSplices(ctx, type_ctx, node.base, env);
+        } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {
+          auto checked = CheckQuoteExprSplices(ctx, type_ctx, node.base, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteExprSplices(ctx, type_ctx, node.index, env);
+        } else if constexpr (std::is_same_v<T, ast::CallTypeArgsExpr>) {
+          auto checked = CheckQuoteExprSplices(ctx, type_ctx, node.callee, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          for (const auto& arg : node.type_args) {
+            checked = CheckQuoteTypeSplices(ctx, type_ctx, arg, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          for (const auto& arg : node.args) {
+            checked = CheckQuoteArgSplices(ctx, type_ctx, arg, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::UnaryExpr>) {
+          return CheckQuoteExprSplices(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::PropagateExpr>) {
+          return CheckQuoteExprSplices(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::YieldExpr> ||
+                             std::is_same_v<T, ast::YieldFromExpr> ||
+                             std::is_same_v<T, ast::SyncExpr>) {
+          return CheckQuoteExprSplices(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::RaceExpr>) {
+          for (const auto& arm : node.arms) {
+            auto checked = CheckQuoteRaceArmSplices(ctx, type_ctx, arm, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::AllExpr>) {
+          for (const auto& elem : node.exprs) {
+            auto checked = CheckQuoteExprSplices(ctx, type_ctx, elem, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::ParallelExpr>) {
+          auto checked = CheckQuoteExprSplices(ctx, type_ctx, node.domain, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          for (const auto& opt : node.opts) {
+            checked = CheckQuoteParallelOptionSplices(ctx, type_ctx, opt, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::SpawnExpr>) {
+          for (const auto& opt : node.opts) {
+            auto checked = CheckQuoteSpawnOptionSplices(ctx, type_ctx, opt, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::WaitExpr>) {
+          return CheckQuoteExprSplices(ctx, type_ctx, node.handle, env);
+        } else if constexpr (std::is_same_v<T, ast::DispatchExpr>) {
+          auto checked =
+              CheckQuotePatternSplices(ctx, type_ctx, node.pattern, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked = CheckQuoteExprSplices(ctx, type_ctx, node.range, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          if (node.key_clause.has_value()) {
+            checked = CheckQuoteKeyPathSplices(ctx, type_ctx,
+                                               node.key_clause->key_path, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          for (const auto& opt : node.opts) {
+            checked = CheckQuoteDispatchOptionSplices(ctx, type_ctx, opt, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body, env);
+        } else {
+          return OkCheckResult();
+        }
+      },
+      expr->node);
+}
+
+static CheckResult CheckQuoteTypeSplices(const ScopeContext& ctx,
+                                         const StmtTypeContext& type_ctx,
+                                         const ast::TypePtr& type,
+                                         const TypeEnv& env) {
+  if (!type) {
+    return OkCheckResult();
+  }
+  return std::visit(
+      [&](const auto& node) -> CheckResult {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::SpliceExprNode>) {
+          return CheckSpliceSource(ctx, type_ctx, node.expr, env,
+                                   QuoteSplicePosition::Type, node.span);
+        } else if constexpr (std::is_same_v<T, ast::TypePermType>) {
+          return CheckQuoteTypeSplices(ctx, type_ctx, node.base, env);
+        } else if constexpr (std::is_same_v<T, ast::TypeUnion>) {
+          for (const auto& elem : node.types) {
+            auto checked = CheckQuoteTypeSplices(ctx, type_ctx, elem, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::TypeFunc>) {
+          for (const auto& param : node.params) {
+            auto checked = CheckQuoteTypeSplices(ctx, type_ctx, param.type, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return CheckQuoteTypeSplices(ctx, type_ctx, node.ret, env);
+        } else if constexpr (std::is_same_v<T, ast::TypeClosure>) {
+          for (const auto& param : node.params) {
+            auto checked = CheckQuoteTypeSplices(ctx, type_ctx, param.type, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          auto checked = CheckQuoteTypeSplices(ctx, type_ctx, node.ret, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          if (node.deps_opt.has_value()) {
+            for (const auto& dep : *node.deps_opt) {
+              checked = CheckQuoteTypeSplices(ctx, type_ctx, dep.type, env);
+              if (!checked.ok) {
+                return checked;
+              }
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::TypeTuple>) {
+          for (const auto& elem : node.elements) {
+            auto checked = CheckQuoteTypeSplices(ctx, type_ctx, elem, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::TypeArray>) {
+          auto checked = CheckQuoteTypeSplices(ctx, type_ctx, node.element, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteExprSplices(ctx, type_ctx, node.length, env);
+        } else if constexpr (std::is_same_v<T, ast::TypeSlice>) {
+          return CheckQuoteTypeSplices(ctx, type_ctx, node.element, env);
+        } else if constexpr (std::is_same_v<T, ast::TypeSafePtr>) {
+          return CheckQuoteTypeSplices(ctx, type_ctx, node.element, env);
+        } else if constexpr (std::is_same_v<T, ast::TypeRawPtr>) {
+          return CheckQuoteTypeSplices(ctx, type_ctx, node.element, env);
+        } else if constexpr (std::is_same_v<T, ast::TypeModalState>) {
+          for (const auto& arg : node.generic_args) {
+            auto checked = CheckQuoteTypeSplices(ctx, type_ctx, arg, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::TypePathType>) {
+          for (const auto& arg : node.generic_args) {
+            auto checked = CheckQuoteTypeSplices(ctx, type_ctx, arg, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::TypeApply>) {
+          for (const auto& arg : node.args) {
+            auto checked = CheckQuoteTypeSplices(ctx, type_ctx, arg, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::TypeRefine>) {
+          auto checked = CheckQuoteTypeSplices(ctx, type_ctx, node.base, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteExprSplices(ctx, type_ctx, node.predicate, env);
+        } else if constexpr (std::is_same_v<T, ast::TypeRange> ||
+                             std::is_same_v<T, ast::TypeRangeInclusive> ||
+                             std::is_same_v<T, ast::TypeRangeFrom> ||
+                             std::is_same_v<T, ast::TypeRangeTo> ||
+                             std::is_same_v<T, ast::TypeRangeToInclusive>) {
+          return CheckQuoteTypeSplices(ctx, type_ctx, node.base, env);
+        } else {
+          return OkCheckResult();
+        }
+      },
+      type->node);
+}
+
+static CheckResult CheckQuotePatternSplices(const ScopeContext& ctx,
+                                            const StmtTypeContext& type_ctx,
+                                            const ast::PatternPtr& pattern,
+                                            const TypeEnv& env) {
+  if (!pattern) {
+    return OkCheckResult();
+  }
+  return std::visit(
+      [&](const auto& node) -> CheckResult {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::SpliceExprNode>) {
+          return CheckSpliceSource(ctx, type_ctx, node.expr, env,
+                                   QuoteSplicePosition::Pattern, node.span);
+        } else if constexpr (std::is_same_v<T, ast::IdentifierPattern>) {
+          return CheckSplicedIdentifier(ctx, type_ctx, node.name_splice_opt, env);
+        } else if constexpr (std::is_same_v<T, ast::TypedPattern>) {
+          auto checked =
+              CheckSplicedIdentifier(ctx, type_ctx, node.name_splice_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteTypeSplices(ctx, type_ctx, node.type, env);
+        } else if constexpr (std::is_same_v<T, ast::TuplePattern>) {
+          for (const auto& elem : node.elements) {
+            auto checked = CheckQuotePatternSplices(ctx, type_ctx, elem, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::RecordPattern>) {
+          for (const auto& field : node.fields) {
+            auto checked =
+                CheckQuotePatternSplices(ctx, type_ctx, field.pattern_opt, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::EnumPattern>) {
+          if (!node.payload_opt.has_value()) {
+            return OkCheckResult();
+          }
+          return std::visit(
+              [&](const auto& payload) -> CheckResult {
+                using P = std::decay_t<decltype(payload)>;
+                if constexpr (std::is_same_v<P, ast::TuplePayloadPattern>) {
+                  for (const auto& elem : payload.elements) {
+                    auto checked =
+                        CheckQuotePatternSplices(ctx, type_ctx, elem, env);
+                    if (!checked.ok) {
+                      return checked;
+                    }
+                  }
+                } else {
+                  for (const auto& field : payload.fields) {
+                    auto checked = CheckQuotePatternSplices(
+                        ctx, type_ctx, field.pattern_opt, env);
+                    if (!checked.ok) {
+                      return checked;
+                    }
+                  }
+                }
+                return OkCheckResult();
+              },
+              *node.payload_opt);
+        } else if constexpr (std::is_same_v<T, ast::ModalPattern>) {
+          if (node.fields_opt.has_value()) {
+            for (const auto& field : node.fields_opt->fields) {
+              auto checked =
+                  CheckQuotePatternSplices(ctx, type_ctx, field.pattern_opt, env);
+              if (!checked.ok) {
+                return checked;
+              }
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::RangePattern>) {
+          auto checked = CheckQuotePatternSplices(ctx, type_ctx, node.lo, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuotePatternSplices(ctx, type_ctx, node.hi, env);
+        } else {
+          return OkCheckResult();
+        }
+      },
+      pattern->node);
+}
+
+static CheckResult CheckQuoteParamSplices(const ScopeContext& ctx,
+                                          const StmtTypeContext& type_ctx,
+                                          const ast::Param& param,
+                                          const TypeEnv& env) {
+  auto checked =
+      CheckSplicedIdentifier(ctx, type_ctx, param.name_splice_opt, env);
+  if (!checked.ok) {
+    return checked;
+  }
+  return CheckQuoteTypeSplices(ctx, type_ctx, param.type, env);
+}
+
+static CheckResult CheckQuoteGenericParamsSplices(
+    const ScopeContext& ctx,
+    const StmtTypeContext& type_ctx,
+    const std::optional<ast::GenericParams>& params_opt,
+    const TypeEnv& env) {
+  if (!params_opt.has_value()) {
+    return OkCheckResult();
+  }
+  for (const auto& param : params_opt->params) {
+    auto checked = CheckQuoteTypeSplices(ctx, type_ctx, param.default_type, env);
+    if (!checked.ok) {
+      return checked;
+    }
+  }
+  return OkCheckResult();
+}
+
+static CheckResult CheckQuoteWhereClauseSplices(
+    const ScopeContext& ctx,
+    const StmtTypeContext& type_ctx,
+    const std::optional<ast::WhereClause>& clause_opt,
+    const TypeEnv& env) {
+  if (!clause_opt.has_value()) {
+    return OkCheckResult();
+  }
+  for (const auto& predicate : clause_opt->predicates) {
+    auto checked = CheckQuoteTypeSplices(ctx, type_ctx, predicate.type, env);
+    if (!checked.ok) {
+      return checked;
+    }
+  }
+  return OkCheckResult();
+}
+
+static CheckResult CheckQuoteContractClauseSplices(
+    const ScopeContext& ctx,
+    const StmtTypeContext& type_ctx,
+    const std::optional<ast::ContractClause>& clause_opt,
+    const TypeEnv& env) {
+  if (!clause_opt.has_value()) {
+    return OkCheckResult();
+  }
+  auto checked =
+      CheckQuoteExprSplices(ctx, type_ctx, clause_opt->precondition, env);
+  if (!checked.ok) {
+    return checked;
+  }
+  return CheckQuoteExprSplices(ctx, type_ctx, clause_opt->postcondition, env);
+}
+
+static CheckResult CheckQuoteTypeInvariantSplices(
+    const ScopeContext& ctx,
+    const StmtTypeContext& type_ctx,
+    const std::optional<ast::TypeInvariant>& invariant_opt,
+    const TypeEnv& env) {
+  if (!invariant_opt.has_value()) {
+    return OkCheckResult();
+  }
+  return CheckQuoteExprSplices(ctx, type_ctx, invariant_opt->predicate, env);
+}
+
+static CheckResult CheckQuoteReceiverSplices(const ScopeContext& ctx,
+                                             const StmtTypeContext& type_ctx,
+                                             const ast::Receiver& receiver,
+                                             const TypeEnv& env) {
+  if (const auto* explicit_recv = std::get_if<ast::ReceiverExplicit>(&receiver)) {
+    return CheckQuoteTypeSplices(ctx, type_ctx, explicit_recv->type, env);
+  }
+  return OkCheckResult();
+}
+
+static CheckResult CheckQuoteFieldDeclSplices(const ScopeContext& ctx,
+                                              const StmtTypeContext& type_ctx,
+                                              const ast::FieldDecl& field,
+                                              const TypeEnv& env) {
+  auto checked = CheckQuoteTypeSplices(ctx, type_ctx, field.type, env);
+  if (!checked.ok) {
+    return checked;
+  }
+  return CheckQuoteExprSplices(ctx, type_ctx, field.init_opt, env);
+}
+
+static CheckResult CheckQuoteMethodDeclSplices(const ScopeContext& ctx,
+                                               const StmtTypeContext& type_ctx,
+                                               const ast::MethodDecl& method,
+                                               const TypeEnv& env) {
+  auto checked =
+      CheckQuoteGenericParamsSplices(ctx, type_ctx, method.generic_params, env);
+  if (!checked.ok) {
+    return checked;
+  }
+  checked = CheckQuoteReceiverSplices(ctx, type_ctx, method.receiver, env);
+  if (!checked.ok) {
+    return checked;
+  }
+  for (const auto& param : method.params) {
+    checked = CheckQuoteParamSplices(ctx, type_ctx, param, env);
+    if (!checked.ok) {
+      return checked;
+    }
+  }
+  checked = CheckQuoteTypeSplices(ctx, type_ctx, method.return_type_opt, env);
+  if (!checked.ok) {
+    return checked;
+  }
+  checked = CheckQuoteContractClauseSplices(ctx, type_ctx, method.contract, env);
+  if (!checked.ok) {
+    return checked;
+  }
+  return CheckQuoteBlockSplices(ctx, type_ctx, *method.body, env);
+}
+
+static CheckResult CheckQuoteAssociatedTypeDeclSplices(
+    const ScopeContext& ctx,
+    const StmtTypeContext& type_ctx,
+    const ast::AssociatedTypeDecl& assoc,
+    const TypeEnv& env) {
+  return CheckQuoteTypeSplices(ctx, type_ctx, assoc.default_type, env);
+}
+
+static CheckResult CheckQuoteRecordMemberSplices(const ScopeContext& ctx,
+                                                 const StmtTypeContext& type_ctx,
+                                                 const ast::RecordMember& member,
+                                                 const TypeEnv& env) {
+  return std::visit(
+      [&](const auto& node) -> CheckResult {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::FieldDecl>) {
+          return CheckQuoteFieldDeclSplices(ctx, type_ctx, node, env);
+        } else if constexpr (std::is_same_v<T, ast::MethodDecl>) {
+          return CheckQuoteMethodDeclSplices(ctx, type_ctx, node, env);
+        } else {
+          return CheckQuoteAssociatedTypeDeclSplices(ctx, type_ctx, node, env);
+        }
+      },
+      member);
+}
+
+static CheckResult CheckQuoteStateMemberSplices(const ScopeContext& ctx,
+                                                const StmtTypeContext& type_ctx,
+                                                const ast::StateMember& member,
+                                                const TypeEnv& env) {
+  return std::visit(
+      [&](const auto& node) -> CheckResult {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::StateFieldDecl>) {
+          return CheckQuoteTypeSplices(ctx, type_ctx, node.type, env);
+        } else if constexpr (std::is_same_v<T, ast::StateMethodDecl>) {
+          auto checked =
+              CheckQuoteGenericParamsSplices(ctx, type_ctx, node.generic_params, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked = CheckQuoteReceiverSplices(ctx, type_ctx, node.receiver, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          for (const auto& param : node.params) {
+            checked = CheckQuoteParamSplices(ctx, type_ctx, param, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          checked =
+              CheckQuoteTypeSplices(ctx, type_ctx, node.return_type_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked =
+              CheckQuoteContractClauseSplices(ctx, type_ctx, node.contract, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body, env);
+        } else {
+          for (const auto& param : node.params) {
+            auto checked = CheckQuoteParamSplices(ctx, type_ctx, param, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body, env);
+        }
+      },
+      member);
+}
+
+static CheckResult CheckQuoteClassItemSplices(const ScopeContext& ctx,
+                                              const StmtTypeContext& type_ctx,
+                                              const ast::ClassItem& item,
+                                              const TypeEnv& env) {
+  return std::visit(
+      [&](const auto& node) -> CheckResult {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::ClassFieldDecl>) {
+          return CheckQuoteTypeSplices(ctx, type_ctx, node.type, env);
+        } else if constexpr (std::is_same_v<T, ast::ClassMethodDecl>) {
+          auto checked =
+              CheckQuoteGenericParamsSplices(ctx, type_ctx, node.generic_params, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked = CheckQuoteReceiverSplices(ctx, type_ctx, node.receiver, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          for (const auto& param : node.params) {
+            checked = CheckQuoteParamSplices(ctx, type_ctx, param, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          checked =
+              CheckQuoteTypeSplices(ctx, type_ctx, node.return_type_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked =
+              CheckQuoteContractClauseSplices(ctx, type_ctx, node.contract, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          if (!node.body_opt) {
+            return OkCheckResult();
+          }
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body_opt, env);
+        } else if constexpr (std::is_same_v<T, ast::AssociatedTypeDecl>) {
+          return CheckQuoteAssociatedTypeDeclSplices(ctx, type_ctx, node, env);
+        } else if constexpr (std::is_same_v<T, ast::AbstractFieldDecl>) {
+          return CheckQuoteTypeSplices(ctx, type_ctx, node.type, env);
+        } else {
+          for (const auto& field : node.fields) {
+            auto checked = CheckQuoteTypeSplices(ctx, type_ctx, field.type, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        }
+      },
+      item);
+}
+
+static CheckResult CheckQuoteKeyPathSplices(const ScopeContext& ctx,
+                                            const StmtTypeContext& type_ctx,
+                                            const ast::KeyPathExpr& key_path,
+                                            const TypeEnv& env) {
+  for (const auto& seg : key_path.segs) {
+    if (const auto* index = std::get_if<ast::KeySegIndex>(&seg)) {
+      auto checked = CheckQuoteExprSplices(ctx, type_ctx, index->expr, env);
+      if (!checked.ok) {
+        return checked;
+      }
+    }
+  }
+  return OkCheckResult();
+}
+
+static CheckResult CheckQuoteStmtSplices(const ScopeContext& ctx,
+                                         const StmtTypeContext& type_ctx,
+                                         const ast::Stmt& stmt,
+                                         const TypeEnv& env) {
+  return std::visit(
+      [&](const auto& node) -> CheckResult {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::LetStmt>) {
+          auto checked =
+              CheckQuotePatternSplices(ctx, type_ctx, node.binding.pat, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked =
+              CheckQuoteTypeSplices(ctx, type_ctx, node.binding.type_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteExprSplices(ctx, type_ctx, node.binding.init, env);
+        } else if constexpr (std::is_same_v<T, ast::VarStmt>) {
+          auto checked =
+              CheckQuotePatternSplices(ctx, type_ctx, node.binding.pat, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked =
+              CheckQuoteTypeSplices(ctx, type_ctx, node.binding.type_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteExprSplices(ctx, type_ctx, node.binding.init, env);
+        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
+                             std::is_same_v<T, ast::ShadowVarStmt>) {
+          auto checked =
+              CheckSplicedIdentifier(ctx, type_ctx, node.name_splice_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked = CheckQuoteTypeSplices(ctx, type_ctx, node.type_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteExprSplices(ctx, type_ctx, node.init, env);
+        } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
+                             std::is_same_v<T, ast::CompoundAssignStmt>) {
+          auto checked = CheckQuoteExprSplices(ctx, type_ctx, node.place, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteExprSplices(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::ExprStmt>) {
+          return CheckQuoteExprSplices(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::DeferStmt>) {
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::RegionStmt>) {
+          auto checked = CheckQuoteExprSplices(ctx, type_ctx, node.opts_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked =
+              CheckSplicedIdentifier(ctx, type_ctx, node.alias_splice_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::FrameStmt>) {
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::ReturnStmt> ||
+                             std::is_same_v<T, ast::BreakStmt>) {
+          return CheckQuoteExprSplices(ctx, type_ctx, node.value_opt, env);
+        } else if constexpr (std::is_same_v<T, ast::ContinueStmt>) {
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::UnsafeBlockStmt>) {
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::ComptimeStmt>) {
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
+          for (const auto& path : node.paths) {
+            auto checked = CheckQuoteKeyPathSplices(ctx, type_ctx, path, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body, env);
+        } else {
+          return OkCheckResult();
+        }
+      },
+      stmt);
+}
+
+static CheckResult CheckQuoteItemSplices(const ScopeContext& ctx,
+                                         const StmtTypeContext& type_ctx,
+                                         const ast::ASTItem& item,
+                                         const TypeEnv& env) {
+  return std::visit(
+      [&](const auto& node) -> CheckResult {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::UsingDecl> ||
+                      std::is_same_v<T, ast::ImportDecl> ||
+                      std::is_same_v<T, ast::ErrorItem>) {
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::ExternBlock>) {
+          for (const auto& extern_item : node.items) {
+            if (const auto* proc = std::get_if<ast::ExternProcDecl>(&extern_item)) {
+              auto checked = CheckQuoteGenericParamsSplices(
+                  ctx, type_ctx, proc->generic_params, env);
+              if (!checked.ok) {
+                return checked;
+              }
+              checked = CheckQuoteWhereClauseSplices(
+                  ctx, type_ctx, proc->where_clause, env);
+              if (!checked.ok) {
+                return checked;
+              }
+              for (const auto& param : proc->params) {
+                checked = CheckQuoteParamSplices(ctx, type_ctx, param, env);
+                if (!checked.ok) {
+                  return checked;
+                }
+              }
+              checked =
+                  CheckQuoteTypeSplices(ctx, type_ctx, proc->return_type_opt, env);
+              if (!checked.ok) {
+                return checked;
+              }
+              checked =
+                  CheckQuoteContractClauseSplices(ctx, type_ctx, proc->contract, env);
+              if (!checked.ok) {
+                return checked;
+              }
+              if (proc->foreign_contracts_opt.has_value()) {
+                for (const auto& clause : *proc->foreign_contracts_opt) {
+                  for (const auto& predicate : clause.predicates) {
+                    checked =
+                        CheckQuoteExprSplices(ctx, type_ctx, predicate, env);
+                    if (!checked.ok) {
+                      return checked;
+                    }
+                  }
+                }
+              }
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::StaticDecl>) {
+          auto checked =
+              CheckQuotePatternSplices(ctx, type_ctx, node.binding.pat, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked =
+              CheckQuoteTypeSplices(ctx, type_ctx, node.binding.type_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteExprSplices(ctx, type_ctx, node.binding.init, env);
+        } else if constexpr (std::is_same_v<T, ast::ProcedureDecl>) {
+          auto checked =
+              CheckQuoteGenericParamsSplices(ctx, type_ctx, node.generic_params, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          for (const auto& param : node.params) {
+            checked = CheckQuoteParamSplices(ctx, type_ctx, param, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          checked =
+              CheckQuoteTypeSplices(ctx, type_ctx, node.return_type_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked =
+              CheckQuoteWhereClauseSplices(
+                  ctx, type_ctx, node.predicate_clause_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked =
+              CheckQuoteContractClauseSplices(ctx, type_ctx, node.contract, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::ComptimeProcedureDecl>) {
+          auto checked =
+              CheckQuoteGenericParamsSplices(ctx, type_ctx, node.generic_params, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          for (const auto& param : node.params) {
+            checked = CheckQuoteParamSplices(ctx, type_ctx, param, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          checked =
+              CheckQuoteTypeSplices(ctx, type_ctx, node.return_type_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked =
+              CheckQuoteContractClauseSplices(ctx, type_ctx, node.contract, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::RecordDecl>) {
+          auto checked =
+              CheckQuoteGenericParamsSplices(ctx, type_ctx, node.generic_params, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked =
+              CheckQuoteWhereClauseSplices(
+                  ctx, type_ctx, node.predicate_clause_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked =
+              CheckQuoteTypeInvariantSplices(
+                  ctx, type_ctx, node.invariant_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          for (const auto& member : node.members) {
+            checked = CheckQuoteRecordMemberSplices(ctx, type_ctx, member, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::EnumDecl>) {
+          auto checked =
+              CheckQuoteGenericParamsSplices(ctx, type_ctx, node.generic_params, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked =
+              CheckQuoteWhereClauseSplices(
+                  ctx, type_ctx, node.predicate_clause_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked =
+              CheckQuoteTypeInvariantSplices(
+                  ctx, type_ctx, node.invariant_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          for (const auto& variant : node.variants) {
+            if (!variant.payload_opt.has_value()) {
+              continue;
+            }
+            checked = std::visit(
+                [&](const auto& payload) -> CheckResult {
+                  using P = std::decay_t<decltype(payload)>;
+                  if constexpr (std::is_same_v<P, ast::VariantPayloadTuple>) {
+                    for (const auto& elem : payload.elements) {
+                      auto elem_checked =
+                          CheckQuoteTypeSplices(ctx, type_ctx, elem, env);
+                      if (!elem_checked.ok) {
+                        return elem_checked;
+                      }
+                    }
+                  } else {
+                    for (const auto& field : payload.fields) {
+                      auto field_checked = CheckQuoteFieldDeclSplices(
+                          ctx, type_ctx, field, env);
+                      if (!field_checked.ok) {
+                        return field_checked;
+                      }
+                    }
+                  }
+                  return OkCheckResult();
+                },
+                *variant.payload_opt);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::ModalDecl>) {
+          auto checked =
+              CheckQuoteGenericParamsSplices(ctx, type_ctx, node.generic_params, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked =
+              CheckQuoteWhereClauseSplices(ctx, type_ctx,
+                                           node.predicate_clause_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked =
+              CheckQuoteTypeInvariantSplices(ctx, type_ctx,
+                                             node.invariant_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          for (const auto& state : node.states) {
+            for (const auto& member : state.members) {
+              checked = CheckQuoteStateMemberSplices(ctx, type_ctx, member, env);
+              if (!checked.ok) {
+                return checked;
+              }
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::ClassDecl>) {
+          auto checked =
+              CheckQuoteGenericParamsSplices(ctx, type_ctx, node.generic_params, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked =
+              CheckQuoteWhereClauseSplices(
+                  ctx, type_ctx, node.predicate_clause_opt, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          for (const auto& class_item : node.items) {
+            checked = CheckQuoteClassItemSplices(ctx, type_ctx, class_item, env);
+            if (!checked.ok) {
+              return checked;
+            }
+          }
+          return OkCheckResult();
+        } else if constexpr (std::is_same_v<T, ast::TypeAliasDecl>) {
+          auto checked =
+              CheckQuoteGenericParamsSplices(ctx, type_ctx, node.generic_params, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          checked = CheckQuoteTypeSplices(ctx, type_ctx, node.type, env);
+          if (!checked.ok) {
+            return checked;
+          }
+          return CheckQuoteWhereClauseSplices(ctx, type_ctx,
+                                              node.predicate_clause_opt, env);
+        } else if constexpr (std::is_same_v<T, ast::DeriveTargetDecl>) {
+          return CheckQuoteBlockSplices(ctx, type_ctx, *node.body, env);
+        } else {
+          return OkCheckResult();
+        }
+      },
+      item);
+}
+
+static CheckResult ValidateQuoteSplicesStatic(const ScopeContext& ctx,
+                                              const StmtTypeContext& type_ctx,
+                                              const ast::QuoteExpr& quote,
+                                              ast::QuoteKind kind,
+                                              const TypeEnv& env,
+                                              const core::Span& quote_span) {
+  ast::Parser parser = MakeQuoteTokenParser(quote.tokens);
+  switch (kind) {
+    case ast::QuoteKind::Expr: {
+      auto parsed = ast::ParseExpr(parser);
+      if (!parsed.elem || !ast::AtEof(parsed.parser)) {
+        return MakeDiagCheckResult("E-CTE-0220", quote_span);
+      }
+      return CheckQuoteExprSplices(ctx, type_ctx, parsed.elem, env);
+    }
+    case ast::QuoteKind::Stmt: {
+      auto parsed = ast::ParseStmt(parser);
+      if (!IsQuotedStatementForm(parsed.elem) || !ast::AtEof(parsed.parser)) {
+        return MakeDiagCheckResult("E-CTE-0220", quote_span);
+      }
+      return CheckQuoteStmtSplices(ctx, type_ctx, parsed.elem, env);
+    }
+    case ast::QuoteKind::Unspecified:
+      return MakeDiagCheckResult("E-CTE-0220", quote_span);
+    case ast::QuoteKind::Item: {
+      auto parsed = ast::ParseItem(parser);
+      if (!ast::AtEof(parsed.parser)) {
+        return MakeDiagCheckResult("E-CTE-0220", quote_span);
+      }
+      return CheckQuoteItemSplices(ctx, type_ctx, parsed.item, env);
+    }
+    case ast::QuoteKind::Type: {
+      auto parsed = ast::ParseType(parser);
+      if (!parsed.elem || !ast::AtEof(parsed.parser)) {
+        return MakeDiagCheckResult("E-CTE-0220", quote_span);
+      }
+      return CheckQuoteTypeSplices(ctx, type_ctx, parsed.elem, env);
+    }
+    case ast::QuoteKind::Pattern: {
+      auto parsed = ast::ParsePattern(parser);
+      if (!parsed.elem || !ast::AtEof(parsed.parser)) {
+        return MakeDiagCheckResult("E-CTE-0220", quote_span);
+      }
+      return CheckQuotePatternSplices(ctx, type_ctx, parsed.elem, env);
+    }
+  }
+  return MakeDiagCheckResult("E-CTE-0220", quote_span);
+}
+
 static std::optional<std::string_view> CtForbiddenTypeDiag(
     const ScopeContext& ctx,
     const TypeRef& type) {
@@ -813,12 +2929,16 @@ bool ExprUsesOnlyEnvBindings(const ast::ExprPtr& e, const TypeEnv& env) {
           }
           return true;
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
-            if (!ExprUsesOnlyEnvBindings(elem, env)) {
-              return false;
+          bool uses_only_env_bindings = true;
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            if (!uses_only_env_bindings) {
+              return;
             }
-          }
-          return true;
+            if (!ExprUsesOnlyEnvBindings(elem, env)) {
+              uses_only_env_bindings = false;
+            }
+          });
+          return uses_only_env_bindings;
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           return ExprUsesOnlyEnvBindings(node.value, env) &&
                  ExprUsesOnlyEnvBindings(node.count, env);
@@ -961,12 +3081,16 @@ bool EntryExprHasCapabilityOp(const ast::ExprPtr& e) {
           }
           return false;
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
-            if (EntryExprHasCapabilityOp(elem)) {
-              return true;
+          bool has_capability_op = false;
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            if (has_capability_op) {
+              return;
             }
-          }
-          return false;
+            if (EntryExprHasCapabilityOp(elem)) {
+              has_capability_op = true;
+            }
+          });
+          return has_capability_op;
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           return EntryExprHasCapabilityOp(node.value) ||
                  EntryExprHasCapabilityOp(node.count);
@@ -1058,12 +3182,16 @@ bool EntryExprHasSideEffectOp(const ast::ExprPtr& e) {
           }
           return false;
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
-            if (EntryExprHasSideEffectOp(elem)) {
-              return true;
+          bool has_side_effect = false;
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            if (has_side_effect) {
+              return;
             }
-          }
-          return false;
+            if (EntryExprHasSideEffectOp(elem)) {
+              has_side_effect = true;
+            }
+          });
+          return has_side_effect;
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           return EntryExprHasSideEffectOp(node.value) ||
                  EntryExprHasSideEffectOp(node.count);
@@ -1151,18 +3279,11 @@ static ExprTypeResult TypeExprImpl(const ScopeContext& ctx,
             r.diag_id = "E-MOD-2450";
             return r;
           }
-          if (HasMemoryOrderAttribute(node.attrs) &&
-              !IsMemoryOrderExpressionShape(node.expr)) {
-            ExprTypeResult r;
-            r.diag_id = "E-MOD-2452";
-            return r;
-          }
 
           StmtTypeContext inner_ctx = type_ctx;
-          const std::array<const ast::AttributeList* const, 1> ancestors{
-              &node.attrs};
           inner_ctx.contract_dynamic =
-              ComputeDynamicContext(ancestors, type_ctx.contract_dynamic);
+              e ? ComputeExprDynamicContext(*e, type_ctx.contract_dynamic)
+                : type_ctx.contract_dynamic;
           TypeEnv inner_env = env;
           if (node.expr && std::holds_alternative<ast::ComptimeExpr>(node.expr->node)) {
             inner_env = ExtendComptimeEnv(env, &node.attrs);
@@ -1170,6 +3291,12 @@ static ExprTypeResult TypeExprImpl(const ScopeContext& ctx,
           auto inner = TypeExpr(ctx, inner_ctx, node.expr, inner_env);
           if (!inner.ok) {
             return inner;
+          }
+          if (const auto diag = ValidateMemoryOrderAttributePlacement(
+                  ctx, inner_ctx, node.attrs, node.expr, inner_env)) {
+            ExprTypeResult r;
+            r.diag_id = *diag;
+            return r;
           }
           if (const auto log_diag =
                   ValidateLogAttributesForObservedTypeImpl(ctx, node.attrs, inner.type, env)) {
@@ -1338,13 +3465,26 @@ static ExprTypeResult TypeExprImpl(const ScopeContext& ctx,
             r.diag_id = "E-CTE-0220";
             return r;
           }
+          const auto splice_check =
+              ValidateQuoteSplicesStatic(ctx, type_ctx, node, *resolved_kind, env,
+                                         e ? e->span : core::Span{});
+          if (!splice_check.ok) {
+            r.diag_id = splice_check.diag_id;
+            r.diag_detail = splice_check.diag_detail;
+            r.diag_span = splice_check.diag_span;
+            return r;
+          }
           r.ok = true;
           r.type = QuoteKindType(*resolved_kind);
           return r;
         } else if constexpr (std::is_same_v<T, ast::ComptimeExpr>) {
+          StmtTypeContext inner_ctx = type_ctx;
+          inner_ctx.contract_dynamic =
+              e ? ComputeExprDynamicContext(*e, type_ctx.contract_dynamic)
+                : type_ctx.contract_dynamic;
           const TypeEnv comptime_env =
               ExtendComptimeEnv(env, &ast::AttrListOf(node.attrs_opt));
-          auto typed = TypeExpr(ctx, type_ctx, node.body, comptime_env);
+          auto typed = TypeExpr(ctx, inner_ctx, node.body, comptime_env);
           if (!typed.ok) {
             return typed;
           }
@@ -1503,21 +3643,20 @@ static PlaceTypeResult TypePlaceImpl(const ScopeContext& ctx,
             r.diag_id = "E-MOD-2450";
             return r;
           }
-          if (HasMemoryOrderAttribute(node.attrs) &&
-              !IsMemoryOrderExpressionShape(node.expr)) {
-            PlaceTypeResult r;
-            r.diag_id = "E-MOD-2452";
-            return r;
-          }
 
           StmtTypeContext inner_ctx = type_ctx;
-          const std::array<const ast::AttributeList* const, 1> ancestors{
-              &node.attrs};
           inner_ctx.contract_dynamic =
-              ComputeDynamicContext(ancestors, type_ctx.contract_dynamic);
+              e ? ComputeExprDynamicContext(*e, type_ctx.contract_dynamic)
+                : type_ctx.contract_dynamic;
           auto inner = TypePlace(ctx, inner_ctx, node.expr, env);
           if (!inner.ok) {
             return inner;
+          }
+          if (const auto diag = ValidateMemoryOrderAttributePlacement(
+                  ctx, inner_ctx, node.attrs, node.expr, env)) {
+            PlaceTypeResult r;
+            r.diag_id = *diag;
+            return r;
           }
           if (const auto log_diag =
                   ValidateLogAttributesForObservedTypeImpl(ctx, node.attrs, inner.type, env)) {
@@ -1652,12 +3791,7 @@ static CheckResult TryDynamicRefinementFallback(const ScopeContext& ctx,
   CheckResult result;
   bool dynamic_context = type_ctx.contract_dynamic;
   if (e) {
-    if (const auto* attributed = std::get_if<ast::AttributedExpr>(&e->node)) {
-      const ast::AttributeList* attrs = &attributed->attrs;
-      dynamic_context = ComputeDynamicContext(
-          std::span<const ast::AttributeList* const>(&attrs, 1),
-          type_ctx.contract_dynamic);
-    }
+    dynamic_context = ComputeExprDynamicContext(*e, type_ctx.contract_dynamic);
   }
   if (!dynamic_context || !e || !expected) {
     return result;
@@ -1717,6 +3851,64 @@ CheckResult CheckExprAgainst(const ScopeContext& ctx,
     return result;
   }
 
+  if (const auto diag = CheckEscapingClosureSpawn(e, env, expected);
+      diag.has_value()) {
+    result.diag_id = *diag;
+    result.diag_span = e ? std::optional<core::Span>(e->span) : std::nullopt;
+    return result;
+  }
+
+  if (const auto* attributed = std::get_if<ast::AttributedExpr>(&e->node)) {
+    if (type_ctx.in_speculative &&
+        HasMemoryOrderAttribute(attributed->attrs)) {
+      result.diag_id = "E-CON-0096";
+      result.diag_span = e ? std::optional<core::Span>(e->span) : std::nullopt;
+      return result;
+    }
+
+    const auto attr_validation =
+        ValidateAttributes(attributed->attrs, AttributeTarget::Expression);
+    if (!attr_validation.ok) {
+      result.diag_id = attr_validation.diag_id;
+      result.diag_span = e ? std::optional<core::Span>(e->span) : std::nullopt;
+      return result;
+    }
+    if (CountMemoryOrderAttributes(attributed->attrs) > 1) {
+      result.diag_id = "E-MOD-2450";
+      result.diag_span = e ? std::optional<core::Span>(e->span) : std::nullopt;
+      return result;
+    }
+
+    StmtTypeContext inner_ctx = type_ctx;
+    inner_ctx.contract_dynamic =
+        ComputeExprDynamicContext(*e, type_ctx.contract_dynamic);
+
+    const auto checked_inner =
+        CheckExprAgainst(ctx, inner_ctx, attributed->expr, expected, env);
+    if (!checked_inner.ok) {
+      return checked_inner;
+    }
+    if (const auto diag = ValidateMemoryOrderAttributePlacement(
+            ctx, inner_ctx, attributed->attrs, attributed->expr, env)) {
+      result.diag_id = *diag;
+      result.diag_span = e ? std::optional<core::Span>(e->span) : std::nullopt;
+      return result;
+    }
+
+    if (const auto log_diag = ValidateLogAttributesForObservedType(
+            ctx, attributed->attrs, expected, env)) {
+      result.diag_id = *log_diag;
+      result.diag_span = e ? std::optional<core::Span>(e->span) : std::nullopt;
+      return result;
+    }
+
+    result.ok = true;
+    if (ctx.expr_types && e) {
+      (*ctx.expr_types)[e.get()] = expected;
+    }
+    return result;
+  }
+
   if (const auto* if_expr = std::get_if<ast::IfExpr>(&e->node)) {
     result = expr::CheckIfExprImpl(ctx, type_ctx, *if_expr, expected, env);
     if (!result.ok) {
@@ -1746,6 +3938,15 @@ CheckResult CheckExprAgainst(const ScopeContext& ctx,
       if (!resolved_kind.has_value()) {
         result.diag_id = "E-CTE-0220";
         result.diag_span = e ? std::optional<core::Span>(e->span) : std::nullopt;
+        return result;
+      }
+      const auto splice_check =
+          ValidateQuoteSplicesStatic(ctx, type_ctx, *quote, *resolved_kind, env,
+                                     e ? e->span : core::Span{});
+      if (!splice_check.ok) {
+        result.diag_id = splice_check.diag_id;
+        result.diag_detail = splice_check.diag_detail;
+        result.diag_span = splice_check.diag_span;
         return result;
       }
       if (IsAstMetaType(expected) ||
@@ -2018,18 +4219,16 @@ bool IsInUnsafeSpan(const ScopeContext& ctx, const core::Span& span) {
     return false;
   }
 
+  const auto file_it = ctx.sigma.unsafe_spans_by_file.find(span.file);
+  if (file_it == ctx.sigma.unsafe_spans_by_file.end()) {
+    return false;
+  }
+
   const auto range = core::SpanRange(span);
-  for (const auto& module : ctx.sigma.mods) {
-    for (const auto& file_spans : module.unsafe_spans) {
-      if (file_spans.path != span.file) {
-        continue;
-      }
-      for (const auto& sp : file_spans.spans) {
-        const auto sp_range = core::SpanRange(sp);
-        if (range.first >= sp_range.first && range.second <= sp_range.second) {
-          return true;
-        }
-      }
+  for (const auto& sp : file_it->second) {
+    const auto sp_range = core::SpanRange(sp);
+    if (range.first >= sp_range.first && range.second <= sp_range.second) {
+      return true;
     }
   }
 

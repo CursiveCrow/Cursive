@@ -184,10 +184,9 @@ static bool IsCapturedOuterBinding(const TypeEnv& env, std::string_view name) {
   return false;
 }
 
-static bool IsGpuHostPointerDeref(const StmtTypeContext& type_ctx,
-                                  const TypeEnv& env,
+static bool IsGpuHostPointerDeref(const TypeEnv& env,
                                   const ast::ExprPtr& value) {
-  if (!type_ctx.in_parallel || !IsGpuDomainType(type_ctx.parallel_domain)) {
+  if (!GpuContext(env)) {
     return false;
   }
   if (!value) {
@@ -216,7 +215,7 @@ ExprTypeResult TypeDerefExprImpl(const ScopeContext& ctx,
     return result;
   }
 
-  if (IsGpuHostPointerDeref(type_ctx, env, expr.value)) {
+  if (IsGpuHostPointerDeref(env, expr.value)) {
     SPEC_RULE("GpuPtr-Deref-Err");
     result.diag_id = "GpuPtr-Deref-Err";
     return result;
@@ -294,7 +293,7 @@ PlaceTypeResult TypeDerefPlaceImpl(const ScopeContext& ctx,
     return result;
   }
 
-  if (IsGpuHostPointerDeref(type_ctx, env, expr.value)) {
+  if (IsGpuHostPointerDeref(env, expr.value)) {
     SPEC_RULE("GpuPtr-Deref-Err");
     result.diag_id = "GpuPtr-Deref-Err";
     return result;

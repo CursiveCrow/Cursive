@@ -15,6 +15,10 @@ public procedure RunAttributeGrammarAndAstAttachment(ctx: Context) -> i32 {
     [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
 
     let probe_value: i32 = AttributesGrammarProbe(4)
+    let attr_list_probe_value: i32 =
+        [[log(label: "attributes-attr-list-wf-expression-primary", expected: 7),
+          log(label: "attributes-attr-list-wf-expression-secondary")]]
+        probe_value + 2
     [[log(label: "attributes-grammar-standalone-statement")]]
     let statement_log_value: bool = true
     let expression_log_value: i32 =
@@ -26,14 +30,17 @@ public procedure RunAttributeGrammarAndAstAttachment(ctx: Context) -> i32 {
 
     let atr_001: string@View = [[log(label: "attributes-syntax-feature-001", expected: "ATR-001")]] "ATR-001"
     let atr_002: string@View = [[log(label: "attributes-syntax-feature-002", expected: "ATR-002")]] "ATR-002"
+    let atr_010: string@View = [[log(label: "attributes-syntax-feature-010", expected: "ATR-010")]] "ATR-010"
 
     let runtime_ok: bool =
         (statement_log_value == true) &&
         (probe_value == 5) &&
+        (attr_list_probe_value == 7) &&
         (expression_log_value == 6) &&
         (binding_log_value == 7) &&
         (atr_001 == "ATR-001") &&
-        (atr_002 == "ATR-002")
+        (atr_002 == "ATR-002") &&
+        (atr_010 == "ATR-010")
     let runtime_ok_log: bool = [[log(label: "attributes-syntax-grammar-runtime", expected: true)]] runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 12 } else { 0 }
@@ -49,4 +56,3 @@ public procedure RunAttributeGrammarAndAstAttachment(ctx: Context) -> i32 {
     [[log(label: "attributes-log-item_success", expected: "success")]] "success"
     return 0
 }
-

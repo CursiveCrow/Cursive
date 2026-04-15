@@ -19,7 +19,10 @@ $ErrorActionPreference = "Stop"
 # -----------------------------------------------------------------------------
 
 if ([string]::IsNullOrWhiteSpace($CompilerPath)) {
-    $CompilerPath = (Join-Path $PSScriptRoot "..\\..\\cursive\\build\\Debug\\cursive.exe")
+    $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+    $workspaceRoot = (Resolve-Path (Join-Path $repoRoot "..")).Path
+    $resolveCompilerPath = Join-Path $repoRoot "ResolveCompilerPath.ps1"
+    $CompilerPath = (& $resolveCompilerPath -RepoRoot $workspaceRoot -RequestedPath $CompilerPath)
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -53,6 +56,9 @@ $runCasesLogRoot = Join-Path $runLogRoot "cases"
 New-Item -ItemType Directory -Path $runCasesLogRoot -Force | Out-Null
 
 $manifestLines = @(
+    "[toolchain]",
+    "target_profile = ""x86_64-win64""",
+    "",
     "[[assembly]]",
     "name = ""probe""",
     "kind = ""executable""",
@@ -1434,11 +1440,11 @@ public procedure main(move ctx: Context) -> i32 {
 '@
 }
 
-function New-Issue513TrustExternBlockSource() {
+function New-Issue513UnknownExternVerificationAttrSource() {
     return @'
 [[trust]]
 extern "C" {
-    procedure trusted_foreign_probe(value: i32) -> i32
+    procedure unknown_verification_probe(value: i32) -> i32
 }
 
 public procedure main(move ctx: Context) -> i32 {
@@ -1997,6 +2003,20 @@ public procedure main(move ctx: Context) -> i32 {
 '@
 }
 
+function New-Issue513DeriveMalformedArgsSource() {
+    return @'
+[[derive("Display")]]
+public record DerivedProbe {
+    value: i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
+'@
+}
+
 function New-Issue513VendorScopedUnknownSource() {
     return @'
 [[com::vendor::probe]]
@@ -2081,16 +2101,16 @@ public procedure main(move ctx: Context) -> i32 {
 '@
 }
 
-function New-Issue513TrustOnNonForeignProcedureSource() {
+function New-Issue513UnknownProcedureVerificationAttrSource() {
     return @'
 [[trust]]
-public procedure local_trust_mode() -> i32 {
+public procedure local_unknown_verification_mode() -> i32 {
     return 0
 }
 
 public procedure main(move ctx: Context) -> i32 {
     let _ = ctx
-    return local_trust_mode()
+    return local_unknown_verification_mode()
 }
 '@
 }
@@ -2105,6 +2125,30 @@ public procedure main(move ctx: Context) -> i32 {
 '@
 }
 
+function New-Issue513ComptimeProcedureAttrTargetSource() {
+    return @'
+[[layout(C)]]
+comptime procedure generated_helper() -> () {
+    return
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
+'@
+}
+
+function New-Issue513ComptimeExprMalformedAttrSource() {
+    return @'
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let value: i32 = [[files("unexpected")]] comptime { 1 }
+    return value
+}
+'@
+}
+
 function New-Issue513ExprMemoryOrderDefaultAndOverrideSource() {
     return @'
 public procedure main(move ctx: Context) -> i32 {
@@ -2114,6 +2158,20 @@ public procedure main(move ctx: Context) -> i32 {
     # gate write {
         gate[0] = 1
         let observed: i32 = [[acquire]] gate[0]
+        let _ = observed
+    }
+    return 0
+}
+'@
+}
+
+function New-Issue513ExprMemoryOrderSubtreeSharedAccessSource() {
+    return @'
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    var gate: shared [i32; 4] = [0, 0, 0, 0]
+    # gate read {
+        let observed: i32 = [[acquire]] (gate[0] + 1)
         let _ = observed
     }
     return 0
@@ -2178,6 +2236,20 @@ function New-Issue513InlineHintRejectedSource() {
     return @'
 [[inline(hint)]]
 public procedure inline_hint_probe() -> i32 {
+    return 0
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
+'@
+}
+
+function New-Issue513ColdHintRejectedSource() {
+    return @'
+[[cold(unlikely)]]
+public procedure cold_hint_probe() -> i32 {
     return 0
 }
 
@@ -2435,6 +2507,30 @@ public procedure main(move ctx: Context) -> i32 {
 '@
 }
 
+function New-Issue513LogPositionalArgSource() {
+    return @'
+[[log("bad")]]
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
+'@
+}
+
+function New-Issue513LogMultipleArgsSource() {
+    return @'
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let expected_value: i32 = 7
+    let observed: i32 = [[log(label: "multi-arg", expected: expected_value)]] 7
+    if (observed != expected_value) {
+        return 1
+    }
+    return 0
+}
+'@
+}
+
 function New-Issue513LogNeverReturnSource() {
     return @'
 [[log(expected: 0)]]
@@ -2461,6 +2557,21 @@ public procedure DynClauseDirect(x: i32) -> i32
 public procedure main(move ctx: Context) -> i32 {
     let _ = ctx
     return DynClauseDirect(1)
+}
+'@
+}
+
+function New-Issue513DynamicClauseRepeatedAttrListsSource() {
+    return @'
+public procedure DynClauseRepeatedAttrLists(x: i32) -> i32
+    |: [[dynamic]][[dynamic]] (x == x)
+{
+    return x
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return DynClauseRepeatedAttrLists(1)
 }
 '@
 }
@@ -2985,6 +3096,78 @@ public procedure main(move ctx: Context) -> i32
     let idx: usize = 1usize
     values[idx] = values[idx] + 10
     return values[idx]
+}
+"@
+}
+
+function New-Issue549ArrayIndexDynamicExprSource() {
+    return @"
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let values: [i32; 4] = [10, 20, 30, 40]
+    let idx: usize = 2usize
+    let observed: i32 = [[dynamic]] values[idx]
+    return observed
+}
+"@
+}
+
+function New-Issue549ArrayIndexDynamicStmtSource() {
+    return @"
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    var values: [i32; 4] = [10, 20, 30, 40]
+    let idx: usize = 2usize
+    [[dynamic]]
+    values[idx] = values[idx] + 7
+    return [[dynamic]] values[idx]
+}
+"@
+}
+
+function New-Issue560IfStmtNonUnitBranchSource() {
+    return @"
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    if true {
+        1
+    }
+    return 0
+}
+"@
+}
+
+function New-Issue560LoopIfStmtNonUnitBranchSource() {
+    return @"
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    var idx: i32 = 0
+    loop idx < 2 {
+        if true {
+            1
+        }
+        idx = idx + 1
+    }
+    return 0
+}
+"@
+}
+
+function New-Issue554CallTempNoProvenanceSource() {
+    return @"
+procedure borrow(value: i32) -> i32 {
+    return value
+}
+
+procedure consume(move value: i32) -> i32 {
+    return value
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let borrowed: i32 = borrow(1 + 2)
+    let consumed: i32 = consume(3 + 4)
+    return borrowed + consumed
 }
 "@
 }
@@ -3520,6 +3703,50 @@ public procedure main(move ctx: Context) -> i32 {
 "@
 }
 
+function New-Issue51UsingListParseTraceSource() {
+    return @"
+record Alpha {
+    value: i32
+}
+
+record Beta {
+    value: i32
+}
+
+using probe::{Alpha as AliasAlpha, Beta}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let item: AliasAlpha = AliasAlpha { value: 7 }
+    let other: Beta = Beta { value: 5 }
+    let _ = other
+    return item.value
+}
+"@
+}
+
+function New-Issue51UsingWildcardParseTraceSource() {
+    return @"
+public record Alpha {
+    value: i32
+}
+
+public enum Choice {
+    Up
+}
+
+public using probe::*
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let item: Alpha = Alpha { value: 7 }
+    let choice: Choice = Choice::Up
+    let _ = choice
+    return item.value
+}
+"@
+}
+
 function New-Issue51PublicUsingItemRejectMainSource() {
     return @"
 import mod
@@ -3614,9 +3841,35 @@ public procedure main(move ctx: Context) -> i32 {
 "@
 }
 
+function New-Issue33ImportAttrMultipleBlocksRejectedSource() {
+    return @"
+[[export("C")]]
+[[export("C")]]
+import foo::bar
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
+"@
+}
+
 function New-Issue33StaticAttrTargetRejectedSource() {
     return @"
 [[export("C")]]
+public let bad_static: i32 = 1
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
+"@
+}
+
+function New-Issue625StaticDeclAttributeListMultipleBlocksSource() {
+    return @"
+[[export("C")]]
+[[deprecated("still a static target error, not a parse error")]]
 public let bad_static: i32 = 1
 
 public procedure main(move ctx: Context) -> i32 {
@@ -4839,12 +5092,8 @@ public modal Issue56VisibilitySameModule {
             return self.value
         }
 
-        protected procedure read_protected(~) -> i32 {
-            return self.value + 1
-        }
-
         procedure read_internal(~) -> i32 {
-            return self.value + 2
+            return self.value + 1
         }
 
         transition promote() -> @Ready {
@@ -4866,11 +5115,10 @@ public procedure main(move ctx: Context) -> i32 {
     var idle: unique Issue56VisibilitySameModule@Idle =
         Issue56VisibilitySameModule@Idle { value: 9 }
     let p: i32 = idle~>read_private()
-    let q: i32 = idle~>read_protected()
     let r: i32 = idle~>read_internal()
     let ready: Issue56VisibilitySameModule@Ready = idle~>promote()
     let s: i32 = ready~>read_ready()
-    return p + q + r + s
+    return p + r + s
 }
 "@
 }
@@ -4919,6 +5167,60 @@ public modal Issue56Remote {
 
 public procedure new_remote() -> Issue56Remote@Idle {
     return Issue56Remote@Idle { value: 5 }
+}
+"@
+}
+
+function New-Issue617ProtectedVisibilityRejectedSource() {
+    return @"
+protected procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
+"@
+}
+
+function New-Issue618ParseItemsConsTraceSource() {
+    return @"
+procedure first_helper() -> i32 {
+    return 1
+}
+
+procedure second_helper(value: i32) -> i32 {
+    return value + 1
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return second_helper(first_helper())
+}
+"@
+}
+
+function New-Issue620QuoteStmtProbeSource() {
+    return @"
+public procedure main(move ctx: Context) -> i32 {
+    comptime {
+        let quoted = quote {
+            return 1
+        }
+        let _ = quoted
+    }
+
+    let _ = ctx
+    return 0
+}
+"@
+}
+
+function New-Issue621ReservedKeywordIdentifierSource() {
+    return @"
+using foo::procedure
+
+public procedure record(move ctx: Context) -> i32 {
+    let _ = ctx
+    let if: i32 = 0
+    return 0
 }
 "@
 }
@@ -5165,6 +5467,37 @@ public procedure main(move ctx: Context) -> i32 {
     let _ = tuple_values
     let _ = zero
     return selected
+}
+'@
+}
+
+function New-Issue514TrailingCommaEndSetConformanceSource() {
+    return @'
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
+'@
+}
+
+function New-Issue514TrailingCommaErrSingleLineCallSource() {
+    return @'
+procedure issue514_sum(left: i32, right: i32) -> i32 {
+    return left + right
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return issue514_sum(1, 2,)
+}
+'@
+}
+
+function New-Issue514TupleExprSingletonCommaRejectedSource() {
+    return @'
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return (1,)
 }
 '@
 }
@@ -6253,6 +6586,47 @@ function Invoke-Issue16DiagnosticSpecSyncCase {
     Write-Host "[compiler-static] issue16_diagnostic_spec_sync: registry_exit=$generatorExit sync_exit=$validatorExit"
 }
 
+function Invoke-Issue16InvalidCastCodeCase {
+    $result = Invoke-CheckWithConformance `
+        -CaseId "issue16_invalid_cast_code" `
+        -Source @"
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let value: bool = true
+    let bad: string@View = value as string@View
+    let _ = bad
+    return 0
+}
+"@ `
+        -ConformanceFileName "issue16_invalid_cast_code.log"
+
+    if ($result.ExitCode -ne 1) {
+        throw "Case 'issue16_invalid_cast_code' expected exit 1 but got $($result.ExitCode)."
+    }
+
+    $codeCount = @($result.DiagJson.diagnostics | Where-Object {
+        $_.code -eq "E-SEM-2528"
+    }).Count
+    if ($codeCount -lt 1) {
+        throw "Case 'issue16_invalid_cast_code' expected diagnostic code 'E-SEM-2528'."
+    }
+
+    $legacyRuleIdCount = @($result.DiagJson.diagnostics | Where-Object {
+        $_.code -eq "T-Cast-Invalid"
+    }).Count
+    if ($legacyRuleIdCount -ne 0) {
+        throw "Case 'issue16_invalid_cast_code' must not emit raw rule id 'T-Cast-Invalid' as a diagnostic code."
+    }
+
+    $logLines = Get-Content -Path $result.ConformancePath
+    $castInvalidTraceCount = @($logLines | Where-Object { $_ -like "*`tT-Cast-Invalid`t*" }).Count
+    if ($castInvalidTraceCount -lt 1) {
+        throw "Case 'issue16_invalid_cast_code' expected T-Cast-Invalid in conformance trace."
+    }
+
+    Write-Host "[compiler-static] issue16_invalid_cast_code: exit=$($result.ExitCode) code=$codeCount trace=$castInvalidTraceCount"
+}
+
 function Invoke-Issue16NoLegacyDiagnosticApiCase {
     $srcRoot = Join-Path $workspaceRoot "cursive\\src"
     $includeRoot = Join-Path $workspaceRoot "cursive\\include"
@@ -6852,9 +7226,9 @@ function Invoke-Issue16CodeSelectionTraceCase {
         throw "Case 'issue16_code_selection_trace_c0' expected diagnostic code 'E-MOD-2402'."
     }
     $c0LogLines = Get-Content -Path $resultC0.ConformancePath
-    $codeC0Count = @($c0LogLines | Where-Object { $_ -like "*`tCode-C0`t*" }).Count
+    $codeC0Count = @($c0LogLines | Where-Object { $_ -like "*`tCode`t*" }).Count
     if ($codeC0Count -lt 1) {
-        throw "Case 'issue16_code_selection_trace_c0' expected Code-C0 trace emission."
+        throw "Case 'issue16_code_selection_trace_c0' expected Code trace emission."
     }
 
     $resultSpec = Invoke-CheckWithConformance `
@@ -6871,9 +7245,9 @@ function Invoke-Issue16CodeSelectionTraceCase {
         throw "Case 'issue16_code_selection_trace_spec' expected diagnostic code 'E-CON-0020'."
     }
     $specLogLines = Get-Content -Path $resultSpec.ConformancePath
-    $codeSpecCount = @($specLogLines | Where-Object { $_ -like "*`tCode-Spec`t*" }).Count
+    $codeSpecCount = @($specLogLines | Where-Object { $_ -like "*`tCode`t*" }).Count
     if ($codeSpecCount -lt 1) {
-        throw "Case 'issue16_code_selection_trace_spec' expected Code-Spec trace emission."
+        throw "Case 'issue16_code_selection_trace_spec' expected Code trace emission."
     }
 
     Write-Host "[compiler-static] issue16_code_selection_trace: c0_exit=$($resultC0.ExitCode) c0_code=$c0DiagCodeCount c0_trace=$codeC0Count spec_exit=$($resultSpec.ExitCode) spec_code=$specDiagCodeCount spec_trace=$codeSpecCount"
@@ -6984,6 +7358,7 @@ function Invoke-Issue26ManifestLlvmBinMissingNoFallbackCase {
     $manifest = @(
         "[toolchain]",
         "llvm_bin = ""C:/definitely/not/here""",
+        "target_profile = ""x86_64-win64""",
         "",
         "[[assembly]]",
         "name = ""probe""",
@@ -7145,6 +7520,7 @@ function Invoke-Issue26AssembleIrErrTransitionCase {
     $manifest = @(
         "[toolchain]",
         "llvm_bin = ""$fakeLlvmTomlPath""",
+        "target_profile = ""x86_64-win64""",
         "",
         "[[assembly]]",
         "name = ""probe""",
@@ -7207,6 +7583,7 @@ function Invoke-Issue26LlvmAsWrongVersionRejectedCase {
     $manifest = @(
         "[toolchain]",
         "llvm_bin = ""$fakeLlvmTomlPath""",
+        "target_profile = ""x86_64-win64""",
         "",
         "[[assembly]]",
         "name = ""probe""",
@@ -7299,6 +7676,7 @@ function Invoke-Issue66EmitLlvmErrLlTransitionCase {
     $manifest = @(
         "[toolchain]",
         "llvm_bin = ""$fakeLlvmTomlPath""",
+        "target_profile = ""x86_64-win64""",
         "",
         "[[assembly]]",
         "name = ""probe""",
@@ -7411,6 +7789,7 @@ function Invoke-Issue66LlvmResolveBoundaryCase {
     $manifest = @(
         "[toolchain]",
         "llvm_bin = ""$fakeLlvmTomlPath""",
+        "target_profile = ""x86_64-win64""",
         "",
         "[[assembly]]",
         "name = ""probe""",
@@ -7725,6 +8104,107 @@ function Invoke-Issue513LayoutLlWiringCase {
     Write-Host "[compiler-static] issue513_layout_ll_wiring: exit=$($result.ExitCode) packed=$packedRecordCount align16=$alignedRecordCount enum_u16=$discEnumCount align16_alloca=$align16AllocaCount packed_align1_alloca=$packedAlign1AllocaCount"
 }
 
+function Invoke-Issue513InlineHintParseTraceCase {
+    $result = Invoke-CheckWithConformance `
+        -CaseId "issue513_inline_hint_parse_trace" `
+        -Source (New-Issue513InlineHintRejectedSource) `
+        -ConformanceFileName "issue513_inline_hint_parse_trace.log"
+
+    if ($result.ExitCode -ne 1) {
+        throw "Case 'issue513_inline_hint_parse_trace' expected exit 1 but got $($result.ExitCode)."
+    }
+
+    $diagCount = @($result.DiagJson.diagnostics | Where-Object {
+        $_.code -eq "E-MOD-2450"
+    }).Count
+    if ($diagCount -lt 1) {
+        throw "Case 'issue513_inline_hint_parse_trace' expected diagnostic code E-MOD-2450."
+    }
+
+    $logLines = Get-Content -Path $result.ConformancePath
+    $parseAttrSpecCount = @($logLines | Where-Object { $_ -like "*`tParse-AttrSpec`t*" }).Count
+    $attrListWfCount = @($logLines | Where-Object { $_ -like "*`tAttrListWf`t*" }).Count
+    $attrValidationCount = @($logLines | Where-Object { $_ -like "*`tAttrValidation`t*" }).Count
+
+    if ($parseAttrSpecCount -lt 1) {
+        throw "Case 'issue513_inline_hint_parse_trace' expected Parse-AttrSpec in the conformance trace."
+    }
+    if ($attrListWfCount -ne 0 -or $attrValidationCount -ne 0) {
+        throw "Case 'issue513_inline_hint_parse_trace' must fail during parsing before attribute validation."
+    }
+
+    $parserPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\item\\attribute_list.cpp"
+    if (-not (Test-Path $parserPath)) {
+        throw "Case 'issue513_inline_hint_parse_trace' missing parser implementation file: $parserPath"
+    }
+
+    $parserText = Get-Content -Path $parserPath -Raw
+    $requiredPatterns = @(
+        'static bool UsesInlineArgGrammar\(const AttrName& name\)',
+        'static bool IsInlineModeLexeme\(std::string_view lexeme\)',
+        'ParseElemResult<std::vector<AttributeArg>> ParseInlineArgList\(Parser parser\)',
+        'else if \(UsesInlineArgGrammar\(item\.name\)\)\s*\{\s*args = ParseInlineArgList\(after_open\);'
+    )
+
+    foreach ($pattern in $requiredPatterns) {
+        if ($parserText -notmatch $pattern) {
+            throw "Case 'issue513_inline_hint_parse_trace' missing expected inline-attribute parser pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue513_inline_hint_parse_trace: exit=$($result.ExitCode) e_mod_2450=$diagCount parse_attr_spec=$parseAttrSpecCount attr_list_wf=$attrListWfCount attr_validation=$attrValidationCount"
+}
+
+function Invoke-Issue513ColdHintParseTraceCase {
+    $result = Invoke-CheckWithConformance `
+        -CaseId "issue513_cold_hint_parse_trace" `
+        -Source (New-Issue513ColdHintRejectedSource) `
+        -ConformanceFileName "issue513_cold_hint_parse_trace.log"
+
+    if ($result.ExitCode -ne 1) {
+        throw "Case 'issue513_cold_hint_parse_trace' expected exit 1 but got $($result.ExitCode)."
+    }
+
+    $diagCount = @($result.DiagJson.diagnostics | Where-Object {
+        $_.code -eq "E-MOD-2450"
+    }).Count
+    if ($diagCount -lt 1) {
+        throw "Case 'issue513_cold_hint_parse_trace' expected diagnostic code E-MOD-2450."
+    }
+
+    $logLines = Get-Content -Path $result.ConformancePath
+    $parseAttrSpecCount = @($logLines | Where-Object { $_ -like "*`tParse-AttrSpec`t*" }).Count
+    $attrListWfCount = @($logLines | Where-Object { $_ -like "*`tAttrListWf`t*" }).Count
+    $attrValidationCount = @($logLines | Where-Object { $_ -like "*`tAttrValidation`t*" }).Count
+
+    if ($parseAttrSpecCount -lt 1) {
+        throw "Case 'issue513_cold_hint_parse_trace' expected Parse-AttrSpec in the conformance trace."
+    }
+    if ($attrListWfCount -ne 0 -or $attrValidationCount -ne 0) {
+        throw "Case 'issue513_cold_hint_parse_trace' must fail during parsing before attribute validation."
+    }
+
+    $parserPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\item\\attribute_list.cpp"
+    if (-not (Test-Path $parserPath)) {
+        throw "Case 'issue513_cold_hint_parse_trace' missing parser implementation file: $parserPath"
+    }
+
+    $parserText = Get-Content -Path $parserPath -Raw
+    $requiredPatterns = @(
+        'static bool UsesBareMarkerAttrGrammar\(const AttrName& name\)',
+        'return !name.vendor_prefix_opt.has_value\(\) && name.leaf_name == "cold";',
+        'if \(UsesBareMarkerAttrGrammar\(item\.name\)\)\s*\{\s*Parser after_open = next;\s*Advance\(after_open\);\s*SkipNewlines\(after_open\);\s*item\.span = SpanBetween\(parser, after_open\);\s*EmitAttrSyntaxErr\(after_open, item\.span\);'
+    )
+
+    foreach ($pattern in $requiredPatterns) {
+        if ($parserText -notmatch $pattern) {
+            throw "Case 'issue513_cold_hint_parse_trace' missing expected cold-attribute parser pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue513_cold_hint_parse_trace: exit=$($result.ExitCode) e_mod_2450=$diagCount parse_attr_spec=$parseAttrSpecCount attr_list_wf=$attrListWfCount attr_validation=$attrValidationCount"
+}
+
 function Invoke-Issue513ExportByValueTraceCase {
     $rejected = Invoke-CheckWithConformance `
         -CaseId "issue513_export_by_value_rejected" `
@@ -7867,8 +8347,9 @@ function Invoke-Issue33FixedIdentifiersCoverageCase {
 
     $required = @(
         "read", "write", "dynamic", "speculative", "release",
-        "cancel", "name", "affinity", "priority",
-        "reduce", "ordered", "chunk", "min", "max", "and", "or"
+        "cancel", "name", "workgroup", "workgroups", "affinity", "priority",
+        "reduce", "ordered", "chunk", "min", "max", "and", "or",
+        "pattern", "target", "requires", "emits"
     )
 
     $text = Get-Content -Path $keywordsPath -Raw
@@ -7904,17 +8385,43 @@ function Invoke-Issue33TypeWhereKeywordPolicyCase {
     Write-Host "[compiler-static] issue33_typewhere_keyword_policy: keyword_only=1 identifier_acceptance=0"
 }
 
+function Invoke-Issue33FixedIdentTokenPolicyCase {
+    $policyPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\keyword_policy.cpp"
+    if (-not (Test-Path $policyPath)) {
+        throw "Case 'issue33_fixed_ident_token_policy' missing file: $policyPath"
+    }
+
+    $text = Get-Content -Path $policyPath -Raw
+    $match = [regex]::Match($text, 'bool\s+IsFixedIdentTok\s*\(const\s+Token&\s+tok,\s*std::string_view\s+s\)\s*\{(?<body>.*?)\}', [System.Text.RegularExpressions.RegexOptions]::Singleline)
+    if (-not $match.Success) {
+        throw "Case 'issue33_fixed_ident_token_policy' could not locate IsFixedIdentTok body in $policyPath."
+    }
+
+    $body = $match.Groups['body'].Value
+    if (($body -notmatch 'IsIdentTok\s*\(\s*tok\s*\)') -and ($body -notmatch 'TokenKind::Identifier')) {
+        throw "Case 'issue33_fixed_ident_token_policy' expected identifier-token gating in IsFixedIdentTok."
+    }
+    if ($body -notmatch 'tok\.lexeme\s*==\s*s') {
+        throw "Case 'issue33_fixed_ident_token_policy' expected lexeme equality check in IsFixedIdentTok."
+    }
+    if ($body -notmatch 'IsFixedIdentifier\s*\(\s*s\s*\)') {
+        throw "Case 'issue33_fixed_ident_token_policy' expected IsFixedIdentTok to require membership in FixedIdent."
+    }
+
+    Write-Host "[compiler-static] issue33_fixed_ident_token_policy: identifier_gate=1 lexeme_guard=1 fixed_ident_guard=1"
+}
+
 function Invoke-Issue33UsingImportAttrWiringCase {
     $checks = @(
-        @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"; Pattern = 'struct UsingDecl[\s\S]*?AttributeList attrs;' },
-        @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"; Pattern = 'struct ImportDecl[\s\S]*?AttributeList attrs;' },
-        @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"; Pattern = 'struct StaticDecl[\s\S]*?AttributeList attrs;' },
-        @{ Path = "cursive\\src\\02_source\\parser\\item\\using_decl.cpp"; Pattern = 'decl\.attrs\s*=\s*attrs' },
-        @{ Path = "cursive\\src\\02_source\\parser\\item\\import_decl.cpp"; Pattern = 'decl\.attrs\s*=\s*std::move\(attrs\)' },
-        @{ Path = "cursive\\src\\02_source\\parser\\item\\static_decl.cpp"; Pattern = 'decl\.attrs\s*=\s*std::move\(attrs\)' },
-        @{ Path = "cursive\\src\\04_analysis\\typing\\item\\using_decl.cpp"; Pattern = 'ValidateAttributes\(decl\.attrs, AttributeTarget::Using\)' },
-        @{ Path = "cursive\\src\\04_analysis\\typing\\item\\import_decl.cpp"; Pattern = 'ValidateAttributes\(decl\.attrs, AttributeTarget::Import\)' },
-        @{ Path = "cursive\\src\\04_analysis\\typing\\item\\static_decl.cpp"; Pattern = 'ValidateAttributes\(decl\.attrs, AttributeTarget::Static\)' }
+        @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"; Pattern = 'struct UsingDecl[\s\S]*?AttrOpt attrs_opt;' },
+        @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"; Pattern = 'struct ImportDecl[\s\S]*?AttrOpt attrs_opt;' },
+        @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"; Pattern = 'struct StaticDecl[\s\S]*?AttrOpt attrs_opt;' },
+        @{ Path = "cursive\\src\\02_source\\parser\\item\\using_decl.cpp"; Pattern = 'decl\.attrs_opt\s*=\s*std::move\(attrs_opt\)' },
+        @{ Path = "cursive\\src\\02_source\\parser\\item\\import_decl.cpp"; Pattern = 'decl\.attrs_opt\s*=\s*std::move\(attrs_opt\)' },
+        @{ Path = "cursive\\src\\02_source\\parser\\item\\static_decl.cpp"; Pattern = 'decl\.attrs_opt\s*=\s*std::move\(attrs_opt\)' },
+        @{ Path = "cursive\\src\\04_analysis\\typing\\item\\using_decl.cpp"; Pattern = 'ValidateUnsupportedAttributeTarget\(ast::AttrListOf\(decl\.attrs_opt\),\s*"using declarations"\)' },
+        @{ Path = "cursive\\src\\04_analysis\\typing\\item\\import_decl.cpp"; Pattern = 'ValidateUnsupportedAttributeTarget\(ast::AttrListOf\(decl\.attrs_opt\),\s*"import declarations"\)' },
+        @{ Path = "cursive\\src\\04_analysis\\typing\\item\\static_decl.cpp"; Pattern = 'ValidateUnsupportedAttributeTarget\(ast::AttrListOf\(decl\.attrs_opt\),\s*"static declarations"\)' }
     )
 
     foreach ($check in $checks) {
@@ -7931,17 +8438,493 @@ function Invoke-Issue33UsingImportAttrWiringCase {
     Write-Host "[compiler-static] issue33_using_import_attr_wiring: checks=$($checks.Count)"
 }
 
+function Invoke-Issue33ImportParseAttrListConformanceCase {
+    $checks = @(
+        @{
+            Path = "docs\\CursiveSpecification.md"
+            Pattern = '\*\*\(Parse-AttrListTail-Cons\)\*\*[\s\S]*?Γ ⊢ ParseAttrListTail\(P, attrs\) ⇓ \(P_2, attrs_1\)'
+        },
+        @{
+            Path = "docs\\CursiveSpecification.md"
+            Pattern = '\*\*\(Parse-Import\)\*\*[\s\S]*?Γ ⊢ ParseAttrListOpt\(P\) ⇓ \(P_0, attrs_opt\)[\s\S]*?Γ ⊢ ParseItem\(P\) ⇓ \(P_3, ⟨ImportDecl, attrs_opt, vis, path, alias_opt, SpanBetween\(P, P_3\), \[\]⟩\)'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\item\\attribute_list.cpp"
+            Pattern = 'ParseElemResult<AttributeList>\s+ParseAttrListTail\(Parser parser, AttributeList xs\)\s*\{[\s\S]*?if \(!IsAttrStart\(parser\)\)[\s\S]*?ParseElemResult<std::vector<AttributeItem>> block = ParseAttrBlock\(parser\);[\s\S]*?xs\.insert\(xs\.end\(\), block\.elem\.begin\(\), block\.elem\.end\(\)\);[\s\S]*?return ParseAttrListTail\(block\.parser, std::move\(xs\)\);'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\item\\parse_item.cpp"
+            Pattern = 'ParseElemResult<AttrOpt>\s+attrs = ParseAttributeListOpt\(parser\);[\s\S]*?if \(IsKw\(parser, "import"\)\)[\s\S]*?return ParseImportDecl\(parser, Visibility::Internal, attrs\.elem\);[\s\S]*?if \(IsKw\(cur, "import"\)\)[\s\S]*?return ParseImportDecl\(cur, vis\.elem, attrs\.elem\);'
+        }
+    )
+
+    foreach ($check in $checks) {
+        $fullPath = Join-Path $workspaceRoot $check.Path
+        if (-not (Test-Path $fullPath)) {
+            throw "Case 'issue33_import_parse_attr_list_conformance' missing file: $fullPath"
+        }
+        $text = Get-Content -Path $fullPath -Raw
+        if ($text -notmatch $check.Pattern) {
+            throw "Case 'issue33_import_parse_attr_list_conformance' missing expected pattern '$($check.Pattern)' in $fullPath."
+        }
+    }
+
+    Write-Host "[compiler-static] issue33_import_parse_attr_list_conformance: checks=$($checks.Count)"
+}
+
+function Invoke-Issue619ImportDeclSurfaceConformanceCase {
+    $requiredChecks = @(
+        @{
+            Path = "docs\\CursiveSpecification.md"
+            Pattern = 'ImportDecl = ⟨attrs_opt, vis, path, alias_opt, span, doc⟩'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"
+            Pattern = 'struct ImportDecl[\s\S]*?AttrOpt attrs_opt;[\s\S]*?Visibility vis;[\s\S]*?Path path;[\s\S]*?std::optional<Identifier> alias_opt;[\s\S]*?core::Span span;[\s\S]*?DocList doc;'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"
+            Pattern = 'inline const AttributeList& AttrListOf\(const ImportDecl& item\)\s*\{\s*return AttrListOf\(item\.attrs_opt\);\s*\}'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\item\\import_decl.cpp"
+            Pattern = 'ParseItemResult ParseImportDecl\(Parser parser, Visibility vis,\s*AttrOpt attrs_opt\)\s*\{[\s\S]*?decl\.attrs_opt = std::move\(attrs_opt\);[\s\S]*?decl\.alias_opt = alias\.elem;'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\item\\parse_item.cpp"
+            Pattern = 'if \(IsKw\(parser, "import"\)\)\s*\{[\s\S]*?return ParseImportDecl\(parser, Visibility::Internal, attrs\.elem\);[\s\S]*?if \(IsKw\(cur, "import"\)\)\s*\{[\s\S]*?return ParseImportDecl\(cur, vis\.elem, attrs\.elem\);'
+        },
+        @{
+            Path = "cursive\\src\\04_analysis\\typing\\item\\import_decl.cpp"
+            Pattern = 'ValidateUnsupportedAttributeTarget\(ast::AttrListOf\(decl\.attrs_opt\),\s*"import declarations"\)'
+        },
+        @{
+            Path = "cursive\\src\\04_analysis\\typing\\item\\import_decl.cpp"
+            Pattern = 'decl\.alias_opt\.has_value\(\)'
+        },
+        @{
+            Path = "cursive\\src\\04_analysis\\resolve\\collect_toplevel.cpp"
+            Pattern = 'node\.alias_opt\.value_or'
+        },
+        @{
+            Path = "cursive\\src\\04_analysis\\resolve\\resolve_imports.cpp"
+            Pattern = 'if \(import\.alias_opt\)'
+        }
+    )
+    $forbiddenChecks = @(
+        @{
+            Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"
+            Pattern = 'std::vector<Identifier>\s+items;'
+        },
+        @{
+            Path = "cursive\\src\\04_analysis\\resolve\\resolve_imports.cpp"
+            Pattern = 'import\.items'
+        }
+    )
+
+    foreach ($check in $requiredChecks) {
+        $fullPath = Join-Path $workspaceRoot $check.Path
+        if (-not (Test-Path $fullPath)) {
+            throw "Case 'issue619_import_decl_surface_conformance' missing file: $fullPath"
+        }
+        $text = Get-Content -Path $fullPath -Raw
+        if ($text -notmatch $check.Pattern) {
+            throw "Case 'issue619_import_decl_surface_conformance' missing expected pattern '$($check.Pattern)' in $fullPath."
+        }
+    }
+
+    foreach ($check in $forbiddenChecks) {
+        $fullPath = Join-Path $workspaceRoot $check.Path
+        if (-not (Test-Path $fullPath)) {
+            throw "Case 'issue619_import_decl_surface_conformance' missing file: $fullPath"
+        }
+        $text = Get-Content -Path $fullPath -Raw
+        if ($text -match $check.Pattern) {
+            throw "Case 'issue619_import_decl_surface_conformance' found forbidden pattern '$($check.Pattern)' in $fullPath."
+        }
+    }
+
+    Write-Host "[compiler-static] issue619_import_decl_surface_conformance: required=$($requiredChecks.Count) forbidden=$($forbiddenChecks.Count)"
+}
+
+function Invoke-Issue622UsingDeclAttributeListConformanceCase {
+    $requiredChecks = @(
+        @{
+            Path = "docs\\CursiveSpecification.md"
+            Pattern = 'using_decl\s+::=\s+attribute_list\?\s+visibility\?\s+"using"\s+using_clause'
+        },
+        @{
+            Path = "docs\\CursiveSpecification.md"
+            Pattern = 'attribute_list ::= attribute\+'
+        },
+        @{
+            Path = "docs\\CursiveSpecification.md"
+            Pattern = '\*\*\(Parse-Using-List\)\*\*[\s\S]*?Γ ⊢ ParseAttrListOpt\(P\) ⇓ \(P_0, attrs_opt\)[\s\S]*?Γ ⊢ ParseItem\(P\) ⇓ \(P_3, ⟨UsingDecl, attrs_opt, vis, ⟨UsingList, mp, specs⟩, SpanBetween\(P, P_3\), \[\]⟩\)'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\item\\attribute_list.cpp"
+            Pattern = 'ParseElemResult<AttributeList>\s+ParseAttrListTail\(Parser parser, AttributeList xs\)\s*\{[\s\S]*?if \(!IsAttrStart\(parser\)\)[\s\S]*?ParseElemResult<std::vector<AttributeItem>> block = ParseAttrBlock\(parser\);[\s\S]*?xs\.insert\(xs\.end\(\), block\.elem\.begin\(\), block\.elem\.end\(\)\);[\s\S]*?return ParseAttrListTail\(block\.parser, std::move\(xs\)\);'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\item\\parse_item.cpp"
+            Pattern = 'ParseElemResult<AttrOpt> attrs = ParseAttributeListOpt\(parser\);[\s\S]*?AttributeList attrs_list = attrs\.elem\.value_or\(AttributeList\{\}\);[\s\S]*?if \(IsKw\(cur, "using"\)\)\s*\{[\s\S]*?return ParseUsingDecl\(start,\s*cur,\s*vis\.elem,\s*attrs\.elem\);'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\item\\using_decl.cpp"
+            Pattern = 'ParseItemResult ParseUsingDecl\(Parser item_start,\s*Parser parser,\s*Visibility vis,\s*AttrOpt attrs_opt\)\s*\{[\s\S]*?if \(IsPunc\(after_colons, "\{"\)\) \{[\s\S]*?SPEC_RULE\("Parse-Using-List"\)[\s\S]*?decl\.attrs_opt = std::move\(attrs_opt\);[\s\S]*?decl\.clause = UsingList\{module_path\.elem,\s*std::move\(specs\.elem\)\};[\s\S]*?decl\.span = SpanBetween\(item_start,\s*specs\.parser\);'
+        }
+    )
+
+    foreach ($check in $requiredChecks) {
+        $fullPath = Join-Path $workspaceRoot $check.Path
+        if (-not (Test-Path $fullPath)) {
+            throw "Case 'issue622_using_decl_attribute_list_conformance' missing file: $fullPath"
+        }
+        $text = Get-Content -Path $fullPath -Raw
+        if ($text -notmatch $check.Pattern) {
+            throw "Case 'issue622_using_decl_attribute_list_conformance' missing expected pattern '$($check.Pattern)' in $fullPath."
+        }
+    }
+
+    $parseItemPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\item\\parse_item.cpp"
+    $parseItemText = Get-Content -Path $parseItemPath -Raw
+    $parseAttrListOptCount = ([regex]::Matches($parseItemText, 'ParseAttributeListOpt\(parser\)')).Count
+    if ($parseAttrListOptCount -ne 1) {
+        throw "Case 'issue622_using_decl_attribute_list_conformance' expected a single ParseAttributeListOpt(parser) call in parse_item.cpp, observed $parseAttrListOptCount."
+    }
+
+    $usingDeclPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\item\\using_decl.cpp"
+    $usingDeclText = Get-Content -Path $usingDeclPath -Raw
+    if ($usingDeclText -match 'ParseAttributeListOpt\s*\(' -or $usingDeclText -match 'ParseAttrList\s*\(') {
+        throw "Case 'issue622_using_decl_attribute_list_conformance' found local attribute-list reparsing in using_decl.cpp."
+    }
+
+    Write-Host "[compiler-static] issue622_using_decl_attribute_list_conformance: checks=$($requiredChecks.Count) parse_attr_list_opt_calls=$parseAttrListOptCount local_reparse=0"
+}
+
+function Invoke-Issue623UsingItemSurfaceConformanceCase {
+    $requiredChecks = @(
+        @{
+            Path = "docs\\CursiveSpecification.md"
+            Pattern = '\*\*\(Parse-Using-Item\)\*\*[\s\S]*?Γ ⊢ ParseAttrListOpt\(P\) ⇓ \(P_0, attrs_opt\)[\s\S]*?Γ ⊢ ParseVis\(P_0\) ⇓ \(P_1, vis\)[\s\S]*?IsKw\(Tok\(P_1\), `using`\)[\s\S]*?Γ ⊢ ParseModulePath\(Advance\(P_1\)\) ⇓ \(P_2, mp\)[\s\S]*?IsOp\(Tok\(P_2\), `::`\)[\s\S]*?IsIdent\(Tok\(Advance\(P_2\)\)\)[\s\S]*?Γ ⊢ ParseIdent\(Advance\(P_2\)\) ⇓ \(P_3, id\)[\s\S]*?Γ ⊢ ParseAliasOpt\(P_3\) ⇓ \(P_4, alias_opt\)[\s\S]*?Γ ⊢ ParseItem\(P\) ⇓ \(P_4, ⟨UsingDecl, attrs_opt, vis, ⟨UsingItem, mp, id, alias_opt⟩, SpanBetween\(P, P_4\), \[\]⟩\)'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\item\\parse_item.cpp"
+            Pattern = 'ParseElemResult<AttrOpt> attrs = ParseAttributeListOpt\(parser\);[\s\S]*?AttributeList attrs_list = attrs\.elem\.value_or\(AttributeList\{\}\);[\s\S]*?if \(IsKw\(cur, "using"\)\)\s*\{[\s\S]*?return ParseUsingDecl\(start,\s*cur,\s*vis\.elem,\s*attrs\.elem\);'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\item\\using_decl.cpp"
+            Pattern = 'ParseItemResult ParseUsingDecl\(Parser item_start,\s*Parser parser,\s*Visibility vis,\s*AttrOpt attrs_opt\)\s*\{[\s\S]*?SPEC_RULE\("Parse-Using-Item"\)[\s\S]*?ParseElemResult<Identifier> name = ParseIdent\(after_colons\);[\s\S]*?ParseElemResult<std::optional<Identifier>> alias = ParseAliasOpt\(name\.parser\);[\s\S]*?decl\.attrs_opt = std::move\(attrs_opt\);[\s\S]*?decl\.vis = vis;[\s\S]*?decl\.clause = UsingItem\{\s*module_path\.elem,\s*name\.elem,\s*alias\.elem,\s*\};[\s\S]*?decl\.span = SpanBetween\(item_start,\s*alias\.parser\);'
+        }
+    )
+
+    foreach ($check in $requiredChecks) {
+        $fullPath = Join-Path $workspaceRoot $check.Path
+        if (-not (Test-Path $fullPath)) {
+            throw "Case 'issue623_using_item_surface_conformance' missing file: $fullPath"
+        }
+        $text = Get-Content -Path $fullPath -Raw
+        if ($text -notmatch $check.Pattern) {
+            throw "Case 'issue623_using_item_surface_conformance' missing expected pattern '$($check.Pattern)' in $fullPath."
+        }
+    }
+
+    Write-Host "[compiler-static] issue623_using_item_surface_conformance: checks=$($requiredChecks.Count)"
+}
+
+function Invoke-Issue624UsingDeclOptionalAttrSurfaceConformanceCase {
+    $checks = @(
+        @{
+            Path = "docs\\CursiveSpecification.md"
+            Pattern = 'UsingDecl = ⟨attrs_opt, vis, clause, span, doc⟩'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"
+            Pattern = 'struct UsingDecl[\s\S]*?AttrOpt attrs_opt;[\s\S]*?Visibility vis;[\s\S]*?UsingClause clause;[\s\S]*?core::Span span;[\s\S]*?DocList doc;'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"
+            Pattern = 'inline const AttributeList& AttrListOf\(const UsingDecl& item\)\s*\{\s*return AttrListOf\(item\.attrs_opt\);\s*\}'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\item\\parse_item.cpp"
+            Pattern = 'if \(IsKw\(cur, "using"\)\)\s*\{\s*return ParseUsingDecl\(start,\s*cur,\s*vis\.elem,\s*attrs\.elem\);\s*\}'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\item\\using_decl.cpp"
+            Pattern = 'ParseItemResult ParseUsingDecl\(Parser item_start,\s*Parser parser,\s*Visibility vis,\s*AttrOpt attrs_opt\)\s*\{[\s\S]*?decl\.attrs_opt = std::move\(attrs_opt\);'
+        },
+        @{
+            Path = "cursive\\src\\04_analysis\\typing\\item\\using_decl.cpp"
+            Pattern = 'ValidateUnsupportedAttributeTarget\(ast::AttrListOf\(decl\.attrs_opt\),\s*"using declarations"\)'
+        }
+    )
+
+    foreach ($check in $checks) {
+        $fullPath = Join-Path $workspaceRoot $check.Path
+        if (-not (Test-Path $fullPath)) {
+            throw "Case 'issue624_using_decl_optional_attr_surface_conformance' missing file: $fullPath"
+        }
+        $text = Get-Content -Path $fullPath -Raw
+        if ($text -notmatch $check.Pattern) {
+            throw "Case 'issue624_using_decl_optional_attr_surface_conformance' missing expected pattern '$($check.Pattern)' in $fullPath."
+        }
+    }
+
+    Write-Host "[compiler-static] issue624_using_decl_optional_attr_surface_conformance: checks=$($checks.Count)"
+}
+
+function Invoke-Issue625StaticDeclParseAttrListConformanceCase {
+    $requiredChecks = @(
+        @{
+            Path = "docs\\CursiveSpecification.md"
+            Pattern = 'static_decl\s+::=\s+attribute_list\?\s+visibility\?\s+\("let"\s+\|\s+"var"\)\s+binding_decl'
+        },
+        @{
+            Path = "docs\\CursiveSpecification.md"
+            Pattern = '\*\*\(Parse-AttrListTail-Cons\)\*\*[\s\S]*?Γ ⊢ ParseAttrListTail\(P, attrs\) ⇓ \(P_2, attrs_1\)'
+        },
+        @{
+            Path = "docs\\CursiveSpecification.md"
+            Pattern = '\*\*\(Parse-Static-Decl\)\*\*[\s\S]*?Γ ⊢ ParseAttrListOpt\(P\) ⇓ \(P_0, attrs_opt\)[\s\S]*?Γ ⊢ ParseVis\(P_0\) ⇓ \(P_1, vis\)[\s\S]*?Tok\(P_1\) = Keyword\(kw\)[\s\S]*?kw ∈ \{`let`, `var`\}[\s\S]*?Γ ⊢ ParseBindingAfterLetVar\(P_1\) ⇓ \(P_2, bind\)[\s\S]*?Γ ⊢ ParseItem\(P\) ⇓ \(P_2, ⟨StaticDecl, attrs_opt, vis, mut, bind, SpanBetween\(P, P_2\), \[\]⟩\)'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\item\\attribute_list.cpp"
+            Pattern = 'ParseElemResult<AttributeList>\s+ParseAttrListTail\(Parser parser, AttributeList xs\)\s*\{[\s\S]*?if \(!IsAttrStart\(parser\)\)[\s\S]*?ParseElemResult<std::vector<AttributeItem>> block = ParseAttrBlock\(parser\);[\s\S]*?xs\.insert\(xs\.end\(\), block\.elem\.begin\(\), block\.elem\.end\(\)\);[\s\S]*?return ParseAttrListTail\(block\.parser, std::move\(xs\)\);'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\item\\parse_item.cpp"
+            Pattern = 'ParseElemResult<AttrOpt>\s+attrs = ParseAttributeListOpt\(parser\);[\s\S]*?AttributeList attrs_list = attrs\.elem\.value_or\(AttributeList\{\}\);[\s\S]*?if \(IsKw\(cur, "let"\) \|\| IsKw\(cur, "var"\)\)\s*\{[\s\S]*?SPEC_RULE\("Parse-Static-Decl"\);[\s\S]*?return ParseStaticDecl\(cur, vis\.elem, attrs\.elem\);'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\item\\static_decl.cpp"
+            Pattern = 'ParseItemResult ParseStaticDecl\(Parser parser, Visibility vis,\s*AttrOpt attrs_opt\)\s*\{[\s\S]*?SPEC_RULE\("Parse-Static-Decl"\);[\s\S]*?ParseElemResult<Binding> binding = ParseBindingAfterLetVar\(parser\);[\s\S]*?decl\.attrs_opt = std::move\(attrs_opt\);[\s\S]*?decl\.mut = mut;[\s\S]*?decl\.binding = binding\.elem;'
+        }
+    )
+
+    foreach ($check in $requiredChecks) {
+        $fullPath = Join-Path $workspaceRoot $check.Path
+        if (-not (Test-Path $fullPath)) {
+            throw "Case 'issue625_static_decl_parse_attr_list_conformance' missing file: $fullPath"
+        }
+        $text = Get-Content -Path $fullPath -Raw
+        if ($text -notmatch $check.Pattern) {
+            throw "Case 'issue625_static_decl_parse_attr_list_conformance' missing expected pattern '$($check.Pattern)' in $fullPath."
+        }
+    }
+
+    $parseItemPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\item\\parse_item.cpp"
+    $parseItemText = Get-Content -Path $parseItemPath -Raw
+    $parseAttrListOptCount = ([regex]::Matches($parseItemText, 'ParseAttributeListOpt\(parser\)')).Count
+    if ($parseAttrListOptCount -ne 1) {
+        throw "Case 'issue625_static_decl_parse_attr_list_conformance' expected a single ParseAttributeListOpt(parser) call in parse_item.cpp, observed $parseAttrListOptCount."
+    }
+
+    $staticDeclPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\item\\static_decl.cpp"
+    $staticDeclText = Get-Content -Path $staticDeclPath -Raw
+    if ($staticDeclText -match 'ParseAttributeListOpt\s*\(' -or $staticDeclText -match 'ParseAttrList\s*\(') {
+        throw "Case 'issue625_static_decl_parse_attr_list_conformance' found local attribute-list reparsing in static_decl.cpp."
+    }
+
+    Write-Host "[compiler-static] issue625_static_decl_parse_attr_list_conformance: checks=$($requiredChecks.Count) parse_attr_list_opt_calls=$parseAttrListOptCount local_reparse=0"
+}
+
+function Invoke-Issue627ExternBlockShellConformanceCase {
+    $requiredChecks = @(
+        @{
+            Path = "docs\\CursiveSpecification.md"
+            Pattern = 'extern_block\s+::=\s+attribute_list\?\s+visibility\?\s+"extern"\s+extern_abi\?\s+"\{"\s+extern_item\*\s+"\}"'
+        },
+        @{
+            Path = "docs\\CursiveSpecification.md"
+            Pattern = '\*\*\(Parse-ExternBlock\)\*\*[\s\S]*?Γ ⊢ ParseAttrListOpt\(P\) ⇓ \(P_0, attrs_opt\)[\s\S]*?Γ ⊢ ParseVis\(P_0\) ⇓ \(P_1, vis\)[\s\S]*?IsKw\(Tok\(P_1\), `extern`\)[\s\S]*?Γ ⊢ ParseExternAbiOpt\(Advance\(P_1\)\) ⇓ \(P_2, abi_opt\)[\s\S]*?Γ ⊢ ParseItem\(P\) ⇓ \(Advance\(P_3\), ⟨ExternBlock, attrs_opt, vis, abi_opt, items, SpanBetween\(P, Advance\(P_3\)\), \[\]⟩\)'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\item\\parse_item.cpp"
+            Pattern = 'ParseElemResult<AttrOpt>\s+attrs = ParseAttributeListOpt\(parser\);[\s\S]*?ParseElemResult<Visibility>\s+vis = ParseVis\(parser\);[\s\S]*?if \(IsKw\(cur, "extern"\)\)\s*\{[\s\S]*?SPEC_RULE\("Parse-Extern-Block"\);[\s\S]*?return ParseExternBlock\(cur, vis\.elem, attrs_list\);'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\item\\extern_block.cpp"
+            Pattern = 'ParseItemResult ParseExternBlock\(Parser parser, Visibility vis,\s*AttributeList attrs\)\s*\{[\s\S]*?SPEC_RULE\("Parse-Extern-Block"\);[\s\S]*?if \(!IsKw\(parser, "extern"\)\)\s*\{[\s\S]*?EmitParseSyntaxErr\(parser, TokSpan\(parser\)\);[\s\S]*?SyncItem\(parser\);[\s\S]*?return \{parser, ErrorItem\{SpanBetween\(start, parser\), \{\}\}\};[\s\S]*?\}[\s\S]*?Advance\(parser\);'
+        }
+    )
+
+    foreach ($check in $requiredChecks) {
+        $fullPath = Join-Path $workspaceRoot $check.Path
+        if (-not (Test-Path $fullPath)) {
+            throw "Case 'issue627_extern_block_shell_conformance' missing file: $fullPath"
+        }
+        $text = Get-Content -Path $fullPath -Raw
+        if ($text -notmatch $check.Pattern) {
+            throw "Case 'issue627_extern_block_shell_conformance' missing expected pattern '$($check.Pattern)' in $fullPath."
+        }
+    }
+
+    $parseItemPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\item\\parse_item.cpp"
+    $parseItemText = Get-Content -Path $parseItemPath -Raw
+    if ($parseItemText -match 'tok && IsIdentTok\(\*tok\) && tok->lexeme == "extern"') {
+        throw "Case 'issue627_extern_block_shell_conformance' found legacy identifier-based extern dispatch in parse_item.cpp."
+    }
+
+    Write-Host "[compiler-static] issue627_extern_block_shell_conformance: checks=$($requiredChecks.Count) identifier_dispatch=0"
+}
+
+function Invoke-Issue628PathStringSurfaceConformanceCase {
+    $requiredChecks = @(
+        @{
+            Path = "docs\\CursiveSpecification.md"
+            Pattern = 'PathString\(p\)\s*=\s*StringOfPath\(p\)'
+        },
+        @{
+            Path = "cursive\\include\\00_core\\symbols.h"
+            Pattern = 'std::string\s+PathString\s*\(\s*const\s+std::vector<std::string>&\s+comps\s*\);'
+        },
+        @{
+            Path = "cursive\\include\\00_core\\symbols.h"
+            Pattern = 'std::string\s+PathString\s*\(\s*std::initializer_list<std::string_view>\s+comps\s*\);'
+        },
+        @{
+            Path = "cursive\\src\\00_core\\symbols.cpp"
+            Pattern = 'void\s+SpecDefsPathStrings\(\)\s*\{\s*SPEC_DEF\("StringOfPath",\s*"3\.4\.1"\);\s*SPEC_DEF\("StringOfPathRef",\s*"3\.4\.1"\);\s*SPEC_DEF\("PathString",\s*"11\.5\.3"\);\s*\}'
+        },
+        @{
+            Path = "cursive\\src\\00_core\\symbols.cpp"
+            Pattern = 'std::string\s+PathString\s*\(\s*const\s+std::vector<std::string>&\s+comps\s*\)\s*\{\s*SpecDefsPathStrings\(\);\s*return\s+StringOfPath\(comps\);\s*\}'
+        },
+        @{
+            Path = "cursive\\src\\00_core\\symbols.cpp"
+            Pattern = 'std::string\s+PathString\s*\(\s*std::initializer_list<std::string_view>\s+comps\s*\)\s*\{\s*SpecDefsPathStrings\(\);\s*return\s+StringOfPath\(comps\);\s*\}'
+        },
+        @{
+            Path = "cursive\\src\\00_core\\symbols.cpp"
+            Pattern = 'std::string\s+PathSig\s*\(\s*std::initializer_list<std::string_view>\s+comps\s*\)\s*\{\s*return\s+Mangle\(PathString\(comps\)\);\s*\}'
+        },
+        @{
+            Path = "cursive\\src\\00_core\\symbols.cpp"
+            Pattern = 'std::string\s+MangleModulePath\s*\(\s*std::string_view\s+module_path\s*\)\s*\{[\s\S]*?return\s+Mangle\(PathString\(parts\)\);\s*\}'
+        }
+    )
+
+    foreach ($check in $requiredChecks) {
+        $fullPath = Join-Path $workspaceRoot $check.Path
+        if (-not (Test-Path $fullPath)) {
+            throw "Case 'issue628_path_string_surface_conformance' missing file: $fullPath"
+        }
+        $text = Get-Content -Path $fullPath -Raw
+        if ($text -notmatch $check.Pattern) {
+            throw "Case 'issue628_path_string_surface_conformance' missing expected pattern '$($check.Pattern)' in $fullPath."
+        }
+    }
+
+    $symbolsPath = Join-Path $workspaceRoot "cursive\\src\\00_core\\symbols.cpp"
+    $symbolsText = Get-Content -Path $symbolsPath -Raw
+    foreach ($forbidden in @(
+        'return\s+Mangle\(StringOfPath\(comps\)\);',
+        'return\s+Mangle\(StringOfPath\(parts\)\);'
+    )) {
+        if ($symbolsText -match $forbidden) {
+            throw "Case 'issue628_path_string_surface_conformance' found stale direct StringOfPath mangling pattern '$forbidden' in $symbolsPath."
+        }
+    }
+
+    Write-Host "[compiler-static] issue628_path_string_surface_conformance: checks=$($requiredChecks.Count) forbidden=2"
+}
+
+function Invoke-Issue629StringOfPathRefSurfaceConformanceCase {
+    $requiredChecks = @(
+        @{
+            Path = "docs\\CursiveSpecification.md"
+            Pattern = 'StringOfPathRef\s*=\s*\{"3\.4\.1"\}'
+        },
+        @{
+            Path = "cursive\\src\\00_core\\symbols.cpp"
+            Pattern = 'void\s+SpecDefsPathStrings\(\)\s*\{\s*SPEC_DEF\("StringOfPath",\s*"3\.4\.1"\);\s*SPEC_DEF\("StringOfPathRef",\s*"3\.4\.1"\);\s*SPEC_DEF\("PathString",\s*"11\.5\.3"\);\s*\}'
+        },
+        @{
+            Path = "cursive\\src\\00_core\\symbols.cpp"
+            Pattern = 'std::string\s+StringOfPath\s*\(\s*const\s+std::vector<std::string>&\s+comps\s*\)\s*\{\s*SpecDefsPathStrings\(\);\s*return\s+JoinWithDoubleColon\(comps\);\s*\}'
+        },
+        @{
+            Path = "cursive\\src\\00_core\\symbols.cpp"
+            Pattern = 'std::string\s+StringOfPath\s*\(\s*std::initializer_list<std::string_view>\s+comps\s*\)\s*\{\s*SpecDefsPathStrings\(\);'
+        }
+    )
+
+    foreach ($check in $requiredChecks) {
+        $fullPath = Join-Path $workspaceRoot $check.Path
+        if (-not (Test-Path $fullPath)) {
+            throw "Case 'issue629_string_of_path_ref_surface_conformance' missing file: $fullPath"
+        }
+        $text = Get-Content -Path $fullPath -Raw
+        if ($text -notmatch $check.Pattern) {
+            throw "Case 'issue629_string_of_path_ref_surface_conformance' missing expected pattern '$($check.Pattern)' in $fullPath."
+        }
+    }
+
+    Write-Host "[compiler-static] issue629_string_of_path_ref_surface_conformance: checks=$($requiredChecks.Count)"
+}
+
+function Invoke-Issue626StaticDeclOptionalAttrSurfaceConformanceCase {
+    $checks = @(
+        @{
+            Path = "docs\\CursiveSpecification.md"
+            Pattern = 'StaticDecl = ⟨attrs_opt, vis, mut, binding, span, doc⟩'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"
+            Pattern = 'struct StaticDecl[\s\S]*?AttrOpt attrs_opt;[\s\S]*?Visibility vis;[\s\S]*?Mutability mut;[\s\S]*?Binding binding;[\s\S]*?core::Span span;[\s\S]*?DocList doc;'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"
+            Pattern = 'inline const AttributeList& AttrListOf\(const StaticDecl& item\)\s*\{\s*return AttrListOf\(item\.attrs_opt\);\s*\}'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\item\\parse_item.cpp"
+            Pattern = 'if \(IsKw\(cur, "let"\) \|\| IsKw\(cur, "var"\)\)\s*\{[\s\S]*?SPEC_RULE\("Parse-Static-Decl"\);[\s\S]*?return ParseStaticDecl\(cur, vis\.elem, attrs\.elem\);'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\item\\static_decl.cpp"
+            Pattern = 'ParseItemResult ParseStaticDecl\(Parser parser, Visibility vis,\s*AttrOpt attrs_opt\)\s*\{[\s\S]*?decl\.attrs_opt = std::move\(attrs_opt\);'
+        },
+        @{
+            Path = "cursive\\src\\04_analysis\\typing\\item\\static_decl.cpp"
+            Pattern = 'ValidateUnsupportedAttributeTarget\(ast::AttrListOf\(decl\.attrs_opt\),\s*"static declarations"\)'
+        }
+    )
+
+    foreach ($check in $checks) {
+        $fullPath = Join-Path $workspaceRoot $check.Path
+        if (-not (Test-Path $fullPath)) {
+            throw "Case 'issue626_static_decl_optional_attr_surface_conformance' missing file: $fullPath"
+        }
+        $text = Get-Content -Path $fullPath -Raw
+        if ($text -notmatch $check.Pattern) {
+            throw "Case 'issue626_static_decl_optional_attr_surface_conformance' missing expected pattern '$($check.Pattern)' in $fullPath."
+        }
+    }
+
+    Write-Host "[compiler-static] issue626_static_decl_optional_attr_surface_conformance: checks=$($checks.Count)"
+}
+
 function Invoke-Issue33AstTypeWiringCase {
     $checks = @(
-        @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_module.h"; Pattern = 'struct ASTFile[\s\S]*?Path path;' },
+        @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_module.h"; Pattern = 'struct ASTModule\s*\{\s*Path path;\s*std::vector<ASTItem> items;\s*DocList module_doc;\s*\};' },
+        @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_module.h"; Pattern = 'struct ASTFile\s*\{\s*Path path;\s*std::vector<ASTItem> items;\s*DocList module_doc;\s*\};' },
+        @{ Path = "cursive\\include\\02_source\\parser\\parser.h"; Pattern = 'struct ParseFileResult\s*\{\s*std::optional<ASTFile> file;\s*std::vector<core::Span> unsafe_spans;\s*core::DiagnosticStream diags;\s*\};' },
         @{ Path = "cursive\\src\\02_source\\parser\\parser.cpp"; Pattern = 'file\.path\.push_back\(source\.path\);' },
-        @{ Path = "cursive\\src\\02_source\\parser\\parse_modules.cpp"; Pattern = 'file_spans\.path\s*=\s*load\.source->path;' },
+        @{ Path = "cursive\\src\\02_source\\parser\\parser.cpp"; Pattern = 'result\.unsafe_spans\s*=\s*std::move\(unsafe_spans\);' },
+        @{ Path = "cursive\\src\\02_source\\parser\\parse_modules.cpp"; Pattern = 'result\.unsafe_spans_by_file\[load\.source->path\]\s*=\s*std::move\(parsed\.unsafe_spans\);' },
+        @{ Path = "cursive\\include\\04_analysis\\typing\\context.h"; Pattern = 'std::unordered_map<std::string,\s*std::vector<core::Span>> unsafe_spans_by_file;' },
+        @{ Path = "cursive\\src\\04_analysis\\typing\\type_expr.cpp"; Pattern = 'const auto file_it = ctx\.sigma\.unsafe_spans_by_file\.find\(span\.file\);' },
         @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"; Pattern = 'struct StateFieldDecl[\s\S]*?AttributeList attrs;' },
         @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"; Pattern = 'struct StateMethodDecl[\s\S]*?AttributeList attrs;' },
         @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"; Pattern = 'struct StateMethodDecl[\s\S]*?std::optional<GenericParams>\s+generic_params;' },
         @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"; Pattern = 'struct StateMethodDecl[\s\S]*?std::optional<ContractClause>\s+contract;' },
         @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"; Pattern = 'struct TransitionDecl[\s\S]*?AttributeList attrs;' },
         @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_items.h"; Pattern = 'struct ModalDecl[\s\S]*?AttributeList attrs;' },
+        @{ Path = "cursive\\include\\02_source\\ast\\ast_utils.h"; Pattern = 'std::vector<std::string>\s+state_recv_perms\(const std::vector<StateBlock>& states\);' },
+        @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_nodes.cpp"; Pattern = 'std::vector<std::string>\s+state_recv_perms\(const std::vector<StateBlock>& states\)\s*\{' },
+        @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_nodes.cpp"; Pattern = 'for \(const auto& state : states\)\s*\{[\s\S]*?for \(const auto& member : state\.members\)\s*\{[\s\S]*?const auto\* method = std::get_if<StateMethodDecl>\(&member\);[\s\S]*?InsertReceiverShorthandPerm\(method->receiver, out\);' },
         @{ Path = "cursive\\src\\02_source\\parser\\item\\modal_decl.cpp"; Pattern = 'method\.attrs\s*=\s*std::move\(attrs\.elem\);' },
         @{ Path = "cursive\\src\\02_source\\parser\\item\\modal_decl.cpp"; Pattern = 'method\.generic_params\s*=\s*gen_params\.elem;' },
         @{ Path = "cursive\\src\\02_source\\parser\\item\\modal_decl.cpp"; Pattern = 'method\.contract\s*=\s*contract\.elem;' },
@@ -8180,6 +9163,110 @@ function Invoke-Issue51UsingItemParseTraceCase {
     }
 
     Write-Host "[compiler-static] issue51_using_item_parse_trace: exit=$($result.ExitCode) errors=$errorCount parse_using_item=$parseUsingItemCount"
+}
+
+function Invoke-Issue51UsingListParseTraceCase {
+    $result = Invoke-CheckWithConformance `
+        -CaseId "issue51_using_list_parse_trace" `
+        -Source (New-Issue51UsingListParseTraceSource) `
+        -ConformanceFileName "issue51_using_list_parse_trace.log"
+
+    if ($result.ExitCode -ne 0) {
+        throw "Case 'issue51_using_list_parse_trace' expected exit 0 but got $($result.ExitCode)."
+    }
+
+    $errorCount = @($result.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    }).Count
+    if ($errorCount -ne 0) {
+        throw "Case 'issue51_using_list_parse_trace' expected zero compile-time errors but observed $errorCount."
+    }
+
+    $traceText = Get-Content -Path $result.ConformancePath -Raw
+    $parseUsingItemCount = ([regex]::Matches($traceText, "`tParse-Using-Item`t")).Count
+    $parseUsingListCount = ([regex]::Matches($traceText, "`tParse-Using-List`t")).Count
+    $parseUsingWildcardCount = ([regex]::Matches($traceText, "`tParse-Using-Wildcard`t")).Count
+    if ($parseUsingListCount -lt 1) {
+        throw "Case 'issue51_using_list_parse_trace' expected Parse-Using-List in the conformance trace."
+    }
+    if ($parseUsingItemCount -ne 0 -or $parseUsingWildcardCount -ne 0) {
+        throw "Case 'issue51_using_list_parse_trace' expected only the list using parse branch; observed item=$parseUsingItemCount wildcard=$parseUsingWildcardCount."
+    }
+
+    $parseItemPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\item\\parse_item.cpp"
+    if (-not (Test-Path $parseItemPath)) {
+        throw "Case 'issue51_using_list_parse_trace' missing parser dispatcher file: $parseItemPath"
+    }
+    $parseItemText = Get-Content -Path $parseItemPath -Raw
+    if ($parseItemText -notmatch 'return ParseUsingDecl\(start,\s*cur,\s*vis\.elem,\s*attrs\.elem\);') {
+        throw "Case 'issue51_using_list_parse_trace' expected ParseItem to pass the item-start parser into ParseUsingDecl."
+    }
+
+    $usingDeclPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\item\\using_decl.cpp"
+    if (-not (Test-Path $usingDeclPath)) {
+        throw "Case 'issue51_using_list_parse_trace' missing parser implementation file: $usingDeclPath"
+    }
+    $usingDeclText = Get-Content -Path $usingDeclPath -Raw
+    if ($usingDeclText -notmatch 'SPEC_RULE\("Parse-Using-List"\)') {
+        throw "Case 'issue51_using_list_parse_trace' expected parser implementation to contain the Parse-Using-List SPEC_RULE anchor."
+    }
+    if ($usingDeclText -notmatch 'decl\.span = SpanBetween\(item_start,\s*specs\.parser\);') {
+        throw "Case 'issue51_using_list_parse_trace' expected list using spans to start at the original item parser position."
+    }
+
+    Write-Host "[compiler-static] issue51_using_list_parse_trace: exit=$($result.ExitCode) errors=$errorCount parse_using_list=$parseUsingListCount"
+}
+
+function Invoke-Issue51UsingWildcardParseTraceCase {
+    $result = Invoke-CheckWithConformance `
+        -CaseId "issue51_using_wildcard_parse_trace" `
+        -Source (New-Issue51UsingWildcardParseTraceSource) `
+        -ConformanceFileName "issue51_using_wildcard_parse_trace.log"
+
+    if ($result.ExitCode -ne 0) {
+        throw "Case 'issue51_using_wildcard_parse_trace' expected exit 0 but got $($result.ExitCode)."
+    }
+
+    $errorCount = @($result.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    }).Count
+    if ($errorCount -ne 0) {
+        throw "Case 'issue51_using_wildcard_parse_trace' expected zero compile-time errors but observed $errorCount."
+    }
+
+    $traceText = Get-Content -Path $result.ConformancePath -Raw
+    $parseUsingItemCount = ([regex]::Matches($traceText, "`tParse-Using-Item`t")).Count
+    $parseUsingListCount = ([regex]::Matches($traceText, "`tParse-Using-List`t")).Count
+    $parseUsingWildcardCount = ([regex]::Matches($traceText, "`tParse-Using-Wildcard`t")).Count
+    if ($parseUsingWildcardCount -lt 1) {
+        throw "Case 'issue51_using_wildcard_parse_trace' expected Parse-Using-Wildcard in the conformance trace."
+    }
+    if ($parseUsingItemCount -ne 0 -or $parseUsingListCount -ne 0) {
+        throw "Case 'issue51_using_wildcard_parse_trace' expected only the wildcard using parse branch; observed item=$parseUsingItemCount list=$parseUsingListCount."
+    }
+
+    $parseItemPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\item\\parse_item.cpp"
+    if (-not (Test-Path $parseItemPath)) {
+        throw "Case 'issue51_using_wildcard_parse_trace' missing parser dispatcher file: $parseItemPath"
+    }
+    $parseItemText = Get-Content -Path $parseItemPath -Raw
+    if ($parseItemText -notmatch 'return ParseUsingDecl\(start,\s*cur,\s*vis\.elem,\s*attrs\.elem\);') {
+        throw "Case 'issue51_using_wildcard_parse_trace' expected ParseItem to pass the item-start parser into ParseUsingDecl."
+    }
+
+    $usingDeclPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\item\\using_decl.cpp"
+    if (-not (Test-Path $usingDeclPath)) {
+        throw "Case 'issue51_using_wildcard_parse_trace' missing parser implementation file: $usingDeclPath"
+    }
+    $usingDeclText = Get-Content -Path $usingDeclPath -Raw
+    if ($usingDeclText -notmatch 'ParseItemResult ParseUsingDecl\(Parser item_start,\s*Parser parser,\s*Visibility vis,\s*AttrOpt attrs_opt\)') {
+        throw "Case 'issue51_using_wildcard_parse_trace' expected ParseUsingDecl to accept the item-start parser."
+    }
+    if ($usingDeclText -notmatch 'decl\.span = SpanBetween\(item_start,\s*after_star\);') {
+        throw "Case 'issue51_using_wildcard_parse_trace' expected wildcard using spans to start at the original item parser position."
+    }
+
+    Write-Host "[compiler-static] issue51_using_wildcard_parse_trace: exit=$($result.ExitCode) errors=$errorCount parse_using_wildcard=$parseUsingWildcardCount"
 }
 
 function Invoke-Issue51PublicUsingItemVisibilityCase {
@@ -8566,7 +9653,9 @@ function Invoke-Issue549ArrayIndexConformanceCase {
         '\*\*\(Index-Array-NonConst-Err\)\*\*',
         '\*\*\(Index-Array-OOB-Err\)\*\*',
         '\*\*\(T-Index-Array-Dynamic\)\*\*',
-        '\*\*\(P-Index-Array-Dynamic\)\*\*'
+        '\*\*\(P-Index-Array-Dynamic\)\*\*',
+        'ComputeDynamicContext\(s, ancestors\)\s*=\s*[\r\n]+\s*let enclosing_dynamic = FindInnermostDynamic\(s, ancestors\)',
+        'InDynamicContext ⇔ DynamicScope\(s\) where `s` is the span of the syntactic form currently being verified or type-checked\.'
     )
     foreach ($pattern in $requiredSpecRules) {
         if ($specText -notmatch $pattern) {
@@ -8574,7 +9663,71 @@ function Invoke-Issue549ArrayIndexConformanceCase {
         }
     }
 
-    $indexAccessPath = Join-Path $workspaceRoot "cursive\\src\\04_analysis\\typing\\expr\\index_access.cpp"
+    $exprAstPath = Join-Path $workspaceRoot "cursive\src\02_source\ast\nodes\ast_exprs.h"
+    if (-not (Test-Path $exprAstPath)) {
+        throw "Case 'issue549_array_index_conformance' missing expression AST helper source: $exprAstPath"
+    }
+    $exprAstText = Get-Content -Path $exprAstPath -Raw
+    $requiredExprAstPatterns = @(
+        'inline bool DynamicExpr\(const Expr& expr\)',
+        'return !ExprAttrByName\(expr, "dynamic"\)\.empty\(\);'
+    )
+    foreach ($pattern in $requiredExprAstPatterns) {
+        if ($exprAstText -notmatch $pattern) {
+            throw "Case 'issue549_array_index_conformance' missing expected expression-attribute helper pattern '$pattern'."
+        }
+    }
+
+    $dynamicContextHeaderPath = Join-Path $workspaceRoot "cursive\include\04_analysis\typing\dynamic_context.h"
+    if (-not (Test-Path $dynamicContextHeaderPath)) {
+        throw "Case 'issue549_array_index_conformance' missing dynamic-context header source: $dynamicContextHeaderPath"
+    }
+    $dynamicContextHeaderText = Get-Content -Path $dynamicContextHeaderPath -Raw
+    $requiredDynamicContextHeaderPatterns = @(
+        'bool ComputeDynamicContext\(\s*const core::Span& current_span,\s*std::span<const DynamicScopeAncestor> ancestors\);'
+    )
+    foreach ($pattern in $requiredDynamicContextHeaderPatterns) {
+        if ($dynamicContextHeaderText -notmatch $pattern) {
+            throw "Case 'issue549_array_index_conformance' missing expected dynamic-context header pattern '$pattern'."
+        }
+    }
+
+    $dynamicContextPath = Join-Path $workspaceRoot "cursive\src\04_analysis\typing\dynamic_context.cpp"
+    if (-not (Test-Path $dynamicContextPath)) {
+        throw "Case 'issue549_array_index_conformance' missing dynamic-context implementation source: $dynamicContextPath"
+    }
+    $dynamicContextText = Get-Content -Path $dynamicContextPath -Raw
+    $requiredDynamicContextPatterns = @(
+        'bool ComputeDynamicContext\(\s*const core::Span& current_span,\s*std::span<const DynamicScopeAncestor> ancestors\) \{',
+        'if \(FindInnermostDynamic\(current_span, ancestors\) != nullptr\) \{[\s\S]*return true;[\s\S]*\}[\s\S]*return false;'
+    )
+    foreach ($pattern in $requiredDynamicContextPatterns) {
+        if ($dynamicContextText -notmatch $pattern) {
+            throw "Case 'issue549_array_index_conformance' missing expected dynamic-context implementation pattern '$pattern'."
+        }
+    }
+
+    $typeExprPath = Join-Path $workspaceRoot "cursive\src\04_analysis\typing\type_expr.cpp"
+    if (-not (Test-Path $typeExprPath)) {
+        throw "Case 'issue549_array_index_conformance' missing active type-expression source: $typeExprPath"
+    }
+    $typeExprText = Get-Content -Path $typeExprPath -Raw
+    $requiredTypeExprPatterns = @(
+        'bool ComputeExprDynamicContext\(const ast::Expr& expr, bool inherited\)',
+        'if \(!ast::DynamicExpr\(expr\)\)',
+        'const ast::AttributeList& attrs = ast::ExprAttrList\(expr\);',
+        'return inherited \|\| ComputeDynamicContext\(expr\.span, ancestors\);',
+        'dynamic_context = ComputeExprDynamicContext\(\*e, type_ctx\.contract_dynamic\);',
+        'inner_ctx\.contract_dynamic =\s+e \? ComputeExprDynamicContext\(\*e, type_ctx\.contract_dynamic\)',
+        'auto typed = TypeExpr\(ctx, inner_ctx, node\.body, comptime_env\);'
+    )
+    foreach ($pattern in $requiredTypeExprPatterns) {
+        if ($typeExprText -notmatch $pattern) {
+            throw "Case 'issue549_array_index_conformance' missing expected dynamic-expression typing pattern '$pattern'."
+        }
+    }
+
+    $indexAccessPath = Join-Path $workspaceRoot "cursive\src\04_analysis\typing\expr\index_access.cpp"
     if (-not (Test-Path $indexAccessPath)) {
         throw "Case 'issue549_array_index_conformance' missing active index-access typer source: $indexAccessPath"
     }
@@ -8595,8 +9748,8 @@ function Invoke-Issue549ArrayIndexConformanceCase {
 
     $caseRoot = Join-Path $workRoot "issue549_array_index_registry"
     New-Item -ItemType Directory -Path $caseRoot -Force | Out-Null
-    $generatorPath = Join-Path $workspaceRoot "cursive\\tools\\generate_static_rule_registry.ps1"
-    $mappingPath = Join-Path $workspaceRoot "cursive\\tools\\static_rule_mapping.json"
+    $generatorPath = Join-Path $workspaceRoot "cursive\tools\generate_static_rule_registry.ps1"
+    $mappingPath = Join-Path $workspaceRoot "cursive\tools\static_rule_mapping.json"
     $registryOutPath = Join-Path $caseRoot "static_rule_registry.inc"
     $reportOutPath = Join-Path $caseRoot "static_rule_registry_report.json"
     & powershell -NoProfile -ExecutionPolicy Bypass -File $generatorPath -RepoRoot $workspaceRoot -MappingPath $mappingPath -OutputPath $registryOutPath -ReportPath $reportOutPath -Strict
@@ -8700,7 +9853,112 @@ function Invoke-Issue549ArrayIndexConformanceCase {
         throw "Case 'issue549_array_index_dynamic_allowed' expected both value and place dynamic array-index traces."
     }
 
-    Write-Host "[compiler-static] issue549_array_index_conformance: registry=1 nonconst_code=$nonConstCodeCount nonconst_trace=$nonConstTraceCount oob_code=$oobCodeCount oob_trace=$oobTraceCount dynamic_value=$dynamicValueCount dynamic_place=$dynamicPlaceCount"
+    $dynamicExpr = Invoke-CheckWithConformance `
+        -CaseId "issue549_array_index_dynamic_expr_allowed" `
+        -Source (New-Issue549ArrayIndexDynamicExprSource) `
+        -ConformanceFileName "issue549_array_index_dynamic_expr_allowed.log"
+    if ($dynamicExpr.ExitCode -ne 0) {
+        throw "Case 'issue549_array_index_dynamic_expr_allowed' expected exit 0 but got $($dynamicExpr.ExitCode)."
+    }
+    $dynamicExprErrorCount = @($dynamicExpr.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    }).Count
+    if ($dynamicExprErrorCount -ne 0) {
+        throw "Case 'issue549_array_index_dynamic_expr_allowed' expected zero compile-time errors, observed $dynamicExprErrorCount."
+    }
+    $dynamicExprNonConstCount = @($dynamicExpr.DiagJson.diagnostics | Where-Object { $_.code -eq "E-UNS-0102" }).Count
+    if ($dynamicExprNonConstCount -ne 0) {
+        throw "Case 'issue549_array_index_dynamic_expr_allowed' must not emit E-UNS-0102 inside expression-level [[dynamic]] scope."
+    }
+    $dynamicExprStderr = Get-Content -Path $dynamicExpr.StderrPath -Raw
+    if ($dynamicExprStderr -match "Internal error:" -or $dynamicExprStderr -match "unknown diagnostic id") {
+        throw "Case 'issue549_array_index_dynamic_expr_allowed' must not surface internal compiler diagnostics on expression-level [[dynamic]] array indexing."
+    }
+    $dynamicExprLines = Get-Content -Path $dynamicExpr.ConformancePath
+    $dynamicExprValueCount = @($dynamicExprLines | Where-Object { $_ -like "*`tT-Index-Array-Dynamic`t*" }).Count
+    if ($dynamicExprValueCount -lt 1) {
+        throw "Case 'issue549_array_index_dynamic_expr_allowed' expected a dynamic array-index value trace."
+    }
+
+    $dynamicStmt = Invoke-CheckWithConformance `
+        -CaseId "issue549_array_index_dynamic_stmt_allowed" `
+        -Source (New-Issue549ArrayIndexDynamicStmtSource) `
+        -ConformanceFileName "issue549_array_index_dynamic_stmt_allowed.log"
+    if ($dynamicStmt.ExitCode -ne 0) {
+        throw "Case 'issue549_array_index_dynamic_stmt_allowed' expected exit 0 but got $($dynamicStmt.ExitCode)."
+    }
+    $dynamicStmtErrorCount = @($dynamicStmt.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    }).Count
+    if ($dynamicStmtErrorCount -ne 0) {
+        throw "Case 'issue549_array_index_dynamic_stmt_allowed' expected zero compile-time errors, observed $dynamicStmtErrorCount."
+    }
+    $dynamicStmtNonConstCount = @($dynamicStmt.DiagJson.diagnostics | Where-Object { $_.code -eq "E-UNS-0102" }).Count
+    if ($dynamicStmtNonConstCount -ne 0) {
+        throw "Case 'issue549_array_index_dynamic_stmt_allowed' must not emit E-UNS-0102 inside statement-level [[dynamic]] scope."
+    }
+    $dynamicStmtStderr = Get-Content -Path $dynamicStmt.StderrPath -Raw
+    if ($dynamicStmtStderr -match "Internal error:" -or $dynamicStmtStderr -match "unknown diagnostic id") {
+        throw "Case 'issue549_array_index_dynamic_stmt_allowed' must not surface internal compiler diagnostics on statement-level [[dynamic]] array indexing."
+    }
+    $dynamicStmtLines = Get-Content -Path $dynamicStmt.ConformancePath
+    $dynamicStmtValueCount = @($dynamicStmtLines | Where-Object { $_ -like "*`tT-Index-Array-Dynamic`t*" }).Count
+    $dynamicStmtPlaceCount = @($dynamicStmtLines | Where-Object { $_ -like "*`tP-Index-Array-Dynamic`t*" }).Count
+    if ($dynamicStmtValueCount -lt 1 -or $dynamicStmtPlaceCount -lt 1) {
+        throw "Case 'issue549_array_index_dynamic_stmt_allowed' expected both dynamic array-index value and place traces."
+    }
+
+    Write-Host "[compiler-static] issue549_array_index_conformance: expr_attr_helper=1 dynamic_context_helper=1 dynamic_expr_typing=1 registry=1 nonconst_code=$nonConstCodeCount nonconst_trace=$nonConstTraceCount oob_code=$oobCodeCount oob_trace=$oobTraceCount dynamic_value=$dynamicValueCount dynamic_place=$dynamicPlaceCount dynamic_expr_value=$dynamicExprValueCount dynamic_stmt_value=$dynamicStmtValueCount dynamic_stmt_place=$dynamicStmtPlaceCount"
+}
+
+function Invoke-Issue560IfStmtNonUnitBranchDiagnosticCase {
+    $cases = @(
+        @{
+            Id = "issue560_if_stmt_nonunit_branch_diag"
+            Source = (New-Issue560IfStmtNonUnitBranchSource)
+        },
+        @{
+            Id = "issue560_loop_if_stmt_nonunit_branch_diag"
+            Source = (New-Issue560LoopIfStmtNonUnitBranchSource)
+        }
+    )
+
+    foreach ($case in $cases) {
+        $caseRoot = Join-Path $workRoot $case.Id
+        New-Item -ItemType Directory -Path $caseRoot -Force | Out-Null
+
+        [System.IO.File]::WriteAllLines((Join-Path $caseRoot "Cursive.toml"), $manifestLines)
+        [System.IO.File]::WriteAllText((Join-Path $caseRoot "Main.cursive"), $case.Source)
+
+        $diagJsonPath = Join-Path $caseRoot "diag.json"
+        $stderrPath = Join-Path $caseRoot "stderr.txt"
+        Push-Location $caseRoot
+        try {
+            & $CompilerPath --incremental off --check --diag-json --quiet Main.cursive 1> $diagJsonPath 2> $stderrPath
+            $exitCode = $LASTEXITCODE
+        } finally {
+            Pop-Location
+        }
+
+        if ($exitCode -ne 1) {
+            throw "Case '$($case.Id)' expected exit 1 but got $exitCode."
+        }
+
+        $diagJson = (Get-Content -Path $diagJsonPath -Raw) | ConvertFrom-Json
+        $mismatchCount = @($diagJson.diagnostics | Where-Object {
+            $_.code -eq "E-MOD-2402"
+        }).Count
+        if ($mismatchCount -lt 1) {
+            throw "Case '$($case.Id)' expected diagnostic code 'E-MOD-2402'."
+        }
+
+        $stderrText = Get-Content -Path $stderrPath -Raw
+        if ($stderrText -match "Internal error:" -or $stderrText -match "unknown diagnostic id") {
+            throw "Case '$($case.Id)' must not surface internal compiler diagnostics."
+        }
+    }
+
+    Write-Host "[compiler-static] issue560_if_stmt_nonunit_branch_diag: cases=$($cases.Count) matched_code=E-MOD-2402"
 }
 
 function Invoke-Issue550ArrayEvalSigmaCase {
@@ -8768,6 +10026,76 @@ function Invoke-Issue550ArrayEvalSigmaCase {
     }
 
     Write-Host "[compiler-static] issue550_array_eval_sigma: exit=$($result.ExitCode) errors=$errorCount lower_array=$lowerArrayCount"
+}
+
+function Invoke-Issue554CallTempNoProvenanceCase {
+    $manifest = @(
+        "[[assembly]]",
+        "name = ""probe""",
+        "kind = ""dependency""",
+        "root = "".""",
+        "out_dir = ""build/probe""",
+        "emit_ir = ""ll"""
+    )
+
+    $result = Invoke-BuildWithConformance `
+        -CaseId "issue554_call_temp_no_provenance" `
+        -Source (New-Issue554CallTempNoProvenanceSource) `
+        -ConformanceFileName "issue554_call_temp_no_provenance.log" `
+        -Manifest $manifest
+
+    if ($result.ExitCode -ne 0) {
+        throw "Case 'issue554_call_temp_no_provenance' expected exit 0 but got $($result.ExitCode)."
+    }
+
+    $errorCount = @($result.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    }).Count
+    if ($errorCount -ne 0) {
+        throw "Case 'issue554_call_temp_no_provenance' expected zero compile-time errors but observed $errorCount."
+    }
+
+    $logLines = Get-Content -Path $result.ConformancePath
+    $lowerMoveCount = @($logLines | Where-Object { $_ -like "*`tLower-Args-Cons-Move`t*" }).Count
+    $lowerRefCount = @($logLines | Where-Object { $_ -like "*`tLower-Args-Cons-Ref`t*" }).Count
+    if ($lowerMoveCount -lt 1 -or $lowerRefCount -lt 1) {
+        throw "Case 'issue554_call_temp_no_provenance' expected both move and reference call-argument lowering traces."
+    }
+
+    $irPath = Join-Path $result.CaseRoot "build\\probe\\ir\\probe.ll"
+    if (-not (Test-Path $irPath)) {
+        throw "Case 'issue554_call_temp_no_provenance' missing LLVM IR file: $irPath"
+    }
+
+    $irText = Get-Content -Path $irPath -Raw
+    if ($irText -notmatch '%call_ref_tmp_[0-9]+ = alloca i32, align 4' -or
+        $irText -notmatch 'store i32 3, ptr %call_ref_tmp_[0-9]+, align 4' -or
+        $irText -notmatch 'call i32 @probe_x3a_x3aborrow\(ptr %call_ref_tmp_[0-9]+, ptr %\d+\)') {
+        throw "Case 'issue554_call_temp_no_provenance' expected by-reference provenance-less arguments to lower through a caller-side temporary place."
+    }
+    if ($irText -notmatch '%call_move_tmp_[0-9]+ = alloca i32, align 4' -or
+        $irText -notmatch 'store i32 7, ptr %call_move_tmp_[0-9]+, align 4' -or
+        $irText -notmatch 'load i32, ptr %call_move_tmp_[0-9]+, align 4' -or
+        $irText -notmatch 'call i32 @probe_x3a_x3aconsume\(i32 %\d+, ptr %\d+\)' -or
+        $irText -match 'call i32 @probe_x3a_x3aconsume\(i32 7, ptr %\d+\)') {
+        throw "Case 'issue554_call_temp_no_provenance' expected consuming provenance-less arguments to lower through a caller-side temporary place before the move."
+    }
+
+    $callLoweringPath = Join-Path $workspaceRoot "cursive\src\05_codegen\lower\expr\call.cpp"
+    $callsAnalysisPath = Join-Path $workspaceRoot "cursive\src\04_analysis\memory\calls.cpp"
+    $callLoweringText = Get-Content -Path $callLoweringPath -Raw
+    $callsAnalysisText = Get-Content -Path $callsAnalysisPath -Raw
+    if ($callLoweringText -notmatch 'LowerMoveArgExprWithTemp' -or
+        $callLoweringText -notmatch 'UsesCallTempForConsuming' -or
+        $callLoweringText -notmatch 'LowerMovePlace\(temp_ident,\s*ctx\)') {
+        throw "Case 'issue554_call_temp_no_provenance' expected ordinary call lowering to materialize and move from a synthetic call temporary."
+    }
+    if ($callsAnalysisText -notmatch 'UsesCallTempForConsumingLocal' -or
+        $callsAnalysisText -notmatch 'return mode == ParamMode::Move && !arg\.moved &&\s*!HasSourceProvenanceLocal\(arg\.value\);') {
+        throw "Case 'issue554_call_temp_no_provenance' expected call analysis to model the spec-defined ConsumeArgExpr call-temp branch."
+    }
+
+    Write-Host "[compiler-static] issue554_call_temp_no_provenance: exit=$($result.ExitCode) errors=$errorCount lower_move=$lowerMoveCount lower_ref=$lowerRefCount"
 }
 
 function Invoke-Issue551IndexEvalSigmaCase {
@@ -10065,6 +11393,1882 @@ function Invoke-Issue52MetatheoryHooksCase {
     Write-Host "[compiler-static] issue52_metatheory_hooks: exit=$($result.ExitCode) errors=$errorCount rules=$($metatheoryRules.Count)"
 }
 
+function Invoke-Issue561RulePremisesRegistryConformanceCase {
+    $caseRoot = Join-Path $workRoot "issue561_rule_premises_registry_conformance"
+    New-Item -ItemType Directory -Path $caseRoot -Force | Out-Null
+
+    $generatorPath = Join-Path $workspaceRoot "cursive\\tools\\generate_static_rule_registry.ps1"
+    $mappingPath = Join-Path $workspaceRoot "cursive\\tools\\static_rule_mapping.json"
+    $registryOutPath = Join-Path $caseRoot "static_rule_registry.inc"
+    $reportOutPath = Join-Path $caseRoot "static_rule_registry_report.json"
+
+    if (-not (Test-Path $generatorPath)) {
+        throw "Case 'issue561_rule_premises_registry_conformance' missing generator script: $generatorPath"
+    }
+    if (-not (Test-Path $mappingPath)) {
+        throw "Case 'issue561_rule_premises_registry_conformance' missing mapping file: $mappingPath"
+    }
+
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $generatorPath -RepoRoot $workspaceRoot -MappingPath $mappingPath -OutputPath $registryOutPath -ReportPath $reportOutPath -Strict
+    $generatorExit = $LASTEXITCODE
+    if ($generatorExit -ne 0) {
+        throw "Case 'issue561_rule_premises_registry_conformance' expected registry generator exit 0 but got $generatorExit."
+    }
+    if (-not (Test-Path $registryOutPath)) {
+        throw "Case 'issue561_rule_premises_registry_conformance' missing generated registry: $registryOutPath"
+    }
+
+    $registryText = Get-Content -Path $registryOutPath -Raw
+    $expectedRegistryPatterns = @(
+        '\{"Reject-IllFormed",\s*"DeclJudg",\s*std::nullopt,\s*"04_analysis/conformance/conformance\.cpp",\s*std::string_view\("¬ Conforming\(P\)"\)\}',
+        '\{"Static-Undefined",\s*"DeclJudg",\s*std::nullopt,\s*"00_core/behavior_model\.cpp",\s*std::string_view\("StaticUndefined\(J\)\\nCode\(DiagIdOf\(J\)\) = c"\)\}',
+        '\{"WF-Span",\s*"WFModulePathJudg",\s*std::nullopt,\s*"00_core/span\.cpp",\s*std::string_view\("0 ≤ s ≤ e ≤ S\.byte_len\\nΓ ⊢ Locate\(S, s\) ⇓ ℓ_s\\nΓ ⊢ Locate\(S, e\) ⇓ ℓ_e"\)\}'
+    )
+    foreach ($pattern in $expectedRegistryPatterns) {
+        if ($registryText -notmatch $pattern) {
+            throw "Case 'issue561_rule_premises_registry_conformance' missing expected premise registry pattern '$pattern'."
+        }
+    }
+
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\00_core\\behavior_model.h"
+    $implPath = Join-Path $workspaceRoot "cursive\\src\\00_core\\behavior_model.cpp"
+    if (-not (Test-Path $headerPath)) {
+        throw "Case 'issue561_rule_premises_registry_conformance' missing behavior model header: $headerPath"
+    }
+    if (-not (Test-Path $implPath)) {
+        throw "Case 'issue561_rule_premises_registry_conformance' missing behavior model implementation: $implPath"
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    if ($headerText -notmatch 'PremisesOfRule\s*\(\s*std::string_view\s+rule_id\s*\)') {
+        throw "Case 'issue561_rule_premises_registry_conformance' expected PremisesOfRule declaration in behavior_model.h."
+    }
+
+    $implText = Get-Content -Path $implPath -Raw
+    foreach ($pattern in @(
+        'SPEC_DEF\("Premises", "1\.2"\)',
+        'std::optional<std::vector<std::string_view>>\s+PremisesOfRule',
+        'meta->premises_text',
+        'SplitPremises'
+    )) {
+        if ($implText -notmatch $pattern) {
+            throw "Case 'issue561_rule_premises_registry_conformance' missing expected behavior model pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue561_rule_premises_registry_conformance: generator=1 registry_patterns=$($expectedRegistryPatterns.Count) api_patterns=4"
+}
+
+function Invoke-Issue562UnicodeScalarDomainConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\00_core\\source_text.h"
+    $unicodeImplPath = Join-Path $workspaceRoot "cursive\\src\\00_core\\unicode.cpp"
+    $literalImplPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+
+    foreach ($path in @($headerPath, $unicodeImplPath, $literalImplPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue562_unicode_scalar_domain_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $unicodeImplText = Get-Content -Path $unicodeImplPath -Raw
+    $literalImplText = Get-Content -Path $literalImplPath -Raw
+
+    $headerPatterns = @(
+        'class\s+UnicodeScalar\s*\{',
+        'constexpr\s+UnicodeScalar\s*\(\s*std::uint32_t\s+value\s*\)\s*:\s*value_\(Validate\(value\)\)',
+        'static\s+constexpr\s+bool\s+IsValue\s*\(\s*std::uint32_t\s+value\s*\)',
+        'constexpr\s+operator\s+std::uint32_t\s*\(\s*\)\s+const',
+        'static\s+constexpr\s+std::uint32_t\s+Validate\s*\(\s*std::uint32_t\s+value\s*\)'
+    )
+    foreach ($pattern in $headerPatterns) {
+        if ($headerText -notmatch $pattern) {
+            throw "Case 'issue562_unicode_scalar_domain_conformance' missing expected source_text.h pattern '$pattern'."
+        }
+    }
+    if ($headerText -match 'using\s+UnicodeScalar\s*=\s*std::uint32_t\s*;') {
+        throw "Case 'issue562_unicode_scalar_domain_conformance' found legacy raw UnicodeScalar alias in source_text.h."
+    }
+
+    foreach ($impl in @(
+        @{ Label = "unicode.cpp"; Text = $unicodeImplText },
+        @{ Label = "lexer_literals.cpp"; Text = $literalImplText }
+    )) {
+        if ($impl.Text -notmatch 'UnicodeScalar::IsValue\s*\(\s*value\s*\)') {
+            throw "Case 'issue562_unicode_scalar_domain_conformance' expected $($impl.Label) to route scalar-domain checks through UnicodeScalar::IsValue."
+        }
+    }
+
+    Write-Host "[compiler-static] issue562_unicode_scalar_domain_conformance: header_patterns=$($headerPatterns.Count) impl_checks=2"
+}
+
+function Invoke-Issue563ScalarsSequenceConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\00_core\\source_text.h"
+    if (-not (Test-Path $headerPath)) {
+        throw "Case 'issue563_scalars_sequence_conformance' missing compiler source file: $headerPath"
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $requiredPatterns = @(
+        'struct\s+DecodeResult\s*\{\s*std::vector<UnicodeScalar>\s+scalars;',
+        'struct\s+StripBOMResult\s*\{\s*std::vector<UnicodeScalar>\s+scalars;',
+        'StripBOMResult\s+StripBOM\s*\(\s*const\s+std::vector<UnicodeScalar>&\s+scalars\s*\);',
+        'std::vector<UnicodeScalar>\s+NormalizeLF\s*\(\s*const\s+std::vector<UnicodeScalar>&\s+scalars\s*\);',
+        'struct\s+SourceFile\s*\{[\s\S]*std::vector<UnicodeScalar>\s+scalars;'
+    )
+    foreach ($pattern in $requiredPatterns) {
+        if ($headerText -notmatch $pattern) {
+            throw "Case 'issue563_scalars_sequence_conformance' missing expected source_text.h pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue563_scalars_sequence_conformance: required_patterns=$($requiredPatterns.Count)"
+}
+
+function Invoke-Issue564StringAliasConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\00_core\\source_text.h"
+    if (-not (Test-Path $headerPath)) {
+        throw "Case 'issue564_string_alias_conformance' missing compiler source file: $headerPath"
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    foreach ($pattern in @(
+        'using\s+Scalars\s*=\s*std::vector<UnicodeScalar>\s*;',
+        'using\s+String\s*=\s*Scalars\s*;'
+    )) {
+        if ($headerText -notmatch $pattern) {
+            throw "Case 'issue564_string_alias_conformance' missing expected source_text.h pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue564_string_alias_conformance: alias_patterns=2"
+}
+
+function Invoke-Issue565NormalizeOutsideIdentifiersConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\00_core\\source_text.h"
+    $loadImplPath = Join-Path $workspaceRoot "cursive\\src\\00_core\\source_load.cpp"
+    foreach ($path in @($headerPath, $loadImplPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue565_normalize_outside_identifiers_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $loadImplText = Get-Content -Path $loadImplPath -Raw
+
+    if ($headerText -notmatch 'inline\s+Scalars\s+NormalizeOutsideIdentifiers\s*\(\s*const\s+Scalars&\s+scalars\s*\)\s*\{\s*return\s+scalars;\s*\}') {
+        throw "Case 'issue565_normalize_outside_identifiers_conformance' missing NormalizeOutsideIdentifiers identity helper in source_text.h."
+    }
+    if ($loadImplText -notmatch 'NormalizeLF\s*\(\s*NormalizeOutsideIdentifiers\s*\(\s*stripped\.scalars\s*\)\s*\)') {
+        throw "Case 'issue565_normalize_outside_identifiers_conformance' expected LoadSource to route normalization through NormalizeOutsideIdentifiers before NormalizeLF."
+    }
+
+    Write-Host "[compiler-static] issue565_normalize_outside_identifiers_conformance: header_identity=1 loadsource_pipeline=1"
+}
+
+function Invoke-Issue566SourceScalarsProjectionConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\00_core\\source_text.h"
+    $loadImplPath = Join-Path $workspaceRoot "cursive\\src\\00_core\\source_load.cpp"
+    $tokenizePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\tokenize.cpp"
+    $lexerPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer.cpp"
+    foreach ($path in @($headerPath, $loadImplPath, $tokenizePath, $lexerPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue566_source_scalars_projection_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $loadImplText = Get-Content -Path $loadImplPath -Raw
+    $tokenizeText = Get-Content -Path $tokenizePath -Raw
+    $lexerText = Get-Content -Path $lexerPath -Raw
+
+    if ($headerText -notmatch 'struct\s+SourceFile\s*\{[\s\S]*std::vector<UnicodeScalar>\s+scalars;') {
+        throw "Case 'issue566_source_scalars_projection_conformance' expected SourceFile to carry a scalars field."
+    }
+    if ($loadImplText -notmatch 'source\.scalars\s*=\s*std::move\(scalars\);') {
+        throw "Case 'issue566_source_scalars_projection_conformance' expected BuildSpanSource to assign the decoded scalar sequence into source.scalars."
+    }
+    if ($tokenizeText -notmatch 'const\s+auto&\s+scalars\s*=\s*source\.scalars;') {
+        throw "Case 'issue566_source_scalars_projection_conformance' expected tokenize.cpp to project T from source.scalars."
+    }
+    if ($lexerText -notmatch 'const\s+auto&\s+scalars\s*=\s*source\.scalars;') {
+        throw "Case 'issue566_source_scalars_projection_conformance' expected lexer.cpp to project T from source.scalars."
+    }
+
+    Write-Host "[compiler-static] issue566_source_scalars_projection_conformance: sourcefile_field=1 buildspansource_assign=1 tokenize_projection=1 lexer_projection=1"
+}
+
+function Invoke-Issue567LexSensitivePosConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\lexer\\lexer.h"
+    $securityImplPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_security.cpp"
+    $tokenizePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\tokenize.cpp"
+    foreach ($path in @($headerPath, $securityImplPath, $tokenizePath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue567_lex_sensitive_pos_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $securityImplText = Get-Content -Path $securityImplPath -Raw
+    $tokenizeText = Get-Content -Path $tokenizePath -Raw
+
+    if ($headerText -notmatch 'std::vector<std::size_t>\s+LexSensitivePos\s*\(\s*const\s+core::SourceFile&\s+source\s*\);') {
+        throw "Case 'issue567_lex_sensitive_pos_conformance' missing LexSensitivePos declaration in lexer.h."
+    }
+    foreach ($pattern in @(
+        'std::vector<std::size_t>\s+LexSensitivePos\s*\(\s*const\s+core::SourceFile&\s+source\s*\)',
+        'ScanLineComment\(source,\s*i\)',
+        'ScanBlockComment\(source,\s*i\)',
+        'ScanStringLiteral\(source,\s*i\)',
+        'ScanCharLiteral\(source,\s*i\)',
+        'core::IsSensitive\(scalars\[i\]\)',
+        'sensitive\.push_back\(i\)'
+    )) {
+        if ($securityImplText -notmatch $pattern) {
+            throw "Case 'issue567_lex_sensitive_pos_conformance' missing expected lexer_security.cpp pattern '$pattern'."
+        }
+    }
+    if ($tokenizeText -notmatch 'LexSecure\s*\(\s*source,\s*lexed\.output\.tokens,\s*LexSensitivePos\(source\)\s*\)') {
+        throw "Case 'issue567_lex_sensitive_pos_conformance' expected Tokenize to call LexSecure with LexSensitivePos(source)."
+    }
+
+    Write-Host "[compiler-static] issue567_lex_sensitive_pos_conformance: header_decl=1 security_patterns=7 tokenize_call=1"
+}
+
+function Invoke-Issue568LiteralSpanConformanceCase {
+    $unicodeImplPath = Join-Path $workspaceRoot "cursive\\src\\00_core\\unicode.cpp"
+    if (-not (Test-Path $unicodeImplPath)) {
+        throw "Case 'issue568_literal_span_conformance' missing compiler source file: $unicodeImplPath"
+    }
+
+    $unicodeImplText = Get-Content -Path $unicodeImplPath -Raw
+    foreach ($pattern in @(
+        'std::vector<ByteSpan>\s+LiteralSpan\s*\(\s*const\s+std::vector<UnicodeScalar>&\s+scalars\s*\)',
+        'const\s+auto\s+offsets\s*=\s*Utf8Offsets\(scalars\);',
+        'const\s+auto\s+spans\s*=\s*LiteralSpan\(scalars\);',
+        'ByteInLiteralSpan\(offsets\[i\],\s*spans,\s*&span_index\)'
+    )) {
+        if ($unicodeImplText -notmatch $pattern) {
+            throw "Case 'issue568_literal_span_conformance' missing expected unicode.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue568_literal_span_conformance: unicode_patterns=4"
+}
+
+function Invoke-Issue569TokenizePartialSurfaceConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\lexer\\lexer.h"
+    $tokenizeImplPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\tokenize.cpp"
+    $parserPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\parser.cpp"
+    foreach ($path in @($headerPath, $tokenizeImplPath, $parserPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue569_tokenize_partial_surface_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $tokenizeImplText = Get-Content -Path $tokenizeImplPath -Raw
+    $parserText = Get-Content -Path $parserPath -Raw
+
+    foreach ($pattern in @(
+        'using\s+TokenizeResult\s*=\s*std::optional<LexerOutput>\s*;',
+        'struct\s+TokenizeDiagnosticResult\s*\{[\s\S]*std::optional<LexerOutput>\s+output;[\s\S]*core::DiagnosticStream\s+diags;',
+        'TokenizeResult\s+Tokenize\s*\(\s*const\s+core::SourceFile&\s+source\s*\);',
+        'TokenizeDiagnosticResult\s+TokenizeWithDiagnostics\s*\(\s*const\s+core::SourceFile&\s+source\s*\);'
+    )) {
+        if ($headerText -notmatch $pattern) {
+            throw "Case 'issue569_tokenize_partial_surface_conformance' missing expected lexer.h pattern '$pattern'."
+        }
+    }
+    if ($tokenizeImplText -notmatch 'TokenizeResult\s+Tokenize\s*\(\s*const\s+core::SourceFile&\s+source\s*\)\s*\{\s*return\s+TokenizeWithDiagnostics\(source\)\.output;\s*\}') {
+        throw "Case 'issue569_tokenize_partial_surface_conformance' expected Tokenize to return only the partial output of TokenizeWithDiagnostics."
+    }
+    if ($parserText -notmatch 'TokenizeDiagnosticResult\s+tok\s*=\s*TokenizeWithDiagnostics\(source\);') {
+        throw "Case 'issue569_tokenize_partial_surface_conformance' expected ParseFile to use TokenizeWithDiagnostics for diagnostics-preserving tokenization."
+    }
+
+    Write-Host "[compiler-static] issue569_tokenize_partial_surface_conformance: header_patterns=4 tokenize_wrapper=1 parser_wrapper=1"
+}
+
+function Invoke-Issue570RequiredTerminatorSurfaceConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\lexer\\lexer.h"
+    $lexerImplPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer.cpp"
+    foreach ($path in @($headerPath, $lexerImplPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue570_required_terminator_surface_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $lexerImplText = Get-Content -Path $lexerImplPath -Raw
+
+    if ($headerText -notmatch 'bool\s+RequiredTerminator\s*\(\s*const\s+std::vector<Token>&\s+tokens,\s*std::size_t\s+index\s*\);') {
+        throw "Case 'issue570_required_terminator_surface_conformance' missing RequiredTerminator declaration in lexer.h."
+    }
+    foreach ($pattern in @(
+        'struct\s+NewlineContext',
+        'NewlineContext\s+BuildNewlineContext\s*\(\s*const\s+std::vector<Token>&\s+tokens\s*\)',
+        'bool\s+RequiredTerminatorImpl\s*\(\s*const\s+std::vector<Token>&\s+tokens,\s*std::size_t\s+i,\s*const\s+NewlineContext&\s+ctx\s*\)',
+        'tokens\[i\]\.kind\s*==\s*TokenKind::Newline',
+        '!ContinuesLineImpl\(tokens,\s*i,\s*ctx\)',
+        'if\s*\(\s*RequiredTerminatorImpl\(tokens,\s*i,\s*ctx\)\s*\)\s*\{\s*out\.push_back\(tok\);',
+        'bool\s+RequiredTerminator\s*\(\s*const\s+std::vector<Token>&\s+tokens,\s*std::size_t\s+index\s*\)\s*\{\s*return\s+RequiredTerminatorImpl\(tokens,\s*index,\s*BuildNewlineContext\(tokens\)\);\s*\}'
+    )) {
+        if ($lexerImplText -notmatch $pattern) {
+            throw "Case 'issue570_required_terminator_surface_conformance' missing expected lexer.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue570_required_terminator_surface_conformance: header_decl=1 lexer_patterns=7"
+}
+
+function Invoke-Issue571ContinuesLineSurfaceConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\lexer\\lexer.h"
+    $lexerImplPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer.cpp"
+    foreach ($path in @($headerPath, $lexerImplPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue571_continues_line_surface_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $lexerImplText = Get-Content -Path $lexerImplPath -Raw
+
+    if ($headerText -notmatch 'bool\s+ContinuesLine\s*\(\s*const\s+std::vector<Token>&\s+tokens,\s*std::size_t\s+index\s*\);') {
+        throw "Case 'issue571_continues_line_surface_conformance' missing ContinuesLine declaration in lexer.h."
+    }
+    foreach ($pattern in @(
+        'bool\s+ContinuesLineImpl\s*\(\s*const\s+std::vector<Token>&\s+tokens,\s*std::size_t\s+i,\s*const\s+NewlineContext&\s+ctx\s*\)',
+        'tokens\[i\]\.kind\s*!=\s*TokenKind::Newline',
+        'bool\s+ContinuesLine\s*\(\s*const\s+std::vector<Token>&\s+tokens,\s*std::size_t\s+index\s*\)\s*\{\s*return\s+ContinuesLineImpl\(tokens,\s*index,\s*BuildNewlineContext\(tokens\)\);\s*\}',
+        'RequiredTerminatorImpl\(tokens,\s*i,\s*ctx\)'
+    )) {
+        if ($lexerImplText -notmatch $pattern) {
+            throw "Case 'issue571_continues_line_surface_conformance' missing expected lexer.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue571_continues_line_surface_conformance: header_decl=1 lexer_patterns=4"
+}
+
+function Invoke-Issue572SourceLoadStateConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\00_core\\source_load.h"
+    if (-not (Test-Path $headerPath)) {
+        throw "Case 'issue572_source_load_state_conformance' missing compiler source file: $headerPath"
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    foreach ($pattern in @(
+        'struct\s+SourceLoadStartState\s*\{[\s\S]*std::string\s+path;[\s\S]*std::vector<std::uint8_t>\s+bytes;',
+        'struct\s+SourceLoadSizedState\s*\{[\s\S]*std::string\s+path;[\s\S]*std::vector<std::uint8_t>\s+bytes;',
+        'struct\s+SourceLoadDecodedState\s*\{[\s\S]*std::string\s+path;[\s\S]*std::vector<std::uint8_t>\s+bytes;[\s\S]*Scalars\s+scalars;',
+        'struct\s+SourceLoadBomStrippedState\s*\{[\s\S]*bool\s+had_bom\s*=\s*false;[\s\S]*std::optional<std::size_t>\s+j;',
+        'struct\s+SourceLoadNormalizedState\s*\{[\s\S]*Scalars\s+scalars;[\s\S]*std::optional<std::size_t>\s+j;',
+        'struct\s+SourceLoadLineMappedState\s*\{[\s\S]*Scalars\s+scalars;[\s\S]*std::vector<std::size_t>\s+line_starts;',
+        'struct\s+SourceLoadValidatedState\s*\{[\s\S]*SourceFile\s+source;',
+        'struct\s+SourceLoadErrorState\s*\{[\s\S]*std::string\s+code;',
+        'using\s+SourceLoadState\s*=\s*std::variant<[\s\S]*SourceLoadStartState[\s\S]*SourceLoadSizedState[\s\S]*SourceLoadDecodedState[\s\S]*SourceLoadBomStrippedState[\s\S]*SourceLoadNormalizedState[\s\S]*SourceLoadLineMappedState[\s\S]*SourceLoadValidatedState[\s\S]*SourceLoadErrorState[\s\S]*>;'
+    )) {
+        if ($headerText -notmatch $pattern) {
+            throw "Case 'issue572_source_load_state_conformance' missing expected source_load.h pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue572_source_load_state_conformance: header_patterns=9"
+}
+
+function Invoke-Issue573StepSizeTransitionConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\00_core\\source_load.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue573_step_size_transition_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+    foreach ($pattern in @(
+        'SourceLoadSizedState\s+StepSize\s*\(\s*SourceLoadStartState\s+start\s*\)',
+        'SPEC_RULE\("Step-Size"\)',
+        'return\s+SourceLoadSizedState\s*\{\s*std::move\(start\.path\),\s*std::move\(start\.bytes\)\s*\};',
+        'SourceLoadStartState\s+start\s*\{\s*std::string\(path\),\s*bytes\s*\};',
+        'const\s+SourceLoadSizedState\s+sized\s*=\s*StepSize\(std::move\(start\)\);',
+        'const\s+DecodeResult\s+decoded\s*=\s*Decode\(sized\.bytes\);',
+        'BuildSpanSource\(sized\.path,\s*sized\.bytes,\s*std::move\(normalized\)\)'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue573_step_size_transition_conformance' missing expected source_load.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue573_step_size_transition_conformance: source_patterns=7"
+}
+
+function Invoke-Issue574StepDecodeTransitionConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\00_core\\source_load.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue574_step_decode_transition_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+    foreach ($pattern in @(
+        'SourceLoadDecodedState\s+StepDecode\s*\(\s*SourceLoadSizedState\s+sized,\s*Scalars\s+scalars\s*\)',
+        'SPEC_RULE\("Step-Decode"\)',
+        'return\s+SourceLoadDecodedState\s*\{\s*std::move\(sized\.path\),\s*std::move\(sized\.bytes\),\s*std::move\(scalars\)\s*\};',
+        'const\s+DecodeResult\s+decode_result\s*=\s*Decode\(sized\.bytes\);',
+        'SourceLoadDecodedState\s+decoded\s*=\s*StepDecode\(std::move\(sized\),\s*std::move\(decode_result\.scalars\)\);',
+        'StripBOM\(decoded\.scalars\)'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue574_step_decode_transition_conformance' missing expected source_load.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue574_step_decode_transition_conformance: source_patterns=6"
+}
+
+function Invoke-Issue575StepDecodeErrorTransitionConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\00_core\\source_load.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue575_step_decode_error_transition_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+    foreach ($pattern in @(
+        'SourceLoadErrorState\s+StepDecodeErr\s*\(\s*SourceLoadSizedState\s+sized\s*\)',
+        'static_cast<void>\(sized\);',
+        'SPEC_RULE\("Step-Decode-Err"\)',
+        'return\s+SourceLoadErrorState\s*\{\s*"E-SRC-0101"\s*\};',
+        'const\s+SourceLoadErrorState\s+error\s*=\s*StepDecodeErr\(std::move\(sized\)\);',
+        'MakeDiagnosticById\(error\.code\)'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue575_step_decode_error_transition_conformance' missing expected source_load.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue575_step_decode_error_transition_conformance: source_patterns=6"
+}
+
+function Invoke-Issue576StepBomTransitionConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\00_core\\source_load.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue576_step_bom_transition_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+    foreach ($pattern in @(
+        'SourceLoadBomStrippedState\s+StepBOM\s*\(\s*SourceLoadDecodedState\s+decoded,\s*StripBOMResult\s+stripped\s*\)',
+        'SPEC_RULE\("Step-BOM"\)',
+        'return\s+SourceLoadBomStrippedState\s*\{\s*std::move\(decoded\.path\),\s*std::move\(decoded\.bytes\),\s*std::move\(stripped\.scalars\),\s*stripped\.had_bom,\s*stripped\.embedded_index\s*\};',
+        'StripBOMResult\s+strip_result\s*=\s*StripBOM\(decoded\.scalars\);',
+        'SourceLoadBomStrippedState\s+stripped\s*=\s*StepBOM\(std::move\(decoded\),\s*std::move\(strip_result\)\);',
+        'NormalizeLF\(NormalizeOutsideIdentifiers\(stripped\.scalars\)\)',
+        'BuildSpanSource\(stripped\.path,\s*stripped\.bytes,\s*std::move\(normalized\)\)'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue576_step_bom_transition_conformance' missing expected source_load.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue576_step_bom_transition_conformance: source_patterns=7"
+}
+
+function Invoke-Issue577StepNormTransitionConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\00_core\\source_load.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue577_step_norm_transition_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+    foreach ($pattern in @(
+        'SourceLoadNormalizedState\s+StepNorm\s*\(\s*SourceLoadBomStrippedState\s+stripped,\s*Scalars\s+scalars\s*\)',
+        'SPEC_RULE\("Step-Norm"\)',
+        'return\s+SourceLoadNormalizedState\s*\{\s*std::move\(stripped\.path\),\s*std::move\(stripped\.bytes\),\s*std::move\(scalars\),\s*stripped\.j\s*\};',
+        'const\s+bool\s+had_bom\s*=\s*stripped\.had_bom;',
+        'Scalars\s+normalized_outside_identifiers\s*=\s*NormalizeOutsideIdentifiers\(stripped\.scalars\);',
+        'Scalars\s+normalized_scalars\s*=\s*NormalizeLF\(normalized_outside_identifiers\);',
+        'SourceLoadNormalizedState\s+normalized\s*=\s*StepNorm\(std::move\(stripped\),\s*std::move\(normalized_scalars\)\);',
+        'BuildSpanSource\(normalized\.path,\s*normalized\.bytes,\s*std::move\(normalized\.scalars\)\)',
+        'normalized\.j\.has_value\(\)'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue577_step_norm_transition_conformance' missing expected source_load.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue577_step_norm_transition_conformance: source_patterns=9"
+}
+
+function Invoke-Issue578StepEmbeddedBomErrorTransitionConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\00_core\\source_load.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue578_step_embedded_bom_error_transition_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+    foreach ($pattern in @(
+        'SourceLoadErrorState\s+StepEmbeddedBOMErr\s*\(\s*SourceLoadNormalizedState\s+normalized\s*\)',
+        'static_cast<void>\(normalized\);',
+        'SPEC_RULE\("Step-EmbeddedBOM-Err"\)',
+        'return\s+SourceLoadErrorState\s*\{\s*"E-SRC-0103"\s*\};',
+        'if\s*\(normalized\.j\.has_value\(\)\)\s*\{\s*const\s+SourceLoadErrorState\s+error\s*=\s*StepEmbeddedBOMErr\(std::move\(normalized\)\);',
+        'MakeDiagnosticById\(error\.code,\s*SpanAtIndex\(source,\s*offsets,\s*bom_index\)\)'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue578_step_embedded_bom_error_transition_conformance' missing expected source_load.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue578_step_embedded_bom_error_transition_conformance: source_patterns=6"
+}
+
+function Invoke-Issue579StepLineMapTransitionConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\00_core\\source_load.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue579_step_line_map_transition_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+    foreach ($pattern in @(
+        'SourceLoadLineMappedState\s+StepLineMap\s*\(\s*SourceLoadNormalizedState\s+normalized\s*\)',
+        'std::vector<std::size_t>\s+line_starts\s*=\s*LineStarts\(normalized\.scalars\);',
+        'SPEC_RULE\("Step-LineMap"\)',
+        'return\s+SourceLoadLineMappedState\s*\{\s*std::move\(normalized\.path\),\s*std::move\(normalized\.bytes\),\s*std::move\(normalized\.scalars\),\s*std::move\(line_starts\)\s*\};',
+        'SourceFile\s+source\s*=\s*BuildSpanSource\(normalized\.path,\s*normalized\.bytes,\s*normalized\.scalars\);',
+        'SourceLoadLineMappedState\s+line_mapped\s*=\s*StepLineMap\(std::move\(normalized\)\);',
+        'source\s*=\s*BuildSpanSource\(\s*line_mapped\.path,\s*line_mapped\.bytes,\s*std::move\(line_mapped\.scalars\)\s*\);',
+        'source\.line_starts\s*=\s*std::move\(line_mapped\.line_starts\);',
+        'source\.line_count\s*=\s*source\.line_starts\.size\(\);',
+        'offsets\s*=\s*Utf8Offsets\(source\.scalars\);'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue579_step_line_map_transition_conformance' missing expected source_load.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue579_step_line_map_transition_conformance: source_patterns=10"
+}
+
+function Invoke-Issue580StepProhibitedTransitionConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\00_core\\source_load.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue580_step_prohibited_transition_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+    foreach ($pattern in @(
+        'SourceLoadValidatedState\s+StepProhibited\s*\(\s*SourceLoadLineMappedState\s+line_mapped\s*\)',
+        'SPEC_RULE\("Step-Prohibited"\)',
+        'SourceFile\s+source\s*=\s*BuildSpanSource\(\s*line_mapped\.path,\s*line_mapped\.bytes,\s*std::move\(line_mapped\.scalars\)\s*\);',
+        'source\.line_starts\s*=\s*std::move\(line_mapped\.line_starts\);',
+        'source\.line_count\s*=\s*source\.line_starts\.size\(\);',
+        'if\s*\(!NoProhibited\(source\.scalars\)\)',
+        'SourceLoadValidatedState\s+validated\s*=\s*StepProhibited\(std::move\(line_mapped\)\);',
+        'result\.source\s*=\s*std::move\(validated\.source\);'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue580_step_prohibited_transition_conformance' missing expected source_load.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue580_step_prohibited_transition_conformance: source_patterns=8"
+}
+
+function Invoke-Issue581StepProhibitedErrorTransitionConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\00_core\\source_load.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue581_step_prohibited_error_transition_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+    foreach ($pattern in @(
+        'SourceLoadErrorState\s+StepProhibitedErr\s*\(\s*SourceLoadLineMappedState\s+line_mapped\s*\)',
+        'static_cast<void>\(line_mapped\);',
+        'SPEC_RULE\("Step-Prohibited-Err"\)',
+        'return\s+SourceLoadErrorState\s*\{\s*"E-SRC-0104"\s*\};',
+        'if\s*\(!NoProhibited\(source\.scalars\)\)\s*\{\s*const\s+SourceLoadErrorState\s+error\s*=\s*StepProhibitedErr\(std::move\(line_mapped\)\);',
+        'MakeDiagnosticById\(error\.code,\s*SpanAtIndex\(source,\s*offsets,\s*prohibited_index\)\)'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue581_step_prohibited_error_transition_conformance' missing expected source_load.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue581_step_prohibited_error_transition_conformance: source_patterns=6"
+}
+
+function Invoke-Issue582SpanTempSourceConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\00_core\\source_load.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue582_span_temp_source_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+    foreach ($pattern in @(
+        'struct\s+SourceLoadSpanTemp\s*\{[\s\S]*std::string\s+path;[\s\S]*std::vector<std::uint8_t>\s+bytes;[\s\S]*std::string\s+text;[\s\S]*std::size_t\s+byte_len\s*=\s*0;[\s\S]*std::vector<std::size_t>\s+line_starts;[\s\S]*std::size_t\s+line_count\s*=\s*0;[\s\S]*\}',
+        'SourceLoadSpanTemp\s+BuildSpanTemp\s*\(\s*const\s+SourceFile&\s+source\s*\)',
+        'SourceFile\s+ToSpanSource\s*\(\s*const\s+SourceLoadSpanTemp&\s+source\s*\)',
+        'Span\s+SpanOfTemp\s*\(\s*const\s+SourceLoadSpanTemp&\s+source,\s*std::size_t\s+start,\s*std::size_t\s+end\s*\)',
+        'Span\s+SpanAtIndex\s*\(\s*const\s+SourceLoadSpanTemp&\s+source,\s*const\s+std::vector<std::size_t>&\s+offsets,\s*std::size_t\s+index\s*\)',
+        'const\s+SourceLoadSpanTemp\s+span_source\s*=\s*BuildSpanTemp\(source\);',
+        'SpanOfTemp\(span_source,\s*0,\s*end\)',
+        'SpanAtIndex\(span_source,\s*offsets,\s*bom_index\)',
+        'SpanAtIndex\(span_source,\s*offsets,\s*prohibited_index\)'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue582_span_temp_source_conformance' missing expected source_load.cpp pattern '$pattern'."
+        }
+    }
+
+    if ($sourceText -match 'struct\s+SourceLoadSpanTemp\s*\{[\s\S]*scalars;') {
+        throw "Case 'issue582_span_temp_source_conformance' expected SourceLoadSpanTemp to omit any scalars field."
+    }
+
+    Write-Host "[compiler-static] issue582_span_temp_source_conformance: source_patterns=9 no_scalars=1"
+}
+
+function Invoke-Issue583SpanAtLineStartConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\00_core\\source_load.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue583_span_at_line_start_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+    foreach ($pattern in @(
+        'Span\s+SpanAtLineStart\s*\(\s*const\s+SourceLoadSpanTemp&\s+source,\s*std::size_t\s+index\s*\)',
+        'index\s*<\s*source\.line_starts\.size\(\)\s*\?\s*source\.line_starts\[index\]\s*:\s*source\.byte_len',
+        'start\s*<\s*source\.byte_len\s*\?\s*std::min\(start\s*\+\s*1,\s*source\.byte_len\)\s*:\s*source\.byte_len',
+        'return\s+SpanOfTemp\(source,\s*start,\s*end\);'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue583_span_at_line_start_conformance' missing expected source_load.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue583_span_at_line_start_conformance: source_patterns=4"
+}
+
+function Invoke-Issue584LexerInputProjectionConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\lexer\\lexer.h"
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\tokenize.cpp"
+    foreach ($path in @($headerPath, $sourcePath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue584_lexer_input_projection_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'struct\s+LexerInput\s*\{[\s\S]*const\s+std::vector<core::UnicodeScalar>\*\s+scalars\s*=\s*nullptr;[\s\S]*std::string_view\s+text;[\s\S]*std::size_t\s+byte_len\s*=\s*0;[\s\S]*\}',
+        'LexerInput\s+MakeLexerInput\s*\(\s*const\s+core::SourceFile&\s+source\s*\);'
+    )) {
+        if ($headerText -notmatch $pattern) {
+            throw "Case 'issue584_lexer_input_projection_conformance' missing expected lexer.h pattern '$pattern'."
+        }
+    }
+
+    foreach ($pattern in @(
+        'LexerInput\s+MakeLexerInput\s*\(\s*const\s+core::SourceFile&\s+source\s*\)\s*\{\s*return\s+LexerInput\{\s*&source\.scalars,\s*source\.text,\s*source\.byte_len\s*\};\s*\}',
+        'const\s+LexerInput\s+input\s*=\s*MakeLexerInput\(source\);',
+        'const\s+auto&\s+scalars\s*=\s*\*input\.scalars;',
+        'std::string\s+LexemeSlice\s*\(\s*const\s+LexerInput&\s+input,',
+        'end\s*>\s*input\.byte_len'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue584_lexer_input_projection_conformance' missing expected tokenize.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue584_lexer_input_projection_conformance: header_patterns=2 source_patterns=5"
+}
+
+function Invoke-Issue585TokenEofConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\lexer\\token.h"
+    $tokenPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\token.cpp"
+    $builderPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\ast\\builder\\builder_common.cpp"
+    foreach ($path in @($headerPath, $tokenPath, $builderPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue585_token_eof_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $tokenText = Get-Content -Path $tokenPath -Raw
+    $builderText = Get-Content -Path $builderPath -Raw
+
+    foreach ($pattern in @(
+        'enum\s+class\s+TokenKind[\s\S]*Newline,\s*Eof,\s*Unknown',
+        'Token\s+MakeEofToken\s*\(\s*const\s+core::SourceFile&\s+source\s*\);'
+    )) {
+        if ($headerText -notmatch $pattern) {
+            throw "Case 'issue585_token_eof_conformance' missing expected token.h pattern '$pattern'."
+        }
+    }
+
+    foreach ($pattern in @(
+        'Token\s+MakeEofToken\s*\(\s*const\s+core::SourceFile&\s+source\s*\)',
+        'eof\.kind\s*=\s*TokenKind::Eof;',
+        'eof\.lexeme\.clear\(\);',
+        'eof\.span\s*=\s*core::SpanOf\(source,\s*source\.byte_len,\s*source\.byte_len\);'
+    )) {
+        if ($tokenText -notmatch $pattern) {
+            throw "Case 'issue585_token_eof_conformance' missing expected token.cpp pattern '$pattern'."
+        }
+    }
+
+    if ($builderText -notmatch 'tok\.kind\s*=\s*lexer::TokenKind::Eof;') {
+        throw "Case 'issue585_token_eof_conformance' missing EOF sentinel update in builder_common.cpp."
+    }
+
+    Write-Host "[compiler-static] issue585_token_eof_conformance: header_patterns=2 token_patterns=4 builder_patterns=1"
+}
+
+function Invoke-Issue586TokenRangeConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\lexer\\token.h"
+    $tokenPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\token.cpp"
+    foreach ($path in @($headerPath, $tokenPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue586_token_range_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $tokenText = Get-Content -Path $tokenPath -Raw
+
+    if ($headerText -notmatch 'std::optional<std::pair<std::size_t,\s*std::size_t>>\s+TokenRange\s*\(\s*const\s+core::SourceFile&\s+source,\s*const\s+Token&\s+token\s*\);') {
+        throw "Case 'issue586_token_range_conformance' missing TokenRange declaration in token.h."
+    }
+
+    foreach ($pattern in @(
+        'std::optional<std::pair<std::size_t,\s*std::size_t>>\s+TokenRange\s*\(\s*const\s+core::SourceFile&\s+source,\s*const\s+Token&\s+token\s*\)',
+        'const\s+auto\s+offsets\s*=\s*core::Utf8Offsets\(source\.scalars\);',
+        'std::find\(offsets\.begin\(\),\s*offsets\.end\(\),\s*token\.span\.start_offset\)',
+        'std::find\(offsets\.begin\(\),\s*offsets\.end\(\),\s*token\.span\.end_offset\)',
+        'const\s+std::size_t\s+i\s*=',
+        'const\s+std::size_t\s+j\s*=',
+        'const\s+core::Span\s+expected\s*=\s*core::SpanOf\(source,\s*offsets\[i\],\s*offsets\[j\]\);',
+        'return\s+std::pair<std::size_t,\s*std::size_t>\{i,\s*j\};'
+    )) {
+        if ($tokenText -notmatch $pattern) {
+            throw "Case 'issue586_token_range_conformance' missing expected token.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue586_token_range_conformance: header_decl=1 token_patterns=8"
+}
+
+function Invoke-Issue610ParserTokEofConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\parser\\parser.h"
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\parser_state.cpp"
+    foreach ($path in @($headerPath, $sourcePath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue610_parser_tok_eof_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'const\s+Token\*\s+Tok\s*\(\s*const\s+Parser&\s+parser\s*\);',
+        'const\s+core::Span&\s+TokSpan\s*\(\s*const\s+Parser&\s+parser\s*\);'
+    )) {
+        if ($headerText -notmatch $pattern) {
+            throw "Case 'issue610_parser_tok_eof_conformance' missing expected parser.h pattern '$pattern'."
+        }
+    }
+
+    if ($headerText -match 'mutable\s+Token\s+eof;') {
+        throw "Case 'issue610_parser_tok_eof_conformance' found removed cached EOF field in parser.h."
+    }
+
+    foreach ($pattern in @(
+        'Token\s+MakeParserEofToken\s*\(\s*const\s+Parser&\s+parser\s*\)',
+        'Token&\s+ParserEofTokenCache\s*\(\s*\)',
+        'Token&\s+eof\s*=\s*ParserEofTokenCache\(\);',
+        'eof\s*=\s*MakeParserEofToken\(parser\);',
+        'return\s*&eof;',
+        'return\s*&\(\*parser\.tokens\)\[parser\.index\];',
+        'return\s+Tok\(parser\)->span;'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue610_parser_tok_eof_conformance' missing expected parser_state.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue610_parser_tok_eof_conformance: header_patterns=2 header_forbidden=1 source_patterns=6"
+}
+
+function Invoke-Issue611ParserEofSpanHelperConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\parser\\parser.h"
+    $statePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\parser_state.cpp"
+    $builderPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\ast\\builder\\builder_common.cpp"
+    $quotePath = Join-Path $workspaceRoot "cursive\\src\\03_comptime\\quote.cpp"
+    $typeExprPath = Join-Path $workspaceRoot "cursive\\src\\04_analysis\\typing\\type_expr.cpp"
+    foreach ($path in @($headerPath, $statePath, $builderPath, $quotePath, $typeExprPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue611_parser_eof_span_helper_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $stateText = Get-Content -Path $statePath -Raw
+    $builderText = Get-Content -Path $builderPath -Raw
+    $quoteText = Get-Content -Path $quotePath -Raw
+    $typeExprText = Get-Content -Path $typeExprPath -Raw
+
+    if ($headerText -notmatch 'const\s+core::SourceFile\*\s+source\s*=\s*nullptr;') {
+        throw "Case 'issue611_parser_eof_span_helper_conformance' missing parser source provenance field in parser.h."
+    }
+
+    foreach ($pattern in @(
+        'core::Span\s+PointSpanAtEnd\s*\(\s*const\s+Token&\s+token\s*\)',
+        'Token\s+MakeParserEofToken\s*\(\s*const\s+Parser&\s+parser\s*\)',
+        'parser\.source\s*=\s*&source;',
+        'if\s*\(parser\.source\)\s*\{\s*return\s+MakeEofToken\(\*parser\.source\);',
+        'eof\.span\s*=\s*PointSpanAtEnd\(parser\.tokens->back\(\)\);'
+    )) {
+        if ($stateText -notmatch $pattern) {
+            throw "Case 'issue611_parser_eof_span_helper_conformance' missing expected parser_state.cpp pattern '$pattern'."
+        }
+    }
+
+    foreach ($forbidden in @(
+        'RefreshEofToken\s*\(',
+        'parser\.eof\b'
+    )) {
+        if ($stateText -match $forbidden) {
+            throw "Case 'issue611_parser_eof_span_helper_conformance' found removed eager EOF initialization pattern '$forbidden'."
+        }
+    }
+
+    if ($builderText -notmatch 'lexer::Token\s+start_tok\s*=\s*\*Tok\(start\);') {
+        throw "Case 'issue611_parser_eof_span_helper_conformance' expected builder_common.cpp to source EOF tokens through Tok(start)."
+    }
+
+    foreach ($forbidden in @(
+        'tok\.span\s*=\s*parser\.eof\.span;',
+        'parser\.eof\.span\s*=\s*tokens\.back\(\)\.span;'
+    )) {
+        if ($builderText -match $forbidden -or $quoteText -match $forbidden -or $typeExprText -match $forbidden) {
+            throw "Case 'issue611_parser_eof_span_helper_conformance' found removed direct EOF-span seeding pattern '$forbidden'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue611_parser_eof_span_helper_conformance: header_patterns=1 state_patterns=5 state_forbidden=2 builder_checks=2 quote_checks=1 type_expr_checks=1"
+}
+
+function Invoke-Issue612ParserTokensBetweenConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\parser\\parser.h"
+    $statePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\parser_state.cpp"
+    $quotePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\expr\\quote_expr.cpp"
+    foreach ($path in @($headerPath, $statePath, $quotePath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue612_parser_tokens_between_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $stateText = Get-Content -Path $statePath -Raw
+    $quoteText = Get-Content -Path $quotePath -Raw
+
+    foreach ($pattern in @(
+        'std::pair<std::size_t,\s*std::size_t>\s+TokensBetween\s*\(\s*const\s+Parser&\s+start,\s*const\s+Parser&\s+end\s*\);'
+    )) {
+        if ($headerText -notmatch $pattern) {
+            throw "Case 'issue612_parser_tokens_between_conformance' missing expected parser.h pattern '$pattern'."
+        }
+    }
+
+    foreach ($pattern in @(
+        'std::pair<std::size_t,\s*std::size_t>\s+TokensBetween\s*\(\s*const\s+Parser&\s+start,\s*const\s+Parser&\s+end\s*\)\s*\{\s*SPEC_DEF\("TokensBetween",\s*"5\.5"\);\s*return\s+std::pair<std::size_t,\s*std::size_t>\{start\.index,\s*end\.index\};\s*\}'
+    )) {
+        if ($stateText -notmatch $pattern) {
+            throw "Case 'issue612_parser_tokens_between_conformance' missing expected parser_state.cpp pattern '$pattern'."
+        }
+    }
+
+    if ($quoteText -match 'std::vector<Token>\s+TokensBetween\s*\(') {
+        throw "Case 'issue612_parser_tokens_between_conformance' found legacy quote-local TokensBetween helper in quote_expr.cpp."
+    }
+
+    foreach ($pattern in @(
+        'const\s+auto\s+\[from,\s*to\]\s*=\s*TokensBetween\(start,\s*end\);',
+        'quote\.tokens\s*=\s*SliceTokensBetween\(content_start,\s*content_end\);'
+    )) {
+        if ($quoteText -notmatch $pattern) {
+            throw "Case 'issue612_parser_tokens_between_conformance' missing expected quote_expr.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue612_parser_tokens_between_conformance: header_patterns=1 state_patterns=1 quote_checks=3"
+}
+
+function Invoke-Issue613ParserInitialStateConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\parser\\parser.h"
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\parser_state.cpp"
+    foreach ($path in @($headerPath, $sourcePath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue613_parser_initial_state_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    if ($headerText -match 'mutable\s+Token\s+eof;') {
+        throw "Case 'issue613_parser_initial_state_conformance' found cached EOF token embedded in Parser state."
+    }
+
+    foreach ($pattern in @(
+        'Parser\s+MakeParser\s*\(\s*const\s+std::vector<Token>&\s+tokens,\s*const\s+std::vector<DocComment>&\s+docs,\s*const\s+core::SourceFile&\s+source\s*\)',
+        'Parser\s+parser;',
+        'parser\.tokens\s*=\s*&tokens;',
+        'parser\.source\s*=\s*&source;',
+        'parser\.index\s*=\s*0;',
+        'parser\.docs\s*=\s*&docs;',
+        'parser\.doc_index\s*=\s*0;',
+        'parser\.depth\s*=\s*0;'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue613_parser_initial_state_conformance' missing expected parser_state.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue613_parser_initial_state_conformance: header_forbidden=1 source_patterns=8"
+}
+
+function Invoke-Issue614ParseItemsEmptyEofOnlyConformanceCase {
+    $parserPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\parser.cpp"
+    if (-not (Test-Path $parserPath)) {
+        throw "Case 'issue614_parse_items_empty_eof_only_conformance' missing parser implementation file: $parserPath"
+    }
+
+    $parserText = Get-Content -Path $parserPath -Raw
+
+    $hasImmediateEofCheck = $parserText -match 'Parser\s+cur\s*=\s*parser;\s*for\s*\(\s*;\s*;\s*\)\s*\{\s*if\s*\(AtEof\(cur\)\)\s*\{\s*SPEC_RULE\("ParseItems-Empty"\)'
+    $hasConsRule = $parserText -match 'SPEC_RULE\("ParseItems-Cons"\)'
+    $hasParseItemStep = $parserText -match 'ParseItemResult\s+item\s*=\s*ParseItem\(cur\);'
+    $hasRemovedNewlineSkip = $parserText -notmatch 'while\s*\(!AtEof\(cur\)\)\s*\{\s*const\s+Token\*\s+tok\s*=\s*Tok\(cur\);\s*if\s*\(!tok\s*\|\|\s*tok->kind\s*!=\s*TokenKind::Newline\)\s*\{\s*break;\s*\}\s*Advance\(cur\);\s*\}'
+
+    if ((-not $hasImmediateEofCheck) -or (-not $hasConsRule) -or (-not $hasParseItemStep) -or (-not $hasRemovedNewlineSkip)) {
+        throw "Case 'issue614_parse_items_empty_eof_only_conformance' expected ParseItemsInternal to check EOF before any newline skipping and to recurse through ParseItem for the non-empty case."
+    }
+
+    Write-Host "[compiler-static] issue614_parse_items_empty_eof_only_conformance: immediate_eof=$hasImmediateEofCheck cons_rule=$hasConsRule parse_item_step=$hasParseItemStep removed_newline_skip=$hasRemovedNewlineSkip"
+}
+
+function Invoke-Issue615DocSeqSurfaceConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\parser\\parser.h"
+    $parserPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\parser.cpp"
+    $docsPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\parser_docs.cpp"
+    $registryPath = Join-Path $workspaceRoot "cursive\\src\\00_core\\generated\\static_rule_registry.inc"
+    foreach ($path in @($headerPath, $parserPath, $docsPath, $registryPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue615_doc_seq_surface_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $parserText = Get-Content -Path $parserPath -Raw
+    $docsText = Get-Content -Path $docsPath -Raw
+    $registryText = Get-Content -Path $registryPath -Raw
+
+    if ($headerText -notmatch 'const\s+std::vector<DocComment>&\s+DocSeq\s*\(\s*const\s+std::vector<DocComment>&\s+docs\s*\);') {
+        throw "Case 'issue615_doc_seq_surface_conformance' missing DocSeq declaration in parser.h."
+    }
+    foreach ($pattern in @(
+        'const\s+std::vector<DocComment>&\s+DocSeq\s*\(\s*const\s+std::vector<DocComment>&\s+docs\s*\)\s*\{\s*SPEC_RULE\("DocSeq"\);\s*return\s+docs;\s*\}',
+        'std::vector<DocComment>\s+ModuleDocs\s*\(\s*const\s+std::vector<DocComment>&\s+docs\s*\)',
+        'void\s+AttachLineDocs\s*\(\s*std::vector<ASTItem>&\s+items,\s*const\s+std::vector<DocComment>&\s+docs\s*\)'
+    )) {
+        if ($docsText -notmatch $pattern) {
+            throw "Case 'issue615_doc_seq_surface_conformance' missing expected parser_docs.cpp pattern '$pattern'."
+        }
+    }
+    foreach ($pattern in @(
+        'return\s+ParseItemsInternal\(parser,\s*ModuleDocs\(DocSeq\(\*parser\.docs\)\)\);',
+        'const\s+std::vector<DocComment>&\s+doc_seq\s*=\s*DocSeq\(tok\.output->docs\);',
+        'AttachLineDocs\(items\.items,\s*doc_seq\);'
+    )) {
+        if ($parserText -notmatch $pattern) {
+            throw "Case 'issue615_doc_seq_surface_conformance' missing expected parser.cpp pattern '$pattern'."
+        }
+    }
+    if ($registryText -notmatch '\{"DocSeq",\s*"ParseJudgment",\s*std::nullopt,\s*"02_source/parser/parser_docs\.cpp",\s*std::string_view\("D"\)\}') {
+        throw "Case 'issue615_doc_seq_surface_conformance' missing DocSeq static rule registry entry."
+    }
+
+    Write-Host "[compiler-static] issue615_doc_seq_surface_conformance: header_decl=1 docs_patterns=3 parser_patterns=3 registry_entry=1"
+}
+
+function Invoke-Issue616ItemSeqSurfaceConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\parser\\parser.h"
+    $parserPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\parser.cpp"
+    $docsPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\parser_docs.cpp"
+    $registryPath = Join-Path $workspaceRoot "cursive\\src\\00_core\\generated\\static_rule_registry.inc"
+    foreach ($path in @($headerPath, $parserPath, $docsPath, $registryPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue616_item_seq_surface_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $parserText = Get-Content -Path $parserPath -Raw
+    $docsText = Get-Content -Path $docsPath -Raw
+    $registryText = Get-Content -Path $registryPath -Raw
+
+    if ($headerText -notmatch 'std::vector<ASTItem>\s+ItemSeq\s*\(\s*std::vector<ASTItem>\s+items\s*\);') {
+        throw "Case 'issue616_item_seq_surface_conformance' missing ItemSeq declaration in parser.h."
+    }
+    if ($docsText -notmatch 'std::vector<ASTItem>\s+ItemSeq\s*\(\s*std::vector<ASTItem>\s+items\s*\)\s*\{\s*SPEC_RULE\("ItemSeq\(Items\)"\);\s*return\s+items;\s*\}') {
+        throw "Case 'issue616_item_seq_surface_conformance' missing ItemSeq identity helper in parser_docs.cpp."
+    }
+    foreach ($pattern in @(
+        'std::vector<ASTItem>\s+item_seq\s*=\s*ItemSeq\(std::move\(items\.items\)\);',
+        'AttachLineDocs\(item_seq,\s*doc_seq\);',
+        'FirstTopLevelErrorItemSpan\(item_seq\);',
+        'file\.items\s*=\s*std::move\(item_seq\);'
+    )) {
+        if ($parserText -notmatch $pattern) {
+            throw "Case 'issue616_item_seq_surface_conformance' missing expected parser.cpp pattern ''$pattern''."
+        }
+    }
+    if ($registryText -notmatch '\{"ItemSeq\(Items\)",\s*"ParseJudgment",\s*std::nullopt,\s*"02_source/parser/parser_docs\.cpp",\s*std::nullopt\}') {
+        throw "Case 'issue616_item_seq_surface_conformance' missing ItemSeq static rule registry entry."
+    }
+
+    Write-Host "[compiler-static] issue616_item_seq_surface_conformance: header_decl=1 docs_helper=1 parser_patterns=4 registry_entry=1"
+}
+
+function Invoke-Issue618ParseItemsConsTraceConformanceCase {
+    $result = Invoke-CheckWithConformance `
+        -CaseId "issue618_parse_items_cons_trace_conformance" `
+        -Source (New-Issue618ParseItemsConsTraceSource) `
+        -ConformanceFileName "issue618_parse_items_cons_trace_conformance.log"
+
+    if ($result.ExitCode -ne 0) {
+        throw "Case 'issue618_parse_items_cons_trace_conformance' expected exit 0 but got $($result.ExitCode)."
+    }
+
+    $errorCount = @($result.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    }).Count
+    if ($errorCount -ne 0) {
+        throw "Case 'issue618_parse_items_cons_trace_conformance' expected zero compile-time errors but observed $errorCount."
+    }
+
+    $logLines = Get-Content -Path $result.ConformancePath
+    $parseItemsConsCount = @($logLines | Where-Object { $_ -like "*`tParseItems-Cons`t*" }).Count
+    $parseItemsEmptyCount = @($logLines | Where-Object { $_ -like "*`tParseItems-Empty`t*" }).Count
+    $parseItemErrCount = @($logLines | Where-Object { $_ -like "*`tParse-Item-Err`t*" }).Count
+    if ($parseItemsConsCount -ne 3 -or $parseItemsEmptyCount -ne 1 -or $parseItemErrCount -ne 0) {
+        throw "Case 'issue618_parse_items_cons_trace_conformance' expected exactly three ParseItems-Cons traces, one ParseItems-Empty trace, and zero Parse-Item-Err traces (cons=$parseItemsConsCount empty=$parseItemsEmptyCount item_err=$parseItemErrCount)."
+    }
+
+    $parserPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\parser.cpp"
+    if (-not (Test-Path $parserPath)) {
+        throw "Case 'issue618_parse_items_cons_trace_conformance' missing parser implementation file: $parserPath"
+    }
+
+    $parserText = Get-Content -Path $parserPath -Raw
+    $hasParseItemStep = $parserText -match 'ParseItemResult\s+item\s*=\s*ParseItem\(cur\);'
+    $hasPushParsedItem = $parserText -match 'result\.items\.push_back\(std::move\(item\.item\)\);'
+    $hasRemovedStallRecovery = $parserText -notmatch 'if\s*\(item\.parser\.tokens\s*==\s*cur\.tokens\s*&&\s*item\.parser\.index\s*==\s*cur\.index\)\s*\{\s*EmitParseSyntaxErr\(cur,\s*TokSpan\(cur\)\);\s*Parser\s+next\s*=\s*AdvanceOrEOF\(cur\);\s*result\.items\.push_back\(ErrorItem\{SpanBetween\(cur,\s*next\),\s*\{\}\}\);\s*cur\s*=\s*next;\s*continue;\s*\}'
+    if ((-not $hasParseItemStep) -or (-not $hasPushParsedItem) -or (-not $hasRemovedStallRecovery)) {
+        throw "Case 'issue618_parse_items_cons_trace_conformance' expected ParseItems-Cons to append the ParseItem result directly without the old stall-recovery branch."
+    }
+
+    Write-Host "[compiler-static] issue618_parse_items_cons_trace_conformance: exit=$($result.ExitCode) errors=$errorCount parse_items_cons=$parseItemsConsCount parse_items_empty=$parseItemsEmptyCount parse_item_err=$parseItemErrCount direct_append=$hasPushParsedItem removed_stall_recovery=$hasRemovedStallRecovery"
+}
+
+function Invoke-Issue619Phase1DiagRulesSurfaceConformanceCase {
+    $parserPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\parser_recovery.cpp"
+    if (-not (Test-Path $parserPath)) {
+        throw "Case 'issue619_phase1_diag_rules_surface_conformance' missing parser recovery implementation file: $parserPath"
+    }
+
+    $parserText = Get-Content -Path $parserPath -Raw
+    foreach ($pattern in @(
+        'SPEC_DEF\("StmtParseErrRule",\s*"5\.8"\);',
+        'SPEC_DEF\("ItemParseErrRule",\s*"5\.8"\);',
+        'SPEC_DEF\("Phase1DiagRules",\s*"5\.9"\);'
+    )) {
+        if ($parserText -notmatch $pattern) {
+            throw "Case 'issue619_phase1_diag_rules_surface_conformance' missing parser recovery alias pattern '$pattern'."
+        }
+    }
+
+    $hasOrderedAliasBlock = $parserText -match 'static\s+inline\s+void\s+SpecDefsParserRecovery\(\)\s*\{\s*SPEC_DEF\("StmtParseErrRule",\s*"5\.8"\);\s*SPEC_DEF\("ItemParseErrRule",\s*"5\.8"\);\s*SPEC_DEF\("Phase1DiagRules",\s*"5\.9"\);\s*\}'
+    if (-not $hasOrderedAliasBlock) {
+        throw "Case 'issue619_phase1_diag_rules_surface_conformance' expected SpecDefsParserRecovery to declare the full phase-1 diagnostic alias block in order."
+    }
+
+    Write-Host "[compiler-static] issue619_phase1_diag_rules_surface_conformance: parser_aliases=3 ordered_block=1"
+}
+
+function Invoke-Issue620QuoteProbeParseSyntaxErrConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\parser\\parser.h"
+    $parserPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\parser_recovery.cpp"
+    foreach ($path in @($headerPath, $parserPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue620_quote_probe_parse_syntax_err_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $parserText = Get-Content -Path $parserPath -Raw
+    if ($headerText -notmatch 'void\s+EmitGenericParseSyntaxErr\s*\(\s*Parser&\s+parser,\s*const\s+core::Span&\s+span\s*\);') {
+        throw "Case 'issue620_quote_probe_parse_syntax_err_conformance' missing EmitGenericParseSyntaxErr declaration in parser.h."
+    }
+
+    $hasRawHelperWithoutSpecRule = $parserText -match 'void\s+EmitParseSyntaxErr\s*\(\s*Parser&\s+parser,\s*const\s+core::Span&\s+span\s*\)\s*\{\s*auto\s+diag\s*=\s*core::MakeDiagnosticById\("E-SRC-0520",\s*span\);'
+    $hasGenericHelperWithSpecRule = $parserText -match 'void\s+EmitGenericParseSyntaxErr\s*\(\s*Parser&\s+parser,\s*const\s+core::Span&\s+span\s*\)\s*\{\s*SpecDefsParserRecovery\(\);\s*SPEC_RULE\("Parse-Syntax-Err"\);\s*EmitParseSyntaxErr\(parser,\s*span\);'
+    if ((-not $hasRawHelperWithoutSpecRule) -or (-not $hasGenericHelperWithSpecRule)) {
+        throw "Case 'issue620_quote_probe_parse_syntax_err_conformance' expected parser_recovery.cpp to keep raw E-SRC-0520 emission separate from generic Parse-Syntax-Err attribution."
+    }
+
+    $result = Invoke-CheckWithConformance `
+        -CaseId "issue620_quote_probe_parse_syntax_err_conformance" `
+        -Source (New-Issue620QuoteStmtProbeSource) `
+        -ConformanceFileName "issue620_quote_probe_parse_syntax_err_conformance.log"
+
+    if ($result.ExitCode -ne 0) {
+        throw "Case 'issue620_quote_probe_parse_syntax_err_conformance' expected exit 0 but got $($result.ExitCode)."
+    }
+
+    $errorCount = @($result.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    }).Count
+    if ($errorCount -ne 0) {
+        throw "Case 'issue620_quote_probe_parse_syntax_err_conformance' expected zero compile-time errors but observed $errorCount."
+    }
+
+    $logLines = Get-Content -Path $result.ConformancePath
+    $parseQuoteCount = @($logLines | Where-Object { $_ -like "*`tParse-Quote`t*" }).Count
+    $parseSyntaxErrCount = @($logLines | Where-Object { $_ -like "*`tParse-Syntax-Err`t*" }).Count
+    if ($parseQuoteCount -lt 1 -or $parseSyntaxErrCount -ne 0) {
+        throw "Case 'issue620_quote_probe_parse_syntax_err_conformance' expected Parse-Quote with no Parse-Syntax-Err trace from quote-kind probing (quote=$parseQuoteCount parse_syntax_err=$parseSyntaxErrCount)."
+    }
+
+    Write-Host "[compiler-static] issue620_quote_probe_parse_syntax_err_conformance: exit=$($result.ExitCode) errors=$errorCount parse_quote=$parseQuoteCount parse_syntax_err=$parseSyntaxErrCount raw_helper=$hasRawHelperWithoutSpecRule generic_helper=$hasGenericHelperWithSpecRule"
+}
+
+function Invoke-Issue621ParseSyntaxErrPremisesHoldConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\parser\\parser.h"
+    $parserRecoveryPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\parser_recovery.cpp"
+    $registryPath = Join-Path $workspaceRoot "cursive\\src\\00_core\\generated\\static_rule_registry.inc"
+    $parserRoot = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser"
+    foreach ($path in @($headerPath, $parserRecoveryPath, $registryPath, $parserRoot)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue621_parse_syntax_err_premises_hold_conformance' missing compiler source path: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $parserRecoveryText = Get-Content -Path $parserRecoveryPath -Raw
+    $registryText = Get-Content -Path $registryPath -Raw
+
+    if ($headerText -notmatch 'void\s+EmitGenericParseSyntaxErr\s*\(\s*Parser&\s+parser,\s*const\s+core::Span&\s+span\s*\);') {
+        throw "Case 'issue621_parse_syntax_err_premises_hold_conformance' missing EmitGenericParseSyntaxErr declaration in parser.h."
+    }
+
+    $hasGenericHelperWithSpecRule = $parserRecoveryText -match 'void\s+EmitGenericParseSyntaxErr\s*\(\s*Parser&\s+parser,\s*const\s+core::Span&\s+span\s*\)\s*\{\s*SpecDefsParserRecovery\(\);\s*SPEC_RULE\("Parse-Syntax-Err"\);\s*EmitParseSyntaxErr\(parser,\s*span\);'
+    if (-not $hasGenericHelperWithSpecRule) {
+        throw "Case 'issue621_parse_syntax_err_premises_hold_conformance' expected parser_recovery.cpp to attribute Parse-Syntax-Err through the generic helper."
+    }
+
+    $expectedGenericProducerPaths = @(
+        "cursive/src/02_source/parser/item/parse_item.cpp"
+        "cursive/src/02_source/parser/parser_paths.cpp"
+        "cursive/src/02_source/parser/parser_recovery.cpp"
+        "cursive/src/02_source/parser/pattern/pattern_common.cpp"
+        "cursive/src/02_source/parser/stmt/error_stmt.cpp"
+        "cursive/src/02_source/parser/stmt/parse_stmt.cpp"
+        "cursive/src/02_source/parser/type/type_common.cpp"
+    )
+
+    $observedGenericProducerPaths = @(
+        Get-ChildItem -Path $parserRoot -Recurse -Filter '*.cpp' | Where-Object {
+            (Get-Content -Path $_.FullName -Raw) -match 'EmitGenericParseSyntaxErr\s*\('
+        } | ForEach-Object {
+            $_.FullName.Substring($workspaceRoot.Length + 1).Replace('\', '/')
+        } | Sort-Object -Unique
+    )
+
+    $missingGenericProducerPaths = @(
+        $expectedGenericProducerPaths | Where-Object {
+            $observedGenericProducerPaths -notcontains $_
+        }
+    )
+    $unexpectedGenericProducerPaths = @(
+        $observedGenericProducerPaths | Where-Object {
+            $expectedGenericProducerPaths -notcontains $_
+        }
+    )
+    if ($missingGenericProducerPaths.Count -ne 0 -or $unexpectedGenericProducerPaths.Count -ne 0) {
+        throw "Case 'issue621_parse_syntax_err_premises_hold_conformance' expected generic Parse-Syntax-Err attribution only in the parser recovery helper and the six generic parse-rule producers (missing=$($missingGenericProducerPaths -join ',') unexpected=$($unexpectedGenericProducerPaths -join ','))."
+    }
+
+    $hasPremisesRegistryEntry = $registryText -match '\{"Parse-Syntax-Err",\s*"ParseJudgment",\s*std::nullopt,\s*"02_source/parser/expr/path\.cpp",\s*std::string_view\("GenericParseRules = \{Parse-Ident-Err, Parse-Type-Err, Parse-Pattern-Err, Parse-Primary-Err, Parse-Statement-Err, Parse-Item-Err\}\\nr ∈ GenericParseRules\\nPremisesHold\(r, P\)"\)\}'
+    if (-not $hasPremisesRegistryEntry) {
+        throw "Case 'issue621_parse_syntax_err_premises_hold_conformance' missing Parse-Syntax-Err static rule registry premises entry."
+    }
+
+    Write-Host "[compiler-static] issue621_parse_syntax_err_premises_hold_conformance: helper_decl=1 helper_rule=1 producer_paths=$($observedGenericProducerPaths.Count) registry_premises=1"
+}
+
+function Invoke-Issue587TokenInCommentConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\lexer\\lexer.h"
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_ws.cpp"
+    foreach ($path in @($headerPath, $sourcePath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue587_token_in_comment_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    if ($headerText -notmatch 'bool\s+TokenInComment\s*\(\s*const\s+core::SourceFile&\s+source,\s*const\s+Token&\s+token\s*\);') {
+        throw "Case 'issue587_token_in_comment_conformance' missing TokenInComment declaration in lexer.h."
+    }
+
+    foreach ($pattern in @(
+        'bool\s+TokenInComment\s*\(\s*const\s+core::SourceFile&\s+source,\s*const\s+Token&\s+token\s*\)',
+        'const\s+auto\s+range\s*=\s*TokenRange\(source,\s*token\);',
+        'const\s+auto\s+\[i,\s*j\]\s*=\s*\*range;',
+        'CommentScanResult\s+line\s*=\s*ScanLineComment\(source,\s*p\);',
+        'CommentScanResult\s+block\s*=\s*ScanBlockComment\(source,\s*p\);',
+        'p\s*<=\s*i\s*&&\s*j\s*<=\s*line\.next',
+        'p\s*<=\s*i\s*&&\s*j\s*<=\s*block\.next'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue587_token_in_comment_conformance' missing expected lexer_ws.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue587_token_in_comment_conformance: header_decl=1 source_patterns=7"
+}
+
+function Invoke-Issue588ScalarIndexConformanceCase {
+    $sourceTextPath = Join-Path $workspaceRoot "cursive\\include\\00_core\\source_text.h"
+    $tokenPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\token.cpp"
+    $spanTempPath = Join-Path $workspaceRoot "cursive\\src\\00_core\\source_load.cpp"
+    foreach ($path in @($sourceTextPath, $tokenPath, $spanTempPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue588_scalar_index_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $sourceText = Get-Content -Path $sourceTextPath -Raw
+    $tokenText = Get-Content -Path $tokenPath -Raw
+    $spanTempText = Get-Content -Path $spanTempPath -Raw
+
+    foreach ($pattern in @(
+        'offsets\.reserve\(scalars\.size\(\)\s*\+\s*1\);',
+        'offsets\.push_back\(0\);',
+        'for\s*\(UnicodeScalar\s+u\s*:\s*scalars\)\s*\{[\s\S]*offsets\.push_back\(acc\);',
+        'return\s+offsets;'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue588_scalar_index_conformance' missing expected source_text.h pattern '$pattern'."
+        }
+    }
+
+    foreach ($pattern in @(
+        'std::find\(offsets\.begin\(\),\s*offsets\.end\(\),\s*token\.span\.start_offset\)',
+        'std::find\(offsets\.begin\(\),\s*offsets\.end\(\),\s*token\.span\.end_offset\)',
+        'return\s+std::pair<std::size_t,\s*std::size_t>\{i,\s*j\};'
+    )) {
+        if ($tokenText -notmatch $pattern) {
+            throw "Case 'issue588_scalar_index_conformance' missing expected token.cpp pattern '$pattern'."
+        }
+    }
+
+    foreach ($pattern in @(
+        'index\s*<\s*source\.line_starts\.size\(\)\s*\?\s*source\.line_starts\[index\]\s*:\s*source\.byte_len',
+        'start\s*<\s*source\.byte_len\s*\?\s*std::min\(start\s*\+\s*1,\s*source\.byte_len\)\s*:\s*source\.byte_len'
+    )) {
+        if ($spanTempText -notmatch $pattern) {
+            throw "Case 'issue588_scalar_index_conformance' missing expected source_load.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue588_scalar_index_conformance: source_text_patterns=4 token_patterns=3 span_patterns=2"
+}
+
+function Invoke-Issue589LexemeScalarSliceConformanceCase {
+    $tokenHeaderPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\lexer\\token.h"
+    $lexerHeaderPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\lexer\\lexer.h"
+    $tokenizePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\tokenize.cpp"
+    $identPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_ident.cpp"
+    $literalPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+    foreach ($path in @($tokenHeaderPath, $lexerHeaderPath, $tokenizePath, $identPath, $literalPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue589_lexeme_scalar_slice_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $tokenHeaderText = Get-Content -Path $tokenHeaderPath -Raw
+    $lexerHeaderText = Get-Content -Path $lexerHeaderPath -Raw
+    $tokenizeText = Get-Content -Path $tokenizePath -Raw
+    $identText = Get-Content -Path $identPath -Raw
+    $literalText = Get-Content -Path $literalPath -Raw
+
+    foreach ($pattern in @(
+        'using\s+Lexeme\s*=\s*std::string;',
+        'using\s+LexemeScalars\s*=\s*core::Scalars;'
+    )) {
+        if ($tokenHeaderText -notmatch $pattern) {
+            throw "Case 'issue589_lexeme_scalar_slice_conformance' missing expected token.h pattern '$pattern'."
+        }
+    }
+
+    if ($lexerHeaderText -notmatch 'LexemeScalars\s+LexemeSliceScalars\s*\(\s*const\s+std::vector<core::UnicodeScalar>&\s+scalars,\s*std::size_t\s+i,\s*std::size_t\s+j\s*\);') {
+        throw "Case 'issue589_lexeme_scalar_slice_conformance' missing LexemeSliceScalars declaration in lexer.h."
+    }
+
+    foreach ($pattern in @(
+        'LexemeScalars\s+LexemeSliceScalars\s*\(\s*const\s+std::vector<core::UnicodeScalar>&\s+scalars,\s*std::size_t\s+i,\s*std::size_t\s+j\s*\)',
+        'if\s*\(\s*j\s*<\s*i\s*\|\|\s*j\s*>\s*scalars\.size\(\)\s*\)\s*\{\s*return\s*\{\s*\};\s*\}',
+        'return\s+LexemeScalars\(scalars\.begin\(\)\s*\+\s*static_cast<std::ptrdiff_t>\(i\),\s*scalars\.begin\(\)\s*\+\s*static_cast<std::ptrdiff_t>\(j\)\);',
+        'const\s+LexemeScalars\s+lexeme\s*=\s*LexemeSliceScalars\(\s*\*input\.scalars,\s*i,\s*j\s*\);',
+        'return\s+core::EncodeUtf8\(lexeme\);'
+    )) {
+        if ($tokenizeText -notmatch $pattern) {
+            throw "Case 'issue589_lexeme_scalar_slice_conformance' missing expected tokenize.cpp pattern '$pattern'."
+        }
+    }
+
+    if ($identText -notmatch 'result\.lexeme\s*=\s*core::EncodeUtf8\(LexemeSliceScalars\(scalars,\s*start,\s*end\)\);') {
+        throw "Case 'issue589_lexeme_scalar_slice_conformance' missing scalar-slice identifier encoding in lexer_ident.cpp."
+    }
+
+    if ($literalText -notmatch 'return\s+core::EncodeUtf8\(LexemeSliceScalars\(source\.scalars,\s*i,\s*j\)\);') {
+        throw "Case 'issue589_lexeme_scalar_slice_conformance' missing scalar-slice literal encoding in lexer_literals.cpp."
+    }
+
+    Write-Host "[compiler-static] issue589_lexeme_scalar_slice_conformance: token_header_patterns=2 lexer_header_decl=1 tokenize_patterns=5 ident_patterns=1 literal_patterns=1"
+}
+
+function Invoke-Issue590ReservedNamespacePrefixConformanceCase {
+    $scopesHeaderPath = Join-Path $workspaceRoot "cursive\\include\\04_analysis\\resolve\\scopes.h"
+    $scopesPath = Join-Path $workspaceRoot "cursive\\src\\04_analysis\\resolve\\scopes.cpp"
+    $introPath = Join-Path $workspaceRoot "cursive\\src\\04_analysis\\resolve\\scopes_intro.cpp"
+    $ifCasePath = Join-Path $workspaceRoot "cursive\\src\\04_analysis\\typing\\if_case_check.cpp"
+    $stmtCommonPath = Join-Path $workspaceRoot "cursive\\src\\04_analysis\\typing\\stmt\\stmt_common.cpp"
+    foreach ($path in @($scopesHeaderPath, $scopesPath, $introPath, $ifCasePath, $stmtCommonPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue590_reserved_namespace_prefix_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $scopesHeaderPath -Raw
+    $scopesText = Get-Content -Path $scopesPath -Raw
+    $introText = Get-Content -Path $introPath -Raw
+    $ifCaseText = Get-Content -Path $ifCasePath -Raw
+    $stmtCommonText = Get-Content -Path $stmtCommonPath -Raw
+
+    if ($headerText -match 'ReservedCursive\s*\(' -or $headerText -match 'ReservedId\s*\(') {
+        throw "Case 'issue590_reserved_namespace_prefix_conformance' found stale bare-cursive reserved-id declarations in scopes.h."
+    }
+
+    foreach ($pattern in @(
+        'bool\s+ReservedGen\s*\(\s*std::string_view\s+x\s*\)',
+        'bool\s+ReservedModulePath\s*\(\s*const\s+ast::ModulePath&\s+path\s*\)',
+        'if\s*\(!path\.empty\(\)\s*&&\s*IdEq\(path\[0\],\s*"cursive"\)\)\s*\{\s*return\s+true;\s*\}',
+        'scope\.emplace\(IdKeyOf\(name\),\s*Entity\{EntityKind::Type'
+    )) {
+        if ($scopesText -notmatch $pattern) {
+            throw "Case 'issue590_reserved_namespace_prefix_conformance' missing expected scopes.cpp pattern '$pattern'."
+        }
+    }
+
+    foreach ($forbidden in @(
+        'bool\s+ReservedCursive\s*\(',
+        'bool\s+ReservedId\s*\(',
+        'IdKeyOf\("cursive"\)',
+        'ModuleAlias,\s*ast::ModulePath\{"cursive"\}'
+    )) {
+        if ($scopesText -match $forbidden) {
+            throw "Case 'issue590_reserved_namespace_prefix_conformance' found stale bare-cursive reservation pattern '$forbidden' in scopes.cpp."
+        }
+    }
+
+    foreach ($forbidden in @(
+        'ReservedCursive\(name\)',
+        'Intro-Reserved-Cursive-Err',
+        'Shadow-Reserved-Cursive-Err',
+        'ReservedCursive\(key\)'
+    )) {
+        if ($introText -match $forbidden) {
+            throw "Case 'issue590_reserved_namespace_prefix_conformance' found stale bare-cursive restriction pattern '$forbidden' in scopes_intro.cpp."
+        }
+    }
+
+    foreach ($forbidden in @(
+        'ReservedCursive\(name\)',
+        'Intro-Reserved-Cursive-Err',
+        'Shadow-Reserved-Cursive-Err'
+    )) {
+        if ($ifCaseText -match $forbidden) {
+            throw "Case 'issue590_reserved_namespace_prefix_conformance' found stale bare-cursive restriction pattern '$forbidden' in if_case_check.cpp."
+        }
+        if ($stmtCommonText -match $forbidden) {
+            throw "Case 'issue590_reserved_namespace_prefix_conformance' found stale bare-cursive restriction pattern '$forbidden' in stmt_common.cpp."
+        }
+    }
+
+    Write-Host "[compiler-static] issue590_reserved_namespace_prefix_conformance: header_forbidden=2 scopes_patterns=4 scopes_forbidden=4 intro_forbidden=4 if_case_forbidden=3 stmt_forbidden=3"
+}
+
+function Invoke-Issue591UniverseProtectedSetConformanceCase {
+    $scopesPath = Join-Path $workspaceRoot "cursive\\src\\04_analysis\\resolve\\scopes.cpp"
+    if (-not (Test-Path $scopesPath)) {
+        throw "Case 'issue591_universe_protected_set_conformance' missing compiler source file: $scopesPath"
+    }
+
+    $scopesText = Get-Content -Path $scopesPath -Raw
+    $match = [regex]::Match($scopesText, 'UniverseProtectedNames\s*\(\)\s*\{[\s\S]*?static\s+const\s+std::vector<std::string_view>\s+names\s*=\s*\{(?<body>[\s\S]*?)\};', [System.Text.RegularExpressions.RegexOptions]::Singleline)
+    if (-not $match.Success) {
+        throw "Case 'issue591_universe_protected_set_conformance' could not locate UniverseProtectedNames set in scopes.cpp."
+    }
+
+    $body = $match.Groups['body'].Value
+    $required = @(
+        "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
+        "f16", "f32", "f64", "bool", "char", "usize", "isize", "Self", "Drop",
+        "Bitcopy", "Clone", "Eq", "Hash", "Hasher", "Iterator", "Step", "FfiSafe",
+        "string", "bytes", "Modal", "Region", "RegionOptions", "CancelToken",
+        "Context", "System", "Network", "ExecutionDomain", "Reactor", "CpuSet",
+        "Priority", "Async", "Future", "Sequence", "Stream", "Pipe", "Exchange",
+        "Tracked", "Spawned"
+    )
+    foreach ($entry in $required) {
+        if ($body -notmatch ('"' + [regex]::Escape($entry) + '"')) {
+            throw "Case 'issue591_universe_protected_set_conformance' missing expected UniverseProtected name '$entry'."
+        }
+    }
+
+    foreach ($forbidden in @(
+        "ProjectFiles", "TypeEmitter", "Introspect", "ComptimeDiagnostics",
+        "Type", "Ast", "TypeCategory", "FieldInfo", "VariantInfo", "StateInfo", "SourceSpan"
+    )) {
+        if ($body -match ('"' + [regex]::Escape($forbidden) + '"')) {
+            throw "Case 'issue591_universe_protected_set_conformance' found stale extra UniverseProtected name '$forbidden'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue591_universe_protected_set_conformance: required=$($required.Count) forbidden=11"
+}
+
+function Invoke-Issue592BlockStateConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\lexer\\lexer.h"
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_ws.cpp"
+    foreach ($path in @($headerPath, $sourcePath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue592_block_state_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'struct\s+BlockScanState\s*\{[\s\S]*std::size_t\s+index\s*=\s*0;[\s\S]*std::size_t\s+depth\s*=\s*0;[\s\S]*std::size_t\s+start_index\s*=\s*0;[\s\S]*\}',
+        'struct\s+BlockDoneState\s*\{[\s\S]*std::size_t\s+next\s*=\s*0;[\s\S]*\}',
+        'using\s+BlockState\s*=\s*std::variant<BlockScanState,\s*BlockDoneState>;'
+    )) {
+        if ($headerText -notmatch $pattern) {
+            throw "Case 'issue592_block_state_conformance' missing expected lexer.h pattern '$pattern'."
+        }
+    }
+
+    foreach ($pattern in @(
+        'BlockState\s+state\s*=\s*BlockScanState\{start,\s*0,\s*start\};',
+        'auto\*\s+scan\s*=\s*std::get_if<BlockScanState>\(&state\);',
+        'state\s*=\s*BlockDoneState\{scan->index\s*\+\s*2\};',
+        'if\s*\(const\s+auto\*\s+done\s*=\s*std::get_if<BlockDoneState>\(&state\)\)',
+        'const\s+auto\*\s+unterminated\s*=\s*std::get_if<BlockScanState>\(&state\);'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue592_block_state_conformance' missing expected lexer_ws.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue592_block_state_conformance: header_patterns=3 source_patterns=5"
+}
+
+function Invoke-Issue593AtHelperConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue593_at_helper_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'char\s+At\s*\(\s*std::string_view\s+s,\s*std::size_t\s+i\s*\)\s*\{\s*return\s+s\[i\];\s*\}',
+        'At\(s,\s*0\)\s*==\s*''_''',
+        'At\(s,\s*s\.size\(\)\s*-\s*1\)\s*==\s*''_''',
+        'At\(s,\s*i\s*-\s*1\)\s*==\s*''e''',
+        'At\(s,\s*i\s*\+\s*1\)\s*==\s*''E''',
+        'At\(s,\s*s\.size\(\)\s*-\s*suf\.size\(\)\s*-\s*1\)\s*==\s*''_''',
+        'At\(digits,\s*0\)\s*==\s*''0'''
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue593_at_helper_conformance' missing expected lexer_literals.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue593_at_helper_conformance: source_patterns=7"
+}
+
+function Invoke-Issue594RemoveHelperConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue594_remove_helper_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'std::string\s+Remove\s*\(\s*std::string_view\s+s,\s*char\s+c\s*\)\s*\{',
+        'out\.reserve\(s\.size\(\)\);',
+        'for\s*\(char\s+x\s*:\s*s\)\s*\{',
+        'if\s*\(x\s*!=\s*c\)\s*\{\s*out\.push_back\(x\);',
+        'return\s+out;',
+        'const\s+std::string\s+digits\s*=\s*Remove\(s,\s*''_''\);'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue594_remove_helper_conformance' missing expected lexer_literals.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue594_remove_helper_conformance: source_patterns=6"
+}
+
+function Invoke-Issue595ConcatHelperConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue595_concat_helper_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'std::string\s+Concat\s*\(\s*std::initializer_list<std::string_view>\s+parts\s*\)\s*\{',
+        'if\s*\(parts\.size\(\)\s*==\s*0\)\s*\{\s*return\s+std::string\(\);\s*\}',
+        'std::string\s+ConcatSuffix\s*\(',
+        'StartsWith\(s,\s*Concat\(\{\"0x\",\s*"_"\}\)\)',
+        'EndsWith\(s,\s*Concat\(\{\"_\",\s*suf\}\)\)'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue595_concat_helper_conformance' missing expected lexer_literals.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue595_concat_helper_conformance: source_patterns=5"
+}
+
+function Invoke-Issue596ConcatSingletonConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue596_concat_singleton_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'std::string\s+Concat\s*\(\s*std::initializer_list<std::string_view>\s+parts\s*\)\s*\{',
+        'if\s*\(parts\.size\(\)\s*==\s*1\)\s*\{\s*return\s+std::string\(\*parts\.begin\(\)\);\s*\}'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue596_concat_singleton_conformance' missing expected lexer_literals.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue596_concat_singleton_conformance: source_patterns=2"
+}
+
+function Invoke-Issue597ConcatRecursiveConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue597_concat_recursive_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'std::string\s+ConcatSuffix\s*\(\s*std::initializer_list<std::string_view>\s+parts,\s*std::initializer_list<std::string_view>::const_iterator\s+first\s*\)\s*\{',
+        'return\s+std::string\(\*first\)\s*\+\s*ConcatSuffix\(parts,\s*next\);',
+        'auto\s+tail\s*=\s*parts\.begin\(\);\s*\+\+tail;\s*return\s+std::string\(\*parts\.begin\(\)\)\s*\+\s*ConcatSuffix\(parts,\s*tail\);'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue597_concat_recursive_conformance' missing expected lexer_literals.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue597_concat_recursive_conformance: source_patterns=3"
+}
+
+function Invoke-Issue598HexValueSequenceConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue598_hex_value_sequence_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'std::uint64_t\s+HexValue\s*\(\s*std::span<const\s+UnicodeScalar>\s+digits\s*\)\s*\{',
+        'for\s*\(UnicodeScalar\s+digit\s*:\s*digits\)\s*\{\s*value\s*=\s*\(value\s*<<\s*4\)\s*\|\s*HexValue\(digit\);',
+        'const\s+auto\s+hex_digits\s*=\s*std::span<const\s+UnicodeScalar>\(scalars\.data\(\)\s*\+\s*digits_start,\s*digits\);',
+        'const\s+std::uint64_t\s+value\s*=\s*HexValue\(hex_digits\);'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue598_hex_value_sequence_conformance' missing expected lexer_literals.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue598_hex_value_sequence_conformance: source_patterns=4"
+}
+
+function Invoke-Issue599DecDigitValueConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue599_dec_digit_value_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'unsigned\s+int\s+DecDigitValue\s*\(\s*UnicodeScalar\s+c\s*\)\s*\{',
+        'return\s+static_cast<unsigned\s+int>\(c\s*-\s*''0''\);',
+        'if\s*\(c\s*>=\s*''0''\s*&&\s*c\s*<=\s*''9''\)\s*\{\s*return\s+DecDigitValue\(c\);'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue599_dec_digit_value_conformance' missing expected lexer_literals.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue599_dec_digit_value_conformance: source_patterns=3"
+}
+
+function Invoke-Issue600OctDigitValueConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue600_oct_digit_value_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'unsigned\s+int\s+OctDigitValue\s*\(\s*UnicodeScalar\s+c\s*\)\s*\{',
+        'return\s+static_cast<unsigned\s+int>\(c\s*-\s*''0''\);',
+        'bool\s+IsOctDigit\s*\(\s*UnicodeScalar\s+c\s*\)\s*\{\s*return\s+c\s*>=\s*''0''\s*&&\s*c\s*<=\s*''7'';'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue600_oct_digit_value_conformance' missing expected lexer_literals.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue600_oct_digit_value_conformance: source_patterns=3"
+}
+
+function Invoke-Issue601BinDigitValueConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue601_bin_digit_value_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'unsigned\s+int\s+BinDigitValue\s*\(\s*UnicodeScalar\s+c\s*\)\s*\{',
+        'return\s+static_cast<unsigned\s+int>\(c\s*-\s*''0''\);',
+        'bool\s+IsBinDigit\s*\(\s*UnicodeScalar\s+c\s*\)\s*\{\s*return\s+c\s*==\s*''0''\s*\|\|\s*c\s*==\s*''1'';'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue601_bin_digit_value_conformance' missing expected lexer_literals.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue601_bin_digit_value_conformance: source_patterns=3"
+}
+
+function Invoke-Issue602DecValueSequenceConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue602_dec_value_sequence_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'std::uint64_t\s+DecValue\s*\(\s*std::span<const\s+UnicodeScalar>\s+digits\s*\)\s*\{',
+        'for\s*\(UnicodeScalar\s+digit\s*:\s*digits\)\s*\{\s*value\s*=\s*\(value\s*\*\s*10u\)\s*\+\s*DecDigitValue\(digit\);',
+        'return\s+value;'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue602_dec_value_sequence_conformance' missing expected lexer_literals.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue602_dec_value_sequence_conformance: source_patterns=3"
+}
+
+function Invoke-Issue603OctValueSequenceConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue603_oct_value_sequence_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'std::uint64_t\s+OctValue\s*\(\s*std::span<const\s+UnicodeScalar>\s+digits\s*\)\s*\{',
+        'for\s*\(UnicodeScalar\s+digit\s*:\s*digits\)\s*\{\s*value\s*=\s*\(value\s*\*\s*8u\)\s*\+\s*OctDigitValue\(digit\);',
+        'return\s+value;'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue603_oct_value_sequence_conformance' missing expected lexer_literals.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue603_oct_value_sequence_conformance: source_patterns=3"
+}
+
+function Invoke-Issue604BinValueSequenceConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue604_bin_value_sequence_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'std::uint64_t\s+BinValue\s*\(\s*std::span<const\s+UnicodeScalar>\s+digits\s*\)\s*\{',
+        'for\s*\(UnicodeScalar\s+digit\s*:\s*digits\)\s*\{\s*value\s*=\s*\(value\s*\*\s*2u\)\s*\+\s*BinDigitValue\(digit\);',
+        'return\s+value;'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue604_bin_value_sequence_conformance' missing expected lexer_literals.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue604_bin_value_sequence_conformance: source_patterns=3"
+}
+
+function Invoke-Issue605SuffixMatchConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue605_suffix_match_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'std::size_t\s+SuffixMatch\s*\(\s*const\s+std::vector<UnicodeScalar>&\s+scalars,\s*std::size_t\s+start,\s*std::span<const\s+std::string_view>\s+suffixes\s*\)\s*\{',
+        'for\s*\(std::string_view\s+suffix\s*:\s*suffixes\)\s*\{\s*const\s+std::size_t\s+len\s*=\s*MatchSuffix\(scalars,\s*start,\s*suffix\);',
+        'if\s*\(len\s*>\s*longest\)\s*\{\s*longest\s*=\s*len;\s*\}',
+        'return\s+SuffixMatch\(scalars,\s*start,\s*kIntSuffixes\);',
+        'return\s+SuffixMatch\(scalars,\s*start,\s*kFloatSuffixes\);'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue605_suffix_match_conformance' missing expected lexer_literals.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue605_suffix_match_conformance: source_patterns=5"
+}
+
+function Invoke-Issue606HasDotConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue606_has_dot_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'bool\s+HasDot\s*\(\s*const\s+std::vector<UnicodeScalar>&\s+scalars,\s*std::size_t\s+start,\s*std::size_t\s+end\s*\)\s*\{',
+        'for\s*\(std::size_t\s+p\s*=\s*start;\s*p\s*<\s*end;\s*\+\+p\)\s*\{\s*if\s*\(scalars\[p\]\s*==\s*''\.''\)\s*\{\s*return\s+true;',
+        'if\s*\(!HasDot\(scalars,\s*start,\s*p\)\)\s*\{\s*return\s+result;'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue606_has_dot_conformance' missing expected lexer_literals.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue606_has_dot_conformance: source_patterns=3"
+}
+
+function Invoke-Issue607HasExpConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue607_has_exp_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'bool\s+HasExp\s*\(\s*const\s+std::vector<UnicodeScalar>&\s+scalars,\s*std::size_t\s+start,\s*std::size_t\s+end\s*\)\s*\{',
+        'for\s*\(std::size_t\s+p\s*=\s*start;\s*p\s*<\s*end;\s*\+\+p\)\s*\{\s*if\s*\(scalars\[p\]\s*==\s*''e''\s*\|\|\s*scalars\[p\]\s*==\s*''E''\)\s*\{\s*return\s+true;',
+        'saw_exp\s*=\s*HasExp\(scalars,\s*start,\s*p\);'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue607_has_exp_conformance' missing expected lexer_literals.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue607_has_exp_conformance: source_patterns=3"
+}
+
+function Invoke-Issue608HasFloatCoreConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue608_has_float_core_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'bool\s+HasFloatCore\s*\(\s*const\s+std::vector<UnicodeScalar>&\s+scalars,\s*std::size_t\s+start,\s*std::size_t\s+end\s*\)\s*\{',
+        'return\s+HasDot\(scalars,\s*start,\s*end\);',
+        'if\s*\(!HasFloatCore\(scalars,\s*start,\s*p\)\)\s*\{\s*return\s+result;'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue608_has_float_core_conformance' missing expected lexer_literals.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue608_has_float_core_conformance: source_patterns=3"
+}
+
+function Invoke-Issue609DecimalLeadingZeroConformanceCase {
+    $sourcePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\lexer\\lexer_literals.cpp"
+    if (-not (Test-Path $sourcePath)) {
+        throw "Case 'issue609_decimal_leading_zero_conformance' missing compiler source file: $sourcePath"
+    }
+
+    $sourceText = Get-Content -Path $sourcePath -Raw
+
+    foreach ($pattern in @(
+        'bool\s+DecimalLeadingZero\s*\(\s*const\s+core::SourceFile&\s+source,\s*const\s+std::vector<std::size_t>&\s+offsets,\s*std::size_t\s+i,\s*std::size_t\s+j\s*\)\s*\{',
+        'const\s+std::string\s+lexeme\s*=\s*LexemeSlice\(source,\s*offsets,\s*i,\s*j\);',
+        'return\s+MatchesDecimalIntegerLexeme\(lexeme\)\s*&&\s*DecimalLeadingZero\(lexeme\);',
+        'underscore_ok\s*&&\s*DecimalLeadingZero\(source,\s*offsets,\s*start,\s*j\)'
+    )) {
+        if ($sourceText -notmatch $pattern) {
+            throw "Case 'issue609_decimal_leading_zero_conformance' missing expected lexer_literals.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue609_decimal_leading_zero_conformance: source_patterns=4"
+}
+
 function Invoke-Issue5131SpecCanonicalityCase {
     $specPath = $canonicalSpecPath
     if (-not (Test-Path $specPath)) {
@@ -10104,21 +13308,62 @@ function Invoke-Issue5131SpecCanonicalityCase {
         @{
             Pattern = 'AttrTargets\(log\) = \{Procedure, Method, Binding, Expression, Statement\}'
             Label = "log method allowlist"
+        },
+        @{
+            Pattern = 'AttrTargets\(mangle\) = \{Procedure\}'
+            Label = "mangle FFI target"
+        },
+        @{
+            Pattern = 'AttrTargets\(library\) = \{ExternBlock\}'
+            Label = "library FFI target"
+        },
+        @{
+            Pattern = 'AttrTargets\(unwind\) = \{Procedure\}'
+            Label = "unwind FFI target"
+        },
+        @{
+            Pattern = 'AttrTargets\(export\) = \{Procedure\}'
+            Label = "export FFI target"
+        },
+        @{
+            Pattern = 'AttrTargets\(host_export\) = \{Procedure\}'
+            Label = "host_export FFI target"
+        },
+        @{
+            Pattern = 'AttrTargets\(ffi_pass_by_value\) = \{Record, Enum\}'
+            Label = "ffi_pass_by_value FFI target"
+        },
+        @{
+            Pattern = 'FFI-specific attributes `mangle`, `library`, `unwind`, `export`, `host_export`, and `ffi_pass_by_value` are defined by §23\.4\.'
+            Label = "FFI attribute ownership cross-reference"
         }
     )
 
     $absentChecks = @(
         @{
-            Pattern = '¬ IsPunc\(Tok\(P\), "\."\)'
+            Pattern = 'IsPunc\(Tok\(P\), "\."\)'
             Label = "legacy dotted vendor tail end rule"
         },
         @{
-            Pattern = 'IsPunc\(Tok\(P\), "\."\)\s+Γ ⊢ ParseIdent\(Advance\(P\)\) ⇓ \(P_1, id\)\s+Γ ⊢ ParseVendorPrefixTail'
+            Pattern = 'IsPunc\(Tok\(P\), "\."\)[\s\S]*ParseVendorPrefixTail'
             Label = "legacy dotted vendor tail cons rule"
         },
         @{
             Pattern = 'AttrTarget = \{Record, Enum, Modal, Procedure, Field, Binding, Expression, ExternBlock, TypeAlias\}'
             Label = "legacy AttrTarget set missing method/statement/keyblock"
+        }
+    )
+
+    $implementationChecks = @(
+        @{
+            Path = "cursive\\src\\04_analysis\\resolve\\resolve_attributes.cpp"
+            Pattern = 'GetAttributeRegistry\(\)\.Lookup\(name\)\s*!=\s*nullptr'
+            Label = "attribute-name validation delegates to canonical registry"
+        },
+        @{
+            Path = "cursive\\src\\04_analysis\\resolve\\resolve_attributes.cpp"
+            Pattern = 'GetAttributeRegistry\(\)\.IsValidForTarget\(attr_name,\s*\*target\)'
+            Label = "attribute-target validation delegates to canonical registry"
         }
     )
 
@@ -10134,7 +13379,19 @@ function Invoke-Issue5131SpecCanonicalityCase {
         }
     }
 
-    Write-Host "[compiler-static] issue5131_spec_canonicality: present_checks=$($presentChecks.Count) absent_checks=$($absentChecks.Count)"
+    foreach ($check in $implementationChecks) {
+        $fullPath = Join-Path $workspaceRoot $check.Path
+        if (-not (Test-Path $fullPath)) {
+            throw "Case 'issue5131_spec_canonicality' missing implementation file: $fullPath"
+        }
+
+        $implementationText = Get-Content -Path $fullPath -Raw
+        if ($implementationText -notmatch $check.Pattern) {
+            throw "Case 'issue5131_spec_canonicality' missing expected implementation pattern '$($check.Label)' in $fullPath."
+        }
+    }
+
+    Write-Host "[compiler-static] issue5131_spec_canonicality: present_checks=$($presentChecks.Count) absent_checks=$($absentChecks.Count) implementation_checks=$($implementationChecks.Count)"
 }
 
 function Invoke-Issue5131AttrSpecTrailingCommaConformanceCase {
@@ -10158,11 +13415,51 @@ function Invoke-Issue5131AttrSpecTrailingCommaConformanceCase {
     $tailRuleCount = @($logLines | Where-Object {
         $_ -like "*`tParse-AttrSpecListTail-TrailingComma`t*"
     }).Count
+    $errRuleCount = @($logLines | Where-Object {
+        $_ -like "*`tTrailing-Comma-Err`t*"
+    }).Count
     if ($tailRuleCount -lt 1) {
         throw "Case 'issue5131_attr_spec_trailing_comma_multiline_trace' expected Parse-AttrSpecListTail-TrailingComma in conformance trace."
     }
+    if ($errRuleCount -ne 0) {
+        throw "Case 'issue5131_attr_spec_trailing_comma_multiline_trace' must not emit Trailing-Comma-Err for a permitted multiline trailing comma."
+    }
 
-    Write-Host "[compiler-static] issue5131_attr_spec_trailing_comma_multiline_trace: exit=$($result.ExitCode) errors=$errorCount parse_attr_spec_tail_trailing=$tailRuleCount"
+    Write-Host "[compiler-static] issue5131_attr_spec_trailing_comma_multiline_trace: exit=$($result.ExitCode) errors=$errorCount parse_attr_spec_tail_trailing=$tailRuleCount trailing_comma_err=$errRuleCount"
+}
+
+function Invoke-Issue5131AttrSpecTrailingCommaSingleLineTraceCase {
+    $result = Invoke-CheckWithConformance `
+        -CaseId "issue5131_attr_spec_trailing_comma_single_line_trace" `
+        -Source (New-Issue5131AttrSpecTrailingCommaSingleLineSource) `
+        -ConformanceFileName "issue5131_attr_spec_trailing_comma_single_line_trace.log"
+
+    if ($result.ExitCode -ne 1) {
+        throw "Case 'issue5131_attr_spec_trailing_comma_single_line_trace' expected exit 1 but got $($result.ExitCode)."
+    }
+
+    $errorCodes = @($result.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    } | ForEach-Object { $_.code })
+    if ($errorCodes -notcontains "E-SRC-0521") {
+        throw "Case 'issue5131_attr_spec_trailing_comma_single_line_trace' expected E-SRC-0521 in diagnostics."
+    }
+
+    $logLines = Get-Content -Path $result.ConformancePath
+    $tailRuleCount = @($logLines | Where-Object {
+        $_ -like "*`tParse-AttrSpecListTail-TrailingComma`t*"
+    }).Count
+    $errRuleCount = @($logLines | Where-Object {
+        $_ -like "*`tTrailing-Comma-Err`t*"
+    }).Count
+    if ($tailRuleCount -ne 0) {
+        throw "Case 'issue5131_attr_spec_trailing_comma_single_line_trace' must not emit Parse-AttrSpecListTail-TrailingComma for an invalid single-line trailing comma."
+    }
+    if ($errRuleCount -lt 1) {
+        throw "Case 'issue5131_attr_spec_trailing_comma_single_line_trace' expected Trailing-Comma-Err in conformance trace."
+    }
+
+    Write-Host "[compiler-static] issue5131_attr_spec_trailing_comma_single_line_trace: exit=$($result.ExitCode) error_codes=$($errorCodes -join ',') parse_attr_spec_tail_trailing=$tailRuleCount trailing_comma_err=$errRuleCount"
 }
 
 function Invoke-Issue53ClassMethodWfTraceCase {
@@ -10936,6 +14233,30 @@ function Invoke-Issue56VisibilityConformanceCase {
     Write-Host "[compiler-static] issue56_visibility_conformance: same_module_method=$sameMethodCount same_module_transition=$sameTransitionCount private_cross_not_visible=$privateCrossRuleCount internal_cross_method=$internalCrossMethodCount"
 }
 
+function Invoke-Issue617ProtectedVisibilityRejectedCase {
+    $result = Invoke-CheckWithConformance `
+        -CaseId "issue617_protected_visibility_rejected" `
+        -Source (New-Issue617ProtectedVisibilityRejectedSource) `
+        -ConformanceFileName "issue617_protected_visibility_rejected.log"
+    if ($result.ExitCode -ne 1) {
+        throw "Case 'issue617_protected_visibility_rejected' expected exit 1 but got $($result.ExitCode)."
+    }
+    $diagCount = @($result.DiagJson.diagnostics | Where-Object { $_.code -eq "E-SRC-0520" }).Count
+    if ($diagCount -lt 1) {
+        throw "Case 'issue617_protected_visibility_rejected' expected diagnostic code E-SRC-0520."
+    }
+
+    $traceLog = Get-Content -Path $result.ConformancePath
+    $parseVisOptCount = @($traceLog | Where-Object { $_ -like "*`tParse-Vis-Opt`t*" }).Count
+    $parseVisDefaultCount = @($traceLog | Where-Object { $_ -like "*`tParse-Vis-Default`t*" }).Count
+    $parseItemErrCount = @($traceLog | Where-Object { $_ -like "*`tParse-Item-Err`t*" }).Count
+    if ($parseVisOptCount -ne 0 -or $parseVisDefaultCount -lt 1 -or $parseItemErrCount -lt 1) {
+        throw "Case 'issue617_protected_visibility_rejected' expected Parse-Vis-Default and Parse-Item-Err without Parse-Vis-Opt (opt=$parseVisOptCount default=$parseVisDefaultCount item_err=$parseItemErrCount)."
+    }
+
+    Write-Host "[compiler-static] issue617_protected_visibility_rejected: e_src_0520=$diagCount parse_vis_opt=$parseVisOptCount parse_vis_default=$parseVisDefaultCount parse_item_err=$parseItemErrCount"
+}
+
 function Invoke-Issue57LexicalIdentifierSecurityConformanceCase {
     $confusable = Invoke-CheckWithConformance `
         -CaseId "issue57_confusable_identifier_rejected" `
@@ -10976,6 +14297,14 @@ function Invoke-Issue57LexicalIdentifierSecurityConformanceCase {
         -Source (New-Issue57SingleScriptUnicodeIdentifierSource)
 
     Write-Host "[compiler-static] issue57_lexical_identifier_security_conformance: confusable=$confusableRuleCount mixed=$mixedRuleCount single_script_ok=1"
+}
+
+function Invoke-Issue621ReservedKeywordIdentifierConformanceCase {
+    Invoke-ExpectedDiagCodeCaseWithForbiddenCodes `
+        -Id "issue621_reserved_keyword_identifier_rejected" `
+        -Source (New-Issue621ReservedKeywordIdentifierSource) `
+        -ExpectedCodes @("E-CNF-0401") `
+        -ForbiddenCodes @("E-SRC-0520")
 }
 
 function Invoke-Issue58StringBytesConformanceCase {
@@ -11347,12 +14676,15 @@ function Invoke-Issue514ListSmallStepParseTraceCase {
     $argListConsCount = @($logLines | Where-Object { $_ -like "*`tParse-ArgList-Cons`t*" }).Count
     $exprListCommaCount = @($logLines | Where-Object { $_ -like "*`tParse-ExprListTail-Comma`t*" }).Count
     $exprListEndCount = @($logLines | Where-Object { $_ -like "*`tParse-ExprListTail-End`t*" }).Count
-    if ($listStartCount -lt 4 -or $listConsCount -lt 8 -or $listDoneCount -lt 4) {
-        throw "Case 'issue514_list_small_step_parse_trace' expected List-Start/List-Cons/List-Done traces for empty arg lists, non-empty arg lists, and expression lists."
+    $arraySegmentCommaCount = @($logLines | Where-Object { $_ -like "*`tParse-Array-Segment-List-Comma`t*" }).Count
+    $arraySegmentSingleCount = @($logLines | Where-Object { $_ -like "*`tParse-Array-Segment-List-Single`t*" }).Count
+    if ($listStartCount -lt 4 -or $listConsCount -lt 7 -or $listDoneCount -lt 4) {
+        throw "Case 'issue514_list_small_step_parse_trace' expected List-Start/List-Cons/List-Done traces for empty arg lists, non-empty arg lists, tuple expression tails, and array segment lists."
     }
     if ($argListEmptyCount -lt 1 -or $argListConsCount -lt 1 -or
-        $exprListCommaCount -lt 4 -or $exprListEndCount -lt 2) {
-        throw "Case 'issue514_list_small_step_parse_trace' expected Parse-ArgList-Empty, Parse-ArgList-Cons, Parse-ExprListTail-Comma, and Parse-ExprListTail-End in conformance trace."
+        $exprListCommaCount -lt 1 -or $exprListEndCount -lt 1 -or
+        $arraySegmentCommaCount -lt 2 -or $arraySegmentSingleCount -lt 1) {
+        throw "Case 'issue514_list_small_step_parse_trace' expected Parse-ArgList-Empty, Parse-ArgList-Cons, Parse-ExprListTail-Comma/End, and Parse-Array-Segment-List-Comma/Single in conformance trace."
     }
 
     $parserConsumePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\parser_consume.cpp"
@@ -11367,13 +14699,24 @@ function Invoke-Issue514ListSmallStepParseTraceCase {
         throw "Case 'issue514_list_small_step_parse_trace' expected parser_consume.cpp to contain the canonical List-Start/List-Cons/List-Done SPEC_RULE anchors."
     }
 
+    $parserHeaderPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\parser\\parser.h"
+    if (-not (Test-Path $parserHeaderPath)) {
+        throw "Case 'issue514_list_small_step_parse_trace' missing parser header file: $parserHeaderPath"
+    }
+    $parserHeaderText = Get-Content -Path $parserHeaderPath -Raw
+    $hasListScanFactory = $parserHeaderText -match 'inline ListState<Elem>\s+MakeListScanState\(Parser parser,\s*std::vector<Elem>\s+elems\)'
+    $hasListConsScanTransition = $parserHeaderText -match 'if\s*\(state\.tag\s*!=\s*ListStateTag::Scan\)\s*\{\s*return state;\s*\}\s*RecordListCons\(\);\s*ParseElemResult<Elem>\s+parsed\s*=\s*parse_elem\(state\.parser\);\s*std::vector<Elem>\s+elems\s*=\s*std::move\(state\.elems\);\s*elems\.push_back\(std::move\(parsed\.elem\)\);\s*return\s+MakeListScanState\(parsed\.parser,\s*std::move\(elems\)\);'
+    if ((-not $hasListScanFactory) -or (-not $hasListConsScanTransition)) {
+        throw "Case 'issue514_list_small_step_parse_trace' expected parser.h to model List-Cons as an explicit ListScan(P, xs) -> ListScan(P', xs ++ [x]) transition."
+    }
+
     $callPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\expr\\call.cpp"
     if (-not (Test-Path $callPath)) {
         throw "Case 'issue514_list_small_step_parse_trace' missing call parser file: $callPath"
     }
     $callText = Get-Content -Path $callPath -Raw
     $hasCallListStart = $callText -match 'ListState<Arg>\s+state\s*=\s*ListStart<Arg>\(parser\);'
-    $hasCallListCons = $callText -match 'state\s*=\s*ListCons\(state,\s*ParseArg\);'
+    $hasCallListCons = $callText -match 'state\s*=\s*ListCons\([^,]+,\s*ParseArg\);'
     $hasCallListDone = $callText -match 'ListDone\(state,\s*end_set\)'
     if ((-not $hasCallListStart) -or (-not $hasCallListCons) -or (-not $hasCallListDone)) {
         throw "Case 'issue514_list_small_step_parse_trace' expected call.cpp to route argument list parsing through ListStart/ListCons/ListDone."
@@ -11384,11 +14727,11 @@ function Invoke-Issue514ListSmallStepParseTraceCase {
         throw "Case 'issue514_list_small_step_parse_trace' missing array literal parser file: $arrayPath"
     }
     $arrayText = Get-Content -Path $arrayPath -Raw
-    $hasArraySeed = $arrayText -match 'ListState<ExprPtr>\s+state\s*=\s*ListSeed\(after_first,\s*first\.elem\);'
-    $hasArrayListCons = $arrayText -match 'state\s*=\s*ListCons\(state,\s*ParseExpr\);'
+    $hasArrayListStart = $arrayText -match 'ListState<ArraySegment>\s+state\s*=\s*ListStart<ArraySegment>\(parser\);'
+    $hasArrayListCons = $arrayText -match 'state\s*=\s*ListCons\([^,]+,\s*ParseArraySegment\);'
     $hasArrayListDone = $arrayText -match 'ListDone\(state,\s*end_set\)'
-    if ((-not $hasArraySeed) -or (-not $hasArrayListCons) -or (-not $hasArrayListDone)) {
-        throw "Case 'issue514_list_small_step_parse_trace' expected array_literal.cpp to seed expression lists through the canonical list helper path."
+    if ((-not $hasArrayListStart) -or (-not $hasArrayListCons) -or (-not $hasArrayListDone)) {
+        throw "Case 'issue514_list_small_step_parse_trace' expected array_literal.cpp to route array segment lists through ListStart/ListCons/ListDone."
     }
 
     $tuplePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\expr\\tuple_literal.cpp"
@@ -11396,12 +14739,222 @@ function Invoke-Issue514ListSmallStepParseTraceCase {
         throw "Case 'issue514_list_small_step_parse_trace' missing tuple literal parser file: $tuplePath"
     }
     $tupleText = Get-Content -Path $tuplePath -Raw
-    $hasTupleSeed = $tupleText -match 'ParseExprListTail\(ListSeed\(after_first,\s*first\.elem\)\)'
-    if (-not $hasTupleSeed) {
-        throw "Case 'issue514_list_small_step_parse_trace' expected tuple_literal.cpp to reuse the seeded expression-list helper path."
+    $hasTupleSeed = $tupleText -match 'ParseExprListTail\(ListSeed\(second\.parser,\s*second\.elem\)\)'
+    $hasTupleListDone = $tupleText -match 'ListDone\(state,\s*end_set\)'
+    $hasTupleTailCommaRule = $tupleText -match 'SPEC_RULE\("Parse-ExprListTail-Comma"\)'
+    $hasTupleTailEndRule = $tupleText -match 'SPEC_RULE\("Parse-ExprListTail-End"\)'
+    $hasTupleTailTrailingRule = $tupleText -match 'SPEC_RULE\("Parse-ExprListTail-TrailingComma"\)'
+    if ((-not $hasTupleSeed) -or (-not $hasTupleListDone) -or
+        (-not $hasTupleTailCommaRule) -or (-not $hasTupleTailEndRule) -or
+        (-not $hasTupleTailTrailingRule)) {
+        throw "Case 'issue514_list_small_step_parse_trace' expected tuple_literal.cpp to seed expression-list tails canonically and emit Parse-ExprListTail-* rule anchors."
     }
 
-    Write-Host "[compiler-static] issue514_list_small_step_parse_trace: exit=$($result.ExitCode) list_start=$listStartCount list_cons=$listConsCount list_done=$listDoneCount arg_empty=$argListEmptyCount arg_cons=$argListConsCount expr_tail_comma=$exprListCommaCount expr_tail_end=$exprListEndCount"
+    Write-Host "[compiler-static] issue514_list_small_step_parse_trace: exit=$($result.ExitCode) list_start=$listStartCount list_cons=$listConsCount list_done=$listDoneCount arg_empty=$argListEmptyCount arg_cons=$argListConsCount expr_tail_comma=$exprListCommaCount expr_tail_end=$exprListEndCount array_segment_comma=$arraySegmentCommaCount array_segment_single=$arraySegmentSingleCount"
+}
+
+function Invoke-Issue514TrailingCommaEndSetConformanceCase {
+    $result = Invoke-CheckWithConformance `
+        -CaseId "issue514_trailing_comma_end_set_conformance" `
+        -Source (New-Issue514TrailingCommaEndSetConformanceSource) `
+        -ConformanceFileName "issue514_trailing_comma_end_set_conformance.log"
+
+    if ($result.ExitCode -ne 0) {
+        throw "Case 'issue514_trailing_comma_end_set_conformance' expected exit 0 but got $($result.ExitCode)."
+    }
+
+    $errorCount = @($result.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    }).Count
+    if ($errorCount -ne 0) {
+        throw "Case 'issue514_trailing_comma_end_set_conformance' expected zero compile-time errors but observed $errorCount."
+    }
+
+    $parserHeaderPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\parser\\parser.h"
+    if (-not (Test-Path $parserHeaderPath)) {
+        throw "Case 'issue514_trailing_comma_end_set_conformance' missing parser header file: $parserHeaderPath"
+    }
+    $parserHeaderText = Get-Content -Path $parserHeaderPath -Raw
+    $hasEndSetToken = $parserHeaderText -match 'struct EndSetToken\s*\{\s*TokenKind kind = TokenKind::Unknown;\s*std::string_view lexeme;\s*\};'
+    $hasTrailingCommaSignature = $parserHeaderText -match 'bool\s+TrailingComma\(const Parser& parser,\s*std::span<const EndSetToken>\s+end_set\);'
+    $hasTrailingAllowedSignature = $parserHeaderText -match 'bool\s+TrailingCommaAllowed\(const Parser& parser,\s*std::span<const EndSetToken>\s+end_set\);'
+    if ((-not $hasEndSetToken) -or (-not $hasTrailingCommaSignature) -or (-not $hasTrailingAllowedSignature)) {
+        throw "Case 'issue514_trailing_comma_end_set_conformance' expected parser.h to model TrailingComma and TrailingCommaAllowed over explicit EndSetToken inputs."
+    }
+
+    $parserConsumePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\parser_consume.cpp"
+    if (-not (Test-Path $parserConsumePath)) {
+        throw "Case 'issue514_trailing_comma_end_set_conformance' missing parser consume implementation file: $parserConsumePath"
+    }
+    $parserConsumeText = Get-Content -Path $parserConsumePath -Raw
+    $hasTokenMatchOverload = $parserConsumeText -match 'bool\s+TokenMatches\(const Token& tok,\s*const EndSetToken& match\)'
+    $hasTrailingCommaImpl = $parserConsumeText -match 'bool\s+TrailingComma\(const Parser& parser,\s*std::span<const EndSetToken>\s+end_set\)'
+    $hasTrailingAllowedImpl = $parserConsumeText -match 'bool\s+TrailingCommaAllowed\(const Parser& parser,\s*std::span<const EndSetToken>\s+end_set\)'
+    if ((-not $hasTokenMatchOverload) -or (-not $hasTrailingCommaImpl) -or (-not $hasTrailingAllowedImpl)) {
+        throw "Case 'issue514_trailing_comma_end_set_conformance' expected parser_consume.cpp to implement explicit EndSetToken-aware TrailingComma and TrailingCommaAllowed helpers."
+    }
+
+    $callPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\expr\\call.cpp"
+    if (-not (Test-Path $callPath)) {
+        throw "Case 'issue514_trailing_comma_end_set_conformance' missing call parser file: $callPath"
+    }
+    $callText = Get-Content -Path $callPath -Raw
+    $hasCallEndSet = $callText -match 'std::array<EndSetToken,\s*1>\s+end_set\s*=\s*\{EndPunct\("\)"\)\};'
+    if (-not $hasCallEndSet) {
+        throw "Case 'issue514_trailing_comma_end_set_conformance' expected call.cpp to build trailing-comma end sets with EndSetToken entries."
+    }
+
+    Write-Host "[compiler-static] issue514_trailing_comma_end_set_conformance: exit=$($result.ExitCode) errors=$errorCount endset_token=$hasEndSetToken trailing_sig=$hasTrailingCommaSignature trailing_allowed_sig=$hasTrailingAllowedSignature trailing_impl=$hasTrailingCommaImpl trailing_allowed_impl=$hasTrailingAllowedImpl call_endset=$hasCallEndSet"
+}
+
+function Invoke-Issue514TrailingCommaErrConformanceCase {
+    $result = Invoke-CheckWithConformance `
+        -CaseId "issue514_trailing_comma_err_conformance" `
+        -Source (New-Issue514TrailingCommaErrSingleLineCallSource) `
+        -ConformanceFileName "issue514_trailing_comma_err_conformance.log"
+
+    if ($result.ExitCode -ne 1) {
+        throw "Case 'issue514_trailing_comma_err_conformance' expected exit 1 but got $($result.ExitCode)."
+    }
+
+    $errorDiagnostics = @($result.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    })
+    $errorCodes = @($errorDiagnostics | ForEach-Object { $_.code })
+    if ($errorCodes -notcontains "E-SRC-0521") {
+        throw "Case 'issue514_trailing_comma_err_conformance' expected E-SRC-0521 in diagnostics."
+    }
+
+    $commaSpanCount = @($errorDiagnostics | Where-Object {
+        $_.code -eq "E-SRC-0521" -and
+        $null -ne $_.span -and
+        [int]$_.span.start_line -eq 7 -and
+        [int]$_.span.start_col -eq 29
+    }).Count
+    if ($commaSpanCount -lt 1) {
+        throw "Case 'issue514_trailing_comma_err_conformance' expected E-SRC-0521 to point at the trailing comma token."
+    }
+
+    $logLines = Get-Content -Path $result.ConformancePath
+    $errRuleCount = @($logLines | Where-Object {
+        $_ -like "*`tTrailing-Comma-Err`t*"
+    }).Count
+    $argTailTrailingCount = @($logLines | Where-Object {
+        $_ -like "*`tParse-ArgTail-TrailingComma`t*"
+    }).Count
+    if ($errRuleCount -lt 1) {
+        throw "Case 'issue514_trailing_comma_err_conformance' expected Trailing-Comma-Err in conformance trace."
+    }
+    if ($argTailTrailingCount -ne 0) {
+        throw "Case 'issue514_trailing_comma_err_conformance' must not emit Parse-ArgTail-TrailingComma for an invalid single-line trailing comma."
+    }
+
+    $parserConsumePath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\parser_consume.cpp"
+    if (-not (Test-Path $parserConsumePath)) {
+        throw "Case 'issue514_trailing_comma_err_conformance' missing parser consume implementation file: $parserConsumePath"
+    }
+    $parserConsumeText = Get-Content -Path $parserConsumePath -Raw
+    $hasLocalEmitState = $parserConsumeText -match 'struct\s+InvalidTrailingCommaEmitState'
+    $hasLocalEmitPredicate = $parserConsumeText -match 'InvalidTrailingCommaForEmit\(\s*const Parser& parser,\s*std::span<const EndSetToken>\s+end_set\s*\)'
+    $hasEmitImpl = $parserConsumeText -match 'bool\s+EmitTrailingCommaErr\(Parser& parser,\s*std::span<const EndSetToken>\s+end_set\)'
+    $hasEmitLocalGuard = $parserConsumeText -match 'const std::optional<InvalidTrailingCommaEmitState>\s+invalid\s*=\s*InvalidTrailingCommaForEmit\(parser,\s*end_set\);'
+    $hasEmitCommaSpan = $parserConsumeText -match 'MakeDiagnosticById\("E-SRC-0521",\s*invalid->comma->span\)'
+    if ((-not $hasLocalEmitState) -or (-not $hasLocalEmitPredicate) -or
+        (-not $hasEmitImpl) -or (-not $hasEmitLocalGuard) -or
+        (-not $hasEmitCommaSpan)) {
+        throw "Case 'issue514_trailing_comma_err_conformance' expected parser_consume.cpp to evaluate Trailing-Comma-Err locally and emit the comma-token span."
+    }
+
+    Write-Host "[compiler-static] issue514_trailing_comma_err_conformance: exit=$($result.ExitCode) error_codes=$($errorCodes -join ',') comma_span=$commaSpanCount trailing_comma_err=$errRuleCount parse_arg_tail_trailing=$argTailTrailingCount emit_state=$hasLocalEmitState emit_guard=$hasEmitLocalGuard emit_span=$hasEmitCommaSpan"
+}
+
+function Invoke-Issue514TupleExprSingletonCommaRejectedCase {
+    $result = Invoke-CheckWithConformance `
+        -CaseId "issue514_tuple_expr_singleton_comma_rejected" `
+        -Source (New-Issue514TupleExprSingletonCommaRejectedSource) `
+        -ConformanceFileName "issue514_tuple_expr_singleton_comma_rejected.log"
+
+    if ($result.ExitCode -ne 1) {
+        throw "Case 'issue514_tuple_expr_singleton_comma_rejected' expected exit 1 but got $($result.ExitCode)."
+    }
+
+    $errorCodes = @($result.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    } | ForEach-Object { $_.code })
+    if ($errorCodes -notcontains "E-SRC-0520") {
+        throw "Case 'issue514_tuple_expr_singleton_comma_rejected' expected E-SRC-0520 in diagnostics."
+    }
+
+    $logLines = Get-Content -Path $result.ConformancePath
+    $parenExprCount = @($logLines | Where-Object {
+        $_ -like "*`tParse-Paren-Expr`t*"
+    }).Count
+    $tupleExprCount = @($logLines | Where-Object {
+        $_ -like "*`tParse-Tuple-Expr`t*"
+    }).Count
+    $tupleManyCount = @($logLines | Where-Object {
+        $_ -like "*`tParse-TupleExprElems-Many`t*"
+    }).Count
+    $tupleSingleCount = @($logLines | Where-Object {
+        $_ -like "*`tParse-TupleExprElems-Single`t*"
+    }).Count
+    if ($parenExprCount -lt 1) {
+        throw "Case 'issue514_tuple_expr_singleton_comma_rejected' expected Parse-Paren-Expr in conformance trace."
+    }
+    if ($tupleExprCount -ne 0 -or $tupleManyCount -ne 0 -or $tupleSingleCount -ne 0) {
+        throw "Case 'issue514_tuple_expr_singleton_comma_rejected' must not classify '(e,)' as a tuple expression in conformance trace."
+    }
+
+    Write-Host "[compiler-static] issue514_tuple_expr_singleton_comma_rejected: exit=$($result.ExitCode) error_codes=$($errorCodes -join ',') parse_paren_expr=$parenExprCount parse_tuple_expr=$tupleExprCount parse_tuple_many=$tupleManyCount parse_tuple_single=$tupleSingleCount"
+}
+
+function Invoke-ConsumeStateSurfaceConformanceCase {
+    $specText = Get-Content -Path $canonicalSpecPath -Raw
+    if ($specText -notmatch 'ConsumeState\s*=\s*\{Consume\(P,\s*k\),\s*ConsumeDone\(P\)\}') {
+        throw "Case 'consume_state_surface_conformance' missing canonical ConsumeState rule in the language spec."
+    }
+
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\02_source\\parser\\parser.h"
+    $implPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\parser_consume.cpp"
+    foreach ($path in @($headerPath, $implPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'consume_state_surface_conformance' missing compiler source file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $implText = Get-Content -Path $implPath -Raw
+
+    $headerPatterns = @(
+        'struct\s+ConsumePendingState\s*\{\s*Parser\s+parser;\s*TokenKindMatch\s+expected;\s*\}',
+        'struct\s+ConsumeDoneState\s*\{\s*Parser\s+parser;\s*\}',
+        'using\s+ConsumeState\s*=\s*std::variant<\s*ConsumePendingState\s*,\s*ConsumeDoneState\s*>;',
+        'inline\s+ConsumeState\s+Consume\s*\(\s*Parser\s+parser,\s*TokenKindMatch\s+expected\s*\)',
+        'inline\s+ConsumeDoneState\s+ConsumeDone\s*\(\s*Parser\s+parser\s*\)',
+        'std::optional<ConsumeDoneState>\s+TryAdvanceConsume\s*\(\s*const\s+ConsumePendingState&\s+state\s*\);'
+    )
+    foreach ($pattern in $headerPatterns) {
+        if ($headerText -notmatch $pattern) {
+            throw "Case 'consume_state_surface_conformance' missing expected parser.h pattern '$pattern'."
+        }
+    }
+
+    $implPatterns = @(
+        'std::optional<ConsumeDoneState>\s+TryAdvanceConsume\s*\(\s*const\s+ConsumePendingState&\s+state\s*\)',
+        'ConsumeState\s+state\s*=\s*Consume\s*\(\s*parser\s*,\s*expected\s*\);',
+        'std::optional<ConsumeDoneState>\s+done\s*=\s*TryAdvanceConsume\s*\(\s*\*pending\s*\);',
+        'return\s+ConsumeByMatch\s*\(\s*parser\s*,\s*MatchKind\(kind\)\s*,\s*"Tok-Consume-Kind"\s*\)\s*;',
+        'return\s+ConsumeByMatch\s*\(\s*parser\s*,\s*MatchKeyword\(keyword\)\s*,\s*"Tok-Consume-Keyword"\s*\)\s*;',
+        'return\s+ConsumeByMatch\s*\(\s*parser\s*,\s*MatchOperator\(op\)\s*,\s*"Tok-Consume-Operator"\s*\)\s*;',
+        'return\s+ConsumeByMatch\s*\(\s*parser\s*,\s*MatchPunct\(punct\)\s*,\s*"Tok-Consume-Punct"\s*\)\s*;'
+    )
+    foreach ($pattern in $implPatterns) {
+        if ($implText -notmatch $pattern) {
+            throw "Case 'consume_state_surface_conformance' missing expected parser_consume.cpp pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] consume_state_surface_conformance: header_patterns=$($headerPatterns.Count) impl_patterns=$($implPatterns.Count)"
 }
 
 function Invoke-Issue510EnumDiscriminantDefaultsConformanceCase {
@@ -13590,6 +17143,36 @@ function Invoke-Issue552LinkKindManifestConformanceCase {
     Write-Host "[compiler-static] issue552_link_kind_manifest: invalid_value=$badValueDiag wrong_use=$wrongUseDiag"
 }
 
+function Invoke-Issue552ManifestNameProjectionConformanceCase {
+    $manifest = @(
+        "[[assembly]]",
+        "name = ""schema_name_probe""",
+        "kind = ""executable""",
+        "root = "".""",
+        "out_dir = ""build/schema_name_probe"""
+    )
+
+    $result = Invoke-StdoutModeWithConformance `
+        -CaseId "issue552_manifest_name_projection" `
+        -Source (New-MinimalMainSource) `
+        -Manifest $manifest `
+        -AllowMissingConformance `
+        -ConformanceFileName "issue552_manifest_name_projection.log" `
+        -ExtraArgs @("--assembly", "schema_name_probe", "--dump")
+
+    if ($result.ExitCode -ne 0) {
+        throw "Case 'issue552_manifest_name_projection' expected exit 0 but got $($result.ExitCode)."
+    }
+    if ($result.StdoutText -notmatch 'assembly_name:\s+schema_name_probe') {
+        throw "Case 'issue552_manifest_name_projection' expected dump output to reflect the manifest name field."
+    }
+    if ($result.StdoutText -notmatch 'assemblies:\s+\[(?=.*schema_name_probe)') {
+        throw "Case 'issue552_manifest_name_projection' expected dump output to enumerate the manifest-defined assembly name."
+    }
+
+    Write-Host "[compiler-static] issue552_manifest_name_projection: assembly_name=1 assemblies=1"
+}
+
 function Invoke-Issue552AssemblyGraphConformanceCase {
     $importExecManifest = @(
         "[[assembly]]",
@@ -15624,6 +19207,62 @@ public procedure main(move ctx: Context) -> i32 {
         throw "Case 'issue553_raw_dylib_kernel32_delay_load' expected runtime exit 0 but got $($rawKernel32Run.ExitCode)."
     }
 
+    $rawMsvcrt = Invoke-BuildWithConformance `
+        -CaseId "issue553_raw_dylib_msvcrt_delay_load" `
+        -Source @'
+[[library(name: "msvcrt", kind: "raw-dylib")]]
+extern "C" {
+    [[mangle(none)]]
+    procedure _getpid() -> i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let _ = unsafe { _getpid() }
+    return 0
+}
+'@ `
+        -ExtraArgs @("--link-debug") `
+        -ConformanceFileName "issue553_raw_dylib_msvcrt_delay_load.log"
+
+    if ($rawMsvcrt.ExitCode -ne 0) {
+        throw "Case 'issue553_raw_dylib_msvcrt_delay_load' expected exit 0 but got $($rawMsvcrt.ExitCode)."
+    }
+    $rawMsvcrtErrors = @($rawMsvcrt.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    }).Count
+    if ($rawMsvcrtErrors -ne 0) {
+        throw "Case 'issue553_raw_dylib_msvcrt_delay_load' expected zero errors but observed $rawMsvcrtErrors."
+    }
+    $msvcrtLinkDebugCommands = @(Get-LinkDebugCommands $rawMsvcrt.StderrPath)
+    $msvcrtLinkCommand = ""
+    if ($msvcrtLinkDebugCommands.Count -ge 1) {
+        $msvcrtLinkCommand = $msvcrtLinkDebugCommands[0]
+        if ($msvcrtLinkCommand -notmatch "/DELAYLOAD:MSVCRT\.dll") {
+            throw "Case 'issue553_raw_dylib_msvcrt_delay_load' expected linker-wide /DELAYLOAD:MSVCRT.dll."
+        }
+        if ($msvcrtLinkCommand -notmatch "delayimp\.lib") {
+            throw "Case 'issue553_raw_dylib_msvcrt_delay_load' expected delayimp.lib for raw-dylib delay-load imports."
+        }
+    }
+
+    $rawMsvcrtExe = Join-Path $rawMsvcrt.CaseRoot "build\probe\bin\probe.exe"
+    if (-not (Test-Path $rawMsvcrtExe)) {
+        throw "Case 'issue553_raw_dylib_msvcrt_delay_load' missing executable artifact: $rawMsvcrtExe"
+    }
+    & Assert-FreshMapSidecar "issue553_raw_dylib_msvcrt_delay_load" $rawMsvcrtExe $msvcrtLinkCommand
+    $rawMsvcrtImportText = Get-LlvmReadObjText `
+        -Args @("--coff-imports", $rawMsvcrtExe) `
+        -FailureLabel "llvm-readobj --coff-imports '$rawMsvcrtExe'"
+    if ($rawMsvcrtImportText -notmatch "DelayImport\s*\{[\s\S]*?Name:\s+MSVCRT\.dll") {
+        throw "Case 'issue553_raw_dylib_msvcrt_delay_load' expected MSVCRT.dll in the PE delay import table."
+    }
+    $rawMsvcrtRun = Start-Process -FilePath $rawMsvcrtExe -NoNewWindow -Wait -PassThru
+    if ($rawMsvcrtRun.ExitCode -ne 0) {
+        throw "Case 'issue553_raw_dylib_msvcrt_delay_load' expected runtime exit 0 but got $($rawMsvcrtRun.ExitCode)."
+    }
+
+
     $rawDylibMissing = Invoke-BuildWithConformance `
         -CaseId "issue553_raw_dylib_missing_library_rejected" `
         -Source @'
@@ -15707,6 +19346,7 @@ try {
     Invoke-Issue16InternalSpanRetentionCase
     Invoke-Issue16OrderingIdentityCase
     Invoke-Issue16DiagnosticSpecSyncCase
+    Invoke-Issue16InvalidCastCodeCase
     Invoke-Issue16NoLegacyDiagnosticApiCase
     Invoke-Issue16EmittedCodesCoveredBySpecCase
     Invoke-Issue26ManifestLlvmBinMissingNoFallbackCase
@@ -15725,7 +19365,7 @@ try {
     Invoke-ExpectedDiagCodeCase -Id "issue513_mangle_non_ffi_rejected" -Source (New-Issue513MangleNonFfiSource) -ExpectedCodes @("E-SYS-3340")
     Invoke-ExpectedDiagCodeCase -Id "issue513_mangle_invalid_rejected" -Source (New-Issue513MangleInvalidSource) -ExpectedCodes @("E-SYS-3341")
     Invoke-ExpectedDiagCodeCase -Id "issue513_dynamic_dispatch_non_vtable_method" -Source (New-Issue513DynamicDispatchEligibilitySource) -ExpectedCodes @("E-TYP-2540")
-    Invoke-ExpectedSuccessCase -Id "issue513_trust_on_extern_block_allowed" -Source (New-Issue513TrustExternBlockSource)
+    Invoke-ExpectedDiagCodeCase -Id "issue513_unknown_extern_verification_attr_rejected" -Source (New-Issue513UnknownExternVerificationAttrSource) -ExpectedCodes @("E-MOD-2451")
     Invoke-ExpectedDiagCodeCase -Id "issue513_weak_attribute_rejected" -Source (New-Issue513WeakAttributeRejectedSource) -ExpectedCodes @("E-MOD-2451")
     Invoke-ExpectedDiagCodeCase -Id "issue513_extern_mangle_malformed_rejected" -Source (New-Issue513ExternMangleMalformedSource) -ExpectedCodes @("E-SYS-3341")
     Invoke-ExpectedDiagCodeCase -Id "issue513_extern_mangle_multi_arg_rejected" -Source (New-Issue513ExternMangleMultiArgRejectedSource) -ExpectedCodes @("E-SYS-3341")
@@ -15750,20 +19390,28 @@ try {
     Invoke-ExpectedDiagCodeCase -Id "issue513_extern_nested_context_field_rejected" -Source (New-Issue513ExternNestedContextFieldRejectedSource) -ExpectedCodes @("E-TYP-2626")
     Invoke-ExpectedDiagCodeCase -Id "issue513_keyblock_memory_order_speculative_rejected" -Source (New-Issue513KeyBlockMemoryOrderSpeculativeSource) -ExpectedCodes @("E-CON-0096")
     Invoke-ExpectedDiagCodeCase -Id "issue513_malformed_attr_syntax_rejected" -Source (New-Issue513MalformedAttrSyntaxSource) -ExpectedCodes @("E-MOD-2450")
+    Invoke-ExpectedDiagCodeCaseWithForbiddenCodes -Id "issue513_derive_malformed_args_rejected" -Source (New-Issue513DeriveMalformedArgsSource) -ExpectedCodes @("E-MOD-2450") -ForbiddenCodes @("E-CTE-0310")
     Invoke-ExpectedDiagCodeCase -Id "issue513_vendor_scoped_unknown_rejected" -Source (New-Issue513VendorScopedUnknownSource) -ExpectedCodes @("E-MOD-2451")
     Invoke-ExpectedDiagCodeCase -Id "issue513_vendor_short_scoped_unknown_rejected" -Source (New-Issue513VendorShortScopedUnknownSource) -ExpectedCodes @("E-MOD-2451")
     Invoke-ExpectedDiagCodeCase -Id "issue513_vendor_dotted_unknown_rejected" -Source (New-Issue513VendorDottedUnknownSource) -ExpectedCodes @("E-MOD-2450")
     Invoke-ExpectedDiagCodeCase -Id "issue513_vendor_mixed_scoped_dotted_malformed_rejected" -Source (New-Issue513VendorMixedScopedDottedMalformedSource) -ExpectedCodes @("E-MOD-2450")
     Invoke-ExpectedDiagCodeCase -Id "issue513_reserved_cursive_attr_rejected" -Source (New-Issue513ReservedCursiveAttrSource) -ExpectedCodes @("E-CNF-0402")
+    Invoke-ExpectedDiagCodeCaseWithForbiddenCodes -Id "issue513_reserved_cursive_attr_not_unknown" -Source (New-Issue513ReservedCursiveAttrSource) -ExpectedCodes @("E-CNF-0402") -ForbiddenCodes @("E-MOD-2451")
     Invoke-ExpectedDiagCodeCase -Id "issue513_static_non_foreign_rejected" -Source (New-Issue513StaticOnNonForeignProcedureSource) -ExpectedCodes @("E-MOD-2452")
-    Invoke-ExpectedDiagCodeCase -Id "issue513_trust_non_foreign_rejected" -Source (New-Issue513TrustOnNonForeignProcedureSource) -ExpectedCodes @("E-MOD-2452")
+    Invoke-ExpectedDiagCodeCase -Id "issue513_unknown_procedure_verification_attr_rejected" -Source (New-Issue513UnknownProcedureVerificationAttrSource) -ExpectedCodes @("E-MOD-2451")
     Invoke-ExpectedDiagCodeCase -Id "issue513_library_attr_expression_rejected" -Source (New-Issue513LibraryAttrOnExpressionSource) -ExpectedCodes @("E-SYS-3345")
+    Invoke-ExpectedDiagCodeCase -Id "issue513_comptime_procedure_attr_target_rejected" -Source (New-Issue513ComptimeProcedureAttrTargetSource) -ExpectedCodes @("E-MOD-2452")
+    Invoke-ExpectedDiagCodeCase -Id "issue513_comptime_expr_malformed_attr_rejected" -Source (New-Issue513ComptimeExprMalformedAttrSource) -ExpectedCodes @("E-MOD-2450")
     Invoke-ExpectedSuccessCase -Id "issue513_memory_order_default_expr_override" -Source (New-Issue513ExprMemoryOrderDefaultAndOverrideSource)
+    Invoke-ExpectedSuccessCase -Id "issue513_memory_order_subtree_shared_access" -Source (New-Issue513ExprMemoryOrderSubtreeSharedAccessSource)
     Invoke-ExpectedDiagCodeCase -Id "issue513_memory_order_expr_duplicate_rejected" -Source (New-Issue513ExprMemoryOrderDuplicateRejectedSource) -ExpectedCodes @("E-MOD-2450")
     Invoke-ExpectedDiagCodeCase -Id "issue513_memory_order_keyblock_duplicate_rejected" -Source (New-Issue513KeyBlockMemoryOrderDuplicateRejectedSource) -ExpectedCodes @("E-MOD-2450")
-    Invoke-ExpectedDiagCodeCase -Id "issue513_memory_order_expr_invalid_placement_rejected" -Source (New-Issue513ExprMemoryOrderInvalidPlacementSource) -ExpectedCodes @("E-MOD-2452")
+    Invoke-ExpectedDiagCodeCase -Id "issue513_memory_order_expr_invalid_placement_rejected" -Source (New-Issue513ExprMemoryOrderInvalidPlacementSource) -ExpectedCodes @("E-MOD-2450")
     Invoke-ExpectedDiagCodeCase -Id "issue513_memory_order_expr_speculative_rejected" -Source (New-Issue513ExprMemoryOrderSpeculativeRejectedSource) -ExpectedCodes @("E-CON-0096")
     Invoke-ExpectedDiagCodeCase -Id "issue513_inline_hint_rejected" -Source (New-Issue513InlineHintRejectedSource) -ExpectedCodes @("E-MOD-2450")
+    Invoke-Issue513InlineHintParseTraceCase
+    Invoke-ExpectedDiagCodeCase -Id "issue513_cold_hint_rejected" -Source (New-Issue513ColdHintRejectedSource) -ExpectedCodes @("E-MOD-2450")
+    Invoke-Issue513ColdHintParseTraceCase
     Invoke-ExpectedDiagCodeCase -Id "issue513_unwind_identifier_mode_rejected" -Source (New-Issue513UnwindIdentifierModeRejectedSource) -ExpectedCodes @("E-SYS-3355")
     Invoke-ExpectedDiagCodeCase -Id "issue513_extern_unwind_identifier_mode_rejected" -Source (New-Issue513ExternUnwindIdentifierModeRejectedSource) -ExpectedCodes @("E-SYS-3355")
     Invoke-ExpectedSuccessCase -Id "issue513_class_dynamic_inherited_method" -Source (New-Issue513ClassDynamicInheritedMethodSource)
@@ -15774,8 +19422,11 @@ try {
     Invoke-ExpectedDiagCodeCase -Id "issue513_log_expected_moved_binding_rejected" -Source (New-Issue513LogExpectedMovedBindingSource) -ExpectedCodes @("E-MOD-2457")
     Invoke-ExpectedDiagCodeCase -Id "issue513_log_binding_expected_moved_rejected" -Source (New-Issue513LogBindingExpectedMovedSource) -ExpectedCodes @("E-MOD-2457")
     Invoke-ExpectedDiagCodeCase -Id "issue513_log_malformed_args_rejected" -Source (New-Issue513LogMalformedArgsSource) -ExpectedCodes @("E-MOD-2456")
+    Invoke-ExpectedDiagCodeCaseWithForbiddenCodes -Id "issue513_log_positional_arg_rejected" -Source (New-Issue513LogPositionalArgSource) -ExpectedCodes @("E-MOD-2450") -ForbiddenCodes @("E-MOD-2456")
+    Invoke-ExpectedSuccessCase -Id "issue513_log_multiple_args_allowed" -Source (New-Issue513LogMultipleArgsSource)
     Invoke-ExpectedDiagCodeCase -Id "issue513_log_never_return_rejected" -Source (New-Issue513LogNeverReturnSource) -ExpectedCodes @("E-MOD-2459")
     Invoke-ExpectedDiagCodeCase -Id "issue513_dynamic_clause_direct_rejected" -Source (New-Issue513DynamicClauseDirectSource) -ExpectedCodes @("E-CON-0410")
+    Invoke-ExpectedDiagCodeCase -Id "issue513_dynamic_clause_repeated_attr_lists_rejected" -Source (New-Issue513DynamicClauseRepeatedAttrListsSource) -ExpectedCodes @("E-CON-0410")
     Invoke-ExpectedDiagCodeCase -Id "issue513_dynamic_type_alias_rejected" -Source (New-Issue513DynamicTypeAliasSource) -ExpectedCodes @("E-CON-0411")
     Invoke-ExpectedDiagCodeCase -Id "issue513_dynamic_field_target_rejected" -Source (New-Issue513DynamicFieldTargetSource) -ExpectedCodes @("E-CON-0412")
     Invoke-ExpectedWarningCodeCase -Id "issue513_dynamic_no_runtime_warning" -Source (New-Issue513DynamicNoRuntimeWarningSource) -ExpectedWarningCodes @("W-CON-0401")
@@ -15800,6 +19451,7 @@ try {
     Invoke-ExpectedSuccessCase -Id "issue5131_method_log_allowed" -Source (New-Issue5131MethodLogAllowedSource)
     Invoke-ExpectedDiagCodeCase -Id "issue5131_method_static_rejected" -Source (New-Issue5131MethodStaticRejectedSource) -ExpectedCodes @("E-MOD-2452")
     Invoke-Issue5131AttrSpecTrailingCommaConformanceCase
+    Invoke-Issue5131AttrSpecTrailingCommaSingleLineTraceCase
     Invoke-Issue513StaleWarningCase
     Invoke-Issue513DualPathDuplicateSymbolWiringCase
     Invoke-Issue513LlvmAbiInlineWiringCase
@@ -15812,9 +19464,12 @@ try {
     Invoke-ExpectedFailureCase -Id "issue32_decimal_to_int_rejected" -Source (New-Issue32DecimalToIntRejectedSource)
     Invoke-ExpectedDiagCodeCase -Id "issue32_explicit_float_suffix_mismatch" -Source (New-Issue32ExplicitSuffixMismatchSource) -ExpectedCodes @("E-TYP-1531")
     Invoke-ExpectedSuccessCase -Id "issue32_tuple_access_dot_disambiguation" -Source (New-Issue32TupleAccessDotDisambiguationSource)
+    Invoke-Issue514TupleExprSingletonCommaRejectedCase
     Invoke-Issue547TupleLoweringTraceCase
     Invoke-Issue548TupleAccessEvalSigmaCase
     Invoke-Issue549ArrayIndexConformanceCase
+    Invoke-Issue560IfStmtNonUnitBranchDiagnosticCase
+    Invoke-Issue554CallTempNoProvenanceCase
     Invoke-Issue550ArrayEvalSigmaCase
     Invoke-Issue551IndexEvalSigmaCase
     Invoke-Issue554IfCaseTempOwnershipCase
@@ -15834,11 +19489,24 @@ try {
     Invoke-ExpectedSuccessCase -Id "issue51_public_extern_block_visibility_parse" -Source (New-Issue51PublicExternBlockVisibilitySource)
     Invoke-ExpectedDiagCodeCase -Id "issue51_extern_proc_terminator_required" -Source (New-Issue51ExternProcTerminatorRequiredSource) -ExpectedCodes @("E-SRC-0510")
     Invoke-Issue51UsingItemParseTraceCase
+    Invoke-Issue51UsingListParseTraceCase
+    Invoke-Issue51UsingWildcardParseTraceCase
     Invoke-Issue51PublicUsingItemVisibilityCase
     Invoke-Issue51FfiAbiProfileConformanceCase
     Invoke-Issue33FixedIdentifiersCoverageCase
+    Invoke-Issue33FixedIdentTokenPolicyCase
     Invoke-Issue33TypeWhereKeywordPolicyCase
     Invoke-Issue33UsingImportAttrWiringCase
+    Invoke-Issue33ImportParseAttrListConformanceCase
+    Invoke-Issue619ImportDeclSurfaceConformanceCase
+    Invoke-Issue622UsingDeclAttributeListConformanceCase
+    Invoke-Issue623UsingItemSurfaceConformanceCase
+    Invoke-Issue624UsingDeclOptionalAttrSurfaceConformanceCase
+    Invoke-Issue625StaticDeclParseAttrListConformanceCase
+    Invoke-Issue627ExternBlockShellConformanceCase
+    Invoke-Issue628PathStringSurfaceConformanceCase
+    Invoke-Issue629StringOfPathRefSurfaceConformanceCase
+    Invoke-Issue626StaticDeclOptionalAttrSurfaceConformanceCase
     Invoke-Issue33AstTypeWiringCase
     Invoke-Issue33ExprWiringCase
     Invoke-Issue33QualifiedNamePhaseBoundaryWiringCase
@@ -15849,7 +19517,13 @@ try {
     Invoke-ExpectedSuccessCase -Id "issue33_enum_semicolon_separated" -Source (New-Issue33EnumSemicolonSeparatedSource)
     Invoke-ExpectedDiagCodeCase -Id "issue33_enum_comma_separated_rejected" -Source (New-Issue33EnumCommaSeparatedRejectedSource) -ExpectedCodes @("E-SRC-0520")
     Invoke-ExpectedDiagCodeCase -Id "issue33_enum_missing_terminator" -Source (New-Issue33EnumMissingTerminatorSource) -ExpectedCodes @("E-SRC-0510")
+    Invoke-ExpectedDiagCodeCase -Id "issue33_import_attr_multiple_blocks_rejected" -Source (New-Issue33ImportAttrMultipleBlocksRejectedSource) -ExpectedCodes @("E-MOD-2452")
     Invoke-ExpectedDiagCodeCase -Id "issue33_static_attr_target_rejected" -Source (New-Issue33StaticAttrTargetRejectedSource) -ExpectedCodes @("E-MOD-2452")
+    Invoke-ExpectedDiagCodeCaseWithForbiddenCodes `
+        -Id "issue625_static_decl_attribute_list_multiple_blocks" `
+        -Source (New-Issue625StaticDeclAttributeListMultipleBlocksSource) `
+        -ExpectedCodes @("E-MOD-2452") `
+        -ForbiddenCodes @("E-SRC-0520", "E-SRC-0510")
     Invoke-ExpectedDiagCodeCase -Id "issue33_class_duplicate_param_names" -Source (New-Issue33ClassDuplicateParamNamesSource) -ExpectedCodes @("E-SEM-2713")
     Invoke-ExpectedDiagCodeCase -Id "issue33_class_self_param_forbidden" -Source (New-Issue33ClassSelfParamForbiddenSource) -ExpectedCodes @("E-SEM-3011")
     Invoke-ExpectedDiagCodeCase -Id "issue33_modal_duplicate_param_names" -Source (New-Issue33ModalDuplicateParamNamesSource) -ExpectedCodes @("E-SEM-2713")
@@ -15890,6 +19564,66 @@ try {
     Invoke-Issue52AsyncTryInfallibleErrCase
     Invoke-Issue52TransitionBorrowTraceCase
     Invoke-Issue52MetatheoryHooksCase
+    Invoke-Issue561RulePremisesRegistryConformanceCase
+    Invoke-Issue562UnicodeScalarDomainConformanceCase
+    Invoke-Issue563ScalarsSequenceConformanceCase
+    Invoke-Issue564StringAliasConformanceCase
+    Invoke-Issue565NormalizeOutsideIdentifiersConformanceCase
+    Invoke-Issue566SourceScalarsProjectionConformanceCase
+    Invoke-Issue567LexSensitivePosConformanceCase
+    Invoke-Issue568LiteralSpanConformanceCase
+    Invoke-Issue569TokenizePartialSurfaceConformanceCase
+    Invoke-Issue570RequiredTerminatorSurfaceConformanceCase
+    Invoke-Issue571ContinuesLineSurfaceConformanceCase
+    Invoke-Issue572SourceLoadStateConformanceCase
+    Invoke-Issue573StepSizeTransitionConformanceCase
+    Invoke-Issue574StepDecodeTransitionConformanceCase
+    Invoke-Issue575StepDecodeErrorTransitionConformanceCase
+    Invoke-Issue576StepBomTransitionConformanceCase
+    Invoke-Issue577StepNormTransitionConformanceCase
+    Invoke-Issue578StepEmbeddedBomErrorTransitionConformanceCase
+    Invoke-Issue579StepLineMapTransitionConformanceCase
+    Invoke-Issue580StepProhibitedTransitionConformanceCase
+    Invoke-Issue581StepProhibitedErrorTransitionConformanceCase
+    Invoke-Issue582SpanTempSourceConformanceCase
+    Invoke-Issue583SpanAtLineStartConformanceCase
+    Invoke-Issue584LexerInputProjectionConformanceCase
+    Invoke-Issue585TokenEofConformanceCase
+    Invoke-Issue586TokenRangeConformanceCase
+    Invoke-Issue610ParserTokEofConformanceCase
+    Invoke-Issue611ParserEofSpanHelperConformanceCase
+    Invoke-Issue612ParserTokensBetweenConformanceCase
+    Invoke-Issue613ParserInitialStateConformanceCase
+    Invoke-Issue614ParseItemsEmptyEofOnlyConformanceCase
+    Invoke-Issue615DocSeqSurfaceConformanceCase
+    Invoke-Issue616ItemSeqSurfaceConformanceCase
+    Invoke-Issue618ParseItemsConsTraceConformanceCase
+    Invoke-Issue619Phase1DiagRulesSurfaceConformanceCase
+    Invoke-Issue620QuoteProbeParseSyntaxErrConformanceCase
+    Invoke-Issue621ParseSyntaxErrPremisesHoldConformanceCase
+    Invoke-Issue587TokenInCommentConformanceCase
+    Invoke-Issue588ScalarIndexConformanceCase
+    Invoke-Issue589LexemeScalarSliceConformanceCase
+    Invoke-Issue590ReservedNamespacePrefixConformanceCase
+    Invoke-Issue591UniverseProtectedSetConformanceCase
+    Invoke-Issue592BlockStateConformanceCase
+    Invoke-Issue593AtHelperConformanceCase
+    Invoke-Issue594RemoveHelperConformanceCase
+    Invoke-Issue595ConcatHelperConformanceCase
+    Invoke-Issue596ConcatSingletonConformanceCase
+    Invoke-Issue597ConcatRecursiveConformanceCase
+    Invoke-Issue598HexValueSequenceConformanceCase
+    Invoke-Issue599DecDigitValueConformanceCase
+    Invoke-Issue600OctDigitValueConformanceCase
+    Invoke-Issue601BinDigitValueConformanceCase
+    Invoke-Issue602DecValueSequenceConformanceCase
+    Invoke-Issue603OctValueSequenceConformanceCase
+    Invoke-Issue604BinValueSequenceConformanceCase
+    Invoke-Issue605SuffixMatchConformanceCase
+    Invoke-Issue606HasDotConformanceCase
+    Invoke-Issue607HasExpConformanceCase
+    Invoke-Issue608HasFloatCoreConformanceCase
+    Invoke-Issue609DecimalLeadingZeroConformanceCase
     Invoke-Issue5131SpecCanonicalityCase
     Invoke-Issue53ClassMethodWfTraceCase
     Invoke-Issue53ClassCycleTraceCase
@@ -15907,12 +19641,18 @@ try {
     Invoke-Issue55StateSpecificFieldConformanceCase
     Invoke-Issue56TransitionsAndMethodsConformanceCase
     Invoke-Issue56VisibilityConformanceCase
+    Invoke-Issue617ProtectedVisibilityRejectedCase
+    Invoke-Issue621ReservedKeywordIdentifierConformanceCase
     Invoke-Issue57LexicalIdentifierSecurityConformanceCase
     Invoke-Issue58StringBytesConformanceCase
     Invoke-Issue59CapabilitiesAndContextConformanceCase
     Invoke-Issue60TypeAnnotOptParseTraceCase
     Invoke-Issue61KeyPathResolutionConformanceCase
     Invoke-Issue514ListSmallStepParseTraceCase
+    Invoke-Issue514TrailingCommaEndSetConformanceCase
+    Invoke-Issue514TrailingCommaErrConformanceCase
+    Invoke-ConsumeStateSurfaceConformanceCase
+    Invoke-Issue514TrailingCommaEndSetConformanceCase
     Invoke-Issue510EnumDiscriminantDefaultsConformanceCase
     Invoke-Issue559EnumEmptyConformanceCase
     Invoke-Issue511FoundationalClassesAndPipeConformanceCase
@@ -15920,6 +19660,7 @@ try {
     Invoke-Issue545ResolveModulePathDirectConformanceCase
     Invoke-Issue546ImportPathAndCoverageConformanceCase
     Invoke-Issue552LinkKindManifestConformanceCase
+    Invoke-Issue552ManifestNameProjectionConformanceCase
     Invoke-Issue552AssemblyGraphConformanceCase
     Invoke-Issue552ArtifactPipelineConformanceCase
     Invoke-SingleExeCompilerPackagingConformanceCase

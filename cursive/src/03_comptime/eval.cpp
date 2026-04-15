@@ -4,6 +4,7 @@
 #include <string>
 #include <string_view>
 
+#include "00_core/diagnostic_messages.h"
 #include "00_core/diagnostics.h"
 
 namespace cursive::frontend::comptime_internal {
@@ -64,18 +65,37 @@ std::string ModulePathText(const ast::ModulePath& path) {
   return text;
 }
 
-void AppendCtDiagnostic(CtEnv& env,
-                        core::Severity severity,
-                        std::string_view message) {
+void AppendCtDiagnostic(CtEnv& env, const core::Diagnostic& diag) {
   if (!CtDiags(env)) {
     return;
   }
+  core::Emit(*CtDiags(env), diag);
+}
+
+void AppendCtCodedDiagnostic(CtEnv& env,
+                             std::string_view diag_id,
+                             core::Severity fallback_severity,
+                             std::string_view message) {
+  if (auto diag = core::MakeDiagnosticById(diag_id, env.current_span)) {
+    diag->message = std::string(message);
+    AppendCtDiagnostic(env, *diag);
+    return;
+  }
+
+  core::Diagnostic fallback;
+  fallback.code = std::string(diag_id);
+  fallback.severity = fallback_severity;
+  fallback.message = std::string(message);
+  fallback.span = env.current_span;
+  AppendCtDiagnostic(env, fallback);
+}
+
+void AppendCtUserNoteDiagnostic(CtEnv& env, std::string_view message) {
   core::Diagnostic diag;
-  diag.code = "";
-  diag.severity = severity;
+  diag.severity = core::Severity::Note;
   diag.message = std::string(message);
   diag.span = env.current_span;
-  core::Emit(*CtDiags(env), diag);
+  AppendCtDiagnostic(env, diag);
 }
 
 EvalResult EvalCall(const ast::CallExpr& call, CtEnv& env) {
@@ -189,21 +209,23 @@ EvalResult EvalMethodCall(const ast::MethodCallExpr& call, CtEnv& env) {
           return {};
         }
         if (call.name == "error") {
-          AppendCtDiagnostic(env, core::Severity::Error, msg->value);
+          AppendCtCodedDiagnostic(
+              env, "E-CTE-0070", core::Severity::Error, msg->value);
           EvalResult result;
           result.ok = true;
           result.value = MakeCtUnit();
           return result;
         }
         if (call.name == "warning") {
-          AppendCtDiagnostic(env, core::Severity::Warning, msg->value);
+          AppendCtCodedDiagnostic(
+              env, "W-CTE-0071", core::Severity::Warning, msg->value);
           EvalResult result;
           result.ok = true;
           result.value = MakeCtUnit();
           return result;
         }
         if (call.name == "note") {
-          AppendCtDiagnostic(env, core::Severity::Note, msg->value);
+          AppendCtUserNoteDiagnostic(env, msg->value);
           EvalResult result;
           result.ok = true;
           result.value = MakeCtUnit();
@@ -233,7 +255,11 @@ EvalResult EvalMethodCall(const ast::MethodCallExpr& call, CtEnv& env) {
                                               : core::Span{}));
         return {};
       }
-      if (const auto* item = std::get_if<ASTItem>(&ast_value->payload)) {
+      auto hygienized = PrepareAstForInsertion(*ast_value, CtSiteOf(env), env);
+      if (!hygienized.has_value()) {
+        return {};
+      }
+      if (const auto* item = std::get_if<ASTItem>(&hygienized->payload)) {
         if (auto* pending = CtPendingEmits(env)) {
           pending->push_back(*item);
         }
@@ -426,13 +452,38 @@ EvalResult EvalExpr(const ExprPtr& expr, CtEnv& env) {
           return out;
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
           auto array = std::make_shared<CtArray>();
-          array->elements.reserve(node.elements.size());
-          for (const auto& elem : node.elements) {
-            auto value = EvalExpr(elem, env);
+          for (const auto& segment : node.elements) {
+            if (const auto* elem = std::get_if<ast::ArrayElemSegment>(&segment)) {
+              auto value = EvalExpr(elem->value, env);
+              if (!value.ok) {
+                return value;
+              }
+              array->elements.push_back(value.value);
+              continue;
+            }
+            const auto* repeat = std::get_if<ast::ArrayRepeatSegment>(&segment);
+            if (!repeat) {
+              return {.ok = false};
+            }
+            auto value = EvalExpr(repeat->value, env);
             if (!value.ok) {
               return value;
             }
-            array->elements.push_back(value.value);
+            auto count_value = EvalExpr(repeat->count, env);
+            if (!count_value.ok) {
+              return count_value;
+            }
+            const auto* prim = std::get_if<CtPrim>(&count_value.value);
+            if (!prim || prim->kind != CtPrimKind::Int) {
+              return {.ok = false};
+            }
+            const auto* int_value = std::get_if<CtPrimInt>(&prim->value);
+            if (!int_value) {
+              return {.ok = false};
+            }
+            for (unsigned long long i = 0; i < int_value->value; ++i) {
+              array->elements.push_back(value.value);
+            }
           }
           EvalResult out;
           out.ok = true;
@@ -455,6 +506,12 @@ EvalResult EvalExpr(const ExprPtr& expr, CtEnv& env) {
           if (!parsed_ast.has_value()) {
             out.ok = false;
             return out;
+          }
+          if (!parsed_ast->span.has_value()) {
+            parsed_ast->span = expr->span;
+          }
+          if (!parsed_ast->hygiene.has_value()) {
+            parsed_ast->hygiene = CtHygiene{CtSiteOf(env), CtSiteOf(env), 0};
           }
           out.ok = true;
           out.value = std::move(*parsed_ast);

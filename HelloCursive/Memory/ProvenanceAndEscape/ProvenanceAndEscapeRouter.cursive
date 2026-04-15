@@ -4,7 +4,7 @@ procedure ProvenanceLogFeatureStatus(feature_name: string@View, status: i32) -> 
     return ()
 }
 
-public procedure RunGroup(ctx: Context) -> i32 {
+public procedure runGroup(ctx: Context) -> i32 {
     [[log(label: "memory-log-section_start")]]
 
     [[log(label: "memory-log-feature_dispatch")]] "memory::ProvenanceAndEscape::ProvenanceClassesAndPropagation"

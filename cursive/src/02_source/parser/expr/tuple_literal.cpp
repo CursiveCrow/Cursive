@@ -12,6 +12,7 @@
 
 #include "02_source/parser/parser.h"
 
+#include <array>
 #include <memory>
 #include <vector>
 
@@ -28,7 +29,39 @@ bool IsPunc(const Parser& parser, std::string_view punc);
 bool IsPuncTok(const lexer::Token& tok, std::string_view punc);
 void SkipNewlines(Parser& parser);
 ParseElemResult<ExprPtr> ParseExpr(Parser parser);
-ParseElemResult<std::vector<ExprPtr>> ParseExprListTail(ListState<ExprPtr> state);
+
+ParseElemResult<std::vector<ExprPtr>> ParseExprListTail(ListState<ExprPtr> state) {
+  const std::array<EndSetToken, 1> end_set = {EndPunct(")")};
+
+  for (;;) {
+    SkipNewlines(state.parser);
+    if (ListDone(state, end_set)) {
+      SPEC_RULE("Parse-ExprListTail-End");
+      return {state.parser, std::move(state.elems)};
+    }
+
+    if (!IsPunc(state.parser, ",")) {
+      EmitParseSyntaxErr(state.parser, TokSpan(state.parser));
+      return {state.parser, std::move(state.elems)};
+    }
+
+    Parser after_comma = state.parser;
+    Advance(after_comma);
+    SkipNewlines(after_comma);
+    if (IsPunc(after_comma, ")")) {
+      if (TrailingCommaAllowed(state.parser, end_set)) {
+        SPEC_RULE("Parse-ExprListTail-TrailingComma");
+      }
+      EmitTrailingCommaErr(state.parser, end_set);
+      after_comma.diags = state.parser.diags;
+      return {after_comma, std::move(state.elems)};
+    }
+
+    SPEC_RULE("Parse-ExprListTail-Comma");
+    state.parser = after_comma;
+    state = ListCons(std::move(state), ParseExpr);
+  }
+}
 
 // =============================================================================
 // TupleScanResult - Result of tuple/paren disambiguation scan
@@ -47,22 +80,27 @@ struct TupleScanResult {
 // ParenDelta(Punctuator(")")) = -1
 // ParenDelta(t) = 0 if t.kind ∉ {Punctuator("("), Punctuator(")")}
 
-struct DelimiterDepth {
+static int ParenDelta(const lexer::Token& tok) {
+  if (tok.kind != lexer::TokenKind::Punctuator) {
+    return 0;
+  }
+  if (tok.lexeme == "(") {
+    return 1;
+  }
+  if (tok.lexeme == ")") {
+    return -1;
+  }
+  return 0;
+}
+
+struct TupleScanDepth {
   int paren = 1;
   int bracket = 0;
   int brace = 0;
 };
 
-static void StepDelimiterDepth(const lexer::Token& tok, DelimiterDepth& depth) {
+static void StepNonParenNesting(const lexer::Token& tok, TupleScanDepth& depth) {
   if (tok.kind != lexer::TokenKind::Punctuator) {
-    return;
-  }
-  if (tok.lexeme == "(") {
-    depth.paren += 1;
-    return;
-  }
-  if (tok.lexeme == ")" && depth.paren > 0) {
-    depth.paren -= 1;
     return;
   }
   if (tok.lexeme == "[") {
@@ -90,13 +128,13 @@ static void StepDelimiterDepth(const lexer::Token& tok, DelimiterDepth& depth) {
 // SPEC: Lines 5864-5877
 // - Returns false if EOF
 // - Returns false if ) found at depth 1 (no separator seen)
-// - Returns true if , or ; found at depth 1 (separator seen = tuple)
+// - Returns true if ; found at depth 1, or if , is followed by another element
 // - Recurses with adjusted depth otherwise
 
 static TupleScanResult TupleScan(Parser parser) {
   TupleScanResult result;
   Parser cur = parser;
-  DelimiterDepth depth;
+  TupleScanDepth depth;
   for (;;) {
     if (AtEof(cur)) {
       result.is_tuple = false;
@@ -115,10 +153,20 @@ static TupleScanResult TupleScan(Parser parser) {
     if (tok->kind == lexer::TokenKind::Punctuator &&
         (tok->lexeme == "," || tok->lexeme == ";") && depth.paren == 1 &&
         depth.brace == 0 && depth.bracket == 0) {
+      if (tok->lexeme == ",") {
+        Parser after_sep = AdvanceOrEOF(cur);
+        const lexer::Token* next_tok = Tok(after_sep);
+        if (next_tok && next_tok->kind == lexer::TokenKind::Punctuator &&
+            next_tok->lexeme == ")") {
+          result.is_tuple = false;
+          return result;
+        }
+      }
       result.is_tuple = true;
       return result;
     }
-    StepDelimiterDepth(*tok, depth);
+    depth.paren += ParenDelta(*tok);
+    StepNonParenNesting(*tok, depth);
     Advance(cur);
   }
 }
@@ -173,19 +221,26 @@ ParseElemResult<std::vector<ExprPtr>> ParseTupleExprElems(Parser parser) {
     return {after, elems};
   }
   if (IsPunc(after_first, ",")) {
-    Parser after = after_first;
-    Advance(after);
-    SkipNewlines(after);
-    if (IsPunc(after, ")")) {
+    Parser after_comma = after_first;
+    Advance(after_comma);
+    SkipNewlines(after_comma);
+    if (IsPunc(after_comma, ")")) {
       EmitParseSyntaxErr(after_first, TokSpan(after_first));
       std::vector<ExprPtr> elems;
       elems.push_back(first.elem);
-      return {after, elems};
+      return {after_comma, elems};
     }
     SPEC_RULE("Parse-TupleExprElems-Many");
+    ParseElemResult<ExprPtr> second = ParseExpr(after_comma);
     ParseElemResult<std::vector<ExprPtr>> tail =
-        ParseExprListTail(ListSeed(after_first, first.elem));
-    return {tail.parser, tail.elem};
+        ParseExprListTail(ListSeed(second.parser, second.elem));
+    std::vector<ExprPtr> elems;
+    elems.reserve(1 + tail.elem.size());
+    elems.push_back(first.elem);
+    for (auto& elem : tail.elem) {
+      elems.push_back(std::move(elem));
+    }
+    return {tail.parser, std::move(elems)};
   }
   EmitParseSyntaxErr(first.parser, TokSpan(first.parser));
   return {first.parser, {}};

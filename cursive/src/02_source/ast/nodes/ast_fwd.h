@@ -112,6 +112,8 @@ struct MoveExpr;
 struct AllocExpr;
 struct PtrNullExpr;
 struct TupleExpr;
+struct ArrayElemSegment;
+struct ArrayRepeatSegment;
 struct ArrayExpr;
 struct ArrayRepeatExpr;
 struct SizeofExpr;
@@ -215,8 +217,8 @@ struct BreakStmt;
 struct ContinueStmt;
 struct UnsafeBlockStmt;
 struct KeyBlockStmt;
-struct StaticAssertStmt;
-struct ComptimeStmt;
+struct CtStmt;
+using ComptimeStmt = CtStmt;
 struct ErrorStmt;
 
 // ===========================================================================
@@ -287,7 +289,6 @@ struct TypeInvariant;
 // Module-Level Structures
 // ===========================================================================
 
-struct UnsafeSpanSet;
 struct ASTModule;
 struct ASTFile;
 

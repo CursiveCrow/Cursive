@@ -481,7 +481,7 @@ ast::TypeAliasDecl BuildCpuSetAliasDecl() {
   decl.vis = ast::Visibility::Public;
   decl.name = ast::Identifier{"CpuSet"};
   decl.generic_params = std::nullopt;
-  decl.where_clause = std::nullopt;
+  decl.predicate_clause_opt = std::nullopt;
   decl.type = MakeTypePrimAst("u64");
   decl.span = core::Span{};
   decl.doc = {};
@@ -496,8 +496,8 @@ ast::EnumDecl BuildPriorityEnumDecl() {
   decl.name = ast::Identifier{"Priority"};
   decl.generic_params = std::nullopt;
   decl.implements = {ast::ClassPath{"Bitcopy"}};
-  decl.where_clause = std::nullopt;
-  decl.invariant = std::nullopt;
+  decl.predicate_clause_opt = std::nullopt;
+  decl.invariant_opt = std::nullopt;
   decl.span = core::Span{};
   decl.doc = {};
 

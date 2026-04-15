@@ -12,7 +12,6 @@
 #include <limits.h>
 
 #include "../internal/rt_internal.h"
-
 // Note: <string.h> is NOT included - we use c0_memset/c0_memcpy from rt_internal.h
 
 // Ensure INT64_MAX/MIN are defined
@@ -31,39 +30,40 @@ typedef struct SpawnHandle SpawnHandle;
 typedef size_t C0CancelId;
 
 // -----------------------------------------------------------------------------
-// Panic unwinding (SEH) + TLS state
+// Panic boundary + TLS state
 // -----------------------------------------------------------------------------
 
-#define C0_PANIC_EXCEPTION_CODE 0xE000C0DEu
+#define C0_PANIC_REDUCED_EMPTY_DISPATCH 2862u
 
 typedef struct {
     ParallelContext* ctx;
     WorkItem* item;
-    int in_panic_scope;
 } C0ThreadState;
-
-static INIT_ONCE c0_tls_once = INIT_ONCE_STATIC_INIT;
-static DWORD c0_tls_index = TLS_OUT_OF_INDEXES;
+static cursive_rt_once_t c0_tls_once = CURSIVE_RT_ONCE_INIT;
+static cursive_rt_tls_key_t c0_tls_index = CURSIVE_RT_TLS_KEY_INVALID;
 static C0ThreadState c0_tls_fallback = {0};
+static volatile cursive_rt_i64_t c0_next_task_id = 0;
+static volatile cursive_rt_i64_t c0_next_completion_seq = 0;
 
-static BOOL CALLBACK c0_tls_init(PINIT_ONCE init_once, PVOID param,
-                                 PVOID* context) {
+static cursive_rt_bool_t c0_tls_init(cursive_rt_once_t* init_once,
+                                     void* param,
+                                     void** context) {
     (void)init_once;
     (void)param;
     (void)context;
-    DWORD idx = TlsAlloc();
-    if (idx == TLS_OUT_OF_INDEXES) {
-        return FALSE;
+    cursive_rt_tls_key_t idx = cursive_rt_tls_key_create();
+    if (idx == CURSIVE_RT_TLS_KEY_INVALID) {
+        return CURSIVE_RT_FALSE;
     }
     c0_tls_index = idx;
-    return TRUE;
+    return CURSIVE_RT_TRUE;
 }
 
 static C0ThreadState* c0_tls_state(void) {
-    if (!InitOnceExecuteOnce(&c0_tls_once, c0_tls_init, NULL, NULL)) {
+    if (!cursive_rt_once_execute(&c0_tls_once, c0_tls_init, NULL, NULL)) {
         return &c0_tls_fallback;
     }
-    C0ThreadState* state = (C0ThreadState*)TlsGetValue(c0_tls_index);
+    C0ThreadState* state = (C0ThreadState*)cursive_rt_tls_get(c0_tls_index);
     if (!state) {
         state = (C0ThreadState*)c0_heap_alloc_raw(sizeof(C0ThreadState));
         if (!state) {
@@ -71,20 +71,17 @@ static C0ThreadState* c0_tls_state(void) {
         }
         state->ctx = NULL;
         state->item = NULL;
-        state->in_panic_scope = 0;
-        TlsSetValue(c0_tls_index, state);
+        cursive_rt_tls_set(c0_tls_index, state);
     }
     return state;
 }
 
-static uint32_t c0_panic_code_from_exception(const EXCEPTION_POINTERS* info) {
-    if (!info || !info->ExceptionRecord) {
-        return 0;
-    }
-    if (info->ExceptionRecord->NumberParameters < 1) {
-        return 0;
-    }
-    return (uint32_t)info->ExceptionRecord->ExceptionInformation[0];
+static uint64_t c0_fresh_task_id(void) {
+    return (uint64_t)cursive_rt_atomic_increment64(&c0_next_task_id);
+}
+
+static uint64_t c0_fresh_completion_seq(void) {
+    return (uint64_t)cursive_rt_atomic_increment64(&c0_next_completion_seq);
 }
 
 static ParallelContext* c0_current_ctx(void) {
@@ -102,7 +99,6 @@ static void c0_set_current_ctx(ParallelContext* ctx) {
 static void c0_set_current_item(WorkItem* item) {
     c0_tls_state()->item = item;
 }
-
 // §18.1.2 Work item state
 typedef enum {
     WORK_PENDING,
@@ -112,9 +108,18 @@ typedef enum {
     WORK_PANICKED
 } WorkState;
 
+typedef enum {
+    SPAWN_HANDLE_PENDING,
+    SPAWN_HANDLE_READY,
+    SPAWN_HANDLE_FAILED
+} SpawnHandleStateTag;
+
 // Work item (created by spawn/dispatch)
 struct WorkItem {
     WorkState state;
+    uint64_t task_id;        // Stable creation identifier
+    uint64_t completion_seq; // Global completion identifier once settled
+    ParallelContext* owner_ctx;
     void* captured_env;      // Captured environment
     void* hosted_env;        // Hosted session environment
     void (*body)(void* hosted_env, void* env, void* result, void* panic_out);     // Work function
@@ -125,14 +130,16 @@ struct WorkItem {
     uint32_t panic_code;     // Panic code if panicked
     WorkItem* next;          // Linked list for work queue
     WorkItem* all_next;      // Linked list for cleanup
-    HANDLE done_event;       // Signaled on completion
+    cursive_rt_handle_t done_event;       // Signaled on completion
     SpawnHandle* handle;     // Owning handle
 };
 
 // §18.4.2 Spawned runtime representation (internal: SpawnHandle)
 struct SpawnHandle {
+    uint64_t id;
+    SpawnHandleStateTag state;
     WorkItem* item;
-    int is_ready;
+    SpawnHandle* next;
 };
 
 enum {
@@ -149,13 +156,13 @@ typedef struct {
 } C0CancelStateEntry;
 
 typedef struct {
-    CRITICAL_SECTION lock;
+    cursive_rt_mutex_t lock;
     C0CancelStateEntry* entries;
     size_t count;
     size_t capacity;
 } C0CancelRegistry;
 
-static INIT_ONCE c0_cancel_registry_once = INIT_ONCE_STATIC_INIT;
+static cursive_rt_once_t c0_cancel_registry_once = CURSIVE_RT_ONCE_INIT;
 static C0CancelRegistry c0_cancel_registry = {0};
 static int c0_token_is_cancelled(C0CancelId token_id);
 
@@ -229,46 +236,105 @@ struct WorkerPool {
     int active_workers;
     WorkItem* queue_head;
     WorkItem* queue_tail;
-    HANDLE* threads;
-    CRITICAL_SECTION lock;
-    CONDITION_VARIABLE work_cv;
-    CONDITION_VARIABLE done_cv;
+    cursive_rt_handle_t* threads;
+    cursive_rt_mutex_t lock;
+    cursive_rt_condition_t work_cv;
+    cursive_rt_condition_t done_cv;
     volatile int shutdown;
     size_t pending_count;
     C0CancelId cancel_token;
-    ParallelContext* ctx;
 };
 
 // §18.1 Parallel context
 struct ParallelContext {
     WorkerPool* pool;
+    uint32_t domain_kind;
+    uint8_t owns_pool;
+    size_t pending_count;
+    cursive_rt_condition_t done_cv;
     C0CancelId cancel_token;
     WorkItem* first_panic;    // First panicked work item
     int panic_count;          // Number of panics
     const char* name;         // Debug name
+    SpawnHandle* handles_head;
+    SpawnHandle* handles_tail;
     WorkItem* all_items;      // All work items for cleanup
     ParallelContext* prev_ctx;
     int inline_domain;
 };
 
-static BOOL CALLBACK c0_cancel_registry_init(PINIT_ONCE init_once,
-                                             PVOID param,
-                                             PVOID* context) {
+static void c0_lock_parallel_ctx(ParallelContext* ctx) {
+    if (ctx && ctx->pool) {
+        cursive_rt_mutex_lock(&ctx->pool->lock);
+    }
+}
+
+static void c0_unlock_parallel_ctx(ParallelContext* ctx) {
+    if (ctx && ctx->pool) {
+        cursive_rt_mutex_unlock(&ctx->pool->lock);
+    }
+}
+
+static void c0_record_item_settlement(ParallelContext* ctx, WorkItem* item) {
+    if (!item) {
+        return;
+    }
+    if (item->state != WORK_COMPLETED && item->state != WORK_CANCELLED &&
+        item->state != WORK_PANICKED) {
+        return;
+    }
+
+    c0_lock_parallel_ctx(ctx);
+    if (item->completion_seq == 0) {
+        item->completion_seq = c0_fresh_completion_seq();
+    }
+    if (item->handle) {
+        item->handle->state =
+            (item->state == WORK_PANICKED) ? SPAWN_HANDLE_FAILED
+                                           : SPAWN_HANDLE_READY;
+    }
+    if (ctx && item->state == WORK_PANICKED &&
+        (!ctx->first_panic ||
+         item->completion_seq < ctx->first_panic->completion_seq)) {
+        ctx->first_panic = item;
+    }
+    c0_unlock_parallel_ctx(ctx);
+}
+
+static void c0_register_spawn_handle(ParallelContext* ctx, SpawnHandle* handle) {
+    if (!ctx || !handle) {
+        return;
+    }
+    c0_lock_parallel_ctx(ctx);
+    handle->next = NULL;
+    if (ctx->handles_tail) {
+        ctx->handles_tail->next = handle;
+        ctx->handles_tail = handle;
+    } else {
+        ctx->handles_head = handle;
+        ctx->handles_tail = handle;
+    }
+    c0_unlock_parallel_ctx(ctx);
+}
+
+static cursive_rt_bool_t c0_cancel_registry_init(cursive_rt_once_t* init_once,
+                                                 void* param,
+                                                 void** context) {
     (void)init_once;
     (void)param;
     (void)context;
-    InitializeCriticalSection(&c0_cancel_registry.lock);
+    cursive_rt_mutex_init(&c0_cancel_registry.lock);
     c0_cancel_registry.entries = NULL;
     c0_cancel_registry.count = 0;
     c0_cancel_registry.capacity = 0;
-    return TRUE;
+    return CURSIVE_RT_TRUE;
 }
 
 static int c0_cancel_registry_ready(void) {
-    return InitOnceExecuteOnce(&c0_cancel_registry_once,
-                               c0_cancel_registry_init,
-                               NULL,
-                               NULL)
+    return cursive_rt_once_execute(&c0_cancel_registry_once,
+                                   c0_cancel_registry_init,
+                                   NULL,
+                                   NULL)
                ? 1
                : 0;
 }
@@ -366,12 +432,12 @@ static int c0_token_is_cancelled(C0CancelId token_id) {
         return 0;
     }
 
-    EnterCriticalSection(&c0_cancel_registry.lock);
+    cursive_rt_mutex_lock(&c0_cancel_registry.lock);
     if (c0_cancel_registry_valid_id_locked(token_id)) {
         cancelled =
             c0_cancel_registry.entries[token_id].status == C0_CANCEL_STATUS_CANCELLED;
     }
-    LeaveCriticalSection(&c0_cancel_registry.lock);
+    cursive_rt_mutex_unlock(&c0_cancel_registry.lock);
     return cancelled;
 }
 
@@ -401,17 +467,17 @@ static int32_t c0_priority_rank(int32_t priority_hint) {
 static int c0_thread_priority_from_rank(int32_t rank) {
     switch (rank) {
         case 0:
-            return THREAD_PRIORITY_BELOW_NORMAL;
+            return CURSIVE_RT_THREAD_PRIORITY_LOW;
         case 2:
-            return THREAD_PRIORITY_ABOVE_NORMAL;
+            return CURSIVE_RT_THREAD_PRIORITY_HIGH;
         case 1:
         default:
-            return THREAD_PRIORITY_NORMAL;
+            return CURSIVE_RT_THREAD_PRIORITY_NORMAL;
     }
 }
 
 typedef struct {
-    DWORD_PTR prev_affinity;
+    cursive_rt_uptr_t prev_affinity;
     int prev_priority;
     int affinity_changed;
     int priority_changed;
@@ -423,7 +489,7 @@ static void c0_apply_work_hints(const WorkItem* item, C0WorkHintScope* scope) {
     }
 
     scope->prev_affinity = 0;
-    scope->prev_priority = THREAD_PRIORITY_NORMAL;
+    scope->prev_priority = CURSIVE_RT_THREAD_PRIORITY_NORMAL;
     scope->affinity_changed = 0;
     scope->priority_changed = 0;
 
@@ -432,9 +498,10 @@ static void c0_apply_work_hints(const WorkItem* item, C0WorkHintScope* scope) {
     }
 
     if (item->affinity_mask != 0) {
-        DWORD_PTR mask = (DWORD_PTR)item->affinity_mask;
+        cursive_rt_uptr_t mask = (cursive_rt_uptr_t)item->affinity_mask;
         if (mask != 0) {
-            scope->prev_affinity = SetThreadAffinityMask(GetCurrentThread(), mask);
+            scope->prev_affinity =
+                cursive_rt_thread_affinity_set(cursive_rt_current_thread(), mask);
             if (scope->prev_affinity != 0) {
                 scope->affinity_changed = 1;
             }
@@ -443,10 +510,10 @@ static void c0_apply_work_hints(const WorkItem* item, C0WorkHintScope* scope) {
 
     const int desired_priority =
         c0_thread_priority_from_rank(c0_priority_rank(item->priority_hint));
-    if (desired_priority != THREAD_PRIORITY_NORMAL) {
-        int prev = GetThreadPriority(GetCurrentThread());
-        if (prev != THREAD_PRIORITY_ERROR_RETURN &&
-            SetThreadPriority(GetCurrentThread(), desired_priority)) {
+    if (desired_priority != CURSIVE_RT_THREAD_PRIORITY_NORMAL) {
+        int prev = cursive_rt_thread_priority_get(cursive_rt_current_thread());
+        if (prev != CURSIVE_RT_THREAD_PRIORITY_INVALID &&
+            cursive_rt_thread_priority_set(cursive_rt_current_thread(), desired_priority)) {
             scope->prev_priority = prev;
             scope->priority_changed = 1;
         }
@@ -458,10 +525,12 @@ static void c0_restore_work_hints(const C0WorkHintScope* scope) {
         return;
     }
     if (scope->priority_changed) {
-        SetThreadPriority(GetCurrentThread(), scope->prev_priority);
+        cursive_rt_thread_priority_set(cursive_rt_current_thread(),
+                                       scope->prev_priority);
     }
     if (scope->affinity_changed && scope->prev_affinity != 0) {
-        SetThreadAffinityMask(GetCurrentThread(), scope->prev_affinity);
+        cursive_rt_thread_affinity_set(cursive_rt_current_thread(),
+                                       scope->prev_affinity);
     }
 }
 
@@ -482,16 +551,28 @@ static int c0_debug_flag_enabled(const char* name) {
         return 0;
     }
     char probe[2];
-    DWORD len = GetEnvironmentVariableA(name, probe, (DWORD)sizeof(probe));
+    cursive_rt_u32_t len =
+        cursive_rt_env_query_utf8(name, probe, (cursive_rt_u32_t)sizeof(probe));
     return len > 0;
+}
+
+static cursive_rt_handle_t c0_debug_stderr_handle(void) {
+    return cursive_rt_std_stream(CURSIVE_RT_STD_STREAM_ERROR);
+}
+
+static void c0_debug_write(cursive_rt_handle_t handle,
+                           const char* text,
+                           uint32_t len) {
+    cursive_rt_u32_t written = 0;
+    cursive_rt_handle_write(handle, text, (cursive_rt_u32_t)len, &written);
 }
 
 static void c0_debug_write_spawn_result(const WorkItem* item) {
     if (!item || !item->result || item->result_size == 0) {
         return;
     }
-    HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
-    if (h == NULL || h == INVALID_HANDLE_VALUE) {
+    cursive_rt_handle_t h = c0_debug_stderr_handle();
+    if (h == NULL || h == CURSIVE_RT_INVALID_HANDLE) {
         return;
     }
 
@@ -509,16 +590,15 @@ static void c0_debug_write_spawn_result(const WorkItem* item) {
     dbg_result[pos++] = ']';
     dbg_result[pos++] = '\n';
 
-    DWORD written = 0;
-    WriteFile(h, dbg_result, (DWORD)pos, &written, NULL);
+    c0_debug_write(h, dbg_result, pos);
 }
 
 static void c0_debug_write_wait_result(const WorkItem* item) {
     if (!item || !item->result || item->result_size == 0) {
         return;
     }
-    HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
-    if (h == NULL || h == INVALID_HANDLE_VALUE) {
+    cursive_rt_handle_t h = c0_debug_stderr_handle();
+    if (h == NULL || h == CURSIVE_RT_INVALID_HANDLE) {
         return;
     }
 
@@ -536,8 +616,7 @@ static void c0_debug_write_wait_result(const WorkItem* item) {
     dbg_result[pos++] = ']';
     dbg_result[pos++] = '\n';
 
-    DWORD written = 0;
-    WriteFile(h, dbg_result, (DWORD)pos, &written, NULL);
+    c0_debug_write(h, dbg_result, pos);
 }
 
 static void c0_debug_write_dispatch_range(C0Range range,
@@ -550,8 +629,8 @@ static void c0_debug_write_dispatch_range(C0Range range,
     if (!c0_debug_flag_enabled("CURSIVE_DEBUG_DISPATCH_RANGE_RUNTIME")) {
         return;
     }
-    HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
-    if (h == NULL || h == INVALID_HANDLE_VALUE) {
+    cursive_rt_handle_t h = c0_debug_stderr_handle();
+    if (h == NULL || h == CURSIVE_RT_INVALID_HANDLE) {
         return;
     }
 
@@ -578,8 +657,7 @@ static void c0_debug_write_dispatch_range(C0Range range,
     dbg[pos++] = ']';
     dbg[pos++] = '\n';
 
-    DWORD written = 0;
-    WriteFile(h, dbg, (DWORD)pos, &written, NULL);
+    c0_debug_write(h, dbg, pos);
 }
 
 static void c0_debug_write_dispatch_chunk_value(const char* label,
@@ -590,8 +668,8 @@ static void c0_debug_write_dispatch_chunk_value(const char* label,
     if (!label || !result_ptr || result_size == 0) {
         return;
     }
-    HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
-    if (h == NULL || h == INVALID_HANDLE_VALUE) {
+    cursive_rt_handle_t h = c0_debug_stderr_handle();
+    if (h == NULL || h == CURSIVE_RT_INVALID_HANDLE) {
         return;
     }
     uint32_t first_u32 = 0;
@@ -612,8 +690,7 @@ static void c0_debug_write_dispatch_chunk_value(const char* label,
     pos += c0_u64_to_dec((uint64_t)first_u32, dbg + pos);
     dbg[pos++] = ']';
     dbg[pos++] = '\n';
-    DWORD written = 0;
-    WriteFile(h, dbg, (DWORD)pos, &written, NULL);
+    c0_debug_write(h, dbg, pos);
 }
 
 static void c0_debug_write_cancel_state(const char* stage,
@@ -624,8 +701,8 @@ static void c0_debug_write_cancel_state(const char* stage,
     if (!c0_debug_flag_enabled("CURSIVE_DEBUG_PARALLEL_RUNTIME")) {
         return;
     }
-    HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
-    if (h == NULL || h == INVALID_HANDLE_VALUE) {
+    cursive_rt_handle_t h = c0_debug_stderr_handle();
+    if (h == NULL || h == CURSIVE_RT_INVALID_HANDLE) {
         return;
     }
     if (!stage) {
@@ -650,79 +727,170 @@ static void c0_debug_write_cancel_state(const char* stage,
     pos += c0_u64_to_dec((uint64_t)(cancelled ? 1 : 0), dbg + pos);
     dbg[pos++] = ']';
     dbg[pos++] = '\n';
-    DWORD written = 0;
-    WriteFile(h, dbg, (DWORD)pos, &written, NULL);
+    c0_debug_write(h, dbg, pos);
+}
+
+typedef struct C0RunItemBoundaryContext {
+    ParallelContext* ctx;
+    WorkItem* item;
+    C0PanicRecord* panic_record;
+} C0RunItemBoundaryContext;
+
+typedef struct C0ReduceBoundaryContext {
+    void* hosted_env;
+    void* left_result;
+    void* right_result;
+    void* out_result;
+    void (*reduce_fn)(void* hosted_env,
+                      void* lhs,
+                      void* rhs,
+                      void* out,
+                      void* panic_out);
+    C0PanicRecord* panic_record;
+} C0ReduceBoundaryContext;
+
+static void cursive_parallel_run_item_body(void* context) {
+    C0RunItemBoundaryContext* boundary = (C0RunItemBoundaryContext*)context;
+    ParallelContext* ctx;
+    WorkItem* item;
+    C0PanicRecord* panic_record;
+    int has_cancel_token;
+    int is_cancelled;
+
+    if (!boundary) {
+        return;
+    }
+
+    ctx = boundary->ctx;
+    item = boundary->item;
+    panic_record = boundary->panic_record;
+    has_cancel_token = ctx && ctx->cancel_token != C0_CANCEL_INVALID_ID;
+    is_cancelled = has_cancel_token ? c0_token_is_cancelled(ctx->cancel_token)
+                                    : 0;
+
+    if (has_cancel_token && is_cancelled) {
+        c0_debug_write_cancel_state("run_item-cancel", ctx, item,
+                                    ctx->cancel_token, 1);
+        item->state = WORK_CANCELLED;
+        if (item->result && item->result_size > 0) {
+            c0_memset(item->result, 0, item->result_size);
+        }
+        return;
+    }
+
+    if (ctx) {
+        c0_debug_write_cancel_state("run_item-start", ctx, item,
+                                    ctx->cancel_token, is_cancelled);
+    } else {
+        c0_debug_write_cancel_state("run_item-start", ctx, item,
+                                    C0_CANCEL_INVALID_ID, 0);
+    }
+
+    item->state = WORK_RUNNING;
+    if (item->body) {
+        item->body(item->hosted_env, item->captured_env, item->result,
+                   panic_record);
+        if (item->result && item->result_size > 0 &&
+            c0_debug_flag_enabled("CURSIVE_DEBUG_SPAWN_RESULT_RUNTIME")) {
+            c0_debug_write_spawn_result(item);
+        }
+    }
+    if (panic_record->panic) {
+        cursive_parallel_work_panic(ctx, panic_record->code);
+    }
+    if (item->state == WORK_RUNNING) {
+        item->state = WORK_COMPLETED;
+    }
+}
+
+static void cursive_parallel_run_reduce_body(void* context) {
+    C0ReduceBoundaryContext* boundary = (C0ReduceBoundaryContext*)context;
+    if (!boundary || !boundary->reduce_fn) {
+        return;
+    }
+    boundary->reduce_fn(boundary->hosted_env,
+                        boundary->left_result,
+                        boundary->right_result,
+                        boundary->out_result,
+                        boundary->panic_record);
 }
 
 static void c0_run_item(ParallelContext* ctx, WorkItem* item) {
+    C0RunItemBoundaryContext boundary;
+    cursive_rt_u32_t panic_code = 0u;
+
     if (!item) {
         return;
     }
     C0ThreadState* state = c0_tls_state();
     ParallelContext* prev_ctx = state->ctx;
     WorkItem* prev_item = state->item;
-    int prev_scope = state->in_panic_scope;
-    state->ctx = ctx;
-    state->item = item;
-    state->in_panic_scope = 1;
-
     C0PanicRecord panic_record;
+
     panic_record.panic = 0;
     panic_record.code = 0;
+    boundary.ctx = ctx;
+    boundary.item = item;
+    boundary.panic_record = &panic_record;
 
-    __try {
-        const int has_cancel_token =
-            ctx && ctx->cancel_token != C0_CANCEL_INVALID_ID;
-        const int is_cancelled =
-            has_cancel_token ? c0_token_is_cancelled(ctx->cancel_token) : 0;
-        if (has_cancel_token && is_cancelled) {
-            c0_debug_write_cancel_state("run_item-cancel", ctx, item, ctx->cancel_token, 1);
-            item->state = WORK_CANCELLED;
-            if (item->result && item->result_size > 0) {
-                c0_memset(item->result, 0, item->result_size);
-            }
-        } else {
-            if (ctx) {
-                c0_debug_write_cancel_state("run_item-start", ctx, item, ctx->cancel_token, is_cancelled);
-            } else {
-                c0_debug_write_cancel_state("run_item-start",
-                                            ctx,
-                                            item,
-                                            C0_CANCEL_INVALID_ID,
-                                            0);
-            }
-            item->state = WORK_RUNNING;
-            if (item->body) {
-                item->body(item->hosted_env, item->captured_env, item->result, &panic_record);
-                if (item->result && item->result_size > 0 &&
-                    c0_debug_flag_enabled("CURSIVE_DEBUG_SPAWN_RESULT_RUNTIME")) {
-                    c0_debug_write_spawn_result(item);
-                }
-            }
-            if (panic_record.panic) {
-                cursive_parallel_work_panic(ctx, panic_record.code);
-            }
-            if (item->state == WORK_RUNNING) {
-                item->state = WORK_COMPLETED;
-            }
-        }
-    } __except (GetExceptionCode() == C0_PANIC_EXCEPTION_CODE
-                    ? EXCEPTION_EXECUTE_HANDLER
-                    : EXCEPTION_CONTINUE_SEARCH) {
-        uint32_t code = c0_panic_code_from_exception(GetExceptionInformation());
-        cursive_parallel_work_panic(ctx, code);
+    state->ctx = ctx;
+    state->item = item;
+    if (!cursive_rt_panic_boundary_run(cursive_parallel_run_item_body,
+                                       &boundary,
+                                       &panic_code)) {
+        cursive_parallel_work_panic(ctx, panic_code);
     }
-    
-    state->in_panic_scope = prev_scope;
+    c0_record_item_settlement(ctx, item);
     state->item = prev_item;
     state->ctx = prev_ctx;
+}
+
+static SpawnHandle* c0_await_spawned(ParallelContext* ctx) {
+    if (!ctx) {
+        return NULL;
+    }
+
+    for (SpawnHandle* handle = ctx->handles_head; handle; handle = handle->next) {
+        WorkItem* item = handle->item;
+        if (!item) {
+            continue;
+        }
+
+        if (item->state == WORK_PENDING &&
+            (!item->owner_ctx || !item->owner_ctx->pool)) {
+            C0WorkHintScope hints;
+            c0_apply_work_hints(item, &hints);
+            c0_run_item(item->owner_ctx, item);
+            c0_restore_work_hints(&hints);
+            if (item->done_event) {
+                cursive_rt_event_set(item->done_event);
+            }
+        }
+
+        if (item->done_event) {
+            cursive_rt_wait(item->done_event, CURSIVE_RT_WAIT_FOREVER);
+        }
+    }
+
+    SpawnHandle* failed = NULL;
+    for (SpawnHandle* handle = ctx->handles_head; handle; handle = handle->next) {
+        WorkItem* item = handle->item;
+        if (!item || handle->state != SPAWN_HANDLE_FAILED) {
+            continue;
+        }
+        if (!failed ||
+            item->completion_seq < failed->item->completion_seq) {
+            failed = handle;
+        }
+    }
+    return failed;
 }
 
 static void c0_enqueue_item(WorkerPool* pool, WorkItem* item) {
     if (!pool || !item) {
         return;
     }
-    EnterCriticalSection(&pool->lock);
+    cursive_rt_mutex_lock(&pool->lock);
     if (pool->queue_tail) {
         pool->queue_tail->next = item;
         pool->queue_tail = item;
@@ -731,8 +899,11 @@ static void c0_enqueue_item(WorkerPool* pool, WorkItem* item) {
         pool->queue_tail = item;
     }
     pool->pending_count += 1;
-    WakeConditionVariable(&pool->work_cv);
-    LeaveCriticalSection(&pool->lock);
+    if (item->owner_ctx) {
+        item->owner_ctx->pending_count += 1;
+    }
+        cursive_rt_condition_wake_one(&pool->work_cv);
+        cursive_rt_mutex_unlock(&pool->lock);
 }
 
 static WorkItem* c0_dequeue_item_locked(WorkerPool* pool) {
@@ -746,7 +917,9 @@ static WorkItem* c0_dequeue_item_locked(WorkerPool* pool) {
     WorkItem* cur = pool->queue_head->next;
 
     while (cur) {
-        if (cur->priority_hint > best->priority_hint) {
+        if (cur->priority_hint > best->priority_hint ||
+            (cur->priority_hint == best->priority_hint &&
+             cur->task_id < best->task_id)) {
             best = cur;
             best_prev = prev;
         }
@@ -767,7 +940,7 @@ static WorkItem* c0_dequeue_item_locked(WorkerPool* pool) {
 }
 
 int c0_parallel_in_panic_scope(void) {
-    return c0_tls_state()->in_panic_scope != 0;
+    return cursive_rt_panic_boundary_active() != CURSIVE_RT_FALSE;
 }
 
 void c0_parallel_raise_panic(uint32_t code) {
@@ -775,44 +948,48 @@ void c0_parallel_raise_panic(uint32_t code) {
         cursive_panic(code);
         return;
     }
-    ULONG_PTR args[1];
-    args[0] = (ULONG_PTR)code;
-    RaiseException(C0_PANIC_EXCEPTION_CODE, 0, 1, args);
+    cursive_rt_panic_boundary_raise(code);
 }
-
-static DWORD WINAPI c0_worker_thread_proc(LPVOID param) {
+static cursive_rt_u32_t c0_worker_thread_proc(void* param) {
     WorkerPool* pool = (WorkerPool*)param;
     for (;;) {
-        EnterCriticalSection(&pool->lock);
+        cursive_rt_mutex_lock(&pool->lock);
         while (!pool->shutdown && pool->queue_head == NULL) {
-            SleepConditionVariableCS(&pool->work_cv, &pool->lock, INFINITE);
+            cursive_rt_condition_wait(&pool->work_cv, &pool->lock,
+                                      CURSIVE_RT_WAIT_FOREVER);
         }
         if (pool->shutdown) {
-            LeaveCriticalSection(&pool->lock);
+            cursive_rt_mutex_unlock(&pool->lock);
             return 0;
         }
 
         WorkItem* item = c0_dequeue_item_locked(pool);
         pool->active_workers += 1;
-        LeaveCriticalSection(&pool->lock);
+        cursive_rt_mutex_unlock(&pool->lock);
 
         if (item) {
             C0WorkHintScope hints;
             c0_apply_work_hints(item, &hints);
-            c0_run_item(pool->ctx, item);
+            c0_run_item(item->owner_ctx, item);
             c0_restore_work_hints(&hints);
-            SetEvent(item->done_event);
+            cursive_rt_event_set(item->done_event);
         }
 
-        EnterCriticalSection(&pool->lock);
+        cursive_rt_mutex_lock(&pool->lock);
         pool->active_workers -= 1;
         if (pool->pending_count > 0) {
             pool->pending_count -= 1;
         }
-        if (pool->pending_count == 0) {
-            WakeAllConditionVariable(&pool->done_cv);
+        if (item && item->owner_ctx && item->owner_ctx->pending_count > 0) {
+            item->owner_ctx->pending_count -= 1;
+            if (item->owner_ctx->pending_count == 0) {
+                cursive_rt_condition_wake_all(&item->owner_ctx->done_cv);
+            }
         }
-        LeaveCriticalSection(&pool->lock);
+        if (pool->pending_count == 0) {
+            cursive_rt_condition_wake_all(&pool->done_cv);
+        }
+        cursive_rt_mutex_unlock(&pool->lock);
     }
 }
 
@@ -822,7 +999,9 @@ void* cursive_parallel_begin(C0DynObject domain,
                              C0CancelId cancel_token,
                              const char* name) {
     const C0ExecutionDomain* dom = (const C0ExecutionDomain*)domain.data;
+    const uint32_t domain_kind = dom ? dom->kind : (uint32_t)C0_DOMAIN_CPU;
     const int inline_domain = dom && dom->kind == C0_DOMAIN_INLINE;
+    ParallelContext* prev_ctx = c0_current_ctx();
     if (c0_debug_flag_enabled("CURSIVE_DEBUG_PARALLEL_RUNTIME")) {
         char dbg[256];
         uint32_t pos = 0;
@@ -848,7 +1027,10 @@ void* cursive_parallel_begin(C0DynObject domain,
         }
         dbg[pos++] = ']';
         dbg[pos++] = '\n';
-        WriteFile(GetStdHandle(STD_ERROR_HANDLE), dbg, (DWORD)pos, NULL, NULL);
+        cursive_rt_handle_write(cursive_rt_std_stream(CURSIVE_RT_STD_STREAM_ERROR),
+                                dbg,
+                                (cursive_rt_u32_t)pos,
+                                NULL);
     }
 
     ParallelContext* ctx =
@@ -856,46 +1038,64 @@ void* cursive_parallel_begin(C0DynObject domain,
     if (!ctx) return NULL;
 
     ctx->pool = NULL;
-    if (!inline_domain) {
-        ctx->pool = (WorkerPool*)c0_heap_alloc_raw(sizeof(WorkerPool));
-        if (!ctx->pool) {
-            c0_heap_free_raw(ctx);
-            return NULL;
-        }
-        int workers = dom && dom->max_concurrency > 0 ? (int)dom->max_concurrency : 4;
-        if (workers < 1) {
-            workers = 1;
-        }
-        ctx->pool->num_workers = workers;
-        ctx->pool->active_workers = 0;
-        ctx->pool->queue_head = NULL;
-        ctx->pool->queue_tail = NULL;
-        ctx->pool->threads = NULL;
-        ctx->pool->shutdown = 0;
-        ctx->pool->pending_count = 0;
-        ctx->pool->cancel_token = cancel_token;
-        ctx->pool->ctx = ctx;
-        InitializeCriticalSection(&ctx->pool->lock);
-        InitializeConditionVariable(&ctx->pool->work_cv);
-        InitializeConditionVariable(&ctx->pool->done_cv);
-
-        // Start worker threads
-        ctx->pool->threads =
-            (HANDLE*)c0_heap_alloc_raw(sizeof(HANDLE) * ctx->pool->num_workers);
-        if (ctx->pool->threads) {
-            for (int i = 0; i < ctx->pool->num_workers; ++i) {
-                ctx->pool->threads[i] = CreateThread(NULL, 0, c0_worker_thread_proc, ctx->pool, 0, NULL);
-            }
-        }
-    }
-
+    ctx->domain_kind = domain_kind;
+    ctx->owns_pool = 0;
+    ctx->pending_count = 0;
+    cursive_rt_condition_init(&ctx->done_cv);
     ctx->cancel_token = cancel_token;
     ctx->first_panic = NULL;
     ctx->panic_count = 0;
     ctx->name = name;
+    ctx->handles_head = NULL;
+    ctx->handles_tail = NULL;
     ctx->all_items = NULL;
-    ctx->prev_ctx = c0_current_ctx();
+    ctx->prev_ctx = prev_ctx;
     ctx->inline_domain = inline_domain;
+
+    if (!inline_domain) {
+        if (domain_kind == (uint32_t)C0_DOMAIN_CPU && prev_ctx &&
+            !prev_ctx->inline_domain &&
+            prev_ctx->domain_kind == (uint32_t)C0_DOMAIN_CPU &&
+            prev_ctx->pool) {
+            ctx->pool = prev_ctx->pool;
+        } else {
+            ctx->pool = (WorkerPool*)c0_heap_alloc_raw(sizeof(WorkerPool));
+            if (!ctx->pool) {
+                c0_heap_free_raw(ctx);
+                return NULL;
+            }
+            ctx->owns_pool = 1;
+            int workers = dom && dom->max_concurrency > 0
+                              ? (int)dom->max_concurrency
+                              : 4;
+            if (workers < 1) {
+                workers = 1;
+            }
+            ctx->pool->num_workers = workers;
+            ctx->pool->active_workers = 0;
+            ctx->pool->queue_head = NULL;
+            ctx->pool->queue_tail = NULL;
+            ctx->pool->threads = NULL;
+            ctx->pool->shutdown = 0;
+            ctx->pool->pending_count = 0;
+            ctx->pool->cancel_token = cancel_token;
+            cursive_rt_mutex_init(&ctx->pool->lock);
+            cursive_rt_condition_init(&ctx->pool->work_cv);
+            cursive_rt_condition_init(&ctx->pool->done_cv);
+
+            // Start worker threads
+            ctx->pool->threads =
+                (cursive_rt_handle_t*)c0_heap_alloc_raw(
+                    sizeof(cursive_rt_handle_t) * ctx->pool->num_workers);
+            if (ctx->pool->threads) {
+                for (int i = 0; i < ctx->pool->num_workers; ++i) {
+                    ctx->pool->threads[i] =
+                        cursive_rt_thread_spawn(NULL, 0, c0_worker_thread_proc,
+                                                ctx->pool, 0, NULL);
+                }
+            }
+        }
+    }
 
     c0_set_current_ctx(ctx);
 
@@ -907,33 +1107,48 @@ void* cursive_parallel_begin(C0DynObject domain,
 int cursive_parallel_join(void* ctx_ptr) {
     if (c0_debug_flag_enabled("CURSIVE_DEBUG_PARALLEL_RUNTIME")) {
         const char* dbg1 = "[JOIN] enter\n";
-        WriteFile(GetStdHandle(STD_ERROR_HANDLE), dbg1, 13, NULL, NULL);
+        cursive_rt_handle_write(cursive_rt_std_stream(CURSIVE_RT_STD_STREAM_ERROR),
+                                dbg1,
+                                13,
+                                NULL);
     }
     
     ParallelContext* ctx = (ParallelContext*)ctx_ptr;
     if (!ctx) {
         if (c0_debug_flag_enabled("CURSIVE_DEBUG_PARALLEL_RUNTIME")) {
             const char* dbg2 = "[JOIN] null ctx\n";
-            WriteFile(GetStdHandle(STD_ERROR_HANDLE), dbg2, 15, NULL, NULL);
+            cursive_rt_handle_write(cursive_rt_std_stream(CURSIVE_RT_STD_STREAM_ERROR),
+                                    dbg2,
+                                    15,
+                                    NULL);
         }
         return 0;
     }
     
     if (ctx->pool) {
         // §18.7.1 Wait for all work to complete
-        EnterCriticalSection(&ctx->pool->lock);
-        while (ctx->pool->pending_count > 0) {
-            SleepConditionVariableCS(&ctx->pool->done_cv, &ctx->pool->lock, INFINITE);
+        cursive_rt_mutex_lock(&ctx->pool->lock);
+        while (ctx->pending_count > 0) {
+            cursive_rt_condition_wait(&ctx->done_cv, &ctx->pool->lock,
+                                      CURSIVE_RT_WAIT_FOREVER);
         }
-        ctx->pool->shutdown = 1;
-        WakeAllConditionVariable(&ctx->pool->work_cv);
-        LeaveCriticalSection(&ctx->pool->lock);
+        if (ctx->owns_pool) {
+            while (ctx->pool->pending_count > 0) {
+                cursive_rt_condition_wait(&ctx->pool->done_cv,
+                                          &ctx->pool->lock,
+                                          CURSIVE_RT_WAIT_FOREVER);
+            }
+            ctx->pool->shutdown = 1;
+            cursive_rt_condition_wake_all(&ctx->pool->work_cv);
+        }
+        cursive_rt_mutex_unlock(&ctx->pool->lock);
 
-        if (ctx->pool->threads) {
+        if (ctx->owns_pool && ctx->pool->threads) {
             for (int i = 0; i < ctx->pool->num_workers; ++i) {
                 if (ctx->pool->threads[i]) {
-                    WaitForSingleObject(ctx->pool->threads[i], INFINITE);
-                    CloseHandle(ctx->pool->threads[i]);
+                    cursive_rt_wait(ctx->pool->threads[i],
+                                    CURSIVE_RT_WAIT_FOREVER);
+                    cursive_rt_handle_release(ctx->pool->threads[i]);
                 }
             }
             c0_heap_free_raw(ctx->pool->threads);
@@ -941,6 +1156,11 @@ int cursive_parallel_join(void* ctx_ptr) {
         }
     }
     
+    SpawnHandle* failed_spawn = c0_await_spawned(ctx);
+    if (failed_spawn && failed_spawn->item && !ctx->first_panic) {
+        ctx->first_panic = failed_spawn->item;
+    }
+
     // §18.7.2 Check for panics
     int had_panic = (ctx->first_panic != NULL);
     
@@ -955,7 +1175,7 @@ int cursive_parallel_join(void* ctx_ptr) {
             c0_heap_free_raw(item->result);
         }
         if (item->done_event) {
-            CloseHandle(item->done_event);
+                    cursive_rt_handle_release(item->done_event);
         }
         if (item->handle) {
             c0_heap_free_raw(item->handle);
@@ -964,8 +1184,8 @@ int cursive_parallel_join(void* ctx_ptr) {
         item = next;
     }
 
-    if (ctx->pool) {
-        DeleteCriticalSection(&ctx->pool->lock);
+    if (ctx->pool && ctx->owns_pool) {
+            cursive_rt_mutex_destroy(&ctx->pool->lock);
         c0_heap_free_raw(ctx->pool);
     }
     c0_set_current_ctx(ctx->prev_ctx);
@@ -976,12 +1196,18 @@ int cursive_parallel_join(void* ctx_ptr) {
     // mechanism (panic record / catch-zero at FFI boundary).
     if (had_panic && c0_debug_flag_enabled("CURSIVE_DEBUG_PARALLEL_RUNTIME")) {
         const char* dbg = "[JOIN] propagating panic\n";
-        WriteFile(GetStdHandle(STD_ERROR_HANDLE), dbg, 24, NULL, NULL);
+        cursive_rt_handle_write(cursive_rt_std_stream(CURSIVE_RT_STD_STREAM_ERROR),
+                                dbg,
+                                24,
+                                NULL);
     }
     
     if (c0_debug_flag_enabled("CURSIVE_DEBUG_PARALLEL_RUNTIME")) {
         const char* dbg_exit = "[JOIN] done\n";
-        WriteFile(GetStdHandle(STD_ERROR_HANDLE), dbg_exit, 12, NULL, NULL);
+        cursive_rt_handle_write(cursive_rt_std_stream(CURSIVE_RT_STD_STREAM_ERROR),
+                                dbg_exit,
+                                12,
+                                NULL);
     }
     return had_panic ? 1 : 0;
 }
@@ -1000,7 +1226,10 @@ void* cursive_spawn_create(void* env, size_t env_size,
         char dbg[32];
         dbg[0] = '['; dbg[1] = 'S'; dbg[2] = 'P'; dbg[3] = 'A'; dbg[4] = 'W'; dbg[5] = 'N';
         dbg[6] = ' '; dbg[7] = '#'; dbg[8] = '0' + (spawn_count % 10); dbg[9] = ']'; dbg[10] = '\n';
-        WriteFile(GetStdHandle(STD_ERROR_HANDLE), dbg, 11, NULL, NULL);
+        cursive_rt_handle_write(cursive_rt_std_stream(CURSIVE_RT_STD_STREAM_ERROR),
+                                dbg,
+                                11,
+                                NULL);
     }
     SpawnHandle* handle =
         (SpawnHandle*)c0_heap_alloc_raw(sizeof(SpawnHandle));
@@ -1021,9 +1250,13 @@ void* cursive_spawn_create(void* env, size_t env_size,
         }
     }
 
-    item->done_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    item->done_event =
+        cursive_rt_event_open(NULL, CURSIVE_RT_TRUE, CURSIVE_RT_FALSE, NULL);
 
     item->state = WORK_PENDING;
+    item->task_id = c0_fresh_task_id();
+    item->completion_seq = 0;
+    item->owner_ctx = c0_current_ctx();
     item->hosted_env = hosted_env;
     item->body = body;
     item->result = result_size > 0 ? c0_heap_alloc_raw(result_size) : NULL;
@@ -1033,31 +1266,35 @@ void* cursive_spawn_create(void* env, size_t env_size,
     item->panic_code = 0;
     item->next = NULL;
     item->all_next = NULL;
-    handle->is_ready = 0;
+    handle->id = item->task_id;
+    handle->state = body == NULL ? SPAWN_HANDLE_READY : SPAWN_HANDLE_PENDING;
+    handle->item = item;
+    handle->next = NULL;
+    item->handle = handle;
 
     if (body == NULL) {
         item->state = WORK_COMPLETED;
-        handle->is_ready = 1;
+        c0_record_item_settlement(c0_current_ctx(), item);
         if (item->done_event) {
-            SetEvent(item->done_event);
+            cursive_rt_event_set(item->done_event);
         }
     } else if (c0_current_ctx() && c0_current_ctx()->pool) {
         c0_enqueue_item(c0_current_ctx()->pool, item);
-    } else {
-        // No active parallel context or inline domain: execute inline
+    } else if (!c0_current_ctx()) {
+        // Defensive fallback for invalid outside-parallel runtime entry.
         C0WorkHintScope hints;
         c0_apply_work_hints(item, &hints);
-        c0_run_item(c0_current_ctx(), item);
+        c0_run_item(item->owner_ctx, item);
         c0_restore_work_hints(&hints);
-        handle->is_ready = 1;
         if (item->done_event) {
-            SetEvent(item->done_event);
+            cursive_rt_event_set(item->done_event);
         }
+    } else {
+        // Inline/no-pool parallel domains keep spawned work pending until wait/join.
     }
-    item->handle = handle;
-    
-    handle->item = item;
+
     if (c0_current_ctx()) {
+        c0_register_spawn_handle(c0_current_ctx(), handle);
         item->all_next = c0_current_ctx()->all_items;
         c0_current_ctx()->all_items = item;
     }
@@ -1072,28 +1309,35 @@ void* cursive_spawn_wait(void* handle_ptr) {
     if (!handle || !handle->item) {
         if (c0_debug_flag_enabled("CURSIVE_DEBUG_PARALLEL_RUNTIME")) {
             const char* dbg = "[WAIT] null handle\n";
-            WriteFile(GetStdHandle(STD_ERROR_HANDLE), dbg, 18, NULL, NULL);
+            cursive_rt_handle_write(cursive_rt_std_stream(CURSIVE_RT_STD_STREAM_ERROR),
+                                    dbg,
+                                    18,
+                                    NULL);
         }
         return NULL;
     }
     
     WorkItem* item = handle->item;
     
-    if (item->done_event) {
-        WaitForSingleObject(item->done_event, INFINITE);
-    } else if (item->state == WORK_PENDING) {
-        // Fallback: execute inline if event is missing
-        c0_run_item(c0_current_ctx(), item);
+    if (item->state == WORK_PENDING &&
+        (!item->done_event || (item->owner_ctx && !item->owner_ctx->pool))) {
+        c0_run_item(item->owner_ctx, item);
+        if (item->done_event) {
+            cursive_rt_event_set(item->done_event);
+        }
+    } else if (item->done_event) {
+        cursive_rt_wait(item->done_event, CURSIVE_RT_WAIT_FOREVER);
     }
-    
-    handle->is_ready = 1;
-    
+
     if (c0_debug_flag_enabled("CURSIVE_DEBUG_PARALLEL_RUNTIME")) {
         char dbg[32];
         dbg[0] = '['; dbg[1] = 'W'; dbg[2] = 'A'; dbg[3] = 'I'; dbg[4] = 'T';
         dbg[5] = ' '; dbg[6] = 's'; dbg[7] = 't'; dbg[8] = '=';
         dbg[9] = '0' + item->state; dbg[10] = ']'; dbg[11] = '\n';
-        WriteFile(GetStdHandle(STD_ERROR_HANDLE), dbg, 12, NULL, NULL);
+        cursive_rt_handle_write(cursive_rt_std_stream(CURSIVE_RT_STD_STREAM_ERROR),
+                                dbg,
+                                12,
+                                NULL);
     }
     
     // §18.7.1 Panic is propagated at the enclosing parallel boundary after
@@ -1102,7 +1346,10 @@ void* cursive_spawn_wait(void* handle_ptr) {
     if (item->state == WORK_PANICKED) {
         if (c0_debug_flag_enabled("CURSIVE_DEBUG_PARALLEL_RUNTIME")) {
             const char* dbg2 = "[WAIT] propagating panic\n";
-            WriteFile(GetStdHandle(STD_ERROR_HANDLE), dbg2, 24, NULL, NULL);
+            cursive_rt_handle_write(cursive_rt_std_stream(CURSIVE_RT_STD_STREAM_ERROR),
+                                    dbg2,
+                                    24,
+                                    NULL);
         }
         if (item->result && item->result_size > 0) {
             c0_memset(item->result, 0, item->result_size);
@@ -1408,12 +1655,8 @@ void cursive_dispatch_run(C0Range range, size_t elem_size, size_t result_size,
                                   ordered,
                                   chunk_size);
     if (end <= start) {
-        if (reduce_result && result_size > 0) {
-            if (reduce_fn) {
-                c0_memset(reduce_result, 0, result_size);
-            } else if (c0_reduce_has_op(reduce_op)) {
-                c0_reduce_init(reduce_op, reduce_result, result_size);
-            }
+        if ((reduce_fn || c0_reduce_has_op(reduce_op)) && result_size > 0) {
+            cursive_panic(C0_PANIC_REDUCED_EMPTY_DISPATCH);
         }
         return;
     }
@@ -1438,11 +1681,16 @@ void cursive_dispatch_run(C0Range range, size_t elem_size, size_t result_size,
             return;
         }
         item->state = WORK_PENDING;
+        item->task_id = c0_fresh_task_id();
+        item->completion_seq = 0;
+        item->owner_ctx = c0_current_ctx();
         item->captured_env = &env;
         item->hosted_env = NULL;
         item->body = c0_dispatch_chunk;
         item->result = reduce_result;
         item->result_size = result_size;
+        item->affinity_mask = 0;
+        item->priority_hint = c0_priority_rank(1);
         item->panic_code = 0;
         item->next = NULL;
         item->all_next = NULL;
@@ -1452,7 +1700,7 @@ void cursive_dispatch_run(C0Range range, size_t elem_size, size_t result_size,
             item->all_next = c0_current_ctx()->all_items;
             c0_current_ctx()->all_items = item;
         }
-        c0_run_item(c0_current_ctx(), item);
+        c0_run_item(item->owner_ctx, item);
         item->captured_env = NULL;
         item->result = NULL;
         item->result_size = 0;
@@ -1520,6 +1768,9 @@ void cursive_dispatch_run(C0Range range, size_t elem_size, size_t result_size,
             continue;
         }
         item->state = WORK_PENDING;
+        item->task_id = c0_fresh_task_id();
+        item->completion_seq = 0;
+        item->owner_ctx = ctx;
         item->captured_env = env;
         item->hosted_env = NULL;
         item->body = c0_dispatch_chunk;
@@ -1527,11 +1778,14 @@ void cursive_dispatch_run(C0Range range, size_t elem_size, size_t result_size,
                            ? c0_heap_alloc_raw(result_size)
                            : NULL;
         item->result_size = result_size;
+        item->affinity_mask = 0;
+        item->priority_hint = c0_priority_rank(1);
         item->panic_code = 0;
         item->next = NULL;
         item->all_next = NULL;
         item->handle = NULL;
-        item->done_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+        item->done_event = cursive_rt_event_open(
+            NULL, CURSIVE_RT_TRUE, CURSIVE_RT_FALSE, NULL);
 
         items[c] = item;
         if (ctx) {
@@ -1555,7 +1809,7 @@ void cursive_dispatch_run(C0Range range, size_t elem_size, size_t result_size,
             continue;
         }
         if (item->done_event) {
-            WaitForSingleObject(item->done_event, INFINITE);
+            cursive_rt_wait(item->done_event, CURSIVE_RT_WAIT_FOREVER);
         }
         if (reduce_result && item->result && result_size > 0) {
             if (c0_debug_flag_enabled("CURSIVE_DEBUG_DISPATCH_RESULT_RUNTIME")) {
@@ -1595,35 +1849,36 @@ void cursive_dispatch_run(C0Range range, size_t elem_size, size_t result_size,
                             break;
                         }
                     } else {
+                        C0ReduceBoundaryContext boundary;
+                        cursive_rt_u32_t panic_code = 0u;
                         C0PanicRecord panic_record;
                         panic_record.panic = 0;
                         panic_record.code = 0;
                         C0ThreadState* state = c0_tls_state();
                         ParallelContext* prev_ctx = state->ctx;
                         WorkItem* prev_item = state->item;
-                        int prev_scope = state->in_panic_scope;
                         state->ctx = ctx;
                         state->item = reduce_item;
-                        state->in_panic_scope = 1;
-                        __try {
-                            reduce_fn(hosted_env, reduce_result, item->result, reduce_result, &panic_record);
-                            if (panic_record.panic) {
-                                cursive_parallel_work_panic(ctx, panic_record.code);
-                            }
-                        } __except (GetExceptionCode() == C0_PANIC_EXCEPTION_CODE
-                                        ? EXCEPTION_EXECUTE_HANDLER
-                                        : EXCEPTION_CONTINUE_SEARCH) {
-                            uint32_t code =
-                                c0_panic_code_from_exception(GetExceptionInformation());
-                            cursive_parallel_work_panic(ctx, code);
+                        boundary.hosted_env = hosted_env;
+                        boundary.left_result = reduce_result;
+                        boundary.right_result = item->result;
+                        boundary.out_result = reduce_result;
+                        boundary.reduce_fn = reduce_fn;
+                        boundary.panic_record = &panic_record;
+                        if (!cursive_rt_panic_boundary_run(
+                                cursive_parallel_run_reduce_body,
+                                &boundary,
+                                &panic_code)) {
+                            cursive_parallel_work_panic(ctx, panic_code);
                             state->ctx = prev_ctx;
                             state->item = prev_item;
-                            state->in_panic_scope = prev_scope;
                             break;
+                        }
+                        if (panic_record.panic) {
+                            cursive_parallel_work_panic(ctx, panic_record.code);
                         }
                         state->ctx = prev_ctx;
                         state->item = prev_item;
-                        state->in_panic_scope = prev_scope;
                     }
                 }
             } else if (use_builtin) {
@@ -1650,9 +1905,9 @@ C0CancelId cursive_cancel_token_new(void) {
         return C0_CANCEL_INVALID_ID;
     }
 
-    EnterCriticalSection(&c0_cancel_registry.lock);
+    cursive_rt_mutex_lock(&c0_cancel_registry.lock);
     token_id = c0_cancel_registry_new_locked(C0_CANCEL_INVALID_ID);
-    LeaveCriticalSection(&c0_cancel_registry.lock);
+    cursive_rt_mutex_unlock(&c0_cancel_registry.lock);
     return token_id;
 }
 
@@ -1662,9 +1917,9 @@ void cursive_cancel_token_cancel(C0CancelId token_id) {
         return;
     }
 
-    EnterCriticalSection(&c0_cancel_registry.lock);
+    cursive_rt_mutex_lock(&c0_cancel_registry.lock);
     c0_cancel_registry_cancel_locked(token_id);
-    LeaveCriticalSection(&c0_cancel_registry.lock);
+    cursive_rt_mutex_unlock(&c0_cancel_registry.lock);
 }
 
 // §18.6.1 Check if cancelled
@@ -1684,17 +1939,19 @@ void cursive_parallel_work_panic(void* ctx_ptr, uint32_t code) {
         return;
     }
 
+    int request_cancel = 0;
+    c0_lock_parallel_ctx(ctx);
     item->state = WORK_PANICKED;
     item->panic_code = code;
     if (item->result && item->result_size > 0) {
         c0_memset(item->result, 0, item->result_size);
     }
     ctx->panic_count += 1;
-    if (!ctx->first_panic) {
-        ctx->first_panic = item;
-    }
+    request_cancel =
+        (ctx->cancel_token != C0_CANCEL_INVALID_ID && ctx->panic_count == 1);
+    c0_unlock_parallel_ctx(ctx);
 
-    if (ctx->cancel_token != C0_CANCEL_INVALID_ID && ctx->panic_count == 1) {
+    if (request_cancel) {
         cursive_cancel_token_cancel(ctx->cancel_token);
     }
 }
@@ -1726,11 +1983,11 @@ C0CancelId CancelToken_x3a_x3aActive_x3a_x3achild(void* self) {
         return C0_CANCEL_INVALID_ID;
     }
 
-    EnterCriticalSection(&c0_cancel_registry.lock);
+    cursive_rt_mutex_lock(&c0_cancel_registry.lock);
     if (c0_cancel_registry_valid_id_locked(parent)) {
         child = c0_cancel_registry_new_locked(parent);
     }
-    LeaveCriticalSection(&c0_cancel_registry.lock);
+    cursive_rt_mutex_unlock(&c0_cancel_registry.lock);
     return child;
 }
 

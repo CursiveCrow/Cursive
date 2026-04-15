@@ -22,6 +22,11 @@ struct Layout {
   std::uint64_t align = 1;
 };
 
+struct LoweredAsyncType {
+  std::vector<std::string> states;
+  cursive::analysis::TypeRef resume_type;
+};
+
 struct RecordLayout {
   Layout layout;
   std::vector<std::uint64_t> offsets;
@@ -83,6 +88,11 @@ std::optional<std::uint64_t> PrimAlign(std::string_view name);
 std::optional<cursive::analysis::TypeRef> LowerTypeForLayout(
     const cursive::analysis::ScopeContext& ctx,
     const std::shared_ptr<cursive::ast::Type>& type);
+
+std::optional<LoweredAsyncType> LowerAsyncType(
+    const cursive::analysis::TypeRef& type);
+std::optional<LoweredAsyncType> LowerAsyncType(
+    const cursive::analysis::AsyncSig& sig);
 
 std::optional<Layout> LayoutOf(const cursive::analysis::ScopeContext& ctx,
                                const cursive::analysis::TypeRef& type);
@@ -211,6 +221,21 @@ struct Value {
                BytesVal>
       node;
 };
+
+std::optional<Value> TupleValue(const TupleVal& tuple, std::size_t index);
+std::optional<TupleVal> TupleUpdate(const TupleVal& tuple,
+                                    std::size_t index,
+                                    Value value);
+const Value* FieldValue(const RecordVal& record, std::string_view name);
+std::optional<RecordVal> FieldUpdate(const RecordVal& record,
+                                     std::string_view name,
+                                     Value value);
+std::optional<ArrayVal> IndexUpdate(const ArrayVal& array,
+                                    std::size_t index,
+                                    Value value);
+std::size_t SliceLen(const ArrayVal& array);
+std::optional<std::size_t> SliceLen(const Value& value);
+std::optional<Value> SliceElem(const ArrayVal& array, std::size_t index);
 
 std::optional<std::vector<std::uint8_t>> EncodeConst(
     const cursive::analysis::TypeRef& type,

@@ -10,8 +10,8 @@ public procedure ContractsForeignHierarchyDynamicImpl(value: i32) -> i32 {
     return -1
 }
 
-[[mangle("hc_contracts_foreign_hierarchy_trust_impl"), export("C-unwind")]]
-public procedure ContractsForeignHierarchyTrustImpl(value: i32) -> i32 {
+[[mangle("hc_contracts_foreign_hierarchy_default_impl"), export("C-unwind")]]
+public procedure ContractsForeignHierarchyDefaultImpl(value: i32) -> i32 {
     let _ = value
     return -1
 }
@@ -27,9 +27,8 @@ extern "C" {
         |: @foreign_ensures(@result >= 0)
 }
 
-[[trust]]
 extern "C" {
-    procedure hc_contracts_foreign_hierarchy_trust_impl(value: i32) -> i32
+    procedure hc_contracts_foreign_hierarchy_default_impl(value: i32) -> i32
         |: @foreign_ensures(@result >= 0)
 }
 
@@ -43,19 +42,19 @@ extern "C" {
     procedure hc_contracts_foreign_hierarchy_dynamic_catch() -> i32
 }
 
-procedure TrustBoundaryVerificationHierarchyMetricLabel(value: i32) -> string@View {
+procedure ForeignVerificationHierarchyMetricLabel(value: i32) -> string@View {
     if (value == 28) {
         return "28"
     }
     return "other"
 }
 
-public procedure RunTrustBoundaryVerificationHierarchy(ctx: Context) -> i32 {
+public procedure RunForeignVerificationHierarchy(ctx: Context) -> i32 {
     let _ = ctx
     [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
 
     let static_value: i32 = unsafe { hc_contracts_foreign_hierarchy_static_impl(2) }
-    let trust_value: i32 = unsafe { hc_contracts_foreign_hierarchy_trust_impl(2) }
+    let default_value: i32 = unsafe { hc_contracts_foreign_hierarchy_default_impl(2) }
     let dynamic_panic_catch_metric: i32 = unsafe {
         hc_contracts_foreign_hierarchy_dynamic_catch()
     }
@@ -63,52 +62,52 @@ public procedure RunTrustBoundaryVerificationHierarchy(ctx: Context) -> i32 {
     let static_value_is_negative_log: bool =
         [[log(label: "observed-contracts-foreign-hierarchy-static-negative", expected: true)]]
         static_value < 0
-    let trust_value_is_negative_log: bool =
-        [[log(label: "observed-contracts-foreign-hierarchy-trust-negative", expected: true)]]
-        trust_value < 0
+    let default_value_is_negative_log: bool =
+        [[log(label: "observed-contracts-foreign-hierarchy-default-negative", expected: true)]]
+        default_value < 0
     let dynamic_panic_catch_metric_log: i32 =
         [[log(label: "observed-contracts-foreign-hierarchy-dynamic-catch", expected: 0)]]
         dynamic_panic_catch_metric
 
     let static_mode_skips_runtime_check: bool = static_value_is_negative_log == true
     let dynamic_mode_enforces_runtime_check: bool = dynamic_panic_catch_metric_log == 0
-    let trust_mode_skips_runtime_check: bool = trust_value_is_negative_log == true
+    let default_mode_skips_runtime_check: bool = default_value_is_negative_log == true
     let static_mode_skips_runtime_check_log: bool =
-        [[log(label: "contracts-trust-boundary-static-mode", expected: true)]]
+        [[log(label: "contracts-foreign-verification-hierarchy-static-mode", expected: true)]]
         static_mode_skips_runtime_check
     let dynamic_mode_enforces_runtime_check_log: bool =
-        [[log(label: "contracts-trust-boundary-dynamic-mode", expected: true)]]
+        [[log(label: "contracts-foreign-verification-hierarchy-dynamic-mode", expected: true)]]
         dynamic_mode_enforces_runtime_check
-    let trust_mode_skips_runtime_check_log: bool =
-        [[log(label: "contracts-trust-boundary-trust-mode", expected: true)]]
-        trust_mode_skips_runtime_check
+    let default_mode_skips_runtime_check_log: bool =
+        [[log(label: "contracts-foreign-verification-hierarchy-default-mode", expected: true)]]
+        default_mode_skips_runtime_check
 
     let con_072: string@View = "CON-072"
     let con_074: string@View = "CON-074"
     let con_072_log: string@View =
-        [[log(label: "contracts-trust-boundary-verification-hierarchy-feature-072", expected: "CON-072")]]
+        [[log(label: "contracts-foreign-verification-hierarchy-feature-072", expected: "CON-072")]]
         con_072
     let con_074_log: string@View =
-        [[log(label: "contracts-trust-boundary-verification-hierarchy-feature-074", expected: "CON-074")]]
+        [[log(label: "contracts-foreign-verification-hierarchy-feature-074", expected: "CON-074")]]
         con_074
 
     let runtime_ok: bool =
         (static_value_is_negative_log == true) &&
         (dynamic_panic_catch_metric_log == 0) &&
-        (trust_value_is_negative_log == true) &&
+        (default_value_is_negative_log == true) &&
         (static_mode_skips_runtime_check_log == true) &&
         (dynamic_mode_enforces_runtime_check_log == true) &&
-        (trust_mode_skips_runtime_check_log == true) &&
+        (default_mode_skips_runtime_check_log == true) &&
         (con_072_log == "CON-072") &&
         (con_074_log == "CON-074")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-trust-boundary-verification-hierarchy-runtime", expected: true)]]
+        [[log(label: "contracts-foreign-verification-hierarchy-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 28 } else { 0 }
-    let metric_label: string@View = TrustBoundaryVerificationHierarchyMetricLabel(metric)
+    let metric_label: string@View = ForeignVerificationHierarchyMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-trust-boundary-verification-hierarchy-metric", expected: "28")]]
+        [[log(label: "observed-contracts-foreign-verification-hierarchy-metric", expected: "28")]]
         metric_label
     if (metric_log_actual != "28") {
         [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"

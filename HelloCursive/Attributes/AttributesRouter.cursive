@@ -26,56 +26,56 @@ public procedure run(ctx: Context) -> i32 {
         return 1
     }
 
-    let status_syntax: i32 = AttributeSyntaxAndRegistry::RunGroup(ctx)
+    let status_syntax: i32 = AttributeSyntaxAndRegistry::runGroup(ctx)
     AttributesLogGroupStatus("attributes::AttributeSyntaxAndRegistry", status_syntax)
     if (status_syntax != 0) {
         [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
         return status_syntax
     }
 
-    let status_layout: i32 = LayoutAttributes::RunGroup(ctx)
+    let status_layout: i32 = LayoutAttributes::runGroup(ctx)
     AttributesLogGroupStatus("attributes::LayoutAttributes", status_layout)
     if (status_layout != 0) {
         [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
         return status_layout
     }
 
-    let status_optimization: i32 = OptimizationHintAttributes::RunGroup(ctx)
+    let status_optimization: i32 = OptimizationHintAttributes::runGroup(ctx)
     AttributesLogGroupStatus("attributes::OptimizationHintAttributes", status_optimization)
     if (status_optimization != 0) {
         [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
         return status_optimization
     }
 
-    let status_metadata: i32 = MetadataAndVerificationAttributes::RunGroup(ctx)
+    let status_metadata: i32 = MetadataAndVerificationAttributes::runGroup(ctx)
     AttributesLogGroupStatus("attributes::MetadataAndVerificationAttributes", status_metadata)
     if (status_metadata != 0) {
         [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
         return status_metadata
     }
 
-    let status_log: i32 = LogAttributeSemantics::RunGroup(ctx)
+    let status_log: i32 = LogAttributeSemantics::runGroup(ctx)
     AttributesLogGroupStatus("attributes::LogAttributeSemantics", status_log)
     if (status_log != 0) {
         [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
         return status_log
     }
 
-    let status_memory_order: i32 = MemoryOrderingAttributes::RunGroup(ctx)
+    let status_memory_order: i32 = MemoryOrderingAttributes::runGroup(ctx)
     AttributesLogGroupStatus("attributes::MemoryOrderingAttributes", status_memory_order)
     if (status_memory_order != 0) {
         [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
         return status_memory_order
     }
 
-    let status_ffi: i32 = FfiAttributes::RunGroup(ctx)
+    let status_ffi: i32 = FfiAttributes::runGroup(ctx)
     AttributesLogGroupStatus("attributes::FfiAttributes", status_ffi)
     if (status_ffi != 0) {
         [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
         return status_ffi
     }
 
-    let status_diagnostics: i32 = AttributeDiagnostics::RunGroup(ctx)
+    let status_diagnostics: i32 = AttributeDiagnostics::runGroup(ctx)
     AttributesLogGroupStatus("attributes::AttributeDiagnostics", status_diagnostics)
     if (status_diagnostics != 0) {
         [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"

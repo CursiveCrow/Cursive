@@ -560,6 +560,25 @@ std::string BuiltinSymBytesDropManaged() {
 }
 
 // =============================================================================
+// Section 14.10.6 Foundational intrinsic-call symbols
+// =============================================================================
+
+std::string BuiltinSymEqEq() {
+  SPEC_DEF("BuiltinSym-Eq-eq", "Section 14.10.6");
+  return core::PathSig({"cursive", "intrinsic", "eq", "eq"});
+}
+
+std::string BuiltinSymStepSuccessor() {
+  SPEC_DEF("BuiltinSym-Step-successor", "Section 14.10.6");
+  return core::PathSig({"cursive", "intrinsic", "step", "successor"});
+}
+
+std::string BuiltinSymStepPredecessor() {
+  SPEC_DEF("BuiltinSym-Step-predecessor", "Section 14.10.6");
+  return core::PathSig({"cursive", "intrinsic", "step", "predecessor"});
+}
+
+// =============================================================================
 // Section 19 Reactor builtins
 // =============================================================================
 
@@ -938,6 +957,11 @@ std::string BuiltinSym(const std::string& qualified_name) {
       {"bytes::length", &BuiltinSymBytesLength},
       {"bytes::is_empty", &BuiltinSymBytesIsEmpty},
   }};
+  static const std::array<BuiltinSymbolEntry, 3> kFoundationalBuiltins = {{
+      {"Eq::eq", &BuiltinSymEqEq},
+      {"Step::successor", &BuiltinSymStepSuccessor},
+      {"Step::predecessor", &BuiltinSymStepPredecessor},
+  }};
   static const std::array<BuiltinSymbolEntry, 8> kRegionBuiltins = {{
       {"Region::new_scoped", &BuiltinModalSymRegionNewScoped},
       {"Region::alloc", &BuiltinModalSymRegionAlloc},
@@ -1012,6 +1036,12 @@ std::string BuiltinSym(const std::string& qualified_name) {
 
   // Bytes builtins
   if (const auto sym = LookupBuiltinSymbol(qualified_name, kBytesBuiltins);
+      !sym.empty()) {
+    return sym;
+  }
+
+  // Foundational intrinsic-call methods
+  if (const auto sym = LookupBuiltinSymbol(qualified_name, kFoundationalBuiltins);
       !sym.empty()) {
     return sym;
   }

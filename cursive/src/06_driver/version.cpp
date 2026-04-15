@@ -24,7 +24,7 @@ constexpr int VERSION_MAJOR = 0;
 constexpr int VERSION_MINOR = 1;
 constexpr int VERSION_PATCH = 0;
 constexpr const char* VERSION_PRERELEASE = "alpha";
-constexpr const char* COMPILER_NAME = "cursive";
+constexpr const char* COMPILER_NAME = "Cursive";
 
 }  // namespace
 

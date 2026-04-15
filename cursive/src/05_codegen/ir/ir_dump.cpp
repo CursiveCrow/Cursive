@@ -43,7 +43,8 @@
 //      - Low-level: IRBranch, IRPhi
 //      - Panic: IRClearPanic, IRPanicCheck, IRInitPanicHandle, IRLowerPanic
 //      - Poison: IRCheckPoison
-//      - Parallelism: IRParallel, IRSpawn, IRWait, IRDispatch (Section 19)
+//      - Parallelism: IRParallel, IRSpawn, IRWait, IRCancelCheck,
+//        IRCancelSuppress, IRDispatch (Section 19)
 //      - Async: IRYield, IRYieldFrom, IRSync, IRRaceReturn, IRRaceYield, IRAll (Section 19.2-19.3)
 //   3. Smart formatting for common patterns (addr_of + bind, call + bind)
 //   4. Indentation-aware output for nested structures
@@ -738,6 +739,15 @@ struct Dumper {
     oss << " -> ";
     Dump(wait.result);
   }
+
+  void DumpNode(const IRCancelCheck& check) {
+    oss << "cancel_check ";
+    Dump(check.token);
+    oss << " -> ";
+    Dump(check.result);
+  }
+
+  void DumpNode(const IRCancelSuppress&) { oss << "cancel_suppress"; }
 
   void DumpNode(const IRDispatch& dispatch) {
     oss << "dispatch {\n";

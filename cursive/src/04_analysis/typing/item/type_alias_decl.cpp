@@ -231,8 +231,9 @@ TypeAliasDeclResult TypeTypeAliasDecl(
   for (const auto& gp : gen_params.params) {
     type_param_names.push_back(gp.name);
   }
-  if (decl.where_clause.has_value()) {
-    const auto where_result = ProcessWhereClause(ctx, decl.where_clause->predicates, type_param_names);
+  if (decl.predicate_clause_opt.has_value()) {
+    const auto where_result = ProcessWhereClause(
+        ctx, decl.predicate_clause_opt->predicates, type_param_names);
     if (!where_result.ok) {
       result.ok = false;
       result.diag_id = where_result.diag_id;

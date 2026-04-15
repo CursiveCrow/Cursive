@@ -8,6 +8,9 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\\..\\..")).Path
 if ([string]::IsNullOrWhiteSpace($CompilerPath)) {
     $compilerCandidates = @(
+        (Join-Path $repoRoot "cursive\\build\\windows\\out\\cursive.exe"),
+        (Join-Path $repoRoot "cursive\\build\\windows\\Debug\\cursive.exe"),
+        (Join-Path $repoRoot "cursive\\build\\windows\\Release\\cursive.exe"),
         (Join-Path $repoRoot "cursive\\build\\Debug\\cursive.exe"),
         (Join-Path $repoRoot "cursive\\build\\Release\\cursive.exe"),
         (Join-Path $repoRoot "build\\Debug\\cursive.exe"),
@@ -48,6 +51,51 @@ $cases = @(
         expectExit = 1
         source = @'
 [[export]]
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
+'@
+    },
+    @{
+        id = "E-MOD-2450-inline-unsupported-mode"
+        expectCodes = @("E-MOD-2450")
+        expectExit = 1
+        source = @'
+[[inline(hint)]]
+public procedure InlineUnsupportedModeProbe() -> i32 {
+    return 0
+}
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
+'@
+    },
+    @{
+        id = "E-MOD-2450-inline-named-arg"
+        expectCodes = @("E-MOD-2450")
+        expectExit = 1
+        source = @'
+[[inline(mode: always)]]
+public procedure InlineNamedArgProbe() -> i32 {
+    return 0
+}
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
+'@
+    },
+    @{
+        id = "E-MOD-2450-inline-multiple-args"
+        expectCodes = @("E-MOD-2450")
+        expectExit = 1
+        source = @'
+[[inline(always, never)]]
+public procedure InlineMultipleArgsProbe() -> i32 {
+    return 0
+}
 public procedure main(move ctx: Context) -> i32 {
     let _ = ctx
     return 0
@@ -126,13 +174,32 @@ public procedure main(move ctx: Context) -> i32 {
 '@
     },
     @{
-        id = "E-UNS-0101-derive"
-        expectCodes = @("E-UNS-0101")
+        id = "E-MOD-2450-derive-missing-target"
+        expectCodes = @("E-MOD-2450")
         expectExit = 1
         source = @'
 [[derive]]
 public enum DeferredDerive {
     A
+}
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
+'@
+    },
+    @{
+        id = "E-CTE-0312-derive-duplicate-target"
+        expectCodes = @("E-CTE-0312")
+        expectExit = 1
+        source = @'
+derive target Display(target: Type) {
+    let _ = target
+}
+
+[[derive(Display, Display)]]
+public record DeferredDeriveDuplicate {
+    value: i32
 }
 public procedure main(move ctx: Context) -> i32 {
     let _ = ctx
@@ -165,6 +232,80 @@ public procedure main(move ctx: Context) -> i32 {
 '@
     },
     @{
+        id = "E-MOD-2450-memory-order-expression-placement"
+        expectCodes = @("E-MOD-2450")
+        expectExit = 1
+        source = @'
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let value: i32 = [[acquire]] (1 + 2)
+    return value
+}
+'@
+    },
+    @{
+        id = "E-MOD-2450-layout-missing-parens"
+        expectCodes = @("E-MOD-2450")
+        expectExit = 1
+        source = @'
+[[layout]]
+public record MissingLayoutArgs {
+    value: i32
+}
+public procedure main(move ctx: Context) -> i32 {
+    let _ = MissingLayoutArgs { value: 1 }
+    return 0
+}
+'@
+    },
+    @{
+        id = "E-MOD-2450-layout-named-arg"
+        expectCodes = @("E-MOD-2450")
+        expectExit = 1
+        source = @'
+[[layout(mode: C)]]
+public record LayoutNamedArgProbe {
+    value: i32
+}
+public procedure main(move ctx: Context) -> i32 {
+    let _ = LayoutNamedArgProbe { value: 1 }
+    return 0
+}
+'@
+    },
+    @{
+        id = "E-MOD-2450-layout-invalid-int-type"
+        expectCodes = @("E-MOD-2450")
+        expectExit = 1
+        source = @'
+[[layout(i128)]]
+public enum LayoutInvalidIntTypeProbe {
+    Value
+}
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let _ = LayoutInvalidIntTypeProbe::Value
+    return 0
+}
+'@
+    },
+    @{
+        id = "E-MOD-2450-layout-usize-discriminant-type"
+        expectCodes = @("E-MOD-2450")
+        expectExit = 1
+        source = @'
+[[layout(usize)]]
+public enum LayoutUsizeDiscriminantProbe {
+    Value
+}
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let _ = LayoutUsizeDiscriminantProbe::Value
+    return 0
+}
+'@
+    },
+    @{
         id = "E-MOD-2452"
         expectCodes = @("E-MOD-2452")
         expectExit = 1
@@ -184,6 +325,64 @@ public procedure main(move ctx: Context) -> i32 {
     let _ = ctx
     let value: i32 = [[stale_ok]] 1
     return value
+}
+'@
+    },
+    @{
+        id = "E-MOD-2452-import-decl"
+        expectCodes = @("E-MOD-2452")
+        expectExit = 1
+        source = @'
+[[deprecated]]
+import probe::missing
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
+'@
+    },
+    @{
+        id = "E-MOD-2452-using-decl"
+        expectCodes = @("E-MOD-2452")
+        expectExit = 1
+        source = @'
+[[deprecated]]
+using probe::*
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
+'@
+    },
+    @{
+        id = "E-MOD-2452-class-decl"
+        expectCodes = @("E-MOD-2452")
+        expectExit = 1
+        source = @'
+[[deprecated]]
+public class UnsupportedAttrClass {
+    procedure score(~) -> i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
+'@
+    },
+    @{
+        id = "E-MOD-2452-static-decl"
+        expectCodes = @("E-MOD-2452")
+        expectExit = 1
+        source = @'
+[[deprecated]]
+let unsupported_attr_value: i32 = 1
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return unsupported_attr_value
 }
 '@
     },

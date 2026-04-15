@@ -34,12 +34,8 @@
  *   - Async operations (yield, spawn, wait, etc.)
  *
  * DIAGNOSTIC CODES:
- *   - E-CON-0010: Impure contract predicate
- *   - E-CON-0011: Capability call in contract
- *   - E-CON-0012: Mutation in contract
- *   - E-CON-0013: I/O in contract
- *   - E-CON-0014: Allocation in contract
- *   - E-SEM-3004: Async operation in contract
+ *   - E-SEM-2802: Impure expression in contract predicate
+ *   - E-SEM-3004: Impure expression in contract clause
  *
  * =============================================================================
  */
@@ -160,7 +156,7 @@ void CheckBinaryPurity(const ast::BinaryExpr& binary, PurityCheckState& state) {
   if (!IsPureBinaryOp(binary.op)) {
     state.has_error = true;
     state.result.ok = false;
-    state.result.diag_id = "E-CON-0010";  // Impure operator
+    state.result.diag_id = "E-SEM-2802";  // Impure expression in contract predicate
     return;
   }
 
@@ -180,7 +176,7 @@ void CheckUnaryPurity(const ast::UnaryExpr& unary, PurityCheckState& state) {
   if (!IsPureUnaryOp(unary.op) && unary.op != "*") {
     state.has_error = true;
     state.result.ok = false;
-    state.result.diag_id = "E-CON-0010";  // Impure operator
+    state.result.diag_id = "E-SEM-2802";  // Impure expression in contract predicate
     return;
   }
 
@@ -196,7 +192,7 @@ void CheckMethodCallPurity(const ast::MethodCallExpr& call,
   if (IsLikelyCapabilityCall(call)) {
     state.has_error = true;
     state.result.ok = false;
-    state.result.diag_id = "E-CON-0011";  // Capability call in contract
+    state.result.diag_id = "E-SEM-2802";  // Impure expression in contract predicate
     return;
   }
 
@@ -204,7 +200,7 @@ void CheckMethodCallPurity(const ast::MethodCallExpr& call,
   // have that information, so it must conservatively reject the call.
   state.has_error = true;
   state.result.ok = false;
-  state.result.diag_id = "E-CON-0010";  // Impure contract predicate
+  state.result.diag_id = "E-SEM-2802";  // Impure expression in contract predicate
 }
 
 // Check purity of a call expression
@@ -216,7 +212,7 @@ void CheckCallPurity(const ast::CallExpr& call, PurityCheckState& state) {
   // proof, this checker must conservatively treat calls as impure.
   state.has_error = true;
   state.result.ok = false;
-  state.result.diag_id = "E-CON-0010";  // Impure contract predicate
+  state.result.diag_id = "E-SEM-2802";  // Impure expression in contract predicate
 }
 
 // Check purity of a field access expression (pure for reading)
@@ -419,7 +415,7 @@ void CheckExprPurity(const ast::ExprPtr& expr, PurityCheckState& state) {
         else if constexpr (std::is_same_v<T, ast::AllocExpr>) {
           state.has_error = true;
           state.result.ok = false;
-          state.result.diag_id = "E-CON-0014";  // Allocation in contract
+          state.result.diag_id = "E-SEM-2802";  // Impure expression in contract predicate
           state.result.span = expr->span;
         }
 
@@ -427,7 +423,7 @@ void CheckExprPurity(const ast::ExprPtr& expr, PurityCheckState& state) {
         else if constexpr (std::is_same_v<T, ast::MoveExpr>) {
           state.has_error = true;
           state.result.ok = false;
-          state.result.diag_id = "E-CON-0012";  // Mutation in contract
+          state.result.diag_id = "E-SEM-2802";  // Impure expression in contract predicate
           state.result.span = expr->span;
         }
 
@@ -435,7 +431,7 @@ void CheckExprPurity(const ast::ExprPtr& expr, PurityCheckState& state) {
         else if constexpr (std::is_same_v<T, ast::TransmuteExpr>) {
           state.has_error = true;
           state.result.ok = false;
-          state.result.diag_id = "E-CON-0010";  // Impure operation
+          state.result.diag_id = "E-SEM-2802";  // Impure expression in contract predicate
           state.result.span = expr->span;
         }
 
@@ -443,7 +439,7 @@ void CheckExprPurity(const ast::ExprPtr& expr, PurityCheckState& state) {
         else if constexpr (std::is_same_v<T, ast::PropagateExpr>) {
           state.has_error = true;
           state.result.ok = false;
-          state.result.diag_id = "E-CON-0010";  // Impure operation
+          state.result.diag_id = "E-SEM-2802";  // Impure expression in contract predicate
           state.result.span = expr->span;
         }
 
@@ -502,17 +498,17 @@ void CheckExprPurity(const ast::ExprPtr& expr, PurityCheckState& state) {
         else if constexpr (std::is_same_v<T, ast::LoopInfiniteExpr>) {
           state.has_error = true;
           state.result.ok = false;
-          state.result.diag_id = "E-CON-0010";  // Impure operation
+          state.result.diag_id = "E-SEM-2802";  // Impure expression in contract predicate
           state.result.span = expr->span;
         } else if constexpr (std::is_same_v<T, ast::LoopConditionalExpr>) {
           state.has_error = true;
           state.result.ok = false;
-          state.result.diag_id = "E-CON-0010";  // Impure operation
+          state.result.diag_id = "E-SEM-2802";  // Impure expression in contract predicate
           state.result.span = expr->span;
         } else if constexpr (std::is_same_v<T, ast::LoopIterExpr>) {
           state.has_error = true;
           state.result.ok = false;
-          state.result.diag_id = "E-CON-0010";  // Impure operation
+          state.result.diag_id = "E-SEM-2802";  // Impure expression in contract predicate
           state.result.span = expr->span;
         }
 
@@ -521,7 +517,7 @@ void CheckExprPurity(const ast::ExprPtr& expr, PurityCheckState& state) {
           // Blocks may contain impure statements - conservative
           state.has_error = true;
           state.result.ok = false;
-          state.result.diag_id = "E-CON-0010";  // Impure operation
+          state.result.diag_id = "E-SEM-2802";  // Impure expression in contract predicate
           state.result.span = expr->span;
         }
 
@@ -529,7 +525,7 @@ void CheckExprPurity(const ast::ExprPtr& expr, PurityCheckState& state) {
         else if constexpr (std::is_same_v<T, ast::UnsafeBlockExpr>) {
           state.has_error = true;
           state.result.ok = false;
-          state.result.diag_id = "E-CON-0010";  // Unsafe in contract
+          state.result.diag_id = "E-SEM-2802";  // Impure expression in contract predicate
           state.result.span = expr->span;
         }
 
@@ -607,7 +603,7 @@ void CheckExprPurity(const ast::ExprPtr& expr, PurityCheckState& state) {
         else {
           state.has_error = true;
           state.result.ok = false;
-          state.result.diag_id = "E-CON-0010";  // Unknown expression purity
+          state.result.diag_id = "E-SEM-2802";  // Impure expression in contract predicate
           state.result.span = expr->span;
         }
       },

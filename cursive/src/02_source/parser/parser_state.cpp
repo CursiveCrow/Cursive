@@ -23,6 +23,42 @@ namespace cursive::ast {
 using cursive::lexer::DocComment;
 using cursive::lexer::MakeEofToken;
 using cursive::lexer::Token;
+using cursive::lexer::TokenKind;
+
+namespace {
+
+core::Span PointSpanAtEnd(const Token& token) {
+  core::Span span = token.span;
+  span.start_offset = token.span.end_offset;
+  span.start_line = token.span.end_line;
+  span.start_col = token.span.end_col;
+  return span;
+}
+
+Token MakeParserEofToken(const Parser& parser) {
+  Token eof;
+  eof.kind = TokenKind::Eof;
+  eof.lexeme.clear();
+
+  if (parser.source) {
+    return MakeEofToken(*parser.source);
+  }
+
+  if (parser.tokens && !parser.tokens->empty()) {
+    eof.span = PointSpanAtEnd(parser.tokens->back());
+    return eof;
+  }
+
+  eof.span = {};
+  return eof;
+}
+
+Token& ParserEofTokenCache() {
+  thread_local Token eof;
+  return eof;
+}
+
+}  // namespace
 
 // =============================================================================
 // MakeParser - Initialize parser state
@@ -41,11 +77,11 @@ Parser MakeParser(const std::vector<Token>& tokens,
                   const core::SourceFile& source) {
   Parser parser;
   parser.tokens = &tokens;
+  parser.source = &source;
   parser.index = 0;
   parser.docs = &docs;
   parser.doc_index = 0;
   parser.depth = 0;
-  parser.eof = MakeEofToken(source);
   return parser;
 }
 
@@ -75,11 +111,13 @@ bool AtEof(const Parser& parser) {
 //
 // SPEC: Section 3.3.3 lines 2981-2983
 // Returns K[i] if i < |K|, else EOF token
-// Returns pointer to current token or nullptr if at EOF
+// Returns a pointer to K[i], or to the explicit EOF token when i = |K|
 
 const Token* Tok(const Parser& parser) {
   if (!parser.tokens || parser.index >= parser.tokens->size()) {
-    return &parser.eof;
+    Token& eof = ParserEofTokenCache();
+    eof = MakeParserEofToken(parser);
+    return &eof;
   }
   return &(*parser.tokens)[parser.index];
 }
@@ -92,6 +130,19 @@ const Token* Tok(const Parser& parser) {
 
 const core::Span& TokSpan(const Parser& parser) {
   return Tok(parser)->span;
+}
+
+// =============================================================================
+// TokensBetween - Token index span between parser states
+// =============================================================================
+//
+// SPEC: Section 5.5 line 2917
+// TokensBetween(P_0, P) = <TokIndex(P_0), TokIndex(P)>
+
+std::pair<std::size_t, std::size_t> TokensBetween(const Parser& start,
+                                                  const Parser& end) {
+  SPEC_DEF("TokensBetween", "5.5");
+  return std::pair<std::size_t, std::size_t>{start.index, end.index};
 }
 
 // =============================================================================

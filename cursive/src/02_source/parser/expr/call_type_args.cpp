@@ -43,14 +43,16 @@ TryParseTypeArgs(Parser parser) {
   targs.push_back(first.elem);
 
   Parser cur = first.parser;
-  const std::array<TokenKindMatch, 1> gt_end_set = {MatchOperator(">")};
+  const std::array<EndSetToken, 1> gt_end_set = {EndOperator(">")};
   while (IsPunc(cur, ",")) {
     Parser after_comma = cur;
     Advance(after_comma);
     SkipNewlines(after_comma);
 
     if (IsOp(after_comma, ">")) {
-      SPEC_RULE("Parse-TypeListTail-TrailingComma");
+      if (TrailingCommaAllowed(cur, gt_end_set)) {
+        SPEC_RULE("Parse-TypeListTail-TrailingComma");
+      }
       EmitTrailingCommaErr(cur, gt_end_set);
       after_comma.diags = cur.diags;
       cur = after_comma;

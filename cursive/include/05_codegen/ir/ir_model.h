@@ -344,6 +344,14 @@ struct IRWait {
   IRValue result;                       // T (extracted from Spawned)
 };
 
+// §18.6 Explicit cancellation check IR
+struct IRCancelSuppress {};
+
+struct IRCancelCheck {
+  IRValue token;                        // CancelToken@Active
+  IRValue result;                       // bool
+};
+
 // §18.5 Dispatch expression IR
 struct IRDispatch {
   std::shared_ptr<ast::Pattern> pattern;  // Iteration variable
@@ -494,6 +502,8 @@ struct IR {
                IRParallel,
                IRSpawn,
                IRWait,
+               IRCancelSuppress,
+               IRCancelCheck,
                IRDispatch,
                // C0X Extension: Asynchronous Operations (§19)
                IRYield,

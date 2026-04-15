@@ -57,6 +57,7 @@
 #include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/dyn_dispatch/dyn_dispatch.h"
 #include "05_codegen/layout/layout.h"
+#include "05_codegen/lower/expr/closure_expr.h"
 #include "05_codegen/lower/lower_proc.h"
 #include "05_codegen/symbols/mangle.h"
 namespace cursive::codegen {
@@ -950,6 +951,53 @@ LowerResult LowerRefArgExprWithTemp(const ast::ExprPtr& expr,
                      addr_result.value};
 }
 
+LowerResult LowerMoveArgExprWithTemp(const ast::Arg& arg,
+                                     std::string_view temp_prefix,
+                                     const analysis::TypeRef& expected_type,
+                                     LowerCtx& ctx) {
+  if (!arg.value) {
+    return LowerResult{EmptyIR(), IRValue{}};
+  }
+
+  if (!analysis::UsesCallTempForConsuming(
+          std::optional<analysis::ParamMode>(analysis::ParamMode::Move), arg)) {
+    auto moved_expr = analysis::MovedArgExpr(arg);
+    return LowerExpr(*moved_expr, ctx);
+  }
+
+  auto value_result = LowerExpr(*arg.value, ctx);
+  std::string temp_name = ctx.FreshTempValue(temp_prefix).name;
+
+  analysis::TypeRef temp_type = ctx.LookupValueType(value_result.value);
+  if (!temp_type && ctx.expr_type) {
+    temp_type = ctx.expr_type(*arg.value);
+  }
+  if (!temp_type && expected_type) {
+    temp_type = expected_type;
+  }
+  if (!temp_type) {
+    temp_type = analysis::MakeTypePrim("()");
+  }
+
+  IRBindVar bind;
+  bind.name = temp_name;
+  bind.value = value_result.value;
+  bind.type = temp_type;
+  bind.prov = analysis::ProvenanceKind::Stack;
+
+  ctx.RegisterVar(temp_name, temp_type, false, false,
+                  analysis::ProvenanceKind::Stack, std::nullopt);
+
+  ast::Expr temp_ident;
+  temp_ident.span = arg.value->span;
+  temp_ident.node = ast::IdentifierExpr{temp_name};
+  auto move_result = LowerMovePlace(temp_ident, ctx);
+
+  return LowerResult{
+      SeqIR({value_result.ir, MakeIR(std::move(bind)), move_result.ir}),
+      move_result.value};
+}
+
 // =============================================================================
 // Section 6.4 LowerArgs - lower call arguments (LTR order)
 // =============================================================================
@@ -1012,8 +1060,12 @@ std::pair<IRPtr, std::vector<IRValue>> LowerArgs(
 
     if (params[i].has_value()) {
       SPEC_RULE("Lower-Args-Cons-Move");
-      auto moved_expr = analysis::MovedArgExpr(args[i]);
-      auto result = LowerExpr(*moved_expr, ctx);
+      analysis::TypeRef expected_type = nullptr;
+      if (param_types && i < param_types->size()) {
+        expected_type = (*param_types)[i];
+      }
+      auto result =
+          LowerMoveArgExprWithTemp(args[i], "call_move_tmp", expected_type, ctx);
       ir_parts.push_back(result.ir);
       values.push_back(result.value);
       continue;
@@ -1128,6 +1180,13 @@ LowerResult LowerCallExpr(const ast::CallExpr& expr, LowerCtx& ctx) {
         "record_ctor",
         ctx);
     return LowerResult{ir, record_value};
+  }
+
+  if (ctx.expr_type) {
+    const auto callee_type = ctx.expr_type(*expr.callee);
+    if (IsClosureType(callee_type)) {
+      return LowerClosureCall(*expr.callee, expr.args, ctx);
+    }
   }
 
   const bool debug_call = core::IsDebugEnabled("codegen");

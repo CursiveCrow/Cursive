@@ -80,16 +80,13 @@ static ExprTypeResult TypeExprWithCurrentEnv(const ScopeContext& ctx,
     return {};
   }
 
-  const auto via_callback = type_expr(expr);
-  if (via_callback.ok) {
-    return via_callback;
-  }
-
-  // Nested block callbacks can close over an older environment; retry with the
-  // current statement environment so prior block-local bindings are visible.
   const auto via_env = TypeExpr(ctx, type_ctx, expr, env);
   if (via_env.ok || via_env.diag_id.has_value()) {
     return via_env;
+  }
+  const auto via_callback = type_expr(expr);
+  if (via_callback.ok) {
+    return via_callback;
   }
   return via_callback;
 }
@@ -172,6 +169,7 @@ static bool UpdateBindingType(TypeEnv& env,
       continue;
     }
     found->second.type = type;
+    found->second.storage_type = type;
     return true;
   }
   return false;
@@ -213,9 +211,16 @@ StmtTypeResult TypeExprStmt(const ScopeContext& ctx,
   TypeEnv out_env = env;
   if (node.value) {
     if (const auto* method = std::get_if<ast::MethodCallExpr>(&node.value->node)) {
+      const ast::ExprPtr* receiver = &method->receiver;
       if (method->receiver) {
+        if (const auto* moved =
+                std::get_if<ast::MoveExpr>(&method->receiver->node)) {
+          receiver = &moved->place;
+        }
+      }
+      if (*receiver) {
         if (const auto* ident =
-                std::get_if<ast::IdentifierExpr>(&method->receiver->node)) {
+                std::get_if<ast::IdentifierExpr>(&(*receiver)->node)) {
           const auto binding = BindOf(out_env, ident->name);
           if (binding.has_value()) {
             const auto transitioned =

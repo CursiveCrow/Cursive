@@ -54,12 +54,7 @@ namespace {
 // Helper Types and Functions
 // =============================================================================
 
-// CaptureBinding represents a single captured variable
-struct CaptureBinding {
-  std::string name;
-  analysis::TypeRef type;
-  bool explicit_move = false;
-};
+using CaptureBinding = ParallelCaptureBinding;
 
 // ScopedNames tracks locally-defined names within nested scopes to avoid
 // capturing them
@@ -249,6 +244,13 @@ struct CaptureCollector {
   ScopedNames locals;
   std::unordered_set<std::string> explicit_moves;
 
+  void MaybeCaptureImplicitRegion() {
+    if (ctx.active_region_aliases.empty()) {
+      return;
+    }
+    RecordCapture(ctx.active_region_aliases.back());
+  }
+
   void RecordCapture(std::string_view name) {
     const std::string key(name);
     if (locals.IsLocal(key)) {
@@ -329,13 +331,13 @@ void CaptureCollector::VisitExpr(const ast::ExprPtr& expr) {
           for (const auto& elem : node.elements) {
             VisitExpr(elem);
           }
-        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
-            VisitExpr(elem);
-          }
-        } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
-          VisitExpr(node.value);
-          VisitExpr(node.count);
+    } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+      ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& subexpr) {
+        VisitExpr(subexpr);
+      });
+    } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
+      VisitExpr(node.value);
+      VisitExpr(node.count);
         } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
           for (const auto& field : node.fields) {
             VisitExpr(field.value);
@@ -459,7 +461,11 @@ void CaptureCollector::VisitExpr(const ast::ExprPtr& expr) {
           VisitExpr(node.value);
         } else if constexpr (std::is_same_v<T, ast::AllocExpr>) {
           VisitExpr(node.value);
-          // AllocExpr.region_opt is std::optional<Identifier>, not ExprPtr
+          if (node.region_opt) {
+            RecordCapture(*node.region_opt);
+          } else {
+            MaybeCaptureImplicitRegion();
+          }
         } else if constexpr (std::is_same_v<T, ast::SizeofExpr>) {
           // Type, no capture
         } else if constexpr (std::is_same_v<T, ast::AlignofExpr>) {
@@ -606,6 +612,7 @@ struct LowerCtxSnapshot {
   int parallel_collect_depth = 0;
   std::optional<CaptureEnvInfo> capture_env;
   analysis::TypeRef proc_ret_type;
+  std::vector<std::string> active_region_aliases;
 
   explicit LowerCtxSnapshot(const LowerCtx& ctx)
       : scope_stack(ctx.scope_stack),
@@ -617,7 +624,8 @@ struct LowerCtxSnapshot {
         parallel_collect(ctx.parallel_collect),
         parallel_collect_depth(ctx.parallel_collect_depth),
         capture_env(ctx.capture_env),
-        proc_ret_type(ctx.proc_ret_type) {}
+        proc_ret_type(ctx.proc_ret_type),
+        active_region_aliases(ctx.active_region_aliases) {}
 
   void Restore(LowerCtx& ctx) const {
     ctx.scope_stack = scope_stack;
@@ -635,6 +643,7 @@ struct LowerCtxSnapshot {
     ctx.parallel_collect_depth = parallel_collect_depth;
     ctx.capture_env = capture_env;
     ctx.proc_ret_type = proc_ret_type;
+    ctx.active_region_aliases = active_region_aliases;
   }
 };
 
@@ -675,86 +684,11 @@ LowerResult LowerSpawnExpr(const ast::Expr& expr,
     captures = CollectCaptures(*node.body, ctx);
   }
 
-  // Step 2: Build capture environment
-  std::vector<analysis::TypeRef> env_fields;
-  std::vector<IRValue> env_values;
-  std::vector<IRPtr> env_parts;
-
-  CaptureEnvInfo env_info;
-  env_info.captures.clear();
-
-  for (std::size_t i = 0; i < captures.size(); ++i) {
-    const auto& cap = captures[i];
-    const auto perm = PermissionOfType(cap.type);
-    const bool by_ref = perm == analysis::Permission::Const ||
-                        perm == analysis::Permission::Shared;
-    analysis::TypeRef field_type = cap.type;
-    if (by_ref) {
-      field_type = analysis::MakeTypePtr(cap.type, analysis::PtrState::Valid);
-    }
-
-    env_fields.push_back(field_type);
-    CaptureAccess access;
-    access.index = i;
-    access.value_type = cap.type;
-    access.field_type = field_type;
-    access.by_ref = by_ref;
-    env_info.captures[cap.name] = access;
-
-    IRValue field_val;
-    IRPtr field_ir = EmptyIR();
-    if (by_ref) {
-      IRValue ptr = ctx.FreshTempValue("capture_addr");
-      DerivedValueInfo info;
-      info.kind = DerivedValueInfo::Kind::AddrLocal;
-      info.name = cap.name;
-      ctx.RegisterDerivedValue(ptr, info);
-      ctx.RegisterValueType(
-          ptr,
-          analysis::MakeTypePtr(cap.type, analysis::PtrState::Valid));
-      field_val = ptr;
-    } else if (cap.explicit_move) {
-      ast::Expr ident_expr;
-      ident_expr.node = ast::IdentifierExpr{cap.name};
-      auto move_res = LowerMovePlace(ident_expr, ctx);
-      field_val = move_res.value;
-      field_ir = move_res.ir;
-    } else {
-      field_val.kind = IRValue::Kind::Local;
-      field_val.name = cap.name;
-    }
-    if (field_ir && !std::holds_alternative<IROpaque>(field_ir->node)) {
-      env_parts.push_back(field_ir);
-    }
-    env_values.push_back(field_val);
-  }
-
-  analysis::TypeRef env_type = analysis::MakeTypeTuple(env_fields);
-  env_info.env_type = env_type;
-
-  // Step 4: Create environment variable and get its pointer
-  IRValue env_tuple = ctx.FreshTempValue("spawn_env");
-  DerivedValueInfo tuple_info;
-  tuple_info.kind = DerivedValueInfo::Kind::TupleLit;
-  tuple_info.elements = env_values;
-  ctx.RegisterDerivedValue(env_tuple, tuple_info);
-  ctx.RegisterValueType(env_tuple, env_type);
-
-  const std::string env_var_name = ctx.FreshTempValue("spawn_env_var").name;
-  IRBindVar bind_env;
-  bind_env.name = env_var_name;
-  bind_env.value = env_tuple;
-  bind_env.type = env_type;
-  env_parts.push_back(MakeIR(std::move(bind_env)));
-
-  IRValue env_ptr = ctx.FreshTempValue("spawn_env_ptr");
-  DerivedValueInfo addr_info;
-  addr_info.kind = DerivedValueInfo::Kind::AddrLocal;
-  addr_info.name = env_var_name;
-  ctx.RegisterDerivedValue(env_ptr, addr_info);
-  ctx.RegisterValueType(
-      env_ptr,
-      analysis::MakeTypePtr(env_type, analysis::PtrState::Valid));
+  auto lowered_env = ctx.LowerParallelCaptureEnv(captures, "spawn");
+  auto env_parts = std::move(lowered_env.ir_parts);
+  auto env_info = std::move(lowered_env.env_info);
+  const analysis::TypeRef env_type = env_info.env_type;
+  const IRValue env_ptr = env_info.env_param;
 
   // Compute environment size
   const analysis::ScopeContext& scope = ScopeForLowering(ctx);
@@ -889,12 +823,10 @@ LowerResult LowerSpawnExpr(const ast::Expr& expr,
     ctx.RegisterVar(result_param.name, result_ptr_type, false, false);
     ctx.RegisterVar(panic_param.name, panic_param.type, true, false);
 
-    CaptureEnvInfo wrapper_env = env_info;
     IRValue env_param_val;
     env_param_val.kind = IRValue::Kind::Local;
     env_param_val.name = env_param.name;
-    wrapper_env.env_param = env_param_val;
-    ctx.capture_env = wrapper_env;
+    ctx.BindAll(ctx.LoadEnv(env_param_val, env_info.env_type, env_info.captures));
 
     // Lower the spawn body
     LowerResult body_result;
@@ -932,6 +864,7 @@ LowerResult LowerSpawnExpr(const ast::Expr& expr,
     ret.value = unit_ret;
 
     std::vector<IRPtr> parts;
+    parts.push_back(MakeIR(IRCancelSuppress{}));
     if (body_result.ir) {
       parts.push_back(body_result.ir);
     }
@@ -992,8 +925,6 @@ LowerResult LowerSpawnExpr(const ast::Expr& expr,
         break;
       case ast::SpawnOptionKind::Priority:
         spawn.priority = opt_result.value;
-        break;
-      case ast::SpawnOptionKind::MoveCapture:
         break;
     }
   }

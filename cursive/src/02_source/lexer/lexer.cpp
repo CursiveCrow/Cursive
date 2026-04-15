@@ -31,8 +31,9 @@
 // 3. IsPunc() - Punctuator token check (lines 29-31)
 // 4. BeginsOperand() - Check if token can start operand (lines 33-63)
 //    Used for newline filtering heuristics
-//    Includes keywords: if, loop, unsafe, move, transmute, widen,
-//                       parallel, spawn, dispatch, yield, sync, race, all
+//    Includes keywords: if, loop, unsafe, comptime, quote, move,
+//                       transmute, widen, parallel, spawn, dispatch,
+//                       yield, sync, race, all
 //
 // 5. IsAmbigOp() - Ambiguous operator check (lines 65-68)
 //    Operators that can be binary or unary: +, -, *, &, |
@@ -92,7 +93,8 @@
 //     a. Inside ( ) or [ ]: filter (expression context)
 //     b. Inside { }: keep (statement context)
 //     c. After comma: filter (continuation)
-//     d. After binary operator with following operand: filter
+//     d. After non-unary operators: filter; `..` / `..=` additionally require
+//        the following token to begin an operand
 //     e. Before ., ::, ~>: filter (method chaining)
 //
 // =============================================================================
@@ -170,7 +172,7 @@ bool BeginsOperand(const Token& tok) {
     case TokenKind::Keyword:
       return tok.lexeme == "if" ||
              tok.lexeme == "loop" || tok.lexeme == "unsafe" ||
-             tok.lexeme == "comptime" ||
+             tok.lexeme == "comptime" || tok.lexeme == "quote" ||
              tok.lexeme == "move" || tok.lexeme == "transmute" ||
              tok.lexeme == "widen" ||
              // C0X Extension: Structured Concurrency
@@ -201,10 +203,10 @@ int DeltaDepth(const Token& tok) {
   if (tok.kind != TokenKind::Punctuator) {
     return 0;
   }
-  if (tok.lexeme == "(" || tok.lexeme == "[" || tok.lexeme == "{") {
+  if (tok.lexeme == "(" || tok.lexeme == "[") {
     return 1;
   }
-  if (tok.lexeme == ")" || tok.lexeme == "]" || tok.lexeme == "}") {
+  if (tok.lexeme == ")" || tok.lexeme == "]") {
     return -1;
   }
   return 0;
@@ -214,6 +216,13 @@ struct Candidate {
   TokenKind kind = TokenKind::Unknown;
   std::size_t next = 0;
   core::DiagnosticStream diags;
+};
+
+struct NewlineContext {
+  std::vector<int> paren_depth;
+  std::vector<int> bracket_depth;
+  std::vector<std::size_t> prev_index;
+  std::vector<std::size_t> next_index;
 };
 
 int KindPriority(TokenKind kind) {
@@ -235,6 +244,104 @@ int KindPriority(TokenKind kind) {
     default:
       return -1;
   }
+}
+
+NewlineContext BuildNewlineContext(const std::vector<Token>& tokens) {
+  const std::size_t n = tokens.size();
+  NewlineContext ctx;
+  ctx.paren_depth.assign(n + 1, 0);
+  ctx.bracket_depth.assign(n + 1, 0);
+  for (std::size_t i = 0; i < n; ++i) {
+    ctx.paren_depth[i + 1] = ctx.paren_depth[i];
+    ctx.bracket_depth[i + 1] = ctx.bracket_depth[i];
+    if (tokens[i].kind == TokenKind::Punctuator) {
+      if (tokens[i].lexeme == "(") ctx.paren_depth[i + 1]++;
+      else if (tokens[i].lexeme == ")") ctx.paren_depth[i + 1]--;
+      else if (tokens[i].lexeme == "[") ctx.bracket_depth[i + 1]++;
+      else if (tokens[i].lexeme == "]") ctx.bracket_depth[i + 1]--;
+    }
+  }
+
+  ctx.prev_index.assign(n, static_cast<std::size_t>(-1));
+  std::size_t prev_non_newline = static_cast<std::size_t>(-1);
+  for (std::size_t i = 0; i < n; ++i) {
+    ctx.prev_index[i] = prev_non_newline;
+    if (tokens[i].kind != TokenKind::Newline) {
+      prev_non_newline = i;
+    }
+  }
+
+  ctx.next_index.assign(n, static_cast<std::size_t>(-1));
+  std::size_t next_non_newline = static_cast<std::size_t>(-1);
+  for (std::size_t i = n; i-- > 0;) {
+    ctx.next_index[i] = next_non_newline;
+    if (tokens[i].kind != TokenKind::Newline) {
+      next_non_newline = i;
+    }
+  }
+
+  return ctx;
+}
+
+bool ContinuesLineImpl(const std::vector<Token>& tokens,
+                       std::size_t i,
+                       const NewlineContext& ctx) {
+  if (i >= tokens.size() || tokens[i].kind != TokenKind::Newline) {
+    return false;
+  }
+
+  bool cont = false;
+
+  if (ctx.paren_depth[i] > 0 || ctx.bracket_depth[i] > 0) {
+    cont = true;
+  }
+
+  if (!cont && ctx.prev_index[i] != static_cast<std::size_t>(-1)) {
+    const Token& prev = tokens[ctx.prev_index[i]];
+    if (IsPunc(prev, ",")) {
+      cont = true;
+    } else if (prev.kind == TokenKind::Operator) {
+      if ((IsAmbigOp(prev.lexeme) || IsRangeContOp(prev.lexeme)) &&
+          ctx.next_index[i] != static_cast<std::size_t>(-1)) {
+        const Token& next = tokens[ctx.next_index[i]];
+        if (BeginsOperand(next)) {
+          cont = true;
+        }
+      }
+      if (!cont && !IsUnaryOnly(prev.lexeme) &&
+          !IsRangeContOp(prev.lexeme)) {
+        cont = true;
+      }
+    }
+  }
+
+  if (!cont && ctx.prev_index[i] != static_cast<std::size_t>(-1) &&
+      ctx.next_index[i] != static_cast<std::size_t>(-1)) {
+    const Token& prev = tokens[ctx.prev_index[i]];
+    if (IsPunc(prev, "]]")) {
+      const Token& next = tokens[ctx.next_index[i]];
+      if (BeginsOperand(next)) {
+        cont = true;
+      }
+    }
+  }
+
+  if (!cont && ctx.next_index[i] != static_cast<std::size_t>(-1)) {
+    const Token& next = tokens[ctx.next_index[i]];
+    if (next.lexeme == "." || next.lexeme == "::" || next.lexeme == "~>") {
+      cont = true;
+    }
+  }
+
+  return cont;
+}
+
+bool RequiredTerminatorImpl(const std::vector<Token>& tokens,
+                            std::size_t i,
+                            const NewlineContext& ctx) {
+  return i < tokens.size() &&
+         tokens[i].kind == TokenKind::Newline &&
+         !ContinuesLineImpl(tokens, i, ctx);
 }
 
 bool IsDecDigit(core::UnicodeScalar c) {
@@ -419,38 +526,7 @@ std::vector<Token> LexNewlines(const core::SourceFile& source,
 
 std::vector<Token> FilterNewlines(const std::vector<Token>& tokens) {
   const std::size_t n = tokens.size();
-
-  // Track expression depths for the Depth(K, i) continuation disjunct.
-  std::vector<int> paren_depth(n + 1, 0);   // ( )
-  std::vector<int> bracket_depth(n + 1, 0); // [ ]
-  for (std::size_t i = 0; i < n; ++i) {
-    paren_depth[i + 1] = paren_depth[i];
-    bracket_depth[i + 1] = bracket_depth[i];
-    if (tokens[i].kind == TokenKind::Punctuator) {
-      if (tokens[i].lexeme == "(") paren_depth[i + 1]++;
-      else if (tokens[i].lexeme == ")") paren_depth[i + 1]--;
-      else if (tokens[i].lexeme == "[") bracket_depth[i + 1]++;
-      else if (tokens[i].lexeme == "]") bracket_depth[i + 1]--;
-    }
-  }
-
-  std::vector<std::size_t> prev_index(n, static_cast<std::size_t>(-1));
-  std::size_t prev_non_newline = static_cast<std::size_t>(-1);
-  for (std::size_t i = 0; i < n; ++i) {
-    prev_index[i] = prev_non_newline;
-    if (tokens[i].kind != TokenKind::Newline) {
-      prev_non_newline = i;
-    }
-  }
-
-  std::vector<std::size_t> next_index(n, static_cast<std::size_t>(-1));
-  std::size_t next_non_newline = static_cast<std::size_t>(-1);
-  for (std::size_t i = n; i-- > 0;) {
-    next_index[i] = next_non_newline;
-    if (tokens[i].kind != TokenKind::Newline) {
-      next_non_newline = i;
-    }
-  }
+  const NewlineContext ctx = BuildNewlineContext(tokens);
 
   std::vector<Token> out;
   out.reserve(tokens.size());
@@ -461,64 +537,22 @@ std::vector<Token> FilterNewlines(const std::vector<Token>& tokens) {
       out.push_back(tok);
       continue;
     }
-
-    bool cont = false;
-
-    if (paren_depth[i] > 0 || bracket_depth[i] > 0) {
-      cont = true;
-    }
-
-    // After comma: continuation (allows multi-line argument lists, etc.)
-    if (!cont && prev_index[i] != static_cast<std::size_t>(-1)) {
-      const Token& prev = tokens[prev_index[i]];
-      if (IsPunc(prev, ",")) {
-        cont = true;
-      } else if (prev.kind == TokenKind::Operator) {
-        // Continue(K, i) operator disjunct from spec:
-        //   ((t in Ambig or t in RangeCont) and Next begins operand)
-        //   OR (t not in UnaryOnly and t not in RangeCont).
-        if ((IsAmbigOp(prev.lexeme) || IsRangeContOp(prev.lexeme)) &&
-            next_index[i] != static_cast<std::size_t>(-1)) {
-          const Token& next = tokens[next_index[i]];
-          if (BeginsOperand(next)) {
-            cont = true;
-          }
-        }
-        if (!cont && !IsUnaryOnly(prev.lexeme) &&
-            !IsRangeContOp(prev.lexeme) &&
-            !IsAmbigOp(prev.lexeme)) {
-          cont = true;
-        }
-      }
-    }
-
-    // After attribute close `]]`, allow newline continuation when the next
-    // token begins an operand expression.
-    if (!cont && prev_index[i] != static_cast<std::size_t>(-1) &&
-        next_index[i] != static_cast<std::size_t>(-1)) {
-      const Token& prev = tokens[prev_index[i]];
-      if (IsPunc(prev, "]]")) {
-        const Token& next = tokens[next_index[i]];
-        if (BeginsOperand(next)) {
-          cont = true;
-        }
-      }
-    }
-
-    // Before `.`, `::`, `~>`: continuation (method chaining, qualified names)
-    if (!cont && next_index[i] != static_cast<std::size_t>(-1)) {
-      const Token& next = tokens[next_index[i]];
-      if (next.lexeme == "." || next.lexeme == "::" || next.lexeme == "~>") {
-        cont = true;
-      }
-    }
-
-    if (!cont) {
+    if (RequiredTerminatorImpl(tokens, i, ctx)) {
       out.push_back(tok);
     }
   }
 
   return out;
+}
+
+bool RequiredTerminator(const std::vector<Token>& tokens,
+                        std::size_t index) {
+  return RequiredTerminatorImpl(tokens, index, BuildNewlineContext(tokens));
+}
+
+bool ContinuesLine(const std::vector<Token>& tokens,
+                   std::size_t index) {
+  return ContinuesLineImpl(tokens, index, BuildNewlineContext(tokens));
 }
 
 }  // namespace cursive::lexer

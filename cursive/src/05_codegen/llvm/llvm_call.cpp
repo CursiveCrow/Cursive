@@ -30,6 +30,7 @@
 #include "05_codegen/checks/checks.h"
 #include "05_codegen/layout/layout.h"
 #include "05_codegen/llvm/llvm_emit.h"
+#include "05_codegen/llvm/emit/internal_helpers.h"
 #include "05_codegen/llvm/llvm_ir_panic.h"
 #include "05_codegen/llvm/llvm_types.h"
 
@@ -45,6 +46,7 @@
 #include <vector>
 
 namespace cursive::codegen {
+
 
 namespace {
 
@@ -412,7 +414,10 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
                          bool use_c_abi_aggregate_sret,
                          bool ffi_import_boundary,
                          bool ffi_import_catch,
-                         std::optional<unsigned> call_conv_override) {
+                         std::optional<unsigned> call_conv_override,
+                         const std::vector<IRValue>* source_args,
+                         llvm::Value** result_storage_out,
+                         llvm::Value* preferred_result_storage) {
   if (!builder_base || !callee) {
     return nullptr;
   }
@@ -437,7 +442,7 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
   }
 
   std::vector<llvm::Value*> call_args(abi.func_type->getNumParams(), nullptr);
-  llvm::AllocaInst* sret_alloca = nullptr;
+  llvm::Value* sret_alloca = nullptr;
   struct ScratchUse {
     llvm::Type* ty = nullptr;
     std::string_view name;
@@ -456,12 +461,51 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
     return 0;
   };
 
+  if (result_storage_out) {
+    *result_storage_out = nullptr;
+  }
+
+  auto existing_arg_storage = [&](std::size_t index,
+                                  llvm::Type* elem_ty) -> llvm::Value* {
+    if (!source_args || index >= source_args->size()) {
+      return nullptr;
+    }
+    llvm::Value* storage = emitter.GetAddressableStorage((*source_args)[index]);
+    if (!storage || !storage->getType()->isPointerTy()) {
+      return nullptr;
+    }
+    if (elem_ty) {
+      llvm::Type* target_ptr_ty = llvm::PointerType::get(elem_ty, 0);
+      if (storage->getType() != target_ptr_ty) {
+        storage = CoerceValue(builder, storage, target_ptr_ty);
+      }
+    }
+    return storage;
+  };
+
   // Handle sret parameter
   if (abi.has_sret) {
     llvm::Type* ret_ty = emitter.GetLLVMType(ret_type);
-    const unsigned ordinal = next_scratch_ordinal(ret_ty, "sret");
-    sret_alloca = AcquireReusableEntryAlloca(func, ret_ty, "sret", ordinal);
+    if (preferred_result_storage && ret_ty &&
+        preferred_result_storage->getType()->isPointerTy()) {
+      llvm::Type* target_ptr_ty = llvm::PointerType::get(ret_ty, 0);
+      sret_alloca = preferred_result_storage;
+      if (sret_alloca->getType() != target_ptr_ty) {
+        sret_alloca = CoerceValue(builder, sret_alloca, target_ptr_ty);
+      }
+    } else if (result_storage_out) {
+      // Published aggregate results must not alias other still-live call
+      // results, but they can reuse previously released aggregate temp
+      // storage once the prior owner is dead.
+      sret_alloca = emitter.AcquireReusableAggregateStorage(func, ret_ty, "sret");
+    } else {
+      const unsigned ordinal = next_scratch_ordinal(ret_ty, "sret");
+      sret_alloca = AcquireReusableEntryAlloca(func, ret_ty, "sret", ordinal);
+    }
     call_args[0] = sret_alloca;
+    if (result_storage_out) {
+      *result_storage_out = sret_alloca;
+    }
   }
 
   // Map arguments according to ABI
@@ -491,6 +535,11 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
       // Need to pass by reference - create temporary if not already a pointer
       llvm::Type* elem_ty = emitter.GetLLVMType(params[i].type);
       if (!arg->getType()->isPointerTy()) {
+        llvm::Value* storage = existing_arg_storage(i, elem_ty);
+        if (storage) {
+          call_args[idx] = storage;
+          continue;
+        }
         const unsigned ordinal = next_scratch_ordinal(elem_ty, "byref_arg");
         llvm::AllocaInst* slot =
             AcquireReusableEntryAlloca(func, elem_ty, "byref_arg", ordinal);
@@ -513,6 +562,9 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
       llvm::Type* elem_ty = emitter.GetLLVMType(params[i].type);
       llvm::Value* ptr_arg = arg;
       if (!ptr_arg->getType()->isPointerTy()) {
+        if (llvm::Value* storage = existing_arg_storage(i, elem_ty)) {
+          ptr_arg = storage;
+        } else {
         const unsigned ordinal = next_scratch_ordinal(elem_ty, "indirect_arg");
         llvm::AllocaInst* slot =
             AcquireReusableEntryAlloca(func, elem_ty, "indirect_arg", ordinal);
@@ -522,6 +574,7 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
           ptr_arg = slot;
         } else {
           continue;
+        }
         }
       }
       llvm::Type* target_ty = abi.param_types[idx];
@@ -546,6 +599,22 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
       call_args[i] = llvm::Constant::getNullValue(abi.param_types[i]);
     }
   }
+
+  auto release_consumed_move_arg_temps = [&]() -> void {
+    if (!source_args) {
+      return;
+    }
+
+    const std::size_t released_count =
+        std::min(source_args->size(), params.size());
+    for (std::size_t i = 0; i < released_count; ++i) {
+      if (!params[i].mode.has_value()) {
+        continue;
+      }
+
+      emitter.ReleaseMoveConsumedStorage((*source_args)[i]);
+    }
+  };
 
   llvm::Instruction* call_like_inst = nullptr;
   llvm::Value* direct_result = nullptr;
@@ -658,9 +727,14 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
     }
   }
 
+  release_consumed_move_arg_temps();
+
   // Handle return value
   if (abi.has_sret && sret_alloca) {
-    return builder->CreateLoad(emitter.GetLLVMType(ret_type), sret_alloca);
+    if (!result_storage_out) {
+      return builder->CreateLoad(emitter.GetLLVMType(ret_type), sret_alloca);
+    }
+    return nullptr;
   }
 
   if (direct_result) {
@@ -718,4 +792,45 @@ bool IsExternC(std::string_view symbol) {
   return symbol.find("::") == std::string_view::npos;
 }
 
+// -----------------------------------------------------------------------------
+// Procedure ABI Wrapper
+// -----------------------------------------------------------------------------
+
+  ABICallResult LLVMEmitter::ComputeProcABI(
+      const std::string &symbol,
+      const std::vector<IRParam> &params,
+      analysis::TypeRef ret_type,
+      bool use_c_abi_aggregate_sret,
+      bool foreign_boundary_mode_independent)
+  {
+    std::vector<IRParam> augmented = params;
+    if (RequiresHostedEnvParam(symbol) && !emit_detail::HasLeadingHostedEnvParam(augmented))
+    {
+      augmented.insert(augmented.begin(), HostedEnvParam());
+    }
+
+    analysis::TypeRef abi_ret = ret_type;
+    if (const LowerCtx::AsyncProcInfo *async_info =
+            current_ctx_ ? current_ctx_->LookupAsyncProc(symbol) : nullptr;
+        async_info && async_info->is_resume &&
+        emit_detail::HasNamedParam(augmented, kAsyncOutParamName))
+    {
+      abi_ret = analysis::MakeTypePrim("()");
+    }
+
+    if (!use_c_abi_aggregate_sret && current_ctx_)
+    {
+      if (const auto *sig = current_ctx_->LookupProcSig(symbol);
+          sig && sig->abi.has_value())
+      {
+        use_c_abi_aggregate_sret = true;
+        foreign_boundary_mode_independent = true;
+      }
+    }
+
+    return ComputeCallABI(augmented,
+                          abi_ret,
+                          use_c_abi_aggregate_sret,
+                          foreign_boundary_mode_independent);
+  }
 }  // namespace cursive::codegen

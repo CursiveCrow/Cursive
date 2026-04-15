@@ -64,15 +64,152 @@ struct SignatureResult {
   TypePtr return_type_opt;
 };
 
+ParseElemResult<Param> ParseParam(Parser parser);
+ParseElemResult<std::vector<Param>> ParseParamTail(Parser parser,
+                                                   std::vector<Param> xs);
 ParseElemResult<std::vector<Param>> ParseParamList(Parser parser);
 SignatureResult ParseSignature(Parser parser);
 struct MethodSignatureResult {
   Parser parser;
-  std::optional<Receiver> receiver;
+  Receiver receiver;
   std::vector<Param> params;
   TypePtr return_type_opt;
 };
 MethodSignatureResult ParseStateMethodSignature(Parser parser);
+
+namespace {
+
+ParseElemResult<std::vector<Param>> ParseTransitionParamList(Parser parser) {
+  SkipNewlines(parser);
+  if (IsPunc(parser, ")")) {
+    EmitParseSyntaxErr(parser, TokSpan(parser));
+    return {parser, {}};
+  }
+  ParseElemResult<Param> param = ParseParam(parser);
+  std::vector<Param> params;
+  params.push_back(param.elem);
+  return ParseParamTail(param.parser, std::move(params));
+}
+
+ParseElemResult<StateMethodDecl> ParseStateMethodDef(Parser start,
+                                                     Parser parser,
+                                                     Visibility vis,
+                                                     AttributeList attrs_list) {
+  SPEC_RULE("Parse-StateMember-Method");
+  Advance(parser);  // consume 'procedure'
+
+  ParseElemResult<Identifier> name = ParseIdent(parser);
+  ParseElemResult<std::optional<GenericParams>> gen_params =
+      ParseGenericParamsOpt(name.parser);
+  MethodSignatureResult sig = ParseStateMethodSignature(gen_params.parser);
+  ParseElemResult<std::optional<ContractClause>> contract =
+      ParseContractClauseOpt(sig.parser);
+  ParseElemResult<std::shared_ptr<Block>> body = ParseBlock(contract.parser);
+
+  StateMethodDecl method;
+  method.attrs = attrs_list;
+  method.vis = vis;
+  method.name = name.elem;
+  method.generic_params = gen_params.elem;
+  method.receiver = sig.receiver;
+  method.params = sig.params;
+  method.return_type_opt = sig.return_type_opt;
+  method.contract = contract.elem;
+  method.body = body.elem;
+  method.span = SpanBetween(start, body.parser);
+  method.doc_opt = std::nullopt;
+
+  return {body.parser, method};
+}
+
+ParseElemResult<TransitionDecl> ParseTransitionDecl(Parser start, Parser parser,
+                                                    Visibility vis,
+                                                    AttributeList attrs_list) {
+  SPEC_RULE("Parse-StateMember-Transition");
+  Advance(parser);  // consume 'transition'
+
+  ParseElemResult<Identifier> name = ParseIdent(parser);
+  Parser cur = name.parser;
+
+  if (!IsPunc(cur, "(")) {
+    EmitParseSyntaxErr(cur, TokSpan(cur));
+  } else {
+    Advance(cur);
+  }
+
+  ParseElemResult<std::vector<Param>> params = ParseTransitionParamList(cur);
+  cur = params.parser;
+
+  if (!IsPunc(cur, ")")) {
+    EmitParseSyntaxErr(cur, TokSpan(cur));
+  } else {
+    Advance(cur);
+  }
+
+  if (!IsOp(cur, "->")) {
+    EmitParseSyntaxErr(cur, TokSpan(cur));
+  } else {
+    Advance(cur);
+  }
+
+  if (!IsOp(cur, "@")) {
+    EmitParseSyntaxErr(cur, TokSpan(cur));
+  } else {
+    Advance(cur);
+  }
+
+  ParseElemResult<Identifier> target = ParseIdent(cur);
+  ParseElemResult<std::shared_ptr<Block>> body = ParseBlock(target.parser);
+
+  TransitionDecl trans;
+  trans.attrs = attrs_list;
+  trans.vis = vis;
+  trans.name = name.elem;
+  trans.params = params.elem;
+  trans.target_state = target.elem;
+  trans.body = body.elem;
+  trans.span = SpanBetween(start, body.parser);
+  trans.doc_opt = std::nullopt;
+
+  return {body.parser, trans};
+}
+
+ParseElemResult<StateFieldDecl> ParseStateFieldDecl(Parser start, Parser parser,
+                                                    Visibility vis,
+                                                    AttributeList attrs_list) {
+  SPEC_RULE("Parse-StateMember-Field");
+
+  ParseElemResult<bool> boundary = ParseKeyBoundaryOpt(parser);
+  ParseElemResult<Identifier> name = ParseIdent(boundary.parser);
+
+  if (!IsPunc(name.parser, ":")) {
+    EmitParseSyntaxErr(name.parser, TokSpan(name.parser));
+  } else {
+    Advance(name.parser);
+  }
+
+  ParseElemResult<std::shared_ptr<Type>> ty = ParseType(name.parser);
+  Parser after_type = ty.parser;
+
+  const Token* tok = Tok(after_type);
+  if (tok && (tok->kind == TokenKind::Newline ||
+              (tok->kind == TokenKind::Punctuator && tok->lexeme == ";"))) {
+    Advance(after_type);
+  }
+
+  StateFieldDecl field;
+  field.attrs = attrs_list;
+  field.vis = vis;
+  field.key_boundary = boundary.elem;
+  field.name = name.elem;
+  field.type = ty.elem;
+  field.span = SpanBetween(start, after_type);
+  field.doc_opt = std::nullopt;
+
+  return {after_type, field};
+}
+
+}  // namespace
 
 // =============================================================================
 // ParseStateMember - Parse field, method, or transition in state block
@@ -86,131 +223,19 @@ ParseElemResult<StateMember> ParseStateMember(Parser parser) {
 
   // Check for method (procedure keyword)
   if (IsKw(cur, "procedure")) {
-    SPEC_RULE("Parse-StateMember-Method");
-    Parser start = cur;
-    Advance(start);  // consume 'procedure'
-
-    ParseElemResult<Identifier> name = ParseIdent(start);
-    ParseElemResult<std::optional<GenericParams>> gen_params =
-        ParseGenericParamsOpt(name.parser);
-    MethodSignatureResult sig = ParseStateMethodSignature(gen_params.parser);
-    ParseElemResult<std::optional<ContractClause>> contract =
-        ParseContractClauseOpt(sig.parser);
-    ParseElemResult<std::shared_ptr<Block>> body =
-        ParseBlock(contract.parser);
-
-    StateMethodDecl method;
-    method.attrs = attrs_list;
-    method.vis = vis.elem;
-    method.name = name.elem;
-    method.generic_params = gen_params.elem;
-    method.receiver =
-        sig.receiver.value_or(ReceiverShorthand{ReceiverPerm::Const});
-    method.params = sig.params;
-    method.return_type_opt = sig.return_type_opt;
-    method.contract = contract.elem;
-    method.body = body.elem;
-    method.span = SpanBetween(parser, body.parser);
-    method.doc_opt = std::nullopt;
-
-    return {body.parser, method};
+    auto method = ParseStateMethodDef(parser, cur, vis.elem, attrs_list);
+    return {method.parser, StateMember{std::move(method.elem)}};
   }
 
   // Check for transition
   if (IsKw(cur, "transition")) {
-    SPEC_RULE("Parse-StateMember-Transition");
-    Parser start = cur;
-    Advance(start);  // consume 'transition'
-
-    ParseElemResult<Identifier> name = ParseIdent(start);
-    Parser cur = name.parser;
-
-    // Expect (
-    if (!IsPunc(cur, "(")) {
-      EmitParseSyntaxErr(cur, TokSpan(cur));
-    } else {
-      Advance(cur);
-    }
-
-    // Parse parameters
-    ParseElemResult<std::vector<Param>> params = ParseParamList(cur);
-    cur = params.parser;
-    if (params.elem.empty()) {
-      EmitParseSyntaxErr(cur, TokSpan(cur));
-    }
-
-    // Expect )
-    if (!IsPunc(cur, ")")) {
-      EmitParseSyntaxErr(cur, TokSpan(cur));
-    } else {
-      Advance(cur);
-    }
-
-    // Expect ->
-    if (!IsOp(cur, "->")) {
-      EmitParseSyntaxErr(cur, TokSpan(cur));
-    } else {
-      Advance(cur);
-    }
-
-    // Expect @
-    if (!IsOp(cur, "@")) {
-      EmitParseSyntaxErr(cur, TokSpan(cur));
-    } else {
-      Advance(cur);
-    }
-
-    // Parse target state name
-    ParseElemResult<Identifier> target = ParseIdent(cur);
-
-    // Parse body
-    ParseElemResult<std::shared_ptr<Block>> body = ParseBlock(target.parser);
-
-    TransitionDecl trans;
-    trans.attrs = attrs_list;
-    trans.vis = vis.elem;
-    trans.name = name.elem;
-    trans.params = params.elem;
-    trans.target_state = target.elem;
-    trans.body = body.elem;
-    trans.span = SpanBetween(parser, body.parser);
-    trans.doc_opt = std::nullopt;
-
-    return {body.parser, trans};
+    auto transition = ParseTransitionDecl(parser, cur, vis.elem, attrs_list);
+    return {transition.parser, StateMember{std::move(transition.elem)}};
   }
 
   // Default: parse field
-  SPEC_RULE("Parse-StateMember-Field");
-
-  ParseElemResult<bool> boundary = ParseKeyBoundaryOpt(cur);
-  ParseElemResult<Identifier> name = ParseIdent(boundary.parser);
-
-  if (!IsPunc(name.parser, ":")) {
-    EmitParseSyntaxErr(name.parser, TokSpan(name.parser));
-  } else {
-    Advance(name.parser);
-  }
-
-  ParseElemResult<std::shared_ptr<Type>> ty = ParseType(name.parser);
-  Parser after_type = ty.parser;
-
-  // Consume optional terminator (semicolon or newline)
-  const Token* tok = Tok(after_type);
-  if (tok && (tok->kind == TokenKind::Newline ||
-              (tok->kind == TokenKind::Punctuator && tok->lexeme == ";"))) {
-    Advance(after_type);
-  }
-
-  StateFieldDecl field;
-  field.attrs = attrs_list;
-  field.vis = vis.elem;
-  field.key_boundary = boundary.elem;
-  field.name = name.elem;
-  field.type = ty.elem;
-  field.span = SpanBetween(parser, after_type);
-  field.doc_opt = std::nullopt;
-
-  return {after_type, field};
+  auto field = ParseStateFieldDecl(parser, cur, vis.elem, attrs_list);
+  return {field.parser, StateMember{std::move(field.elem)}};
 }
 
 // =============================================================================
@@ -301,6 +326,7 @@ ParseElemResult<StateBlock> ParseStateBlock(Parser parser) {
       ParseStateMemberList(name.parser);
 
   // Expect }
+  Parser block_end = members.parser;
   if (!IsPunc(members.parser, "}")) {
     EmitParseSyntaxErr(members.parser, TokSpan(members.parser));
   } else {
@@ -310,7 +336,7 @@ ParseElemResult<StateBlock> ParseStateBlock(Parser parser) {
   StateBlock blk;
   blk.name = name.elem;
   blk.members = std::move(members.elem);
-  blk.span = SpanBetween(start, members.parser);
+  blk.span = SpanBetween(start, block_end);
   blk.doc_opt = std::nullopt;
 
   return {members.parser, blk};
@@ -428,10 +454,10 @@ ParseItemResult ParseModalDecl(Parser parser, Visibility vis,
   ParseElemResult<std::vector<ClassPath>> impls = ParseImplementsOpt(parser);
   parser = impls.parser;
 
-  // Parse optional where clause
-  ParseElemResult<std::optional<WhereClause>> where_clause =
+  // Parse optional predicate clause
+  ParseElemResult<std::optional<WhereClause>> predicate_clause_opt =
       ParsePredicateClauseOpt(parser);
-  parser = where_clause.parser;
+  parser = predicate_clause_opt.parser;
 
   // Parse modal body
   ParseElemResult<std::vector<StateBlock>> states = ParseModalBody(parser);
@@ -447,10 +473,10 @@ ParseItemResult ParseModalDecl(Parser parser, Visibility vis,
   decl.vis = vis;
   decl.name = name.elem;
   decl.generic_params = gen_params.elem;
+  decl.predicate_clause_opt = predicate_clause_opt.elem;
   decl.implements = std::move(impls.elem);
-  decl.where_clause = where_clause.elem;
-  decl.invariant = invariant.elem;
   decl.states = std::move(states.elem);
+  decl.invariant_opt = invariant.elem;
   decl.span = SpanBetween(start, parser);
   decl.doc = {};
 

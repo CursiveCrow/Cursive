@@ -155,7 +155,7 @@ ParseElemResult<Stmt> CreateErrorStmt(Parser parser, const core::Span& start_spa
   SPEC_RULE("Parse-Statement-Err");
 
   // Emit parse syntax error diagnostic
-  EmitParseSyntaxErr(parser, TokSpan(parser));
+  EmitGenericParseSyntaxErr(parser, TokSpan(parser));
 
   // Advance past the error token
   Parser next = AdvanceOrEOF(parser);

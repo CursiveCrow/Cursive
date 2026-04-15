@@ -445,12 +445,16 @@ static bool ExprMayNeedDynamicRuntime(const ast::ExprPtr& expr) {
           }
           return false;
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
-            if (ExprMayNeedDynamicRuntime(elem)) {
-              return true;
+          bool may_need_dynamic_runtime = false;
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            if (may_need_dynamic_runtime) {
+              return;
             }
-          }
-          return false;
+            if (ExprMayNeedDynamicRuntime(elem)) {
+              may_need_dynamic_runtime = true;
+            }
+          });
+          return may_need_dynamic_runtime;
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           return ExprMayNeedDynamicRuntime(node.value) ||
                  ExprMayNeedDynamicRuntime(node.count);
@@ -568,6 +572,9 @@ static bool ExprMayNeedDynamicRuntime(const ast::ExprPtr& expr) {
             if (ExprMayNeedDynamicRuntime(opt.chunk_expr)) {
               return true;
             }
+            if (ExprMayNeedDynamicRuntime(opt.workgroup_expr)) {
+              return true;
+            }
           }
           return node.body && BlockMayNeedDynamicRuntime(*node.body);
         } else {
@@ -614,8 +621,6 @@ static bool BlockMayNeedDynamicRuntime(const ast::Block& block) {
           } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
             // Key blocks can lower to runtime synchronization in dynamic scope.
             return true;
-          } else if constexpr (std::is_same_v<T, ast::StaticAssertStmt>) {
-            return false;
           } else {
             return false;
           }
@@ -645,7 +650,7 @@ static bool ContractMayNeedDynamicRuntime(const ast::ContractClause& contract) {
 static void EmitDynamicNoRuntimeWarningIfNeeded(
     const ast::ProcedureDecl& decl,
     core::DiagnosticStream& diags) {
-  if (!HasAttribute(decl.attrs, attrs::kDynamic)) {
+  if (!IsDynamicDecl(decl)) {
     return;
   }
 
@@ -1139,12 +1144,16 @@ static bool ExprContainsDirectCall(const ast::ExprPtr& expr,
           }
           return false;
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
-            if (ExprContainsDirectCall(elem, proc_name)) {
-              return true;
+          bool contains_direct_call = false;
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            if (contains_direct_call) {
+              return;
             }
-          }
-          return false;
+            if (ExprContainsDirectCall(elem, proc_name)) {
+              contains_direct_call = true;
+            }
+          });
+          return contains_direct_call;
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           return ExprContainsDirectCall(node.value, proc_name) ||
                  ExprContainsDirectCall(node.count, proc_name);
@@ -1338,13 +1347,17 @@ static bool ExprContainsValueReference(
           }
           return false;
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
+          bool contains_value_reference = false;
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            if (contains_value_reference) {
+              return;
+            }
             if (ExprContainsValueReference(elem, current_module, target_module,
                                            proc_name)) {
-              return true;
+              contains_value_reference = true;
             }
-          }
-          return false;
+          });
+          return contains_value_reference;
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           return ExprContainsValueReference(node.value, current_module, target_module,
                                             proc_name) ||
@@ -1703,8 +1716,7 @@ static std::optional<std::string_view> ValidateProcedureFfiAttributes(
 
 static std::optional<std::string_view> ValidateProcedureVerificationModeContext(
     const ast::ProcedureDecl& decl) {
-  if (HasAttribute(decl.attrs, attrs::kStatic) ||
-      HasAttribute(decl.attrs, attrs::kTrust)) {
+  if (HasAttribute(decl.attrs, attrs::kStatic)) {
     return "E-MOD-2452";
   }
   return std::nullopt;
@@ -1905,8 +1917,9 @@ ProcedureDeclResult TypeProcedureDecl(
   for (const auto& gp : gen_params.params) {
     type_param_names.push_back(gp.name);
   }
-  if (decl.where_clause.has_value()) {
-    const auto where_result = ProcessWhereClause(ctx, decl.where_clause->predicates, type_param_names);
+  if (decl.predicate_clause_opt.has_value()) {
+    const auto where_result = ProcessWhereClause(
+        ctx, decl.predicate_clause_opt->predicates, type_param_names);
     if (!where_result.ok) {
       result.ok = false;
       result.diag_id = where_result.diag_id;
@@ -2010,6 +2023,7 @@ ProcedureDeclResult TypeProcedureDecl(
     TypeBinding param_binding;
     param_binding.mut = ast::Mutability::Let;
     param_binding.type = binding.second;
+    param_binding.storage_type = binding.second;
     param_binding.provenance_kind = BindingProvenanceSeedKind::Param;
     env.scopes.back()[IdKeyOf(binding.first)] = std::move(param_binding);
   }
@@ -2077,9 +2091,10 @@ ProcedureDeclResult TypeProcedureDecl(
         HasAttribute(decl.attrs, attrs::kHostExport);
     type_ctx.diags = &diags;
     type_ctx.env_ref = &env;
-    const std::array<const ast::AttributeList* const, 1> ancestors{
-        &decl.attrs};
-    type_ctx.contract_dynamic = ComputeDynamicContext(ancestors);
+    const std::array<DynamicScopeAncestor, 1> ancestors{
+        MakeDynamicScopeAncestor(decl.attrs, decl.span)};
+    type_ctx.contract_dynamic =
+        ComputeDynamicContext(decl.body->span, ancestors);
     OpaqueReturnState opaque_return_state;
     if (type_ctx.return_type &&
         std::holds_alternative<TypeOpaque>(type_ctx.return_type->node)) {
@@ -2331,6 +2346,7 @@ ProcedureDeclResult TypeProcedureDeclBody(
     TypeBinding binding;
     binding.mut = ast::Mutability::Let;
     binding.type = lowered.type;
+    binding.storage_type = lowered.type;
     binding.provenance_kind = BindingProvenanceSeedKind::Param;
     env.scopes.back()[IdKeyOf(param.name)] = std::move(binding);
   }
@@ -2352,8 +2368,10 @@ ProcedureDeclResult TypeProcedureDeclBody(
       HasAttribute(decl.attrs, attrs::kHostExport);
   type_ctx.diags = &diags;
   type_ctx.env_ref = &env;
-  const std::array<const ast::AttributeList* const, 1> ancestors{&decl.attrs};
-  type_ctx.contract_dynamic = ComputeDynamicContext(ancestors);
+  const std::array<DynamicScopeAncestor, 1> ancestors{
+      MakeDynamicScopeAncestor(decl.attrs, decl.span)};
+  type_ctx.contract_dynamic =
+      ComputeDynamicContext(decl.body->span, ancestors);
   OpaqueReturnState opaque_return_state;
   if (type_ctx.return_type &&
       std::holds_alternative<TypeOpaque>(type_ctx.return_type->node)) {

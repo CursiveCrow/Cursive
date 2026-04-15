@@ -8,11 +8,11 @@ procedure ForeignContractDiagnosticMatrixMetricLabel(value: i32) -> string@View 
 public procedure RunForeignContractDiagnosticMatrix(ctx: Context) -> i32 {
     [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
 
-    let status_assumes_syntax: i32 = ForeignContractsAndTrustBoundaries::RunForeignAssumesSyntaxAndScope(ctx)
-    let status_assumes_modes: i32 = ForeignContractsAndTrustBoundaries::RunForeignAssumesVerificationModes(ctx)
-    let status_ensures_predicate_forms: i32 = ForeignContractsAndTrustBoundaries::RunForeignEnsuresPredicateForms(ctx)
-    let status_ensures_type_restrictions: i32 = ForeignContractsAndTrustBoundaries::RunForeignEnsuresTypeRestrictions(ctx)
-    let status_dynamic_runtime: i32 = ForeignContractsAndTrustBoundaries::RunForeignDynamicRuntimeChecks(ctx)
+    let status_assumes_syntax: i32 = ForeignContractsAndVerificationModes::RunForeignAssumesSyntaxAndScope(ctx)
+    let status_assumes_modes: i32 = ForeignContractsAndVerificationModes::RunForeignAssumesVerificationModes(ctx)
+    let status_ensures_predicate_forms: i32 = ForeignContractsAndVerificationModes::RunForeignEnsuresPredicateForms(ctx)
+    let status_ensures_type_restrictions: i32 = ForeignContractsAndVerificationModes::RunForeignEnsuresTypeRestrictions(ctx)
+    let status_dynamic_runtime: i32 = ForeignContractsAndVerificationModes::RunForeignDynamicRuntimeChecks(ctx)
 
     let status_assumes_syntax_log: i32 =
         [[log(label: "observed-contracts-foreign-diagnostic-assumes-syntax-status", expected: 0)]]

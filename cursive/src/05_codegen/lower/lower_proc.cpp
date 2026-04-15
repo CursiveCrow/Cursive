@@ -365,13 +365,13 @@ struct EntryExprCollector {
             for (const auto& elem : node.elements) {
               Visit(elem);
             }
-          } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-            for (const auto& elem : node.elements) {
-              Visit(elem);
-            }
-          } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
-            Visit(node.value);
-            Visit(node.count);
+        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& subexpr) {
+            Visit(subexpr);
+          });
+        } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
+          Visit(node.value);
+          Visit(node.count);
           } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
             for (const auto& field : node.fields) {
               Visit(field.value);
@@ -1070,8 +1070,11 @@ ProcIR LowerProc(const ProcedureDecl& decl,
     ir.params.push_back(p);
 
     const bool has_resp = param.mode.has_value();
+    const bool preserve_addr_provenance = !param.mode.has_value();
     ctx.RegisterVar(param.name, p.type, has_resp, false,
-                    analysis::ProvenanceKind::Param);
+                    analysis::ProvenanceKind::Param,
+                    std::nullopt,
+                    preserve_addr_provenance);
   }
   // Lower return type
   if (decl.return_type_opt && ctx.sigma) {
@@ -1299,6 +1302,7 @@ ProcIR LowerProc(const ProcedureDecl& decl,
       async_info.resume_symbol = ir.symbol + "$resume";
       async_info.resume_needs_panic_out = NeedsPanicOut(async_info.resume_symbol);
       async_info.param_names = param_names;
+      async_info.slot_order = async_ir.slot_order;
 
       std::uint64_t offset = kAsyncFrameHeaderSize;
       std::uint64_t frame_align = kAsyncFrameHeaderAlign;

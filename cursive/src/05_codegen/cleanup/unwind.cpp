@@ -464,7 +464,7 @@ IRPtr EmitPanicPropagate(LowerCtx& ctx) {
 // Helper: Create IR values for panic state
 // ============================================================================
 
-static IRValue BoolImmediate(bool value) {
+IRValue BoolImmediate(bool value) {
   IRValue v;
   v.kind = IRValue::Kind::Immediate;
   v.name = value ? "true" : "false";

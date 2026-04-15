@@ -615,10 +615,12 @@ void ApplyStmtAttrs(const AttributeList& attrs, Stmt& stmt) {
     return;
   }
   if (auto* assign = std::get_if<AssignStmt>(&stmt)) {
+    assign->place = WrapAttrExpr(attrs, assign->place);
     assign->value = WrapAttrExpr(attrs, assign->value);
     return;
   }
   if (auto* compound = std::get_if<CompoundAssignStmt>(&stmt)) {
+    compound->place = WrapAttrExpr(attrs, compound->place);
     compound->value = WrapAttrExpr(attrs, compound->value);
     return;
   }

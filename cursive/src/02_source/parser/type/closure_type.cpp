@@ -89,13 +89,16 @@ ParseElemResult<std::vector<TypeFuncParam>> ParseClosureParamTypeListTail(
     return {parser, params};
   }
 
-  const TokenKindMatch end_set[] = {MatchOperator("|")};
+  const EndSetToken end_set[] = {EndOperator("|")};
   Parser after = parser;
   Advance(after);
   SkipNewlinesType(after);
   if (IsOpType(after, "|")) {
-    SPEC_RULE("Parse-ParamTypeListTail-TrailingComma");
+    if (TrailingCommaAllowed(parser, end_set)) {
+      SPEC_RULE("Parse-ParamTypeListTail-TrailingComma");
+    }
     EmitTrailingCommaErr(parser, end_set);
+    after.diags = parser.diags;
     return {after, params};
   }
 

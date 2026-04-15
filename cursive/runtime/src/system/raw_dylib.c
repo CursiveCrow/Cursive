@@ -7,13 +7,13 @@ void* cursive_raw_dylib_resolve(const char* dll_name,
     return NULL;
   }
 
-  HMODULE module = GetModuleHandleA(dll_name);
+  cursive_rt_module_t module = cursive_rt_module_open_loaded(dll_name);
   if (module == NULL) {
-    module = LoadLibraryA(dll_name);
+    module = cursive_rt_module_open(dll_name);
   }
   if (module == NULL) {
     return NULL;
   }
 
-  return (void*)GetProcAddress(module, symbol_name);
+  return cursive_rt_module_lookup(module, symbol_name);
 }

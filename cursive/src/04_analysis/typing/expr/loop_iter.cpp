@@ -27,6 +27,7 @@
 #include "00_core/symbols.h"
 #include "04_analysis/contracts/contract_check.h"
 #include "04_analysis/contracts/verification.h"
+#include "04_analysis/generics/where_bounds.h"
 #include "04_analysis/memory/calls.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/context.h"
@@ -100,14 +101,33 @@ static std::optional<TypeRef> GetIterableElementType(const TypeRef& type) {
   if (const auto* range = std::get_if<TypeRangeFrom>(&stripped->node)) {
     return range->base;
   }
-  if (const auto* range = std::get_if<TypeRangeTo>(&stripped->node)) {
-    return range->base;
-  }
-  if (const auto* range = std::get_if<TypeRangeToInclusive>(&stripped->node)) {
-    return range->base;
-  }
 
   return std::nullopt;
+}
+
+static bool IsLoopRangeType(const TypeRef& type) {
+  const auto stripped = StripPermLocal(type);
+  if (!stripped) {
+    return false;
+  }
+
+  return std::holds_alternative<TypeRange>(stripped->node) ||
+         std::holds_alternative<TypeRangeInclusive>(stripped->node) ||
+         std::holds_alternative<TypeRangeFrom>(stripped->node);
+}
+
+static bool RequiresLoopStepBound(const TypeRef& type) {
+  return IsLoopRangeType(type);
+}
+
+static bool RequiresLoopEqBound(const TypeRef& type) {
+  const auto stripped = StripPermLocal(type);
+  if (!stripped) {
+    return false;
+  }
+
+  return std::holds_alternative<TypeRange>(stripped->node) ||
+         std::holds_alternative<TypeRangeInclusive>(stripped->node);
 }
 
 static bool CtIterableType(const TypeRef& type) {
@@ -200,6 +220,9 @@ static std::optional<std::string_view> ValidateLoopInvariantExpr(
 
   if (!type_ctx.contract_dynamic) {
     StaticProofContext proof_ctx;
+    if (type_ctx.proof_ctx) {
+      proof_ctx = *type_ctx.proof_ctx;
+    }
     const auto proof = StaticProof(proof_ctx, invariant.predicate);
     if (!proof.provable) {
       return std::optional<std::string_view>("E-SEM-2830");
@@ -342,6 +365,7 @@ static TypeEnv IntroPatternBindings(const TypeEnv& env,
     TypeBinding binding;
     binding.mut = ast::Mutability::Let;
     binding.type = type;
+    binding.storage_type = type;
     new_env.scopes.front()[name] = binding;
   }
   return new_env;
@@ -414,6 +438,17 @@ ExprTypeResult TypeLoopIterExpr(const ScopeContext& ctx,
       return result;
     }
     element_type = *elem;
+
+    if (RequiresLoopStepBound(iter_type.type) &&
+        !CheckClassBound(ctx, element_type, TypePath{"Step"})) {
+      result.diag_id = "Assign-Type-Err";
+      return result;
+    }
+    if (RequiresLoopEqBound(iter_type.type) &&
+        !CheckClassBound(ctx, element_type, TypePath{"Eq"})) {
+      result.diag_id = "Assign-Type-Err";
+      return result;
+    }
   }
 
   // 4. If type annotation present, check compatibility

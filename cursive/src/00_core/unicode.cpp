@@ -49,7 +49,7 @@
 //     - ByteSpan struct, IsHexDigit, HexValue, IsUnicodeScalarValue
 //     - IsStringChar, IsCharContent
 //     - ScanEscape, ScanStringLiteral, ScanCharLiteral
-//     - LiteralByteSpans: identifies string/char literal ranges
+//     - LiteralSpan: identifies string/char literal ranges
 //     - ByteInLiteralSpan: checks if offset is inside a literal
 //   - IsProhibited(c) -> bool (lines 305-311)
 //     Checks for prohibited control characters
@@ -95,6 +95,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <iostream>
 #include <optional>
 #include <string_view>
 #include <vector>
@@ -109,6 +110,7 @@
 #include <unicode/uversion.h>
 
 #include "00_core/assert_spec.h"
+#include "00_core/process_config.h"
 
 namespace cursive::core {
 
@@ -123,6 +125,13 @@ static inline void SpecDefsIdentifierSecurity() {
 }
 
 namespace {
+
+void LogUnicodeDebug(std::string_view message) {
+  if (!IsDebugEnabled("lex") && !IsDebugEnabled("parse")) {
+    return;
+  }
+  std::cerr << "[cursive] unicode: " << message << "\n";
+}
 
 bool IsAsciiText(std::string_view s) {
   for (const unsigned char ch : s) {
@@ -148,10 +157,13 @@ const USpoofChecker* SpoofChecker() {
     UErrorCode status = U_ZERO_ERROR;
     USpoofChecker* value = uspoof_open(&status);
     if (U_FAILURE(status) || value == nullptr) {
+      LogUnicodeDebug("uspoof_open failed status=" + std::to_string(status));
       std::abort();
     }
     uspoof_setChecks(value, USPOOF_CONFUSABLE, &status);
     if (U_FAILURE(status)) {
+      LogUnicodeDebug("uspoof_setChecks failed status=" +
+                      std::to_string(status));
       std::abort();
     }
     return value;
@@ -170,6 +182,9 @@ std::string SkeletonForUtf8(std::string_view normalized) {
       0,
       &status);
   if (status != U_BUFFER_OVERFLOW_ERROR && U_FAILURE(status)) {
+    LogUnicodeDebug("uspoof_getSkeletonUTF8 length query failed status=" +
+                    std::to_string(status) + " normalized=\"" +
+                    std::string(normalized) + "\"");
     std::abort();
   }
 
@@ -183,6 +198,9 @@ std::string SkeletonForUtf8(std::string_view normalized) {
                          length,
                          &status);
   if (U_FAILURE(status)) {
+    LogUnicodeDebug("uspoof_getSkeletonUTF8 fill failed status=" +
+                    std::to_string(status) + " normalized=\"" +
+                    std::string(normalized) + "\"");
     std::abort();
   }
   return skeleton;
@@ -200,6 +218,9 @@ bool HasMixedIdentifierScripts(std::string_view normalized) {
     UErrorCode status = U_ZERO_ERROR;
     const UScriptCode script = uscript_getScript(scalar, &status);
     if (U_FAILURE(status)) {
+      LogUnicodeDebug("uscript_getScript failed status=" +
+                      std::to_string(status) + " scalar=" +
+                      std::to_string(static_cast<std::uint32_t>(scalar)));
       std::abort();
     }
     if (script == USCRIPT_COMMON || script == USCRIPT_INHERITED) {
@@ -231,12 +252,17 @@ std::string NFC(std::string_view s) {
   UErrorCode status = U_ZERO_ERROR;
   const icu::Normalizer2* nfc = icu::Normalizer2::getNFCInstance(status);
   if (U_FAILURE(status) || nfc == nullptr) {
+    LogUnicodeDebug("Normalizer2::getNFCInstance failed status=" +
+                    std::to_string(status));
     std::abort();
   }
   const icu::UnicodeString input =
       icu::UnicodeString::fromUTF8(icu::StringPiece(s.data(), s.size()));
   icu::UnicodeString normalized = nfc->normalize(input, status);
   if (U_FAILURE(status)) {
+    LogUnicodeDebug("Normalizer2::normalize failed status=" +
+                    std::to_string(status) + " input=\"" + std::string(s) +
+                    "\"");
     std::abort();
   }
   std::string out;
@@ -265,6 +291,11 @@ std::string CaseFold(std::string_view s) {
 
 IdentifierSecurityInfo AnalyzeIdentifierSecurity(std::string_view ident) {
   SpecDefsIdentifierSecurity();
+
+  if (IsDebugEnabled("lex") || IsDebugEnabled("parse")) {
+    LogUnicodeDebug("AnalyzeIdentifierSecurity ident=\"" + std::string(ident) +
+                    "\"");
+  }
 
   IdentifierSecurityInfo result;
   result.normalized = NFC(ident);
@@ -349,10 +380,7 @@ unsigned int HexValue(UnicodeScalar c) {
 }
 
 bool IsUnicodeScalarValue(std::uint32_t value) {
-  if (value > 0x10FFFF) {
-    return false;
-  }
-  return !(value >= 0xD800 && value <= 0xDFFF);
+  return UnicodeScalar::IsValue(value);
 }
 
 bool IsStringChar(UnicodeScalar c) {
@@ -480,7 +508,7 @@ std::optional<std::size_t> ScanCharLiteral(
   return i + 1;
 }
 
-std::vector<ByteSpan> LiteralByteSpans(
+std::vector<ByteSpan> LiteralSpan(
     const std::vector<UnicodeScalar>& scalars) {
   const auto offsets = Utf8Offsets(scalars);
   std::vector<ByteSpan> spans;
@@ -527,8 +555,12 @@ bool IsProhibited(UnicodeScalar c) {
 
 std::optional<std::size_t> FirstProhibitedOutsideLiteral(
     const std::vector<UnicodeScalar>& scalars) {
+  const auto offsets = Utf8Offsets(scalars);
+  const auto spans = LiteralSpan(scalars);
+  std::size_t span_index = 0;
   for (std::size_t i = 0; i < scalars.size(); ++i) {
-    if (IsProhibited(scalars[i])) {
+    if (IsProhibited(scalars[i]) &&
+        !ByteInLiteralSpan(offsets[i], spans, &span_index)) {
       return i;
     }
   }

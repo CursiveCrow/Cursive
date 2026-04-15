@@ -396,6 +396,7 @@ using cursive::lexer::IsIdentTok;
 using cursive::lexer::IsKwTok;
 using cursive::lexer::IsOpTok;
 using cursive::lexer::IsPuncTok;
+using cursive::lexer::Ctx;
 using cursive::lexer::Token;
 using cursive::lexer::TokenKind;
 
@@ -479,7 +480,7 @@ bool IsExprStart(const Token& tok) {
            tok.lexeme == "race" || tok.lexeme == "all";
   }
   // C0X Extension: "wait" is a contextual keyword
-  if (tok.kind == TokenKind::Identifier && tok.lexeme == "wait") {
+  if (Ctx(tok, "wait")) {
     return true;
   }
   return false;
@@ -604,8 +605,11 @@ ParseElemResult<ExprPtr> ParseLogicalOr(Parser parser, bool allow_brace,
                                         bool allow_bracket);
 ParseElemResult<AttrOpt> ParseAttributeListOpt(Parser parser);
 
-ParseElemResult<ExprPtr> ParseExpr(Parser parser) {
-  SPEC_RULE("Parse-Expr");
+namespace {
+
+template <typename ParseBodyFn>
+ParseElemResult<ExprPtr> ParseExprWithLeadingAttrs(Parser parser,
+                                                   ParseBodyFn&& parse_body) {
   ParseElemResult<AttrOpt> attrs = ParseAttributeListOpt(parser);
   Parser next = attrs.parser;
   const AttributeList& attr_list = AttrListOf(attrs.elem);
@@ -621,13 +625,22 @@ ParseElemResult<ExprPtr> ParseExpr(Parser parser) {
       Advance(next);
     }
   }
-  ParseElemResult<ExprPtr> expr = ParseRange(next, true, true);
+
+  ParseElemResult<ExprPtr> expr = parse_body(next);
   if (attrs.elem.has_value()) {
     return {expr.parser,
             AttachExprAttrs(expr.elem, *attrs.elem,
                             SpanBetween(parser, expr.parser))};
   }
   return expr;
+}
+
+}  // namespace
+
+ParseElemResult<ExprPtr> ParseExpr(Parser parser) {
+  SPEC_RULE("Parse-Expr");
+  return ParseExprWithLeadingAttrs(
+      parser, [](Parser next) { return ParseRange(next, true, true); });
 }
 
 // =============================================================================
@@ -638,28 +651,8 @@ ParseElemResult<ExprPtr> ParseExpr(Parser parser) {
 
 ParseElemResult<ExprPtr> ParseExprNoBrace(Parser parser) {
   SPEC_RULE("Parse-Expr-NoBrace");
-  ParseElemResult<AttrOpt> attrs = ParseAttributeListOpt(parser);
-  Parser next = attrs.parser;
-  const AttributeList& attr_list = AttrListOf(attrs.elem);
-  bool log_only_attrs = attrs.elem.has_value();
-  for (const auto& attr : attr_list) {
-    if (attr.name != "log") {
-      log_only_attrs = false;
-      break;
-    }
-  }
-  if (log_only_attrs) {
-    while (Tok(next) && Tok(next)->kind == TokenKind::Newline) {
-      Advance(next);
-    }
-  }
-  ParseElemResult<ExprPtr> expr = ParseRange(next, false, true);
-  if (attrs.elem.has_value()) {
-    return {expr.parser,
-            AttachExprAttrs(expr.elem, *attrs.elem,
-                            SpanBetween(parser, expr.parser))};
-  }
-  return expr;
+  return ParseExprWithLeadingAttrs(
+      parser, [](Parser next) { return ParseRange(next, false, true); });
 }
 
 // =============================================================================
@@ -671,7 +664,8 @@ ParseElemResult<ExprPtr> ParseExprNoBrace(Parser parser) {
 
 ParseElemResult<ExprPtr> ParsePredicateExpr(Parser parser) {
   SPEC_RULE("Parse-Predicate-Expr");
-  return ParseLogicalOr(parser, false, true);
+  return ParseExprWithLeadingAttrs(
+      parser, [](Parser next) { return ParseLogicalOr(next, false, true); });
 }
 
 // =============================================================================

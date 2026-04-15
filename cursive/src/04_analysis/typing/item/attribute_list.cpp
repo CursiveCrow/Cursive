@@ -61,7 +61,6 @@ namespace attr_names {
   const std::string kFfiPassByValue = "ffi_pass_by_value";
   const std::string kDynamic = "dynamic";
   const std::string kStatic = "static";
-  const std::string kTrust = "trust";
 }
 
 // =============================================================================
@@ -71,17 +70,12 @@ namespace attr_names {
 enum class AttrTarget {
   Procedure,
   ExternBlock,
-  Import,
-  Using,
   Record,
   Enum,
   Modal,
-  Class,
   Field,
   Method,
-  Param,
   TypeAlias,
-  Static,
   Binding,
   Statement,
   Expression,
@@ -105,7 +99,6 @@ static bool IsKnownAttribute(std::string_view name) {
     attr_names::kFfiPassByValue,
     attr_names::kDynamic,
     attr_names::kStatic,
-    attr_names::kTrust,
   };
   return kKnownAttrs.find(name) != kKnownAttrs.end();
 }
@@ -155,10 +148,6 @@ static bool AttrAppliesTo(std::string_view name, AttrTarget target) {
   // static verification mode applies to procedures
   if (name == attr_names::kStatic) {
     return target == AttrTarget::Procedure;
-  }
-  // trust verification mode applies to procedures and extern blocks
-  if (name == attr_names::kTrust) {
-    return target == AttrTarget::Procedure || target == AttrTarget::ExternBlock;
   }
   return false;
 }
@@ -296,12 +285,6 @@ AttributeValidationResult ValidateAttributeList(
     case AttributeTarget::ExternBlock:
       internal_target = AttrTarget::ExternBlock;
       break;
-    case AttributeTarget::Import:
-      internal_target = AttrTarget::Import;
-      break;
-    case AttributeTarget::Using:
-      internal_target = AttrTarget::Using;
-      break;
     case AttributeTarget::Record:
       internal_target = AttrTarget::Record;
       break;
@@ -311,23 +294,14 @@ AttributeValidationResult ValidateAttributeList(
     case AttributeTarget::Modal:
       internal_target = AttrTarget::Modal;
       break;
-    case AttributeTarget::Class:
-      internal_target = AttrTarget::Class;
-      break;
     case AttributeTarget::Field:
       internal_target = AttrTarget::Field;
       break;
     case AttributeTarget::Method:
       internal_target = AttrTarget::Method;
       break;
-    case AttributeTarget::Param:
-      internal_target = AttrTarget::Param;
-      break;
     case AttributeTarget::TypeAlias:
       internal_target = AttrTarget::TypeAlias;
-      break;
-    case AttributeTarget::Static:
-      internal_target = AttrTarget::Static;
       break;
     case AttributeTarget::Binding:
       internal_target = AttrTarget::Binding;

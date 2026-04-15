@@ -424,8 +424,9 @@ static void AddBindingsToTypeEnv(TypeEnv& env,
 static std::optional<TypeRef> BindingType(const ScopeContext& ctx,
                                           const ast::Binding& binding,
                                           const TypeEnv& env) {
-  if (binding.type_opt) {
-    const auto lowered = LocalLowerType(ctx, binding.type_opt);
+  const auto ann_type = ast::BindingAnnotationTypeOpt(binding);
+  if (ann_type) {
+    const auto lowered = LocalLowerType(ctx, ann_type);
     if (!lowered.ok) {
       return std::nullopt;
     }

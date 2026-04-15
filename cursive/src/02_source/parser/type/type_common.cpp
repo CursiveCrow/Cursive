@@ -78,7 +78,18 @@ namespace {
 
 std::optional<ParseElemResult<std::shared_ptr<Type>>> TryParseSpliceType(
     Parser parser) {
-  if (!parser.quote_mode || !IsOpType(parser, "$")) {
+  if (!IsOpType(parser, "$")) {
+    return std::nullopt;
+  }
+  if (!parser.quote_mode) {
+    Parser after_dollar = parser;
+    Advance(after_dollar);
+    if (IsPuncType(after_dollar, "(")) {
+      EmitSpliceOutsideQuoteErr(after_dollar, SpanBetween(parser, after_dollar));
+      SyncType(after_dollar);
+      return ParseElemResult<std::shared_ptr<Type>>{
+          after_dollar, MakeTypePrim(SpanBetween(parser, after_dollar), "!")};
+    }
     return std::nullopt;
   }
   Parser after_dollar = parser;
@@ -383,7 +394,7 @@ ParseElemResult<std::shared_ptr<Type>> ParseType(Parser parser) {
   // Error case: no valid type start (EOF or invalid token)
   if (!tok) {
     SPEC_RULE("Parse-Type-Err");
-    EmitParseSyntaxErr(after_perm, TokSpan(after_perm));
+    EmitGenericParseSyntaxErr(after_perm, TokSpan(after_perm));
     std::shared_ptr<Type> base =
         MakeTypePrim(SpanBetween(start, after_perm), "!");
     if (perm.perm.has_value()) {
@@ -405,7 +416,7 @@ ParseElemResult<std::shared_ptr<Type>> ParseType(Parser parser) {
                                 tok->lexeme == "!" || tok->lexeme == "|"));
   if (!non_perm_start) {
     SPEC_RULE("Parse-Type-Err");
-    EmitParseSyntaxErr(after_perm, TokSpan(after_perm));
+    EmitGenericParseSyntaxErr(after_perm, TokSpan(after_perm));
     std::shared_ptr<Type> base =
         MakeTypePrim(SpanBetween(start, after_perm), "!");
     if (perm.perm.has_value()) {
@@ -466,7 +477,7 @@ ParseElemResult<std::shared_ptr<Type>> ParseTypeNoUnion(Parser parser) {
 
   if (!tok) {
     SPEC_RULE("Parse-Type-Err");
-    EmitParseSyntaxErr(after_perm, TokSpan(after_perm));
+    EmitGenericParseSyntaxErr(after_perm, TokSpan(after_perm));
     std::shared_ptr<Type> base =
         MakeTypePrim(SpanBetween(start, after_perm), "!");
     if (perm.perm.has_value()) {
@@ -487,7 +498,7 @@ ParseElemResult<std::shared_ptr<Type>> ParseTypeNoUnion(Parser parser) {
                                 tok->lexeme == "!" || tok->lexeme == "|"));
   if (!non_perm_start) {
     SPEC_RULE("Parse-Type-Err");
-    EmitParseSyntaxErr(after_perm, TokSpan(after_perm));
+    EmitGenericParseSyntaxErr(after_perm, TokSpan(after_perm));
     std::shared_ptr<Type> base =
         MakeTypePrim(SpanBetween(start, after_perm), "!");
     if (perm.perm.has_value()) {

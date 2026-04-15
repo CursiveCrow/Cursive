@@ -1,7 +1,5 @@
 #include "cursive_rt.h"
-
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+#include "../src/internal/rt_platform.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -50,18 +48,20 @@ static char* join_path_utf8(const char* base, const char* leaf) {
 }
 
 static wchar_t* wide_from_utf8(const char* utf8) {
+  int needed;
+  wchar_t* wide;
   if (!utf8) {
     return NULL;
   }
-  int needed = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, NULL, 0);
+  needed = cursive_rt_utf8_to_wide_chars(utf8, -1, NULL, 0);
   if (needed <= 0) {
     return NULL;
   }
-  wchar_t* wide = (wchar_t*)malloc(sizeof(wchar_t) * (size_t)needed);
+  wide = (wchar_t*)malloc(sizeof(wchar_t) * (size_t)needed);
   if (!wide) {
     return NULL;
   }
-  if (MultiByteToWideChar(CP_UTF8, 0, utf8, -1, wide, needed) <= 0) {
+  if (cursive_rt_utf8_to_wide_chars(utf8, -1, wide, needed) <= 0) {
     free(wide);
     return NULL;
   }
@@ -69,18 +69,20 @@ static wchar_t* wide_from_utf8(const char* utf8) {
 }
 
 static char* utf8_from_wide(const wchar_t* wide) {
+  int needed;
+  char* utf8;
   if (!wide) {
     return NULL;
   }
-  int needed = WideCharToMultiByte(CP_UTF8, 0, wide, -1, NULL, 0, NULL, NULL);
+  needed = cursive_rt_wide_to_utf8_chars(wide, -1, NULL, 0);
   if (needed <= 0) {
     return NULL;
   }
-  char* utf8 = (char*)malloc((size_t)needed);
+  utf8 = (char*)malloc((size_t)needed);
   if (!utf8) {
     return NULL;
   }
-  if (WideCharToMultiByte(CP_UTF8, 0, wide, -1, utf8, needed, NULL, NULL) <= 0) {
+  if (cursive_rt_wide_to_utf8_chars(wide, -1, utf8, needed) <= 0) {
     free(utf8);
     return NULL;
   }
@@ -88,18 +90,19 @@ static char* utf8_from_wide(const wchar_t* wide) {
 }
 
 static char* make_temp_dir_utf8(void) {
-  wchar_t temp_root[MAX_PATH];
-  wchar_t temp_path[MAX_PATH];
-  if (GetTempPathW(MAX_PATH, temp_root) == 0) {
+  wchar_t temp_root[4096];
+  wchar_t temp_path[4096];
+  if (cursive_rt_temp_path_get_wide((cursive_rt_dword_t)(sizeof(temp_root) / sizeof(temp_root[0])),
+                                    temp_root) == 0) {
     return NULL;
   }
-  if (GetTempFileNameW(temp_root, L"c75", 0, temp_path) == 0) {
+  if (cursive_rt_temp_file_name_wide(temp_root, L"c75", 0u, temp_path) == 0u) {
     return NULL;
   }
-  if (!DeleteFileW(temp_path)) {
+  if (!cursive_rt_file_delete_wide(temp_path)) {
     return NULL;
   }
-  if (!CreateDirectoryW(temp_path, NULL)) {
+  if (!cursive_rt_directory_create_wide(temp_path, NULL)) {
     return NULL;
   }
   return utf8_from_wide(temp_path);
@@ -107,15 +110,16 @@ static char* make_temp_dir_utf8(void) {
 
 static void delete_path_utf8(const char* utf8_path) {
   wchar_t* wide = wide_from_utf8(utf8_path);
+  cursive_rt_dword_t attrs;
   if (!wide) {
     return;
   }
-  DWORD attrs = GetFileAttributesW(wide);
-  if (attrs != INVALID_FILE_ATTRIBUTES) {
-    if (attrs & FILE_ATTRIBUTE_DIRECTORY) {
-      RemoveDirectoryW(wide);
+  attrs = cursive_rt_file_attributes_get_wide(wide);
+  if (attrs != CURSIVE_PLATFORM_INVALID_FILE_ATTRIBUTES) {
+    if ((attrs & CURSIVE_PLATFORM_FILE_ATTRIBUTE_DIRECTORY) != 0u) {
+      cursive_rt_directory_remove_wide(wide);
     } else {
-      DeleteFileW(wide);
+      cursive_rt_file_delete_wide(wide);
     }
   }
   free(wide);
@@ -151,6 +155,12 @@ static int expect_file_error(C0Union_File_IoError result,
                              C0IoError expected,
                              const char* label) {
   if (result.disc != 0 || result.payload.io_error != expected) {
+    fprintf(stderr,
+            "TASK-075 detail: %s disc=%u actual=%u expected=%u\n",
+            label,
+            (unsigned)result.disc,
+            (unsigned)result.payload.io_error,
+            (unsigned)expected);
     return report_failure(label);
   }
   return 0;
@@ -160,6 +170,12 @@ static int expect_dir_error(C0Union_DirIter_IoError result,
                             C0IoError expected,
                             const char* label) {
   if (result.disc != 0 || result.payload.io_error != expected) {
+    fprintf(stderr,
+            "TASK-075 detail: %s disc=%u actual=%u expected=%u\n",
+            label,
+            (unsigned)result.disc,
+            (unsigned)result.payload.io_error,
+            (unsigned)expected);
     return report_failure(label);
   }
   return 0;
@@ -169,6 +185,12 @@ static int expect_unit_error(C0Union_Unit_IoError result,
                              C0IoError expected,
                              const char* label) {
   if (result.disc != 1 || result.payload != expected) {
+    fprintf(stderr,
+            "TASK-075 detail: %s disc=%u actual=%u expected=%u\n",
+            label,
+            (unsigned)result.disc,
+            (unsigned)result.payload,
+            (unsigned)expected);
     return report_failure(label);
   }
   return 0;
@@ -178,6 +200,12 @@ static int expect_kind_error(C0Union_FileKind_IoError result,
                              C0IoError expected,
                              const char* label) {
   if (result.disc != 1 || result.payload != expected) {
+    fprintf(stderr,
+            "TASK-075 detail: %s disc=%u actual=%u expected=%u\n",
+            label,
+            (unsigned)result.disc,
+            (unsigned)result.payload,
+            (unsigned)expected);
     return report_failure(label);
   }
   return 0;

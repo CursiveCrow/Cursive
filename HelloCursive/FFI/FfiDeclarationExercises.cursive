@@ -5,18 +5,28 @@ record FfiSafeRecord {
 }
 
 [[mangle("hc_ffi_exercise_add_impl"), export("C")]]
-public procedure FfiExerciseAddImpl(a: i32, b: i32) -> i32 {
+public procedure ffiExerciseAddImpl(a: i32, b: i32) -> i32 {
     return a + b
 }
 
 [[mangle("hc_ffi_exercise_negate_impl"), export("C")]]
-public procedure FfiExerciseNegateImpl(value: i32) -> i32 {
+public procedure ffiExerciseNegateImpl(value: i32) -> i32 {
     return 0 - value
 }
 
 [[mangle("hc_ffi_exercise_record_sum_impl"), export("C")]]
-public procedure FfiExerciseRecordSumImpl(x: i32, y: i32) -> i32 {
+public procedure ffiExerciseRecordSumImpl(x: i32, y: i32) -> i32 {
     return x + y
+}
+
+[[mangle("hc_ffi_extern_shell_probe_impl"), export("C")]]
+public procedure ffiExternShellProbeImpl() -> i32 {
+    return 17
+}
+
+[[mangle("hc_ffi_extern_no_attrs_probe_impl"), export("C")]]
+public procedure ffiExternNoAttrsProbeImpl() -> i32 {
+    return 23
 }
 
 extern "C" {
@@ -32,26 +42,15 @@ extern "C" {
         |: @foreign_ensures(@error: @result < 0)
 }
 
-procedure FfiExerciseMetricLabel(value: i32) -> string@View {
-    if (value == 0) {
-        return "0"
-    }
-    if (value == 3) {
-        return "3"
-    }
-    if (value == 7) {
-        return "7"
-    }
-    if (value == 8) {
-        return "8"
-    }
-    if (value == 11) {
-        return "11"
-    }
-    return "other"
+internal extern "C" {
+    procedure hc_ffi_extern_shell_probe_impl() -> i32
 }
 
-public procedure RunFfiMultipleExternBlockExercise(ctx: Context) -> i32 {
+internal extern "C" {
+    procedure hc_ffi_extern_no_attrs_probe_impl() -> i32
+}
+
+public procedure runFfiMultipleExternBlockExercise(ctx: Context) -> i32 {
     let _ = ctx
     [[log(label: "ffi-log-item_begin")]]
 
@@ -79,7 +78,7 @@ public procedure RunFfiMultipleExternBlockExercise(ctx: Context) -> i32 {
     return 0
 }
 
-public procedure RunFfiForeignContractExercise(ctx: Context) -> i32 {
+public procedure runFfiForeignContractExercise(ctx: Context) -> i32 {
     let _ = ctx
     [[log(label: "ffi-log-item_begin")]]
 
@@ -101,7 +100,53 @@ public procedure RunFfiForeignContractExercise(ctx: Context) -> i32 {
     return 0
 }
 
-public procedure RunFfiSafeTypeExercise(ctx: Context) -> i32 {
+public procedure runFfiExternBlockShellExercise(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "ffi-log-item_begin")]]
+
+    let shell_result: i32 = unsafe { hc_ffi_extern_shell_probe_impl() }
+    let shell_result_log: i32 =
+        [[log(label: "observed-ffi-extern-block-shell-result", expected: 17)]]
+        shell_result
+
+    let runtime_ok: bool = shell_result_log == 17
+    let runtime_ok_log: bool =
+        [[log(label: "ffi-extern-block-shell-runtime", expected: true)]]
+        runtime_ok
+
+    if (runtime_ok_log != true) {
+        [[log(label: "ffi-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "ffi-log-item_success")]]
+    return 0
+}
+
+public procedure runFfiExternBlockWithoutAttributesExercise(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "ffi-log-item_begin")]]
+
+    let bare_result: i32 = unsafe { hc_ffi_extern_no_attrs_probe_impl() }
+    let bare_result_log: i32 =
+        [[log(label: "observed-ffi-extern-block-without-attributes-result", expected: 23)]]
+        bare_result
+
+    let runtime_ok: bool = bare_result_log == 23
+    let runtime_ok_log: bool =
+        [[log(label: "ffi-extern-block-without-attributes-runtime", expected: true)]]
+        runtime_ok
+
+    if (runtime_ok_log != true) {
+        [[log(label: "ffi-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "ffi-log-item_success")]]
+    return 0
+}
+
+public procedure runFfiSafeTypeExercise(ctx: Context) -> i32 {
     let _ = ctx
     [[log(label: "ffi-log-item_begin")]]
 

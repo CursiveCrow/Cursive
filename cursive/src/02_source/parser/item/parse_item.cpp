@@ -10,13 +10,14 @@
 // The dispatcher handles:
 //   1. Optional attributes ([[...]])
 //   2. Special cases before visibility (import, modal class, extern, use, return)
-//   3. Visibility modifier (public, internal, private, protected)
+//   3. Visibility modifier (public, internal, private)
 //   4. Keyword dispatch (using, let/var, procedure, record, enum, modal, class, type)
 //
 // =============================================================================
 
 #include "02_source/parser/parser.h"
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -43,9 +44,12 @@ void EmitReturnAtModuleErr(Parser& parser);
 ParseElemResult<AttrOpt> ParseAttributeListOpt(Parser parser);
 
 // Forward declarations for individual item parsers
-ParseItemResult ParseImportDecl(Parser parser, Visibility vis, AttributeList attrs);
-ParseItemResult ParseUsingDecl(Parser parser, Visibility vis, AttributeList attrs);
-ParseItemResult ParseStaticDecl(Parser parser, Visibility vis, AttributeList attrs);
+ParseItemResult ParseImportDecl(Parser parser, Visibility vis, AttrOpt attrs_opt);
+ParseItemResult ParseUsingDecl(Parser item_start,
+                               Parser parser,
+                               Visibility vis,
+                               AttrOpt attrs_opt);
+ParseItemResult ParseStaticDecl(Parser parser, Visibility vis, AttrOpt attrs_opt);
 ParseItemResult ParseProcedureDecl(Parser parser, Visibility vis, AttributeList attrs);
 ParseItemResult ParseComptimeProcedureDecl(Parser parser, AttributeList attrs);
 ParseItemResult ParseRecordDecl(Parser parser, Visibility vis, AttributeList attrs);
@@ -54,7 +58,8 @@ ParseItemResult ParseModalDecl(Parser parser, Visibility vis, AttributeList attr
 ParseItemResult ParseClassDecl(Parser parser, Visibility vis, AttributeList attrs,
                                bool is_modal = false);
 ParseItemResult ParseTypeAliasDecl(Parser parser, Visibility vis, AttributeList attrs);
-ParseItemResult ParseExternBlock(Parser parser, Visibility vis, AttributeList attrs);
+ParseItemResult ParseExternBlock(Parser item_start, Parser parser, Visibility vis,
+                                 AttrOpt attrs_opt);
 ParseItemResult ParseDeriveTargetDecl(Parser parser);
 
 namespace {
@@ -64,6 +69,28 @@ bool IsLexemeToken(const Parser& parser, std::string_view lexeme) {
   return tok && ((tok->kind == TokenKind::Identifier) ||
                  (tok->kind == TokenKind::Keyword)) &&
          tok->lexeme == lexeme;
+}
+
+std::optional<std::size_t> FindSecondLeadingAttrBlockIndex(const Parser& start,
+                                                           const Parser& end) {
+  if (!start.tokens || start.tokens != end.tokens || start.index >= end.index) {
+    return std::nullopt;
+  }
+
+  std::size_t attr_block_count = 0;
+  const std::size_t limit = std::min(end.index, start.tokens->size());
+  for (std::size_t i = start.index; i < limit; ++i) {
+    const Token& tok = (*start.tokens)[i];
+    if (tok.kind != TokenKind::Punctuator || tok.lexeme != "[[") {
+      continue;
+    }
+    ++attr_block_count;
+    if (attr_block_count == 2) {
+      return i;
+    }
+  }
+
+  return std::nullopt;
 }
 
 }  // namespace
@@ -86,14 +113,26 @@ bool IsLexemeToken(const Parser& parser, std::string_view lexeme) {
 //   Γ ⊢ ParseItem(P) ⇓ (P_n, item)
 
 ParseItemResult ParseItem(Parser parser) {
+  // Item boundaries may be separated by one or more newline terminators.
+  // Normalize those before looking for an attribute list so attributes can
+  // legally appear on the line before the declaration they modify.
+  SkipNewlines(parser);
+
   Parser start = parser;
+
+  if (AtEof(parser)) {
+    return {parser, ErrorItem{core::Span{}, {}}};
+  }
 
   // Parse optional attributes
   ParseElemResult<AttrOpt> attrs = ParseAttributeListOpt(parser);
   parser = attrs.parser;
   AttributeList attrs_list = attrs.elem.value_or(AttributeList{});
+  const std::optional<std::size_t> second_attr_block_index =
+      FindSecondLeadingAttrBlockIndex(start, parser);
 
   parser = attrs.parser;
+  SkipNewlines(parser);
 
   // Handle stray where clause at top level (error case)
   if (IsWhereTok(parser)) {
@@ -108,7 +147,7 @@ ParseItemResult ParseItem(Parser parser) {
   if (IsKw(parser, "import")) {
     SPEC_RULE("Parse-Import");
     // Import declarations without explicit visibility use Parse-Vis-Default.
-    return ParseImportDecl(parser, Visibility::Internal, attrs_list);
+    return ParseImportDecl(parser, Visibility::Internal, attrs.elem);
   }
 
   // Handle "modal class" (modal class declaration before visibility check)
@@ -131,7 +170,7 @@ ParseItemResult ParseItem(Parser parser) {
   if (const Token* tok = Tok(parser);
       tok && IsIdentTok(*tok) && tok->lexeme == "use") {
     SPEC_RULE("Parse-Item-Err");
-    EmitParseSyntaxErr(parser, TokSpan(parser));
+    EmitGenericParseSyntaxErr(parser, TokSpan(parser));
     Parser next = parser;
     Advance(next);
     SyncItem(next);
@@ -259,25 +298,41 @@ ParseItemResult ParseItem(Parser parser) {
   // import declaration (visibility applies)
   if (IsKw(cur, "import")) {
     SPEC_RULE("Parse-Import");
-    return ParseImportDecl(cur, vis.elem, attrs_list);
+    return ParseImportDecl(cur, vis.elem, attrs.elem);
   }
 
   // extern block (visibility applies)
-  if (const Token* tok = Tok(cur);
-      tok && IsIdentTok(*tok) && tok->lexeme == "extern") {
+  if (IsKw(cur, "extern")) {
+    if (second_attr_block_index.has_value()) {
+      Parser extra_attrs = start;
+      extra_attrs.index = *second_attr_block_index;
+      EmitParseSyntaxErr(extra_attrs, TokSpan(extra_attrs));
+      Parser next = cur;
+      SyncItem(next);
+      return {next, ErrorItem{SpanBetween(start, next), {}}};
+    }
     SPEC_RULE("Parse-Extern-Block");
-    return ParseExternBlock(cur, vis.elem, attrs_list);
+    return ParseExternBlock(start, cur, vis.elem, attrs.elem);
+  }
+
+  if (const Token* tok = Tok(cur); tok && IsIdentTok(*tok) &&
+                                  tok->lexeme == "extern") {
+    EmitParseSyntaxErr(cur, TokSpan(cur));
+    Parser next = cur;
+    Advance(next);
+    SyncItem(next);
+    return {next, ErrorItem{SpanBetween(start, next), {}}};
   }
 
   // using declaration
   if (IsKw(cur, "using")) {
-    return ParseUsingDecl(cur, vis.elem, attrs_list);
+    return ParseUsingDecl(start, cur, vis.elem, attrs.elem);
   }
 
   // static declaration (let/var)
   if (IsKw(cur, "let") || IsKw(cur, "var")) {
     SPEC_RULE("Parse-Static-Decl");
-    return ParseStaticDecl(cur, vis.elem, attrs_list);
+    return ParseStaticDecl(cur, vis.elem, attrs.elem);
   }
 
   if (IsKw(cur, "procedure")) {
@@ -386,7 +441,7 @@ ParseItemResult ParseItem(Parser parser) {
 
   // Unknown item - emit error and recover
   SPEC_RULE("Parse-Item-Err");
-  EmitParseSyntaxErr(parser, TokSpan(parser));
+  EmitGenericParseSyntaxErr(parser, TokSpan(parser));
   Parser next = AdvanceOrEOF(parser);
   SyncItem(next);
   return {next, ErrorItem{SpanBetween(start, next), {}}};

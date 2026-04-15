@@ -1,11 +1,43 @@
 #include "03_comptime/comptime_internal.h"
 
+#include <string>
+
+#include "00_core/diagnostic_messages.h"
+#include "00_core/diagnostics.h"
+#include "04_analysis/attributes/attribute_registry.h"
+
 namespace cursive::frontend::comptime_internal {
 
 namespace {
 
 ExprPtr RewriteExpr(const ExprPtr& expr, CtEnv& env);
 bool BindCtPatternValue(CtEnv& env, const ast::PatternPtr& pattern, const CtValue& value);
+
+bool ValidatePhase2AttributeList(CtEnv& env,
+                                 const AttributeList& attrs,
+                                 analysis::AttributeTarget target) {
+  if (attrs.empty()) {
+    return true;
+  }
+
+  const auto validation = analysis::ValidateAttributes(attrs, target);
+  if (validation.ok) {
+    return true;
+  }
+
+  if (core::DiagnosticStream* diags = CtDiags(env)) {
+    const std::string code =
+        validation.diag_id.has_value() ? std::string(*validation.diag_id)
+                                       : "E-MOD-2450";
+    if (auto diag = core::MakeDiagnosticById(code, validation.span)) {
+      if (!validation.message.empty()) {
+        diag->message = validation.message;
+      }
+      core::Emit(*diags, *diag);
+    }
+  }
+  return false;
+}
 
 ExprPtr MakeUnitExpr(const core::Span& span) {
   auto expr = std::make_shared<Expr>();
@@ -178,6 +210,10 @@ Block RewriteBlock(const Block& block, CtEnv& env) {
   out.stmts.reserve(block.stmts.size());
   for (const auto& stmt : block.stmts) {
     if (const auto* comptime = std::get_if<ast::ComptimeStmt>(&stmt)) {
+      if (!ValidatePhase2AttributeList(env, comptime->attrs,
+                                       analysis::AttributeTarget::Statement)) {
+        continue;
+      }
       std::vector<ASTItem> emitted;
       CtEnv stmt_env = WithCtCaps(env, comptime->attrs);
       stmt_env.pending_emits = &emitted;
@@ -203,6 +239,10 @@ ExprPtr RewriteExpr(const ExprPtr& expr, CtEnv& env) {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
           if (node.expr && std::holds_alternative<ast::ComptimeExpr>(node.expr->node)) {
+            if (!ValidatePhase2AttributeList(
+                    env, node.attrs, analysis::AttributeTarget::Expression)) {
+              return expr;
+            }
             CtEnv ct_env = WithCtCaps(env, node.attrs);
             std::vector<ASTItem> emitted;
             ct_env.pending_emits = &emitted;
@@ -212,11 +252,19 @@ ExprPtr RewriteExpr(const ExprPtr& expr, CtEnv& env) {
                 env.pending_emits->insert(env.pending_emits->end(), emitted.begin(),
                                           emitted.end());
               }
-              if (ExprPtr lit = LiteralizeValue(value.value, expr->span)) {
-                return lit;
-              }
               if (std::holds_alternative<CtAst>(value.value)) {
+                auto hygienized = PrepareAstForInsertion(
+                    std::get<CtAst>(value.value), CtSiteOf(env), env);
+                if (hygienized.has_value() &&
+                    hygienized->kind == CtAstKind::Expr) {
+                  if (const auto* quoted_expr =
+                          std::get_if<ExprPtr>(&hygienized->payload)) {
+                    return *quoted_expr;
+                  }
+                }
                 EmitComptimeDiag(env, "E-CTE-0210", expr->span);
+              } else if (ExprPtr lit = LiteralizeValue(value.value, expr->span)) {
+                return lit;
               }
             }
           }
@@ -225,6 +273,11 @@ ExprPtr RewriteExpr(const ExprPtr& expr, CtEnv& env) {
           rewritten.expr = RewriteExpr(node.expr, env);
           return out;
         } else if constexpr (std::is_same_v<T, ast::ComptimeExpr>) {
+          if (!ValidatePhase2AttributeList(
+                  env, ast::AttrListOf(node.attrs_opt),
+                  analysis::AttributeTarget::Expression)) {
+            return expr;
+          }
           CtEnv ct_env = WithCtCaps(env, ast::AttrListOf(node.attrs_opt));
           std::vector<ASTItem> emitted;
           ct_env.pending_emits = &emitted;
@@ -234,11 +287,19 @@ ExprPtr RewriteExpr(const ExprPtr& expr, CtEnv& env) {
               env.pending_emits->insert(env.pending_emits->end(), emitted.begin(),
                                         emitted.end());
             }
-            if (ExprPtr lit = LiteralizeValue(value.value, expr->span)) {
-              return lit;
-            }
             if (std::holds_alternative<CtAst>(value.value)) {
+              auto hygienized = PrepareAstForInsertion(
+                  std::get<CtAst>(value.value), CtSiteOf(env), env);
+              if (hygienized.has_value() &&
+                  hygienized->kind == CtAstKind::Expr) {
+                if (const auto* quoted_expr =
+                        std::get_if<ExprPtr>(&hygienized->payload)) {
+                  return *quoted_expr;
+                }
+              }
               EmitComptimeDiag(env, "E-CTE-0210", expr->span);
+            } else if (ExprPtr lit = LiteralizeValue(value.value, expr->span)) {
+              return lit;
             }
           }
           auto out = std::make_shared<Expr>(*expr);
@@ -358,7 +419,12 @@ ASTItem RewriteItem(const ASTItem& item, CtEnv& env) {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, ast::StaticDecl>) {
           ast::StaticDecl out = node;
-          out.attrs = StripAttribute(out.attrs, "derive");
+          if (out.attrs_opt.has_value()) {
+            out.attrs_opt = StripAttribute(*out.attrs_opt, "derive");
+            if (out.attrs_opt->empty()) {
+              out.attrs_opt = std::nullopt;
+            }
+          }
           out.binding.init = RewriteExpr(node.binding.init, env);
           return out;
         } else if constexpr (std::is_same_v<T, ast::ProcedureDecl>) {
@@ -390,14 +456,19 @@ ASTItem RewriteItem(const ASTItem& item, CtEnv& env) {
 std::optional<std::vector<ASTItem>> ExpandModuleItems(
     const std::vector<ASTItem>& items, CtEnv& env) {
   std::vector<ASTItem> queue = items;
+  std::vector<ASTItem> visible_current_items = items;
+  env.current_module_items = &visible_current_items;
   std::vector<ASTItem> out;
   for (std::size_t i = 0; i < queue.size(); ++i) {
-    env.current_item_index = i;
-    env.site.ordinal = i;
+    env = WithCtSite(std::move(env), i, {});
     const ASTItem item = queue[i];
 
     if (const auto* proc = std::get_if<ast::ComptimeProcedureDecl>(&item)) {
-      env.procs[proc->name] = *proc;
+      if (!ValidatePhase2AttributeList(
+              env, proc->attrs, analysis::AttributeTarget::Procedure)) {
+        continue;
+      }
+      env = BindCtProc(std::move(env), *proc);
       continue;
     }
 
@@ -406,12 +477,13 @@ std::optional<std::vector<ASTItem>> ExpandModuleItems(
       continue;
     }
 
-    std::vector<ASTItem> emitted;
+    std::vector<ASTItem> explicit_emits;
     CtEnv item_env = env;
-    item_env.pending_emits = &emitted;
+    item_env.pending_emits = &explicit_emits;
     ASTItem rewritten = RewriteItem(item, item_env);
     out.push_back(rewritten);
 
+    std::vector<ASTItem> emitted;
     if (IsDeriveAnnotatedItem(item)) {
       auto derive_emits = ExpandDerives(item, env);
       if (!derive_emits.has_value()) {
@@ -419,10 +491,13 @@ std::optional<std::vector<ASTItem>> ExpandModuleItems(
       }
       emitted.insert(emitted.end(), derive_emits->begin(), derive_emits->end());
     }
+    emitted.insert(emitted.end(), explicit_emits.begin(), explicit_emits.end());
 
     if (!emitted.empty()) {
       queue.insert(queue.begin() + static_cast<std::ptrdiff_t>(i + 1),
                    emitted.begin(), emitted.end());
+      visible_current_items.insert(visible_current_items.end(), emitted.begin(),
+                                   emitted.end());
     }
   }
   return out;

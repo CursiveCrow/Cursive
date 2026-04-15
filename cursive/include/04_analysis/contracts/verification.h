@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -36,7 +37,15 @@ struct StaticProofResult {
 // Structural equality of expressions (syntax-only)
 bool ExprStructEqual(const ast::ExprPtr& a, const ast::ExprPtr& b);
 
-// StaticProof(Γ_S, P): decidable predicate provability
+// StaticProofAt(Γ_S, S, P): decidable predicate provability at program point S.
+StaticProofResult StaticProofAt(
+    const StaticProofContext& ctx,
+    const core::Span& location,
+    const ast::ExprPtr& predicate);
+
+// StaticProof(Γ_S, P): decidable predicate provability using predicate->span
+// as the proof location. This is only appropriate when the predicate AST
+// itself originates at the program point being checked.
 StaticProofResult StaticProof(
     const StaticProofContext& ctx,
     const ast::ExprPtr& predicate);
@@ -95,6 +104,21 @@ TypeBounds GetTypeBounds(const TypeRef& type);
 void AddFact(StaticProofContext& ctx,
              const ast::ExprPtr& predicate,
              const core::Span& location);
+
+// Add predicate facts from a conjunction into the proof context.
+void AddPredicateFacts(StaticProofContext& ctx,
+                       const ast::ExprPtr& predicate);
+
+// Build a proof context by cloning an existing context and adding a predicate's
+// verification facts. Returns std::nullopt when no base context exists and the
+// predicate does not contribute any facts.
+std::shared_ptr<StaticProofContext> ExtendProofContextWithPredicate(
+    const std::shared_ptr<StaticProofContext>& base,
+    const ast::ExprPtr& predicate);
+
+// Compute a simple logical negation fact when the predicate is a negatable
+// decidable predicate. Returns std::nullopt when no single negated fact exists.
+std::optional<ast::ExprPtr> NegatedPredicate(const ast::ExprPtr& predicate);
 
 // Check dominance (fact valid at location)
 bool FactDominates(const VerificationFact& fact, const core::Span& location);

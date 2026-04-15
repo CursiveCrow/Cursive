@@ -230,7 +230,9 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
             // Fallback for plain locals (no load-from-address origin): stamp the
             // pointer with the current runtime scope id to avoid stale-stack tags.
             const bool should_tag_scope =
-                !tagged_from_origin && state->scope_runtime_id != 0;
+                !tagged_from_origin &&
+                !state->preserve_addr_provenance &&
+                state->scope_runtime_id != 0;
             if (should_tag_scope) {
               IRCall tag_scope;
               tag_scope.callee.kind = IRValue::Kind::Symbol;

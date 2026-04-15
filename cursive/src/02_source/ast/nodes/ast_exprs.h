@@ -58,6 +58,7 @@ struct LiteralExpr {
 /// Identifier expression - simple name reference
 struct IdentifierExpr {
     Identifier name;
+    bool from_splice = false;
 };
 
 /// Qualified name expression - module::name reference
@@ -167,9 +168,25 @@ struct TupleExpr {
     std::vector<ExprPtr> elements;
 };
 
-/// Array expression - [a, b, c]
+/// Array literal segment - one explicit element
+struct ArrayElemSegment {
+    ExprPtr value;
+
+    ArrayElemSegment() = default;
+    ArrayElemSegment(ExprPtr init_value) : value(std::move(init_value)) {}
+};
+
+/// Array literal segment - repeated element [value; count]
+struct ArrayRepeatSegment {
+    ExprPtr value;
+    ExprPtr count;
+};
+
+using ArraySegment = std::variant<ArrayElemSegment, ArrayRepeatSegment>;
+
+/// Array expression - [a, b, c] or mixed segmented form [0; 4, 1, 0; 22]
 struct ArrayExpr {
-    std::vector<ExprPtr> elements;
+    std::vector<ArraySegment> elements;
 };
 
 /// Array repeat expression - [value; count]
@@ -177,6 +194,52 @@ struct ArrayRepeatExpr {
     ExprPtr value;
     ExprPtr count;
 };
+
+template <typename Fn>
+void ForEachArrayExprSubexpr(const ArrayExpr& expr, Fn&& fn) {
+    for (const auto& segment : expr.elements) {
+        std::visit(
+            [&](const auto& node) {
+                using T = std::decay_t<decltype(node)>;
+                if constexpr (std::is_same_v<T, ArrayElemSegment>) {
+                    if (node.value) {
+                        fn(node.value);
+                    }
+                } else if constexpr (std::is_same_v<T, ArrayRepeatSegment>) {
+                    if (node.value) {
+                        fn(node.value);
+                    }
+                    if (node.count) {
+                        fn(node.count);
+                    }
+                }
+            },
+            segment);
+    }
+}
+
+template <typename Fn>
+void ForEachArrayExprSubexpr(ArrayExpr& expr, Fn&& fn) {
+    for (auto& segment : expr.elements) {
+        std::visit(
+            [&](auto& node) {
+                using T = std::decay_t<decltype(node)>;
+                if constexpr (std::is_same_v<T, ArrayElemSegment>) {
+                    if (node.value) {
+                        fn(node.value);
+                    }
+                } else if constexpr (std::is_same_v<T, ArrayRepeatSegment>) {
+                    if (node.value) {
+                        fn(node.value);
+                    }
+                    if (node.count) {
+                        fn(node.count);
+                    }
+                }
+            },
+            segment);
+    }
+}
 
 // ===========================================================================
 // 6. INTRINSIC EXPRESSIONS
@@ -437,7 +500,7 @@ struct AllExpr {
 // 13. CONCURRENCY EXPRESSIONS
 // ===========================================================================
 
-/// Parallel block option - cancel: or name:
+/// Parallel block option - cancel:, name:, workgroup:, or workgroups:
 struct ParallelOption {
     ParallelOptionKind kind;
     ExprPtr value;
@@ -474,12 +537,13 @@ struct FenceExpr {
     FenceOrder order = FenceOrder::SeqCst;
 };
 
-/// Dispatch option - reduce:, ordered, or chunk:
+/// Dispatch option - reduce:, ordered, chunk:, or workgroup:
 struct DispatchOption {
     DispatchOptionKind kind;
     ReduceOp reduce_op = ReduceOp::Add;    // For Reduce kind
     Identifier custom_reduce_name;          // For Custom reduce
     ExprPtr chunk_expr;                     // For Chunk kind
+    ExprPtr workgroup_expr;                 // For Workgroup kind
     Span span;
 };
 
@@ -656,6 +720,10 @@ inline const AttributeList& ExprAttrList(const Expr& expr) {
 
 inline AttributeList ExprAttrByName(const Expr& expr, std::string_view name) {
     return AttrByName(ExprAttrList(expr), name);
+}
+
+inline bool DynamicExpr(const Expr& expr) {
+    return !ExprAttrByName(expr, "dynamic").empty();
 }
 
 }  // namespace cursive::ast

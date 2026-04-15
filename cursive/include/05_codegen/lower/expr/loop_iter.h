@@ -44,6 +44,8 @@ namespace cursive::codegen {
 /// - body_ir: IR for the loop body
 /// - body_value: Value of the loop body
 /// - result: Fresh temporary for the loop result
-LowerResult LowerLoopIter(const ast::LoopIterExpr& expr, LowerCtx& ctx);
+LowerResult LowerLoopIter(const ast::Expr& expr,
+                          const ast::LoopIterExpr& loop_expr,
+                          LowerCtx& ctx);
 
 }  // namespace cursive::codegen

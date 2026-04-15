@@ -55,6 +55,18 @@ AttributeList StripAttribute(const AttributeList& attrs,
   return out;
 }
 
+CtEnv CtEmptyEnv(const ast::ASTModule& module) {
+  CtEnv env;
+  env.current_module = module.path;
+  env.site.module_path = module.path;
+  env.site.ordinal = 0;
+  env.site.span = {};
+  env.current_item_index = 0;
+  env.current_span = {};
+  env.quote_ctx.reset();
+  return env;
+}
+
 CtEnv WithCtCaps(CtEnv env, const AttributeList& attrs, bool derive_body) {
   env.caps.clear();
   env.values["introspect"] = MakeCtUnit();
@@ -69,6 +81,19 @@ CtEnv WithCtCaps(CtEnv env, const AttributeList& attrs, bool derive_body) {
     env.values["files"] = MakeCtUnit();
     env.caps.push_back("ProjectFiles");
   }
+  return env;
+}
+
+CtEnv WithCtSite(CtEnv env, std::size_t ord, const core::Span& sp) {
+  env.site.ordinal = ord;
+  env.site.span = sp;
+  env.current_item_index = ord;
+  env.current_span = sp;
+  return env;
+}
+
+CtEnv BindCtProc(CtEnv env, const ComptimeProcedureDecl& proc) {
+  env.procs[proc.name] = proc;
   return env;
 }
 
@@ -115,6 +140,33 @@ std::size_t CtFreshSeed(const CtEnv& env) {
 
 std::size_t TakeFreshSeed(CtEnv& env) {
   return env.next_hygiene++;
+}
+
+CtAstKind AstKindOf(const CtAst& ast) {
+  return ast.kind;
+}
+
+const std::variant<ExprPtr, Stmt, ASTItem, TypePtr, PatternPtr>& AstPayloadOf(
+    const CtAst& ast) {
+  return ast.payload;
+}
+
+std::optional<core::Span> AstSpanOf(const CtAst& ast) {
+  return ast.span;
+}
+
+const std::optional<CtHygiene>& AstHygieneOf(const CtAst& ast) {
+  return ast.hygiene;
+}
+
+CtAst AstOf(CtAstKind kind,
+            std::variant<ExprPtr, Stmt, ASTItem, TypePtr, PatternPtr> payload) {
+  CtAst ast;
+  ast.kind = kind;
+  ast.payload = std::move(payload);
+  ast.span.reset();
+  ast.hygiene.reset();
+  return ast;
 }
 
 CtValue MakeCtUnit() {

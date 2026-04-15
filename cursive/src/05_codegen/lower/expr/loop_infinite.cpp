@@ -92,7 +92,9 @@ IRPtr EmitLoopInvariantCheck(const ast::LoopInvariant& invariant,
 // break with value exists).
 // =============================================================================
 
-LowerResult LowerLoopInfinite(const ast::LoopInfiniteExpr& expr, LowerCtx& ctx) {
+LowerResult LowerLoopInfinite(const ast::Expr& expr,
+                              const ast::LoopInfiniteExpr& loop_expr,
+                              LowerCtx& ctx) {
   SPEC_RULE("Lower-Loop-Infinite");
 
   // Push a loop scope for break/continue cleanup tracking.
@@ -101,11 +103,11 @@ LowerResult LowerLoopInfinite(const ast::LoopInfiniteExpr& expr, LowerCtx& ctx) 
   ctx.PushScope(true, false);
 
   // Lower the body block
-  LowerResult body_result = LowerBlock(*expr.body, ctx);
+  LowerResult body_result = LowerBlock(*loop_expr.body, ctx);
 
-  if (expr.invariant_opt.has_value()) {
+  if (loop_expr.invariant_opt.has_value()) {
     IRPtr maintenance_check =
-        EmitLoopInvariantCheck(*expr.invariant_opt, "loop_inv_maint", ctx);
+        EmitLoopInvariantCheck(*loop_expr.invariant_opt, "loop_inv_maint", ctx);
     if (!IsNoOpIR(maintenance_check)) {
       body_result.ir = SeqIR({body_result.ir, maintenance_check});
     }
@@ -122,12 +124,17 @@ LowerResult LowerLoopInfinite(const ast::LoopInfiniteExpr& expr, LowerCtx& ctx) 
 
   // Generate fresh result value for the loop expression
   IRValue result = ctx.FreshTempValue("loop");
+  if (ctx.expr_type) {
+    if (analysis::TypeRef result_type = ctx.expr_type(expr)) {
+      ctx.RegisterValueType(result, result_type);
+    }
+  }
   loop.result = result;
   IRPtr loop_ir = MakeIR(std::move(loop));
 
-  if (expr.invariant_opt.has_value()) {
+  if (loop_expr.invariant_opt.has_value()) {
     IRPtr init_check =
-        EmitLoopInvariantCheck(*expr.invariant_opt, "loop_inv_init", ctx);
+        EmitLoopInvariantCheck(*loop_expr.invariant_opt, "loop_inv_init", ctx);
     if (!IsNoOpIR(init_check)) {
       return LowerResult{SeqIR({init_check, loop_ir}), result};
     }

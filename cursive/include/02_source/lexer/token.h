@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "00_core/span.h"
@@ -9,7 +11,6 @@
 namespace cursive::lexer
 {
 
-  // EOF is not a TokenKind in the C0 spec; the parser uses a separate sentinel.
   enum class TokenKind
   {
     Identifier,
@@ -23,11 +24,14 @@ namespace cursive::lexer
     Operator,
     Punctuator,
     Newline,
+    Eof,
     Unknown,
   };
 
-  // UTF-8 bytes corresponding to Lexeme(T,i,j) from the spec's scalar slice.
+  // UTF-8 surface encoding carried on tokens for parser-facing comparisons.
   using Lexeme = std::string;
+  // Exact scalar slice for the spec helper Lexeme(T, i, j) = T[i..j).
+  using LexemeScalars = core::Scalars;
 
   struct RawToken
   {
@@ -63,6 +67,9 @@ namespace cursive::lexer
 
   std::vector<Token> AttachSpans(const core::SourceFile &source,
                                  const std::vector<RawToken> &raws);
+
+  std::optional<std::pair<std::size_t, std::size_t>> TokenRange(
+      const core::SourceFile &source, const Token &token);
 
   Token MakeEofToken(const core::SourceFile &source);
 

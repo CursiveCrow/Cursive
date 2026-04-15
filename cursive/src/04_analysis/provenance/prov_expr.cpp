@@ -439,13 +439,13 @@ static std::vector<ast::ExprPtr> ChildrenLtr(const ast::ExprPtr& expr) {
           for (const auto& elem : node.elements) {
             out.push_back(elem);
           }
-        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
-            out.push_back(elem);
-          }
-        } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
-          out.push_back(node.value);
-          out.push_back(node.count);
+    } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+      ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+        out.push_back(elem);
+      });
+    } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
+      out.push_back(node.value);
+      out.push_back(node.count);
         } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
           for (const auto& field : node.fields) {
             out.push_back(field.value);

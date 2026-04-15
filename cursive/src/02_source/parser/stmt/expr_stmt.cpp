@@ -110,7 +110,8 @@
 //    bool IsExprStartToken(const Token& tok) {
 //      if (IsIdentTok(tok) || IsLiteralToken(tok)) return true;
 //      if (tok.kind == TokenKind::Punctuator) {
-//        return tok.lexeme == "(" || tok.lexeme == "[" || tok.lexeme == "{";
+//        return tok.lexeme == "(" || tok.lexeme == "[" || tok.lexeme == "[[" ||
+//               tok.lexeme == "{";
 //      }
 //      if (tok.kind == TokenKind::Operator) {
 //        return tok.lexeme == "!" || tok.lexeme == "-" || tok.lexeme == "&" ||
@@ -206,7 +207,10 @@ static bool IsLiteralToken(const Token& tok) {
 bool IsExprStartToken(const Token& tok) {
   if (IsIdentTok(tok) || IsLiteralToken(tok)) return true;
   if (tok.kind == TokenKind::Punctuator) {
-    return tok.lexeme == "(" || tok.lexeme == "[" || tok.lexeme == "{";
+    // Attributed expressions begin with `[[...]]`; statement-sequence tail
+    // probing must treat that prefix as an expression start.
+    return tok.lexeme == "(" || tok.lexeme == "[" || tok.lexeme == "[[" ||
+           tok.lexeme == "{";
   }
   if (tok.kind == TokenKind::Operator) {
     return tok.lexeme == "!" || tok.lexeme == "-" || tok.lexeme == "&" ||

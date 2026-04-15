@@ -1,42 +1,54 @@
 #include "04_analysis/typing/dynamic_context.h"
 
+#include <cstddef>
+
 #include "04_analysis/attributes/attribute_registry.h"
 
 namespace cursive::analysis {
 
 namespace {
 
-bool HasStaticOrTrust(const ast::AttributeList& attrs_list) {
-  return HasAttribute(attrs_list, attrs::kStatic) ||
-         HasAttribute(attrs_list, attrs::kTrust);
+bool SpanContains(const core::Span& outer, const core::Span& inner) {
+  return outer.file == inner.file &&
+         outer.start_offset <= inner.start_offset &&
+         inner.end_offset <= outer.end_offset;
+}
+
+std::size_t SpanWidth(const core::Span& span) {
+  return span.end_offset >= span.start_offset
+             ? span.end_offset - span.start_offset
+             : 0;
 }
 
 }  // namespace
 
-bool FindInnermostDynamic(
-    std::span<const ast::AttributeList* const> ancestors) {
-  for (auto it = ancestors.rbegin(); it != ancestors.rend(); ++it) {
-    if (!*it) {
+const core::Span* FindInnermostDynamic(
+    const core::Span& current_span,
+    std::span<const DynamicScopeAncestor> ancestors) {
+  const core::Span* innermost = nullptr;
+  for (const DynamicScopeAncestor& ancestor : ancestors) {
+    if (ancestor.attrs == nullptr || ancestor.span == nullptr) {
       continue;
     }
-    if (HasStaticOrTrust(**it)) {
-      return false;
+    if (!HasAttribute(*ancestor.attrs, attrs::kDynamic) ||
+        !SpanContains(*ancestor.span, current_span)) {
+      continue;
     }
-    if (HasAttribute(**it, attrs::kDynamic)) {
-      return true;
+    if (innermost == nullptr ||
+        SpanWidth(*ancestor.span) < SpanWidth(*innermost)) {
+      innermost = ancestor.span;
     }
+  }
+  return innermost;
+}
+
+bool ComputeDynamicContext(
+    const core::Span& current_span,
+    std::span<const DynamicScopeAncestor> ancestors) {
+  if (FindInnermostDynamic(current_span, ancestors) != nullptr) {
+    return true;
   }
   return false;
 }
 
-bool ComputeDynamicContext(
-    std::span<const ast::AttributeList* const> ancestors,
-    bool fallback_dynamic) {
-  if (FindInnermostDynamic(ancestors)) {
-    return true;
-  }
-  return fallback_dynamic;
-}
-
 }  // namespace cursive::analysis
-

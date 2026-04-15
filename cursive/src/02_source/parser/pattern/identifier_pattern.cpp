@@ -103,12 +103,10 @@ PatternPtr MakePattern(const core::Span& span, PatternNode node);
 
 ParseElemResult<PatternPtr> ParseIdentifierPattern(Parser parser) {
   SPEC_RULE("Parse-Pattern-Identifier");
-  const lexer::Token* tok = Tok(parser);
-  Parser next = parser;
-  Advance(next);
+  ParseElemResult<Identifier> name = ParseIdent(parser);
   IdentifierPattern pat;
-  pat.name = std::string(tok->lexeme);
-  return {next, MakePattern(tok->span, pat)};
+  pat.name = std::move(name.elem);
+  return {name.parser, MakePattern(SpanBetween(parser, name.parser), pat)};
 }
 
 // =============================================================================
@@ -128,7 +126,7 @@ ParseElemResult<PatternPtr> ParseIdentifierPattern(Parser parser) {
 
 std::optional<ParseElemResult<PatternPtr>> TryParseIdentifierPattern(Parser parser) {
   const lexer::Token* tok = Tok(parser);
-  if (!tok || !IsIdentTok(*tok)) {
+  if (!tok || (!IsIdentTok(*tok) && tok->kind != lexer::TokenKind::Keyword)) {
     return std::nullopt;
   }
   // Note: Full disambiguation (checking for :, ::, {, etc.) is done by

@@ -38,6 +38,7 @@ void SkipNewlines(Parser& parser);
 
 // Forward declaration for type parsing
 ParseElemResult<std::shared_ptr<Type>> ParseType(Parser parser);
+ParseLocalIdentResult ParseLocalIdent(Parser parser);
 
 // Signature result types
 struct SignatureResult {
@@ -48,7 +49,7 @@ struct SignatureResult {
 
 struct MethodSignatureResult {
   Parser parser;
-  std::optional<Receiver> receiver;
+  Receiver receiver;
   std::vector<Param> params;
   TypePtr return_type_opt;
 };
@@ -110,7 +111,7 @@ ParseElemResult<Param> ParseParam(Parser parser) {
   SPEC_RULE("Parse-Param");
   Parser start = parser;
   ParseElemResult<std::optional<ParamMode>> mode = ParseParamModeOpt(parser);
-  ParseElemResult<Identifier> name = ParseIdent(mode.parser);
+  ParseLocalIdentResult name = ParseLocalIdent(mode.parser);
   if (!IsPunc(name.parser, ":")) {
     EmitParseSyntaxErr(name.parser, TokSpan(name.parser));
   } else {
@@ -119,7 +120,8 @@ ParseElemResult<Param> ParseParam(Parser parser) {
   ParseElemResult<std::shared_ptr<Type>> ty = ParseType(name.parser);
   Param param;
   param.mode = mode.elem;
-  param.name = name.elem;
+  param.name = std::move(name.name);
+  param.name_splice_opt = std::move(name.splice_opt);
   param.type = ty.elem;
   param.span = SpanBetween(start, ty.parser);
   return {ty.parser, param};
@@ -137,11 +139,16 @@ ParseElemResult<std::vector<Param>> ParseParamTail(Parser parser,
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
+    const EndSetToken end_set[] = {EndPunct(")")};
     Parser after = parser;
     Advance(after);
     SkipNewlines(after);
     if (IsPunc(after, ")")) {
-      SPEC_RULE("Parse-ParamTail-TrailingComma");
+      if (TrailingCommaAllowed(parser, end_set)) {
+        SPEC_RULE("Parse-ParamTail-TrailingComma");
+      }
+      EmitTrailingCommaErr(parser, end_set);
+      after.diags = parser.diags;
       return {after, xs};
     }
     SPEC_RULE("Parse-ParamTail-Comma");
@@ -327,39 +334,15 @@ MethodSignatureResult ParseClassMethodSignature(Parser parser) {
 // ParseStateMethodSignature - Parse modal state method signature
 // =============================================================================
 //
-// SPEC: Parse-StateMethodSignature-Receiver / Parse-StateMethodSignature-Default
+// SPEC: Parse-StateMethodSignature-Receiver
 // Syntax:
 //   - ( ~ | ~! | ~% , params... ) -> Ret
-//   - (params...) -> Ret   (default const receiver)
+//   - ( self: T , params... ) -> Ret
+//   - ( move self: T , params... ) -> Ret
 
 MethodSignatureResult ParseStateMethodSignature(Parser parser) {
-  if (!IsPunc(parser, "(")) {
-    EmitParseSyntaxErr(parser, TokSpan(parser));
-    Receiver default_recv = ReceiverShorthand{ReceiverPerm::Const};
-    return {parser, default_recv, {}, nullptr};
-  }
-
-  Parser after_l = parser;
-  Advance(after_l);
-  SkipNewlines(after_l);
-  if (IsOp(after_l, "~") || IsOp(after_l, "~!") || IsOp(after_l, "~%")) {
-    SPEC_RULE("Parse-StateMethodSignature-Receiver");
-    ParseElemResult<Receiver> receiver = ParseReceiver(after_l);
-    ParseElemResult<std::vector<Param>> params =
-        ParseMethodParams(receiver.parser);
-    if (!IsPunc(params.parser, ")")) {
-      EmitParseSyntaxErr(params.parser, TokSpan(params.parser));
-    } else {
-      Advance(params.parser);
-    }
-    ParseElemResult<std::shared_ptr<Type>> ret = ParseReturnOpt(params.parser);
-    return {ret.parser, receiver.elem, params.elem, ret.elem};
-  }
-
-  SPEC_RULE("Parse-StateMethodSignature-Default");
-  SignatureResult sig = ParseSignature(parser);
-  Receiver default_recv = ReceiverShorthand{ReceiverPerm::Const};
-  return {sig.parser, default_recv, sig.params, sig.return_type_opt};
+  SPEC_RULE("Parse-StateMethodSignature-Receiver");
+  return ParseMethodSignature(parser);
 }
 
 // =============================================================================

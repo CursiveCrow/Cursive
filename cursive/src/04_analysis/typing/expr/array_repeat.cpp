@@ -2,7 +2,7 @@
 // File: 04_analysis/typing/expr/array_repeat.cpp
 // Construct: Array Repeat Expression Type Checking
 // Spec Section: 5.2.12
-// Spec Rules: T-Array-Repeat
+// Spec Rules: T-Array-Literal-Segments
 // =================================================================
 //
 // MIGRATED FROM: cursive-bootstrap/src/03_analysis/types/expr/array_repeat.cpp
@@ -25,7 +25,7 @@ namespace cursive::analysis::expr {
 namespace {
 
 static inline void SpecDefsArrayRepeat() {
-  SPEC_DEF("T-Array-Repeat", "5.2.12");
+  SPEC_DEF("T-Array-Literal-Segments", "5.2.6");
 }
 
 }  // namespace
@@ -34,7 +34,7 @@ ExprTypeResult TypeArrayRepeatExprImpl(const ScopeContext& ctx,
                                        const ast::ArrayRepeatExpr& expr,
                                        TypeExprFn type_expr) {
   SpecDefsArrayRepeat();
-  SPEC_RULE("T-Array-Repeat");
+  SPEC_RULE("T-Array-Literal-Segments");
   ExprTypeResult r;
   if (!expr.value || !expr.count) {
     return r;

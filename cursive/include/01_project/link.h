@@ -41,7 +41,6 @@ struct LinkPlan {
   std::optional<std::string> entry_symbol;
   std::vector<std::string> export_symbols;
   std::vector<std::string> data_export_symbols;
-  std::vector<std::string> delay_load_dlls;
 };
 
 struct LinkInvocationResult {

@@ -103,22 +103,27 @@ struct TupleScanResult {
   bool is_tuple = false;
 };
 
-struct DelimiterDepth {
+int ParenDelta(const Token& tok) {
+  if (tok.kind != TokenKind::Punctuator) {
+    return 0;
+  }
+  if (tok.lexeme == "(") {
+    return 1;
+  }
+  if (tok.lexeme == ")") {
+    return -1;
+  }
+  return 0;
+}
+
+struct TupleScanDepth {
   int paren = 1;
   int bracket = 0;
   int brace = 0;
 };
 
-void StepDelimiterDepth(const Token& tok, DelimiterDepth& depth) {
+void StepNonParenNesting(const Token& tok, TupleScanDepth& depth) {
   if (tok.kind != TokenKind::Punctuator) {
-    return;
-  }
-  if (tok.lexeme == "(") {
-    depth.paren += 1;
-    return;
-  }
-  if (tok.lexeme == ")" && depth.paren > 0) {
-    depth.paren -= 1;
     return;
   }
   if (tok.lexeme == "[") {
@@ -142,7 +147,7 @@ void StepDelimiterDepth(const Token& tok, DelimiterDepth& depth) {
 TupleScanResult TupleScan(Parser parser) {
   TupleScanResult result;
   Parser cur = parser;
-  DelimiterDepth depth;
+  TupleScanDepth depth;
   for (;;) {
     if (AtEof(cur)) {
       result.is_tuple = false;
@@ -161,10 +166,20 @@ TupleScanResult TupleScan(Parser parser) {
     if (tok->kind == TokenKind::Punctuator &&
         (tok->lexeme == "," || tok->lexeme == ";") && depth.paren == 1 &&
         depth.bracket == 0 && depth.brace == 0) {
+      if (tok->lexeme == ",") {
+        Parser after_sep = AdvanceOrEOF(cur);
+        const Token* next_tok = Tok(after_sep);
+        if (next_tok && next_tok->kind == TokenKind::Punctuator &&
+            next_tok->lexeme == ")") {
+          result.is_tuple = false;
+          return result;
+        }
+      }
       result.is_tuple = true;
       return result;
     }
-    StepDelimiterDepth(*tok, depth);
+    depth.paren += ParenDelta(*tok);
+    StepNonParenNesting(*tok, depth);
     Advance(cur);
   }
 }
@@ -237,7 +252,18 @@ std::optional<ParseElemResult<ExprPtr>> TryParseFenceExpr(Parser parser) {
 }
 
 std::optional<ParseElemResult<ExprPtr>> TryParseSpliceExpr(Parser parser) {
-  if (!parser.quote_mode || !IsOp(parser, "$")) {
+  if (!IsOp(parser, "$")) {
+    return std::nullopt;
+  }
+  if (!parser.quote_mode) {
+    Parser after_dollar = parser;
+    Advance(after_dollar);
+    if (IsPunc(after_dollar, "(")) {
+      EmitSpliceOutsideQuoteErr(after_dollar, SpanBetween(parser, after_dollar));
+      SyncStmt(after_dollar);
+      return ParseElemResult<ExprPtr>{
+          after_dollar, MakeExpr(SpanBetween(parser, after_dollar), ErrorExpr{})};
+    }
     return std::nullopt;
   }
   Parser after_dollar = parser;
@@ -268,6 +294,43 @@ std::optional<ParseElemResult<ExprPtr>> TryParseSpliceExpr(Parser parser) {
   splice.span = SpanBetween(parser, after_r);
   return ParseElemResult<ExprPtr>{
       after_r, MakeExpr(SpanBetween(parser, after_r), splice)};
+}
+
+std::optional<ParseElemResult<ExprPtr>> TryParseSpliceIdentExpr(Parser parser) {
+  if (!IsOp(parser, "$")) {
+    return std::nullopt;
+  }
+  if (!parser.quote_mode) {
+    Parser after_dollar = parser;
+    Advance(after_dollar);
+    const Token* next = Tok(after_dollar);
+    if (next && IsIdentTok(*next)) {
+      Parser after_ident = after_dollar;
+      Advance(after_ident);
+      EmitSpliceOutsideQuoteErr(after_ident, SpanBetween(parser, after_ident));
+      return ParseElemResult<ExprPtr>{
+          after_ident, MakeExpr(SpanBetween(parser, after_ident), ErrorExpr{})};
+    }
+    return std::nullopt;
+  }
+  Parser after_dollar = parser;
+  Advance(after_dollar);
+  const Token* tok = Tok(after_dollar);
+  if (!tok || !IsIdentTok(*tok)) {
+    return std::nullopt;
+  }
+
+  Parser after_ident = after_dollar;
+  Advance(after_ident);
+
+  IdentifierExpr ident;
+  ident.name = tok->lexeme;
+
+  SpliceIdentNode splice;
+  splice.name_expr = MakeExpr(tok->span, ident);
+  splice.span = SpanBetween(parser, after_ident);
+  return ParseElemResult<ExprPtr>{
+      after_ident, MakeExpr(SpanBetween(parser, after_ident), splice)};
 }
 
 }  // namespace
@@ -314,6 +377,9 @@ ParseElemResult<ExprPtr> ParsePrimary(Parser parser, bool allow_brace) {
 
   if (auto splice = TryParseSpliceExpr(parser)) {
     return *splice;
+  }
+  if (auto splice_ident = TryParseSpliceIdentExpr(parser)) {
+    return *splice_ident;
   }
 
   // Contract intrinsics: @result, @entry(expr)

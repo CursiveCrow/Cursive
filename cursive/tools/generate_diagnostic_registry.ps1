@@ -137,6 +137,7 @@ $explicitMap = @{
     "IfCase-Modal-NonExhaustive" = "E-TYP-2060"
     "IfCase-NonExhaustive" = "E-SEM-2741"
     "IfCase-Unreachable" = "E-SEM-2751"
+    "T-Cast-Invalid" = "E-SEM-2528"
     "IfCase-Union-NonExhaustive" = "E-SEM-2705"
 }
 
@@ -157,7 +158,9 @@ foreach ($diagId in $explicitMap.Keys) {
     if (-not $rowsByCode.ContainsKey($code)) {
         throw "Explicit diagnostic mapping references unknown code: $diagId -> $code"
     }
-    if ($specDiagIds.Contains($diagId) -or $diagId.StartsWith("If", [System.StringComparison]::Ordinal)) {
+    if ($specDiagIds.Contains($diagId) -or
+        $diagId.StartsWith("If", [System.StringComparison]::Ordinal) -or
+        $diagId -eq "T-Cast-Invalid") {
         $mapByDiagId[$diagId] = $code
     }
 }

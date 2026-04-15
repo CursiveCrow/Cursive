@@ -35,6 +35,7 @@ struct CleanupItem {
     DeferBlock,
     ReleaseRegion,
     ReleaseKeyScope,
+    ParallelJoin,
     RuntimeScopeExit,
   };
 
@@ -70,6 +71,17 @@ struct CaptureEnvInfo {
   std::unordered_map<std::string, CaptureAccess> captures;
 };
 
+struct ParallelCaptureBinding {
+  std::string name;
+  analysis::TypeRef type;
+  bool explicit_move = false;
+};
+
+struct LoweredCaptureEnv {
+  CaptureEnvInfo env_info;
+  std::vector<IRPtr> ir_parts;
+};
+
 struct ScopeInfo {
   std::vector<std::string> variables;     // Variables in declaration order
   std::vector<CleanupItem> cleanup_items; // Cleanup items in append order
@@ -89,6 +101,18 @@ struct BindingState {
   analysis::ProvenanceKind prov = analysis::ProvenanceKind::Bottom;
   std::optional<std::string> prov_region;
   std::uint64_t scope_runtime_id = 0;
+  bool preserve_addr_provenance = false;
+};
+
+struct DerivedArraySegment {
+  enum class Kind {
+    Element,
+    Repeat,
+  };
+
+  Kind kind = Kind::Element;
+  IRValue value;
+  std::optional<IRValue> count;
 };
 
 
@@ -105,6 +129,9 @@ struct DerivedValueInfo {
     UnionPayload,
     TupleLit,
     ArrayLit,
+    ArraySegments,
+    // Legacy compatibility only. Lowering should normalize repeat arrays onto
+    // ArraySegments so aggregate materialization uses one implementation path.
     ArrayRepeat,
     RecordLit,
     DynLit,
@@ -131,6 +158,7 @@ struct DerivedValueInfo {
   IRRange range;
   std::optional<IRValue> range_value;
   std::vector<IRValue> elements;
+  std::vector<DerivedArraySegment> array_segments;
   std::vector<std::pair<std::string, IRValue>> fields;
   std::string variant;
   std::string modal_state;
@@ -311,6 +339,7 @@ struct LowerCtx {
     std::uint64_t frame_size = 0;
     std::uint64_t frame_align = 1;
     std::unordered_map<std::string, AsyncFrameSlot> slots;
+    std::vector<std::string> slot_order;
     std::vector<std::string> param_names;
   };
   std::unordered_map<std::string, AsyncProcInfo> async_procs;
@@ -434,7 +463,8 @@ struct LowerCtx {
                    bool has_responsibility = true,
                    bool is_immovable = false,
                    analysis::ProvenanceKind prov = analysis::ProvenanceKind::Bottom,
-                   std::optional<std::string> prov_region = std::nullopt);
+                   std::optional<std::string> prov_region = std::nullopt,
+                   bool preserve_addr_provenance = false);
 
   // Register runtime scope exit cleanup for the current scope.
   void RegisterRuntimeScopeExit();
@@ -444,6 +474,9 @@ struct LowerCtx {
   
   // Mark a variable as moved
   void MarkMoved(const std::string& name);
+
+  // Mark a sequence of bindings as moved in source order.
+  void MarkMoved(const std::vector<std::string>& names);
   
   // Mark a field of a variable as moved
   void MarkFieldMoved(const std::string& name, const std::string& field);
@@ -460,6 +493,7 @@ struct LowerCtx {
   void RegisterDefer(const IRPtr& defer_ir);
   void RegisterRegionRelease(const std::string& name);
   void RegisterKeyScopeExit(const std::string& scope_name);
+  void RegisterParallelJoin(const IRValue& parallel_ctx);
 
   // Register a temporary value for cleanup
   void RegisterTempValue(const IRValue& value, const analysis::TypeRef& type);
@@ -468,6 +502,15 @@ struct LowerCtx {
   const DerivedValueInfo* LookupDerivedValue(const IRValue& value) const;
 
   // Capture lookup helpers (spawn/dispatch lowering)
+  CaptureEnvInfo LoadEnv(
+      const IRValue& env_param,
+      analysis::TypeRef env_type,
+      const std::unordered_map<std::string, CaptureAccess>& captures) const;
+  void BindAll(CaptureEnvInfo env);
+  void BindEnv(CaptureEnvInfo env);
+  LoweredCaptureEnv LowerParallelCaptureEnv(
+      const std::vector<ParallelCaptureBinding>& captures,
+      std::string_view env_prefix);
   const CaptureAccess* LookupCapture(const std::string& name) const;
   IRValue CaptureFieldPtr(const CaptureAccess& access);
 

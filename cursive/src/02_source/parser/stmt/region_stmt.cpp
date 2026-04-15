@@ -166,8 +166,14 @@ namespace cursive::ast {
 bool IsKw(const Parser& parser, std::string_view kw);
 bool IsPunc(const Parser& parser, std::string_view p);
 ParseElemResult<ExprPtr> ParseExpr(Parser parser);
-ParseElemResult<Identifier> ParseIdent(Parser parser);
+ParseLocalIdentResult ParseLocalIdent(Parser parser);
 ParseElemResult<std::shared_ptr<Block>> ParseBlock(Parser parser);
+
+struct ParseRegionAliasOptResult {
+  Parser parser;
+  std::optional<Identifier> alias_opt;
+  std::optional<SpliceIdentNode> alias_splice_opt;
+};
 
 // =============================================================================
 // ParseRegionOptsOpt - Parse optional region options
@@ -200,17 +206,17 @@ ParseElemResult<ExprPtr> ParseRegionOptsOpt(Parser parser) {
 //
 // SPEC: Lines 6315-6323
 
-ParseElemResult<std::optional<Identifier>> ParseRegionAliasOpt(Parser parser) {
+ParseRegionAliasOptResult ParseRegionAliasOpt(Parser parser) {
   if (!IsKw(parser, "as")) {
     SPEC_RULE("Parse-Region-Alias-None");
-    return {parser, std::nullopt};
+    return {parser, std::nullopt, std::nullopt};
   }
   SPEC_RULE("Parse-Region-Alias-Some");
   Parser next = parser;
   Advance(next);  // consume "as"
 
-  ParseElemResult<Identifier> name = ParseIdent(next);
-  return {name.parser, name.elem};
+  ParseLocalIdentResult name = ParseLocalIdent(next);
+  return {name.parser, std::move(name.name), std::move(name.splice_opt)};
 }
 
 // =============================================================================
@@ -227,12 +233,13 @@ ParseElemResult<Stmt> ParseRegionStmt(Parser parser) {
   Advance(next);  // consume "region"
 
   ParseElemResult<ExprPtr> opts = ParseRegionOptsOpt(next);
-  ParseElemResult<std::optional<Identifier>> alias = ParseRegionAliasOpt(opts.parser);
+  ParseRegionAliasOptResult alias = ParseRegionAliasOpt(opts.parser);
   ParseElemResult<std::shared_ptr<Block>> block = ParseBlock(alias.parser);
 
   RegionStmt stmt;
   stmt.opts_opt = opts.elem;
-  stmt.alias_opt = alias.elem;
+  stmt.alias_opt = std::move(alias.alias_opt);
+  stmt.alias_splice_opt = std::move(alias.alias_splice_opt);
   stmt.body = block.elem;
   stmt.span = SpanBetween(start, block.parser);
 

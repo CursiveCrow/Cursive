@@ -888,6 +888,9 @@ bool TypeImplementsClass(const ScopeContext& ctx,
     if (IdEq(name, "Eq")) {
       return EqType(stripped);
     }
+    if (IdEq(name, "Step")) {
+      return BuiltinStepType(stripped);
+    }
     if (IdEq(name, "Hash")) {
       // Built-in hashability follows equality support for primitive/string/ptr
       // families; user-defined aggregate hashing is checked via explicit impls.

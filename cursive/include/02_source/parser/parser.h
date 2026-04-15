@@ -1,11 +1,13 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <span>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "00_core/assert_spec.h"
@@ -25,13 +27,13 @@ enum class TerminatorPolicy {
 struct Parser {
   const std::vector<Token>* tokens = nullptr;
   std::shared_ptr<std::vector<Token>> owned_tokens;
+  const core::SourceFile* source = nullptr;
   std::size_t index = 0;
   const std::vector<DocComment>* docs = nullptr;
   std::size_t doc_index = 0;
   std::size_t depth = 0;
   bool quote_mode = false;
   core::DiagnosticStream diags;
-  Token eof;
 };
 
 Parser MakeParser(const std::vector<Token>& tokens,
@@ -44,6 +46,8 @@ Parser MakeParser(const std::vector<Token>& tokens,
 bool AtEof(const Parser& parser);
 const Token* Tok(const Parser& parser);
 const core::Span& TokSpan(const Parser& parser);
+std::pair<std::size_t, std::size_t> TokensBetween(const Parser& start,
+                                                  const Parser& end);
 void Advance(Parser& parser);
 Parser AdvanceOrEOF(const Parser& parser);
 
@@ -74,6 +78,8 @@ void SyncStmt(Parser& parser);
 void SyncItem(Parser& parser);
 void SyncType(Parser& parser);
 void EmitParseSyntaxErr(Parser& parser, const core::Span& span);
+void EmitGenericParseSyntaxErr(Parser& parser, const core::Span& span);
+void EmitSpliceOutsideQuoteErr(Parser& parser, const core::Span& span);
 
 struct TokenKindMatch {
   TokenKind kind = TokenKind::Unknown;
@@ -91,21 +97,63 @@ inline TokenKindMatch MatchPunct(std::string_view s) {
   return {TokenKind::Punctuator, s};
 }
 
+// Models the spec's EndSet ⊆ TokenKind relation for list terminators.
+struct EndSetToken {
+  TokenKind kind = TokenKind::Unknown;
+  std::string_view lexeme;
+};
+
+inline EndSetToken EndKind(TokenKind kind) { return {kind, {}}; }
+inline EndSetToken EndKeyword(std::string_view s) {
+  return {TokenKind::Keyword, s};
+}
+inline EndSetToken EndOperator(std::string_view s) {
+  return {TokenKind::Operator, s};
+}
+inline EndSetToken EndPunct(std::string_view s) {
+  return {TokenKind::Punctuator, s};
+}
+
+struct ConsumePendingState {
+  Parser parser;
+  TokenKindMatch expected;
+};
+
+struct ConsumeDoneState {
+  Parser parser;
+};
+
+using ConsumeState = std::variant<ConsumePendingState, ConsumeDoneState>;
+
+inline ConsumeState Consume(Parser parser, TokenKindMatch expected) {
+  return ConsumePendingState{std::move(parser), expected};
+}
+
+inline ConsumeDoneState ConsumeDone(Parser parser) {
+  return ConsumeDoneState{std::move(parser)};
+}
+
+std::optional<ConsumeDoneState> TryAdvanceConsume(
+    const ConsumePendingState& state);
 bool TokenMatches(const Token& tok, const TokenKindMatch& match);
+bool TokenMatches(const Token& tok, const EndSetToken& match);
 bool TokenInEndSet(const Token& tok, std::span<const TokenKindMatch> end_set);
+bool TokenInEndSet(const Token& tok, std::span<const EndSetToken> end_set);
 void RecordListStart();
 void RecordListCons();
 bool ListDone(const Parser& parser, std::span<const TokenKindMatch> end_set);
+bool ListDone(const Parser& parser, std::span<const EndSetToken> end_set);
 
 bool ConsumeKind(Parser& parser, TokenKind kind);
 bool ConsumeKeyword(Parser& parser, std::string_view keyword);
 bool ConsumeOperator(Parser& parser, std::string_view op);
 bool ConsumePunct(Parser& parser, std::string_view punct);
 
-bool TrailingComma(const Parser& parser,
-                   std::span<const TokenKindMatch> end_set);
+bool TrailingComma(const Parser& parser, std::span<const EndSetToken> end_set);
+bool TrailingCommaAllowed(const Parser& parser,
+                          std::span<const EndSetToken> end_set);
 bool EmitTrailingCommaErr(Parser& parser,
-                          std::span<const TokenKindMatch> end_set);
+                          std::span<const EndSetToken> end_set);
 
 void ConsumeTerminatorOpt(Parser& parser, TerminatorPolicy policy);
 void ConsumeTerminatorReq(Parser& parser);
@@ -123,8 +171,15 @@ struct ParseItemsResult {
 
 struct ParseFileResult {
   std::optional<ASTFile> file;
+  std::vector<core::Span> unsafe_spans;
   core::DiagnosticStream diags;
 };
+
+const std::vector<DocComment>& DocSeq(const std::vector<DocComment>& docs);
+std::vector<ASTItem> ItemSeq(std::vector<ASTItem> items);
+std::vector<DocComment> ModuleDocs(const std::vector<DocComment>& docs);
+void AttachLineDocs(std::vector<ASTItem>& items,
+                    const std::vector<DocComment>& docs);
 
 ParseItemResult ParseItem(Parser parser);
 ParseItemsResult ParseItems(Parser parser);
@@ -140,6 +195,13 @@ struct ParseElemResult {
 };
 
 ParseElemResult<Identifier> ParseIdent(Parser parser);
+struct ParseLocalIdentResult {
+  Parser parser;
+  Identifier name;
+  std::optional<SpliceIdentNode> splice_opt;
+};
+
+ParseLocalIdentResult ParseLocalIdent(Parser parser);
 ParseElemResult<ModulePath> ParseModulePath(Parser parser);
 ParseElemResult<TypePath> ParseTypePath(Parser parser);
 ParseElemResult<ClassPath> ParseClassPath(Parser parser);
@@ -178,30 +240,57 @@ ParseElemResult<std::shared_ptr<Block>> ParseBlock(Parser parser);
 ParseElemResult<Stmt> ParseShadowBinding(Parser parser);
 ParseElemResult<Stmt> ParseStmt(Parser parser);
 
+enum class ListStateTag : std::uint8_t {
+  Start,
+  Scan,
+  Done,
+};
+
 template <typename Elem>
 struct ListState {
+  ListStateTag tag = ListStateTag::Start;
   Parser parser;
   std::vector<Elem> elems;
 };
 
 template <typename Elem>
+inline void EnsureListScan(ListState<Elem>& state) {
+  if (state.tag == ListStateTag::Start) {
+    RecordListStart();
+    state.tag = ListStateTag::Scan;
+  }
+}
+
+template <typename Elem>
 inline ListState<Elem> ListStart(Parser parser) {
-  RecordListStart();
   ListState<Elem> state;
+  state.tag = ListStateTag::Start;
   state.parser = parser;
   return state;
 }
 
+template <typename Elem>
+inline ListState<Elem> MakeListScanState(Parser parser,
+                                         std::vector<Elem> elems) {
+  ListState<Elem> next;
+  next.tag = ListStateTag::Scan;
+  next.parser = parser;
+  next.elems = std::move(elems);
+  return next;
+}
+
 template <typename Elem, typename ParseElemFn>
-inline ListState<Elem> ListCons(const ListState<Elem>& state,
+inline ListState<Elem> ListCons(ListState<Elem> state,
                                 ParseElemFn parse_elem) {
+  EnsureListScan(state);
+  if (state.tag != ListStateTag::Scan) {
+    return state;
+  }
   RecordListCons();
   ParseElemResult<Elem> parsed = parse_elem(state.parser);
-  ListState<Elem> out;
-  out.parser = parsed.parser;
-  out.elems = state.elems;
-  out.elems.push_back(std::move(parsed.elem));
-  return out;
+  std::vector<Elem> elems = std::move(state.elems);
+  elems.push_back(std::move(parsed.elem));
+  return MakeListScanState(parsed.parser, std::move(elems));
 }
 
 template <typename Elem>
@@ -209,15 +298,38 @@ inline ListState<Elem> ListSeed(Parser parser, Elem elem) {
   RecordListStart();
   RecordListCons();
   ListState<Elem> state;
+  state.tag = ListStateTag::Scan;
   state.parser = parser;
   state.elems.push_back(std::move(elem));
   return state;
 }
 
 template <typename Elem>
-inline bool ListDone(const ListState<Elem>& state,
+inline bool ListDone(ListState<Elem>& state,
                      std::span<const TokenKindMatch> end_set) {
-  return ListDone(state.parser, end_set);
+  EnsureListScan(state);
+  if (state.tag == ListStateTag::Done) {
+    return true;
+  }
+  if (!ListDone(state.parser, end_set)) {
+    return false;
+  }
+  state.tag = ListStateTag::Done;
+  return true;
+}
+
+template <typename Elem>
+inline bool ListDone(ListState<Elem>& state,
+                     std::span<const EndSetToken> end_set) {
+  EnsureListScan(state);
+  if (state.tag == ListStateTag::Done) {
+    return true;
+  }
+  if (!ListDone(state.parser, end_set)) {
+    return false;
+  }
+  state.tag = ListStateTag::Done;
+  return true;
 }
 
 }  // namespace cursive::ast

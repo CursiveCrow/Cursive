@@ -18,7 +18,9 @@
 #include <string_view>
 
 #include "00_core/assert_spec.h"
+#include "00_core/diagnostic_messages.h"
 #include "04_analysis/composite/function_types.h"
+#include "04_analysis/keys/key_paths.h"
 #include "04_analysis/typing/subtyping.h"
 #include "02_source/ast/ast.h"
 
@@ -30,8 +32,30 @@ namespace cursive::analysis
                           const ast::ExprPtr &expr,
                           const TypeEnv &env);
 
-  namespace
+namespace
   {
+    static TypeRef StablePlaceTypeForAssign(const ast::ExprPtr& place,
+                                            const TypeEnv& env,
+                                            const TypeRef& fallback)
+    {
+      if (!place)
+      {
+        return fallback;
+      }
+      if (const auto* attributed = std::get_if<ast::AttributedExpr>(&place->node))
+      {
+        return StablePlaceTypeForAssign(attributed->expr, env, fallback);
+      }
+      if (const auto* ident = std::get_if<ast::IdentifierExpr>(&place->node))
+      {
+        if (const auto binding = BindOf(env, ident->name))
+        {
+          return StableBindingType(*binding);
+        }
+      }
+      return fallback;
+    }
+
     struct RootMutabilityResult
     {
       bool ok = true;
@@ -149,6 +173,31 @@ namespace cursive::analysis
       return type;
     }
 
+    static std::optional<KeyPath> TryBuildKeyPath(const ast::ExprPtr& expr)
+    {
+      const auto result = BuildKeyPath(expr);
+      if (!result.success)
+      {
+        return std::nullopt;
+      }
+      return result.path;
+    }
+
+    static bool HasCoveringWriteKey(const StmtTypeContext& type_ctx,
+                                    const KeyPath& path)
+    {
+      for (const auto& held : type_ctx.held_key_paths)
+      {
+        if (held.mode == ast::KeyMode::Write && IsPrefix(held.path, path))
+        {
+          return true;
+        }
+      }
+      return type_ctx.keys_held &&
+             type_ctx.key_mode.has_value() &&
+             *type_ctx.key_mode == ast::KeyMode::Write;
+    }
+
     static constexpr std::array<std::string_view, 12> kIntTypes = {
         "i8", "i16", "i32", "i64", "i128", "isize",
         "u8", "u16", "u32", "u64", "u128", "usize"};
@@ -194,15 +243,15 @@ namespace cursive::analysis
       {
         return {};
       }
-      const auto via_callback = type_expr(expr);
-      if (via_callback.ok)
-      {
-        return via_callback;
-      }
       const auto via_env = TypeExpr(ctx, type_ctx, expr, env);
       if (via_env.ok || via_env.diag_id.has_value())
       {
         return via_env;
+      }
+      const auto via_callback = type_expr(expr);
+      if (via_callback.ok)
+      {
+        return via_callback;
       }
       return via_callback;
     }
@@ -244,23 +293,33 @@ namespace cursive::analysis
       }
     }
 
-    TypeRef assign_target_type = place_type.type;
+    TypeRef assign_target_type =
+        StablePlaceTypeForAssign(node.place, env, place_type.type);
     bool shared_write_with_key = false;
+    const auto place_key_path = TryBuildKeyPath(node.place);
+    if (assign_target_type &&
+        std::holds_alternative<TypePerm>(assign_target_type->node))
+    {
+      const auto *perm = std::get_if<TypePerm>(&assign_target_type->node);
+      assign_target_type = perm->base;
+    }
     if (const auto *perm = std::get_if<TypePerm>(&place_type.type->node))
     {
       if (perm->perm == Permission::Shared)
       {
         const bool has_write_key =
-            type_ctx.keys_held &&
-            type_ctx.key_mode.has_value() &&
-            *type_ctx.key_mode == ast::KeyMode::Write;
+            place_key_path.has_value()
+                ? HasCoveringWriteKey(type_ctx, *place_key_path)
+                : (type_ctx.keys_held &&
+                   type_ctx.key_mode.has_value() &&
+                   *type_ctx.key_mode == ast::KeyMode::Write);
         if (!has_write_key)
         {
-          return {false, "E-TYP-1604", {}, {}};
+          SPEC_RULE("K-Read-Write-Reject");
+          return {false, "E-CON-0060", {}, {}};
         }
         shared_write_with_key = true;
       }
-      assign_target_type = perm->base;
     }
 
     // Find the root of the place and check mutability
@@ -306,6 +365,15 @@ namespace cursive::analysis
     {
       SPEC_RULE("Assign-Type-Err");
       return {false, "Assign-Type-Err", {}, {}};
+    }
+
+    if (shared_write_with_key && type_ctx.diags)
+    {
+      SPEC_RULE("K-RMW-Permitted");
+      if (auto diag = core::MakeDiagnosticById("W-CON-0004", node.span))
+      {
+        core::Emit(*type_ctx.diags, *diag);
+      }
     }
 
     SPEC_RULE("T-CompoundAssign");

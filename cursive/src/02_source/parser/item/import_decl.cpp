@@ -47,7 +47,7 @@ bool IsKw(const Parser& parser, std::string_view kw);
 //                           SpanBetween(P, P_3), []⟩)
 
 ParseItemResult ParseImportDecl(Parser parser, Visibility vis,
-                             AttributeList attrs) {
+                                AttrOpt attrs_opt) {
   SPEC_RULE("Parse-Import");
   Parser start = parser;
 
@@ -63,10 +63,10 @@ ParseItemResult ParseImportDecl(Parser parser, Visibility vis,
   parser = alias.parser;
 
   ImportDecl decl;
-  decl.attrs = std::move(attrs);
+  decl.attrs_opt = std::move(attrs_opt);
   decl.vis = vis;
   decl.path = path.elem;  // ModulePath is Path (same type)
-  decl.alias = alias.elem;
+  decl.alias_opt = alias.elem;
   decl.span = SpanBetween(start, parser);
   decl.doc = {};
 

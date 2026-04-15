@@ -1,4 +1,4 @@
-﻿"implemented","rule name","rule content","spec location","compiler location"
+"implemented","rule name","rule content","spec location","compiler location"
 "","Cursive Language Specification > 0. Front Matter > 0.1 Document Organization requirement 1","1. This file is the canonical normative language specification.","CursiveSpecification.md:7",""
 "","Cursive Language Specification > 0. Front Matter > 0.1 Document Organization requirement 2","2. Each feature section MUST have exactly one normative home in this file.","CursiveSpecification.md:8",""
 "","Cursive Language Specification > 0. Front Matter > 0.1 Document Organization requirement 3","3. Each leaf feature section MUST use this subsection order:","CursiveSpecification.md:9",""
@@ -1056,8 +1056,8 @@ EmitIRFail(m, P, e)    c = Code(Out-IR-Err)
 "","RuntimeLibName","RuntimeLibName = RuntimeLibNameFor(SelectedTargetProfile)","CursiveSpecification.md:1368",""
 "","CompilerExecutableDir(P)","CompilerExecutableDir(P) = DirectoryOf(CurrentCompilerExecutable)","CursiveSpecification.md:1369",""
 "","LegacySidecarsBeside(d)","LegacySidecarsBeside(d) ⇔ exists(d / `runtime`) ∨ exists(d / `tools`) ∨ exists(d / `bin`) ∨ exists(d / `lib`)","CursiveSpecification.md:1370",""
-"","PackagedWindowsSidecarsBeside(d)","PackagedWindowsSidecarsBeside(d) ⇔ exists(d / `windows` / `tools`) ∨ exists(d / `windows` / `bin`) ∨ exists(d / `windows` / `lib`)","CursiveSpecification.md:1371",""
-"","CompilerSupportRoot(P)","CompilerSupportRoot(P) = CompilerExecutableDir(P)                  if PackagedWindowsSidecarsBeside(CompilerExecutableDir(P))
+"","PackagedHostSidecarsBeside(d)","PackagedHostSidecarsBeside(d) ⇔ exists(d / `windows` / `tools`) ∨ exists(d / `windows` / `bin`) ∨ exists(d / `windows` / `lib`) ∨ exists(d / `linux` / `tools`) ∨ exists(d / `linux` / `bin`) ∨ exists(d / `linux` / `lib`)","CursiveSpecification.md:1371",""
+"","CompilerSupportRoot(P)","CompilerSupportRoot(P) = CompilerExecutableDir(P)                  if PackagedHostSidecarsBeside(CompilerExecutableDir(P))
  CompilerExecutableDir(P)                                          if LegacySidecarsBeside(CompilerExecutableDir(P))
  Parent(CompilerExecutableDir(P))                                  if LegacySidecarsBeside(Parent(CompilerExecutableDir(P)))
  CompilerExecutableDir(P)                                          otherwise","CursiveSpecification.md:1372-1375",""
@@ -1246,7 +1246,8 @@ StaticLibrary(P)    Γ ⊢ Archive(Objs, P) ⇑ c
  [ToolchainConfig(P).llvm_bin]  if ToolchainConfig(P).llvm_bin ≠ ⊥
  [CompilerToolBinDir(P)]        if exists(CompilerToolBinDir(P))
  PATHDirs  otherwise","CursiveSpecification.md:1601-1604",""
-"","CompilerToolBinDir(P)","CompilerToolBinDir(P) = CompilerSupportRoot(P) / `windows` / `tools`    if PackagedWindowsSidecarsBeside(CompilerSupportRoot(P))
+"","CompilerToolBinDir(P)","CompilerToolBinDir(P) = CompilerSupportRoot(P) / `windows` / `tools`    if ObjectFormatOf(P) = Coff ∧ PackagedHostSidecarsBeside(CompilerSupportRoot(P))
+ CompilerSupportRoot(P) / `linux` / `tools`                             if ObjectFormatOf(P) = Elf ∧ PackagedHostSidecarsBeside(CompilerSupportRoot(P))
  CompilerSupportRoot(P) / `tools`                                       otherwise","CursiveSpecification.md:1606-1607",""
 "","ResolveTool-Ok","**(ResolveTool-Ok)**
 Project(Γ) = P    SearchDirs(P) contains x at t
@@ -4872,11 +4873,11 @@ Tok(P).kind ∈ LiteralKind
   layout, inline, cold, deprecated,
   dynamic, stale_ok, log,
   relaxed, acquire, release, acqrel, seqcst,
-  static, trust,
+  static,
   mangle, library, unwind,
   reflect, derive, emit, files,
   export, host_export, ffi_pass_by_value
-}","CursiveSpecification.md:6446-6454",""
+}","CursiveSpecification.md:6504-6511",""
 "","AttrTargets(layout)","AttrTargets(layout) = {Record, Enum}","CursiveSpecification.md:6456",""
 "","AttrTargets(inline)","AttrTargets(inline) = {Procedure, Method}","CursiveSpecification.md:6457",""
 "","AttrTargets(cold)","AttrTargets(cold) = {Procedure, Method}","CursiveSpecification.md:6458",""
@@ -4890,7 +4891,6 @@ Tok(P).kind ∈ LiteralKind
 "","AttrTargets(acqrel)","AttrTargets(acqrel) = {Expression, KeyBlock}","CursiveSpecification.md:6466",""
 "","AttrTargets(seqcst)","AttrTargets(seqcst) = {Expression, KeyBlock}","CursiveSpecification.md:6467",""
 "","AttrTargets(static)","AttrTargets(static) = {Procedure}","CursiveSpecification.md:6468",""
-"","AttrTargets(trust)","AttrTargets(trust) = {Procedure, ExternBlock}","CursiveSpecification.md:6469",""
 "","AttrTargets(mangle)","AttrTargets(mangle) = {Procedure}","CursiveSpecification.md:6470",""
 "","AttrTargets(library)","AttrTargets(library) = {ExternBlock}","CursiveSpecification.md:6471",""
 "","AttrTargets(unwind)","AttrTargets(unwind) = {Procedure}","CursiveSpecification.md:6472",""
@@ -5058,7 +5058,7 @@ IsOp(Tok(P), ""::"")    Γ ⊢ ParseIdent(Advance(P)) ⇓ (P_1, id)    Γ ⊢ Pa
 "","Cursive Language Specification > 9. Attributes and Metadata > 9.5 Diagnostics and Metadata Attributes > 9.5.4 Static Semantics requirement 3","3. `[[dynamic]]` applied to a field declaration is ill-formed.","CursiveSpecification.md:6818",""
 "","If a `[[dynamic]]` scope results in no runtime checks or runtime synchronization, the implementation SHOULD emit a warni","If a `[[dynamic]]` scope results in no runtime checks or runtime synchronization, the implementation SHOULD emit a warning.","CursiveSpecification.md:6820",""
 "","Cursive Language Specification > 9. Attributes and Metadata > 9.5 Diagnostics and Metadata Attributes > 9.5.4 Static Semantics paragraph @6822","**`[[stale_ok]]`.** Suppresses staleness warnings for bindings derived from `shared` data across `release` or `yield release` boundaries. Valid only on `let` and `var` bindings. See Chapters 19 and 21.","CursiveSpecification.md:6822",""
-"","Cursive Language Specification > 9. Attributes and Metadata > 9.5 Diagnostics and Metadata Attributes > 9.5.4 Static Semantics paragraph @6824","**Verification-mode attributes.** `[[static]]` and `[[trust]]` are interpreted only in foreign-contract contexts. Semantics are defined by §23.6. `[[dynamic]]` reuses the dynamic verification mode defined above.","CursiveSpecification.md:6824",""
+"","Cursive Language Specification > 9. Attributes and Metadata > 9.5 Diagnostics and Metadata Attributes > 9.5.4 Static Semantics paragraph @6883","**Verification-mode attributes.** `[[static]]` is interpreted only in foreign-contract contexts. Semantics are defined by §23.6. `[[dynamic]]` reuses the dynamic verification mode defined above.","CursiveSpecification.md:6883",""
 "","**`[[reflect]]`.** Marks a `record`, `enum`, or `modal` declaration as reflectable during Phase 2. Reflection queries ov","**`[[reflect]]`.** Marks a `record`, `enum`, or `modal` declaration as reflectable during Phase 2. Reflection queries over such declarations are defined by §22.3. A conforming implementation MUST expose the declaration's canonical shape, member order, and attached attributes to the compile-time reflection environment.","CursiveSpecification.md:6826",""
 "","Cursive Language Specification > 9. Attributes and Metadata > 9.5 Diagnostics and Metadata Attributes > 9.5.4 Static Semantics paragraph @6828","**`[[derive(... )]]`.** Schedules derive-target execution in Phase 2 for the annotated `record`, `enum`, or `modal` declaration. Derive target resolution, dependency ordering, and contract checking are defined by §22.5.","CursiveSpecification.md:6828",""
 "","**`[[emit]]`.** Grants the `TypeEmitter` capability to the annotated compile-time statement or compile-time expression. ","**`[[emit]]`.** Grants the `TypeEmitter` capability to the annotated compile-time statement or compile-time expression. The target MUST be a `comptime` form. Emission ordering and generated-item visibility are defined by §22.4.","CursiveSpecification.md:6830",""
@@ -5074,7 +5074,7 @@ IsOp(Tok(P), ""::"")    Γ ⊢ ParseIdent(Advance(P)) ⇓ (P_1, id)    Γ ⊢ Pa
 "","Cursive Language Specification > 9. Attributes and Metadata > 9.5 Diagnostics and Metadata Attributes > 9.5.4 Static Semantics requirement 8","8. For `Expression` targets, one or more newlines MAY appear between the attribute list and the observed expression.","CursiveSpecification.md:6843",""
 "","Cursive Language Specification > 9. Attributes and Metadata > 9.5 Diagnostics and Metadata Attributes > 9.5.4 Static Semantics requirement 9","9. A `[[log]]` attribute list MAY appear as a standalone statement with no trailing expression. The observed value is `()` and the observed type is `()`. If `expected` is present, it MUST type-check against `()`.","CursiveSpecification.md:6844",""
 "","Cursive Language Specification > 9. Attributes and Metadata > 9.5 Diagnostics and Metadata Attributes > 9.5.4 Static Semantics requirement 10","10. When `expected` is an identifier, it MUST resolve to a binding visible in the current scope. The binding's type MUST be equality-comparable with the observed value type. The binding MUST be in `Alive` state with `const` or `unique` permission.","CursiveSpecification.md:6845",""
-"","Cursive Language Specification > 9. Attributes and Metadata > 9.5 Diagnostics and Metadata Attributes > 9.5.5 Dynamic Semantics paragraph @6849","`[[deprecated]]`, `[[stale_ok]]`, `[[static]]`, and `[[trust]]` introduce no direct runtime behavior in this chapter.","CursiveSpecification.md:6849",""
+"","Cursive Language Specification > 9. Attributes and Metadata > 9.5 Diagnostics and Metadata Attributes > 9.5.5 Dynamic Semantics paragraph @6908","`[[deprecated]]`, `[[stale_ok]]`, and `[[static]]` introduce no direct runtime behavior in this chapter.","CursiveSpecification.md:6908",""
 "","For `[[dynamic]]`, runtime synchronization or runtime verification MUST be inserted exactly when required by the owning ","For `[[dynamic]]`, runtime synchronization or runtime verification MUST be inserted exactly when required by the owning chapters for keys, contracts, refinements, and foreign contracts, and MUST NOT be inserted otherwise.","CursiveSpecification.md:6851",""
 "","Cursive Language Specification > 9. Attributes and Metadata > 9.5 Diagnostics and Metadata Attributes > 9.5.5 Dynamic Semantics paragraph @6853","`[[log]]` is observational instrumentation.","CursiveSpecification.md:6853",""
 "","Cursive Language Specification > 9. Attributes and Metadata > 9.5 Diagnostics and Metadata Attributes > 9.5.5 Dynamic Semantics requirement 1","1. Log instrumentation MUST NOT change expression values, control flow, ownership or provenance state, or cleanup and drop behavior.","CursiveSpecification.md:6855",""
@@ -16707,7 +16707,7 @@ A hosted-session handle token that has been returned nonzero by `__cursive_host_
 "","`E-SYS-3360`","Code=`E-SYS-3360` | Severity=Error | Detection=Compile-time | Condition=Region-local raw pointer crosses an FFI boundary","CursiveSpecification.md:25490",""
 "","Cursive Language Specification > 23. Foreign Function Interface > 23.5 Capability Isolation > 23.5.7 Diagnostics paragraph @25492","Capability-bearing-type violations other than region-local raw-pointer escape are diagnosed by the signature and type-admissibility checks owned by §23.1.7.","CursiveSpecification.md:25492",""
 "","ffi_verification_attr","ffi_verification_attr    ::= ""[["" ffi_verification_mode ""]]""","CursiveSpecification.md:25499",""
-"","ffi_verification_mode","ffi_verification_mode    ::= ""static"" | ""dynamic"" | ""trust""","CursiveSpecification.md:25500",""
+"","ffi_verification_mode","ffi_verification_mode    ::= ""static"" | ""dynamic""","CursiveSpecification.md:25911",""
 "","foreign_contract","foreign_contract         ::= ""|:"" ""@foreign_assumes"" ""("" predicate_list "")""","CursiveSpecification.md:25502",""
 "","predicate_list","predicate_list           ::= predicate ("","" predicate)*","CursiveSpecification.md:25503",""
 "","predicate","predicate                ::= comparison_expr | null_check | range_check","CursiveSpecification.md:25504",""
@@ -16795,9 +16795,8 @@ IsOp(Tok(P), ""@"")    IsIdent(Tok(Advance(P)))    Lexeme(Tok(Advance(P))) = `nu
 "","Cursive Language Specification > 23. Foreign Function Interface > 23.6 Foreign Contracts > 23.6.4 Static Semantics > 23.6.4.1 Foreign Preconditions paragraph @25637","**Verification Modes**","CursiveSpecification.md:25637",""
 "","`[[static]]` (default)","Mode=`[[static]]` (default) | Behavior=Caller must prove predicates at compile time","CursiveSpecification.md:25641",""
 "","`[[dynamic]]`","Mode=`[[dynamic]]` | Behavior=Runtime checks inserted before `unsafe` call","CursiveSpecification.md:25642",""
-"","`[[trust]]`","Mode=`[[trust]]` | Behavior=No static proof and no runtime precondition checks","CursiveSpecification.md:25643",""
-"","`[[static]]` uses `StaticProof` as defined in §15.8. `[[dynamic]]` inserts `ContractCheck(P, ForeignPre, s, ρ_emptyset)`","`[[static]]` uses `StaticProof` as defined in §15.8. `[[dynamic]]` inserts `ContractCheck(P, ForeignPre, s, ρ_emptyset)` immediately before the foreign call. In `[[trust]]` mode, the implementation MUST NOT require static proof of foreign preconditions and MUST NOT insert runtime `ForeignPre` checks.","CursiveSpecification.md:25645",""
-"","Cursive Language Specification > 23. Foreign Function Interface > 23.6 Foreign Contracts > 23.6.4 Static Semantics > 23.6.4.2 Foreign Postconditions paragraph @25649","**Foreign Postconditions.** Conditions that foreign code guarantees upon successful return, specified using the `@foreign_ensures` clause. These are trusted assertions about foreign behavior.","CursiveSpecification.md:25649",""
+"","`[[static]]` uses `StaticProof` as defined in §15.8. `[[dynamic]]` inserts `ContractCheck(P, ForeignPre, s, ρ_emptyset)`","`[[static]]` uses `StaticProof` as defined in §15.8. `[[dynamic]]` inserts `ContractCheck(P, ForeignPre, s, ρ_emptyset)` immediately before the foreign call.","CursiveSpecification.md:26031",""
+"","Cursive Language Specification > 23. Foreign Function Interface > 23.6 Foreign Contracts > 23.6.4 Static Semantics > 23.6.4.2 Foreign Postconditions paragraph @26035","**Foreign Postconditions.** Conditions that foreign code guarantees upon successful return, specified using the `@foreign_ensures` clause.","CursiveSpecification.md:26035",""
 "","Cursive Language Specification > 23. Foreign Function Interface > 23.6 Foreign Contracts > 23.6.4 Static Semantics > 23.6.4.2 Foreign Postconditions paragraph @25651","**Predicate Bindings**","CursiveSpecification.md:25651",""
 "","Postcondition predicates MAY reference:","Postcondition predicates MAY reference:","CursiveSpecification.md:25653",""
 "","Cursive Language Specification > 23. Foreign Function Interface > 23.6 Foreign Contracts > 23.6.4 Static Semantics > 23.6.4.2 Foreign Postconditions bullet @25655","- `@result`: The return value of the foreign procedure","CursiveSpecification.md:25655",""
@@ -16826,21 +16825,13 @@ IsOp(Tok(P), ""@"")    IsIdent(Tok(Advance(P)))    Lexeme(Tok(Advance(P))) = `nu
 "","Cursive Language Specification > 23. Foreign Function Interface > 23.6 Foreign Contracts > 23.6.4 Static Semantics > 23.6.4.2 Foreign Postconditions paragraph @25702","**Verification Modes**","CursiveSpecification.md:25702",""
 "","`[[static]]` (default)","Mode=`[[static]]` (default) | Behavior=Postconditions available as assumptions for downstream proofs","CursiveSpecification.md:25706",""
 "","`[[dynamic]]`","Mode=`[[dynamic]]` | Behavior=Runtime assertions after foreign call returns","CursiveSpecification.md:25707",""
-"","`[[trust]]`","Mode=`[[trust]]` | Behavior=Postconditions trusted without runtime checks (audited code)","CursiveSpecification.md:25708",""
-"","`[[static]]` uses `StaticProof` as defined in §15.8 with `SuccessCond` and `ErrCond` gating the obligations. In `[[trust","`[[static]]` uses `StaticProof` as defined in §15.8 with `SuccessCond` and `ErrCond` gating the obligations. In `[[trust]]` mode, the implementation MUST treat declared postconditions as trusted assumptions and MUST NOT insert runtime `ForeignPost` checks.","CursiveSpecification.md:25710",""
-"","Cursive Language Specification > 23. Foreign Function Interface > 23.6 Foreign Contracts > 23.6.4 Static Semantics > 23.6.4.3 Trust Boundaries paragraph @25714","**Trust Boundaries.** Verification behavior definitions for foreign contracts, controlling the trade-off between safety guarantees and performance.","CursiveSpecification.md:25714",""
-"","Cursive Language Specification > 23. Foreign Function Interface > 23.6 Foreign Contracts > 23.6.4 Static Semantics > 23.6.4.3 Trust Boundaries paragraph @25716","**Trust Annotation**","CursiveSpecification.md:25716",""
-"","Cursive Language Specification > 23. Foreign Function Interface > 23.6 Foreign Contracts > 23.6.4 Static Semantics > 23.6.4.3 Trust Boundaries paragraph @25718","The `[[trust]]` attribute on an extern block suppresses runtime checks for all contracts within that block. Postconditions are assumed true without verification.","CursiveSpecification.md:25718",""
-"","Cursive Language Specification > 23. Foreign Function Interface > 23.6 Foreign Contracts > 23.6.4 Static Semantics > 23.6.4.3 Trust Boundaries paragraph @25720","**Safety Implications**","CursiveSpecification.md:25720",""
-"","Cursive Language Specification > 23. Foreign Function Interface > 23.6 Foreign Contracts > 23.6.4 Static Semantics > 23.6.4.3 Trust Boundaries paragraph @25722","Incorrect postconditions under `[[trust]]` place the program outside conformance. The programmer asserts that the foreign code satisfies declared contracts.","CursiveSpecification.md:25722",""
-"","Cursive Language Specification > 23. Foreign Function Interface > 23.6 Foreign Contracts > 23.6.4 Static Semantics > 23.6.4.3 Trust Boundaries paragraph @25724","**Verification Hierarchy**","CursiveSpecification.md:25724",""
-"","`[[static]]`","Level=`[[static]]` | Precondition Check=Compile-time proof | Postcondition Check=Available as assumptions","CursiveSpecification.md:25728",""
-"","`[[dynamic]]`","Level=`[[dynamic]]` | Precondition Check=Runtime assertion | Postcondition Check=Runtime assertion","CursiveSpecification.md:25729",""
-"","`[[trust]]`","Level=`[[trust]]` | Precondition Check=No check | Postcondition Check=No check (trusted)","CursiveSpecification.md:25730",""
+"","`[[static]]` uses `StaticProof` as defined in §15.8 with `SuccessCond` and `ErrCond` gating the obligations.","`[[static]]` uses `StaticProof` as defined in §15.8 with `SuccessCond` and `ErrCond` gating the obligations.","CursiveSpecification.md:26095",""
+"","Cursive Language Specification > 23. Foreign Function Interface > 23.6 Foreign Contracts > 23.6.4 Static Semantics > 23.6.4.3 Verification Summary paragraph @26099","**Verification Summary.** Foreign-contract verification uses the following mode table:","CursiveSpecification.md:26099",""
+"","`[[static]]`","Level=`[[static]]` | Precondition Check=Compile-time proof | Postcondition Check=Available as assumptions","CursiveSpecification.md:26103",""
+"","`[[dynamic]]`","Level=`[[dynamic]]` | Precondition Check=Runtime assertion | Postcondition Check=Runtime assertion","CursiveSpecification.md:26104",""
 "","Cursive Language Specification > 23. Foreign Function Interface > 23.6 Foreign Contracts > 23.6.5 Dynamic Semantics paragraph @25734","For foreign preconditions, a failed `ForeignPre` check triggers a panic.","CursiveSpecification.md:25734",""
 "","For foreign postconditions, in `[[dynamic]]` mode, the implementation MUST evaluate `ErrCond` and `NullCond` in left-to-","For foreign postconditions, in `[[dynamic]]` mode, the implementation MUST evaluate `ErrCond` and `NullCond` in left-to-right predicate order and insert runtime checks enforcing the implications above immediately after the foreign call returns. Each inserted check is `ContractCheck(P, ForeignPost, s, ρ_foreign_post)`. A failed runtime check triggers a panic with payload `ContractViolation(ForeignPost, P, s)` at the call site.","CursiveSpecification.md:25736",""
-"","In `[[trust]]` mode, the implementation MUST NOT insert runtime precondition or postcondition checks.","In `[[trust]]` mode, the implementation MUST NOT insert runtime precondition or postcondition checks.","CursiveSpecification.md:25738",""
-"","Cursive Language Specification > 23. Foreign Function Interface > 23.6 Foreign Contracts > 23.6.6 Lowering paragraph @25742","`[[dynamic]]` lowers foreign contracts by inserting `ContractCheck` before the foreign call for `ForeignPre` and after the foreign call for `ForeignPost`. `[[static]]` introduces no runtime checks. `[[trust]]` suppresses runtime contract lowering.","CursiveSpecification.md:25742",""
+"","Cursive Language Specification > 23. Foreign Function Interface > 23.6 Foreign Contracts > 23.6.6 Lowering paragraph @26114","`[[dynamic]]` lowers foreign contracts by inserting `ContractCheck` before the foreign call for `ForeignPre` and after the foreign call for `ForeignPost`. `[[static]]` introduces no runtime checks.","CursiveSpecification.md:26114",""
 "","`E-SEM-2850`","Code=`E-SEM-2850` | Severity=Error | Detection=Compile-time | Condition=Cannot prove `@foreign_assumes` predicate","CursiveSpecification.md:25748",""
 "","`E-SEM-2851`","Code=`E-SEM-2851` | Severity=Error | Detection=Compile-time | Condition=Invalid predicate in foreign contract","CursiveSpecification.md:25749",""
 "","`E-SEM-2852`","Code=`E-SEM-2852` | Severity=Error | Detection=Compile-time | Condition=Predicate references out-of-scope value","CursiveSpecification.md:25750",""
@@ -17452,9 +17443,9 @@ T = TypeFunc(params, R)
 "","EmitsImportLib(`x86_64-sysv`)","EmitsImportLib(`x86_64-sysv`) ⇔ false","CursiveSpecification.md:26612",""
 "","EmitsImportLib(`x86_64-win64`)","EmitsImportLib(`x86_64-win64`) ⇔ true","CursiveSpecification.md:26613",""
 "","EmitsImportLib(`aarch64-aapcs64`)","EmitsImportLib(`aarch64-aapcs64`) ⇔ false","CursiveSpecification.md:26614",""
-"","RuntimeLibNameFor(`x86_64-sysv`)","RuntimeLibNameFor(`x86_64-sysv`) = ""libcursive0_rt.a""","CursiveSpecification.md:26616",""
-"","RuntimeLibNameFor(`x86_64-win64`)","RuntimeLibNameFor(`x86_64-win64`) = ""cursive0_rt.lib""","CursiveSpecification.md:26617",""
-"","RuntimeLibNameFor(`aarch64-aapcs64`)","RuntimeLibNameFor(`aarch64-aapcs64`) = ""libcursive0_rt.a""","CursiveSpecification.md:26618",""
+"","RuntimeLibNameFor(`x86_64-sysv`)","RuntimeLibNameFor(`x86_64-sysv`) = ""CursiveRT.a""","CursiveSpecification.md:26616",""
+"","RuntimeLibNameFor(`x86_64-win64`)","RuntimeLibNameFor(`x86_64-win64`) = ""CursiveRT.lib""","CursiveSpecification.md:26617",""
+"","RuntimeLibNameFor(`aarch64-aapcs64`)","RuntimeLibNameFor(`aarch64-aapcs64`) = ""CursiveRT.a""","CursiveSpecification.md:26618",""
 "","LinkerToolName(`x86_64-sysv`)","LinkerToolName(`x86_64-sysv`) = `ld.lld`","CursiveSpecification.md:26620",""
 "","LinkerToolName(`x86_64-win64`)","LinkerToolName(`x86_64-win64`) = `lld-link`","CursiveSpecification.md:26621",""
 "","LinkerToolName(`aarch64-aapcs64`)","LinkerToolName(`aarch64-aapcs64`) = `ld.lld`","CursiveSpecification.md:26622",""
@@ -19837,7 +19828,7 @@ SetPoison(m) undefined
 "","extern_item","extern_item                  ::= foreign_procedure","CursiveSpecification.md:29715",""
 "","foreign_procedure","foreign_procedure            ::= attribute_list? visibility? ""procedure"" identifier generic_params? signature predicate_clause? contract_clause? foreign_contract_clause_list? terminator","CursiveSpecification.md:29716",""
 "","ffi_verification_attr","ffi_verification_attr        ::= ""[["" ffi_verification_mode ""]]""","CursiveSpecification.md:29718",""
-"","ffi_verification_mode","ffi_verification_mode        ::= ""static"" | ""dynamic"" | ""trust""","CursiveSpecification.md:29719",""
+"","ffi_verification_mode","ffi_verification_mode        ::= ""static"" | ""dynamic""","CursiveSpecification.md:30105",""
 "","foreign_contract","foreign_contract             ::= ""|:"" ""@foreign_assumes"" ""("" predicate_list "")""","CursiveSpecification.md:29720",""
 "","predicate_list","predicate_list               ::= predicate ("","" predicate)*","CursiveSpecification.md:29721",""
 "","predicate","predicate                    ::= comparison_expr | null_check | range_check","CursiveSpecification.md:29722",""

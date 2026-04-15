@@ -81,25 +81,7 @@ ImportResolutionResult ImportResolver::ResolveImport(
   ast::Path full_path(import.path.begin() + 1, import.path.end());
   std::string path_key = PathToKey(full_path);
 
-  // Check if it's a specific item import
-  if (!import.items.empty()) {
-    // Import specific items
-    for (const auto& item : import.items) {
-      std::string item_key = path_key.empty() ? item : path_key + "::" + item;
-      auto item_it = assembly.exported_items.find(item_key);
-      if (item_it == assembly.exported_items.end()) {
-        result.ok = false;
-        result.diag_id = "E-MOD-1204";  // Item not found
-        result.span = import.span;
-        return result;
-      }
-
-      ImportTarget target;
-      target.resolved_path = item_it->second;
-      target.visibility = ImportVisibility::Public;
-      result.targets.push_back(target);
-    }
-  } else if (import.alias) {
+  if (import.alias_opt) {
     // Import with alias
     auto item_it = assembly.exported_items.find(path_key);
     if (item_it != assembly.exported_items.end()) {
@@ -180,7 +162,7 @@ ImportValidationResult ValidateImport(
   }
 
   // Check alias conflicts
-  if (import.alias) {
+  if (import.alias_opt) {
     // Would check if alias shadows existing binding
   }
 
@@ -269,4 +251,3 @@ ImportResolutionResult ResolveExtendedUsing(
 }
 
 }  // namespace cursive::analysis
-

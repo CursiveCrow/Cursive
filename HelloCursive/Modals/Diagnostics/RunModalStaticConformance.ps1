@@ -1,11 +1,13 @@
 param(
-    [string]$CompilerPath = "C:/Dev/Cursive/build/Release/cursive.exe"
+    [string]$CompilerPath = ""
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\\..\\..")).Path
+$resolveCompilerPath = Join-Path $repoRoot "HelloCursive\\ResolveCompilerPath.ps1"
+$CompilerPath = (& $resolveCompilerPath -RepoRoot $repoRoot -RequestedPath $CompilerPath)
 $runId = Get-Date -Format "yyyyMMdd_HHmmss_fff"
 $logsRoot = Join-Path $repoRoot "build\\logs"
 New-Item -ItemType Directory -Path $logsRoot -Force | Out-Null

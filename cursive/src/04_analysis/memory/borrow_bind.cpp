@@ -78,6 +78,7 @@
 #include "00_core/process_config.h"
 #include "04_analysis/composite/classes.h"
 #include "04_analysis/composite/function_types.h"
+#include "04_analysis/modal/modal_transitions.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/type_equiv.h"
 #include "04_analysis/typing/type_expr.h"
@@ -250,6 +251,7 @@ struct BindResult {
   std::optional<std::string_view> diag_id;
   std::optional<core::Span> span;
   BindStateBundle state;
+  bool falls_through = true;
 };
 
 struct ArgPassResult {
@@ -258,6 +260,7 @@ struct ArgPassResult {
   std::optional<core::Span> span;
   BindStateBundle state;
   std::set<PermKey, PermKeyLess> roots;
+  bool falls_through = true;
 };
 
 struct ParamInfo {
@@ -1058,9 +1061,9 @@ void ClosureCaptureCollector::VisitExpr(const ast::ExprPtr& expr) {
             VisitExpr(elem);
           }
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
             VisitExpr(elem);
-          }
+          });
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           VisitExpr(node.value);
           VisitExpr(node.count);
@@ -1591,20 +1594,28 @@ static std::optional<TypeRef> InferBindType(const ScopeContext& ctx,
                          const TypeRef& expected) -> CheckResult {
     return CheckIfCaseExpr(ctx, type_ctx, match, env, expected);
   };
-  const auto inferred = InferExpr(ctx, init, type_expr, type_place, type_ident, if_case_check);
+  ConstraintSet constraints;
+  const auto inferred = InferExpr(ctx, init, type_expr, type_place, type_ident,
+                                  if_case_check, &constraints);
   if (!inferred.ok) {
     diag_id = inferred.diag_id;
     return std::nullopt;
   }
-  return inferred.type;
+  const auto solved = Solve(ctx, constraints);
+  if (!solved.ok) {
+    diag_id = solved.diag_id;
+    return std::nullopt;
+  }
+  return ApplySubstitution(inferred.type, solved.subst);
 }
 
 static std::optional<TypeRef> BindTypeForBinding(const ScopeContext& ctx,
                                                  const TypeEnv& env,
                                                  const ast::Binding& binding,
                                                  std::optional<std::string_view>& diag_id) {
-  if (binding.type_opt) {
-    const auto lowered = LocalLowerType(ctx, binding.type_opt);
+  const auto ann_type = ast::BindingAnnotationTypeOpt(binding);
+  if (ann_type) {
+    const auto lowered = LocalLowerType(ctx, ann_type);
     if (!lowered.ok) {
       diag_id = lowered.diag_id;
       return std::nullopt;
@@ -1714,10 +1725,12 @@ static BindResult ErrorResult(std::optional<std::string_view> diag_id,
   return result;
 }
 
-static BindResult OkResult(const BindStateBundle& state) {
+static BindResult OkResult(const BindStateBundle& state,
+                           bool falls_through = true) {
   BindResult result;
   result.ok = true;
   result.state = state;
+  result.falls_through = falls_through;
   return result;
 }
 
@@ -1731,11 +1744,13 @@ static ArgPassResult ArgError(std::optional<std::string_view> diag_id,
 }
 
 static ArgPassResult ArgOk(const BindStateBundle& state,
-                           std::set<PermKey, PermKeyLess> roots = {}) {
+                           std::set<PermKey, PermKeyLess> roots = {},
+                           bool falls_through = true) {
   ArgPassResult result;
   result.ok = true;
   result.state = state;
   result.roots = std::move(roots);
+  result.falls_through = falls_through;
   return result;
 }
 
@@ -1784,9 +1799,9 @@ static void ForEachChildLtr(const ast::ExprPtr& expr, Fn&& fn) {
             fn(elem);
           }
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
             fn(elem);
-          }
+          });
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           fn(node.value);
           fn(node.count);
@@ -1844,6 +1859,18 @@ static BindResult BindStmt(const ScopeContext& ctx,
                            const ast::Stmt& stmt,
                            const BindStateBundle& in);
 
+static void PopScopedBlock_inplace(BindStateBundle& state) {
+  if (!state.binds.empty()) {
+    state.binds.pop_back();
+  }
+  if (!state.perms.empty()) {
+    state.perms.pop_back();
+  }
+  if (!state.env.scopes.empty()) {
+    state.env.scopes.pop_back();
+  }
+}
+
 static BindResult BindStmtSeq(const ScopeContext& ctx,
                               const std::vector<ast::Stmt>& stmts,
                               const BindStateBundle& in) {
@@ -1855,6 +1882,9 @@ static BindResult BindStmtSeq(const ScopeContext& ctx,
   for (const auto& stmt : stmts) {
     auto res = BindStmt(ctx, stmt, current);
     if (!res.ok) {
+      return res;
+    }
+    if (!res.falls_through) {
       return res;
     }
     current = std::move(res.state);
@@ -1877,23 +1907,25 @@ static BindResult BindBlock(const ScopeContext& ctx,
   }
 
   BindStateBundle current = std::move(res.state);
+  if (!res.falls_through) {
+    PopScopedBlock_inplace(current);
+    SPEC_RULE("B-Block");
+    return OkResult(current, false);
+  }
   if (block.tail_opt) {
     auto tail = BindExpr(ctx, block.tail_opt, current);
     if (!tail.ok) {
       return tail;
     }
     current = std::move(tail.state);
+    if (!tail.falls_through) {
+      PopScopedBlock_inplace(current);
+      SPEC_RULE("B-Block");
+      return OkResult(current, false);
+    }
   }
 
-  if (!current.binds.empty()) {
-    current.binds.pop_back();
-  }
-  if (!current.perms.empty()) {
-    current.perms.pop_back();
-  }
-  if (!current.env.scopes.empty()) {
-    current.env.scopes.pop_back();
-  }
+  PopScopedBlock_inplace(current);
   SPEC_RULE("B-Block");
   return OkResult(current);
 }
@@ -1945,6 +1977,9 @@ static ArgPassResult ArgPass(const ScopeContext& ctx,
   if (!eval.ok) {
     return ArgError(eval.diag_id, eval.span);
   }
+  if (!eval.falls_through) {
+    return ArgOk(eval.state, {}, false);
+  }
 
   if (!param.mode.has_value()) {
     if (HasSourceProvenance(arg.value) && !IsPlaceExprForCall(arg.value)) {
@@ -1970,7 +2005,7 @@ static ArgPassResult ArgPass(const ScopeContext& ctx,
   roots.insert(new_roots.begin(), new_roots.end());
 
   SPEC_RULE("B-ArgPass-Cons");
-  return ArgOk(rest.state, std::move(roots));
+  return ArgOk(rest.state, std::move(roots), rest.falls_through);
 }
 
 static BindResult BindMoveExpr(const ScopeContext& ctx,
@@ -2373,6 +2408,44 @@ static bool IsModalTransitionCall(const ScopeContext& ctx,
   return false;
 }
 
+static std::optional<std::vector<ParamInfo>> ParamsForModalTransition(
+    const ScopeContext& ctx,
+    const TypeEnv& env,
+    const ast::ExprPtr& receiver,
+    std::string_view name,
+    std::optional<ParamMode>& recv_mode) {
+  const auto recv_type = ExprTypeOf(ctx, env, receiver);
+  if (!recv_type.has_value() || !*recv_type) {
+    return std::nullopt;
+  }
+  const auto base = StripPerm(*recv_type);
+  const auto* modal = base ? std::get_if<TypeModalState>(&base->node) : nullptr;
+  if (!modal) {
+    return std::nullopt;
+  }
+
+  const auto it = ctx.sigma.types.find(PathKeyOf(modal->path));
+  if (it == ctx.sigma.types.end()) {
+    return std::nullopt;
+  }
+  const auto* modal_decl = std::get_if<ast::ModalDecl>(&it->second);
+  if (!modal_decl) {
+    return std::nullopt;
+  }
+  const auto* transition = LookupTransitionDecl(*modal_decl, modal->state, name);
+  if (!transition) {
+    return std::nullopt;
+  }
+
+  recv_mode = ParamMode::Move;
+  std::vector<ParamInfo> params;
+  params.reserve(transition->params.size());
+  for (const auto& param : transition->params) {
+    params.push_back(ParamInfo{LowerParamMode(param.mode)});
+  }
+  return params;
+}
+
 static BindResult BindCallExpr(const ScopeContext& ctx,
                                const ast::CallExpr& call,
                                const BindStateBundle& in) {
@@ -2394,6 +2467,9 @@ static BindResult BindCallExpr(const ScopeContext& ctx,
     if (!callee_res.ok) {
       return callee_res;
     }
+    if (!callee_res.falls_through) {
+      return callee_res;
+    }
     callee_state = std::move(callee_res.state);
   }
 
@@ -2403,6 +2479,9 @@ static BindResult BindCallExpr(const ScopeContext& ctx,
     for (const auto& arg : call.args) {
       auto eval = BindExpr(ctx, arg.value, current);
       if (!eval.ok) {
+        return eval;
+      }
+      if (!eval.falls_through) {
         return eval;
       }
       current = std::move(eval.state);
@@ -2415,6 +2494,9 @@ static BindResult BindCallExpr(const ScopeContext& ctx,
       ArgPass(ctx, *params, call.args, callee_state);
   if (!args_res.ok) {
     return ErrorResult(args_res.diag_id, args_res.span);
+  }
+  if (!args_res.falls_through) {
+    return OkResult(args_res.state, false);
   }
 
   BindStateBundle out = std::move(args_res.state);
@@ -2430,16 +2512,26 @@ static BindResult BindMethodCallExpr(const ScopeContext& ctx,
   auto params = ParamsForMethod(ctx, in.env, call.receiver, call.name, recv_mode);
   const bool is_transition =
       IsModalTransitionCall(ctx, in.env, call.receiver, call.name);
+  if (!params.has_value() && is_transition) {
+    params = ParamsForModalTransition(
+        ctx, in.env, call.receiver, call.name, recv_mode);
+  }
   if (!params.has_value()) {
     BindStateBundle current = in;
     auto base = BindExpr(ctx, call.receiver, current);
     if (!base.ok) {
       return base;
     }
+    if (!base.falls_through) {
+      return base;
+    }
     current = std::move(base.state);
     for (const auto& arg : call.args) {
       auto eval = BindExpr(ctx, arg.value, current);
       if (!eval.ok) {
+        return eval;
+      }
+      if (!eval.falls_through) {
         return eval;
       }
       current = std::move(eval.state);
@@ -2468,6 +2560,9 @@ static BindResult BindMethodCallExpr(const ScopeContext& ctx,
   if (!recv_res.ok) {
     return recv_res;
   }
+  if (!recv_res.falls_through) {
+    return recv_res;
+  }
 
   BindStateBundle recv_state = std::move(recv_res.state);
   const auto perms_before = recv_state.perms;
@@ -2479,6 +2574,9 @@ static BindResult BindMethodCallExpr(const ScopeContext& ctx,
   const auto args_res = ArgPass(ctx, *params, call.args, recv_state);
   if (!args_res.ok) {
     return ErrorResult(args_res.diag_id, args_res.span);
+  }
+  if (!args_res.falls_through) {
+    return OkResult(args_res.state, false);
   }
 
   std::set<PermKey, PermKeyLess> all_roots = recv_roots;
@@ -2497,6 +2595,9 @@ static BindResult BindIfExpr(const ScopeContext& ctx,
   if (!cond.ok) {
     return cond;
   }
+  if (!cond.falls_through) {
+    return cond;
+  }
 
   auto then_res = BindExpr(ctx, expr.then_expr, cond.state);
   if (!then_res.ok) {
@@ -2505,6 +2606,19 @@ static BindResult BindIfExpr(const ScopeContext& ctx,
   auto else_res = BindExpr(ctx, expr.else_expr, cond.state);
   if (!else_res.ok) {
     return else_res;
+  }
+
+  if (!then_res.falls_through && !else_res.falls_through) {
+    SPEC_RULE("B-If");
+    return OkResult(cond.state, false);
+  }
+  if (then_res.falls_through && !else_res.falls_through) {
+    SPEC_RULE("B-If");
+    return OkResult(then_res.state);
+  }
+  if (!then_res.falls_through && else_res.falls_through) {
+    SPEC_RULE("B-If");
+    return OkResult(else_res.state);
   }
 
   const auto joined_b = Join_B(then_res.state.binds, else_res.state.binds);
@@ -2525,6 +2639,9 @@ static BindResult BindIfCaseExpr(const ScopeContext& ctx,
                                 const BindStateBundle& in) {
   auto scrutinee = BindExpr(ctx, expr.scrutinee, in);
   if (!scrutinee.ok) {
+    return scrutinee;
+  }
+  if (!scrutinee.falls_through) {
     return scrutinee;
   }
 
@@ -2569,6 +2686,7 @@ static BindResult BindIfCaseExpr(const ScopeContext& ctx,
       return body;
     }
     arm_state = std::move(body.state);
+    const bool arm_falls_through = body.falls_through;
 
     SPEC_RULE("B-Arm");
 
@@ -2582,8 +2700,15 @@ static BindResult BindIfCaseExpr(const ScopeContext& ctx,
       arm_state.env.scopes.pop_back();
     }
 
-    bind_envs.push_back(std::move(arm_state.binds));
-    perm_envs.push_back(std::move(arm_state.perms));
+    if (arm_falls_through) {
+      bind_envs.push_back(std::move(arm_state.binds));
+      perm_envs.push_back(std::move(arm_state.perms));
+    }
+  }
+
+  if (bind_envs.empty()) {
+    SPEC_RULE("B-IfCase");
+    return OkResult(base, false);
   }
 
   const auto joined_b = JoinAll_B(bind_envs);
@@ -2610,6 +2735,9 @@ static BindResult BindIfIsExpr(const ScopeContext& ctx,
 
   auto scrutinee = BindExpr(ctx, expr.scrutinee, in);
   if (!scrutinee.ok) {
+    return scrutinee;
+  }
+  if (!scrutinee.falls_through) {
     return scrutinee;
   }
 
@@ -2649,6 +2777,7 @@ static BindResult BindIfIsExpr(const ScopeContext& ctx,
   if (!then_res.ok) {
     return then_res;
   }
+  const bool then_falls_through = then_res.falls_through;
   then_state = std::move(then_res.state);
   if (!then_state.binds.empty()) {
     then_state.binds.pop_back();
@@ -2663,6 +2792,19 @@ static BindResult BindIfIsExpr(const ScopeContext& ctx,
   auto else_res = BindExpr(ctx, expr.else_expr, base);
   if (!else_res.ok) {
     return else_res;
+  }
+
+  if (!then_falls_through && !else_res.falls_through) {
+    SPEC_RULE("B-If");
+    return OkResult(base, false);
+  }
+  if (then_falls_through && !else_res.falls_through) {
+    SPEC_RULE("B-If");
+    return OkResult(then_state);
+  }
+  if (!then_falls_through && else_res.falls_through) {
+    SPEC_RULE("B-If");
+    return OkResult(else_res.state);
   }
 
   const auto joined_b = Join_B(then_state.binds, else_res.state.binds);
@@ -2701,6 +2843,9 @@ static BindResult LoopFix(const ScopeContext& ctx,
   for (std::size_t iter = 0; iter < 128; ++iter) {
     auto body = step(current);
     if (!body.ok) {
+      return body;
+    }
+    if (!body.falls_through) {
       return body;
     }
     const auto joined_b = Join_B(init.binds, body.state.binds);
@@ -2993,8 +3138,14 @@ static BindResult BindExpr(const ScopeContext& ctx,
     if (!lhs.ok) {
       return lhs;
     }
+    if (!lhs.falls_through) {
+      return lhs;
+    }
     auto rhs = BindExpr(ctx, pipeline->rhs, lhs.state);
     if (!rhs.ok) {
+      return rhs;
+    }
+    if (!rhs.falls_through) {
       return rhs;
     }
     SPEC_RULE("B-Pipeline");
@@ -3009,6 +3160,10 @@ static BindResult BindExpr(const ScopeContext& ctx,
     }
     auto res = BindExpr(ctx, child, current);
     if (!res.ok) {
+      first_error = std::move(res);
+      return;
+    }
+    if (!res.falls_through) {
       first_error = std::move(res);
       return;
     }
@@ -3266,14 +3421,14 @@ static BindResult BindStmt(const ScopeContext& ctx,
         } else if constexpr (std::is_same_v<T, ast::ReturnStmt>) {
           if (!node.value_opt) {
             SPEC_RULE("B-Return-Unit");
-            return OkResult(in);
+            return OkResult(in, false);
           }
           auto res = BindExpr(ctx, node.value_opt, in);
           if (!res.ok) {
             return res;
           }
           SPEC_RULE("B-Return");
-          return std::move(res);
+          return OkResult(res.state, false);
         } else if constexpr (std::is_same_v<T, ast::BreakStmt>) {
           if (!node.value_opt) {
             SPEC_RULE("B-Break-Unit");
@@ -3403,7 +3558,7 @@ static BindResult BindStmt(const ScopeContext& ctx,
           scoped.perms.emplace_back();
           scoped.env.scopes.emplace_back();
           scoped.keys_held = true;
-          scoped.key_mode = node.mode;
+          scoped.key_mode = node.mode.value_or(ast::KeyMode::Read);
 
           // Process the body with the key scope
           auto body = BindBlock(ctx, *node.body, scoped);
@@ -3476,10 +3631,11 @@ static BindScope StaticBindInfo(const ScopeContext& ctx,
                                 const ast::StaticDecl& decl,
                                 TypeEnv& env) {
   BindScope out;
-  if (!decl.binding.type_opt) {
+  const auto ann_type = ast::BindingAnnotationTypeOpt(decl.binding);
+  if (!ann_type) {
     return out;
   }
-  const auto ann = LocalLowerType(ctx, decl.binding.type_opt);
+  const auto ann = LocalLowerType(ctx, ann_type);
   if (!ann.ok) {
     return out;
   }

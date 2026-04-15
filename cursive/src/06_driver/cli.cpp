@@ -794,6 +794,10 @@ std::string SeverityString(core::Severity severity) {
       return "error";
     case core::Severity::Warning:
       return "warning";
+    case core::Severity::Info:
+      return "info";
+    case core::Severity::Panic:
+      return "panic";
     case core::Severity::Note:
       return "note";
   }
@@ -874,7 +878,11 @@ std::string_view GetSourceLineJson(std::string_view source,
 std::string DiagnosticToJson(const core::Diagnostic& diag) {
   std::ostringstream oss;
   oss << "{";
-  oss << "\"code\":\"" << EscapeJson(diag.code) << "\",";
+  if (diag.code.empty()) {
+    oss << "\"code\":null,";
+  } else {
+    oss << "\"code\":\"" << EscapeJson(diag.code) << "\",";
+  }
   oss << "\"severity\":\"" << SeverityString(diag.severity) << "\",";
   oss << "\"message\":\"" << EscapeJson(diag.message) << "\",";
   if (!diag.span.has_value()) {
@@ -894,7 +902,11 @@ std::string DiagnosticToJson(const core::Diagnostic& diag,
                              const core::SourceRegistry& sources) {
   std::ostringstream oss;
   oss << "{";
-  oss << "\"code\":\"" << EscapeJson(diag.code) << "\",";
+  if (diag.code.empty()) {
+    oss << "\"code\":null,";
+  } else {
+    oss << "\"code\":\"" << EscapeJson(diag.code) << "\",";
+  }
   oss << "\"severity\":\"" << SeverityString(diag.severity) << "\",";
   oss << "\"message\":\"" << EscapeJson(diag.message) << "\",";
   if (!diag.span.has_value()) {
@@ -954,21 +966,21 @@ std::string DiagnosticStreamToJson(const core::DiagnosticStream& stream,
 // ============================================================================
 
 void PrintUsage() {
-  std::cerr << "usage: cursive <command> [options]\n"
-            << "       cursive build <file> [options]\n"
-            << "       cursive init [directory]\n"
-            << "       cursive clean [file]\n"
-            << "Try 'cursive --help' for more information.\n";
+  std::cerr << "usage: Cursive <command> [options]\n"
+            << "       Cursive build <file> [options]\n"
+            << "       Cursive init [directory]\n"
+            << "       Cursive clean [file]\n"
+            << "Try 'Cursive --help' for more information.\n";
 }
 
 void PrintHelp() {
   std::cout <<
-R"(cursive - Cursive language compiler
+R"(Cursive - Cursive language compiler
 
 USAGE
-  cursive build <file> [options]
-  cursive init [directory]
-  cursive clean [file]
+  Cursive build <file> [options]
+  Cursive init [directory]
+  Cursive clean [file]
 
 OPTIONS
   -h, --help                 Show this help message

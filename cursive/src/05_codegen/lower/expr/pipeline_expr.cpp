@@ -72,13 +72,6 @@ analysis::TypeRef PipelineResultType(const analysis::TypeRef& type) {
   if (const auto* closure = std::get_if<analysis::TypeClosure>(&stripped->node)) {
     return closure->ret;
   }
-  if (const auto* tuple = std::get_if<analysis::TypeTuple>(&stripped->node)) {
-    if (tuple->elements.size() == 2) {
-      if (const auto* fn = std::get_if<analysis::TypeFunc>(&tuple->elements[1]->node)) {
-        return fn->ret;
-      }
-    }
-  }
 
   return nullptr;
 }

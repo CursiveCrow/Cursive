@@ -13,35 +13,35 @@ procedure PointersLogGroupStatus(group_name: string@View, status: i32) -> () {
 public procedure run(ctx: Context) -> i32 {
     [[log(label: "pointers-log-section_start")]]
 
-    let status_core: i32 = CorePointerTypes::RunGroup(ctx)
+    let status_core: i32 = CorePointerTypes::runGroup(ctx)
     PointersLogGroupStatus("pointers::CorePointerTypes", status_core)
     if (status_core != 0) {
         [[log(label: "pointers-log-section_end")]]
         return status_core
     }
 
-    let status_address: i32 = AddressAndDereference::RunGroup(ctx)
+    let status_address: i32 = AddressAndDereference::runGroup(ctx)
     PointersLogGroupStatus("pointers::AddressAndDereference", status_address)
     if (status_address != 0) {
         [[log(label: "pointers-log-section_end")]]
         return status_address
     }
 
-    let status_runtime: i32 = RuntimeStateAndProvenance::RunGroup(ctx)
+    let status_runtime: i32 = RuntimeStateAndProvenance::runGroup(ctx)
     PointersLogGroupStatus("pointers::RuntimeStateAndProvenance", status_runtime)
     if (status_runtime != 0) {
         [[log(label: "pointers-log-section_end")]]
         return status_runtime
     }
 
-    let status_calls: i32 = CallsInteropAndBoundary::RunGroup(ctx)
+    let status_calls: i32 = CallsInteropAndBoundary::runGroup(ctx)
     PointersLogGroupStatus("pointers::CallsInteropAndBoundary", status_calls)
     if (status_calls != 0) {
         [[log(label: "pointers-log-section_end")]]
         return status_calls
     }
 
-    let status_diagnostics: i32 = Diagnostics::RunGroup(ctx)
+    let status_diagnostics: i32 = Diagnostics::runGroup(ctx)
     PointersLogGroupStatus("pointers::Diagnostics", status_diagnostics)
     if (status_diagnostics != 0) {
         [[log(label: "pointers-log-section_end")]]

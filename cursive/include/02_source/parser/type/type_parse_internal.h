@@ -126,7 +126,7 @@ ParseElemResult<std::vector<std::shared_ptr<Type>>> ParseTypeListTail(
 ParseElemResult<std::vector<std::shared_ptr<Type>>> ParseTypeListTailWithEndSet(
     Parser parser,
     std::vector<std::shared_ptr<Type>> xs,
-    std::span<const TokenKindMatch> end_set);
+    std::span<const EndSetToken> end_set);
 
 // =============================================================================
 // Array Type Parsing (defined in array_type.cpp)

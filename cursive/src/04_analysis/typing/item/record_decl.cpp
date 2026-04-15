@@ -446,8 +446,9 @@ RecordDeclResult TypeRecordDecl(
   for (const auto& gp : gen_params.params) {
     type_param_names.push_back(gp.name);
   }
-  if (decl.where_clause.has_value()) {
-    const auto where_result = ProcessWhereClause(ctx, decl.where_clause->predicates, type_param_names);
+  if (decl.predicate_clause_opt.has_value()) {
+    const auto where_result = ProcessWhereClause(
+        ctx, decl.predicate_clause_opt->predicates, type_param_names);
     if (!where_result.ok) {
       result.ok = false;
       result.diag_id = where_result.diag_id;
@@ -619,7 +620,7 @@ RecordDeclResult TypeRecordDecl(
   }
 
   // Process type invariant if present
-  if (decl.invariant.has_value()) {
+  if (decl.invariant_opt.has_value()) {
     // Type invariant cannot have public mutable fields
     // Note: In Cursive, fields don't have is_const - all record fields are mutable by default
     // unless the containing binding is immutable
@@ -637,7 +638,8 @@ RecordDeclResult TypeRecordDecl(
     contract_ctx.scope_ctx = &ctx;
     contract_ctx.receiver_type = result.self_type;
     contract_ctx.in_type_invariant = true;
-    const auto inv_result = CheckTypeInvariant(contract_ctx, *decl.invariant);
+    const auto inv_result =
+        CheckTypeInvariant(contract_ctx, *decl.invariant_opt);
     if (!inv_result.ok) {
       result.ok = false;
       result.diag_id = inv_result.diag_id;
@@ -925,9 +927,11 @@ RecordDeclResult TypeRecordDecl(
       type_ctx.return_type = sig.return_type;
       type_ctx.diags = &diags;
       type_ctx.env_ref = &env;
-      const std::array<const ast::AttributeList* const, 2> ancestors{
-          &decl.attrs, &method->attrs};
-      type_ctx.contract_dynamic = ComputeDynamicContext(ancestors);
+      const std::array<DynamicScopeAncestor, 2> ancestors{
+          MakeDynamicScopeAncestor(decl.attrs, decl.span),
+          MakeDynamicScopeAncestor(method->attrs, method->span)};
+      type_ctx.contract_dynamic =
+          ComputeDynamicContext(method->body->span, ancestors);
       if (method->contract.has_value()) {
         type_ctx.contract = &*method->contract;
       }
@@ -1106,4 +1110,3 @@ RecordDeclResult TypeRecordDeclSignature(
 }
 
 }  // namespace cursive::analysis
-

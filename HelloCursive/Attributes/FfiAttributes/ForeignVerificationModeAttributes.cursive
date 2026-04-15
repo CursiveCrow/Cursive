@@ -8,8 +8,8 @@ public procedure AttributesForeignModeDynamicImpl(value: i32) -> i32 {
     return value + 2
 }
 
-[[mangle("hc_attributes_foreign_mode_trust_impl"), export("C")]]
-public procedure AttributesForeignModeTrustImpl(value: i32) -> i32 {
+[[mangle("hc_attributes_foreign_mode_default_impl"), export("C")]]
+public procedure AttributesForeignModeDefaultImpl(value: i32) -> i32 {
     return value + 3
 }
 
@@ -25,9 +25,8 @@ extern "C" {
         |: @foreign_assumes(value >= 0)
 }
 
-[[trust]]
 extern "C" {
-    procedure hc_attributes_foreign_mode_trust_impl(value: i32) -> i32
+    procedure hc_attributes_foreign_mode_default_impl(value: i32) -> i32
         |: @foreign_assumes(value >= 0)
 }
 
@@ -44,18 +43,18 @@ public procedure RunForeignVerificationModeAttributes(ctx: Context) -> i32 {
 
     let static_value: i32 = unsafe { hc_attributes_foreign_mode_static_impl(7) }
     let dynamic_value: i32 = unsafe { hc_attributes_foreign_mode_dynamic_impl(7) }
-    let trust_value: i32 = unsafe { hc_attributes_foreign_mode_trust_impl(7) }
+    let default_value: i32 = unsafe { hc_attributes_foreign_mode_default_impl(7) }
 
     let static_value_log: i32 = [[log(label: "observed-attributes-foreign-mode-static", expected: 8)]] static_value
     let dynamic_value_log: i32 = [[log(label: "observed-attributes-foreign-mode-dynamic", expected: 9)]] dynamic_value
-    let trust_value_log: i32 = [[log(label: "observed-attributes-foreign-mode-trust", expected: 10)]] trust_value
+    let default_value_log: i32 = [[log(label: "observed-attributes-foreign-mode-default", expected: 10)]] default_value
 
     let atr_066: string@View = [[log(label: "attributes-ffi-feature-066", expected: "ATR-066")]] "ATR-066"
 
     let runtime_ok: bool =
         (static_value_log == 8) &&
         (dynamic_value_log == 9) &&
-        (trust_value_log == 10) &&
+        (default_value_log == 10) &&
         (atr_066 == "ATR-066")
     let runtime_ok_log: bool = [[log(label: "attributes-ffi-foreign-verification-modes-runtime", expected: true)]] runtime_ok
 

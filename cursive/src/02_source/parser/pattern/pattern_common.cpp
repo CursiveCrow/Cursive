@@ -41,6 +41,7 @@ void SkipNewlines(Parser& parser);
 ParseElemResult<std::shared_ptr<Type>> ParseType(Parser parser);
 ParseElemResult<TypePath> ParseTypePath(Parser parser);
 ParseElemResult<ExprPtr> ParseExpr(Parser parser);
+ParseLocalIdentResult ParseLocalIdent(Parser parser);
 
 // Forward declaration for qualified names
 ParseQualifiedHeadResult ParseQualifiedHead(Parser parser);
@@ -58,10 +59,26 @@ static bool IsLiteralToken(const Token& tok) {
          tok.kind == TokenKind::NullLiteral;
 }
 
+static bool IsIdentifierSlotToken(const Token& tok) {
+  return IsIdentTok(tok) || tok.kind == TokenKind::Keyword;
+}
+
 PatternPtr MakePattern(const core::Span& span, PatternNode node);
 
 std::optional<ParseElemResult<PatternPtr>> TryParseSplicePattern(Parser parser) {
-  if (!parser.quote_mode || !IsOp(parser, "$")) {
+  if (!IsOp(parser, "$")) {
+    return std::nullopt;
+  }
+  if (!parser.quote_mode) {
+    Parser after_dollar = parser;
+    Advance(after_dollar);
+    if (IsPunc(after_dollar, "(")) {
+      EmitSpliceOutsideQuoteErr(after_dollar, SpanBetween(parser, after_dollar));
+      SyncStmt(after_dollar);
+      return ParseElemResult<PatternPtr>{
+          after_dollar,
+          MakePattern(SpanBetween(parser, after_dollar), WildcardPattern{})};
+    }
     return std::nullopt;
   }
   Parser after_dollar = parser;
@@ -93,7 +110,7 @@ std::optional<ParseElemResult<PatternPtr>> TryParseSplicePattern(Parser parser) 
 }
 
 bool IsPatternStart(const Token& tok) {
-  if (IsLiteralToken(tok) || IsIdentTok(tok)) {
+  if (IsLiteralToken(tok) || IsIdentifierSlotToken(tok)) {
     return true;
   }
   if (tok.kind == TokenKind::Punctuator) {
@@ -169,12 +186,14 @@ ParseElemResult<std::vector<PatternPtr>> ParsePatternListTail(
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
-    const TokenKindMatch end_set[] = {MatchPunct(")")};
+    const EndSetToken end_set[] = {EndPunct(")")};
     Parser after = parser;
     Advance(after);
     SkipNewlines(after);
     if (IsPunc(after, ")")) {
-      SPEC_RULE("Parse-PatternListTail-TrailingComma");
+      if (TrailingCommaAllowed(parser, end_set)) {
+        SPEC_RULE("Parse-PatternListTail-TrailingComma");
+      }
       EmitTrailingCommaErr(parser, end_set);
       after.diags = parser.diags;
       return {after, xs};
@@ -259,12 +278,14 @@ ParseElemResult<std::vector<PatternPtr>> ParseEnumPayloadPatternElems(
   SkipNewlines(after_first);
 
   if (IsPunc(after_first, ",")) {
-    const TokenKindMatch end_set[] = {MatchPunct(")")};
+    const EndSetToken end_set[] = {EndPunct(")")};
     Parser after = after_first;
     Advance(after);
     SkipNewlines(after);
     if (IsPunc(after, ")")) {
-      SPEC_RULE("Parse-EnumPayloadPatternElems-TrailingComma");
+      if (TrailingCommaAllowed(after_first, end_set)) {
+        SPEC_RULE("Parse-EnumPayloadPatternElems-TrailingComma");
+      }
       EmitTrailingCommaErr(after_first, end_set);
       after.diags = after_first.diags;
       return {after, {first.elem}};
@@ -320,12 +341,14 @@ ParseElemResult<std::vector<FieldPattern>> ParseFieldPatternTail(
     return {parser, xs};
   }
   if (IsPunc(parser, ",")) {
-    const TokenKindMatch end_set[] = {MatchPunct("}")};
+    const EndSetToken end_set[] = {EndPunct("}")};
     Parser after = parser;
     Advance(after);
     SkipNewlines(after);
     if (IsPunc(after, "}")) {
-      SPEC_RULE("Parse-FieldPatternTail-TrailingComma");
+      if (TrailingCommaAllowed(parser, end_set)) {
+        SPEC_RULE("Parse-FieldPatternTail-TrailingComma");
+      }
       EmitTrailingCommaErr(parser, end_set);
       after.diags = parser.diags;
       return {after, xs};
@@ -433,6 +456,27 @@ ParseElemResult<PatternPtr> ParsePatternAtom(Parser parser) {
     return *splice;
   }
 
+  if (parser.quote_mode && IsOp(parser, "$")) {
+    ParseLocalIdentResult name = ParseLocalIdent(parser);
+    if (IsPunc(name.parser, ":")) {
+      SPEC_RULE("Parse-Pattern-Typed");
+      Parser after = name.parser;
+      Advance(after);
+      ParseElemResult<std::shared_ptr<Type>> ty = ParseType(after);
+      TypedPattern pat;
+      pat.name = std::move(name.name);
+      pat.type = ty.elem;
+      pat.name_splice_opt = std::move(name.splice_opt);
+      return {ty.parser, MakePattern(SpanBetween(parser, ty.parser), pat)};
+    }
+
+    SPEC_RULE("Parse-Pattern-Identifier");
+    IdentifierPattern pat;
+    pat.name = std::move(name.name);
+    pat.name_splice_opt = std::move(name.splice_opt);
+    return {name.parser, MakePattern(SpanBetween(parser, name.parser), pat)};
+  }
+
   const Token* tok = Tok(parser);
   if (!tok) {
     EmitParseSyntaxErr(parser, TokSpan(parser));
@@ -451,17 +495,19 @@ ParseElemResult<PatternPtr> ParsePatternAtom(Parser parser) {
 
   // 2. Check typed pattern BEFORE wildcard - lookahead for ":" takes precedence
   // This allows `_: Type` to parse as TypedPattern rather than WildcardPattern
-  if (IsIdentTok(*tok)) {
+  if (IsIdentifierSlotToken(*tok)) {
     Parser next = parser;
     Advance(next);
     if (IsPunc(next, ":")) {
       SPEC_RULE("Parse-Pattern-Typed");
-      Parser after = next;
+      ParseElemResult<Identifier> name = ParseIdent(parser);
+      Parser after = name.parser;
       Advance(after);
       ParseElemResult<std::shared_ptr<Type>> ty = ParseType(after);
       TypedPattern pat;
-      pat.name = std::string(tok->lexeme);
+      pat.name = name.elem;
       pat.type = ty.elem;
+      pat.name_splice_opt = std::nullopt;
       return {ty.parser, MakePattern(SpanBetween(parser, ty.parser), pat)};
     }
   }
@@ -475,7 +521,7 @@ ParseElemResult<PatternPtr> ParsePatternAtom(Parser parser) {
   }
 
   // 4. Enum pattern (identifier + "::")
-  if (IsIdentTok(*tok)) {
+  if (IsIdentifierSlotToken(*tok)) {
     Parser next = parser;
     Advance(next);
     if (IsOp(next, "::")) {
@@ -509,11 +555,13 @@ ParseElemResult<PatternPtr> ParsePatternAtom(Parser parser) {
   }
 
   // 6. Record pattern (path + "{")
-  if (IsIdentTok(*tok)) {
-    Parser start = parser;
-    ParseElemResult<TypePath> path = ParseTypePath(parser);
-    if (IsPunc(path.parser, "{")) {
+  if (IsIdentifierSlotToken(*tok)) {
+    Parser probe = Clone(parser);
+    ParseElemResult<TypePath> path_probe = ParseTypePath(probe);
+    if (IsPunc(path_probe.parser, "{")) {
       SPEC_RULE("Parse-Pattern-Record");
+      Parser start = parser;
+      ParseElemResult<TypePath> path = ParseTypePath(parser);
       Parser after = path.parser;
       Advance(after);
       ParseElemResult<std::vector<FieldPattern>> fields = ParseFieldPatternList(after);
@@ -545,13 +593,13 @@ ParseElemResult<PatternPtr> ParsePatternAtom(Parser parser) {
   }
 
   // 8. Identifier pattern (fallback)
-  if (IsIdentTok(*tok)) {
+  if (IsIdentifierSlotToken(*tok)) {
     SPEC_RULE("Parse-Pattern-Identifier");
-    Parser next = parser;
-    Advance(next);
+    ParseElemResult<Identifier> name = ParseIdent(parser);
     IdentifierPattern pat;
-    pat.name = std::string(tok->lexeme);
-    return {next, MakePattern(tok->span, pat)};
+    pat.name = name.elem;
+    pat.name_splice_opt = std::nullopt;
+    return {name.parser, MakePattern(SpanBetween(parser, name.parser), pat)};
   }
 
   EmitParseSyntaxErr(parser, TokSpan(parser));
@@ -596,10 +644,15 @@ ParseElemResult<PatternPtr> ParsePattern(Parser parser) {
     return *splice;
   }
 
+  if (parser.quote_mode && IsOp(parser, "$")) {
+    SPEC_RULE("Parse-Pattern");
+    return ParsePatternRange(parser);
+  }
+
   const Token* tok = Tok(parser);
   if (!tok || !IsPatternStart(*tok)) {
     SPEC_RULE("Parse-Pattern-Err");
-    EmitParseSyntaxErr(parser, TokSpan(parser));
+    EmitGenericParseSyntaxErr(parser, TokSpan(parser));
     return {parser, MakePattern(TokSpan(parser), WildcardPattern{})};
   }
   SPEC_RULE("Parse-Pattern");

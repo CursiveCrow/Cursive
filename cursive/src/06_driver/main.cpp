@@ -41,12 +41,6 @@
 #include <unordered_set>
 #include <vector>
 
-#ifdef _WIN32
-#include <process.h>
-#else
-#include <unistd.h>
-#endif
-
 #include "06_driver/cli.h"
 #include "06_driver/pipeline.h"
 #include "06_driver/shared_library_exports.h"
@@ -59,12 +53,15 @@
 #include "00_core/diagnostic_render.h"
 #include "00_core/diagnostics.h"
 #include "00_core/hash.h"
+#include "00_core/host/services.h"
+#include "00_core/ident.h"
 #include "00_core/process_config.h"
 #include "00_core/source_load.h"
 #include "00_core/spec_trace.h"
 #include "00_core/symbols.h"
 #include "00_core/terminal.h"
-#include "00_core/windows_bundle.h"
+#include "00_core/unicode.h"
+#include "00_core/compiler_support.h"
 #include "01_project/ir_assembly.h"
 #include "01_project/assemblies.h"
 #include "01_project/assembly_graph.h"
@@ -100,6 +97,72 @@
 #include "05_codegen/intrinsics/builtins.h"
 
 namespace {
+
+std::vector<std::uint8_t> PathFilenameUtf8Bytes(
+    const std::filesystem::path& path) {
+  const auto utf8 = path.filename().u8string();
+  std::vector<std::uint8_t> bytes;
+  bytes.reserve(utf8.size());
+  for (auto ch : utf8) {
+    bytes.push_back(static_cast<std::uint8_t>(ch));
+  }
+  return bytes;
+}
+
+std::string DeriveAssemblyName(const std::filesystem::path& project_dir) {
+  std::vector<cursive::core::UnicodeScalar> out;
+  const cursive::core::DecodeResult decoded =
+      cursive::core::Decode(PathFilenameUtf8Bytes(project_dir));
+  bool pending_separator = false;
+
+  auto append_separator = [&]() {
+    if (pending_separator) {
+      return;
+    }
+    out.push_back('_');
+    pending_separator = true;
+  };
+
+  if (decoded.ok) {
+    out.reserve(decoded.scalars.size() + 1);
+    for (cursive::core::UnicodeScalar scalar : decoded.scalars) {
+      if (out.empty()) {
+        if (cursive::core::IsIdentStart(scalar)) {
+          out.push_back(scalar);
+          pending_separator = false;
+          continue;
+        }
+        if (cursive::core::IsIdentContinue(scalar)) {
+          out.push_back('_');
+          out.push_back(scalar);
+          pending_separator = false;
+          continue;
+        }
+        append_separator();
+        continue;
+      }
+
+      if (cursive::core::IsIdentContinue(scalar)) {
+        out.push_back(scalar);
+        pending_separator = false;
+      } else {
+        append_separator();
+      }
+    }
+  }
+
+  std::string name = cursive::core::EncodeUtf8(out);
+  if (name.empty()) {
+    name = "my_project";
+  }
+  if (cursive::core::IsKeyword(name)) {
+    name.push_back('_');
+  }
+  if (!cursive::core::IsName(name)) {
+    name = "my_project";
+  }
+  return name;
+}
 
 bool HasBlockingErrorsForSema(const cursive::core::DiagnosticStream& diags) {
   for (const auto& diag : diags) {
@@ -221,6 +284,67 @@ void EmitCapabilityLeakDiagnostic(
                              : leak.message);
 }
 
+void EmitAttributeValidationDiagnostic(
+    cursive::core::DiagnosticStream& diags,
+    const cursive::analysis::AttributeValidationResult& err) {
+  const std::string code =
+      err.diag_id.has_value() ? std::string(*err.diag_id) : "E-MOD-2450";
+
+  if (auto diag = cursive::core::MakeDiagnosticById(code, err.span)) {
+    if (!err.message.empty()) {
+      diag->message = err.message;
+    }
+    cursive::core::Emit(diags, *diag);
+    return;
+  }
+  EmitInternalDiagnostic(diags, cursive::core::Severity::Error, err.span,
+                         err.message.empty()
+                             ? "Attribute validation failed."
+                             : err.message);
+}
+
+bool ValidateParsedTypeAttributeLists(
+    const std::vector<cursive::ast::ASTModule>& modules,
+    cursive::core::DiagnosticStream& diags) {
+  auto validate = [&](const auto& attrs, cursive::analysis::AttributeTarget target)
+      -> bool {
+    if (!cursive::analysis::HasAttribute(attrs,
+                                         cursive::analysis::attrs::kDerive)) {
+      return true;
+    }
+    const auto result = cursive::analysis::ValidateAttributes(attrs, target);
+    if (result.ok) {
+      return true;
+    }
+    EmitAttributeValidationDiagnostic(diags, result);
+    return false;
+  };
+
+  for (const auto& module : modules) {
+    for (const auto& item : module.items) {
+      if (const auto* record = std::get_if<cursive::ast::RecordDecl>(&item)) {
+        if (!validate(record->attrs, cursive::analysis::AttributeTarget::Record)) {
+          return false;
+        }
+        continue;
+      }
+      if (const auto* enum_decl = std::get_if<cursive::ast::EnumDecl>(&item)) {
+        if (!validate(enum_decl->attrs, cursive::analysis::AttributeTarget::Enum)) {
+          return false;
+        }
+        continue;
+      }
+      if (const auto* modal = std::get_if<cursive::ast::ModalDecl>(&item)) {
+        if (!validate(modal->attrs, cursive::analysis::AttributeTarget::Modal)) {
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
 bool BuildProgressEnabled() {
   // Priority: CLI --build-progress > manifest [build] progress > default(true)
   const std::optional<bool> override = cursive::core::BuildProgressOverride();
@@ -235,24 +359,16 @@ bool BuildProgressEnabled() {
 }
 
 unsigned long CurrentProcessId() {
-#ifdef _WIN32
-  return static_cast<unsigned long>(_getpid());
-#else
-  return static_cast<unsigned long>(getpid());
-#endif
+  return cursive::core::CurrentHostProcessId();
 }
 
 std::filesystem::path g_compiler_executable_path;
 
 std::filesystem::path ResolveCurrentExecutablePath(const char* argv0) {
-#ifndef _WIN32
-  char path[4096];
-  const ssize_t len = readlink("/proc/self/exe", path, sizeof(path) - 1);
-  if (len > 0) {
-    path[len] = '\0';
-    return std::filesystem::path(path);
+  const auto current = cursive::core::CurrentExecutablePath();
+  if (!current.empty()) {
+    return current;
   }
-#endif
 
   if (argv0 && argv0[0] != '\0') {
     const std::filesystem::path raw(argv0);
@@ -922,13 +1038,11 @@ std::string ComputeLinkFingerprint(
     const std::string& build_key,
     const std::unordered_map<std::string, IncrementalManifestModuleState>& modules,
     const std::vector<std::filesystem::path>& link_inputs,
-    const std::vector<std::string>& delay_load_dlls,
     const std::optional<std::filesystem::path>& runtime_lib,
     std::string_view emit_ir) {
   std::vector<std::string> fields;
-  fields.reserve(8 + project.modules.size() + link_inputs.size() +
-                 delay_load_dlls.size());
-  fields.push_back("v4");
+  fields.reserve(8 + project.modules.size() + link_inputs.size());
+  fields.push_back("v5");
   fields.push_back(build_key);
   fields.push_back(project.assembly.name);
   fields.push_back(project.assembly.kind);
@@ -947,9 +1061,6 @@ std::string ComputeLinkFingerprint(
   }
   for (const auto& input : link_inputs) {
     fields.push_back("input=" + LinkInputFingerprintField(input));
-  }
-  for (const auto& dll_name : delay_load_dlls) {
-    fields.push_back("delay_load=" + dll_name);
   }
 
   for (const auto& module : project.modules) {
@@ -1089,14 +1200,11 @@ IncrementalNoopCheckResult CheckIncrementalNoopReuse(
   const auto link_inputs =
       cursive::project::ResolveExternLibraryInputs(extern_libraries,
                                                    target_profile);
-  const auto delay_load_dlls =
-      cursive::project::ResolveExternLibraryDelayLoadDlls(
-          extern_libraries, target_profile);
   const auto runtime_lib =
       cursive::project::ResolveRuntimeLib(project, target_profile);
   const std::string link_fingerprint =
       ComputeLinkFingerprint(project, target_profile, build_key,
-                             manifest->modules, link_inputs, delay_load_dlls,
+                             manifest->modules, link_inputs,
                              runtime_lib, emit_ir);
   if (link_fingerprint != manifest->link_fingerprint) {
     result.reason = "link-fingerprint-mismatch";
@@ -1124,7 +1232,7 @@ int main(int argc, char** argv) {
 
   {
     core::CrashRuntimeOptions crash_options;
-    crash_options.tool_name = "cursive";
+    crash_options.tool_name = "Cursive";
     crash_options.tool_version = GetVersionString();
     crash_options.executable_path = g_compiler_executable_path;
     crash_options.arguments.reserve(argc > 1 ? static_cast<std::size_t>(argc - 1)
@@ -1139,18 +1247,16 @@ int main(int argc, char** argv) {
     core::InstallCrashHandlers();
   }
 
-#ifdef _WIN32
   {
     std::string bundle_error;
-    if (!core::EnsureBundledWindowsCompilerSupport(&bundle_error)) {
+    if (!core::EnsureBundledHostCompilerSupport(&bundle_error)) {
       if (bundle_error.empty()) {
-        bundle_error = "Failed to initialize Windows compiler sidecar support.";
+        bundle_error = "Failed to initialize compiler sidecar support.";
       }
       std::cerr << "error: " << bundle_error << "\n";
       return 1;
     }
   }
-#endif
 
   SpecDefsDriver();
 
@@ -1229,10 +1335,11 @@ int main(int argc, char** argv) {
     }
 
     // Derive project name from directory name
-    std::string project_name = project_dir.filename().string();
-    if (project_name.empty() || project_name == "." || project_name == "..") {
-      project_name = "my_project";
+    std::string project_label = project_dir.filename().string();
+    if (project_label.empty() || project_label == "." || project_label == "..") {
+      project_label = "my_project";
     }
+    const std::string project_name = DeriveAssemblyName(project_dir);
 
     // Create project directory if it doesn't exist
     if (!fs::exists(project_dir, ec)) {
@@ -1265,11 +1372,11 @@ int main(int argc, char** argv) {
       return 1;
     }
 
-    // Create src/main.cv
+    // Create src/main.cursive
     {
-      std::ofstream out(src_dir / "main.cv", std::ios::binary);
+      std::ofstream out(src_dir / "main.cursive", std::ios::binary);
       if (!out) {
-        std::cerr << "error: could not create src/main.cv\n";
+        std::cerr << "error: could not create src/main.cursive\n";
         return 1;
       }
       out << "public procedure main(move ctx: Context) -> i32 {\n"
@@ -1283,7 +1390,12 @@ int main(int argc, char** argv) {
     const std::size_t pad = kLabelWidth - label.size();
     std::cerr << std::string(pad, ' ')
               << core::Colorize(label, core::Color::BoldGreen, init_color)
-              << "  " << project_name << " (cursive project)\n";
+              << "  " << project_label;
+    if (project_name != project_label) {
+      std::cerr << " (cursive project, assembly " << project_name << ")\n";
+    } else {
+      std::cerr << " (cursive project)\n";
+    }
     return 0;
   }
 
@@ -1491,6 +1603,7 @@ int main(int argc, char** argv) {
     std::vector<project::ModuleInfo> reachable_modules;
     std::vector<ast::ASTModule> parsed_modules;
     std::optional<std::vector<ast::ASTModule>> parsed_project_module_set;
+    frontend::UnsafeSpanMap parsed_unsafe_spans_by_file;
     core::DiagnosticStream parse_phase_diags;
     core::DiagnosticStream comptime_phase_diags;
     bool parse_ok = true;
@@ -1527,16 +1640,28 @@ int main(int argc, char** argv) {
         parse_ok = false;
         break;
       }
-      log_machine("phase=parse-modules assembly-finish name=" + assembly.name +
-                  " ok=true parsed_modules=" +
-                  std::to_string(parsed_chunk.modules->size()) +
-                  " emitted_diags=" +
-                  std::to_string(parsed_chunk.diags.size()));
-
       reachable_modules.insert(reachable_modules.end(), assembly.modules.begin(),
                                assembly.modules.end());
 
       std::vector<ast::ASTModule> stage_modules = std::move(*parsed_chunk.modules);
+      for (auto& [path, spans] : parsed_chunk.unsafe_spans_by_file) {
+        parsed_unsafe_spans_by_file.insert_or_assign(std::move(path),
+                                                     std::move(spans));
+      }
+      if (!ValidateParsedTypeAttributeLists(stage_modules, parse_phase_diags)) {
+        log_machine("phase=parse-modules assembly-finish name=" + assembly.name +
+                    " ok=false attr-validation=true parsed_modules=" +
+                    std::to_string(stage_modules.size()) +
+                    " emitted_diags=" +
+                    std::to_string(parsed_chunk.diags.size()));
+        parse_ok = false;
+        break;
+      }
+      log_machine("phase=parse-modules assembly-finish name=" + assembly.name +
+                  " ok=true parsed_modules=" +
+                  std::to_string(stage_modules.size()) +
+                  " emitted_diags=" +
+                  std::to_string(parsed_chunk.diags.size()));
       for (const auto& module : stage_modules) {
         for (const auto& item : module.items) {
           const auto* import = std::get_if<ast::ImportDecl>(&item);
@@ -1574,8 +1699,8 @@ int main(int argc, char** argv) {
         log_machine("phase=comptime assembly-start name=" + assembly.name +
                     " modules=" + std::to_string(stage_modules.size()) +
                     " source_root=" + assembly.source_root.generic_string());
-        auto expanded_chunk = frontend::ExecuteComptime(
-            stage_modules, assembly.source_root.parent_path(), assembly.source_root);
+        auto expanded_chunk =
+            frontend::ExecuteComptime(stage_modules, proj.root, assembly.source_root);
         for (const auto& diag : expanded_chunk.diags) {
           core::Emit(comptime_phase_diags, diag);
         }
@@ -1636,20 +1761,32 @@ int main(int argc, char** argv) {
           parse_ok = false;
           break;
         }
+        std::vector<ast::ASTModule> stage_modules = std::move(*parsed_chunk.modules);
+        for (auto& [path, spans] : parsed_chunk.unsafe_spans_by_file) {
+          parsed_unsafe_spans_by_file.insert_or_assign(std::move(path),
+                                                       std::move(spans));
+        }
+        if (!ValidateParsedTypeAttributeLists(stage_modules, parse_phase_diags)) {
+          log_machine("phase=parse-modules assembly-finish name=" +
+                      assembly.name + " ok=false attr-validation=true parsed_modules=" +
+                      std::to_string(stage_modules.size()) +
+                      " emitted_diags=" +
+                      std::to_string(parsed_chunk.diags.size()));
+          parse_ok = false;
+          break;
+        }
         log_machine("phase=parse-modules assembly-finish name=" + assembly.name +
                     " ok=true parsed_modules=" +
-                    std::to_string(parsed_chunk.modules->size()) +
+                    std::to_string(stage_modules.size()) +
                     " emitted_diags=" +
                     std::to_string(parsed_chunk.diags.size()));
-
-        std::vector<ast::ASTModule> stage_modules = std::move(*parsed_chunk.modules);
         if (!opts->phase1_only) {
           core::Conformance::SetPhase("comptime");
           log_machine("phase=comptime assembly-start name=" + assembly.name +
                       " modules=" + std::to_string(stage_modules.size()) +
                       " source_root=" + assembly.source_root.generic_string());
-          auto expanded_chunk = frontend::ExecuteComptime(
-              stage_modules, assembly.source_root.parent_path(), assembly.source_root);
+          auto expanded_chunk = frontend::ExecuteComptime(stage_modules, proj.root,
+                                                          assembly.source_root);
           for (const auto& diag : expanded_chunk.diags) {
             core::Emit(comptime_phase_diags, diag);
           }
@@ -1785,6 +1922,7 @@ int main(int argc, char** argv) {
       ctx.project = &sema_project;
       ctx.target_profile = target_profile;
       ctx.sigma.mods = *parsed_module_set;
+      ctx.sigma.unsafe_spans_by_file = parsed_unsafe_spans_by_file;
       ctx.scopes = {analysis::Scope{}, analysis::Scope{}, analysis::Scope{}};
       log_machine("phase=sema step=context-init modules=" +
                   std::to_string(parsed_module_set->size()));

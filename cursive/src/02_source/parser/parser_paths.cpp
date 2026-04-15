@@ -23,6 +23,8 @@
 #include <vector>
 
 #include "00_core/assert_spec.h"
+#include "00_core/diagnostic_messages.h"
+#include "00_core/diagnostics.h"
 #include "02_source/lexer/keyword_policy.h"
 
 namespace cursive::ast {
@@ -31,18 +33,31 @@ namespace cursive::ast {
 using cursive::lexer::Token;
 using cursive::lexer::TokenKind;
 
+bool IsOp(const Parser& parser, std::string_view op);
+
 namespace {
 
-// =============================================================================
-// IsVisKeyword - Check if lexeme is a visibility keyword
-// =============================================================================
+ExprPtr MakeExpr(const core::Span& span, ExprNode node) {
+  auto expr = std::make_shared<Expr>();
+  expr->span = span;
+  expr->node = std::move(node);
+  return expr;
+}
 
-bool IsVisKeyword(std::string_view lexeme) {
-  return lexeme == "public" || lexeme == "internal" || lexeme == "private";
+bool IsIdentifierSlotToken(const Token* tok) {
+  return tok && (IsIdentTok(*tok) || tok->kind == TokenKind::Keyword);
+}
+
+void EmitReservedKeywordIdentifierErr(Parser& parser, const core::Span& span) {
+  auto diag = core::MakeDiagnosticById("E-CNF-0401", span);
+  if (!diag) {
+    return;
+  }
+  core::Emit(parser.diags, *diag);
 }
 
 // =============================================================================
-// VisibilityFromLexeme - Convert lexeme to Visibility enum
+// VisibilityFromLexeme - Convert a spec-defined visibility lexeme to enum
 // =============================================================================
 
 std::optional<Visibility> VisibilityFromLexeme(std::string_view lexeme) {
@@ -143,9 +158,62 @@ ParseElemResult<Identifier> ParseIdent(Parser parser) {
     return {parser, name};
   }
 
+  if (tok && tok->kind == TokenKind::Keyword) {
+    Identifier name = tok->lexeme;
+    EmitReservedKeywordIdentifierErr(parser, tok->span);
+    Advance(parser);
+    return {parser, name};
+  }
+
   SPEC_RULE("Parse-Ident-Err");
-  EmitParseSyntaxErr(parser, TokSpan(parser));
+  EmitGenericParseSyntaxErr(parser, TokSpan(parser));
   return {parser, Identifier{"_"}};
+}
+
+ParseLocalIdentResult ParseLocalIdent(Parser parser) {
+  if (IsOp(parser, "$")) {
+    if (!parser.quote_mode) {
+      Parser after_dollar = parser;
+      Advance(after_dollar);
+      const Token* tok = Tok(after_dollar);
+      if (IsIdentifierSlotToken(tok)) {
+        Parser after_ident = after_dollar;
+        if (tok->kind == TokenKind::Keyword) {
+          EmitReservedKeywordIdentifierErr(after_ident, tok->span);
+        }
+        Advance(after_ident);
+        EmitSpliceOutsideQuoteErr(after_ident, SpanBetween(parser, after_ident));
+        return {after_ident, Identifier{"_"}, std::nullopt};
+      }
+    }
+  }
+
+  if (parser.quote_mode && IsOp(parser, "$")) {
+    Parser after_dollar = parser;
+    Advance(after_dollar);
+    const Token* tok = Tok(after_dollar);
+    if (!IsIdentifierSlotToken(tok)) {
+      EmitParseSyntaxErr(after_dollar, TokSpan(after_dollar));
+      return {after_dollar, Identifier{"_"}, std::nullopt};
+    }
+
+    Parser after_ident = after_dollar;
+    if (tok->kind == TokenKind::Keyword) {
+      EmitReservedKeywordIdentifierErr(after_ident, tok->span);
+    }
+    Advance(after_ident);
+
+    IdentifierExpr ident;
+    ident.name = tok->lexeme;
+
+    SpliceIdentNode splice;
+    splice.name_expr = MakeExpr(tok->span, ident);
+    splice.span = SpanBetween(parser, after_ident);
+    return {after_ident, Identifier{"_"}, std::move(splice)};
+  }
+
+  ParseElemResult<Identifier> ident = ParseIdent(parser);
+  return {ident.parser, std::move(ident.elem), std::nullopt};
 }
 
 // =============================================================================
@@ -235,11 +303,12 @@ ParseQualifiedHeadResult ParseQualifiedHead(Parser parser) {
 
 ParseElemResult<Visibility> ParseVis(Parser parser) {
   const Token* tok = Tok(parser);
-  if (tok && IsKwTok(*tok, tok->lexeme) && IsVisKeyword(tok->lexeme)) {
-    SPEC_RULE("Parse-Vis-Opt");
-    std::optional<Visibility> vis = VisibilityFromLexeme(tok->lexeme);
-    Advance(parser);
-    return {parser, vis.value_or(Visibility::Internal)};
+  if (tok && tok->kind == TokenKind::Keyword) {
+    if (std::optional<Visibility> vis = VisibilityFromLexeme(tok->lexeme)) {
+      SPEC_RULE("Parse-Vis-Opt");
+      Advance(parser);
+      return {parser, *vis};
+    }
   }
 
   SPEC_RULE("Parse-Vis-Default");

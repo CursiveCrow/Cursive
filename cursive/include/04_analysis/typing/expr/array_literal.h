@@ -2,7 +2,7 @@
 // File: 04_analysis/typing/expr/array_literal.h
 // Construct: Array Literal Expression Type Checking
 // Spec Section: 5.2.6
-// Spec Rules: T-Array-Literal-List
+// Spec Rules: T-Array-Literal-Segments
 // =================================================================
 #pragma once
 
@@ -13,7 +13,7 @@
 
 namespace cursive::analysis::expr {
 
-// T-Array-Literal-List: Array from element list
+// T-Array-Literal-Segments: Array from explicit and repeated segments
 // [e_1, e_2, ..., e_n] : [T; n] where all e_i : T
 ExprTypeResult TypeArrayExprImpl(const ScopeContext& ctx,
                                  const ast::ArrayExpr& expr,

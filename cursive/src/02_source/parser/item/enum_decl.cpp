@@ -429,10 +429,10 @@ ParseItemResult ParseEnumDecl(Parser parser, Visibility vis,
   ParseElemResult<std::vector<ClassPath>> impls = ParseImplementsOpt(parser);
   parser = impls.parser;
 
-  // Parse optional where clause
-  ParseElemResult<std::optional<WhereClause>> where_clause =
+  // Parse optional predicate clause
+  ParseElemResult<std::optional<WhereClause>> predicate_clause_opt =
       ParsePredicateClauseOpt(parser);
-  parser = where_clause.parser;
+  parser = predicate_clause_opt.parser;
 
   // Parse enum body
   ParseElemResult<std::vector<VariantDecl>> vars = ParseEnumBody(parser);
@@ -448,10 +448,10 @@ ParseItemResult ParseEnumDecl(Parser parser, Visibility vis,
   decl.vis = vis;
   decl.name = name.elem;
   decl.generic_params = gen_params.elem;
+  decl.predicate_clause_opt = predicate_clause_opt.elem;
   decl.implements = std::move(impls.elem);
-  decl.where_clause = where_clause.elem;
-  decl.invariant = invariant.elem;
   decl.variants = std::move(vars.elem);
+  decl.invariant_opt = invariant.elem;
   decl.span = SpanBetween(start, parser);
   decl.doc = {};
 

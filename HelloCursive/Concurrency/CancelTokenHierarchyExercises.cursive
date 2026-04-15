@@ -1,20 +1,4 @@
-procedure CancelTokenHierarchyMetricLabel(value: i32) -> string@View {
-    if (value == 0) {
-        return "0"
-    }
-    if (value == 1) {
-        return "1"
-    }
-    if (value == 2) {
-        return "2"
-    }
-    if (value == 3) {
-        return "3"
-    }
-    return "other"
-}
-
-public procedure RunCancelTokenChildExercise(ctx: Context) -> i32 {
+public procedure runCancelTokenChildExercise(ctx: Context) -> i32 {
     [[log(label: "concurrency-log-item_begin")]]
 
     let parent_owner: unique (CancelToken@Active;) = (CancelToken::new();)
@@ -50,7 +34,7 @@ public procedure RunCancelTokenChildExercise(ctx: Context) -> i32 {
     return 0
 }
 
-public procedure RunCancelTokenChildIndependenceExercise(ctx: Context) -> i32 {
+public procedure runCancelTokenChildIndependenceExercise(ctx: Context) -> i32 {
     [[log(label: "concurrency-log-item_begin")]]
 
     let parent_owner: unique (CancelToken@Active;) = (CancelToken::new();)
@@ -84,7 +68,7 @@ public procedure RunCancelTokenChildIndependenceExercise(ctx: Context) -> i32 {
     return 0
 }
 
-public procedure RunCancelTokenGrandchildExercise(ctx: Context) -> i32 {
+public procedure runCancelTokenGrandchildExercise(ctx: Context) -> i32 {
     [[log(label: "concurrency-log-item_begin")]]
 
     let root_owner: unique (CancelToken@Active;) = (CancelToken::new();)
@@ -114,7 +98,7 @@ public procedure RunCancelTokenGrandchildExercise(ctx: Context) -> i32 {
     return 0
 }
 
-public procedure RunCancelTokenChildCancelDoesNotReachAncestorExercise(ctx: Context) -> i32 {
+public procedure runCancelTokenChildCancelDoesNotReachAncestorExercise(ctx: Context) -> i32 {
     [[log(label: "concurrency-log-item_begin")]]
 
     let root_owner: unique (CancelToken@Active;) = (CancelToken::new();)
@@ -145,23 +129,23 @@ public procedure RunCancelTokenChildCancelDoesNotReachAncestorExercise(ctx: Cont
     return 0
 }
 
-procedure RunCancelTokenHierarchyExercises(ctx: Context) -> i32 {
-    let status_child: i32 = RunCancelTokenChildExercise(ctx)
+procedure runCancelTokenHierarchyExercises(ctx: Context) -> i32 {
+    let status_child: i32 = runCancelTokenChildExercise(ctx)
     if (status_child != 0) {
         return status_child
     }
 
-    let status_independence: i32 = RunCancelTokenChildIndependenceExercise(ctx)
+    let status_independence: i32 = runCancelTokenChildIndependenceExercise(ctx)
     if (status_independence != 0) {
         return status_independence
     }
 
-    let status_grandchild: i32 = RunCancelTokenGrandchildExercise(ctx)
+    let status_grandchild: i32 = runCancelTokenGrandchildExercise(ctx)
     if (status_grandchild != 0) {
         return status_grandchild
     }
 
-    let status_child_no_ancestor: i32 = RunCancelTokenChildCancelDoesNotReachAncestorExercise(ctx)
+    let status_child_no_ancestor: i32 = runCancelTokenChildCancelDoesNotReachAncestorExercise(ctx)
     if (status_child_no_ancestor != 0) {
         return status_child_no_ancestor
     }

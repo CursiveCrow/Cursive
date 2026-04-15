@@ -38,6 +38,8 @@ namespace cursive::codegen {
 ///
 /// Returns IR sequence containing condition lowering, condition cleanup,
 /// and an IRIf node, plus a fresh temporary for the result value.
-LowerResult LowerIfExpr(const ast::IfExpr& expr, LowerCtx& ctx);
+LowerResult LowerIfExpr(const ast::Expr& expr,
+                       const ast::IfExpr& if_expr,
+                       LowerCtx& ctx);
 
 }  // namespace cursive::codegen

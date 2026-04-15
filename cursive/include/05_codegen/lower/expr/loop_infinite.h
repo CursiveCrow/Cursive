@@ -37,6 +37,8 @@ namespace cursive::codegen {
 //   LowerResult containing the IRLoop node and result value
 //
 // =============================================================================
-LowerResult LowerLoopInfinite(const ast::LoopInfiniteExpr& expr, LowerCtx& ctx);
+LowerResult LowerLoopInfinite(const ast::Expr& expr,
+                              const ast::LoopInfiniteExpr& loop_expr,
+                              LowerCtx& ctx);
 
 }  // namespace cursive::codegen

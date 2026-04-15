@@ -28,6 +28,7 @@
 #include "04_analysis/caps/cap_concurrency.h"
 #include "04_analysis/attributes/attribute_registry.h"
 #include "04_analysis/keys/key_lifetimes.h"
+#include "04_analysis/keys/key_paths.h"
 #include "04_analysis/typing/type_equiv.h"
 #include "04_analysis/typing/type_expr.h"
 #include "04_analysis/typing/type_lookup.h"
@@ -43,11 +44,46 @@ static inline void SpecDefsKeyBlockStmt() {
   SPEC_DEF("KeyRelease", "17.1");
   SPEC_DEF("NestedKeys", "17.1");
   SPEC_DEF("SpeculativeExec", "17.1");
+  SPEC_DEF("NonIndexShape", "17.3.7");
+  SPEC_DEF("OrderedBase", "17.3.7");
+  SPEC_DEF("OrderedComparable", "17.3.7");
+  SPEC_DEF("StaticallyComparableIndices", "17.3.7");
+  SPEC_DEF("K-Ordered-Ok", "17.3.7");
+  SPEC_DEF("K-Ordered-Base-Err", "17.3.7");
+  SPEC_DEF("K-Ordered-Redundant-Warn", "17.3.7");
   SPEC_DEF("K-Dynamic-Index-Conflict", "17.3.2");
   SPEC_DEF("K-Static-Required", "17.3.2");
   SPEC_DEF("K-Read-Block-No-Write", "17.2.1");
   SPEC_DEF("K-Read-Write-Reject", "17.2.1");
+  SPEC_DEF("K-Release-SameMode-Err", "19.4.4");
+  SPEC_DEF("K-Nested-Same-Path", "19.4.4");
+  SPEC_DEF("K-Reentrant", "19.4.4");
   SPEC_DEF("KeyBlock-GPU-Err", "17.1");
+}
+
+static bool KeyPathEqual(const KeyPath& lhs, const KeyPath& rhs) {
+  return !KeyPathLess(lhs, rhs) && !KeyPathLess(rhs, lhs);
+}
+
+static std::vector<HeldKeyTypingInfo> CanonicalHeldKeyInfos(
+    const std::vector<ast::KeyPathExpr>& paths,
+    ast::KeyMode mode) {
+  std::vector<HeldKeyTypingInfo> infos;
+  infos.reserve(paths.size());
+  for (const auto& path : paths) {
+    infos.push_back(HeldKeyTypingInfo{ParseKeyPathSpec(path), mode});
+  }
+  std::sort(infos.begin(), infos.end(),
+            [](const HeldKeyTypingInfo& lhs, const HeldKeyTypingInfo& rhs) {
+              return KeyPathLess(lhs.path, rhs.path);
+            });
+  infos.erase(std::unique(infos.begin(), infos.end(),
+                          [](const HeldKeyTypingInfo& lhs,
+                             const HeldKeyTypingInfo& rhs) {
+                            return KeyPathEqual(lhs.path, rhs.path);
+                          }),
+              infos.end());
+  return infos;
 }
 
 static bool IsDynamicIndexExpr(const ScopeContext& ctx,
@@ -112,9 +148,9 @@ static void CollectYieldReleasePointsExpr(
             CollectYieldReleasePointsExpr(elem, out);
           }
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
             CollectYieldReleasePointsExpr(elem, out);
-          }
+          });
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
           CollectYieldReleasePointsExpr(node.value, out);
           CollectYieldReleasePointsExpr(node.count, out);
@@ -257,6 +293,110 @@ static bool KeyPathHasDynamicIndex(const ScopeContext& ctx,
     }
   }
   return false;
+}
+
+struct OrderedFieldShape {
+  bool marked = false;
+  std::string name;
+
+  bool operator==(const OrderedFieldShape& other) const {
+    return marked == other.marked && IdEq(name, other.name);
+  }
+};
+
+struct OrderedBaseShape {
+  std::string root;
+  std::vector<OrderedFieldShape> non_index_shape;
+
+  bool operator==(const OrderedBaseShape& other) const {
+    if (!IdEq(root, other.root) ||
+        non_index_shape.size() != other.non_index_shape.size()) {
+      return false;
+    }
+    for (std::size_t i = 0; i < non_index_shape.size(); ++i) {
+      if (!(non_index_shape[i] == other.non_index_shape[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+};
+
+static OrderedBaseShape OrderedBaseOf(const ast::KeyPathExpr& path) {
+  OrderedBaseShape base;
+  base.root = path.root;
+  for (const auto& seg : path.segs) {
+    if (const auto* field = std::get_if<ast::KeySegField>(&seg)) {
+      base.non_index_shape.push_back(
+          OrderedFieldShape{field->marked, field->name});
+    }
+  }
+  return base;
+}
+
+static bool OrderedComparablePaths(const std::vector<ast::KeyPathExpr>& paths) {
+  if (paths.empty()) {
+    return true;
+  }
+
+  const OrderedBaseShape first_base = OrderedBaseOf(paths.front());
+  for (std::size_t i = 1; i < paths.size(); ++i) {
+    if (!(OrderedBaseOf(paths[i]) == first_base)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool IsStaticallyComparableIndexExpr(const ScopeContext& ctx,
+                                            const ast::ExprPtr& expr) {
+  const auto const_len = ConstLen(ctx, expr);
+  return const_len.ok && const_len.value.has_value();
+}
+
+static bool StaticallyComparableOrderedPaths(
+    const ScopeContext& ctx,
+    const std::vector<ast::KeyPathExpr>& paths) {
+  if (!OrderedComparablePaths(paths) || paths.empty()) {
+    return false;
+  }
+
+  const auto& first = paths.front();
+  for (const auto& path : paths) {
+    if (path.segs.size() != first.segs.size()) {
+      return false;
+    }
+
+    for (std::size_t i = 0; i < first.segs.size(); ++i) {
+      const auto& lhs = first.segs[i];
+      const auto& rhs = path.segs[i];
+
+      const auto* lhs_field = std::get_if<ast::KeySegField>(&lhs);
+      const auto* rhs_field = std::get_if<ast::KeySegField>(&rhs);
+      if (lhs_field || rhs_field) {
+        if (!lhs_field || !rhs_field) {
+          return false;
+        }
+        if (lhs_field->marked != rhs_field->marked ||
+            !IdEq(lhs_field->name, rhs_field->name)) {
+          return false;
+        }
+        continue;
+      }
+
+      const auto* lhs_index = std::get_if<ast::KeySegIndex>(&lhs);
+      const auto* rhs_index = std::get_if<ast::KeySegIndex>(&rhs);
+      if (!lhs_index || !rhs_index) {
+        return false;
+      }
+      if (!IsStaticallyComparableIndexExpr(ctx, lhs_index->expr) ||
+          !IsStaticallyComparableIndexExpr(ctx, rhs_index->expr)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 static bool ExtractRootAndIndices(const ast::ExprPtr& expr,
@@ -574,7 +714,7 @@ StmtTypeResult TypeKeyBlockStmt(const ScopeContext& ctx,
     }
   }
 
-  if (type_ctx.in_parallel && IsGpuDomainType(type_ctx.parallel_domain)) {
+  if (GpuContext(env)) {
     SPEC_RULE("KeyBlock-GPU-Err");
     return {false, "KeyBlock-GPU-Err", {}, {}};
   }
@@ -592,9 +732,14 @@ StmtTypeResult TypeKeyBlockStmt(const ScopeContext& ctx,
   const bool has_speculative_mod =
       std::find(node.mods.begin(), node.mods.end(),
                 ast::KeyBlockMod::Speculative) != node.mods.end();
+  const bool has_ordered_mod = std::find(node.mods.begin(), node.mods.end(),
+                                         ast::KeyBlockMod::Ordered) !=
+                               node.mods.end();
   const bool has_release_mod = std::find(node.mods.begin(), node.mods.end(),
                                          ast::KeyBlockMod::Release) !=
                                node.mods.end();
+  const ast::KeyMode inner_mode = node.mode.value_or(ast::KeyMode::Read);
+  const auto current_key_infos = CanonicalHeldKeyInfos(node.paths, inner_mode);
 
   if (has_memory_order_attr && (type_ctx.in_speculative || has_speculative_mod)) {
     return {false, "E-CON-0096", {}, {}};
@@ -606,6 +751,49 @@ StmtTypeResult TypeKeyBlockStmt(const ScopeContext& ctx,
   if (has_speculative_mod &&
       (!node.mode.has_value() || *node.mode != ast::KeyMode::Write)) {
     return {false, "E-CON-0095", {}, {}};
+  }
+  if (has_ordered_mod && !OrderedComparablePaths(node.paths)) {
+    SPEC_RULE("K-Ordered-Base-Err");
+    return {false, "E-CON-0014", {}, {}};
+  }
+  if (has_ordered_mod) {
+    SPEC_RULE("K-Ordered-Ok");
+    if (type_ctx.diags && StaticallyComparableOrderedPaths(ctx, node.paths)) {
+      SPEC_RULE("K-Ordered-Redundant-Warn");
+      if (auto diag = core::MakeDiagnosticById("W-CON-0013", node.span)) {
+        core::Emit(*type_ctx.diags, *diag);
+      }
+    }
+  }
+
+  bool emitted_release_interleaving_warning = false;
+  for (const auto& current_key : current_key_infos) {
+    for (const auto& held_key : type_ctx.held_key_paths) {
+      if (!KeyPathEqual(current_key.path, held_key.path)) {
+        continue;
+      }
+
+      SPEC_RULE("K-Nested-Same-Path");
+      if (held_key.mode == current_key.mode) {
+        if (has_release_mod) {
+          SPEC_RULE("K-Release-SameMode-Err");
+          return {false, "E-CON-0018", {}, {}};
+        }
+        continue;
+      }
+
+      if (!has_release_mod) {
+        return {false, "E-CON-0012", {}, {}};
+      }
+
+      SPEC_RULE("K-Reentrant");
+      if (!emitted_release_interleaving_warning && type_ctx.diags) {
+        if (auto diag = core::MakeDiagnosticById("W-CON-0010", node.span)) {
+          core::Emit(*type_ctx.diags, *diag);
+        }
+        emitted_release_interleaving_warning = true;
+      }
+    }
   }
 
   std::unordered_set<std::string> keyed_roots;
@@ -651,7 +839,11 @@ StmtTypeResult TypeKeyBlockStmt(const ScopeContext& ctx,
   TypeEnv key_env = env;
   StmtTypeContext key_ctx = type_ctx;
   key_ctx.keys_held = true;
-  key_ctx.key_mode = node.mode;
+  key_ctx.key_mode = inner_mode;
+  key_ctx.held_key_paths = type_ctx.held_key_paths;
+  key_ctx.held_key_paths.insert(key_ctx.held_key_paths.end(),
+                                current_key_infos.begin(),
+                                current_key_infos.end());
   key_ctx.in_speculative = has_speculative_mod;
   key_ctx.env_ref = &key_env;
 

@@ -1,4 +1,4 @@
-public procedure RunGroup(ctx: Context) -> i32 {
+public procedure runGroup(ctx: Context) -> i32 {
     [[log(label: "pointers-log-section_start")]]
 
     let status_safe: i32 = RunSafePointerStateForms(ctx)

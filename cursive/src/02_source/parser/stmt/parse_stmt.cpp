@@ -65,8 +65,7 @@ ExprPtr WrapAttrExpr(const AttributeList& attrs, const ExprPtr& expr);
 bool IsPlace(const ExprPtr& expr);
 
 // Forward declarations for individual statement parsers
-std::optional<ParseElemResult<Stmt>> TryParseShadowLetStmt(Parser parser);
-std::optional<ParseElemResult<Stmt>> TryParseShadowVarStmt(Parser parser);
+ParseElemResult<Stmt> ParseShadowBinding(Parser parser);
 std::optional<ParseElemResult<Stmt>> TryParseKeyBlockStmt(Parser parser);
 ParseElemResult<Stmt> ParseComptimeStmt(Parser parser);
 
@@ -165,17 +164,15 @@ static ParseStmtCoreResult ParseStmtCore(Parser parser) {
   if (IsKw(parser, "shadow")) {
     Parser after_shadow = parser;
     Advance(after_shadow);
-    if (IsKw(after_shadow, "let")) {
-      auto result = TryParseShadowLetStmt(parser);
-      if (result) {
-        return {result->parser, std::move(result->elem), true};
+    if (IsKw(after_shadow, "let") || IsKw(after_shadow, "var")) {
+      SPEC_RULE("Parse-Shadow-Stmt");
+      auto result = ParseShadowBinding(after_shadow);
+      if (auto* shadow_let = std::get_if<ShadowLetStmt>(&result.elem)) {
+        shadow_let->span = SpanBetween(parser, result.parser);
+      } else if (auto* shadow_var = std::get_if<ShadowVarStmt>(&result.elem)) {
+        shadow_var->span = SpanBetween(parser, result.parser);
       }
-    }
-    if (IsKw(after_shadow, "var")) {
-      auto result = TryParseShadowVarStmt(parser);
-      if (result) {
-        return {result->parser, std::move(result->elem), true};
-      }
+      return {result.parser, std::move(result.elem), true};
     }
   }
 
@@ -439,7 +436,7 @@ ParseElemResult<Stmt> ParseStmt(Parser parser) {
   ParseStmtCoreResult core = ParseStmtCore(parser);
   if (!core.matched) {
     SPEC_RULE_AT("Parse-Statement-Err", TokSpan(parser));
-    EmitParseSyntaxErr(parser, TokSpan(parser));
+    EmitGenericParseSyntaxErr(parser, TokSpan(parser));
     Parser next = AdvanceOrEOF(parser);
     Parser sync = next;
     SyncStmt(sync);

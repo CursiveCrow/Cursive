@@ -12,9 +12,19 @@
 
 namespace cursive::analysis {
 
+inline std::optional<std::string_view> LegacyTypecheckRuleDiagCode(
+    std::string_view diag_id) {
+  if (diag_id == "Call-Arg-NotPlace") {
+    return "E-TYP-1603";
+  }
+
+  return std::nullopt;
+}
+
 inline bool IsDiagnosticCode(std::string_view diag_id) {
   return diag_id.size() > 2 &&
-         (diag_id[0] == 'E' || diag_id[0] == 'W' || diag_id[0] == 'I') &&
+         (diag_id[0] == 'E' || diag_id[0] == 'W' || diag_id[0] == 'I' ||
+          diag_id[0] == 'P') &&
          diag_id[1] == '-';
 }
 
@@ -46,20 +56,11 @@ inline std::optional<std::string> LookupTypecheckDiagCode(std::string_view diag_
     return std::string(diag_id);
   }
 
-  return std::nullopt;
-}
-
-inline std::optional<core::Diagnostic> BuildRuleFallbackTypecheckDiagnostic(
-    std::string_view diag_id,
-    const std::optional<core::Span>& span) {
-  if (diag_id == "T-Cast-Invalid") {
-    core::Diagnostic diag;
-    diag.code = "T-Cast-Invalid";
-    diag.severity = core::Severity::Error;
-    diag.span = span;
-    diag.message = "Invalid cast";
-    return diag;
+  if (const auto code = LegacyTypecheckRuleDiagCode(diag_id);
+      code.has_value()) {
+    return std::string(*code);
   }
+
   return std::nullopt;
 }
 
@@ -73,11 +74,6 @@ inline std::optional<core::Diagnostic> BuildResolvedTypecheckDiagnostic(
     return MakeInternalTypecheckDiagnostic(
         core::Severity::Error, span,
         "Internal error: unresolved diagnostic code '" + *code + "'");
-  }
-
-  if (auto fallback = BuildRuleFallbackTypecheckDiagnostic(diag_id, span);
-      fallback.has_value()) {
-    return fallback;
   }
 
   return MakeInternalTypecheckDiagnostic(

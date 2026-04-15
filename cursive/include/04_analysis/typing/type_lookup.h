@@ -23,6 +23,15 @@ const ast::RecordDecl* LookupRecordDecl(const ScopeContext& ctx,
 const ast::EnumDecl* LookupEnumDecl(const ScopeContext& ctx,
                                        const TypePath& path);
 
+// Type declaration generic-parameter lookup by TypePath
+const std::optional<ast::GenericParams>* TypeParamsOf(const ScopeContext& ctx,
+                                                      const TypePath& path);
+
+// Type declaration predicate-clause lookup by TypePath
+const std::optional<ast::WhereClause>* TypePredicateClauseOf(
+    const ScopeContext& ctx,
+    const TypePath& path);
+
 // Check if a field exists in a record
 bool FieldExists(const ast::RecordDecl& record, std::string_view field_name);
 

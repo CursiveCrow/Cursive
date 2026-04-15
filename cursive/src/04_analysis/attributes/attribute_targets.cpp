@@ -25,43 +25,52 @@ static inline void SpecDefsAttributeTargets() {
   SPEC_DEF("AttrTargetValidation", "C0.5.13.3");
 }
 
-}  // namespace
-
-// Get the attribute target kind from an AST item node
-AttributeTarget GetItemTarget(const ast::ASTItem& item) {
+std::optional<AttributeTarget> GetItemTarget(const ast::ASTItem& item) {
   SpecDefsAttributeTargets();
   SPEC_RULE("AttrTargets-Item");
 
   return std::visit(
-      [](const auto& node) -> AttributeTarget {
+      [](const auto& node) -> std::optional<AttributeTarget> {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, ast::ProcedureDecl>) {
           return AttributeTarget::Procedure;
-        } else if constexpr (std::is_same_v<T, ast::ImportDecl>) {
-          return AttributeTarget::Import;
-        } else if constexpr (std::is_same_v<T, ast::UsingDecl>) {
-          return AttributeTarget::Using;
         } else if constexpr (std::is_same_v<T, ast::RecordDecl>) {
           return AttributeTarget::Record;
         } else if constexpr (std::is_same_v<T, ast::EnumDecl>) {
           return AttributeTarget::Enum;
         } else if constexpr (std::is_same_v<T, ast::ModalDecl>) {
           return AttributeTarget::Modal;
-        } else if constexpr (std::is_same_v<T, ast::ClassDecl>) {
-          return AttributeTarget::Class;
         } else if constexpr (std::is_same_v<T, ast::TypeAliasDecl>) {
           return AttributeTarget::TypeAlias;
-        } else if constexpr (std::is_same_v<T, ast::StaticDecl>) {
-          return AttributeTarget::Static;
         } else if constexpr (std::is_same_v<T, ast::ExternBlock>) {
           return AttributeTarget::ExternBlock;
         } else {
-          // Default to Procedure for unknown item types
-          return AttributeTarget::Procedure;
+          return std::nullopt;
         }
       },
       item);
 }
+
+std::string_view GetUnsupportedItemTargetName(const ast::ASTItem& item) {
+  return std::visit(
+      [](const auto& node) -> std::string_view {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::ImportDecl>) {
+          return "import declarations";
+        } else if constexpr (std::is_same_v<T, ast::UsingDecl>) {
+          return "using declarations";
+        } else if constexpr (std::is_same_v<T, ast::ClassDecl>) {
+          return "class declarations";
+        } else if constexpr (std::is_same_v<T, ast::StaticDecl>) {
+          return "static declarations";
+        } else {
+          return "this declaration";
+        }
+      },
+      item);
+}
+
+}  // namespace
 
 // Get the attribute target kind for a field declaration
 AttributeTarget GetFieldTarget() {
@@ -71,11 +80,6 @@ AttributeTarget GetFieldTarget() {
 // Get the attribute target kind for a method declaration
 AttributeTarget GetMethodTarget() {
   return AttributeTarget::Method;
-}
-
-// Get the attribute target kind for a parameter
-AttributeTarget GetParamTarget() {
-  return AttributeTarget::Param;
 }
 
 // Get the attribute target kind for a binding (let/var statement)
@@ -108,28 +112,18 @@ std::string_view GetTargetKindName(AttributeTarget target) {
       return "procedure";
     case AttributeTarget::ExternBlock:
       return "extern block";
-    case AttributeTarget::Import:
-      return "import";
-    case AttributeTarget::Using:
-      return "using";
     case AttributeTarget::Record:
       return "record";
     case AttributeTarget::Enum:
       return "enum";
     case AttributeTarget::Modal:
       return "modal";
-    case AttributeTarget::Class:
-      return "class";
     case AttributeTarget::Field:
       return "field";
     case AttributeTarget::Method:
       return "method";
-    case AttributeTarget::Param:
-      return "parameter";
     case AttributeTarget::TypeAlias:
       return "type alias";
-    case AttributeTarget::Static:
-      return "static";
     case AttributeTarget::Binding:
       return "binding";
     case AttributeTarget::Statement:
@@ -281,17 +275,21 @@ AttributeValidationResult ValidateItemAttributeTargets(
   SpecDefsAttributeTargets();
   SPEC_RULE("AttrTargets-Item-Validate");
 
-  AttributeTarget target = GetItemTarget(item);
+  const auto target = GetItemTarget(item);
+  if (!target.has_value()) {
+    return ValidateUnsupportedAttributeTarget(
+        attrs, GetUnsupportedItemTargetName(item));
+  }
 
   for (const auto& attr : attrs) {
-    if (!GetAttributeRegistry().IsValidForTarget(attr.name, target)) {
+    if (!GetAttributeRegistry().IsValidForTarget(attr.name, *target)) {
       AttributeValidationResult result;
       result.ok = false;
       result.diag_id = "E-MOD-2452";  // Attr-Target-Err
       result.span = attr.span;
       result.message =
           "Attribute '" + attr.name + "' is not valid on " +
-          std::string(GetTargetKindName(target));
+          std::string(GetTargetKindName(*target));
       return result;
     }
   }

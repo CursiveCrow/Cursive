@@ -236,14 +236,20 @@ ExternItemListResult ParseExternItemList(Parser parser) {
 //   ────────────────────────────────────────────────────────────────────
 //   Γ ⊢ ParseItem(P) ⇓ (Advance(P_3), ⟨ExternBlock, ...⟩)
 //
-// Note: "extern" is checked as an identifier, not a keyword
+// Note: callers enter this parser at the `extern` keyword after attribute and
+// visibility parsing, matching §11.4.2 Parse-ExternBlock.
 
-ParseItemResult ParseExternBlock(Parser parser, Visibility vis,
-                                 AttributeList attrs) {
+ParseItemResult ParseExternBlock(Parser item_start, Parser parser,
+                                 Visibility vis, AttrOpt attrs_opt) {
   SPEC_RULE("Parse-Extern-Block");
-  Parser start = parser;
+  Parser start = item_start;
 
-  // Already know we're at "extern" identifier
+  if (!IsKw(parser, "extern")) {
+    EmitParseSyntaxErr(parser, TokSpan(parser));
+    SyncItem(parser);
+    return {parser, ErrorItem{SpanBetween(start, parser), {}}};
+  }
+
   Advance(parser);  // consume "extern"
 
   // Parse optional ABI
@@ -269,7 +275,7 @@ ParseItemResult ParseExternBlock(Parser parser, Visibility vis,
   }
 
   ExternBlock block;
-  block.attrs = attrs;
+  block.attrs_opt = std::move(attrs_opt);
   block.vis = vis;
   block.abi_opt = abi.abi_opt;
   block.items = std::move(items.items);

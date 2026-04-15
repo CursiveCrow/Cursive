@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$RepoRoot,
+    [string]$SpecPath = "",
     [Parameter(Mandatory = $true)]
     [string]$MappingPath,
     [Parameter(Mandatory = $true)]
@@ -23,11 +24,21 @@ function Normalize-RelPath([string]$BasePath, [string]$Path) {
 }
 
 function Escape-CppString([string]$Value) {
-    return $Value.Replace('\\', '\\\\').Replace('"', '\\"')
+    return $Value.Replace('\\', '\\\\').Replace('"', '\\"').Replace("`r", '\r').Replace("`n", '\n')
 }
 
 if (-not (Test-Path -LiteralPath $RepoRoot)) {
     throw "RepoRoot not found: $RepoRoot"
+}
+if ([string]::IsNullOrWhiteSpace($SpecPath)) {
+    $resolveSpecPath = Join-Path $PSScriptRoot "resolve_spec_path.ps1"
+    $SpecPath = (& $resolveSpecPath -RepoRoot $RepoRoot)
+    if ([string]::IsNullOrWhiteSpace($SpecPath)) {
+        throw "Unable to resolve canonical language spec path."
+    }
+}
+if (-not (Test-Path -LiteralPath $SpecPath)) {
+    throw "SpecPath not found: $SpecPath"
 }
 if (-not (Test-Path -LiteralPath $MappingPath)) {
     throw "MappingPath not found: $MappingPath"
@@ -80,10 +91,57 @@ function Resolve-RuleFamily([string]$RuleId, [string]$SourceRel) {
     return $defaultFamily
 }
 
+function Get-SpecRulePremises {
+    param([string]$Path)
+
+    $ruleHeaderPattern = [regex]'^\*\*\(([^)]+)\)\*\*$'
+    $ruleBarPattern = [regex]'^[─-]{3,}$'
+    $premiseSplitPattern = [regex]'\s{4,}'
+    $lines = Get-Content -LiteralPath $Path
+    $premisesByRule = @{}
+    $index = 0
+
+    while ($index -lt $lines.Count) {
+        $match = $ruleHeaderPattern.Match($lines[$index].Trim())
+        if (-not $match.Success) {
+            $index += 1
+            continue
+        }
+
+        $ruleId = [string]$match.Groups[1].Value.Trim()
+        $index += 1
+        $premiseItems = New-Object System.Collections.Generic.List[string]
+
+        while ($index -lt $lines.Count) {
+            $line = [string]$lines[$index]
+            $trimmed = $line.Trim()
+            if ([string]::IsNullOrWhiteSpace($trimmed)) {
+                $index += 1
+                continue
+            }
+            if ($ruleBarPattern.IsMatch($trimmed)) {
+                break
+            }
+            foreach ($part in $premiseSplitPattern.Split($trimmed)) {
+                $premise = $part.Trim()
+                if (-not [string]::IsNullOrWhiteSpace($premise)) {
+                    $premiseItems.Add($premise) | Out-Null
+                }
+            }
+            $index += 1
+        }
+
+        $premisesByRule[$ruleId] = @($premiseItems)
+    }
+
+    return $premisesByRule
+}
+
 $sourceRoot = Join-Path $RepoRoot "cursive/src"
 if (-not (Test-Path -LiteralPath $sourceRoot)) {
     throw "Source root not found: $sourceRoot"
 }
+$premisesByRule = Get-SpecRulePremises -Path $SpecPath
 
 $files = Get-ChildItem -LiteralPath $sourceRoot -Recurse -File |
     Where-Object { $_.Extension -eq ".cpp" -or $_.Extension -eq ".h" }
@@ -136,6 +194,7 @@ foreach ($file in $files) {
             conclusion_family = $family
             diag_id = $diagId
             source_path = $sourceRel
+            premises_text = $(if ($premisesByRule.ContainsKey($ruleId)) { (@($premisesByRule[$ruleId]) -join "`n") } else { $null })
         }
         $ruleToSources[$ruleId] = New-Object System.Collections.Generic.List[string]
         $ruleToSources[$ruleId].Add($sourceRel)
@@ -162,6 +221,7 @@ foreach ($ruleId in $ruleSourceOverrides.Keys) {
             conclusion_family = (Resolve-RuleFamily -RuleId $ruleId -SourceRel $preferredSource)
             diag_id = $entry.diag_id
             source_path = $preferredSource
+            premises_text = $entry.premises_text
         }
         $ruleToEntry[$ruleId] = $entry
     }
@@ -189,7 +249,12 @@ foreach ($ruleId in $sortedRules) {
         $diag = Escape-CppString ([string]$entry.diag_id)
         $diagField = ('std::string_view("{0}")' -f $diag)
     }
-    $null = $sb.AppendLine(('    {{"{0}", "{1}", {2}, "{3}"}},' -f $rid, $fam, $diagField, $src))
+    $premisesField = "std::nullopt"
+    if ($null -ne $entry.premises_text) {
+        $premises = Escape-CppString ([string]$entry.premises_text)
+        $premisesField = ('std::string_view("{0}")' -f $premises)
+    }
+    $null = $sb.AppendLine(('    {{"{0}", "{1}", {2}, "{3}", {4}}},' -f $rid, $fam, $diagField, $src, $premisesField))
 }
 $null = $sb.AppendLine("};")
 

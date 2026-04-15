@@ -13,8 +13,9 @@ add_library(cursive_core STATIC
   00_core/diagnostic_render.cpp
   00_core/diagnostics.cpp
   00_core/build_log_policy.cpp
-  00_core/crash_debug.cpp
+  00_core/host/crash_debug.cpp
   00_core/hash.cpp
+  00_core/host/services.cpp
   00_core/host_primitives.cpp
   00_core/ident.cpp
   00_core/numeric_literals.cpp
@@ -27,8 +28,20 @@ add_library(cursive_core STATIC
   00_core/behavior_model.cpp
   00_core/terminal.cpp
   00_core/unicode.cpp
-  00_core/windows_bundle.cpp
+  00_core/compiler_support.cpp
 )
+
+if(WIN32)
+  target_sources(cursive_core PRIVATE
+    00_core/host/crash_debug_windows.cpp
+    00_core/host/windows_host.cpp
+  )
+else()
+  target_sources(cursive_core PRIVATE
+    00_core/host/crash_debug_linux.cpp
+    00_core/host/linux_host.cpp
+  )
+endif()
 
 get_filename_component(CURSIVE_REPO_ROOT "${CMAKE_SOURCE_DIR}/.." REALPATH)
 set(CURSIVE_EXTERN_DIR "${CURSIVE_REPO_ROOT}/extern")
@@ -39,33 +52,28 @@ set(CURSIVE_STATIC_RULE_REGISTRY_REPORT "${CURSIVE_BUILD_DIR}/logs/conformance/s
 set(CURSIVE_DIAG_REGISTRY_INC "${CMAKE_SOURCE_DIR}/src/00_core/generated/diag_registry.inc")
 set(CURSIVE_TYPECHECK_DIAG_MAP_INC "${CMAKE_SOURCE_DIR}/src/04_analysis/typing/item/typecheck_diag_map.inc")
 
-if(WIN32)
-  find_program(CURSIVE_POWERSHELL_EXECUTABLE powershell.exe)
-else()
-  find_program(CURSIVE_POWERSHELL_EXECUTABLE pwsh powershell)
-endif()
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
-if(NOT CURSIVE_POWERSHELL_EXECUTABLE)
-  message(FATAL_ERROR "PowerShell executable not found; required for static rule registry generation.")
-endif()
-
+set(CURSIVE_DEFAULT_DIAG_SPEC_PATH "${CURSIVE_REPO_ROOT}/docs/CursiveSpecification.md")
 set(CURSIVE_DIAG_SPEC_PATH "" CACHE FILEPATH "Path to the canonical Cursive language specification")
 if(NOT CURSIVE_DIAG_SPEC_PATH)
-  execute_process(
-    COMMAND ${CURSIVE_POWERSHELL_EXECUTABLE}
-            -NoProfile
-            -ExecutionPolicy Bypass
-            -File "${CURSIVE_TOOLS_DIR}/resolve_spec_path.ps1"
-            -RepoRoot "${CURSIVE_REPO_ROOT}"
-    RESULT_VARIABLE CURSIVE_DIAG_SPEC_RESULT
-    OUTPUT_VARIABLE CURSIVE_DIAG_SPEC_PATH
-    ERROR_VARIABLE CURSIVE_DIAG_SPEC_ERROR
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
-  if(NOT CURSIVE_DIAG_SPEC_RESULT EQUAL 0)
-    message(FATAL_ERROR "Unable to resolve canonical language spec path: ${CURSIVE_DIAG_SPEC_ERROR}")
+  if(EXISTS "${CURSIVE_DEFAULT_DIAG_SPEC_PATH}")
+    set(CURSIVE_DIAG_SPEC_PATH "${CURSIVE_DEFAULT_DIAG_SPEC_PATH}" CACHE FILEPATH "Path to the canonical Cursive language specification" FORCE)
+  else()
+    execute_process(
+      COMMAND ${Python3_EXECUTABLE}
+              "${CURSIVE_TOOLS_DIR}/resolve_spec_path.py"
+              --repo-root "${CURSIVE_REPO_ROOT}"
+      RESULT_VARIABLE CURSIVE_DIAG_SPEC_RESULT
+      OUTPUT_VARIABLE CURSIVE_DIAG_SPEC_PATH
+      ERROR_VARIABLE CURSIVE_DIAG_SPEC_ERROR
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    if(NOT CURSIVE_DIAG_SPEC_RESULT EQUAL 0)
+      message(FATAL_ERROR "Unable to resolve canonical language spec path: ${CURSIVE_DIAG_SPEC_ERROR}")
+    endif()
+    set(CURSIVE_DIAG_SPEC_PATH "${CURSIVE_DIAG_SPEC_PATH}" CACHE FILEPATH "Path to the canonical Cursive language specification" FORCE)
   endif()
-  set(CURSIVE_DIAG_SPEC_PATH "${CURSIVE_DIAG_SPEC_PATH}" CACHE FILEPATH "Path to the canonical Cursive language specification" FORCE)
 endif()
 
 if(NOT EXISTS "${CURSIVE_DIAG_SPEC_PATH}")
@@ -74,57 +82,51 @@ endif()
 
 add_custom_target(generate_static_rule_registry
   COMMAND ${CMAKE_COMMAND} -E make_directory "${CURSIVE_BUILD_DIR}/logs/conformance"
-  COMMAND ${CURSIVE_POWERSHELL_EXECUTABLE}
-          -NoProfile
-          -ExecutionPolicy Bypass
-          -File "${CURSIVE_TOOLS_DIR}/generate_static_rule_registry.ps1"
-          -RepoRoot "${CURSIVE_REPO_ROOT}"
-          -MappingPath "${CURSIVE_STATIC_RULE_MAPPING}"
-          -OutputPath "${CURSIVE_STATIC_RULE_REGISTRY_INC}"
-          -ReportPath "${CURSIVE_STATIC_RULE_REGISTRY_REPORT}"
-          -Strict
+  COMMAND ${Python3_EXECUTABLE}
+          "${CURSIVE_TOOLS_DIR}/generate_static_rule_registry.py"
+          --repo-root "${CURSIVE_REPO_ROOT}"
+          --mapping-path "${CURSIVE_STATIC_RULE_MAPPING}"
+          --output-path "${CURSIVE_STATIC_RULE_REGISTRY_INC}"
+          --report-path "${CURSIVE_STATIC_RULE_REGISTRY_REPORT}"
+          --strict
   BYPRODUCTS
           "${CURSIVE_STATIC_RULE_REGISTRY_INC}"
           "${CURSIVE_STATIC_RULE_REGISTRY_REPORT}"
   DEPENDS
-          "${CURSIVE_TOOLS_DIR}/generate_static_rule_registry.ps1"
+          "${CURSIVE_TOOLS_DIR}/generate_static_rule_registry.py"
           "${CURSIVE_STATIC_RULE_MAPPING}"
   COMMENT "Generating static rule registry for §1.2 conformance"
   VERBATIM
 )
 
 add_custom_target(generate_diagnostic_registry
-  COMMAND ${CURSIVE_POWERSHELL_EXECUTABLE}
-          -NoProfile
-          -ExecutionPolicy Bypass
-          -File "${CURSIVE_TOOLS_DIR}/generate_diagnostic_registry.ps1"
-          -RepoRoot "${CURSIVE_REPO_ROOT}"
-          -SpecPath "${CURSIVE_DIAG_SPEC_PATH}"
-          -OutputRegistryPath "${CURSIVE_DIAG_REGISTRY_INC}"
-          -OutputTypecheckMapPath "${CURSIVE_TYPECHECK_DIAG_MAP_INC}"
+  COMMAND ${Python3_EXECUTABLE}
+          "${CURSIVE_TOOLS_DIR}/generate_diagnostic_registry.py"
+          --repo-root "${CURSIVE_REPO_ROOT}"
+          --spec-path "${CURSIVE_DIAG_SPEC_PATH}"
+          --output-registry-path "${CURSIVE_DIAG_REGISTRY_INC}"
+          --output-typecheck-map-path "${CURSIVE_TYPECHECK_DIAG_MAP_INC}"
   BYPRODUCTS
           "${CURSIVE_DIAG_REGISTRY_INC}"
           "${CURSIVE_TYPECHECK_DIAG_MAP_INC}"
   DEPENDS
-          "${CURSIVE_TOOLS_DIR}/generate_diagnostic_registry.ps1"
-          "${CURSIVE_TOOLS_DIR}/resolve_spec_path.ps1"
+          "${CURSIVE_TOOLS_DIR}/generate_diagnostic_registry.py"
+          "${CURSIVE_TOOLS_DIR}/resolve_spec_path.py"
           "${CURSIVE_DIAG_SPEC_PATH}"
   COMMENT "Generating diagnostic registry from canonical language spec"
   VERBATIM
 )
 
 add_custom_target(validate_diagnostic_spec_sync
-  COMMAND ${CURSIVE_POWERSHELL_EXECUTABLE}
-          -NoProfile
-          -ExecutionPolicy Bypass
-          -File "${CURSIVE_TOOLS_DIR}/validate_diagnostic_spec_sync.ps1"
-          -RepoRoot "${CURSIVE_REPO_ROOT}"
-          -SpecPath "${CURSIVE_DIAG_SPEC_PATH}"
-          -RegistryPath "${CURSIVE_DIAG_REGISTRY_INC}"
+  COMMAND ${Python3_EXECUTABLE}
+          "${CURSIVE_TOOLS_DIR}/validate_diagnostic_spec_sync.py"
+          --repo-root "${CURSIVE_REPO_ROOT}"
+          --spec-path "${CURSIVE_DIAG_SPEC_PATH}"
+          --registry-path "${CURSIVE_DIAG_REGISTRY_INC}"
   DEPENDS
           generate_diagnostic_registry
-          "${CURSIVE_TOOLS_DIR}/validate_diagnostic_spec_sync.ps1"
-          "${CURSIVE_TOOLS_DIR}/resolve_spec_path.ps1"
+          "${CURSIVE_TOOLS_DIR}/validate_diagnostic_spec_sync.py"
+          "${CURSIVE_TOOLS_DIR}/resolve_spec_path.py"
           "${CURSIVE_DIAG_SPEC_PATH}"
   COMMENT "Validating diagnostic spec sync against canonical language spec"
   VERBATIM
@@ -149,13 +151,18 @@ if(WIN32)
     "${ICU_BIN_DIR}/icudt72.dll"
   )
 else()
-  set(ICU_ROOT "${CURSIVE_EXTERN_DIR}/icu/install")
-  set(ICU_INCLUDE_DIR "${ICU_ROOT}/include")
-  set(ICU_LIB_DIR "${ICU_ROOT}/lib")
+  if(NOT TARGET cursive_linux_icui18n OR
+     NOT TARGET cursive_linux_icuuc OR
+     NOT TARGET cursive_linux_icudata)
+    message(FATAL_ERROR "Required Linux ICU shared-library sidecar targets are missing")
+  endif()
+  set(ICU_ROOT "${CURSIVE_LINUX_ICU_SHARED_INSTALL_DIR}")
+  set(ICU_INCLUDE_DIR "${CURSIVE_LINUX_ICU_SHARED_INCLUDE_DIR}")
+  set(ICU_LIB_DIR "${CURSIVE_LINUX_ICU_SHARED_INSTALL_DIR}/lib")
   set(ICU_LIBS
-    "${ICU_LIB_DIR}/libicuuc.a"
-    "${ICU_LIB_DIR}/libicui18n.a"
-    "${ICU_LIB_DIR}/libicudata.a"
+    cursive_linux_icui18n
+    cursive_linux_icuuc
+    cursive_linux_icudata
   )
 endif()
 
@@ -163,11 +170,13 @@ if(NOT EXISTS "${ICU_INCLUDE_DIR}")
   message(FATAL_ERROR "ICU include directory not found: ${ICU_INCLUDE_DIR}")
 endif()
 
-foreach(icu_lib IN LISTS ICU_LIBS)
-  if(NOT EXISTS "${icu_lib}")
-    message(FATAL_ERROR "ICU library not found: ${icu_lib}")
-  endif()
-endforeach()
+if(WIN32)
+  foreach(icu_lib IN LISTS ICU_LIBS)
+    if(NOT EXISTS "${icu_lib}")
+      message(FATAL_ERROR "ICU library not found: ${icu_lib}")
+    endif()
+  endforeach()
+endif()
 
 target_include_directories(cursive_core PUBLIC
   ${CMAKE_SOURCE_DIR}/include
@@ -184,6 +193,7 @@ endif()
 add_library(cursive_project STATIC
   01_project/assemblies.cpp
   01_project/assembly_graph.cpp
+  01_project/compiler_support_paths.cpp
   01_project/deterministic_order.cpp
   01_project/ir_assembly.cpp
   01_project/link.cpp
@@ -355,6 +365,7 @@ add_library(cursive_source STATIC
   03_comptime/derive.cpp
   03_comptime/eval.cpp
   03_comptime/files.cpp
+  03_comptime/hygiene.cpp
   03_comptime/pass.cpp
   03_comptime/quote.cpp
   03_comptime/reflect.cpp
@@ -399,6 +410,7 @@ add_library(cursive_analysis STATIC
   04_analysis/contracts/verification.cpp
   04_analysis/generics/generic_params.cpp
   04_analysis/generics/monomorphize.cpp
+  04_analysis/generics/where_bounds.cpp
   04_analysis/keys/key_conflict.cpp
   04_analysis/keys/key_context.cpp
   04_analysis/keys/key_capture.cpp
@@ -596,6 +608,7 @@ add_library(cursive_codegen STATIC
   05_codegen/llvm/llvm_backend.cpp
   05_codegen/llvm/llvm_call.cpp
   05_codegen/llvm/llvm_emit.cpp
+  05_codegen/llvm/emit/module_emit.cpp
   05_codegen/llvm/llvm_ir_panic.cpp
   05_codegen/llvm/llvm_module.cpp
   05_codegen/llvm/llvm_passes.cpp
@@ -626,6 +639,9 @@ add_library(cursive_codegen STATIC
   05_codegen/lower/expr/enum_literal.cpp
   05_codegen/lower/expr/error_expr.cpp
   05_codegen/lower/expr/expr_common.cpp
+  05_codegen/lower/expr/expr_context.cpp
+  05_codegen/lower/expr/expr_log.cpp
+  05_codegen/lower/expr/expr_place.cpp
   05_codegen/lower/expr/field_access.cpp
   05_codegen/lower/expr/identifier.cpp
   05_codegen/lower/expr/if_expr.cpp
@@ -694,14 +710,110 @@ add_library(cursive_codegen STATIC
 )
 
 # Set up LLVM
-set(LLVM_ARCH_DIR "llvm-21.1.8-x86_64")
-set(LLVM_ROOT "${CURSIVE_EXTERN_DIR}/llvm/${LLVM_ARCH_DIR}")
+if(NOT CURSIVE_LLVM_ROOT)
+  if(WIN32)
+    set(CURSIVE_LLVM_ROOT "${CURSIVE_EXTERN_DIR}/llvm/llvm-21.1.8-x86_64")
+  else()
+    set(CURSIVE_LLVM_ROOT "${CURSIVE_EXTERN_DIR}/llvm/llvm-21.1.8-x86_64-sysv")
+    if(NOT EXISTS "${CURSIVE_LLVM_ROOT}")
+      find_program(CURSIVE_LLVM_CONFIG_EXECUTABLE
+        NAMES llvm-config llvm-config-21 llvm-config-20 llvm-config-19 llvm-config-18
+      )
+      if(CURSIVE_LLVM_CONFIG_EXECUTABLE)
+        execute_process(
+          COMMAND "${CURSIVE_LLVM_CONFIG_EXECUTABLE}" --prefix
+          RESULT_VARIABLE CURSIVE_LLVM_PREFIX_RESULT
+          OUTPUT_VARIABLE CURSIVE_LLVM_PREFIX
+          ERROR_VARIABLE CURSIVE_LLVM_PREFIX_ERROR
+          OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        if(CURSIVE_LLVM_PREFIX_RESULT EQUAL 0 AND EXISTS "${CURSIVE_LLVM_PREFIX}")
+          set(CURSIVE_LLVM_ROOT "${CURSIVE_LLVM_PREFIX}")
+        endif()
+      endif()
+    endif()
+  endif()
+endif()
+set(CURSIVE_LLVM_ROOT "${CURSIVE_LLVM_ROOT}" CACHE PATH
+  "Path to the host LLVM toolchain root used to build and package Cursive")
+set(LLVM_ROOT "${CURSIVE_LLVM_ROOT}")
+
+function(cursive_find_windows_diaguids out_var)
+  set(_candidates)
+
+  if(DEFINED ENV{VSINSTALLDIR} AND NOT "$ENV{VSINSTALLDIR}" STREQUAL "")
+    file(TO_CMAKE_PATH "$ENV{VSINSTALLDIR}/DIA SDK/lib/amd64" _vs_dia_dir)
+    list(APPEND _candidates "${_vs_dia_dir}")
+  endif()
+
+  if(DEFINED ENV{VCINSTALLDIR} AND NOT "$ENV{VCINSTALLDIR}" STREQUAL "")
+    file(TO_CMAKE_PATH "$ENV{VCINSTALLDIR}/../.." _vs_root_from_vc)
+    list(APPEND _candidates "${_vs_root_from_vc}/DIA SDK/lib/amd64")
+  endif()
+
+  list(APPEND _candidates
+    "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/DIA SDK/lib/amd64"
+    "C:/Program Files/Microsoft Visual Studio/2022/Professional/DIA SDK/lib/amd64"
+    "C:/Program Files/Microsoft Visual Studio/2022/Community/DIA SDK/lib/amd64"
+    "C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/DIA SDK/lib/amd64"
+    "C:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/DIA SDK/lib/amd64"
+    "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/DIA SDK/lib/amd64"
+    "C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/DIA SDK/lib/amd64"
+  )
+
+  find_library(_cursive_diaguids
+    NAMES diaguids
+    PATHS ${_candidates}
+    NO_DEFAULT_PATH
+  )
+
+  if(NOT _cursive_diaguids)
+    find_library(_cursive_diaguids NAMES diaguids)
+  endif()
+
+  set(${out_var} "${_cursive_diaguids}" PARENT_SCOPE)
+endfunction()
+
+function(cursive_patch_llvm_windows_imports)
+  if(NOT WIN32 OR NOT TARGET LLVMDebugInfoPDB)
+    return()
+  endif()
+
+  get_target_property(_llvm_pdb_link_libs LLVMDebugInfoPDB INTERFACE_LINK_LIBRARIES)
+  if(NOT _llvm_pdb_link_libs)
+    return()
+  endif()
+
+  cursive_find_windows_diaguids(_cursive_diaguids)
+  if(NOT _cursive_diaguids)
+    message(FATAL_ERROR "Unable to locate diaguids.lib required by vendored LLVM debug info support.")
+  endif()
+
+  set(_patched_link_libs)
+  foreach(_link_lib IN LISTS _llvm_pdb_link_libs)
+    if(_link_lib MATCHES "([Dd][Ii][Aa][Gg][Uu][Ii][Dd][Ss]\\.lib)$")
+      list(APPEND _patched_link_libs "${_cursive_diaguids}")
+    else()
+      list(APPEND _patched_link_libs "${_link_lib}")
+    endif()
+  endforeach()
+
+  set_property(TARGET LLVMDebugInfoPDB PROPERTY INTERFACE_LINK_LIBRARIES "${_patched_link_libs}")
+endfunction()
 
 if(EXISTS "${LLVM_ROOT}")
   message(STATUS "Using LLVM from: ${LLVM_ROOT}")
   set(LLVM_DIR "${LLVM_ROOT}/lib/cmake/llvm")
   find_package(LLVM REQUIRED CONFIG)
+  cursive_patch_llvm_windows_imports()
   message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+  if(NOT WIN32 AND
+     EXISTS "${LLVM_ROOT}/bin/clang++" AND
+     EXISTS "${LLVM_ROOT}/bin/ld.lld")
+    set(CURSIVE_LINUX_LINK_DRIVER "${LLVM_ROOT}/bin/clang++")
+    set(CMAKE_CXX_LINK_EXECUTABLE
+      "\"${CURSIVE_LINUX_LINK_DRIVER}\" -fuse-ld=lld <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+  endif()
 else()
   message(WARNING "LLVM not found at ${LLVM_ROOT}")
 endif()
@@ -771,7 +883,7 @@ add_executable(cursive-debug
   06_driver/version.cpp
 )
 
-set_target_properties(cursive-debug PROPERTIES OUTPUT_NAME "cursive-debug")
+set_target_properties(cursive-debug PROPERTIES OUTPUT_NAME "Cursive_Debug")
 
 target_link_libraries(cursive-debug PRIVATE cursive_core)
 
@@ -790,6 +902,8 @@ add_executable(cursive
   06_driver/version.cpp
 )
 
+set_target_properties(cursive PROPERTIES OUTPUT_NAME "Cursive")
+
 target_link_libraries(cursive PRIVATE cursive_core cursive_project cursive_analysis cursive_codegen cursive_source)
 
 target_include_directories(cursive PRIVATE
@@ -801,6 +915,25 @@ target_compile_features(cursive PRIVATE cxx_std_20)
 
 if(LLVM_FOUND)
   target_compile_definitions(cursive PRIVATE ${LLVM_DEFINITIONS})
+endif()
+
+if(NOT WIN32)
+  add_dependencies(cursive-debug cursive_linux_icu_sidecars)
+  add_dependencies(cursive cursive_linux_icu_sidecars)
+  target_link_options(cursive-debug PRIVATE
+    "LINKER:--no-as-needed"
+  )
+  target_link_options(cursive PRIVATE
+    "LINKER:--no-as-needed"
+  )
+  set_target_properties(cursive-debug PROPERTIES
+    BUILD_RPATH_USE_ORIGIN TRUE
+    BUILD_RPATH "\$ORIGIN/lib;\$ORIGIN/linux/lib;\$ORIGIN/../lib"
+  )
+  set_target_properties(cursive PROPERTIES
+    BUILD_RPATH_USE_ORIGIN TRUE
+    BUILD_RPATH "\$ORIGIN/lib;\$ORIGIN/linux/lib;\$ORIGIN/../lib"
+  )
 endif()
 
 if(MSVC)
@@ -817,17 +950,45 @@ if(MSVC)
   )
 endif()
 
+if(MSVC)
+  add_library(cursive_delayimp_sidecar STATIC
+    01_project/targets/windows/delayimp_sidecar.cpp
+  )
+
+  set_target_properties(cursive_delayimp_sidecar PROPERTIES
+    OUTPUT_NAME "delayimp"
+  )
+
+  target_compile_features(cursive_delayimp_sidecar PRIVATE cxx_std_20)
+
+  target_include_directories(cursive_delayimp_sidecar PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CURSIVE_REPO_ROOT}
+  )
+
+  # The packaged delay-load helper is kept CRT-free because it is bundled with
+  # the compiler's Windows support surface under /NODEFAULTLIB.
+  target_compile_options(cursive_delayimp_sidecar PRIVATE
+    /GS-
+    /Zl
+    /guard:cf-
+    /GR-
+  )
+
+  add_dependencies(cursive cursive_delayimp_sidecar)
+  add_dependencies(cursive-debug cursive_delayimp_sidecar)
+endif()
+
 # Ensure runtime library is built alongside compiler
 # The runtime is linked with compiled Cursive programs, not the compiler itself,
 # but we want it built as part of the standard build process
 add_dependencies(cursive cursive0_rt)
+add_dependencies(cursive-debug cursive0_rt)
+
+set(CURSIVE_OUT_DIR "${CURSIVE_BUILD_DIR}/out")
 
 if(WIN32)
-  find_library(CURSIVE_DELAYIMP_LIB_PATH NAMES delayimp)
-  if(NOT CURSIVE_DELAYIMP_LIB_PATH)
-    message(FATAL_ERROR "Required Windows compiler sidecar asset not found: delayimp.lib")
-  endif()
-
+  set(CURSIVE_OUT_RUNTIME_PATH "${CMAKE_BINARY_DIR}/runtime/CursiveRT.lib")
   set(CURSIVE_LLD_LINK_PATH "${LLVM_ROOT}/bin/lld-link.exe")
   set(CURSIVE_LLVM_LIB_PATH "${LLVM_ROOT}/bin/llvm-lib.exe")
   set(CURSIVE_LLVM_AS_PATH "${LLVM_ROOT}/bin/llvm-as.exe")
@@ -836,7 +997,6 @@ if(WIN32)
   set(CURSIVE_ICUIN_DLL_PATH "${ICU_BIN_DIR}/icuin72.dll")
 
   foreach(sidecar_input IN ITEMS
-      "${CURSIVE_DELAYIMP_LIB_PATH}"
       "${CURSIVE_LLD_LINK_PATH}"
       "${CURSIVE_LLVM_LIB_PATH}"
       "${CURSIVE_LLVM_AS_PATH}"
@@ -851,53 +1011,101 @@ if(WIN32)
   set(CURSIVE_COMPILER_SIDECAR_BIN_DIR "${CMAKE_BINARY_DIR}/bin")
   set(CURSIVE_COMPILER_SIDECAR_LIB_DIR "${CMAKE_BINARY_DIR}/lib")
   set(CURSIVE_COMPILER_SIDECAR_TOOLS_DIR "${CMAKE_BINARY_DIR}/tools")
+  function(cursive_stage_windows_out compiler_target)
+    add_custom_command(TARGET ${compiler_target} POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_COMPILER_SIDECAR_BIN_DIR}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_COMPILER_SIDECAR_LIB_DIR}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_COMPILER_SIDECAR_TOOLS_DIR}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "$<TARGET_FILE:cursive_delayimp_sidecar>"
+              "${CURSIVE_COMPILER_SIDECAR_LIB_DIR}/delayimp.lib"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_LLD_LINK_PATH}"
+              "${CURSIVE_COMPILER_SIDECAR_TOOLS_DIR}/lld-link.exe"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_LLVM_LIB_PATH}"
+              "${CURSIVE_COMPILER_SIDECAR_TOOLS_DIR}/llvm-lib.exe"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_LLVM_AS_PATH}"
+              "${CURSIVE_COMPILER_SIDECAR_TOOLS_DIR}/llvm-as.exe"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_ICUDT_DLL_PATH}"
+              "${CURSIVE_COMPILER_SIDECAR_BIN_DIR}/icudt72.dll"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_ICUUC_DLL_PATH}"
+              "${CURSIVE_COMPILER_SIDECAR_BIN_DIR}/icuuc72.dll"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_ICUIN_DLL_PATH}"
+              "${CURSIVE_COMPILER_SIDECAR_BIN_DIR}/icuin72.dll"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}/windows/bin"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}/windows/lib"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}/windows/tools"
+      # `cursive_out` owns the final root-level compiler executable copies.
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_OUT_RUNTIME_PATH}"
+              "${CURSIVE_OUT_DIR}/CursiveRT.lib"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_COMPILER_SIDECAR_BIN_DIR}/icudt72.dll"
+              "${CURSIVE_OUT_DIR}/windows/bin/icudt72.dll"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_COMPILER_SIDECAR_BIN_DIR}/icuuc72.dll"
+              "${CURSIVE_OUT_DIR}/windows/bin/icuuc72.dll"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_COMPILER_SIDECAR_BIN_DIR}/icuin72.dll"
+              "${CURSIVE_OUT_DIR}/windows/bin/icuin72.dll"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_COMPILER_SIDECAR_LIB_DIR}/delayimp.lib"
+              "${CURSIVE_OUT_DIR}/windows/lib/delayimp.lib"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_COMPILER_SIDECAR_TOOLS_DIR}/lld-link.exe"
+              "${CURSIVE_OUT_DIR}/windows/tools/lld-link.exe"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_COMPILER_SIDECAR_TOOLS_DIR}/llvm-lib.exe"
+              "${CURSIVE_OUT_DIR}/windows/tools/llvm-lib.exe"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_COMPILER_SIDECAR_TOOLS_DIR}/llvm-as.exe"
+              "${CURSIVE_OUT_DIR}/windows/tools/llvm-as.exe"
+      COMMENT "Staging build-tree compiler outputs and sidecar assets"
+    )
+  endfunction()
 
-  add_custom_command(TARGET cursive POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_COMPILER_SIDECAR_BIN_DIR}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_COMPILER_SIDECAR_LIB_DIR}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_COMPILER_SIDECAR_TOOLS_DIR}"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CURSIVE_DELAYIMP_LIB_PATH}"
-            "${CURSIVE_COMPILER_SIDECAR_LIB_DIR}/delayimp.lib"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CURSIVE_LLD_LINK_PATH}"
-            "${CURSIVE_COMPILER_SIDECAR_TOOLS_DIR}/lld-link.exe"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CURSIVE_LLVM_LIB_PATH}"
-            "${CURSIVE_COMPILER_SIDECAR_TOOLS_DIR}/llvm-lib.exe"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CURSIVE_LLVM_AS_PATH}"
-            "${CURSIVE_COMPILER_SIDECAR_TOOLS_DIR}/llvm-as.exe"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CURSIVE_ICUDT_DLL_PATH}"
-            "${CURSIVE_COMPILER_SIDECAR_BIN_DIR}/icudt72.dll"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CURSIVE_ICUUC_DLL_PATH}"
-            "${CURSIVE_COMPILER_SIDECAR_BIN_DIR}/icuuc72.dll"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CURSIVE_ICUIN_DLL_PATH}"
-            "${CURSIVE_COMPILER_SIDECAR_BIN_DIR}/icuin72.dll"
-    COMMENT "Staging build-tree compiler sidecar assets"
-  )
-endif()
-
-set(CURSIVE_OUT_DIR "${CMAKE_BINARY_DIR}/out")
-
-if(WIN32)
-  set(CURSIVE_OUT_RUNTIME_PATH "${CMAKE_BINARY_DIR}/runtime/cursive0_rt.lib")
-  add_custom_target(cursive_out ALL
-    DEPENDS cursive cursive0_rt
-    COMMAND "${CMAKE_COMMAND}" -E rm -rf "${CURSIVE_OUT_DIR}"
+  cursive_stage_windows_out(cursive)
+  cursive_stage_windows_out(cursive-debug)
+  add_custom_target(cursive_out
+    DEPENDS cursive cursive-debug cursive0_rt cursive_delayimp_sidecar
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}"
+    # Keep the stable Windows payload tree in place and refresh known outputs.
+    # The Visual Studio custom-build wrapper has proven brittle around a full
+    # `cmake -E rm -rf` of this directory during launcher-owned packaging.
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}/windows/bin"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}/windows/lib"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}/windows/tools"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "$<TARGET_FILE:cursive>"
-            "${CURSIVE_OUT_DIR}/$<TARGET_FILE_NAME:cursive>"
+    # Refresh canonical packaged executables under windows/bin first.
+    COMMAND "${CMAKE_COMMAND}"
+            -DSRC=$<TARGET_FILE:cursive>
+            -DDST=${CURSIVE_OUT_DIR}/windows/bin/$<TARGET_FILE_NAME:cursive>
+            -P "${CMAKE_SOURCE_DIR}/cmake/copy_file_if_different_recent.cmake"
+    COMMAND "${CMAKE_COMMAND}"
+            -DSRC=$<TARGET_FILE:cursive-debug>
+            -DDST=${CURSIVE_OUT_DIR}/windows/bin/$<TARGET_FILE_NAME:cursive-debug>
+            -P "${CMAKE_SOURCE_DIR}/cmake/copy_file_if_different_recent.cmake"
+    # Preserve long-standing root-level executable mirrors when possible, but
+    # do not fail packaging if an existing destination is locked by a running
+    # process. The fresh canonical copies live under windows/bin.
+    COMMAND "${CMAKE_COMMAND}"
+            -DSRC=${CURSIVE_OUT_DIR}/windows/bin/$<TARGET_FILE_NAME:cursive>
+            -DDST=${CURSIVE_OUT_DIR}/$<TARGET_FILE_NAME:cursive>
+            -DALLOW_PERMISSION_DENIED_IF_DST_EXISTS=ON
+            -P "${CMAKE_SOURCE_DIR}/cmake/copy_file_if_different_recent.cmake"
+    COMMAND "${CMAKE_COMMAND}"
+            -DSRC=${CURSIVE_OUT_DIR}/windows/bin/$<TARGET_FILE_NAME:cursive-debug>
+            -DDST=${CURSIVE_OUT_DIR}/$<TARGET_FILE_NAME:cursive-debug>
+            -DALLOW_PERMISSION_DENIED_IF_DST_EXISTS=ON
+            -P "${CMAKE_SOURCE_DIR}/cmake/copy_file_if_different_recent.cmake"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "${CURSIVE_OUT_RUNTIME_PATH}"
-            "${CURSIVE_OUT_DIR}/cursive0_rt.lib"
+            "${CURSIVE_OUT_DIR}/CursiveRT.lib"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "${CURSIVE_COMPILER_SIDECAR_BIN_DIR}/icudt72.dll"
             "${CURSIVE_OUT_DIR}/windows/bin/icudt72.dll"
@@ -922,16 +1130,164 @@ if(WIN32)
     COMMENT "Packaging compiler distribution into build/out"
   )
 else()
-  add_custom_target(cursive_out ALL
-    DEPENDS cursive cursive0_rt
-    COMMAND "${CMAKE_COMMAND}" -E rm -rf "${CURSIVE_OUT_DIR}"
+  add_dependencies(cursive cursive_rt_linux_support)
+  add_dependencies(cursive-debug cursive_rt_linux_support)
+  set(CURSIVE_OUT_RUNTIME_PATH "${CMAKE_BINARY_DIR}/runtime/CursiveRT.a")
+  set(CURSIVE_OUT_RUNTIME_STARTUP_PATH
+      "${CMAKE_BINARY_DIR}/runtime/cursive0_start_x86_64_sysv.o")
+  set(CURSIVE_RUNTIME_SUPPORT_SO_STAGE
+      "$<TARGET_FILE:cursive_rt_linux_support>")
+  set(CURSIVE_RUNTIME_SUPPORT_SO_NAME
+      "$<TARGET_FILE_NAME:cursive_rt_linux_support>")
+  set(CURSIVE_ICUI18N_SO_STAGE "${CURSIVE_LINUX_ICUI18N_SHARED_STAGE}")
+  set(CURSIVE_ICUUC_SO_STAGE "${CURSIVE_LINUX_ICUUC_SHARED_STAGE}")
+  set(CURSIVE_ICUDATA_SO_STAGE "${CURSIVE_LINUX_ICUDATA_SHARED_STAGE}")
+  set(CURSIVE_ICUDATA_DATA_STAGE "${CURSIVE_LINUX_ICUDATA_DATA_STAGE}")
+  set(CURSIVE_ICUI18N_SO_NAME "${CURSIVE_LINUX_ICUI18N_SHARED_SONAME}")
+  set(CURSIVE_ICUUC_SO_NAME "${CURSIVE_LINUX_ICUUC_SHARED_SONAME}")
+  set(CURSIVE_ICUDATA_SO_NAME "${CURSIVE_LINUX_ICUDATA_SHARED_SONAME}")
+  set(CURSIVE_ICUDATA_DATA_NAME "${CURSIVE_LINUX_ICUDATA_DATA_NAME}")
+  if(EXISTS "${LLVM_ROOT}/bin/ld.lld")
+    set(CURSIVE_LD_LLD_PATH "${LLVM_ROOT}/bin/ld.lld")
+  else()
+    find_program(CURSIVE_LD_LLD_PATH
+      NAMES ld.lld ld.lld-21 ld.lld-20 ld.lld-19 ld.lld-18
+      HINTS "${LLVM_ROOT}/bin"
+    )
+  endif()
+
+  if(EXISTS "${LLVM_ROOT}/bin/llvm-ar")
+    set(CURSIVE_LLVM_AR_PATH "${LLVM_ROOT}/bin/llvm-ar")
+  else()
+    find_program(CURSIVE_LLVM_AR_PATH
+      NAMES llvm-ar llvm-ar-21 llvm-ar-20 llvm-ar-19 llvm-ar-18
+      HINTS "${LLVM_ROOT}/bin"
+    )
+  endif()
+
+  if(EXISTS "${LLVM_ROOT}/bin/llvm-as")
+    set(CURSIVE_LLVM_AS_PATH "${LLVM_ROOT}/bin/llvm-as")
+  else()
+    find_program(CURSIVE_LLVM_AS_PATH
+      NAMES llvm-as llvm-as-21 llvm-as-20 llvm-as-19 llvm-as-18
+      HINTS "${LLVM_ROOT}/bin"
+    )
+  endif()
+  set(CURSIVE_COMPILER_SIDECAR_BIN_DIR "${CMAKE_BINARY_DIR}/bin")
+  set(CURSIVE_COMPILER_SIDECAR_LIB_DIR "${CMAKE_BINARY_DIR}/lib")
+  set(CURSIVE_COMPILER_SIDECAR_TOOLS_DIR "${CMAKE_BINARY_DIR}/tools")
+
+  foreach(sidecar_input IN ITEMS
+      "${CURSIVE_LD_LLD_PATH}"
+      "${CURSIVE_LLVM_AR_PATH}"
+      "${CURSIVE_LLVM_AS_PATH}")
+    if(NOT EXISTS "${sidecar_input}")
+      message(FATAL_ERROR "Required Linux compiler sidecar asset not found: ${sidecar_input}")
+    endif()
+  endforeach()
+
+  function(cursive_stage_linux_out compiler_target)
+    add_custom_command(TARGET ${compiler_target} POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_COMPILER_SIDECAR_BIN_DIR}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_COMPILER_SIDECAR_LIB_DIR}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_COMPILER_SIDECAR_TOOLS_DIR}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_LD_LLD_PATH}"
+              "${CURSIVE_COMPILER_SIDECAR_TOOLS_DIR}/ld.lld"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_LLVM_AR_PATH}"
+              "${CURSIVE_COMPILER_SIDECAR_TOOLS_DIR}/llvm-ar"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_LLVM_AS_PATH}"
+              "${CURSIVE_COMPILER_SIDECAR_TOOLS_DIR}/llvm-as"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}/linux/bin"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}/linux/lib"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}/linux/runtime"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}/linux/tools"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "$<TARGET_FILE:${compiler_target}>"
+              "${CURSIVE_OUT_DIR}/$<TARGET_FILE_NAME:${compiler_target}>"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_OUT_RUNTIME_PATH}"
+              "${CURSIVE_OUT_DIR}/CursiveRT.a"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_OUT_RUNTIME_STARTUP_PATH}"
+              "${CURSIVE_OUT_DIR}/linux/runtime/cursive0_start_x86_64_sysv.o"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_COMPILER_SIDECAR_TOOLS_DIR}/ld.lld"
+              "${CURSIVE_OUT_DIR}/linux/tools/ld.lld"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_COMPILER_SIDECAR_TOOLS_DIR}/llvm-ar"
+              "${CURSIVE_OUT_DIR}/linux/tools/llvm-ar"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_COMPILER_SIDECAR_TOOLS_DIR}/llvm-as"
+              "${CURSIVE_OUT_DIR}/linux/tools/llvm-as"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_RUNTIME_SUPPORT_SO_STAGE}"
+              "${CURSIVE_OUT_DIR}/linux/lib/${CURSIVE_RUNTIME_SUPPORT_SO_NAME}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_ICUI18N_SO_STAGE}"
+              "${CURSIVE_OUT_DIR}/linux/lib/${CURSIVE_ICUI18N_SO_NAME}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_ICUUC_SO_STAGE}"
+              "${CURSIVE_OUT_DIR}/linux/lib/${CURSIVE_ICUUC_SO_NAME}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_ICUDATA_SO_STAGE}"
+              "${CURSIVE_OUT_DIR}/linux/lib/${CURSIVE_ICUDATA_SO_NAME}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${CURSIVE_ICUDATA_DATA_STAGE}"
+              "${CURSIVE_OUT_DIR}/linux/lib/${CURSIVE_ICUDATA_DATA_NAME}"
+      COMMENT "Staging Linux compiler outputs and sidecar assets"
+    )
+  endfunction()
+
+  cursive_stage_linux_out(cursive)
+  cursive_stage_linux_out(cursive-debug)
+  add_custom_target(cursive_out
+    DEPENDS cursive cursive-debug cursive0_rt
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}"
+    COMMAND "${CMAKE_COMMAND}" -E rm -rf "${CURSIVE_OUT_DIR}/linux"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}/linux/bin"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}/linux/lib"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}/linux/runtime"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}/linux/tools"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "$<TARGET_FILE:cursive>"
             "${CURSIVE_OUT_DIR}/$<TARGET_FILE_NAME:cursive>"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_BINARY_DIR}/runtime/libcursive0_rt.a"
-            "${CURSIVE_OUT_DIR}/libcursive0_rt.a"
+            "$<TARGET_FILE:cursive-debug>"
+            "${CURSIVE_OUT_DIR}/$<TARGET_FILE_NAME:cursive-debug>"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${CURSIVE_OUT_RUNTIME_PATH}"
+            "${CURSIVE_OUT_DIR}/CursiveRT.a"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${CURSIVE_OUT_RUNTIME_STARTUP_PATH}"
+            "${CURSIVE_OUT_DIR}/linux/runtime/cursive0_start_x86_64_sysv.o"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${CURSIVE_LD_LLD_PATH}"
+            "${CURSIVE_OUT_DIR}/linux/tools/ld.lld"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${CURSIVE_LLVM_AR_PATH}"
+            "${CURSIVE_OUT_DIR}/linux/tools/llvm-ar"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${CURSIVE_LLVM_AS_PATH}"
+            "${CURSIVE_OUT_DIR}/linux/tools/llvm-as"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${CURSIVE_RUNTIME_SUPPORT_SO_STAGE}"
+            "${CURSIVE_OUT_DIR}/linux/lib/${CURSIVE_RUNTIME_SUPPORT_SO_NAME}"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${CURSIVE_ICUI18N_SO_STAGE}"
+            "${CURSIVE_OUT_DIR}/linux/lib/${CURSIVE_ICUI18N_SO_NAME}"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${CURSIVE_ICUUC_SO_STAGE}"
+            "${CURSIVE_OUT_DIR}/linux/lib/${CURSIVE_ICUUC_SO_NAME}"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${CURSIVE_ICUDATA_SO_STAGE}"
+            "${CURSIVE_OUT_DIR}/linux/lib/${CURSIVE_ICUDATA_SO_NAME}"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${CURSIVE_ICUDATA_DATA_STAGE}"
+            "${CURSIVE_OUT_DIR}/linux/lib/${CURSIVE_ICUDATA_DATA_NAME}"
     COMMENT "Packaging compiler distribution into build/out"
   )
 endif()

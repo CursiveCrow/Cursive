@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include "00_core/diagnostic_codes.h"
 
@@ -74,6 +75,7 @@ struct StaticRuleMeta {
   std::string_view conclusion_family;
   std::optional<std::string_view> diag_id;
   std::string_view source_path;
+  std::optional<std::string_view> premises_text;
 };
 
 ErrorRecoveryPolicy DefaultErrorRecoveryPolicy();
@@ -91,6 +93,8 @@ bool IsStaticRule(std::string_view rule_id);
 std::optional<StaticRuleMeta> LookupStaticRule(std::string_view rule_id);
 std::optional<std::string_view> ConclusionOfRule(std::string_view rule_id);
 std::optional<std::string_view> ConclusionFamilyOfRule(std::string_view rule_id);
+std::optional<std::vector<std::string_view>> PremisesOfRule(
+    std::string_view rule_id);
 std::optional<std::string_view> DiagIdOfJudgment(
     std::string_view judgment_family);
 std::optional<std::string_view> DiagIdOfRule(std::string_view rule_id);

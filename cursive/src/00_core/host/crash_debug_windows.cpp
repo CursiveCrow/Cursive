@@ -1,227 +1,33 @@
-#include "00_core/crash_debug.h"
+#include "crash_debug_internal.h"
+#include "00_core/host/services.h"
+
+#ifdef _WIN32
+
+#include <windows.h>
+#include <dbghelp.h>
+#include <malloc.h>
+#include <process.h>
 
 #include <algorithm>
-#include <atomic>
 #include <cctype>
 #include <chrono>
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <ctime>
+#include <exception>
 #include <fstream>
-#include <functional>
 #include <mutex>
 #include <optional>
 #include <sstream>
-#include <string_view>
 #include <thread>
 #include <unordered_map>
-#include <utility>
 
-#ifdef _WIN32
-#include <windows.h>
-#include <dbghelp.h>
-#include <malloc.h>
-#include <process.h>
 #pragma comment(lib, "dbghelp.lib")
-#endif
 
-namespace cursive::core {
+namespace cursive::core::crash_debug_detail {
 
 namespace {
-
-struct RuntimeState {
-  CrashRuntimeOptions options;
-  bool installed = false;
-};
-
-RuntimeState& State() {
-  static RuntimeState state;
-  return state;
-}
-
-std::mutex& StateMutex() {
-  static std::mutex mu;
-  return mu;
-}
-
-std::atomic<bool>& HandlingCrash() {
-  static std::atomic<bool> handling{false};
-  return handling;
-}
-
-CrashRuntimeOptions CrashOptionsSnapshot() {
-  std::lock_guard<std::mutex> lock(StateMutex());
-  return State().options;
-}
-
-std::string EscapeJson(std::string_view value) {
-  std::string out;
-  out.reserve(value.size() + 8);
-  for (const char ch : value) {
-    switch (ch) {
-      case '\\':
-        out += "\\\\";
-        break;
-      case '"':
-        out += "\\\"";
-        break;
-      case '\n':
-        out += "\\n";
-        break;
-      case '\r':
-        out += "\\r";
-        break;
-      case '\t':
-        out += "\\t";
-        break;
-      default:
-        if (static_cast<unsigned char>(ch) < 0x20) {
-          char buffer[7];
-          std::snprintf(buffer, sizeof(buffer), "\\u%04X",
-                        static_cast<unsigned>(static_cast<unsigned char>(ch)));
-          out += buffer;
-        } else {
-          out.push_back(ch);
-        }
-        break;
-    }
-  }
-  return out;
-}
-
-std::string NowUtcString() {
-  const auto now = std::chrono::system_clock::now();
-  const std::time_t now_time = std::chrono::system_clock::to_time_t(now);
-  std::tm tm_utc{};
-#ifdef _WIN32
-  gmtime_s(&tm_utc, &now_time);
-#else
-  gmtime_r(&now_time, &tm_utc);
-#endif
-  char buffer[32];
-  std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", &tm_utc);
-  return buffer;
-}
-
-std::string TimestampFileStem() {
-  const auto now = std::chrono::system_clock::now();
-  const std::time_t now_time = std::chrono::system_clock::to_time_t(now);
-  std::tm tm_local{};
-#ifdef _WIN32
-  localtime_s(&tm_local, &now_time);
-#else
-  localtime_r(&now_time, &tm_local);
-#endif
-  char buffer[32];
-  std::strftime(buffer, sizeof(buffer), "%Y%m%d_%H%M%S", &tm_local);
-  return buffer;
-}
-
-std::string PathString(const std::filesystem::path& path) {
-  return path.empty() ? std::string{} : path.generic_string();
-}
-
-std::filesystem::path TempCrashRoot() {
-  std::error_code ec;
-  const auto temp = std::filesystem::temp_directory_path(ec);
-  if (!ec) {
-    return temp / "cursive" / "crash";
-  }
-  return std::filesystem::path("crash");
-}
-
-void EnsureDirectory(const std::filesystem::path& path) {
-  if (path.empty()) {
-    return;
-  }
-  std::error_code ec;
-  std::filesystem::create_directories(path, ec);
-}
-
-void WriteTextFile(const std::filesystem::path& path, std::string_view text) {
-  if (path.empty()) {
-    return;
-  }
-  EnsureDirectory(path.parent_path());
-  std::ofstream out(path, std::ios::binary | std::ios::trunc);
-  if (!out) {
-    return;
-  }
-  out.write(text.data(), static_cast<std::streamsize>(text.size()));
-}
-
-std::string JoinArguments(const std::vector<std::string>& args) {
-  std::ostringstream oss;
-  for (std::size_t i = 0; i < args.size(); ++i) {
-    if (i != 0) {
-      oss << ' ';
-    }
-    oss << args[i];
-  }
-  return oss.str();
-}
-
-std::string Hex32(std::uint32_t value) {
-  char buffer[16];
-  std::snprintf(buffer, sizeof(buffer), "0x%08X", value);
-  return buffer;
-}
-
-std::string Hex64(std::uint64_t value) {
-  char buffer[32];
-  std::snprintf(buffer, sizeof(buffer), "0x%016llX",
-                static_cast<unsigned long long>(value));
-  return buffer;
-}
-
-std::string HexCompact64(std::uint64_t value) {
-  char buffer[32];
-  std::snprintf(buffer, sizeof(buffer), "0x%llX",
-                static_cast<unsigned long long>(value));
-  return buffer;
-}
-
-std::string Trim(std::string_view text) {
-  std::size_t start = 0;
-  while (start < text.size() &&
-         std::isspace(static_cast<unsigned char>(text[start])) != 0) {
-    ++start;
-  }
-  std::size_t end = text.size();
-  while (end > start &&
-         std::isspace(static_cast<unsigned char>(text[end - 1])) != 0) {
-    --end;
-  }
-  return std::string(text.substr(start, end - start));
-}
-
-bool IsHexString(std::string_view text) {
-  if (text.empty()) {
-    return false;
-  }
-  for (const unsigned char ch : text) {
-    if (std::isxdigit(ch) == 0) {
-      return false;
-    }
-  }
-  return true;
-}
-
-std::optional<std::uint64_t> ParseHexU64(std::string_view text) {
-  if (!IsHexString(text)) {
-    return std::nullopt;
-  }
-  try {
-    return static_cast<std::uint64_t>(
-        std::stoull(std::string(text), nullptr, 16));
-  } catch (...) {
-    return std::nullopt;
-  }
-}
-
-#ifdef _WIN32
 
 std::string WideToUtf8Lossy(std::wstring_view text) {
   if (text.empty()) {
@@ -413,12 +219,14 @@ std::string BuildSymbolSearchPath(const std::filesystem::path& executable_path) 
     parts.push_back(executable_path.parent_path().string());
     if (executable_path.parent_path().filename() == "bin") {
       parts.push_back(executable_path.parent_path().parent_path().string());
-      parts.push_back((executable_path.parent_path().parent_path() / "obj").string());
+      parts.push_back(
+          (executable_path.parent_path().parent_path() / "obj").string());
     }
   }
   wchar_t buffer[32767];
-  const DWORD len = GetEnvironmentVariableW(L"_NT_SYMBOL_PATH", buffer,
-                                            static_cast<DWORD>(sizeof(buffer) / sizeof(buffer[0])));
+  const DWORD len = GetEnvironmentVariableW(
+      L"_NT_SYMBOL_PATH", buffer,
+      static_cast<DWORD>(sizeof(buffer) / sizeof(buffer[0])));
   if (len > 0 && len < (sizeof(buffer) / sizeof(buffer[0]))) {
     parts.push_back(WideToUtf8Lossy(std::wstring_view(buffer, len)));
   }
@@ -534,8 +342,7 @@ std::optional<MapSymbolIndex> LoadMapSymbolIndex(
     static constexpr std::string_view preferred_prefix =
         "Preferred load address is ";
     if (trimmed.rfind(preferred_prefix, 0) == 0) {
-      const auto parsed =
-          ParseHexU64(trimmed.substr(preferred_prefix.size()));
+      const auto parsed = ParseHexU64(trimmed.substr(preferred_prefix.size()));
       if (parsed.has_value()) {
         index.preferred_base = *parsed;
       }
@@ -549,8 +356,7 @@ std::optional<MapSymbolIndex> LoadMapSymbolIndex(
     if (!(iss >> address_token >> symbol_token >> absolute_token)) {
       continue;
     }
-    if (address_token.find(':') == std::string::npos ||
-        !IsHexString(absolute_token)) {
+    if (address_token.find(':') == std::string::npos) {
       continue;
     }
     const auto absolute = ParseHexU64(absolute_token);
@@ -581,8 +387,8 @@ const MapSymbolIndex* GetCachedMapSymbolIndex(
   const std::string key =
       image_path.lexically_normal().generic_string() + "|" +
       std::to_string(FileTimeCacheStamp(image_path)) + "|" +
-      std::to_string(FileTimeCacheStamp(std::filesystem::path(image_path)
-                                            .replace_extension(".map")));
+      std::to_string(FileTimeCacheStamp(
+          std::filesystem::path(image_path).replace_extension(".map")));
   std::lock_guard<std::mutex> lock(cache_mutex);
   auto it = cache.find(key);
   if (it == cache.end()) {
@@ -636,25 +442,6 @@ struct SymbolSession {
     }
   }
 };
-
-CrashArtifacts MakeArtifacts(const std::filesystem::path& root,
-                             std::string_view kind,
-                             DWORD pid) {
-  EnsureDirectory(root);
-  const std::string stem =
-      TimestampFileStem() + "_" + std::to_string(static_cast<unsigned long>(pid));
-  const std::filesystem::path report_dir =
-      root / (stem + "_" + std::string(kind));
-  EnsureDirectory(report_dir);
-  CrashArtifacts artifacts;
-  artifacts.report_dir = report_dir;
-  artifacts.text_path = report_dir / "report.txt";
-  artifacts.json_path = report_dir / "report.json";
-  artifacts.minidump_path = report_dir / "crash.dmp";
-  artifacts.stdout_path = report_dir / "stdout.txt";
-  artifacts.stderr_path = report_dir / "stderr.txt";
-  return artifacts;
-}
 
 bool WriteMinidump(const CrashArtifacts& artifacts,
                    HANDLE process,
@@ -754,11 +541,12 @@ CrashFrame CaptureFrame(HANDLE process,
   return out;
 }
 
-std::vector<CrashFrame> CaptureFrames(HANDLE process,
-                                      HANDLE thread,
-                                      CONTEXT context,
-                                      std::size_t max_frames,
-                                      const std::filesystem::path& executable_path) {
+std::vector<CrashFrame> CaptureFrames(
+    HANDLE process,
+    HANDLE thread,
+    CONTEXT context,
+    std::size_t max_frames,
+    const std::filesystem::path& executable_path) {
   std::vector<CrashFrame> frames;
   SymbolSession symbols(process, executable_path);
   if (!symbols.active || max_frames == 0) {
@@ -801,33 +589,6 @@ std::string HumanMessageForException(DWORD code) {
   return "Unhandled structured exception.";
 }
 
-CrashReport BuildCrashReport(const CrashRuntimeOptions& options,
-                             std::string_view kind,
-                             DWORD process_id,
-                             DWORD thread_id,
-                             DWORD exception_code,
-                             std::string exception_name,
-                             std::string message,
-                             const CrashArtifacts& artifacts,
-                             std::vector<CrashFrame> frames) {
-  CrashReport report;
-  report.tool = options.tool_name;
-  report.version = options.tool_version;
-  report.timestamp_utc = NowUtcString();
-  report.kind = std::string(kind);
-  report.process_id = process_id;
-  report.thread_id = thread_id;
-  report.exception_code_value = exception_code;
-  report.exception_name = std::move(exception_name);
-  report.message = std::move(message);
-  report.arguments = options.arguments;
-  report.working_directory = options.working_directory;
-  report.executable_path = options.executable_path;
-  report.artifacts = artifacts;
-  report.frames = std::move(frames);
-  return report;
-}
-
 CrashReport CaptureCrashReport(const CrashRuntimeOptions& options,
                                std::string_view kind,
                                HANDLE process,
@@ -865,37 +626,6 @@ void DrainPipe(HANDLE pipe, std::string* output) {
     output->append(buffer, buffer + bytes_read);
   }
   CloseHandle(pipe);
-}
-
-DebugRunResult RunProcessWithoutDebugger(const DebugRunOptions& options) {
-  DebugRunResult result;
-  STARTUPINFOW si{};
-  si.cb = sizeof(si);
-  PROCESS_INFORMATION pi{};
-  std::wstring cmd = BuildCommandLine(options.program, options.arguments);
-  std::vector<wchar_t> cmd_buf(cmd.begin(), cmd.end());
-  cmd_buf.push_back(L'\0');
-  const std::wstring cwd =
-      options.working_directory.empty()
-          ? options.program.parent_path().wstring()
-          : options.working_directory.wstring();
-
-  const BOOL ok = CreateProcessW(
-      options.program.wstring().c_str(), cmd_buf.data(), nullptr, nullptr, FALSE,
-      0, nullptr, cwd.empty() ? nullptr : cwd.c_str(), &si, &pi);
-  if (!ok) {
-    result.launch_error = DescribeWin32Error(GetLastError());
-    return result;
-  }
-
-  result.launched = true;
-  WaitForSingleObject(pi.hProcess, INFINITE);
-  DWORD exit_code = 1;
-  GetExitCodeProcess(pi.hProcess, &exit_code);
-  result.exit_code = static_cast<int>(exit_code);
-  CloseHandle(pi.hProcess);
-  CloseHandle(pi.hThread);
-  return result;
 }
 
 bool IsBenignFirstChance(DWORD code) {
@@ -1019,12 +749,13 @@ DebugRunResult DebugRunWindows(const DebugRunOptions& options) {
             options.tool_name,
             options.tool_version,
             options.arguments,
-            PathString(options.working_directory.empty() ? options.program.parent_path()
-                                                         : options.working_directory),
+            PathString(options.working_directory.empty()
+                           ? options.program.parent_path()
+                           : options.working_directory),
             options.program};
         const CrashArtifacts artifacts = MakeArtifacts(
-            runtime_options.report_root, CrashKindFromException(exception.ExceptionCode),
-            pi.dwProcessId);
+            runtime_options.report_root,
+            CrashKindFromException(exception.ExceptionCode), pi.dwProcessId);
         auto frames = thread != nullptr
                           ? CaptureFrames(pi.hProcess, thread, context,
                                           options.max_frames, options.program)
@@ -1092,23 +823,6 @@ CrashReport CaptureCurrentProcessCrash(const CrashRuntimeOptions& options,
                             GetCurrentProcessId(), GetCurrentThread(),
                             GetCurrentThreadId(), exception_code, message,
                             exception_record, context);
-}
-
-void EmitCrashOutputs(const CrashRuntimeOptions& options,
-                      const CrashReport& report) {
-  WriteTextFile(report.artifacts.text_path, CrashSummary(report));
-  WriteTextFile(report.artifacts.json_path, CrashReportToJson(report));
-  if (options.emit_stderr_summary) {
-    const std::string summary = CrashSummary(report);
-    std::fwrite(summary.data(), 1, summary.size(), stderr);
-    std::fflush(stderr);
-  }
-  if (options.emit_json_stdout) {
-    const std::string json = CrashEnvelopeToJson(report);
-    std::fwrite(json.data(), 1, json.size(), stdout);
-    std::fwrite("\n", 1, 1, stdout);
-    std::fflush(stdout);
-  }
 }
 
 struct DeferredCrashCaptureRequest {
@@ -1254,74 +968,13 @@ void AbortSignalHandlerThunk(int) {
 #pragma warning(pop)
 #endif
 
-#endif  // _WIN32
-
 }  // namespace
 
-std::filesystem::path DefaultCrashReportRoot(
-    const std::filesystem::path& output_root) {
-  if (output_root.empty()) {
-    return TempCrashRoot();
-  }
-  return output_root / "logs" / "crash";
-}
-
-std::filesystem::path DefaultTargetCrashReportRoot(
-    const std::filesystem::path& program_path) {
-  if (program_path.empty()) {
-    return TempCrashRoot();
-  }
-  const std::filesystem::path parent = program_path.parent_path();
-  if (parent.filename() == "bin") {
-    return parent.parent_path() / "logs" / "crash";
-  }
-  return parent / "logs" / "crash";
-}
-
-void ConfigureCrashRuntime(const CrashRuntimeOptions& options) {
-  std::lock_guard<std::mutex> lock(StateMutex());
-  State().options = options;
-  if (State().options.report_root.empty()) {
-    State().options.report_root = TempCrashRoot();
-  }
-  if (State().options.working_directory.empty()) {
-    std::error_code ec;
-    State().options.working_directory =
-        std::filesystem::current_path(ec).generic_string();
-  }
-}
-
-void UpdateCrashReportRoot(const std::filesystem::path& report_root) {
-  std::lock_guard<std::mutex> lock(StateMutex());
-  State().options.report_root =
-      report_root.empty() ? TempCrashRoot() : report_root;
-}
-
-void SetCrashJsonStdout(bool enabled) {
-  std::lock_guard<std::mutex> lock(StateMutex());
-  State().options.emit_json_stdout = enabled;
-}
-
-void SetCrashEnabled(bool enabled) {
-  std::lock_guard<std::mutex> lock(StateMutex());
-  State().options.enabled = enabled;
-}
-
-bool CrashReportingEnabled() {
-  std::lock_guard<std::mutex> lock(StateMutex());
-  return State().options.enabled;
-}
-
-bool CrashCaptureSupported() {
-#ifdef _WIN32
+bool CrashCaptureSupportedBackend() {
   return true;
-#else
-  return false;
-#endif
 }
 
-void InstallCrashHandlers() {
-#ifdef _WIN32
+void InstallCrashHandlersBackend() {
   std::lock_guard<std::mutex> lock(StateMutex());
   if (State().installed) {
     return;
@@ -1332,173 +985,35 @@ void InstallCrashHandlers() {
   std::set_terminate(TerminateHandlerThunk);
   std::signal(SIGABRT, AbortSignalHandlerThunk);
   State().installed = true;
-#endif
 }
 
-void MaybeTriggerCrashFixtureFromEnv() {
-#ifdef _WIN32
-  char* value = nullptr;
-  std::size_t value_len = 0;
-  if (_dupenv_s(&value, &value_len, "CURSIVE_CRASH_TEST") != 0 ||
-      value == nullptr || value_len == 0) {
+void MaybeTriggerCrashFixtureFromEnvBackend() {
+  const auto value = HostGetEnvUtf8("CURSIVE_CRASH_TEST");
+  if (!value.has_value() || value->empty()) {
     return;
   }
 
-  const std::string mode(value);
-  std::free(value);
-
-  if (mode == "stack-overflow") {
+  if (*value == "stack-overflow") {
     TriggerStackOverflowFixture();
   }
-  if (mode == "access-violation") {
+  if (*value == "access-violation") {
     *static_cast<volatile int*>(nullptr) = 1;
   }
-  if (mode == "abort") {
+  if (*value == "abort") {
     std::abort();
   }
-  if (mode == "terminate") {
+  if (*value == "terminate") {
     std::terminate();
   }
-#endif
 }
 
-std::string CrashReportToJson(const CrashReport& report) {
-  std::ostringstream oss;
-  oss << "{";
-  oss << "\"tool\":\"" << EscapeJson(report.tool) << "\",";
-  oss << "\"version\":\"" << EscapeJson(report.version) << "\",";
-  oss << "\"timestamp_utc\":\"" << EscapeJson(report.timestamp_utc) << "\",";
-  oss << "\"kind\":\"" << EscapeJson(report.kind) << "\",";
-  oss << "\"process_id\":" << report.process_id << ",";
-  oss << "\"thread_id\":" << report.thread_id << ",";
-  oss << "\"exception_code\":" << report.exception_code_value << ",";
-  oss << "\"exception_name\":\"" << EscapeJson(report.exception_name) << "\",";
-  oss << "\"message\":\"" << EscapeJson(report.message) << "\",";
-  oss << "\"working_directory\":\"" << EscapeJson(report.working_directory) << "\",";
-  oss << "\"executable_path\":\"" << EscapeJson(PathString(report.executable_path))
-      << "\",";
-  oss << "\"arguments\":[";
-  for (std::size_t i = 0; i < report.arguments.size(); ++i) {
-    if (i != 0) {
-      oss << ",";
-    }
-    oss << "\"" << EscapeJson(report.arguments[i]) << "\"";
-  }
-  oss << "],";
-  oss << "\"artifacts\":{";
-  oss << "\"report_dir\":\"" << EscapeJson(PathString(report.artifacts.report_dir))
-      << "\",";
-  oss << "\"text_path\":\"" << EscapeJson(PathString(report.artifacts.text_path))
-      << "\",";
-  oss << "\"json_path\":\"" << EscapeJson(PathString(report.artifacts.json_path))
-      << "\",";
-  oss << "\"minidump_path\":\""
-      << EscapeJson(PathString(report.artifacts.minidump_path)) << "\",";
-  oss << "\"stdout_path\":\""
-      << EscapeJson(PathString(report.artifacts.stdout_path)) << "\",";
-  oss << "\"stderr_path\":\""
-      << EscapeJson(PathString(report.artifacts.stderr_path)) << "\"";
-  oss << "},";
-  oss << "\"frames\":[";
-  for (std::size_t i = 0; i < report.frames.size(); ++i) {
-    if (i != 0) {
-      oss << ",";
-    }
-    const auto& frame = report.frames[i];
-    oss << "{";
-    oss << "\"index\":" << frame.index << ",";
-    oss << "\"module\":\"" << EscapeJson(frame.module) << "\",";
-    oss << "\"module_path\":\"" << EscapeJson(frame.module_path) << "\",";
-    oss << "\"symbol\":\"" << EscapeJson(frame.symbol) << "\",";
-    oss << "\"file\":\"" << EscapeJson(frame.file) << "\",";
-    oss << "\"line\":" << frame.line << ",";
-    oss << "\"address\":\"" << EscapeJson(Hex64(frame.address)) << "\",";
-    oss << "\"module_base\":\"" << EscapeJson(Hex64(frame.module_base)) << "\",";
-    oss << "\"module_offset\":" << frame.module_offset << ",";
-    oss << "\"offset\":" << frame.offset << ",";
-    oss << "\"inline\":" << (frame.inline_frame ? "true" : "false");
-    oss << "}";
-  }
-  oss << "]";
-  oss << "}";
-  return oss.str();
-}
-
-std::string CrashEnvelopeToJson(const CrashReport& report) {
-  std::ostringstream oss;
-  oss << "{";
-  oss << "\"diagnostics\":[],";
-  oss << "\"crash\":" << CrashReportToJson(report);
-  oss << "}";
-  return oss.str();
-}
-
-std::string CrashSummary(const CrashReport& report) {
-  std::ostringstream oss;
-  oss << "fatal: " << report.message;
-  if (!report.exception_name.empty()) {
-    oss << " (" << report.exception_name;
-    if (report.exception_code_value != 0) {
-      oss << ", " << Hex32(report.exception_code_value);
-    }
-    oss << ")";
-  }
-  oss << "\n";
-  if (!report.tool.empty()) {
-    oss << "tool: " << report.tool;
-    if (!report.version.empty()) {
-      oss << " " << report.version;
-    }
-    oss << "\n";
-  }
-  if (!report.executable_path.empty()) {
-    oss << "executable: " << report.executable_path.generic_string() << "\n";
-  }
-  if (!report.working_directory.empty()) {
-    oss << "cwd: " << report.working_directory << "\n";
-  }
-  if (!report.artifacts.report_dir.empty()) {
-    oss << "report_dir: " << report.artifacts.report_dir.generic_string() << "\n";
-  }
-  if (!report.artifacts.json_path.empty()) {
-    oss << "report_json: " << report.artifacts.json_path.generic_string() << "\n";
-  }
-  if (!report.artifacts.minidump_path.empty()) {
-    oss << "minidump: " << report.artifacts.minidump_path.generic_string() << "\n";
-  }
-  if (!report.arguments.empty()) {
-    oss << "args: " << JoinArguments(report.arguments) << "\n";
-  }
-  if (!report.frames.empty()) {
-    oss << "stacktrace:\n";
-    const std::size_t limit = std::min<std::size_t>(report.frames.size(), 32);
-    for (std::size_t i = 0; i < limit; ++i) {
-      const auto& frame = report.frames[i];
-      oss << "  [" << frame.index << "] "
-          << (frame.module.empty() ? "<unknown>" : frame.module) << "!"
-          << (frame.symbol.empty() ? "<unknown>" : frame.symbol)
-          << " +" << HexCompact64(frame.symbol.empty() ? frame.module_offset
-                                                       : frame.offset)
-          << " @ " << Hex64(frame.address);
-      if (!frame.file.empty() && frame.line != 0) {
-        oss << " (" << frame.file << ":" << frame.line << ")";
-      }
-      oss << "\n";
-    }
-  }
-  return oss.str();
-}
-
-DebugRunResult DebugRunProcess(const DebugRunOptions& options) {
-#ifdef _WIN32
+DebugRunResult DebugRunProcessBackend(const DebugRunOptions& options) {
   if (!options.enabled) {
     return RunProcessWithoutDebugger(options);
   }
   return DebugRunWindows(options);
-#else
-  (void)options;
-  return {};
-#endif
 }
 
-}  // namespace cursive::core
+}  // namespace cursive::core::crash_debug_detail
+
+#endif

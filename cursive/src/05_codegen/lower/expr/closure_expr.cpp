@@ -12,6 +12,7 @@
 
 #include "05_codegen/lower/expr/closure_expr.h"
 
+#include <algorithm>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -229,13 +230,13 @@ void ClosureCaptureCollector::VisitExpr(const ast::ExprPtr& expr) {
           for (const auto& elem : node.elements) {
             VisitExpr(elem);
           }
-        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          for (const auto& elem : node.elements) {
-            VisitExpr(elem);
-          }
+      } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+        ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& subexpr) {
+          VisitExpr(subexpr);
+        });
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
-          VisitExpr(node.value);
-          VisitExpr(node.count);
+        VisitExpr(node.value);
+        VisitExpr(node.count);
         } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
           for (const auto& field : node.fields) {
             VisitExpr(field.value);
@@ -472,6 +473,7 @@ std::vector<CaptureBinding> CollectClosureCaptures(
     const std::unordered_set<std::string>& move_captures) {
   ClosureCaptureCollector collector{ctx, move_captures, {}, {}, {}};
   collector.VisitBlock(body);
+  std::sort(collector.order.begin(), collector.order.end());
   std::vector<CaptureBinding> result;
   result.reserve(collector.order.size());
   for (const auto& key : collector.order) {
@@ -845,13 +847,33 @@ LowerResult LowerClosureExpr(
 
   // Step 6: Lower capture environment
   std::vector<IRPtr> env_parts;
-  std::vector<IRValue> env_values;
+  std::vector<std::string> move_capture_names;
 
   CaptureEnvInfo env_info;
   env_info.env_type = env_type;
 
+  // Materialize the environment through an explicit allocation so closure
+  // lowering follows the spec's LowerCaptureEnv/StoreCapture shape rather than
+  // relying on a local tuple temporary whose address is taken afterwards.
+  IRValue env_ptr = ctx.FreshTempValue("closure_env_ptr");
+  ctx.RegisterValueType(
+      env_ptr,
+      analysis::MakeTypePtr(env_type, analysis::PtrState::Valid));
+
+  IRValue env_zero = ctx.FreshTempValue("closure_env_zero");
+  ctx.RegisterValueType(env_zero, env_type);
+
+  IRAlloc alloc_env;
+  alloc_env.value = env_zero;
+  alloc_env.result = env_ptr;
+  alloc_env.type = env_type;
+  env_parts.push_back(MakeIR(std::move(alloc_env)));
+
   for (std::size_t i = 0; i < captures.size(); ++i) {
     const auto& cap = captures[i];
+    if (cap.by_move) {
+      move_capture_names.push_back(cap.name);
+    }
 
     CaptureAccess access;
     access.index = i;
@@ -870,8 +892,16 @@ LowerResult LowerClosureExpr(
 
     IRValue field_val;
     IRPtr field_ir = EmptyIR();
+    ast::Expr ident_expr;
+    ident_expr.node = ast::IdentifierExpr{cap.name};
 
-    if (!cap.by_move && !cap.from_capture_env) {
+    if (cap.by_move) {
+      // Move capture: move the value, including values sourced from an
+      // enclosing capture environment.
+      auto move_res = LowerMovePlace(ident_expr, ctx);
+      field_val = move_res.value;
+      field_ir = move_res.ir;
+    } else if (!cap.from_capture_env) {
       // Reference capture: store address of variable
       IRValue ptr = ctx.FreshTempValue("capture_addr");
       DerivedValueInfo addr_info;
@@ -882,54 +912,40 @@ LowerResult LowerClosureExpr(
           ptr,
           analysis::MakeTypePtr(cap.type, analysis::PtrState::Valid));
       field_val = ptr;
-    } else if (cap.from_capture_env) {
+    } else {
       // Captured name already comes from an enclosing capture environment;
       // materialize the current value and store it directly.
-      ast::Expr ident_expr;
-      ident_expr.node = ast::IdentifierExpr{cap.name};
       auto read_res = LowerExpr(ident_expr, ctx);
       field_ir = read_res.ir;
       field_val = read_res.value;
-    } else {
-      // Move capture: move the value
-      ast::Expr ident_expr;
-      ident_expr.node = ast::IdentifierExpr{cap.name};
-      auto move_res = LowerMovePlace(ident_expr, ctx);
-      field_val = move_res.value;
-      field_ir = move_res.ir;
     }
 
     if (field_ir && !std::holds_alternative<IROpaque>(field_ir->node)) {
       env_parts.push_back(field_ir);
     }
-    env_values.push_back(field_val);
+
+    IRValue field_ptr = ctx.FreshTempValue("closure_field_ptr");
+    DerivedValueInfo field_info;
+    field_info.kind = DerivedValueInfo::Kind::AddrTuple;
+    field_info.base = env_ptr;
+    field_info.tuple_index = i;
+    field_info.byte_offset = access.byte_offset;
+    ctx.RegisterDerivedValue(field_ptr, field_info);
+    ctx.RegisterValueType(
+        field_ptr,
+        analysis::MakeTypeRawPtr(analysis::RawPtrQual::Mut, access.field_type));
+
+    IRWritePtr store_field;
+    store_field.ptr = field_ptr;
+    store_field.value = field_val;
+    env_parts.push_back(MakeIR(std::move(store_field)));
   }
 
-  // Create environment tuple
-  IRValue env_tuple = ctx.FreshTempValue("closure_env");
-  DerivedValueInfo tuple_info;
-  tuple_info.kind = DerivedValueInfo::Kind::TupleLit;
-  tuple_info.elements = env_values;
-  ctx.RegisterDerivedValue(env_tuple, tuple_info);
-  ctx.RegisterValueType(env_tuple, env_type);
-
-  // Bind environment variable
-  const std::string env_var_name = ctx.FreshTempValue("closure_env_var").name;
-  IRBindVar bind_env;
-  bind_env.name = env_var_name;
-  bind_env.value = env_tuple;
-  bind_env.type = env_type;
-  env_parts.push_back(MakeIR(std::move(bind_env)));
-
-  // Get pointer to environment
-  IRValue env_ptr = ctx.FreshTempValue("closure_env_ptr");
-  DerivedValueInfo addr_info;
-  addr_info.kind = DerivedValueInfo::Kind::AddrLocal;
-  addr_info.name = env_var_name;
-  ctx.RegisterDerivedValue(env_ptr, addr_info);
-  ctx.RegisterValueType(
-      env_ptr,
-      analysis::MakeTypePtr(env_type, analysis::PtrState::Valid));
+  // Mirror the spec-owned MarkMoved(MoveCaptureSet(C)) helper surface at the
+  // closure-construction boundary. Local move captures were already marked by
+  // LowerMovePlace; repeated marking is idempotent, while captured bindings
+  // from an enclosing environment are skipped here.
+  ctx.MarkMoved(move_capture_names);
 
   env_info.env_param = env_ptr;
 
@@ -1018,12 +1034,10 @@ LowerResult LowerClosureExpr(
     }
 
     // Set up capture environment for body lowering
-    CaptureEnvInfo wrapper_env = env_info;
     IRValue env_param_val;
     env_param_val.kind = IRValue::Kind::Local;
     env_param_val.name = std::string(kClosureEnvParamName);
-    wrapper_env.env_param = env_param_val;
-    ctx.capture_env = wrapper_env;
+    ctx.BindAll(ctx.LoadEnv(env_param_val, env_info.env_type, env_info.captures));
 
     LowerResult body_result = LowerBlock(body, ctx);
 
@@ -1185,19 +1199,6 @@ bool IsClosureType(const analysis::TypeRef& type) {
   if (stripped && std::holds_alternative<analysis::TypeClosure>(stripped->node)) {
     return true;
   }
-  // A closure type would be represented as TypeClosure or similar
-  // For now, check if it's a tuple of (Ptr, FuncPtr) form
-  if (const auto* tuple = stripped ? std::get_if<analysis::TypeTuple>(&stripped->node) : nullptr) {
-    if (tuple->elements.size() == 2) {
-      // First element should be a pointer (env)
-      // Second element should be a function pointer (code)
-      if (const auto* ptr = std::get_if<analysis::TypePtr>(&tuple->elements[0]->node)) {
-        if (const auto* func = std::get_if<analysis::TypeFunc>(&tuple->elements[1]->node)) {
-          return true;
-        }
-      }
-    }
-  }
   return false;
 }
 
@@ -1234,11 +1235,6 @@ analysis::TypeRef GetClosureFuncType(const analysis::TypeRef& closure_type) {
       params.push_back(std::move(p));
     }
     return analysis::MakeTypeFunc(std::move(params), closure->ret);
-  }
-  if (const auto* tuple = std::get_if<analysis::TypeTuple>(&stripped->node)) {
-    if (tuple->elements.size() == 2) {
-      return tuple->elements[1];
-    }
   }
   return nullptr;
 }

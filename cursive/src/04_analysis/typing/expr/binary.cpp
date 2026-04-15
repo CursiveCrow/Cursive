@@ -30,6 +30,7 @@ static inline void SpecDefsBinary() {
   SPEC_DEF("T-Compare-Eq", "5.2.12");
   SPEC_DEF("T-Compare-Ord", "5.2.12");
   SPEC_DEF("T-Logical", "5.2.12");
+  SPEC_DEF("Binary-Operand-Type-Err", "16.4.7");
 }
 
 struct PrimResolveResult {
@@ -37,6 +38,14 @@ struct PrimResolveResult {
   std::optional<std::string_view> diag_id;
   std::optional<std::string> prim;
 };
+
+struct BinaryOperandInfo {
+  ExprTypeResult typed;
+  TypeRef core = nullptr;
+  std::optional<std::string> prim_name;
+};
+
+constexpr std::string_view kBinaryOperandTypeMismatchDiag = "E-SEM-2525";
 
 static PrimResolveResult ResolveAliasTransparentPrim(const ScopeContext& ctx,
                                                      const TypeRef& type) {
@@ -264,6 +273,72 @@ static bool IsRawPtrLikeType(const TypeRef& type) {
   return cur && std::holds_alternative<TypeRawPtr>(cur->node);
 }
 
+static bool LoadBinaryOperandInfo(const ScopeContext& ctx,
+                                  const StmtTypeContext& type_ctx,
+                                  const ast::ExprPtr& expr,
+                                  const TypeEnv& env,
+                                  BinaryOperandInfo& out,
+                                  std::optional<std::string_view>& diag_id) {
+  out.typed = TypeExpr(ctx, type_ctx, expr, env);
+  if (!out.typed.ok) {
+    diag_id = out.typed.diag_id;
+    return false;
+  }
+
+  const auto core_norm = NormalizeBinaryCoreType(ctx, out.typed.type);
+  if (!core_norm.ok) {
+    diag_id = core_norm.diag_id;
+    return false;
+  }
+
+  out.core = core_norm.type;
+
+  const auto prim = ResolveAliasTransparentPrim(ctx, out.core);
+  if (!prim.ok) {
+    diag_id = prim.diag_id;
+    return false;
+  }
+
+  out.prim_name = prim.prim;
+  return true;
+}
+
+static void SetBinaryOperandTypeMismatch(ExprTypeResult& result,
+                                         std::string_view op) {
+  result.diag_id = kBinaryOperandTypeMismatchDiag;
+  result.diag_detail =
+      "operator '" + std::string(op) +
+      "' requires operands compatible with the operator's type rules";
+}
+
+static bool TryCheckOperandAgainst(const ScopeContext& ctx,
+                                   const StmtTypeContext& type_ctx,
+                                   const ast::ExprPtr& expr,
+                                   const TypeRef& expected,
+                                   const TypeEnv& env) {
+  if (!expected) {
+    return false;
+  }
+
+  const auto checked = CheckExprAgainst(ctx, type_ctx, expr, expected, env);
+  return checked.ok;
+}
+
+static bool TryAliasTransparentEquiv(const ScopeContext& ctx,
+                                     const TypeRef& lhs,
+                                     const TypeRef& rhs,
+                                     ExprTypeResult& result,
+                                     bool& equiv) {
+  const auto rel = AliasTransparentEquiv(ctx, lhs, rhs);
+  if (!rel.ok) {
+    result.diag_id = rel.diag_id;
+    return false;
+  }
+
+  equiv = rel.subtype;
+  return true;
+}
+
 }  // namespace
 
 // (T-Arith), (T-Bitwise), (T-Shift), (T-Compare-Eq), (T-Compare-Ord), (T-Logical)
@@ -297,175 +372,214 @@ ExprTypeResult TypeBinaryExprImpl(const ScopeContext& ctx,
     }
   }
 
-  // Type both operands
-  const auto lhs = TypeExpr(ctx, type_ctx, expr.lhs, env);
-  if (!lhs.ok) {
-    result.diag_id = lhs.diag_id;
+  BinaryOperandInfo lhs;
+  std::optional<std::string_view> lhs_diag_id;
+  if (!LoadBinaryOperandInfo(ctx, type_ctx, expr.lhs, env, lhs, lhs_diag_id)) {
+    result.diag_id = lhs_diag_id;
     return result;
   }
 
-  const auto rhs = TypeExpr(ctx, type_ctx, expr.rhs, env);
-  if (!rhs.ok) {
-    result.diag_id = rhs.diag_id;
-    return result;
-  }
-
-  // Binary operator typing compares value domains; permission/refinement wrappers
-  // are ignored once access legality has been established by place typing.
-  const auto lhs_core_norm = NormalizeBinaryCoreType(ctx, lhs.type);
-  if (!lhs_core_norm.ok) {
-    result.diag_id = lhs_core_norm.diag_id;
-    return result;
-  }
-  const auto rhs_core_norm = NormalizeBinaryCoreType(ctx, rhs.type);
-  if (!rhs_core_norm.ok) {
-    result.diag_id = rhs_core_norm.diag_id;
-    return result;
-  }
-  const auto lhs_core = lhs_core_norm.type;
-  const auto rhs_core = rhs_core_norm.type;
-
-  const auto lhs_name = ResolveAliasTransparentPrim(ctx, lhs_core);
-  if (!lhs_name.ok) {
-    result.diag_id = lhs_name.diag_id;
-    return result;
-  }
-  const auto rhs_name = ResolveAliasTransparentPrim(ctx, rhs_core);
-  if (!rhs_name.ok) {
-    result.diag_id = rhs_name.diag_id;
+  BinaryOperandInfo rhs;
+  std::optional<std::string_view> rhs_diag_id;
+  if (!LoadBinaryOperandInfo(ctx, type_ctx, expr.rhs, env, rhs, rhs_diag_id)) {
+    result.diag_id = rhs_diag_id;
     return result;
   }
 
   // Arithmetic operators: +, -, *, /, %, **
   if (IsArithOp(op)) {
-    if (!lhs_name.prim.has_value() || !rhs_name.prim.has_value()) {
+    bool equiv = false;
+    if (!TryAliasTransparentEquiv(ctx, lhs.core, rhs.core, result, equiv)) {
       return result;
     }
-    const auto equiv = AliasTransparentEquiv(ctx, lhs_core, rhs_core);
-    if (!equiv.ok) {
-      result.diag_id = equiv.diag_id;
+
+    if (equiv && lhs.prim_name.has_value() && IsNumericType(*lhs.prim_name)) {
+      SPEC_RULE("T-Arith");
+      result.ok = true;
+      result.type = MakeTypePrim(*lhs.prim_name);
       return result;
     }
-    if (!equiv.subtype) {
+
+    if (lhs.prim_name.has_value() && IsNumericType(*lhs.prim_name) &&
+        TryCheckOperandAgainst(ctx, type_ctx, expr.rhs, lhs.core, env)) {
+      SPEC_RULE("T-Arith");
+      result.ok = true;
+      result.type = MakeTypePrim(*lhs.prim_name);
       return result;
     }
-    if (!IsNumericType(*lhs_name.prim)) {
+
+    if (rhs.prim_name.has_value() && IsNumericType(*rhs.prim_name) &&
+        TryCheckOperandAgainst(ctx, type_ctx, expr.lhs, rhs.core, env)) {
+      SPEC_RULE("T-Arith");
+      result.ok = true;
+      result.type = MakeTypePrim(*rhs.prim_name);
       return result;
     }
-    SPEC_RULE("T-Arith");
-    result.ok = true;
-    result.type = MakeTypePrim(*lhs_name.prim);
+
+    SPEC_RULE("Binary-Operand-Type-Err");
+    SetBinaryOperandTypeMismatch(result, op);
     return result;
   }
 
   // Bitwise operators: &, |, ^
   if (IsBitOp(op)) {
-    if (!lhs_name.prim.has_value() || !rhs_name.prim.has_value()) {
+    bool equiv = false;
+    if (!TryAliasTransparentEquiv(ctx, lhs.core, rhs.core, result, equiv)) {
       return result;
     }
-    const auto equiv = AliasTransparentEquiv(ctx, lhs_core, rhs_core);
-    if (!equiv.ok) {
-      result.diag_id = equiv.diag_id;
+
+    if (equiv && lhs.prim_name.has_value() && IsIntType(*lhs.prim_name)) {
+      SPEC_RULE("T-Bitwise");
+      result.ok = true;
+      result.type = MakeTypePrim(*lhs.prim_name);
       return result;
     }
-    if (!equiv.subtype) {
+
+    if (lhs.prim_name.has_value() && IsIntType(*lhs.prim_name) &&
+        TryCheckOperandAgainst(ctx, type_ctx, expr.rhs, lhs.core, env)) {
+      SPEC_RULE("T-Bitwise");
+      result.ok = true;
+      result.type = MakeTypePrim(*lhs.prim_name);
       return result;
     }
-    if (!IsIntType(*lhs_name.prim)) {
+
+    if (rhs.prim_name.has_value() && IsIntType(*rhs.prim_name) &&
+        TryCheckOperandAgainst(ctx, type_ctx, expr.lhs, rhs.core, env)) {
+      SPEC_RULE("T-Bitwise");
+      result.ok = true;
+      result.type = MakeTypePrim(*rhs.prim_name);
       return result;
     }
-    SPEC_RULE("T-Bitwise");
-    result.ok = true;
-    result.type = MakeTypePrim(*lhs_name.prim);
+
+    SPEC_RULE("Binary-Operand-Type-Err");
+    SetBinaryOperandTypeMismatch(result, op);
     return result;
   }
 
   // Shift operators: <<, >>
   if (IsShiftOp(op)) {
-    if (!lhs_name.prim.has_value()) {
+    if (!lhs.prim_name.has_value() || !IsIntType(*lhs.prim_name)) {
+      SPEC_RULE("Binary-Operand-Type-Err");
+      SetBinaryOperandTypeMismatch(result, op);
       return result;
     }
-    if (!IsIntType(*lhs_name.prim)) {
-      return result;
-    }
-    const auto rhs_u32 = AliasTransparentPrimEq(ctx, rhs_core, "u32");
+
+    const auto rhs_u32 = AliasTransparentPrimEq(ctx, rhs.core, "u32");
     if (!rhs_u32.ok) {
       result.diag_id = rhs_u32.diag_id;
       return result;
     }
-    if (!rhs_u32.subtype) {
+
+    if (rhs_u32.subtype ||
+        TryCheckOperandAgainst(ctx, type_ctx, expr.rhs, MakeTypePrim("u32"), env)) {
+      SPEC_RULE("T-Shift");
+      result.ok = true;
+      result.type = MakeTypePrim(*lhs.prim_name);
       return result;
     }
-    SPEC_RULE("T-Shift");
-    result.ok = true;
-    result.type = MakeTypePrim(*lhs_name.prim);
+
+    SPEC_RULE("Binary-Operand-Type-Err");
+    SetBinaryOperandTypeMismatch(result, op);
     return result;
   }
 
   // Equality operators: ==, !=
   if (IsEqOp(op)) {
-    bool lhs_eq = EqType(lhs_core);
-    if (!lhs_eq && lhs_name.prim.has_value()) {
-      lhs_eq = true;
-    }
-    if (!lhs_eq) {
+    bool equiv = false;
+    if (!TryAliasTransparentEquiv(ctx, lhs.core, rhs.core, result, equiv)) {
       return result;
     }
-    const auto equiv = AliasTransparentEquiv(ctx, lhs_core, rhs_core);
-    if (!equiv.ok) {
-      result.diag_id = equiv.diag_id;
+
+    if (equiv && EqType(lhs.core)) {
+      SPEC_RULE("T-Compare-Eq");
+      result.ok = true;
+      result.type = MakeTypePrim("bool");
       return result;
     }
-    if (!equiv.subtype) {
+
+    if (EqType(lhs.core) &&
+        TryCheckOperandAgainst(ctx, type_ctx, expr.rhs, lhs.core, env)) {
+      SPEC_RULE("T-Compare-Eq");
+      result.ok = true;
+      result.type = MakeTypePrim("bool");
       return result;
     }
-    SPEC_RULE("T-Compare-Eq");
-    result.ok = true;
-    result.type = MakeTypePrim("bool");
+
+    if (EqType(rhs.core) &&
+        TryCheckOperandAgainst(ctx, type_ctx, expr.lhs, rhs.core, env)) {
+      SPEC_RULE("T-Compare-Eq");
+      result.ok = true;
+      result.type = MakeTypePrim("bool");
+      return result;
+    }
+
+    SPEC_RULE("Binary-Operand-Type-Err");
+    SetBinaryOperandTypeMismatch(result, op);
     return result;
   }
 
   // Ordering operators: <, <=, >, >=
   if (IsOrdOp(op)) {
-    bool lhs_ord = OrdType(lhs_core);
-    if (!lhs_ord && lhs_name.prim.has_value()) {
-      lhs_ord = IsOrdPrim(*lhs_name.prim);
-    }
-    if (!lhs_ord) {
+    bool equiv = false;
+    if (!TryAliasTransparentEquiv(ctx, lhs.core, rhs.core, result, equiv)) {
       return result;
     }
-    const auto equiv = AliasTransparentEquiv(ctx, lhs_core, rhs_core);
-    if (!equiv.ok) {
-      result.diag_id = equiv.diag_id;
+
+    const bool lhs_ord = OrdType(lhs.core) ||
+                         (lhs.prim_name.has_value() && IsOrdPrim(*lhs.prim_name));
+    const bool rhs_ord = OrdType(rhs.core) ||
+                         (rhs.prim_name.has_value() && IsOrdPrim(*rhs.prim_name));
+
+    if (equiv && lhs_ord) {
+      SPEC_RULE("T-Compare-Ord");
+      result.ok = true;
+      result.type = MakeTypePrim("bool");
       return result;
     }
-    if (!equiv.subtype) {
+
+    if (lhs_ord && TryCheckOperandAgainst(ctx, type_ctx, expr.rhs, lhs.core, env)) {
+      SPEC_RULE("T-Compare-Ord");
+      result.ok = true;
+      result.type = MakeTypePrim("bool");
       return result;
     }
-    SPEC_RULE("T-Compare-Ord");
-    result.ok = true;
-    result.type = MakeTypePrim("bool");
+
+    if (rhs_ord && TryCheckOperandAgainst(ctx, type_ctx, expr.lhs, rhs.core, env)) {
+      SPEC_RULE("T-Compare-Ord");
+      result.ok = true;
+      result.type = MakeTypePrim("bool");
+      return result;
+    }
+
+    SPEC_RULE("Binary-Operand-Type-Err");
+    SetBinaryOperandTypeMismatch(result, op);
     return result;
   }
 
   // Logical operators: &&, ||
   if (IsLogicOp(op)) {
-    const auto lhs_bool = AliasTransparentPrimEq(ctx, lhs_core, "bool");
+    const auto lhs_bool = AliasTransparentPrimEq(ctx, lhs.core, "bool");
     if (!lhs_bool.ok) {
       result.diag_id = lhs_bool.diag_id;
       return result;
     }
-    const auto rhs_bool = AliasTransparentPrimEq(ctx, rhs_core, "bool");
+    const auto rhs_bool = AliasTransparentPrimEq(ctx, rhs.core, "bool");
     if (!rhs_bool.ok) {
       result.diag_id = rhs_bool.diag_id;
       return result;
     }
-    if (!lhs_bool.subtype || !rhs_bool.subtype) {
+
+    if ((lhs_bool.subtype && rhs_bool.subtype) ||
+        (TryCheckOperandAgainst(ctx, type_ctx, expr.lhs, MakeTypePrim("bool"), env) &&
+         TryCheckOperandAgainst(ctx, type_ctx, expr.rhs, MakeTypePrim("bool"), env))) {
+      SPEC_RULE("T-Logical");
+      result.ok = true;
+      result.type = MakeTypePrim("bool");
       return result;
     }
-    SPEC_RULE("T-Logical");
-    result.ok = true;
-    result.type = MakeTypePrim("bool");
+
+    SPEC_RULE("Binary-Operand-Type-Err");
+    SetBinaryOperandTypeMismatch(result, op);
     return result;
   }
 

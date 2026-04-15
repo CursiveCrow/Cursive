@@ -5,7 +5,7 @@
 // Pattern nodes for case analysis, let bindings, and loop iteration.
 // Also includes IfCaseClause for if-is case analysis support.
 //
-// SPEC: C:\Dev\Cursive\CursiveSpecification.md Section 3.3.2.5
+// SPEC: docs/CursiveSpecification.md Section 3.3.2.5
 //
 // ===========================================================================
 
@@ -39,12 +39,14 @@ struct WildcardPattern {};
 /// Identifier pattern - simple binding (x)
 struct IdentifierPattern {
     Identifier name;
+    std::optional<SpliceIdentNode> name_splice_opt;
 };
 
 /// Typed pattern - binding with type annotation (x: T)
 struct TypedPattern {
     Identifier name;
     std::shared_ptr<Type> type;
+    std::optional<SpliceIdentNode> name_splice_opt;
 };
 
 // ---------------------------------------------------------------------------

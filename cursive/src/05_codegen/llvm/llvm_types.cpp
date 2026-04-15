@@ -469,6 +469,22 @@ llvm::Type* BuildAsyncLLVMType(LLVMEmitter& emitter,
   scope.sigma = *emitter.GetCurrentCtx()->sigma;
   scope.current_module = emitter.GetCurrentCtx()->module_path;
 
+  analysis::AsyncSig async_sig{};
+  async_sig.out =
+      !generic_args.empty() ? generic_args[0] : analysis::MakeTypePrim("()");
+  async_sig.in =
+      generic_args.size() > 1 ? generic_args[1] : analysis::MakeTypePrim("()");
+  async_sig.result =
+      generic_args.size() > 2 ? generic_args[2] : analysis::MakeTypePrim("()");
+  async_sig.err =
+      generic_args.size() > 3 ? generic_args[3] : analysis::MakeTypePrim("!");
+  const auto lowered_async = LowerAsyncType(async_sig);
+  const bool has_failed_state =
+      lowered_async.has_value() &&
+      std::find(lowered_async->states.begin(),
+                lowered_async->states.end(),
+                "Failed") != lowered_async->states.end();
+
   // Compute async layout similar to modal layout
   std::uint64_t max_payload_size = 0;
   std::uint64_t max_payload_align = 1;
@@ -509,8 +525,7 @@ llvm::Type* BuildAsyncLLVMType(LLVMEmitter& emitter,
   };
 
   // Suspended payload: { output: Out, frame: Ptr<u8> }.
-  const analysis::TypeRef out_type =
-      !generic_args.empty() ? generic_args[0] : analysis::MakeTypePrim("()");
+  const analysis::TypeRef out_type = async_sig.out;
   const analysis::TypeRef frame_ptr = analysis::MakeTypePtr(
       analysis::MakeTypePrim("u8"),
       analysis::PtrState::Valid);
@@ -521,17 +536,18 @@ llvm::Type* BuildAsyncLLVMType(LLVMEmitter& emitter,
   add_payload_layout(suspended_layout->layout);
 
   // Completed payload: Result (if inhabited and non-empty).
-  if (generic_args.size() > 2 && generic_args[2] &&
-      !is_never_type(generic_args[2]) &&
-      !is_unit_type(generic_args[2])) {
-    add_payload_type(generic_args[2]);
+  if (async_sig.result &&
+      !is_never_type(async_sig.result) &&
+      !is_unit_type(async_sig.result)) {
+    add_payload_type(async_sig.result);
   }
 
   // Failed payload: E (if inhabited and non-empty).
-  if (generic_args.size() > 3 && generic_args[3] &&
-      !is_never_type(generic_args[3]) &&
-      !is_unit_type(generic_args[3])) {
-    add_payload_type(generic_args[3]);
+  if (has_failed_state &&
+      async_sig.err &&
+      !is_never_type(async_sig.err) &&
+      !is_unit_type(async_sig.err)) {
+    add_payload_type(async_sig.err);
   }
 
   // Runtime async frame extraction assumes suspended payload stores a hidden

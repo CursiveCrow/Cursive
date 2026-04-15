@@ -20,7 +20,7 @@ procedure LogFeatureStatus(
     let passed_with_log: bool = passed && (passed_log_actual == expected_zero)
 }
 
-public procedure RunGroup(ctx: Context) -> i32 {
+public procedure runGroup(ctx: Context) -> i32 {
     let status_generics_core: i32 = RunGenericsCore(ctx)
     if (status_generics_core != 0) {
         return status_generics_core

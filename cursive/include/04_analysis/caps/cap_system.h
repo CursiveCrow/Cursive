@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -35,7 +36,9 @@ struct ContextMethodSig {
   TypeRef ret;
 };
 
-std::optional<ContextMethodSig> LookupContextMethodSig(std::string_view name);
+std::optional<ContextMethodSig> LookupContextMethodSig(
+    std::string_view name,
+    std::optional<std::size_t> arg_count = std::nullopt);
 
 // Context field type lookup
 std::optional<TypeRef> ContextFieldType(std::string_view field_name);

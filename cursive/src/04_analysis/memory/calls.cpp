@@ -438,16 +438,51 @@ bool ExprListHasSourceProvenance(const std::vector<ast::ExprPtr>& exprs) {
   return false;
 }
 
+bool ArraySegmentsHaveSourceProvenance(
+    const std::vector<ast::ArraySegment>& segments) {
+  bool has_source_provenance = false;
+  for (const auto& segment : segments) {
+    std::visit(
+        [&](const auto& seg) {
+          using S = std::decay_t<decltype(seg)>;
+          if constexpr (std::is_same_v<S, ast::ArrayElemSegment>) {
+            if (!has_source_provenance &&
+                HasSourceProvenanceLocal(seg.value)) {
+              has_source_provenance = true;
+            }
+          } else if constexpr (std::is_same_v<S, ast::ArrayRepeatSegment>) {
+            if (!has_source_provenance &&
+                (HasSourceProvenanceLocal(seg.value) ||
+                 HasSourceProvenanceLocal(seg.count))) {
+              has_source_provenance = true;
+            }
+          }
+        },
+        segment);
+    if (has_source_provenance) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool BlockHasSourceProvenance(const std::shared_ptr<ast::Block>& block) {
   if (!block) {
     return false;
   }
-  for (const auto& stmt : block->stmts) {
-    if (StmtHasSourceProvenance(stmt)) {
-      return true;
-    }
-  }
+  // Call-argument source provenance is about whether the block result itself
+  // aliases caller-visible source storage. Intermediate statements may touch
+  // source-backed values without making the block result source-provenant.
   return HasSourceProvenanceLocal(block->tail_opt);
+}
+
+static bool IsDirectSymbolCalleeLocal(const ast::ExprPtr& expr) {
+  if (!expr) {
+    return false;
+  }
+  return std::holds_alternative<ast::IdentifierExpr>(expr->node) ||
+         std::holds_alternative<ast::PathExpr>(expr->node) ||
+         std::holds_alternative<ast::QualifiedNameExpr>(expr->node);
 }
 
 bool StmtHasSourceProvenance(const ast::Stmt& stmt) {
@@ -485,8 +520,6 @@ bool StmtHasSourceProvenance(const ast::Stmt& stmt) {
           return BlockHasSourceProvenance(node.body);
         } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
           return BlockHasSourceProvenance(node.body);
-        } else if constexpr (std::is_same_v<T, ast::StaticAssertStmt>) {
-          return HasSourceProvenanceLocal(node.condition);
         } else {
           return false;
         }
@@ -514,102 +547,63 @@ bool HasSourceProvenanceLocal(const ast::ExprPtr& expr) {
         } else if constexpr (std::is_same_v<T, ast::QualifiedNameExpr>) {
           return false;
         } else if constexpr (std::is_same_v<T, ast::QualifiedApplyExpr>) {
-          if (std::holds_alternative<ast::ParenArgs>(node.args)) {
-            for (const auto& arg : std::get<ast::ParenArgs>(node.args).args) {
-              if (HasSourceProvenanceLocal(arg.value)) {
-                return true;
-              }
-            }
-            return false;
-          }
-          for (const auto& field : std::get<ast::BraceArgs>(node.args).fields) {
-            if (HasSourceProvenanceLocal(field.value)) {
-              return true;
-            }
-          }
           return false;
         } else if constexpr (std::is_same_v<T, ast::PathExpr>) {
           return false;
         } else if constexpr (std::is_same_v<T, ast::RangeExpr>) {
-          return HasSourceProvenanceLocal(node.lhs) || HasSourceProvenanceLocal(node.rhs);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::BinaryExpr>) {
-          return HasSourceProvenanceLocal(node.lhs) || HasSourceProvenanceLocal(node.rhs);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::CastExpr>) {
-          return HasSourceProvenanceLocal(node.value);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::UnaryExpr>) {
-          return HasSourceProvenanceLocal(node.value);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::DerefExpr>) {
-          return HasSourceProvenanceLocal(node.value);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::AddressOfExpr>) {
-          return HasSourceProvenanceLocal(node.place);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::MoveExpr>) {
-          return HasSourceProvenanceLocal(node.place);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::AllocExpr>) {
-          return true;
+          return false;
         } else if constexpr (std::is_same_v<T, ast::PtrNullExpr>) {
           return false;
         } else if constexpr (std::is_same_v<T, ast::TupleExpr>) {
-          return ExprListHasSourceProvenance(node.elements);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
-          return ExprListHasSourceProvenance(node.elements);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
-          return HasSourceProvenanceLocal(node.value) || HasSourceProvenanceLocal(node.count);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::SizeofExpr>) {
           return false;
         } else if constexpr (std::is_same_v<T, ast::AlignofExpr>) {
           return false;
         } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
-          for (const auto& field : node.fields) {
-            if (HasSourceProvenanceLocal(field.value)) {
-              return true;
-            }
-          }
           return false;
         } else if constexpr (std::is_same_v<T, ast::EnumLiteralExpr>) {
-          if (!node.payload_opt.has_value()) {
-            return false;
-          }
-          return std::visit(
-              [&](const auto& payload) -> bool {
-                using P = std::decay_t<decltype(payload)>;
-                if constexpr (std::is_same_v<P, ast::EnumPayloadParen>) {
-                  return ExprListHasSourceProvenance(payload.elements);
-                } else if constexpr (std::is_same_v<P, ast::EnumPayloadBrace>) {
-                  for (const auto& field : payload.fields) {
-                    if (HasSourceProvenanceLocal(field.value)) {
-                      return true;
-                    }
-                  }
-                  return false;
-                } else {
-                  return false;
-                }
-              },
-              *node.payload_opt);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::IfExpr>) {
           if (!node.else_expr) {
             return false;
           }
-          return HasSourceProvenanceLocal(node.then_expr) ||
+          return HasSourceProvenanceLocal(node.then_expr) &&
                  HasSourceProvenanceLocal(node.else_expr);
         } else if constexpr (std::is_same_v<T, ast::IfCaseExpr>) {
           for (const auto& arm : node.cases) {
-            if (HasSourceProvenanceLocal(arm.body)) {
-              return true;
+            if (!HasSourceProvenanceLocal(arm.body)) {
+              return false;
             }
           }
           return HasSourceProvenanceLocal(node.else_expr);
         } else if constexpr (std::is_same_v<T, ast::IfIsExpr>) {
-          return HasSourceProvenanceLocal(node.then_expr) ||
+          return HasSourceProvenanceLocal(node.then_expr) &&
                  HasSourceProvenanceLocal(node.else_expr);
         } else if constexpr (std::is_same_v<T, ast::LoopInfiniteExpr>) {
-          return BlockHasSourceProvenance(node.body);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::LoopConditionalExpr>) {
-          return HasSourceProvenanceLocal(node.cond) ||
-                 BlockHasSourceProvenance(node.body);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::LoopIterExpr>) {
-          return HasSourceProvenanceLocal(node.iter) ||
-                 BlockHasSourceProvenance(node.body);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::BlockExpr>) {
           return BlockHasSourceProvenance(node.block);
         } else if constexpr (std::is_same_v<T, ast::UnsafeBlockExpr>) {
@@ -617,72 +611,45 @@ bool HasSourceProvenanceLocal(const ast::ExprPtr& expr) {
         } else if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
           return HasSourceProvenanceLocal(node.expr);
         } else if constexpr (std::is_same_v<T, ast::TransmuteExpr>) {
-          return HasSourceProvenanceLocal(node.value);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::ClosureExpr>) {
-          return true;
+          return false;
         } else if constexpr (std::is_same_v<T, ast::PipelineExpr>) {
-          return HasSourceProvenanceLocal(node.lhs) || HasSourceProvenanceLocal(node.rhs);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::FieldAccessExpr>) {
-          return HasSourceProvenanceLocal(node.base);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::TupleAccessExpr>) {
-          return HasSourceProvenanceLocal(node.base);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {
-          return HasSourceProvenanceLocal(node.base);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::CallExpr>) {
-          return true;
+          return false;
         } else if constexpr (std::is_same_v<T, ast::MethodCallExpr>) {
-          return true;
+          return false;
         } else if constexpr (std::is_same_v<T, ast::PropagateExpr>) {
-          return HasSourceProvenanceLocal(node.value);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::ResultExpr>) {
           return false;
         } else if constexpr (std::is_same_v<T, ast::EntryExpr>) {
-          return HasSourceProvenanceLocal(node.expr);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::YieldExpr>) {
-          return HasSourceProvenanceLocal(node.value);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::YieldFromExpr>) {
-          return HasSourceProvenanceLocal(node.value);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::SyncExpr>) {
-          return HasSourceProvenanceLocal(node.value);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::RaceExpr>) {
-          for (const auto& arm : node.arms) {
-            if (HasSourceProvenanceLocal(arm.expr) ||
-                HasSourceProvenanceLocal(arm.handler.value)) {
-              return true;
-            }
-          }
           return false;
         } else if constexpr (std::is_same_v<T, ast::AllExpr>) {
-          return ExprListHasSourceProvenance(node.exprs);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::ParallelExpr>) {
-          if (HasSourceProvenanceLocal(node.domain)) {
-            return true;
-          }
-          for (const auto& opt : node.opts) {
-            if (HasSourceProvenanceLocal(opt.value)) {
-              return true;
-            }
-          }
-          return BlockHasSourceProvenance(node.body);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::SpawnExpr>) {
-          for (const auto& opt : node.opts) {
-            if (HasSourceProvenanceLocal(opt.value)) {
-              return true;
-            }
-          }
-          return BlockHasSourceProvenance(node.body);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::WaitExpr>) {
-          return HasSourceProvenanceLocal(node.handle);
+          return false;
         } else if constexpr (std::is_same_v<T, ast::DispatchExpr>) {
-          if (HasSourceProvenanceLocal(node.range)) {
-            return true;
-          }
-          for (const auto& opt : node.opts) {
-            if (HasSourceProvenanceLocal(opt.chunk_expr)) {
-              return true;
-            }
-          }
-          return BlockHasSourceProvenance(node.body);
+          return false;
         } else {
           return false;
         }
@@ -693,6 +660,12 @@ bool HasSourceProvenanceLocal(const ast::ExprPtr& expr) {
 bool MissingRequiredMoveForConsumingLocal(const std::optional<ParamMode>& mode,
                                      const ast::Arg& arg) {
   return mode == ParamMode::Move && !arg.moved && HasSourceProvenanceLocal(arg.value);
+}
+
+bool UsesCallTempForConsumingLocal(const std::optional<ParamMode>& mode,
+                                   const ast::Arg& arg) {
+  return mode == ParamMode::Move && !arg.moved &&
+         !HasSourceProvenanceLocal(arg.value);
 }
 
 ast::ExprPtr MovedArgExprLocal(const ast::Arg& arg) {
@@ -858,6 +831,11 @@ bool MissingRequiredMoveForConsuming(const std::optional<ParamMode>& mode,
   return MissingRequiredMoveForConsumingLocal(mode, arg);
 }
 
+bool UsesCallTempForConsuming(const std::optional<ParamMode>& mode,
+                              const ast::Arg& arg) {
+  return UsesCallTempForConsumingLocal(mode, arg);
+}
+
 ast::ExprPtr MovedArgExpr(const ast::Arg& arg) {
   return MovedArgExprLocal(arg);
 }
@@ -995,7 +973,7 @@ CallTypeResult TypeCall(const ScopeContext& ctx,
       continue;
     }
     const auto arg_expr = MovedArgExprLocal(arg);
-    if (!HasSourceProvenanceLocal(arg.value) && check_expr) {
+    if (UsesCallTempForConsumingLocal(params[i].mode, arg) && check_expr) {
       const auto checked = (*check_expr)(arg_expr, params[i].type);
       if (checked.ok) {
         arg_types.push_back(params[i].type);
@@ -1193,7 +1171,7 @@ CallTypeResult TypeCallWithSubst(const ScopeContext& ctx,
       continue;
     }
     const auto arg_expr = MovedArgExprLocal(arg);
-    if (!HasSourceProvenanceLocal(arg.value) && check_expr) {
+    if (UsesCallTempForConsumingLocal(params[i].mode, arg) && check_expr) {
       const auto checked = (*check_expr)(arg_expr, params[i].type);
       if (checked.ok) {
         arg_types.push_back(params[i].type);

@@ -105,8 +105,9 @@ ParseElemResult<std::vector<ClosureParam>> ParseClosureParamListTail(
     Advance(after);
     SkipNewlines(after);
     if (IsOp(after, "|")) {
-      const std::array<TokenKindMatch, 1> end_set = {MatchOperator("|")};
+      const std::array<EndSetToken, 1> end_set = {EndOperator("|")};
       EmitTrailingCommaErr(parser, end_set);
+      after.diags = parser.diags;
       return {after, xs};
     }
     SPEC_RULE("Parse-ClosureParams-Cons");

@@ -22,7 +22,7 @@
 // SOURCE: cursive-bootstrap/src/02_syntax/parser.cpp Lines 30-85
 // ===========================================================================
 
-#include "02_source/parser/parser.h"
+#include "02_source/ast/ast_builder.h"
 
 #include <cassert>
 #include <optional>
@@ -55,22 +55,6 @@ core::Span span_from(const lexer::Token& start, const lexer::Token& end) {
   return span;
 }
 
-// Creates an EOF token for span computation when parser is at end.
-// Used internally by span_between.
-//
-// SOURCE: parser.cpp lines 38-44
-namespace {
-
-lexer::Token eof_as_token(const Parser& parser) {
-  lexer::Token tok;
-  tok.kind = lexer::TokenKind::Unknown;
-  tok.lexeme.clear();
-  tok.span = parser.eof.span;
-  return tok;
-}
-
-}  // namespace
-
 // Creates a span between two parser positions.
 // Handles EOF token specially (uses last valid position).
 //
@@ -86,7 +70,7 @@ lexer::Token eof_as_token(const Parser& parser) {
 //   return SpanFrom(start_tok, end_tok);
 // }
 core::Span span_between(const Parser& start, const Parser& end) {
-  lexer::Token start_tok = Tok(start) ? *Tok(start) : eof_as_token(start);
+  lexer::Token start_tok = *Tok(start);
   const std::vector<lexer::Token>* tokens =
       end.tokens ? end.tokens : start.tokens;
   lexer::Token end_tok = start_tok;

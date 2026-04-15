@@ -5,6 +5,8 @@
 // Spec Rules: T-Spawn
 // =================================================================
 #include "00_core/assert_spec.h"
+#include "00_core/diagnostic_messages.h"
+#include "00_core/diagnostics.h"
 #include <optional>
 #include <unordered_set>
 #include <vector>
@@ -13,6 +15,7 @@
 #include "04_analysis/typing/type_infer.h"
 #include "04_analysis/typing/type_stmt.h"
 #include "04_analysis/typing/type_expr.h"
+#include "04_analysis/typing/type_predicates.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/caps/cap_concurrency.h"
 #include "02_source/ast/ast.h"
@@ -23,6 +26,7 @@ namespace {
 
 static inline void SpecDefsSpawn() {
   SPEC_DEF("T-Spawn", "17.2.2");
+  SPEC_DEF("GpuContext", "20.2.3");
 }
 
 bool IsStringType(const TypeRef& type) {
@@ -43,6 +47,30 @@ bool IsNamedTypePath(const TypeRef& type, std::string_view name) {
     return false;
   }
   return IdEq(path->path.back(), name);
+}
+
+bool IsGpuDomainType(const TypeRef& type) {
+  const auto stripped = StripPerm(type);
+  if (!stripped) {
+    return false;
+  }
+  if (const auto* dyn = std::get_if<TypeDynamic>(&stripped->node)) {
+    return IsGpuDomainTypePath(dyn->path);
+  }
+  if (const auto* path = std::get_if<TypePathType>(&stripped->node)) {
+    return IsGpuDomainTypePath(path->path);
+  }
+  return false;
+}
+
+void EmitSupplementalTypeDiag(const StmtTypeContext& type_ctx,
+                              std::string_view code) {
+  if (!type_ctx.diags) {
+    return;
+  }
+  if (auto diag = core::MakeDiagnosticById(code)) {
+    core::Emit(*type_ctx.diags, *diag);
+  }
 }
 
 std::optional<IdKey> RootBindingOfPlace(const ast::ExprPtr& place) {
@@ -218,8 +246,6 @@ class SpawnCaptureCollector {
           } else if constexpr (std::is_same_v<T, ast::ReturnStmt> ||
                                std::is_same_v<T, ast::BreakStmt>) {
             VisitExpr(node.value_opt);
-          } else if constexpr (std::is_same_v<T, ast::StaticAssertStmt>) {
-            VisitExpr(node.condition);
           } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
             for (const auto& path : node.paths) {
               VisitKeyPath(path);
@@ -276,14 +302,17 @@ class SpawnCaptureCollector {
             VisitExpr(node.place);
           } else if constexpr (std::is_same_v<T, ast::AllocExpr>) {
             VisitExpr(node.value);
-          } else if constexpr (std::is_same_v<T, ast::TupleExpr> ||
-                               std::is_same_v<T, ast::ArrayExpr>) {
-            for (const auto& elem : node.elements) {
-              VisitExpr(elem);
-            }
-          } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
-            VisitExpr(node.value);
-            VisitExpr(node.count);
+        } else if constexpr (std::is_same_v<T, ast::TupleExpr>) {
+          for (const auto& elem : node.elements) {
+            VisitExpr(elem);
+          }
+        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            VisitExpr(elem);
+          });
+        } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
+          VisitExpr(node.value);
+          VisitExpr(node.count);
           } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
             for (const auto& field : node.fields) {
               VisitExpr(field.value);
@@ -436,6 +465,7 @@ class SpawnCaptureCollector {
             }
             for (const auto& opt : node.opts) {
               VisitExpr(opt.chunk_expr);
+              VisitExpr(opt.workgroup_expr);
             }
             PushScope();
             DeclarePattern(node.pattern);
@@ -536,10 +566,6 @@ ExprTypeResult TypeSpawnExpr(const ScopeContext& ctx,
           return result;
         }
         break;
-      case ast::SpawnOptionKind::MoveCapture:
-        // Non-conformant option in C0updated grammar.
-        result.diag_id = "E-CON-0130";
-        return result;
     }
   }
 
@@ -560,8 +586,9 @@ ExprTypeResult TypeSpawnExpr(const ScopeContext& ctx,
 
   // Capture analysis for spawn body
   // Walk the spawn body and analyze outer bindings that are captured.
+  const auto capture_sets = *AnalyzeBlockCaptureSets(*expr.body, env);
   const auto capture_info = SpawnCaptureCollector(env).Collect(*expr.body);
-  for (const auto& captured_name : capture_info.captures) {
+  for (const auto& captured_name : capture_sets.captures) {
     const auto binding = BindOf(env, captured_name);
     if (!binding.has_value()) {
       continue;
@@ -571,9 +598,9 @@ ExprTypeResult TypeSpawnExpr(const ScopeContext& ctx,
         capture_info.explicit_moves.find(captured_name) !=
         capture_info.explicit_moves.end();
 
-    if (is_explicit_move && type_ctx.parallel_ancestor_bindings &&
-        type_ctx.parallel_ancestor_bindings->find(captured_name) !=
-            type_ctx.parallel_ancestor_bindings->end()) {
+    if (is_explicit_move &&
+        IsOuterParallelBinding(type_ctx, captured_name) &&
+        !ClaimFirstChildMove(type_ctx, captured_name)) {
       result.diag_id = "E-CON-0122";
       return result;
     }
@@ -582,6 +609,18 @@ ExprTypeResult TypeSpawnExpr(const ScopeContext& ctx,
         capture_diag.has_value()) {
       result.diag_id = *capture_diag;
       return result;
+    }
+
+    if (GpuContext(env)) {
+      const auto gpu_capture =
+          CheckGpuCapture(ctx, env, captured_name, is_explicit_move);
+      if (!gpu_capture.ok) {
+        if (gpu_capture.supplemental_diag_id.has_value()) {
+          EmitSupplementalTypeDiag(type_ctx, *gpu_capture.supplemental_diag_id);
+        }
+        result.diag_id = gpu_capture.diag_id;
+        return result;
+      }
     }
   }
 

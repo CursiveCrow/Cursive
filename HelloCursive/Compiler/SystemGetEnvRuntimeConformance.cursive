@@ -1,11 +1,11 @@
-procedure CompilerSystemGetEnvRuntimeConformanceMetricLabel(value: i32) -> string@View {
+procedure compilerSystemGetEnvRuntimeConformanceMetricLabel(value: i32) -> string@View {
     if (value == 2) {
         return "2"
     }
     return "other"
 }
 
-public procedure RunCompilerSystemGetEnvRuntimeConformance(ctx: Context) -> i32 {
+public procedure runCompilerSystemGetEnvRuntimeConformance(ctx: Context) -> i32 {
     let present_env: string@View = ctx.sys~>get_env("SystemRoot")
     let missing_env: string@View = ctx.sys~>get_env("CURSIVE_SENTINEL_ABSENT_6D5D4754A0CB4C4E8A33E4BC1CDEF001")
     let present_env_ok: bool = string::is_empty(present_env) == false
@@ -22,7 +22,7 @@ public procedure RunCompilerSystemGetEnvRuntimeConformance(ctx: Context) -> i32 
         (present_env_ok_log == true) &&
         (missing_env_ok_log == true)
     ) { 2 } else { 0 }
-    let metric_label: string@View = CompilerSystemGetEnvRuntimeConformanceMetricLabel(metric)
+    let metric_label: string@View = compilerSystemGetEnvRuntimeConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
         [[log(label: "observed-compiler-runtime-system-get-env-metric", expected: "2")]]
         metric_label
