@@ -21,3 +21,4 @@ extern/.downloads/
 extern/.tmp_*/
 extern/icu/install/
 extern/icu/icu4c-72_1-src.tgz
+node_modules/

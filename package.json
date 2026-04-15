@@ -1,0 +1,5 @@
+{
+  "devDependencies": {
+    "@ataraxy-labs/sem": "^0.3.20"
+  }
+}
