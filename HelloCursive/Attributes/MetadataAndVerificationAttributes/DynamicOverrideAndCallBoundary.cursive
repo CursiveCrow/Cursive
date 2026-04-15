@@ -1,0 +1,64 @@
+public class AttributeDynamicDispatchSurface {
+    [[dynamic]]
+    procedure evaluate(~, value: i32) -> i32
+}
+
+public record AttributeDynamicDispatchImpl <: AttributeDynamicDispatchSurface {
+    public procedure evaluate(~, value: i32) -> i32 {
+        return value + 4
+    }
+}
+
+procedure AttributeDynamicBoundaryCallee(value: i32) -> i32 {
+    return value + 1
+}
+
+[[dynamic]]
+procedure AttributeDynamicBoundaryCaller(value: i32) -> i32
+    |: => @result == @entry(value) + 1
+{
+    return AttributeDynamicBoundaryCallee(value)
+}
+
+procedure DynamicOverrideAndCallBoundaryMetricLabel(value: i32) -> string@View {
+    if (value == 17) {
+        return "17"
+    }
+    return "other"
+}
+
+public procedure RunDynamicOverrideAndCallBoundary(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    let impl: AttributeDynamicDispatchImpl = AttributeDynamicDispatchImpl { }
+    let value: i32 = impl~>evaluate(6)
+    let boundary_value: i32 = AttributeDynamicBoundaryCaller(6)
+    let value_log: i32 = [[log(label: "observed-attributes-dynamic-override-boundary", expected: 10)]] value
+    let boundary_value_log: i32 = [[log(label: "observed-attributes-dynamic-call-boundary-runtime", expected: 7)]] boundary_value
+
+    let no_propagation_marker: string@View = [[log(label: "attributes-dynamic-call-boundary-no-propagation", expected: "call-boundary")]] "call-boundary"
+
+    let atr_030: string@View = [[log(label: "attributes-dynamic-feature-030", expected: "ATR-030")]] "ATR-030"
+    let atr_031: string@View = [[log(label: "attributes-dynamic-feature-031", expected: "ATR-031")]] "ATR-031"
+
+    let runtime_ok: bool =
+        (value_log == 10) &&
+        (boundary_value_log == 7) &&
+        (no_propagation_marker == "call-boundary") &&
+        (atr_030 == "ATR-030") &&
+        (atr_031 == "ATR-031")
+    let runtime_ok_log: bool = [[log(label: "attributes-dynamic-override-boundary-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 17 } else { 0 }
+    let metric_label: string@View = DynamicOverrideAndCallBoundaryMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-attributes-dynamic-override-call-boundary-metric", expected: "17")]] metric_label
+    if (metric_log_actual != "17") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}
+

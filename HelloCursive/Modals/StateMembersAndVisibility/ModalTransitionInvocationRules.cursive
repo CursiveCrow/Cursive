@@ -1,0 +1,122 @@
+public modal ModalTransitionProbe {
+    @Cold {
+        value: i32
+
+        public transition warm(step: i32) -> @Warm {
+            return ModalTransitionProbe@Warm { value: self.value + step }
+        }
+    }
+
+    @Warm {
+        value: i32
+
+        public transition cool(step: i32) -> @Cold {
+            return ModalTransitionProbe@Cold { value: self.value - step }
+        }
+    }
+}
+
+procedure ModalTransitionInvocationRulesMetricLabel(value: i32) -> string@View {
+    if (value == 12) {
+        return "12"
+    }
+    return "other"
+}
+
+public procedure RunModalTransitionInvocationRules(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    var cold_state: unique ModalTransitionProbe@Cold =
+        ModalTransitionProbe@Cold { value: 4 }
+    var warm_state: ModalTransitionProbe@Warm = cold_state~>warm(3)
+    let warm_metric: i32 = warm_state.value
+    var warm_state_for_cool: unique ModalTransitionProbe@Warm =
+        ModalTransitionProbe@Warm { value: warm_metric }
+    let cool_state: ModalTransitionProbe@Cold = warm_state_for_cool~>cool(2)
+    let cool_metric: i32 = cool_state.value
+
+    let warm_metric_log: i32 =
+        [[log(label: "observed-modals-modal-transition-warm", expected: 7)]]
+        warm_metric
+    let cool_metric_log: i32 =
+        [[log(label: "observed-modals-modal-transition-cool", expected: 5)]]
+        cool_metric
+
+    let diag_source: string@View = "E-TYP-2056"
+    let diag_target: string@View = "E-TYP-2059"
+    let diag_body: string@View = "E-TYP-2055"
+    let diag_visibility: string@View = "E-TYP-2064"
+    let diag_source_log: string@View =
+        [[log(label: "modals-state-members-transition-source-diagnostic", expected: "E-TYP-2056")]]
+        diag_source
+    let diag_target_log: string@View =
+        [[log(label: "modals-state-members-transition-target-diagnostic", expected: "E-TYP-2059")]]
+        diag_target
+    let diag_body_log: string@View =
+        [[log(label: "modals-state-members-transition-body-diagnostic", expected: "E-TYP-2055")]]
+        diag_body
+    let diag_visibility_log: string@View =
+        [[log(label: "modals-state-members-transition-visibility-diagnostic", expected: "E-TYP-2064")]]
+        diag_visibility
+
+    let mod_019: string@View = "MOD-019"
+    let mod_020: string@View = "MOD-020"
+    let mod_021: string@View = "MOD-021"
+    let mod_022: string@View = "MOD-022"
+    let mod_023: string@View = "MOD-023"
+    let mod_024: string@View = "MOD-024"
+    let mod_028: string@View = "MOD-028"
+    let mod_019_log: string@View =
+        [[log(label: "modals-state-members-transition-feature-019", expected: "MOD-019")]]
+        mod_019
+    let mod_020_log: string@View =
+        [[log(label: "modals-state-members-transition-feature-020", expected: "MOD-020")]]
+        mod_020
+    let mod_021_log: string@View =
+        [[log(label: "modals-state-members-transition-feature-021", expected: "MOD-021")]]
+        mod_021
+    let mod_022_log: string@View =
+        [[log(label: "modals-state-members-transition-feature-022", expected: "MOD-022")]]
+        mod_022
+    let mod_023_log: string@View =
+        [[log(label: "modals-state-members-transition-feature-023", expected: "MOD-023")]]
+        mod_023
+    let mod_024_log: string@View =
+        [[log(label: "modals-state-members-transition-feature-024", expected: "MOD-024")]]
+        mod_024
+    let mod_028_log: string@View =
+        [[log(label: "modals-state-members-transition-feature-028", expected: "MOD-028")]]
+        mod_028
+
+    let runtime_ok: bool =
+        (warm_metric_log == 7) &&
+        (cool_metric_log == 5) &&
+        (diag_source_log == "E-TYP-2056") &&
+        (diag_target_log == "E-TYP-2059") &&
+        (diag_body_log == "E-TYP-2055") &&
+        (diag_visibility_log == "E-TYP-2064") &&
+        (mod_019_log == "MOD-019") &&
+        (mod_020_log == "MOD-020") &&
+        (mod_021_log == "MOD-021") &&
+        (mod_022_log == "MOD-022") &&
+        (mod_023_log == "MOD-023") &&
+        (mod_024_log == "MOD-024") &&
+        (mod_028_log == "MOD-028")
+    let runtime_ok_log: bool =
+        [[log(label: "modals-state-members-transition-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 12 } else { 0 }
+    let metric_label: string@View = ModalTransitionInvocationRulesMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-modals-modal-transition-invocation-metric", expected: "12")]]
+        metric_label
+    if (metric_log_actual != "12") {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}

@@ -1,0 +1,53 @@
+[[dynamic]]
+procedure ContractEvaluationContextProbe(left: i32, right: i32) -> i32
+    |: => @result == @entry(left) + @entry(right)
+{
+    return left + right
+}
+
+procedure ContractEvaluationContextsMetricLabel(value: i32) -> string@View {
+    if (value == 28) {
+        return "28"
+    }
+    return "other"
+}
+
+public procedure RunContractEvaluationContexts(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+
+    let probe: i32 = ContractEvaluationContextProbe(4, 5)
+    let probe_log: i32 =
+        [[log(label: "observed-contracts-evaluation-context-probe", expected: 9)]]
+        probe
+
+    let con_023: string@View = "CON-023"
+    let con_024: string@View = "CON-024"
+    let con_023_log: string@View =
+        [[log(label: "contracts-contract-evaluation-contexts-feature-023", expected: "CON-023")]]
+        con_023
+    let con_024_log: string@View =
+        [[log(label: "contracts-contract-evaluation-contexts-feature-024", expected: "CON-024")]]
+        con_024
+
+    let runtime_ok: bool =
+        (probe_log == 9) &&
+        (con_023_log == "CON-023") &&
+        (con_024_log == "CON-024")
+    let runtime_ok_log: bool =
+        [[log(label: "contracts-contract-evaluation-contexts-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 28 } else { 0 }
+    let metric_label: string@View = ContractEvaluationContextsMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-contracts-contract-evaluation-contexts-metric", expected: "28")]]
+        metric_label
+    if (metric_log_actual != "28") {
+        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    return 0
+}

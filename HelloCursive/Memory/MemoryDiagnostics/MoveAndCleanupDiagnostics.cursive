@@ -1,0 +1,74 @@
+public record MoveCleanupCarrier {
+    public left: unique i32
+    public right: unique i32
+}
+
+procedure MoveCleanupConsume(move value: i32) -> i32 {
+    return value + 1
+}
+
+procedure MoveCleanupDeferProbe() -> i32 {
+    var metric: i32 = 0
+    {
+        defer {
+            metric = metric + 2
+        }
+        metric = metric + 3
+    }
+    return metric
+}
+
+procedure MoveCleanupDiagnosticsMetricLabel(value: i32) -> string@View {
+    if (value == 30) {
+        return "30"
+    }
+    return "other"
+}
+
+public procedure RunMoveAndCleanupDiagnostics(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "memory-log-item_begin")]]
+
+    let move_source: i32 = 9
+    let move_whole_metric: i32 = MoveCleanupConsume(move move_source)
+
+    let move_carrier: unique MoveCleanupCarrier =
+        MoveCleanupCarrier { left: 2, right: 5 }
+    let move_field_left_metric: i32 = MoveCleanupConsume(move move_carrier.left)
+    let move_field_right_metric: i32 = MoveCleanupConsume(move move_carrier.right)
+
+    let move_literal_metric: i32 = MoveCleanupConsume(4)
+    let cleanup_metric: i32 = MoveCleanupDeferProbe()
+    let address_value: i32 = 11
+    let address_ptr: Ptr<i32>@Valid = &address_value
+    let address_runtime_metric: i32 = *address_ptr
+
+    let move_whole_runtime_ok: bool = move_whole_metric == 10
+    let move_field_runtime_ok: bool =
+        (move_field_left_metric == 3) && (move_field_right_metric == 6)
+    let move_arg_runtime_ok: bool = move_literal_metric == 5
+    let cleanup_runtime_ok: bool = cleanup_metric == 5
+    let address_runtime_ok: bool = address_runtime_metric == 11
+
+    let move_whole_runtime_ok_log: bool =        [[log(label: "memory-diagnostics-move-whole-runtime", expected: true)]]         move_whole_runtime_ok
+    let move_field_runtime_ok_log: bool =        [[log(label: "memory-diagnostics-move-field-runtime", expected: true)]]         move_field_runtime_ok
+    let move_arg_runtime_ok_log: bool =        [[log(label: "memory-diagnostics-call-move-runtime", expected: true)]]         move_arg_runtime_ok
+    let cleanup_runtime_ok_log: bool =        [[log(label: "memory-diagnostics-defer-cleanup-runtime", expected: true)]]         cleanup_runtime_ok
+    let address_runtime_ok_log: bool =        [[log(label: "memory-diagnostics-addr-of-place-runtime", expected: true)]]         address_runtime_ok
+
+    let metric_ok: bool = (move_whole_runtime_ok_log == true) &&
+        (move_field_runtime_ok_log == true) &&
+        (move_arg_runtime_ok_log == true) &&
+        (cleanup_runtime_ok_log == true) &&
+        (address_runtime_ok_log == true)
+    let metric: i32 = if (metric_ok) { 30 } else { 0 }
+    let metric_label: string@View = MoveCleanupDiagnosticsMetricLabel(metric)
+    let metric_log_actual: string@View =        [[log(label: "observed-memory-diagnostics-move-cleanup-metric", expected: "30")]]         metric_label
+    if (metric_log_actual != "30") {
+        [[log(label: "memory-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "memory-log-memory_item_success")]]
+    return 0
+}

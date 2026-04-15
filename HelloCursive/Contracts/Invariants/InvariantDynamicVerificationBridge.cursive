@@ -1,0 +1,54 @@
+record InvariantDynamicVerificationBridgeProbe {
+    value: i32
+} |: { self.value >= 0 }
+
+[[dynamic]]
+procedure InvariantDynamicBridge(value: i32) -> i32
+    |: => @result >= 0
+{
+    let probe: InvariantDynamicVerificationBridgeProbe =
+        InvariantDynamicVerificationBridgeProbe { value: value + 1 }
+    return probe.value
+}
+
+procedure InvariantDynamicVerificationBridgeMetricLabel(value: i32) -> string@View {
+    if (value == 21) {
+        return "21"
+    }
+    return "other"
+}
+
+public procedure RunInvariantDynamicVerificationBridge(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+
+    let probe: i32 = InvariantDynamicBridge(6)
+    let probe_log: i32 =
+        [[log(label: "observed-contracts-invariant-dynamic-bridge-probe", expected: 7)]]
+        probe
+
+    let con_044: string@View = "CON-044"
+    let con_044_log: string@View =
+        [[log(label: "contracts-invariant-dynamic-verification-bridge-feature-044", expected: "CON-044")]]
+        con_044
+
+    let runtime_ok: bool =
+        (probe_log == 7) &&
+        (con_044_log == "CON-044")
+    let runtime_ok_log: bool =
+        [[log(label: "contracts-invariant-dynamic-verification-bridge-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
+    let metric_label: string@View = InvariantDynamicVerificationBridgeMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-contracts-invariant-dynamic-verification-bridge-metric", expected: "21")]]
+        metric_label
+    if (metric_log_actual != "21") {
+        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    return 0
+}

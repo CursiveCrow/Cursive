@@ -1,0 +1,93 @@
+procedure SafePointerStateFormsAcceptExpired(value: Ptr<i32>@Expired) -> i32 {
+    let _ = value
+    return 1
+}
+
+procedure SafePointerStateFormsMetricLabel(value: i32) -> string@View {
+    if (value == 27) {
+        return "27"
+    }
+    return "other"
+}
+
+public procedure RunSafePointerStateForms(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "pointers-log-item_begin")]]
+
+    var cell: i32 = 9
+    let ptr_unqualified: Ptr<i32> = &cell
+    let ptr_valid: Ptr<i32>@Valid = &cell
+    let ptr_general_from_valid: Ptr<i32> = ptr_valid
+
+    let ptr_null: Ptr<i32>@Null = Ptr::null()
+    let ptr_general_from_null: Ptr<i32> = ptr_null
+    let ptr_valid_for_expired: Ptr<i32>@Valid = &cell
+    let ptr_expired: Ptr<i32>@Expired =
+        unsafe { transmute<Ptr<i32>@Valid, Ptr<i32>@Expired>(ptr_valid_for_expired) }
+
+    let valid_read_metric: i32 = *ptr_valid
+    let general_from_valid_metric: i32 = *ptr_general_from_valid
+    let valid_read_metric_log: i32 =
+        [[log(label: "observed-pointers-core-safe-valid-read-value", expected: 9)]]
+        valid_read_metric
+    let general_from_valid_metric_log: i32 =
+        [[log(label: "observed-pointers-core-safe-general-from-valid-read-value", expected: 9)]]
+        general_from_valid_metric
+
+    let ptr_general_shape_ok: bool = ptr_general_from_valid == ptr_general_from_valid
+    let ptr_general_from_null_shape_ok: bool =
+        ptr_general_from_null == ptr_general_from_null
+    let ptr_unqualified_shape_ok: bool = ptr_unqualified == ptr_unqualified
+    let ptr_null_shape_ok: bool = ptr_null == ptr_null
+    let ptr_expired_shape_ok: bool = ptr_expired == ptr_expired
+    let ptr_expired_accept_ok: bool = SafePointerStateFormsAcceptExpired(ptr_expired) == 1
+    let valid_read_ok: bool = valid_read_metric_log == 9
+    let general_from_valid_read_ok: bool = general_from_valid_metric_log == 9
+
+    let valid_read_ok_log: bool =
+        [[log(label: "pointers-core-safe-valid-read", expected: true)]]
+        valid_read_ok
+    let general_from_valid_read_ok_log: bool =
+        [[log(label: "pointers-core-safe-general-from-valid-read", expected: true)]]
+        general_from_valid_read_ok
+    let ptr_general_shape_ok_log: bool =
+        [[log(label: "pointers-core-safe-general-shape", expected: true)]]
+        ptr_general_shape_ok
+    let ptr_general_from_null_shape_ok_log: bool =
+        [[log(label: "pointers-core-safe-general-from-null-shape", expected: true)]]
+        ptr_general_from_null_shape_ok
+    let ptr_unqualified_shape_ok_log: bool =
+        [[log(label: "pointers-core-safe-unqualified-shape", expected: true)]]
+        ptr_unqualified_shape_ok
+    let ptr_null_shape_ok_log: bool =
+        [[log(label: "pointers-core-safe-null-shape", expected: true)]]
+        ptr_null_shape_ok
+    let ptr_expired_shape_ok_log: bool =
+        [[log(label: "pointers-core-safe-expired-shape", expected: true)]]
+        ptr_expired_shape_ok
+    let ptr_expired_accept_ok_log: bool =
+        [[log(label: "pointers-core-safe-expired-accept", expected: true)]]
+        ptr_expired_accept_ok
+
+    let metric_ok: bool =
+        (valid_read_ok_log == true) &&
+        (general_from_valid_read_ok_log == true) &&
+        (ptr_general_shape_ok_log == true) &&
+        (ptr_general_from_null_shape_ok_log == true) &&
+        (ptr_unqualified_shape_ok_log == true) &&
+        (ptr_null_shape_ok_log == true) &&
+        (ptr_expired_shape_ok_log == true) &&
+        (ptr_expired_accept_ok_log == true)
+    let metric: i32 = if (metric_ok) { 27 } else { 0 }
+    let metric_label: string@View = SafePointerStateFormsMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-pointers-core-safe-state-forms-metric", expected: "27")]]
+        metric_label
+    if (metric_log_actual != "27") {
+        [[log(label: "pointers-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "pointers-log-item_success")]]
+    return 0
+}

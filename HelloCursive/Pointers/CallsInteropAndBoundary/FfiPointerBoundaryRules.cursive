@@ -1,0 +1,95 @@
+[[layout(C), ffi_pass_by_value]]
+record PointerFfiPayload {
+    value: i32
+}
+
+[[mangle("hc_pointers_ffi_by_value_impl"), export("C")]]
+public procedure PointerFfiByValueImpl(payload: PointerFfiPayload) -> i32 {
+    return payload.value
+}
+
+[[mangle("hc_pointers_ffi_raw_probe_impl"), export("C")]]
+public procedure PointerFfiRawProbeImpl(ptr: *imm i32) -> i32 {
+    return unsafe { *ptr }
+}
+
+extern "C" {
+    procedure hc_pointers_ffi_by_value_impl(payload: PointerFfiPayload) -> i32
+    procedure hc_pointers_ffi_raw_probe_impl(ptr: *imm i32) -> i32
+}
+
+procedure FfiPointerBoundaryRulesMetricLabel(value: i32) -> string@View {
+    if (value == 17) {
+        return "17"
+    }
+    return "other"
+}
+
+public procedure RunFfiPointerBoundaryRules(ctx: Context) -> i32 {
+    [[log(label: "pointers-log-item_begin")]]
+
+    let payload: PointerFfiPayload = PointerFfiPayload { value: 8 }
+    [[log(label: "pointers-calls-ffi-by-value-call-enter")]]
+    let ffi_by_value_metric: i32 = unsafe {
+        hc_pointers_ffi_by_value_impl(payload)
+    }
+    [[log(label: "pointers-calls-ffi-by-value-call-exit")]]
+
+    let raw_value: i32 = 6
+    let raw_ptr_safe: Ptr<i32>@Valid = &raw_value
+    let raw_ptr: *imm i32 = unsafe { transmute<Ptr<i32>@Valid, *imm i32>(raw_ptr_safe) }
+    [[log(label: "pointers-calls-ffi-raw-call-enter")]]
+    let ffi_raw_metric: i32 = unsafe {
+        hc_pointers_ffi_raw_probe_impl(raw_ptr)
+    }
+    [[log(label: "pointers-calls-ffi-raw-call-exit")]]
+
+    let ffi_by_value_metric_log: i32 =
+        [[log(label: "observed-pointers-calls-ffi-by-value-metric", expected: 8)]]
+        ffi_by_value_metric
+    let ffi_raw_metric_log: i32 =
+        [[log(label: "observed-pointers-calls-ffi-raw-metric", expected: 6)]]
+        ffi_raw_metric
+    let ffi_by_value_ok: bool = ffi_by_value_metric_log == 8
+    let ffi_raw_ok: bool = ffi_raw_metric_log == 6
+    let ffi_by_value_ok_log: bool =
+        [[log(label: "pointers-calls-ffi-runtime-by-value", expected: true)]]
+        ffi_by_value_ok
+    let ffi_raw_ok_log: bool =
+        [[log(label: "pointers-calls-ffi-runtime-raw", expected: true)]]
+        ffi_raw_ok
+
+    let ffi_by_value_pointer_reject_diag: string@View = "E-TYP-2623"
+    let ffi_region_pointer_boundary_contract: string@View =
+        "RawPointerDerivedFromRegionLocalStorageMustNotCrossFfiBoundary"
+
+    let ffi_by_value_pointer_reject_diag_logged: string@View =
+        [[log(label: "pointers-calls-ffi-diag-prohibited-type", expected: "E-TYP-2623")]]
+        ffi_by_value_pointer_reject_diag
+    let ffi_by_value_pointer_reject_diag_ok: bool =
+        ffi_by_value_pointer_reject_diag_logged == "E-TYP-2623"
+    let ffi_region_pointer_boundary_contract_logged: string@View =
+        [[log(label: "pointers-calls-ffi-contract-region-boundary", expected: "RawPointerDerivedFromRegionLocalStorageMustNotCrossFfiBoundary")]]
+        ffi_region_pointer_boundary_contract
+    let ffi_region_pointer_boundary_contract_ok: bool =
+        ffi_region_pointer_boundary_contract_logged ==
+        "RawPointerDerivedFromRegionLocalStorageMustNotCrossFfiBoundary"
+
+    let metric_ok: bool =
+        (ffi_by_value_ok_log == true) &&
+        (ffi_raw_ok_log == true) &&
+        ffi_by_value_pointer_reject_diag_ok &&
+        ffi_region_pointer_boundary_contract_ok
+    let metric: i32 = if (metric_ok) { 17 } else { 0 }
+    let metric_label: string@View = FfiPointerBoundaryRulesMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-pointers-calls-ffi-pointer-boundary-rules-metric", expected: "17")]]
+        metric_label
+    if (metric_log_actual != "17") {
+        [[log(label: "pointers-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "pointers-log-item_success")]]
+    return 0
+}

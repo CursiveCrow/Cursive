@@ -1,0 +1,16 @@
+import linkedstaticdep
+
+public procedure run(ctx: Context) -> i32 {
+    let _ = ctx
+    let contribution_value: i32 = linkedstaticdep::contribution()
+    let contribution_ok: bool = contribution_value == 29
+    let contribution_ok_log: bool =
+        [[log(label: "observed-linkedstatic-contribution", expected: true)]]
+        contribution_ok
+
+    if (contribution_ok_log == false) {
+        return 1
+    }
+
+    return 0
+}

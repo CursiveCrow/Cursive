@@ -1,0 +1,182 @@
+procedure LogLoopExpressionObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure LoopExpressionMetricLabel(value: i32) -> string@View {
+    if (value == 4) {
+        return "4"
+    }
+    if (value == 7) {
+        return "7"
+    }
+    if (value == 10) {
+        return "10"
+    }
+    return "other"
+}
+
+procedure RunLoopExpressionOperationsItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    let detail_begin: string@View = "operation feature item exercise start"
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyLoopExpressionOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    var conditional_counter: i32 = 0
+    var iter_sum: i32 = 0
+    LogLoopExpressionObject(ctx.fs, scope, "conditional_counter", "i32", "constructed", "counter for loop-condition form prepared")
+    LogLoopExpressionObject(ctx.fs, scope, "iter_sum", "i32", "constructed", "accumulator for loop-iterator form prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let loop_syntax_metric: i32 = loop {
+        break 7
+    }
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    loop conditional_counter < 3 {
+        conditional_counter = conditional_counter + 2
+    }
+    let loop_static_metric: i32 = conditional_counter
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let iter_values: [i32; 3] = [1, 2, 3]
+    loop value in iter_values {
+        iter_sum = iter_sum + value
+    }
+    let loop_runtime_metric: i32 = conditional_counter + iter_sum
+    [[log(label: "operations-log-transition_move")]]
+    let syntax_passed: bool = loop_syntax_metric == 7
+    let static_passed: bool = loop_static_metric == 4
+    let runtime_passed: bool = loop_runtime_metric == 10
+
+    let actual_label_1: string@View = LoopExpressionMetricLabel(loop_syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-loop-expression-syntax-metric", expected: "7")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = LoopExpressionMetricLabel(loop_static_metric)
+    let static_passed_log_actual = [[log(label: "observed-loop-expression-static-metric", expected: "4")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = LoopExpressionMetricLabel(loop_runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-loop-expression-runtime-metric", expected: "10")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunLoopExpressionOperationsItem(
+            ctx,
+            scope,
+            "LoopExpressionOperationsSyntaxForms",
+            "loop expression syntax forms including break-with-value loop result",
+            "validated loop-expression syntax forms",
+            "loop-expression-syntax",
+            "parse and evaluate infinite loop with break value",
+            "7",
+            "7",
+            "not-7",
+            move syntax_passed_with_log,
+            "loop-expression syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunLoopExpressionOperationsItem(
+            ctx,
+            scope,
+            "LoopExpressionOperationsStaticSemantics",
+            "conditional loop condition typing and loop-body statement typing",
+            "validated loop-expression static semantics",
+            "loop-expression-static",
+            "type-check conditional loop form and resulting state-carrier type",
+            "4",
+            "4",
+            "not-4",
+            move static_passed_with_log,
+            "loop-expression static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunLoopExpressionOperationsItem(
+            ctx,
+            scope,
+            "LoopExpressionOperationsRuntimeDiagnostics",
+            "runtime loop execution across condition-based and iterator-based loop forms",
+            "validated loop-expression runtime behavior and diagnostics",
+            "loop-expression-runtime",
+            "execute conditional and iterator loop paths and verify runtime aggregate",
+            "10",
+            "10",
+            "not-10",
+            move runtime_passed_with_log,
+            "loop-expression runtime diagnostics check failed"
+        )
+    }
+
+    return RunLoopExpressionOperationsItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown loop-expression operation item",
+        "failed unknown loop-expression operation item",
+        "item-resolution",
+        "resolve loop-expression operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown loop-expression operation item"
+    )
+}
+
+procedure RunLoopExpressionOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::ControlFlowExpressions::LoopExpressionOperations"
+    let checkpoint: string@View = "covered loop expression operations operation items"
+
+    let status_syntax: i32 = VerifyLoopExpressionOperationsItem(ctx, scope, 0, "LoopExpressionOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyLoopExpressionOperationsItem(ctx, scope, 1, "LoopExpressionOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyLoopExpressionOperationsItem(ctx, scope, 2, "LoopExpressionOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

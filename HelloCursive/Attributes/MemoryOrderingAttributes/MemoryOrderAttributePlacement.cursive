@@ -1,0 +1,69 @@
+procedure MemoryOrderAttributePlacementMetricLabel(value: i32) -> string@View {
+    if (value == 50) {
+        return "50"
+    }
+    return "other"
+}
+
+public procedure RunMemoryOrderAttributePlacement(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    var order_slot: shared i32 = 2
+    # order_slot write {
+        let relaxed_base: i32 = [[relaxed]] order_slot
+        let relaxed_next: i32 = relaxed_base + 3
+        order_slot = relaxed_next
+    }
+
+    var read_slot: i32 = 0
+    # order_slot read {
+        let acquire_snapshot: i32 = [[acquire]] order_slot
+        read_slot = acquire_snapshot
+    }
+
+    var release_slot: shared i32 = 3
+    # release_slot write {
+        let release_base: i32 = [[release]] release_slot
+        let release_next: i32 = release_base + 4
+        release_slot = release_next
+    }
+
+    var acqrel_slot: shared i32 = 1
+    # acqrel_slot write {
+        let acqrel_base: i32 = [[acqrel]] acqrel_slot
+        let acqrel_next: i32 = acqrel_base + 5
+        acqrel_slot = acqrel_next
+    }
+
+    let order_slot_log: i32 = [[log(label: "observed-attributes-memory-order-slot", expected: 5)]] order_slot
+    let read_slot_log: i32 = [[log(label: "observed-attributes-memory-order-read", expected: 5)]] read_slot
+    let release_slot_log: i32 = [[log(label: "observed-attributes-memory-order-release", expected: 7)]] release_slot
+    let acqrel_slot_log: i32 = [[log(label: "observed-attributes-memory-order-acqrel", expected: 6)]] acqrel_slot
+
+    let atr_010: string@View = [[log(label: "attributes-memory-order-feature-010", expected: "ATR-010")]] "ATR-010"
+    let atr_050: string@View = [[log(label: "attributes-memory-order-feature-050", expected: "ATR-050")]] "ATR-050"
+    let atr_051: string@View = [[log(label: "attributes-memory-order-feature-051", expected: "ATR-051")]] "ATR-051"
+
+    let runtime_ok: bool =
+        (order_slot_log == 5) &&
+        (read_slot_log == 5) &&
+        (release_slot_log == 7) &&
+        (acqrel_slot_log == 6) &&
+        (atr_010 == "ATR-010") &&
+        (atr_050 == "ATR-050") &&
+        (atr_051 == "ATR-051")
+    let runtime_ok_log: bool = [[log(label: "attributes-memory-order-placement-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 50 } else { 0 }
+    let metric_label: string@View = MemoryOrderAttributePlacementMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-attributes-memory-order-placement-metric", expected: "50")]] metric_label
+    if (metric_log_actual != "50") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}
+

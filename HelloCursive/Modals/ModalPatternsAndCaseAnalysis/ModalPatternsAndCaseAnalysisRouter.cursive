@@ -1,0 +1,24 @@
+public procedure RunGroup(ctx: Context) -> i32 {
+    [[log(label: "modals-log-section_start", expected: "section-start")]] "section-start"
+
+    let status_modal_pattern_syntax_and_typing: i32 = RunModalPatternSyntaxAndTyping(ctx)
+    if (status_modal_pattern_syntax_and_typing != 0) {
+        [[log(label: "modals-log-section_end", expected: "section-end")]] "section-end"
+        return status_modal_pattern_syntax_and_typing
+    }
+
+    let status_modal_if_is_exhaustiveness: i32 = RunModalIfIsExhaustiveness(ctx)
+    if (status_modal_if_is_exhaustiveness != 0) {
+        [[log(label: "modals-log-section_end", expected: "section-end")]] "section-end"
+        return status_modal_if_is_exhaustiveness
+    }
+
+    let status_runtime_modal_pattern_semantics: i32 = RunRuntimeModalPatternSemantics(ctx)
+    if (status_runtime_modal_pattern_semantics != 0) {
+        [[log(label: "modals-log-section_end", expected: "section-end")]] "section-end"
+        return status_runtime_modal_pattern_semantics
+    }
+
+    [[log(label: "modals-log-section_end", expected: "section-end")]] "section-end"
+    return 0
+}

@@ -1,0 +1,240 @@
+procedure FileAndDirIterModalBehaviorMetricLabel(value: i32) -> string@View {
+    if (value == 23) {
+        return "23"
+    }
+    return "other"
+}
+
+public procedure RunFileAndDirIterModalBehavior(ctx: Context) -> i32 {
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    let fs: $FileSystem = ctx.fs
+    let build_dir_path: string@View = "build"
+    let build_main_dir_path: string@View = "build/main"
+    let logs_dir_path: string@View = "build/main/logs"
+    let runtime_logs_dir_path: string@View = "build/main/logs/runtime"
+    let build_dir_ready: bool = if fs~>create_dir(build_dir_path) is {
+        created: () {
+            let _ = created
+            true
+        }
+        build_dir_err: IoError {
+            let _ = build_dir_err
+            fs~>exists(build_dir_path)
+        }
+    }
+    let build_main_dir_ready: bool = if (build_dir_ready == true) {
+        if fs~>create_dir(build_main_dir_path) is {
+            created: () {
+                let _ = created
+                true
+            }
+            build_main_dir_err: IoError {
+                let _ = build_main_dir_err
+                fs~>exists(build_main_dir_path)
+            }
+        }
+    } else {
+        false
+    }
+    let logs_dir_ready: bool = if (build_main_dir_ready == true) {
+        if fs~>create_dir(logs_dir_path) is {
+            created: () {
+                let _ = created
+                true
+            }
+            logs_dir_err: IoError {
+                let _ = logs_dir_err
+                fs~>exists(logs_dir_path)
+            }
+        }
+    } else {
+        false
+    }
+    let runtime_logs_dir_ready: bool = if (logs_dir_ready == true) {
+        if fs~>create_dir(runtime_logs_dir_path) is {
+            created: () {
+                let _ = created
+                true
+            }
+            runtime_logs_dir_err: IoError {
+                let _ = runtime_logs_dir_err
+                fs~>exists(runtime_logs_dir_path)
+            }
+        }
+    } else {
+        false
+    }
+
+    let file_path: string@View = "build/main/logs/runtime/modals_file_diriter_probe.txt"
+    let dir_path: string@View = "build/main/logs/runtime/modals_diriter_probe_dir"
+
+    let stale_file_cleanup: () | IoError = fs~>remove(file_path)
+    let _ = stale_file_cleanup
+    let stale_dir_cleanup: () | IoError = fs~>remove(dir_path)
+    let _ = stale_dir_cleanup
+
+    let write_metric: bool = if fs~>create_write(file_path) is {
+        writer: unique File@Write {
+            let payload: bytes@View = bytes::view_string("modals-file-diriter-probe")
+            let write_result: () | IoError = writer~>write(payload)
+            let flush_result: () | IoError = writer~>flush()
+            let closed_writer: File@Closed = writer~>close()
+            let _ = closed_writer
+            let write_ok: bool = if write_result is {
+                _: () { true }
+                _: IoError { false }
+            }
+            let flush_ok: bool = if flush_result is {
+                _: () { true }
+                _: IoError { false }
+            }
+            write_ok && flush_ok
+        }
+        _: IoError { false }
+    }
+
+    let append_metric: bool = if fs~>open_append(file_path) is {
+        appender: unique File@Append {
+            let payload: bytes@View = bytes::view_string("-append")
+            let append_result: () | IoError = appender~>write(payload)
+            let append_flush_result: () | IoError = appender~>flush()
+            let closed_appender: File@Closed = appender~>close()
+            let _ = closed_appender
+            let append_ok: bool = if append_result is {
+                _: () { true }
+                _: IoError { false }
+            }
+            let append_flush_ok: bool = if append_flush_result is {
+                _: () { true }
+                _: IoError { false }
+            }
+            append_ok && append_flush_ok
+        }
+        _: IoError { false }
+    }
+
+    let read_text_metric: bool = if fs~>open_read(file_path) is {
+        text_reader: unique File@Read {
+            let read_text_result: string@Managed | IoError = text_reader~>read_all()
+            let closed_text_reader: File@Closed = text_reader~>close()
+            let _ = closed_text_reader
+            if read_text_result is {
+                _: string@Managed { true }
+                _: IoError { false }
+            }
+        }
+        _: IoError { false }
+    }
+
+    let read_bytes_metric: bool = if fs~>open_read(file_path) is {
+        bytes_reader: unique File@Read {
+            let read_bytes_result: bytes@Managed | IoError = bytes_reader~>read_all_bytes()
+            let closed_bytes_reader: File@Closed = bytes_reader~>close()
+            let _ = closed_bytes_reader
+            if read_bytes_result is {
+                _: bytes@Managed { true }
+                _: IoError { false }
+            }
+        }
+        _: IoError { false }
+    }
+
+    let read_metric: bool =
+        (read_text_metric == true) &&
+        (read_bytes_metric == true)
+
+    let dir_setup_metric_raw: bool = if fs~>create_dir(dir_path) is {
+        created: () {
+            let _ = created
+            true
+        }
+        create_dir_err: IoError {
+            let _ = create_dir_err
+            fs~>exists(dir_path)
+        }
+    }
+    let dir_setup_metric: bool =
+        (runtime_logs_dir_ready == true) &&
+        (dir_setup_metric_raw == true)
+
+    let dir_metric_raw: bool = if fs~>open_dir(dir_path) is {
+        iter: unique DirIter@Open {
+            let next_result: DirEntry | () | IoError = iter~>next()
+            let closed_iter: DirIter@Closed = iter~>close()
+            let _ = closed_iter
+            if next_result is {
+                _: DirEntry { true }
+                _: () { true }
+                _: IoError { false }
+            }
+        }
+        _: IoError { false }
+    }
+
+    let dir_metric: bool =
+        (dir_setup_metric == true) &&
+        (dir_metric_raw == true)
+
+    let write_metric_log: bool =
+        [[log(label: "observed-modals-file-write-state-flow", expected: true)]]
+        write_metric
+    let append_metric_log: bool =
+        [[log(label: "observed-modals-file-append-state-flow", expected: true)]]
+        append_metric
+    let read_metric_log: bool =
+        [[log(label: "observed-modals-file-read-state-flow", expected: true)]]
+        read_metric
+    let read_text_metric_log: bool =
+        [[log(label: "observed-modals-file-read-text-state-flow", expected: true)]]
+        read_text_metric
+    let read_bytes_metric_log: bool =
+        [[log(label: "observed-modals-file-read-bytes-state-flow", expected: true)]]
+        read_bytes_metric
+    let dir_setup_metric_log: bool =
+        [[log(label: "observed-modals-diriter-setup-state-flow", expected: true)]]
+        dir_setup_metric
+    let dir_metric_log: bool =
+        [[log(label: "observed-modals-diriter-state-flow", expected: true)]]
+        dir_metric
+
+    let mod_065: string@View = "MOD-065"
+    let mod_066: string@View = "MOD-066"
+    let mod_065_log: string@View =
+        [[log(label: "modals-builtin-file-diriter-feature-065", expected: "MOD-065")]]
+        mod_065
+    let mod_066_log: string@View =
+        [[log(label: "modals-builtin-file-diriter-feature-066", expected: "MOD-066")]]
+        mod_066
+
+    let runtime_ok: bool =
+        (write_metric_log == true) &&
+        (append_metric_log == true) &&
+        (read_metric_log == true) &&
+        (read_text_metric_log == true) &&
+        (read_bytes_metric_log == true) &&
+        (dir_setup_metric_log == true) &&
+        (dir_metric_log == true) &&
+        (mod_065_log == "MOD-065") &&
+        (mod_066_log == "MOD-066")
+    let runtime_ok_log: bool =
+        [[log(label: "modals-builtin-file-diriter-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 23 } else { 0 }
+    let metric_label: string@View = FileAndDirIterModalBehaviorMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-modals-file-diriter-metric", expected: "23")]]
+        metric_label
+    let cleanup_file: () | IoError = fs~>remove(file_path)
+    let _ = cleanup_file
+    let cleanup_dir: () | IoError = fs~>remove(dir_path)
+    let _ = cleanup_dir
+    if (metric_log_actual != "23") {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}

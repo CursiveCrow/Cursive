@@ -1,0 +1,72 @@
+[[dynamic]]
+procedure DynamicLockOrderingAndProgressProbe(values: shared [i32; 4], first: usize, second: usize) -> i32 {
+    var first_value: i32 = 0
+    var second_value: i32 = 0
+
+    # values[first] dynamic read {
+        first_value = values[first]
+    }
+    # values[second] dynamic read {
+        second_value = values[second]
+    }
+
+    return first_value + second_value
+}
+
+procedure DynamicLockOrderingAndProgressMetricLabel(value: i32) -> string@View {
+    if (value == 58) {
+        return "58"
+    }
+    return "other"
+}
+
+public procedure RunDynamicLockOrderingAndProgress(ctx: Context) -> i32 {
+    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+
+    let owner: unique [i32; 4] = [2, 4, 6, 8]
+    let shared_values: shared [i32; 4] = owner
+
+    let forward_metric: i32 = DynamicLockOrderingAndProgressProbe(shared_values, 0usize, 3usize)
+    let reverse_metric: i32 = DynamicLockOrderingAndProgressProbe(shared_values, 3usize, 0usize)
+
+    let parallel_metric: i32 = parallel ctx~>cpu() {
+        let worker = spawn {
+            DynamicLockOrderingAndProgressProbe(shared_values, 1usize, 2usize)
+        }
+        wait worker
+    }
+
+    let progress_metric: i32 = parallel ctx~>cpu() {
+        dispatch i in 0usize..4usize [reduce: +] {
+            DynamicLockOrderingAndProgressProbe(shared_values, 0usize, i)
+        }
+    }
+
+    let lock_order_anchor: string@View = "canonical-lock-ordering"
+
+    let forward_metric_log: i32 = [[log(label: "observed-permissions-DynamicLockOrderingAndProgress-forward", expected: 10)]] forward_metric
+    let reverse_metric_log: i32 = [[log(label: "observed-permissions-DynamicLockOrderingAndProgress-reverse", expected: 10)]] reverse_metric
+    let parallel_metric_log: i32 = [[log(label: "observed-permissions-DynamicLockOrderingAndProgress-parallel", expected: 10)]] parallel_metric
+    let progress_metric_log: i32 = [[log(label: "observed-permissions-DynamicLockOrderingAndProgress-progress", expected: 28)]] progress_metric
+    let lock_order_anchor_log: string@View = [[log(label: "permissions-DynamicLockOrderingAndProgress-anchor", expected: "canonical-lock-ordering")]] lock_order_anchor
+
+    let runtime_ok: bool =
+        (forward_metric_log == 10) &&
+        (reverse_metric_log == 10) &&
+        (parallel_metric_log == 10) &&
+        (progress_metric_log == 28) &&
+        (lock_order_anchor_log == "canonical-lock-ordering")
+    let runtime_ok_log: bool = [[log(label: "permissions-DynamicLockOrderingAndProgress-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log) { 58 } else { 0 }
+    let metric_label: string@View = DynamicLockOrderingAndProgressMetricLabel(metric)
+    let metric_label_log: string@View = [[log(label: "observed-permissions-DynamicLockOrderingAndProgress-metric", expected: "58")]] metric_label
+
+    if (metric_label_log != "58") {
+        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    return 0
+}

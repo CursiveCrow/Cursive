@@ -1,0 +1,94 @@
+import ContractSyntaxAndFrontEnd
+import PredicatePurityAndContexts
+import PrePostContracts
+import EntryCaptureAndBinding
+import Invariants
+import VerificationLogicAndRuntimeChecks
+import BehavioralSubtypingContracts
+import ForeignContractsAndTrustBoundaries
+import ContractDiagnostics
+
+procedure ContractsLogGroupStatus(group_name: string@View, status: i32) -> () {
+    [[log(label: "contracts-log-group-name", expected: "group")]] "group"
+    [[log(label: "observed-contracts-group-name")]] group_name
+    [[log(label: "observed-contracts-group-status", expected: 0)]] status
+    return ()
+}
+
+public procedure run(ctx: Context) -> i32 {
+    [[log(label: "contracts-log-section_start", expected: "section-start")]] "section-start"
+    let con_081: string@View = "CON-081"
+    let con_081_log: string@View =
+        [[log(label: "contracts-router-feature-081", expected: "CON-081")]]
+        con_081
+    if (con_081_log != "CON-081") {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return 1
+    }
+
+    let status_syntax: i32 = ContractSyntaxAndFrontEnd::RunGroup(ctx)
+    ContractsLogGroupStatus("contracts::ContractSyntaxAndFrontEnd", status_syntax)
+    if (status_syntax != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_syntax
+    }
+
+    let status_predicate: i32 = PredicatePurityAndContexts::RunGroup(ctx)
+    ContractsLogGroupStatus("contracts::PredicatePurityAndContexts", status_predicate)
+    if (status_predicate != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_predicate
+    }
+
+    let status_prepost: i32 = PrePostContracts::RunGroup(ctx)
+    ContractsLogGroupStatus("contracts::PrePostContracts", status_prepost)
+    if (status_prepost != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_prepost
+    }
+
+    let status_entry: i32 = EntryCaptureAndBinding::RunGroup(ctx)
+    ContractsLogGroupStatus("contracts::EntryCaptureAndBinding", status_entry)
+    if (status_entry != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_entry
+    }
+
+    let status_invariants: i32 = Invariants::RunGroup(ctx)
+    ContractsLogGroupStatus("contracts::Invariants", status_invariants)
+    if (status_invariants != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_invariants
+    }
+
+    let status_verification: i32 = VerificationLogicAndRuntimeChecks::RunGroup(ctx)
+    ContractsLogGroupStatus("contracts::VerificationLogicAndRuntimeChecks", status_verification)
+    if (status_verification != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_verification
+    }
+
+    let status_behavioral: i32 = BehavioralSubtypingContracts::RunGroup(ctx)
+    ContractsLogGroupStatus("contracts::BehavioralSubtypingContracts", status_behavioral)
+    if (status_behavioral != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_behavioral
+    }
+
+    let status_foreign: i32 = ForeignContractsAndTrustBoundaries::RunGroup(ctx)
+    ContractsLogGroupStatus("contracts::ForeignContractsAndTrustBoundaries", status_foreign)
+    if (status_foreign != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_foreign
+    }
+
+    let status_diagnostics: i32 = ContractDiagnostics::RunGroup(ctx)
+    ContractsLogGroupStatus("contracts::ContractDiagnostics", status_diagnostics)
+    if (status_diagnostics != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_diagnostics
+    }
+
+    [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+    return 0
+}

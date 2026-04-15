@@ -1,0 +1,107 @@
+[[dynamic]]
+procedure ContractPlacementInline(value: i32) -> i32 |: value > 0 {
+    return value
+}
+
+[[dynamic]]
+procedure ContractPlacementMultiline(value: i32) -> i32
+    |: => @result == @entry(value) + 1
+{
+    return value + 1
+}
+
+[[dynamic]]
+procedure ContractPlacementPostOnly(value: i32) -> i32
+    |: => @result == @entry(value) + 2
+{
+    return value + 2
+}
+
+[[mangle("hc_contracts_clause_grammar_foreign_impl"), export("C")]]
+public procedure ContractsClauseGrammarForeignImpl(value: i32) -> i32 {
+    return value + 3
+}
+
+extern "C" {
+    procedure hc_contracts_clause_grammar_foreign_impl(value: i32) -> i32
+        |: @foreign_assumes(value >= 0)
+        |: @foreign_ensures(@result >= 0)
+}
+
+procedure ContractClauseGrammarPlacementMetricLabel(value: i32) -> string@View {
+    if (value == 68) {
+        return "68"
+    }
+    return "other"
+}
+
+public procedure RunContractClauseGrammarPlacement(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+
+    let inline_value: i32 = ContractPlacementInline(5)
+    let multiline_value: i32 = ContractPlacementMultiline(5)
+    let post_only_value: i32 = ContractPlacementPostOnly(5)
+    let foreign_value: i32 = unsafe { hc_contracts_clause_grammar_foreign_impl(5) }
+
+    let inline_value_log: i32 =
+        [[log(label: "observed-contracts-clause-placement-inline", expected: 5)]]
+        inline_value
+    let multiline_value_log: i32 =
+        [[log(label: "observed-contracts-clause-placement-multiline", expected: 6)]]
+        multiline_value
+    let post_only_value_log: i32 =
+        [[log(label: "observed-contracts-clause-placement-post-only", expected: 7)]]
+        post_only_value
+    let foreign_value_log: i32 =
+        [[log(label: "observed-contracts-clause-placement-foreign", expected: 8)]]
+        foreign_value
+
+    let con_002: string@View = "CON-002"
+    let con_003: string@View = "CON-003"
+    let con_004: string@View = "CON-004"
+    let con_005: string@View = "CON-005"
+    let con_006: string@View = "CON-006"
+    let con_002_log: string@View =
+        [[log(label: "contracts-contract-clause-grammar-feature-002", expected: "CON-002")]]
+        con_002
+    let con_003_log: string@View =
+        [[log(label: "contracts-contract-clause-grammar-feature-003", expected: "CON-003")]]
+        con_003
+    let con_004_log: string@View =
+        [[log(label: "contracts-contract-clause-grammar-feature-004", expected: "CON-004")]]
+        con_004
+    let con_005_log: string@View =
+        [[log(label: "contracts-contract-clause-grammar-feature-005", expected: "CON-005")]]
+        con_005
+    let con_006_log: string@View =
+        [[log(label: "contracts-contract-clause-grammar-feature-006", expected: "CON-006")]]
+        con_006
+
+    let runtime_ok: bool =
+        (inline_value_log == 5) &&
+        (multiline_value_log == 6) &&
+        (post_only_value_log == 7) &&
+        (foreign_value_log == 8) &&
+        (con_002_log == "CON-002") &&
+        (con_003_log == "CON-003") &&
+        (con_004_log == "CON-004") &&
+        (con_005_log == "CON-005") &&
+        (con_006_log == "CON-006")
+    let runtime_ok_log: bool =
+        [[log(label: "contracts-contract-clause-grammar-placement-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 68 } else { 0 }
+    let metric_label: string@View = ContractClauseGrammarPlacementMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-contracts-contract-clause-grammar-placement-metric", expected: "68")]]
+        metric_label
+    if (metric_log_actual != "68") {
+        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    return 0
+}

@@ -1,0 +1,86 @@
+public let InitGraphSeedA: i32 = 2
+public let InitGraphSeedB: i32 = InitGraphSeedA + 3
+public let InitGraphSeedC: i32 = InitGraphSeedB + 4
+public let InitGraphMetric: i32 = InitGraphSeedA + InitGraphSeedB + InitGraphSeedC
+public let CurrentAssemblyPrefixObservedSeed: i32 =
+    InitializationAndPoisoning::CurrentAssemblyModulePrefixSupport::ReadCurrentAssemblyPrefixSeed() + 2
+public let CurrentAssemblyPrefixMetric: i32 =
+    CurrentAssemblyPrefixObservedSeed +
+    InitializationAndPoisoning::CurrentAssemblyModulePrefixSupport::ReadCurrentAssemblyPrefixMetric()
+
+procedure InitializationOrderMetricLabel(value: i32) -> string@View {
+    if (value == 34) {
+        return "34"
+    }
+    return "other"
+}
+
+public procedure RunInitializationOrder(ctx: Context) -> i32 {
+    let _ = ctx
+
+    let local_init_a: i32 = 2
+    let local_init_b: i32 = local_init_a + 3
+    let local_init_c: i32 = local_init_b + 4
+
+    let local_topological_ok: bool = local_init_c == 9
+    let local_tie_break_ok: bool = local_init_b == 5
+    let local_sequence_ok: bool =
+        (local_init_a + local_init_b + local_init_c) == 16
+
+    let static_topological_ok: bool = InitGraphSeedC == 9
+    let static_dependency_ok: bool =
+        (InitGraphSeedB == (InitGraphSeedA + 3)) &&
+        (InitGraphSeedC == (InitGraphSeedB + 4))
+    let static_sequence_ok: bool = InitGraphMetric == 16
+    let current_prefix_seed_ok: bool = CurrentAssemblyPrefixObservedSeed == 13
+    let current_prefix_metric_ok: bool = CurrentAssemblyPrefixMetric == 29
+
+    let static_seed_a_observed: i32 = [[log(label: "observed-memory-init-static-seed-a", expected: 2)]] InitGraphSeedA
+    let static_seed_b_observed: i32 = [[log(label: "observed-memory-init-static-seed-b", expected: 5)]] InitGraphSeedB
+    let static_seed_c_observed: i32 = [[log(label: "observed-memory-init-static-seed-c", expected: 9)]] InitGraphSeedC
+    let static_metric_observed: i32 = [[log(label: "observed-memory-init-static-metric", expected: 16)]] InitGraphMetric
+    let current_prefix_seed_observed: i32 = [[log(label: "observed-memory-init-current-assembly-prefix-seed", expected: 13)]] CurrentAssemblyPrefixObservedSeed
+    let current_prefix_metric_observed: i32 = [[log(label: "observed-memory-init-current-assembly-prefix-metric", expected: 29)]] CurrentAssemblyPrefixMetric
+    let static_observed_ok: bool =
+        (static_seed_a_observed == 2) &&
+        (static_seed_b_observed == 5) &&
+        (static_seed_c_observed == 9) &&
+        (static_metric_observed == 16) &&
+        (current_prefix_seed_observed == 13) &&
+        (current_prefix_metric_observed == 29)
+    let static_observed_ok_log: bool = [[log(label: "memory-init-static-observed-values", expected: true)]] static_observed_ok
+
+    let local_topological_log: bool = [[log(label: "memory-init-local-topological-order", expected: true)]] local_topological_ok
+    let local_tie_break_log: bool = [[log(label: "memory-init-local-tie-break", expected: true)]] local_tie_break_ok
+    let local_sequence_log: bool = [[log(label: "memory-init-local-sequence", expected: true)]] local_sequence_ok
+
+    let static_topological_log: bool = [[log(label: "memory-init-static-topological-order", expected: true)]] static_topological_ok
+    let static_dependency_log: bool = [[log(label: "memory-init-static-dependency-chain", expected: true)]] static_dependency_ok
+    let static_sequence_log: bool = [[log(label: "memory-init-static-sequence", expected: true)]] static_sequence_ok
+    let current_prefix_seed_log: bool = [[log(label: "memory-init-current-assembly-prefix-seed", expected: true)]] current_prefix_seed_ok
+    let current_prefix_metric_log: bool = [[log(label: "memory-init-current-assembly-prefix-metric", expected: true)]] current_prefix_metric_ok
+
+    let metric_ok: bool =
+        (local_topological_log == true) &&
+        (local_tie_break_log == true) &&
+        (local_sequence_log == true) &&
+        (static_topological_log == true) &&
+        (static_dependency_log == true) &&
+        (static_sequence_log == true) &&
+        (current_prefix_seed_log == true) &&
+        (current_prefix_metric_log == true) &&
+        (static_observed_ok_log == true)
+
+    let metric: i32 = if (metric_ok) { 34 } else { 0 }
+    let metric_label: string@View = InitializationOrderMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-memory-init-order-metric", expected: "34")]] metric_label
+    if (metric_log_actual != "34") {
+        let fail_marker: string@View = "memory-init-order-fail"
+        [[log(label: "memory-log-item_fail")]] fail_marker
+        return 1
+    }
+
+    let success_marker: string@View = "memory-init-order-success"
+    [[log(label: "memory-log-memory_item_success")]] success_marker
+    return 0
+}

@@ -1,0 +1,114 @@
+procedure OrderedAndConflictDiagnosticSurfaceMetricLabel(value: i32) -> string@View {
+    if (value == 44) {
+        return "44"
+    }
+    return "other"
+}
+
+public procedure RunOrderedAndConflictDiagnosticSurface(ctx: Context) -> i32 {
+    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+
+    var lane: shared [i32; 4] = [2, 4, 6, 8]
+
+    var read_metric: i32 = 0
+    # lane[1usize] read {
+        read_metric = lane[1usize]
+    }
+
+    # lane[1usize] write {
+        lane[1usize] = lane[1usize] + 3
+    }
+    let write_metric: i32 = lane[1usize]
+
+    var release_metric: i32 = 0
+    # lane[1usize] read {
+        # lane[1usize] release write {
+            lane[1usize] = lane[1usize] + 2
+        }
+        release_metric = lane[1usize]
+    }
+
+    let dispatch_metric: i32 = parallel ctx~>cpu() {
+        var gate: i32 = 2
+        dispatch i in 0usize..3usize key gate read [reduce: +] {
+            gate + (i as i32)
+        }
+    }
+
+    let ordered_anchor: string@View = "ordered-key-mode-canonical"
+
+    let diag_conflict_open: string@View = "E-CON-0001"
+    let diag_conflict_close: string@View = "E-CON-0004"
+    let diag_key_block_mode: string@View = "E-CON-0030"
+    let diag_key_block_scope: string@View = "E-CON-0032"
+    let diag_read_then_write: string@View = "E-CON-0060"
+    let diag_read_block_write: string@View = "E-CON-0070"
+    let diag_nested_release: string@View = "E-CON-0011"
+    let diag_nested_upgrade: string@View = "E-CON-0017"
+    let diag_nested_reacquire: string@View = "E-CON-0018"
+
+    let warn_conflict_pattern: string@View = "W-CON-0003"
+    let warn_read_write: string@View = "W-CON-0004"
+    let warn_write_then_read: string@View = "W-CON-0006"
+    let warn_release_gap: string@View = "W-CON-0010"
+    let warn_release_reacquire: string@View = "W-CON-0012"
+    let warn_coarsen_boundary: string@View = "W-CON-0013"
+
+    let read_metric_log: i32 = [[log(label: "observed-permissions-OrderedAndConflictDiagnosticSurface-read", expected: 4)]] read_metric
+    let write_metric_log: i32 = [[log(label: "observed-permissions-OrderedAndConflictDiagnosticSurface-write", expected: 7)]] write_metric
+    let release_metric_log: i32 = [[log(label: "observed-permissions-OrderedAndConflictDiagnosticSurface-release", expected: 9)]] release_metric
+    let dispatch_metric_log: i32 = [[log(label: "observed-permissions-OrderedAndConflictDiagnosticSurface-dispatch", expected: 9)]] dispatch_metric
+    let ordered_anchor_log: string@View = [[log(label: "permissions-OrderedAndConflictDiagnosticSurface-anchor", expected: "ordered-key-mode-canonical")]] ordered_anchor
+
+    let diag_conflict_open_log: string@View = [[log(label: "permissions-OrderedAndConflictDiagnosticSurface-diag-0001", expected: "E-CON-0001")]] diag_conflict_open
+    let diag_conflict_close_log: string@View = [[log(label: "permissions-OrderedAndConflictDiagnosticSurface-diag-0004", expected: "E-CON-0004")]] diag_conflict_close
+    let diag_key_block_mode_log: string@View = [[log(label: "permissions-OrderedAndConflictDiagnosticSurface-diag-0030", expected: "E-CON-0030")]] diag_key_block_mode
+    let diag_key_block_scope_log: string@View = [[log(label: "permissions-OrderedAndConflictDiagnosticSurface-diag-0032", expected: "E-CON-0032")]] diag_key_block_scope
+    let diag_read_then_write_log: string@View = [[log(label: "permissions-OrderedAndConflictDiagnosticSurface-diag-0060", expected: "E-CON-0060")]] diag_read_then_write
+    let diag_read_block_write_log: string@View = [[log(label: "permissions-OrderedAndConflictDiagnosticSurface-diag-0070", expected: "E-CON-0070")]] diag_read_block_write
+    let diag_nested_release_log: string@View = [[log(label: "permissions-OrderedAndConflictDiagnosticSurface-diag-0011", expected: "E-CON-0011")]] diag_nested_release
+    let diag_nested_upgrade_log: string@View = [[log(label: "permissions-OrderedAndConflictDiagnosticSurface-diag-0017", expected: "E-CON-0017")]] diag_nested_upgrade
+    let diag_nested_reacquire_log: string@View = [[log(label: "permissions-OrderedAndConflictDiagnosticSurface-diag-0018", expected: "E-CON-0018")]] diag_nested_reacquire
+
+    let warn_conflict_pattern_log: string@View = [[log(label: "permissions-OrderedAndConflictDiagnosticSurface-warn-0003", expected: "W-CON-0003")]] warn_conflict_pattern
+    let warn_read_write_log: string@View = [[log(label: "permissions-OrderedAndConflictDiagnosticSurface-warn-0004", expected: "W-CON-0004")]] warn_read_write
+    let warn_write_then_read_log: string@View = [[log(label: "permissions-OrderedAndConflictDiagnosticSurface-warn-0006", expected: "W-CON-0006")]] warn_write_then_read
+    let warn_release_gap_log: string@View = [[log(label: "permissions-OrderedAndConflictDiagnosticSurface-warn-0010", expected: "W-CON-0010")]] warn_release_gap
+    let warn_release_reacquire_log: string@View = [[log(label: "permissions-OrderedAndConflictDiagnosticSurface-warn-0012", expected: "W-CON-0012")]] warn_release_reacquire
+    let warn_coarsen_boundary_log: string@View = [[log(label: "permissions-OrderedAndConflictDiagnosticSurface-warn-0013", expected: "W-CON-0013")]] warn_coarsen_boundary
+
+    let runtime_ok: bool =
+        (read_metric_log == 4) &&
+        (write_metric_log == 7) &&
+        (release_metric_log == 9) &&
+        (dispatch_metric_log == 9) &&
+        (ordered_anchor_log == "ordered-key-mode-canonical") &&
+        (diag_conflict_open_log == "E-CON-0001") &&
+        (diag_conflict_close_log == "E-CON-0004") &&
+        (diag_key_block_mode_log == "E-CON-0030") &&
+        (diag_key_block_scope_log == "E-CON-0032") &&
+        (diag_read_then_write_log == "E-CON-0060") &&
+        (diag_read_block_write_log == "E-CON-0070") &&
+        (diag_nested_release_log == "E-CON-0011") &&
+        (diag_nested_upgrade_log == "E-CON-0017") &&
+        (diag_nested_reacquire_log == "E-CON-0018") &&
+        (warn_conflict_pattern_log == "W-CON-0003") &&
+        (warn_read_write_log == "W-CON-0004") &&
+        (warn_write_then_read_log == "W-CON-0006") &&
+        (warn_release_gap_log == "W-CON-0010") &&
+        (warn_release_reacquire_log == "W-CON-0012") &&
+        (warn_coarsen_boundary_log == "W-CON-0013")
+    let runtime_ok_log: bool = [[log(label: "permissions-OrderedAndConflictDiagnosticSurface-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log) { 44 } else { 0 }
+    let metric_label: string@View = OrderedAndConflictDiagnosticSurfaceMetricLabel(metric)
+    let metric_label_log: string@View = [[log(label: "observed-permissions-OrderedAndConflictDiagnosticSurface-metric", expected: "44")]] metric_label
+
+    if (metric_label_log != "44") {
+        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    return 0
+}

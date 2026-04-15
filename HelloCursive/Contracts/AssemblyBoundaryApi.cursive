@@ -1,0 +1,32 @@
+[[dynamic]]
+procedure ContractsBoundaryDoubleImpl(input: i32) -> i32
+    |: => @entry(input) * 2 == @result
+{
+    return input * 2
+}
+
+[[dynamic]]
+procedure ContractsBoundaryShiftImpl(input: i32) -> i32
+    |: input >= 0 => @result == input + 1
+{
+    return input + 1
+}
+
+public procedure ContractsBoundaryMetric() -> i32 {
+    let probe_value: i32 = ContractsBoundaryShiftImpl(4)
+    if (probe_value == 5) {
+        return 1
+    }
+    return 0
+}
+
+public procedure ContractsBoundaryDouble(input: i32) -> i32 {
+    return ContractsBoundaryDoubleImpl(input)
+}
+
+[[dynamic]]
+public procedure ContractsBoundaryShift(input: i32) -> i32
+    |: input >= 0 => @result == input + 1
+{
+    return ContractsBoundaryShiftImpl(input)
+}

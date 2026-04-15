@@ -1,0 +1,98 @@
+[[dynamic]]
+procedure ContractAstPreOnly(value: i32) -> i32
+    |: value >= 0
+{
+    return value
+}
+
+[[dynamic]]
+procedure ContractAstPostOnly(value: i32) -> i32
+    |: => @result == @entry(value) + 1
+{
+    return value + 1
+}
+
+[[dynamic]]
+procedure ContractAstPrePost(value: i32) -> i32
+    |: => @result >= @entry(value)
+{
+    return value + 2
+}
+
+record ContractAstInvariantProbe {
+    value: i32
+} |: { self.value >= 0 }
+
+[[mangle("hc_contracts_ast_forms_foreign_impl"), export("C")]]
+public procedure ContractsAstFormsForeignImpl(value: i32) -> i32 {
+    return value + 3
+}
+
+extern "C" {
+    procedure hc_contracts_ast_forms_foreign_impl(value: i32) -> i32
+        |: @foreign_assumes(value >= 0)
+        |: @foreign_ensures(@result >= 0)
+}
+
+procedure ContractAstFormsMetricLabel(value: i32) -> string@View {
+    if (value == 52) {
+        return "52"
+    }
+    return "other"
+}
+
+public procedure RunContractAstForms(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+
+    let pre_only: i32 = ContractAstPreOnly(4)
+    let post_only: i32 = ContractAstPostOnly(4)
+    let pre_post: i32 = ContractAstPrePost(4)
+    let invariant_probe: ContractAstInvariantProbe = ContractAstInvariantProbe { value: 5 }
+    let foreign_value: i32 = unsafe { hc_contracts_ast_forms_foreign_impl(6) }
+
+    let pre_only_log: i32 =
+        [[log(label: "observed-contracts-ast-pre-only", expected: 4)]]
+        pre_only
+    let post_only_log: i32 =
+        [[log(label: "observed-contracts-ast-post-only", expected: 5)]]
+        post_only
+    let pre_post_log: i32 =
+        [[log(label: "observed-contracts-ast-pre-post", expected: 6)]]
+        pre_post
+    let invariant_log: i32 =
+        [[log(label: "observed-contracts-ast-invariant-value", expected: 5)]]
+        invariant_probe.value
+    let foreign_value_log: i32 =
+        [[log(label: "observed-contracts-ast-foreign-value", expected: 9)]]
+        foreign_value
+
+    let con_001: string@View = "CON-001"
+    let con_001_log: string@View =
+        [[log(label: "contracts-contract-ast-forms-feature-001", expected: "CON-001")]]
+        con_001
+
+    let runtime_ok: bool =
+        (pre_only_log == 4) &&
+        (post_only_log == 5) &&
+        (pre_post_log == 6) &&
+        (invariant_log == 5) &&
+        (foreign_value_log == 9) &&
+        (con_001_log == "CON-001")
+    let runtime_ok_log: bool =
+        [[log(label: "contracts-contract-ast-forms-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 52 } else { 0 }
+    let metric_label: string@View = ContractAstFormsMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-contracts-contract-ast-forms-metric", expected: "52")]]
+        metric_label
+    if (metric_log_actual != "52") {
+        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    return 0
+}

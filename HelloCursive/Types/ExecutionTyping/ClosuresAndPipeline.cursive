@@ -1,0 +1,290 @@
+procedure AddOne(value: i32) -> i32 {
+    return value + 1
+}
+
+procedure MultiplyTwo(value: i32) -> i32 {
+    return value * 2
+}
+
+procedure ClosureReturnValue(flag: bool) -> i32 {
+    if (flag) {
+        return 3
+    }
+    return 0
+}
+
+procedure LogClosuresObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "types-log-object")]]
+}
+
+procedure RunClosuresAndPipelineItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    let detail_begin: string@View = "type feature item exercise start"
+    [[log(label: "types-log-item_begin")]]
+    let phase_running: string@View = "running"
+    let phase_step_begin: string@View = "step-begin"
+    let phase_step_pass: string@View = "step-pass"
+    let phase_step_fail: string@View = "step-fail"
+    let reason_pass: string@View = "expected output aligned with actual output"
+    let reason_fail: string@View = "expected output did not align with actual output"
+    let passed_place: bool = passed
+
+    [[log(label: "types-log-runtime_phase")]]
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "types-log-transition")]]
+        [[log(label: "types-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "types-log-transition")]]
+    [[log(label: "types-log-types_item_success")]]
+    return 0
+}
+
+procedure ClosuresMetricLabel(value: i32) -> string@View {
+    if (value == 0) {
+        return "0"
+    }
+    if (value == 3) {
+        return "3"
+    }
+    if (value == 5) {
+        return "5"
+    }
+    if (value == 7) {
+        return "7"
+    }
+    if (value == 8) {
+        return "8"
+    }
+    if (value == 10) {
+        return "10"
+    }
+    return "other"
+}
+
+procedure VerifyClosuresAndPipelineItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "types-log-runtime_phase_move")]]
+    let capture_source: i32 = 5
+    let capture_closure = |input: i32| -> i32 {
+        input + capture_source
+    }
+    LogClosuresObject(ctx.fs, scope, "capture_source", "i32", "constructed", "closure capture source binding prepared")
+    LogClosuresObject(ctx.fs, scope, "capture_closure", "|i32|->i32", "constructed", "closure literal with lexical capture prepared")
+
+    [[log(label: "types-log-runtime_phase_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let closure_capture_metric: i32 = capture_closure(2)
+    [[log(label: "types-log-transition_move")]]
+    let inferred_input: i32 = 4
+    let inferred_param_closure: (i32) -> i32 = |value| {
+        value + 1
+    }
+    LogClosuresObject(ctx.fs, scope, "inferred_param_closure", "|i32|->i32", "constructed", "closure literal with inferred parameter type prepared")
+    [[log(label: "types-log-transition_move")]]
+    let closure_param_metric: i32 = inferred_param_closure(inferred_input)
+    [[log(label: "types-log-transition_move")]]
+    let closure_return_gate: bool = true
+    let inferred_return_closure = |flag: bool| ClosureReturnValue(flag)
+    LogClosuresObject(ctx.fs, scope, "inferred_return_closure", "|bool|->i32", "constructed", "closure literal with inferred return type prepared")
+    [[log(label: "types-log-transition_move")]]
+    let closure_return_metric: i32 = inferred_return_closure(closure_return_gate)
+    [[log(label: "types-log-transition_move")]]
+    let stage1_input: i32 = 3
+    let stage_one_fn: (i32) -> i32 = AddOne
+    let stage_two_fn: (i32) -> i32 = MultiplyTwo
+    LogClosuresObject(ctx.fs, scope, "pipeline_stage_pair", "(i32)->i32 x2", "constructed", "pipeline stage callables prepared")
+    [[log(label: "types-log-transition_move")]]
+    let pipeline_io_metric: i32 = stage1_input => AddOne => MultiplyTwo
+    [[log(label: "types-log-transition_move")]]
+    let pipeline_stage_seed: i32 = 4
+    LogClosuresObject(ctx.fs, scope, "pipeline_stage_seed", "i32", "constructed", "pipeline stage compatibility seed prepared")
+    [[log(label: "types-log-transition_move")]]
+    let pipeline_stage_metric: i32 = pipeline_stage_seed => AddOne => MultiplyTwo
+    [[log(label: "types-log-transition_move")]]
+    let observed_capture_step: string@View = "observed-closure-capture-metric"
+    let observed_param_step: string@View = "observed-closure-param-metric"
+    let observed_return_step: string@View = "observed-closure-return-metric"
+    let observed_pipeline_io_step: string@View = "observed-pipeline-io-metric"
+    let observed_pipeline_stage_step: string@View = "observed-pipeline-stage-metric"
+    let expected_capture: string@View = "7"
+    let expected_param: string@View = "5"
+    let expected_return: string@View = "3"
+    let expected_pipeline_io: string@View = "8"
+    let expected_pipeline_stage: string@View = "10"
+    let capture_metric_label: string@View = ClosuresMetricLabel(closure_capture_metric)
+    let param_metric_label: string@View = ClosuresMetricLabel(closure_param_metric)
+    let return_metric_label: string@View = ClosuresMetricLabel(closure_return_metric)
+    let pipeline_io_metric_label: string@View = ClosuresMetricLabel(pipeline_io_metric)
+    let pipeline_stage_metric_label: string@View = ClosuresMetricLabel(pipeline_stage_metric)
+    let capture_metric_passed: bool = closure_capture_metric == 7
+    let param_metric_passed: bool = closure_param_metric == 5
+    let return_metric_passed: bool = closure_return_metric == 3
+    let pipeline_io_metric_passed: bool = pipeline_io_metric == 8
+    let pipeline_stage_metric_passed: bool = pipeline_stage_metric == 10
+
+    let capture_metric_passed_log_actual = [[log(label: "observed-closure-capture-metric", expected: "7")]] capture_metric_label
+    let capture_metric_passed_with_log: bool = capture_metric_passed && (capture_metric_passed_log_actual == expected_capture)
+    let param_metric_passed_log_actual = [[log(label: "observed-closure-param-metric", expected: "5")]] param_metric_label
+    let param_metric_passed_with_log: bool = param_metric_passed && (param_metric_passed_log_actual == expected_param)
+    let return_metric_passed_log_actual = [[log(label: "observed-closure-return-metric", expected: "3")]] return_metric_label
+    let return_metric_passed_with_log: bool = return_metric_passed && (return_metric_passed_log_actual == expected_return)
+    let pipeline_io_metric_passed_log_actual = [[log(label: "observed-pipeline-io-metric", expected: "8")]] pipeline_io_metric_label
+    let pipeline_io_metric_passed_with_log: bool = pipeline_io_metric_passed && (pipeline_io_metric_passed_log_actual == expected_pipeline_io)
+    let pipeline_stage_metric_passed_log_actual = [[log(label: "observed-pipeline-stage-metric", expected: "10")]] pipeline_stage_metric_label
+    let pipeline_stage_metric_passed_with_log: bool = pipeline_stage_metric_passed && (pipeline_stage_metric_passed_log_actual == expected_pipeline_stage)
+    [[log(label: "types-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunClosuresAndPipelineItem(
+            ctx,
+            scope,
+            "ClosureCaptureModes",
+            "capture behavior for const/unique/shared contexts and move captures",
+            "validated closure capture modes",
+            "closure-capture",
+            "evaluate closure lexical capture over outer binding",
+            "7",
+            "7",
+            "not-7",
+            move capture_metric_passed_with_log,
+            "closure capture modes check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunClosuresAndPipelineItem(
+            ctx,
+            scope,
+            "ClosureParameterInference",
+            "closure parameter type inference under expected-call context",
+            "validated closure parameter inference",
+            "closure-param-inference",
+            "infer closure parameter input from local initializer context",
+            "5",
+            "5",
+            "not-5",
+            move param_metric_passed_with_log,
+            "closure parameter inference check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunClosuresAndPipelineItem(
+            ctx,
+            scope,
+            "ClosureReturnInference",
+            "closure return type inference and explicit annotation boundaries",
+            "validated closure return inference",
+            "closure-return-inference",
+            "evaluate inferred return type across closure conditional body",
+            "3",
+            "3",
+            "not-3",
+            move return_metric_passed_with_log,
+            "closure return inference check failed"
+        )
+    }
+
+    if (item_index == 3) {
+        return RunClosuresAndPipelineItem(
+            ctx,
+            scope,
+            "PipelineInputOutputTyping",
+            "pipeline stage input/output compatibility checks",
+            "validated pipeline input/output typing",
+            "pipeline-io",
+            "feed stage output type into next stage input type",
+            "8",
+            "8",
+            "not-8",
+            move pipeline_io_metric_passed_with_log,
+            "pipeline input/output typing check failed"
+        )
+    }
+
+    if (item_index == 4) {
+        return RunClosuresAndPipelineItem(
+            ctx,
+            scope,
+            "PipelineStageCompatibility",
+            "pipeline composition constraints across intermediate result forms",
+            "validated pipeline stage compatibility",
+            "pipeline-stage-compatibility",
+            "compose multi-stage transformation and validate compatible stage chaining",
+            "10",
+            "10",
+            "not-10",
+            move pipeline_stage_metric_passed_with_log,
+            "pipeline stage compatibility check failed"
+        )
+    }
+
+    return RunClosuresAndPipelineItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown closures/pipeline typing item",
+        "failed unknown closures/pipeline typing item",
+        "item-resolution",
+        "resolve item name within closures/pipeline typing feature set",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown closures/pipeline typing item"
+    )
+}
+
+procedure RunClosuresAndPipeline(ctx: Context) -> i32 {
+    let scope: string@View = "types::ExecutionTyping::ClosuresAndPipeline"
+    let checkpoint: string@View = "covered closures/pipeline typing feature items"
+
+    let status_ClosureCaptureModes: i32 = VerifyClosuresAndPipelineItem(ctx, scope, 0, "ClosureCaptureModes")
+    if (status_ClosureCaptureModes != 0) {
+        return status_ClosureCaptureModes
+    }
+
+    let status_ClosureParameterInference: i32 = VerifyClosuresAndPipelineItem(ctx, scope, 1, "ClosureParameterInference")
+    if (status_ClosureParameterInference != 0) {
+        return status_ClosureParameterInference
+    }
+
+    let status_ClosureReturnInference: i32 = VerifyClosuresAndPipelineItem(ctx, scope, 2, "ClosureReturnInference")
+    if (status_ClosureReturnInference != 0) {
+        return status_ClosureReturnInference
+    }
+
+    let status_PipelineInputOutputTyping: i32 = VerifyClosuresAndPipelineItem(ctx, scope, 3, "PipelineInputOutputTyping")
+    if (status_PipelineInputOutputTyping != 0) {
+        return status_PipelineInputOutputTyping
+    }
+
+    let status_PipelineStageCompatibility: i32 = VerifyClosuresAndPipelineItem(ctx, scope, 4, "PipelineStageCompatibility")
+    if (status_PipelineStageCompatibility != 0) {
+        return status_PipelineStageCompatibility
+    }
+
+    [[log(label: "types-log-checkpoint")]]
+    return 0
+}

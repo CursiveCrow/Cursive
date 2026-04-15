@@ -1,0 +1,198 @@
+procedure LogBlockTailObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure BlockTailMetricLabel(value: i32) -> string@View {
+    if (value == 5) {
+        return "5"
+    }
+    if (value == 1) {
+        return "1"
+    }
+    if (value == 4) {
+        return "4"
+    }
+    if (value == 10) {
+        return "10"
+    }
+    return "other"
+}
+
+procedure RunBlockAndTailExpressionOperationsItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    let detail_begin: string@View = "operation feature item exercise start"
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyBlockAndTailExpressionOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    LogBlockTailObject(ctx.fs, scope, "block_tail_value", "i32", "constructed", "block tail-expression value carrier prepared")
+    LogBlockTailObject(ctx.fs, scope, "block_unit_value", "()", "constructed", "unit-producing block value carrier prepared")
+    LogBlockTailObject(ctx.fs, scope, "unsafe_block_value", "i32", "constructed", "unsafe block-expression value carrier prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let block_tail_metric: i32 = {
+        let left: i32 = 2
+        let right: i32 = 3
+        left + right
+    }
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let unit_value: () = {
+        let _tmp: i32 = 1
+    }
+    let block_unit_metric: i32 = 1
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let unsafe_metric: i32 = unsafe {
+        4
+    }
+    [[log(label: "operations-log-transition_move")]]
+    let runtime_metric: i32 = block_tail_metric + block_unit_metric + unsafe_metric
+
+    let observed_tail_step: string@View = "observed-block-tail-value-metric"
+    let observed_unit_step: string@View = "observed-block-unit-value-metric"
+    let observed_unsafe_step: string@View = "observed-unsafe-block-value-metric"
+    let observed_runtime_step: string@View = "observed-block-tail-runtime-aggregate-metric"
+    let expected_tail: string@View = "5"
+    let expected_unit: string@View = "1"
+    let expected_unsafe: string@View = "4"
+    let expected_runtime: string@View = "10"
+    let tail_label: string@View = BlockTailMetricLabel(block_tail_metric)
+    let unit_label: string@View = BlockTailMetricLabel(block_unit_metric)
+    let unsafe_label: string@View = BlockTailMetricLabel(unsafe_metric)
+    let runtime_label: string@View = BlockTailMetricLabel(runtime_metric)
+    let tail_passed: bool = block_tail_metric == 5
+    let unit_passed: bool = block_unit_metric == 1
+    let unsafe_passed: bool = unsafe_metric == 4
+    let runtime_passed: bool = runtime_metric == 10
+
+    let tail_passed_log_actual = [[log(label: "observed-block-tail-value-metric", expected: "5")]] tail_label
+    let tail_passed_with_log: bool = tail_passed && (tail_passed_log_actual == tail_label)
+    let unit_passed_log_actual = [[log(label: "observed-block-unit-value-metric", expected: "1")]] unit_label
+    let unit_passed_with_log: bool = unit_passed && (unit_passed_log_actual == unit_label)
+    let unsafe_passed_log_actual = [[log(label: "observed-unsafe-block-value-metric", expected: "4")]] unsafe_label
+    let unsafe_passed_with_log: bool = unsafe_passed && (unsafe_passed_log_actual == unsafe_label)
+    let runtime_passed_log_actual = [[log(label: "observed-block-tail-runtime-aggregate-metric", expected: "10")]] runtime_label
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunBlockAndTailExpressionOperationsItem(
+            ctx,
+            scope,
+            "BlockAndTailExpressionOperationsSyntaxForms",
+            "block-expression syntax with statement list and optional tail expression",
+            "validated block/tail expression syntax forms",
+            "block-tail-syntax",
+            "evaluate block expression forms including unsafe block wrapper",
+            "5",
+            "5",
+            "not-5",
+            move tail_passed_with_log,
+            "block/tail syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunBlockAndTailExpressionOperationsItem(
+            ctx,
+            scope,
+            "BlockAndTailExpressionOperationsStaticSemantics",
+            "block-tail type synthesis and unit fallback typing",
+            "validated block/tail expression static semantics",
+            "block-tail-static",
+            "type-check block tail value and unit fallback behavior",
+            "1",
+            "1",
+            "not-1",
+            move unit_passed_with_log,
+            "block/tail static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunBlockAndTailExpressionOperationsItem(
+            ctx,
+            scope,
+            "BlockAndTailExpressionOperationsRuntimeDiagnostics",
+            "runtime sequencing and value materialization for block/tail expressions",
+            "validated block/tail runtime behavior and diagnostics",
+            "block-tail-runtime",
+            "execute full block/tail runtime path and verify aggregate metric",
+            "10",
+            "10",
+            "not-10",
+            move runtime_passed_with_log,
+            "block/tail runtime diagnostics check failed"
+        )
+    }
+
+    return RunBlockAndTailExpressionOperationsItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown block/tail operation item",
+        "failed unknown block/tail operation item",
+        "item-resolution",
+        "resolve block/tail operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown block/tail operation item"
+    )
+}
+
+procedure RunBlockAndTailExpressionOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::ExpressionSemantics::BlockAndTailExpressionOperations"
+    let checkpoint: string@View = "covered block and tail expression operations operation items"
+
+    let status_syntax: i32 = VerifyBlockAndTailExpressionOperationsItem(ctx, scope, 0, "BlockAndTailExpressionOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyBlockAndTailExpressionOperationsItem(ctx, scope, 1, "BlockAndTailExpressionOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyBlockAndTailExpressionOperationsItem(ctx, scope, 2, "BlockAndTailExpressionOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

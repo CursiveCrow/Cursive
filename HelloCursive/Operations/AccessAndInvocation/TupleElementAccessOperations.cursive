@@ -1,0 +1,295 @@
+procedure LogTupleAccessObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure AdvanceTupleAccessOrder(counter: *mut i32, move digit: i32) -> i32 {
+    var counter_mut: *mut i32 = counter
+    let next: i32 = unsafe {
+        let prior: i32 = *counter_mut
+        let advanced: i32 = (prior * 10) + digit
+        *counter_mut = advanced
+        advanced
+    }
+    return next
+}
+
+procedure BuildTupleAccessProbe(counter: *mut i32) -> (i32, i32) {
+    var counter_mut: *mut i32 = counter
+    return (
+        AdvanceTupleAccessOrder(counter_mut, 7),
+        AdvanceTupleAccessOrder(counter_mut, 8)
+    )
+}
+
+procedure EvaluateTupleAccessControlProbe(counter: *mut i32) -> i32 {
+    var counter_mut: *mut i32 = counter
+    let projected: i32 = {
+        if (true) {
+            let _ = AdvanceTupleAccessOrder(counter_mut, 4)
+            return 17
+        }
+        (
+            AdvanceTupleAccessOrder(counter_mut, 5),
+            AdvanceTupleAccessOrder(counter_mut, 6)
+        )
+    }.0
+    unsafe {
+        *counter_mut = 999
+    }
+    return projected
+}
+
+procedure TupleElementMetricLabel(value: i32) -> string@View {
+    if (value == 7) {
+        return "7"
+    }
+    if (value == 8) {
+        return "8"
+    }
+    if (value == 10) {
+        return "10"
+    }
+    if (value == 17) {
+        return "17"
+    }
+    if (value == 156) {
+        return "156"
+    }
+    return "other"
+}
+
+procedure RunTupleElementAccessOperationsItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    let detail_begin: string@View = "operation feature item exercise start"
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyTupleElementAccessOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    let tuple_pair: (i32, i32) = (3, 4)
+    let tuple_nested: ((i32, i32), (i32;)) = ((5, 6), (2;))
+    LogTupleAccessObject(ctx.fs, scope, "tuple_pair", "(i32,i32)", "constructed", "pair tuple source prepared")
+    LogTupleAccessObject(ctx.fs, scope, "tuple_nested", "((i32,i32),(i32;))", "constructed", "nested tuple source prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let tuple_syntax_metric: i32 = tuple_pair.0 + tuple_pair.1
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let tuple_static_metric: i32 = tuple_nested.0.1 + tuple_nested.1.0
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let tuple_runtime_metric: i32 = tuple_pair.0 + tuple_nested.0.0 + tuple_nested.1.0
+    [[log(label: "operations-log-transition_move")]]
+    var tuple_eval_order: i32 = 0
+    let tuple_eval_ptr: Ptr<i32>@Valid = &tuple_eval_order
+    var tuple_eval_raw: *mut i32 =
+        unsafe { transmute<Ptr<i32>@Valid, *mut i32>(tuple_eval_ptr) }
+    let tuple_eval_projected: i32 = BuildTupleAccessProbe(tuple_eval_raw).1
+    let tuple_eval_final: i32 = tuple_eval_order
+    let tuple_eval_metric: i32 = tuple_eval_projected + tuple_eval_final
+    [[log(label: "operations-log-transition_move")]]
+    var tuple_ctrl_order: i32 = 0
+    let tuple_ctrl_ptr: Ptr<i32>@Valid = &tuple_ctrl_order
+    var tuple_ctrl_raw: *mut i32 =
+        unsafe { transmute<Ptr<i32>@Valid, *mut i32>(tuple_ctrl_ptr) }
+    let tuple_ctrl_metric: i32 = EvaluateTupleAccessControlProbe(tuple_ctrl_raw)
+    [[log(label: "operations-log-transition_move")]]
+    let observed_syntax_step: string@View = "observed-tuple-element-syntax-metric"
+    let observed_static_step: string@View = "observed-tuple-element-static-metric"
+    let observed_runtime_step: string@View = "observed-tuple-element-runtime-metric"
+    let observed_eval_step: string@View = "observed-tuple-element-eval-sigma-metric"
+    let observed_ctrl_step: string@View = "observed-tuple-element-control-propagation-metric"
+    let expected_syntax: string@View = "7"
+    let expected_static: string@View = "8"
+    let expected_runtime: string@View = "10"
+    let expected_eval: string@View = "156"
+    let expected_ctrl: string@View = "17"
+    let syntax_label: string@View = TupleElementMetricLabel(tuple_syntax_metric)
+    let static_label: string@View = TupleElementMetricLabel(tuple_static_metric)
+    let runtime_label: string@View = TupleElementMetricLabel(tuple_runtime_metric)
+    let eval_label: string@View = TupleElementMetricLabel(tuple_eval_metric)
+    let ctrl_label: string@View = TupleElementMetricLabel(tuple_ctrl_metric)
+    let syntax_passed: bool = tuple_syntax_metric == 7
+    let static_passed: bool = tuple_static_metric == 8
+    let runtime_passed: bool = tuple_runtime_metric == 10
+    let eval_passed: bool =
+        (tuple_eval_metric == 156) &&
+        (tuple_eval_projected == 78) &&
+        (tuple_eval_final == 78)
+    let ctrl_passed: bool = (tuple_ctrl_metric == 17) && (tuple_ctrl_order == 4)
+
+    let syntax_passed_log_actual = [[log(label: "observed-tuple-element-syntax-metric", expected: "7")]] syntax_label
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == syntax_label)
+    let static_passed_log_actual = [[log(label: "observed-tuple-element-static-metric", expected: "8")]] static_label
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == static_label)
+    let runtime_passed_log_actual = [[log(label: "observed-tuple-element-runtime-metric", expected: "10")]] runtime_label
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
+    let eval_passed_log_actual = [[log(label: "observed-tuple-element-eval-sigma-metric", expected: "156")]] eval_label
+    let eval_passed_with_log: bool = eval_passed && (eval_passed_log_actual == eval_label)
+    let ctrl_passed_log_actual = [[log(label: "observed-tuple-element-control-propagation-metric", expected: "17")]] ctrl_label
+    let ctrl_passed_with_log: bool = ctrl_passed && (ctrl_passed_log_actual == ctrl_label)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunTupleElementAccessOperationsItem(
+            ctx,
+            scope,
+            "TupleElementAccessOperationsSyntaxForms",
+            "tuple element postfix forms `tuple.index` and chained tuple-index parsing",
+            "validated tuple-element-access syntax forms",
+            "tuple-element-syntax",
+            "parse and evaluate tuple positional access forms",
+            "7",
+            "7",
+            "not-7",
+            move syntax_passed_with_log,
+            "tuple-element-access syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunTupleElementAccessOperationsItem(
+            ctx,
+            scope,
+            "TupleElementAccessOperationsStaticSemantics",
+            "tuple index typing and nested tuple projection type resolution",
+            "validated tuple-element-access static semantics",
+            "tuple-element-static",
+            "type-check nested tuple index projections and arithmetic composition",
+            "8",
+            "8",
+            "not-8",
+            move static_passed_with_log,
+            "tuple-element-access static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunTupleElementAccessOperationsItem(
+            ctx,
+            scope,
+            "TupleElementAccessOperationsRuntimeDiagnostics",
+            "runtime tuple projection behavior over multiple tuple values",
+            "validated tuple-element-access runtime behavior and diagnostics",
+            "tuple-element-runtime",
+            "execute tuple-index projection path and verify runtime aggregate",
+            "10",
+            "10",
+            "not-10",
+            move runtime_passed_with_log,
+            "tuple-element-access runtime diagnostics check failed"
+        )
+    }
+
+    if (item_index == 3) {
+        return RunTupleElementAccessOperationsItem(
+            ctx,
+            scope,
+            "TupleElementAccessOperationsEvalSigma",
+            "tuple access evaluates its base exactly once before extracting the projected element",
+            "validated EvalSigma-TupleAccess dynamic semantics",
+            "tuple-element-eval-sigma",
+            "project from a temporary tuple-producing base and verify the base side effect is observed once",
+            "156",
+            "156",
+            "not-156",
+            move eval_passed_with_log,
+            "tuple-element-access EvalSigma check failed"
+        )
+    }
+
+    if (item_index == 4) {
+        return RunTupleElementAccessOperationsItem(
+            ctx,
+            scope,
+            "TupleElementAccessOperationsControlPropagation",
+            "tuple access propagates control from its base expression without executing trailing projection code",
+            "validated EvalSigma-TupleAccess-Ctrl dynamic semantics",
+            "tuple-element-control-propagation",
+            "evaluate tuple access over a block-expression base that returns from the procedure",
+            "17",
+            "17",
+            "not-17",
+            move ctrl_passed_with_log,
+            "tuple-element-access control propagation check failed"
+        )
+    }
+
+    return RunTupleElementAccessOperationsItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown tuple-element-access operation item",
+        "failed unknown tuple-element-access operation item",
+        "item-resolution",
+        "resolve tuple-element-access operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown tuple-element-access operation item"
+    )
+}
+
+procedure RunTupleElementAccessOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::AccessAndInvocation::TupleElementAccessOperations"
+    let checkpoint: string@View = "covered tuple element access operations operation items"
+
+    let status_syntax: i32 = VerifyTupleElementAccessOperationsItem(ctx, scope, 0, "TupleElementAccessOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyTupleElementAccessOperationsItem(ctx, scope, 1, "TupleElementAccessOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyTupleElementAccessOperationsItem(ctx, scope, 2, "TupleElementAccessOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    let status_eval_sigma: i32 = VerifyTupleElementAccessOperationsItem(ctx, scope, 3, "TupleElementAccessOperationsEvalSigma")
+    if (status_eval_sigma != 0) {
+        return status_eval_sigma
+    }
+
+    let status_ctrl: i32 = VerifyTupleElementAccessOperationsItem(ctx, scope, 4, "TupleElementAccessOperationsControlPropagation")
+    if (status_ctrl != 0) {
+        return status_ctrl
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

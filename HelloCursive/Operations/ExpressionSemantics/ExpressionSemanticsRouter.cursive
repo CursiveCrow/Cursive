@@ -1,0 +1,101 @@
+
+public procedure RunGroup(ctx: Context) -> i32 {
+    let section_name: string@View = "operations/ExpressionSemantics"
+    let status_ok: string@View = "ok"
+    let status_failed: string@View = "failed"
+
+    let phase_planned: string@View = "planned"
+    let phase_running: string@View = "running"
+    let phase_complete: string@View = "complete"
+    let phase_failed: string@View = "failed"
+    let dispatch_reason: string@View = "dispatching operation topic function"
+    let complete_reason: string@View = "operation topic function completed"
+    let failed_reason: string@View = "operation topic function returned non-zero status"
+
+    let feature_EvaluationOrderAndSequencePoints: string@View = "ExpressionSemantics::EvaluationOrderAndSequencePoints"
+    let feature_ShortCircuitEvaluation: string@View = "ExpressionSemantics::ShortCircuitEvaluation"
+    let feature_OperatorPrecedenceAndAssociativity: string@View = "ExpressionSemantics::OperatorPrecedenceAndAssociativity"
+    let feature_RangeExpressionForms: string@View = "ExpressionSemantics::RangeExpressionForms"
+    let feature_LiteralIdentifierAndPathExpressions: string@View = "ExpressionSemantics::LiteralIdentifierAndPathExpressions"
+    let feature_BlockAndTailExpressionOperations: string@View = "ExpressionSemantics::BlockAndTailExpressionOperations"
+    let feature_ClosureCaptureAndInvocationOperations: string@View = "ExpressionSemantics::ClosureCaptureAndInvocationOperations"
+    let feature_ContractIntrinsicOperations: string@View = "ExpressionSemantics::ContractIntrinsicOperations"
+    let feature_IROperationLoweringCoverage: string@View = "ExpressionSemantics::IROperationLoweringCoverage"
+
+    [[log(label: "operations-log-section_start")]]
+    [[log(label: "operations-log-transition")]]
+    let status_EvaluationOrderAndSequencePoints: i32 = RunEvaluationOrderAndSequencePoints(ctx)
+    if (status_EvaluationOrderAndSequencePoints != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_EvaluationOrderAndSequencePoints
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_ShortCircuitEvaluation: i32 = RunShortCircuitEvaluation(ctx)
+    if (status_ShortCircuitEvaluation != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_ShortCircuitEvaluation
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_OperatorPrecedenceAndAssociativity: i32 = RunOperatorPrecedenceAndAssociativity(ctx)
+    if (status_OperatorPrecedenceAndAssociativity != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_OperatorPrecedenceAndAssociativity
+    }
+
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_RangeExpressionForms: i32 = RunRangeExpressionForms(ctx)
+    if (status_RangeExpressionForms != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_RangeExpressionForms
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_LiteralIdentifierAndPathExpressions: i32 = RunLiteralIdentifierAndPathExpressions(ctx)
+    if (status_LiteralIdentifierAndPathExpressions != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_LiteralIdentifierAndPathExpressions
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_BlockAndTailExpressionOperations: i32 = RunBlockAndTailExpressionOperations(ctx)
+    if (status_BlockAndTailExpressionOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_BlockAndTailExpressionOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_ClosureCaptureAndInvocationOperations: i32 = RunClosureCaptureAndInvocationOperations(ctx)
+    if (status_ClosureCaptureAndInvocationOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_ClosureCaptureAndInvocationOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_ContractIntrinsicOperations: i32 = RunContractIntrinsicOperations(ctx)
+    if (status_ContractIntrinsicOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_ContractIntrinsicOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_IROperationLoweringCoverage: i32 = RunIROperationLoweringCoverage(ctx)
+    if (status_IROperationLoweringCoverage != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_IROperationLoweringCoverage
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-section_end")]]
+    return 0
+}

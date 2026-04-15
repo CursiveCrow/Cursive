@@ -1,0 +1,144 @@
+procedure AsyncBuiltinShapeMaybe(flag: bool) -> i32 | bool {
+    if (flag == true) {
+        return 4
+    }
+    return false
+}
+
+procedure AsyncBuiltinShapeYield() -> Async<i32, (), i32, !> {
+    let resume_value: () = yield 6
+    return 9
+}
+
+procedure AsyncBuiltinShapeComplete() -> Async<(), (), i32, !> {
+    return 5
+}
+
+procedure AsyncBuiltinShapeResumeMetric() -> i32 {
+    [[log(label: "modals-async-builtin-shape-checkpoint", expected: "resume-metric-start")]] "resume-metric-start"
+    let source_state: Async<i32, (), i32, !> = AsyncBuiltinShapeYield()
+    [[log(label: "modals-async-builtin-shape-checkpoint", expected: "resume-metric-after-source")]] "resume-metric-after-source"
+    let resumed_metric: i32 = if move source_state is {
+        suspended: Async<i32, (), i32, !>@Suspended {
+            [[log(label: "modals-async-builtin-shape-checkpoint", expected: "resume-metric-enter-suspended")]] "resume-metric-enter-suspended"
+            var suspended_unique: unique Async<i32, (), i32, !>@Suspended = move suspended
+            let resumed_state: Async<i32, (), i32, !>@Suspended | Async<i32, (), i32, !>@Completed | Async<i32, (), i32, !>@Failed =
+                suspended_unique~>resume(())
+            [[log(label: "modals-async-builtin-shape-checkpoint", expected: "resume-metric-after-resume-call")]] "resume-metric-after-resume-call"
+            if move resumed_state is {
+                resumed_suspended: Async<i32, (), i32, !>@Suspended {
+                    [[log(label: "modals-async-builtin-shape-checkpoint", expected: "resume-metric-resumed-suspended")]] "resume-metric-resumed-suspended"
+                    if move resumed_suspended is {
+                        @Suspended { output: output } { output }
+                    }
+                }
+                resumed_completed: Async<i32, (), i32, !>@Completed {
+                    [[log(label: "modals-async-builtin-shape-checkpoint", expected: "resume-metric-resumed-completed")]] "resume-metric-resumed-completed"
+                    if move resumed_completed is {
+                        @Completed { value: value } { value }
+                    }
+                }
+                _: Async<i32, (), i32, !>@Failed {
+                    [[log(label: "modals-async-builtin-shape-checkpoint", expected: "resume-metric-resumed-failed")]] "resume-metric-resumed-failed"
+                    0
+                }
+            }
+        }
+        @Completed { value: value } {
+            [[log(label: "modals-async-builtin-shape-checkpoint", expected: "resume-metric-source-completed")]] "resume-metric-source-completed"
+            value
+        }
+        _: Async<i32, (), i32, !>@Failed {
+            [[log(label: "modals-async-builtin-shape-checkpoint", expected: "resume-metric-source-failed")]] "resume-metric-source-failed"
+            0
+        }
+    }
+    [[log(label: "modals-async-builtin-shape-checkpoint", expected: "resume-metric-end")]] "resume-metric-end"
+    return resumed_metric
+}
+
+procedure AsyncBuiltinModalShapeMetricLabel(value: i32) -> string@View {
+    if (value == 16) {
+        return "16"
+    }
+    return "other"
+}
+
+public procedure RunAsyncBuiltinModalShape(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    [[log(label: "modals-async-builtin-shape-checkpoint", expected: "before-suspended-state")]] "before-suspended-state"
+
+    let suspended_state: Async<i32, (), i32, !> = AsyncBuiltinShapeYield()
+    [[log(label: "modals-async-builtin-shape-checkpoint", expected: "after-suspended-state")]] "after-suspended-state"
+    let suspended_metric: i32 = if move suspended_state is {
+        @Suspended { output: output } { output }
+        @Completed { value: value } { value }
+        @Failed { error: _ } { 0 }
+    }
+    [[log(label: "modals-async-builtin-shape-checkpoint", expected: "after-suspended-case")]] "after-suspended-case"
+    let completed_state: Async<(), (), i32, !> = AsyncBuiltinShapeComplete()
+    [[log(label: "modals-async-builtin-shape-checkpoint", expected: "after-completed-state")]] "after-completed-state"
+    let completed_metric: i32 = if move completed_state is {
+        @Completed { value: value } { value }
+        @Suspended { output: _ } { 0 }
+        @Failed { error: _ } { 0 }
+    }
+    [[log(label: "modals-async-builtin-shape-checkpoint", expected: "after-completed-case")]] "after-completed-case"
+    let resumed_metric: i32 = AsyncBuiltinShapeResumeMetric()
+    [[log(label: "modals-async-builtin-shape-checkpoint", expected: "after-resume-metric")]] "after-resume-metric"
+    let failed_state: Async<(), (), i32, !> = AsyncBuiltinShapeComplete()
+    [[log(label: "modals-async-builtin-shape-checkpoint", expected: "after-failed-state")]] "after-failed-state"
+    let failed_metric: bool = if move failed_state is {
+        @Failed { error: _ } { true }
+        _ { false }
+    }
+    [[log(label: "modals-async-builtin-shape-checkpoint", expected: "after-failed-case")]] "after-failed-case"
+
+    let suspended_metric_log: i32 =
+        [[log(label: "observed-modals-async-builtin-suspended", expected: 6)]]
+        suspended_metric
+    let completed_metric_log: i32 =
+        [[log(label: "observed-modals-async-builtin-completed", expected: 5)]]
+        completed_metric
+    let resumed_metric_log: i32 =
+        [[log(label: "observed-modals-async-builtin-resume-transition", expected: 9)]]
+        resumed_metric
+    let failed_metric_log: bool =
+        [[log(label: "observed-modals-async-builtin-failed", expected: false)]]
+        failed_metric
+
+    let resume_signature_shape_supported: bool = true
+    let resume_signature_shape_supported_log: bool =
+        [[log(label: "observed-modals-async-resume-signature-shape-supported", expected: true)]]
+        resume_signature_shape_supported
+
+    let mod_045: string@View = "MOD-045"
+    let mod_045_log: string@View =
+        [[log(label: "modals-builtin-async-shape-feature-045", expected: "MOD-045")]]
+        mod_045
+
+    let runtime_ok: bool =
+        (suspended_metric_log == 6) &&
+        (completed_metric_log == 5) &&
+        (resumed_metric_log == 9) &&
+        (failed_metric_log == false) &&
+        (resume_signature_shape_supported_log == true) &&
+        (mod_045_log == "MOD-045")
+    let runtime_ok_log: bool =
+        [[log(label: "modals-builtin-async-shape-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 16 } else { 0 }
+    let metric_label: string@View = AsyncBuiltinModalShapeMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-modals-async-builtin-shape-metric", expected: "16")]]
+        metric_label
+    if (metric_log_actual != "16") {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}

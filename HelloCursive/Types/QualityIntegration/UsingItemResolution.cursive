@@ -1,0 +1,53 @@
+import ffi as FfiCoverageAlias
+using CoreSystem::AliasScalar
+using ValueData::TypeEnumCase as ImportedEnumAlias
+using ffi::FfiBoundaryMetric as ImportedFfiBoundaryMetric
+
+procedure UsingItemMetricLabel(value: i32) -> string@View {
+    if (value == 1) {
+        return "1"
+    }
+    return "other"
+}
+
+procedure RunUsingItemResolution(ctx: Context) -> i32 {
+    let _ = ctx
+    let scope: string@View = "types::QualityIntegration::UsingItemResolution"
+    [[log(label: "types-log-item_begin")]]
+
+    let direct_scalar: AliasScalar = 15
+    let direct_scalar_log: i32 = [[log(label: "observed-using-item-scalar-metric", expected: 15)]] direct_scalar
+
+    let enum_value: ImportedEnumAlias = ImportedEnumAlias::Unit
+    let enum_ok: bool = if enum_value is {
+        ImportedEnumAlias::Unit { true }
+        _: ImportedEnumAlias { false }
+    }
+    let enum_ok_log: bool = [[log(label: "observed-using-item-enum-ok", expected: true)]] enum_ok
+
+    let ffi_metric: i32 = ImportedFfiBoundaryMetric()
+    let ffi_metric_log: i32 = [[log(label: "observed-using-item-covered-ffi-metric", expected: 1)]] ffi_metric
+
+    let ui_001: string@View = [[log(label: "types-using-item-feature-001", expected: "UITEM-001")]] "UITEM-001"
+    let ui_002: string@View = [[log(label: "types-using-item-feature-002", expected: "UITEM-002")]] "UITEM-002"
+
+    let runtime_ok: bool =
+        (direct_scalar_log == 15) &&
+        (enum_ok_log == true) &&
+        (ffi_metric_log == 1) &&
+        (ui_001 == "UITEM-001") &&
+        (ui_002 == "UITEM-002")
+    let runtime_ok_log: bool = [[log(label: "types-using-item-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 1 } else { 0 }
+    let metric_label: string@View = UsingItemMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-types-using-item-metric", expected: "1")]] metric_label
+    if (metric_log_actual != "1") {
+        [[log(label: "types-log-item_fail")]]
+        return 1
+    }
+
+    let _ = scope
+    [[log(label: "types-log-types_item_success")]]
+    return 0
+}

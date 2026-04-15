@@ -1,0 +1,275 @@
+public class PolyMetric {
+    procedure metric(~) -> i32
+}
+
+public record PolyMetricBox <: PolyMetric {
+    public value: i32
+
+    public procedure metric(~) -> i32 {
+        return self.value + 1
+    }
+}
+
+procedure MakeOpaqueMetric(seed: i32) -> opaque PolyMetric {
+    let hidden: PolyMetricBox = PolyMetricBox { value: seed }
+    return hidden
+}
+
+procedure DynamicFileSystemDispatch(fs: $FileSystem) -> i32 {
+    let empty_payload: string@View = ""
+    return if fs~>write_stdout(empty_payload) is {
+        _: () { 1 }
+        _: IoError { 0 }
+    }
+}
+
+procedure LogPolyObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "types-log-object")]]
+}
+
+procedure RunPolymorphismFormsItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    let detail_begin: string@View = "type feature item exercise start"
+    [[log(label: "types-log-item_begin")]]
+    let phase_running: string@View = "running"
+    let phase_step_begin: string@View = "step-begin"
+    let phase_step_pass: string@View = "step-pass"
+    let phase_step_fail: string@View = "step-fail"
+    let reason_pass: string@View = "expected output aligned with actual output"
+    let reason_fail: string@View = "expected output did not align with actual output"
+    let passed_place: bool = passed
+
+    [[log(label: "types-log-runtime_phase")]]
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "types-log-transition")]]
+        [[log(label: "types-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "types-log-transition")]]
+    [[log(label: "types-log-types_item_success")]]
+    return 0
+}
+
+procedure MetricLabel(value: i32) -> string@View {
+    if (value == 0) {
+        return "0"
+    }
+    if (value == 1) {
+        return "1"
+    }
+    if (value == 2) {
+        return "2"
+    }
+    if (value == 3) {
+        return "3"
+    }
+    if (value == 4) {
+        return "4"
+    }
+    if (value == 5) {
+        return "5"
+    }
+    if (value == 6) {
+        return "6"
+    }
+    if (value == 7) {
+        return "7"
+    }
+    if (value == 8) {
+        return "8"
+    }
+    return "other"
+}
+
+procedure VerifyPolymorphismFormsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "types-log-runtime_phase_move")]]
+    LogPolyObject(ctx.fs, scope, "dynamic_fs", "DynamicClassObject", "constructed", "dynamic class object borrowed from runtime context")
+    var dynamic_metric: i32 = 0
+
+    let opaque_seed: i32 = 4
+    let opaque_value = MakeOpaqueMetric(opaque_seed)
+    LogPolyObject(ctx.fs, scope, "opaque_value", "Opaque<PolyMetric>", "constructed", "opaque polymorphic value constructed from concrete implementor")
+
+    let erased_value: i32 | bool = 3
+    LogPolyObject(ctx.fs, scope, "erased_value", "i32|bool", "constructed", "erased union payload prepared for boundary recovery")
+    let object_safe_seed: i32 = 3
+    let object_safe_value = MakeOpaqueMetric(object_safe_seed)
+    LogPolyObject(ctx.fs, scope, "object_safe_value", "Opaque<PolyMetric>", "constructed", "object-safety probe value constructed")
+
+    [[log(label: "types-log-runtime_phase_move")]]
+    [[log(label: "types-log-transition_move")]]
+    dynamic_metric = DynamicFileSystemDispatch(ctx.fs)
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let opaque_metric: i32 = opaque_value~>metric()
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let erasure_metric: i32 = if erased_value is {
+        erased_int: i32 { erased_int }
+        _: bool { 0 }
+    }
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let object_safety_metric: i32 = object_safe_value~>metric() + 2
+    [[log(label: "types-log-transition_move")]]
+    let dynamic_metric_label: string@View = MetricLabel(dynamic_metric)
+    let opaque_metric_label: string@View = MetricLabel(opaque_metric)
+    let erasure_metric_label: string@View = MetricLabel(erasure_metric)
+    let object_safety_metric_label: string@View = MetricLabel(object_safety_metric)
+
+    let observed_dynamic_step: string@View = "observed-dynamic-metric"
+    let observed_opaque_step: string@View = "observed-opaque-metric"
+    let observed_erasure_step: string@View = "observed-erasure-metric"
+    let observed_object_safety_step: string@View = "observed-object-safety-metric"
+    let expected_dynamic_label: string@View = "1"
+    let expected_opaque_label: string@View = "5"
+    let expected_erasure_label: string@View = "3"
+    let expected_object_safety_label: string@View = "6"
+
+    let dynamic_metric_passed: bool = dynamic_metric == 1
+    let opaque_metric_passed: bool = opaque_metric == 5
+    let erasure_metric_passed: bool = erasure_metric == 3
+    let object_safety_metric_passed: bool = object_safety_metric == 6
+
+    let dynamic_metric_passed_log_actual = [[log(label: "observed-dynamic-metric", expected: "1")]] dynamic_metric_label
+    let dynamic_metric_passed_with_log: bool = dynamic_metric_passed && (dynamic_metric_passed_log_actual == expected_dynamic_label)
+    let opaque_metric_passed_log_actual = [[log(label: "observed-opaque-metric", expected: "5")]] opaque_metric_label
+    let opaque_metric_passed_with_log: bool = opaque_metric_passed && (opaque_metric_passed_log_actual == expected_opaque_label)
+    let erasure_metric_passed_log_actual = [[log(label: "observed-erasure-metric", expected: "3")]] erasure_metric_label
+    let erasure_metric_passed_with_log: bool = erasure_metric_passed && (erasure_metric_passed_log_actual == expected_erasure_label)
+    let object_safety_metric_passed_log_actual = [[log(label: "observed-object-safety-metric", expected: "6")]] object_safety_metric_label
+    let object_safety_metric_passed_with_log: bool = object_safety_metric_passed && (object_safety_metric_passed_log_actual == expected_object_safety_label)
+    [[log(label: "types-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunPolymorphismFormsItem(
+            ctx,
+            scope,
+            "DynamicClassObjects",
+            "dynamic class object typing and method-call surface constraints",
+            "validated dynamic class object typing",
+            "dynamic-class-objects",
+            "evaluate dynamic dispatch through capability dynamic object surface",
+            "1",
+            "1",
+            "not-1",
+            move dynamic_metric_passed_with_log,
+            "dynamic class objects check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunPolymorphismFormsItem(
+            ctx,
+            scope,
+            "OpaqueTypeReturns",
+            "opaque return type formation and reveal boundaries",
+            "validated opaque return types",
+            "opaque-returns",
+            "evaluate opaque return boundary through existential class surface",
+            "5",
+            "5",
+            "not-5",
+            move opaque_metric_passed_with_log,
+            "opaque type returns check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunPolymorphismFormsItem(
+            ctx,
+            scope,
+            "TypeErasureBoundaries",
+            "erasure boundaries and allowed operations on erased values",
+            "validated type erasure boundaries",
+            "type-erasure",
+            "evaluate erased union value and recover admissible operations via pattern matching",
+            "3",
+            "3",
+            "not-3",
+            move erasure_metric_passed_with_log,
+            "type erasure boundaries check failed"
+        )
+    }
+
+    if (item_index == 3) {
+        return RunPolymorphismFormsItem(
+            ctx,
+            scope,
+            "ObjectSafetyRequirements",
+            "object safety requirements for dynamic dispatchable surfaces",
+            "validated object safety requirements",
+            "object-safety",
+            "evaluate object-safe method surface through opaque interface invocation",
+            "6",
+            "6",
+            "not-6",
+            move object_safety_metric_passed_with_log,
+            "object safety requirements check failed"
+        )
+    }
+
+    return RunPolymorphismFormsItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown polymorphism forms item",
+        "failed unknown polymorphism forms item",
+        "item-resolution",
+        "resolve item name within polymorphism forms feature set",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown polymorphism forms item"
+    )
+}
+
+procedure RunPolymorphismForms(ctx: Context) -> i32 {
+    let scope: string@View = "types::Abstraction::PolymorphismForms"
+    let checkpoint: string@View = "covered polymorphism forms feature items"
+
+    let status_DynamicClassObjects: i32 = VerifyPolymorphismFormsItem(ctx, scope, 0, "DynamicClassObjects")
+    if (status_DynamicClassObjects != 0) {
+        return status_DynamicClassObjects
+    }
+
+    let status_OpaqueTypeReturns: i32 = VerifyPolymorphismFormsItem(ctx, scope, 1, "OpaqueTypeReturns")
+    if (status_OpaqueTypeReturns != 0) {
+        return status_OpaqueTypeReturns
+    }
+
+    let status_TypeErasureBoundaries: i32 = VerifyPolymorphismFormsItem(ctx, scope, 2, "TypeErasureBoundaries")
+    if (status_TypeErasureBoundaries != 0) {
+        return status_TypeErasureBoundaries
+    }
+
+    let status_ObjectSafetyRequirements: i32 = VerifyPolymorphismFormsItem(ctx, scope, 3, "ObjectSafetyRequirements")
+    if (status_ObjectSafetyRequirements != 0) {
+        return status_ObjectSafetyRequirements
+    }
+
+    [[log(label: "types-log-checkpoint")]]
+    return 0
+}

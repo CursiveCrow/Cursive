@@ -1,0 +1,30 @@
+public procedure RunGroup(ctx: Context) -> i32 {
+    [[log(label: "memory-log-section_start")]]
+
+    let status_lattice: i32 = RunPermissionLatticeAndCoercions(ctx)
+    if (status_lattice != 0) {
+        [[log(label: "memory-log-section_end")]]
+        return status_lattice
+    }
+
+    let status_exclusivity: i32 = RunExclusivityAndOverlapContracts(ctx)
+    if (status_exclusivity != 0) {
+        [[log(label: "memory-log-section_end")]]
+        return status_exclusivity
+    }
+
+    let status_aliasing: i32 = RunUniqueAliasingAndRestoration(ctx)
+    if (status_aliasing != 0) {
+        [[log(label: "memory-log-section_end")]]
+        return status_aliasing
+    }
+
+    let status_diag: i32 = RunPermissionsDiagnostics(ctx)
+    if (status_diag != 0) {
+        [[log(label: "memory-log-section_end")]]
+        return status_diag
+    }
+
+    [[log(label: "memory-log-section_end")]]
+    return 0
+}

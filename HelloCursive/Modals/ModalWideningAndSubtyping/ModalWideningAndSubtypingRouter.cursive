@@ -1,0 +1,24 @@
+public procedure RunGroup(ctx: Context) -> i32 {
+    [[log(label: "modals-log-section_start", expected: "section-start")]] "section-start"
+
+    let status_modal_niche_subtyping: i32 = RunModalNicheSubtyping(ctx)
+    if (status_modal_niche_subtyping != 0) {
+        [[log(label: "modals-log-section_end", expected: "section-end")]] "section-end"
+        return status_modal_niche_subtyping
+    }
+
+    let status_modal_widen_typing_and_errors: i32 = RunModalWidenTypingAndErrors(ctx)
+    if (status_modal_widen_typing_and_errors != 0) {
+        [[log(label: "modals-log-section_end", expected: "section-end")]] "section-end"
+        return status_modal_widen_typing_and_errors
+    }
+
+    let status_modal_widen_runtime_and_warnings: i32 = RunModalWidenRuntimeAndWarnings(ctx)
+    if (status_modal_widen_runtime_and_warnings != 0) {
+        [[log(label: "modals-log-section_end", expected: "section-end")]] "section-end"
+        return status_modal_widen_runtime_and_warnings
+    }
+
+    [[log(label: "modals-log-section_end", expected: "section-end")]] "section-end"
+    return 0
+}

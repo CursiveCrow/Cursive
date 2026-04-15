@@ -1,0 +1,82 @@
+
+public procedure RunGroup(ctx: Context) -> i32 {
+    let section_name: string@View = "operations/StructuredParallel"
+    let status_ok: string@View = "ok"
+    let status_failed: string@View = "failed"
+
+    let phase_planned: string@View = "planned"
+    let phase_running: string@View = "running"
+    let phase_complete: string@View = "complete"
+    let phase_failed: string@View = "failed"
+    let dispatch_reason: string@View = "dispatching operation topic function"
+    let complete_reason: string@View = "operation topic function completed"
+    let failed_reason: string@View = "operation topic function returned non-zero status"
+
+    let feature_ParallelExpressionOperations: string@View = "StructuredParallel::ParallelExpressionOperations"
+    let feature_SpawnExpressionOperations: string@View = "StructuredParallel::SpawnExpressionOperations"
+    let feature_WaitExpressionOperations: string@View = "StructuredParallel::WaitExpressionOperations"
+    let feature_DispatchExpressionOperations: string@View = "StructuredParallel::DispatchExpressionOperations"
+    let feature_ParallelPanicHandlingSemantics: string@View = "StructuredParallel::ParallelPanicHandlingSemantics"
+    let feature_ParallelMemoryAllocationOperations: string@View = "StructuredParallel::ParallelMemoryAllocationOperations"
+
+    [[log(label: "operations-log-section_start")]]
+    [[log(label: "operations-log-transition")]]
+    let status_ParallelExpressionOperations: i32 = RunParallelExpressionOperations(ctx)
+    if (status_ParallelExpressionOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_ParallelExpressionOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_SpawnExpressionOperations: i32 = RunSpawnExpressionOperations(ctx)
+    if (status_SpawnExpressionOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_SpawnExpressionOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_WaitExpressionOperations: i32 = RunWaitExpressionOperations(ctx)
+    if (status_WaitExpressionOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_WaitExpressionOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_DispatchExpressionOperations: i32 = RunDispatchExpressionOperations(ctx)
+    if (status_DispatchExpressionOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_DispatchExpressionOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let feature_InlineAndGpuDomainOperations: string@View = "StructuredParallel::InlineAndGpuDomainOperations"
+    let status_InlineAndGpuDomainOperations: i32 = RunInlineAndGpuDomainOperations(ctx)
+    if (status_InlineAndGpuDomainOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_InlineAndGpuDomainOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_ParallelPanicHandlingSemantics: i32 = RunParallelPanicHandlingSemantics(ctx)
+    if (status_ParallelPanicHandlingSemantics != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_ParallelPanicHandlingSemantics
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_ParallelMemoryAllocationOperations: i32 = RunParallelMemoryAllocationOperations(ctx)
+    if (status_ParallelMemoryAllocationOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_ParallelMemoryAllocationOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-section_end")]]
+    return 0
+}

@@ -1,0 +1,42 @@
+public procedure RunGroup(ctx: Context) -> i32 {
+    [[log(label: "contracts-log-section_start", expected: "section-start")]] "section-start"
+
+    let status_contract_ast_forms: i32 = RunContractAstForms(ctx)
+    if (status_contract_ast_forms != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_contract_ast_forms
+    }
+
+    let status_contract_clause_grammar_placement: i32 = RunContractClauseGrammarPlacement(ctx)
+    if (status_contract_clause_grammar_placement != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_contract_clause_grammar_placement
+    }
+
+    let status_contract_clause_parsing: i32 = RunContractClauseParsing(ctx)
+    if (status_contract_clause_parsing != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_contract_clause_parsing
+    }
+
+    let status_contract_resolution_scopes: i32 = RunContractResolutionScopes(ctx)
+    if (status_contract_resolution_scopes != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_contract_resolution_scopes
+    }
+
+    let status_dynamic_attribute_scope_and_placement: i32 = RunDynamicAttributeScopeAndPlacement(ctx)
+    if (status_dynamic_attribute_scope_and_placement != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_dynamic_attribute_scope_and_placement
+    }
+
+    let status_foreign_contract_parsing: i32 = RunForeignContractParsing(ctx)
+    if (status_foreign_contract_parsing != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_foreign_contract_parsing
+    }
+
+    [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+    return 0
+}

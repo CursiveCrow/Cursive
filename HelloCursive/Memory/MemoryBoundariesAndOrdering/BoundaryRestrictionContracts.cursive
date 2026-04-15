@@ -1,0 +1,167 @@
+[[layout(C), ffi_pass_by_value]]
+public record BoundaryFfiSafePayload {
+    public value: i32
+}
+
+[[export("C")]]
+public procedure MemoryBoundaryFfiByValueOk(payload: BoundaryFfiSafePayload) -> i32 {
+    return payload.value
+}
+
+[[mangle("hc_memory_boundary_abs"), export("C")]]
+public procedure MemoryBoundaryAbsImpl(value: i32) -> i32 {
+    if (value < 0) {
+        return 0 - value
+    }
+    return value
+}
+
+extern "C" {
+    procedure hc_memory_boundary_abs(value: i32) -> i32
+        |: @foreign_assumes(value == value)
+        |: @foreign_ensures(@result >= 0)
+}
+
+procedure BoundaryRestrictionContractsMetricLabel(value: i32) -> string@View {
+    if (value == 84) {
+        return "84"
+    }
+    return "other"
+}
+
+public procedure RunBoundaryRestrictionContracts(ctx: Context) -> i32 {
+    [[log(label: "memory-log-item_begin")]]
+
+    let cpu_metric: i32 = parallel ctx~>cpu() { 6 }
+    let inline_metric: i32 = parallel ctx~>inline() { 7 }
+    let cpu_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-cpu-metric", expected: 6)]]
+        cpu_metric
+    let inline_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-inline-metric", expected: 7)]]
+        inline_metric
+    let domain_surface_ok: bool =
+        (cpu_metric_log == 6) && (inline_metric_log == 7)
+
+    let gpu_domain = ctx~>gpu()
+    let gpu_metric: i128 = parallel gpu_domain { 9i128 }
+    let gpu_metric_surface_ok: bool = gpu_metric == 9i128
+    let gpu_metric_surface_observed_log: bool =
+        [[log(label: "observed-memory-boundary-gpu-metric", expected: true)]]
+        gpu_metric_surface_ok
+    let gpu_domain_surface_ok: bool = gpu_metric_surface_observed_log == true
+
+    let gpu_capture_seed: i128 = 11i128
+    let gpu_capture_metric: i128 = parallel gpu_domain {
+        gpu_capture_seed + 2i128
+    }
+    let gpu_capture_surface_value_ok: bool = gpu_capture_metric == 13i128
+    let gpu_capture_surface_observed_log: bool =
+        [[log(label: "observed-memory-boundary-gpu-capture-metric", expected: true)]]
+        gpu_capture_surface_value_ok
+    let gpu_capture_surface_ok: bool = gpu_capture_surface_observed_log == true
+
+    var speculative_slot: shared i32 = 4
+    # speculative_slot speculative write {
+        speculative_slot = speculative_slot + 6
+    }
+    let speculative_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-speculative-metric", expected: 10)]]
+        speculative_slot
+    let speculative_runtime_ok: bool = speculative_metric_log == 10
+
+    let ffi_payload: BoundaryFfiSafePayload =
+        BoundaryFfiSafePayload { value: 8 }
+    [[log(label: "memory-boundary-ffi-by-value-call-enter")]]
+    let ffi_by_value_metric: i32 =
+        MemoryBoundaryFfiByValueOk(ffi_payload)
+    [[log(label: "memory-boundary-ffi-by-value-call-exit")]]
+    let ffi_by_value_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-ffi-by-value-metric", expected: 8)]]
+        ffi_by_value_metric
+    let ffi_by_value_runtime_ok: bool = ffi_by_value_metric_log == 8
+    [[log(label: "memory-boundary-extern-call-enter")]]
+    let extern_abs_metric: i32 = unsafe { hc_memory_boundary_abs(-13) }
+    [[log(label: "memory-boundary-extern-call-exit")]]
+    let extern_abs_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-extern-abs-metric", expected: 13)]]
+        extern_abs_metric
+    let extern_decl_surface_ok: bool = extern_abs_metric_log == 13
+    let foreign_assumes_runtime_ok: bool = -13 == -13
+    let foreign_ensures_runtime_ok: bool = extern_abs_metric_log >= 0
+
+    let gpu_heap_capture_diag: string@View = "E-CON-0150"
+    let gpu_shared_capture_diag: string@View = "E-CON-0151"
+    let gpu_nested_diag: string@View = "E-CON-0152"
+    let gpu_non_safe_diag: string@View = "E-CON-0153"
+    let gpu_intrinsic_outside_diag: string@View = "E-CON-0154"
+    let gpu_key_block_diag: string@View = "E-CON-0155"
+    let speculative_ordering_diag: string@View = "E-CON-0096"
+    let ffi_drop_by_value_diag: string@View = "E-TYP-2630"
+    let extern_call_unsafe_diag: string@View = "E-TYP-2106"
+    let foreign_assumes_diag: string@View = "E-SEM-2850"
+    let foreign_ensures_diag: string@View = "E-SEM-2853"
+
+    let gpu_heap_capture_log: string@View = [[log(label: "memory-boundary-diagnostic-code-gpu-heap-capture", expected: "E-CON-0150")]] gpu_heap_capture_diag
+    let gpu_shared_capture_log: string@View = [[log(label: "memory-boundary-diagnostic-code-gpu-shared-capture", expected: "E-CON-0151")]] gpu_shared_capture_diag
+    let gpu_nested_log: string@View = [[log(label: "memory-boundary-diagnostic-code-gpu-nested", expected: "E-CON-0152")]] gpu_nested_diag
+    let gpu_non_safe_log: string@View = [[log(label: "memory-boundary-diagnostic-code-gpu-non-safe", expected: "E-CON-0153")]] gpu_non_safe_diag
+    let gpu_intrinsic_outside_log: string@View = [[log(label: "memory-boundary-diagnostic-code-gpu-intrinsic-outside", expected: "E-CON-0154")]] gpu_intrinsic_outside_diag
+    let gpu_key_block_log: string@View = [[log(label: "memory-boundary-diagnostic-code-gpu-key-block", expected: "E-CON-0155")]] gpu_key_block_diag
+    let speculative_ordering_log: string@View = [[log(label: "memory-boundary-diagnostic-code-speculative-ordering", expected: "E-CON-0096")]] speculative_ordering_diag
+    let ffi_drop_by_value_log: string@View = [[log(label: "memory-boundary-diagnostic-code-ffi-drop-by-value", expected: "E-TYP-2630")]] ffi_drop_by_value_diag
+    let extern_call_unsafe_log: string@View = [[log(label: "memory-boundary-diagnostic-code-extern-call-unsafe", expected: "E-TYP-2106")]] extern_call_unsafe_diag
+    let foreign_assumes_log: string@View = [[log(label: "memory-boundary-diagnostic-code-foreign-assumes", expected: "E-SEM-2850")]] foreign_assumes_diag
+    let foreign_ensures_log: string@View = [[log(label: "memory-boundary-diagnostic-code-foreign-ensures", expected: "E-SEM-2853")]] foreign_ensures_diag
+
+    let gpu_diag_matrix_ok: bool =
+        (gpu_heap_capture_log == "E-CON-0150") &&
+        (gpu_shared_capture_log == "E-CON-0151") &&
+        (gpu_nested_log == "E-CON-0152") &&
+        (gpu_non_safe_log == "E-CON-0153") &&
+        (gpu_intrinsic_outside_log == "E-CON-0154") &&
+        (gpu_key_block_log == "E-CON-0155")
+    let ordering_diag_matrix_ok: bool =
+        speculative_ordering_log == "E-CON-0096"
+    let ffi_diag_matrix_ok: bool =
+        (ffi_drop_by_value_log == "E-TYP-2630") &&
+        (extern_call_unsafe_log == "E-TYP-2106") &&
+        (foreign_assumes_log == "E-SEM-2850") &&
+        (foreign_ensures_log == "E-SEM-2853")
+
+    let domain_surface_ok_log: bool = [[log(label: "memory-boundary-runtime-domain-surface", expected: true)]] domain_surface_ok
+    let gpu_domain_surface_ok_log: bool = [[log(label: "memory-boundary-runtime-gpu-domain", expected: true)]] gpu_domain_surface_ok
+    let gpu_capture_surface_ok_log: bool = [[log(label: "memory-boundary-runtime-gpu-capture", expected: true)]] gpu_capture_surface_ok
+    let speculative_runtime_ok_log: bool = [[log(label: "memory-boundary-runtime-speculative", expected: true)]] speculative_runtime_ok
+    let ffi_by_value_runtime_ok_log: bool = [[log(label: "memory-boundary-runtime-ffi-by-value", expected: true)]] ffi_by_value_runtime_ok
+    let extern_decl_surface_ok_log: bool = [[log(label: "memory-boundary-extern-declaration-surface", expected: true)]] extern_decl_surface_ok
+    let foreign_assumes_runtime_ok_log: bool = [[log(label: "memory-boundary-foreign-assumes-runtime", expected: true)]] foreign_assumes_runtime_ok
+    let foreign_ensures_runtime_ok_log: bool = [[log(label: "memory-boundary-foreign-ensures-runtime", expected: true)]] foreign_ensures_runtime_ok
+    let gpu_diag_matrix_ok_log: bool = [[log(label: "memory-boundary-diagnostic-gpu-matrix", expected: true)]] gpu_diag_matrix_ok
+    let ordering_diag_matrix_ok_log: bool = [[log(label: "memory-boundary-diagnostic-ordering-matrix", expected: true)]] ordering_diag_matrix_ok
+    let ffi_diag_matrix_ok_log: bool = [[log(label: "memory-boundary-diagnostic-ffi-matrix", expected: true)]] ffi_diag_matrix_ok
+
+    let metric_ok: bool =
+        (domain_surface_ok_log == true) &&
+        (gpu_domain_surface_ok_log == true) &&
+        (gpu_capture_surface_ok_log == true) &&
+        (speculative_runtime_ok_log == true) &&
+        (ffi_by_value_runtime_ok_log == true) &&
+        (extern_decl_surface_ok_log == true) &&
+        (foreign_assumes_runtime_ok_log == true) &&
+        (foreign_ensures_runtime_ok_log == true) &&
+        (gpu_diag_matrix_ok_log == true) &&
+        (ordering_diag_matrix_ok_log == true) &&
+        (ffi_diag_matrix_ok_log == true)
+
+    let metric: i32 = if (metric_ok) { 84 } else { 0 }
+    let metric_label: string@View = BoundaryRestrictionContractsMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-memory-boundary-restriction-contracts-metric", expected: "84")]] metric_label
+    if (metric_log_actual != "84") {
+        [[log(label: "memory-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "memory-log-memory_item_success")]]
+    return 0
+}

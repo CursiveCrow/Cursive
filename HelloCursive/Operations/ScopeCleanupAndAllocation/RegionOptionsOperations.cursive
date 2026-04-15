@@ -1,0 +1,196 @@
+procedure LogRegionOptionsObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure RegionOptionsMetricLabel(value: i32) -> string@View {
+    if (value == 3) {
+        return "3"
+    }
+    if (value == 6) {
+        return "6"
+    }
+    if (value == 10) {
+        return "10"
+    }
+    return "other"
+}
+
+procedure RunRegionOptionsItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyRegionOptionsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    LogRegionOptionsObject(ctx.fs, scope, "region_opts_default", "RegionOptions", "constructed", "default RegionOptions call probe prepared")
+    LogRegionOptionsObject(ctx.fs, scope, "region_opts_record_static", "RegionOptions", "constructed", "record-literal RegionOptions static probe prepared")
+    LogRegionOptionsObject(ctx.fs, scope, "region_opts_record_runtime", "RegionOptions", "constructed", "record-literal RegionOptions runtime probe prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    var syntax_metric: i32 = 0
+    region (RegionOptions()) as r {
+        let syntax_local: i32 = r ^ 3
+        if (syntax_local == 3) {
+            syntax_metric = 3
+        } else {
+            syntax_metric = 0
+        }
+    }
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    var static_metric: i32 = 0
+    region (RegionOptions { stack_size: 0usize, name: "ops-region-static" }) as r {
+        let static_local: i32 = r ^ 6
+        if (static_local == 6) {
+            static_metric = 6
+        } else {
+            static_metric = 0
+        }
+    }
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    var runtime_metric: i32 = 0
+    region (RegionOptions { stack_size: 0usize, name: "ops-region-runtime" }) as r {
+        let runtime_left: i32 = ^2
+        let runtime_right: i32 = r ^ 5
+        if ((runtime_left + runtime_right + syntax_metric) == 10) {
+            runtime_metric = 10
+        } else {
+            runtime_metric = 0
+        }
+    }
+    [[log(label: "operations-log-transition_move")]]
+    let syntax_passed: bool = syntax_metric == 3
+    let static_passed: bool = static_metric == 6
+    let runtime_passed: bool = runtime_metric == 10
+
+    let actual_label_1: string@View = RegionOptionsMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-region-options-syntax-metric", expected: "3")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = RegionOptionsMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-region-options-static-metric", expected: "6")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = RegionOptionsMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-region-options-runtime-metric", expected: "10")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunRegionOptionsItem(
+            ctx,
+            scope,
+            "RegionOptionsOperationsSyntaxForms",
+            "syntax forms for `region (opts_expr) as alias { ... }` statements",
+            "validated region options operations syntax forms",
+            "region-options-syntax",
+            "evaluate region statement syntax with default RegionOptions() expression",
+            "3",
+            "3",
+            "not-3",
+            move syntax_passed_with_log,
+            "region options syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunRegionOptionsItem(
+            ctx,
+            scope,
+            "RegionOptionsOperationsStaticSemantics",
+            "RegionOptions typing for explicit region opts expressions",
+            "validated region options operations static semantics",
+            "region-options-static",
+            "type-check record-literal RegionOptions expression in region statement",
+            "6",
+            "6",
+            "not-6",
+            move static_passed_with_log,
+            "region options static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunRegionOptionsItem(
+            ctx,
+            scope,
+            "RegionOptionsOperationsRuntimeDiagnostics",
+            "runtime behavior for region statements parameterized by explicit option expressions",
+            "validated region options operations runtime behavior and diagnostics",
+            "region-options-runtime",
+            "execute region options aggregate path and verify runtime metric",
+            "10",
+            "10",
+            "not-10",
+            move runtime_passed_with_log,
+            "region options runtime diagnostics check failed"
+        )
+    }
+
+    return RunRegionOptionsItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown region options operation item",
+        "failed unknown region options operation item",
+        "item-resolution",
+        "resolve region options operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown region options operation item"
+    )
+}
+
+procedure RunRegionOptionsOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::ScopeCleanupAndAllocation::RegionOptionsOperations"
+    let checkpoint: string@View = "covered region options operations operation items"
+
+    let status_syntax: i32 = VerifyRegionOptionsItem(ctx, scope, 0, "RegionOptionsOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyRegionOptionsItem(ctx, scope, 1, "RegionOptionsOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyRegionOptionsItem(ctx, scope, 2, "RegionOptionsOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

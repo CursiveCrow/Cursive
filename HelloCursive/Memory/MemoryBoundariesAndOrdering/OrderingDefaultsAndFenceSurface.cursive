@@ -1,0 +1,110 @@
+procedure OrderingDefaultsMetricLabel(value: i32) -> string@View {
+    if (value == 19) {
+        return "19"
+    }
+    return "other"
+}
+
+public procedure RunOrderingDefaultsAndFenceSurface(ctx: Context) -> i32 {
+    let _ = ctx
+
+    var fence_step_metric: i32 = 0
+    fence(acquire)
+    fence_step_metric = fence_step_metric + 2
+    fence(release)
+    fence_step_metric = fence_step_metric + 3
+    fence(seqcst)
+    fence_step_metric = fence_step_metric + 5
+
+    var order_slot: shared i32 = 2
+    # order_slot write {
+        let relaxed_base: i32 = [[relaxed]] order_slot
+        let relaxed_next: i32 = relaxed_base + 3
+        order_slot = relaxed_next
+    }
+
+    var order_read_metric: i32 = 0
+    # order_slot read {
+        let acquire_snapshot: i32 = [[acquire]] order_slot
+        order_read_metric = acquire_snapshot
+    }
+
+    var release_slot: shared i32 = 3
+    var release_snapshot: i32 = 0
+    # release_slot write {
+        let release_base: i32 = [[release]] release_slot
+        let release_next: i32 = release_base + 4
+        release_slot = release_next
+        # release_slot release read {
+            let seq_snapshot: i32 = [[seqcst]] release_slot
+            release_snapshot = seq_snapshot
+        }
+    }
+
+    var acqrel_slot: shared i32 = 1
+    # acqrel_slot write {
+        let acqrel_base: i32 = [[acqrel]] acqrel_slot
+        let acqrel_next: i32 = acqrel_base + 5
+        acqrel_slot = acqrel_next
+    }
+
+    let order_slot_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-order-slot", expected: 5)]]
+        order_slot
+    let order_read_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-order-read", expected: 5)]]
+        order_read_metric
+    let release_slot_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-release-slot", expected: 7)]]
+        release_slot
+    let release_snapshot_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-release-read", expected: 7)]]
+        release_snapshot
+    let acqrel_slot_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-acqrel-slot", expected: 6)]]
+        acqrel_slot
+    let fence_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-fence-metric", expected: 10)]]
+        fence_step_metric
+
+    let order_default_ok: bool = order_read_metric_log == 5
+    let write_read_sequence_ok: bool = order_slot_metric_log == 5
+    let release_mode_ok: bool =
+        (release_slot_metric_log == 7) && (release_snapshot_metric_log == 7)
+    let acqrel_mode_ok: bool = acqrel_slot_metric_log == 6
+    let fence_metric_ok: bool = fence_metric_log == 10
+    let fence_surface_ok: bool =
+        (order_read_metric_log + order_slot_metric_log +
+            release_snapshot_metric_log) == 17
+
+    let order_default_log: bool = [[log(label: "memory-boundary-order-default", expected: true)]] order_default_ok
+    let write_read_sequence_log: bool = [[log(label: "memory-boundary-order-write-read", expected: true)]] write_read_sequence_ok
+    let release_mode_log: bool = [[log(label: "memory-boundary-order-release-mode", expected: true)]] release_mode_ok
+    let acqrel_mode_log: bool = [[log(label: "memory-boundary-order-acqrel-mode", expected: true)]] acqrel_mode_ok
+    let fence_metric_ok_log: bool = [[log(label: "memory-boundary-fence-metric-ok", expected: true)]] fence_metric_ok
+    let fence_surface_log: bool = [[log(label: "memory-boundary-fence-surface", expected: true)]] fence_surface_ok
+
+    let metric: i32 = if (order_default_ok &&
+        write_read_sequence_ok &&
+        release_mode_ok &&
+        acqrel_mode_ok &&
+        fence_metric_ok &&
+        fence_surface_ok &&
+        (order_default_log == true) &&
+        (write_read_sequence_log == true) &&
+        (release_mode_log == true) &&
+        (acqrel_mode_log == true) &&
+        (fence_metric_ok_log == true) &&
+        (fence_surface_log == true)) { 19 } else { 0 }
+    let metric_label: string@View = OrderingDefaultsMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-memory-boundary-defaults-metric", expected: "19")]] metric_label
+    if (metric_log_actual != "19") {
+        let fail_marker: string@View = "memory-boundary-defaults-fail"
+        [[log(label: "memory-log-item_fail")]] fail_marker
+        return 1
+    }
+
+    let success_marker: string@View = "memory-boundary-defaults-success"
+    [[log(label: "memory-log-memory_item_success")]] success_marker
+    return 0
+}

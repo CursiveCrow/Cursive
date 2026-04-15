@@ -1,0 +1,36 @@
+public procedure RunGroup(ctx: Context) -> i32 {
+    [[log(label: "modals-log-section_start", expected: "section-start")]] "section-start"
+
+    let status_modal_field_access_rules: i32 = RunModalFieldAccessRules(ctx)
+    if (status_modal_field_access_rules != 0) {
+        [[log(label: "modals-log-section_end", expected: "section-end")]] "section-end"
+        return status_modal_field_access_rules
+    }
+
+    let status_modal_state_method_dispatch: i32 = RunModalStateMethodDispatch(ctx)
+    if (status_modal_state_method_dispatch != 0) {
+        [[log(label: "modals-log-section_end", expected: "section-end")]] "section-end"
+        return status_modal_state_method_dispatch
+    }
+
+    let status_modal_transition_invocation_rules: i32 = RunModalTransitionInvocationRules(ctx)
+    if (status_modal_transition_invocation_rules != 0) {
+        [[log(label: "modals-log-section_end", expected: "section-end")]] "section-end"
+        return status_modal_transition_invocation_rules
+    }
+
+    let status_modal_member_visibility_and_conflicts: i32 = RunModalMemberVisibilityAndConflicts(ctx)
+    if (status_modal_member_visibility_and_conflicts != 0) {
+        [[log(label: "modals-log-section_end", expected: "section-end")]] "section-end"
+        return status_modal_member_visibility_and_conflicts
+    }
+
+    let status_protected_visibility_access: i32 = RunProtectedVisibilityAccess(ctx)
+    if (status_protected_visibility_access != 0) {
+        [[log(label: "modals-log-section_end", expected: "section-end")]] "section-end"
+        return status_protected_visibility_access
+    }
+
+    [[log(label: "modals-log-section_end", expected: "section-end")]] "section-end"
+    return 0
+}

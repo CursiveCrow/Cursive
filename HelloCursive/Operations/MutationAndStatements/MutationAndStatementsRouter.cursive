@@ -1,0 +1,109 @@
+
+public procedure RunGroup(ctx: Context) -> i32 {
+    let section_name: string@View = "operations/MutationAndStatements"
+    let status_ok: string@View = "ok"
+    let status_failed: string@View = "failed"
+
+    let phase_planned: string@View = "planned"
+    let phase_running: string@View = "running"
+    let phase_complete: string@View = "complete"
+    let phase_failed: string@View = "failed"
+    let dispatch_reason: string@View = "dispatching operation topic function"
+    let complete_reason: string@View = "operation topic function completed"
+    let failed_reason: string@View = "operation topic function returned non-zero status"
+
+    let feature_SimpleAssignmentOperations: string@View = "MutationAndStatements::SimpleAssignmentOperations"
+    let feature_CompoundAssignmentOperations: string@View = "MutationAndStatements::CompoundAssignmentOperations"
+    let feature_TupleAssignmentOperations: string@View = "MutationAndStatements::TupleAssignmentOperations"
+    let feature_PlaceExpressionAssignmentRules: string@View = "MutationAndStatements::PlaceExpressionAssignmentRules"
+    let feature_BindingOperatorMovabilityPreservation: string@View = "MutationAndStatements::BindingOperatorMovabilityPreservation"
+    let feature_ExpressionStatementOperations: string@View = "MutationAndStatements::ExpressionStatementOperations"
+    let feature_ShadowBindingStatementOperations: string@View = "MutationAndStatements::ShadowBindingStatementOperations"
+    let feature_UnsafeStatementBlockOperations: string@View = "MutationAndStatements::UnsafeStatementBlockOperations"
+    let feature_ReturnAndResultStatementOperations: string@View = "MutationAndStatements::ReturnAndResultStatementOperations"
+    let feature_BreakAndContinueStatementOperations: string@View = "MutationAndStatements::BreakAndContinueStatementOperations"
+
+    [[log(label: "operations-log-section_start")]]
+    [[log(label: "operations-log-transition")]]
+    let status_SimpleAssignmentOperations: i32 = RunSimpleAssignmentOperations(ctx)
+    if (status_SimpleAssignmentOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_SimpleAssignmentOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_CompoundAssignmentOperations: i32 = RunCompoundAssignmentOperations(ctx)
+    if (status_CompoundAssignmentOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_CompoundAssignmentOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_TupleAssignmentOperations: i32 = RunTupleAssignmentOperations(ctx)
+    if (status_TupleAssignmentOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_TupleAssignmentOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_PlaceExpressionAssignmentRules: i32 = RunPlaceExpressionAssignmentRules(ctx)
+    if (status_PlaceExpressionAssignmentRules != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_PlaceExpressionAssignmentRules
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_BindingOperatorMovabilityPreservation: i32 = RunBindingOperatorMovabilityPreservation(ctx)
+    if (status_BindingOperatorMovabilityPreservation != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_BindingOperatorMovabilityPreservation
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_ExpressionStatementOperations: i32 = RunExpressionStatementOperations(ctx)
+    if (status_ExpressionStatementOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_ExpressionStatementOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_ShadowBindingStatementOperations: i32 = RunShadowBindingStatementOperations(ctx)
+    if (status_ShadowBindingStatementOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_ShadowBindingStatementOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_UnsafeStatementBlockOperations: i32 = RunUnsafeStatementBlockOperations(ctx)
+    if (status_UnsafeStatementBlockOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_UnsafeStatementBlockOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_ReturnAndResultStatementOperations: i32 = RunReturnAndResultStatementOperations(ctx)
+    if (status_ReturnAndResultStatementOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_ReturnAndResultStatementOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_BreakAndContinueStatementOperations: i32 = RunBreakAndContinueStatementOperations(ctx)
+    if (status_BreakAndContinueStatementOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_BreakAndContinueStatementOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-section_end")]]
+    return 0
+}

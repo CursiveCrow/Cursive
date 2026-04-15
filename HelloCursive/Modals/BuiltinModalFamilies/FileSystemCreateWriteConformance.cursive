@@ -1,0 +1,185 @@
+procedure FileSystemCreateWriteConformanceMetricLabel(value: i32) -> string@View {
+    if (value == 14) {
+        return "14"
+    }
+    return "other"
+}
+
+public procedure RunFileSystemCreateWriteConformance(ctx: Context) -> i32 {
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    let fs: $FileSystem = ctx.fs
+    let build_dir_path: string@View = "build"
+    let build_main_dir_path: string@View = "build/main"
+    let logs_dir_path: string@View = "build/main/logs"
+    let runtime_logs_dir_path: string@View = "build/main/logs/runtime"
+    let build_dir_ready: bool = if fs~>create_dir(build_dir_path) is {
+        _: () { true }
+        _: IoError { fs~>exists(build_dir_path) }
+    }
+    let build_main_dir_ready: bool = if (build_dir_ready == true) {
+        if fs~>create_dir(build_main_dir_path) is {
+            _: () { true }
+            _: IoError { fs~>exists(build_main_dir_path) }
+        }
+    } else {
+        false
+    }
+    let logs_dir_ready: bool = if (build_main_dir_ready == true) {
+        if fs~>create_dir(logs_dir_path) is {
+            _: () { true }
+            _: IoError { fs~>exists(logs_dir_path) }
+        }
+    } else {
+        false
+    }
+    let runtime_logs_dir_ready: bool = if (logs_dir_ready == true) {
+        if fs~>create_dir(runtime_logs_dir_path) is {
+            _: () { true }
+            _: IoError { fs~>exists(runtime_logs_dir_path) }
+        }
+    } else {
+        false
+    }
+
+    let probe_path: string@View =
+        "build/main/logs/runtime/fs_create_write_conformance_probe.txt"
+    let payload_text: string@View = "create-write"
+    let payload_bytes: bytes@View = bytes::view_string(payload_text)
+    let expected_length: i32 = string::length(payload_text) as i32
+
+    let stale_probe_cleanup: () | IoError = fs~>remove(probe_path)
+    let _ = stale_probe_cleanup
+
+    let create_write_ready: bool = if (runtime_logs_dir_ready == true) {
+        if fs~>create_write(probe_path) is {
+            writer: unique File@Write {
+                let write_result: () | IoError = writer~>write(payload_bytes)
+                let flush_result: () | IoError = writer~>flush()
+                let closed_writer: File@Closed = writer~>close()
+                let _ = closed_writer
+                let write_ok: bool = if write_result is {
+                    _: () { true }
+                    _: IoError { false }
+                }
+                let flush_ok: bool = if flush_result is {
+                    _: () { true }
+                    _: IoError { false }
+                }
+                write_ok && flush_ok
+            }
+            _: IoError { false }
+        }
+    } else {
+        false
+    }
+
+    let create_write_duplicate_error: bool = if (create_write_ready == true) {
+        if fs~>create_write(probe_path) is {
+            duplicate_writer: unique File@Write {
+                let closed_writer: File@Closed = duplicate_writer~>close()
+                let _ = closed_writer
+                false
+            }
+            _: IoError { true }
+        }
+    } else {
+        false
+    }
+
+    let create_write_length: i32 = if (create_write_ready == true) {
+        if fs~>open_read(probe_path) is {
+            reader: unique File@Read {
+                let read_result: bytes@Managed | IoError = reader~>read_all_bytes()
+                let closed_reader: File@Closed = reader~>close()
+                let _ = closed_reader
+                if read_result is {
+                    read_bytes: unique bytes@Managed {
+                        let read_view: bytes@View = bytes::as_view(read_bytes)
+                        bytes::length(read_view) as i32
+                    }
+                    _: IoError { 0 }
+                }
+            }
+            _: IoError { 0 }
+        }
+    } else {
+        0
+    }
+
+    let create_write_exact_text: bool = if (create_write_ready == true) {
+        if fs~>open_read(probe_path) is {
+            reader: unique File@Read {
+                let read_result: bytes@Managed | IoError = reader~>read_all_bytes()
+                let closed_reader: File@Closed = reader~>close()
+                let _ = closed_reader
+                if read_result is {
+                    read_bytes: unique bytes@Managed {
+                        let read_view: bytes@View = bytes::as_view(read_bytes)
+                        let read_slice = bytes::as_slice(read_view)
+                        let read_length_ok: bool = bytes::length(read_view) == 12usize
+                        if (read_length_ok == true) {
+                            (read_slice[0] == 99u8) &&
+                            (read_slice[1] == 114u8) &&
+                            (read_slice[2] == 101u8) &&
+                            (read_slice[3] == 97u8) &&
+                            (read_slice[4] == 116u8) &&
+                            (read_slice[5] == 101u8) &&
+                            (read_slice[6] == 45u8) &&
+                            (read_slice[7] == 119u8) &&
+                            (read_slice[8] == 114u8) &&
+                            (read_slice[9] == 105u8) &&
+                            (read_slice[10] == 116u8) &&
+                            (read_slice[11] == 101u8)
+                        } else {
+                            false
+                        }
+                    }
+                    _: IoError { false }
+                }
+            }
+            _: IoError { false }
+        }
+    } else {
+        false
+    }
+
+    let runtime_logs_dir_ready_log: bool =
+        [[log(label: "observed-modals-fs-create-write-runtime-dir-ready", expected: true)]]
+        runtime_logs_dir_ready
+    let create_write_ready_log: bool =
+        [[log(label: "observed-modals-fs-create-write-ready", expected: true)]]
+        create_write_ready
+    let create_write_duplicate_error_log: bool =
+        [[log(label: "observed-modals-fs-create-write-duplicate-error", expected: true)]]
+        create_write_duplicate_error
+    let create_write_length_log: i32 =
+        [[log(label: "observed-modals-fs-create-write-text-length", expected: 12)]]
+        create_write_length
+    let create_write_exact_text_log: bool =
+        [[log(label: "observed-modals-fs-create-write-exact-text", expected: true)]]
+        create_write_exact_text
+
+    let metric: i32 = if (
+        (runtime_logs_dir_ready_log == true) &&
+        (create_write_ready_log == true) &&
+        (create_write_duplicate_error_log == true) &&
+        (create_write_length_log == expected_length) &&
+        (create_write_exact_text_log == true)
+    ) { 14 } else { 0 }
+    let metric_label: string@View = FileSystemCreateWriteConformanceMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-modals-fs-create-write-metric", expected: "14")]]
+        metric_label
+
+    let cleanup_probe: () | IoError = fs~>remove(probe_path)
+    let _ = cleanup_probe
+
+    if (metric_log_actual != "14") {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}

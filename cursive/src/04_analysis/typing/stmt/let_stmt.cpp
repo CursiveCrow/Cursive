@@ -1,0 +1,326 @@
+// =============================================================================
+// let_stmt.cpp - Let statement typing
+// =============================================================================
+//
+// SPEC REFERENCE: CursiveSpecification.md
+//   Section 5.2.11: Statement Typing (lines 9365-9387)
+//   - T-LetStmt-Ann (lines 9369-9372): Let with type annotation
+//   - T-LetStmt-Ann-Mismatch (lines 9374-9377): Type mismatch error
+//   - T-LetStmt-Infer (lines 9379-9382): Let with inference
+//   - T-LetStmt-Infer-Err (lines 9384-9387): Inference failure
+//
+// SOURCE FILE: cursive-bootstrap/src/03_analysis/types/type_stmt.cpp
+//
+// =============================================================================
+
+#include "04_analysis/typing/type_stmt.h"
+
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "00_core/assert_spec.h"
+#include "00_core/process_config.h"
+#include "02_source/ast/ast.h"
+#include "04_analysis/attributes/attribute_registry.h"
+#include "04_analysis/memory/regions.h"
+#include "04_analysis/typing/type_expr.h"
+#include "04_analysis/typing/type_equiv.h"
+#include "04_analysis/typing/type_infer.h"
+#include "04_analysis/typing/type_lower.h"
+#include "04_analysis/typing/types.h"
+
+#include <cstdio>
+
+namespace cursive::analysis {
+
+// TypePattern, IntroResult, IntroAll, CollectPatNames, and DistinctNames
+// are declared in type_stmt.h
+
+namespace {
+
+static inline void SpecDefsLetStmt() {
+  SPEC_DEF("T-LetStmt-Ann", "5.2.11");
+  SPEC_DEF("T-LetStmt-Ann-Mismatch", "5.2.11");
+  SPEC_DEF("T-LetStmt-Infer", "5.2.11");
+  SPEC_DEF("T-LetStmt-Infer-Err", "5.2.11");
+  SPEC_DEF("Pat-Dup-Err", "5.2.11");
+}
+
+std::string PatternName(const ast::PatternPtr& pat) {
+  if (!pat) return {};
+  if (const auto* ident = std::get_if<ast::IdentifierPattern>(&pat->node)) {
+    return ident->name;
+  }
+  if (const auto* typed = std::get_if<ast::TypedPattern>(&pat->node)) {
+    return typed->name;
+  }
+  return {};
+}
+
+bool IsUniqueMoveInitCompatible(const TypeRef& annotated,
+                                const ast::ExprPtr& init,
+                                const PlaceTypeFn& type_place) {
+  if (!init || PermOfType(annotated) != Permission::Unique) {
+    return false;
+  }
+  const auto* move_expr = std::get_if<ast::MoveExpr>(&init->node);
+  if (!move_expr || !move_expr->place) {
+    return false;
+  }
+  const auto place = type_place(move_expr->place);
+  if (!place.ok) {
+    return false;
+  }
+  const auto eq = TypeEquiv(StripPerm(place.type), StripPerm(annotated));
+  return eq.ok && eq.equiv;
+}
+
+std::optional<std::string_view> ValidateBindingAttributes(
+    const ast::Binding& binding,
+    std::string* message_out = nullptr) {
+  const auto validation =
+      ValidateAttributes(binding.attrs, AttributeTarget::Binding);
+  if (!validation.ok) {
+    if (message_out) {
+      *message_out = validation.message;
+    }
+    if (validation.diag_id.has_value()) {
+      return validation.diag_id;
+    }
+    return std::optional<std::string_view>{"Attr-Target-Err"};
+  }
+  return std::nullopt;
+}
+
+std::optional<std::string> NormalizeDeprecatedMessage(
+    const ast::AttributeList& attrs) {
+  auto message =
+      GetAttributeValue(attrs, ::cursive::analysis::attrs::kDeprecated);
+  if (!message.has_value()) {
+    return std::nullopt;
+  }
+  if (message->size() >= 2 &&
+      ((message->front() == '"' && message->back() == '"') ||
+       (message->front() == '\'' && message->back() == '\''))) {
+    return message->substr(1, message->size() - 2);
+  }
+  return message;
+}
+
+void ApplyBindingMetadata(TypeEnv& env,
+                          const std::vector<IdKey>& names,
+                          const std::optional<TypeBinding::ClosureCaptureInfo>& closure_info,
+                          const std::optional<ProvStmtTrackResult>& provenance,
+                          bool deprecated,
+                          const std::optional<std::string>& deprecated_message) {
+  if (env.scopes.empty()) {
+    return;
+  }
+  auto& scope = env.scopes.back();
+  for (const auto& name : names) {
+    const auto it = scope.find(name);
+    if (it == scope.end()) {
+      continue;
+    }
+    it->second.deprecated = deprecated;
+    it->second.deprecated_message = deprecated_message;
+    if (closure_info.has_value() && names.size() == 1) {
+      it->second.closure_capture_info = *closure_info;
+    }
+    if (provenance.has_value()) {
+      ApplyBindingProvenanceSeed(it->second, provenance->kind,
+                                 provenance->region);
+    }
+  }
+}
+
+}  // namespace
+
+StmtTypeResult TypeLetStmt(const ScopeContext& ctx,
+                           const StmtTypeContext& type_ctx,
+                           const ast::LetStmt& node,
+                           const TypeEnv& env,
+                           const ExprTypeFn& type_expr,
+                           const IdentTypeFn& type_ident,
+                           const PlaceTypeFn& type_place) {
+  SpecDefsLetStmt();
+
+  const auto& binding = node.binding;
+  std::string attr_message;
+  if (const auto attr_diag = ValidateBindingAttributes(binding, &attr_message)) {
+    return {false, attr_diag, {}, {}, std::move(attr_message)};
+  }
+  const bool binding_deprecated =
+      HasAttribute(binding.attrs, ::cursive::analysis::attrs::kDeprecated);
+  const auto deprecated_message = NormalizeDeprecatedMessage(binding.attrs);
+
+  // Case 1: Type annotation provided
+  if (binding.type_opt) {
+    // Lower the type annotation
+    const auto ann = LowerType(ctx, binding.type_opt);
+    if (!ann.ok) {
+      return {false, ann.diag_id, {}, {}};
+    }
+
+    // Check init expression against annotated type
+    const auto check =
+        CheckExprAgainst(ctx, type_ctx, binding.init, ann.type, env);
+    const bool unique_move_ok =
+        IsUniqueMoveInitCompatible(ann.type, binding.init, type_place);
+    if (!check.ok && !unique_move_ok) {
+      if (core::IsDebugEnabled("sema") || core::IsDebugEnabled("pipeline")) {
+        const auto inferred_dbg =
+            InferExpr(ctx, binding.init, type_expr, type_place, type_ident);
+        if (inferred_dbg.ok) {
+          std::fprintf(stderr,
+                       "[let-ann-check-fail] %s:%zu:%zu expected=%s inferred=%s diag=%s\n",
+                       node.span.file.c_str(),
+                       node.span.start_line,
+                       node.span.start_col,
+                       TypeToString(ann.type).c_str(),
+                       TypeToString(inferred_dbg.type).c_str(),
+                       check.diag_id.has_value() ? std::string(*check.diag_id).c_str() : "<none>");
+        } else {
+          std::fprintf(stderr,
+                       "[let-ann-check-fail] %s:%zu:%zu expected=%s inferred=<infer-failed> diag=%s\n",
+                       node.span.file.c_str(),
+                       node.span.start_line,
+                       node.span.start_col,
+                       TypeToString(ann.type).c_str(),
+                       check.diag_id.has_value() ? std::string(*check.diag_id).c_str() : "<none>");
+        }
+      }
+      if (!check.diag_id.has_value()) {
+        SPEC_RULE("T-LetStmt-Ann-Mismatch");
+        return {false, "T-LetStmt-Ann-Mismatch", {}, {}};
+      }
+      return {false, check.diag_id, {}, {}};
+    }
+
+    // Type the pattern against annotated type
+    const auto pat = TypePattern(ctx, binding.pat, ann.type);
+    if (!pat.ok) {
+      return {false, pat.diag_id, {}, {}};
+    }
+
+    // Check pattern names are distinct
+    std::vector<IdKey> names;
+    CollectPatNames(*binding.pat, names);
+    if (!DistinctNames(names)) {
+      SPEC_RULE("Pat-Dup-Err");
+      return {false, "Pat-Dup-Err", {}, {}};
+    }
+
+    const auto closure_info =
+        AnalyzeClosureCaptureInfo(binding.init, env, ann.type);
+
+    if (const auto log_diag =
+            ValidateLogAttributesForObservedType(ctx, binding.attrs, ann.type, env)) {
+      return {false, log_diag, {}, {}};
+    }
+
+    // Introduce bindings with 'let' mutability
+    const auto intro = IntroAll(env, pat.bindings, ast::Mutability::Let, false);
+    if (!intro.ok) {
+      if (!intro.diag_id.has_value()) {
+        SPEC_RULE("Pat-Dup-Err");
+        return {false, "Pat-Dup-Err", {}, {}};
+      }
+      return {false, intro.diag_id, {}, {}};
+    }
+
+    TypeEnv out_env = std::move(intro.env);
+    std::optional<ProvStmtTrackResult> binding_provenance;
+    const auto tracked = TrackBindingProvenance(ctx, binding, env);
+    if (tracked.ok) {
+      binding_provenance = tracked;
+    }
+    ApplyBindingMetadata(out_env, names, closure_info, binding_provenance,
+                         binding_deprecated, deprecated_message);
+
+    SPEC_RULE("T-LetStmt-Ann");
+    return {true, std::nullopt, std::move(out_env), {}};
+  }
+
+  // Case 2: Type inference
+  ConstraintSet constraints;
+  const auto inferred = InferExpr(ctx, binding.init, type_expr, type_place,
+                                  type_ident, &constraints);
+  if (!inferred.ok) {
+    if (inferred.diag_id.has_value()) {
+      return {false, inferred.diag_id, {}, {}, inferred.diag_detail};
+    }
+    SPEC_RULE("T-LetStmt-Infer-Err");
+    {
+      std::string detail;
+      const auto name = PatternName(binding.pat);
+      if (!name.empty()) {
+        detail = "binding '" + name + "'";
+      }
+      return {false, "T-LetStmt-Infer-Err", {}, {}, std::move(detail)};
+    }
+  }
+  const auto solved = Solve(ctx, constraints);
+  if (!solved.ok) {
+    if (solved.diag_id.has_value()) {
+      return {false, solved.diag_id, {}, {}, inferred.diag_detail};
+    }
+    SPEC_RULE("T-LetStmt-Infer-Err");
+    return {false, "T-LetStmt-Infer-Err", {}, {}, inferred.diag_detail};
+  }
+  const auto inferred_type = ApplySubstitution(inferred.type, solved.subst);
+  if (!inferred_type) {
+    SPEC_RULE("T-LetStmt-Infer-Err");
+    return {false, "T-LetStmt-Infer-Err", {}, {}, inferred.diag_detail};
+  }
+
+  // Type the pattern against inferred type
+  const auto pat = TypePattern(ctx, binding.pat, inferred_type);
+  if (!pat.ok) {
+    return {false, pat.diag_id, {}, {}};
+  }
+
+  // Check pattern names are distinct
+  std::vector<IdKey> names;
+  CollectPatNames(*binding.pat, names);
+  if (!DistinctNames(names)) {
+    SPEC_RULE("Pat-Dup-Err");
+    return {false, "Pat-Dup-Err", {}, {}};
+  }
+
+  const auto closure_info =
+      AnalyzeClosureCaptureInfo(binding.init, env, inferred_type);
+
+  if (const auto log_diag =
+          ValidateLogAttributesForObservedType(ctx, binding.attrs, inferred_type,
+                                               env)) {
+    return {false, log_diag, {}, {}};
+  }
+
+  // Introduce bindings with 'let' mutability
+  const auto intro = IntroAll(env, pat.bindings, ast::Mutability::Let, false);
+  if (!intro.ok) {
+    if (!intro.diag_id.has_value()) {
+      SPEC_RULE("Pat-Dup-Err");
+      return {false, "Pat-Dup-Err", {}, {}};
+    }
+    return {false, intro.diag_id, {}, {}};
+  }
+
+  TypeEnv out_env = std::move(intro.env);
+  std::optional<ProvStmtTrackResult> binding_provenance;
+  const auto tracked = TrackBindingProvenance(ctx, binding, env);
+  if (tracked.ok) {
+    binding_provenance = tracked;
+  }
+  ApplyBindingMetadata(out_env, names, closure_info, binding_provenance,
+                       binding_deprecated, deprecated_message);
+
+  SPEC_RULE("T-LetStmt-Infer");
+  return {true, std::nullopt, std::move(out_env), {}};
+}
+
+}  // namespace cursive::analysis

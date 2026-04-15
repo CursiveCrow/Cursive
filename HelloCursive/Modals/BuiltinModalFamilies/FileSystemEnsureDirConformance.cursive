@@ -1,0 +1,182 @@
+procedure FileSystemEnsureDirConformanceMetricLabel(value: i32) -> string@View {
+    if (value == 7) {
+        return "7"
+    }
+    return "other"
+}
+
+public procedure RunFileSystemEnsureDirConformance(ctx: Context) -> i32 {
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    let fs: $FileSystem = ctx.fs
+    let build_dir_path: string@View = "build"
+    let build_main_dir_path: string@View = "build/main"
+    let logs_dir_path: string@View = "build/main/logs"
+    let runtime_logs_dir_path: string@View = "build/main/logs/runtime"
+    let build_dir_ready: bool = if fs~>create_dir(build_dir_path) is {
+        _: () { true }
+        _: IoError { fs~>exists(build_dir_path) }
+    }
+    let build_main_dir_ready: bool = if (build_dir_ready == true) {
+        if fs~>create_dir(build_main_dir_path) is {
+            _: () { true }
+            _: IoError { fs~>exists(build_main_dir_path) }
+        }
+    } else {
+        false
+    }
+    let logs_dir_ready: bool = if (build_main_dir_ready == true) {
+        if fs~>create_dir(logs_dir_path) is {
+            _: () { true }
+            _: IoError { fs~>exists(logs_dir_path) }
+        }
+    } else {
+        false
+    }
+    let runtime_logs_dir_ready: bool = if (logs_dir_ready == true) {
+        if fs~>create_dir(runtime_logs_dir_path) is {
+            _: () { true }
+            _: IoError { fs~>exists(runtime_logs_dir_path) }
+        }
+    } else {
+        false
+    }
+
+    let probe_root_path: string@View =
+        "build/main/logs/runtime/fs_ensure_dir_conformance_probe"
+    let probe_parent_path: string@View =
+        "build/main/logs/runtime/fs_ensure_dir_conformance_probe/level one"
+    let probe_leaf_path: string@View =
+        "build/main/logs/runtime/fs_ensure_dir_conformance_probe/level one/level two"
+    let collision_path: string@View =
+        "build/main/logs/runtime/fs_ensure_dir_conformance_file_target"
+    let payload: bytes@View = bytes::view_string("ensure-dir-probe")
+
+    let stale_probe_leaf_cleanup: () | IoError = fs~>remove(probe_leaf_path)
+    let _ = stale_probe_leaf_cleanup
+    let stale_probe_parent_cleanup: () | IoError = fs~>remove(probe_parent_path)
+    let _ = stale_probe_parent_cleanup
+    let stale_probe_root_cleanup: () | IoError = fs~>remove(probe_root_path)
+    let _ = stale_probe_root_cleanup
+    let stale_collision_cleanup: () | IoError = fs~>remove(collision_path)
+    let _ = stale_collision_cleanup
+
+    let ensure_dir_created: bool = if (runtime_logs_dir_ready == true) {
+        if fs~>ensure_dir(probe_leaf_path) is {
+            _: () { true }
+            _: IoError { false }
+        }
+    } else {
+        false
+    }
+
+    let leaf_exists_after_create: bool = if (ensure_dir_created == true) {
+        fs~>exists(probe_leaf_path)
+    } else {
+        false
+    }
+
+    let ensure_dir_idempotent: bool = if (leaf_exists_after_create == true) {
+        if fs~>ensure_dir(probe_leaf_path) is {
+            _: () { true }
+            _: IoError { false }
+        }
+    } else {
+        false
+    }
+
+    let open_dir_leaf_ok: bool = if (ensure_dir_idempotent == true) {
+        if fs~>open_dir(probe_leaf_path) is {
+            iter: unique DirIter@Open {
+                let first_result: DirEntry | () | IoError = iter~>next()
+                let closed_iter: DirIter@Closed = iter~>close()
+                let _ = closed_iter
+                if first_result is {
+                    _: DirEntry { false }
+                    _: () { true }
+                    _: IoError { false }
+                }
+            }
+            _: IoError { false }
+        }
+    } else {
+        false
+    }
+
+    let collision_seeded: bool = if (runtime_logs_dir_ready == true) {
+        if fs~>write_file(collision_path, payload) is {
+            _: () { true }
+            _: IoError { false }
+        }
+    } else {
+        false
+    }
+
+    let collision_rejected: bool = if (collision_seeded == true) {
+        if fs~>ensure_dir(collision_path) is {
+            _: () { false }
+            _: IoError { true }
+        }
+    } else {
+        false
+    }
+
+    let collision_preserved: bool = if (collision_seeded == true) {
+        fs~>exists(collision_path)
+    } else {
+        false
+    }
+
+    let runtime_logs_dir_ready_log: bool =
+        [[log(label: "observed-modals-fs-ensure-dir-runtime-dir-ready", expected: true)]]
+        runtime_logs_dir_ready
+    let ensure_dir_created_log: bool =
+        [[log(label: "observed-modals-fs-ensure-dir-created", expected: true)]]
+        ensure_dir_created
+    let leaf_exists_after_create_log: bool =
+        [[log(label: "observed-modals-fs-ensure-dir-leaf-exists", expected: true)]]
+        leaf_exists_after_create
+    let ensure_dir_idempotent_log: bool =
+        [[log(label: "observed-modals-fs-ensure-dir-idempotent", expected: true)]]
+        ensure_dir_idempotent
+    let open_dir_leaf_ok_log: bool =
+        [[log(label: "observed-modals-fs-ensure-dir-open-leaf", expected: true)]]
+        open_dir_leaf_ok
+    let collision_rejected_log: bool =
+        [[log(label: "observed-modals-fs-ensure-dir-file-collision-error", expected: true)]]
+        collision_rejected
+    let collision_preserved_log: bool =
+        [[log(label: "observed-modals-fs-ensure-dir-file-collision-preserved", expected: true)]]
+        collision_preserved
+
+    let metric: i32 = if (
+        (runtime_logs_dir_ready_log == true) &&
+        (ensure_dir_created_log == true) &&
+        (leaf_exists_after_create_log == true) &&
+        (ensure_dir_idempotent_log == true) &&
+        (open_dir_leaf_ok_log == true) &&
+        (collision_rejected_log == true) &&
+        (collision_preserved_log == true)
+    ) { 7 } else { 0 }
+    let metric_label: string@View = FileSystemEnsureDirConformanceMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-modals-fs-ensure-dir-metric", expected: "7")]]
+        metric_label
+
+    let cleanup_probe_leaf: () | IoError = fs~>remove(probe_leaf_path)
+    let _ = cleanup_probe_leaf
+    let cleanup_probe_parent: () | IoError = fs~>remove(probe_parent_path)
+    let _ = cleanup_probe_parent
+    let cleanup_probe_root: () | IoError = fs~>remove(probe_root_path)
+    let _ = cleanup_probe_root
+    let cleanup_collision: () | IoError = fs~>remove(collision_path)
+    let _ = cleanup_collision
+
+    if (metric_log_actual != "7") {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}

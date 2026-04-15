@@ -1,0 +1,271 @@
+procedure IsPositive(value: i32) -> bool {
+    return value > 0
+}
+
+procedure PositiveGate(value: i32) -> i32 | bool {
+    if (IsPositive(value)) {
+        return value
+    }
+    return false
+}
+
+procedure PositiveUnder(value: i32, upper: i32) -> i32 | bool {
+    if (IsPositive(value) && (value < upper)) {
+        return value
+    }
+    return false
+}
+
+procedure LogConstraintsObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "types-log-object")]]
+}
+
+procedure RunConstraintsAndWhereClausesItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    let detail_begin: string@View = "type feature item exercise start"
+    [[log(label: "types-log-item_begin")]]
+    let phase_running: string@View = "running"
+    let phase_step_begin: string@View = "step-begin"
+    let phase_step_pass: string@View = "step-pass"
+    let phase_step_fail: string@View = "step-fail"
+    let reason_pass: string@View = "expected output aligned with actual output"
+    let reason_fail: string@View = "expected output did not align with actual output"
+    let passed_place: bool = passed
+
+    [[log(label: "types-log-runtime_phase")]]
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "types-log-transition")]]
+        [[log(label: "types-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "types-log-transition")]]
+    [[log(label: "types-log-types_item_success")]]
+    return 0
+}
+
+procedure ConstraintMetricLabel(value: i32) -> string@View {
+    if (value == 0) {
+        return "0"
+    }
+    if (value == 1) {
+        return "1"
+    }
+    return "other"
+}
+
+procedure VerifyConstraintsAndWhereClausesItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "types-log-runtime_phase_move")]]
+    let positive_three: i32 = 3
+    let positive_two: i32 = 2
+    let positive_four: i32 = 4
+    let negative_one: i32 = -1
+    let upper_limit: i32 = 10
+    LogConstraintsObject(ctx.fs, scope, "predicate_inputs", "i32 set", "constructed", "positive/negative candidate values prepared")
+    LogConstraintsObject(ctx.fs, scope, "upper_limit", "i32", "constructed", "upper bound for where-clause predicates prepared")
+
+    [[log(label: "types-log-runtime_phase_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let inline_candidate: i32 | bool = PositiveGate(positive_three)
+    let inline_bound_metric: i32 = if inline_candidate is {
+        accepted: i32 { if (accepted == 3) { 1 } else { 0 } }
+        _: bool { 0 }
+    }
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let where_left: i32 | bool = PositiveUnder(positive_two, positive_four)
+    let where_right: i32 | bool = PositiveUnder(positive_three, upper_limit)
+    let where_left_score: i32 = if where_left is {
+        accepted_left: i32 { accepted_left }
+        _: bool { 0 }
+    }
+    let where_right_score: i32 = if where_right is {
+        accepted_right: i32 { accepted_right }
+        _: bool { 0 }
+    }
+    let where_predicate_metric: i32 = if ((where_left_score + where_right_score) == 5) { 1 } else { 0 }
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let bounds_primary: i32 | bool = PositiveUnder(positive_three, upper_limit)
+    let bounds_secondary: i32 | bool = PositiveGate(positive_three)
+    let bounds_primary_ok: bool = if bounds_primary is {
+        _: i32 { true }
+        _: bool { false }
+    }
+    let bounds_secondary_ok: bool = if bounds_secondary is {
+        _: i32 { true }
+        _: bool { false }
+    }
+    let multiple_bounds_metric: i32 = if (bounds_primary_ok && bounds_secondary_ok) { 1 } else { 0 }
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let satisfied_value: i32 | bool = PositiveUnder(positive_four, upper_limit)
+    let rejected_value: i32 | bool = PositiveUnder(negative_one, upper_limit)
+    let satisfied_ok: bool = if satisfied_value is {
+        _: i32 { true }
+        _: bool { false }
+    }
+    let rejected_ok: bool = if rejected_value is {
+        _: bool { true }
+        _: i32 { false }
+    }
+    let satisfaction_metric: i32 = if (satisfied_ok && rejected_ok) { 1 } else { 0 }
+    [[log(label: "types-log-transition_move")]]
+    let observed_inline_step: string@View = "observed-inline-bounds-metric"
+    let observed_where_step: string@View = "observed-where-clause-predicates-metric"
+    let observed_multiple_step: string@View = "observed-multiple-bounds-conjunction-metric"
+    let observed_satisfaction_step: string@View = "observed-constraint-satisfaction-metric"
+    let expected_inline: string@View = "1"
+    let expected_where: string@View = "1"
+    let expected_multiple: string@View = "1"
+    let expected_satisfaction: string@View = "1"
+    let inline_metric_label: string@View = ConstraintMetricLabel(inline_bound_metric)
+    let where_metric_label: string@View = ConstraintMetricLabel(where_predicate_metric)
+    let multiple_metric_label: string@View = ConstraintMetricLabel(multiple_bounds_metric)
+    let satisfaction_metric_label: string@View = ConstraintMetricLabel(satisfaction_metric)
+    let inline_metric_passed: bool = inline_bound_metric == 1
+    let where_metric_passed: bool = where_predicate_metric == 1
+    let multiple_metric_passed: bool = multiple_bounds_metric == 1
+    let satisfaction_metric_passed: bool = satisfaction_metric == 1
+
+    let inline_metric_passed_log_actual = [[log(label: "observed-inline-bounds-metric", expected: "1")]] inline_metric_label
+    let inline_metric_passed_with_log: bool = inline_metric_passed && (inline_metric_passed_log_actual == expected_inline)
+    let where_metric_passed_log_actual = [[log(label: "observed-where-clause-predicates-metric", expected: "1")]] where_metric_label
+    let where_metric_passed_with_log: bool = where_metric_passed && (where_metric_passed_log_actual == expected_where)
+    let multiple_metric_passed_log_actual = [[log(label: "observed-multiple-bounds-conjunction-metric", expected: "1")]] multiple_metric_label
+    let multiple_metric_passed_with_log: bool = multiple_metric_passed && (multiple_metric_passed_log_actual == expected_multiple)
+    let satisfaction_metric_passed_log_actual = [[log(label: "observed-constraint-satisfaction-metric", expected: "1")]] satisfaction_metric_label
+    let satisfaction_metric_passed_with_log: bool = satisfaction_metric_passed && (satisfaction_metric_passed_log_actual == expected_satisfaction)
+    [[log(label: "types-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunConstraintsAndWhereClausesItem(
+            ctx,
+            scope,
+            "InlineBounds",
+            "inline bound syntax and type-variable constraint formation",
+            "validated inline bounds",
+            "inline-bounds",
+            "evaluate inline constraint predicate before value admission",
+            "1",
+            "1",
+            "not-1",
+            move inline_metric_passed_with_log,
+            "inline bounds check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunConstraintsAndWhereClausesItem(
+            ctx,
+            scope,
+            "WhereClausePredicates",
+            "where-clause predicate typing and binding scopes",
+            "validated where-clause predicates",
+            "where-predicates",
+            "evaluate conjunction of where predicates over accepted candidates",
+            "1",
+            "1",
+            "not-1",
+            move where_metric_passed_with_log,
+            "where-clause predicates check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunConstraintsAndWhereClausesItem(
+            ctx,
+            scope,
+            "MultipleBoundsConjunction",
+            "multiple bound conjunction semantics and satisfiability",
+            "validated multiple-bounds conjunction",
+            "multiple-bounds",
+            "evaluate conjunction of independent bound constraints",
+            "1",
+            "1",
+            "not-1",
+            move multiple_metric_passed_with_log,
+            "multiple bounds conjunction check failed"
+        )
+    }
+
+    if (item_index == 3) {
+        return RunConstraintsAndWhereClausesItem(
+            ctx,
+            scope,
+            "ConstraintSatisfaction",
+            "constraint satisfaction at instantiation and use sites",
+            "validated constraint satisfaction behavior",
+            "constraint-satisfaction",
+            "evaluate final satisfiability decision after predicate checks",
+            "1",
+            "1",
+            "not-1",
+            move satisfaction_metric_passed_with_log,
+            "constraint satisfaction check failed"
+        )
+    }
+
+    return RunConstraintsAndWhereClausesItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown constraints/where-clauses item",
+        "failed unknown constraints/where-clauses item",
+        "item-resolution",
+        "resolve item name within constraints/where-clauses feature set",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown constraints/where-clauses item"
+    )
+}
+
+procedure RunConstraintsAndWhereClauses(ctx: Context) -> i32 {
+    let scope: string@View = "types::Abstraction::ConstraintsAndWhereClauses"
+    let checkpoint: string@View = "covered constraints/where-clauses feature items"
+
+    let status_InlineBounds: i32 = VerifyConstraintsAndWhereClausesItem(ctx, scope, 0, "InlineBounds")
+    if (status_InlineBounds != 0) {
+        return status_InlineBounds
+    }
+
+    let status_WhereClausePredicates: i32 = VerifyConstraintsAndWhereClausesItem(ctx, scope, 1, "WhereClausePredicates")
+    if (status_WhereClausePredicates != 0) {
+        return status_WhereClausePredicates
+    }
+
+    let status_MultipleBoundsConjunction: i32 = VerifyConstraintsAndWhereClausesItem(ctx, scope, 2, "MultipleBoundsConjunction")
+    if (status_MultipleBoundsConjunction != 0) {
+        return status_MultipleBoundsConjunction
+    }
+
+    let status_ConstraintSatisfaction: i32 = VerifyConstraintsAndWhereClausesItem(ctx, scope, 3, "ConstraintSatisfaction")
+    if (status_ConstraintSatisfaction != 0) {
+        return status_ConstraintSatisfaction
+    }
+
+    [[log(label: "types-log-checkpoint")]]
+    return 0
+}

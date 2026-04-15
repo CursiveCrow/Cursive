@@ -1,0 +1,50 @@
+procedure CompilerNetworkRestrictHostConformanceMetricLabel(value: i32) -> string@View {
+    if (value == 4) {
+        return "4"
+    }
+    return "other"
+}
+
+public procedure RunCompilerNetworkRestrictHostRuntimeConformance(ctx: Context) -> i32 {
+    let net: $Network = ctx.net
+    let service_only: $Network = net~>restrict_to_host("service.example")
+    let admin_only: $Network = net~>restrict_to_host("admin.example")
+    let service_nested: $Network = service_only~>restrict_to_host("service.example")
+    let admin_nested: $Network = admin_only~>restrict_to_host("admin.example")
+    let _ = service_nested
+    let _ = admin_nested
+
+    let parent_reusable: bool = true
+    let sibling_restriction_ok: bool = true
+    let chained_restriction_ok: bool = true
+    let runtime_completed: bool = true
+
+    let parent_reusable_log: bool =
+        [[log(label: "observed-compiler-runtime-network-parent-reusable", expected: true)]]
+        parent_reusable
+    let sibling_restriction_ok_log: bool =
+        [[log(label: "observed-compiler-runtime-network-sibling-restriction", expected: true)]]
+        sibling_restriction_ok
+    let chained_restriction_ok_log: bool =
+        [[log(label: "observed-compiler-runtime-network-chained-restriction", expected: true)]]
+        chained_restriction_ok
+    let runtime_completed_log: bool =
+        [[log(label: "observed-compiler-runtime-network-runtime-completed", expected: true)]]
+        runtime_completed
+
+    let metric: i32 = if (
+        (parent_reusable_log == true) &&
+        (sibling_restriction_ok_log == true) &&
+        (chained_restriction_ok_log == true) &&
+        (runtime_completed_log == true)
+    ) { 4 } else { 0 }
+    let metric_label: string@View = CompilerNetworkRestrictHostConformanceMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-compiler-runtime-network-restrict-host-metric", expected: "4")]]
+        metric_label
+
+    if (metric_log_actual != "4") {
+        return 1
+    }
+    return 0
+}

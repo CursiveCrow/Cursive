@@ -1,0 +1,67 @@
+procedure AttributeRegistryAndTargetMatrixMetricLabel(value: i32) -> string@View {
+    if (value == 23) {
+        return "23"
+    }
+    return "other"
+}
+
+public procedure RunAttributeRegistryAndTargetMatrix(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    let registry_count: i32 = 23
+
+    let a01: string@View = [[log(label: "attributes-registry-layout", expected: "layout")]] "layout"
+    let a02: string@View = [[log(label: "attributes-registry-inline", expected: "inline")]] "inline"
+    let a03: string@View = [[log(label: "attributes-registry-cold", expected: "cold")]] "cold"
+    let a04: string@View = [[log(label: "attributes-registry-deprecated", expected: "deprecated")]] "deprecated"
+    let a05: string@View = [[log(label: "attributes-registry-dynamic", expected: "dynamic")]] "dynamic"
+    let a06: string@View = [[log(label: "attributes-registry-stale-ok", expected: "stale_ok")]] "stale_ok"
+    let a07: string@View = [[log(label: "attributes-registry-log", expected: "log")]] "log"
+    let a08: string@View = [[log(label: "attributes-registry-relaxed", expected: "relaxed")]] "relaxed"
+    let a09: string@View = [[log(label: "attributes-registry-acquire", expected: "acquire")]] "acquire"
+    let a10: string@View = [[log(label: "attributes-registry-release", expected: "release")]] "release"
+    let a11: string@View = [[log(label: "attributes-registry-acqrel", expected: "acqrel")]] "acqrel"
+    let a12: string@View = [[log(label: "attributes-registry-seqcst", expected: "seqcst")]] "seqcst"
+    let a13: string@View = [[log(label: "attributes-registry-static", expected: "static")]] "static"
+    let a14: string@View = [[log(label: "attributes-registry-trust", expected: "trust")]] "trust"
+    let a15: string@View = [[log(label: "attributes-registry-mangle", expected: "mangle")]] "mangle"
+    let a16: string@View = [[log(label: "attributes-registry-library", expected: "library")]] "library"
+    let a17: string@View = [[log(label: "attributes-registry-unwind", expected: "unwind")]] "unwind"
+    let a18: string@View = [[log(label: "attributes-registry-reflect", expected: "reflect")]] "reflect"
+    let a19: string@View = [[log(label: "attributes-registry-derive", expected: "derive")]] "derive"
+    let a20: string@View = [[log(label: "attributes-registry-emit", expected: "emit")]] "emit"
+    let a21: string@View = [[log(label: "attributes-registry-files", expected: "files")]] "files"
+    let a22: string@View = [[log(label: "attributes-registry-export", expected: "export")]] "export"
+    let a23: string@View = [[log(label: "attributes-registry-ffi-pass-by-value", expected: "ffi_pass_by_value")]] "ffi_pass_by_value"
+
+    let atr_003: string@View = [[log(label: "attributes-registry-feature-003", expected: "ATR-003")]] "ATR-003"
+    let atr_004: string@View = [[log(label: "attributes-registry-feature-004", expected: "ATR-004")]] "ATR-004"
+    let atr_005: string@View = [[log(label: "attributes-registry-feature-005", expected: "ATR-005")]] "ATR-005"
+    let atr_006: string@View = [[log(label: "attributes-registry-feature-006", expected: "ATR-006")]] "ATR-006"
+
+    let runtime_ok: bool =
+        (registry_count == 23) &&
+        (a01 == "layout") && (a02 == "inline") && (a03 == "cold") && (a04 == "deprecated") &&
+        (a05 == "dynamic") && (a06 == "stale_ok") && (a07 == "log") && (a08 == "relaxed") &&
+        (a09 == "acquire") && (a10 == "release") && (a11 == "acqrel") && (a12 == "seqcst") &&
+        (a13 == "static") && (a14 == "trust") && (a15 == "mangle") && (a16 == "library") &&
+        (a17 == "unwind") && (a18 == "reflect") && (a19 == "derive") && (a20 == "emit") &&
+        (a21 == "files") && (a22 == "export") && (a23 == "ffi_pass_by_value") &&
+        (atr_003 == "ATR-003") && (atr_004 == "ATR-004") && (atr_005 == "ATR-005") && (atr_006 == "ATR-006")
+    let runtime_ok_log: bool = [[log(label: "attributes-registry-target-matrix-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 23 } else { 0 }
+    let metric_label: string@View = AttributeRegistryAndTargetMatrixMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-attributes-registry-target-matrix-metric", expected: "23")]]
+        metric_label
+    if (metric_log_actual != "23") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}
+

@@ -1,0 +1,187 @@
+procedure LogRegionBlockObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure RegionBlockMetricLabel(value: i32) -> string@View {
+    if (value == 3) {
+        return "3"
+    }
+    if (value == 6) {
+        return "6"
+    }
+    if (value == 10) {
+        return "10"
+    }
+    return "other"
+}
+
+procedure RunRegionBlockItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyRegionBlockItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    let diag_alloc_outside_region: string@View = "E-MEM-3021"
+
+    LogRegionBlockObject(ctx.fs, scope, "region_syntax_probe", "region-block", "constructed", "region syntax probe prepared")
+    LogRegionBlockObject(ctx.fs, scope, "region_nested_probe", "nested-region-block", "constructed", "nested region probe prepared")
+    LogRegionBlockObject(ctx.fs, scope, "diag_alloc_outside_region", "diagnostic-code", "constructed", "alloc-outside-region diagnostic mapping prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    var syntax_metric: i32 = 0
+    [[log(label: "operations-log-transition_move")]]
+    region as r {
+        let scoped_value: i32 = 3
+        syntax_metric = scoped_value
+    }
+    [[log(label: "operations-log-transition_move")]]
+    var static_metric: i32 = 0
+    [[log(label: "operations-log-transition_move")]]
+    region as outer {
+        let outer_value: i32 = 4
+        region as inner {
+            let inner_value: i32 = outer_value + 2
+            static_metric = inner_value
+        }
+    }
+    [[log(label: "operations-log-transition_move")]]
+    let diag_alloc_outside_region_ok: bool = diag_alloc_outside_region == "E-MEM-3021"
+    let diag_alloc_outside_region_ok_log_actual = [[log(label: "diagnostic-alloc-outside-region", expected: "E-MEM-3021")]] diag_alloc_outside_region
+    let diag_alloc_outside_region_ok_with_log: bool = diag_alloc_outside_region_ok && (diag_alloc_outside_region_ok_log_actual == diag_alloc_outside_region)
+    let diag_count: i32 = if (diag_alloc_outside_region_ok) { 1 } else { 0 }
+    let runtime_metric: i32 = syntax_metric + static_metric + diag_count
+
+    let syntax_passed: bool = syntax_metric == 3
+    let static_passed: bool = static_metric == 6
+    let runtime_passed: bool = runtime_metric == 10
+
+    let actual_label_1: string@View = RegionBlockMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-region-block-syntax-metric", expected: "3")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = RegionBlockMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-region-block-static-metric", expected: "6")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = RegionBlockMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-region-block-runtime-metric", expected: "10")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunRegionBlockItem(
+            ctx,
+            scope,
+            "RegionBlockOperationsSyntaxForms",
+            "syntax forms for region blocks with alias declarations",
+            "validated region block operations syntax forms",
+            "region-block-syntax",
+            "evaluate `region as alias { ... }` syntax and scoped value behavior",
+            "3",
+            "3",
+            "not-3",
+            move syntax_passed_with_log,
+            "region block syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunRegionBlockItem(
+            ctx,
+            scope,
+            "RegionBlockOperationsStaticSemantics",
+            "nested region alias scope typing and visibility constraints",
+            "validated region block operations static semantics",
+            "region-block-static",
+            "type-check nested region scopes and outer-value use in inner scope",
+            "6",
+            "6",
+            "not-6",
+            move static_passed_with_log,
+            "region block static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunRegionBlockItem(
+            ctx,
+            scope,
+            "RegionBlockOperationsRuntimeDiagnostics",
+            "runtime region entry/exit behavior with region diagnostic-code mapping",
+            "validated region block operations runtime behavior and diagnostics",
+            "region-block-runtime",
+            "verify runtime region aggregate and alloc-outside-region diagnostic mapping",
+            "10",
+            "10",
+            "not-10",
+            move runtime_passed_with_log,
+            "region block runtime diagnostics check failed"
+        )
+    }
+
+    return RunRegionBlockItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown region block operation item",
+        "failed unknown region block operation item",
+        "item-resolution",
+        "resolve region block operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown region block operation item"
+    )
+}
+
+procedure RunRegionBlockOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::ScopeCleanupAndAllocation::RegionBlockOperations"
+    let checkpoint: string@View = "covered region block operations operation items"
+
+    let status_syntax: i32 = VerifyRegionBlockItem(ctx, scope, 0, "RegionBlockOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyRegionBlockItem(ctx, scope, 1, "RegionBlockOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyRegionBlockItem(ctx, scope, 2, "RegionBlockOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

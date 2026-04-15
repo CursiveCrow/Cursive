@@ -1,0 +1,167 @@
+name: Reusable Build
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      package:
+        required: false
+        type: boolean
+        default: false
+      upload_artifact:
+        required: false
+        type: boolean
+        default: false
+      artifact_name:
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  build:
+    name: Build ${{ inputs.platform }}
+    runs-on: ${{ inputs.platform == 'windows' && 'windows-latest' || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up CMake 4 on Linux
+        if: inputs.platform == 'linux'
+        run: |
+          python -m pip install --upgrade "cmake==4.0.3"
+          echo "${pythonLocation}/bin" >> "$GITHUB_PATH"
+          export PATH="${pythonLocation}/bin:$PATH"
+          command -v cmake
+          cmake --version
+
+      - name: Set up CMake 4 on Windows
+        if: inputs.platform == 'windows'
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade "cmake==4.0.3"
+          $cmakeBin = Join-Path $env:pythonLocation "Scripts"
+          Add-Content -Path $env:GITHUB_PATH -Value $cmakeBin
+          $env:PATH = "$cmakeBin;$env:PATH"
+          Get-Command cmake | Select-Object -ExpandProperty Source
+          cmake --version
+
+      - name: Verify vendored Linux extern dependencies
+        if: inputs.platform == 'linux'
+        run: |
+          test -f extern/tomlplusplus/include/toml++/toml.hpp
+          test -d extern/icu/linux/include
+          test -f extern/icu/linux/lib/libicui18n.so.72
+          test -f extern/icu/linux/lib/libicuuc.so.72
+          test -f extern/icu/linux/lib/libicudata.so.72
+          test -f extern/icu/linux/lib/icudt72l.dat
+          test -f extern/llvm/llvm-21.1.8-x86_64-sysv/bin/clang++
+          test -f extern/llvm/llvm-21.1.8-x86_64-sysv/bin/ld.lld
+          test -f extern/llvm/llvm-21.1.8-x86_64-sysv/bin/llvm-ar
+          test -f extern/llvm/llvm-21.1.8-x86_64-sysv/bin/llvm-as
+          test -d extern/llvm/llvm-21.1.8-x86_64-sysv/include
+          test -d extern/llvm/llvm-21.1.8-x86_64-sysv/lib/cmake/llvm
+
+      - name: Verify vendored Windows extern dependencies
+        if: inputs.platform == 'windows'
+        shell: pwsh
+        run: |
+          $required = @(
+            'extern\tomlplusplus\include\toml++\toml.hpp'
+            'extern\icu\win64\include'
+            'extern\icu\win64\lib64\icuuc.lib'
+            'extern\icu\win64\lib64\icuin.lib'
+            'extern\icu\win64\lib64\icudt.lib'
+            'extern\icu\win64\bin64\icuuc72.dll'
+            'extern\icu\win64\bin64\icuin72.dll'
+            'extern\icu\win64\bin64\icudt72.dll'
+            'extern\llvm\llvm-21.1.8-x86_64\bin\lld-link.exe'
+            'extern\llvm\llvm-21.1.8-x86_64\bin\llvm-ar.exe'
+            'extern\llvm\llvm-21.1.8-x86_64\bin\llvm-lib.exe'
+            'extern\llvm\llvm-21.1.8-x86_64\bin\llvm-as.exe'
+            'extern\llvm\llvm-21.1.8-x86_64\include'
+            'extern\llvm\llvm-21.1.8-x86_64\lib\cmake\llvm'
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path $path)) {
+              throw "Missing vendored extern dependency: $path"
+            }
+          }
+
+      - name: Configure Linux release
+        if: inputs.platform == 'linux'
+        working-directory: cursive
+        run: cmake --preset linux-release
+
+      - name: Build Linux release payload
+        if: inputs.platform == 'linux'
+        working-directory: cursive
+        # Hosted Ubuntu runners have been unstable when the Makefile generator
+        # fans the full release-package graph out to the machine-wide default.
+        # Keep Linux packaging bounded so the vendored LLVM/ICU link steps do
+        # not kill the runner mid-build.
+        run: cmake --build --preset linux-release-package --parallel 2
+
+      - name: Smoke test Linux compiler
+        if: inputs.platform == 'linux'
+        run: ./cursive/build/linux/out/Cursive --version
+
+      # The release-package presets build and stage the distribution payload.
+      # They do not guarantee that standalone runtime test executables exist.
+
+      - name: Package Linux bundle
+        if: inputs.platform == 'linux' && inputs.package
+        run: |
+          python3 scripts/package_release.py bundle \
+            --platform linux \
+            --version "${{ inputs.version }}" \
+            --staging-root cursive/build/linux/out \
+            --output-dir release-artifacts
+
+      - name: Configure Windows release
+        if: inputs.platform == 'windows'
+        working-directory: cursive
+        shell: pwsh
+        run: cmake --preset windows-release
+
+      - name: Build Windows release payload
+        if: inputs.platform == 'windows'
+        working-directory: cursive
+        shell: pwsh
+        run: cmake --build --preset windows-release-package --parallel
+
+      - name: Smoke test Windows compiler
+        if: inputs.platform == 'windows'
+        shell: pwsh
+        run: .\cursive\build\windows\out\Cursive.exe --version
+
+      - name: Package Windows bundle
+        if: inputs.platform == 'windows' && inputs.package
+        shell: pwsh
+        run: >
+          py -3 scripts/package_release.py bundle
+          --platform windows
+          --version "${{ inputs.version }}"
+          --staging-root cursive/build/windows/out
+          --output-dir release-artifacts
+
+      - name: Upload packaged artifact
+        if: inputs.package && inputs.upload_artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name != '' && inputs.artifact_name || format('bundle-{0}', inputs.platform) }}
+          path: release-artifacts/*
+          retention-days: 7

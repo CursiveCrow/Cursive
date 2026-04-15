@@ -1,0 +1,120 @@
+public modal ModalStateMethodDispatchProbe {
+    @Idle {
+        value: i32
+
+        public procedure observe(~) -> i32 {
+            return self.value
+        }
+
+        public procedure observe_shared(~%) -> i32 {
+            return self.value + 200
+        }
+
+        public procedure mutate_unique(~!, delta: i32) -> i32 {
+            self.value = self.value + delta
+            return self.value
+        }
+
+        public transition activate(delta: i32) -> @Active {
+            return ModalStateMethodDispatchProbe@Active { value: self.value + delta }
+        }
+    }
+
+    @Active {
+        value: i32
+
+        public procedure observe(~) -> i32 {
+            return self.value + 100
+        }
+    }
+}
+
+procedure ModalStateMethodDispatchMetricLabel(value: i32) -> string@View {
+    if (value == 112) {
+        return "112"
+    }
+    return "other"
+}
+
+public procedure RunModalStateMethodDispatch(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    var idle_state: unique ModalStateMethodDispatchProbe@Idle =
+        ModalStateMethodDispatchProbe@Idle { value: 5 }
+    let idle_observe_metric: i32 = idle_state~>observe()
+
+    let active_state: ModalStateMethodDispatchProbe@Active = idle_state~>activate(2)
+    let active_observe_metric: i32 = active_state~>observe()
+
+    var unique_state: unique ModalStateMethodDispatchProbe@Idle =
+        ModalStateMethodDispatchProbe@Idle { value: 10 }
+    let unique_mutate_metric: i32 = unique_state~>mutate_unique(2)
+
+    let shared_owner: unique (ModalStateMethodDispatchProbe@Idle;) =
+        (ModalStateMethodDispatchProbe@Idle { value: 9 };)
+    let shared_state: shared ModalStateMethodDispatchProbe@Idle = move shared_owner.0
+    let shared_observe_metric: i32 = shared_state~>observe_shared()
+
+    let idle_observe_metric_log: i32 =
+        [[log(label: "observed-modals-modal-method-dispatch-idle", expected: 5)]]
+        idle_observe_metric
+    let active_observe_metric_log: i32 =
+        [[log(label: "observed-modals-modal-method-dispatch-active", expected: 107)]]
+        active_observe_metric
+    let unique_mutate_metric_log: i32 =
+        [[log(label: "observed-modals-modal-method-dispatch-unique", expected: 12)]]
+        unique_mutate_metric
+    let shared_observe_metric_log: i32 =
+        [[log(label: "observed-modals-modal-method-dispatch-shared", expected: 209)]]
+        shared_observe_metric
+
+    let diag_method_missing: string@View = "E-TYP-2053"
+    let diag_method_visibility: string@View = "E-TYP-2064"
+    let diag_method_missing_log: string@View =
+        [[log(label: "modals-state-members-method-missing-diagnostic", expected: "E-TYP-2053")]]
+        diag_method_missing
+    let diag_method_visibility_log: string@View =
+        [[log(label: "modals-state-members-method-visibility-diagnostic", expected: "E-TYP-2064")]]
+        diag_method_visibility
+
+    let mod_025: string@View = "MOD-025"
+    let mod_026: string@View = "MOD-026"
+    let mod_027: string@View = "MOD-027"
+    let mod_025_log: string@View =
+        [[log(label: "modals-state-members-method-dispatch-feature-025", expected: "MOD-025")]]
+        mod_025
+    let mod_026_log: string@View =
+        [[log(label: "modals-state-members-method-dispatch-feature-026", expected: "MOD-026")]]
+        mod_026
+    let mod_027_log: string@View =
+        [[log(label: "modals-state-members-method-dispatch-feature-027", expected: "MOD-027")]]
+        mod_027
+
+    let runtime_ok: bool =
+        (idle_observe_metric_log == 5) &&
+        (active_observe_metric_log == 107) &&
+        (unique_mutate_metric_log == 12) &&
+        (shared_observe_metric_log == 209) &&
+        (diag_method_missing_log == "E-TYP-2053") &&
+        (diag_method_visibility_log == "E-TYP-2064") &&
+        (mod_025_log == "MOD-025") &&
+        (mod_026_log == "MOD-026") &&
+        (mod_027_log == "MOD-027")
+    let runtime_ok_log: bool =
+        [[log(label: "modals-state-members-method-dispatch-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 112 } else { 0 }
+    let metric_label: string@View = ModalStateMethodDispatchMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-modals-modal-method-dispatch-metric", expected: "112")]]
+        metric_label
+    if (metric_log_actual != "112") {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}

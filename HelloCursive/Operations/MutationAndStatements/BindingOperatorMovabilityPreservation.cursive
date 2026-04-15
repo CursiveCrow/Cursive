@@ -1,0 +1,185 @@
+procedure BindingOperatorConsume(move value: i32) -> i32 {
+    return value + 2
+}
+
+procedure LogBindingOperatorObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure BindingOperatorMetricLabel(value: i32) -> string@View {
+    if (value == 5) {
+        return "5"
+    }
+    if (value == 13) {
+        return "13"
+    }
+    if (value == 22) {
+        return "22"
+    }
+    return "other"
+}
+
+procedure RunBindingOperatorItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyBindingOperatorItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    let movable_let: i32 = 4
+    let immovable_let: i32 := 7
+    var movable_var: i32 = 10
+    var immovable_var: i32 := 3
+    LogBindingOperatorObject(ctx.fs, scope, "movable_let", "i32 (=)", "constructed", "movable let binding prepared for explicit move consume")
+    LogBindingOperatorObject(ctx.fs, scope, "immovable_let", "i32 (:=)", "constructed", "immovable let binding prepared for non-consuming read path")
+    LogBindingOperatorObject(ctx.fs, scope, "movable_var", "i32 var (=)", "constructed", "movable mutable binding prepared")
+    LogBindingOperatorObject(ctx.fs, scope, "immovable_var", "i32 var (:=)", "constructed", "immovable mutable binding prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let syntax_metric: i32 = BindingOperatorConsume(3)
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let moved_metric: i32 = BindingOperatorConsume(move movable_let)
+    let static_metric: i32 = moved_metric + immovable_let
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    movable_var = movable_var + 5
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    immovable_var = immovable_var + 4
+    let runtime_metric: i32 = movable_var + immovable_var
+    [[log(label: "operations-log-transition_move")]]
+    let syntax_passed: bool = syntax_metric == 5
+    let static_passed: bool = static_metric == 13
+    let runtime_passed: bool = runtime_metric == 22
+
+    let actual_label_1: string@View = BindingOperatorMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-binding-operator-syntax-metric", expected: "5")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = BindingOperatorMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-binding-operator-static-metric", expected: "13")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = BindingOperatorMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-binding-operator-runtime-metric", expected: "22")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunBindingOperatorItem(
+            ctx,
+            scope,
+            "BindingOperatorMovabilityPreservationSyntaxForms",
+            "binding declaration syntax using `=` (movable) and `:=` (immovable)",
+            "validated binding-operator movability syntax forms",
+            "binding-operator-syntax",
+            "evaluate literal consume path and binding operator declaration surface",
+            "5",
+            "5",
+            "not-5",
+            move syntax_passed_with_log,
+            "binding-operator syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunBindingOperatorItem(
+            ctx,
+            scope,
+            "BindingOperatorMovabilityPreservationStaticSemantics",
+            "consume rules for movable places and non-consuming use of immovable bindings",
+            "validated binding-operator movability static semantics",
+            "binding-operator-static",
+            "type-check explicit move on movable place and read on immovable binding",
+            "13",
+            "13",
+            "not-13",
+            move static_passed_with_log,
+            "binding-operator static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunBindingOperatorItem(
+            ctx,
+            scope,
+            "BindingOperatorMovabilityPreservationRuntimeDiagnostics",
+            "runtime mutation behavior for var bindings under movable/immovable distinction",
+            "validated binding-operator movability runtime behavior and diagnostics",
+            "binding-operator-runtime",
+            "mutate var bindings and verify aggregate runtime state",
+            "22",
+            "22",
+            "not-22",
+            move runtime_passed_with_log,
+            "binding-operator runtime diagnostics check failed"
+        )
+    }
+
+    return RunBindingOperatorItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown binding-operator movability item",
+        "failed unknown binding-operator movability item",
+        "item-resolution",
+        "resolve binding-operator movability item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown binding-operator movability item"
+    )
+}
+
+procedure RunBindingOperatorMovabilityPreservation(ctx: Context) -> i32 {
+    let scope: string@View = "operations::MutationAndStatements::BindingOperatorMovabilityPreservation"
+    let checkpoint: string@View = "covered binding operator movability preservation operation items"
+
+    let status_syntax: i32 = VerifyBindingOperatorItem(ctx, scope, 0, "BindingOperatorMovabilityPreservationSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyBindingOperatorItem(ctx, scope, 1, "BindingOperatorMovabilityPreservationStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyBindingOperatorItem(ctx, scope, 2, "BindingOperatorMovabilityPreservationRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

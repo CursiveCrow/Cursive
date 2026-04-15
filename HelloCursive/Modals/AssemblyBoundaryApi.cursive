@@ -1,0 +1,39 @@
+modal AssemblyBoundaryModal {
+    @Planned {
+        value: i32
+    }
+    @Covered {
+        value: i32
+    }
+}
+
+public procedure ModalsBoundaryMetric() -> i32 {
+    let planned_state: AssemblyBoundaryModal@Planned =
+        AssemblyBoundaryModal@Planned { value: 1 }
+    let general_state: AssemblyBoundaryModal = widen(planned_state)
+    let boundary_value: i32 = if general_state is {
+        @Planned { value: value } { value }
+        @Covered { value: value } { value }
+    }
+    if (boundary_value == 1) {
+        return 1
+    }
+    return 0
+}
+
+public procedure ModalsBoundarySyntaxMetric() -> i32 {
+    let syntax_state: AssemblyBoundaryModal@Covered =
+        AssemblyBoundaryModal@Covered { value: 3 }
+    let syntax_general: AssemblyBoundaryModal = widen(syntax_state)
+    let syntax_value: i32 = if syntax_general is {
+        @Planned { value: value } { value }
+        @Covered { value: value } { value }
+    }
+    return syntax_value
+}
+
+public procedure ModalsBoundaryStaticMetric() -> i32 {
+    let static_state: AssemblyBoundaryModal@Covered =
+        AssemblyBoundaryModal@Covered { value: 4 }
+    return static_state.value
+}

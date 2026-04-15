@@ -1,0 +1,129 @@
+[[dynamic]]
+procedure ContractCheckMachineOkProbe(value: i32) -> i32
+    |: => @result == @entry(value) + 1
+{
+    return value + 1
+}
+
+[[dynamic]]
+procedure ContractCheckMachinePreFailProbe(value: i32) -> i32
+    |: value >= 0
+{
+    return value + 1
+}
+
+[[dynamic]]
+procedure ContractCheckMachinePostFailProbe(value: i32) -> i32
+    |: => @result > 0
+{
+    return value
+}
+
+[[dynamic, mangle("hc_contracts_contract_check_machine_pre_fail_catch"), export("C-unwind"), unwind("catch")]]
+public procedure ContractCheckMachinePreFailCatch() -> i32 {
+    let _panic: i32 = ContractCheckMachinePreFailProbe(-1)
+    return _panic
+}
+
+[[dynamic, mangle("hc_contracts_contract_check_machine_post_fail_catch"), export("C-unwind"), unwind("catch")]]
+public procedure ContractCheckMachinePostFailCatch() -> i32 {
+    let _panic: i32 = ContractCheckMachinePostFailProbe(0)
+    return _panic
+}
+
+extern "C" {
+    procedure hc_contracts_contract_check_machine_pre_fail_catch() -> i32
+    procedure hc_contracts_contract_check_machine_post_fail_catch() -> i32
+}
+
+procedure ContractCheckMachineSemanticsMetricLabel(value: i32) -> string@View {
+    if (value == 42) {
+        return "42"
+    }
+    return "other"
+}
+
+public procedure RunContractCheckMachineSemantics(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+
+    let observed_value: i32 = ContractCheckMachineOkProbe(6)
+    let observed_entry_capture_value: i32 = ContractCheckMachineOkProbe(9)
+    let pre_fail_catch_metric: i32 = unsafe {
+        hc_contracts_contract_check_machine_pre_fail_catch()
+    }
+    let post_fail_catch_metric: i32 = unsafe {
+        hc_contracts_contract_check_machine_post_fail_catch()
+    }
+
+    let observed_value_log: i32 =
+        [[log(label: "observed-contracts-contract-check-machine-value", expected: 7)]]
+        observed_value
+    let observed_entry_capture_value_log: i32 =
+        [[log(label: "observed-contracts-contract-check-machine-entry-capture", expected: 10)]]
+        observed_entry_capture_value
+    let pre_fail_catch_metric_log: i32 =
+        [[log(label: "observed-contracts-contract-check-machine-pre-fail-catch", expected: 0)]]
+        pre_fail_catch_metric
+    let post_fail_catch_metric_log: i32 =
+        [[log(label: "observed-contracts-contract-check-machine-post-fail-catch", expected: 0)]]
+        post_fail_catch_metric
+
+    let machine_check_done: bool =
+        (observed_value_log == 7) &&
+        (observed_entry_capture_value_log == 10)
+    let machine_check_panic: bool =
+        (pre_fail_catch_metric_log == 0) &&
+        (post_fail_catch_metric_log == 0)
+    let machine_check_done_log: bool =
+        [[log(label: "contracts-contract-check-machine-checkdone", expected: true)]]
+        machine_check_done
+    let machine_check_panic_log: bool =
+        [[log(label: "contracts-contract-check-machine-checkpanic", expected: true)]]
+        machine_check_panic
+
+    let con_058: string@View = "CON-058"
+    let con_059: string@View = "CON-059"
+    let con_060: string@View = "CON-060"
+    let con_061: string@View = "CON-061"
+    let con_058_log: string@View =
+        [[log(label: "contracts-contract-check-machine-semantics-feature-058", expected: "CON-058")]]
+        con_058
+    let con_059_log: string@View =
+        [[log(label: "contracts-contract-check-machine-semantics-feature-059", expected: "CON-059")]]
+        con_059
+    let con_060_log: string@View =
+        [[log(label: "contracts-contract-check-machine-semantics-feature-060", expected: "CON-060")]]
+        con_060
+    let con_061_log: string@View =
+        [[log(label: "contracts-contract-check-machine-semantics-feature-061", expected: "CON-061")]]
+        con_061
+
+    let runtime_ok: bool =
+        (observed_value_log == 7) &&
+        (observed_entry_capture_value_log == 10) &&
+        (pre_fail_catch_metric_log == 0) &&
+        (post_fail_catch_metric_log == 0) &&
+        (machine_check_done_log == true) &&
+        (machine_check_panic_log == true) &&
+        (con_058_log == "CON-058") &&
+        (con_059_log == "CON-059") &&
+        (con_060_log == "CON-060") &&
+        (con_061_log == "CON-061")
+    let runtime_ok_log: bool =
+        [[log(label: "contracts-contract-check-machine-semantics-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 42 } else { 0 }
+    let metric_label: string@View = ContractCheckMachineSemanticsMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-contracts-contract-check-machine-semantics-metric", expected: "42")]]
+        metric_label
+    if (metric_log_actual != "42") {
+        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    return 0
+}

@@ -1,0 +1,73 @@
+record KeyCoarseningInner {
+    leaf: i32
+}
+
+record KeyCoarseningOuter {
+    #inner: KeyCoarseningInner
+    side: i32
+}
+
+procedure KeyCoarseningInlineAndTypeBoundaryMetricLabel(value: i32) -> string@View {
+    if (value == 26) {
+        return "26"
+    }
+    return "other"
+}
+
+[[dynamic]]
+public procedure RunKeyCoarseningInlineAndTypeBoundary(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+
+    var outer: shared KeyCoarseningOuter = KeyCoarseningOuter {
+        inner: KeyCoarseningInner { leaf: 6 },
+        side: 2
+    }
+
+    var inline_read_metric: i32 = 0
+    # outer.#inner read {
+        inline_read_metric = outer.inner.leaf
+    }
+
+    # outer.#inner write {
+        outer.inner.leaf = outer.inner.leaf + 3
+    }
+
+    # outer.inner write {
+        outer.inner.leaf = outer.inner.leaf + outer.side
+    }
+    let boundary_metric: i32 = outer.inner.leaf
+
+    var slots: shared [i32; 3] = [1, 3, 5]
+    let slot_index: usize = 2usize
+    var index_coarsen_metric: i32 = 0
+    # slots[#slot_index] read {
+        index_coarsen_metric = slots[slot_index]
+    }
+
+    let diagnostic_code: string@View = "E-CON-0033"
+
+    let inline_read_log: i32 = [[log(label: "observed-permissions-KeyCoarseningInlineAndTypeBoundary-inline-read", expected: 6)]] inline_read_metric
+    let boundary_metric_log: i32 = [[log(label: "observed-permissions-KeyCoarseningInlineAndTypeBoundary-boundary", expected: 11)]] boundary_metric
+    let index_coarsen_log: i32 = [[log(label: "observed-permissions-KeyCoarseningInlineAndTypeBoundary-index", expected: 5)]] index_coarsen_metric
+    let diagnostic_log: string@View = [[log(label: "permissions-KeyCoarseningInlineAndTypeBoundary-diagnostic", expected: "E-CON-0033")]] diagnostic_code
+
+    let runtime_ok: bool =
+        (inline_read_log == 6) &&
+        (boundary_metric_log == 11) &&
+        (index_coarsen_log == 5) &&
+        (diagnostic_log == "E-CON-0033")
+    let runtime_ok_log: bool = [[log(label: "permissions-KeyCoarseningInlineAndTypeBoundary-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log) { 26 } else { 0 }
+    let metric_label: string@View = KeyCoarseningInlineAndTypeBoundaryMetricLabel(metric)
+    let metric_label_log: string@View = [[log(label: "observed-permissions-KeyCoarseningInlineAndTypeBoundary-metric", expected: "26")]] metric_label
+
+    if (metric_label_log != "26") {
+        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    return 0
+}

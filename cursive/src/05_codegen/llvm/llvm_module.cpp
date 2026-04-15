@@ -1,0 +1,190 @@
+// =============================================================================
+// MIGRATION MAPPING: llvm_module.cpp
+// =============================================================================
+//
+// SPEC REFERENCE: CursiveSpecification.md
+//   - Section 6.12 LLVM 21 Backend Requirements (lines 17287-17650)
+//   - Section 6.12.1 LLVM Module Header (lines 17289-17291)
+//   - LLVMHeader = [TargetDataLayout, TargetTriple]
+//   - Target: x86_64-pc-windows-msvc
+//   - DataLayout: Win64 model
+//
+// SOURCE FILE: cursive-bootstrap/src/04_codegen/llvm/llvm_module.cpp
+//   - Lines 1-55: LLVMEmitter constructor, SetupModule
+//   - Lines 22-28: Constructor initializes context, module, builder
+//   - Lines 35-44: SetupModule sets target triple and data layout
+//   - Lines 46-100: Helper functions (BuildScope, CreateEntryAlloca, ByteGEP, etc.)
+//
+// DEPENDENCIES:
+//   - cursive/include/05_codegen/llvm/llvm_module.h
+//   - cursive/include/05_codegen/llvm/llvm_emit.h (LLVMEmitter)
+//   - llvm/IR/Module.h
+//   - llvm/IR/LLVMContext.h
+//   - llvm/IR/IRBuilder.h
+//   - llvm/TargetParser/Triple.h
+//
+// REFACTORING NOTES:
+//   1. LLVMEmitter owns module, context ref, and IRBuilder
+//   2. SetupModule configures target-specific settings
+//   3. Target triple: x86_64-pc-windows-msvc
+//   4. Data layout: Win64 ABI model
+//   5. Helper functions for memory operations
+//   6. CreateEntryAlloca for stack allocation
+//   7. ByteGEP for byte-level pointer arithmetic
+//   8. StoreAtOffset/LoadAtOffset for struct field access
+// =============================================================================
+
+#include "05_codegen/llvm/llvm_module.h"
+
+#include "00_core/spec_trace.h"
+#include "00_core/symbols.h"
+#include "05_codegen/llvm/llvm_emit.h"
+
+#include "llvm/Config/llvm-config.h"
+#include "llvm/IR/Comdat.h"
+#include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Verifier.h"
+#include "llvm/TargetParser/Triple.h"
+
+#include <string>
+
+namespace cursive::codegen {
+
+static_assert(LLVM_VERSION_MAJOR == 21, "Cursive requires LLVM 21.1.8");
+static_assert(LLVM_VERSION_MINOR == 1, "Cursive requires LLVM 21.1.8");
+static_assert(LLVM_VERSION_PATCH == 8, "Cursive requires LLVM 21.1.8");
+
+// =============================================================================
+// §6.12.1 LLVM Module Header
+// =============================================================================
+
+void SetupModuleHeader(llvm::Module& module,
+                       project::TargetProfile profile) {
+  SPEC_DEF("TargetTriple", "§6.12.1");
+  SPEC_DEF("TargetDataLayout", "§6.12.1");
+
+  module.setTargetTriple(
+      llvm::Triple(std::string(project::LLVMTripleOf(profile))));
+
+  module.setDataLayout(std::string(project::LLVMDataLayoutOf(profile)));
+}
+
+// =============================================================================
+// §6.12.7 LLVM Toolchain Version
+// =============================================================================
+
+std::string_view GetLLVMToolchainVersion() {
+  return kLLVMToolchain;
+}
+
+bool ValidateLLVMVersion() {
+  return std::string_view(LLVM_VERSION_STRING) == kLLVMToolchain;
+}
+
+// =============================================================================
+// §6.12.6 Runtime Declarations
+// =============================================================================
+
+void DeclareRuntimeFunctions(LLVMEmitter& emitter) {
+  // Runtime declarations are handled by LLVMEmitter::DeclareRuntime()
+  emitter.DeclareRuntime();
+}
+
+std::string_view GetRuntimeSymbol(std::string_view operation) {
+  // Map operation names to runtime symbols
+  // This is a partial mapping; full coverage lives in runtime_interface.h.
+  if (operation == "panic") {
+    return "cursive_rt_panic";
+  }
+  if (operation == "alloc") {
+    return "cursive_rt_alloc";
+  }
+  if (operation == "dealloc") {
+    return "cursive_rt_dealloc";
+  }
+  if (operation == "print") {
+    return "cursive_rt_print";
+  }
+  return "";
+}
+
+bool IsRuntimeSymbol(std::string_view symbol) {
+  // Check if symbol starts with runtime prefix
+  return symbol.find("cursive_rt_") == 0 ||
+         symbol.find("_C7cursive7runtime") == 0;
+}
+
+// =============================================================================
+// Module Creation and Management
+// =============================================================================
+
+std::unique_ptr<llvm::Module> CreateModule(llvm::LLVMContext& context,
+                                           const std::string& name,
+                                           project::TargetProfile profile) {
+  auto module = std::make_unique<llvm::Module>(name, context);
+  SetupModuleHeader(*module, profile);
+  return module;
+}
+
+// =============================================================================
+// Global Variable and COMDAT Management
+// =============================================================================
+
+llvm::Comdat* GetOrCreateComdat(llvm::Module& module, const std::string& name) {
+  llvm::Comdat* comdat = module.getOrInsertComdat(name);
+  if (comdat) {
+    comdat->setSelectionKind(llvm::Comdat::Any);
+  }
+  return comdat;
+}
+
+llvm::GlobalVariable* CreateZeroInitGlobal(llvm::Module& module,
+                                           llvm::Type* type,
+                                           const std::string& name,
+                                           bool is_const) {
+  auto* gv = new llvm::GlobalVariable(
+      module,
+      type,
+      is_const,
+      llvm::GlobalValue::InternalLinkage,
+      llvm::Constant::getNullValue(type),
+      name);
+  return gv;
+}
+
+// =============================================================================
+// Symbol Management
+// =============================================================================
+
+bool IsDropGlueSymbol(std::string_view symbol) {
+  // Check if symbol is a drop glue symbol (starts with mangled drop prefix)
+  static const std::string prefix =
+      core::Mangle(core::StringOfPath({"cursive", "runtime", "drop"}));
+  return symbol.size() >= prefix.size() &&
+         symbol.compare(0, prefix.size(), prefix) == 0;
+}
+
+std::string_view GetDropGluePrefix() {
+  static const std::string prefix =
+      core::Mangle(core::StringOfPath({"cursive", "runtime", "drop"}));
+  return prefix;
+}
+
+// =============================================================================
+// Module Finalization
+// =============================================================================
+
+void FinalizeModule(llvm::Module& module) {
+  // Add any required metadata
+  // Currently a no-op, but can be extended for debug info, etc.
+}
+
+bool VerifyModule(llvm::Module& module) {
+  std::string error;
+  llvm::raw_string_ostream os(error);
+  return !llvm::verifyModule(module, &os);
+}
+
+}  // namespace cursive::codegen

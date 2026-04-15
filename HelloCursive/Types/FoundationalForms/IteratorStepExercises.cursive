@@ -1,0 +1,166 @@
+// IteratorStepExercises — User-defined Iterator and Step implementations
+//
+// Exercises user-defined implementations of the built-in Iterator (spec §13.9.5)
+// and Step (spec §13.9.6) classes.
+//
+// Iterator: class Iterator { type Item; procedure next(~!) -> Self::Item | () }
+// Step: class Step { procedure successor(~) -> Self | (); procedure predecessor(~) -> Self | () }
+
+record CountingIterator <: Iterator {
+    type Item = i32
+
+    current: i32
+    max: i32
+
+    procedure next(~!) -> i32 | () {
+        if (self.current >= self.max) {
+            return ()
+        }
+        let val: i32 = self.current
+        self.current = self.current + 1
+        return val
+    }
+}
+
+record IntStep <: Step {
+    value: i32
+
+    procedure successor(~) -> IntStep | () {
+        return IntStep { value: self.value + 1 }
+    }
+
+    procedure predecessor(~) -> IntStep | () {
+        if (self.value <= 0) {
+            return ()
+        }
+        return IntStep { value: self.value - 1 }
+    }
+}
+
+procedure IteratorStepMetricLabel(value: i32) -> string@View {
+    if (value == 0) {
+        return "0"
+    }
+    if (value == 1) {
+        return "1"
+    }
+    if (value == 3) {
+        return "3"
+    }
+    if (value == 6) {
+        return "6"
+    }
+    if (value == 10) {
+        return "10"
+    }
+    return "other"
+}
+
+public procedure RunIteratorNextExercise(ctx: Context) -> i32 {
+    [[log(label: "types-log-item_begin")]]
+
+    var iter: unique CountingIterator = CountingIterator { current: 0, max: 4 }
+    var sum: i32 = 0
+
+    let v0: i32 | () = iter~>next()
+    let c0: i32 = if v0 is {
+        n: i32 { n }
+        _: () { -1 }
+    }
+    sum = sum + c0
+
+    let v1: i32 | () = iter~>next()
+    let c1: i32 = if v1 is {
+        n: i32 { n }
+        _: () { -1 }
+    }
+    sum = sum + c1
+
+    let v2: i32 | () = iter~>next()
+    let c2: i32 = if v2 is {
+        n: i32 { n }
+        _: () { -1 }
+    }
+    sum = sum + c2
+
+    let v3: i32 | () = iter~>next()
+    let c3: i32 = if v3 is {
+        n: i32 { n }
+        _: () { -1 }
+    }
+    sum = sum + c3
+
+    let v_end: i32 | () = iter~>next()
+    let ended: bool = if v_end is {
+        _: i32 { false }
+        _: () { true }
+    }
+
+    let sum_log: i32 = [[log(label: "observed-iterator-next-sum", expected: 6)]] sum
+    let sum_ok: bool = sum_log == 6
+    let ended_log: bool = [[log(label: "observed-iterator-exhausted", expected: true)]] ended
+
+    let all_ok: bool = sum_ok && ended_log
+    let all_ok_log: bool = [[log(label: "iterator-next-runtime", expected: true)]] all_ok
+
+    if (all_ok_log != true) {
+        [[log(label: "types-log-item_fail")]]
+        return 1
+    }
+    [[log(label: "types-log-types_item_success")]]
+    return 0
+}
+
+public procedure RunStepSuccessorPredecessorExercise(ctx: Context) -> i32 {
+    [[log(label: "types-log-item_begin")]]
+
+    let start: IntStep = IntStep { value: 0 }
+
+    let succ_result: IntStep | () = start~>successor()
+    let succ_val: i32 = if succ_result is {
+        s: IntStep { s.value }
+        _: () { -1 }
+    }
+    let succ_log: i32 = [[log(label: "observed-step-successor-value", expected: 1)]] succ_val
+    let succ_ok: bool = succ_log == 1
+
+    let step_at_3: IntStep = IntStep { value: 3 }
+    let pred_result: IntStep | () = step_at_3~>predecessor()
+    let pred_val: i32 = if pred_result is {
+        s: IntStep { s.value }
+        _: () { -1 }
+    }
+    let pred_log: i32 = [[log(label: "observed-step-predecessor-value", expected: 2)]] pred_val
+
+    let step_at_0: IntStep = IntStep { value: 0 }
+    let pred_boundary: IntStep | () = step_at_0~>predecessor()
+    let boundary_is_unit: bool = if pred_boundary is {
+        _: IntStep { false }
+        _: () { true }
+    }
+    let boundary_log: bool = [[log(label: "observed-step-predecessor-boundary", expected: true)]] boundary_is_unit
+
+    let all_ok: bool = succ_ok && (pred_log == 2) && boundary_log
+    let all_ok_log: bool = [[log(label: "step-successor-predecessor-runtime", expected: true)]] all_ok
+
+    if (all_ok_log != true) {
+        [[log(label: "types-log-item_fail")]]
+        return 1
+    }
+    [[log(label: "types-log-types_item_success")]]
+    return 0
+}
+
+procedure RunIteratorStepExercises(ctx: Context) -> i32 {
+    let status_iterator: i32 = RunIteratorNextExercise(ctx)
+    if (status_iterator != 0) {
+        return status_iterator
+    }
+
+    let status_step: i32 = RunStepSuccessorPredecessorExercise(ctx)
+    if (status_step != 0) {
+        return status_step
+    }
+
+    return 0
+}

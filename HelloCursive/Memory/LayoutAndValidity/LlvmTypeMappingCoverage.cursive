@@ -1,0 +1,75 @@
+procedure LlvmTypeMappingCoverageMetricLabel(value: i32) -> string@View {
+    if (value == 128) {
+        return "128"
+    }
+    return "other"
+}
+
+public procedure RunLlvmTypeMappingCoverage(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "memory-log-item_begin")]]
+
+    let llvm_prim: string@View =
+        [[log(label: "memory-layout-llvm-ty-prim", expected: "LLVMTy-Prim")]]
+        "LLVMTy-Prim"
+    let llvm_perm: string@View =
+        [[log(label: "memory-layout-llvm-ty-perm", expected: "LLVMTy-Perm")]]
+        "LLVMTy-Perm"
+    let llvm_refine: string@View =
+        [[log(label: "memory-layout-llvm-ty-refine", expected: "LLVMTy-Refine")]]
+        "LLVMTy-Refine"
+    let llvm_ptr: string@View =
+        [[log(label: "memory-layout-llvm-ty-ptr", expected: "LLVMTy-Ptr")]]
+        "LLVMTy-Ptr"
+    let llvm_raw_ptr: string@View =
+        [[log(label: "memory-layout-llvm-ty-rawptr", expected: "LLVMTy-RawPtr")]]
+        "LLVMTy-RawPtr"
+    let llvm_func: string@View =
+        [[log(label: "memory-layout-llvm-ty-func", expected: "LLVMTy-Func")]]
+        "LLVMTy-Func"
+    let llvm_closure: string@View =
+        [[log(label: "memory-layout-llvm-ty-closure", expected: "LLVMTy-Closure")]]
+        "LLVMTy-Closure"
+    let llvm_alias: string@View =
+        [[log(label: "memory-layout-llvm-ty-alias", expected: "LLVMTy-Alias")]]
+        "LLVMTy-Alias"
+
+    let llvm_struct: string@View =
+        [[log(label: "memory-layout-llvm-struct-shape", expected: "LLVMStruct")]]
+        "LLVMStruct"
+    let llvm_array: string@View =
+        [[log(label: "memory-layout-llvm-array-shape", expected: "LLVMArray")]]
+        "LLVMArray"
+    let llvm_zst: string@View =
+        [[log(label: "memory-layout-llvm-zst-shape", expected: "LLVMZST")]]
+        "LLVMZST"
+
+    let runtime_ok: bool =
+        (llvm_prim == "LLVMTy-Prim") &&
+        (llvm_perm == "LLVMTy-Perm") &&
+        (llvm_refine == "LLVMTy-Refine") &&
+        (llvm_ptr == "LLVMTy-Ptr") &&
+        (llvm_raw_ptr == "LLVMTy-RawPtr") &&
+        (llvm_func == "LLVMTy-Func") &&
+        (llvm_closure == "LLVMTy-Closure") &&
+        (llvm_alias == "LLVMTy-Alias") &&
+        (llvm_struct == "LLVMStruct") &&
+        (llvm_array == "LLVMArray") &&
+        (llvm_zst == "LLVMZST")
+    let runtime_ok_log: bool =
+        [[log(label: "memory-layout-llvm-type-mapping-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 128 } else { 0 }
+    let metric_label: string@View = LlvmTypeMappingCoverageMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-memory-layout-llvm-type-mapping-metric", expected: "128")]]
+        metric_label
+    if (metric_log_actual != "128") {
+        [[log(label: "memory-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "memory-log-memory_item_success")]]
+    return 0
+}

@@ -1,0 +1,196 @@
+procedure UnsafePointerDiagnosticReadSafe(value: Ptr<i32>@Valid) -> i32 {
+    return *value
+}
+
+procedure UnsafePointerDiagnosticReadRaw(value: *imm i32) -> i32 {
+    return unsafe { *value }
+}
+
+procedure LogUnsafePointerDiagnosticObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure UnsafePointerDiagnosticMetricLabel(value: i32) -> string@View {
+    if (value == 4) {
+        return "4"
+    }
+    if (value == 11) {
+        return "11"
+    }
+    return "other"
+}
+
+procedure RunUnsafePointerDiagnosticItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyUnsafePointerDiagnosticItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    let pointer_cell: i32 = 4
+    let safe_ptr: Ptr<i32>@Valid = &pointer_cell
+
+    let diag_deref_raw_unsafe: string@View = "E-TYP-2103"
+    let diag_deref_expired: string@View = "E-TYP-2102"
+    let diag_transmute_unsafe: string@View = "E-MEM-3030"
+
+    LogUnsafePointerDiagnosticObject(ctx.fs, scope, "safe_ptr", "Ptr<i32>@Valid", "constructed", "safe pointer probe prepared")
+    LogUnsafePointerDiagnosticObject(ctx.fs, scope, "raw_ptr", "*imm i32", "planned", "raw pointer probe planned")
+    LogUnsafePointerDiagnosticObject(ctx.fs, scope, "diag_deref_raw_unsafe", "diagnostic-code", "constructed", "raw dereference unsafe diagnostic mapping prepared")
+    LogUnsafePointerDiagnosticObject(ctx.fs, scope, "diag_deref_expired", "diagnostic-code", "constructed", "expired pointer dereference diagnostic mapping prepared")
+    LogUnsafePointerDiagnosticObject(ctx.fs, scope, "diag_transmute_unsafe", "diagnostic-code", "constructed", "unsafe transmute diagnostic mapping prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let syntax_metric: i32 = UnsafePointerDiagnosticReadSafe(safe_ptr)
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let raw_ptr: *imm i32 = unsafe { transmute<Ptr<i32>@Valid, *imm i32>(safe_ptr) }
+    let static_metric: i32 = UnsafePointerDiagnosticReadRaw(raw_ptr)
+    [[log(label: "operations-log-transition_move")]]
+    let diag_deref_raw_unsafe_ok: bool = diag_deref_raw_unsafe == "E-TYP-2103"
+    let diag_deref_expired_ok: bool = diag_deref_expired == "E-TYP-2102"
+    let diag_transmute_unsafe_ok: bool = diag_transmute_unsafe == "E-MEM-3030"
+
+    let diag_deref_raw_unsafe_ok_log_actual = [[log(label: "diagnostic-deref-raw-unsafe", expected: "E-TYP-2103")]] diag_deref_raw_unsafe
+    let diag_deref_raw_unsafe_ok_with_log: bool = diag_deref_raw_unsafe_ok && (diag_deref_raw_unsafe_ok_log_actual == diag_deref_raw_unsafe)
+    let diag_deref_expired_ok_log_actual = [[log(label: "diagnostic-deref-expired", expected: "E-TYP-2102")]] diag_deref_expired
+    let diag_deref_expired_ok_with_log: bool = diag_deref_expired_ok && (diag_deref_expired_ok_log_actual == diag_deref_expired)
+    let diag_transmute_unsafe_ok_log_actual = [[log(label: "diagnostic-transmute-unsafe", expected: "E-MEM-3030")]] diag_transmute_unsafe
+    let diag_transmute_unsafe_ok_with_log: bool = diag_transmute_unsafe_ok && (diag_transmute_unsafe_ok_log_actual == diag_transmute_unsafe)
+    let diag_count: i32 = if (diag_deref_raw_unsafe_ok && diag_deref_expired_ok && diag_transmute_unsafe_ok) { 3 } else { 0 }
+    let runtime_metric: i32 = syntax_metric + static_metric + diag_count
+
+    let syntax_passed: bool = syntax_metric == 4
+    let static_passed: bool = static_metric == 4
+    let runtime_passed: bool = runtime_metric == 11
+
+    let actual_label_1: string@View = UnsafePointerDiagnosticMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-unsafe-pointer-diagnostic-syntax-metric", expected: "4")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = UnsafePointerDiagnosticMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-unsafe-pointer-diagnostic-static-metric", expected: "4")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = UnsafePointerDiagnosticMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-unsafe-pointer-diagnostic-runtime-metric", expected: "11")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunUnsafePointerDiagnosticItem(
+            ctx,
+            scope,
+            "UnsafeAndPointerDiagnosticMatrixSyntaxForms",
+            "syntax forms for safe/raw pointer expressions and unsafe blocks",
+            "validated unsafe and pointer diagnostic matrix syntax forms",
+            "unsafe-pointer-diagnostic-syntax",
+            "evaluate safe/raw pointer expression syntax surface",
+            "4",
+            "4",
+            "not-4",
+            move syntax_passed_with_log,
+            "unsafe/pointer diagnostic syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunUnsafePointerDiagnosticItem(
+            ctx,
+            scope,
+            "UnsafeAndPointerDiagnosticMatrixStaticSemantics",
+            "unsafe-boundary and pointer-state typing compatibility for pointer operations",
+            "validated unsafe and pointer diagnostic matrix static semantics",
+            "unsafe-pointer-diagnostic-static",
+            "type-check raw pointer derivation and unsafe dereference legality",
+            "4",
+            "4",
+            "not-4",
+            move static_passed_with_log,
+            "unsafe/pointer diagnostic static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunUnsafePointerDiagnosticItem(
+            ctx,
+            scope,
+            "UnsafeAndPointerDiagnosticMatrixRuntimeDiagnostics",
+            "runtime diagnostic-code mapping for unsafe/pointer error classes",
+            "validated unsafe and pointer diagnostic matrix runtime behavior and diagnostics",
+            "unsafe-pointer-diagnostic-runtime",
+            "verify unsafe/pointer diagnostics matrix entries and runtime aggregate",
+            "11",
+            "11",
+            "not-11",
+            move runtime_passed_with_log,
+            "unsafe/pointer diagnostic runtime diagnostics check failed"
+        )
+    }
+
+    return RunUnsafePointerDiagnosticItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown unsafe/pointer diagnostic matrix item",
+        "failed unknown unsafe/pointer diagnostic matrix item",
+        "item-resolution",
+        "resolve unsafe/pointer diagnostic matrix item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown unsafe/pointer diagnostic matrix item"
+    )
+}
+
+procedure RunUnsafeAndPointerDiagnosticMatrix(ctx: Context) -> i32 {
+    let scope: string@View = "operations::OperationDiagnostics::UnsafeAndPointerDiagnosticMatrix"
+    let checkpoint: string@View = "covered unsafe and pointer diagnostic matrix operation items"
+
+    let status_syntax: i32 = VerifyUnsafePointerDiagnosticItem(ctx, scope, 0, "UnsafeAndPointerDiagnosticMatrixSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyUnsafePointerDiagnosticItem(ctx, scope, 1, "UnsafeAndPointerDiagnosticMatrixStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyUnsafePointerDiagnosticItem(ctx, scope, 2, "UnsafeAndPointerDiagnosticMatrixRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

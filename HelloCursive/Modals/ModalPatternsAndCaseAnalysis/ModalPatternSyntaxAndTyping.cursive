@@ -1,0 +1,75 @@
+modal ModalPatternTypingProbe {
+    @Off {
+    }
+    @On {
+        level: i32
+    }
+}
+
+procedure ModalPatternSyntaxAndTypingMetricLabel(value: i32) -> string@View {
+    if (value == 17) {
+        return "17"
+    }
+    return "other"
+}
+
+public procedure RunModalPatternSyntaxAndTyping(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    let general_probe: ModalPatternTypingProbe =
+        widen(ModalPatternTypingProbe@On { level: 7 })
+    let state_probe: ModalPatternTypingProbe@On =
+        ModalPatternTypingProbe@On { level: 9 }
+
+    let general_metric: i32 = if general_probe is {
+        @Off { } { 0 }
+        @On { level: level } { level }
+    }
+    let state_metric: i32 = if state_probe is {
+        @On { level: level } { level + 1 }
+    }
+
+    let general_metric_log: i32 =
+        [[log(label: "observed-modals-modal-pattern-general", expected: 7)]]
+        general_metric
+    let state_metric_log: i32 =
+        [[log(label: "observed-modals-modal-pattern-state", expected: 10)]]
+        state_metric
+
+    let mod_003: string@View = "MOD-003"
+    let mod_029: string@View = "MOD-029"
+    let mod_030: string@View = "MOD-030"
+    let mod_003_log: string@View =
+        [[log(label: "modals-modal-pattern-feature-003", expected: "MOD-003")]]
+        mod_003
+    let mod_029_log: string@View =
+        [[log(label: "modals-modal-pattern-feature-029", expected: "MOD-029")]]
+        mod_029
+    let mod_030_log: string@View =
+        [[log(label: "modals-modal-pattern-feature-030", expected: "MOD-030")]]
+        mod_030
+
+    let runtime_ok: bool =
+        (general_metric_log == 7) &&
+        (state_metric_log == 10) &&
+        (mod_003_log == "MOD-003") &&
+        (mod_029_log == "MOD-029") &&
+        (mod_030_log == "MOD-030")
+    let runtime_ok_log: bool =
+        [[log(label: "modals-modal-pattern-syntax-typing-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 17 } else { 0 }
+    let metric_label: string@View = ModalPatternSyntaxAndTypingMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-modals-modal-pattern-syntax-typing-metric", expected: "17")]]
+        metric_label
+    if (metric_log_actual != "17") {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}

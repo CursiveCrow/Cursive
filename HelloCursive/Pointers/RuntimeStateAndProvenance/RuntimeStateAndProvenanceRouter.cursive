@@ -1,0 +1,36 @@
+public procedure RunGroup(ctx: Context) -> i32 {
+    [[log(label: "pointers-log-section_start")]]
+
+    let status_readwrite: i32 = RunPointerReadWriteSemantics(ctx)
+    if (status_readwrite != 0) {
+        [[log(label: "pointers-log-section_end")]]
+        return status_readwrite
+    }
+
+    let status_region: i32 = RunRegionInvalidationExpiredState(ctx)
+    if (status_region != 0) {
+        [[log(label: "pointers-log-section_end")]]
+        return status_region
+    }
+
+    let status_provenance: i32 = RunPointerProvenancePropagation(ctx)
+    if (status_provenance != 0) {
+        [[log(label: "pointers-log-section_end")]]
+        return status_provenance
+    }
+
+    let status_panic_surface: i32 = RunNullAndExpiredPanicSurface(ctx)
+    if (status_panic_surface != 0) {
+        [[log(label: "pointers-log-section_end")]]
+        return status_panic_surface
+    }
+
+    let status_index_bounds: i32 = RunAddressOfIndexBounds(ctx)
+    if (status_index_bounds != 0) {
+        [[log(label: "pointers-log-section_end")]]
+        return status_index_bounds
+    }
+
+    [[log(label: "pointers-log-section_end")]]
+    return 0
+}

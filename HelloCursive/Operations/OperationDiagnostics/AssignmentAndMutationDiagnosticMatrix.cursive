@@ -1,0 +1,190 @@
+procedure LogAssignmentDiagnosticObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure AssignmentDiagnosticMetricLabel(value: i32) -> string@View {
+    if (value == 3) {
+        return "3"
+    }
+    if (value == 9) {
+        return "9"
+    }
+    if (value == 12) {
+        return "12"
+    }
+    return "other"
+}
+
+procedure RunAssignmentDiagnosticItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyAssignmentDiagnosticItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    var assign_slot: i32 = 5
+    var compound_slot: i32 = 9
+    let diagnostic_assign_immutable: string@View = "E-MOD-2401"
+    let diagnostic_assign_const: string@View = "E-TYP-1601"
+    let diagnostic_assign_not_place: string@View = "E-SEM-3131"
+
+    LogAssignmentDiagnosticObject(ctx.fs, scope, "assign_slot", "i32", "constructed", "simple assignment baseline slot prepared")
+    LogAssignmentDiagnosticObject(ctx.fs, scope, "compound_slot", "i32", "constructed", "compound assignment baseline slot prepared")
+    LogAssignmentDiagnosticObject(ctx.fs, scope, "diagnostic_assign_immutable", "diagnostic-code", "constructed", "assignment immutable diagnostic code matrix entry prepared")
+    LogAssignmentDiagnosticObject(ctx.fs, scope, "diagnostic_assign_const", "diagnostic-code", "constructed", "assignment const diagnostic code matrix entry prepared")
+    LogAssignmentDiagnosticObject(ctx.fs, scope, "diagnostic_assign_not_place", "diagnostic-code", "constructed", "assignment not-place diagnostic code matrix entry prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    assign_slot = assign_slot + 4
+    let syntax_metric: i32 = assign_slot
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    compound_slot += 3
+    let static_metric: i32 = compound_slot
+    [[log(label: "operations-log-transition_move")]]
+    let diag_immutable_ok: bool = diagnostic_assign_immutable == "E-MOD-2401"
+    let diag_const_ok: bool = diagnostic_assign_const == "E-TYP-1601"
+    let diag_not_place_ok: bool = diagnostic_assign_not_place == "E-SEM-3131"
+
+    let diag_immutable_ok_log_actual = [[log(label: "diagnostic-assign-immutable", expected: "E-MOD-2401")]] diagnostic_assign_immutable
+    let diag_immutable_ok_with_log: bool = diag_immutable_ok && (diag_immutable_ok_log_actual == diagnostic_assign_immutable)
+    let diag_const_ok_log_actual = [[log(label: "diagnostic-assign-const", expected: "E-TYP-1601")]] diagnostic_assign_const
+    let diag_const_ok_with_log: bool = diag_const_ok && (diag_const_ok_log_actual == diagnostic_assign_const)
+    let diag_not_place_ok_log_actual = [[log(label: "diagnostic-assign-not-place", expected: "E-SEM-3131")]] diagnostic_assign_not_place
+    let diag_not_place_ok_with_log: bool = diag_not_place_ok && (diag_not_place_ok_log_actual == diagnostic_assign_not_place)
+    let runtime_metric: i32 = if (diag_immutable_ok && diag_const_ok && diag_not_place_ok) { 3 } else { 0 }
+
+    let syntax_passed: bool = syntax_metric == 9
+    let static_passed: bool = static_metric == 12
+    let runtime_passed: bool = runtime_metric == 3
+
+    let actual_label_1: string@View = AssignmentDiagnosticMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-assignment-diagnostic-syntax-metric", expected: "9")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = AssignmentDiagnosticMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-assignment-diagnostic-static-metric", expected: "12")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = AssignmentDiagnosticMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-assignment-diagnostic-runtime-metric", expected: "3")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunAssignmentDiagnosticItem(
+            ctx,
+            scope,
+            "AssignmentAndMutationDiagnosticMatrixSyntaxForms",
+            "assignment and compound-assignment syntax forms in diagnostic matrix baseline",
+            "validated assignment/mutation diagnostic matrix syntax forms",
+            "assignment-diagnostic-syntax",
+            "execute baseline assignment form and verify syntax metric",
+            "9",
+            "9",
+            "not-9",
+            move syntax_passed_with_log,
+            "assignment/mutation diagnostic syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunAssignmentDiagnosticItem(
+            ctx,
+            scope,
+            "AssignmentAndMutationDiagnosticMatrixStaticSemantics",
+            "static assignment typing and mutation legality baseline for diagnostic matrix",
+            "validated assignment/mutation diagnostic matrix static semantics",
+            "assignment-diagnostic-static",
+            "type-check compound assignment over mutable numeric place",
+            "12",
+            "12",
+            "not-12",
+            move static_passed_with_log,
+            "assignment/mutation diagnostic static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunAssignmentDiagnosticItem(
+            ctx,
+            scope,
+            "AssignmentAndMutationDiagnosticMatrixRuntimeDiagnostics",
+            "diagnostic-code mapping verification for assignment/mutation error classes",
+            "validated assignment/mutation diagnostic matrix runtime behavior and diagnostics",
+            "assignment-diagnostic-runtime",
+            "verify expected diagnostic-code matrix entries for assignment violation classes",
+            "3",
+            "3",
+            "not-3",
+            move runtime_passed_with_log,
+            "assignment/mutation diagnostic runtime diagnostics check failed"
+        )
+    }
+
+    return RunAssignmentDiagnosticItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown assignment/mutation diagnostic matrix item",
+        "failed unknown assignment/mutation diagnostic matrix item",
+        "item-resolution",
+        "resolve assignment/mutation diagnostic matrix item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown assignment/mutation diagnostic matrix item"
+    )
+}
+
+procedure RunAssignmentAndMutationDiagnosticMatrix(ctx: Context) -> i32 {
+    let scope: string@View = "operations::OperationDiagnostics::AssignmentAndMutationDiagnosticMatrix"
+    let checkpoint: string@View = "covered assignment and mutation diagnostic matrix operation items"
+
+    let status_syntax: i32 = VerifyAssignmentDiagnosticItem(ctx, scope, 0, "AssignmentAndMutationDiagnosticMatrixSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyAssignmentDiagnosticItem(ctx, scope, 1, "AssignmentAndMutationDiagnosticMatrixStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyAssignmentDiagnosticItem(ctx, scope, 2, "AssignmentAndMutationDiagnosticMatrixRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

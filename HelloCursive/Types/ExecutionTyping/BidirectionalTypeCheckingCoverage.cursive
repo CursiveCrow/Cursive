@@ -1,0 +1,64 @@
+procedure BidirectionalTypeCheckingCoverageMetricLabel(value: i32) -> string@View {
+    if (value == 941) {
+        return "941"
+    }
+    return "other"
+}
+
+procedure BidirectionalSynthesize(seed: i32) -> i32 {
+    return (seed + 3) * 2
+}
+
+procedure BidirectionalCheck(expected: i32, actual: i32) -> bool {
+    return expected == actual
+}
+
+public procedure RunBidirectionalTypeCheckingCoverage(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "types-log-item_begin")]]
+
+    let judgment_synth: string@View =
+        [[log(label: "types-bidirectional-judgment-synth", expected: "G |- e => T")]]
+        "G |- e => T"
+    let judgment_check: string@View =
+        [[log(label: "types-bidirectional-judgment-check", expected: "G |- e <= T")]]
+        "G |- e <= T"
+
+    let synthesized_value = BidirectionalSynthesize(4)
+    let checked_value: i32 = synthesized_value
+    let checked_ok: bool = BidirectionalCheck(14, checked_value)
+
+    let synth_metric_log: i32 =
+        [[log(label: "observed-types-bidirectional-synthesis-metric", expected: 14)]]
+        synthesized_value
+    let check_metric_log: bool =
+        [[log(label: "observed-types-bidirectional-checking-metric", expected: true)]]
+        checked_ok
+
+    let mode_flow: string@View =
+        [[log(label: "types-bidirectional-mode-flow", expected: "synth-to-check")]]
+        "synth-to-check"
+
+    let runtime_ok: bool =
+        (judgment_synth == "G |- e => T") &&
+        (judgment_check == "G |- e <= T") &&
+        (synth_metric_log == 14) &&
+        (check_metric_log == true) &&
+        (mode_flow == "synth-to-check")
+    let runtime_ok_log: bool =
+        [[log(label: "types-bidirectional-type-checking-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 941 } else { 0 }
+    let metric_label: string@View = BidirectionalTypeCheckingCoverageMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-types-bidirectional-type-checking-metric", expected: "941")]]
+        metric_label
+    if (metric_log_actual != "941") {
+        [[log(label: "types-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "types-log-types_item_success")]]
+    return 0
+}

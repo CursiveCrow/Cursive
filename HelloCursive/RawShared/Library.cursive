@@ -1,0 +1,11 @@
+procedure BuildRawSharedCounter() -> i32 {
+    return 40
+}
+
+var raw_counter: i32 = BuildRawSharedCounter()
+
+[[export("C"), mangle("hc_rawshared_next")]]
+public procedure rawshared_next() -> i32 {
+    raw_counter = raw_counter + 1
+    return raw_counter
+}

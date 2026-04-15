@@ -1,0 +1,46 @@
+procedure DereferenceRawSafetyMetricLabel(value: i32) -> string@View {
+    if (value == 22) {
+        return "22"
+    }
+    return "other"
+}
+
+public procedure RunDereferenceRawSafety(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "pointers-log-item_begin")]]
+
+    let cell: i32 = 18
+    let safe_ptr: Ptr<i32>@Valid = &cell
+    let raw_ptr: *imm i32 =
+        unsafe { transmute<Ptr<i32>@Valid, *imm i32>(safe_ptr) }
+
+    let unsafe_read_metric: i32 = unsafe { *raw_ptr }
+    let unsafe_read_ok: bool = unsafe_read_metric == 18
+
+    let diag_raw_outside_unsafe: string@View = "E-TYP-2103"
+    let diag_raw_outside_unsafe_logged: string@View =
+        [[log(label: "pointers-deref-raw-diag-unsafe-required", expected: "E-TYP-2103")]]
+        diag_raw_outside_unsafe
+    let diag_raw_outside_unsafe_ok: bool =
+        diag_raw_outside_unsafe_logged == "E-TYP-2103"
+
+    let unsafe_read_ok_log: bool =
+        [[log(label: "pointers-deref-raw-runtime-unsafe-read", expected: true)]]
+        unsafe_read_ok
+
+    let metric_ok: bool =
+        (unsafe_read_ok_log == true) &&
+        diag_raw_outside_unsafe_ok
+    let metric: i32 = if (metric_ok) { 22 } else { 0 }
+    let metric_label: string@View = DereferenceRawSafetyMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-pointers-deref-raw-safety-metric", expected: "22")]]
+        metric_label
+    if (metric_log_actual != "22") {
+        [[log(label: "pointers-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "pointers-log-item_success")]]
+    return 0
+}

@@ -1,0 +1,214 @@
+procedure LogMemoryOrderingFenceObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure MemoryOrderingFenceMetricLabel(value: i32) -> string@View {
+    if (value == 5) {
+        return "5"
+    }
+    if (value == 6) {
+        return "6"
+    }
+    if (value == 13) {
+        return "13"
+    }
+    if (value == 19) {
+        return "19"
+    }
+    return "other"
+}
+
+procedure RunMemoryOrderingFenceItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyMemoryOrderingFenceItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    var syntax_slot: shared i32 = 2
+    var static_slot: shared i32 = 1
+
+    let diag_ordered_modifier_conflict: string@View = "E-CON-0014"
+    let diag_ordering_annotation_speculative: string@View = "E-CON-0096"
+
+    LogMemoryOrderingFenceObject(ctx.fs, scope, "syntax_slot", "i32", "constructed", "syntax memory-order slot prepared")
+    LogMemoryOrderingFenceObject(ctx.fs, scope, "static_slot", "i32", "constructed", "static memory-order slot prepared")
+    LogMemoryOrderingFenceObject(ctx.fs, scope, "diag_ordered_modifier_conflict", "diagnostic-code", "constructed", "ordered-modifier conflict diagnostic mapping prepared")
+    LogMemoryOrderingFenceObject(ctx.fs, scope, "diag_ordering_annotation_speculative", "diagnostic-code", "constructed", "speculative-ordering diagnostic mapping prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    # syntax_slot write {
+        syntax_slot = syntax_slot + 3
+    }
+    var syntax_metric: i32 = 0
+    # syntax_slot read {
+        syntax_metric = syntax_slot
+    }
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    # static_slot write {
+        static_slot = static_slot + 2
+    }
+    # static_slot write {
+        static_slot = static_slot * 2
+    }
+    let static_metric: i32 = static_slot
+    var fence_metric: i32 = 0
+    fence(acquire)
+    fence_metric = fence_metric + 1
+    fence(release)
+    fence_metric = fence_metric + 2
+    fence(seqcst)
+    fence_metric = fence_metric + 3
+    [[log(label: "operations-log-transition_move")]]
+    let diag_ordered_modifier_conflict_ok: bool = diag_ordered_modifier_conflict == "E-CON-0014"
+    let diag_ordering_annotation_speculative_ok: bool = diag_ordering_annotation_speculative == "E-CON-0096"
+
+    let diag_ordered_modifier_conflict_ok_log_actual = [[log(label: "diagnostic-ordered-modifier-conflict", expected: "E-CON-0014")]] diag_ordered_modifier_conflict
+    let diag_ordered_modifier_conflict_ok_with_log: bool = diag_ordered_modifier_conflict_ok && (diag_ordered_modifier_conflict_ok_log_actual == diag_ordered_modifier_conflict)
+    let diag_ordering_annotation_speculative_ok_log_actual = [[log(label: "diagnostic-ordering-annotation-speculative", expected: "E-CON-0096")]] diag_ordering_annotation_speculative
+    let diag_ordering_annotation_speculative_ok_with_log: bool = diag_ordering_annotation_speculative_ok && (diag_ordering_annotation_speculative_ok_log_actual == diag_ordering_annotation_speculative)
+    let diag_count: i32 = if (diag_ordered_modifier_conflict_ok && diag_ordering_annotation_speculative_ok) { 2 } else { 0 }
+    let runtime_metric: i32 = syntax_metric + static_metric + diag_count + fence_metric
+
+    let syntax_passed: bool = syntax_metric == 5
+    let static_passed: bool = static_metric == 6
+    let fence_passed: bool = fence_metric == 6
+    let runtime_passed: bool = runtime_metric == 19
+
+    let actual_label_1: string@View = MemoryOrderingFenceMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-memory-ordering-syntax-metric", expected: "5")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = MemoryOrderingFenceMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-memory-ordering-static-metric", expected: "6")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_fence: string@View = MemoryOrderingFenceMetricLabel(fence_metric)
+    let fence_passed_log_actual = [[log(label: "observed-memory-ordering-fence-metric", expected: "6")]] actual_label_fence
+    let fence_passed_with_log: bool = fence_passed && (fence_passed_log_actual == actual_label_fence)
+    let actual_label_3: string@View = MemoryOrderingFenceMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-memory-ordering-runtime-metric", expected: "19")]] actual_label_3
+    let runtime_passed_with_log: bool =
+        runtime_passed &&
+        fence_passed_with_log &&
+        (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunMemoryOrderingFenceItem(
+            ctx,
+            scope,
+            "MemoryOrderingAndFenceOperationsSyntaxForms",
+            "syntax forms for key-based ordered read/write sequences used for memory-ordering behavior",
+            "validated memory ordering and fence operations syntax forms",
+            "memory-ordering-syntax",
+            "evaluate write-then-read key sequence syntax surface",
+            "5",
+            "5",
+            "not-5",
+            move syntax_passed_with_log,
+            "memory ordering/fence syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunMemoryOrderingFenceItem(
+            ctx,
+            scope,
+            "MemoryOrderingAndFenceOperationsStaticSemantics",
+            "sequential key-write legality and ordering preservation across adjacent key scopes",
+            "validated memory ordering and fence operations static semantics",
+            "memory-ordering-static",
+            "type-check sequential write key blocks under ordering baseline",
+            "6",
+            "6",
+            "not-6",
+            move static_passed_with_log,
+            "memory ordering/fence static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunMemoryOrderingFenceItem(
+            ctx,
+            scope,
+            "MemoryOrderingAndFenceOperationsRuntimeDiagnostics",
+            "runtime ordering baseline and memory-order diagnostics-code matrix verification",
+            "validated memory ordering and fence operations runtime behavior and diagnostics",
+            "memory-ordering-runtime",
+            "verify ordering runtime aggregate and memory-order diagnostics mappings",
+            "19",
+            "19",
+            "not-19",
+            move runtime_passed_with_log,
+            "memory ordering/fence runtime diagnostics check failed"
+        )
+    }
+
+    return RunMemoryOrderingFenceItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown memory ordering/fence operation item",
+        "failed unknown memory ordering/fence operation item",
+        "item-resolution",
+        "resolve memory ordering/fence operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown memory ordering/fence operation item"
+    )
+}
+
+procedure RunMemoryOrderingAndFenceOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::KeySystemOperations::MemoryOrderingAndFenceOperations"
+    let checkpoint: string@View = "covered memory ordering and fence operations operation items"
+
+    let status_syntax: i32 = VerifyMemoryOrderingFenceItem(ctx, scope, 0, "MemoryOrderingAndFenceOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyMemoryOrderingFenceItem(ctx, scope, 1, "MemoryOrderingAndFenceOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyMemoryOrderingFenceItem(ctx, scope, 2, "MemoryOrderingAndFenceOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

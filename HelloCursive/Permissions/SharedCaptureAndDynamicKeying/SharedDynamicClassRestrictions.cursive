@@ -1,0 +1,52 @@
+procedure SharedDynamicClassRestrictionsMetricLabel(value: i32) -> string@View {
+    if (value == 12) {
+        return "12"
+    }
+    return "other"
+}
+
+public procedure RunSharedDynamicClassRestrictions(ctx: Context) -> i32 {
+    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+
+    let domain_handle: $ExecutionDomain = ctx~>cpu()
+
+    let domain_name: string@View = domain_handle~>name()
+    let domain_parallelism: usize = domain_handle~>max_concurrency()
+
+    let name_non_empty: bool = domain_name != ""
+    let parallelism_positive: bool = domain_parallelism > 0usize
+
+    let shared_call_metric: i32 = if (name_non_empty && parallelism_positive) { 6 } else { 0 }
+
+    let cpu_compare_metric: i32 = parallel ctx~>cpu() {
+        6
+    }
+
+    let diagnostic_code: string@View = "E-CON-0083"
+
+    let name_non_empty_log: bool = [[log(label: "observed-permissions-SharedDynamicClassRestrictions-name-non-empty", expected: true)]] name_non_empty
+    let parallelism_positive_log: bool = [[log(label: "observed-permissions-SharedDynamicClassRestrictions-parallelism-positive", expected: true)]] parallelism_positive
+    let shared_call_metric_log: i32 = [[log(label: "observed-permissions-SharedDynamicClassRestrictions-shared-call", expected: 6)]] shared_call_metric
+    let cpu_compare_metric_log: i32 = [[log(label: "observed-permissions-SharedDynamicClassRestrictions-cpu-compare", expected: 6)]] cpu_compare_metric
+    let diagnostic_log: string@View = [[log(label: "permissions-SharedDynamicClassRestrictions-diagnostic", expected: "E-CON-0083")]] diagnostic_code
+
+    let runtime_ok: bool =
+        (name_non_empty_log == true) &&
+        (parallelism_positive_log == true) &&
+        (shared_call_metric_log == 6) &&
+        (cpu_compare_metric_log == 6) &&
+        (diagnostic_log == "E-CON-0083")
+    let runtime_ok_log: bool = [[log(label: "permissions-SharedDynamicClassRestrictions-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log) { 12 } else { 0 }
+    let metric_label: string@View = SharedDynamicClassRestrictionsMetricLabel(metric)
+    let metric_label_log: string@View = [[log(label: "observed-permissions-SharedDynamicClassRestrictions-metric", expected: "12")]] metric_label
+
+    if (metric_label_log != "12") {
+        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    return 0
+}

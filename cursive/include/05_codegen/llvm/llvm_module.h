@@ -1,0 +1,116 @@
+// =============================================================================
+// File: 05_codegen/llvm/llvm_module.h
+// Construct: LLVM Module-Level IR Setup
+// Spec Section: 6.12.1, 6.12.6, 6.12.7
+// Spec Rules: TargetTriple, TargetDataLayout, RuntimeDecls, LLVMToolchain
+// =============================================================================
+#pragma once
+
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "01_project/target_profile.h"
+#include "04_analysis/typing/types.h"
+
+// Forward declarations for LLVM types
+namespace llvm {
+class Comdat;
+class GlobalVariable;
+class LLVMContext;
+class Module;
+class Type;
+}  // namespace llvm
+
+namespace cursive::codegen {
+
+// Forward declarations
+class LLVMEmitter;
+struct LowerCtx;
+
+// =============================================================================
+// §6.12.1 LLVM Module Header
+// =============================================================================
+
+// LLVMHeader = [TargetDataLayout(LLVMDataLayout), TargetTriple(LLVMTriple)]
+// Sets up the module with the required target triple and data layout
+void SetupModuleHeader(llvm::Module& module,
+                       project::TargetProfile profile);
+
+// =============================================================================
+// §6.12.7 LLVM Toolchain Version
+// =============================================================================
+
+// LLVMToolchain = "21.1.8"
+constexpr std::string_view kLLVMToolchain = "21.1.8";
+
+// Get the required LLVM toolchain version
+std::string_view GetLLVMToolchainVersion();
+
+// Validate that the current LLVM version matches the required version
+bool ValidateLLVMVersion();
+
+// =============================================================================
+// §6.12.6 Runtime Declarations
+// =============================================================================
+
+// RuntimeSyms - Set of runtime function symbols that must be declared
+// RuntimeSig(sym) = ⟨params, ret⟩
+
+// Declare all runtime functions in the module
+void DeclareRuntimeFunctions(LLVMEmitter& emitter);
+
+// Get the runtime symbol for a specific builtin operation
+std::string_view GetRuntimeSymbol(std::string_view operation);
+
+// Check if a symbol is a runtime function
+bool IsRuntimeSymbol(std::string_view symbol);
+
+// =============================================================================
+// Module Creation and Management
+// =============================================================================
+
+// Create a new LLVM module with proper setup
+std::unique_ptr<llvm::Module> CreateModule(llvm::LLVMContext& context,
+                                           const std::string& name,
+                                           project::TargetProfile profile);
+
+// =============================================================================
+// Global Variable and COMDAT Management
+// =============================================================================
+
+// Create a COMDAT group for linkonce_odr functions (e.g., drop glue)
+llvm::Comdat* GetOrCreateComdat(llvm::Module& module, const std::string& name);
+
+// Create a global variable with zero initialization
+llvm::GlobalVariable* CreateZeroInitGlobal(llvm::Module& module,
+                                           llvm::Type* type,
+                                           const std::string& name,
+                                           bool is_const);
+
+// Create a poison flag global for module initialization tracking
+// GetOrCreatePoisonFlag is declared in llvm_ir_panic.h
+
+// =============================================================================
+// Symbol Management
+// =============================================================================
+
+// Check if a symbol uses drop glue linkage (linkonce_odr)
+bool IsDropGlueSymbol(std::string_view symbol);
+
+// Get the mangled symbol prefix for drop glue
+std::string_view GetDropGluePrefix();
+
+// =============================================================================
+// Module Finalization
+// =============================================================================
+
+// Finalize a module (add any required metadata, validate structure)
+void FinalizeModule(llvm::Module& module);
+
+// Verify module is well-formed
+bool VerifyModule(llvm::Module& module);
+
+}  // namespace cursive::codegen

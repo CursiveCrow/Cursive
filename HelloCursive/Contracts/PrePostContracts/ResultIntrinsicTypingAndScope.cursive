@@ -1,0 +1,59 @@
+[[dynamic]]
+procedure ResultIntrinsicScopeProbe(value: i32) -> i32
+    |: => @result == @entry(value) * 2
+{
+    return value * 2
+}
+
+procedure ResultIntrinsicTypingAndScopeMetricLabel(value: i32) -> string@View {
+    if (value == 42) {
+        return "42"
+    }
+    return "other"
+}
+
+public procedure RunResultIntrinsicTypingAndScope(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+
+    let result_value: i32 = ResultIntrinsicScopeProbe(7)
+    let result_value_log: i32 =
+        [[log(label: "observed-contracts-result-intrinsic-value", expected: 14)]]
+        result_value
+
+    let con_028: string@View = "CON-028"
+    let con_029: string@View = "CON-029"
+    let con_028_log: string@View =
+        [[log(label: "contracts-result-intrinsic-feature-028", expected: "CON-028")]]
+        con_028
+    let con_029_log: string@View =
+        [[log(label: "contracts-result-intrinsic-feature-029", expected: "CON-029")]]
+        con_029
+
+    let diag_result_scope: string@View = "E-SEM-2806"
+    let diag_result_scope_log: string@View =
+        [[log(label: "contracts-result-intrinsic-diag-scope", expected: "E-SEM-2806")]]
+        diag_result_scope
+
+    let runtime_ok: bool =
+        (result_value_log == 14) &&
+        (con_028_log == "CON-028") &&
+        (con_029_log == "CON-029") &&
+        (diag_result_scope_log == "E-SEM-2806")
+    let runtime_ok_log: bool =
+        [[log(label: "contracts-result-intrinsic-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 42 } else { 0 }
+    let metric_label: string@View = ResultIntrinsicTypingAndScopeMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-contracts-result-intrinsic-typing-and-scope-metric", expected: "42")]]
+        metric_label
+    if (metric_log_actual != "42") {
+        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    return 0
+}

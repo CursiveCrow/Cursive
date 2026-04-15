@@ -1,0 +1,64 @@
+
+public procedure RunGroup(ctx: Context) -> i32 {
+    let section_name: string@View = "operations/TypeConversionAndUnsafe"
+    let status_ok: string@View = "ok"
+    let status_failed: string@View = "failed"
+
+    let phase_planned: string@View = "planned"
+    let phase_running: string@View = "running"
+    let phase_complete: string@View = "complete"
+    let phase_failed: string@View = "failed"
+    let dispatch_reason: string@View = "dispatching operation topic function"
+    let complete_reason: string@View = "operation topic function completed"
+    let failed_reason: string@View = "operation topic function returned non-zero status"
+
+    let feature_SafeCastOperations: string@View = "TypeConversionAndUnsafe::SafeCastOperations"
+    let feature_UnsafeCastOperations: string@View = "TypeConversionAndUnsafe::UnsafeCastOperations"
+    let feature_TransmuteOperations: string@View = "TypeConversionAndUnsafe::TransmuteOperations"
+    let feature_RawPointerUnsafeOperations: string@View = "TypeConversionAndUnsafe::RawPointerUnsafeOperations"
+    let feature_AddressOfAndDereferenceOperations: string@View = "TypeConversionAndUnsafe::AddressOfAndDereferenceOperations"
+
+    [[log(label: "operations-log-section_start")]]
+    [[log(label: "operations-log-transition")]]
+    let status_SafeCastOperations: i32 = RunSafeCastOperations(ctx)
+    if (status_SafeCastOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_SafeCastOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_UnsafeCastOperations: i32 = RunUnsafeCastOperations(ctx)
+    if (status_UnsafeCastOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_UnsafeCastOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_TransmuteOperations: i32 = RunTransmuteOperations(ctx)
+    if (status_TransmuteOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_TransmuteOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_RawPointerUnsafeOperations: i32 = RunRawPointerUnsafeOperations(ctx)
+    if (status_RawPointerUnsafeOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_RawPointerUnsafeOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_AddressOfAndDereferenceOperations: i32 = RunAddressOfAndDereferenceOperations(ctx)
+    if (status_AddressOfAndDereferenceOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_AddressOfAndDereferenceOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-section_end")]]
+    return 0
+}

@@ -1,0 +1,30 @@
+public procedure RunGroup(ctx: Context) -> i32 {
+    [[log(label: "permissions-log-section_start", expected: "section-start")]] "section-start"
+
+    let status_shorthand: i32 = RunReceiverShorthandParsingAndTyping(ctx)
+    if (status_shorthand != 0) {
+        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        return status_shorthand
+    }
+
+    let status_compat: i32 = RunMethodReceiverCompatibility(ctx)
+    if (status_compat != 0) {
+        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        return status_compat
+    }
+
+    let status_dynamic: i32 = RunDynamicAndModalReceiverPermissions(ctx)
+    if (status_dynamic != 0) {
+        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        return status_dynamic
+    }
+
+    let status_shared: i32 = RunSharedReceiverWriteModes(ctx)
+    if (status_shared != 0) {
+        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        return status_shared
+    }
+
+    [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+    return 0
+}

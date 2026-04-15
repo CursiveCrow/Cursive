@@ -1,0 +1,71 @@
+[[dynamic]]
+procedure DynamicPreCheckProbe(value: i32) -> i32
+    |: value >= 0
+{
+    return value
+}
+
+[[dynamic]]
+procedure DynamicPostCheckProbe(value: i32) -> i32
+    |: => @result >= 0
+{
+    return value + 1
+}
+
+procedure DynamicContractCheckInsertionMetricLabel(value: i32) -> string@View {
+    if (value == 35) {
+        return "35"
+    }
+    return "other"
+}
+
+public procedure RunDynamicContractCheckInsertion(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+
+    let pre_value: i32 = DynamicPreCheckProbe(4)
+    let post_value: i32 = DynamicPostCheckProbe(4)
+
+    let pre_value_log: i32 =
+        [[log(label: "observed-contracts-dynamic-check-insertion-pre", expected: 4)]]
+        pre_value
+    let post_value_log: i32 =
+        [[log(label: "observed-contracts-dynamic-check-insertion-post", expected: 5)]]
+        post_value
+
+    let con_046: string@View = "CON-046"
+    let con_047: string@View = "CON-047"
+    let con_048: string@View = "CON-048"
+    let con_046_log: string@View =
+        [[log(label: "contracts-dynamic-contract-check-insertion-feature-046", expected: "CON-046")]]
+        con_046
+    let con_047_log: string@View =
+        [[log(label: "contracts-dynamic-contract-check-insertion-feature-047", expected: "CON-047")]]
+        con_047
+    let con_048_log: string@View =
+        [[log(label: "contracts-dynamic-contract-check-insertion-feature-048", expected: "CON-048")]]
+        con_048
+
+    let runtime_ok: bool =
+        (pre_value_log == 4) &&
+        (post_value_log == 5) &&
+        (con_046_log == "CON-046") &&
+        (con_047_log == "CON-047") &&
+        (con_048_log == "CON-048")
+    let runtime_ok_log: bool =
+        [[log(label: "contracts-dynamic-contract-check-insertion-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 35 } else { 0 }
+    let metric_label: string@View = DynamicContractCheckInsertionMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-contracts-dynamic-contract-check-insertion-metric", expected: "35")]]
+        metric_label
+    if (metric_log_actual != "35") {
+        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    return 0
+}

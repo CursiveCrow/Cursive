@@ -1,0 +1,171 @@
+import pointers
+
+procedure LogPointerIntegrationObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure PointerIntegrationMetricLabel(value: i32) -> string@View {
+    if (value == 6) {
+        return "6"
+    }
+    if (value == 12) {
+        return "12"
+    }
+    return "other"
+}
+
+procedure RunPointerIntegrationItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyPointerIntegrationItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    let boundary_input: i32 = 6
+
+    LogPointerIntegrationObject(ctx.fs, scope, "boundary_input", "i32", "constructed", "cross-assembly pointer boundary input prepared")
+    LogPointerIntegrationObject(ctx.fs, scope, "pointers::PointersBoundaryReadValue", "procedure(i32)->i32", "resolved", "cross-assembly safe-pointer boundary function resolved")
+    LogPointerIntegrationObject(ctx.fs, scope, "pointers::PointersBoundaryReadRawValue", "procedure(i32)->i32", "resolved", "cross-assembly raw-pointer boundary function resolved")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let syntax_metric: i32 = pointers::PointersBoundaryReadValue(boundary_input)
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let static_metric: i32 = pointers::PointersBoundaryReadRawValue(boundary_input)
+    [[log(label: "operations-log-transition_move")]]
+    let runtime_metric: i32 = syntax_metric + static_metric
+
+    let syntax_passed: bool = syntax_metric == 6
+    let static_passed: bool = static_metric == 6
+    let runtime_passed: bool = runtime_metric == 12
+
+    let actual_label_1: string@View = PointerIntegrationMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-pointer-integration-syntax-metric", expected: "6")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = PointerIntegrationMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-pointer-integration-static-metric", expected: "6")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = PointerIntegrationMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-pointer-integration-runtime-metric", expected: "12")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunPointerIntegrationItem(
+            ctx,
+            scope,
+            "PointerOperationIntegrationSyntaxForms",
+            "pointer integration syntax forms for address-of and dereference expression surfaces",
+            "validated pointer operation integration syntax forms",
+            "pointer-integration-syntax",
+            "evaluate pointer integration syntax over safe pointer read",
+            "6",
+            "6",
+            "not-6",
+            move syntax_passed_with_log,
+            "pointer operation integration syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunPointerIntegrationItem(
+            ctx,
+            scope,
+            "PointerOperationIntegrationStaticSemantics",
+            "static pointer-state and unsafe-boundary compatibility for integrated pointer flows",
+            "validated pointer operation integration static semantics",
+            "pointer-integration-static",
+            "type-check raw pointer dereference legality within unsafe integration boundary",
+            "6",
+            "6",
+            "not-6",
+            move static_passed_with_log,
+            "pointer operation integration static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunPointerIntegrationItem(
+            ctx,
+            scope,
+            "PointerOperationIntegrationRuntimeDiagnostics",
+            "runtime pointer-read behavior across safe and raw integration paths",
+            "validated pointer operation integration runtime behavior and diagnostics",
+            "pointer-integration-runtime",
+            "execute safe/raw pointer integration path and verify aggregate runtime metric",
+            "12",
+            "12",
+            "not-12",
+            move runtime_passed_with_log,
+            "pointer operation integration runtime diagnostics check failed"
+        )
+    }
+
+    return RunPointerIntegrationItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown pointer operation integration item",
+        "failed unknown pointer operation integration item",
+        "item-resolution",
+        "resolve pointer operation integration item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown pointer operation integration item"
+    )
+}
+
+procedure RunPointerOperationIntegration(ctx: Context) -> i32 {
+    let scope: string@View = "operations::CrossAssemblyOperationIntegrations::PointerOperationIntegration"
+    let checkpoint: string@View = "covered pointer operation integration operation items"
+
+    let status_syntax: i32 = VerifyPointerIntegrationItem(ctx, scope, 0, "PointerOperationIntegrationSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyPointerIntegrationItem(ctx, scope, 1, "PointerOperationIntegrationStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyPointerIntegrationItem(ctx, scope, 2, "PointerOperationIntegrationRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

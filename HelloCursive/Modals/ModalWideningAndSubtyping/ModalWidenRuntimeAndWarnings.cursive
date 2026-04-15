@@ -1,0 +1,77 @@
+modal ModalWidenLargePayloadProbe {
+    @Large {
+        payload: [i64; 40]
+    }
+    @Small {
+        value: i64
+    }
+}
+
+procedure ModalWidenRuntimeAndWarningsMetricLabel(value: i32) -> string@View {
+    if (value == 41) {
+        return "41"
+    }
+    return "other"
+}
+
+public procedure RunModalWidenRuntimeAndWarnings(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    let large_state: ModalWidenLargePayloadProbe@Large =
+        ModalWidenLargePayloadProbe@Large {
+            payload: [
+                1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+                11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+                21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+                31, 32, 33, 34, 35, 36, 37, 38, 39, 40
+            ]
+        }
+    let widened_large: ModalWidenLargePayloadProbe = widen(large_state)
+
+    let widen_runtime_metric: i64 = if widened_large is {
+        @Large { payload: payload } { payload[0] + payload[39] }
+        @Small { value: value } { value }
+    }
+
+    let widen_runtime_ok: bool = widen_runtime_metric == 41i64
+    let widen_runtime_ok_log: bool =
+        [[log(label: "observed-modals-modal-widen-runtime", expected: true)]]
+        widen_runtime_ok
+
+    let large_payload_warning: string@View = "W-SYS-4010"
+    let large_payload_warning_log: string@View =
+        [[log(label: "modals-widen-large-payload-warning", expected: "W-SYS-4010")]]
+        large_payload_warning
+
+    let mod_038: string@View = "MOD-038"
+    let mod_039: string@View = "MOD-039"
+    let mod_038_log: string@View =
+        [[log(label: "modals-widen-runtime-feature-038", expected: "MOD-038")]]
+        mod_038
+    let mod_039_log: string@View =
+        [[log(label: "modals-widen-runtime-feature-039", expected: "MOD-039")]]
+        mod_039
+
+    let runtime_ok: bool =
+        (widen_runtime_ok_log == true) &&
+        (large_payload_warning_log == "W-SYS-4010") &&
+        (mod_038_log == "MOD-038") &&
+        (mod_039_log == "MOD-039")
+    let runtime_ok_log: bool =
+        [[log(label: "modals-widen-runtime-warnings-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 41 } else { 0 }
+    let metric_label: string@View = ModalWidenRuntimeAndWarningsMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-modals-modal-widen-runtime-warnings-metric", expected: "41")]]
+        metric_label
+    if (metric_log_actual != "41") {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}

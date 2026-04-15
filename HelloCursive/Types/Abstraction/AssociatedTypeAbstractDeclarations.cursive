@@ -1,0 +1,118 @@
+public class ContainerClass {
+    type Item = i32
+    procedure get_item(~) -> i32
+}
+
+public class TransformClass {
+    type Input = i32
+    type Output = i32
+    procedure transform(~, value: i32) -> i32
+}
+
+public class PairClass {
+    type Left = i32
+    type Right = i32
+    procedure combine(~) -> i32
+}
+
+public record IntContainer <: ContainerClass {
+    public stored: i32
+
+    public procedure get_item(~) -> i32 {
+        return self.stored
+    }
+
+    public procedure item_metric(~) -> i32 {
+        return self.stored + 1
+    }
+}
+
+public record ScaleTransform <: TransformClass {
+    public factor: i32
+
+    public procedure transform(~, value: i32) -> i32 {
+        return value * self.factor
+    }
+}
+
+public record IntPair <: PairClass {
+    public left: i32
+    public right: i32
+
+    public procedure combine(~) -> i32 {
+        return self.left + self.right
+    }
+}
+
+procedure AssociatedTypeMetricLabel(value: i32) -> string@View {
+    if (value == 24) {
+        return "24"
+    }
+    return "other"
+}
+
+procedure UseContainer(container: IntContainer) -> i32 {
+    return container~>get_item() + container~>item_metric()
+}
+
+procedure UseTransform(xform: ScaleTransform, input: i32) -> i32 {
+    return xform~>transform(input)
+}
+
+procedure UsePair(pair: IntPair) -> i32 {
+    return pair~>combine()
+}
+
+procedure RunAssociatedTypeAbstractDeclarations(ctx: Context) -> i32 {
+    let scope: string@View = "types::Abstraction::AssociatedTypeAbstractDeclarations"
+    [[log(label: "types-log-item_begin")]]
+
+    let container: IntContainer = IntContainer { stored: 4 }
+    let container_result: i32 = UseContainer(container)
+
+    let xform: ScaleTransform = ScaleTransform { factor: 3 }
+    let transform_result: i32 = UseTransform(xform, 2)
+
+    let pair: IntPair = IntPair { left: 5, right: 4 }
+    let pair_result: i32 = UsePair(pair)
+
+    let combined: i32 = container_result + transform_result + pair_result
+
+    let container_result_log: i32 =
+        [[log(label: "observed-types-assoc-type-container-result", expected: 9)]]
+        container_result
+    let transform_result_log: i32 =
+        [[log(label: "observed-types-assoc-type-transform-result", expected: 6)]]
+        transform_result
+    let pair_result_log: i32 =
+        [[log(label: "observed-types-assoc-type-pair-result", expected: 9)]]
+        pair_result
+    let combined_log: i32 =
+        [[log(label: "observed-types-assoc-type-combined-metric", expected: 24)]]
+        combined
+
+    let ata_001: string@View = [[log(label: "types-assoc-type-feature-001", expected: "ATA-001")]] "ATA-001"
+    let ata_002: string@View = [[log(label: "types-assoc-type-feature-002", expected: "ATA-002")]] "ATA-002"
+    let ata_003: string@View = [[log(label: "types-assoc-type-feature-003", expected: "ATA-003")]] "ATA-003"
+
+    let runtime_ok: bool =
+        (container_result_log == 9) &&
+        (transform_result_log == 6) &&
+        (pair_result_log == 9) &&
+        (combined_log == 24) &&
+        (ata_001 == "ATA-001") &&
+        (ata_002 == "ATA-002") &&
+        (ata_003 == "ATA-003")
+    let runtime_ok_log: bool = [[log(label: "types-assoc-type-abstract-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 24 } else { 0 }
+    let metric_label: string@View = AssociatedTypeMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-types-assoc-type-abstract-metric", expected: "24")]] metric_label
+    if (metric_log_actual != "24") {
+        [[log(label: "types-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "types-log-types_item_success")]]
+    return 0
+}

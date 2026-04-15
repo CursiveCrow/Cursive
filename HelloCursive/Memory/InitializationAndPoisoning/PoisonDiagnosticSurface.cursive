@@ -1,0 +1,71 @@
+procedure PoisonSurfaceMetricLabel(value: i32) -> string@View {
+    if (value == 28) {
+        return "28"
+    }
+    return "other"
+}
+
+public procedure RunPoisonDiagnosticSurface(ctx: Context) -> i32 {
+    [[log(label: "memory-log-item_begin")]]
+
+    var cleanup_metric: i32 = 0
+    {
+        defer {
+            cleanup_metric = cleanup_metric + 3
+        }
+        cleanup_metric = cleanup_metric + 2
+    }
+
+    let poison_probe: i32 = 8
+    let poison_probe_ptr: Ptr<i32>@Valid = &poison_probe
+    let path_metric: i32 = *poison_probe_ptr
+
+    let managed_probe: string@Managed | AllocationError =
+        string::to_managed("po", ctx.heap)
+    var managed_metric: i32 = -1
+    if managed_probe is {
+        managed_text: unique string@Managed {
+            let view: string@View = string::as_view(managed_text)
+            managed_metric = string::length(view) as i32
+        }
+        _: AllocationError {
+            managed_metric = -1
+        }
+    }
+
+    let cleanup_surface_ok: bool = cleanup_metric == 5
+    let poisoned_path_surface_ok: bool = path_metric == 8
+    let poisoned_init_surface_ok: bool = managed_metric == 2
+
+    let diag_alloc_outside_region: string@View = "E-MEM-3021"
+    let diag_transmute_size_mismatch: string@View = "E-MEM-3031"
+
+    let cleanup_surface_ok_log: bool = [[log(label: "memory-init-poison-surface-cleanup", expected: true)]] cleanup_surface_ok
+    let poisoned_path_surface_ok_log: bool = [[log(label: "memory-init-poison-surface-path", expected: true)]] poisoned_path_surface_ok
+    let poisoned_init_surface_ok_log: bool = [[log(label: "memory-init-poison-surface-init", expected: true)]] poisoned_init_surface_ok
+
+    let diag_alloc_outside_region_log: string@View = [[log(label: "memory-init-diagnostic-code-alloc-outside-region", expected: "E-MEM-3021")]] diag_alloc_outside_region
+    let diag_transmute_size_mismatch_log: string@View = [[log(label: "memory-init-diagnostic-code-transmute-size", expected: "E-MEM-3031")]] diag_transmute_size_mismatch
+
+    let diag_matrix_ok: bool =
+        (diag_alloc_outside_region_log == "E-MEM-3021") &&
+        (diag_transmute_size_mismatch_log == "E-MEM-3031")
+    let diag_matrix_ok_log: bool = [[log(label: "memory-init-poison-diagnostic-matrix", expected: true)]] diag_matrix_ok
+
+    let metric_ok: bool =
+        (cleanup_surface_ok_log == true) &&
+        (poisoned_path_surface_ok_log == true) &&
+        (poisoned_init_surface_ok_log == true) &&
+        (diag_matrix_ok_log == true)
+
+    let metric: i32 = if (metric_ok) { 28 } else { 0 }
+    let metric_label: string@View = PoisonSurfaceMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-memory-init-poison-surface-metric", expected: "28")]] metric_label
+    if (metric_log_actual != "28") {
+        [[log(label: "memory-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "memory-log-memory_item_success")]]
+    return 0
+}

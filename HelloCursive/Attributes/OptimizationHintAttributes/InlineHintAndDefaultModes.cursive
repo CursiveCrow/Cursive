@@ -1,0 +1,48 @@
+[[inline(always)]]
+procedure AttributeInlineHintProbe(value: i32) -> i32 {
+    return value + 4
+}
+
+[[inline(default)]]
+procedure AttributeInlineDefaultModeProbe(value: i32) -> i32 {
+    return value + 5
+}
+
+procedure InlineHintAndDefaultModesMetricLabel(value: i32) -> string@View {
+    if (value == 17) {
+        return "17"
+    }
+    return "other"
+}
+
+public procedure RunInlineHintAndDefaultModes(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    let hint_value: i32 = AttributeInlineHintProbe(4)
+    let default_mode_value: i32 = AttributeInlineDefaultModeProbe(4)
+
+    let hint_value_log: i32 = [[log(label: "observed-attributes-inline-hint", expected: 8)]] hint_value
+    let default_mode_value_log: i32 = [[log(label: "observed-attributes-inline-default-mode", expected: 9)]] default_mode_value
+
+    let atr_hint: string@View = [[log(label: "attributes-inline-hint-feature", expected: "ATR-HINT-001")]] "ATR-HINT-001"
+    let atr_default: string@View = [[log(label: "attributes-inline-default-feature", expected: "ATR-DEFAULT-001")]] "ATR-DEFAULT-001"
+
+    let runtime_ok: bool =
+        (hint_value_log == 8) &&
+        (default_mode_value_log == 9) &&
+        (atr_hint == "ATR-HINT-001") &&
+        (atr_default == "ATR-DEFAULT-001")
+    let runtime_ok_log: bool = [[log(label: "attributes-inline-hint-default-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 17 } else { 0 }
+    let metric_label: string@View = InlineHintAndDefaultModesMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-attributes-inline-hint-default-metric", expected: "17")]] metric_label
+    if (metric_log_actual != "17") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}

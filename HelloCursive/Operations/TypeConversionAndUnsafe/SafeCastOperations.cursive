@@ -1,0 +1,177 @@
+procedure LogSafeCastObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure SafeCastMetricLabel(value: i32) -> string@View {
+    if (value == 5) {
+        return "5"
+    }
+    if (value == 65) {
+        return "65"
+    }
+    if (value == 7) {
+        return "7"
+    }
+    return "other"
+}
+
+procedure RunSafeCastItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifySafeCastItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    let base_u32: u32 = 5
+    let base_char: char = 'A'
+
+    LogSafeCastObject(ctx.fs, scope, "base_u32", "u32", "constructed", "numeric source for safe cast prepared")
+    LogSafeCastObject(ctx.fs, scope, "base_char", "char", "constructed", "character source for safe cast prepared")
+    LogSafeCastObject(ctx.fs, scope, "bool_cast_probe", "i32->bool", "planned", "boolean cast probe planned")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let syntax_metric: i32 = base_u32 as i32
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let static_u32: u32 = base_char as u32
+    let static_metric: i32 = static_u32 as i32
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let bool_true: bool = 1 as bool
+    let bool_false: bool = 0 as bool
+    let runtime_metric: i32 = syntax_metric + if (bool_true && !bool_false) { 2 } else { 0 }
+    [[log(label: "operations-log-transition_move")]]
+    let syntax_passed: bool = syntax_metric == 5
+    let static_passed: bool = static_metric == 65
+    let runtime_passed: bool = runtime_metric == 7
+
+    let actual_label_1: string@View = SafeCastMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-safe-cast-syntax-metric", expected: "5")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = SafeCastMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-safe-cast-static-metric", expected: "65")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = SafeCastMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-safe-cast-runtime-metric", expected: "7")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunSafeCastItem(
+            ctx,
+            scope,
+            "SafeCastOperationsSyntaxForms",
+            "safe cast syntax forms using `as` across permitted primitive conversions",
+            "validated safe cast operations syntax forms",
+            "safe-cast-syntax",
+            "evaluate `as` cast syntax from unsigned integer source",
+            "5",
+            "5",
+            "not-5",
+            move syntax_passed_with_log,
+            "safe cast syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunSafeCastItem(
+            ctx,
+            scope,
+            "SafeCastOperationsStaticSemantics",
+            "CastValid matrix compatibility for char/u32 and numeric primitive casts",
+            "validated safe cast operations static semantics",
+            "safe-cast-static",
+            "type-check char->u32->i32 cast chain under cast validity rules",
+            "65",
+            "65",
+            "not-65",
+            move static_passed_with_log,
+            "safe cast static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunSafeCastItem(
+            ctx,
+            scope,
+            "SafeCastOperationsRuntimeDiagnostics",
+            "runtime value conversion behavior for integer-to-bool casts and composed cast paths",
+            "validated safe cast operations runtime behavior and diagnostics",
+            "safe-cast-runtime",
+            "execute integer-to-bool casts and verify runtime aggregate cast metric",
+            "7",
+            "7",
+            "not-7",
+            move runtime_passed_with_log,
+            "safe cast runtime diagnostics check failed"
+        )
+    }
+
+    return RunSafeCastItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown safe cast operation item",
+        "failed unknown safe cast operation item",
+        "item-resolution",
+        "resolve safe cast operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown safe cast operation item"
+    )
+}
+
+procedure RunSafeCastOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::TypeConversionAndUnsafe::SafeCastOperations"
+    let checkpoint: string@View = "covered safe cast operations operation items"
+
+    let status_syntax: i32 = VerifySafeCastItem(ctx, scope, 0, "SafeCastOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifySafeCastItem(ctx, scope, 1, "SafeCastOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifySafeCastItem(ctx, scope, 2, "SafeCastOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

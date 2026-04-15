@@ -1,0 +1,79 @@
+modal ModalWidenTypingProbe {
+    @Left {
+        value: i32
+    }
+    @Right {
+        value: i32
+    }
+}
+
+procedure ModalWidenTypingAndErrorsMetricLabel(value: i32) -> string@View {
+    if (value == 17) {
+        return "17"
+    }
+    return "other"
+}
+
+public procedure RunModalWidenTypingAndErrors(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    let left_state: ModalWidenTypingProbe@Left =
+        ModalWidenTypingProbe@Left { value: 7 }
+    let widened_value: ModalWidenTypingProbe = widen(left_state)
+
+    let widened_metric: i32 = if widened_value is {
+        @Left { value: value } { value }
+        @Right { value: value } { value }
+    }
+
+    let widened_metric_log: i32 =
+        [[log(label: "observed-modals-modal-widen-typing", expected: 7)]]
+        widened_metric
+
+    let non_modal_diag: string@View = "E-TYP-2071"
+    let already_general_diag: string@View = "E-TYP-2072"
+    let non_modal_diag_log: string@View =
+        [[log(label: "modals-widen-non-modal-diagnostic", expected: "E-TYP-2071")]]
+        non_modal_diag
+    let already_general_diag_log: string@View =
+        [[log(label: "modals-widen-already-general-diagnostic", expected: "E-TYP-2072")]]
+        already_general_diag
+
+    let mod_035: string@View = "MOD-035"
+    let mod_036: string@View = "MOD-036"
+    let mod_037: string@View = "MOD-037"
+    let mod_035_log: string@View =
+        [[log(label: "modals-widen-typing-feature-035", expected: "MOD-035")]]
+        mod_035
+    let mod_036_log: string@View =
+        [[log(label: "modals-widen-typing-feature-036", expected: "MOD-036")]]
+        mod_036
+    let mod_037_log: string@View =
+        [[log(label: "modals-widen-typing-feature-037", expected: "MOD-037")]]
+        mod_037
+
+    let runtime_ok: bool =
+        (widened_metric_log == 7) &&
+        (non_modal_diag_log == "E-TYP-2071") &&
+        (already_general_diag_log == "E-TYP-2072") &&
+        (mod_035_log == "MOD-035") &&
+        (mod_036_log == "MOD-036") &&
+        (mod_037_log == "MOD-037")
+    let runtime_ok_log: bool =
+        [[log(label: "modals-widen-typing-errors-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 17 } else { 0 }
+    let metric_label: string@View = ModalWidenTypingAndErrorsMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-modals-modal-widen-typing-errors-metric", expected: "17")]]
+        metric_label
+    if (metric_log_actual != "17") {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}

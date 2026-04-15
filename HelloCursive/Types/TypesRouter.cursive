@@ -1,0 +1,85 @@
+import CoreSystem
+import ValueData
+import ExecutionTyping
+import Abstraction
+import FoundationalForms
+import QualityIntegration
+
+procedure GroupStatusLabel(status: i32) -> string@View {
+    if (status == 0) {
+        return "0"
+    }
+    return "non-zero"
+}
+
+procedure LogGroupStatus(
+    fs: $FileSystem,
+    scope: string@View,
+    group_name: string@View,
+    step_name: string@View,
+    status: i32
+) -> () {
+    let expected_zero: string@View = "0"
+    let actual_status: string@View = GroupStatusLabel(status)
+    let passed: bool = status == 0
+    let passed_log_actual = [[log(label: "observed-group-status", expected: "0")]] actual_status
+    let passed_with_log: bool = passed && (passed_log_actual == expected_zero)
+}
+
+public procedure run(ctx: Context) -> i32 {
+    let status_core_system: i32 = CoreSystem::RunGroup(ctx)
+    if (status_core_system != 0) {
+        let _ = if ctx.fs~>write_stdout("trace:types:core_system\n") is {
+            _: () { true }
+            _: IoError { false }
+        }
+        return status_core_system
+    }
+
+    let status_value_data: i32 = ValueData::RunGroup(ctx)
+    if (status_value_data != 0) {
+        let _ = if ctx.fs~>write_stdout("trace:types:value_data\n") is {
+            _: () { true }
+            _: IoError { false }
+        }
+        return status_value_data
+    }
+
+    let status_execution_typing: i32 = ExecutionTyping::RunGroup(ctx)
+    if (status_execution_typing != 0) {
+        let _ = if ctx.fs~>write_stdout("trace:types:execution_typing\n") is {
+            _: () { true }
+            _: IoError { false }
+        }
+        return status_execution_typing
+    }
+
+    let status_abstraction: i32 = Abstraction::RunGroup(ctx)
+    if (status_abstraction != 0) {
+        let _ = if ctx.fs~>write_stdout("trace:types:abstraction\n") is {
+            _: () { true }
+            _: IoError { false }
+        }
+        return status_abstraction
+    }
+
+    let status_foundational_forms: i32 = FoundationalForms::RunGroup(ctx)
+    if (status_foundational_forms != 0) {
+        let _ = if ctx.fs~>write_stdout("trace:types:foundational_forms\n") is {
+            _: () { true }
+            _: IoError { false }
+        }
+        return status_foundational_forms
+    }
+
+    let status_quality_integration: i32 = QualityIntegration::RunGroup(ctx)
+    if (status_quality_integration != 0) {
+        let _ = if ctx.fs~>write_stdout("trace:types:quality_integration\n") is {
+            _: () { true }
+            _: IoError { false }
+        }
+        return status_quality_integration
+    }
+
+    return 0
+}

@@ -1,0 +1,86 @@
+record SpeculativeKeyPair {
+    left: i32
+    right: i32
+}
+
+procedure SpeculativeKeyBlockRestrictionsMetricLabel(value: i32) -> string@View {
+    if (value == 21) {
+        return "21"
+    }
+    return "other"
+}
+
+public procedure RunSpeculativeKeyBlockRestrictions(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+
+    var syntax_slot: shared i32 = 2
+    # syntax_slot speculative write {
+        syntax_slot = syntax_slot + 1
+    }
+    let syntax_metric: i32 = syntax_slot
+
+    var static_pair: shared SpeculativeKeyPair = SpeculativeKeyPair { left: 1, right: 2 }
+    # static_pair.left, static_pair.right speculative write {
+        static_pair.left = static_pair.left + 2
+        static_pair.right = static_pair.right + 1
+    }
+    let static_metric: i32 = static_pair.left + static_pair.right
+
+    var runtime_slot: shared i32 = 4
+    # runtime_slot speculative write {
+        runtime_slot = runtime_slot + 3
+    }
+
+    let diag_nested_key: string@View = "E-CON-0090"
+    let diag_write_required: string@View = "E-CON-0095"
+    let diag_wait_not_allowed: string@View = "E-CON-0092"
+    let diag_defer_not_allowed: string@View = "E-CON-0093"
+    let diag_release_combination: string@View = "E-CON-0094"
+
+    let diag_count: i32 =
+        if (
+            (diag_nested_key == "E-CON-0090") &&
+            (diag_write_required == "E-CON-0095") &&
+            (diag_wait_not_allowed == "E-CON-0092") &&
+            (diag_defer_not_allowed == "E-CON-0093") &&
+            (diag_release_combination == "E-CON-0094")
+        ) {
+            5
+        } else {
+            0
+        }
+    let runtime_metric: i32 = runtime_slot + diag_count
+
+    let syntax_metric_log: i32 = [[log(label: "observed-permissions-SpeculativeKeyBlockRestrictions-syntax", expected: 3)]] syntax_metric
+    let static_metric_log: i32 = [[log(label: "observed-permissions-SpeculativeKeyBlockRestrictions-static", expected: 6)]] static_metric
+    let runtime_metric_log: i32 = [[log(label: "observed-permissions-SpeculativeKeyBlockRestrictions-runtime-metric", expected: 12)]] runtime_metric
+    let diag_nested_key_log: string@View = [[log(label: "permissions-SpeculativeKeyBlockRestrictions-diag-nested", expected: "E-CON-0090")]] diag_nested_key
+    let diag_write_required_log: string@View = [[log(label: "permissions-SpeculativeKeyBlockRestrictions-diag-write-required", expected: "E-CON-0095")]] diag_write_required
+    let diag_wait_not_allowed_log: string@View = [[log(label: "permissions-SpeculativeKeyBlockRestrictions-diag-wait", expected: "E-CON-0092")]] diag_wait_not_allowed
+    let diag_defer_not_allowed_log: string@View = [[log(label: "permissions-SpeculativeKeyBlockRestrictions-diag-defer", expected: "E-CON-0093")]] diag_defer_not_allowed
+    let diag_release_combination_log: string@View = [[log(label: "permissions-SpeculativeKeyBlockRestrictions-diag-release-combo", expected: "E-CON-0094")]] diag_release_combination
+
+    let runtime_ok: bool =
+        (syntax_metric_log == 3) &&
+        (static_metric_log == 6) &&
+        (runtime_metric_log == 12) &&
+        (diag_nested_key_log == "E-CON-0090") &&
+        (diag_write_required_log == "E-CON-0095") &&
+        (diag_wait_not_allowed_log == "E-CON-0092") &&
+        (diag_defer_not_allowed_log == "E-CON-0093") &&
+        (diag_release_combination_log == "E-CON-0094")
+    let runtime_ok_log: bool = [[log(label: "permissions-SpeculativeKeyBlockRestrictions-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log) { 21 } else { 0 }
+    let metric_label: string@View = SpeculativeKeyBlockRestrictionsMetricLabel(metric)
+    let metric_label_log: string@View = [[log(label: "observed-permissions-SpeculativeKeyBlockRestrictions-metric", expected: "21")]] metric_label
+
+    if (metric_label_log != "21") {
+        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    return 0
+}

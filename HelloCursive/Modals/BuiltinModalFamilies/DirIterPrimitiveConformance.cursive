@@ -1,0 +1,123 @@
+procedure DirIterPrimitiveConformanceMetricLabel(value: i32) -> string@View {
+    if (value == 3) {
+        return "3"
+    }
+    return "other"
+}
+
+public procedure RunDirIterPrimitiveConformance(ctx: Context) -> i32 {
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    let fs: $FileSystem = ctx.fs
+    let runtime_logs_dir_path: string@View = "build/main/logs/runtime"
+    let probe_dir_path: string@View =
+        "build/main/logs/runtime/dir_iter_primitive_conformance_probe"
+    let probe_file_path: string@View =
+        "build/main/logs/runtime/dir_iter_primitive_conformance_probe/entry.txt"
+    let payload: bytes@View = bytes::view_string("dir-iter-entry")
+
+    let runtime_logs_dir_ready: bool = if fs~>ensure_dir(runtime_logs_dir_path) is {
+        _: () { true }
+        _: IoError { false }
+    }
+
+    let stale_probe_file_cleanup: () | IoError = fs~>remove(probe_file_path)
+    let _ = stale_probe_file_cleanup
+    let stale_probe_dir_cleanup: () | IoError = fs~>remove(probe_dir_path)
+    let _ = stale_probe_dir_cleanup
+
+    let probe_dir_ready: bool = if (runtime_logs_dir_ready == true) {
+        if fs~>ensure_dir(probe_dir_path) is {
+            _: () { true }
+            _: IoError { false }
+        }
+    } else {
+        false
+    }
+
+    let seeded_probe_file: bool = if (probe_dir_ready == true) {
+        if fs~>write_file(probe_file_path, payload) is {
+            _: () { true }
+            _: IoError { false }
+        }
+    } else {
+        false
+    }
+
+    let first_entry_name_len: i32 = if (seeded_probe_file == true) {
+        if fs~>open_dir(probe_dir_path) is {
+            iter: unique DirIter@Open {
+                let next_result: DirEntry | () | IoError = iter~>next()
+                let closed: DirIter@Closed = iter~>close()
+                let _ = closed
+                if next_result is {
+                    entry: DirEntry {
+                        let entry_name_view: string@View = string::as_view(entry.name)
+                        string::length(entry_name_view) as i32
+                    }
+                    _: () { 0 }
+                    _: IoError { 0 }
+                }
+            }
+            _: IoError { 0 }
+        }
+    } else {
+        0
+    }
+
+    let first_entry_kind_is_file: bool = if (seeded_probe_file == true) {
+        if fs~>open_dir(probe_dir_path) is {
+            iter: unique DirIter@Open {
+                let next_result: DirEntry | () | IoError = iter~>next()
+                let closed: DirIter@Closed = iter~>close()
+                let _ = closed
+                if next_result is {
+                    entry: DirEntry {
+                        if entry.kind is {
+                            FileKind::File { true }
+                            _: FileKind { false }
+                        }
+                    }
+                    _: () { false }
+                    _: IoError { false }
+                }
+            }
+            _: IoError { false }
+        }
+    } else {
+        false
+    }
+
+    let probe_dir_ready_log: bool =
+        [[log(label: "observed-modals-diriter-primitive-dir-ready", expected: true)]]
+        probe_dir_ready
+    let first_entry_name_len_log: i32 =
+        [[log(label: "observed-modals-diriter-primitive-entry-name-len", expected: 9)]]
+        first_entry_name_len
+    let first_entry_kind_is_file_log: bool =
+        [[log(label: "observed-modals-diriter-primitive-entry-kind-file", expected: true)]]
+        first_entry_kind_is_file
+
+    let metric: i32 = if (
+        (probe_dir_ready_log == true) &&
+        (first_entry_name_len_log == 9) &&
+        (first_entry_kind_is_file_log == true)
+    ) { 3 } else { 0 }
+    let metric_label: string@View = DirIterPrimitiveConformanceMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-modals-diriter-primitive-metric", expected: "3")]]
+        metric_label
+
+    let cleanup_probe_file: () | IoError = fs~>remove(probe_file_path)
+    let _ = cleanup_probe_file
+    let cleanup_probe_dir: () | IoError = fs~>remove(probe_dir_path)
+    let _ = cleanup_probe_dir
+
+    if (metric_log_actual != "3") {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}

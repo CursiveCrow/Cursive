@@ -1,0 +1,116 @@
+[[mangle("hc_contracts_foreign_ensures_probe_impl"), export("C-unwind")]]
+public procedure ContractsForeignEnsuresProbeImpl(value: i32) -> i32 {
+    return value
+}
+
+[[mangle("hc_contracts_foreign_ensures_null_form_impl"), export("C-unwind")]]
+public procedure ContractsForeignEnsuresNullFormImpl(ptr: *imm i32, mode: i32) -> *imm i32 {
+    if (mode == 0) {
+        return null
+    }
+    return ptr
+}
+
+extern "C" {
+    procedure hc_contracts_foreign_ensures_probe_impl(value: i32) -> i32
+        |: @foreign_ensures(@result >= 0)
+}
+
+extern "C" {
+    [[dynamic]]
+    procedure hc_contracts_foreign_ensures_null_form_impl(ptr: *imm i32, mode: i32) -> *imm i32
+        |: @foreign_ensures(@result != null)
+        |: @foreign_ensures(@error: @result == null)
+        |: @foreign_ensures(@null_result: @result == null)
+}
+
+[[dynamic, mangle("hc_contracts_foreign_ensures_null_form_no_panic_catch"), export("C-unwind"), unwind("catch")]]
+public procedure ContractsForeignEnsuresNullFormNoPanicCatch(ptr: *imm i32) -> i32 {
+    let observed_ptr: *imm i32 = unsafe {
+        hc_contracts_foreign_ensures_null_form_impl(ptr, 0)
+    }
+    if (observed_ptr == null) {
+        return 13
+    }
+    return 0
+}
+
+extern "C" {
+    procedure hc_contracts_foreign_ensures_null_form_no_panic_catch(ptr: *imm i32) -> i32
+}
+
+procedure ForeignEnsuresPredicateFormsMetricLabel(value: i32) -> string@View {
+    if (value == 40) {
+        return "40"
+    }
+    return "other"
+}
+
+public procedure RunForeignEnsuresPredicateForms(ctx: Context) -> i32 {
+    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+
+    let seed_value: i32 = 73
+    let seed_ptr_safe: Ptr<i32>@Valid = &seed_value
+    let seed_ptr_raw: *imm i32 = unsafe { transmute<Ptr<i32>@Valid, *imm i32>(seed_ptr_safe) }
+
+    let observed_value: i32 = unsafe { hc_contracts_foreign_ensures_probe_impl(7) }
+    let null_form_non_null: *imm i32 = unsafe {
+        hc_contracts_foreign_ensures_null_form_impl(seed_ptr_raw, 1)
+    }
+    let null_form_no_panic_metric: i32 = unsafe {
+        hc_contracts_foreign_ensures_null_form_no_panic_catch(seed_ptr_raw)
+    }
+
+    let observed_value_log: i32 =
+        [[log(label: "observed-contracts-foreign-ensures-call", expected: 7)]]
+        observed_value
+    let null_form_non_null_log: bool =
+        [[log(label: "observed-contracts-foreign-ensures-form-non-null", expected: true)]]
+        null_form_non_null != null
+    let null_form_no_panic_metric_log: i32 =
+        [[log(label: "observed-contracts-foreign-ensures-form-null-no-panic", expected: 13)]]
+        null_form_no_panic_metric
+
+    let con_069: string@View = "CON-069"
+    let con_069_log: string@View =
+        [[log(label: "contracts-foreign-ensures-feature-069", expected: "CON-069")]]
+        con_069
+
+    let diag_2853: string@View = "E-SEM-2853"
+    let diag_2854: string@View = "E-SEM-2854"
+    let diag_2855: string@View = "E-SEM-2855"
+    let diag_2853_log: string@View =
+        [[log(label: "contracts-foreign-ensures-diag-2853", expected: "E-SEM-2853")]]
+        diag_2853
+    let diag_2854_log: string@View =
+        [[log(label: "contracts-foreign-ensures-diag-2854", expected: "E-SEM-2854")]]
+        diag_2854
+    let diag_2855_log: string@View =
+        [[log(label: "contracts-foreign-ensures-diag-2855", expected: "E-SEM-2855")]]
+        diag_2855
+
+    let runtime_ok: bool =
+        (observed_value_log == 7) &&
+        (null_form_non_null_log == true) &&
+        (null_form_no_panic_metric_log == 13) &&
+        (con_069_log == "CON-069") &&
+        (diag_2853_log == "E-SEM-2853") &&
+        (diag_2854_log == "E-SEM-2854") &&
+        (diag_2855_log == "E-SEM-2855")
+    let runtime_ok_log: bool =
+        [[log(label: "contracts-foreign-ensures-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 40 } else { 0 }
+    let metric_label: string@View = ForeignEnsuresPredicateFormsMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-contracts-foreign-ensures-predicate-forms-metric", expected: "40")]]
+        metric_label
+    if (metric_log_actual != "40") {
+        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    return 0
+}

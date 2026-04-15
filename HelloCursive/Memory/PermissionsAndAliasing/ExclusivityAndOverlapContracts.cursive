@@ -1,0 +1,81 @@
+procedure PermissionExclusiveReadConst(value: const i32) -> i32 {
+    return value
+}
+
+procedure PermissionExclusiveReadShared(value: shared i32) -> i32 {
+    return value
+}
+
+procedure PermissionExclusiveReadUnique(value: unique i32) -> i32 {
+    return value
+}
+
+procedure PermissionExclusivityMetricLabel(value: i32) -> string@View {
+    if (value == 33) {
+        return "33"
+    }
+    return "other"
+}
+
+public procedure RunExclusivityAndOverlapContracts(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "memory-log-item_begin")]]
+
+    let unique_seed: unique i32 = 14
+    let overlap_sum_metric: i32 = {
+        let shared_alias: shared i32 = unique_seed
+        let const_alias: const i32 = shared_alias
+        PermissionExclusiveReadShared(shared_alias) +
+        PermissionExclusiveReadConst(const_alias)
+    }
+    let restored_unique_metric: i32 = PermissionExclusiveReadUnique(unique_seed)
+
+    let transfer_source: unique i32 = 20
+    let transfer_target: unique i32 = move transfer_source
+    let transfer_metric: i32 = PermissionExclusiveReadUnique(transfer_target)
+
+    let independent_a: unique i32 = 4
+    let independent_b: unique i32 = 9
+    let independent_metric: i32 =
+        PermissionExclusiveReadUnique(independent_a) +
+        PermissionExclusiveReadUnique(independent_b)
+
+    let overlap_window_ok: bool = overlap_sum_metric == 28
+    let restore_after_alias_ok: bool = restored_unique_metric == 14
+    let transfer_unique_ok: bool = transfer_metric == 20
+    let independent_overlap_ok: bool = independent_metric == 13
+
+    let diag_unique_overlap_conflict: string@View = "E-SEM-2534"
+    let diag_unique_reactivation_conflict: string@View = "E-SEM-2535"
+
+    let overlap_window_ok_log: bool = [[log(label: "memory-permissions-exclusivity-window", expected: true)]] overlap_window_ok
+    let restore_after_alias_ok_log: bool = [[log(label: "memory-permissions-restore-after-alias", expected: true)]] restore_after_alias_ok
+    let transfer_unique_ok_log: bool = [[log(label: "memory-permissions-unique-transfer-contract", expected: true)]] transfer_unique_ok
+    let independent_overlap_ok_log: bool = [[log(label: "memory-permissions-independent-unique-non-overlap", expected: true)]] independent_overlap_ok
+
+    let diag_unique_overlap_conflict_log: string@View = [[log(label: "memory-permissions-diagnostic-code-unique-overlap", expected: "E-SEM-2534")]] diag_unique_overlap_conflict
+    let diag_unique_reactivation_conflict_log: string@View = [[log(label: "memory-permissions-diagnostic-code-unique-reactivation", expected: "E-SEM-2535")]] diag_unique_reactivation_conflict
+
+    let diag_matrix_ok: bool =
+        (diag_unique_overlap_conflict_log == "E-SEM-2534") &&
+        (diag_unique_reactivation_conflict_log == "E-SEM-2535")
+    let diag_matrix_ok_log: bool = [[log(label: "memory-permissions-exclusivity-diagnostic-matrix", expected: true)]] diag_matrix_ok
+
+    let metric_ok: bool =
+        (overlap_window_ok_log == true) &&
+        (restore_after_alias_ok_log == true) &&
+        (transfer_unique_ok_log == true) &&
+        (independent_overlap_ok_log == true) &&
+        (diag_matrix_ok_log == true)
+
+    let metric: i32 = if (metric_ok) { 33 } else { 0 }
+    let metric_label: string@View = PermissionExclusivityMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-memory-permissions-exclusivity-metric", expected: "33")]] metric_label
+    if (metric_log_actual != "33") {
+        [[log(label: "memory-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "memory-log-memory_item_success")]]
+    return 0
+}

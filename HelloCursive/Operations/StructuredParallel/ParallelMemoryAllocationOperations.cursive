@@ -1,0 +1,76 @@
+procedure ParallelMemoryAllocationOperationsMetricLabel(value: i32) -> string@View {
+    if (value == 183) {
+        return "183"
+    }
+    return "other"
+}
+
+public procedure RunParallelMemoryAllocationOperations(ctx: Context) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+
+    let heap_capture_metric: i32 = parallel ctx~>cpu() {
+        let managed_text_result: string@Managed | AllocationError =
+            string::to_managed("par", ctx.heap)
+        if managed_text_result is {
+            managed_text: unique string@Managed {
+                let managed_text_view: string@View = string::as_view(managed_text)
+                string::length(managed_text_view) as i32
+            }
+            _: AllocationError {
+                -1
+            }
+        }
+    }
+
+    let region_alloc_metric: i32 = parallel ctx~>cpu() {
+        var local_metric: i32 = 0
+        region as r {
+            let left_alloc: i32 = ^2
+            let right_alloc: i32 = r ^ 3
+            local_metric = left_alloc + right_alloc
+        }
+        local_metric
+    }
+
+    let combined_metric: i32 = heap_capture_metric + region_alloc_metric
+
+    let captured_allocator_rule: string@View =
+        [[log(label: "operations-parallel-allocation-rule-captured-allocator", expected: "captured-allocator")]]
+        "captured-allocator"
+    let region_allocation_rule: string@View =
+        [[log(label: "operations-parallel-allocation-rule-region", expected: "region-allocation")]]
+        "region-allocation"
+
+    let heap_capture_log: i32 =
+        [[log(label: "observed-operations-parallel-allocation-heap-capture-metric", expected: 3)]]
+        heap_capture_metric
+    let region_alloc_log: i32 =
+        [[log(label: "observed-operations-parallel-allocation-region-metric", expected: 5)]]
+        region_alloc_metric
+    let combined_log: i32 =
+        [[log(label: "observed-operations-parallel-allocation-combined-metric", expected: 8)]]
+        combined_metric
+
+    let runtime_ok: bool =
+        (captured_allocator_rule == "captured-allocator") &&
+        (region_allocation_rule == "region-allocation") &&
+        (heap_capture_log == 3) &&
+        (region_alloc_log == 5) &&
+        (combined_log == 8)
+    let runtime_ok_log: bool =
+        [[log(label: "operations-parallel-memory-allocation-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 183 } else { 0 }
+    let metric_label: string@View = ParallelMemoryAllocationOperationsMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-operations-parallel-memory-allocation-metric", expected: "183")]]
+        metric_label
+    if (metric_log_actual != "183") {
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}

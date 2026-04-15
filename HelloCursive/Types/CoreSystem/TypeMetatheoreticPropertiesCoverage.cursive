@@ -1,0 +1,103 @@
+procedure TypeMetatheoryStep(seed: i32) -> i32 {
+    return (seed + 1) * 2
+}
+
+procedure TypeMetatheoryMetricLabel(value: i32) -> string@View {
+    if (value == 48) {
+        return "48"
+    }
+    return "other"
+}
+
+procedure RunTypeMetatheoreticPropertiesCoverage(ctx: Context) -> i32 {
+    let progress_metric: i32 = {
+        let seed: i32 = 2
+        TypeMetatheoryStep(seed)
+    }
+    let progress_branch_metric: i32 = if (true) {
+        TypeMetatheoryStep(2)
+    } else {
+        0
+    }
+
+    let preservation_start: i32 = 6
+    let preservation_mid: i32 = preservation_start + 4
+    let preservation_end: i32 = preservation_mid - 1
+    let preservation_metric: i32 = preservation_end
+    let preservation_pair: (i32, bool) = (preservation_metric, true)
+    let preservation_projection: i32 = preservation_pair.0
+
+    let move_source: i32 = 8
+    let move_target: i32 = move move_source
+
+    var pointer_cell: i32 = 11
+    let valid_ptr: Ptr<i32>@Valid = &pointer_cell
+    let pointer_metric: i32 = *valid_ptr
+
+    let managed_result: string@Managed | AllocationError = string::to_managed("ts", ctx.heap)
+    var drop_metric: i32 = -1
+    if managed_result is {
+        managed_text: unique string@Managed {
+            let managed_view: string@View = string::as_view(managed_text)
+            drop_metric = string::length(managed_view) as i32
+        }
+        _: AllocationError {
+            drop_metric = -1
+        }
+    }
+
+    let progress_ok: bool = (progress_metric == 6) && (progress_branch_metric == 6)
+    let preservation_ok: bool = (preservation_metric == 9) && (preservation_projection == 9)
+    let no_use_after_free_ok: bool = move_target == 8
+    let no_double_free_ok: bool = drop_metric == 2
+    let no_dangling_ok: bool = pointer_metric == 11
+
+    let progress_ok_log: bool =
+        [[log(label: "types-meta-progress-surface", expected: true)]]
+        progress_ok
+    let progress_branch_ok_log: bool =
+        [[log(label: "types-meta-progress-branch-surface", expected: true)]]
+        (progress_branch_metric == 6)
+    let preservation_ok_log: bool =
+        [[log(label: "types-meta-preservation-surface", expected: true)]]
+        preservation_ok
+    let preservation_projection_ok_log: bool =
+        [[log(label: "types-meta-preservation-projection-surface", expected: true)]]
+        (preservation_projection == 9)
+    let no_use_after_free_ok_log: bool =
+        [[log(label: "types-meta-no-use-after-free-surface", expected: true)]]
+        no_use_after_free_ok
+    let no_double_free_ok_log: bool =
+        [[log(label: "types-meta-no-double-free-surface", expected: true)]]
+        no_double_free_ok
+    let no_dangling_ok_log: bool =
+        [[log(label: "types-meta-no-dangling-pointer-surface", expected: true)]]
+        no_dangling_ok
+
+    let metric: i32 = if (
+        progress_ok &&
+        preservation_ok &&
+        no_use_after_free_ok &&
+        no_double_free_ok &&
+        no_dangling_ok &&
+        (progress_ok_log == true) &&
+        (progress_branch_ok_log == true) &&
+        (preservation_ok_log == true) &&
+        (preservation_projection_ok_log == true) &&
+        (no_use_after_free_ok_log == true) &&
+        (no_double_free_ok_log == true) &&
+        (no_dangling_ok_log == true)
+    ) { 48 } else { 0 }
+
+    let metric_label: string@View = TypeMetatheoryMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-types-meta-theoretic-properties-metric", expected: "48")]]
+        metric_label
+    if (metric_log_actual != "48") {
+        [[log(label: "types-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "types-log-types_item_success")]]
+    return 0
+}

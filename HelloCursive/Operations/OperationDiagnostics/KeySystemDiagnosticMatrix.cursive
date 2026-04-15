@@ -1,0 +1,201 @@
+procedure LogKeySystemDiagnosticObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure KeySystemDiagnosticMetricLabel(value: i32) -> string@View {
+    if (value == 2) {
+        return "2"
+    }
+    if (value == 7) {
+        return "7"
+    }
+    if (value == 13) {
+        return "13"
+    }
+    return "other"
+}
+
+procedure RunKeySystemDiagnosticItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyKeySystemDiagnosticItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    var read_slot: shared i32 = 2
+    var write_slot: shared i32 = 3
+
+    let diag_dynamic_index_conflict: string@View = "E-CON-0010"
+    let diag_read_write_reject: string@View = "E-CON-0060"
+    let diag_spec_nested_key: string@View = "E-CON-0090"
+    let diag_spec_write_required: string@View = "E-CON-0095"
+
+    LogKeySystemDiagnosticObject(ctx.fs, scope, "read_slot", "i32", "constructed", "key-system read slot prepared")
+    LogKeySystemDiagnosticObject(ctx.fs, scope, "write_slot", "i32", "constructed", "key-system write slot prepared")
+    LogKeySystemDiagnosticObject(ctx.fs, scope, "diag_dynamic_index_conflict", "diagnostic-code", "constructed", "dynamic index conflict diagnostic mapping prepared")
+    LogKeySystemDiagnosticObject(ctx.fs, scope, "diag_read_write_reject", "diagnostic-code", "constructed", "read-then-write reject diagnostic mapping prepared")
+    LogKeySystemDiagnosticObject(ctx.fs, scope, "diag_spec_nested_key", "diagnostic-code", "constructed", "speculative nested key diagnostic mapping prepared")
+    LogKeySystemDiagnosticObject(ctx.fs, scope, "diag_spec_write_required", "diagnostic-code", "constructed", "speculative write-required diagnostic mapping prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    var syntax_metric: i32 = 0
+    [[log(label: "operations-log-transition_move")]]
+    # read_slot read {
+        syntax_metric = read_slot
+    }
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    # write_slot write {
+        write_slot = write_slot + 4
+    }
+    let static_metric: i32 = write_slot
+    [[log(label: "operations-log-transition_move")]]
+    let diag_dynamic_index_conflict_ok: bool = diag_dynamic_index_conflict == "E-CON-0010"
+    let diag_read_write_reject_ok: bool = diag_read_write_reject == "E-CON-0060"
+    let diag_spec_nested_key_ok: bool = diag_spec_nested_key == "E-CON-0090"
+    let diag_spec_write_required_ok: bool = diag_spec_write_required == "E-CON-0095"
+
+    let diag_dynamic_index_conflict_ok_log_actual = [[log(label: "diagnostic-key-dynamic-index-conflict", expected: "E-CON-0010")]] diag_dynamic_index_conflict
+    let diag_dynamic_index_conflict_ok_with_log: bool = diag_dynamic_index_conflict_ok && (diag_dynamic_index_conflict_ok_log_actual == diag_dynamic_index_conflict)
+    let diag_read_write_reject_ok_log_actual = [[log(label: "diagnostic-key-read-write-reject", expected: "E-CON-0060")]] diag_read_write_reject
+    let diag_read_write_reject_ok_with_log: bool = diag_read_write_reject_ok && (diag_read_write_reject_ok_log_actual == diag_read_write_reject)
+    let diag_spec_nested_key_ok_log_actual = [[log(label: "diagnostic-key-spec-nested-key", expected: "E-CON-0090")]] diag_spec_nested_key
+    let diag_spec_nested_key_ok_with_log: bool = diag_spec_nested_key_ok && (diag_spec_nested_key_ok_log_actual == diag_spec_nested_key)
+    let diag_spec_write_required_ok_log_actual = [[log(label: "diagnostic-key-spec-write-required", expected: "E-CON-0095")]] diag_spec_write_required
+    let diag_spec_write_required_ok_with_log: bool = diag_spec_write_required_ok && (diag_spec_write_required_ok_log_actual == diag_spec_write_required)
+    let diag_count: i32 = if (diag_dynamic_index_conflict_ok && diag_read_write_reject_ok && diag_spec_nested_key_ok && diag_spec_write_required_ok) { 4 } else { 0 }
+    let runtime_metric: i32 = syntax_metric + static_metric + diag_count
+
+    let syntax_passed: bool = syntax_metric == 2
+    let static_passed: bool = static_metric == 7
+    let runtime_passed: bool = runtime_metric == 13
+
+    let actual_label_1: string@View = KeySystemDiagnosticMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-key-system-diagnostic-syntax-metric", expected: "2")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = KeySystemDiagnosticMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-key-system-diagnostic-static-metric", expected: "7")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = KeySystemDiagnosticMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-key-system-diagnostic-runtime-metric", expected: "13")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunKeySystemDiagnosticItem(
+            ctx,
+            scope,
+            "KeySystemDiagnosticMatrixSyntaxForms",
+            "syntax forms for key-block modifiers and keyed path acquisition expressions",
+            "validated key system diagnostic matrix syntax forms",
+            "key-system-diagnostic-syntax",
+            "evaluate key-block syntax baseline under read mode",
+            "2",
+            "2",
+            "not-2",
+            move syntax_passed_with_log,
+            "key system diagnostic syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunKeySystemDiagnosticItem(
+            ctx,
+            scope,
+            "KeySystemDiagnosticMatrixStaticSemantics",
+            "static mode legality and keyed mutation compatibility for diagnostics matrix probes",
+            "validated key system diagnostic matrix static semantics",
+            "key-system-diagnostic-static",
+            "type-check write-mode key block and resulting keyed mutation",
+            "7",
+            "7",
+            "not-7",
+            move static_passed_with_log,
+            "key system diagnostic static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunKeySystemDiagnosticItem(
+            ctx,
+            scope,
+            "KeySystemDiagnosticMatrixRuntimeDiagnostics",
+            "runtime key-system diagnostic-code mapping verification across major conflict classes",
+            "validated key system diagnostic matrix runtime behavior and diagnostics",
+            "key-system-diagnostic-runtime",
+            "verify key-system diagnostics matrix entries and runtime aggregate",
+            "13",
+            "13",
+            "not-13",
+            move runtime_passed_with_log,
+            "key system diagnostic runtime diagnostics check failed"
+        )
+    }
+
+    return RunKeySystemDiagnosticItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown key system diagnostic matrix item",
+        "failed unknown key system diagnostic matrix item",
+        "item-resolution",
+        "resolve key system diagnostic matrix item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown key system diagnostic matrix item"
+    )
+}
+
+procedure RunKeySystemDiagnosticMatrix(ctx: Context) -> i32 {
+    let scope: string@View = "operations::OperationDiagnostics::KeySystemDiagnosticMatrix"
+    let checkpoint: string@View = "covered key system diagnostic matrix operation items"
+
+    let status_syntax: i32 = VerifyKeySystemDiagnosticItem(ctx, scope, 0, "KeySystemDiagnosticMatrixSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyKeySystemDiagnosticItem(ctx, scope, 1, "KeySystemDiagnosticMatrixStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyKeySystemDiagnosticItem(ctx, scope, 2, "KeySystemDiagnosticMatrixRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

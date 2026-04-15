@@ -1,0 +1,42 @@
+public procedure RunGroup(ctx: Context) -> i32 {
+    [[log(label: "pointers-log-section_start")]]
+
+    let status_place: i32 = RunAddressOfPlaceRules(ctx)
+    if (status_place != 0) {
+        [[log(label: "pointers-log-section_end")]]
+        return status_place
+    }
+
+    let status_composite: i32 = RunAddressOfCompositePaths(ctx)
+    if (status_composite != 0) {
+        [[log(label: "pointers-log-section_end")]]
+        return status_composite
+    }
+
+    let status_chains: i32 = RunAddressOfDerefChains(ctx)
+    if (status_chains != 0) {
+        [[log(label: "pointers-log-section_end")]]
+        return status_chains
+    }
+
+    let status_safe_deref: i32 = RunDereferenceSafeStates(ctx)
+    if (status_safe_deref != 0) {
+        [[log(label: "pointers-log-section_end")]]
+        return status_safe_deref
+    }
+
+    let status_raw_deref: i32 = RunDereferenceRawSafety(ctx)
+    if (status_raw_deref != 0) {
+        [[log(label: "pointers-log-section_end")]]
+        return status_raw_deref
+    }
+
+    let status_place_mut: i32 = RunDerefPlaceMutation(ctx)
+    if (status_place_mut != 0) {
+        [[log(label: "pointers-log-section_end")]]
+        return status_place_mut
+    }
+
+    [[log(label: "pointers-log-section_end")]]
+    return 0
+}

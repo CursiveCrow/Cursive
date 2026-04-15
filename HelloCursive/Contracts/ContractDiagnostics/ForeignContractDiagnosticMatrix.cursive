@@ -1,0 +1,112 @@
+procedure ForeignContractDiagnosticMatrixMetricLabel(value: i32) -> string@View {
+    if (value == 56) {
+        return "56"
+    }
+    return "other"
+}
+
+public procedure RunForeignContractDiagnosticMatrix(ctx: Context) -> i32 {
+    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+
+    let status_assumes_syntax: i32 = ForeignContractsAndTrustBoundaries::RunForeignAssumesSyntaxAndScope(ctx)
+    let status_assumes_modes: i32 = ForeignContractsAndTrustBoundaries::RunForeignAssumesVerificationModes(ctx)
+    let status_ensures_predicate_forms: i32 = ForeignContractsAndTrustBoundaries::RunForeignEnsuresPredicateForms(ctx)
+    let status_ensures_type_restrictions: i32 = ForeignContractsAndTrustBoundaries::RunForeignEnsuresTypeRestrictions(ctx)
+    let status_dynamic_runtime: i32 = ForeignContractsAndTrustBoundaries::RunForeignDynamicRuntimeChecks(ctx)
+
+    let status_assumes_syntax_log: i32 =
+        [[log(label: "observed-contracts-foreign-diagnostic-assumes-syntax-status", expected: 0)]]
+        status_assumes_syntax
+    let status_assumes_modes_log: i32 =
+        [[log(label: "observed-contracts-foreign-diagnostic-assumes-modes-status", expected: 0)]]
+        status_assumes_modes
+    let status_ensures_predicate_forms_log: i32 =
+        [[log(label: "observed-contracts-foreign-diagnostic-ensures-predicate-forms-status", expected: 0)]]
+        status_ensures_predicate_forms
+    let status_ensures_type_restrictions_log: i32 =
+        [[log(label: "observed-contracts-foreign-diagnostic-ensures-type-restrictions-status", expected: 0)]]
+        status_ensures_type_restrictions
+    let status_dynamic_runtime_log: i32 =
+        [[log(label: "observed-contracts-foreign-diagnostic-dynamic-runtime-status", expected: 0)]]
+        status_dynamic_runtime
+
+    let assumptions_ok: bool =
+        (status_assumes_syntax_log == 0) &&
+        (status_assumes_modes_log == 0)
+    let ensures_ok: bool =
+        (status_ensures_predicate_forms_log == 0) &&
+        (status_ensures_type_restrictions_log == 0)
+    let runtime_ok: bool = status_dynamic_runtime_log == 0
+
+    let con_077: string@View =
+        if (
+            (assumptions_ok == true) &&
+            (ensures_ok == true) &&
+            (runtime_ok == true)
+        ) {
+            "CON-077"
+        } else {
+            "missing"
+        }
+    let diag_2850: string@View = if (status_assumes_syntax_log == 0) { "E-SEM-2850" } else { "missing" }
+    let diag_2851: string@View = if (status_assumes_syntax_log == 0) { "E-SEM-2851" } else { "missing" }
+    let diag_2852: string@View = if (status_assumes_syntax_log == 0) { "E-SEM-2852" } else { "missing" }
+    let diag_2853: string@View =
+        if (
+            (status_ensures_predicate_forms_log == 0) &&
+            (status_ensures_type_restrictions_log == 0)
+        ) {
+            "E-SEM-2853"
+        } else {
+            "missing"
+        }
+    let diag_2854: string@View = if (status_ensures_predicate_forms_log == 0) { "E-SEM-2854" } else { "missing" }
+    let diag_2855: string@View =
+        if (
+            (status_ensures_predicate_forms_log == 0) &&
+            (status_ensures_type_restrictions_log == 0)
+        ) {
+            "E-SEM-2855"
+        } else {
+            "missing"
+        }
+    let panic_2860: string@View = if (status_assumes_modes_log == 0) { "P-SEM-2860" } else { "missing" }
+    let panic_2861: string@View = if (status_dynamic_runtime_log == 0) { "P-SEM-2861" } else { "missing" }
+
+    let check_0: string@View = [[log(label: "contracts-foreign-diagnostic-feature-077", expected: "CON-077")]] con_077
+    let check_1: string@View = [[log(label: "contracts-foreign-diagnostic-2850", expected: "E-SEM-2850")]] diag_2850
+    let check_2: string@View = [[log(label: "contracts-foreign-diagnostic-2851", expected: "E-SEM-2851")]] diag_2851
+    let check_3: string@View = [[log(label: "contracts-foreign-diagnostic-2852", expected: "E-SEM-2852")]] diag_2852
+    let check_4: string@View = [[log(label: "contracts-foreign-diagnostic-2853", expected: "E-SEM-2853")]] diag_2853
+    let check_5: string@View = [[log(label: "contracts-foreign-diagnostic-2854", expected: "E-SEM-2854")]] diag_2854
+    let check_6: string@View = [[log(label: "contracts-foreign-diagnostic-2855", expected: "E-SEM-2855")]] diag_2855
+    let check_7: string@View = [[log(label: "contracts-foreign-diagnostic-2860", expected: "P-SEM-2860")]] panic_2860
+    let check_8: string@View = [[log(label: "contracts-foreign-diagnostic-2861", expected: "P-SEM-2861")]] panic_2861
+
+    let matrix_ok: bool =
+        (check_0 == "CON-077") &&
+        (check_1 == "E-SEM-2850") &&
+        (check_2 == "E-SEM-2851") &&
+        (check_3 == "E-SEM-2852") &&
+        (check_4 == "E-SEM-2853") &&
+        (check_5 == "E-SEM-2854") &&
+        (check_6 == "E-SEM-2855") &&
+        (check_7 == "P-SEM-2860") &&
+        (check_8 == "P-SEM-2861")
+    let matrix_ok_log: bool =
+        [[log(label: "contracts-foreign-diagnostic-matrix", expected: true)]]
+        matrix_ok
+
+    let metric: i32 = if (matrix_ok_log == true) { 56 } else { 0 }
+    let metric_label: string@View = ForeignContractDiagnosticMatrixMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-contracts-foreign-contract-diagnostic-matrix-metric", expected: "56")]]
+        metric_label
+    if (metric_log_actual != "56") {
+        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    return 0
+}

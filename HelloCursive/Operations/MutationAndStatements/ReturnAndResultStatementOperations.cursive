@@ -1,0 +1,189 @@
+procedure ReturnStatementSyntaxProbe(value: i32) -> i32 {
+    if (value > 0) {
+        return value + 2
+    }
+    return 0
+}
+
+procedure ReturnStatementStaticProbe(value: i32) -> i32 {
+    let doubled: i32 = value * 2
+    return doubled
+}
+
+procedure ReturnStatementRuntimeProbe() -> i32 {
+    let left: i32 = ReturnStatementSyntaxProbe(1)
+    let right: i32 = ReturnStatementStaticProbe(2)
+    return left + right
+}
+
+procedure LogReturnStatementObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure ReturnStatementMetricLabel(value: i32) -> string@View {
+    if (value == 3) {
+        return "3"
+    }
+    if (value == 4) {
+        return "4"
+    }
+    if (value == 7) {
+        return "7"
+    }
+    return "other"
+}
+
+procedure RunReturnStatementItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyReturnStatementItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    LogReturnStatementObject(ctx.fs, scope, "return_syntax_probe", "procedure(i32)->i32", "constructed", "branching return syntax probe prepared")
+    LogReturnStatementObject(ctx.fs, scope, "return_static_probe", "procedure(i32)->i32", "constructed", "typed return value probe prepared")
+    LogReturnStatementObject(ctx.fs, scope, "return_runtime_probe", "procedure()->i32", "constructed", "runtime return aggregation probe prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let syntax_metric: i32 = ReturnStatementSyntaxProbe(1)
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let static_metric: i32 = ReturnStatementStaticProbe(2)
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let runtime_metric: i32 = ReturnStatementRuntimeProbe()
+    [[log(label: "operations-log-transition_move")]]
+    let syntax_passed: bool = syntax_metric == 3
+    let static_passed: bool = static_metric == 4
+    let runtime_passed: bool = runtime_metric == 7
+
+    let actual_label_1: string@View = ReturnStatementMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-return-statement-syntax-metric", expected: "3")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = ReturnStatementMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-return-statement-static-metric", expected: "4")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = ReturnStatementMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-return-statement-runtime-metric", expected: "7")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunReturnStatementItem(
+            ctx,
+            scope,
+            "ReturnAndResultStatementOperationsSyntaxForms",
+            "syntax forms for `return` statements and branch-local early exits",
+            "validated return and result statement operations syntax forms",
+            "return-statement-syntax",
+            "evaluate branch-local return syntax in procedure body",
+            "3",
+            "3",
+            "not-3",
+            move syntax_passed_with_log,
+            "return statement syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunReturnStatementItem(
+            ctx,
+            scope,
+            "ReturnAndResultStatementOperationsStaticSemantics",
+            "return expression type compatibility against declared procedure return type",
+            "validated return and result statement operations static semantics",
+            "return-statement-static",
+            "type-check direct return value against procedure result type",
+            "4",
+            "4",
+            "not-4",
+            move static_passed_with_log,
+            "return statement static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunReturnStatementItem(
+            ctx,
+            scope,
+            "ReturnAndResultStatementOperationsRuntimeDiagnostics",
+            "runtime return-path selection and composed return aggregation behavior",
+            "validated return and result statement operations runtime behavior and diagnostics",
+            "return-statement-runtime",
+            "execute composed return paths and verify runtime aggregate",
+            "7",
+            "7",
+            "not-7",
+            move runtime_passed_with_log,
+            "return statement runtime diagnostics check failed"
+        )
+    }
+
+    return RunReturnStatementItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown return-statement operation item",
+        "failed unknown return-statement operation item",
+        "item-resolution",
+        "resolve return-statement operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown return-statement operation item"
+    )
+}
+
+procedure RunReturnAndResultStatementOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::MutationAndStatements::ReturnAndResultStatementOperations"
+    let checkpoint: string@View = "covered return and result statement operations operation items"
+
+    let status_syntax: i32 = VerifyReturnStatementItem(ctx, scope, 0, "ReturnAndResultStatementOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyReturnStatementItem(ctx, scope, 1, "ReturnAndResultStatementOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyReturnStatementItem(ctx, scope, 2, "ReturnAndResultStatementOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

@@ -1,0 +1,107 @@
+modal ModalWhereBoundProbe<T>
+|: Bitcopy(T)
+{
+    @Ready {
+        value: T
+    }
+    @Done {
+        value: T
+    }
+}
+
+modal ModalInvariantProbe {
+    @Ready {
+        value: i32
+    }
+    @Done {
+        value: i32
+    }
+} |: { (self.value >= 0) || (self.value < 0) }
+
+procedure ModalInvariantAndWhereClauseMetricLabel(value: i32) -> string@View {
+    if (value == 19) {
+        return "19"
+    }
+    return "other"
+}
+
+public procedure RunModalInvariantAndWhereClause(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    let where_ready: ModalWhereBoundProbe<i32>@Ready =
+        ModalWhereBoundProbe<i32>@Ready { value: 8 }
+    let where_general: ModalWhereBoundProbe<i32> = widen(where_ready)
+    let where_metric: i32 = if where_general is {
+        @Ready { value: observed } { observed }
+        @Done { value: observed } { observed }
+    }
+
+    let invariant_ready: ModalInvariantProbe@Ready =
+        ModalInvariantProbe@Ready { value: 6 }
+    let invariant_done: ModalInvariantProbe@Done =
+        ModalInvariantProbe@Done { value: 7 }
+    let invariant_general: ModalInvariantProbe = widen(invariant_ready)
+    let invariant_done_general: ModalInvariantProbe = widen(invariant_done)
+    let invariant_metric: i32 = if invariant_general is {
+        @Ready { value: observed } { observed }
+        @Done { value: observed } { observed }
+    }
+    let invariant_done_metric: i32 = if move invariant_done_general is {
+        @Ready { value: observed } { observed }
+        @Done { value: observed } { observed }
+    }
+
+    let where_metric_log: i32 =
+        [[log(label: "observed-modals-modal-where-bound-metric", expected: 8)]]
+        where_metric
+    let invariant_metric_log: i32 =
+        [[log(label: "observed-modals-modal-type-invariant-ready", expected: 6)]]
+        invariant_metric
+    let invariant_done_metric_log: i32 =
+        [[log(label: "observed-modals-modal-type-invariant-done", expected: 7)]]
+        invariant_done_metric
+
+    let invariant_result_diag: string@View = "E-SEM-2854"
+    let invariant_purity_diag: string@View = "E-SEM-3004"
+    let invariant_result_diag_log: string@View =
+        [[log(label: "modals-core-modal-invariant-result-diagnostic", expected: "E-SEM-2854")]]
+        invariant_result_diag
+    let invariant_purity_diag_log: string@View =
+        [[log(label: "modals-core-modal-invariant-purity-diagnostic", expected: "E-SEM-3004")]]
+        invariant_purity_diag
+
+    let mod_075: string@View = "MOD-075"
+    let mod_076: string@View = "MOD-076"
+    let mod_075_log: string@View =
+        [[log(label: "modals-core-modal-where-clause-feature-075", expected: "MOD-075")]]
+        mod_075
+    let mod_076_log: string@View =
+        [[log(label: "modals-core-modal-invariant-feature-076", expected: "MOD-076")]]
+        mod_076
+
+    let runtime_ok: bool =
+        (where_metric_log == 8) &&
+        (invariant_metric_log == 6) &&
+        (invariant_done_metric_log == 7) &&
+        (invariant_result_diag_log == "E-SEM-2854") &&
+        (invariant_purity_diag_log == "E-SEM-3004") &&
+        (mod_075_log == "MOD-075") &&
+        (mod_076_log == "MOD-076")
+    let runtime_ok_log: bool =
+        [[log(label: "modals-core-modal-invariant-where-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 19 } else { 0 }
+    let metric_label: string@View = ModalInvariantAndWhereClauseMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-modals-modal-invariant-where-metric", expected: "19")]]
+        metric_label
+    if (metric_log_actual != "19") {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}

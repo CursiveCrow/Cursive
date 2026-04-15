@@ -1,0 +1,44 @@
+procedure CompilerSystemRunStatusLabel(status: i32) -> string@View {
+    if (status == 0) {
+        return "0"
+    }
+    if (status == 17) {
+        return "17"
+    }
+    return "other"
+}
+
+public procedure RunCompilerSystemRunRuntimeConformance(ctx: Context) -> i32 {
+    let zero_exit_command: string@View =
+        "powershell -NoProfile -Command \"exit 0\""
+    let nonzero_exit_command: string@View =
+        "powershell -NoProfile -Command \"exit 17\""
+
+    let zero_status: i32 = ctx.sys~>run(zero_exit_command)
+    let nonzero_status: i32 = ctx.sys~>run(nonzero_exit_command)
+    let zero_status_label: string@View = CompilerSystemRunStatusLabel(zero_status)
+    let nonzero_status_label: string@View = CompilerSystemRunStatusLabel(nonzero_status)
+    let zero_status_log_actual =
+        [[log(label: "observed-compiler-runtime-system-run-zero-status", expected: "0")]]
+        zero_status_label
+    let nonzero_status_log_actual =
+        [[log(label: "observed-compiler-runtime-system-run-nonzero-status", expected: "17")]]
+        nonzero_status_label
+    let zero_status_ok: bool = zero_status == 0
+    let nonzero_status_ok: bool = nonzero_status == 17
+    let zero_status_ok_log: bool =
+        [[log(label: "observed-compiler-runtime-system-run-zero", expected: true)]]
+        zero_status_ok
+    let nonzero_status_ok_log: bool =
+        [[log(label: "observed-compiler-runtime-system-run-nonzero", expected: true)]]
+        nonzero_status_ok
+
+    if ((zero_status_log_actual != "0") ||
+        (nonzero_status_log_actual != "17") ||
+        (zero_status_ok_log == false) ||
+        (nonzero_status_ok_log == false)) {
+        return 1
+    }
+
+    return 0
+}

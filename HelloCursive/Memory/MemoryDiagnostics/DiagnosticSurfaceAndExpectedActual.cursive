@@ -1,0 +1,121 @@
+procedure DiagnosticSurfaceMetricLabel(value: i32) -> string@View {
+    if (value == 45) {
+        return "45"
+    }
+    return "other"
+}
+
+procedure DiagnosticMoveProbe(move value: i32) -> i32 {
+    return value + 1
+}
+
+procedure DiagnosticCleanupProbe() -> i32 {
+    var metric: i32 = 0
+    {
+        defer {
+            metric = metric + 2
+        }
+        metric = metric + 3
+    }
+    return metric
+}
+
+public procedure RunDiagnosticSurfaceAndExpectedActual(ctx: Context) -> i32 {
+    [[log(label: "memory-log-item_begin")]]
+
+    let expected_actual_metric: i32 = 4 + 5
+    let expected_actual_metric_log: i32 =        [[log(label: "memory-diagnostics-expected-actual", expected: 9)]]         expected_actual_metric
+    let expected_actual_ok: bool = expected_actual_metric_log == 9
+
+    let move_source: i32 = 8
+    let moved_metric: i32 = DiagnosticMoveProbe(move move_source)
+    let literal_metric: i32 = DiagnosticMoveProbe(9)
+    let moved_metric_log: i32 =
+        [[log(label: "observed-memory-diagnostics-move-source-plus-one", expected: 9)]]
+        moved_metric
+    let literal_metric_log: i32 =
+        [[log(label: "observed-memory-diagnostics-literal-plus-one", expected: 10)]]
+        literal_metric
+    let move_runtime_ok: bool =
+        (moved_metric_log == 9) && (literal_metric_log == 10)
+
+    var pointer_cell: i32 = 7
+    let pointer_valid: Ptr<i32>@Valid = &pointer_cell
+    let pointer_metric: i32 = *pointer_valid
+    let pointer_metric_log: i32 =
+        [[log(label: "observed-memory-diagnostics-pointer-valid-read", expected: 7)]]
+        pointer_metric
+
+    let pointer_null: Ptr<i32>@Null = Ptr::null()
+    let pointer_null_check: Ptr<i32>@Null = Ptr::null()
+    let pointer_expired: Ptr<i32>@Expired =
+        unsafe { transmute<Ptr<i32>@Null, Ptr<i32>@Expired>(pointer_null) }
+    let pointer_expired_check: Ptr<i32>@Expired =
+        unsafe { transmute<Ptr<i32>@Null, Ptr<i32>@Expired>(pointer_null_check) }
+    let pointer_diag_contract_ok: bool =
+        (pointer_metric_log == 7) &&
+        (pointer_valid == &pointer_cell) &&
+        (pointer_null == pointer_null_check) &&
+        (pointer_expired == pointer_expired_check)
+
+    let cleanup_metric: i32 = DiagnosticCleanupProbe()
+    let cleanup_metric_log: i32 =
+        [[log(label: "observed-memory-diagnostics-cleanup-metric", expected: 5)]]
+        cleanup_metric
+    let cleanup_runtime_ok: bool = cleanup_metric_log == 5
+
+    let managed_result: string@Managed | AllocationError =
+        string::to_managed("md", ctx.heap)
+    var managed_metric: i32 = -1
+    if managed_result is {
+        managed_text: unique string@Managed {
+            let managed_view: string@View = string::as_view(managed_text)
+            managed_metric = string::length(managed_view) as i32
+        }
+        _: AllocationError {
+            managed_metric = -1
+        }
+    }
+    let managed_metric_log: i32 =
+        [[log(label: "observed-memory-diagnostics-managed-alloc-length", expected: 2)]]
+        managed_metric
+    let alloc_runtime_ok: bool = managed_metric_log == 2
+
+    var quota_source: $HeapAllocator = ctx.heap
+    let quota_heap_tight: $HeapAllocator = quota_source~>with_quota(1usize)
+    let quota_result: string@Managed | AllocationError =
+        string::to_managed("qq", quota_heap_tight)
+    var allocation_error_contract_ok: bool = false
+    if quota_result is {
+        _: unique string@Managed {
+            allocation_error_contract_ok = false
+        }
+        _: AllocationError {
+            allocation_error_contract_ok = true
+        }
+    }
+
+    let expected_actual_ok_log: bool =        [[log(label: "memory-diagnostics-expected-actual-pass", expected: true)]]         expected_actual_ok
+    let move_runtime_ok_log: bool =        [[log(label: "memory-diagnostics-runtime-move", expected: true)]]         move_runtime_ok
+    let pointer_runtime_ok_log: bool =        [[log(label: "memory-diagnostics-runtime-pointer", expected: true)]]         pointer_diag_contract_ok
+    let cleanup_runtime_ok_log: bool =        [[log(label: "memory-diagnostics-runtime-cleanup", expected: true)]]         cleanup_runtime_ok
+    let alloc_runtime_ok_log: bool =        [[log(label: "memory-diagnostics-runtime-allocation", expected: true)]]         alloc_runtime_ok
+    let allocation_error_contract_ok_log: bool = [[log(label: "memory-diagnostics-runtime-allocation-error-contract", expected: true)]] allocation_error_contract_ok
+
+    let metric_ok: bool = (expected_actual_ok_log == true) &&
+        (move_runtime_ok_log == true) &&
+        (pointer_runtime_ok_log == true) &&
+        (cleanup_runtime_ok_log == true) &&
+        (alloc_runtime_ok_log == true) &&
+        (allocation_error_contract_ok_log == true)
+    let metric: i32 = if (metric_ok) { 45 } else { 0 }
+    let metric_label: string@View = DiagnosticSurfaceMetricLabel(metric)
+    let metric_log_actual: string@View =        [[log(label: "observed-memory-diagnostics-surface-metric", expected: "45")]]         metric_label
+    if (metric_log_actual != "45") {
+        [[log(label: "memory-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "memory-log-memory_item_success")]]
+    return 0
+}

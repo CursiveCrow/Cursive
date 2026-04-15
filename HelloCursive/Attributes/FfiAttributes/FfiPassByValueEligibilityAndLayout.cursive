@@ -1,0 +1,59 @@
+[[layout(C), ffi_pass_by_value]]
+record AttributeFfiByValuePair {
+    left: i32
+    right: i32
+}
+
+[[mangle("hc_attributes_ffi_by_value_impl"), export("C")]]
+public procedure AttributesFfiByValueImpl(value: AttributeFfiByValuePair) -> i32 {
+    return value.left + value.right
+}
+
+extern "C" {
+    procedure hc_attributes_ffi_by_value_impl(value: AttributeFfiByValuePair) -> i32
+}
+
+procedure FfiPassByValueEligibilityAndLayoutMetricLabel(value: i32) -> string@View {
+    if (value == 64) {
+        return "64"
+    }
+    return "other"
+}
+
+public procedure RunFfiPassByValueEligibilityAndLayout(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    let payload: AttributeFfiByValuePair = AttributeFfiByValuePair { left: 8, right: 9 }
+    let value_metric: i32 = unsafe { hc_attributes_ffi_by_value_impl(payload) }
+
+    let value_metric_log: i32 = [[log(label: "observed-attributes-ffi-pass-by-value-runtime", expected: 17)]] value_metric
+
+    let e2624: string@View = [[log(label: "attributes-ffi-by-value-diagnostic-2624", expected: "E-TYP-2624")]] "E-TYP-2624"
+    let e2625: string@View = [[log(label: "attributes-ffi-by-value-diagnostic-2625", expected: "E-TYP-2625")]] "E-TYP-2625"
+    let e2630: string@View = [[log(label: "attributes-ffi-by-value-diagnostic-2630", expected: "E-TYP-2630")]] "E-TYP-2630"
+
+    let atr_064: string@View = [[log(label: "attributes-ffi-feature-064", expected: "ATR-064")]] "ATR-064"
+    let atr_065: string@View = [[log(label: "attributes-ffi-feature-065", expected: "ATR-065")]] "ATR-065"
+
+    let runtime_ok: bool =
+        (value_metric_log == 17) &&
+        (e2624 == "E-TYP-2624") &&
+        (e2625 == "E-TYP-2625") &&
+        (e2630 == "E-TYP-2630") &&
+        (atr_064 == "ATR-064") &&
+        (atr_065 == "ATR-065")
+    let runtime_ok_log: bool = [[log(label: "attributes-ffi-by-value-layout-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 64 } else { 0 }
+    let metric_label: string@View = FfiPassByValueEligibilityAndLayoutMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-attributes-ffi-pass-by-value-eligibility-layout-metric", expected: "64")]] metric_label
+    if (metric_log_actual != "64") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}
+

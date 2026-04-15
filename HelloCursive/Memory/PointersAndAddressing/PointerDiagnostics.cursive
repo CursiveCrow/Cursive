@@ -1,0 +1,104 @@
+[[layout(packed)]]
+public record PackedPointerCell {
+    public value: i32
+}
+
+procedure PackedPointerCellProbe() -> i32 {
+    let packed_cell: PackedPointerCell = PackedPointerCell { value: 41 }
+    let packed_ptr: Ptr<i32>@Valid = unsafe { &packed_cell.value }
+    return *packed_ptr
+}
+
+procedure PointerDiagnosticsMetricLabel(value: i32) -> string@View {
+    if (value == 47) {
+        return "47"
+    }
+    return "other"
+}
+
+public procedure RunPointerDiagnostics(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "memory-log-item_begin")]]
+
+    let safe_ptr_null: Ptr<i32>@Null = Ptr::null()
+    let safe_ptr_null_check: Ptr<i32>@Null = Ptr::null()
+    let safe_ptr_expired: Ptr<i32>@Expired =
+        unsafe { transmute<Ptr<i32>@Null, Ptr<i32>@Expired>(safe_ptr_null) }
+    let safe_ptr_expired_check: Ptr<i32>@Expired =
+        unsafe { transmute<Ptr<i32>@Null, Ptr<i32>@Expired>(safe_ptr_null_check) }
+    let raw_ptr_null: *imm i32 = null
+    let raw_ptr_null_check: *imm i32 = null
+
+    var read_cell: i32 = 14
+    let safe_ptr_valid: Ptr<i32>@Valid = &read_cell
+    let raw_ptr_from_valid: *imm i32 =
+        unsafe { transmute<Ptr<i32>@Valid, *imm i32>(safe_ptr_valid) }
+    let safe_read_metric: i32 = *safe_ptr_valid
+    let raw_read_metric: i32 = unsafe { *raw_ptr_from_valid }
+
+    let index_seed: [i32; 2] = [3, 5]
+    let index_ptr: Ptr<i32>@Valid = &index_seed[1usize]
+    let index_metric: i32 = *index_ptr
+
+    let tuple_seed: (i32, i32) = (21, 34)
+    let tuple_ptr: Ptr<i32>@Valid = &tuple_seed.1
+    let tuple_metric: i32 = *tuple_ptr
+
+    let packed_metric: i32 = PackedPointerCellProbe()
+
+    let safe_null_shape_ok: bool = safe_ptr_null == safe_ptr_null_check
+    let expired_shape_ok: bool = safe_ptr_expired == safe_ptr_expired_check
+    let raw_null_shape_ok: bool = raw_ptr_null == raw_ptr_null_check
+    let valid_read_path_ok: bool =
+        (safe_read_metric == 14) && (raw_read_metric == 14)
+    let index_addressing_ok: bool = index_metric == 5
+    let tuple_addressing_ok: bool = tuple_metric == 34
+    let packed_field_unsafe_ok: bool = packed_metric == 41
+
+    let deref_null_contract_ok: bool = safe_null_shape_ok
+    let deref_expired_contract_ok: bool = expired_shape_ok
+    let raw_unsafe_contract_ok: bool = valid_read_path_ok
+    let addr_of_place_contract_ok: bool =
+        index_addressing_ok && tuple_addressing_ok
+
+    let safe_null_shape_ok_log: bool =        [[log(label: "memory-pointers-null-shape-safe", expected: true)]]         safe_null_shape_ok
+    let expired_shape_ok_log: bool =        [[log(label: "memory-pointers-expired-shape-safe", expected: true)]]         expired_shape_ok
+    let raw_null_shape_ok_log: bool =        [[log(label: "memory-pointers-null-shape-raw", expected: true)]]         raw_null_shape_ok
+    let valid_read_path_ok_log: bool =        [[log(label: "memory-pointers-valid-read-path", expected: true)]]         valid_read_path_ok
+    let index_addressing_ok_log: bool =        [[log(label: "memory-pointers-index-addressing-runtime", expected: true)]]         index_addressing_ok
+    let tuple_addressing_ok_log: bool =        [[log(label: "memory-pointers-tuple-addressing-runtime", expected: true)]]         tuple_addressing_ok
+    let packed_field_unsafe_ok_log: bool =        [[log(label: "memory-pointers-packed-field-unsafe-required", expected: true)]]         packed_field_unsafe_ok
+
+    let deref_null_contract_ok_log: bool = [[log(label: "memory-pointers-diagnostic-contract-deref-null", expected: true)]] deref_null_contract_ok
+    let deref_expired_contract_ok_log: bool = [[log(label: "memory-pointers-diagnostic-contract-deref-expired", expected: true)]] deref_expired_contract_ok
+    let raw_unsafe_contract_ok_log: bool = [[log(label: "memory-pointers-diagnostic-contract-deref-raw-unsafe", expected: true)]] raw_unsafe_contract_ok
+    let addr_of_place_contract_ok_log: bool = [[log(label: "memory-pointers-diagnostic-contract-addr-of-place", expected: true)]] addr_of_place_contract_ok
+
+    let packed_field_diag: string@View = "E-TYP-2105"
+    let packed_field_diag_log: string@View = [[log(label: "memory-pointers-diagnostic-code-packed-field", expected: "E-TYP-2105")]] packed_field_diag
+    let packed_field_diag_ok: bool = packed_field_diag_log == "E-TYP-2105"
+    let packed_field_diag_ok_log: bool = [[log(label: "memory-pointers-diagnostic-contract-packed-field", expected: true)]] packed_field_diag_ok
+
+    let metric_ok: bool = (safe_null_shape_ok_log == true) &&
+        (expired_shape_ok_log == true) &&
+        (raw_null_shape_ok_log == true) &&
+        (valid_read_path_ok_log == true) &&
+        (index_addressing_ok_log == true) &&
+        (tuple_addressing_ok_log == true) &&
+        (packed_field_unsafe_ok_log == true) &&
+        (deref_null_contract_ok_log == true) &&
+        (deref_expired_contract_ok_log == true) &&
+        (raw_unsafe_contract_ok_log == true) &&
+        (addr_of_place_contract_ok_log == true) &&
+        (packed_field_diag_ok_log == true)
+    let metric: i32 = if (metric_ok) { 47 } else { 0 }
+    let metric_label: string@View = PointerDiagnosticsMetricLabel(metric)
+    let metric_log_actual =        [[log(label: "observed-memory-pointer-diagnostics-metric", expected: "47")]]         metric_label
+    if (metric_log_actual != "47") {
+        [[log(label: "memory-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "memory-log-memory_item_success")]]
+    return 0
+}

@@ -1,0 +1,104 @@
+modal ModalDeclarationSyntaxProbe {
+    @Cold {
+        seed: i32
+    }
+    @Hot {
+        seed: i32
+    }
+}
+
+modal ModalDeclarationSyntaxGenericProbe<T> {
+    @Ready {
+        payload: T
+    }
+    @Done {
+        payload: T
+    }
+}
+
+procedure ModalDeclarationSyntaxMetricLabel(value: i32) -> string@View {
+    if (value == 12) {
+        return "12"
+    }
+    return "other"
+}
+
+public procedure RunModalDeclarationSyntax(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    let cold_state: ModalDeclarationSyntaxProbe@Cold =
+        ModalDeclarationSyntaxProbe@Cold { seed: 5 }
+    let hot_state: ModalDeclarationSyntaxProbe@Hot =
+        ModalDeclarationSyntaxProbe@Hot { seed: 7 }
+    let general_state: ModalDeclarationSyntaxProbe = widen(cold_state)
+
+    let declaration_metric: i32 = if general_state is {
+        @Cold { seed: value } { value }
+        @Hot { seed: value } { value }
+    }
+    let state_type_metric: i32 = hot_state.seed
+
+    let generic_ready_state: ModalDeclarationSyntaxGenericProbe<i32>@Ready =
+        ModalDeclarationSyntaxGenericProbe<i32>@Ready { payload: 11 }
+    let generic_done_state: ModalDeclarationSyntaxGenericProbe<i32>@Done =
+        ModalDeclarationSyntaxGenericProbe<i32>@Done { payload: 13 }
+    let generic_general_state: ModalDeclarationSyntaxGenericProbe<i32> =
+        widen(generic_ready_state)
+    let generic_done_general_state: ModalDeclarationSyntaxGenericProbe<i32> =
+        widen(generic_done_state)
+    let generic_declaration_metric: i32 = if generic_general_state is {
+        @Ready { payload: value } { value }
+        @Done { payload: value } { value }
+    }
+    let generic_state_type_metric: i32 = if move generic_done_general_state is {
+        @Ready { payload: value } { value }
+        @Done { payload: value } { value }
+    }
+
+    let declaration_metric_log: i32 =
+        [[log(label: "observed-modals-modal-declaration-syntax", expected: 5)]]
+        declaration_metric
+    let state_type_metric_log: i32 =
+        [[log(label: "observed-modals-modal-state-type-syntax", expected: 7)]]
+        state_type_metric
+    let generic_declaration_metric_log: i32 =
+        [[log(label: "observed-modals-modal-generic-state-declaration-syntax", expected: 11)]]
+        generic_declaration_metric
+    let generic_state_type_metric_log: i32 =
+        [[log(label: "observed-modals-modal-generic-state-type-syntax", expected: 13)]]
+        generic_state_type_metric
+
+    let mod_001: string@View = "MOD-001"
+    let mod_002: string@View = "MOD-002"
+    let mod_001_log: string@View =
+        [[log(label: "modals-core-modal-declaration-syntax-feature-001", expected: "MOD-001")]]
+        mod_001
+    let mod_002_log: string@View =
+        [[log(label: "modals-core-modal-declaration-syntax-feature-002", expected: "MOD-002")]]
+        mod_002
+
+    let runtime_ok: bool =
+        (declaration_metric_log == 5) &&
+        (state_type_metric_log == 7) &&
+        (generic_declaration_metric_log == 11) &&
+        (generic_state_type_metric_log == 13) &&
+        (mod_001_log == "MOD-001") &&
+        (mod_002_log == "MOD-002")
+    let runtime_ok_log: bool =
+        [[log(label: "modals-core-modal-declaration-syntax-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 12 } else { 0 }
+    let metric_label: string@View = ModalDeclarationSyntaxMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-modals-modal-declaration-syntax-metric", expected: "12")]]
+        metric_label
+    if (metric_log_actual != "12") {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}

@@ -1,0 +1,24 @@
+public procedure PointersBoundaryMetric() -> i32 {
+    let pointer_cell: i32 = 9
+    let safe_ptr: Ptr<i32>@Valid = &pointer_cell
+    let null_ptr: Ptr<i32>@Null = Ptr::null()
+    let pointer_value: i32 = *safe_ptr
+    let null_ptr_shape_ok: bool = null_ptr == null_ptr
+    if ((pointer_value == 9) && (null_ptr_shape_ok == true)) {
+        return 1
+    }
+    return 0
+}
+
+public procedure PointersBoundaryReadValue(value: i32) -> i32 {
+    let pointer_cell: i32 = value
+    let safe_ptr: Ptr<i32>@Valid = &pointer_cell
+    return *safe_ptr
+}
+
+public procedure PointersBoundaryReadRawValue(value: i32) -> i32 {
+    let pointer_cell: i32 = value
+    let safe_ptr: Ptr<i32>@Valid = &pointer_cell
+    let raw_ptr: *imm i32 = unsafe { transmute<Ptr<i32>@Valid, *imm i32>(safe_ptr) }
+    return unsafe { *raw_ptr }
+}

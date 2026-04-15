@@ -1,0 +1,59 @@
+import OwnershipAndBinding
+import PermissionsAndAliasing
+import RegionsFramesAndAllocation
+import PointersAndAddressing
+import ProvenanceAndEscape
+import DropCleanupAndUnwinding
+import InitializationAndPoisoning
+import ManagedHeapAndBuffers
+import LayoutAndValidity
+import MemoryBoundariesAndOrdering
+import MemoryDiagnostics
+
+procedure MemoryLogGroupStatus(group_name: string@View, status: i32) -> () {
+    [[log(label: "memory-log-group_name")]] group_name
+    [[log(label: "observed-memory-group-status", expected: 0)]] status
+    return ()
+}
+
+public procedure run(ctx: Context) -> i32 {
+    [[log(label: "memory-log-section_start")]]
+
+    let status_ownership: i32 = OwnershipAndBinding::RunGroup(ctx)
+    MemoryLogGroupStatus("memory::OwnershipAndBinding", status_ownership)
+    if (status_ownership != 0) {
+        [[log(label: "memory-log-section_end")]]
+        return status_ownership
+    }
+
+    let status_permissions: i32 = PermissionsAndAliasing::RunGroup(ctx)
+    MemoryLogGroupStatus("memory::PermissionsAndAliasing", status_permissions)
+    if (status_permissions != 0) {
+        [[log(label: "memory-log-section_end")]]
+        return status_permissions
+    }
+
+    let status_regions: i32 = RegionsFramesAndAllocation::RunGroup(ctx)
+    MemoryLogGroupStatus("memory::RegionsFramesAndAllocation", status_regions)
+    if (status_regions != 0) {
+        [[log(label: "memory-log-section_end")]]
+        return status_regions
+    }
+
+    let status_pointers: i32 = PointersAndAddressing::RunGroup(ctx)
+    MemoryLogGroupStatus("memory::PointersAndAddressing", status_pointers)
+    if (status_pointers != 0) {
+        [[log(label: "memory-log-section_end")]]
+        return status_pointers
+    }
+
+    let status_provenance: i32 = ProvenanceAndEscape::RunGroup(ctx)
+    MemoryLogGroupStatus("memory::ProvenanceAndEscape", status_provenance)
+    if (status_provenance != 0) {
+        [[log(label: "memory-log-section_end")]]
+        return status_provenance
+    }
+
+    [[log(label: "memory-log-section_end")]]
+    return 0
+}

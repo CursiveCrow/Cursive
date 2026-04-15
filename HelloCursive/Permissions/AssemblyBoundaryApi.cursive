@@ -1,0 +1,16 @@
+public procedure PermissionsBoundaryMetric() -> i32 {
+    let source_unique: unique i32 = 7
+    let source_const: const i32 = source_unique
+    if (source_const == 7) {
+        return 1
+    }
+    return 0
+}
+
+public procedure PermissionsBoundaryPairMetric(left: i32, right: i32) -> i32 {
+    let pair_value: (i32, i32) = (left, right)
+    if ((pair_value.0 == left) && (pair_value.1 == right)) {
+        return left + right
+    }
+    return 0
+}

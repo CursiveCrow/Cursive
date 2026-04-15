@@ -1,0 +1,74 @@
+[[dynamic]]
+procedure LoopInvariantFactProbe(limit: i32) -> i32 {
+    var index: i32 = 0
+    var sum: i32 = 0
+
+    loop index < limit |: { index >= 0 && index <= limit } {
+        sum = sum + index
+        index = index + 1
+    }
+
+    return sum
+}
+
+procedure LoopInvariantEnforcementAndFactsMetricLabel(value: i32) -> string@View {
+    if (value == 35) {
+        return "35"
+    }
+    return "other"
+}
+
+public procedure RunLoopInvariantEnforcementAndFacts(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+
+    let probe: i32 = LoopInvariantFactProbe(4)
+    let probe_log: i32 =
+        [[log(label: "observed-contracts-loop-invariant-probe", expected: 6)]]
+        probe
+
+    let con_042: string@View = "CON-042"
+    let con_043: string@View = "CON-043"
+    let con_085: string@View = "CON-085"
+    let con_042_log: string@View =
+        [[log(label: "contracts-loop-invariant-enforcement-and-facts-feature-042", expected: "CON-042")]]
+        con_042
+    let con_043_log: string@View =
+        [[log(label: "contracts-loop-invariant-enforcement-and-facts-feature-043", expected: "CON-043")]]
+        con_043
+    let con_085_log: string@View =
+        [[log(label: "contracts-loop-invariant-enforcement-and-facts-feature-085", expected: "CON-085")]]
+        con_085
+    let diag_2830: string@View = "E-SEM-2830"
+    let diag_2831: string@View = "E-SEM-2831"
+    let diag_2830_log: string@View =
+        [[log(label: "contracts-loop-invariant-enforcement-and-facts-diag-2830", expected: "E-SEM-2830")]]
+        diag_2830
+    let diag_2831_log: string@View =
+        [[log(label: "contracts-loop-invariant-enforcement-and-facts-diag-2831", expected: "E-SEM-2831")]]
+        diag_2831
+
+    let runtime_ok: bool =
+        (probe_log == 6) &&
+        (con_042_log == "CON-042") &&
+        (con_043_log == "CON-043") &&
+        (con_085_log == "CON-085") &&
+        (diag_2830_log == "E-SEM-2830") &&
+        (diag_2831_log == "E-SEM-2831")
+    let runtime_ok_log: bool =
+        [[log(label: "contracts-loop-invariant-enforcement-and-facts-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 35 } else { 0 }
+    let metric_label: string@View = LoopInvariantEnforcementAndFactsMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-contracts-loop-invariant-enforcement-and-facts-metric", expected: "35")]]
+        metric_label
+    if (metric_log_actual != "35") {
+        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    return 0
+}

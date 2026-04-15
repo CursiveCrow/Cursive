@@ -1,0 +1,141 @@
+modal ResultModalProbe {
+    @Ok {
+        value: i32
+    }
+    @Err {
+        code: i32
+    }
+}
+
+procedure GenericIdentityEq<T>(value: T) -> T {
+    return value
+}
+
+[[dynamic]]
+procedure ResultUnionProbe(flag: bool) -> i32 | bool
+    |: => true
+{
+    if (flag) {
+        return 9
+    }
+    return false
+}
+
+[[dynamic]]
+procedure ResultModalProbeBuild(value: i32) -> ResultModalProbe@Ok
+    |: => @result.value == @entry(value)
+{
+    return ResultModalProbe@Ok { value: value }
+}
+
+procedure ResultUnionModalGenericBehaviorMetricLabel(value: i32) -> string@View {
+    if (value == 35) {
+        return "35"
+    }
+    return "other"
+}
+
+public procedure RunResultUnionModalGenericBehavior(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+
+    let generic_i32: i32 = GenericIdentityEq(5)
+    let generic_bool: bool = GenericIdentityEq(true)
+    let union_value_true: i32 | bool = ResultUnionProbe(true)
+    let union_value_false: i32 | bool = ResultUnionProbe(false)
+    let modal_value: ResultModalProbe = widen(ResultModalProbeBuild(11))
+
+    let generic_i32_log: i32 =
+        [[log(label: "observed-contracts-result-generic-i32", expected: 5)]]
+        generic_i32
+    let generic_bool_log: bool =
+        [[log(label: "observed-contracts-result-generic-bool", expected: true)]]
+        generic_bool
+
+    let union_true_is_i32: bool = if union_value_true is {
+        _: i32 { true }
+        _: bool { false }
+    }
+    let union_true_is_i32_log: bool =
+        [[log(label: "observed-contracts-result-union-true-is-i32", expected: true)]]
+        union_true_is_i32
+    let union_true_value: i32 = if union_value_true is {
+        value: i32 { value }
+        _: bool { -1 }
+    }
+    let union_true_value_log: i32 =
+        [[log(label: "observed-contracts-result-union-true-value", expected: 9)]]
+        union_true_value
+
+    let union_false_is_bool: bool = if union_value_false is {
+        _: i32 { false }
+        _: bool { true }
+    }
+    let union_false_is_bool_log: bool =
+        [[log(label: "observed-contracts-result-union-false-is-bool", expected: true)]]
+        union_false_is_bool
+    let union_false_value: bool = if union_value_false is {
+        _: i32 { false }
+        value: bool { value }
+    }
+    let union_false_value_log: bool =
+        [[log(label: "observed-contracts-result-union-false-value", expected: false)]]
+        union_false_value
+
+    let modal_is_ok: bool = if modal_value is {
+        @Ok { value: _ } { true }
+        @Err { code: _ } { false }
+    }
+    let modal_is_ok_log: bool =
+        [[log(label: "observed-contracts-result-modal-is-ok", expected: true)]]
+        modal_is_ok
+    let modal_metric: i32 = if modal_value is {
+        @Ok { value: value_ok } { value_ok }
+        @Err { code: _ } { 0 }
+    }
+    let modal_metric_log: i32 =
+        [[log(label: "observed-contracts-result-modal", expected: 11)]]
+        modal_metric
+
+    let con_030: string@View = "CON-030"
+    let con_032: string@View = "CON-032"
+    let con_033: string@View = "CON-033"
+    let con_030_log: string@View =
+        [[log(label: "contracts-result-union-modal-generic-feature-030", expected: "CON-030")]]
+        con_030
+    let con_032_log: string@View =
+        [[log(label: "contracts-result-union-modal-generic-feature-032", expected: "CON-032")]]
+        con_032
+    let con_033_log: string@View =
+        [[log(label: "contracts-result-union-modal-generic-feature-033", expected: "CON-033")]]
+        con_033
+
+    let runtime_ok: bool =
+        (generic_i32_log == 5) &&
+        (generic_bool_log == true) &&
+        (union_true_is_i32_log == true) &&
+        (union_true_value_log == 9) &&
+        (union_false_is_bool_log == true) &&
+        (union_false_value_log == false) &&
+        (modal_is_ok_log == true) &&
+        (modal_metric_log == 11) &&
+        (con_030_log == "CON-030") &&
+        (con_032_log == "CON-032") &&
+        (con_033_log == "CON-033")
+    let runtime_ok_log: bool =
+        [[log(label: "contracts-result-union-modal-generic-behavior-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 35 } else { 0 }
+    let metric_label: string@View = ResultUnionModalGenericBehaviorMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-contracts-result-union-modal-generic-behavior-metric", expected: "35")]]
+        metric_label
+    if (metric_log_actual != "35") {
+        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    return 0
+}

@@ -1,0 +1,134 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release tag to build, for example v0.1.0-alpha.1
+        required: true
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name || inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          version="${GITHUB_REF_NAME:-$INPUT_VERSION}"
+          if [ -z "$version" ]; then
+            echo "::error::No release version provided."
+            exit 1
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+  linux:
+    needs: metadata
+    uses: ./.github/workflows/reusable-build.yml
+    permissions:
+      contents: read
+    with:
+      platform: linux
+      version: ${{ needs.metadata.outputs.version }}
+      package: true
+      upload_artifact: true
+      artifact_name: linux-bundle
+
+  windows:
+    needs: metadata
+    uses: ./.github/workflows/reusable-build.yml
+    permissions:
+      contents: read
+    with:
+      platform: windows
+      version: ${{ needs.metadata.outputs.version }}
+      package: true
+      upload_artifact: true
+      artifact_name: windows-bundle
+
+  publish:
+    name: Create prerelease
+    needs:
+      - metadata
+      - linux
+      - windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch release tags
+        run: git fetch --force --tags origin
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: dist
+
+      - name: Collect release assets
+        run: |
+          mkdir -p release
+          find dist -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} release/ \;
+          python3 scripts/package_release.py checksums --output release/SHA256SUMS.txt release/*
+          ls -l release
+
+      - name: Verify release tag and create prerelease if missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: |
+          expected_commit="$(git rev-parse "${EXPECTED_COMMIT}^{commit}")"
+          tag_exists=false
+
+          if git rev-parse "refs/tags/${RELEASE_VERSION}^{commit}" >/dev/null 2>&1; then
+            tag_exists=true
+            tag_commit="$(git rev-parse "refs/tags/${RELEASE_VERSION}^{commit}")"
+            if [ "$tag_commit" != "$expected_commit" ]; then
+              echo "::error::Existing tag ${RELEASE_VERSION} points to ${tag_commit}, expected ${expected_commit}."
+              exit 1
+            fi
+          fi
+
+          if ! gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
+            if [ "$tag_exists" = true ]; then
+              gh release create "$RELEASE_VERSION" \
+                --prerelease \
+                --generate-notes \
+                --title "$RELEASE_VERSION"
+            else
+              gh release create "$RELEASE_VERSION" \
+                --target "$expected_commit" \
+                --prerelease \
+                --generate-notes \
+                --title "$RELEASE_VERSION"
+            fi
+          fi
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+        run: gh release upload "$RELEASE_VERSION" release/* --clobber

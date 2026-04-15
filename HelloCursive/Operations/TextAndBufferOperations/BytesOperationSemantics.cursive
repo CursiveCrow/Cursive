@@ -1,0 +1,201 @@
+procedure LogBytesOperationObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure BytesOperationMetricLabel(value: i32) -> string@View {
+    if (value == 3) {
+        return "3"
+    }
+    if (value == 5) {
+        return "5"
+    }
+    if (value < 0) {
+        return "error"
+    }
+    return "other"
+}
+
+procedure RunBytesOperationItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyBytesOperationItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    let bytes_seed_left: [u8; 3] = [65, 66, 67]
+    let bytes_seed_right: [u8; 2] = [68, 69]
+    let bytes_slice_left: [u8] = bytes_seed_left
+    let bytes_slice_right: [u8] = bytes_seed_right
+
+    LogBytesOperationObject(ctx.fs, scope, "bytes_slice_left", "[u8]", "constructed", "left bytes slice source prepared")
+    LogBytesOperationObject(ctx.fs, scope, "bytes_slice_right", "[u8]", "constructed", "right bytes slice source prepared")
+    LogBytesOperationObject(ctx.fs, scope, "bytes_view_left", "bytes@View", "planned", "bytes::view conversion output planned")
+    LogBytesOperationObject(ctx.fs, scope, "bytes_managed", "bytes@Managed|AllocationError", "planned", "bytes::from_slice conversion output planned")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let bytes_view_left: bytes@View = bytes::view(bytes_slice_left)
+    let syntax_metric: i32 = if (bytes::is_empty(bytes_view_left)) { 0 } else { bytes::length(bytes_view_left) as i32 }
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let managed_result: bytes@Managed | AllocationError = bytes::from_slice(bytes_slice_left, ctx.heap)
+    [[log(label: "operations-log-transition_move")]]
+    var static_metric: i32 = -1
+    var runtime_metric: i32 = -1
+
+    if managed_result is {
+        managed_bytes: unique bytes@Managed {
+            let managed_view: bytes@View = bytes::as_view(managed_bytes)
+            static_metric = bytes::length(managed_view) as i32
+
+            let append_view: bytes@View = bytes::view(bytes_slice_right)
+            let append_result: () | AllocationError = bytes::append(managed_bytes, append_view, ctx.heap)
+            if append_result is {
+                _: () {
+                    let grown_view: bytes@View = bytes::as_view(managed_bytes)
+                    runtime_metric = bytes::length(grown_view) as i32
+                }
+                _: AllocationError {
+                    runtime_metric = -1
+                }
+            }
+        }
+        _: AllocationError {
+            static_metric = -1
+            runtime_metric = -1
+        }
+    }
+
+    let syntax_passed: bool = syntax_metric == 3
+    let static_passed: bool = static_metric == 3
+    let runtime_passed: bool = runtime_metric == 5
+
+    let actual_label_1: string@View = BytesOperationMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-bytes-syntax-metric", expected: "3")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = BytesOperationMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-bytes-static-metric", expected: "3")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = BytesOperationMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-bytes-runtime-metric", expected: "5")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunBytesOperationItem(
+            ctx,
+            scope,
+            "BytesOperationSemanticsSyntaxForms",
+            "bytes syntax forms for `bytes::view`, length, and emptiness checks",
+            "validated bytes operation semantics syntax forms",
+            "bytes-syntax",
+            "evaluate bytes::view and bytes::length/bytes::is_empty call surface",
+            "3",
+            "3",
+            "not-3",
+            move syntax_passed_with_log,
+            "bytes syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunBytesOperationItem(
+            ctx,
+            scope,
+            "BytesOperationSemanticsStaticSemantics",
+            "bytes@View and bytes@Managed conversion typing across builtin boundaries",
+            "validated bytes operation semantics static semantics",
+            "bytes-static",
+            "type-check bytes::from_slice -> bytes::as_view conversion chain",
+            "3",
+            "3",
+            "not-3",
+            move static_passed_with_log,
+            "bytes static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunBytesOperationItem(
+            ctx,
+            scope,
+            "BytesOperationSemanticsRuntimeDiagnostics",
+            "runtime bytes append growth behavior and post-append length checks",
+            "validated bytes operation semantics runtime behavior and diagnostics",
+            "bytes-runtime",
+            "append view data into managed bytes and verify resulting length",
+            "5",
+            "5",
+            "not-5",
+            move runtime_passed_with_log,
+            "bytes runtime diagnostics check failed"
+        )
+    }
+
+    return RunBytesOperationItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown bytes operation semantics item",
+        "failed unknown bytes operation semantics item",
+        "item-resolution",
+        "resolve bytes operation semantics item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown bytes operation semantics item"
+    )
+}
+
+procedure RunBytesOperationSemantics(ctx: Context) -> i32 {
+    let scope: string@View = "operations::TextAndBufferOperations::BytesOperationSemantics"
+    let checkpoint: string@View = "covered bytes operation semantics operation items"
+
+    let status_syntax: i32 = VerifyBytesOperationItem(ctx, scope, 0, "BytesOperationSemanticsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyBytesOperationItem(ctx, scope, 1, "BytesOperationSemanticsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyBytesOperationItem(ctx, scope, 2, "BytesOperationSemanticsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

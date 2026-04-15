@@ -1,0 +1,214 @@
+procedure GpuBarrierSafeTypeMetricLabel(value: i32) -> string@View {
+    if (value == 46) {
+        return "46"
+    }
+    return "other"
+}
+
+public procedure RunGpuBarrierAndSafeTypeSurface(ctx: Context) -> i32 {
+    [[log(label: "memory-log-item_begin")]]
+
+    let gpu_domain = ctx~>gpu()
+    let gpu_domain_metric: i32 = parallel gpu_domain { 5 + 7 }
+
+    let gpu_capture_seed: i32 = 10
+    let gpu_capture_metric: i32 = parallel gpu_domain {
+        gpu_capture_seed + 2
+    }
+
+    let gpu_global_id_metric: i32 = parallel gpu_domain {
+        let value: (usize, usize, usize) = gpu_global_id()
+        if ((value.0 == 0usize) && (value.1 == 0usize) && (value.2 == 0usize)) {
+            3
+        } else {
+            0
+        }
+    }
+
+    let gpu_local_id_metric: i32 = parallel gpu_domain {
+        let value: (usize, usize, usize) = gpu_local_id()
+        if ((value.0 == 0usize) && (value.1 == 0usize) && (value.2 == 0usize)) {
+            3
+        } else {
+            0
+        }
+    }
+
+    let gpu_workgroup_id_metric: i32 = parallel gpu_domain {
+        let value: (usize, usize, usize) = gpu_workgroup_id()
+        if ((value.0 == 0usize) && (value.1 == 0usize) && (value.2 == 0usize)) {
+            3
+        } else {
+            0
+        }
+    }
+
+    let gpu_workgroup_size_metric: i32 = parallel gpu_domain {
+        let value: (usize, usize, usize) = gpu_workgroup_size()
+        if ((value.0 == 1usize) && (value.1 == 1usize) && (value.2 == 1usize)) {
+            3
+        } else {
+            0
+        }
+    }
+
+    let gpu_global_size_metric: i32 = parallel gpu_domain {
+        let value: (usize, usize, usize) = gpu_global_size()
+        if ((value.0 == 1usize) && (value.1 == 1usize) && (value.2 == 1usize)) {
+            3
+        } else {
+            0
+        }
+    }
+
+    let gpu_num_workgroups_metric: i32 = parallel gpu_domain {
+        let value: (usize, usize, usize) = gpu_num_workgroups()
+        if ((value.0 == 1usize) && (value.1 == 1usize) && (value.2 == 1usize)) {
+            3
+        } else {
+            0
+        }
+    }
+
+    let gpu_linear_id_metric: i32 = parallel gpu_domain {
+        let value: usize = gpu_linear_id()
+        if (value == 0usize) { 3 } else { 0 }
+    }
+
+    let gpu_barrier_sequence_metric: i32 = parallel gpu_domain {
+        var steps: i32 = 0
+
+        gpu_barrier()
+        steps = steps + 1
+
+        gpu_memory_barrier()
+        steps = steps + 1
+
+        gpu_workgroup_barrier()
+        steps = steps + 1
+
+        steps
+    }
+
+    let gpu_domain_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-gpu-domain-surface-metric", expected: 12)]]
+        gpu_domain_metric
+    let gpu_capture_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-gpu-capture-surface-metric", expected: 12)]]
+        gpu_capture_metric
+
+    let gpu_global_id_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-gpu-global-id-metric", expected: 3)]]
+        gpu_global_id_metric
+    let gpu_local_id_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-gpu-local-id-metric", expected: 3)]]
+        gpu_local_id_metric
+    let gpu_workgroup_id_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-gpu-workgroup-id-metric", expected: 3)]]
+        gpu_workgroup_id_metric
+    let gpu_workgroup_size_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-gpu-workgroup-size-metric", expected: 3)]]
+        gpu_workgroup_size_metric
+    let gpu_global_size_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-gpu-global-size-metric", expected: 3)]]
+        gpu_global_size_metric
+    let gpu_num_workgroups_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-gpu-num-workgroups-metric", expected: 3)]]
+        gpu_num_workgroups_metric
+    let gpu_linear_id_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-gpu-linear-id-metric", expected: 3)]]
+        gpu_linear_id_metric
+    let gpu_barrier_sequence_metric_log: i32 =
+        [[log(label: "observed-memory-boundary-gpu-barrier-sequence-metric", expected: 3)]]
+        gpu_barrier_sequence_metric
+
+    let gpu_domain_runtime_ok: bool = gpu_domain_metric_log == 12
+    let gpu_capture_runtime_ok: bool = gpu_capture_metric_log == 12
+
+    let gpu_intrinsic_runtime_ok: bool =
+        (gpu_global_id_metric_log == 3) &&
+        (gpu_local_id_metric_log == 3) &&
+        (gpu_workgroup_id_metric_log == 3) &&
+        (gpu_workgroup_size_metric_log == 3) &&
+        (gpu_global_size_metric_log == 3) &&
+        (gpu_num_workgroups_metric_log == 3) &&
+        (gpu_linear_id_metric_log == 3)
+
+    let gpu_barrier_runtime_ok: bool = gpu_barrier_sequence_metric_log == 3
+
+    let gpu_domain_runtime_ok_log: bool =
+        [[log(label: "memory-boundary-gpu-domain-surface-runtime", expected: true)]]
+        gpu_domain_runtime_ok
+    let gpu_capture_runtime_ok_log: bool =
+        [[log(label: "memory-boundary-gpu-capture-surface-runtime", expected: true)]]
+        gpu_capture_runtime_ok
+    let gpu_intrinsic_runtime_ok_log: bool =
+        [[log(label: "memory-boundary-gpu-intrinsic-surface-runtime", expected: true)]]
+        gpu_intrinsic_runtime_ok
+    let gpu_barrier_runtime_ok_log: bool =
+        [[log(label: "memory-boundary-gpu-barrier-surface-runtime", expected: true)]]
+        gpu_barrier_runtime_ok
+
+    let diag_barrier_outside: string@View = "E-CON-0156"
+    let diag_workgroup_limit: string@View = "E-CON-0157"
+    let diag_barrier_divergence: string@View = "E-CON-0158"
+    let diag_gpusafe_type: string@View = "E-TYP-2640"
+    let diag_gpuptr_addrspace: string@View = "E-TYP-2641"
+    let diag_gpusafe_generic: string@View = "E-TYP-2642"
+
+    let diag_barrier_outside_log: string@View =
+        [[log(label: "memory-boundary-diagnostic-code-gpu-barrier-outside", expected: "E-CON-0156")]]
+        diag_barrier_outside
+    let diag_workgroup_limit_log: string@View =
+        [[log(label: "memory-boundary-diagnostic-code-gpu-workgroup-limit", expected: "E-CON-0157")]]
+        diag_workgroup_limit
+    let diag_barrier_divergence_log: string@View =
+        [[log(label: "memory-boundary-diagnostic-code-gpu-barrier-divergence", expected: "E-CON-0158")]]
+        diag_barrier_divergence
+    let diag_gpusafe_type_log: string@View =
+        [[log(label: "memory-boundary-diagnostic-code-gpusafe-type", expected: "E-TYP-2640")]]
+        diag_gpusafe_type
+    let diag_gpuptr_addrspace_log: string@View =
+        [[log(label: "memory-boundary-diagnostic-code-gpuptr-addrspace", expected: "E-TYP-2641")]]
+        diag_gpuptr_addrspace
+    let diag_gpusafe_generic_log: string@View =
+        [[log(label: "memory-boundary-diagnostic-code-gpusafe-generic", expected: "E-TYP-2642")]]
+        diag_gpusafe_generic
+
+    let barrier_diag_matrix_ok: bool =
+        (diag_barrier_outside_log == "E-CON-0156") &&
+        (diag_workgroup_limit_log == "E-CON-0157") &&
+        (diag_barrier_divergence_log == "E-CON-0158")
+    let gpusafe_diag_matrix_ok: bool =
+        (diag_gpusafe_type_log == "E-TYP-2640") &&
+        (diag_gpuptr_addrspace_log == "E-TYP-2641") &&
+        (diag_gpusafe_generic_log == "E-TYP-2642")
+
+    let barrier_diag_matrix_ok_log: bool =
+        [[log(label: "memory-boundary-diagnostic-gpu-barrier-matrix", expected: true)]]
+        barrier_diag_matrix_ok
+    let gpusafe_diag_matrix_ok_log: bool =
+        [[log(label: "memory-boundary-diagnostic-gpusafe-matrix", expected: true)]]
+        gpusafe_diag_matrix_ok
+
+    let metric_ok: bool =
+        (gpu_domain_runtime_ok_log == true) &&
+        (gpu_capture_runtime_ok_log == true) &&
+        (gpu_intrinsic_runtime_ok_log == true) &&
+        (gpu_barrier_runtime_ok_log == true) &&
+        (barrier_diag_matrix_ok_log == true) &&
+        (gpusafe_diag_matrix_ok_log == true)
+
+    let metric: i32 = if (metric_ok) { 46 } else { 0 }
+    let metric_label: string@View = GpuBarrierSafeTypeMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-memory-boundary-gpu-barrier-safe-type-metric", expected: "46")]]
+        metric_label
+    if (metric_log_actual != "46") {
+        [[log(label: "memory-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "memory-log-memory_item_success")]]
+    return 0
+}

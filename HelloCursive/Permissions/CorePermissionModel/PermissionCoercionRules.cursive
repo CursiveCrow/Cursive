@@ -1,0 +1,61 @@
+procedure PermissionCoercionReadConst(value: const i32) -> i32 {
+    return value
+}
+
+procedure PermissionCoercionReadShared(value: shared i32) -> i32 {
+    return value
+}
+
+procedure PermissionCoercionMetricLabel(value: i32) -> string@View {
+    if (value == 36) {
+        return "36"
+    }
+    return "other"
+}
+
+public procedure RunPermissionCoercionRules(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+
+    let source_unique: unique i32 = 8
+    let source_shared: shared i32 = source_unique
+    let source_const: const i32 = source_shared
+
+    let const_via_shared: i32 = PermissionCoercionReadConst(source_shared)
+    let const_via_const: i32 = PermissionCoercionReadConst(source_const)
+    let unique_for_shared_call: unique i32 = 8
+    let shared_via_unique: i32 = PermissionCoercionReadShared(unique_for_shared_call)
+
+    let second_unique: unique i32 = 9
+    let second_shared: shared i32 = second_unique
+    let second_const: const i32 = second_shared
+    let chained_metric: i32 = PermissionCoercionReadConst(second_const) + PermissionCoercionReadShared(second_shared)
+
+    let diagnostic_code: string@View = "E-TYP-1602"
+
+    let const_via_shared_log: i32 = [[log(label: "observed-permissions-PermissionCoercionRules-const-via-shared", expected: 8)]] const_via_shared
+    let const_via_const_log: i32 = [[log(label: "observed-permissions-PermissionCoercionRules-const-via-const", expected: 8)]] const_via_const
+    let shared_via_unique_log: i32 = [[log(label: "observed-permissions-PermissionCoercionRules-shared-via-unique", expected: 8)]] shared_via_unique
+    let chained_metric_log: i32 = [[log(label: "observed-permissions-PermissionCoercionRules-chain", expected: 18)]] chained_metric
+    let diagnostic_log: string@View = [[log(label: "permissions-PermissionCoercionRules-diagnostic", expected: "E-TYP-1602")]] diagnostic_code
+
+    let runtime_ok: bool =
+        (const_via_shared_log == 8) &&
+        (const_via_const_log == 8) &&
+        (shared_via_unique_log == 8) &&
+        (chained_metric_log == 18) &&
+        (diagnostic_log == "E-TYP-1602")
+    let runtime_ok_log: bool = [[log(label: "permissions-PermissionCoercionRules-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log) { 36 } else { 0 }
+    let metric_label: string@View = PermissionCoercionMetricLabel(metric)
+    let metric_label_log: string@View = [[log(label: "observed-permissions-PermissionCoercionRules-metric", expected: "36")]] metric_label
+
+    if (metric_label_log != "36") {
+        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    return 0
+}

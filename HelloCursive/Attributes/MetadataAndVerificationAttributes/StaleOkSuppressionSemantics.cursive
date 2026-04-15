@@ -1,0 +1,54 @@
+procedure AttributeStaleOkAsyncProbe() -> Async<(), (), i32, !> {
+    let shared_owner: unique i32 = 9
+    let shared_value: shared i32 = shared_owner
+
+    [[stale_ok]]
+    let stale_snapshot: i32 = {
+        var local_snapshot: i32 = 0
+        # shared_value read {
+            local_snapshot = shared_value
+        }
+        local_snapshot
+    }
+
+    let resume_point: () = yield release ()
+    return stale_snapshot + 2
+}
+
+procedure StaleOkSuppressionSemanticsMetricLabel(value: i32) -> string@View {
+    if (value == 11) {
+        return "11"
+    }
+    return "other"
+}
+
+public procedure RunStaleOkSuppressionSemantics(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    let stale_metric: i32 = sync AttributeStaleOkAsyncProbe()
+    let stale_metric_log: i32 = [[log(label: "observed-attributes-stale-ok-stale-metric", expected: 11)]] stale_metric
+
+    let w0011: string@View = [[log(label: "attributes-stale-ok-warning-0011", expected: "W-CON-0011")]] "W-CON-0011"
+    let atr_037: string@View = [[log(label: "attributes-stale-ok-feature-037", expected: "ATR-037")]] "ATR-037"
+    let atr_038: string@View = [[log(label: "attributes-stale-ok-feature-038", expected: "ATR-038")]] "ATR-038"
+
+    let runtime_ok: bool =
+        (stale_metric_log == 11) &&
+        (w0011 == "W-CON-0011") &&
+        (atr_037 == "ATR-037") &&
+        (atr_038 == "ATR-038")
+    let runtime_ok_log: bool = [[log(label: "attributes-stale-ok-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 11 } else { 0 }
+    let metric_label: string@View = StaleOkSuppressionSemanticsMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-attributes-stale-ok-suppression-semantics-metric", expected: "11")]] metric_label
+    if (metric_log_actual != "11") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}
+

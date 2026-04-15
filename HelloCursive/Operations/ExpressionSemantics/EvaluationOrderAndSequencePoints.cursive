@@ -1,0 +1,193 @@
+procedure EvalOrderCompose(a: i32, b: i32, c: i32) -> i32 {
+    return a + b + c
+}
+
+procedure LogEvaluationOrderObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure EvaluationOrderMetricLabel(value: i32) -> string@View {
+    if (value == 123) {
+        return "123"
+    }
+    if (value == 136) {
+        return "136"
+    }
+    if (value == 259) {
+        return "259"
+    }
+    return "other"
+}
+
+procedure RunEvaluationOrderAndSequencePointsItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    let detail_begin: string@View = "operation feature item exercise start"
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+[[dynamic]]
+procedure VerifyEvaluationOrderAndSequencePointsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    LogEvaluationOrderObject(ctx.fs, scope, "eval_order_counter", "i32", "constructed", "side-effect carrier for argument evaluation order prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    var order_counter: i32 = 0
+    var eval_slots: [i32; 3] = [1, 12, 123]
+    [[log(label: "operations-log-transition_move")]]
+    let eval_call_metric: i32 = EvalOrderCompose(
+        eval_slots[{
+            order_counter = (order_counter * 10) + 1;
+            0usize
+        }],
+        eval_slots[{
+            order_counter = (order_counter * 10) + 2;
+            1usize
+        }],
+        eval_slots[{
+            order_counter = (order_counter * 10) + 3;
+            2usize
+        }]
+    )
+    [[log(label: "operations-log-transition_move")]]
+    let order_metric: i32 = order_counter
+    let runtime_metric: i32 = order_metric + eval_call_metric
+
+    let observed_order_step: string@View = "observed-argument-order-counter-metric"
+    let observed_call_step: string@View = "observed-eval-call-result-metric"
+    let observed_runtime_step: string@View = "observed-evaluation-order-runtime-aggregate-metric"
+    let expected_order: string@View = "123"
+    let expected_call: string@View = "136"
+    let expected_runtime: string@View = "259"
+    let order_label: string@View = EvaluationOrderMetricLabel(order_metric)
+    let call_label: string@View = EvaluationOrderMetricLabel(eval_call_metric)
+    let runtime_label: string@View = EvaluationOrderMetricLabel(runtime_metric)
+    let order_passed: bool = order_metric == 123
+    let call_passed: bool = eval_call_metric == 136
+    let runtime_passed: bool = runtime_metric == 259
+
+    let order_passed_log_actual = [[log(label: "observed-argument-order-counter-metric", expected: "123")]] order_label
+    let order_passed_with_log: bool = order_passed && (order_passed_log_actual == order_label)
+    let call_passed_log_actual = [[log(label: "observed-eval-call-result-metric", expected: "136")]] call_label
+    let call_passed_with_log: bool = call_passed && (call_passed_log_actual == call_label)
+    let runtime_passed_log_actual = [[log(label: "observed-evaluation-order-runtime-aggregate-metric", expected: "259")]] runtime_label
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunEvaluationOrderAndSequencePointsItem(
+            ctx,
+            scope,
+            "EvaluationOrderAndSequencePointsSyntaxForms",
+            "side-effectful block-expression argument forms and call-site sequencing surfaces",
+            "validated evaluation-order syntax forms",
+            "evaluation-order-syntax",
+            "evaluate side-effectful argument block syntax and parse boundaries",
+            "123",
+            "123",
+            "not-123",
+            move order_passed_with_log,
+            "evaluation-order syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunEvaluationOrderAndSequencePointsItem(
+            ctx,
+            scope,
+            "EvaluationOrderAndSequencePointsStaticSemantics",
+            "call argument typing and block-tail typing under ordered evaluation",
+            "validated evaluation-order static semantics",
+            "evaluation-order-static",
+            "type-check ordered block argument evaluation and call result composition",
+            "136",
+            "136",
+            "not-136",
+            move call_passed_with_log,
+            "evaluation-order static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunEvaluationOrderAndSequencePointsItem(
+            ctx,
+            scope,
+            "EvaluationOrderAndSequencePointsRuntimeDiagnostics",
+            "runtime sequencing across argument evaluation and expression materialization",
+            "validated evaluation-order runtime behavior and diagnostics",
+            "evaluation-order-runtime",
+            "execute full sequencing path and verify aggregate metric",
+            "259",
+            "259",
+            "not-259",
+            move runtime_passed_with_log,
+            "evaluation-order runtime diagnostics check failed"
+        )
+    }
+
+    return RunEvaluationOrderAndSequencePointsItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown evaluation-order operation item",
+        "failed unknown evaluation-order operation item",
+        "item-resolution",
+        "resolve evaluation-order operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown evaluation-order operation item"
+    )
+}
+
+procedure RunEvaluationOrderAndSequencePoints(ctx: Context) -> i32 {
+    let scope: string@View = "operations::ExpressionSemantics::EvaluationOrderAndSequencePoints"
+    let checkpoint: string@View = "covered evaluation order and sequence points operation items"
+
+    let status_syntax: i32 = VerifyEvaluationOrderAndSequencePointsItem(ctx, scope, 0, "EvaluationOrderAndSequencePointsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyEvaluationOrderAndSequencePointsItem(ctx, scope, 1, "EvaluationOrderAndSequencePointsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyEvaluationOrderAndSequencePointsItem(ctx, scope, 2, "EvaluationOrderAndSequencePointsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

@@ -1,0 +1,196 @@
+procedure LogRegionAllocationObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure RegionAllocationMetricLabel(value: i32) -> string@View {
+    if (value == 3) {
+        return "3"
+    }
+    if (value == 5) {
+        return "5"
+    }
+    if (value == 8) {
+        return "8"
+    }
+    return "other"
+}
+
+procedure RunRegionAllocationItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyRegionAllocationItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    LogRegionAllocationObject(ctx.fs, scope, "implicit_alloc_probe", "^expr", "constructed", "implicit region allocation probe prepared")
+    LogRegionAllocationObject(ctx.fs, scope, "explicit_alloc_probe", "region^expr", "constructed", "explicit region allocation probe prepared")
+    LogRegionAllocationObject(ctx.fs, scope, "combined_alloc_probe", "^expr + region^expr", "constructed", "combined region allocation runtime probe prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    var syntax_metric: i32 = 0
+    [[log(label: "operations-log-transition_move")]]
+    region as r {
+        let implicit_alloc: i32 = ^3
+        if (implicit_alloc == 3) {
+            syntax_metric = 3
+        } else {
+            syntax_metric = 0
+        }
+    }
+    [[log(label: "operations-log-transition_move")]]
+    var static_metric: i32 = 0
+    [[log(label: "operations-log-transition_move")]]
+    region as r {
+        let explicit_alloc: i32 = r ^ 5
+        if (explicit_alloc == 5) {
+            static_metric = 5
+        } else {
+            static_metric = 0
+        }
+    }
+    [[log(label: "operations-log-transition_move")]]
+    var runtime_metric: i32 = 0
+    [[log(label: "operations-log-transition_move")]]
+    region as r {
+        let left_alloc: i32 = ^2
+        let right_alloc: i32 = r ^ 6
+        if ((left_alloc + right_alloc) == 8) {
+            runtime_metric = 8
+        } else {
+            runtime_metric = 0
+        }
+    }
+    [[log(label: "operations-log-transition_move")]]
+    let syntax_passed: bool = syntax_metric == 3
+    let static_passed: bool = static_metric == 5
+    let runtime_passed: bool = runtime_metric == 8
+
+    let actual_label_1: string@View = RegionAllocationMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-region-allocation-syntax-metric", expected: "3")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = RegionAllocationMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-region-allocation-static-metric", expected: "5")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = RegionAllocationMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-region-allocation-runtime-metric", expected: "8")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunRegionAllocationItem(
+            ctx,
+            scope,
+            "RegionAllocationOperatorOperationsSyntaxForms",
+            "syntax forms for implicit `^expr` and explicit `region ^ expr` allocation expressions",
+            "validated region allocation operator operations syntax forms",
+            "region-allocation-syntax",
+            "evaluate implicit region allocation syntax inside active region",
+            "3",
+            "3",
+            "not-3",
+            move syntax_passed_with_log,
+            "region allocation operator syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunRegionAllocationItem(
+            ctx,
+            scope,
+            "RegionAllocationOperatorOperationsStaticSemantics",
+            "active-region requirements and explicit alias targeting for allocation operator typing",
+            "validated region allocation operator operations static semantics",
+            "region-allocation-static",
+            "type-check explicit region-targeted allocation against active region alias",
+            "5",
+            "5",
+            "not-5",
+            move static_passed_with_log,
+            "region allocation operator static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunRegionAllocationItem(
+            ctx,
+            scope,
+            "RegionAllocationOperatorOperationsRuntimeDiagnostics",
+            "runtime allocation behavior over implicit and explicit region allocation paths",
+            "validated region allocation operator operations runtime behavior and diagnostics",
+            "region-allocation-runtime",
+            "execute implicit+explicit allocation path and verify runtime metric",
+            "8",
+            "8",
+            "not-8",
+            move runtime_passed_with_log,
+            "region allocation operator runtime diagnostics check failed"
+        )
+    }
+
+    return RunRegionAllocationItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown region allocation operator operation item",
+        "failed unknown region allocation operator operation item",
+        "item-resolution",
+        "resolve region allocation operator operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown region allocation operator operation item"
+    )
+}
+
+procedure RunRegionAllocationOperatorOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::ScopeCleanupAndAllocation::RegionAllocationOperatorOperations"
+    let checkpoint: string@View = "covered region allocation operator operations operation items"
+
+    let status_syntax: i32 = VerifyRegionAllocationItem(ctx, scope, 0, "RegionAllocationOperatorOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyRegionAllocationItem(ctx, scope, 1, "RegionAllocationOperatorOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyRegionAllocationItem(ctx, scope, 2, "RegionAllocationOperatorOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

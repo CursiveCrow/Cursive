@@ -1,0 +1,135 @@
+procedure PipeResumeProbe() -> Pipe<i32, i32> {
+    let input: i32 = yield 10
+    let input2: i32 = yield input + 5
+    return ()
+}
+
+procedure ExchangeResumeProbe() -> Exchange<i32> {
+    let input: i32 = yield 100
+    return input + 50
+}
+
+procedure PipeExchangeMetricLabel(value: i32) -> string@View {
+    if (value == 0) {
+        return "0"
+    }
+    if (value == 10) {
+        return "10"
+    }
+    if (value == 12) {
+        return "12"
+    }
+    if (value == 100) {
+        return "100"
+    }
+    if (value == 70) {
+        return "70"
+    }
+    return "other"
+}
+
+public procedure RunPipeResumeCycleExercise(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    let pipe_read_state: Async<i32, i32, (), !> = PipeResumeProbe()
+    let pipe_initial_output: i32 = if move pipe_read_state is {
+        @Suspended { output: output } { output }
+        @Completed { value: _ } { -1 }
+        @Failed { error: _ } { -1 }
+    }
+    let pipe_initial_log: i32 = [[log(label: "observed-pipe-resume-initial-output", expected: 10)]] pipe_initial_output
+    let pipe_initial_ok: bool = pipe_initial_log == 10
+
+    let pipe_resume_state: Async<i32, i32, (), !> = PipeResumeProbe()
+    let pipe_resumed_output: i32 = if move pipe_resume_state is {
+        suspended: Async<i32, i32, (), !>@Suspended {
+            var suspended_mut: unique Async<i32, i32, (), !>@Suspended = move suspended
+            let resumed: Async<i32, i32, (), !>@Suspended | Async<i32, i32, (), !>@Completed | Async<i32, i32, (), !>@Failed =
+                suspended_mut~>resume(7)
+            if move resumed is {
+                resumed_susp: Async<i32, i32, (), !>@Suspended {
+                    if move resumed_susp is {
+                        @Suspended { output: out } { out }
+                    }
+                }
+                _: Async<i32, i32, (), !>@Completed { -1 }
+                _: Async<i32, i32, (), !>@Failed { -1 }
+            }
+        }
+        @Completed { value: _ } { -1 }
+        _: Async<i32, i32, (), !>@Failed { -1 }
+    }
+    let pipe_resumed_log: i32 = [[log(label: "observed-pipe-resume-second-output", expected: 12)]] pipe_resumed_output
+    let pipe_resumed_ok: bool = pipe_resumed_log == 12
+
+    let all_ok: bool = pipe_initial_ok && pipe_resumed_ok
+    let all_ok_log: bool = [[log(label: "pipe-resume-cycle-runtime", expected: true)]] all_ok
+
+    if (all_ok_log != true) {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}
+
+public procedure RunExchangeResumeCycleExercise(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    let exchange_read_state: Async<i32, i32, i32, !> = ExchangeResumeProbe()
+    let exchange_initial_output: i32 = if move exchange_read_state is {
+        @Suspended { output: output } { output }
+        @Completed { value: value } { value }
+        @Failed { error: _ } { -1 }
+    }
+    let exchange_initial_log: i32 = [[log(label: "observed-exchange-resume-initial-output", expected: 100)]] exchange_initial_output
+    let exchange_initial_ok: bool = exchange_initial_log == 100
+
+    let exchange_resume_state: Async<i32, i32, i32, !> = ExchangeResumeProbe()
+    let exchange_completed_value: i32 = if move exchange_resume_state is {
+        suspended: Async<i32, i32, i32, !>@Suspended {
+            var suspended_mut: unique Async<i32, i32, i32, !>@Suspended = move suspended
+            let resumed: Async<i32, i32, i32, !>@Suspended | Async<i32, i32, i32, !>@Completed | Async<i32, i32, i32, !>@Failed =
+                suspended_mut~>resume(20)
+            if move resumed is {
+                _: Async<i32, i32, i32, !>@Suspended { -1 }
+                completed: Async<i32, i32, i32, !>@Completed {
+                    if move completed is {
+                        @Completed { value: v } { v }
+                    }
+                }
+                _: Async<i32, i32, i32, !>@Failed { -1 }
+            }
+        }
+        @Completed { value: value } { value }
+        _: Async<i32, i32, i32, !>@Failed { -1 }
+    }
+    let exchange_completed_log: i32 = [[log(label: "observed-exchange-resume-completed-value", expected: 70)]] exchange_completed_value
+    let exchange_completed_ok: bool = exchange_completed_log == 70
+
+    let all_ok: bool = exchange_initial_ok && exchange_completed_ok
+    let all_ok_log: bool = [[log(label: "exchange-resume-cycle-runtime", expected: true)]] all_ok
+
+    if (all_ok_log != true) {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}
+
+procedure RunPipeExchangeAliasExercises(ctx: Context) -> i32 {
+    let status_pipe: i32 = RunPipeResumeCycleExercise(ctx)
+    if (status_pipe != 0) {
+        return status_pipe
+    }
+
+    let status_exchange: i32 = RunExchangeResumeCycleExercise(ctx)
+    if (status_exchange != 0) {
+        return status_exchange
+    }
+
+    return 0
+}

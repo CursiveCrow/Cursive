@@ -1,0 +1,55 @@
+public enum MemoryLayoutEnum {
+    Flat
+    Payload(i32, i32)
+}
+
+procedure EnumTextLayoutMetricLabel(value: i32) -> string@View {
+    if (value == 22) {
+        return "22"
+    }
+    return "other"
+}
+
+public procedure RunEnumAndTextLayout(ctx: Context) -> i32 {
+    let _ = ctx
+
+    let enum_flat: MemoryLayoutEnum = MemoryLayoutEnum::Flat
+    let enum_payload: MemoryLayoutEnum = MemoryLayoutEnum::Payload(9, 0)
+
+    let enum_metric_flat: i32 = if enum_flat is {
+        MemoryLayoutEnum::Flat { 1 }
+        MemoryLayoutEnum::Payload(_, _) { 0 }
+    }
+    let enum_metric_payload: i32 = if enum_payload is {
+        MemoryLayoutEnum::Flat { 0 }
+        MemoryLayoutEnum::Payload(v, _) { v }
+    }
+
+    let string_seed: string@View = "abc"
+    let bytes_seed: [u8; 2] = [70, 71]
+    let bytes_slice: [u8] = bytes_seed
+    let bytes_view: bytes@View = bytes::view(bytes_slice)
+    let bytes_first: u8 = bytes_seed[0]
+    let bytes_second: u8 = bytes_seed[1]
+
+    let enum_layout_ok: bool = (enum_metric_flat + enum_metric_payload) == 10
+    let string_bytes_ok: bool = (string::length(string_seed) == 3usize) && (bytes::length(bytes_view) == 2usize)
+    let validity_surface_ok: bool = (bytes_first == 70u8) && (bytes_second == 71u8)
+
+    let enum_layout_log: bool = [[log(label: "memory-layout-enum-discriminant", expected: true)]] enum_layout_ok
+    let string_bytes_log: bool = [[log(label: "memory-layout-string-bytes", expected: true)]] string_bytes_ok
+    let validity_surface_log: bool = [[log(label: "memory-layout-value-validity", expected: true)]] validity_surface_ok
+
+    let metric: i32 = if (enum_layout_ok && string_bytes_ok && validity_surface_ok && (enum_layout_log == true) && (string_bytes_log == true) && (validity_surface_log == true)) { 22 } else { 0 }
+    let metric_label: string@View = EnumTextLayoutMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-memory-layout-enum-text-metric", expected: "22")]] metric_label
+    if (metric_log_actual != "22") {
+        let fail_marker: string@View = "memory-layout-enum-text-fail"
+        [[log(label: "memory-log-item_fail")]] fail_marker
+        return 1
+    }
+
+    let success_marker: string@View = "memory-layout-enum-text-success"
+    [[log(label: "memory-log-memory_item_success")]] success_marker
+    return 0
+}

@@ -1,0 +1,78 @@
+procedure ContractSpecConsistencyMatrixMetricLabel(value: i32) -> string@View {
+    if (value == 21) {
+        return "21"
+    }
+    return "other"
+}
+
+public procedure RunContractSpecConsistencyMatrix(ctx: Context) -> i32 {
+    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+
+    let status_entry_scope: i32 = EntryCaptureAndBinding::RunEntryScopeCapabilityAndSideEffectRejections(ctx)
+    let status_assume_mode: i32 = ForeignContractsAndTrustBoundaries::RunForeignAssumeModeSemantics(ctx)
+
+    let status_entry_scope_log: i32 =
+        [[log(label: "observed-contracts-spec-consistency-entry-scope-status", expected: 0)]]
+        status_entry_scope
+    let status_assume_mode_log: i32 =
+        [[log(label: "observed-contracts-spec-consistency-assume-mode-status", expected: 0)]]
+        status_assume_mode
+
+    let con_080: string@View =
+        if (
+            (status_entry_scope_log == 0) &&
+            (status_assume_mode_log == 0)
+        ) {
+            "CON-080"
+        } else {
+            "missing"
+        }
+    let con_080_log: string@View =
+        [[log(label: "contracts-contract-spec-consistency-matrix-feature-080", expected: "CON-080")]]
+        con_080
+
+    let diag_2807: string@View = if (status_entry_scope_log == 0) { "E-SEM-2807" } else { "missing" }
+    let diag_0415: string@View = if (status_entry_scope_log == 0) { "E-CON-0415" } else { "missing" }
+    let diag_0416: string@View = if (status_entry_scope_log == 0) { "E-CON-0416" } else { "missing" }
+    let assume_mode_semantics: string@View =
+        if (status_assume_mode_log == 0) {
+            "assume-mode-semantics-specified"
+        } else {
+            "assume-mode-unverified"
+        }
+    let diag_2807_log: string@View =
+        [[log(label: "contracts-spec-consistency-diag-2807", expected: "E-SEM-2807")]]
+        diag_2807
+    let diag_0415_log: string@View =
+        [[log(label: "contracts-spec-consistency-diag-0415", expected: "E-CON-0415")]]
+        diag_0415
+    let diag_0416_log: string@View =
+        [[log(label: "contracts-spec-consistency-diag-0416", expected: "E-CON-0416")]]
+        diag_0416
+    let assume_mode_semantics_log: string@View =
+        [[log(label: "contracts-spec-consistency-assume-mode", expected: "assume-mode-semantics-specified")]]
+        assume_mode_semantics
+
+    let runtime_ok: bool =
+        (con_080_log == "CON-080") &&
+        (diag_2807_log == "E-SEM-2807") &&
+        (diag_0415_log == "E-CON-0415") &&
+        (diag_0416_log == "E-CON-0416") &&
+        (assume_mode_semantics_log == "assume-mode-semantics-specified")
+    let runtime_ok_log: bool =
+        [[log(label: "contracts-contract-spec-consistency-matrix-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
+    let metric_label: string@View = ContractSpecConsistencyMatrixMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-contracts-contract-spec-consistency-matrix-metric", expected: "21")]]
+        metric_label
+    if (metric_log_actual != "21") {
+        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    return 0
+}

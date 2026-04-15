@@ -1,0 +1,60 @@
+record KeyBoundaryContainer {
+    #data: i32
+    metadata: i32
+}
+
+procedure KeyBoundaryFieldsAndMultiPathMetricLabel(value: i32) -> string@View {
+    if (value == 30) {
+        return "30"
+    }
+    return "other"
+}
+
+[[dynamic]]
+public procedure RunKeyBoundaryFieldsAndMultiPath(ctx: Context) -> i32 {
+    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+
+    var container: shared KeyBoundaryContainer = KeyBoundaryContainer { data: 10, metadata: 5 }
+
+    # container.data write {
+        container.data = container.data + 3
+    }
+
+    let boundary_metric: i32 = container.metadata
+    let boundary_data_metric: i32 = container.data
+
+    var gate_a: shared i32 = 2
+    var gate_b: shared i32 = 3
+    # gate_a, gate_b write {
+        gate_a = gate_a + 1
+        gate_b = gate_b + 1
+    }
+    let multi_path_metric: i32 = gate_a + gate_b
+
+    let boundary_metric_log: i32 = [[log(label: "observed-permissions-key-boundary-metadata", expected: 5)]] boundary_metric
+    let boundary_data_log: i32 = [[log(label: "observed-permissions-key-boundary-data", expected: 13)]] boundary_data_metric
+    let multi_path_log: i32 = [[log(label: "observed-permissions-key-multi-path", expected: 7)]] multi_path_metric
+
+    let key_boundary_001: string@View = [[log(label: "permissions-key-boundary-feature-001", expected: "KEY-BOUNDARY-001")]] "KEY-BOUNDARY-001"
+    let key_multi_001: string@View = [[log(label: "permissions-key-multi-path-feature-001", expected: "KEY-MULTI-001")]] "KEY-MULTI-001"
+
+    let runtime_ok: bool =
+        (boundary_metric_log == 5) &&
+        (boundary_data_log == 13) &&
+        (multi_path_log == 7) &&
+        (key_boundary_001 == "KEY-BOUNDARY-001") &&
+        (key_multi_001 == "KEY-MULTI-001")
+    let runtime_ok_log: bool = [[log(label: "permissions-key-boundary-multi-path-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log) { 30 } else { 0 }
+    let metric_label: string@View = KeyBoundaryFieldsAndMultiPathMetricLabel(metric)
+    let metric_label_log: string@View = [[log(label: "observed-permissions-key-boundary-multi-path-metric", expected: "30")]] metric_label
+
+    if (metric_label_log != "30") {
+        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    return 0
+}

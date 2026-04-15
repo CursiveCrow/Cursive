@@ -1,0 +1,48 @@
+public procedure RunGroup(ctx: Context) -> i32 {
+    [[log(label: "permissions-log-section_start", expected: "section-start")]] "section-start"
+
+    let status_path: i32 = RunKeyPathGrammarAndWellFormedness(ctx)
+    if (status_path != 0) {
+        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        return status_path
+    }
+
+    let status_mode: i32 = RunKeyModeInferenceReadWrite(ctx)
+    if (status_mode != 0) {
+        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        return status_mode
+    }
+
+    let status_state: i32 = RunKeyStateAcquireRelease(ctx)
+    if (status_state != 0) {
+        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        return status_state
+    }
+
+    let status_compat: i32 = RunKeyCompatibilityCoverage(ctx)
+    if (status_compat != 0) {
+        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        return status_compat
+    }
+
+    let status_wait: i32 = RunKeyWaitSuspensionConstraint(ctx)
+    if (status_wait != 0) {
+        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        return status_wait
+    }
+
+    let status_roots: i32 = RunKeyRootsAndPointerBoundaries(ctx)
+    if (status_roots != 0) {
+        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        return status_roots
+    }
+
+    let status_lifecycle: i32 = RunKeyLifecycleAndStaticRuntimeBoundary(ctx)
+    if (status_lifecycle != 0) {
+        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        return status_lifecycle
+    }
+
+    [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+    return 0
+}

@@ -1,0 +1,50 @@
+public procedure ConcurrencyBoundaryMetric(ctx: Context) -> i32 {
+    let boundary_metric: i32 = parallel ctx~>cpu() {
+        let boundary_handle = spawn { 1 }
+        let boundary_value: i32 = wait boundary_handle
+        boundary_value
+    }
+    if (boundary_metric == 1) {
+        return 1
+    }
+    return 0
+}
+
+public procedure run(ctx: Context) -> i32 {
+    let boundary_metric: i32 = ConcurrencyBoundaryMetric(ctx)
+    if (boundary_metric != 1) {
+        return 1
+    }
+
+    let status_spawn_wait: i32 = RunConcurrencySpawnWaitExercise(ctx)
+    if (status_spawn_wait != 0) {
+        return status_spawn_wait
+    }
+
+    let status_dispatch: i32 = RunConcurrencyDispatchReductionExercise(ctx)
+    if (status_dispatch != 0) {
+        return status_dispatch
+    }
+
+    let status_cancel: i32 = RunConcurrencyCancelTokenExercise(ctx)
+    if (status_cancel != 0) {
+        return status_cancel
+    }
+
+    let status_named: i32 = RunConcurrencyNamedBlockExercise(ctx)
+    if (status_named != 0) {
+        return status_named
+    }
+
+    let status_inline: i32 = RunConcurrencyInlineDomainExercise(ctx)
+    if (status_inline != 0) {
+        return status_inline
+    }
+
+    let status_cancel_hierarchy: i32 = RunCancelTokenHierarchyExercises(ctx)
+    if (status_cancel_hierarchy != 0) {
+        return status_cancel_hierarchy
+    }
+
+    return 0
+}

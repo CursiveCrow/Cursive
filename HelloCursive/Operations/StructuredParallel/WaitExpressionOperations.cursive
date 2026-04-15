@@ -1,0 +1,180 @@
+procedure WaitCompose(left: i32, right: i32) -> i32 {
+    return left + right
+}
+
+procedure LogWaitExpressionObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure WaitExpressionMetricLabel(value: i32) -> string@View {
+    if (value == 9) {
+        return "9"
+    }
+    if (value == 6) {
+        return "6"
+    }
+    if (value == 15) {
+        return "15"
+    }
+    return "other"
+}
+
+procedure RunWaitExpressionOperationsItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    let detail_begin: string@View = "operation feature item exercise start"
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyWaitExpressionOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    LogWaitExpressionObject(ctx.fs, scope, "wait_handle_ready", "Spawned<i32>", "constructed", "single wait handle source prepared")
+    LogWaitExpressionObject(ctx.fs, scope, "wait_handle_pair", "Spawned<i32>,Spawned<i32>", "constructed", "pair of wait handles prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let wait_ready_metric: i32 = parallel ctx~>cpu() { let ready_handle = spawn { 9 }; let ready_value: i32 = wait ready_handle; ready_value }
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let wait_pair_metric: i32 = parallel ctx~>cpu() { let first_handle = spawn { 2 }; let second_handle = spawn { 4 }; let first_value: i32 = wait first_handle; let second_value: i32 = wait second_handle; WaitCompose(first_value, second_value) }
+    [[log(label: "operations-log-transition_move")]]
+    let wait_runtime_metric: i32 = wait_ready_metric + wait_pair_metric
+
+    let observed_ready_step: string@View = "observed-wait-ready-metric"
+    let observed_pair_step: string@View = "observed-wait-pair-metric"
+    let observed_runtime_step: string@View = "observed-wait-runtime-aggregate-metric"
+    let expected_ready: string@View = "9"
+    let expected_pair: string@View = "6"
+    let expected_runtime: string@View = "15"
+    let ready_label: string@View = WaitExpressionMetricLabel(wait_ready_metric)
+    let pair_label: string@View = WaitExpressionMetricLabel(wait_pair_metric)
+    let runtime_label: string@View = WaitExpressionMetricLabel(wait_runtime_metric)
+    let ready_passed: bool = wait_ready_metric == 9
+    let pair_passed: bool = wait_pair_metric == 6
+    let runtime_passed: bool = wait_runtime_metric == 15
+
+    let ready_passed_log_actual = [[log(label: "observed-wait-ready-metric", expected: "9")]] ready_label
+    let ready_passed_with_log: bool = ready_passed && (ready_passed_log_actual == ready_label)
+    let pair_passed_log_actual = [[log(label: "observed-wait-pair-metric", expected: "6")]] pair_label
+    let pair_passed_with_log: bool = pair_passed && (pair_passed_log_actual == pair_label)
+    let runtime_passed_log_actual = [[log(label: "observed-wait-runtime-aggregate-metric", expected: "15")]] runtime_label
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunWaitExpressionOperationsItem(
+            ctx,
+            scope,
+            "WaitExpressionOperationsSyntaxForms",
+            "wait contextual-keyword form and operand parsing over spawned handles",
+            "validated wait expression syntax forms",
+            "wait-syntax",
+            "evaluate wait operand form and contextual keyword parse boundaries",
+            "9",
+            "9",
+            "not-9",
+            move ready_passed_with_log,
+            "wait syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunWaitExpressionOperationsItem(
+            ctx,
+            scope,
+            "WaitExpressionOperationsStaticSemantics",
+            "wait operand typing over Spawned handles and result-type recovery",
+            "validated wait expression static semantics",
+            "wait-static",
+            "type-check wait over spawned handles and aggregate typed results",
+            "6",
+            "6",
+            "not-6",
+            move pair_passed_with_log,
+            "wait static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunWaitExpressionOperationsItem(
+            ctx,
+            scope,
+            "WaitExpressionOperationsRuntimeDiagnostics",
+            "wait suspension/join behavior across ready and pending completion paths",
+            "validated wait expression runtime behavior and diagnostics",
+            "wait-runtime",
+            "execute wait-driven join path and verify runtime aggregate",
+            "15",
+            "15",
+            "not-15",
+            move runtime_passed_with_log,
+            "wait runtime diagnostics check failed"
+        )
+    }
+
+    return RunWaitExpressionOperationsItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown wait expression operation item",
+        "failed unknown wait expression operation item",
+        "item-resolution",
+        "resolve wait expression operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown wait expression operation item"
+    )
+}
+
+procedure RunWaitExpressionOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::StructuredParallel::WaitExpressionOperations"
+    let checkpoint: string@View = "covered wait expression operations operation items"
+
+    let status_syntax: i32 = VerifyWaitExpressionOperationsItem(ctx, scope, 0, "WaitExpressionOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyWaitExpressionOperationsItem(ctx, scope, 1, "WaitExpressionOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyWaitExpressionOperationsItem(ctx, scope, 2, "WaitExpressionOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

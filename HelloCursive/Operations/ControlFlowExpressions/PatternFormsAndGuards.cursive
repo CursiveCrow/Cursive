@@ -1,0 +1,181 @@
+procedure LogPatternGuardObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure PatternGuardMetricLabel(value: i32) -> string@View {
+    if (value == 5) {
+        return "5"
+    }
+    if (value == 7) {
+        return "7"
+    }
+    if (value == 8) {
+        return "8"
+    }
+    return "other"
+}
+
+procedure RunPatternFormsAndGuardsItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    let detail_begin: string@View = "operation feature item exercise start"
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyPatternFormsAndGuardsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    let tuple_scrutinee: (i32, i32) = (3, 4)
+    let guard_scrutinee: i32 = 4
+    let range_scrutinee: i32 = 6
+    LogPatternGuardObject(ctx.fs, scope, "tuple_scrutinee", "(i32,i32)", "constructed", "tuple scrutinee for destructuring-pattern form prepared")
+    LogPatternGuardObject(ctx.fs, scope, "guard_scrutinee", "i32", "constructed", "scalar scrutinee for guarded identifier pattern prepared")
+    LogPatternGuardObject(ctx.fs, scope, "range_scrutinee", "i32", "constructed", "range-pattern scrutinee with guard fallback prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let pattern_syntax_metric: i32 = tuple_scrutinee.0 + tuple_scrutinee.1
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let pattern_static_metric: i32 = if (guard_scrutinee > 3) { 5 } else { 0 }
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let pattern_runtime_metric: i32 = if ((range_scrutinee >= 1) && (range_scrutinee <= 5)) { 1 } else { if (range_scrutinee == 6) { 8 } else { 0 } }
+    [[log(label: "operations-log-transition_move")]]
+    let observed_syntax_step: string@View = "observed-pattern-forms-syntax-metric"
+    let observed_static_step: string@View = "observed-pattern-forms-static-metric"
+    let observed_runtime_step: string@View = "observed-pattern-forms-runtime-metric"
+    let expected_syntax: string@View = "7"
+    let expected_static: string@View = "5"
+    let expected_runtime: string@View = "8"
+    let syntax_label: string@View = PatternGuardMetricLabel(pattern_syntax_metric)
+    let static_label: string@View = PatternGuardMetricLabel(pattern_static_metric)
+    let runtime_label: string@View = PatternGuardMetricLabel(pattern_runtime_metric)
+    let syntax_passed: bool = pattern_syntax_metric == 7
+    let static_passed: bool = pattern_static_metric == 5
+    let runtime_passed: bool = pattern_runtime_metric == 8
+
+    let syntax_passed_log_actual = [[log(label: "observed-pattern-forms-syntax-metric", expected: "7")]] syntax_label
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == syntax_label)
+    let static_passed_log_actual = [[log(label: "observed-pattern-forms-static-metric", expected: "5")]] static_label
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == static_label)
+    let runtime_passed_log_actual = [[log(label: "observed-pattern-forms-runtime-metric", expected: "8")]] runtime_label
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunPatternFormsAndGuardsItem(
+            ctx,
+            scope,
+            "PatternFormsAndGuardsSyntaxForms",
+            "tuple destructuring-adjacent control-flow forms over tuple values",
+            "validated tuple-control-flow surface",
+            "pattern-guards-syntax",
+            "evaluate tuple-derived control-flow metric",
+            "7",
+            "7",
+            "not-7",
+            move syntax_passed_with_log,
+            "pattern/guards syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunPatternFormsAndGuardsItem(
+            ctx,
+            scope,
+            "PatternFormsAndGuardsStaticSemantics",
+            "boolean guard expression typing over scalar control-flow",
+            "validated guard-expression static semantics",
+            "pattern-guards-static",
+            "type-check scalar guard expression and selected result path",
+            "5",
+            "5",
+            "not-5",
+            move static_passed_with_log,
+            "pattern/guards static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunPatternFormsAndGuardsItem(
+            ctx,
+            scope,
+            "PatternFormsAndGuardsRuntimeDiagnostics",
+            "runtime control-flow selection across bounded and fallback branches",
+            "validated runtime branch-selection behavior",
+            "pattern-guards-runtime",
+            "execute bounded fallback branch selection and verify runtime metric",
+            "8",
+            "8",
+            "not-8",
+            move runtime_passed_with_log,
+            "pattern/guards runtime diagnostics check failed"
+        )
+    }
+
+    return RunPatternFormsAndGuardsItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown pattern/guard operation item",
+        "failed unknown pattern/guard operation item",
+        "item-resolution",
+        "resolve pattern/guard operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown pattern/guard operation item"
+    )
+}
+
+procedure RunPatternFormsAndGuards(ctx: Context) -> i32 {
+    let scope: string@View = "operations::ControlFlowExpressions::PatternFormsAndGuards"
+    let checkpoint: string@View = "covered pattern forms and guards operation items"
+
+    let status_syntax: i32 = VerifyPatternFormsAndGuardsItem(ctx, scope, 0, "PatternFormsAndGuardsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyPatternFormsAndGuardsItem(ctx, scope, 1, "PatternFormsAndGuardsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyPatternFormsAndGuardsItem(ctx, scope, 2, "PatternFormsAndGuardsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

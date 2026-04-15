@@ -1,0 +1,77 @@
+modal LayoutModalProbe {
+    @Empty {
+    }
+    @Payload {
+        value: i32
+    }
+}
+
+procedure LayoutDiagnosticsMetricLabel(value: i32) -> string@View {
+    if (value == 33) {
+        return "33"
+    }
+    return "other"
+}
+
+public procedure RunLayoutDiagnosticsAndBitValidity(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "memory-log-item_begin")]]
+
+    let pointer_cell: i32 = 7
+    let ptr_value: Ptr<i32>@Valid = &pointer_cell
+    let raw_ptr_value: *imm i32 =
+        unsafe { transmute<Ptr<i32>@Valid, *imm i32>(ptr_value) }
+    let ptr_layout_ok: bool = *ptr_value == 7
+    let raw_ptr_layout_ok: bool = unsafe { *raw_ptr_value } == 7
+
+    let modal_probe: LayoutModalProbe =
+        widen(LayoutModalProbe@Payload { value: 9 })
+    let modal_metric: i32 = if modal_probe is {
+        @Empty { } { 0 }
+        @Payload { value: v } { v }
+    }
+    let modal_layout_ok: bool = modal_metric == 9
+
+    let union_case_flag: bool = modal_metric == 9
+    let union_probe: i32 | bool = union_case_flag
+    let union_metric: i32 = if union_probe is {
+        _: i32 { 0 }
+        _: bool { 1 }
+    }
+    let union_niche_layout_ok: bool = union_metric == 1
+
+    let tuple_probe: (i32, bool) = (5, true)
+    let tuple_layout_ok: bool =
+        (tuple_probe.0 == 5) && (tuple_probe.1 == true)
+
+    let bit_bytes: [u8; 2] = [0, 255]
+    let bit_low: u8 = bit_bytes[0]
+    let bit_high: u8 = bit_bytes[1]
+    let bit_validity_ok: bool =
+        (bit_low == 0u8) && (bit_high == 255u8)
+
+    let ptr_layout_ok_log: bool = [[log(label: "memory-layout-diagnostic-ptr", expected: true)]] ptr_layout_ok
+    let raw_ptr_layout_ok_log: bool = [[log(label: "memory-layout-diagnostic-raw-ptr", expected: true)]] raw_ptr_layout_ok
+    let modal_layout_ok_log: bool = [[log(label: "memory-layout-diagnostic-modal", expected: true)]] modal_layout_ok
+    let union_niche_layout_ok_log: bool = [[log(label: "memory-layout-diagnostic-union-niche", expected: true)]] union_niche_layout_ok
+    let tuple_layout_ok_log: bool = [[log(label: "memory-layout-diagnostic-tuple", expected: true)]] tuple_layout_ok
+    let bit_validity_ok_log: bool = [[log(label: "memory-layout-diagnostic-bit-validity", expected: true)]] bit_validity_ok
+
+    let metric_ok: bool =
+        (ptr_layout_ok_log == true) &&
+        (raw_ptr_layout_ok_log == true) &&
+        (modal_layout_ok_log == true) &&
+        (union_niche_layout_ok_log == true) &&
+        (tuple_layout_ok_log == true) &&
+        (bit_validity_ok_log == true)
+    let metric: i32 = if (metric_ok) { 33 } else { 0 }
+    let metric_label: string@View = LayoutDiagnosticsMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-memory-layout-diagnostics-metric", expected: "33")]] metric_label
+    if (metric_log_actual != "33") {
+        [[log(label: "memory-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "memory-log-memory_item_success")]]
+    return 0
+}

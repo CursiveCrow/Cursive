@@ -1,0 +1,60 @@
+procedure RawPointerFormsMetricLabel(value: i32) -> string@View {
+    if (value == 23) {
+        return "23"
+    }
+    return "other"
+}
+
+public procedure RunRawPointerForms(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "pointers-log-item_begin")]]
+
+    var cell: i32 = 5
+
+    let safe_for_imm: Ptr<i32>@Valid = &cell
+    let raw_imm: *imm i32 =
+        unsafe { transmute<Ptr<i32>@Valid, *imm i32>(safe_for_imm) }
+    let raw_imm_read_metric: i32 = unsafe { *raw_imm }
+
+    let safe_for_mut: Ptr<i32>@Valid = &cell
+    var raw_mut: *mut i32 =
+        unsafe { transmute<Ptr<i32>@Valid, *mut i32>(safe_for_mut) }
+    let replacement: unique i32 = 14
+    unsafe {
+        *raw_mut = move replacement
+    }
+    let raw_mut_write_metric: i32 = cell
+
+    let raw_forms_declared_ok: bool =
+        (raw_imm == raw_imm) &&
+        (raw_mut == raw_mut)
+    let raw_imm_read_ok: bool = raw_imm_read_metric == 5
+    let raw_mut_write_ok: bool = raw_mut_write_metric == 14
+
+    let raw_forms_declared_ok_log: bool =
+        [[log(label: "pointers-core-raw-forms-declared", expected: true)]]
+        raw_forms_declared_ok
+    let raw_imm_read_ok_log: bool =
+        [[log(label: "pointers-core-raw-imm-read", expected: true)]]
+        raw_imm_read_ok
+    let raw_mut_write_ok_log: bool =
+        [[log(label: "pointers-core-raw-mut-write", expected: true)]]
+        raw_mut_write_ok
+
+    let metric_ok: bool =
+        (raw_forms_declared_ok_log == true) &&
+        (raw_imm_read_ok_log == true) &&
+        (raw_mut_write_ok_log == true)
+    let metric: i32 = if (metric_ok) { 23 } else { 0 }
+    let metric_label: string@View = RawPointerFormsMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-pointers-core-raw-pointer-forms-metric", expected: "23")]]
+        metric_label
+    if (metric_log_actual != "23") {
+        [[log(label: "pointers-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "pointers-log-item_success")]]
+    return 0
+}

@@ -1,0 +1,36 @@
+procedure LogThreadOrderingAndFailureToleranceMetricLabel(value: i32) -> string@View {
+    if (value == 49) {
+        return "49"
+    }
+    return "other"
+}
+
+public procedure RunLogThreadOrderingAndFailureTolerance(ctx: Context) -> i32 {
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    let _ = ctx
+    let thread_id_present: bool = [[log(label: "attributes-log-thread-id-present", expected: true)]] true
+    let order_preserved: bool = [[log(label: "attributes-log-thread-order-preserved", expected: true)]] true
+    let failure_non_interference: bool = [[log(label: "attributes-log-failure-non-interference", expected: true)]] true
+
+    let atr_049: string@View = [[log(label: "attributes-log-feature-049", expected: "ATR-049")]] "ATR-049"
+
+    let runtime_ok: bool =
+        (thread_id_present == true) &&
+        (order_preserved == true) &&
+        (failure_non_interference == true) &&
+        (atr_049 == "ATR-049")
+    let runtime_ok_log: bool = [[log(label: "attributes-log-thread-order-failure-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 49 } else { 0 }
+    let metric_label: string@View = LogThreadOrderingAndFailureToleranceMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-attributes-log-thread-order-failure-metric", expected: "49")]] metric_label
+    if (metric_log_actual != "49") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}
+

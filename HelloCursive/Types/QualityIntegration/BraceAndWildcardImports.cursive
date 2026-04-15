@@ -1,0 +1,73 @@
+using ValueData::{TypeRecordCase, TypeEnumCase}
+
+procedure BraceAndWildcardImportsMetricLabel(value: i32) -> string@View {
+    if (value == 35) {
+        return "35"
+    }
+    return "other"
+}
+
+public procedure RunBraceImportExercise(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "types-log-item_begin")]]
+
+    let rec: TypeRecordCase = TypeRecordCase { left: 10, right: 20, bias: 1 }
+    let rec_sum: i32 = rec.left + rec.right + rec.bias
+
+    let rec_sum_log: i32 = [[log(label: "observed-types-brace-import-record-sum", expected: 31)]] rec_sum
+
+    let enum_val: TypeEnumCase = TypeEnumCase::Unit
+    let enum_check: i32 = if enum_val is {
+        TypeEnumCase::Unit { 1 }
+        _: TypeEnumCase { 0 }
+    }
+    let enum_check_log: i32 = [[log(label: "observed-types-brace-import-enum-check", expected: 1)]] enum_check
+
+    let brace_001: string@View = [[log(label: "types-brace-import-feature-001", expected: "BRACE-001")]] "BRACE-001"
+    let brace_002: string@View = [[log(label: "types-brace-import-feature-002", expected: "BRACE-002")]] "BRACE-002"
+
+    let runtime_ok: bool =
+        (rec_sum_log == 31) &&
+        (enum_check_log == 1) &&
+        (brace_001 == "BRACE-001") &&
+        (brace_002 == "BRACE-002")
+    let runtime_ok_log: bool = [[log(label: "types-brace-import-runtime", expected: true)]] runtime_ok
+
+    if (runtime_ok_log != true) {
+        [[log(label: "types-log-item_fail")]]
+        return 1
+    }
+    [[log(label: "types-log-item_success")]]
+    return 0
+}
+
+public procedure RunWildcardImportExercise(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "types-log-item_begin")]]
+
+    let wild_001: string@View = [[log(label: "types-wildcard-import-feature-001", expected: "WILD-001")]] "WILD-001"
+
+    let runtime_ok: bool = (wild_001 == "WILD-001")
+    let runtime_ok_log: bool = [[log(label: "types-wildcard-import-runtime", expected: true)]] runtime_ok
+
+    if (runtime_ok_log != true) {
+        [[log(label: "types-log-item_fail")]]
+        return 1
+    }
+    [[log(label: "types-log-item_success")]]
+    return 0
+}
+
+procedure RunBraceAndWildcardImportExercises(ctx: Context) -> i32 {
+    let status_brace: i32 = RunBraceImportExercise(ctx)
+    if (status_brace != 0) {
+        return status_brace
+    }
+
+    let status_wildcard: i32 = RunWildcardImportExercise(ctx)
+    if (status_wildcard != 0) {
+        return status_wildcard
+    }
+
+    return 0
+}

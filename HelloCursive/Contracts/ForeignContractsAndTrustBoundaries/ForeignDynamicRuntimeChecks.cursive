@@ -1,0 +1,188 @@
+[[mangle("hc_contracts_foreign_dynamic_runtime_impl"), export("C-unwind")]]
+public procedure ContractsForeignDynamicRuntimeImpl(value: i32) -> i32 {
+    return value + 4
+}
+
+[[mangle("hc_contracts_foreign_dynamic_runtime_fail_impl"), export("C-unwind")]]
+public procedure ContractsForeignDynamicRuntimeFailImpl(value: i32) -> i32 {
+    return value
+}
+
+[[mangle("hc_contracts_foreign_dynamic_runtime_ptr_impl"), export("C-unwind")]]
+public procedure ContractsForeignDynamicRuntimePtrImpl(ptr: *imm i32, mode: i32) -> *imm i32 {
+    if (mode == 0) {
+        return null
+    }
+    return ptr
+}
+
+[[mangle("hc_contracts_foreign_dynamic_runtime_ptr_fail_impl"), export("C-unwind")]]
+public procedure ContractsForeignDynamicRuntimePtrFailImpl(ptr: *imm i32, mode: i32) -> *imm i32 {
+    if (mode == 0) {
+        return null
+    }
+    return ptr
+}
+
+extern "C" {
+    [[dynamic]]
+    procedure hc_contracts_foreign_dynamic_runtime_impl(value: i32) -> i32
+        |: @foreign_assumes(value >= 0)
+        |: @foreign_ensures(@result >= 0)
+}
+
+extern "C" {
+    [[dynamic]]
+    procedure hc_contracts_foreign_dynamic_runtime_fail_impl(value: i32) -> i32
+        |: @foreign_ensures(@result >= 0)
+}
+
+extern "C" {
+    [[dynamic]]
+    procedure hc_contracts_foreign_dynamic_runtime_ptr_impl(ptr: *imm i32, mode: i32) -> *imm i32
+        |: @foreign_ensures(@error: @result == null)
+        |: @foreign_ensures(@null_result: @result == null)
+}
+
+extern "C" {
+    [[dynamic]]
+    procedure hc_contracts_foreign_dynamic_runtime_ptr_fail_impl(ptr: *imm i32, mode: i32) -> *imm i32
+        |: @foreign_ensures(@error: @result == null)
+        |: @foreign_ensures(@null_result: @result != null)
+}
+
+[[dynamic, mangle("hc_contracts_foreign_dynamic_runtime_fail_catch"), export("C-unwind"), unwind("catch")]]
+public procedure ContractsForeignDynamicRuntimeFailCatch() -> i32 {
+    let _panic: i32 = unsafe {
+        hc_contracts_foreign_dynamic_runtime_fail_impl(-2)
+    }
+    return _panic
+}
+
+extern "C" {
+    procedure hc_contracts_foreign_dynamic_runtime_fail_catch() -> i32
+}
+
+[[dynamic, mangle("hc_contracts_foreign_dynamic_runtime_ptr_no_panic_catch"), export("C-unwind"), unwind("catch")]]
+public procedure ContractsForeignDynamicRuntimePtrNoPanicCatch(ptr: *imm i32) -> i32 {
+    let observed_ptr: *imm i32 = unsafe {
+        hc_contracts_foreign_dynamic_runtime_ptr_impl(ptr, 0)
+    }
+    if (observed_ptr == null) {
+        return 17
+    }
+    return 0
+}
+
+extern "C" {
+    procedure hc_contracts_foreign_dynamic_runtime_ptr_no_panic_catch(ptr: *imm i32) -> i32
+}
+
+[[dynamic, mangle("hc_contracts_foreign_dynamic_runtime_ptr_fail_catch"), export("C-unwind"), unwind("catch")]]
+public procedure ContractsForeignDynamicRuntimePtrFailCatch(ptr: *imm i32) -> i32 {
+    let _panic_ptr: *imm i32 = unsafe {
+        hc_contracts_foreign_dynamic_runtime_ptr_fail_impl(ptr, 0)
+    }
+    if (_panic_ptr == null) {
+        return 19
+    }
+    return 0
+}
+
+extern "C" {
+    procedure hc_contracts_foreign_dynamic_runtime_ptr_fail_catch(ptr: *imm i32) -> i32
+}
+
+procedure ForeignDynamicRuntimeChecksMetricLabel(value: i32) -> string@View {
+    if (value == 21) {
+        return "21"
+    }
+    return "other"
+}
+
+public procedure RunForeignDynamicRuntimeChecks(ctx: Context) -> i32 {
+    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+
+    let seed_value: i32 = 41
+    let seed_ptr_safe: Ptr<i32>@Valid = &seed_value
+    let seed_ptr_raw: *imm i32 = unsafe { transmute<Ptr<i32>@Valid, *imm i32>(seed_ptr_safe) }
+
+    let observed_value: i32 = unsafe { hc_contracts_foreign_dynamic_runtime_impl(5) }
+    let panic_catch_metric: i32 = unsafe {
+        hc_contracts_foreign_dynamic_runtime_fail_catch()
+    }
+    let ptr_no_panic_metric: i32 = unsafe {
+        hc_contracts_foreign_dynamic_runtime_ptr_no_panic_catch(seed_ptr_raw)
+    }
+    let ptr_fail_panic_metric: i32 = unsafe {
+        hc_contracts_foreign_dynamic_runtime_ptr_fail_catch(seed_ptr_raw)
+    }
+
+    let observed_value_log: i32 =
+        [[log(label: "observed-contracts-foreign-dynamic-runtime-checks-call", expected: 9)]]
+        observed_value
+    let panic_catch_metric_log: i32 =
+        [[log(label: "observed-contracts-foreign-dynamic-runtime-checks-fail-catch", expected: 0)]]
+        panic_catch_metric
+    let ptr_no_panic_metric_log: i32 =
+        [[log(label: "observed-contracts-foreign-dynamic-runtime-checks-null-result-no-panic", expected: 17)]]
+        ptr_no_panic_metric
+    let ptr_fail_panic_metric_log: i32 =
+        [[log(label: "observed-contracts-foreign-dynamic-runtime-checks-null-result-fail-catch", expected: 0)]]
+        ptr_fail_panic_metric
+
+    let dynamic_success_path: bool = observed_value_log >= 0
+    let dynamic_failure_path: bool = panic_catch_metric_log == 0
+    let dynamic_null_err_cond_and_null_cond_path: bool = ptr_no_panic_metric_log == 17
+    let dynamic_null_result_failure_path: bool = ptr_fail_panic_metric_log == 0
+    let dynamic_success_path_log: bool =
+        [[log(label: "contracts-foreign-dynamic-runtime-checks-success-path", expected: true)]]
+        dynamic_success_path
+    let dynamic_failure_path_log: bool =
+        [[log(label: "contracts-foreign-dynamic-runtime-checks-failure-path", expected: true)]]
+        dynamic_failure_path
+    let dynamic_null_err_cond_and_null_cond_path_log: bool =
+        [[log(label: "contracts-foreign-dynamic-runtime-checks-null-errcond-nullcond-path", expected: true)]]
+        dynamic_null_err_cond_and_null_cond_path
+    let dynamic_null_result_failure_path_log: bool =
+        [[log(label: "contracts-foreign-dynamic-runtime-checks-null-result-failure-path", expected: true)]]
+        dynamic_null_result_failure_path
+
+    let con_073: string@View = "CON-073"
+    let con_073_log: string@View =
+        [[log(label: "contracts-foreign-dynamic-runtime-checks-feature-073", expected: "CON-073")]]
+        con_073
+
+    let panic_2861: string@View = "P-SEM-2861"
+    let panic_2861_log: string@View =
+        [[log(label: "contracts-foreign-dynamic-runtime-checks-panic-2861", expected: "P-SEM-2861")]]
+        panic_2861
+
+    let runtime_ok: bool =
+        (observed_value_log == 9) &&
+        (panic_catch_metric_log == 0) &&
+        (ptr_no_panic_metric_log == 17) &&
+        (ptr_fail_panic_metric_log == 0) &&
+        (dynamic_success_path_log == true) &&
+        (dynamic_failure_path_log == true) &&
+        (dynamic_null_err_cond_and_null_cond_path_log == true) &&
+        (dynamic_null_result_failure_path_log == true) &&
+        (con_073_log == "CON-073") &&
+        (panic_2861_log == "P-SEM-2861")
+    let runtime_ok_log: bool =
+        [[log(label: "contracts-foreign-dynamic-runtime-checks-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
+    let metric_label: string@View = ForeignDynamicRuntimeChecksMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-contracts-foreign-dynamic-runtime-checks-metric", expected: "21")]]
+        metric_label
+    if (metric_log_actual != "21") {
+        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    return 0
+}

@@ -1,0 +1,44 @@
+procedure ProvenanceLogFeatureStatus(feature_name: string@View, status: i32) -> () {
+    [[log(label: "observed-memory-feature-status", expected: 0)]] status
+    [[log(label: "memory-log-feature_name")]] feature_name
+    return ()
+}
+
+public procedure RunGroup(ctx: Context) -> i32 {
+    [[log(label: "memory-log-section_start")]]
+
+    [[log(label: "memory-log-feature_dispatch")]] "memory::ProvenanceAndEscape::ProvenanceClassesAndPropagation"
+    let status_classes: i32 = RunProvenanceClassesAndPropagation(ctx)
+    ProvenanceLogFeatureStatus("memory::ProvenanceAndEscape::ProvenanceClassesAndPropagation", status_classes)
+    if (status_classes != 0) {
+        [[log(label: "memory-log-section_end")]]
+        return status_classes
+    }
+
+    [[log(label: "memory-log-feature_dispatch")]] "memory::ProvenanceAndEscape::StatementAndFrameProvenanceFlow"
+    let status_statement_flow: i32 = RunStatementAndFrameProvenanceFlow(ctx)
+    ProvenanceLogFeatureStatus("memory::ProvenanceAndEscape::StatementAndFrameProvenanceFlow", status_statement_flow)
+    if (status_statement_flow != 0) {
+        [[log(label: "memory-log-section_end")]]
+        return status_statement_flow
+    }
+
+    [[log(label: "memory-log-feature_dispatch")]] "memory::ProvenanceAndEscape::EscapeAnalysisAssignmentsAndCaptures"
+    let status_escape: i32 = RunEscapeAnalysisAssignmentsAndCaptures(ctx)
+    ProvenanceLogFeatureStatus("memory::ProvenanceAndEscape::EscapeAnalysisAssignmentsAndCaptures", status_escape)
+    if (status_escape != 0) {
+        [[log(label: "memory-log-section_end")]]
+        return status_escape
+    }
+
+    [[log(label: "memory-log-feature_dispatch")]] "memory::ProvenanceAndEscape::ProvenanceDiagnostics"
+    let status_diag: i32 = RunProvenanceDiagnostics(ctx)
+    ProvenanceLogFeatureStatus("memory::ProvenanceAndEscape::ProvenanceDiagnostics", status_diag)
+    if (status_diag != 0) {
+        [[log(label: "memory-log-section_end")]]
+        return status_diag
+    }
+
+    [[log(label: "memory-log-section_end")]]
+    return 0
+}

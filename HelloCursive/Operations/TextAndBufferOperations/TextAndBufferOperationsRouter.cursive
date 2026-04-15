@@ -1,0 +1,37 @@
+
+public procedure RunGroup(ctx: Context) -> i32 {
+    let section_name: string@View = "operations/TextAndBufferOperations"
+    let status_ok: string@View = "ok"
+    let status_failed: string@View = "failed"
+
+    let phase_planned: string@View = "planned"
+    let phase_running: string@View = "running"
+    let phase_complete: string@View = "complete"
+    let phase_failed: string@View = "failed"
+    let dispatch_reason: string@View = "dispatching operation topic function"
+    let complete_reason: string@View = "operation topic function completed"
+    let failed_reason: string@View = "operation topic function returned non-zero status"
+
+    let feature_StringOperationSemantics: string@View = "TextAndBufferOperations::StringOperationSemantics"
+    let feature_BytesOperationSemantics: string@View = "TextAndBufferOperations::BytesOperationSemantics"
+
+    [[log(label: "operations-log-section_start")]]
+    [[log(label: "operations-log-transition")]]
+    let status_StringOperationSemantics: i32 = RunStringOperationSemantics(ctx)
+    if (status_StringOperationSemantics != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_StringOperationSemantics
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_BytesOperationSemantics: i32 = RunBytesOperationSemantics(ctx)
+    if (status_BytesOperationSemantics != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_BytesOperationSemantics
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-section_end")]]
+    return 0
+}

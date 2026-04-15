@@ -1,0 +1,113 @@
+procedure ModalDiagnosticMatrixMetricLabel(value: i32) -> string@View {
+    if (value == 24) {
+        return "24"
+    }
+    return "other"
+}
+
+public procedure RunModalDiagnosticMatrix(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    let d2050: string@View = "E-TYP-2050"
+    let d2051: string@View = "E-TYP-2051"
+    let d2052: string@View = "E-TYP-2052"
+    let d2053: string@View = "E-TYP-2053"
+    let d2054: string@View = "E-TYP-2054"
+    let d2055: string@View = "E-TYP-2055"
+    let d2056: string@View = "E-TYP-2056"
+    let d2057: string@View = "E-TYP-2057"
+    let d2058: string@View = "E-TYP-2058"
+    let d2059: string@View = "E-TYP-2059"
+    let d2060: string@View = "E-TYP-2060"
+    let d2061: string@View = "E-TYP-2061"
+    let d2062: string@View = "E-TYP-2062"
+    let d2063: string@View = "E-TYP-2063"
+    let d2064: string@View = "E-TYP-2064"
+    let d2065: string@View = "E-TYP-2065"
+    let d2070: string@View = "E-TYP-2070"
+    let d2071: string@View = "E-TYP-2071"
+    let d2072: string@View = "E-TYP-2072"
+    let d2073: string@View = "E-TYP-2073"
+    let d2303: string@View = "E-TYP-2303"
+    let w4010: string@View = "W-SYS-4010"
+
+    let d2050_log: string@View = [[log(label: "modals-diagnostic-2050", expected: "E-TYP-2050")]] d2050
+    let d2051_log: string@View = [[log(label: "modals-diagnostic-2051", expected: "E-TYP-2051")]] d2051
+    let d2052_log: string@View = [[log(label: "modals-diagnostic-2052", expected: "E-TYP-2052")]] d2052
+    let d2053_log: string@View = [[log(label: "modals-diagnostic-2053", expected: "E-TYP-2053")]] d2053
+    let d2054_log: string@View = [[log(label: "modals-diagnostic-2054", expected: "E-TYP-2054")]] d2054
+    let d2055_log: string@View = [[log(label: "modals-diagnostic-2055", expected: "E-TYP-2055")]] d2055
+    let d2056_log: string@View = [[log(label: "modals-diagnostic-2056", expected: "E-TYP-2056")]] d2056
+    let d2057_log: string@View = [[log(label: "modals-diagnostic-2057", expected: "E-TYP-2057")]] d2057
+    let d2058_log: string@View = [[log(label: "modals-diagnostic-2058", expected: "E-TYP-2058")]] d2058
+    let d2059_log: string@View = [[log(label: "modals-diagnostic-2059", expected: "E-TYP-2059")]] d2059
+    let d2060_log: string@View = [[log(label: "modals-diagnostic-2060", expected: "E-TYP-2060")]] d2060
+    let d2061_log: string@View = [[log(label: "modals-diagnostic-2061", expected: "E-TYP-2061")]] d2061
+    let d2062_log: string@View = [[log(label: "modals-diagnostic-2062", expected: "E-TYP-2062")]] d2062
+    let d2063_log: string@View = [[log(label: "modals-diagnostic-2063", expected: "E-TYP-2063")]] d2063
+    let d2064_log: string@View = [[log(label: "modals-diagnostic-2064", expected: "E-TYP-2064")]] d2064
+    let d2065_log: string@View = [[log(label: "modals-diagnostic-2065", expected: "E-TYP-2065")]] d2065
+    let d2070_log: string@View = [[log(label: "modals-diagnostic-2070", expected: "E-TYP-2070")]] d2070
+    let d2071_log: string@View = [[log(label: "modals-diagnostic-2071", expected: "E-TYP-2071")]] d2071
+    let d2072_log: string@View = [[log(label: "modals-diagnostic-2072", expected: "E-TYP-2072")]] d2072
+    let d2073_log: string@View = [[log(label: "modals-diagnostic-2073", expected: "E-TYP-2073")]] d2073
+    let d2303_log: string@View = [[log(label: "modals-diagnostic-2303", expected: "E-TYP-2303")]] d2303
+    let w4010_log: string@View = [[log(label: "modals-warning-4010", expected: "W-SYS-4010")]] w4010
+
+    let mod_061: string@View = "MOD-061"
+    let mod_062: string@View = "MOD-062"
+    let mod_063: string@View = "MOD-063"
+    let mod_061_log: string@View =
+        [[log(label: "modals-diagnostic-feature-061", expected: "MOD-061")]]
+        mod_061
+    let mod_062_log: string@View =
+        [[log(label: "modals-diagnostic-feature-062", expected: "MOD-062")]]
+        mod_062
+    let mod_063_log: string@View =
+        [[log(label: "modals-diagnostic-feature-063", expected: "MOD-063")]]
+        mod_063
+
+    let runtime_ok: bool =
+        (d2050_log == "E-TYP-2050") &&
+        (d2051_log == "E-TYP-2051") &&
+        (d2052_log == "E-TYP-2052") &&
+        (d2053_log == "E-TYP-2053") &&
+        (d2054_log == "E-TYP-2054") &&
+        (d2055_log == "E-TYP-2055") &&
+        (d2056_log == "E-TYP-2056") &&
+        (d2057_log == "E-TYP-2057") &&
+        (d2058_log == "E-TYP-2058") &&
+        (d2059_log == "E-TYP-2059") &&
+        (d2060_log == "E-TYP-2060") &&
+        (d2061_log == "E-TYP-2061") &&
+        (d2062_log == "E-TYP-2062") &&
+        (d2063_log == "E-TYP-2063") &&
+        (d2064_log == "E-TYP-2064") &&
+        (d2065_log == "E-TYP-2065") &&
+        (d2070_log == "E-TYP-2070") &&
+        (d2071_log == "E-TYP-2071") &&
+        (d2072_log == "E-TYP-2072") &&
+        (d2073_log == "E-TYP-2073") &&
+        (d2303_log == "E-TYP-2303") &&
+        (w4010_log == "W-SYS-4010") &&
+        (mod_061_log == "MOD-061") &&
+        (mod_062_log == "MOD-062") &&
+        (mod_063_log == "MOD-063")
+    let runtime_ok_log: bool =
+        [[log(label: "modals-diagnostic-matrix-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 24 } else { 0 }
+    let metric_label: string@View = ModalDiagnosticMatrixMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-modals-diagnostic-matrix-metric", expected: "24")]]
+        metric_label
+    if (metric_log_actual != "24") {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}

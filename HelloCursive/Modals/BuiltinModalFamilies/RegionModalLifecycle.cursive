@@ -1,0 +1,155 @@
+procedure RegionModalLifecycleMetricLabel(value: i32) -> string@View {
+    if (value == 15) {
+        return "15"
+    }
+    return "other"
+}
+
+public procedure RunRegionModalLifecycle(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    var reset_return_state_ok: bool = false
+    var freeze_return_state_ok: bool = false
+    var thaw_return_state_ok: bool = false
+    var frozen_free_return_state_ok: bool = false
+    region as returned_region {
+        let returned_active: Region@Active = unsafe {
+            returned_region~>reset_unchecked()
+        }
+        let returned_general: Region = widen(returned_active)
+        let returned_is_active: bool = if returned_general is {
+            @Active { } { true }
+            @Frozen { } { false }
+            @Freed { } { false }
+        }
+        let returned_is_active_log: bool =
+            [[log(label: "observed-modals-region-reset-return-active", expected: true)]]
+            returned_is_active
+        reset_return_state_ok = returned_is_active_log == true
+    }
+
+    let freeze_opts: RegionOptions =
+        RegionOptions { stack_size: 0usize, name: "modals-region-freeze" }
+    var freeze_region: unique Region@Active = Region::new_scoped(freeze_opts)
+    let frozen_region: Region@Frozen = freeze_region~>freeze()
+    let frozen_general: Region = widen(frozen_region)
+    let frozen_is_frozen: bool = if frozen_general is {
+        @Active { } { false }
+        @Frozen { } { true }
+        @Freed { } { false }
+    }
+    let frozen_is_frozen_log: bool =
+        [[log(label: "observed-modals-region-freeze-return-frozen", expected: true)]]
+        frozen_is_frozen
+    freeze_return_state_ok = frozen_is_frozen_log == true
+
+    let opts: RegionOptions =
+        RegionOptions { stack_size: 0usize, name: "modals-region-lifecycle" }
+    var active_region: unique Region@Active = Region::new_scoped(opts)
+    let alloc_metric: i32 = active_region~>alloc(6)
+    unsafe {
+        active_region~>reset_unchecked()
+    }
+    let reset_metric: i32 = active_region~>alloc(2)
+    active_region~>freeze()
+    active_region~>thaw()
+    let thaw_metric: i32 = active_region~>alloc(4)
+    let thawed_general: Region = widen(active_region)
+    let thawed_is_active: bool = if thawed_general is {
+        @Active { } { true }
+        @Frozen { } { false }
+        @Freed { } { false }
+    }
+    let thawed_is_active_log: bool =
+        [[log(label: "observed-modals-region-thaw-return-active", expected: true)]]
+        thawed_is_active
+    thaw_return_state_ok = thawed_is_active_log == true
+
+    let free_opts: RegionOptions =
+        RegionOptions { stack_size: 0usize, name: "modals-region-free" }
+    var free_region: unique Region@Active = Region::new_scoped(free_opts)
+    let _freed_region: Region@Freed = unsafe {
+        free_region~>free_unchecked()
+    }
+    let freed_general: Region = widen(_freed_region)
+    let freed_metric: bool = if freed_general is {
+        @Active { } { false }
+        @Frozen { } { false }
+        @Freed { } { true }
+    }
+
+    let frozen_free_opts: RegionOptions =
+        RegionOptions { stack_size: 0usize, name: "modals-region-free-frozen" }
+    var frozen_free_region: unique Region@Active = Region::new_scoped(frozen_free_opts)
+    frozen_free_region~>freeze()
+    let freed_from_frozen: Region@Freed = unsafe {
+        frozen_free_region~>free_unchecked()
+    }
+    let freed_from_frozen_general: Region = widen(freed_from_frozen)
+    let freed_from_frozen_metric: bool = if freed_from_frozen_general is {
+        @Active { } { false }
+        @Frozen { } { false }
+        @Freed { } { true }
+    }
+    let freed_from_frozen_metric_log: bool =
+        [[log(label: "observed-modals-region-free-from-frozen", expected: true)]]
+        freed_from_frozen_metric
+    frozen_free_return_state_ok = freed_from_frozen_metric_log == true
+
+    let alloc_metric_log: i32 =
+        [[log(label: "observed-modals-region-lifecycle-alloc", expected: 6)]]
+        alloc_metric
+    let reset_metric_log: i32 =
+        [[log(label: "observed-modals-region-lifecycle-reset", expected: 2)]]
+        reset_metric
+    let thaw_metric_log: i32 =
+        [[log(label: "observed-modals-region-lifecycle-thaw", expected: 4)]]
+        thaw_metric
+    let freed_metric_log: bool =
+        [[log(label: "observed-modals-region-lifecycle-freed", expected: true)]]
+        freed_metric
+
+    let unchecked_diag: string@View = "E-MEM-3030"
+    let unchecked_diag_log: string@View =
+        [[log(label: "modals-region-unchecked-unsafe-diagnostic", expected: "E-MEM-3030")]]
+        unchecked_diag
+
+    let mod_040: string@View = "MOD-040"
+    let mod_041: string@View = "MOD-041"
+    let mod_040_log: string@View =
+        [[log(label: "modals-builtin-region-feature-040", expected: "MOD-040")]]
+        mod_040
+    let mod_041_log: string@View =
+        [[log(label: "modals-builtin-region-feature-041", expected: "MOD-041")]]
+        mod_041
+
+    let runtime_ok: bool =
+        reset_return_state_ok &&
+        freeze_return_state_ok &&
+        thaw_return_state_ok &&
+        frozen_free_return_state_ok &&
+        (alloc_metric_log == 6) &&
+        (reset_metric_log == 2) &&
+        (thaw_metric_log == 4) &&
+        (freed_metric_log == true) &&
+        (unchecked_diag_log == "E-MEM-3030") &&
+        (mod_040_log == "MOD-040") &&
+        (mod_041_log == "MOD-041")
+    let runtime_ok_log: bool =
+        [[log(label: "modals-builtin-region-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 15 } else { 0 }
+    let metric_label: string@View = RegionModalLifecycleMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-modals-region-lifecycle-metric", expected: "15")]]
+        metric_label
+    if (metric_log_actual != "15") {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}

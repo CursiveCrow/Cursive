@@ -1,0 +1,63 @@
+record ReceiverShorthandProbe {
+    value: i32
+
+    procedure read(~) -> i32 {
+        return self.value
+    }
+
+    procedure read_sync(~%) -> i32 {
+        return self.value
+    }
+
+    procedure write_unique(~!) -> i32 {
+        return self.value + 1
+    }
+}
+
+procedure ReceiverShorthandParsingAndTypingMetricLabel(value: i32) -> string@View {
+    if (value == 26) {
+        return "26"
+    }
+    return "other"
+}
+
+public procedure RunReceiverShorthandParsingAndTyping(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+
+    var probe: unique ReceiverShorthandProbe = ReceiverShorthandProbe { value: 7 }
+    let read_metric: i32 = probe~>read()
+    let sync_metric: i32 = probe~>read_sync()
+    let unique_metric: i32 = probe~>write_unique()
+
+    let read_metric_log: i32 =
+        [[log(label: "observed-permissions-receiver-shorthand-read", expected: 7)]]
+        read_metric
+    let sync_metric_log: i32 =
+        [[log(label: "observed-permissions-receiver-shorthand-sync", expected: 7)]]
+        sync_metric
+    let unique_metric_log: i32 =
+        [[log(label: "observed-permissions-receiver-shorthand-unique", expected: 8)]]
+        unique_metric
+
+    let runtime_ok: bool =
+        (read_metric_log == 7) &&
+        (sync_metric_log == 7) &&
+        (unique_metric_log == 8)
+    let runtime_ok_log: bool =
+        [[log(label: "permissions-receiver-shorthand-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 26 } else { 0 }
+    let metric_label: string@View = ReceiverShorthandParsingAndTypingMetricLabel(metric)
+    let metric_label_log: string@View =
+        [[log(label: "observed-permissions-receiver-shorthand-metric", expected: "26")]]
+        metric_label
+    if (metric_label_log != "26") {
+        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    return 0
+}

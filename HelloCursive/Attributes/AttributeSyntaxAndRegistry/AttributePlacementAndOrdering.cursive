@@ -1,0 +1,76 @@
+[[
+    cold,
+]]
+procedure AttributePlacementTrailingCommaProbe() -> i32 {
+    return 5
+}
+
+procedure AttributePlacementAndOrderingMetricLabel(value: i32) -> string@View {
+    if (value == 8) {
+        return "8"
+    }
+    return "other"
+}
+
+public procedure RunAttributePlacementAndOrdering(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    let ordered_value: i32 =
+        [[log(label: "attributes-placement-order-first", expected: 3)]]
+        3
+    [[log(label: "attributes-placement-order-second")]]
+
+    let continuation_value: i32 =
+        [[log(label: "attributes-placement-expression-newline", expected: 4)]]
+        ordered_value + 1
+    let multiline_spec_trailing_value: i32 = AttributePlacementTrailingCommaProbe()
+
+    let atr_007: string@View = [[log(label: "attributes-placement-feature-007", expected: "ATR-007")]] "ATR-007"
+    let multiline_probe_log: i32 =
+        [[log(label: "attributes-placement-spec-trailing-comma-multiline", expected: 5)]]
+        multiline_spec_trailing_value
+    if (multiline_spec_trailing_value != 5) {
+        let _ = if ctx.fs~>write_stdout("attr-placement:multiline-value-fail\n") is {
+            _: () { true }
+            _: IoError { false }
+        }
+    }
+    if (multiline_probe_log != 5) {
+        let _ = if ctx.fs~>write_stdout("attr-placement:probe-log-fail\n") is {
+            _: () { true }
+            _: IoError { false }
+        }
+    }
+
+    let runtime_ok: bool =
+        (ordered_value == 3) &&
+        (continuation_value == 4) &&
+        (multiline_probe_log == 5) &&
+        (atr_007 == "ATR-007")
+    let runtime_ok_log: bool = [[log(label: "attributes-placement-and-ordering-runtime", expected: true)]] runtime_ok
+    if (runtime_ok_log != true) {
+        let _ = if ctx.fs~>write_stdout("attr-placement:runtime-ok-log-fail\n") is {
+            _: () { true }
+            _: IoError { false }
+        }
+    }
+
+    let metric: i32 = if (runtime_ok_log == true) { 8 } else { 0 }
+    let metric_label: string@View = AttributePlacementAndOrderingMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-attributes-placement-ordering-metric", expected: "8")]]
+        metric_label
+    if (metric_log_actual != "8") {
+        let _ = if ctx.fs~>write_stdout("attr-placement:metric-fail\n") is {
+            _: () { true }
+            _: IoError { false }
+        }
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}
+

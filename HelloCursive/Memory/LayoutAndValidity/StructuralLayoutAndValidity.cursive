@@ -1,0 +1,43 @@
+procedure StructuralLayoutMetricLabel(value: i32) -> string@View {
+    if (value == 11) {
+        return "11"
+    }
+    return "other"
+}
+
+public procedure RunStructuralLayoutAndValidity(ctx: Context) -> i32 {
+    let _ = ctx
+
+    let tuple_value: (i32, i32) = (2, 3)
+    let array_value: [i32; 3] = [3, 4, 5]
+    let slice_value: [i32] = array_value
+    let union_value: i32 | bool = 7
+
+    let tuple_metric: i32 = tuple_value.0 + tuple_value.1
+    let array_metric: i32 = slice_value[0] + slice_value[1]
+    let union_metric: i32 = if union_value is {
+        _: i32 { 7 }
+        _: bool { 0 }
+    }
+
+    let tuple_ok: bool = tuple_metric == 5
+    let array_slice_ok: bool = array_metric == 7
+    let union_ok: bool = union_metric == 7
+
+    let tuple_ok_log: bool = [[log(label: "memory-layout-tuple-shape", expected: true)]] tuple_ok
+    let array_slice_ok_log: bool = [[log(label: "memory-layout-array-slice-shape", expected: true)]] array_slice_ok
+    let union_ok_log: bool = [[log(label: "memory-layout-union-shape", expected: true)]] union_ok
+
+    let metric: i32 = if (tuple_ok && array_slice_ok && union_ok && (tuple_ok_log == true) && (array_slice_ok_log == true) && (union_ok_log == true)) { 11 } else { 0 }
+    let metric_label: string@View = StructuralLayoutMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-memory-layout-structural-metric", expected: "11")]] metric_label
+    if (metric_log_actual != "11") {
+        let fail_marker: string@View = "memory-layout-structural-fail"
+        [[log(label: "memory-log-item_fail")]] fail_marker
+        return 1
+    }
+
+    let success_marker: string@View = "memory-layout-structural-success"
+    [[log(label: "memory-log-memory_item_success")]] success_marker
+    return 0
+}

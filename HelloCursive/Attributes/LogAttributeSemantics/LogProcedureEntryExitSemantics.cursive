@@ -1,0 +1,36 @@
+[[log(label: "attributes-log-procedure-entry-exit", expected: 12)]]
+procedure AttributeLoggedProcedureProbe(value: i32) -> i32 {
+    return value + 2
+}
+
+procedure LogProcedureEntryExitSemanticsMetricLabel(value: i32) -> string@View {
+    if (value == 47) {
+        return "47"
+    }
+    return "other"
+}
+
+public procedure RunLogProcedureEntryExitSemantics(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    let proc_value: i32 = AttributeLoggedProcedureProbe(10)
+    let proc_value_log: i32 = [[log(label: "observed-attributes-log-procedure-entry-exit", expected: 12)]] proc_value
+
+    let atr_047: string@View = [[log(label: "attributes-log-feature-047", expected: "ATR-047")]] "ATR-047"
+
+    let runtime_ok: bool = (proc_value_log == 12) && (atr_047 == "ATR-047")
+    let runtime_ok_log: bool = [[log(label: "attributes-log-procedure-entry-exit-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 47 } else { 0 }
+    let metric_label: string@View = LogProcedureEntryExitSemanticsMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-attributes-log-procedure-entry-exit-semantics-metric", expected: "47")]] metric_label
+    if (metric_log_actual != "47") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}
+

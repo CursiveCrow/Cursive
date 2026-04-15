@@ -1,0 +1,52 @@
+procedure LogExpectedTypingAndEqualityChecksMetricLabel(value: i32) -> string@View {
+    if (value == 47) {
+        return "47"
+    }
+    return "other"
+}
+
+public procedure RunLogExpectedTypingAndEqualityChecks(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    let expected_binding: i32 = 7
+    let id_expected_log: i32 = [[log(label: "attributes-log-expected-id", expected: expected_binding)]] expected_binding
+    let lit_expected_log: i32 = [[log(label: "attributes-log-expected-lit", expected: 7)]] 7
+
+    let e2456: string@View = [[log(label: "attributes-log-diagnostic-2456", expected: "E-MOD-2456")]] "E-MOD-2456"
+    let e2457: string@View = [[log(label: "attributes-log-diagnostic-2457", expected: "E-MOD-2457")]] "E-MOD-2457"
+    let e2458: string@View = [[log(label: "attributes-log-diagnostic-2458", expected: "E-MOD-2458")]] "E-MOD-2458"
+    let e2459: string@View = [[log(label: "attributes-log-diagnostic-2459", expected: "E-MOD-2459")]] "E-MOD-2459"
+
+    let atr_041: string@View = [[log(label: "attributes-log-feature-041", expected: "ATR-041")]] "ATR-041"
+    let atr_042: string@View = [[log(label: "attributes-log-feature-042", expected: "ATR-042")]] "ATR-042"
+    let atr_043: string@View = [[log(label: "attributes-log-feature-043", expected: "ATR-043")]] "ATR-043"
+    let atr_044: string@View = [[log(label: "attributes-log-feature-044", expected: "ATR-044")]] "ATR-044"
+    let atr_045: string@View = [[log(label: "attributes-log-feature-045", expected: "ATR-045")]] "ATR-045"
+
+    let runtime_ok: bool =
+        (id_expected_log == 7) &&
+        (lit_expected_log == 7) &&
+        (e2456 == "E-MOD-2456") &&
+        (e2457 == "E-MOD-2457") &&
+        (e2458 == "E-MOD-2458") &&
+        (e2459 == "E-MOD-2459") &&
+        (atr_041 == "ATR-041") &&
+        (atr_042 == "ATR-042") &&
+        (atr_043 == "ATR-043") &&
+        (atr_044 == "ATR-044") &&
+        (atr_045 == "ATR-045")
+    let runtime_ok_log: bool = [[log(label: "attributes-log-expected-typing-equality-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 47 } else { 0 }
+    let metric_label: string@View = LogExpectedTypingAndEqualityChecksMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-attributes-log-expected-typing-equality-metric", expected: "47")]] metric_label
+    if (metric_log_actual != "47") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}
+

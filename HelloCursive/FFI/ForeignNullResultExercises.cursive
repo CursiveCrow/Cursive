@@ -1,0 +1,57 @@
+[[mangle("hc_ffi_null_probe"), export("C")]]
+public procedure FfiNullProbeImpl(flag: i32) -> *imm u8 {
+    if (flag == 0) {
+        let np: *imm u8 = null
+        return np
+    }
+    let wide: usize = flag as usize
+    let p: *imm u8 = unsafe { transmute<usize, *imm u8>(wide) }
+    return p
+}
+
+extern "C" {
+    procedure hc_ffi_null_probe(flag: i32) -> *imm u8
+        |: @foreign_ensures(@null_result: @result == null)
+}
+
+procedure FfiNullResultMetricLabel(value: i32) -> string@View {
+    if (value == 0) {
+        return "0"
+    }
+    if (value == 1) {
+        return "1"
+    }
+    return "other"
+}
+
+public procedure RunFfiForeignNullResultExercise(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "ffi-log-item_begin")]]
+
+    let null_ptr: *imm u8 = null
+    let null_result: *imm u8 = unsafe { hc_ffi_null_probe(0) }
+    let is_null: bool = null_result == null_ptr
+    let is_null_log: bool = [[log(label: "observed-ffi-null-result-null-path", expected: true)]] is_null
+
+    let nonnull_result: *imm u8 = unsafe { hc_ffi_null_probe(1) }
+    let is_nonnull: bool = nonnull_result != null_ptr
+    let is_nonnull_log: bool = [[log(label: "observed-ffi-null-result-nonnull-path", expected: true)]] is_nonnull
+
+    let all_ok: bool = is_null_log && is_nonnull_log
+    let all_ok_log: bool = [[log(label: "ffi-null-result-runtime", expected: true)]] all_ok
+
+    if (all_ok_log != true) {
+        [[log(label: "ffi-log-item_fail")]]
+        return 1
+    }
+    [[log(label: "ffi-log-item_success")]]
+    return 0
+}
+
+procedure RunForeignNullResultExercises(ctx: Context) -> i32 {
+    let status_null_result: i32 = RunFfiForeignNullResultExercise(ctx)
+    if (status_null_result != 0) {
+        return status_null_result
+    }
+    return 0
+}

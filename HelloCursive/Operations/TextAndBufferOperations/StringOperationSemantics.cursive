@@ -1,0 +1,196 @@
+procedure LogStringOperationObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure StringOperationMetricLabel(value: i32) -> string@View {
+    if (value == 3) {
+        return "3"
+    }
+    if (value == 4) {
+        return "4"
+    }
+    if (value < 0) {
+        return "error"
+    }
+    return "other"
+}
+
+procedure RunStringOperationItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyStringOperationItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    let string_seed: string@View = "ops"
+    let append_piece: string@View = "!"
+
+    LogStringOperationObject(ctx.fs, scope, "string_seed", "string@View", "constructed", "string view seed prepared")
+    LogStringOperationObject(ctx.fs, scope, "append_piece", "string@View", "constructed", "append view piece prepared")
+    LogStringOperationObject(ctx.fs, scope, "string_managed", "string@Managed|AllocationError", "planned", "managed string conversion output planned")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let syntax_metric: i32 = if (string::is_empty(string_seed)) { 0 } else { string::length(string_seed) as i32 }
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let managed_result: string@Managed | AllocationError = string::to_managed(string_seed, ctx.heap)
+    [[log(label: "operations-log-transition_move")]]
+    var static_metric: i32 = -1
+    var runtime_metric: i32 = -1
+
+    if managed_result is {
+        managed_string: unique string@Managed {
+            let managed_view: string@View = string::as_view(managed_string)
+            static_metric = string::length(managed_view) as i32
+
+            let append_result: () | AllocationError = string::append(managed_string, append_piece, ctx.heap)
+            if append_result is {
+                _: () {
+                    let appended_view: string@View = string::as_view(managed_string)
+                    runtime_metric = string::length(appended_view) as i32
+                }
+                _: AllocationError {
+                    runtime_metric = -1
+                }
+            }
+        }
+        _: AllocationError {
+            static_metric = -1
+            runtime_metric = -1
+        }
+    }
+
+    let syntax_passed: bool = syntax_metric == 3
+    let static_passed: bool = static_metric == 3
+    let runtime_passed: bool = runtime_metric == 4
+
+    let actual_label_1: string@View = StringOperationMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-string-syntax-metric", expected: "3")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = StringOperationMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-string-static-metric", expected: "3")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = StringOperationMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-string-runtime-metric", expected: "4")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunStringOperationItem(
+            ctx,
+            scope,
+            "StringOperationSemanticsSyntaxForms",
+            "string syntax forms for view length and emptiness checks",
+            "validated string operation semantics syntax forms",
+            "string-syntax",
+            "evaluate string::length/string::is_empty call surface",
+            "3",
+            "3",
+            "not-3",
+            move syntax_passed_with_log,
+            "string syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunStringOperationItem(
+            ctx,
+            scope,
+            "StringOperationSemanticsStaticSemantics",
+            "string@View to string@Managed conversion typing and as_view compatibility",
+            "validated string operation semantics static semantics",
+            "string-static",
+            "type-check to_managed/as_view conversion chain",
+            "3",
+            "3",
+            "not-3",
+            move static_passed_with_log,
+            "string static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunStringOperationItem(
+            ctx,
+            scope,
+            "StringOperationSemanticsRuntimeDiagnostics",
+            "runtime append behavior and post-append length update verification",
+            "validated string operation semantics runtime behavior and diagnostics",
+            "string-runtime",
+            "append view data into managed string and verify resulting length",
+            "4",
+            "4",
+            "not-4",
+            move runtime_passed_with_log,
+            "string runtime diagnostics check failed"
+        )
+    }
+
+    return RunStringOperationItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown string operation semantics item",
+        "failed unknown string operation semantics item",
+        "item-resolution",
+        "resolve string operation semantics item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown string operation semantics item"
+    )
+}
+
+procedure RunStringOperationSemantics(ctx: Context) -> i32 {
+    let scope: string@View = "operations::TextAndBufferOperations::StringOperationSemantics"
+    let checkpoint: string@View = "covered string operation semantics operation items"
+
+    let status_syntax: i32 = VerifyStringOperationItem(ctx, scope, 0, "StringOperationSemanticsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyStringOperationItem(ctx, scope, 1, "StringOperationSemanticsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyStringOperationItem(ctx, scope, 2, "StringOperationSemanticsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

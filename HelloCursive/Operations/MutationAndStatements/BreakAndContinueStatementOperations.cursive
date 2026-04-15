@@ -1,0 +1,199 @@
+procedure LogBreakContinueObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure BreakContinueMetricLabel(value: i32) -> string@View {
+    if (value == 6) {
+        return "6"
+    }
+    if (value == 8) {
+        return "8"
+    }
+    if (value == 9) {
+        return "9"
+    }
+    return "other"
+}
+
+procedure RunBreakContinueItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyBreakContinueItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    LogBreakContinueObject(ctx.fs, scope, "even_accumulator", "i32", "constructed", "accumulator for continue-skipping odd values prepared")
+    LogBreakContinueObject(ctx.fs, scope, "loop_break_value", "i32", "constructed", "loop-expression break value probe prepared")
+    LogBreakContinueObject(ctx.fs, scope, "runtime_accumulator", "i32", "constructed", "runtime break/continue mixed-path accumulator prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    var loop_index: i32 = 0
+    var even_accumulator: i32 = 0
+    loop {
+        loop_index = loop_index + 1
+        if ((loop_index % 2) != 0) {
+            if (loop_index < 6) {
+                continue
+            }
+        }
+        if (loop_index > 5) {
+            break
+        }
+        even_accumulator = even_accumulator + loop_index
+    }
+    let syntax_metric: i32 = even_accumulator
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let static_metric: i32 = loop {
+        break 9
+    }
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    var runtime_index: i32 = 0
+    var runtime_accumulator: i32 = 0
+    loop {
+        runtime_index = runtime_index + 1
+        if (runtime_index == 2) {
+            continue
+        }
+        runtime_accumulator = runtime_accumulator + runtime_index
+        if (runtime_index == 4) {
+            break
+        }
+    }
+    let runtime_metric: i32 = runtime_accumulator
+    [[log(label: "operations-log-transition_move")]]
+    let syntax_passed: bool = syntax_metric == 6
+    let static_passed: bool = static_metric == 9
+    let runtime_passed: bool = runtime_metric == 8
+
+    let actual_label_1: string@View = BreakContinueMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-break-continue-syntax-metric", expected: "6")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = BreakContinueMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-break-continue-static-metric", expected: "9")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = BreakContinueMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-break-continue-runtime-metric", expected: "8")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunBreakContinueItem(
+            ctx,
+            scope,
+            "BreakAndContinueStatementOperationsSyntaxForms",
+            "statement syntax forms for `break` and `continue` inside loop bodies",
+            "validated break and continue statement syntax forms",
+            "break-continue-syntax",
+            "evaluate loop with continue form and explicit break termination",
+            "6",
+            "6",
+            "not-6",
+            move syntax_passed_with_log,
+            "break/continue syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunBreakContinueItem(
+            ctx,
+            scope,
+            "BreakAndContinueStatementOperationsStaticSemantics",
+            "loop-expression typing for break values and control-flow legality",
+            "validated break and continue statement static semantics",
+            "break-continue-static",
+            "type-check break value flow through loop expression result",
+            "9",
+            "9",
+            "not-9",
+            move static_passed_with_log,
+            "break/continue static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunBreakContinueItem(
+            ctx,
+            scope,
+            "BreakAndContinueStatementOperationsRuntimeDiagnostics",
+            "runtime branch selection over continue skip and break exit events",
+            "validated break and continue statement runtime behavior and diagnostics",
+            "break-continue-runtime",
+            "execute mixed break/continue runtime path and verify aggregate",
+            "8",
+            "8",
+            "not-8",
+            move runtime_passed_with_log,
+            "break/continue runtime diagnostics check failed"
+        )
+    }
+
+    return RunBreakContinueItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown break/continue operation item",
+        "failed unknown break/continue operation item",
+        "item-resolution",
+        "resolve break/continue operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown break/continue operation item"
+    )
+}
+
+procedure RunBreakAndContinueStatementOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::MutationAndStatements::BreakAndContinueStatementOperations"
+    let checkpoint: string@View = "covered break and continue statement operations operation items"
+
+    let status_syntax: i32 = VerifyBreakContinueItem(ctx, scope, 0, "BreakAndContinueStatementOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyBreakContinueItem(ctx, scope, 1, "BreakAndContinueStatementOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyBreakContinueItem(ctx, scope, 2, "BreakAndContinueStatementOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

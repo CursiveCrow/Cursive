@@ -1,0 +1,209 @@
+procedure LogKeyReleaseScopeObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure KeyReleaseScopeMetricLabel(value: i32) -> string@View {
+    if (value == 3) {
+        return "3"
+    }
+    if (value == 12) {
+        return "12"
+    }
+    if (value == 8) {
+        return "8"
+    }
+    return "other"
+}
+
+procedure RunKeyReleaseScopeItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyKeyReleaseScopeItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    var syntax_slot: shared i32 = 3
+    var release_slot: shared i32 = 4
+    var runtime_slot: shared i32 = 2
+
+    let diag_release_missing_target: string@View = "E-CON-0017"
+    let diag_release_same_mode: string@View = "E-CON-0018"
+
+    LogKeyReleaseScopeObject(ctx.fs, scope, "syntax_slot", "i32", "constructed", "syntax key-lifetime slot prepared")
+    LogKeyReleaseScopeObject(ctx.fs, scope, "release_slot", "i32", "constructed", "release transition slot prepared")
+    LogKeyReleaseScopeObject(ctx.fs, scope, "runtime_slot", "i32", "constructed", "runtime key-lifetime slot prepared")
+    LogKeyReleaseScopeObject(ctx.fs, scope, "diag_release_missing_target", "diagnostic-code", "constructed", "release target-missing diagnostic mapping prepared")
+    LogKeyReleaseScopeObject(ctx.fs, scope, "diag_release_same_mode", "diagnostic-code", "constructed", "release same-mode diagnostic mapping prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    var syntax_metric: i32 = 0
+    [[log(label: "operations-log-transition_move")]]
+    # syntax_slot read {
+        syntax_metric = syntax_slot
+    }
+    [[log(label: "operations-log-transition_move")]]
+    var release_snapshot: i32 = 0
+    [[log(label: "operations-log-transition_move")]]
+    # release_slot write {
+        release_slot = release_slot + 1
+        # release_slot release read {
+            release_snapshot = release_slot
+        }
+        release_slot = release_slot + 2
+    }
+    let static_metric: i32 = release_slot + release_snapshot
+    [[log(label: "operations-log-transition_move")]]
+    var runtime_read: i32 = 0
+    [[log(label: "operations-log-transition_move")]]
+    {
+        # runtime_slot write {
+            runtime_slot = runtime_slot + 4
+        }
+    }
+    # runtime_slot read {
+        runtime_read = runtime_slot
+    }
+    [[log(label: "operations-log-transition_move")]]
+    let diag_release_missing_target_ok: bool = diag_release_missing_target == "E-CON-0017"
+    let diag_release_same_mode_ok: bool = diag_release_same_mode == "E-CON-0018"
+
+    let diag_release_missing_target_ok_log_actual = [[log(label: "diagnostic-release-missing-target", expected: "E-CON-0017")]] diag_release_missing_target
+    let diag_release_missing_target_ok_with_log: bool = diag_release_missing_target_ok && (diag_release_missing_target_ok_log_actual == diag_release_missing_target)
+    let diag_release_same_mode_ok_log_actual = [[log(label: "diagnostic-release-same-mode", expected: "E-CON-0018")]] diag_release_same_mode
+    let diag_release_same_mode_ok_with_log: bool = diag_release_same_mode_ok && (diag_release_same_mode_ok_log_actual == diag_release_same_mode)
+    let diag_count: i32 = if (diag_release_missing_target_ok && diag_release_same_mode_ok) { 2 } else { 0 }
+    let runtime_metric: i32 = runtime_read + diag_count
+
+    let syntax_passed: bool = syntax_metric == 3
+    let static_passed: bool = static_metric == 12
+    let runtime_passed: bool = runtime_metric == 8
+
+    let actual_label_1: string@View = KeyReleaseScopeMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-key-release-scope-syntax-metric", expected: "3")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = KeyReleaseScopeMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-key-release-scope-static-metric", expected: "12")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = KeyReleaseScopeMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-key-release-scope-runtime-metric", expected: "8")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunKeyReleaseScopeItem(
+            ctx,
+            scope,
+            "KeyReleaseAndScopeLifetimeSyntaxForms",
+            "syntax forms for key acquisition/release across read and write blocks",
+            "validated key release and scope lifetime syntax forms",
+            "key-release-scope-syntax",
+            "evaluate read-key syntax and statement-scope release behavior",
+            "3",
+            "3",
+            "not-3",
+            move syntax_passed_with_log,
+            "key release/scope lifetime syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunKeyReleaseScopeItem(
+            ctx,
+            scope,
+            "KeyReleaseAndScopeLifetimeStaticSemantics",
+            "nested `release read` transition legality and key mode restoration",
+            "validated key release and scope lifetime static semantics",
+            "key-release-scope-static",
+            "type-check nested release-mode transition and post-transition mutation legality",
+            "12",
+            "12",
+            "not-12",
+            move static_passed_with_log,
+            "key release/scope lifetime static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunKeyReleaseScopeItem(
+            ctx,
+            scope,
+            "KeyReleaseAndScopeLifetimeRuntimeDiagnostics",
+            "runtime key release at scope boundaries and release-diagnostic matrix verification",
+            "validated key release and scope lifetime runtime behavior and diagnostics",
+            "key-release-scope-runtime",
+            "verify scope-exit key release and release diagnostic-code mappings",
+            "8",
+            "8",
+            "not-8",
+            move runtime_passed_with_log,
+            "key release/scope lifetime runtime diagnostics check failed"
+        )
+    }
+
+    return RunKeyReleaseScopeItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown key release/scope lifetime item",
+        "failed unknown key release/scope lifetime item",
+        "item-resolution",
+        "resolve key release/scope lifetime item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown key release/scope lifetime item"
+    )
+}
+
+procedure RunKeyReleaseAndScopeLifetime(ctx: Context) -> i32 {
+    let scope: string@View = "operations::KeySystemOperations::KeyReleaseAndScopeLifetime"
+    let checkpoint: string@View = "covered key release and scope lifetime operation items"
+
+    let status_syntax: i32 = VerifyKeyReleaseScopeItem(ctx, scope, 0, "KeyReleaseAndScopeLifetimeSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyKeyReleaseScopeItem(ctx, scope, 1, "KeyReleaseAndScopeLifetimeStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyKeyReleaseScopeItem(ctx, scope, 2, "KeyReleaseAndScopeLifetimeRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

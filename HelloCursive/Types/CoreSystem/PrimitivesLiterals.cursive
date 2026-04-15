@@ -1,0 +1,831 @@
+procedure AcceptImmNull(value: *imm i32) -> i32 {
+    let _ = value
+    return 1
+}
+
+procedure AcceptMutNull(value: *mut i32) -> i32 {
+    let _ = value
+    return 1
+}
+
+procedure AcceptSafePtrNull(value: Ptr<i32>@Null) -> i32 {
+    let _ = value
+    return 1
+}
+
+procedure AcceptSafePtrValid(value: Ptr<i32>@Valid) -> i32 {
+    let _ = value
+    return 1
+}
+
+procedure AcceptSafePtrExpired(value: Ptr<i32>@Expired) -> i32 {
+    let _ = value
+    return 1
+}
+
+procedure AcceptStringView(value: string@View) -> i32 {
+    let _ = value
+    return 1
+}
+
+procedure AcceptBytesView(value: bytes@View) -> i32 {
+    let _ = value
+    return 1
+}
+
+procedure StringManagedMetric(result: string@Managed | AllocationError) -> i32 {
+    let expected_length: usize = 5
+    let metric: i32 = if result is {
+        managed_text: string@Managed {
+            let managed_view: string@View = string::as_view(managed_text)
+            let managed_length: usize = string::length(managed_view)
+            if (managed_length == expected_length) {
+                1
+            } else {
+                0
+            }
+        }
+        _: AllocationError {
+            0
+        }
+    }
+    return metric
+}
+
+procedure BytesManagedMetric(result: bytes@Managed | AllocationError) -> i32 {
+    let expected_length: usize = 5
+    let metric: i32 = if result is {
+        managed_bytes: bytes@Managed {
+            let managed_view: bytes@View = bytes::as_view(managed_bytes)
+            let managed_length: usize = bytes::length(managed_view)
+            if (managed_length == expected_length) {
+                1
+            } else {
+                0
+            }
+        }
+        _: AllocationError {
+            0
+        }
+    }
+    return metric
+}
+
+procedure DivergeLoop() -> ! {
+    return DivergeLoop()
+}
+
+procedure LogPrimitivesObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "types-log-object")]]
+}
+
+procedure RunPrimitivesLiteralsItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    let detail_begin: string@View = "type feature item exercise start"
+    [[log(label: "types-log-item_begin")]]
+    let phase_running: string@View = "running"
+    let phase_step_begin: string@View = "step-begin"
+    let phase_step_pass: string@View = "step-pass"
+    let phase_step_fail: string@View = "step-fail"
+    let reason_pass: string@View = "expected output aligned with actual output"
+    let reason_fail: string@View = "expected output did not align with actual output"
+    let passed_place: bool = passed
+
+    [[log(label: "types-log-runtime_phase")]]
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "types-log-transition")]]
+        [[log(label: "types-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "types-log-transition")]]
+    [[log(label: "types-log-types_item_success")]]
+    return 0
+}
+
+procedure PrimitiveBoolLabel(value: bool) -> string@View {
+    if (value) {
+        return "true"
+    }
+    return "false"
+}
+
+procedure PrimitiveIntLabel(value: i32) -> string@View {
+    if (value == 0) {
+        return "0"
+    }
+    if (value == 1) {
+        return "1"
+    }
+    if (value == 2) {
+        return "2"
+    }
+    if (value == 3) {
+        return "3"
+    }
+    if (value == 8) {
+        return "8"
+    }
+    if (value == 15) {
+        return "15"
+    }
+    return "other"
+}
+
+procedure PrimitiveFloatLabel(value: f32) -> string@View {
+    if (value == 4.0f) {
+        return "4.0"
+    }
+    return "other"
+}
+
+procedure PrimitiveUsizeLabel(value: usize) -> string@View {
+    let expected_zero: usize = 0
+    let expected_one: usize = 1
+    let expected_two: usize = 2
+    let expected_three: usize = 3
+    let expected_five: usize = 5
+    let expected_six: usize = 6
+    let expected_eight: usize = 8
+    if (value == expected_zero) {
+        return "0"
+    }
+    if (value == expected_one) {
+        return "1"
+    }
+    if (value == expected_two) {
+        return "2"
+    }
+    if (value == expected_three) {
+        return "3"
+    }
+    if (value == expected_five) {
+        return "5"
+    }
+    if (value == expected_six) {
+        return "6"
+    }
+    if (value == expected_eight) {
+        return "8"
+    }
+    return "other"
+}
+
+procedure VerifyPrimitivesLiteralsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "types-log-runtime_phase_move")]]
+    let signed_sum: i32 = -12 + 20
+    let unsigned_left: u32 = 9
+    let unsigned_right: u32 = 6
+    let unsigned_total: u32 = unsigned_left + unsigned_right
+    let float_total: f32 = 1.5f + 2.5f
+    let bool_char_ok: bool = ('Z' == 'Z') && (true && !false)
+    let unit_value: () = ()
+    let unit_flow: i32 = if (true) { 1 } else { 0 }
+    let null_read: *imm i32 = null
+    let null_write: *mut i32 = null
+    var null_metric: i32 = 0
+    let safe_cell: i32 = 9
+    let safe_ptr_valid: Ptr<i32>@Valid = &safe_cell
+    let safe_ptr_null: Ptr<i32>@Null = Ptr::null()
+    var safe_ptr_expired_metric: i32 = 0
+    var safe_pointer_metric: i32 = 0
+    var string_metric: i32 = 0
+    let string_left: string@View = "types"
+    let string_right: string@View = "trace"
+    let bytes_seed: [u8; 3] = [65, 66, 67]
+    let bytes_seed_slice: [u8] = bytes_seed
+    var string_clone_metric: i32 = 0
+    var string_append_metric: i32 = 0
+    var string_append_length_metric: i32 = 0
+    var bytes_seed_length_metric: i32 = 0
+    var bytes_from_slice_metric: i32 = 0
+    var bytes_from_slice_length_metric: i32 = 0
+    var bytes_append_metric: i32 = 0
+    var bytes_append_length_metric: i32 = 0
+    var string_append_length: usize = 0
+    var bytes_seed_length: usize = 0
+    var bytes_from_slice_length: usize = 0
+    var bytes_append_length: usize = 0
+    let never_seed: i32 = 1
+    let numeric_i32: i32 = 25
+    let numeric_i64: i64 = 25
+    let numeric_i32_expected: i32 = 25
+    let numeric_i64_expected: i64 = 25
+    LogPrimitivesObject(ctx.fs, scope, "signed_sum", "i32", "constructed", "signed integer arithmetic result prepared")
+    LogPrimitivesObject(ctx.fs, scope, "unsigned_total", "u32", "constructed", "unsigned integer arithmetic result prepared")
+    LogPrimitivesObject(ctx.fs, scope, "float_total", "f32", "constructed", "floating-point arithmetic result prepared")
+    LogPrimitivesObject(ctx.fs, scope, "bool_char_ok", "bool", "constructed", "bool and char literal compatibility predicate prepared")
+    LogPrimitivesObject(ctx.fs, scope, "unit_flow", "i32", "constructed", "unit and control-flow join metric prepared")
+    LogPrimitivesObject(ctx.fs, scope, "null_read", "*imm i32", "constructed", "immutable null raw pointer prepared")
+    LogPrimitivesObject(ctx.fs, scope, "null_write", "*mut i32", "constructed", "mutable null raw pointer prepared")
+    LogPrimitivesObject(ctx.fs, scope, "safe_cell", "i32", "constructed", "safe pointer address source value prepared")
+    LogPrimitivesObject(ctx.fs, scope, "safe_ptr_valid", "Ptr<i32>@Valid", "constructed", "safe pointer valid-state value prepared")
+    LogPrimitivesObject(ctx.fs, scope, "safe_ptr_null", "Ptr<i32>@Null", "constructed", "safe pointer null-state value prepared")
+    LogPrimitivesObject(ctx.fs, scope, "safe_ptr_expired", "Ptr<i32>@Expired", "planned", "safe pointer expired-state value planned")
+    LogPrimitivesObject(ctx.fs, scope, "safe_ptr_expired_diagnostic", "E-TYP-2102", "planned", "expired pointer dereference diagnostic contract planned")
+    LogPrimitivesObject(ctx.fs, scope, "string_left", "string@View", "constructed", "left string literal binding prepared")
+    LogPrimitivesObject(ctx.fs, scope, "string_right", "string@View", "constructed", "right string literal binding prepared")
+    LogPrimitivesObject(ctx.fs, scope, "bytes_seed_slice", "[u8]", "constructed", "bytes slice source prepared for bytes::from_slice conversion")
+    LogPrimitivesObject(ctx.fs, scope, "string_managed_result", "string@Managed|AllocationError", "planned", "managed string conversion probe planned")
+    LogPrimitivesObject(ctx.fs, scope, "string_clone_result", "string@Managed|AllocationError", "planned", "managed string clone_with probe planned")
+    LogPrimitivesObject(ctx.fs, scope, "string_append_result", "()|AllocationError", "planned", "managed string append probe planned")
+    LogPrimitivesObject(ctx.fs, scope, "bytes_view_from_string", "bytes@View", "planned", "bytes view conversion probe planned")
+    LogPrimitivesObject(ctx.fs, scope, "bytes_managed_result", "bytes@Managed|AllocationError", "planned", "managed bytes conversion probe planned")
+    LogPrimitivesObject(ctx.fs, scope, "bytes_from_slice_result", "bytes@Managed|AllocationError", "planned", "bytes::from_slice conversion probe planned")
+    LogPrimitivesObject(ctx.fs, scope, "bytes_append_result", "()|AllocationError", "planned", "managed bytes append probe planned")
+    LogPrimitivesObject(ctx.fs, scope, "never_join", "i32", "constructed", "never-branch join probe prepared")
+    LogPrimitivesObject(ctx.fs, scope, "numeric_distinct", "bool", "constructed", "typed numeric width conformance predicate prepared")
+
+    [[log(label: "types-log-runtime_phase_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let null_read_metric: i32 = AcceptImmNull(null_read)
+    let null_write_metric: i32 = AcceptMutNull(null_write)
+    null_metric = null_read_metric + null_write_metric
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let safe_ptr_expired: Ptr<i32>@Expired = unsafe { transmute<Ptr<i32>@Null, Ptr<i32>@Expired>(safe_ptr_null) }
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let safe_ptr_valid_metric: i32 = AcceptSafePtrValid(safe_ptr_valid)
+    let safe_ptr_null_metric: i32 = AcceptSafePtrNull(safe_ptr_null)
+    safe_ptr_expired_metric = AcceptSafePtrExpired(safe_ptr_expired)
+    safe_pointer_metric = safe_ptr_valid_metric + safe_ptr_null_metric + safe_ptr_expired_metric
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let safe_ptr_expired_diagnostic_label: string@View = "E-TYP-2102"
+    let safe_ptr_expired_diagnostic_ok: bool = safe_ptr_expired_metric == 1
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let string_left_metric: i32 = AcceptStringView(string_left)
+    let string_right_metric: i32 = AcceptStringView(string_right)
+    string_metric = string_left_metric + string_right_metric
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let string_managed_result: string@Managed | AllocationError = string::to_managed(string_left, ctx.heap)
+    let string_managed_metric: i32 = StringManagedMetric(string_managed_result)
+    let string_view_length: usize = string::length(string_left)
+    let string_view_direct_length: usize = string::length("types")
+    let string_view_expected_length: usize = 5
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    if string_managed_result is {
+        managed_text: string@Managed {
+            let string_clone_result: string@Managed | AllocationError = string::clone_with(managed_text, ctx.heap)
+            if string_clone_result is {
+                cloned_text: unique string@Managed {
+                    string_clone_metric = 1
+                    let string_append_result: () | AllocationError = string::append(cloned_text, "!", ctx.heap)
+                    if string_append_result is {
+                        _: () {
+                            string_append_metric = 1
+                            let appended_view: string@View = string::as_view(cloned_text)
+                            string_append_length = string::length(appended_view)
+                            let expected_string_append_length: usize = 6
+                            string_append_length_metric = if (string_append_length == expected_string_append_length) { 1 } else { 0 }
+                        }
+                        _: AllocationError {
+                            string_append_metric = 0
+                            string_append_length_metric = 0
+                        }
+                    }
+                }
+                _: AllocationError {
+                    string_clone_metric = 0
+                    string_append_metric = 0
+                    string_append_length_metric = 0
+                }
+            }
+        }
+        _: AllocationError {
+            string_clone_metric = 0
+            string_append_metric = 0
+            string_append_length_metric = 0
+        }
+    }
+    if (string_clone_metric == 1) {
+        [[log(label: "types-log-transition_move")]]
+    } else {
+        [[log(label: "types-log-transition_move")]]
+    }
+    if (string_append_metric == 1) {
+        [[log(label: "types-log-transition_move")]]
+    } else {
+        [[log(label: "types-log-transition_move")]]
+    }
+
+    [[log(label: "types-log-transition_move")]]
+    let bytes_view_from_string: bytes@View = bytes::view_string(string_left)
+    let bytes_view_accept_metric: i32 = AcceptBytesView(bytes_view_from_string)
+    let bytes_view_length: usize = bytes::length(bytes_view_from_string)
+    let bytes_view_expected_length: usize = 5
+    let bytes_view_length_metric: i32 = if (bytes_view_length == bytes_view_expected_length) { 1 } else { 0 }
+    let bytes_view_metric: i32 = bytes_view_accept_metric + bytes_view_length_metric
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let bytes_managed_result: bytes@Managed | AllocationError = bytes::to_managed(bytes_view_from_string, ctx.heap)
+    let bytes_managed_metric: i32 = BytesManagedMetric(bytes_managed_result)
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let bytes_seed_view: bytes@View = bytes::view(bytes_seed_slice)
+    bytes_seed_length = bytes::length(bytes_seed_view)
+    let bytes_seed_expected_length: usize = 3
+    bytes_seed_length_metric = if (bytes_seed_length == bytes_seed_expected_length) { 1 } else { 0 }
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let bytes_from_slice_result: bytes@Managed | AllocationError = bytes::from_slice(bytes_seed_slice, ctx.heap)
+    if bytes_from_slice_result is {
+        managed_bytes: unique bytes@Managed {
+            bytes_from_slice_metric = 1
+            let pre_append_view: bytes@View = bytes::as_view(managed_bytes)
+            bytes_from_slice_length = bytes::length(pre_append_view)
+            let expected_bytes_from_slice_length: usize = 3
+            bytes_from_slice_length_metric = if (bytes_from_slice_length == expected_bytes_from_slice_length) { 1 } else { 0 }
+            let bytes_append_result: () | AllocationError = bytes::append(managed_bytes, bytes_view_from_string, ctx.heap)
+            if bytes_append_result is {
+                _: () {
+                    bytes_append_metric = 1
+                    let appended_view: bytes@View = bytes::as_view(managed_bytes)
+                    bytes_append_length = bytes::length(appended_view)
+                    let expected_bytes_append_length: usize = 8
+                    bytes_append_length_metric = if (bytes_append_length == expected_bytes_append_length) { 1 } else { 0 }
+                }
+                _: AllocationError {
+                    bytes_append_metric = 0
+                    bytes_append_length_metric = 0
+                }
+            }
+        }
+        _: AllocationError {
+            bytes_from_slice_metric = 0
+            bytes_from_slice_length_metric = 0
+            bytes_append_metric = 0
+            bytes_append_length_metric = 0
+        }
+    }
+    if (bytes_from_slice_metric == 1) {
+        [[log(label: "types-log-transition_move")]]
+    } else {
+        [[log(label: "types-log-transition_move")]]
+    }
+    if (bytes_append_metric == 1) {
+        [[log(label: "types-log-transition_move")]]
+    } else {
+        [[log(label: "types-log-transition_move")]]
+    }
+
+    [[log(label: "types-log-transition_move")]]
+    let never_join: i32 = if (false) { DivergeLoop() } else { 1 }
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-runtime_phase_move")]]
+    let signed_ok: bool = signed_sum == 8
+    let unsigned_expected: u32 = 15
+    let unsigned_ok: bool = unsigned_total == unsigned_expected
+    let float_ok: bool = float_total == 4.0f
+    let unit_ok: bool = unit_flow == 1
+    let null_ok: bool = null_metric == 2
+    let safe_pointer_ok: bool = safe_pointer_metric == 3
+    let string_ok: bool = string_metric == 2
+    let string_managed_ok: bool = string_managed_metric == 1
+    let string_clone_ok: bool = string_clone_metric == 1
+    let string_append_ok: bool = string_append_metric == 1
+    let string_append_length_ok: bool = string_append_length_metric == 1
+    let string_managed_surface_ok: bool = string_managed_ok && string_clone_ok && string_append_ok && string_append_length_ok
+    let string_view_length_ok: bool = string_view_length == string_view_expected_length
+    let string_view_direct_length_ok: bool = string_view_direct_length == string_view_expected_length
+    let bytes_view_ok: bool = bytes_view_metric == 2
+    let bytes_view_length_ok: bool = bytes_view_length == bytes_view_expected_length
+    let bytes_managed_ok: bool = bytes_managed_metric == 1
+    let bytes_seed_length_ok: bool = bytes_seed_length_metric == 1
+    let bytes_from_slice_ok: bool = bytes_from_slice_metric == 1
+    let bytes_from_slice_length_ok: bool = bytes_from_slice_length_metric == 1
+    let bytes_append_ok: bool = bytes_append_metric == 1
+    let bytes_append_length_ok: bool = bytes_append_length_metric == 1
+    let bytes_managed_surface_ok: bool = bytes_managed_ok && bytes_seed_length_ok && bytes_from_slice_ok && bytes_from_slice_length_ok && bytes_append_ok && bytes_append_length_ok
+    let never_ok: bool = never_join == 1
+    let numeric_distinct: bool = (numeric_i32 == numeric_i32_expected) && (numeric_i64 == numeric_i64_expected)
+    let unknown_ok: bool = false
+    let expected_string_append_length_value: usize = 6
+    let expected_bytes_from_slice_length_value: usize = 3
+    let expected_bytes_append_length_value: usize = 8
+    let signed_log_value: i32 = [[log(label: "observed-signed-integer-arithmetic", expected: 8)]] signed_sum
+    let signed_log_matches_expected: bool = signed_log_value == 8
+    let signed_ok_with_log: bool = signed_ok && signed_log_matches_expected
+    let unsigned_log_value: u32 = [[log(label: "observed-unsigned-integer-arithmetic", expected: 15)]] unsigned_total
+    let unsigned_log_matches_expected: bool = unsigned_log_value == unsigned_expected
+    let unsigned_ok_with_log: bool = unsigned_ok && unsigned_log_matches_expected
+    let float_log_value: f32 = [[log(label: "observed-floating-point-arithmetic", expected: 4.0f)]] float_total
+    let float_log_matches_expected: bool = float_log_value == 4.0f
+    let float_ok_with_log: bool = float_ok && float_log_matches_expected
+    let bool_char_log_value: bool = [[log(label: "observed-bool-char-literals", expected: true)]] bool_char_ok
+    let bool_char_log_matches_expected: bool = bool_char_log_value == true
+    let bool_char_ok_with_log: bool = bool_char_ok && bool_char_log_matches_expected
+    let unit_log_value: i32 = [[log(label: "observed-unit-control-flow", expected: 1)]] unit_flow
+    let unit_log_matches_expected: bool = unit_log_value == 1
+    let unit_ok_with_log: bool = unit_ok && unit_log_matches_expected
+    let null_log_value: i32 = [[log(label: "observed-null-pointer-typing", expected: 2)]] null_metric
+    let null_log_matches_expected: bool = null_log_value == 2
+    let null_ok_with_log: bool = null_ok && null_log_matches_expected
+    let safe_pointer_log_value: i32 = [[log(label: "observed-safe-pointer-state-typing", expected: 3)]] safe_pointer_metric
+    let safe_pointer_log_matches_expected: bool = safe_pointer_log_value == 3
+    let safe_ptr_expired_diag_log: bool = [[log(label: "observed-safe-pointer-expired-deref-diagnostic-contract", expected: true)]] safe_ptr_expired_diagnostic_ok
+    let safe_ptr_expired_diag_log_matches_expected: bool = safe_ptr_expired_diag_log == true
+    let safe_pointer_ok_with_log: bool = safe_pointer_ok && safe_pointer_log_matches_expected && safe_ptr_expired_diag_log_matches_expected
+    let string_log_value: i32 = [[log(label: "observed-string-literal-typing", expected: 2)]] string_metric
+    let string_log_matches_expected: bool = string_log_value == 2
+    let string_ok_with_log: bool = string_ok && string_log_matches_expected
+    let string_managed_log_value: i32 = [[log(label: "observed-string-managed-state-typing", expected: 1)]] string_managed_metric
+    let string_managed_log_matches_expected: bool = string_managed_log_value == 1
+    let string_clone_log_value: i32 = [[log(label: "observed-string-clone-with-metric", expected: 1)]] string_clone_metric
+    let string_clone_log_matches_expected: bool = string_clone_log_value == 1
+    let string_append_log_value: i32 = [[log(label: "observed-string-append-metric", expected: 1)]] string_append_metric
+    let string_append_log_matches_expected: bool = string_append_log_value == 1
+    let string_append_length_log_value: usize = [[log(label: "observed-string-append-length", expected: 6)]] string_append_length
+    let string_append_length_log_matches_expected: bool = string_append_length_log_value == expected_string_append_length_value
+    let string_view_length_log_value: usize = [[log(label: "observed-string-view-length", expected: 5)]] string_view_length
+    let string_view_length_log_matches_expected: bool = string_view_length_log_value == string_view_expected_length
+    let string_view_direct_length_log_value: usize = [[log(label: "observed-string-direct-view-length", expected: 5)]] string_view_direct_length
+    let string_view_direct_length_log_matches_expected: bool = string_view_direct_length_log_value == string_view_expected_length
+    let string_managed_surface_ok_with_log: bool = string_managed_surface_ok && string_managed_log_matches_expected && string_clone_log_matches_expected && string_append_log_matches_expected && string_append_length_log_matches_expected && string_view_length_log_matches_expected && string_view_direct_length_log_matches_expected
+    let bytes_view_log_value: i32 = [[log(label: "observed-bytes-view-state-typing", expected: 2)]] bytes_view_metric
+    let bytes_view_log_matches_expected: bool = bytes_view_log_value == 2
+    let bytes_view_length_log_value: usize = [[log(label: "observed-bytes-view-length", expected: 5)]] bytes_view_length
+    let bytes_view_length_log_matches_expected: bool = bytes_view_length_log_value == bytes_view_expected_length
+    let bytes_view_ok_with_log: bool = bytes_view_ok && bytes_view_log_matches_expected && bytes_view_length_log_matches_expected
+    let bytes_managed_log_value: i32 = [[log(label: "observed-bytes-managed-state-typing", expected: 1)]] bytes_managed_metric
+    let bytes_managed_log_matches_expected: bool = bytes_managed_log_value == 1
+    let bytes_seed_length_log_value: usize = [[log(label: "observed-bytes-seed-length", expected: 3)]] bytes_seed_length
+    let bytes_seed_length_log_matches_expected: bool = bytes_seed_length_log_value == bytes_seed_expected_length
+    let bytes_seed_length_metric_log_value: i32 = [[log(label: "observed-bytes-seed-length-metric", expected: 1)]] bytes_seed_length_metric
+    let bytes_seed_length_metric_log_matches_expected: bool = bytes_seed_length_metric_log_value == 1
+    let bytes_from_slice_log_value: i32 = [[log(label: "observed-bytes-from-slice-metric", expected: 1)]] bytes_from_slice_metric
+    let bytes_from_slice_log_matches_expected: bool = bytes_from_slice_log_value == 1
+    let bytes_from_slice_length_log_value: usize = [[log(label: "observed-bytes-from-slice-length", expected: 3)]] bytes_from_slice_length
+    let bytes_from_slice_length_log_matches_expected: bool = bytes_from_slice_length_log_value == expected_bytes_from_slice_length_value
+    let bytes_from_slice_length_metric_log_value: i32 = [[log(label: "observed-bytes-from-slice-length-metric", expected: 1)]] bytes_from_slice_length_metric
+    let bytes_from_slice_length_metric_log_matches_expected: bool = bytes_from_slice_length_metric_log_value == 1
+    let bytes_append_log_value: i32 = [[log(label: "observed-bytes-append-metric", expected: 1)]] bytes_append_metric
+    let bytes_append_log_matches_expected: bool = bytes_append_log_value == 1
+    let bytes_append_length_log_value: usize = [[log(label: "observed-bytes-append-length", expected: 8)]] bytes_append_length
+    let bytes_append_length_log_matches_expected: bool = bytes_append_length_log_value == expected_bytes_append_length_value
+    let bytes_managed_surface_ok_with_log: bool = bytes_managed_surface_ok && bytes_managed_log_matches_expected && bytes_seed_length_log_matches_expected && bytes_seed_length_metric_log_matches_expected && bytes_from_slice_log_matches_expected && bytes_from_slice_length_log_matches_expected && bytes_from_slice_length_metric_log_matches_expected && bytes_append_log_matches_expected && bytes_append_length_log_matches_expected
+    let never_log_value: i32 = [[log(label: "observed-never-control-flow-join", expected: 1)]] never_join
+    let never_log_matches_expected: bool = never_log_value == 1
+    let never_ok_with_log: bool = never_ok && never_log_matches_expected
+    let numeric_log_value: bool = [[log(label: "observed-distinct-numeric-widths", expected: true)]] numeric_distinct
+    let numeric_log_matches_expected: bool = numeric_log_value == true
+    let numeric_distinct_ok_with_log: bool = numeric_distinct && numeric_log_matches_expected
+
+    if (item_index == 0) {
+        return RunPrimitivesLiteralsItem(
+            ctx,
+            scope,
+            "SignedIntegers",
+            "i8/i16/i32/i64/i128/isize literal typing and range validation",
+            "validated signed integer literals",
+            "signed-integer-arithmetic",
+            "evaluate signed integer arithmetic with explicit signed operands",
+            "8",
+            "8",
+            "not-8",
+            move signed_ok_with_log,
+            "signed integer arithmetic check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunPrimitivesLiteralsItem(
+            ctx,
+            scope,
+            "UnsignedIntegers",
+            "u8/u16/u32/u64/u128/usize literal typing and range validation",
+            "validated unsigned integer literals",
+            "unsigned-integer-arithmetic",
+            "evaluate unsigned integer arithmetic without sign extension",
+            "15",
+            "15",
+            "not-15",
+            move unsigned_ok_with_log,
+            "unsigned integer arithmetic check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunPrimitivesLiteralsItem(
+            ctx,
+            scope,
+            "FloatingPoint",
+            "f16/f32/f64 literals, suffix forms, and default float inference",
+            "validated floating-point literals",
+            "floating-point-arithmetic",
+            "evaluate float literals that require `f` suffix in C0",
+            "4.0",
+            "4.0",
+            "not-4.0",
+            move float_ok_with_log,
+            "floating-point arithmetic check failed"
+        )
+    }
+
+    if (item_index == 3) {
+        return RunPrimitivesLiteralsItem(
+            ctx,
+            scope,
+            "BoolAndChar",
+            "bool and char literal typing and contextual compatibility",
+            "validated bool/char literals",
+            "bool-char-literals",
+            "evaluate bool logic and char literal comparison",
+            "true",
+            "true",
+            "false",
+            move bool_char_ok_with_log,
+            "bool and char literal check failed"
+        )
+    }
+
+    if (item_index == 4) {
+        return RunPrimitivesLiteralsItem(
+            ctx,
+            scope,
+            "UnitAndNever",
+            "unit and never participation in expression typing and control-flow joins",
+            "validated unit and never type behavior",
+            "unit-control-flow",
+            "evaluate unit value and control-flow expression result typing",
+            "1",
+            "1",
+            "not-1",
+            move unit_ok_with_log,
+            "unit and never behavior check failed"
+        )
+    }
+
+    if (item_index == 5) {
+        return RunPrimitivesLiteralsItem(
+            ctx,
+            scope,
+            "NullLiteral",
+            "null literal typing restrictions and pointer/nullability interactions",
+            "validated null literal typing",
+            "null-pointer-typing",
+            "type null against immutable and mutable raw pointer targets",
+            "typed",
+            "typed",
+            "not-typed",
+            move null_ok_with_log,
+            "null literal typing check failed"
+        )
+    }
+
+    if (item_index == 6) {
+        return RunPrimitivesLiteralsItem(
+            ctx,
+            scope,
+            "SafePointerStates",
+            "safe pointer state typing for Ptr<T>@Valid, Ptr<T>@Null, and Ptr<T>@Expired surfaces",
+            "validated safe pointer state typing",
+            "safe-pointer-state-typing",
+            "type-check valid/null/expired safe pointer states through procedure parameters and verify expired deref diagnostic contract",
+            "3",
+            "3",
+            "not-3",
+            move safe_pointer_ok_with_log,
+            "safe pointer state typing check failed"
+        )
+    }
+
+    if (item_index == 7) {
+        return RunPrimitivesLiteralsItem(
+            ctx,
+            scope,
+            "NumericNoSubtyping",
+            "no implicit numeric subtyping between integer and float widths",
+            "validated numeric non-subtyping rule",
+            "distinct-numeric-widths",
+            "evaluate explicit typed integer widths without implicit coercion",
+            "true",
+            "true",
+            "false",
+            move numeric_distinct_ok_with_log,
+            "numeric non-subtyping check failed"
+        )
+    }
+
+    if (item_index == 8) {
+        return RunPrimitivesLiteralsItem(
+            ctx,
+            scope,
+            "NeverTypeControlFlow",
+            "never type participation in unreachable branches and control-flow joins",
+            "validated never type control-flow behavior",
+            "never-control-flow-join",
+            "evaluate if-expression where one branch is never-typed and unreachable",
+            "1",
+            "1",
+            "not-1",
+            move never_ok_with_log,
+            "never type control-flow check failed"
+        )
+    }
+
+    if (item_index == 9) {
+        return RunPrimitivesLiteralsItem(
+            ctx,
+            scope,
+            "StringLiterals",
+            "string literal typing for string@View and argument compatibility checks",
+            "validated string literal typing",
+            "string-literal-typing",
+            "type string literals through procedure parameters requiring string@View",
+            "2",
+            "2",
+            "not-2",
+            move string_ok_with_log,
+            "string literal typing check failed"
+        )
+    }
+
+    if (item_index == 10) {
+        return RunPrimitivesLiteralsItem(
+            ctx,
+            scope,
+            "StringManagedStates",
+            "string@Managed conversion and string@Managed/string@View state interactions",
+            "validated managed string state typing",
+            "string-managed-state-typing",
+            "convert string@View to string@Managed, clone managed text, append data, and validate post-append length",
+            "1",
+            "1",
+            "not-1",
+            move string_managed_surface_ok_with_log,
+            "managed string state typing check failed"
+        )
+    }
+
+    if (item_index == 11) {
+        return RunPrimitivesLiteralsItem(
+            ctx,
+            scope,
+            "BytesViewStates",
+            "bytes@View construction and length operations from string-backed views",
+            "validated bytes view state typing",
+            "bytes-view-state-typing",
+            "convert string@View to bytes@View and validate bytes view operations",
+            "2",
+            "2",
+            "not-2",
+            move bytes_view_ok_with_log,
+            "bytes view state typing check failed"
+        )
+    }
+
+    if (item_index == 12) {
+        return RunPrimitivesLiteralsItem(
+            ctx,
+            scope,
+            "BytesManagedStates",
+            "bytes@Managed conversion and bytes@Managed/bytes@View state interactions",
+            "validated managed bytes state typing",
+            "bytes-managed-state-typing",
+            "convert bytes@View to bytes@Managed, construct managed bytes from [u8] slice, append bytes view data, and validate post-append length",
+            "1",
+            "1",
+            "not-1",
+            move bytes_managed_surface_ok_with_log,
+            "managed bytes state typing check failed"
+        )
+    }
+
+    return RunPrimitivesLiteralsItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown primitives/literals item",
+        "failed unknown primitives/literals item",
+        "item-resolution",
+        "resolve item name within primitives/literals feature set",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        move unknown_ok,
+        "unknown primitives/literals item"
+    )
+}
+
+procedure RunPrimitivesLiterals(ctx: Context) -> i32 {
+    let scope: string@View = "types::CoreSystem::PrimitivesLiterals"
+    let checkpoint: string@View = "covered primitives/literals feature items"
+
+    let status_SignedIntegers: i32 = VerifyPrimitivesLiteralsItem(ctx, scope, 0, "SignedIntegers")
+    if (status_SignedIntegers != 0) {
+        return status_SignedIntegers
+    }
+
+    let status_UnsignedIntegers: i32 = VerifyPrimitivesLiteralsItem(ctx, scope, 1, "UnsignedIntegers")
+    if (status_UnsignedIntegers != 0) {
+        return status_UnsignedIntegers
+    }
+
+    let status_FloatingPoint: i32 = VerifyPrimitivesLiteralsItem(ctx, scope, 2, "FloatingPoint")
+    if (status_FloatingPoint != 0) {
+        return status_FloatingPoint
+    }
+
+    let status_BoolAndChar: i32 = VerifyPrimitivesLiteralsItem(ctx, scope, 3, "BoolAndChar")
+    if (status_BoolAndChar != 0) {
+        return status_BoolAndChar
+    }
+
+    let status_UnitAndNever: i32 = VerifyPrimitivesLiteralsItem(ctx, scope, 4, "UnitAndNever")
+    if (status_UnitAndNever != 0) {
+        return status_UnitAndNever
+    }
+
+    let status_NullLiteral: i32 = VerifyPrimitivesLiteralsItem(ctx, scope, 5, "NullLiteral")
+    if (status_NullLiteral != 0) {
+        return status_NullLiteral
+    }
+
+    let status_SafePointerStates: i32 = VerifyPrimitivesLiteralsItem(ctx, scope, 6, "SafePointerStates")
+    if (status_SafePointerStates != 0) {
+        return status_SafePointerStates
+    }
+
+    let status_NumericNoSubtyping: i32 = VerifyPrimitivesLiteralsItem(ctx, scope, 7, "NumericNoSubtyping")
+    if (status_NumericNoSubtyping != 0) {
+        return status_NumericNoSubtyping
+    }
+
+    let status_NeverTypeControlFlow: i32 = VerifyPrimitivesLiteralsItem(ctx, scope, 8, "NeverTypeControlFlow")
+    if (status_NeverTypeControlFlow != 0) {
+        return status_NeverTypeControlFlow
+    }
+
+    let status_StringLiterals: i32 = VerifyPrimitivesLiteralsItem(ctx, scope, 9, "StringLiterals")
+    if (status_StringLiterals != 0) {
+        return status_StringLiterals
+    }
+
+    let status_StringManagedStates: i32 = VerifyPrimitivesLiteralsItem(ctx, scope, 10, "StringManagedStates")
+    if (status_StringManagedStates != 0) {
+        return status_StringManagedStates
+    }
+
+    let status_BytesViewStates: i32 = VerifyPrimitivesLiteralsItem(ctx, scope, 11, "BytesViewStates")
+    if (status_BytesViewStates != 0) {
+        return status_BytesViewStates
+    }
+
+    let status_BytesManagedStates: i32 = VerifyPrimitivesLiteralsItem(ctx, scope, 12, "BytesManagedStates")
+    if (status_BytesManagedStates != 0) {
+        return status_BytesManagedStates
+    }
+
+    [[log(label: "types-log-checkpoint")]]
+    return 0
+}

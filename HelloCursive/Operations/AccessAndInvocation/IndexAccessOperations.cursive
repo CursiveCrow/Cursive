@@ -1,0 +1,275 @@
+procedure LogIndexAccessObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+[[dynamic, mangle("hc_operations_index_access_catch"), export("C-unwind"), unwind("catch")]]
+public procedure IndexAccessCatch(index: usize) -> i32
+    |: true
+{
+    let values: [i32; 3] = [4, 7, 11]
+    return values[index]
+}
+
+extern "C" {
+    procedure hc_operations_index_access_catch(index: usize) -> i32
+}
+
+procedure IndexAccessMetricLabel(value: i32) -> string@View {
+    if (value == 6) {
+        return "6"
+    }
+    if (value == 9) {
+        return "9"
+    }
+    if (value == 14) {
+        return "14"
+    }
+    if (value == 16) {
+        return "16"
+    }
+    return "other"
+}
+
+[[dynamic]]
+procedure IndexAccessDynamicArrayMetric() -> i32
+    |: true
+{
+    var dynamic_probe: [i32; 3] = [2, 4, 6]
+    let idx: usize = 1usize
+    dynamic_probe[idx] = dynamic_probe[idx] + 12
+    return dynamic_probe[idx]
+}
+
+procedure RunIndexAccessOperationsItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    let detail_begin: string@View = "operation feature item exercise start"
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyIndexAccessOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    let array_probe: [i32; 4] = [2, 4, 6, 8]
+    let matrix_left: [i32; 2] = [1, 2]
+    let matrix_right: [i32; 2] = [3, 4]
+    LogIndexAccessObject(ctx.fs, scope, "array_probe", "[i32;4]", "constructed", "fixed-size array for index-access probes prepared")
+    LogIndexAccessObject(ctx.fs, scope, "matrix_left", "[i32;2]", "constructed", "left array for chained index probes prepared")
+    LogIndexAccessObject(ctx.fs, scope, "matrix_right", "[i32;2]", "constructed", "right array for chained index probes prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let index_syntax_metric: i32 = array_probe[0] + array_probe[1]
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let index_static_metric: i32 = array_probe[2] + array_probe[3]
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let index_runtime_metric: i32 = matrix_left[1] + matrix_right[0] + array_probe[1]
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let observed_syntax_step: string@View = "observed-index-access-syntax-metric"
+    let observed_static_step: string@View = "observed-index-access-static-metric"
+    let observed_runtime_step: string@View = "observed-index-access-runtime-metric"
+    let expected_syntax: string@View = "6"
+    let expected_static: string@View = "14"
+    let expected_runtime: string@View = "9"
+    let syntax_label: string@View = IndexAccessMetricLabel(index_syntax_metric)
+    let static_label: string@View = IndexAccessMetricLabel(index_static_metric)
+    let runtime_label: string@View = IndexAccessMetricLabel(index_runtime_metric)
+    let dynamic_index_metric: i32 = IndexAccessDynamicArrayMetric()
+    let dynamic_label: string@View = IndexAccessMetricLabel(dynamic_index_metric)
+    let catch_in_bounds_metric: i32 = unsafe {
+        hc_operations_index_access_catch(2usize)
+    }
+    let catch_oob_metric: i32 = unsafe {
+        hc_operations_index_access_catch(9usize)
+    }
+    let syntax_passed: bool = index_syntax_metric == 6
+    let static_passed: bool = index_static_metric == 14
+    let runtime_passed: bool = index_runtime_metric == 9
+    let dynamic_passed: bool = dynamic_index_metric == 16
+
+    let syntax_passed_log_actual = [[log(label: "observed-index-access-syntax-metric", expected: "6")]] syntax_label
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == syntax_label)
+    let static_passed_log_actual = [[log(label: "observed-index-access-static-metric", expected: "14")]] static_label
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == static_label)
+    let runtime_passed_log_actual = [[log(label: "observed-index-access-runtime-metric", expected: "9")]] runtime_label
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
+    let dynamic_passed_log_actual = [[log(label: "observed-index-access-dynamic-metric", expected: "16")]] dynamic_label
+    let dynamic_passed_with_log: bool = dynamic_passed && (dynamic_passed_log_actual == dynamic_label)
+    let catch_in_bounds_metric_log: i32 =
+        [[log(label: "observed-index-access-catch-in-bounds-metric", expected: 11)]]
+        catch_in_bounds_metric
+    let catch_oob_metric_log: i32 =
+        [[log(label: "observed-index-access-catch-oob-metric", expected: 0)]]
+        catch_oob_metric
+    let catch_in_bounds_passed: bool = catch_in_bounds_metric_log == 11
+    let catch_oob_passed: bool = catch_oob_metric_log == 0
+    let catch_passed: bool = catch_in_bounds_passed && catch_oob_passed
+    let catch_passed_with_log: bool =
+        [[log(label: "observed-index-access-catch-bounds", expected: true)]]
+        catch_passed
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunIndexAccessOperationsItem(
+            ctx,
+            scope,
+            "IndexAccessOperationsSyntaxForms",
+            "array index postfix syntax forms and parse boundaries",
+            "validated index-access syntax forms",
+            "index-access-syntax",
+            "parse and evaluate basic array index postfix expressions",
+            "6",
+            "6",
+            "not-6",
+            move syntax_passed_with_log,
+            "index-access syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunIndexAccessOperationsItem(
+            ctx,
+            scope,
+            "IndexAccessOperationsStaticSemantics",
+            "array index typing over indexable operands and element type recovery",
+            "validated index-access static semantics",
+            "index-access-static",
+            "type-check indexed array expressions and composed element arithmetic",
+            "14",
+            "14",
+            "not-14",
+            move static_passed_with_log,
+            "index-access static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunIndexAccessOperationsItem(
+            ctx,
+            scope,
+            "IndexAccessOperationsRuntimeDiagnostics",
+            "runtime index evaluation across nested index chains",
+            "validated index-access runtime behavior and diagnostics",
+            "index-access-runtime",
+            "execute nested index path and verify runtime aggregate",
+            "9",
+            "9",
+            "not-9",
+            move runtime_passed_with_log,
+            "index-access runtime diagnostics check failed"
+        )
+    }
+
+    if (item_index == 3) {
+        return RunIndexAccessOperationsItem(
+            ctx,
+            scope,
+            "IndexAccessOperationsDynamicContext",
+            "dynamic array indexing accepts non-constant usize indices and preserves observable element updates",
+            "validated index-access dynamic-context semantics",
+            "index-access-dynamic",
+            "execute non-constant array indexing inside [[dynamic]] scope",
+            "16",
+            "16",
+            "not-16",
+            move dynamic_passed_with_log,
+            "index-access dynamic-context check failed"
+        )
+    }
+
+    if (item_index == 4) {
+        return RunIndexAccessOperationsItem(
+            ctx,
+            scope,
+            "IndexAccessOperationsRuntimePanicSurface",
+            "direct array indexing returns the selected element in-bounds and propagates out-of-bounds through the runtime panic boundary",
+            "validated index-access EvalSigma success and panic behavior",
+            "index-access-runtime-panic-surface",
+            "execute direct array indexing through a catch boundary for in-bounds and out-of-bounds indices",
+            "known-bounds-surface",
+            "known-bounds-surface",
+            "unknown-bounds-surface",
+            move catch_passed_with_log,
+            "index-access runtime panic surface check failed"
+        )
+    }
+
+    return RunIndexAccessOperationsItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown index-access operation item",
+        "failed unknown index-access operation item",
+        "item-resolution",
+        "resolve index-access operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown index-access operation item"
+    )
+}
+
+procedure RunIndexAccessOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::AccessAndInvocation::IndexAccessOperations"
+    let checkpoint: string@View = "covered index access operations operation items"
+
+    let status_syntax: i32 = VerifyIndexAccessOperationsItem(ctx, scope, 0, "IndexAccessOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyIndexAccessOperationsItem(ctx, scope, 1, "IndexAccessOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyIndexAccessOperationsItem(ctx, scope, 2, "IndexAccessOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    let status_dynamic: i32 = VerifyIndexAccessOperationsItem(ctx, scope, 3, "IndexAccessOperationsDynamicContext")
+    if (status_dynamic != 0) {
+        return status_dynamic
+    }
+
+    let status_runtime_panic: i32 = VerifyIndexAccessOperationsItem(ctx, scope, 4, "IndexAccessOperationsRuntimePanicSurface")
+    if (status_runtime_panic != 0) {
+        return status_runtime_panic
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

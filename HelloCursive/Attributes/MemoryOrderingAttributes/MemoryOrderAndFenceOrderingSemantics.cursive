@@ -1,0 +1,45 @@
+procedure MemoryOrderAndFenceOrderingSemanticsMetricLabel(value: i32) -> string@View {
+    if (value == 53) {
+        return "53"
+    }
+    return "other"
+}
+
+public procedure RunMemoryOrderAndFenceOrderingSemantics(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    var fence_metric: i32 = 0
+    fence(acquire)
+    fence_metric = fence_metric + 2
+    fence(release)
+    fence_metric = fence_metric + 3
+    fence(seqcst)
+    fence_metric = fence_metric + 5
+
+    var seq_slot: shared i32 = 9
+    var seq_read: i32 = 0
+    # seq_slot read {
+        let seq_snapshot: i32 = [[seqcst]] seq_slot
+        seq_read = seq_snapshot
+    }
+
+    let fence_metric_log: i32 = [[log(label: "observed-attributes-memory-fence-metric", expected: 10)]] fence_metric
+    let seq_read_log: i32 = [[log(label: "observed-attributes-memory-seqcst-read", expected: 9)]] seq_read
+
+    let atr_053: string@View = [[log(label: "attributes-memory-order-feature-053", expected: "ATR-053")]] "ATR-053"
+
+    let runtime_ok: bool = (fence_metric_log == 10) && (seq_read_log == 9) && (atr_053 == "ATR-053")
+    let runtime_ok_log: bool = [[log(label: "attributes-memory-fence-ordering-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 53 } else { 0 }
+    let metric_label: string@View = MemoryOrderAndFenceOrderingSemanticsMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-attributes-memory-order-fence-ordering-metric", expected: "53")]] metric_label
+    if (metric_log_actual != "53") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}

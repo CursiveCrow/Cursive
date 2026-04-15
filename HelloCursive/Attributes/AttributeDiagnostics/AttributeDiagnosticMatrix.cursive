@@ -1,0 +1,48 @@
+procedure AttributeDiagnosticMatrixMetricLabel(value: i32) -> string@View {
+    if (value == 90) {
+        return "90"
+    }
+    return "other"
+}
+
+public procedure RunAttributeDiagnosticMatrix(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    let e2450: string@View = [[log(label: "attributes-diagnostic-2450", expected: "E-MOD-2450")]] "E-MOD-2450"
+    let e2451: string@View = [[log(label: "attributes-diagnostic-2451", expected: "E-MOD-2451")]] "E-MOD-2451"
+    let e2452: string@View = [[log(label: "attributes-diagnostic-2452", expected: "E-MOD-2452")]] "E-MOD-2452"
+    let e2453: string@View = [[log(label: "attributes-diagnostic-2453", expected: "E-MOD-2453")]] "E-MOD-2453"
+    let e2454: string@View = [[log(label: "attributes-diagnostic-2454", expected: "E-MOD-2454")]] "E-MOD-2454"
+    let e2455: string@View = [[log(label: "attributes-diagnostic-2455", expected: "E-MOD-2455")]] "E-MOD-2455"
+    let e2456: string@View = [[log(label: "attributes-diagnostic-2456", expected: "E-MOD-2456")]] "E-MOD-2456"
+    let e2457: string@View = [[log(label: "attributes-diagnostic-2457", expected: "E-MOD-2457")]] "E-MOD-2457"
+    let e2458: string@View = [[log(label: "attributes-diagnostic-2458", expected: "E-MOD-2458")]] "E-MOD-2458"
+    let e2459: string@View = [[log(label: "attributes-diagnostic-2459", expected: "E-MOD-2459")]] "E-MOD-2459"
+
+    let e0410: string@View = [[log(label: "attributes-diagnostic-0410", expected: "E-CON-0410")]] "E-CON-0410"
+    let e0411: string@View = [[log(label: "attributes-diagnostic-0411", expected: "E-CON-0411")]] "E-CON-0411"
+    let e0412: string@View = [[log(label: "attributes-diagnostic-0412", expected: "E-CON-0412")]] "E-CON-0412"
+    let e0096: string@View = [[log(label: "attributes-diagnostic-0096", expected: "E-CON-0096")]] "E-CON-0096"
+
+    let runtime_ok: bool =
+        (e2450 == "E-MOD-2450") && (e2451 == "E-MOD-2451") && (e2452 == "E-MOD-2452") &&
+        (e2453 == "E-MOD-2453") && (e2454 == "E-MOD-2454") && (e2455 == "E-MOD-2455") &&
+        (e2456 == "E-MOD-2456") && (e2457 == "E-MOD-2457") && (e2458 == "E-MOD-2458") &&
+        (e2459 == "E-MOD-2459") &&
+        (e0410 == "E-CON-0410") && (e0411 == "E-CON-0411") && (e0412 == "E-CON-0412") &&
+        (e0096 == "E-CON-0096")
+    let runtime_ok_log: bool = [[log(label: "attributes-diagnostic-matrix-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 90 } else { 0 }
+    let metric_label: string@View = AttributeDiagnosticMatrixMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-attributes-diagnostic-matrix-metric", expected: "90")]] metric_label
+    if (metric_log_actual != "90") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}
+

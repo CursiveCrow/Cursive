@@ -1,0 +1,30 @@
+public procedure RunGroup(ctx: Context) -> i32 {
+    [[log(label: "permissions-log-section_start", expected: "section-start")]] "section-start"
+
+    let status_syntax: i32 = RunPermissionSyntaxAndDefaults(ctx)
+    if (status_syntax != 0) {
+        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        return status_syntax
+    }
+
+    let status_lattice: i32 = RunPermissionLatticeAndSubtyping(ctx)
+    if (status_lattice != 0) {
+        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        return status_lattice
+    }
+
+    let status_coercion: i32 = RunPermissionCoercionRules(ctx)
+    if (status_coercion != 0) {
+        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        return status_coercion
+    }
+
+    let status_soundness: i32 = RunPermissionSoundnessInvariants(ctx)
+    if (status_soundness != 0) {
+        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        return status_soundness
+    }
+
+    [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+    return 0
+}

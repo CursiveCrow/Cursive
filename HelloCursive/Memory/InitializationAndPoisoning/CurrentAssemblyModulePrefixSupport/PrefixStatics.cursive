@@ -1,0 +1,15 @@
+procedure CurrentAssemblyPrefixBase() -> i32 {
+    return 11
+}
+
+public let CurrentAssemblyPrefixSupportSeed: i32 = CurrentAssemblyPrefixBase()
+public let CurrentAssemblyPrefixSupportMetric: i32 =
+    CurrentAssemblyPrefixSupportSeed + 5
+
+public procedure ReadCurrentAssemblyPrefixSeed() -> i32 {
+    return CurrentAssemblyPrefixSupportSeed
+}
+
+public procedure ReadCurrentAssemblyPrefixMetric() -> i32 {
+    return CurrentAssemblyPrefixSupportMetric
+}

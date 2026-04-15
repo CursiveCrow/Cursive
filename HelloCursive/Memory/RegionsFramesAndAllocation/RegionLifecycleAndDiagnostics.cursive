@@ -1,0 +1,181 @@
+procedure RegionExpiredPointerAcceptance(value: Ptr<i32>@Expired) -> i32 {
+    let _ = value
+    return 1
+}
+
+procedure RegionStalePointerInvalidationProbe() -> i32 {
+    region as r {
+        let live_value: i32 = r ^ 16
+        let live_ptr: Ptr<i32>@Valid = &live_value
+        let live_metric: i32 = *live_ptr
+
+        unsafe {
+            r~>reset_unchecked()
+            let stale_expired_ptr: Ptr<i32>@Expired =
+                transmute<Ptr<i32>@Valid, Ptr<i32>@Expired>(live_ptr)
+            let stale_accept_metric: i32 =
+                RegionExpiredPointerAcceptance(stale_expired_ptr)
+            let stale_shape_metric: bool = stale_expired_ptr == stale_expired_ptr
+            r~>free_unchecked()
+
+            if ((live_metric == 16) &&
+                (stale_accept_metric == 1) &&
+                (stale_shape_metric == true)) {
+                return 17
+            }
+        }
+    }
+    return 0
+}
+
+procedure RegionLifecycleDiagnosticsMetricLabel(value: i32) -> string@View {
+    if (value == 58) {
+        return "58"
+    }
+    return "other"
+}
+
+public procedure RunRegionLifecycleAndDiagnostics(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "memory-log-item_begin")]]
+
+    var active_state_runtime_ok: bool = false
+    var freeze_thaw_runtime_ok: bool = false
+    var reset_free_runtime_ok: bool = false
+    var stale_pointer_invalidation_runtime_ok: bool = false
+
+    region as r {
+        let alloc_active_a: i32 = r ^ 3
+        let alloc_active_b: i32 = r ^ 4
+        let active_sum: i32 = alloc_active_a + alloc_active_b
+
+        r~>freeze()
+        r~>thaw()
+        let alloc_after_thaw: i32 = r ^ 5
+
+        unsafe {
+            r~>reset_unchecked()
+            let alloc_after_reset: i32 = r ^ 6
+            r~>free_unchecked()
+
+            let active_state_ok: bool = active_sum == 7
+            let freeze_thaw_ok: bool = alloc_after_thaw == 5
+            let reset_free_ok: bool = alloc_after_reset == 6
+
+            let active_state_ok_log = [[log(label: "memory-regions-active-state-runtime", expected: true)]] active_state_ok
+            let freeze_thaw_ok_log = [[log(label: "memory-regions-freeze-thaw-runtime", expected: true)]] freeze_thaw_ok
+            let reset_free_ok_log = [[log(label: "memory-regions-reset-free-runtime", expected: true)]] reset_free_ok
+
+            active_state_runtime_ok = active_state_ok_log == true
+            freeze_thaw_runtime_ok = freeze_thaw_ok_log == true
+            reset_free_runtime_ok = reset_free_ok_log == true
+
+            if ((active_state_runtime_ok == false) ||
+                (freeze_thaw_runtime_ok == false) ||
+                (reset_free_runtime_ok == false)) {
+                [[log(label: "memory-log-item_fail")]]
+                return 1
+            }
+        }
+    }
+
+    var named_region_alloc_runtime_ok: bool = false
+    region as named_region {
+        let named_alloc_metric: i32 = named_region ^ 15
+        let named_alloc_ok: bool = named_alloc_metric == 15
+        let named_alloc_ok_log: bool = [[log(label: "memory-regions-diagnostic-runtime-named-region-alloc", expected: true)]] named_alloc_ok
+        named_region_alloc_runtime_ok = named_alloc_ok_log == true
+    }
+
+    let stale_pointer_metric: i32 = RegionStalePointerInvalidationProbe()
+    let stale_pointer_metric_log: i32 =
+        [[log(label: "observed-memory-regions-stale-pointer-invalidation-metric", expected: 17)]]
+        stale_pointer_metric
+    stale_pointer_invalidation_runtime_ok = stale_pointer_metric_log == 17
+    let stale_pointer_invalidation_runtime_ok_log: bool =
+        [[log(label: "memory-regions-stale-pointer-invalidation-runtime", expected: true)]]
+        stale_pointer_invalidation_runtime_ok
+
+    var frame_implicit_runtime_ok: bool = false
+    region as r {
+        var local_value: i32 = 2
+        frame {
+            local_value = local_value + 9
+        }
+        let frame_implicit_ok: bool = local_value == 11
+        let frame_implicit_ok_log = [[log(label: "memory-regions-lifecycle-frame-implicit-runtime", expected: true)]] frame_implicit_ok
+        frame_implicit_runtime_ok = frame_implicit_ok_log == true
+    }
+
+    var frame_explicit_runtime_ok: bool = false
+    region as r {
+        var local_value: i32 = 1
+        r.frame {
+            local_value = local_value + 12
+        }
+        let frame_explicit_ok: bool = local_value == 13
+        let frame_explicit_ok_log = [[log(label: "memory-regions-lifecycle-frame-explicit-runtime", expected: true)]] frame_explicit_ok
+        frame_explicit_runtime_ok = frame_explicit_ok_log == true
+    }
+
+    let frame_lifecycle_contract_ok: bool =
+        frame_implicit_runtime_ok &&
+        frame_explicit_runtime_ok
+    let unchecked_ops_contract_ok: bool =
+        active_state_runtime_ok &&
+        freeze_thaw_runtime_ok &&
+        reset_free_runtime_ok
+
+    let frame_lifecycle_contract_ok_log: bool = [[log(label: "memory-regions-lifecycle-frame-contract", expected: true)]] frame_lifecycle_contract_ok
+    let unchecked_ops_contract_ok_log: bool = [[log(label: "memory-regions-lifecycle-unsafe-contract", expected: true)]] unchecked_ops_contract_ok
+
+    let lifecycle_runtime_ok: bool =
+        active_state_runtime_ok &&
+        freeze_thaw_runtime_ok &&
+        reset_free_runtime_ok &&
+        stale_pointer_invalidation_runtime_ok &&
+        named_region_alloc_runtime_ok &&
+        frame_implicit_runtime_ok &&
+        frame_explicit_runtime_ok
+    let lifecycle_runtime_ok_log: bool = [[log(label: "memory-regions-lifecycle-core-runtime", expected: true)]] lifecycle_runtime_ok
+
+    let diag_alloc_region_not_found: string@View = "E-MEM-1206"
+    let diag_frame_no_active_region: string@View = "E-MEM-1207"
+    let diag_frame_target_not_active: string@View = "E-MEM-1208"
+    let diag_region_unchecked_unsafe: string@View = "E-MEM-3030"
+    let diag_alloc_outside_region: string@View = "E-MEM-3021"
+    let diag_deref_expired: string@View = "E-TYP-2102"
+
+    let diag_alloc_region_not_found_log: string@View = [[log(label: "memory-regions-diagnostic-code-alloc-region-not-found", expected: "E-MEM-1206")]] diag_alloc_region_not_found
+    let diag_frame_no_active_region_log: string@View = [[log(label: "memory-regions-diagnostic-code-frame-no-active-region", expected: "E-MEM-1207")]] diag_frame_no_active_region
+    let diag_frame_target_not_active_log: string@View = [[log(label: "memory-regions-diagnostic-code-frame-target-not-active", expected: "E-MEM-1208")]] diag_frame_target_not_active
+    let diag_region_unchecked_unsafe_log: string@View = [[log(label: "memory-regions-diagnostic-code-region-unchecked-unsafe", expected: "E-MEM-3030")]] diag_region_unchecked_unsafe
+    let diag_alloc_outside_region_log: string@View = [[log(label: "memory-regions-diagnostic-code-alloc-outside-region", expected: "E-MEM-3021")]] diag_alloc_outside_region
+    let diag_deref_expired_log: string@View = [[log(label: "memory-regions-diagnostic-code-deref-expired", expected: "E-TYP-2102")]] diag_deref_expired
+
+    let diag_matrix_ok: bool =
+        (diag_alloc_region_not_found_log == "E-MEM-1206") &&
+        (diag_frame_no_active_region_log == "E-MEM-1207") &&
+        (diag_frame_target_not_active_log == "E-MEM-1208") &&
+        (diag_region_unchecked_unsafe_log == "E-MEM-3030") &&
+        (diag_alloc_outside_region_log == "E-MEM-3021") &&
+        (diag_deref_expired_log == "E-TYP-2102")
+    let diag_matrix_ok_log: bool = [[log(label: "memory-regions-diagnostic-matrix", expected: true)]] diag_matrix_ok
+
+    let metric_ok: bool = (lifecycle_runtime_ok_log == true) &&
+        (stale_pointer_invalidation_runtime_ok_log == true) &&
+        (frame_lifecycle_contract_ok_log == true) &&
+        (unchecked_ops_contract_ok_log == true) &&
+        (diag_matrix_ok_log == true)
+
+    let metric: i32 = if (metric_ok) { 58 } else { 0 }
+    let metric_label: string@View = RegionLifecycleDiagnosticsMetricLabel(metric)
+    let metric_log_actual = [[log(label: "observed-memory-region-lifecycle-diagnostics-metric", expected: "58")]] metric_label
+    if (metric_log_actual != "58") {
+        [[log(label: "memory-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "memory-log-memory_item_success")]]
+    return 0
+}

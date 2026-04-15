@@ -1,0 +1,99 @@
+[[mangle("hc_attributes_foreign_assume_mode_impl"), export("C-unwind")]]
+public procedure AttributesForeignAssumeModeImpl(value: i32) -> i32 {
+    return value + 4
+}
+
+extern "C" {
+    [[trust]]
+    procedure hc_attributes_foreign_assume_mode_impl(value: i32) -> i32
+        |: @foreign_assumes(value >= 0)
+}
+
+[[mangle("hc_attributes_foreign_assume_mode_dynamic_impl"), export("C-unwind")]]
+public procedure AttributesForeignAssumeModeDynamicImpl(value: i32) -> i32 {
+    return value + 4
+}
+
+extern "C" {
+    [[dynamic]]
+    procedure hc_attributes_foreign_assume_mode_dynamic_impl(value: i32) -> i32
+        |: @foreign_assumes(value >= 0)
+}
+
+[[mangle("hc_attributes_foreign_assume_mode_dynamic_catch"), export("C-unwind"), unwind("catch")]]
+public procedure AttributesForeignAssumeModeDynamicCatch() -> i32 {
+    let _panic: i32 = unsafe {
+        hc_attributes_foreign_assume_mode_dynamic_impl(-7)
+    }
+    return _panic
+}
+
+extern "C" {
+    procedure hc_attributes_foreign_assume_mode_dynamic_catch() -> i32
+}
+
+procedure AssumeModeSemanticsMetricLabel(value: i32) -> string@View {
+    if (value == 67) {
+        return "67"
+    }
+    return "other"
+}
+
+public procedure RunAssumeModeSemantics(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    let expected_assume_value: i32 = 0 - 3
+    let assume_value: i32 = unsafe { hc_attributes_foreign_assume_mode_impl(-7) }
+    let dynamic_panic_catch_metric: i32 = unsafe {
+        hc_attributes_foreign_assume_mode_dynamic_catch()
+    }
+
+    let assume_value_log: i32 =
+        [[log(label: "observed-attributes-foreign-assume-mode-value", expected: expected_assume_value)]]
+        assume_value
+    let dynamic_panic_catch_metric_log: i32 =
+        [[log(label: "observed-attributes-foreign-assume-mode-dynamic-catch", expected: 0)]]
+        dynamic_panic_catch_metric
+
+    let assume_marker: string@View =
+        [[log(label: "attributes-foreign-assume-mode-marker", expected: "[[trust]]")]]
+        "[[trust]]"
+    let atr_067: string@View =
+        [[log(label: "attributes-ffi-feature-067", expected: "ATR-067")]]
+        "ATR-067"
+
+    let assume_skips_runtime_check: bool = assume_value_log == expected_assume_value
+    let dynamic_enforces_runtime_check: bool = dynamic_panic_catch_metric_log == 0
+    let assume_skips_runtime_check_log: bool =
+        [[log(label: "attributes-foreign-assume-mode-assume-runtime-check", expected: true)]]
+        assume_skips_runtime_check
+    let dynamic_enforces_runtime_check_log: bool =
+        [[log(label: "attributes-foreign-assume-mode-dynamic-runtime-check", expected: true)]]
+        dynamic_enforces_runtime_check
+
+    let runtime_ok: bool =
+        (assume_value_log == expected_assume_value) &&
+        (dynamic_panic_catch_metric_log == 0) &&
+        (assume_marker == "[[trust]]") &&
+        (assume_skips_runtime_check_log == true) &&
+        (dynamic_enforces_runtime_check_log == true) &&
+        (atr_067 == "ATR-067")
+    let runtime_ok_log: bool =
+        [[log(label: "attributes-ffi-assume-mode-semantics-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 67 } else { 0 }
+    let metric_label: string@View = AssumeModeSemanticsMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-attributes-assume-mode-semantics-metric", expected: "67")]]
+        metric_label
+    if (metric_log_actual != "67") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}
+

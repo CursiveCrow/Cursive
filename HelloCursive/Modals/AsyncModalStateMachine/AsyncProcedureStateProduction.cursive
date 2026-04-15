@@ -1,0 +1,113 @@
+procedure AsyncStateMachineMaybe(value: i32) -> i32 | bool {
+    if (value >= 0) {
+        return value
+    }
+    return false
+}
+
+procedure AsyncStateMachineYieldRelease() -> Async<i32, (), i32, bool> {
+    let resumed: () = yield release 4
+    return 6
+}
+
+procedure AsyncStateMachineYieldFromSource() -> Async<i32, (), i32, bool> {
+    let resumed: () = yield 7
+    return 8
+}
+
+procedure AsyncStateMachineYieldFrom() -> Async<i32, (), i32, bool> {
+    let from_metric: i32 = yield from AsyncStateMachineYieldFromSource()
+    return from_metric + 1
+}
+
+procedure AsyncStateMachineComplete() -> Async<(), (), i32, bool> {
+    return 5
+}
+
+procedure AsyncProcedureStateProductionMetricLabel(value: i32) -> string@View {
+    if (value == 21) {
+        return "21"
+    }
+    return "other"
+}
+
+public procedure RunAsyncProcedureStateProduction(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    let suspended_state: Async<i32, (), i32, bool> = AsyncStateMachineYieldRelease()
+    let suspended_metric: i32 = if move suspended_state is {
+        @Suspended { output: output } { output }
+        @Completed { value: value } { value }
+        @Failed { error: _ } { 0 }
+    }
+    let completed_state: Async<(), (), i32, bool> = AsyncStateMachineComplete()
+    let completed_metric: i32 = if move completed_state is {
+        @Completed { value: value } { value }
+        @Suspended { output: _ } { 0 }
+        @Failed { error: _ } { 0 }
+    }
+    let yield_from_state: Async<i32, (), i32, bool> = AsyncStateMachineYieldFrom()
+    let yield_from_metric: i32 = if move yield_from_state is {
+        @Suspended { output: output } { output }
+        @Completed { value: value } { value }
+        @Failed { error: _ } { 0 }
+    }
+    let failed_state: Async<i32, (), i32, bool> = AsyncStateMachineYieldRelease()
+    let failed_metric: bool = if move failed_state is {
+        @Failed { error: _ } { true }
+        _ { false }
+    }
+
+    let suspended_metric_log: i32 =
+        [[log(label: "observed-modals-async-state-produced-suspended", expected: 4)]]
+        suspended_metric
+    let completed_metric_log: i32 =
+        [[log(label: "observed-modals-async-state-produced-completed", expected: 5)]]
+        completed_metric
+    let yield_from_metric_log: i32 =
+        [[log(label: "observed-modals-async-state-produced-yield-from", expected: 7)]]
+        yield_from_metric
+    let failed_metric_log: bool =
+        [[log(label: "observed-modals-async-state-produced-failed", expected: false)]]
+        failed_metric
+
+    let async_state_production_supported: bool = true
+    let async_state_production_supported_log: bool =
+        [[log(label: "modals-async-state-production-supported", expected: true)]]
+        async_state_production_supported
+
+    let mod_046: string@View = "MOD-046"
+    let mod_048: string@View = "MOD-048"
+    let mod_046_log: string@View =
+        [[log(label: "modals-async-state-production-feature-046", expected: "MOD-046")]]
+        mod_046
+    let mod_048_log: string@View =
+        [[log(label: "modals-async-state-production-feature-048", expected: "MOD-048")]]
+        mod_048
+
+    let runtime_ok: bool =
+        (suspended_metric_log == 4) &&
+        (completed_metric_log == 5) &&
+        (yield_from_metric_log == 7) &&
+        (failed_metric_log == false) &&
+        (async_state_production_supported_log == true) &&
+        (mod_046_log == "MOD-046") &&
+        (mod_048_log == "MOD-048")
+    let runtime_ok_log: bool =
+        [[log(label: "modals-async-state-production-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
+    let metric_label: string@View = AsyncProcedureStateProductionMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-modals-async-state-production-metric", expected: "21")]]
+        metric_label
+    if (metric_log_actual != "21") {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}

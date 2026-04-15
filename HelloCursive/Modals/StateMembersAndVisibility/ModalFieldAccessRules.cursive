@@ -1,0 +1,85 @@
+modal ModalFieldAccessProbe {
+    @Ready {
+        value: i32
+        scale: i32
+    }
+    @Idle {
+        code: i32
+    }
+}
+
+procedure ModalFieldAccessRulesMetricLabel(value: i32) -> string@View {
+    if (value == 34) {
+        return "34"
+    }
+    return "other"
+}
+
+public procedure RunModalFieldAccessRules(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    let ready_state: ModalFieldAccessProbe@Ready =
+        ModalFieldAccessProbe@Ready { value: 3, scale: 4 }
+    let ready_field_metric: i32 = ready_state.value * ready_state.scale
+    let ready_general: ModalFieldAccessProbe = widen(ready_state)
+
+    let narrowed_field_metric: i32 = if ready_general is {
+        @Ready { value: value, scale: scale } { value + scale }
+        @Idle { code: code } { code }
+    }
+
+    let ready_field_metric_log: i32 =
+        [[log(label: "observed-modals-modal-field-access-state-specific", expected: 12)]]
+        ready_field_metric
+    let narrowed_field_metric_log: i32 =
+        [[log(label: "observed-modals-modal-field-access-narrowed", expected: 7)]]
+        narrowed_field_metric
+
+    let diag_missing: string@View = "E-TYP-2052"
+    let diag_general: string@View = "E-TYP-2057"
+    let diag_visibility: string@View = "E-TYP-2064"
+    let diag_missing_log: string@View =
+        [[log(label: "modals-state-members-field-missing-diagnostic", expected: "E-TYP-2052")]]
+        diag_missing
+    let diag_general_log: string@View =
+        [[log(label: "modals-state-members-field-general-diagnostic", expected: "E-TYP-2057")]]
+        diag_general
+    let diag_visibility_log: string@View =
+        [[log(label: "modals-state-members-field-visibility-diagnostic", expected: "E-TYP-2064")]]
+        diag_visibility
+
+    let mod_014: string@View = "MOD-014"
+    let mod_015: string@View = "MOD-015"
+    let mod_014_log: string@View =
+        [[log(label: "modals-state-members-field-access-feature-014", expected: "MOD-014")]]
+        mod_014
+    let mod_015_log: string@View =
+        [[log(label: "modals-state-members-field-access-feature-015", expected: "MOD-015")]]
+        mod_015
+
+    let runtime_ok: bool =
+        (ready_field_metric_log == 12) &&
+        (narrowed_field_metric_log == 7) &&
+        (diag_missing_log == "E-TYP-2052") &&
+        (diag_general_log == "E-TYP-2057") &&
+        (diag_visibility_log == "E-TYP-2064") &&
+        (mod_014_log == "MOD-014") &&
+        (mod_015_log == "MOD-015")
+    let runtime_ok_log: bool =
+        [[log(label: "modals-state-members-field-access-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 34 } else { 0 }
+    let metric_label: string@View = ModalFieldAccessRulesMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-modals-modal-field-access-metric", expected: "34")]]
+        metric_label
+    if (metric_log_actual != "34") {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}

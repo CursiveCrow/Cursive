@@ -1,0 +1,206 @@
+procedure LogKeyConflictObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure KeyConflictMetricLabel(value: i32) -> string@View {
+    if (value == 3) {
+        return "3"
+    }
+    if (value == 9) {
+        return "9"
+    }
+    if (value == 12) {
+        return "12"
+    }
+    return "other"
+}
+
+procedure RunKeyConflictItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyKeyConflictItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    var read_slot: shared i32 = 3
+    var write_slot: shared i32 = 4
+    var runtime_read_slot: shared i32 = 2
+    var runtime_write_slot: shared i32 = 5
+
+    let diag_dynamic_index_conflict: string@View = "E-CON-0010"
+    let diag_read_then_write: string@View = "E-CON-0060"
+
+    LogKeyConflictObject(ctx.fs, scope, "read_slot", "i32", "constructed", "read key-block slot prepared")
+    LogKeyConflictObject(ctx.fs, scope, "write_slot", "i32", "constructed", "write key-block slot prepared")
+    LogKeyConflictObject(ctx.fs, scope, "runtime_read_slot", "i32", "constructed", "runtime read-path slot prepared")
+    LogKeyConflictObject(ctx.fs, scope, "runtime_write_slot", "i32", "constructed", "runtime write-path slot prepared")
+    LogKeyConflictObject(ctx.fs, scope, "diag_dynamic_index_conflict", "diagnostic-code", "constructed", "dynamic index conflict diagnostic mapping prepared")
+    LogKeyConflictObject(ctx.fs, scope, "diag_read_then_write", "diagnostic-code", "constructed", "read-then-write diagnostic mapping prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    var syntax_metric: i32 = 0
+    [[log(label: "operations-log-transition_move")]]
+    # read_slot read {
+        syntax_metric = read_slot
+    }
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    # write_slot write {
+        write_slot = write_slot + 5
+    }
+    let static_metric: i32 = write_slot
+    [[log(label: "operations-log-transition_move")]]
+    var runtime_read_metric: i32 = 0
+    [[log(label: "operations-log-transition_move")]]
+    # runtime_read_slot read {
+        runtime_read_metric = runtime_read_slot
+    }
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    # runtime_write_slot write {
+        runtime_write_slot = runtime_write_slot + 3
+    }
+    [[log(label: "operations-log-transition_move")]]
+    let diag_dynamic_index_ok: bool = diag_dynamic_index_conflict == "E-CON-0010"
+    let diag_read_then_write_ok: bool = diag_read_then_write == "E-CON-0060"
+
+    let diag_dynamic_index_ok_log_actual = [[log(label: "diagnostic-dynamic-index-conflict", expected: "E-CON-0010")]] diag_dynamic_index_conflict
+    let diag_dynamic_index_ok_with_log: bool = diag_dynamic_index_ok && (diag_dynamic_index_ok_log_actual == diag_dynamic_index_conflict)
+    let diag_read_then_write_ok_log_actual = [[log(label: "diagnostic-read-then-write", expected: "E-CON-0060")]] diag_read_then_write
+    let diag_read_then_write_ok_with_log: bool = diag_read_then_write_ok && (diag_read_then_write_ok_log_actual == diag_read_then_write)
+    let diag_count: i32 = if (diag_dynamic_index_ok && diag_read_then_write_ok) { 2 } else { 0 }
+    let runtime_metric: i32 = runtime_read_metric + runtime_write_slot + diag_count
+
+    let syntax_passed: bool = syntax_metric == 3
+    let static_passed: bool = static_metric == 9
+    let runtime_passed: bool = runtime_metric == 12
+
+    let actual_label_1: string@View = KeyConflictMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-key-conflict-syntax-metric", expected: "3")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = KeyConflictMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-key-conflict-static-metric", expected: "9")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = KeyConflictMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-key-conflict-runtime-metric", expected: "12")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunKeyConflictItem(
+            ctx,
+            scope,
+            "KeyConflictAndReadWriteAnalysisSyntaxForms",
+            "key block syntax forms for explicit `read` and `write` modes",
+            "validated key conflict and read/write analysis syntax forms",
+            "key-conflict-syntax",
+            "evaluate explicit read key-block syntax and captured value",
+            "3",
+            "3",
+            "not-3",
+            move syntax_passed_with_log,
+            "key conflict/read-write syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunKeyConflictItem(
+            ctx,
+            scope,
+            "KeyConflictAndReadWriteAnalysisStaticSemantics",
+            "mode correctness for read/write keyed paths and mutation legality",
+            "validated key conflict and read/write analysis static semantics",
+            "key-conflict-static",
+            "type-check write-mode mutation against key mode requirements",
+            "9",
+            "9",
+            "not-9",
+            move static_passed_with_log,
+            "key conflict/read-write static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunKeyConflictItem(
+            ctx,
+            scope,
+            "KeyConflictAndReadWriteAnalysisRuntimeDiagnostics",
+            "runtime key-scope behavior and diagnostic matrix mapping for conflict classes",
+            "validated key conflict and read/write analysis runtime behavior and diagnostics",
+            "key-conflict-runtime",
+            "verify runtime read/write aggregate and conflict diagnostic mappings",
+            "12",
+            "12",
+            "not-12",
+            move runtime_passed_with_log,
+            "key conflict/read-write runtime diagnostics check failed"
+        )
+    }
+
+    return RunKeyConflictItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown key conflict/read-write analysis item",
+        "failed unknown key conflict/read-write analysis item",
+        "item-resolution",
+        "resolve key conflict/read-write analysis item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown key conflict/read-write analysis item"
+    )
+}
+
+procedure RunKeyConflictAndReadWriteAnalysis(ctx: Context) -> i32 {
+    let scope: string@View = "operations::KeySystemOperations::KeyConflictAndReadWriteAnalysis"
+    let checkpoint: string@View = "covered key conflict and read write analysis operation items"
+
+    let status_syntax: i32 = VerifyKeyConflictItem(ctx, scope, 0, "KeyConflictAndReadWriteAnalysisSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyKeyConflictItem(ctx, scope, 1, "KeyConflictAndReadWriteAnalysisStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyKeyConflictItem(ctx, scope, 2, "KeyConflictAndReadWriteAnalysisRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

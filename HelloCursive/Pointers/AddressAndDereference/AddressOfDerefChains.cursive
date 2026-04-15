@@ -1,0 +1,49 @@
+procedure AddressOfDerefChainsMetricLabel(value: i32) -> string@View {
+    if (value == 26) {
+        return "26"
+    }
+    return "other"
+}
+
+public procedure RunAddressOfDerefChains(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "pointers-log-item_begin")]]
+
+    var cell: i32 = 12
+
+    let safe_ptr: Ptr<i32>@Valid = &cell
+    let via_safe_chain: Ptr<i32>@Valid = &*safe_ptr
+    let safe_chain_metric: i32 = *via_safe_chain
+
+    let safe_for_raw_chain: Ptr<i32>@Valid = &cell
+    let raw_imm: *imm i32 =
+        unsafe { transmute<Ptr<i32>@Valid, *imm i32>(safe_for_raw_chain) }
+    let via_raw_chain: Ptr<const i32>@Valid = unsafe { &*raw_imm }
+    let raw_chain_metric: i32 = *via_raw_chain
+
+    let safe_chain_ok: bool = safe_chain_metric == 12
+    let raw_chain_ok: bool = raw_chain_metric == 12
+
+    let safe_chain_ok_log: bool =
+        [[log(label: "pointers-address-deref-chain-safe", expected: true)]]
+        safe_chain_ok
+    let raw_chain_ok_log: bool =
+        [[log(label: "pointers-address-deref-chain-raw", expected: true)]]
+        raw_chain_ok
+
+    let metric_ok: bool =
+        (safe_chain_ok_log == true) &&
+        (raw_chain_ok_log == true)
+    let metric: i32 = if (metric_ok) { 26 } else { 0 }
+    let metric_label: string@View = AddressOfDerefChainsMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-pointers-address-deref-chains-metric", expected: "26")]]
+        metric_label
+    if (metric_log_actual != "26") {
+        [[log(label: "pointers-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "pointers-log-item_success")]]
+    return 0
+}

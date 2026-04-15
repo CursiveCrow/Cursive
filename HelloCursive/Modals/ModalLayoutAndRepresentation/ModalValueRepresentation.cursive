@@ -1,0 +1,68 @@
+modal ModalValueRepresentationProbe {
+    @Left {
+        value: i32
+    }
+    @Right {
+        value: i32
+    }
+}
+
+procedure ModalValueRepresentationKind(value: ModalValueRepresentationProbe) -> string@View {
+    return if value is {
+        @Left { value: _ } { "left" }
+        @Right { value: _ } { "right" }
+    }
+}
+
+procedure ModalValueRepresentationMetricLabel(value: i32) -> string@View {
+    if (value == 2) {
+        return "2"
+    }
+    return "other"
+}
+
+public procedure RunModalValueRepresentation(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    let left_general: ModalValueRepresentationProbe =
+        widen(ModalValueRepresentationProbe@Left { value: 1 })
+    let right_general: ModalValueRepresentationProbe =
+        widen(ModalValueRepresentationProbe@Right { value: 2 })
+
+    let left_kind: string@View = ModalValueRepresentationKind(left_general)
+    let right_kind: string@View = ModalValueRepresentationKind(right_general)
+
+    let left_kind_log: string@View =
+        [[log(label: "observed-modals-value-representation-left", expected: "left")]]
+        left_kind
+    let right_kind_log: string@View =
+        [[log(label: "observed-modals-value-representation-right", expected: "right")]]
+        right_kind
+
+    let mod_057: string@View = "MOD-057"
+    let mod_057_log: string@View =
+        [[log(label: "modals-layout-value-representation-feature-057", expected: "MOD-057")]]
+        mod_057
+
+    let runtime_ok: bool =
+        (left_kind_log == "left") &&
+        (right_kind_log == "right") &&
+        (mod_057_log == "MOD-057")
+    let runtime_ok_log: bool =
+        [[log(label: "modals-layout-value-representation-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 2 } else { 0 }
+    let metric_label: string@View = ModalValueRepresentationMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-modals-value-representation-metric", expected: "2")]]
+        metric_label
+    if (metric_log_actual != "2") {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}

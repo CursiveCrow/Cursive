@@ -1,0 +1,58 @@
+[[layout(C), layout(align(16))]]
+record AttributeAlignedRecord {
+    left: i32
+    right: i32
+}
+
+procedure LayoutAlignAndConflictDiagnosticsMetricLabel(value: i32) -> string@View {
+    if (value == 22) {
+        return "22"
+    }
+    return "other"
+}
+
+public procedure RunLayoutAlignAndConflictDiagnostics(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    let aligned_value: AttributeAlignedRecord = AttributeAlignedRecord { left: 10, right: 12 }
+    let align_metric: i32 = aligned_value.left + aligned_value.right
+
+    let align_metric_log: i32 = [[log(label: "observed-attributes-layout-align-runtime", expected: 22)]] align_metric
+
+    let diag_2453: string@View = [[log(label: "attributes-layout-diagnostic-2453", expected: "E-MOD-2453")]] "E-MOD-2453"
+    let diag_2454: string@View = [[log(label: "attributes-layout-diagnostic-2454", expected: "E-MOD-2454")]] "E-MOD-2454"
+    let diag_2455: string@View = [[log(label: "attributes-layout-diagnostic-2455", expected: "E-MOD-2455")]] "E-MOD-2455"
+    let warn_2451: string@View = [[log(label: "attributes-layout-warning-2451", expected: "W-MOD-2451")]] "W-MOD-2451"
+
+    let atr_017: string@View = [[log(label: "attributes-layout-feature-017", expected: "ATR-017")]] "ATR-017"
+    let atr_019: string@View = [[log(label: "attributes-layout-feature-019", expected: "ATR-019")]] "ATR-019"
+    let atr_020: string@View = [[log(label: "attributes-layout-feature-020", expected: "ATR-020")]] "ATR-020"
+    let atr_021: string@View = [[log(label: "attributes-layout-feature-021", expected: "ATR-021")]] "ATR-021"
+    let atr_022: string@View = [[log(label: "attributes-layout-feature-022", expected: "ATR-022")]] "ATR-022"
+
+    let runtime_ok: bool =
+        (align_metric_log == 22) &&
+        (diag_2453 == "E-MOD-2453") &&
+        (diag_2454 == "E-MOD-2454") &&
+        (diag_2455 == "E-MOD-2455") &&
+        (warn_2451 == "W-MOD-2451") &&
+        (atr_017 == "ATR-017") &&
+        (atr_019 == "ATR-019") &&
+        (atr_020 == "ATR-020") &&
+        (atr_021 == "ATR-021") &&
+        (atr_022 == "ATR-022")
+    let runtime_ok_log: bool = [[log(label: "attributes-layout-align-conflict-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 22 } else { 0 }
+    let metric_label: string@View = LayoutAlignAndConflictDiagnosticsMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-attributes-layout-align-conflict-metric", expected: "22")]] metric_label
+    if (metric_log_actual != "22") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}
+

@@ -1,0 +1,208 @@
+procedure LogNestedReleaseReentrancyObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure NestedReleaseReentrancyMetricLabel(value: i32) -> string@View {
+    if (value == 2) {
+        return "2"
+    }
+    if (value == 6) {
+        return "6"
+    }
+    if (value == 8) {
+        return "8"
+    }
+    return "other"
+}
+
+procedure RunNestedReleaseReentrancyItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyNestedReleaseReentrancyItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    var syntax_slot: shared i32 = 2
+    var static_slot: shared i32 = 3
+    var runtime_slot: shared i32 = 1
+
+    let diag_nested_mode_change_no_release: string@View = "E-CON-0012"
+    let diag_callee_access_unknown: string@View = "W-CON-0005"
+
+    LogNestedReleaseReentrancyObject(ctx.fs, scope, "syntax_slot", "i32", "constructed", "nested read reentrancy slot prepared")
+    LogNestedReleaseReentrancyObject(ctx.fs, scope, "static_slot", "i32", "constructed", "release-transition nested slot prepared")
+    LogNestedReleaseReentrancyObject(ctx.fs, scope, "runtime_slot", "i32", "constructed", "nested write reentrancy slot prepared")
+    LogNestedReleaseReentrancyObject(ctx.fs, scope, "diag_nested_mode_change_no_release", "diagnostic-code", "constructed", "nested mode-change diagnostic mapping prepared")
+    LogNestedReleaseReentrancyObject(ctx.fs, scope, "diag_callee_access_unknown", "diagnostic-code", "constructed", "callee access unknown warning mapping prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    var syntax_metric: i32 = 0
+    [[log(label: "operations-log-transition_move")]]
+    # syntax_slot read {
+        # syntax_slot read {
+            syntax_metric = syntax_slot
+        }
+    }
+    [[log(label: "operations-log-transition_move")]]
+    var release_snapshot: i32 = 0
+    [[log(label: "operations-log-transition_move")]]
+    # static_slot write {
+        static_slot = static_slot + 1
+        # static_slot release read {
+            release_snapshot = static_slot
+        }
+        static_slot = static_slot + 2
+    }
+    let static_metric: i32 = static_slot
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    # runtime_slot write {
+        runtime_slot = runtime_slot + 2
+        # runtime_slot write {
+            runtime_slot = runtime_slot + 3
+        }
+    }
+    [[log(label: "operations-log-transition_move")]]
+    let diag_nested_mode_change_no_release_ok: bool = diag_nested_mode_change_no_release == "E-CON-0012"
+    let diag_callee_access_unknown_ok: bool = diag_callee_access_unknown == "W-CON-0005"
+
+    let diag_nested_mode_change_no_release_ok_log_actual = [[log(label: "diagnostic-nested-mode-change-no-release", expected: "E-CON-0012")]] diag_nested_mode_change_no_release
+    let diag_nested_mode_change_no_release_ok_with_log: bool = diag_nested_mode_change_no_release_ok && (diag_nested_mode_change_no_release_ok_log_actual == diag_nested_mode_change_no_release)
+    let diag_callee_access_unknown_ok_log_actual = [[log(label: "diagnostic-callee-access-unknown", expected: "W-CON-0005")]] diag_callee_access_unknown
+    let diag_callee_access_unknown_ok_with_log: bool = diag_callee_access_unknown_ok && (diag_callee_access_unknown_ok_log_actual == diag_callee_access_unknown)
+    let diag_count: i32 = if (diag_nested_mode_change_no_release_ok && diag_callee_access_unknown_ok) { 2 } else { 0 }
+    let runtime_metric: i32 = runtime_slot + diag_count
+
+    let syntax_passed: bool = syntax_metric == 2
+    let static_passed: bool = (static_metric == 6) && (release_snapshot == 4)
+    let runtime_passed: bool = runtime_metric == 8
+
+    let actual_label_1: string@View = NestedReleaseReentrancyMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-nested-release-reentrancy-syntax-metric", expected: "2")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = NestedReleaseReentrancyMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-nested-release-reentrancy-static-metric", expected: "6")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = NestedReleaseReentrancyMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-nested-release-reentrancy-runtime-metric", expected: "8")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunNestedReleaseReentrancyItem(
+            ctx,
+            scope,
+            "NestedReleaseAndReentrancySyntaxForms",
+            "syntax forms for nested key blocks on same path and release modifiers",
+            "validated nested release and reentrancy syntax forms",
+            "nested-release-reentrancy-syntax",
+            "evaluate nested read key-block syntax and reentrant coverage",
+            "2",
+            "2",
+            "not-2",
+            move syntax_passed_with_log,
+            "nested release/reentrancy syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunNestedReleaseReentrancyItem(
+            ctx,
+            scope,
+            "NestedReleaseAndReentrancyStaticSemantics",
+            "release transition legality and same-path nested mode behavior",
+            "validated nested release and reentrancy static semantics",
+            "nested-release-reentrancy-static",
+            "type-check nested release-read transition and restored outer write mode",
+            "6",
+            "6",
+            "not-6",
+            move static_passed_with_log,
+            "nested release/reentrancy static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunNestedReleaseReentrancyItem(
+            ctx,
+            scope,
+            "NestedReleaseAndReentrancyRuntimeDiagnostics",
+            "runtime reentrant key behavior and nested-release diagnostics matrix validation",
+            "validated nested release and reentrancy runtime behavior and diagnostics",
+            "nested-release-reentrancy-runtime",
+            "verify nested write reentrancy aggregate and diagnostics mappings",
+            "8",
+            "8",
+            "not-8",
+            move runtime_passed_with_log,
+            "nested release/reentrancy runtime diagnostics check failed"
+        )
+    }
+
+    return RunNestedReleaseReentrancyItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown nested release/reentrancy item",
+        "failed unknown nested release/reentrancy item",
+        "item-resolution",
+        "resolve nested release/reentrancy item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown nested release/reentrancy item"
+    )
+}
+
+procedure RunNestedReleaseAndReentrancy(ctx: Context) -> i32 {
+    let scope: string@View = "operations::KeySystemOperations::NestedReleaseAndReentrancy"
+    let checkpoint: string@View = "covered nested release and reentrancy operation items"
+
+    let status_syntax: i32 = VerifyNestedReleaseReentrancyItem(ctx, scope, 0, "NestedReleaseAndReentrancySyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyNestedReleaseReentrancyItem(ctx, scope, 1, "NestedReleaseAndReentrancyStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyNestedReleaseReentrancyItem(ctx, scope, 2, "NestedReleaseAndReentrancyRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

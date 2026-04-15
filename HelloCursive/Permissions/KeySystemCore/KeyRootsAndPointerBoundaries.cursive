@@ -1,0 +1,64 @@
+record KeyRootsPair {
+    left: i32
+    right: i32
+}
+
+procedure KeyRootsBoundariesMetricLabel(value: i32) -> string@View {
+    if (value == 15) {
+        return "15"
+    }
+    return "other"
+}
+
+public procedure RunKeyRootsAndPointerBoundaries(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+
+    var pair: shared KeyRootsPair = KeyRootsPair {
+        left: 6,
+        right: 1
+    }
+
+    let ptr_left: Ptr<shared i32>@Valid = &pair.left
+    let pointer_before_metric: i32 = *ptr_left
+
+    # pair.left write {
+        pair.left = pair.left + 2
+    }
+
+    let pointer_after_metric: i32 = *ptr_left
+
+    var right_read_metric: i32 = 0
+    # pair.right read {
+        right_read_metric = pair.right
+    }
+
+    let root_metric: i32 = pointer_before_metric + pointer_after_metric + right_read_metric
+    let diagnostic_code: string@View = "E-CON-0010"
+
+    let pointer_before_log: i32 = [[log(label: "observed-permissions-KeyRootsAndPointerBoundaries-pointer-before", expected: 6)]] pointer_before_metric
+    let pointer_after_log: i32 = [[log(label: "observed-permissions-KeyRootsAndPointerBoundaries-pointer-after", expected: 8)]] pointer_after_metric
+    let right_read_log: i32 = [[log(label: "observed-permissions-KeyRootsAndPointerBoundaries-right-read", expected: 1)]] right_read_metric
+    let root_metric_log: i32 = [[log(label: "observed-permissions-KeyRootsAndPointerBoundaries-total", expected: 15)]] root_metric
+    let diagnostic_log: string@View = [[log(label: "permissions-KeyRootsAndPointerBoundaries-diagnostic", expected: "E-CON-0010")]] diagnostic_code
+
+    let runtime_ok: bool =
+        (pointer_before_log == 6) &&
+        (pointer_after_log == 8) &&
+        (right_read_log == 1) &&
+        (root_metric_log == 15) &&
+        (diagnostic_log == "E-CON-0010")
+    let runtime_ok_log: bool = [[log(label: "permissions-KeyRootsAndPointerBoundaries-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log) { 15 } else { 0 }
+    let metric_label: string@View = KeyRootsBoundariesMetricLabel(metric)
+    let metric_label_log: string@View = [[log(label: "observed-permissions-KeyRootsAndPointerBoundaries-metric", expected: "15")]] metric_label
+
+    if (metric_label_log != "15") {
+        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    return 0
+}

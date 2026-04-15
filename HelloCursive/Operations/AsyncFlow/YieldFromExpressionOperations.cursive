@@ -1,0 +1,197 @@
+procedure YieldFromChild() -> Async<(), (), i32, !> {
+    let resume_value: () = yield ()
+    return 4
+}
+
+procedure YieldFromChildRelease() -> Async<(), (), i32, !> {
+    let resume_value: () = yield release ()
+    return 6
+}
+
+procedure YieldFromHost() -> Async<(), (), i32, !> {
+    let child_value: i32 = yield from YieldFromChild()
+    return child_value + 1
+}
+
+procedure YieldFromHostRelease() -> Async<(), (), i32, !> {
+    let child_value: i32 = yield release from YieldFromChildRelease()
+    return child_value + 2
+}
+
+procedure LogYieldFromExpressionObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure YieldFromExpressionMetricLabel(value: i32) -> string@View {
+    if (value == 5) {
+        return "5"
+    }
+    if (value == 8) {
+        return "8"
+    }
+    if (value == 13) {
+        return "13"
+    }
+    return "other"
+}
+
+procedure RunYieldFromExpressionOperationsItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    let detail_begin: string@View = "operation feature item exercise start"
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyYieldFromExpressionOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    LogYieldFromExpressionObject(ctx.fs, scope, "yield_from_child", "Async<(),(),i32,!>", "constructed", "child async for yield-from delegation prepared")
+    LogYieldFromExpressionObject(ctx.fs, scope, "yield_from_host", "Async<(),(),i32,!>", "constructed", "host async using yield from prepared")
+    LogYieldFromExpressionObject(ctx.fs, scope, "yield_from_host_release", "Async<(),(),i32,!>", "constructed", "host async using yield release from prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let yield_from_metric: i32 = sync YieldFromHost()
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let yield_from_release_metric: i32 = sync YieldFromHostRelease()
+    [[log(label: "operations-log-transition_move")]]
+    let yield_from_runtime_metric: i32 = yield_from_metric + yield_from_release_metric
+
+    let observed_delegate_step: string@View = "observed-yield-from-delegate-metric"
+    let observed_release_delegate_step: string@View = "observed-yield-from-release-delegate-metric"
+    let observed_runtime_step: string@View = "observed-yield-from-runtime-aggregate-metric"
+    let expected_delegate: string@View = "5"
+    let expected_release_delegate: string@View = "8"
+    let expected_runtime: string@View = "13"
+    let delegate_label: string@View = YieldFromExpressionMetricLabel(yield_from_metric)
+    let release_delegate_label: string@View = YieldFromExpressionMetricLabel(yield_from_release_metric)
+    let runtime_label: string@View = YieldFromExpressionMetricLabel(yield_from_runtime_metric)
+    let delegate_passed: bool = yield_from_metric == 5
+    let release_delegate_passed: bool = yield_from_release_metric == 8
+    let runtime_passed: bool = yield_from_runtime_metric == 13
+
+    let delegate_passed_log_actual = [[log(label: "observed-yield-from-delegate-metric", expected: "5")]] delegate_label
+    let delegate_passed_with_log: bool = delegate_passed && (delegate_passed_log_actual == delegate_label)
+    let release_delegate_passed_log_actual = [[log(label: "observed-yield-from-release-delegate-metric", expected: "8")]] release_delegate_label
+    let release_delegate_passed_with_log: bool = release_delegate_passed && (release_delegate_passed_log_actual == release_delegate_label)
+    let runtime_passed_log_actual = [[log(label: "observed-yield-from-runtime-aggregate-metric", expected: "13")]] runtime_label
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunYieldFromExpressionOperationsItem(
+            ctx,
+            scope,
+            "YieldFromExpressionOperationsSyntaxForms",
+            "yield from and yield release from syntax forms inside async bodies",
+            "validated yield from expression syntax forms",
+            "yield-from-syntax",
+            "evaluate yield-from keyword sequence and delegated operand parsing",
+            "5",
+            "5",
+            "not-5",
+            move delegate_passed_with_log,
+            "yield from syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunYieldFromExpressionOperationsItem(
+            ctx,
+            scope,
+            "YieldFromExpressionOperationsStaticSemantics",
+            "yield-from async signature compatibility across Out/In/Error parameters",
+            "validated yield from expression static semantics",
+            "yield-from-static",
+            "type-check delegated async signatures for yield from compatibility",
+            "8",
+            "8",
+            "not-8",
+            move release_delegate_passed_with_log,
+            "yield from static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunYieldFromExpressionOperationsItem(
+            ctx,
+            scope,
+            "YieldFromExpressionOperationsRuntimeDiagnostics",
+            "yield-from runtime delegation, suspension forwarding, and completion propagation",
+            "validated yield from expression runtime behavior and diagnostics",
+            "yield-from-runtime",
+            "execute delegated async flow and verify aggregate runtime contract",
+            "13",
+            "13",
+            "not-13",
+            move runtime_passed_with_log,
+            "yield from runtime diagnostics check failed"
+        )
+    }
+
+    return RunYieldFromExpressionOperationsItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown yield from expression operation item",
+        "failed unknown yield from expression operation item",
+        "item-resolution",
+        "resolve yield from expression operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown yield from expression operation item"
+    )
+}
+
+procedure RunYieldFromExpressionOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::AsyncFlow::YieldFromExpressionOperations"
+    let checkpoint: string@View = "covered yield from expression operations operation items"
+
+    let status_syntax: i32 = VerifyYieldFromExpressionOperationsItem(ctx, scope, 0, "YieldFromExpressionOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyYieldFromExpressionOperationsItem(ctx, scope, 1, "YieldFromExpressionOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyYieldFromExpressionOperationsItem(ctx, scope, 2, "YieldFromExpressionOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

@@ -1,0 +1,96 @@
+procedure PointerLayoutAndValidityMetricLabel(value: i32) -> string@View {
+    if (value == 21) {
+        return "21"
+    }
+    return "other"
+}
+
+public procedure RunPointerLayoutAndValidity(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "pointers-log-item_begin")]]
+
+    var cell: i32 = 3
+    let safe_ptr_valid: Ptr<i32>@Valid = &cell
+    let safe_read_metric: i32 = *safe_ptr_valid
+
+    let safe_for_raw: Ptr<i32>@Valid = &cell
+    let raw_ptr_imm: *imm i32 =
+        unsafe { transmute<Ptr<i32>@Valid, *imm i32>(safe_for_raw) }
+    let raw_read_metric: i32 = unsafe { *raw_ptr_imm }
+
+    let safe_ptr_bits: usize =
+        unsafe { transmute<Ptr<i32>@Valid, usize>(safe_ptr_valid) }
+    let raw_ptr_bits: usize =
+        unsafe { transmute<*imm i32, usize>(raw_ptr_imm) }
+    let safe_roundtrip_from_bits: Ptr<i32>@Valid =
+        unsafe { transmute<usize, Ptr<i32>@Valid>(safe_ptr_bits) }
+    let raw_roundtrip_from_bits: *imm i32 =
+        unsafe { transmute<usize, *imm i32>(raw_ptr_bits) }
+    let safe_roundtrip_metric: i32 = *safe_roundtrip_from_bits
+    let raw_roundtrip_metric: i32 = unsafe { *raw_roundtrip_from_bits }
+
+    let safe_roundtrip: Ptr<const i32>@Valid = unsafe { &*raw_ptr_imm }
+    let roundtrip_metric: i32 = *safe_roundtrip
+
+    let safe_read_metric_log: i32 =
+        [[log(label: "observed-pointers-core-layout-safe-read-metric", expected: 3)]]
+        safe_read_metric
+    let raw_read_metric_log: i32 =
+        [[log(label: "observed-pointers-core-layout-raw-read-metric", expected: 3)]]
+        raw_read_metric
+    let safe_roundtrip_metric_log: i32 =
+        [[log(label: "observed-pointers-core-layout-safe-roundtrip-metric", expected: 3)]]
+        safe_roundtrip_metric
+    let raw_roundtrip_metric_log: i32 =
+        [[log(label: "observed-pointers-core-layout-raw-roundtrip-metric", expected: 3)]]
+        raw_roundtrip_metric
+    let ref_roundtrip_metric_log: i32 =
+        [[log(label: "observed-pointers-core-layout-reference-roundtrip-metric", expected: 3)]]
+        roundtrip_metric
+
+    let safe_validity_ok: bool = safe_read_metric_log == 3
+    let raw_validity_ok: bool = raw_read_metric_log == 3
+    let safe_roundtrip_ok: bool = safe_roundtrip_metric_log == 3
+    let raw_roundtrip_ok: bool = raw_roundtrip_metric_log == 3
+    let ref_roundtrip_ok: bool = ref_roundtrip_metric_log == 3
+    let bit_pattern_match_ok: bool = safe_ptr_bits == raw_ptr_bits
+
+    let safe_validity_ok_log: bool =
+        [[log(label: "pointers-core-layout-safe-validity", expected: true)]]
+        safe_validity_ok
+    let raw_validity_ok_log: bool =
+        [[log(label: "pointers-core-layout-raw-validity", expected: true)]]
+        raw_validity_ok
+    let safe_roundtrip_ok_log: bool =
+        [[log(label: "pointers-core-layout-safe-roundtrip-validity", expected: true)]]
+        safe_roundtrip_ok
+    let raw_roundtrip_ok_log: bool =
+        [[log(label: "pointers-core-layout-raw-roundtrip-validity", expected: true)]]
+        raw_roundtrip_ok
+    let ref_roundtrip_ok_log: bool =
+        [[log(label: "pointers-core-layout-reference-roundtrip-validity", expected: true)]]
+        ref_roundtrip_ok
+    let bit_pattern_match_ok_log: bool =
+        [[log(label: "pointers-core-layout-safe-raw-bit-pattern-agreement", expected: true)]]
+        bit_pattern_match_ok
+
+    let metric_ok: bool =
+        (safe_validity_ok_log == true) &&
+        (raw_validity_ok_log == true) &&
+        (safe_roundtrip_ok_log == true) &&
+        (raw_roundtrip_ok_log == true) &&
+        (ref_roundtrip_ok_log == true) &&
+        (bit_pattern_match_ok_log == true)
+    let metric: i32 = if (metric_ok) { 21 } else { 0 }
+    let metric_label: string@View = PointerLayoutAndValidityMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-pointers-core-layout-validity-metric", expected: "21")]]
+        metric_label
+    if (metric_log_actual != "21") {
+        [[log(label: "pointers-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "pointers-log-item_success")]]
+    return 0
+}

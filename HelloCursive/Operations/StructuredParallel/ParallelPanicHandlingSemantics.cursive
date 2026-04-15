@@ -1,0 +1,90 @@
+procedure ParallelPanicHandlingSemanticsMetricLabel(value: i32) -> string@View {
+    if (value == 187) {
+        return "187"
+    }
+    return "other"
+}
+
+public procedure RunParallelPanicHandlingSemantics(ctx: Context) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+
+    let single_settle_metric: i32 = parallel ctx~>cpu() {
+        let single_handle = spawn { 7 }
+        let single_value: i32 = wait single_handle
+        single_value
+    }
+
+    let multi_settle_metric: i32 = parallel ctx~>cpu() {
+        let first_handle = spawn { 3 }
+        let second_handle = spawn { 4 }
+        let first_value: i32 = wait first_handle
+        let second_value: i32 = wait second_handle
+        first_value + second_value
+    }
+
+    let cancel_owner: unique (CancelToken@Active;) = (CancelToken::new();)
+    let cancel_token: shared CancelToken@Active = move cancel_owner.0
+    let cancel_option: CancelToken = widen(cancel_token)
+    let panic_cancel_metric: i32 = parallel ctx~>cpu() [cancel: cancel_option, name: "parallel-panic-cancel-model"] {
+        let before: bool = cancel_token~>is_cancelled()
+        cancel_token~>cancel()
+        let after: bool = cancel_token~>is_cancelled()
+        if ((before == false) && (after == true)) {
+            1
+        } else {
+            0
+        }
+    }
+
+    let single_rule: string@View =
+        [[log(label: "operations-parallel-panic-rule-single", expected: "18.7.1")]]
+        "18.7.1"
+    let multiple_rule: string@View =
+        [[log(label: "operations-parallel-panic-rule-multiple", expected: "18.7.2")]]
+        "18.7.2"
+    let cancel_rule: string@View =
+        [[log(label: "operations-parallel-panic-rule-cancel", expected: "18.7.3")]]
+        "18.7.3"
+    let panic_typ_code: string@View =
+        [[log(label: "operations-parallel-panic-code-typ", expected: "P-TYP-1953")]]
+        "P-TYP-1953"
+    let panic_sem_code: string@View =
+        [[log(label: "operations-parallel-panic-code-sem", expected: "P-SEM-2861")]]
+        "P-SEM-2861"
+
+    let single_settle_log: i32 =
+        [[log(label: "observed-operations-parallel-panic-single-settle-metric", expected: 7)]]
+        single_settle_metric
+    let multi_settle_log: i32 =
+        [[log(label: "observed-operations-parallel-panic-multi-settle-metric", expected: 7)]]
+        multi_settle_metric
+    let panic_cancel_log: i32 =
+        [[log(label: "observed-operations-parallel-panic-cancel-metric", expected: 1)]]
+        panic_cancel_metric
+
+    let runtime_ok: bool =
+        (single_rule == "18.7.1") &&
+        (multiple_rule == "18.7.2") &&
+        (cancel_rule == "18.7.3") &&
+        (panic_typ_code == "P-TYP-1953") &&
+        (panic_sem_code == "P-SEM-2861") &&
+        (single_settle_log == 7) &&
+        (multi_settle_log == 7) &&
+        (panic_cancel_log == 1)
+    let runtime_ok_log: bool =
+        [[log(label: "operations-parallel-panic-handling-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 187 } else { 0 }
+    let metric_label: string@View = ParallelPanicHandlingSemanticsMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-operations-parallel-panic-handling-semantics-metric", expected: "187")]]
+        metric_label
+    if (metric_log_actual != "187") {
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}

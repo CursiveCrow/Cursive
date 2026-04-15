@@ -1,0 +1,490 @@
+public record TypeRecordCase {
+    public left: i32
+    public right: i32
+    public bias: i32
+}
+
+procedure BuildRecordWithDefaults(right: i32) -> TypeRecordCase {
+    return TypeRecordCase { left: 10, right: right, bias: 1 }
+}
+
+procedure AdvanceRecordEvalOrder(counter: *mut i32, move digit: i32) -> i32 {
+    var counter_mut: *mut i32 = counter
+    let next: i32 = unsafe {
+        let prior: i32 = *counter_mut
+        let advanced: i32 = (prior * 10) + digit
+        *counter_mut = advanced
+        advanced
+    }
+    return next
+}
+
+procedure EvaluateRecordControlProbe(counter: *mut i32) -> i32 {
+    var counter_mut: *mut i32 = counter
+    let emit_control: bool = true
+    let _record_probe: TypeRecordCase = TypeRecordCase {
+        left: AdvanceRecordEvalOrder(counter_mut, 4),
+        right: if (emit_control) { return 17 } else { AdvanceRecordEvalOrder(counter_mut, 5) },
+        bias: AdvanceRecordEvalOrder(counter_mut, 6)
+    }
+    unsafe {
+        *counter_mut = 999
+    }
+    return 0
+}
+
+record DefaultConstructorProbe {
+    first: i32 = 5
+    second: i32 = 7
+}
+
+procedure DefaultCtorPanicSource() -> i32 {
+    let ptr_null: Ptr<i32>@Null = Ptr::null()
+    let ptr_valid: Ptr<i32>@Valid =
+        unsafe { transmute<Ptr<i32>@Null, Ptr<i32>@Valid>(ptr_null) }
+    return *ptr_valid
+}
+
+record DefaultCtorPanicProbe {
+    first: i32 = 4
+    second: i32 = DefaultCtorPanicSource()
+}
+
+[[mangle("hc_types_record_ctor_catch"), export("C-unwind"), unwind("catch")]]
+public procedure RecordCtorCatch() -> i32 {
+    let value: DefaultCtorPanicProbe = DefaultCtorPanicProbe()
+    return value.first + value.second
+}
+
+extern "C" {
+    procedure hc_types_record_ctor_catch() -> i32
+}
+
+procedure LogRecordsObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "types-log-object")]]
+}
+
+procedure RunRecordsItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    let detail_begin: string@View = "type feature item exercise start"
+    [[log(label: "types-log-item_begin")]]
+    let phase_running: string@View = "running"
+    let phase_step_begin: string@View = "step-begin"
+    let phase_step_pass: string@View = "step-pass"
+    let phase_step_fail: string@View = "step-fail"
+    let reason_pass: string@View = "expected output aligned with actual output"
+    let reason_fail: string@View = "expected output did not align with actual output"
+    let passed_place: bool = passed
+
+    [[log(label: "types-log-runtime_phase")]]
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "types-log-transition")]]
+        [[log(label: "types-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "types-log-transition")]]
+    [[log(label: "types-log-types_item_success")]]
+    return 0
+}
+
+procedure RecordsMetricLabel(value: i32) -> string@View {
+    if (value == 0) {
+        return "0"
+    }
+    if (value == 4) {
+        return "4"
+    }
+    if (value == 7) {
+        return "7"
+    }
+    if (value == 9) {
+        return "9"
+    }
+    if (value == 11) {
+        return "11"
+    }
+    if (value == 12) {
+        return "12"
+    }
+    if (value == 14) {
+        return "14"
+    }
+    if (value == 17) {
+        return "17"
+    }
+    if (value == 259) {
+        return "259"
+    }
+    return "other"
+}
+
+procedure VerifyRecordsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "types-log-runtime_phase_move")]]
+    let declared: TypeRecordCase = TypeRecordCase { left: 3, right: 4, bias: 0 }
+    LogRecordsObject(ctx.fs, scope, "declared", "TypeRecordCase", "constructed", "declared record value prepared")
+    [[log(label: "types-log-runtime_phase_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let declared_sum: i32 = declared.left + declared.right
+    [[log(label: "types-log-transition_move")]]
+    let constructed: TypeRecordCase = TypeRecordCase { left: 4, right: 5, bias: 0 }
+    LogRecordsObject(ctx.fs, scope, "constructed", "TypeRecordCase", "constructed", "record literal value prepared")
+    [[log(label: "types-log-transition_move")]]
+    let constructed_sum: i32 = constructed.left + constructed.right
+    [[log(label: "types-log-transition_move")]]
+    var updated: TypeRecordCase = TypeRecordCase { left: 1, right: 2, bias: 0 }
+    LogRecordsObject(ctx.fs, scope, "updated", "TypeRecordCase", "constructed", "mutable record for update typing prepared")
+    [[log(label: "types-log-transition_move")]]
+    updated.left = 6
+    updated.right = 5
+    let updated_sum: i32 = updated.left + updated.right
+    [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let field_access_value: i32 = declared.right
+    [[log(label: "types-log-transition_move")]]
+    let default_right: i32 = 3
+    LogRecordsObject(ctx.fs, scope, "default_right", "i32", "constructed", "default constructor override input prepared")
+    [[log(label: "types-log-transition_move")]]
+    let defaulted: TypeRecordCase = BuildRecordWithDefaults(default_right)
+    let default_total: i32 = defaulted.left + defaulted.right + defaulted.bias
+    [[log(label: "types-log-transition_move")]]
+    var record_eval_order: i32 = 0
+    let record_eval_ptr: Ptr<i32>@Valid = &record_eval_order
+    var record_eval_raw: *mut i32 =
+        unsafe { transmute<Ptr<i32>@Valid, *mut i32>(record_eval_ptr) }
+    let record_eval_value: TypeRecordCase = TypeRecordCase {
+        left: AdvanceRecordEvalOrder(record_eval_raw, 1),
+        right: AdvanceRecordEvalOrder(record_eval_raw, 2),
+        bias: AdvanceRecordEvalOrder(record_eval_raw, 3)
+    }
+    LogRecordsObject(ctx.fs, scope, "record_eval_value", "TypeRecordCase", "constructed", "record evaluation-order probe prepared")
+    [[log(label: "types-log-transition_move")]]
+    let record_eval_metric: i32 =
+        record_eval_value.left + record_eval_value.right + record_eval_value.bias + record_eval_order
+    [[log(label: "types-log-transition_move")]]
+    var record_ctrl_order: i32 = 0
+    let record_ctrl_ptr: Ptr<i32>@Valid = &record_ctrl_order
+    var record_ctrl_raw: *mut i32 =
+        unsafe { transmute<Ptr<i32>@Valid, *mut i32>(record_ctrl_ptr) }
+    let record_ctrl_result: i32 = EvaluateRecordControlProbe(record_ctrl_raw)
+    [[log(label: "types-log-transition_move")]]
+    let default_ctor_value: DefaultConstructorProbe = DefaultConstructorProbe()
+    LogRecordsObject(ctx.fs, scope, "default_ctor_value", "DefaultConstructorProbe", "constructed", "default record constructor probe prepared")
+    [[log(label: "types-log-transition_move")]]
+    let default_ctor_metric: i32 = default_ctor_value.first + default_ctor_value.second
+    let default_ctor_catch_metric: i32 = unsafe {
+        hc_types_record_ctor_catch()
+    }
+    [[log(label: "types-log-transition_move")]]
+    let observed_declared_step: string@View = "observed-record-declared-metric"
+    let observed_constructed_step: string@View = "observed-record-construction-metric"
+    let observed_updated_step: string@View = "observed-record-update-metric"
+    let observed_field_step: string@View = "observed-field-access-metric"
+    let observed_default_step: string@View = "observed-default-fields-metric"
+    let observed_record_eval_step: string@View = "observed-record-eval-order-metric"
+    let observed_record_ctrl_step: string@View = "observed-record-control-propagation-metric"
+    let observed_default_ctor_step: string@View = "observed-default-record-ctor-metric"
+    let observed_default_ctor_catch_step: string@View = "observed-default-record-ctor-catch-metric"
+    let expected_declared: string@View = "7"
+    let expected_constructed: string@View = "9"
+    let expected_updated: string@View = "11"
+    let expected_field: string@View = "4"
+    let expected_default: string@View = "14"
+    let expected_record_eval: string@View = "259"
+    let expected_record_ctrl: string@View = "17"
+    let expected_default_ctor: string@View = "12"
+    let expected_default_ctor_catch: string@View = "0"
+    let declared_metric_label: string@View = RecordsMetricLabel(declared_sum)
+    let constructed_metric_label: string@View = RecordsMetricLabel(constructed_sum)
+    let updated_metric_label: string@View = RecordsMetricLabel(updated_sum)
+    let field_metric_label: string@View = RecordsMetricLabel(field_access_value)
+    let default_metric_label: string@View = RecordsMetricLabel(default_total)
+    let record_eval_metric_label: string@View = RecordsMetricLabel(record_eval_metric)
+    let record_ctrl_metric_label: string@View = RecordsMetricLabel(record_ctrl_result)
+    let default_ctor_metric_label: string@View = RecordsMetricLabel(default_ctor_metric)
+    let default_ctor_catch_metric_label: string@View = RecordsMetricLabel(default_ctor_catch_metric)
+    let declared_metric_passed: bool = declared_sum == 7
+    let constructed_metric_passed: bool = constructed_sum == 9
+    let updated_metric_passed: bool = updated_sum == 11
+    let field_metric_passed: bool = field_access_value == 4
+    let default_metric_passed: bool = default_total == 14
+    let record_eval_metric_passed: bool =
+        (record_eval_metric == 259) &&
+        (record_eval_order == 123) &&
+        (record_eval_value.left == 1) &&
+        (record_eval_value.right == 12) &&
+        (record_eval_value.bias == 123)
+    let record_ctrl_metric_passed: bool =
+        (record_ctrl_result == 17) &&
+        (record_ctrl_order == 4)
+    let default_ctor_metric_passed: bool =
+        (default_ctor_metric == 12) &&
+        (default_ctor_value.first == 5) &&
+        (default_ctor_value.second == 7)
+    let default_ctor_catch_metric_passed: bool = default_ctor_catch_metric == 0
+
+    let declared_metric_passed_log_actual = [[log(label: "observed-record-declared-metric", expected: "7")]] declared_metric_label
+    let declared_metric_passed_with_log: bool = declared_metric_passed && (declared_metric_passed_log_actual == expected_declared)
+    let constructed_metric_passed_log_actual = [[log(label: "observed-record-construction-metric", expected: "9")]] constructed_metric_label
+    let constructed_metric_passed_with_log: bool = constructed_metric_passed && (constructed_metric_passed_log_actual == expected_constructed)
+    let updated_metric_passed_log_actual = [[log(label: "observed-record-update-metric", expected: "11")]] updated_metric_label
+    let updated_metric_passed_with_log: bool = updated_metric_passed && (updated_metric_passed_log_actual == expected_updated)
+    let field_metric_passed_log_actual = [[log(label: "observed-field-access-metric", expected: "4")]] field_metric_label
+    let field_metric_passed_with_log: bool = field_metric_passed && (field_metric_passed_log_actual == expected_field)
+    let default_metric_passed_log_actual = [[log(label: "observed-default-fields-metric", expected: "14")]] default_metric_label
+    let default_metric_passed_with_log: bool = default_metric_passed && (default_metric_passed_log_actual == expected_default)
+    let record_eval_metric_passed_log_actual = [[log(label: "observed-record-eval-order-metric", expected: "259")]] record_eval_metric_label
+    let record_eval_metric_passed_with_log: bool =
+        record_eval_metric_passed && (record_eval_metric_passed_log_actual == expected_record_eval)
+    let record_ctrl_metric_passed_log_actual = [[log(label: "observed-record-control-propagation-metric", expected: "17")]] record_ctrl_metric_label
+    let record_ctrl_metric_passed_with_log: bool =
+        record_ctrl_metric_passed && (record_ctrl_metric_passed_log_actual == expected_record_ctrl)
+    let default_ctor_metric_passed_log_actual = [[log(label: "observed-default-record-ctor-metric", expected: "12")]] default_ctor_metric_label
+    let default_ctor_metric_passed_with_log: bool =
+        default_ctor_metric_passed && (default_ctor_metric_passed_log_actual == expected_default_ctor)
+    let default_ctor_catch_metric_passed_log_actual = [[log(label: "observed-default-record-ctor-catch-metric", expected: "0")]] default_ctor_catch_metric_label
+    let default_ctor_catch_metric_passed_with_log: bool =
+        default_ctor_catch_metric_passed && (default_ctor_catch_metric_passed_log_actual == expected_default_ctor_catch)
+    [[log(label: "types-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunRecordsItem(
+            ctx,
+            scope,
+            "RecordDeclarationFields",
+            "record declaration field typing and required/optional field constraints",
+            "validated record declaration fields",
+            "record-declaration",
+            "declare typed record fields and evaluate field-level arithmetic",
+            "7",
+            "7",
+            "not-7",
+            move declared_metric_passed_with_log,
+            "record declaration fields check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunRecordsItem(
+            ctx,
+            scope,
+            "RecordConstruction",
+            "record literal construction typing and field-to-type compatibility",
+            "validated record construction",
+            "record-construction",
+            "construct record literal with typed named fields",
+            "9",
+            "9",
+            "not-9",
+            move constructed_metric_passed_with_log,
+            "record construction check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunRecordsItem(
+            ctx,
+            scope,
+            "RecordUpdate",
+            "record update expression typing and immutable/mutable update constraints",
+            "validated record update typing",
+            "record-update",
+            "mutate record fields through typed place assignments",
+            "11",
+            "11",
+            "not-11",
+            move updated_metric_passed_with_log,
+            "record update check failed"
+        )
+    }
+
+    if (item_index == 3) {
+        return RunRecordsItem(
+            ctx,
+            scope,
+            "FieldAccessTyping",
+            "field projection typing and access constraints under permissions",
+            "validated record field access typing",
+            "field-access",
+            "project typed field and validate resulting scalar type behavior",
+            "4",
+            "4",
+            "not-4",
+            move field_metric_passed_with_log,
+            "field access typing check failed"
+        )
+    }
+
+    if (item_index == 4) {
+        return RunRecordsItem(
+            ctx,
+            scope,
+            "DefaultFieldValues",
+            "default field value typing and override compatibility behavior",
+            "validated record default field rules",
+            "default-values",
+            "apply constructor defaults and explicit override fields",
+            "14",
+            "14",
+            "not-14",
+            move default_metric_passed_with_log,
+            "default field values check failed"
+        )
+    }
+
+    if (item_index == 5) {
+        return RunRecordsItem(
+            ctx,
+            scope,
+            "RecordEvaluationOrder",
+            "record literal evaluation order and left-to-right field initialization semantics",
+            "validated record evaluation order",
+            "record-eval-order",
+            "construct record literal with ordered side effects and validate accumulated metric",
+            "259",
+            "259",
+            "not-259",
+            move record_eval_metric_passed_with_log,
+            "record evaluation order check failed"
+        )
+    }
+
+    if (item_index == 6) {
+        return RunRecordsItem(
+            ctx,
+            scope,
+            "RecordControlPropagation",
+            "record literal control propagation from field evaluation",
+            "validated record control propagation",
+            "record-control-propagation",
+            "construct record literal whose middle field returns early",
+            "17",
+            "17",
+            "not-17",
+            move record_ctrl_metric_passed_with_log,
+            "record control propagation check failed"
+        )
+    }
+
+    if (item_index == 7) {
+        return RunRecordsItem(
+            ctx,
+            scope,
+            "DefaultRecordConstructor",
+            "zero-argument record constructor default-field evaluation and materialization",
+            "validated zero-argument record constructor",
+            "default-record-constructor",
+            "invoke zero-argument record constructor and validate default field values",
+            "12",
+            "12",
+            "not-12",
+            move default_ctor_metric_passed_with_log,
+            "default record constructor check failed"
+        )
+    }
+
+    if (item_index == 8) {
+        return RunRecordsItem(
+            ctx,
+            scope,
+            "DefaultRecordConstructorCatch",
+            "default-field constructor panic propagation across a catch unwind boundary",
+            "validated default-field constructor panic surface",
+            "default-record-constructor-catch",
+            "invoke zero-argument record constructor whose default field panics under catch unwind",
+            "0",
+            "0",
+            "not-0",
+            move default_ctor_catch_metric_passed_with_log,
+            "default record constructor catch check failed"
+        )
+    }
+
+    return RunRecordsItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown records item",
+        "failed unknown records item",
+        "item-resolution",
+        "resolve item name within records feature set",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown records item"
+    )
+}
+
+procedure RunRecords(ctx: Context) -> i32 {
+    let scope: string@View = "types::ValueData::Records"
+    let checkpoint: string@View = "covered records feature items"
+
+    let status_RecordDeclarationFields: i32 = VerifyRecordsItem(ctx, scope, 0, "RecordDeclarationFields")
+    if (status_RecordDeclarationFields != 0) {
+        return status_RecordDeclarationFields
+    }
+
+    let status_RecordConstruction: i32 = VerifyRecordsItem(ctx, scope, 1, "RecordConstruction")
+    if (status_RecordConstruction != 0) {
+        return status_RecordConstruction
+    }
+
+    let status_RecordUpdate: i32 = VerifyRecordsItem(ctx, scope, 2, "RecordUpdate")
+    if (status_RecordUpdate != 0) {
+        return status_RecordUpdate
+    }
+
+    let status_FieldAccessTyping: i32 = VerifyRecordsItem(ctx, scope, 3, "FieldAccessTyping")
+    if (status_FieldAccessTyping != 0) {
+        return status_FieldAccessTyping
+    }
+
+    let status_DefaultFieldValues: i32 = VerifyRecordsItem(ctx, scope, 4, "DefaultFieldValues")
+    if (status_DefaultFieldValues != 0) {
+        return status_DefaultFieldValues
+    }
+
+    let status_RecordEvaluationOrder: i32 = VerifyRecordsItem(ctx, scope, 5, "RecordEvaluationOrder")
+    if (status_RecordEvaluationOrder != 0) {
+        return status_RecordEvaluationOrder
+    }
+
+    let status_RecordControlPropagation: i32 = VerifyRecordsItem(ctx, scope, 6, "RecordControlPropagation")
+    if (status_RecordControlPropagation != 0) {
+        return status_RecordControlPropagation
+    }
+
+    let status_DefaultRecordConstructor: i32 = VerifyRecordsItem(ctx, scope, 7, "DefaultRecordConstructor")
+    if (status_DefaultRecordConstructor != 0) {
+        return status_DefaultRecordConstructor
+    }
+
+    let status_DefaultRecordConstructorCatch: i32 = VerifyRecordsItem(ctx, scope, 8, "DefaultRecordConstructorCatch")
+    if (status_DefaultRecordConstructorCatch != 0) {
+        return status_DefaultRecordConstructorCatch
+    }
+
+    [[log(label: "types-log-checkpoint")]]
+    return 0
+}

@@ -1,0 +1,194 @@
+record LiteralPathProbe {
+    value: i32
+}
+
+procedure LogLiteralPathObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure LiteralPathMetricLabel(value: i32) -> string@View {
+    if (value == 5) {
+        return "5"
+    }
+    if (value == 6) {
+        return "6"
+    }
+    if (value == 16) {
+        return "16"
+    }
+    return "other"
+}
+
+procedure RunLiteralIdentifierAndPathExpressionsItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    let detail_begin: string@View = "operation feature item exercise start"
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyLiteralIdentifierAndPathExpressionsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    LogLiteralPathObject(ctx.fs, scope, "literal_inputs", "i32,bool", "constructed", "literal expression inputs prepared")
+    LogLiteralPathObject(ctx.fs, scope, "identifier_binding", "i32", "constructed", "identifier-bound value prepared")
+    LogLiteralPathObject(ctx.fs, scope, "path_values", "Ptr<i32>@Null,LiteralPathProbe", "constructed", "path-expression values prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let literal_gate: bool = true
+    let literal_metric: i32 = if (literal_gate) { 5 } else { 0 }
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let identifier_seed: i32 = 4
+    let identifier_metric: i32 = identifier_seed + 1
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let null_ptr: Ptr<i32>@Null = Ptr::null()
+    let path_probe: LiteralPathProbe = LiteralPathProbe { value: 6 }
+    let path_metric: i32 = path_probe.value
+    [[log(label: "operations-log-transition_move")]]
+    let runtime_metric: i32 = literal_metric + identifier_metric + path_metric
+
+    let observed_literal_step: string@View = "observed-literal-expression-metric"
+    let observed_identifier_step: string@View = "observed-identifier-expression-metric"
+    let observed_path_step: string@View = "observed-path-expression-metric"
+    let observed_runtime_step: string@View = "observed-literal-identifier-path-runtime-aggregate-metric"
+    let expected_literal: string@View = "5"
+    let expected_identifier: string@View = "5"
+    let expected_path: string@View = "6"
+    let expected_runtime: string@View = "16"
+    let literal_label: string@View = LiteralPathMetricLabel(literal_metric)
+    let identifier_label: string@View = LiteralPathMetricLabel(identifier_metric)
+    let path_label: string@View = LiteralPathMetricLabel(path_metric)
+    let runtime_label: string@View = LiteralPathMetricLabel(runtime_metric)
+    let literal_passed: bool = literal_metric == 5
+    let identifier_passed: bool = identifier_metric == 5
+    let path_passed: bool = path_metric == 6
+    let runtime_passed: bool = runtime_metric == 16
+
+    let literal_passed_log_actual = [[log(label: "observed-literal-expression-metric", expected: "5")]] literal_label
+    let literal_passed_with_log: bool = literal_passed && (literal_passed_log_actual == literal_label)
+    let identifier_passed_log_actual = [[log(label: "observed-identifier-expression-metric", expected: "5")]] identifier_label
+    let identifier_passed_with_log: bool = identifier_passed && (identifier_passed_log_actual == identifier_label)
+    let path_passed_log_actual = [[log(label: "observed-path-expression-metric", expected: "6")]] path_label
+    let path_passed_with_log: bool = path_passed && (path_passed_log_actual == path_label)
+    let runtime_passed_log_actual = [[log(label: "observed-literal-identifier-path-runtime-aggregate-metric", expected: "16")]] runtime_label
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunLiteralIdentifierAndPathExpressionsItem(
+            ctx,
+            scope,
+            "LiteralIdentifierAndPathExpressionsSyntaxForms",
+            "literal, identifier, and qualified path-expression syntax surfaces",
+            "validated literal/identifier/path syntax forms",
+            "literal-path-syntax",
+            "evaluate literal tokens, identifiers, and :: path forms",
+            "5",
+            "5",
+            "not-5",
+            move literal_passed_with_log,
+            "literal/identifier/path syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunLiteralIdentifierAndPathExpressionsItem(
+            ctx,
+            scope,
+            "LiteralIdentifierAndPathExpressionsStaticSemantics",
+            "type-checking for identifier and path-based expression values",
+            "validated literal/identifier/path static semantics",
+            "literal-path-static",
+            "type-check identifier resolution and path expression bindings",
+            "5",
+            "5",
+            "not-5",
+            move identifier_passed_with_log,
+            "literal/identifier/path static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunLiteralIdentifierAndPathExpressionsItem(
+            ctx,
+            scope,
+            "LiteralIdentifierAndPathExpressionsRuntimeDiagnostics",
+            "runtime materialization for literal, identifier, and path expression values",
+            "validated literal/identifier/path runtime behavior and diagnostics",
+            "literal-path-runtime",
+            "execute full literal/identifier/path runtime path",
+            "16",
+            "16",
+            "not-16",
+            move runtime_passed_with_log,
+            "literal/identifier/path runtime diagnostics check failed"
+        )
+    }
+
+    return RunLiteralIdentifierAndPathExpressionsItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown literal/identifier/path operation item",
+        "failed unknown literal/identifier/path operation item",
+        "item-resolution",
+        "resolve literal/identifier/path operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown literal/identifier/path operation item"
+    )
+}
+
+procedure RunLiteralIdentifierAndPathExpressions(ctx: Context) -> i32 {
+    let scope: string@View = "operations::ExpressionSemantics::LiteralIdentifierAndPathExpressions"
+    let checkpoint: string@View = "covered literal identifier and path expressions operation items"
+
+    let status_syntax: i32 = VerifyLiteralIdentifierAndPathExpressionsItem(ctx, scope, 0, "LiteralIdentifierAndPathExpressionsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyLiteralIdentifierAndPathExpressionsItem(ctx, scope, 1, "LiteralIdentifierAndPathExpressionsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyLiteralIdentifierAndPathExpressionsItem(ctx, scope, 2, "LiteralIdentifierAndPathExpressionsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

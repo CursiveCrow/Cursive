@@ -1,0 +1,191 @@
+procedure DynamicKeyRuntimePredicateAtLeastTwo(value: const i32) -> bool {
+    return value >= 2
+}
+
+procedure DynamicKeyRuntimeActionAddThree(value: unique i32) -> i32 {
+    return value + 3
+}
+
+procedure DynamicKeyRuntimePredicateEven(value: const i32) -> bool {
+    return (value % 2) == 0
+}
+
+procedure DynamicKeyRuntimeActionQuadruple(value: unique i32) -> i32 {
+    return value * 4
+}
+
+procedure LogDynamicKeyRuntimeObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure DynamicKeyRuntimeMetricLabel(value: i32) -> string@View {
+    if (value == 5) {
+        return "5"
+    }
+    if (value == 16) {
+        return "16"
+    }
+    if (value == 21) {
+        return "21"
+    }
+    return "other"
+}
+
+procedure RunDynamicKeyRuntimeItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyDynamicKeyRuntimeItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    LogDynamicKeyRuntimeObject(ctx.fs, scope, "dynamic_key_target_a", "shared i32", "constructed", "shared target A prepared for until-driven key acquisition")
+    LogDynamicKeyRuntimeObject(ctx.fs, scope, "dynamic_key_target_b", "shared i32", "constructed", "shared target B prepared for until-driven key acquisition")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let dynamic_seed_a: unique i32 = 2
+    let dynamic_shared_a: shared i32 = dynamic_seed_a
+    let dynamic_future_a: Async<(), (), i32, !> = dynamic_shared_a~>until(DynamicKeyRuntimePredicateAtLeastTwo, DynamicKeyRuntimeActionAddThree)
+    let syntax_metric: i32 = sync dynamic_future_a
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let dynamic_seed_b: unique i32 = 4
+    let dynamic_shared_b: shared i32 = dynamic_seed_b
+    let dynamic_future_b: Async<(), (), i32, !> = dynamic_shared_b~>until(DynamicKeyRuntimePredicateEven, DynamicKeyRuntimeActionQuadruple)
+    let static_metric: i32 = sync dynamic_future_b
+    [[log(label: "operations-log-transition_move")]]
+    let runtime_metric: i32 = syntax_metric + static_metric
+
+    let syntax_passed: bool = syntax_metric == 5
+    let static_passed: bool = static_metric == 16
+    let runtime_passed: bool = runtime_metric == 21
+
+    let actual_label_1: string@View = DynamicKeyRuntimeMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-dynamic-key-syntax-metric", expected: "5")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = DynamicKeyRuntimeMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-dynamic-key-static-metric", expected: "16")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = DynamicKeyRuntimeMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-dynamic-key-runtime-metric", expected: "21")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunDynamicKeyRuntimeItem(
+            ctx,
+            scope,
+            "DynamicKeyRuntimeRealizationSyntaxForms",
+            "`shared` target method-call surface using until(predicate, action)",
+            "validated dynamic-key runtime realization syntax forms",
+            "dynamic-key-syntax",
+            "evaluate syntax surface for shared until invocation and sync consumption",
+            "5",
+            "5",
+            "not-5",
+            move syntax_passed_with_log,
+            "dynamic-key runtime syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunDynamicKeyRuntimeItem(
+            ctx,
+            scope,
+            "DynamicKeyRuntimeRealizationStaticSemantics",
+            "predicate/action signature compatibility for shared until execution",
+            "validated dynamic-key runtime realization static semantics",
+            "dynamic-key-static",
+            "type-check shared/const/unique interplay across until predicate and action",
+            "16",
+            "16",
+            "not-16",
+            move static_passed_with_log,
+            "dynamic-key runtime static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunDynamicKeyRuntimeItem(
+            ctx,
+            scope,
+            "DynamicKeyRuntimeRealizationRuntimeDiagnostics",
+            "runtime key acquisition/release behavior during shared async execution",
+            "validated dynamic-key runtime realization runtime behavior and diagnostics",
+            "dynamic-key-runtime",
+            "execute shared until futures and verify runtime aggregate over key-managed paths",
+            "21",
+            "21",
+            "not-21",
+            move runtime_passed_with_log,
+            "dynamic-key runtime diagnostics check failed"
+        )
+    }
+
+    return RunDynamicKeyRuntimeItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown dynamic-key runtime realization item",
+        "failed unknown dynamic-key runtime realization item",
+        "item-resolution",
+        "resolve dynamic-key runtime realization item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown dynamic-key runtime realization item"
+    )
+}
+
+procedure RunDynamicKeyRuntimeRealization(ctx: Context) -> i32 {
+    let scope: string@View = "operations::KeySystemOperations::DynamicKeyRuntimeRealization"
+    let checkpoint: string@View = "covered dynamic key runtime realization operation items"
+
+    let status_syntax: i32 = VerifyDynamicKeyRuntimeItem(ctx, scope, 0, "DynamicKeyRuntimeRealizationSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyDynamicKeyRuntimeItem(ctx, scope, 1, "DynamicKeyRuntimeRealizationStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyDynamicKeyRuntimeItem(ctx, scope, 2, "DynamicKeyRuntimeRealizationRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

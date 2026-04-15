@@ -1,0 +1,42 @@
+public procedure RunGroup(ctx: Context) -> i32 {
+    [[log(label: "contracts-log-section_start", expected: "section-start")]] "section-start"
+
+    let status_contract_elision_defaults: i32 = RunContractElisionDefaults(ctx)
+    if (status_contract_elision_defaults != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_contract_elision_defaults
+    }
+
+    let status_error_propagation_postcondition_bypass: i32 = RunErrorPropagationPostconditionBypass(ctx)
+    if (status_error_propagation_postcondition_bypass != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_error_propagation_postcondition_bypass
+    }
+
+    let status_postcondition_callee_obligations: i32 = RunPostconditionCalleeObligations(ctx)
+    if (status_postcondition_callee_obligations != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_postcondition_callee_obligations
+    }
+
+    let status_precondition_caller_obligations: i32 = RunPreconditionCallerObligations(ctx)
+    if (status_precondition_caller_obligations != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_precondition_caller_obligations
+    }
+
+    let status_result_intrinsic_typing_and_scope: i32 = RunResultIntrinsicTypingAndScope(ctx)
+    if (status_result_intrinsic_typing_and_scope != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_result_intrinsic_typing_and_scope
+    }
+
+    let status_result_union_modal_generic_behavior: i32 = RunResultUnionModalGenericBehavior(ctx)
+    if (status_result_union_modal_generic_behavior != 0) {
+        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        return status_result_union_modal_generic_behavior
+    }
+
+    [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+    return 0
+}

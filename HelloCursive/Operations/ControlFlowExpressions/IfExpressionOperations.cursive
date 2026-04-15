@@ -1,0 +1,188 @@
+procedure LogIfExpressionObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure IfExpressionMetricLabel(value: i32) -> string@View {
+    if (value == 6) {
+        return "6"
+    }
+    if (value == 7) {
+        return "7"
+    }
+    if (value == 9) {
+        return "9"
+    }
+    return "other"
+}
+
+procedure RunIfExpressionOperationsItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    let detail_begin: string@View = "operation feature item exercise start"
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyIfExpressionOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    let syntax_guard: bool = false
+    let static_guard: bool = true
+    var runtime_counter: i32 = 0
+    LogIfExpressionObject(ctx.fs, scope, "syntax_guard", "bool", "constructed", "guard for if/else-if syntax chain prepared")
+    LogIfExpressionObject(ctx.fs, scope, "static_guard", "bool", "constructed", "guard for branch-type unification prepared")
+    LogIfExpressionObject(ctx.fs, scope, "runtime_counter", "i32", "constructed", "branch-side-effect counter prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let if_syntax_metric: i32 = if (syntax_guard) {
+        1
+    } else if (static_guard) {
+        7
+    } else {
+        0
+    }
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let if_static_metric: i32 = if (static_guard) { 9 } else { 0 }
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let if_runtime_value: i32 = if (true) {
+        runtime_counter = runtime_counter + 2;
+        4
+    } else {
+        runtime_counter = runtime_counter + 100;
+        0
+    }
+    let if_runtime_metric: i32 = if_runtime_value + runtime_counter
+    [[log(label: "operations-log-transition_move")]]
+    let syntax_passed: bool = if_syntax_metric == 7
+    let static_passed: bool = if_static_metric == 9
+    let runtime_passed: bool = if_runtime_metric == 6
+
+    let actual_label_1: string@View = IfExpressionMetricLabel(if_syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-if-expression-syntax-metric", expected: "7")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = IfExpressionMetricLabel(if_static_metric)
+    let static_passed_log_actual = [[log(label: "observed-if-expression-static-metric", expected: "9")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = IfExpressionMetricLabel(if_runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-if-expression-runtime-metric", expected: "6")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunIfExpressionOperationsItem(
+            ctx,
+            scope,
+            "IfExpressionOperationsSyntaxForms",
+            "if/else-if/else syntax forms and parse boundaries",
+            "validated if-expression syntax forms",
+            "if-expression-syntax",
+            "parse and evaluate if-expression chain with else-if arm",
+            "7",
+            "7",
+            "not-7",
+            move syntax_passed_with_log,
+            "if-expression syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunIfExpressionOperationsItem(
+            ctx,
+            scope,
+            "IfExpressionOperationsStaticSemantics",
+            "if-expression branch type unification and result typing",
+            "validated if-expression static semantics",
+            "if-expression-static",
+            "type-check branch expressions and unify branch result type",
+            "9",
+            "9",
+            "not-9",
+            move static_passed_with_log,
+            "if-expression static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunIfExpressionOperationsItem(
+            ctx,
+            scope,
+            "IfExpressionOperationsRuntimeDiagnostics",
+            "runtime single-branch selection and branch side-effect behavior",
+            "validated if-expression runtime behavior and diagnostics",
+            "if-expression-runtime",
+            "execute runtime branch path and verify selected-branch aggregate",
+            "6",
+            "6",
+            "not-6",
+            move runtime_passed_with_log,
+            "if-expression runtime diagnostics check failed"
+        )
+    }
+
+    return RunIfExpressionOperationsItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown if-expression operation item",
+        "failed unknown if-expression operation item",
+        "item-resolution",
+        "resolve if-expression operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown if-expression operation item"
+    )
+}
+
+procedure RunIfExpressionOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::ControlFlowExpressions::IfExpressionOperations"
+    let checkpoint: string@View = "covered if expression operations operation items"
+
+    let status_syntax: i32 = VerifyIfExpressionOperationsItem(ctx, scope, 0, "IfExpressionOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyIfExpressionOperationsItem(ctx, scope, 1, "IfExpressionOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyIfExpressionOperationsItem(ctx, scope, 2, "IfExpressionOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

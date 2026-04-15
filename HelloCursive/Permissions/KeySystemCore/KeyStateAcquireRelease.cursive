@@ -1,0 +1,58 @@
+procedure KeyStateAcquireReleaseMetricLabel(value: i32) -> string@View {
+    if (value == 27) {
+        return "27"
+    }
+    return "other"
+}
+
+public procedure RunKeyStateAcquireRelease(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+
+    var gate: shared i32 = 4
+    var outer_read_metric: i32 = 0
+    var release_write_metric: i32 = 0
+    var post_release_metric: i32 = 0
+
+    # gate read {
+        outer_read_metric = gate
+        # gate release write {
+            gate = gate + 3
+            release_write_metric = gate
+        }
+        post_release_metric = gate
+    }
+
+    # gate write {
+        gate = gate + 2
+    }
+    let final_gate_metric: i32 = gate
+
+    let diagnostic_code: string@View = "E-CON-0133"
+
+    let outer_read_log: i32 = [[log(label: "observed-permissions-KeyStateAcquireRelease-outer-read", expected: 4)]] outer_read_metric
+    let release_write_log: i32 = [[log(label: "observed-permissions-KeyStateAcquireRelease-release-write", expected: 7)]] release_write_metric
+    let post_release_log: i32 = [[log(label: "observed-permissions-KeyStateAcquireRelease-post-release", expected: 7)]] post_release_metric
+    let final_gate_log: i32 = [[log(label: "observed-permissions-KeyStateAcquireRelease-final-gate", expected: 9)]] final_gate_metric
+    let diagnostic_log: string@View = [[log(label: "permissions-KeyStateAcquireRelease-diagnostic", expected: "E-CON-0133")]] diagnostic_code
+
+    let runtime_ok: bool =
+        (outer_read_log == 4) &&
+        (release_write_log == 7) &&
+        (post_release_log == 7) &&
+        (final_gate_log == 9) &&
+        (diagnostic_log == "E-CON-0133")
+    let runtime_ok_log: bool = [[log(label: "permissions-KeyStateAcquireRelease-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log) { 27 } else { 0 }
+    let metric_label: string@View = KeyStateAcquireReleaseMetricLabel(metric)
+    let metric_label_log: string@View = [[log(label: "observed-permissions-KeyStateAcquireRelease-metric", expected: "27")]] metric_label
+
+    if (metric_label_log != "27") {
+        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    return 0
+}

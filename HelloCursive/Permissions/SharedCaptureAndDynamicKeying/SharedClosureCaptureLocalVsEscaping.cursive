@@ -1,0 +1,80 @@
+procedure SharedClosureCaptureLocalVsEscapingMetricLabel(value: i32) -> string@View {
+    if (value == 28) {
+        return "28"
+    }
+    return "other"
+}
+
+procedure SharedClosureCaptureLocalVsEscapingRead(value: shared i32, delta: i32, bonus: i32) -> i32 {
+    var observed_value: i32 = 0
+    # value read {
+        observed_value = value + delta + bonus
+    }
+    return observed_value
+}
+
+procedure MakeSharedEscapingClosure(value: shared i32) -> |i32| -> i32 [shared: { value: shared i32 }] {
+    return |delta: i32| -> i32 {
+        SharedClosureCaptureLocalVsEscapingRead(value, delta, 0)
+    }
+}
+
+public procedure RunSharedClosureCaptureLocalVsEscaping(ctx: Context) -> i32 {
+    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+
+    let shared_owner: unique i32 = 4
+    let shared_value: shared i32 = shared_owner
+    let shared_metric: i32 = SharedClosureCaptureLocalVsEscapingRead(shared_value, 1, 2)
+
+    let closure_seed: i32 = 5
+    let local_metric: i32 = (|local_delta: i32| -> i32 {
+        local_delta + closure_seed
+    })(1)
+
+    let escaping_closure = |escaping_delta: i32| -> i32 {
+        escaping_delta + closure_seed
+    }
+    let escaping_metric: i32 = escaping_closure(3)
+
+    let spawn_metric: i32 = parallel ctx~>cpu() {
+        let worker = spawn {
+            let spawn_seed: i32 = 6
+            let spawn_local = |spawn_delta: i32| -> i32 {
+                spawn_seed + spawn_delta
+            }
+            spawn_local(1)
+        }
+        wait worker
+    }
+
+    let deps_diag: string@View = "E-CON-0085"
+    let lifetime_diag: string@View = "E-CON-0086"
+
+    let shared_metric_log: i32 = [[log(label: "observed-permissions-SharedClosureCaptureLocalVsEscaping-shared", expected: 7)]] shared_metric
+    let local_metric_log: i32 = [[log(label: "observed-permissions-SharedClosureCaptureLocalVsEscaping-local", expected: 6)]] local_metric
+    let escaping_metric_log: i32 = [[log(label: "observed-permissions-SharedClosureCaptureLocalVsEscaping-escaping", expected: 8)]] escaping_metric
+    let spawn_metric_log: i32 = [[log(label: "observed-permissions-SharedClosureCaptureLocalVsEscaping-spawn", expected: 7)]] spawn_metric
+    let deps_diag_log: string@View = [[log(label: "permissions-SharedClosureCaptureLocalVsEscaping-deps-diagnostic", expected: "E-CON-0085")]] deps_diag
+    let lifetime_diag_log: string@View = [[log(label: "permissions-SharedClosureCaptureLocalVsEscaping-lifetime-diagnostic", expected: "E-CON-0086")]] lifetime_diag
+
+    let runtime_ok: bool =
+        (shared_metric_log == 7) &&
+        (local_metric_log == 6) &&
+        (escaping_metric_log == 8) &&
+        (spawn_metric_log == 7) &&
+        (deps_diag_log == "E-CON-0085") &&
+        (lifetime_diag_log == "E-CON-0086")
+    let runtime_ok_log: bool = [[log(label: "permissions-SharedClosureCaptureLocalVsEscaping-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log) { 28 } else { 0 }
+    let metric_label: string@View = SharedClosureCaptureLocalVsEscapingMetricLabel(metric)
+    let metric_label_log: string@View = [[log(label: "observed-permissions-SharedClosureCaptureLocalVsEscaping-metric", expected: "28")]] metric_label
+
+    if (metric_label_log != "28") {
+        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    return 0
+}

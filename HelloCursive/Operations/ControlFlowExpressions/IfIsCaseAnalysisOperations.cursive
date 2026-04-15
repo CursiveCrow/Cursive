@@ -1,0 +1,196 @@
+public enum IfCaseOperationCase {
+    Left(i32, i32)
+    Right(i32, i32)
+}
+
+procedure LogIfCaseAnalysisObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure IfCaseAnalysisMetricLabel(value: i32) -> string@View {
+    if (value == 4) {
+        return "4"
+    }
+    if (value == 7) {
+        return "7"
+    }
+    if (value == 9) {
+        return "9"
+    }
+    return "other"
+}
+
+procedure RunIfIsCaseAnalysisOperationsItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    let detail_begin: string@View = "operation feature item exercise start"
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyIfIsCaseAnalysisOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    let literal_scrutinee: i32 = 2
+    let union_scrutinee: i32 | bool = 3
+    let enum_scrutinee: IfCaseOperationCase = IfCaseOperationCase::Right(5, 0)
+    LogIfCaseAnalysisObject(ctx.fs, scope, "literal_scrutinee", "i32", "constructed", "literal case-analysis scrutinee prepared")
+    LogIfCaseAnalysisObject(ctx.fs, scope, "union_scrutinee", "i32|bool", "constructed", "typed-union case-analysis scrutinee prepared")
+    LogIfCaseAnalysisObject(ctx.fs, scope, "enum_scrutinee", "IfCaseOperationCase", "constructed", "enum case-analysis scrutinee prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let if_case_syntax_metric: i32 = if literal_scrutinee is {
+        1{ 1 }
+        2{ 4 }
+        _{ 0 }
+    }
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let if_case_static_metric: i32 = if union_scrutinee is {
+        v: i32{ v + 4 }
+        _: bool{ 0 }
+    }
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    let if_case_runtime_metric: i32 = if enum_scrutinee is {
+        IfCaseOperationCase::Left(v, _){ v }
+        IfCaseOperationCase::Right(v, _){ v + 4 }
+    }
+    [[log(label: "operations-log-transition_move")]]
+    let observed_syntax_step: string@View = "observed-if-is-case-analysis-syntax-metric"
+    let observed_static_step: string@View = "observed-if-is-case-analysis-static-metric"
+    let observed_runtime_step: string@View = "observed-if-is-case-analysis-runtime-metric"
+    let expected_syntax: string@View = "4"
+    let expected_static: string@View = "7"
+    let expected_runtime: string@View = "9"
+    let syntax_label: string@View = IfCaseAnalysisMetricLabel(if_case_syntax_metric)
+    let static_label: string@View = IfCaseAnalysisMetricLabel(if_case_static_metric)
+    let runtime_label: string@View = IfCaseAnalysisMetricLabel(if_case_runtime_metric)
+    let syntax_passed: bool = if_case_syntax_metric == 4
+    let static_passed: bool = if_case_static_metric == 7
+    let runtime_passed: bool = if_case_runtime_metric == 9
+
+    let syntax_passed_log_actual = [[log(label: "observed-if-is-case-analysis-syntax-metric", expected: "4")]] syntax_label
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == syntax_label)
+    let static_passed_log_actual = [[log(label: "observed-if-is-case-analysis-static-metric", expected: "7")]] static_label
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == static_label)
+    let runtime_passed_log_actual = [[log(label: "observed-if-is-case-analysis-runtime-metric", expected: "9")]] runtime_label
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunIfIsCaseAnalysisOperationsItem(
+            ctx,
+            scope,
+            "IfIsCaseAnalysisOperationsSyntaxForms",
+            "if-is case-analysis syntax with block-bodied clauses and wildcard fallback",
+            "validated if-is case-analysis syntax forms",
+            "if-is-case-analysis-syntax",
+            "parse and evaluate literal-arm if-is case-analysis surface",
+            "4",
+            "4",
+            "not-4",
+            move syntax_passed_with_log,
+            "if-is case-analysis syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunIfIsCaseAnalysisOperationsItem(
+            ctx,
+            scope,
+            "IfIsCaseAnalysisOperationsStaticSemantics",
+            "typed pattern narrowing and case-clause result-type unification",
+            "validated if-is case-analysis static semantics",
+            "if-is-case-analysis-static",
+            "type-check typed case clauses and unified branch result type",
+            "7",
+            "7",
+            "not-7",
+            move static_passed_with_log,
+            "if-is case-analysis static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunIfIsCaseAnalysisOperationsItem(
+            ctx,
+            scope,
+            "IfIsCaseAnalysisOperationsRuntimeDiagnostics",
+            "runtime case-clause selection and enum payload extraction behavior",
+            "validated if-is case-analysis runtime behavior and diagnostics",
+            "if-is-case-analysis-runtime",
+            "execute enum case-analysis path and verify selected-clause runtime metric",
+            "9",
+            "9",
+            "not-9",
+            move runtime_passed_with_log,
+            "if-is case-analysis runtime diagnostics check failed"
+        )
+    }
+
+    return RunIfIsCaseAnalysisOperationsItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown if-is case-analysis operation item",
+        "failed unknown if-is case-analysis operation item",
+        "item-resolution",
+        "resolve if-is case-analysis operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown if-is case-analysis operation item"
+    )
+}
+
+procedure RunIfIsCaseAnalysisOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::ControlFlowExpressions::IfIsCaseAnalysisOperations"
+    let checkpoint: string@View = "covered if-is case-analysis operation items"
+
+    let status_syntax: i32 = VerifyIfIsCaseAnalysisOperationsItem(ctx, scope, 0, "IfIsCaseAnalysisOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyIfIsCaseAnalysisOperationsItem(ctx, scope, 1, "IfIsCaseAnalysisOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyIfIsCaseAnalysisOperationsItem(ctx, scope, 2, "IfIsCaseAnalysisOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

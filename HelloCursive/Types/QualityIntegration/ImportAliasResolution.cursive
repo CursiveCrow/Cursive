@@ -1,0 +1,44 @@
+import ffi as ffi_asm
+import concurrency as conc_asm
+
+procedure ImportAliasMetricLabel(value: i32) -> string@View {
+    if (value == 2) {
+        return "2"
+    }
+    return "other"
+}
+
+procedure RunImportAliasResolution(ctx: Context) -> i32 {
+    let scope: string@View = "types::QualityIntegration::ImportAliasResolution"
+    [[log(label: "types-log-item_begin")]]
+
+    let ffi_metric: i32 = ffi_asm::FfiBoundaryMetric()
+    let conc_metric: i32 = conc_asm::ConcurrencyBoundaryMetric(ctx)
+
+    let ffi_metric_log: i32 = [[log(label: "observed-import-alias-ffi-metric", expected: 1)]] ffi_metric
+    let conc_metric_log: i32 = [[log(label: "observed-import-alias-conc-metric", expected: 1)]] conc_metric
+
+    let alias_sum: i32 = ffi_metric + conc_metric
+
+    let ialias_001: string@View = [[log(label: "types-import-alias-feature-001", expected: "IALIAS-001")]] "IALIAS-001"
+    let ialias_002: string@View = [[log(label: "types-import-alias-feature-002", expected: "IALIAS-002")]] "IALIAS-002"
+
+    let runtime_ok: bool =
+        (ffi_metric_log == 1) &&
+        (conc_metric_log == 1) &&
+        (alias_sum == 2) &&
+        (ialias_001 == "IALIAS-001") &&
+        (ialias_002 == "IALIAS-002")
+    let runtime_ok_log: bool = [[log(label: "types-import-alias-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 2 } else { 0 }
+    let metric_label: string@View = ImportAliasMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-types-import-alias-metric", expected: "2")]] metric_label
+    if (metric_log_actual != "2") {
+        [[log(label: "types-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "types-log-types_item_success")]]
+    return 0
+}

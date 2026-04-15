@@ -1,0 +1,46 @@
+using ValueData::TypeRecordCase as AliasedRecord
+using ValueData::TypeEnumCase as AliasedEnum
+
+procedure UsingAliasMetricLabel(value: i32) -> string@View {
+    if (value == 1) {
+        return "1"
+    }
+    return "other"
+}
+
+procedure RunUsingAliasResolution(ctx: Context) -> i32 {
+    let scope: string@View = "types::QualityIntegration::UsingAliasResolution"
+    [[log(label: "types-log-item_begin")]]
+
+    let aliased_rec: AliasedRecord = AliasedRecord{ left: 10, right: 20, bias: 1 }
+    let rec_sum: i32 = aliased_rec.left + aliased_rec.right + aliased_rec.bias
+    let rec_sum_log: i32 = [[log(label: "observed-using-alias-rec-sum", expected: 31)]] rec_sum
+
+    let aliased_unit: AliasedEnum = AliasedEnum::Unit
+    let enum_check: i32 = if aliased_unit is {
+        AliasedEnum::Unit { 1 }
+        _: AliasedEnum { 0 }
+    }
+    let enum_check_log: i32 = [[log(label: "observed-using-alias-enum-check", expected: 1)]] enum_check
+
+    let ualias_001: string@View = [[log(label: "types-using-alias-feature-001", expected: "UALIAS-001")]] "UALIAS-001"
+    let ualias_002: string@View = [[log(label: "types-using-alias-feature-002", expected: "UALIAS-002")]] "UALIAS-002"
+
+    let runtime_ok: bool =
+        (rec_sum_log == 31) &&
+        (enum_check_log == 1) &&
+        (ualias_001 == "UALIAS-001") &&
+        (ualias_002 == "UALIAS-002")
+    let runtime_ok_log: bool = [[log(label: "types-using-alias-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 1 } else { 0 }
+    let metric_label: string@View = UsingAliasMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-types-using-alias-metric", expected: "1")]] metric_label
+    if (metric_log_actual != "1") {
+        [[log(label: "types-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "types-log-types_item_success")]]
+    return 0
+}

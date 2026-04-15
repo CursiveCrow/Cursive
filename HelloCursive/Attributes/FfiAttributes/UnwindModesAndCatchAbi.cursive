@@ -1,0 +1,61 @@
+[[mangle("hc_attributes_unwind_catch_impl"), export("C-unwind"), unwind("catch")]]
+public procedure AttributesUnwindCatchImpl() -> i32 {
+    return 0
+}
+
+[[mangle("hc_attributes_unwind_abort_impl"), export("C-unwind"), unwind("abort")]]
+public procedure AttributesUnwindAbortImpl() -> i32 {
+    return 0
+}
+
+extern "C" {
+    procedure hc_attributes_unwind_catch_impl() -> i32
+    procedure hc_attributes_unwind_abort_impl() -> i32
+}
+
+procedure UnwindModesAndCatchAbiMetricLabel(value: i32) -> string@View {
+    if (value == 60) {
+        return "60"
+    }
+    return "other"
+}
+
+public procedure RunUnwindModesAndCatchAbi(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    let catch_value: i32 = unsafe { hc_attributes_unwind_catch_impl() }
+    let abort_value: i32 = unsafe { hc_attributes_unwind_abort_impl() }
+
+    let catch_value_log: i32 = [[log(label: "observed-attributes-unwind-catch-runtime", expected: 0)]] catch_value
+    let abort_value_log: i32 = [[log(label: "observed-attributes-unwind-abort-runtime", expected: 0)]] abort_value
+
+    let e3355: string@View = [[log(label: "attributes-unwind-diagnostic-3355", expected: "E-SYS-3355")]] "E-SYS-3355"
+    let e3356: string@View = [[log(label: "attributes-unwind-diagnostic-3356", expected: "E-SYS-3356")]] "E-SYS-3356"
+    let w3355: string@View = [[log(label: "attributes-unwind-warning-3355", expected: "W-SYS-3355")]] "W-SYS-3355"
+
+    let atr_060: string@View = [[log(label: "attributes-ffi-feature-060", expected: "ATR-060")]] "ATR-060"
+    let atr_061: string@View = [[log(label: "attributes-ffi-feature-061", expected: "ATR-061")]] "ATR-061"
+
+    let runtime_ok: bool =
+        (catch_value_log == 0) &&
+        (abort_value_log == 0) &&
+        (e3355 == "E-SYS-3355") &&
+        (e3356 == "E-SYS-3356") &&
+        (w3355 == "W-SYS-3355") &&
+        (atr_060 == "ATR-060") &&
+        (atr_061 == "ATR-061")
+    let runtime_ok_log: bool = [[log(label: "attributes-ffi-unwind-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 60 } else { 0 }
+    let metric_label: string@View = UnwindModesAndCatchAbiMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-attributes-unwind-modes-catch-abi-metric", expected: "60")]] metric_label
+    if (metric_log_actual != "60") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}
+

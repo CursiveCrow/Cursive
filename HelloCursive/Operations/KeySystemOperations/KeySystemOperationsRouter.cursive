@@ -1,0 +1,91 @@
+
+public procedure RunGroup(ctx: Context) -> i32 {
+    let section_name: string@View = "operations/KeySystemOperations"
+    let status_ok: string@View = "ok"
+    let status_failed: string@View = "failed"
+
+    let phase_planned: string@View = "planned"
+    let phase_running: string@View = "running"
+    let phase_complete: string@View = "complete"
+    let phase_failed: string@View = "failed"
+    let dispatch_reason: string@View = "dispatching operation topic function"
+    let complete_reason: string@View = "operation topic function completed"
+    let failed_reason: string@View = "operation topic function returned non-zero status"
+
+    let feature_ImplicitAndExplicitKeyAcquisition: string@View = "KeySystemOperations::ImplicitAndExplicitKeyAcquisition"
+    let feature_KeyReleaseAndScopeLifetime: string@View = "KeySystemOperations::KeyReleaseAndScopeLifetime"
+    let feature_KeyPathFormationAndCoarsening: string@View = "KeySystemOperations::KeyPathFormationAndCoarsening"
+    let feature_KeyConflictAndReadWriteAnalysis: string@View = "KeySystemOperations::KeyConflictAndReadWriteAnalysis"
+    let feature_NestedReleaseAndReentrancy: string@View = "KeySystemOperations::NestedReleaseAndReentrancy"
+    let feature_SpeculativeKeyBlockOperations: string@View = "KeySystemOperations::SpeculativeKeyBlockOperations"
+    let feature_DynamicKeyRuntimeRealization: string@View = "KeySystemOperations::DynamicKeyRuntimeRealization"
+    let feature_MemoryOrderingAndFenceOperations: string@View = "KeySystemOperations::MemoryOrderingAndFenceOperations"
+
+    [[log(label: "operations-log-section_start")]]
+    [[log(label: "operations-log-transition")]]
+    let status_ImplicitAndExplicitKeyAcquisition: i32 = RunImplicitAndExplicitKeyAcquisition(ctx)
+    if (status_ImplicitAndExplicitKeyAcquisition != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_ImplicitAndExplicitKeyAcquisition
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_KeyReleaseAndScopeLifetime: i32 = RunKeyReleaseAndScopeLifetime(ctx)
+    if (status_KeyReleaseAndScopeLifetime != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_KeyReleaseAndScopeLifetime
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_KeyPathFormationAndCoarsening: i32 = RunKeyPathFormationAndCoarsening(ctx)
+    if (status_KeyPathFormationAndCoarsening != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_KeyPathFormationAndCoarsening
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_KeyConflictAndReadWriteAnalysis: i32 = RunKeyConflictAndReadWriteAnalysis(ctx)
+    if (status_KeyConflictAndReadWriteAnalysis != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_KeyConflictAndReadWriteAnalysis
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_NestedReleaseAndReentrancy: i32 = RunNestedReleaseAndReentrancy(ctx)
+    if (status_NestedReleaseAndReentrancy != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_NestedReleaseAndReentrancy
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_SpeculativeKeyBlockOperations: i32 = RunSpeculativeKeyBlockOperations(ctx)
+    if (status_SpeculativeKeyBlockOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_SpeculativeKeyBlockOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_DynamicKeyRuntimeRealization: i32 = RunDynamicKeyRuntimeRealization(ctx)
+    if (status_DynamicKeyRuntimeRealization != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_DynamicKeyRuntimeRealization
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_MemoryOrderingAndFenceOperations: i32 = RunMemoryOrderingAndFenceOperations(ctx)
+    if (status_MemoryOrderingAndFenceOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_MemoryOrderingAndFenceOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-section_end")]]
+    return 0
+}

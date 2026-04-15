@@ -1,0 +1,12 @@
+public procedure RunGroup(ctx: Context) -> i32 {
+    [[log(label: "pointers-log-section_start")]]
+
+    let status_matrix: i32 = RunPointerDiagnosticMatrix(ctx)
+    if (status_matrix != 0) {
+        [[log(label: "pointers-log-section_end")]]
+        return status_matrix
+    }
+
+    [[log(label: "pointers-log-section_end")]]
+    return 0
+}

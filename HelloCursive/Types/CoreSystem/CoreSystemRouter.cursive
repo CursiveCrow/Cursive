@@ -1,0 +1,139 @@
+
+procedure FeatureStatusLabel(status: i32) -> string@View {
+    if (status == 0) {
+        return "0"
+    }
+    return "non-zero"
+}
+
+procedure LogFeatureStatus(
+    fs: $FileSystem,
+    scope: string@View,
+    feature_name: string@View,
+    step_name: string@View,
+    status: i32
+) -> () {
+    let expected_zero: string@View = "0"
+    let actual_status: string@View = FeatureStatusLabel(status)
+    let passed: bool = status == 0
+    let passed_log_actual = [[log(label: "observed-feature-status", expected: "0")]] actual_status
+    let passed_with_log: bool = passed && (passed_log_actual == expected_zero)
+}
+
+public procedure RunGroup(ctx: Context) -> i32 {
+    let section_name: string@View = "types/CoreSystem"
+    let status_ok: string@View = "ok"
+    let status_failed: string@View = "failed"
+
+    let phase_planned: string@View = "planned"
+    let phase_running: string@View = "running"
+    let phase_complete: string@View = "complete"
+    let phase_failed: string@View = "failed"
+    let dispatch_reason: string@View = "dispatching feature function"
+    let complete_reason: string@View = "feature function completed"
+    let failed_reason: string@View = "feature function returned non-zero status"
+
+    let feature_primitives: string@View = "CoreSystem::PrimitivesLiterals"
+    let feature_equivalence: string@View = "CoreSystem::EquivalenceSubtypingVariance"
+    let feature_inference: string@View = "CoreSystem::InferenceConstraints"
+    let feature_aliases: string@View = "CoreSystem::AliasesPathsQualifiedApply"
+    let feature_type_ast: string@View = "CoreSystem::TypeAstNodeCatalogCoverage"
+    let feature_type_parsing: string@View = "CoreSystem::TypeParsingSurfaceCoverage"
+    let feature_type_helper: string@View = "CoreSystem::TypeHelperParsingRulesCoverage"
+    let feature_type_meta: string@View = "CoreSystem::TypeMetatheoreticPropertiesCoverage"
+    let feature_behavior_types: string@View = "CoreSystem::BehaviorTypesSemantics"
+
+    [[log(label: "types-log-section_start")]]
+    [[log(label: "types-log-transition")]]
+    let status_primitives: i32 = RunPrimitivesLiterals(ctx)
+    let observed_primitives_step: string@View = "observed-primitives-feature-status"
+    LogFeatureStatus(ctx.fs, section_name, feature_primitives, observed_primitives_step, status_primitives)
+    if (status_primitives != 0) {
+        [[log(label: "types-log-transition")]]
+        [[log(label: "types-log-section_end")]]
+        return status_primitives
+    }
+    [[log(label: "types-log-transition")]]
+    [[log(label: "types-log-transition")]]
+    let status_equivalence: i32 = RunEquivalenceSubtypingVariance(ctx)
+    let observed_equivalence_step: string@View = "observed-equivalence-feature-status"
+    LogFeatureStatus(ctx.fs, section_name, feature_equivalence, observed_equivalence_step, status_equivalence)
+    if (status_equivalence != 0) {
+        [[log(label: "types-log-transition")]]
+        [[log(label: "types-log-section_end")]]
+        return status_equivalence
+    }
+    [[log(label: "types-log-transition")]]
+    [[log(label: "types-log-transition")]]
+    let status_inference: i32 = RunInferenceConstraints(ctx)
+    let observed_inference_step: string@View = "observed-inference-feature-status"
+    LogFeatureStatus(ctx.fs, section_name, feature_inference, observed_inference_step, status_inference)
+    if (status_inference != 0) {
+        [[log(label: "types-log-transition")]]
+        [[log(label: "types-log-section_end")]]
+        return status_inference
+    }
+    [[log(label: "types-log-transition")]]
+    [[log(label: "types-log-transition")]]
+    let status_aliases: i32 = RunAliasesPathsQualifiedApply(ctx)
+    let observed_aliases_step: string@View = "observed-aliases-feature-status"
+    LogFeatureStatus(ctx.fs, section_name, feature_aliases, observed_aliases_step, status_aliases)
+    if (status_aliases != 0) {
+        [[log(label: "types-log-transition")]]
+        [[log(label: "types-log-section_end")]]
+        return status_aliases
+    }
+    [[log(label: "types-log-transition")]]
+    [[log(label: "types-log-transition")]]
+    let status_type_ast: i32 = RunTypeAstNodeCatalogCoverage(ctx)
+    let observed_type_ast_step: string@View = "observed-type-ast-feature-status"
+    LogFeatureStatus(ctx.fs, section_name, feature_type_ast, observed_type_ast_step, status_type_ast)
+    if (status_type_ast != 0) {
+        [[log(label: "types-log-transition")]]
+        [[log(label: "types-log-section_end")]]
+        return status_type_ast
+    }
+    [[log(label: "types-log-transition")]]
+    [[log(label: "types-log-transition")]]
+    let status_type_parsing: i32 = RunTypeParsingSurfaceCoverage(ctx)
+    let observed_type_parsing_step: string@View = "observed-type-parsing-feature-status"
+    LogFeatureStatus(ctx.fs, section_name, feature_type_parsing, observed_type_parsing_step, status_type_parsing)
+    if (status_type_parsing != 0) {
+        [[log(label: "types-log-transition")]]
+        [[log(label: "types-log-section_end")]]
+        return status_type_parsing
+    }
+    [[log(label: "types-log-transition")]]
+    [[log(label: "types-log-transition")]]
+    let status_type_helper: i32 = RunTypeHelperParsingRulesCoverage(ctx)
+    let observed_type_helper_step: string@View = "observed-type-helper-feature-status"
+    LogFeatureStatus(ctx.fs, section_name, feature_type_helper, observed_type_helper_step, status_type_helper)
+    if (status_type_helper != 0) {
+        [[log(label: "types-log-transition")]]
+        [[log(label: "types-log-section_end")]]
+        return status_type_helper
+    }
+    [[log(label: "types-log-transition")]]
+    [[log(label: "types-log-transition")]]
+    let status_type_meta: i32 = RunTypeMetatheoreticPropertiesCoverage(ctx)
+    let observed_type_meta_step: string@View = "observed-type-metatheoretic-feature-status"
+    LogFeatureStatus(ctx.fs, section_name, feature_type_meta, observed_type_meta_step, status_type_meta)
+    if (status_type_meta != 0) {
+        [[log(label: "types-log-transition")]]
+        [[log(label: "types-log-section_end")]]
+        return status_type_meta
+    }
+    [[log(label: "types-log-transition")]]
+    [[log(label: "types-log-transition")]]
+    let status_behavior_types: i32 = RunBehaviorTypesSemantics(ctx)
+    let observed_behavior_types_step: string@View = "observed-behavior-types-feature-status"
+    LogFeatureStatus(ctx.fs, section_name, feature_behavior_types, observed_behavior_types_step, status_behavior_types)
+    if (status_behavior_types != 0) {
+        [[log(label: "types-log-transition")]]
+        [[log(label: "types-log-section_end")]]
+        return status_behavior_types
+    }
+    [[log(label: "types-log-transition")]]
+    [[log(label: "types-log-section_end")]]
+    return 0
+}

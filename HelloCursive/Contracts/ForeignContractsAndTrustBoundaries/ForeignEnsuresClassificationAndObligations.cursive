@@ -1,0 +1,216 @@
+[[mangle("hc_contracts_foreign_ensures_classification_impl"), export("C-unwind")]]
+public procedure ContractsForeignEnsuresClassificationImpl(value: i32) -> i32 {
+    return value
+}
+
+[[mangle("hc_contracts_foreign_ensures_classification_bad_impl"), export("C-unwind")]]
+public procedure ContractsForeignEnsuresClassificationBadImpl(value: i32) -> i32 {
+    return value
+}
+
+[[mangle("hc_contracts_foreign_ensures_null_classification_impl"), export("C-unwind")]]
+public procedure ContractsForeignEnsuresNullClassificationImpl(ptr: *imm i32, mode: i32) -> *imm i32 {
+    if (mode == 0) {
+        return null
+    }
+    return ptr
+}
+
+[[mangle("hc_contracts_foreign_ensures_null_classification_bad_impl"), export("C-unwind")]]
+public procedure ContractsForeignEnsuresNullClassificationBadImpl(ptr: *imm i32, mode: i32) -> *imm i32 {
+    if (mode == 0) {
+        return null
+    }
+    return ptr
+}
+
+extern "C" {
+    [[dynamic]]
+    procedure hc_contracts_foreign_ensures_classification_impl(value: i32) -> i32
+        |: @foreign_ensures(@result >= 0)
+        |: @foreign_ensures(@error: @result < 0)
+}
+
+extern "C" {
+    [[dynamic]]
+    procedure hc_contracts_foreign_ensures_classification_bad_impl(value: i32) -> i32
+        |: @foreign_ensures(@result >= 0)
+        |: @foreign_ensures(@error: @result > 0)
+}
+
+extern "C" {
+    [[dynamic]]
+    procedure hc_contracts_foreign_ensures_null_classification_impl(ptr: *imm i32, mode: i32) -> *imm i32
+        |: @foreign_ensures(@result != null)
+        |: @foreign_ensures(@error: @result == null)
+        |: @foreign_ensures(@null_result: @result == null)
+}
+
+extern "C" {
+    [[dynamic]]
+    procedure hc_contracts_foreign_ensures_null_classification_bad_impl(ptr: *imm i32, mode: i32) -> *imm i32
+        |: @foreign_ensures(@error: @result == null)
+        |: @foreign_ensures(@null_result: @result != null)
+}
+
+[[dynamic, mangle("hc_contracts_foreign_ensures_classification_bad_catch"), export("C-unwind"), unwind("catch")]]
+public procedure ContractsForeignEnsuresClassificationBadCatch() -> i32 {
+    let _panic: i32 = unsafe {
+        hc_contracts_foreign_ensures_classification_bad_impl(-5)
+    }
+    return _panic
+}
+
+extern "C" {
+    procedure hc_contracts_foreign_ensures_classification_bad_catch() -> i32
+}
+
+[[dynamic, mangle("hc_contracts_foreign_ensures_null_classification_bad_catch"), export("C-unwind"), unwind("catch")]]
+public procedure ContractsForeignEnsuresNullClassificationBadCatch(ptr: *imm i32) -> i32 {
+    let _panic_ptr: *imm i32 = unsafe {
+        hc_contracts_foreign_ensures_null_classification_bad_impl(ptr, 0)
+    }
+    if (_panic_ptr == null) {
+        return 13
+    }
+    return 0
+}
+
+extern "C" {
+    procedure hc_contracts_foreign_ensures_null_classification_bad_catch(ptr: *imm i32) -> i32
+}
+
+procedure ForeignEnsuresClassificationAndObligationsMetricLabel(value: i32) -> string@View {
+    if (value == 21) {
+        return "21"
+    }
+    return "other"
+}
+
+public procedure RunForeignEnsuresClassificationAndObligations(ctx: Context) -> i32 {
+    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+
+    let seed_value: i32 = 5
+    let seed_ptr_safe: Ptr<i32>@Valid = &seed_value
+    let seed_ptr_raw: *imm i32 = unsafe { transmute<Ptr<i32>@Valid, *imm i32>(seed_ptr_safe) }
+
+    let success_path_value: i32 = unsafe {
+        hc_contracts_foreign_ensures_classification_impl(11)
+    }
+    let error_path_value: i32 = unsafe {
+        hc_contracts_foreign_ensures_classification_impl(-4)
+    }
+    let null_classification_success_ptr: *imm i32 = unsafe {
+        hc_contracts_foreign_ensures_null_classification_impl(seed_ptr_raw, 1)
+    }
+    let null_classification_error_ptr: *imm i32 = unsafe {
+        hc_contracts_foreign_ensures_null_classification_impl(seed_ptr_raw, 0)
+    }
+    let bad_classification_panic_catch_metric: i32 = unsafe {
+        hc_contracts_foreign_ensures_classification_bad_catch()
+    }
+    let bad_null_classification_panic_catch_metric: i32 = unsafe {
+        hc_contracts_foreign_ensures_null_classification_bad_catch(seed_ptr_raw)
+    }
+
+    let success_path_value_log: i32 =
+        [[log(label: "observed-contracts-foreign-ensures-classification-success-path", expected: 11)]]
+        success_path_value
+    let error_path_is_negative_log: bool =
+        [[log(label: "observed-contracts-foreign-ensures-classification-error-path-negative", expected: true)]]
+        error_path_value < 0
+    let bad_classification_panic_catch_metric_log: i32 =
+        [[log(label: "observed-contracts-foreign-ensures-classification-bad-catch", expected: 0)]]
+        bad_classification_panic_catch_metric
+    let null_classification_success_ptr_log: bool =
+        [[log(label: "observed-contracts-foreign-ensures-classification-null-success-non-null", expected: true)]]
+        null_classification_success_ptr != null
+    let null_classification_error_ptr_log: bool =
+        [[log(label: "observed-contracts-foreign-ensures-classification-null-error-is-null", expected: true)]]
+        null_classification_error_ptr == null
+    let bad_null_classification_panic_catch_metric_log: i32 =
+        [[log(label: "observed-contracts-foreign-ensures-classification-null-bad-catch", expected: 0)]]
+        bad_null_classification_panic_catch_metric
+
+    let err_cond_holds: bool = error_path_value < 0
+    let success_cond_holds: bool = success_path_value_log >= 0
+    let error_obligation_holds: bool = err_cond_holds && (error_path_value < 0)
+    let success_obligation_holds: bool = success_cond_holds && (success_path_value_log >= 0)
+    let null_err_cond_holds: bool = null_classification_error_ptr == null
+    let null_success_cond_holds: bool = null_classification_success_ptr != null
+    let null_cond_holds: bool = null_classification_error_ptr == null
+    let null_error_obligation_holds: bool = null_err_cond_holds && (null_classification_error_ptr == null)
+    let null_success_obligation_holds: bool = null_success_cond_holds && (null_classification_success_ptr != null)
+    let null_result_obligation_holds: bool = null_cond_holds && (null_classification_error_ptr == null)
+
+    let err_cond_holds_log: bool =
+        [[log(label: "contracts-foreign-ensures-classification-err-cond", expected: true)]]
+        err_cond_holds
+    let success_cond_holds_log: bool =
+        [[log(label: "contracts-foreign-ensures-classification-success-cond", expected: true)]]
+        success_cond_holds
+    let error_obligation_holds_log: bool =
+        [[log(label: "contracts-foreign-ensures-classification-error-obligation", expected: true)]]
+        error_obligation_holds
+    let success_obligation_holds_log: bool =
+        [[log(label: "contracts-foreign-ensures-classification-success-obligation", expected: true)]]
+        success_obligation_holds
+    let null_err_cond_holds_log: bool =
+        [[log(label: "contracts-foreign-ensures-classification-null-err-cond", expected: true)]]
+        null_err_cond_holds
+    let null_success_cond_holds_log: bool =
+        [[log(label: "contracts-foreign-ensures-classification-null-success-cond", expected: true)]]
+        null_success_cond_holds
+    let null_cond_holds_log: bool =
+        [[log(label: "contracts-foreign-ensures-classification-null-cond", expected: true)]]
+        null_cond_holds
+    let null_error_obligation_holds_log: bool =
+        [[log(label: "contracts-foreign-ensures-classification-null-error-obligation", expected: true)]]
+        null_error_obligation_holds
+    let null_success_obligation_holds_log: bool =
+        [[log(label: "contracts-foreign-ensures-classification-null-success-obligation", expected: true)]]
+        null_success_obligation_holds
+    let null_result_obligation_holds_log: bool =
+        [[log(label: "contracts-foreign-ensures-classification-null-result-obligation", expected: true)]]
+        null_result_obligation_holds
+
+    let con_070: string@View = "CON-070"
+    let con_070_log: string@View =
+        [[log(label: "contracts-foreign-ensures-classification-and-obligations-feature-070", expected: "CON-070")]]
+        con_070
+
+    let runtime_ok: bool =
+        (success_path_value_log == 11) &&
+        (error_path_is_negative_log == true) &&
+        (null_classification_success_ptr_log == true) &&
+        (null_classification_error_ptr_log == true) &&
+        (bad_classification_panic_catch_metric_log == 0) &&
+        (bad_null_classification_panic_catch_metric_log == 0) &&
+        (err_cond_holds_log == true) &&
+        (success_cond_holds_log == true) &&
+        (error_obligation_holds_log == true) &&
+        (success_obligation_holds_log == true) &&
+        (null_err_cond_holds_log == true) &&
+        (null_success_cond_holds_log == true) &&
+        (null_cond_holds_log == true) &&
+        (null_error_obligation_holds_log == true) &&
+        (null_success_obligation_holds_log == true) &&
+        (null_result_obligation_holds_log == true) &&
+        (con_070_log == "CON-070")
+    let runtime_ok_log: bool =
+        [[log(label: "contracts-foreign-ensures-classification-and-obligations-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
+    let metric_label: string@View = ForeignEnsuresClassificationAndObligationsMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-contracts-foreign-ensures-classification-and-obligations-metric", expected: "21")]]
+        metric_label
+    if (metric_log_actual != "21") {
+        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    return 0
+}

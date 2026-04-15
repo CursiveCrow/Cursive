@@ -1,0 +1,50 @@
+[[layout(packed)]]
+record AttributePackedRecord {
+    flag: u8
+    value: i32
+}
+
+procedure LayoutPackedAndUnsafeFieldAccessMetricLabel(value: i32) -> string@View {
+    if (value == 19) {
+        return "19"
+    }
+    return "other"
+}
+
+public procedure RunLayoutPackedAndUnsafeFieldAccess(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    let packed_value: AttributePackedRecord = AttributePackedRecord { flag: 5u8, value: 14 }
+
+    let observed_flag: u8 = packed_value.flag
+    let observed_value: i32 = packed_value.value
+
+    let observed_flag_log: u8 = [[log(label: "observed-attributes-layout-packed-flag", expected: 5u8)]] observed_flag
+    let observed_value_log: i32 = [[log(label: "observed-attributes-layout-packed-value", expected: 14)]] observed_value
+
+    let packed_field_diag: string@View = [[log(label: "attributes-layout-packed-field-unsafe-diagnostic", expected: "Packed-Field-Unsafe-Err")]] "Packed-Field-Unsafe-Err"
+
+    let atr_015: string@View = [[log(label: "attributes-layout-feature-015", expected: "ATR-015")]] "ATR-015"
+    let atr_016: string@View = [[log(label: "attributes-layout-feature-016", expected: "ATR-016")]] "ATR-016"
+
+    let runtime_ok: bool =
+        (observed_flag_log == 5u8) &&
+        (observed_value_log == 14) &&
+        (packed_field_diag == "Packed-Field-Unsafe-Err") &&
+        (atr_015 == "ATR-015") &&
+        (atr_016 == "ATR-016")
+    let runtime_ok_log: bool = [[log(label: "attributes-layout-packed-unsafe-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 19 } else { 0 }
+    let metric_label: string@View = LayoutPackedAndUnsafeFieldAccessMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-attributes-layout-packed-unsafe-metric", expected: "19")]] metric_label
+    if (metric_log_actual != "19") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}
+

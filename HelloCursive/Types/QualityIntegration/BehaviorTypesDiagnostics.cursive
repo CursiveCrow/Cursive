@@ -1,0 +1,66 @@
+procedure BehaviorTypesDiagLabel(value: i32) -> string@View {
+    if (value == 100) {
+        return "100"
+    }
+    if (value == 5) {
+        return "5"
+    }
+    if (value == -1) {
+        return "inf"
+    }
+    return "other"
+}
+
+public procedure RunBehaviorTypesDiagnostics(ctx: Context) -> i32 {
+    let _ = ctx
+
+    let suggested_limit: i32 = 100
+    let strict_limit: i32 = 5
+    let unlimited_limit: i32 = -1
+
+    let suggested_limit_ok: bool = suggested_limit == 100
+    let strict_limit_ok: bool = strict_limit == 5
+    let unlimited_limit_ok: bool = unlimited_limit == -1
+
+    let suggested_limit_log =
+        [[log(label: "observed-behavior-types-suggested-limit-ok", expected: true)]]
+        suggested_limit_ok
+    let strict_limit_log =
+        [[log(label: "observed-behavior-types-strict-limit-ok", expected: true)]]
+        strict_limit_ok
+    let unlimited_limit_log =
+        [[log(label: "observed-behavior-types-unlimited-limit-ok", expected: true)]]
+        unlimited_limit_ok
+
+    let suggested_label_log =
+        [[log(label: "observed-behavior-types-suggested-limit-value", expected: "100")]]
+        BehaviorTypesDiagLabel(suggested_limit)
+    let strict_label_log =
+        [[log(label: "observed-behavior-types-strict-limit-value", expected: "5")]]
+        BehaviorTypesDiagLabel(strict_limit)
+    let unlimited_label_log =
+        [[log(label: "observed-behavior-types-unlimited-limit-value", expected: "inf")]]
+        BehaviorTypesDiagLabel(unlimited_limit)
+
+    let overall_ok: bool =
+        suggested_limit_ok &&
+        strict_limit_ok &&
+        unlimited_limit_ok &&
+        (suggested_limit_log == true) &&
+        (strict_limit_log == true) &&
+        (unlimited_limit_log == true) &&
+        (suggested_label_log == "100") &&
+        (strict_label_log == "5") &&
+        (unlimited_label_log == "inf")
+
+    let overall_ok_log =
+        [[log(label: "observed-behavior-types-diagnostics-overall-ok", expected: true)]]
+        overall_ok
+    if ((overall_ok == false) || (overall_ok_log == false)) {
+        [[log(label: "types-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "types-log-types_item_success")]]
+    return 0
+}

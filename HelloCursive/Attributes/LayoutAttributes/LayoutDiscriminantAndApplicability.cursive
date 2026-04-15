@@ -1,0 +1,50 @@
+[[layout(i32)]]
+enum AttributeDiscriminantEnum {
+    First = 3
+    Second
+    Third = 9
+}
+
+procedure LayoutDiscriminantAndApplicabilityMetricLabel(value: i32) -> string@View {
+    if (value == 16) {
+        return "16"
+    }
+    return "other"
+}
+
+public procedure RunLayoutDiscriminantAndApplicability(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    let first: AttributeDiscriminantEnum = AttributeDiscriminantEnum::First
+    let second: AttributeDiscriminantEnum = AttributeDiscriminantEnum::Second
+    let third: AttributeDiscriminantEnum = AttributeDiscriminantEnum::Third
+
+    let discrim_metric: i32 =
+        (if first is { AttributeDiscriminantEnum::First { 3 }AttributeDiscriminantEnum::Second { 0 }AttributeDiscriminantEnum::Third { 0 } }) +
+        (if second is { AttributeDiscriminantEnum::First { 0 }AttributeDiscriminantEnum::Second { 4 }AttributeDiscriminantEnum::Third { 0 } }) +
+        (if third is { AttributeDiscriminantEnum::First { 0 }AttributeDiscriminantEnum::Second { 0 }AttributeDiscriminantEnum::Third { 9 } })
+
+    let discrim_metric_log: i32 = [[log(label: "observed-attributes-layout-discriminant-metric", expected: 16)]] discrim_metric
+
+    let atr_014: string@View = [[log(label: "attributes-layout-feature-014", expected: "ATR-014")]] "ATR-014"
+    let atr_018: string@View = [[log(label: "attributes-layout-feature-018", expected: "ATR-018")]] "ATR-018"
+
+    let runtime_ok: bool =
+        (discrim_metric_log == 16) &&
+        (atr_014 == "ATR-014") &&
+        (atr_018 == "ATR-018")
+    let runtime_ok_log: bool = [[log(label: "attributes-layout-discriminant-applicability-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 16 } else { 0 }
+    let metric_label: string@View = LayoutDiscriminantAndApplicabilityMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-attributes-layout-discriminant-applicability-metric", expected: "16")]] metric_label
+    if (metric_log_actual != "16") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}
+

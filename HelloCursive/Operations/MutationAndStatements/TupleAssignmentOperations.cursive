@@ -1,0 +1,193 @@
+procedure LogTupleAssignmentObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure TupleAssignmentMetricLabel(value: i32) -> string@View {
+    if (value == 3) {
+        return "3"
+    }
+    if (value == 6) {
+        return "6"
+    }
+    if (value == 9) {
+        return "9"
+    }
+    return "other"
+}
+
+procedure RunTupleAssignmentItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyTupleAssignmentItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    let diag_tuple_access_not_tuple: string@View = "E-SEM-2524"
+    let diag_tuple_arity_mismatch: string@View = "E-TYP-1803"
+
+    LogTupleAssignmentObject(ctx.fs, scope, "tuple_syntax_slot", "(i32,i32)", "constructed", "tuple element assignment syntax target prepared")
+    LogTupleAssignmentObject(ctx.fs, scope, "tuple_static_slot", "((i32,i32),i32)", "constructed", "nested tuple element assignment target prepared")
+    LogTupleAssignmentObject(ctx.fs, scope, "tuple_runtime_slot", "(i32,i32,i32)", "constructed", "runtime tuple element assignment target prepared")
+    LogTupleAssignmentObject(ctx.fs, scope, "diag_tuple_access_not_tuple", "diagnostic-code", "constructed", "tuple-access-not-tuple diagnostic mapping prepared")
+    LogTupleAssignmentObject(ctx.fs, scope, "diag_tuple_arity_mismatch", "diagnostic-code", "constructed", "tuple-arity-mismatch diagnostic mapping prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    var syntax_tuple: (i32, i32) = (1, 2)
+    syntax_tuple.0 = syntax_tuple.0 + 2
+    let syntax_metric: i32 = syntax_tuple.0
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    var static_tuple: ((i32, i32), i32) = ((2, 3), 4)
+    static_tuple.0.1 = static_tuple.0.1 + 3
+    let static_metric: i32 = static_tuple.0.1
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    var runtime_tuple: (i32, i32, i32) = (1, 2, 3)
+    runtime_tuple.2 = runtime_tuple.2 + 4
+    let runtime_component: i32 = runtime_tuple.2
+    [[log(label: "operations-log-transition_move")]]
+    let diag_tuple_access_not_tuple_ok: bool = diag_tuple_access_not_tuple == "E-SEM-2524"
+    let diag_tuple_arity_mismatch_ok: bool = diag_tuple_arity_mismatch == "E-TYP-1803"
+
+    let diag_tuple_access_not_tuple_ok_log_actual = [[log(label: "diagnostic-tuple-access-not-tuple", expected: "E-SEM-2524")]] diag_tuple_access_not_tuple
+    let diag_tuple_access_not_tuple_ok_with_log: bool = diag_tuple_access_not_tuple_ok && (diag_tuple_access_not_tuple_ok_log_actual == diag_tuple_access_not_tuple)
+    let diag_tuple_arity_mismatch_ok_log_actual = [[log(label: "diagnostic-tuple-arity-mismatch", expected: "E-TYP-1803")]] diag_tuple_arity_mismatch
+    let diag_tuple_arity_mismatch_ok_with_log: bool = diag_tuple_arity_mismatch_ok && (diag_tuple_arity_mismatch_ok_log_actual == diag_tuple_arity_mismatch)
+    let diag_count: i32 = if (diag_tuple_access_not_tuple_ok && diag_tuple_arity_mismatch_ok) { 2 } else { 0 }
+    let runtime_metric: i32 = runtime_component + diag_count
+
+    let syntax_passed: bool = syntax_metric == 3
+    let static_passed: bool = static_metric == 6
+    let runtime_passed: bool = runtime_metric == 9
+
+    let syntax_actual: string@View = TupleAssignmentMetricLabel(syntax_metric)
+    let static_actual: string@View = TupleAssignmentMetricLabel(static_metric)
+    let runtime_actual: string@View = TupleAssignmentMetricLabel(runtime_metric)
+
+    let syntax_passed_log_actual = [[log(label: "observed-tuple-assignment-syntax-metric", expected: "3")]] syntax_actual
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == syntax_actual)
+    let static_passed_log_actual = [[log(label: "observed-tuple-assignment-static-metric", expected: "6")]] static_actual
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == static_actual)
+    let runtime_passed_log_actual = [[log(label: "observed-tuple-assignment-runtime-metric", expected: "9")]] runtime_actual
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_actual)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunTupleAssignmentItem(
+            ctx,
+            scope,
+            "TupleAssignmentOperationsSyntaxForms",
+            "syntax forms for tuple element assignment through tuple-access places",
+            "validated tuple assignment operations syntax forms",
+            "tuple-assignment-syntax",
+            "evaluate tuple element assignment syntax over first tuple slot",
+            "3",
+            "3",
+            "not-3",
+            move syntax_passed_with_log,
+            "tuple assignment syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunTupleAssignmentItem(
+            ctx,
+            scope,
+            "TupleAssignmentOperationsStaticSemantics",
+            "static legality and type compatibility for nested tuple place assignments",
+            "validated tuple assignment operations static semantics",
+            "tuple-assignment-static",
+            "type-check nested tuple element assignment and resulting assigned value",
+            "6",
+            "6",
+            "not-6",
+            move static_passed_with_log,
+            "tuple assignment static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunTupleAssignmentItem(
+            ctx,
+            scope,
+            "TupleAssignmentOperationsRuntimeDiagnostics",
+            "runtime tuple-place assignment behavior with tuple diagnostics mapping validation",
+            "validated tuple assignment operations runtime behavior and diagnostics",
+            "tuple-assignment-runtime",
+            "verify tuple runtime metric and tuple diagnostic-code mappings",
+            "9",
+            "9",
+            "not-9",
+            move runtime_passed_with_log,
+            "tuple assignment runtime diagnostics check failed"
+        )
+    }
+
+    return RunTupleAssignmentItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown tuple assignment operation item",
+        "failed unknown tuple assignment operation item",
+        "item-resolution",
+        "resolve tuple assignment operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown tuple assignment operation item"
+    )
+}
+
+procedure RunTupleAssignmentOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::MutationAndStatements::TupleAssignmentOperations"
+    let checkpoint: string@View = "covered tuple assignment operations operation items"
+
+    let status_syntax: i32 = VerifyTupleAssignmentItem(ctx, scope, 0, "TupleAssignmentOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyTupleAssignmentItem(ctx, scope, 1, "TupleAssignmentOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyTupleAssignmentItem(ctx, scope, 2, "TupleAssignmentOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

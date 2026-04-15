@@ -1,0 +1,50 @@
+procedure PointerReadSafe(value: Ptr<i32>@Valid) -> i32 {
+    return *value
+}
+
+procedure PointerReadRaw(value: *imm i32) -> i32 {
+    return unsafe { *value }
+}
+
+procedure PointerBehaviorMetricLabel(value: i32) -> string@View {
+    if (value == 18) {
+        return "18"
+    }
+    return "other"
+}
+
+public procedure RunSafeAndRawPointerBehavior(ctx: Context) -> i32 {
+    [[log(label: "memory-log-item_begin")]]
+
+    var cell: i32 = 9
+    let safe_ptr_valid: Ptr<i32>@Valid = &cell
+    let safe_read_metric: i32 = PointerReadSafe(safe_ptr_valid)
+
+    let raw_ptr_imm: *imm i32 = unsafe { transmute<Ptr<i32>@Valid, *imm i32>(safe_ptr_valid) }
+    let raw_read_metric: i32 = PointerReadRaw(raw_ptr_imm)
+
+    var raw_ptr_mut: *mut i32 = unsafe { transmute<Ptr<i32>@Valid, *mut i32>(safe_ptr_valid) }
+    let next_value: unique i32 = 10
+    unsafe {
+        *raw_ptr_mut = move next_value
+    }
+    let raw_mut_write_metric: i32 = cell
+
+    let safe_state_ok: bool = safe_read_metric == 9
+    let raw_state_ok: bool = raw_read_metric == 9
+    let raw_mut_ok: bool = raw_mut_write_metric == 10
+    let safe_state_ok_log = [[log(label: "memory-pointers-safe-valid-state", expected: true)]] safe_state_ok
+    let raw_state_ok_log = [[log(label: "memory-pointers-raw-imm-state", expected: true)]] raw_state_ok
+    let raw_mut_ok_log = [[log(label: "memory-pointers-raw-mut-state", expected: true)]] raw_mut_ok
+
+    let metric: i32 = if (safe_state_ok && raw_state_ok && raw_mut_ok && (safe_state_ok_log == true) && (raw_state_ok_log == true) && (raw_mut_ok_log == true)) { 18 } else { 0 }
+    let metric_label: string@View = PointerBehaviorMetricLabel(metric)
+    let metric_log_actual = [[log(label: "observed-memory-pointer-behavior-metric", expected: "18")]] metric_label
+    if (metric_log_actual != "18") {
+        [[log(label: "memory-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "memory-log-memory_item_success")]]
+    return 0
+}

@@ -1,0 +1,1282 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: ./spec-audit-loop [options]
+
+Launch the repo-local spec-audit command one row at a time in isolated
+worktrees until it reports `SPEC_AUDIT_STATUS: complete` or
+`SPEC_AUDIT_STATUS: blocked`.
+
+Options:
+  --once                 Run a single row-item iteration and stop after the first status
+  --max-iterations <N>   Stop after N iterations (0 means unlimited; default 0)
+  --model <MODEL>        Override the Codex model (default: $SPEC_AUDIT_MODEL or gpt-5.4)
+  --reasoning-effort <LEVEL>
+                         Override Codex reasoning effort (default: $SPEC_AUDIT_REASONING_EFFORT or xhigh)
+  --profile <PROFILE>    Optional Codex profile to pass to each exec call
+  -h, --help             Show this help and exit
+
+Environment:
+  SPEC_AUDIT_WORKTREE_ROOT   Parent directory for per-row worktrees
+  SPEC_AUDIT_WINDOWS_PRESET  Main-repo Windows build preset to verify after integration
+  SPEC_AUDIT_WINDOWS_TARGET  Main-repo Windows build target to verify after integration
+EOF
+}
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$SCRIPT_DIR"
+PROMPT_FILE="$REPO_ROOT/.codex/commands/spec-audit-loop.md"
+AUDIT_CSV="$REPO_ROOT/docs/audit/SPEC_RULE_TABLE_BY_PHASE.csv"
+SPEC_DECISIONS_FILE="$REPO_ROOT/docs/SpecDecisionsNeeded.md"
+WORKTREE_ROOT_DEFAULT="$(cd "$REPO_ROOT/.." && pwd)/.spec-audit-worktrees"
+WORKTREE_ROOT="${SPEC_AUDIT_WORKTREE_ROOT:-$WORKTREE_ROOT_DEFAULT}"
+WINDOWS_PRESET="${SPEC_AUDIT_WINDOWS_PRESET:-${CURSIVE_WINDOWS_PRESET:-windows-debug}}"
+WINDOWS_TARGET="${SPEC_AUDIT_WINDOWS_TARGET:-${CURSIVE_WINDOWS_TARGET:-cursive_out}}"
+
+ONCE=0
+MAX_ITERATIONS="${SPEC_AUDIT_MAX_ITERATIONS:-0}"
+MODEL="${SPEC_AUDIT_MODEL:-gpt-5.4}"
+REASONING_EFFORT="${SPEC_AUDIT_REASONING_EFFORT:-high}"
+PROFILE="${SPEC_AUDIT_PROFILE:-}"
+
+log() {
+  printf '[spec-audit-loop] %s\n' "$*"
+}
+
+fail() {
+  printf '[spec-audit-loop] error: %s\n' "$*" >&2
+  exit 1
+}
+
+require_cmd() {
+  local name="$1"
+  command -v "$name" >/dev/null 2>&1 || fail "required command not found: $name"
+}
+
+escape_powershell_literal() {
+  local value="$1"
+  printf '%s' "${value//\'/\'\'}"
+}
+
+to_windows_path() {
+  local input="$1"
+  if command -v wslpath >/dev/null 2>&1; then
+    wslpath -w "$input"
+    return
+  fi
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$input"
+    return
+  fi
+  fail "no Windows path conversion tool found (expected wslpath or cygpath)"
+}
+
+run_windows_powershell() {
+  local script="$1"
+  require_cmd powershell.exe
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$script"
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --once)
+      ONCE=1
+      shift
+      ;;
+    --max-iterations)
+      [[ $# -ge 2 ]] || { printf 'missing value for --max-iterations\n' >&2; exit 2; }
+      MAX_ITERATIONS="$2"
+      shift 2
+      ;;
+    --model)
+      [[ $# -ge 2 ]] || { printf 'missing value for --model\n' >&2; exit 2; }
+      MODEL="$2"
+      shift 2
+      ;;
+    --reasoning-effort)
+      [[ $# -ge 2 ]] || { printf 'missing value for --reasoning-effort\n' >&2; exit 2; }
+      REASONING_EFFORT="$2"
+      shift 2
+      ;;
+    --profile)
+      [[ $# -ge 2 ]] || { printf 'missing value for --profile\n' >&2; exit 2; }
+      PROFILE="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'unknown argument: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ ! -f "$PROMPT_FILE" ]]; then
+  printf 'missing prompt file: %s\n' "$PROMPT_FILE" >&2
+  exit 1
+fi
+
+if [[ ! -f "$AUDIT_CSV" ]]; then
+  printf 'missing audit csv: %s\n' "$AUDIT_CSV" >&2
+  exit 1
+fi
+
+if ! [[ "$MAX_ITERATIONS" =~ ^[0-9]+$ ]]; then
+  printf 'invalid --max-iterations value: %s\n' "$MAX_ITERATIONS" >&2
+  exit 2
+fi
+
+case "$REASONING_EFFORT" in
+  low|medium|high|xhigh)
+    ;;
+  *)
+    printf 'invalid --reasoning-effort value: %s\n' "$REASONING_EFFORT" >&2
+    exit 2
+    ;;
+esac
+
+for required_cmd in codex git python3; do
+  if ! command -v "$required_cmd" >/dev/null 2>&1; then
+    printf '%s not found on PATH\n' "$required_cmd" >&2
+    exit 1
+  fi
+done
+
+cd "$REPO_ROOT"
+
+GIT_COMMON_DIR="$(git -C "$REPO_ROOT" rev-parse --git-common-dir)"
+LOCK_FILE="$GIT_COMMON_DIR/spec-audit-loop.lock"
+
+last_message_file=""
+iteration_prompt_file=""
+base_decisions_snapshot_file=""
+head_audit_csv_file=""
+staged_audit_csv_file=""
+head_spec_decisions_file=""
+staged_spec_decisions_file=""
+commit_message_file=""
+integration_backup_dir=""
+nonshared_paths_file=""
+agent_events_file=""
+build_failure_prompt_file=""
+main_build_log_file=""
+cleanup_temp_files() {
+  local path
+  for path in \
+    "${last_message_file:-}" \
+    "${iteration_prompt_file:-}" \
+    "${base_decisions_snapshot_file:-}" \
+    "${head_audit_csv_file:-}" \
+    "${staged_audit_csv_file:-}" \
+    "${head_spec_decisions_file:-}" \
+    "${staged_spec_decisions_file:-}" \
+    "${commit_message_file:-}" \
+    "${nonshared_paths_file:-}" \
+    "${agent_events_file:-}" \
+    "${build_failure_prompt_file:-}" \
+    "${main_build_log_file:-}"
+  do
+    if [[ -n "$path" ]]; then
+      rm -f "$path"
+    fi
+  done
+  if [[ -n "${integration_backup_dir:-}" ]]; then
+    rm -rf "$integration_backup_dir"
+  fi
+}
+trap cleanup_temp_files EXIT
+
+claim_next_row() {
+  python3 - "$AUDIT_CSV" "$LOCK_FILE" <<'PY'
+import csv
+import json
+import os
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+audit_csv = Path(sys.argv[1])
+lock_path = Path(sys.argv[2])
+deadline = time.time() + 300
+lock_fd = None
+
+while True:
+    try:
+        lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.write(lock_fd, f"{os.getpid()}\n".encode("ascii"))
+        os.close(lock_fd)
+        lock_fd = None
+        break
+    except FileExistsError:
+        if time.time() >= deadline:
+            print(f"timed out waiting for lock: {lock_path}", file=sys.stderr)
+            sys.exit(3)
+        time.sleep(0.1)
+
+try:
+    with audit_csv.open(encoding="utf-8", newline="") as fh:
+        raw_rows = list(csv.reader(fh))
+        if not raw_rows or not raw_rows[0]:
+            print(f"missing CSV header in {audit_csv}", file=sys.stderr)
+            sys.exit(2)
+
+    selected = None
+    logical_line = 2
+    for raw_index, raw_row in enumerate(raw_rows[1:], start=1):
+        if not raw_row or not any(cell.strip() for cell in raw_row):
+            continue
+
+        cells = list(raw_row)
+        while len(cells) < 6:
+            cells.append("")
+
+        row = {
+            "phase": cells[0],
+            "implemented": cells[1],
+            "rule name": cells[2],
+            "rule content": cells[3],
+            "spec location": cells[4],
+            "compiler location": ",".join(cells[5:]),
+        }
+
+        implemented = row["implemented"].strip()
+        current_line = logical_line
+        logical_line += 1
+        if implemented in {"complete", "ambiguous", "in_progress"}:
+            continue
+        selected = dict(row)
+        selected["_line"] = current_line
+        selected["_raw_index"] = raw_index
+        selected["_previous_implemented"] = implemented
+        selected["implemented"] = "in_progress"
+        while len(raw_rows[raw_index]) < 2:
+            raw_rows[raw_index].append("")
+        raw_rows[raw_index][1] = "in_progress"
+        break
+
+    if selected is None:
+        sys.exit(10)
+
+    fd, tmp_name = tempfile.mkstemp(
+        prefix="spec-audit-claim.",
+        suffix=".csv",
+        dir=str(audit_csv.parent),
+        text=True,
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as tmp:
+            writer = csv.writer(tmp)
+            writer.writerows(raw_rows)
+        os.replace(tmp_name, audit_csv)
+    finally:
+        if os.path.exists(tmp_name):
+            os.unlink(tmp_name)
+
+    print(json.dumps(selected, ensure_ascii=True))
+finally:
+    try:
+        lock_path.unlink()
+    except FileNotFoundError:
+        pass
+PY
+}
+
+copy_shared_context_to_worktree() {
+  local worktree_dir="$1"
+
+  # The worktree already contains the tracked audit CSV from HEAD. Overwriting
+  # it with the live shared-checkout copy dirties the worktree and blocks
+  # teardown after successful integration.
+  if [[ -f "$SPEC_DECISIONS_FILE" ]]; then
+    mkdir -p "$(dirname "$worktree_dir/docs/SpecDecisionsNeeded.md")"
+    cp "$SPEC_DECISIONS_FILE" "$worktree_dir/docs/SpecDecisionsNeeded.md"
+    cp "$SPEC_DECISIONS_FILE" "$base_decisions_snapshot_file"
+  else
+    : > "$base_decisions_snapshot_file"
+  fi
+}
+
+build_iteration_prompt() {
+  python3 - \
+    "$PROMPT_FILE" \
+    "$iteration_prompt_file" \
+    "$selected_row_json" \
+    "$WORKTREE_DIR" \
+    "$WORKTREE_BRANCH" \
+    "$WORKTREE_BASE_COMMIT" \
+    "$REPO_ROOT" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+prompt_path = Path(sys.argv[1])
+out_path = Path(sys.argv[2])
+row = json.loads(sys.argv[3])
+worktree_dir = sys.argv[4]
+worktree_branch = sys.argv[5]
+base_commit = sys.argv[6]
+shared_repo = sys.argv[7]
+
+base = prompt_path.read_text(encoding="utf-8")
+selection = f"""
+
+Launcher Context:
+- Shared checkout: {shared_repo}
+- Assigned worktree: {worktree_dir}
+- Assigned branch: {worktree_branch}
+- Worktree base commit: {base_commit}
+
+Selected Audit Row:
+- CSV line: {row["_line"]}
+- Assigned From: {row["_previous_implemented"]}
+- Implemented: {row["implemented"]}
+- Phase: {row["phase"]}
+- Rule Name: {row["rule name"]}
+- Rule Content: {row["rule content"]}
+- Spec Location: {row["spec location"]}
+- Compiler Location: {row["compiler location"]}
+
+Iteration instruction:
+- Do not rescan the CSV for this iteration.
+- Work only the selected audit row above.
+- Multiple audit agents may be active at the same time.
+- Ignore rows whose `implemented` value is `in_progress`; those rows are already assigned.
+- All changes for this row are isolated in the assigned worktree above.
+- The launcher is the sole owner of validation after your row-item commit is created.
+- Do not run any build, configure, test, package, bootstrap, or verification command from the assigned worktree.
+- Do not run `cmake`, `ctest`, `ninja`, `make`, `gmake`, `msbuild`, `scripts/build_cursive_all.sh`, `RunCompilerStaticConformance.ps1`, `RunHelloCursive*.ps1`, `setup_extern.ps1`, or any equivalent command from the worktree.
+- Do not create or rely on worktree-local `build/`, `extern/`, or other generated validation artifacts.
+- If you invoke Python from a shell command, use `python3`; this environment does not guarantee a `python` alias.
+- Create exactly one verified commit in that worktree for this row, then end.
+- Do not start the next row yourself. The launcher will transfer the verified result into the main repo, destroy this worktree, and create a fresh worktree for the next row if needed.
+- If you record an ambiguity in `docs/SpecDecisionsNeeded.md` for this row, end after that update and finish with `SPEC_AUDIT_STATUS: continue` so the launcher can integrate the ambiguity, destroy this worktree, and move on.
+"""
+
+
+def replace_keyword_trigger(text: str, source: str, target: str) -> str:
+    pattern = re.compile(rf"\b{re.escape(source)}\b", flags=re.IGNORECASE)
+
+    def repl(match: re.Match[str]) -> str:
+        token = match.group(0)
+        if token.isupper():
+            return target.upper()
+        if token[:1].isupper():
+            return target.capitalize()
+        return target
+
+    return pattern.sub(repl, text)
+
+
+prompt = base + selection
+prompt = replace_keyword_trigger(prompt, "stop", "end")
+prompt = replace_keyword_trigger(prompt, "cancel", "clear")
+prompt = replace_keyword_trigger(prompt, "abort", "terminate")
+out_path.write_text(prompt, encoding="utf-8")
+PY
+}
+
+build_failure_retry_prompt() {
+  python3 - \
+    "$build_failure_prompt_file" \
+    "$selected_row_json" \
+    "$WORKTREE_DIR" \
+    "$WORKTREE_BRANCH" \
+    "$main_build_log_file" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+out_path = Path(sys.argv[1])
+row = json.loads(sys.argv[2])
+worktree_dir = sys.argv[3]
+worktree_branch = sys.argv[4]
+build_log_path = Path(sys.argv[5])
+
+build_log = build_log_path.read_text(encoding="utf-8", errors="replace")
+tail_lines = build_log.splitlines()[-200:]
+tail = "\n".join(tail_lines)
+
+prompt = f"""Launcher-side verification failed for the same assigned audit row.
+
+Stay on this exact row and this exact worktree:
+- Assigned worktree: {worktree_dir}
+- Assigned branch: {worktree_branch}
+- CSV line: {row["_line"]}
+- Rule Name: {row["rule name"]}
+- Spec Location: {row["spec location"]}
+
+The launcher already applied your committed worktree changes onto the main repo and then ran the configured Windows verification build there. That verification failed.
+
+Rules for this retry:
+- Do not rescan the CSV.
+- Do not switch to a different row.
+- Do not run any build, configure, test, package, bootstrap, or verification command from the assigned worktree.
+- If you invoke Python from a shell command, use `python3`; this environment does not guarantee a `python` alias.
+- Fix only the issues surfaced by the launcher-side verification failure below.
+- Create a new follow-up commit in the same assigned worktree for the corrective changes, then end.
+- End with the same `SPEC_AUDIT_STATUS`, `SPEC_AUDIT_ITEM`, and `SPEC_AUDIT_NOTE` footer lines as usual.
+
+Launcher-side Windows build output tail:
+```text
+{tail}
+```
+"""
+
+
+def replace_keyword_trigger(text: str, source: str, target: str) -> str:
+    pattern = re.compile(rf"\b{re.escape(source)}\b", flags=re.IGNORECASE)
+
+    def repl(match: re.Match[str]) -> str:
+        token = match.group(0)
+        if token.isupper():
+            return target.upper()
+        if token[:1].isupper():
+            return target.capitalize()
+        return target
+
+    return pattern.sub(repl, text)
+
+
+prompt = replace_keyword_trigger(prompt, "stop", "end")
+prompt = replace_keyword_trigger(prompt, "cancel", "clear")
+prompt = replace_keyword_trigger(prompt, "abort", "terminate")
+out_path.write_text(prompt, encoding="utf-8")
+PY
+}
+
+extract_thread_id_from_events() {
+  python3 - "$agent_events_file" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+events_path = Path(sys.argv[1])
+thread_id = ""
+for line in events_path.read_text(encoding="utf-8", errors="replace").splitlines():
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError:
+        continue
+    if event.get("type") == "thread.started":
+        thread_id = event.get("thread_id", "")
+        break
+
+if thread_id:
+    print(thread_id)
+PY
+}
+
+stream_agent_events() {
+  python3 -c '
+import json
+import os
+import sys
+from pathlib import Path
+
+seen_thread = False
+seen_agent_message = False
+seen_command = False
+startup_seen_file = os.environ.get("SPEC_AUDIT_STARTUP_SEEN_FILE", "").strip()
+
+
+def mark_startup_seen() -> None:
+    if not startup_seen_file:
+        return
+    try:
+        Path(startup_seen_file).touch()
+    except OSError:
+        pass
+
+for raw_line in sys.stdin:
+    line = raw_line.strip()
+    if not line:
+        continue
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError:
+        continue
+
+    event_type = event.get("type")
+    if event_type == "thread.started" and not seen_thread:
+        mark_startup_seen()
+        thread_id = event.get("thread_id", "")
+        if thread_id:
+            print(f"[spec-audit-loop] Codex session started: {thread_id}", flush=True)
+        else:
+            print("[spec-audit-loop] Codex session started", flush=True)
+        seen_thread = True
+        continue
+
+    item = event.get("item")
+    if not isinstance(item, dict):
+        continue
+
+    item_type = item.get("type")
+    if event_type == "item.completed" and item_type == "agent_message" and not seen_agent_message:
+        mark_startup_seen()
+        text = " ".join(str(item.get("text", "")).split())
+        if text:
+            if len(text) > 200:
+                text = text[:197] + "..."
+            print(f"[spec-audit-loop] worker: {text}", flush=True)
+            seen_agent_message = True
+        continue
+
+    if event_type == "item.started" and item_type == "command_execution" and not seen_command:
+        mark_startup_seen()
+        command = " ".join(str(item.get("command", "")).split())
+        if command:
+            if len(command) > 160:
+                command = command[:157] + "..."
+            print(f"[spec-audit-loop] worker command: {command}", flush=True)
+            seen_command = True
+'
+}
+
+run_agent_turn() {
+  local mode="$1"
+  local prompt_path="$2"
+  local -a cmd
+  local startup_seen_file
+  local startup_notice_pid=""
+
+  : > "$agent_events_file"
+  startup_seen_file="$(mktemp "${TMPDIR:-/tmp}/spec-audit-startup-seen.XXXXXX")"
+  rm -f "$startup_seen_file"
+
+  (
+    sleep 5
+    if [[ ! -f "$startup_seen_file" ]]; then
+      printf '[spec-audit-loop] waiting for first Codex worker event...\n'
+    fi
+  ) &
+  startup_notice_pid="$!"
+
+  if [[ "$mode" == "initial" ]]; then
+    printf '[spec-audit-loop] launching Codex worker (%s)\n' "$mode"
+    cmd=(
+      codex exec
+      --json
+      -C "$WORKTREE_DIR"
+      -s danger-full-access
+      -m "$MODEL"
+      -c "model_reasoning_effort=\"$REASONING_EFFORT\""
+      -o "$last_message_file"
+    )
+    if [[ -n "$PROFILE" ]]; then
+      cmd+=(-p "$PROFILE")
+    fi
+    cmd+=(-)
+    if ! SPEC_AUDIT_STARTUP_SEEN_FILE="$startup_seen_file" "${cmd[@]}" < "$prompt_path" | tee "$agent_events_file" | stream_agent_events; then
+      kill "$startup_notice_pid" >/dev/null 2>&1 || true
+      wait "$startup_notice_pid" 2>/dev/null || true
+      rm -f "$startup_seen_file"
+      return 1
+    fi
+    kill "$startup_notice_pid" >/dev/null 2>&1 || true
+    wait "$startup_notice_pid" 2>/dev/null || true
+    rm -f "$startup_seen_file"
+    WORKTREE_SESSION_ID="$(extract_thread_id_from_events)"
+    if [[ -z "$WORKTREE_SESSION_ID" ]]; then
+      printf '[spec-audit-loop] failed to capture Codex session id for worktree %s\n' "$WORKTREE_DIR" >&2
+      return 1
+    fi
+    return 0
+  fi
+
+  cmd=(
+    codex exec resume
+    --json
+    "$WORKTREE_SESSION_ID"
+    -m "$MODEL"
+    -c "model_reasoning_effort=\"$REASONING_EFFORT\""
+    -o "$last_message_file"
+    -
+  )
+  printf '[spec-audit-loop] launching Codex worker (%s)\n' "$mode"
+  if ! SPEC_AUDIT_STARTUP_SEEN_FILE="$startup_seen_file" "${cmd[@]}" < "$prompt_path" | tee "$agent_events_file" | stream_agent_events; then
+    kill "$startup_notice_pid" >/dev/null 2>&1 || true
+    wait "$startup_notice_pid" 2>/dev/null || true
+    rm -f "$startup_seen_file"
+    return 1
+  fi
+  kill "$startup_notice_pid" >/dev/null 2>&1 || true
+  wait "$startup_notice_pid" 2>/dev/null || true
+  rm -f "$startup_seen_file"
+}
+
+assert_main_repo_ready_for_integration() {
+  local line
+  local unrelated=()
+
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    case "${line:3}" in
+      docs/audit/SPEC_RULE_TABLE_BY_PHASE.csv|docs/SpecDecisionsNeeded.md)
+        ;;
+      *)
+        unrelated+=("$line")
+        ;;
+    esac
+  done < <(git -C "$REPO_ROOT" status --porcelain --untracked-files=no)
+
+  if ((${#unrelated[@]} > 0)); then
+    printf '[spec-audit-loop] continuing with unrelated main-repo changes present:\n'
+    printf '  %s\n' "${unrelated[@]}"
+  fi
+
+  return 0
+}
+
+stage_selected_audit_row() {
+  git -C "$REPO_ROOT" show "HEAD:docs/audit/SPEC_RULE_TABLE_BY_PHASE.csv" > "$head_audit_csv_file"
+
+  python3 - \
+    "$AUDIT_CSV" \
+    "$WORKTREE_DIR/docs/audit/SPEC_RULE_TABLE_BY_PHASE.csv" \
+    "$head_audit_csv_file" \
+    "$staged_audit_csv_file" \
+    "$selected_row_raw_index" <<'PY'
+import csv
+import sys
+from pathlib import Path
+
+root_path = Path(sys.argv[1])
+worktree_path = Path(sys.argv[2])
+head_path = Path(sys.argv[3])
+staged_path = Path(sys.argv[4])
+target_raw_index = int(sys.argv[5])
+
+
+def load_rows(path: Path):
+    with path.open(encoding="utf-8", newline="") as fh:
+        rows = list(csv.reader(fh))
+    if not rows or not rows[0]:
+        raise RuntimeError(f"missing CSV header in {path}")
+    return rows
+
+
+def extract_state(rows, raw_index):
+    if raw_index < 1 or raw_index >= len(rows):
+        raise RuntimeError(f"raw row index {raw_index} out of range")
+    row = list(rows[raw_index])
+    while len(row) < 6:
+        row.append("")
+    implemented = row[1].strip()
+    compiler_location = ",".join(row[5:])
+    return implemented, compiler_location
+
+
+def update_target(rows, raw_index, implemented, compiler_location):
+    if raw_index < 1 or raw_index >= len(rows):
+        raise RuntimeError(f"raw row index {raw_index} out of range")
+    row = list(rows[raw_index])
+    while len(row) < 6:
+        row.append("")
+    row[1] = implemented
+    row[5] = compiler_location
+    del row[6:]
+    rows[raw_index] = row
+
+
+def write_rows(path: Path, rows):
+    with path.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.writer(fh)
+        writer.writerows(rows)
+
+
+root_rows = load_rows(root_path)
+worktree_rows = load_rows(worktree_path)
+head_rows = load_rows(head_path)
+
+implemented, compiler_location = extract_state(worktree_rows, target_raw_index)
+if implemented not in {"complete", "ambiguous"}:
+    raise RuntimeError(
+        f"selected row ended in unexpected state `{implemented}`; expected complete or ambiguous"
+    )
+
+update_target(root_rows, target_raw_index, implemented, compiler_location)
+update_target(head_rows, target_raw_index, implemented, compiler_location)
+
+write_rows(root_path, root_rows)
+write_rows(staged_path, head_rows)
+PY
+
+  local blob_sha
+  blob_sha="$(git -C "$REPO_ROOT" hash-object -w "$staged_audit_csv_file")"
+  git -C "$REPO_ROOT" update-index --add --cacheinfo 100644 "$blob_sha" "docs/audit/SPEC_RULE_TABLE_BY_PHASE.csv"
+}
+
+stage_spec_decisions_append_if_needed() {
+  local relpath="docs/SpecDecisionsNeeded.md"
+  local worktree_file="$WORKTREE_DIR/$relpath"
+
+  if ! git -C "$WORKTREE_DIR" diff --quiet "$WORKTREE_BASE_COMMIT" "$WORKTREE_COMMIT" -- "$relpath"; then
+    if git -C "$REPO_ROOT" cat-file -e "HEAD:$relpath" 2>/dev/null; then
+      git -C "$REPO_ROOT" show "HEAD:$relpath" > "$head_spec_decisions_file"
+    else
+      : > "$head_spec_decisions_file"
+    fi
+
+    python3 - \
+      "$base_decisions_snapshot_file" \
+      "$worktree_file" \
+      "$SPEC_DECISIONS_FILE" \
+      "$head_spec_decisions_file" \
+      "$staged_spec_decisions_file" <<'PY'
+import sys
+from pathlib import Path
+
+base_path = Path(sys.argv[1])
+worktree_path = Path(sys.argv[2])
+root_path = Path(sys.argv[3])
+head_path = Path(sys.argv[4])
+staged_path = Path(sys.argv[5])
+
+base = base_path.read_text(encoding="utf-8") if base_path.exists() else ""
+worktree = worktree_path.read_text(encoding="utf-8") if worktree_path.exists() else ""
+root = root_path.read_text(encoding="utf-8") if root_path.exists() else ""
+head = head_path.read_text(encoding="utf-8") if head_path.exists() else ""
+
+if not worktree.startswith(base):
+    raise RuntimeError(
+        "docs/SpecDecisionsNeeded.md was not append-only within the worktree; refusing automatic integration"
+    )
+
+suffix = worktree[len(base):]
+if suffix:
+    root_path.write_text(root + suffix, encoding="utf-8")
+    staged_path.write_text(head + suffix, encoding="utf-8")
+else:
+    staged_path.write_text(head, encoding="utf-8")
+PY
+
+    local blob_sha
+    blob_sha="$(git -C "$REPO_ROOT" hash-object -w "$staged_spec_decisions_file")"
+    git -C "$REPO_ROOT" update-index --add --cacheinfo 100644 "$blob_sha" "$relpath"
+  fi
+}
+
+apply_nonshared_changes_to_main_worktree() {
+  local change
+  local relpath
+  local root_target
+  local worktree_target
+  local file_status
+  local backup_target
+  local absent_marker
+  local -a changes=()
+
+  while IFS=$'\t' read -r change relpath; do
+    [[ -z "$change" ]] && continue
+
+    case "$relpath" in
+      docs/audit/SPEC_RULE_TABLE_BY_PHASE.csv|docs/SpecDecisionsNeeded.md)
+        continue
+        ;;
+    esac
+
+    file_status="$(git -C "$REPO_ROOT" status --porcelain -- "$relpath")"
+    if [[ -n "$file_status" ]]; then
+      printf '[spec-audit-loop] refusing integration; main repo already has local changes in %s\n' "$relpath" >&2
+      return 1
+    fi
+
+    changes+=("$change"$'\t'"$relpath")
+  done < <(git -C "$WORKTREE_DIR" diff --name-status --no-renames "$WORKTREE_BASE_COMMIT" "$WORKTREE_COMMIT")
+
+  : > "$nonshared_paths_file"
+  for entry in "${changes[@]}"; do
+    change="${entry%%$'\t'*}"
+    relpath="${entry#*$'\t'}"
+
+    root_target="$REPO_ROOT/$relpath"
+    worktree_target="$WORKTREE_DIR/$relpath"
+    backup_target="$integration_backup_dir/$relpath"
+    absent_marker="${backup_target}.absent"
+
+    mkdir -p "$(dirname "$backup_target")"
+    if [[ -e "$root_target" ]]; then
+      cp "$root_target" "$backup_target"
+      rm -f "$absent_marker"
+    else
+      : > "$absent_marker"
+      rm -f "$backup_target"
+    fi
+
+    printf '%s\n' "$relpath" >> "$nonshared_paths_file"
+
+    case "$change" in
+      A|M)
+        mkdir -p "$(dirname "$root_target")"
+        cp "$worktree_target" "$root_target"
+        ;;
+      D)
+        rm -f "$root_target"
+        ;;
+      *)
+        printf '[spec-audit-loop] unsupported diff status `%s` for %s\n' "$change" "$relpath" >&2
+        return 1
+        ;;
+    esac
+  done
+}
+
+restore_nonshared_changes_in_main_worktree() {
+  local relpath
+  local root_target
+  local backup_target
+  local absent_marker
+
+  [[ -n "$nonshared_paths_file" && -f "$nonshared_paths_file" ]] || return 0
+
+  while IFS= read -r relpath; do
+    [[ -z "$relpath" ]] && continue
+
+    root_target="$REPO_ROOT/$relpath"
+    backup_target="$integration_backup_dir/$relpath"
+    absent_marker="${backup_target}.absent"
+
+    if [[ -f "$absent_marker" ]]; then
+      rm -f "$root_target"
+      continue
+    fi
+
+    if [[ -f "$backup_target" ]]; then
+      mkdir -p "$(dirname "$root_target")"
+      cp "$backup_target" "$root_target"
+    fi
+  done < "$nonshared_paths_file"
+}
+
+is_nonshared_path() {
+  local relpath="$1"
+
+  [[ -n "$nonshared_paths_file" && -f "$nonshared_paths_file" ]] || return 1
+  grep -Fxq -- "$relpath" "$nonshared_paths_file"
+}
+
+is_launcher_build_side_effect_path() {
+  local relpath="$1"
+
+  case "$relpath" in
+    cursive/src/00_core/generated/static_rule_registry.inc|\
+    cursive/src/00_core/generated/diag_registry.inc|\
+    cursive/src/04_analysis/typing/item/typecheck_diag_map.inc)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+restore_launcher_build_side_effects_in_main_worktree() {
+  local line
+  local relpath
+
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    relpath="${line:3}"
+
+    case "$relpath" in
+      docs/audit/SPEC_RULE_TABLE_BY_PHASE.csv|docs/SpecDecisionsNeeded.md)
+        continue
+        ;;
+    esac
+
+    if is_nonshared_path "$relpath"; then
+      continue
+    fi
+
+    if ! is_launcher_build_side_effect_path "$relpath"; then
+      continue
+    fi
+
+    if git -C "$REPO_ROOT" ls-files --error-unmatch -- "$relpath" >/dev/null 2>&1; then
+      git -C "$REPO_ROOT" restore --worktree --source=HEAD -- "$relpath"
+    fi
+  done < <(git -C "$REPO_ROOT" status --porcelain --untracked-files=no)
+}
+
+stage_nonshared_changes_in_main_repo() {
+  local relpath
+  local root_target
+
+  [[ -n "$nonshared_paths_file" && -f "$nonshared_paths_file" ]] || return 0
+
+  while IFS= read -r relpath; do
+    [[ -z "$relpath" ]] && continue
+
+    root_target="$REPO_ROOT/$relpath"
+    if [[ -e "$root_target" ]]; then
+      git -C "$REPO_ROOT" add -- "$relpath"
+    elif git -C "$REPO_ROOT" ls-files --error-unmatch -- "$relpath" >/dev/null 2>&1; then
+      git -C "$REPO_ROOT" rm --quiet -- "$relpath"
+    fi
+  done < "$nonshared_paths_file"
+}
+
+stage_launcher_build_side_effects_in_main_repo() {
+  local line
+  local relpath
+  local root_target
+
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    relpath="${line:3}"
+
+    case "$relpath" in
+      docs/audit/SPEC_RULE_TABLE_BY_PHASE.csv|docs/SpecDecisionsNeeded.md)
+        continue
+        ;;
+    esac
+
+    if is_nonshared_path "$relpath"; then
+      continue
+    fi
+
+    if ! is_launcher_build_side_effect_path "$relpath"; then
+      continue
+    fi
+
+    root_target="$REPO_ROOT/$relpath"
+    if [[ -e "$root_target" ]]; then
+      git -C "$REPO_ROOT" add -- "$relpath"
+    elif git -C "$REPO_ROOT" ls-files --error-unmatch -- "$relpath" >/dev/null 2>&1; then
+      git -C "$REPO_ROOT" rm --quiet -- "$relpath"
+    fi
+  done < <(git -C "$REPO_ROOT" status --porcelain --untracked-files=no)
+}
+
+recover_status_footer_from_worktree() {
+  python3 - \
+    "$WORKTREE_DIR" \
+    "$WORKTREE_DIR/docs/audit/SPEC_RULE_TABLE_BY_PHASE.csv" \
+    "$selected_row_raw_index" \
+    "$WORKTREE_BASE_COMMIT" \
+    "$selected_item" <<'PY'
+import csv
+import subprocess
+import sys
+from pathlib import Path
+
+worktree_dir = Path(sys.argv[1])
+csv_path = Path(sys.argv[2])
+raw_index = int(sys.argv[3])
+base_commit = sys.argv[4]
+selected_item = sys.argv[5]
+
+status = subprocess.run(
+    ["git", "-C", str(worktree_dir), "status", "--porcelain", "--untracked-files=no"],
+    text=True,
+    capture_output=True,
+    check=False,
+)
+if status.stdout.strip():
+    sys.exit(1)
+
+commit_count = subprocess.run(
+    ["git", "-C", str(worktree_dir), "rev-list", "--count", f"{base_commit}..HEAD"],
+    text=True,
+    capture_output=True,
+    check=False,
+)
+if commit_count.returncode != 0 or int(commit_count.stdout.strip() or "0") < 1:
+    sys.exit(1)
+
+with csv_path.open(encoding="utf-8", newline="") as fh:
+    rows = list(csv.reader(fh))
+
+if raw_index < 1 or raw_index >= len(rows):
+    sys.exit(1)
+
+row = list(rows[raw_index])
+while len(row) < 6:
+    row.append("")
+implemented = row[1].strip()
+
+if implemented not in {"complete", "ambiguous"}:
+    sys.exit(1)
+
+note = (
+    f"Recovered {implemented} row state from committed worktree after worker output omitted "
+    f"SPEC_AUDIT_STATUS footer; proceeding with launcher integration for {selected_item}."
+)
+
+print(f"SPEC_AUDIT_STATUS: continue")
+print(f"SPEC_AUDIT_ITEM: {selected_item}")
+print(f"SPEC_AUDIT_NOTE: {note}")
+PY
+}
+
+run_main_repo_windows_build() {
+  local source_dir_windows
+  source_dir_windows="$(to_windows_path "$REPO_ROOT/cursive")"
+
+  local windows_script
+  windows_script="\$ErrorActionPreference = 'Stop'
+\$cmake = Get-Command cmake.exe -ErrorAction SilentlyContinue
+if (-not \$cmake) { \$cmake = Get-Command cmake -ErrorAction SilentlyContinue }
+if (-not \$cmake) { throw 'cmake was not found in the Windows PATH.' }
+Set-Location '$(escape_powershell_literal "$source_dir_windows")'
+& \$cmake.Source --build --preset '$(escape_powershell_literal "$WINDOWS_PRESET")' --target '$(escape_powershell_literal "$WINDOWS_TARGET")'"
+
+  log "Verifying main-repo Windows build with configured preset: $WINDOWS_PRESET"
+  : > "$main_build_log_file"
+  run_windows_powershell "$windows_script" 2>&1 | tee "$main_build_log_file"
+}
+
+integrate_verified_commit_into_main_repo() {
+  assert_main_repo_ready_for_integration || return 1
+
+  local commit_count
+  local latest_message
+  local related_commits
+  commit_count="$(git -C "$WORKTREE_DIR" rev-list --count "${WORKTREE_BASE_COMMIT}..HEAD")"
+  if (( commit_count < 1 )); then
+    printf '[spec-audit-loop] expected at least one worktree commit for the row, found %s in %s..HEAD\n' "$commit_count" "$WORKTREE_BASE_COMMIT" >&2
+    return 1
+  fi
+
+  WORKTREE_COMMIT="$(git -C "$WORKTREE_DIR" rev-parse HEAD)"
+  latest_message="$(git -C "$WORKTREE_DIR" log -1 --format=%B "$WORKTREE_COMMIT")"
+  printf '%s\n' "$latest_message" > "$commit_message_file"
+
+  if (( commit_count > 1 )); then
+    related_commits="$(git -C "$WORKTREE_DIR" rev-list --reverse "${WORKTREE_BASE_COMMIT}..HEAD~" | paste -sd ', ' -)"
+    if [[ -n "$related_commits" ]]; then
+      printf '\nRelated: prior worktree retry commits %s\n' "$related_commits" >> "$commit_message_file"
+    fi
+  fi
+
+  integration_backup_dir="$(mktemp -d "${TMPDIR:-/tmp}/spec-audit-main-overlay.XXXXXX")"
+  nonshared_paths_file="$(mktemp "${TMPDIR:-/tmp}/spec-audit-main-overlay-paths.XXXXXX")"
+
+  apply_nonshared_changes_to_main_worktree
+  if ! run_main_repo_windows_build; then
+    restore_nonshared_changes_in_main_worktree
+    restore_launcher_build_side_effects_in_main_worktree
+    printf '[spec-audit-loop] main-repo Windows build failed after applying worktree changes; restored main-repo files\n' >&2
+    return 2
+  fi
+
+  stage_nonshared_changes_in_main_repo
+  stage_launcher_build_side_effects_in_main_repo
+  stage_selected_audit_row
+  stage_spec_decisions_append_if_needed
+
+  if git -C "$REPO_ROOT" diff --cached --quiet; then
+    printf '[spec-audit-loop] no staged changes were prepared for main-repo commit\n' >&2
+    return 1
+  fi
+
+  git -C "$REPO_ROOT" commit -F "$commit_message_file"
+}
+
+destroy_completed_worktree() {
+  git -C "$REPO_ROOT" worktree remove --force "$WORKTREE_DIR"
+  git -C "$REPO_ROOT" branch -D "$WORKTREE_BRANCH" >/dev/null
+}
+
+iteration=1
+while :; do
+  if (( MAX_ITERATIONS > 0 && iteration > MAX_ITERATIONS )); then
+    printf '[spec-audit-loop] reached max iterations (%s); stopping\n' "$MAX_ITERATIONS"
+    exit 0
+  fi
+
+  claim_status=0
+  selected_row_json=""
+  selected_row_json="$(claim_next_row)" || claim_status=$?
+  claim_status="${claim_status:-0}"
+
+  if [[ "$claim_status" == "10" ]]; then
+    printf '[spec-audit-loop] no actionable unresolved audit row remains after skipping complete, ambiguous, and in_progress rows\n'
+    exit 0
+  fi
+
+  if [[ "$claim_status" != "0" ]]; then
+    printf '[spec-audit-loop] failed to claim the next audit row\n' >&2
+    exit "$claim_status"
+  fi
+
+  selected_row_line="$(
+    python3 - "$selected_row_json" <<'PY'
+import json
+import sys
+row = json.loads(sys.argv[1])
+print(row["_line"])
+PY
+  )"
+  selected_row_raw_index="$(
+    python3 - "$selected_row_json" <<'PY'
+import json
+import sys
+row = json.loads(sys.argv[1])
+print(row["_raw_index"])
+PY
+  )"
+
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  nonce="$(python3 - <<'PY'
+import secrets
+print(secrets.token_hex(3))
+PY
+  )"
+  WORKTREE_ID="spec-audit-${stamp}-${selected_row_line}-${nonce}"
+  WORKTREE_BRANCH="spec-audit/${stamp}-line${selected_row_line}-${nonce}"
+  WORKTREE_DIR="$WORKTREE_ROOT/$WORKTREE_ID"
+
+  mkdir -p "$WORKTREE_ROOT"
+  git -C "$REPO_ROOT" worktree add -b "$WORKTREE_BRANCH" "$WORKTREE_DIR" HEAD >/dev/null
+  WORKTREE_BASE_COMMIT="$(git -C "$WORKTREE_DIR" rev-parse HEAD)"
+  WORKTREE_SESSION_ID=""
+  LAST_FAILED_WORKTREE_COMMIT=""
+
+  last_message_file="$(mktemp "${TMPDIR:-/tmp}/spec-audit-last-message.XXXXXX")"
+  iteration_prompt_file="$(mktemp "${TMPDIR:-/tmp}/spec-audit-prompt.XXXXXX")"
+  base_decisions_snapshot_file="$(mktemp "${TMPDIR:-/tmp}/spec-audit-decisions-base.XXXXXX")"
+  head_audit_csv_file="$(mktemp "${TMPDIR:-/tmp}/spec-audit-head-csv.XXXXXX")"
+  staged_audit_csv_file="$(mktemp "${TMPDIR:-/tmp}/spec-audit-staged-csv.XXXXXX")"
+  head_spec_decisions_file="$(mktemp "${TMPDIR:-/tmp}/spec-audit-head-decisions.XXXXXX")"
+  staged_spec_decisions_file="$(mktemp "${TMPDIR:-/tmp}/spec-audit-staged-decisions.XXXXXX")"
+  commit_message_file="$(mktemp "${TMPDIR:-/tmp}/spec-audit-commit-message.XXXXXX")"
+  agent_events_file="$(mktemp "${TMPDIR:-/tmp}/spec-audit-events.XXXXXX")"
+  build_failure_prompt_file="$(mktemp "${TMPDIR:-/tmp}/spec-audit-build-failure-prompt.XXXXXX")"
+  main_build_log_file="$(mktemp "${TMPDIR:-/tmp}/spec-audit-main-build-log.XXXXXX")"
+
+  copy_shared_context_to_worktree "$WORKTREE_DIR"
+  build_iteration_prompt
+
+  printf '[spec-audit-loop] iteration %d\n' "$iteration"
+  selected_item="$(
+    python3 - "$selected_row_json" <<'PY'
+import json
+import sys
+row = json.loads(sys.argv[1])
+print(f'{row["rule name"]} @ {row["spec location"]}')
+PY
+  )"
+  printf '[spec-audit-loop] selected: %s\n' "$selected_item"
+  printf '[spec-audit-loop] worktree: %s\n' "$WORKTREE_DIR"
+
+  AGENT_MODE="initial"
+  AGENT_PROMPT_PATH="$iteration_prompt_file"
+  while :; do
+    if ! run_agent_turn "$AGENT_MODE" "$AGENT_PROMPT_PATH"; then
+      printf '[spec-audit-loop] Codex %s failed; preserving worktree for inspection: %s\n' "$AGENT_MODE" "$WORKTREE_DIR" >&2
+      exit 1
+    fi
+
+    status_line="$(grep -E '^SPEC_AUDIT_STATUS: ' "$last_message_file" | tail -n 1 || true)"
+    item_line="$(grep -E '^SPEC_AUDIT_ITEM: ' "$last_message_file" | tail -n 1 || true)"
+    note_line="$(grep -E '^SPEC_AUDIT_NOTE: ' "$last_message_file" | tail -n 1 || true)"
+
+    if [[ -z "$status_line" ]]; then
+      if recover_status_footer_from_worktree > "$last_message_file.recovered"; then
+        cat "$last_message_file.recovered" >> "$last_message_file"
+        rm -f "$last_message_file.recovered"
+        status_line="$(grep -E '^SPEC_AUDIT_STATUS: ' "$last_message_file" | tail -n 1 || true)"
+        item_line="$(grep -E '^SPEC_AUDIT_ITEM: ' "$last_message_file" | tail -n 1 || true)"
+        note_line="$(grep -E '^SPEC_AUDIT_NOTE: ' "$last_message_file" | tail -n 1 || true)"
+        printf '[spec-audit-loop] recovered missing worker footer from committed worktree state\n'
+      else
+        rm -f "$last_message_file.recovered"
+        printf '[spec-audit-loop] missing SPEC_AUDIT_STATUS footer in %s\n' "$last_message_file" >&2
+        printf '[spec-audit-loop] preserving worktree for inspection: %s\n' "$WORKTREE_DIR" >&2
+        exit 1
+      fi
+    fi
+
+    status="${status_line#SPEC_AUDIT_STATUS: }"
+    item="${item_line#SPEC_AUDIT_ITEM: }"
+    note="${note_line#SPEC_AUDIT_NOTE: }"
+
+    [[ -n "$item_line" ]] && printf '[spec-audit-loop] item: %s\n' "$item"
+    [[ -n "$note_line" ]] && printf '[spec-audit-loop] note: %s\n' "$note"
+
+    case "$status" in
+      continue|complete)
+        CURRENT_WORKTREE_HEAD="$(git -C "$WORKTREE_DIR" rev-parse HEAD)"
+        if [[ -n "$LAST_FAILED_WORKTREE_COMMIT" && "$CURRENT_WORKTREE_HEAD" == "$LAST_FAILED_WORKTREE_COMMIT" ]]; then
+          printf '[spec-audit-loop] launcher-side verification already failed for worktree commit %s and no follow-up commit was created\n' "$CURRENT_WORKTREE_HEAD" >&2
+          printf '[spec-audit-loop] preserving worktree for inspection: %s\n' "$WORKTREE_DIR" >&2
+          exit 1
+        fi
+
+        if integrate_verified_commit_into_main_repo; then
+          integrate_rc=0
+        else
+          integrate_rc=$?
+        fi
+
+        if [[ "$integrate_rc" == "2" ]]; then
+          LAST_FAILED_WORKTREE_COMMIT="$CURRENT_WORKTREE_HEAD"
+          build_failure_retry_prompt
+          AGENT_MODE="resume"
+          AGENT_PROMPT_PATH="$build_failure_prompt_file"
+          printf '[spec-audit-loop] resuming same worktree agent with launcher-side build failure output\n'
+          continue
+        fi
+
+        if [[ "$integrate_rc" != "0" ]]; then
+          printf '[spec-audit-loop] failed to integrate verified worktree commit back into the main repo; preserving worktree: %s\n' "$WORKTREE_DIR" >&2
+          exit 1
+        fi
+
+        destroy_completed_worktree
+        printf '[spec-audit-loop] integrated verified worktree changes into main repo and destroyed worktree\n'
+
+        if [[ "$status" == "complete" ]]; then
+          printf '[spec-audit-loop] complete\n'
+          exit 0
+        fi
+
+        if (( ONCE == 1 )); then
+          printf '[spec-audit-loop] stopping after one iteration (--once)\n'
+          exit 0
+        fi
+        break
+        ;;
+      blocked)
+        printf '[spec-audit-loop] blocked\n' >&2
+        printf '[spec-audit-loop] preserving blocked worktree for inspection: %s\n' "$WORKTREE_DIR" >&2
+        exit 2
+        ;;
+      *)
+        printf '[spec-audit-loop] unknown SPEC_AUDIT_STATUS value: %s\n' "$status" >&2
+        printf '[spec-audit-loop] preserving worktree for inspection: %s\n' "$WORKTREE_DIR" >&2
+        exit 1
+        ;;
+    esac
+  done
+
+  cleanup_temp_files
+  last_message_file=""
+  iteration_prompt_file=""
+  base_decisions_snapshot_file=""
+  head_audit_csv_file=""
+  staged_audit_csv_file=""
+  head_spec_decisions_file=""
+  staged_spec_decisions_file=""
+  commit_message_file=""
+  integration_backup_dir=""
+  nonshared_paths_file=""
+  agent_events_file=""
+  build_failure_prompt_file=""
+  main_build_log_file=""
+  iteration=$((iteration + 1))
+done

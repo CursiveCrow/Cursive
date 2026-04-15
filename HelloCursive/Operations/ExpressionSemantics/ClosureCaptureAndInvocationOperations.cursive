@@ -1,0 +1,202 @@
+procedure LogClosureExpressionObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure ClosureExpressionMetricLabel(value: i32) -> string@View {
+    if (value == 7) {
+        return "7"
+    }
+    if (value == 5) {
+        return "5"
+    }
+    if (value == 8) {
+        return "8"
+    }
+    if (value == 20) {
+        return "20"
+    }
+    return "other"
+}
+
+procedure RunClosureCaptureAndInvocationOperationsItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    let detail_begin: string@View = "operation feature item exercise start"
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyClosureCaptureAndInvocationOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    LogClosureExpressionObject(ctx.fs, scope, "closure_capture_seed", "i32", "constructed", "closure capture seed binding prepared")
+    LogClosureExpressionObject(ctx.fs, scope, "closure_capture_expr", "|i32|->i32", "constructed", "closure expression with lexical capture prepared")
+    LogClosureExpressionObject(ctx.fs, scope, "closure_typed_expr", "(i32)->i32", "constructed", "typed closure expression prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    let capture_seed: i32 = 4
+    let capture_closure = |input: i32| -> i32 {
+        input + capture_seed
+    }
+    [[log(label: "operations-log-transition_move")]]
+    let capture_metric: i32 = capture_closure(3)
+    [[log(label: "operations-log-transition_move")]]
+    let typed_closure: (i32) -> i32 = |value| {
+        value + 1
+    }
+    [[log(label: "operations-log-transition_move")]]
+    let typed_metric: i32 = typed_closure(4)
+    [[log(label: "operations-log-transition_move")]]
+    let block_body_closure = |flag: bool| -> i32 {
+        if (flag) {
+            8
+        } else {
+            0
+        }
+    }
+    let block_metric: i32 = block_body_closure(true)
+
+    let runtime_metric: i32 = capture_metric + typed_metric + block_metric
+
+    let observed_capture_step: string@View = "observed-closure-capture-metric"
+    let observed_typed_step: string@View = "observed-closure-typed-invocation-metric"
+    let observed_block_step: string@View = "observed-closure-block-body-metric"
+    let observed_runtime_step: string@View = "observed-closure-runtime-aggregate-metric"
+    let expected_capture: string@View = "7"
+    let expected_typed: string@View = "5"
+    let expected_block: string@View = "8"
+    let expected_runtime: string@View = "20"
+    let capture_label: string@View = ClosureExpressionMetricLabel(capture_metric)
+    let typed_label: string@View = ClosureExpressionMetricLabel(typed_metric)
+    let block_label: string@View = ClosureExpressionMetricLabel(block_metric)
+    let runtime_label: string@View = ClosureExpressionMetricLabel(runtime_metric)
+    let capture_passed: bool = capture_metric == 7
+    let typed_passed: bool = typed_metric == 5
+    let block_passed: bool = block_metric == 8
+    let runtime_passed: bool = runtime_metric == 20
+
+    let capture_passed_log_actual = [[log(label: "observed-closure-capture-metric", expected: "7")]] capture_label
+    let capture_passed_with_log: bool = capture_passed && (capture_passed_log_actual == capture_label)
+    let typed_passed_log_actual = [[log(label: "observed-closure-typed-invocation-metric", expected: "5")]] typed_label
+    let typed_passed_with_log: bool = typed_passed && (typed_passed_log_actual == typed_label)
+    let block_passed_log_actual = [[log(label: "observed-closure-block-body-metric", expected: "8")]] block_label
+    let block_passed_with_log: bool = block_passed && (block_passed_log_actual == block_label)
+    let runtime_passed_log_actual = [[log(label: "observed-closure-runtime-aggregate-metric", expected: "20")]] runtime_label
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunClosureCaptureAndInvocationOperationsItem(
+            ctx,
+            scope,
+            "ClosureCaptureAndInvocationOperationsSyntaxForms",
+            "closure literal syntax including typed params and block/expression bodies",
+            "validated closure syntax forms",
+            "closure-syntax",
+            "evaluate closure literal syntax and invocation surfaces",
+            "7",
+            "7",
+            "not-7",
+            move capture_passed_with_log,
+            "closure syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunClosureCaptureAndInvocationOperationsItem(
+            ctx,
+            scope,
+            "ClosureCaptureAndInvocationOperationsStaticSemantics",
+            "closure capture typing and typed function-value invocation compatibility",
+            "validated closure static semantics",
+            "closure-static",
+            "type-check closure captures and typed invocation path",
+            "5",
+            "5",
+            "not-5",
+            move typed_passed_with_log,
+            "closure static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunClosureCaptureAndInvocationOperationsItem(
+            ctx,
+            scope,
+            "ClosureCaptureAndInvocationOperationsRuntimeDiagnostics",
+            "closure runtime capture behavior and invocation sequencing",
+            "validated closure runtime behavior and diagnostics",
+            "closure-runtime",
+            "execute full closure runtime path and verify aggregate metric",
+            "20",
+            "20",
+            "not-20",
+            move runtime_passed_with_log,
+            "closure runtime diagnostics check failed"
+        )
+    }
+
+    return RunClosureCaptureAndInvocationOperationsItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown closure operation item",
+        "failed unknown closure operation item",
+        "item-resolution",
+        "resolve closure operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown closure operation item"
+    )
+}
+
+procedure RunClosureCaptureAndInvocationOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::ExpressionSemantics::ClosureCaptureAndInvocationOperations"
+    let checkpoint: string@View = "covered closure capture and invocation operations operation items"
+
+    let status_syntax: i32 = VerifyClosureCaptureAndInvocationOperationsItem(ctx, scope, 0, "ClosureCaptureAndInvocationOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyClosureCaptureAndInvocationOperationsItem(ctx, scope, 1, "ClosureCaptureAndInvocationOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyClosureCaptureAndInvocationOperationsItem(ctx, scope, 2, "ClosureCaptureAndInvocationOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

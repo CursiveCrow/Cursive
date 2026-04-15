@@ -1,0 +1,46 @@
+
+public procedure RunGroup(ctx: Context) -> i32 {
+    let section_name: string@View = "operations/CrossAssemblyOperationIntegrations"
+    let status_ok: string@View = "ok"
+    let status_failed: string@View = "failed"
+
+    let phase_planned: string@View = "planned"
+    let phase_running: string@View = "running"
+    let phase_complete: string@View = "complete"
+    let phase_failed: string@View = "failed"
+    let dispatch_reason: string@View = "dispatching operation topic function"
+    let complete_reason: string@View = "operation topic function completed"
+    let failed_reason: string@View = "operation topic function returned non-zero status"
+
+    let feature_PointerOperationIntegration: string@View = "CrossAssemblyOperationIntegrations::PointerOperationIntegration"
+    let feature_ModalOperationIntegration: string@View = "CrossAssemblyOperationIntegrations::ModalOperationIntegration"
+    let feature_ContractPredicateOperatorIntegration: string@View = "CrossAssemblyOperationIntegrations::ContractPredicateOperatorIntegration"
+
+    [[log(label: "operations-log-section_start")]]
+    [[log(label: "operations-log-transition")]]
+    let status_PointerOperationIntegration: i32 = RunPointerOperationIntegration(ctx)
+    if (status_PointerOperationIntegration != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_PointerOperationIntegration
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_ModalOperationIntegration: i32 = RunModalOperationIntegration(ctx)
+    if (status_ModalOperationIntegration != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_ModalOperationIntegration
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_ContractPredicateOperatorIntegration: i32 = RunContractPredicateOperatorIntegration(ctx)
+    if (status_ContractPredicateOperatorIntegration != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_ContractPredicateOperatorIntegration
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-section_end")]]
+    return 0
+}

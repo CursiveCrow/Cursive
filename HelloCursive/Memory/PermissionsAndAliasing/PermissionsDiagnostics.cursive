@@ -1,0 +1,92 @@
+procedure PermissionDiagReadConst(value: const i32) -> i32 {
+    return value
+}
+
+procedure PermissionDiagReadShared(value: shared i32) -> i32 {
+    return value
+}
+
+procedure PermissionDiagReadUnique(value: unique i32) -> i32 {
+    return value
+}
+
+procedure PermissionsDiagnosticsMetricLabel(value: i32) -> string@View {
+    if (value == 42) {
+        return "42"
+    }
+    return "other"
+}
+
+public procedure RunPermissionsDiagnostics(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "memory-log-item_begin")]]
+
+    let receiver_unique_source: unique i32 = 9
+    let unique_metric: i32 = PermissionDiagReadUnique(receiver_unique_source)
+    let shared_metric: i32 = {
+        let shared_view: shared i32 = receiver_unique_source
+        PermissionDiagReadShared(shared_view)
+    }
+    let const_metric: i32 = {
+        let shared_view_for_const: shared i32 = receiver_unique_source
+        let const_view: const i32 = shared_view_for_const
+        PermissionDiagReadConst(const_view)
+    }
+
+    let place_source: unique i32 = 11
+    let explicit_unique_binding: unique i32 = move place_source
+    let unique_binding_metric: i32 = PermissionDiagReadUnique(explicit_unique_binding)
+
+    var unique_restore_source: unique i32 = 12
+    var shared_snapshot: i32 = -1
+    {
+        let shared_restore_view: shared i32 = unique_restore_source
+        shared_snapshot = PermissionDiagReadShared(shared_restore_view)
+        let const_restore_view: const i32 = shared_restore_view
+        let const_snapshot: i32 = PermissionDiagReadConst(const_restore_view)
+        if (const_snapshot != 12) {
+            shared_snapshot = -1
+        }
+    }
+    let refreshed_unique_value: unique i32 = 13
+    unique_restore_source = move refreshed_unique_value
+    let unique_restored_metric: i32 = PermissionDiagReadUnique(unique_restore_source)
+
+    let reactivation_seed: unique i32 = 21
+    let reactivation_shared_metric: i32 = {
+        let reactivation_shared: shared i32 = reactivation_seed
+        PermissionDiagReadShared(reactivation_shared)
+    }
+    let reactivation_unique_metric: i32 =
+        PermissionDiagReadUnique(reactivation_seed)
+
+    let receiver_lattice_ok: bool =
+        (unique_metric == 9) && (shared_metric == 9) && (const_metric == 9)
+    let unique_binding_ok: bool = unique_binding_metric == 11
+    let unique_restore_ok: bool =
+        (shared_snapshot == 12) && (unique_restored_metric == 13)
+    let unique_reactivation_ok: bool =
+        (reactivation_shared_metric == 21) &&
+        (reactivation_unique_metric == 21)
+
+    let receiver_lattice_ok_log: bool = [[log(label: "memory-permissions-diagnostic-receiver-lattice", expected: true)]] receiver_lattice_ok
+    let unique_binding_ok_log: bool = [[log(label: "memory-permissions-diagnostic-unique-binding", expected: true)]] unique_binding_ok
+    let unique_restore_ok_log: bool = [[log(label: "memory-permissions-diagnostic-unique-restored", expected: true)]] unique_restore_ok
+    let unique_reactivation_ok_log: bool = [[log(label: "memory-permissions-diagnostic-unique-reactivation", expected: true)]] unique_reactivation_ok
+
+    let metric_ok: bool =
+        (receiver_lattice_ok_log == true) &&
+        (unique_binding_ok_log == true) &&
+        (unique_restore_ok_log == true) &&
+        (unique_reactivation_ok_log == true)
+    let metric: i32 = if (metric_ok) { 42 } else { 0 }
+    let metric_label: string@View = PermissionsDiagnosticsMetricLabel(metric)
+    let metric_log_actual = [[log(label: "observed-memory-permissions-diagnostics-metric", expected: "42")]] metric_label
+    if (metric_log_actual != "42") {
+        [[log(label: "memory-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "memory-log-memory_item_success")]]
+    return 0
+}

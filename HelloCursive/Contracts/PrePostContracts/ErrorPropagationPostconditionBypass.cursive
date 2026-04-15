@@ -1,0 +1,67 @@
+procedure MaybeValue(flag: bool) -> i32 | bool {
+    if (flag) {
+        return 7
+    }
+    return false
+}
+
+[[dynamic]]
+procedure PropagateMaybeValue(flag: bool) -> bool
+    |: => @result == true
+{
+    let value: i32 = MaybeValue(flag)?
+    return value == 7
+}
+
+procedure ErrorPropagationPostconditionBypassMetricLabel(value: i32) -> string@View {
+    if (value == 21) {
+        return "21"
+    }
+    return "other"
+}
+
+public procedure RunErrorPropagationPostconditionBypass(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+
+    let success_result: bool = PropagateMaybeValue(true)
+    let failure_result: bool = PropagateMaybeValue(false)
+
+    let success_result_log: bool =
+        [[log(label: "observed-contracts-error-propagation-success", expected: true)]]
+        success_result
+    let failure_result_log: bool =
+        [[log(label: "observed-contracts-error-propagation-failure", expected: false)]]
+        failure_result
+    let bypass_without_panic: bool = failure_result_log == false
+    let bypass_without_panic_log: bool =
+        [[log(label: "observed-contracts-error-propagation-bypass-without-panic", expected: true)]]
+        bypass_without_panic
+
+    let con_031: string@View = "CON-031"
+    let con_031_log: string@View =
+        [[log(label: "contracts-error-propagation-postcondition-bypass-feature-031", expected: "CON-031")]]
+        con_031
+
+    let runtime_ok: bool =
+        (success_result_log == true) &&
+        (failure_result_log == false) &&
+        (bypass_without_panic_log == true) &&
+        (con_031_log == "CON-031")
+    let runtime_ok_log: bool =
+        [[log(label: "contracts-error-propagation-postcondition-bypass-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
+    let metric_label: string@View = ErrorPropagationPostconditionBypassMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-contracts-error-propagation-postcondition-bypass-metric", expected: "21")]]
+        metric_label
+    if (metric_log_actual != "21") {
+        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    return 0
+}

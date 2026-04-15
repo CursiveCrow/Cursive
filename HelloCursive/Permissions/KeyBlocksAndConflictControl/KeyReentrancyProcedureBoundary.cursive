@@ -1,0 +1,69 @@
+procedure KeyReentrancyReadShared(value: shared i32) -> i32 {
+    var metric: i32 = 0
+    # value read {
+        metric = value
+    }
+    return metric
+}
+
+procedure KeyReentrancyPlusOne(value: i32) -> i32 {
+    return value + 1
+}
+
+procedure KeyReentrancyMetricLabel(value: i32) -> string@View {
+    if (value == 23) {
+        return "23"
+    }
+    return "other"
+}
+
+public procedure RunKeyReentrancyProcedureBoundary(ctx: Context) -> i32 {
+    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+
+    let owner: unique i32 = 6
+    let shared_gate: shared i32 = owner
+
+    var outer_metric: i32 = 0
+    # shared_gate read {
+        outer_metric = shared_gate
+    }
+
+    let procedure_metric: i32 = KeyReentrancyReadShared(shared_gate)
+    let post_boundary_metric: i32 = KeyReentrancyPlusOne(procedure_metric)
+
+    let dispatch_metric: i32 = parallel ctx~>cpu() {
+        var dispatch_gate: i32 = 2
+        dispatch i in 0usize..3usize key dispatch_gate read [reduce: +] { 1 }
+    }
+
+    let boundary_anchor: string@View = "K-Procedure-Boundary"
+    let reentrant_boundary_warning: string@View = "W-CON-0005"
+
+    let outer_metric_log: i32 = [[log(label: "observed-permissions-KeyReentrancyProcedureBoundary-outer", expected: 6)]] outer_metric
+    let procedure_metric_log: i32 = [[log(label: "observed-permissions-KeyReentrancyProcedureBoundary-procedure", expected: 6)]] procedure_metric
+    let post_boundary_metric_log: i32 = [[log(label: "observed-permissions-KeyReentrancyProcedureBoundary-post-boundary", expected: 7)]] post_boundary_metric
+    let dispatch_metric_log: i32 = [[log(label: "observed-permissions-KeyReentrancyProcedureBoundary-dispatch", expected: 3)]] dispatch_metric
+    let anchor_log: string@View = [[log(label: "permissions-KeyReentrancyProcedureBoundary-anchor", expected: "K-Procedure-Boundary")]] boundary_anchor
+    let reentrant_boundary_warning_log: string@View = [[log(label: "permissions-KeyReentrancyProcedureBoundary-warning", expected: "W-CON-0005")]] reentrant_boundary_warning
+
+    let runtime_ok: bool =
+        (outer_metric_log == 6) &&
+        (procedure_metric_log == 6) &&
+        (post_boundary_metric_log == 7) &&
+        (dispatch_metric_log == 3) &&
+        (anchor_log == "K-Procedure-Boundary") &&
+        (reentrant_boundary_warning_log == "W-CON-0005")
+    let runtime_ok_log: bool = [[log(label: "permissions-KeyReentrancyProcedureBoundary-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log) { 23 } else { 0 }
+    let metric_label: string@View = KeyReentrancyMetricLabel(metric)
+    let metric_label_log: string@View = [[log(label: "observed-permissions-KeyReentrancyProcedureBoundary-metric", expected: "23")]] metric_label
+
+    if (metric_label_log != "23") {
+        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    return 0
+}

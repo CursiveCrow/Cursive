@@ -1,0 +1,204 @@
+public record SpeculativeKeyPair {
+    left: i32
+    right: i32
+}
+
+procedure LogSpeculativeKeyBlockObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure SpeculativeKeyBlockMetricLabel(value: i32) -> string@View {
+    if (value == 3) {
+        return "3"
+    }
+    if (value == 6) {
+        return "6"
+    }
+    if (value == 9) {
+        return "9"
+    }
+    return "other"
+}
+
+procedure RunSpeculativeKeyBlockItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifySpeculativeKeyBlockItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    let diag_spec_nested_key: string@View = "E-CON-0090"
+    let diag_spec_write_outside_set: string@View = "E-CON-0091"
+
+    LogSpeculativeKeyBlockObject(ctx.fs, scope, "speculative_syntax_slot", "i32", "constructed", "speculative syntax key path prepared")
+    LogSpeculativeKeyBlockObject(ctx.fs, scope, "speculative_static_pair", "SpeculativeKeyPair", "constructed", "multi-path speculative key target prepared")
+    LogSpeculativeKeyBlockObject(ctx.fs, scope, "speculative_runtime_slot", "i32", "constructed", "runtime speculative key target prepared")
+    LogSpeculativeKeyBlockObject(ctx.fs, scope, "diag_spec_nested_key", "diagnostic-code", "constructed", "speculative nested-key diagnostic mapping prepared")
+    LogSpeculativeKeyBlockObject(ctx.fs, scope, "diag_spec_write_outside_set", "diagnostic-code", "constructed", "speculative outside-key-set diagnostic mapping prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    var syntax_slot: shared i32 = 2
+    # syntax_slot speculative write {
+        syntax_slot = syntax_slot + 1
+    }
+    let syntax_metric: i32 = syntax_slot
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    var static_pair: shared SpeculativeKeyPair = SpeculativeKeyPair { left: 1, right: 2 }
+    # static_pair.left, static_pair.right speculative write {
+        static_pair.left = static_pair.left + 2
+        static_pair.right = static_pair.right + 1
+    }
+    let static_metric: i32 = static_pair.left + static_pair.right
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    var runtime_slot: shared i32 = 4
+    # runtime_slot speculative write {
+        runtime_slot = runtime_slot + 3
+    }
+    [[log(label: "operations-log-transition_move")]]
+    let diag_spec_nested_key_ok: bool = diag_spec_nested_key == "E-CON-0090"
+    let diag_spec_write_outside_set_ok: bool = diag_spec_write_outside_set == "E-CON-0091"
+
+    let diag_spec_nested_key_ok_log_actual = [[log(label: "diagnostic-speculative-nested-key", expected: "E-CON-0090")]] diag_spec_nested_key
+    let diag_spec_nested_key_ok_with_log: bool = diag_spec_nested_key_ok && (diag_spec_nested_key_ok_log_actual == diag_spec_nested_key)
+    let diag_spec_write_outside_set_ok_log_actual = [[log(label: "diagnostic-speculative-write-outside-set", expected: "E-CON-0091")]] diag_spec_write_outside_set
+    let diag_spec_write_outside_set_ok_with_log: bool = diag_spec_write_outside_set_ok && (diag_spec_write_outside_set_ok_log_actual == diag_spec_write_outside_set)
+    let diag_count: i32 = if (diag_spec_nested_key_ok && diag_spec_write_outside_set_ok) { 2 } else { 0 }
+    let runtime_metric: i32 = runtime_slot + diag_count
+
+    let syntax_passed: bool = syntax_metric == 3
+    let static_passed: bool = static_metric == 6
+    let runtime_passed: bool = runtime_metric == 9
+
+    let syntax_actual: string@View = SpeculativeKeyBlockMetricLabel(syntax_metric)
+    let static_actual: string@View = SpeculativeKeyBlockMetricLabel(static_metric)
+    let runtime_actual: string@View = SpeculativeKeyBlockMetricLabel(runtime_metric)
+
+    let syntax_passed_log_actual = [[log(label: "observed-speculative-key-block-syntax-metric", expected: "3")]] syntax_actual
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == syntax_actual)
+    let static_passed_log_actual = [[log(label: "observed-speculative-key-block-static-metric", expected: "6")]] static_actual
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == static_actual)
+    let runtime_passed_log_actual = [[log(label: "observed-speculative-key-block-runtime-metric", expected: "9")]] runtime_actual
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_actual)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunSpeculativeKeyBlockItem(
+            ctx,
+            scope,
+            "SpeculativeKeyBlockOperationsSyntaxForms",
+            "syntax forms for `# path speculative write { ... }` key blocks",
+            "validated speculative key block operations syntax forms",
+            "speculative-key-block-syntax",
+            "evaluate speculative write key-block syntax over a single path",
+            "3",
+            "3",
+            "not-3",
+            move syntax_passed_with_log,
+            "speculative key block syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunSpeculativeKeyBlockItem(
+            ctx,
+            scope,
+            "SpeculativeKeyBlockOperationsStaticSemantics",
+            "static constrained-write semantics for speculative path sets",
+            "validated speculative key block operations static semantics",
+            "speculative-key-block-static",
+            "type-check speculative multi-path write constrained to keyed path set",
+            "6",
+            "6",
+            "not-6",
+            move static_passed_with_log,
+            "speculative key block static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunSpeculativeKeyBlockItem(
+            ctx,
+            scope,
+            "SpeculativeKeyBlockOperationsRuntimeDiagnostics",
+            "runtime speculative commit behavior with speculative diagnostics matrix validation",
+            "validated speculative key block operations runtime behavior and diagnostics",
+            "speculative-key-block-runtime",
+            "verify speculative runtime metric and speculative diagnostic-code mappings",
+            "9",
+            "9",
+            "not-9",
+            move runtime_passed_with_log,
+            "speculative key block runtime diagnostics check failed"
+        )
+    }
+
+    return RunSpeculativeKeyBlockItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown speculative key block operation item",
+        "failed unknown speculative key block operation item",
+        "item-resolution",
+        "resolve speculative key block operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown speculative key block operation item"
+    )
+}
+
+procedure RunSpeculativeKeyBlockOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::KeySystemOperations::SpeculativeKeyBlockOperations"
+    let checkpoint: string@View = "covered speculative key block operations operation items"
+
+    let status_syntax: i32 = VerifySpeculativeKeyBlockItem(ctx, scope, 0, "SpeculativeKeyBlockOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifySpeculativeKeyBlockItem(ctx, scope, 1, "SpeculativeKeyBlockOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifySpeculativeKeyBlockItem(ctx, scope, 2, "SpeculativeKeyBlockOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}

@@ -1,0 +1,73 @@
+[[mangle("hc_attributes_foreign_mode_static_impl"), export("C")]]
+public procedure AttributesForeignModeStaticImpl(value: i32) -> i32 {
+    return value + 1
+}
+
+[[mangle("hc_attributes_foreign_mode_dynamic_impl"), export("C")]]
+public procedure AttributesForeignModeDynamicImpl(value: i32) -> i32 {
+    return value + 2
+}
+
+[[mangle("hc_attributes_foreign_mode_trust_impl"), export("C")]]
+public procedure AttributesForeignModeTrustImpl(value: i32) -> i32 {
+    return value + 3
+}
+
+extern "C" {
+    [[static]]
+    procedure hc_attributes_foreign_mode_static_impl(value: i32) -> i32
+        |: @foreign_assumes(value >= 0)
+}
+
+extern "C" {
+    [[dynamic]]
+    procedure hc_attributes_foreign_mode_dynamic_impl(value: i32) -> i32
+        |: @foreign_assumes(value >= 0)
+}
+
+[[trust]]
+extern "C" {
+    procedure hc_attributes_foreign_mode_trust_impl(value: i32) -> i32
+        |: @foreign_assumes(value >= 0)
+}
+
+procedure ForeignVerificationModeAttributesMetricLabel(value: i32) -> string@View {
+    if (value == 66) {
+        return "66"
+    }
+    return "other"
+}
+
+public procedure RunForeignVerificationModeAttributes(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    let static_value: i32 = unsafe { hc_attributes_foreign_mode_static_impl(7) }
+    let dynamic_value: i32 = unsafe { hc_attributes_foreign_mode_dynamic_impl(7) }
+    let trust_value: i32 = unsafe { hc_attributes_foreign_mode_trust_impl(7) }
+
+    let static_value_log: i32 = [[log(label: "observed-attributes-foreign-mode-static", expected: 8)]] static_value
+    let dynamic_value_log: i32 = [[log(label: "observed-attributes-foreign-mode-dynamic", expected: 9)]] dynamic_value
+    let trust_value_log: i32 = [[log(label: "observed-attributes-foreign-mode-trust", expected: 10)]] trust_value
+
+    let atr_066: string@View = [[log(label: "attributes-ffi-feature-066", expected: "ATR-066")]] "ATR-066"
+
+    let runtime_ok: bool =
+        (static_value_log == 8) &&
+        (dynamic_value_log == 9) &&
+        (trust_value_log == 10) &&
+        (atr_066 == "ATR-066")
+    let runtime_ok_log: bool = [[log(label: "attributes-ffi-foreign-verification-modes-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 66 } else { 0 }
+    let metric_label: string@View = ForeignVerificationModeAttributesMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-attributes-foreign-verification-mode-attributes-metric", expected: "66")]] metric_label
+    if (metric_log_actual != "66") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}
+

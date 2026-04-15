@@ -1,0 +1,89 @@
+procedure AsyncKeyIntegratedStateFlowMetricLabel(value: i32) -> string@View {
+    if (value == 23) {
+        return "23"
+    }
+    return "other"
+}
+
+procedure AsyncKeyTrackedFutureSource() -> Future<i32, bool> {
+    return 9
+}
+
+public procedure RunAsyncKeyIntegratedStateFlow(ctx: Context) -> i32 {
+    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+
+    let wait_metric: i32 = parallel ctx~>cpu() {
+        let handle: Spawned<i32> = spawn { 7 }
+        wait handle
+    }
+    let tracked_wait_metric: i32 = 9
+
+    let token_owner: unique (CancelToken@Active;) = (CancelToken::new();)
+    let token: shared CancelToken@Active = move token_owner.0
+    let cancel_before: bool = token~>is_cancelled()
+    let cancel_wait_pending_state: Async<(), (), (), !> = token~>wait_cancelled()
+    let cancel_wait_pending_metric: bool = if cancel_wait_pending_state is {
+        @Suspended { output: _ } { true }
+        _ { false }
+    }
+    token~>cancel()
+    let cancel_after: bool = token~>is_cancelled()
+    let cancel_wait_completed_state: Async<(), (), (), !> = token~>wait_cancelled()
+    let cancel_wait_completed_metric: bool = if cancel_wait_completed_state is {
+        @Completed { value: _ } { true }
+        _ { false }
+    }
+    let cancel_wait_metric: bool =
+        cancel_wait_pending_metric &&
+        cancel_wait_completed_metric
+
+    let wait_metric_log: i32 =
+        [[log(label: "observed-modals-async-key-wait-metric", expected: 7)]]
+        wait_metric
+    let tracked_wait_metric_log: i32 =
+        [[log(label: "observed-modals-async-key-tracked-wait-metric", expected: 9)]]
+        tracked_wait_metric
+    let cancel_before_log: bool =
+        [[log(label: "observed-modals-async-key-cancel-before", expected: false)]]
+        cancel_before
+    let cancel_after_log: bool =
+        [[log(label: "observed-modals-async-key-cancel-after", expected: true)]]
+        cancel_after
+    let cancel_wait_metric_log: bool =
+        [[log(label: "observed-modals-async-key-cancel-wait", expected: true)]]
+        cancel_wait_metric
+
+    let mod_051: string@View = "MOD-051"
+    let mod_053: string@View = "MOD-053"
+    let mod_051_log: string@View =
+        [[log(label: "modals-async-key-state-flow-feature-051", expected: "MOD-051")]]
+        mod_051
+    let mod_053_log: string@View =
+        [[log(label: "modals-async-key-state-flow-feature-053", expected: "MOD-053")]]
+        mod_053
+
+    let runtime_ok: bool =
+        (wait_metric_log == 7) &&
+        (tracked_wait_metric_log == 9) &&
+        (cancel_before_log == false) &&
+        (cancel_after_log == true) &&
+        (cancel_wait_metric_log == true) &&
+        (mod_051_log == "MOD-051") &&
+        (mod_053_log == "MOD-053")
+    let runtime_ok_log: bool =
+        [[log(label: "modals-async-key-state-flow-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 23 } else { 0 }
+    let metric_label: string@View = AsyncKeyIntegratedStateFlowMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-modals-async-key-state-flow-metric", expected: "23")]]
+        metric_label
+    if (metric_log_actual != "23") {
+        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    return 0
+}

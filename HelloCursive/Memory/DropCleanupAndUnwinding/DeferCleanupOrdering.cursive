@@ -1,0 +1,63 @@
+procedure DropCleanupBreakProbe() -> i32 {
+    var metric: i32 = 0
+    loop {
+        defer {
+            metric = metric + 1
+        }
+        metric = metric + 4
+        break
+    }
+    return metric
+}
+
+procedure DropCleanupNestedProbe() -> i32 {
+    var metric: i32 = 0
+    {
+        defer {
+            metric = metric + 2
+        }
+        {
+            defer {
+                metric = metric + 3
+            }
+            metric = metric + 1
+        }
+        metric = metric + 4
+    }
+    return metric
+}
+
+procedure DropCleanupOrderingMetricLabel(value: i32) -> string@View {
+    if (value == 16) {
+        return "16"
+    }
+    return "other"
+}
+
+public procedure RunDeferCleanupOrdering(ctx: Context) -> i32 {
+    let _ = ctx
+
+    let break_metric: i32 = DropCleanupBreakProbe()
+    let nested_metric: i32 = DropCleanupNestedProbe()
+
+    let defer_ordering_ok: bool = break_metric == 5
+    let nested_ordering_ok: bool = nested_metric == 10
+    let reverse_scope_ok: bool = (break_metric + nested_metric) == 15
+
+    let defer_ordering_log: bool = [[log(label: "memory-drop-defer-ordering", expected: true)]] defer_ordering_ok
+    let nested_ordering_log: bool = [[log(label: "memory-drop-nested-cleanup-ordering", expected: true)]] nested_ordering_ok
+    let reverse_scope_log: bool = [[log(label: "memory-drop-scope-cleanup-reverse", expected: true)]] reverse_scope_ok
+
+    let metric: i32 = if (defer_ordering_ok && nested_ordering_ok && reverse_scope_ok && (defer_ordering_log == true) && (nested_ordering_log == true) && (reverse_scope_log == true)) { 16 } else { 0 }
+    let metric_label: string@View = DropCleanupOrderingMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-memory-drop-ordering-metric", expected: "16")]] metric_label
+    if (metric_log_actual != "16") {
+        let fail_marker: string@View = "memory-drop-ordering-fail"
+        [[log(label: "memory-log-item_fail")]] fail_marker
+        return 1
+    }
+
+    let success_marker: string@View = "memory-drop-ordering-success"
+    [[log(label: "memory-log-memory_item_success")]] success_marker
+    return 0
+}

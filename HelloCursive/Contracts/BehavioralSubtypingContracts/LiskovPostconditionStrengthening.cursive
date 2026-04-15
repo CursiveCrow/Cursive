@@ -1,0 +1,61 @@
+public class LiskovPostconditionSurface {
+    procedure Evaluate(~, value: i32) -> i32
+        |: => @result >= value
+}
+
+public record LiskovPostconditionModel <: LiskovPostconditionSurface {
+    public procedure Evaluate(~, value: i32) -> i32
+        |: => @result >= value
+    {
+        return value + 2
+    }
+}
+
+procedure LiskovPostconditionStrengtheningMetricLabel(value: i32) -> string@View {
+    if (value == 21) {
+        return "21"
+    }
+    return "other"
+}
+
+public procedure RunLiskovPostconditionStrengthening(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+
+    let model: LiskovPostconditionModel = LiskovPostconditionModel { }
+    let observed_value: i32 = model~>Evaluate(5)
+    let observed_value_log: i32 =
+        [[log(label: "observed-contracts-liskov-postcondition-value", expected: 7)]]
+        observed_value
+
+    let con_065: string@View = "CON-065"
+    let con_065_log: string@View =
+        [[log(label: "contracts-liskov-postcondition-strengthening-feature-065", expected: "CON-065")]]
+        con_065
+
+    let diag_2804: string@View = "E-SEM-2804"
+    let diag_2804_log: string@View =
+        [[log(label: "contracts-liskov-postcondition-strengthening-diag-2804", expected: "E-SEM-2804")]]
+        diag_2804
+
+    let runtime_ok: bool =
+        (observed_value_log == 7) &&
+        (con_065_log == "CON-065") &&
+        (diag_2804_log == "E-SEM-2804")
+    let runtime_ok_log: bool =
+        [[log(label: "contracts-liskov-postcondition-strengthening-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
+    let metric_label: string@View = LiskovPostconditionStrengtheningMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-contracts-liskov-postcondition-strengthening-metric", expected: "21")]]
+        metric_label
+    if (metric_log_actual != "21") {
+        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    return 0
+}

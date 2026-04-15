@@ -1,0 +1,56 @@
+record TypeInvariantPredicateContextProbe {
+    value: i32
+
+    procedure IsValid(~) -> bool {
+        return self.value >= 0
+    }
+} |: { self.value >= 0 }
+
+procedure TypeInvariantPredicateContextMetricLabel(value: i32) -> string@View {
+    if (value == 21) {
+        return "21"
+    }
+    return "other"
+}
+
+public procedure RunTypeInvariantPredicateContext(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+
+    let probe: TypeInvariantPredicateContextProbe =
+        TypeInvariantPredicateContextProbe { value: 4 }
+    let method_ok: bool = probe~>IsValid()
+
+    let value_log: i32 =
+        [[log(label: "observed-contracts-type-invariant-predicate-value", expected: 4)]]
+        probe.value
+    let method_ok_log: bool =
+        [[log(label: "contracts-type-invariant-predicate-method", expected: true)]]
+        method_ok
+
+    let con_039: string@View = "CON-039"
+    let con_039_log: string@View =
+        [[log(label: "contracts-type-invariant-predicate-context-feature-039", expected: "CON-039")]]
+        con_039
+
+    let runtime_ok: bool =
+        (value_log == 4) &&
+        (method_ok_log == true) &&
+        (con_039_log == "CON-039")
+    let runtime_ok_log: bool =
+        [[log(label: "contracts-type-invariant-predicate-context-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
+    let metric_label: string@View = TypeInvariantPredicateContextMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-contracts-type-invariant-predicate-context-metric", expected: "21")]]
+        metric_label
+    if (metric_log_actual != "21") {
+        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    return 0
+}

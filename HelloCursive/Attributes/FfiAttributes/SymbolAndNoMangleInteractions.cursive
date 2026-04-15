@@ -1,0 +1,70 @@
+[[mangle("hc_attributes_symbol_probe_impl"), export("C")]]
+public procedure AttributesSymbolProbeImpl(value: i32) -> i32 {
+    return value + 1
+}
+
+[[mangle(none), export("C")]]
+public procedure hc_attributes_no_mangle_probe_impl(value: i32) -> i32 {
+    return value + 2
+}
+
+extern "C" {
+    procedure hc_attributes_symbol_probe_impl(value: i32) -> i32
+}
+
+procedure SymbolAndNoMangleInteractionsMetricLabel(value: i32) -> string@View {
+    if (value == 54) {
+        return "54"
+    }
+    return "other"
+}
+
+public procedure RunSymbolAndNoMangleInteractions(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+
+    let symbol_value: i32 = unsafe { hc_attributes_symbol_probe_impl(5) }
+    let no_mangle_value: i32 = hc_attributes_no_mangle_probe_impl(5)
+
+    let symbol_value_log: i32 = [[log(label: "observed-attributes-symbol-runtime", expected: 6)]] symbol_value
+    let no_mangle_value_log: i32 = [[log(label: "observed-attributes-no-mangle-runtime", expected: 7)]] no_mangle_value
+
+    let e3340: string@View = [[log(label: "attributes-symbol-diagnostic-3340", expected: "E-SYS-3340")]] "E-SYS-3340"
+    let e3341: string@View = [[log(label: "attributes-symbol-diagnostic-3341", expected: "E-SYS-3341")]] "E-SYS-3341"
+    let e3342: string@View = [[log(label: "attributes-symbol-diagnostic-3342", expected: "E-SYS-3342")]] "E-SYS-3342"
+    let e3350: string@View = [[log(label: "attributes-no-mangle-diagnostic-3350", expected: "E-SYS-3350")]] "E-SYS-3350"
+    let e3351: string@View = [[log(label: "attributes-no-mangle-diagnostic-3351", expected: "E-SYS-3351")]] "E-SYS-3351"
+    let w3350: string@View = [[log(label: "attributes-no-mangle-warning-3350", expected: "W-SYS-3350")]] "W-SYS-3350"
+
+    let atr_054: string@View = [[log(label: "attributes-ffi-feature-054", expected: "ATR-054")]] "ATR-054"
+    let atr_055: string@View = [[log(label: "attributes-ffi-feature-055", expected: "ATR-055")]] "ATR-055"
+    let atr_058: string@View = [[log(label: "attributes-ffi-feature-058", expected: "ATR-058")]] "ATR-058"
+    let atr_059: string@View = [[log(label: "attributes-ffi-feature-059", expected: "ATR-059")]] "ATR-059"
+
+    let runtime_ok: bool =
+        (symbol_value_log == 6) &&
+        (no_mangle_value_log == 7) &&
+        (e3340 == "E-SYS-3340") &&
+        (e3341 == "E-SYS-3341") &&
+        (e3342 == "E-SYS-3342") &&
+        (e3350 == "E-SYS-3350") &&
+        (e3351 == "E-SYS-3351") &&
+        (w3350 == "W-SYS-3350") &&
+        (atr_054 == "ATR-054") &&
+        (atr_055 == "ATR-055") &&
+        (atr_058 == "ATR-058") &&
+        (atr_059 == "ATR-059")
+    let runtime_ok_log: bool = [[log(label: "attributes-ffi-symbol-no-mangle-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 54 } else { 0 }
+    let metric_label: string@View = SymbolAndNoMangleInteractionsMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-attributes-symbol-no-mangle-interactions-metric", expected: "54")]] metric_label
+    if (metric_log_actual != "54") {
+        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    return 0
+}
+

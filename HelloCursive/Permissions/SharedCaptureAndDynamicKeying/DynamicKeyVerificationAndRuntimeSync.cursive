@@ -1,0 +1,61 @@
+[[dynamic]]
+procedure DynamicKeyVerificationAndRuntimeSyncProbe(values: shared [i32; 3], index: usize) -> i32 {
+    var observed: i32 = 0
+    # values[index] dynamic read {
+        observed = values[index]
+    }
+    return observed
+}
+
+procedure DynamicKeyVerificationAndRuntimeSyncMetricLabel(value: i32) -> string@View {
+    if (value == 21) {
+        return "21"
+    }
+    return "other"
+}
+
+public procedure RunDynamicKeyVerificationAndRuntimeSync(ctx: Context) -> i32 {
+    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+
+    let owner: unique [i32; 3] = [3, 6, 9]
+    let shared_values: shared [i32; 3] = owner
+
+    let first_index: usize = 1usize
+    let second_index: usize = 2usize
+
+    let dynamic_metric_one: i32 = DynamicKeyVerificationAndRuntimeSyncProbe(shared_values, first_index)
+    let dynamic_metric_two: i32 = DynamicKeyVerificationAndRuntimeSyncProbe(shared_values, second_index)
+
+    let sync_metric: i32 = parallel ctx~>cpu() {
+        let worker = spawn {
+            DynamicKeyVerificationAndRuntimeSyncProbe(shared_values, first_index)
+        }
+        wait worker
+    }
+
+    let diagnostic_code: string@View = "E-CON-0020"
+
+    let dynamic_metric_one_log: i32 = [[log(label: "observed-permissions-DynamicKeyVerificationAndRuntimeSync-first", expected: 6)]] dynamic_metric_one
+    let dynamic_metric_two_log: i32 = [[log(label: "observed-permissions-DynamicKeyVerificationAndRuntimeSync-second", expected: 9)]] dynamic_metric_two
+    let sync_metric_log: i32 = [[log(label: "observed-permissions-DynamicKeyVerificationAndRuntimeSync-sync", expected: 6)]] sync_metric
+    let diagnostic_log: string@View = [[log(label: "permissions-DynamicKeyVerificationAndRuntimeSync-diagnostic", expected: "E-CON-0020")]] diagnostic_code
+
+    let dynamic_runtime_ok: bool =
+        (dynamic_metric_one_log == 6) &&
+        (dynamic_metric_two_log == 9) &&
+        (sync_metric_log == 6) &&
+        (diagnostic_log == "E-CON-0020")
+    let runtime_ok_log: bool = [[log(label: "permissions-DynamicKeyVerificationAndRuntimeSync-runtime", expected: true)]] dynamic_runtime_ok
+
+    let metric: i32 = if (runtime_ok_log) { 21 } else { 0 }
+    let metric_label: string@View = DynamicKeyVerificationAndRuntimeSyncMetricLabel(metric)
+    let metric_label_log: string@View = [[log(label: "observed-permissions-DynamicKeyVerificationAndRuntimeSync-metric", expected: "21")]] metric_label
+
+    if (metric_label_log != "21") {
+        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    return 0
+}

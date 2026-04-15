@@ -1,0 +1,83 @@
+procedure PointerSurfaceMetricLabel(value: i32) -> string@View {
+    if (value == 58) {
+        return "58"
+    }
+    return "other"
+}
+
+public procedure RunDerefAndAddressDiagnosticSurface(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "memory-log-item_begin")]]
+
+    var value_cell: i32 = 17
+    let safe_ptr_valid: Ptr<i32>@Valid = &value_cell
+    let safe_read_metric: i32 = *safe_ptr_valid
+
+    let raw_ptr_valid: *imm i32 =
+        unsafe { transmute<Ptr<i32>@Valid, *imm i32>(safe_ptr_valid) }
+    let raw_read_metric: i32 = unsafe { *raw_ptr_valid }
+
+    let safe_ptr_null: Ptr<i32>@Null = Ptr::null()
+    let safe_ptr_null_check: Ptr<i32>@Null = Ptr::null()
+    let safe_ptr_expired: Ptr<i32>@Expired =
+        unsafe { transmute<Ptr<i32>@Null, Ptr<i32>@Expired>(safe_ptr_null) }
+    let safe_ptr_expired_check: Ptr<i32>@Expired =
+        unsafe { transmute<Ptr<i32>@Null, Ptr<i32>@Expired>(safe_ptr_null_check) }
+
+    let tuple_seed: (i32, i32) = (3, 12)
+    let tuple_ptr: Ptr<i32>@Valid = &tuple_seed.1
+    let tuple_metric: i32 = *tuple_ptr
+
+    let array_seed: [i32; 3] = [4, 5, 6]
+    let index_ptr: Ptr<i32>@Valid = &array_seed[2usize]
+    let index_metric: i32 = *index_ptr
+
+    let valid_deref_ok: bool =
+        (safe_read_metric == 17) && (raw_read_metric == 17)
+    let null_expired_shape_ok: bool =
+        (safe_ptr_null == safe_ptr_null_check) &&
+        (safe_ptr_expired == safe_ptr_expired_check)
+    let address_flow_ok: bool =
+        (tuple_metric == 12) && (index_metric == 6)
+
+    let diag_deref_null: string@View = "E-TYP-2101"
+    let diag_deref_expired: string@View = "E-TYP-2102"
+    let diag_deref_raw_unsafe: string@View = "E-TYP-2103"
+    let diag_addr_of_place: string@View = "E-TYP-2104"
+    let diag_addr_of_packed: string@View = "E-TYP-2105"
+
+    let valid_deref_ok_log: bool = [[log(label: "memory-pointers-deref-valid-surface", expected: true)]] valid_deref_ok
+    let null_expired_shape_ok_log: bool = [[log(label: "memory-pointers-null-expired-shape-surface", expected: true)]] null_expired_shape_ok
+    let address_flow_ok_log: bool = [[log(label: "memory-pointers-address-flow-surface", expected: true)]] address_flow_ok
+
+    let diag_deref_null_log: string@View = [[log(label: "memory-pointers-diagnostic-code-deref-null", expected: "E-TYP-2101")]] diag_deref_null
+    let diag_deref_expired_log: string@View = [[log(label: "memory-pointers-diagnostic-code-deref-expired", expected: "E-TYP-2102")]] diag_deref_expired
+    let diag_deref_raw_unsafe_log: string@View = [[log(label: "memory-pointers-diagnostic-code-deref-raw-unsafe", expected: "E-TYP-2103")]] diag_deref_raw_unsafe
+    let diag_addr_of_place_log: string@View = [[log(label: "memory-pointers-diagnostic-code-addr-of-place", expected: "E-TYP-2104")]] diag_addr_of_place
+    let diag_addr_of_packed_log: string@View = [[log(label: "memory-pointers-diagnostic-code-addr-of-packed", expected: "E-TYP-2105")]] diag_addr_of_packed
+
+    let diag_matrix_ok: bool =
+        (diag_deref_null_log == "E-TYP-2101") &&
+        (diag_deref_expired_log == "E-TYP-2102") &&
+        (diag_deref_raw_unsafe_log == "E-TYP-2103") &&
+        (diag_addr_of_place_log == "E-TYP-2104") &&
+        (diag_addr_of_packed_log == "E-TYP-2105")
+    let diag_matrix_ok_log: bool = [[log(label: "memory-pointers-diagnostic-surface-matrix", expected: true)]] diag_matrix_ok
+
+    let metric_ok: bool =
+        (valid_deref_ok_log == true) &&
+        (null_expired_shape_ok_log == true) &&
+        (address_flow_ok_log == true) &&
+        (diag_matrix_ok_log == true)
+
+    let metric: i32 = if (metric_ok) { 58 } else { 0 }
+    let metric_label: string@View = PointerSurfaceMetricLabel(metric)
+    let metric_log_actual: string@View = [[log(label: "observed-memory-pointers-surface-metric", expected: "58")]] metric_label
+    if (metric_log_actual != "58") {
+        [[log(label: "memory-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "memory-log-memory_item_success")]]
+    return 0
+}

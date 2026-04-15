@@ -1,0 +1,66 @@
+procedure ParallelClosureCaptureRestrictionsMetricLabel(value: i32) -> string@View {
+    if (value == 27) {
+        return "27"
+    }
+    return "other"
+}
+
+public procedure RunParallelClosureCaptureRestrictions(ctx: Context) -> i32 {
+    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+
+    let const_closure_metric: i32 = parallel ctx~>cpu() {
+        let worker = spawn {
+            let const_seed_local: i32 = 10
+            let add_base = |const_input: i32| -> i32 {
+                const_input + const_seed_local
+            }
+            add_base(2)
+        }
+        wait worker
+    }
+
+    let shared_closure_metric: i32 = parallel ctx~>cpu() {
+        let worker = spawn {
+            let shared_owner_local: unique i32 = 3
+            let shared_data_local: shared i32 = shared_owner_local
+            let read_shared = |shared_delta_input: i32| -> i32 {
+                shared_data_local + shared_delta_input
+            }
+            read_shared(1)
+        }
+        wait worker
+    }
+
+    let unique_closure_metric: i32 = {
+        let consume_and_add = |move unique_input: i32| -> i32 {
+            unique_input + 5
+        }
+        consume_and_add(6)
+    }
+
+    let diagnostic_code: string@View = "E-CON-0131"
+
+    let const_closure_metric_log: i32 = [[log(label: "observed-permissions-ParallelClosureCaptureRestrictions-const-closure", expected: 12)]] const_closure_metric
+    let shared_closure_metric_log: i32 = [[log(label: "observed-permissions-ParallelClosureCaptureRestrictions-shared-closure", expected: 4)]] shared_closure_metric
+    let unique_closure_metric_log: i32 = [[log(label: "observed-permissions-ParallelClosureCaptureRestrictions-unique-move-param", expected: 11)]] unique_closure_metric
+    let diagnostic_log: string@View = [[log(label: "permissions-ParallelClosureCaptureRestrictions-diagnostic", expected: "E-CON-0131")]] diagnostic_code
+
+    let runtime_ok: bool =
+        (const_closure_metric_log == 12) &&
+        (shared_closure_metric_log == 4) &&
+        (unique_closure_metric_log == 11) &&
+        (diagnostic_log == "E-CON-0131")
+    let runtime_ok_log: bool = [[log(label: "permissions-ParallelClosureCaptureRestrictions-runtime", expected: true)]] runtime_ok
+
+    let metric: i32 = if (runtime_ok_log) { 27 } else { 0 }
+    let metric_label: string@View = ParallelClosureCaptureRestrictionsMetricLabel(metric)
+    let metric_label_log: string@View = [[log(label: "observed-permissions-ParallelClosureCaptureRestrictions-metric", expected: "27")]] metric_label
+
+    if (metric_label_log != "27") {
+        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        return 1
+    }
+
+    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    return 0
+}

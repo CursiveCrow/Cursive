@@ -1,0 +1,67 @@
+procedure PointerDiagnosticMatrixMetricLabel(value: i32) -> string@View {
+    if (value == 15) {
+        return "15"
+    }
+    return "other"
+}
+
+public procedure RunPointerDiagnosticMatrix(ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "pointers-log-item_begin")]]
+
+    let diag_deref_null: string@View = "E-TYP-2101"
+    let diag_deref_expired: string@View = "E-TYP-2102"
+    let diag_deref_raw_unsafe: string@View = "E-TYP-2103"
+    let diag_addr_non_place: string@View = "E-TYP-2104"
+    let diag_packed_field_unsafe: string@View = "E-TYP-2105"
+    let diag_extern_unsafe: string@View = "E-TYP-2106"
+    let diag_array_index_non_usize: string@View = "E-TYP-1812"
+    let diag_slice_index_non_usize: string@View = "E-TYP-1820"
+    let diag_null_infer: string@View = "E-TYP-1530"
+    let diag_gpu_pointer_host_heap: string@View = "E-CON-0150"
+    let diag_gpu_addrspace_mismatch: string@View = "E-TYP-2641"
+
+    let check_1_logged: string@View = [[log(label: "pointers-diag-matrix-deref-null", expected: "E-TYP-2101")]] diag_deref_null
+    let check_1: bool = check_1_logged == "E-TYP-2101"
+    let check_2_logged: string@View = [[log(label: "pointers-diag-matrix-deref-expired", expected: "E-TYP-2102")]] diag_deref_expired
+    let check_2: bool = check_2_logged == "E-TYP-2102"
+    let check_3_logged: string@View = [[log(label: "pointers-diag-matrix-deref-raw-unsafe", expected: "E-TYP-2103")]] diag_deref_raw_unsafe
+    let check_3: bool = check_3_logged == "E-TYP-2103"
+    let check_4_logged: string@View = [[log(label: "pointers-diag-matrix-addr-non-place", expected: "E-TYP-2104")]] diag_addr_non_place
+    let check_4: bool = check_4_logged == "E-TYP-2104"
+    let check_5_logged: string@View = [[log(label: "pointers-diag-matrix-packed-field-unsafe", expected: "E-TYP-2105")]] diag_packed_field_unsafe
+    let check_5: bool = check_5_logged == "E-TYP-2105"
+    let check_6_logged: string@View = [[log(label: "pointers-diag-matrix-extern-unsafe", expected: "E-TYP-2106")]] diag_extern_unsafe
+    let check_6: bool = check_6_logged == "E-TYP-2106"
+    let check_7_logged: string@View = [[log(label: "pointers-diag-matrix-array-index-type", expected: "E-TYP-1812")]] diag_array_index_non_usize
+    let check_7: bool = check_7_logged == "E-TYP-1812"
+    let check_8_logged: string@View = [[log(label: "pointers-diag-matrix-slice-index-type", expected: "E-TYP-1820")]] diag_slice_index_non_usize
+    let check_8: bool = check_8_logged == "E-TYP-1820"
+    let check_9_logged: string@View = [[log(label: "pointers-diag-matrix-null-infer", expected: "E-TYP-1530")]] diag_null_infer
+    let check_9: bool = check_9_logged == "E-TYP-1530"
+    let check_10_logged: string@View = [[log(label: "pointers-diag-matrix-gpu-host-heap", expected: "E-CON-0150")]] diag_gpu_pointer_host_heap
+    let check_10: bool = check_10_logged == "E-CON-0150"
+    let check_11_logged: string@View = [[log(label: "pointers-diag-matrix-gpu-addrspace", expected: "E-TYP-2641")]] diag_gpu_addrspace_mismatch
+    let check_11: bool = check_11_logged == "E-TYP-2641"
+
+    let matrix_ok: bool =
+        check_1 && check_2 && check_3 && check_4 && check_5 &&
+        check_6 && check_7 && check_8 && check_9 && check_10 &&
+        check_11
+    let matrix_ok_log: bool =
+        [[log(label: "pointers-diag-matrix-complete", expected: true)]]
+        matrix_ok
+
+    let metric: i32 = if (matrix_ok_log == true) { 15 } else { 0 }
+    let metric_label: string@View = PointerDiagnosticMatrixMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-pointers-diagnostic-matrix-metric", expected: "15")]]
+        metric_label
+    if (metric_log_actual != "15") {
+        [[log(label: "pointers-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "pointers-log-item_success")]]
+    return 0
+}

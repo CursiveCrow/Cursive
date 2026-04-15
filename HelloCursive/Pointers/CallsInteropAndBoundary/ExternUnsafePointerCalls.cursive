@@ -1,0 +1,62 @@
+[[mangle("hc_pointers_extern_probe_impl"), export("C")]]
+public procedure PointerExternProbeImpl(ptr: *imm i32) -> i32 {
+    return unsafe { *ptr }
+}
+
+extern "C" {
+    procedure hc_pointers_extern_probe_impl(ptr: *imm i32) -> i32
+}
+
+procedure ExternUnsafePointerCallsMetricLabel(value: i32) -> string@View {
+    if (value == 18) {
+        return "18"
+    }
+    return "other"
+}
+
+public procedure RunExternUnsafePointerCalls(ctx: Context) -> i32 {
+    [[log(label: "pointers-log-item_begin")]]
+
+    let raw_value: i32 = 4
+    let raw_ptr_safe: Ptr<i32>@Valid = &raw_value
+    let raw_ptr: *imm i32 = unsafe { transmute<Ptr<i32>@Valid, *imm i32>(raw_ptr_safe) }
+    let raw_probe_metric: i32 = unsafe { *raw_ptr }
+    [[log(label: "pointers-calls-extern-call-enter")]]
+    let extern_probe_metric: i32 = unsafe {
+        hc_pointers_extern_probe_impl(raw_ptr)
+    }
+    [[log(label: "pointers-calls-extern-call-exit")]]
+
+    let diag_extern_outside_unsafe: string@View = "E-TYP-2106"
+    let diag_extern_outside_unsafe_logged: string@View =
+        [[log(label: "pointers-calls-extern-diag-unsafe-required", expected: "E-TYP-2106")]]
+        diag_extern_outside_unsafe
+    let diag_extern_outside_unsafe_ok: bool =
+        diag_extern_outside_unsafe_logged == "E-TYP-2106"
+
+    let raw_probe_ok: bool = raw_probe_metric == 4
+    let extern_probe_ok: bool = extern_probe_metric == 4
+    let raw_probe_ok_log: bool =
+        [[log(label: "pointers-calls-extern-raw-probe", expected: true)]]
+        raw_probe_ok
+    let extern_probe_ok_log: bool =
+        [[log(label: "pointers-calls-extern-runtime-call", expected: true)]]
+        extern_probe_ok
+
+    let metric_ok: bool =
+        (raw_probe_ok_log == true) &&
+        (extern_probe_ok_log == true) &&
+        diag_extern_outside_unsafe_ok
+    let metric: i32 = if (metric_ok) { 18 } else { 0 }
+    let metric_label: string@View = ExternUnsafePointerCallsMetricLabel(metric)
+    let metric_log_actual: string@View =
+        [[log(label: "observed-pointers-calls-extern-unsafe-pointer-calls-metric", expected: "18")]]
+        metric_label
+    if (metric_log_actual != "18") {
+        [[log(label: "pointers-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "pointers-log-item_success")]]
+    return 0
+}

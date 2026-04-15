@@ -1,0 +1,141 @@
+import ExpressionSemantics
+import AccessAndInvocation
+import TypeConversionAndUnsafe
+import MutationAndStatements
+import ControlFlowExpressions
+import ScopeCleanupAndAllocation
+import KeySystemOperations
+import TextAndBufferOperations
+import StructuredParallel
+import AsyncFlow
+import CrossAssemblyOperationIntegrations
+import OperationDiagnostics
+
+public procedure run(ctx: Context) -> i32 {
+    let section_name: string@View = "operations"
+    let status_ok: string@View = "ok"
+    let status_failed: string@View = "failed"
+    let checkpoint: string@View = "completed full operations assembly routing"
+
+    let phase_planned: string@View = "planned"
+    let phase_running: string@View = "running"
+    let phase_complete: string@View = "complete"
+    let phase_failed: string@View = "failed"
+    let dispatch_reason: string@View = "dispatching operations group router"
+    let complete_reason: string@View = "operations group router completed"
+    let failed_reason: string@View = "operations group router returned non-zero status"
+
+    let group_ExpressionSemantics: string@View = "operations::ExpressionSemantics"
+    let group_AccessAndInvocation: string@View = "operations::AccessAndInvocation"
+    let group_TypeConversionAndUnsafe: string@View = "operations::TypeConversionAndUnsafe"
+    let group_MutationAndStatements: string@View = "operations::MutationAndStatements"
+    let group_ControlFlowExpressions: string@View = "operations::ControlFlowExpressions"
+    let group_ScopeCleanupAndAllocation: string@View = "operations::ScopeCleanupAndAllocation"
+    let group_KeySystemOperations: string@View = "operations::KeySystemOperations"
+    let group_TextAndBufferOperations: string@View = "operations::TextAndBufferOperations"
+    let group_StructuredParallel: string@View = "operations::StructuredParallel"
+    let group_AsyncFlow: string@View = "operations::AsyncFlow"
+    let group_CrossAssemblyOperationIntegrations: string@View = "operations::CrossAssemblyOperationIntegrations"
+    let group_OperationDiagnostics: string@View = "operations::OperationDiagnostics"
+
+    [[log(label: "operations-log-section_start")]]
+    [[log(label: "operations-log-transition")]]
+    let status_ExpressionSemantics: i32 = ExpressionSemantics::RunGroup(ctx)
+    if (status_ExpressionSemantics != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_ExpressionSemantics
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_AccessAndInvocation: i32 = AccessAndInvocation::RunGroup(ctx)
+    if (status_AccessAndInvocation != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_AccessAndInvocation
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_TypeConversionAndUnsafe: i32 = TypeConversionAndUnsafe::RunGroup(ctx)
+    if (status_TypeConversionAndUnsafe != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_TypeConversionAndUnsafe
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_MutationAndStatements: i32 = MutationAndStatements::RunGroup(ctx)
+    if (status_MutationAndStatements != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_MutationAndStatements
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_ControlFlowExpressions: i32 = ControlFlowExpressions::RunGroup(ctx)
+    if (status_ControlFlowExpressions != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_ControlFlowExpressions
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_ScopeCleanupAndAllocation: i32 = ScopeCleanupAndAllocation::RunGroup(ctx)
+    if (status_ScopeCleanupAndAllocation != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_ScopeCleanupAndAllocation
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_KeySystemOperations: i32 = KeySystemOperations::RunGroup(ctx)
+    if (status_KeySystemOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_KeySystemOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_TextAndBufferOperations: i32 = TextAndBufferOperations::RunGroup(ctx)
+    if (status_TextAndBufferOperations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_TextAndBufferOperations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_StructuredParallel: i32 = StructuredParallel::RunGroup(ctx)
+    if (status_StructuredParallel != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_StructuredParallel
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_AsyncFlow: i32 = AsyncFlow::RunGroup(ctx)
+    if (status_AsyncFlow != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_AsyncFlow
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_CrossAssemblyOperationIntegrations: i32 = CrossAssemblyOperationIntegrations::RunGroup(ctx)
+    if (status_CrossAssemblyOperationIntegrations != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_CrossAssemblyOperationIntegrations
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-transition")]]
+    let status_OperationDiagnostics: i32 = OperationDiagnostics::RunGroup(ctx)
+    if (status_OperationDiagnostics != 0) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-section_end")]]
+        return status_OperationDiagnostics
+    }
+    [[log(label: "operations-log-transition")]]
+    [[log(label: "operations-log-checkpoint")]]
+    [[log(label: "operations-log-section_end")]]
+    return 0
+}

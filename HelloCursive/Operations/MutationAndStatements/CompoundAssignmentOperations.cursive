@@ -1,0 +1,179 @@
+procedure LogCompoundAssignmentObject(
+    fs: $FileSystem,
+    scope: string@View,
+    move object_name: string@View,
+    move object_type: string@View,
+    move state: string@View,
+    move details: string@View
+) -> () {
+    [[log(label: "operations-log-object")]]
+}
+
+procedure CompoundAssignmentMetricLabel(value: i32) -> string@View {
+    if (value == 8) {
+        return "8"
+    }
+    if (value == 24) {
+        return "24"
+    }
+    return "other"
+}
+
+procedure RunCompoundAssignmentItem(
+    ctx: Context,
+    scope: string@View,
+    move item_name: string@View,
+    move item_details: string@View,
+    move item_reason: string@View,
+    move step_name: string@View,
+    move step_detail: string@View,
+    move expected: string@View,
+    move actual_pass: string@View,
+    move actual_fail: string@View,
+    move passed: bool,
+    move failure_reason: string@View
+) -> i32 {
+    [[log(label: "operations-log-item_begin")]]
+    let passed_place: bool = passed
+    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_ok: bool = passed_place && (item_check_log == true)
+    if (item_check_ok == false) {
+        [[log(label: "operations-log-transition")]]
+        [[log(label: "operations-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "operations-log-operations_item_success")]]
+    return 0
+}
+
+procedure VerifyCompoundAssignmentItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
+    [[log(label: "operations-log-runtime_phase_move")]]
+    LogCompoundAssignmentObject(ctx.fs, scope, "compound_syntax_slot", "i32", "constructed", "slot for += syntax exercise prepared")
+    LogCompoundAssignmentObject(ctx.fs, scope, "compound_static_slot", "i32", "constructed", "slot for chained arithmetic compound assignment prepared")
+    LogCompoundAssignmentObject(ctx.fs, scope, "compound_runtime_slot", "i32", "constructed", "slot for runtime mixed compound assignment exercise prepared")
+
+    [[log(label: "operations-log-runtime_phase_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    var syntax_value: i32 = 5
+    syntax_value += 3
+    let syntax_metric: i32 = syntax_value
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    var static_value: i32 = 20
+    static_value -= 4
+    static_value *= 2
+    static_value /= 4
+    let static_metric: i32 = static_value
+    [[log(label: "operations-log-transition_move")]]
+    [[log(label: "operations-log-transition_move")]]
+    var runtime_value: i32 = 9
+    runtime_value %= 4
+    runtime_value += 7
+    let runtime_component: i32 = runtime_value
+    [[log(label: "operations-log-transition_move")]]
+    let runtime_metric: i32 = syntax_metric + static_metric + runtime_component
+
+    let syntax_passed: bool = syntax_metric == 8
+    let static_passed: bool = static_metric == 8
+    let runtime_passed: bool = runtime_metric == 24
+
+    let actual_label_1: string@View = CompoundAssignmentMetricLabel(syntax_metric)
+    let syntax_passed_log_actual = [[log(label: "observed-compound-assignment-syntax-metric", expected: "8")]] actual_label_1
+    let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
+    let actual_label_2: string@View = CompoundAssignmentMetricLabel(static_metric)
+    let static_passed_log_actual = [[log(label: "observed-compound-assignment-static-metric", expected: "8")]] actual_label_2
+    let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
+    let actual_label_3: string@View = CompoundAssignmentMetricLabel(runtime_metric)
+    let runtime_passed_log_actual = [[log(label: "observed-compound-assignment-runtime-metric", expected: "24")]] actual_label_3
+    let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
+    [[log(label: "operations-log-runtime_phase_move")]]
+    if (item_index == 0) {
+        return RunCompoundAssignmentItem(
+            ctx,
+            scope,
+            "CompoundAssignmentOperationsSyntaxForms",
+            "syntax forms for compound assignment operators over mutable place expressions",
+            "validated compound assignment operations syntax forms",
+            "compound-assignment-syntax",
+            "evaluate += operator form on mutable place",
+            "8",
+            "8",
+            "not-8",
+            move syntax_passed_with_log,
+            "compound assignment syntax forms check failed"
+        )
+    }
+
+    if (item_index == 1) {
+        return RunCompoundAssignmentItem(
+            ctx,
+            scope,
+            "CompoundAssignmentOperationsStaticSemantics",
+            "type compatibility and place requirements across chained compound assignments",
+            "validated compound assignment operations static semantics",
+            "compound-assignment-static",
+            "type-check -=, *=, and /= operator chain on i32 target",
+            "8",
+            "8",
+            "not-8",
+            move static_passed_with_log,
+            "compound assignment static semantics check failed"
+        )
+    }
+
+    if (item_index == 2) {
+        return RunCompoundAssignmentItem(
+            ctx,
+            scope,
+            "CompoundAssignmentOperationsRuntimeDiagnostics",
+            "runtime mutation sequencing across mixed compound-assignment operators",
+            "validated compound assignment operations runtime behavior and diagnostics",
+            "compound-assignment-runtime",
+            "execute mixed compound-assignment path and verify aggregate runtime metric",
+            "24",
+            "24",
+            "not-24",
+            move runtime_passed_with_log,
+            "compound assignment runtime diagnostics check failed"
+        )
+    }
+
+    return RunCompoundAssignmentItem(
+        ctx,
+        scope,
+        move item_name,
+        "unknown compound assignment operation item",
+        "failed unknown compound assignment operation item",
+        "item-resolution",
+        "resolve compound assignment operation item name",
+        "known-item",
+        "known-item",
+        "unknown-item",
+        false,
+        "unknown compound assignment operation item"
+    )
+}
+
+procedure RunCompoundAssignmentOperations(ctx: Context) -> i32 {
+    let scope: string@View = "operations::MutationAndStatements::CompoundAssignmentOperations"
+    let checkpoint: string@View = "covered compound assignment operations operation items"
+
+    let status_syntax: i32 = VerifyCompoundAssignmentItem(ctx, scope, 0, "CompoundAssignmentOperationsSyntaxForms")
+    if (status_syntax != 0) {
+        return status_syntax
+    }
+
+    let status_static: i32 = VerifyCompoundAssignmentItem(ctx, scope, 1, "CompoundAssignmentOperationsStaticSemantics")
+    if (status_static != 0) {
+        return status_static
+    }
+
+    let status_runtime: i32 = VerifyCompoundAssignmentItem(ctx, scope, 2, "CompoundAssignmentOperationsRuntimeDiagnostics")
+    if (status_runtime != 0) {
+        return status_runtime
+    }
+
+    [[log(label: "operations-log-checkpoint")]]
+    return 0
+}
