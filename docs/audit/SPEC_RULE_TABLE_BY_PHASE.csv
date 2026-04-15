@@ -1446,12 +1446,12 @@ TupleScan(P, d) ? false","CursiveSpecification.md:8643-8645","/mnt/c/dev/cursive
 "Phase 1 - Parse and Aggregate","incorrect","Tok(P)","Tok(P) = Punctuator("")"") ? d = 1
 ????????????????????????????????????????????
 TupleScan(P, d) ? false","CursiveSpecification.md:8646-8648","/mnt/c/dev/cursive/cursive/src/02_source/parser/expr/tuple_literal.cpp:111-115. The `)`-terminating false case also requires `brace == 0 && bracket == 0`, so it is narrower than the rule `Tok(P) = Punctuator("")"") ? d = 1`."
-"Phase 1 - Parse and Aggregate","incorrect","Tok(P)","Tok(P) ? {Punctuator("",""), Punctuator("";"")} ? d = 1
+"Phase 1 - Parse and Aggregate","ambiguous","Tok(P)","Tok(P) ? {Punctuator("",""), Punctuator("";"")} ? d = 1
 ??????????????????????????????????????????????
 TupleScan(P, d) ? true
 Tok(P) ? {Punctuator("")""), Punctuator("",""), Punctuator("";"")}    TupleScan(Advance(P), d + ParenDelta(Tok(P))) ? b
 ???????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
-TupleScan(P, d) ? b","CursiveSpecification.md:8649-8654","/mnt/c/dev/cursive/cursive/src/02_source/parser/expr/tuple_literal.cpp:116-123. Separator detection and recursion are implemented over full delimiter-depth tracking, not just `d + ParenDelta(Tok(P))`."
+TupleScan(P, d) ? b","CursiveSpecification.md:8649-8654","cursive/src/02_source/parser/expr/primary.cpp:147-171; cursive/src/02_source/parser/expr/tuple_literal.cpp:134-159; HelloCursive/Types/ValueData/TuplesArraysSlicesRanges.cursive:88-92. The literal paren-only TupleScan rule conflicts with already-landed conformance for parenthesized array/record expressions and singleton-comma handling, so this row is blocked on spec clarification."
 "Phase 1 - Parse and Aggregate","incorrect","TupleParen(P)","TupleParen(P) ? IsPunc(Tok(P), ""("") ? (IsPunc(Tok(Advance(P)), "")"") ? TupleScan(Advance(P), 1) ? true)","CursiveSpecification.md:8656","/mnt/c/dev/cursive/cursive/src/02_source/parser/expr/tuple_literal.cpp:135-145. `TupleParen` delegates to the non-equivalent `TupleScan` implementation, so it is not the exact spec predicate."
 "Phase 1 - Parse and Aggregate","incorrect","Parse-Tuple-Literal","**(Parse-Tuple-Literal)**
 IsPunc(Tok(P), ""("")    TupleParen(P)    ? ? ParseTupleExprElems(Advance(P)) ? (P_1, elems)    IsPunc(Tok(P_1), "")"")
