@@ -10,6 +10,8 @@ tmp/
 .archive/
 .codex/
 .tools/
+docs/audit/*.md
+docs/audit/**/*.md
 docs/audit/task_backlogs
 release-artifacts/
 **/__pycache__/

@@ -20,6 +20,8 @@
   because the vendored LLVM and ICU binary payloads are tracked through LFS.
 - Keep bootstrap-only roots such as `tmp/`, `cursive-bootstrap/`,
   `docker-data/`, `release-artifacts/`, and `extern/icu/install/` out of Git.
+- Keep audit CSV sources under `docs/audit/` versioned, but treat audit
+  markdown summaries and backlog notes as local/generated artifacts.
 - If you touch packaging or release automation, validate the staged `cursive_out`
   payload and the normalized archive produced by `scripts/package_release.py`.
 - Keep alpha-scope documentation in sync when the supported surface changes.
