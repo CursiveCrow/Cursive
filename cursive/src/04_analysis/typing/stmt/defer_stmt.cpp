@@ -14,6 +14,7 @@
 // =============================================================================
 
 #include "04_analysis/typing/type_stmt.h"
+#include "04_analysis/typing/type_expr.h"
 
 #include <optional>
 #include <string_view>
@@ -104,6 +105,190 @@ static bool LocalDeferSafe(const ast::Block& block) {
   return !HasNonLocalCtrlBlock(block, false);
 }
 
+static bool LocalExprNeedsKeyAccess(const ScopeContext& ctx,
+                                    const StmtTypeContext& type_ctx,
+                                    const ast::ExprPtr& expr,
+                                    const TypeEnv& env);
+
+static bool LocalExprHasSharedPermission(const ScopeContext& ctx,
+                                         const StmtTypeContext& type_ctx,
+                                         const ast::ExprPtr& expr,
+                                         const TypeEnv& env) {
+  if (!expr) {
+    return false;
+  }
+  const auto place = TypePlace(ctx, type_ctx, expr, env);
+  if (place.ok && place.type &&
+      PermOfType(place.type) == Permission::Shared) {
+    return true;
+  }
+  const auto value = TypeExpr(ctx, type_ctx, expr, env);
+  return value.ok && value.type &&
+         PermOfType(value.type) == Permission::Shared;
+}
+
+static bool LocalStmtNeedsKeyAccess(const ScopeContext& ctx,
+                                    const StmtTypeContext& type_ctx,
+                                    const ast::Stmt& stmt,
+                                    const TypeEnv& env);
+
+static bool LocalBlockNeedsKeyAccess(const ScopeContext& ctx,
+                                     const StmtTypeContext& type_ctx,
+                                     const ast::Block& block,
+                                     const TypeEnv& env) {
+  for (const auto& stmt : block.stmts) {
+    if (LocalStmtNeedsKeyAccess(ctx, type_ctx, stmt, env)) {
+      return true;
+    }
+  }
+  return LocalExprNeedsKeyAccess(ctx, type_ctx, block.tail_opt, env);
+}
+
+static bool LocalStmtNeedsKeyAccess(const ScopeContext& ctx,
+                                    const StmtTypeContext& type_ctx,
+                                    const ast::Stmt& stmt,
+                                    const TypeEnv& env) {
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::LetStmt> ||
+                      std::is_same_v<T, ast::VarStmt>) {
+          return LocalExprNeedsKeyAccess(ctx, type_ctx, node.binding.init, env);
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
+                             std::is_same_v<T, ast::CompoundAssignStmt>) {
+          return LocalExprHasSharedPermission(ctx, type_ctx, node.place, env) ||
+                 LocalExprNeedsKeyAccess(ctx, type_ctx, node.place, env) ||
+                 LocalExprNeedsKeyAccess(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::ExprStmt>) {
+          return LocalExprNeedsKeyAccess(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::DeferStmt> ||
+                             std::is_same_v<T, ast::UnsafeBlockStmt> ||
+                             std::is_same_v<T, ast::CtStmt>) {
+          return node.body && LocalBlockNeedsKeyAccess(ctx, type_ctx, *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::RegionStmt>) {
+          return LocalExprNeedsKeyAccess(ctx, type_ctx, node.opts_opt, env) ||
+                 (node.body &&
+                  LocalBlockNeedsKeyAccess(ctx, type_ctx, *node.body, env));
+        } else if constexpr (std::is_same_v<T, ast::FrameStmt>) {
+          return node.body && LocalBlockNeedsKeyAccess(ctx, type_ctx, *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::ReturnStmt> ||
+                             std::is_same_v<T, ast::BreakStmt>) {
+          return LocalExprNeedsKeyAccess(ctx, type_ctx, node.value_opt, env);
+        } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
+          return true;
+        }
+        return false;
+      },
+      stmt);
+}
+
+static bool LocalExprNeedsKeyAccess(const ScopeContext& ctx,
+                                    const StmtTypeContext& type_ctx,
+                                    const ast::ExprPtr& expr,
+                                    const TypeEnv& env) {
+  if (!expr) {
+    return false;
+  }
+  if (LocalExprHasSharedPermission(ctx, type_ctx, expr, env)) {
+    return true;
+  }
+
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::CallExpr>) {
+          if (LocalExprNeedsKeyAccess(ctx, type_ctx, node.callee, env)) {
+            return true;
+          }
+          for (const auto& arg : node.args) {
+            if (LocalExprNeedsKeyAccess(ctx, type_ctx, arg.value, env)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::MethodCallExpr>) {
+          if (LocalExprNeedsKeyAccess(ctx, type_ctx, node.receiver, env)) {
+            return true;
+          }
+          for (const auto& arg : node.args) {
+            if (LocalExprNeedsKeyAccess(ctx, type_ctx, arg.value, env)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::BinaryExpr> ||
+                             std::is_same_v<T, ast::PipelineExpr>) {
+          return LocalExprNeedsKeyAccess(ctx, type_ctx, node.lhs, env) ||
+                 LocalExprNeedsKeyAccess(ctx, type_ctx, node.rhs, env);
+        } else if constexpr (std::is_same_v<T, ast::UnaryExpr> ||
+                             std::is_same_v<T, ast::CastExpr> ||
+                             std::is_same_v<T, ast::DerefExpr> ||
+                             std::is_same_v<T, ast::PropagateExpr> ||
+                             std::is_same_v<T, ast::YieldExpr> ||
+                             std::is_same_v<T, ast::YieldFromExpr> ||
+                             std::is_same_v<T, ast::SyncExpr>) {
+          return LocalExprNeedsKeyAccess(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::AddressOfExpr> ||
+                             std::is_same_v<T, ast::MoveExpr>) {
+          return LocalExprNeedsKeyAccess(ctx, type_ctx, node.place, env);
+        } else if constexpr (std::is_same_v<T, ast::FieldAccessExpr> ||
+                             std::is_same_v<T, ast::TupleAccessExpr>) {
+          return LocalExprNeedsKeyAccess(ctx, type_ctx, node.base, env);
+        } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {
+          return LocalExprNeedsKeyAccess(ctx, type_ctx, node.base, env) ||
+                 LocalExprNeedsKeyAccess(ctx, type_ctx, node.index, env);
+        } else if constexpr (std::is_same_v<T, ast::TupleExpr>) {
+          for (const auto& elem : node.elements) {
+            if (LocalExprNeedsKeyAccess(ctx, type_ctx, elem, env)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+          bool found = false;
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            found = found || LocalExprNeedsKeyAccess(ctx, type_ctx, elem, env);
+          });
+          return found;
+        } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
+          return LocalExprNeedsKeyAccess(ctx, type_ctx, node.value, env) ||
+                 LocalExprNeedsKeyAccess(ctx, type_ctx, node.count, env);
+        } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
+          for (const auto& field : node.fields) {
+            if (LocalExprNeedsKeyAccess(ctx, type_ctx, field.value, env)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::IfExpr>) {
+          return LocalExprNeedsKeyAccess(ctx, type_ctx, node.cond, env) ||
+                 LocalExprNeedsKeyAccess(ctx, type_ctx, node.then_expr, env) ||
+                 LocalExprNeedsKeyAccess(ctx, type_ctx, node.else_expr, env);
+        } else if constexpr (std::is_same_v<T, ast::IfCaseExpr>) {
+          if (LocalExprNeedsKeyAccess(ctx, type_ctx, node.scrutinee, env)) {
+            return true;
+          }
+          for (const auto& arm : node.cases) {
+            if (LocalExprNeedsKeyAccess(ctx, type_ctx, arm.body, env)) {
+              return true;
+            }
+          }
+          return LocalExprNeedsKeyAccess(ctx, type_ctx, node.else_expr, env);
+        } else if constexpr (std::is_same_v<T, ast::IfIsExpr>) {
+          return LocalExprNeedsKeyAccess(ctx, type_ctx, node.scrutinee, env) ||
+                 LocalExprNeedsKeyAccess(ctx, type_ctx, node.then_expr, env) ||
+                 LocalExprNeedsKeyAccess(ctx, type_ctx, node.else_expr, env);
+        } else if constexpr (std::is_same_v<T, ast::BlockExpr> ||
+                             std::is_same_v<T, ast::UnsafeBlockExpr>) {
+          return node.block && LocalBlockNeedsKeyAccess(ctx, type_ctx, *node.block, env);
+        }
+        return false;
+      },
+      expr->node);
+}
+
 }  // namespace
 
 StmtTypeResult TypeDeferStmt(const ScopeContext& ctx,
@@ -117,6 +302,14 @@ StmtTypeResult TypeDeferStmt(const ScopeContext& ctx,
 
   if (!node.body) {
     return {false, std::nullopt, {}, {}};
+  }
+
+  if (type_ctx.in_speculative) {
+    return {false, "E-CON-0093", {}, {}};
+  }
+
+  if (LocalBlockNeedsKeyAccess(ctx, type_ctx, *node.body, env)) {
+    return {false, "E-CON-0006", {}, {}};
   }
 
   // Type check the deferred block - it should have unit type

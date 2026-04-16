@@ -120,7 +120,9 @@ static std::optional<std::string_view> ValidateLoopInvariantExpr(
     return invariant_check.diag_id;
   }
 
-  const auto inv_type = TypeExpr(ctx, type_ctx, invariant.predicate, env);
+  const auto inv_type = TypeExpr(
+      ctx, WithSharedAccessMode(type_ctx, ast::KeyMode::Read),
+      invariant.predicate, env);
   if (!inv_type.ok) {
     return inv_type.diag_id;
   }
@@ -280,7 +282,8 @@ ExprTypeResult TypeLoopConditionalExpr(const ScopeContext& ctx,
   }
 
   // 1. Type the condition expression
-  const auto cond_type = type_expr(expr.cond);
+  const auto cond_type = TypeExpr(
+      ctx, WithSharedAccessMode(type_ctx, ast::KeyMode::Read), expr.cond, env);
   if (!cond_type.ok) {
     result.diag_id = cond_type.diag_id;
     return result;

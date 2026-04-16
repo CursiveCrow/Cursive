@@ -64,7 +64,8 @@ ExprTypeResult TypeUnaryExprImpl(const ScopeContext& ctx,
   ExprTypeResult result;
 
   // Type the operand
-  const auto operand = TypeExpr(ctx, type_ctx, expr.value, env);
+  const auto operand = TypeExpr(
+      ctx, WithSharedAccessMode(type_ctx, ast::KeyMode::Read), expr.value, env);
   if (!operand.ok) {
     result.diag_id = operand.diag_id;
     return result;

@@ -12,7 +12,7 @@
 //
 // Statement types dispatched:
 // - let/var bindings
-// - shadow let/var
+// - using <identifier> as <identifier> (local alias)
 // - return, break, continue
 // - defer, unsafe, region, frame
 // - key blocks (#path { })
@@ -65,9 +65,10 @@ ExprPtr WrapAttrExpr(const AttributeList& attrs, const ExprPtr& expr);
 bool IsPlace(const ExprPtr& expr);
 
 // Forward declarations for individual statement parsers
-ParseElemResult<Stmt> ParseShadowBinding(Parser parser);
+ParseElemResult<Stmt> ParseUsingLocalStmt(Parser parser);
 std::optional<ParseElemResult<Stmt>> TryParseKeyBlockStmt(Parser parser);
 ParseElemResult<Stmt> ParseComptimeStmt(Parser parser);
+ParseElemResult<Identifier> ParseIdent(Parser parser);
 
 // =============================================================================
 // IsAssignOp - Check if token is an assignment operator
@@ -160,18 +161,13 @@ static ParseStmtCoreResult ParseStmtCore(Parser parser) {
     return {binding.parser, stmt, true};
   }
 
-  // shadow let/var
-  if (IsKw(parser, "shadow")) {
-    Parser after_shadow = parser;
-    Advance(after_shadow);
-    if (IsKw(after_shadow, "let") || IsKw(after_shadow, "var")) {
-      SPEC_RULE("Parse-Shadow-Stmt");
-      auto result = ParseShadowBinding(after_shadow);
-      if (auto* shadow_let = std::get_if<ShadowLetStmt>(&result.elem)) {
-        shadow_let->span = SpanBetween(parser, result.parser);
-      } else if (auto* shadow_var = std::get_if<ShadowVarStmt>(&result.elem)) {
-        shadow_var->span = SpanBetween(parser, result.parser);
-      }
+  // using <identifier> as <identifier> (local alias)
+  if (IsKw(parser, "using")) {
+    Parser after_using = parser;
+    Advance(after_using);
+    const Token* next_tok = Tok(after_using);
+    if (next_tok && next_tok->kind == TokenKind::Identifier) {
+      auto result = ParseUsingLocalStmt(parser);
       return {result.parser, std::move(result.elem), true};
     }
   }
@@ -384,7 +380,7 @@ ParseElemResult<Stmt> ParseStmt(Parser parser) {
     if (!tok) {
       return false;
     }
-    if (tok->lexeme == "let" || tok->lexeme == "var" || tok->lexeme == "shadow" ||
+    if (tok->lexeme == "let" || tok->lexeme == "var" || tok->lexeme == "using" ||
         tok->lexeme == "return" || tok->lexeme == "break" ||
         tok->lexeme == "continue" || tok->lexeme == "unsafe" ||
         tok->lexeme == "defer" || tok->lexeme == "region" ||

@@ -193,64 +193,6 @@ bool TupleParen(Parser parser) {
   return scan.is_tuple;
 }
 
-std::optional<ParseElemResult<ExprPtr>> TryParseFenceExpr(Parser parser) {
-  const Token* tok = Tok(parser);
-  if (!tok || tok->kind != TokenKind::Identifier || tok->lexeme != "fence") {
-    return std::nullopt;
-  }
-
-  Parser after_name = parser;
-  Advance(after_name);
-  if (!IsPunc(after_name, "(")) {
-    return std::nullopt;
-  }
-
-  Parser start = parser;
-  Parser cur = after_name;
-  Advance(cur);  // consume "("
-
-  const Token* order_tok = Tok(cur);
-  if (!order_tok || order_tok->kind != TokenKind::Identifier) {
-    EmitParseSyntaxErr(cur, TokSpan(cur));
-    Parser sync = cur;
-    SyncStmt(sync);
-    return ParseElemResult<ExprPtr>{
-        sync, MakeExpr(SpanBetween(start, sync), ErrorExpr{})};
-  }
-
-  FenceOrder order = FenceOrder::SeqCst;
-  if (order_tok->lexeme == "acquire") {
-    order = FenceOrder::Acquire;
-  } else if (order_tok->lexeme == "release") {
-    order = FenceOrder::Release;
-  } else if (order_tok->lexeme == "seqcst") {
-    order = FenceOrder::SeqCst;
-  } else {
-    EmitParseSyntaxErr(cur, TokSpan(cur));
-    Parser sync = cur;
-    SyncStmt(sync);
-    return ParseElemResult<ExprPtr>{
-        sync, MakeExpr(SpanBetween(start, sync), ErrorExpr{})};
-  }
-
-  Advance(cur);  // consume order token
-  if (!IsPunc(cur, ")")) {
-    EmitParseSyntaxErr(cur, TokSpan(cur));
-    Parser sync = cur;
-    SyncStmt(sync);
-    return ParseElemResult<ExprPtr>{
-        sync, MakeExpr(SpanBetween(start, sync), ErrorExpr{})};
-  }
-
-  Parser after_rparen = cur;
-  Advance(after_rparen);
-
-  FenceExpr fence;
-  fence.order = order;
-  return ParseElemResult<ExprPtr>{
-      after_rparen, MakeExpr(SpanBetween(start, after_rparen), fence)};
-}
-
 std::optional<ParseElemResult<ExprPtr>> TryParseSpliceExpr(Parser parser) {
   if (!IsOp(parser, "$")) {
     return std::nullopt;
@@ -504,9 +446,52 @@ ParseElemResult<ExprPtr> ParsePrimary(Parser parser, bool allow_brace) {
     return *wait;
   }
 
-  // fence expression (contextual intrinsic form)
-  if (auto fence = TryParseFenceExpr(parser)) {
-    return *fence;
+  // fence expression (contextual intrinsic form parsed on the ordinary path)
+  if (tok->kind == TokenKind::Identifier && tok->lexeme == "fence") {
+    Parser after_name = parser;
+    Advance(after_name);
+    if (IsPunc(after_name, "(")) {
+      Parser start = parser;
+      Parser cur = after_name;
+      Advance(cur);  // consume "("
+
+      const Token* order_tok = Tok(cur);
+      if (!order_tok || order_tok->kind != TokenKind::Identifier) {
+        EmitParseSyntaxErr(cur, TokSpan(cur));
+        Parser sync = cur;
+        SyncStmt(sync);
+        return {sync, MakeExpr(SpanBetween(start, sync), ErrorExpr{})};
+      }
+
+      FenceOrder order = FenceOrder::SeqCst;
+      if (order_tok->lexeme == "acquire") {
+        order = FenceOrder::Acquire;
+      } else if (order_tok->lexeme == "release") {
+        order = FenceOrder::Release;
+      } else if (order_tok->lexeme == "seqcst") {
+        order = FenceOrder::SeqCst;
+      } else {
+        EmitParseSyntaxErr(cur, TokSpan(cur));
+        Parser sync = cur;
+        SyncStmt(sync);
+        return {sync, MakeExpr(SpanBetween(start, sync), ErrorExpr{})};
+      }
+
+      Advance(cur);
+      if (!IsPunc(cur, ")")) {
+        EmitParseSyntaxErr(cur, TokSpan(cur));
+        Parser sync = cur;
+        SyncStmt(sync);
+        return {sync, MakeExpr(SpanBetween(start, sync), ErrorExpr{})};
+      }
+
+      Parser after_rparen = cur;
+      Advance(after_rparen);
+
+      FenceExpr fence;
+      fence.order = order;
+      return {after_rparen, MakeExpr(SpanBetween(start, after_rparen), fence)};
+    }
   }
 
   // closure expression

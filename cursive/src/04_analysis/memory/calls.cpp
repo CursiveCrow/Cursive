@@ -493,10 +493,10 @@ bool StmtHasSourceProvenance(const ast::Stmt& stmt) {
           return HasSourceProvenanceLocal(node.binding.init);
         } else if constexpr (std::is_same_v<T, ast::VarStmt>) {
           return HasSourceProvenanceLocal(node.binding.init);
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt>) {
-          return HasSourceProvenanceLocal(node.init);
-        } else if constexpr (std::is_same_v<T, ast::ShadowVarStmt>) {
-          return HasSourceProvenanceLocal(node.init);
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt is a compile-time alias; no runtime expression.
+          (void)node;
+          return false;
         } else if constexpr (std::is_same_v<T, ast::AssignStmt>) {
           return HasSourceProvenanceLocal(node.place) || HasSourceProvenanceLocal(node.value);
         } else if constexpr (std::is_same_v<T, ast::CompoundAssignStmt>) {

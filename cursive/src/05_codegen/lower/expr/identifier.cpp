@@ -20,6 +20,7 @@
 // =============================================================================
 
 #include "05_codegen/lower/expr/identifier.h"
+#include "05_codegen/lower/expr/expr_common.h"
 #include "00_core/assert_spec.h"
 #include "05_codegen/intrinsics/builtins.h"
 
@@ -88,8 +89,8 @@ LowerResult LowerIdentifier(const ast::Expr& expr,
         } else if (ctx.expr_type) {
             ctx.RegisterValueType(value, ctx.expr_type(expr));
         }
-
-        return LowerResult{MakeIR(std::move(read)), value};
+        IRPtr key_ir = LowerImplicitKeyAccess(expr, ast::KeyMode::Read, ctx);
+        return LowerResult{SeqIR({key_ir, MakeIR(std::move(read))}), value};
     }
 
     // Case 2: Capture - check if identifier is captured in spawn/dispatch body
@@ -136,7 +137,8 @@ LowerResult LowerIdentifier(const ast::Expr& expr,
             ctx.RegisterValueType(value, capture->value_type);
         }
 
-        return LowerResult{ir, value};
+        IRPtr key_ir = LowerImplicitKeyAccess(expr, ast::KeyMode::Read, ctx);
+        return LowerResult{SeqIR({key_ir, ir}), value};
     }
 
     // Case 3: Path/global - resolve name to module path
@@ -203,7 +205,8 @@ LowerResult LowerIdentifier(const ast::Expr& expr,
         ctx.RegisterValueType(value, ctx.expr_type(expr));
     }
 
-    return LowerResult{MakeIR(std::move(read)), value};
+    IRPtr key_ir = LowerImplicitKeyAccess(expr, ast::KeyMode::Read, ctx);
+    return LowerResult{SeqIR({key_ir, MakeIR(std::move(read))}), value};
 }
 
 }  // namespace cursive::codegen

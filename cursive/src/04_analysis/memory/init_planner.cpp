@@ -1015,10 +1015,9 @@ void CollectExprNodesFromStmt(const ast::Stmt& stmt,
                       std::is_same_v<T, ast::VarStmt>) {
           CollectExprNodes(node.binding.init, out);
           CollectExprNodesFromType(node.binding.type_opt, out);
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                             std::is_same_v<T, ast::ShadowVarStmt>) {
-          CollectExprNodes(node.init, out);
-          CollectExprNodesFromType(node.type_opt, out);
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt is a compile-time alias; no runtime expressions.
+          (void)node;
         } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
                              std::is_same_v<T, ast::CompoundAssignStmt>) {
           CollectExprNodes(node.place, out);

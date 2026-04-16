@@ -34,6 +34,7 @@ enum class EntitySource {
   Decl,
   Using,
   RegionAlias,
+  Import,
 };
 
 struct Entity {

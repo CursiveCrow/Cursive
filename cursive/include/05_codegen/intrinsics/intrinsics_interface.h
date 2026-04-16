@@ -162,8 +162,17 @@ std::string ConcurrencySymKeyScopeExit();
 /// Get symbol for key acquire runtime call.
 std::string ConcurrencySymKeyAcquire();
 
+/// Get symbol for key conflict-check runtime call.
+std::string ConcurrencySymKeyCheckConflict();
+
+/// Get symbol for releasing a specific held key from a scope.
+std::string ConcurrencySymKeyReleaseOne();
+
 /// Get symbol for key release-all runtime call.
 std::string ConcurrencySymKeyReleaseAll();
+
+/// Get symbol for reacquiring a single previously released key.
+std::string ConcurrencySymKeyReacquireOne();
 
 /// Get symbol for key reacquire runtime call.
 std::string ConcurrencySymKeyReacquire();

@@ -1363,10 +1363,10 @@ class ClosureCaptureCollector {
                         std::is_same_v<T, ast::VarStmt>) {
             VisitExpr(node.binding.init);
             DeclarePattern(node.binding.pat);
-          } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                               std::is_same_v<T, ast::ShadowVarStmt>) {
-            VisitExpr(node.init);
-            DeclareName(node.name);
+          } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+            // UsingLocalStmt is a compile-time alias; no runtime expression,
+            // but the alias name still enters the surrounding scope.
+            DeclareName(node.alias);
           } else if constexpr (std::is_same_v<T, ast::AssignStmt>) {
             VisitExpr(node.place);
             VisitExpr(node.value);
@@ -2554,48 +2554,11 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
           SPEC_RULE("Prov-LetVar");
           return {true, std::nullopt, std::nullopt, std::move(out_env),
                   std::move(out_gamma), {}};
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt>) {
-          const auto init = ProvExpr(ctx, node.init, env, gamma, expr_map);
-          if (!init.ok) {
-            return {false, init.diag_id, init.span, env,
-                    gamma, {}};
-          }
-          const auto bind_pi = BindProv(env, init.prov);
-          ProvEnv out_env = env;
-          (void)ShadowIntro_pi_inplace(out_env, node.name, bind_pi);
-          const auto bind_type = ShadowBindingType(ctx, node.init, node.type_opt,
-                                                   gamma, expr_map == nullptr);
-          TypeEnv out_gamma = gamma;
-          if (bind_type.has_value()) {
-            AddBindingsToTypeEnv(out_gamma,
-                                 std::vector<std::pair<std::string, TypeRef>>{
-                                     {node.name, *bind_type}},
-                                 ast::Mutability::Let, true);
-          }
-          SPEC_RULE("Prov-ShadowLet");
-          return {true, std::nullopt, std::nullopt, std::move(out_env),
-                  std::move(out_gamma), {}};
-        } else if constexpr (std::is_same_v<T, ast::ShadowVarStmt>) {
-          const auto init = ProvExpr(ctx, node.init, env, gamma, expr_map);
-          if (!init.ok) {
-            return {false, init.diag_id, init.span, env,
-                    gamma, {}};
-          }
-          const auto bind_pi = BindProv(env, init.prov);
-          ProvEnv out_env = env;
-          (void)ShadowIntro_pi_inplace(out_env, node.name, bind_pi);
-          const auto bind_type = ShadowBindingType(ctx, node.init, node.type_opt,
-                                                   gamma, expr_map == nullptr);
-          TypeEnv out_gamma = gamma;
-          if (bind_type.has_value()) {
-            AddBindingsToTypeEnv(out_gamma,
-                                 std::vector<std::pair<std::string, TypeRef>>{
-                                     {node.name, *bind_type}},
-                                 ast::Mutability::Var, true);
-          }
-          SPEC_RULE("Prov-ShadowVar");
-          return {true, std::nullopt, std::nullopt, std::move(out_env),
-                  std::move(out_gamma), {}};
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt is a compile-time alias; no runtime expression and
+          // no new storage. Provenance/type environments are unchanged.
+          (void)node;
+          return {true, std::nullopt, std::nullopt, env, gamma, {}};
         } else if constexpr (std::is_same_v<T, ast::AssignStmt>) {
           const auto place = ProvPlace(ctx, node.place, env, gamma, expr_map);
           if (!place.ok) {

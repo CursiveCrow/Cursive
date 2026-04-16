@@ -24,6 +24,7 @@
 #include <memory>
 
 #include "00_core/assert_spec.h"
+#include "00_core/diagnostic_messages.h"
 #include "04_analysis/typing/context.h"
 #include "04_analysis/typing/type_expr.h"
 #include "04_analysis/typing/type_lower.h"
@@ -120,12 +121,20 @@ ExprTypeResult TypeClosureExpr(const ast::ClosureExpr& expr,
 
   // Non-capturing closures are first-class function values.
   bool captures_any = false;
+  bool captures_shared = false;
   {
     auto closure_expr = std::make_shared<ast::Expr>();
     closure_expr->node = expr;
     if (const auto capture_info =
             AnalyzeClosureCaptureInfo(closure_expr, env, nullptr)) {
       captures_any = capture_info->captures_any;
+      captures_shared = capture_info->captures_shared;
+    }
+  }
+
+  if (captures_shared && type_ctx.diags) {
+    if (auto diag = core::MakeDiagnosticById("W-CON-0009", expr.body->span)) {
+      core::Emit(*type_ctx.diags, *diag);
     }
   }
 

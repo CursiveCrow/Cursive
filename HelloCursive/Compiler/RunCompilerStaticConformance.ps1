@@ -4298,14 +4298,16 @@ public procedure main(move ctx: Context) -> i32 {
 
     var seed: i32 = 3
     {
-        shadow let seed = seed + running
-        let _ = seed
+        using seed as seed_alias
+        let seed_plus = seed_alias + running
+        let _ = seed_plus
     }
 
     var counter: i32 = running
     {
-        shadow var counter = counter + 1
-        let _ = counter
+        using counter as counter_alias
+        counter = counter + 1
+        let _ = counter_alias
     }
 
     return running
@@ -8906,6 +8908,68 @@ function Invoke-Issue626StaticDeclOptionalAttrSurfaceConformanceCase {
     Write-Host "[compiler-static] issue626_static_decl_optional_attr_surface_conformance: checks=$($checks.Count)"
 }
 
+function Invoke-Issue630ModalRefSurfaceConformanceCase {
+    $checks = @(
+        @{
+            Path = "cursive\\src\\02_source\\ast\\ast_common.h"
+            Pattern = 'using ModalRef = std::variant<TypePath, GenericTypeRef>;'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\ast\\ast_common.h"
+            Pattern = 'struct ModalStateRef\s*\{[\s\S]*?ModalRef modal_ref;[\s\S]*?TypePath path;[\s\S]*?std::vector<TypePtr> generic_args;[\s\S]*?Identifier state;'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\ast\\ast_common.h"
+            Pattern = 'inline void SyncModalStateRefFromFields\(ModalStateRef& ref\)\s*\{\s*ref\.modal_ref = MakeModalRef\(ref\.path, ref\.generic_args\);\s*\}'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\ast\\nodes\\ast_types.h"
+            Pattern = 'using TypeModalRef = std::variant<TypePathType, TypeApply>;'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\ast\\nodes\\ast_types.h"
+            Pattern = 'struct TypeModalState\s*\{[\s\S]*?TypeModalRef modal_ref;[\s\S]*?TypePath path;[\s\S]*?std::vector<std::shared_ptr<Type>> generic_args;[\s\S]*?Identifier state;'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\ast\\nodes\\ast_types.h"
+            Pattern = 'inline void SyncTypeModalStateFromFields\(TypeModalState& state\)\s*\{\s*state\.modal_ref = MakeTypeModalRef\(state\.path, state\.generic_args\);\s*\}'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\type\\state_specific_type.cpp"
+            Pattern = 'modal\.generic_args = std::move\(generic_args\);\s*SyncTypeModalStateFromFields\(modal\);\s*modal\.state = state\.elem;'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\expr\\record_literal.cpp"
+            Pattern = 'modal\.generic_args = std::move\(generic_args\);\s*SyncModalStateRefFromFields\(modal\);\s*modal\.state = state\.elem;'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\ast\\ast_dump.cpp"
+            Pattern = 'dump_path\(out, TypeModalRefPath\(node\.modal_ref\)\);[\s\S]*?const auto& modal_args = TypeModalRefArgs\(node\.modal_ref\);'
+        },
+        @{
+            Path = "cursive\\src\\04_analysis\\resolve\\resolve_types.cpp"
+            Pattern = 'SyncTypeModalStateFromFields\(out_node\);'
+        },
+        @{
+            Path = "cursive\\src\\04_analysis\\resolve\\resolve_expr.cpp"
+            Pattern = 'SyncModalStateRefFromFields\(out\);'
+        }
+    )
+
+    foreach ($check in $checks) {
+        $fullPath = Join-Path $workspaceRoot $check.Path
+        if (-not (Test-Path $fullPath)) {
+            throw "Case 'issue630_modal_ref_surface_conformance' missing file: $fullPath"
+        }
+        $text = Get-Content -Path $fullPath -Raw
+        if ($text -notmatch $check.Pattern) {
+            throw "Case 'issue630_modal_ref_surface_conformance' missing expected pattern '$($check.Pattern)' in $fullPath."
+        }
+    }
+
+    Write-Host "[compiler-static] issue630_modal_ref_surface_conformance: checks=$($checks.Count)"
+}
+
 function Invoke-Issue33AstTypeWiringCase {
     $checks = @(
         @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_module.h"; Pattern = 'struct ASTModule\s*\{\s*Path path;\s*std::vector<ASTItem> items;\s*DocList module_doc;\s*\};' },
@@ -10770,20 +10834,18 @@ function Invoke-Issue52SolveStmtInferenceTraceCase {
     $solveCount = @($logLines | Where-Object { $_ -like "*`tSolve`t*" }).Count
     $letInferCount = @($logLines | Where-Object { $_ -like "*`tT-LetStmt-Infer`t*" }).Count
     $varInferCount = @($logLines | Where-Object { $_ -like "*`tT-VarStmt-Infer`t*" }).Count
-    $shadowLetInferCount = @($logLines | Where-Object { $_ -like "*`tT-ShadowLetStmt-Infer`t*" }).Count
-    $shadowVarInferCount = @($logLines | Where-Object { $_ -like "*`tT-ShadowVarStmt-Infer`t*" }).Count
+    $usingAliasCount = @($logLines | Where-Object { $_ -like "*`tT-UsingLocalStmt`t*" }).Count
     $warnResultUnreachableCount = @($logLines | Where-Object { $_ -like "*`tWarnResultUnreachable`t*" }).Count
 
     if ($solveCount -lt 4 -or
         $letInferCount -lt 1 -or
         $varInferCount -lt 1 -or
-        $shadowLetInferCount -lt 1 -or
-        $shadowVarInferCount -lt 1 -or
+        $usingAliasCount -lt 1 -or
         $warnResultUnreachableCount -lt 1) {
-        throw "Case 'issue52_solve_stmt_inference_trace' expected Solve and inferred statement typing traces (let/var/shadow) plus WarnResultUnreachable."
+        throw "Case 'issue52_solve_stmt_inference_trace' expected Solve and inferred statement typing traces (let/var/using-alias) plus WarnResultUnreachable."
     }
 
-    Write-Host "[compiler-static] issue52_solve_stmt_inference_trace: exit=$($result.ExitCode) errors=$errorCount solve=$solveCount let_infer=$letInferCount var_infer=$varInferCount shadow_let_infer=$shadowLetInferCount shadow_var_infer=$shadowVarInferCount warn_result_unreachable=$warnResultUnreachableCount"
+    Write-Host "[compiler-static] issue52_solve_stmt_inference_trace: exit=$($result.ExitCode) errors=$errorCount solve=$solveCount let_infer=$letInferCount var_infer=$varInferCount using_alias=$usingAliasCount warn_result_unreachable=$warnResultUnreachableCount"
 }
 
 function Invoke-Issue52FieldAccessRecordTraceCase {
@@ -11273,8 +11335,7 @@ function Invoke-Issue52WiringGapCase {
         @{ Path = "cursive\\src\\04_analysis\\typing\\stmt\\stmt_common.cpp"; Pattern = 'SPEC_DEF\("WarnResultUnreachable", "5\.2\.11"\)' },
         @{ Path = "cursive\\src\\04_analysis\\typing\\stmt\\let_stmt.cpp"; Pattern = 'Solve\(ctx,\s*constraints\)' },
         @{ Path = "cursive\\src\\04_analysis\\typing\\stmt\\var_stmt.cpp"; Pattern = 'Solve\(ctx,\s*constraints\)' },
-        @{ Path = "cursive\\src\\04_analysis\\typing\\stmt\\shadow_let_stmt.cpp"; Pattern = 'SPEC_DEF\("T-ShadowLetStmt-Infer", "5\.2\.11"\)' },
-        @{ Path = "cursive\\src\\04_analysis\\typing\\stmt\\shadow_var_stmt.cpp"; Pattern = 'SPEC_DEF\("T-ShadowVarStmt-Infer", "5\.2\.11"\)' },
+        @{ Path = "cursive\\src\\04_analysis\\typing\\stmt\\using_local_stmt.cpp"; Pattern = 'SPEC_RULE\("T-UsingLocalStmt"\)' },
         @{ Path = "cursive\\src\\04_analysis\\typing\\expr\\field_access.cpp"; Pattern = 'SPEC_DEF\("T-Field-Record", "5\.2\.12"\)' },
         @{ Path = "cursive\\src\\04_analysis\\typing\\expr\\field_access.cpp"; Pattern = 'SPEC_RULE\("FieldAccess-Enum"\)' },
         @{ Path = "cursive\\src\\04_analysis\\typing\\expr\\range.cpp"; Pattern = 'SPEC_RULE\("T-Range-Lift"\)' },
@@ -19506,6 +19567,7 @@ try {
     Invoke-Issue627ExternBlockShellConformanceCase
     Invoke-Issue628PathStringSurfaceConformanceCase
     Invoke-Issue629StringOfPathRefSurfaceConformanceCase
+    Invoke-Issue630ModalRefSurfaceConformanceCase
     Invoke-Issue626StaticDeclOptionalAttrSurfaceConformanceCase
     Invoke-Issue33AstTypeWiringCase
     Invoke-Issue33ExprWiringCase

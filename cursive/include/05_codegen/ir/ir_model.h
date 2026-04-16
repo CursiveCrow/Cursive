@@ -391,6 +391,42 @@ struct IRYieldFrom {
   std::size_t state_index = 0;          // State machine resumption point
 };
 
+// §19.5.6 Speculative execution IR helpers
+struct IRSpecSnapshot {
+  std::vector<std::string> paths;
+  IRValue result;
+};
+
+struct IRSpecValidate {
+  std::vector<std::string> paths;
+  IRValue result;
+};
+
+struct IRSpecCommit {
+  std::vector<std::string> paths;
+  IRValue value;
+  IRValue result;
+};
+
+struct IRSpecRetry {
+  IRValue result;
+};
+
+struct IRSpecFallback {
+  IRPtr body;
+  IRValue result;
+};
+
+struct IRSpecLoop {
+  IRPtr snapshot_ir;
+  IRPtr body_ir;
+  IRPtr validate_ir;
+  IRPtr commit_ir;
+  IRPtr retry_ir;
+  IRPtr fallback_ir;
+  IRValue result;
+};
+
 // §19.3.3 Sync expression IR
 struct IRSync {
   IRValue async_value;                  // Async<(), (), Result, E> to synchronously execute
@@ -508,6 +544,12 @@ struct IR {
                // C0X Extension: Asynchronous Operations (§19)
                IRYield,
                IRYieldFrom,
+               IRSpecSnapshot,
+               IRSpecValidate,
+               IRSpecCommit,
+               IRSpecRetry,
+               IRSpecFallback,
+               IRSpecLoop,
                IRSync,
                IRRaceReturn,
                IRRaceYield,

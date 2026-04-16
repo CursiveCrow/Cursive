@@ -607,17 +607,10 @@ bool CheckStmtForAmbientAuthority(const ast::Stmt& stmt,
             BindPatternLocals(*node.binding.pat, ctx);
           }
           return false;
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt>) {
-          if (node.init && CheckExprForAmbientAuthority(*node.init, ctx)) {
-            return true;
-          }
-          BindLocalName(ctx, node.name);
-          return false;
-        } else if constexpr (std::is_same_v<T, ast::ShadowVarStmt>) {
-          if (node.init && CheckExprForAmbientAuthority(*node.init, ctx)) {
-            return true;
-          }
-          BindLocalName(ctx, node.name);
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt is a compile-time alias; no runtime expressions to
+          // check, but the alias name must be visible in the enclosing scope.
+          BindLocalName(ctx, node.alias);
           return false;
         } else if constexpr (std::is_same_v<T, ast::AssignStmt>) {
           if (node.place && CheckExprForAmbientAuthority(*node.place, ctx)) {

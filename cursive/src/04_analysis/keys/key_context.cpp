@@ -29,6 +29,7 @@
 #include "04_analysis/keys/key_context.h"
 
 #include <algorithm>
+#include <charconv>
 #include <sstream>
 
 #include "00_core/assert_spec.h"
@@ -45,7 +46,97 @@ static inline void SpecDefsKeyContext() {
   SPEC_DEF("Acquire", "C0X.5.X");
 }
 
+static bool ParseStaticIndexValue(std::string_view text, std::int64_t& value) {
+  const char* begin = text.data();
+  const char* end = text.data() + text.size();
+  auto [ptr, ec] = std::from_chars(begin, end, value);
+  return ec == std::errc{} && ptr == end;
+}
+
+static bool SegmentEqual(const KeyPathSeg& lhs, const KeyPathSeg& rhs) {
+  return lhs.is_index == rhs.is_index &&
+         lhs.name == rhs.name &&
+         lhs.boundary == rhs.boundary;
+}
+
+static bool SegmentLessLocal(const KeyPathSeg& lhs, const KeyPathSeg& rhs) {
+  if (lhs.is_index != rhs.is_index) {
+    return !lhs.is_index && rhs.is_index;
+  }
+
+  if (!lhs.is_index) {
+    return lhs.name < rhs.name;
+  }
+
+  std::int64_t lhs_value = 0;
+  std::int64_t rhs_value = 0;
+  if (ParseStaticIndexValue(lhs.name, lhs_value) &&
+      ParseStaticIndexValue(rhs.name, rhs_value)) {
+    return lhs_value < rhs_value;
+  }
+
+  return lhs.name < rhs.name;
+}
+
+static bool LexLessLocal(const std::vector<KeyPathSeg>& lhs,
+                         const std::vector<KeyPathSeg>& rhs) {
+  const std::size_t min_len = std::min(lhs.size(), rhs.size());
+  for (std::size_t i = 0; i < min_len; ++i) {
+    if (SegmentLessLocal(lhs[i], rhs[i])) {
+      return true;
+    }
+    if (SegmentLessLocal(rhs[i], lhs[i])) {
+      return false;
+    }
+  }
+  return lhs.size() < rhs.size();
+}
+
 }  // namespace
+
+bool Held(const KeyPath& path,
+          KeyAccessMode mode,
+          KeyScopeId scope,
+          const KeyStateByProgramPoint& key_state,
+          ProgramPoint point) {
+  const auto it = key_state.find(point);
+  if (it == key_state.end()) {
+    return false;
+  }
+  return std::any_of(it->second.begin(), it->second.end(),
+                     [&](const HeldKey& held) {
+                       return held.mode == mode &&
+                              held.scope == scope &&
+                              !KeyPathLess(held.path, path) &&
+                              !KeyPathLess(path, held.path);
+                     });
+}
+
+std::vector<HeldKey> AcquireKeysSigma(const std::vector<KeyPath>& paths,
+                                      KeyAccessMode mode,
+                                      KeyContext& ctx) {
+  auto ordered = paths;
+  std::sort(ordered.begin(), ordered.end(),
+            [](const KeyPath& lhs, const KeyPath& rhs) {
+              return KeyPathLess(lhs, rhs);
+            });
+
+  std::vector<HeldKey> acquired;
+  for (const auto& path : ordered) {
+    if (!ctx.Acquire(path, mode)) {
+      continue;
+    }
+    acquired.push_back(HeldKey{path, mode, ctx.CurrentScope()});
+  }
+  return acquired;
+}
+
+void ReleaseKeysSigma(const std::vector<HeldKey>& keys,
+                      KeyContext& ctx) {
+  for (auto it = keys.rbegin(); it != keys.rend(); ++it) {
+    ctx.Release(it->path);
+  }
+}
 
 std::string KeyPath::ToString() const {
   std::ostringstream oss;
@@ -114,6 +205,44 @@ void KeyContext::ReleaseScope() {
       held_keys_.end());
 }
 
+void KeyContext::Release(const KeyPath& path) {
+  SpecDefsKeyContext();
+  SPEC_RULE("K-Release");
+
+  held_keys_.erase(
+      std::remove_if(held_keys_.begin(), held_keys_.end(),
+                     [&](const HeldKey& held) {
+                       return !KeyPathLess(held.path, path) &&
+                              !KeyPathLess(path, held.path);
+                     }),
+      held_keys_.end());
+}
+
+bool KeyContext::ModeTransition(const KeyPath& path, KeyAccessMode new_mode) {
+  SpecDefsKeyContext();
+  SPEC_RULE("K-ModeTransition");
+
+  for (auto& held : held_keys_) {
+    if (!KeyPathLess(held.path, path) && !KeyPathLess(path, held.path)) {
+      held.mode = new_mode;
+      return true;
+    }
+  }
+  return false;
+}
+
+void KeyContext::PanicRelease(KeyScopeId scope) {
+  SpecDefsKeyContext();
+  SPEC_RULE("K-PanicRelease");
+
+  held_keys_.erase(
+      std::remove_if(held_keys_.begin(), held_keys_.end(),
+                     [&](const HeldKey& held) {
+                       return held.scope >= scope;
+                     }),
+      held_keys_.end());
+}
+
 bool KeyContext::Covers(const KeyPath& path, KeyAccessMode mode) const {
   SpecDefsKeyContext();
   SPEC_RULE("K-Covers");
@@ -144,17 +273,24 @@ KeyPath LowerKeyPath(const ast::KeyPathExpr& ast_path) {
   for (const auto& seg : ast_path.segs) {
     KeyPathSeg lowered;
     if (const auto* field = std::get_if<ast::KeySegField>(&seg)) {
-      lowered.boundary = field->marked;
+      lowered.boundary = false;
       lowered.name = field->name;
       lowered.is_index = false;
+      path.segs.push_back(std::move(lowered));
+      if (field->marked) {
+        break;
+      }
     } else if (const auto* index = std::get_if<ast::KeySegIndex>(&seg)) {
-      lowered.boundary = index->marked;
+      lowered.boundary = false;
       // For now, represent index expression as string
       // More sophisticated handling would involve constant evaluation
       lowered.name = "[index]";
       lowered.is_index = true;
+      path.segs.push_back(std::move(lowered));
+      if (index->marked) {
+        break;
+      }
     }
-    path.segs.push_back(std::move(lowered));
   }
 
   return path;
@@ -173,15 +309,7 @@ bool IsPrefix(const KeyPath& prefix, const KeyPath& path) {
   }
 
   for (std::size_t i = 0; i < prefix.segs.size(); ++i) {
-    const auto& p_seg = prefix.segs[i];
-    const auto& path_seg = path.segs[i];
-
-    // Check for boundary - traversal stops at boundary
-    if (p_seg.boundary) {
-      return true;  // Boundary marks end of key path derivation
-    }
-
-    if (p_seg.name != path_seg.name || p_seg.is_index != path_seg.is_index) {
+    if (!SegmentEqual(prefix.segs[i], path.segs[i])) {
       return false;
     }
   }
@@ -206,14 +334,7 @@ bool KeyPathLess(const KeyPath& lhs, const KeyPath& rhs) {
     return lhs.root < rhs.root;
   }
 
-  const std::size_t min_len = std::min(lhs.segs.size(), rhs.segs.size());
-  for (std::size_t i = 0; i < min_len; ++i) {
-    if (lhs.segs[i].name != rhs.segs[i].name) {
-      return lhs.segs[i].name < rhs.segs[i].name;
-    }
-  }
-
-  return lhs.segs.size() < rhs.segs.size();
+  return LexLessLocal(lhs.segs, rhs.segs);
 }
 
 }  // namespace cursive::analysis

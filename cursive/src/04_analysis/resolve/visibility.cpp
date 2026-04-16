@@ -357,9 +357,9 @@ void CheckStmt(const ScopeContext& ctx,
         if constexpr (std::is_same_v<T, ast::LetStmt> ||
                       std::is_same_v<T, ast::VarStmt>) {
           CheckExpr(ctx, node.binding.init, diags);
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                             std::is_same_v<T, ast::ShadowVarStmt>) {
-          CheckExpr(ctx, node.init, diags);
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt is a compile-time alias; no runtime expression.
+          (void)node;
         } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
                              std::is_same_v<T, ast::CompoundAssignStmt>) {
           CheckExpr(ctx, node.place, diags);
@@ -655,13 +655,6 @@ AccessResult CanAccessVis(const ast::ModulePath& accessor_module,
       }
       SPEC_RULE("Access-Err");
       return {false, "Access-Err"};
-    case ast::Visibility::Protected:
-      if (PathEq(accessor_module, decl_module)) {
-        SPEC_RULE("Access-Protected");
-        return {true, std::nullopt};
-      }
-      SPEC_RULE("Access-Err");
-      return {false, "Access-Err"};
   }
   return {true, std::nullopt};
 }
@@ -689,20 +682,8 @@ AccessResult TopLevelVis(const ast::ASTItem& item) {
   if (!vis.has_value()) {
     return {true, std::nullopt};
   }
-  if (*vis != ast::Visibility::Protected) {
-    SPEC_RULE("Protected-TopLevel-Ok");
-    return {true, std::nullopt};
-  }
-  // Export visibility is a more specific rule than generic protected top-level.
-  if (const auto* proc = std::get_if<ast::ProcedureDecl>(&item)) {
-    if (ast::has_attribute(proc->attrs, attrs::kExport) ||
-        ast::has_attribute(proc->attrs, attrs::kHostExport)) {
-      SPEC_RULE("Export-Vis-Err");
-      return {false, "Export-Vis-Err"};
-    }
-  }
-  SPEC_RULE("Protected-TopLevel-Err");
-  return {false, "Protected-TopLevel-Err"};
+  SPEC_RULE("TopLevelVis-Ok");
+  return {true, std::nullopt};
 }
 
 core::DiagnosticStream CheckModuleVisibility(const ScopeContext& ctx,
@@ -718,14 +699,6 @@ core::DiagnosticStream CheckModuleVisibility(const ScopeContext& ctx,
     }
   }
   for (const auto& item : module.items) {
-    const auto vis = TopLevelVis(item);
-    if (!vis.ok) {
-      if (vis.diag_id == "Protected-TopLevel-Err") {
-        EmitDiag(diags, "E-MOD-2440", SpanOfItem(item));
-      } else if (vis.diag_id == "Export-Vis-Err") {
-        EmitDiag(diags, "E-SYS-3353", SpanOfItem(item));
-      }
-    }
     if (public_api) {
       if (const auto* using_decl = std::get_if<ast::UsingDecl>(&item)) {
         if (std::holds_alternative<ast::UsingWildcard>(using_decl->clause)) {

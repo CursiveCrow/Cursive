@@ -39,6 +39,7 @@
 #include "04_analysis/caps/cap_concurrency.h"
 #include "04_analysis/caps/cap_requirements.h"
 #include "04_analysis/caps/cap_system.h"
+#include "04_analysis/keys/key_paths.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/context.h"
 #include "04_analysis/typing/expr/index_access.h"
@@ -285,10 +286,10 @@ bool StmtContainsKeyedOrSharedDataAccess(const ScopeContext& ctx,
                       std::is_same_v<T, ast::VarStmt>) {
           return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx,
                                                      node.binding.init, env);
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                             std::is_same_v<T, ast::ShadowVarStmt>) {
-          return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx, node.init,
-                                                     env);
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt is a compile-time alias; no runtime expression.
+          (void)node;
+          return false;
         } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
                              std::is_same_v<T, ast::CompoundAssignStmt>) {
           return HasSharedPlacePermission(ctx, type_ctx, node.place, env) ||
@@ -735,8 +736,7 @@ static bool IsQuotedStatementForm(const ast::Stmt& stmt) {
         using T = std::decay_t<decltype(node)>;
         return std::is_same_v<T, ast::LetStmt> ||
                std::is_same_v<T, ast::VarStmt> ||
-               std::is_same_v<T, ast::ShadowLetStmt> ||
-               std::is_same_v<T, ast::ShadowVarStmt> ||
+               std::is_same_v<T, ast::UsingLocalStmt> ||
                std::is_same_v<T, ast::AssignStmt> ||
                std::is_same_v<T, ast::CompoundAssignStmt> ||
                std::is_same_v<T, ast::ExprStmt> ||
@@ -2388,18 +2388,15 @@ static CheckResult CheckQuoteStmtSplices(const ScopeContext& ctx,
             return checked;
           }
           return CheckQuoteExprSplices(ctx, type_ctx, node.binding.init, env);
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                             std::is_same_v<T, ast::ShadowVarStmt>) {
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt carries source/alias splices but no runtime exprs.
           auto checked =
-              CheckSplicedIdentifier(ctx, type_ctx, node.name_splice_opt, env);
+              CheckSplicedIdentifier(ctx, type_ctx, node.source_splice_opt, env);
           if (!checked.ok) {
             return checked;
           }
-          checked = CheckQuoteTypeSplices(ctx, type_ctx, node.type_opt, env);
-          if (!checked.ok) {
-            return checked;
-          }
-          return CheckQuoteExprSplices(ctx, type_ctx, node.init, env);
+          return CheckSplicedIdentifier(ctx, type_ctx, node.alias_splice_opt,
+                                        env);
         } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
                              std::is_same_v<T, ast::CompoundAssignStmt>) {
           auto checked = CheckQuoteExprSplices(ctx, type_ctx, node.place, env);
@@ -3229,6 +3226,51 @@ ExprTypeResult TypeLiteralExprLocal(const ScopeContext& ctx,
   return TypeLiteralExpr(ctx, lit);
 }
 
+static bool SharedAccessModeSufficient(ast::KeyMode held,
+                                       ast::KeyMode required) {
+  return held == ast::KeyMode::Write || held == required;
+}
+
+static std::optional<ast::KeyMode> CoveringSharedAccessMode(
+    const StmtTypeContext& type_ctx,
+    const KeyPath& path) {
+  std::optional<ast::KeyMode> best;
+  for (const auto& held : type_ctx.held_key_paths) {
+    if (!IsPrefix(held.path, path)) {
+      continue;
+    }
+    if (!best.has_value() || held.mode == ast::KeyMode::Write) {
+      best = held.mode;
+    }
+  }
+  return best;
+}
+
+static std::optional<std::string_view> CheckSharedAccessRequirement(
+    const StmtTypeContext& type_ctx,
+    const ast::ExprPtr& expr,
+    const TypeRef& type) {
+  if (!expr || !type || type_ctx.suppress_shared_access_check ||
+      !type_ctx.shared_access_mode.has_value() ||
+      PermOfType(type) != Permission::Shared || !IsPlaceExpression(expr)) {
+    return std::nullopt;
+  }
+
+  const auto built = BuildKeyPath(expr);
+  if (!built.success) {
+    return "E-CON-0034";
+  }
+
+  const auto covering_mode = CoveringSharedAccessMode(type_ctx, built.path);
+  if (covering_mode.has_value() &&
+      SharedAccessModeSufficient(*covering_mode, *type_ctx.shared_access_mode)) {
+    return std::nullopt;
+  }
+
+  return covering_mode.has_value() ? std::optional<std::string_view>{"E-CON-0005"}
+                                   : std::optional<std::string_view>{"E-CON-0001"};
+}
+
 // Main expression typing dispatcher
 static ExprTypeResult TypeExprImpl(const ScopeContext& ctx,
                                    const StmtTypeContext& type_ctx,
@@ -3253,7 +3295,7 @@ static ExprTypeResult TypeExprImpl(const ScopeContext& ctx,
     return TypePlace(ctx, type_ctx, inner, env);
   };
 
-  return std::visit(
+  result = std::visit(
       [&](const auto& node) -> ExprTypeResult {
         using T = std::decay_t<decltype(node)>;
 
@@ -3583,6 +3625,17 @@ static ExprTypeResult TypeExprImpl(const ScopeContext& ctx,
         }
       },
       e->node);
+
+  if (result.ok) {
+    if (const auto diag_id =
+            CheckSharedAccessRequirement(type_ctx, e, result.type)) {
+      result.ok = false;
+      result.diag_id = *diag_id;
+      return result;
+    }
+  }
+
+  return result;
 }
 
 // Main place typing dispatcher
@@ -3679,6 +3732,15 @@ static PlaceTypeResult TypePlaceImpl(const ScopeContext& ctx,
         }
       },
       e->node);
+
+  if (result.ok) {
+    if (const auto diag_id =
+            CheckSharedAccessRequirement(type_ctx, e, result.type)) {
+      result.ok = false;
+      result.diag_id = *diag_id;
+      return result;
+    }
+  }
 
   if (result.ok && ctx.expr_types && e) {
     (*ctx.expr_types)[e.get()] = result.type;

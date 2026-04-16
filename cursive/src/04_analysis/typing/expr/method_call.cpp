@@ -34,6 +34,7 @@
 #include "04_analysis/composite/classes.h"
 #include "04_analysis/composite/record_methods.h"
 #include "04_analysis/generics/monomorphize.h"
+#include "04_analysis/keys/key_paths.h"
 #include "04_analysis/modal/builtin_modal_intrinsics.h"
 #include "04_analysis/modal/modal_transitions.h"
 #include "04_analysis/memory/calls.h"
@@ -293,6 +294,25 @@ static bool PermSubLocal(Permission lhs, Permission rhs) {
   return false;
 }
 
+static bool KeyModeSufficient(ast::KeyMode held, ast::KeyMode required) {
+  return held == ast::KeyMode::Write || held == required;
+}
+
+static std::optional<ast::KeyMode> CoveringKeyMode(
+    const StmtTypeContext& type_ctx,
+    const KeyPath& path) {
+  std::optional<ast::KeyMode> best;
+  for (const auto& held : type_ctx.held_key_paths) {
+    if (!KeyPathContains(held.path, path)) {
+      continue;
+    }
+    if (!best.has_value() || held.mode == ast::KeyMode::Write) {
+      best = held.mode;
+    }
+  }
+  return best;
+}
+
 static bool CheckBuiltinMethodArgs(const ScopeContext& ctx,
                                    const StmtTypeContext& type_ctx,
                                    const std::vector<TypeFuncParam>& params,
@@ -303,6 +323,19 @@ static bool CheckBuiltinMethodArgs(const ScopeContext& ctx,
     result.diag_id = "Call-ArgCount-Err";
     return false;
   }
+  const auto arg_ctx_for = [&](const TypeRef& expected) {
+    if (!expected) {
+      return type_ctx;
+    }
+    const auto perm = PermOfType(expected);
+    if (perm == Permission::Unique) {
+      return WithSharedAccessMode(type_ctx, ast::KeyMode::Write);
+    }
+    if (perm == Permission::Shared || perm == Permission::Const) {
+      return WithSharedAccessMode(type_ctx, ast::KeyMode::Read);
+    }
+    return type_ctx;
+  };
   for (std::size_t i = 0; i < args.size(); ++i) {
     const auto& expected = params[i];
     if (args[i].moved && !expected.mode.has_value()) {
@@ -314,8 +347,8 @@ static bool CheckBuiltinMethodArgs(const ScopeContext& ctx,
       result.diag_id = "Call-Move-Required";
       return false;
     }
-    const auto checked =
-        CheckExprAgainst(ctx, type_ctx, args[i].value, expected.type, env);
+    const auto checked = CheckExprAgainst(
+        ctx, arg_ctx_for(expected.type), args[i].value, expected.type, env);
     if (!checked.ok) {
       result.diag_id = checked.diag_id;
       return false;
@@ -801,12 +834,26 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
   auto type_expr = [&](const ast::ExprPtr& inner) {
     return TypeExpr(ctx, type_ctx, inner, env);
   };
+  const auto arg_ctx_for = [&](const TypeRef& expected) {
+    if (!expected) {
+      return type_ctx;
+    }
+    const auto perm = PermOfType(expected);
+    if (perm == Permission::Unique) {
+      return WithSharedAccessMode(type_ctx, ast::KeyMode::Write);
+    }
+    if (perm == Permission::Shared || perm == Permission::Const) {
+      return WithSharedAccessMode(type_ctx, ast::KeyMode::Read);
+    }
+    return type_ctx;
+  };
   PlaceTypeFn type_place = [&](const ast::ExprPtr& inner) {
     return TypePlace(ctx, type_ctx, inner, env);
   };
   ArgCheckFn check_expr = [&](const ast::ExprPtr& inner,
                               const TypeRef& expected) -> ArgCheckResult {
-    const auto checked = CheckExprAgainst(ctx, type_ctx, inner, expected, env);
+    const auto checked =
+        CheckExprAgainst(ctx, arg_ctx_for(expected), inner, expected, env);
     return ArgCheckResult{checked.ok, checked.diag_id};
   };
   auto lower_type = [&](const std::shared_ptr<ast::Type>& type) -> LowerTypeResult {
@@ -823,7 +870,6 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
             expr.receiver ? std::optional<core::Span>(expr.receiver->span)
                           : std::optional<core::Span>(span));
       };
-
   TypeRef lookup_base;
   Permission caller_perm = Permission::Const;
   const auto place = TypePlace(ctx, type_ctx, expr.receiver, env);
@@ -839,6 +885,30 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
     lookup_base = StripPermDeep(base_expr.type);
     caller_perm = PermOfType(base_expr.type);
   }
+
+  auto check_shared_receiver_access = [&](Permission receiver_requirement) -> bool {
+    if (caller_perm != Permission::Shared) {
+      return true;
+    }
+    const auto built = BuildKeyPath(expr.receiver);
+    if (!built.success) {
+      result.diag_id = "E-CON-0034";
+      return false;
+    }
+    const auto covering_mode = CoveringKeyMode(type_ctx, built.path);
+    if (!covering_mode.has_value()) {
+      result.diag_id = "E-CON-0001";
+      return false;
+    }
+    const ast::KeyMode required =
+        receiver_requirement == Permission::Const ? ast::KeyMode::Read
+                                                  : ast::KeyMode::Write;
+    if (!KeyModeSufficient(*covering_mode, required)) {
+      result.diag_id = "E-CON-0005";
+      return false;
+    }
+    return true;
+  };
 
   if (!lookup_base) {
     return result;
@@ -1278,6 +1348,9 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       result.diag_id = "MethodCall-RecvPerm-Err";
       return result;
     }
+    if (!check_shared_receiver_access(builtin_sig->recv_perm)) {
+      return result;
+    }
     const auto recv_sub = Subtyping(ctx, lookup_base, builtin_sig->recv_type);
     if (!recv_sub.ok) {
       result.diag_id = recv_sub.diag_id;
@@ -1305,6 +1378,9 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
     if (!PermSubLocal(caller_perm, builtin_sig->recv_perm)) {
       SPEC_RULE("MethodCall-RecvPerm-Err");
       result.diag_id = "MethodCall-RecvPerm-Err";
+      return result;
+    }
+    if (!check_shared_receiver_access(builtin_sig->recv_perm)) {
       return result;
     }
     const auto recv_sub = Subtyping(ctx, lookup_base, builtin_sig->recv_type);
@@ -1357,6 +1433,9 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       result.diag_id = "MethodCall-RecvPerm-Err";
       return true;
     }
+    if (!check_shared_receiver_access(recv_perm)) {
+      return true;
+    }
     const auto args_ok =
         ArgsOk(ctx, params, expr.args, type_expr, &type_place, lower_type,
                &check_expr);
@@ -1376,6 +1455,9 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       if (!PermSubLocal(caller_perm, builtin_sig->recv_perm)) {
         SPEC_RULE("MethodCall-RecvPerm-Err");
         result.diag_id = "MethodCall-RecvPerm-Err";
+        return result;
+      }
+      if (!check_shared_receiver_access(builtin_sig->recv_perm)) {
         return result;
       }
       if (builtin_sig->requires_unsafe && !IsInUnsafeSpan(ctx, span)) {
@@ -1536,6 +1618,9 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
         result.diag_id = "Transition-Source-Err";
         return result;
       }
+      if (!check_shared_receiver_access(Permission::Unique)) {
+        return result;
+      }
       if (HasSourceProvenance(expr.receiver) &&
           (!expr.receiver ||
            !std::holds_alternative<ast::MoveExpr>(expr.receiver->node))) {
@@ -1578,6 +1663,9 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       if (!PermSubLocal(caller_perm, method_perm)) {
         SPEC_RULE("MethodCall-RecvPerm-Err");
         result.diag_id = "MethodCall-RecvPerm-Err";
+        return result;
+      }
+      if (!check_shared_receiver_access(method_perm)) {
         return result;
       }
       const auto args_ok = ArgsOk(ctx, modal_member.method->params, expr.args,
@@ -1684,6 +1772,9 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           result.diag_id = "MethodCall-RecvPerm-Err";
           return result;
         }
+        if (!check_shared_receiver_access(method_perm)) {
+          return result;
+        }
         std::optional<TypeSubst> subst;
         if (method->generic_params && !method->generic_params->params.empty()) {
           const auto inferred = InferMethodSubst(
@@ -1757,6 +1848,9 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
         if (!PermSubLocal(caller_perm, method_perm)) {
           SPEC_RULE("MethodCall-RecvPerm-Err");
           result.diag_id = "MethodCall-RecvPerm-Err";
+          return result;
+        }
+        if (!check_shared_receiver_access(method_perm)) {
           return result;
         }
         std::optional<TypeSubst> subst;
@@ -1854,6 +1948,9 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
     if (!PermSubLocal(caller_perm, method_perm)) {
       SPEC_RULE("MethodCall-RecvPerm-Err");
       result.diag_id = "MethodCall-RecvPerm-Err";
+      return result;
+    }
+    if (!check_shared_receiver_access(method_perm)) {
       return result;
     }
 
@@ -2062,6 +2159,9 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
   if (!PermSubLocal(caller_perm, method_perm)) {
     SPEC_RULE("MethodCall-RecvPerm-Err");
     result.diag_id = "MethodCall-RecvPerm-Err";
+    return result;
+  }
+  if (!check_shared_receiver_access(method_perm)) {
     return result;
   }
 

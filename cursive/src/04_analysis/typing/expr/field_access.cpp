@@ -328,7 +328,8 @@ ExprTypeResult TypeFieldAccessExprImpl(const ScopeContext& ctx,
   }
 
   // Get base type from environment or by typing the base expression
-  const auto base_type = TypeExpr(ctx, type_ctx, expr.base, env);
+  const auto base_type =
+      TypeExpr(ctx, SuppressSharedAccessCheck(type_ctx), expr.base, env);
   if (!base_type.ok) {
     result.diag_id = base_type.diag_id;
     return result;

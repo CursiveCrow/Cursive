@@ -21,6 +21,7 @@
 #include "00_core/diagnostic_messages.h"
 #include "04_analysis/composite/function_types.h"
 #include "04_analysis/keys/key_paths.h"
+#include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/subtyping.h"
 #include "02_source/ast/ast.h"
 
@@ -31,6 +32,10 @@ namespace cursive::analysis
                           const StmtTypeContext &type_ctx,
                           const ast::ExprPtr &expr,
                           const TypeEnv &env);
+  PlaceTypeResult TypePlace(const ScopeContext& ctx,
+                            const StmtTypeContext& type_ctx,
+                            const ast::ExprPtr& expr,
+                            const TypeEnv& env);
 
 namespace
   {
@@ -54,6 +59,24 @@ namespace
         }
       }
       return fallback;
+    }
+
+    static void UpdateAssignedBindingSharedState(TypeEnv& env,
+                                                 std::string_view name,
+                                                 bool derived_from_shared)
+    {
+      const auto key = IdKeyOf(name);
+      for (auto it = env.scopes.rbegin(); it != env.scopes.rend(); ++it)
+      {
+        const auto found = it->find(key);
+        if (found == it->end())
+        {
+          continue;
+        }
+        found->second.derived_from_shared = derived_from_shared;
+        found->second.stale_after_release = false;
+        return;
+      }
     }
 
     struct RootMutabilityResult
@@ -135,6 +158,19 @@ namespace
       return IsPlaceExprNode(expr->node);
     }
 
+    static bool IsRootIdentifierPlace(const ast::ExprPtr& expr)
+    {
+      if (!expr)
+      {
+        return false;
+      }
+      if (const auto* attributed = std::get_if<ast::AttributedExpr>(&expr->node))
+      {
+        return IsRootIdentifierPlace(attributed->expr);
+      }
+      return std::holds_alternative<ast::IdentifierExpr>(expr->node);
+    }
+
     static RootMutabilityResult LookupRootMutability(const ScopeContext &ctx,
                                                      const TypeEnv &env,
                                                      std::string_view name)
@@ -193,9 +229,26 @@ namespace
           return true;
         }
       }
-      return type_ctx.keys_held &&
-             type_ctx.key_mode.has_value() &&
-             *type_ctx.key_mode == ast::KeyMode::Write;
+      return false;
+    }
+
+    static std::optional<ast::KeyMode> CoveringKeyMode(
+        const StmtTypeContext& type_ctx,
+        const KeyPath& path)
+    {
+      std::optional<ast::KeyMode> best;
+      for (const auto& held : type_ctx.held_key_paths)
+      {
+        if (!IsPrefix(held.path, path))
+        {
+          continue;
+        }
+        if (!best.has_value() || held.mode == ast::KeyMode::Write)
+        {
+          best = held.mode;
+        }
+      }
+      return best;
     }
 
     static constexpr std::array<std::string_view, 12> kIntTypes = {
@@ -268,6 +321,10 @@ namespace
   {
     (void)type_ident; // Reserved for future use
     SpecDefsCompoundAssignStmt();
+    const StmtTypeContext read_ctx =
+        WithSharedAccessMode(type_ctx, ast::KeyMode::Read);
+    const StmtTypeContext write_ctx =
+        WithSharedAccessMode(type_ctx, ast::KeyMode::Write);
 
     // Check that the target is a place expression (lvalue)
     if (!IsPlaceExpr(node.place))
@@ -277,7 +334,7 @@ namespace
     }
 
     // Type the place expression
-    const auto place_type = type_place(node.place);
+    const auto place_type = TypePlace(ctx, write_ctx, node.place, env);
     if (!place_type.ok)
     {
       return {false, place_type.diag_id, {}, {}};
@@ -307,17 +364,25 @@ namespace
     {
       if (perm->perm == Permission::Shared)
       {
-        const bool has_write_key =
+      const bool has_write_key =
+          place_key_path.has_value()
+              ? HasCoveringWriteKey(type_ctx, *place_key_path)
+              : (type_ctx.keys_held &&
+                 type_ctx.key_mode.has_value() &&
+                 *type_ctx.key_mode == ast::KeyMode::Write);
+      if (!has_write_key)
+      {
+        const auto covering_mode =
             place_key_path.has_value()
-                ? HasCoveringWriteKey(type_ctx, *place_key_path)
-                : (type_ctx.keys_held &&
-                   type_ctx.key_mode.has_value() &&
-                   *type_ctx.key_mode == ast::KeyMode::Write);
-        if (!has_write_key)
+                ? CoveringKeyMode(type_ctx, *place_key_path)
+                : type_ctx.key_mode;
+        SPEC_RULE("K-Read-Write-Reject");
+        if (covering_mode.has_value())
         {
-          SPEC_RULE("K-Read-Write-Reject");
-          return {false, "E-CON-0060", {}, {}};
+          return {false, "E-CON-0005", {}, {}};
         }
+        return {false, "E-CON-0001", {}, {}};
+      }
         shared_write_with_key = true;
       }
     }
@@ -349,7 +414,7 @@ namespace
 
     // Type the RHS expression
     const auto rhs_type =
-        TypeExprWithCurrentEnv(ctx, type_ctx, env, type_expr, node.value);
+        TypeExprWithCurrentEnv(ctx, read_ctx, env, type_expr, node.value);
     if (!rhs_type.ok)
     {
       return {false, rhs_type.diag_id, {}, {}};
@@ -376,8 +441,14 @@ namespace
       }
     }
 
+    TypeEnv out_env = env;
+    if (root.has_value() && IsRootIdentifierPlace(node.place))
+    {
+      UpdateAssignedBindingSharedState(out_env, *root, true);
+    }
+
     SPEC_RULE("T-CompoundAssign");
-    return {true, std::nullopt, env, {}};
+    return {true, std::nullopt, std::move(out_env), {}};
   }
 
 } // namespace cursive::analysis

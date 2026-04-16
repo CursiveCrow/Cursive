@@ -1014,7 +1014,9 @@ ExprTypeResult TypeIfIsExpr(const ScopeContext& ctx,
     return result;
   }
 
-  const auto scrutinee = TypeExpr(ctx, type_ctx, expr.scrutinee, env);
+  const auto scrutinee = TypeExpr(
+      ctx, WithSharedAccessMode(type_ctx, ast::KeyMode::Read), expr.scrutinee,
+      env);
   if (!scrutinee.ok) {
     result.diag_id = scrutinee.diag_id;
     return result;
@@ -1094,7 +1096,9 @@ ExprTypeResult TypeIfCaseExpr(const ScopeContext& ctx,
     return result;
   }
 
-  const auto scrutinee = TypeExpr(ctx, type_ctx, expr.scrutinee, env);
+  const auto scrutinee = TypeExpr(
+      ctx, WithSharedAccessMode(type_ctx, ast::KeyMode::Read), expr.scrutinee,
+      env);
   if (!scrutinee.ok) {
     result.diag_id = scrutinee.diag_id;
     return result;
@@ -1246,7 +1250,9 @@ CheckResult CheckIfCaseExpr(const ScopeContext& ctx,
     return result;
   }
 
-  const auto scrutinee = TypeExpr(ctx, type_ctx, expr.scrutinee, env);
+  const auto scrutinee = TypeExpr(
+      ctx, WithSharedAccessMode(type_ctx, ast::KeyMode::Read), expr.scrutinee,
+      env);
   if (!scrutinee.ok) {
     result.diag_id = scrutinee.diag_id;
     return result;

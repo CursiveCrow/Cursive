@@ -345,73 +345,56 @@ KeyMarkerResult ParseKeyMarkerOpt(Parser parser) {
   return {parser, false};
 }
 
-struct IndexSuffixOptResult {
-  Parser parser;
-  std::optional<KeySegIndex> index_opt;
-};
-
-IndexSuffixOptResult ParseIndexSuffixOpt(Parser parser) {
-  if (!IsPunc(parser, "[")) {
-    return {parser, std::nullopt};
-  }
-
-  SPEC_RULE("Parse-Index-Suffix");
-  Parser after_l = parser;
-  Advance(after_l);
-  ParseElemResult<ExprPtr> expr = ParseExpr(after_l);
-  if (!IsPunc(expr.parser, "]")) {
-    EmitParseSyntaxErr(expr.parser, TokSpan(expr.parser));
-    return {expr.parser, std::nullopt};
-  }
-  Parser after_r = expr.parser;
-  Advance(after_r);
-  KeySegIndex index;
-  index.marked = false;
-  index.expr = expr.elem;
-  return {after_r, index};
-}
-
-struct PathSegmentResult {
-  Parser parser;
-  bool marked = false;
-  Identifier name;
-  std::optional<KeySegIndex> index_opt;
-};
-
-PathSegmentResult ParsePathSegmentCore(Parser parser) {
-  KeyMarkerResult marker = ParseKeyMarkerOpt(parser);
-  ParseElemResult<Identifier> name = ParseIdent(marker.parser);
-  IndexSuffixOptResult index = ParseIndexSuffixOpt(name.parser);
-  PathSegmentResult out;
-  out.parser = index.parser;
-  out.marked = marker.marked;
-  out.name = name.elem;
-  out.index_opt = std::move(index.index_opt);
-  return out;
-}
-
-ParseElemResult<std::vector<KeySeg>> ParseKeyPathTail(Parser parser,
-                                                      std::vector<KeySeg> segs) {
-  if (!IsPunc(parser, ".")) {
-    SPEC_RULE("Parse-KeySegs-End");
-    return {parser, std::move(segs)};
-  }
-
-  SPEC_RULE("Parse-KeySegs-Field");
-  Parser after_dot = parser;
-  Advance(after_dot);
-  PathSegmentResult seg = ParsePathSegmentCore(after_dot);
+ParseElemResult<KeySegField> ParseKeyField(Parser parser) {
+  SPEC_RULE("Parse-KeyField");
+  const KeyMarkerResult marker = ParseKeyMarkerOpt(parser);
+  const ParseElemResult<Identifier> name = ParseIdent(marker.parser);
 
   KeySegField field;
-  field.marked = seg.marked;
-  field.name = seg.name;
-  segs.push_back(field);
+  field.marked = marker.marked;
+  field.name = name.elem;
+  return {name.parser, field};
+}
 
-  if (seg.index_opt.has_value()) {
-    segs.push_back(*seg.index_opt);
+ParseElemResult<KeySegIndex> ParseKeyIndex(Parser parser) {
+  SPEC_RULE("Parse-KeyIndex");
+  const KeyMarkerResult marker = ParseKeyMarkerOpt(parser);
+  const ParseElemResult<ExprPtr> expr = ParseExpr(marker.parser);
+
+  KeySegIndex index;
+  index.marked = marker.marked;
+  index.expr = expr.elem;
+  return {expr.parser, index};
+}
+
+ParseElemResult<std::vector<KeySeg>> ParseKeySegs(Parser parser,
+                                                  std::vector<KeySeg> segs) {
+  if (IsPunc(parser, ".")) {
+    SPEC_RULE("Parse-KeySegs-Field");
+    Parser after_dot = parser;
+    Advance(after_dot);
+    ParseElemResult<KeySegField> field = ParseKeyField(after_dot);
+    segs.push_back(field.elem);
+    return ParseKeySegs(field.parser, std::move(segs));
   }
 
-  return ParseKeyPathTail(seg.parser, std::move(segs));
+  if (IsPunc(parser, "[")) {
+    SPEC_RULE("Parse-KeySegs-Index");
+    Parser after_l = parser;
+    Advance(after_l);
+    ParseElemResult<KeySegIndex> index = ParseKeyIndex(after_l);
+    if (!IsPunc(index.parser, "]")) {
+      EmitParseSyntaxErr(index.parser, TokSpan(index.parser));
+      return {index.parser, std::move(segs)};
+    }
+    Parser after_r = index.parser;
+    Advance(after_r);
+    segs.push_back(index.elem);
+    return ParseKeySegs(after_r, std::move(segs));
+  }
+
+  SPEC_RULE("Parse-KeySegs-End");
+  return {parser, std::move(segs)};
 }
 
 // =============================================================================
@@ -423,18 +406,12 @@ ParseElemResult<std::vector<KeySeg>> ParseKeyPathTail(Parser parser,
 ParseElemResult<KeyPathExpr> ParseKeyPathExpr(Parser parser) {
   SPEC_RULE("Parse-KeyPathExpr");
   Parser start = parser;
-  PathSegmentResult root = ParsePathSegmentCore(parser);
-
-  std::vector<KeySeg> segs;
-  if (root.index_opt.has_value()) {
-    segs.push_back(*root.index_opt);
-  }
+  ParseElemResult<Identifier> root = ParseIdent(parser);
   ParseElemResult<std::vector<KeySeg>> tail =
-      ParseKeyPathTail(root.parser, std::move(segs));
+      ParseKeySegs(root.parser, {});
 
   KeyPathExpr path;
-  path.root_marked = root.marked;
-  path.root = root.name;
+  path.root = root.elem;
   path.segs = std::move(tail.elem);
   path.span = SpanBetween(start, tail.parser);
   return {tail.parser, path};

@@ -44,7 +44,7 @@ ExprTypeResult TypeTupleAccessExprImpl(const ScopeContext& ctx,
                                        const ast::TupleAccessExpr& expr,
                                        const TypeEnv& env) {
   auto type_expr = [&](const ast::ExprPtr& inner) {
-    return TypeExpr(ctx, type_ctx, inner, env);
+    return TypeExpr(ctx, SuppressSharedAccessCheck(type_ctx), inner, env);
   };
   return TypeTupleAccessValue(ctx, expr, type_expr);
 }
@@ -55,7 +55,7 @@ PlaceTypeResult TypeTupleAccessPlaceImpl(const ScopeContext& ctx,
                                          const ast::TupleAccessExpr& expr,
                                          const TypeEnv& env) {
   PlaceTypeFn type_place = [&](const ast::ExprPtr& inner) {
-    return TypePlace(ctx, type_ctx, inner, env);
+    return TypePlace(ctx, SuppressSharedAccessCheck(type_ctx), inner, env);
   };
   return TypeTupleAccessPlace(ctx, expr, type_place);
 }

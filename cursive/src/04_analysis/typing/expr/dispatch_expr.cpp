@@ -967,14 +967,10 @@ class DispatchCaptureCollector {
               VisitExpr(node.binding.init);
             }
             DeclarePattern(node.binding.pat);
-          } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt>) {
-            VisitExpr(node.init);
-            DeclareName(node.name);
-          } else if constexpr (std::is_same_v<T, ast::ShadowVarStmt>) {
-            if (node.init) {
-              VisitExpr(node.init);
-            }
-            DeclareName(node.name);
+          } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+            // UsingLocalStmt is a compile-time alias; no runtime expression,
+            // but the alias name still enters the surrounding scope.
+            DeclareName(node.alias);
           } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
                                std::is_same_v<T, ast::CompoundAssignStmt>) {
             VisitExpr(node.place);
@@ -1244,12 +1240,10 @@ void DispatchImplicitUseCollector::VisitStmt(const ast::Stmt& stmt) {
         } else if constexpr (std::is_same_v<T, ast::VarStmt>) {
           VisitExpr(node.binding.init, DispatchUseMode::Read);
           DeclarePattern(node.binding.pat);
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt>) {
-          VisitExpr(node.init, DispatchUseMode::Read);
-          DeclareName(node.name);
-        } else if constexpr (std::is_same_v<T, ast::ShadowVarStmt>) {
-          VisitExpr(node.init, DispatchUseMode::Read);
-          DeclareName(node.name);
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt is a compile-time alias; no runtime expression,
+          // but the alias name still enters the surrounding scope.
+          DeclareName(node.alias);
         } else if constexpr (std::is_same_v<T, ast::AssignStmt>) {
           VisitExpr(node.place, DispatchUseMode::Write);
           VisitExpr(node.value, DispatchUseMode::Read);

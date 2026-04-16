@@ -61,8 +61,7 @@ namespace cursive::ast
   // ===========================================================================
   // Binding Statements
   // ===========================================================================
-  // Let and var bindings create new named values. Shadow variants allow
-  // rebinding an existing name within the same scope.
+  // Let and var bindings create new named values.
 
   /// LetStmt: let binding (let x: T = v)
   /// Creates an immutable binding. Uses Binding for common structure.
@@ -80,29 +79,16 @@ namespace cursive::ast
     cursive::core::Span span;
   };
 
-  /// ShadowLetStmt: shadow let (shadow let x = v)
-  /// Rebinds an existing name with an immutable binding.
-  /// Unlike LetStmt, uses a simple identifier rather than a pattern.
-  struct ShadowLetStmt
+  /// UsingLocalStmt: local alias (using source as alias)
+  /// Compile-time rename. Binds `alias` to the same Entity that `source`
+  /// resolves to. No storage is allocated; no runtime effect.
+  /// Spec: §7.2 UsingAlias, §18.3.
+  struct UsingLocalStmt
   {
-    AttributeList attrs;
-    Identifier name;
-    std::optional<SpliceIdentNode> name_splice_opt;
-    TypePtr type_opt;
-    ExprPtr init;
-    cursive::core::Span span;
-  };
-
-  /// ShadowVarStmt: shadow var (shadow var x = v)
-  /// Rebinds an existing name with a mutable binding.
-  /// Unlike VarStmt, uses a simple identifier rather than a pattern.
-  struct ShadowVarStmt
-  {
-    AttributeList attrs;
-    Identifier name;
-    std::optional<SpliceIdentNode> name_splice_opt;
-    TypePtr type_opt;
-    ExprPtr init;
+    Identifier source;
+    std::optional<SpliceIdentNode> source_splice_opt;
+    Identifier alias;
+    std::optional<SpliceIdentNode> alias_splice_opt;
     cursive::core::Span span;
   };
 
@@ -284,8 +270,7 @@ namespace cursive::ast
       // Binding statements
       LetStmt,
       VarStmt,
-      ShadowLetStmt,
-      ShadowVarStmt,
+      UsingLocalStmt,
       // Assignment statements
       AssignStmt,
       CompoundAssignStmt,

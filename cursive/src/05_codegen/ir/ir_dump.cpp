@@ -794,6 +794,64 @@ struct Dumper {
     Dump(yf.result);
   }
 
+  void DumpNode(const IRSpecSnapshot& spec) {
+    oss << "spec_snapshot paths=[";
+    for (std::size_t i = 0; i < spec.paths.size(); ++i) {
+      if (i) oss << ", ";
+      oss << spec.paths[i];
+    }
+    oss << "] -> ";
+    Dump(spec.result);
+  }
+
+  void DumpNode(const IRSpecValidate& spec) {
+    oss << "spec_validate paths=[";
+    for (std::size_t i = 0; i < spec.paths.size(); ++i) {
+      if (i) oss << ", ";
+      oss << spec.paths[i];
+    }
+    oss << "] -> ";
+    Dump(spec.result);
+  }
+
+  void DumpNode(const IRSpecCommit& spec) {
+    oss << "spec_commit paths=[";
+    for (std::size_t i = 0; i < spec.paths.size(); ++i) {
+      if (i) oss << ", ";
+      oss << spec.paths[i];
+    }
+    oss << "] value=";
+    Dump(spec.value);
+    oss << " -> ";
+    Dump(spec.result);
+  }
+
+  void DumpNode(const IRSpecRetry& spec) {
+    oss << "spec_retry -> ";
+    Dump(spec.result);
+  }
+
+  void DumpNode(const IRSpecFallback& spec) {
+    oss << "spec_fallback ";
+    Dump(spec.body);
+    oss << " -> ";
+    Dump(spec.result);
+  }
+
+  void DumpNode(const IRSpecLoop& spec) {
+    oss << "spec_loop {\n";
+    indent_level++;
+    Indent(); oss << "snapshot: "; Dump(spec.snapshot_ir); oss << "\n";
+    Indent(); oss << "body: "; Dump(spec.body_ir); oss << "\n";
+    Indent(); oss << "validate: "; Dump(spec.validate_ir); oss << "\n";
+    Indent(); oss << "commit: "; Dump(spec.commit_ir); oss << "\n";
+    Indent(); oss << "retry: "; Dump(spec.retry_ir); oss << "\n";
+    Indent(); oss << "fallback: "; Dump(spec.fallback_ir); oss << "\n";
+    Indent(); oss << "result: "; Dump(spec.result); oss << "\n";
+    indent_level--;
+    Indent(); oss << "}";
+  }
+
   // Section 19.3.3 Sync expression
   void DumpNode(const IRSync& sync) {
     oss << "sync ";

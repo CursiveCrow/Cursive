@@ -208,10 +208,10 @@ class SpawnCaptureCollector {
                         std::is_same_v<T, ast::VarStmt>) {
             VisitExpr(node.binding.init);
             DeclarePattern(node.binding.pat);
-          } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                               std::is_same_v<T, ast::ShadowVarStmt>) {
-            VisitExpr(node.init);
-            DeclareName(node.name);
+          } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+            // UsingLocalStmt is a compile-time alias; no runtime expression,
+            // but the alias name still enters the surrounding scope.
+            DeclareName(node.alias);
           } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
                                std::is_same_v<T, ast::CompoundAssignStmt>) {
             VisitExpr(node.place);

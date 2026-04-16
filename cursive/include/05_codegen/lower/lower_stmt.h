@@ -34,6 +34,9 @@ IRPtr LowerLetStmt(const ast::LetStmt& stmt, LowerCtx& ctx);
 // §6.5 Lower-Stmt-Var-* (var bindings)
 IRPtr LowerVarStmt(const ast::VarStmt& stmt, LowerCtx& ctx);
 
+// §6.5 Lower-Stmt-UsingLocal (compile-time alias; lowers to a no-op)
+IRPtr LowerUsingLocalStmt(const ast::UsingLocalStmt& stmt, LowerCtx& ctx);
+
 // §6.5 Lower-Stmt-Assignment
 IRPtr LowerAssignStmt(const ast::AssignStmt& stmt, LowerCtx& ctx);
 

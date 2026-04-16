@@ -241,8 +241,11 @@ RuntimeCategoryMap BuildRuntimeCategoryMap() {
   AddRuntimeSymbol(categories, RuntimeSymbolCategory::Concurrency, ConcurrencySymParallelWorkPanic());
   AddRuntimeSymbol(categories, RuntimeSymbolCategory::Concurrency, ConcurrencySymKeyScopeEnter());
   AddRuntimeSymbol(categories, RuntimeSymbolCategory::Concurrency, ConcurrencySymKeyScopeExit());
+  AddRuntimeSymbol(categories, RuntimeSymbolCategory::Concurrency, ConcurrencySymKeyCheckConflict());
   AddRuntimeSymbol(categories, RuntimeSymbolCategory::Concurrency, ConcurrencySymKeyAcquire());
+  AddRuntimeSymbol(categories, RuntimeSymbolCategory::Concurrency, ConcurrencySymKeyReleaseOne());
   AddRuntimeSymbol(categories, RuntimeSymbolCategory::Concurrency, ConcurrencySymKeyReleaseAll());
+  AddRuntimeSymbol(categories, RuntimeSymbolCategory::Concurrency, ConcurrencySymKeyReacquireOne());
   AddRuntimeSymbol(categories, RuntimeSymbolCategory::Concurrency, ConcurrencySymKeyReacquire());
   AddRuntimeSymbol(categories, RuntimeSymbolCategory::Concurrency, ConcurrencySymKeyReleaseSnapshotDiscard());
 
@@ -1151,6 +1154,13 @@ std::optional<RuntimeFuncInfo> GetRuntimeFuncInfo(const std::string& symbol) {
     info.ret = t_unit;
     return info;
   }
+  if (symbol == ConcurrencySymKeyCheckConflict()) {
+    info.params.push_back(make_param("path", t_string_view));
+    info.params.push_back(
+        make_param("mode", t_u8, analysis::ParamMode::Move));
+    info.ret = t_unit;
+    return info;
+  }
   if (symbol == ConcurrencySymKeyAcquire()) {
     info.params.push_back(
         make_param("scope", t_raw_mut_u8, analysis::ParamMode::Move));
@@ -1160,8 +1170,21 @@ std::optional<RuntimeFuncInfo> GetRuntimeFuncInfo(const std::string& symbol) {
     info.ret = t_unit;
     return info;
   }
+  if (symbol == ConcurrencySymKeyReleaseOne()) {
+    info.params.push_back(
+        make_param("scope", t_raw_mut_u8, analysis::ParamMode::Move));
+    info.params.push_back(make_param("path", t_string_view));
+    info.ret = t_raw_mut_u8;
+    return info;
+  }
   if (symbol == ConcurrencySymKeyReleaseAll()) {
     info.ret = t_raw_mut_u8;
+    return info;
+  }
+  if (symbol == ConcurrencySymKeyReacquireOne()) {
+    info.params.push_back(
+        make_param("released", t_raw_mut_u8, analysis::ParamMode::Move));
+    info.ret = t_unit;
     return info;
   }
   if (symbol == ConcurrencySymKeyReacquire() ||
@@ -1223,12 +1246,24 @@ std::string ConcurrencySymKeyScopeExit() {
   return "cursive_key_scope_exit";
 }
 
+std::string ConcurrencySymKeyCheckConflict() {
+  return "cursive_key_check_conflict";
+}
+
 std::string ConcurrencySymKeyAcquire() {
   return "cursive_key_acquire";
 }
 
+std::string ConcurrencySymKeyReleaseOne() {
+  return "cursive_key_release_one";
+}
+
 std::string ConcurrencySymKeyReleaseAll() {
   return "cursive_key_release_all";
+}
+
+std::string ConcurrencySymKeyReacquireOne() {
+  return "cursive_key_reacquire_one";
 }
 
 std::string ConcurrencySymKeyReacquire() {

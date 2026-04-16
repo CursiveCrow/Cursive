@@ -66,8 +66,7 @@ bool IsQuotedStatementForm(const ast::Stmt& stmt) {
         using T = std::decay_t<decltype(node)>;
         return std::is_same_v<T, ast::LetStmt> ||
                std::is_same_v<T, ast::VarStmt> ||
-               std::is_same_v<T, ast::ShadowLetStmt> ||
-               std::is_same_v<T, ast::ShadowVarStmt> ||
+               std::is_same_v<T, ast::UsingLocalStmt> ||
                std::is_same_v<T, ast::AssignStmt> ||
                std::is_same_v<T, ast::CompoundAssignStmt> ||
                std::is_same_v<T, ast::ExprStmt> ||
@@ -686,12 +685,10 @@ std::optional<Stmt> BuildStmt(const Stmt& stmt, CtEnv& env) {
             return std::nullopt;
           }
           return Stmt{std::move(out)};
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                             std::is_same_v<T, ast::ShadowVarStmt>) {
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
           auto out = node;
-          if (!BuildSplicedIdentifierInPlace(out.name_splice_opt, out.name, env) ||
-              !BuildTypeInPlace(out.type_opt, env) ||
-              !BuildExprInPlace(out.init, env)) {
+          if (!BuildSplicedIdentifierInPlace(out.source_splice_opt, out.source, env) ||
+              !BuildSplicedIdentifierInPlace(out.alias_splice_opt, out.alias, env)) {
             return std::nullopt;
           }
           return Stmt{std::move(out)};

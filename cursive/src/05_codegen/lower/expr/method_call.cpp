@@ -47,6 +47,11 @@ namespace cursive::codegen {
 
 namespace {
 
+ast::KeyMode KeyModeForReceiverPerm(analysis::Permission perm) {
+    return perm == analysis::Permission::Const ? ast::KeyMode::Read
+                                               : ast::KeyMode::Write;
+}
+
 // Extract parameter modes from function parameters
 ParamModeList ParamModesFromFuncParams(const std::vector<analysis::TypeFuncParam>& params) {
     ParamModeList modes;
@@ -457,7 +462,12 @@ LowerResult LowerMethodCall(const ast::MethodCallExpr& expr, LowerCtx& ctx) {
 
     ParamModeList param_modes;
     bool move_receiver = false;
+    ast::KeyMode receiver_key_mode = ast::KeyMode::Read;
     const analysis::ScopeContext& scope = ScopeForLowering(ctx);
+    auto lower_type = [&](const std::shared_ptr<ast::Type>& type)
+        -> analysis::LowerTypeResult {
+        return analysis::LowerType(scope, type);
+    };
 
     // Handle Context builtin methods (cpu, gpu, inline)
     if (const auto* path = stripped ? std::get_if<analysis::TypePathType>(&stripped->node) : nullptr) {
@@ -651,6 +661,7 @@ LowerResult LowerMethodCall(const ast::MethodCallExpr& expr, LowerCtx& ctx) {
                                analysis::LookupTransitionDecl(*modal_decl, modal_info->second, expr.name)) {
                     param_modes = ParamModesFromParams(transition->params);
                     move_receiver = true;
+                    receiver_key_mode = ast::KeyMode::Write;
                 }
             }
         } else if (stripped) {
@@ -661,13 +672,28 @@ LowerResult LowerMethodCall(const ast::MethodCallExpr& expr, LowerCtx& ctx) {
             const auto lookup = analysis::LookupMethodStatic(scope, stripped, expr.name);
             if (lookup.record_method) {
                 param_modes = ParamModesFromParams(lookup.record_method->params);
+                const auto recv_info = analysis::RecvTypeForReceiver(
+                    scope, stripped, lookup.record_method->receiver, lower_type);
+                if (recv_info.ok && recv_info.type) {
+                    receiver_key_mode =
+                        KeyModeForReceiverPerm(analysis::PermOfType(recv_info.type));
+                }
             } else if (lookup.class_method) {
                 param_modes = ParamModesFromParams(lookup.class_method->params);
+                const auto recv_info = analysis::RecvTypeForReceiver(
+                    scope, stripped, lookup.class_method->receiver, lower_type);
+                if (recv_info.ok && recv_info.type) {
+                    receiver_key_mode =
+                        KeyModeForReceiverPerm(analysis::PermOfType(recv_info.type));
+                }
             }
         }
     }
 
     // Lower receiver and arguments
+    IRPtr recv_key_ir =
+        expr.receiver ? LowerImplicitKeyAccess(*expr.receiver, receiver_key_mode, ctx)
+                      : EmptyIR();
     LowerResult recv_result;
     if (move_receiver && expr.receiver) {
         // Modal transitions consume the source state receiver.
@@ -728,7 +754,7 @@ LowerResult LowerMethodCall(const ast::MethodCallExpr& expr, LowerCtx& ctx) {
         check.token = recv_result.value;
         check.result = result_value;
         return LowerResult{
-            SeqIR({recv_result.ir, args_ir, MakeIR(std::move(check))}),
+            SeqIR({recv_key_ir, recv_result.ir, args_ir, MakeIR(std::move(check))}),
             result_value};
     }
 
@@ -757,13 +783,13 @@ LowerResult LowerMethodCall(const ast::MethodCallExpr& expr, LowerCtx& ctx) {
 
     if (needs_panic_out) {
         return LowerResult{
-            SeqIR({recv_result.ir, args_ir, MakeIR(std::move(call)),
+            SeqIR({recv_key_ir, recv_result.ir, args_ir, MakeIR(std::move(call)),
                    PanicCheck(ctx)}),
             result_value};
     }
 
     return LowerResult{
-        SeqIR({recv_result.ir, args_ir, MakeIR(std::move(call))}),
+        SeqIR({recv_key_ir, recv_result.ir, args_ir, MakeIR(std::move(call))}),
         result_value};
 }
 

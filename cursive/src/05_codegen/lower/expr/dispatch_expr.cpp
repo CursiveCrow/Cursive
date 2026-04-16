@@ -481,14 +481,9 @@ void CaptureCollector::VisitStmt(const ast::Stmt& stmt) {
           if (node.binding.pat) {
             VisitPattern(node.binding.pat);
           }
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt>) {
-          VisitExpr(node.init);
-          // ShadowLetStmt uses name (Identifier), not pattern
-        } else if constexpr (std::is_same_v<T, ast::ShadowVarStmt>) {
-          if (node.init) {
-            VisitExpr(node.init);
-          }
-          // ShadowVarStmt uses name (Identifier), not pattern
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt is a compile-time alias; no runtime expression.
+          (void)node;
         } else if constexpr (std::is_same_v<T, ast::AssignStmt>) {
           VisitExpr(node.place);
           VisitExpr(node.value);

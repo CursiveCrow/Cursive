@@ -16,6 +16,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
@@ -114,7 +115,6 @@ using KeySeg = std::variant<KeySegField, KeySegIndex>;
 // KeyPathExpr represents a complete key path: root.field1[idx].field2
 // Used by: DispatchExpr (key clause), KeyBlockStmt
 struct KeyPathExpr {
-  bool root_marked = false;
   Identifier root;
   std::vector<KeySeg> segs;
   cursive::core::Span span;
@@ -130,12 +130,62 @@ struct GenericTypeRef {
   std::vector<TypePtr> generic_args;
 };
 
+using ModalRef = std::variant<TypePath, GenericTypeRef>;
+
+inline ModalRef MakeModalRef(TypePath path, std::vector<TypePtr> generic_args) {
+  if (generic_args.empty()) {
+    return ModalRef{std::move(path)};
+  }
+
+  GenericTypeRef apply;
+  apply.path = std::move(path);
+  apply.generic_args = std::move(generic_args);
+  return ModalRef{std::move(apply)};
+}
+
+inline const TypePath& ModalRefPath(const ModalRef& modal_ref) {
+  return std::visit(
+      [](const auto& node) -> const TypePath& {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, TypePath>) {
+          return node;
+        } else {
+          return node.path;
+        }
+      },
+      modal_ref);
+}
+
+inline const std::vector<TypePtr>& ModalRefArgs(const ModalRef& modal_ref) {
+  static const std::vector<TypePtr> kEmptyArgs;
+  return std::visit(
+      [&](const auto& node) -> const std::vector<TypePtr>& {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, TypePath>) {
+          return kEmptyArgs;
+        } else {
+          return node.generic_args;
+        }
+      },
+      modal_ref);
+}
+
 // ModalStateRef represents a modal type in a specific state: Connection@Open<T>
 struct ModalStateRef {
+  ModalRef modal_ref;
   TypePath path;
   std::vector<TypePtr> generic_args;
   Identifier state;
 };
+
+inline void SyncModalStateRefFromModalRef(ModalStateRef& ref) {
+  ref.path = ModalRefPath(ref.modal_ref);
+  ref.generic_args = ModalRefArgs(ref.modal_ref);
+}
+
+inline void SyncModalStateRefFromFields(ModalStateRef& ref) {
+  ref.modal_ref = MakeModalRef(ref.path, ref.generic_args);
+}
 
 // ===========================================================================
 // Receiver Types (shared by method declarations)

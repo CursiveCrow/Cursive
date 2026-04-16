@@ -1977,49 +1977,20 @@ ResolveStmtResult ResolveStmt(ResolveContext& ctx,
           }
           SPEC_RULE("ResolveStmt-Var");
           return {true, std::nullopt, std::nullopt, out};
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt>) {
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt is a compile-time alias (§7.2 UsingAlias, §18.3).
+          // Resolve `source` as a value name, then bind `alias` into the
+          // current scope to the same Entity. No runtime effect.
           auto out = node;
-          const auto init = ResolveExpr(ctx, node.init);
-          if (!init.ok) {
-            return {false, init.diag_id, init.span, {},
-                    init.diag_detail, init.diag_children};
+          const auto ent = ResolveValueName(*ctx.ctx, node.source);
+          if (!ent.has_value()) {
+            return {false, "ResolveExpr-Ident-Err", node.span, {}};
           }
-          out.init = init.value;
-          const auto ty = ResolveTypeOpt(ctx, node.type_opt);
-          if (!ty.ok) {
-            return {false, ty.diag_id, ty.span, {}};
-          }
-          out.type_opt = ty.value;
-          const auto res = ShadowIntro(*ctx.ctx, node.name,
-                                       Entity{EntityKind::Value, std::nullopt,
-                                              std::nullopt,
-                                              EntitySource::Decl});
+          const auto res = Intro(*ctx.ctx, node.alias, *ent);
           if (!res.ok) {
             return {false, res.diag_id, node.span, {}};
           }
-          SPEC_RULE("ResolveStmt-ShadowLet");
-          return {true, std::nullopt, std::nullopt, out};
-        } else if constexpr (std::is_same_v<T, ast::ShadowVarStmt>) {
-          auto out = node;
-          const auto init = ResolveExpr(ctx, node.init);
-          if (!init.ok) {
-            return {false, init.diag_id, init.span, {},
-                    init.diag_detail, init.diag_children};
-          }
-          out.init = init.value;
-          const auto ty = ResolveTypeOpt(ctx, node.type_opt);
-          if (!ty.ok) {
-            return {false, ty.diag_id, ty.span, {}};
-          }
-          out.type_opt = ty.value;
-          const auto res = ShadowIntro(*ctx.ctx, node.name,
-                                       Entity{EntityKind::Value, std::nullopt,
-                                              std::nullopt,
-                                              EntitySource::Decl});
-          if (!res.ok) {
-            return {false, res.diag_id, node.span, {}};
-          }
-          SPEC_RULE("ResolveStmt-ShadowVar");
+          SPEC_RULE("ResolveStmt-UsingLocal");
           return {true, std::nullopt, std::nullopt, out};
         } else if constexpr (std::is_same_v<T, ast::DeferStmt>) {
           auto out = node;

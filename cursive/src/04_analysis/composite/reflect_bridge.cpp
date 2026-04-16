@@ -45,7 +45,6 @@ bool CanAccessVis(const ast::ModulePath& accessor_module,
     case ast::Visibility::Internal:
       return SameAssembly(accessor_module, decl_module);
     case ast::Visibility::Private:
-    case ast::Visibility::Protected:
       return PathEqLocal(accessor_module, decl_module);
   }
   return true;

@@ -55,14 +55,9 @@ bool IsExternalVisibility(ast::Visibility vis) {
          vis == ast::Visibility::Internal;
 }
 
-// Helper for class/modal items where protected also implies external.
-// Per Section 6.3.4:
-//   Vis(item) in {public, internal, protected} -> external
-//   Vis(item) = private -> internal
 bool IsExternalVisibilityWithProtected(ast::Visibility vis) {
   return vis == ast::Visibility::Public ||
-         vis == ast::Visibility::Internal ||
-         vis == ast::Visibility::Protected;
+         vis == ast::Visibility::Internal;
 }
 
 }  // namespace cursive::codegen

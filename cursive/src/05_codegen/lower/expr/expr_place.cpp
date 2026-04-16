@@ -59,7 +59,8 @@ LowerResult LowerReadPlace(const ast::Expr& place, LowerCtx& ctx) {
             } else if (ctx.expr_type) {
               ctx.RegisterValueType(value, ctx.expr_type(place));
             }
-            return LowerResult{MakeIR(std::move(read)), value};
+            IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Read, ctx);
+            return LowerResult{SeqIR({key_ir, MakeIR(std::move(read))}), value};
           }
           if (const auto* capture = ctx.LookupCapture(node.name)) {
             SPEC_RULE("Lower-ReadPlace-Ident-Capture");
@@ -87,7 +88,8 @@ LowerResult LowerReadPlace(const ast::Expr& place, LowerCtx& ctx) {
             } else {
               ctx.RegisterValueType(value, capture->value_type);
             }
-            return LowerResult{ir, value};
+            IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Read, ctx);
+            return LowerResult{SeqIR({key_ir, ir}), value};
           }
 
           std::vector<std::string> full;
@@ -117,7 +119,8 @@ LowerResult LowerReadPlace(const ast::Expr& place, LowerCtx& ctx) {
           if (ctx.expr_type) {
             ctx.RegisterValueType(value, ctx.expr_type(place));
           }
-          return LowerResult{MakeIR(std::move(read)), value};
+          IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Read, ctx);
+          return LowerResult{SeqIR({key_ir, MakeIR(std::move(read))}), value};
         } else if constexpr (std::is_same_v<T, ast::FieldAccessExpr>) {
           SPEC_RULE("Lower-ReadPlace-Field");
           auto base_result = LowerReadPlace(*node.base, ctx);
@@ -130,7 +133,8 @@ LowerResult LowerReadPlace(const ast::Expr& place, LowerCtx& ctx) {
           info.base = base_result.value;
           info.field = node.name;
           ctx.RegisterDerivedValue(field_value, info);
-          return LowerResult{base_result.ir, field_value};
+          IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Read, ctx);
+          return LowerResult{SeqIR({base_result.ir, key_ir}), field_value};
         } else if constexpr (std::is_same_v<T, ast::TupleAccessExpr>) {
           SPEC_RULE("Lower-ReadPlace-Tuple");
           auto base_result = LowerReadPlace(*node.base, ctx);
@@ -143,7 +147,8 @@ LowerResult LowerReadPlace(const ast::Expr& place, LowerCtx& ctx) {
           info.base = base_result.value;
           info.tuple_index = static_cast<std::size_t>(std::stoull(node.index.lexeme));
           ctx.RegisterDerivedValue(elem_value, info);
-          return LowerResult{base_result.ir, elem_value};
+          IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Read, ctx);
+          return LowerResult{SeqIR({base_result.ir, key_ir}), elem_value};
         } else if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
           return node.expr ? LowerReadPlace(*node.expr, ctx)
                            : LowerResult{EmptyIR(), ctx.FreshTempValue("place_attr")};
@@ -169,7 +174,8 @@ LowerResult LowerReadPlace(const ast::Expr& place, LowerCtx& ctx) {
             info.range = ToIRRange(range_result.value);
             ctx.RegisterDerivedValue(slice_value, info);
 
-            return LowerResult{SeqIR({base_result.ir, range_result.ir,
+            IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Read, ctx);
+            return LowerResult{SeqIR({base_result.ir, range_result.ir, key_ir,
                                       MakeIR(std::move(check)),
                                       PanicCheck(ctx)}),
                                slice_value};
@@ -200,7 +206,8 @@ LowerResult LowerReadPlace(const ast::Expr& place, LowerCtx& ctx) {
             }
             ctx.RegisterDerivedValue(slice_value, info);
 
-            return LowerResult{SeqIR({base_result.ir, range_result.ir,
+            IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Read, ctx);
+            return LowerResult{SeqIR({base_result.ir, range_result.ir, key_ir,
                                       MakeIR(std::move(check)),
                                       PanicCheck(ctx)}),
                                slice_value};
@@ -226,6 +233,7 @@ LowerResult LowerReadPlace(const ast::Expr& place, LowerCtx& ctx) {
           std::vector<IRPtr> seq;
           seq.push_back(base_result.ir);
           seq.push_back(index_result.ir);
+          seq.push_back(LowerImplicitKeyAccess(place, ast::KeyMode::Read, ctx));
           if (needs_check) {
             seq.push_back(MakeIR(std::move(check)));
             seq.push_back(PanicCheck(ctx));
@@ -443,12 +451,14 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
             if (allow_drop) {
               store.name = node.name;
               store.value = value;
-              return MakeIR(std::move(store));
+              IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Write, ctx);
+              return SeqIR({key_ir, MakeIR(std::move(store))});
             }
             SPEC_RULE("UpdateValid-StoreVarNoDrop");
             store_nodrop.name = node.name;
             store_nodrop.value = value;
-            return MakeIR(std::move(store_nodrop));
+            IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Write, ctx);
+            return SeqIR({key_ir, MakeIR(std::move(store_nodrop))});
           }
           if (const auto* capture = ctx.LookupCapture(node.name)) {
             SPEC_RULE(allow_drop ? "Lower-WritePlace-Ident-Capture"
@@ -463,13 +473,16 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
               IRWritePtr write;
               write.ptr = captured_ptr;
               write.value = value;
-              return SeqIR({MakeIR(std::move(load_ptr)), MakeIR(std::move(write))});
+              IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Write, ctx);
+              return SeqIR({MakeIR(std::move(load_ptr)), key_ir,
+                            MakeIR(std::move(write))});
             }
             IRWritePtr write;
             write.ptr = field_ptr;
             write.value = value;
             register_ptr_type(field_ptr, capture->value_type);
-            return MakeIR(std::move(write));
+            IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Write, ctx);
+            return SeqIR({key_ir, MakeIR(std::move(write))});
           }
 
           std::vector<std::string> full;
@@ -532,6 +545,7 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
           if (!is_noop(drop_ir)) {
             parts.push_back(drop_ir);
           }
+          parts.push_back(LowerImplicitKeyAccess(place, ast::KeyMode::Write, ctx));
           parts.push_back(MakeIR(std::move(store)));
 
           if (parts.size() == 1) {
@@ -580,7 +594,9 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
             UpdateBindingAfterFieldAssign(place, ctx);
           }
 
+          IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Write, ctx);
           return SeqIR({base_addr.ir,
+                        key_ir,
                         MakeIR(std::move(addr_marker)),
                         drop_ir,
                         MakeIR(std::move(write))});
@@ -622,7 +638,9 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
           write.ptr = ptr_value;
           write.value = value;
 
+          IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Write, ctx);
           return SeqIR({base_addr.ir,
+                        key_ir,
                         MakeIR(std::move(addr_marker)),
                         drop_ir,
                         MakeIR(std::move(write))});
@@ -677,7 +695,8 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
             addr_marker.place = LowerPlace(place, ctx);
             addr_marker.result = ptr_value;
 
-            return SeqIR({base_addr.ir, base_read_ir, range_result.ir,
+            IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Write, ctx);
+            return SeqIR({base_addr.ir, base_read_ir, range_result.ir, key_ir,
                           MakeIR(std::move(check)),
                           PanicCheck(ctx),
                           MakeIR(std::move(len_check)),
@@ -729,7 +748,8 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
             addr_marker.place = LowerPlace(place, ctx);
             addr_marker.result = ptr_value;
 
-            return SeqIR({base_addr.ir, base_read_ir, range_result.ir,
+            IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Write, ctx);
+            return SeqIR({base_addr.ir, base_read_ir, range_result.ir, key_ir,
                           MakeIR(std::move(check)),
                           PanicCheck(ctx),
                           MakeIR(std::move(len_check)),
@@ -784,6 +804,7 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
           seq.push_back(base_addr.ir);
           seq.push_back(base_read_ir);
           seq.push_back(index_result.ir);
+          seq.push_back(LowerImplicitKeyAccess(place, ast::KeyMode::Write, ctx));
           if (needs_check) {
             seq.push_back(MakeIR(std::move(check)));
             seq.push_back(PanicCheck(ctx));

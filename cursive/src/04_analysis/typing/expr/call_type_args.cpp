@@ -159,12 +159,26 @@ ExprTypeResult TypeCallTypeArgsExprImpl(const ScopeContext& ctx,
     return TypeExpr(ctx, type_ctx, inner, env);
   };
 
+  const auto arg_ctx_for = [&](const TypeRef& expected) {
+    if (!expected) {
+      return type_ctx;
+    }
+    const auto perm = PermOfType(expected);
+    if (perm == Permission::Unique) {
+      return WithSharedAccessMode(type_ctx, ast::KeyMode::Write);
+    }
+    if (perm == Permission::Shared || perm == Permission::Const) {
+      return WithSharedAccessMode(type_ctx, ast::KeyMode::Read);
+    }
+    return type_ctx;
+  };
   PlaceTypeFn type_place = [&](const ast::ExprPtr& inner) {
     return TypePlace(ctx, type_ctx, inner, env);
   };
   ArgCheckFn check_expr = [&](const ast::ExprPtr& inner,
                               const TypeRef& expected) -> ArgCheckResult {
-    const auto checked = CheckExprAgainst(ctx, type_ctx, inner, expected, env);
+    const auto checked =
+        CheckExprAgainst(ctx, arg_ctx_for(expected), inner, expected, env);
     return ArgCheckResult{checked.ok, checked.diag_id};
   };
 

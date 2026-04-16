@@ -12,6 +12,7 @@
 
 #include "05_codegen/ir/ir_model.h"
 #include "05_codegen/symbols/linkage.h"
+#include "04_analysis/keys/key_context.h"
 #include "04_analysis/typing/context.h"
 #include "04_analysis/typing/types.h"
 #include "02_source/ast/ast.h"
@@ -35,6 +36,7 @@ struct CleanupItem {
     DeferBlock,
     ReleaseRegion,
     ReleaseKeyScope,
+    ReacquireReleasedKey,
     ParallelJoin,
     RuntimeScopeExit,
   };
@@ -54,6 +56,27 @@ struct ParallelCollectItem {
   IRValue value;
   bool needs_wait = false;
   analysis::TypeRef value_type;
+};
+
+struct ActiveKeyPathInfo {
+  analysis::KeyPath path;
+  std::string encoded_path;
+  std::uint8_t mode = 0;
+};
+
+struct ActiveKeyScopeInfo {
+  std::uint64_t scope_runtime_id = 0;
+  std::string scope_name;
+  bool implicit = false;
+  std::vector<ActiveKeyPathInfo> acquired_paths;
+};
+
+enum class AccessOrdering {
+  Relaxed,
+  Acquire,
+  Release,
+  AcqRel,
+  SeqCst,
 };
 
 // CaptureAccess tracks access to a captured binding inside spawn/dispatch bodies.
@@ -216,6 +239,7 @@ struct LowerCtx {
 
   // [[dynamic]] verification scope for runtime checks (arrays, contracts, etc.)
   bool dynamic_checks = false;
+  std::optional<AccessOrdering> current_access_order;
 
   // [[log]] procedure-level instrumentation metadata.
   bool proc_log_enabled = false;
@@ -430,6 +454,10 @@ struct LowerCtx {
   // Structured concurrency capture environment for spawn/dispatch bodies
   std::optional<CaptureEnvInfo> capture_env;
 
+  // Active key scopes for nested-release lowering.
+  std::vector<ActiveKeyScopeInfo> active_key_scopes;
+  std::unordered_map<std::uint64_t, std::string> implicit_key_scope_names;
+
   // Synthetic procedures generated during lowering (spawn/dispatch wrappers)
   std::vector<ProcIR> extra_procs;
   std::uint64_t synth_proc_counter = 0;
@@ -493,6 +521,7 @@ struct LowerCtx {
   void RegisterDefer(const IRPtr& defer_ir);
   void RegisterRegionRelease(const std::string& name);
   void RegisterKeyScopeExit(const std::string& scope_name);
+  void RegisterReleasedKeyReacquire(const std::string& handle_name);
   void RegisterParallelJoin(const IRValue& parallel_ctx);
 
   // Register a temporary value for cleanup

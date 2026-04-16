@@ -105,6 +105,8 @@ void LowerCtx::PopScope() {
     return;
   }
 
+  const auto exiting_scope_id = scope_stack.back().runtime_scope_id;
+
   const auto& vars = scope_stack.back().variables;
   for (auto it = vars.rbegin(); it != vars.rend(); ++it) {
     auto map_it = binding_states.find(*it);
@@ -118,6 +120,14 @@ void LowerCtx::PopScope() {
       binding_states.erase(map_it);
     }
   }
+
+  active_key_scopes.erase(
+      std::remove_if(active_key_scopes.begin(), active_key_scopes.end(),
+                     [&](const ActiveKeyScopeInfo& scope) {
+                       return scope.scope_runtime_id == exiting_scope_id;
+                     }),
+      active_key_scopes.end());
+  implicit_key_scope_names.erase(exiting_scope_id);
 
   scope_stack.pop_back();
 }
@@ -310,6 +320,15 @@ void LowerCtx::RegisterKeyScopeExit(const std::string& scope_name) {
     CleanupItem item;
     item.kind = CleanupItem::Kind::ReleaseKeyScope;
     item.name = scope_name;
+    scope_stack.back().cleanup_items.push_back(std::move(item));
+  }
+}
+
+void LowerCtx::RegisterReleasedKeyReacquire(const std::string& handle_name) {
+  if (!scope_stack.empty()) {
+    CleanupItem item;
+    item.kind = CleanupItem::Kind::ReacquireReleasedKey;
+    item.name = handle_name;
     scope_stack.back().cleanup_items.push_back(std::move(item));
   }
 }

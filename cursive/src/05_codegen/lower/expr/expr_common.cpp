@@ -11,8 +11,11 @@
 
 #include "00_core/assert_spec.h"
 #include "04_analysis/attributes/attribute_registry.h"
+#include "04_analysis/contracts/verification.h"
+#include "04_analysis/keys/key_paths.h"
 #include "04_analysis/typing/type_expr.h"
 #include "05_codegen/layout/layout.h"
+#include "05_codegen/intrinsics/intrinsics_interface.h"
 #include "05_codegen/lower/expr/addr_of.h"
 #include "05_codegen/lower/expr/all_expr.h"
 #include "05_codegen/lower/expr/alloc_expr.h"
@@ -77,6 +80,22 @@ std::vector<std::uint8_t> EncodeU64LE(std::uint64_t value) {
   return bytes;
 }
 
+IRValue StringImmediate(std::string_view text) {
+  IRValue value;
+  value.kind = IRValue::Kind::Immediate;
+  value.name = "\"" + std::string(text) + "\"";
+  value.bytes.assign(text.begin(), text.end());
+  return value;
+}
+
+IRValue U8Immediate(std::uint8_t value) {
+  IRValue out;
+  out.kind = IRValue::Kind::Immediate;
+  out.name = std::to_string(value);
+  out.bytes = {value};
+  return out;
+}
+
 std::string FormatRangeBound(const ast::ExprPtr& expr) {
   if (!expr) {
     return "";
@@ -100,7 +119,13 @@ LowerResult LowerExprImpl(const ast::Expr& expr, LowerCtx& ctx) {
         if constexpr (std::is_same_v<T, ast::ErrorExpr>) {
           return LowerError(node, ctx);
         } else if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
-          return node.expr ? LowerExprImpl(*node.expr, ctx) : LowerResult{};
+          const auto prev_order = ctx.current_access_order;
+          if (const auto order = MemoryOrderFromAttrs(node.attrs)) {
+            ctx.current_access_order = *order;
+          }
+          auto lowered = node.expr ? LowerExprImpl(*node.expr, ctx) : LowerResult{};
+          ctx.current_access_order = prev_order;
+          return lowered;
         } else if constexpr (std::is_same_v<T, ast::LiteralExpr>) {
           return LowerLiteral(expr, node, ctx);
         } else if constexpr (std::is_same_v<T, ast::IdentifierExpr>) {
@@ -526,6 +551,312 @@ bool HasDynamicAttr(const ast::AttributeList& attrs) {
   return false;
 }
 
+bool HasMemoryOrderAttr(const ast::AttributeList& attrs) {
+  return MemoryOrderFromAttrs(attrs).has_value();
+}
+
+std::optional<AccessOrdering> MemoryOrderFromAttrs(const ast::AttributeList& attrs) {
+  for (const auto& attr : attrs) {
+    if (attr.name == analysis::attrs::kRelaxed) {
+      return AccessOrdering::Relaxed;
+    }
+    if (attr.name == analysis::attrs::kAcquire) {
+      return AccessOrdering::Acquire;
+    }
+    if (attr.name == analysis::attrs::kRelease) {
+      return AccessOrdering::Release;
+    }
+    if (attr.name == analysis::attrs::kAcqRel) {
+      return AccessOrdering::AcqRel;
+    }
+    if (attr.name == analysis::attrs::kSeqCst) {
+      return AccessOrdering::SeqCst;
+    }
+  }
+  return std::nullopt;
+}
+
+static IRPtr EmitFenceIR(ast::FenceOrder order, LowerCtx& ctx) {
+  IRFence fence;
+  fence.order = order;
+  fence.result = ctx.FreshTempValue("ordered_access_fence");
+  ctx.RegisterValueType(fence.result, analysis::MakeTypePrim("()"));
+  return MakeIR(std::move(fence));
+}
+
+bool IsSharedAccessExpr(const ast::Expr& expr, const LowerCtx& ctx) {
+  if (!ctx.expr_type) {
+    return false;
+  }
+
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
+          return node.expr ? IsSharedAccessExpr(*node.expr, ctx) : false;
+        } else if constexpr (std::is_same_v<T, ast::IdentifierExpr> ||
+                             std::is_same_v<T, ast::FieldAccessExpr> ||
+                             std::is_same_v<T, ast::TupleAccessExpr> ||
+                             std::is_same_v<T, ast::IndexAccessExpr> ||
+                             std::is_same_v<T, ast::DerefExpr>) {
+          const analysis::TypeRef type = ctx.expr_type(expr);
+          return type &&
+                 analysis::PermOfType(type) == analysis::Permission::Shared;
+        } else if constexpr (std::is_same_v<T, ast::MethodCallExpr>) {
+          if (!node.receiver) {
+            return false;
+          }
+          const analysis::TypeRef recv_type = ctx.expr_type(*node.receiver);
+          return recv_type &&
+                 analysis::PermOfType(recv_type) == analysis::Permission::Shared;
+        }
+        return false;
+      },
+      expr.node);
+}
+
+std::string EncodeLoweredKeyPath(const analysis::KeyPath& path) {
+  std::string encoded = path.root;
+  for (const auto& seg : path.segs) {
+    encoded += ".";
+    encoded += seg.is_index ? "i:" : "f:";
+    encoded += seg.name;
+  }
+  return encoded;
+}
+
+namespace {
+
+bool RuntimeKeyIndexIsStatic(const ast::ExprPtr& expr) {
+  const auto constant = analysis::EvaluateConstant(expr);
+  return constant.known;
+}
+
+bool AppendRuntimeKeySegments(const ast::Expr& expr, std::string& encoded) {
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::IdentifierExpr>) {
+          encoded = node.name;
+          return true;
+        } else if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
+          return node.expr ? AppendRuntimeKeySegments(*node.expr, encoded) : false;
+        } else if constexpr (std::is_same_v<T, ast::FieldAccessExpr>) {
+          if (!node.base || !AppendRuntimeKeySegments(*node.base, encoded)) {
+            return false;
+          }
+          encoded += ".f:";
+          encoded += node.name;
+          return true;
+        } else if constexpr (std::is_same_v<T, ast::TupleAccessExpr>) {
+          if (!node.base || !AppendRuntimeKeySegments(*node.base, encoded)) {
+            return false;
+          }
+          encoded += ".f:";
+          encoded += node.index.lexeme;
+          return true;
+        } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {
+          if (!node.base || !AppendRuntimeKeySegments(*node.base, encoded)) {
+            return false;
+          }
+          if (!RuntimeKeyIndexIsStatic(node.index)) {
+            return true;
+          }
+          encoded += ".i:";
+          encoded += FormatIndexExpr(*node.index);
+          return true;
+        }
+        return false;
+      },
+      expr.node);
+}
+
+std::string EncodeRuntimeSharedAccessPath(const ast::Expr& expr) {
+  std::string encoded;
+  if (!AppendRuntimeKeySegments(expr, encoded)) {
+    return "";
+  }
+  return encoded;
+}
+
+}  // namespace
+
+ast::ExprPtr AliasExprPtr(const ast::Expr& expr) {
+  return ast::ExprPtr(const_cast<ast::Expr*>(&expr), [](ast::Expr*) {});
+}
+
+bool KeyModeSufficient(std::uint8_t held, ast::KeyMode required) {
+  return held == 1u || required == ast::KeyMode::Read;
+}
+
+bool HasCoveringActiveKey(const analysis::KeyPath& path,
+                          ast::KeyMode required,
+                          const LowerCtx& ctx) {
+  for (auto scope_it = ctx.active_key_scopes.rbegin();
+       scope_it != ctx.active_key_scopes.rend(); ++scope_it) {
+    for (const auto& acquired : scope_it->acquired_paths) {
+      if (!analysis::IsPrefix(acquired.path, path)) {
+        continue;
+      }
+      if (KeyModeSufficient(acquired.mode, required)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+std::pair<IRPtr, IRValue> EnsureImplicitKeyScope(LowerCtx& ctx) {
+  const auto scope_runtime_id = ctx.CurrentRuntimeScopeId().value_or(0);
+  const analysis::TypeRef key_scope_type = analysis::MakeTypeRawPtr(
+      analysis::RawPtrQual::Mut, analysis::MakeTypePrim("u8"));
+  if (scope_runtime_id == 0) {
+    return {EmptyIR(), IRValue{}};
+  }
+
+  if (const auto it = ctx.implicit_key_scope_names.find(scope_runtime_id);
+      it != ctx.implicit_key_scope_names.end()) {
+    IRValue scope_local;
+    scope_local.kind = IRValue::Kind::Local;
+    scope_local.name = it->second;
+    ctx.RegisterValueType(scope_local, key_scope_type);
+    return {EmptyIR(), scope_local};
+  }
+
+  std::vector<IRPtr> parts;
+  IRCall key_scope_enter;
+  key_scope_enter.callee.kind = IRValue::Kind::Symbol;
+  key_scope_enter.callee.name = ConcurrencySymKeyScopeEnter();
+  key_scope_enter.result = ctx.FreshTempValue("implicit_key_scope_enter");
+  ctx.RegisterValueType(key_scope_enter.result, key_scope_type);
+  IRValue key_scope_value = key_scope_enter.result;
+  parts.push_back(MakeIR(std::move(key_scope_enter)));
+
+  const std::string scope_local_name =
+      ctx.FreshTempValue("__c0_implicit_key_scope").name;
+  IRBindVar scope_bind;
+  scope_bind.name = scope_local_name;
+  scope_bind.value = key_scope_value;
+  scope_bind.type = key_scope_type;
+  parts.push_back(MakeIR(std::move(scope_bind)));
+
+  ctx.RegisterVar(scope_local_name,
+                  key_scope_type,
+                  /*has_responsibility=*/false,
+                  /*is_immovable=*/true,
+                  analysis::ProvenanceKind::Bottom);
+  ctx.RegisterKeyScopeExit(scope_local_name);
+  ctx.implicit_key_scope_names.emplace(scope_runtime_id, scope_local_name);
+  ctx.active_key_scopes.push_back(
+      ActiveKeyScopeInfo{scope_runtime_id, scope_local_name, true, {}});
+
+  IRValue scope_local;
+  scope_local.kind = IRValue::Kind::Local;
+  scope_local.name = scope_local_name;
+  ctx.RegisterValueType(scope_local, key_scope_type);
+  return {SeqIR(std::move(parts)), scope_local};
+}
+
+IRPtr LowerImplicitKeyAccess(const ast::Expr& expr,
+                             ast::KeyMode mode,
+                             LowerCtx& ctx) {
+  if (!ctx.expr_type) {
+    return EmptyIR();
+  }
+
+  const auto expr_type = ctx.expr_type(expr);
+  if (analysis::PermOfType(expr_type) != analysis::Permission::Shared) {
+    return EmptyIR();
+  }
+
+  const auto expr_ptr = AliasExprPtr(expr);
+  if (!analysis::IsPlaceExpression(expr_ptr)) {
+    return EmptyIR();
+  }
+
+  const auto built = analysis::BuildKeyPath(expr_ptr);
+  if (!built.success) {
+    return EmptyIR();
+  }
+
+  if (HasCoveringActiveKey(built.path, mode, ctx)) {
+    return EmptyIR();
+  }
+
+  auto [scope_setup, scope_local] = EnsureImplicitKeyScope(ctx);
+  if (scope_local.name.empty()) {
+    ctx.ReportCodegenFailure();
+    return EmptyIR();
+  }
+
+  std::string encoded_path = EncodeRuntimeSharedAccessPath(expr);
+  if (encoded_path.empty()) {
+    encoded_path = EncodeLoweredKeyPath(built.path);
+  }
+  const std::uint8_t mode_byte = mode == ast::KeyMode::Write ? 1u : 0u;
+
+  IRCall check;
+  check.callee.kind = IRValue::Kind::Symbol;
+  check.callee.name = ConcurrencySymKeyCheckConflict();
+  check.args.push_back(StringImmediate(encoded_path));
+  check.args.push_back(U8Immediate(mode_byte));
+  check.result = ctx.FreshTempValue("implicit_key_conflict_check");
+  ctx.RegisterValueType(check.result, analysis::MakeTypePrim("()"));
+
+  IRCall acquire;
+  acquire.callee.kind = IRValue::Kind::Symbol;
+  acquire.callee.name = ConcurrencySymKeyAcquire();
+  acquire.args.push_back(scope_local);
+  acquire.args.push_back(StringImmediate(encoded_path));
+  acquire.args.push_back(U8Immediate(mode_byte));
+  acquire.result = ctx.FreshTempValue("implicit_key_acquire");
+  ctx.RegisterValueType(acquire.result, analysis::MakeTypePrim("()"));
+
+  for (auto scope_it = ctx.active_key_scopes.rbegin();
+       scope_it != ctx.active_key_scopes.rend(); ++scope_it) {
+    if (scope_it->scope_name != scope_local.name) {
+      continue;
+    }
+    scope_it->acquired_paths.push_back(
+        ActiveKeyPathInfo{built.path, encoded_path, mode_byte});
+    break;
+  }
+
+  return SeqIR({scope_setup, MakeIR(std::move(check)), MakeIR(std::move(acquire))});
+}
+
+LowerResult ApplyEffectiveOrdering(const ast::Expr& expr,
+                                   LowerResult result,
+                                   LowerCtx& ctx) {
+  if (!IsSharedAccessExpr(expr, ctx)) {
+    return result;
+  }
+
+  const AccessOrdering order =
+      ctx.current_access_order.value_or(AccessOrdering::SeqCst);
+  switch (order) {
+    case AccessOrdering::Relaxed:
+      return result;
+    case AccessOrdering::Acquire:
+      result.ir = SeqIR({result.ir, EmitFenceIR(ast::FenceOrder::Acquire, ctx)});
+      return result;
+    case AccessOrdering::Release:
+      result.ir = SeqIR({EmitFenceIR(ast::FenceOrder::Release, ctx), result.ir});
+      return result;
+    case AccessOrdering::AcqRel:
+      result.ir = SeqIR({EmitFenceIR(ast::FenceOrder::Release, ctx),
+                         result.ir,
+                         EmitFenceIR(ast::FenceOrder::Acquire, ctx)});
+      return result;
+    case AccessOrdering::SeqCst:
+    default:
+      result.ir = SeqIR({EmitFenceIR(ast::FenceOrder::SeqCst, ctx),
+                         result.ir,
+                         EmitFenceIR(ast::FenceOrder::SeqCst, ctx)});
+      return result;
+  }
+}
+
 std::string FormatRangeExpr(const ast::RangeExpr& expr) {
   const std::string lo = FormatRangeBound(expr.lhs);
   const std::string hi = FormatRangeBound(expr.rhs);
@@ -781,6 +1112,8 @@ LowerResult LowerExpr(const ast::Expr& expr, LowerCtx& ctx) {
       refine_check_ir && !std::holds_alternative<IROpaque>(refine_check_ir->node)) {
     result.ir = SeqIR({result.ir, refine_check_ir});
   }
+
+  result = ApplyEffectiveOrdering(expr, std::move(result), ctx);
 
   return result;
 }

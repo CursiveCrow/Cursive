@@ -1250,12 +1250,10 @@ void ClosureCaptureCollector::VisitStmt(const ast::Stmt& stmt) {
             CollectPatNames(*node.binding.pat, names);
           }
           locals.AddAll(names);
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt>) {
-          VisitExpr(node.init);
-          locals.Add(IdKeyOf(node.name));
-        } else if constexpr (std::is_same_v<T, ast::ShadowVarStmt>) {
-          VisitExpr(node.init);
-          locals.Add(IdKeyOf(node.name));
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt is a compile-time alias; no runtime expression.
+          // The alias name is still observable in the local scope.
+          locals.Add(IdKeyOf(node.alias));
         } else if constexpr (std::is_same_v<T, ast::AssignStmt>) {
           VisitExpr(node.place);
           VisitExpr(node.value);
@@ -1623,36 +1621,6 @@ static std::optional<TypeRef> BindTypeForBinding(const ScopeContext& ctx,
     return lowered.type;
   }
   return InferBindType(ctx, env, binding.init, diag_id);
-}
-
-static std::optional<TypeRef> BindTypeForShadow(const ScopeContext& ctx,
-                                                const TypeEnv& env,
-                                                const ast::ShadowLetStmt& stmt,
-                                                std::optional<std::string_view>& diag_id) {
-  if (stmt.type_opt) {
-    const auto lowered = LocalLowerType(ctx, stmt.type_opt);
-    if (!lowered.ok) {
-      diag_id = lowered.diag_id;
-      return std::nullopt;
-    }
-    return lowered.type;
-  }
-  return InferBindType(ctx, env, stmt.init, diag_id);
-}
-
-static std::optional<TypeRef> BindTypeForShadow(const ScopeContext& ctx,
-                                                const TypeEnv& env,
-                                                const ast::ShadowVarStmt& stmt,
-                                                std::optional<std::string_view>& diag_id) {
-  if (stmt.type_opt) {
-    const auto lowered = LocalLowerType(ctx, stmt.type_opt);
-    if (!lowered.ok) {
-      diag_id = lowered.diag_id;
-      return std::nullopt;
-    }
-    return lowered.type;
-  }
-  return InferBindType(ctx, env, stmt.init, diag_id);
 }
 
 static std::map<IdKey, TypeRef> BindTypeMapFromBindings(
@@ -3263,92 +3231,12 @@ static BindResult BindStmt(const ScopeContext& ctx,
           }
           SPEC_RULE("B-LetVar");
           return OkResult(current);
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt>) {
-          if (const auto invalid_log_ident =
-                  ValidateLogExpectedAlive(node.attrs, in)) {
-            return ErrorResult(*invalid_log_ident, node.span);
-          }
-          std::optional<std::string_view> diag_id;
-          const auto bind_type = BindTypeForShadow(ctx, in.env, node, diag_id);
-          if (!bind_type.has_value()) {
-            return ErrorResult(diag_id, node.span);
-          }
-          if (PermOfType(*bind_type) == Permission::Unique &&
-              IsPlaceExpr(node.init) && !IsMoveExpr(node.init)) {
-            SPEC_RULE("B-ShadowLet-UniqueNonMove-Err");
-            return ErrorResult(std::string_view("B-ShadowLet-UniqueNonMove-Err"), std::optional<core::Span>(node.init->span));
-          }
-          auto init_res = BindExpr(ctx, node.init, in);
-          if (!init_res.ok) {
-            return init_res;
-          }
-          BindStateBundle current = std::move(init_res.state);
-          DowngradeUniqueBind_inplace(ctx, current.env, current.perms,
-                                      node.init, *bind_type);
-          ConsumeOnMove_inplace(current.binds, node.init);
-
-          std::map<IdKey, TypeRef> type_map;
-          type_map.emplace(IdKeyOf(node.name), *bind_type);
-          const auto info =
-              BindInfoMap(type_map, RespOfInit(node.init), Movability::Mov,
-                          ast::Mutability::Let);
-          if (!ShadowAll_B_inplace(current.binds, info)) {
-            return ErrorResult(std::nullopt, node.span);
-          }
-
-          const auto key = IdKeyOf(node.name);
-          for (auto it = current.env.scopes.rbegin(); it != current.env.scopes.rend(); ++it) {
-            const auto found = it->find(key);
-            if (found != it->end()) {
-              found->second = TypeBinding{ast::Mutability::Let, *bind_type};
-              break;
-            }
-          }
-          SPEC_RULE("B-ShadowLet");
-          return OkResult(current);
-        } else if constexpr (std::is_same_v<T, ast::ShadowVarStmt>) {
-          if (const auto invalid_log_ident =
-                  ValidateLogExpectedAlive(node.attrs, in)) {
-            return ErrorResult(*invalid_log_ident, node.span);
-          }
-          std::optional<std::string_view> diag_id;
-          const auto bind_type = BindTypeForShadow(ctx, in.env, node, diag_id);
-          if (!bind_type.has_value()) {
-            return ErrorResult(diag_id, node.span);
-          }
-          if (PermOfType(*bind_type) == Permission::Unique &&
-              IsPlaceExpr(node.init) && !IsMoveExpr(node.init)) {
-            SPEC_RULE("B-ShadowVar-UniqueNonMove-Err");
-            return ErrorResult(std::string_view("B-ShadowVar-UniqueNonMove-Err"), std::optional<core::Span>(node.init->span));
-          }
-          auto init_res = BindExpr(ctx, node.init, in);
-          if (!init_res.ok) {
-            return init_res;
-          }
-          BindStateBundle current = std::move(init_res.state);
-          DowngradeUniqueBind_inplace(ctx, current.env, current.perms,
-                                      node.init, *bind_type);
-          ConsumeOnMove_inplace(current.binds, node.init);
-
-          std::map<IdKey, TypeRef> type_map;
-          type_map.emplace(IdKeyOf(node.name), *bind_type);
-          const auto info =
-              BindInfoMap(type_map, RespOfInit(node.init), Movability::Mov,
-                          ast::Mutability::Var);
-          if (!ShadowAll_B_inplace(current.binds, info)) {
-            return ErrorResult(std::nullopt, node.span);
-          }
-
-          const auto key = IdKeyOf(node.name);
-          for (auto it = current.env.scopes.rbegin(); it != current.env.scopes.rend(); ++it) {
-            const auto found = it->find(key);
-            if (found != it->end()) {
-              found->second = TypeBinding{ast::Mutability::Var, *bind_type};
-              break;
-            }
-          }
-          SPEC_RULE("B-ShadowVar");
-          return OkResult(current);
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt is a compile-time alias; it introduces no new
+          // storage, no permissions, and no init expression. Borrow/bind
+          // state is unchanged.
+          (void)node;
+          return OkResult(in);
         } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
                              std::is_same_v<T, ast::CompoundAssignStmt>) {
           const auto place = node.place;

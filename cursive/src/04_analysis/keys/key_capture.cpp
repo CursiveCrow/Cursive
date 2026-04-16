@@ -394,13 +394,9 @@ void CollectIndexAccessesInStmt(const ast::Stmt& stmt,
     return;
   }
 
-  if (const auto* shadow_let = std::get_if<ast::ShadowLetStmt>(&stmt)) {
-    CollectIndexAccessesInExpr(shadow_let->init, accesses);
-    return;
-  }
-
-  if (const auto* shadow_var = std::get_if<ast::ShadowVarStmt>(&stmt)) {
-    CollectIndexAccessesInExpr(shadow_var->init, accesses);
+  if (const auto* using_local = std::get_if<ast::UsingLocalStmt>(&stmt)) {
+    // UsingLocalStmt is a compile-time alias; no runtime expression.
+    (void)using_local;
     return;
   }
 

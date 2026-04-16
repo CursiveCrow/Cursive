@@ -42,8 +42,6 @@
 #include "05_codegen/lower/stmt/unsafe_block_stmt.h"
 #include "05_codegen/lower/stmt/error_stmt.h"
 #include "05_codegen/lower/stmt/key_block_stmt.h"
-#include "05_codegen/lower/stmt/shadow_let_stmt.h"
-#include "05_codegen/lower/stmt/shadow_var_stmt.h"
 #include "05_codegen/lower/expr/expr_common.h"
 
 namespace cursive::codegen {
@@ -317,10 +315,8 @@ IRPtr LowerStmt(const ast::Stmt& stmt, LowerCtx& ctx) {
           return LowerLetStmt(node, ctx);
         } else if constexpr (std::is_same_v<T, ast::VarStmt>) {
           return LowerVarStmt(node, ctx);
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt>) {
-          return LowerShadowLetStmt(node, ctx);
-        } else if constexpr (std::is_same_v<T, ast::ShadowVarStmt>) {
-          return LowerShadowVarStmt(node, ctx);
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          return LowerUsingLocalStmt(node, ctx);
         } else if constexpr (std::is_same_v<T, ast::AssignStmt>) {
           return LowerAssignStmt(node, ctx);
         } else if constexpr (std::is_same_v<T, ast::CompoundAssignStmt>) {

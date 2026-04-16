@@ -172,19 +172,6 @@ bool FieldVisible(const ScopeContext& ctx,
   if (declaring_module == current) {
     return true;  // Same module: both protected and private are visible
   }
-  if (vis == ast::Visibility::Protected) {
-    // Check if current module is a submodule of the declaring module
-    if (current.size() > declaring_module.size()) {
-      bool is_sub = true;
-      for (std::size_t i = 0; i < declaring_module.size(); ++i) {
-        if (declaring_module[i] != current[i]) {
-          is_sub = false;
-          break;
-        }
-      }
-      return is_sub;
-    }
-  }
   return false;
 }
 

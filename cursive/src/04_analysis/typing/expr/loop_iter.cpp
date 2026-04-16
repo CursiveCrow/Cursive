@@ -210,7 +210,9 @@ static std::optional<std::string_view> ValidateLoopInvariantExpr(
     return invariant_check.diag_id;
   }
 
-  const auto inv_type = TypeExpr(ctx, type_ctx, invariant.predicate, env);
+  const auto inv_type = TypeExpr(
+      ctx, WithSharedAccessMode(type_ctx, ast::KeyMode::Read),
+      invariant.predicate, env);
   if (!inv_type.ok) {
     return inv_type.diag_id;
   }
@@ -388,7 +390,8 @@ ExprTypeResult TypeLoopIterExpr(const ScopeContext& ctx,
   }
 
   // 1. Type the iterator expression
-  const auto iter_type = type_expr(expr.iter);
+  const auto iter_type = TypeExpr(
+      ctx, WithSharedAccessMode(type_ctx, ast::KeyMode::Read), expr.iter, env);
   if (!iter_type.ok) {
     result.diag_id = iter_type.diag_id;
     return result;
@@ -488,6 +491,16 @@ ExprTypeResult TypeLoopIterExpr(const ScopeContext& ctx,
   // 8. Create loop context for body typing
   StmtTypeContext loop_ctx = type_ctx;
   loop_ctx.loop_flag = LoopFlag::Loop;
+  std::unordered_map<IdKey, ast::ExprPtr> loop_iteration_ranges;
+  if (type_ctx.loop_iteration_ranges) {
+    loop_iteration_ranges = *type_ctx.loop_iteration_ranges;
+  }
+  if (IsLoopRangeType(iter_type.type)) {
+    for (const auto& [name, _] : pat_result.bindings) {
+      loop_iteration_ranges[IdKeyOf(name)] = expr.iter;
+    }
+  }
+  loop_ctx.loop_iteration_ranges = &loop_iteration_ranges;
 
   // Ensure nested expressions in the loop body type-check with loop context.
   ExprTypeFn loop_type_expr = [&](const ast::ExprPtr& inner) {

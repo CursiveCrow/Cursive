@@ -358,6 +358,76 @@ static bool KeyModeSufficient(ast::KeyMode held, ast::KeyMode required) {
   return held == required;
 }
 
+static std::optional<ast::KeyMode> CoveringKeyMode(
+    const StmtTypeContext& type_ctx,
+    const KeyPath& path) {
+  std::optional<ast::KeyMode> best;
+  for (const auto& held : type_ctx.held_key_paths) {
+    if (!KeyPathContains(held.path, path)) {
+      continue;
+    }
+    if (!best.has_value() || held.mode == ast::KeyMode::Write) {
+      best = held.mode;
+    }
+  }
+  return best;
+}
+
+static bool IsUniqueParamSurface(const ast::TypePtr& type) {
+  if (!type) {
+    return false;
+  }
+  return std::visit(
+      [](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::TypePermType>) {
+          return node.perm == ast::TypePerm::Unique;
+        } else if constexpr (std::is_same_v<T, ast::TypeRefine>) {
+          return IsUniqueParamSurface(node.base);
+        }
+        return false;
+      },
+      type->node);
+}
+
+static std::optional<std::string_view> CheckSharedArgWriteRequirement(
+    const ScopeContext& ctx,
+    const StmtTypeContext& type_ctx,
+    const TypeEnv& env,
+    const ast::ProcedureDecl& proc,
+    const std::vector<ast::Arg>& args,
+    const ExprTypeFn& type_expr) {
+  for (std::size_t i = 0; i < args.size() && i < proc.params.size(); ++i) {
+    if (!IsUniqueParamSurface(proc.params[i].type)) {
+      continue;
+    }
+
+    const auto arg_expr = args[i].moved ? MovedArgExpr(args[i]) : args[i].value;
+    const auto arg_typed = type_expr(arg_expr);
+    if (!arg_typed.ok || !arg_typed.type ||
+        PermOfType(arg_typed.type) != Permission::Shared) {
+      continue;
+    }
+
+    const auto built = BuildKeyPath(arg_expr);
+    if (!built.success) {
+      continue;
+    }
+
+    const auto covering_mode = CoveringKeyMode(type_ctx, built.path);
+    if (!covering_mode.has_value()) {
+      return "E-CON-0001";
+    }
+    if (*covering_mode != ast::KeyMode::Write) {
+      return "E-CON-0005";
+    }
+  }
+
+  (void)ctx;
+  (void)env;
+  return std::nullopt;
+}
+
 static bool HeldPrefixExistsForPath(
     const std::vector<HeldKeyTypingInfo>& held_key_paths,
     const KeyPath& path,
@@ -780,15 +850,16 @@ class ProcedureKeyAccessSummaryBuilder {
                 aliases.erase(*bind_name);
               }
             }
-          } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                               std::is_same_v<T, ast::ShadowVarStmt>) {
-            VisitExpr(node.init, shared_params, aliases, summary);
-            if (const auto formal_ref =
-                    ResolveFormalPath(node.init, shared_params, aliases);
-                formal_ref.has_value()) {
-              aliases[IdKeyOf(node.name)] = *formal_ref;
+          } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+            // UsingLocalStmt is a compile-time alias; no runtime expression.
+            // Any formal-path alias information attached to `source` carries
+            // through to `alias` transparently.
+            const auto alias_key = IdKeyOf(node.alias);
+            const auto source_key = IdKeyOf(node.source);
+            if (const auto it = aliases.find(source_key); it != aliases.end()) {
+              aliases[alias_key] = it->second;
             } else {
-              aliases.erase(IdKeyOf(node.name));
+              aliases.erase(alias_key);
             }
           } else if constexpr (std::is_same_v<T, ast::ExprStmt>) {
             VisitExpr(node.value, shared_params, aliases, summary);
@@ -2407,12 +2478,26 @@ ExprTypeResult TypeCallExprImpl(const ScopeContext& ctx,
     }
   }
 
+  const auto arg_ctx_for = [&](const TypeRef& expected) {
+    if (!expected) {
+      return type_ctx;
+    }
+    const auto perm = PermOfType(expected);
+    if (perm == Permission::Unique) {
+      return WithSharedAccessMode(type_ctx, ast::KeyMode::Write);
+    }
+    if (perm == Permission::Shared || perm == Permission::Const) {
+      return WithSharedAccessMode(type_ctx, ast::KeyMode::Read);
+    }
+    return type_ctx;
+  };
   PlaceTypeFn type_place = [&](const ast::ExprPtr& inner) {
     return TypePlace(ctx, type_ctx, inner, env);
   };
   ArgCheckFn check_expr = [&](const ast::ExprPtr& inner,
                               const TypeRef& expected) -> ArgCheckResult {
-    const auto checked = CheckExprAgainst(ctx, type_ctx, inner, expected, env);
+    const auto checked =
+        CheckExprAgainst(ctx, arg_ctx_for(expected), inner, expected, env);
     return ArgCheckResult{checked.ok, checked.diag_id};
   };
 
@@ -2422,6 +2507,7 @@ ExprTypeResult TypeCallExprImpl(const ScopeContext& ctx,
     r.diag_id = "E-CTE-0034";
     return r;
   }
+  const auto proc_lookup = LookupProcedureForCallee(ctx, node.callee);
 
   // Handle generic procedure calls (section 13.1.2 T-Generic-Call)
   if (!node.generic_args.empty()) {
@@ -2462,6 +2548,13 @@ ExprTypeResult TypeCallExprImpl(const ScopeContext& ctx,
     if (const auto pre_diag = CheckCallSitePrecondition(ctx, type_ctx, node)) {
       r.diag_id = *pre_diag;
       return r;
+    }
+    if (proc_lookup && proc_lookup->proc) {
+      if (const auto key_diag = CheckSharedArgWriteRequirement(
+              ctx, type_ctx, env, *proc_lookup->proc, node.args, type_expr)) {
+        r.diag_id = *key_diag;
+        return r;
+      }
     }
     if (const auto foreign_diag = CheckForeignStaticAssumes(ctx, type_ctx, node)) {
       r.diag_id = *foreign_diag;
@@ -2513,6 +2606,13 @@ ExprTypeResult TypeCallExprImpl(const ScopeContext& ctx,
       r.diag_id = *pre_diag;
       return r;
     }
+    if (lookup && lookup->proc) {
+      if (const auto key_diag = CheckSharedArgWriteRequirement(
+              ctx, type_ctx, env, *lookup->proc, node.args, type_expr)) {
+        r.diag_id = *key_diag;
+        return r;
+      }
+    }
     if (const auto foreign_diag = CheckForeignStaticAssumes(ctx, type_ctx, node)) {
       r.diag_id = *foreign_diag;
       return r;
@@ -2553,6 +2653,14 @@ ExprTypeResult TypeCallExprImpl(const ScopeContext& ctx,
   if (const auto pre_diag = CheckCallSitePrecondition(ctx, type_ctx, node)) {
     r.diag_id = *pre_diag;
     return r;
+  }
+  if (const auto lookup = LookupProcedureForCallee(ctx, node.callee);
+      lookup && lookup->proc) {
+    if (const auto key_diag = CheckSharedArgWriteRequirement(
+            ctx, type_ctx, env, *lookup->proc, node.args, type_expr)) {
+      r.diag_id = *key_diag;
+      return r;
+    }
   }
   if (const auto foreign_diag = CheckForeignStaticAssumes(ctx, type_ctx, node)) {
     r.diag_id = *foreign_diag;

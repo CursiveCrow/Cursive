@@ -114,6 +114,8 @@ void ApplyBindingMetadata(TypeEnv& env,
                           const std::vector<IdKey>& names,
                           const std::optional<TypeBinding::ClosureCaptureInfo>& closure_info,
                           const std::optional<ProvStmtTrackResult>& provenance,
+                          bool derived_from_shared,
+                          bool stale_ok,
                           bool deprecated,
                           const std::optional<std::string>& deprecated_message) {
   if (env.scopes.empty()) {
@@ -127,6 +129,9 @@ void ApplyBindingMetadata(TypeEnv& env,
     }
     it->second.deprecated = deprecated;
     it->second.deprecated_message = deprecated_message;
+    it->second.derived_from_shared = derived_from_shared;
+    it->second.stale_ok = stale_ok;
+    it->second.stale_after_release = false;
     if (closure_info.has_value() && names.size() == 1) {
       it->second.closure_capture_info = *closure_info;
     }
@@ -156,7 +161,26 @@ StmtTypeResult TypeVarStmt(const ScopeContext& ctx,
   const bool binding_deprecated =
       HasAttribute(binding.attrs, ::cursive::analysis::attrs::kDeprecated);
   const auto deprecated_message = NormalizeDeprecatedMessage(binding.attrs);
+  const bool stale_ok =
+      HasAttribute(binding.attrs, ::cursive::analysis::attrs::kStaleOk);
   const auto ann_type = ast::BindingAnnotationTypeOpt(binding);
+  const StmtTypeContext read_ctx =
+      WithSharedAccessMode(type_ctx, ast::KeyMode::Read);
+  const ExprTypeFn read_type_expr = [&](const ast::ExprPtr& inner) {
+    return TypeExpr(ctx, read_ctx, inner, env);
+  };
+  const PlaceTypeFn read_type_place = [&](const ast::ExprPtr& inner) {
+    return TypePlace(ctx, read_ctx, inner, env);
+  };
+  const IdentTypeFn read_type_ident = [&](std::string_view name) {
+    if (const auto binding = BindOf(env, name)) {
+      ExprTypeResult local;
+      local.ok = true;
+      local.type = binding->type;
+      return local;
+    }
+    return type_ident(name);
+  };
 
   // Case 1: Type annotation provided
   if (ann_type) {
@@ -168,13 +192,14 @@ StmtTypeResult TypeVarStmt(const ScopeContext& ctx,
 
     // Check init expression against annotated type
     const auto check =
-        CheckExprAgainst(ctx, type_ctx, binding.init, ann.type, env);
+        CheckExprAgainst(ctx, read_ctx, binding.init, ann.type, env);
     const bool unique_move_ok =
         IsUniqueMoveInitCompatible(ann.type, binding.init, type_place);
     if (!check.ok && !unique_move_ok) {
       if (core::IsDebugEnabled("sema") || core::IsDebugEnabled("pipeline")) {
         const auto inferred_dbg =
-            InferExpr(ctx, binding.init, type_expr, type_place, type_ident);
+            InferExpr(ctx, binding.init, read_type_expr, read_type_place,
+                      read_type_ident);
         if (inferred_dbg.ok) {
           std::fprintf(stderr,
                        "[var-ann-check-fail] %s:%zu:%zu expected=%s inferred=%s diag=%s\n",
@@ -239,7 +264,10 @@ StmtTypeResult TypeVarStmt(const ScopeContext& ctx,
     if (tracked.ok) {
       binding_provenance = tracked;
     }
+    const bool derived_from_shared =
+        ExprNeedsKeyAccess(ctx, read_ctx, binding.init, env);
     ApplyBindingMetadata(out_env, names, closure_info, binding_provenance,
+                         derived_from_shared, stale_ok,
                          binding_deprecated, deprecated_message);
 
     SPEC_RULE("T-VarStmt-Ann");
@@ -248,8 +276,9 @@ StmtTypeResult TypeVarStmt(const ScopeContext& ctx,
 
   // Case 2: Type inference
   ConstraintSet constraints;
-  const auto inferred = InferExpr(ctx, binding.init, type_expr, type_place,
-                                  type_ident, &constraints);
+  const auto inferred = InferExpr(ctx, binding.init, read_type_expr,
+                                  read_type_place, read_type_ident,
+                                  &constraints);
   if (!inferred.ok) {
     if (inferred.diag_id.has_value()) {
       return {false, inferred.diag_id, {}, {}, inferred.diag_detail};
@@ -312,13 +341,16 @@ StmtTypeResult TypeVarStmt(const ScopeContext& ctx,
   }
 
   TypeEnv out_env = std::move(intro.env);
-  std::optional<ProvStmtTrackResult> binding_provenance;
-  const auto tracked = TrackBindingProvenance(ctx, binding, env);
-  if (tracked.ok) {
-    binding_provenance = tracked;
-  }
-  ApplyBindingMetadata(out_env, names, closure_info, binding_provenance,
-                       binding_deprecated, deprecated_message);
+    std::optional<ProvStmtTrackResult> binding_provenance;
+    const auto tracked = TrackBindingProvenance(ctx, binding, env);
+    if (tracked.ok) {
+      binding_provenance = tracked;
+    }
+    const bool derived_from_shared =
+        ExprNeedsKeyAccess(ctx, read_ctx, binding.init, env);
+    ApplyBindingMetadata(out_env, names, closure_info, binding_provenance,
+                         derived_from_shared, stale_ok,
+                         binding_deprecated, deprecated_message);
 
   SPEC_RULE("T-VarStmt-Infer");
   return {true, std::nullopt, std::move(out_env), {}};

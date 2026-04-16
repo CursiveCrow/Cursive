@@ -175,8 +175,7 @@ ExprKind(_) = ⊥
 
 StmtKind(LetStmt(_)) = `let`
 StmtKind(VarStmt(_)) = `var`
-StmtKind(ShadowLetStmt(_, _, _)) = `shadow`
-StmtKind(ShadowVarStmt(_, _, _)) = `shadow`
+StmtKind(UsingLocalStmt(_, _, _)) = `using`
 StmtKind(AssignStmt(_, _)) = `assign`
 StmtKind(CompoundAssignStmt(_, _, _)) = `compound_assign`
 StmtKind(DeferStmt(_)) = `defer`
@@ -2073,7 +2072,7 @@ Sensitive(c) ⇔ c ∈ {U+202A … U+202E, U+2066 … U+2069, U+200C, U+200D}
 #### 4.2.3 Reserved Lexemes
 
 **Reserved.**
-Reserved = {`all`, `as`, `break`, `class`, `comptime`, `continue`, `derive`, `dispatch`, `else`, `enum`, `false`, `defer`, `frame`, `from`, `if`, `imm`, `import`, `internal`, `let`, `loop`, `modal`, `move`, `mut`, `null`, `parallel`, `private`, `procedure`, `public`, `quote`, `race`, `record`, `region`, `return`, `shadow`, `shared`, `spawn`, `sync`, `transition`, `transmute`, `true`, `type`, `unique`, `unsafe`, `var`, `widen`, `using`, `yield`, `const`, `override`}
+Reserved = {`all`, `as`, `break`, `class`, `comptime`, `continue`, `derive`, `dispatch`, `else`, `enum`, `false`, `defer`, `frame`, `from`, `if`, `imm`, `import`, `internal`, `let`, `loop`, `modal`, `move`, `mut`, `null`, `parallel`, `private`, `procedure`, `public`, `quote`, `race`, `record`, `region`, `return`, `shared`, `spawn`, `sync`, `transition`, `transmute`, `true`, `type`, `unique`, `unsafe`, `var`, `widen`, `using`, `yield`, `const`, `override`}
 
 FutureReserved = ∅
 
@@ -2951,7 +2950,7 @@ Tok(P) ≠ EOF    Γ ⊢ ParseItem(P) ⇓ (P_1, it)    Γ ⊢ ParseItems(P_1) �
 StmtTerm = {Punctuator(";"), Newline}
 IsTerm(t) ⇔ t ∈ StmtTerm
 
-ReqTerm(s) ⇔ s ∈ {LetStmt(_), VarStmt(_), ShadowLetStmt(_), ShadowVarStmt(_), AssignStmt(_, _), CompoundAssignStmt(_, _, _), ExprStmt(_)}
+ReqTerm(s) ⇔ s ∈ {LetStmt(_), VarStmt(_), UsingLocalStmt(_, _, _), AssignStmt(_, _), CompoundAssignStmt(_, _, _), ExprStmt(_)}
 
 **(ConsumeTerminatorOpt-Req-Yes)**
 ReqTerm(s)    IsTerm(Tok(P))
@@ -3644,7 +3643,6 @@ Update_B([σ] ++ 𝔅', x, info) =
 Update_B([], x, info) = ⊥
 
 Intro_B([σ] ++ 𝔅', x, info) = [σ[x ↦ info]] ++ 𝔅'
-ShadowIntro_B(𝔅, x, info) = Intro_B(𝔅, x, info)
 
 #### 6.3.2 Permission Activity State
 
@@ -3817,9 +3815,7 @@ InitExpr(⟨_, _, _, init, _⟩) = init
 
 BindInitScope(e) = BindScope(s) ⇔
   (s = LetStmt(binding) ∧ InitExpr(binding) = e) ∨
-  (s = VarStmt(binding) ∧ InitExpr(binding) = e) ∨
-  (s = ShadowLetStmt(_, _, e)) ∨
-  (s = ShadowVarStmt(_, _, e))
+  (s = VarStmt(binding) ∧ InitExpr(binding) = e)
 
 TempScope(e) =
   { BindInitScope(e)            if BindInitScope(e) ≠ ⊥
@@ -3848,8 +3844,7 @@ OptList(e) = [e]    if e ≠ ⊥
 
 StmtExprs(LetStmt(⟨_, _, _, init, _⟩)) = [init]
 StmtExprs(VarStmt(⟨_, _, _, init, _⟩)) = [init]
-StmtExprs(ShadowLetStmt(_, _, init)) = [init]
-StmtExprs(ShadowVarStmt(_, _, init)) = [init]
+StmtExprs(UsingLocalStmt(_, _, _)) = []
 StmtExprs(AssignStmt(p, e)) = [e, p]
 StmtExprs(CompoundAssignStmt(p, _, e)) = [p, e]
 StmtExprs(ExprStmt(e)) = [e]
@@ -3894,10 +3889,6 @@ Entries(B) = [⟨x_1, B[x_1]⟩, …, ⟨x_n, B[x_n]⟩] ⇔ [x_1, …, x_n] enu
 MapUnion(M_1, M_2) = { x ↦ (M_2[x] if x ∈ dom(M_2) else M_1[x]) | x ∈ dom(M_1) ∪ dom(M_2) }
 
 IntroAll_B([σ] ++ 𝔅', B) = [MapUnion(σ, B)] ++ 𝔅'
-
-ShadowAll_B(𝔅, B) = ShadowAll_B(𝔅, Entries(B))
-ShadowAll_B(𝔅, []) = 𝔅
-ShadowAll_B(𝔅, [⟨x, info⟩] ++ xs) = ShadowAll_B(ShadowIntro_B(𝔅, x, info), xs)
 
 BindInfoMap(f, B, mv, mut) = { x ↦ ⟨Valid, MovEff(mv, f(B[x])), mut, f(B[x])⟩ | x ∈ dom(B) }
 
@@ -4054,16 +4045,8 @@ Lookup_π([⟨S, M⟩] ++ Σ_π, x) =
 
 Intro_π([⟨S, M⟩] ++ Σ_π, x, π) = [⟨S, M[x ↦ π]⟩] ++ Σ_π
 
-ShadowIntro_π(Σ_π, x, π) =
-  { [⟨S, M[x ↦ π]⟩] ++ Σ_π'                    if Σ_π = [⟨S, M⟩] ++ Σ_π' ∧ x ∈ dom(M)
-    [⟨S, M⟩] ++ ShadowIntro_π(Σ_π', x, π)     if Σ_π = [⟨S, M⟩] ++ Σ_π' ∧ x ∉ dom(M)
-    ⊥                                          if Σ_π = [] }
-
 IntroAll_π(Σ_π, [], π) = Σ_π
 IntroAll_π(Σ_π, [x] ++ xs, π) = IntroAll_π(Intro_π(Σ_π, x, π), xs, π)
-
-ShadowAll_π(Σ_π, [], π) = Σ_π
-ShadowAll_π(Σ_π, [x] ++ xs, π) = ShadowAll_π(ShadowIntro_π(Σ_π, x, π), xs, π)
 
 ParamProvMap(params, vecπ) = { x_i ↦ π_i | params = [⟨_, x_i, _⟩], vecπ = [π_i] }
 InitProvEnv(params, vecπ, RS) = ⟨[⟨S, ParamProvMap(params, vecπ)⟩], RS⟩    (S fresh)
@@ -4544,7 +4527,7 @@ PrimTypeNames = {`i8`, `i16`, `i32`, `i64`, `i128`, `u8`, `u16`, `u32`, `u64`, `
 SpecialTypeNames = {`Self`, `Drop`, `Bitcopy`, `Clone`, `Eq`, `Hash`, `Hasher`, `Iterator`, `Step`, `FfiSafe`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, `CancelToken`, `Context`, `System`, `Network`, `ExecutionDomain`, `CpuSet`, `Priority`, `Reactor`}
 AsyncTypeNames = {`Async`, `Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`, `Tracked`}
 
-`Drop`, `Bitcopy`, `Clone`, and `FfiSafe` are reserved predicate names and are included in `SpecialTypeNames` to prevent shadowing.
+`Drop`, `Bitcopy`, `Clone`, and `FfiSafe` are reserved predicate names and are included in `SpecialTypeNames`. Reuse of these names at any scope is an error via `(Intro-Outer-Err)` (§7.2), since `UniverseBindings` is the outermost scope and contains these names.
 
 PrimTypeKeys = {IdKey(x) | x ∈ PrimTypeNames}
 SpecialTypeKeys = {IdKey(x) | x ∈ SpecialTypeNames}
@@ -4552,7 +4535,7 @@ AsyncTypeKeys = {IdKey(x) | x ∈ AsyncTypeNames}
 
 KeywordKey(n) ⇔ ∃ s. n = IdKey(s) ∧ Keyword(s)
 
-### 7.2 Name Introduction, Shadowing, and Module Validation
+### 7.2 Name Introduction and Module Validation
 
 dom(S) = keys(S)
 Scopes(Γ) = [S_cur] ++ Γ_out
@@ -4560,29 +4543,19 @@ InScope(S, x) ⇔ IdKey(x) ∈ dom(S)
 InOuter(Γ, x) ⇔ ∃ S ∈ Γ_out. InScope(S, x)
 
 **(Intro-Ok)**
-¬ InScope(S_cur, x)    ¬ InOuter(Γ, x)    ¬ ReservedId(x)    (S_cur ≠ S_module ∨ x ∉ UniverseProtected)    Scopes(Γ') = [S_cur[IdKey(x) ↦ ent]] ++ Γ_out    Project(Γ') = Project(Γ)    ResCtx(Γ') = ResCtx(Γ)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+¬ InScope(S_cur, x)    ¬ InOuter(Γ, x)    ¬ ReservedId(x)    Scopes(Γ') = [S_cur[IdKey(x) ↦ ent]] ++ Γ_out    Project(Γ') = Project(Γ)    ResCtx(Γ') = ResCtx(Γ)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Intro(x, ent) ⇓ Γ'
 
 **(Intro-Dup)**
-InScope(S_cur, x)
+InScope(S_cur, x)    c = Code(Intro-Dup)
 ──────────────────────────────────────────────
-Γ ⊢ Intro(x, ent) ⇑
-
-**(Intro-Shadow-Required)**
-¬ InScope(S_cur, x)    InOuter(Γ, x)    c = Code(Intro-Shadow-Required)
-────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ Intro(x, ent) ⇑ c
 
-**(Shadow-Ok)**
-¬ InScope(S_cur, x)    InOuter(Γ, x)    ¬ ReservedId(x)    (S_cur ≠ S_module ∨ x ∉ UniverseProtected)    Scopes(Γ') = [S_cur[IdKey(x) ↦ ent]] ++ Γ_out    Project(Γ') = Project(Γ)    ResCtx(Γ') = ResCtx(Γ)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ShadowIntro(x, ent) ⇓ Γ'
-
-**(Shadow-Unnecessary)**
-¬ InScope(S_cur, x)    ¬ InOuter(Γ, x)    c = Code(Shadow-Unnecessary)
+**(Intro-Outer-Err)**
+¬ InScope(S_cur, x)    InOuter(Γ, x)    c = Code(Intro-Outer-Err)
 ────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ShadowIntro(x, ent) ⇑ c
+Γ ⊢ Intro(x, ent) ⇑ c
 
 **(Intro-Reserved-Gen-Err)**
 ReservedGen(x)    c = Code(Intro-Reserved-Gen-Err)
@@ -4594,23 +4567,41 @@ ReservedCursive(x)    c = Code(Intro-Reserved-Cursive-Err)
 ──────────────────────────────────────────────────────────
 Γ ⊢ Intro(x, ent) ⇑ c
 
-**(Shadow-Reserved-Gen-Err)**
-ReservedGen(x)    c = Code(Shadow-Reserved-Gen-Err)
-────────────────────────────────────────────────────────
-Γ ⊢ ShadowIntro(x, ent) ⇑ c
+When multiple `Intro` rules are simultaneously applicable, a conforming implementation MUST apply the first matching clause in the ordered priority list above.
 
-**(Shadow-Reserved-Cursive-Err)**
-ReservedCursive(x)    c = Code(Shadow-Reserved-Cursive-Err)
-────────────────────────────────────────────────────────────
-Γ ⊢ ShadowIntro(x, ent) ⇑ c
+**Rationale (non-normative).** A binding introduced in an outer scope cannot be reused as the name of a new binding in an inner scope. Users who wish to introduce a new binding under an already-taken name must choose a different name, or introduce their new binding in a separate sibling scope where the outer name is not visible. Users who wish to create a compile-time alternate name for an existing binding should use `using source as alias` (§11.2, §18.3).
 
-When multiple `Intro` or `ShadowIntro` rules are simultaneously applicable, a conforming implementation MUST apply the first matching clause in the ordered priority lists above.
+#### UsingAlias
+
+`UsingAlias(source_name, alias_name)` binds `alias_name` in the current scope to the same `Entity` that `source_name` resolves to. It introduces no new storage and does not copy the bound entity; the alias and the source are interchangeable references to the same compile-time entity.
+
+**(Using-Alias-Ok)**
+Γ ⊢ Lookup(source_name) ⇓ ent    ¬ InScope(S_cur, alias_name)    ¬ InOuter(Γ, alias_name)    ¬ ReservedId(alias_name)    Scopes(Γ') = [S_cur[IdKey(alias_name) ↦ ent]] ++ Γ_out    Project(Γ') = Project(Γ)    ResCtx(Γ') = ResCtx(Γ)
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ UsingAlias(source_name, alias_name) ⇓ Γ'
+
+**(Using-Alias-Unresolved)**
+Γ ⊢ Lookup(source_name) ↑    c = Code(Using-Alias-Unresolved)
+─────────────────────────────────────────────────────────────────────
+Γ ⊢ UsingAlias(source_name, alias_name) ⇑ c
+
+**(Using-Alias-Dup)**
+Γ ⊢ Lookup(source_name) ⇓ ent    (InScope(S_cur, alias_name) ∨ InOuter(Γ, alias_name))    c = Code(Using-Alias-Dup)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ UsingAlias(source_name, alias_name) ⇑ c
+
+**(Using-Alias-Reserved)**
+ReservedId(alias_name)    c = Code(Using-Alias-Reserved)
+──────────────────────────────────────────────────────────
+Γ ⊢ UsingAlias(source_name, alias_name) ⇑ c
+
+When multiple `UsingAlias` rules are simultaneously applicable, a conforming implementation MUST apply the first matching clause in the ordered priority list above.
 
 Names(N) = dom(N)
 
 **(Validate-Module-Ok)**
-∀ n ∈ Names(N). ¬ KeywordKey(n) ∧ n ∉ PrimTypeKeys ∧ n ∉ SpecialTypeKeys ∧ n ∉ AsyncTypeKeys
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+∀ n ∈ Names(N). ¬ KeywordKey(n)
+────────────────────────────────────────────
 Γ ⊢ ValidateModuleNames(N) ⇓ ok
 
 **(Validate-Module-Keyword-Err)**
@@ -4618,20 +4609,7 @@ Names(N) = dom(N)
 ────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ValidateModuleNames(N) ⇑ c
 
-**(Validate-Module-Prim-Shadow-Err)**
-∃ n ∈ Names(N). n ∈ PrimTypeKeys    c = Code(Validate-Module-Prim-Shadow-Err)
-────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ValidateModuleNames(N) ⇑ c
-
-**(Validate-Module-Special-Shadow-Err)**
-∃ n ∈ Names(N). n ∈ SpecialTypeKeys    c = Code(Validate-Module-Special-Shadow-Err)
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ValidateModuleNames(N) ⇑ c
-
-**(Validate-Module-Async-Shadow-Err)**
-∃ n ∈ Names(N). n ∈ AsyncTypeKeys    c = Code(Validate-Module-Async-Shadow-Err)
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ValidateModuleNames(N) ⇑ c
+Reuse of a universe-scope name (primitive, special, or async type) at module scope is not a `ValidateModuleNames` concern — it is handled by `(Intro-Outer-Err)` when the module's bindings are introduced, because `UniverseBindings` is always in the outer scope chain at module scope.
 
 ### 7.3 Lookup and Qualified Resolution
 
@@ -5670,21 +5648,20 @@ ResState = {ResStart(M), ResNames(M, N), ResItems(M, N), ResDone(M'), Error(code
 
 ### 7.8 Name Resolution and Reserved Name Diagnostics
 
-This section owns name-resolution, shadowing, visibility, and reserved-name diagnostics.
+This section owns name-resolution, visibility, and reserved-name diagnostics.
 
 | Code         | Severity | Detection    | Condition                                                                                                                                                                                                                                                           |
 | ------------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `E-CNF-0403` | Error    | Compile-time | Primitive type name shadowed at module scope                                                                                                                                                                                                                        |
-| `E-CNF-0404` | Error    | Compile-time | Shadowing of `Self`, `Drop`, `Bitcopy`, `Clone`, `Eq`, `Hash`, `Hasher`, `Iterator`, `Step`, `FfiSafe`, `string`, `bytes`, `Modal`, `Region`, `RegionOptions`, `CancelToken`, `Context`, `System`, `Network`, `ExecutionDomain`, `CpuSet`, `Priority`, or `Reactor` |
-| `E-CNF-0405` | Error    | Compile-time | Shadowing of async type alias (`Async`, `Future`, `Sequence`, `Stream`, `Pipe`, `Exchange`, `Tracked`)                                                                                                                                                              |
 | `E-CNF-0406` | Error    | Compile-time | User declaration uses `gen_` prefix                                                                                                                                                                                                                                 |
 | `E-MOD-1203` | Error    | Compile-time | Name introduced by `using` or `import as` conflicts with existing                                                                                                                                                                                                   |
 | `E-MOD-1207` | Error    | Compile-time | Cannot access a non-public item from this scope                                                                                                                                                                                                                     |
 | `E-MOD-1301` | Error    | Compile-time | Unresolved name: identifier not found in any accessible scope                                                                                                                                                                                                       |
 | `E-MOD-1302` | Error    | Compile-time | Duplicate declaration in module scope                                                                                                                                                                                                                               |
-| `E-MOD-1303` | Error    | Compile-time | Shadowing without `shadow` keyword                                                                                                                                                                                                                                  |
-| `E-MOD-1306` | Error    | Compile-time | Unnecessary `shadow` keyword: no binding is being shadowed                                                                                                                                                                                                          |
+| `E-MOD-1304` | Error    | Compile-time | Name reuse: identifier already bound in an enclosing scope; choose a different name or use `using source as alias` for a compile-time alias (`Intro-Outer-Err`). When the outer binding is a universe name (primitive, special, or async type), the message SHOULD identify the category. |
 | `E-MOD-1307` | Error    | Compile-time | Ambiguous method resolution; disambiguation required                                                                                                                                                                                                                |
+| `E-MOD-1308` | Error    | Compile-time | `using source as alias`: `source` does not resolve in any accessible scope (`Using-Alias-Unresolved`)                                                                                                                                                                |
+| `E-MOD-1309` | Error    | Compile-time | `using source as alias`: `alias` conflicts with an existing binding in this or an enclosing scope (`Using-Alias-Dup`)                                                                                                                                                 |
+| `E-MOD-1310` | Error    | Compile-time | `using source as alias`: `alias` is a reserved identifier (`Using-Alias-Reserved`)                                                                                                                                                                                   |
 
 ## 8. Type System Core
 
@@ -18447,7 +18424,7 @@ This section owns diagnostics for pattern exhaustiveness, irrefutability, and pa
 ```ebnf
 statement_seq ::= statement* expression?
 statement     ::= binding_stmt
-                | shadow_binding
+                | using_local_stmt
                 | assignment_stmt
                 | compound_assign
                 | expr_stmt
@@ -18498,7 +18475,7 @@ IsPunc(Tok(P), "{")    Γ ⊢ ParseStmtSeq(Advance(P)) ⇓ (P_1, stmts, tail)   
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ ParseBlock(P) ⇓ (Advance(P_1), BlockExpr(stmts, tail))
 
-ReqTerm(s) ⇔ s ∈ {LetStmt(_), VarStmt(_), ShadowLetStmt(_), ShadowVarStmt(_), AssignStmt(_, _), CompoundAssignStmt(_, _, _), ExprStmt(_)}
+ReqTerm(s) ⇔ s ∈ {LetStmt(_), VarStmt(_), UsingLocalStmt(_, _, _), AssignStmt(_, _), CompoundAssignStmt(_, _, _), ExprStmt(_)}
 
 **(ConsumeTerminatorOpt-Req-Yes)**
 ReqTerm(s)    IsTerm(Tok(P))
@@ -18542,7 +18519,7 @@ SyncStmt = {Punctuator(";"), Newline, Punctuator("}"), EOF}
 
 #### 18.1.3 AST Representation / Form
 
-Stmt = {LetStmt(binding), VarStmt(binding), ErrorStmt(span), ShadowLetStmt(name, type_opt, init), ShadowVarStmt(name, type_opt, init), AssignStmt(place, expr), CompoundAssignStmt(place, op, expr), ExprStmt(expr), DeferStmt(block), RegionStmt(opts_opt, alias_opt, block), FrameStmt(target_opt, block), KeyBlockStmt(attrs_opt, paths, mods, mode_opt, block, span), ReturnStmt(expr_opt), BreakStmt(expr_opt), ContinueStmt, UnsafeBlockStmt(block), CtStmt(body, attrs_opt, span), LogStmt(attrs_opt)}
+Stmt = {LetStmt(binding), VarStmt(binding), ErrorStmt(span), UsingLocalStmt(source, alias, span), AssignStmt(place, expr), CompoundAssignStmt(place, op, expr), ExprStmt(expr), DeferStmt(block), RegionStmt(opts_opt, alias_opt, block), FrameStmt(target_opt, block), KeyBlockStmt(attrs_opt, paths, mods, mode_opt, block, span), ReturnStmt(expr_opt), BreakStmt(expr_opt), ContinueStmt, UnsafeBlockStmt(block), CtStmt(body, attrs_opt, span), LogStmt(attrs_opt)}
 
 LastStmt([]) = ⊥
 LastStmt([s_1, …, s_n]) = s_n    (n ≥ 1)
@@ -18701,7 +18678,7 @@ LowerStmtJudg = {LowerStmt, LowerStmtList, LowerBlock, LowerLoop}
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LowerBlock(b) ⇓ ⟨IR, v⟩
 
-StmtForms0 = {LetStmt(_), VarStmt(_), ShadowLetStmt(_, _, _), ShadowVarStmt(_, _, _), AssignStmt(_, _), CompoundAssignStmt(_, _, _), ExprStmt(_), DeferStmt(_), RegionStmt(_, _, _), FrameStmt(_, _), ReturnStmt(_), BreakStmt(_), ContinueStmt, UnsafeBlockStmt(_), ErrorStmt(_)}
+StmtForms0 = {LetStmt(_), VarStmt(_), UsingLocalStmt(_, _, _), AssignStmt(_, _), CompoundAssignStmt(_, _, _), ExprStmt(_), DeferStmt(_), RegionStmt(_, _, _), FrameStmt(_, _), ReturnStmt(_), BreakStmt(_), ContinueStmt, UnsafeBlockStmt(_), ErrorStmt(_)}
 LowerStmtTotal(Γ) ⇔ ∀ s. s ∈ StmtForms0 ⇒ ∃ IR. Γ ⊢ LowerStmt(s) ⇓ IR
 
 **(Lower-StmtList-Empty)**
@@ -18813,10 +18790,6 @@ BindingParts(binding) = ⟨attrs_opt, pat, ty_opt, op, init, span⟩
 
 BindType(⟨attrs_opt, pat, ty_opt, op, init, _⟩) = T ⇔ ty_opt = T
 BindType(⟨attrs_opt, pat, ⊥, op, init, _⟩) = θ(T_i) ⇔ Γ; R; L ⊢ init ⇒ T_i ⊣ C ∧ Solve(C) ⇓ θ
-BindType(ShadowLetStmt(_, ty_opt, init)) = T ⇔ ty_opt = T
-BindType(ShadowLetStmt(_, ⊥, init)) = θ(T_i) ⇔ Γ; R; L ⊢ init ⇒ T_i ⊣ C ∧ Solve(C) ⇓ θ
-BindType(ShadowVarStmt(_, ty_opt, init)) = T ⇔ ty_opt = T
-BindType(ShadowVarStmt(_, ⊥, init)) = θ(T_i) ⇔ Γ; R; L ⊢ init ⇒ T_i ⊣ C ∧ Solve(C) ⇓ θ
 
 TypeOf(⟨sid, bind_id, x⟩) = TypeOf(x)
 BindInfo(⟨sid, bind_id, x⟩) = BindInfo(x)
@@ -18935,127 +18908,60 @@ BindingParts(binding) = ⟨attrs_opt, pat, ty_opt, op, init, span⟩    Γ ⊢ L
 
 Diagnostics are defined for type annotations incompatible with the initializer, inference failure, refutable patterns in `let`, duplicate names introduced by a single binding pattern, and `unique` bindings initialized from a place expression without explicit `move`.
 
-### 18.3 Shadowing Statements
+### 18.3 Local Using Statements
 
 #### 18.3.1 Syntax
 
 ```ebnf
-shadow_binding ::= "shadow" ("let" | "var") identifier (":" type)? "=" expression terminator
+using_local_stmt ::= "using" identifier "as" identifier terminator
 ```
 
 #### 18.3.2 Parsing
 
-**(Parse-Shadow-Stmt)**
-IsKw(Tok(P), `shadow`)    Tok(Advance(P)) ∈ {Keyword(`let`), Keyword(`var`)}    Γ ⊢ ParseShadowBinding(Advance(P)) ⇓ (P_1, s)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseStmtCore(P) ⇓ (P_1, s)
-
-**(Parse-ShadowBinding)**
-Tok(P) = kw ∈ {Keyword(`let`), Keyword(`var`)}    Γ ⊢ ParseIdent(Advance(P)) ⇓ (P_1, name)    Γ ⊢ ParseTypeAnnotOpt(P_1) ⇓ (P_2, ty_opt)    IsOp(Tok(P_2), "=")    Γ ⊢ ParseExpr(Advance(P_2)) ⇓ (P_3, init)    s = (ShadowLetStmt(name, ty_opt, init) if kw = Keyword(`let`) else ShadowVarStmt(name, ty_opt, init))
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ParseShadowBinding(P) ⇓ (P_3, s)
+**(Parse-UsingLocal-Stmt)**
+IsKw(Tok(P), `using`)    Γ ⊢ ParseIdent(Advance(P)) ⇓ (P_1, source)    IsKw(Tok(P_1), `as`)    Γ ⊢ ParseIdent(Advance(P_1)) ⇓ (P_2, alias)    s = UsingLocalStmt(source, alias, SpanBetween(P, P_2))
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ ParseStmtCore(P) ⇓ (P_2, s)
 
 #### 18.3.3 AST Representation / Form
 
-ShadowLetStmt(name, type_opt, init)
-ShadowVarStmt(name, type_opt, init)
+UsingLocalStmt(source, alias, span)
 
 #### 18.3.4 Static Semantics
 
-**(ShadowAll-Empty)**
-────────────────────────────────────────────────────────────────
-ShadowAll(Γ, []) ⇓ Γ
+Evaluation of a `UsingLocalStmt` extends the environment via the `UsingAlias` judgment defined in §7.2:
 
-**(ShadowAll-Cons)**
-Γ ⊢ ShadowIntro(x, IntroEnt) ⇓ Γ_1    ShadowAll(Γ_1 ∪ {x ↦ ⟨`let`, T⟩}, rest) ⇓ Γ_2
-────────────────────────────────────────────────────────────────────────────────────────────────
-ShadowAll(Γ, [(x, T)] ++ rest) ⇓ Γ_2
+**(T-UsingLocalStmt)**
+Γ ⊢ UsingAlias(source, alias) ⇓ Γ'
+────────────────────────────────────────────────────────────────────────
+Γ ⊢ UsingLocalStmt(source, alias, _) ⇒ Γ'
 
-**(ShadowAllVar-Empty)**
-────────────────────────────────────────────────────────────────
-ShadowAllVar(Γ, []) ⇓ Γ
+**(T-UsingLocalStmt-Err)**
+Γ ⊢ UsingAlias(source, alias) ⇑ c
+──────────────────────────────────────────────────────────────────
+Γ ⊢ UsingLocalStmt(source, alias, _) ⇑ c
 
-**(ShadowAllVar-Cons)**
-Γ ⊢ ShadowIntro(x, IntroEnt) ⇓ Γ_1    ShadowAllVar(Γ_1 ∪ {x ↦ ⟨`var`, T⟩}, rest) ⇓ Γ_2
-────────────────────────────────────────────────────────────────────────────────────────────────
-ShadowAllVar(Γ, [(x, T)] ++ rest) ⇓ Γ_2
-
-**(Intro-Shadow-Required)**
-¬ InScope(S_cur, x)    InOuter(Γ, x)    c = Code(Intro-Shadow-Required)
-────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ Intro(x, ent) ⇑ c
-
-**(Shadow-Ok)**
-¬ InScope(S_cur, x)    InOuter(Γ, x)    ¬ ReservedId(x)    (S_cur ≠ S_module ∨ x ∉ UniverseProtected)    Scopes(Γ') = [S_cur[IdKey(x) ↦ ent]] ++ Γ_out    Project(Γ') = Project(Γ)    ResCtx(Γ') = ResCtx(Γ)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ShadowIntro(x, ent) ⇓ Γ'
-
-**(Shadow-Unnecessary)**
-¬ InScope(S_cur, x)    ¬ InOuter(Γ, x)    c = Code(Shadow-Unnecessary)
-────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ShadowIntro(x, ent) ⇑ c
-
-**(Shadow-Reserved-Gen-Err)**
-ReservedGen(x)    c = Code(Shadow-Reserved-Gen-Err)
-────────────────────────────────────────────────────────
-Γ ⊢ ShadowIntro(x, ent) ⇑ c
-
-**(Shadow-Reserved-Cursive-Err)**
-ReservedCursive(x)    c = Code(Shadow-Reserved-Cursive-Err)
-────────────────────────────────────────────────────────────
-Γ ⊢ ShadowIntro(x, ent) ⇑ c
-
-If a binding is introduced by a syntactic form without the `shadow` keyword, the implementation MUST invoke `Intro` for that binding. If a binding is introduced by a `shadow` form, the implementation MUST invoke `ShadowIntro` for that binding. The implementation MUST NOT substitute the other judgment.
-
-**(T-ShadowLetStmt-Ann)**, **(T-ShadowLetStmt-Ann-Mismatch)**, **(T-ShadowLetStmt-Infer)**, and **(T-ShadowLetStmt-Infer-Err)** define typing for `shadow let`.
-
-**(T-ShadowVarStmt-Ann)**, **(T-ShadowVarStmt-Ann-Mismatch)**, **(T-ShadowVarStmt-Infer)**, and **(T-ShadowVarStmt-Infer-Err)** define typing for `shadow var`.
-
-**(B-ShadowLet-UniqueNonMove-Err)**
-T_b = BindType(ShadowLetStmt(x, ty_opt, init))    PermOf(T_b) = `unique`    IsPlace(init)    ¬ IsMoveExpr(init)    c = Code(B-ShadowLet-UniqueNonMove-Err)
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ; 𝔅; Π ⊢ ShadowLetStmt(x, ty_opt, init) ⇑ c
-
-**(B-ShadowLet)**
-Γ; 𝔅; Π ⊢ init ⇒ 𝔅_1 ▷ Π_1    T_b = BindType(ShadowLetStmt(x, ty_opt, init))    Π_2 = SuspendUniqueBind(Π_1, init, T_b)    𝔅_2 = ConsumeOnMove(𝔅_1, init)    B = { x ↦ T_b }    𝔅_3 = ShadowAll_B(𝔅_2, BindInfoMap(λ U. RespOfInit(init), B, MovOf("="), `let`))
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ; 𝔅; Π ⊢ ShadowLetStmt(x, ty_opt, init) ⇒ 𝔅_3 ▷ Π_2
-
-**(B-ShadowVar-UniqueNonMove-Err)** and **(B-ShadowVar)** are the corresponding rules for `shadow var`.
-
-**(Prov-ShadowLet)** and **(Prov-ShadowVar)** define the provenance of shadowing initializers and the replacement binding.
+The alias introduces no new storage; the `Entity` stored under `alias` is the identical `Entity` to which `source` resolves. Aliasing an alias resolves through to the original `Entity`.
 
 #### 18.3.5 Dynamic Semantics
 
-`BindVal` is defined in §18.2.5.
+**(ExecSigma-UsingLocal)**
+────────────────────────────────────────────────────────────────
+Γ ⊢ ExecSigma(UsingLocalStmt(_, _, _), σ) ⇓ (ok, σ)
 
-**(ExecSigma-ShadowLet)**
-Γ ⊢ EvalSigma(init, σ) ⇓ (Val(v), σ_1)    BindVal(σ_1, x, v) ⇓ (σ_2, b)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ExecSigma(ShadowLetStmt(x, ty_opt, init), σ) ⇓ (ok, σ_2)
-
-**(ExecSigma-ShadowLet-Ctrl)**
-Γ ⊢ EvalSigma(init, σ) ⇓ (Ctrl(κ), σ_1)
-────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ ExecSigma(ShadowLetStmt(x, ty_opt, init), σ) ⇓ (Ctrl(κ), σ_1)
-
-**(ExecSigma-ShadowVar)** and **(ExecSigma-ShadowVar-Ctrl)** are the corresponding rules for `shadow var`.
+A `UsingLocalStmt` has no runtime effect: name resolution is compile-time only.
 
 #### 18.3.6 Lowering
 
-**(Lower-Stmt-ShadowLet)**
-Γ ⊢ LowerExpr(init) ⇓ ⟨IR_i, v⟩
-──────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ LowerStmt(ShadowLetStmt(x, ty_opt, init)) ⇓ SeqIR(IR_i, BindVarIR(x, v))
+**(Lower-Stmt-UsingLocal)**
+────────────────────────────────────────────────────────────────
+Γ ⊢ LowerStmt(UsingLocalStmt(_, _, _)) ⇓ NoOpIR
 
-**(Lower-Stmt-ShadowVar)**
-Γ ⊢ LowerExpr(init) ⇓ ⟨IR_i, v⟩
-──────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ LowerStmt(ShadowVarStmt(x, ty_opt, init)) ⇓ SeqIR(IR_i, BindVarIR(x, v))
+`using` statements produce no runtime IR; they are consumed entirely during resolution.
 
 #### 18.3.7 Diagnostics
 
-Diagnostics are defined for missing required `shadow`, unnecessary `shadow`, reserved-name shadowing, type annotation mismatch, inference failure, and `unique` shadow bindings initialized from a place without `move`.
+Diagnostics are defined for duplicate alias names (alias already in any scope), unresolved source names, and use of reserved names as aliases. See §7.2 `Using-Alias-*` rules.
 
 ### 18.4 Assignment Statements
 
@@ -20043,6 +19949,16 @@ PanicRelease(S, Γ_keys) = Γ_keys \ {(P, M, S') : S' ≤_nest S}
 
 Covered(Q, M_Q, Γ_keys) ⇔ ∃ (P, M_P, S) ∈ Γ_keys : Prefix(P, Q) ∧ ModeSufficient(M_P, M_Q)
 
+**Valid Key Context**
+
+For an ordinary `shared` access `e`, a valid key context exists iff `KeyPath(e)` and `RequiredMode(e)` are both defined and no Chapter 19 scope/escape rule forbids the access.
+
+If `Covered(KeyPath(e), RequiredMode(e), Γ_keys)` holds, the access reuses the existing key context.
+
+Otherwise the ordinary access establishes an implicit acquisition as defined by **(Lower-KeyAccess-Uncovered)** in §19.1.6.
+
+Being outside an explicit `#` block does not by itself make an ordinary `shared` access invalid.
+
 **(K-Acquire-New)**
 Γ ⊢ P : `shared` T    M = RequiredMode(P)    ¬ Covered(P, M, Γ_keys)    S = CurrentScope
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -20096,6 +20012,10 @@ C : |vec_T| → R [`shared`: deps]    Access(x.p, M) ∈ C.body
 KeyPath(C, x.p) = id(C.x).p
 
 An escaping closure MUST NOT outlive any captured local `shared` binding.
+
+For correctness, escaping-closure key acquisition is required to cover the runtime identity of the captured reference.
+
+An implementation MAY conservatively coarsen `id(C.x).p` to a stable closure-capture-rooted key prefix, provided the coarsened key soundly covers every runtime identity reachable through `C.x` and preserves observational equivalence.
 
 #### 19.2.5 Dynamic Semantics
 
@@ -20186,6 +20106,18 @@ G ? LowerStmt(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)) ? SeqI
 
 #### 19.2.7 Diagnostics
 
+Keys are scope-bound.
+
+An access whose validity depends on a key acquired in scope `S` is well-formed only when the access is guaranteed to execute before `ScopeExit(S)`.
+
+In particular, key-dependent accesses MUST NOT escape through closures, deferred blocks, or suspension/resumption boundaries whose execution may occur after `S` exits.
+
+Acquiring a key inside a `defer` body is always ill-formed because the deferred body executes in the outer scope's exit phase rather than at the lexical point of the `defer` statement.
+
+`W-CON-0001` is advisory only. It is emitted only when the compiler proves that a loop repeatedly acquires fine-grained keys and that a materially coarser legal acquisition boundary exists.
+
+Where a more specific Chapter 19 escape diagnostic applies, it takes precedence over `E-CON-0004`.
+
 | Code         | Severity | Detection    | Condition                                                   |
 | ------------ | -------- | ------------ | ----------------------------------------------------------- |
 | `E-CON-0001` | Error    | Compile-time | Access to `shared` path outside valid key context           |
@@ -20271,6 +20203,10 @@ Two index expressions `e_1` and `e_2` are provably equivalent iff one of the fol
 4. Both are references to the same variable binding in scope.
 5. Both normalize to the same canonical form under constant folding.
 
+These clauses are sufficient proof cases.
+
+An implementation MAY conservatively recognize any sound subset of them. Failure to prove equivalence is treated as inequivalence.
+
 **(K-Disjoint-Safe)**
 Disjoint(P, Q)
 ──────────────────────────────────────────────────
@@ -20293,6 +20229,10 @@ Two index expressions are provably disjoint iff one of the following holds:
 6. Inside `dispatch`, accesses indexed by the iteration variable are automatically disjoint.
 7. Iteration variables from loops with non-overlapping ranges are disjoint.
 
+These clauses are sufficient proof cases.
+
+An implementation MAY conservatively recognize any sound subset of them. Failure to prove disjointness is treated as possible overlap.
+
 **(K-Dynamic-Index-Conflict)**
 P_1 = a[e_1]    P_2 = a[e_2]    SameStatement(P_1, P_2)    (Dynamic(e_1) ∨ Dynamic(e_2))    ¬ ProvablyDisjoint(e_1, e_2)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -20305,6 +20245,10 @@ ReadThenWrite(P, S) ? ? e_r, e_w ? Subexpressions(S) : ReadsPath(e_r, P) ? Write
 CompoundRewriteOp(op) ? op ? {`+`, `-`, `*`, `/`, `%`}
 
 CompoundRewriteCandidate(P, S) ? S = AssignStmt(P, BinaryExpr(op, P, e), span) ? CompoundRewriteOp(op)
+
+In this chapter, `ReadThenWrite(P, S)` is required to be diagnosed for assignment and compound-assignment statement surfaces that visibly separate a read of `P` from a write of `P`.
+
+Other write forms continue to be governed by `RequiredMode`, `Covered`, and the ordinary key compatibility rules.
 
 **(K-Read-Write-Reject)**
 Γ ⊢ P : `shared` T    ReadThenWrite(P, S)    ¬ ∃ (Q, Write, S') ∈ Γ_keys : Prefix(Q, P)
@@ -20551,10 +20495,17 @@ Prohibited operations:
 5. `defer` statements.
 6. Memory-ordering annotations and fence operations.
 
+`IsCallLike(c)` holds for `CallExpr` and `MethodCallExpr`.
+
 **(K-Spec-No-Nested-Key)**
 #P `speculative write` {B}    #Q _ {…} ∈ Subexpressions(B)
 ──────────────────────────────────────────────────────────
 Reject
+
+**(K-Spec-No-Impure-Call)**
+#P `speculative write` {B}    ∃ c ∈ Subexpressions(B). IsCallLike(c) ∧ ¬(Γ ⊢ c pure)    c_err = Code(K-Spec-No-Impure-Call)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+G ⊢ KeyBlockStmt(attrs_opt, paths, mods, mode_opt, B, span) ⇑ c_err
 
 **(K-Spec-No-Memory-Ordering)**
 #P `speculative write` {B}    ∃ x ∈ Subexpressions(B). (IsMemoryOrderAnnotation(x) ∨ IsFenceExpr(x))
@@ -20662,6 +20613,10 @@ If a panic occurs during speculative execution, the write set is discarded and t
 
 The snapshot step MUST be observationally equivalent to an atomic snapshot over the keyed set. The commit step MUST be atomic with respect to other key operations on overlapping paths and MUST satisfy `SpeculativeCommit(R, W)`.
 
+The state machine above is an abstract dynamic semantics.
+
+An implementation MAY conservatively realize `# ... speculative write { ... }` by directly selecting the fallback execution path, provided the resulting observable behavior is the same as some execution admitted by the abstract semantics. Such an implementation need not materialize successful speculative commit states at runtime.
+
 #### 19.5.6 Lowering
 
 SpeculativeIR = {SpecSnapshotIR(paths), SpecValidateIR(paths), SpecCommitIR(paths), SpecRetryIR, SpecFallbackIR}
@@ -20684,6 +20639,7 @@ G ? LowerStmt(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)) ? IR
 | `E-CON-0094` | Error    | Compile-time | `speculative` combined with `release`                                  |
 | `E-CON-0095` | Error    | Compile-time | `speculative` without `write` modifier                                 |
 | `E-CON-0096` | Error    | Compile-time | Memory ordering annotation or fence operation inside speculative block |
+| `E-CON-0097` | Error    | Compile-time | Impure procedure call inside speculative block                         |
 | `W-CON-0020` | Warning  | Compile-time | Speculative block on large struct (may be inefficient)                 |
 | `W-CON-0021` | Warning  | Compile-time | Speculative block body may be expensive to re-execute                  |
 
@@ -20710,12 +20666,22 @@ StaticallySafe(P) is classified by the following source conditions:
 | `Dispatch-indexed`   | Access indexed by `dispatch` iteration variable             | K-SS-5 |
 | `Speculative-only`   | All accesses occur within speculative blocks with fallback  | K-SS-6 |
 
+`StaticallySafe(P)` is a conservative compile-time judgment.
+
+The conditions above describe sufficient proof shapes for omitting runtime synchronization.
+
+An implementation MUST treat `StaticallySafe(P)` as false unless it can establish a complete sound proof for the concrete access. Uncertainty is not success.
+
 #### 19.6.4 Static Semantics
 
 **(K-Static-Safe)**
 Access(P, M)    StaticallySafe(P)
 ────────────────────────────────
 NoRuntimeSync(P)
+
+`NoRuntimeSync(P)` means that runtime synchronization is not required for correctness of the access.
+
+An implementation MAY omit runtime synchronization for `P`, or MAY conservatively retain equivalent synchronization, provided observable behavior is preserved.
 
 **(K-Static-Required)**
 ¬ StaticallySafe(P)    ¬ InDynamicContext
@@ -20739,6 +20705,10 @@ Within `[[dynamic]]`, incomparable dynamic indices require a runtime ordering re
 4. Cross-task consistency.
 5. Value-determinism.
 
+An implementation MAY conservatively coarsen a non-statically-safe dynamic indexed path to a static prefix that soundly covers every runtime index reachable by the access.
+
+When such conservative coarsening is used, runtime synchronization is performed on the coarsened path rather than on per-index dynamic keys. This is conforming iff the coarsened path preserves mutual exclusion and observational equivalence.
+
 If all tasks acquire keys in `CanonicalOrder`, no circular wait can occur.
 
 If a task waits for a key and all conflicting holders eventually release, the task eventually acquires the key.
@@ -20752,7 +20722,7 @@ Observable behavior under statically-proven key safety and under runtime synchro
 ────────────────────────────────────────
 EmitRuntimeSync(P)
 
-When `InDynamicContext` and `StaticallySafe(P)` both hold, runtime synchronization is omitted.
+When `InDynamicContext` and `StaticallySafe(P)` both hold, runtime synchronization is not required. An implementation MAY omit it or conservatively retain equivalent synchronization.
 
 #### 19.6.7 Diagnostics
 
@@ -20760,7 +20730,7 @@ When `InDynamicContext` and `StaticallySafe(P)` both hold, runtime synchronizati
 | ------------ | -------- | ------------ | -------------------------------------------------------------- |
 | `E-CON-0020` | Error    | Compile-time | Key safety not statically provable outside `[[dynamic]]`       |
 | `I-CON-0011` | Info     | Compile-time | Runtime synchronization emitted under `[[dynamic]]`            |
-| `I-CON-0013` | Info     | Compile-time | Static key safety proven under `[[dynamic]]` (no runtime sync) |
+| `I-CON-0013` | Info     | Compile-time | Static key safety proven under `[[dynamic]]`                    |
 
 ### 19.7 Memory Ordering
 
@@ -24783,7 +24753,7 @@ Quoted content MUST be syntactically valid in the resolved category. If `Resolve
 
 `$(e)` and `$ident` are valid only inside a quoted token slice. The compile-time type of the splice source MUST satisfy `SpliceCompat` for the surrounding quoted position.
 
-`$ident` is an identifier-position splice only. `SpliceIdentNode` MAY occur only in identifier expressions, identifier-pattern bindings, typed-pattern bindings, `shadow` binding names, `region as` aliases, and procedure or method parameter bindings. `SpliceIdentNode` MUST NOT occur in structural identifier positions, including module or type path segments, field labels, variant names, type-parameter names, item declaration names, or modal state names. In every other quoted position, including quoted type position, splicing MUST use `$(e)`. Ordinary language syntax retains precedence where it already uses `$`; for example, in `quote type { $FileSystem }`, `$FileSystem` is parsed as `TypeDynamic(["FileSystem"])`, not as a splice.
+`$ident` is an identifier-position splice only. `SpliceIdentNode` MAY occur only in identifier expressions, identifier-pattern bindings, typed-pattern bindings, `using ... as` alias names, `region as` aliases, and procedure or method parameter bindings. `SpliceIdentNode` MUST NOT occur in structural identifier positions, including module or type path segments, field labels, variant names, type-parameter names, item declaration names, or modal state names. In every other quoted position, including quoted type position, splicing MUST use `$(e)`. Ordinary language syntax retains precedence where it already uses `$`; for example, in `quote type { $FileSystem }`, `$FileSystem` is parsed as `TypeDynamic(["FileSystem"])`, not as a splice.
 
 If a string-valued splice occupies identifier position, the resulting identifier is intentionally unhygienic and binds in the emission environment.
 
@@ -29604,7 +29574,7 @@ Only sections that define named diagnostics are listed below.
 - `§19.2.7 Key Acquisition Blocks`: `E-CON-0001`, `E-CON-0004`, `E-CON-0006`, `E-CON-0031`, `E-CON-0032`, `E-CON-0070`, `E-CON-0085`, `E-CON-0086`, `W-CON-0001`, `W-CON-0002`, `W-CON-0003`, `W-CON-0009`
 - `§19.3.7 Conflict Detection`: `E-CON-0005`, `E-CON-0010`, `E-CON-0014`, `E-CON-0060`, `W-CON-0004`, `W-CON-0006`, `W-CON-0013`
 - `§19.4.7 Nested Release`: `E-CON-0012`, `E-CON-0018`, `W-CON-0005`, `W-CON-0010`, `W-CON-0011`
-- `§19.5.7 Speculative Execution`: `E-CON-0090`, `E-CON-0091`, `E-CON-0092`, `E-CON-0093`, `E-CON-0094`, `E-CON-0095`, `E-CON-0096`, `W-CON-0020`, `W-CON-0021`
+- `§19.5.7 Speculative Execution`: `E-CON-0090`, `E-CON-0091`, `E-CON-0092`, `E-CON-0093`, `E-CON-0094`, `E-CON-0095`, `E-CON-0096`, `E-CON-0097`, `W-CON-0020`, `W-CON-0021`
 - `§19.6.7 Dynamic Key Verification`: `E-CON-0020`, `I-CON-0011`, `I-CON-0013`
 - `§20.1.7 Parallel Blocks`: `E-CON-0101`, `E-CON-0102`, `E-CON-0103`
 - `§20.2.7 Execution Domains`: `E-CON-0150`, `E-CON-0154`, `E-CON-0155`, `E-CON-0156`, `E-CON-0157`, `E-CON-0158`, `E-CON-0159`, `E-TYP-2640`, `E-TYP-2641`, `E-TYP-2642`
@@ -29855,10 +29825,10 @@ range_pattern          ::= pattern (".." | "..=") pattern
 ### B.5 Statement Grammar
 
 ```ebnf
-statement ::= binding_stmt | shadow_binding | assignment_stmt | compound_assign | expr_stmt | return_stmt | break_stmt | continue_stmt | defer_stmt | region_stmt | frame_stmt | unsafe_block | key_block_stmt | log_statement | comptime_stmt
+statement ::= binding_stmt | using_local_stmt | assignment_stmt | compound_assign | expr_stmt | return_stmt | break_stmt | continue_stmt | defer_stmt | region_stmt | frame_stmt | unsafe_block | key_block_stmt | log_statement | comptime_stmt
 
-binding_stmt   ::= ("let" | "var") pattern (":" type)? binding_op expression terminator
-shadow_binding ::= "shadow" ("let" | "var") identifier (":" type)? "=" expression terminator
+binding_stmt     ::= ("let" | "var") pattern (":" type)? binding_op expression terminator
+using_local_stmt ::= "using" identifier "as" identifier terminator
 binding_op       ::= "=" | ":="
 
 assignment_stmt ::= place_expr "=" expression terminator

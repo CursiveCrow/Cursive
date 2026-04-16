@@ -356,11 +356,10 @@ static ParallelResultCollect CollectParallelResultStmt(
   if (const auto* var_stmt = std::get_if<ast::VarStmt>(&stmt)) {
     return CollectParallelResultExpr(type_expr, var_stmt->binding.init, std::move(in));
   }
-  if (const auto* shadow_let = std::get_if<ast::ShadowLetStmt>(&stmt)) {
-    return CollectParallelResultExpr(type_expr, shadow_let->init, std::move(in));
-  }
-  if (const auto* shadow_var = std::get_if<ast::ShadowVarStmt>(&stmt)) {
-    return CollectParallelResultExpr(type_expr, shadow_var->init, std::move(in));
+  if (const auto* using_local = std::get_if<ast::UsingLocalStmt>(&stmt)) {
+    // UsingLocalStmt is a compile-time alias; no runtime expression.
+    (void)using_local;
+    return in;
   }
   if (const auto* assign = std::get_if<ast::AssignStmt>(&stmt)) {
     return CollectParallelResultExpr(type_expr, assign->value, std::move(in));

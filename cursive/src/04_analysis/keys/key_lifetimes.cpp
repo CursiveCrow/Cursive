@@ -141,6 +141,58 @@ void FindSuspensionPointsInStmt(const ast::Stmt& stmt,
 
 }  // namespace
 
+std::vector<KeyLifetime> HeldKeysForPaths(const std::vector<KeyPath>& paths,
+                                          const ScopeKeyState& state) {
+  std::vector<KeyLifetime> held;
+  for (const auto& path : paths) {
+    for (const auto& key : state.active_keys) {
+      if (!KeyPathLess(key.path, path) && !KeyPathLess(path, key.path)) {
+        held.push_back(key);
+      }
+    }
+  }
+  std::sort(held.begin(), held.end(),
+            [](const KeyLifetime& lhs, const KeyLifetime& rhs) {
+              return KeyPathLess(lhs.path, rhs.path);
+            });
+  return held;
+}
+
+ScopeKeyState MarkKeysReleased(const ScopeKeyState& state,
+                               const std::vector<KeyLifetime>& keys) {
+  ScopeKeyState out = state;
+  for (const auto& key : keys) {
+    out.active_keys.erase(
+        std::remove_if(out.active_keys.begin(), out.active_keys.end(),
+                       [&](const KeyLifetime& active) {
+                         return !KeyPathLess(active.path, key.path) &&
+                                !KeyPathLess(key.path, active.path) &&
+                                active.mode == key.mode &&
+                                active.scope == key.scope;
+                       }),
+        out.active_keys.end());
+    out.released_keys.push_back(key);
+  }
+  return out;
+}
+
+ScopeKeyState ClearReleased(const ScopeKeyState& state,
+                            const std::vector<KeyLifetime>& keys) {
+  ScopeKeyState out = state;
+  for (const auto& key : keys) {
+    out.released_keys.erase(
+        std::remove_if(out.released_keys.begin(), out.released_keys.end(),
+                       [&](const KeyLifetime& released) {
+                         return !KeyPathLess(released.path, key.path) &&
+                                !KeyPathLess(key.path, released.path) &&
+                                released.mode == key.mode &&
+                                released.scope == key.scope;
+                       }),
+        out.released_keys.end());
+  }
+  return out;
+}
+
 // =============================================================================
 // Key Lifetime Tracking Functions
 // =============================================================================

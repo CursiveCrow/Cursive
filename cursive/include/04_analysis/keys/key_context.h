@@ -4,6 +4,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "00_core/span.h"
@@ -46,6 +47,24 @@ struct HeldKey {
   KeyScopeId scope;
 };
 
+class KeyContext;
+
+using ProgramPoint = std::size_t;
+using KeySet = std::vector<HeldKey>;
+using KeyStateByProgramPoint = std::unordered_map<ProgramPoint, KeySet>;
+
+bool Held(const KeyPath& path,
+          KeyAccessMode mode,
+          KeyScopeId scope,
+          const KeyStateByProgramPoint& key_state,
+          ProgramPoint point);
+
+std::vector<HeldKey> AcquireKeysSigma(const std::vector<KeyPath>& paths,
+                                      KeyAccessMode mode,
+                                      KeyContext& ctx);
+void ReleaseKeysSigma(const std::vector<HeldKey>& keys,
+                      KeyContext& ctx);
+
 // Key context - tracks held keys
 class KeyContext {
  public:
@@ -61,6 +80,15 @@ class KeyContext {
   
   // Release keys at current scope
   void ReleaseScope();
+
+  // Release a specific held key path.
+  void Release(const KeyPath& path);
+
+  // Transition an existing held key to a new mode.
+  bool ModeTransition(const KeyPath& path, KeyAccessMode new_mode);
+
+  // Release keys at or nested beneath the given scope (panic path).
+  void PanicRelease(KeyScopeId scope);
   
   // Check if a path is covered by held keys
   bool Covers(const KeyPath& path, KeyAccessMode mode) const;

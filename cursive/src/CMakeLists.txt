@@ -336,9 +336,8 @@ add_library(cursive_source STATIC
   02_source/parser/stmt/parse_stmt.cpp
   02_source/parser/stmt/region_stmt.cpp
   02_source/parser/stmt/return_stmt.cpp
-  02_source/parser/stmt/shadow_let_stmt.cpp
-  02_source/parser/stmt/shadow_var_stmt.cpp
   02_source/parser/stmt/stmt_common.cpp
+  02_source/parser/stmt/using_local_stmt.cpp
   02_source/parser/stmt/unsafe_block_stmt.cpp
   02_source/parser/stmt/var_stmt.cpp
   02_source/parser/type/array_type.cpp
@@ -448,8 +447,11 @@ add_library(cursive_analysis STATIC
   04_analysis/resolve/resolve_qual.cpp
   04_analysis/resolve/resolve_stmt_seq.cpp
   04_analysis/resolve/resolve_types.cpp
+  04_analysis/resolve/module_relations.cpp
+  04_analysis/resolve/resolve_imports.cpp
   04_analysis/resolve/resolve_using.cpp
   04_analysis/resolve/collect_toplevel.cpp
+  04_analysis/runtime_eval/runtime_scope.cpp
   04_analysis/resolve/scopes.cpp
   04_analysis/resolve/scopes_intro.cpp
   04_analysis/resolve/scopes_lookup.cpp
@@ -545,9 +547,8 @@ add_library(cursive_analysis STATIC
   04_analysis/typing/stmt/let_stmt.cpp
   04_analysis/typing/stmt/region_stmt.cpp
   04_analysis/typing/stmt/return_stmt.cpp
-  04_analysis/typing/stmt/shadow_let_stmt.cpp
-  04_analysis/typing/stmt/shadow_var_stmt.cpp
   04_analysis/typing/stmt/stmt_common.cpp
+  04_analysis/typing/stmt/using_local_stmt.cpp
   04_analysis/typing/stmt/unsafe_block_stmt.cpp
   04_analysis/typing/stmt/var_stmt.cpp
   04_analysis/typing/subtyping.cpp
@@ -698,9 +699,8 @@ add_library(cursive_codegen STATIC
   05_codegen/lower/stmt/let_stmt.cpp
   05_codegen/lower/stmt/region_stmt.cpp
   05_codegen/lower/stmt/return_stmt.cpp
-  05_codegen/lower/stmt/shadow_let_stmt.cpp
-  05_codegen/lower/stmt/shadow_var_stmt.cpp
   05_codegen/lower/stmt/stmt_common.cpp
+  05_codegen/lower/stmt/using_local_stmt.cpp
   05_codegen/lower/stmt/unsafe_block_stmt.cpp
   05_codegen/lower/stmt/var_stmt.cpp
   05_codegen/symbols/linkage.cpp

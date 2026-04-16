@@ -279,7 +279,9 @@ static bool LoadBinaryOperandInfo(const ScopeContext& ctx,
                                   const TypeEnv& env,
                                   BinaryOperandInfo& out,
                                   std::optional<std::string_view>& diag_id) {
-  out.typed = TypeExpr(ctx, type_ctx, expr, env);
+  out.typed =
+      TypeExpr(ctx, WithSharedAccessMode(type_ctx, ast::KeyMode::Read), expr,
+               env);
   if (!out.typed.ok) {
     diag_id = out.typed.diag_id;
     return false;
@@ -320,7 +322,9 @@ static bool TryCheckOperandAgainst(const ScopeContext& ctx,
     return false;
   }
 
-  const auto checked = CheckExprAgainst(ctx, type_ctx, expr, expected, env);
+  const auto checked = CheckExprAgainst(
+      ctx, WithSharedAccessMode(type_ctx, ast::KeyMode::Read), expr, expected,
+      env);
   return checked.ok;
 }
 

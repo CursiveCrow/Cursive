@@ -72,6 +72,8 @@ static cursive_platform_mutex_t c0_key_lock;
 static cursive_platform_condition_t c0_key_cv;
 static C0HeldKey* c0_key_global_head = NULL;
 static C0HeldKey* c0_key_global_tail = NULL;
+static uint64_t c0_key_next_ticket = 1;
+static uint64_t c0_key_serving_ticket = 1;
 
 void cursive_key_release_snapshot_discard(void* released_ptr);
 
@@ -389,9 +391,6 @@ static int c0_key_is_prefix(const C0ParsedKeyPath* prefix,
         }
         left = &prefix->segs[i];
         right = &path->segs[i];
-        if (left->boundary) {
-            return 1;
-        }
         if (left->kind != right->kind) {
             return 0;
         }
@@ -470,22 +469,11 @@ static char* c0_key_copy_path(const C0StringView* path_view,
 }
 
 static int c0_key_order_compare(const C0HeldKey* lhs, const C0HeldKey* rhs) {
-    int path_cmp;
     if (!lhs || !rhs) {
         return 0;
     }
-    path_cmp = c0_key_mem_lex(lhs->path, (uint32_t)lhs->path_len,
-                              rhs->path, (uint32_t)rhs->path_len);
-    if (path_cmp != 0) {
-        return path_cmp;
-    }
-    if (lhs->mode < rhs->mode) {
-        return -1;
-    }
-    if (lhs->mode > rhs->mode) {
-        return 1;
-    }
-    return 0;
+    return c0_key_mem_lex(lhs->path, (uint32_t)lhs->path_len,
+                          rhs->path, (uint32_t)rhs->path_len);
 }
 
 static void c0_key_insertion_sort(C0HeldKey** keys, uint64_t count) {
@@ -518,6 +506,55 @@ void* cursive_key_scope_enter(void) {
     }
     c0_memset(scope, 0, sizeof(C0KeyScope));
     return scope;
+}
+
+void cursive_key_check_conflict(C0StringView path, uint8_t mode) {
+    cursive_platform_thread_id_t owner_tid;
+    uint8_t checked_mode = (mode == C0_KEY_MODE_READ) ? C0_KEY_MODE_READ
+                                                      : C0_KEY_MODE_WRITE;
+    if (!path.data) {
+        return;
+    }
+    if (!c0_key_ensure_init()) {
+        return;
+    }
+
+    owner_tid = cursive_platform_current_thread_id();
+    cursive_platform_mutex_lock(&c0_key_lock);
+    while (c0_key_has_conflict(owner_tid, path.data, path.len, checked_mode)) {
+        cursive_platform_condition_wait(&c0_key_cv, &c0_key_lock, CURSIVE_PLATFORM_INFINITE);
+    }
+    cursive_platform_mutex_unlock(&c0_key_lock);
+}
+
+void* cursive_key_release_one(void* scope_ptr, C0StringView path) {
+    C0KeyScope* scope = (C0KeyScope*)scope_ptr;
+    C0HeldKey* key;
+
+    if (!scope || !path.data) {
+        return NULL;
+    }
+    if (!c0_key_ensure_init()) {
+        return NULL;
+    }
+
+    cursive_platform_mutex_lock(&c0_key_lock);
+    key = scope->tail;
+    while (key) {
+        C0HeldKey* prev = key->scope_prev;
+        if (c0_key_mem_equal(key->path, (uint32_t)key->path_len,
+                             path.data, (uint32_t)path.len)) {
+            c0_key_scope_unlink(key);
+            c0_key_thread_unlink(key);
+            c0_key_global_unlink(key);
+            cursive_platform_mutex_unlock(&c0_key_lock);
+            cursive_platform_condition_wake_all(&c0_key_cv);
+            return key;
+        }
+        key = prev;
+    }
+    cursive_platform_mutex_unlock(&c0_key_lock);
+    return NULL;
 }
 
 void cursive_key_scope_exit(void* scope_ptr) {
@@ -553,6 +590,7 @@ void cursive_key_acquire(void* scope_ptr, C0StringView path, uint8_t mode) {
     C0HeldKey* key;
     C0KeyScope* scope = (C0KeyScope*)scope_ptr;
     C0KeyThreadState* state = c0_key_thread_state();
+    uint64_t ticket;
 
     c0_trace_emit_rule("K-Acquire");
     if (!scope || !path.data) {
@@ -578,15 +616,19 @@ void cursive_key_acquire(void* scope_ptr, C0StringView path, uint8_t mode) {
     key->owner_tid = cursive_platform_current_thread_id();
 
     cursive_platform_mutex_lock(&c0_key_lock);
-    while (c0_key_has_conflict(key->owner_tid, key->path, key->path_len, key->mode)) {
+    ticket = c0_key_next_ticket++;
+    while (ticket != c0_key_serving_ticket ||
+           c0_key_has_conflict(key->owner_tid, key->path, key->path_len, key->mode)) {
         cursive_platform_condition_wait(&c0_key_cv, &c0_key_lock, CURSIVE_PLATFORM_INFINITE);
     }
 
     c0_key_global_link(key);
     c0_key_thread_link(state, key);
     c0_key_scope_link(scope, key);
+    c0_key_serving_ticket += 1;
 
     cursive_platform_mutex_unlock(&c0_key_lock);
+    cursive_platform_condition_wake_all(&c0_key_cv);
 }
 
 void* cursive_key_release_all(void) {
@@ -624,6 +666,36 @@ void* cursive_key_release_all(void) {
         return NULL;
     }
     return released;
+}
+
+void cursive_key_reacquire_one(void* released_ptr) {
+    C0HeldKey* key = (C0HeldKey*)released_ptr;
+    C0KeyThreadState* state = c0_key_thread_state();
+    cursive_platform_thread_id_t owner_tid;
+    uint64_t ticket;
+
+    if (!key) {
+        return;
+    }
+    if (!c0_key_ensure_init()) {
+        c0_key_free(key);
+        return;
+    }
+
+    owner_tid = cursive_platform_current_thread_id();
+    cursive_platform_mutex_lock(&c0_key_lock);
+    key->owner_tid = owner_tid;
+    ticket = c0_key_next_ticket++;
+    while (ticket != c0_key_serving_ticket ||
+           c0_key_has_conflict(owner_tid, key->path, key->path_len, key->mode)) {
+        cursive_platform_condition_wait(&c0_key_cv, &c0_key_lock, CURSIVE_PLATFORM_INFINITE);
+    }
+    c0_key_global_link(key);
+    c0_key_thread_link(state, key);
+    c0_key_scope_link(key->scope, key);
+    c0_key_serving_ticket += 1;
+    cursive_platform_mutex_unlock(&c0_key_lock);
+    cursive_platform_condition_wake_all(&c0_key_cv);
 }
 
 void cursive_key_reacquire(void* released_ptr) {
@@ -669,17 +741,20 @@ void cursive_key_reacquire(void* released_ptr) {
     cursive_platform_mutex_lock(&c0_key_lock);
     for (idx = 0; idx < count; ++idx) {
         C0HeldKey* held = ordered[idx];
+        uint64_t ticket = c0_key_next_ticket++;
         held->released_prev = NULL;
         held->released_next = NULL;
         held->owner_tid = owner_tid;
 
-        while (c0_key_has_conflict(owner_tid, held->path, held->path_len, held->mode)) {
+        while (ticket != c0_key_serving_ticket ||
+               c0_key_has_conflict(owner_tid, held->path, held->path_len, held->mode)) {
             cursive_platform_condition_wait(&c0_key_cv, &c0_key_lock, CURSIVE_PLATFORM_INFINITE);
         }
 
         c0_key_global_link(held);
         c0_key_thread_link(state, held);
         c0_key_scope_link(held->scope, held);
+        c0_key_serving_ticket += 1;
     }
     cursive_platform_mutex_unlock(&c0_key_lock);
 

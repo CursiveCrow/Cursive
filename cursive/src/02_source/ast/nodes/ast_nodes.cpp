@@ -244,8 +244,7 @@ const char* node_kind(const Stmt& s) {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, LetStmt>) return "LetStmt";
         if constexpr (std::is_same_v<T, VarStmt>) return "VarStmt";
-        if constexpr (std::is_same_v<T, ShadowLetStmt>) return "ShadowLetStmt";
-        if constexpr (std::is_same_v<T, ShadowVarStmt>) return "ShadowVarStmt";
+        if constexpr (std::is_same_v<T, UsingLocalStmt>) return "UsingLocalStmt";
         if constexpr (std::is_same_v<T, AssignStmt>) return "AssignStmt";
         if constexpr (std::is_same_v<T, CompoundAssignStmt>) return "CompoundAssignStmt";
         if constexpr (std::is_same_v<T, ExprStmt>) return "ExprStmt";
@@ -418,8 +417,7 @@ bool is_refutable(const PatternNode& p) {
 bool is_binding(const Stmt& s) {
   return std::holds_alternative<LetStmt>(s) ||
          std::holds_alternative<VarStmt>(s) ||
-         std::holds_alternative<ShadowLetStmt>(s) ||
-         std::holds_alternative<ShadowVarStmt>(s);
+         std::holds_alternative<UsingLocalStmt>(s);
 }
 
 bool is_control(const Stmt& s) {
@@ -514,9 +512,9 @@ void collect_expr_nodes_from_stmt(const Stmt& stmt,
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, LetStmt> || std::is_same_v<T, VarStmt>) {
           collect_expr_nodes_from_expr(node.binding.init, out);
-        } else if constexpr (std::is_same_v<T, ShadowLetStmt> ||
-                             std::is_same_v<T, ShadowVarStmt>) {
-          collect_expr_nodes_from_expr(node.init, out);
+        } else if constexpr (std::is_same_v<T, UsingLocalStmt>) {
+          // UsingLocalStmt has no expressions
+          (void)node;
         } else if constexpr (std::is_same_v<T, AssignStmt>) {
           collect_expr_nodes_from_expr(node.place, out);
           collect_expr_nodes_from_expr(node.value, out);
@@ -1040,8 +1038,7 @@ std::string StmtKindTag(const Stmt& s) {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, LetStmt>) return "let";
         if constexpr (std::is_same_v<T, VarStmt>) return "var";
-        if constexpr (std::is_same_v<T, ShadowLetStmt>) return "shadow";
-        if constexpr (std::is_same_v<T, ShadowVarStmt>) return "shadow";
+        if constexpr (std::is_same_v<T, UsingLocalStmt>) return "using";
         if constexpr (std::is_same_v<T, AssignStmt>) return "assign";
         if constexpr (std::is_same_v<T, CompoundAssignStmt>) return "compound_assign";
         if constexpr (std::is_same_v<T, DeferStmt>) return "defer";

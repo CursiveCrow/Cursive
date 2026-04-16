@@ -513,10 +513,11 @@ namespace cursive::analysis
             {
               return IsImpureExpr(ctx, node.binding.init, purity_stack);
             }
-            else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                               std::is_same_v<T, ast::ShadowVarStmt>)
+            else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>)
             {
-              return IsImpureExpr(ctx, node.init, purity_stack);
+              // UsingLocalStmt is a compile-time alias; no runtime expression.
+              (void)node;
+              return false;
             }
             else if constexpr (std::is_same_v<T, ast::ExprStmt>)
             {

@@ -49,6 +49,9 @@ struct TypeBinding {
   std::optional<ClosureCaptureInfo> closure_capture_info;
   bool deprecated = false;
   std::optional<std::string> deprecated_message;
+  bool derived_from_shared = false;
+  bool stale_ok = false;
+  bool stale_after_release = false;
   BindingProvenanceSeedKind provenance_kind =
       BindingProvenanceSeedKind::Stack;
   std::optional<IdKey> provenance_region;
@@ -136,6 +139,10 @@ std::optional<std::string_view> CheckEscapingClosureSpawn(
     const ast::ExprPtr& expr,
     const TypeEnv& env,
     const TypeRef& expected_closure_type);
+bool ExprNeedsKeyAccess(const ScopeContext& ctx,
+                        const StmtTypeContext& type_ctx,
+                        const ast::ExprPtr& expr,
+                        const TypeEnv& env);
 
 struct FlowInfo {
   std::vector<TypeRef> results;
@@ -210,6 +217,7 @@ struct StmtTypeContext {
   TypeRef parallel_domain;           // domain type when in_parallel is true
   // Names introduced within the current parallel block body.
   std::unordered_set<IdKey>* parallel_bindings = nullptr;
+  const std::unordered_map<IdKey, ast::ExprPtr>* loop_iteration_ranges = nullptr;
   // Union of bindings introduced by enclosing parallel block bodies.
   const std::unordered_set<IdKey>* parallel_ancestor_bindings = nullptr;
   // Ordered innermost-last stack of enclosing parallel binding scopes.
@@ -220,6 +228,8 @@ struct StmtTypeContext {
   bool keys_held = false;            // true when keys are held (for wait restriction)
   std::optional<ast::KeyMode> key_mode;  // key block mode when keys_held is true
   std::vector<HeldKeyTypingInfo> held_key_paths;  // canonical held key paths for nested key checks
+  std::optional<ast::KeyMode> shared_access_mode;  // RequiredMode context for shared-place access
+  bool suppress_shared_access_check = false;  // true while typing a larger shared-place path
   bool in_speculative = false;       // true when inside a speculative key block
   std::unordered_set<IdKey>* unique_captures = nullptr;  // track unique captures
   // C0X Extension: Contract predicates / invariants
@@ -229,6 +239,21 @@ struct StmtTypeContext {
   bool contract_dynamic = false;
   std::shared_ptr<StaticProofContext> proof_ctx;
 };
+
+inline StmtTypeContext WithSharedAccessMode(StmtTypeContext ctx,
+                                            ast::KeyMode mode) {
+  if (!ctx.shared_access_mode.has_value() ||
+      (mode == ast::KeyMode::Write &&
+       *ctx.shared_access_mode != ast::KeyMode::Write)) {
+    ctx.shared_access_mode = mode;
+  }
+  return ctx;
+}
+
+inline StmtTypeContext SuppressSharedAccessCheck(StmtTypeContext ctx) {
+  ctx.suppress_shared_access_check = true;
+  return ctx;
+}
 
 StmtTypeResult TypeScopedStmtBody(const ScopeContext& ctx,
                                   const StmtTypeContext& type_ctx,

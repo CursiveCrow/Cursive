@@ -20,6 +20,7 @@
 // =============================================================================
 
 #include "05_codegen/lower/expr/field_access.h"
+#include "05_codegen/lower/expr/expr_common.h"
 #include "05_codegen/cleanup/cleanup.h"
 #include "00_core/assert_spec.h"
 #include "04_analysis/attributes/attribute_registry.h"
@@ -88,7 +89,7 @@ std::optional<std::string> FieldHead(const ast::Expr& expr) {
 }
 
 // Update binding state after field assignment (clears field from moved_fields)
-void UpdateBindingAfterFieldAssign(const ast::Expr& place, LowerCtx& ctx) {
+void UpdateBindingAfterFieldAssignLocal(const ast::Expr& place, LowerCtx& ctx) {
   auto root = PlaceRoot(place);
   auto head = FieldHead(place);
   if (!root.has_value() || !head.has_value()) {
@@ -147,7 +148,8 @@ LowerResult LowerReadPlaceFieldAccess(const ast::FieldAccessExpr& node,
   info.field = node.name;
   ctx.RegisterDerivedValue(field_value, info);
 
-  return LowerResult{base_result.ir, field_value};
+  IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Read, ctx);
+  return LowerResult{SeqIR({base_result.ir, key_ir}), field_value};
 }
 
 // ============================================================================
@@ -229,7 +231,7 @@ IRPtr LowerWritePlaceFieldAccess(const ast::FieldAccessExpr& node,
 
   // Update binding state after field assignment
   if (allow_drop) {
-    UpdateBindingAfterFieldAssign(place, ctx);
+    UpdateBindingAfterFieldAssignLocal(place, ctx);
   }
 
   return SeqIR(std::vector<IRPtr>{

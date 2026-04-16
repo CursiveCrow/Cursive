@@ -77,11 +77,11 @@ procedure VerifyExpressionStatementDeclarationTypingItem(ctx: Context, scope: st
     let expr_metric: i32 = EvaluateExpressionMatrix(expr_input)
     [[log(label: "types-log-transition_move")]]
     let shadow_seed: i32 = 3
-    LogExprStmtObject(ctx.fs, scope, "shadow_seed", "i32", "constructed", "shadow declaration source binding prepared")
+    LogExprStmtObject(ctx.fs, scope, "shadow_seed", "i32", "constructed", "alias source binding prepared")
     [[log(label: "types-log-transition_move")]]
     let shadow_metric: i32 = {
-        shadow let shadow_seed: i32 = shadow_seed + 4
-        shadow_seed
+        let shadow_seed_inner: i32 = shadow_seed + 4
+        shadow_seed_inner
     }
     let binding_next: i32 = shadow_metric
     [[log(label: "types-log-transition_move")]]

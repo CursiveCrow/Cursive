@@ -593,10 +593,10 @@ static bool BlockMayNeedDynamicRuntime(const ast::Block& block) {
             return ExprMayNeedDynamicRuntime(node.binding.init);
           } else if constexpr (std::is_same_v<T, ast::VarStmt>) {
             return ExprMayNeedDynamicRuntime(node.binding.init);
-          } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt>) {
-            return ExprMayNeedDynamicRuntime(node.init);
-          } else if constexpr (std::is_same_v<T, ast::ShadowVarStmt>) {
-            return ExprMayNeedDynamicRuntime(node.init);
+          } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+            // UsingLocalStmt is a compile-time alias; no runtime expression.
+            (void)node;
+            return false;
           } else if constexpr (std::is_same_v<T, ast::AssignStmt>) {
             return ExprMayNeedDynamicRuntime(node.place) ||
                    ExprMayNeedDynamicRuntime(node.value);
@@ -1007,9 +1007,10 @@ static bool StmtContainsDirectCall(const ast::Stmt& stmt,
         if constexpr (std::is_same_v<T, ast::LetStmt> ||
                       std::is_same_v<T, ast::VarStmt>) {
           return ExprContainsDirectCall(node.binding.init, proc_name);
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                             std::is_same_v<T, ast::ShadowVarStmt>) {
-          return ExprContainsDirectCall(node.init, proc_name);
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt is a compile-time alias; no runtime expression.
+          (void)node;
+          return false;
         } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
                              std::is_same_v<T, ast::CompoundAssignStmt>) {
           return ExprContainsDirectCall(node.place, proc_name) ||
@@ -1451,10 +1452,10 @@ static bool StmtContainsValueReference(const ast::Stmt& stmt,
                       std::is_same_v<T, ast::VarStmt>) {
           return ExprContainsValueReference(node.binding.init, current_module,
                                             target_module, proc_name);
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                             std::is_same_v<T, ast::ShadowVarStmt>) {
-          return ExprContainsValueReference(node.init, current_module, target_module,
-                                            proc_name);
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt is a compile-time alias; no runtime expression.
+          (void)node;
+          return false;
         } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
                              std::is_same_v<T, ast::CompoundAssignStmt>) {
           return ExprContainsValueReference(node.place, current_module, target_module,

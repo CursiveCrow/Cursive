@@ -95,6 +95,11 @@ ExprTypeResult TypeWaitExpr(const ScopeContext& ctx,
   SPEC_RULE("T-Wait");
   ExprTypeResult result;
 
+  if (type_ctx.in_speculative) {
+    result.diag_id = "E-CON-0092";
+    return result;
+  }
+
   // Check key restriction - wait is ill-formed when keys are held
   if (type_ctx.keys_held) {
     result.diag_id = "E-CON-0133";  // wait while key is held

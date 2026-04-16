@@ -53,8 +53,6 @@ static int VisibilityRank(ast::Visibility vis) {
       return 4;
     case ast::Visibility::Internal:
       return 3;
-    case ast::Visibility::Protected:
-      return 2;
     case ast::Visibility::Private:
       return 1;
   }
@@ -126,11 +124,6 @@ bool IsVisible(ast::Visibility item_vis,
       SPEC_RULE("Vis-Internal");
       // Visible within the same assembly
       return assembly_name == from_assembly;
-
-    case ast::Visibility::Protected:
-      SPEC_RULE("Vis-Protected");
-      // Visible in declaring module and submodules
-      return SameModuleOrSubmodule(item_module, from_module);
 
     case ast::Visibility::Private:
       SPEC_RULE("Vis-Private");
@@ -209,8 +202,6 @@ std::string_view VisibilityToString(ast::Visibility vis) {
       return "public";
     case ast::Visibility::Internal:
       return "internal";
-    case ast::Visibility::Protected:
-      return "protected";
     case ast::Visibility::Private:
       return "private";
   }

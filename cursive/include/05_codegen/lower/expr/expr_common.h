@@ -92,6 +92,20 @@ std::string BuildPlaceRepr(const ast::Expr& expr);
 // Check if attributes contain [[dynamic]]
 bool HasDynamicAttr(const ast::AttributeList& attrs);
 
+// Check if attributes contain a memory-order annotation and recover its value.
+bool HasMemoryOrderAttr(const ast::AttributeList& attrs);
+std::optional<AccessOrdering> MemoryOrderFromAttrs(const ast::AttributeList& attrs);
+
+// Shared/keyed access detection for ordered-access lowering.
+bool IsSharedAccessExpr(const ast::Expr& expr, const LowerCtx& ctx);
+LowerResult ApplyEffectiveOrdering(const ast::Expr& expr,
+                                   LowerResult result,
+                                   LowerCtx& ctx);
+std::string EncodeLoweredKeyPath(const analysis::KeyPath& path);
+IRPtr LowerImplicitKeyAccess(const ast::Expr& expr,
+                             ast::KeyMode mode,
+                             LowerCtx& ctx);
+
 // Check if attributes contain [[log]]
 bool HasLogAttr(const ast::AttributeList& attrs);
 

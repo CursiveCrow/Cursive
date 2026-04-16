@@ -63,8 +63,6 @@ std::string VisibilityText(ast::Visibility vis) {
       return "internal";
     case ast::Visibility::Private:
       return "private";
-    case ast::Visibility::Protected:
-      return "protected";
   }
   return "internal";
 }
@@ -100,7 +98,6 @@ bool CanAccessVis(const ast::ModulePath& accessor_module,
     case ast::Visibility::Internal:
       return SameAssembly(accessor_module, decl_module);
     case ast::Visibility::Private:
-    case ast::Visibility::Protected:
       return PathEq(accessor_module, decl_module);
   }
   return true;

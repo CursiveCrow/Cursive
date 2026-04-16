@@ -98,6 +98,31 @@ static void UpdateAssignedBindingProvenance(TypeEnv& env,
   }
 }
 
+static void UpdateAssignedBindingSharedState(TypeEnv& env,
+                                             std::string_view name,
+                                             bool derived_from_shared) {
+  const auto key = IdKeyOf(name);
+  for (auto it = env.scopes.rbegin(); it != env.scopes.rend(); ++it) {
+    const auto found = it->find(key);
+    if (found == it->end()) {
+      continue;
+    }
+    found->second.derived_from_shared = derived_from_shared;
+    found->second.stale_after_release = false;
+    return;
+  }
+}
+
+static bool IsRootIdentifierPlace(const ast::ExprPtr& expr) {
+  if (!expr) {
+    return false;
+  }
+  if (const auto* attributed = std::get_if<ast::AttributedExpr>(&expr->node)) {
+    return IsRootIdentifierPlace(attributed->expr);
+  }
+  return std::holds_alternative<ast::IdentifierExpr>(expr->node);
+}
+
 static bool IsPlaceExprNode(const ast::ExprNode& node) {
   if (std::holds_alternative<ast::IdentifierExpr>(node)) {
     return true;
@@ -142,9 +167,21 @@ static bool HasCoveringWriteKey(const StmtTypeContext& type_ctx,
       return true;
     }
   }
-  return type_ctx.keys_held &&
-         type_ctx.key_mode.has_value() &&
-         *type_ctx.key_mode == ast::KeyMode::Write;
+  return false;
+}
+
+static std::optional<ast::KeyMode> CoveringKeyMode(const StmtTypeContext& type_ctx,
+                                                   const KeyPath& path) {
+  std::optional<ast::KeyMode> best;
+  for (const auto& held : type_ctx.held_key_paths) {
+    if (!IsPrefix(held.path, path)) {
+      continue;
+    }
+    if (!best.has_value() || held.mode == ast::KeyMode::Write) {
+      best = held.mode;
+    }
+  }
+  return best;
 }
 
 static bool IsCompoundRewriteOp(std::string_view op) {
@@ -174,9 +211,10 @@ static bool StmtReadsExactPath(const ast::Stmt& stmt, const KeyPath& path) {
         if constexpr (std::is_same_v<T, ast::LetStmt> ||
                       std::is_same_v<T, ast::VarStmt>) {
           return ExprReadsExactPath(node.binding.init, path);
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                             std::is_same_v<T, ast::ShadowVarStmt>) {
-          return ExprReadsExactPath(node.init, path);
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt is a compile-time alias; no runtime expression.
+          (void)node;
+          return false;
         } else if constexpr (std::is_same_v<T, ast::AssignStmt>) {
           return ExprReadsExactPath(node.place, path) ||
                  ExprReadsExactPath(node.value, path);
@@ -647,6 +685,10 @@ StmtTypeResult TypeAssignStmt(const ScopeContext& ctx,
                               const IdentTypeFn& type_ident,
                               const PlaceTypeFn& type_place) {
   SpecDefsAssignStmt();
+  const StmtTypeContext read_ctx =
+      WithSharedAccessMode(type_ctx, ast::KeyMode::Read);
+  const StmtTypeContext write_ctx =
+      WithSharedAccessMode(type_ctx, ast::KeyMode::Write);
 
   // Check that the target is a place expression (lvalue)
   if (!IsPlaceExprLocal(node.place)) {
@@ -656,7 +698,7 @@ StmtTypeResult TypeAssignStmt(const ScopeContext& ctx,
 
   // Type the place expression
   auto type_place_current = [&](const ast::ExprPtr& inner) {
-    return TypePlaceWithCurrentEnv(ctx, type_ctx, env, type_place, inner);
+    return TypePlaceWithCurrentEnv(ctx, write_ctx, env, type_place, inner);
   };
   const auto place_type = type_place_current(node.place);
   if (!place_type.ok) {
@@ -705,11 +747,18 @@ StmtTypeResult TypeAssignStmt(const ScopeContext& ctx,
                  type_ctx.key_mode.has_value() &&
                  *type_ctx.key_mode == ast::KeyMode::Write);
       if (!has_write_key) {
+        const auto covering_mode =
+            place_key_path.has_value()
+                ? CoveringKeyMode(type_ctx, *place_key_path)
+                : type_ctx.key_mode;
         if (read_then_write_same_path) {
           SPEC_RULE("K-Read-Write-Reject");
           return {false, "E-CON-0060", {}, {}};
         }
-        return {false, "E-TYP-1604", {}, {}};
+        if (covering_mode.has_value()) {
+          return {false, "E-CON-0005", {}, {}};
+        }
+        return {false, "E-CON-0001", {}, {}};
       }
       shared_write_with_key = true;
     }
@@ -745,14 +794,14 @@ StmtTypeResult TypeAssignStmt(const ScopeContext& ctx,
 
   // Type check the value against the place type
   const auto check =
-      CheckExprAgainst(ctx, type_ctx, node.value, assign_target_type, env);
+      CheckExprAgainst(ctx, read_ctx, node.value, assign_target_type, env);
   if (!check.ok) {
     if (core::IsDebugEnabled("sema") || core::IsDebugEnabled("pipeline")) {
       const auto inferred_dbg =
           InferExpr(ctx, node.value,
                     [&](const ast::ExprPtr& inner) {
-                      return TypeExprWithCurrentEnv(ctx, type_ctx, env, type_expr,
-                                                    inner);
+                      return TypeExprWithCurrentEnv(ctx, read_ctx, env,
+                                                    type_expr, inner);
                     },
                     type_place_current,
                     IdentTypeWithCurrentEnv(ctx, env, type_ident));
@@ -805,6 +854,10 @@ StmtTypeResult TypeAssignStmt(const ScopeContext& ctx,
     const auto value_prov = TrackExprProvenance(ctx, node.value, env);
     if (value_prov.ok) {
       UpdateAssignedBindingProvenance(out_env, *root, value_prov);
+    }
+    if (IsRootIdentifierPlace(node.place)) {
+      UpdateAssignedBindingSharedState(
+          out_env, *root, ExprNeedsKeyAccess(ctx, read_ctx, node.value, env));
     }
   }
 

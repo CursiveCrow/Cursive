@@ -175,8 +175,6 @@ static int VisRank(ast::Visibility vis) {
       return 4;
     case ast::Visibility::Internal:
       return 3;
-    case ast::Visibility::Protected:
-      return 2;
     case ast::Visibility::Private:
       return 1;
   }

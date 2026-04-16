@@ -785,12 +785,9 @@ static bool HasNonLocalCtrlStmt(const ast::Stmt& stmt, bool in_loop) {
             return true;
           }
           return false;
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                             std::is_same_v<T, ast::ShadowVarStmt>) {
-          if (HasNonLocalCtrlExpr(node.init, in_loop)) {
-            SPEC_RULE("HasNonLocalCtrl-Child");
-            return true;
-          }
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt is a compile-time alias; no runtime expression.
+          (void)node;
           return false;
         } else if constexpr (std::is_same_v<T, ast::AssignStmt>) {
           if (HasNonLocalCtrlExpr(node.place, in_loop) ||
@@ -1077,10 +1074,10 @@ class OuterCaptureCollector {
                         std::is_same_v<T, ast::VarStmt>) {
             VisitExpr(node.binding.init);
             DeclarePattern(node.binding.pat);
-          } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                               std::is_same_v<T, ast::ShadowVarStmt>) {
-            VisitExpr(node.init);
-            DeclareName(node.name);
+          } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+            // UsingLocalStmt is a compile-time alias; no runtime expression,
+            // but the alias name still enters the surrounding scope.
+            DeclareName(node.alias);
           } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
                                std::is_same_v<T, ast::CompoundAssignStmt>) {
             VisitExpr(node.place);
@@ -1402,9 +1399,9 @@ class SpawnExprPresenceFinder {
           if constexpr (std::is_same_v<T, ast::LetStmt> ||
                         std::is_same_v<T, ast::VarStmt>) {
             VisitExpr(node.binding.init);
-          } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                               std::is_same_v<T, ast::ShadowVarStmt>) {
-            VisitExpr(node.init);
+          } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+            // UsingLocalStmt is a compile-time alias; no runtime expression.
+            (void)node;
           } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
                                std::is_same_v<T, ast::CompoundAssignStmt>) {
             VisitExpr(node.place);
@@ -1666,6 +1663,199 @@ bool ClosureTypeHasSharedDeps(const TypeRef& hint) {
     return false;
   }
   return closure->deps_opt.has_value();
+}
+
+namespace {
+
+bool ExprNeedsKeyAccessImpl(const ScopeContext& ctx,
+                            const StmtTypeContext& type_ctx,
+                            const ast::ExprPtr& expr,
+                            const TypeEnv& env);
+bool BlockNeedsKeyAccessImpl(const ScopeContext& ctx,
+                             const StmtTypeContext& type_ctx,
+                             const ast::Block& block,
+                             const TypeEnv& env);
+
+bool ExprHasSharedPermissionImpl(const ScopeContext& ctx,
+                                 const StmtTypeContext& type_ctx,
+                                 const ast::ExprPtr& expr,
+                                 const TypeEnv& env) {
+  if (!expr) {
+    return false;
+  }
+  const auto place = TypePlace(ctx, type_ctx, expr, env);
+  if (place.ok && place.type &&
+      PermOfType(place.type) == Permission::Shared) {
+    return true;
+  }
+  const auto value = TypeExpr(ctx, type_ctx, expr, env);
+  return value.ok && value.type &&
+         PermOfType(value.type) == Permission::Shared;
+}
+
+bool StmtNeedsKeyAccessImpl(const ScopeContext& ctx,
+                            const StmtTypeContext& type_ctx,
+                            const ast::Stmt& stmt,
+                            const TypeEnv& env) {
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::LetStmt> ||
+                      std::is_same_v<T, ast::VarStmt>) {
+          return ExprNeedsKeyAccessImpl(ctx, type_ctx, node.binding.init, env);
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
+                             std::is_same_v<T, ast::CompoundAssignStmt>) {
+          return ExprHasSharedPermissionImpl(ctx, type_ctx, node.place, env) ||
+                 ExprNeedsKeyAccessImpl(ctx, type_ctx, node.place, env) ||
+                 ExprNeedsKeyAccessImpl(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::ExprStmt>) {
+          return ExprNeedsKeyAccessImpl(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::DeferStmt> ||
+                             std::is_same_v<T, ast::UnsafeBlockStmt> ||
+                             std::is_same_v<T, ast::CtStmt>) {
+          return node.body && BlockNeedsKeyAccessImpl(ctx, type_ctx, *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::RegionStmt>) {
+          return ExprNeedsKeyAccessImpl(ctx, type_ctx, node.opts_opt, env) ||
+                 (node.body && BlockNeedsKeyAccessImpl(ctx, type_ctx, *node.body, env));
+        } else if constexpr (std::is_same_v<T, ast::FrameStmt>) {
+          return node.body && BlockNeedsKeyAccessImpl(ctx, type_ctx, *node.body, env);
+        } else if constexpr (std::is_same_v<T, ast::ReturnStmt> ||
+                             std::is_same_v<T, ast::BreakStmt>) {
+          return ExprNeedsKeyAccessImpl(ctx, type_ctx, node.value_opt, env);
+        } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
+          return true;
+        }
+        return false;
+      },
+      stmt);
+}
+
+bool BlockNeedsKeyAccessImpl(const ScopeContext& ctx,
+                             const StmtTypeContext& type_ctx,
+                             const ast::Block& block,
+                             const TypeEnv& env) {
+  for (const auto& stmt : block.stmts) {
+    if (StmtNeedsKeyAccessImpl(ctx, type_ctx, stmt, env)) {
+      return true;
+    }
+  }
+  return ExprNeedsKeyAccessImpl(ctx, type_ctx, block.tail_opt, env);
+}
+
+bool ExprNeedsKeyAccessImpl(const ScopeContext& ctx,
+                            const StmtTypeContext& type_ctx,
+                            const ast::ExprPtr& expr,
+                            const TypeEnv& env) {
+  if (!expr) {
+    return false;
+  }
+  if (ExprHasSharedPermissionImpl(ctx, type_ctx, expr, env)) {
+    return true;
+  }
+
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::CallExpr>) {
+          if (ExprNeedsKeyAccessImpl(ctx, type_ctx, node.callee, env)) {
+            return true;
+          }
+          for (const auto& arg : node.args) {
+            if (ExprNeedsKeyAccessImpl(ctx, type_ctx, arg.value, env)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::MethodCallExpr>) {
+          if (ExprNeedsKeyAccessImpl(ctx, type_ctx, node.receiver, env)) {
+            return true;
+          }
+          for (const auto& arg : node.args) {
+            if (ExprNeedsKeyAccessImpl(ctx, type_ctx, arg.value, env)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::BinaryExpr> ||
+                             std::is_same_v<T, ast::PipelineExpr>) {
+          return ExprNeedsKeyAccessImpl(ctx, type_ctx, node.lhs, env) ||
+                 ExprNeedsKeyAccessImpl(ctx, type_ctx, node.rhs, env);
+        } else if constexpr (std::is_same_v<T, ast::UnaryExpr> ||
+                             std::is_same_v<T, ast::CastExpr> ||
+                             std::is_same_v<T, ast::DerefExpr> ||
+                             std::is_same_v<T, ast::PropagateExpr> ||
+                             std::is_same_v<T, ast::YieldExpr> ||
+                             std::is_same_v<T, ast::YieldFromExpr> ||
+                             std::is_same_v<T, ast::SyncExpr>) {
+          return ExprNeedsKeyAccessImpl(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::AddressOfExpr> ||
+                             std::is_same_v<T, ast::MoveExpr>) {
+          return ExprNeedsKeyAccessImpl(ctx, type_ctx, node.place, env);
+        } else if constexpr (std::is_same_v<T, ast::FieldAccessExpr> ||
+                             std::is_same_v<T, ast::TupleAccessExpr>) {
+          return ExprNeedsKeyAccessImpl(ctx, type_ctx, node.base, env);
+        } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {
+          return ExprNeedsKeyAccessImpl(ctx, type_ctx, node.base, env) ||
+                 ExprNeedsKeyAccessImpl(ctx, type_ctx, node.index, env);
+        } else if constexpr (std::is_same_v<T, ast::TupleExpr>) {
+          for (const auto& elem : node.elements) {
+            if (ExprNeedsKeyAccessImpl(ctx, type_ctx, elem, env)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+          bool found = false;
+          ast::ForEachArrayExprSubexpr(node, [&](const ast::ExprPtr& elem) {
+            found = found || ExprNeedsKeyAccessImpl(ctx, type_ctx, elem, env);
+          });
+          return found;
+        } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
+          return ExprNeedsKeyAccessImpl(ctx, type_ctx, node.value, env) ||
+                 ExprNeedsKeyAccessImpl(ctx, type_ctx, node.count, env);
+        } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
+          for (const auto& field : node.fields) {
+            if (ExprNeedsKeyAccessImpl(ctx, type_ctx, field.value, env)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::IfExpr>) {
+          return ExprNeedsKeyAccessImpl(ctx, type_ctx, node.cond, env) ||
+                 ExprNeedsKeyAccessImpl(ctx, type_ctx, node.then_expr, env) ||
+                 ExprNeedsKeyAccessImpl(ctx, type_ctx, node.else_expr, env);
+        } else if constexpr (std::is_same_v<T, ast::IfCaseExpr>) {
+          if (ExprNeedsKeyAccessImpl(ctx, type_ctx, node.scrutinee, env)) {
+            return true;
+          }
+          for (const auto& arm : node.cases) {
+            if (ExprNeedsKeyAccessImpl(ctx, type_ctx, arm.body, env)) {
+              return true;
+            }
+          }
+          return ExprNeedsKeyAccessImpl(ctx, type_ctx, node.else_expr, env);
+        } else if constexpr (std::is_same_v<T, ast::IfIsExpr>) {
+          return ExprNeedsKeyAccessImpl(ctx, type_ctx, node.scrutinee, env) ||
+                 ExprNeedsKeyAccessImpl(ctx, type_ctx, node.then_expr, env) ||
+                 ExprNeedsKeyAccessImpl(ctx, type_ctx, node.else_expr, env);
+        } else if constexpr (std::is_same_v<T, ast::BlockExpr> ||
+                             std::is_same_v<T, ast::UnsafeBlockExpr>) {
+          return node.block && BlockNeedsKeyAccessImpl(ctx, type_ctx, *node.block, env);
+        }
+        return false;
+      },
+      expr->node);
+}
+
+}  // namespace
+
+bool ExprNeedsKeyAccess(const ScopeContext& ctx,
+                        const StmtTypeContext& type_ctx,
+                        const ast::ExprPtr& expr,
+                        const TypeEnv& env) {
+  return ExprNeedsKeyAccessImpl(ctx, type_ctx, expr, env);
 }
 
 static bool DeferSafe(const ast::Block& block) {
@@ -2026,9 +2216,10 @@ static void RecordParallelStmtBindings(const StmtTypeContext& type_ctx,
           std::vector<IdKey> names;
           CollectPatNames(*node.binding.pat, names);
           type_ctx.parallel_bindings->insert(names.begin(), names.end());
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                             std::is_same_v<T, ast::ShadowVarStmt>) {
-          type_ctx.parallel_bindings->insert(IdKeyOf(node.name));
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt is a compile-time alias; the alias name still
+          // enters the parallel-binding set so references can be resolved.
+          type_ctx.parallel_bindings->insert(IdKeyOf(node.alias));
         }
       },
       stmt);
@@ -2501,21 +2692,8 @@ StmtTypeResult TypeVarStmt(const ScopeContext& ctx,
                            const IdentTypeFn& type_ident,
                            const PlaceTypeFn& type_place);
 
-StmtTypeResult TypeShadowLetStmt(const ScopeContext& ctx,
-                                 const StmtTypeContext& type_ctx,
-                                 const ast::ShadowLetStmt& stmt,
-                                 const TypeEnv& env,
-                                 const ExprTypeFn& type_expr,
-                                 const IdentTypeFn& type_ident,
-                                 const PlaceTypeFn& type_place);
-
-StmtTypeResult TypeShadowVarStmt(const ScopeContext& ctx,
-                                 const StmtTypeContext& type_ctx,
-                                 const ast::ShadowVarStmt& stmt,
-                                 const TypeEnv& env,
-                                 const ExprTypeFn& type_expr,
-                                 const IdentTypeFn& type_ident,
-                                 const PlaceTypeFn& type_place);
+StmtTypeResult TypeUsingLocalStmt(const ast::UsingLocalStmt& stmt,
+                                  const TypeEnv& env);
 
 StmtTypeResult TypeAssignStmt(const ScopeContext& ctx,
                               const StmtTypeContext& type_ctx,
@@ -2633,13 +2811,9 @@ StmtTypeResult TypeStmt(const ScopeContext& ctx,
           SPEC_RULE("T-VarStmt");
           return TypeVarStmt(ctx, type_ctx, node, env, type_expr, type_ident, type_place);
         }
-        else if constexpr (std::is_same_v<T, ast::ShadowLetStmt>) {
-          SPEC_RULE("T-ShadowLetStmt");
-          return TypeShadowLetStmt(ctx, type_ctx, node, env, type_expr, type_ident, type_place);
-        }
-        else if constexpr (std::is_same_v<T, ast::ShadowVarStmt>) {
-          SPEC_RULE("T-ShadowVarStmt");
-          return TypeShadowVarStmt(ctx, type_ctx, node, env, type_expr, type_ident, type_place);
+        else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          SPEC_RULE("T-UsingLocalStmt");
+          return TypeUsingLocalStmt(node, env);
         }
         else if constexpr (std::is_same_v<T, ast::AssignStmt>) {
           SPEC_RULE("T-AssignStmt");

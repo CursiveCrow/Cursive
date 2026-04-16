@@ -67,9 +67,9 @@ bool InOuter(const ScopeContext& ctx, std::string_view name) {
 
 IntroResult Intro(ScopeContext& ctx, std::string_view name, const Entity& ent) {
   SpecDefsIntro();
-  if (ReservedGen(name)) {
-    SPEC_RULE("Intro-Reserved-Gen-Err");
-    return {false, "Intro-Reserved-Gen-Err"};
+  if (ReservedId(name)) {
+    SPEC_RULE("Intro-Reserved-Id-Err");
+    return {false, "Intro-Reserved-Id-Err"};
   }
 
   auto& scopes = Scopes(ctx);
@@ -112,9 +112,9 @@ IntroResult ShadowIntro(ScopeContext& ctx,
                         std::string_view name,
                         const Entity& ent) {
   SpecDefsIntro();
-  if (ReservedGen(name)) {
-    SPEC_RULE("Shadow-Reserved-Gen-Err");
-    return {false, "Shadow-Reserved-Gen-Err"};
+  if (ReservedId(name)) {
+    SPEC_RULE("Shadow-Reserved-Id-Err");
+    return {false, "Shadow-Reserved-Id-Err"};
   }
 
   auto& scopes = Scopes(ctx);
@@ -165,11 +165,10 @@ ValidateModuleNamesResult ValidateModuleNames(
   }
   std::sort(keys.begin(), keys.end());
 
-  // Check for reserved gen_ prefix (Intro-Reserved-Gen-Err at module scope)
   for (const auto& key : keys) {
-    if (ReservedGen(key)) {
-      SPEC_RULE("Intro-Reserved-Gen-Err");
-      return {false, "Intro-Reserved-Gen-Err", SpanForKey(name_spans, key)};
+    if (ReservedId(key)) {
+      SPEC_RULE("Intro-Reserved-Id-Err");
+      return {false, "Intro-Reserved-Id-Err", SpanForKey(name_spans, key)};
     }
   }
   for (const auto& key : keys) {

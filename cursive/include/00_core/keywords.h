@@ -50,14 +50,12 @@ namespace cursive::core
       "parallel", // C0X Extension: structured concurrency
       "private",
       "procedure",
-      "protected",
       "public",
       "quote",
       "race",
       "record",
       "region",
       "return",
-      "shadow",
       "shared",
       "spawn", // C0X Extension: structured concurrency
       "sync",

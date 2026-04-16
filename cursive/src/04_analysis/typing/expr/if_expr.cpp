@@ -270,10 +270,10 @@ static bool ContainsGpuBarrierCallInStmt(const ast::Stmt& stmt) {
           return ContainsGpuBarrierCall(node.binding.init);
         } else if constexpr (std::is_same_v<T, ast::VarStmt>) {
           return ContainsGpuBarrierCall(node.binding.init);
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt>) {
-          return ContainsGpuBarrierCall(node.init);
-        } else if constexpr (std::is_same_v<T, ast::ShadowVarStmt>) {
-          return ContainsGpuBarrierCall(node.init);
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt is a compile-time alias; no runtime expression.
+          (void)node;
+          return false;
         } else if constexpr (std::is_same_v<T, ast::AssignStmt>) {
           return ContainsGpuBarrierCall(node.place) ||
                  ContainsGpuBarrierCall(node.value);
@@ -566,7 +566,8 @@ ExprTypeResult TypeIfExpr(const ScopeContext& ctx,
   }
 
   // 1. Type the condition
-  const auto cond_type = type_expr(expr.cond);
+  const auto cond_type = TypeExpr(
+      ctx, WithSharedAccessMode(type_ctx, ast::KeyMode::Read), expr.cond, env);
   if (!cond_type.ok) {
     result.diag_id = cond_type.diag_id;
     result.diag_detail = cond_type.diag_detail;
@@ -670,7 +671,8 @@ CheckResult CheckIfExpr(const ScopeContext& ctx,
   }
 
   // 1. Type the condition
-  const auto cond_type = type_expr(expr.cond);
+  const auto cond_type = TypeExpr(
+      ctx, WithSharedAccessMode(type_ctx, ast::KeyMode::Read), expr.cond, env);
   if (!cond_type.ok) {
     result.diag_id = cond_type.diag_id;
     result.diag_detail = cond_type.diag_detail;

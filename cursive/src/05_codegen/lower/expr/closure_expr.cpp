@@ -411,12 +411,10 @@ void ClosureCaptureCollector::VisitStmt(const ast::Stmt& stmt) {
             CollectPatternNames(*node.binding.pat, names);
           }
           locals.AddAll(names);
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt>) {
-          VisitExpr(node.init);
-          locals.Add(node.name);
-        } else if constexpr (std::is_same_v<T, ast::ShadowVarStmt>) {
-          VisitExpr(node.init);
-          locals.Add(node.name);
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          // UsingLocalStmt is a compile-time alias; no runtime expression,
+          // but the alias name still enters the surrounding scope.
+          locals.Add(node.alias);
         } else if constexpr (std::is_same_v<T, ast::AssignStmt>) {
           VisitExpr(node.place);
           VisitExpr(node.value);

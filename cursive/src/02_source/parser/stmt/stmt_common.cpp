@@ -450,8 +450,7 @@ bool RequiresTerminator(const Stmt& stmt) {
   // These statement types require terminators
   return std::holds_alternative<LetStmt>(stmt) ||
          std::holds_alternative<VarStmt>(stmt) ||
-         std::holds_alternative<ShadowLetStmt>(stmt) ||
-         std::holds_alternative<ShadowVarStmt>(stmt) ||
+         std::holds_alternative<UsingLocalStmt>(stmt) ||
          std::holds_alternative<AssignStmt>(stmt) ||
          std::holds_alternative<CompoundAssignStmt>(stmt);
 }
@@ -606,12 +605,9 @@ void ApplyStmtAttrs(const AttributeList& attrs, Stmt& stmt) {
     var_stmt->binding.attrs = attrs;
     return;
   }
-  if (auto* shadow_let = std::get_if<ShadowLetStmt>(&stmt)) {
-    shadow_let->attrs = attrs;
-    return;
-  }
-  if (auto* shadow_var = std::get_if<ShadowVarStmt>(&stmt)) {
-    shadow_var->attrs = attrs;
+  if (auto* using_local = std::get_if<UsingLocalStmt>(&stmt)) {
+    // UsingLocalStmt has no attributes in the AST; attrs are silently dropped.
+    (void)using_local;
     return;
   }
   if (auto* assign = std::get_if<AssignStmt>(&stmt)) {

@@ -593,7 +593,7 @@ BindingsResult ItemBindings(const ScopeContext& ctx,
           bindings.push_back(BoundName{
               IdKeyOf(alias_name),
               Entity{EntityKind::ModuleAlias, *resolved_path, std::nullopt,
-                     EntitySource::Using},
+                     EntitySource::Import},
               node.span,
           });
           return {true, std::nullopt, std::nullopt, bindings};

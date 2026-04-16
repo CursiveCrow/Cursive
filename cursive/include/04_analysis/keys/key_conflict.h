@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -25,6 +26,13 @@ struct ConflictResult {
 
 // Check for conflict between two keys
 // Conflict((P1, M1), (P2, M2)) = Overlap(P1, P2) ∧ (M1 = Write ∨ M2 = Write)
+bool KeyModeCompatible(KeyAccessMode lhs, KeyAccessMode rhs);
+bool SegmentLess(const KeyPathSeg& lhs, const KeyPathSeg& rhs);
+bool LexLess(const std::vector<KeyPathSeg>& lhs,
+             const std::vector<KeyPathSeg>& rhs);
+bool PathsDisjoint(const KeyPath& p1, const KeyPath& p2);
+bool KeysCompatible(const HeldKey& lhs, const HeldKey& rhs);
+bool KeysOverlap(const KeyPath& p1, const KeyPath& p2);
 bool KeysConflict(const KeyPath& p1, KeyAccessMode m1,
                   const KeyPath& p2, KeyAccessMode m2);
 
@@ -47,10 +55,36 @@ struct OrderValidation {
   std::vector<KeyPath> suggested_order;
 };
 
+enum class StaticSafetyCondition {
+  NoEscape,
+  DisjointPaths,
+  SequentialContext,
+  UniqueOrigin,
+  DispatchIndexed,
+  SpeculativeOnly,
+};
+
+struct StaticSafetyClassification {
+  std::set<StaticSafetyCondition> conditions;
+
+  bool Has(StaticSafetyCondition condition) const {
+    return conditions.find(condition) != conditions.end();
+  }
+
+  bool IsStaticallySafe() const {
+    return Has(StaticSafetyCondition::SequentialContext) ||
+           Has(StaticSafetyCondition::DisjointPaths) ||
+           Has(StaticSafetyCondition::DispatchIndexed) ||
+           Has(StaticSafetyCondition::SpeculativeOnly);
+  }
+};
+
 OrderValidation ValidateAcquisitionOrder(
     const std::vector<std::pair<KeyPath, KeyAccessMode>>& keys);
 
 // Compute canonical acquisition order
+std::vector<KeyPath> CanonicalSort(const std::vector<KeyPath>& paths);
+std::vector<KeyPath> CanonicalOrder(const std::vector<KeyPath>& paths);
 std::vector<std::pair<KeyPath, KeyAccessMode>> CanonicalOrder(
     const std::vector<std::pair<KeyPath, KeyAccessMode>>& keys);
 

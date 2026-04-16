@@ -69,6 +69,7 @@
 #include "05_codegen/cleanup/cleanup.h"
 
 #include "05_codegen/checks/checks.h"
+#include "05_codegen/intrinsics/intrinsics_interface.h"
 #include "05_codegen/cleanup/drop_hooks.h"
 #include "05_codegen/cleanup/unwind.h"
 #include "05_codegen/abi/abi.h"
@@ -165,6 +166,7 @@ static std::optional<CleanupTraceIds> CleanupTraceIdsFor(const CleanupAction& ac
     case CleanupAction::Kind::DropField:
     case CleanupAction::Kind::ReleaseRegion:
     case CleanupAction::Kind::ReleaseKeyScope:
+    case CleanupAction::Kind::ReacquireReleasedKey:
     case CleanupAction::Kind::ParallelJoin:
     case CleanupAction::Kind::RuntimeScopeExit:
       return CleanupTraceIds{
@@ -192,6 +194,8 @@ static const char* CleanupActionEnterTraceIdFor(const CleanupAction& action) {
       return "Cleanup-Action-ReleaseRegion-Enter";
     case CleanupAction::Kind::ReleaseKeyScope:
       return "Cleanup-Action-ReleaseKeyScope-Enter";
+    case CleanupAction::Kind::ReacquireReleasedKey:
+      return "Cleanup-Action-ReacquireReleasedKey-Enter";
     case CleanupAction::Kind::ParallelJoin:
       return "Cleanup-Action-ParallelJoin-Enter";
     case CleanupAction::Kind::RuntimeScopeExit:
@@ -210,6 +214,7 @@ static bool CleanupActionCanPanic(const CleanupAction& action) {
       return true;
     case CleanupAction::Kind::ReleaseRegion:
     case CleanupAction::Kind::ReleaseKeyScope:
+    case CleanupAction::Kind::ReacquireReleasedKey:
     case CleanupAction::Kind::ParallelJoin:
     case CleanupAction::Kind::RuntimeScopeExit:
       // These lower to runtime no-panic helpers and do not carry a hidden
@@ -379,6 +384,13 @@ static void AppendCleanupItemToPlan(const CleanupItem& item,
       plan.push_back(std::move(action));
       return;
     }
+    case CleanupItem::Kind::ReacquireReleasedKey: {
+      CleanupAction action;
+      action.kind = CleanupAction::Kind::ReacquireReleasedKey;
+      action.name = item.name;
+      plan.push_back(std::move(action));
+      return;
+    }
     case CleanupItem::Kind::ParallelJoin: {
       CleanupAction action;
       action.kind = CleanupAction::Kind::ParallelJoin;
@@ -407,7 +419,14 @@ static void AppendScopeCleanupItems(const std::vector<CleanupItem>& items,
     AppendCleanupItemToPlan(*it, ctx, plan);
   }
   for (auto it = items.rbegin(); it != items.rend(); ++it) {
-    if (it->kind == CleanupItem::Kind::ReleaseKeyScope) {
+    if (it->kind != CleanupItem::Kind::ReacquireReleasedKey) {
+      continue;
+    }
+    AppendCleanupItemToPlan(*it, ctx, plan);
+  }
+  for (auto it = items.rbegin(); it != items.rend(); ++it) {
+    if (it->kind == CleanupItem::Kind::ReleaseKeyScope ||
+        it->kind == CleanupItem::Kind::ReacquireReleasedKey) {
       continue;
     }
     AppendCleanupItemToPlan(*it, ctx, plan);
@@ -555,6 +574,23 @@ static IRPtr EmitCleanupAction(const CleanupAction& action, LowerCtx& ctx) {
       call.callee.name = ConcurrencySymKeyScopeExit();
       call.args.push_back(scope_value);
       call.result = ctx.FreshTempValue("key_scope_exit");
+      ctx.RegisterValueType(call.result, analysis::MakeTypePrim("()"));
+      return MakeIR(std::move(call));
+    }
+    case CleanupAction::Kind::ReacquireReleasedKey: {
+      IRValue released_handle;
+      if (action.value) {
+        released_handle = *action.value;
+      } else {
+        released_handle.kind = IRValue::Kind::Local;
+        released_handle.name = action.name;
+      }
+
+      IRCall call;
+      call.callee.kind = IRValue::Kind::Symbol;
+      call.callee.name = ConcurrencySymKeyReacquireOne();
+      call.args.push_back(released_handle);
+      call.result = ctx.FreshTempValue("key_reacquire_one");
       ctx.RegisterValueType(call.result, analysis::MakeTypePrim("()"));
       return MakeIR(std::move(call));
     }

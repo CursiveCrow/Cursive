@@ -31,6 +31,8 @@
 
 #include <optional>
 #include <string>
+#include <unordered_map>
+#include <variant>
 #include <vector>
 
 #include "00_core/span.h"
@@ -66,6 +68,65 @@ struct ScopeKeyState {
   bool HasActiveKeys() const { return !active_keys.empty(); }
   bool AllReleased() const { return active_keys.empty(); }
 };
+
+using ReadSet = std::unordered_map<std::string, std::string>;
+using WriteSet = std::unordered_map<std::string, std::string>;
+
+struct SpecStartState {
+  std::vector<KeyPath> paths;
+  const ast::Block* body = nullptr;
+};
+
+struct SpecSnapshotState {
+  std::vector<KeyPath> paths;
+  const ast::Block* body = nullptr;
+  ReadSet read_set;
+};
+
+struct SpecExecState {
+  const ast::Block* body = nullptr;
+  ReadSet read_set;
+  WriteSet write_set;
+};
+
+struct SpecCommitState {
+  ReadSet read_set;
+  WriteSet write_set;
+  std::string value_repr;
+};
+
+struct SpecRetryState {
+  std::vector<KeyPath> paths;
+  const ast::Block* body = nullptr;
+  std::size_t retry_count = 0;
+};
+
+struct SpecFallbackState {
+  std::vector<KeyPath> paths;
+  const ast::Block* body = nullptr;
+};
+
+struct SpecDoneState {
+  std::string value_repr;
+};
+
+struct SpecPanicState {};
+
+using SpecState = std::variant<SpecStartState,
+                               SpecSnapshotState,
+                               SpecExecState,
+                               SpecCommitState,
+                               SpecRetryState,
+                               SpecFallbackState,
+                               SpecDoneState,
+                               SpecPanicState>;
+
+std::vector<KeyLifetime> HeldKeysForPaths(const std::vector<KeyPath>& paths,
+                                          const ScopeKeyState& state);
+ScopeKeyState MarkKeysReleased(const ScopeKeyState& state,
+                               const std::vector<KeyLifetime>& keys);
+ScopeKeyState ClearReleased(const ScopeKeyState& state,
+                            const std::vector<KeyLifetime>& keys);
 
 // =============================================================================
 // Key Release Validation Result

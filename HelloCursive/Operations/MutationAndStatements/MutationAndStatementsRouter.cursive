@@ -18,7 +18,7 @@ public procedure runGroup(ctx: Context) -> i32 {
     let feature_PlaceExpressionAssignmentRules: string@View = "MutationAndStatements::PlaceExpressionAssignmentRules"
     let feature_BindingOperatorMovabilityPreservation: string@View = "MutationAndStatements::BindingOperatorMovabilityPreservation"
     let feature_ExpressionStatementOperations: string@View = "MutationAndStatements::ExpressionStatementOperations"
-    let feature_ShadowBindingStatementOperations: string@View = "MutationAndStatements::ShadowBindingStatementOperations"
+    let feature_UsingAliasStatementOperations: string@View = "MutationAndStatements::UsingAliasStatementOperations"
     let feature_UnsafeStatementBlockOperations: string@View = "MutationAndStatements::UnsafeStatementBlockOperations"
     let feature_ReturnAndResultStatementOperations: string@View = "MutationAndStatements::ReturnAndResultStatementOperations"
     let feature_BreakAndContinueStatementOperations: string@View = "MutationAndStatements::BreakAndContinueStatementOperations"
@@ -73,11 +73,11 @@ public procedure runGroup(ctx: Context) -> i32 {
     }
     [[log(label: "operations-log-transition")]]
     [[log(label: "operations-log-transition")]]
-    let status_ShadowBindingStatementOperations: i32 = RunShadowBindingStatementOperations(ctx)
-    if (status_ShadowBindingStatementOperations != 0) {
+    let status_UsingAliasStatementOperations: i32 = RunUsingAliasStatementOperations(ctx)
+    if (status_UsingAliasStatementOperations != 0) {
         [[log(label: "operations-log-transition")]]
         [[log(label: "operations-log-section_end")]]
-        return status_ShadowBindingStatementOperations
+        return status_UsingAliasStatementOperations
     }
     [[log(label: "operations-log-transition")]]
     [[log(label: "operations-log-transition")]]

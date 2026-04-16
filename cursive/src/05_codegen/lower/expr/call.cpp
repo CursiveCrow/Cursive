@@ -58,6 +58,7 @@
 #include "05_codegen/dyn_dispatch/dyn_dispatch.h"
 #include "05_codegen/layout/layout.h"
 #include "05_codegen/lower/expr/closure_expr.h"
+#include "05_codegen/lower/expr/expr_common.h"
 #include "05_codegen/lower/lower_proc.h"
 #include "05_codegen/symbols/mangle.h"
 namespace cursive::codegen {
@@ -105,6 +106,21 @@ IRValue NullOpaqueValue() {
   out.kind = IRValue::Kind::Opaque;
   out.name = "null";
   return out;
+}
+
+std::optional<ast::KeyMode> RequiredKeyModeForParamType(
+    const analysis::TypeRef& type) {
+  if (!type) {
+    return std::nullopt;
+  }
+  switch (analysis::PermOfType(type)) {
+    case analysis::Permission::Unique:
+      return ast::KeyMode::Write;
+    case analysis::Permission::Shared:
+    case analysis::Permission::Const:
+      return ast::KeyMode::Read;
+  }
+  return std::nullopt;
 }
 
 bool UsesRawExportAbi(LowerCtx& ctx, const std::string& symbol) {
@@ -1037,6 +1053,15 @@ std::pair<IRPtr, std::vector<IRValue>> LowerArgs(
       continue;
     }
 
+    analysis::TypeRef expected_type = nullptr;
+    if (param_types && i < param_types->size()) {
+      expected_type = (*param_types)[i];
+    }
+    IRPtr key_ir = EmptyIR();
+    if (const auto key_mode = RequiredKeyModeForParamType(expected_type)) {
+      key_ir = LowerImplicitKeyAccess(*args[i].value, *key_mode, ctx);
+    }
+
     if (!use_params) {
       // Fallback path when typed parameter modes are unavailable:
       // honor explicit move syntax first; otherwise preserve place/reference
@@ -1044,15 +1069,15 @@ std::pair<IRPtr, std::vector<IRValue>> LowerArgs(
       if (args[i].moved) {
         auto moved_expr = analysis::MovedArgExpr(args[i]);
         auto result = LowerExpr(*moved_expr, ctx);
-        ir_parts.push_back(result.ir);
+        ir_parts.push_back(SeqIR({key_ir, result.ir}));
         values.push_back(result.value);
       } else if (analysis::IsPlaceExprForCall(args[i].value)) {
         auto result = LowerAddrOf(*args[i].value, ctx);
-        ir_parts.push_back(result.ir);
+        ir_parts.push_back(SeqIR({key_ir, result.ir}));
         values.push_back(result.value);
       } else {
         auto result = LowerExpr(*args[i].value, ctx);
-        ir_parts.push_back(result.ir);
+        ir_parts.push_back(SeqIR({key_ir, result.ir}));
         values.push_back(result.value);
       }
       continue;
@@ -1060,25 +1085,17 @@ std::pair<IRPtr, std::vector<IRValue>> LowerArgs(
 
     if (params[i].has_value()) {
       SPEC_RULE("Lower-Args-Cons-Move");
-      analysis::TypeRef expected_type = nullptr;
-      if (param_types && i < param_types->size()) {
-        expected_type = (*param_types)[i];
-      }
       auto result =
           LowerMoveArgExprWithTemp(args[i], "call_move_tmp", expected_type, ctx);
-      ir_parts.push_back(result.ir);
+      ir_parts.push_back(SeqIR({key_ir, result.ir}));
       values.push_back(result.value);
       continue;
     }
 
     SPEC_RULE("Lower-Args-Cons-Ref");
-    analysis::TypeRef expected_type = nullptr;
-    if (param_types && i < param_types->size()) {
-      expected_type = (*param_types)[i];
-    }
     auto result =
         LowerRefArgExprWithTemp(args[i].value, "call_ref_tmp", expected_type, ctx);
-    ir_parts.push_back(result.ir);
+    ir_parts.push_back(SeqIR({key_ir, result.ir}));
     values.push_back(result.value);
   }
 

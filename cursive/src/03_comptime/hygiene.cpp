@@ -557,11 +557,8 @@ void CollectStmtNames(const Stmt& stmt, HygieneContext& ctx) {
           CollectPatternNames(node.binding.pat, ctx);
           CollectTypeNames(node.binding.type_opt, ctx);
           CollectExprNames(node.binding.init, ctx);
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                             std::is_same_v<T, ast::ShadowVarStmt>) {
-          ReserveName(ctx, node.name, node.name_splice_opt.has_value());
-          CollectTypeNames(node.type_opt, ctx);
-          CollectExprNames(node.init, ctx);
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          ReserveName(ctx, node.alias, node.alias_splice_opt.has_value());
         } else if constexpr (std::is_same_v<T, ast::AssignStmt>) {
           CollectExprNames(node.place, ctx);
           CollectExprNames(node.value, ctx);
@@ -1294,11 +1291,8 @@ void RenameStmt(Stmt& stmt, HygieneContext& ctx, const CtAst& ast) {
           RenameType(node.binding.type_opt, ctx);
           RenameExpr(node.binding.init, ctx);
           RenamePattern(node.binding.pat, ctx, ast);
-        } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                             std::is_same_v<T, ast::ShadowVarStmt>) {
-          RenameType(node.type_opt, ctx);
-          RenameExpr(node.init, ctx);
-          BindPatternName(node.name, node.name_splice_opt.has_value(), ctx, ast);
+        } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+          BindPatternName(node.alias, node.alias_splice_opt.has_value(), ctx, ast);
         } else if constexpr (std::is_same_v<T, ast::AssignStmt>) {
           RenameExpr(node.place, ctx);
           RenameExpr(node.value, ctx);

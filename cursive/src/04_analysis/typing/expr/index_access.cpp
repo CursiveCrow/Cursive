@@ -33,6 +33,17 @@
 #include "04_analysis/typing/types.h"
 #include "02_source/ast/ast.h"
 
+namespace cursive::analysis {
+ExprTypeResult TypeExpr(const ScopeContext& ctx,
+                        const StmtTypeContext& type_ctx,
+                        const ast::ExprPtr& expr,
+                        const TypeEnv& env);
+PlaceTypeResult TypePlace(const ScopeContext& ctx,
+                          const StmtTypeContext& type_ctx,
+                          const ast::ExprPtr& expr,
+                          const TypeEnv& env);
+}
+
 namespace cursive::analysis::expr {
 
 namespace {
@@ -218,7 +229,8 @@ ExprTypeResult TypeIndexAccessExpr(const ScopeContext& ctx,
   }
 
   // 1. Type the base expression
-  const auto base_type = type_expr(expr.base);
+  const auto base_type = ::cursive::analysis::TypeExpr(
+      ctx, SuppressSharedAccessCheck(type_ctx), expr.base, env);
   if (!base_type.ok) {
     result.diag_id = base_type.diag_id;
     return result;
@@ -408,7 +420,8 @@ PlaceTypeResult TypeIndexAccessPlace(const ScopeContext& ctx,
     return result;
   }
 
-  const auto base_type = type_place(expr.base);
+  const auto base_type = ::cursive::analysis::TypePlace(
+      ctx, SuppressSharedAccessCheck(type_ctx), expr.base, env);
   if (!base_type.ok) {
     result.diag_id = base_type.diag_id;
     return result;

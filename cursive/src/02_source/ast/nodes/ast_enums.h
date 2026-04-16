@@ -119,7 +119,6 @@ enum class Visibility {
   Public,     // Visible everywhere
   Internal,   // Visible within the assembly (default)
   Private,    // Visible only in declaring module
-  Protected,  // Visible in declaring module and submodules
 };
 
 /// Type parameter variance for generics.

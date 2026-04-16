@@ -20,6 +20,8 @@ bool BytePrefix(std::string_view p, std::string_view s);
 bool Prefix(std::string_view s, std::string_view p);
 
 bool ReservedGen(std::string_view x);
+bool ReservedCursive(std::string_view x);
+bool ReservedId(std::string_view x);
 bool ReservedModulePath(const ast::ModulePath& path);
 
 const std::vector<std::string_view>& PrimTypeNames();

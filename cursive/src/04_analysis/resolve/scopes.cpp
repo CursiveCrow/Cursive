@@ -135,6 +135,8 @@ static inline void SpecDefsReserved() {
   SPEC_DEF("BytePrefix", "5.1.1");
   SPEC_DEF("Prefix", "5.1.1");
   SPEC_DEF("ReservedGen", "5.1.1");
+  SPEC_DEF("ReservedCursive", "5.1.1");
+  SPEC_DEF("ReservedId", "5.1.1");
   SPEC_DEF("ReservedModulePath", "5.1.1");
   SPEC_DEF("KeywordKey", "5.1.1");
 }
@@ -216,6 +218,16 @@ bool ReservedGen(std::string_view x) {
   return Prefix(IdKeyOf(x), IdKeyOf("gen_"));
 }
 
+bool ReservedCursive(std::string_view x) {
+  SpecDefsReserved();
+  return IdEq(x, "cursive");
+}
+
+bool ReservedId(std::string_view x) {
+  SpecDefsReserved();
+  return ReservedGen(x) || ReservedCursive(x);
+}
+
 bool ReservedModulePath(const ast::ModulePath& path) {
   SpecDefsReserved();
   if (!path.empty() && IdEq(path[0], "cursive")) {
@@ -287,6 +299,10 @@ Scope UniverseBindings() {
                   Entity{EntityKind::Type, std::nullopt, std::nullopt,
                          EntitySource::Decl});
   }
+  scope.emplace(IdKeyOf("cursive"),
+                Entity{EntityKind::ModuleAlias,
+                       ast::ModulePath{"cursive"}, std::nullopt,
+                       EntitySource::Decl});
   return scope;
 }
 

@@ -25,6 +25,7 @@ struct CleanupAction {
     DropField,     // Drop a field of a partially-moved record
     ReleaseRegion, // Release a region
     ReleaseKeyScope, // Release all keys held by a key scope
+    ReacquireReleasedKey, // Reacquire a previously released outer key
     ParallelJoin,  // Join an active parallel context
     RunDefer,      // Execute a defer block
     RuntimeScopeExit, // Deactivate runtime scope tag

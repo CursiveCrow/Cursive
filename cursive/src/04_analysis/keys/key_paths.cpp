@@ -33,6 +33,7 @@
 #include <sstream>
 
 #include "00_core/assert_spec.h"
+#include "04_analysis/contracts/verification.h"
 
 namespace cursive::analysis {
 
@@ -59,6 +60,14 @@ std::string JoinAstPath(const ast::Path& path) {
 std::string CanonicalExprIdentity(const ast::ExprPtr& expr) {
   if (!expr) {
     return "?";
+  }
+
+  const auto constant = EvaluateConstant(expr);
+  if (constant.known) {
+    if (constant.is_bool) {
+      return constant.bool_value ? "true" : "false";
+    }
+    return std::to_string(constant.value);
   }
 
   if (const auto* ident = std::get_if<ast::IdentifierExpr>(&expr->node)) {
@@ -211,15 +220,22 @@ KeyPath LowerKeyPathWithIndexIdentity(const ast::KeyPathExpr& spec) {
   for (const auto& seg : spec.segs) {
     KeyPathSeg lowered;
     if (const auto* field = std::get_if<ast::KeySegField>(&seg)) {
-      lowered.boundary = field->marked;
+      lowered.boundary = false;
       lowered.name = field->name;
       lowered.is_index = false;
+      path.segs.push_back(std::move(lowered));
+      if (field->marked) {
+        break;
+      }
     } else if (const auto* index = std::get_if<ast::KeySegIndex>(&seg)) {
-      lowered.boundary = index->marked;
+      lowered.boundary = false;
       lowered.name = CanonicalExprIdentity(index->expr);
       lowered.is_index = true;
+      path.segs.push_back(std::move(lowered));
+      if (index->marked) {
+        break;
+      }
     }
-    path.segs.push_back(std::move(lowered));
   }
 
   return path;
@@ -258,6 +274,21 @@ void BuildPathSegments(const ast::ExprPtr& expr,
     seg.is_index = true;
     seg.boundary = false;
     seg.name = CanonicalExprIdentity(index->index);
+    segs.push_back(std::move(seg));
+    return;
+  }
+
+  // Tuple access: base.N
+  if (const auto* tuple = std::get_if<ast::TupleAccessExpr>(&expr->node)) {
+    BuildPathSegments(tuple->base, segs, hit_boundary, boundary_kind);
+    if (hit_boundary) {
+      return;
+    }
+
+    KeyPathSeg seg;
+    seg.name = tuple->index.lexeme;
+    seg.is_index = false;
+    seg.boundary = false;
     segs.push_back(std::move(seg));
     return;
   }
@@ -432,10 +463,11 @@ std::optional<KeyPath> ParseKeyPathString(std::string_view path_str) {
     if (path_str[pos] == '.') {
       // Field segment
       pos++;  // Skip '.'
+      bool marked = false;
 
       // Check for boundary marker
       if (pos < path_str.size() && path_str[pos] == '#') {
-        seg.boundary = true;
+        marked = true;
         pos++;
       }
 
@@ -448,15 +480,19 @@ std::optional<KeyPath> ParseKeyPathString(std::string_view path_str) {
       seg.name = std::string(path_str.substr(pos, end - pos));
       seg.is_index = false;
       path.segs.push_back(std::move(seg));
+      if (marked) {
+        break;
+      }
       pos = end;
 
     } else if (path_str[pos] == '[') {
       // Index segment
       pos++;  // Skip '['
+      bool marked = false;
 
       // Check for boundary marker
       if (pos < path_str.size() && path_str[pos] == '#') {
-        seg.boundary = true;
+        marked = true;
         pos++;
       }
 
@@ -469,6 +505,9 @@ std::optional<KeyPath> ParseKeyPathString(std::string_view path_str) {
       seg.name = std::string(path_str.substr(pos, end - pos));
       seg.is_index = true;
       path.segs.push_back(std::move(seg));
+      if (marked) {
+        break;
+      }
       pos = end + 1;  // Skip ']'
 
     } else {
@@ -686,6 +725,10 @@ std::optional<std::string> ExtractPathRoot(const ast::ExprPtr& expr) {
   // Method call - get root from receiver
   if (const auto* method = std::get_if<ast::MethodCallExpr>(&expr->node)) {
     return ExtractPathRoot(method->receiver);
+  }
+
+  if (const auto* tuple = std::get_if<ast::TupleAccessExpr>(&expr->node)) {
+    return ExtractPathRoot(tuple->base);
   }
 
   // Dereference creates boundary - root is special

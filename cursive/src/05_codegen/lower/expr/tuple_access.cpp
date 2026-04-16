@@ -14,6 +14,7 @@
 // =============================================================================
 
 #include "05_codegen/lower/expr/tuple_access.h"
+#include "05_codegen/lower/expr/expr_common.h"
 #include "00_core/assert_spec.h"
 #include "04_analysis/typing/type_predicates.h"
 
@@ -86,7 +87,11 @@ LowerResult LowerTupleAccess(const ast::TupleAccessExpr& expr, LowerCtx& ctx) {
     info.tuple_index = tuple_index;
     ctx.RegisterDerivedValue(elem_value, info);
 
-    return LowerResult{base_result.ir, elem_value};
+    ast::Expr access_expr;
+    access_expr.node = expr;
+    access_expr.span = expr.base ? expr.base->span : core::Span{};
+    IRPtr key_ir = LowerImplicitKeyAccess(access_expr, ast::KeyMode::Read, ctx);
+    return LowerResult{SeqIR({base_result.ir, key_ir}), elem_value};
 }
 
 // =============================================================================
@@ -119,7 +124,8 @@ LowerResult LowerReadPlaceTupleAccess(const ast::TupleAccessExpr& node,
     info.tuple_index = static_cast<std::size_t>(std::stoull(node.index.lexeme));
     ctx.RegisterDerivedValue(elem_value, info);
 
-    return LowerResult{base_result.ir, elem_value};
+    IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Read, ctx);
+    return LowerResult{SeqIR({base_result.ir, key_ir}), elem_value};
 }
 
 }  // namespace cursive::codegen

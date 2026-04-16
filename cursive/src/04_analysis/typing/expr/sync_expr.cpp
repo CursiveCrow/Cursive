@@ -207,9 +207,9 @@ struct YieldUsageFinder {
           if constexpr (std::is_same_v<T, ast::LetStmt> ||
                         std::is_same_v<T, ast::VarStmt>) {
             VisitExpr(node.binding.init);
-          } else if constexpr (std::is_same_v<T, ast::ShadowLetStmt> ||
-                               std::is_same_v<T, ast::ShadowVarStmt>) {
-            VisitExpr(node.init);
+          } else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>) {
+            // UsingLocalStmt is a compile-time alias; no runtime expression.
+            (void)node;
           } else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
                                std::is_same_v<T, ast::CompoundAssignStmt>) {
             VisitExpr(node.place);

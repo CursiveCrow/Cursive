@@ -65,6 +65,11 @@ IRRange ToIRRange(const RangeVal& range) {
 // =============================================================================
 
 LowerResult LowerIndexAccess(const ast::IndexAccessExpr& expr, LowerCtx& ctx) {
+    ast::Expr access_expr;
+    access_expr.node = expr;
+    access_expr.span = expr.base ? expr.base->span : core::Span{};
+    IRPtr key_ir = LowerImplicitKeyAccess(access_expr, ast::KeyMode::Read, ctx);
+
     // Lower the base expression
     auto base_result = LowerExpr(*expr.base, ctx);
 
@@ -89,7 +94,8 @@ LowerResult LowerIndexAccess(const ast::IndexAccessExpr& expr, LowerCtx& ctx) {
         ctx.RegisterDerivedValue(slice_value, info);
 
         return LowerResult{
-            SeqIR({base_result.ir, range_result.ir, MakeIR(std::move(check)), PanicCheck(ctx)}),
+            SeqIR({base_result.ir, range_result.ir, key_ir,
+                   MakeIR(std::move(check)), PanicCheck(ctx)}),
             slice_value
         };
     }
@@ -118,7 +124,8 @@ LowerResult LowerIndexAccess(const ast::IndexAccessExpr& expr, LowerCtx& ctx) {
         ctx.RegisterDerivedValue(slice_value, info);
 
         return LowerResult{
-            SeqIR({base_result.ir, range_result.ir, MakeIR(std::move(check)), PanicCheck(ctx)}),
+            SeqIR({base_result.ir, range_result.ir, key_ir,
+                   MakeIR(std::move(check)), PanicCheck(ctx)}),
             slice_value
         };
     }
@@ -148,9 +155,10 @@ LowerResult LowerIndexAccess(const ast::IndexAccessExpr& expr, LowerCtx& ctx) {
     std::vector<IRPtr> seq;
     seq.push_back(base_result.ir);
     seq.push_back(index_result.ir);
+    seq.push_back(key_ir);
     if (needs_check) {
-        seq.push_back(MakeIR(std::move(check)));
-        seq.push_back(PanicCheck(ctx));
+      seq.push_back(MakeIR(std::move(check)));
+      seq.push_back(PanicCheck(ctx));
     }
 
     return LowerResult{SeqIR(std::move(seq)), elem_value};

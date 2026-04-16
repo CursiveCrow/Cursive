@@ -486,7 +486,7 @@ UsingNamesResult UsingNames(const ScopeContext& ctx,
             const std::string name = key;
             const auto access = CanAccess(ctx, *module_path, name);
             if (!access.ok) {
-              return {false, access.diag_id, decl.span, {}};
+              continue;
             }
             items.emplace_back(name, ent.kind);
           }

@@ -77,7 +77,6 @@ const char* to_string(Visibility vis) {
     case Visibility::Public: return "public";
     case Visibility::Internal: return "internal";
     case Visibility::Private: return "private";
-    case Visibility::Protected: return "protected";
   }
   return "unknown";
 }
