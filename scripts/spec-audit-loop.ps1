@@ -3,6 +3,14 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
+# Force UTF-8 for all native-command I/O so the Codex prompt (which includes
+# spec content with Unicode math/Greek glyphs) is not mangled by the default
+# us-ascii / OEM encoding on Windows PowerShell 5.1.
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = $utf8NoBom
+[Console]::OutputEncoding = $utf8NoBom
+[Console]::InputEncoding = $utf8NoBom
+
 function Show-Usage {
 @'
 Usage: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\spec-audit-loop.ps1 [options]
@@ -42,6 +50,19 @@ function Require-Command([string]$Name) {
         Fail "required command not found: $Name"
     }
     return $command.Source
+}
+
+function Resolve-CodexCommand {
+    if ($env:OS -eq 'Windows_NT') {
+        $codexCmd = Get-Command 'codex.cmd' -ErrorAction SilentlyContinue
+        if ($null -ne $codexCmd) {
+            # `codex.ps1` re-pipes pipeline input through `$input`, which breaks
+            # `codex exec -` with "stdin is not a terminal" on Windows.
+            return $codexCmd.Source
+        }
+    }
+
+    return Require-Command 'codex'
 }
 
 function New-TempPath([string]$Prefix, [string]$Suffix = '') {
@@ -115,8 +136,14 @@ function Replace-KeywordTrigger([string]$Text, [string]$Source, [string]$Target)
 }
 
 function Invoke-GitCapture([string[]]$Arguments, [switch]$AllowFailure) {
-    $output = & $script:GitExe @Arguments 2>&1
-    $exitCode = $LASTEXITCODE
+    $previousEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $output = & $script:GitExe @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousEap
+    }
     if (-not $AllowFailure -and $exitCode -ne 0) {
         $rendered = (($output | ForEach-Object { "$_" }) -join "`n").Trim()
         if ($rendered) {
@@ -135,8 +162,14 @@ function Invoke-PythonScript([string]$ScriptText, [string[]]$Arguments, [switch]
     $scriptPath = New-TempFile 'spec-audit-py-' '.py'
     try {
         Write-Utf8NoBom $scriptPath $ScriptText
-        $output = & $script:PythonExe $scriptPath @Arguments 2>&1
-        $exitCode = $LASTEXITCODE
+        $previousEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $output = & $script:PythonExe $scriptPath @Arguments 2>&1
+            $exitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $previousEap
+        }
         if (-not $AllowFailure -and $exitCode -ne 0) {
             $rendered = (($output | ForEach-Object { "$_" }) -join "`n").Trim()
             if ($rendered) {
@@ -223,7 +256,7 @@ $script:SelectedItem = ''
 
 $script:ScriptDir = (Resolve-Path -LiteralPath $PSScriptRoot).Path
 $script:RepoRoot = (Resolve-Path -LiteralPath (Join-Path $script:ScriptDir '..')).Path
-$script:PromptFile = Join-Path $script:RepoRoot '.codex\commands\spec-audit-loop.md'
+$script:PromptFile = Join-Path $script:ScriptDir '.codex\commands\spec-audit-loop.md'
 $script:AuditCsv = Join-Path $script:RepoRoot 'docs\audit\SPEC_RULE_TABLE_BY_PHASE.csv'
 $script:SpecDecisionsFile = Join-Path $script:RepoRoot 'docs\SpecDecisionsNeeded.md'
 $defaultWorktreeRoot = Join-Path (Split-Path -Parent $script:RepoRoot) '.spec-audit-worktrees'
@@ -309,9 +342,13 @@ if ($script:ReasoningEffort -notin @('low', 'medium', 'high', 'xhigh')) {
     Fail "invalid --reasoning-effort value: $($script:ReasoningEffort)" 2
 }
 
-$script:CodexExe = Require-Command 'codex'
+$script:CodexExe = Resolve-CodexCommand
 $script:GitExe = Require-Command 'git'
 $script:PythonExe = Require-Command 'python3'
+$script:GitCheckoutHookArgs = @()
+if (-not (Get-Command 'git-lfs' -ErrorAction SilentlyContinue)) {
+    $script:GitCheckoutHookArgs = @('-c', 'core.hooksPath=/dev/null')
+}
 
 $gitCommonDir = ((Invoke-GitCapture @('-C', $script:RepoRoot, 'rev-parse', '--git-common-dir')).Output | Select-Object -Last 1).Trim()
 if (-not [System.IO.Path]::IsPathRooted($gitCommonDir)) {
@@ -518,6 +555,20 @@ function Build-FailureRetryPrompt {
     Write-Utf8NoBom $script:BuildFailurePromptFile $prompt
 }
 
+function Get-JsonProperty {
+    param(
+        [Parameter(Mandatory = $true, Position = 0)]
+        [AllowNull()]
+        $Object,
+        [Parameter(Mandatory = $true, Position = 1)]
+        [string]$Name
+    )
+    if ($null -eq $Object) { return $null }
+    $prop = $Object.PSObject.Properties[$Name]
+    if ($null -eq $prop) { return $null }
+    return $prop.Value
+}
+
 function Get-ThreadIdFromEvents {
     if (-not (Test-Path -LiteralPath $script:AgentEventsFile)) {
         return ''
@@ -532,8 +583,8 @@ function Get-ThreadIdFromEvents {
         } catch {
             continue
         }
-        if ($event.type -eq 'thread.started') {
-            return [string]$event.thread_id
+        if ((Get-JsonProperty $event 'type') -eq 'thread.started') {
+            return [string](Get-JsonProperty $event 'thread_id')
         }
     }
 
@@ -556,8 +607,10 @@ function Write-AgentEventSummary(
         return
     }
 
-    if (-not $SeenThread.Value -and $event.type -eq 'thread.started') {
-        $threadId = [string]$event.thread_id
+    $type = Get-JsonProperty $event 'type'
+
+    if (-not $SeenThread.Value -and $type -eq 'thread.started') {
+        $threadId = [string](Get-JsonProperty $event 'thread_id')
         if ($threadId) {
             Write-Log "Codex session started: $threadId"
         } else {
@@ -567,13 +620,15 @@ function Write-AgentEventSummary(
         return
     }
 
-    $item = $event.item
+    $item = Get-JsonProperty $event 'item'
     if ($null -eq $item) {
         return
     }
 
-    if (-not $SeenAgentMessage.Value -and $event.type -eq 'item.completed' -and $item.type -eq 'agent_message') {
-        $text = [string]$item.text
+    $itemType = Get-JsonProperty $item 'type'
+
+    if (-not $SeenAgentMessage.Value -and $type -eq 'item.completed' -and $itemType -eq 'agent_message') {
+        $text = [string](Get-JsonProperty $item 'text')
         $text = ($text -split '\s+' | Where-Object { $_ }) -join ' '
         if ($text) {
             if ($text.Length -gt 200) {
@@ -585,8 +640,8 @@ function Write-AgentEventSummary(
         return
     }
 
-    if (-not $SeenCommand.Value -and $event.type -eq 'item.started' -and $item.type -eq 'command_execution') {
-        $command = [string]$item.command
+    if (-not $SeenCommand.Value -and $type -eq 'item.started' -and $itemType -eq 'command_execution') {
+        $command = [string](Get-JsonProperty $item 'command')
         $command = ($command -split '\s+' | Where-Object { $_ }) -join ' '
         if ($command) {
             if ($command.Length -gt 160) {
@@ -640,15 +695,45 @@ function Run-AgentTurn([string]$Mode, [string]$PromptPath) {
     $seenAgentMessage = $false
     $seenCommand = $false
 
-    $null = $promptText |
-        & $script:CodexExe @($codexArgs.ToArray()) 2>&1 |
-        Tee-Object -FilePath $script:AgentEventsFile |
-        ForEach-Object {
-            Write-AgentEventSummary ([string]$_) ([ref]$seenThread) ([ref]$seenAgentMessage) ([ref]$seenCommand)
-        }
+    $previousEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $null = $promptText |
+            & $script:CodexExe @($codexArgs.ToArray()) 2>&1 |
+            Tee-Object -FilePath $script:AgentEventsFile |
+            ForEach-Object {
+                Write-AgentEventSummary ([string]$_) ([ref]$seenThread) ([ref]$seenAgentMessage) ([ref]$seenCommand)
+            }
 
-    $exitCode = $LASTEXITCODE
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousEap
+    }
     if ($exitCode -ne 0) {
+        [Console]::Error.WriteLine("[spec-audit-loop] Codex exited with code $exitCode")
+        if ($script:WorktreeDir -and (Test-Path -LiteralPath $script:WorktreeDir)) {
+            $preservedEvents = Join-Path $script:WorktreeDir 'spec-audit-events.jsonl'
+            $preservedPrompt = Join-Path $script:WorktreeDir 'spec-audit-prompt.md'
+            if (Test-Path -LiteralPath $script:AgentEventsFile) {
+                Copy-Item -LiteralPath $script:AgentEventsFile -Destination $preservedEvents -Force -ErrorAction SilentlyContinue
+                [Console]::Error.WriteLine("[spec-audit-loop] preserved events log: $preservedEvents")
+            }
+            if ($PromptPath -and (Test-Path -LiteralPath $PromptPath)) {
+                Copy-Item -LiteralPath $PromptPath -Destination $preservedPrompt -Force -ErrorAction SilentlyContinue
+                [Console]::Error.WriteLine("[spec-audit-loop] preserved prompt: $preservedPrompt")
+            }
+        }
+        if (Test-Path -LiteralPath $script:AgentEventsFile) {
+            $tail = Get-Content -LiteralPath $script:AgentEventsFile -Tail 20 -ErrorAction SilentlyContinue
+            if ($tail) {
+                [Console]::Error.WriteLine("[spec-audit-loop] last events from Codex:")
+                foreach ($line in $tail) {
+                    [Console]::Error.WriteLine("  $line")
+                }
+            } else {
+                [Console]::Error.WriteLine("[spec-audit-loop] events log is empty")
+            }
+        }
         return $false
     }
 
@@ -981,7 +1066,7 @@ function Restore-LauncherBuildSideEffectsInMainWorktree {
 
         & $script:GitExe -C $script:RepoRoot ls-files --error-unmatch -- $relpath *> $null
         if ($LASTEXITCODE -eq 0) {
-            $null = Invoke-GitCapture @('-C', $script:RepoRoot, 'restore', '--worktree', '--source=HEAD', '--', $relpath)
+            $null = Invoke-GitCapture @($script:GitCheckoutHookArgs + @('-C', $script:RepoRoot, 'restore', '--worktree', '--source=HEAD', '--', $relpath))
         }
     }
 }
@@ -1112,9 +1197,16 @@ function Run-MainRepoWindowsBuild {
     $sourceDir = Join-Path $script:RepoRoot 'cursive'
     Push-Location $sourceDir
     try {
-        $null = & $cmakeCmd.Source --build --preset $script:WindowsPreset --target $script:WindowsTarget 2>&1 |
-            Tee-Object -FilePath $script:MainBuildLogFile
-        return ($LASTEXITCODE -eq 0)
+        $previousEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $null = & $cmakeCmd.Source --build --preset $script:WindowsPreset --target $script:WindowsTarget 2>&1 |
+                Tee-Object -FilePath $script:MainBuildLogFile
+            $buildExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $previousEap
+        }
+        return ($buildExitCode -eq 0)
     } finally {
         Pop-Location
     }
@@ -1214,7 +1306,7 @@ try {
         $script:WorktreeDir = Join-Path $script:WorktreeRoot ("spec-audit-$stamp-$selectedRowLine-$nonce")
         New-Item -ItemType Directory -Path $script:WorktreeRoot -Force | Out-Null
 
-        $null = Invoke-GitCapture @('-C', $script:RepoRoot, 'worktree', 'add', '-b', $script:WorktreeBranch, $script:WorktreeDir, 'HEAD')
+        $null = Invoke-GitCapture @($script:GitCheckoutHookArgs + @('-C', $script:RepoRoot, 'worktree', 'add', '-b', $script:WorktreeBranch, $script:WorktreeDir, 'HEAD'))
         $script:WorktreeBaseCommit = ((Invoke-GitCapture @('-C', $script:WorktreeDir, 'rev-parse', 'HEAD')).Output | Select-Object -Last 1).Trim()
         $script:WorktreeSessionId = ''
         $lastFailedWorktreeCommit = ''

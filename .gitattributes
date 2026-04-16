@@ -1,5 +1,10 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Shell scripts must always be LF so shebangs parse under WSL/Linux from
+# a Windows checkout (otherwise `/usr/bin/env: 'bash\r': Permission denied`).
+*.sh text eol=lf
+scripts/spec-audit-loop text eol=lf
 extern/icu/**/bin64/* -text
 extern/icu/**/bin64/*.dll filter=lfs diff=lfs merge=lfs -text
 extern/icu/**/lib/*.dat -text

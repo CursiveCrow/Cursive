@@ -26,8 +26,8 @@ EOF
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$SCRIPT_DIR"
-PROMPT_FILE="$REPO_ROOT/.codex/commands/spec-audit-loop.md"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROMPT_FILE="$SCRIPT_DIR/.codex/commands/spec-audit-loop.md"
 AUDIT_CSV="$REPO_ROOT/docs/audit/SPEC_RULE_TABLE_BY_PHASE.csv"
 SPEC_DECISIONS_FILE="$REPO_ROOT/docs/SpecDecisionsNeeded.md"
 WORKTREE_ROOT_DEFAULT="$(cd "$REPO_ROOT/.." && pwd)/.spec-audit-worktrees"
@@ -147,6 +147,13 @@ for required_cmd in codex git python3; do
     exit 1
   fi
 done
+
+GIT_CHECKOUT_HOOK_ARGS=()
+if ! command -v git-lfs >/dev/null 2>&1; then
+  # Checkout-like git operations fail in this environment because the repo's
+  # LFS hooks exit non-zero when git-lfs is unavailable.
+  GIT_CHECKOUT_HOOK_ARGS=(-c core.hooksPath=/dev/null)
+fi
 
 cd "$REPO_ROOT"
 
@@ -906,7 +913,7 @@ restore_launcher_build_side_effects_in_main_worktree() {
     fi
 
     if git -C "$REPO_ROOT" ls-files --error-unmatch -- "$relpath" >/dev/null 2>&1; then
-      git -C "$REPO_ROOT" restore --worktree --source=HEAD -- "$relpath"
+      git "${GIT_CHECKOUT_HOOK_ARGS[@]}" -C "$REPO_ROOT" restore --worktree --source=HEAD -- "$relpath"
     fi
   done < <(git -C "$REPO_ROOT" status --porcelain --untracked-files=no)
 }
@@ -1141,7 +1148,7 @@ PY
   WORKTREE_DIR="$WORKTREE_ROOT/$WORKTREE_ID"
 
   mkdir -p "$WORKTREE_ROOT"
-  git -C "$REPO_ROOT" worktree add -b "$WORKTREE_BRANCH" "$WORKTREE_DIR" HEAD >/dev/null
+  git "${GIT_CHECKOUT_HOOK_ARGS[@]}" -C "$REPO_ROOT" worktree add -b "$WORKTREE_BRANCH" "$WORKTREE_DIR" HEAD >/dev/null
   WORKTREE_BASE_COMMIT="$(git -C "$WORKTREE_DIR" rev-parse HEAD)"
   WORKTREE_SESSION_ID=""
   LAST_FAILED_WORKTREE_COMMIT=""
