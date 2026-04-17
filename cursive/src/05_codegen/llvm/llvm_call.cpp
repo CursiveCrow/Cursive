@@ -230,7 +230,7 @@ llvm::Value* CoerceValue(llvm::IRBuilderBase* builder_base,
         builder->CreateStore(value, slot);
 
         llvm::Value* zero = llvm::ConstantInt::get(llvm::Type::getInt64Ty(builder->getContext()), 0);
-        llvm::Value* elem_ptr = builder->CreateInBoundsGEP(
+        llvm::Value* elem_ptr = builder->CreateGEP(
             arr_ty,
             slot,
             {zero, zero});
@@ -807,6 +807,14 @@ bool IsExternC(std::string_view symbol) {
     if (RequiresHostedEnvParam(symbol) && !emit_detail::HasLeadingHostedEnvParam(augmented))
     {
       augmented.insert(augmented.begin(), HostedEnvParam());
+    }
+    const bool needs_panic_out =
+        current_ctx_ ? current_ctx_->NeedsPanicOutForSymbol(symbol)
+                     : NeedsPanicOut(symbol);
+    if (needs_panic_out &&
+        (augmented.empty() || augmented.back().name != std::string(kPanicOutName)))
+    {
+      augmented.push_back(PanicOutParam());
     }
 
     analysis::TypeRef abi_ret = ret_type;

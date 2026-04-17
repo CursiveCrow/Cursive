@@ -94,6 +94,10 @@ std::vector<std::filesystem::path> MaterializeLinkInputsForTool(
     const Project& project,
     TargetProfile target_profile,
     const std::vector<std::filesystem::path>& inputs);
+std::vector<std::filesystem::path> LinkInputs(
+    const std::vector<std::filesystem::path>& objs,
+    const std::vector<std::filesystem::path>& library_artifact_inputs,
+    const std::filesystem::path& runtime_lib);
 
 std::optional<std::filesystem::path> ResolveRuntimeLib(
     const Project& project,

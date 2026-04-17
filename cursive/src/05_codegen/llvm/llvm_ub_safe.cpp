@@ -30,16 +30,31 @@
 #include "05_codegen/checks/panic.h"
 #include "05_codegen/layout/layout.h"
 #include "05_codegen/llvm/llvm_emit.h"
+#include "05_codegen/llvm/llvm_ir_panic.h"
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/raw_ostream.h"
+
+#include <string>
 
 namespace cursive::codegen {
 
 namespace {
+
+std::string RenderLLVMIRText(const llvm::Module& module) {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  module.print(os, nullptr);
+  return text;
+}
+
+bool ContainsIRToken(const std::string& text, std::string_view token) {
+  return text.find(std::string(token)) != std::string::npos;
+}
 
 const analysis::ScopeContext& BuildScope(const LowerCtx* ctx) {
   static const analysis::ScopeContext kEmptyScope{};
@@ -70,7 +85,7 @@ const analysis::ScopeContext& BuildScope(const LowerCtx* ctx) {
   return cache.scope;
 }
 
-llvm::Value* LoadPanicOutPtr(LLVMEmitter& emitter, llvm::IRBuilder<>* builder) {
+llvm::Value* LoadLocalPanicOutPtr(LLVMEmitter& emitter, llvm::IRBuilder<>* builder) {
   llvm::Value* slot = emitter.GetLocal(std::string(kPanicOutName));
   if (!slot) {
     return emitter.GetHostedSessionPanicPtr();
@@ -81,24 +96,19 @@ llvm::Value* LoadPanicOutPtr(LLVMEmitter& emitter, llvm::IRBuilder<>* builder) {
   return builder->CreateLoad(emitter.GetOpaquePtr(), slot);
 }
 
-void StorePanicRecord(LLVMEmitter& emitter,
-                      llvm::IRBuilder<>* builder,
-                      std::uint16_t code) {
+void StoreLocalPanicRecord(LLVMEmitter& emitter,
+                           llvm::IRBuilder<>* builder,
+                           std::uint16_t code) {
   LowerCtx* ctx = emitter.GetCurrentCtx();
   if (!ctx) {
     return;
   }
-  llvm::Value* ptr = LoadPanicOutPtr(emitter, builder);
+  llvm::Value* ptr = LoadLocalPanicOutPtr(emitter, builder);
   if (!ptr) {
     return;
   }
   const auto& scope = BuildScope(ctx);
-
-  // Panic record layout: { panicked: bool, code: u32 }
-  std::vector<analysis::TypeRef> fields;
-  fields.push_back(analysis::MakeTypePrim("bool"));
-  fields.push_back(analysis::MakeTypePrim("u32"));
-  const auto layout = RecordLayoutOf(scope, fields);
+  const auto layout = PanicRecordLayout(scope);
   if (!layout.has_value() || layout->offsets.size() < 2) {
     return;
   }
@@ -123,7 +133,7 @@ void EmitReturnDefault(LLVMEmitter& emitter, llvm::IRBuilder<>* builder) {
 
 void EmitPanicImpl(LLVMEmitter& emitter, PanicReason reason) {
   auto* builder = static_cast<llvm::IRBuilder<>*>(emitter.GetBuilderRaw());
-  StorePanicRecord(emitter, builder, PanicCode(reason));
+  StoreLocalPanicRecord(emitter, builder, PanicCode(reason));
   EmitReturnDefault(emitter, builder);
 }
 
@@ -154,6 +164,83 @@ llvm::Value* EmitCheckedWithOverflow(LLVMEmitter& emitter,
 // =============================================================================
 // §6.12.4 UB and Poison Avoidance
 // =============================================================================
+
+bool UsesOpcode(const llvm::Module& module, std::string_view op) {
+  const std::string text = RenderLLVMIRText(module);
+  return ContainsIRToken(text, op);
+}
+
+bool UsesIntrinsic(const llvm::Module& module, std::string_view name) {
+  const std::string text = RenderLLVMIRText(module);
+  return ContainsIRToken(text, name);
+}
+
+bool NoUndefPoison(const llvm::Module& module) {
+  const std::string text = RenderLLVMIRText(module);
+  return !ContainsIRToken(text, " undef") &&
+         !ContainsIRToken(text, " poison");
+}
+
+bool CheckedOverflow(const llvm::Module& module) {
+  const std::string text = RenderLLVMIRText(module);
+  return !ContainsIRToken(text, " add ") &&
+         !ContainsIRToken(text, " sub ") &&
+         !ContainsIRToken(text, " mul ") &&
+         ContainsIRToken(text, "with.overflow");
+}
+
+bool CheckedDivRem(const llvm::Module& module) {
+  const std::string text = RenderLLVMIRText(module);
+  const bool has_divrem =
+      ContainsIRToken(text, " sdiv ") ||
+      ContainsIRToken(text, " udiv ") ||
+      ContainsIRToken(text, " srem ") ||
+      ContainsIRToken(text, " urem ");
+  if (!has_divrem) {
+    return true;
+  }
+  return ContainsIRToken(text, " freeze ") &&
+         ContainsIRToken(text, "icmp ne");
+}
+
+bool CheckedShifts(const llvm::Module& module) {
+  const std::string text = RenderLLVMIRText(module);
+  const bool has_shift =
+      ContainsIRToken(text, " shl ") ||
+      ContainsIRToken(text, " ashr ") ||
+      ContainsIRToken(text, " lshr ");
+  if (!has_shift) {
+    return true;
+  }
+  return ContainsIRToken(text, " freeze ") &&
+         ContainsIRToken(text, "icmp ult");
+}
+
+bool FrozenPoisonUses(const llvm::Module& module) {
+  return ContainsIRToken(RenderLLVMIRText(module), " freeze ");
+}
+
+bool InboundsGEP(const llvm::Module& module) {
+  const std::string text = RenderLLVMIRText(module);
+  return !ContainsIRToken(text, "getelementptr inbounds") ||
+         ContainsIRToken(text, "gep.inbounds.checked");
+}
+
+bool NoNSWNUW(const llvm::Module& module) {
+  const std::string text = RenderLLVMIRText(module);
+  return !ContainsIRToken(text, " nsw") &&
+         !ContainsIRToken(text, " nuw");
+}
+
+bool LLVMUBSafe(const llvm::Module& module) {
+  return NoUndefPoison(module) &&
+         CheckedOverflow(module) &&
+         CheckedDivRem(module) &&
+         CheckedShifts(module) &&
+         FrozenPoisonUses(module) &&
+         InboundsGEP(module) &&
+         NoNSWNUW(module);
+}
 
 // -----------------------------------------------------------------------------
 // Integer Type Coercion
@@ -255,6 +342,22 @@ llvm::Value* EmitCheckedDiv(LLVMEmitter& emitter,
   }
 
   rhs = CoerceInteger(builder, rhs, lhs->getType(), !is_signed);
+  llvm::Value* zero = llvm::ConstantInt::get(lhs->getType(), 0);
+  llvm::Value* non_zero = builder->CreateICmpNE(rhs, zero);
+  EmitPanicReturnIfFalse(emitter, builder, non_zero,
+                         PanicCode(PanicReason::DivZero));
+  if (is_signed) {
+    const unsigned bits = lhs->getType()->getIntegerBitWidth();
+    llvm::Value* minv = llvm::ConstantInt::get(
+        lhs->getType(), llvm::APInt::getSignedMinValue(bits));
+    llvm::Value* neg_one = llvm::ConstantInt::getSigned(lhs->getType(), -1);
+    llvm::Value* is_min = builder->CreateICmpEQ(lhs, minv);
+    llvm::Value* is_neg_one = builder->CreateICmpEQ(rhs, neg_one);
+    llvm::Value* overflow = builder->CreateAnd(is_min, is_neg_one);
+    llvm::Value* no_overflow = builder->CreateNot(overflow);
+    EmitPanicReturnIfFalse(emitter, builder, no_overflow,
+                           PanicCode(PanicReason::Overflow));
+  }
   llvm::Value* div = is_signed ? builder->CreateSDiv(lhs, rhs)
                                : builder->CreateUDiv(lhs, rhs);
   return builder->CreateFreeze(div);
@@ -282,6 +385,22 @@ llvm::Value* EmitCheckedRem(LLVMEmitter& emitter,
   }
 
   rhs = CoerceInteger(builder, rhs, lhs->getType(), !is_signed);
+  llvm::Value* zero = llvm::ConstantInt::get(lhs->getType(), 0);
+  llvm::Value* non_zero = builder->CreateICmpNE(rhs, zero);
+  EmitPanicReturnIfFalse(emitter, builder, non_zero,
+                         PanicCode(PanicReason::DivZero));
+  if (is_signed) {
+    const unsigned bits = lhs->getType()->getIntegerBitWidth();
+    llvm::Value* minv = llvm::ConstantInt::get(
+        lhs->getType(), llvm::APInt::getSignedMinValue(bits));
+    llvm::Value* neg_one = llvm::ConstantInt::getSigned(lhs->getType(), -1);
+    llvm::Value* is_min = builder->CreateICmpEQ(lhs, minv);
+    llvm::Value* is_neg_one = builder->CreateICmpEQ(rhs, neg_one);
+    llvm::Value* overflow = builder->CreateAnd(is_min, is_neg_one);
+    llvm::Value* no_overflow = builder->CreateNot(overflow);
+    EmitPanicReturnIfFalse(emitter, builder, no_overflow,
+                           PanicCode(PanicReason::Overflow));
+  }
   llvm::Value* rem = is_signed ? builder->CreateSRem(lhs, rhs)
                                : builder->CreateURem(lhs, rhs);
   return builder->CreateFreeze(rem);
@@ -301,6 +420,11 @@ llvm::Value* EmitCheckedShl(LLVMEmitter& emitter,
   }
 
   rhs = CoerceInteger(builder, rhs, lhs->getType(), true);
+  llvm::Value* width = llvm::ConstantInt::get(
+      rhs->getType(), lhs->getType()->getIntegerBitWidth());
+  llvm::Value* in_range = builder->CreateICmpULT(rhs, width);
+  EmitPanicReturnIfFalse(emitter, builder, in_range,
+                         PanicCode(PanicReason::Shift));
   llvm::Value* result = builder->CreateShl(lhs, rhs);
   return builder->CreateFreeze(result);
 }
@@ -320,6 +444,11 @@ llvm::Value* EmitCheckedShr(LLVMEmitter& emitter,
   }
 
   rhs = CoerceInteger(builder, rhs, lhs->getType(), true);
+  llvm::Value* width = llvm::ConstantInt::get(
+      rhs->getType(), lhs->getType()->getIntegerBitWidth());
+  llvm::Value* in_range = builder->CreateICmpULT(rhs, width);
+  EmitPanicReturnIfFalse(emitter, builder, in_range,
+                         PanicCode(PanicReason::Shift));
   llvm::Value* result = is_signed ? builder->CreateAShr(lhs, rhs)
                                   : builder->CreateLShr(lhs, rhs);
   return builder->CreateFreeze(result);
@@ -335,10 +464,22 @@ void EmitMemCpy(LLVMEmitter& emitter,
                 llvm::Value* size,
                 std::uint64_t align) {
   SPEC_RULE("MemIntrinsics-Copy");
+  EmitAggMemcpy(emitter, dst, src, size, align);
+}
 
-  // Per spec: overlap is unknown, use memmove
-  auto* builder = static_cast<llvm::IRBuilder<>*>(emitter.GetBuilderRaw());
-  builder->CreateMemMove(dst, llvm::MaybeAlign(align), src, llvm::MaybeAlign(align), size);
+bool MemcpyOverlapUnknown(const llvm::Value* dst,
+                          const llvm::Value* src,
+                          const llvm::Value* size) {
+  (void)dst;
+  (void)src;
+  (void)size;
+  return true;
+}
+
+bool MemcpyAllowed(const llvm::Value* dst,
+                   const llvm::Value* src,
+                   const llvm::Value* size) {
+  return !MemcpyOverlapUnknown(dst, src, size);
 }
 
 void EmitMemSet(LLVMEmitter& emitter,
@@ -361,6 +502,20 @@ void EmitMemMove(LLVMEmitter& emitter,
 
   auto* builder = static_cast<llvm::IRBuilder<>*>(emitter.GetBuilderRaw());
   builder->CreateMemMove(dst, llvm::MaybeAlign(align), src, llvm::MaybeAlign(align), size);
+}
+
+void EmitAggMemcpy(LLVMEmitter& emitter,
+                   llvm::Value* dst,
+                   llvm::Value* src,
+                   llvm::Value* size,
+                   std::uint64_t align) {
+  if (MemcpyAllowed(dst, src, size)) {
+    auto* builder = static_cast<llvm::IRBuilder<>*>(emitter.GetBuilderRaw());
+    builder->CreateMemCpy(dst, llvm::MaybeAlign(align), src,
+                          llvm::MaybeAlign(align), size);
+    return;
+  }
+  EmitMemMove(emitter, dst, src, size, align);
 }
 
 // -----------------------------------------------------------------------------

@@ -36,6 +36,18 @@ llvm::Value* LoadPanicOutPtr(LLVMEmitter& emitter,
 llvm::Value* LoadPanicCode(LLVMEmitter& emitter,
                            llvm::IRBuilder<>* builder);
 
+// Load the panic flag from the panic record as an i1 condition value. When
+// `panic_ptr` is null, the current function's panic out-parameter is used.
+llvm::Value* LoadPanicFlag(LLVMEmitter& emitter,
+                           llvm::IRBuilder<>* builder,
+                           llvm::Value* panic_ptr = nullptr);
+
+// Load the panic code from an explicit panic record pointer. When `panic_ptr`
+// is null, the current function's panic out-parameter is used.
+llvm::Value* LoadPanicCodeValue(LLVMEmitter& emitter,
+                                llvm::IRBuilder<>* builder,
+                                llvm::Value* panic_ptr = nullptr);
+
 // Store a panic record with the given code
 void StorePanicRecord(LLVMEmitter& emitter,
                       llvm::IRBuilder<>* builder,
@@ -81,5 +93,14 @@ std::vector<std::string> PoisonSetForInit(const LowerCtx& ctx);
 // Store panic record for init function failures
 void StoreInitPanicRecord(LLVMEmitter& emitter,
                           llvm::IRBuilder<>* builder);
+
+// Deinit must continue across cleanup panics, then surface the first panic
+// after the full deinit list completes.
+void HandleDeinitPanic(LLVMEmitter& emitter,
+                       llvm::IRBuilder<>* builder,
+                       llvm::Value* panic_ptr = nullptr);
+void RestoreDeinitPanicIfAny(LLVMEmitter& emitter,
+                             llvm::IRBuilder<>* builder,
+                             llvm::Value* panic_ptr = nullptr);
 
 }  // namespace cursive::codegen

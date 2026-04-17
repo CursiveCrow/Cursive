@@ -11,6 +11,9 @@
 #include "00_core/symbols.h"
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/checks/panic.h"
+#include "05_codegen/globals/entrypoint.h"
+#include "05_codegen/globals/globals.h"
+#include "05_codegen/globals/init.h"
 #include "05_codegen/globals/literal_emit.h"
 #include "05_codegen/layout/layout.h"
 #include "05_codegen/llvm/llvm_attr.h"
@@ -49,6 +52,29 @@ namespace cursive::codegen {
 
 using namespace emit_detail;
 
+namespace {
+
+void AddExtendedArgAttrsToBuilder(llvm::AttrBuilder& builder,
+                                  const AttrSet& attrs) {
+  for (const auto& attr : attrs) {
+    switch (attr.kind) {
+      case AttrKind::NoAlias:
+        builder.addAttribute(llvm::Attribute::NoAlias);
+        break;
+      case AttrKind::ReadOnly:
+        builder.addAttribute(llvm::Attribute::ReadOnly);
+        break;
+      case AttrKind::NoCapture:
+        builder.addCapturesAttr(llvm::CaptureInfo::none());
+        break;
+      default:
+        break;
+    }
+  }
+}
+
+}  // namespace
+
   llvm::Module *LLVMEmitter::EmitModule(const IRDecls &decls, LowerCtx &ctx)
   {
     SPEC_RULE("LowerIR-Module");
@@ -79,6 +105,8 @@ using namespace emit_detail;
         decl_perf{};
 
     SetupModule();
+    AnchorEntrypointRules();
+    AnchorInitRules();
     if (perf_enabled)
     {
       const auto now = Clock::now();
@@ -223,6 +251,29 @@ using namespace emit_detail;
         f->setCallingConv(CallingConvForAbi(proc->abi));
         ApplyProcFunctionAttrs(*proc, f);
 
+        std::vector<IRParam> abi_params = proc->params;
+        if (RequiresHostedEnvParam(proc->symbol) &&
+            !HasLeadingHostedEnvParam(proc->params)) {
+          abi_params.insert(abi_params.begin(), HostedEnvParam());
+        }
+        for (std::size_t i = 0; i < abi_params.size(); ++i) {
+          if (i >= abi.param_indices.size() || !abi.param_indices[i].has_value()) {
+            continue;
+          }
+          const unsigned idx = *abi.param_indices[i];
+          if (idx >= f->arg_size()) {
+            continue;
+          }
+
+          llvm::AttrBuilder b(context_);
+          AddExtendedArgAttrsToBuilder(
+              b, ComputeArgAttrsExt(abi_params[i].name, abi_params[i].type));
+          AddPtrAttrsToBuilder(b, abi_params[i].type, current_ctx_);
+          if (b.hasAttributes()) {
+            f->addParamAttrs(idx, b);
+          }
+        }
+
         if (IsDropGlueSymbol(proc->symbol))
         {
           f->setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
@@ -282,6 +333,25 @@ using namespace emit_detail;
           ++pass1_created;
         }
         f->setCallingConv(CallingConvForAbi(ext->abi));
+
+        for (std::size_t i = 0; i < ext->params.size(); ++i) {
+          if (i >= abi.param_indices.size() || !abi.param_indices[i].has_value()) {
+            continue;
+          }
+          const unsigned idx = *abi.param_indices[i];
+          if (idx >= f->arg_size()) {
+            continue;
+          }
+
+          llvm::AttrBuilder b(context_);
+          AddExtendedArgAttrsToBuilder(
+              b, ComputeArgAttrsExt(ext->params[i].name, ext->params[i].type));
+          AddPtrAttrsToBuilder(b, ext->params[i].type, current_ctx_);
+          if (b.hasAttributes()) {
+            f->addParamAttrs(idx, b);
+          }
+        }
+
         functions_[ext->symbol] = f;
       }
     }

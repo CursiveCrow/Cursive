@@ -427,6 +427,11 @@ void PopulateSigma(ScopeContext& ctx) {
   }
   {
     ast::Path path;
+    path.emplace_back("PanicRecord");
+    ctx.sigma.types[PathKeyOf(path)] = BuildPanicRecordDecl();
+  }
+  {
+    ast::Path path;
     path.emplace_back("System");
     ctx.sigma.types[PathKeyOf(path)] = BuildSystemRecordDecl();
   }

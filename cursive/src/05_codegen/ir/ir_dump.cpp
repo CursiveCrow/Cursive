@@ -563,6 +563,11 @@ struct Dumper {
     Dump(a.value);
   }
 
+  void DumpNode(const IRContextBundleBuild& b) {
+    oss << "context_bundle_build "
+        << (b.target_type ? analysis::TypeToString(b.target_type) : "<unknown>");
+  }
+
   void DumpNode(const IRResult& r) {
     oss << "result ";
     Dump(r.value);
@@ -688,6 +693,10 @@ struct Dumper {
       oss << " cleanup";
     }
   }
+
+  void DumpNode(const IRHandleDeinitPanic&) { oss << "handle_deinit_panic"; }
+
+  void DumpNode(const IRRestoreDeinitPanic&) { oss << "restore_deinit_panic"; }
 
   void DumpNode(const IRCheckPoison& c) { oss << "check_poison " << c.module; }
 

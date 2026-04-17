@@ -929,7 +929,7 @@ static IRPtr EmitDropMethodCall(const analysis::TypeRef& type,
   call.callee.kind = IRValue::Kind::Symbol;
   call.callee.name = *sym;
   call.args.push_back(value);
-  if (panic_out.has_value() && NeedsPanicOut(*sym)) {
+  if (panic_out.has_value() && ctx.NeedsPanicOutForSymbol(*sym)) {
     call.args.push_back(*panic_out);
   }
   return MakeIR(std::move(call));
@@ -963,7 +963,7 @@ static IRPtr EmitDropImpl(const analysis::TypeRef& type,
     call.callee.kind = IRValue::Kind::Symbol;
     call.callee.name = drop_sym;
     call.args.push_back(value);
-    if (panic_out.has_value() && NeedsPanicOut(drop_sym)) {
+    if (panic_out.has_value() && ctx.NeedsPanicOutForSymbol(drop_sym)) {
       call.args.push_back(*panic_out);
     }
     return MakeIR(std::move(call));
@@ -1556,12 +1556,23 @@ IRPtr DropGlueIR(const analysis::TypeRef& type, LowerCtx& ctx) {
   return SeqIR({MakeIR(std::move(read)), drop_ir});
 }
 
-IRPtr EmitDropGlue(const analysis::TypeRef& type, LowerCtx& ctx) {
+ProcIR EmitDropGlue(const analysis::TypeRef& type, LowerCtx& ctx) {
   SPEC_RULE("EmitDropGlue-Decl");
 
-  // Return the drop glue body IR
-  // The procedure wrapper (ProcIR) would be created at the emit phase
-  return DropGlueIR(type, ctx);
+  ProcIR proc;
+  proc.symbol = DropGlueSym(type, ctx);
+
+  IRParam data_param;
+  data_param.mode = analysis::ParamMode::Move;
+  data_param.name = "data";
+  data_param.type = analysis::MakeTypeRawPtr(
+      analysis::RawPtrQual::Imm, analysis::MakeTypePrim("()"));
+  proc.params.push_back(std::move(data_param));
+  proc.params.push_back(PanicOutParam());
+  proc.ret = analysis::MakeTypePrim("()");
+  proc.body = DropGlueIR(type, ctx);
+
+  return proc;
 }
 
 // ============================================================================

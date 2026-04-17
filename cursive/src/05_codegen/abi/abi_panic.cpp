@@ -11,6 +11,8 @@
 // =============================================================================
 
 #include "05_codegen/abi/abi.h"
+#include "00_core/symbols.h"
+#include "04_analysis/caps/cap_system.h"
 #include "04_analysis/typing/types.h"
 #include "05_codegen/intrinsics/builtins.h"
 #include "05_codegen/intrinsics/intrinsics_interface.h"
@@ -56,27 +58,69 @@ const std::unordered_set<std::string>& RuntimeSymbols() {
 // EntrySym is the program entry point.
 constexpr std::string_view kEntrySym = "main";
 
-// Check if a symbol looks like a record constructor.
-bool IsRecordCtorSymbol(std::string_view /*sym*/) {
-  // Record constructor symbols typically don't contain "::" method separators
-  // after the type path, and don't have function-like mangled suffixes.
-  // Conservative: assume not a record ctor.
+// Check if a symbol names one of the built-in record constructors that lower
+// directly as record constructors rather than ordinary procedures.
+bool IsRecordCtorSymbol(std::string_view sym) {
+  if (sym.empty()) {
+    return false;
+  }
+
+  if (const auto builtin_path = analysis::LookupBuiltinRecordCtorPath(sym);
+      builtin_path.has_value()) {
+    return true;
+  }
+
+  for (const auto ident : {std::string_view("RegionOptions")}) {
+    if (const auto builtin_path = analysis::LookupBuiltinRecordCtorPath(ident);
+        builtin_path.has_value()) {
+      if (core::Mangle(core::StringOfPath(*builtin_path)) == sym) {
+        return true;
+      }
+    }
+  }
+
   return false;
 }
 
 }  // namespace
 
+std::vector<std::pair<std::string, analysis::TypeRef>> PanicRecordFields() {
+  return {
+      {"panic", analysis::MakeTypePrim("bool")},
+      {"code", analysis::MakeTypePrim("u32")},
+  };
+}
+
+std::vector<analysis::TypeRef> PanicRecordFieldTypes() {
+  std::vector<analysis::TypeRef> fields;
+  for (const auto& [name, type] : PanicRecordFields()) {
+    (void)name;
+    fields.push_back(type);
+  }
+  return fields;
+}
+
 // PanicRecord type: { panic: bool, code: u32 }
 analysis::TypeRef PanicRecordType() {
-  std::vector<analysis::TypeRef> fields;
-  fields.push_back(analysis::MakeTypePrim("bool"));
-  fields.push_back(analysis::MakeTypePrim("u32"));
-  return analysis::MakeTypeTuple(std::move(fields));
+  return analysis::MakeTypePath({"PanicRecord"});
+}
+
+std::optional<RecordLayout> PanicRecordLayout(
+    const analysis::ScopeContext& ctx) {
+  return RecordLayoutOf(ctx, PanicRecordFieldTypes());
 }
 
 // PanicOutType = rawptr[mut, PanicRecord]
 analysis::TypeRef PanicOutType() {
   return analysis::MakeTypeRawPtr(analysis::RawPtrQual::Mut, PanicRecordType());
+}
+
+IRParam PanicOutParam() {
+  IRParam panic_param;
+  panic_param.mode = analysis::ParamMode::Move;
+  panic_param.name = std::string(kPanicOutName);
+  panic_param.type = PanicOutType();
+  return panic_param;
 }
 
 // HostedEnvParamType = rawptr[mut, u8]
@@ -101,6 +145,10 @@ bool NeedsPanicOut(std::string_view callee_sym) {
     return false;
   }
 
+  if (IsRuntimeFunction(std::string(callee_sym))) {
+    return false;
+  }
+
   const auto& runtime_syms = RuntimeSymbols();
   if (runtime_syms.find(std::string(callee_sym)) != runtime_syms.end()) {
     return false;
@@ -120,7 +168,8 @@ PanicOutParams(
     std::string_view callee_sym) {
   auto result = params;
   if (NeedsPanicOut(callee_sym)) {
-    result.push_back({analysis::ParamMode::Move, std::string(kPanicOutName), PanicOutType()});
+    IRParam panic_param = PanicOutParam();
+    result.push_back({panic_param.mode, panic_param.name, panic_param.type});
   }
   return result;
 }

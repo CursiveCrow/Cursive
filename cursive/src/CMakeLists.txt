@@ -596,6 +596,7 @@ add_library(cursive_codegen STATIC
   05_codegen/cleanup/unwind.cpp
   05_codegen/dyn_dispatch/dyn_dispatch.cpp
   05_codegen/globals/binding_storage.cpp
+  05_codegen/globals/entrypoint.cpp
   05_codegen/globals/globals.cpp
   05_codegen/globals/init.cpp
   05_codegen/globals/literal_emit.cpp

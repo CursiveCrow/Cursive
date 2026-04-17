@@ -100,6 +100,19 @@ std::optional<std::string> EmitObjForModule(
     const project::Project& project,
     project::TargetProfile target_profile);
 
+std::optional<std::string> CodegenObj(
+    const CodegenCache& cache,
+    const project::ModuleInfo& module,
+    const project::Project& project,
+    project::TargetProfile target_profile);
+
+std::optional<std::string> CodegenIR(
+    const CodegenCache& cache,
+    const project::ModuleInfo& module,
+    const project::Project& project,
+    project::TargetProfile target_profile,
+    std::string_view emit_ir);
+
 // Codegen cache building
 std::shared_ptr<CodegenCache> BuildCodegenCache(
     const project::Project& project,

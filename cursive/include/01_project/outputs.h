@@ -14,6 +14,7 @@
 
 namespace cursive::project {
 
+struct Assembly;
 struct ValidatedAssembly;
 struct Project;
 
@@ -27,6 +28,7 @@ struct OutputPaths {
 
 OutputPaths ComputeOutputPaths(const std::filesystem::path& project_root,
                                const ValidatedAssembly& assembly);
+Project AssemblyProject(const Project& base_project, const Assembly& assembly);
 
 std::filesystem::path ObjPath(const Project& project,
                               TargetProfile target_profile,
@@ -46,6 +48,12 @@ std::optional<std::filesystem::path> ImportLibPath(const Project& project,
 std::optional<std::filesystem::path> MapPath(const Project& project,
                                              TargetProfile target_profile);
 std::optional<std::filesystem::path> PrimaryArtifactPath(
+    const Project& project,
+    TargetProfile target_profile);
+std::vector<std::filesystem::path> LibraryArtifactInputs(
+    const std::vector<std::filesystem::path>& inputs);
+std::optional<LinkOutputKind> LinkMode(const Project& project);
+std::optional<std::filesystem::path> LinkOutputPath(
     const Project& project,
     TargetProfile target_profile);
 bool UsesBinDir(const Project& project, TargetProfile target_profile);

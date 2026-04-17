@@ -83,9 +83,10 @@ void AppendCtCodedDiagnostic(CtEnv& env,
   }
 
   core::Diagnostic fallback;
-  fallback.code = std::string(diag_id);
   fallback.severity = fallback_severity;
-  fallback.message = std::string(message);
+  fallback.message =
+      "Internal error: unresolved diagnostic id '" + std::string(diag_id) +
+      "': " + std::string(message);
   fallback.span = env.current_span;
   AppendCtDiagnostic(env, fallback);
 }

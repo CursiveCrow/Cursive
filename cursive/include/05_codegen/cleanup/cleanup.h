@@ -108,7 +108,7 @@ std::string DropGlueSym(const analysis::TypeRef& type, LowerCtx& ctx);
 IRPtr DropGlueIR(const analysis::TypeRef& type, LowerCtx& ctx);
 
 // §6.12.13 EmitDropGlue(T) - Emit drop glue function declaration
-IRPtr EmitDropGlue(const analysis::TypeRef& type, LowerCtx& ctx);
+ProcIR EmitDropGlue(const analysis::TypeRef& type, LowerCtx& ctx);
 
 // ============================================================================
 // §6.8 DropOnAssign - Drop value before assignment

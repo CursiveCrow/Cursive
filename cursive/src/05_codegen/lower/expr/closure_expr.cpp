@@ -742,11 +742,7 @@ LowerResult LowerClosureExpr(
       proc.params.push_back(ir_param);
     }
 
-    IRParam panic_param;
-    panic_param.mode = analysis::ParamMode::Move;
-    panic_param.name = std::string(kPanicOutName);
-    panic_param.type = PanicOutType();
-    proc.params.push_back(std::move(panic_param));
+    proc.params.push_back(PanicOutParam());
 
     // Lower the body
     {
@@ -991,11 +987,7 @@ LowerResult LowerClosureExpr(
     proc.params.push_back(ir_param);
   }
 
-  IRParam panic_param;
-  panic_param.mode = analysis::ParamMode::Move;
-  panic_param.name = std::string(kPanicOutName);
-  panic_param.type = PanicOutType();
-  proc.params.push_back(std::move(panic_param));
+  proc.params.push_back(PanicOutParam());
 
   // Lower the body with capture environment available
   {

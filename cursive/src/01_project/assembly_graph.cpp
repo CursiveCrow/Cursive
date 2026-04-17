@@ -576,6 +576,12 @@ std::vector<std::string> ComputeLibraryClosure(
   return order;
 }
 
+std::vector<std::string> ImportedLibraries(
+    std::string_view assembly_name,
+    const AssemblyImportGraph& graph) {
+  return ComputeLibraryClosure(assembly_name, graph);
+}
+
 std::optional<Project> BuildOutputProjectForAssembly(
     const Project& base_project,
     const AssemblyImportGraph& graph,
@@ -585,10 +591,7 @@ std::optional<Project> BuildOutputProjectForAssembly(
     return std::nullopt;
   }
 
-  Project output_project = base_project;
-  output_project.assembly = *assembly_it->second;
-  output_project.source_root = assembly_it->second->source_root;
-  output_project.outputs = assembly_it->second->outputs;
+  Project output_project = AssemblyProject(base_project, *assembly_it->second);
   output_project.modules = ComputeEmitModules(output_project.assembly.name, graph);
   return output_project;
 }

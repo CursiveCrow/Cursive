@@ -42,11 +42,16 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 
+#include <optional>
 #include <string_view>
+#include <utility>
 
 namespace cursive::codegen {
 
 namespace {
+
+constexpr const char* kDeinitPanicSeenSlot = "__cursive_deinit_panic_seen";
+constexpr const char* kDeinitPanicCodeSlot = "__cursive_deinit_panic_code";
 
 // Helper to build ScopeContext from LowerCtx
 const analysis::ScopeContext& BuildScope(const LowerCtx* ctx) {
@@ -130,6 +135,131 @@ bool ContractViolationKindIs(const std::string& reason, std::string_view kind) {
   return delim == ')' || delim == ',';
 }
 
+std::optional<std::pair<std::uint64_t, std::uint64_t>> PanicRecordOffsets(
+    LLVMEmitter& emitter,
+    const LowerCtx* ctx) {
+  if (!ctx) {
+    return std::nullopt;
+  }
+
+  const auto& scope = BuildScope(ctx);
+  const auto layout = PanicRecordLayout(scope);
+  if (!layout.has_value() || layout->offsets.size() < 2) {
+    return std::nullopt;
+  }
+  return std::pair<std::uint64_t, std::uint64_t>{
+      layout->offsets[0], layout->offsets[1]};
+}
+
+std::pair<llvm::AllocaInst*, llvm::AllocaInst*> GetOrCreateDeinitPanicSlots(
+    LLVMEmitter& emitter,
+    llvm::IRBuilder<>* builder) {
+  if (!builder) {
+    return {nullptr, nullptr};
+  }
+
+  auto* seen_slot =
+      llvm::dyn_cast_or_null<llvm::AllocaInst>(emitter.GetLocal(kDeinitPanicSeenSlot));
+  auto* code_slot =
+      llvm::dyn_cast_or_null<llvm::AllocaInst>(emitter.GetLocal(kDeinitPanicCodeSlot));
+  if (seen_slot && code_slot) {
+    return {seen_slot, code_slot};
+  }
+
+  llvm::Function* func =
+      builder->GetInsertBlock() ? builder->GetInsertBlock()->getParent() : nullptr;
+  if (!func) {
+    return {nullptr, nullptr};
+  }
+
+  llvm::IRBuilder<> entry_builder(&func->getEntryBlock(),
+                                  func->getEntryBlock().begin());
+  if (!seen_slot) {
+    seen_slot = entry_builder.CreateAlloca(
+        llvm::Type::getInt1Ty(emitter.GetContext()), nullptr, kDeinitPanicSeenSlot);
+    entry_builder.CreateStore(llvm::ConstantInt::getFalse(emitter.GetContext()),
+                              seen_slot);
+    emitter.SetLocal(kDeinitPanicSeenSlot, seen_slot);
+  }
+  if (!code_slot) {
+    code_slot = entry_builder.CreateAlloca(
+        llvm::Type::getInt32Ty(emitter.GetContext()), nullptr, kDeinitPanicCodeSlot);
+    entry_builder.CreateStore(
+        llvm::ConstantInt::get(llvm::Type::getInt32Ty(emitter.GetContext()), 0),
+        code_slot);
+    emitter.SetLocal(kDeinitPanicCodeSlot, code_slot);
+  }
+
+  return {seen_slot, code_slot};
+}
+
+void ClearPanicRecordAt(LLVMEmitter& emitter,
+                        llvm::IRBuilder<>* builder,
+                        llvm::Value* panic_ptr) {
+  LowerCtx* ctx = emitter.GetCurrentCtx();
+  if (!ctx || !builder) {
+    return;
+  }
+  if (!panic_ptr) {
+    panic_ptr = LoadPanicOutPtr(emitter, builder);
+  }
+  if (!panic_ptr) {
+    return;
+  }
+
+  const auto offsets = PanicRecordOffsets(emitter, ctx);
+  if (!offsets.has_value()) {
+    return;
+  }
+
+  llvm::Value* panic_val =
+      llvm::ConstantInt::get(llvm::Type::getInt8Ty(emitter.GetContext()), 0);
+  llvm::Value* code_val =
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(emitter.GetContext()), 0);
+  StoreAtOffset(emitter, builder, panic_ptr, offsets->first, panic_val);
+  StoreAtOffset(emitter, builder, panic_ptr, offsets->second, code_val);
+}
+
+void StorePanicRecordValue(LLVMEmitter& emitter,
+                           llvm::IRBuilder<>* builder,
+                           llvm::Value* panic_ptr,
+                           llvm::Value* code) {
+  LowerCtx* ctx = emitter.GetCurrentCtx();
+  if (!ctx || !builder || !code) {
+    return;
+  }
+  if (!panic_ptr) {
+    panic_ptr = LoadPanicOutPtr(emitter, builder);
+  }
+  if (!panic_ptr) {
+    return;
+  }
+
+  const auto offsets = PanicRecordOffsets(emitter, ctx);
+  if (!offsets.has_value()) {
+    return;
+  }
+
+  llvm::Type* i32_ty = llvm::Type::getInt32Ty(emitter.GetContext());
+  if (code->getType() != i32_ty) {
+    if (code->getType()->isIntegerTy()) {
+      const auto width = code->getType()->getIntegerBitWidth();
+      if (width < 32) {
+        code = builder->CreateZExt(code, i32_ty);
+      } else if (width > 32) {
+        code = builder->CreateTrunc(code, i32_ty);
+      }
+    } else {
+      code = llvm::ConstantInt::get(i32_ty, 0);
+    }
+  }
+
+  llvm::Value* panic_val =
+      llvm::ConstantInt::get(llvm::Type::getInt8Ty(emitter.GetContext()), 1);
+  StoreAtOffset(emitter, builder, panic_ptr, offsets->first, panic_val);
+  StoreAtOffset(emitter, builder, panic_ptr, offsets->second, code);
+}
+
 }  // namespace
 
 std::uint16_t PanicCodeFromString(const std::string& reason) {
@@ -185,26 +315,53 @@ llvm::Value* LoadPanicOutPtr(LLVMEmitter& emitter,
 
 llvm::Value* LoadPanicCode(LLVMEmitter& emitter,
                            llvm::IRBuilder<>* builder) {
+  return LoadPanicCodeValue(emitter, builder, nullptr);
+}
+
+llvm::Value* LoadPanicFlag(LLVMEmitter& emitter,
+                           llvm::IRBuilder<>* builder,
+                           llvm::Value* panic_ptr) {
   LowerCtx* ctx = emitter.GetCurrentCtx();
-  if (!ctx) {
+  if (!ctx || !builder) {
     return nullptr;
   }
-  llvm::Value* ptr = LoadPanicOutPtr(emitter, builder);
+  llvm::Value* ptr = panic_ptr ? panic_ptr : LoadPanicOutPtr(emitter, builder);
   if (!ptr) {
     return nullptr;
   }
 
-  const auto& scope = BuildScope(ctx);
-  std::vector<analysis::TypeRef> fields;
-  fields.push_back(analysis::MakeTypePrim("bool"));
-  fields.push_back(analysis::MakeTypePrim("u32"));
-  const auto layout = RecordLayoutOf(scope, fields);
-  if (!layout.has_value() || layout->offsets.size() < 2) {
+  const auto offsets = PanicRecordOffsets(emitter, ctx);
+  if (!offsets.has_value()) {
+    return nullptr;
+  }
+
+  llvm::Type* flag_ty = llvm::Type::getInt8Ty(emitter.GetContext());
+  llvm::Value* flag = LoadAtOffset(emitter, builder, ptr, offsets->first, flag_ty);
+  if (!flag) {
+    return nullptr;
+  }
+  return builder->CreateICmpNE(flag, llvm::ConstantInt::get(flag_ty, 0));
+}
+
+llvm::Value* LoadPanicCodeValue(LLVMEmitter& emitter,
+                                llvm::IRBuilder<>* builder,
+                                llvm::Value* panic_ptr) {
+  LowerCtx* ctx = emitter.GetCurrentCtx();
+  if (!ctx || !builder) {
+    return nullptr;
+  }
+  llvm::Value* ptr = panic_ptr ? panic_ptr : LoadPanicOutPtr(emitter, builder);
+  if (!ptr) {
+    return nullptr;
+  }
+
+  const auto offsets = PanicRecordOffsets(emitter, ctx);
+  if (!offsets.has_value()) {
     return nullptr;
   }
 
   llvm::Type* code_ty = llvm::Type::getInt32Ty(emitter.GetContext());
-  return LoadAtOffset(emitter, builder, ptr, layout->offsets[1], code_ty);
+  return LoadAtOffset(emitter, builder, ptr, offsets->second, code_ty);
 }
 
 bool IsInitFunction(LLVMEmitter& emitter, llvm::Function* func) {
@@ -405,44 +562,14 @@ void StorePanicRecord(LLVMEmitter& emitter,
   if (!ptr) {
     return;
   }
-  const auto& scope = BuildScope(ctx);
-  std::vector<analysis::TypeRef> fields;
-  fields.push_back(analysis::MakeTypePrim("bool"));
-  fields.push_back(analysis::MakeTypePrim("u32"));
-  const auto layout = RecordLayoutOf(scope, fields);
-  if (!layout.has_value() || layout->offsets.size() < 2) {
-    return;
-  }
-  llvm::LLVMContext& ctx_ll = emitter.GetContext();
-  llvm::Value* panic_val = llvm::ConstantInt::get(llvm::Type::getInt8Ty(ctx_ll), 1);
-  llvm::Value* code_val = llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx_ll), code);
-  StoreAtOffset(emitter, builder, ptr, layout->offsets[0], panic_val);
-  StoreAtOffset(emitter, builder, ptr, layout->offsets[1], code_val);
+  llvm::Value* code_val =
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(emitter.GetContext()), code);
+  StorePanicRecordValue(emitter, builder, ptr, code_val);
 }
 
 void ClearPanicRecord(LLVMEmitter& emitter,
                       llvm::IRBuilder<>* builder) {
-  LowerCtx* ctx = emitter.GetCurrentCtx();
-  if (!ctx) {
-    return;
-  }
-  llvm::Value* ptr = LoadPanicOutPtr(emitter, builder);
-  if (!ptr) {
-    return;
-  }
-  const auto& scope = BuildScope(ctx);
-  std::vector<analysis::TypeRef> fields;
-  fields.push_back(analysis::MakeTypePrim("bool"));
-  fields.push_back(analysis::MakeTypePrim("u32"));
-  const auto layout = RecordLayoutOf(scope, fields);
-  if (!layout.has_value() || layout->offsets.size() < 2) {
-    return;
-  }
-  llvm::LLVMContext& ctx_ll = emitter.GetContext();
-  llvm::Value* panic_val = llvm::ConstantInt::get(llvm::Type::getInt8Ty(ctx_ll), 0);
-  llvm::Value* code_val = llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx_ll), 0);
-  StoreAtOffset(emitter, builder, ptr, layout->offsets[0], panic_val);
-  StoreAtOffset(emitter, builder, ptr, layout->offsets[1], code_val);
+  ClearPanicRecordAt(emitter, builder, nullptr);
 }
 
 void EmitReturn(LLVMEmitter& emitter, llvm::IRBuilder<>* builder) {
@@ -548,6 +675,88 @@ void EmitPanicReturnIfFalse(LLVMEmitter& emitter,
   EmitReturn(emitter, builder);
 
   builder->SetInsertPoint(ok_bb);
+}
+
+void HandleDeinitPanic(LLVMEmitter& emitter,
+                       llvm::IRBuilder<>* builder,
+                       llvm::Value* panic_ptr) {
+  if (!builder || !builder->GetInsertBlock() ||
+      builder->GetInsertBlock()->getTerminator()) {
+    return;
+  }
+
+  llvm::Value* has_panic = LoadPanicFlag(emitter, builder, panic_ptr);
+  if (!has_panic) {
+    return;
+  }
+
+  auto [seen_slot, code_slot] = GetOrCreateDeinitPanicSlots(emitter, builder);
+  if (!seen_slot || !code_slot) {
+    return;
+  }
+
+  llvm::Function* func = builder->GetInsertBlock()->getParent();
+  llvm::BasicBlock* capture_bb =
+      llvm::BasicBlock::Create(emitter.GetContext(), "deinit.panic.capture", func);
+  llvm::BasicBlock* cont_bb =
+      llvm::BasicBlock::Create(emitter.GetContext(), "deinit.panic.cont", func);
+  builder->CreateCondBr(has_panic, capture_bb, cont_bb);
+
+  builder->SetInsertPoint(capture_bb);
+  llvm::Value* seen =
+      builder->CreateLoad(llvm::Type::getInt1Ty(emitter.GetContext()), seen_slot);
+  llvm::Value* code = LoadPanicCodeValue(emitter, builder, panic_ptr);
+  if (!code) {
+    code = llvm::ConstantInt::get(llvm::Type::getInt32Ty(emitter.GetContext()), 0);
+  }
+
+  llvm::BasicBlock* store_bb =
+      llvm::BasicBlock::Create(emitter.GetContext(), "deinit.panic.store", func);
+  llvm::BasicBlock* clear_bb =
+      llvm::BasicBlock::Create(emitter.GetContext(), "deinit.panic.clear", func);
+  builder->CreateCondBr(seen, clear_bb, store_bb);
+
+  builder->SetInsertPoint(store_bb);
+  builder->CreateStore(llvm::ConstantInt::getTrue(emitter.GetContext()), seen_slot);
+  builder->CreateStore(code, code_slot);
+  builder->CreateBr(clear_bb);
+
+  builder->SetInsertPoint(clear_bb);
+  ClearPanicRecordAt(emitter, builder, panic_ptr);
+  builder->CreateBr(cont_bb);
+
+  builder->SetInsertPoint(cont_bb);
+}
+
+void RestoreDeinitPanicIfAny(LLVMEmitter& emitter,
+                             llvm::IRBuilder<>* builder,
+                             llvm::Value* panic_ptr) {
+  if (!builder || !builder->GetInsertBlock() ||
+      builder->GetInsertBlock()->getTerminator()) {
+    return;
+  }
+
+  auto [seen_slot, code_slot] = GetOrCreateDeinitPanicSlots(emitter, builder);
+  if (!seen_slot || !code_slot) {
+    return;
+  }
+
+  llvm::Function* func = builder->GetInsertBlock()->getParent();
+  llvm::Value* seen =
+      builder->CreateLoad(llvm::Type::getInt1Ty(emitter.GetContext()), seen_slot);
+  llvm::BasicBlock* restore_bb =
+      llvm::BasicBlock::Create(emitter.GetContext(), "deinit.panic.restore", func);
+  llvm::BasicBlock* cont_bb =
+      llvm::BasicBlock::Create(emitter.GetContext(), "deinit.panic.done", func);
+  builder->CreateCondBr(seen, restore_bb, cont_bb);
+
+  builder->SetInsertPoint(restore_bb);
+  llvm::Value* code =
+      builder->CreateLoad(llvm::Type::getInt32Ty(emitter.GetContext()), code_slot);
+  StorePanicRecordValue(emitter, builder, panic_ptr, code);
+  builder->CreateBr(cont_bb);
+
+  builder->SetInsertPoint(cont_bb);
 }
 
 }  // namespace cursive::codegen

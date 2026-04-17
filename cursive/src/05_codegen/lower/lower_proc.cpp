@@ -1103,12 +1103,8 @@ ProcIR LowerProc(const ProcedureDecl& decl,
 
   // Exported procedures are foreign-callable boundaries and MUST keep the
   // declared ABI surface. Do not append an internal panic out-parameter.
-  if (!is_export_proc && NeedsPanicOut(ir.symbol)) {
-    IRParam panic_param;
-    panic_param.mode = analysis::ParamMode::Move;
-    panic_param.name = std::string(kPanicOutName);
-    panic_param.type = PanicOutType();
-    ir.params.push_back(std::move(panic_param));
+  if (!is_export_proc && ctx.NeedsPanicOutForSymbol(ir.symbol)) {
+    ir.params.push_back(PanicOutParam());
   }
   const bool prev_dynamic_checks = ctx.dynamic_checks;
   const bool prev_proc_log_enabled = ctx.proc_log_enabled;
@@ -1300,7 +1296,8 @@ ProcIR LowerProc(const ProcedureDecl& decl,
       async_info.result_type = sig->result;
       async_info.err_type = sig->err;
       async_info.resume_symbol = ir.symbol + "$resume";
-      async_info.resume_needs_panic_out = NeedsPanicOut(async_info.resume_symbol);
+      async_info.resume_needs_panic_out =
+          ctx.NeedsPanicOutForSymbol(async_info.resume_symbol);
       async_info.param_names = param_names;
       async_info.slot_order = async_ir.slot_order;
 
@@ -1373,11 +1370,7 @@ ProcIR LowerProc(const ProcedureDecl& decl,
       resume.params.push_back(input_param);
 
       if (async_info.resume_needs_panic_out) {
-        IRParam panic_param;
-        panic_param.mode = analysis::ParamMode::Move;
-        panic_param.name = std::string(kPanicOutName);
-        panic_param.type = PanicOutType();
-        resume.params.push_back(std::move(panic_param));
+        resume.params.push_back(PanicOutParam());
       }
 
       ctx.QueueExtraProc(std::move(resume), LinkageKind::Internal);

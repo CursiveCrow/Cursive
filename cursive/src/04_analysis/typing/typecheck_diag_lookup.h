@@ -14,6 +14,18 @@ namespace cursive::analysis {
 
 inline std::optional<std::string_view> LegacyTypecheckRuleDiagCode(
     std::string_view diag_id) {
+  if (diag_id == "Main-Missing") {
+    return "E-MOD-2434";
+  }
+  if (diag_id == "Main-Multiple") {
+    return "E-MOD-2430";
+  }
+  if (diag_id == "Main-Generic-Err") {
+    return "E-MOD-2432";
+  }
+  if (diag_id == "Main-Signature-Err") {
+    return "E-MOD-2431";
+  }
   if (diag_id == "Call-Arg-NotPlace") {
     return "E-TYP-1603";
   }

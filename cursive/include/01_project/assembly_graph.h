@@ -38,6 +38,9 @@ std::vector<ModuleInfo> ComputeEmitModules(std::string_view assembly_name,
 std::vector<std::string> ComputeLibraryClosure(
     std::string_view assembly_name,
     const AssemblyImportGraph& graph);
+std::vector<std::string> ImportedLibraries(
+    std::string_view assembly_name,
+    const AssemblyImportGraph& graph);
 
 std::optional<Project> BuildOutputProjectForAssembly(
     const Project& base_project,

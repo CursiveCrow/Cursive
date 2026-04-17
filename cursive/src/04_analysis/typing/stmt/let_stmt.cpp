@@ -219,9 +219,9 @@ StmtTypeResult TypeLetStmt(const ScopeContext& ctx,
                        check.diag_id.has_value() ? std::string(*check.diag_id).c_str() : "<none>");
         }
       }
-      if (!check.diag_id.has_value()) {
+      if (!check.diag_id.has_value() || *check.diag_id == "E-SEM-2526") {
         SPEC_RULE("T-LetStmt-Ann-Mismatch");
-        return {false, "T-LetStmt-Ann-Mismatch", {}, {}};
+        return {false, "E-MOD-2402", {}, {}};
       }
       return {false, check.diag_id, {}, {}};
     }

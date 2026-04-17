@@ -217,6 +217,9 @@ bool ValidateIR(const IR& ir) {
             return false;
           }
           return ValidateValue(node.value) && ValidateValue(node.result);
+        } else if constexpr (std::is_same_v<T, IRContextBundleBuild>) {
+          return node.target_type != nullptr && ValidateValue(node.root_ctx) &&
+                 ValidateValue(node.result);
         } else if constexpr (std::is_same_v<T, IRReturn>) {
           return ValidateValue(node.value);
         } else if constexpr (std::is_same_v<T, IRResult>) {
@@ -307,6 +310,10 @@ bool ValidateIR(const IR& ir) {
           if (node.cleanup_ir) {
             return ValidateIRPtr(node.cleanup_ir);
           }
+          return true;
+        } else if constexpr (std::is_same_v<T, IRHandleDeinitPanic>) {
+          return true;
+        } else if constexpr (std::is_same_v<T, IRRestoreDeinitPanic>) {
           return true;
         } else if constexpr (std::is_same_v<T, IRCheckPoison>) {
           return true;

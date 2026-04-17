@@ -11,6 +11,7 @@
 #include "04_analysis/resolve/scopes.h"
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/intrinsics/builtins.h"
+#include "05_codegen/intrinsics/intrinsics_interface.h"
 
 namespace cursive::codegen {
 
@@ -897,6 +898,12 @@ void LowerCtx::RegisterProcFfiImport(const std::string& sym,
 }
 
 bool LowerCtx::NeedsPanicOutForSymbol(const std::string& sym) const {
+  if (LookupRecordCtor(sym) != nullptr) {
+    return false;
+  }
+  if (IsRuntimeFunction(sym)) {
+    return false;
+  }
   if (const auto* sig = LookupProcSig(sym)) {
     return !sig->params.empty() &&
            sig->params.back().name == std::string(kPanicOutName);

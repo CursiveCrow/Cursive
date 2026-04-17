@@ -210,6 +210,9 @@ std::string RuntimeConformanceSetMinLevelSym();
 // Runtime symbol sets used by linker compatibility and panic-out lowering
 // =============================================================================
 
+/// Spec-defined Chapter 24 runtime symbol surface.
+std::vector<std::string> RuntimeSpecSyms();
+
 /// Runtime symbols required by project link-time compatibility checks.
 std::vector<std::string> RuntimeLinkRequiredSyms();
 

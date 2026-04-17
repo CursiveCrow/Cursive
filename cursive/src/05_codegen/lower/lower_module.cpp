@@ -420,16 +420,12 @@ bool ForeignDynamicChecksEnabled(const ast::AttributeList& proc_attrs) {
 }
 
 IRParam PanicOutParam() {
-  IRParam panic_param;
-  panic_param.mode = analysis::ParamMode::Move;
-  panic_param.name = std::string(kPanicOutName);
-  panic_param.type = PanicOutType();
-  return panic_param;
+  return ::cursive::codegen::PanicOutParam();
 }
 
-void AppendPanicOutParamIfNeeded(ProcIR& proc) {
-  if (NeedsPanicOut(proc.symbol)) {
-    proc.params.push_back(PanicOutParam());
+void AppendPanicOutParamIfNeeded(ProcIR& proc, LowerCtx& ctx) {
+  if (ctx.NeedsPanicOutForSymbol(proc.symbol)) {
+    proc.params.push_back(::cursive::codegen::PanicOutParam());
   }
 }
 
@@ -509,12 +505,8 @@ ProcIR LowerProcLike(const std::string& symbol,
 
   ir.ret = ret_type ? ret_type : analysis::MakeTypePrim("()");
 
-  if (NeedsPanicOut(ir.symbol)) {
-    IRParam panic_param;
-    panic_param.mode = analysis::ParamMode::Move;
-    panic_param.name = std::string(kPanicOutName);
-    panic_param.type = PanicOutType();
-    ir.params.push_back(std::move(panic_param));
+  if (ctx.NeedsPanicOutForSymbol(ir.symbol)) {
+    ir.params.push_back(PanicOutParam());
   }
 
   auto body_res = LowerBlock(body, ctx);
@@ -765,7 +757,7 @@ ProcIR BuildProcedureSignature(const ast::ProcedureDecl& decl,
     ir.abi = ExportAbiFor(decl.attrs);
     ctx.RegisterExportUnwindMode(ir.symbol, ExportUnwindModeFor(decl.attrs));
   } else {
-    AppendPanicOutParamIfNeeded(ir);
+    AppendPanicOutParamIfNeeded(ir, ctx);
   }
   return ir;
 }
@@ -813,7 +805,7 @@ ProcIR BuildRecordMethodSignature(const ast::RecordDecl& record,
     ir.params.push_back(LowerParam(param, scope, self_type));
   }
   ir.ret = LowerReturnType(scope, method.return_type_opt, self_type);
-  AppendPanicOutParamIfNeeded(ir);
+  AppendPanicOutParamIfNeeded(ir, ctx);
   return ir;
 }
 
@@ -835,7 +827,7 @@ ProcIR BuildStateMethodSignature(const ast::ModalDecl& modal,
     ir.params.push_back(LowerParam(param, scope, nullptr));
   }
   ir.ret = LowerReturnType(scope, method.return_type_opt, nullptr);
-  AppendPanicOutParamIfNeeded(ir);
+  AppendPanicOutParamIfNeeded(ir, ctx);
   return ir;
 }
 
@@ -857,7 +849,7 @@ ProcIR BuildTransitionSignature(const ast::ModalDecl& modal,
     ir.params.push_back(LowerParam(param, scope, nullptr));
   }
   ir.ret = analysis::MakeTypeModalState(modal_path, trans.target_state);
-  AppendPanicOutParamIfNeeded(ir);
+  AppendPanicOutParamIfNeeded(ir, ctx);
   return ir;
 }
 
@@ -898,7 +890,7 @@ std::vector<ProcIR> BuildClassMethodSignatures(const ast::ClassDecl& class_decl,
       ir.params.push_back(LowerParam(param, scope, self_type));
     }
     ir.ret = LowerReturnType(scope, method.return_type_opt, self_type);
-    AppendPanicOutParamIfNeeded(ir);
+    AppendPanicOutParamIfNeeded(ir, ctx);
     out.push_back(std::move(ir));
   }
 
@@ -1045,13 +1037,13 @@ bool RegisterModuleSignatures(const ast::ASTModule& module, LowerCtx& ctx) {
 
   ProcIR init_sig;
   init_sig.symbol = InitFn(module.path);
-  init_sig.params.push_back(PanicOutParam());
+  init_sig.params.push_back(::cursive::codegen::PanicOutParam());
   init_sig.ret = analysis::MakeTypePrim("()");
   register_internal_proc(init_sig);
 
   ProcIR deinit_sig;
   deinit_sig.symbol = DeinitFn(module.path);
-  deinit_sig.params.push_back(PanicOutParam());
+  deinit_sig.params.push_back(::cursive::codegen::PanicOutParam());
   deinit_sig.ret = analysis::MakeTypePrim("()");
   register_internal_proc(deinit_sig);
 
@@ -1172,6 +1164,9 @@ IRDecls LowerModule(const ast::ASTModule& module, LowerCtx& ctx) {
             return;
           } else if constexpr (std::is_same_v<T, ast::RecordDecl>) {
             SPEC_RULE("CG-Item-Record");
+            std::vector<std::string> record_path = module.path;
+            record_path.push_back(node.name);
+            ctx.RegisterRecordCtor(ScopedSym(record_path), record_path);
             for (const auto& member : node.members) {
               if (const auto* method = std::get_if<ast::MethodDecl>(&member)) {
                 SPEC_RULE("CG-Item-Method");
@@ -1362,6 +1357,24 @@ IRDecls LowerModule(const ast::ASTModule& module, LowerCtx& ctx) {
   decls.push_back(deinit_fn);
   drain_extra_procs();
   flush_item_maps();
+
+  if (!module_drop_glue_types.empty()) {
+    std::vector<std::string> drop_syms;
+    drop_syms.reserve(module_drop_glue_types.size());
+    for (const auto& [sym, _type] : module_drop_glue_types) {
+      drop_syms.push_back(sym);
+    }
+    std::sort(drop_syms.begin(), drop_syms.end());
+    for (const auto& sym : drop_syms) {
+      const auto type_it = module_drop_glue_types.find(sym);
+      if (type_it == module_drop_glue_types.end()) {
+        continue;
+      }
+      ProcIR glue = EmitDropGlue(type_it->second, ctx);
+      register_proc(glue, false, LinkageKind::Internal);
+      decls.push_back(std::move(glue));
+    }
+  }
 
   ctx.value_types = std::move(module_value_types);
   ctx.derived_values = std::move(module_derived_values);

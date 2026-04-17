@@ -259,6 +259,22 @@ const RuntimeCategoryMap& GetRuntimeCategoryMap() {
 
 }  // namespace
 
+std::vector<std::string> RuntimeSyms() {
+  return RuntimeSpecSyms();
+}
+
+std::vector<std::string> RuntimeDeclSyms() {
+  const auto& categories = GetRuntimeCategoryMap();
+  std::vector<std::string> syms;
+  syms.reserve(categories.size());
+  for (const auto& [symbol, _category] : categories) {
+    syms.push_back(symbol);
+  }
+  std::sort(syms.begin(), syms.end());
+  syms.erase(std::unique(syms.begin(), syms.end()), syms.end());
+  return syms;
+}
+
 RuntimeSymbolCategory CategorizeRuntimeSymbol(const std::string& symbol) {
   const auto& categories = GetRuntimeCategoryMap();
   if (const auto it = categories.find(symbol); it != categories.end()) {

@@ -111,6 +111,11 @@ IRPtr EmitEntrySequenceIR(const LowerCtx& ctx) {
   SPEC_RULE("EntrySequenceIR");
 
   std::vector<IRPtr> parts;
+  const auto main_sym = MainProcSym(ctx);
+  std::vector<ast::ModulePath> init_order = ctx.init_order;
+  if (init_order.empty() && ctx.sigma) {
+    init_order = ComputeInitOrderFromSigma(*ctx.sigma);
+  }
 
   // 1. Create context value temporary
   IRValue ctx_value;
@@ -129,10 +134,22 @@ IRPtr EmitEntrySequenceIR(const LowerCtx& ctx) {
 
   // 4. Emit init plan (mutable copy needed)
   LowerCtx init_ctx = ctx;  // Copy for modification
-  parts.push_back(EmitInitPlan(ctx.init_order, init_ctx));
+  parts.push_back(EmitInitPlan(init_order, init_ctx));
 
   // 5. Call user main with context and panic out
-  if (ctx.main_symbol.has_value()) {
+  if (main_sym.has_value()) {
+    const LowerCtx::ProcSigInfo* main_sig = ctx.LookupProcSig(*main_sym);
+    IRValue main_arg = ctx_value;
+    if (main_sig && !main_sig->params.empty() && main_sig->params[0].type) {
+      IRContextBundleBuild build_ctx;
+      build_ctx.target_type = main_sig->params[0].type;
+      build_ctx.root_ctx = ctx_value;
+      build_ctx.result.kind = IRValue::Kind::Opaque;
+      build_ctx.result.name = "__entry_main_arg";
+      main_arg = build_ctx.result;
+      parts.push_back(MakeIR(std::move(build_ctx)));
+    }
+
     IRValue panic_arg;
     panic_arg.kind = IRValue::Kind::Local;
     panic_arg.name = std::string(kPanicOutName);
@@ -143,8 +160,8 @@ IRPtr EmitEntrySequenceIR(const LowerCtx& ctx) {
 
     IRCall main_call;
     main_call.callee.kind = IRValue::Kind::Symbol;
-    main_call.callee.name = *ctx.main_symbol;
-    main_call.args = {ctx_value, panic_arg};
+    main_call.callee.name = *main_sym;
+    main_call.args = {main_arg, panic_arg};
     main_call.result = ret_value;
     parts.push_back(MakeIR(std::move(main_call)));
 
@@ -152,7 +169,11 @@ IRPtr EmitEntrySequenceIR(const LowerCtx& ctx) {
     parts.push_back(MakeIR(IRPanicCheck{}));
 
     // 7. Emit deinit plan
-    parts.push_back(EmitDeinitPlan(ctx.init_order, init_ctx));
+    parts.push_back(EmitDeinitPlan(init_order, init_ctx));
+
+    // 7.5 Deinit may have restored a panic record; entry semantics must still
+    // route that through the runtime panic path instead of returning success.
+    parts.push_back(MakeIR(IRPanicCheck{}));
 
     // 8. Return result
     IRReturn ret;
@@ -169,6 +190,7 @@ IRPtr EmitEntrySequenceIR(const LowerCtx& ctx) {
 
 void AnchorEntrypointRules() {
   // Section 6.12.17 Entrypoint
+  SPEC_RULE("EntryJudg");
   SPEC_RULE("EntrySym-Decl");
   SPEC_RULE("EntrySym-Err");
   SPEC_RULE("ContextInitSym-Decl");

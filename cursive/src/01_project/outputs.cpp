@@ -272,8 +272,10 @@ void EmitUnsupportedArtifactDiagnostic(
 LinkPlan BaseLinkPlan(const Project& project, TargetProfile target_profile) {
   LinkPlan plan;
   plan.target_profile = target_profile;
-  if (IsSharedLibrary(project)) {
-    plan.output_kind = LinkOutputKind::SharedLibrary;
+  if (const auto link_mode = LinkMode(project); link_mode.has_value()) {
+    plan.output_kind = *link_mode;
+  }
+  if (plan.output_kind == LinkOutputKind::SharedLibrary) {
     if (ObjectFormatOf(target_profile) == ObjectFormat::Coff) {
       plan.shared_library_lifecycle_mode =
           SharedLibraryLifecycleMode::WindowsEntry;
@@ -692,6 +694,33 @@ std::optional<std::filesystem::path> PrimaryArtifactPath(
   return std::nullopt;
 }
 
+std::vector<std::filesystem::path> LibraryArtifactInputs(
+    const std::vector<std::filesystem::path>& inputs) {
+  return inputs;
+}
+
+std::optional<LinkOutputKind> LinkMode(const Project& project) {
+  if (IsExecutable(project)) {
+    return LinkOutputKind::Executable;
+  }
+  if (IsSharedLibrary(project)) {
+    return LinkOutputKind::SharedLibrary;
+  }
+  return std::nullopt;
+}
+
+std::optional<std::filesystem::path> LinkOutputPath(
+    const Project& project,
+    TargetProfile target_profile) {
+  if (IsExecutable(project)) {
+    return ExePath(project, target_profile);
+  }
+  if (IsSharedLibrary(project)) {
+    return SharedLibPath(project, target_profile);
+  }
+  return std::nullopt;
+}
+
 bool UsesBinDir(const Project& project, TargetProfile) {
   return IsExecutable(project) || IsSharedLibrary(project);
 }
@@ -746,10 +775,6 @@ std::vector<std::filesystem::path> RequiredOutputs(const Project& project,
   if (const auto import_lib = ImportLibPath(project, target_profile);
       import_lib.has_value()) {
     out.push_back(*import_lib);
-  }
-  if (const auto map_path = MapPath(project, target_profile);
-      map_path.has_value()) {
-    out.push_back(*map_path);
   }
   return out;
 }
@@ -861,6 +886,15 @@ ParsedAstModulesResult ParseAstModulesForProject(const Project& project,
   return {std::move(expanded.modules), std::move(parsed.diags)};
 }
 
+Project AssemblyProject(const Project& base_project, const Assembly& assembly) {
+  Project project = base_project;
+  project.assembly = assembly;
+  project.source_root = assembly.source_root;
+  project.outputs = assembly.outputs;
+  project.modules = assembly.modules;
+  return project;
+}
+
 LinkPlan BuildOutputLinkPlan(const Project& project,
                              TargetProfile target_profile,
                              const std::vector<ast::ASTModule>& ast_modules,
@@ -960,6 +994,42 @@ struct OutputCoordinatorState {
   std::optional<AssemblyImportGraph> graph;
 };
 
+OutputPipelineResult OutputPipelineRecursive(const Project& project,
+                                             OutputCoordinatorState& state);
+
+std::optional<std::vector<std::filesystem::path>> LibraryArtifactInputs(
+    const Project& project,
+    OutputCoordinatorState& state,
+    core::DiagnosticStream& diags) {
+  if (!state.graph.has_value()) {
+    return std::nullopt;
+  }
+
+  std::vector<std::filesystem::path> library_inputs;
+  const auto imported_libraries =
+      ImportedLibraries(project.assembly.name, *state.graph);
+  library_inputs.reserve(imported_libraries.size());
+
+  for (const auto& assembly_name : imported_libraries) {
+    const auto dep_project =
+        BuildOutputProjectForAssembly(project, *state.graph, assembly_name);
+    if (!dep_project.has_value()) {
+      continue;
+    }
+    auto dep_result = OutputPipelineRecursive(*dep_project, state);
+    for (const auto& diag : dep_result.diags) {
+      core::Emit(diags, diag);
+    }
+    if (!dep_result.artifacts.has_value() ||
+        !dep_result.artifacts->primary_artifact.has_value()) {
+      return std::nullopt;
+    }
+    library_inputs.push_back(*dep_result.artifacts->primary_artifact);
+  }
+
+  return library_inputs;
+}
+
 OutputPipelineResult OutputPipelineSingleAssembly(
     const Project& project,
     TargetProfile target_profile,
@@ -973,12 +1043,7 @@ std::optional<Project> AssemblyProjectView(const Project& base_project,
     if (assembly.name != assembly_name) {
       continue;
     }
-    Project project = base_project;
-    project.assembly = assembly;
-    project.source_root = assembly.source_root;
-    project.outputs = assembly.outputs;
-    project.modules = assembly.modules;
-    return project;
+    return AssemblyProject(base_project, assembly);
   }
   return std::nullopt;
 }
@@ -1005,6 +1070,37 @@ bool LoadAstForAssembly(const Project& base_project,
   state.ast_by_assembly.emplace(std::string(assembly_name),
                                 std::move(*parsed.modules));
   return true;
+}
+
+LinkResult FinalizeArtifacts(
+    const Project& project,
+    TargetProfile target_profile,
+    const std::vector<std::filesystem::path>& objs,
+    const std::vector<std::filesystem::path>& extra_link_inputs,
+    const LinkPlan& link_plan,
+    const OutputPipelineDeps& deps) {
+  const LinkDeps link_deps = {
+      deps.resolve_tool,
+      deps.resolve_runtime_lib,
+      deps.linker_syms,
+      deps.archive_members,
+      deps.invoke_linker,
+      deps.invoke_archiver,
+  };
+
+  if (IsStaticLibrary(project)) {
+    LinkResult result = Archive(objs, project, target_profile, link_deps);
+    if (result.status == LinkStatus::Ok) {
+      SPEC_RULE("Finalize-Archive");
+    }
+    return result;
+  }
+
+  LinkResult result = Link(objs, extra_link_inputs, project, link_plan, link_deps);
+  if (result.status == LinkStatus::Ok) {
+    SPEC_RULE("Finalize-Link");
+  }
+  return result;
 }
 
 bool EnsureAssemblyGraphLoaded(const Project& project,
@@ -1064,30 +1160,17 @@ OutputPipelineResult OutputPipelineRecursive(const Project& project,
     return result;
   }
 
-  std::vector<std::filesystem::path> library_inputs;
-  const auto library_closure = ComputeLibraryClosure(project.assembly.name,
-                                                     *state.graph);
-  for (const auto& assembly_name : library_closure) {
-    const auto dep_project =
-        BuildOutputProjectForAssembly(project, *state.graph, assembly_name);
-    if (!dep_project.has_value()) {
-      continue;
-    }
-    auto dep_result = OutputPipelineRecursive(*dep_project, state);
-    for (const auto& diag : dep_result.diags) {
-      core::Emit(result.diags, diag);
-    }
-    if (!dep_result.artifacts.has_value() ||
-        !dep_result.artifacts->primary_artifact.has_value()) {
-      return result;
-    }
-    library_inputs.push_back(*dep_result.artifacts->primary_artifact);
+  const auto library_artifact_inputs =
+      LibraryArtifactInputs(project, state, result.diags);
+  if (!library_artifact_inputs.has_value()) {
+    return result;
   }
 
   const auto extern_specs = CollectExternLibrarySpecs(*ast_modules);
   const auto extern_inputs =
       ResolveExternLibraryInputs(extern_specs, state.target_profile);
-  const auto extra_inputs = AppendUniquePaths(library_inputs, extern_inputs);
+  const auto extra_inputs =
+      AppendUniquePaths(*library_artifact_inputs, extern_inputs);
   const LinkPlan link_plan =
       BuildOutputLinkPlan(project, state.target_profile, *ast_modules,
                           state.deps, result.diags);
@@ -1776,15 +1859,6 @@ OutputPipelineResult OutputPipelineSingleAssembly(
   }
 
   if (!reuse_final) {
-    const LinkDeps link_deps = {
-        deps.resolve_tool,
-        deps.resolve_runtime_lib,
-        deps.linker_syms,
-        deps.archive_members,
-        deps.invoke_linker,
-        deps.invoke_archiver,
-    };
-
     if (show_build_progress) {
       std::ostringstream oss;
       oss << "finalize-start output=" << primary_artifact->generic_string()
@@ -1796,11 +1870,9 @@ OutputPipelineResult OutputPipelineSingleAssembly(
       LogBuildProgress(oss.str());
     }
 
-    const LinkResult link_result = static_library
-                                       ? Archive(objs, project, target_profile,
-                                                 link_deps)
-                                       : Link(objs, extra_link_inputs,
-                                              project, link_plan, link_deps);
+    const LinkResult link_result =
+        FinalizeArtifacts(project, target_profile, objs, extra_link_inputs,
+                          link_plan, deps);
     for (const auto& diag : link_result.diags) {
       core::Emit(result.diags, diag);
     }

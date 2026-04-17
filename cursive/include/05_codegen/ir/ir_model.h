@@ -191,6 +191,12 @@ struct IRAlloc {
   analysis::TypeRef type;
 };
 
+struct IRContextBundleBuild {
+  analysis::TypeRef target_type;
+  IRValue root_ctx;
+  IRValue result;
+};
+
 struct IRReturn {
   IRValue value;
 };
@@ -301,6 +307,10 @@ struct IRInitPanicHandle {
   std::vector<std::string> poison_modules;
   IRPtr cleanup_ir;
 };
+
+struct IRHandleDeinitPanic {};
+
+struct IRRestoreDeinitPanic {};
 
 struct IRCheckPoison {
   std::string module;
@@ -515,6 +525,7 @@ struct IR {
                IRCheckOp,
                IRCheckCast,
                IRAlloc,
+               IRContextBundleBuild,
                IRReturn,
                IRResult,
                IRBreak,
@@ -532,6 +543,8 @@ struct IR {
                IRClearPanic,
                IRPanicCheck,
                IRInitPanicHandle,
+               IRHandleDeinitPanic,
+               IRRestoreDeinitPanic,
                IRCheckPoison,
                IRLowerPanic,
                // C0X Extension: Structured Concurrency

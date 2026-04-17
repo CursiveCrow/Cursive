@@ -721,26 +721,13 @@ std::string RuntimeConformanceSetMinLevelSym() {
   return core::PathSig({"cursive", "runtime", "conformance", "set_min_level"});
 }
 
-std::vector<std::string> RuntimeLinkRequiredSyms() {
+std::vector<std::string> RuntimeSpecSyms() {
   std::vector<std::string> syms;
 
   AppendRuntimeSymbol(syms, RuntimePanicSym());
   AppendRuntimeSymbol(syms, BuiltinSymStringDropManaged());
   AppendRuntimeSymbol(syms, BuiltinSymBytesDropManaged());
   AppendRuntimeSymbol(syms, ContextInitSym());
-  AppendRuntimeSymbol(syms, RuntimeConformanceEmitSym());
-  AppendRuntimeSymbol(syms, RuntimeConformanceEmitIntSym());
-  AppendRuntimeSymbol(syms, RuntimeConformanceEmitBoolSym());
-  AppendRuntimeSymbol(syms, RuntimeConformanceEmitFloatSym());
-  AppendRuntimeSymbol(syms, RuntimeConformanceEmitPtrSym());
-  AppendRuntimeSymbol(syms, RuntimeConformanceEmitStringSym());
-  AppendRuntimeSymbol(syms, RuntimeConformanceEmitStringManagedSym());
-  AppendRuntimeSymbol(syms, RuntimeConformanceEmitBytesSym());
-  AppendRuntimeSymbol(syms, RuntimeConformanceEmitBytesManagedSym());
-  AppendRuntimeSymbol(syms, RuntimeConformanceSetSinkSym());
-  AppendRuntimeSymbol(syms, RuntimeConformanceSetRootSym());
-  AppendRuntimeSymbol(syms, RuntimeConformanceSetLogFilterSym());
-  AppendRuntimeSymbol(syms, RuntimeConformanceSetMinLevelSym());
 
   static const std::array<BuiltinSymbolFactory, 13> kRegionSymbols = {{
       &BuiltinModalSymRegionNewScoped,
@@ -753,9 +740,9 @@ std::vector<std::string> RuntimeLinkRequiredSyms() {
       &BuiltinModalSymRegionFreeUnchecked,
       &BuiltinModalSymRegionAddrIsActive,
       &BuiltinModalSymRegionAddrTagFrom,
-      &BuiltinModalSymRegionScopeEnter,
-      &BuiltinModalSymRegionScopeExit,
-      &BuiltinModalSymRegionAddrTagScope,
+      &BuiltinSymCancelTokenNew,
+      &BuiltinSymCancelTokenActiveCancel,
+      &BuiltinSymCancelTokenActiveIsCancelled,
   }};
   AppendRuntimeSymbols(syms, kRegionSymbols);
 
@@ -822,6 +809,58 @@ std::vector<std::string> RuntimeLinkRequiredSyms() {
       &BuiltinSymSystemRun,
   }};
   AppendRuntimeSymbols(syms, kSystemSymbols);
+
+  static const std::array<BuiltinSymbolFactory, 24> kAdditionalBuiltinMethods = {{
+      &BuiltinSymAsyncResume,
+      &BuiltinSymAsyncAllocFrame,
+      &BuiltinSymAsyncFreeFrame,
+      &BuiltinSymExecutionDomainName,
+      &BuiltinSymExecutionDomainMaxConcurrency,
+      &BuiltinSymContextCpu,
+      &BuiltinSymContextGpu,
+      &BuiltinSymContextInline,
+      &BuiltinSymGpuGlobalId,
+      &BuiltinSymGpuLocalId,
+      &BuiltinSymGpuWorkgroupId,
+      &BuiltinSymGpuWorkgroupSize,
+      &BuiltinSymGpuGlobalSize,
+      &BuiltinSymGpuNumWorkgroups,
+      &BuiltinSymGpuLinearId,
+      &BuiltinSymGpuBarrier,
+      &BuiltinSymGpuMemoryBarrier,
+      &BuiltinSymGpuWorkgroupBarrier,
+      &BuiltinSymCancelTokenActiveChild,
+      &BuiltinSymCancelTokenActiveWaitCancelled,
+      &BuiltinSymReactorRun,
+      &BuiltinSymCancelTokenNew,
+      &BuiltinSymCancelTokenActiveCancel,
+      &BuiltinSymCancelTokenActiveIsCancelled,
+  }};
+  AppendRuntimeSymbols(syms, kAdditionalBuiltinMethods);
+  AppendRuntimeSymbol(syms, BuiltinSymReactorRegister());
+
+  SortUniqueSymbols(syms);
+  return syms;
+}
+
+std::vector<std::string> RuntimeLinkRequiredSyms() {
+  std::vector<std::string> syms = RuntimeSpecSyms();
+  AppendRuntimeSymbol(syms, BuiltinModalSymRegionScopeEnter());
+  AppendRuntimeSymbol(syms, BuiltinModalSymRegionScopeExit());
+  AppendRuntimeSymbol(syms, BuiltinModalSymRegionAddrTagScope());
+  AppendRuntimeSymbol(syms, RuntimeConformanceEmitSym());
+  AppendRuntimeSymbol(syms, RuntimeConformanceEmitIntSym());
+  AppendRuntimeSymbol(syms, RuntimeConformanceEmitBoolSym());
+  AppendRuntimeSymbol(syms, RuntimeConformanceEmitFloatSym());
+  AppendRuntimeSymbol(syms, RuntimeConformanceEmitPtrSym());
+  AppendRuntimeSymbol(syms, RuntimeConformanceEmitStringSym());
+  AppendRuntimeSymbol(syms, RuntimeConformanceEmitStringManagedSym());
+  AppendRuntimeSymbol(syms, RuntimeConformanceEmitBytesSym());
+  AppendRuntimeSymbol(syms, RuntimeConformanceEmitBytesManagedSym());
+  AppendRuntimeSymbol(syms, RuntimeConformanceSetSinkSym());
+  AppendRuntimeSymbol(syms, RuntimeConformanceSetRootSym());
+  AppendRuntimeSymbol(syms, RuntimeConformanceSetLogFilterSym());
+  AppendRuntimeSymbol(syms, RuntimeConformanceSetMinLevelSym());
 
   SortUniqueSymbols(syms);
   return syms;

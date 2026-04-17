@@ -156,14 +156,21 @@ AttrSet ComputeArgAttrs(const analysis::TypeRef& type) {
   return attrs;
 }
 
+bool NoEscapeParam(std::string_view param_name) {
+  // Chapter 24 models nocapture as an optional strengthening. Until escape
+  // analysis is threaded into LLVM attribute emission, stay conservative.
+  (void)param_name;
+  return false;
+}
+
 AttrSet ComputeArgAttrsExt(const std::string& param_name,
                            const analysis::TypeRef& type) {
   // Start with basic arg attrs
   AttrSet attrs = ComputeArgAttrs(type);
 
-  // Could add nocapture based on escape analysis of param_name
-  // For now, just return basic attrs
-  (void)param_name;
+  if (NoEscapeParam(param_name)) {
+    attrs.push_back({AttrKind::NoCapture, 0});
+  }
 
   return attrs;
 }

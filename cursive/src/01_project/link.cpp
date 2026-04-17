@@ -78,6 +78,74 @@ bool IsSharedLibraryProject(const Project& project) {
          project.assembly.link_kind == "shared";
 }
 
+std::vector<std::string> CuratedSharedLibraryExportSymbols(
+    const LinkPlan& plan) {
+  std::vector<std::string> export_symbols = plan.export_symbols;
+  std::vector<std::string> data_export_symbols = plan.data_export_symbols;
+  export_symbols.erase(
+      std::remove_if(export_symbols.begin(),
+                     export_symbols.end(),
+                     [](const std::string& symbol) {
+                       return IsHiddenSharedLibraryExportSymbolImpl(symbol);
+                     }),
+      export_symbols.end());
+  data_export_symbols.erase(
+      std::remove_if(data_export_symbols.begin(),
+                     data_export_symbols.end(),
+                     [](const std::string& symbol) {
+                       return IsHiddenSharedLibraryExportSymbolImpl(symbol);
+                     }),
+      data_export_symbols.end());
+  std::sort(export_symbols.begin(), export_symbols.end());
+  export_symbols.erase(
+      std::unique(export_symbols.begin(), export_symbols.end()),
+      export_symbols.end());
+  std::sort(data_export_symbols.begin(), data_export_symbols.end());
+  data_export_symbols.erase(
+      std::unique(data_export_symbols.begin(), data_export_symbols.end()),
+      data_export_symbols.end());
+  export_symbols.insert(export_symbols.end(),
+                        data_export_symbols.begin(),
+                        data_export_symbols.end());
+  std::sort(export_symbols.begin(), export_symbols.end());
+  export_symbols.erase(
+      std::unique(export_symbols.begin(), export_symbols.end()),
+      export_symbols.end());
+  return export_symbols;
+}
+
+std::optional<std::filesystem::path> WritePosixVersionScript(
+    const std::filesystem::path& output,
+    const std::vector<std::string>& export_symbols) {
+  if (export_symbols.empty()) {
+    return std::nullopt;
+  }
+
+  std::filesystem::path script_path = output;
+  script_path += ".exports.map";
+  std::error_code ec;
+  std::filesystem::create_directories(script_path.parent_path(), ec);
+
+  std::ofstream out(script_path, std::ios::binary | std::ios::trunc);
+  if (!out) {
+    return std::nullopt;
+  }
+
+  out << "{\n";
+  out << "  global:\n";
+  for (const auto& symbol : export_symbols) {
+    out << "    " << symbol << ";\n";
+  }
+  out << "  local:\n";
+  out << "    *;\n";
+  out << "};\n";
+  out.close();
+  if (!out) {
+    return std::nullopt;
+  }
+  return script_path;
+}
+
 std::optional<std::string> ReadFileBytes(const std::filesystem::path& path) {
   std::ifstream in(path, std::ios::binary);
   if (!in) {
@@ -1066,6 +1134,13 @@ std::vector<std::string> BuildPosixLinkArgs(
   }
   args.push_back("--nostdlib");
   args.push_back("-rpath=$ORIGIN");
+  if (plan.output_kind == LinkOutputKind::SharedLibrary) {
+    if (const auto version_script =
+            WritePosixVersionScript(output, CuratedSharedLibraryExportSymbols(plan));
+        version_script.has_value()) {
+      args.push_back("--version-script=" + PathArgString(*version_script));
+    }
+  }
   if (plan.output_kind != LinkOutputKind::SharedLibrary) {
     if (const char* interpreter = ElfInterpreterPath(plan.target_profile);
         interpreter != nullptr) {
@@ -1093,19 +1168,7 @@ std::filesystem::path ResolveManifestToolchainPath(
 
 std::filesystem::path DefaultRuntimeLibPath(const Project& project,
                                             TargetProfile target_profile) {
-  const std::string runtime_name(RuntimeLibNameFor(target_profile));
-  if (const auto support_runtime = core::CompilerSupportAssetPath(
-          std::filesystem::path(runtime_name),
-          std::filesystem::path("runtime") / runtime_name);
-      support_runtime.has_value()) {
-    return *support_runtime;
-  }
-
-  std::filesystem::path build_root = project.outputs.root;
-  if (build_root.empty()) {
-    build_root = project.root / "build";
-  }
-  return build_root / "runtime" / runtime_name;
+  return CompilerRuntimeLibPath(project, target_profile);
 }
 
 }  // namespace
@@ -1378,13 +1441,25 @@ std::vector<std::filesystem::path> MaterializeLinkInputsForTool(
   return materialized;
 }
 
+std::vector<std::filesystem::path> LinkInputs(
+    const std::vector<std::filesystem::path>& objs,
+    const std::vector<std::filesystem::path>& library_artifact_inputs,
+    const std::filesystem::path& runtime_lib) {
+  std::vector<std::filesystem::path> inputs = objs;
+  inputs.reserve(objs.size() + library_artifact_inputs.size() + 1);
+  inputs.insert(inputs.end(), library_artifact_inputs.begin(),
+                library_artifact_inputs.end());
+  inputs.push_back(runtime_lib);
+  return inputs;
+}
+
 LinkResult Link(const std::vector<std::filesystem::path>& objs,
                 const std::vector<std::filesystem::path>& extra_inputs,
                 const Project& project,
                 const LinkPlan& plan,
                 const LinkDeps& deps) {
   LinkResult result;
-  const auto output_path = PrimaryArtifactPath(project, plan.target_profile);
+  const auto output_path = LinkOutputPath(project, plan.target_profile);
   const auto import_lib = ImportLibPath(project, plan.target_profile);
   if (!output_path.has_value()) {
     result.status = LinkStatus::Fail;
@@ -1475,9 +1550,8 @@ LinkResult Link(const std::vector<std::filesystem::path>& objs,
     return result;
   }
 
-  std::vector<std::filesystem::path> sym_inputs = objs;
-  sym_inputs.insert(sym_inputs.end(), materialized_extra_inputs.begin(),
-                    materialized_extra_inputs.end());
+  const auto logical_inputs =
+      LinkInputs(objs, materialized_extra_inputs, *runtime_lib);
   const auto runtime_sidecars =
       LinuxBundledRuntimeSidecars(plan.target_profile, *runtime_lib);
   if (ObjectFormatOf(plan.target_profile) == ObjectFormat::Elf &&
@@ -1534,9 +1608,7 @@ LinkResult Link(const std::vector<std::filesystem::path>& objs,
       result.status = LinkStatus::RuntimeIncompatible;
       return result;
     }
-    sym_inputs.push_back(*startup_object);
   }
-  sym_inputs.push_back(*runtime_lib);
 
   std::vector<std::filesystem::path> inputs = objs;
   inputs.reserve(objs.size() + materialized_extra_inputs.size() +
@@ -1593,7 +1665,7 @@ LinkResult Link(const std::vector<std::filesystem::path>& objs,
     return result;
   }
 
-  const auto syms = deps.linker_syms(tool_path, sym_inputs, *output_path);
+  const auto syms = deps.linker_syms(tool_path, logical_inputs, *output_path);
   const auto missing_runtime_sym =
       syms.has_value() ? FirstMissingRuntimeSym(*syms) : std::nullopt;
   if (!syms.has_value() || missing_runtime_sym.has_value()) {
@@ -1601,7 +1673,7 @@ LinkResult Link(const std::vector<std::filesystem::path>& objs,
       if (!syms.has_value()) {
         std::fprintf(stderr,
                      "[link-debug] runtime-symbol-scan-failed input_count=%zu\n",
-                     sym_inputs.size());
+                     logical_inputs.size());
       } else {
         std::fprintf(stderr,
                      "[link-debug] runtime-symbol-missing symbol=%s\n",

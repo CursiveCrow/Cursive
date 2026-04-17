@@ -8,6 +8,9 @@
 #include <vector>
 
 #include "00_core/compiler_support.h"
+#include "00_core/host/services.h"
+#include "01_project/project.h"
+#include "01_project/target_profile.h"
 
 namespace cursive::project {
 
@@ -85,6 +88,50 @@ void AppendSidecarFiles(TargetProfile profile,
 
 std::string_view PackagedSupportPlatformDir(TargetProfile profile) {
   return ObjectFormatOf(profile) == ObjectFormat::Coff ? "windows" : "linux";
+}
+
+std::filesystem::path CompilerExecutableDir(const Project&) {
+  const auto executable = core::CurrentExecutablePath();
+  return executable.empty() ? std::filesystem::path()
+                            : executable.parent_path();
+}
+
+std::filesystem::path CompilerSupportRoot(const Project& project) {
+  if (const auto support_root = core::CompilerSupportRootPath();
+      support_root.has_value()) {
+    return *support_root;
+  }
+  return CompilerExecutableDir(project);
+}
+
+std::filesystem::path CompilerToolBinDir(const Project& project,
+                                         TargetProfile profile) {
+  const auto support_root = CompilerSupportRoot(project);
+  if (support_root.empty()) {
+    return {};
+  }
+  if (core::CompilerSupportLayout() == core::CompilerSupportLayoutKind::PackagedOut) {
+    return support_root / std::string(PackagedSupportPlatformDir(profile)) /
+           "tools";
+  }
+  return support_root / "tools";
+}
+
+std::filesystem::path CompilerRuntimeLibPath(const Project& project,
+                                             TargetProfile profile) {
+  const std::filesystem::path executable_dir = CompilerExecutableDir(project);
+  const std::filesystem::path runtime_name(RuntimeLibNameFor(profile));
+  if (!executable_dir.empty()) {
+    const std::filesystem::path beside_exe = executable_dir / runtime_name;
+    if (FileExists(beside_exe)) {
+      return beside_exe;
+    }
+  }
+  const auto support_root = CompilerSupportRoot(project);
+  if (support_root.empty()) {
+    return executable_dir / runtime_name;
+  }
+  return support_root / "runtime" / runtime_name;
 }
 
 std::optional<std::filesystem::path> CompilerSupportToolBinDir(

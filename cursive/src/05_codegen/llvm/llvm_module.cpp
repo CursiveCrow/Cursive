@@ -38,7 +38,9 @@
 
 #include "00_core/spec_trace.h"
 #include "00_core/symbols.h"
+#include "05_codegen/intrinsics/intrinsics_interface.h"
 #include "05_codegen/llvm/llvm_emit.h"
+#include "05_codegen/llvm/llvm_attr.h"
 
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/Comdat.h"
@@ -198,9 +200,51 @@ bool VerifyModule(llvm::Module& module) {
   // T-LLVM-006: Runtime Declarations
   void LLVMEmitter::DeclareRuntime()
   {
-    // Declare essential runtime functions
-    // Actual runtime declarations depend on what the runtime provides
-    // The current backend relies on runtime symbols linked from the staged
-    // runtime archive.
+    AnchorRuntimeInterfaceRules();
+
+    for (const auto& symbol : RuntimeDeclSyms()) {
+      if (module_->getFunction(symbol) != nullptr) {
+        continue;
+      }
+
+      const auto info = GetRuntimeFuncInfo(symbol);
+      if (!info.has_value()) {
+        continue;
+      }
+
+      ABICallResult abi = ComputeCallABI(
+          info->params,
+          info->ret,
+          /*use_c_abi_aggregate_sret=*/true,
+          /*foreign_boundary_mode_independent=*/true);
+      llvm::FunctionType* ft = abi.func_type;
+      if (!ft) {
+        ft = llvm::FunctionType::get(llvm::Type::getVoidTy(context_), {}, false);
+      }
+
+      llvm::Function* fn = llvm::Function::Create(
+          ft, llvm::GlobalValue::ExternalLinkage, symbol, module_.get());
+      fn->setCallingConv(llvm::CallingConv::C);
+
+      AttrSet decl_attrs = DeclAttrs(symbol);
+      llvm::AttrBuilder builder(context_);
+      for (const auto& attr : decl_attrs) {
+        switch (attr.kind) {
+          case AttrKind::NoReturn:
+            builder.addAttribute(llvm::Attribute::NoReturn);
+            break;
+          case AttrKind::NoUnwind:
+            builder.addAttribute(llvm::Attribute::NoUnwind);
+            break;
+          default:
+            break;
+        }
+      }
+      if (builder.hasAttributes()) {
+        fn->addFnAttrs(builder);
+      }
+
+      functions_[symbol] = fn;
+    }
   }
 }  // namespace cursive::codegen

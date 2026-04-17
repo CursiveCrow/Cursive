@@ -55,6 +55,7 @@
 #include "05_codegen/checks/checks.h"
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/cleanup/cleanup.h"
+#include "05_codegen/common/runtime_trace_utils.h"
 #include "05_codegen/lower/lower_expr.h"
 #include "05_codegen/lower/lower_pat.h"
 #include "05_codegen/layout/layout.h"
@@ -383,18 +384,14 @@ IRPtr LowerStaticDeinitNames(const ast::ModulePath& module_path,
     }
     SPEC_RULE("Lower-StaticDeinitNames-Cons-Resp");
 
-    IRReadPath read;
-    read.path = module_path;
-    read.name = name;
-
     analysis::TypeRef type = type_for(name);
     IRValue loaded_value;
     loaded_value.kind = IRValue::Kind::Symbol;
-    loaded_value.name = name;
+    loaded_value.name = StaticSymPath(module_path, name);
     ctx.RegisterValueType(loaded_value, type);
 
-    IRPtr drop_ir = EmitDropInline(type, loaded_value, ctx);
-    ir_parts.push_back(SeqIR({MakeIR(std::move(read)), drop_ir}));
+    IRPtr drop_ir = EmitDrop(type, loaded_value, ctx);
+    ir_parts.push_back(drop_ir);
   }
 
   if (ir_parts.empty()) {
@@ -522,7 +519,7 @@ IRPtr DeinitCallIR(const ast::ModulePath& module_path, LowerCtx& ctx) {
 
   std::vector<IRPtr> parts;
   parts.push_back(MakeIR(std::move(call)));
-  parts.push_back(PanicCheck(ctx));
+  parts.push_back(DeinitPanicHandle(ModulePathString(module_path), ctx));
 
   return SeqIR(std::move(parts));
 }
@@ -619,6 +616,9 @@ IRPtr EmitDeinitPlan(const std::vector<ast::ModulePath>& init_order,
   for (const auto& module_path : reversed_order) {
     ir_parts.push_back(DeinitCallIR(module_path, ctx));
   }
+  if (!reversed_order.empty()) {
+    ir_parts.push_back(MakeIR(IRRestoreDeinitPanic{}));
+  }
 
   return SeqIRList(ir_parts);
 }
@@ -636,11 +636,7 @@ ProcIR EmitModuleInitFn(const ast::ModulePath& module_path,
   proc.symbol = InitFn(module_path);
 
   // Init function takes a panic out parameter
-  IRParam panic_param;
-  panic_param.mode = analysis::ParamMode::Move;
-  panic_param.name = std::string(kPanicOutName);
-  panic_param.type = PanicOutType();
-  proc.params.push_back(std::move(panic_param));
+  proc.params.push_back(PanicOutParam());
 
   // Return type is unit
   proc.ret = analysis::MakeTypePrim("()");
@@ -662,11 +658,7 @@ ProcIR EmitModuleDeinitFn(const ast::ModulePath& module_path,
   proc.symbol = DeinitFn(module_path);
 
   // Deinit function takes a panic out parameter
-  IRParam panic_param;
-  panic_param.mode = analysis::ParamMode::Move;
-  panic_param.name = std::string(kPanicOutName);
-  panic_param.type = PanicOutType();
-  proc.params.push_back(std::move(panic_param));
+  proc.params.push_back(PanicOutParam());
 
   // Return type is unit
   proc.ret = analysis::MakeTypePrim("()");
@@ -1011,7 +1003,19 @@ std::vector<ast::ModulePath> ComputeInitOrderFromSigma(
   for (const auto& mod : sigma.mods) {
     modules.push_back(mod.path);
   }
-  // No dependency edges in basic implementation
+  std::vector<ModuleDepEdge> edges;
+  for (std::size_t i = 0; i < sigma.mods.size(); ++i) {
+    const auto deps = ValueDepsEager(
+        sigma.mods[i].path, sigma.mods[i], modules, sigma);
+    for (const auto dep : deps) {
+      edges.emplace_back(dep, i);
+    }
+  }
+
+  const auto order = ComputeInitOrder(modules, edges);
+  if (!order.empty() || modules.empty()) {
+    return order;
+  }
   return modules;
 }
 
@@ -1057,8 +1061,10 @@ bool ModuleInitTracker::AllReady() const {
 // ============================================================================
 
 IRPtr DeinitPanicHandle(const std::string& module_name, LowerCtx& ctx) {
-  // Deinit continues despite panics - just record but don't abort
-  return EmptyIR();
+  (void)module_name;
+  SPEC_RULE("Deinit-Panic");
+  IRPtr trace_ir = EmitRuntimeTrace("DeinitPanicHandle", ctx);
+  return SeqIR(std::vector<IRPtr>{trace_ir, MakeIR(IRHandleDeinitPanic{})});
 }
 
 // ============================================================================

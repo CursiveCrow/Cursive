@@ -2415,36 +2415,24 @@ int main(int argc, char** argv) {
                   out_deps.ensure_dir = EnsureDir;
                   out_deps.codegen_obj =
                       [ensure_cache, target_profile](const project::ModuleInfo& module,
-                                           const project::Project& p)
+                                            const project::Project& p)
                           -> std::optional<std::string> {
                     const auto cache = ensure_cache(p);
                     if (!cache || !cache->ok.load()) {
                       return std::nullopt;
                     }
-                    const auto lowered =
-                        EnsureCodegenModuleEntry(*cache, module.path);
-                    if (!lowered) {
-                      return std::nullopt;
-                    }
-                    return EmitObjForModule(*cache, *lowered, p,
-                                            target_profile);
+                    return CodegenObj(*cache, module, p, target_profile);
                   };
                   out_deps.codegen_ir =
                       [ensure_cache, target_profile](const project::ModuleInfo& module,
-                                           const project::Project& p,
-                                           std::string_view)
+                                            const project::Project& p,
+                                            std::string_view emit_ir)
                           -> std::optional<std::string> {
                     const auto cache = ensure_cache(p);
                     if (!cache || !cache->ok.load()) {
                       return std::nullopt;
                     }
-                    const auto lowered =
-                        EnsureCodegenModuleEntry(*cache, module.path);
-                    if (!lowered) {
-                      return std::nullopt;
-                    }
-                    return EmitIRForModule(*cache, *lowered, p,
-                                           target_profile);
+                    return CodegenIR(*cache, module, p, target_profile, emit_ir);
                   };
                   out_deps.write_file = WriteFile;
                   out_deps.resolve_tool = project::ResolveTool;

@@ -908,12 +908,8 @@ void RegisterProvisionalGenericProcSig(const GenericProcInfo& info,
     }
   }
 
-  if (NeedsPanicOut(symbol)) {
-    IRParam panic_param;
-    panic_param.mode = analysis::ParamMode::Move;
-    panic_param.name = std::string(kPanicOutName);
-    panic_param.type = PanicOutType();
-    provisional.params.push_back(std::move(panic_param));
+  if (ctx.NeedsPanicOutForSymbol(symbol)) {
+    provisional.params.push_back(PanicOutParam());
   }
 
   ctx.RegisterProcSig(provisional);

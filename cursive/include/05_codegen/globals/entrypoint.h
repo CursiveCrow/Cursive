@@ -117,6 +117,31 @@ inline IRPtr EmitPanicCheckIR(IRPtr cleanup_ir) {
 //   5. Deinit plan execution
 IRPtr EmitEntrySequenceIR(const LowerCtx& ctx);
 
+// (EntryStub-Decl): Materialize the spec-level entry stub declaration.
+// Returns nullopt when the current lowering context does not define a user
+// main procedure for the active executable project.
+inline std::optional<ProcIR> EntryStubDecl(const LowerCtx& ctx) {
+  SPEC_RULE("EntryJudg");
+
+  if (!ctx.executable_project) {
+    SPEC_RULE("EntryStub-Err");
+    return std::nullopt;
+  }
+
+  const auto main_sym = MainProcSym(ctx);
+  if (!main_sym.has_value()) {
+    SPEC_RULE("EntryStub-Err");
+    return std::nullopt;
+  }
+
+  ProcIR proc;
+  proc.symbol = EntrySym();
+  proc.ret = analysis::MakeTypePrim("i32");
+  proc.body = EmitEntrySequenceIR(ctx);
+  SPEC_RULE("EntryStub-Decl");
+  return proc;
+}
+
 // ============================================================================
 // Spec Rule Anchors
 // ============================================================================

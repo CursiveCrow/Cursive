@@ -8,10 +8,13 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
+#include <vector>
 
 // Forward declarations for LLVM types
 namespace llvm {
 class IRBuilderBase;
+class Module;
 class Type;
 class Value;
 }  // namespace llvm
@@ -33,6 +36,16 @@ class LLVMEmitter;
 //   FrozenPoisonUses(LLVMIR) ∧
 //   InboundsGEP(LLVMIR) ∧
 //   NoNSWNUW(LLVMIR)
+bool UsesOpcode(const llvm::Module& module, std::string_view op);
+bool UsesIntrinsic(const llvm::Module& module, std::string_view name);
+bool NoUndefPoison(const llvm::Module& module);
+bool CheckedOverflow(const llvm::Module& module);
+bool CheckedDivRem(const llvm::Module& module);
+bool CheckedShifts(const llvm::Module& module);
+bool FrozenPoisonUses(const llvm::Module& module);
+bool InboundsGEP(const llvm::Module& module);
+bool LLVMUBSafe(const llvm::Module& module);
+bool NoNSWNUW(const llvm::Module& module);
 
 // -----------------------------------------------------------------------------
 // Checked Arithmetic (T-LLVM-004)
@@ -128,6 +141,16 @@ void EmitMemCpy(LLVMEmitter& emitter,
                 llvm::Value* size,
                 std::uint64_t align = 1);
 
+// MemcpyOverlapUnknown(dst, src, n) predicate
+bool MemcpyOverlapUnknown(const llvm::Value* dst,
+                          const llvm::Value* src,
+                          const llvm::Value* size);
+
+// MemcpyAllowed(dst, src, n) predicate
+bool MemcpyAllowed(const llvm::Value* dst,
+                   const llvm::Value* src,
+                   const llvm::Value* size);
+
 // (MemIntrinsics-Set)
 // Emit memory set using llvm.memset
 void EmitMemSet(LLVMEmitter& emitter,
@@ -143,6 +166,15 @@ void EmitMemMove(LLVMEmitter& emitter,
                  llvm::Value* src,
                  llvm::Value* size,
                  std::uint64_t align = 1);
+
+// AggMemcpy(dst, src, n) =
+//   Memcpy(dst, src, n)  if MemcpyAllowed(dst, src, n)
+//   Memmove(dst, src, n) otherwise
+void EmitAggMemcpy(LLVMEmitter& emitter,
+                   llvm::Value* dst,
+                   llvm::Value* src,
+                   llvm::Value* size,
+                   std::uint64_t align = 1);
 
 // -----------------------------------------------------------------------------
 // Pointer Arithmetic Helpers

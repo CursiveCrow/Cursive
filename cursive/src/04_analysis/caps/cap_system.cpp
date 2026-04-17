@@ -249,6 +249,25 @@ ast::RecordDecl BuildContextRecordDecl() {
   return record;
 }
 
+ast::RecordDecl BuildPanicRecordDecl() {
+  SpecDefsCapSystem();
+  ast::RecordDecl record;
+  record.attrs = {};
+  record.vis = ast::Visibility::Public;
+  record.name = ast::Identifier{"PanicRecord"};
+  record.generic_params = std::nullopt;
+  record.implements = {ast::ClassPath{"Bitcopy"}};
+  record.predicate_clause_opt = std::nullopt;
+  record.invariant_opt = std::nullopt;
+  record.members = {
+      MakeField("panic", MakeTypePrimAst("bool")),
+      MakeField("code", MakeTypePrimAst("u32")),
+  };
+  record.span = core::Span{};
+  record.doc = {};
+  return record;
+}
+
 ast::RecordDecl BuildRegionOptionsRecordDecl() {
   SpecDefsCapSystem();
   ast::RecordDecl record;

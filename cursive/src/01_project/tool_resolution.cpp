@@ -216,9 +216,11 @@ std::vector<std::filesystem::path> SearchDirs(const Project& project,
     return {ResolveManifestToolchainPath(project, *project.toolchain.llvm_bin)};
   }
 
-  if (const auto sidecar_tools = CompilerSupportToolBinDir(target_profile);
-      sidecar_tools.has_value()) {
-    return {*sidecar_tools};
+  const auto tool_bin_dir = CompilerToolBinDir(project, target_profile);
+  std::error_code ec;
+  if (!tool_bin_dir.empty() &&
+      std::filesystem::is_directory(tool_bin_dir, ec) && !ec) {
+    return {tool_bin_dir};
   }
 
   std::vector<std::filesystem::path> dirs;

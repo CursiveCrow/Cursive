@@ -467,6 +467,18 @@ inline IRPtr MakeInitPanicHandle(
   return MakeIR(std::move(init));
 }
 
+/// Create an IR node to accumulate a panic during deinit without aborting the
+/// remaining deinit list.
+inline IRPtr MakeHandleDeinitPanic() {
+  return MakeIR(IRHandleDeinitPanic{});
+}
+
+/// Create an IR node to restore the first deferred deinit panic after the
+/// remaining deinit actions have completed.
+inline IRPtr MakeRestoreDeinitPanic() {
+  return MakeIR(IRRestoreDeinitPanic{});
+}
+
 /// Create an IR node to check for poison.
 inline IRPtr MakeCheckPoison(const std::string& module) {
   return MakeIR(IRCheckPoison{module});

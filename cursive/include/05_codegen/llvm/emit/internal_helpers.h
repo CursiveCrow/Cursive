@@ -16,6 +16,7 @@
 #include "00_core/host/services.h"
 #include "00_core/symbols.h"
 #include "05_codegen/llvm/llvm_emit.h"
+#include "05_codegen/llvm/llvm_module.h"
 
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Constants.h"
@@ -101,6 +102,17 @@ inline llvm::GlobalValue::LinkageTypes LLVMLinkageFor(LinkageKind linkage) {
 inline bool IsRuntimeLifecycleSymbol(std::string_view symbol) {
   return symbol.rfind("cursive_x3a_x3aruntime_x3a_x3ainit_x3a_x3a", 0) == 0 ||
          symbol.rfind("cursive_x3a_x3aruntime_x3a_x3adeinit_x3a_x3a", 0) == 0;
+}
+
+inline bool IsGeneratedProcSymbol(std::string_view symbol) {
+  return symbol == "main" ||
+         symbol == kLibraryEntrySym ||
+         symbol == kLibraryCtorSym ||
+         symbol == kLibraryDtorSym ||
+         symbol == kHostSessionCreateSym ||
+         symbol == kHostSessionDestroySym ||
+         IsRuntimeLifecycleSymbol(symbol) ||
+         IsDropGlueSymbol(symbol);
 }
 
 inline bool IsHostedInternalBodySymbol(const LowerCtx* ctx, std::string_view symbol) {

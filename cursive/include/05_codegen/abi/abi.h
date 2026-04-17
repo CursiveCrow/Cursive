@@ -118,10 +118,15 @@ std::optional<ABICallInfo> ABICall(
 
 // PanicRecordFields = [⟨panic, bool⟩, ⟨code, u32⟩]
 // Returns the TypeRef for the PanicRecord struct type.
+std::vector<std::pair<std::string, analysis::TypeRef>> PanicRecordFields();
+std::vector<analysis::TypeRef> PanicRecordFieldTypes();
 analysis::TypeRef PanicRecordType();
+std::optional<RecordLayout> PanicRecordLayout(
+    const analysis::ScopeContext& ctx);
 
 // PanicOutType = rawptr[mut, PanicRecord]
 analysis::TypeRef PanicOutType();
+IRParam PanicOutParam();
 
 // PanicOutName = "__panic"
 constexpr std::string_view kPanicOutName = "__panic";

@@ -17234,6 +17234,744 @@ function Invoke-Issue552ManifestNameProjectionConformanceCase {
     Write-Host "[compiler-static] issue552_manifest_name_projection: assembly_name=1 assemblies=1"
 }
 
+function Invoke-Issue552OutputSurfaceHelperConformanceCase {
+    $outputsHeaderPath = Join-Path $workspaceRoot "cursive\\include\\01_project\\outputs.h"
+    $outputsImplPath = Join-Path $workspaceRoot "cursive\\src\\01_project\\outputs.cpp"
+    $linkHeaderPath = Join-Path $workspaceRoot "cursive\\include\\01_project\\link.h"
+    $linkImplPath = Join-Path $workspaceRoot "cursive\\src\\01_project\\link.cpp"
+    $assemblyGraphHeaderPath = Join-Path $workspaceRoot "cursive\\include\\01_project\\assembly_graph.h"
+    $assemblyGraphImplPath = Join-Path $workspaceRoot "cursive\\src\\01_project\\assembly_graph.cpp"
+
+    foreach ($path in @($outputsHeaderPath, $outputsImplPath, $linkHeaderPath, $linkImplPath, $assemblyGraphHeaderPath, $assemblyGraphImplPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue552_output_surface_helper_conformance' missing file: $path"
+        }
+    }
+
+    $requiredPatterns = @(
+        @{ Path = $outputsHeaderPath; Pattern = 'LibraryArtifactInputs\s*\('; Label = 'outputs decl library-artifact-inputs' },
+        @{ Path = $outputsHeaderPath; Pattern = 'AssemblyProject\s*\('; Label = 'outputs decl assembly-project' },
+        @{ Path = $outputsHeaderPath; Pattern = 'LinkMode\s*\(\s*const Project& project\s*\)'; Label = 'outputs decl link-mode' },
+        @{ Path = $outputsHeaderPath; Pattern = 'LinkOutputPath\s*\('; Label = 'outputs decl link-output-path' },
+        @{ Path = $outputsImplPath; Pattern = 'std::vector<std::filesystem::path>\s+LibraryArtifactInputs\s*\('; Label = 'outputs def library-artifact-inputs' },
+        @{ Path = $outputsImplPath; Pattern = 'Project\s+AssemblyProject\s*\('; Label = 'outputs def assembly-project' },
+        @{ Path = $outputsImplPath; Pattern = 'std::optional<LinkOutputKind>\s+LinkMode\s*\('; Label = 'outputs def link-mode' },
+        @{ Path = $outputsImplPath; Pattern = 'std::optional<std::filesystem::path>\s+LinkOutputPath\s*\('; Label = 'outputs def link-output-path' },
+        @{ Path = $outputsImplPath; Pattern = 'LinkMode\(project\)'; Label = 'base-link-plan uses link-mode helper' },
+        @{ Path = $outputsImplPath; Pattern = 'std::optional<std::vector<std::filesystem::path>>\s+LibraryArtifactInputs\s*\('; Label = 'outputs def project library-artifact-inputs helper' },
+        @{ Path = $outputsImplPath; Pattern = 'LibraryArtifactInputs\(project,\s*state,\s*result\.diags\)'; Label = 'output pipeline uses project library-artifact-inputs helper' },
+        @{ Path = $outputsImplPath; Pattern = 'ImportedLibraries\(project\.assembly\.name,\s*\*state\.graph\)'; Label = 'output pipeline uses imported-libraries helper' },
+        @{ Path = $linkHeaderPath; Pattern = 'LinkInputs\s*\('; Label = 'link decl link-inputs' },
+        @{ Path = $linkImplPath; Pattern = 'std::vector<std::filesystem::path>\s+LinkInputs\s*\('; Label = 'link def link-inputs' },
+        @{ Path = $linkImplPath; Pattern = 'LinkOutputPath\(project,\s*plan\.target_profile\)'; Label = 'link uses link-output-path helper' },
+        @{ Path = $linkImplPath; Pattern = 'const auto logical_inputs\s*=\s*LinkInputs\('; Label = 'link derives logical inputs through helper' },
+        @{ Path = $assemblyGraphHeaderPath; Pattern = 'ImportedLibraries\s*\('; Label = 'assembly-graph decl imported-libraries' },
+        @{ Path = $assemblyGraphImplPath; Pattern = 'std::vector<std::string>\s+ImportedLibraries\s*\('; Label = 'assembly-graph def imported-libraries' },
+        @{ Path = $assemblyGraphImplPath; Pattern = 'AssemblyProject\(base_project,\s*\*assembly_it->second\)'; Label = 'build-output-project uses assembly-project helper' }
+    )
+
+    foreach ($check in $requiredPatterns) {
+        $text = Get-Content -Path $check.Path -Raw
+        if ($text -notmatch $check.Pattern) {
+            throw "Case 'issue552_output_surface_helper_conformance' missing expected $($check.Label) pattern '$($check.Pattern)' in $($check.Path)."
+        }
+    }
+
+    $requiredOutputsBody = [regex]::Match(
+        (Get-Content -Path $outputsImplPath -Raw),
+        '(?ms)std::vector<std::filesystem::path>\s+RequiredOutputs\(.*?return out;\s*\}')
+    if (-not $requiredOutputsBody.Success) {
+        throw "Case 'issue552_output_surface_helper_conformance' could not locate RequiredOutputs body."
+    }
+    if ($requiredOutputsBody.Value -match 'MapPath\s*\(') {
+        throw "Case 'issue552_output_surface_helper_conformance' found MapPath in RequiredOutputs; required outputs must remain the spec-defined object/IR/primary/import set."
+    }
+
+    Write-Host "[compiler-static] issue552_output_surface_helper_conformance: patterns=$($requiredPatterns.Count) required_outputs_map_excluded=1"
+}
+
+function Invoke-Issue552CompilerSupportPathHelperConformanceCase {
+    $supportHeaderPath = Join-Path $workspaceRoot "cursive\\include\\01_project\\compiler_support_paths.h"
+    $supportImplPath = Join-Path $workspaceRoot "cursive\\src\\01_project\\compiler_support_paths.cpp"
+    $toolResolutionPath = Join-Path $workspaceRoot "cursive\\src\\01_project\\tool_resolution.cpp"
+    $linkImplPath = Join-Path $workspaceRoot "cursive\\src\\01_project\\link.cpp"
+
+    foreach ($path in @($supportHeaderPath, $supportImplPath, $toolResolutionPath, $linkImplPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue552_compiler_support_path_helper_conformance' missing file: $path"
+        }
+    }
+
+    $requiredPatterns = @(
+        @{ Path = $supportHeaderPath; Pattern = 'CompilerExecutableDir\s*\('; Label = 'support decl compiler-executable-dir' },
+        @{ Path = $supportHeaderPath; Pattern = 'CompilerSupportRoot\s*\('; Label = 'support decl compiler-support-root' },
+        @{ Path = $supportHeaderPath; Pattern = 'CompilerToolBinDir\s*\('; Label = 'support decl compiler-tool-bin-dir' },
+        @{ Path = $supportHeaderPath; Pattern = 'CompilerRuntimeLibPath\s*\('; Label = 'support decl compiler-runtime-lib-path' },
+        @{ Path = $supportImplPath; Pattern = 'std::filesystem::path\s+CompilerExecutableDir\s*\('; Label = 'support def compiler-executable-dir' },
+        @{ Path = $supportImplPath; Pattern = 'std::filesystem::path\s+CompilerSupportRoot\s*\('; Label = 'support def compiler-support-root' },
+        @{ Path = $supportImplPath; Pattern = 'std::filesystem::path\s+CompilerToolBinDir\s*\('; Label = 'support def compiler-tool-bin-dir' },
+        @{ Path = $supportImplPath; Pattern = 'std::filesystem::path\s+CompilerRuntimeLibPath\s*\('; Label = 'support def compiler-runtime-lib-path' },
+        @{ Path = $toolResolutionPath; Pattern = 'CompilerToolBinDir\(project,\s*target_profile\)'; Label = 'search dirs use compiler-tool-bin-dir helper' },
+        @{ Path = $linkImplPath; Pattern = 'return\s+CompilerRuntimeLibPath\(project,\s*target_profile\);'; Label = 'default runtime path uses compiler-runtime-lib-path helper' }
+    )
+
+    foreach ($check in $requiredPatterns) {
+        $text = Get-Content -Path $check.Path -Raw
+        if ($text -notmatch $check.Pattern) {
+            throw "Case 'issue552_compiler_support_path_helper_conformance' missing expected $($check.Label) pattern '$($check.Pattern)' in $($check.Path)."
+        }
+    }
+
+    $defaultRuntimeBody = [regex]::Match(
+        (Get-Content -Path $linkImplPath -Raw),
+        '(?ms)std::filesystem::path\s+DefaultRuntimeLibPath\(.*?^\}')
+    if (-not $defaultRuntimeBody.Success) {
+        throw "Case 'issue552_compiler_support_path_helper_conformance' could not locate DefaultRuntimeLibPath body."
+    }
+    if ($defaultRuntimeBody.Value -match 'build_root\s*/\s*\"runtime\"') {
+        throw "Case 'issue552_compiler_support_path_helper_conformance' found non-spec build-root runtime fallback in DefaultRuntimeLibPath."
+    }
+
+    Write-Host "[compiler-static] issue552_compiler_support_path_helper_conformance: patterns=$($requiredPatterns.Count) default_runtime_no_build_fallback=1"
+}
+
+function Invoke-Issue552EntryProjectionHelperConformanceCase {
+    $pipelinePath = Join-Path $workspaceRoot "cursive\\src\\06_driver\\pipeline.cpp"
+    if (-not (Test-Path $pipelinePath)) {
+        throw "Case 'issue552_entry_projection_helper_conformance' missing file: $pipelinePath"
+    }
+
+    $pipelineText = Get-Content -Path $pipelinePath -Raw
+    $requiredPatterns = @(
+        'bool\s+IsRootModule\s*\(\s*const project::Project& project,\s*std::string_view module_path_key\s*\)',
+        'bool\s+IsRootModule\s*\(\s*const project::Project& project,\s*const ModuleCodegen& module\s*\)',
+        'bool\s+WithEntry\s*\(\s*const project::Project& project,\s*const ModuleCodegen& module\s*\)',
+        'project\.assembly\.kind\s*==\s*\"executable\"',
+        'IsRootModule\(project,\s*module\)',
+        'module\.main_symbol\.has_value\(\)',
+        'if\s*\(IsRootModule\(project,\s*module\.path\)\)',
+        'if\s*\(WithEntry\(project,\s*module\)\)\s*\{\s*emit_ctx\.main_symbol\s*=\s*module\.main_symbol;'
+    )
+
+    foreach ($pattern in $requiredPatterns) {
+        if ($pipelineText -notmatch $pattern) {
+            throw "Case 'issue552_entry_projection_helper_conformance' missing expected pipeline pattern '$pattern'."
+        }
+    }
+
+    $selectEntryBody = [regex]::Match(
+        $pipelineText,
+        '(?ms)std::optional<std::string>\s+SelectProjectEntryModule\(.*?return\s+std::nullopt;\s*\}')
+    if (-not $selectEntryBody.Success) {
+        throw "Case 'issue552_entry_projection_helper_conformance' could not locate SelectProjectEntryModule body."
+    }
+    if ($selectEntryBody.Value -match 'project\.modules\.front\(\)\.path') {
+        throw "Case 'issue552_entry_projection_helper_conformance' found non-spec fallback to the first project module in SelectProjectEntryModule."
+    }
+
+    Write-Host "[compiler-static] issue552_entry_projection_helper_conformance: patterns=$($requiredPatterns.Count) no_first_module_fallback=1"
+}
+
+function Invoke-Issue552LlvmAttrNoEscapeHelperConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\05_codegen\\llvm\\llvm_attr.h"
+    $implPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\llvm\\llvm_attr.cpp"
+    $moduleEmitPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\llvm\\emit\\module_emit.cpp"
+    foreach ($path in @($headerPath, $implPath, $moduleEmitPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue552_llvm_attr_noescape_helper_conformance' missing file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $implText = Get-Content -Path $implPath -Raw
+    $moduleEmitText = Get-Content -Path $moduleEmitPath -Raw
+
+    if ($headerText -notmatch 'bool\s+NoEscapeParam\s*\(') {
+        throw "Case 'issue552_llvm_attr_noescape_helper_conformance' missing NoEscapeParam declaration."
+    }
+    if ($implText -notmatch 'bool\s+NoEscapeParam\s*\(') {
+        throw "Case 'issue552_llvm_attr_noescape_helper_conformance' missing NoEscapeParam definition."
+    }
+    if ($implText -notmatch 'if\s*\(NoEscapeParam\(param_name\)\)\s*\{\s*attrs\.push_back\(\{AttrKind::NoCapture,\s*0\}\);') {
+        throw "Case 'issue552_llvm_attr_noescape_helper_conformance' expected ComputeArgAttrsExt to route nocapture through NoEscapeParam."
+    }
+    if ($moduleEmitText -notmatch 'ComputeArgAttrsExt\(') {
+        throw "Case 'issue552_llvm_attr_noescape_helper_conformance' expected module declaration emission to use ComputeArgAttrsExt."
+    }
+    if ($moduleEmitText -notmatch 'addCapturesAttr\(llvm::CaptureInfo::none\(\)\)') {
+        throw "Case 'issue552_llvm_attr_noescape_helper_conformance' expected LLVM 21 capture mapping through addCapturesAttr(CaptureInfo::none())."
+    }
+
+    Write-Host "[compiler-static] issue552_llvm_attr_noescape_helper_conformance: declaration=1 definition=1 compute_arg_attrs_ext=1 module_emit=1 llvm21_capture_mapping=1"
+}
+
+function Invoke-Issue552LlvmMemIntrinsicHelperConformanceCase {
+    $headerPath = Join-Path $workspaceRoot "cursive\\include\\05_codegen\\llvm\\llvm_ub_safe.h"
+    $implPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\llvm\\llvm_ub_safe.cpp"
+    foreach ($path in @($headerPath, $implPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue552_llvm_mem_intrinsic_helper_conformance' missing file: $path"
+        }
+    }
+
+    $headerText = Get-Content -Path $headerPath -Raw
+    $implText = Get-Content -Path $implPath -Raw
+
+    foreach ($pattern in @(
+        'MemcpyOverlapUnknown\s*\(',
+        'MemcpyAllowed\s*\(',
+        'EmitAggMemcpy\s*\('
+    )) {
+        if ($headerText -notmatch $pattern) {
+            throw "Case 'issue552_llvm_mem_intrinsic_helper_conformance' missing header pattern '$pattern'."
+        }
+        if ($implText -notmatch $pattern) {
+            throw "Case 'issue552_llvm_mem_intrinsic_helper_conformance' missing implementation pattern '$pattern'."
+        }
+    }
+
+    if ($implText -notmatch 'return\s+true;\s*\}\s*\r?\n\s*bool\s+MemcpyAllowed') {
+        throw "Case 'issue552_llvm_mem_intrinsic_helper_conformance' expected MemcpyOverlapUnknown to remain conservatively true."
+    }
+    if ($implText -notmatch 'return\s+!MemcpyOverlapUnknown\(dst,\s*src,\s*size\);') {
+        throw "Case 'issue552_llvm_mem_intrinsic_helper_conformance' expected MemcpyAllowed to negate MemcpyOverlapUnknown."
+    }
+    if ($implText -notmatch 'EmitAggMemcpy\(emitter,\s*dst,\s*src,\s*size,\s*align\);') {
+        throw "Case 'issue552_llvm_mem_intrinsic_helper_conformance' expected EmitMemCpy to route through EmitAggMemcpy."
+    }
+    if ($implText -notmatch 'builder->CreateMemCpy' -or $implText -notmatch 'builder->CreateMemMove') {
+        throw "Case 'issue552_llvm_mem_intrinsic_helper_conformance' expected AggMemcpy helper to cover both memcpy and memmove lowering paths."
+    }
+
+    Write-Host "[compiler-static] issue552_llvm_mem_intrinsic_helper_conformance: declarations=3 implementations=3 overlap_conservative=1 aggmemcpy_routes=1"
+}
+
+function Invoke-Issue552ArithmeticUbSafeLoweringConformanceCase {
+    $manifest = @(
+        "[toolchain]",
+        "target_profile = ""x86_64-win64""",
+        "",
+        "[[assembly]]",
+        "name = ""probe""",
+        "kind = ""dependency""",
+        "root = "".""",
+        "out_dir = ""build/probe""",
+        "emit_ir = ""ll"""
+    )
+
+    $result = Invoke-BuildWithConformance `
+        -CaseId "issue552_arithmetic_ub_safe_lowering" `
+        -Source @"
+public procedure math(a: i32, b: i32) -> i32 {
+    let c: i32 = a + b
+    let d: i32 = c - b
+    let e: i32 = d * a
+    let f: i32 = e / b
+    let g: i32 = e % b
+    let h: i32 = g << 1u32
+    let i: i32 = h >> 1u32
+    let _ = f
+    return i
+}
+"@ `
+        -Manifest $manifest `
+        -ConformanceFileName "issue552_arithmetic_ub_safe_lowering.log"
+
+    if ($result.ExitCode -ne 0) {
+        throw "Case 'issue552_arithmetic_ub_safe_lowering' expected exit 0 but got $($result.ExitCode)."
+    }
+
+    $errorCount = @($result.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    }).Count
+    if ($errorCount -ne 0) {
+        throw "Case 'issue552_arithmetic_ub_safe_lowering' expected zero compile-time errors but observed $errorCount."
+    }
+
+    $irText = Get-EmittedLlvmIrText -CaseId "issue552_arithmetic_ub_safe_lowering" -CaseRoot $result.CaseRoot
+    $overflowCount = ([regex]::Matches($irText, 'with\.overflow')).Count
+    $freezeCount = ([regex]::Matches($irText, '\bfreeze\b')).Count
+    if ($overflowCount -lt 3) {
+        throw "Case 'issue552_arithmetic_ub_safe_lowering' expected checked-overflow intrinsics for integer +, -, and *."
+    }
+    if ($freezeCount -lt 3) {
+        throw "Case 'issue552_arithmetic_ub_safe_lowering' expected freeze operations in the lowered integer div/rem/shift path."
+    }
+
+    Write-Host "[compiler-static] issue552_arithmetic_ub_safe_lowering: overflow_intrinsics=$overflowCount freeze_ops=$freezeCount"
+}
+
+function Invoke-Issue552PoisonCheckBackendConformanceCase {
+    $emitPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\llvm\\llvm_emit.cpp"
+    foreach ($path in @($emitPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue552_poison_check_backend_conformance' missing file: $path"
+        }
+    }
+
+    $emitText = Get-Content -Path $emitPath -Raw
+
+    foreach ($pattern in @(
+        'void\s+LLVMEmitter::EmitPoisonCheck\s*\(',
+        'GetPoisonFlagPtr\(\*this,\s*module_path\)',
+        'StorePanicRecord\(\*this,\s*builder,\s*PanicCode\(PanicReason::InitPanic\)\)',
+        'ComputeCleanupPlanToFunctionRoot\(\*current_ctx_\)',
+        'EmitCleanupOnPanic\(',
+        'void\s+operator\(\)\(const\s+IRCheckPoison\s*&check\)\s+const\s*\{\s*emitter\.EmitPoisonCheck\(check\.module\);'
+    )) {
+        if ($emitText -notmatch $pattern) {
+            throw "Case 'issue552_poison_check_backend_conformance' missing expected pattern '$pattern'."
+        }
+    }
+
+    if ($emitText -match 'void\s+LLVMEmitter::EmitPoisonCheck\s*\([^)]*\)\s*\{\s*SPEC_RULE\("LowerIRDecl-PoisonCheck"\)\s*//') {
+        throw "Case 'issue552_poison_check_backend_conformance' expected EmitPoisonCheck to be implemented, not left as a comment-only stub."
+    }
+
+    Write-Host "[compiler-static] issue552_poison_check_backend_conformance: emit_function=1 visitor_route=1 cleanup_on_panic=1 initpanic_code=1"
+}
+
+function Invoke-Issue552DeinitPanicContinuationConformanceCase {
+    $irModelHeader = Join-Path $workspaceRoot "cursive\\include\\05_codegen\\ir\\ir_model.h"
+    $initPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\globals\\init.cpp"
+    $panicHeader = Join-Path $workspaceRoot "cursive\\include\\05_codegen\\llvm\\llvm_ir_panic.h"
+    $panicImpl = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\llvm\\llvm_ir_panic.cpp"
+    $emitPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\llvm\\llvm_emit.cpp"
+    foreach ($path in @($irModelHeader, $initPath, $panicHeader, $panicImpl, $emitPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue552_deinit_panic_continuation_conformance' missing file: $path"
+        }
+    }
+
+    $irModelText = Get-Content -Path $irModelHeader -Raw
+    $initText = Get-Content -Path $initPath -Raw
+    $panicHeaderText = Get-Content -Path $panicHeader -Raw
+    $panicImplText = Get-Content -Path $panicImpl -Raw
+    $emitText = Get-Content -Path $emitPath -Raw
+
+    foreach ($pattern in @(
+        'struct\s+IRHandleDeinitPanic\s*\{\s*\};',
+        'struct\s+IRRestoreDeinitPanic\s*\{\s*\};'
+    )) {
+        if ($irModelText -notmatch $pattern) {
+            throw "Case 'issue552_deinit_panic_continuation_conformance' missing IR model pattern '$pattern'."
+        }
+    }
+
+    if ($initText -notmatch 'DeinitPanicHandle\(ModulePathString\(module_path\),\s*ctx\)') {
+        throw "Case 'issue552_deinit_panic_continuation_conformance' expected DeinitCallIR to route through DeinitPanicHandle."
+    }
+    if ($initText -notmatch 'MakeIR\(IRRestoreDeinitPanic\{\}\)') {
+        throw "Case 'issue552_deinit_panic_continuation_conformance' expected EmitDeinitPlan to restore deferred deinit panic state at the end of the plan."
+    }
+
+    foreach ($pattern in @(
+        'HandleDeinitPanic\s*\(',
+        'RestoreDeinitPanicIfAny\s*\('
+    )) {
+        if ($panicHeaderText -notmatch $pattern) {
+            throw "Case 'issue552_deinit_panic_continuation_conformance' missing panic helper declaration '$pattern'."
+        }
+        if ($panicImplText -notmatch "void\s+$pattern") {
+            throw "Case 'issue552_deinit_panic_continuation_conformance' missing panic helper definition '$pattern'."
+        }
+    }
+
+    foreach ($pattern in @(
+        'void\s+operator\(\)\(const\s+IRHandleDeinitPanic\s*&\)\s+const\s*\{\s*HandleDeinitPanic\(emitter,\s*&builder\);',
+        'void\s+operator\(\)\(const\s+IRRestoreDeinitPanic\s*&\)\s+const\s*\{\s*RestoreDeinitPanicIfAny\(emitter,\s*&builder\);',
+        'HandleDeinitPanic\(\*this,\s*builder,\s*panic_ptr\);',
+        'RestoreDeinitPanicIfAny\(\*this,\s*builder,\s*panic_ptr\);'
+    )) {
+        if ($emitText -notmatch $pattern) {
+            throw "Case 'issue552_deinit_panic_continuation_conformance' missing LLVM emission pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue552_deinit_panic_continuation_conformance: ir_nodes=2 plan_route=1 helpers=2 llvm_routes=4"
+}
+
+function Invoke-Issue552PanicRecordAbiHelperConformanceCase {
+    $capSystemHeaderPath = Join-Path $workspaceRoot "cursive\\include\\04_analysis\\caps\\cap_system.h"
+    $capSystemImplPath = Join-Path $workspaceRoot "cursive\\src\\04_analysis\\caps\\cap_system.cpp"
+    $resolveModulePath = Join-Path $workspaceRoot "cursive\\src\\04_analysis\\resolve\\resolve_module.cpp"
+    $abiHeaderPath = Join-Path $workspaceRoot "cursive\\include\\05_codegen\\abi\\abi.h"
+    $abiImplPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\abi\\abi_panic.cpp"
+    $panicImplPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\llvm\\llvm_ir_panic.cpp"
+    $ubSafeImplPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\llvm\\llvm_ub_safe.cpp"
+    foreach ($path in @($capSystemHeaderPath, $capSystemImplPath, $resolveModulePath, $abiHeaderPath, $abiImplPath, $panicImplPath, $ubSafeImplPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue552_panic_record_abi_helper_conformance' missing file: $path"
+        }
+    }
+
+    $capSystemHeaderText = Get-Content -Path $capSystemHeaderPath -Raw
+    $capSystemImplText = Get-Content -Path $capSystemImplPath -Raw
+    $resolveModuleText = Get-Content -Path $resolveModulePath -Raw
+    $abiHeaderText = Get-Content -Path $abiHeaderPath -Raw
+    $abiImplText = Get-Content -Path $abiImplPath -Raw
+    $panicImplText = Get-Content -Path $panicImplPath -Raw
+    $ubSafeImplText = Get-Content -Path $ubSafeImplPath -Raw
+
+    foreach ($pattern in @(
+        'PanicRecordFields\s*\(',
+        'PanicRecordFieldTypes\s*\(',
+        'PanicRecordLayout\s*\('
+    )) {
+        if ($abiHeaderText -notmatch $pattern) {
+            throw "Case 'issue552_panic_record_abi_helper_conformance' missing ABI header helper '$pattern'."
+        }
+        if ($abiImplText -notmatch $pattern) {
+            throw "Case 'issue552_panic_record_abi_helper_conformance' missing ABI implementation helper '$pattern'."
+        }
+    }
+
+    if ($capSystemHeaderText -notmatch 'BuildPanicRecordDecl\s*\(') {
+        throw "Case 'issue552_panic_record_abi_helper_conformance' expected cap_system.h to declare BuildPanicRecordDecl."
+    }
+    if ($capSystemImplText -notmatch 'ast::RecordDecl\s+BuildPanicRecordDecl\s*\(') {
+        throw "Case 'issue552_panic_record_abi_helper_conformance' expected cap_system.cpp to define BuildPanicRecordDecl."
+    }
+    if ($resolveModuleText -notmatch 'path\.emplace_back\("PanicRecord"\);\s*ctx\.sigma\.types\[PathKeyOf\(path\)\] = BuildPanicRecordDecl\(\);') {
+        throw "Case 'issue552_panic_record_abi_helper_conformance' expected resolve_module.cpp to register the built-in PanicRecord type."
+    }
+    if ($abiImplText -notmatch '\{\s*"panic",\s*analysis::MakeTypePrim\("bool"\)\s*\}') {
+        throw "Case 'issue552_panic_record_abi_helper_conformance' expected PanicRecordFields to expose the panic flag field."
+    }
+    if ($abiImplText -notmatch '\{\s*"code",\s*analysis::MakeTypePrim\("u32"\)\s*\}') {
+        throw "Case 'issue552_panic_record_abi_helper_conformance' expected PanicRecordFields to expose the panic code field."
+    }
+    if ($abiImplText -notmatch 'return\s+analysis::MakeTypePath\(\{"PanicRecord"\}\);') {
+        throw "Case 'issue552_panic_record_abi_helper_conformance' expected PanicRecordType to route through the built-in PanicRecord path."
+    }
+    if ($abiImplText -notmatch 'return\s+RecordLayoutOf\(ctx,\s*PanicRecordFieldTypes\(\)\);') {
+        throw "Case 'issue552_panic_record_abi_helper_conformance' expected PanicRecordLayout to route through PanicRecordFieldTypes."
+    }
+    if ($panicImplText -notmatch 'const auto layout = PanicRecordLayout\(scope\);') {
+        throw "Case 'issue552_panic_record_abi_helper_conformance' expected llvm_ir_panic to use PanicRecordLayout."
+    }
+    if ($ubSafeImplText -notmatch 'const auto layout = PanicRecordLayout\(scope\);') {
+        throw "Case 'issue552_panic_record_abi_helper_conformance' expected llvm_ub_safe to use PanicRecordLayout."
+    }
+
+    Write-Host "[compiler-static] issue552_panic_record_abi_helper_conformance: abi_helpers=3 builtin_record=1 fields=2 llvm_consumers=2"
+}
+
+function Invoke-Issue552ParamInitZeroSizedConformanceCase {
+    $emitPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\llvm\\llvm_emit.cpp"
+    if (-not (Test-Path $emitPath)) {
+        throw "Case 'issue552_param_init_zero_sized_conformance' missing file: $emitPath"
+    }
+
+    $emitText = Get-Content -Path $emitPath -Raw
+
+    foreach ($pattern in @(
+        'SPEC_RULE\("ParamInitIR"\)',
+        'auto\s+bind_zero_sized_param\s*=\s*\[&\]\(const\s+IRParam\s*&param\)',
+        'const auto size = SizeOf\(param_scope,\s*param\.type\);',
+        'if\s*\(!size\.has_value\(\)\s*\|\|\s*\*size\s*!=\s*0\)',
+        'CreateStore\(llvm::Constant::getNullValue\(llvm_ty\),\s*alloca\);',
+        'bind_zero_sized_param\(proc\.params\[i\]\);'
+    )) {
+        if ($emitText -notmatch $pattern) {
+            throw "Case 'issue552_param_init_zero_sized_conformance' missing expected pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue552_param_init_zero_sized_conformance: paraminit_rule=1 helper=1 zero_sized_bind=1"
+}
+
+function Invoke-Issue552NeedsPanicOutRuntimeConformanceCase {
+    $abiImplPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\abi\\abi_panic.cpp"
+    if (-not (Test-Path $abiImplPath)) {
+        throw "Case 'issue552_needs_panic_out_runtime_conformance' missing file: $abiImplPath"
+    }
+
+    $abiImplText = Get-Content -Path $abiImplPath -Raw
+
+    foreach ($pattern in @(
+        'bool\s+NeedsPanicOut\s*\(',
+        'if\s*\(callee_sym\s*==\s*kEntrySym\)\s*\{\s*return\s+false;',
+        'if\s*\(IsRuntimeFunction\(std::string\(callee_sym\)\)\)\s*\{\s*return\s+false;',
+        'if\s*\(IsRecordCtorSymbol\(callee_sym\)\)\s*\{\s*return\s+false;',
+        'return\s+true;'
+    )) {
+        if ($abiImplText -notmatch $pattern) {
+            throw "Case 'issue552_needs_panic_out_runtime_conformance' missing expected pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue552_needs_panic_out_runtime_conformance: entry_exempt=1 runtime_sig_exempt=1 record_ctor_exempt=1 default_true=1"
+}
+
+function Invoke-Issue552PanicOutParamHelperConformanceCase {
+    $abiHeaderPath = Join-Path $workspaceRoot "cursive\\include\\05_codegen\\abi\\abi.h"
+    $abiImplPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\abi\\abi_panic.cpp"
+    foreach ($path in @($abiHeaderPath, $abiImplPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue552_panic_out_param_helper_conformance' missing file: $path"
+        }
+    }
+
+    $abiHeaderText = Get-Content -Path $abiHeaderPath -Raw
+    $abiImplText = Get-Content -Path $abiImplPath -Raw
+
+    if ($abiHeaderText -notmatch 'IRParam\s+PanicOutParam\s*\(') {
+        throw "Case 'issue552_panic_out_param_helper_conformance' missing PanicOutParam declaration."
+    }
+    foreach ($pattern in @(
+        'IRParam\s+PanicOutParam\s*\(',
+        'panic_param\.mode = analysis::ParamMode::Move;',
+        'panic_param\.name = std::string\(kPanicOutName\);',
+        'panic_param\.type = PanicOutType\(\);',
+        'return\s+panic_param;'
+    )) {
+        if ($abiImplText -notmatch $pattern) {
+            throw "Case 'issue552_panic_out_param_helper_conformance' missing implementation pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue552_panic_out_param_helper_conformance: decl=1 impl=1 mode=move name=panic type=panicout"
+}
+
+function Invoke-Issue552RuntimeSpecSymsConformanceCase {
+    $builtinsHeaderPath = Join-Path $workspaceRoot "cursive\\include\\05_codegen\\intrinsics\\builtins.h"
+    $builtinsImplPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\intrinsics\\builtins.cpp"
+    $ifaceImplPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\intrinsics\\intrinsics_interface.cpp"
+    foreach ($path in @($builtinsHeaderPath, $builtinsImplPath, $ifaceImplPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue552_runtime_spec_syms_conformance' missing file: $path"
+        }
+    }
+
+    $builtinsHeaderText = Get-Content -Path $builtinsHeaderPath -Raw
+    $builtinsImplText = Get-Content -Path $builtinsImplPath -Raw
+    $ifaceImplText = Get-Content -Path $ifaceImplPath -Raw
+
+    if ($builtinsHeaderText -notmatch 'RuntimeSpecSyms\s*\(') {
+        throw "Case 'issue552_runtime_spec_syms_conformance' missing RuntimeSpecSyms declaration."
+    }
+    if ($builtinsImplText -notmatch 'std::vector<std::string>\s+RuntimeSpecSyms\s*\(') {
+        throw "Case 'issue552_runtime_spec_syms_conformance' missing RuntimeSpecSyms definition."
+    }
+    if ($ifaceImplText -notmatch 'return\s+RuntimeSpecSyms\(\);') {
+        throw "Case 'issue552_runtime_spec_syms_conformance' expected RuntimeSyms() to route through RuntimeSpecSyms()."
+    }
+    foreach ($pattern in @(
+        'AppendRuntimeSymbol\(syms,\s*RuntimePanicSym\(\)\)',
+        'AppendRuntimeSymbol\(syms,\s*BuiltinSymStringDropManaged\(\)\)',
+        'AppendRuntimeSymbol\(syms,\s*BuiltinSymBytesDropManaged\(\)\)',
+        'AppendRuntimeSymbol\(syms,\s*ContextInitSym\(\)\)'
+    )) {
+        if ($builtinsImplText -notmatch $pattern) {
+            throw "Case 'issue552_runtime_spec_syms_conformance' missing required core runtime symbol pattern '$pattern'."
+        }
+    }
+    if ($builtinsImplText -match 'RuntimeSpecSyms\(\)[\s\S]*BuiltinModalSymRegionScopeEnter\(\)') {
+        throw "Case 'issue552_runtime_spec_syms_conformance' RuntimeSpecSyms must not include internal Region scope enter helpers."
+    }
+    if ($builtinsImplText -match 'RuntimeSpecSyms\(\)[\s\S]*BuiltinModalSymRegionScopeExit\(\)') {
+        throw "Case 'issue552_runtime_spec_syms_conformance' RuntimeSpecSyms must not include internal Region scope exit helpers."
+    }
+    if ($builtinsImplText -match 'RuntimeSpecSyms\(\)[\s\S]*BuiltinModalSymRegionAddrTagScope\(\)') {
+        throw "Case 'issue552_runtime_spec_syms_conformance' RuntimeSpecSyms must not include internal Region addr_tag_scope helpers."
+    }
+    if ($builtinsImplText -notmatch 'RuntimeLinkRequiredSyms\(\)\s*\{\s*[\s\S]*AppendRuntimeSymbol\(syms,\s*BuiltinModalSymRegionScopeEnter\(\)\);') {
+        throw "Case 'issue552_runtime_spec_syms_conformance' RuntimeLinkRequiredSyms should still include Region scope enter for backend/runtime compatibility."
+    }
+
+    Write-Host "[compiler-static] issue552_runtime_spec_syms_conformance: helper_decl=1 helper_def=1 route=1 core_syms=4 internal_region_helpers_excluded=1"
+}
+
+function Invoke-Issue552DropGlueDeclConformanceCase {
+    $cleanupHeaderPath = Join-Path $workspaceRoot "cursive\\include\\05_codegen\\cleanup\\cleanup.h"
+    $cleanupImplPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\cleanup\\cleanup.cpp"
+    $lowerModulePath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\lower\\lower_module.cpp"
+    foreach ($path in @($cleanupHeaderPath, $cleanupImplPath, $lowerModulePath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue552_drop_glue_decl_conformance' missing file: $path"
+        }
+    }
+
+    $cleanupHeaderText = Get-Content -Path $cleanupHeaderPath -Raw
+    $cleanupImplText = Get-Content -Path $cleanupImplPath -Raw
+    $lowerModuleText = Get-Content -Path $lowerModulePath -Raw
+
+    if ($cleanupHeaderText -notmatch 'ProcIR\s+EmitDropGlue\s*\(') {
+        throw "Case 'issue552_drop_glue_decl_conformance' expected cleanup.h to declare EmitDropGlue as ProcIR."
+    }
+    foreach ($pattern in @(
+        'ProcIR\s+EmitDropGlue\s*\(',
+        'proc\.symbol = DropGlueSym\(type,\s*ctx\);',
+        'data_param\.type = analysis::MakeTypeRawPtr\(\s*analysis::RawPtrQual::Imm,\s*analysis::MakeTypePrim\(\"\\(\\)\"',
+        'panic_param\.name = std::string\(kPanicOutName\);',
+        'proc\.body = DropGlueIR\(type,\s*ctx\);'
+    )) {
+        if ($cleanupImplText -notmatch $pattern) {
+            throw "Case 'issue552_drop_glue_decl_conformance' missing cleanup.cpp pattern '$pattern'."
+        }
+    }
+    if ($lowerModuleText -notmatch 'if\s*\(!module_drop_glue_types\.empty\(\)\)\s*\{') {
+        throw "Case 'issue552_drop_glue_decl_conformance' expected lower_module.cpp to append discovered drop glue declarations."
+    }
+    if ($lowerModuleText -notmatch 'ProcIR\s+glue = EmitDropGlue\(type_it->second,\s*ctx\);') {
+        throw "Case 'issue552_drop_glue_decl_conformance' expected lower_module.cpp to materialize drop glue ProcIR declarations."
+    }
+
+    Write-Host "[compiler-static] issue552_drop_glue_decl_conformance: proc_decl=1 proc_body=1 lower_module_emits=1"
+}
+
+function Invoke-Issue552StaticDeinitSymbolConformanceCase {
+    $initPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\globals\\init.cpp"
+    if (-not (Test-Path $initPath)) {
+        throw "Case 'issue552_static_deinit_symbol_conformance' missing file: $initPath"
+    }
+
+    $initText = Get-Content -Path $initPath -Raw
+    if ($initText -notmatch 'loaded_value\.name = StaticSymPath\(module_path,\s*name\);') {
+        throw "Case 'issue552_static_deinit_symbol_conformance' expected static deinit to load through StaticSymPath."
+    }
+    if ($initText -match 'IRReadPath\s+read;\s*read\.path = module_path;\s*read\.name = name;[\s\S]*ir_parts\.push_back\(SeqIR\(\{MakeIR\(std::move\(read\)\),\s*drop_ir\}\)\);') {
+        throw "Case 'issue552_static_deinit_symbol_conformance' should not rely on alias-only IRReadPath before static deinit drop."
+    }
+
+    Write-Host "[compiler-static] issue552_static_deinit_symbol_conformance: staticsympath=1 alias_only_read_removed=1"
+}
+
+function Invoke-Issue552PosixSharedLibraryExportConformanceCase {
+    $linkPath = Join-Path $workspaceRoot "cursive\\src\\01_project\\link.cpp"
+    if (-not (Test-Path $linkPath)) {
+        throw "Case 'issue552_posix_shared_library_export_conformance' missing file: $linkPath"
+    }
+
+    $linkText = Get-Content -Path $linkPath -Raw
+    foreach ($pattern in @(
+        'CuratedSharedLibraryExportSymbols\s*\(',
+        'WritePosixVersionScript\s*\(',
+        '--version-script=',
+        'IsHiddenSharedLibraryExportSymbolImpl'
+    )) {
+        if ($linkText -notmatch $pattern) {
+            throw "Case 'issue552_posix_shared_library_export_conformance' missing pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue552_posix_shared_library_export_conformance: curated_exports=1 version_script=1 posix_link_use=1"
+}
+
+function Invoke-Issue552LibraryDestroyPanicConformanceCase {
+    $emitPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\llvm\\llvm_emit.cpp"
+    if (-not (Test-Path $emitPath)) {
+        throw "Case 'issue552_library_destroy_panic_conformance' missing file: $emitPath"
+    }
+
+    $emitText = Get-Content -Path $emitPath -Raw
+    foreach ($pattern in @(
+        'llvm::Value \*detach_had_panic = load_panic_flag\(\*builder,\s*panic_record_ptr\);',
+        'llvm::Value \*detach_ok = builder->CreateSelect\(',
+        'PanicCode\(PanicReason::ForeignPost\)'
+    )) {
+        if ($emitText -notmatch $pattern) {
+            throw "Case 'issue552_library_destroy_panic_conformance' missing pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue552_library_destroy_panic_conformance: windows_detach_select=1 posix_dtor_foreignpost=1"
+}
+
+function Invoke-Issue552EntryContextBundleIrConformanceCase {
+    $irHeaderPath = Join-Path $workspaceRoot "cursive\\include\\05_codegen\\ir\\ir_model.h"
+    $irModelPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\ir\\ir_model.cpp"
+    $irDumpPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\ir\\ir_dump.cpp"
+    $entryPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\globals\\entrypoint.cpp"
+    $emitPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\llvm\\llvm_emit.cpp"
+    foreach ($path in @($irHeaderPath, $irModelPath, $irDumpPath, $entryPath, $emitPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue552_entry_context_bundle_ir_conformance' missing file: $path"
+        }
+    }
+
+    $irHeaderText = Get-Content -Path $irHeaderPath -Raw
+    $irModelText = Get-Content -Path $irModelPath -Raw
+    $irDumpText = Get-Content -Path $irDumpPath -Raw
+    $entryText = Get-Content -Path $entryPath -Raw
+    $emitText = Get-Content -Path $emitPath -Raw
+
+    foreach ($pattern in @(
+        'struct\s+IRContextBundleBuild\s*\{',
+        'IRContextBundleBuild',
+        'void\s+operator\(\)\(const IRContextBundleBuild &build\)\s+const'
+    )) {
+        if ($irHeaderText -notmatch 'IRContextBundleBuild' -and $pattern -eq 'IRContextBundleBuild') {
+            throw "Case 'issue552_entry_context_bundle_ir_conformance' missing IRContextBundleBuild in ir_model.h."
+        }
+    }
+    if ($irModelText -notmatch 'std::is_same_v<T, IRContextBundleBuild>') {
+        throw "Case 'issue552_entry_context_bundle_ir_conformance' expected IR validation support for IRContextBundleBuild."
+    }
+    if ($irDumpText -notmatch 'DumpNode\(const IRContextBundleBuild& b\)') {
+        throw "Case 'issue552_entry_context_bundle_ir_conformance' expected IR dump support for IRContextBundleBuild."
+    }
+    if ($entryText -notmatch 'IRContextBundleBuild build_ctx;') {
+        throw "Case 'issue552_entry_context_bundle_ir_conformance' expected EntrySequenceIR to emit IRContextBundleBuild."
+    }
+    if ($emitText -notmatch 'void operator\(\)\(const IRContextBundleBuild &build\) const') {
+        throw "Case 'issue552_entry_context_bundle_ir_conformance' expected LLVM lowering for IRContextBundleBuild."
+    }
+
+    Write-Host "[compiler-static] issue552_entry_context_bundle_ir_conformance: ir_node=1 ir_validate=1 ir_dump=1 entry_emit=1 llvm_lower=1"
+}
+
+function Invoke-Issue552RecordCtorPanicOutConformanceCase {
+    $abiImplPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\abi\\abi_panic.cpp"
+    $lowerModulePath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\lower\\lower_module.cpp"
+    $callPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\lower\\expr\\call.cpp"
+    foreach ($path in @($abiImplPath, $lowerModulePath, $callPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue552_record_ctor_panic_out_conformance' missing file: $path"
+        }
+    }
+
+    $abiImplText = Get-Content -Path $abiImplPath -Raw
+    $lowerModuleText = Get-Content -Path $lowerModulePath -Raw
+    $callText = Get-Content -Path $callPath -Raw
+
+    if ($abiImplText -notmatch 'LookupBuiltinRecordCtorPath\(sym\)') {
+        throw "Case 'issue552_record_ctor_panic_out_conformance' expected global NeedsPanicOut helper to recognize built-in record constructor names."
+    }
+    if ($abiImplText -notmatch 'core::Mangle\(core::StringOfPath\(\*builtin_path\)\) == sym') {
+        throw "Case 'issue552_record_ctor_panic_out_conformance' expected built-in record constructor mangled-symbol exclusion."
+    }
+    if ($lowerModuleText -notmatch 'ctx\.RegisterRecordCtor\(ScopedSym\(record_path\),\s*record_path\);') {
+        throw "Case 'issue552_record_ctor_panic_out_conformance' expected module lowering to register record constructor symbols."
+    }
+    if ($callText -notmatch 'ctx\.NeedsPanicOutForSymbol\(symbol\)') {
+        throw "Case 'issue552_record_ctor_panic_out_conformance' expected provisional signature building to use the context-aware predicate."
+    }
+
+    Write-Host "[compiler-static] issue552_record_ctor_panic_out_conformance: builtin_ctor_exclusion=1 record_ctor_registration=1 provisional_sig_ctxaware=1"
+}
+
+function Invoke-Issue552ComputeProcAbiPanicOutConformanceCase {
+    $callPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\llvm\\llvm_call.cpp"
+    if (-not (Test-Path $callPath)) {
+        throw "Case 'issue552_compute_proc_abi_panic_out_conformance' missing file: $callPath"
+    }
+
+    $callText = Get-Content -Path $callPath -Raw
+    foreach ($pattern in @(
+        'if \(NeedsPanicOut\(symbol\) &&',
+        'augmented\.empty\(\) \|\| augmented\.back\(\)\.name != std::string\(kPanicOutName\)',
+        'augmented\.push_back\(PanicOutParam\(\)\);'
+    )) {
+        if ($callText -notmatch $pattern) {
+            throw "Case 'issue552_compute_proc_abi_panic_out_conformance' missing pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue552_compute_proc_abi_panic_out_conformance: computeprocabi_appends_hidden_panic=1"
+}
+
 function Invoke-Issue552AssemblyGraphConformanceCase {
     $importExecManifest = @(
         "[[assembly]]",
@@ -19723,6 +20461,26 @@ try {
     Invoke-Issue546ImportPathAndCoverageConformanceCase
     Invoke-Issue552LinkKindManifestConformanceCase
     Invoke-Issue552ManifestNameProjectionConformanceCase
+    Invoke-Issue552OutputSurfaceHelperConformanceCase
+    Invoke-Issue552CompilerSupportPathHelperConformanceCase
+    Invoke-Issue552EntryProjectionHelperConformanceCase
+    Invoke-Issue552LlvmAttrNoEscapeHelperConformanceCase
+    Invoke-Issue552LlvmMemIntrinsicHelperConformanceCase
+    Invoke-Issue552ArithmeticUbSafeLoweringConformanceCase
+    Invoke-Issue552PoisonCheckBackendConformanceCase
+    Invoke-Issue552DeinitPanicContinuationConformanceCase
+    Invoke-Issue552PanicRecordAbiHelperConformanceCase
+    Invoke-Issue552ParamInitZeroSizedConformanceCase
+    Invoke-Issue552NeedsPanicOutRuntimeConformanceCase
+    Invoke-Issue552PanicOutParamHelperConformanceCase
+    Invoke-Issue552RuntimeSpecSymsConformanceCase
+    Invoke-Issue552DropGlueDeclConformanceCase
+    Invoke-Issue552StaticDeinitSymbolConformanceCase
+    Invoke-Issue552PosixSharedLibraryExportConformanceCase
+    Invoke-Issue552LibraryDestroyPanicConformanceCase
+    Invoke-Issue552EntryContextBundleIrConformanceCase
+    Invoke-Issue552RecordCtorPanicOutConformanceCase
+    Invoke-Issue552ComputeProcAbiPanicOutConformanceCase
     Invoke-Issue552AssemblyGraphConformanceCase
     Invoke-Issue552ArtifactPipelineConformanceCase
     Invoke-SingleExeCompilerPackagingConformanceCase

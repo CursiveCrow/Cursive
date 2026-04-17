@@ -339,6 +339,25 @@ bool ProjectContainsModule(
          project_modules.end();
 }
 
+bool IsRootModule(const project::Project& project,
+                  std::string_view module_path_key) {
+  return module_path_key == project.assembly.name;
+}
+
+bool IsRootModule(const project::Project& project,
+                  const ModuleCodegen& module) {
+  if (!module.path_key.empty()) {
+    return IsRootModule(project, module.path_key);
+  }
+  return IsRootModule(project, core::StringOfPath(module.path));
+}
+
+bool WithEntry(const project::Project& project, const ModuleCodegen& module) {
+  return project.assembly.kind == "executable" &&
+         IsRootModule(project, module) &&
+         module.main_symbol.has_value();
+}
+
 std::optional<std::string> SelectProjectEntryModule(
     const project::Project& project) {
   if (project.modules.empty()) {
@@ -346,12 +365,12 @@ std::optional<std::string> SelectProjectEntryModule(
   }
 
   for (const auto& module : project.modules) {
-    if (module.path == project.assembly.name) {
+    if (IsRootModule(project, module.path)) {
       return module.path;
     }
   }
 
-  return project.modules.front().path;
+  return std::nullopt;
 }
 
 void FilterHostedExportsForProject(
@@ -560,8 +579,7 @@ std::optional<LLVMModuleBundle> EmitLLVMModule(
   emit_ctx.shared_library_export_symbols =
       cache.ctx.shared_library_export_symbols;
   emit_ctx.main_symbol.reset();
-  // Set main_symbol if this module contains a main function
-  if (module.main_symbol.has_value()) {
+  if (WithEntry(project, module)) {
     emit_ctx.main_symbol = module.main_symbol;
   }
   emit_ctx.resolve_failed = false;
@@ -757,6 +775,42 @@ std::optional<std::string> EmitObjForModule(
   LogCodegenProgress("emit-obj-finish module=" + module_name +
                      " bytes=" + std::to_string(object_bytes.size()));
   return object_bytes;
+}
+
+std::optional<std::string> CodegenObj(const CodegenCache& cache,
+                                      const project::ModuleInfo& module,
+                                      const project::Project& project,
+                                      project::TargetProfile target_profile) {
+  auto& mutable_cache = const_cast<CodegenCache&>(cache);
+  const auto lowered = EnsureCodegenModuleEntry(mutable_cache, module.path);
+  if (!lowered) {
+    return std::nullopt;
+  }
+  auto bytes = EmitObjForModule(cache, *lowered, project, target_profile);
+  if (bytes.has_value()) {
+    SPEC_RULE("CodegenObj-LLVM");
+  }
+  return bytes;
+}
+
+std::optional<std::string> CodegenIR(const CodegenCache& cache,
+                                     const project::ModuleInfo& module,
+                                     const project::Project& project,
+                                     project::TargetProfile target_profile,
+                                     std::string_view emit_ir) {
+  if (!(emit_ir == "ll" || emit_ir == "bc")) {
+    return std::nullopt;
+  }
+  auto& mutable_cache = const_cast<CodegenCache&>(cache);
+  const auto lowered = EnsureCodegenModuleEntry(mutable_cache, module.path);
+  if (!lowered) {
+    return std::nullopt;
+  }
+  auto bytes = EmitIRForModule(cache, *lowered, project, target_profile);
+  if (bytes.has_value()) {
+    SPEC_RULE("CodegenIR-LLVM");
+  }
+  return bytes;
 }
 
 // ============================================================================

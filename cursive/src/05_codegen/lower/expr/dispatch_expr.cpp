@@ -747,10 +747,7 @@ LowerResult LowerDispatchExpr(const ast::DispatchExpr& node, LowerCtx& ctx) {
     out_param.type = out_ptr;
     proc.params.push_back(out_param);
 
-    IRParam panic_param;
-    panic_param.mode = analysis::ParamMode::Move;
-    panic_param.name = std::string(kPanicOutName);
-    panic_param.type = PanicOutType();
+    IRParam panic_param = PanicOutParam();
     proc.params.push_back(panic_param);
 
     {
@@ -897,10 +894,7 @@ LowerResult LowerDispatchExpr(const ast::DispatchExpr& node, LowerCtx& ctx) {
   result_param.type = result_ptr_type;
   proc.params.push_back(result_param);
 
-  IRParam panic_param;
-  panic_param.mode = analysis::ParamMode::Move;
-  panic_param.name = std::string(kPanicOutName);
-  panic_param.type = PanicOutType();
+  IRParam panic_param = PanicOutParam();
   proc.params.push_back(panic_param);
 
   {

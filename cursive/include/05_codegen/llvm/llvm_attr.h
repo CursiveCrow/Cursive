@@ -104,6 +104,7 @@ AttrSet ComputeArgAttrs(const analysis::TypeRef& type);
 
 // LLVMArgAttrsExt(x, T) = LLVMArgAttrs(T) ∪ OptArgAttrs(x)
 // OptArgAttrs(x) ⊆ {nocapture} ∧ (nocapture ∈ OptArgAttrs(x) ⇒ NoEscapeParam(x))
+bool NoEscapeParam(std::string_view param_name);
 AttrSet ComputeArgAttrsExt(const std::string& param_name,
                            const analysis::TypeRef& type);
 

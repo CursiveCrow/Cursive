@@ -339,14 +339,14 @@ DropHook GetOrCreateDropHook(const analysis::TypeRef& type, LowerCtx& ctx) {
   if (sym.has_value()) {
     hook.kind = DropHook::Kind::MethodCall;
     hook.symbol = *sym;
-    hook.needs_panic_out = NeedsPanicOut(*sym);
+    hook.needs_panic_out = ctx.NeedsPanicOutForSymbol(*sym);
     return hook;
   }
 
   // Generate drop glue
   hook.kind = DropHook::Kind::DropGlue;
   hook.symbol = DropGlueSym(type, ctx);
-  hook.needs_panic_out = NeedsPanicOut(hook.symbol);
+  hook.needs_panic_out = ctx.NeedsPanicOutForSymbol(hook.symbol);
   return hook;
 }
 
