@@ -595,6 +595,7 @@ add_library(cursive_codegen STATIC
   05_codegen/cleanup/drop_hooks.cpp
   05_codegen/cleanup/unwind.cpp
   05_codegen/dyn_dispatch/dyn_dispatch.cpp
+  05_codegen/dyn_dispatch/vtable_emit.cpp
   05_codegen/globals/binding_storage.cpp
   05_codegen/globals/entrypoint.cpp
   05_codegen/globals/globals.cpp
@@ -1042,7 +1043,15 @@ if(WIN32)
       COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}/windows/bin"
       COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}/windows/lib"
       COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}/windows/tools"
-      # `cursive_out` owns the final root-level compiler executable copies.
+      COMMAND "${CMAKE_COMMAND}"
+              -DSRC=$<TARGET_FILE:${compiler_target}>
+              -DDST=${CURSIVE_OUT_DIR}/windows/bin/$<TARGET_FILE_NAME:${compiler_target}>
+              -P "${CMAKE_SOURCE_DIR}/cmake/copy_file_if_different_recent.cmake"
+      COMMAND "${CMAKE_COMMAND}"
+              -DSRC=${CURSIVE_OUT_DIR}/windows/bin/$<TARGET_FILE_NAME:${compiler_target}>
+              -DDST=${CURSIVE_OUT_DIR}/$<TARGET_FILE_NAME:${compiler_target}>
+              -DALLOW_PERMISSION_DENIED_IF_DST_EXISTS=ON
+              -P "${CMAKE_SOURCE_DIR}/cmake/copy_file_if_different_recent.cmake"
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different
               "${CURSIVE_OUT_RUNTIME_PATH}"
               "${CURSIVE_OUT_DIR}/CursiveRT.lib"

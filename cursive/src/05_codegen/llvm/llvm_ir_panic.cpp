@@ -158,18 +158,24 @@ std::pair<llvm::AllocaInst*, llvm::AllocaInst*> GetOrCreateDeinitPanicSlots(
     return {nullptr, nullptr};
   }
 
-  auto* seen_slot =
-      llvm::dyn_cast_or_null<llvm::AllocaInst>(emitter.GetLocal(kDeinitPanicSeenSlot));
-  auto* code_slot =
-      llvm::dyn_cast_or_null<llvm::AllocaInst>(emitter.GetLocal(kDeinitPanicCodeSlot));
-  if (seen_slot && code_slot) {
-    return {seen_slot, code_slot};
-  }
-
   llvm::Function* func =
       builder->GetInsertBlock() ? builder->GetInsertBlock()->getParent() : nullptr;
   if (!func) {
     return {nullptr, nullptr};
+  }
+
+  auto* seen_slot =
+      llvm::dyn_cast_or_null<llvm::AllocaInst>(emitter.GetLocal(kDeinitPanicSeenSlot));
+  auto* code_slot =
+      llvm::dyn_cast_or_null<llvm::AllocaInst>(emitter.GetLocal(kDeinitPanicCodeSlot));
+  if (seen_slot && seen_slot->getFunction() != func) {
+    seen_slot = nullptr;
+  }
+  if (code_slot && code_slot->getFunction() != func) {
+    code_slot = nullptr;
+  }
+  if (seen_slot && code_slot) {
+    return {seen_slot, code_slot};
   }
 
   llvm::IRBuilder<> entry_builder(&func->getEntryBlock(),
@@ -397,13 +403,33 @@ llvm::GlobalVariable* GetOrCreatePoisonFlag(LLVMEmitter& emitter,
   std::vector<std::string> full = {"cursive", "runtime", "poison"};
   full.insert(full.end(), module_path.begin(), module_path.end());
   const std::string sym = core::Mangle(core::StringOfPath(full));
-  if (auto* existing = emitter.GetModule().getGlobalVariable(sym, true)) {
-    return existing;
-  }
   bool define_flag = true;
   LowerCtx* ctx = emitter.GetCurrentCtx();
   if (ctx) {
     define_flag = (ctx->module_path == module_path);
+  }
+  auto configure_imported_poison_decl =
+      [&](llvm::GlobalVariable* decl) -> llvm::GlobalVariable* {
+        if (!decl || !ctx || ctx->module_path.empty() || module_path.empty()) {
+          return decl;
+        }
+        if (project::ObjectFormatOf(emitter.GetTargetProfile()) !=
+            project::ObjectFormat::Coff) {
+          return decl;
+        }
+        const std::string& current_root = ctx->module_path.front();
+        const std::string& owner_root = module_path.front();
+        const bool imported_shared_library_data =
+            owner_root != current_root &&
+            ctx->library_assembly_names.contains(owner_root);
+        if (!imported_shared_library_data) {
+          return decl;
+        }
+        decl->setDLLStorageClass(llvm::GlobalValue::DLLImportStorageClass);
+        return decl;
+      };
+  if (auto* existing = emitter.GetModule().getGlobalVariable(sym, true)) {
+    return define_flag ? existing : configure_imported_poison_decl(existing);
   }
   auto* bool_ty = emitter.GetLLVMType(analysis::MakeTypePrim("bool"));
   if (!bool_ty) {
@@ -421,7 +447,7 @@ llvm::GlobalVariable* GetOrCreatePoisonFlag(LLVMEmitter& emitter,
       llvm::GlobalValue::ExternalLinkage,
       init,
       sym);
-  return flag;
+  return define_flag ? flag : configure_imported_poison_decl(flag);
 }
 
 llvm::Value* GetPoisonFlagPtr(LLVMEmitter& emitter,

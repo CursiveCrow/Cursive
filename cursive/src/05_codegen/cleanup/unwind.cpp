@@ -87,9 +87,9 @@ PanicAccess BuildPanicAccess(LowerCtx& ctx) {
 
   IRValue flag_ptr = ctx.FreshTempValue("panic_flag_ptr");
   DerivedValueInfo flag_info;
-  flag_info.kind = DerivedValueInfo::Kind::AddrTuple;
+  flag_info.kind = DerivedValueInfo::Kind::AddrField;
   flag_info.base = panic_ptr;
-  flag_info.tuple_index = 0;
+  flag_info.field = "panic";
   ctx.RegisterDerivedValue(flag_ptr, flag_info);
   ctx.RegisterValueType(flag_ptr,
                         analysis::MakeTypeRawPtr(analysis::RawPtrQual::Mut,
@@ -97,9 +97,9 @@ PanicAccess BuildPanicAccess(LowerCtx& ctx) {
 
   IRValue code_ptr = ctx.FreshTempValue("panic_code_ptr");
   DerivedValueInfo code_info;
-  code_info.kind = DerivedValueInfo::Kind::AddrTuple;
+  code_info.kind = DerivedValueInfo::Kind::AddrField;
   code_info.base = panic_ptr;
-  code_info.tuple_index = 1;
+  code_info.field = "code";
   ctx.RegisterDerivedValue(code_ptr, code_info);
   ctx.RegisterValueType(code_ptr,
                         analysis::MakeTypeRawPtr(analysis::RawPtrQual::Mut,

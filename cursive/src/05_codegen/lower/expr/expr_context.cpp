@@ -107,6 +107,19 @@ void LowerCtx::PopScope() {
   }
 
   const auto exiting_scope_id = scope_stack.back().runtime_scope_id;
+  const auto& aliases = scope_stack.back().aliases;
+  for (auto it = aliases.rbegin(); it != aliases.rend(); ++it) {
+    auto map_it = local_addr_aliases.find(*it);
+    if (map_it == local_addr_aliases.end()) {
+      continue;
+    }
+    if (!map_it->second.empty()) {
+      map_it->second.pop_back();
+    }
+    if (map_it->second.empty()) {
+      local_addr_aliases.erase(map_it);
+    }
+  }
 
   const auto& vars = scope_stack.back().variables;
   for (auto it = vars.rbegin(); it != vars.rend(); ++it) {
@@ -186,6 +199,9 @@ void LowerCtx::RegisterVar(const std::string& name,
 
   BindingState state;
   state.type = type;
+  state.binding_id = next_binding_id++;
+  state.stable_name =
+      "__bind_" + std::to_string(state.binding_id) + "_" + name;
   state.has_responsibility = has_responsibility;
   state.is_immovable = is_immovable;
   state.is_moved = false;
@@ -260,6 +276,76 @@ const BindingState* LowerCtx::GetBindingState(const std::string& name) const {
     return &it->second.back();
   }
   return nullptr;
+}
+
+const BindingState* LowerCtx::GetBindingStateById(
+    const std::string& name,
+    std::uint64_t binding_id) const {
+  auto it = binding_states.find(name);
+  if (it == binding_states.end()) {
+    return nullptr;
+  }
+  for (auto rit = it->second.rbegin(); rit != it->second.rend(); ++rit) {
+    if (rit->binding_id == binding_id) {
+      return &*rit;
+    }
+  }
+  return nullptr;
+}
+
+std::string LowerCtx::StableBindingName(const std::string& name) const {
+  if (const BindingState* state = GetBindingState(name)) {
+    if (!state->stable_name.empty()) {
+      return state->stable_name;
+    }
+  }
+  return name;
+}
+
+void LowerCtx::RegisterLocalAddrAlias(const std::string& alias,
+                                      const std::string& source_name) {
+  LocalAddrAlias state;
+  if (auto alias_target = LookupLocalAddrAlias(source_name)) {
+    state = *alias_target;
+  } else if (const BindingState* binding = GetBindingState(source_name)) {
+    state.kind = LocalAddrAlias::Kind::Binding;
+    state.binding_name = source_name;
+    state.binding_id = binding->binding_id;
+    state.stable_name = binding->stable_name;
+  } else if (LookupCapture(source_name)) {
+    state.kind = LocalAddrAlias::Kind::Capture;
+    state.capture_name = source_name;
+  } else if (resolve_name) {
+    auto resolved = resolve_name(source_name);
+    if (resolved.has_value() && !resolved->empty()) {
+      state.kind = LocalAddrAlias::Kind::Static;
+      state.static_name = resolved->back();
+      state.static_path = *resolved;
+      state.static_path.pop_back();
+    } else {
+      ReportResolveFailure(source_name);
+      ReportCodegenFailure();
+      return;
+    }
+  } else {
+    ReportResolveFailure(source_name);
+    ReportCodegenFailure();
+    return;
+  }
+
+  if (!scope_stack.empty()) {
+    scope_stack.back().aliases.push_back(alias);
+  }
+  local_addr_aliases[alias].push_back(std::move(state));
+}
+
+std::optional<LocalAddrAlias> LowerCtx::LookupLocalAddrAlias(
+    const std::string& alias) const {
+  auto it = local_addr_aliases.find(alias);
+  if (it == local_addr_aliases.end() || it->second.empty()) {
+    return std::nullopt;
+  }
+  return it->second.back();
 }
 
 std::optional<analysis::ProvenanceKind> LowerCtx::LookupExprProv(
@@ -757,6 +843,30 @@ analysis::TypeRef LowerCtx::LookupDropGlueType(const std::string& sym) const {
     if (analysis::TypeRef inherited = map_parent->LookupDropGlueType(sym)) {
       return inherited;
     }
+  }
+  return nullptr;
+}
+
+void LowerCtx::RegisterRequiredVTable(const std::string& sym,
+                                      analysis::TypeRef type,
+                                      const analysis::TypePath& class_path) {
+  if (sym.empty() || !type || class_path.empty()) {
+    return;
+  }
+  RequiredVTableInfo info;
+  info.type = type;
+  info.class_path = class_path;
+  required_vtables[sym] = std::move(info);
+}
+
+const LowerCtx::RequiredVTableInfo* LowerCtx::LookupRequiredVTable(
+    const std::string& sym) const {
+  auto it = required_vtables.find(sym);
+  if (it != required_vtables.end()) {
+    return &it->second;
+  }
+  if (map_parent != nullptr) {
+    return map_parent->LookupRequiredVTable(sym);
   }
   return nullptr;
 }

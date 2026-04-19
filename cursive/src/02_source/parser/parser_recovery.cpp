@@ -79,6 +79,9 @@ bool IsTerminatorToken(const Token& tok) {
 // use EmitGenericParseSyntaxErr instead.
 
 void EmitParseSyntaxErr(Parser& parser, const core::Span& span) {
+  if (parser.quote_mode) {
+    return;
+  }
   auto diag = core::MakeDiagnosticById("E-SRC-0520", span);
   if (!diag) {
     return;
@@ -98,6 +101,9 @@ void EmitParseSyntaxErr(Parser& parser, const core::Span& span) {
 //   Emit(Code(Parse-Syntax-Err))
 
 void EmitGenericParseSyntaxErr(Parser& parser, const core::Span& span) {
+  if (parser.quote_mode) {
+    return;
+  }
   SpecDefsParserRecovery();
   SPEC_RULE("Parse-Syntax-Err");
   EmitParseSyntaxErr(parser, span);

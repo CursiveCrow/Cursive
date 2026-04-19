@@ -260,6 +260,7 @@ IRPtr LowerBindEnumPattern(
               // Shorthand: directly bind field name to extracted value
               IRBindVar bind;
               bind.name = field.name;
+              bind.stable_name = ctx.StableBindingName(field.name);
               bind.value = field_val;
               bind.type = lookup_bind_type(field.name);
               if (!bind.type) {

@@ -45,7 +45,7 @@ function Read-ExistingDiagMap {
     param([string[]]$Paths)
 
     $map = @{}
-    $entryPattern = [regex]'\{"(?<diag>[^"]+)",\s*"(?<code>[EWIP]-[A-Z]{3}-[0-9]{4})"\}'
+    $entryPattern = [regex]'\{"(?<diag>[^"]+)",\s*"(?<code>[EWIP]-[A-Z]{3,4}-[0-9]{4})"\}'
     foreach ($path in $Paths) {
         if (-not (Test-Path $path)) {
             continue
@@ -66,7 +66,7 @@ if (-not (Test-Path $SpecPath)) {
     throw "Spec file not found: $SpecPath"
 }
 
-$diagCodePattern = [regex]'^[EWIP]-[A-Z]{3}-[0-9]{4}$'
+$diagCodePattern = [regex]'^[EWIP]-[A-Z]{3,4}-[0-9]{4}$'
 $diagIdRefPattern = [regex]'Code\((?<id>[A-Za-z][A-Za-z0-9\-]*)\)'
 
 $rowsByCode = @{}

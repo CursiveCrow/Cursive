@@ -107,6 +107,7 @@ struct LoweredCaptureEnv {
 
 struct ScopeInfo {
   std::vector<std::string> variables;     // Variables in declaration order
+  std::vector<std::string> aliases;       // Scoped local aliases
   std::vector<CleanupItem> cleanup_items; // Cleanup items in append order
   std::vector<std::string> region_tags;   // Synthetic region tags for naming
   bool is_loop = false;                   // True if this is a loop scope
@@ -117,6 +118,8 @@ struct ScopeInfo {
 // BindingState tracks the state of a binding for cleanup purposes
 struct BindingState {
   analysis::TypeRef type;                     // Type of the binding
+  std::uint64_t binding_id = 0;
+  std::string stable_name;
   bool has_responsibility = true;         // Does this binding own cleanupSigma
   bool is_immovable = false;             // Immovable binding (:=)
   bool is_moved = false;                  // Has this binding been movedSigma
@@ -194,6 +197,22 @@ struct DerivedValueInfo {
   IRValue repeat_count;
 };
 
+struct LocalAddrAlias {
+  enum class Kind {
+    Binding,
+    Capture,
+    Static,
+  };
+
+  Kind kind = Kind::Binding;
+  std::string binding_name;
+  std::uint64_t binding_id = 0;
+  std::string stable_name;
+  std::string capture_name;
+  std::vector<std::string> static_path;
+  std::string static_name;
+};
+
 // LowerCtx - context for lowering operations
 // Contains type information and scope state needed during lowering
 struct LowerCtx {
@@ -214,6 +233,8 @@ struct LowerCtx {
   bool shared_library_project = false;
   bool hosted_library = false;
   std::optional<std::string> project_entry_module;
+  std::unordered_set<std::string> dependency_assembly_names;
+  std::unordered_set<std::string> library_assembly_names;
   
   // Expression type lookup (populated by type checking phase)
   std::function<analysis::TypeRef(const ast::Expr&)> expr_type;
@@ -274,6 +295,11 @@ struct LowerCtx {
   std::vector<std::string>* value_type_insert_sink = nullptr;
   std::unordered_map<std::string, analysis::TypeRef> static_types;
   std::unordered_map<std::string, analysis::TypeRef> drop_glue_types;
+  struct RequiredVTableInfo {
+    analysis::TypeRef type;
+    analysis::TypePath class_path;
+  };
+  std::unordered_map<std::string, RequiredVTableInfo> required_vtables;
   std::unordered_map<std::string, std::vector<std::string>> static_modules;
   std::unordered_map<std::string, std::vector<std::string>> record_ctor_paths;
 
@@ -401,6 +427,10 @@ struct LowerCtx {
   const std::vector<std::string>* LookupStaticModule(const std::string& sym) const;
   void RegisterDropGlueType(const std::string& sym, analysis::TypeRef type);
   analysis::TypeRef LookupDropGlueType(const std::string& sym) const;
+  void RegisterRequiredVTable(const std::string& sym,
+                              analysis::TypeRef type,
+                              const analysis::TypePath& class_path);
+  const RequiredVTableInfo* LookupRequiredVTable(const std::string& sym) const;
   void RegisterRecordCtor(const std::string& sym, const std::vector<std::string>& path);
   const std::vector<std::string>* LookupRecordCtor(const std::string& sym) const;
   void RegisterProcSig(const ProcIR& proc);
@@ -437,6 +467,8 @@ struct LowerCtx {
   
   // Map from binding name to its state
   std::unordered_map<std::string, std::vector<BindingState>> binding_states;
+  std::unordered_map<std::string, std::vector<LocalAddrAlias>> local_addr_aliases;
+  std::uint64_t next_binding_id = 1;
 
   // Map from temporary value names to derived value info
   std::unordered_map<std::string, DerivedValueInfo> derived_values;
@@ -511,6 +543,13 @@ struct LowerCtx {
   
   // Get binding state
   const BindingState* GetBindingState(const std::string& name) const;
+  const BindingState* GetBindingStateById(const std::string& name,
+                                          std::uint64_t binding_id) const;
+  std::string StableBindingName(const std::string& name) const;
+  void RegisterLocalAddrAlias(const std::string& alias,
+                              const std::string& source_name);
+  std::optional<LocalAddrAlias> LookupLocalAddrAlias(
+      const std::string& alias) const;
 
   std::optional<analysis::ProvenanceKind> LookupExprProv(const ast::Expr& expr) const;
   std::optional<std::string> LookupExprRegion(const ast::Expr& expr) const;
@@ -595,6 +634,10 @@ LowerResult LowerExpr(const ast::Expr& expr, LowerCtx& ctx);
 // Returns IR sequence and list of values
 std::pair<IRPtr, std::vector<IRValue>> LowerList(
     const std::vector<ast::ExprPtr>& exprs, LowerCtx& ctx);
+
+// §6.4 LowerList - lower segmented array elements (LTR order)
+std::pair<IRPtr, std::vector<DerivedArraySegment>> LowerList(
+    const std::vector<ast::ArraySegment>& segments, LowerCtx& ctx);
 
 // §6.4 LowerFieldInits - lower field initializers (LTR order)
 std::pair<IRPtr, std::vector<std::pair<std::string, IRValue>>> LowerFieldInits(

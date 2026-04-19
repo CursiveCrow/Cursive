@@ -13,8 +13,7 @@ void InstallCrashHandlersBackend() {}
 void MaybeTriggerCrashFixtureFromEnvBackend() {}
 
 DebugRunResult DebugRunProcessBackend(const DebugRunOptions& options) {
-  (void)options;
-  return {};
+  return RunProcessWithoutDebugger(options);
 }
 
 }  // namespace cursive::core::crash_debug_detail

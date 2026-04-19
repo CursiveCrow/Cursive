@@ -280,6 +280,7 @@ DebugRunResult RunProcessWithoutDebugger(const DebugRunOptions& options) {
       options.working_directory.empty()
           ? std::optional<std::filesystem::path>(options.program.parent_path())
           : std::optional<std::filesystem::path>(options.working_directory);
+  spec.output_mode = HostProcessOutputMode::CaptureSeparate;
   spec.hide_window = true;
 
   const auto host_result = RunHostProcess(spec);
@@ -290,6 +291,8 @@ DebugRunResult RunProcessWithoutDebugger(const DebugRunOptions& options) {
 
   result.launched = true;
   result.exit_code = host_result.exit_code;
+  result.stdout_text = host_result.stdout_text;
+  result.stderr_text = host_result.stderr_text;
   return result;
 }
 

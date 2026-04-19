@@ -953,6 +953,7 @@ LowerResult LowerRefArgExprWithTemp(const ast::ExprPtr& expr,
 
   ctx.RegisterVar(temp_name, temp_type, false, false,
                   analysis::ProvenanceKind::Stack, std::nullopt);
+  bind.stable_name = ctx.StableBindingName(temp_name);
 
   ast::Expr temp_ident;
   temp_ident.span = expr->span;
@@ -999,6 +1000,7 @@ LowerResult LowerMoveArgExprWithTemp(const ast::Arg& arg,
 
   ctx.RegisterVar(temp_name, temp_type, false, false,
                   analysis::ProvenanceKind::Stack, std::nullopt);
+  bind.stable_name = ctx.StableBindingName(temp_name);
 
   ast::Expr temp_ident;
   temp_ident.span = arg.value->span;

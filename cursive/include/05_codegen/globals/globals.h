@@ -9,6 +9,7 @@
 
 #include "05_codegen/ir/ir_model.h"
 #include "05_codegen/lower/lower_expr.h"
+#include "04_analysis/typing/context.h"
 #include "04_analysis/typing/types.h"
 #include "02_source/ast/ast.h"
 
@@ -35,6 +36,16 @@ std::optional<std::string> StaticName(const ast::Binding& binding);
 // StaticBindList(binding) - Get the list of names bound by a static declaration
 std::vector<std::string> StaticBindList(const ast::Binding& binding);
 
+using StaticBindRef = std::pair<ast::ModulePath, std::string>;
+
+// StaticBindOrder(m) - Module-local bind order for static bindings.
+std::vector<StaticBindRef> StaticBindOrder(const ast::ASTModule& module);
+
+// GlobalStaticOrder - Concatenate StaticBindOrder over the current init order.
+std::vector<StaticBindRef> GlobalStaticOrder(
+    const analysis::Sigma& sigma,
+    const std::vector<ast::ModulePath>& init_order);
+
 // StaticBindTypes(binding) - Map bound names to their types
 std::vector<std::pair<std::string, analysis::TypeRef>> StaticBindTypes(
     const ast::Binding& binding,
@@ -56,6 +67,43 @@ std::string StaticSym(const ast::StaticDecl& decl,
 // StaticSymPath(path, name) - Symbol for a static by module path and name
 std::string StaticSymPath(const ast::ModulePath& path,
                           const std::string& name);
+
+// StaticItemOf(path, name) - Resolve the unique static declaration that owns
+// the named binding in the target module path.
+const ast::StaticDecl* StaticItemOf(const analysis::Sigma& sigma,
+                                    const ast::ModulePath& path,
+                                    const std::string& name);
+
+// Sigma-aware StaticSymPath(path, name). When the owning static declaration can
+// be resolved, this follows StaticSym(item, name); otherwise it falls back to
+// the binding-path mangling helper.
+std::string StaticSymPath(const analysis::Sigma& sigma,
+                          const ast::ModulePath& path,
+                          const std::string& name);
+
+// StaticAddr(path, name) - Return the symbol-backed IR address value for a
+// static binding when the owning static declaration can be resolved.
+std::optional<IRValue> StaticAddr(const analysis::Sigma& sigma,
+                                  const ast::ModulePath& path,
+                                  const std::string& name);
+
+// StaticType(path, name) - Resolve the semantic type of a named static binding.
+analysis::TypeRef StaticType(const analysis::Sigma& sigma,
+                             const ast::ModulePath& path,
+                             const std::string& name);
+
+struct StaticBindingInfo {
+  analysis::TypeRef type;
+  bool has_responsibility = true;
+  bool is_immovable = false;
+  ast::Mutability mut = ast::Mutability::Let;
+};
+
+// StaticBindInfo(path, name) - Resolve the static binding metadata for a named
+// binding inside a static declaration.
+std::optional<StaticBindingInfo> StaticBindInfo(const analysis::Sigma& sigma,
+                                                const ast::ModulePath& path,
+                                                const std::string& name);
 
 // ============================================================================
 // §6.7 Global Emission

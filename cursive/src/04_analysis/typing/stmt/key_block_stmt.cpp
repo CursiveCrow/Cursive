@@ -1972,10 +1972,11 @@ StmtTypeResult TypeKeyBlockStmt(const ScopeContext& ctx,
   };
 
   // Type the key block body
-  const auto typed = TypeBlock(ctx, key_ctx, *node.body, key_env, key_type_expr,
-                               key_type_ident, key_type_place, &key_env);
-  if (!typed.ok) {
-    return {false, typed.diag_id, {}, {}, typed.diag_detail};
+  const auto info = TypeBlockInfo(ctx, key_ctx, *node.body, key_env,
+                                  key_type_expr, key_type_ident,
+                                  key_type_place, &key_env);
+  if (!info.ok) {
+    return {false, info.diag_id, {}, {}, info.diag_detail, info.diag_span};
   }
 
   if (has_speculative_mod) {
@@ -2013,8 +2014,15 @@ StmtTypeResult TypeKeyBlockStmt(const ScopeContext& ctx,
     MarkSharedDerivedBindingsStale(out_env);
   }
 
+  FlowInfo flow;
+  if (IsPrimType(info.type, "!")) {
+    flow.results.push_back(info.type);
+  }
+  flow.breaks = info.breaks;
+  flow.break_void = info.break_void;
+
   SPEC_RULE("T-KeyBlockStmt");
-  return {true, std::nullopt, std::move(out_env), {}};
+  return {true, std::nullopt, std::move(out_env), std::move(flow)};
 }
 
 }  // namespace cursive::analysis

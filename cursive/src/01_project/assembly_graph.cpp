@@ -333,11 +333,20 @@ AssemblyImportGraph BuildAssemblyImportGraph(
 bool ValidateAssemblyImportGraphStructure(const Project& project,
                                           const AssemblyImportGraph& graph,
                                           core::DiagnosticStream& diags) {
-  (void)project;
+  const auto selected_it = graph.assemblies.find(project.assembly.name);
+  if (selected_it == graph.assemblies.end()) {
+    return true;
+  }
+  const auto reachable = ReachableAssemblies(project.assembly.name, graph);
 
   for (const auto& [assembly_name, deps] : graph.imports) {
-    (void)assembly_name;
+    if (reachable.find(assembly_name) == reachable.end()) {
+      continue;
+    }
     for (const auto& dep_name : deps) {
+      if (reachable.find(dep_name) == reachable.end()) {
+        continue;
+      }
       const auto dep_it = graph.assemblies.find(dep_name);
       if (dep_it == graph.assemblies.end()) {
         continue;
@@ -412,6 +421,9 @@ bool ValidateAssemblyImportGraphStructure(const Project& project,
       };
 
   for (const auto& [assembly_name, assembly] : graph.assemblies) {
+    if (reachable.find(assembly_name) == reachable.end()) {
+      continue;
+    }
     if (!IsLibrary(*assembly)) {
       continue;
     }

@@ -12,10 +12,19 @@ The cursive spec is the source of truth. You will NOT make changes that cause th
 
 
 ## Code Quality
+- Implementations must be correct, complete, and accurate to the specification in full detail.
 - Prefer correct, complete implementations over minimal ones.
 - Use appropriate data structures and algorithms — don't brute-force what has a known better solution.
 - When fixing a bug, fix the root cause, not the symptom.
 - If something I asked for requires error handling or validation to work reliably, include it without asking.
+
+## Implementation Mandate
+- Do NOT simplify implementation details, reduce semantic coverage, or trade completeness for a smaller diff.
+- Do NOT prioritize deletion, reduced abstraction count, or "simpler" code shape over exact spec compliance.
+- Implement behavior, diagnostics, lowering, runtime interactions, and verification exactly as the specification defines them.
+- When existing code is incomplete, legacy, approximate, or incorrect, replace it with the full spec-correct implementation rather than preserving older behavior.
+- Time, fatigue, complexity, or convenience are never valid reasons to stop short of a complete and accurate implementation.
+- The language-guide material below is descriptive reference material; it does NOT authorize reducing compiler scope or simplifying compiler behavior.
 
 Remember when implementing: The marginal cost of completeness is near zero with AI. Do the whole thing. Do it right. Do it with tests. Do it with documentation. Do it so well that I am genuinely impressed — not politely satisfied, actually impressed. Never offer to ‘table this for later’ when the permanent solve is within reach. Never leave a dangling thread when tying it off takes five more minutes. Never present a workaround when the real fix exists. The standard isn’t ‘good enough’ — it’s ‘holy shit, that’s done.’ Search before building. Test before shipping. Ship the complete thing. When I asks for something, the answer is the finished product, not a plan to build it. Time is not an excuse. Fatigue is not an excuse. Complexity is not an excuse. Boil the ocean.
 

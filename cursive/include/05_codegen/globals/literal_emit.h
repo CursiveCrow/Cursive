@@ -15,6 +15,7 @@
 // ============================================================================
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -100,6 +101,14 @@ LiteralRefs(const IRPtr& ir);
 // (LiteralRefs for decls): Collect literals from declarations
 std::vector<std::pair<LiteralKind, std::vector<std::uint8_t>>>
 LiteralRefs(const IRDecls& decls);
+
+std::optional<LiteralKind> LiteralKindOfImmediate(const IRValue& value);
+bool LiteralRef(const IRPtr& ir,
+                LiteralKind kind,
+                const std::vector<std::uint8_t>& bytes);
+bool LiteralRef(const IRDecls& decls,
+                LiteralKind kind,
+                const std::vector<std::uint8_t>& bytes);
 
 // ============================================================================
 // §6.12.14 Literal Type Inference

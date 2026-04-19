@@ -8,12 +8,14 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "01_project/target_profile.h"
 #include "04_analysis/typing/types.h"
+#include "05_codegen/ir/ir_model.h"
 
 // Forward declarations for LLVM types
 namespace llvm {
@@ -61,6 +63,13 @@ bool ValidateLLVMVersion();
 
 // Declare all runtime functions in the module
 void DeclareRuntimeFunctions(LLVMEmitter& emitter);
+void DeclareRuntimeFunctions(LLVMEmitter& emitter,
+                             const std::vector<std::string>& symbols);
+
+// Runtime declaration invariants for the emitted LLVM module.
+std::vector<std::string> DeclSyms(const llvm::Module& module);
+bool RuntimeDeclsOk(const llvm::Module& module);
+bool RuntimeDeclsCover(const llvm::Module& module, const IRDecls& decls);
 
 // Get the runtime symbol for a specific builtin operation
 std::string_view GetRuntimeSymbol(std::string_view operation);
@@ -102,6 +111,11 @@ bool IsDropGlueSymbol(std::string_view symbol);
 
 // Get the mangled symbol prefix for drop glue
 std::string_view GetDropGluePrefix();
+
+// Emit-key helpers for generated declaration uniqueness.
+std::optional<std::string> EmitKey(const IRDecl& decl);
+std::vector<std::string> EmitKeys(const IRDecls& decls);
+bool UniqueEmits(const IRDecls& decls);
 
 // =============================================================================
 // Module Finalization

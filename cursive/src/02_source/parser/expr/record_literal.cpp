@@ -108,8 +108,9 @@ ParseElemResult<std::vector<FieldInit>> ParseFieldInitTail(
 //
 // SPEC: Lines 5878-5888
 // This shared helper accepts an empty list when the next token is `}` so it can
-// serve optional brace forms; ordinary record literals add their non-empty
-// requirement at the call site.
+// serve the modal-state brace forms and zero-field ordinary record literals.
+// Qualified brace applications that require a non-empty payload enforce that
+// restriction at their own call sites.
 
 ParseElemResult<std::vector<FieldInit>> ParseFieldInitList(Parser parser) {
   SkipNewlines(parser);
@@ -156,12 +157,6 @@ ParseElemResult<ExprPtr> ParseSimpleRecordLiteral(
   Parser after_l = parser;
   Advance(after_l);  // consume "{"
   ParseElemResult<std::vector<FieldInit>> fields = ParseFieldInitList(after_l);
-  if (fields.elem.empty() && IsPunc(fields.parser, "}")) {
-    EmitParseSyntaxErr(fields.parser, TokSpan(fields.parser));
-    Parser after = fields.parser;
-    Advance(after);  // consume "}"
-    return {after, MakeExpr(SpanBetween(start, after), ErrorExpr{})};
-  }
   if (!IsPunc(fields.parser, "}")) {
     EmitParseSyntaxErr(fields.parser, TokSpan(fields.parser));
     Parser sync = fields.parser;
@@ -218,6 +213,7 @@ ParseElemResult<ExprPtr> ParseModalStateRecordLiteral(
   ModalStateRef modal;
   modal.path = path;
   modal.generic_args = std::move(generic_args);
+  SyncModalStateRefFromFields(modal);
   modal.state = state.elem;
   rec.target = modal;
   rec.fields = std::move(fields.elem);

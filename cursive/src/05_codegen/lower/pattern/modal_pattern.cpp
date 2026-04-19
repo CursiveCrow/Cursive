@@ -125,6 +125,7 @@ IRPtr LowerModalPatternBindings(
       // Shorthand: directly bind field name to extracted value
       IRBindVar bind;
       bind.name = field.name;
+      bind.stable_name = ctx.StableBindingName(field.name);
       bind.value = field_val;
       bind.type = lookup_bind_type(field.name);
       bind.prov = lookup_bind_prov(field.name);

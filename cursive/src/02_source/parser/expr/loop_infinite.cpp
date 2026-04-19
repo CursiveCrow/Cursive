@@ -209,14 +209,14 @@ ParseElemResult<std::shared_ptr<Block>> ParseBlock(Parser parser);
 // This is shared by all three loop types (infinite, conditional, iterator).
 
 ParseElemResult<std::optional<LoopInvariant>> ParseLoopInvariantOpt(Parser parser) {
-  if (!IsKw(parser, "where")) {
+  if (!IsOp(parser, "|:")) {
     SPEC_RULE("Parse-LoopInvariantOpt-None");
     return {parser, std::nullopt};
   }
   SPEC_RULE("Parse-LoopInvariantOpt-Yes");
   Parser start = parser;
   Parser next = parser;
-  Advance(next);  // consume where
+  Advance(next);  // consume |:
   if (!IsPunc(next, "{")) {
     EmitParseSyntaxErr(next, TokSpan(next));
     Parser sync = next;

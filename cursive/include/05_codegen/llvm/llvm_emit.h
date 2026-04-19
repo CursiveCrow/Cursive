@@ -10,6 +10,7 @@
 #include "01_project/target_profile.h"
 #include "05_codegen/ir/ir_model.h"
 #include "05_codegen/abi/abi.h"
+#include "05_codegen/llvm/llvm_attr.h"
 #include "05_codegen/lower/lower_expr.h"
 
 // Forward declare LLVM types to avoid pulling in all headers here
@@ -38,8 +39,10 @@ enum class ABIArgCarrierKind {
 struct ABICallResult {
     llvm::FunctionType* func_type = nullptr;
     std::vector<llvm::Type*> param_types;
+    std::vector<AttrSet> llvm_param_attrs;
     llvm::Type* ret_type = nullptr;
     bool has_sret = false;
+    bool valid = false;
     std::vector<PassKind> param_kinds;
     std::vector<std::optional<unsigned>> param_indices;
     std::vector<ABIArgCarrierKind> param_carriers;
@@ -77,6 +80,7 @@ public:
 
   // T-LLVM-006: Runtime Declarations
   void DeclareRuntime();
+  void DeclareRuntime(const std::vector<std::string>& symbols);
 
   // T-LLVM-009 / T-LLVM-010 Helpers
   // Evaluate an IRValue to an llvm::Value*
@@ -93,6 +97,7 @@ public:
   // Accessors
   llvm::Module& GetModule() { return *module_; }
   llvm::LLVMContext& GetContext() { return context_; }
+  project::TargetProfile GetTargetProfile() const { return target_profile_; }
   LowerCtx* GetCurrentCtx() { return current_ctx_; }
   const LowerCtx* GetCurrentCtx() const { return current_ctx_; }
   
@@ -118,6 +123,7 @@ public:
   
   // Local variable management
   void SetLocal(const std::string& name, llvm::Value* val) { locals_[name] = val; }
+  void RegisterLocalBindStorage(const std::string& name, llvm::Value* val);
   void SetLocalHomeStorage(const std::string& name, llvm::Value* val) {
     if (val) {
       local_home_storage_[name] = val;
@@ -132,6 +138,7 @@ public:
     local_types_[name] = type;
   }
   llvm::Value* GetLocal(const std::string& name) { return locals_.count(name) ? locals_[name] : nullptr; }
+  llvm::Value* GetLocalBindStorage(const std::string& name);
   llvm::Value* GetLocalHomeStorage(const std::string& name) {
     return local_home_storage_.count(name) ? local_home_storage_[name] : nullptr;
   }

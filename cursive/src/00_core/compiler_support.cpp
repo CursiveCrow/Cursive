@@ -65,6 +65,12 @@ struct SupportLayout {
 
 SupportLayout ResolveSupportLayout() {
   const auto executable_dir = CurrentExecutableDir();
+  const auto executable = CurrentExecutablePath();
+  const auto executable_name = executable.filename().generic_string();
+  auto is_packaged_compiler_name = [](std::string_view name) {
+    return name == "cursive.exe" || name == "Cursive.exe" ||
+           name == "cursive-debug.exe" || name == "Cursive-debug.exe";
+  };
   if (IsPackagedSupportRootCandidate(executable_dir)) {
     return {CompilerSupportLayoutKind::PackagedOut, executable_dir};
   }
@@ -74,6 +80,9 @@ SupportLayout ResolveSupportLayout() {
   const auto parent = executable_dir.parent_path();
   if (IsLegacySupportRootCandidate(parent)) {
     return {CompilerSupportLayoutKind::LegacyBuildTree, parent};
+  }
+  if (is_packaged_compiler_name(executable_name)) {
+    return {CompilerSupportLayoutKind::PackagedOut, executable_dir};
   }
   return {CompilerSupportLayoutKind::None, std::filesystem::path()};
 }

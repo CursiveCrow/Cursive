@@ -44,10 +44,18 @@ struct LinkPlan {
 };
 
 struct LinkInvocationResult {
+  bool launched = false;
   bool ok = false;
   bool crashed = false;
   int exit_code = -1;
+  std::filesystem::path tool_path;
+  std::filesystem::path working_directory;
+  std::vector<std::string> argv;
+  std::string launch_error;
+  std::string stdout_text;
+  std::string stderr_text;
   std::filesystem::path crash_report_json_path;
+  std::filesystem::path transcript_path;
   std::string crash_kind;
   std::string output;
 };

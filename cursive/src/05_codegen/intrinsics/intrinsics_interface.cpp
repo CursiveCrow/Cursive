@@ -15,9 +15,12 @@
 
 #include <unordered_map>
 #include <unordered_set>
+#include <set>
 
 #include "00_core/assert_spec.h"
 #include "00_core/symbols.h"
+#include "05_codegen/globals/globals.h"
+#include "05_codegen/globals/literal_emit.h"
 #include "05_codegen/intrinsics/builtins.h"
 
 namespace cursive::codegen {
@@ -66,6 +69,28 @@ std::string BuiltinSymDirIterOpenNext() {
 
 std::string BuiltinSymDirIterOpenClose() {
   return core::PathSig({"DirIter", "Open", "close"});
+}
+
+std::string PoisonFlagSymForModule(std::string_view module_name) {
+  std::vector<std::string> full = {"cursive", "runtime", "poison"};
+  std::string segment;
+  for (std::size_t i = 0; i < module_name.size();) {
+    if (i + 1 < module_name.size() &&
+        module_name[i] == ':' &&
+        module_name[i + 1] == ':') {
+      if (!segment.empty()) {
+        full.push_back(segment);
+        segment.clear();
+      }
+      i += 2;
+      continue;
+    }
+    segment.push_back(module_name[i++]);
+  }
+  if (!segment.empty()) {
+    full.push_back(segment);
+  }
+  return core::Mangle(core::StringOfPath(full));
 }
 
 }  // namespace
@@ -257,7 +282,170 @@ const RuntimeCategoryMap& GetRuntimeCategoryMap() {
   return categories;
 }
 
+void AddRefSym(std::set<std::string>& out, const std::string& symbol) {
+  if (!symbol.empty()) {
+    out.insert(symbol);
+  }
+}
+
+void AddRefSymsFromValue(std::set<std::string>& out, const IRValue& value) {
+  if (value.kind == IRValue::Kind::Symbol) {
+    AddRefSym(out, value.name);
+    return;
+  }
+  if (auto literal_kind = LiteralKindOfImmediate(value); literal_kind.has_value()) {
+    AddRefSym(out, LiteralSym(*literal_kind, value.bytes));
+  }
+}
+
+void CollectRefSymsFromIR(std::set<std::string>& out, const IRPtr& ir) {
+  if (!ir) {
+    return;
+  }
+
+  std::visit(
+      [&](const auto& node) {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, IROpaque>) {
+          return;
+        } else if constexpr (std::is_same_v<T, IRSeq>) {
+          for (const auto& item : node.items) {
+            CollectRefSymsFromIR(out, item);
+          }
+        } else if constexpr (std::is_same_v<T, IRCall>) {
+          AddRefSymsFromValue(out, node.callee);
+        } else if constexpr (std::is_same_v<T, IRStoreGlobal>) {
+          AddRefSym(out, node.symbol);
+        } else if constexpr (std::is_same_v<T, IRReadPath>) {
+          std::vector<std::string> full = node.path;
+          full.push_back(node.name);
+          AddRefSym(out, core::Mangle(core::StringOfPath(full)));
+          AddRefSym(out, StaticSymPath(node.path, node.name));
+        } else if constexpr (std::is_same_v<T, IRIf>) {
+          CollectRefSymsFromIR(out, node.then_ir);
+          CollectRefSymsFromIR(out, node.else_ir);
+        } else if constexpr (std::is_same_v<T, IRBlock>) {
+          CollectRefSymsFromIR(out, node.setup);
+          CollectRefSymsFromIR(out, node.body);
+        } else if constexpr (std::is_same_v<T, IRLoop>) {
+          CollectRefSymsFromIR(out, node.iter_ir);
+          CollectRefSymsFromIR(out, node.cond_ir);
+          CollectRefSymsFromIR(out, node.body_ir);
+        } else if constexpr (std::is_same_v<T, IRIfCase>) {
+          return;
+        } else if constexpr (std::is_same_v<T, IRRegion>) {
+          CollectRefSymsFromIR(out, node.body);
+        } else if constexpr (std::is_same_v<T, IRFrame>) {
+          CollectRefSymsFromIR(out, node.body);
+        } else if constexpr (std::is_same_v<T, IRClearPanic>) {
+          return;
+        } else if constexpr (std::is_same_v<T, IRPanicCheck>) {
+          CollectRefSymsFromIR(out, node.cleanup_ir);
+        } else if constexpr (std::is_same_v<T, IRInitPanicHandle>) {
+          CollectRefSymsFromIR(out, node.cleanup_ir);
+        } else if constexpr (std::is_same_v<T, IRLowerPanic>) {
+          CollectRefSymsFromIR(out, node.cleanup_ir);
+        } else if constexpr (std::is_same_v<T, IRCheckPoison>) {
+          AddRefSym(out, PoisonFlagSymForModule(node.module));
+        } else if constexpr (std::is_same_v<T, IRParallel>) {
+          AddRefSym(out, ConcurrencySymParallelBegin());
+          CollectRefSymsFromIR(out, node.body);
+        } else if constexpr (std::is_same_v<T, IRSpawn>) {
+          AddRefSym(out, ConcurrencySymSpawnCreate());
+          CollectRefSymsFromIR(out, node.captured_env);
+          CollectRefSymsFromIR(out, node.body);
+        } else if constexpr (std::is_same_v<T, IRWait>) {
+          AddRefSym(out, ConcurrencySymSpawnWait());
+        } else if constexpr (std::is_same_v<T, IRCancelCheck>) {
+          AddRefSym(out, BuiltinSymCancelTokenActiveIsCancelled());
+        } else if constexpr (std::is_same_v<T, IRDispatch>) {
+          AddRefSym(out, ConcurrencySymDispatchRun());
+          CollectRefSymsFromIR(out, node.captured_env);
+          CollectRefSymsFromIR(out, node.body);
+        } else if constexpr (std::is_same_v<T, IRYield>) {
+          if (node.release) {
+            AddRefSym(out, ConcurrencySymKeyReleaseAll());
+            AddRefSym(out, ConcurrencySymKeyReacquire());
+          }
+          AddRefSym(out, BuiltinSymAsyncAllocFrame());
+        } else if constexpr (std::is_same_v<T, IRYieldFrom>) {
+          if (node.release) {
+            AddRefSym(out, ConcurrencySymKeyReleaseAll());
+            AddRefSym(out, ConcurrencySymKeyReacquire());
+          }
+          AddRefSym(out, BuiltinSymAsyncAllocFrame());
+          AddRefSym(out, BuiltinSymAsyncResume());
+        } else if constexpr (std::is_same_v<T, IRSpecFallback>) {
+          CollectRefSymsFromIR(out, node.body);
+        } else if constexpr (std::is_same_v<T, IRSpecLoop>) {
+          CollectRefSymsFromIR(out, node.snapshot_ir);
+          CollectRefSymsFromIR(out, node.body_ir);
+          CollectRefSymsFromIR(out, node.validate_ir);
+          CollectRefSymsFromIR(out, node.commit_ir);
+          CollectRefSymsFromIR(out, node.retry_ir);
+          CollectRefSymsFromIR(out, node.fallback_ir);
+        } else if constexpr (std::is_same_v<T, IRSync>) {
+          AddRefSym(out, BuiltinSymAsyncResume());
+        } else if constexpr (std::is_same_v<T, IRRaceReturn>) {
+          AddRefSym(out, BuiltinSymAsyncResume());
+          for (const auto& arm : node.arms) {
+            CollectRefSymsFromIR(out, arm.async_ir);
+            CollectRefSymsFromIR(out, arm.handler_ir);
+          }
+        } else if constexpr (std::is_same_v<T, IRRaceYield>) {
+          AddRefSym(out, BuiltinSymAsyncResume());
+          for (const auto& arm : node.arms) {
+            CollectRefSymsFromIR(out, arm.async_ir);
+            CollectRefSymsFromIR(out, arm.handler_ir);
+          }
+        } else if constexpr (std::is_same_v<T, IRAll>) {
+          AddRefSym(out, BuiltinSymAsyncResume());
+          for (const auto& async_ir : node.async_irs) {
+            CollectRefSymsFromIR(out, async_ir);
+          }
+        } else {
+          return;
+        }
+      },
+      ir->node);
+}
+
 }  // namespace
+
+std::vector<std::string> RefSyms(const IRPtr& ir) {
+  std::set<std::string> refs;
+  CollectRefSymsFromIR(refs, ir);
+  return {refs.begin(), refs.end()};
+}
+
+std::vector<std::string> RefSyms(const IRDecl& decl) {
+  std::set<std::string> refs;
+  std::visit(
+      [&](const auto& node) {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ProcIR>) {
+          CollectRefSymsFromIR(refs, node.body);
+        } else if constexpr (std::is_same_v<T, GlobalVTable>) {
+          AddRefSym(refs, node.header.drop_sym);
+          for (const auto& slot : node.slots) {
+            AddRefSym(refs, slot);
+          }
+        } else {
+          return;
+        }
+      },
+      decl);
+  return {refs.begin(), refs.end()};
+}
+
+std::vector<std::string> RefSyms(const IRDecls& decls) {
+  std::set<std::string> refs;
+  for (const auto& decl : decls) {
+    const auto decl_refs = RefSyms(decl);
+    refs.insert(decl_refs.begin(), decl_refs.end());
+  }
+  return {refs.begin(), refs.end()};
+}
 
 std::vector<std::string> RuntimeSyms() {
   return RuntimeSpecSyms();
@@ -273,6 +461,28 @@ std::vector<std::string> RuntimeDeclSyms() {
   std::sort(syms.begin(), syms.end());
   syms.erase(std::unique(syms.begin(), syms.end()), syms.end());
   return syms;
+}
+
+std::vector<std::string> RuntimeRefs(const IRPtr& ir) {
+  SPEC_RULE("RuntimeRefs");
+  std::vector<std::string> refs;
+  for (const auto& symbol : RefSyms(ir)) {
+    if (IsRuntimeFunction(symbol)) {
+      refs.push_back(symbol);
+    }
+  }
+  return refs;
+}
+
+std::vector<std::string> RuntimeRefs(const IRDecls& decls) {
+  SPEC_RULE("RuntimeRefs");
+  std::vector<std::string> refs;
+  for (const auto& symbol : RefSyms(decls)) {
+    if (IsRuntimeFunction(symbol)) {
+      refs.push_back(symbol);
+    }
+  }
+  return refs;
 }
 
 RuntimeSymbolCategory CategorizeRuntimeSymbol(const std::string& symbol) {

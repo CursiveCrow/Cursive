@@ -16,6 +16,8 @@ std::vector<std::filesystem::path> SearchDirs(const Project& project,
                                              TargetProfile target_profile);
 
 std::optional<std::filesystem::path> ResolveTool(const Project& project,
+                                                 std::string_view tool);
+std::optional<std::filesystem::path> ResolveTool(const Project& project,
                                                  TargetProfile target_profile,
                                                  std::string_view tool);
 

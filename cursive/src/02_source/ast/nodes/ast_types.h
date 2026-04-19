@@ -33,6 +33,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
@@ -165,14 +166,6 @@ struct TypeDynamic {
     TypePath path;
 };
 
-// Modal state type: Connection@Connected, Modal@State<T, U>
-// Syntax: path generic_args? "@" state
-struct TypeModalState {
-    TypePath path;
-    std::vector<std::shared_ptr<Type>> generic_args;
-    Identifier state;
-};
-
 // Named type path with generic arguments: Foo, Bar<T, U>
 // Syntax: path generic_args?
 struct TypePathType {
@@ -186,6 +179,67 @@ struct TypeApply {
     TypePath path;
     std::vector<std::shared_ptr<Type>> args;
 };
+
+using TypeModalRef = std::variant<TypePathType, TypeApply>;
+
+inline TypeModalRef MakeTypeModalRef(
+    TypePath path,
+    std::vector<std::shared_ptr<Type>> generic_args) {
+    if (generic_args.empty()) {
+        TypePathType path_type;
+        path_type.path = std::move(path);
+        return TypeModalRef{std::move(path_type)};
+    }
+
+    TypeApply apply;
+    apply.path = std::move(path);
+    apply.args = std::move(generic_args);
+    return TypeModalRef{std::move(apply)};
+}
+
+inline const TypePath& TypeModalRefPath(const TypeModalRef& modal_ref) {
+    return std::visit(
+        [](const auto& node) -> const TypePath& {
+            return node.path;
+        },
+        modal_ref);
+}
+
+inline const std::vector<std::shared_ptr<Type>>& TypeModalRefArgs(
+    const TypeModalRef& modal_ref) {
+    static const std::vector<std::shared_ptr<Type>> kEmptyArgs;
+    return std::visit(
+        [&](const auto& node) -> const std::vector<std::shared_ptr<Type>>& {
+            using T = std::decay_t<decltype(node)>;
+            if constexpr (std::is_same_v<T, TypePathType>) {
+                if (node.generic_args.empty()) {
+                    return kEmptyArgs;
+                }
+                return node.generic_args;
+            } else {
+                return node.args;
+            }
+        },
+        modal_ref);
+}
+
+// Modal state type: Connection@Connected, Modal@State<T, U>
+// Syntax: path generic_args? "@" state
+struct TypeModalState {
+    TypeModalRef modal_ref;
+    TypePath path;
+    std::vector<std::shared_ptr<Type>> generic_args;
+    Identifier state;
+};
+
+inline void SyncTypeModalStateFromModalRef(TypeModalState& state) {
+    state.path = TypeModalRefPath(state.modal_ref);
+    state.generic_args = TypeModalRefArgs(state.modal_ref);
+}
+
+inline void SyncTypeModalStateFromFields(TypeModalState& state) {
+    state.modal_ref = MakeTypeModalRef(state.path, state.generic_args);
+}
 
 // Opaque type: opaque Path
 // Syntax: "opaque" path

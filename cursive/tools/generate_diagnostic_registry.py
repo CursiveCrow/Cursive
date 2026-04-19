@@ -10,9 +10,9 @@ from pathlib import Path
 from resolve_spec_path import resolve_spec_path
 
 
-DIAG_CODE_PATTERN = re.compile(r"^[EWIP]-[A-Z]{3}-[0-9]{4}$")
+DIAG_CODE_PATTERN = re.compile(r"^[EWIP]-[A-Z]{3,4}-[0-9]{4}$")
 DIAG_ID_REF_PATTERN = re.compile(r"Code\((?P<id>[A-Za-z][A-Za-z0-9\-]*)\)")
-EXISTING_MAP_ENTRY_PATTERN = re.compile(r'\{"(?P<diag>[^"]+)",\s*"(?P<code>[EWIP]-[A-Z]{3}-[0-9]{4})"\}')
+EXISTING_MAP_ENTRY_PATTERN = re.compile(r'\{"(?P<diag>[^"]+)",\s*"(?P<code>[EWIP]-[A-Z]{3,4}-[0-9]{4})"\}')
 
 
 def normalize_cell(value: str) -> str:

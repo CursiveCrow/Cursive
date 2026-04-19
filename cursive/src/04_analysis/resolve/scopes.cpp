@@ -31,8 +31,6 @@
 //    - BytePrefix(p, s) -> bool: Check string prefix (byte-level)
 //    - Prefix(s, p) -> bool: Wrapper for BytePrefix
 //    - ReservedGen(x) -> bool: Check if starts with "gen_"
-//    - ReservedCursive(x) -> bool: Check if equals "cursive"
-//    - ReservedId(x) -> bool: ReservedGen OR ReservedCursive
 //    - ReservedModulePath(path) -> bool: Check module path for reserved
 //
 // 4. Type Name Constants (Source Lines 148-191)
@@ -71,8 +69,6 @@
 //   BytePrefix(p, s) ⇔ ∃ r. s = p ++ r
 //   Prefix(s, p) ⇔ BytePrefix(p, s)
 //   ReservedGen(x) ⇔ Prefix(IdKey(x), IdKey(`gen_`))
-//   ReservedCursive(x) ⇔ IdEq(x, `cursive`)
-//   ReservedId(x) ⇔ ReservedGen(x) ∨ ReservedCursive(x)
 //   ReservedModulePath(path) ⇔ (|path| ≥ 1 ∧ IdEq(path[0], `cursive`))
 //                            ∨ (∃ i. ReservedGen(path[i]))
 //
@@ -135,8 +131,6 @@ static inline void SpecDefsReserved() {
   SPEC_DEF("BytePrefix", "5.1.1");
   SPEC_DEF("Prefix", "5.1.1");
   SPEC_DEF("ReservedGen", "5.1.1");
-  SPEC_DEF("ReservedCursive", "5.1.1");
-  SPEC_DEF("ReservedId", "5.1.1");
   SPEC_DEF("ReservedModulePath", "5.1.1");
   SPEC_DEF("KeywordKey", "5.1.1");
 }
@@ -218,16 +212,6 @@ bool ReservedGen(std::string_view x) {
   return Prefix(IdKeyOf(x), IdKeyOf("gen_"));
 }
 
-bool ReservedCursive(std::string_view x) {
-  SpecDefsReserved();
-  return IdEq(x, "cursive");
-}
-
-bool ReservedId(std::string_view x) {
-  SpecDefsReserved();
-  return ReservedGen(x) || ReservedCursive(x);
-}
-
 bool ReservedModulePath(const ast::ModulePath& path) {
   SpecDefsReserved();
   if (!path.empty() && IdEq(path[0], "cursive")) {
@@ -294,14 +278,15 @@ bool KeywordKey(std::string_view idkey) {
 Scope UniverseBindings() {
   SpecDefsReserved();
   Scope scope;
+  const ast::ModulePath cursive_module_path{"cursive"};
   for (const auto name : UniverseProtectedNames()) {
     scope.emplace(IdKeyOf(name),
                   Entity{EntityKind::Type, std::nullopt, std::nullopt,
                          EntitySource::Decl});
   }
-  scope.emplace(IdKeyOf("cursive"),
+  scope.emplace(IdKey{"cursive"},
                 Entity{EntityKind::ModuleAlias,
-                       ast::ModulePath{"cursive"}, std::nullopt,
+                       cursive_module_path, std::nullopt,
                        EntitySource::Decl});
   return scope;
 }

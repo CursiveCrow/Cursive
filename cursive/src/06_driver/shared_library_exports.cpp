@@ -109,6 +109,11 @@ std::vector<std::string> ComputeSharedLibraryDataExportSymbols(
 
   std::unordered_set<std::string> exported_symbols;
   for (const auto& module_info : project.modules) {
+    if (!cache.ctx.hosted_library) {
+      exported_symbols.insert(
+          core::Mangle("cursive::runtime::poison::" + module_info.path));
+    }
+
     const auto module_it = cache.ast_modules.find(module_info.path);
     if (module_it == cache.ast_modules.end() || module_it->second == nullptr) {
       continue;

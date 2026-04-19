@@ -86,11 +86,20 @@ enum class RuntimeSymbolCategory {
 /// Determine the category of a runtime symbol.
 RuntimeSymbolCategory CategorizeRuntimeSymbol(const std::string& symbol);
 
+/// Collect referenced symbols from IR.
+std::vector<std::string> RefSyms(const IRPtr& ir);
+std::vector<std::string> RefSyms(const IRDecl& decl);
+std::vector<std::string> RefSyms(const IRDecls& decls);
+
 /// Enumerate the known runtime symbol surface.
 std::vector<std::string> RuntimeSyms();
 
 /// Enumerate the broader runtime declaration set needed by the backend.
 std::vector<std::string> RuntimeDeclSyms();
+
+/// Collect runtime function references from IR.
+std::vector<std::string> RuntimeRefs(const IRPtr& ir);
+std::vector<std::string> RuntimeRefs(const IRDecls& decls);
 
 // =============================================================================
 // Runtime Function Info

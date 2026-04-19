@@ -103,10 +103,20 @@ bool IsAsyncProc(const analysis::ScopeContext& scope,
 }
 
 bool BlockEndsWithReturn(const ast::Block& block) {
-  if (block.stmts.empty()) {
-    return false;
-  }
-  return std::holds_alternative<ast::ReturnStmt>(block.stmts.back());
+  auto stmtHasExplicitReturn = [&](const auto& self, const ast::Stmt& stmt) -> bool {
+    return std::visit(
+        [&](const auto& node) -> bool {
+          using T = std::decay_t<decltype(node)>;
+          if constexpr (std::is_same_v<T, ast::ReturnStmt>) {
+            return true;
+          } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
+            return node.body && BlockEndsWithReturn(*node.body);
+          }
+          return false;
+        },
+        stmt);
+  };
+  return !block.stmts.empty() && stmtHasExplicitReturn(stmtHasExplicitReturn, block.stmts.back());
 }
 
 // Check if [[dynamic]] attribute is present for runtime contract checks
@@ -1067,14 +1077,14 @@ ProcIR LowerProc(const ProcedureDecl& decl,
         p.type = *lowered;
       }
     }
-    ir.params.push_back(p);
-
     const bool has_resp = param.mode.has_value();
     const bool preserve_addr_provenance = !param.mode.has_value();
     ctx.RegisterVar(param.name, p.type, has_resp, false,
                     analysis::ProvenanceKind::Param,
                     std::nullopt,
                     preserve_addr_provenance);
+    p.stable_name = ctx.StableBindingName(param.name);
+    ir.params.push_back(p);
   }
   // Lower return type
   if (decl.return_type_opt && ctx.sigma) {
@@ -1352,12 +1362,14 @@ ProcIR LowerProc(const ProcedureDecl& decl,
       IRParam out_param;
       out_param.mode = analysis::ParamMode::Move;
       out_param.name = std::string(kAsyncOutParamName);
+      out_param.stable_name = out_param.name;
       out_param.type = analysis::MakeTypeRawPtr(analysis::RawPtrQual::Mut, ir.ret);
       resume.params.push_back(std::move(out_param));
 
       IRParam frame_param;
       frame_param.mode = analysis::ParamMode::Move;
       frame_param.name = "__c0_async_frame";
+      frame_param.stable_name = frame_param.name;
       frame_param.type = analysis::MakeTypePtr(analysis::MakeTypePrim("u8"),
                                                analysis::PtrState::Valid);
       resume.params.push_back(frame_param);
@@ -1365,6 +1377,7 @@ ProcIR LowerProc(const ProcedureDecl& decl,
       IRParam input_param;
       input_param.mode = analysis::ParamMode::Move;
       input_param.name = "__c0_async_input";
+      input_param.stable_name = input_param.name;
       input_param.type = analysis::MakeTypePtr(analysis::MakeTypePrim("u8"),
                                                analysis::PtrState::Valid);
       resume.params.push_back(input_param);

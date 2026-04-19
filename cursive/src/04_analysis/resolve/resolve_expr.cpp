@@ -792,6 +792,7 @@ ResolveTypeRef(ResolveContext& ctx,
             }
             arg = resolved_arg.value;
           }
+          SyncModalStateRefFromFields(out);
           SPEC_RULE("ResolveTypeRef-ModalState");
           result.ok = true;
           result.value = out;

@@ -290,7 +290,7 @@ ParseElemResult<ExprPtr> ParseLoopExpr(Parser parser) {
   Advance(next);  // consume "loop" keyword
 
   // Infinite loop: loop { body } or loop |: { invariant } { body }
-  if (IsPunc(next, "{") || IsOp(next, "|:") || IsKw(next, "where")) {
+  if (IsPunc(next, "{") || IsOp(next, "|:")) {
     return ParseLoopInfiniteExpr(next);
   }
 

@@ -72,7 +72,9 @@
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/dyn_dispatch/dyn_dispatch.h"
+#include "05_codegen/dyn_dispatch/vtable_emit.h"
 #include "05_codegen/globals/globals.h"
+#include "05_codegen/globals/literal_emit.h"
 #include "05_codegen/layout/layout.h"
 #include "05_codegen/lower/lower_proc.h"
 #include "05_codegen/lower/lower_stmt.h"
@@ -391,6 +393,7 @@ IRParam LowerParam(const ast::Param& param,
   out.mode = param.mode.has_value() ? std::optional<analysis::ParamMode>(analysis::ParamMode::Move)
                                     : std::nullopt;
   out.name = param.name;
+  out.stable_name = out.name;
   if (param.type) {
     if (auto lowered = LowerTypeForLayout(scope, param.type)) {
       out.type = SubstSelfType(self_type, *lowered);
@@ -607,6 +610,7 @@ ProcIR LowerRecordMethod(const ast::RecordDecl& record,
   IRParam self_param;
   self_param.mode = recv_mode;
   self_param.name = "self";
+  self_param.stable_name = self_param.name;
   self_param.type = recv_type.ok ? recv_type.type : self_type;
   params.push_back(self_param);
 
@@ -640,7 +644,7 @@ ProcIR LowerStateMethod(const ast::ModalDecl& modal,
   auto recv_type = analysis::MakeTypePerm(analysis::Permission::Const, state_type);
 
   std::vector<IRParam> params;
-  params.push_back(IRParam{std::nullopt, "self", recv_type});
+  params.push_back(IRParam{std::nullopt, "self", "self", recv_type});
   for (const auto& param : method.params) {
     params.push_back(LowerParam(param, scope, nullptr));
   }
@@ -669,7 +673,7 @@ ProcIR LowerTransition(const ast::ModalDecl& modal,
   auto recv_type = analysis::MakeTypePerm(analysis::Permission::Unique, state_type);
 
   std::vector<IRParam> params;
-  params.push_back(IRParam{analysis::ParamMode::Move, "self", recv_type});
+  params.push_back(IRParam{analysis::ParamMode::Move, "self", "self", recv_type});
   for (const auto& param : trans.params) {
     params.push_back(LowerParam(param, scope, nullptr));
   }
@@ -718,6 +722,7 @@ std::vector<ProcIR> LowerClassMethodBody(const ast::ClassDecl& class_decl,
     IRParam self_param;
     self_param.mode = recv_mode;
     self_param.name = "self";
+    self_param.stable_name = self_param.name;
     self_param.type = recv_type.ok ? recv_type.type : self_type;
     params.push_back(self_param);
 
@@ -798,6 +803,7 @@ ProcIR BuildRecordMethodSignature(const ast::RecordDecl& record,
   IRParam self_param;
   self_param.mode = recv_mode;
   self_param.name = "self";
+  self_param.stable_name = self_param.name;
   self_param.type = recv_type.ok ? recv_type.type : self_type;
   ir.params.push_back(std::move(self_param));
 
@@ -822,7 +828,7 @@ ProcIR BuildStateMethodSignature(const ast::ModalDecl& modal,
 
   ProcIR ir;
   ir.symbol = MangleStateMethod(modal_path, state.name, method);
-  ir.params.push_back(IRParam{std::nullopt, "self", recv_type});
+  ir.params.push_back(IRParam{std::nullopt, "self", "self", recv_type});
   for (const auto& param : method.params) {
     ir.params.push_back(LowerParam(param, scope, nullptr));
   }
@@ -844,7 +850,7 @@ ProcIR BuildTransitionSignature(const ast::ModalDecl& modal,
 
   ProcIR ir;
   ir.symbol = MangleTransition(modal_path, state.name, trans);
-  ir.params.push_back(IRParam{analysis::ParamMode::Move, "self", recv_type});
+  ir.params.push_back(IRParam{analysis::ParamMode::Move, "self", "self", recv_type});
   for (const auto& param : trans.params) {
     ir.params.push_back(LowerParam(param, scope, nullptr));
   }
@@ -883,6 +889,7 @@ std::vector<ProcIR> BuildClassMethodSignatures(const ast::ClassDecl& class_decl,
     IRParam self_param;
     self_param.mode = recv_mode;
     self_param.name = "self";
+    self_param.stable_name = self_param.name;
     self_param.type = recv_type.ok ? recv_type.type : self_type;
     ir.params.push_back(std::move(self_param));
 
@@ -1208,14 +1215,6 @@ IRDecls LowerModule(const ast::ASTModule& module, LowerCtx& ctx) {
                 }
               }
             }
-
-            const auto& scope = BuildScope(module.path, ctx);
-            ast::ClassPath class_path = module.path;
-            class_path.push_back(node.name);
-            const auto types = SortedImplementations(scope, class_path);
-            for (const auto& type : types) {
-              decls.push_back(EmitVTable(type, class_path, node, ctx));
-            }
             return;
           } else if constexpr (std::is_same_v<T, ast::EnumDecl>) {
             SPEC_RULE("CG-Item-Enum");
@@ -1234,10 +1233,17 @@ IRDecls LowerModule(const ast::ASTModule& module, LowerCtx& ctx) {
                     using PT = std::decay_t<decltype(proc)>;
                     if constexpr (std::is_same_v<PT, ast::ExternProcDecl>) {
                       SPEC_RULE("CG-Item-ExternProc");
-                      const std::string symbol =
+                      const auto library_spec = ExternLibrarySpecFor(block_attrs);
+                      std::string symbol =
                           ExternProcSymbol(module.path,
                                            node.abi_opt,
                                            proc);
+                      if (library_spec.has_value() &&
+                          library_spec->kind == "raw-dylib") {
+                        ast::Path internal_path = module.path;
+                        internal_path.push_back(proc.name);
+                        symbol = ScopedSym(internal_path);
+                      }
                       const auto unwind_mode =
                           ParseExternUnwindMode(proc.attrs, block_unwind_mode);
 
@@ -1262,6 +1268,24 @@ IRDecls LowerModule(const ast::ASTModule& module, LowerCtx& ctx) {
                       extern_proc.params = std::move(params);
                       extern_proc.ret = ret_type;
                       extern_proc.abi = ExternAbiFor(node.abi_opt);
+                      if (library_spec.has_value() &&
+                          library_spec->kind == "raw-dylib") {
+                        const auto dll_name =
+                            project::ResolveLibraryNameForCurrentTarget(
+                                library_spec->name,
+                                library_spec->kind,
+                                project::TargetProfile::X86_64Win64);
+                        if (dll_name.has_value()) {
+                          extern_proc.raw_dylib_library_name = *dll_name;
+                        } else {
+                          extern_proc.raw_dylib_library_name =
+                              std::string(library_spec->name);
+                        }
+                        extern_proc.raw_dylib_foreign_symbol =
+                            LinkName(proc.attrs, proc.name).value_or(proc.name);
+                        extern_proc.raw_dylib_catch_unwind =
+                            unwind_mode == LowerCtx::FfiImportUnwindMode::Catch;
+                      }
 
                       // Register signature for call resolution
                       ProcIR sig;
@@ -1381,6 +1405,73 @@ IRDecls LowerModule(const ast::ASTModule& module, LowerCtx& ctx) {
   ctx.drop_glue_types = std::move(module_drop_glue_types);
 
   return decls;
+}
+
+IRDecls ExpandIR(const IRDecls& decls, LowerCtx& ctx) {
+  SPEC_RULE("ExpandIR");
+
+  IRDecls expanded_decls = decls;
+  std::unordered_set<std::string> seen_symbols;
+  seen_symbols.reserve(expanded_decls.size());
+  for (const auto& decl : expanded_decls) {
+    std::visit(
+        [&](const auto& node) {
+          using T = std::decay_t<decltype(node)>;
+          if constexpr (std::is_same_v<T, ProcIR> ||
+                        std::is_same_v<T, GlobalConst> ||
+                        std::is_same_v<T, GlobalZero> ||
+                        std::is_same_v<T, GlobalVTable> ||
+                        std::is_same_v<T, ExternProcIR>) {
+            seen_symbols.insert(node.symbol);
+          }
+        },
+        decl);
+  }
+
+  for (auto& lit_decl : UniqueLiterals(LiteralRefs(decls))) {
+    const auto* global = std::get_if<GlobalConst>(&lit_decl);
+    if (!global) {
+      continue;
+    }
+    if (seen_symbols.insert(global->symbol).second) {
+      expanded_decls.push_back(std::move(lit_decl));
+    }
+  }
+
+  if (ctx.sigma != nullptr) {
+    for (const auto& symbol : CollectVTableRefs(ctx)) {
+      const auto* info = ctx.LookupRequiredVTable(symbol);
+      if (!info || info->class_path.empty()) {
+        continue;
+      }
+
+      ast::ModulePath owner_module(info->class_path.begin(), info->class_path.end());
+      owner_module.pop_back();
+      if (owner_module != ctx.module_path) {
+        continue;
+      }
+
+      ast::Path class_ast_path(info->class_path.begin(), info->class_path.end());
+      const auto class_it = ctx.sigma->classes.find(analysis::PathKeyOf(class_ast_path));
+      if (class_it == ctx.sigma->classes.end()) {
+        ctx.ReportCodegenFailure();
+        continue;
+      }
+
+      ProcIR glue = ::cursive::codegen::EmitDropGlue(info->type, ctx);
+      if (seen_symbols.insert(glue.symbol).second) {
+        expanded_decls.push_back(std::move(glue));
+      }
+
+      GlobalVTable vtable =
+          ::cursive::codegen::EmitVTable(info->type, info->class_path, class_it->second, ctx);
+      if (seen_symbols.insert(vtable.symbol).second) {
+        expanded_decls.push_back(std::move(vtable));
+      }
+    }
+  }
+
+  return expanded_decls;
 }
 
 }  // namespace cursive::codegen

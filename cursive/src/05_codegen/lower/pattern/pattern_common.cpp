@@ -358,6 +358,7 @@ IRPtr EmitOrderedPatternBindings(const std::vector<OrderedPatternBinding>& bindi
   for (const auto& binding_desc : bindings) {
     IRBindVar bind;
     bind.name = binding_desc.name;
+    bind.stable_name = ctx.StableBindingName(binding_desc.name);
     bind.value = binding_desc.value;
     bind.type = LookupBindType(ctx, binding_desc.name);
     if (!bind.type) {

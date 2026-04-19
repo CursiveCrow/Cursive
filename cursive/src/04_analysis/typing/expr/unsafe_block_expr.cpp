@@ -6,6 +6,7 @@
 // =================================================================
 #include "00_core/assert_spec.h"
 #include "04_analysis/typing/context.h"
+#include "04_analysis/typing/expr/transmute_expr.h"
 #include "04_analysis/typing/type_infer.h"
 #include "04_analysis/typing/type_stmt.h"
 #include "04_analysis/typing/type_expr.h"
@@ -69,6 +70,8 @@ ExprTypeResult TypeUnsafeBlockExprImpl(const ScopeContext& ctx,
     result.diag_id = body_result.diag_id;
     return result;
   }
+
+  EmitInvalidTransmuteTargetWarningsInBlock(ctx, type_ctx, *expr.block, env);
 
   result.ok = true;
   result.type = body_result.type;

@@ -22,4 +22,9 @@ ExprTypeResult TypeTransmuteExprImpl(const ScopeContext& ctx,
                                      const TypeEnv& env,
                                      const core::Span& span);
 
+void EmitInvalidTransmuteTargetWarningsInBlock(const ScopeContext& ctx,
+                                               const StmtTypeContext& type_ctx,
+                                               const ast::Block& block,
+                                               const TypeEnv& env);
+
 }  // namespace cursive::analysis::expr

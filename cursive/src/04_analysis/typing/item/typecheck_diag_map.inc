@@ -5,6 +5,8 @@
 // ===========================================================================
 
 static const DiagMapEntry kTypecheckDiagMap[] = {
+  {"AllocRaw-Unsafe-Err", "E-MEM-3030"},
+  {"DeallocRaw-Unsafe-Err", "E-MEM-3030"},
   {"E-CNF-0401", "E-CNF-0401"},
   {"E-CNF-0402", "E-CNF-0402"},
   {"E-CNF-0406", "E-CNF-0406"},
@@ -474,6 +476,7 @@ static const DiagMapEntry kTypecheckDiagMap[] = {
   {"P-SEM-2862", "P-SEM-2862"},
   {"P-TYP-1953", "P-TYP-1953"},
   {"T-Cast-Invalid", "E-SEM-2528"},
+  {"Topo-Cycle", "E-MOD-1401"},
   {"W-CNF-0601", "W-CNF-0601"},
   {"W-CON-0001", "W-CON-0001"},
   {"W-CON-0002", "W-CON-0002"},
@@ -495,6 +498,7 @@ static const DiagMapEntry kTypecheckDiagMap[] = {
   {"W-MOD-1201", "W-MOD-1201"},
   {"W-MOD-2451", "W-MOD-2451"},
   {"W-MOD-2452", "W-MOD-2452"},
+  {"W-SAFE-0100", "W-SAFE-0100"},
   {"W-SRC-0101", "W-SRC-0101"},
   {"W-SRC-0301", "W-SRC-0301"},
   {"W-SRC-0308", "W-SRC-0308"},

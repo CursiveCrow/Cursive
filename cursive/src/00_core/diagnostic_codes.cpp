@@ -17,18 +17,19 @@ bool IsDigitAscii(char c) {
 }
 
 bool IsDiagCodeLike(std::string_view value) {
-  return value.size() == 10 &&
+  return (value.size() == 10 || value.size() == 11) &&
          (value[0] == 'E' || value[0] == 'W' || value[0] == 'I' ||
           value[0] == 'P') &&
          value[1] == '-' &&
          IsUpperAscii(value[2]) &&
          IsUpperAscii(value[3]) &&
          IsUpperAscii(value[4]) &&
-         value[5] == '-' &&
-         IsDigitAscii(value[6]) &&
-         IsDigitAscii(value[7]) &&
-         IsDigitAscii(value[8]) &&
-         IsDigitAscii(value[9]);
+         (value.size() == 10 ? value[5] == '-' : IsUpperAscii(value[5])) &&
+         value[value.size() - 5] == '-' &&
+         IsDigitAscii(value[value.size() - 4]) &&
+         IsDigitAscii(value[value.size() - 3]) &&
+         IsDigitAscii(value[value.size() - 2]) &&
+         IsDigitAscii(value[value.size() - 1]);
 }
 
 }  // namespace

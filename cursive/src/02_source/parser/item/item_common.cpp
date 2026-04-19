@@ -162,6 +162,9 @@ void EmitExternUnsupported(Parser& parser) {
 // =============================================================================
 
 void EmitReturnAtModuleErr(Parser& parser) {
+  if (parser.quote_mode) {
+    return;
+  }
   auto diag = core::MakeDiagnosticById("E-SEM-3165");
   if (!diag) {
     return;

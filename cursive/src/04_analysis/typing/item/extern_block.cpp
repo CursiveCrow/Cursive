@@ -348,17 +348,17 @@ static bool BuildExternProcInfo(const ScopeContext& ctx,
     if (!FfiSafeType(ctx, lowered.type)) {
       SPEC_RULE("FfiSafe-Param-Err");
       diag_id = FfiSafeDiagForType(ctx, module_path, lowered.type)
-                    .value_or("FfiSafe-Prohibited-Err");
+                    .value_or("E-TYP-2623");
       return false;
     }
     if (!InferCapabilitiesFromType(ctx, module_path, lowered.type).IsEmpty()) {
       SPEC_RULE("Capability-Isolation-Err");
-      diag_id = "FfiSafe-Prohibited-Err";
+      diag_id = "E-TYP-2623";
       return false;
     }
     if (!FfiByValueOk(ctx, lowered.type)) {
       SPEC_RULE("ExternProc-ByValue-Err");
-      diag_id = "FfiByValue-Err";
+      diag_id = "E-TYP-2630";
       return false;
     }
 
@@ -374,18 +374,18 @@ static bool BuildExternProcInfo(const ScopeContext& ctx,
   if (!FfiSafeType(ctx, lowered_return.type)) {
     SPEC_RULE("FfiSafe-Return-Err");
     diag_id = FfiSafeDiagForType(ctx, module_path, lowered_return.type)
-                  .value_or("FfiSafe-Prohibited-Err");
+                  .value_or("E-TYP-2623");
     return false;
   }
   if (!InferCapabilitiesFromType(ctx, module_path, lowered_return.type)
            .IsEmpty()) {
     SPEC_RULE("Capability-Isolation-Err");
-    diag_id = "FfiSafe-Prohibited-Err";
+    diag_id = "E-TYP-2623";
     return false;
   }
   if (!FfiByValueOk(ctx, lowered_return.type)) {
     SPEC_RULE("ExternProc-ByValue-Err");
-    diag_id = "FfiByValue-Err";
+    diag_id = "E-TYP-2630";
     return false;
   }
 
@@ -461,7 +461,7 @@ ExternBlockResult TypeExternBlock(
   if (!IsSupportedABIForProfile(result.abi, profile)) {
     SPEC_RULE("ExternAbi-Unknown-Err");
     result.ok = false;
-    result.diag_id = "ExternAbi-Unknown-Err";
+    result.diag_id = "E-SYS-3352";
     return result;
   }
 

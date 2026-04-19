@@ -71,28 +71,6 @@ bool IsLexemeToken(const Parser& parser, std::string_view lexeme) {
          tok->lexeme == lexeme;
 }
 
-std::optional<std::size_t> FindSecondLeadingAttrBlockIndex(const Parser& start,
-                                                           const Parser& end) {
-  if (!start.tokens || start.tokens != end.tokens || start.index >= end.index) {
-    return std::nullopt;
-  }
-
-  std::size_t attr_block_count = 0;
-  const std::size_t limit = std::min(end.index, start.tokens->size());
-  for (std::size_t i = start.index; i < limit; ++i) {
-    const Token& tok = (*start.tokens)[i];
-    if (tok.kind != TokenKind::Punctuator || tok.lexeme != "[[") {
-      continue;
-    }
-    ++attr_block_count;
-    if (attr_block_count == 2) {
-      return i;
-    }
-  }
-
-  return std::nullopt;
-}
-
 }  // namespace
 
 // =============================================================================
@@ -126,12 +104,23 @@ ParseItemResult ParseItem(Parser parser) {
 
   // Parse optional attributes
   ParseElemResult<AttrOpt> attrs = ParseAttributeListOpt(parser);
+  AttrOpt attrs_opt = attrs.elem;
+  AttributeList attrs_list = attrs_opt.value_or(AttributeList{});
   parser = attrs.parser;
-  AttributeList attrs_list = attrs.elem.value_or(AttributeList{});
-  const std::optional<std::size_t> second_attr_block_index =
-      FindSecondLeadingAttrBlockIndex(start, parser);
+  while (true) {
+    Parser next_attrs = parser;
+    SkipNewlines(next_attrs);
+    ParseElemResult<AttrOpt> more_attrs = ParseAttributeListOpt(next_attrs);
+    if (!more_attrs.elem.has_value()) {
+      parser = next_attrs;
+      break;
+    }
+    attrs_list.insert(attrs_list.end(), more_attrs.elem->begin(),
+                      more_attrs.elem->end());
+    attrs_opt = attrs_list;
+    parser = more_attrs.parser;
+  }
 
-  parser = attrs.parser;
   SkipNewlines(parser);
 
   // Handle stray where clause at top level (error case)
@@ -147,7 +136,7 @@ ParseItemResult ParseItem(Parser parser) {
   if (IsKw(parser, "import")) {
     SPEC_RULE("Parse-Import");
     // Import declarations without explicit visibility use Parse-Vis-Default.
-    return ParseImportDecl(parser, Visibility::Internal, attrs.elem);
+    return ParseImportDecl(parser, Visibility::Internal, attrs_opt);
   }
 
   // Handle "modal class" (modal class declaration before visibility check)
@@ -298,21 +287,13 @@ ParseItemResult ParseItem(Parser parser) {
   // import declaration (visibility applies)
   if (IsKw(cur, "import")) {
     SPEC_RULE("Parse-Import");
-    return ParseImportDecl(cur, vis.elem, attrs.elem);
+    return ParseImportDecl(cur, vis.elem, attrs_opt);
   }
 
   // extern block (visibility applies)
   if (IsKw(cur, "extern")) {
-    if (second_attr_block_index.has_value()) {
-      Parser extra_attrs = start;
-      extra_attrs.index = *second_attr_block_index;
-      EmitParseSyntaxErr(extra_attrs, TokSpan(extra_attrs));
-      Parser next = cur;
-      SyncItem(next);
-      return {next, ErrorItem{SpanBetween(start, next), {}}};
-    }
     SPEC_RULE("Parse-Extern-Block");
-    return ParseExternBlock(start, cur, vis.elem, attrs.elem);
+    return ParseExternBlock(start, cur, vis.elem, attrs_opt);
   }
 
   if (const Token* tok = Tok(cur); tok && IsIdentTok(*tok) &&
@@ -326,13 +307,13 @@ ParseItemResult ParseItem(Parser parser) {
 
   // using declaration
   if (IsKw(cur, "using")) {
-    return ParseUsingDecl(start, cur, vis.elem, attrs.elem);
+    return ParseUsingDecl(start, cur, vis.elem, attrs_opt);
   }
 
   // static declaration (let/var)
   if (IsKw(cur, "let") || IsKw(cur, "var")) {
     SPEC_RULE("Parse-Static-Decl");
-    return ParseStaticDecl(cur, vis.elem, attrs.elem);
+    return ParseStaticDecl(cur, vis.elem, attrs_opt);
   }
 
   if (IsKw(cur, "procedure")) {

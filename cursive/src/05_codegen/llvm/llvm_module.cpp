@@ -38,6 +38,7 @@
 
 #include "00_core/spec_trace.h"
 #include "00_core/symbols.h"
+#include "05_codegen/globals/literal_emit.h"
 #include "05_codegen/intrinsics/intrinsics_interface.h"
 #include "05_codegen/llvm/llvm_emit.h"
 #include "05_codegen/llvm/llvm_attr.h"
@@ -92,6 +93,11 @@ bool ValidateLLVMVersion() {
 void DeclareRuntimeFunctions(LLVMEmitter& emitter) {
   // Runtime declarations are handled by LLVMEmitter::DeclareRuntime()
   emitter.DeclareRuntime();
+}
+
+void DeclareRuntimeFunctions(LLVMEmitter& emitter,
+                             const std::vector<std::string>& symbols) {
+  emitter.DeclareRuntime(symbols);
 }
 
 std::string_view GetRuntimeSymbol(std::string_view operation) {
@@ -174,6 +180,54 @@ std::string_view GetDropGluePrefix() {
   return prefix;
 }
 
+std::optional<std::string> EmitKey(const IRDecl& decl) {
+  SPEC_RULE("EmitKey");
+  return std::visit(
+      [](const auto& node) -> std::optional<std::string> {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, GlobalVTable>) {
+          return std::string("vtable:") + node.symbol;
+        } else if constexpr (std::is_same_v<T, ProcIR>) {
+          if (IsDropGlueSymbol(node.symbol)) {
+            return std::string("drop:") + node.symbol;
+          }
+          return std::nullopt;
+        } else if constexpr (std::is_same_v<T, GlobalConst>) {
+          if (IsLiteralSymbol(node.symbol)) {
+            return std::string("lit:") + node.symbol;
+          }
+          return std::nullopt;
+        } else {
+          return std::nullopt;
+        }
+      },
+      decl);
+}
+
+std::vector<std::string> EmitKeys(const IRDecls& decls) {
+  SPEC_RULE("EmitKeys");
+  std::vector<std::string> keys;
+  for (const auto& decl : decls) {
+    if (auto key = EmitKey(decl); key.has_value()) {
+      keys.push_back(std::move(*key));
+    }
+  }
+  return keys;
+}
+
+bool UniqueEmits(const IRDecls& decls) {
+  SPEC_RULE("UniqueEmits");
+  const auto keys = EmitKeys(decls);
+  std::unordered_set<std::string> seen;
+  seen.reserve(keys.size());
+  for (const auto& key : keys) {
+    if (!seen.insert(key).second) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // =============================================================================
 // Module Finalization
 // =============================================================================
@@ -189,6 +243,58 @@ bool VerifyModule(llvm::Module& module) {
   return !llvm::verifyModule(module, &os);
 }
 
+std::vector<std::string> DeclSyms(const llvm::Module& module) {
+  SPEC_RULE("DeclSyms");
+  std::vector<std::string> syms;
+  syms.reserve(module.size());
+  for (const auto& fn : module.functions()) {
+    if (!fn.getName().empty()) {
+      syms.push_back(std::string(fn.getName()));
+    }
+  }
+  std::sort(syms.begin(), syms.end());
+  syms.erase(std::unique(syms.begin(), syms.end()), syms.end());
+  return syms;
+}
+
+static AttrSet ActualDeclAttrs(const llvm::Function& fn) {
+  AttrSet attrs;
+  if (fn.hasFnAttribute(llvm::Attribute::NoReturn)) {
+    attrs.push_back({AttrKind::NoReturn, 0});
+  }
+  if (fn.hasFnAttribute(llvm::Attribute::NoUnwind)) {
+    attrs.push_back({AttrKind::NoUnwind, 0});
+  }
+  return attrs;
+}
+
+bool RuntimeDeclsOk(const llvm::Module& module) {
+  SPEC_RULE("RuntimeDeclsOk");
+  for (const auto& fn : module.functions()) {
+    const std::string symbol(fn.getName());
+    if (!IsRuntimeFunction(symbol)) {
+      continue;
+    }
+    if (!DeclAttrsOk(symbol, ActualDeclAttrs(fn))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool RuntimeDeclsCover(const llvm::Module& module, const IRDecls& decls) {
+  SPEC_RULE("RuntimeDeclsCover");
+  const auto refs = RuntimeRefs(decls);
+  const auto decl_syms = DeclSyms(module);
+  const std::unordered_set<std::string> decl_set(decl_syms.begin(), decl_syms.end());
+  for (const auto& symbol : refs) {
+    if (!decl_set.contains(symbol)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // -----------------------------------------------------------------------------
 // LLVMEmitter Module Setup Wrappers
 // -----------------------------------------------------------------------------
@@ -200,9 +306,14 @@ bool VerifyModule(llvm::Module& module) {
   // T-LLVM-006: Runtime Declarations
   void LLVMEmitter::DeclareRuntime()
   {
+    DeclareRuntime(RuntimeDeclSyms());
+  }
+
+  void LLVMEmitter::DeclareRuntime(const std::vector<std::string>& symbols)
+  {
     AnchorRuntimeInterfaceRules();
 
-    for (const auto& symbol : RuntimeDeclSyms()) {
+    for (const auto& symbol : symbols) {
       if (module_->getFunction(symbol) != nullptr) {
         continue;
       }
@@ -217,29 +328,32 @@ bool VerifyModule(llvm::Module& module) {
           info->ret,
           /*use_c_abi_aggregate_sret=*/true,
           /*foreign_boundary_mode_independent=*/true);
-      llvm::FunctionType* ft = abi.func_type;
-      if (!ft) {
-        ft = llvm::FunctionType::get(llvm::Type::getVoidTy(context_), {}, false);
+      if (!abi.valid || !abi.func_type) {
+        if (current_ctx_) {
+          current_ctx_->ReportCodegenFailure();
+        }
+        continue;
       }
+      llvm::FunctionType* ft = abi.func_type;
 
       llvm::Function* fn = llvm::Function::Create(
           ft, llvm::GlobalValue::ExternalLinkage, symbol, module_.get());
       fn->setCallingConv(llvm::CallingConv::C);
 
-      AttrSet decl_attrs = DeclAttrs(symbol);
-      llvm::AttrBuilder builder(context_);
-      for (const auto& attr : decl_attrs) {
-        switch (attr.kind) {
-          case AttrKind::NoReturn:
-            builder.addAttribute(llvm::Attribute::NoReturn);
-            break;
-          case AttrKind::NoUnwind:
-            builder.addAttribute(llvm::Attribute::NoUnwind);
-            break;
-          default:
-            break;
+      for (std::size_t idx = 0; idx < abi.llvm_param_attrs.size(); ++idx) {
+        if (idx >= fn->arg_size()) {
+          continue;
+        }
+        llvm::AttrBuilder param_builder(context_);
+        AddAttrSetToBuilder(param_builder, abi.llvm_param_attrs[idx]);
+        if (param_builder.hasAttributes()) {
+          fn->addParamAttrs(static_cast<unsigned>(idx), param_builder);
         }
       }
+
+      AttrSet decl_attrs = DeclAttrs(symbol);
+      llvm::AttrBuilder builder(context_);
+      AddAttrSetToBuilder(builder, decl_attrs);
       if (builder.hasAttributes()) {
         fn->addFnAttrs(builder);
       }

@@ -16,6 +16,7 @@ namespace cursive::core {
 enum class HostProcessOutputMode {
   Inherit,
   CaptureMerged,
+  CaptureSeparate,
 };
 
 struct HostProcessSpec {
@@ -30,6 +31,8 @@ struct HostProcessResult {
   bool launched = false;
   int exit_code = -1;
   std::string output;
+  std::string stdout_text;
+  std::string stderr_text;
   std::string error_message;
 };
 

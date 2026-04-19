@@ -844,10 +844,11 @@ std::vector<std::string> RuntimeSpecSyms() {
 }
 
 std::vector<std::string> RuntimeLinkRequiredSyms() {
-  std::vector<std::string> syms = RuntimeSpecSyms();
-  AppendRuntimeSymbol(syms, BuiltinModalSymRegionScopeEnter());
-  AppendRuntimeSymbol(syms, BuiltinModalSymRegionScopeExit());
-  AppendRuntimeSymbol(syms, BuiltinModalSymRegionAddrTagScope());
+  std::vector<std::string> syms;
+  AppendRuntimeSymbol(syms, RuntimePanicSym());
+  AppendRuntimeSymbol(syms, BuiltinSymStringDropManaged());
+  AppendRuntimeSymbol(syms, BuiltinSymBytesDropManaged());
+  AppendRuntimeSymbol(syms, ContextInitSym());
   AppendRuntimeSymbol(syms, RuntimeConformanceEmitSym());
   AppendRuntimeSymbol(syms, RuntimeConformanceEmitIntSym());
   AppendRuntimeSymbol(syms, RuntimeConformanceEmitBoolSym());
@@ -861,6 +862,87 @@ std::vector<std::string> RuntimeLinkRequiredSyms() {
   AppendRuntimeSymbol(syms, RuntimeConformanceSetRootSym());
   AppendRuntimeSymbol(syms, RuntimeConformanceSetLogFilterSym());
   AppendRuntimeSymbol(syms, RuntimeConformanceSetMinLevelSym());
+
+  static const std::array<BuiltinSymbolFactory, 13> kRegionSymbols = {{
+      &BuiltinModalSymRegionNewScoped,
+      &BuiltinModalSymRegionAlloc,
+      &BuiltinModalSymRegionMark,
+      &BuiltinModalSymRegionResetTo,
+      &BuiltinModalSymRegionResetUnchecked,
+      &BuiltinModalSymRegionFreeze,
+      &BuiltinModalSymRegionThaw,
+      &BuiltinModalSymRegionFreeUnchecked,
+      &BuiltinModalSymRegionAddrIsActive,
+      &BuiltinModalSymRegionAddrTagFrom,
+      &BuiltinModalSymRegionScopeEnter,
+      &BuiltinModalSymRegionScopeExit,
+      &BuiltinModalSymRegionAddrTagScope,
+  }};
+  AppendRuntimeSymbols(syms, kRegionSymbols);
+
+  static const std::array<BuiltinSymbolFactory, 7> kStringSymbols = {{
+      &BuiltinSymStringFrom,
+      &BuiltinSymStringAsView,
+      &BuiltinSymStringToManaged,
+      &BuiltinSymStringCloneWith,
+      &BuiltinSymStringAppend,
+      &BuiltinSymStringLength,
+      &BuiltinSymStringIsEmpty,
+  }};
+  AppendRuntimeSymbols(syms, kStringSymbols);
+
+  static const std::array<BuiltinSymbolFactory, 10> kBytesSymbols = {{
+      &BuiltinSymBytesWithCapacity,
+      &BuiltinSymBytesFromSlice,
+      &BuiltinSymBytesAsView,
+      &BuiltinSymBytesToManaged,
+      &BuiltinSymBytesView,
+      &BuiltinSymBytesViewString,
+      &BuiltinSymBytesAsSlice,
+      &BuiltinSymBytesAppend,
+      &BuiltinSymBytesLength,
+      &BuiltinSymBytesIsEmpty,
+  }};
+  AppendRuntimeSymbols(syms, kBytesSymbols);
+
+  static const std::array<BuiltinSymbolFactory, 16> kFileSystemSymbols = {{
+      &BuiltinSymFileSystemOpenRead,
+      &BuiltinSymFileSystemOpenWrite,
+      &BuiltinSymFileSystemOpenAppend,
+      &BuiltinSymFileSystemCreateWrite,
+      &BuiltinSymFileSystemReadFile,
+      &BuiltinSymFileSystemReadBytes,
+      &BuiltinSymFileSystemWriteFile,
+      &BuiltinSymFileSystemWriteStdout,
+      &BuiltinSymFileSystemWriteStderr,
+      &BuiltinSymFileSystemExists,
+      &BuiltinSymFileSystemRemove,
+      &BuiltinSymFileSystemOpenDir,
+      &BuiltinSymFileSystemCreateDir,
+      &BuiltinSymFileSystemEnsureDir,
+      &BuiltinSymFileSystemKind,
+      &BuiltinSymFileSystemRestrict,
+  }};
+  AppendRuntimeSymbols(syms, kFileSystemSymbols);
+
+  static const std::array<BuiltinSymbolFactory, 1> kNetworkSymbols = {{
+      &BuiltinSymNetworkRestrictHost,
+  }};
+  AppendRuntimeSymbols(syms, kNetworkSymbols);
+
+  static const std::array<BuiltinSymbolFactory, 3> kHeapSymbols = {{
+      &BuiltinSymHeapAllocatorWithQuota,
+      &BuiltinSymHeapAllocatorAllocRaw,
+      &BuiltinSymHeapAllocatorDeallocRaw,
+  }};
+  AppendRuntimeSymbols(syms, kHeapSymbols);
+
+  static const std::array<BuiltinSymbolFactory, 3> kSystemSymbols = {{
+      &BuiltinSymSystemExit,
+      &BuiltinSymSystemGetEnv,
+      &BuiltinSymSystemRun,
+  }};
+  AppendRuntimeSymbols(syms, kSystemSymbols);
 
   SortUniqueSymbols(syms);
   return syms;

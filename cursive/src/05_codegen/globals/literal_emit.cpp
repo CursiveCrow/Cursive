@@ -56,11 +56,47 @@
 #include "05_codegen/layout/layout.h"
 #include "05_codegen/lower/lower_proc.h"
 #include "05_codegen/symbols/mangle.h"
+#include "05_codegen/intrinsics/intrinsics_interface.h"
 #include "00_core/assert_spec.h"
 #include "00_core/hash.h"
 #include "00_core/symbols.h"
 
 namespace cursive::codegen {
+
+std::optional<LiteralKind> LiteralKindOfImmediate(const IRValue& value) {
+  if (value.kind != IRValue::Kind::Immediate || value.bytes.empty()) {
+    return std::nullopt;
+  }
+
+  const std::string_view lexeme = value.name;
+  if (lexeme == "true" || lexeme == "false" || lexeme == "null") {
+    return std::nullopt;
+  }
+  if (lexeme.size() >= 2 && lexeme.front() == '"' && lexeme.back() == '"') {
+    return LiteralKind::String;
+  }
+  if (lexeme.size() >= 2 && lexeme.front() == '\'' && lexeme.back() == '\'') {
+    return LiteralKind::Char;
+  }
+
+  auto ends_with = [&](std::string_view suffix) -> bool {
+    return lexeme.size() >= suffix.size() &&
+           lexeme.substr(lexeme.size() - suffix.size()) == suffix;
+  };
+  const bool looks_float =
+      lexeme.find('.') != std::string_view::npos ||
+      lexeme.find('e') != std::string_view::npos ||
+      lexeme.find('E') != std::string_view::npos ||
+      ends_with("f") ||
+      ends_with("f16") ||
+      ends_with("f32") ||
+      ends_with("f64");
+  if (looks_float) {
+    return LiteralKind::Float;
+  }
+
+  return LiteralKind::Int;
+}
 
 // ============================================================================
 // Section 6.12.14 Literal Kind Classification
@@ -156,14 +192,35 @@ namespace {
 
 void CollectLiteralRefsFromIR(const IRPtr& ir,
                                std::vector<std::pair<LiteralKind, std::vector<std::uint8_t>>>& out);
+void CollectLiteralRefsFromValue(const IRValue& value,
+                                  std::vector<std::pair<LiteralKind, std::vector<std::uint8_t>>>& out);
+
+std::vector<std::pair<LiteralKind, std::vector<std::uint8_t>>> DedupLiteralRefs(
+    std::vector<std::pair<LiteralKind, std::vector<std::uint8_t>>> refs) {
+  auto key_of = [](const std::pair<LiteralKind, std::vector<std::uint8_t>>& item) {
+    return LiteralSym(item.first, item.second);
+  };
+  std::sort(refs.begin(), refs.end(),
+            [&](const auto& lhs, const auto& rhs) { return key_of(lhs) < key_of(rhs); });
+  refs.erase(
+      std::unique(refs.begin(), refs.end(),
+                  [&](const auto& lhs, const auto& rhs) { return key_of(lhs) == key_of(rhs); }),
+      refs.end());
+  return refs;
+}
+
+void CollectLiteralRefsFromOptionalValue(
+    const std::optional<IRValue>& value,
+    std::vector<std::pair<LiteralKind, std::vector<std::uint8_t>>>& out) {
+  if (value.has_value()) {
+    CollectLiteralRefsFromValue(*value, out);
+  }
+}
 
 void CollectLiteralRefsFromValue(const IRValue& value,
                                   std::vector<std::pair<LiteralKind, std::vector<std::uint8_t>>>& out) {
-  if (value.kind == IRValue::Kind::Immediate && !value.bytes.empty()) {
-    // Check if this looks like a string literal (has bytes)
-    if (value.name.size() >= 2 && value.name.front() == '"' && value.name.back() == '"') {
-      out.emplace_back(LiteralKind::String, value.bytes);
-    }
+  if (auto kind = LiteralKindOfImmediate(value); kind.has_value()) {
+    out.emplace_back(*kind, value.bytes);
   }
 }
 
@@ -183,32 +240,220 @@ void CollectLiteralRefsFromIR(const IRPtr& ir,
       for (const auto& arg : node.args) {
         CollectLiteralRefsFromValue(arg, out);
       }
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRCallVTable>) {
+      CollectLiteralRefsFromValue(node.base, out);
+      for (const auto& arg : node.args) {
+        CollectLiteralRefsFromValue(arg, out);
+      }
+      CollectLiteralRefsFromValue(node.result, out);
     } else if constexpr (std::is_same_v<T, IRBindVar>) {
       CollectLiteralRefsFromValue(node.value, out);
     } else if constexpr (std::is_same_v<T, IRStoreVar>) {
       CollectLiteralRefsFromValue(node.value, out);
+    } else if constexpr (std::is_same_v<T, IRStoreVarNoDrop>) {
+      CollectLiteralRefsFromValue(node.value, out);
     } else if constexpr (std::is_same_v<T, IRStoreGlobal>) {
       CollectLiteralRefsFromValue(node.value, out);
+    } else if constexpr (std::is_same_v<T, IRWritePlace>) {
+      CollectLiteralRefsFromValue(node.value, out);
+    } else if constexpr (std::is_same_v<T, IRReadPtr>) {
+      CollectLiteralRefsFromValue(node.ptr, out);
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRWritePtr>) {
+      CollectLiteralRefsFromValue(node.ptr, out);
+      CollectLiteralRefsFromValue(node.value, out);
+    } else if constexpr (std::is_same_v<T, IRUnaryOp>) {
+      CollectLiteralRefsFromValue(node.operand, out);
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRFence>) {
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRBinaryOp>) {
+      CollectLiteralRefsFromValue(node.lhs, out);
+      CollectLiteralRefsFromValue(node.rhs, out);
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRCast>) {
+      CollectLiteralRefsFromValue(node.value, out);
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRTransmute>) {
+      CollectLiteralRefsFromValue(node.value, out);
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRCheckIndex>) {
+      CollectLiteralRefsFromValue(node.base, out);
+      CollectLiteralRefsFromValue(node.index, out);
+    } else if constexpr (std::is_same_v<T, IRCheckRange>) {
+      CollectLiteralRefsFromValue(node.base, out);
+      CollectLiteralRefsFromOptionalValue(node.range.lo, out);
+      CollectLiteralRefsFromOptionalValue(node.range.hi, out);
+      CollectLiteralRefsFromOptionalValue(node.range_value, out);
+    } else if constexpr (std::is_same_v<T, IRCheckSliceLen>) {
+      CollectLiteralRefsFromValue(node.base, out);
+      CollectLiteralRefsFromOptionalValue(node.range.lo, out);
+      CollectLiteralRefsFromOptionalValue(node.range.hi, out);
+      CollectLiteralRefsFromOptionalValue(node.range_value, out);
+      CollectLiteralRefsFromValue(node.value, out);
+    } else if constexpr (std::is_same_v<T, IRCheckOp>) {
+      CollectLiteralRefsFromValue(node.lhs, out);
+      CollectLiteralRefsFromOptionalValue(node.rhs, out);
+    } else if constexpr (std::is_same_v<T, IRCheckCast>) {
+      CollectLiteralRefsFromValue(node.value, out);
+    } else if constexpr (std::is_same_v<T, IRAlloc>) {
+      CollectLiteralRefsFromOptionalValue(node.region, out);
+      CollectLiteralRefsFromValue(node.value, out);
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRContextBundleBuild>) {
+      CollectLiteralRefsFromValue(node.root_ctx, out);
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRReturn>) {
+      CollectLiteralRefsFromValue(node.value, out);
+    } else if constexpr (std::is_same_v<T, IRResult>) {
+      CollectLiteralRefsFromValue(node.value, out);
+    } else if constexpr (std::is_same_v<T, IRBreak>) {
+      CollectLiteralRefsFromOptionalValue(node.value, out);
     } else if constexpr (std::is_same_v<T, IRIf>) {
       CollectLiteralRefsFromValue(node.cond, out);
       CollectLiteralRefsFromIR(node.then_ir, out);
       CollectLiteralRefsFromIR(node.else_ir, out);
+      CollectLiteralRefsFromValue(node.then_value, out);
+      CollectLiteralRefsFromValue(node.else_value, out);
+      CollectLiteralRefsFromValue(node.result, out);
     } else if constexpr (std::is_same_v<T, IRLoop>) {
       CollectLiteralRefsFromIR(node.iter_ir, out);
       CollectLiteralRefsFromIR(node.cond_ir, out);
       CollectLiteralRefsFromIR(node.body_ir, out);
+      CollectLiteralRefsFromOptionalValue(node.iter_value, out);
+      CollectLiteralRefsFromOptionalValue(node.cond_value, out);
+      CollectLiteralRefsFromValue(node.body_value, out);
+      CollectLiteralRefsFromValue(node.result, out);
     } else if constexpr (std::is_same_v<T, IRIfCase>) {
       CollectLiteralRefsFromValue(node.scrutinee, out);
       for (const auto& arm : node.arms) {
         CollectLiteralRefsFromIR(arm.body, out);
+        CollectLiteralRefsFromValue(arm.value, out);
       }
+      CollectLiteralRefsFromValue(node.result, out);
     } else if constexpr (std::is_same_v<T, IRBlock>) {
       CollectLiteralRefsFromIR(node.setup, out);
       CollectLiteralRefsFromIR(node.body, out);
+      CollectLiteralRefsFromValue(node.value, out);
     } else if constexpr (std::is_same_v<T, IRRegion>) {
+      CollectLiteralRefsFromValue(node.owner, out);
       CollectLiteralRefsFromIR(node.body, out);
+      CollectLiteralRefsFromValue(node.value, out);
     } else if constexpr (std::is_same_v<T, IRFrame>) {
+      CollectLiteralRefsFromOptionalValue(node.region, out);
       CollectLiteralRefsFromIR(node.body, out);
+      CollectLiteralRefsFromValue(node.value, out);
+    } else if constexpr (std::is_same_v<T, IRBranch>) {
+      CollectLiteralRefsFromOptionalValue(node.cond, out);
+    } else if constexpr (std::is_same_v<T, IRPhi>) {
+      for (const auto& incoming : node.incoming) {
+        CollectLiteralRefsFromValue(incoming.value, out);
+      }
+      CollectLiteralRefsFromValue(node.value, out);
+    } else if constexpr (std::is_same_v<T, IRPanicCheck>) {
+      CollectLiteralRefsFromIR(node.cleanup_ir, out);
+    } else if constexpr (std::is_same_v<T, IRInitPanicHandle>) {
+      CollectLiteralRefsFromIR(node.cleanup_ir, out);
+    } else if constexpr (std::is_same_v<T, IRLowerPanic>) {
+      CollectLiteralRefsFromIR(node.cleanup_ir, out);
+    } else if constexpr (std::is_same_v<T, IRParallel>) {
+      CollectLiteralRefsFromValue(node.domain, out);
+      CollectLiteralRefsFromOptionalValue(node.cancel_token, out);
+      CollectLiteralRefsFromIR(node.body, out);
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRSpawn>) {
+      CollectLiteralRefsFromIR(node.captured_env, out);
+      CollectLiteralRefsFromIR(node.body, out);
+      CollectLiteralRefsFromValue(node.body_result, out);
+      CollectLiteralRefsFromValue(node.result, out);
+      CollectLiteralRefsFromValue(node.env_ptr, out);
+      CollectLiteralRefsFromValue(node.env_size, out);
+      CollectLiteralRefsFromValue(node.body_fn, out);
+      CollectLiteralRefsFromValue(node.result_size, out);
+      CollectLiteralRefsFromOptionalValue(node.affinity_mask, out);
+      CollectLiteralRefsFromOptionalValue(node.priority, out);
+    } else if constexpr (std::is_same_v<T, IRWait>) {
+      CollectLiteralRefsFromValue(node.handle, out);
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRCancelCheck>) {
+      CollectLiteralRefsFromValue(node.token, out);
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRDispatch>) {
+      CollectLiteralRefsFromValue(node.range, out);
+      CollectLiteralRefsFromIR(node.body, out);
+      CollectLiteralRefsFromValue(node.body_result, out);
+      CollectLiteralRefsFromIR(node.captured_env, out);
+      CollectLiteralRefsFromValue(node.env_ptr, out);
+      CollectLiteralRefsFromValue(node.body_fn, out);
+      CollectLiteralRefsFromValue(node.elem_size, out);
+      CollectLiteralRefsFromValue(node.result_size, out);
+      CollectLiteralRefsFromValue(node.result_ptr, out);
+      CollectLiteralRefsFromOptionalValue(node.reduce_fn, out);
+      CollectLiteralRefsFromValue(node.result, out);
+      CollectLiteralRefsFromOptionalValue(node.chunk_size, out);
+    } else if constexpr (std::is_same_v<T, IRYield>) {
+      CollectLiteralRefsFromValue(node.value, out);
+      CollectLiteralRefsFromValue(node.result, out);
+      CollectLiteralRefsFromValue(node.keys_record, out);
+    } else if constexpr (std::is_same_v<T, IRYieldFrom>) {
+      CollectLiteralRefsFromValue(node.source, out);
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRSpecSnapshot>) {
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRSpecValidate>) {
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRSpecCommit>) {
+      CollectLiteralRefsFromValue(node.value, out);
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRSpecRetry>) {
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRSpecFallback>) {
+      CollectLiteralRefsFromIR(node.body, out);
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRSpecLoop>) {
+      CollectLiteralRefsFromIR(node.snapshot_ir, out);
+      CollectLiteralRefsFromIR(node.body_ir, out);
+      CollectLiteralRefsFromIR(node.validate_ir, out);
+      CollectLiteralRefsFromIR(node.commit_ir, out);
+      CollectLiteralRefsFromIR(node.retry_ir, out);
+      CollectLiteralRefsFromIR(node.fallback_ir, out);
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRSync>) {
+      CollectLiteralRefsFromValue(node.async_value, out);
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRRaceReturn>) {
+      for (const auto& arm : node.arms) {
+        CollectLiteralRefsFromIR(arm.async_ir, out);
+        CollectLiteralRefsFromValue(arm.async_value, out);
+        CollectLiteralRefsFromValue(arm.match_value, out);
+        CollectLiteralRefsFromIR(arm.handler_ir, out);
+        CollectLiteralRefsFromValue(arm.handler_result, out);
+      }
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRRaceYield>) {
+      for (const auto& arm : node.arms) {
+        CollectLiteralRefsFromIR(arm.async_ir, out);
+        CollectLiteralRefsFromValue(arm.async_value, out);
+        CollectLiteralRefsFromValue(arm.match_value, out);
+        CollectLiteralRefsFromIR(arm.handler_ir, out);
+        CollectLiteralRefsFromValue(arm.handler_result, out);
+      }
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRAll>) {
+      for (const auto& async_ir : node.async_irs) {
+        CollectLiteralRefsFromIR(async_ir, out);
+      }
+      for (const auto& async_value : node.async_values) {
+        CollectLiteralRefsFromValue(async_value, out);
+      }
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRAsyncComplete>) {
+      CollectLiteralRefsFromValue(node.value, out);
+      CollectLiteralRefsFromValue(node.result, out);
+    } else if constexpr (std::is_same_v<T, IRAsyncFail>) {
+      CollectLiteralRefsFromValue(node.value, out);
+      CollectLiteralRefsFromValue(node.result, out);
     }
     // Other IR types don't contain literals directly
   }, ir->node);
@@ -220,7 +465,7 @@ std::vector<std::pair<LiteralKind, std::vector<std::uint8_t>>>
 LiteralRefs(const IRPtr& ir) {
   std::vector<std::pair<LiteralKind, std::vector<std::uint8_t>>> refs;
   CollectLiteralRefsFromIR(ir, refs);
-  return refs;
+  return DedupLiteralRefs(std::move(refs));
 }
 
 std::vector<std::pair<LiteralKind, std::vector<std::uint8_t>>>
@@ -233,7 +478,25 @@ LiteralRefs(const IRDecls& decls) {
     }
   }
 
-  return refs;
+  return DedupLiteralRefs(std::move(refs));
+}
+
+bool LiteralRef(const IRPtr& ir,
+                LiteralKind kind,
+                const std::vector<std::uint8_t>& bytes) {
+  SPEC_RULE("LiteralRef");
+  const auto refs = RefSyms(ir);
+  const std::string symbol = LiteralSym(kind, bytes);
+  return std::find(refs.begin(), refs.end(), symbol) != refs.end();
+}
+
+bool LiteralRef(const IRDecls& decls,
+                LiteralKind kind,
+                const std::vector<std::uint8_t>& bytes) {
+  SPEC_RULE("LiteralRef");
+  const auto refs = RefSyms(decls);
+  const std::string symbol = LiteralSym(kind, bytes);
+  return std::find(refs.begin(), refs.end(), symbol) != refs.end();
 }
 
 // ============================================================================

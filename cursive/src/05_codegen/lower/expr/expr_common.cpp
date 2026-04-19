@@ -1017,6 +1017,56 @@ std::pair<IRPtr, std::vector<IRValue>> LowerList(
   return {SeqIR(std::move(ir_parts)), std::move(values)};
 }
 
+std::pair<IRPtr, std::vector<DerivedArraySegment>> LowerList(
+    const std::vector<ast::ArraySegment>& segments, LowerCtx& ctx) {
+  SPEC_RULE("LowerList-Empty");
+  SPEC_RULE("LowerList-Cons");
+
+  if (segments.empty()) {
+    return {EmptyIR(), {}};
+  }
+
+  std::vector<IRPtr> ir_parts;
+  std::vector<DerivedArraySegment> lowered_segments;
+  lowered_segments.reserve(segments.size());
+
+  for (const auto& segment : segments) {
+    std::visit(
+        [&](const auto& node) {
+          using T = std::decay_t<decltype(node)>;
+          if constexpr (std::is_same_v<T, ast::ArrayElemSegment>) {
+            auto prev_suppress = ctx.suppress_temp_at_depth;
+            ctx.suppress_temp_at_depth = ctx.temp_depth + 1;
+            auto value_result = LowerExpr(*node.value, ctx);
+            ctx.suppress_temp_at_depth = prev_suppress;
+            ir_parts.push_back(value_result.ir);
+
+            DerivedArraySegment lowered_segment;
+            lowered_segment.kind = DerivedArraySegment::Kind::Element;
+            lowered_segment.value = value_result.value;
+            lowered_segments.push_back(std::move(lowered_segment));
+          } else if constexpr (std::is_same_v<T, ast::ArrayRepeatSegment>) {
+            auto prev_suppress = ctx.suppress_temp_at_depth;
+            ctx.suppress_temp_at_depth = ctx.temp_depth + 1;
+            auto value_result = LowerExpr(*node.value, ctx);
+            auto count_result = LowerExpr(*node.count, ctx);
+            ctx.suppress_temp_at_depth = prev_suppress;
+            ir_parts.push_back(value_result.ir);
+            ir_parts.push_back(count_result.ir);
+
+            DerivedArraySegment lowered_segment;
+            lowered_segment.kind = DerivedArraySegment::Kind::Repeat;
+            lowered_segment.value = value_result.value;
+            lowered_segment.count = count_result.value;
+            lowered_segments.push_back(std::move(lowered_segment));
+          }
+        },
+        segment);
+  }
+
+  return {SeqIR(std::move(ir_parts)), std::move(lowered_segments)};
+}
+
 std::pair<IRPtr, std::vector<std::pair<std::string, IRValue>>> LowerFieldInits(
     const std::vector<ast::FieldInit>& fields, LowerCtx& ctx, bool suppress_temps) {
   SPEC_RULE("LowerFieldInits-Empty");

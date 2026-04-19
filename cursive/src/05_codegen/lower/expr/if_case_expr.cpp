@@ -513,7 +513,7 @@ LowerResult LowerIfCaseClauseImpl(
     }
     if (body_type) {
       IRBindVar capture;
-      capture.name = ctx.FreshTempValue("ifcase_clause_result").name;
+      capture.name = ctx.FreshTempValue("if_case_clause_result").name;
       capture.value = body_result.value;
       capture.type = body_type;
       capture.prov = analysis::ProvenanceKind::Bottom;

@@ -14,6 +14,7 @@
 #include "04_analysis/typing/types.h"
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/ir/ir_model.h"
+#include "05_codegen/llvm/llvm_attr.h"
 
 // Forward declarations for LLVM types
 namespace llvm {
@@ -49,6 +50,22 @@ struct LowerCtx;
 // IsValidPtrType(T) - checks if type is a valid pointer (Ptr<T>@Valid)
 bool IsValidPtrType(const analysis::TypeRef& type);
 
+enum class ByRefAccessKind {
+  ReadOnly,
+  ReadWrite,
+};
+
+ByRefAccessKind ByRefAccess(const analysis::TypeRef& type);
+
+AttrSet ComputeLoweredParamAttrs(const std::string& param_name,
+                                 const analysis::TypeRef& type,
+                                 PassKind pass_kind,
+                                 const LowerCtx* ctx);
+
+AttrSet ComputeSRetParamAttrs(const analysis::TypeRef& ret_type,
+                              llvm::Type* ret_llvm_type,
+                              const LowerCtx* ctx);
+
 // Create an entry-block alloca instruction for temporary storage
 llvm::AllocaInst* CreateEntryAlloca(llvm::Function* func,
                                     llvm::Type* ty,
@@ -80,7 +97,7 @@ llvm::Value* CoerceValue(llvm::IRBuilderBase* builder,
 // ⇒ CodegenError
 
 // Compute LLVM parameter types for a procedure signature
-std::vector<llvm::Type*> ComputeLLVMParamTypes(
+std::optional<std::vector<llvm::Type*>> ComputeLLVMParamTypes(
     LLVMEmitter& emitter,
     const std::vector<IRParam>& params,
     const std::vector<PassKind>& param_kinds,
@@ -107,9 +124,9 @@ std::vector<llvm::Type*> ComputeLLVMParamTypes(
 // ⇒ CodegenError
 
 // Compute LLVM return type for a procedure
-llvm::Type* ComputeLLVMReturnType(LLVMEmitter& emitter,
-                                  const analysis::TypeRef& ret_type,
-                                  PassKind ret_kind);
+std::optional<llvm::Type*> ComputeLLVMReturnType(LLVMEmitter& emitter,
+                                                 const analysis::TypeRef& ret_type,
+                                                 PassKind ret_kind);
 
 // -----------------------------------------------------------------------------
 // Call Emission

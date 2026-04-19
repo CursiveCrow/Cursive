@@ -406,12 +406,12 @@ Field access and tuple access use `.`. Method calls use `~>`.
 
 ```cursive
 record Point {
-    x: i32,
-    y: i32,
+    x: i32
+    y: i32
 
     procedure sum(~) -> i32 {
         return self.x + self.y
-    },
+    }
 }
 
 procedure demo() -> i32 {
@@ -447,8 +447,8 @@ Generic parameters use semicolons.
 
 ```cursive
 record Pair<T; U> {
-    first: T,
-    second: U,
+    first: T
+    second: U
 }
 ```
 
@@ -535,12 +535,12 @@ Records are the ordinary nominal product type. They can contain fields, methods,
 
 ```cursive
 record Point {
-    x: i32,
-    y: i32,
+    x: i32
+    y: i32
 
     procedure sum(~) -> i32 {
         return self.x + self.y
-    },
+    }
 }
 ```
 
@@ -769,16 +769,16 @@ Receiver shorthand is:
 
 ```cursive
 record Counter {
-    value: i32,
+    value: i32
 
     procedure read(~) -> i32 {
         return self.value
-    },
+    }
 
     procedure set(~!, next: i32) -> () {
         self.value = next
         return
-    },
+    }
 }
 ```
 
@@ -1061,12 +1061,12 @@ procedure read_only(value: const i32) -> i32 {
 
 ```cursive
 record Boxed {
-    value: i32,
+    value: i32
 
     procedure bump(~!) -> () {
         self.value = self.value + 1
         return
-    },
+    }
 }
 ```
 

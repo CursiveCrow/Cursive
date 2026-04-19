@@ -308,16 +308,24 @@ static bool SubtypeReturn(const ScopeContext& ctx,
 // Check if a block body has an explicit return statement at the end.
 // Required for procedures/methods with non-unit return types.
 static bool HasExplicitReturn(const ast::Block& block) {
+  auto stmtHasExplicitReturn = [&](const auto& self, const ast::Stmt& stmt) -> bool {
+    return std::visit(
+        [&](const auto& node) -> bool {
+          using T = std::decay_t<decltype(node)>;
+          if constexpr (std::is_same_v<T, ast::ReturnStmt>) {
+            return true;
+          } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
+            return node.body && HasExplicitReturn(*node.body);
+          }
+          return false;
+        },
+        stmt);
+  };
   // If there's a tail expression, it's not an explicit return
   if (block.tail_opt) {
     return false;
   }
-  // Check if last statement is a return
-  if (!block.stmts.empty() &&
-      std::holds_alternative<ast::ReturnStmt>(block.stmts.back())) {
-    return true;
-  }
-  return false;
+  return !block.stmts.empty() && stmtHasExplicitReturn(stmtHasExplicitReturn, block.stmts.back());
 }
 
 // =============================================================================

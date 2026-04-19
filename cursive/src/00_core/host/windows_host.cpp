@@ -8,6 +8,7 @@
 
 #include <array>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace cursive::core {
@@ -108,6 +109,17 @@ std::wstring BuildCommandLine(const std::filesystem::path& program,
   return cmd;
 }
 
+void DrainPipe(HANDLE pipe, std::string* output) {
+  std::array<char, 4096> buffer{};
+  DWORD bytes_read = 0;
+  while (ReadFile(pipe, buffer.data(), static_cast<DWORD>(buffer.size()),
+                  &bytes_read, nullptr) &&
+         bytes_read > 0) {
+    output->append(buffer.data(), buffer.data() + bytes_read);
+  }
+  CloseHandle(pipe);
+}
+
 HostProcessResult RunProcessImpl(const HostProcessSpec& spec) {
   HostProcessResult result;
   if (spec.program.empty()) {
@@ -123,21 +135,37 @@ HostProcessResult RunProcessImpl(const HostProcessSpec& spec) {
   sa.nLength = sizeof(sa);
   sa.bInheritHandle = TRUE;
 
-  HANDLE read_pipe = nullptr;
-  HANDLE write_pipe = nullptr;
+  const bool capture_merged =
+      spec.output_mode == HostProcessOutputMode::CaptureMerged;
+  const bool capture_separate =
+      spec.output_mode == HostProcessOutputMode::CaptureSeparate;
+
+  HANDLE stdout_read = nullptr;
+  HANDLE stdout_write = nullptr;
+  HANDLE stderr_read = nullptr;
+  HANDLE stderr_write = nullptr;
   STARTUPINFOW si{};
   si.cb = sizeof(si);
 
-  if (spec.output_mode == HostProcessOutputMode::CaptureMerged) {
-    if (!CreatePipe(&read_pipe, &write_pipe, &sa, 0)) {
+  if (capture_merged || capture_separate) {
+    if (!CreatePipe(&stdout_read, &stdout_write, &sa, 0)) {
       result.error_message = "CreatePipe failed";
       return result;
     }
-    SetHandleInformation(read_pipe, HANDLE_FLAG_INHERIT, 0);
+    SetHandleInformation(stdout_read, HANDLE_FLAG_INHERIT, 0);
+    if (capture_separate) {
+      if (!CreatePipe(&stderr_read, &stderr_write, &sa, 0)) {
+        result.error_message = "CreatePipe failed";
+        CloseHandle(stdout_read);
+        CloseHandle(stdout_write);
+        return result;
+      }
+      SetHandleInformation(stderr_read, HANDLE_FLAG_INHERIT, 0);
+    }
     si.dwFlags |= STARTF_USESTDHANDLES;
     si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
-    si.hStdOutput = write_pipe;
-    si.hStdError = write_pipe;
+    si.hStdOutput = stdout_write;
+    si.hStdError = capture_merged ? stdout_write : stderr_write;
   }
 
   PROCESS_INFORMATION pi{};
@@ -149,16 +177,22 @@ HostProcessResult RunProcessImpl(const HostProcessSpec& spec) {
 
   const BOOL ok = CreateProcessW(
       spec.program.wstring().c_str(), cmd_buf.data(), nullptr, nullptr,
-      spec.output_mode == HostProcessOutputMode::CaptureMerged, creation_flags,
+      capture_merged || capture_separate, creation_flags,
       nullptr, cwd.empty() ? nullptr : cwd.c_str(), &si, &pi);
 
-  if (write_pipe != nullptr) {
-    CloseHandle(write_pipe);
+  if (stdout_write != nullptr) {
+    CloseHandle(stdout_write);
+  }
+  if (stderr_write != nullptr) {
+    CloseHandle(stderr_write);
   }
 
   if (!ok) {
-    if (read_pipe != nullptr) {
-      CloseHandle(read_pipe);
+    if (stdout_read != nullptr) {
+      CloseHandle(stdout_read);
+    }
+    if (stderr_read != nullptr) {
+      CloseHandle(stderr_read);
     }
     result.error_message =
         "CreateProcessW failed err=" +
@@ -168,18 +202,21 @@ HostProcessResult RunProcessImpl(const HostProcessSpec& spec) {
 
   result.launched = true;
 
-  if (read_pipe != nullptr) {
-    std::array<char, 4096> buffer{};
-    DWORD bytes_read = 0;
-    while (ReadFile(read_pipe, buffer.data(),
-                    static_cast<DWORD>(buffer.size()), &bytes_read, nullptr) &&
-           bytes_read > 0) {
-      result.output.append(buffer.data(), buffer.data() + bytes_read);
-    }
-    CloseHandle(read_pipe);
+  if (capture_merged) {
+    DrainPipe(stdout_read, &result.output);
+  } else if (capture_separate) {
+    std::thread stdout_thread(DrainPipe, stdout_read, &result.stdout_text);
+    std::thread stderr_thread(DrainPipe, stderr_read, &result.stderr_text);
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    stdout_thread.join();
+    stderr_thread.join();
+    result.output = result.stdout_text;
+    result.output += result.stderr_text;
   }
 
-  WaitForSingleObject(pi.hProcess, INFINITE);
+  if (!capture_separate) {
+    WaitForSingleObject(pi.hProcess, INFINITE);
+  }
   DWORD exit_code = 1;
   GetExitCodeProcess(pi.hProcess, &exit_code);
   result.exit_code = static_cast<int>(exit_code);

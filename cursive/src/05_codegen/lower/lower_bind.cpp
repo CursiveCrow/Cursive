@@ -425,6 +425,7 @@ IRPtr EmitBinding(const std::string& name,
                   LowerCtx& ctx) {
   IRBindVar bind;
   bind.name = name;
+  bind.stable_name = ctx.StableBindingName(name);
   bind.value = value;
   bind.type = type;
   bind.prov = prov;

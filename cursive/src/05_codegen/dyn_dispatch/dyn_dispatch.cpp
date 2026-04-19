@@ -403,6 +403,7 @@ DynPackResult DynPack(const analysis::TypeRef& type,
   // Get the vtable for this type implementing the class
   VTableInfo vtable_info = VTable(type, class_path, class_decl, ctx);
   result.vtable_sym = vtable_info.symbol;
+  ctx.RegisterRequiredVTable(vtable_info.symbol, type, class_path);
 
   return result;
 }

@@ -119,7 +119,9 @@ bool QuoteParsesAsKind(const QuoteExpr& quote, ast::QuoteKind kind) {
       return false;
     case ast::QuoteKind::Item: {
       ast::ParseItemResult parsed = ast::ParseItem(parser);
-      return parsed.parser.index != start_index && ast::AtEof(parsed.parser);
+      return parsed.parser.index != start_index &&
+             !std::holds_alternative<ast::ErrorItem>(parsed.item) &&
+             ast::AtEof(parsed.parser);
     }
     case ast::QuoteKind::Type: {
       ast::ParseElemResult<TypePtr> parsed = ast::ParseType(parser);
@@ -1771,7 +1773,9 @@ std::optional<CtAst> ParseQuotedAstAsKind(const QuoteExpr& quote,
     case ast::QuoteKind::Item: {
       auto parsed = ast::ParseItem(parser);
       AppendDiags(diags, parsed.parser.diags);
-      if (parsed.parser.index == start_index || !ast::AtEof(parsed.parser)) {
+      if (parsed.parser.index == start_index ||
+          std::holds_alternative<ast::ErrorItem>(parsed.item) ||
+          !ast::AtEof(parsed.parser)) {
         parse_failed = true;
         return std::nullopt;
       }

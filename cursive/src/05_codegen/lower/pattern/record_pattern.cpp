@@ -169,6 +169,7 @@ IRPtr LowerBindRecordPattern(
       // Directly bind the field name to the extracted field value
       IRBindVar bind;
       bind.name = field.name;
+      bind.stable_name = ctx.StableBindingName(field.name);
       bind.value = field_val;
       bind.type = lookup_bind_type(field.name);
       bind.prov = lookup_bind_prov(field.name);

@@ -987,12 +987,12 @@ static std::optional<std::string_view> FfiSafeRecordDiag(
     const ast::ModulePath& decl_module,
     std::set<PathKey>& active_paths) {
   if (!HasLayoutC(decl.attrs)) {
-    return std::optional<std::string_view>{"FfiSafe-Record-LayoutC-Err"};
+    return std::optional<std::string_view>{"E-TYP-2624"};
   }
   if (GenericParamsMissingFfiSafeReqs(decl.generic_params,
                                       decl.predicate_clause_opt,
                                       FfiSafeRecordTypeParamsInFields(decl))) {
-    return std::optional<std::string_view>{"FfiSafe-Generic-Unbounded-Err"};
+    return std::optional<std::string_view>{"E-TYP-2629"};
   }
 
   const auto param_names = GenericParamNames(decl.generic_params);
@@ -1003,13 +1003,13 @@ static std::optional<std::string_view> FfiSafeRecordDiag(
     }
     const auto lowered = LowerType(ctx, field->type);
     if (!lowered.ok) {
-      return std::optional<std::string_view>{"FfiSafe-Incomplete-Err"};
+      return std::optional<std::string_view>{"E-TYP-2628"};
     }
     const auto instantiated =
         ApplyDeclGenericArgs(lowered.type, param_names, generic_args);
     if (FfiSafeDiagForTypeImpl(ctx, &decl_module, instantiated, active_paths)
             .has_value()) {
-      return std::optional<std::string_view>{"FfiSafe-Record-Field-Err"};
+      return std::optional<std::string_view>{"E-TYP-2626"};
     }
   }
   return std::nullopt;
@@ -1022,12 +1022,12 @@ static std::optional<std::string_view> FfiSafeEnumDiag(
     const ast::ModulePath& decl_module,
     std::set<PathKey>& active_paths) {
   if (!HasLayoutC(decl.attrs)) {
-    return std::optional<std::string_view>{"FfiSafe-Enum-LayoutC-Err"};
+    return std::optional<std::string_view>{"E-TYP-2625"};
   }
   if (GenericParamsMissingFfiSafeReqs(decl.generic_params,
                                       decl.predicate_clause_opt,
                                       FfiSafeEnumTypeParamsInPayloads(decl))) {
-    return std::optional<std::string_view>{"FfiSafe-Generic-Unbounded-Err"};
+    return std::optional<std::string_view>{"E-TYP-2629"};
   }
 
   const auto param_names = GenericParamNames(decl.generic_params);
@@ -1043,7 +1043,7 @@ static std::optional<std::string_view> FfiSafeEnumDiag(
             for (const auto& elem : payload.elements) {
               const auto lowered = LowerType(ctx, elem);
               if (!lowered.ok) {
-                bad_payload = "FfiSafe-Incomplete-Err";
+                bad_payload = "E-TYP-2628";
                 return;
               }
               const auto instantiated =
@@ -1051,7 +1051,7 @@ static std::optional<std::string_view> FfiSafeEnumDiag(
               if (FfiSafeDiagForTypeImpl(ctx, &decl_module, instantiated,
                                          active_paths)
                       .has_value()) {
-                bad_payload = "FfiSafe-Enum-Field-Err";
+                bad_payload = "E-TYP-2627";
                 return;
               }
             }
@@ -1059,7 +1059,7 @@ static std::optional<std::string_view> FfiSafeEnumDiag(
             for (const auto& field : payload.fields) {
               const auto lowered = LowerType(ctx, field.type);
               if (!lowered.ok) {
-                bad_payload = "FfiSafe-Incomplete-Err";
+                bad_payload = "E-TYP-2628";
                 return;
               }
               const auto instantiated =
@@ -1067,7 +1067,7 @@ static std::optional<std::string_view> FfiSafeEnumDiag(
               if (FfiSafeDiagForTypeImpl(ctx, &decl_module, instantiated,
                                          active_paths)
                       .has_value()) {
-                bad_payload = "FfiSafe-Enum-Field-Err";
+                bad_payload = "E-TYP-2627";
                 return;
               }
             }
@@ -1087,7 +1087,7 @@ static std::optional<std::string_view> FfiSafeDiagForTypeImpl(
     const TypeRef& type,
     std::set<PathKey>& active_paths) {
   if (!type) {
-    return std::optional<std::string_view>{"FfiSafe-Incomplete-Err"};
+    return std::optional<std::string_view>{"E-TYP-2628"};
   }
 
   return std::visit(
@@ -1097,7 +1097,7 @@ static std::optional<std::string_view> FfiSafeDiagForTypeImpl(
           if (IsFfiSafePrim(node.name)) {
             return std::nullopt;
           }
-          return std::optional<std::string_view>{"FfiSafe-Prohibited-Err"};
+          return std::optional<std::string_view>{"E-TYP-2623"};
         } else if constexpr (std::is_same_v<T, TypePerm>) {
           return FfiSafeDiagForTypeImpl(ctx, current_module, node.base,
                                         active_paths);
@@ -1121,7 +1121,7 @@ static std::optional<std::string_view> FfiSafeDiagForTypeImpl(
                                         active_paths);
         } else if constexpr (std::is_same_v<T, TypePathType>) {
           if (node.path.size() == 1 && IdEq(node.path[0], "Context")) {
-            return std::optional<std::string_view>{"FfiSafe-Prohibited-Err"};
+            return std::optional<std::string_view>{"E-TYP-2623"};
           }
 
           ast::Path resolved_path;
@@ -1129,12 +1129,12 @@ static std::optional<std::string_view> FfiSafeDiagForTypeImpl(
               ResolveNominalTypeDeclForFfi(ctx, current_module, node.path,
                                            &resolved_path);
           if (!decl) {
-            return std::optional<std::string_view>{"FfiSafe-Incomplete-Err"};
+            return std::optional<std::string_view>{"E-TYP-2628"};
           }
 
           const auto key = PathKeyOf(resolved_path);
           if (active_paths.find(key) != active_paths.end()) {
-            return std::optional<std::string_view>{"FfiSafe-Incomplete-Err"};
+            return std::optional<std::string_view>{"E-TYP-2628"};
           }
 
           active_paths.insert(key);
@@ -1146,8 +1146,7 @@ static std::optional<std::string_view> FfiSafeDiagForTypeImpl(
                   const auto args = ResolveDeclGenericArgs(
                       ctx, resolved_decl.generic_params, node.generic_args);
                   if (!args.has_value()) {
-                    return std::optional<std::string_view>{
-                        "FfiSafe-Incomplete-Err"};
+                    return std::optional<std::string_view>{"E-TYP-2628"};
                   }
                   return FfiSafeRecordDiag(ctx, resolved_decl, *args, decl_module,
                                            active_paths);
@@ -1155,26 +1154,22 @@ static std::optional<std::string_view> FfiSafeDiagForTypeImpl(
                   const auto args = ResolveDeclGenericArgs(
                       ctx, resolved_decl.generic_params, node.generic_args);
                   if (!args.has_value()) {
-                    return std::optional<std::string_view>{
-                        "FfiSafe-Incomplete-Err"};
+                    return std::optional<std::string_view>{"E-TYP-2628"};
                   }
                   return FfiSafeEnumDiag(ctx, resolved_decl, *args, decl_module,
                                          active_paths);
                 } else if constexpr (std::is_same_v<D, ast::TypeAliasDecl>) {
                   if (!resolved_decl.type) {
-                    return std::optional<std::string_view>{
-                        "FfiSafe-Incomplete-Err"};
+                    return std::optional<std::string_view>{"E-TYP-2628"};
                   }
                   const auto args = ResolveDeclGenericArgs(
                       ctx, resolved_decl.generic_params, node.generic_args);
                   if (!args.has_value()) {
-                    return std::optional<std::string_view>{
-                        "FfiSafe-Incomplete-Err"};
+                    return std::optional<std::string_view>{"E-TYP-2628"};
                   }
                   const auto lowered = LowerType(ctx, resolved_decl.type);
                   if (!lowered.ok) {
-                    return std::optional<std::string_view>{
-                        "FfiSafe-Incomplete-Err"};
+                    return std::optional<std::string_view>{"E-TYP-2628"};
                   }
                   const auto param_names =
                       GenericParamNames(resolved_decl.generic_params);
@@ -1183,8 +1178,7 @@ static std::optional<std::string_view> FfiSafeDiagForTypeImpl(
                   return FfiSafeDiagForTypeImpl(ctx, &decl_module, target,
                                                 active_paths);
                 } else {
-                  return std::optional<std::string_view>{
-                      "FfiSafe-Prohibited-Err"};
+                  return std::optional<std::string_view>{"E-TYP-2623"};
                 }
               },
               *decl);
@@ -1206,9 +1200,9 @@ static std::optional<std::string_view> FfiSafeDiagForTypeImpl(
                              std::is_same_v<T, TypeRangeTo> ||
                              std::is_same_v<T, TypeRangeToInclusive> ||
                              std::is_same_v<T, TypeRangeFull>) {
-          return std::optional<std::string_view>{"FfiSafe-Prohibited-Err"};
+          return std::optional<std::string_view>{"E-TYP-2623"};
         } else {
-          return std::optional<std::string_view>{"FfiSafe-Prohibited-Err"};
+          return std::optional<std::string_view>{"E-TYP-2623"};
         }
       },
       type->node);

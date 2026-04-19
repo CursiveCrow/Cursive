@@ -18,6 +18,7 @@
 
 #include "00_core/assert_spec.h"
 #include "02_source/ast/ast.h"
+#include "04_analysis/typing/type_expr.h"
 
 namespace cursive::analysis {
 
@@ -47,17 +48,23 @@ StmtTypeResult TypeUnsafeBlockStmt(const ScopeContext& ctx,
   unsafe_ctx.in_unsafe = true;
 
   // Type the unsafe block body with unsafe context enabled
-  const auto typed = TypeBlock(ctx, unsafe_ctx, *node.body, env,
-                               type_expr, type_ident, type_place,
-                               unsafe_ctx.env_ref);
-  if (!typed.ok) {
-    return {false, typed.diag_id, {}, {}, typed.diag_detail};
+  const auto info = TypeBlockInfo(ctx, unsafe_ctx, *node.body, env,
+                                  type_expr, type_ident, type_place,
+                                  unsafe_ctx.env_ref);
+  if (!info.ok) {
+    return {false, info.diag_id, {}, {}, info.diag_detail, info.diag_span};
   }
 
   // Unsafe block statement produces unit type (statement form)
   // Environment is unchanged (block scope exits)
+  FlowInfo flow;
+  if (IsPrimType(info.type, "!")) {
+    flow.results.push_back(info.type);
+  }
+  flow.breaks = info.breaks;
+  flow.break_void = info.break_void;
   SPEC_RULE("T-UnsafeStmt");
-  return {true, std::nullopt, env, {}};
+  return {true, std::nullopt, env, std::move(flow)};
 }
 
 }  // namespace cursive::analysis

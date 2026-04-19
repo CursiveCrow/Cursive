@@ -1704,7 +1704,7 @@ namespace cursive::codegen
       }
 
       ABICallResult abi = emitter.ComputeProcABI(symbol, sig->params, sig->ret);
-      if (!abi.has_sret || func->arg_size() == 0)
+      if (!abi.valid || !abi.has_sret || func->arg_size() == 0)
       {
         return false;
       }
@@ -1765,7 +1765,7 @@ namespace cursive::codegen
       }
 
       ABICallResult abi = emitter.ComputeProcABI(symbol, sig->params, sig->ret);
-      if (!abi.has_sret || func->arg_size() == 0)
+      if (!abi.valid || !abi.has_sret || func->arg_size() == 0)
       {
         return nullptr;
       }
@@ -3534,6 +3534,13 @@ namespace cursive::codegen
 
     ABICallResult result;
     const analysis::ScopeContext &scope = BuildScope(current_ctx_);
+    auto invalidate = [&]() -> ABICallResult {
+      if (current_ctx_)
+      {
+        current_ctx_->ReportCodegenFailure();
+      }
+      return result;
+    };
 
     // Build parameter list for ABI computation
     std::vector<std::pair<std::optional<analysis::ParamMode>, analysis::TypeRef>> abi_params;
@@ -3578,8 +3585,6 @@ namespace cursive::codegen
       {
         current_ctx_->ReportCodegenFailure();
       }
-      result.ret_type = llvm::Type::getVoidTy(context_);
-      result.func_type = llvm::FunctionType::get(result.ret_type, {}, false);
       return result;
     }
 
@@ -3604,11 +3609,17 @@ namespace cursive::codegen
     }
 
     result.has_sret = call_info->has_sret || c_abi_sret;
+    llvm::Type *sret_storage_ty = ret_type ? GetLLVMType(ret_type) : nullptr;
 
     // Compute return type
     if (result.has_sret)
     {
       SPEC_RULE("LLVMRetLower-SRet");
+      if (!sret_storage_ty || sret_storage_ty->isVoidTy())
+      {
+        SPEC_RULE("LLVMRetLower-Err");
+        return invalidate();
+      }
       result.ret_type = llvm::Type::getVoidTy(context_);
     }
     else
@@ -3617,7 +3628,7 @@ namespace cursive::codegen
       if (!size.has_value())
       {
         SPEC_RULE("LLVMRetLower-Err");
-        result.ret_type = llvm::Type::getVoidTy(context_);
+        return invalidate();
       }
       else if (*size == 0)
       {
@@ -3647,7 +3658,8 @@ namespace cursive::codegen
         }
         if (!result.ret_type)
         {
-          result.ret_type = llvm::Type::getVoidTy(context_);
+          SPEC_RULE("LLVMRetLower-Err");
+          return invalidate();
         }
       }
     }
@@ -3658,6 +3670,8 @@ namespace cursive::codegen
     if (result.has_sret)
     {
       result.param_types.push_back(GetOpaquePtr());
+      result.llvm_param_attrs.push_back(
+          ComputeSRetParamAttrs(ret_type, sret_storage_ty, current_ctx_));
     }
 
     unsigned llvm_index = result.has_sret ? 1u : 0u;
@@ -3672,6 +3686,11 @@ namespace cursive::codegen
       {
         SPEC_RULE("LLVMArgLower-ByRef");
         result.param_types.push_back(GetOpaquePtr());
+        result.llvm_param_attrs.push_back(
+            ComputeLoweredParamAttrs(params[i].name,
+                                     params[i].type,
+                                     kind,
+                                     current_ctx_));
         result.param_indices[i] = llvm_index++;
         result.param_carriers[i] = ABIArgCarrierKind::Indirect;
         continue;
@@ -3681,9 +3700,7 @@ namespace cursive::codegen
       if (!size.has_value())
       {
         SPEC_RULE("LLVMArgLower-Err");
-        result.param_types.push_back(GetOpaquePtr());
-        result.param_indices[i] = llvm_index++;
-        continue;
+        return invalidate();
       }
       if (*size == 0)
       {
@@ -3707,13 +3724,20 @@ namespace cursive::codegen
       }
       if (!llvm_ty)
       {
-        llvm_ty = GetOpaquePtr();
+        SPEC_RULE("LLVMArgLower-Err");
+        return invalidate();
       }
       result.param_types.push_back(llvm_ty);
+      result.llvm_param_attrs.push_back(
+          ComputeLoweredParamAttrs(params[i].name,
+                                   params[i].type,
+                                   kind,
+                                   current_ctx_));
       result.param_indices[i] = llvm_index++;
     }
 
     result.func_type = llvm::FunctionType::get(result.ret_type, result.param_types, false);
+    result.valid = true;
     return result;
   }
 
@@ -3805,6 +3829,15 @@ namespace cursive::codegen
       abi_param_base = 1u;
     }
     ABICallResult abi = ComputeProcABI(proc.symbol, proc.params, proc.ret);
+    if (!abi.valid || !abi.func_type)
+    {
+      if (builder && builder->GetInsertBlock() &&
+          !builder->GetInsertBlock()->getTerminator())
+      {
+        builder->CreateUnreachable();
+      }
+      return;
+    }
     if (perf_enabled)
     {
       const auto now = Clock::now();
@@ -3832,7 +3865,7 @@ namespace cursive::codegen
           }
         }
         hosted_env_value_ = env_value;
-        SetLocal(std::string(kHostedEnvParamName), env_value);
+        RegisterLocalBindStorage(std::string(kHostedEnvParamName), env_value);
         local_types_[std::string(kHostedEnvParamName)] = HostedEnvParamType();
       }
     }
@@ -3862,8 +3895,16 @@ namespace cursive::codegen
       llvm::IRBuilder<> entry_builder(&func->getEntryBlock(), func->getEntryBlock().begin());
       llvm::AllocaInst *alloca = entry_builder.CreateAlloca(llvm_ty, nullptr, param.name);
       builder->CreateStore(llvm::Constant::getNullValue(llvm_ty), alloca);
-      SetLocal(param.name, alloca);
+      RegisterLocalBindStorage(param.name, alloca);
       local_types_[param.name] = param.type;
+      const std::string stable_name =
+          param.stable_name.empty() ? param.name : param.stable_name;
+      if (stable_name != param.name) {
+        RegisterLocalBindStorage(stable_name, alloca);
+        if (param.type) {
+          local_types_[stable_name] = param.type;
+        }
+      }
       ++bound_params;
       ++bound_params_by_value;
       return true;
@@ -3926,10 +3967,20 @@ namespace cursive::codegen
           typed_ptr =
               builder->CreateBitCast(typed_ptr, llvm::PointerType::get(llvm_ty, 0));
         }
-        SetLocal(proc.params[i].name, typed_ptr);
+        RegisterLocalBindStorage(proc.params[i].name, typed_ptr);
         if (proc.params[i].type)
         {
           local_types_[proc.params[i].name] = proc.params[i].type;
+        }
+        const std::string stable_name =
+            proc.params[i].stable_name.empty()
+                ? proc.params[i].name
+                : proc.params[i].stable_name;
+        if (stable_name != proc.params[i].name) {
+          RegisterLocalBindStorage(stable_name, typed_ptr);
+          if (proc.params[i].type) {
+            local_types_[stable_name] = proc.params[i].type;
+          }
         }
         register_explicit_hosted_env(typed_ptr);
         ++bound_params;
@@ -3961,10 +4012,20 @@ namespace cursive::codegen
         }
       }
       builder->CreateStore(stored_value, alloca);
-      SetLocal(proc.params[i].name, alloca);
+      RegisterLocalBindStorage(proc.params[i].name, alloca);
       if (proc.params[i].type)
       {
         local_types_[proc.params[i].name] = proc.params[i].type;
+      }
+      const std::string stable_name =
+          proc.params[i].stable_name.empty()
+              ? proc.params[i].name
+              : proc.params[i].stable_name;
+      if (stable_name != proc.params[i].name) {
+        RegisterLocalBindStorage(stable_name, alloca);
+        if (proc.params[i].type) {
+          local_types_[stable_name] = proc.params[i].type;
+        }
       }
       register_explicit_hosted_env(arg);
       ++bound_params;
@@ -4033,7 +4094,7 @@ namespace cursive::codegen
           panic_record_ptr = builder->CreateBitCast(panic_record_ptr, panic_ptr_ty);
         }
         builder->CreateStore(panic_record_ptr, panic_out_alloca);
-        SetLocal(std::string(kPanicOutName), panic_out_alloca);
+        RegisterLocalBindStorage(std::string(kPanicOutName), panic_out_alloca);
         local_types_[std::string(kPanicOutName)] = PanicOutType();
         panic_slot_materialized = true;
       }
@@ -4075,7 +4136,7 @@ namespace cursive::codegen
         if (!local_slot)
         {
           local_slot = entry_builder.CreateAlloca(slot_ty, nullptr, slot_name);
-          SetLocal(slot_name, local_slot);
+          RegisterLocalBindStorage(slot_name, local_slot);
         }
         SetLocalType(slot_name, slot.type);
       }
@@ -4717,15 +4778,19 @@ namespace cursive::codegen
         call_params.insert(call_params.begin(), HostedEnvParam());
       }
       ABICallResult abi = ComputeCallABI(call_params, sig->ret);
+      if (!abi.valid || !abi.func_type)
+      {
+        if (current_ctx_)
+        {
+          current_ctx_->ReportCodegenFailure();
+        }
+        return;
+      }
       llvm::Function *fn = module_->getFunction(sym);
       if (!fn)
       {
-        llvm::FunctionType *fn_ty =
-            abi.func_type ? abi.func_type
-                          : llvm::FunctionType::get(
-                                llvm::Type::getVoidTy(context_), {}, false);
         fn = llvm::Function::Create(
-            fn_ty,
+            abi.func_type,
             llvm::GlobalValue::ExternalLinkage,
             sym,
             module_.get());
@@ -4932,6 +4997,11 @@ namespace cursive::codegen
         {
           ABICallResult init_abi =
               ComputeCallABI(init_info->params, init_info->ret, true);
+          if (!init_abi.valid || !init_abi.func_type)
+          {
+            current_ctx_->ReportCodegenFailure();
+            return;
+          }
           llvm::Function *context_init_fn = module_->getFunction(context_init_sym);
           if (!context_init_fn)
           {
@@ -4954,7 +5024,8 @@ namespace cursive::codegen
             }
             if (!arg)
             {
-              arg = llvm::Constant::getNullValue(param_ty);
+              current_ctx_->ReportCodegenFailure();
+              return;
             }
             init_args.push_back(arg);
           }
@@ -5687,7 +5758,7 @@ namespace cursive::codegen
 
             ABICallResult abi =
                 ComputeCallABI(runtime_info->params, runtime_info->ret, true);
-            if (!abi.func_type || abi.param_kinds.size() != 1u)
+            if (!abi.valid || !abi.func_type || abi.param_kinds.size() != 1u)
             {
               current_ctx_->ReportCodegenFailure();
               return nullptr;
@@ -5810,6 +5881,7 @@ namespace cursive::codegen
       std::vector<IRParam> thunk_params;
       thunk_params.push_back(IRParam{analysis::ParamMode::Move,
                                      "__cursive_session",
+                                     "__cursive_session",
                                      analysis::MakeTypePrim("usize")});
       thunk_params.insert(thunk_params.end(),
                           info.visible_params.begin(),
@@ -5819,6 +5891,11 @@ namespace cursive::codegen
           info.ret,
           /*use_c_abi_aggregate_sret=*/true,
           /*foreign_boundary_mode_independent=*/true);
+      if (!thunk_abi.valid || !thunk_abi.func_type)
+      {
+        current_ctx_->ReportCodegenFailure();
+        continue;
+      }
       llvm::Function *thunk = module_->getFunction(info.thunk_symbol);
       if (!thunk)
       {
@@ -6427,7 +6504,8 @@ namespace cursive::codegen
           }
           if (!arg)
           {
-            arg = llvm::Constant::getNullValue(param_ty);
+            current_ctx_->ReportCodegenFailure();
+            return;
           }
           set_sink_args.push_back(arg);
         }
@@ -6556,14 +6634,23 @@ namespace cursive::codegen
       }
       else
       {
-        llvm::FunctionCallee exit_fn = module_->getOrInsertFunction(
-            "ExitProcess",
-            llvm::FunctionType::get(
-                llvm::Type::getVoidTy(context_),
-                {llvm::Type::getInt32Ty(context_)},
-                false));
+        llvm::Function *runtime_exit_fn = module_->getFunction(BuiltinSymSystemExit());
+        if (!runtime_exit_fn)
+        {
+          llvm::FunctionType *exit_ty =
+              llvm::FunctionType::get(llvm::Type::getVoidTy(context_),
+                                      {llvm::Type::getInt32Ty(context_)},
+                                      false);
+          runtime_exit_fn = llvm::Function::Create(
+              exit_ty,
+              llvm::GlobalValue::ExternalLinkage,
+              BuiltinSymSystemExit(),
+              module_.get());
+          runtime_exit_fn->setCallingConv(llvm::CallingConv::C);
+        }
         builder->CreateCall(
-            exit_fn,
+            runtime_exit_fn->getFunctionType(),
+            runtime_exit_fn,
             {llvm::ConstantInt::get(llvm::Type::getInt32Ty(context_), 1)});
         builder->CreateUnreachable();
       }
@@ -6660,11 +6747,12 @@ namespace cursive::codegen
       const bool use_c_abi_aggregate_sret = true;
       ABICallResult init_abi =
           ComputeCallABI(init_info->params, init_info->ret, use_c_abi_aggregate_sret);
-      llvm::FunctionType *init_ty = init_abi.func_type;
-      if (!init_ty)
+      if (!init_abi.valid || !init_abi.func_type)
       {
-        init_ty = llvm::FunctionType::get(llvm::Type::getVoidTy(context_), {}, false);
+        current_ctx_->ReportCodegenFailure();
+        return;
       }
+      llvm::FunctionType *init_ty = init_abi.func_type;
       llvm::Function *context_init_fn = module_->getFunction(context_init_sym);
       if (!context_init_fn)
       {
@@ -6689,7 +6777,8 @@ namespace cursive::codegen
           }
           if (!arg)
           {
-            arg = llvm::Constant::getNullValue(param_ty);
+            current_ctx_->ReportCodegenFailure();
+            return;
           }
           init_args.push_back(arg);
         }
@@ -6896,7 +6985,7 @@ namespace cursive::codegen
 
             ABICallResult abi =
                 ComputeCallABI(runtime_info->params, runtime_info->ret, true);
-            if (!abi.func_type || abi.param_kinds.size() != 1u)
+            if (!abi.valid || !abi.func_type || abi.param_kinds.size() != 1u)
             {
               current_ctx_->ReportCodegenFailure();
               return nullptr;
@@ -7044,7 +7133,8 @@ namespace cursive::codegen
         }
         if (!arg)
         {
-          arg = llvm::Constant::getNullValue(param_ty);
+          current_ctx_->ReportCodegenFailure();
+          return;
         }
         call_args[0] = arg;
       }
@@ -7057,7 +7147,8 @@ namespace cursive::codegen
         }
         if (!arg)
         {
-          arg = llvm::Constant::getNullValue(param_ty);
+          current_ctx_->ReportCodegenFailure();
+          return;
         }
         call_args[0] = arg;
       }
@@ -7070,9 +7161,19 @@ namespace cursive::codegen
         llvm::Value *arg = CoerceTo(builder, panic_ptr, param_ty);
         if (!arg)
         {
-          arg = llvm::Constant::getNullValue(param_ty);
+          current_ctx_->ReportCodegenFailure();
+          return;
         }
         call_args[1] = arg;
+      }
+    }
+
+    for (llvm::Value *arg : call_args)
+    {
+      if (!arg)
+      {
+        current_ctx_->ReportCodegenFailure();
+        return;
       }
     }
 
@@ -7128,13 +7229,23 @@ namespace cursive::codegen
     }
     else
     {
-      llvm::FunctionCallee exit_fn = module_->getOrInsertFunction(
-          "ExitProcess",
-          llvm::FunctionType::get(
-              llvm::Type::getVoidTy(context_),
-              {i32_ty},
-              false));
-      builder->CreateCall(exit_fn, {panic_code});
+      llvm::Function *runtime_exit_fn = module_->getFunction(BuiltinSymSystemExit());
+      if (!runtime_exit_fn)
+      {
+        llvm::FunctionType *exit_ty =
+            llvm::FunctionType::get(llvm::Type::getVoidTy(context_),
+                                    {i32_ty},
+                                    false);
+        runtime_exit_fn = llvm::Function::Create(
+            exit_ty,
+            llvm::GlobalValue::ExternalLinkage,
+            BuiltinSymSystemExit(),
+            module_.get());
+        runtime_exit_fn->setCallingConv(llvm::CallingConv::C);
+      }
+      builder->CreateCall(runtime_exit_fn->getFunctionType(),
+                          runtime_exit_fn,
+                          {panic_code});
       builder->CreateUnreachable();
     }
 
@@ -7211,13 +7322,23 @@ namespace cursive::codegen
     }
     else
     {
-      llvm::FunctionCallee exit_fn = module_->getOrInsertFunction(
-          "ExitProcess",
-          llvm::FunctionType::get(
-              llvm::Type::getVoidTy(context_),
-              {i32_ty},
-              false));
-      builder->CreateCall(exit_fn, {exit_code});
+      llvm::Function *runtime_exit_fn = module_->getFunction(BuiltinSymSystemExit());
+      if (!runtime_exit_fn)
+      {
+        llvm::FunctionType *exit_ty =
+            llvm::FunctionType::get(llvm::Type::getVoidTy(context_),
+                                    {i32_ty},
+                                    false);
+        runtime_exit_fn = llvm::Function::Create(
+            exit_ty,
+            llvm::GlobalValue::ExternalLinkage,
+            BuiltinSymSystemExit(),
+            module_.get());
+        runtime_exit_fn->setCallingConv(llvm::CallingConv::C);
+      }
+      builder->CreateCall(runtime_exit_fn->getFunctionType(),
+                          runtime_exit_fn,
+                          {exit_code});
       builder->CreateUnreachable();
     }
   }
@@ -7356,14 +7477,18 @@ namespace cursive::codegen
         return nullptr;
       }
       ABICallResult abi = ComputeCallABI(sig->params, sig->ret);
-      llvm::FunctionType *fn_ty =
-          abi.func_type ? abi.func_type
-                        : llvm::FunctionType::get(
-                              llvm::Type::getVoidTy(context_), {}, false);
+      if (!abi.valid || !abi.func_type)
+      {
+        if (current_ctx_)
+        {
+          current_ctx_->ReportCodegenFailure();
+        }
+        return nullptr;
+      }
       llvm::Function *fn = module_->getFunction(sym);
       if (!fn)
       {
-        fn = llvm::Function::Create(fn_ty,
+        fn = llvm::Function::Create(abi.func_type,
                                     llvm::GlobalValue::ExternalLinkage,
                                     sym,
                                     module_.get());
@@ -7487,14 +7612,14 @@ namespace cursive::codegen
     RestoreDeinitPanicIfAny(*this, builder, panic_record_ptr);
     llvm::Value *detach_had_panic = load_panic_flag(*builder, panic_record_ptr);
     builder->CreateStore(llvm::ConstantInt::getFalse(context_), attached_gv);
-    builder->CreateBr(detach_done_bb);
-
-    builder->SetInsertPoint(detach_done_bb);
     llvm::Value *detach_ok = builder->CreateSelect(
         detach_had_panic,
         llvm::ConstantInt::get(i32_ty, 0),
         llvm::ConstantInt::get(i32_ty, 1));
     builder->CreateRet(detach_ok);
+
+    builder->SetInsertPoint(detach_done_bb);
+    builder->CreateRet(llvm::ConstantInt::get(i32_ty, 1));
 
     builder->SetInsertPoint(other_bb);
     builder->CreateRet(llvm::ConstantInt::get(i32_ty, 1));
@@ -7707,7 +7832,7 @@ namespace cursive::codegen
         llvm::BasicBlock::Create(context_, "poison.take", func);
     llvm::BasicBlock *cont_bb =
         llvm::BasicBlock::Create(context_, "poison.cont", func);
-    builder->CreateCondBr(poisoned, panic_bb, cont_bb);
+    builder->CreateCondBr(AsBool(builder, poisoned), panic_bb, cont_bb);
 
     builder->SetInsertPoint(panic_bb);
     StorePanicRecord(*this, builder, PanicCode(PanicReason::InitPanic));
@@ -8688,7 +8813,7 @@ namespace cursive::codegen
               return {};
             }
             ABICallResult abi = emitter.ComputeProcABI(symbol, sig->params, sig->ret);
-            if (!abi.has_sret || func->arg_size() == 0)
+            if (!abi.valid || !abi.has_sret || func->arg_size() == 0)
             {
               return {};
             }
@@ -8708,15 +8833,7 @@ namespace cursive::codegen
             return nullptr;
           }
 
-          llvm::Value *home_slot = emitter.GetLocalHomeStorage(*target.name);
-          if (!home_slot)
-          {
-            home_slot = emitter.GetLocal(*target.name);
-            if (home_slot && home_slot->getType()->isPointerTy())
-            {
-              emitter.SetLocalHomeStorage(*target.name, home_slot);
-            }
-          }
+          llvm::Value *home_slot = emitter.GetLocalBindStorage(*target.name);
           if (home_slot || !target.bind_type)
           {
             return home_slot;
@@ -8795,10 +8912,50 @@ namespace cursive::codegen
         const bool known_proc = ctx && (ctx->LookupProcSig(mangled) != nullptr);
         const bool known_static = ctx && static_cast<bool>(ctx->LookupStaticType(mangled));
         const bool known_drop_glue = ctx && static_cast<bool>(ctx->LookupDropGlueType(mangled));
+        const auto *record_ctor_path = ctx ? ctx->LookupRecordCtor(mangled) : nullptr;
+        const bool known_record_ctor = record_ctor_path != nullptr;
         const bool known_runtime = IsRuntimeFunction(mangled);
+        auto emit_poison_if_user_module = [&](const std::vector<std::string>* module_path) {
+          if (!module_path || module_path->empty()) {
+            return;
+          }
+          if (ctx && !ctx->module_path.empty() && !module_path->empty()) {
+            const std::string& current_root = ctx->module_path.front();
+            const std::string& target_root = module_path->front();
+            const bool cross_library_boundary =
+                current_root != target_root &&
+                ctx->library_assembly_names.contains(target_root);
+            if (cross_library_boundary) {
+              return;
+            }
+          }
+          emitter.EmitPoisonCheck(core::StringOfPath(*module_path));
+        };
+
+        if (known_record_ctor)
+        {
+          std::vector<std::string> owner_module = *record_ctor_path;
+          if (!owner_module.empty())
+          {
+            owner_module.pop_back();
+          }
+          emit_poison_if_user_module(&owner_module);
+          emitter.SetSymbolAlias(read.name, mangled);
+          emitter.SetSymbolAlias(qualified, mangled);
+          return;
+        }
+
         if (emitter.GetFunction(mangled) || emitter.GetGlobal(mangled) ||
             known_proc || known_static || known_drop_glue || known_runtime)
         {
+          if (known_proc)
+          {
+            emit_poison_if_user_module(ctx->LookupProcModule(mangled));
+          }
+          else if (known_static)
+          {
+            emit_poison_if_user_module(ctx->LookupStaticModule(mangled));
+          }
           emitter.SetSymbolAlias(read.name, mangled);
           emitter.SetSymbolAlias(qualified, mangled);
           return;
@@ -8844,8 +9001,7 @@ namespace cursive::codegen
                                          func->getEntryBlock().begin());
           llvm::Value *new_slot =
               entry_builder.CreateAlloca(slot_ty, nullptr, store.name);
-          emitter.SetLocal(store.name, new_slot);
-          emitter.SetLocalHomeStorage(store.name, new_slot);
+          emitter.RegisterLocalBindStorage(store.name, new_slot);
 
           if (!value)
           {
@@ -8897,6 +9053,16 @@ namespace cursive::codegen
         for (const auto &arg : call.args)
         {
           args.push_back(EvaluateOrDefault(arg));
+        }
+
+        if (call.callee.kind == IRValue::Kind::Symbol &&
+            IsDropGlueSymbol(call.callee.name) &&
+            !call.args.empty())
+        {
+          if (llvm::Value *storage = emitter.GetAddressableStorage(call.args.front()))
+          {
+            args.front() = storage;
+          }
         }
 
         if (call.callee.kind == IRValue::Kind::Symbol)
@@ -12387,7 +12553,11 @@ namespace cursive::codegen
           base_name = addrof.place.repr;
         }
 
-        llvm::Value *ptr = emitter.GetLocal(base_name);
+        const LowerCtx *active_ctx = emitter.GetCurrentCtx();
+        const BindingState *local_binding =
+            active_ctx ? active_ctx->GetBindingState(base_name) : nullptr;
+
+        llvm::Value *ptr = emitter.GetLocalBindStorage(base_name);
         bool hosted_state_resolution_failed = false;
         auto resolve_hosted_state_ptr = [&](const std::string &symbol_name,
                                             llvm::Type *static_ll) -> llvm::Value * {
@@ -12412,8 +12582,7 @@ namespace cursive::codegen
         {
           if (auto alias = emitter.LookupSymbolAlias(base_name))
           {
-            if (const LowerCtx *active_ctx = emitter.GetCurrentCtx();
-                active_ctx && emitter.IsHostedLibraryBuild())
+            if (active_ctx && emitter.IsHostedLibraryBuild())
             {
               analysis::TypeRef static_type = active_ctx->LookupStaticType(*alias);
               if (static_type)
@@ -12436,7 +12605,7 @@ namespace cursive::codegen
         }
         if (!ptr && !hosted_state_resolution_failed)
         {
-          if (const LowerCtx *active_ctx = emitter.GetCurrentCtx())
+          if (active_ctx)
           {
             auto try_hosted_state = [&](const std::string &symbol_name) -> llvm::Value * {
               if (!emitter.IsHostedLibraryBuild())
@@ -12468,10 +12637,16 @@ namespace cursive::codegen
         }
         if (hosted_state_resolution_failed)
         {
-          if (const LowerCtx *active_ctx = emitter.GetCurrentCtx())
+          if (active_ctx)
           {
             const_cast<LowerCtx *>(active_ctx)->ReportCodegenFailure();
           }
+          emitter.SetTempValue(addrof.result, DefaultFor(addrof.result));
+          return;
+        }
+        if (!ptr && local_binding)
+        {
+          const_cast<LowerCtx *>(active_ctx)->ReportCodegenFailure();
           emitter.SetTempValue(addrof.result, DefaultFor(addrof.result));
           return;
         }
@@ -12486,6 +12661,10 @@ namespace cursive::codegen
 
         if (!ptr || !ptr->getType()->isPointerTy())
         {
+          if (local_binding && active_ctx)
+          {
+            const_cast<LowerCtx *>(active_ctx)->ReportCodegenFailure();
+          }
           emitter.SetTempValue(addrof.result, DefaultFor(addrof.result));
           return;
         }
@@ -12592,7 +12771,21 @@ namespace cursive::codegen
               std::string symbol = derived->name;
               if (!derived->static_path.empty() && !derived->name.empty())
               {
-                symbol = StaticSymPath(derived->static_path, derived->name);
+                if (auto* lower_ctx = emitter.GetCurrentCtx();
+                    lower_ctx && lower_ctx->sigma) {
+                  if (auto addr =
+                          StaticAddr(*lower_ctx->sigma,
+                                     derived->static_path,
+                                     derived->name)) {
+                    symbol = addr->name;
+                  } else {
+                    symbol = StaticSymPath(derived->static_path,
+                                           derived->name);
+                  }
+                } else {
+                  symbol = StaticSymPath(derived->static_path,
+                                         derived->name);
+                }
               }
               if (emitter.HasHostedStateSlot(symbol))
               {
@@ -13147,7 +13340,7 @@ namespace cursive::codegen
 
                 ABICallResult abi =
                     emitter.ComputeCallABI(runtime_info->params, runtime_info->ret, true);
-                if (!abi.func_type || abi.param_kinds.size() != 1u)
+                if (!abi.valid || !abi.func_type || abi.param_kinds.size() != 1u)
                 {
                   const_cast<LowerCtx *>(active_ctx)->ReportCodegenFailure();
                   return nullptr;
@@ -13582,7 +13775,7 @@ namespace cursive::codegen
                           elem_value->getType(),
                           nullptr,
                           slot_name);
-                      emitter.SetLocal(std::string(name), slot);
+                      emitter.RegisterLocalBindStorage(std::string(name), slot);
                       if (async_sig->out)
                       {
                         emitter.SetLocalType(std::string(name), async_sig->out);
@@ -14127,7 +14320,7 @@ namespace cursive::codegen
                         elem_value->getType(),
                         nullptr,
                         slot_name);
-                    emitter.SetLocal(std::string(name), slot);
+                    emitter.RegisterLocalBindStorage(std::string(name), slot);
                     if (iter_elem_type)
                     {
                       emitter.SetLocalType(std::string(name), iter_elem_type);
@@ -20234,7 +20427,7 @@ namespace cursive::codegen
     {
     case IRValue::Kind::Local:
     {
-      llvm::Value *local = GetLocal(value.name);
+      llvm::Value *local = GetLocalBindStorage(value.name);
       return (local && local->getType()->isPointerTy()) ? local : nullptr;
     }
     case IRValue::Kind::Symbol:
@@ -20414,6 +20607,29 @@ namespace cursive::codegen
       SetLocalHomeStorage(value.name, storage);
     }
     locals_.erase(local_it);
+  }
+
+  void LLVMEmitter::RegisterLocalBindStorage(const std::string &name, llvm::Value *val)
+  {
+    SetLocal(name, val);
+    if (val && val->getType()->isPointerTy())
+    {
+      SetLocalHomeStorage(name, val);
+    }
+  }
+
+  llvm::Value *LLVMEmitter::GetLocalBindStorage(const std::string &name)
+  {
+    llvm::Value *local = GetLocal(name);
+    if (local && local->getType()->isPointerTy())
+    {
+      if (GetLocalHomeStorage(name) != local)
+      {
+        SetLocalHomeStorage(name, local);
+      }
+      return local;
+    }
+    return GetLocalHomeStorage(name);
   }
 
   // T-LLVM-010: Bind local variable
@@ -20624,10 +20840,18 @@ namespace cursive::codegen
       ReleaseTempStorage(bind.value);
     }
 
-    SetLocal(bind.name, bind_slot);
+    RegisterLocalBindStorage(bind.name, bind_slot);
     if (bind.type)
     {
       local_types_[bind.name] = bind.type;
+    }
+    if (!bind.stable_name.empty() && bind.stable_name != bind.name)
+    {
+      RegisterLocalBindStorage(bind.stable_name, bind_slot);
+      if (bind.type)
+      {
+        local_types_[bind.stable_name] = bind.type;
+      }
     }
   }
 
@@ -20819,12 +21043,40 @@ namespace cursive::codegen
     case IRValue::Kind::Symbol:
     {
       const std::string symbol = resolve_symbol(val.name);
+      auto configure_imported_static_decl =
+          [&](llvm::GlobalVariable *decl) -> llvm::GlobalVariable * {
+        if (!decl) {
+          return nullptr;
+        }
+        const LowerCtx *active_ctx = GetCurrentCtx();
+        if (!active_ctx || active_ctx->module_path.empty()) {
+          return decl;
+        }
+        if (project::ObjectFormatOf(target_profile_) != project::ObjectFormat::Coff) {
+          return decl;
+        }
+        const auto *owner_module = active_ctx->LookupStaticModule(symbol);
+        if (!owner_module || owner_module->empty()) {
+          return decl;
+        }
+        const std::string &current_root = active_ctx->module_path.front();
+        const std::string &owner_root = owner_module->front();
+        const bool imported_shared_library_data =
+            owner_root != current_root &&
+            active_ctx->library_assembly_names.contains(owner_root);
+        if (!imported_shared_library_data) {
+          return decl;
+        }
+        decl->setDLLStorageClass(llvm::GlobalValue::DLLImportStorageClass);
+        return decl;
+      };
       auto load_global_value = [&](llvm::GlobalVariable *global_var) -> llvm::Value *
       {
         if (!global_var)
         {
           return nullptr;
         }
+        global_var = configure_imported_static_decl(global_var);
         if (!builder->GetInsertBlock())
         {
           return global_var;
@@ -20923,6 +21175,7 @@ namespace cursive::codegen
                   nullptr,
                   symbol);
             }
+            decl = configure_imported_static_decl(decl);
             return load_global_value(decl);
           }
         }
@@ -22126,11 +22379,52 @@ namespace cursive::codegen
       }
       case DerivedValueInfo::Kind::AddrStatic:
       {
+        auto configure_imported_static_decl =
+            [&](llvm::GlobalVariable *decl,
+                const std::string &symbol_name) -> llvm::GlobalVariable * {
+          if (!decl) {
+            return nullptr;
+          }
+          if (!ctx || ctx->module_path.empty()) {
+            return decl;
+          }
+          if (project::ObjectFormatOf(target_profile_) != project::ObjectFormat::Coff) {
+            return decl;
+          }
+          const auto *owner_module = ctx->LookupStaticModule(symbol_name);
+          if (!owner_module || owner_module->empty()) {
+            return decl;
+          }
+          const std::string &current_root = ctx->module_path.front();
+          const std::string &owner_root = owner_module->front();
+          const bool imported_shared_library_data =
+              owner_root != current_root &&
+              ctx->library_assembly_names.contains(owner_root);
+          if (!imported_shared_library_data) {
+            return decl;
+          }
+          decl->setDLLStorageClass(llvm::GlobalValue::DLLImportStorageClass);
+          return decl;
+        };
         std::vector<std::string> symbol_candidates;
         symbol_candidates.reserve(4);
         if (!derived->static_path.empty() && !derived->name.empty())
         {
-          symbol_candidates.push_back(StaticSymPath(derived->static_path, derived->name));
+          if (auto* lower_ctx = current_ctx_;
+              lower_ctx && lower_ctx->sigma) {
+            if (auto addr =
+                    StaticAddr(*lower_ctx->sigma,
+                               derived->static_path,
+                               derived->name)) {
+              symbol_candidates.push_back(addr->name);
+            } else {
+              symbol_candidates.push_back(
+                  StaticSymPath(derived->static_path, derived->name));
+            }
+          } else {
+            symbol_candidates.push_back(
+                StaticSymPath(derived->static_path, derived->name));
+          }
         }
         if (!derived->name.empty())
         {
@@ -22171,6 +22465,21 @@ namespace cursive::codegen
           {
             fallback = module_->getNamedGlobal(symbol_name);
           }
+          if (!fallback && static_ll)
+          {
+            auto *decl = new llvm::GlobalVariable(
+                *module_,
+                static_ll,
+                false,
+                llvm::GlobalValue::ExternalLinkage,
+                nullptr,
+                symbol_name);
+            fallback = configure_imported_static_decl(decl, symbol_name);
+          }
+          else if (auto *global_decl = llvm::dyn_cast<llvm::GlobalVariable>(fallback))
+          {
+            fallback = configure_imported_static_decl(global_decl, symbol_name);
+          }
 
           llvm::Value *ptr = GetHostedStatePtr(symbol_name, static_ll, fallback);
           if (!ptr && fallback)
@@ -22200,9 +22509,13 @@ namespace cursive::codegen
       }
       case DerivedValueInfo::Kind::AddrLocal:
       {
-        llvm::Value *local = GetLocal(derived->name);
+        llvm::Value *local = GetLocalBindStorage(derived->name);
         if (!local)
         {
+          if (current_ctx_)
+          {
+            current_ctx_->ReportCodegenFailure();
+          }
           break;
         }
         if (auto *alloca = llvm::dyn_cast<llvm::AllocaInst>(local))

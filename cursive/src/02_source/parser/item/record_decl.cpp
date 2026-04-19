@@ -506,7 +506,7 @@ ParseElemResult<std::vector<RecordMember>> ParseRecordMemberList(
   ParseElemResult<std::optional<TypeInvariant>> ParseInvariantOpt(
       Parser parser)
   {
-    if (!IsKw(parser, "where"))
+    if (!IsOp(parser, "|:"))
     {
       SPEC_RULE("Parse-InvariantOpt-None");
       return {parser, std::nullopt};
@@ -515,7 +515,7 @@ ParseElemResult<std::vector<RecordMember>> ParseRecordMemberList(
     SPEC_RULE("Parse-InvariantOpt-Yes");
     Parser start = parser;
     Parser next = parser;
-    Advance(next); // consume where
+    Advance(next); // consume |:
 
     if (!IsPunc(next, "{"))
     {

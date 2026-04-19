@@ -507,7 +507,7 @@ static TypeRef UnifyBranchTypes(const ScopeContext& ctx,
 
 static std::optional<std::string_view> IfNoElseDiagOrFallback(
     std::optional<std::string_view> diag_id) {
-  if (diag_id.has_value()) {
+  if (diag_id.has_value() && *diag_id != "E-SEM-2526") {
     return diag_id;
   }
   return std::optional<std::string_view>{"If-Branch-Mismatch"};

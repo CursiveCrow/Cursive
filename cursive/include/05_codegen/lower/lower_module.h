@@ -16,4 +16,8 @@ bool RegisterModuleSignatures(const ast::ASTModule& module, LowerCtx& ctx);
 IRDecls LowerModule(const ast::ASTModule& module,
                     LowerCtx& ctx);
 
+// ExpandIR - append generated declarations required by the lowered IR.
+IRDecls ExpandIR(const IRDecls& decls,
+                 LowerCtx& ctx);
+
 }  // namespace cursive::codegen

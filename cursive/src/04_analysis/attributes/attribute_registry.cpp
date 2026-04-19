@@ -869,16 +869,6 @@ AttributeValidationResult ValidateAttributes(
         result.message = "Malformed [[unwind]] syntax";
         return result;
       }
-      const auto* token = GetTokenArg(attr.args.front());
-      const auto mode = NormalizeAttrLiteral(token->lexeme);
-      if (!IsStringLiteralToken(*token) ||
-          (mode != "abort" && mode != "catch")) {
-        result.ok = false;
-        result.diag_id = "E-MOD-2450";
-        result.span = attr.span;
-        result.message = "Malformed [[unwind]] syntax";
-        return result;
-      }
     }
 
     for (const auto& arg_spec : spec->args) {

@@ -1960,10 +1960,10 @@ StmtTypeResult TypeScopedStmtBody(const ScopeContext& ctx,
                                   const PlaceTypeFn& type_place) {
   SpecDefsTypeStmt();
   TypeEnv body_env;
-  const auto typed = TypeBlock(ctx, type_ctx, body, scoped_env, type_expr,
-                               type_ident, type_place, &body_env);
-  if (!typed.ok) {
-    return {false, typed.diag_id, {}, {}, typed.diag_detail, typed.diag_span};
+  const auto info = TypeBlockInfo(ctx, type_ctx, body, scoped_env, type_expr,
+                                  type_ident, type_place, &body_env);
+  if (!info.ok) {
+    return {false, info.diag_id, {}, {}, info.diag_detail, info.diag_span};
   }
 
   const TypeEnv projected_env =
@@ -1971,7 +1971,13 @@ StmtTypeResult TypeScopedStmtBody(const ScopeContext& ctx,
   if (type_ctx.env_ref) {
     *type_ctx.env_ref = projected_env;
   }
-  return {true, std::nullopt, projected_env, {}};
+  FlowInfo flow;
+  if (IsPrimType(info.type, "!")) {
+    flow.results.push_back(info.type);
+  }
+  flow.breaks = info.breaks;
+  flow.break_void = info.break_void;
+  return {true, std::nullopt, projected_env, std::move(flow)};
 }
 
 std::optional<TypeBinding> BindOf(const TypeEnv& env, std::string_view name) {

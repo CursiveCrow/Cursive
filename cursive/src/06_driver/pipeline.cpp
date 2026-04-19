@@ -601,6 +601,15 @@ std::optional<LLVMModuleBundle> EmitLLVMModule(
   return bundle;
 }
 
+std::optional<LLVMModuleBundle> EmitLLVMModule(
+    const CodegenCache& cache,
+    const ModuleCodegen& module,
+    const project::Project& project) {
+  const project::TargetProfile target_profile =
+      project.toolchain.target_profile.value_or(project::TargetProfile::X86_64Win64);
+  return EmitLLVMModule(cache, module, project, target_profile);
+}
+
 const llvm::Target* GetCachedTarget(const llvm::Triple& triple,
                                     std::string& err) {
   static std::mutex cache_mu;
@@ -671,14 +680,14 @@ std::optional<std::string> EmitIRForModule(
     project::TargetProfile target_profile) {
   const std::string module_name = ModuleNameForLog(module);
   LogCodegenProgress("emit-ir-start module=" + module_name);
-  auto bundle = EmitLLVMModule(cache, module, project, target_profile);
+  auto bundle = EmitLLVMModule(cache, module, project);
   if (!bundle) {
     LogCodegenProgress("emit-ir-error module=" + module_name +
                        " stage=lower-ir");
     return std::nullopt;
   }
 
-  const auto assembler = project::ResolveTool(project, target_profile, "llvm-as");
+  const auto assembler = project::ResolveTool(project, "llvm-as");
   if (!assembler.has_value()) {
     LogCodegenProgress("emit-ir-error module=" + module_name +
                        " stage=resolve-llvm-as");
@@ -832,6 +841,13 @@ std::shared_ptr<CodegenCache> BuildCodegenCache(
       project.assembly.link_kind.value_or("shared") == "shared";
   cache->ctx.hosted_library = project.assembly.kind == "library";
   cache->ctx.project_entry_module = SelectProjectEntryModule(project);
+  for (const auto& assembly : project.assemblies) {
+    if (assembly.kind == "dependency") {
+      cache->ctx.dependency_assembly_names.insert(assembly.name);
+    } else if (assembly.kind == "library") {
+      cache->ctx.library_assembly_names.insert(assembly.name);
+    }
+  }
   LogCodegenProgress("cache-build-start modules=" +
                      std::to_string(sema_ctx.sigma.mods.size()));
 

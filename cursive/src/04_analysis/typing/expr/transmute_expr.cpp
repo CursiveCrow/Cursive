@@ -89,6 +89,169 @@ static bool KnownInvalidTransmuteTarget(const TypeRef& type) {
       stripped->node);
 }
 
+static bool SameSpan(const core::Span& lhs, const core::Span& rhs) {
+  return lhs.file == rhs.file &&
+         lhs.start_offset == rhs.start_offset &&
+         lhs.end_offset == rhs.end_offset &&
+         lhs.start_line == rhs.start_line &&
+         lhs.start_col == rhs.start_col &&
+         lhs.end_line == rhs.end_line &&
+         lhs.end_col == rhs.end_col;
+}
+
+static void EmitInvalidTargetWarning(const ScopeContext& ctx,
+                                     const StmtTypeContext& type_ctx,
+                                     const core::Span& span) {
+  auto* diags = type_ctx.diags ? type_ctx.diags : ctx.diagnostics;
+  if (!diags) {
+    return;
+  }
+  for (const auto& diag : *diags) {
+    if (diag.code == "W-SAFE-0100" && diag.span.has_value() &&
+        SameSpan(*diag.span, span)) {
+      return;
+    }
+  }
+  auto diag = core::MakeDiagnosticById(
+      "W-SAFE-0100", std::optional<core::Span>(span));
+  if (diag) {
+    core::Emit(*diags, *diag);
+  }
+}
+
+static void EmitInvalidTargetWarningsInExpr(const ScopeContext& ctx,
+                                            const StmtTypeContext& type_ctx,
+                                            const ast::ExprPtr& expr,
+                                            const TypeEnv& env);
+
+static void EmitInvalidTargetWarningsInStmt(const ScopeContext& ctx,
+                                            const StmtTypeContext& type_ctx,
+                                            const ast::Stmt& stmt,
+                                            const TypeEnv& env) {
+  std::visit(
+      [&](const auto& node) {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::LetStmt> ||
+                      std::is_same_v<T, ast::VarStmt>) {
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.binding.init, env);
+        } else if constexpr (std::is_same_v<T, ast::AssignStmt>) {
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.place, env);
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::CompoundAssignStmt>) {
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.place, env);
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::ExprStmt>) {
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::DeferStmt> ||
+                             std::is_same_v<T, ast::RegionStmt> ||
+                             std::is_same_v<T, ast::FrameStmt> ||
+                             std::is_same_v<T, ast::UnsafeBlockStmt>) {
+          if (node.body) {
+            EmitInvalidTransmuteTargetWarningsInBlock(ctx, type_ctx,
+                                                      *node.body, env);
+          }
+          if constexpr (std::is_same_v<T, ast::RegionStmt>) {
+            EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.opts_opt, env);
+          }
+        } else if constexpr (std::is_same_v<T, ast::ReturnStmt> ||
+                             std::is_same_v<T, ast::BreakStmt>) {
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.value_opt, env);
+        }
+      },
+      stmt);
+}
+
+static void EmitInvalidTargetWarningsInExpr(const ScopeContext& ctx,
+                                            const StmtTypeContext& type_ctx,
+                                            const ast::ExprPtr& expr,
+                                            const TypeEnv& env) {
+  if (!expr) {
+    return;
+  }
+
+  std::visit(
+      [&](const auto& node) {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::TransmuteExpr>) {
+          const auto lowered = LowerType(ctx, node.to);
+          if (lowered.ok && KnownInvalidTransmuteTarget(lowered.type)) {
+            EmitInvalidTargetWarning(ctx, type_ctx, expr->span);
+          }
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.expr, env);
+        } else if constexpr (std::is_same_v<T, ast::UnsafeBlockExpr> ||
+                             std::is_same_v<T, ast::BlockExpr>) {
+          if (node.block) {
+            EmitInvalidTransmuteTargetWarningsInBlock(ctx, type_ctx,
+                                                      *node.block, env);
+          }
+        } else if constexpr (std::is_same_v<T, ast::BinaryExpr>) {
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.lhs, env);
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.rhs, env);
+        } else if constexpr (std::is_same_v<T, ast::UnaryExpr> ||
+                             std::is_same_v<T, ast::PropagateExpr> ||
+                             std::is_same_v<T, ast::YieldExpr> ||
+                             std::is_same_v<T, ast::YieldFromExpr> ||
+                             std::is_same_v<T, ast::CastExpr>) {
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.value, env);
+        } else if constexpr (std::is_same_v<T, ast::MoveExpr>) {
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.place, env);
+        } else if constexpr (std::is_same_v<T, ast::TupleExpr>) {
+          for (const auto& elem : node.elements) {
+            EmitInvalidTargetWarningsInExpr(ctx, type_ctx, elem, env);
+          }
+        } else if constexpr (std::is_same_v<T, ast::ArrayExpr>) {
+          for (const auto& segment : node.elements) {
+            if (const auto* elem = std::get_if<ast::ArrayElemSegment>(&segment)) {
+              EmitInvalidTargetWarningsInExpr(ctx, type_ctx, elem->value, env);
+            } else if (const auto* repeat =
+                           std::get_if<ast::ArrayRepeatSegment>(&segment)) {
+              EmitInvalidTargetWarningsInExpr(ctx, type_ctx, repeat->value, env);
+              EmitInvalidTargetWarningsInExpr(ctx, type_ctx, repeat->count, env);
+            }
+          }
+        } else if constexpr (std::is_same_v<T, ast::ArrayRepeatExpr>) {
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.value, env);
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.count, env);
+        } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
+          for (const auto& field : node.fields) {
+            EmitInvalidTargetWarningsInExpr(ctx, type_ctx, field.value, env);
+          }
+        } else if constexpr (std::is_same_v<T, ast::FieldAccessExpr> ||
+                             std::is_same_v<T, ast::TupleAccessExpr>) {
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.base, env);
+        } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.base, env);
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.index, env);
+        } else if constexpr (std::is_same_v<T, ast::CallExpr>) {
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.callee, env);
+          for (const auto& arg : node.args) {
+            EmitInvalidTargetWarningsInExpr(ctx, type_ctx, arg.value, env);
+          }
+        } else if constexpr (std::is_same_v<T, ast::MethodCallExpr>) {
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.receiver, env);
+          for (const auto& arg : node.args) {
+            EmitInvalidTargetWarningsInExpr(ctx, type_ctx, arg.value, env);
+          }
+        } else if constexpr (std::is_same_v<T, ast::IfExpr>) {
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.cond, env);
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.then_expr, env);
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.else_expr, env);
+        } else if constexpr (std::is_same_v<T, ast::IfCaseExpr>) {
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.scrutinee, env);
+          for (const auto& case_clause : node.cases) {
+            EmitInvalidTargetWarningsInExpr(ctx, type_ctx, case_clause.body, env);
+          }
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.else_expr, env);
+        } else if constexpr (std::is_same_v<T, ast::PipelineExpr>) {
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.lhs, env);
+          EmitInvalidTargetWarningsInExpr(ctx, type_ctx, node.rhs, env);
+        }
+      },
+      expr->node);
+}
+
 }  // namespace
 
 // Section 5.5 Transmute Expression Typing
@@ -197,18 +360,23 @@ ExprTypeResult TypeTransmuteExprImpl(const ScopeContext& ctx,
 
   if (KnownInvalidTransmuteTarget(to.type)) {
     SPEC_RULE("W-Transmute-Invalid-Target");
-    if (type_ctx.diags) {
-      if (auto diag = core::MakeDiagnosticById(
-              "W-SAFE-0100", std::optional<core::Span>(span))) {
-        core::Emit(*type_ctx.diags, *diag);
-      }
-    }
+    EmitInvalidTargetWarning(ctx, type_ctx, span);
   }
 
   SPEC_RULE("T-Transmute");
   result.ok = true;
   result.type = to.type;
   return result;
+}
+
+void EmitInvalidTransmuteTargetWarningsInBlock(const ScopeContext& ctx,
+                                               const StmtTypeContext& type_ctx,
+                                               const ast::Block& block,
+                                               const TypeEnv& env) {
+  for (const auto& stmt : block.stmts) {
+    EmitInvalidTargetWarningsInStmt(ctx, type_ctx, stmt, env);
+  }
+  EmitInvalidTargetWarningsInExpr(ctx, type_ctx, block.tail_opt, env);
 }
 
 }  // namespace cursive::analysis::expr

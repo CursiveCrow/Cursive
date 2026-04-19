@@ -49,37 +49,49 @@ namespace cursive::codegen {
 LowerResult LowerArrayLiteral(const ast::ArrayExpr& expr, LowerCtx& ctx) {
     SPEC_RULE("Lower-Expr-Array");
 
+    auto [ir, lowered_segments] = LowerList(expr.elements, ctx);
+
     // Create a synthetic value to represent the array
     IRValue array_value = ctx.FreshTempValue("array");
 
-    IRPtr ir = EmptyIR();
     DerivedValueInfo info;
     info.kind = DerivedValueInfo::Kind::ArraySegments;
-    for (const auto& segment : expr.elements) {
-        std::visit(
-            [&](const auto& node) {
-                using T = std::decay_t<decltype(node)>;
-                if constexpr (std::is_same_v<T, ast::ArrayElemSegment>) {
-                    auto value_result = LowerExpr(*node.value, ctx);
-                    ir = SeqIR({ir, value_result.ir});
-                    DerivedArraySegment derived_segment;
-                    derived_segment.kind = DerivedArraySegment::Kind::Element;
-                    derived_segment.value = value_result.value;
-                    info.array_segments.push_back(std::move(derived_segment));
-                } else if constexpr (std::is_same_v<T, ast::ArrayRepeatSegment>) {
-                    auto value_result = LowerExpr(*node.value, ctx);
-                    auto count_result = LowerExpr(*node.count, ctx);
-                    ir = SeqIR({ir, value_result.ir, count_result.ir});
-                    DerivedArraySegment derived_segment;
-                    derived_segment.kind = DerivedArraySegment::Kind::Repeat;
-                    derived_segment.value = value_result.value;
-                    derived_segment.count = count_result.value;
-                    info.array_segments.push_back(std::move(derived_segment));
-                }
-            },
-            segment);
-    }
+    info.array_segments = std::move(lowered_segments);
     ctx.RegisterDerivedValue(array_value, info);
+
+    // Preserve the concrete array type when the element type is known and the
+    // literal has a statically known element count.
+    std::optional<analysis::TypeRef> element_type;
+    bool homogeneous = true;
+    std::size_t element_count = 0;
+    for (const auto& segment : info.array_segments) {
+        analysis::TypeRef current_type = ctx.LookupValueType(segment.value);
+        if (!current_type) {
+            homogeneous = false;
+            break;
+        }
+        if (!element_type.has_value()) {
+            element_type = current_type;
+        } else {
+            const auto equiv = analysis::TypeEquiv(*element_type, current_type);
+            if (!equiv.ok || !equiv.equiv) {
+                homogeneous = false;
+                break;
+            }
+        }
+        if (segment.kind == DerivedArraySegment::Kind::Element) {
+            ++element_count;
+        } else {
+            homogeneous = false;
+            break;
+        }
+    }
+    if (homogeneous && element_type.has_value()) {
+        ctx.RegisterValueType(
+            array_value,
+            analysis::MakeTypeArray(*element_type,
+                                    static_cast<std::uint64_t>(element_count)));
+    }
 
     return LowerResult{ir, array_value};
 }

@@ -79,6 +79,7 @@ struct IRReadPath {
 
 struct IRBindVar {
   std::string name;
+  std::string stable_name;
   IRValue value;
   analysis::TypeRef type;
   analysis::ProvenanceKind prov = analysis::ProvenanceKind::Bottom;
@@ -575,6 +576,7 @@ struct IR {
 struct IRParam {
   std::optional<analysis::ParamMode> mode;
   std::string name;
+  std::string stable_name;
   analysis::TypeRef type;
 };
 

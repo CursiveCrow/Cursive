@@ -150,6 +150,44 @@ std::vector<std::string> StaticBindList(const ast::Binding& binding) {
   return names;
 }
 
+std::vector<StaticBindRef> StaticBindOrder(const ast::ASTModule& module) {
+  SPEC_DEF("StaticBindOrder", "Section 6.7");
+
+  std::vector<StaticBindRef> order;
+  for (const auto* item : StaticItems(module)) {
+    const auto names = StaticBindList(item->binding);
+    for (const auto& name : names) {
+      order.emplace_back(module.path, name);
+    }
+  }
+  return order;
+}
+
+std::vector<StaticBindRef> GlobalStaticOrder(
+    const analysis::Sigma& sigma,
+    const std::vector<ast::ModulePath>& init_order) {
+  SPEC_DEF("GlobalStaticOrder", "Section 6.7");
+
+  std::vector<StaticBindRef> order;
+  for (const auto& module_path : init_order) {
+    const ast::ASTModule* module = nullptr;
+    for (const auto& candidate : sigma.mods) {
+      if (candidate.path == module_path) {
+        module = &candidate;
+        break;
+      }
+    }
+    if (!module) {
+      continue;
+    }
+    auto module_order = StaticBindOrder(*module);
+    order.insert(order.end(),
+                 std::make_move_iterator(module_order.begin()),
+                 std::make_move_iterator(module_order.end()));
+  }
+  return order;
+}
+
 // StaticBindTypes(binding) = B when BindType(binding) matches pattern
 std::vector<std::pair<std::string, analysis::TypeRef>> StaticBindTypes(
     const ast::Binding& binding,
@@ -219,6 +257,142 @@ std::string StaticSymPath(const ast::ModulePath& path,
 
   // StaticSymPath(path, name) uses MangleStaticBinding
   return MangleStaticBinding(path, name);
+}
+
+const ast::StaticDecl* StaticItemOf(const analysis::Sigma& sigma,
+                                    const ast::ModulePath& path,
+                                    const std::string& name) {
+  SPEC_DEF("StaticItemOf", "Section 6.7");
+
+  const ast::ASTModule* module = nullptr;
+  for (const auto& candidate : sigma.mods) {
+    if (candidate.path == path) {
+      module = &candidate;
+      break;
+    }
+  }
+  if (!module) {
+    return nullptr;
+  }
+
+  const ast::StaticDecl* found = nullptr;
+  for (const auto* item : StaticItems(*module)) {
+    const auto names = StaticBindList(item->binding);
+    if (std::find(names.begin(), names.end(), name) == names.end()) {
+      continue;
+    }
+    if (found && found != item) {
+      return nullptr;
+    }
+    found = item;
+  }
+  return found;
+}
+
+std::string StaticSymPath(const analysis::Sigma& sigma,
+                          const ast::ModulePath& path,
+                          const std::string& name) {
+  SPEC_DEF("StaticSymPath", "Section 6.7");
+
+  if (const auto* item = StaticItemOf(sigma, path, name)) {
+    return StaticSym(*item, path, name);
+  }
+  return StaticSymPath(path, name);
+}
+
+std::optional<IRValue> StaticAddr(const analysis::Sigma& sigma,
+                                  const ast::ModulePath& path,
+                                  const std::string& name) {
+  SPEC_DEF("StaticAddr", "Section 6.7");
+
+  if (const auto* item = StaticItemOf(sigma, path, name)) {
+    IRValue addr;
+    addr.kind = IRValue::Kind::Symbol;
+    addr.name = StaticSym(*item, path, name);
+    return addr;
+  }
+  return std::nullopt;
+}
+
+bool IsMoveExprLiteLocal(const ast::ExprPtr& expr) {
+  return expr && std::holds_alternative<ast::MoveExpr>(expr->node);
+}
+
+bool IsPlaceExprLiteLocal(const ast::ExprPtr& expr) {
+  if (!expr) {
+    return false;
+  }
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::IdentifierExpr>) {
+          return true;
+        } else if constexpr (std::is_same_v<T, ast::FieldAccessExpr>) {
+          return IsPlaceExprLiteLocal(node.base);
+        } else if constexpr (std::is_same_v<T, ast::TupleAccessExpr>) {
+          return IsPlaceExprLiteLocal(node.base);
+        } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {
+          return IsPlaceExprLiteLocal(node.base);
+        } else if constexpr (std::is_same_v<T, ast::DerefExpr>) {
+          return IsPlaceExprLiteLocal(node.value);
+        }
+        return false;
+      },
+      expr->node);
+}
+
+bool StaticHasResponsibilityLocal(const ast::StaticDecl& item) {
+  const auto& init = item.binding.init;
+  if (!init) {
+    return true;
+  }
+  if (!IsPlaceExprLiteLocal(init)) {
+    return true;
+  }
+  return IsMoveExprLiteLocal(init);
+}
+
+analysis::TypeRef StaticType(const analysis::Sigma& sigma,
+                             const ast::ModulePath& path,
+                             const std::string& name) {
+  SPEC_DEF("StaticType", "Section 6.7");
+
+  const auto* item = StaticItemOf(sigma, path, name);
+  if (!item) {
+    return nullptr;
+  }
+
+  LowerCtx tmp;
+  tmp.sigma = &sigma;
+  tmp.module_path = path;
+  const auto bind_types = StaticBindTypes(item->binding, path, tmp);
+  for (const auto& [bind_name, bind_type] : bind_types) {
+    if (bind_name == name) {
+      return bind_type;
+    }
+  }
+  return nullptr;
+}
+
+std::optional<StaticBindingInfo> StaticBindInfo(const analysis::Sigma& sigma,
+                                                const ast::ModulePath& path,
+                                                const std::string& name) {
+  SPEC_DEF("StaticBindInfo", "Section 6.7");
+
+  const auto* item = StaticItemOf(sigma, path, name);
+  if (!item) {
+    return std::nullopt;
+  }
+
+  StaticBindingInfo info;
+  info.type = StaticType(sigma, path, name);
+  if (!info.type) {
+    return std::nullopt;
+  }
+  info.has_responsibility = StaticHasResponsibilityLocal(*item);
+  info.is_immovable = item->binding.op.lexeme == ":=" || !info.has_responsibility;
+  info.mut = item->mut;
+  return info;
 }
 
 // ============================================================================
@@ -439,9 +613,15 @@ void AnchorGlobalsRules() {
   // Definitions
   SPEC_DEF("StaticName", "Section 6.7");
   SPEC_DEF("StaticBindList", "Section 6.7");
+  SPEC_DEF("StaticBindOrder", "Section 6.7");
+  SPEC_DEF("GlobalStaticOrder", "Section 6.7");
   SPEC_DEF("StaticBindTypes", "Section 6.7");
   SPEC_DEF("StaticSym", "Section 6.7");
   SPEC_DEF("StaticSymPath", "Section 6.7");
+  SPEC_DEF("StaticItemOf", "Section 6.7");
+  SPEC_DEF("StaticAddr", "Section 6.7");
+  SPEC_DEF("StaticType", "Section 6.7");
+  SPEC_DEF("StaticBindInfo", "Section 6.7");
   SPEC_DEF("StaticStoreIR", "Section 6.7");
   SPEC_DEF("StaticItems", "Section 6.7");
   SPEC_DEF("EmitStringLit", "Section 6.12.14");

@@ -26,10 +26,26 @@ namespace cursive::analysis {
 StmtTypeResult TypeUsingLocalStmt(const ast::UsingLocalStmt& stmt,
                                   const TypeEnv& env) {
   SPEC_RULE("T-UsingLocalStmt");
-  (void)stmt;
   StmtTypeResult result;
+  if (env.scopes.empty()) {
+    result.ok = false;
+    result.diag_id = "ResolveExpr-Ident-Err";
+    result.env = env;
+    return result;
+  }
+
+  const auto source_binding = BindOf(env, stmt.source);
+  if (!source_binding.has_value()) {
+    result.ok = false;
+    result.diag_id = "ResolveExpr-Ident-Err";
+    result.env = env;
+    return result;
+  }
+
+  TypeEnv out_env = env;
+  out_env.scopes.back()[std::string(stmt.alias)] = *source_binding;
   result.ok = true;
-  result.env = env;
+  result.env = std::move(out_env);
   return result;
 }
 

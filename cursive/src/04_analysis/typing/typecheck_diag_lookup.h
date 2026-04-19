@@ -29,6 +29,115 @@ inline std::optional<std::string_view> LegacyTypecheckRuleDiagCode(
   if (diag_id == "Call-Arg-NotPlace") {
     return "E-TYP-1603";
   }
+  if (diag_id == "Call-ArgCount-Err" ||
+      diag_id == "Generic-Call-ArgCount-Err") {
+    return "E-SEM-2532";
+  }
+  if (diag_id == "Call-ArgType-Err") {
+    return "E-SEM-2533";
+  }
+  if (diag_id == "Call-Move-Missing") {
+    return "E-SEM-2534";
+  }
+  if (diag_id == "Call-Move-Unexpected") {
+    return "E-SEM-2535";
+  }
+  if (diag_id == "Method-Context-Err") {
+    return "E-SEM-3011";
+  }
+  if (diag_id == "Impl-Missing-Method") {
+    return "E-TYP-2503";
+  }
+  if (diag_id == "Impl-Sig-Err") {
+    return "E-TYP-2503";
+  }
+  if (diag_id == "Impl-AssocType-Missing") {
+    return "E-TYP-2503";
+  }
+  if (diag_id == "Alloc-Implicit-NoRegion-Err") {
+    return "E-MEM-3021";
+  }
+  if (diag_id == "Alloc-Region-NotFound-Err") {
+    return "E-MEM-1206";
+  }
+  if (diag_id == "Region-Unchecked-Unsafe-Err") {
+    return "E-MEM-3030";
+  }
+  if (diag_id == "AllocRaw-Unsafe-Err") {
+    return "E-MEM-3030";
+  }
+  if (diag_id == "DeallocRaw-Unsafe-Err") {
+    return "E-MEM-3030";
+  }
+  if (diag_id == "Export-Vis-Err") {
+    return "E-SYS-3353";
+  }
+  if (diag_id == "ExternAbi-Unknown-Err") {
+    return "E-SYS-3352";
+  }
+  if (diag_id == "ExternProc-Generic-Err") {
+    return "E-TYP-2306";
+  }
+  if (diag_id == "Packed-Field-Unsafe-Err") {
+    return "E-TYP-2105";
+  }
+  if (diag_id == "FieldAccess-Unknown") {
+    return "E-TYP-1904";
+  }
+  if (diag_id == "Return-Type-Err") {
+    return "E-SEM-3161";
+  }
+  if (diag_id == "Return-Unit-Err") {
+    return "E-SEM-3161";
+  }
+  if (diag_id == "Enum-Disc-Invalid") {
+    return "E-TYP-1921";
+  }
+  if (diag_id == "Enum-Disc-Dup") {
+    return "E-TYP-1923";
+  }
+  if (diag_id == "Superclass-Cycle") {
+    return "E-TYP-2508";
+  }
+  if (diag_id == "Modal-NoStates-Err") {
+    return "E-TYP-2050";
+  }
+  if (diag_id == "Modal-DupState-Err") {
+    return "E-TYP-2051";
+  }
+  if (diag_id == "Modal-StateName-Err") {
+    return "E-TYP-2054";
+  }
+  if (diag_id == "Modal-Field-Missing") {
+    return "E-TYP-2052";
+  }
+  if (diag_id == "Modal-Field-General-Err") {
+    return "E-TYP-2057";
+  }
+  if (diag_id == "Modal-Field-NotVisible") {
+    return "E-TYP-2064";
+  }
+  if (diag_id == "Modal-Method-NotVisible") {
+    return "E-TYP-2064";
+  }
+  if (diag_id == "Modal-Method-NotFound") {
+    return "E-TYP-2053";
+  }
+  if (diag_id == "Transition-NotVisible") {
+    return "E-TYP-2064";
+  }
+  if (diag_id == "Transition-Body-Err") {
+    return "E-TYP-2055";
+  }
+  if (diag_id == "Transition-Source-Err") {
+    return "E-TYP-2056";
+  }
+  if (diag_id == "Transition-Target-Err") {
+    return "E-TYP-2059";
+  }
+  if (diag_id == "Modal-Payload-DupField") {
+    return "E-TYP-2058";
+  }
 
   return std::nullopt;
 }

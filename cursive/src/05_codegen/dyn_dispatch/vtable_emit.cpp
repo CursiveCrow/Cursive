@@ -188,6 +188,18 @@ std::vector<std::string> CollectVTableRefs(const IRDecls& decls) {
   return vtable_refs;
 }
 
+std::vector<std::string> CollectVTableRefs(const LowerCtx& ctx) {
+  SPEC_RULE("VTableRefs");
+
+  std::vector<std::string> vtable_refs;
+  vtable_refs.reserve(ctx.required_vtables.size());
+  for (const auto& [symbol, _info] : ctx.required_vtables) {
+    vtable_refs.push_back(symbol);
+  }
+  std::sort(vtable_refs.begin(), vtable_refs.end());
+  return vtable_refs;
+}
+
 bool IsVTableSymbol(const std::string& symbol) {
   // Check if the symbol starts with the vtable prefix
   // or contains "vtable" in the mangled name

@@ -14,9 +14,10 @@
 
 // Forward declarations for LLVM types
 namespace llvm {
-class AttrBuilder;
-class Function;
-class LLVMContext;
+  class AttrBuilder;
+  class Function;
+  class LLVMContext;
+  class Type;
 }  // namespace llvm
 
 namespace cursive::codegen {
@@ -70,6 +71,7 @@ enum class AttrKind {
 struct AttrSpec {
   AttrKind kind;
   std::uint64_t value = 0;  // For Dereferenceable/Alignment
+  llvm::Type* type = nullptr;  // For typed attributes like sret
 };
 
 using AttrSet = std::vector<AttrSpec>;
@@ -111,6 +113,10 @@ AttrSet ComputeArgAttrsExt(const std::string& param_name,
 // -----------------------------------------------------------------------------
 // LLVM AttrBuilder Integration
 // -----------------------------------------------------------------------------
+
+// Adds an AttrSet to an LLVM AttrBuilder.
+void AddAttrSetToBuilder(llvm::AttrBuilder& builder,
+                         const AttrSet& attrs);
 
 // Adds pointer attributes to an LLVM AttrBuilder based on type
 // Computes both PtrAttrs and ArgAttrs and applies them

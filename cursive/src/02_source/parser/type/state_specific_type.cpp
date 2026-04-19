@@ -41,6 +41,7 @@ ParseElemResult<std::shared_ptr<Type>> ParseModalStateType(
   TypeModalState modal;
   modal.path = std::move(path);
   modal.generic_args = std::move(generic_args);
+  SyncTypeModalStateFromFields(modal);
   modal.state = state.elem;
 
   return {state.parser,

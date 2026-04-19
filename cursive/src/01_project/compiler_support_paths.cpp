@@ -121,13 +121,32 @@ std::filesystem::path CompilerRuntimeLibPath(const Project& project,
                                              TargetProfile profile) {
   const std::filesystem::path executable_dir = CompilerExecutableDir(project);
   const std::filesystem::path runtime_name(RuntimeLibNameFor(profile));
+  const auto support_root = CompilerSupportRoot(project);
+  if (!support_root.empty()) {
+    const auto layout = core::CompilerSupportLayout();
+    if (layout == core::CompilerSupportLayoutKind::LegacyBuildTree) {
+      const std::filesystem::path staged_runtime = support_root / "runtime" / runtime_name;
+      if (FileExists(staged_runtime)) {
+        return staged_runtime;
+      }
+    }
+    if (layout == core::CompilerSupportLayoutKind::PackagedOut) {
+      const std::filesystem::path beside_exe = support_root / runtime_name;
+      if (FileExists(beside_exe)) {
+        return beside_exe;
+      }
+    }
+    const std::filesystem::path support_runtime = support_root / "runtime" / runtime_name;
+    if (FileExists(support_runtime)) {
+      return support_runtime;
+    }
+  }
   if (!executable_dir.empty()) {
     const std::filesystem::path beside_exe = executable_dir / runtime_name;
     if (FileExists(beside_exe)) {
       return beside_exe;
     }
   }
-  const auto support_root = CompilerSupportRoot(project);
   if (support_root.empty()) {
     return executable_dir / runtime_name;
   }

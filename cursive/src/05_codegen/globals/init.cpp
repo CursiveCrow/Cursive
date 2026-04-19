@@ -366,28 +366,27 @@ IRPtr LowerStaticDeinitNames(const ast::ModulePath& module_path,
   std::vector<IRPtr> ir_parts;
   ir_parts.reserve(names.size());
 
-  const bool has_resp = StaticHasResponsibility(item);
-  const auto bind_types = StaticBindTypes(item.binding, module_path, ctx);
-  auto type_for = [&](const std::string& name) -> analysis::TypeRef {
-    for (const auto& [bind_name, bind_type] : bind_types) {
-      if (bind_name == name) {
-        return bind_type;
-      }
-    }
-    return nullptr;
-  };
-
   for (const auto& name : names) {
-    if (!has_resp) {
+    const auto bind_info =
+        ctx.sigma ? StaticBindInfo(*ctx.sigma, module_path, name) : std::nullopt;
+    if (!bind_info.has_value() || !bind_info->has_responsibility) {
       SPEC_RULE("Lower-StaticDeinitNames-Cons-NoResp");
       continue;
     }
     SPEC_RULE("Lower-StaticDeinitNames-Cons-Resp");
 
-    analysis::TypeRef type = type_for(name);
+    analysis::TypeRef type = bind_info->type;
     IRValue loaded_value;
     loaded_value.kind = IRValue::Kind::Symbol;
-    loaded_value.name = StaticSymPath(module_path, name);
+    if (ctx.sigma) {
+      if (auto addr = StaticAddr(*ctx.sigma, module_path, name)) {
+        loaded_value = *addr;
+      } else {
+        loaded_value.name = StaticSymPath(module_path, name);
+      }
+    } else {
+      loaded_value.name = StaticSymPath(module_path, name);
+    }
     ctx.RegisterValueType(loaded_value, type);
 
     IRPtr drop_ir = EmitDrop(type, loaded_value, ctx);

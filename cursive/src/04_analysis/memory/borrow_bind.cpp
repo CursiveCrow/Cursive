@@ -2512,7 +2512,7 @@ static BindResult BindMethodCallExpr(const ScopeContext& ctx,
     return OkResult(current);
   }
 
-  if (recv_mode.has_value() && IsMoveMissing(call.receiver) &&
+  if (recv_mode.has_value() && !is_transition && IsMoveMissing(call.receiver) &&
       HasSourceProvenance(call.receiver)) {
     SPEC_RULE("B-ArgPass-Move-Missing");
     return ErrorResult(std::string_view("B-ArgPass-Move-Missing"), std::optional<core::Span>(call.receiver->span));
@@ -2552,7 +2552,11 @@ static BindResult BindMethodCallExpr(const ScopeContext& ctx,
 
   BindStateBundle out = std::move(args_res.state);
   Reactivate_inplace(out.perms, all_roots);
-  SPEC_RULE("B-MethodCall");
+  if (is_transition) {
+    SPEC_RULE("B-Transition");
+  } else {
+    SPEC_RULE("B-MethodCall");
+  }
   return OkResult(out);
 }
 

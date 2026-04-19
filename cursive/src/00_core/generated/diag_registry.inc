@@ -499,6 +499,7 @@ static constexpr DiagRegistryRow kDiagRegistryRows[] = {
   {"W-MOD-1201", "Warning", "Wildcard `using` in a module exposing public API"},
   {"W-MOD-2451", "Warning", "`align(N)` where N < natural alignment"},
   {"W-MOD-2452", "Warning", "`inline(always)` but inlining failed"},
+  {"W-SAFE-0100", "Warning", "`transmute` target type is known to admit invalid bit patterns"},
   {"W-SRC-0101", "Warning", "UTF-8 BOM present at the start of the file"},
   {"W-SRC-0301", "Warning", "Leading zeros in decimal literal"},
   {"W-SRC-0308", "Warning", "Lexically sensitive Unicode character within `unsafe` block"},
@@ -508,6 +509,8 @@ static constexpr DiagRegistryRow kDiagRegistryRows[] = {
 };
 
 static constexpr DiagIdCodeEntry kDiagIdCodeMapEntries[] = {
+  {"AllocRaw-Unsafe-Err", "E-MEM-3030"},
+  {"DeallocRaw-Unsafe-Err", "E-MEM-3030"},
   {"E-CNF-0401", "E-CNF-0401"},
   {"E-CNF-0402", "E-CNF-0402"},
   {"E-CNF-0406", "E-CNF-0406"},
@@ -977,6 +980,7 @@ static constexpr DiagIdCodeEntry kDiagIdCodeMapEntries[] = {
   {"P-SEM-2862", "P-SEM-2862"},
   {"P-TYP-1953", "P-TYP-1953"},
   {"T-Cast-Invalid", "E-SEM-2528"},
+  {"Topo-Cycle", "E-MOD-1401"},
   {"W-CNF-0601", "W-CNF-0601"},
   {"W-CON-0001", "W-CON-0001"},
   {"W-CON-0002", "W-CON-0002"},
@@ -998,6 +1002,7 @@ static constexpr DiagIdCodeEntry kDiagIdCodeMapEntries[] = {
   {"W-MOD-1201", "W-MOD-1201"},
   {"W-MOD-2451", "W-MOD-2451"},
   {"W-MOD-2452", "W-MOD-2452"},
+  {"W-SAFE-0100", "W-SAFE-0100"},
   {"W-SRC-0101", "W-SRC-0101"},
   {"W-SRC-0301", "W-SRC-0301"},
   {"W-SRC-0308", "W-SRC-0308"},

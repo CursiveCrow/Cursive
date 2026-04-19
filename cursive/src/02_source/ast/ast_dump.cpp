@@ -322,13 +322,14 @@ void dump_type_impl(std::ostream& out, const Type& type,
           out << "$";
           dump_path(out, node.path);
         } else if constexpr (std::is_same_v<T, TypeModalState>) {
-          dump_path(out, node.path);
-          if (!node.generic_args.empty()) {
+          dump_path(out, TypeModalRefPath(node.modal_ref));
+          const auto& modal_args = TypeModalRefArgs(node.modal_ref);
+          if (!modal_args.empty()) {
             out << "<";
-            for (std::size_t i = 0; i < node.generic_args.size(); ++i) {
+            for (std::size_t i = 0; i < modal_args.size(); ++i) {
               if (i > 0) out << ", ";
-              if (node.generic_args[i]) {
-                dump_type_impl(out, *node.generic_args[i], opts, depth + 1);
+              if (modal_args[i]) {
+                dump_type_impl(out, *modal_args[i], opts, depth + 1);
               }
             }
             out << ">";

@@ -1621,13 +1621,6 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       if (!check_shared_receiver_access(Permission::Unique)) {
         return result;
       }
-      if (HasSourceProvenance(expr.receiver) &&
-          (!expr.receiver ||
-           !std::holds_alternative<ast::MoveExpr>(expr.receiver->node))) {
-        SPEC_RULE("Call-Move-Missing");
-        result.diag_id = "Call-Move-Missing";
-        return result;
-      }
       if (!StateMemberVisible(ctx, modal->path, modal_member.transition->vis)) {
         SPEC_RULE("Transition-NotVisible");
         result.diag_id = "Transition-NotVisible";

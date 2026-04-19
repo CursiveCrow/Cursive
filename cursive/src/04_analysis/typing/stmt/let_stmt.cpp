@@ -60,6 +60,28 @@ std::string PatternName(const ast::PatternPtr& pat) {
   return {};
 }
 
+bool ContainsTransmuteWarningCandidate(const ast::ExprPtr& expr) {
+  if (!expr) {
+    return false;
+  }
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::TransmuteExpr>) {
+          return true;
+        } else if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
+          return ContainsTransmuteWarningCandidate(node.expr);
+        } else if constexpr (std::is_same_v<T, ast::UnsafeBlockExpr> ||
+                             std::is_same_v<T, ast::BlockExpr>) {
+          return node.block &&
+                 ContainsTransmuteWarningCandidate(node.block->tail_opt);
+        } else {
+          return false;
+        }
+      },
+      expr->node);
+}
+
 bool IsUniqueMoveInitCompatible(const TypeRef& annotated,
                                 const ast::ExprPtr& init,
                                 const PlaceTypeFn& type_place) {
@@ -224,6 +246,10 @@ StmtTypeResult TypeLetStmt(const ScopeContext& ctx,
         return {false, "E-MOD-2402", {}, {}};
       }
       return {false, check.diag_id, {}, {}};
+    }
+
+    if (ContainsTransmuteWarningCandidate(binding.init)) {
+      (void)read_type_expr(binding.init);
     }
 
     // Type the pattern against annotated type

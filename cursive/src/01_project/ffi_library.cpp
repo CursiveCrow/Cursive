@@ -115,6 +115,10 @@ std::optional<std::filesystem::path> ResolveLibraryLinkInputForCurrentTarget(
     std::string_view name,
     std::string_view kind,
     TargetProfile profile) {
+  if (kind == "raw-dylib") {
+    return std::nullopt;
+  }
+
   const auto resolved = ResolveLibraryNameForCurrentTarget(name, kind, profile);
   if (!resolved.has_value()) {
     return std::nullopt;

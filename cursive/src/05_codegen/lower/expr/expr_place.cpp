@@ -359,47 +359,6 @@ bool IsPlaceExprLite(const ast::ExprPtr& expr) {
       expr->node);
 }
 
-std::optional<StaticBindFlags> StaticBindFlagsFor(
-    const ast::ModulePath& module_path,
-    const std::string& name,
-    LowerCtx& ctx) {
-  if (!ctx.sigma) {
-    return std::nullopt;
-  }
-
-  const ast::ASTModule* module = nullptr;
-  for (const auto& mod : ctx.sigma->mods) {
-    if (analysis::PathEq(mod.path, module_path)) {
-      module = &mod;
-      break;
-    }
-  }
-  if (!module) {
-    return std::nullopt;
-  }
-
-  for (const auto& item : module->items) {
-    const auto* decl = std::get_if<ast::StaticDecl>(&item);
-    if (!decl) {
-      continue;
-    }
-    const auto names = StaticBindList(decl->binding);
-    if (std::find(names.begin(), names.end(), name) == names.end()) {
-      continue;
-    }
-
-    bool has_resp = true;
-    if (decl->binding.init && IsPlaceExprLite(decl->binding.init) &&
-        !IsMoveExprLite(decl->binding.init)) {
-      has_resp = false;
-    }
-    bool immovable = decl->binding.op.lexeme == ":=" || !has_resp;
-    return StaticBindFlags{has_resp, immovable};
-  }
-
-  return std::nullopt;
-}
-
 IRPtr LowerWritePlaceImpl(const ast::Expr& place,
                           const IRValue& value,
                           LowerCtx& ctx,
@@ -511,8 +470,9 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
 
           IRPtr drop_ir = EmptyIR();
           if (allow_drop) {
-            if (auto flags = StaticBindFlagsFor(full, resolved_name, ctx)) {
-              if (flags->has_responsibility) {
+            if (ctx.sigma) {
+              if (auto bind_info = StaticBindInfo(*ctx.sigma, full, resolved_name)) {
+                if (bind_info->has_responsibility) {
                 analysis::TypeRef static_type;
                 if (ctx.expr_type) {
                   static_type = ctx.expr_type(place);
@@ -526,11 +486,14 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
                 drop_ir = SeqIR({MakeIR(std::move(read)),
                                  EmitDrop(static_type, current_value, ctx)});
               }
+              }
             }
           }
 
           IRStoreGlobal store;
-          store.symbol = StaticSymPath(full, resolved_name);
+          store.symbol =
+              ctx.sigma ? StaticSymPath(*ctx.sigma, full, resolved_name)
+                        : StaticSymPath(full, resolved_name);
           store.value = value;
 
           auto is_noop = [](const IRPtr& ir) {

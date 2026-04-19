@@ -31,7 +31,19 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Function.h"
 
+#include <algorithm>
+
 namespace cursive::codegen {
+
+namespace {
+
+bool AttrSpecEquals(const AttrSpec& lhs, const AttrSpec& rhs) {
+  return lhs.kind == rhs.kind &&
+         lhs.value == rhs.value &&
+         lhs.type == rhs.type;
+}
+
+}  // namespace
 
 // =============================================================================
 // §6.12.3 LLVM Attribute Mapping
@@ -179,66 +191,57 @@ AttrSet ComputeArgAttrsExt(const std::string& param_name,
 // LLVM AttrBuilder Integration
 // -----------------------------------------------------------------------------
 
+void AddAttrSetToBuilder(llvm::AttrBuilder& builder,
+                         const AttrSet& attrs) {
+  for (const auto& attr : attrs) {
+    switch (attr.kind) {
+      case AttrKind::NonNull:
+        builder.addAttribute(llvm::Attribute::NonNull);
+        break;
+      case AttrKind::NoUndef:
+        builder.addAttribute(llvm::Attribute::NoUndef);
+        break;
+      case AttrKind::NoAlias:
+        builder.addAttribute(llvm::Attribute::NoAlias);
+        break;
+      case AttrKind::ReadOnly:
+        builder.addAttribute(llvm::Attribute::ReadOnly);
+        break;
+      case AttrKind::Dereferenceable:
+        builder.addDereferenceableAttr(attr.value);
+        break;
+      case AttrKind::Alignment:
+        if (attr.value > 0) {
+          builder.addAlignmentAttr(llvm::Align(attr.value));
+        }
+        break;
+      case AttrKind::StructRet:
+        if (attr.type) {
+          builder.addStructRetAttr(attr.type);
+        }
+        break;
+      case AttrKind::NoCapture:
+        builder.addCapturesAttr(llvm::CaptureInfo::none());
+        break;
+      case AttrKind::NoReturn:
+        builder.addAttribute(llvm::Attribute::NoReturn);
+        break;
+      case AttrKind::NoUnwind:
+        builder.addAttribute(llvm::Attribute::NoUnwind);
+        break;
+    }
+  }
+}
+
 void AddArgAttrsToBuilder(llvm::AttrBuilder& builder,
                           const analysis::TypeRef& type) {
-  const auto stripped = StripPerm(type);
-  if (!stripped) {
-    return;
-  }
-
-  if (std::holds_alternative<analysis::TypePtr>(stripped->node) ||
-      std::holds_alternative<analysis::TypeFunc>(stripped->node)) {
-    const auto perm = PermOf(type);
-    if (perm == analysis::Permission::Unique) {
-      builder.addAttribute(llvm::Attribute::NoAlias);
-    }
-    if (perm == analysis::Permission::Const) {
-      builder.addAttribute(llvm::Attribute::ReadOnly);
-    }
-  }
+  AddAttrSetToBuilder(builder, ComputeArgAttrs(type));
 }
 
 void AddPtrAttrsToBuilder(llvm::AttrBuilder& builder,
                           const analysis::TypeRef& type,
                           const LowerCtx* ctx) {
-  const auto stripped = StripPerm(type);
-  if (!stripped) {
-    return;
-  }
-
-  const auto* ptr = std::get_if<analysis::TypePtr>(&stripped->node);
-  if (ptr) {
-    if (!ptr->state.has_value() || *ptr->state != analysis::PtrState::Valid) {
-      SPEC_RULE("LLVM-PtrAttrs-Other");
-      return;
-    }
-  } else if (std::holds_alternative<analysis::TypeRawPtr>(stripped->node)) {
-    SPEC_RULE("LLVM-PtrAttrs-RawPtr");
-    return;
-  } else {
-    return;
-  }
-
-  // Valid pointer attributes
-  builder.addAttribute(llvm::Attribute::NonNull);
-  builder.addAttribute(llvm::Attribute::NoUndef);
-
-  if (ctx && ctx->sigma) {
-    analysis::ScopeContext scope;
-    scope.sigma = *ctx->sigma;
-    scope.sigma_source = ctx->sigma;
-    scope.current_module = ctx->module_path;
-
-    const auto size = SizeOf(scope, ptr->element);
-    const auto align = AlignOf(scope, ptr->element);
-
-    if (size.has_value()) {
-      builder.addDereferenceableAttr(*size);
-    }
-    if (align.has_value() && *align > 0) {
-      builder.addAlignmentAttr(llvm::Align(*align));
-    }
-  }
+  AddAttrSetToBuilder(builder, ComputePtrAttrs(type, ctx));
 }
 
 // -----------------------------------------------------------------------------
@@ -303,8 +306,17 @@ void LLVMEmitter::AddPtrAttributes(llvm::Function *func,
   }
 
   llvm::AttrBuilder b(context_);
-  AddArgAttrsToBuilder(b, type);
-  AddPtrAttrsToBuilder(b, type, current_ctx_);
+  AttrSet attrs = ComputeArgAttrs(type);
+  AttrSet ptr_attrs = ComputePtrAttrs(type, current_ctx_);
+  for (const auto& attr : ptr_attrs) {
+    if (std::find_if(attrs.begin(), attrs.end(),
+                     [&](const AttrSpec& existing) {
+                       return AttrSpecEquals(existing, attr);
+                     }) == attrs.end()) {
+      attrs.push_back(attr);
+    }
+  }
+  AddAttrSetToBuilder(b, attrs);
 
   if (b.hasAttributes()) {
     func->addParamAttrs(arg_idx, b);

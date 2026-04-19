@@ -40,6 +40,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <string>
 #include <string_view>
@@ -112,6 +113,97 @@ bool IsValidPtrType(const analysis::TypeRef& type) {
     return ptr->state.has_value() && *ptr->state == analysis::PtrState::Valid;
   }
   return false;
+}
+
+ByRefAccessKind ByRefAccess(const analysis::TypeRef& type) {
+  return PermOf(type) == analysis::Permission::Unique
+             ? ByRefAccessKind::ReadWrite
+             : ByRefAccessKind::ReadOnly;
+}
+
+namespace {
+
+void AppendUniqueAttr(AttrSet& attrs, const AttrSpec& attr) {
+  auto it = std::find_if(attrs.begin(),
+                         attrs.end(),
+                         [&](const AttrSpec& existing) {
+                           return existing.kind == attr.kind &&
+                                  existing.value == attr.value &&
+                                  existing.type == attr.type;
+                         });
+  if (it == attrs.end()) {
+    attrs.push_back(attr);
+  }
+}
+
+void MergeUniqueAttrs(AttrSet& dst, const AttrSet& src) {
+  for (const auto& attr : src) {
+    AppendUniqueAttr(dst, attr);
+  }
+}
+
+analysis::TypeRef LoweredByRefWrapperType(const analysis::TypeRef& type) {
+  switch (ByRefAccess(type)) {
+    case ByRefAccessKind::ReadOnly:
+    case ByRefAccessKind::ReadWrite:
+      return analysis::MakeTypePtr(
+          analysis::MakeTypePerm(analysis::Permission::Const, type),
+          analysis::PtrState::Valid);
+  }
+  return nullptr;
+}
+
+}  // namespace
+
+AttrSet ComputeLoweredParamAttrs(const std::string& param_name,
+                                 const analysis::TypeRef& type,
+                                 PassKind pass_kind,
+                                 const LowerCtx* ctx) {
+  if (!type) {
+    return {};
+  }
+
+  switch (pass_kind) {
+    case PassKind::ByRef: {
+      SPEC_RULE("LLVMArgLower-ByRef");
+      AttrSet attrs;
+      analysis::TypeRef wrapper = LoweredByRefWrapperType(type);
+      MergeUniqueAttrs(attrs, ComputePtrAttrs(wrapper, ctx));
+      MergeUniqueAttrs(attrs, ComputeArgAttrsExt(param_name, type));
+      return attrs;
+    }
+    case PassKind::ByValue: {
+      if (IsValidPtrType(type)) {
+        SPEC_RULE("LLVMArgLower-ByValue-PtrValid");
+        AttrSet attrs = ComputeArgAttrsExt(param_name, type);
+        MergeUniqueAttrs(attrs, ComputePtrAttrs(type, ctx));
+        return attrs;
+      }
+      SPEC_RULE("LLVMArgLower-ByValue-Other");
+      return ComputeArgAttrsExt(param_name, type);
+    }
+    case PassKind::SRet:
+      break;
+  }
+
+  return {};
+}
+
+AttrSet ComputeSRetParamAttrs(const analysis::TypeRef& ret_type,
+                              llvm::Type* ret_llvm_type,
+                              const LowerCtx* ctx) {
+  AttrSet attrs;
+  if (!ret_type) {
+    return attrs;
+  }
+
+  analysis::TypeRef wrapper = analysis::MakeTypePtr(
+      analysis::MakeTypePerm(analysis::Permission::Unique, ret_type),
+      analysis::PtrState::Valid);
+  MergeUniqueAttrs(attrs, ComputePtrAttrs(wrapper, ctx));
+  AppendUniqueAttr(attrs, AttrSpec{AttrKind::StructRet, 0, ret_llvm_type});
+  AppendUniqueAttr(attrs, AttrSpec{AttrKind::NoAlias, 0, nullptr});
+  return attrs;
 }
 
 llvm::AllocaInst* CreateEntryAlloca(llvm::Function* func,
@@ -310,7 +402,7 @@ llvm::Value* CoerceValue(llvm::IRBuilderBase* builder_base,
 // Argument Lowering
 // -----------------------------------------------------------------------------
 
-std::vector<llvm::Type*> ComputeLLVMParamTypes(
+std::optional<std::vector<llvm::Type*>> ComputeLLVMParamTypes(
     LLVMEmitter& emitter,
     const std::vector<IRParam>& params,
     const std::vector<PassKind>& param_kinds,
@@ -340,8 +432,7 @@ std::vector<llvm::Type*> ComputeLLVMParamTypes(
     const auto size = SizeOf(scope, params[i].type);
     if (!size.has_value()) {
       SPEC_RULE("LLVMArgLower-Err");
-      param_types.push_back(emitter.GetOpaquePtr());
-      continue;
+      return std::nullopt;
     }
 
     if (*size == 0) {
@@ -358,7 +449,7 @@ std::vector<llvm::Type*> ComputeLLVMParamTypes(
     llvm::Type* llvm_ty = emitter.GetLLVMType(params[i].type);
     if (!llvm_ty) {
       SPEC_RULE("LLVMArgLower-Err");
-      llvm_ty = emitter.GetOpaquePtr();
+      return std::nullopt;
     }
     param_types.push_back(llvm_ty);
   }
@@ -370,9 +461,9 @@ std::vector<llvm::Type*> ComputeLLVMParamTypes(
 // Return Value Lowering
 // -----------------------------------------------------------------------------
 
-llvm::Type* ComputeLLVMReturnType(LLVMEmitter& emitter,
-                                  const analysis::TypeRef& ret_type,
-                                  PassKind ret_kind) {
+std::optional<llvm::Type*> ComputeLLVMReturnType(LLVMEmitter& emitter,
+                                                 const analysis::TypeRef& ret_type,
+                                                 PassKind ret_kind) {
   if (ret_kind == PassKind::SRet) {
     SPEC_RULE("LLVMRetLower-SRet");
     return llvm::Type::getVoidTy(emitter.GetContext());
@@ -383,7 +474,7 @@ llvm::Type* ComputeLLVMReturnType(LLVMEmitter& emitter,
 
   if (!size.has_value()) {
     SPEC_RULE("LLVMRetLower-Err");
-    return llvm::Type::getVoidTy(emitter.GetContext());
+    return std::nullopt;
   }
 
   if (*size == 0) {
@@ -395,7 +486,7 @@ llvm::Type* ComputeLLVMReturnType(LLVMEmitter& emitter,
   llvm::Type* llvm_ty = emitter.GetLLVMType(ret_type);
   if (!llvm_ty) {
     SPEC_RULE("LLVMRetLower-Err");
-    return llvm::Type::getVoidTy(emitter.GetContext());
+    return std::nullopt;
   }
 
   return llvm_ty;
@@ -430,7 +521,10 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
       use_c_abi_aggregate_sret,
       /*foreign_boundary_mode_independent=*/
       (ffi_import_boundary || use_c_abi_aggregate_sret));
-  if (!abi.func_type) {
+  if (!abi.valid || !abi.func_type) {
+    if (LowerCtx* ctx = emitter.GetCurrentCtx()) {
+      ctx->ReportCodegenFailure();
+    }
     return nullptr;
   }
 
@@ -479,6 +573,37 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
       if (storage->getType() != target_ptr_ty) {
         storage = CoerceValue(builder, storage, target_ptr_ty);
       }
+    }
+    return storage;
+  };
+
+  auto report_codegen_failure = [&]() -> void {
+    if (LowerCtx* ctx = emitter.GetCurrentCtx()) {
+      ctx->ReportCodegenFailure();
+    }
+  };
+
+  auto is_null_pointer_arg = [&](llvm::Value* value) -> bool {
+    if (!value || !value->getType()->isPointerTy()) {
+      return false;
+    }
+    if (auto* constant = llvm::dyn_cast<llvm::Constant>(value)) {
+      return constant->isNullValue();
+    }
+    return false;
+  };
+
+  auto recover_pointer_value_arg = [&](std::size_t index,
+                                       llvm::Type* target_ty) -> llvm::Value* {
+    if (!source_args || index >= source_args->size()) {
+      return nullptr;
+    }
+    llvm::Value* storage = emitter.GetAddressableStorage((*source_args)[index]);
+    if (!storage || !storage->getType()->isPointerTy()) {
+      return nullptr;
+    }
+    if (target_ty && storage->getType() != target_ty) {
+      storage = CoerceValue(builder, storage, target_ty);
     }
     return storage;
   };
@@ -534,10 +659,14 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
     if (abi.param_kinds[i] == PassKind::ByRef) {
       // Need to pass by reference - create temporary if not already a pointer
       llvm::Type* elem_ty = emitter.GetLLVMType(params[i].type);
-      if (!arg->getType()->isPointerTy()) {
+      if (!arg->getType()->isPointerTy() || is_null_pointer_arg(arg)) {
         llvm::Value* storage = existing_arg_storage(i, elem_ty);
         if (storage) {
           call_args[idx] = storage;
+          continue;
+        }
+        if (arg->getType()->isPointerTy()) {
+          report_codegen_failure();
           continue;
         }
         const unsigned ordinal = next_scratch_ordinal(elem_ty, "byref_arg");
@@ -547,6 +676,8 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
           llvm::Value* stored = CoerceValue(builder, arg, elem_ty);
           builder->CreateStore(stored, slot);
           call_args[idx] = slot;
+        } else {
+          report_codegen_failure();
         }
         continue;
       }
@@ -561,20 +692,24 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
     if (carrier == ABIArgCarrierKind::Indirect) {
       llvm::Type* elem_ty = emitter.GetLLVMType(params[i].type);
       llvm::Value* ptr_arg = arg;
-      if (!ptr_arg->getType()->isPointerTy()) {
+      if (!ptr_arg->getType()->isPointerTy() || is_null_pointer_arg(ptr_arg)) {
         if (llvm::Value* storage = existing_arg_storage(i, elem_ty)) {
           ptr_arg = storage;
-        } else {
-        const unsigned ordinal = next_scratch_ordinal(elem_ty, "indirect_arg");
-        llvm::AllocaInst* slot =
-            AcquireReusableEntryAlloca(func, elem_ty, "indirect_arg", ordinal);
-        if (slot) {
-          llvm::Value* stored = CoerceValue(builder, arg, elem_ty);
-          builder->CreateStore(stored, slot);
-          ptr_arg = slot;
-        } else {
+        } else if (ptr_arg->getType()->isPointerTy()) {
+          report_codegen_failure();
           continue;
-        }
+        } else {
+          const unsigned ordinal = next_scratch_ordinal(elem_ty, "indirect_arg");
+          llvm::AllocaInst* slot =
+              AcquireReusableEntryAlloca(func, elem_ty, "indirect_arg", ordinal);
+          if (slot) {
+            llvm::Value* stored = CoerceValue(builder, arg, elem_ty);
+            builder->CreateStore(stored, slot);
+            ptr_arg = slot;
+          } else {
+            report_codegen_failure();
+            continue;
+          }
         }
       }
       llvm::Type* target_ty = abi.param_types[idx];
@@ -587,16 +722,26 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
 
     // By value
     llvm::Type* target_ty = abi.param_types[idx];
+    if (IsValidPtrType(params[i].type) && is_null_pointer_arg(arg)) {
+      if (llvm::Value* recovered = recover_pointer_value_arg(i, target_ty)) {
+        arg = recovered;
+      } else {
+        report_codegen_failure();
+        continue;
+      }
+    }
     if (target_ty && arg->getType() != target_ty) {
       arg = CoerceValue(builder, arg, target_ty);
     }
     call_args[idx] = arg;
   }
 
-  // Fill in null values for any missing arguments
+  // Every emitted LLVM parameter must be materialized explicitly. If a slot is
+  // still missing here, the lowered call signature is undefined.
   for (std::size_t i = 0; i < call_args.size(); ++i) {
     if (!call_args[i]) {
-      call_args[i] = llvm::Constant::getNullValue(abi.param_types[i]);
+      report_codegen_failure();
+      return nullptr;
     }
   }
 

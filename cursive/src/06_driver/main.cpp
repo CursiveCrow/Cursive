@@ -2435,7 +2435,12 @@ int main(int argc, char** argv) {
                     return CodegenIR(*cache, module, p, target_profile, emit_ir);
                   };
                   out_deps.write_file = WriteFile;
-                  out_deps.resolve_tool = project::ResolveTool;
+                  out_deps.resolve_tool =
+                      static_cast<std::optional<std::filesystem::path> (*)(
+                          const project::Project&,
+                          project::TargetProfile,
+                          std::string_view)>(
+                          project::ResolveTool);
                   out_deps.assemble_ir = project::AssembleIR;
                   out_deps.resolve_runtime_lib = project::ResolveRuntimeLib;
                   out_deps.invoke_linker = project::InvokeLinker;

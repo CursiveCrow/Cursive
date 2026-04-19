@@ -428,6 +428,12 @@ ParseElemResult<Stmt> ParseStmt(Parser parser) {
     }
   }
 
+  if (attrs.elem.has_value()) {
+    while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
+      Advance(parser);
+    }
+  }
+
   // Parse statement core
   ParseStmtCoreResult core = ParseStmtCore(parser);
   if (!core.matched) {

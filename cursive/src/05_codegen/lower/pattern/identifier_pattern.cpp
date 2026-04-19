@@ -69,6 +69,7 @@ IRPtr LowerIdentifierPatternBindings(const ast::IdentifierPattern& pattern,
 
   IRBindVar bind;
   bind.name = pattern.name;
+  bind.stable_name = ctx.StableBindingName(pattern.name);
   bind.value = value;
   bind.type = lookup_bind_type(pattern.name);
   bind.prov = lookup_bind_prov(pattern.name);

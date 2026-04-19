@@ -336,12 +336,12 @@ ExprTypeResult TypeIndexAccessExpr(const ScopeContext& ctx,
     const bool has_const_index = index_const.ok && index_const.value.has_value();
     if (!has_const_index && !type_ctx.contract_dynamic) {
       SPEC_RULE("Index-Array-NonConst-Err");
-      result.diag_id = "Index-Array-NonConst-Err";
+      result.diag_id = "E-UNS-0102";
       return result;
     }
     if (has_const_index && *index_const.value >= arr->length) {
       SPEC_RULE("Index-Array-OOB-Err");
-      result.diag_id = "Index-Array-OOB-Err";
+      result.diag_id = "E-UNS-0103";
       return result;
     }
 
@@ -499,12 +499,12 @@ PlaceTypeResult TypeIndexAccessPlace(const ScopeContext& ctx,
     const bool has_const_index = index_const.ok && index_const.value.has_value();
     if (!has_const_index && !type_ctx.contract_dynamic) {
       SPEC_RULE("Index-Array-NonConst-Err");
-      result.diag_id = "Index-Array-NonConst-Err";
+      result.diag_id = "E-UNS-0102";
       return result;
     }
     if (has_const_index && *index_const.value >= arr->length) {
       SPEC_RULE("Index-Array-OOB-Err");
-      result.diag_id = "Index-Array-OOB-Err";
+      result.diag_id = "E-UNS-0103";
       return result;
     }
 

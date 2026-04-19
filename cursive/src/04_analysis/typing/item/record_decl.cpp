@@ -141,14 +141,23 @@ static bool HasReservedSelfParam(const std::vector<ast::Param>& params) {
 }
 
 static bool HasExplicitReturn(const ast::Block& block) {
+  auto stmtHasExplicitReturn = [&](const auto& self, const ast::Stmt& stmt) -> bool {
+    return std::visit(
+        [&](const auto& node) -> bool {
+          using T = std::decay_t<decltype(node)>;
+          if constexpr (std::is_same_v<T, ast::ReturnStmt>) {
+            return true;
+          } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
+            return node.body && HasExplicitReturn(*node.body);
+          }
+          return false;
+        },
+        stmt);
+  };
   if (block.tail_opt) {
     return false;
   }
-  if (!block.stmts.empty() &&
-      std::holds_alternative<ast::ReturnStmt>(block.stmts.back())) {
-    return true;
-  }
-  return false;
+  return !block.stmts.empty() && stmtHasExplicitReturn(stmtHasExplicitReturn, block.stmts.back());
 }
 
 // Get fields from record members
@@ -324,7 +333,7 @@ static bool CheckImplConflicts(const std::vector<ast::ClassPath>& impls,
   const bool has_clone = has_impl("Clone");
 
   if (has_bitcopy && has_drop) {
-    diag_id = "BitcopyDrop-Conflict";
+    diag_id = "E-TYP-2621";
     return false;
   }
 
@@ -612,7 +621,7 @@ RecordDeclResult TypeRecordDecl(
     if (bitcopy_fields) {
       SPEC_RULE("BitcopyDrop-Conflict");
       result.ok = false;
-      result.diag_id = "BitcopyDrop-Conflict";
+      result.diag_id = "E-TYP-2621";
       return result;
     }
   }
@@ -647,6 +656,7 @@ RecordDeclResult TypeRecordDecl(
 
   // Check class implementations
   std::unordered_set<IdKey> concrete_class_methods;
+  std::unordered_set<IdKey> inherited_dynamic_methods;
   for (const auto& impl_path : decl.implements) {
     const auto class_key = PathKeyOf(impl_path);
     const auto class_it = ctx.sigma.classes.find(class_key);
@@ -781,6 +791,10 @@ RecordDeclResult TypeRecordDecl(
       }
 
       if (impl_method) {
+        if (ResolveVerificationModeAttribute(entry.method->attrs) ==
+            VerificationModeAttribute::Dynamic) {
+          inherited_dynamic_methods.insert(IdKeyOf(impl_method->name));
+        }
         const auto class_sig = BuildMethodSignature(
             ctx, result.self_type, entry.method->receiver,
             entry.method->params, entry.method->return_type_opt,
@@ -860,6 +874,11 @@ RecordDeclResult TypeRecordDecl(
       result.diag_id = "E-SEM-2713";
       return result;
     }
+    if (HasAttribute(method->attrs, attrs::kStatic)) {
+      result.ok = false;
+      result.diag_id = "E-MOD-2452";
+      return result;
+    }
     if (HasReservedSelfParam(method->params)) {
       SPEC_RULE("Method-Context-Err");
       result.ok = false;
@@ -925,10 +944,13 @@ RecordDeclResult TypeRecordDecl(
       type_ctx.return_type = sig.return_type;
       type_ctx.diags = &diags;
       type_ctx.env_ref = &env;
+      const bool inherited_dynamic =
+          inherited_dynamic_methods.contains(IdKeyOf(method->name));
       const std::array<DynamicScopeAncestor, 2> ancestors{
           MakeDynamicScopeAncestor(decl.attrs, decl.span),
           MakeDynamicScopeAncestor(method->attrs, method->span)};
       type_ctx.contract_dynamic =
+          inherited_dynamic ||
           ComputeDynamicContext(method->body->span, ancestors);
       if (method->contract.has_value()) {
         type_ctx.contract = &*method->contract;

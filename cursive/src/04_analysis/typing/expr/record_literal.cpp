@@ -69,7 +69,7 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
     // Built-in runtime-backed modal states that cannot be constructed directly.
     if (IsBuiltinModalRecordLiteralForbidden(modal->path)) {
       SPEC_RULE("Record-FileDir-Err");
-      result.diag_id = "Record-FileDir-Err";
+      result.diag_id = "E-TYP-2073";
       return result;
     }
 
@@ -117,7 +117,7 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
       const auto key = IdKeyOf(field_init.name);
       if (!seen.insert(key).second) {
         SPEC_RULE("Record-FieldInit-Dup");
-        result.diag_id = "Record-FieldInit-Dup";
+        result.diag_id = "E-TYP-1903";
         return result;
       }
     }
@@ -134,7 +134,7 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
     for (const auto& field_init : expr.fields) {
       if (payload_fields.find(IdKeyOf(field_init.name)) == payload_fields.end()) {
         SPEC_RULE("Record-Field-Unknown");
-        result.diag_id = "Record-Field-Unknown";
+        result.diag_id = "E-TYP-1904";
         return result;
       }
     }
@@ -145,7 +145,7 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
         const auto key = IdKeyOf(field->name);
         if (seen.find(key) == seen.end()) {
           SPEC_RULE("Record-FieldInit-Missing");
-          result.diag_id = "Record-FieldInit-Missing";
+          result.diag_id = "E-TYP-1902";
           return result;
         }
       }
@@ -211,7 +211,7 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
     const auto key = IdKeyOf(field_init.name);
     if (!seen.insert(key).second) {
       SPEC_RULE("Record-FieldInit-Dup");
-      result.diag_id = "Record-FieldInit-Dup";
+      result.diag_id = "E-TYP-1903";
       return result;
     }
   }
@@ -220,12 +220,12 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
   for (const auto& field_init : expr.fields) {
     if (!FieldExists(*record, field_init.name)) {
       SPEC_RULE("Record-Field-Unknown");
-      result.diag_id = "Record-Field-Unknown";
+      result.diag_id = "E-TYP-1904";
       return result;
     }
     if (!FieldVisible(ctx, *record, field_init.name, type_path)) {
       SPEC_RULE("Record-Field-NotVisible");
-      result.diag_id = "Record-Field-NotVisible";
+      result.diag_id = "E-TYP-1905";
       return result;
     }
   }
@@ -239,7 +239,7 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
     if (const auto* field = std::get_if<ast::FieldDecl>(&member)) {
       if (provided.find(IdKeyOf(field->name)) == provided.end()) {
         SPEC_RULE("Record-FieldInit-Missing");
-        result.diag_id = "Record-FieldInit-Missing";
+        result.diag_id = "E-TYP-1902";
         return result;
       }
     }
@@ -279,7 +279,7 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
         (!field_init.value ||
          !std::holds_alternative<ast::MoveExpr>(field_init.value->node))) {
       SPEC_RULE("Record-Field-NonBitcopy-Move");
-      result.diag_id = "Record-Field-NonBitcopy-Move";
+      result.diag_id = "E-TYP-1907";
       return result;
     }
 

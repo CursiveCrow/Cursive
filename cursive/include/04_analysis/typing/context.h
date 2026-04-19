@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "00_core/assert_spec.h"
+#include "00_core/diagnostics.h"
 #include "01_project/project.h"
 #include "04_analysis/typing/types.h"
 #include "02_source/ast/ast.h"
@@ -68,6 +69,7 @@ struct ScopeContext {
   // Callers may use this to preserve cache identity across equivalent copies.
   const Sigma* sigma_source = nullptr;
   Sigma sigma;
+  mutable core::DiagnosticStream* diagnostics = nullptr;
   ExprTypeMap* expr_types = nullptr;
   DynamicRefineExprMap* dynamic_refine_checks = nullptr;
   ast::ModulePath current_module;

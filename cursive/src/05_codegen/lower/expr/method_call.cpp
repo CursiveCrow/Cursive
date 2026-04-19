@@ -159,6 +159,7 @@ LowerResult LowerRefReceiverWithTemp(const ast::ExprPtr& expr, LowerCtx& ctx) {
 
     ctx.RegisterVar(temp_name, temp_type, false, false,
                     analysis::ProvenanceKind::Stack, std::nullopt);
+    bind.stable_name = ctx.StableBindingName(temp_name);
 
     ast::Expr temp_ident;
     temp_ident.span = expr->span;

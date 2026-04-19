@@ -131,6 +131,7 @@ bool IsValidSlotTarget(const std::string& symbol, LowerCtx& ctx);
 /// This is used during LLVM emission to ensure all referenced
 /// vtables are emitted before they're used.
 std::vector<std::string> CollectVTableRefs(const IRDecls& decls);
+std::vector<std::string> CollectVTableRefs(const LowerCtx& ctx);
 
 /// Check if a symbol is a vtable symbol.
 bool IsVTableSymbol(const std::string& symbol);

@@ -300,14 +300,23 @@ static LowerTypeResult LowerReturnType(const ScopeContext& ctx,
 
 // Check if a block has an explicit return statement
 static bool HasExplicitReturn(const ast::Block& block) {
+  auto stmtHasExplicitReturn = [&](const auto& self, const ast::Stmt& stmt) -> bool {
+    return std::visit(
+        [&](const auto& node) -> bool {
+          using T = std::decay_t<decltype(node)>;
+          if constexpr (std::is_same_v<T, ast::ReturnStmt>) {
+            return true;
+          } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
+            return node.body && HasExplicitReturn(*node.body);
+          }
+          return false;
+        },
+        stmt);
+  };
   if (block.tail_opt) {
     return false;
   }
-  if (!block.stmts.empty() &&
-      std::holds_alternative<ast::ReturnStmt>(block.stmts.back())) {
-    return true;
-  }
-  return false;
+  return !block.stmts.empty() && stmtHasExplicitReturn(stmtHasExplicitReturn, block.stmts.back());
 }
 
 static bool ExprMayNeedDynamicRuntime(const ast::ExprPtr& expr);
@@ -1649,7 +1658,7 @@ static std::optional<std::string_view> ValidateProcedureFfiAttributes(
         !IsValidFfiAbi(*foreign_abi) ||
         !IsSupportedFfiAbiForProfile(*foreign_abi, profile)) {
       SPEC_RULE("ExportAbi-Unknown-Err");
-      return "ExternAbi-Unknown-Err";
+      return "E-SYS-3352";
     }
   }
 
@@ -1951,15 +1960,15 @@ ProcedureDeclResult TypeProcedureDecl(
     if (!FfiSafeType(ctx, sig.return_type)) {
       SPEC_RULE("FfiSafe-Return-Err");
       result.ok = false;
-      result.diag_id =
-          FfiSafeDiagForType(ctx, module_path, sig.return_type)
-              .value_or("FfiSafe-Prohibited-Err");
+          result.diag_id =
+              FfiSafeDiagForType(ctx, module_path, sig.return_type)
+                  .value_or("E-TYP-2623");
       return result;
     }
     if (!InferCapabilitiesFromType(ctx, module_path, sig.return_type).IsEmpty()) {
       SPEC_RULE("FfiSafe-Prohibited-Err");
       result.ok = false;
-      result.diag_id = "FfiSafe-Prohibited-Err";
+      result.diag_id = "E-TYP-2623";
       return result;
     }
 
@@ -1972,19 +1981,19 @@ ProcedureDeclResult TypeProcedureDecl(
           result.ok = false;
           result.diag_id =
               FfiSafeDiagForType(ctx, module_path, param.type)
-                  .value_or("FfiSafe-Prohibited-Err");
+                  .value_or("E-TYP-2623");
           return result;
         }
         if (!InferCapabilitiesFromType(ctx, module_path, param.type).IsEmpty()) {
           SPEC_RULE("FfiSafe-Prohibited-Err");
           result.ok = false;
-          result.diag_id = "FfiSafe-Prohibited-Err";
+          result.diag_id = "E-TYP-2623";
           return result;
         }
       }
     } else {
       result.ok = false;
-      result.diag_id = "FfiSafe-Prohibited-Err";
+      result.diag_id = "E-TYP-2623";
       return result;
     }
 
@@ -2004,7 +2013,7 @@ ProcedureDeclResult TypeProcedureDecl(
     if (!by_value_ok) {
       SPEC_RULE("Export-ByValue-Err");
       result.ok = false;
-      result.diag_id = "FfiByValue-Err";
+      result.diag_id = "E-TYP-2630";
       return result;
     }
 
@@ -2090,6 +2099,7 @@ ProcedureDeclResult TypeProcedureDecl(
     type_ctx.ffi_export_boundary =
         HasAttribute(decl.attrs, attrs::kExport) ||
         HasAttribute(decl.attrs, attrs::kHostExport);
+    ctx.diagnostics = &diags;
     type_ctx.diags = &diags;
     type_ctx.env_ref = &env;
     const std::array<DynamicScopeAncestor, 1> ancestors{
@@ -2367,6 +2377,7 @@ ProcedureDeclResult TypeProcedureDeclBody(
   type_ctx.ffi_export_boundary =
       HasAttribute(decl.attrs, attrs::kExport) ||
       HasAttribute(decl.attrs, attrs::kHostExport);
+  ctx.diagnostics = &diags;
   type_ctx.diags = &diags;
   type_ctx.env_ref = &env;
   const std::array<DynamicScopeAncestor, 1> ancestors{

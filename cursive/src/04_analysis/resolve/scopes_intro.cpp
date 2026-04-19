@@ -67,7 +67,7 @@ bool InOuter(const ScopeContext& ctx, std::string_view name) {
 
 IntroResult Intro(ScopeContext& ctx, std::string_view name, const Entity& ent) {
   SpecDefsIntro();
-  if (ReservedId(name)) {
+  if (ReservedGen(name) || IdEq(name, "cursive")) {
     SPEC_RULE("Intro-Reserved-Id-Err");
     return {false, "Intro-Reserved-Id-Err"};
   }
@@ -112,7 +112,7 @@ IntroResult ShadowIntro(ScopeContext& ctx,
                         std::string_view name,
                         const Entity& ent) {
   SpecDefsIntro();
-  if (ReservedId(name)) {
+  if (ReservedGen(name) || IdEq(name, "cursive")) {
     SPEC_RULE("Shadow-Reserved-Id-Err");
     return {false, "Shadow-Reserved-Id-Err"};
   }
@@ -166,7 +166,7 @@ ValidateModuleNamesResult ValidateModuleNames(
   std::sort(keys.begin(), keys.end());
 
   for (const auto& key : keys) {
-    if (ReservedId(key)) {
+    if (ReservedGen(key) || IdEq(key, "cursive")) {
       SPEC_RULE("Intro-Reserved-Id-Err");
       return {false, "Intro-Reserved-Id-Err", SpanForKey(name_spans, key)};
     }

@@ -82,7 +82,6 @@ namespace {
 ParseElemResult<std::vector<Param>> ParseTransitionParamList(Parser parser) {
   SkipNewlines(parser);
   if (IsPunc(parser, ")")) {
-    EmitParseSyntaxErr(parser, TokSpan(parser));
     return {parser, {}};
   }
   ParseElemResult<Param> param = ParseParam(parser);
@@ -403,10 +402,6 @@ ParseElemResult<std::vector<StateBlock>> ParseModalBody(Parser parser) {
   Advance(next);
 
   ParseElemResult<std::vector<StateBlock>> blocks = ParseStateBlockList(next);
-  if (blocks.elem.empty()) {
-    EmitParseSyntaxErr(blocks.parser, TokSpan(blocks.parser));
-  }
-
   if (!IsPunc(blocks.parser, "}")) {
     EmitParseSyntaxErr(blocks.parser, TokSpan(blocks.parser));
     return {blocks.parser, blocks.elem};

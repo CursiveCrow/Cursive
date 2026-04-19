@@ -204,6 +204,7 @@ IRPtr LowerTypedPatternBindings(const ast::TypedPattern& pattern,
   // Create the binding
   IRBindVar bind;
   bind.name = pattern.name;
+  bind.stable_name = ctx.StableBindingName(pattern.name);
   bind.value = bind_value;
   bind.type = lookup_bind_type(pattern.name);
   if (!bind.type) {

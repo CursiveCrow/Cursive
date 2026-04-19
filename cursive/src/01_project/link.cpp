@@ -57,6 +57,60 @@ std::string PathArgString(const std::filesystem::path& path) {
   return out;
 }
 
+std::string QuoteCommandArg(std::string_view arg) {
+  if (arg.empty()) {
+    return "\"\"";
+  }
+
+  bool needs_quotes = false;
+  for (const char ch : arg) {
+    if (ch == ' ' || ch == '\t' || ch == '"') {
+      needs_quotes = true;
+      break;
+    }
+  }
+  if (!needs_quotes) {
+    return std::string(arg);
+  }
+
+  std::string out;
+  out.push_back('"');
+  std::size_t backslashes = 0;
+  for (const char ch : arg) {
+    if (ch == '\\') {
+      ++backslashes;
+      continue;
+    }
+    if (ch == '"') {
+      out.append(backslashes * 2 + 1, '\\');
+      out.push_back('"');
+      backslashes = 0;
+      continue;
+    }
+    if (backslashes > 0) {
+      out.append(backslashes, '\\');
+      backslashes = 0;
+    }
+    out.push_back(ch);
+  }
+  if (backslashes > 0) {
+    out.append(backslashes * 2, '\\');
+  }
+  out.push_back('"');
+  return out;
+}
+
+std::string CommandLineForDebug(const std::vector<std::string>& argv) {
+  std::ostringstream oss;
+  for (std::size_t i = 0; i < argv.size(); ++i) {
+    if (i != 0) {
+      oss << ' ';
+    }
+    oss << QuoteCommandArg(argv[i]);
+  }
+  return oss.str();
+}
+
 bool IsHiddenSharedLibraryExportSymbolImpl(std::string_view symbol) {
   return symbol == kLibraryEntrySym ||
          symbol.rfind("__cx_", 0) == 0 ||
@@ -76,6 +130,58 @@ void EmitExternal(core::DiagnosticStream& diags, std::string_view code) {
 bool IsSharedLibraryProject(const Project& project) {
   return project.assembly.kind == "library" &&
          project.assembly.link_kind == "shared";
+}
+
+void AppendExistingUniqueDir(std::vector<std::filesystem::path>& out,
+                             const std::filesystem::path& dir);
+
+std::vector<std::filesystem::path> WindowsImportLibSearchDirs() {
+  std::vector<std::filesystem::path> out;
+
+  const std::filesystem::path windows_kits_root(
+      "C:\\Program Files (x86)\\Windows Kits\\10\\Lib");
+  std::error_code ec;
+  std::vector<std::filesystem::path> versions;
+  if (std::filesystem::is_directory(windows_kits_root, ec) && !ec) {
+    for (const auto& entry :
+         std::filesystem::directory_iterator(windows_kits_root, ec)) {
+      if (ec) {
+        break;
+      }
+      if (entry.is_directory(ec) && !ec) {
+        versions.push_back(entry.path());
+      }
+    }
+  }
+  std::sort(versions.begin(), versions.end());
+  std::reverse(versions.begin(), versions.end());
+  for (const auto& version_dir : versions) {
+    AppendExistingUniqueDir(out, version_dir / "um" / "x64");
+    AppendExistingUniqueDir(out, version_dir / "ucrt" / "x64");
+  }
+
+  const std::filesystem::path msvc_root(
+      "C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC");
+  std::vector<std::filesystem::path> msvc_versions;
+  ec.clear();
+  if (std::filesystem::is_directory(msvc_root, ec) && !ec) {
+    for (const auto& entry :
+         std::filesystem::directory_iterator(msvc_root, ec)) {
+      if (ec) {
+        break;
+      }
+      if (entry.is_directory(ec) && !ec) {
+        msvc_versions.push_back(entry.path());
+      }
+    }
+  }
+  std::sort(msvc_versions.begin(), msvc_versions.end());
+  std::reverse(msvc_versions.begin(), msvc_versions.end());
+  for (const auto& version_dir : msvc_versions) {
+    AppendExistingUniqueDir(out, version_dir / "lib" / "x64");
+  }
+
+  return out;
 }
 
 std::vector<std::string> CuratedSharedLibraryExportSymbols(
@@ -797,6 +903,120 @@ bool IsMissingNamedLibraryFailure(
   return false;
 }
 
+std::filesystem::path LinkTranscriptPath(
+    const std::filesystem::path& output_path) {
+  auto transcript_path = output_path;
+  if (transcript_path.has_extension()) {
+    transcript_path.replace_extension(".linker.log");
+  } else {
+    transcript_path += ".linker.log";
+  }
+  return transcript_path;
+}
+
+std::string LinkerTranscriptText(const LinkInvocationResult& result) {
+  std::ostringstream oss;
+  oss << "tool: " << result.tool_path.generic_string() << "\n";
+  oss << "cwd: " << result.working_directory.generic_string() << "\n";
+  oss << "cmd: " << CommandLineForDebug(result.argv) << "\n";
+  oss << "argv_count: " << result.argv.size() << "\n";
+  for (std::size_t i = 0; i < result.argv.size(); ++i) {
+    oss << "argv[" << i << "]: " << result.argv[i] << "\n";
+  }
+  oss << "launched: " << (result.launched ? "true" : "false") << "\n";
+  oss << "exit_code: " << result.exit_code << "\n";
+  if (!result.launch_error.empty()) {
+    oss << "launch_error: " << result.launch_error << "\n";
+  }
+  oss << "crashed: " << (result.crashed ? "true" : "false") << "\n";
+  if (!result.crash_kind.empty()) {
+    oss << "crash_kind: " << result.crash_kind << "\n";
+  }
+  if (!result.crash_report_json_path.empty()) {
+    oss << "crash_report_json: "
+        << result.crash_report_json_path.generic_string() << "\n";
+  }
+  oss << "\n[stdout]\n";
+  oss << result.stdout_text;
+  if (!result.stdout_text.empty() && result.stdout_text.back() != '\n') {
+    oss << "\n";
+  }
+  oss << "\n[stderr]\n";
+  oss << result.stderr_text;
+  if (!result.stderr_text.empty() && result.stderr_text.back() != '\n') {
+    oss << "\n";
+  }
+  return oss.str();
+}
+
+std::optional<std::filesystem::path> WriteLinkerTranscript(
+    const std::filesystem::path& output_path,
+    const LinkInvocationResult& result) {
+  const auto transcript_path = LinkTranscriptPath(output_path);
+  std::error_code ec;
+  std::filesystem::create_directories(transcript_path.parent_path(), ec);
+
+  std::ofstream out(transcript_path, std::ios::binary | std::ios::trunc);
+  if (!out) {
+    return std::nullopt;
+  }
+  const std::string transcript = LinkerTranscriptText(result);
+  out.write(transcript.data(), static_cast<std::streamsize>(transcript.size()));
+  out.close();
+  if (!out) {
+    return std::nullopt;
+  }
+  return transcript_path;
+}
+
+void EmitLinkDebugBlock(std::string_view label, std::string_view text) {
+  std::fprintf(stderr, "[link-debug] %.*s-begin\n", static_cast<int>(label.size()),
+               label.data());
+  if (!text.empty()) {
+    std::fwrite(text.data(), 1, text.size(), stderr);
+    if (text.back() != '\n') {
+      std::fwrite("\n", 1, 1, stderr);
+    }
+  }
+  std::fprintf(stderr, "[link-debug] %.*s-end\n", static_cast<int>(label.size()),
+               label.data());
+}
+
+void EmitLinkDebugRecord(const LinkInvocationResult& result) {
+  std::fprintf(stderr, "[link-debug] tool=%s\n",
+               result.tool_path.generic_string().c_str());
+  std::fprintf(stderr, "[link-debug] cwd=%s\n",
+               result.working_directory.generic_string().c_str());
+  std::fprintf(stderr, "[link-debug] cmd=%s\n",
+               CommandLineForDebug(result.argv).c_str());
+  std::fprintf(stderr, "[link-debug] argv-count=%zu\n", result.argv.size());
+  for (std::size_t i = 0; i < result.argv.size(); ++i) {
+    std::fprintf(stderr, "[link-debug] argv[%zu]=%s\n", i,
+                 result.argv[i].c_str());
+  }
+  std::fprintf(stderr, "[link-debug] launched=%s\n",
+               result.launched ? "true" : "false");
+  std::fprintf(stderr, "[link-debug] exit=%d\n", result.exit_code);
+  if (!result.launch_error.empty()) {
+    std::fprintf(stderr, "[link-debug] launch-error=%s\n",
+                 result.launch_error.c_str());
+  }
+  if (!result.transcript_path.empty()) {
+    std::fprintf(stderr, "[link-debug] transcript=%s\n",
+                 result.transcript_path.generic_string().c_str());
+  }
+  if (!result.crash_report_json_path.empty()) {
+    std::fprintf(stderr, "[link-debug] crash-report=%s\n",
+                 result.crash_report_json_path.generic_string().c_str());
+  }
+  if (!result.crash_kind.empty()) {
+    std::fprintf(stderr, "[link-debug] crash-kind=%s\n",
+                 result.crash_kind.c_str());
+  }
+  EmitLinkDebugBlock("stdout", result.stdout_text);
+  EmitLinkDebugBlock("stderr", result.stderr_text);
+}
+
 std::string SummarizeToolOutput(std::string_view output) {
   std::string summary;
   bool saw_non_space = false;
@@ -1062,8 +1282,16 @@ std::vector<std::string> BuildWindowsLinkArgs(
   }
   args.push_back("/MAP:" + PathArgString(map_output));
   args.push_back("/NODEFAULTLIB");
+  if (plan.target_profile == TargetProfile::X86_64Win64) {
+    for (const auto& lib_dir : WindowsImportLibSearchDirs()) {
+      args.push_back("/LIBPATH:" + PathArgString(lib_dir));
+    }
+  }
   for (const auto& input : inputs) {
     args.push_back(PathArgString(input));
+  }
+  if (plan.target_profile == TargetProfile::X86_64Win64) {
+    args.push_back("kernel32.lib");
   }
 
   std::vector<std::string> export_symbols = plan.export_symbols;
@@ -1287,69 +1515,46 @@ LinkInvocationResult InvokeLinker(
                                             plan)
                      : BuildPosixLinkArgs(tool, inputs, output, import_lib,
                                           plan);
+  result.tool_path = tool;
+  result.working_directory = output.parent_path();
+  result.argv = args;
 
-  if (core::CrashReportingEnabled() && core::CrashCaptureSupported()) {
-    core::DebugRunOptions run_options;
-    run_options.program = tool;
-    run_options.working_directory = output.parent_path();
-    run_options.report_root = core::DefaultTargetCrashReportRoot(output);
-    run_options.tool_name = "cursive-link";
-    for (std::size_t i = 1; i < args.size(); ++i) {
-      run_options.arguments.push_back(args[i]);
-    }
-    const auto debug_result = core::DebugRunProcess(run_options);
-    result.ok = debug_result.launched && debug_result.exit_code == 0;
-    result.crashed = debug_result.crashed;
-    result.exit_code = debug_result.exit_code;
-    result.output = debug_result.stdout_text;
-    result.output += debug_result.stderr_text;
-    if (debug_result.crash_report.has_value()) {
-      result.crash_report_json_path =
-          debug_result.crash_report->artifacts.json_path;
-      result.crash_kind = debug_result.crash_report->kind;
-    }
-    if (!debug_result.launched) {
-      result.output = "debug launch failed";
-    }
-    return result;
-  }
-
-  if (debug_link) {
-    std::fprintf(stderr, "[link-debug] tool=%s\n", tool.string().c_str());
-    std::fprintf(stderr, "[link-debug] out=%s\n", output.string().c_str());
-    std::fprintf(stderr, "[link-debug] input_count=%zu\n", inputs.size());
-    for (const auto& arg : args) {
-      std::fprintf(stderr, "[link-debug] arg=%s\n", arg.c_str());
-    }
-  }
-
-  core::HostProcessSpec spec;
-  spec.program = tool;
-  spec.working_directory = output.parent_path();
-  spec.output_mode = core::HostProcessOutputMode::CaptureMerged;
-  spec.hide_window = true;
+  core::DebugRunOptions run_options;
+  run_options.enabled =
+      core::CrashReportingEnabled() && core::CrashCaptureSupported();
+  run_options.program = tool;
+  run_options.working_directory = result.working_directory;
+  run_options.report_root = core::DefaultTargetCrashReportRoot(output);
+  run_options.tool_name = "cursive-link";
   for (std::size_t i = 1; i < args.size(); ++i) {
-    spec.arguments.push_back(args[i]);
+    run_options.arguments.push_back(args[i]);
   }
 
-  const auto host_result = core::RunHostProcess(spec);
-  result.output = host_result.output;
-  if (!host_result.launched) {
-    result.output = host_result.error_message;
-    if (debug_link && !host_result.error_message.empty()) {
-      std::fprintf(stderr, "[link-debug] launch-failed=%s\n",
-                   host_result.error_message.c_str());
+  const auto debug_result = core::DebugRunProcess(run_options);
+  result.launched = debug_result.launched;
+  result.ok = debug_result.launched && debug_result.exit_code == 0;
+  result.crashed = debug_result.crashed;
+  result.exit_code = debug_result.exit_code;
+  result.launch_error = debug_result.launch_error;
+  result.stdout_text = debug_result.stdout_text;
+  result.stderr_text = debug_result.stderr_text;
+  result.output = result.stdout_text;
+  result.output += result.stderr_text;
+  if (!result.launched && result.output.empty() && !result.launch_error.empty()) {
+    result.output = result.launch_error;
+  }
+  if (debug_result.crash_report.has_value()) {
+    result.crash_report_json_path = debug_result.crash_report->artifacts.json_path;
+    result.crash_kind = debug_result.crash_report->kind;
+  }
+  if (debug_link || !result.ok) {
+    if (const auto transcript_path = WriteLinkerTranscript(output, result);
+        transcript_path.has_value()) {
+      result.transcript_path = *transcript_path;
     }
-    return result;
   }
-
-  result.exit_code = host_result.exit_code;
-  result.ok = host_result.exit_code == 0;
   if (debug_link) {
-    std::fprintf(stderr, "[link-debug] exit=%d\n", host_result.exit_code);
-    if (!result.output.empty()) {
-      std::fprintf(stderr, "[link-debug] output=%s\n", result.output.c_str());
-    }
+    EmitLinkDebugRecord(result);
   }
   return result;
 }
@@ -1695,6 +1900,27 @@ LinkResult Link(const std::vector<std::filesystem::path>& objs,
     if (auto diag = core::MakeExternalDiagnostic(missing_library
                                                      ? "E-SYS-3347"
                                                      : "E-OUT-0404")) {
+      if (!link_result.transcript_path.empty()) {
+        core::SubDiagnostic note;
+        note.kind = core::SubDiagnosticKind::Note;
+        note.message =
+            "linker transcript: " +
+            link_result.transcript_path.generic_string();
+        diag->children.push_back(std::move(note));
+      }
+      if (link_result.exit_code >= 0) {
+        core::SubDiagnostic note;
+        note.kind = core::SubDiagnosticKind::Note;
+        note.message =
+            "linker exit code: " + std::to_string(link_result.exit_code);
+        diag->children.push_back(std::move(note));
+      }
+      if (!link_result.launch_error.empty()) {
+        core::SubDiagnostic note;
+        note.kind = core::SubDiagnosticKind::Note;
+        note.message = "linker launch error: " + link_result.launch_error;
+        diag->children.push_back(std::move(note));
+      }
       if (!link_result.crash_report_json_path.empty()) {
         core::SubDiagnostic note;
         note.kind = core::SubDiagnosticKind::Note;
@@ -1707,7 +1933,7 @@ LinkResult Link(const std::vector<std::filesystem::path>& objs,
       if (!linker_output.empty()) {
         core::SubDiagnostic note;
         note.kind = core::SubDiagnosticKind::Note;
-        note.message = "linker output: " + linker_output;
+        note.message = "linker summary: " + linker_output;
         diag->children.push_back(std::move(note));
       }
       if (link_result.crashed && !link_result.crash_kind.empty()) {

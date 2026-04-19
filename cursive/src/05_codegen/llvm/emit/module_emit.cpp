@@ -9,13 +9,18 @@
 
 #include "00_core/spec_trace.h"
 #include "00_core/symbols.h"
+#include "04_analysis/resolve/scopes.h"
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/checks/panic.h"
+#include "05_codegen/cleanup/cleanup.h"
+#include "05_codegen/dyn_dispatch/dyn_dispatch.h"
 #include "05_codegen/globals/entrypoint.h"
 #include "05_codegen/globals/globals.h"
 #include "05_codegen/globals/init.h"
 #include "05_codegen/globals/literal_emit.h"
+#include "05_codegen/intrinsics/intrinsics_interface.h"
 #include "05_codegen/layout/layout.h"
+#include "05_codegen/lower/lower_module.h"
 #include "05_codegen/llvm/llvm_attr.h"
 #include "05_codegen/llvm/llvm_call.h"
 #include "05_codegen/llvm/llvm_ir_panic.h"
@@ -52,29 +57,6 @@ namespace cursive::codegen {
 
 using namespace emit_detail;
 
-namespace {
-
-void AddExtendedArgAttrsToBuilder(llvm::AttrBuilder& builder,
-                                  const AttrSet& attrs) {
-  for (const auto& attr : attrs) {
-    switch (attr.kind) {
-      case AttrKind::NoAlias:
-        builder.addAttribute(llvm::Attribute::NoAlias);
-        break;
-      case AttrKind::ReadOnly:
-        builder.addAttribute(llvm::Attribute::ReadOnly);
-        break;
-      case AttrKind::NoCapture:
-        builder.addCapturesAttr(llvm::CaptureInfo::none());
-        break;
-      default:
-        break;
-    }
-  }
-}
-
-}  // namespace
-
   llvm::Module *LLVMEmitter::EmitModule(const IRDecls &decls, LowerCtx &ctx)
   {
     SPEC_RULE("LowerIR-Module");
@@ -104,6 +86,13 @@ void AddExtendedArgAttrsToBuilder(llvm::AttrBuilder& builder,
     std::array<DeclPerfBucket, static_cast<std::size_t>(DeclPerfKind::Count)>
         decl_perf{};
 
+    IRDecls expanded_decls = ExpandIR(decls, ctx);
+
+    if (!UniqueEmits(expanded_decls) && current_ctx_)
+    {
+      current_ctx_->ReportCodegenFailure();
+    }
+
     SetupModule();
     AnchorEntrypointRules();
     AnchorInitRules();
@@ -114,7 +103,7 @@ void AddExtendedArgAttrsToBuilder(llvm::AttrBuilder& builder,
       phase_start = now;
     }
 
-    DeclareRuntime();
+    DeclareRuntime(RuntimeRefs(expanded_decls));
     if (perf_enabled)
     {
       const auto now = Clock::now();
@@ -203,20 +192,33 @@ void AddExtendedArgAttrsToBuilder(llvm::AttrBuilder& builder,
       hosted_layout_.size = AlignUpU64(hosted_layout_.size, hosted_layout_.align);
     }
 
+    // Every non-hosted module must own a concrete poison flag definition so
+    // cross-module poison checks inside the same final artifact can resolve to
+    // the defining module's object, even when that module never references its
+    // own poison flag directly.
+    if (!ctx.hosted_library)
+    {
+      (void)GetOrCreatePoisonFlag(*this, ctx.module_path);
+    }
+
     // Pass 1: declare all functions
-    for (const auto &decl : decls)
+    for (const auto &decl : expanded_decls)
     {
       if (auto *proc = std::get_if<ProcIR>(&decl))
       {
         ++pass1_proc_count;
         ABICallResult abi = ComputeProcABI(proc->symbol, proc->params, proc->ret);
-        llvm::FunctionType *ft = abi.func_type;
         llvm::GlobalValue::LinkageTypes linkage =
             ProcLLVMLinkageFor(current_ctx_, proc->symbol);
-        if (!ft)
+        if (!abi.valid || !abi.func_type)
         {
-          ft = llvm::FunctionType::get(llvm::Type::getVoidTy(context_), {}, false);
+          if (current_ctx_)
+          {
+            current_ctx_->ReportCodegenFailure();
+          }
+          continue;
         }
+        llvm::FunctionType *ft = abi.func_type;
 
         llvm::Function *f = module_->getFunction(proc->symbol);
         if (f)
@@ -251,26 +253,14 @@ void AddExtendedArgAttrsToBuilder(llvm::AttrBuilder& builder,
         f->setCallingConv(CallingConvForAbi(proc->abi));
         ApplyProcFunctionAttrs(*proc, f);
 
-        std::vector<IRParam> abi_params = proc->params;
-        if (RequiresHostedEnvParam(proc->symbol) &&
-            !HasLeadingHostedEnvParam(proc->params)) {
-          abi_params.insert(abi_params.begin(), HostedEnvParam());
-        }
-        for (std::size_t i = 0; i < abi_params.size(); ++i) {
-          if (i >= abi.param_indices.size() || !abi.param_indices[i].has_value()) {
-            continue;
-          }
-          const unsigned idx = *abi.param_indices[i];
+        for (std::size_t idx = 0; idx < abi.llvm_param_attrs.size(); ++idx) {
           if (idx >= f->arg_size()) {
             continue;
           }
-
           llvm::AttrBuilder b(context_);
-          AddExtendedArgAttrsToBuilder(
-              b, ComputeArgAttrsExt(abi_params[i].name, abi_params[i].type));
-          AddPtrAttrsToBuilder(b, abi_params[i].type, current_ctx_);
+          AddAttrSetToBuilder(b, abi.llvm_param_attrs[idx]);
           if (b.hasAttributes()) {
-            f->addParamAttrs(idx, b);
+            f->addParamAttrs(static_cast<unsigned>(idx), b);
           }
         }
 
@@ -297,11 +287,15 @@ void AddExtendedArgAttrsToBuilder(llvm::AttrBuilder& builder,
             ext->ret,
             /*use_c_abi_aggregate_sret=*/true,
             /*foreign_boundary_mode_independent=*/true);
-        llvm::FunctionType *ft = abi.func_type;
-        if (!ft)
+        if (!abi.valid || !abi.func_type)
         {
-          ft = llvm::FunctionType::get(llvm::Type::getVoidTy(context_), {}, false);
+          if (current_ctx_)
+          {
+            current_ctx_->ReportCodegenFailure();
+          }
+          continue;
         }
+        llvm::FunctionType *ft = abi.func_type;
 
         llvm::Function *f = module_->getFunction(ext->symbol);
         if (f)
@@ -334,25 +328,26 @@ void AddExtendedArgAttrsToBuilder(llvm::AttrBuilder& builder,
         }
         f->setCallingConv(CallingConvForAbi(ext->abi));
 
-        for (std::size_t i = 0; i < ext->params.size(); ++i) {
-          if (i >= abi.param_indices.size() || !abi.param_indices[i].has_value()) {
-            continue;
-          }
-          const unsigned idx = *abi.param_indices[i];
+        for (std::size_t idx = 0; idx < abi.llvm_param_attrs.size(); ++idx) {
           if (idx >= f->arg_size()) {
             continue;
           }
-
           llvm::AttrBuilder b(context_);
-          AddExtendedArgAttrsToBuilder(
-              b, ComputeArgAttrsExt(ext->params[i].name, ext->params[i].type));
-          AddPtrAttrsToBuilder(b, ext->params[i].type, current_ctx_);
+          AddAttrSetToBuilder(b, abi.llvm_param_attrs[idx]);
           if (b.hasAttributes()) {
-            f->addParamAttrs(idx, b);
+            f->addParamAttrs(static_cast<unsigned>(idx), b);
           }
         }
 
         functions_[ext->symbol] = f;
+      }
+    }
+
+    if (!RuntimeDeclsOk(*module_) || !RuntimeDeclsCover(*module_, expanded_decls))
+    {
+      if (current_ctx_)
+      {
+        current_ctx_->ReportCodegenFailure();
       }
     }
     if (perf_enabled)
@@ -363,7 +358,7 @@ void AddExtendedArgAttrsToBuilder(llvm::AttrBuilder& builder,
     }
 
     // Pass 2: emit definitions
-    for (const auto &decl : decls)
+    for (const auto &decl : expanded_decls)
     {
       const DeclPerfKind decl_kind =
           perf_enabled ? DeclPerfKindOf(decl) : DeclPerfKind::Count;
@@ -488,7 +483,7 @@ void AddExtendedArgAttrsToBuilder(llvm::AttrBuilder& builder,
           std::to_string(emit_defs_ms) + " entrypoint_ms=" +
           std::to_string(entrypoint_ms) + " debug_ir_dump_ms=" +
           std::to_string(debug_ir_dump_ms) + " decl_count=" +
-          std::to_string(decls.size()) + " pass1_proc_count=" +
+          std::to_string(expanded_decls.size()) + " pass1_proc_count=" +
           std::to_string(pass1_proc_count) + " pass1_extern_count=" +
           std::to_string(pass1_extern_count) + " pass1_reused=" +
           std::to_string(pass1_reused) + " pass1_created=" +

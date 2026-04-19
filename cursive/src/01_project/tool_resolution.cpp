@@ -234,6 +234,13 @@ std::vector<std::filesystem::path> SearchDirs(const Project& project,
 }
 
 std::optional<std::filesystem::path> ResolveTool(const Project& project,
+                                                 std::string_view tool) {
+  const TargetProfile target_profile =
+      project.toolchain.target_profile.value_or(TargetProfile::X86_64Win64);
+  return ResolveTool(project, target_profile, tool);
+}
+
+std::optional<std::filesystem::path> ResolveTool(const Project& project,
                                                  TargetProfile target_profile,
                                                  std::string_view tool) {
   const auto dirs = SearchDirs(project, target_profile);

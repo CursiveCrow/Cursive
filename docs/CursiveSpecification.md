@@ -5650,18 +5650,18 @@ ResState = {ResStart(M), ResNames(M, N), ResItems(M, N), ResDone(M'), Error(code
 
 This section owns name-resolution, visibility, and reserved-name diagnostics.
 
-| Code         | Severity | Detection    | Condition                                                                                                                                                                                                                                                           |
-| ------------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `E-CNF-0406` | Error    | Compile-time | User declaration uses `gen_` prefix                                                                                                                                                                                                                                 |
-| `E-MOD-1203` | Error    | Compile-time | Name introduced by `using` or `import as` conflicts with existing                                                                                                                                                                                                   |
-| `E-MOD-1207` | Error    | Compile-time | Cannot access a non-public item from this scope                                                                                                                                                                                                                     |
-| `E-MOD-1301` | Error    | Compile-time | Unresolved name: identifier not found in any accessible scope                                                                                                                                                                                                       |
-| `E-MOD-1302` | Error    | Compile-time | Duplicate declaration in module scope                                                                                                                                                                                                                               |
+| Code         | Severity | Detection    | Condition                                                                                                                                                                                                                                                                                 |
+| ------------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E-CNF-0406` | Error    | Compile-time | User declaration uses `gen_` prefix                                                                                                                                                                                                                                                       |
+| `E-MOD-1203` | Error    | Compile-time | Name introduced by `using` or `import as` conflicts with existing                                                                                                                                                                                                                         |
+| `E-MOD-1207` | Error    | Compile-time | Cannot access a non-public item from this scope                                                                                                                                                                                                                                           |
+| `E-MOD-1301` | Error    | Compile-time | Unresolved name: identifier not found in any accessible scope                                                                                                                                                                                                                             |
+| `E-MOD-1302` | Error    | Compile-time | Duplicate declaration in module scope                                                                                                                                                                                                                                                     |
 | `E-MOD-1304` | Error    | Compile-time | Name reuse: identifier already bound in an enclosing scope; choose a different name or use `using source as alias` for a compile-time alias (`Intro-Outer-Err`). When the outer binding is a universe name (primitive, special, or async type), the message SHOULD identify the category. |
-| `E-MOD-1307` | Error    | Compile-time | Ambiguous method resolution; disambiguation required                                                                                                                                                                                                                |
-| `E-MOD-1308` | Error    | Compile-time | `using source as alias`: `source` does not resolve in any accessible scope (`Using-Alias-Unresolved`)                                                                                                                                                                |
-| `E-MOD-1309` | Error    | Compile-time | `using source as alias`: `alias` conflicts with an existing binding in this or an enclosing scope (`Using-Alias-Dup`)                                                                                                                                                 |
-| `E-MOD-1310` | Error    | Compile-time | `using source as alias`: `alias` is a reserved identifier (`Using-Alias-Reserved`)                                                                                                                                                                                   |
+| `E-MOD-1307` | Error    | Compile-time | Ambiguous method resolution; disambiguation required                                                                                                                                                                                                                                      |
+| `E-MOD-1308` | Error    | Compile-time | `using source as alias`: `source` does not resolve in any accessible scope (`Using-Alias-Unresolved`)                                                                                                                                                                                     |
+| `E-MOD-1309` | Error    | Compile-time | `using source as alias`: `alias` conflicts with an existing binding in this or an enclosing scope (`Using-Alias-Dup`)                                                                                                                                                                     |
+| `E-MOD-1310` | Error    | Compile-time | `using source as alias`: `alias` is a reserved identifier (`Using-Alias-Reserved`)                                                                                                                                                                                                        |
 
 ## 8. Type System Core
 
@@ -20726,11 +20726,11 @@ When `InDynamicContext` and `StaticallySafe(P)` both hold, runtime synchronizati
 
 #### 19.6.7 Diagnostics
 
-| Code         | Severity | Detection    | Condition                                                      |
-| ------------ | -------- | ------------ | -------------------------------------------------------------- |
-| `E-CON-0020` | Error    | Compile-time | Key safety not statically provable outside `[[dynamic]]`       |
-| `I-CON-0011` | Info     | Compile-time | Runtime synchronization emitted under `[[dynamic]]`            |
-| `I-CON-0013` | Info     | Compile-time | Static key safety proven under `[[dynamic]]`                    |
+| Code         | Severity | Detection    | Condition                                                |
+| ------------ | -------- | ------------ | -------------------------------------------------------- |
+| `E-CON-0020` | Error    | Compile-time | Key safety not statically provable outside `[[dynamic]]` |
+| `I-CON-0011` | Info     | Compile-time | Runtime synchronization emitted under `[[dynamic]]`      |
+| `I-CON-0013` | Info     | Compile-time | Static key safety proven under `[[dynamic]]`             |
 
 ### 19.7 Memory Ordering
 
@@ -25993,10 +25993,10 @@ Predicates MUST NOT reference:
 
 **Verification Modes**
 
-| Mode                   | Behavior                                           |
-| :--------------------- | :------------------------------------------------- |
-| `[[static]]` (default) | Caller must prove predicates at compile time       |
-| `[[dynamic]]`          | Runtime checks inserted before `unsafe` call       |
+| Mode                   | Behavior                                     |
+| :--------------------- | :------------------------------------------- |
+| `[[static]]` (default) | Caller must prove predicates at compile time |
+| `[[dynamic]]`          | Runtime checks inserted before `unsafe` call |
 
 `[[static]]` uses `StaticProof` as defined in §15.8. `[[dynamic]]` inserts `ContractCheck(P, ForeignPre, s, ρ_emptyset)` immediately before the foreign call.
 
@@ -29882,7 +29882,7 @@ receiver_shorthand ::= "~" | "~!" | "~%"
 explicit_receiver  ::= param_mode? "self" ":" type
 
 record_decl       ::= attribute_list? visibility? "record" identifier generic_params? implements_clause? predicate_clause? "{" record_body "}" invariant_clause?
-record_body       ::= record_member ("," record_member)* ","?
+record_body       ::= record_member*
 record_member     ::= record_field_decl | method_def
 record_field_decl ::= attribute_list? visibility? identifier ":" type record_field_init?
 record_field_init ::= "=" expression

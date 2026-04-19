@@ -24,6 +24,7 @@
 
 #include <cstddef>
 #include <array>
+#include <cstdio>
 #include <functional>
 #include <optional>
 #include <set>
@@ -771,7 +772,9 @@ static bool QuoteParsesAs(const ast::QuoteExpr& quote, ast::QuoteKind kind) {
       return false;
     case ast::QuoteKind::Item: {
       auto parsed = ast::ParseItem(parser);
-      return parsed.parser.index != start_index && ast::AtEof(parsed.parser);
+      return parsed.parser.index != start_index &&
+             !std::holds_alternative<ast::ErrorItem>(parsed.item) &&
+             ast::AtEof(parsed.parser);
     }
     case ast::QuoteKind::Type: {
       auto parsed = ast::ParseType(parser);
@@ -805,7 +808,10 @@ static std::optional<ast::QuoteKind> ResolveQuoteKindStatic(
   std::size_t matches = 0;
   for (ast::QuoteKind kind :
        {ast::QuoteKind::Expr, ast::QuoteKind::Stmt, ast::QuoteKind::Item}) {
-    if (!QuoteParsesAs(quote, kind)) {
+    const bool parses = QuoteParsesAs(quote, kind);
+    std::fprintf(stderr, "[quote-kind] kind=%d parses=%d\n",
+                 static_cast<int>(kind), parses ? 1 : 0);
+    if (!parses) {
       continue;
     }
     ++matches;

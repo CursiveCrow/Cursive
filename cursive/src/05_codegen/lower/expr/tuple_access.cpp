@@ -87,11 +87,7 @@ LowerResult LowerTupleAccess(const ast::TupleAccessExpr& expr, LowerCtx& ctx) {
     info.tuple_index = tuple_index;
     ctx.RegisterDerivedValue(elem_value, info);
 
-    ast::Expr access_expr;
-    access_expr.node = expr;
-    access_expr.span = expr.base ? expr.base->span : core::Span{};
-    IRPtr key_ir = LowerImplicitKeyAccess(access_expr, ast::KeyMode::Read, ctx);
-    return LowerResult{SeqIR({base_result.ir, key_ir}), elem_value};
+    return LowerResult{base_result.ir, elem_value};
 }
 
 // =============================================================================
@@ -124,8 +120,7 @@ LowerResult LowerReadPlaceTupleAccess(const ast::TupleAccessExpr& node,
     info.tuple_index = static_cast<std::size_t>(std::stoull(node.index.lexeme));
     ctx.RegisterDerivedValue(elem_value, info);
 
-    IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Read, ctx);
-    return LowerResult{SeqIR({base_result.ir, key_ir}), elem_value};
+    return LowerResult{base_result.ir, elem_value};
 }
 
 }  // namespace cursive::codegen

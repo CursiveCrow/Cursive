@@ -2574,11 +2574,11 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
             if (AsyncSigForExpr(ctx, gamma, node.value, expr_map == nullptr)
                     .has_value()) {
               SPEC_RULE("Prov-Async-Escape-Err");
-              return {false, "Prov-Async-Escape-Err", node.span,
+              return {false, "E-MEM-3020", node.span,
                       env, gamma, {}};
             }
             SPEC_RULE("Prov-Escape-Err");
-            return {false, "Prov-Escape-Err", node.span, env,
+            return {false, "E-MEM-3020", node.span, env,
                     gamma, {}};
           }
           SPEC_RULE("Prov-Assign");
@@ -2599,11 +2599,11 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
             if (AsyncSigForExpr(ctx, gamma, node.value, expr_map == nullptr)
                     .has_value()) {
               SPEC_RULE("Prov-Async-Escape-Err");
-              return {false, "Prov-Async-Escape-Err", node.span,
+              return {false, "E-MEM-3020", node.span,
                       env, gamma, {}};
             }
             SPEC_RULE("Prov-Escape-Err");
-            return {false, "Prov-Escape-Err", node.span, env,
+            return {false, "E-MEM-3020", node.span, env,
                     gamma, {}};
           }
           SPEC_RULE("Prov-CompoundAssign");
@@ -2744,6 +2744,19 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
                   gamma, std::move(flow)};
         } else if constexpr (std::is_same_v<T, ast::ContinueStmt>) {
           SPEC_RULE("Prov-Continue");
+          return {true, std::nullopt, std::nullopt, env,
+                  gamma, {}};
+        } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
+          if (!node.body) {
+            return {true, std::nullopt, std::nullopt, env,
+                    gamma, {}};
+          }
+          const auto body = BlockProv(ctx, *node.body, env, gamma, expr_map);
+          if (!body.ok) {
+            return {false, body.diag_id, body.span, env,
+                    gamma, {}};
+          }
+          SPEC_RULE("Prov-KeyBlockStmt");
           return {true, std::nullopt, std::nullopt, env,
                   gamma, {}};
         } else if constexpr (std::is_same_v<T, ast::UnsafeBlockStmt>) {

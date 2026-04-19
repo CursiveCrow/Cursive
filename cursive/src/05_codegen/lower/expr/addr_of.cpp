@@ -203,59 +203,129 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
           register_ptr_type(ptr_value);
           addr.result = ptr_value;
 
-          if (const BindingState* state = ctx.GetBindingState(node.name)) {
+          auto lower_local_address = [&](const BindingState& state,
+                                         std::string_view local_name,
+                                         std::string_view source_name)
+              -> LowerResult {
             SPEC_RULE("Lower-AddrOf-Ident-Local");
             DerivedValueInfo info;
             info.kind = DerivedValueInfo::Kind::AddrLocal;
-            info.name = node.name;
+            info.name = std::string(local_name);
             ctx.RegisterDerivedValue(ptr_value, info);
 
             std::vector<IRPtr> seq;
             seq.push_back(MakeIR(std::move(addr)));
 
-            // If this local was materialized by loading from an address, preserve
-            // the source address tag (region/scope) instead of overwriting it with
-            // the current lexical scope tag.
+            // If this binding was materialized by loading from an address,
+            // preserve the source address tag instead of stamping the current
+            // lexical scope.
             bool tagged_from_origin = false;
-            IRValue local_value;
-            local_value.kind = IRValue::Kind::Local;
-            local_value.name = node.name;
-            if (const DerivedValueInfo* local_info = ctx.LookupDerivedValue(local_value)) {
+            auto lookup_origin = [&](std::string_view candidate)
+                -> const DerivedValueInfo* {
+              IRValue local_value;
+              local_value.kind = IRValue::Kind::Local;
+              local_value.name = std::string(candidate);
+              return ctx.LookupDerivedValue(local_value);
+            };
+
+            if (const DerivedValueInfo* local_info = lookup_origin(local_name)) {
               if (local_info->kind == DerivedValueInfo::Kind::LoadFromAddr) {
                 seq.push_back(tag_from(ptr_value, local_info->base));
                 tagged_from_origin = true;
               }
             }
+            if (!tagged_from_origin && local_name != source_name) {
+              if (const DerivedValueInfo* local_info = lookup_origin(source_name)) {
+                if (local_info->kind == DerivedValueInfo::Kind::LoadFromAddr) {
+                  seq.push_back(tag_from(ptr_value, local_info->base));
+                  tagged_from_origin = true;
+                }
+              }
+            }
 
-            // Fallback for plain locals (no load-from-address origin): stamp the
-            // pointer with the current runtime scope id to avoid stale-stack tags.
             const bool should_tag_scope =
                 !tagged_from_origin &&
-                !state->preserve_addr_provenance &&
-                state->scope_runtime_id != 0;
+                !state.preserve_addr_provenance &&
+                state.scope_runtime_id != 0;
             if (should_tag_scope) {
               IRCall tag_scope;
               tag_scope.callee.kind = IRValue::Kind::Symbol;
               tag_scope.callee.name = RuntimeBuiltinModalSymRegionAddrTagScope();
               tag_scope.args.push_back(ptr_value);
-              tag_scope.args.push_back(USizeConstValue(state->scope_runtime_id));
+              tag_scope.args.push_back(USizeConstValue(state.scope_runtime_id));
               IRValue tag_value = ctx.FreshTempValue("addr_tag_scope");
               tag_scope.result = tag_value;
               ctx.RegisterValueType(tag_value, analysis::MakeTypePrim("()"));
               seq.push_back(MakeIR(std::move(tag_scope)));
             }
             return LowerResult{SeqIR(std::move(seq)), ptr_value};
-          }
-          if (const auto* capture = ctx.LookupCapture(node.name)) {
+          };
+
+          auto lower_capture_address = [&](const CaptureAccess& capture)
+              -> LowerResult {
             SPEC_RULE("Lower-AddrOf-Ident-Capture");
-            IRValue field_ptr = ctx.CaptureFieldPtr(*capture);
-            if (capture->by_ref) {
+            IRValue field_ptr = ctx.CaptureFieldPtr(capture);
+            if (capture.by_ref) {
               IRReadPtr load_ptr;
               load_ptr.ptr = field_ptr;
               load_ptr.result = ptr_value;
               return LowerResult{MakeIR(std::move(load_ptr)), ptr_value};
             }
             return LowerResult{EmptyIR(), field_ptr};
+          };
+
+          auto lower_static_address = [&](std::vector<std::string> full,
+                                          std::string resolved_name)
+              -> LowerResult {
+            SPEC_RULE("Lower-AddrOf-Ident-Path");
+            DerivedValueInfo info;
+            info.kind = DerivedValueInfo::Kind::AddrStatic;
+            info.static_path = full;
+            info.name = resolved_name;
+            ctx.RegisterDerivedValue(ptr_value, info);
+
+            IRPtr poison_ir = EmptyIR();
+            IRCheckPoison check;
+            check.module = ModulePathString(full);
+            poison_ir = MakeIR(std::move(check));
+            if (poison_ir && !std::holds_alternative<IROpaque>(poison_ir->node)) {
+              return LowerResult{SeqIR(std::vector<IRPtr>{poison_ir,
+                                                          PanicCheck(ctx),
+                                                          MakeIR(std::move(addr))}),
+                                 ptr_value};
+            }
+            return LowerResult{MakeIR(std::move(addr)), ptr_value};
+          };
+
+          if (auto alias = ctx.LookupLocalAddrAlias(node.name)) {
+            switch (alias->kind) {
+              case LocalAddrAlias::Kind::Binding: {
+                if (const BindingState* state =
+                        ctx.GetBindingStateById(alias->binding_name, alias->binding_id)) {
+                  return lower_local_address(*state,
+                                             alias->stable_name,
+                                             alias->binding_name);
+                }
+                ctx.ReportCodegenFailure();
+                return LowerResult{MakeIR(std::move(addr)), ptr_value};
+              }
+              case LocalAddrAlias::Kind::Capture: {
+                if (const auto* capture = ctx.LookupCapture(alias->capture_name)) {
+                  return lower_capture_address(*capture);
+                }
+                ctx.ReportCodegenFailure();
+                return LowerResult{MakeIR(std::move(addr)), ptr_value};
+              }
+              case LocalAddrAlias::Kind::Static:
+                return lower_static_address(alias->static_path, alias->static_name);
+            }
+          }
+
+          if (const BindingState* state = ctx.GetBindingState(node.name)) {
+            return lower_local_address(*state, state->stable_name, node.name);
+          }
+          if (const auto* capture = ctx.LookupCapture(node.name)) {
+            return lower_capture_address(*capture);
           }
           std::vector<std::string> full;
           std::string resolved_name = node.name;
@@ -274,24 +344,7 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
             }
           }
 
-          SPEC_RULE("Lower-AddrOf-Ident-Path");
-          DerivedValueInfo info;
-          info.kind = DerivedValueInfo::Kind::AddrStatic;
-          info.static_path = full;
-          info.name = resolved_name;
-          ctx.RegisterDerivedValue(ptr_value, info);
-
-          IRPtr poison_ir = EmptyIR();
-          IRCheckPoison check;
-          check.module = ModulePathString(full);
-          poison_ir = MakeIR(std::move(check));
-          if (poison_ir && !std::holds_alternative<IROpaque>(poison_ir->node)) {
-            return LowerResult{SeqIR(std::vector<IRPtr>{poison_ir,
-                                                        PanicCheck(ctx),
-                                                        MakeIR(std::move(addr))}),
-                               ptr_value};
-          }
-          return LowerResult{MakeIR(std::move(addr)), ptr_value};
+          return lower_static_address(std::move(full), std::move(resolved_name));
         } else if constexpr (std::is_same_v<T, ast::FieldAccessExpr>) {
           auto base_result = LowerAddrOf(*node.base, ctx);
           IRAddrOf addr;
