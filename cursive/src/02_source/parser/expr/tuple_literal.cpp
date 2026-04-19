@@ -146,7 +146,7 @@ static TupleScanResult TupleScan(Parser parser) {
       return result;
     }
     if (tok->kind == lexer::TokenKind::Punctuator && tok->lexeme == ")" &&
-        depth.paren == 1 && depth.brace == 0 && depth.bracket == 0) {
+        depth.paren == 1) {
       result.is_tuple = false;
       return result;
     }

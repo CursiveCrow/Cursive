@@ -5856,6 +5856,15 @@ public procedure main(move ctx: Context) -> i32 {
 '@
 }
 
+function New-Issue514TupleScanCloseParenDepthOneSource() {
+    return @'
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return ([)(], 1)
+}
+'@
+}
+
 function New-Issue510EnumDiscHexSource() {
     return @'
 enum Issue510Hex {
@@ -15370,6 +15379,43 @@ function Invoke-Issue514TupleExprSingletonCommaRejectedCase {
     Write-Host "[compiler-static] issue514_tuple_expr_singleton_comma_rejected: exit=$($result.ExitCode) error_codes=$($errorCodes -join ',') parse_paren_expr=$parenExprCount parse_tuple_expr=$tupleExprCount parse_tuple_many=$tupleManyCount parse_tuple_single=$tupleSingleCount"
 }
 
+function Invoke-Issue514TupleScanCloseParenDepthOneCase {
+    $result = Invoke-CheckWithConformance `
+        -CaseId "issue514_tuple_scan_close_paren_depth_one" `
+        -Source (New-Issue514TupleScanCloseParenDepthOneSource) `
+        -ConformanceFileName "issue514_tuple_scan_close_paren_depth_one.log"
+
+    if ($result.ExitCode -ne 1) {
+        throw "Case 'issue514_tuple_scan_close_paren_depth_one' expected exit 1 but got $($result.ExitCode)."
+    }
+
+    $errorCount = @($result.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    }).Count
+    if ($errorCount -lt 1) {
+        throw "Case 'issue514_tuple_scan_close_paren_depth_one' expected at least one parse error diagnostic."
+    }
+
+    $logLines = Get-Content -Path $result.ConformancePath
+    $parenExprCount = @($logLines | Where-Object {
+        $_ -like "*`tParse-Paren-Expr`t*"
+    }).Count
+    $tupleExprCount = @($logLines | Where-Object {
+        $_ -like "*`tParse-Tuple-Expr`t*"
+    }).Count
+    $tupleManyCount = @($logLines | Where-Object {
+        $_ -like "*`tParse-TupleExprElems-Many`t*"
+    }).Count
+    if ($parenExprCount -lt 1) {
+        throw "Case 'issue514_tuple_scan_close_paren_depth_one' expected Tok(P)=')' at depth 1 to force Parse-Paren-Expr."
+    }
+    if ($tupleExprCount -ne 0 -or $tupleManyCount -ne 0) {
+        throw "Case 'issue514_tuple_scan_close_paren_depth_one' must not continue scanning past a depth-1 ')' and classify the form as a tuple."
+    }
+
+    Write-Host "[compiler-static] issue514_tuple_scan_close_paren_depth_one: exit=$($result.ExitCode) errors=$errorCount parse_paren_expr=$parenExprCount parse_tuple_expr=$tupleExprCount parse_tuple_many=$tupleManyCount"
+}
+
 function Invoke-ConsumeStateSurfaceConformanceCase {
     $specText = Get-Content -Path $canonicalSpecPath -Raw
     if ($specText -notmatch 'ConsumeState\s*=\s*\{Consume\(P,\s*k\),\s*ConsumeDone\(P\)\}') {
@@ -21440,6 +21486,7 @@ try {
     Invoke-ExpectedDiagCodeCase -Id "issue32_explicit_float_suffix_mismatch" -Source (New-Issue32ExplicitSuffixMismatchSource) -ExpectedCodes @("E-TYP-1531")
     Invoke-ExpectedSuccessCase -Id "issue32_tuple_access_dot_disambiguation" -Source (New-Issue32TupleAccessDotDisambiguationSource)
     Invoke-Issue514TupleExprSingletonCommaRejectedCase
+    Invoke-Issue514TupleScanCloseParenDepthOneCase
     Invoke-Issue547TupleLoweringTraceCase
     Invoke-Issue548TupleAccessEvalSigmaCase
     Invoke-Issue549ArrayIndexConformanceCase

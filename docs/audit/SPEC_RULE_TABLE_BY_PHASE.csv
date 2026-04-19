@@ -1442,9 +1442,9 @@ IsPunc(Tok(P), "")"")
 "Phase 1 - Parse and Aggregate","complete","Tok(P)","Tok(P) = EOF
 ????????????????????????????????????????
 TupleScan(P, d) ? false","CursiveSpecification.md:8643-8645","/mnt/c/dev/cursive/cursive/src/02_source/parser/expr/tuple_literal.cpp:101-109. The active `TupleScan` returns `false` at EOF or when no token is available."
-"Phase 1 - Parse and Aggregate","in_progress","Tok(P)","Tok(P) = Punctuator("")"") ? d = 1
+"Phase 1 - Parse and Aggregate","complete","Tok(P)","Tok(P) = Punctuator("")"") ? d = 1
 ????????????????????????????????????????????
-TupleScan(P, d) ? false","CursiveSpecification.md:8646-8648","/mnt/c/dev/cursive/cursive/src/02_source/parser/expr/tuple_literal.cpp:111-115. The `)`-terminating false case also requires `brace == 0 && bracket == 0`, so it is narrower than the rule `Tok(P) = Punctuator("")"") ? d = 1`."
+TupleScan(P, d) ? false","CursiveSpecification.md:8646-8648","cursive/src/02_source/parser/expr/primary.cpp:161-164; cursive/src/02_source/parser/expr/tuple_literal.cpp:148-151; HelloCursive/Compiler/RunCompilerStaticConformance.ps1:5859-5866,15382-15417,21488-21489. `TupleScan` now returns false for `)` at parenthesis depth 1 without requiring bracket or brace depth to be zero; the HelloCursive static case covers the malformed nested delimiter sequence that previously let scanning continue to a later comma and misclassify the form as a tuple."
 "Phase 1 - Parse and Aggregate","ambiguous","Tok(P)","Tok(P) ? {Punctuator("",""), Punctuator("";"")} ? d = 1
 ??????????????????????????????????????????????
 TupleScan(P, d) ? true

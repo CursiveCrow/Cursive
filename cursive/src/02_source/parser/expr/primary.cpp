@@ -159,7 +159,7 @@ TupleScanResult TupleScan(Parser parser) {
       return result;
     }
     if (tok->kind == TokenKind::Punctuator && tok->lexeme == ")" &&
-        depth.paren == 1 && depth.bracket == 0 && depth.brace == 0) {
+        depth.paren == 1) {
       result.is_tuple = false;
       return result;
     }
