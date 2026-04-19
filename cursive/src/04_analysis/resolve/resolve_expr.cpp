@@ -741,13 +741,13 @@ ResolveResult<std::vector<ast::DispatchOption>> ResolveDispatchOpts(
   return result;
 }
 
-ResolveResult<std::variant<ast::TypePath, ast::GenericTypeRef, ast::ModalStateRef>>
+ResolveResult<std::variant<ast::TypePath, ast::ModalStateRef>>
 ResolveTypeRef(ResolveContext& ctx,
-               const std::variant<ast::TypePath, ast::GenericTypeRef, ast::ModalStateRef>& target) {
-  ResolveResult<std::variant<ast::TypePath, ast::GenericTypeRef, ast::ModalStateRef>> result;
+               const std::variant<ast::TypePath, ast::ModalStateRef>& target) {
+  ResolveResult<std::variant<ast::TypePath, ast::ModalStateRef>> result;
   return std::visit(
       [&](const auto& node)
-          -> ResolveResult<std::variant<ast::TypePath, ast::GenericTypeRef, ast::ModalStateRef>> {
+          -> ResolveResult<std::variant<ast::TypePath, ast::ModalStateRef>> {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, ast::TypePath>) {
           const auto resolved = ResolveTypePath(ctx, node);
@@ -757,25 +757,6 @@ ResolveTypeRef(ResolveContext& ctx,
           SPEC_RULE("ResolveTypeRef-Path");
           result.ok = true;
           result.value = resolved.value;
-          return result;
-        } else if constexpr (std::is_same_v<T, ast::GenericTypeRef>) {
-          const auto resolved = ResolveTypePath(ctx, node.path);
-          if (!resolved.ok) {
-            return {false, resolved.diag_id, resolved.span, {}};
-          }
-          ast::GenericTypeRef out = node;
-          out.path = resolved.value;
-          // Also resolve generic args to match ResolveType behavior for TypePathType
-          for (auto& arg : out.generic_args) {
-            const auto resolved_arg = ResolveType(ctx, arg);
-            if (!resolved_arg.ok) {
-              return {false, resolved_arg.diag_id, resolved_arg.span, {}};
-            }
-            arg = resolved_arg.value;
-          }
-          SPEC_RULE("ResolveTypeRef-GenericPath");
-          result.ok = true;
-          result.value = out;
           return result;
         } else {
           const auto resolved = ResolveTypePath(ctx, node.path);
@@ -792,7 +773,7 @@ ResolveTypeRef(ResolveContext& ctx,
             }
             arg = resolved_arg.value;
           }
-          SyncModalStateRefFromFields(out);
+          ast::SyncModalStateRefFromFields(out);
           SPEC_RULE("ResolveTypeRef-ModalState");
           result.ok = true;
           result.value = out;

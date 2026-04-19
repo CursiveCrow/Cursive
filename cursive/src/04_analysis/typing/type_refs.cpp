@@ -105,6 +105,7 @@
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/resolve/scopes_lookup.h"
 #include "04_analysis/typing/context.h"
+#include "04_analysis/typing/type_equiv.h"
 #include "04_analysis/typing/type_stmt.h"
 #include "04_analysis/typing/type_lower.h"
 
@@ -565,6 +566,23 @@ void CollectUnionMembers(const TypeRef& member, std::vector<TypeRef>& out) {
   out.push_back(member);
 }
 
+bool ContainsEquivalentUnionMember(const std::vector<TypeRef>& members,
+                                   const TypeRef& candidate) {
+  if (!candidate) {
+    return true;
+  }
+  for (const auto& existing : members) {
+    if (!existing) {
+      continue;
+    }
+    const auto equiv = TypeEquiv(existing, candidate);
+    if (equiv.ok && equiv.equiv) {
+      return true;
+    }
+  }
+  return false;
+}
+
 }  // namespace
 
 TypeRef MakeTypeUnion(std::vector<TypeRef> members) {
@@ -579,26 +597,21 @@ TypeRef MakeTypeUnion(std::vector<TypeRef> members) {
     return MakeType(TypeUnion{std::move(flat)});
   }
 
-  auto sorted = SortUnionMembers(flat);
-  std::vector<TypeRef> unique;
-  unique.reserve(sorted.size());
-  for (const auto& member : sorted) {
+  std::vector<TypeRef> distinct;
+  distinct.reserve(flat.size());
+  for (const auto& member : flat) {
     if (!member) {
       continue;
     }
-    if (unique.empty()) {
-      unique.push_back(member);
-      continue;
-    }
-    if (!TypeKeyEqual(TypeKeyOf(unique.back()), TypeKeyOf(member))) {
-      unique.push_back(member);
+    if (!ContainsEquivalentUnionMember(distinct, member)) {
+      distinct.push_back(member);
     }
   }
 
-  if (unique.size() == 1) {
-    return unique.front();
+  if (distinct.size() == 1) {
+    return distinct.front();
   }
-  return MakeType(TypeUnion{std::move(unique)});
+  return MakeType(TypeUnion{std::move(distinct)});
 }
 
 TypeRef MakeTypeFunc(std::vector<TypeFuncParam> params, TypeRef ret) {

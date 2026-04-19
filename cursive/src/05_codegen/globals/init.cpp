@@ -882,8 +882,7 @@ std::vector<std::size_t> ValueDepsEager(
                   using TargetT = std::decay_t<decltype(target)>;
                   if constexpr (std::is_same_v<TargetT, ast::TypePath>) {
                     add_path_dep(target, true);
-                  } else if constexpr (std::is_same_v<TargetT, ast::GenericTypeRef> ||
-                                       std::is_same_v<TargetT, ast::ModalStateRef>) {
+                  } else if constexpr (std::is_same_v<TargetT, ast::ModalStateRef>) {
                     add_path_dep(target.path, true);
                   }
                 },

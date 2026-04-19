@@ -21,6 +21,10 @@ procedure TypeParsingSurfaceAdd(move left: i32, right: i32) -> i32 {
     return left + right
 }
 
+procedure TypeParsingSurfaceSliceWindow(view: [i32]) -> i32 {
+    return view[0] + view[2]
+}
+
 procedure TypeParsingSurfaceMetricLabel(value: i32) -> string@View {
     if (value == 93) {
         return "93"
@@ -68,6 +72,11 @@ procedure RunTypeParsingSurfaceCoverage(ctx: Context) -> i32 {
     let refine_metric: i32 = refine_value
     let permission_metric: i32 = const_value + shared_value
     let dynamic_metric: i32 = 1
+    let slice_param_metric: i32 = TypeParsingSurfaceSliceWindow(array_for_slice)
+    let slice_coercion_ok: bool = slice_param_metric == 10
+    let slice_coercion_ok_log: bool =
+        [[log(label: "types-core-type-parsing-array-expr-as-slice", expected: true)]]
+        slice_coercion_ok
 
     let total_metric: i32 =
         tuple_metric +
@@ -83,7 +92,10 @@ procedure RunTypeParsingSurfaceCoverage(ctx: Context) -> i32 {
         permission_metric +
         dynamic_metric
 
-    let parse_surface_ok: bool = total_metric == 93
+    let parse_surface_ok: bool =
+        (total_metric == 93) &&
+        slice_coercion_ok &&
+        (slice_coercion_ok_log == true)
     let parse_surface_ok_log: bool =
         [[log(label: "types-core-type-parsing-surface", expected: true)]]
         parse_surface_ok

@@ -522,7 +522,7 @@ std::string BuildPlaceRepr(const ast::Expr& expr) {
           return base + "." + node.name;
         } else if constexpr (std::is_same_v<T, ast::TupleAccessExpr>) {
           std::string base = BuildPlaceRepr(*node.base);
-          std::string idx = node.index.lexeme;
+          std::string idx = ast::FormatTupleIndex(node.index);
           if (base.empty()) {
             return idx;
           }
@@ -653,7 +653,7 @@ bool AppendRuntimeKeySegments(const ast::Expr& expr, std::string& encoded) {
             return false;
           }
           encoded += ".f:";
-          encoded += node.index.lexeme;
+          encoded += ast::FormatTupleIndex(node.index);
           return true;
         } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {
           if (!node.base || !AppendRuntimeKeySegments(*node.base, encoded)) {

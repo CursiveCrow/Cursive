@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "00_core/assert_spec.h"
+#include "00_core/numeric_literals.h"
 #include "00_core/span.h"
 #include "02_source/ast/ast.h"
 #include "02_source/lexer/keyword_policy.h"
@@ -98,14 +99,17 @@ ParseElemResult<ExprPtr> PostfixStep(Parser parser, ExprPtr expr,
 
     // Tuple access: expr.0
     if (tok && tok->kind == TokenKind::IntLiteral) {
-      SPEC_RULE("Postfix-TupleIndex");
-      Token index = *tok;
-      Parser after = next;
-      Advance(after);
-      TupleAccessExpr access;
-      access.base = expr;
-      access.index = index;
-      return {after, MakeExpr(SpanCover(expr->span, index.span), access)};
+      const auto index_value =
+          core::ParseIntCore(core::StripIntSuffix(tok->lexeme));
+      if (index_value.has_value()) {
+        SPEC_RULE("Postfix-TupleIndex");
+        Parser after = next;
+        Advance(after);
+        TupleAccessExpr access;
+        access.base = expr;
+        access.index = *index_value;
+        return {after, MakeExpr(SpanCover(expr->span, tok->span), access)};
+      }
     }
 
     // Error: neither identifier nor integer after dot

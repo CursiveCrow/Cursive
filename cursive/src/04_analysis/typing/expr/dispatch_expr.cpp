@@ -459,7 +459,7 @@ static std::optional<std::string> CanonicalDispatchIndexExpr(
           if (!base.has_value()) {
             return std::nullopt;
           }
-          return *base + "." + std::string(node.index.lexeme);
+          return *base + "." + ast::FormatTupleIndex(node.index);
         } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {
           const auto base = CanonicalDispatchIndexExpr(node.base, pattern_names);
           const auto index =
@@ -557,7 +557,7 @@ static std::optional<DispatchSchema> TryBuildDispatchSchema(
             return std::nullopt;
           }
           base->segs.push_back(DispatchSchemaSeg{
-              false, std::string(node.index.lexeme), nullptr});
+              false, ast::FormatTupleIndex(node.index), nullptr});
           base->span = stripped->span;
           return base;
         } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {

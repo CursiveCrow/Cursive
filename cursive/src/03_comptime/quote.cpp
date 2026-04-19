@@ -1337,13 +1337,7 @@ std::optional<ExprPtr> BuildExpr(const ExprPtr& expr, CtEnv& env) {
           const bool target_ok = std::visit(
               [&](auto& target) -> bool {
                 using Target = std::decay_t<decltype(target)>;
-                if constexpr (std::is_same_v<Target, ast::GenericTypeRef>) {
-                  for (auto& arg : target.generic_args) {
-                    if (!BuildTypeInPlace(arg, env)) {
-                      return false;
-                    }
-                  }
-                } else if constexpr (std::is_same_v<Target, ast::ModalStateRef>) {
+                if constexpr (std::is_same_v<Target, ast::ModalStateRef>) {
                   for (auto& arg : target.generic_args) {
                     if (!BuildTypeInPlace(arg, env)) {
                       return false;

@@ -108,9 +108,9 @@ ParseElemResult<std::vector<FieldInit>> ParseFieldInitTail(
 //
 // SPEC: Lines 5878-5888
 // This shared helper accepts an empty list when the next token is `}` so it can
-// serve the modal-state brace forms and zero-field ordinary record literals.
-// Qualified brace applications that require a non-empty payload enforce that
-// restriction at their own call sites.
+// serve the modal-state brace forms. Ordinary record literals and qualified
+// brace applications that require a non-empty payload enforce that restriction
+// at their own call sites.
 
 ParseElemResult<std::vector<FieldInit>> ParseFieldInitList(Parser parser) {
   SkipNewlines(parser);
@@ -151,12 +151,17 @@ ParseElemResult<std::vector<FieldInit>> ParseRecordLiteralBody(Parser parser) {
 // Assumes parser is positioned at "{" and path has been parsed.
 
 ParseElemResult<ExprPtr> ParseSimpleRecordLiteral(
-    Parser parser, Parser start, const TypePath& path,
-    std::vector<std::shared_ptr<Type>> generic_args) {
+    Parser parser, Parser start, const TypePath& path) {
   SPEC_RULE("Parse-Record-Literal");
   Parser after_l = parser;
   Advance(after_l);  // consume "{"
   ParseElemResult<std::vector<FieldInit>> fields = ParseFieldInitList(after_l);
+  if (fields.elem.empty() && IsPunc(fields.parser, "}")) {
+    EmitParseSyntaxErr(fields.parser, TokSpan(fields.parser));
+    Parser after = fields.parser;
+    Advance(after);  // consume "}"
+    return {after, MakeExpr(SpanBetween(start, after), ErrorExpr{})};
+  }
   if (!IsPunc(fields.parser, "}")) {
     EmitParseSyntaxErr(fields.parser, TokSpan(fields.parser));
     Parser sync = fields.parser;
@@ -166,14 +171,7 @@ ParseElemResult<ExprPtr> ParseSimpleRecordLiteral(
   Parser after = fields.parser;
   Advance(after);  // consume "}"
   RecordExpr rec;
-  if (generic_args.empty()) {
-    rec.target = path;
-  } else {
-    GenericTypeRef gen_ref;
-    gen_ref.path = path;
-    gen_ref.generic_args = std::move(generic_args);
-    rec.target = gen_ref;
-  }
+  rec.target = path;
   rec.fields = std::move(fields.elem);
   return {after, MakeExpr(SpanBetween(start, after), rec)};
 }
@@ -262,8 +260,7 @@ ParseElemResult<ExprPtr> ParseRecordLiteral(Parser parser, bool allow_brace) {
     return {sync, MakeExpr(SpanBetween(start, sync), ErrorExpr{})};
   }
 
-  return ParseSimpleRecordLiteral(gen.parser, start, path.elem,
-                                  std::move(gen.args));
+  return ParseSimpleRecordLiteral(gen.parser, start, path.elem);
 }
 
 }  // namespace cursive::ast

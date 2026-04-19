@@ -15,7 +15,7 @@
 // - The base expression is evaluated first, then the indexed element is accessed
 // - The index must be an integer literal token (not an expression)
 // - Zero-indexed: first element is .0, second is .1, etc.
-// - Returns TupleAccess AST node containing base expression and index token
+// - Returns TupleAccess AST node containing base expression and parsed index
 //
 // SOURCE FILE: cursive-bootstrap/src/02_syntax/parser_expr.cpp
 //
@@ -26,13 +26,13 @@
 //    ```cpp
 //    if (tok && tok->kind == TokenKind::IntLiteral) {
 //      SPEC_RULE("Postfix-TupleIndex");
-//      Token index = *tok;
+//      auto index = *index_value;
 //      Parser after = next;
 //      Advance(after);
 //      TupleAccessExpr access;
 //      access.base = expr;
 //      access.index = index;
-//      return {after, MakeExpr(SpanCover(expr->span, index.span), access)};
+//      return {after, MakeExpr(SpanCover(expr->span, tok->span), access)};
 //    }
 //    ```
 //
@@ -52,7 +52,7 @@
 // ```cpp
 // struct TupleAccessExpr {
 //   ExprPtr base;
-//   Token index;    // Stores the full token, not just numeric value
+//   TupleIndex index;
 // };
 // ```
 //
@@ -65,7 +65,7 @@
 //
 // REFACTORING NOTES:
 // - Shares the initial dot check with field_access.cpp
-// - The index is stored as a Token (not parsed integer) to preserve span info
+// - The index is stored as its parsed integer value
 // - Tuple bounds checking happens during semantic analysis, not parsing
 // - Consider: combined field/tuple access module or keep separate?
 // - Span covers from base expression start to index token end
@@ -77,6 +77,7 @@
 #include <optional>
 
 #include "00_core/assert_spec.h"
+#include "00_core/numeric_literals.h"
 #include "00_core/span.h"
 #include "02_source/ast/ast.h"
 #include "02_source/lexer/keyword_policy.h"
@@ -109,8 +110,8 @@ using cursive::lexer::TokenKind;
 //   std::nullopt if next token is not an integer literal
 //   ParseElemResult with TupleAccessExpr if successful
 //
-// NOTE: The index is stored as a Token (not a parsed integer) to preserve
-// the original span information for error reporting and source mapping.
+// NOTE: The index is stored as its parsed integer value. The outer expression
+// span still covers the full `base.index` source range for diagnostics.
 
 std::optional<ParseElemResult<ExprPtr>> TryParseTupleAccess(Parser parser,
                                                              ExprPtr base) {
@@ -120,15 +121,18 @@ std::optional<ParseElemResult<ExprPtr>> TryParseTupleAccess(Parser parser,
   const Token* tok = Tok(next);
 
   if (tok && tok->kind == TokenKind::IntLiteral) {
-    SPEC_RULE("Postfix-TupleIndex");
-    Token index = *tok;
-    Parser after = next;
-    Advance(after);
-    TupleAccessExpr access;
-    access.base = base;
-    access.index = index;
-    return ParseElemResult<ExprPtr>{
-        after, MakeExpr(SpanCover(base->span, index.span), access)};
+    const auto index_value =
+        core::ParseIntCore(core::StripIntSuffix(tok->lexeme));
+    if (index_value.has_value()) {
+      SPEC_RULE("Postfix-TupleIndex");
+      Parser after = next;
+      Advance(after);
+      TupleAccessExpr access;
+      access.base = base;
+      access.index = *index_value;
+      return ParseElemResult<ExprPtr>{
+          after, MakeExpr(SpanCover(base->span, tok->span), access)};
+    }
   }
 
   // Not an integer literal - return nullopt so caller can try field access

@@ -1090,11 +1090,6 @@ void RenameExpr(const ExprPtr& expr, HygieneContext& ctx) {
                 using R = std::decay_t<decltype(target)>;
                 if constexpr (std::is_same_v<R, ast::TypePath>) {
                   RenamePathHead(target, ctx);
-                } else if constexpr (std::is_same_v<R, ast::GenericTypeRef>) {
-                  RenamePathHead(target.path, ctx);
-                  for (auto& arg : target.generic_args) {
-                    RenameType(arg, ctx);
-                  }
                 } else if constexpr (std::is_same_v<R, ast::ModalStateRef>) {
                   RenamePathHead(target.path, ctx);
                   for (auto& arg : target.generic_args) {

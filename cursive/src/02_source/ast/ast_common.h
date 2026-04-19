@@ -13,6 +13,9 @@
 
 #pragma once
 
+#include <algorithm>
+#include <cstddef>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -20,6 +23,7 @@
 #include <variant>
 #include <vector>
 
+#include "00_core/int128.h"
 #include "cursive/src/02_source/ast/nodes/ast_fwd.h"
 #include "cursive/src/02_source/ast/nodes/ast_enums.h"
 #include "00_core/span.h"
@@ -41,6 +45,46 @@ using DocList = std::vector<DocComment>;
 using Span = cursive::core::Span;
 using Token = cursive::lexer::Token;
 using TokenKind = cursive::lexer::TokenKind;
+using TupleIndex = cursive::core::UInt128;
+
+inline bool TupleIndexEqual(TupleIndex lhs, TupleIndex rhs) {
+  return cursive::core::UInt128High(lhs) == cursive::core::UInt128High(rhs) &&
+         cursive::core::UInt128Low(lhs) == cursive::core::UInt128Low(rhs);
+}
+
+inline std::optional<std::size_t> TupleIndexToSize(TupleIndex index) {
+  if (!cursive::core::UInt128FitsU64(index)) {
+    return std::nullopt;
+  }
+  const std::uint64_t value = cursive::core::UInt128ToU64(index);
+  if (value > static_cast<std::uint64_t>(
+                  std::numeric_limits<std::size_t>::max())) {
+    return std::nullopt;
+  }
+  return static_cast<std::size_t>(value);
+}
+
+inline std::string FormatTupleIndex(TupleIndex index) {
+  const TupleIndex ten = cursive::core::UInt128FromU64(10);
+  TupleIndex value = index;
+  std::string digits;
+
+  while (true) {
+    const TupleIndex quotient = cursive::core::UInt128Div(value, ten);
+    const TupleIndex remainder = cursive::core::UInt128Sub(
+        value, cursive::core::UInt128Mul(quotient, ten));
+    digits.push_back(static_cast<char>(
+        '0' + cursive::core::UInt128ToU64(remainder)));
+    if (cursive::core::UInt128FitsU64(quotient) &&
+        cursive::core::UInt128ToU64(quotient) == 0) {
+      break;
+    }
+    value = quotient;
+  }
+
+  std::reverse(digits.begin(), digits.end());
+  return digits;
+}
 
 // ===========================================================================
 // Argument Types (shared by multiple expression kinds)

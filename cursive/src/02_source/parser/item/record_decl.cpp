@@ -267,10 +267,9 @@ namespace cursive::ast
   // =============================================================================
 
   ParseElemResult<AssociatedTypeDecl> ParseAssociatedTypeDeclAfterVis(
-      Parser parser, Visibility vis, AttributeList attrs)
+      Parser start, Parser parser, Visibility vis, AttributeList attrs)
   {
     SPEC_RULE("Parse-RecordMember-AssociatedType");
-    Parser start = parser;
 
     if (!IsKw(parser, "type"))
     {
@@ -328,7 +327,8 @@ namespace cursive::ast
     if (IsKw(vis.parser, "type"))
     {
       ParseElemResult<AssociatedTypeDecl> assoc =
-          ParseAssociatedTypeDeclAfterVis(vis.parser, vis.elem, attrs_list);
+          ParseAssociatedTypeDeclAfterVis(parser, vis.parser, vis.elem,
+                                          attrs_list);
       return {assoc.parser, assoc.elem};
     }
 

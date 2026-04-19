@@ -176,7 +176,7 @@ bool ExprStructEqualInternal(const ast::ExprPtr& a,
           return node_a.name == node_b->name &&
                  ExprStructEqualInternal(node_a.base, node_b->base);
         } else if constexpr (std::is_same_v<T, ast::TupleAccessExpr>) {
-          return node_a.index.lexeme == node_b->index.lexeme &&
+          return ast::TupleIndexEqual(node_a.index, node_b->index) &&
                  ExprStructEqualInternal(node_a.base, node_b->base);
         } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {
           return ExprStructEqualInternal(node_a.base, node_b->base) &&
@@ -460,7 +460,7 @@ static std::optional<std::string> ExprKey(const ast::ExprPtr& expr) {
     }
     std::string out = *base_key;
     out.push_back('.');
-    out.append(tuple->index.lexeme);
+    out.append(ast::FormatTupleIndex(tuple->index));
     return out;
   }
   if (const auto* index = std::get_if<ast::IndexAccessExpr>(&expr->node)) {

@@ -260,9 +260,9 @@ struct AlignofExpr {
 // ===========================================================================
 
 /// Record literal expression - Type{ x: 1, y: 2 }
-/// Target can be plain path, generic type, or modal state
+/// Target can be a plain type path or a modal state reference.
 struct RecordExpr {
-    std::variant<TypePath, GenericTypeRef, ModalStateRef> target;
+    std::variant<TypePath, ModalStateRef> target;
     std::vector<FieldInit> fields;
 };
 
@@ -405,7 +405,7 @@ struct FieldAccessExpr {
 /// Tuple access expression - base.0
 struct TupleAccessExpr {
     ExprPtr base;
-    Token index;  // Integer literal token
+    TupleIndex index;  // Parsed integer value
 };
 
 /// Index access expression - base[index]

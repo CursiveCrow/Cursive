@@ -219,3 +219,15 @@ Rule Name: AttrList-Target-Err
 Spec Location: CursiveSpecification.md:6493-6496
 Compiler Location: cursive/src/04_analysis/attributes/attribute_registry.cpp:434-442, 934-936; cursive/src/04_analysis/typing/item/record_decl.cpp:509-514,1040-1044; cursive/src/04_analysis/typing/item/enum_decl.cpp:280-286; cursive/src/04_analysis/typing/item/class_decl.cpp:475-481,715-721
 Ambiguity: §9.1.4 states that any attribute whose target kind is not in `AttrTargets(name)` must fail `AttrListWf(A, τ)` with `Code(Attr-Target-Err)`, which the compiler maps to `E-MOD-2452`. But later spec sections assign different dedicated diagnostics to some of the same invalid-target situations: §9.5.4 says `[[dynamic]]` on a type alias or field is ill-formed, and §9.5.7 assigns `E-CON-0411` / `E-CON-0412`; §23.4.4.6 says `[[library]]` is valid only on `extern` blocks, and §23.4.7 assigns `E-SYS-3345` for `[[library]]` outside an `extern` block. The current compiler follows those later specialized diagnostics. Advancing this row would require inventing whether the generic `AttrList-Target-Err` code must override the later feature-specific diagnostics, or whether the later diagnostics are intended exceptions to the generic attribute-list judgment.
+---
+Phase: Phase 1 - Parse and Aggregate
+Rule Name: Range parsing operand and stop rows
+Spec Location: CursiveSpecification.md:9254-9292; CursiveSpecification.md:15940-15946
+Compiler Location: cursive/src/02_source/parser/expr/range.cpp:51-150; cursive/src/02_source/parser/expr/binary.cpp:348-356
+Ambiguity: The selected range rows cannot be corrected safely as implementation work because the specification is internally incomplete and contradictory. The `Parse-Range-Full` and `Parse-RangeTail-From` rows reference `RangeStop`, but the current specification never defines `RangeStop`. The `Parse-Range-To`, `Parse-Range-ToInc`, `Parse-Range-Lhs`, `Parse-RangeTail-Exclusive`, and `Parse-RangeTail-Inclusive` rows require `ParseAdd` operands, while the later operator-expression grammar defines range operands as `logical_or_expr`. The existing parser follows the later grammar by using `ParseLogicalOr`; forcing only some rows to `ParseAdd` would choose one normative interpretation over another without a spec decision.
+---
+Phase: Phase 1 - Parse and Aggregate
+Rule Name: Parse-RecordMember-Method / Parse-RecordMember-Field
+Spec Location: CursiveSpecification.md:9555-9568; CursiveSpecification.md:14111-14131
+Compiler Location: cursive/src/02_source/parser/item/record_decl.cpp:320-330
+Ambiguity: The selected `Parse-RecordMember-Method` row dispatches only when `Tok(P_1)` is `procedure`, and the selected `Parse-RecordMember-Field` row excludes only `procedure` and `type`. Later in the same specification, `method_def` includes optional `override` before `procedure`, and `MethodDecl` stores an `override` flag. The live parser therefore treats `override procedure` as a record method. Marking the method row complete without accepting `override` would contradict the method grammar; routing `override` to the field row would reject a method form the spec otherwise defines.

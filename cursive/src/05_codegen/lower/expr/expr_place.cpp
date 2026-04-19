@@ -145,7 +145,7 @@ LowerResult LowerReadPlace(const ast::Expr& place, LowerCtx& ctx) {
           DerivedValueInfo info;
           info.kind = DerivedValueInfo::Kind::Tuple;
           info.base = base_result.value;
-          info.tuple_index = static_cast<std::size_t>(std::stoull(node.index.lexeme));
+          info.tuple_index = ast::TupleIndexToSize(node.index).value();
           ctx.RegisterDerivedValue(elem_value, info);
           IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Read, ctx);
           return LowerResult{SeqIR({base_result.ir, key_ir}), elem_value};
@@ -575,7 +575,7 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
           DerivedValueInfo info;
           info.kind = DerivedValueInfo::Kind::AddrTuple;
           info.base = base_addr.value;
-          info.tuple_index = static_cast<std::size_t>(std::stoull(node.index.lexeme));
+          info.tuple_index = ast::TupleIndexToSize(node.index).value();
           ctx.RegisterDerivedValue(ptr_value, info);
 
           IRPtr drop_ir = EmptyIR();

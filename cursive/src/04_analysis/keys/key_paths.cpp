@@ -98,7 +98,8 @@ std::string CanonicalExprIdentity(const ast::ExprPtr& expr) {
 
   if (const auto* tuple = std::get_if<ast::TupleAccessExpr>(&expr->node)) {
     std::ostringstream oss;
-    oss << CanonicalExprIdentity(tuple->base) << "." << tuple->index.lexeme;
+    oss << CanonicalExprIdentity(tuple->base) << "."
+        << ast::FormatTupleIndex(tuple->index);
     return oss.str();
   }
 
@@ -286,7 +287,7 @@ void BuildPathSegments(const ast::ExprPtr& expr,
     }
 
     KeyPathSeg seg;
-    seg.name = tuple->index.lexeme;
+    seg.name = ast::FormatTupleIndex(tuple->index);
     seg.is_index = false;
     seg.boundary = false;
     segs.push_back(std::move(seg));
@@ -878,4 +879,3 @@ bool KeyPathIsRoot(const KeyPath& path) {
 }
 
 }  // namespace cursive::analysis
-

@@ -4,6 +4,11 @@ procedure MaybeUnion(value: i32) -> i32 | bool {
     return value
 }
 
+procedure AcceptDistinctMembersGeneric<T>(value: T | bool) -> i32 {
+    let _ = value
+    return 9
+}
+
 procedure PropagateUnionValue() -> bool {
     let propagate_input: i32 = 7
     let resolved: i32 = MaybeUnion(propagate_input)?
@@ -72,6 +77,9 @@ procedure UnionMetricLabel(value: i32) -> string@View {
     if (value == 7) {
         return "7"
     }
+    if (value == 9) {
+        return "9"
+    }
     return "other"
 }
 
@@ -104,6 +112,11 @@ procedure VerifyUnionsPropagationItem(ctx: Context, scope: string@View, move ite
         _: i32 { 0 }
     }
     [[log(label: "types-log-transition_move")]]
+    let distinct_members_generic_source: i32 | bool | i32 = 9
+    LogUnionObject(ctx.fs, scope, "distinct_members_generic_source", "i32|bool|i32", "constructed", "duplicate union source prepared for generic inference")
+    [[log(label: "types-log-transition_move")]]
+    let distinct_members_generic_metric: i32 = AcceptDistinctMembersGeneric(distinct_members_generic_source)
+    [[log(label: "types-log-transition_move")]]
     [[log(label: "types-log-transition_move")]]
     let propagated: bool = PropagateUnionValue()
     let propagate_metric: i32 = if (propagated) { 1 } else { 0 }
@@ -116,24 +129,41 @@ procedure VerifyUnionsPropagationItem(ctx: Context, scope: string@View, move ite
         _: i32 { 0 }
     }
     [[log(label: "types-log-transition_move")]]
+    let set_members_type_name: string@Managed = comptime {
+        introspect~>type_name(
+            Type::<(i32 |: { self > 0 };) | (i32 |: { self > 0 };)>
+        )
+    }
+    let expected_set_members_type_name: string@View = "(i32 where { ... };)"
+    let set_members_type_name_log_actual =
+        [[log(label: "observed-union-set-members-type-name", expected: "(i32 where { ... };)")]]
+        set_members_type_name
+    let set_members_passed: bool =
+        (set_members_type_name == expected_set_members_type_name) &&
+        (set_members_type_name_log_actual == expected_set_members_type_name)
+    [[log(label: "types-log-transition_move")]]
     let observed_construction_step: string@View = "observed-union-construction-metric"
     let observed_flatten_step: string@View = "observed-union-flattening-metric"
     let observed_normalize_step: string@View = "observed-union-normalization-metric"
+    let observed_distinct_members_step: string@View = "observed-union-distinct-members-metric"
     let observed_propagate_step: string@View = "observed-union-propagation-metric"
     let observed_pattern_step: string@View = "observed-union-pattern-metric"
     let expected_construction: string@View = "5"
     let expected_flatten: string@View = "7"
     let expected_normalize: string@View = "1"
+    let expected_distinct_members: string@View = "9"
     let expected_propagate: string@View = "1"
     let expected_pattern: string@View = "1"
     let construction_metric_label: string@View = UnionMetricLabel(construction_metric)
     let flatten_metric_label: string@View = UnionMetricLabel(flatten_metric)
     let normalize_metric_label: string@View = UnionMetricLabel(normalize_metric)
+    let distinct_members_metric_label: string@View = UnionMetricLabel(distinct_members_generic_metric)
     let propagate_metric_label: string@View = UnionMetricLabel(propagate_metric)
     let pattern_metric_label: string@View = UnionMetricLabel(pattern_metric)
     let construction_metric_passed: bool = construction_metric == 5
     let flatten_metric_passed: bool = flatten_metric == 7
     let normalize_metric_passed: bool = normalize_metric == 1
+    let distinct_members_metric_passed: bool = distinct_members_generic_metric == 9
     let propagate_metric_passed: bool = propagate_metric == 1
     let pattern_metric_passed: bool = pattern_metric == 1
 
@@ -143,6 +173,8 @@ procedure VerifyUnionsPropagationItem(ctx: Context, scope: string@View, move ite
     let flatten_metric_passed_with_log: bool = flatten_metric_passed && (flatten_metric_passed_log_actual == expected_flatten)
     let normalize_metric_passed_log_actual = [[log(label: "observed-union-normalization-metric", expected: "1")]] normalize_metric_label
     let normalize_metric_passed_with_log: bool = normalize_metric_passed && (normalize_metric_passed_log_actual == expected_normalize)
+    let distinct_members_metric_passed_log_actual = [[log(label: "observed-union-distinct-members-metric", expected: "9")]] distinct_members_metric_label
+    let distinct_members_metric_passed_with_log: bool = distinct_members_metric_passed && (distinct_members_metric_passed_log_actual == expected_distinct_members)
     let propagate_metric_passed_log_actual = [[log(label: "observed-union-propagation-metric", expected: "1")]] propagate_metric_label
     let propagate_metric_passed_with_log: bool = propagate_metric_passed && (propagate_metric_passed_log_actual == expected_propagate)
     let pattern_metric_passed_log_actual = [[log(label: "observed-union-pattern-metric", expected: "1")]] pattern_metric_label
@@ -203,6 +235,23 @@ procedure VerifyUnionsPropagationItem(ctx: Context, scope: string@View, move ite
         return RunUnionsPropagationItem(
             ctx,
             scope,
+            "DistinctMembersPreservesFirstOccurrence",
+            "distinct-member filtering preserves first surviving union member for downstream generic inference",
+            "validated left-to-right duplicate removal for unions",
+            "union-distinct-members",
+            "infer generic parameter from union after preserving first equivalent member",
+            "9",
+            "9",
+            "not-9",
+            move distinct_members_metric_passed_with_log,
+            "distinct members first-occurrence check failed"
+        )
+    }
+
+    if (item_index == 4) {
+        return RunUnionsPropagationItem(
+            ctx,
+            scope,
             "PropagationOperatorTyping",
             "`?` propagation typing over union result channels",
             "validated propagation operator typing",
@@ -216,7 +265,7 @@ procedure VerifyUnionsPropagationItem(ctx: Context, scope: string@View, move ite
         )
     }
 
-    if (item_index == 4) {
+    if (item_index == 5) {
         return RunUnionsPropagationItem(
             ctx,
             scope,
@@ -230,6 +279,23 @@ procedure VerifyUnionsPropagationItem(ctx: Context, scope: string@View, move ite
             "not-1",
             move pattern_metric_passed_with_log,
             "union pattern use check failed"
+        )
+    }
+
+    if (item_index == 5) {
+        return RunUnionsPropagationItem(
+            ctx,
+            scope,
+            "UnionSetMembers",
+            "compile-time reflected union member sets deduplicate repeated equivalent tuple-refinement members",
+            "validated set-members deduplication by reflected union type name",
+            "union-set-members",
+            "reflect a union with repeated equivalent members and confirm the rendered set keeps one representative",
+            "(i32 where { ... };)",
+            "(i32 where { ... };)",
+            "duplicate-refinement-tuple-members",
+            move set_members_passed,
+            "set-members reflected type-name check failed"
         )
     }
 
@@ -268,14 +334,24 @@ procedure RunUnionsPropagation(ctx: Context) -> i32 {
         return status_NestedUnionNormalization
     }
 
-    let status_PropagationOperatorTyping: i32 = VerifyUnionsPropagationItem(ctx, scope, 3, "PropagationOperatorTyping")
+    let status_DistinctMembersPreservesFirstOccurrence: i32 = VerifyUnionsPropagationItem(ctx, scope, 3, "DistinctMembersPreservesFirstOccurrence")
+    if (status_DistinctMembersPreservesFirstOccurrence != 0) {
+        return status_DistinctMembersPreservesFirstOccurrence
+    }
+
+    let status_PropagationOperatorTyping: i32 = VerifyUnionsPropagationItem(ctx, scope, 4, "PropagationOperatorTyping")
     if (status_PropagationOperatorTyping != 0) {
         return status_PropagationOperatorTyping
     }
 
-    let status_UnionPatternUse: i32 = VerifyUnionsPropagationItem(ctx, scope, 4, "UnionPatternUse")
+    let status_UnionPatternUse: i32 = VerifyUnionsPropagationItem(ctx, scope, 5, "UnionPatternUse")
     if (status_UnionPatternUse != 0) {
         return status_UnionPatternUse
+    }
+
+    let status_UnionSetMembers: i32 = VerifyUnionsPropagationItem(ctx, scope, 5, "UnionSetMembers")
+    if (status_UnionSetMembers != 0) {
+        return status_UnionSetMembers
     }
 
     [[log(label: "types-log-checkpoint")]]

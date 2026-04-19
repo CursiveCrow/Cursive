@@ -23,6 +23,7 @@
 
 #include "04_analysis/caps/cap_system.h"
 
+#include <array>
 #include <string>
 #include <type_traits>
 #include <unordered_set>
@@ -45,6 +46,37 @@ static inline void SpecDefsContextCaps() {
   SPEC_DEF("MainSignature", "5.9.4");
   SPEC_DEF("CpuSet", "5.9.4");
   SPEC_DEF("Priority", "5.9.4");
+}
+
+static constexpr std::array<std::string_view, 4> kBuiltinRecordNames = {
+    "RegionOptions",
+    "DirEntry",
+    "Context",
+    "System",
+};
+
+static std::optional<ast::Path> BuiltinRecordPath(std::string_view builtin_name) {
+  for (const auto candidate : kBuiltinRecordNames) {
+    if (IdEq(builtin_name, candidate)) {
+      ast::Path record_path;
+      record_path.emplace_back(std::string(candidate));
+      return record_path;
+    }
+  }
+
+  return std::nullopt;
+}
+
+static std::optional<ast::Path> BuiltinRecordPath(const ast::TypePath& path) {
+  for (const auto candidate : kBuiltinRecordNames) {
+    if (PathMatchesBuiltinName(path, candidate)) {
+      ast::Path record_path;
+      record_path.emplace_back(std::string(candidate));
+      return record_path;
+    }
+  }
+
+  return std::nullopt;
 }
 
 static std::shared_ptr<ast::Type> MakeTypeNode(const ast::TypeNode& node) {
@@ -335,19 +367,12 @@ bool IsRegionOptionsTypePath(const ast::TypePath& path) {
 
 std::optional<ast::Path> LookupBuiltinRecordCtorPath(const ast::TypePath& path) {
   SpecDefsContextCaps();
-  if (PathMatchesBuiltinName(path, "RegionOptions")) {
-    ast::Path record_path;
-    record_path.emplace_back("RegionOptions");
-    return record_path;
-  }
-  return std::nullopt;
+  return BuiltinRecordPath(path);
 }
 
 std::optional<ast::Path> LookupBuiltinRecordCtorPath(std::string_view ident) {
   SpecDefsContextCaps();
-  ast::TypePath path;
-  path.emplace_back(std::string(ident));
-  return LookupBuiltinRecordCtorPath(path);
+  return BuiltinRecordPath(ident);
 }
 
 std::optional<TypeRef> ContextFieldType(std::string_view field_name) {

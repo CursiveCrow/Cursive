@@ -249,7 +249,7 @@ ResTypeResult ResolveType(ResolveContext& ctx,
             }
             arg = resolved_arg.value;
           }
-          SyncTypeModalStateFromFields(out_node);
+          ast::SyncTypeModalStateFromFields(out_node);
           SPEC_RULE("ResolveType-ModalState");
           return {true, std::nullopt, std::nullopt,
                   std::make_shared<ast::Type>(std::move(out))};

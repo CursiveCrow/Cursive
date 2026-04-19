@@ -587,7 +587,7 @@ ModuleSet TypeRefsTy(const ast::Type& type, const InitEnv& env) {
       type.node);
 }
 
-ModuleSet TypeRefsRef(const std::variant<ast::TypePath, ast::GenericTypeRef, ast::ModalStateRef>& ref,
+ModuleSet TypeRefsRef(const std::variant<ast::TypePath, ast::ModalStateRef>& ref,
                       const InitEnv& env) {
   SpecDefsInitPlanner();
   return std::visit(
@@ -596,19 +596,12 @@ ModuleSet TypeRefsRef(const std::variant<ast::TypePath, ast::GenericTypeRef, ast
         if constexpr (std::is_same_v<T, ast::TypePath>) {
           SPEC_RULE("TypeRef-Ref-Path");
           return TypeRefsTypePath(node, env);
-        } else if constexpr (std::is_same_v<T, ast::GenericTypeRef>) {
-          SPEC_RULE("TypeRef-Ref-Apply");
-          ast::TypeApply apply;
-          apply.path = node.path;
-          apply.args = node.generic_args;
-          ast::Type fake;
-          fake.node = apply;
-          return TypeRefsTy(fake, env);
         } else {
           SPEC_RULE("TypeRef-Ref-ModalState");
           ast::TypeModalState state;
           state.path = node.path;
           state.generic_args = node.generic_args;
+          ast::SyncTypeModalStateFromFields(state);
           state.state = node.state;
           ast::Type fake;
           fake.node = state;

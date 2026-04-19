@@ -395,7 +395,7 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
           DerivedValueInfo info;
           info.kind = DerivedValueInfo::Kind::AddrTuple;
           info.base = base_result.value;
-          info.tuple_index = static_cast<std::size_t>(std::stoull(node.index.lexeme));
+          info.tuple_index = ast::TupleIndexToSize(node.index).value();
           ctx.RegisterDerivedValue(ptr_value, info);
 
           IRPtr tag_ir = tag_from(ptr_value, base_result.value);

@@ -63,6 +63,7 @@ static std::shared_ptr<ast::Type> MakeTypeModalStateAst(
     node.path.emplace_back(comp);
   }
   node.generic_args = {};
+  ast::SyncTypeModalStateFromFields(node);
   node.state = ast::Identifier{state};
   return MakeTypeNode(node);
 }

@@ -63,8 +63,7 @@ LowerResult LowerTupleAccess(const ast::TupleAccessExpr& expr, LowerCtx& ctx) {
 
     // Lower the base expression
     auto base_result = LowerExpr(*expr.base, ctx);
-    const auto tuple_index =
-        static_cast<std::size_t>(std::stoull(expr.index.lexeme));
+    const auto tuple_index = ast::TupleIndexToSize(expr.index).value();
 
     analysis::TypeRef base_type = ctx.LookupValueType(base_result.value);
     if (!base_type && ctx.expr_type) {
@@ -117,7 +116,7 @@ LowerResult LowerReadPlaceTupleAccess(const ast::TupleAccessExpr& node,
     DerivedValueInfo info;
     info.kind = DerivedValueInfo::Kind::Tuple;
     info.base = base_result.value;
-    info.tuple_index = static_cast<std::size_t>(std::stoull(node.index.lexeme));
+    info.tuple_index = ast::TupleIndexToSize(node.index).value();
     ctx.RegisterDerivedValue(elem_value, info);
 
     return LowerResult{base_result.ir, elem_value};

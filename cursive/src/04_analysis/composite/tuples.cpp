@@ -80,19 +80,6 @@ static inline void SpecDefsTuples() {
   SPEC_DEF("StripPerm", "5.2.12");
 }
 
-static std::optional<core::UInt128> ParseTupleIndex(
-    const ast::Token& token) {
-  if (token.kind != lexer::TokenKind::IntLiteral) {
-    return std::nullopt;
-  }
-  const std::string_view core_text = core::StripIntSuffix(token.lexeme);
-  const auto value = core::ParseIntCore(core_text);
-  if (!value.has_value()) {
-    return std::nullopt;
-  }
-  return value;
-}
-
 static TypeRef StripPerm(const TypeRef& type) {
   if (!type) {
     return type;
@@ -397,23 +384,14 @@ ExprTypeResult TypeTupleAccessValue(const ScopeContext& ctx,
     return result;
   }
 
-  const auto idx_value = ParseTupleIndex(expr.index);
-  if (!idx_value.has_value()) {
-    SPEC_RULE("TupleIndex-NonConst");
-    result.diag_id = "TupleIndex-NonConst";
-    return result;
-  }
-
-  // Check index is within bounds
-  if (!core::UInt128FitsU64(*idx_value) ||
-      core::UInt128ToU64(*idx_value) >= tuple->elements.size()) {
+  const auto index = ast::TupleIndexToSize(expr.index);
+  if (!index.has_value() || *index >= tuple->elements.size()) {
     SPEC_RULE("TupleIndex-OOB");
     result.diag_id = "TupleIndex-OOB";
     return result;
   }
 
-  const auto index = static_cast<std::size_t>(core::UInt128ToU64(*idx_value));
-  const auto element = tuple->elements[index];
+  const auto element = tuple->elements[*index];
   const auto* perm = std::get_if<TypePerm>(&base_type.type->node);
   TypeRef out_type = element;
   if (perm) {
@@ -470,23 +448,14 @@ PlaceTypeResult TypeTupleAccessPlace(const ScopeContext& ctx,
     return result;
   }
 
-  const auto idx_value = ParseTupleIndex(expr.index);
-  if (!idx_value.has_value()) {
-    SPEC_RULE("TupleIndex-NonConst");
-    result.diag_id = "TupleIndex-NonConst";
-    return result;
-  }
-
-  // Check index is within bounds
-  if (!core::UInt128FitsU64(*idx_value) ||
-      core::UInt128ToU64(*idx_value) >= tuple->elements.size()) {
+  const auto index = ast::TupleIndexToSize(expr.index);
+  if (!index.has_value() || *index >= tuple->elements.size()) {
     SPEC_RULE("TupleIndex-OOB");
     result.diag_id = "TupleIndex-OOB";
     return result;
   }
 
-  const auto index = static_cast<std::size_t>(core::UInt128ToU64(*idx_value));
-  const auto element = tuple->elements[index];
+  const auto element = tuple->elements[*index];
   const auto* perm = std::get_if<TypePerm>(&base_type.type->node);
   if (perm) {
     SPEC_RULE("P-Tuple-Index-Perm");

@@ -1617,8 +1617,7 @@ static CheckResult CheckQuoteExprSplices(const ScopeContext& ctx,
           return std::visit(
               [&](const auto& target) -> CheckResult {
                 using Target = std::decay_t<decltype(target)>;
-                if constexpr (std::is_same_v<Target, ast::GenericTypeRef> ||
-                              std::is_same_v<Target, ast::ModalStateRef>) {
+                if constexpr (std::is_same_v<Target, ast::ModalStateRef>) {
                   for (const auto& arg : target.generic_args) {
                     auto checked =
                         CheckQuoteTypeSplices(ctx, type_ctx, arg, env);
@@ -3455,9 +3454,6 @@ static ExprTypeResult TypeExprImpl(const ScopeContext& ctx,
           TypePath target_path;
           if (const auto* path = std::get_if<ast::TypePath>(&node.target)) {
             target_path = *path;
-          } else if (const auto* gen_ref =
-                         std::get_if<ast::GenericTypeRef>(&node.target)) {
-            target_path = gen_ref->path;
           }
           if (!target_path.empty() && IsSystemTypePath(target_path) &&
               !IsInUnsafeSpan(ctx, e->span)) {

@@ -35,17 +35,6 @@ analysis::TypeRef LowerRecordTargetType(const ast::RecordExpr& expr,
         using T = std::decay_t<decltype(target)>;
         if constexpr (std::is_same_v<T, ast::TypePath>) {
           return analysis::MakeTypePath(target);
-        } else if constexpr (std::is_same_v<T, ast::GenericTypeRef>) {
-          std::vector<analysis::TypeRef> generic_args;
-          generic_args.reserve(target.generic_args.size());
-          for (const auto& arg : target.generic_args) {
-            const auto lowered = analysis::LowerType(scope, arg);
-            if (!lowered.ok || !lowered.type) {
-              return nullptr;
-            }
-            generic_args.push_back(lowered.type);
-          }
-          return analysis::MakeTypePath(target.path, std::move(generic_args));
         } else if constexpr (std::is_same_v<T, ast::ModalStateRef>) {
           std::vector<analysis::TypeRef> generic_args;
           generic_args.reserve(target.generic_args.size());
@@ -84,7 +73,6 @@ analysis::TypeRef LowerRecordTargetType(const ast::RecordExpr& expr,
 //
 // This applies uniformly to:
 // - Plain record types (TypePath): Point{ x: 1, y: 2 }
-// - Generic record types (GenericTypeRef): Container<i32>{ data: 42 }
 // - Modal state record types (ModalStateRef): Connection@Open{ socket: fd }
 //
 // =============================================================================

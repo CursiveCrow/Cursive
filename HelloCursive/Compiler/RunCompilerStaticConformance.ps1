@@ -4073,6 +4073,26 @@ public procedure main(move ctx: Context) -> i32 {
 "@
 }
 
+function New-Issue33RecordAssociatedTypeParseSpanSource() {
+    return @"
+public class AssocSurface {
+    type Output = i32
+}
+
+public record ScalarSurface <: AssocSurface {
+    public value: i32
+    type Output = i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let value: ScalarSurface = ScalarSurface { value: 7 }
+    let _ = value
+    return 0
+}
+"@
+}
+
 function New-Issue51PublicUsingItemRejectMainSource() {
     return @"
 import mod
@@ -4360,7 +4380,19 @@ public procedure main(move ctx: Context) -> i32 {
 "@
 }
 
-function New-Issue33EmptyRecordLiteralAcceptedSource() {
+function New-Issue878EmptyRecordDefaultConstructorSource() {
+    return @"
+record Empty {}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let _ = Empty()
+    return 0
+}
+"@
+}
+
+function New-Issue878EmptyRecordBraceLiteralRejectedSource() {
     return @"
 record Empty {}
 
@@ -9245,6 +9277,63 @@ function Invoke-Issue629StringOfPathRefSurfaceConformanceCase {
     Write-Host "[compiler-static] issue629_string_of_path_ref_surface_conformance: checks=$($requiredChecks.Count)"
 }
 
+function Invoke-Issue630RecordExprTargetSurfaceConformanceCase {
+    $checks = @(
+        @{
+            Path = "docs\\CursiveSpecification.md"
+            Pattern = 'RecordExpr = .*TypePath\(path\), ModalStateRef\(modal_ref, state\)'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\ast\\nodes\\ast_exprs.h"
+            Pattern = 'struct RecordExpr \{[\s\S]*?std::variant<TypePath,\s*ModalStateRef>\s+target;[\s\S]*?std::vector<FieldInit>\s+fields;[\s\S]*?\};'
+            ForbiddenPattern = 'GenericTypeRef'
+        },
+        @{
+            Path = "cursive\\src\\02_source\\parser\\expr\\record_literal.cpp"
+            Pattern = 'ParseSimpleRecordLiteral\(\s*Parser parser,\s*Parser start,\s*const TypePath& path\s*\)'
+            ForbiddenPattern = 'rec\.target = gen_ref;'
+        },
+        @{
+            Path = "cursive\\src\\04_analysis\\resolve\\resolve_expr.cpp"
+            Pattern = 'ResolveResult<std::variant<ast::TypePath,\s*ast::ModalStateRef>>\s*ResolveTypeRef'
+            ForbiddenPattern = 'ResolveTypeRef-GenericPath|ast::GenericTypeRef'
+        },
+        @{
+            Path = "cursive\\src\\04_analysis\\memory\\init_planner.cpp"
+            Pattern = 'ModuleSet TypeRefsRef\(const std::variant<ast::TypePath,\s*ast::ModalStateRef>& ref,'
+            ForbiddenPattern = 'TypeRef-Ref-Apply|ast::GenericTypeRef'
+        },
+        @{
+            Path = "cursive\\src\\04_analysis\\typing\\expr\\record_literal.cpp"
+            Pattern = 'const auto\* path = std::get_if<ast::TypePath>\(&expr\.target\);'
+            ForbiddenPattern = 'ast::GenericTypeRef'
+        },
+        @{
+            Path = "cursive\\src\\05_codegen\\lower\\expr\\record_literal.cpp"
+            Pattern = 'if constexpr \(std::is_same_v<T,\s*ast::TypePath>\) \{[\s\S]*?return analysis::MakeTypePath\(target\);[\s\S]*?\} else if constexpr \(std::is_same_v<T,\s*ast::ModalStateRef>\)'
+            ForbiddenPattern = 'ast::GenericTypeRef|Generic record types'
+        }
+    )
+
+    foreach ($check in $checks) {
+        $fullPath = Join-Path $workspaceRoot $check.Path
+        if (-not (Test-Path $fullPath)) {
+            throw "Case 'issue630_record_expr_target_surface_conformance' missing file: $fullPath"
+        }
+
+        $text = Get-Content -Path $fullPath -Raw
+        if ($text -notmatch $check.Pattern) {
+            throw "Case 'issue630_record_expr_target_surface_conformance' missing expected pattern '$($check.Pattern)' in $fullPath."
+        }
+
+        if ($check.ContainsKey("ForbiddenPattern") -and $text -match $check.ForbiddenPattern) {
+            throw "Case 'issue630_record_expr_target_surface_conformance' found forbidden pattern '$($check.ForbiddenPattern)' in $fullPath."
+        }
+    }
+
+    Write-Host "[compiler-static] issue630_record_expr_target_surface_conformance: checks=$($checks.Count)"
+}
+
 function Invoke-Issue626StaticDeclOptionalAttrSurfaceConformanceCase {
     $checks = @(
         @{
@@ -9725,6 +9814,47 @@ public enum Choice {
     Write-Host "[compiler-static] issue51_using_wildcard_parse_trace: exit=$($result.ExitCode) errors=$errorCount parse_using_wildcard=$parseUsingWildcardCount"
 }
 
+function Invoke-Issue33RecordAssociatedTypeParseSpanCase {
+    $result = Invoke-CheckWithConformance `
+        -CaseId "issue33_record_assoc_type_parse_span" `
+        -Source (New-Issue33RecordAssociatedTypeParseSpanSource) `
+        -ConformanceFileName "issue33_record_assoc_type_parse_span.log"
+
+    if ($result.ExitCode -ne 0) {
+        throw "Case 'issue33_record_assoc_type_parse_span' expected exit 0 but got $($result.ExitCode)."
+    }
+
+    $errorCount = @($result.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    }).Count
+    if ($errorCount -ne 0) {
+        throw "Case 'issue33_record_assoc_type_parse_span' expected zero compile-time errors but observed $errorCount."
+    }
+
+    $traceText = Get-Content -Path $result.ConformancePath -Raw
+    $assocParseCount = ([regex]::Matches($traceText, "`tParse-RecordMember-AssociatedType`t")).Count
+    if ($assocParseCount -lt 1) {
+        throw "Case 'issue33_record_assoc_type_parse_span' expected Parse-RecordMember-AssociatedType in the conformance trace."
+    }
+
+    $recordDeclPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\parser\\item\\record_decl.cpp"
+    if (-not (Test-Path $recordDeclPath)) {
+        throw "Case 'issue33_record_assoc_type_parse_span' missing parser implementation file: $recordDeclPath"
+    }
+    $recordDeclText = Get-Content -Path $recordDeclPath -Raw
+    if ($recordDeclText -notmatch 'ParseAssociatedTypeDeclAfterVis\(\s*Parser start,\s*Parser parser,\s*Visibility vis,\s*AttributeList attrs\s*\)') {
+        throw "Case 'issue33_record_assoc_type_parse_span' expected ParseAssociatedTypeDeclAfterVis to accept the original record-member start parser."
+    }
+    if ($recordDeclText -notmatch 'assoc\.span = SpanBetween\(start,\s*after_name\);') {
+        throw "Case 'issue33_record_assoc_type_parse_span' expected associated type spans to start at the original record-member parser position."
+    }
+    if ($recordDeclText -notmatch 'ParseAssociatedTypeDeclAfterVis\(parser,\s*vis\.parser,\s*vis\.elem,\s*attrs_list\);') {
+        throw "Case 'issue33_record_assoc_type_parse_span' expected ParseRecordMember to pass the original parser position into ParseAssociatedTypeDeclAfterVis."
+    }
+
+    Write-Host "[compiler-static] issue33_record_assoc_type_parse_span: exit=$($result.ExitCode) errors=$errorCount parse_assoc=$assocParseCount"
+}
+
 function Invoke-Issue51PublicUsingItemVisibilityCase {
     $crossModuleFiles = @{
         "mod/Other.cursive" = (New-Issue51PublicUsingItemModuleSource)
@@ -10110,6 +10240,37 @@ function Invoke-Issue548TupleAccessEvalSigmaCase {
     }
 
     Write-Host "[compiler-static] issue548_tuple_access_eval_sigma: exit=$($result.ExitCode) errors=$errorCount lower_tuple_access=$lowerTupleAccessCount build_tuple_calls=$buildTupleCallCount"
+}
+
+function Invoke-Issue836TupleAccessAstIntegerConformanceCase {
+    $presentChecks = @(
+        @{ Path = "cursive\\src\\02_source\\ast\\ast_common.h"; Pattern = 'using\s+TupleIndex\s*=\s*cursive::core::UInt128;' },
+        @{ Path = "cursive\\src\\02_source\\ast\\ast_common.h"; Pattern = 'inline\s+std::string\s+FormatTupleIndex\s*\(' },
+        @{ Path = "cursive\\src\\02_source\\ast\\nodes\\ast_exprs.h"; Pattern = 'struct\s+TupleAccessExpr\s*\{\s*ExprPtr\s+base;\s*TupleIndex\s+index;' },
+        @{ Path = "cursive\\src\\02_source\\parser\\expr\\postfix.cpp"; Pattern = 'core::ParseIntCore\(core::StripIntSuffix\(tok->lexeme\)\)' },
+        @{ Path = "cursive\\src\\02_source\\parser\\expr\\postfix.cpp"; Pattern = 'access\.index\s*=\s*\*index_value;' },
+        @{ Path = "cursive\\src\\04_analysis\\composite\\tuples.cpp"; Pattern = 'ast::TupleIndexToSize\(expr\.index\)' },
+        @{ Path = "cursive\\src\\05_codegen\\lower\\expr\\tuple_access.cpp"; Pattern = 'ast::TupleIndexToSize\(expr\.index\)\.value\(\)' }
+    )
+
+    foreach ($check in $presentChecks) {
+        $fullPath = Join-Path $workspaceRoot $check.Path
+        if (-not (Test-Path $fullPath)) {
+            throw "Case 'issue836_tuple_access_ast_integer_conformance' missing file: $fullPath"
+        }
+        $text = Get-Content -Path $fullPath -Raw
+        if ($text -notmatch $check.Pattern) {
+            throw "Case 'issue836_tuple_access_ast_integer_conformance' missing expected pattern '$($check.Pattern)' in $fullPath."
+        }
+    }
+
+    $exprsPath = Join-Path $workspaceRoot "cursive\\src\\02_source\\ast\\nodes\\ast_exprs.h"
+    $exprsText = Get-Content -Path $exprsPath -Raw
+    if ($exprsText -match 'struct\s+TupleAccessExpr\s*\{\s*ExprPtr\s+base;\s*Token\s+index;') {
+        throw "Case 'issue836_tuple_access_ast_integer_conformance' found legacy Token-backed tuple index storage in $exprsPath."
+    }
+
+    Write-Host "[compiler-static] issue836_tuple_access_ast_integer_conformance: source_patterns=$($presentChecks.Count) legacy_token_index=0"
 }
 
 function Invoke-Issue549ArrayIndexConformanceCase {
@@ -13342,6 +13503,50 @@ function Invoke-Issue591UniverseProtectedSetConformanceCase {
     }
 
     Write-Host "[compiler-static] issue591_universe_protected_set_conformance: required=$($required.Count) forbidden=11"
+}
+
+function Invoke-Issue897BuiltinRecordSetConformanceCase {
+    $contextCapsPath = Join-Path $workspaceRoot "cursive\\src\\04_analysis\\caps\\context_caps.cpp"
+    if (-not (Test-Path $contextCapsPath)) {
+        throw "Case 'issue897_builtin_record_set_conformance' missing compiler source file: $contextCapsPath"
+    }
+
+    $contextCapsText = Get-Content -Path $contextCapsPath -Raw
+    $match = [regex]::Match($contextCapsText, 'kBuiltinRecordNames\s*=\s*\{(?<body>[\s\S]*?)\};', [System.Text.RegularExpressions.RegexOptions]::Singleline)
+    if (-not $match.Success) {
+        throw "Case 'issue897_builtin_record_set_conformance' could not locate kBuiltinRecordNames in context_caps.cpp."
+    }
+
+    $body = $match.Groups['body'].Value
+    $actual = @([regex]::Matches($body, '"(?<name>[^"]+)"') | ForEach-Object { $_.Groups['name'].Value })
+    $required = @("RegionOptions", "DirEntry", "Context", "System")
+
+    if ($actual.Count -ne $required.Count) {
+        throw "Case 'issue897_builtin_record_set_conformance' expected exactly $($required.Count) builtin records but found $($actual.Count)."
+    }
+
+    foreach ($entry in $required) {
+        if ($actual -notcontains $entry) {
+            throw "Case 'issue897_builtin_record_set_conformance' missing expected builtin record '$entry'."
+        }
+    }
+
+    foreach ($entry in $actual) {
+        if ($required -notcontains $entry) {
+            throw "Case 'issue897_builtin_record_set_conformance' found stale extra builtin record '$entry'."
+        }
+    }
+
+    foreach ($pattern in @(
+        'std::optional<ast::Path>\s+LookupBuiltinRecordCtorPath\(const ast::TypePath& path\)\s*\{\s*SpecDefsContextCaps\(\);\s*return BuiltinRecordPath\(path\);\s*\}',
+        'std::optional<ast::Path>\s+LookupBuiltinRecordCtorPath\(std::string_view ident\)\s*\{\s*SpecDefsContextCaps\(\);\s*return BuiltinRecordPath\(ident\);\s*\}'
+    )) {
+        if ($contextCapsText -notmatch $pattern) {
+            throw "Case 'issue897_builtin_record_set_conformance' missing expected delegation pattern '$pattern'."
+        }
+    }
+
+    Write-Host "[compiler-static] issue897_builtin_record_set_conformance: required=$($required.Count) delegation_patterns=2"
 }
 
 function Invoke-Issue592BlockStateConformanceCase {
@@ -21537,6 +21742,7 @@ try {
     Invoke-Issue514TupleScanSingletonCommaNewlineRejectedCase
     Invoke-Issue547TupleLoweringTraceCase
     Invoke-Issue548TupleAccessEvalSigmaCase
+    Invoke-Issue836TupleAccessAstIntegerConformanceCase
     Invoke-Issue549ArrayIndexConformanceCase
     Invoke-Issue560IfStmtNonUnitBranchDiagnosticCase
     Invoke-Issue554CallTempNoProvenanceCase
@@ -21561,6 +21767,7 @@ try {
     Invoke-Issue51UsingItemParseTraceCase
     Invoke-Issue51UsingListParseTraceCase
     Invoke-Issue51UsingWildcardParseTraceCase
+    Invoke-Issue33RecordAssociatedTypeParseSpanCase
     Invoke-Issue51PublicUsingItemVisibilityCase
     Invoke-Issue51FfiAbiProfileConformanceCase
     Invoke-Issue33FixedIdentifiersCoverageCase
@@ -21577,6 +21784,7 @@ try {
     Invoke-Issue628PathStringSurfaceConformanceCase
     Invoke-Issue629StringOfPathRefSurfaceConformanceCase
     Invoke-Issue630ModalRefSurfaceConformanceCase
+    Invoke-Issue630RecordExprTargetSurfaceConformanceCase
     Invoke-Issue626StaticDeclOptionalAttrSurfaceConformanceCase
     Invoke-Issue33AstTypeWiringCase
     Invoke-Issue33ExprWiringCase
@@ -21601,8 +21809,9 @@ try {
     Invoke-ExpectedDiagCodeCase -Id "issue33_modal_self_param_forbidden" -Source (New-Issue33ModalSelfParamForbiddenSource) -ExpectedCodes @("E-SEM-3011")
     Invoke-ExpectedDiagCodeCase -Id "issue33_enum_missing_class_method_impl" -Source (New-Issue33EnumMissingClassMethodImplSource) -ExpectedCodes @("E-TYP-2503")
     Invoke-ExpectedSuccessCase -Id "issue33_record_associated_type_member" -Source (New-Issue33RecordAssociatedTypeMemberSource)
-    Invoke-ExpectedSuccessCase -Id "issue33_empty_record_literal_accepted" -Source (New-Issue33EmptyRecordLiteralAcceptedSource)
-    Invoke-ExpectedDiagCodeCaseWithForbiddenCodes -Id "issue33_nonempty_record_empty_literal_rejected" -Source (New-Issue33NonEmptyRecordEmptyLiteralRejectedSource) -ExpectedCodes @("E-TYP-1902") -ForbiddenCodes @("E-SRC-0520")
+    Invoke-ExpectedSuccessCase -Id "issue878_empty_record_default_constructor_accepted" -Source (New-Issue878EmptyRecordDefaultConstructorSource)
+    Invoke-ExpectedDiagCodeCase -Id "issue878_empty_record_brace_literal_rejected" -Source (New-Issue878EmptyRecordBraceLiteralRejectedSource) -ExpectedCodes @("E-SRC-0520")
+    Invoke-ExpectedDiagCodeCase -Id "issue33_nonempty_record_empty_literal_rejected" -Source (New-Issue33NonEmptyRecordEmptyLiteralRejectedSource) -ExpectedCodes @("E-SRC-0520")
     Invoke-ExpectedSuccessCase -Id "issue33_call_type_args_explicit" -Source (New-Issue33CallTypeArgsExplicitSource)
     Invoke-ExpectedSuccessCase -Id "issue33_range_type_family_surface" -Source (New-Issue33RangeTypeFamilySource)
     Invoke-ExpectedSuccessCase -Id "issue33_transmute_angle_syntax" -Source (New-Issue33TransmuteAngleSyntaxSource)
@@ -21679,6 +21888,7 @@ try {
     Invoke-Issue589LexemeScalarSliceConformanceCase
     Invoke-Issue590ReservedNamespacePrefixConformanceCase
     Invoke-Issue591UniverseProtectedSetConformanceCase
+    Invoke-Issue897BuiltinRecordSetConformanceCase
     Invoke-Issue592BlockStateConformanceCase
     Invoke-Issue593AtHelperConformanceCase
     Invoke-Issue594RemoveHelperConformanceCase

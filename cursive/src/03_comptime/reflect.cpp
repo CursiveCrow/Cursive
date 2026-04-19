@@ -560,6 +560,7 @@ TypePtr CloneType(const TypePtr& type) {
           for (const auto& arg : node.generic_args) {
             copy.generic_args.push_back(CloneType(arg));
           }
+          ast::SyncTypeModalStateFromFields(copy);
           return copy;
         } else if constexpr (std::is_same_v<T, ast::TypePathType>) {
           ast::TypePathType copy;
@@ -680,6 +681,7 @@ TypePtr SubstituteAstType(const TypePtr& type, const AstTypeSubst& subst) {
           for (const auto& arg : node.generic_args) {
             copy.generic_args.push_back(SubstituteAstType(arg, subst));
           }
+          ast::SyncTypeModalStateFromFields(copy);
           return copy;
         } else if constexpr (std::is_same_v<T, ast::TypePathType>) {
           ast::TypePathType copy;
@@ -969,6 +971,7 @@ TypePtr CanonicalizeReflectTypeInContext(
             for (const auto& arg : target->generic_args) {
               canonical.generic_args.push_back(CloneType(arg));
             }
+            ast::SyncTypeModalStateFromFields(canonical);
             out->node = std::move(canonical);
             return out;
           }

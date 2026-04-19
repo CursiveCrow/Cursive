@@ -180,18 +180,11 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
     return result;
   }
 
-  // Handle TypePath and GenericTypeRef cases for regular record construction
-  TypePath type_path;
-  std::vector<std::shared_ptr<ast::Type>> syntax_generic_args;
-
-  if (const auto* path = std::get_if<ast::TypePath>(&expr.target)) {
-    type_path = *path;
-  } else if (const auto* gen_ref = std::get_if<ast::GenericTypeRef>(&expr.target)) {
-    type_path = gen_ref->path;
-    syntax_generic_args = gen_ref->generic_args;
-  } else {
+  const auto* path = std::get_if<ast::TypePath>(&expr.target);
+  if (!path) {
     return result;
   }
+  const TypePath& type_path = *path;
 
   // Lookup the record declaration
   const auto* record = LookupRecordDecl(ctx, type_path);
@@ -245,33 +238,11 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
     }
   }
 
-  // Lower generic args before field type checking for substitution
-  std::vector<TypeRef> lowered_record_args;
-  for (const auto& arg : syntax_generic_args) {
-    const auto lowered = LowerType(ctx, arg);
-    if (!lowered.ok) {
-      result.diag_id = lowered.diag_id;
-      return result;
-    }
-    lowered_record_args.push_back(lowered.type);
-  }
-
-  // Build type substitution map for generic records
-  TypeSubst type_subst;
-  if (record->generic_params.has_value() && !lowered_record_args.empty()) {
-    type_subst = BuildSubstitution(record->generic_params->params, lowered_record_args);
-  }
-
   // Type-check each field initializer
   for (const auto& field_init : expr.fields) {
     auto field_type_opt = FieldType(*record, field_init.name, ctx);
     if (!field_type_opt.has_value()) {
       return result;
-    }
-
-    // Substitute type parameters in field type for generic records
-    if (!type_subst.empty()) {
-      field_type_opt = InstantiateType(*field_type_opt, type_subst);
     }
 
     // Check that non-Bitcopy fields use move
@@ -294,7 +265,7 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
   SPEC_RULE("T-Record-Literal");
 
   result.ok = true;
-  result.type = MakeTypePath(type_path, std::move(lowered_record_args));
+  result.type = MakeTypePath(type_path);
   return result;
 }
 

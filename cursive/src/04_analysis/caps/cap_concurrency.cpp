@@ -74,6 +74,7 @@ static std::shared_ptr<ast::Type> MakeTypeModalStateAst(
   for (const auto comp : comps) {
     modal.path.emplace_back(comp);
   }
+  ast::SyncTypeModalStateFromFields(modal);
   modal.state = ast::Identifier{state};
   return MakeTypeNode(modal);
 }
@@ -649,6 +650,7 @@ ast::ModalDecl BuildAsyncModalDecl() {
         MakeTypePathAst({"Result"}),
         MakeTypePathAst({"E"}),
     };
+    ast::SyncTypeModalStateFromFields(modal);
     return MakeTypeNode(modal);
   };
 

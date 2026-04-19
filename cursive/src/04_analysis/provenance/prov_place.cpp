@@ -220,9 +220,9 @@ std::vector<Projection> PlaceProjection(const ast::ExprPtr& place) {
             collect(node.base);
             Projection proj;
             proj.kind = ProjectionKind::TupleIndex;
-            // Parse index from token
-            if (node.index.kind == ast::TokenKind::IntLiteral) {
-              proj.tuple_index = std::stoull(node.index.lexeme);
+            if (const auto index = ast::TupleIndexToSize(node.index);
+                index.has_value()) {
+              proj.tuple_index = *index;
             }
             projections.push_back(proj);
           } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {

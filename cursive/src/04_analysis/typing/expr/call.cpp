@@ -2414,8 +2414,8 @@ ExprTypeResult TypeCallExprImpl(const ScopeContext& ctx,
     return TypeExpr(ctx, type_ctx, inner, env);
   };
 
-  // Built-in record default constructors are resolved through the shared
-  // capability/type registry (currently RegionOptions).
+  // Built-in record constructors are resolved through the shared capability/type
+  // registry so builtin-record paths stay aligned with the spec-defined set.
   if (node.callee && node.args.empty()) {
     const auto* ident =
         std::get_if<ast::IdentifierExpr>(&node.callee->node);
