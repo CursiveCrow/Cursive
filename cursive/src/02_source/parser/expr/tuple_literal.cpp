@@ -128,8 +128,9 @@ static void StepNonParenNesting(const lexer::Token& tok, TupleScanDepth& depth) 
 // SPEC: Lines 5864-5877
 // - Returns false if EOF
 // - Returns false if ) found at depth 1 (no separator seen)
-// - Returns true if ; found at depth 1, or if , is followed by another element
-// - Recurses with adjusted depth otherwise
+// - Returns true if ; is found at outer tuple depth, or if , is followed by
+//   another element after newline skipping
+// - Recurses with adjusted delimiter depths otherwise
 
 static TupleScanResult TupleScan(Parser parser) {
   TupleScanResult result;
@@ -155,6 +156,7 @@ static TupleScanResult TupleScan(Parser parser) {
         depth.brace == 0 && depth.bracket == 0) {
       if (tok->lexeme == ",") {
         Parser after_sep = AdvanceOrEOF(cur);
+        SkipNewlines(after_sep);
         const lexer::Token* next_tok = Tok(after_sep);
         if (next_tok && next_tok->kind == lexer::TokenKind::Punctuator &&
             next_tok->lexeme == ")") {

@@ -168,6 +168,7 @@ TupleScanResult TupleScan(Parser parser) {
         depth.bracket == 0 && depth.brace == 0) {
       if (tok->lexeme == ",") {
         Parser after_sep = AdvanceOrEOF(cur);
+        SkipNewlines(after_sep);
         const Token* next_tok = Tok(after_sep);
         if (next_tok && next_tok->kind == TokenKind::Punctuator &&
             next_tok->lexeme == ")") {

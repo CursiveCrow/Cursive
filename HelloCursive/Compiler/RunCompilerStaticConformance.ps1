@@ -5865,6 +5865,16 @@ public procedure main(move ctx: Context) -> i32 {
 '@
 }
 
+function New-Issue514TupleScanSingletonCommaNewlineRejectedSource() {
+    return @'
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return (1,
+)
+}
+'@
+}
+
 function New-Issue510EnumDiscHexSource() {
     return @'
 enum Issue510Hex {
@@ -15416,6 +15426,43 @@ function Invoke-Issue514TupleScanCloseParenDepthOneCase {
     Write-Host "[compiler-static] issue514_tuple_scan_close_paren_depth_one: exit=$($result.ExitCode) errors=$errorCount parse_paren_expr=$parenExprCount parse_tuple_expr=$tupleExprCount parse_tuple_many=$tupleManyCount"
 }
 
+function Invoke-Issue514TupleScanSingletonCommaNewlineRejectedCase {
+    $result = Invoke-CheckWithConformance `
+        -CaseId "issue514_tuple_scan_singleton_comma_newline_rejected" `
+        -Source (New-Issue514TupleScanSingletonCommaNewlineRejectedSource) `
+        -ConformanceFileName "issue514_tuple_scan_singleton_comma_newline_rejected.log"
+
+    if ($result.ExitCode -ne 1) {
+        throw "Case 'issue514_tuple_scan_singleton_comma_newline_rejected' expected exit 1 but got $($result.ExitCode)."
+    }
+
+    $errorCodes = @($result.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    } | ForEach-Object { $_.code })
+    if ($errorCodes -notcontains "E-SRC-0520") {
+        throw "Case 'issue514_tuple_scan_singleton_comma_newline_rejected' expected E-SRC-0520 in diagnostics."
+    }
+
+    $logLines = Get-Content -Path $result.ConformancePath
+    $parenExprCount = @($logLines | Where-Object {
+        $_ -like "*`tParse-Paren-Expr`t*"
+    }).Count
+    $tupleExprCount = @($logLines | Where-Object {
+        $_ -like "*`tParse-Tuple-Expr`t*"
+    }).Count
+    $tupleManyCount = @($logLines | Where-Object {
+        $_ -like "*`tParse-TupleExprElems-Many`t*"
+    }).Count
+    if ($parenExprCount -lt 1) {
+        throw "Case 'issue514_tuple_scan_singleton_comma_newline_rejected' expected newline-skipped singleton comma to force Parse-Paren-Expr."
+    }
+    if ($tupleExprCount -ne 0 -or $tupleManyCount -ne 0) {
+        throw "Case 'issue514_tuple_scan_singleton_comma_newline_rejected' must not classify a newline-separated singleton comma form as a tuple."
+    }
+
+    Write-Host "[compiler-static] issue514_tuple_scan_singleton_comma_newline_rejected: exit=$($result.ExitCode) error_codes=$($errorCodes -join ',') parse_paren_expr=$parenExprCount parse_tuple_expr=$tupleExprCount parse_tuple_many=$tupleManyCount"
+}
+
 function Invoke-ConsumeStateSurfaceConformanceCase {
     $specText = Get-Content -Path $canonicalSpecPath -Raw
     if ($specText -notmatch 'ConsumeState\s*=\s*\{Consume\(P,\s*k\),\s*ConsumeDone\(P\)\}') {
@@ -21487,6 +21534,7 @@ try {
     Invoke-ExpectedSuccessCase -Id "issue32_tuple_access_dot_disambiguation" -Source (New-Issue32TupleAccessDotDisambiguationSource)
     Invoke-Issue514TupleExprSingletonCommaRejectedCase
     Invoke-Issue514TupleScanCloseParenDepthOneCase
+    Invoke-Issue514TupleScanSingletonCommaNewlineRejectedCase
     Invoke-Issue547TupleLoweringTraceCase
     Invoke-Issue548TupleAccessEvalSigmaCase
     Invoke-Issue549ArrayIndexConformanceCase

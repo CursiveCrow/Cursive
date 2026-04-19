@@ -8690,19 +8690,39 @@ ParenDelta(Punctuator("(")) = 1
 ParenDelta(Punctuator(")")) = -1
 ParenDelta(t) = 0 if t.kind ∉ {Punctuator("("), Punctuator(")")}
 
-TupleScan(P, d) ⇓ b
+BracketDelta(Punctuator("[")) = 1
+BracketDelta(Punctuator("]")) = -1
+BracketDelta(t) = 0 if t.kind ∉ {Punctuator("["), Punctuator("]")}
+
+BraceDelta(Punctuator("{")) = 1
+BraceDelta(Punctuator("}")) = -1
+BraceDelta(t) = 0 if t.kind ∉ {Punctuator("{"), Punctuator("}")}
+
+TupleScanDepth = ⟨p, q, r⟩ where p, q, r ∈ Nat
+TupleScan(P, d) ⇓ b ⇔ TupleScan(P, ⟨d, 0, 0⟩) ⇓ b
+TupleScanStep(⟨p, q, r⟩, t) = ⟨p + ParenDelta(t), max(0, q + BracketDelta(t)), max(0, r + BraceDelta(t))⟩
+TupleScanOuterSep(⟨p, q, r⟩) ⇔ p = 1 ∧ q = 0 ∧ r = 0
+TupleScanSingletonComma(P) ⇔ Tok(P) = Punctuator(",") ∧ IsPunc(Tok(SkipNL(Advance(P))), ")")
+TupleScanEndParen(P, ⟨p, q, r⟩) ⇔ Tok(P) = Punctuator(")") ∧ p = 1
+TupleScanSep(P, D) ⇔ Tok(P) ∈ {Punctuator(","), Punctuator(";")} ∧ TupleScanOuterSep(D)
+TupleScanAdvance(P, D) ⇔ Tok(P) ≠ EOF ∧ ¬ TupleScanEndParen(P, D) ∧ ¬ TupleScanSep(P, D)
+
+TupleScan(P, D) ⇓ b
 Tok(P) = EOF
 ────────────────────────────────────────
-TupleScan(P, d) ⇓ false
-Tok(P) = Punctuator(")") ∧ d = 1
+TupleScan(P, D) ⇓ false
+TupleScanEndParen(P, D)
 ────────────────────────────────────────────
-TupleScan(P, d) ⇓ false
-Tok(P) ∈ {Punctuator(","), Punctuator(";")} ∧ d = 1
+TupleScan(P, D) ⇓ false
+TupleScanSingletonComma(P) ∧ TupleScanOuterSep(D)
+────────────────────────────────────────────────────────
+TupleScan(P, D) ⇓ false
+TupleScanSep(P, D) ∧ ¬ TupleScanSingletonComma(P)
 ──────────────────────────────────────────────
-TupleScan(P, d) ⇓ true
-Tok(P) ∉ {Punctuator(")"), Punctuator(","), Punctuator(";")}    TupleScan(Advance(P), d + ParenDelta(Tok(P))) ⇓ b
-───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-TupleScan(P, d) ⇓ b
+TupleScan(P, D) ⇓ true
+TupleScanAdvance(P, D)    TupleScan(Advance(P), TupleScanStep(D, Tok(P))) ⇓ b
+───────────────────────────────────────────────────────────────────────────────────────────────────────
+TupleScan(P, D) ⇓ b
 
 TupleParen(P) ⇔ IsPunc(Tok(P), "(") ∧ (IsPunc(Tok(Advance(P)), ")") ∨ TupleScan(Advance(P), 1) ⇓ true)
 
