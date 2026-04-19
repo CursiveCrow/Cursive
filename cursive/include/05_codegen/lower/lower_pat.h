@@ -32,6 +32,7 @@ void RegisterPatternBindings(const ast::Pattern& pattern,
                              bool is_immovable = false,
                              analysis::ProvenanceKind prov = analysis::ProvenanceKind::Bottom,
                              std::optional<std::string> prov_region = std::nullopt,
+                             std::optional<std::string> prov_region_tag = std::nullopt,
                              bool has_responsibility = true);
 
 // §6.6 TagOf - get the discriminant tag
@@ -55,6 +56,7 @@ LowerResult LowerIfCaseClause(const ast::IfCaseClause& arm,
                           const analysis::TypeRef& scrutinee_type,
                           analysis::ProvenanceKind scrutinee_prov,
                           std::optional<std::string> scrutinee_region,
+                          std::optional<std::string> scrutinee_region_tag,
                           LowerCtx& ctx);
 
 // §6.6 PatternCheck - check if a value matches a pattern

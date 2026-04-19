@@ -80,6 +80,62 @@ BindValidState GetBindingValidity(const std::string& name, const LowerCtx& ctx) 
   return BindValidState::Valid;
 }
 
+std::optional<std::string> ResolveBindRegionTarget(const IRBindVar& bind,
+                                                   const LowerCtx& ctx) {
+  SPEC_RULE("BindRegionTarget(x)");
+
+  const BindingState* state = ctx.GetBindingState(bind.name);
+  const analysis::ProvenanceKind prov =
+      state ? state->prov : bind.prov;
+  const std::optional<std::string> region_tag =
+      state ? state->prov_region_tag : bind.prov_region_tag;
+  const std::optional<std::string> region =
+      state ? state->prov_region : bind.prov_region;
+
+  if (prov != analysis::ProvenanceKind::Region || !region_tag.has_value() ||
+      region_tag->empty() || !region.has_value() ||
+      region->empty()) {
+    return std::nullopt;
+  }
+
+  return region;
+}
+
+std::optional<BindSlot> ResolveBindSlot(const IRBindVar& bind,
+                                        const LowerCtx& ctx) {
+  const BindingState* state = ctx.GetBindingState(bind.name);
+  analysis::TypeRef bind_type = bind.type;
+  if (!bind_type && state && state->type) {
+    bind_type = state->type;
+  }
+
+  if (auto region = ResolveBindRegionTarget(bind, ctx)) {
+    if (!bind_type) {
+      SPEC_RULE("BindSlot-Err");
+      return std::nullopt;
+    }
+    SPEC_RULE("BindSlot-Region");
+    BindSlot slot;
+    slot.kind = BindSlot::Kind::RegionSlot;
+    slot.name = bind.name;
+    slot.region = *region;
+    slot.type = bind_type;
+    return slot;
+  }
+
+  if (!bind_type) {
+    SPEC_RULE("BindSlot-Err");
+    return std::nullopt;
+  }
+
+  SPEC_RULE("BindSlot-Local");
+  BindSlot slot;
+  slot.kind = BindSlot::Kind::Alloca;
+  slot.name = bind.name;
+  slot.type = bind_type;
+  return slot;
+}
+
 void UpdateValidOnBind(const std::string& name, LowerCtx& ctx) {
   SPEC_RULE("UpdateValid-BindVar");
   // Binding creates a new valid binding - handled by RegisterVar
@@ -108,7 +164,8 @@ void UpdateValidOnReassign(const std::string& name, LowerCtx& ctx) {
   if (state) {
     // Re-register to clear moved state
     ctx.RegisterVar(name, state->type, state->has_responsibility,
-                    state->is_immovable, state->prov, state->prov_region);
+                    state->is_immovable, state->prov, state->prov_region,
+                    false, state->prov_region_tag);
   }
 }
 
@@ -204,6 +261,8 @@ void AnchorBindingStorageRules() {
   SPEC_RULE("BindSlot-Param-ByRef");
   SPEC_RULE("BindSlot-Region");
   SPEC_RULE("BindSlot-Static");
+  SPEC_RULE("BindSlot-Err");
+  SPEC_RULE("BindRegionTarget(x)");
 
   // Section 6.12.10 Binding Validity
   SPEC_RULE("BindValid-Init");

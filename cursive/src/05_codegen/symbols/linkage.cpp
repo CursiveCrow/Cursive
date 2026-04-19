@@ -73,6 +73,11 @@ LinkageKind LinkageOf(const ast::ProcedureDecl& proc) {
   return LinkageKind::Internal;
 }
 
+LinkageKind LinkageOf([[maybe_unused]] const ast::ExternProcDecl& proc) {
+  SPEC_RULE("Linkage-ExternProc");
+  return LinkageKind::External;
+}
+
 LinkageKind LinkageOf(const ast::StaticDecl& decl) {
   if (IsExternalVisibility(decl.vis)) {
     SPEC_RULE("Linkage-UserItem");

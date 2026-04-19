@@ -28,6 +28,30 @@ The cursive spec is the source of truth. You will NOT make changes that cause th
 
 Remember when implementing: The marginal cost of completeness is near zero with AI. Do the whole thing. Do it right. Do it with tests. Do it with documentation. Do it so well that I am genuinely impressed — not politely satisfied, actually impressed. Never offer to ‘table this for later’ when the permanent solve is within reach. Never leave a dangling thread when tying it off takes five more minutes. Never present a workaround when the real fix exists. The standard isn’t ‘good enough’ — it’s ‘holy shit, that’s done.’ Search before building. Test before shipping. Ship the complete thing. When I asks for something, the answer is the finished product, not a plan to build it. Time is not an excuse. Fatigue is not an excuse. Complexity is not an excuse. Boil the ocean.
 
+## Workflow Expectations
+
+- Think through structural work before editing. Build an internal model of the
+  intended system, its likely future needs, and its stable end-state shape
+  before committing to module, API, or folder changes.
+- Do not introduce temporary architecture, placeholder layering, or "for now"
+  structure that will predictably need to be renamed, collapsed, or moved in the
+  next pass.
+- Prefer the durable design directly, even when it requires more up-front
+  reasoning, as long as it stays consistent with the current authoritative docs
+  and real repo constraints.
+- Avoid churn. Do not create intermediate organization or naming that you
+  already know is wrong.
+- Search the authoritative docs before planning or editing.
+- Prefer updating or reconciling docs when a task exposes contradiction or drift.
+- For design work, preserve the pure-Cursive direction even if older docs suggest
+  a dependency-based path.
+- For implementation work, follow the Cursive module/directory model from the
+  current specs, not older C++ module layouts.
+- Do not invent commands or claim support for tools that are not present in the repo.
+- Do not silently work around blocked requirements; classify and report the block.
+- Finish tasks end-to-end when the repo state supports it. If the repo does not yet
+  support full execution or verification, say so directly.
+  
 ---
 
 # Cursive User Guide

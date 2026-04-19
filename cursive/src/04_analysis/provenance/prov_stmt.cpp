@@ -312,18 +312,16 @@ static ProvTag BindingSeedTag(const ProvEnv& env, const TypeBinding& binding) {
 static void SeedMinimalProvEnv(const TypeEnv& gamma, ProvEnv& env) {
   env.next_scope_id = 0;
 
-  for (const auto& type_scope : gamma.scopes) {
-    for (const auto& [key, binding] : type_scope) {
-      if (RegionActiveType(binding.type)) {
-        env.regions.push_back(RegionEntry{key, key});
-      }
-    }
-  }
-
   ProvScope scope;
   scope.id = env.next_scope_id++;
   for (const auto& type_scope : gamma.scopes) {
     for (const auto& [key, bind] : type_scope) {
+      if (RegionActiveType(bind.type)) {
+        const auto tag = bind.provenance_region.value_or(key);
+        env.regions.push_back(RegionEntry{tag, key});
+        scope.map[key] = RegionTag(tag);
+        continue;
+      }
       scope.map[key] = BindingSeedTag(env, bind);
     }
   }
@@ -338,6 +336,33 @@ static ProvTag BindProv(const ProvEnv& env, const ProvTag& init) {
   }
   SPEC_RULE("BindProv-Init");
   return init;
+}
+
+static bool IsFreshRegionExpr(const ast::ExprPtr& expr) {
+  if (!expr) {
+    return false;
+  }
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::QualifiedApplyExpr>) {
+          return node.path.size() == 1 && IdEq(node.path[0], "Region") &&
+                 IdEq(node.name, "new_scoped");
+        } else if constexpr (std::is_same_v<T, ast::CallExpr>) {
+          if (!node.callee) {
+            return false;
+          }
+          if (const auto* path = std::get_if<ast::PathExpr>(&node.callee->node)) {
+            return path->path.size() == 1 && IdEq(path->path[0], "Region") &&
+                   IdEq(path->name, "new_scoped");
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
+          return IsFreshRegionExpr(node.expr);
+        }
+        return false;
+      },
+      expr->node);
 }
 
 // =============================================================================
@@ -590,6 +615,20 @@ ProvStmtTrackResult TrackBindingProvenance(const ScopeContext& ctx,
     return result;
   }
 
+  const auto lowered_type = BindingType(ctx, binding, gamma);
+  const auto names = PatNames(binding.pat);
+  const bool fresh_region_expr =
+      lowered_type.has_value() && RegionActiveType(*lowered_type) &&
+      IsFreshRegionExpr(binding.init) && names.size() == 1;
+  if (fresh_region_expr) {
+    result.kind = ProvenanceKind::Region;
+    result.region = names.front();
+    result.region_target = names.front();
+    result.fresh_region = true;
+    SPEC_RULE("Prov-LetVar");
+    return result;
+  }
+
   switch (init_prov.kind) {
     case ProvenanceKind::Global:
       result.kind = ProvenanceKind::Global;
@@ -603,6 +642,7 @@ ProvStmtTrackResult TrackBindingProvenance(const ScopeContext& ctx,
     case ProvenanceKind::Region:
       result.kind = ProvenanceKind::Region;
       result.region = init_prov.region;
+      result.region_target = init_prov.region_target;
       break;
     case ProvenanceKind::Bottom:
       result.kind = ProvenanceKind::Bottom;
@@ -688,6 +728,7 @@ ProvReturnCheckResult TrackReturnProvenance(const ScopeContext& ctx,
     case ProvenanceKind::Region:
       result.kind = ProvenanceKind::Region;
       result.region = value_prov.region;
+      result.region_target = value_prov.region_target;
       break;
     case ProvenanceKind::Bottom:
       result.kind = ProvenanceKind::Bottom;

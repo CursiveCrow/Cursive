@@ -4051,11 +4051,24 @@ IntroAll_π(Σ_π, [x] ++ xs, π) = IntroAll_π(Intro_π(Σ_π, x, π), xs, π)
 ParamProvMap(params, vecπ) = { x_i ↦ π_i | params = [⟨_, x_i, _⟩], vecπ = [π_i] }
 InitProvEnv(params, vecπ, RS) = ⟨[⟨S, ParamProvMap(params, vecπ)⟩], RS⟩    (S fresh)
 
+ResolveEntry_π([], tag) = ⊥
+ResolveEntry_π([⟨tag_i, target_i⟩] ++ RS, tag) =
+  { ⟨tag_i, target_i⟩        if tag_i = tag
+    ResolveEntry_π(RS, tag)  otherwise }
+
+ResolveTarget_π(⟨Σ_π, RS⟩, tag) = target ⇔ ResolveEntry_π(RS, tag) = ⟨tag, target⟩
+
+IntroRegionAlias_π(⟨Σ_π, RS⟩, tag, x) = ⟨Σ_π, [⟨tag, x⟩] ++ RS⟩
+
+FreshRegionTag(⟨Σ_π, RS⟩) = tag ⇔ tag ∉ { tag_i | ⟨tag_i, _⟩ ∈ RS }
+
 AllocTag([], r) = ⊥
 AllocTag([⟨tag, target⟩] ++ RS, ⊥) = tag
 AllocTag([⟨tag, target⟩] ++ RS, r) =
   { tag              if target = r
     AllocTag(RS, r)  otherwise }
+
+FreshRegionExpr(init) ⇔ init denotes a fresh `Region@Active` value created by region-opening evaluation, including `Region::new_scoped(...)`
 
 ProvPlaceJudg = {Γ; Ω ⊢ p ⇓ π}
 ProvExprJudg = {Γ; Ω ⊢ e ⇓ π}
@@ -4068,6 +4081,11 @@ CaseEnv(⟨Σ_π, RS⟩, pat) = ⟨Σ_π', RS⟩ ⇔ Γ ⊢ PatNames(pat) ⇓ N 
 CaseProv(⟨pat, body⟩) = π ⇔ CaseEnv(Ω, pat) = Ω' ∧ CaseBodyProv(body, Ω') = π
 CaseElseProv(⊥, Ω) = []
 CaseElseProv(b, Ω) = [π] ⇔ CaseBodyProv(b, Ω) = π
+
+**(P-Region-Alloc-Method)**
+Γ; Ω ⊢ recv ⇓ π_Region(tag)    Γ; Ω ⊢ arg_i ⇓ π_i    for every argument
+──────────────────────────────────────────────────────────────────────────────
+Γ; Ω ⊢ MethodCall(recv, `alloc`, args) ⇓ π_Region(tag)
 
 **(P-If-Is)**
 CaseProv(⟨pat, then_block⟩) = π_t    CaseElseProv(else_opt, Ω) = π_else    JoinAllProv([π_t] ++ π_else) = π
@@ -10603,7 +10621,7 @@ ProvOf(T_π) = π
 ¬ BitcopyType(TypePath(["Region"]))
 
 **Region Arena Requirements.**
-1. `Region::alloc` MUST yield a value with provenance `Ï€_Region(r)` where `r` is the receiver arena. The provenance tag is determined by the binding identifier introduced by `RegionBindName` and the current region stack.
+1. `Region::alloc` MUST yield a value with provenance `π_Region(tag)`, where `tag` is the region-provenance tag carried by the receiver handle in the current provenance environment. Fresh region tags are introduced by fresh region-creating constructs, including `region` statements and bindings of freshly created `Region@Active` values such as `Region::new_scoped(...)`. Rebinding a `Region@Active` handle MUST preserve the existing region tag and MUST introduce the new binding name as a target alias in the region-target relation.
 2. After `Region::reset_unchecked` or `Region::free_unchecked`, any dereference through a `Ptr<T>@Valid` whose address has an inactive `RegionTag` MUST behave as `Expired` per `PtrState` and `ReadPtrSigma`. Uses of non-pointer values with provenance `Ï€_Region(r)` after reset/free are `OutsideConformance`.
 3. `Region::free_unchecked` MUST be invoked exactly once on any `Region` that remains in `@Active` or `@Frozen` at scope exit. Implementations MAY invoke `Region::free_unchecked` implicitly during `RegionStmt` cleanup.
 
@@ -18857,10 +18875,20 @@ SuspendUniqueBind(Π, init, T_b) =
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; 𝔅; Π ⊢ LetOrVarStmt(⟨pat, ty_opt, op, init, _⟩) ⇒ 𝔅_3 ▷ Π_2
 
-**(Prov-LetVar)**
-binding = ⟨pat, _, _, init, _⟩    Γ; Ω ⊢ init ⇓ π_init    Γ ⊢ PatNames(pat) ⇓ N    π_bind = BindProv(Ω, π_init)    Σ_π' = IntroAll_π(Σ_π, N, π_bind)
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+**(Prov-LetVar-Ordinary)**
+binding = ⟨pat, _, _, init, _⟩    Γ; Ω ⊢ init ⇓ π_init    Γ ⊢ PatNames(pat) ⇓ N    π_bind = BindProv(Ω, π_init)    π_bind ≠ π_Region(tag) for every tag    Σ_π' = IntroAll_π(Σ_π, N, π_bind)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; ⟨Σ_π, RS⟩ ⊢ LetOrVarStmt(binding) ⇒ ⟨Σ_π', RS⟩ ▷ ⟨[], [], false⟩
+
+**(Prov-LetVar-Region-Alias)**
+binding = ⟨pat, _, _, init, _⟩    Γ; Ω ⊢ init ⇓ π_Region(tag)    Γ ⊢ PatNames(pat) ⇓ [x]    Σ_π' = Intro_π(Σ_π, x, π_Region(tag))    IntroRegionAlias_π(⟨Σ_π', RS⟩, tag, x) = Ω'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; ⟨Σ_π, RS⟩ ⊢ LetOrVarStmt(binding) ⇒ Ω' ▷ ⟨[], [], false⟩
+
+**(Prov-LetVar-Region-Fresh)**
+binding = ⟨pat, _, _, init, _⟩    FreshRegionExpr(init)    Γ ⊢ PatNames(pat) ⇓ [x]    FreshRegionTag(⟨Σ_π, RS⟩) = tag    Σ_π' = Intro_π(Σ_π, x, π_Region(tag))    IntroRegionAlias_π(⟨Σ_π', RS⟩, tag, x) = Ω'
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; ⟨Σ_π, RS⟩ ⊢ LetOrVarStmt(binding) ⇒ Ω' ▷ ⟨[], [], false⟩
 
 #### 18.2.5 Dynamic Semantics
 
@@ -29204,6 +29232,8 @@ ResolveEntry_π(⟨tag, target⟩ :: es, t) =
 ResolveTarget_π(⟨Σ_π, RS⟩, tag) = target ⇔ ResolveEntry_π(RS, tag) = ⟨tag, target⟩
 BindProv_Γ(x) = π ⇔ Γ has provenance environment Ω ∧ Γ; Ω ⊢ Identifier(x) ⇓ π
 BindRegionTarget(x) = r ⇔ BindProv_Γ(x) = π_Region(tag) ∧ ResolveTarget_π(Ω, tag) = r
+
+`ResolveTarget_π(Ω, tag)` returns the nearest live target alias recorded for `tag`. For unique region handles, rebinding updates the region-target relation by introducing the new binding name as the nearest alias for that tag.
 
 **(BindValid-Sigma)**
 BindState(Γ) = 𝔅    Lookup_B(𝔅, x) = ⟨s, _, _, _⟩

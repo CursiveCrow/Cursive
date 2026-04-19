@@ -83,7 +83,9 @@ IRPtr LowerRegionStmt(const ast::RegionStmt& stmt, LowerCtx& ctx) {
 
   // Register the user-visible region alias only when the source declared one.
   if (user_alias.has_value()) {
-    ctx.RegisterVar(*user_alias, region_type, false, true);
+    ctx.RegisterVar(*user_alias, region_type, false, true,
+                    analysis::ProvenanceKind::Region, *user_alias, false,
+                    *user_alias);
   }
 
   // Track this as the active region for allocations

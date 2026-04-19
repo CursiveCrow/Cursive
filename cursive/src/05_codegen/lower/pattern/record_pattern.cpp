@@ -101,6 +101,7 @@ void RegisterRecordPatternBindings(
     bool is_immovable,
     analysis::ProvenanceKind prov,
     std::optional<std::string> prov_region,
+    std::optional<std::string> prov_region_tag,
     std::function<void(const ast::Pattern&, analysis::TypeRef)> walk) {
   // Look up the record declaration from the path
   const ast::RecordDecl* record = LookupRecordDecl(node.path, ctx);
@@ -121,7 +122,7 @@ void RegisterRecordPatternBindings(
       // Shorthand pattern: Point{x}
       // Register binding for the field name directly
       ctx.RegisterVar(field.name, field_type, true, is_immovable, prov,
-                      prov_region);
+                      prov_region, false, prov_region_tag);
     }
   }
 }
@@ -147,6 +148,8 @@ IRPtr LowerBindRecordPattern(
     std::function<analysis::ProvenanceKind(const std::string&)> lookup_bind_prov,
     std::function<std::optional<std::string>(const std::string&)>
         lookup_bind_region,
+    std::function<std::optional<std::string>(const std::string&)>
+        lookup_bind_region_tag,
     std::function<IRPtr(const ast::Pattern&, const IRValue&)> lower_bind) {
   std::vector<IRPtr> bindings;
 
@@ -174,6 +177,7 @@ IRPtr LowerBindRecordPattern(
       bind.type = lookup_bind_type(field.name);
       bind.prov = lookup_bind_prov(field.name);
       bind.prov_region = lookup_bind_region(field.name);
+      bind.prov_region_tag = lookup_bind_region_tag(field.name);
       bindings.push_back(MakeIR(std::move(bind)));
     }
   }

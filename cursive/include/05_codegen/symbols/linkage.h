@@ -18,6 +18,7 @@ enum class LinkageKind {
 // (Linkage-UserItem): public/internal visibility -> external linkage
 // (Linkage-UserItem-Internal): private visibility -> internal linkage
 LinkageKind LinkageOf(const ast::ProcedureDecl& proc);
+LinkageKind LinkageOf(const ast::ExternProcDecl& proc);
 LinkageKind LinkageOf(const ast::StaticDecl& decl);
 LinkageKind LinkageOf(const ast::MethodDecl& method);
 

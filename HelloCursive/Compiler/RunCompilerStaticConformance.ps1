@@ -18086,6 +18086,177 @@ public procedure AddressLocalMetric() -> i32 {
     Write-Host "[compiler-static] issue552_addr_local_bind_slot_conformance: header_patterns=4 emit_patterns=$($requiredEmitPatterns.Count) emit_forbidden=3 call_patterns=$($requiredCallPatterns.Count) attr_header_patterns=2 attr_impl_patterns=5 ir_smoke=1"
 }
 
+function Invoke-Issue552RegionBindSlotConformanceCase {
+    $bindingHeaderPath = Join-Path $workspaceRoot "cursive\\include\\05_codegen\\globals\\binding_storage.h"
+    $lowerHeaderPath = Join-Path $workspaceRoot "cursive\\include\\05_codegen\\lower\\lower_expr.h"
+    $irHeaderPath = Join-Path $workspaceRoot "cursive\\include\\05_codegen\\ir\\ir_model.h"
+    $bindingImplPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\globals\\binding_storage.cpp"
+    $emitPath = Join-Path $workspaceRoot "cursive\\src\\05_codegen\\llvm\\llvm_emit.cpp"
+    foreach ($path in @($bindingHeaderPath, $lowerHeaderPath, $irHeaderPath, $bindingImplPath, $emitPath)) {
+        if (-not (Test-Path $path)) {
+            throw "Case 'issue552_region_bind_slot_conformance' missing file: $path"
+        }
+    }
+
+    $bindingHeaderText = Get-Content -Path $bindingHeaderPath -Raw
+    $lowerHeaderText = Get-Content -Path $lowerHeaderPath -Raw
+    $irHeaderText = Get-Content -Path $irHeaderPath -Raw
+    $bindingImplText = Get-Content -Path $bindingImplPath -Raw
+    $emitText = Get-Content -Path $emitPath -Raw
+
+    foreach ($pattern in @(
+        'ResolveBindSlot\s*\(\s*const\s+IRBindVar&\s+bind,\s*const\s+LowerCtx&\s+ctx\s*\)',
+        'ResolveBindRegionTarget\s*\(\s*const\s+IRBindVar&\s+bind,\s*const\s+LowerCtx&\s+ctx\s*\)'
+    )) {
+        if ($bindingHeaderText -notmatch $pattern) {
+            throw "Case 'issue552_region_bind_slot_conformance' missing expected binding_storage.h pattern '$pattern'."
+        }
+    }
+    foreach ($pattern in @(
+        'prov_region_tag',
+        'expr_region_tags'
+    )) {
+        if ($lowerHeaderText -notmatch $pattern) {
+            throw "Case 'issue552_region_bind_slot_conformance' missing expected lower_expr.h pattern '$pattern'."
+        }
+    }
+    if ($irHeaderText -notmatch 'prov_region_tag') {
+        throw "Case 'issue552_region_bind_slot_conformance' missing expected ir_model.h field 'prov_region_tag'."
+    }
+
+    foreach ($needle in @(
+        'SPEC_RULE("BindRegionTarget(x)")',
+        'SPEC_RULE("BindSlot-Region")',
+        'SPEC_RULE("BindSlot-Err")'
+    )) {
+        if (-not $bindingImplText.Contains($needle)) {
+            throw "Case 'issue552_region_bind_slot_conformance' missing expected binding_storage.cpp text '$needle'."
+        }
+    }
+    foreach ($pattern in @(
+        'state\s*\?\s*state->prov\s*:\s*bind\.prov',
+        'state\s*\?\s*state->prov_region_tag\s*:\s*bind\.prov_region_tag',
+        'state\s*\?\s*state->prov_region\s*:\s*bind\.prov_region'
+    )) {
+        if ($bindingImplText -notmatch $pattern) {
+            throw "Case 'issue552_region_bind_slot_conformance' missing expected binding_storage.cpp pattern '$pattern'."
+        }
+    }
+
+    foreach ($pattern in @(
+        'ResolveBindSlot\s*\(\s*bind,\s*\*current_ctx_\s*\)',
+        'bind_slot_info->kind\s*==\s*BindSlot::Kind::RegionSlot',
+        'BuiltinModalSymRegionAlloc\(\)',
+        'SPEC_RULE\("BindSlot-Err"\)',
+        'current_ctx_->ReportCodegenFailure\(\);'
+    )) {
+        if ($emitText -notmatch $pattern) {
+            throw "Case 'issue552_region_bind_slot_conformance' missing expected llvm_emit.cpp pattern '$pattern'."
+        }
+    }
+
+    $manifest = @(
+        "[[assembly]]",
+        "name = ""probe""",
+        "kind = ""dependency""",
+        "root = "".""",
+        "out_dir = ""build/probe""",
+        "emit_ir = ""ll""",
+        "",
+        "[toolchain]",
+        "target_profile = ""x86_64-win64"""
+    )
+
+    $result = Invoke-BuildWithConformance `
+        -CaseId "issue552_region_bind_slot_ir" `
+        -Source @"
+public procedure RegionBindSlotMetric() -> () {
+    let opts: RegionOptions =
+        RegionOptions { stack_size: 0usize, name: "issue552-region-bind-slot" }
+    var r: unique Region@Active = Region::new_scoped(opts)
+    let value: i32 = r~>alloc(3)
+    let _ = value
+    return ()
+}
+"@ `
+        -ConformanceFileName "issue552_region_bind_slot_ir.log" `
+        -Manifest $manifest
+
+    if ($result.ExitCode -ne 0) {
+        throw "Case 'issue552_region_bind_slot_ir' expected exit 0 but got $($result.ExitCode)."
+    }
+
+    $errorCount = @($result.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    }).Count
+    if ($errorCount -ne 0) {
+        throw "Case 'issue552_region_bind_slot_ir' expected zero compile-time errors but observed $errorCount."
+    }
+
+    $logLines = Get-Content -Path $result.ConformancePath
+    $bindSlotRegionCount = @($logLines | Where-Object { $_ -like "*`tBindSlot-Region`t*" }).Count
+    if ($bindSlotRegionCount -lt 1) {
+        throw "Case 'issue552_region_bind_slot_ir' expected BindSlot-Region in the conformance trace."
+    }
+
+    $irText = Get-EmittedLlvmIrText -CaseId "issue552_region_bind_slot_ir" -CaseRoot $result.CaseRoot
+    $regionAllocCount = ([regex]::Matches(
+        $irText,
+        "cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aalloc")).Count
+    if ($regionAllocCount -lt 2) {
+        throw "Case 'issue552_region_bind_slot_ir' expected at least two region alloc calls (expression alloc + region-backed bind slot)."
+    }
+
+    $aliasResult = Invoke-BuildWithConformance `
+        -CaseId "issue552_region_bind_slot_alias_ir" `
+        -Source @"
+public procedure RegionBindSlotAliasMetric() -> () {
+    let opts: RegionOptions =
+        RegionOptions { stack_size: 0usize, name: "issue552-region-bind-slot-alias" }
+    var r: unique Region@Active = Region::new_scoped(opts)
+    let s: unique Region@Active = move r
+    let value: i32 = s~>alloc(7)
+    let _ = value
+    return ()
+}
+"@ `
+        -ConformanceFileName "issue552_region_bind_slot_alias_ir.log" `
+        -Manifest $manifest
+
+    if ($aliasResult.ExitCode -ne 0) {
+        throw "Case 'issue552_region_bind_slot_alias_ir' expected exit 0 but got $($aliasResult.ExitCode)."
+    }
+
+    $aliasErrorCount = @($aliasResult.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    }).Count
+    if ($aliasErrorCount -ne 0) {
+        throw "Case 'issue552_region_bind_slot_alias_ir' expected zero compile-time errors but observed $aliasErrorCount."
+    }
+
+    $aliasLogLines = Get-Content -Path $aliasResult.ConformancePath
+    $aliasBindSlotRegionCount = @($aliasLogLines | Where-Object { $_ -like "*`tBindSlot-Region`t*" }).Count
+    if ($aliasBindSlotRegionCount -lt 1) {
+        throw "Case 'issue552_region_bind_slot_alias_ir' expected BindSlot-Region in the conformance trace."
+    }
+
+    $aliasIrText = Get-EmittedLlvmIrText -CaseId "issue552_region_bind_slot_alias_ir" -CaseRoot $aliasResult.CaseRoot
+    $aliasRegionAllocCount = ([regex]::Matches(
+        $aliasIrText,
+        "cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aalloc")).Count
+    if ($aliasRegionAllocCount -lt 2) {
+        throw "Case 'issue552_region_bind_slot_alias_ir' expected at least two region alloc calls (expression alloc + region-backed bind slot)."
+    }
+    $movedSourceLoads = ([regex]::Matches(
+        $aliasIrText,
+        "load \{ i8, \[7 x i8\], \[8 x i8\] \}, ptr %r, align 1")).Count
+    if ($movedSourceLoads -gt 2) {
+        throw "Case 'issue552_region_bind_slot_alias_ir' expected post-move region allocation to stop using the original binding 'r' beyond materializing the moved alias."
+    }
+
+    Write-Host "[compiler-static] issue552_region_bind_slot_conformance: header_patterns=2 lower_header_patterns=2 ir_header_patterns=1 impl_patterns=7 emit_patterns=5 bind_slot_region=$bindSlotRegionCount region_alloc_calls=$regionAllocCount alias_bind_slot_region=$aliasBindSlotRegionCount alias_region_alloc_calls=$aliasRegionAllocCount"
+}
+
 function Invoke-Issue552AddrOfAliasBindingConformanceCase {
     $lowerHeaderPath = Join-Path $workspaceRoot "cursive\\include\\05_codegen\\lower\\lower_expr.h"
     $irHeaderPath = Join-Path $workspaceRoot "cursive\\include\\05_codegen\\ir\\ir_model.h"
@@ -21473,6 +21644,7 @@ try {
     Invoke-Issue552EntryProjectionHelperConformanceCase
     Invoke-Issue552LlvmAttrNoEscapeHelperConformanceCase
     Invoke-Issue552AddrLocalBindSlotConformanceCase
+    Invoke-Issue552RegionBindSlotConformanceCase
     Invoke-Issue552AddrOfAliasBindingConformanceCase
     Invoke-Issue552LlvmMemIntrinsicHelperConformanceCase
     Invoke-Issue552ArithmeticUbSafeLoweringConformanceCase

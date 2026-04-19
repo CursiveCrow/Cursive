@@ -69,6 +69,14 @@ struct BindSlot {
 // Returns the current validity state for the named binding
 BindValidState GetBindingValidity(const std::string& name, const LowerCtx& ctx);
 
+// Resolve the lowered storage class for a bind operation.
+std::optional<BindSlot> ResolveBindSlot(const IRBindVar& bind,
+                                        const LowerCtx& ctx);
+
+// Resolve the concrete region target name for a region-backed binding.
+std::optional<std::string> ResolveBindRegionTarget(const IRBindVar& bind,
+                                                   const LowerCtx& ctx);
+
 // (UpdateValid-BindVar): Update validity after binding
 // Sets the binding to Valid state
 void UpdateValidOnBind(const std::string& name, LowerCtx& ctx);

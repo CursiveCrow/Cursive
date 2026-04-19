@@ -38,7 +38,8 @@ void RegisterTuplePatternBindings(const ast::TuplePattern& pattern,
                                   LowerCtx& ctx,
                                   bool is_immovable,
                                   analysis::ProvenanceKind prov,
-                                  std::optional<std::string> prov_region) {
+                                  std::optional<std::string> prov_region,
+                                  std::optional<std::string> prov_region_tag) {
   // Extract TypeTuple element types from the hint if available
   const analysis::TypeTuple* tuple_type = nullptr;
   if (type_hint && std::holds_alternative<analysis::TypeTuple>(type_hint->node)) {
@@ -53,7 +54,7 @@ void RegisterTuplePatternBindings(const ast::TuplePattern& pattern,
     }
     // Recursive call to register pattern bindings for this element
     RegisterPatternBindings(*pattern.elements[i], elem_type, ctx, is_immovable,
-                            prov, prov_region);
+                            prov, prov_region, prov_region_tag);
   }
 }
 

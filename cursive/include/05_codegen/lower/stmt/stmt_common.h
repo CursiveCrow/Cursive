@@ -39,6 +39,8 @@ namespace cursive::codegen {
 struct ProvInfo {
   analysis::ProvenanceKind kind = analysis::ProvenanceKind::Bottom;
   std::optional<std::string> region;
+  std::optional<std::string> region_tag;
+  bool fresh_region = false;
 };
 
 // Compute provenance for a new binding from initializer provenance

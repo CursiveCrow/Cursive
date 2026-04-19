@@ -20,7 +20,8 @@ void RegisterIdentifierPatternBindings(const ast::IdentifierPattern& pattern,
                                         LowerCtx& ctx,
                                         bool is_immovable,
                                         analysis::ProvenanceKind prov,
-                                        std::optional<std::string> prov_region);
+                                        std::optional<std::string> prov_region,
+                                        std::optional<std::string> prov_region_tag);
 
 // Create the binding IR for an identifier pattern
 IRPtr LowerIdentifierPatternBindings(const ast::IdentifierPattern& pattern,

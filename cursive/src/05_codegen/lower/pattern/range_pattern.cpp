@@ -35,7 +35,13 @@ void RegisterRangePatternBindings(
     bool is_immovable,
     analysis::ProvenanceKind prov,
     std::optional<std::string> prov_region,
+    std::optional<std::string> prov_region_tag,
     std::function<void(const ast::Pattern&, analysis::TypeRef)> walk) {
+  (void)ctx;
+  (void)is_immovable;
+  (void)prov;
+  (void)prov_region;
+  (void)prov_region_tag;
   // Recursively process lo pattern if present
   if (pattern.lo) {
     walk(*pattern.lo, type_hint);

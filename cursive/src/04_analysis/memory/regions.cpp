@@ -376,6 +376,60 @@ static void AddBindingsToTypeEnv(TypeEnv& env,
   }
 }
 
+static void IntroRegionAlias_pi_inplace(ProvEnv& env,
+                                        const IdKey& tag,
+                                        std::string_view target,
+                                        bool frame_active = false) {
+  env.regions.push_back(RegionEntry{tag, IdKeyOf(target), frame_active});
+}
+
+static bool IsFreshRegionExpr(const ast::ExprPtr& expr) {
+  if (!expr) {
+    return false;
+  }
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::QualifiedApplyExpr>) {
+          return node.path.size() == 1 && IdEq(node.path[0], "Region") &&
+                 IdEq(node.name, "new_scoped");
+        } else if constexpr (std::is_same_v<T, ast::CallExpr>) {
+          if (!node.callee) {
+            return false;
+          }
+          if (const auto* path = std::get_if<ast::PathExpr>(&node.callee->node)) {
+            return path->path.size() == 1 && IdEq(path->path[0], "Region") &&
+                   IdEq(path->name, "new_scoped");
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
+          return IsFreshRegionExpr(node.expr);
+        }
+        return false;
+      },
+      expr->node);
+}
+
+static void AddRegionBindingsToProvEnv(
+    ProvEnv& env,
+    const std::vector<std::pair<std::string, TypeRef>>& binds,
+    const ProvTag& bind_pi,
+    bool fresh_region_expr) {
+  for (const auto& [name, type] : binds) {
+    if (!RegionActiveType(type)) {
+      continue;
+    }
+    if (bind_pi.kind == ProvKind::Region) {
+      IntroRegionAlias_pi_inplace(env, bind_pi.region, name);
+      continue;
+    }
+    if (fresh_region_expr) {
+      const auto key = IdKeyOf(name);
+      IntroRegionAlias_pi_inplace(env, key, name);
+    }
+  }
+}
+
 static std::optional<TypeRef> BindingType(const ScopeContext& ctx,
                                           const ast::Binding& binding,
                                           const TypeEnv& env,
@@ -1791,9 +1845,9 @@ static std::optional<IdKey> ResolveRegionTarget(const ProvEnv& env,
   if (tag.kind != ProvKind::Region) {
     return std::nullopt;
   }
-  for (const auto& entry : env.regions) {
-    if (entry.tag == tag.region) {
-      return entry.target;
+  for (auto it = env.regions.rbegin(); it != env.regions.rend(); ++it) {
+    if (it->tag == tag.region) {
+      return it->target;
     }
   }
   return std::nullopt;
@@ -2091,29 +2145,32 @@ static ProvExprResult ProvExpr(const ScopeContext& ctx,
   }
 
   if (const auto* call = std::get_if<ast::MethodCallExpr>(&expr->node)) {
-    if (const auto* recv = std::get_if<ast::IdentifierExpr>(&call->receiver->node)) {
-      const auto type = LookupTypeForRegion(ctx, gamma, recv->name);
-      if (type.has_value()) {
-        const TypeRef stripped = StripPerm(*type);
-        if (stripped) {
-          if (const auto* modal =
-                  std::get_if<TypeModalState>(&stripped->node)) {
-            const auto sig =
-                LookupBuiltinModalMemberSig(modal->path, modal->state, call->name);
-            if (sig.has_value() && sig->allocates_in_receiver) {
-              for (const auto& arg : call->args) {
-                const auto arg_res = ProvExpr(ctx, arg.value, env, gamma, expr_map);
-                if (!arg_res.ok) {
-                  return finish(arg_res);
-                }
+    const auto recv_res = ProvExpr(ctx, call->receiver, env, gamma, expr_map);
+    if (!recv_res.ok) {
+      return finish(recv_res);
+    }
+    const auto type =
+        ExprTypeForProvenance(ctx, gamma, call->receiver, expr_map == nullptr);
+    if (type.has_value()) {
+      const TypeRef stripped = StripPerm(*type);
+      if (stripped) {
+        if (const auto* modal =
+                std::get_if<TypeModalState>(&stripped->node)) {
+          const auto sig =
+              LookupBuiltinModalMemberSig(modal->path, modal->state, call->name);
+          if (sig.has_value() && sig->allocates_in_receiver) {
+            for (const auto& arg : call->args) {
+              const auto arg_res = ProvExpr(ctx, arg.value, env, gamma, expr_map);
+              if (!arg_res.ok) {
+                return finish(arg_res);
               }
-              const auto tag =
-                  AllocTag(env, std::optional<std::string>(recv->name));
-              SPEC_RULE("P-Region-Alloc-Method");
-              result.ok = true;
-              result.prov = tag.has_value() ? RegionTag(*tag) : BottomTag();
-              return finish(result);
             }
+            SPEC_RULE("P-Region-Alloc-Method");
+            result.ok = true;
+            result.prov = recv_res.prov.kind == ProvKind::Region
+                              ? recv_res.prov
+                              : BottomTag();
+            return finish(result);
           }
         }
       }
@@ -2519,16 +2576,25 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
                     gamma, {}};
           }
           const auto names = PatNames(node.binding.pat);
-          const auto bind_pi = BindProv(env, init.prov);
+          auto bind_pi = BindProv(env, init.prov);
           ProvEnv out_env = env;
-          IntroAll_pi_inplace(out_env, names, bind_pi);
 
           const auto bind_type =
               BindingType(ctx, node.binding, gamma, expr_map == nullptr);
           TypeEnv out_gamma = gamma;
+          bool fresh_region_expr = false;
           if (bind_type.has_value()) {
             const auto binds = PatternBindings(ctx, node.binding.pat, *bind_type);
+            fresh_region_expr = IsFreshRegionExpr(node.binding.init);
+            if (fresh_region_expr && bind_pi.kind != ProvKind::Region &&
+                binds.size() == 1 && RegionActiveType(binds.front().second)) {
+              bind_pi = RegionTag(IdKeyOf(binds.front().first));
+            }
+            IntroAll_pi_inplace(out_env, names, bind_pi);
             AddBindingsToTypeEnv(out_gamma, binds, ast::Mutability::Let, false);
+            AddRegionBindingsToProvEnv(out_env, binds, bind_pi, fresh_region_expr);
+          } else {
+            IntroAll_pi_inplace(out_env, names, bind_pi);
           }
           SPEC_RULE("Prov-LetVar");
           return {true, std::nullopt, std::nullopt, std::move(out_env),
@@ -2540,16 +2606,25 @@ static ProvStmtResult ProvStmt(const ScopeContext& ctx,
                     gamma, {}};
           }
           const auto names = PatNames(node.binding.pat);
-          const auto bind_pi = BindProv(env, init.prov);
+          auto bind_pi = BindProv(env, init.prov);
           ProvEnv out_env = env;
-          IntroAll_pi_inplace(out_env, names, bind_pi);
 
           const auto bind_type =
               BindingType(ctx, node.binding, gamma, expr_map == nullptr);
           TypeEnv out_gamma = gamma;
+          bool fresh_region_expr = false;
           if (bind_type.has_value()) {
             const auto binds = PatternBindings(ctx, node.binding.pat, *bind_type);
+            fresh_region_expr = IsFreshRegionExpr(node.binding.init);
+            if (fresh_region_expr && bind_pi.kind != ProvKind::Region &&
+                binds.size() == 1 && RegionActiveType(binds.front().second)) {
+              bind_pi = RegionTag(IdKeyOf(binds.front().first));
+            }
+            IntroAll_pi_inplace(out_env, names, bind_pi);
             AddBindingsToTypeEnv(out_gamma, binds, ast::Mutability::Var, false);
+            AddRegionBindingsToProvEnv(out_env, binds, bind_pi, fresh_region_expr);
+          } else {
+            IntroAll_pi_inplace(out_env, names, bind_pi);
           }
           SPEC_RULE("Prov-LetVar");
           return {true, std::nullopt, std::nullopt, std::move(out_env),
@@ -3098,8 +3173,11 @@ ExprProvMapResult ComputeExprProvenanceMap(
   result.expr_prov.reserve(expr_map.size());
   for (const auto& [expr_ptr, info] : expr_map) {
     result.expr_prov.emplace(expr_ptr, ToPublicKind(info.tag));
+    if (info.tag.kind == ProvKind::Region) {
+      result.expr_region_tags.emplace(expr_ptr, info.tag.region);
+    }
     if (info.tag.kind == ProvKind::Region && info.target.has_value()) {
-      result.expr_region.emplace(expr_ptr, *info.target);
+      result.expr_region_targets.emplace(expr_ptr, *info.target);
     }
   }
   return result;

@@ -46,13 +46,15 @@ namespace {
 struct ProvInfo {
   analysis::ProvenanceKind kind = analysis::ProvenanceKind::Bottom;
   std::optional<std::string> region;
+  std::optional<std::string> region_tag;
+  bool fresh_region = false;
 };
 
 // Derive binding provenance from initializer provenance.
 // If initializer has Bottom provenance, the binding gets Stack provenance.
 ProvInfo BindProvInfo(const ProvInfo& init) {
   if (init.kind == analysis::ProvenanceKind::Bottom) {
-    return ProvInfo{analysis::ProvenanceKind::Stack, std::nullopt};
+    return ProvInfo{analysis::ProvenanceKind::Stack, std::nullopt, std::nullopt, false};
   }
   return init;
 }
@@ -65,6 +67,7 @@ ProvInfo ExprProvInfo(const ast::Expr& expr, const LowerCtx& ctx) {
   }
   if (info.kind == analysis::ProvenanceKind::Region) {
     info.region = ctx.LookupExprRegion(expr);
+    info.region_tag = ctx.LookupExprRegionTag(expr);
   }
   return info;
 }
@@ -189,6 +192,7 @@ IRPtr LowerVarStmt(const ast::VarStmt& stmt, LowerCtx& ctx) {
           // The carrier must be Opaque (not Local) because there is no SSA slot
           // backing this value before pattern binding.
           dyn_value.kind = IRValue::Kind::Opaque;
+          dyn_value.vtable_sym = pack.vtable_sym;
           DerivedValueInfo info;
           info.kind = DerivedValueInfo::Kind::DynLit;
           info.base = pack.data_ptr;
@@ -213,7 +217,8 @@ IRPtr LowerVarStmt(const ast::VarStmt& stmt, LowerCtx& ctx) {
   if (binding.pat) {
     // Pattern binding: register variables from pattern, then lower the binding
     RegisterPatternBindings(*binding.pat, var_type, ctx, immovable,
-                            bind_prov.kind, bind_prov.region);
+                            bind_prov.kind, bind_prov.region,
+                            bind_prov.region_tag);
     bind_ir = LowerBindPattern(*binding.pat, init_result.value, ctx);
   } else {
     // Anonymous binding: create a single binding with synthetic name
@@ -223,9 +228,10 @@ IRPtr LowerVarStmt(const ast::VarStmt& stmt, LowerCtx& ctx) {
     bind.type = var_type;
     bind.prov = bind_prov.kind;
     bind.prov_region = bind_prov.region;
+    bind.prov_region_tag = bind_prov.region_tag;
     bind_ir = MakeIR(std::move(bind));
     ctx.RegisterVar(bind.name, var_type, true, immovable, bind_prov.kind,
-                    bind_prov.region);
+                    bind_prov.region, false, bind_prov.region_tag);
   }
 
   IRValue checked_value = init_result.value;

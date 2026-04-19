@@ -20,7 +20,8 @@ void RegisterWildcardPatternBindings(const ast::WildcardPattern& pattern,
                                       LowerCtx& ctx,
                                       bool is_immovable,
                                       analysis::ProvenanceKind prov,
-                                      std::optional<std::string> prov_region);
+                                      std::optional<std::string> prov_region,
+                                      std::optional<std::string> prov_region_tag);
 
 // Wildcard patterns do not create bindings (returns EmptyIR)
 IRPtr LowerWildcardPatternBindings(const ast::WildcardPattern& pattern,

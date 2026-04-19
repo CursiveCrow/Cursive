@@ -46,6 +46,7 @@
 #include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/checks/panic.h"
 #include "05_codegen/globals/entrypoint.h"
+#include "05_codegen/globals/binding_storage.h"
 #include "05_codegen/globals/globals.h"
 #include "05_codegen/globals/init.h"
 #include "05_codegen/globals/literal_emit.h"
@@ -20635,8 +20636,6 @@ namespace cursive::codegen
   // T-LLVM-010: Bind local variable
   void LLVMEmitter::EmitBindVar(const IRBindVar &bind)
   {
-    SPEC_RULE("BindSlot-Local");
-
     auto *builder = static_cast<llvm::IRBuilder<> *>(builder_.get());
     const bool debug_parallel_bind =
         core::IsDebugEnabled("parallel");
@@ -20681,6 +20680,16 @@ namespace cursive::codegen
     llvm::IRBuilder<> entry_builder(&func->getEntryBlock(), func->getEntryBlock().begin());
     llvm::Value *bind_slot = nullptr;
     bool adopted_existing_storage = false;
+    std::optional<BindSlot> bind_slot_info;
+    if (current_ctx_)
+    {
+      bind_slot_info = ResolveBindSlot(bind, *current_ctx_);
+      if (!bind_slot_info.has_value())
+      {
+        current_ctx_->ReportCodegenFailure();
+        return;
+      }
+    }
     if (async_state_ && async_state_->info &&
         async_state_->info->slots.contains(bind.name))
     {
@@ -20688,7 +20697,12 @@ namespace cursive::codegen
     }
 
     const bool aggregate_bind_ty = ty && (ty->isStructTy() || ty->isArrayTy());
-    if ((!bind_slot || !bind_slot->getType()->isPointerTy()) && aggregate_bind_ty)
+    const bool use_region_slot =
+        bind_slot_info.has_value() &&
+        bind_slot_info->kind == BindSlot::Kind::RegionSlot;
+    if ((!bind_slot || !bind_slot->getType()->isPointerTy()) &&
+        !use_region_slot &&
+        aggregate_bind_ty)
     {
       if (llvm::Value *existing_storage = GetAddressableStorage(bind.value))
       {
@@ -20700,6 +20714,105 @@ namespace cursive::codegen
         bind_slot = existing_storage;
         adopted_existing_storage = true;
       }
+    }
+    if ((!bind_slot || !bind_slot->getType()->isPointerTy()) && use_region_slot)
+    {
+      IRValue region_local;
+      region_local.kind = IRValue::Kind::Local;
+      region_local.name = bind_slot_info->region;
+      llvm::Value *region_value = EvaluateIRValue(region_local);
+      if (!region_value)
+      {
+        if (current_ctx_)
+        {
+          SPEC_RULE("BindSlot-Err");
+          current_ctx_->ReportCodegenFailure();
+        }
+        return;
+      }
+
+      std::uint64_t alloc_size = 0;
+      std::uint64_t alloc_align = 1;
+      const analysis::ScopeContext &scope = BuildScope(current_ctx_);
+      if (bind_slot_info->type)
+      {
+        if (const auto size = SizeOf(scope, bind_slot_info->type))
+        {
+          alloc_size = *size;
+        }
+        if (const auto align = AlignOf(scope, bind_slot_info->type))
+        {
+          alloc_align = *align;
+        }
+      }
+      const llvm::DataLayout &dl = GetModule().getDataLayout();
+      if (alloc_size == 0 && !ty->isVoidTy())
+      {
+        alloc_size = static_cast<std::uint64_t>(dl.getTypeAllocSize(ty));
+      }
+      if (alloc_align == 0)
+      {
+        alloc_align = 1;
+      }
+      if (alloc_align == 1 && !ty->isVoidTy())
+      {
+        alloc_align = std::max<std::uint64_t>(
+            alloc_align,
+            static_cast<std::uint64_t>(dl.getABITypeAlign(ty).value()));
+      }
+
+      llvm::Value *raw_ptr = nullptr;
+      const std::string alloc_sym = BuiltinModalSymRegionAlloc();
+      if (std::optional<RuntimeFuncInfo> alloc_info = GetRuntimeFuncInfo(alloc_sym))
+      {
+        llvm::Function *alloc_fn = GetModule().getFunction(alloc_sym);
+        const bool use_c_abi_aggregate_sret = true;
+        if (!alloc_fn)
+        {
+          ABICallResult alloc_abi = ComputeCallABI(
+              alloc_info->params,
+              alloc_info->ret,
+              use_c_abi_aggregate_sret);
+          if (alloc_abi.func_type)
+          {
+            alloc_fn = llvm::Function::Create(
+                alloc_abi.func_type,
+                llvm::GlobalValue::ExternalLinkage,
+                alloc_sym,
+                &GetModule());
+            alloc_fn->setCallingConv(llvm::CallingConv::C);
+          }
+        }
+        if (alloc_fn)
+        {
+          llvm::Type *usize_ty = llvm::Type::getInt64Ty(GetContext());
+          std::vector<llvm::Value *> alloc_args;
+          alloc_args.reserve(3);
+          alloc_args.push_back(region_value);
+          alloc_args.push_back(llvm::ConstantInt::get(usize_ty, alloc_size));
+          alloc_args.push_back(llvm::ConstantInt::get(usize_ty, alloc_align));
+          raw_ptr = EmitABICall(
+              *this,
+              builder,
+              alloc_fn,
+              alloc_info->params,
+              alloc_info->ret,
+              alloc_args,
+              use_c_abi_aggregate_sret);
+        }
+      }
+
+      if (!raw_ptr)
+      {
+        if (current_ctx_)
+        {
+          SPEC_RULE("BindSlot-Err");
+          current_ctx_->ReportCodegenFailure();
+        }
+        return;
+      }
+
+      bind_slot = builder->CreateBitCast(raw_ptr, llvm::PointerType::get(ty, 0));
     }
     if (!bind_slot || !bind_slot->getType()->isPointerTy())
     {

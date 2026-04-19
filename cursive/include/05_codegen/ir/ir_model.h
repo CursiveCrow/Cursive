@@ -33,6 +33,9 @@ struct IRValue {
   // Stable identity for immediate literals so lowering can track per-literal
   // type info without conflating same-lexeme constants across contexts.
   std::uint64_t literal_id = 0;
+  // Dynamic-object values carry the implementing vtable symbol so shared
+  // lowering helpers can recover VTableRefs from lowered IR.
+  std::string vtable_sym;
 };
 
 struct IRPlace {
@@ -84,6 +87,7 @@ struct IRBindVar {
   analysis::TypeRef type;
   analysis::ProvenanceKind prov = analysis::ProvenanceKind::Bottom;
   std::optional<std::string> prov_region;
+  std::optional<std::string> prov_region_tag;
 };
 
 struct IRStoreVar {
@@ -108,6 +112,10 @@ struct IRWritePlace {
 struct IRAddrOf {
   IRPlace place;
   IRValue result;
+  // RefSyms(AddrOfIR(p)) = RefSyms(IR_p); lowering stores the referenced
+  // symbols from the prerequisite address computation here because the
+  // prerequisite IR is emitted adjacent to the marker rather than nested.
+  std::vector<std::string> ref_syms;
 };
 
 struct IRReadPtr {

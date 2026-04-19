@@ -41,7 +41,8 @@ void RegisterTuplePatternBindings(const ast::TuplePattern& pattern,
                                   LowerCtx& ctx,
                                   bool is_immovable = false,
                                   analysis::ProvenanceKind prov = analysis::ProvenanceKind::Bottom,
-                                  std::optional<std::string> prov_region = std::nullopt);
+                                  std::optional<std::string> prov_region = std::nullopt,
+                                  std::optional<std::string> prov_region_tag = std::nullopt);
 
 // =============================================================================
 // LowerTuplePatternBindings

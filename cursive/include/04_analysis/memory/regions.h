@@ -34,7 +34,8 @@ struct ExprProvMapResult {
   std::optional<std::string_view> diag_id;
   std::optional<core::Span> span;
   std::unordered_map<const ast::Expr*, ProvenanceKind> expr_prov;
-  std::unordered_map<const ast::Expr*, std::string> expr_region;
+  std::unordered_map<const ast::Expr*, std::string> expr_region_tags;
+  std::unordered_map<const ast::Expr*, std::string> expr_region_targets;
 };
 
 struct ProvExprTrackResult {
@@ -43,6 +44,8 @@ struct ProvExprTrackResult {
   std::optional<core::Span> span;
   ProvenanceKind kind = ProvenanceKind::Bottom;
   std::optional<std::string> region;
+  std::optional<std::string> region_target;
+  bool fresh_region = false;
 };
 
 struct ProvStmtTrackResult {
@@ -51,6 +54,8 @@ struct ProvStmtTrackResult {
   std::optional<core::Span> span;
   ProvenanceKind kind = ProvenanceKind::Bottom;
   std::optional<std::string> region;
+  std::optional<std::string> region_target;
+  bool fresh_region = false;
 };
 
 struct ProvAssignCheckResult {
@@ -68,6 +73,7 @@ struct ProvReturnCheckResult {
   std::optional<core::Span> span;
   ProvenanceKind kind = ProvenanceKind::Bottom;
   std::optional<std::string> region;
+  std::optional<std::string> region_target;
 };
 
 TypeRef RegionActiveTypeRef();

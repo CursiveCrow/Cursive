@@ -20,7 +20,8 @@ void RegisterTypedPatternBindings(const ast::TypedPattern& pattern,
                                    LowerCtx& ctx,
                                    bool is_immovable,
                                    analysis::ProvenanceKind prov,
-                                   std::optional<std::string> prov_region);
+                                   std::optional<std::string> prov_region,
+                                   std::optional<std::string> prov_region_tag);
 
 // Create the binding IR for a typed pattern (handles union type extraction)
 IRPtr LowerTypedPatternBindings(const ast::TypedPattern& pattern,

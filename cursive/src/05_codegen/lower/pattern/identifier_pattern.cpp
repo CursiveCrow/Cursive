@@ -33,8 +33,10 @@ void RegisterIdentifierPatternBindings(const ast::IdentifierPattern& pattern,
                                         LowerCtx& ctx,
                                         bool is_immovable,
                                         analysis::ProvenanceKind prov,
-                                        std::optional<std::string> prov_region) {
-  ctx.RegisterVar(pattern.name, type_hint, true, is_immovable, prov, prov_region);
+                                        std::optional<std::string> prov_region,
+                                        std::optional<std::string> prov_region_tag) {
+  ctx.RegisterVar(pattern.name, type_hint, true, is_immovable, prov,
+                  prov_region, false, prov_region_tag);
 }
 
 // ============================================================================
@@ -66,6 +68,12 @@ IRPtr LowerIdentifierPatternBindings(const ast::IdentifierPattern& pattern,
     }
     return std::nullopt;
   };
+  auto lookup_bind_region_tag = [&ctx](const std::string& name) -> std::optional<std::string> {
+    if (const auto* state = ctx.GetBindingState(name)) {
+      return state->prov_region_tag;
+    }
+    return std::nullopt;
+  };
 
   IRBindVar bind;
   bind.name = pattern.name;
@@ -74,6 +82,7 @@ IRPtr LowerIdentifierPatternBindings(const ast::IdentifierPattern& pattern,
   bind.type = lookup_bind_type(pattern.name);
   bind.prov = lookup_bind_prov(pattern.name);
   bind.prov_region = lookup_bind_region(pattern.name);
+  bind.prov_region_tag = lookup_bind_region_tag(pattern.name);
 
   // Preserve structured-value provenance for local bindings (e.g. closures as
   // tuple-literals) so later lowering/emission can recover callee metadata.

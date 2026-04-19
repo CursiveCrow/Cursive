@@ -33,7 +33,8 @@ void RegisterLiteralPatternBindings(const ast::LiteralPattern& /*pattern*/,
                                      LowerCtx& /*ctx*/,
                                      bool /*is_immovable*/,
                                      analysis::ProvenanceKind /*prov*/,
-                                     std::optional<std::string> /*prov_region*/) {
+                                     std::optional<std::string> /*prov_region*/,
+                                     std::optional<std::string> /*prov_region_tag*/) {
   // Literal patterns do not create bindings
 }
 

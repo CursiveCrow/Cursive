@@ -116,14 +116,15 @@ void RegisterTypedPatternBindings(const ast::TypedPattern& pattern,
                                    LowerCtx& ctx,
                                    bool is_immovable,
                                    analysis::ProvenanceKind prov,
-                                   std::optional<std::string> prov_region) {
+                                   std::optional<std::string> prov_region,
+                                   std::optional<std::string> prov_region_tag) {
   // Lower the explicit type annotation
   analysis::TypeRef typed = LowerSyntaxType(pattern.type, ctx);
   if (!typed) {
     ctx.ReportCodegenFailure();
   }
   ctx.RegisterVar(pattern.name, typed ? typed : type_hint, true, is_immovable,
-                  prov, prov_region);
+                  prov, prov_region, false, prov_region_tag);
 }
 
 // ============================================================================
@@ -153,6 +154,12 @@ IRPtr LowerTypedPatternBindings(const ast::TypedPattern& pattern,
   auto lookup_bind_region = [&ctx](const std::string& name) -> std::optional<std::string> {
     if (const auto* state = ctx.GetBindingState(name)) {
       return state->prov_region;
+    }
+    return std::nullopt;
+  };
+  auto lookup_bind_region_tag = [&ctx](const std::string& name) -> std::optional<std::string> {
+    if (const auto* state = ctx.GetBindingState(name)) {
+      return state->prov_region_tag;
     }
     return std::nullopt;
   };
@@ -215,6 +222,7 @@ IRPtr LowerTypedPatternBindings(const ast::TypedPattern& pattern,
   }
   bind.prov = lookup_bind_prov(pattern.name);
   bind.prov_region = lookup_bind_region(pattern.name);
+  bind.prov_region_tag = lookup_bind_region_tag(pattern.name);
 
   return MakeIR(std::move(bind));
 }

@@ -41,6 +41,7 @@ void RegisterModalPatternBindings(
     bool is_immovable,
     analysis::ProvenanceKind prov,
     std::optional<std::string> prov_region,
+    std::optional<std::string> prov_region_tag,
     std::function<void(const ast::Pattern&, analysis::TypeRef)> walk) {
   // Extract modal path from the type hint
   analysis::TypePath modal_path;
@@ -81,7 +82,8 @@ void RegisterModalPatternBindings(
       walk(*field.pattern_opt, field_type);
     } else {
       // Shorthand: field name becomes binding
-      ctx.RegisterVar(field.name, field_type, true, is_immovable, prov, prov_region);
+      ctx.RegisterVar(field.name, field_type, true, is_immovable, prov,
+                      prov_region, false, prov_region_tag);
     }
   }
 }
@@ -100,6 +102,7 @@ IRPtr LowerModalPatternBindings(
     std::function<analysis::TypeRef(const std::string&)> lookup_bind_type,
     std::function<analysis::ProvenanceKind(const std::string&)> lookup_bind_prov,
     std::function<std::optional<std::string>(const std::string&)> lookup_bind_region,
+    std::function<std::optional<std::string>(const std::string&)> lookup_bind_region_tag,
     std::function<IRPtr(const ast::Pattern&, const IRValue&)> lower_bind) {
   // If no fields in the pattern, nothing to bind
   if (!pattern.fields_opt) {
@@ -130,6 +133,7 @@ IRPtr LowerModalPatternBindings(
       bind.type = lookup_bind_type(field.name);
       bind.prov = lookup_bind_prov(field.name);
       bind.prov_region = lookup_bind_region(field.name);
+      bind.prov_region_tag = lookup_bind_region_tag(field.name);
       bindings.push_back(MakeIR(std::move(bind)));
     }
   }

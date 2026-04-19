@@ -232,6 +232,52 @@ static ProvEnv Intro_pi(const ProvEnv& env, std::string_view name,
   return out;
 }
 
+static ProvEnv SeedBlockProvEnv(const TypeEnv& gamma, const ProvEnv& env) {
+  ProvEnv out = env;
+  if (out.scopes.empty()) {
+    ProvScope scope;
+    scope.id = out.next_scope_id++;
+    out.scopes.push_back(std::move(scope));
+  }
+
+  for (const auto& type_scope : gamma.scopes) {
+    for (const auto& [key, binding] : type_scope) {
+      if (RegionActiveType(binding.type)) {
+        const auto tag = binding.provenance_region.value_or(key);
+        out.regions.push_back(RegionEntry{tag, key});
+        out.scopes.back().map[key] = RegionTag(tag);
+        continue;
+      }
+
+      ProvTag prov = BottomTag();
+      switch (binding.provenance_kind) {
+        case BindingProvenanceSeedKind::Global:
+          prov.kind = ProvKind::Global;
+          break;
+        case BindingProvenanceSeedKind::Stack:
+          prov = StackTag(out.scopes.back().id);
+          break;
+        case BindingProvenanceSeedKind::Heap:
+          prov.kind = ProvKind::Heap;
+          break;
+        case BindingProvenanceSeedKind::Region:
+          if (binding.provenance_region.has_value()) {
+            prov = RegionTag(*binding.provenance_region);
+          }
+          break;
+        case BindingProvenanceSeedKind::Bottom:
+          prov = BottomTag();
+          break;
+        case BindingProvenanceSeedKind::Param:
+          prov.kind = ProvKind::Param;
+          break;
+      }
+      out.scopes.back().map[key] = prov;
+    }
+  }
+  return out;
+}
+
 static ProvTag StackProv(const ProvEnv& env) {
   if (env.scopes.empty()) {
     return BottomTag();
@@ -482,12 +528,19 @@ BlockAnalysisResult AnalyzeBlockProvenance(
   ProvScope scope;
   scope.id = env.next_scope_id++;
   env.scopes.push_back(std::move(scope));
+  env = SeedBlockProvEnv(gamma, env);
 
   // If inside a region, track it
   if (enclosing_region.has_value()) {
     const auto region_key = IdKeyOf(*enclosing_region);
-    env.regions.push_back(RegionEntry{region_key, region_key});
-    env = Intro_pi(env, *enclosing_region, RegionTag(region_key));
+    IdKey region_tag = region_key;
+    if (const auto binding = BindOf(gamma, *enclosing_region)) {
+      if (binding->provenance_region.has_value()) {
+        region_tag = *binding->provenance_region;
+      }
+    }
+    env.regions.push_back(RegionEntry{region_tag, region_key});
+    env = Intro_pi(env, *enclosing_region, RegionTag(region_tag));
   }
 
   // Analyze statements

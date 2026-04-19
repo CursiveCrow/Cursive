@@ -55,6 +55,7 @@ void RegisterRecordPatternBindings(
     bool is_immovable,
     analysis::ProvenanceKind prov,
     std::optional<std::string> prov_region,
+    std::optional<std::string> prov_region_tag,
     std::function<void(const ast::Pattern&, analysis::TypeRef)> walk);
 
 // ============================================================================
@@ -85,6 +86,8 @@ IRPtr LowerBindRecordPattern(
     std::function<analysis::ProvenanceKind(const std::string&)> lookup_bind_prov,
     std::function<std::optional<std::string>(const std::string&)>
         lookup_bind_region,
+    std::function<std::optional<std::string>(const std::string&)>
+        lookup_bind_region_tag,
     std::function<IRPtr(const ast::Pattern&, const IRValue&)> lower_bind);
 
 // ============================================================================

@@ -21,6 +21,7 @@
 
 #include "05_codegen/lower/expr/addr_of.h"
 #include "05_codegen/checks/checks.h"
+#include "05_codegen/intrinsics/intrinsics_interface.h"
 #include "05_codegen/intrinsics/builtins.h"
 #include "05_codegen/lower/expr/expr_common.h"
 #include "04_analysis/typing/type_predicates.h"
@@ -137,6 +138,19 @@ std::string RuntimeBuiltinModalSymRegionAddrIsActive() {
   return codegen::BuiltinModalSymRegionAddrIsActive();
 }
 
+void SeedAddrRefSyms(IRAddrOf& addr, std::vector<IRPtr> prereq_ir) {
+  if (prereq_ir.empty()) {
+    addr.ref_syms.clear();
+    return;
+  }
+
+  addr.ref_syms = RefSyms(SeqIR(std::move(prereq_ir)));
+  std::sort(addr.ref_syms.begin(), addr.ref_syms.end());
+  addr.ref_syms.erase(
+      std::unique(addr.ref_syms.begin(), addr.ref_syms.end()),
+      addr.ref_syms.end());
+}
+
 }  // namespace
 
 // ============================================================================
@@ -214,7 +228,7 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
             ctx.RegisterDerivedValue(ptr_value, info);
 
             std::vector<IRPtr> seq;
-            seq.push_back(MakeIR(std::move(addr)));
+            std::vector<IRPtr> prereq_ir;
 
             // If this binding was materialized by loading from an address,
             // preserve the source address tag instead of stamping the current
@@ -230,14 +244,14 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
 
             if (const DerivedValueInfo* local_info = lookup_origin(local_name)) {
               if (local_info->kind == DerivedValueInfo::Kind::LoadFromAddr) {
-                seq.push_back(tag_from(ptr_value, local_info->base));
+                prereq_ir.push_back(tag_from(ptr_value, local_info->base));
                 tagged_from_origin = true;
               }
             }
             if (!tagged_from_origin && local_name != source_name) {
               if (const DerivedValueInfo* local_info = lookup_origin(source_name)) {
                 if (local_info->kind == DerivedValueInfo::Kind::LoadFromAddr) {
-                  seq.push_back(tag_from(ptr_value, local_info->base));
+                  prereq_ir.push_back(tag_from(ptr_value, local_info->base));
                   tagged_from_origin = true;
                 }
               }
@@ -256,8 +270,11 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
               IRValue tag_value = ctx.FreshTempValue("addr_tag_scope");
               tag_scope.result = tag_value;
               ctx.RegisterValueType(tag_value, analysis::MakeTypePrim("()"));
-              seq.push_back(MakeIR(std::move(tag_scope)));
+              prereq_ir.push_back(MakeIR(std::move(tag_scope)));
             }
+            SeedAddrRefSyms(addr, prereq_ir);
+            seq.push_back(MakeIR(std::move(addr)));
+            seq.insert(seq.end(), prereq_ir.begin(), prereq_ir.end());
             return LowerResult{SeqIR(std::move(seq)), ptr_value};
           };
 
@@ -289,11 +306,13 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
             check.module = ModulePathString(full);
             poison_ir = MakeIR(std::move(check));
             if (poison_ir && !std::holds_alternative<IROpaque>(poison_ir->node)) {
+              SeedAddrRefSyms(addr, {poison_ir, PanicCheck(ctx)});
               return LowerResult{SeqIR(std::vector<IRPtr>{poison_ir,
                                                           PanicCheck(ctx),
                                                           MakeIR(std::move(addr))}),
                                  ptr_value};
             }
+            SeedAddrRefSyms(addr, {});
             return LowerResult{MakeIR(std::move(addr)), ptr_value};
           };
 
@@ -360,6 +379,7 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
           ctx.RegisterDerivedValue(ptr_value, info);
 
           IRPtr tag_ir = tag_from(ptr_value, base_result.value);
+          SeedAddrRefSyms(addr, {base_result.ir, tag_ir});
           return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir,
                                                       MakeIR(std::move(addr)),
                                                       tag_ir}),
@@ -379,6 +399,7 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
           ctx.RegisterDerivedValue(ptr_value, info);
 
           IRPtr tag_ir = tag_from(ptr_value, base_result.value);
+          SeedAddrRefSyms(addr, {base_result.ir, tag_ir});
           return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir,
                                                       MakeIR(std::move(addr)),
                                                       tag_ir}),
@@ -425,6 +446,9 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
             ctx.RegisterDerivedValue(ptr_value, info);
 
             IRPtr tag_ir = tag_from(ptr_value, base_result.value);
+            SeedAddrRefSyms(
+                addr,
+                {base_result.ir, range_result.ir, PanicCheck(ctx), tag_ir});
             return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir, range_result.ir,
                                       MakeIR(std::move(check)),
                                       PanicCheck(ctx),
@@ -454,6 +478,9 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
             ctx.RegisterDerivedValue(ptr_value, info);
 
             IRPtr tag_ir = tag_from(ptr_value, base_result.value);
+            SeedAddrRefSyms(
+                addr,
+                {base_result.ir, range_result.ir, PanicCheck(ctx), tag_ir});
             return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir, range_result.ir,
                                       MakeIR(std::move(check)),
                                       PanicCheck(ctx),
@@ -481,6 +508,11 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
           if (needs_check) {
             seq.push_back(MakeIR(std::move(check)));
             seq.push_back(PanicCheck(ctx));
+          }
+          {
+            std::vector<IRPtr> prereq_ir = seq;
+            prereq_ir.push_back(tag_ir);
+            SeedAddrRefSyms(addr, std::move(prereq_ir));
           }
           seq.push_back(MakeIR(std::move(addr)));
           seq.push_back(tag_ir);
@@ -624,6 +656,7 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
         IRValue ptr_value = ctx.FreshTempValue("addr_of");
         register_ptr_type(ptr_value);
         addr.result = ptr_value;
+        SeedAddrRefSyms(addr, {});
         return LowerResult{MakeIR(std::move(addr)), ptr_value};
       },
       place.node);

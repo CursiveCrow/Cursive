@@ -126,6 +126,7 @@ struct BindingState {
   std::vector<std::string> moved_fields;  // Fields that have been moved (for partial moves)
   analysis::ProvenanceKind prov = analysis::ProvenanceKind::Bottom;
   std::optional<std::string> prov_region;
+  std::optional<std::string> prov_region_tag;
   std::uint64_t scope_runtime_id = 0;
   bool preserve_addr_provenance = false;
 };
@@ -257,6 +258,8 @@ struct LowerCtx {
       expr_prov;
   std::shared_ptr<const std::unordered_map<const ast::Expr*, std::string>>
       expr_region;
+  std::shared_ptr<const std::unordered_map<const ast::Expr*, std::string>>
+      expr_region_tags;
 
   // [[dynamic]] verification scope for runtime checks (arrays, contracts, etc.)
   bool dynamic_checks = false;
@@ -524,7 +527,8 @@ struct LowerCtx {
                    bool is_immovable = false,
                    analysis::ProvenanceKind prov = analysis::ProvenanceKind::Bottom,
                    std::optional<std::string> prov_region = std::nullopt,
-                   bool preserve_addr_provenance = false);
+                   bool preserve_addr_provenance = false,
+                   std::optional<std::string> prov_region_tag = std::nullopt);
 
   // Register runtime scope exit cleanup for the current scope.
   void RegisterRuntimeScopeExit();
@@ -553,6 +557,7 @@ struct LowerCtx {
 
   std::optional<analysis::ProvenanceKind> LookupExprProv(const ast::Expr& expr) const;
   std::optional<std::string> LookupExprRegion(const ast::Expr& expr) const;
+  std::optional<std::string> LookupExprRegionTag(const ast::Expr& expr) const;
   const std::vector<analysis::TypeRef>* LookupDynamicRefinementTypes(
       const ast::Expr& expr) const;
   

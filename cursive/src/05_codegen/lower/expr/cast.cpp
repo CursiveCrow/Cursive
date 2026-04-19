@@ -98,6 +98,7 @@ LowerResult LowerCast(const ast::Expr& expr,
       // DynPack is represented as a derived opaque value that LLVM materializes
       // into a fat pointer {data_ptr, vtable_ptr}; there is no local slot here.
       dyn_value.kind = IRValue::Kind::Opaque;
+      dyn_value.vtable_sym = pack.vtable_sym;
       DerivedValueInfo info;
       info.kind = DerivedValueInfo::Kind::DynLit;
       info.base = pack.data_ptr;

@@ -347,6 +347,14 @@ std::optional<std::string> LookupBindRegion(LowerCtx& ctx, const std::string& na
   return std::nullopt;
 }
 
+std::optional<std::string> LookupBindRegionTag(LowerCtx& ctx,
+                                               const std::string& name) {
+  if (const auto* state = ctx.GetBindingState(name)) {
+    return state->prov_region_tag;
+  }
+  return std::nullopt;
+}
+
 IRPtr EmitOrderedPatternBindings(const std::vector<OrderedPatternBinding>& bindings,
                                  LowerCtx& ctx) {
   if (bindings.empty()) {
@@ -366,6 +374,7 @@ IRPtr EmitOrderedPatternBindings(const std::vector<OrderedPatternBinding>& bindi
     }
     bind.prov = LookupBindProv(ctx, binding_desc.name);
     bind.prov_region = LookupBindRegion(ctx, binding_desc.name);
+    bind.prov_region_tag = LookupBindRegionTag(ctx, binding_desc.name);
 
     if (const DerivedValueInfo* derived = ctx.LookupDerivedValue(binding_desc.value)) {
       IRValue local_value;
@@ -589,9 +598,10 @@ void RegisterPatternBindings(const ast::Pattern& pattern,
                              bool is_immovable,
                              analysis::ProvenanceKind prov,
                              std::optional<std::string> prov_region,
+                             std::optional<std::string> prov_region_tag,
                              bool has_responsibility) {
-  RegisterBindingsFromPattern(pattern, type_hint, ctx, is_immovable, prov, prov_region,
-                              has_responsibility);
+  RegisterBindingsFromPattern(pattern, type_hint, ctx, is_immovable, prov,
+                              prov_region, prov_region_tag, has_responsibility);
 }
 
 // =============================================================================

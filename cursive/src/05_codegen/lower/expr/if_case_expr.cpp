@@ -115,6 +115,7 @@ struct OwnedIfCaseScrutinee {
   analysis::TypeRef type;
   analysis::ProvenanceKind prov = analysis::ProvenanceKind::Bottom;
   std::optional<std::string> prov_region;
+  std::optional<std::string> prov_region_tag;
 };
 
 LowerResult LowerIfCaseClauseImpl(
@@ -123,6 +124,7 @@ LowerResult LowerIfCaseClauseImpl(
     const analysis::TypeRef& scrutinee_type,
     analysis::ProvenanceKind scrutinee_prov,
     std::optional<std::string> scrutinee_region,
+    std::optional<std::string> scrutinee_region_tag,
     const std::optional<OwnedIfCaseScrutinee>& owned_scrutinee,
     LowerCtx& ctx);
 
@@ -266,8 +268,10 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
     scrutinee_prov = *prov;
   }
   std::optional<std::string> scrutinee_region;
+  std::optional<std::string> scrutinee_region_tag;
   if (scrutinee_prov == analysis::ProvenanceKind::Region) {
     scrutinee_region = ctx.LookupExprRegion(scrutinee);
+    scrutinee_region_tag = ctx.LookupExprRegionTag(scrutinee);
   }
 
   // Register the scrutinee value's type if known
@@ -284,6 +288,7 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
     info.type = scrutinee_type;
     info.prov = scrutinee_prov;
     info.prov_region = scrutinee_region;
+    info.prov_region_tag = scrutinee_region_tag;
     owned_scrutinee = std::move(info);
   }
 
@@ -299,7 +304,8 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
     // Lower this case clause.
     auto arm_result = LowerIfCaseClauseImpl(arm, scrutinee_result.value,
                                             scrutinee_type, scrutinee_prov,
-                                            scrutinee_region, owned_scrutinee,
+                                            scrutinee_region, scrutinee_region_tag,
+                                            owned_scrutinee,
                                             arm_ctx);
 
     // Merge arm context temps back to base context
@@ -438,6 +444,7 @@ LowerResult LowerIfCaseClauseImpl(
     const analysis::TypeRef& scrutinee_type,
     analysis::ProvenanceKind scrutinee_prov,
     std::optional<std::string> scrutinee_region,
+    std::optional<std::string> scrutinee_region_tag,
     const std::optional<OwnedIfCaseScrutinee>& owned_scrutinee,
     LowerCtx& ctx) {
   // Push a new scope for pattern bindings
@@ -456,7 +463,9 @@ LowerResult LowerIfCaseClauseImpl(
                     true,
                     false,
                     owned_scrutinee->prov,
-                    owned_scrutinee->prov_region);
+                    owned_scrutinee->prov_region,
+                    false,
+                    owned_scrutinee->prov_region_tag);
 
     IRBindVar scrutinee_bind;
     scrutinee_bind.name = owned_scrutinee->name;
@@ -464,6 +473,7 @@ LowerResult LowerIfCaseClauseImpl(
     scrutinee_bind.type = owned_scrutinee->type;
     scrutinee_bind.prov = owned_scrutinee->prov;
     scrutinee_bind.prov_region = owned_scrutinee->prov_region;
+    scrutinee_bind.prov_region_tag = owned_scrutinee->prov_region_tag;
     scrutinee_bind_ir = MakeIR(std::move(scrutinee_bind));
 
     bind_scrutinee.kind = IRValue::Kind::Local;
@@ -481,7 +491,7 @@ LowerResult LowerIfCaseClauseImpl(
 
   // Register the bindings introduced by the pattern
   RegisterPatternBindings(*arm.pattern, scrutinee_type, ctx, false,
-                          scrutinee_prov, scrutinee_region,
+                          scrutinee_prov, scrutinee_region, scrutinee_region_tag,
                           scrutinee_has_responsibility);
 
   // Bind the pattern - this creates IR to extract values from the scrutinee
@@ -518,6 +528,7 @@ LowerResult LowerIfCaseClauseImpl(
       capture.type = body_type;
       capture.prov = analysis::ProvenanceKind::Bottom;
       capture.prov_region = std::nullopt;
+      capture.prov_region_tag = std::nullopt;
       arm_value.kind = IRValue::Kind::Local;
       arm_value.name = capture.name;
       capture_ir = MakeIR(std::move(capture));
@@ -558,9 +569,12 @@ LowerResult LowerIfCaseClause(const ast::IfCaseClause& arm,
                           const analysis::TypeRef& scrutinee_type,
                           analysis::ProvenanceKind scrutinee_prov,
                           std::optional<std::string> scrutinee_region,
+                          std::optional<std::string> scrutinee_region_tag,
                           LowerCtx& ctx) {
   return LowerIfCaseClauseImpl(arm, scrutinee, scrutinee_type, scrutinee_prov,
-                               std::move(scrutinee_region), std::nullopt, ctx);
+                               std::move(scrutinee_region),
+                               std::move(scrutinee_region_tag),
+                               std::nullopt, ctx);
 }
 
 }  // namespace cursive::codegen

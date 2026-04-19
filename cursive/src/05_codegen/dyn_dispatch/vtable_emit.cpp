@@ -13,6 +13,7 @@
 #include "05_codegen/dyn_dispatch/vtable_emit.h"
 
 #include <algorithm>
+#include <set>
 #include <variant>
 
 #include "00_core/assert_spec.h"
@@ -34,6 +35,233 @@ constexpr std::uint64_t kPtrAlign = 8;
 
 /// Prefix used for vtable symbols.
 constexpr std::string_view kVTablePrefix = "_ZTV";  // C++ style vtable prefix
+
+void AddVTableRef(std::set<std::string>& refs, const IRValue& value) {
+  if (!value.vtable_sym.empty()) {
+    refs.insert(value.vtable_sym);
+  }
+}
+
+void AddOptVTableRef(std::set<std::string>& refs,
+                     const std::optional<IRValue>& value) {
+  if (value.has_value()) {
+    AddVTableRef(refs, *value);
+  }
+}
+
+void CollectVTableRefsFromIR(std::set<std::string>& refs, const IRPtr& ir) {
+  if (!ir) {
+    return;
+  }
+
+  std::visit(
+      [&](const auto& node) {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, IROpaque>) {
+          return;
+        } else if constexpr (std::is_same_v<T, IRSeq>) {
+          for (const auto& item : node.items) {
+            CollectVTableRefsFromIR(refs, item);
+          }
+        } else if constexpr (std::is_same_v<T, IRCall>) {
+          AddVTableRef(refs, node.callee);
+          for (const auto& arg : node.args) {
+            AddVTableRef(refs, arg);
+          }
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRCallVTable>) {
+          AddVTableRef(refs, node.base);
+          for (const auto& arg : node.args) {
+            AddVTableRef(refs, arg);
+          }
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRStoreGlobal>) {
+          AddVTableRef(refs, node.value);
+        } else if constexpr (std::is_same_v<T, IRBindVar>) {
+          AddVTableRef(refs, node.value);
+        } else if constexpr (std::is_same_v<T, IRStoreVar>) {
+          AddVTableRef(refs, node.value);
+        } else if constexpr (std::is_same_v<T, IRStoreVarNoDrop>) {
+          AddVTableRef(refs, node.value);
+        } else if constexpr (std::is_same_v<T, IRReadPtr>) {
+          AddVTableRef(refs, node.ptr);
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRWritePtr>) {
+          AddVTableRef(refs, node.ptr);
+          AddVTableRef(refs, node.value);
+        } else if constexpr (std::is_same_v<T, IRUnaryOp>) {
+          AddVTableRef(refs, node.operand);
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRBinaryOp>) {
+          AddVTableRef(refs, node.lhs);
+          AddVTableRef(refs, node.rhs);
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRCast>) {
+          AddVTableRef(refs, node.value);
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRTransmute>) {
+          AddVTableRef(refs, node.value);
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRCheckIndex>) {
+          AddVTableRef(refs, node.base);
+          AddVTableRef(refs, node.index);
+        } else if constexpr (std::is_same_v<T, IRCheckRange>) {
+          AddVTableRef(refs, node.base);
+          AddOptVTableRef(refs, node.range.lo);
+          AddOptVTableRef(refs, node.range.hi);
+          AddOptVTableRef(refs, node.range_value);
+        } else if constexpr (std::is_same_v<T, IRCheckSliceLen>) {
+          AddVTableRef(refs, node.base);
+          AddOptVTableRef(refs, node.range.lo);
+          AddOptVTableRef(refs, node.range.hi);
+          AddOptVTableRef(refs, node.range_value);
+          AddVTableRef(refs, node.value);
+        } else if constexpr (std::is_same_v<T, IRCheckOp>) {
+          AddVTableRef(refs, node.lhs);
+          AddOptVTableRef(refs, node.rhs);
+        } else if constexpr (std::is_same_v<T, IRCheckCast>) {
+          AddVTableRef(refs, node.value);
+        } else if constexpr (std::is_same_v<T, IRAlloc>) {
+          AddOptVTableRef(refs, node.region);
+          AddVTableRef(refs, node.value);
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRContextBundleBuild>) {
+          AddVTableRef(refs, node.root_ctx);
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRReturn>) {
+          AddVTableRef(refs, node.value);
+        } else if constexpr (std::is_same_v<T, IRResult>) {
+          AddVTableRef(refs, node.value);
+        } else if constexpr (std::is_same_v<T, IRBreak>) {
+          AddOptVTableRef(refs, node.value);
+        } else if constexpr (std::is_same_v<T, IRIf>) {
+          AddVTableRef(refs, node.cond);
+          CollectVTableRefsFromIR(refs, node.then_ir);
+          AddVTableRef(refs, node.then_value);
+          CollectVTableRefsFromIR(refs, node.else_ir);
+          AddVTableRef(refs, node.else_value);
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRBlock>) {
+          CollectVTableRefsFromIR(refs, node.setup);
+          CollectVTableRefsFromIR(refs, node.body);
+          AddVTableRef(refs, node.value);
+        } else if constexpr (std::is_same_v<T, IRLoop>) {
+          CollectVTableRefsFromIR(refs, node.iter_ir);
+          AddOptVTableRef(refs, node.iter_value);
+          CollectVTableRefsFromIR(refs, node.cond_ir);
+          AddOptVTableRef(refs, node.cond_value);
+          CollectVTableRefsFromIR(refs, node.body_ir);
+          AddVTableRef(refs, node.body_value);
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRIfCase>) {
+          AddVTableRef(refs, node.scrutinee);
+          for (const auto& arm : node.arms) {
+            CollectVTableRefsFromIR(refs, arm.body);
+            AddVTableRef(refs, arm.value);
+          }
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRRegion>) {
+          AddVTableRef(refs, node.owner);
+          CollectVTableRefsFromIR(refs, node.body);
+          AddVTableRef(refs, node.value);
+        } else if constexpr (std::is_same_v<T, IRFrame>) {
+          AddOptVTableRef(refs, node.region);
+          CollectVTableRefsFromIR(refs, node.body);
+          AddVTableRef(refs, node.value);
+        } else if constexpr (std::is_same_v<T, IRBranch>) {
+          AddOptVTableRef(refs, node.cond);
+        } else if constexpr (std::is_same_v<T, IRPhi>) {
+          for (const auto& incoming : node.incoming) {
+            AddVTableRef(refs, incoming.value);
+          }
+          AddVTableRef(refs, node.value);
+        } else if constexpr (std::is_same_v<T, IRPanicCheck>) {
+          CollectVTableRefsFromIR(refs, node.cleanup_ir);
+        } else if constexpr (std::is_same_v<T, IRInitPanicHandle>) {
+          CollectVTableRefsFromIR(refs, node.cleanup_ir);
+        } else if constexpr (std::is_same_v<T, IRLowerPanic>) {
+          CollectVTableRefsFromIR(refs, node.cleanup_ir);
+        } else if constexpr (std::is_same_v<T, IRParallel>) {
+          AddVTableRef(refs, node.domain);
+          CollectVTableRefsFromIR(refs, node.body);
+          AddVTableRef(refs, node.result);
+          AddOptVTableRef(refs, node.cancel_token);
+        } else if constexpr (std::is_same_v<T, IRSpawn>) {
+          CollectVTableRefsFromIR(refs, node.captured_env);
+          CollectVTableRefsFromIR(refs, node.body);
+          AddVTableRef(refs, node.body_result);
+          AddVTableRef(refs, node.result);
+          AddVTableRef(refs, node.env_ptr);
+          AddVTableRef(refs, node.env_size);
+          AddVTableRef(refs, node.body_fn);
+          AddVTableRef(refs, node.result_size);
+          AddOptVTableRef(refs, node.affinity_mask);
+          AddOptVTableRef(refs, node.priority);
+        } else if constexpr (std::is_same_v<T, IRWait>) {
+          AddVTableRef(refs, node.handle);
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRCancelCheck>) {
+          AddVTableRef(refs, node.token);
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRDispatch>) {
+          AddVTableRef(refs, node.range);
+          CollectVTableRefsFromIR(refs, node.body);
+          AddVTableRef(refs, node.body_result);
+          CollectVTableRefsFromIR(refs, node.captured_env);
+          AddVTableRef(refs, node.env_ptr);
+          AddVTableRef(refs, node.body_fn);
+          AddVTableRef(refs, node.elem_size);
+          AddVTableRef(refs, node.result_size);
+          AddVTableRef(refs, node.result_ptr);
+          AddOptVTableRef(refs, node.reduce_fn);
+          AddVTableRef(refs, node.result);
+          AddOptVTableRef(refs, node.chunk_size);
+        } else if constexpr (std::is_same_v<T, IRYield>) {
+          AddVTableRef(refs, node.value);
+          AddVTableRef(refs, node.result);
+          AddVTableRef(refs, node.keys_record);
+        } else if constexpr (std::is_same_v<T, IRYieldFrom>) {
+          AddVTableRef(refs, node.source);
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRSync>) {
+          AddVTableRef(refs, node.async_value);
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRRaceReturn>) {
+          for (const auto& arm : node.arms) {
+            CollectVTableRefsFromIR(refs, arm.async_ir);
+            AddVTableRef(refs, arm.async_value);
+            AddVTableRef(refs, arm.match_value);
+            CollectVTableRefsFromIR(refs, arm.handler_ir);
+            AddVTableRef(refs, arm.handler_result);
+          }
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRRaceYield>) {
+          for (const auto& arm : node.arms) {
+            CollectVTableRefsFromIR(refs, arm.async_ir);
+            AddVTableRef(refs, arm.async_value);
+            AddVTableRef(refs, arm.match_value);
+            CollectVTableRefsFromIR(refs, arm.handler_ir);
+            AddVTableRef(refs, arm.handler_result);
+          }
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRAll>) {
+          for (const auto& async_ir : node.async_irs) {
+            CollectVTableRefsFromIR(refs, async_ir);
+          }
+          for (const auto& async_value : node.async_values) {
+            AddVTableRef(refs, async_value);
+          }
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRAsyncComplete>) {
+          AddVTableRef(refs, node.value);
+          AddVTableRef(refs, node.result);
+        } else if constexpr (std::is_same_v<T, IRAsyncFail>) {
+          AddVTableRef(refs, node.value);
+          AddVTableRef(refs, node.result);
+        }
+      },
+      ir->node);
+}
 
 }  // namespace
 
@@ -177,15 +405,28 @@ bool IsValidSlotTarget(
 std::vector<std::string> CollectVTableRefs(const IRDecls& decls) {
   SPEC_RULE("VTableRefs");
 
-  std::vector<std::string> vtable_refs;
-
+  std::set<std::string> refs;
   for (const auto& decl : decls) {
-    if (const auto* vtable = std::get_if<GlobalVTable>(&decl)) {
-      vtable_refs.push_back(vtable->symbol);
+    if (const auto* proc = std::get_if<ProcIR>(&decl)) {
+      CollectVTableRefsFromIR(refs, proc->body);
     }
   }
 
-  return vtable_refs;
+  return {refs.begin(), refs.end()};
+}
+
+std::vector<std::string> CollectVTableRefs(const IRDecls& decls,
+                                           const LowerCtx& ctx) {
+  SPEC_RULE("VTableRefs");
+
+  std::set<std::string> refs;
+  for (const auto& symbol : CollectVTableRefs(decls)) {
+    refs.insert(symbol);
+  }
+  for (const auto& [symbol, _info] : ctx.required_vtables) {
+    refs.insert(symbol);
+  }
+  return {refs.begin(), refs.end()};
 }
 
 std::vector<std::string> CollectVTableRefs(const LowerCtx& ctx) {

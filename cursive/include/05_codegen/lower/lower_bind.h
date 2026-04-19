@@ -23,6 +23,7 @@ void RegisterBindingsFromPattern(const ast::Pattern& pattern,
                                  bool is_immovable = false,
                                  analysis::ProvenanceKind prov = analysis::ProvenanceKind::Bottom,
                                  std::optional<std::string> prov_region = std::nullopt,
+                                 std::optional<std::string> prov_region_tag = std::nullopt,
                                  bool has_responsibility = true);
 
 // ============================================================================
@@ -35,6 +36,7 @@ IRPtr EmitBinding(const std::string& name,
                   const analysis::TypeRef& type,
                   analysis::ProvenanceKind prov,
                   std::optional<std::string> prov_region,
+                  std::optional<std::string> prov_region_tag,
                   LowerCtx& ctx);
 
 // ============================================================================
@@ -48,5 +50,7 @@ analysis::ProvenanceKind GetBindingProvenance(const ast::Binding& binding,
 // Get the region name (if any) for a binding's initializer expression.
 std::optional<std::string> GetBindingRegion(const ast::Binding& binding,
                                             LowerCtx& ctx);
+std::optional<std::string> GetBindingRegionTag(const ast::Binding& binding,
+                                               LowerCtx& ctx);
 
 }  // namespace cursive::codegen

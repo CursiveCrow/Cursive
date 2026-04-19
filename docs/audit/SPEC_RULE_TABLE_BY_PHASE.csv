@@ -14460,7 +14460,7 @@ ExecIRSigma(FrameIR(v_r, IR_b, v_b), ?) ? (StmtOutOf(out'), ?_3)","CursiveSpecif
 "Phase 4 - Lower and Emit","complete","RefSyms(BranchIR(_, _, _))","RefSyms(BranchIR(_, _, _)) = ?","CursiveSpecification.md:26289","cursive/src/05_codegen/intrinsics/intrinsics_interface.cpp:274"
 "Phase 4 - Lower and Emit","complete","RefSyms(PhiIR(_, _, _))","RefSyms(PhiIR(_, _, _)) = ?","CursiveSpecification.md:26290","cursive/src/05_codegen/intrinsics/intrinsics_interface.cpp:274"
 "Phase 4 - Lower and Emit","complete","RefSyms(CallVTable(_, _, _))","RefSyms(CallVTable(_, _, _)) = ?","CursiveSpecification.md:26291","cursive/src/05_codegen/intrinsics/intrinsics_interface.cpp:274"
-"Phase 4 - Lower and Emit","missing","RefSyms(AddrOfIR(p))","RefSyms(AddrOfIR(p)) = RefSyms(IR_p) ? ? ? LowerAddrOf(p) ? ?IR_p, addr?","CursiveSpecification.md:26292",""
+"Phase 4 - Lower and Emit","complete","RefSyms(AddrOfIR(p))","RefSyms(AddrOfIR(p)) = RefSyms(IR_p) ? ? ? LowerAddrOf(p) ? ?IR_p, addr?","CursiveSpecification.md:26292","cursive/include/05_codegen/ir/ir_model.h:112-117; cursive/src/05_codegen/lower/expr/addr_of.cpp:141-151,275,309,315,382,402,449,481,515,659; cursive/src/05_codegen/intrinsics/intrinsics_interface.cpp:320,419-448"
 "Phase 4 - Lower and Emit","complete","RefSyms(ClearPanic)","RefSyms(ClearPanic) = RefSyms(IR) ? ? ? ClearPanic ? IR","CursiveSpecification.md:26293","cursive/src/05_codegen/checks/checks.cpp:519; cursive/src/05_codegen/intrinsics/intrinsics_interface.cpp:311"
 "Phase 4 - Lower and Emit","complete","RefSyms(PanicCheck)","RefSyms(PanicCheck) = RefSyms(IR) ? ? ? PanicCheck ? IR","CursiveSpecification.md:26294","cursive/src/05_codegen/intrinsics/intrinsics_interface.cpp:311"
 "Phase 4 - Lower and Emit","complete","RefSyms(CheckPoison(m))","RefSyms(CheckPoison(m)) = RefSyms(IR) ? ? ? CheckPoison(m) ? IR","CursiveSpecification.md:26295","cursive/src/05_codegen/intrinsics/intrinsics_interface.cpp:318; cursive/src/05_codegen/llvm/llvm_emit.cpp:7702; cursive/src/05_codegen/llvm/llvm_ir_panic.cpp:400"
@@ -14468,8 +14468,8 @@ ExecIRSigma(FrameIR(v_r, IR_b, v_b), ?) ? (StmtOutOf(out'), ?_3)","CursiveSpecif
 "Phase 4 - Lower and Emit","complete","RuntimeRefs(IR)","RuntimeRefs(IR) = RefSyms(IR) ? RuntimeSyms","CursiveSpecification.md:26298","cursive/src/05_codegen/intrinsics/intrinsics_interface.cpp:399; cursive/src/05_codegen/intrinsics/intrinsics_interface.cpp:406; cursive/src/05_codegen/llvm/emit/module_emit.cpp:118"
 "Phase 4 - Lower and Emit","complete","LiteralRef(IR, kind, bytes)","LiteralRef(IR, kind, bytes) ? LiteralDataSym(kind, bytes) ? RefSyms(IR)","CursiveSpecification.md:26299","cursive/src/05_codegen/globals/literal_emit.cpp:473; cursive/src/05_codegen/globals/literal_emit.cpp:483; cursive/src/05_codegen/intrinsics/intrinsics_interface.cpp:291"
 "Phase 4 - Lower and Emit","complete","LiteralRefs(IR)","LiteralRefs(IR) = {?kind, bytes? | LiteralRef(IR, kind, bytes)}","CursiveSpecification.md:26300","cursive/src/05_codegen/globals/literal_emit.cpp:465; cursive/src/05_codegen/globals/literal_emit.cpp:472; cursive/src/05_codegen/globals/literal_emit.cpp:484; cursive/src/05_codegen/globals/literal_emit.cpp:493"
-"Phase 4 - Lower and Emit","incorrect","VTableRefs(IR)","VTableRefs(IR) = {(T, Cl) | DynPack(T, _) ? IR ? CallVTable(_, _, _) ? IR}","CursiveSpecification.md:26301","cursive/src/05_codegen/dyn_dispatch/dyn_dispatch.cpp:381; cursive/src/05_codegen/dyn_dispatch/dyn_dispatch.cpp:406; cursive/src/05_codegen/llvm/emit/module_emit.cpp:149"
-"Phase 4 - Lower and Emit","incorrect","ExpandIR(IR)","ExpandIR(IR) = IR ++ ((++_{(T, Cl) ? VTableRefs(IR)} [EmitDropGlue(T), EmitVTable(T, Cl)])) ++ ((++_{?kind, bytes? ? LiteralRefs(IR)} [EmitLiteralData(kind, bytes)]))","CursiveSpecification.md:26303","cursive/src/05_codegen/lower/lower_module.cpp:1412; cursive/src/05_codegen/lower/lower_module.cpp:1432; cursive/src/05_codegen/lower/lower_module.cpp:1457; cursive/src/05_codegen/llvm/emit/module_emit.cpp:108"
+"Phase 4 - Lower and Emit","complete","VTableRefs(IR)","VTableRefs(IR) = {(T, Cl) | DynPack(T, _) ? IR ? CallVTable(_, _, _) ? IR}","CursiveSpecification.md:26301","cursive/src/05_codegen/lower/expr/cast.cpp:93-105; cursive/src/05_codegen/lower/stmt/let_stmt.cpp:179-190; cursive/src/05_codegen/lower/stmt/var_stmt.cpp:185-196; cursive/src/05_codegen/dyn_dispatch/vtable_emit.cpp:26-41,405-427"
+"Phase 4 - Lower and Emit","complete","ExpandIR(IR)","ExpandIR(IR) = IR ++ ((++_{(T, Cl) ? VTableRefs(IR)} [EmitDropGlue(T), EmitVTable(T, Cl)])) ++ ((++_{?kind, bytes? ? LiteralRefs(IR)} [EmitLiteralData(kind, bytes)]))","CursiveSpecification.md:26303","cursive/src/05_codegen/lower/lower_module.cpp:1410-1477; cursive/src/05_codegen/dyn_dispatch/vtable_emit.cpp:418-427; cursive/src/05_codegen/globals/literal_emit.cpp:465-493; cursive/src/05_codegen/llvm/emit/module_emit.cpp:89"
 "Phase 4 - Lower and Emit","complete","EmitKey(d)","EmitKey(d) =
  ?`vtable`, T, Cl?     if d = EmitVTable(T, Cl)
  ?`drop`, T?           if d = EmitDropGlue(T)
@@ -14503,10 +14503,10 @@ Items(Project(?), m) = [i_1, ?, i_k]    ? j, ? ? CodegenItem(i_j) ? ds_j    ? ? 
 ? ? LowerPlace(p) ? l
 ????????????????????????????????
 ? ? CodegenPlace(p) ? l","CursiveSpecification.md:26345-26348","/mnt/c/dev/cursive/cursive/include/05_codegen/lower/lower_expr.h:562; /mnt/c/dev/cursive/cursive/src/05_codegen/lower/expr/expr_common.cpp:3941"
-"Phase 4 - Lower and Emit","incorrect","LowerIR-Module","**(LowerIR-Module)**
+"Phase 4 - Lower and Emit","complete","LowerIR-Module","**(LowerIR-Module)**
 IR' = ExpandIR(IR)    IR' = [d_1, ?, d_k]    ? i, ? ? LowerIRDecl(d_i) ? ll_i    RuntimeDecls(RuntimeRefs(IR')) = ds    RuntimeDeclsOk(ds)    LLVMIR = LLVMHeader ++ ds ++ ll_1 ++ ? ++ ll_k    LLVMUBSafe(LLVMIR)    RuntimeDeclsCover(LLVMIR, IR')    UniqueEmits(IR')
 ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
-? ? LowerIR(IR) ? LLVMIR","CursiveSpecification.md:26350-26353","/mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:3018; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:3534; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:3661"
+? ? LowerIR(IR) ? LLVMIR","CursiveSpecification.md:26350-26353","cursive/src/05_codegen/llvm/emit/module_emit.cpp:62-346; cursive/src/05_codegen/llvm/llvm_module.cpp:218-286; cursive/src/05_codegen/llvm/llvm_ub_safe.cpp:235-242"
 "Phase 4 - Lower and Emit","complete","LowerIR-Err","**(LowerIR-Err)**
 ? i, ? ? LowerIRDecl(d_i) ?
 ????????????????????????????????
@@ -14903,7 +14903,7 @@ T ? {TypeString(`@View`), TypeString(`@Managed`), TypeBytes(`@View`), TypeBytes(
 "Phase 4 - Lower and Emit","complete","ABIRetJudg","ABIRetJudg = {ABIRet}","CursiveSpecification.md:26856","/mnt/c/dev/cursive/cursive/include/05_codegen/abi/abi.h:98; /mnt/c/dev/cursive/cursive/src/05_codegen/abi/abi_returns.cpp:19"
 "Phase 4 - Lower and Emit","complete","ABICallJudg","ABICallJudg = {ABICall}","CursiveSpecification.md:26857","/mnt/c/dev/cursive/cursive/include/05_codegen/abi/abi.h:109; /mnt/c/dev/cursive/cursive/src/05_codegen/abi/abi_returns.cpp:44"
 "Phase 4 - Lower and Emit","incorrect","ForeignABIParamJudg","ForeignABIParamJudg = {ForeignABIParam}","CursiveSpecification.md:26858","/mnt/c/dev/cursive/cursive/include/05_codegen/abi/abi.h:75; /mnt/c/dev/cursive/cursive/include/05_codegen/abi/abi.h:77; /mnt/c/dev/cursive/cursive/src/05_codegen/abi/abi_params.cpp:44"
-"Phase 4 - Lower and Emit","incorrect","ForeignABICallJudg","ForeignABICallJudg = {ForeignABICall}","CursiveSpecification.md:26859","/mnt/c/dev/cursive/cursive/include/05_codegen/abi/abi.h:109; /mnt/c/dev/cursive/cursive/include/05_codegen/abi/abi.h:113; /mnt/c/dev/cursive/cursive/src/05_codegen/abi/abi_returns.cpp:44; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:3360; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:3362; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:3364"
+"Phase 4 - Lower and Emit","complete","ForeignABICallJudg","ForeignABICallJudg = {ForeignABICall}","CursiveSpecification.md:26859","cursive/include/05_codegen/llvm/llvm_emit.h:108-116; cursive/src/05_codegen/llvm/llvm_call.cpp:518-523,949-987; cursive/src/05_codegen/llvm/emit/module_emit.cpp:283-289"
 "Phase 4 - Lower and Emit","complete","`ForeignABIParam` and `ForeignABICall` MUST be used for foreign-visible ABI boundaries whose signatures do not carry sou","`ForeignABIParam` and `ForeignABICall` MUST be used for foreign-visible ABI boundaries whose signatures do not carry source parameter-mode information.","CursiveSpecification.md:26861","/mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:3360; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:3362; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:3364; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:3724; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:3730; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:3074; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:3078"
 "Phase 4 - Lower and Emit","complete","ABI-Param-ByRef-Alias","**(ABI-Param-ByRef-Alias)**
 mode = ?    ? ? sizeof(T) = n
@@ -15083,10 +15083,10 @@ C = ClosureExpr(params, ret_type_opt, body)    ? ? Mangle(C) ? sym_closure
 item ? {ProcedureDecl, StaticDecl, MethodDecl}    Vis(item) ? {`public`, `internal`}    ? ? Mangle(item) ? sym
 ?????????????????????????????????????????????????????????????????????????????????????????????????????????????
 ? ? Linkage(sym) ? `external`","CursiveSpecification.md:27086-27089","/mnt/c/dev/cursive/cursive/src/05_codegen/symbols/linkage.cpp:67; /mnt/c/dev/cursive/cursive/src/05_codegen/symbols/linkage.cpp:68; /mnt/c/dev/cursive/cursive/src/05_codegen/symbols/linkage.cpp:72; /mnt/c/dev/cursive/cursive/src/05_codegen/symbols/linkage.cpp:73"
-"Phase 4 - Lower and Emit","incorrect","Linkage-ExternProc","**(Linkage-ExternProc)**
+"Phase 4 - Lower and Emit","complete","Linkage-ExternProc","**(Linkage-ExternProc)**
 item = ExternProcDecl(_, _, _, _, _, _, _, _, _, _, _)    ? ? Mangle(item) ? sym
 ????????????????????????????????????????????????????????????????????????????????????????????????????????????
-? ? Linkage(sym) ? `external`","CursiveSpecification.md:27091-27094","/mnt/c/dev/cursive/cursive/src/05_codegen/lower/lower_module.cpp:923; /mnt/c/dev/cursive/cursive/src/05_codegen/lower/lower_module.cpp:1028; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:3763"
+? ? Linkage(sym) ? `external`","CursiveSpecification.md:27091-27094","cursive/include/05_codegen/symbols/linkage.h:18-19; cursive/src/05_codegen/symbols/linkage.cpp:76-80; cursive/src/05_codegen/lower/lower_module.cpp:1289-1294"
 "Phase 4 - Lower and Emit","complete","Linkage-UserItem-Internal","**(Linkage-UserItem-Internal)**
 item ? {ProcedureDecl, StaticDecl, MethodDecl}    Vis(item) = `private`    ? ? Mangle(item) ? sym
 ????????????????????????????????????????????????????????????????????????????????????????????????????????????
@@ -15123,14 +15123,14 @@ item = TransitionDecl(attrs_opt, vis, name, params, target, body, span, doc_opt)
 item = TransitionDecl(attrs_opt, vis, name, params, target, body, span, doc_opt)    Vis(item) = `private`    ? ? Mangle(item) ? sym
 ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 ? ? Linkage(sym) ? `internal`","CursiveSpecification.md:27136-27139","/mnt/c/dev/cursive/cursive/src/05_codegen/symbols/linkage.cpp:143; /mnt/c/dev/cursive/cursive/src/05_codegen/symbols/linkage.cpp:144"
-"Phase 4 - Lower and Emit","incorrect","Linkage-InitFn","**(Linkage-InitFn)**
+"Phase 4 - Lower and Emit","complete","Linkage-InitFn","**(Linkage-InitFn)**
 InitFn(m) ? sym
 ??????????????????????????????????????
-? ? Linkage(sym) ? `internal`","CursiveSpecification.md:27141-27144","/mnt/c/dev/cursive/cursive/src/05_codegen/lower/lower_module.cpp:1351; /mnt/c/dev/cursive/cursive/src/05_codegen/lower/lower_module.cpp:1352; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:163; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:186; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:189"
-"Phase 4 - Lower and Emit","incorrect","Linkage-DeinitFn","**(Linkage-DeinitFn)**
+? ? Linkage(sym) ? `internal`","CursiveSpecification.md:27141-27144","cursive/include/05_codegen/symbols/linkage.h:72; cursive/src/05_codegen/symbols/linkage.cpp:185-188; cursive/src/05_codegen/symbols/symbol_table.cpp:136; cursive/src/05_codegen/lower/lower_module.cpp:1374"
+"Phase 4 - Lower and Emit","complete","Linkage-DeinitFn","**(Linkage-DeinitFn)**
 DeinitFn(m) ? sym
 ????????????????????????????????????????
-? ? Linkage(sym) ? `internal`","CursiveSpecification.md:27146-27149","/mnt/c/dev/cursive/cursive/src/05_codegen/lower/lower_module.cpp:1357; /mnt/c/dev/cursive/cursive/src/05_codegen/lower/lower_module.cpp:1358; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:186; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:189"
+? ? Linkage(sym) ? `internal`","CursiveSpecification.md:27146-27149","cursive/include/05_codegen/symbols/linkage.h:75; cursive/src/05_codegen/symbols/linkage.cpp:190-193; cursive/src/05_codegen/symbols/symbol_table.cpp:145; cursive/src/05_codegen/lower/lower_module.cpp:1380"
 "Phase 4 - Lower and Emit","complete","Linkage-VTable","**(Linkage-VTable)**
 Mangle(VTableDecl(T, Cl)) ? sym
 ????????????????????????????????????????????
@@ -15139,10 +15139,10 @@ Mangle(VTableDecl(T, Cl)) ? sym
 Mangle(LiteralData(kind, contents)) ? sym
 ?????????????????????????????????????????????????
 ? ? Linkage(sym) ? `internal`","CursiveSpecification.md:27156-27159","/mnt/c/dev/cursive/cursive/src/05_codegen/globals/literal_emit.cpp:109; /mnt/c/dev/cursive/cursive/include/05_codegen/ir/ir_model.h:535; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:18918"
-"Phase 4 - Lower and Emit","incorrect","Linkage-DropGlue","**(Linkage-DropGlue)**
+"Phase 4 - Lower and Emit","complete","Linkage-DropGlue","**(Linkage-DropGlue)**
 DropGlueSym(T) ? sym
 ?????????????????????????????????????????
-? ? Linkage(sym) ? `internal`","CursiveSpecification.md:27161-27164","/mnt/c/dev/cursive/cursive/src/05_codegen/symbols/linkage.cpp:161; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:3708; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:3710"
+? ? Linkage(sym) ? `internal`","CursiveSpecification.md:27161-27164","cursive/include/05_codegen/symbols/linkage.h:61; cursive/src/05_codegen/symbols/linkage.cpp:166-169; cursive/src/05_codegen/symbols/symbol_table.cpp:110; cursive/src/05_codegen/lower/lower_module.cpp:1398"
 "Phase 4 - Lower and Emit","complete","Linkage-DefaultImpl","**(Linkage-DefaultImpl)**
 item = DefaultImpl(T, m)    Vis(m) ? {`public`, `internal`}    ? ? Mangle(item) ? sym
 ??????????????????????????????????????????????????????????????????????????????????????????????????
@@ -15151,18 +15151,18 @@ item = DefaultImpl(T, m)    Vis(m) ? {`public`, `internal`}    ? ? Mangle(item) 
 item = DefaultImpl(T, m)    Vis(m) = `private`    ? ? Mangle(item) ? sym
 ?????????????????????????????????????????????????????????????????????????????????????????
 ? ? Linkage(sym) ? `internal`","CursiveSpecification.md:27171-27174","/mnt/c/dev/cursive/cursive/src/05_codegen/lower/lower_module.cpp:1001; /mnt/c/dev/cursive/cursive/src/05_codegen/symbols/linkage.cpp:119"
-"Phase 4 - Lower and Emit","incorrect","Linkage-PanicSym","**(Linkage-PanicSym)**
+"Phase 4 - Lower and Emit","complete","Linkage-PanicSym","**(Linkage-PanicSym)**
 PanicSym ? sym
 ????????????????????????????????
-? ? Linkage(sym) ? `internal`","CursiveSpecification.md:27176-27179","/mnt/c/dev/cursive/cursive/src/05_codegen/checks/checks.cpp:418; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:5000; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:5002"
-"Phase 4 - Lower and Emit","incorrect","Linkage-BuiltinModalSym","**(Linkage-BuiltinModalSym)**
+? ? Linkage(sym) ? `internal`","CursiveSpecification.md:27176-27179","cursive/include/05_codegen/symbols/linkage.h:78; cursive/src/05_codegen/symbols/linkage.cpp:195-198; cursive/src/05_codegen/symbols/symbol_table.cpp:163; cursive/src/05_codegen/checks/checks.cpp:418"
+"Phase 4 - Lower and Emit","complete","Linkage-BuiltinModalSym","**(Linkage-BuiltinModalSym)**
 BuiltinModalSym(proc) ? sym
 ?????????????????????????????????????
-? ? Linkage(sym) ? `internal`","CursiveSpecification.md:27181-27184","/mnt/c/dev/cursive/cursive/src/05_codegen/intrinsics/builtins.cpp:188; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:996; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:1014"
-"Phase 4 - Lower and Emit","incorrect","Linkage-BuiltinSym","**(Linkage-BuiltinSym)**
+? ? Linkage(sym) ? `internal`","CursiveSpecification.md:27181-27184","cursive/include/05_codegen/symbols/linkage.h:81; cursive/src/05_codegen/symbols/linkage.cpp:200-203; cursive/src/05_codegen/intrinsics/builtins.cpp:188-203"
+"Phase 4 - Lower and Emit","complete","Linkage-BuiltinSym","**(Linkage-BuiltinSym)**
 BuiltinSym(method) ? sym
 ??????????????????????????????????????
-? ? Linkage(sym) ? `internal`","CursiveSpecification.md:27186-27189","/mnt/c/dev/cursive/cursive/src/05_codegen/intrinsics/builtins.cpp:860; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:996; /mnt/c/dev/cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:1014"
+? ? Linkage(sym) ? `internal`","CursiveSpecification.md:27186-27189","cursive/include/05_codegen/symbols/linkage.h:84; cursive/src/05_codegen/symbols/linkage.cpp:205-208; cursive/src/05_codegen/intrinsics/builtins.cpp:860-881"
 "Phase 4 - Lower and Emit","complete","Linkage-EntrySym","**(Linkage-EntrySym)**
 EntrySym ? sym
 ????????????????????????????????
@@ -16225,30 +16225,30 @@ BuiltinModalSym(`Region::alloc`) ? sym    r = InnermostActiveRegion(?) if r_opt 
 ???????????????????????????????????????????????
 ? ? LowerIRInstr(ReadVarIR(x)) ?","CursiveSpecification.md:28584-28587",""
 "Phase 4 - Lower and Emit","complete","ProcSymbol(sym)","ProcSymbol(sym) ? ? item. item ? {ProcedureDecl, MethodDecl, ClassMethodDecl, StateMethodDecl, TransitionDecl, DefaultImpl} ? ? ? Mangle(item) ? sym","CursiveSpecification.md:28589","C:/Dev/Cursive/cursive/src/05_codegen/lower/lower_module.cpp:915; C:/Dev/Cursive/cursive/src/05_codegen/lower/lower_module.cpp:918; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:7979"
-"Phase 4 - Lower and Emit","incorrect","Lower-ReadPathIR-Static-User","**(Lower-ReadPathIR-Static-User)**
+"Phase 4 - Lower and Emit","complete","Lower-ReadPathIR-Static-User","**(Lower-ReadPathIR-Static-User)**
 StaticSymPath(path, name) = sym    ProcModule(sym) = m    T = StaticType(sym)    ? ? StateRef(sym) ? slot    ? ? LowerIRInstr(CheckPoison(m)) ? ?I_p, ??
 ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
-? ? LowerIRInstr(ReadPathIR(path, name)) ? ?I_p ++ [Load(slot, T)], v?","CursiveSpecification.md:28591-28594","C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:8817; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:8844; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:8869"
-"Phase 4 - Lower and Emit","incorrect","Lower-ReadPathIR-Static-Gen","**(Lower-ReadPathIR-Static-Gen)**
+? ? LowerIRInstr(ReadPathIR(path, name)) ? ?I_p ++ [Load(slot, T)], v?","CursiveSpecification.md:28591-28594","cursive/src/05_codegen/llvm/llvm_emit.cpp:8890-8940,12590-12620,22457-22486"
+"Phase 4 - Lower and Emit","complete","Lower-ReadPathIR-Static-Gen","**(Lower-ReadPathIR-Static-Gen)**
 StaticSymPath(path, name) = sym    ProcModule(sym) undefined    T = StaticType(sym)    ? ? StateRef(sym) ? slot
 ???????????????????????????????????????????????????????????????????????????????????????
-? ? LowerIRInstr(ReadPathIR(path, name)) ? ?[Load(slot, T)], v?","CursiveSpecification.md:28596-28599","C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:8817; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:8869"
-"Phase 4 - Lower and Emit","incorrect","Lower-ReadPathIR-Proc-User","**(Lower-ReadPathIR-Proc-User)**
+? ? LowerIRInstr(ReadPathIR(path, name)) ? ?[Load(slot, T)], v?","CursiveSpecification.md:28596-28599","cursive/src/05_codegen/llvm/llvm_emit.cpp:8890-8940,12590-12620,22457-22486"
+"Phase 4 - Lower and Emit","complete","Lower-ReadPathIR-Proc-User","**(Lower-ReadPathIR-Proc-User)**
 sym = PathSym(path, name)    ProcSymbol(sym)    ProcModule(sym) = m    ? ? LowerIRInstr(CheckPoison(m)) ? ?I_p, ??
 ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
-? ? LowerIRInstr(ReadPathIR(path, name)) ? ?I_p, sym?","CursiveSpecification.md:28601-28604","C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:8817; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:8865"
-"Phase 4 - Lower and Emit","incorrect","Lower-ReadPathIR-Proc-Gen","**(Lower-ReadPathIR-Proc-Gen)**
+? ? LowerIRInstr(ReadPathIR(path, name)) ? ?I_p, sym?","CursiveSpecification.md:28601-28604","cursive/src/05_codegen/llvm/llvm_emit.cpp:8890-8940"
+"Phase 4 - Lower and Emit","complete","Lower-ReadPathIR-Proc-Gen","**(Lower-ReadPathIR-Proc-Gen)**
 sym = PathSym(path, name)    ProcSymbol(sym)    ProcModule(sym) undefined
 ?????????????????????????????????????????????????????????????????????????????????????????
-? ? LowerIRInstr(ReadPathIR(path, name)) ? ??, sym?","CursiveSpecification.md:28606-28609","C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:8817; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:8865"
+? ? LowerIRInstr(ReadPathIR(path, name)) ? ??, sym?","CursiveSpecification.md:28606-28609","cursive/src/05_codegen/llvm/llvm_emit.cpp:8890-8940"
 "Phase 4 - Lower and Emit","complete","Lower-ReadPathIR-Runtime","**(Lower-ReadPathIR-Runtime)**
 sym = PathSym(path, name)    RuntimeSig(sym) defined
 ????????????????????????????????????????????????????????????????????????
 ? ? LowerIRInstr(ReadPathIR(path, name)) ? ??, sym?","CursiveSpecification.md:28611-28614","C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:7972; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:7982; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:8886"
-"Phase 4 - Lower and Emit","incorrect","Lower-ReadPathIR-Record","**(Lower-ReadPathIR-Record)**
+"Phase 4 - Lower and Emit","complete","Lower-ReadPathIR-Record","**(Lower-ReadPathIR-Record)**
 p = path ++ [name]    RecordDecl(p) = R    ModuleOfPath(p) = m    ? ? LowerIRInstr(CheckPoison(m)) ? ?I_p, ??
 ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
-? ? LowerIRInstr(ReadPathIR(path, name)) ? ?I_p, RecordCtor(p)?","CursiveSpecification.md:28616-28619","C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:8817; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:8827; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:8844"
+? ? LowerIRInstr(ReadPathIR(path, name)) ? ?I_p, RecordCtor(p)?","CursiveSpecification.md:28616-28619","cursive/src/05_codegen/llvm/llvm_emit.cpp:8890-8927; cursive/src/05_codegen/lower/expr/expr_context.cpp:874-888"
 "Phase 4 - Lower and Emit","incorrect","Lower-StoreVarIR","**(Lower-StoreVarIR)**
 ? ? BindSlot(x) ? slot    TypeOf(x) = T_x    ? ? DropOnAssign(x, slot) ? IR_d
 ????????????????????????????????????????????????????????????????????????????????????????????????
@@ -16434,15 +16434,15 @@ PhiLowerForm(I, T, inc, v)
 "Phase 4 - Lower and Emit","complete","ProcSig(?)","ProcSig(?) = sig ? ? ? LLVMCallSig(ProcParams(?), ProcRet(?)) ? sig","CursiveSpecification.md:28851","C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:3364; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:3399"
 "Phase 4 - Lower and Emit","complete","ParamEntry(params, x)","ParamEntry(params, x) = ?mode, T? ? ?mode, x, T? ? params","CursiveSpecification.md:28852","C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:4192; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:4209; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:4233"
 "Phase 4 - Lower and Emit","complete","AllocaSlot(T)","AllocaSlot(T) = LLVMAlloca(LLVMTy(T))","CursiveSpecification.md:28853","C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:4258; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:18471"
-"Phase 4 - Lower and Emit","missing","RegionSlot(r, T)","RegionSlot(r, T) = CallIR(BuiltinModalSym(`Region::alloc`), [r, IntVal(`usize`, sizeof(T)), IntVal(`usize`, alignof(T))])","CursiveSpecification.md:28854",""
+"Phase 4 - Lower and Emit","complete","RegionSlot(r, T)","RegionSlot(r, T) = CallIR(BuiltinModalSym(`Region::alloc`), [r, IntVal(`usize`, sizeof(T)), IntVal(`usize`, alignof(T))])","CursiveSpecification.md:29225","C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:20765; C:/Dev/Cursive/HelloCursive/Compiler/RunCompilerStaticConformance.ps1:18200"
 "Phase 4 - Lower and Emit","complete","BindState(?)","BindState(?) = ?.bind_state","CursiveSpecification.md:28855","C:/Dev/Cursive/cursive/include/05_codegen/lower/lower_expr.h:386; C:/Dev/Cursive/cursive/src/05_codegen/lower/expr/expr_common.cpp:1881; C:/Dev/Cursive/cursive/src/05_codegen/lower/expr/expr_common.cpp:1951"
-"Phase 4 - Lower and Emit","missing","ResolveEntry_?([], tag)","ResolveEntry_?([], tag) = ?","CursiveSpecification.md:28857",""
-"Phase 4 - Lower and Emit","missing","ResolveEntry_?(?tag, target? :: es, t)","ResolveEntry_?(?tag, target? :: es, t) =
+"Phase 4 - Lower and Emit","complete","ResolveEntry_?([], tag)","ResolveEntry_?([], tag) = ?","CursiveSpecification.md:29228","C:/Dev/Cursive/cursive/src/04_analysis/memory/regions.cpp:1843; C:/Dev/Cursive/cursive/src/04_analysis/provenance/prov_expr.cpp:302"
+"Phase 4 - Lower and Emit","complete","ResolveEntry_?(?tag, target? :: es, t)","ResolveEntry_?(?tag, target? :: es, t) =
  ?tag, target?             if t = tag
- ResolveEntry_?(es, t)      otherwise","CursiveSpecification.md:28858-28860",""
-"Phase 4 - Lower and Emit","missing","ResolveTarget_?(??_?, RS?, tag)","ResolveTarget_?(??_?, RS?, tag) = target ? ResolveEntry_?(RS, tag) = ?tag, target?","CursiveSpecification.md:28861",""
-"Phase 4 - Lower and Emit","incorrect","BindProv_?(x)","BindProv_?(x) = ? ? ? has provenance environment ? ? ?; ? ? Identifier(x) ? ?","CursiveSpecification.md:28862","C:/Dev/Cursive/cursive/src/05_codegen/lower/stmt/let_stmt.cpp:61; C:/Dev/Cursive/cursive/src/05_codegen/lower/expr/expr_common.cpp:1902; C:/Dev/Cursive/cursive/src/05_codegen/lower/pattern/pattern_common.cpp:335"
-"Phase 4 - Lower and Emit","incorrect","BindRegionTarget(x)","BindRegionTarget(x) = r ? BindProv_?(x) = ?_Region(tag) ? ResolveTarget_?(?, tag) = r","CursiveSpecification.md:28863","C:/Dev/Cursive/cursive/src/05_codegen/lower/stmt/let_stmt.cpp:65; C:/Dev/Cursive/cursive/src/05_codegen/lower/expr/expr_common.cpp:1903; C:/Dev/Cursive/cursive/src/05_codegen/lower/pattern/pattern_common.cpp:341"
+ ResolveEntry_?(es, t)      otherwise","CursiveSpecification.md:29229-29231","C:/Dev/Cursive/cursive/src/04_analysis/memory/regions.cpp:1847; C:/Dev/Cursive/cursive/src/04_analysis/provenance/prov_expr.cpp:306"
+"Phase 4 - Lower and Emit","complete","ResolveTarget_?(??_?, RS?, tag)","ResolveTarget_?(??_?, RS?, tag) = target ? ResolveEntry_?(RS, tag) = ?tag, target?","CursiveSpecification.md:29232","C:/Dev/Cursive/cursive/src/04_analysis/memory/regions.cpp:1843; C:/Dev/Cursive/cursive/src/04_analysis/memory/regions.cpp:1868; C:/Dev/Cursive/cursive/src/04_analysis/provenance/prov_expr.cpp:302; C:/Dev/Cursive/cursive/src/04_analysis/provenance/prov_expr.cpp:812"
+"Phase 4 - Lower and Emit","complete","BindProv_?(x)","BindProv_?(x) = ? ? ? has provenance environment ? ? ?; ? ? Identifier(x) ? ?","CursiveSpecification.md:29233","C:/Dev/Cursive/cursive/include/05_codegen/lower/lower_expr.h:258; C:/Dev/Cursive/cursive/src/05_codegen/lower/expr/expr_context.cpp:353; C:/Dev/Cursive/cursive/src/05_codegen/lower/stmt/stmt_common.cpp:63; C:/Dev/Cursive/cursive/src/05_codegen/lower/stmt/let_stmt.cpp:63; C:/Dev/Cursive/cursive/src/05_codegen/lower/stmt/var_stmt.cpp:65"
+"Phase 4 - Lower and Emit","complete","BindRegionTarget(x)","BindRegionTarget(x) = r ? BindProv_?(x) = ?_Region(tag) ? ResolveTarget_?(?, tag) = r","CursiveSpecification.md:29234","C:/Dev/Cursive/cursive/src/04_analysis/memory/regions.cpp:1843; C:/Dev/Cursive/cursive/src/04_analysis/memory/regions.cpp:1868; C:/Dev/Cursive/cursive/src/05_codegen/lower/stmt/let_stmt.cpp:224; C:/Dev/Cursive/cursive/src/05_codegen/lower/stmt/var_stmt.cpp:231; C:/Dev/Cursive/cursive/src/05_codegen/globals/binding_storage.cpp:83"
 "Phase 4 - Lower and Emit","complete","BindValid-Sigma","**(BindValid-Sigma)**
 BindState(?) = ??    Lookup_B(??, x) = ?s, _, _, _?
 ??????????????????????????????????????????????????????????????
@@ -16455,10 +16455,10 @@ ProcParams(?) = params    ParamEntry(params, x) = ?mode, T?    ? ? ABIParam(mode
 ProcParams(?) = params    ParamEntry(params, x) = ?mode, T?    ? ? ABIParam(mode, T) ? `ByRef`    ProcSig(?) = sig
 ??????????????????????????????????????????????????????????????????????????????????????????????????????????????
 ? ? BindSlot(x) ? LLVMParam(sig, params, x)","CursiveSpecification.md:28875-28878","C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:4236; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:4244"
-"Phase 4 - Lower and Emit","missing","BindSlot-Region","**(BindSlot-Region)**
+"Phase 4 - Lower and Emit","complete","BindSlot-Region","**(BindSlot-Region)**
 BindRegionTarget(x) = r
 ??????????????????????????????????????????????????????????????
-? ? BindSlot(x) ? RegionSlot(r, TypeOf(x))","CursiveSpecification.md:28880-28883",""
+? ? BindSlot(x) ? RegionSlot(r, TypeOf(x))","CursiveSpecification.md:29253-29256","C:/Dev/Cursive/cursive/src/05_codegen/globals/binding_storage.cpp:104; C:/Dev/Cursive/cursive/src/05_codegen/globals/binding_storage.cpp:117; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:20686; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:20702; C:/Dev/Cursive/HelloCursive/Compiler/RunCompilerStaticConformance.ps1:18226"
 "Phase 4 - Lower and Emit","complete","BindSlot-Local","**(BindSlot-Local)**
 ? ? ResolveValueName(x) ? ent    ent.origin_opt = ?    ParamEntry(ProcParams(?), x) undefined
 ??????????????????????????????????????????????????????????????????????????????????????????????????????????????
@@ -16517,10 +16517,10 @@ DropOnAssignApplicable(x)    TypeOf(x) ? {TypeArray(_, _), TypeTuple(_), TypeUni
 DropOnAssignApplicable(x)    TypeOf(x) ? {TypeArray(_, _), TypeTuple(_), TypeUnion(_), TypeModalState(_, _)}    BindValid(x) ? Moved
 ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 ? ? DropOnAssign(x, slot) ? ?","CursiveSpecification.md:28953-28956","C:/Dev/Cursive/cursive/src/05_codegen/cleanup/cleanup.cpp:1516; C:/Dev/Cursive/cursive/src/05_codegen/cleanup/cleanup.cpp:1518; C:/Dev/Cursive/cursive/src/05_codegen/cleanup/cleanup.cpp:1520"
-"Phase 4 - Lower and Emit","missing","BindSlot-Err","**(BindSlot-Err)**
+"Phase 4 - Lower and Emit","complete","BindSlot-Err","**(BindSlot-Err)**
 BindSlot(x) undefined
 ????????????????????????????
-? ? BindSlot(x) ?","CursiveSpecification.md:28958-28961",""
+? ? BindSlot(x) ?","CursiveSpecification.md:29331-29334","C:/Dev/Cursive/cursive/src/05_codegen/globals/binding_storage.cpp:114; C:/Dev/Cursive/cursive/src/05_codegen/globals/binding_storage.cpp:127; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:20728; C:/Dev/Cursive/cursive/src/05_codegen/llvm/llvm_emit.cpp:20809; C:/Dev/Cursive/HelloCursive/Compiler/RunCompilerStaticConformance.ps1:18133"
 "Phase 4 - Lower and Emit","incorrect","BindValid-Err","**(BindValid-Err)**
 BindValid(x) undefined
 ?????????????????????????????

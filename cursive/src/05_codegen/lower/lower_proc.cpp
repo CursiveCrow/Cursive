@@ -1044,6 +1044,7 @@ ProcIR LowerProc(const ProcedureDecl& decl,
 
   ctx.expr_prov.reset();
   ctx.expr_region.reset();
+  ctx.expr_region_tags.reset();
   if (ctx.sigma && decl.body) {
     auto prov =
         analysis::ComputeExprProvenanceMap(scope, module_path, decl.params,
@@ -1054,7 +1055,10 @@ ProcIR LowerProc(const ProcedureDecl& decl,
           std::move(prov.expr_prov));
       ctx.expr_region = std::make_shared<
           std::unordered_map<const ast::Expr*, std::string>>(
-          std::move(prov.expr_region));
+          std::move(prov.expr_region_targets));
+      ctx.expr_region_tags = std::make_shared<
+          std::unordered_map<const ast::Expr*, std::string>>(
+          std::move(prov.expr_region_tags));
     }
   }
   log_stage("provenance-ready");
@@ -1431,6 +1435,8 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
     std::shared_ptr<const std::unordered_map<const ast::Expr*, analysis::ProvenanceKind>>
         expr_prov;
     std::shared_ptr<const std::unordered_map<const ast::Expr*, std::string>> expr_region;
+    std::shared_ptr<const std::unordered_map<const ast::Expr*, std::string>>
+        expr_region_tags;
     std::vector<std::string> active_region_aliases;
     bool dynamic_checks = false;
     bool proc_log_enabled = false;
@@ -1461,6 +1467,7 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
           current_closure_counter(source.current_closure_counter),
           expr_prov(source.expr_prov),
           expr_region(source.expr_region),
+          expr_region_tags(source.expr_region_tags),
           active_region_aliases(source.active_region_aliases),
           dynamic_checks(source.dynamic_checks),
           proc_log_enabled(source.proc_log_enabled),
@@ -1499,6 +1506,7 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
       target.current_closure_counter = current_closure_counter;
       target.expr_prov = expr_prov;
       target.expr_region = expr_region;
+      target.expr_region_tags = expr_region_tags;
       target.active_region_aliases = active_region_aliases;
       target.dynamic_checks = dynamic_checks;
       target.proc_log_enabled = proc_log_enabled;
@@ -1534,6 +1542,7 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
   ctx.current_closure_counter = 0;
   ctx.expr_prov.reset();
   ctx.expr_region.reset();
+  ctx.expr_region_tags.reset();
   ctx.active_region_aliases.clear();
   ctx.active_contract_postcondition = nullptr;
   ctx.contract_result_value.reset();

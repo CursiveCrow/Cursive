@@ -53,7 +53,7 @@ namespace cursive::codegen {
 ProvInfo BindProvInfo(const ProvInfo& init) {
   if (init.kind == analysis::ProvenanceKind::Bottom) {
     // Default to stack provenance for bindings
-    return ProvInfo{analysis::ProvenanceKind::Stack, std::nullopt};
+    return ProvInfo{analysis::ProvenanceKind::Stack, std::nullopt, std::nullopt, false};
   }
   return init;
 }
@@ -65,6 +65,7 @@ ProvInfo ExprProvInfo(const ast::Expr& expr, const LowerCtx& ctx) {
   }
   if (info.kind == analysis::ProvenanceKind::Region) {
     info.region = ctx.LookupExprRegion(expr);
+    info.region_tag = ctx.LookupExprRegionTag(expr);
   }
   return info;
 }

@@ -24,6 +24,7 @@ void RegisterRangePatternBindings(
     bool is_immovable,
     analysis::ProvenanceKind prov,
     std::optional<std::string> prov_region,
+    std::optional<std::string> prov_region_tag,
     std::function<void(const ast::Pattern&, analysis::TypeRef)> walk);
 
 // Range patterns do not create bindings directly (returns EmptyIR)

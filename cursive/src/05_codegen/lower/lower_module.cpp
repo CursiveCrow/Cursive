@@ -1294,6 +1294,7 @@ IRDecls LowerModule(const ast::ASTModule& module, LowerCtx& ctx) {
                       sig.ret = extern_proc.ret;
                       sig.abi = extern_proc.abi;
                       ctx.RegisterProcSig(sig);
+                      ctx.RegisterProcLinkage(extern_proc.symbol, LinkageOf(proc));
                       ctx.RegisterProcFfiImport(extern_proc.symbol,
                                                 unwind_mode);
 
@@ -1439,7 +1440,7 @@ IRDecls ExpandIR(const IRDecls& decls, LowerCtx& ctx) {
   }
 
   if (ctx.sigma != nullptr) {
-    for (const auto& symbol : CollectVTableRefs(ctx)) {
+    for (const auto& symbol : CollectVTableRefs(expanded_decls, ctx)) {
       const auto* info = ctx.LookupRequiredVTable(symbol);
       if (!info || info->class_path.empty()) {
         continue;

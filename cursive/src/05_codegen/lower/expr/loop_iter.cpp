@@ -43,6 +43,8 @@ namespace {
 struct ProvInfo {
   analysis::ProvenanceKind kind = analysis::ProvenanceKind::Bottom;
   std::optional<std::string> region;
+  std::optional<std::string> region_tag;
+  bool fresh_region = false;
 };
 
 // ---------------------------------------------------------------------------
@@ -58,6 +60,7 @@ ProvInfo ExprProvInfo(const ast::Expr& expr, const LowerCtx& ctx) {
   }
   if (info.kind == analysis::ProvenanceKind::Region) {
     info.region = ctx.LookupExprRegion(expr);
+    info.region_tag = ctx.LookupExprRegionTag(expr);
   }
   return info;
 }
@@ -71,7 +74,7 @@ ProvInfo ExprProvInfo(const ast::Expr& expr, const LowerCtx& ctx) {
 
 ProvInfo BindProvInfo(const ProvInfo& init) {
   if (init.kind == analysis::ProvenanceKind::Bottom) {
-    return ProvInfo{analysis::ProvenanceKind::Stack, std::nullopt};
+    return ProvInfo{analysis::ProvenanceKind::Stack, std::nullopt, std::nullopt, false};
   }
   return init;
 }
@@ -195,7 +198,8 @@ LowerResult LowerLoopIter(const ast::Expr& expr,
 
   // Register pattern bindings with the computed provenance
   RegisterPatternBindings(*loop_expr.pattern, pattern_type, ctx, false,
-                          bind_prov.kind, bind_prov.region);
+                          bind_prov.kind, bind_prov.region,
+                          bind_prov.region_tag);
 
   // Lower the body
   LowerResult body_result = LowerBlock(*loop_expr.body, ctx);

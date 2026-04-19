@@ -316,6 +316,10 @@ void CollectRefSymsFromIR(std::set<std::string>& out, const IRPtr& ir) {
           AddRefSymsFromValue(out, node.callee);
         } else if constexpr (std::is_same_v<T, IRStoreGlobal>) {
           AddRefSym(out, node.symbol);
+        } else if constexpr (std::is_same_v<T, IRAddrOf>) {
+          for (const auto& symbol : node.ref_syms) {
+            AddRefSym(out, symbol);
+          }
         } else if constexpr (std::is_same_v<T, IRReadPath>) {
           std::vector<std::string> full = node.path;
           full.push_back(node.name);

@@ -265,18 +265,16 @@ static ProvTag BindingSeedTag(const ProvEnv& env, const TypeBinding& binding) {
 static void SeedMinimalProvEnv(const TypeEnv& gamma, ProvEnv& env) {
   env.next_scope_id = 0;
 
-  for (const auto& type_scope : gamma.scopes) {
-    for (const auto& [key, binding] : type_scope) {
-      if (RegionActiveType(binding.type)) {
-        env.regions.push_back(RegionEntry{key, key});
-      }
-    }
-  }
-
   ProvScope scope;
   scope.id = env.next_scope_id++;
   for (const auto& type_scope : gamma.scopes) {
     for (const auto& [key, binding] : type_scope) {
+      if (RegionActiveType(binding.type)) {
+        const auto tag = binding.provenance_region.value_or(key);
+        env.regions.push_back(RegionEntry{tag, key});
+        scope.map[key] = RegionTag(tag);
+        continue;
+      }
       scope.map[key] = BindingSeedTag(env, binding);
     }
   }
@@ -299,6 +297,38 @@ static std::optional<IdKey> AllocTag(const ProvEnv& env,
     }
   }
   return std::nullopt;
+}
+
+static std::optional<IdKey> ResolveRegionTarget(const ProvEnv& env,
+                                                const ProvTag& tag) {
+  if (tag.kind != ProvKind::Region) {
+    return std::nullopt;
+  }
+  for (auto it = env.regions.rbegin(); it != env.regions.rend(); ++it) {
+    if (it->tag == tag.region) {
+      return it->target;
+    }
+  }
+  return std::nullopt;
+}
+
+static std::optional<TypeRef> ExprTypeForProvenance(const ScopeContext& ctx,
+                                                    const TypeEnv& env,
+                                                    const ast::ExprPtr& expr) {
+  if (!expr) {
+    return std::nullopt;
+  }
+  StmtTypeContext type_ctx;
+  type_ctx.return_type = {};
+  type_ctx.loop_flag = LoopFlag::None;
+  type_ctx.in_unsafe = false;
+  type_ctx.diags = nullptr;
+
+  const auto typed = TypeExpr(ctx, type_ctx, expr, env);
+  if (!typed.ok || !typed.type) {
+    return std::nullopt;
+  }
+  return typed.type;
 }
 
 // =============================================================================
@@ -616,19 +646,22 @@ static ProvExprResult ProvExpr(const ScopeContext& ctx,
   // Region alloc method call: receiver~>alloc(...)
   if (const auto* call = std::get_if<ast::MethodCallExpr>(&expr->node)) {
     if (IdEq(call->name, "alloc")) {
-      if (const auto* recv = std::get_if<ast::IdentifierExpr>(&call->receiver->node)) {
-        const auto type = LookupTypeForRegion(ctx, gamma, recv->name);
-        if (type.has_value() && IsRegionActiveType(*type)) {
-          for (const auto& arg : call->args) {
-            const auto arg_res = ProvExpr(ctx, arg.value, env, gamma);
-            if (!arg_res.ok) return arg_res;
-          }
-          const auto tag = AllocTag(env, std::optional<std::string>(recv->name));
-          SPEC_RULE("P-Region-Alloc-Method");
-          result.ok = true;
-          result.prov = tag.has_value() ? RegionTag(*tag) : BottomTag();
-          return result;
+      const auto recv_res = ProvExpr(ctx, call->receiver, env, gamma);
+      if (!recv_res.ok) {
+        return recv_res;
+      }
+      const auto type = ExprTypeForProvenance(ctx, gamma, call->receiver);
+      if (type.has_value() && IsRegionActiveType(*type)) {
+        for (const auto& arg : call->args) {
+          const auto arg_res = ProvExpr(ctx, arg.value, env, gamma);
+          if (!arg_res.ok) return arg_res;
         }
+        SPEC_RULE("P-Region-Alloc-Method");
+        result.ok = true;
+        result.prov = recv_res.prov.kind == ProvKind::Region
+                          ? recv_res.prov
+                          : BottomTag();
+        return result;
       }
     }
   }
@@ -776,6 +809,9 @@ ProvExprTrackResult TrackExprProvenance(const ScopeContext& ctx,
   }
   if (result.prov.kind == ProvKind::Region) {
     out.region = result.prov.region;
+    if (const auto target = ResolveRegionTarget(env, result.prov)) {
+      out.region_target = *target;
+    }
   }
 
   return out;

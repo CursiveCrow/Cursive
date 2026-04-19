@@ -274,6 +274,7 @@ void RegisterBindingsFromPattern(const ast::Pattern& pattern,
                                  bool is_immovable,
                                  analysis::ProvenanceKind prov,
                                  std::optional<std::string> prov_region,
+                                 std::optional<std::string> prov_region_tag,
                                  bool has_responsibility) {
   std::function<void(const ast::Pattern&, analysis::TypeRef)> walk =
       [&](const ast::Pattern& pat, analysis::TypeRef hint) {
@@ -286,7 +287,7 @@ void RegisterBindingsFromPattern(const ast::Pattern& pattern,
                 return;
               } else if constexpr (std::is_same_v<T, ast::IdentifierPattern>) {
                 ctx.RegisterVar(node.name, hint, has_responsibility, is_immovable, prov,
-                                prov_region);
+                                prov_region, false, prov_region_tag);
                 return;
               } else if constexpr (std::is_same_v<T, ast::TypedPattern>) {
                 analysis::TypeRef typed = LowerBindingType(node.type, ctx);
@@ -294,7 +295,7 @@ void RegisterBindingsFromPattern(const ast::Pattern& pattern,
                   typed = hint;
                 }
                 ctx.RegisterVar(node.name, typed, has_responsibility, is_immovable, prov,
-                                prov_region);
+                                prov_region, false, prov_region_tag);
                 return;
               } else if constexpr (std::is_same_v<T, ast::TuplePattern>) {
                 const analysis::TypeTuple* tuple_type = nullptr;
@@ -320,7 +321,7 @@ void RegisterBindingsFromPattern(const ast::Pattern& pattern,
                     walk(*field.pattern_opt, field_type);
                   } else {
                     ctx.RegisterVar(field.name, field_type, has_responsibility, is_immovable, prov,
-                                    prov_region);
+                                    prov_region, false, prov_region_tag);
                   }
                 }
                 return;
@@ -354,7 +355,7 @@ void RegisterBindingsFromPattern(const ast::Pattern& pattern,
                             walk(*field.pattern_opt, field_type);
                           } else {
                             ctx.RegisterVar(field.name, field_type, has_responsibility, is_immovable, prov,
-                                            prov_region);
+                                            prov_region, false, prov_region_tag);
                           }
                         }
                       }
@@ -393,7 +394,7 @@ void RegisterBindingsFromPattern(const ast::Pattern& pattern,
                     walk(*field.pattern_opt, field_type);
                   } else {
                     ctx.RegisterVar(field.name, field_type, has_responsibility, is_immovable, prov,
-                                    prov_region);
+                                    prov_region, false, prov_region_tag);
                   }
                 }
                 return;
@@ -422,6 +423,7 @@ IRPtr EmitBinding(const std::string& name,
                   const analysis::TypeRef& type,
                   analysis::ProvenanceKind prov,
                   std::optional<std::string> prov_region,
+                  std::optional<std::string> prov_region_tag,
                   LowerCtx& ctx) {
   IRBindVar bind;
   bind.name = name;
@@ -430,6 +432,7 @@ IRPtr EmitBinding(const std::string& name,
   bind.type = type;
   bind.prov = prov;
   bind.prov_region = prov_region;
+  bind.prov_region_tag = prov_region_tag;
   return MakeIR(std::move(bind));
 }
 
@@ -446,6 +449,11 @@ analysis::ProvenanceKind GetBindingProvenance(const ast::Binding& binding,
 std::optional<std::string> GetBindingRegion(const ast::Binding& binding,
                                             LowerCtx& ctx) {
   return ctx.LookupExprRegion(*(binding.init));
+}
+
+std::optional<std::string> GetBindingRegionTag(const ast::Binding& binding,
+                                               LowerCtx& ctx) {
+  return ctx.LookupExprRegionTag(*(binding.init));
 }
 
 }  // namespace cursive::codegen

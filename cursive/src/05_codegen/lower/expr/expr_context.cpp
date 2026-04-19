@@ -186,7 +186,8 @@ void LowerCtx::RegisterVar(const std::string& name,
                            bool is_immovable,
                            analysis::ProvenanceKind prov,
                            std::optional<std::string> prov_region,
-                           bool preserve_addr_provenance) {
+                           bool preserve_addr_provenance,
+                           std::optional<std::string> prov_region_tag) {
   if (!scope_stack.empty()) {
     scope_stack.back().variables.push_back(name);
     if (has_responsibility) {
@@ -207,6 +208,7 @@ void LowerCtx::RegisterVar(const std::string& name,
   state.is_moved = false;
   state.prov = prov;
   state.prov_region = std::move(prov_region);
+  state.prov_region_tag = std::move(prov_region_tag);
   state.preserve_addr_provenance = preserve_addr_provenance;
   if (!scope_stack.empty()) {
     state.scope_runtime_id = scope_stack.back().runtime_scope_id;
@@ -367,6 +369,18 @@ std::optional<std::string> LowerCtx::LookupExprRegion(
   }
   const auto it = expr_region->find(&expr);
   if (it == expr_region->end()) {
+    return std::nullopt;
+  }
+  return it->second;
+}
+
+std::optional<std::string> LowerCtx::LookupExprRegionTag(
+    const ast::Expr& expr) const {
+  if (!expr_region_tags) {
+    return std::nullopt;
+  }
+  const auto it = expr_region_tags->find(&expr);
+  if (it == expr_region_tags->end()) {
     return std::nullopt;
   }
   return it->second;
