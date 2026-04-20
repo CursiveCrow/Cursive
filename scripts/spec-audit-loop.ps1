@@ -22,6 +22,9 @@ worktrees until it reports `SPEC_AUDIT_STATUS: complete` or
 Options:
   --once                 Run a single row-item iteration and stop after the first status
   --max-iterations <N>   Stop after N iterations (0 means unlimited; default 0)
+  --recover-stale-in-progress
+                         Recover exactly one in_progress row when used with --row-line
+  --row-line <N>         CSV logical line to recover with --recover-stale-in-progress
   --model <MODEL>        Override the Codex model (default: $SPEC_AUDIT_MODEL or gpt-5.4)
   --reasoning-effort <LEVEL>
                          Override Codex reasoning effort (default: $SPEC_AUDIT_REASONING_EFFORT or high)
@@ -32,6 +35,7 @@ Environment:
   SPEC_AUDIT_WORKTREE_ROOT   Parent directory for per-row worktrees
   SPEC_AUDIT_WINDOWS_PRESET  Main-repo Windows build preset to verify after integration
   SPEC_AUDIT_WINDOWS_TARGET  Main-repo Windows build target to verify after integration
+  SPEC_AUDIT_COMPILER_PATH   Explicit compiler executable path for non-default presets
 '@ | Write-Output
 }
 
@@ -229,6 +233,9 @@ function Reset-TempState {
     $script:AgentEventsFile = ''
     $script:BuildFailurePromptFile = ''
     $script:MainBuildLogFile = ''
+    $script:ClaimLedgerPath = ''
+    $script:VerifiedCompilerPath = ''
+    $script:OverlayStarted = $false
 }
 
 $script:LastMessageFile = ''
@@ -253,17 +260,25 @@ $script:SelectedRow = $null
 $script:SelectedRowJson = ''
 $script:SelectedRowRawIndex = 0
 $script:SelectedItem = ''
+$script:ClaimLedgerDir = ''
+$script:ClaimLedgerPath = ''
+$script:VerifiedCompilerPath = ''
+$script:OverlayStarted = $false
 
 $script:ScriptDir = (Resolve-Path -LiteralPath $PSScriptRoot).Path
 $script:RepoRoot = (Resolve-Path -LiteralPath (Join-Path $script:ScriptDir '..')).Path
-$script:PromptFile = Join-Path $script:ScriptDir '.codex\commands\spec-audit-loop.md'
+$script:PromptFile = Join-Path $script:RepoRoot '.codex\commands\spec-audit-loop.md'
+$script:ScriptLocalPromptFile = Join-Path $script:ScriptDir '.codex\commands\spec-audit-loop.md'
 $script:AuditCsv = Join-Path $script:RepoRoot 'docs\audit\SPEC_RULE_TABLE_BY_PHASE.csv'
 $script:SpecDecisionsFile = Join-Path $script:RepoRoot 'docs\SpecDecisionsNeeded.md'
 $defaultWorktreeRoot = Join-Path (Split-Path -Parent $script:RepoRoot) '.spec-audit-worktrees'
 $script:WorktreeRoot = if ($env:SPEC_AUDIT_WORKTREE_ROOT) { $env:SPEC_AUDIT_WORKTREE_ROOT } else { $defaultWorktreeRoot }
 $script:WindowsPreset = if ($env:SPEC_AUDIT_WINDOWS_PRESET) { $env:SPEC_AUDIT_WINDOWS_PRESET } elseif ($env:CURSIVE_WINDOWS_PRESET) { $env:CURSIVE_WINDOWS_PRESET } else { 'windows-debug' }
 $script:WindowsTarget = if ($env:SPEC_AUDIT_WINDOWS_TARGET) { $env:SPEC_AUDIT_WINDOWS_TARGET } elseif ($env:CURSIVE_WINDOWS_TARGET) { $env:CURSIVE_WINDOWS_TARGET } else { 'cursive_out' }
+$script:CompilerPathOverride = if ($env:SPEC_AUDIT_COMPILER_PATH) { $env:SPEC_AUDIT_COMPILER_PATH } else { '' }
 $script:Once = $false
+$script:RecoverStaleInProgress = $false
+$script:RecoverRowLine = ''
 $script:MaxIterations = if ($env:SPEC_AUDIT_MAX_ITERATIONS) { $env:SPEC_AUDIT_MAX_ITERATIONS } else { '0' }
 $script:Model = if ($env:SPEC_AUDIT_MODEL) { $env:SPEC_AUDIT_MODEL } else { 'gpt-5.4' }
 $script:ReasoningEffort = if ($env:SPEC_AUDIT_REASONING_EFFORT) { $env:SPEC_AUDIT_REASONING_EFFORT } else { 'high' }
@@ -282,6 +297,17 @@ for ($index = 0; $index -lt $cliArgs.Count;) {
                 Fail 'missing value for --max-iterations' 2
             }
             $script:MaxIterations = $cliArgs[$index + 1]
+            $index += 2
+        }
+        '--recover-stale-in-progress' {
+            $script:RecoverStaleInProgress = $true
+            $index += 1
+        }
+        '--row-line' {
+            if ($index + 1 -ge $cliArgs.Count) {
+                Fail 'missing value for --row-line' 2
+            }
+            $script:RecoverRowLine = $cliArgs[$index + 1]
             $index += 2
         }
         '--model' {
@@ -330,8 +356,21 @@ if (-not (Test-Path -LiteralPath $script:PromptFile)) {
     Fail "missing prompt file: $($script:PromptFile)"
 }
 
+if ((Test-Path -LiteralPath $script:ScriptLocalPromptFile) -and
+    ((Get-Content -LiteralPath $script:PromptFile -Raw) -ne (Get-Content -LiteralPath $script:ScriptLocalPromptFile -Raw))) {
+    Fail "script-local prompt differs from authoritative prompt:`n  authoritative: $($script:PromptFile)`n  script-local:  $($script:ScriptLocalPromptFile)"
+}
+
 if (-not (Test-Path -LiteralPath $script:AuditCsv)) {
     Fail "missing audit csv: $($script:AuditCsv)"
+}
+
+if ($script:RecoverStaleInProgress -and $script:RecoverRowLine -notmatch '^[0-9]+$') {
+    Fail '--recover-stale-in-progress requires --row-line <N>' 2
+}
+
+if ((-not $script:RecoverStaleInProgress) -and -not [string]::IsNullOrWhiteSpace($script:RecoverRowLine)) {
+    Fail '--row-line is only valid with --recover-stale-in-progress' 2
 }
 
 if ($script:MaxIterations -notmatch '^[0-9]+$') {
@@ -355,14 +394,17 @@ if (-not [System.IO.Path]::IsPathRooted($gitCommonDir)) {
     $gitCommonDir = Join-RepoPath $script:RepoRoot $gitCommonDir
 }
 $script:LockFile = Join-Path $gitCommonDir 'spec-audit-loop.lock'
+$script:ClaimLedgerDir = Join-Path $gitCommonDir 'spec-audit-loop-claims'
 
 # MARKER: CORE
 
 function Claim-NextRow {
 $scriptText = @'
 import csv
+import datetime as dt
 import json
 import os
+import secrets
 import sys
 import tempfile
 import time
@@ -370,6 +412,9 @@ from pathlib import Path
 
 audit_csv = Path(sys.argv[1])
 lock_path = Path(sys.argv[2])
+ledger_dir = Path(sys.argv[3])
+worktree_root = Path(sys.argv[4])
+launcher_pid = sys.argv[5]
 deadline = time.time() + 300
 
 while True:
@@ -385,6 +430,7 @@ while True:
         time.sleep(0.1)
 
 try:
+    ledger_dir.mkdir(parents=True, exist_ok=True)
     with audit_csv.open(encoding="utf-8", newline="") as fh:
         raw_rows = list(csv.reader(fh))
         if not raw_rows or not raw_rows[0]:
@@ -392,6 +438,7 @@ try:
             sys.exit(2)
 
     selected = None
+    in_progress_rows = []
     logical_line = 2
     for raw_index, raw_row in enumerate(raw_rows[1:], start=1):
         if not raw_row or not any(cell.strip() for cell in raw_row):
@@ -413,6 +460,14 @@ try:
         implemented = row["implemented"].strip()
         current_line = logical_line
         logical_line += 1
+        if implemented == "in_progress":
+            in_progress_rows.append({
+                "line": current_line,
+                "raw_index": raw_index,
+                "rule name": row["rule name"],
+                "spec location": row["spec location"],
+            })
+            continue
         if implemented in {"complete", "ambiguous", "in_progress"}:
             continue
 
@@ -421,13 +476,39 @@ try:
         selected["_raw_index"] = raw_index
         selected["_previous_implemented"] = implemented
         selected["implemented"] = "in_progress"
+        stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        nonce = secrets.token_hex(3)
+        worktree_id = f"spec-audit-{stamp}-{current_line}-{nonce}"
+        branch = f"spec-audit/{stamp}-line{current_line}-{nonce}"
+        worktree_dir = worktree_root / worktree_id
+        ledger_path = ledger_dir / f"{worktree_id}.json"
+        selected["_worktree_id"] = worktree_id
+        selected["_worktree_branch"] = branch
+        selected["_worktree_dir"] = str(worktree_dir)
+        selected["_ledger_path"] = str(ledger_path)
         while len(raw_rows[raw_index]) < 2:
             raw_rows[raw_index].append("")
         raw_rows[raw_index][1] = "in_progress"
         break
 
     if selected is None:
+        if in_progress_rows:
+            print("no actionable rows remain outside in_progress claims", file=sys.stderr)
+            for row in in_progress_rows:
+                print(
+                    f"in_progress line {row['line']}: {row['rule name']} @ {row['spec location']}",
+                    file=sys.stderr,
+                )
+            sys.exit(11)
         sys.exit(10)
+
+    if in_progress_rows:
+        print("skipping existing in_progress rows:", file=sys.stderr)
+        for row in in_progress_rows:
+            print(
+                f"  line {row['line']}: {row['rule name']} @ {row['spec location']}",
+                file=sys.stderr,
+            )
 
     fd, tmp_name = tempfile.mkstemp(
         prefix="spec-audit-claim.",
@@ -444,6 +525,23 @@ try:
         if os.path.exists(tmp_name):
             os.unlink(tmp_name)
 
+    ledger = {
+        "row_line": selected["_line"],
+        "raw_index": selected["_raw_index"],
+        "previous_implemented": selected["_previous_implemented"],
+        "rule_name": selected["rule name"],
+        "spec_location": selected["spec location"],
+        "branch": selected["_worktree_branch"],
+        "worktree": selected["_worktree_dir"],
+        "worktree_id": selected["_worktree_id"],
+        "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "launcher_pid": launcher_pid,
+        "stage": "claimed",
+    }
+    ledger_tmp = ledger_path.with_suffix(ledger_path.suffix + ".tmp")
+    ledger_tmp.write_text(json.dumps(ledger, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+    os.replace(ledger_tmp, ledger_path)
+
     print(json.dumps(selected, ensure_ascii=True))
 finally:
     try:
@@ -452,7 +550,186 @@ finally:
         pass
 '@
 
-    return Invoke-PythonScript $scriptText @($script:AuditCsv, $script:LockFile) -AllowFailure
+    return Invoke-PythonScript $scriptText @(
+        $script:AuditCsv,
+        $script:LockFile,
+        $script:ClaimLedgerDir,
+        $script:WorktreeRoot,
+        [string]$PID
+    ) -AllowFailure
+}
+
+function Recover-StaleInProgressRow {
+$scriptText = @'
+import csv
+import datetime as dt
+import json
+import os
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+audit_csv = Path(sys.argv[1])
+lock_path = Path(sys.argv[2])
+ledger_dir = Path(sys.argv[3])
+target_line = int(sys.argv[4])
+deadline = time.time() + 300
+
+while True:
+    try:
+        lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.write(lock_fd, f"{os.getpid()}\n".encode("ascii"))
+        os.close(lock_fd)
+        break
+    except FileExistsError:
+        if time.time() >= deadline:
+            print(f"timed out waiting for lock: {lock_path}", file=sys.stderr)
+            sys.exit(3)
+        time.sleep(0.1)
+
+try:
+    with audit_csv.open(encoding="utf-8", newline="") as fh:
+        rows = list(csv.reader(fh))
+    if not rows or not rows[0]:
+        print(f"missing CSV header in {audit_csv}", file=sys.stderr)
+        sys.exit(2)
+
+    logical_line = 2
+    target_raw_index = None
+    target_row = None
+    for raw_index, raw_row in enumerate(rows[1:], start=1):
+        if not raw_row or not any(cell.strip() for cell in raw_row):
+            continue
+        current_line = logical_line
+        logical_line += 1
+        if current_line == target_line:
+            target_raw_index = raw_index
+            target_row = list(raw_row)
+            break
+
+    if target_raw_index is None or target_row is None:
+        print(f"row line not found: {target_line}", file=sys.stderr)
+        sys.exit(2)
+    while len(target_row) < 6:
+        target_row.append("")
+    if target_row[1].strip() != "in_progress":
+        print(f"row line {target_line} is not in_progress (current: {target_row[1]!r})", file=sys.stderr)
+        sys.exit(2)
+
+    ledgers = []
+    if ledger_dir.exists():
+        for path in ledger_dir.glob("*.json"):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if int(data.get("row_line", -1)) == target_line:
+                ledgers.append((path, data))
+    ledgers.sort(key=lambda item: item[1].get("created_at", ""))
+    ledger_path = ledgers[-1][0] if ledgers else None
+    ledger = ledgers[-1][1] if ledgers else {}
+    previous = str(ledger.get("previous_implemented", "")).strip()
+    if not previous or previous in {"complete", "ambiguous", "in_progress"}:
+        previous = "incomplete"
+        print(
+            f"previous implemented state unavailable for row line {target_line}; resetting to incomplete",
+            file=sys.stderr,
+        )
+
+    print(f"recovering row line {target_line}: {target_row[2]} @ {target_row[4]}", file=sys.stderr)
+    print(f"implemented: in_progress -> {previous}", file=sys.stderr)
+    target_row[1] = previous
+    rows[target_raw_index] = target_row
+
+    fd, tmp_name = tempfile.mkstemp(
+        prefix="spec-audit-recover.",
+        suffix=".csv",
+        dir=str(audit_csv.parent),
+        text=True,
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as tmp:
+            csv.writer(tmp).writerows(rows)
+        os.replace(tmp_name, audit_csv)
+    finally:
+        if os.path.exists(tmp_name):
+            os.unlink(tmp_name)
+
+    if ledger_path is not None:
+        ledger["stage"] = "recovered"
+        ledger["recovered_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+        ledger["recovered_to"] = previous
+        tmp = ledger_path.with_suffix(ledger_path.suffix + ".tmp")
+        tmp.write_text(json.dumps(ledger, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+        os.replace(tmp, ledger_path)
+finally:
+    try:
+        lock_path.unlink()
+    except FileNotFoundError:
+        pass
+'@
+
+    $null = Invoke-PythonScript $scriptText @(
+        $script:AuditCsv,
+        $script:LockFile,
+        $script:ClaimLedgerDir,
+        $script:RecoverRowLine
+    )
+}
+
+function Update-ClaimLedgerStage([string]$Stage, [string]$Note = '') {
+    if ([string]::IsNullOrWhiteSpace($script:ClaimLedgerPath)) {
+        return
+    }
+
+$scriptText = @'
+import datetime as dt
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+lock_path = Path(sys.argv[1])
+ledger_path = Path(sys.argv[2])
+stage = sys.argv[3]
+note = sys.argv[4]
+deadline = time.time() + 300
+
+while True:
+    try:
+        lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.write(lock_fd, f"{os.getpid()}\n".encode("ascii"))
+        os.close(lock_fd)
+        break
+    except FileExistsError:
+        if time.time() >= deadline:
+            sys.exit(3)
+        time.sleep(0.1)
+
+try:
+    try:
+        data = json.loads(ledger_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        data = {}
+    data["stage"] = stage
+    data["updated_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+    if note:
+        data["note"] = note
+    if stage.startswith("interrupted"):
+        data["interrupted_at"] = data["updated_at"]
+    tmp = ledger_path.with_suffix(ledger_path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, ledger_path)
+finally:
+    try:
+        lock_path.unlink()
+    except FileNotFoundError:
+        pass
+'@
+
+    $null = Invoke-PythonScript $scriptText @($script:LockFile, $script:ClaimLedgerPath, $Stage, $Note)
 }
 
 function Copy-SharedContextToWorktree([string]$WorktreeDir) {
@@ -500,7 +777,7 @@ function Build-IterationPrompt {
         '- Do not run `cmake`, `ctest`, `ninja`, `make`, `gmake`, `msbuild`, `scripts/build_cursive_all.sh`, `RunCompilerStaticConformance.ps1`, `RunHelloCursive*.ps1`, `setup_extern.ps1`, or any equivalent command from the worktree.',
         '- Do not create or rely on worktree-local `build/`, `extern/`, or other generated validation artifacts.',
         '- If you invoke Python from a shell command, use `python3`; this environment does not guarantee a `python` alias.',
-        '- Create exactly one verified commit in that worktree for this row, then end.',
+        '- Create exactly one commit for this worker turn in that worktree, then end. The initial turn creates the row commit; each launcher verification retry may create exactly one follow-up commit.',
         '- Do not start the next row yourself. The launcher will transfer the verified result into the main repo, destroy this worktree, and create a fresh worktree for the next row if needed.',
         '- If you record an ambiguity in `docs/SpecDecisionsNeeded.md` for this row, end after that update and finish with `SPEC_AUDIT_STATUS: continue` so the launcher can integrate the ambiguity, destroy this worktree, and move on.'
     )
@@ -520,6 +797,22 @@ function Build-FailureRetryPrompt {
         ''
     }
     $tail = (($buildLog -split "`r?`n") | Select-Object -Last 200) -join "`n"
+    $failedLabelMatches = [regex]::Matches($buildLog, '(?m)^FAILED_COMMAND_LABEL=(.+)$')
+    $commandLabelMatches = [regex]::Matches($buildLog, '(?m)^COMMAND_LABEL=(.+)$')
+    $commandExitMatches = [regex]::Matches($buildLog, '(?m)^COMMAND_EXIT=(.+)$')
+    $failedLabel = if ($failedLabelMatches.Count -gt 0) {
+        $failedLabelMatches[$failedLabelMatches.Count - 1].Groups[1].Value
+    } elseif ($commandLabelMatches.Count -gt 0) {
+        $commandLabelMatches[$commandLabelMatches.Count - 1].Groups[1].Value
+    } else {
+        'unknown'
+    }
+    $exitCode = if ($commandExitMatches.Count -gt 0) {
+        $commandExitMatches[$commandExitMatches.Count - 1].Groups[1].Value
+    } else {
+        'unknown'
+    }
+    $currentWorktreeHead = ((Invoke-GitCapture @('-C', $script:WorktreeDir, 'rev-parse', 'HEAD')).Output | Select-Object -Last 1).Trim()
 
     $promptLines = @(
         'Launcher-side verification failed for the same assigned audit row.',
@@ -527,11 +820,17 @@ function Build-FailureRetryPrompt {
         'Stay on this exact row and this exact worktree:',
         "- Assigned worktree: $($script:WorktreeDir)",
         "- Assigned branch: $($script:WorktreeBranch)",
+        "- Current worktree head: $currentWorktreeHead",
         "- CSV line: $($script:SelectedRow._line)",
         "- Rule Name: $($script:SelectedRow.'rule name')",
         "- Spec Location: $($script:SelectedRow.'spec location')",
         '',
-        'The launcher already applied your committed worktree changes onto the main repo and then ran the configured Windows verification build there. That verification failed.',
+        'The launcher already applied your committed worktree changes onto the main repo and then ran launcher-owned verification there. Verification failed.',
+        '',
+        'Structured failure context:',
+        "- Failed command label: $failedLabel",
+        "- Exit code: $exitCode",
+        "- Full launcher verification log: $($script:MainBuildLogFile)",
         '',
         'Rules for this retry:',
         '- Do not rescan the CSV.',
@@ -539,10 +838,11 @@ function Build-FailureRetryPrompt {
         '- Do not run any build, configure, test, package, bootstrap, or verification command from the assigned worktree.',
         '- If you invoke Python from a shell command, use `python3`; this environment does not guarantee a `python` alias.',
         '- Fix only the issues surfaced by the launcher-side verification failure below.',
-        '- Create a new follow-up commit in the same assigned worktree for the corrective changes, then end.',
+        '- Keep retry edits scoped to the selected row. If the failure is unrelated to the selected row, report `SPEC_AUDIT_STATUS: blocked`.',
+        '- Create exactly one new follow-up commit in the same assigned worktree for this retry turn, then end.',
         '- End with the same `SPEC_AUDIT_STATUS`, `SPEC_AUDIT_ITEM`, and `SPEC_AUDIT_NOTE` footer lines as usual.',
         '',
-        'Launcher-side Windows build output tail:',
+        'Launcher-side verification output tail:',
         '```text',
         $tail,
         '```'
@@ -828,6 +1128,33 @@ def write_rows(path: Path, rows):
 root_rows = load_rows(root_path)
 worktree_rows = load_rows(worktree_path)
 head_rows = load_rows(head_path)
+if len(worktree_rows) != len(head_rows):
+    raise RuntimeError(
+        f"audit CSV row count changed in worktree ({len(worktree_rows)} != {len(head_rows)})"
+    )
+
+def normalized(row):
+    cells = list(row)
+    while len(cells) < 6:
+        cells.append("")
+    cells[5] = ",".join(cells[5:])
+    del cells[6:]
+    return cells
+
+for index, (worktree_row, head_row) in enumerate(zip(worktree_rows, head_rows)):
+    if index == 0:
+        if worktree_row != head_row:
+            raise RuntimeError("audit CSV header changed in worktree")
+        continue
+    if index == target_raw_index:
+        worktree_norm = normalized(worktree_row)
+        head_norm = normalized(head_row)
+        if worktree_norm[:1] + worktree_norm[2:5] != head_norm[:1] + head_norm[2:5]:
+            raise RuntimeError("selected audit row changed fields other than implemented/compiler location")
+        continue
+    if normalized(worktree_row) != normalized(head_row):
+        raise RuntimeError(f"non-selected audit row changed at raw row index {index}")
+
 implemented, compiler_location = extract_state(worktree_rows, target_raw_index)
 if implemented not in {"complete", "ambiguous"}:
     raise RuntimeError(
@@ -1114,6 +1441,23 @@ function Stage-LauncherBuildSideEffectsInMainRepo {
     }
 }
 
+function Unstage-LauncherIntegrationPaths {
+    $paths = New-Object System.Collections.Generic.List[string]
+    $paths.Add('docs/audit/SPEC_RULE_TABLE_BY_PHASE.csv')
+    $paths.Add('docs/SpecDecisionsNeeded.md')
+    $paths.Add('cursive/src/00_core/generated/static_rule_registry.inc')
+    $paths.Add('cursive/src/00_core/generated/diag_registry.inc')
+    $paths.Add('cursive/src/04_analysis/typing/item/typecheck_diag_map.inc')
+
+    foreach ($path in Get-NonSharedPaths) {
+        if (-not [string]::IsNullOrWhiteSpace($path)) {
+            $paths.Add($path)
+        }
+    }
+
+    $null = Invoke-GitCapture @(@('-C', $script:RepoRoot, 'reset', '-q', 'HEAD', '--') + $paths.ToArray()) -AllowFailure
+}
+
 function Recover-StatusFooterFromWorktree {
 $scriptText = @'
 import csv
@@ -1185,7 +1529,7 @@ print(f"SPEC_AUDIT_NOTE: {note}")
 }
 
 function Run-MainRepoWindowsBuild {
-    Write-Log "Verifying main-repo Windows build with configured preset: $($script:WindowsPreset)"
+    Write-Log "Verifying main-repo Windows build and HelloCursive with configured preset: $($script:WindowsPreset)"
     $cmakeCmd = Get-Command 'cmake.exe' -ErrorAction SilentlyContinue
     if (-not $cmakeCmd) {
         $cmakeCmd = Get-Command 'cmake' -ErrorAction SilentlyContinue
@@ -1193,20 +1537,74 @@ function Run-MainRepoWindowsBuild {
     if (-not $cmakeCmd) {
         throw 'cmake was not found in PATH.'
     }
+    $powershellCmd = Get-Command 'powershell.exe' -ErrorAction SilentlyContinue
+    if (-not $powershellCmd) {
+        $powershellCmd = Get-Command 'powershell' -ErrorAction SilentlyContinue
+    }
+    if (-not $powershellCmd) {
+        throw 'powershell was not found in PATH.'
+    }
 
     $sourceDir = Join-Path $script:RepoRoot 'cursive'
+    $helloDir = Join-Path $script:RepoRoot 'HelloCursive'
     Push-Location $sourceDir
     try {
         $previousEap = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
         try {
+            'COMMAND_LABEL=windows-build' | Tee-Object -FilePath $script:MainBuildLogFile -Append
             $null = & $cmakeCmd.Source --build --preset $script:WindowsPreset --target $script:WindowsTarget 2>&1 |
-                Tee-Object -FilePath $script:MainBuildLogFile
+                Tee-Object -FilePath $script:MainBuildLogFile -Append
             $buildExitCode = $LASTEXITCODE
+            "COMMAND_EXIT=$buildExitCode" | Tee-Object -FilePath $script:MainBuildLogFile -Append
         } finally {
             $ErrorActionPreference = $previousEap
         }
-        return ($buildExitCode -eq 0)
+        if ($buildExitCode -ne 0) {
+            'FAILED_COMMAND_LABEL=windows-build' | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            return $false
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($script:CompilerPathOverride)) {
+            $compilerPath = $script:CompilerPathOverride
+        } elseif ($script:WindowsPreset -eq 'windows-debug' -and $script:WindowsTarget -eq 'cursive_out') {
+            $compilerPath = Join-Path $sourceDir 'build\windows\out\cursive.exe'
+        } else {
+            throw "unknown compiler artifact mapping for preset=$($script:WindowsPreset) target=$($script:WindowsTarget); set SPEC_AUDIT_COMPILER_PATH"
+        }
+        if (-not (Test-Path -LiteralPath $compilerPath)) {
+            'FAILED_COMMAND_LABEL=resolve-compiler' | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            throw "Missing expected compiler artifact: $compilerPath"
+        }
+        $compilerPath = (Resolve-Path -LiteralPath $compilerPath).Path
+        $compilerInfo = Get-Item -LiteralPath $compilerPath
+        $script:VerifiedCompilerPath = $compilerPath
+        "CompilerPath=$compilerPath" | Tee-Object -FilePath $script:MainBuildLogFile -Append
+        "CompilerLastWriteTimeUtc=$([DateTime]::SpecifyKind($compilerInfo.LastWriteTimeUtc, [DateTimeKind]::Utc).ToString('o'))" | Tee-Object -FilePath $script:MainBuildLogFile -Append
+
+        Push-Location $helloDir
+        try {
+            'COMMAND_LABEL=hello-cursive' | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            "HelloCursiveCompilerPath=$compilerPath" | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            $previousEap = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            try {
+                $null = & $powershellCmd.Source -NoProfile -ExecutionPolicy Bypass -File (Join-Path $helloDir 'RunHelloCursive.ps1') -CompilerPath $compilerPath 2>&1 |
+                    Tee-Object -FilePath $script:MainBuildLogFile -Append
+                $helloExitCode = $LASTEXITCODE
+            } finally {
+                $ErrorActionPreference = $previousEap
+            }
+            "COMMAND_EXIT=$helloExitCode" | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            if ($helloExitCode -ne 0) {
+                'FAILED_COMMAND_LABEL=hello-cursive' | Tee-Object -FilePath $script:MainBuildLogFile -Append
+                return $false
+            }
+        } finally {
+            Pop-Location
+        }
+
+        return $true
     } finally {
         Pop-Location
     }
@@ -1238,25 +1636,63 @@ function Integrate-VerifiedCommitIntoMainRepo {
     $script:NonSharedPathsFile = New-TempFile 'spec-audit-main-overlay-paths-' '.txt'
     Write-Utf8NoBom $script:NonSharedPathsFile ''
 
+    Update-ClaimLedgerStage 'overlaying' 'applying worker changes to main checkout'
+    $script:OverlayStarted = $true
     if (-not (Apply-NonSharedChangesToMainWorktree)) {
+        Restore-NonSharedChangesInMainWorktree
+        Restore-LauncherBuildSideEffectsInMainWorktree
+        $script:OverlayStarted = $false
         return 1
     }
 
-    if (-not (Run-MainRepoWindowsBuild)) {
+    Update-ClaimLedgerStage 'verifying' 'running launcher-owned Windows build and HelloCursive'
+    try {
+        $verificationOk = Run-MainRepoWindowsBuild
+    } catch {
         Restore-NonSharedChangesInMainWorktree
         Restore-LauncherBuildSideEffectsInMainWorktree
-        [Console]::Error.WriteLine('[spec-audit-loop] main-repo Windows build failed after applying worktree changes; restored main-repo files')
+        $script:OverlayStarted = $false
+        Add-Content -LiteralPath $script:MainBuildLogFile -Value ('FAILED_COMMAND_LABEL=verification-exception')
+        Add-Content -LiteralPath $script:MainBuildLogFile -Value ('COMMAND_EXIT=exception')
+        Add-Content -LiteralPath $script:MainBuildLogFile -Value $_.Exception.Message
+        [Console]::Error.WriteLine('[spec-audit-loop] launcher verification threw after applying worktree changes; restored main-repo files')
+        return 2
+    }
+    if (-not $verificationOk) {
+        Restore-NonSharedChangesInMainWorktree
+        Restore-LauncherBuildSideEffectsInMainWorktree
+        $script:OverlayStarted = $false
+        [Console]::Error.WriteLine('[spec-audit-loop] launcher verification failed after applying worktree changes; restored main-repo files')
         return 2
     }
 
-    Stage-NonSharedChangesInMainRepo
-    Stage-LauncherBuildSideEffectsInMainRepo
-    Stage-SelectedAuditRow
-    Stage-SpecDecisionsAppendIfNeeded
+    Add-Content -LiteralPath $script:CommitMessageFile -Value ''
+    Add-Content -LiteralPath $script:CommitMessageFile -Value ("Tested: cmake --build --preset $($script:WindowsPreset) --target $($script:WindowsTarget)")
+    Add-Content -LiteralPath $script:CommitMessageFile -Value ("Tested: HelloCursive/RunHelloCursive.ps1 -CompilerPath $($script:VerifiedCompilerPath)")
+
+    Update-ClaimLedgerStage 'staging' 'staging verified main-repo changes'
+    try {
+        Stage-NonSharedChangesInMainRepo
+        Stage-LauncherBuildSideEffectsInMainRepo
+        Stage-SelectedAuditRow
+        Stage-SpecDecisionsAppendIfNeeded
+    } catch {
+        Unstage-LauncherIntegrationPaths
+        Restore-NonSharedChangesInMainWorktree
+        Restore-LauncherBuildSideEffectsInMainWorktree
+        $script:OverlayStarted = $false
+        [Console]::Error.WriteLine('[spec-audit-loop] failed to stage verified changes; restored main-repo files')
+        [Console]::Error.WriteLine($_.Exception.Message)
+        return 1
+    }
 
     & $script:GitExe -C $script:RepoRoot diff --cached --quiet
     $diffExit = $LASTEXITCODE
     if ($diffExit -eq 0) {
+        Unstage-LauncherIntegrationPaths
+        Restore-NonSharedChangesInMainWorktree
+        Restore-LauncherBuildSideEffectsInMainWorktree
+        $script:OverlayStarted = $false
         [Console]::Error.WriteLine('[spec-audit-loop] no staged changes were prepared for main-repo commit')
         return 1
     }
@@ -1264,18 +1700,66 @@ function Integrate-VerifiedCommitIntoMainRepo {
         throw 'git diff --cached --quiet failed while preparing main-repo commit'
     }
 
-    $null = Invoke-GitCapture @('-C', $script:RepoRoot, 'commit', '-F', $script:CommitMessageFile)
+    Update-ClaimLedgerStage 'committing' 'creating verified main-repo commit'
+    $commitResult = Invoke-GitCapture @('-C', $script:RepoRoot, 'commit', '-F', $script:CommitMessageFile) -AllowFailure
+    if ($commitResult.ExitCode -ne 0) {
+        Unstage-LauncherIntegrationPaths
+        Restore-NonSharedChangesInMainWorktree
+        Restore-LauncherBuildSideEffectsInMainWorktree
+        $script:OverlayStarted = $false
+        [Console]::Error.WriteLine('[spec-audit-loop] failed to create verified main-repo commit; restored main-repo files')
+        return 1
+    }
+    $script:OverlayStarted = $false
     return 0
 }
 
 function Destroy-CompletedWorktree {
     $null = Invoke-GitCapture @('-C', $script:RepoRoot, 'worktree', 'remove', '--force', $script:WorktreeDir)
     $null = Invoke-GitCapture @('-C', $script:RepoRoot, 'branch', '-D', $script:WorktreeBranch)
+    if (-not [string]::IsNullOrWhiteSpace($script:ClaimLedgerPath) -and (Test-Path -LiteralPath $script:ClaimLedgerPath)) {
+        Remove-Item -LiteralPath $script:ClaimLedgerPath -Force
+    }
+    $script:ClaimLedgerPath = ''
+}
+
+function Cleanup-InterruptedState {
+    if ([string]::IsNullOrWhiteSpace($script:ClaimLedgerPath)) {
+        return
+    }
+    if (-not (Test-Path -LiteralPath $script:ClaimLedgerPath)) {
+        return
+    }
+
+    $rowLine = if ($null -ne $script:SelectedRow -and $script:SelectedRow.PSObject.Properties.Name -contains '_line') {
+        [string]$script:SelectedRow._line
+    } else {
+        ''
+    }
+
+    if ($script:OverlayStarted) {
+        Restore-NonSharedChangesInMainWorktree
+        Restore-LauncherBuildSideEffectsInMainWorktree
+        Update-ClaimLedgerStage 'interrupted_after_overlay' 'main checkout overlay restored after interrupt'
+        [Console]::Error.WriteLine('[spec-audit-loop] restored main-checkout overlay after interrupt')
+    } else {
+        Update-ClaimLedgerStage 'interrupted_before_overlay' 'worktree preserved after interrupt'
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($rowLine)) {
+        [Console]::Error.WriteLine("[spec-audit-loop] claimed row remains in_progress: line $rowLine")
+        [Console]::Error.WriteLine("[spec-audit-loop] recovery command: .\scripts\spec-audit-loop.ps1 --recover-stale-in-progress --row-line $rowLine")
+    }
 }
 
 # MARKER: MAIN
 try {
     Set-Location $script:RepoRoot
+    if ($script:RecoverStaleInProgress) {
+        Recover-StaleInProgressRow
+        exit 0
+    }
+
     $maxIterationsValue = [int]$script:MaxIterations
     $iteration = 1
 
@@ -1290,6 +1774,10 @@ try {
             Write-Log 'no actionable unresolved audit row remains after skipping complete, ambiguous, and in_progress rows'
             exit 0
         }
+        if ($claim.ExitCode -eq 11) {
+            [Console]::Error.WriteLine('[spec-audit-loop] remaining unresolved audit work is already in_progress; use --recover-stale-in-progress --row-line <N> for an abandoned claim')
+            exit 11
+        }
         if ($claim.ExitCode -ne 0) {
             [Console]::Error.WriteLine('[spec-audit-loop] failed to claim the next audit row')
             exit $claim.ExitCode
@@ -1300,15 +1788,18 @@ try {
         $script:SelectedRowRawIndex = [int]$script:SelectedRow._raw_index
         $selectedRowLine = [int]$script:SelectedRow._line
 
-        $stamp = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
-        $nonce = [Guid]::NewGuid().ToString('N').Substring(0, 6)
-        $script:WorktreeBranch = "spec-audit/$stamp-line$selectedRowLine-$nonce"
-        $script:WorktreeDir = Join-Path $script:WorktreeRoot ("spec-audit-$stamp-$selectedRowLine-$nonce")
+        $script:WorktreeBranch = [string]$script:SelectedRow._worktree_branch
+        $script:WorktreeDir = [string]$script:SelectedRow._worktree_dir
+        $script:ClaimLedgerPath = [string]$script:SelectedRow._ledger_path
         New-Item -ItemType Directory -Path $script:WorktreeRoot -Force | Out-Null
 
         $null = Invoke-GitCapture @($script:GitCheckoutHookArgs + @('-C', $script:RepoRoot, 'worktree', 'add', '-b', $script:WorktreeBranch, $script:WorktreeDir, 'HEAD'))
         $script:WorktreeBaseCommit = ((Invoke-GitCapture @('-C', $script:WorktreeDir, 'rev-parse', 'HEAD')).Output | Select-Object -Last 1).Trim()
+        Update-ClaimLedgerStage 'worktree_created' 'created assigned worktree'
         $script:WorktreeSessionId = ''
+        $script:WorktreeCommit = ''
+        $script:VerifiedCompilerPath = ''
+        $script:OverlayStarted = $false
         $lastFailedWorktreeCommit = ''
 
         $script:LastMessageFile = New-TempFile 'spec-audit-last-message-' '.txt'
@@ -1426,11 +1917,13 @@ try {
                     exit 0
                 }
                 'blocked' {
+                    Update-ClaimLedgerStage 'blocked' $note
                     [Console]::Error.WriteLine('[spec-audit-loop] blocked')
                     [Console]::Error.WriteLine("[spec-audit-loop] preserving blocked worktree for inspection: $($script:WorktreeDir)")
                     exit 2
                 }
                 default {
+                    Update-ClaimLedgerStage 'unknown_worker_status' $status
                     [Console]::Error.WriteLine("[spec-audit-loop] unknown SPEC_AUDIT_STATUS value: $status")
                     [Console]::Error.WriteLine("[spec-audit-loop] preserving worktree for inspection: $($script:WorktreeDir)")
                     exit 1
@@ -1444,5 +1937,8 @@ try {
         $iteration += 1
     }
 } finally {
+    if (-not [string]::IsNullOrWhiteSpace($script:ClaimLedgerPath) -and (Test-Path -LiteralPath $script:ClaimLedgerPath)) {
+        Cleanup-InterruptedState
+    }
     Cleanup-TempFiles
 }
