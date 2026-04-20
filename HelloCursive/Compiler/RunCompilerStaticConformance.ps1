@@ -5879,6 +5879,16 @@ public procedure main(move ctx: Context) -> i32 {
 '@
 }
 
+function New-Issue514TupleLiteralTraceSource() {
+    return @'
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let values: (i32, i32) = (1, 2)
+    return values.0 + values.1
+}
+'@
+}
+
 function New-Issue514TupleExprSingletonCommaRejectedSource() {
     return @'
 public procedure main(move ctx: Context) -> i32 {
@@ -15554,6 +15564,47 @@ function Invoke-Issue514TrailingCommaErrConformanceCase {
     Write-Host "[compiler-static] issue514_trailing_comma_err_conformance: exit=$($result.ExitCode) error_codes=$($errorCodes -join ',') comma_span=$commaSpanCount trailing_comma_err=$errRuleCount parse_arg_tail_trailing=$argTailTrailingCount emit_state=$hasLocalEmitState emit_guard=$hasEmitLocalGuard emit_span=$hasEmitCommaSpan"
 }
 
+function Invoke-Issue514TupleLiteralTraceCase {
+    $result = Invoke-CheckWithConformance `
+        -CaseId "issue514_tuple_literal_trace" `
+        -Source (New-Issue514TupleLiteralTraceSource) `
+        -ConformanceFileName "issue514_tuple_literal_trace.log"
+
+    if ($result.ExitCode -ne 0) {
+        throw "Case 'issue514_tuple_literal_trace' expected exit 0 but got $($result.ExitCode)."
+    }
+
+    $errorCount = @($result.DiagJson.diagnostics | Where-Object {
+        $_.severity -eq "error" -or $_.severity -eq "panic"
+    }).Count
+    if ($errorCount -ne 0) {
+        throw "Case 'issue514_tuple_literal_trace' expected zero compile-time errors, observed $errorCount."
+    }
+
+    $logLines = Get-Content -Path $result.ConformancePath
+    $tupleLiteralCount = @($logLines | Where-Object {
+        $_ -like "*`tParse-Tuple-Literal`t*"
+    }).Count
+    $tupleManyCount = @($logLines | Where-Object {
+        $_ -like "*`tParse-TupleExprElems-Many`t*"
+    }).Count
+    $tupleExprCount = @($logLines | Where-Object {
+        $_ -like "*`tParse-Tuple-Expr`t*"
+    }).Count
+
+    if ($tupleLiteralCount -lt 1) {
+        throw "Case 'issue514_tuple_literal_trace' expected tuple literal parsing to emit Parse-Tuple-Literal."
+    }
+    if ($tupleManyCount -lt 1) {
+        throw "Case 'issue514_tuple_literal_trace' expected tuple elements to parse through Parse-TupleExprElems-Many."
+    }
+    if ($tupleExprCount -ne 0) {
+        throw "Case 'issue514_tuple_literal_trace' must not use obsolete Parse-Tuple-Expr for tuple literals."
+    }
+
+    Write-Host "[compiler-static] issue514_tuple_literal_trace: exit=$($result.ExitCode) parse_tuple_literal=$tupleLiteralCount parse_tuple_many=$tupleManyCount obsolete_parse_tuple_expr=$tupleExprCount"
+}
+
 function Invoke-Issue514TupleExprSingletonCommaRejectedCase {
     $result = Invoke-CheckWithConformance `
         -CaseId "issue514_tuple_expr_singleton_comma_rejected" `
@@ -15573,7 +15624,7 @@ function Invoke-Issue514TupleExprSingletonCommaRejectedCase {
 
     $logLines = Get-Content -Path $result.ConformancePath
     $parenExprCount = @($logLines | Where-Object {
-        $_ -like "*`tParse-Paren-Expr`t*"
+        $_ -like "*`tParse-Parenthesized-Expr`t*"
     }).Count
     $tupleExprCount = @($logLines | Where-Object {
         $_ -like "*`tParse-Tuple-Expr`t*"
@@ -15585,7 +15636,7 @@ function Invoke-Issue514TupleExprSingletonCommaRejectedCase {
         $_ -like "*`tParse-TupleExprElems-Single`t*"
     }).Count
     if ($parenExprCount -lt 1) {
-        throw "Case 'issue514_tuple_expr_singleton_comma_rejected' expected Parse-Paren-Expr in conformance trace."
+        throw "Case 'issue514_tuple_expr_singleton_comma_rejected' expected Parse-Parenthesized-Expr in conformance trace."
     }
     if ($tupleExprCount -ne 0 -or $tupleManyCount -ne 0 -or $tupleSingleCount -ne 0) {
         throw "Case 'issue514_tuple_expr_singleton_comma_rejected' must not classify '(e,)' as a tuple expression in conformance trace."
@@ -15613,7 +15664,7 @@ function Invoke-Issue514TupleScanCloseParenDepthOneCase {
 
     $logLines = Get-Content -Path $result.ConformancePath
     $parenExprCount = @($logLines | Where-Object {
-        $_ -like "*`tParse-Paren-Expr`t*"
+        $_ -like "*`tParse-Parenthesized-Expr`t*"
     }).Count
     $tupleExprCount = @($logLines | Where-Object {
         $_ -like "*`tParse-Tuple-Expr`t*"
@@ -15622,7 +15673,7 @@ function Invoke-Issue514TupleScanCloseParenDepthOneCase {
         $_ -like "*`tParse-TupleExprElems-Many`t*"
     }).Count
     if ($parenExprCount -lt 1) {
-        throw "Case 'issue514_tuple_scan_close_paren_depth_one' expected Tok(P)=')' at depth 1 to force Parse-Paren-Expr."
+        throw "Case 'issue514_tuple_scan_close_paren_depth_one' expected Tok(P)=')' at depth 1 to force Parse-Parenthesized-Expr."
     }
     if ($tupleExprCount -ne 0 -or $tupleManyCount -ne 0) {
         throw "Case 'issue514_tuple_scan_close_paren_depth_one' must not continue scanning past a depth-1 ')' and classify the form as a tuple."
@@ -15650,7 +15701,7 @@ function Invoke-Issue514TupleScanSingletonCommaNewlineRejectedCase {
 
     $logLines = Get-Content -Path $result.ConformancePath
     $parenExprCount = @($logLines | Where-Object {
-        $_ -like "*`tParse-Paren-Expr`t*"
+        $_ -like "*`tParse-Parenthesized-Expr`t*"
     }).Count
     $tupleExprCount = @($logLines | Where-Object {
         $_ -like "*`tParse-Tuple-Expr`t*"
@@ -15659,7 +15710,7 @@ function Invoke-Issue514TupleScanSingletonCommaNewlineRejectedCase {
         $_ -like "*`tParse-TupleExprElems-Many`t*"
     }).Count
     if ($parenExprCount -lt 1) {
-        throw "Case 'issue514_tuple_scan_singleton_comma_newline_rejected' expected newline-skipped singleton comma to force Parse-Paren-Expr."
+        throw "Case 'issue514_tuple_scan_singleton_comma_newline_rejected' expected newline-skipped singleton comma to force Parse-Parenthesized-Expr."
     }
     if ($tupleExprCount -ne 0 -or $tupleManyCount -ne 0) {
         throw "Case 'issue514_tuple_scan_singleton_comma_newline_rejected' must not classify a newline-separated singleton comma form as a tuple."
@@ -21737,6 +21788,7 @@ try {
     Invoke-ExpectedFailureCase -Id "issue32_decimal_to_int_rejected" -Source (New-Issue32DecimalToIntRejectedSource)
     Invoke-ExpectedDiagCodeCase -Id "issue32_explicit_float_suffix_mismatch" -Source (New-Issue32ExplicitSuffixMismatchSource) -ExpectedCodes @("E-TYP-1531")
     Invoke-ExpectedSuccessCase -Id "issue32_tuple_access_dot_disambiguation" -Source (New-Issue32TupleAccessDotDisambiguationSource)
+    Invoke-Issue514TupleLiteralTraceCase
     Invoke-Issue514TupleExprSingletonCommaRejectedCase
     Invoke-Issue514TupleScanCloseParenDepthOneCase
     Invoke-Issue514TupleScanSingletonCommaNewlineRejectedCase

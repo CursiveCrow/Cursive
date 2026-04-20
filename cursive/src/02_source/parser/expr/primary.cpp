@@ -93,10 +93,6 @@ ParseElemResult<ExprPtr> ParseExplicitAllocExpr(Parser parser,
                                                 const Identifier& region_name,
                                                 const Parser& start);
 
-// =============================================================================
-// Tuple Scanning - Determine if parenthesized expression is a tuple
-// =============================================================================
-
 namespace {
 
 struct TupleScanResult {
@@ -624,7 +620,7 @@ ParseElemResult<ExprPtr> ParsePrimary(Parser parser, bool allow_brace) {
   if (IsPuncTok(*tok, "(")) {
     // Check if it's a tuple
     if (TupleParen(parser)) {
-      SPEC_RULE("Parse-Tuple-Expr");
+      SPEC_RULE("Parse-Tuple-Literal");
       Parser next = parser;
       Advance(next);
       ParseElemResult<std::vector<ExprPtr>> elems = ParseTupleExprElems(next);
@@ -641,7 +637,7 @@ ParseElemResult<ExprPtr> ParsePrimary(Parser parser, bool allow_brace) {
       return {after, MakeExpr(SpanBetween(parser, after), tuple)};
     }
     // Parenthesized expression
-    SPEC_RULE("Parse-Paren-Expr");
+    SPEC_RULE("Parse-Parenthesized-Expr");
     Parser next = parser;
     Advance(next);
     ParseElemResult<ExprPtr> inner = ParseExpr(next);
