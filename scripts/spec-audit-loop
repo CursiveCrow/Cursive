@@ -12,9 +12,12 @@ worktrees until it reports `SPEC_AUDIT_STATUS: complete` or
 Options:
   --once                 Run a single row-item iteration and stop after the first status
   --max-iterations <N>   Stop after N iterations (0 means unlimited; default 0)
+  --recover-stale-in-progress
+                         Recover exactly one in_progress row when used with --row-line
+  --row-line <N>         CSV logical line to recover with --recover-stale-in-progress
   --model <MODEL>        Override the Codex model (default: $SPEC_AUDIT_MODEL or gpt-5.4)
   --reasoning-effort <LEVEL>
-                         Override Codex reasoning effort (default: $SPEC_AUDIT_REASONING_EFFORT or xhigh)
+                         Override Codex reasoning effort (default: $SPEC_AUDIT_REASONING_EFFORT or high)
   --profile <PROFILE>    Optional Codex profile to pass to each exec call
   -h, --help             Show this help and exit
 
@@ -22,20 +25,25 @@ Environment:
   SPEC_AUDIT_WORKTREE_ROOT   Parent directory for per-row worktrees
   SPEC_AUDIT_WINDOWS_PRESET  Main-repo Windows build preset to verify after integration
   SPEC_AUDIT_WINDOWS_TARGET  Main-repo Windows build target to verify after integration
+  SPEC_AUDIT_COMPILER_PATH   Explicit compiler executable path for non-default presets
 EOF
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-PROMPT_FILE="$SCRIPT_DIR/.codex/commands/spec-audit-loop.md"
+PROMPT_FILE="$REPO_ROOT/.codex/commands/spec-audit-loop.md"
+SCRIPT_LOCAL_PROMPT_FILE="$SCRIPT_DIR/.codex/commands/spec-audit-loop.md"
 AUDIT_CSV="$REPO_ROOT/docs/audit/SPEC_RULE_TABLE_BY_PHASE.csv"
 SPEC_DECISIONS_FILE="$REPO_ROOT/docs/SpecDecisionsNeeded.md"
 WORKTREE_ROOT_DEFAULT="$(cd "$REPO_ROOT/.." && pwd)/.spec-audit-worktrees"
 WORKTREE_ROOT="${SPEC_AUDIT_WORKTREE_ROOT:-$WORKTREE_ROOT_DEFAULT}"
 WINDOWS_PRESET="${SPEC_AUDIT_WINDOWS_PRESET:-${CURSIVE_WINDOWS_PRESET:-windows-debug}}"
 WINDOWS_TARGET="${SPEC_AUDIT_WINDOWS_TARGET:-${CURSIVE_WINDOWS_TARGET:-cursive_out}}"
+COMPILER_PATH_OVERRIDE="${SPEC_AUDIT_COMPILER_PATH:-}"
 
 ONCE=0
+RECOVER_STALE_IN_PROGRESS=0
+RECOVER_ROW_LINE=""
 MAX_ITERATIONS="${SPEC_AUDIT_MAX_ITERATIONS:-0}"
 MODEL="${SPEC_AUDIT_MODEL:-gpt-5.4}"
 REASONING_EFFORT="${SPEC_AUDIT_REASONING_EFFORT:-high}"
@@ -90,6 +98,15 @@ while [[ $# -gt 0 ]]; do
       MAX_ITERATIONS="$2"
       shift 2
       ;;
+    --recover-stale-in-progress)
+      RECOVER_STALE_IN_PROGRESS=1
+      shift
+      ;;
+    --row-line)
+      [[ $# -ge 2 ]] || { printf 'missing value for --row-line\n' >&2; exit 2; }
+      RECOVER_ROW_LINE="$2"
+      shift 2
+      ;;
     --model)
       [[ $# -ge 2 ]] || { printf 'missing value for --model\n' >&2; exit 2; }
       MODEL="$2"
@@ -122,9 +139,24 @@ if [[ ! -f "$PROMPT_FILE" ]]; then
   exit 1
 fi
 
+if [[ -f "$SCRIPT_LOCAL_PROMPT_FILE" ]] && ! cmp -s "$PROMPT_FILE" "$SCRIPT_LOCAL_PROMPT_FILE"; then
+  printf 'script-local prompt differs from authoritative prompt:\n  authoritative: %s\n  script-local:  %s\n' "$PROMPT_FILE" "$SCRIPT_LOCAL_PROMPT_FILE" >&2
+  exit 1
+fi
+
 if [[ ! -f "$AUDIT_CSV" ]]; then
   printf 'missing audit csv: %s\n' "$AUDIT_CSV" >&2
   exit 1
+fi
+
+if (( RECOVER_STALE_IN_PROGRESS == 1 )) && ! [[ "$RECOVER_ROW_LINE" =~ ^[0-9]+$ ]]; then
+  printf '%s\n' '--recover-stale-in-progress requires --row-line <N>' >&2
+  exit 2
+fi
+
+if (( RECOVER_STALE_IN_PROGRESS == 0 )) && [[ -n "$RECOVER_ROW_LINE" ]]; then
+  printf '%s\n' '--row-line is only valid with --recover-stale-in-progress' >&2
+  exit 2
 fi
 
 if ! [[ "$MAX_ITERATIONS" =~ ^[0-9]+$ ]]; then
@@ -159,6 +191,17 @@ cd "$REPO_ROOT"
 
 GIT_COMMON_DIR="$(git -C "$REPO_ROOT" rev-parse --git-common-dir)"
 LOCK_FILE="$GIT_COMMON_DIR/spec-audit-loop.lock"
+CLAIM_LEDGER_DIR="$GIT_COMMON_DIR/spec-audit-loop-claims"
+
+WORKTREE_ID=""
+WORKTREE_BRANCH=""
+WORKTREE_DIR=""
+WORKTREE_BASE_COMMIT=""
+WORKTREE_SESSION_ID=""
+WORKTREE_COMMIT=""
+CLAIM_LEDGER_PATH=""
+VERIFIED_COMPILER_PATH=""
+overlay_started=0
 
 last_message_file=""
 iteration_prompt_file=""
@@ -200,10 +243,12 @@ cleanup_temp_files() {
 trap cleanup_temp_files EXIT
 
 claim_next_row() {
-  python3 - "$AUDIT_CSV" "$LOCK_FILE" <<'PY'
+  python3 - "$AUDIT_CSV" "$LOCK_FILE" "$CLAIM_LEDGER_DIR" "$WORKTREE_ROOT" "$$" <<'PY'
 import csv
+import datetime as dt
 import json
 import os
+import secrets
 import sys
 import tempfile
 import time
@@ -211,6 +256,9 @@ from pathlib import Path
 
 audit_csv = Path(sys.argv[1])
 lock_path = Path(sys.argv[2])
+ledger_dir = Path(sys.argv[3])
+worktree_root = Path(sys.argv[4])
+launcher_pid = sys.argv[5]
 deadline = time.time() + 300
 lock_fd = None
 
@@ -228,6 +276,7 @@ while True:
         time.sleep(0.1)
 
 try:
+    ledger_dir.mkdir(parents=True, exist_ok=True)
     with audit_csv.open(encoding="utf-8", newline="") as fh:
         raw_rows = list(csv.reader(fh))
         if not raw_rows or not raw_rows[0]:
@@ -235,6 +284,7 @@ try:
             sys.exit(2)
 
     selected = None
+    in_progress_rows = []
     logical_line = 2
     for raw_index, raw_row in enumerate(raw_rows[1:], start=1):
         if not raw_row or not any(cell.strip() for cell in raw_row):
@@ -256,6 +306,14 @@ try:
         implemented = row["implemented"].strip()
         current_line = logical_line
         logical_line += 1
+        if implemented == "in_progress":
+            in_progress_rows.append({
+                "line": current_line,
+                "raw_index": raw_index,
+                "rule name": row["rule name"],
+                "spec location": row["spec location"],
+            })
+            continue
         if implemented in {"complete", "ambiguous", "in_progress"}:
             continue
         selected = dict(row)
@@ -263,13 +321,39 @@ try:
         selected["_raw_index"] = raw_index
         selected["_previous_implemented"] = implemented
         selected["implemented"] = "in_progress"
+        stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        nonce = secrets.token_hex(3)
+        worktree_id = f"spec-audit-{stamp}-{current_line}-{nonce}"
+        branch = f"spec-audit/{stamp}-line{current_line}-{nonce}"
+        worktree_dir = worktree_root / worktree_id
+        ledger_path = ledger_dir / f"{worktree_id}.json"
+        selected["_worktree_id"] = worktree_id
+        selected["_worktree_branch"] = branch
+        selected["_worktree_dir"] = str(worktree_dir)
+        selected["_ledger_path"] = str(ledger_path)
         while len(raw_rows[raw_index]) < 2:
             raw_rows[raw_index].append("")
         raw_rows[raw_index][1] = "in_progress"
         break
 
     if selected is None:
+        if in_progress_rows:
+            print("no actionable rows remain outside in_progress claims", file=sys.stderr)
+            for row in in_progress_rows:
+                print(
+                    f"in_progress line {row['line']}: {row['rule name']} @ {row['spec location']}",
+                    file=sys.stderr,
+                )
+            sys.exit(11)
         sys.exit(10)
+
+    if in_progress_rows:
+        print("skipping existing in_progress rows:", file=sys.stderr)
+        for row in in_progress_rows:
+            print(
+                f"  line {row['line']}: {row['rule name']} @ {row['spec location']}",
+                file=sys.stderr,
+            )
 
     fd, tmp_name = tempfile.mkstemp(
         prefix="spec-audit-claim.",
@@ -286,6 +370,23 @@ try:
         if os.path.exists(tmp_name):
             os.unlink(tmp_name)
 
+    ledger = {
+        "row_line": selected["_line"],
+        "raw_index": selected["_raw_index"],
+        "previous_implemented": selected["_previous_implemented"],
+        "rule_name": selected["rule name"],
+        "spec_location": selected["spec location"],
+        "branch": selected["_worktree_branch"],
+        "worktree": selected["_worktree_dir"],
+        "worktree_id": selected["_worktree_id"],
+        "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "launcher_pid": launcher_pid,
+        "stage": "claimed",
+    }
+    ledger_tmp = ledger_path.with_suffix(ledger_path.suffix + ".tmp")
+    ledger_tmp.write_text(json.dumps(ledger, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+    os.replace(ledger_tmp, ledger_path)
+
     print(json.dumps(selected, ensure_ascii=True))
 finally:
     try:
@@ -294,6 +395,189 @@ finally:
         pass
 PY
 }
+
+recover_stale_in_progress_row() {
+  python3 - "$AUDIT_CSV" "$LOCK_FILE" "$CLAIM_LEDGER_DIR" "$RECOVER_ROW_LINE" <<'PY'
+import csv
+import datetime as dt
+import json
+import os
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+audit_csv = Path(sys.argv[1])
+lock_path = Path(sys.argv[2])
+ledger_dir = Path(sys.argv[3])
+target_line = int(sys.argv[4])
+deadline = time.time() + 300
+
+while True:
+    try:
+        lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.write(lock_fd, f"{os.getpid()}\n".encode("ascii"))
+        os.close(lock_fd)
+        break
+    except FileExistsError:
+        if time.time() >= deadline:
+            print(f"timed out waiting for lock: {lock_path}", file=sys.stderr)
+            sys.exit(3)
+        time.sleep(0.1)
+
+try:
+    with audit_csv.open(encoding="utf-8", newline="") as fh:
+        rows = list(csv.reader(fh))
+    if not rows or not rows[0]:
+        print(f"missing CSV header in {audit_csv}", file=sys.stderr)
+        sys.exit(2)
+
+    logical_line = 2
+    target_raw_index = None
+    target_row = None
+    for raw_index, raw_row in enumerate(rows[1:], start=1):
+        if not raw_row or not any(cell.strip() for cell in raw_row):
+            continue
+        current_line = logical_line
+        logical_line += 1
+        if current_line == target_line:
+            target_raw_index = raw_index
+            target_row = list(raw_row)
+            break
+
+    if target_raw_index is None or target_row is None:
+        print(f"row line not found: {target_line}", file=sys.stderr)
+        sys.exit(2)
+    while len(target_row) < 6:
+        target_row.append("")
+    if target_row[1].strip() != "in_progress":
+        print(f"row line {target_line} is not in_progress (current: {target_row[1]!r})", file=sys.stderr)
+        sys.exit(2)
+
+    ledgers = []
+    if ledger_dir.exists():
+        for path in ledger_dir.glob("*.json"):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if int(data.get("row_line", -1)) == target_line:
+                ledgers.append((path, data))
+    ledgers.sort(key=lambda item: item[1].get("created_at", ""))
+    ledger_path = ledgers[-1][0] if ledgers else None
+    ledger = ledgers[-1][1] if ledgers else {}
+    previous = str(ledger.get("previous_implemented", "")).strip()
+    if not previous or previous in {"complete", "ambiguous", "in_progress"}:
+        previous = "incomplete"
+        print(
+            f"previous implemented state unavailable for row line {target_line}; resetting to incomplete",
+            file=sys.stderr,
+        )
+
+    print(f"recovering row line {target_line}: {target_row[2]} @ {target_row[4]}", file=sys.stderr)
+    print(f"implemented: in_progress -> {previous}", file=sys.stderr)
+    target_row[1] = previous
+    rows[target_raw_index] = target_row
+
+    fd, tmp_name = tempfile.mkstemp(
+        prefix="spec-audit-recover.",
+        suffix=".csv",
+        dir=str(audit_csv.parent),
+        text=True,
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as tmp:
+            csv.writer(tmp).writerows(rows)
+        os.replace(tmp_name, audit_csv)
+    finally:
+        if os.path.exists(tmp_name):
+            os.unlink(tmp_name)
+
+    if ledger_path is not None:
+        ledger["stage"] = "recovered"
+        ledger["recovered_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+        ledger["recovered_to"] = previous
+        tmp = ledger_path.with_suffix(ledger_path.suffix + ".tmp")
+        tmp.write_text(json.dumps(ledger, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+        os.replace(tmp, ledger_path)
+finally:
+    try:
+        lock_path.unlink()
+    except FileNotFoundError:
+        pass
+PY
+}
+
+update_claim_ledger_stage() {
+  local stage="$1"
+  local extra="${2:-}"
+  [[ -n "${CLAIM_LEDGER_PATH:-}" ]] || return 0
+  python3 - "$LOCK_FILE" "$CLAIM_LEDGER_PATH" "$stage" "$extra" <<'PY'
+import datetime as dt
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+lock_path = Path(sys.argv[1])
+ledger_path = Path(sys.argv[2])
+stage = sys.argv[3]
+extra = sys.argv[4]
+deadline = time.time() + 300
+
+while True:
+    try:
+        lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.write(lock_fd, f"{os.getpid()}\n".encode("ascii"))
+        os.close(lock_fd)
+        break
+    except FileExistsError:
+        if time.time() >= deadline:
+            sys.exit(3)
+        time.sleep(0.1)
+
+try:
+    try:
+        data = json.loads(ledger_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        data = {}
+    data["stage"] = stage
+    data["updated_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+    if extra:
+        data["note"] = extra
+    if stage.startswith("interrupted"):
+        data["interrupted_at"] = data["updated_at"]
+    tmp = ledger_path.with_suffix(ledger_path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, ledger_path)
+finally:
+    try:
+        lock_path.unlink()
+    except FileNotFoundError:
+        pass
+PY
+}
+
+handle_interrupt() {
+  local row_line="${selected_row_line:-}"
+  printf '\n[spec-audit-loop] interrupted; preserving current worktree for inspection: %s\n' "${WORKTREE_DIR:-none}" >&2
+  if (( overlay_started == 1 )); then
+    restore_nonshared_changes_in_main_worktree || true
+    restore_launcher_build_side_effects_in_main_worktree || true
+    update_claim_ledger_stage "interrupted_after_overlay" "main checkout overlay restored after interrupt" || true
+    printf '[spec-audit-loop] restored main-checkout overlay after interrupt\n' >&2
+  else
+    update_claim_ledger_stage "interrupted_before_overlay" "worktree preserved after interrupt" || true
+  fi
+  if [[ -n "$row_line" ]]; then
+    printf '[spec-audit-loop] claimed row remains in_progress: line %s\n' "$row_line" >&2
+    printf '[spec-audit-loop] recovery command: ./scripts/spec-audit-loop --recover-stale-in-progress --row-line %s\n' "$row_line" >&2
+  fi
+  exit 130
+}
+
+trap handle_interrupt INT TERM
 
 copy_shared_context_to_worktree() {
   local worktree_dir="$1"
@@ -362,7 +646,7 @@ Iteration instruction:
 - Do not run `cmake`, `ctest`, `ninja`, `make`, `gmake`, `msbuild`, `scripts/build_cursive_all.sh`, `RunCompilerStaticConformance.ps1`, `RunHelloCursive*.ps1`, `setup_extern.ps1`, or any equivalent command from the worktree.
 - Do not create or rely on worktree-local `build/`, `extern/`, or other generated validation artifacts.
 - If you invoke Python from a shell command, use `python3`; this environment does not guarantee a `python` alias.
-- Create exactly one verified commit in that worktree for this row, then end.
+- Create exactly one commit for this worker turn in that worktree, then end. The initial turn creates the row commit; each launcher verification retry may create exactly one follow-up commit.
 - Do not start the next row yourself. The launcher will transfer the verified result into the main repo, destroy this worktree, and create a fresh worktree for the next row if needed.
 - If you record an ambiguity in `docs/SpecDecisionsNeeded.md` for this row, end after that update and finish with `SPEC_AUDIT_STATUS: continue` so the launcher can integrate the ambiguity, destroy this worktree, and move on.
 """
@@ -391,12 +675,15 @@ PY
 }
 
 build_failure_retry_prompt() {
+  local current_worktree_head
+  current_worktree_head="$(git -C "$WORKTREE_DIR" rev-parse HEAD)"
   python3 - \
     "$build_failure_prompt_file" \
     "$selected_row_json" \
     "$WORKTREE_DIR" \
     "$WORKTREE_BRANCH" \
-    "$main_build_log_file" <<'PY'
+    "$main_build_log_file" \
+    "$current_worktree_head" <<'PY'
 import json
 import re
 import sys
@@ -407,21 +694,33 @@ row = json.loads(sys.argv[2])
 worktree_dir = sys.argv[3]
 worktree_branch = sys.argv[4]
 build_log_path = Path(sys.argv[5])
+worktree_head = sys.argv[6]
 
 build_log = build_log_path.read_text(encoding="utf-8", errors="replace")
 tail_lines = build_log.splitlines()[-200:]
 tail = "\n".join(tail_lines)
+failed_labels = re.findall(r"(?m)^FAILED_COMMAND_LABEL=(.+)$", build_log)
+command_labels = re.findall(r"(?m)^COMMAND_LABEL=(.+)$", build_log)
+command_exits = re.findall(r"(?m)^COMMAND_EXIT=(.+)$", build_log)
+failed_label = failed_labels[-1] if failed_labels else (command_labels[-1] if command_labels else "unknown")
+exit_code = command_exits[-1] if command_exits else "unknown"
 
 prompt = f"""Launcher-side verification failed for the same assigned audit row.
 
 Stay on this exact row and this exact worktree:
 - Assigned worktree: {worktree_dir}
 - Assigned branch: {worktree_branch}
+- Current worktree head: {worktree_head}
 - CSV line: {row["_line"]}
 - Rule Name: {row["rule name"]}
 - Spec Location: {row["spec location"]}
 
-The launcher already applied your committed worktree changes onto the main repo and then ran the configured Windows verification build there. That verification failed.
+The launcher already applied your committed worktree changes onto the main repo and then ran launcher-owned verification there. Verification failed.
+
+Structured failure context:
+- Failed command label: {failed_label}
+- Exit code: {exit_code}
+- Full launcher verification log: {build_log_path}
 
 Rules for this retry:
 - Do not rescan the CSV.
@@ -429,10 +728,11 @@ Rules for this retry:
 - Do not run any build, configure, test, package, bootstrap, or verification command from the assigned worktree.
 - If you invoke Python from a shell command, use `python3`; this environment does not guarantee a `python` alias.
 - Fix only the issues surfaced by the launcher-side verification failure below.
-- Create a new follow-up commit in the same assigned worktree for the corrective changes, then end.
+- Keep retry edits scoped to the selected row. If the failure is unrelated to the selected row, report `SPEC_AUDIT_STATUS: blocked`.
+- Create exactly one new follow-up commit in the same assigned worktree for this retry turn, then end.
 - End with the same `SPEC_AUDIT_STATUS`, `SPEC_AUDIT_ITEM`, and `SPEC_AUDIT_NOTE` footer lines as usual.
 
-Launcher-side Windows build output tail:
+Launcher-side verification output tail:
 ```text
 {tail}
 ```
@@ -708,6 +1008,33 @@ root_rows = load_rows(root_path)
 worktree_rows = load_rows(worktree_path)
 head_rows = load_rows(head_path)
 
+if len(worktree_rows) != len(head_rows):
+    raise RuntimeError(
+        f"audit CSV row count changed in worktree ({len(worktree_rows)} != {len(head_rows)})"
+    )
+
+def normalized(row):
+    cells = list(row)
+    while len(cells) < 6:
+        cells.append("")
+    cells[5] = ",".join(cells[5:])
+    del cells[6:]
+    return cells
+
+for index, (worktree_row, head_row) in enumerate(zip(worktree_rows, head_rows)):
+    if index == 0:
+        if worktree_row != head_row:
+            raise RuntimeError("audit CSV header changed in worktree")
+        continue
+    if index == target_raw_index:
+        worktree_norm = normalized(worktree_row)
+        head_norm = normalized(head_row)
+        if worktree_norm[:1] + worktree_norm[2:5] != head_norm[:1] + head_norm[2:5]:
+            raise RuntimeError("selected audit row changed fields other than implemented/compiler location")
+        continue
+    if normalized(worktree_row) != normalized(head_row):
+        raise RuntimeError(f"non-selected audit row changed at raw row index {index}")
+
 implemented, compiler_location = extract_state(worktree_rows, target_raw_index)
 if implemented not in {"complete", "ambiguous"}:
     raise RuntimeError(
@@ -968,6 +1295,26 @@ stage_launcher_build_side_effects_in_main_repo() {
   done < <(git -C "$REPO_ROOT" status --porcelain --untracked-files=no)
 }
 
+unstage_launcher_integration_paths() {
+  local relpath
+  local -a paths=(
+    "docs/audit/SPEC_RULE_TABLE_BY_PHASE.csv"
+    "docs/SpecDecisionsNeeded.md"
+    "cursive/src/00_core/generated/static_rule_registry.inc"
+    "cursive/src/00_core/generated/diag_registry.inc"
+    "cursive/src/04_analysis/typing/item/typecheck_diag_map.inc"
+  )
+
+  if [[ -n "$nonshared_paths_file" && -f "$nonshared_paths_file" ]]; then
+    while IFS= read -r relpath; do
+      [[ -z "$relpath" ]] && continue
+      paths+=("$relpath")
+    done < "$nonshared_paths_file"
+  fi
+
+  git -C "$REPO_ROOT" reset -q HEAD -- "${paths[@]}" >/dev/null 2>&1 || true
+}
+
 recover_status_footer_from_worktree() {
   python3 - \
     "$WORKTREE_DIR" \
@@ -1032,18 +1379,68 @@ PY
 run_main_repo_windows_build() {
   local source_dir_windows
   source_dir_windows="$(to_windows_path "$REPO_ROOT/cursive")"
+  local hello_dir_windows
+  hello_dir_windows="$(to_windows_path "$REPO_ROOT/HelloCursive")"
+  local compiler_override_windows="$COMPILER_PATH_OVERRIDE"
+  if [[ -n "$compiler_override_windows" && -e "$compiler_override_windows" ]]; then
+    compiler_override_windows="$(to_windows_path "$compiler_override_windows")"
+  fi
 
   local windows_script
   windows_script="\$ErrorActionPreference = 'Stop'
 \$cmake = Get-Command cmake.exe -ErrorAction SilentlyContinue
 if (-not \$cmake) { \$cmake = Get-Command cmake -ErrorAction SilentlyContinue }
 if (-not \$cmake) { throw 'cmake was not found in the Windows PATH.' }
+\$powershell = Get-Command powershell.exe -ErrorAction SilentlyContinue
+if (-not \$powershell) { \$powershell = Get-Command powershell -ErrorAction SilentlyContinue }
+if (-not \$powershell) { throw 'powershell was not found in the Windows PATH.' }
 Set-Location '$(escape_powershell_literal "$source_dir_windows")'
-& \$cmake.Source --build --preset '$(escape_powershell_literal "$WINDOWS_PRESET")' --target '$(escape_powershell_literal "$WINDOWS_TARGET")'"
+Write-Host 'COMMAND_LABEL=windows-build'
+& \$cmake.Source --build --preset '$(escape_powershell_literal "$WINDOWS_PRESET")' --target '$(escape_powershell_literal "$WINDOWS_TARGET")'
+\$buildExit = \$LASTEXITCODE
+Write-Host \"COMMAND_EXIT=\$buildExit\"
+if (\$buildExit -ne 0) {
+    Write-Host 'FAILED_COMMAND_LABEL=windows-build'
+    exit \$buildExit
+}
+\$compilerOverride = '$(escape_powershell_literal "$compiler_override_windows")'
+if (-not [string]::IsNullOrWhiteSpace(\$compilerOverride)) {
+    \$compilerPath = \$compilerOverride
+} elseif ('$(escape_powershell_literal "$WINDOWS_PRESET")' -eq 'windows-debug' -and '$(escape_powershell_literal "$WINDOWS_TARGET")' -eq 'cursive_out') {
+    \$compilerPath = Join-Path '$(escape_powershell_literal "$source_dir_windows")' 'build\\windows\\out\\cursive.exe'
+} else {
+    throw 'unknown compiler artifact mapping for preset=$(escape_powershell_literal "$WINDOWS_PRESET") target=$(escape_powershell_literal "$WINDOWS_TARGET"); set SPEC_AUDIT_COMPILER_PATH'
+}
+if (-not (Test-Path -LiteralPath \$compilerPath)) {
+    Write-Host 'FAILED_COMMAND_LABEL=resolve-compiler'
+    throw \"Missing expected compiler artifact: \$compilerPath\"
+}
+\$compilerPath = (Resolve-Path -LiteralPath \$compilerPath).Path
+\$compilerInfo = Get-Item -LiteralPath \$compilerPath
+Write-Host \"CompilerPath=\$compilerPath\"
+Write-Host \"CompilerLastWriteTimeUtc=\$([DateTime]::SpecifyKind(\$compilerInfo.LastWriteTimeUtc, [DateTimeKind]::Utc).ToString('o'))\"
+Set-Location '$(escape_powershell_literal "$hello_dir_windows")'
+\$helloScript = Join-Path '$(escape_powershell_literal "$hello_dir_windows")' 'RunHelloCursive.ps1'
+Write-Host \"COMMAND_LABEL=hello-cursive\"
+Write-Host \"HelloCursiveCompilerPath=\$compilerPath\"
+& \$powershell.Source -NoProfile -ExecutionPolicy Bypass -File \$helloScript -CompilerPath \$compilerPath
+\$helloExit = \$LASTEXITCODE
+Write-Host \"COMMAND_EXIT=\$helloExit\"
+if (\$helloExit -ne 0) {
+    Write-Host 'FAILED_COMMAND_LABEL=hello-cursive'
+    exit \$helloExit
+}"
 
-  log "Verifying main-repo Windows build with configured preset: $WINDOWS_PRESET"
+  log "Verifying main-repo Windows build and HelloCursive with configured preset: $WINDOWS_PRESET"
   : > "$main_build_log_file"
-  run_windows_powershell "$windows_script" 2>&1 | tee "$main_build_log_file"
+  if ! run_windows_powershell "$windows_script" 2>&1 | tee "$main_build_log_file"; then
+    return 1
+  fi
+  VERIFIED_COMPILER_PATH="$(grep -E '^CompilerPath=' "$main_build_log_file" | tail -n 1 | sed 's/^CompilerPath=//')"
+  if [[ -z "$VERIFIED_COMPILER_PATH" ]]; then
+    printf '[spec-audit-loop] verification log did not record CompilerPath\n' >&2
+    return 1
+  fi
 }
 
 integrate_verified_commit_into_main_repo() {
@@ -1072,31 +1469,74 @@ integrate_verified_commit_into_main_repo() {
   integration_backup_dir="$(mktemp -d "${TMPDIR:-/tmp}/spec-audit-main-overlay.XXXXXX")"
   nonshared_paths_file="$(mktemp "${TMPDIR:-/tmp}/spec-audit-main-overlay-paths.XXXXXX")"
 
-  apply_nonshared_changes_to_main_worktree
+  update_claim_ledger_stage "overlaying" "applying worker changes to main checkout"
+  overlay_started=1
+  if ! apply_nonshared_changes_to_main_worktree; then
+    restore_nonshared_changes_in_main_worktree
+    restore_launcher_build_side_effects_in_main_worktree
+    overlay_started=0
+    return 1
+  fi
+  update_claim_ledger_stage "verifying" "running launcher-owned Windows build and HelloCursive"
   if ! run_main_repo_windows_build; then
     restore_nonshared_changes_in_main_worktree
     restore_launcher_build_side_effects_in_main_worktree
-    printf '[spec-audit-loop] main-repo Windows build failed after applying worktree changes; restored main-repo files\n' >&2
+    overlay_started=0
+    printf '[spec-audit-loop] launcher verification failed after applying worktree changes; restored main-repo files\n' >&2
     return 2
   fi
 
-  stage_nonshared_changes_in_main_repo
-  stage_launcher_build_side_effects_in_main_repo
-  stage_selected_audit_row
-  stage_spec_decisions_append_if_needed
+  {
+    printf '\nTested: cmake --build --preset %s --target %s\n' "$WINDOWS_PRESET" "$WINDOWS_TARGET"
+    printf 'Tested: HelloCursive/RunHelloCursive.ps1 -CompilerPath %s\n' "$VERIFIED_COMPILER_PATH"
+  } >> "$commit_message_file"
+
+  update_claim_ledger_stage "staging" "staging verified main-repo changes"
+  if ! stage_nonshared_changes_in_main_repo ||
+     ! stage_launcher_build_side_effects_in_main_repo ||
+     ! stage_selected_audit_row ||
+     ! stage_spec_decisions_append_if_needed; then
+    unstage_launcher_integration_paths
+    restore_nonshared_changes_in_main_worktree
+    restore_launcher_build_side_effects_in_main_worktree
+    overlay_started=0
+    printf '[spec-audit-loop] failed to stage verified changes; restored main-repo files\n' >&2
+    return 1
+  fi
 
   if git -C "$REPO_ROOT" diff --cached --quiet; then
+    unstage_launcher_integration_paths
+    restore_nonshared_changes_in_main_worktree
+    restore_launcher_build_side_effects_in_main_worktree
+    overlay_started=0
     printf '[spec-audit-loop] no staged changes were prepared for main-repo commit\n' >&2
     return 1
   fi
 
-  git -C "$REPO_ROOT" commit -F "$commit_message_file"
+  update_claim_ledger_stage "committing" "creating verified main-repo commit"
+  if ! git -C "$REPO_ROOT" commit -F "$commit_message_file"; then
+    unstage_launcher_integration_paths
+    restore_nonshared_changes_in_main_worktree
+    restore_launcher_build_side_effects_in_main_worktree
+    overlay_started=0
+    printf '[spec-audit-loop] failed to create verified main-repo commit; restored main-repo files\n' >&2
+    return 1
+  fi
+  overlay_started=0
 }
 
 destroy_completed_worktree() {
   git -C "$REPO_ROOT" worktree remove --force "$WORKTREE_DIR"
   git -C "$REPO_ROOT" branch -D "$WORKTREE_BRANCH" >/dev/null
+  if [[ -n "${CLAIM_LEDGER_PATH:-}" && -f "$CLAIM_LEDGER_PATH" ]]; then
+    rm -f "$CLAIM_LEDGER_PATH"
+  fi
 }
+
+if (( RECOVER_STALE_IN_PROGRESS == 1 )); then
+  recover_stale_in_progress_row
+  exit 0
+fi
 
 iteration=1
 while :; do
@@ -1113,6 +1553,11 @@ while :; do
   if [[ "$claim_status" == "10" ]]; then
     printf '[spec-audit-loop] no actionable unresolved audit row remains after skipping complete, ambiguous, and in_progress rows\n'
     exit 0
+  fi
+
+  if [[ "$claim_status" == "11" ]]; then
+    printf '[spec-audit-loop] remaining unresolved audit work is already in_progress; use --recover-stale-in-progress --row-line <N> for an abandoned claim\n' >&2
+    exit 11
   fi
 
   if [[ "$claim_status" != "0" ]]; then
@@ -1136,21 +1581,39 @@ row = json.loads(sys.argv[1])
 print(row["_raw_index"])
 PY
   )"
-
-  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-  nonce="$(python3 - <<'PY'
-import secrets
-print(secrets.token_hex(3))
+  WORKTREE_BRANCH="$(
+    python3 - "$selected_row_json" <<'PY'
+import json
+import sys
+row = json.loads(sys.argv[1])
+print(row["_worktree_branch"])
 PY
   )"
-  WORKTREE_ID="spec-audit-${stamp}-${selected_row_line}-${nonce}"
-  WORKTREE_BRANCH="spec-audit/${stamp}-line${selected_row_line}-${nonce}"
-  WORKTREE_DIR="$WORKTREE_ROOT/$WORKTREE_ID"
+  WORKTREE_DIR="$(
+    python3 - "$selected_row_json" <<'PY'
+import json
+import sys
+row = json.loads(sys.argv[1])
+print(row["_worktree_dir"])
+PY
+  )"
+  CLAIM_LEDGER_PATH="$(
+    python3 - "$selected_row_json" <<'PY'
+import json
+import sys
+row = json.loads(sys.argv[1])
+print(row["_ledger_path"])
+PY
+  )"
 
   mkdir -p "$WORKTREE_ROOT"
   git "${GIT_CHECKOUT_HOOK_ARGS[@]}" -C "$REPO_ROOT" worktree add -b "$WORKTREE_BRANCH" "$WORKTREE_DIR" HEAD >/dev/null
   WORKTREE_BASE_COMMIT="$(git -C "$WORKTREE_DIR" rev-parse HEAD)"
+  update_claim_ledger_stage "worktree_created" "created assigned worktree"
   WORKTREE_SESSION_ID=""
+  WORKTREE_COMMIT=""
+  VERIFIED_COMPILER_PATH=""
+  overlay_started=0
   LAST_FAILED_WORKTREE_COMMIT=""
 
   last_message_file="$(mktemp "${TMPDIR:-/tmp}/spec-audit-last-message.XXXXXX")"
@@ -1259,11 +1722,13 @@ PY
         break
         ;;
       blocked)
+        update_claim_ledger_stage "blocked" "$note" || true
         printf '[spec-audit-loop] blocked\n' >&2
         printf '[spec-audit-loop] preserving blocked worktree for inspection: %s\n' "$WORKTREE_DIR" >&2
         exit 2
         ;;
       *)
+        update_claim_ledger_stage "unknown_worker_status" "$status" || true
         printf '[spec-audit-loop] unknown SPEC_AUDIT_STATUS value: %s\n' "$status" >&2
         printf '[spec-audit-loop] preserving worktree for inspection: %s\n' "$WORKTREE_DIR" >&2
         exit 1
@@ -1285,5 +1750,8 @@ PY
   agent_events_file=""
   build_failure_prompt_file=""
   main_build_log_file=""
+  CLAIM_LEDGER_PATH=""
+  VERIFIED_COMPILER_PATH=""
+  overlay_started=0
   iteration=$((iteration + 1))
 done
