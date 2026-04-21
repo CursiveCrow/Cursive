@@ -867,9 +867,51 @@ void LowerCtx::RegisterRequiredVTable(const std::string& sym,
   if (sym.empty() || !type || class_path.empty()) {
     return;
   }
+
+  analysis::TypePath resolved_class_path = class_path;
+  if (sigma != nullptr) {
+    auto exists_in_sigma = [&](const analysis::TypePath& path) -> bool {
+      analysis::PathKey key(path.begin(), path.end());
+      return sigma->classes.find(key) != sigma->classes.end();
+    };
+
+    if (!exists_in_sigma(resolved_class_path)) {
+      analysis::TypePath module_qualified = module_path;
+      module_qualified.insert(
+          module_qualified.end(), class_path.begin(), class_path.end());
+      if (exists_in_sigma(module_qualified)) {
+        resolved_class_path = std::move(module_qualified);
+      } else {
+        analysis::TypePath unique_match;
+        bool ambiguous_match = false;
+        for (const auto& [candidate_key, _decl] : sigma->classes) {
+          if (candidate_key.size() < class_path.size()) {
+            continue;
+          }
+          const auto suffix_begin =
+              candidate_key.end() - static_cast<std::ptrdiff_t>(class_path.size());
+          if (!std::equal(class_path.begin(),
+                          class_path.end(),
+                          suffix_begin,
+                          candidate_key.end())) {
+            continue;
+          }
+          if (!unique_match.empty()) {
+            ambiguous_match = true;
+            break;
+          }
+          unique_match.assign(candidate_key.begin(), candidate_key.end());
+        }
+        if (!ambiguous_match && !unique_match.empty()) {
+          resolved_class_path = std::move(unique_match);
+        }
+      }
+    }
+  }
+
   RequiredVTableInfo info;
   info.type = type;
-  info.class_path = class_path;
+  info.class_path = std::move(resolved_class_path);
   required_vtables[sym] = std::move(info);
 }
 

@@ -501,9 +501,11 @@ ProcIR LowerProcLike(const std::string& symbol,
   }
 
   for (const auto& param : params) {
-    ir.params.push_back(param);
+    IRParam lowered_param = param;
     const bool has_resp = param.mode.has_value();
     ctx.RegisterVar(param.name, param.type, has_resp, false);
+    lowered_param.stable_name = ctx.StableBindingName(param.name);
+    ir.params.push_back(std::move(lowered_param));
   }
 
   ir.ret = ret_type ? ret_type : analysis::MakeTypePrim("()");

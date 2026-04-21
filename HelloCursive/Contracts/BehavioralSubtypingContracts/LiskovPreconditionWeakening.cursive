@@ -22,7 +22,7 @@ public procedure RunLiskovPreconditionWeakening(ctx: Context) -> i32 {
     let _ = ctx
     [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
 
-    let model: LiskovPreconditionModel = LiskovPreconditionModel { }
+    let model: LiskovPreconditionModel = LiskovPreconditionModel()
     let observed_value_strict: i32 = model~>Evaluate(9)
     let observed_value_weak: i32 = model~>Evaluate(0)
     let observed_value_strict_log: i32 =

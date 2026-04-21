@@ -1,0 +1,15 @@
+record Alpha {
+    value: i32
+}
+
+record Beta {
+    value: i32
+}
+
+using probe::{Alpha as AliasAlpha}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let item: AliasAlpha = AliasAlpha { value: 7 }
+    return item.value
+}

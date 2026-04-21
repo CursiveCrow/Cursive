@@ -1,5 +1,5 @@
 procedure CountExclusiveRange() -> i32 {
-    let exclusive_values: [usize; 3] = [0usize, 1usize, 2usize]
+    let exclusive_values: Range<usize> = 0usize..3usize
     var count: i32 = 0
     loop _ in exclusive_values {
         count = count + 1
@@ -8,7 +8,7 @@ procedure CountExclusiveRange() -> i32 {
 }
 
 procedure CountInclusiveRange() -> i32 {
-    let inclusive_values: [usize; 4] = [0usize, 1usize, 2usize, 3usize]
+    let inclusive_values: RangeInclusive<usize> = 0usize..=3usize
     var count: i32 = 0
     loop _ in inclusive_values {
         count = count + 1

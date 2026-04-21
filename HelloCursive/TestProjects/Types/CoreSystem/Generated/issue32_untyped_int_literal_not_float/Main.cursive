@@ -1,0 +1,10 @@
+procedure takes_i32(value: i32) -> i32 {
+    return value
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let inferred = 7
+    let checked: i32 = takes_i32(inferred)
+    return checked
+}

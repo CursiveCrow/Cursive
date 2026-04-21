@@ -1,0 +1,9 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let view: bytes@View = bytes::view_string("abc")
+    let len: usize = bytes::length(view)
+    let empty: bool = bytes::is_empty(view)
+    let _ = len
+    let _ = empty
+    return 0
+}

@@ -302,6 +302,7 @@ LowerResult LowerMethodCall(const ast::MethodCallExpr& expr, LowerCtx& ctx) {
                         false,
                         analysis::ProvenanceKind::Stack,
                         std::nullopt);
+        bind_recv.stable_name = ctx.StableBindingName(recv_temp_name);
 
         ast::Expr recv_ident;
         recv_ident.span = expr.receiver ? expr.receiver->span : core::Span{};

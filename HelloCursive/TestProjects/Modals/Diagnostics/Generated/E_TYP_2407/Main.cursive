@@ -1,0 +1,18 @@
+public class A {
+    @S {
+        id: i32
+    }
+}
+public class B {
+    @S {
+        id: bool
+    }
+}
+modal M <: A, B {
+    @S {
+        id: i32
+    }
+}
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

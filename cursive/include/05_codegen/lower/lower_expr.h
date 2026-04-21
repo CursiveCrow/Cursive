@@ -194,6 +194,8 @@ struct DerivedValueInfo {
   std::vector<std::string> static_path;
   std::string name;
   std::string vtable_sym;
+  analysis::TypeRef dyn_impl_type;
+  analysis::TypePath dyn_class_path;
   IRValue repeat_value;
   IRValue repeat_count;
 };

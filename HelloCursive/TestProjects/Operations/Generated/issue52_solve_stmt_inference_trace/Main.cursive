@@ -1,0 +1,21 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let inferred = 1
+    var running = inferred + 2
+
+    var seed: i32 = 3
+    {
+        using seed as seed_alias
+        let seed_plus = seed_alias + running
+        let _ = seed_plus
+    }
+
+    var counter: i32 = running
+    {
+        using counter as counter_alias
+        counter = counter + 1
+        let _ = counter_alias
+    }
+
+    return running
+}

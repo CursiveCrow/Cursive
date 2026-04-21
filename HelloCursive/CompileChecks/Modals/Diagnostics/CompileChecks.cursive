@@ -1,0 +1,7 @@
+import testsupport
+
+public procedure runCompileChecks(ctx: Context) -> i32 {
+    let command: string@View =
+        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Modals\\Diagnostics\\ModalNoStates\\Main.cursive > build\\main\\logs\\compile_checks\\modals_diagnostics_modal_no_states.json 2> build\\main\\logs\\compile_checks\\modals_diagnostics_modal_no_states.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-TYP-2050\\\"\" build\\main\\logs\\compile_checks\\modals_diagnostics_modal_no_states.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "modals/diagnostics/modal_no_states")
+}

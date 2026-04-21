@@ -1197,13 +1197,6 @@ LowerResult LowerCallExpr(const ast::CallExpr& expr, LowerCtx& ctx) {
     return LowerResult{ir, record_value};
   }
 
-  if (ctx.expr_type) {
-    const auto callee_type = ctx.expr_type(*expr.callee);
-    if (IsClosureType(callee_type)) {
-      return LowerClosureCall(*expr.callee, expr.args, ctx);
-    }
-  }
-
   const bool debug_call = core::IsDebugEnabled("codegen");
   auto log_call_stage = [&](std::string_view stage) {
     if (!debug_call) {
@@ -1371,21 +1364,37 @@ LowerResult LowerCallExpr(const ast::CallExpr& expr, LowerCtx& ctx) {
   // Extract parameter modes from the callee type if available
   ParamModeList param_modes;
   ParamTypeList param_types;
+  analysis::TypeRef callee_type = nullptr;
   if (ctx.expr_type) {
-    auto callee_type = ctx.expr_type(*expr.callee);
-    if (callee_type) {
-      auto stripped = analysis::StripPerm(callee_type);
-      if (stripped) {
-        if (const auto* func = std::get_if<analysis::TypeFunc>(&stripped->node)) {
-          param_modes.reserve(func->params.size());
-          param_types.reserve(func->params.size());
-          for (const auto& param : func->params) {
-            param_modes.push_back(param.mode);
-            param_types.push_back(param.type);
-          }
-          if (!result_type) {
-            result_type = func->ret;
-          }
+    callee_type = ctx.expr_type(*expr.callee);
+  }
+  if (!callee_type) {
+    callee_type = ctx.LookupValueType(callee_result.value);
+  }
+  if (callee_type) {
+    auto stripped = analysis::StripPerm(callee_type);
+    if (stripped) {
+      if (const auto* func = std::get_if<analysis::TypeFunc>(&stripped->node)) {
+        param_modes.reserve(func->params.size());
+        param_types.reserve(func->params.size());
+        for (const auto& param : func->params) {
+          param_modes.push_back(param.mode);
+          param_types.push_back(param.type);
+        }
+        if (!result_type) {
+          result_type = func->ret;
+        }
+      } else if (const auto* closure = std::get_if<analysis::TypeClosure>(&stripped->node)) {
+        param_modes.reserve(closure->params.size());
+        param_types.reserve(closure->params.size());
+        for (const auto& param : closure->params) {
+          param_modes.push_back(
+              param.first ? std::optional<analysis::ParamMode>(analysis::ParamMode::Move)
+                          : std::nullopt);
+          param_types.push_back(param.second);
+        }
+        if (!result_type) {
+          result_type = closure->ret;
         }
       }
     }

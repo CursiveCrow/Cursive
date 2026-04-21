@@ -1,0 +1,9 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let raw_value: u8 = 1u8
+    let converted: bool = unsafe { transmute<u8, bool>(raw_value) }
+    if (converted) {
+        return 1
+    }
+    return 0
+}

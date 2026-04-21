@@ -233,6 +233,76 @@ bool CopyBundledRuntimeSidecars(const std::filesystem::path& bin_dir,
   return true;
 }
 
+std::vector<std::filesystem::path> ImportedSharedLibraryArtifacts(
+    const std::vector<std::filesystem::path>& inputs,
+    TargetProfile target_profile) {
+  const std::filesystem::path shared_suffix(SharedLibSuffix(target_profile));
+  if (shared_suffix.empty()) {
+    return {};
+  }
+
+  std::vector<std::filesystem::path> artifacts;
+  artifacts.reserve(inputs.size());
+  std::unordered_set<std::string> seen;
+  seen.reserve(inputs.size());
+
+  for (const auto& input : inputs) {
+    if (input.extension() != shared_suffix) {
+      continue;
+    }
+    const std::string normalized = core::Normalize(input.generic_string());
+    if (!seen.insert(normalized).second) {
+      continue;
+    }
+    artifacts.push_back(input);
+  }
+
+  return artifacts;
+}
+
+bool CopyImportedSharedLibraryArtifacts(
+    const std::filesystem::path& bin_dir,
+    const std::vector<std::filesystem::path>& inputs,
+    TargetProfile target_profile,
+    core::DiagnosticStream& diags) {
+  const auto artifacts =
+      ImportedSharedLibraryArtifacts(inputs, target_profile);
+  if (artifacts.empty()) {
+    return true;
+  }
+
+  std::error_code ec;
+  std::filesystem::create_directories(bin_dir, ec);
+  if (ec) {
+    EmitInternalDiagnostic(diags,
+                           "Failed to create artifact bin directory `" +
+                               bin_dir.generic_string() + "`");
+    return false;
+  }
+
+  for (const auto& source : artifacts) {
+    const std::filesystem::path destination = bin_dir / source.filename();
+    if (core::Normalize(source.generic_string()) ==
+        core::Normalize(destination.generic_string())) {
+      continue;
+    }
+
+    ec.clear();
+    std::filesystem::copy_file(source, destination,
+                               std::filesystem::copy_options::overwrite_existing,
+                               ec);
+    if (ec) {
+      EmitInternalDiagnostic(diags,
+                             "Failed to stage imported shared library `" +
+                                 source.generic_string() + "` into `" +
+                                 destination.generic_string() + "`");
+      return false;
+    }
+  }
+
+  return true;
+}
+
 void EmitUnsupportedArtifactDiagnostic(
     core::DiagnosticStream& diags,
     const Project& project,
@@ -1953,6 +2023,16 @@ OutputPipelineResult OutputPipelineSingleAssembly(
                                       result.diags)) {
         if (show_build_progress) {
           LogBuildProgress("finalize-error mode=stage-runtime-sidecars");
+        }
+        SPEC_RULE("Output-Pipeline-Err");
+        return result;
+      }
+      if (!CopyImportedSharedLibraryArtifacts(project.outputs.bin_dir,
+                                             extra_link_inputs,
+                                             target_profile,
+                                             result.diags)) {
+        if (show_build_progress) {
+          LogBuildProgress("finalize-error mode=stage-shared-library-sidecars");
         }
         SPEC_RULE("Output-Pipeline-Err");
         return result;

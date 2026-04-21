@@ -1,0 +1,7 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    var value: unique i32 = 7
+    let observed: i32 = move value
+    let checked: i32 = [[log(label: "issue513-log-moved", expected: value)]] observed
+    return checked
+}

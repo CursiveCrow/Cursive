@@ -1,12 +1,14 @@
 [toolchain]
 target_profile = "x86_64-win64"
 
+
 [[assembly]]
 name = "main"
 kind = "executable"
-root = "."
+root = "./Main"
 out_dir = "build/main"
 emit_ir = "ll"
+
 
 [[assembly]]
 name = "compiler"
@@ -14,11 +16,13 @@ kind = "dependency"
 root = "./Compiler"
 out_dir = "build/compiler"
 
+
 [[assembly]]
 name = "types"
 kind = "dependency"
 root = "./Types"
 out_dir = "build/types"
+
 
 [[assembly]]
 name = "operations"
@@ -26,11 +30,13 @@ kind = "dependency"
 root = "./Operations"
 out_dir = "build/operations"
 
+
 [[assembly]]
 name = "memory"
 kind = "dependency"
 root = "./Memory"
 out_dir = "build/memory"
+
 
 [[assembly]]
 name = "permissions"
@@ -38,11 +44,13 @@ kind = "dependency"
 root = "./Permissions"
 out_dir = "build/permissions"
 
+
 [[assembly]]
 name = "pointers"
 kind = "dependency"
 root = "./Pointers"
 out_dir = "build/pointers"
+
 
 [[assembly]]
 name = "modals"
@@ -50,11 +58,13 @@ kind = "dependency"
 root = "./Modals"
 out_dir = "build/modals"
 
+
 [[assembly]]
 name = "contracts"
 kind = "dependency"
 root = "./Contracts"
 out_dir = "build/contracts"
+
 
 [[assembly]]
 name = "attributes"
@@ -62,11 +72,13 @@ kind = "dependency"
 root = "./Attributes"
 out_dir = "build/attributes"
 
+
 [[assembly]]
 name = "concurrency"
 kind = "dependency"
 root = "./Concurrency"
 out_dir = "build/concurrency"
+
 
 [[assembly]]
 name = "ffi"
@@ -74,11 +86,13 @@ kind = "dependency"
 root = "./FFI"
 out_dir = "build/ffi"
 
+
 [[assembly]]
 name = "linkedshareddep"
 kind = "dependency"
 root = "./LinkedSharedDep"
 out_dir = "build/linkedshareddep"
+
 
 [[assembly]]
 name = "linkedshared"
@@ -86,11 +100,13 @@ kind = "library"
 root = "./LinkedShared"
 out_dir = "build/linkedshared"
 
+
 [[assembly]]
 name = "linkedstaticdep"
 kind = "dependency"
 root = "./LinkedStaticDep"
 out_dir = "build/linkedstaticdep"
+
 
 [[assembly]]
 name = "linkedstatic"
@@ -99,17 +115,27 @@ link_kind = "static"
 root = "./LinkedStatic"
 out_dir = "build/linkedstatic"
 
+
 [[assembly]]
 name = "hostedshareddep"
 kind = "dependency"
 root = "./HostedSharedDep"
 out_dir = "build/hostedshareddep"
 
+
 [[assembly]]
 name = "hostedshared"
 kind = "library"
 root = "./HostedShared"
 out_dir = "build/hostedshared"
+
+
+[[assembly]]
+name = "hostedsharedalt"
+kind = "library"
+root = "./HostedSharedAlt"
+out_dir = "build/hostedsharedalt"
+
 
 [[assembly]]
 name = "rawshared"

@@ -1,0 +1,14 @@
+modal M {
+    @S {
+        transition go() -> @T {
+            return M@T { }
+        }
+    }
+    @T {
+    }
+}
+public procedure main(move ctx: Context) -> i32 {
+    let m: M@T = M@T { }
+    let _ = m~>go()
+    return 0
+}

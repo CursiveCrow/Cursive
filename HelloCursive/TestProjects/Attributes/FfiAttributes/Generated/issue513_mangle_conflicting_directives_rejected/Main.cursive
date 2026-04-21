@@ -1,0 +1,9 @@
+[[mangle(none), mangle("conflicting_symbol"), export("C")]]
+public procedure conflicting_mangle() -> i32 {
+    return 0
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

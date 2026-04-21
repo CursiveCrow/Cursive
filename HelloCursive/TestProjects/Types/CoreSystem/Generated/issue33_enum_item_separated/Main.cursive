@@ -1,0 +1,15 @@
+public enum EnumItemSeparated {
+    A
+    B(i32, i32)
+    C { value: i32 }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let value: EnumItemSeparated = EnumItemSeparated::C { value: 7 }
+    return if value is {
+        EnumItemSeparated::A { 0 }
+        EnumItemSeparated::B(left, right) { left + right }
+        EnumItemSeparated::C { value: observed } { observed }
+    }
+}

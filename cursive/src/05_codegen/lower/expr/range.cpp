@@ -145,6 +145,11 @@ LowerResult LowerRange(const ast::Expr& expr,
     info.kind = DerivedValueInfo::Kind::RangeLit;
     info.range = ToIRRange(range_result.value);
     ctx.RegisterDerivedValue(range_value, info);
+    if (ctx.expr_type) {
+        if (analysis::TypeRef range_type = ctx.expr_type(expr)) {
+            ctx.RegisterValueType(range_value, range_type);
+        }
+    }
 
     return LowerResult{range_result.ir, range_value};
 }

@@ -96,8 +96,22 @@ analysis::TypeRef ResolveAliasTypeForPattern(const analysis::TypeRef& type,
 }
 
 bool TypeEquivForUnionMatch(analysis::TypeRef lhs, analysis::TypeRef rhs) {
-  lhs = analysis::StripPerm(lhs);
-  rhs = analysis::StripPerm(rhs);
+  auto strip_perm_refine = [](analysis::TypeRef type) -> analysis::TypeRef {
+    while (type) {
+      if (const auto* perm = std::get_if<analysis::TypePerm>(&type->node)) {
+        type = perm->base;
+        continue;
+      }
+      if (const auto* refine = std::get_if<analysis::TypeRefine>(&type->node)) {
+        type = refine->base;
+        continue;
+      }
+      break;
+    }
+    return type;
+  };
+  lhs = strip_perm_refine(lhs);
+  rhs = strip_perm_refine(rhs);
   const auto equiv = analysis::TypeEquiv(lhs, rhs);
   return equiv.ok && equiv.equiv;
 }

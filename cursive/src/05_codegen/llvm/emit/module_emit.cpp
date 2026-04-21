@@ -192,11 +192,12 @@ using namespace emit_detail;
       hosted_layout_.size = AlignUpU64(hosted_layout_.size, hosted_layout_.align);
     }
 
-    // Every non-hosted module must own a concrete poison flag definition so
-    // cross-module poison checks inside the same final artifact can resolve to
-    // the defining module's object, even when that module never references its
-    // own poison flag directly.
-    if (!ctx.hosted_library)
+    // Every linked image must own concrete poison flag definitions so
+    // cross-module poison checks can resolve to the image-owned state. Hosted
+    // shared libraries still use session-local poison slots while a host
+    // session is active, but ordinary linked calls outside that dynamic extent
+    // use the image-owned symbols.
+    if (!ctx.hosted_library || ctx.shared_library_project)
     {
       (void)GetOrCreatePoisonFlag(*this, ctx.module_path);
     }
@@ -355,6 +356,47 @@ using namespace emit_detail;
       const auto now = Clock::now();
       declare_functions_ms = ElapsedMs(phase_start, now);
       phase_start = now;
+    }
+
+    // Dynamic object materialization needs vtable globals to exist before proc
+    // bodies are emitted, even though the actual initializers are filled later
+    // when GlobalVTable decls are visited in pass 2.
+    llvm::Type *usize_ty = llvm::Type::getInt64Ty(context_);
+    llvm::Type *ptr_ty = GetOpaquePtr();
+    for (const auto &decl : expanded_decls)
+    {
+      const auto *vtable = std::get_if<GlobalVTable>(&decl);
+      if (!vtable)
+      {
+        continue;
+      }
+
+      llvm::GlobalVariable *existing = module_->getNamedGlobal(vtable->symbol);
+      if (existing)
+      {
+        globals_[vtable->symbol] = existing;
+        continue;
+      }
+
+      std::vector<llvm::Type *> field_tys;
+      field_tys.reserve(3 + vtable->slots.size());
+      field_tys.push_back(usize_ty);
+      field_tys.push_back(usize_ty);
+      field_tys.push_back(ptr_ty);
+      for (std::size_t i = 0; i < vtable->slots.size(); ++i)
+      {
+        field_tys.push_back(ptr_ty);
+      }
+
+      llvm::StructType *vtable_ty = llvm::StructType::get(context_, field_tys);
+      auto *placeholder = new llvm::GlobalVariable(
+          *module_,
+          vtable_ty,
+          false,
+          llvm::GlobalValue::InternalLinkage,
+          llvm::Constant::getNullValue(vtable_ty),
+          vtable->symbol);
+      globals_[vtable->symbol] = placeholder;
     }
 
     // Pass 2: emit definitions

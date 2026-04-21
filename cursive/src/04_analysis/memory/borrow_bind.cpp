@@ -85,6 +85,7 @@
 #include "04_analysis/typing/type_infer.h"
 #include "04_analysis/typing/if_case_check.h"
 #include "04_analysis/typing/type_pattern.h"
+#include "04_analysis/typing/type_predicates.h"
 #include "04_analysis/typing/type_stmt.h"
 #include "04_analysis/memory/regions.h"
 #include "04_analysis/typing/types.h"
@@ -1556,6 +1557,9 @@ static void DowngradeUniqueBind_inplace(const ScopeContext& ctx,
   // Permission lattice: unique <: shared <: const
   const auto bind_perm = PermOfType(bind_type);
   if (bind_perm != Permission::Const && bind_perm != Permission::Shared) {
+    return;
+  }
+  if (BitcopyType(ctx, bind_type)) {
     return;
   }
   DowngradeUniquePath_inplace(ctx, env, perms, std::nullopt, init);

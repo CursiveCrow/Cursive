@@ -10,13 +10,13 @@ public procedure RunGpuPointerBoundaryRules(ctx: Context) -> i32 {
     [[log(label: "pointers-log-item_begin")]]
 
     let gpu_domain = ctx~>gpu()
-    let gpu_metric: i128 = parallel gpu_domain { 9 as i128 }
-    let gpu_capture_seed: i128 = 4 as i128
-    let gpu_capture_metric: i128 = parallel gpu_domain {
-        gpu_capture_seed + (3 as i128)
+    let gpu_metric: i64 = parallel gpu_domain { 9 as i64 }
+    let gpu_capture_seed: i64 = 4 as i64
+    let gpu_capture_metric: i64 = parallel gpu_domain {
+        gpu_capture_seed + (3 as i64)
     }
-    let gpu_metric_ok: bool = gpu_metric == (9 as i128)
-    let gpu_capture_ok: bool = gpu_capture_metric == (7 as i128)
+    let gpu_metric_ok: bool = gpu_metric == (9 as i64)
+    let gpu_capture_ok: bool = gpu_capture_metric == (7 as i64)
     let gpu_metric_ok_log: bool =
         [[log(label: "pointers-calls-gpu-runtime-domain", expected: true)]]
         gpu_metric_ok

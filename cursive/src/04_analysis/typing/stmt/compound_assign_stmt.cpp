@@ -130,6 +130,10 @@ namespace
       {
         return true;
       }
+      if (const auto *attr = std::get_if<ast::AttributedExpr>(&node))
+      {
+        return attr->expr && IsPlaceExprNode(attr->expr->node);
+      }
       if (const auto *field = std::get_if<ast::FieldAccessExpr>(&node))
       {
         return field->base && IsPlaceExprNode(field->base->node);
@@ -381,7 +385,7 @@ namespace
         {
           return {false, "E-CON-0005", {}, {}};
         }
-        return {false, "E-CON-0001", {}, {}};
+        return {false, "E-CON-0060", {}, {}};
       }
         shared_write_with_key = true;
       }

@@ -1,0 +1,154 @@
+
+procedure run_issue33_nested_generic_close(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Diagnostics\\Generated\\issue33_nested_generic_close\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_nested_generic_close.json 2> build\\main\\logs\\compile_checks\\issue33_nested_generic_close.stderr & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue33_nested_generic_close")
+}
+
+procedure run_issue33_transmute_angle_syntax(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Diagnostics\\Generated\\issue33_transmute_angle_syntax\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_transmute_angle_syntax.json 2> build\\main\\logs\\compile_checks\\issue33_transmute_angle_syntax.stderr & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue33_transmute_angle_syntax")
+}
+
+procedure run_issue33_transmute_coloncolon_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Diagnostics\\Generated\\issue33_transmute_coloncolon_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_transmute_coloncolon_rejected.json 2> build\\main\\logs\\compile_checks\\issue33_transmute_coloncolon_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue33_transmute_coloncolon_rejected")
+}
+
+procedure run_issue51_using_bare_alias_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Diagnostics\\Generated\\issue51_using_bare_alias_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue51_using_bare_alias_rejected.json 2> build\\main\\logs\\compile_checks\\issue51_using_bare_alias_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SRC-0520\\\"\" build\\main\\logs\\compile_checks\\issue51_using_bare_alias_rejected.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue51_using_bare_alias_rejected")
+}
+
+procedure run_issue51_using_bare_path_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Diagnostics\\Generated\\issue51_using_bare_path_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue51_using_bare_path_rejected.json 2> build\\main\\logs\\compile_checks\\issue51_using_bare_path_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SRC-0520\\\"\" build\\main\\logs\\compile_checks\\issue51_using_bare_path_rejected.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue51_using_bare_path_rejected")
+}
+
+procedure run_issue51_using_list_duplicate_alias(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Diagnostics\\Generated\\issue51_using_list_duplicate_alias\\Main.cursive > build\\main\\logs\\compile_checks\\issue51_using_list_duplicate_alias.json 2> build\\main\\logs\\compile_checks\\issue51_using_list_duplicate_alias.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-MOD-1206\\\"\" build\\main\\logs\\compile_checks\\issue51_using_list_duplicate_alias.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue51_using_list_duplicate_alias")
+}
+
+procedure run_issue51_using_list_duplicate_name(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Diagnostics\\Generated\\issue51_using_list_duplicate_name\\Main.cursive > build\\main\\logs\\compile_checks\\issue51_using_list_duplicate_name.json 2> build\\main\\logs\\compile_checks\\issue51_using_list_duplicate_name.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-MOD-1206\\\"\" build\\main\\logs\\compile_checks\\issue51_using_list_duplicate_name.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue51_using_list_duplicate_name")
+}
+
+procedure run_issue51_using_list_self_alias_collision(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Diagnostics\\Generated\\issue51_using_list_self_alias_collision\\Main.cursive > build\\main\\logs\\compile_checks\\issue51_using_list_self_alias_collision.json 2> build\\main\\logs\\compile_checks\\issue51_using_list_self_alias_collision.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-MOD-1206\\\"\" build\\main\\logs\\compile_checks\\issue51_using_list_self_alias_collision.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue51_using_list_self_alias_collision")
+}
+
+procedure run_issue51_using_self_ordinary_name(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Diagnostics\\Generated\\issue51_using_self_ordinary_name\\Main.cursive > build\\main\\logs\\compile_checks\\issue51_using_self_ordinary_name.json 2> build\\main\\logs\\compile_checks\\issue51_using_self_ordinary_name.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-MOD-1204\\\"\" build\\main\\logs\\compile_checks\\issue51_using_self_ordinary_name.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue51_using_self_ordinary_name")
+}
+
+procedure run_no_ambient_system_ctor_safe(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Diagnostics\\Generated\\no_ambient_system_ctor_safe\\Main.cursive > build\\main\\logs\\compile_checks\\no_ambient_system_ctor_safe.json 2> build\\main\\logs\\compile_checks\\no_ambient_system_ctor_safe.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-CON-0020\\\"\" build\\main\\logs\\compile_checks\\no_ambient_system_ctor_safe.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "no_ambient_system_ctor_safe")
+}
+
+procedure run_issue16_token_spans_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue16_token_spans.log ..\\TestProjects\\Diagnostics\\Generated\\issue16_token_spans_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue16_token_spans_trace.json 2> build\\main\\logs\\compile_checks\\issue16_token_spans_trace.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue16_token_spans_trace")
+}
+
+procedure run_issue16_code_selection_trace_c0(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue16_code_selection_c0.log ..\\TestProjects\\Diagnostics\\Generated\\issue16_code_selection_trace_c0\\Main.cursive > build\\main\\logs\\compile_checks\\issue16_code_selection_trace_c0.json 2> build\\main\\logs\\compile_checks\\issue16_code_selection_trace_c0.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue16_code_selection_trace_c0")
+}
+
+procedure run_issue16_internal_span_retention(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue16_internal_span_retention.log ..\\TestProjects\\Diagnostics\\Generated\\issue16_internal_span_retention\\Main.cursive > build\\main\\logs\\compile_checks\\issue16_internal_span_retention.json 2> build\\main\\logs\\compile_checks\\issue16_internal_span_retention.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue16_internal_span_retention")
+}
+
+procedure run_issue16_order_identity_run1(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue16_order_identity_run1.log ..\\TestProjects\\Diagnostics\\Generated\\issue16_order_identity_run1\\Main.cursive > build\\main\\logs\\compile_checks\\issue16_order_identity_run1.json 2> build\\main\\logs\\compile_checks\\issue16_order_identity_run1.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue16_order_identity_run1")
+}
+
+procedure run_issue617_protected_visibility_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue617_protected_visibility_rejected.log ..\\TestProjects\\Diagnostics\\Generated\\issue617_protected_visibility_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue617_protected_visibility_rejected.json 2> build\\main\\logs\\compile_checks\\issue617_protected_visibility_rejected.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue617_protected_visibility_rejected")
+}
+
+public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
+    let status_run_issue33_nested_generic_close: i32 = run_issue33_nested_generic_close(ctx)
+    if (status_run_issue33_nested_generic_close != 0) {
+        return status_run_issue33_nested_generic_close
+    }
+
+    let status_run_issue33_transmute_angle_syntax: i32 = run_issue33_transmute_angle_syntax(ctx)
+    if (status_run_issue33_transmute_angle_syntax != 0) {
+        return status_run_issue33_transmute_angle_syntax
+    }
+
+    let status_run_issue33_transmute_coloncolon_rejected: i32 = run_issue33_transmute_coloncolon_rejected(ctx)
+    if (status_run_issue33_transmute_coloncolon_rejected != 0) {
+        return status_run_issue33_transmute_coloncolon_rejected
+    }
+
+    let status_run_issue51_using_bare_alias_rejected: i32 = run_issue51_using_bare_alias_rejected(ctx)
+    if (status_run_issue51_using_bare_alias_rejected != 0) {
+        return status_run_issue51_using_bare_alias_rejected
+    }
+
+    let status_run_issue51_using_bare_path_rejected: i32 = run_issue51_using_bare_path_rejected(ctx)
+    if (status_run_issue51_using_bare_path_rejected != 0) {
+        return status_run_issue51_using_bare_path_rejected
+    }
+
+    let status_run_issue51_using_list_duplicate_alias: i32 = run_issue51_using_list_duplicate_alias(ctx)
+    if (status_run_issue51_using_list_duplicate_alias != 0) {
+        return status_run_issue51_using_list_duplicate_alias
+    }
+
+    let status_run_issue51_using_list_duplicate_name: i32 = run_issue51_using_list_duplicate_name(ctx)
+    if (status_run_issue51_using_list_duplicate_name != 0) {
+        return status_run_issue51_using_list_duplicate_name
+    }
+
+    let status_run_issue51_using_list_self_alias_collision: i32 = run_issue51_using_list_self_alias_collision(ctx)
+    if (status_run_issue51_using_list_self_alias_collision != 0) {
+        return status_run_issue51_using_list_self_alias_collision
+    }
+
+    let status_run_issue51_using_self_ordinary_name: i32 = run_issue51_using_self_ordinary_name(ctx)
+    if (status_run_issue51_using_self_ordinary_name != 0) {
+        return status_run_issue51_using_self_ordinary_name
+    }
+
+    let status_run_no_ambient_system_ctor_safe: i32 = run_no_ambient_system_ctor_safe(ctx)
+    if (status_run_no_ambient_system_ctor_safe != 0) {
+        return status_run_no_ambient_system_ctor_safe
+    }
+
+    let status_issue16_token_spans_trace: i32 = run_issue16_token_spans_trace(ctx)
+    if (status_issue16_token_spans_trace != 0) {
+        return status_issue16_token_spans_trace
+    }
+
+    let status_issue16_code_selection_trace_c0: i32 = run_issue16_code_selection_trace_c0(ctx)
+    if (status_issue16_code_selection_trace_c0 != 0) {
+        return status_issue16_code_selection_trace_c0
+    }
+
+    let status_issue16_internal_span_retention: i32 = run_issue16_internal_span_retention(ctx)
+    if (status_issue16_internal_span_retention != 0) {
+        return status_issue16_internal_span_retention
+    }
+
+    let status_issue16_order_identity_run1: i32 = run_issue16_order_identity_run1(ctx)
+    if (status_issue16_order_identity_run1 != 0) {
+        return status_issue16_order_identity_run1
+    }
+
+    let status_issue617_protected_visibility_rejected: i32 = run_issue617_protected_visibility_rejected(ctx)
+    if (status_issue617_protected_visibility_rejected != 0) {
+        return status_issue617_protected_visibility_rejected
+    }
+
+    return 0
+}

@@ -1,0 +1,17 @@
+record FieldAccessProbe {
+    plain: i32
+    readonly: const i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let unique_seed: unique i32 = 7
+    let readonly_seed: const i32 = unique_seed
+    let probe = FieldAccessProbe{ plain: 3, readonly: readonly_seed }
+    let plain_value: i32 = probe.plain
+    let probe_unique: unique FieldAccessProbe =
+        FieldAccessProbe{ plain: 4, readonly: readonly_seed }
+    let readonly_value: const i32 = probe_unique.readonly
+    let _ = readonly_value
+    return plain_value
+}

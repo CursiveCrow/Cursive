@@ -986,9 +986,10 @@ static void CollectWrittenPathsFromStmt(const ast::Stmt& stmt,
                              std::is_same_v<T, ast::BreakStmt>) {
           CollectWrittenPathsFromExpr(node.value_opt, out);
         } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
-          if (node.body) {
-            CollectWrittenPathsFromBlock(*node.body, out);
-          }
+          // Nested key blocks establish their own key mode and release semantics;
+          // the enclosing block must not classify nested writes as writes under
+          // the enclosing mode.
+          return;
         }
       },
       stmt);
@@ -1930,7 +1931,12 @@ StmtTypeResult TypeKeyBlockStmt(const ScopeContext& ctx,
     }
   }
 
-  if (!written_paths.empty() &&
+  const bool writes_explicit_key_path =
+      std::any_of(written_paths.begin(), written_paths.end(),
+                  [&](const KeyPath& path) {
+                    return PathCoveredByExplicitKeys(path, explicit_key_paths);
+                  });
+  if (writes_explicit_key_path &&
       (!node.mode.has_value() || *node.mode != ast::KeyMode::Write)) {
       SPEC_RULE("K-Read-Block-No-Write");
       return {false, "E-CON-0070", {}, {}};

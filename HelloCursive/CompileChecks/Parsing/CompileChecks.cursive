@@ -1,0 +1,7 @@
+import testsupport
+
+public procedure runCompileChecks(ctx: Context) -> i32 {
+    let command: string@View =
+        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Parsing\\ExternTerminatorRequired\\Main.cursive > build\\main\\logs\\compile_checks\\parsing_extern_terminator_required.json 2> build\\main\\logs\\compile_checks\\parsing_extern_terminator_required.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SRC-0510\\\"\" build\\main\\logs\\compile_checks\\parsing_extern_terminator_required.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "parsing/extern_terminator_required")
+}

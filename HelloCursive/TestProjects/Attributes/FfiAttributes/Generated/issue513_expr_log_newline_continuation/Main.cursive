@@ -1,0 +1,6 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let x: i32 = [[log(label: "issue513-expr-newline", expected: 1)]]
+        1
+    return x
+}

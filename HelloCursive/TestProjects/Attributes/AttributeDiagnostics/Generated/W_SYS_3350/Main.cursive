@@ -1,0 +1,8 @@
+[[mangle(none), export("C")]]
+public procedure no_mangle_warn() -> i32 {
+    return 0
+}
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return no_mangle_warn()
+}

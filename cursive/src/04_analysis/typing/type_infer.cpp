@@ -1262,7 +1262,8 @@ static ExprTypeResult InferExprImpl(const ScopeContext& ctx,
     return result;
   }
 
-  if (std::holds_alternative<ast::CallExpr>(expr->node)) {
+  if (std::holds_alternative<ast::CallExpr>(expr->node) ||
+      std::holds_alternative<ast::CallTypeArgsExpr>(expr->node)) {
     // Delegate call typing to expression typing so generic inference
     // and call elaboration rules are applied uniformly in synthesis mode.
     const auto typed_call = type_expr(expr);
@@ -1733,6 +1734,27 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
   if (!inferred.ok) {
     result.diag_id = inferred.diag_id;
     return result;
+  }
+
+  TypeRef expected_for_union = expected;
+  if (const auto normalized_expected = NormalizeAliasType(ctx, expected);
+      normalized_expected.ok && normalized_expected.type) {
+    expected_for_union = normalized_expected.type;
+  }
+  if (const auto* expected_union =
+          std::get_if<TypeUnion>(&StripPerm(expected_for_union)->node)) {
+    for (const auto& member : expected_union->members) {
+      const auto member_sub = Subtyping(ctx, inferred.type, member);
+      if (!member_sub.ok) {
+        result.diag_id = member_sub.diag_id;
+        return result;
+      }
+      if (member_sub.subtype) {
+        SPEC_RULE("Chk-Subsumption");
+        result.ok = true;
+        return result;
+      }
+    }
   }
 
   if (ModalNonNiche(ctx, inferred.type, expected)) {

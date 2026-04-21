@@ -1,0 +1,13 @@
+[[layout(C)]]
+record ContextWrapper {
+    ctx: Context
+}
+
+extern "C" {
+    procedure bad_extern(value: ContextWrapper) -> i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

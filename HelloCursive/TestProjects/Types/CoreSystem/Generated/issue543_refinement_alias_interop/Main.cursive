@@ -1,0 +1,21 @@
+type PositiveI32 = i32 |: { self > 0 }
+type PositiveI32Alias = i32 |: { self > 0 }
+
+type PositiveUnderTenI32 = i32 |: { (self > 0) && (self < 10) }
+
+procedure accept_alias(value: PositiveI32Alias) -> i32 {
+    return value
+}
+
+procedure accept_positive(value: PositiveI32) -> i32 {
+    return value
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let positive: PositiveI32 = 7
+    let bounded: PositiveUnderTenI32 = 7
+    let alias_metric: i32 = accept_alias(positive)
+    let widened_metric: i32 = accept_positive(bounded)
+    return (alias_metric + widened_metric) - 14
+}

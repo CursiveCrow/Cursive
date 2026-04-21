@@ -20,6 +20,7 @@
 #include "05_codegen/lower/lower_expr.h"
 #include "05_codegen/ir/ir_model.h"
 #include "05_codegen/abi/abi.h"
+#include "05_codegen/checks/checks.h"
 #include "05_codegen/layout/layout.h"
 #include "05_codegen/symbols/mangle.h"
 #include "05_codegen/cleanup/cleanup.h"
@@ -696,32 +697,27 @@ LowerResult LowerClosureExpr(
     SPEC_RULE("Lower-Expr-Closure-NonCapturing");
 
     // Generate the closure code procedure.
-    // Even for non-capturing closures we keep the uniform closure ABI:
-    //   (env_ptr, params...) -> ret
-    // with env_ptr = null for non-capturing closures.
+    // Non-capturing closures type as TypeFunc, so the emitted callable must
+    // use the ordinary function ABI with no hidden env parameter.
     ProcIR proc;
     proc.symbol = code_sym;
     proc.ret = ret_type;
 
-    // First parameter is env pointer (unused in non-capturing closures).
-    IRParam env_param;
-    env_param.mode = analysis::ParamMode::Move;
-    env_param.name = std::string(kClosureEnvParamName);
-    env_param.type =
-        analysis::MakeTypeRawPtr(analysis::RawPtrQual::Imm,
-                                 analysis::MakeTypePrim("u8"));
-    proc.params.push_back(std::move(env_param));
-
     // Add parameters from closure signature
+    std::vector<analysis::TypeFuncParam> fn_type_params;
+    fn_type_params.reserve(params.size());
     for (std::size_t param_index = 0; param_index < params.size(); ++param_index) {
       const auto& param = params[param_index];
       IRParam ir_param;
+      analysis::TypeFuncParam fn_param;
       if (param.mode.has_value()) {
         ir_param.mode = analysis::ParamMode::Move;
+        fn_param.mode = analysis::ParamMode::Move;
       } else if (inferred_param_modes &&
                  param_index < inferred_param_modes->size() &&
                  (*inferred_param_modes)[param_index].has_value()) {
         ir_param.mode = (*inferred_param_modes)[param_index];
+        fn_param.mode = (*inferred_param_modes)[param_index];
       }
       ir_param.name = param.name;
       analysis::TypeRef param_type;
@@ -739,7 +735,9 @@ LowerResult LowerClosureExpr(
         param_type = analysis::MakeTypePrim("()");
       }
       ir_param.type = param_type;
+      fn_param.type = param_type;
       proc.params.push_back(ir_param);
+      fn_type_params.push_back(std::move(fn_param));
     }
 
     proc.params.push_back(PanicOutParam());
@@ -759,8 +757,9 @@ LowerResult LowerClosureExpr(
       ctx.proc_ret_type = ret_type;
 
       ctx.PushScope(false, false);
-      for (const auto& param : proc.params) {
+      for (auto& param : proc.params) {
         ctx.RegisterVar(param.name, param.type, true, false);
+        param.stable_name = ctx.StableBindingName(param.name);
       }
 
       LowerResult body_result = LowerBlock(body, ctx);
@@ -805,19 +804,10 @@ LowerResult LowerClosureExpr(
 
     ctx.QueueExtraProc(std::move(proc), LinkageKind::Internal);
 
-    // Return non-capturing closure value
-    ClosureVal closure = MakeNonCapturingClosureVal(code_sym);
-    IRValue result = ctx.FreshTempValue("closure");
-
-    // Register the closure value representation
-    DerivedValueInfo info;
-    info.kind = DerivedValueInfo::Kind::TupleLit;
-    info.elements.push_back(closure.env_ptr);
-    IRValue code_val;
-    code_val.kind = IRValue::Kind::Symbol;
-    code_val.name = code_sym;
-    info.elements.push_back(code_val);
-    ctx.RegisterDerivedValue(result, info);
+    IRValue result;
+    result.kind = IRValue::Kind::Symbol;
+    result.name = code_sym;
+    ctx.RegisterValueType(result, analysis::MakeTypeFunc(std::move(fn_type_params), proc.ret));
 
     return LowerResult{EmptyIR(), result};
   }
@@ -861,6 +851,12 @@ LowerResult LowerClosureExpr(
   alloc_env.value = env_zero;
   alloc_env.result = env_ptr;
   alloc_env.type = env_type;
+  if (!ctx.active_region_aliases.empty()) {
+    IRValue region_local;
+    region_local.kind = IRValue::Kind::Local;
+    region_local.name = ctx.active_region_aliases.back();
+    alloc_env.region = region_local;
+  }
   env_parts.push_back(MakeIR(std::move(alloc_env)));
 
   for (std::size_t i = 0; i < captures.size(); ++i) {
@@ -1003,8 +999,9 @@ LowerResult LowerClosureExpr(
     ctx.proc_ret_type = ret_type;
 
     ctx.PushScope(false, false);
-    for (const auto& param : proc.params) {
+    for (auto& param : proc.params) {
       ctx.RegisterVar(param.name, param.type, true, false);
+      param.stable_name = ctx.StableBindingName(param.name);
     }
     // Closure code signature uses raw `*imm u8` for ABI conformance.
     // Internally, treat the env param as a raw pointer to the synthesized
@@ -1116,6 +1113,17 @@ LowerResult LowerClosureCall(
 
   // Step 2: Extract env_ptr and code_ptr from closure value
   // The closure value is a tuple (env_ptr, code_ptr)
+  analysis::TypeRef closure_result_type = nullptr;
+  if (ctx.expr_type) {
+    if (analysis::TypeRef callee_type = ctx.expr_type(closure_expr)) {
+      if (analysis::TypeRef func_type = GetClosureFuncType(callee_type)) {
+        if (const auto* fn = std::get_if<analysis::TypeFunc>(&func_type->node)) {
+          closure_result_type = fn->ret;
+        }
+      }
+    }
+  }
+
   IRValue env_ptr = ctx.FreshTempValue("closure_env");
   DerivedValueInfo env_info;
   env_info.kind = DerivedValueInfo::Kind::Tuple;
@@ -1150,12 +1158,20 @@ LowerResult LowerClosureCall(
   for (const auto& arg_val : arg_values) {
     call_args.push_back(arg_val);
   }
+  IRValue panic_out;
+  panic_out.kind = IRValue::Kind::Local;
+  panic_out.name = std::string(kPanicOutName);
+  call_args.push_back(panic_out);
 
   // Step 5: Create indirect call
   IRCall call;
   call.callee = code_ptr;
   call.args = call_args;
   call.result = ctx.FreshTempValue("closure_call_result");
+  const IRValue closure_call_result = call.result;
+  if (closure_result_type) {
+    ctx.RegisterValueType(call.result, closure_result_type);
+  }
 
   // Combine all IR parts
   std::vector<IRPtr> parts;
@@ -1166,8 +1182,24 @@ LowerResult LowerClosureCall(
     parts.push_back(std::move(part));
   }
   parts.push_back(MakeIR(std::move(call)));
+  parts.push_back(PanicCheck(ctx));
 
-  return LowerResult{SeqIR(std::move(parts)), call.result};
+  if (closure_result_type) {
+    IRValue closure_call_value;
+    closure_call_value.kind = IRValue::Kind::Local;
+    closure_call_value.name = ctx.FreshTempValue("closure_call_value").name;
+    ctx.RegisterValueType(closure_call_value, closure_result_type);
+
+    IRBindVar bind_result;
+    bind_result.name = closure_call_value.name;
+    bind_result.value = closure_call_result;
+    bind_result.type = closure_result_type;
+    parts.push_back(MakeIR(std::move(bind_result)));
+
+    return LowerResult{SeqIR(std::move(parts)), closure_call_value};
+  }
+
+  return LowerResult{SeqIR(std::move(parts)), closure_call_result};
 }
 
 // =============================================================================

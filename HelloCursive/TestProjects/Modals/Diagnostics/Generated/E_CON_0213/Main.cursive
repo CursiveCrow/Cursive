@@ -1,0 +1,12 @@
+procedure YieldKeyViolation() -> Async<i32, (), (), !> {
+    var gate: i32 = 0
+    # gate write {
+        let _: () = yield 2
+    }
+    return ()
+}
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let _ = YieldKeyViolation()
+    return 0
+}

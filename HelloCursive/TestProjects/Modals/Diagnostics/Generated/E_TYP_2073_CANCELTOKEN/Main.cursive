@@ -1,0 +1,5 @@
+public procedure main(move ctx: Context) -> i32 {
+    let token: CancelToken@Active = CancelToken@Active { }
+    let _ = token
+    return 0
+}

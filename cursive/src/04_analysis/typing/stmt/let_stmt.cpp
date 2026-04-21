@@ -136,6 +136,7 @@ void ApplyBindingMetadata(TypeEnv& env,
                           const std::vector<IdKey>& names,
                           const std::optional<TypeBinding::ClosureCaptureInfo>& closure_info,
                           const std::optional<ProvStmtTrackResult>& provenance,
+                          const std::optional<ParallelContextKind>& parallel_context_kind,
                           bool derived_from_shared,
                           bool stale_ok,
                           bool deprecated,
@@ -154,6 +155,9 @@ void ApplyBindingMetadata(TypeEnv& env,
     it->second.derived_from_shared = derived_from_shared;
     it->second.stale_ok = stale_ok;
     it->second.stale_after_release = false;
+    if (parallel_context_kind.has_value() && names.size() == 1) {
+      it->second.parallel_context_kind = *parallel_context_kind;
+    }
     if (closure_info.has_value() && names.size() == 1) {
       it->second.closure_capture_info = *closure_info;
     }
@@ -162,6 +166,36 @@ void ApplyBindingMetadata(TypeEnv& env,
                                  provenance->region);
     }
   }
+}
+
+std::optional<ParallelContextKind> BindingParallelContextKind(
+    const ast::ExprPtr& expr,
+    const TypeEnv& env) {
+  const ast::Expr* current = expr.get();
+  while (current) {
+    if (const auto* attributed = std::get_if<ast::AttributedExpr>(&current->node)) {
+      current = attributed->expr.get();
+      continue;
+    }
+    if (const auto* method = std::get_if<ast::MethodCallExpr>(&current->node)) {
+      if (method->name == "cpu") {
+        return ParallelContextKind::Cpu;
+      }
+      if (method->name == "gpu") {
+        return ParallelContextKind::Gpu;
+      }
+      if (method->name == "inline") {
+        return ParallelContextKind::Inline;
+      }
+    }
+    if (const auto* ident = std::get_if<ast::IdentifierExpr>(&current->node)) {
+      if (const auto binding = BindOf(env, ident->name)) {
+        return binding->parallel_context_kind;
+      }
+    }
+    return std::nullopt;
+  }
+  return std::nullopt;
 }
 
 }  // namespace
@@ -292,7 +326,10 @@ StmtTypeResult TypeLetStmt(const ScopeContext& ctx,
     }
     const bool derived_from_shared =
         ExprNeedsKeyAccess(ctx, read_ctx, binding.init, env);
+    const auto parallel_context_kind =
+        BindingParallelContextKind(binding.init, env);
     ApplyBindingMetadata(out_env, names, closure_info, binding_provenance,
+                         parallel_context_kind,
                          derived_from_shared, stale_ok,
                          binding_deprecated, deprecated_message);
 
@@ -374,7 +411,10 @@ StmtTypeResult TypeLetStmt(const ScopeContext& ctx,
     }
     const bool derived_from_shared =
         ExprNeedsKeyAccess(ctx, read_ctx, binding.init, env);
+    const auto parallel_context_kind =
+        BindingParallelContextKind(binding.init, env);
     ApplyBindingMetadata(out_env, names, closure_info, binding_provenance,
+                         parallel_context_kind,
                          derived_from_shared, stale_ok,
                          binding_deprecated, deprecated_message);
 

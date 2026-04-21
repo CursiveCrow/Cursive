@@ -897,8 +897,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
     }
     const auto covering_mode = CoveringKeyMode(type_ctx, built.path);
     if (!covering_mode.has_value()) {
-      result.diag_id = "E-CON-0001";
-      return false;
+      return true;
     }
     const ast::KeyMode required =
         receiver_requirement == Permission::Const ? ast::KeyMode::Read

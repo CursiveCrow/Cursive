@@ -1,0 +1,8 @@
+modal M<TArg> {
+    @S {
+    }
+}
+type BadState = M@S
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

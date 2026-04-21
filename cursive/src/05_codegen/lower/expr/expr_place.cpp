@@ -14,6 +14,7 @@
 #include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/globals/globals.h"
 #include "05_codegen/intrinsics/builtins.h"
+#include "05_codegen/lower/expr/identifier.h"
 #include "05_codegen/lower/expr/range.h"
 
 namespace cursive::codegen {
@@ -47,6 +48,10 @@ LowerResult LowerReadPlace(const ast::Expr& place, LowerCtx& ctx) {
         using T = std::decay_t<decltype(node)>;
 
         if constexpr (std::is_same_v<T, ast::IdentifierExpr>) {
+          if (ctx.LookupLocalAddrAlias(node.name)) {
+            return LowerIdentifier(place, node, ctx);
+          }
+
           if (const BindingState* binding = ctx.GetBindingState(node.name)) {
             SPEC_RULE("Lower-ReadPlace-Ident-Local");
             IRReadVar read;
@@ -389,11 +394,135 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
         return nullptr;
       };
 
+  auto lower_static_write = [&](std::vector<std::string> full,
+                                const std::string& resolved_name) -> IRPtr {
+    IRPtr poison_ir = EmptyIR();
+    IRCheckPoison check;
+    check.module = ModulePathString(full);
+    poison_ir = MakeIR(std::move(check));
+
+    IRPtr drop_ir = EmptyIR();
+    if (allow_drop) {
+      if (ctx.sigma) {
+        if (auto bind_info = StaticBindInfo(*ctx.sigma, full, resolved_name)) {
+          if (bind_info->has_responsibility) {
+            analysis::TypeRef static_type;
+            if (ctx.expr_type) {
+              static_type = ctx.expr_type(place);
+            }
+            IRReadPath read;
+            read.path = full;
+            read.name = resolved_name;
+            IRValue current_value;
+            current_value.kind = IRValue::Kind::Symbol;
+            current_value.name = resolved_name;
+            drop_ir = SeqIR({MakeIR(std::move(read)),
+                             EmitDrop(static_type, current_value, ctx)});
+          }
+        }
+      }
+    }
+
+    IRStoreGlobal store;
+    store.symbol =
+        ctx.sigma ? StaticSymPath(*ctx.sigma, full, resolved_name)
+                  : StaticSymPath(full, resolved_name);
+    store.value = value;
+
+    auto is_noop = [](const IRPtr& ir) {
+      return !ir || std::holds_alternative<IROpaque>(ir->node);
+    };
+
+    std::vector<IRPtr> parts;
+    if (!is_noop(poison_ir)) {
+      parts.push_back(poison_ir);
+      parts.push_back(PanicCheck(ctx));
+    }
+    if (!is_noop(drop_ir)) {
+      parts.push_back(drop_ir);
+    }
+    parts.push_back(LowerImplicitKeyAccess(place, ast::KeyMode::Write, ctx));
+    parts.push_back(MakeIR(std::move(store)));
+
+    if (parts.size() == 1) {
+      return parts.front();
+    }
+    return SeqIR(std::move(parts));
+  };
+
   return std::visit(
       [&](const auto& node) -> IRPtr {
         using T = std::decay_t<decltype(node)>;
 
         if constexpr (std::is_same_v<T, ast::IdentifierExpr>) {
+          if (auto alias = ctx.LookupLocalAddrAlias(node.name)) {
+            switch (alias->kind) {
+              case LocalAddrAlias::Kind::Binding: {
+                const BindingState* state =
+                    ctx.GetBindingStateById(alias->binding_name,
+                                            alias->binding_id);
+                if (!state) {
+                  ctx.ReportCodegenFailure();
+                  return EmptyIR();
+                }
+                const std::string store_name =
+                    state->stable_name.empty() ? alias->binding_name
+                                               : state->stable_name;
+                if (allow_drop) {
+                  auto it = ctx.binding_states.find(alias->binding_name);
+                  if (it != ctx.binding_states.end()) {
+                    for (auto& binding_state : it->second) {
+                      if (binding_state.binding_id == alias->binding_id) {
+                        binding_state.is_moved = false;
+                        binding_state.moved_fields.clear();
+                        break;
+                      }
+                    }
+                  }
+                  IRStoreVar store;
+                  store.name = store_name;
+                  store.value = value;
+                  IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Write, ctx);
+                  return SeqIR({key_ir, MakeIR(std::move(store))});
+                }
+                IRStoreVarNoDrop store_nodrop;
+                store_nodrop.name = store_name;
+                store_nodrop.value = value;
+                IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Write, ctx);
+                return SeqIR({key_ir, MakeIR(std::move(store_nodrop))});
+              }
+              case LocalAddrAlias::Kind::Capture: {
+                const auto* capture = ctx.LookupCapture(alias->capture_name);
+                if (!capture) {
+                  ctx.ReportCodegenFailure();
+                  return EmptyIR();
+                }
+                IRValue field_ptr = ctx.CaptureFieldPtr(*capture);
+                if (capture->by_ref) {
+                  IRValue captured_ptr = ctx.FreshTempValue("capture_ptr");
+                  IRReadPtr load_ptr;
+                  load_ptr.ptr = field_ptr;
+                  load_ptr.result = captured_ptr;
+                  register_ptr_type(captured_ptr, capture->value_type);
+                  IRWritePtr write;
+                  write.ptr = captured_ptr;
+                  write.value = value;
+                  IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Write, ctx);
+                  return SeqIR({MakeIR(std::move(load_ptr)), key_ir,
+                                MakeIR(std::move(write))});
+                }
+                IRWritePtr write;
+                write.ptr = field_ptr;
+                write.value = value;
+                register_ptr_type(field_ptr, capture->value_type);
+                IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Write, ctx);
+                return SeqIR({key_ir, MakeIR(std::move(write))});
+              }
+              case LocalAddrAlias::Kind::Static:
+                return lower_static_write(alias->static_path, alias->static_name);
+            }
+          }
+
           if (ctx.GetBindingState(node.name)) {
             SPEC_RULE(allow_drop ? "Lower-WritePlace-Ident-Local"
                                  : "LowerWriteSub-Ident-Local");

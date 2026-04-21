@@ -45,6 +45,7 @@
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/checks/panic.h"
+#include "05_codegen/dyn_dispatch/dyn_dispatch.h"
 #include "05_codegen/globals/entrypoint.h"
 #include "05_codegen/globals/binding_storage.h"
 #include "05_codegen/globals/globals.h"
@@ -2651,6 +2652,23 @@ namespace cursive::codegen
                              llvm::Value *lhs,
                              llvm::Value *rhs);
 
+    bool DebugTargetEnumPath(const std::vector<std::string> &path)
+    {
+      return !path.empty() && analysis::IdEq(path.back(), "TypeEnumCase");
+    }
+
+    std::string LLVMValueRepr(llvm::Value *value)
+    {
+      if (!value)
+      {
+        return "<null>";
+      }
+      std::string out;
+      llvm::raw_string_ostream os(out);
+      value->print(os);
+      return os.str();
+    }
+
     llvm::Value *EmitAggregateEq(llvm::IRBuilder<> *builder,
                                  llvm::Value *lhs,
                                  llvm::Value *rhs)
@@ -4393,47 +4411,99 @@ namespace cursive::codegen
                    vtable.symbol.c_str(), vtable.slots.size());
     }
 
-    // VTable is an array of function pointers
-    std::vector<llvm::Constant *> entries;
+    auto *usize_ty = llvm::Type::getInt64Ty(context_);
+    auto *ptr_ty = GetOpaquePtr();
+
+    auto resolve_ptr_const = [&](const std::string &symbol,
+                                 std::size_t slot_index,
+                                 bool drop_entry) -> llvm::Constant * {
+      if (symbol.empty())
+      {
+        return llvm::ConstantPointerNull::get(
+            llvm::cast<llvm::PointerType>(ptr_ty));
+      }
+
+      if (llvm::Function *func = functions_[symbol])
+      {
+        return llvm::ConstantExpr::getBitCast(func, ptr_ty);
+      }
+      if (llvm::Function *func = module_->getFunction(symbol))
+      {
+        return llvm::ConstantExpr::getBitCast(func, ptr_ty);
+      }
+      if (llvm::GlobalVariable *global = module_->getNamedGlobal(symbol))
+      {
+        return llvm::ConstantExpr::getBitCast(global, ptr_ty);
+      }
+
+      if (debug_vtable)
+      {
+        std::fprintf(stderr,
+                     "[emit-vtable]   %s[%zu]=%s -> NULL (not found)\n",
+                     drop_entry ? "drop" : "slot",
+                     slot_index,
+                     symbol.c_str());
+      }
+      return llvm::ConstantPointerNull::get(
+          llvm::cast<llvm::PointerType>(ptr_ty));
+    };
+
+    std::vector<llvm::Type *> field_tys;
+    field_tys.reserve(3 + vtable.slots.size());
+    field_tys.push_back(usize_ty);
+    field_tys.push_back(usize_ty);
+    field_tys.push_back(ptr_ty);
+    for (std::size_t i = 0; i < vtable.slots.size(); ++i)
+    {
+      field_tys.push_back(ptr_ty);
+    }
+    llvm::StructType *vtable_ty = llvm::StructType::get(context_, field_tys);
+
+    std::vector<llvm::Constant *> fields;
+    fields.reserve(3 + vtable.slots.size());
+    fields.push_back(llvm::ConstantInt::get(usize_ty, vtable.header.size));
+    fields.push_back(llvm::ConstantInt::get(usize_ty, vtable.header.align));
+    fields.push_back(resolve_ptr_const(vtable.header.drop_sym, 0, true));
+
     for (std::size_t i = 0; i < vtable.slots.size(); ++i)
     {
       const auto &slot = vtable.slots[i];
-      llvm::Function *func = functions_[slot];
-      if (!func)
+      llvm::Constant *entry = resolve_ptr_const(slot, i, false);
+      fields.push_back(entry);
+      if (debug_vtable && !llvm::isa<llvm::ConstantPointerNull>(entry))
       {
-        // Try module-level lookup as well
-        func = module_->getFunction(slot);
-      }
-      if (func)
-      {
-        entries.push_back(func);
-        if (debug_vtable)
-        {
-          std::fprintf(stderr, "[emit-vtable]   slot[%zu]=%s -> FOUND\n", i,
-                       slot.c_str());
-        }
-      }
-      else
-      {
-        entries.push_back(llvm::Constant::getNullValue(GetOpaquePtr()));
-        if (debug_vtable)
-        {
-          std::fprintf(stderr, "[emit-vtable]   slot[%zu]=%s -> NULL (not found)\n",
-                       i, slot.c_str());
-        }
+        std::fprintf(stderr, "[emit-vtable]   slot[%zu]=%s -> FOUND\n", i,
+                     slot.c_str());
       }
     }
 
-    llvm::ArrayType *vtable_ty = llvm::ArrayType::get(GetOpaquePtr(), entries.size());
-    llvm::Constant *init = llvm::ConstantArray::get(vtable_ty, entries);
+    llvm::Constant *init = llvm::ConstantStruct::get(vtable_ty, fields);
 
-    auto *gv = new llvm::GlobalVariable(
-        *module_,
-        vtable_ty,
-        true, // isConstant
-        llvm::GlobalValue::InternalLinkage,
-        init,
-        vtable.symbol);
+    llvm::GlobalVariable *gv = module_->getNamedGlobal(vtable.symbol);
+    if (!gv)
+    {
+      gv = new llvm::GlobalVariable(
+          *module_,
+          vtable_ty,
+          true,
+          llvm::GlobalValue::InternalLinkage,
+          init,
+          vtable.symbol);
+    }
+    else
+    {
+      if (gv->getValueType() != vtable_ty)
+      {
+        if (current_ctx_)
+        {
+          current_ctx_->ReportCodegenFailure();
+        }
+        return;
+      }
+      gv->setInitializer(init);
+      gv->setConstant(true);
+      gv->setLinkage(llvm::GlobalValue::InternalLinkage);
+    }
 
     globals_[vtable.symbol] = gv;
   }
@@ -10259,8 +10329,8 @@ namespace cursive::codegen
                 p.type = closure->params[i].second;
                 inferred_sig.params.push_back(std::move(p));
               }
-              // If lowering appended one extra argument, treat it as hidden panic-out.
-              if (call.args.size() == closure->params.size() + 1)
+              // Closure calls lower as env + user args + hidden panic-out.
+              if (call.args.size() == closure->params.size() + 2)
               {
                 inferred_sig.params.push_back(PanicOutParam());
               }
@@ -14130,7 +14200,16 @@ namespace cursive::codegen
                 if (active_ctx)
                 {
                   analysis::TypeRef iter_type =
-                      analysis::StripPerm(active_ctx->LookupValueType(*loop.iter_value));
+                      active_ctx->LookupValueType(*loop.iter_value);
+                  if (!iter_type &&
+                      loop.iter_value->kind == IRValue::Kind::Local)
+                  {
+                    iter_type = emitter.LookupLocalType(loop.iter_value->name);
+                  }
+                  if (analysis::TypeRef stripped = analysis::StripPerm(iter_type))
+                  {
+                    iter_type = stripped;
+                  }
                   if (iter_type)
                   {
                     if (const auto *arr = std::get_if<analysis::TypeArray>(&iter_type->node))
@@ -14267,7 +14346,16 @@ namespace cursive::codegen
                 {
                   llvm::Value *iter_value = EvaluateOrDefault(*loop.iter_value);
                   analysis::TypeRef iter_type =
-                      analysis::StripPerm(active_ctx->LookupValueType(*loop.iter_value));
+                      active_ctx->LookupValueType(*loop.iter_value);
+                  if (!iter_type &&
+                      loop.iter_value->kind == IRValue::Kind::Local)
+                  {
+                    iter_type = emitter.LookupLocalType(loop.iter_value->name);
+                  }
+                  if (analysis::TypeRef stripped = analysis::StripPerm(iter_type))
+                  {
+                    iter_type = stripped;
+                  }
                   if (iter_value &&
                       EmitSeqIterInit(
                           emitter,
@@ -14660,7 +14748,21 @@ namespace cursive::codegen
           {
             *out_path = path->path;
           }
-          return analysis::LookupEnumDecl(scope, path->path);
+          if (const ast::EnumDecl* decl = analysis::LookupEnumDecl(scope, path->path))
+          {
+            return decl;
+          }
+          if (!scope.current_module.empty() && path->path.size() == 1u)
+          {
+            analysis::TypePath qualified = scope.current_module;
+            qualified.insert(qualified.end(), path->path.begin(), path->path.end());
+            if (out_path)
+            {
+              *out_path = qualified;
+            }
+            return analysis::LookupEnumDecl(scope, qualified);
+          }
+          return nullptr;
         };
 
         auto find_variant = [](const ast::EnumDecl &decl,
@@ -15253,15 +15355,33 @@ namespace cursive::codegen
                                               const analysis::TypeRef &target)
                       -> std::optional<std::size_t>
                   {
+                    auto strip_perm_refine = [](analysis::TypeRef type) -> analysis::TypeRef
+                    {
+                      while (type)
+                      {
+                        if (const auto *perm = std::get_if<analysis::TypePerm>(&type->node))
+                        {
+                          type = perm->base;
+                          continue;
+                        }
+                        if (const auto *refine = std::get_if<analysis::TypeRefine>(&type->node))
+                        {
+                          type = refine->base;
+                          continue;
+                        }
+                        break;
+                      }
+                      return type;
+                    };
                     if (!target)
                     {
                       return std::nullopt;
                     }
-                    const analysis::TypeRef target_base = analysis::StripPerm(target);
+                    const analysis::TypeRef target_base = strip_perm_refine(target);
                     for (std::size_t i = 0; i < members.size(); ++i)
                     {
                       const auto equiv =
-                          analysis::TypeEquiv(analysis::StripPerm(members[i]), target_base);
+                          analysis::TypeEquiv(strip_perm_refine(members[i]), target_base);
                       if (equiv.ok && equiv.equiv)
                       {
                         return i;
@@ -15534,24 +15654,52 @@ namespace cursive::codegen
                 else if constexpr (std::is_same_v<P, ast::EnumPattern>)
                 {
                   const ast::EnumDecl *enum_decl = nullptr;
+                  analysis::TypePath enum_path;
                   if (!pat.path.empty())
                   {
                     enum_decl = analysis::LookupEnumDecl(scope, pat.path);
+                    if (!enum_decl && !scope.current_module.empty() && pat.path.size() == 1u)
+                    {
+                      analysis::TypePath qualified = scope.current_module;
+                      qualified.insert(qualified.end(), pat.path.begin(), pat.path.end());
+                      enum_decl = analysis::LookupEnumDecl(scope, qualified);
+                      if (enum_decl)
+                      {
+                        enum_path = qualified;
+                      }
+                    }
+                    else if (enum_decl)
+                    {
+                      enum_path = pat.path;
+                    }
                   }
-                  analysis::TypePath enum_path;
                   if (!enum_decl)
                   {
                     enum_decl = lookup_enum_decl(subject_type, &enum_path);
                   }
                   if (!enum_decl || !subject)
                   {
-                    return llvm::ConstantInt::getTrue(emitter.GetContext());
+                    return llvm::ConstantInt::getFalse(emitter.GetContext());
                   }
                   const auto expected_disc = variant_disc(*enum_decl, pat.name);
                   llvm::Value *actual_disc = enum_disc_value(subject);
                   if (!expected_disc.has_value() || !actual_disc)
                   {
                     return llvm::ConstantInt::getFalse(emitter.GetContext());
+                  }
+                  if (core::IsDebugEnabled("obj") &&
+                      DebugTargetEnumPath(enum_path.empty() ? pat.path : enum_path))
+                  {
+                    std::cerr << "[ifcase-enum] path="
+                              << core::StringOfPath(enum_path.empty() ? pat.path : enum_path)
+                              << " variant=" << pat.name
+                              << " expected="
+                              << static_cast<unsigned long long>(*expected_disc)
+                              << " subject_type="
+                              << (subject_type ? analysis::TypeToString(subject_type) : "<null>")
+                              << " actual_disc=" << LLVMValueRepr(actual_disc)
+                              << " subject=" << LLVMValueRepr(subject)
+                              << "\n";
                   }
                   llvm::Value *disc_eq = EmitTypedEq(
                       &builder,
@@ -20164,13 +20312,15 @@ namespace cursive::codegen
         llvm::Value *data_ptr = builder.CreateExtractValue(dense_ptr, {0});
         llvm::Value *vtable_ptr = builder.CreateExtractValue(dense_ptr, {1});
 
-        // The vtable is an array of function pointers.  Index into the vtable
-        // at the given slot to get the function pointer.
+        // Spec vtables carry a 3-word header:
+        // [sizeof(T), alignof(T), DropGlueSym(T)] ++ method slots.
+        // Dynamic dispatch therefore indexes method slot i at header_offset+i.
         llvm::Type *i64_ty = llvm::Type::getInt64Ty(emitter.GetContext());
+        const std::size_t vtable_slot_index = call.slot + 3;
         llvm::Value *slot_ptr = builder.CreateGEP(
             ptr_ty,
             vtable_ptr,
-            llvm::ConstantInt::get(i64_ty, call.slot));
+            llvm::ConstantInt::get(i64_ty, vtable_slot_index));
         llvm::Value *fn_ptr = builder.CreateLoad(ptr_ty, slot_ptr);
 
         // Build call arguments: (data_ptr, ...user_args_including_panic_out)
@@ -20232,11 +20382,29 @@ namespace cursive::codegen
             }
             auto *init = gv->getInitializer();
             auto *arr = llvm::dyn_cast<llvm::ConstantArray>(init);
-            if (!arr || call.slot >= arr->getNumOperands())
+            llvm::Value *slot_val = nullptr;
+            const std::size_t vtable_slot_index = call.slot + 3;
+            if (auto *st = llvm::dyn_cast<llvm::ConstantStruct>(init))
+            {
+              if (vtable_slot_index >= st->getNumOperands())
+              {
+                return nullptr;
+              }
+              slot_val = st->getOperand(static_cast<unsigned>(vtable_slot_index));
+            }
+            else if (auto *arr = llvm::dyn_cast<llvm::ConstantArray>(init))
+            {
+              if (vtable_slot_index >= arr->getNumOperands())
+              {
+                return nullptr;
+              }
+              slot_val = arr->getOperand(static_cast<unsigned>(vtable_slot_index));
+            }
+            if (!slot_val)
             {
               return nullptr;
             }
-            auto *slot_val = arr->getOperand(static_cast<unsigned>(call.slot));
+            slot_val = slot_val->stripPointerCasts();
             if (auto *fn = llvm::dyn_cast<llvm::Function>(slot_val))
             {
               return fn->getReturnType();
@@ -20497,6 +20665,8 @@ namespace cursive::codegen
 
   void LLVMEmitter::RestoreFlowState(const FlowStateSnapshot &snapshot)
   {
+    const auto persistent_home_storage = local_home_storage_;
+    const auto persistent_local_types = local_types_;
     locals_ = snapshot.locals;
     local_home_storage_ = snapshot.local_home_storage;
     local_types_ = snapshot.local_types;
@@ -20504,6 +20674,20 @@ namespace cursive::codegen
     storage_values_ = snapshot.storage_values;
     preferred_result_storage_ = snapshot.preferred_result_storage;
     reusable_aggregate_storage_ = snapshot.reusable_aggregate_storage;
+    for (const auto &[name, storage] : persistent_home_storage)
+    {
+      if (storage && !local_home_storage_.contains(name))
+      {
+        local_home_storage_[name] = storage;
+      }
+    }
+    for (const auto &[name, type] : persistent_local_types)
+    {
+      if (type && !local_types_.contains(name))
+      {
+        local_types_[name] = type;
+      }
+    }
   }
 
   llvm::AllocaInst *LLVMEmitter::AcquireReusableAggregateStorage(
@@ -20680,6 +20864,20 @@ namespace cursive::codegen
     llvm::IRBuilder<> entry_builder(&func->getEntryBlock(), func->getEntryBlock().begin());
     llvm::Value *bind_slot = nullptr;
     bool adopted_existing_storage = false;
+    analysis::TypeRef source_type = nullptr;
+    if (const LowerCtx *ctx = GetCurrentCtx())
+    {
+      source_type = ctx->LookupValueType(bind.value);
+    }
+    if (!source_type && bind.value.kind == IRValue::Kind::Local)
+    {
+      const auto it = local_types_.find(bind.value.name);
+      if (it != local_types_.end())
+      {
+        source_type = it->second;
+      }
+    }
+    llvm::Type *source_llvm_ty = source_type ? GetLLVMType(source_type) : nullptr;
     std::optional<BindSlot> bind_slot_info;
     if (current_ctx_)
     {
@@ -20706,13 +20904,24 @@ namespace cursive::codegen
     {
       if (llvm::Value *existing_storage = GetAddressableStorage(bind.value))
       {
-        llvm::Type *slot_ptr_ty = llvm::PointerType::get(ty, 0);
-        if (existing_storage->getType() != slot_ptr_ty)
+        bool compatible_storage = (source_llvm_ty == ty);
+        if (!compatible_storage)
         {
-          existing_storage = builder->CreateBitCast(existing_storage, slot_ptr_ty);
+          if (auto *alloca_inst = llvm::dyn_cast<llvm::AllocaInst>(existing_storage))
+          {
+            compatible_storage = (alloca_inst->getAllocatedType() == ty);
+          }
         }
-        bind_slot = existing_storage;
-        adopted_existing_storage = true;
+        if (compatible_storage)
+        {
+          llvm::Type *slot_ptr_ty = llvm::PointerType::get(ty, 0);
+          if (existing_storage->getType() != slot_ptr_ty)
+          {
+            existing_storage = builder->CreateBitCast(existing_storage, slot_ptr_ty);
+          }
+          bind_slot = existing_storage;
+          adopted_existing_storage = true;
+        }
       }
     }
     if ((!bind_slot || !bind_slot->getType()->isPointerTy()) && use_region_slot)
@@ -20852,19 +21061,6 @@ namespace cursive::codegen
     }
     else if (!adopted_existing_storage)
     {
-      analysis::TypeRef source_type = nullptr;
-      if (const LowerCtx *ctx = GetCurrentCtx())
-      {
-        source_type = ctx->LookupValueType(bind.value);
-      }
-      if (!source_type && bind.value.kind == IRValue::Kind::Local)
-      {
-        const auto it = local_types_.find(bind.value.name);
-        if (it != local_types_.end())
-        {
-          source_type = it->second;
-        }
-      }
       if (log_this_bind)
       {
         std::fprintf(stderr,
@@ -21124,7 +21320,18 @@ namespace cursive::codegen
     {
     case IRValue::Kind::Local:
     {
-      llvm::Value *local = GetLocal(val.name);
+      llvm::Value *local = GetLocalBindStorage(val.name);
+      if (core::IsDebugEnabled("obj") &&
+          (val.name == "unit_value" || val.name == "tuple_value" || val.name == "record_value"))
+      {
+        std::cerr << "[enum-local] name=" << val.name
+                  << " found=" << (local ? "yes" : "no");
+        if (local)
+        {
+          std::cerr << " local_ty=" << LLVMValueRepr(local);
+        }
+        std::cerr << "\n";
+      }
       if (!local)
       {
         return nullptr;
@@ -21868,7 +22075,21 @@ namespace cursive::codegen
         {
           *out_path = path->path;
         }
-        return analysis::LookupEnumDecl(scope, path->path);
+        if (const ast::EnumDecl* decl = analysis::LookupEnumDecl(scope, path->path))
+        {
+          return decl;
+        }
+        if (!scope.current_module.empty() && path->path.size() == 1u)
+        {
+          analysis::TypePath qualified = scope.current_module;
+          qualified.insert(qualified.end(), path->path.begin(), path->path.end());
+          if (out_path)
+          {
+            *out_path = qualified;
+          }
+          return analysis::LookupEnumDecl(scope, qualified);
+        }
+        return nullptr;
       };
       auto enum_decl_for_value = [&](const IRValue &value,
                                      analysis::TypePath *out_path) -> const ast::EnumDecl *
@@ -21893,7 +22114,21 @@ namespace cursive::codegen
         {
           *out_path = resolved_path;
         }
-        return analysis::LookupEnumDecl(scope, resolved_path);
+        if (const ast::EnumDecl* decl = analysis::LookupEnumDecl(scope, resolved_path))
+        {
+          return decl;
+        }
+        if (!scope.current_module.empty() && resolved_path.size() == 1u)
+        {
+          analysis::TypePath qualified = scope.current_module;
+          qualified.insert(qualified.end(), resolved_path.begin(), resolved_path.end());
+          if (out_path)
+          {
+            *out_path = qualified;
+          }
+          return analysis::LookupEnumDecl(scope, qualified);
+        }
+        return nullptr;
       };
       auto enum_decl_for_payload_value = [&](const DerivedValueInfo &info,
                                              analysis::TypePath *out_path)
@@ -22627,6 +22862,19 @@ namespace cursive::codegen
         {
           if (current_ctx_)
           {
+            std::cerr << "[cursive] missing local address storage"
+                      << " name=" << derived->name;
+            if (module_)
+            {
+              std::cerr << " module=" << module_->getModuleIdentifier();
+            }
+            if (builder && builder->GetInsertBlock() &&
+                builder->GetInsertBlock()->getParent())
+            {
+              std::cerr << " function="
+                        << builder->GetInsertBlock()->getParent()->getName().str();
+            }
+            std::cerr << "\n";
             current_ctx_->ReportCodegenFailure();
           }
           break;
@@ -22651,16 +22899,18 @@ namespace cursive::codegen
       }
       case DerivedValueInfo::Kind::AddrTuple:
       {
-        llvm::Value *base = GetAddressableStorage(derived->base);
+        analysis::TypeRef base_value_type = lookup_value_type(derived->base);
+        analysis::TypeRef base_type = pointee_from_type(base_value_type);
+        llvm::Value *base = nullptr;
+        base = pointer_from_value(EvaluateIRValue(derived->base));
         if (!base)
         {
-          base = pointer_from_value(EvaluateIRValue(derived->base));
+          base = GetAddressableStorage(derived->base);
         }
         if (!base)
         {
           break;
         }
-        analysis::TypeRef base_type = pointee_from_type(lookup_value_type(derived->base));
         analysis::TypeRef elem_type = nullptr;
         std::optional<std::uint64_t> field_offset = derived->byte_offset;
         if (base_type)
@@ -23539,6 +23789,16 @@ namespace cursive::codegen
         }
         llvm::Value *base = EvaluateIRValue(derived->base);
         materialized = load_enum_payload_member(base, member);
+        if (core::IsDebugEnabled("obj") && DebugTargetEnumPath(enum_path))
+        {
+          std::cerr << "[enum-payload-index] path=" << core::StringOfPath(enum_path)
+                    << " variant=" << derived->variant
+                    << " index=" << derived->tuple_index
+                    << " base=" << LLVMValueRepr(base)
+                    << " member_ok=" << (member.ok ? "yes" : "no")
+                    << " materialized=" << LLVMValueRepr(materialized)
+                    << "\n";
+        }
         break;
       }
       case DerivedValueInfo::Kind::EnumPayloadField:
@@ -23573,6 +23833,16 @@ namespace cursive::codegen
         }
         llvm::Value *base = EvaluateIRValue(derived->base);
         materialized = load_enum_payload_member(base, member);
+        if (core::IsDebugEnabled("obj") && DebugTargetEnumPath(enum_path))
+        {
+          std::cerr << "[enum-payload-field] path=" << core::StringOfPath(enum_path)
+                    << " variant=" << derived->variant
+                    << " field=" << derived->field
+                    << " base=" << LLVMValueRepr(base)
+                    << " member_ok=" << (member.ok ? "yes" : "no")
+                    << " materialized=" << LLVMValueRepr(materialized)
+                    << "\n";
+        }
         break;
       }
       case DerivedValueInfo::Kind::ModalField:
@@ -24124,6 +24394,66 @@ namespace cursive::codegen
             if (auto *gv = module_->getNamedGlobal(derived->vtable_sym))
             {
               vtable_ptr = gv;
+            }
+          }
+          if (!vtable_ptr && current_ctx_ && current_ctx_->sigma)
+          {
+            analysis::TypeRef lazy_vtable_type = derived->dyn_impl_type;
+            analysis::TypePath lazy_class_path = derived->dyn_class_path;
+            if ((!lazy_vtable_type || lazy_class_path.empty()))
+            {
+              if (const auto *info =
+                      current_ctx_->LookupRequiredVTable(derived->vtable_sym))
+              {
+                lazy_vtable_type = info->type;
+                lazy_class_path = info->class_path;
+              }
+            }
+
+            auto find_class_decl =
+                [&](const analysis::TypePath &class_path)
+                    -> const ast::ClassDecl * {
+              if (class_path.empty())
+              {
+                return nullptr;
+              }
+
+              auto lookup_decl =
+                  [&](const analysis::TypePath &candidate)
+                      -> const ast::ClassDecl * {
+                ast::Path class_ast_path(candidate.begin(), candidate.end());
+                const auto class_it =
+                    current_ctx_->sigma->classes.find(analysis::PathKeyOf(class_ast_path));
+                if (class_it == current_ctx_->sigma->classes.end())
+                {
+                  return nullptr;
+                }
+                return &class_it->second;
+              };
+
+              if (const ast::ClassDecl *decl = lookup_decl(class_path))
+              {
+                return decl;
+              }
+
+              analysis::TypePath module_qualified = current_ctx_->module_path;
+              module_qualified.insert(
+                  module_qualified.end(), class_path.begin(), class_path.end());
+              return lookup_decl(module_qualified);
+            };
+
+            if (lazy_vtable_type && !lazy_class_path.empty())
+            {
+              if (const ast::ClassDecl *class_decl = find_class_decl(lazy_class_path))
+              {
+                GlobalVTable lazy_vtable = ::cursive::codegen::EmitVTable(
+                    lazy_vtable_type, lazy_class_path, *class_decl, *current_ctx_);
+                EmitVTable(lazy_vtable);
+                if (auto *gv = module_->getNamedGlobal(derived->vtable_sym))
+                {
+                  vtable_ptr = gv;
+                }
+              }
             }
           }
         }

@@ -133,13 +133,19 @@ static const ast::Expr* StripParallelDomainExpr(const ast::ExprPtr& expr) {
 }
 
 static std::optional<ParallelContextKind> ParallelContextKindOf(
-    const ast::ExprPtr& expr) {
+    const ast::ExprPtr& expr,
+    const TypeEnv& env) {
   const ast::Expr* core = StripParallelDomainExpr(expr);
   if (!core) {
     return std::nullopt;
   }
   const auto* method = std::get_if<ast::MethodCallExpr>(&core->node);
   if (!method) {
+    if (const auto* ident = std::get_if<ast::IdentifierExpr>(&core->node)) {
+      if (const auto binding = BindOf(env, ident->name)) {
+        return binding->parallel_context_kind;
+      }
+    }
     return std::nullopt;
   }
   if (method->name == "cpu") {
@@ -154,9 +160,9 @@ static std::optional<ParallelContextKind> ParallelContextKindOf(
   return std::nullopt;
 }
 
-static bool IsGpuDomain(const ast::ExprPtr& expr) {
+static bool IsGpuDomain(const ast::ExprPtr& expr, const TypeEnv& env) {
   SPEC_RULE("IsGpuDomain");
-  return ParallelContextKindOf(expr) == ParallelContextKind::Gpu;
+  return ParallelContextKindOf(expr, env) == ParallelContextKind::Gpu;
 }
 
 static const ast::MethodCallExpr* ParallelDomainCtorCallOf(
@@ -421,7 +427,7 @@ ExprTypeResult TypeParallelExpr(const ScopeContext& ctx,
     return result;
   }
 
-  const bool gpu_domain = IsGpuDomain(expr.domain);
+  const bool gpu_domain = IsGpuDomain(expr.domain, env);
 
   if (GpuContext(env) && gpu_domain) {
     SPEC_RULE("T-GPU-Nested-Err");
@@ -521,7 +527,7 @@ ExprTypeResult TypeParallelExpr(const ScopeContext& ctx,
   parallel_ctx.parallel_capture_scopes = &parallel_capture_scopes;
   parallel_ctx.parallel_first_child_moves = &parallel_first_child_moves;
   TypeEnv parallel_env = env;
-  parallel_env.parallel_context = ParallelContextKindOf(expr.domain);
+  parallel_env.parallel_context = ParallelContextKindOf(expr.domain, env);
   parallel_ctx.env_ref = &parallel_env;
 
   // Rebind recursive typing callbacks to the parallel context so nested

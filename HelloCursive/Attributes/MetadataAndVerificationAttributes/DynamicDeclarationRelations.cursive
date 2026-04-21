@@ -26,13 +26,13 @@ modal AttributeDynamicDeclarationModalProbe {
 
 [[dynamic]]
 record AttributeDynamicDeclarationRecordProbe {
-    base: i32,
+    base: i32
 
     procedure dynamicIndex(~) -> i32 {
         let values: [i32; 3] = [self.base, self.base + 3, self.base + 6]
         let idx: usize = 2usize
         return values[idx]
-    },
+    }
 }
 
 procedure DynamicDeclarationRelationsMetricLabel(value: i32) -> string@View {

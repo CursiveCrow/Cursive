@@ -1,5 +1,7 @@
 [[dynamic]]
-procedure ContractPlacementInline(value: i32) -> i32 |: value > 0 {
+procedure ContractPlacementInline(value: i32) -> i32
+    |: value > 0
+{
     return value
 }
 

@@ -1,0 +1,15 @@
+[[layout(C)]]
+public record DropPayload {
+    value: unique i32
+    procedure drop(~!) -> () {
+    }
+}
+[[mangle("drop_payload_export"), export("C")]]
+public procedure DropPayloadExport(value: DropPayload) -> i32 {
+    let _ = value
+    return 0
+}
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

@@ -1,0 +1,8 @@
+extern "C" {
+    procedure foreign_add(lhs: i32, rhs: i32) -> i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

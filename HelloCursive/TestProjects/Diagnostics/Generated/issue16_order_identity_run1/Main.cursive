@@ -1,0 +1,13 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
+public procedure probe_first() -> i32 {
+    let mismatch_first: i32 = true
+    return 0
+}
+
+public procedure probe_second() -> i32 {
+    let mismatch_second: i32 = true
+    return 0
+}

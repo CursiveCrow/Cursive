@@ -1,0 +1,11 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = parallel ctx~>cpu() {
+        var gate: i32 = 1
+        # gate write {
+            let handle: Spawned<i32> = spawn { 3 }
+            let _: i32 = wait handle
+        }
+        0
+    }
+    return 0
+}

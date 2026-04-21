@@ -3267,13 +3267,15 @@ static std::optional<std::string_view> CheckSharedAccessRequirement(
   }
 
   const auto covering_mode = CoveringSharedAccessMode(type_ctx, built.path);
-  if (covering_mode.has_value() &&
-      SharedAccessModeSufficient(*covering_mode, *type_ctx.shared_access_mode)) {
+  if (!covering_mode.has_value()) {
     return std::nullopt;
   }
 
-  return covering_mode.has_value() ? std::optional<std::string_view>{"E-CON-0005"}
-                                   : std::optional<std::string_view>{"E-CON-0001"};
+  if (SharedAccessModeSufficient(*covering_mode, *type_ctx.shared_access_mode)) {
+    return std::nullopt;
+  }
+
+  return "E-CON-0005";
 }
 
 // Main expression typing dispatcher

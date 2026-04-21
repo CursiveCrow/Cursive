@@ -1,0 +1,27 @@
+public class DynamicClassScope {
+    [[dynamic]]
+    procedure probe(~, idx: usize) -> i32 {
+        var gate: shared [i32; 4] = [0, 0, 0, 0]
+        # gate write {
+            gate[idx] = 1
+        }
+        return gate[idx]
+    }
+}
+
+public record DynamicClassImpl <: DynamicClassScope {
+    marker: i32
+    [[static]]
+    override procedure probe(~, idx: usize) -> i32 {
+        var gate: shared [i32; 4] = [0, 0, 0, 0]
+        # gate write {
+            gate[idx] = 1
+        }
+        return gate[idx]
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

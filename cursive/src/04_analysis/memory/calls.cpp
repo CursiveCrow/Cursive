@@ -1135,6 +1135,7 @@ CallTypeResult TypeCallWithSubst(const ScopeContext& ctx,
   arg_types.reserve(args.size());
   for (std::size_t i = 0; i < args.size(); ++i) {
     const auto& arg = args[i];
+    const TypeRef subst_param_type = InstantiateType(params[i].type, subst);
     if (!params[i].mode.has_value()) {
       const bool has_source_prov = HasSourceProvenanceLocal(arg.value);
       if (has_source_prov && !IsPlaceExprForCallLocal(arg.value)) {
@@ -1151,9 +1152,9 @@ CallTypeResult TypeCallWithSubst(const ScopeContext& ctx,
         arg_types.push_back(place_type.type);
       } else {
         if (!has_source_prov && check_expr) {
-          const auto checked = (*check_expr)(arg.value, params[i].type);
+          const auto checked = (*check_expr)(arg.value, subst_param_type);
           if (checked.ok) {
-            arg_types.push_back(params[i].type);
+            arg_types.push_back(subst_param_type);
             continue;
           }
           if (checked.diag_id.has_value()) {
@@ -1172,9 +1173,9 @@ CallTypeResult TypeCallWithSubst(const ScopeContext& ctx,
     }
     const auto arg_expr = MovedArgExprLocal(arg);
     if (UsesCallTempForConsumingLocal(params[i].mode, arg) && check_expr) {
-      const auto checked = (*check_expr)(arg_expr, params[i].type);
+      const auto checked = (*check_expr)(arg_expr, subst_param_type);
       if (checked.ok) {
-        arg_types.push_back(params[i].type);
+        arg_types.push_back(subst_param_type);
         continue;
       }
       if (checked.diag_id.has_value()) {

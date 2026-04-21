@@ -96,8 +96,8 @@ static __inline cursive_platform_bool_t cursive_platform_backend_process_create(
     const wchar_t* current_directory,
     cursive_platform_process_startup_t* startup_info,
     cursive_platform_process_info_t* process_information) {
-  STARTUPINFOW native_startup;
-  PROCESS_INFORMATION native_process_info;
+  STARTUPINFOW native_startup = {0};
+  PROCESS_INFORMATION native_process_info = {0};
   STARTUPINFOW* native_startup_ptr = NULL;
   PROCESS_INFORMATION* native_process_info_ptr = NULL;
 

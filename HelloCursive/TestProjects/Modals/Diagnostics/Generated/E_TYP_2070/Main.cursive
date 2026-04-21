@@ -1,0 +1,13 @@
+modal M {
+    @A {
+        x: i32
+    }
+    @B {
+        y: i32
+    }
+}
+public procedure main(move ctx: Context) -> i32 {
+    let state: M@A = M@A { x: 1 }
+    let _general: M = state
+    return 0
+}

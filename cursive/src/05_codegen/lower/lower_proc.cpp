@@ -227,6 +227,7 @@ IRPtr EmitContractParamEntrySnapshots(const ProcedureDecl& decl, LowerCtx& ctx) 
                     false,
                     true,
                     analysis::ProvenanceKind::Param);
+    bind.stable_name = ctx.StableBindingName(snapshot_name);
 
     IRValue snapshot;
     snapshot.kind = IRValue::Kind::Local;
@@ -573,13 +574,14 @@ IRPtr EmitEntryCapturesForPostcondition(const ast::ExprPtr& postcond, LowerCtx& 
     bind.value = capture_result.value;
     bind.type = capture_type;
     bind.prov = analysis::ProvenanceKind::Bottom;
-    parts.push_back(MakeIR(bind));
 
     ctx.RegisterVar(capture_name,
                     capture_type,
                     /*has_responsibility=*/false,
                     /*is_immovable=*/false,
                     analysis::ProvenanceKind::Bottom);
+    bind.stable_name = ctx.StableBindingName(capture_name);
+    parts.push_back(MakeIR(std::move(bind)));
     IRValue captured_value;
     captured_value.kind = IRValue::Kind::Local;
     captured_value.name = capture_name;
@@ -1179,6 +1181,41 @@ ProcIR LowerProc(const ProcedureDecl& decl,
     precond_ir = EmitPreconditionCheck(contract_pre, ctx);
   }
 
+  ast::ExprPtr proc_region_opts = analysis::MakeDefaultRegionOptionsExpr();
+  auto proc_region_opts_res = LowerExpr(*proc_region_opts, ctx);
+  const std::string proc_region_alias = ctx.FreshRegionAlias();
+  const analysis::TypeRef proc_region_type = analysis::RegionActiveTypeRef();
+
+  ctx.RegisterVar(proc_region_alias,
+                  proc_region_type,
+                  false,
+                  true,
+                  analysis::ProvenanceKind::Region,
+                  proc_region_alias,
+                  false,
+                  proc_region_alias);
+  ctx.RegisterRegionRelease(proc_region_alias);
+  ctx.active_region_aliases.push_back(proc_region_alias);
+
+  IRValue proc_region_value = ctx.FreshTempValue("proc_region");
+  ctx.RegisterValueType(proc_region_value, proc_region_type);
+
+  IRCall proc_region_new;
+  proc_region_new.callee.kind = IRValue::Kind::Symbol;
+  proc_region_new.callee.name = BuiltinModalSymRegionNewScoped();
+  proc_region_new.args.push_back(proc_region_opts_res.value);
+  proc_region_new.result = proc_region_value;
+  IRPtr proc_region_new_ir = MakeIR(std::move(proc_region_new));
+
+  IRBindVar proc_region_bind;
+  proc_region_bind.name = proc_region_alias;
+  proc_region_bind.value = proc_region_value;
+  proc_region_bind.type = proc_region_type;
+  proc_region_bind.prov = analysis::ProvenanceKind::Region;
+  proc_region_bind.prov_region = proc_region_alias;
+  proc_region_bind.prov_region_tag = proc_region_alias;
+  IRPtr proc_region_bind_ir = MakeIR(std::move(proc_region_bind));
+
   // Capture all @entry(...) values once per invocation before body execution.
   IRPtr entry_capture_ir = nullptr;
   if (has_dynamic_contract && contract_post) {
@@ -1193,6 +1230,7 @@ ProcIR LowerProc(const ProcedureDecl& decl,
   log_stage("lower-body-start");
   auto body_res = LowerBlock(*decl.body, ctx);
   log_stage("lower-body-finish");
+  ctx.active_region_aliases.pop_back();
 
   // Cleanup for parameters on fallthrough
   CleanupPlan cleanup_plan = ComputeCleanupPlanForCurrentScope(ctx);
@@ -1202,6 +1240,11 @@ ProcIR LowerProc(const ProcedureDecl& decl,
 
   std::vector<IRPtr> body_seq;
   body_seq.push_back(scope_enter_ir);
+  if (proc_region_opts_res.ir) {
+    body_seq.push_back(proc_region_opts_res.ir);
+  }
+  body_seq.push_back(proc_region_new_ir);
+  body_seq.push_back(proc_region_bind_ir);
   if (ctx.executable_project && decl.name == "main") {
     IRPtr init_ir = EmitInitPlan(ctx.init_order, ctx);
     if (init_ir && !std::holds_alternative<IROpaque>(init_ir->node)) {

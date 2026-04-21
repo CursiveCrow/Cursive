@@ -1,0 +1,87 @@
+public procedure compileCheckStatusLabel(status: i32) -> string@View {
+    if (status == 0) {
+        return "0"
+    }
+    return "non-zero"
+}
+
+public procedure compileCheckBoolLabel(value: bool) -> string@View {
+    if (value) {
+        return "true"
+    }
+    return "false"
+}
+
+public procedure ensureCompileCheckDirectories(ctx: Context) -> bool {
+    let build_ready: bool = if ctx.fs~>create_dir("build") is {
+        _: () { true }
+        _: IoError { ctx.fs~>exists("build") }
+    }
+    let main_ready: bool = if (build_ready == true) {
+        if ctx.fs~>create_dir("build/main") is {
+            _: () { true }
+            _: IoError { ctx.fs~>exists("build/main") }
+        }
+    } else {
+        false
+    }
+    let logs_ready: bool = if (main_ready == true) {
+        if ctx.fs~>create_dir("build/main/logs") is {
+            _: () { true }
+            _: IoError { ctx.fs~>exists("build/main/logs") }
+        }
+    } else {
+        false
+    }
+    let checks_ready: bool = if (logs_ready == true) {
+        if ctx.fs~>create_dir("build/main/logs/compile_checks") is {
+            _: () { true }
+            _: IoError { ctx.fs~>exists("build/main/logs/compile_checks") }
+        }
+    } else {
+        false
+    }
+    return checks_ready
+}
+
+public procedure compilerUnderTestAvailable(ctx: Context) -> bool {
+    let configured: string@View = ctx.sys~>get_env("CURSIVE_COMPILER_UNDER_TEST")
+    return string::is_empty(configured) == false
+}
+
+public procedure runCompileCheckCommand(
+    ctx: Context,
+    command_line: string@View,
+    label: string@View
+) -> i32 {
+    let _label_ignore: string@View = label
+    let dirs_ready: bool = ensureCompileCheckDirectories(ctx)
+    let compiler_ready: bool = compilerUnderTestAvailable(ctx)
+    let dirs_ready_label: string@View = compileCheckBoolLabel(dirs_ready)
+    let compiler_ready_label: string@View = compileCheckBoolLabel(compiler_ready)
+    let dirs_log: string@View =
+        [[log(label: "observed-compile-check-dirs-ready", expected: "true")]]
+        dirs_ready_label
+    let compiler_log: string@View =
+        [[log(label: "observed-compile-check-compiler-ready", expected: "true")]]
+        compiler_ready_label
+
+    if ((dirs_log != "true") || (compiler_log != "true")) {
+        [[log(label: "compile-check-item-fail")]]
+        return 1
+    }
+
+    [[log(label: "compile-check-item-begin")]]
+    let status: i32 = ctx.sys~>run(command_line)
+    let status_label: string@View = compileCheckStatusLabel(status)
+    let status_log: string@View =
+        [[log(label: "observed-compile-check-command-status", expected: "0")]]
+        status_label
+    if (status_log != "0") {
+        [[log(label: "compile-check-item-fail")]]
+        return 1
+    }
+
+    [[log(label: "compile-check-item-success")]]
+    return 0
+}

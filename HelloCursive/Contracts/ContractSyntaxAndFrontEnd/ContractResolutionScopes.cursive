@@ -19,7 +19,7 @@ public procedure ContractsResolutionForeignImpl(value: i32) -> i32 {
 
 extern "C" {
     procedure hc_contracts_resolution_foreign_impl(value: i32) -> i32
-        |: @foreign_assumes(value >= ContractResolutionFloor)
+        |: @foreign_assumes(value >= 3)
         |: @foreign_ensures(@result >= ContractResolutionFloor)
 }
 

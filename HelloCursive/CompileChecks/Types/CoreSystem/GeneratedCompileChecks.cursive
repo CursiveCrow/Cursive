@@ -1,0 +1,284 @@
+
+procedure run_issue32_decimal_to_int_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\issue32_decimal_to_int_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue32_decimal_to_int_rejected.json 2> build\\main\\logs\\compile_checks\\issue32_decimal_to_int_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue32_decimal_to_int_rejected")
+}
+
+procedure run_issue32_declared_float_type_precedence(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\issue32_declared_float_type_precedence\\Main.cursive > build\\main\\logs\\compile_checks\\issue32_declared_float_type_precedence.json 2> build\\main\\logs\\compile_checks\\issue32_declared_float_type_precedence.stderr & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue32_declared_float_type_precedence")
+}
+
+procedure run_issue32_import_std_reserved(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\issue32_import_std_reserved\\Main.cursive > build\\main\\logs\\compile_checks\\issue32_import_std_reserved.json 2> build\\main\\logs\\compile_checks\\issue32_import_std_reserved.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-MOD-1202\\\"\" build\\main\\logs\\compile_checks\\issue32_import_std_reserved.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue32_import_std_reserved")
+}
+
+procedure run_issue32_tuple_access_dot_disambiguation(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\issue32_tuple_access_dot_disambiguation\\Main.cursive > build\\main\\logs\\compile_checks\\issue32_tuple_access_dot_disambiguation.json 2> build\\main\\logs\\compile_checks\\issue32_tuple_access_dot_disambiguation.stderr & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue32_tuple_access_dot_disambiguation")
+}
+
+procedure run_issue32_untyped_int_literal_not_float(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\issue32_untyped_int_literal_not_float\\Main.cursive > build\\main\\logs\\compile_checks\\issue32_untyped_int_literal_not_float.json 2> build\\main\\logs\\compile_checks\\issue32_untyped_int_literal_not_float.stderr & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue32_untyped_int_literal_not_float")
+}
+
+procedure run_issue32_using_std_reserved(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\issue32_using_std_reserved\\Main.cursive > build\\main\\logs\\compile_checks\\issue32_using_std_reserved.json 2> build\\main\\logs\\compile_checks\\issue32_using_std_reserved.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-MOD-1204\\\"\" build\\main\\logs\\compile_checks\\issue32_using_std_reserved.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue32_using_std_reserved")
+}
+
+procedure run_issue33_call_type_args_explicit(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\issue33_call_type_args_explicit\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_call_type_args_explicit.json 2> build\\main\\logs\\compile_checks\\issue33_call_type_args_explicit.stderr & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue33_call_type_args_explicit")
+}
+
+procedure run_issue33_enum_comma_separated_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\issue33_enum_comma_separated_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_enum_comma_separated_rejected.json 2> build\\main\\logs\\compile_checks\\issue33_enum_comma_separated_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SRC-0520\\\"\" build\\main\\logs\\compile_checks\\issue33_enum_comma_separated_rejected.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue33_enum_comma_separated_rejected")
+}
+
+procedure run_issue33_enum_item_separated(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\issue33_enum_item_separated\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_enum_item_separated.json 2> build\\main\\logs\\compile_checks\\issue33_enum_item_separated.stderr & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue33_enum_item_separated")
+}
+
+procedure run_issue33_enum_missing_class_method_impl(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\issue33_enum_missing_class_method_impl\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_enum_missing_class_method_impl.json 2> build\\main\\logs\\compile_checks\\issue33_enum_missing_class_method_impl.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-TYP-2503\\\"\" build\\main\\logs\\compile_checks\\issue33_enum_missing_class_method_impl.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue33_enum_missing_class_method_impl")
+}
+
+procedure run_issue33_enum_missing_terminator(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\issue33_enum_missing_terminator\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_enum_missing_terminator.json 2> build\\main\\logs\\compile_checks\\issue33_enum_missing_terminator.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SRC-0510\\\"\" build\\main\\logs\\compile_checks\\issue33_enum_missing_terminator.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue33_enum_missing_terminator")
+}
+
+procedure run_issue33_enum_semicolon_separated(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\issue33_enum_semicolon_separated\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_enum_semicolon_separated.json 2> build\\main\\logs\\compile_checks\\issue33_enum_semicolon_separated.stderr & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue33_enum_semicolon_separated")
+}
+
+procedure run_issue33_nonempty_record_empty_literal_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\issue33_nonempty_record_empty_literal_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_nonempty_record_empty_literal_rejected.json 2> build\\main\\logs\\compile_checks\\issue33_nonempty_record_empty_literal_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SRC-0520\\\"\" build\\main\\logs\\compile_checks\\issue33_nonempty_record_empty_literal_rejected.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue33_nonempty_record_empty_literal_rejected")
+}
+
+procedure run_issue33_range_type_family_surface(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\issue33_range_type_family_surface\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_range_type_family_surface.json 2> build\\main\\logs\\compile_checks\\issue33_range_type_family_surface.stderr & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue33_range_type_family_surface")
+}
+
+procedure run_issue33_record_associated_type_member(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\issue33_record_associated_type_member\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_record_associated_type_member.json 2> build\\main\\logs\\compile_checks\\issue33_record_associated_type_member.stderr & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue33_record_associated_type_member")
+}
+
+procedure run_issue878_empty_record_brace_literal_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\issue878_empty_record_brace_literal_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue878_empty_record_brace_literal_rejected.json 2> build\\main\\logs\\compile_checks\\issue878_empty_record_brace_literal_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SRC-0520\\\"\" build\\main\\logs\\compile_checks\\issue878_empty_record_brace_literal_rejected.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue878_empty_record_brace_literal_rejected")
+}
+
+procedure run_issue878_empty_record_default_constructor_accepted(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\issue878_empty_record_default_constructor_accepted\\Main.cursive > build\\main\\logs\\compile_checks\\issue878_empty_record_default_constructor_accepted.json 2> build\\main\\logs\\compile_checks\\issue878_empty_record_default_constructor_accepted.stderr & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue878_empty_record_default_constructor_accepted")
+}
+
+procedure run_no_ambient_system_record_literal_safe(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\no_ambient_system_record_literal_safe\\Main.cursive > build\\main\\logs\\compile_checks\\no_ambient_system_record_literal_safe.json 2> build\\main\\logs\\compile_checks\\no_ambient_system_record_literal_safe.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-CON-0020\\\"\" build\\main\\logs\\compile_checks\\no_ambient_system_record_literal_safe.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "no_ambient_system_record_literal_safe")
+}
+
+procedure run_issue53_class_dup_params_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue53_class_dup_params_trace.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\issue53_class_dup_params_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue53_class_dup_params_trace.json 2> build\\main\\logs\\compile_checks\\issue53_class_dup_params_trace.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue53_class_dup_params_trace")
+}
+
+procedure run_issue53_class_cycle_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue53_class_cycle_trace.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\issue53_class_cycle_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue53_class_cycle_trace.json 2> build\\main\\logs\\compile_checks\\issue53_class_cycle_trace.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue53_class_cycle_trace")
+}
+
+procedure run_issue53_record_self_param_forbidden(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue53_record_self_param_forbidden.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\issue53_record_self_param_forbidden\\Main.cursive > build\\main\\logs\\compile_checks\\issue53_record_self_param_forbidden.json 2> build\\main\\logs\\compile_checks\\issue53_record_self_param_forbidden.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue53_record_self_param_forbidden")
+}
+
+procedure run_issue53_record_method_call_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue53_record_method_call_trace.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\issue53_record_method_call_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue53_record_method_call_trace.json 2> build\\main\\logs\\compile_checks\\issue53_record_method_call_trace.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue53_record_method_call_trace")
+}
+
+procedure run_Invoke_Issue58StringBytesConformanceCase(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\CoreSystem\\Generated\\Invoke_Issue58StringBytesConformanceCase\\Main.cursive > build\\main\\logs\\compile_checks\\Invoke_Issue58StringBytesConformanceCase.json 2> build\\main\\logs\\compile_checks\\Invoke_Issue58StringBytesConformanceCase.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "Invoke-Issue58StringBytesConformanceCase")
+}
+
+procedure run_issue510_enum_disc_over_u64_invalid(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue510_enum_disc_over_u64_invalid.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\issue510_enum_disc_over_u64_invalid\\Main.cursive > build\\main\\logs\\compile_checks\\issue510_enum_disc_over_u64_invalid.json 2> build\\main\\logs\\compile_checks\\issue510_enum_disc_over_u64_invalid.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue510_enum_disc_over_u64_invalid")
+}
+
+procedure run_issue559_enum_empty_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue559_enum_empty_rejected.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\issue559_enum_empty_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue559_enum_empty_rejected.json 2> build\\main\\logs\\compile_checks\\issue559_enum_empty_rejected.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue559_enum_empty_rejected")
+}
+
+procedure run_Invoke_Issue511FoundationalClassesAndPipeConformanceCase(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\CoreSystem\\Generated\\Invoke_Issue511FoundationalClassesAndPipeConformanceCase\\Main.cursive > build\\main\\logs\\compile_checks\\Invoke_Issue511FoundationalClassesAndPipeConformanceCase.json 2> build\\main\\logs\\compile_checks\\Invoke_Issue511FoundationalClassesAndPipeConformanceCase.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "Invoke-Issue511FoundationalClassesAndPipeConformanceCase")
+}
+
+procedure run_issue540_invariant_resolution_conformance(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue540_invariant_resolution_conformance.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\issue540_invariant_resolution_conformance\\Main.cursive > build\\main\\logs\\compile_checks\\issue540_invariant_resolution_conformance.json 2> build\\main\\logs\\compile_checks\\issue540_invariant_resolution_conformance.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue540_invariant_resolution_conformance")
+}
+
+procedure run_issue543_refinement_alias_interop(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue543_refinement_alias_interop.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\issue543_refinement_alias_interop\\Main.cursive > build\\main\\logs\\compile_checks\\issue543_refinement_alias_interop.json 2> build\\main\\logs\\compile_checks\\issue543_refinement_alias_interop.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue543_refinement_alias_interop")
+}
+
+public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
+    let status_run_issue32_decimal_to_int_rejected: i32 = run_issue32_decimal_to_int_rejected(ctx)
+    if (status_run_issue32_decimal_to_int_rejected != 0) {
+        return status_run_issue32_decimal_to_int_rejected
+    }
+
+    let status_run_issue32_declared_float_type_precedence: i32 = run_issue32_declared_float_type_precedence(ctx)
+    if (status_run_issue32_declared_float_type_precedence != 0) {
+        return status_run_issue32_declared_float_type_precedence
+    }
+
+    let status_run_issue32_import_std_reserved: i32 = run_issue32_import_std_reserved(ctx)
+    if (status_run_issue32_import_std_reserved != 0) {
+        return status_run_issue32_import_std_reserved
+    }
+
+    let status_run_issue32_tuple_access_dot_disambiguation: i32 = run_issue32_tuple_access_dot_disambiguation(ctx)
+    if (status_run_issue32_tuple_access_dot_disambiguation != 0) {
+        return status_run_issue32_tuple_access_dot_disambiguation
+    }
+
+    let status_run_issue32_untyped_int_literal_not_float: i32 = run_issue32_untyped_int_literal_not_float(ctx)
+    if (status_run_issue32_untyped_int_literal_not_float != 0) {
+        return status_run_issue32_untyped_int_literal_not_float
+    }
+
+    let status_run_issue32_using_std_reserved: i32 = run_issue32_using_std_reserved(ctx)
+    if (status_run_issue32_using_std_reserved != 0) {
+        return status_run_issue32_using_std_reserved
+    }
+
+    let status_run_issue33_call_type_args_explicit: i32 = run_issue33_call_type_args_explicit(ctx)
+    if (status_run_issue33_call_type_args_explicit != 0) {
+        return status_run_issue33_call_type_args_explicit
+    }
+
+    let status_run_issue33_enum_comma_separated_rejected: i32 = run_issue33_enum_comma_separated_rejected(ctx)
+    if (status_run_issue33_enum_comma_separated_rejected != 0) {
+        return status_run_issue33_enum_comma_separated_rejected
+    }
+
+    let status_run_issue33_enum_item_separated: i32 = run_issue33_enum_item_separated(ctx)
+    if (status_run_issue33_enum_item_separated != 0) {
+        return status_run_issue33_enum_item_separated
+    }
+
+    let status_run_issue33_enum_missing_class_method_impl: i32 = run_issue33_enum_missing_class_method_impl(ctx)
+    if (status_run_issue33_enum_missing_class_method_impl != 0) {
+        return status_run_issue33_enum_missing_class_method_impl
+    }
+
+    let status_run_issue33_enum_missing_terminator: i32 = run_issue33_enum_missing_terminator(ctx)
+    if (status_run_issue33_enum_missing_terminator != 0) {
+        return status_run_issue33_enum_missing_terminator
+    }
+
+    let status_run_issue33_enum_semicolon_separated: i32 = run_issue33_enum_semicolon_separated(ctx)
+    if (status_run_issue33_enum_semicolon_separated != 0) {
+        return status_run_issue33_enum_semicolon_separated
+    }
+
+    let status_run_issue33_nonempty_record_empty_literal_rejected: i32 = run_issue33_nonempty_record_empty_literal_rejected(ctx)
+    if (status_run_issue33_nonempty_record_empty_literal_rejected != 0) {
+        return status_run_issue33_nonempty_record_empty_literal_rejected
+    }
+
+    let status_run_issue33_range_type_family_surface: i32 = run_issue33_range_type_family_surface(ctx)
+    if (status_run_issue33_range_type_family_surface != 0) {
+        return status_run_issue33_range_type_family_surface
+    }
+
+    let status_run_issue33_record_associated_type_member: i32 = run_issue33_record_associated_type_member(ctx)
+    if (status_run_issue33_record_associated_type_member != 0) {
+        return status_run_issue33_record_associated_type_member
+    }
+
+    let status_run_issue878_empty_record_brace_literal_rejected: i32 = run_issue878_empty_record_brace_literal_rejected(ctx)
+    if (status_run_issue878_empty_record_brace_literal_rejected != 0) {
+        return status_run_issue878_empty_record_brace_literal_rejected
+    }
+
+    let status_run_issue878_empty_record_default_constructor_accepted: i32 = run_issue878_empty_record_default_constructor_accepted(ctx)
+    if (status_run_issue878_empty_record_default_constructor_accepted != 0) {
+        return status_run_issue878_empty_record_default_constructor_accepted
+    }
+
+    let status_run_no_ambient_system_record_literal_safe: i32 = run_no_ambient_system_record_literal_safe(ctx)
+    if (status_run_no_ambient_system_record_literal_safe != 0) {
+        return status_run_no_ambient_system_record_literal_safe
+    }
+
+    let status_issue53_class_dup_params_trace: i32 = run_issue53_class_dup_params_trace(ctx)
+    if (status_issue53_class_dup_params_trace != 0) {
+        return status_issue53_class_dup_params_trace
+    }
+
+    let status_issue53_class_cycle_trace: i32 = run_issue53_class_cycle_trace(ctx)
+    if (status_issue53_class_cycle_trace != 0) {
+        return status_issue53_class_cycle_trace
+    }
+
+    let status_issue53_record_self_param_forbidden: i32 = run_issue53_record_self_param_forbidden(ctx)
+    if (status_issue53_record_self_param_forbidden != 0) {
+        return status_issue53_record_self_param_forbidden
+    }
+
+    let status_issue53_record_method_call_trace: i32 = run_issue53_record_method_call_trace(ctx)
+    if (status_issue53_record_method_call_trace != 0) {
+        return status_issue53_record_method_call_trace
+    }
+
+    let status_Invoke_Issue58StringBytesConformanceCase: i32 = run_Invoke_Issue58StringBytesConformanceCase(ctx)
+    if (status_Invoke_Issue58StringBytesConformanceCase != 0) {
+        return status_Invoke_Issue58StringBytesConformanceCase
+    }
+
+    let status_issue510_enum_disc_over_u64_invalid: i32 = run_issue510_enum_disc_over_u64_invalid(ctx)
+    if (status_issue510_enum_disc_over_u64_invalid != 0) {
+        return status_issue510_enum_disc_over_u64_invalid
+    }
+
+    let status_issue559_enum_empty_rejected: i32 = run_issue559_enum_empty_rejected(ctx)
+    if (status_issue559_enum_empty_rejected != 0) {
+        return status_issue559_enum_empty_rejected
+    }
+
+    let status_Invoke_Issue511FoundationalClassesAndPipeConformanceCase: i32 = run_Invoke_Issue511FoundationalClassesAndPipeConformanceCase(ctx)
+    if (status_Invoke_Issue511FoundationalClassesAndPipeConformanceCase != 0) {
+        return status_Invoke_Issue511FoundationalClassesAndPipeConformanceCase
+    }
+
+    let status_issue540_invariant_resolution_conformance: i32 = run_issue540_invariant_resolution_conformance(ctx)
+    if (status_issue540_invariant_resolution_conformance != 0) {
+        return status_issue540_invariant_resolution_conformance
+    }
+
+    let status_issue543_refinement_alias_interop: i32 = run_issue543_refinement_alias_interop(ctx)
+    if (status_issue543_refinement_alias_interop != 0) {
+        return status_issue543_refinement_alias_interop
+    }
+
+    return 0
+}

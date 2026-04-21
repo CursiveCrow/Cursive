@@ -1,0 +1,9 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    var gate: shared [i32; 4] = [0, 0, 0, 0]
+    # gate speculative write {
+        let observed: i32 = [[acquire]] gate[0]
+        let _ = observed
+    }
+    return 0
+}

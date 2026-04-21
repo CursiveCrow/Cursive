@@ -774,7 +774,7 @@ function Build-IterationPrompt {
         '- All changes for this row are isolated in the assigned worktree above.',
         '- The launcher is the sole owner of validation after your row-item commit is created.',
         '- Do not run any build, configure, test, package, bootstrap, or verification command from the assigned worktree.',
-        '- Do not run `cmake`, `ctest`, `ninja`, `make`, `gmake`, `msbuild`, `scripts/build_cursive_all.sh`, `RunCompilerStaticConformance.ps1`, `RunHelloCursive*.ps1`, `setup_extern.ps1`, or any equivalent command from the worktree.',
+        '- Do not run `cmake`, `ctest`, `ninja`, `make`, `gmake`, `msbuild`, `scripts/build_cursive_all.sh`, `CompileChecks/Main.cursive`, `CompileChecks/build/compilechecks/bin/compilechecks.exe`, `setup_extern.ps1`, or any equivalent command from the worktree.',
         '- Do not create or rely on worktree-local `build/`, `extern/`, or other generated validation artifacts.',
         '- If you invoke Python from a shell command, use `python3`; this environment does not guarantee a `python` alias.',
         '- Create exactly one commit for this worker turn in that worktree, then end. The initial turn creates the row commit; each launcher verification retry may create exactly one follow-up commit.',
@@ -1582,22 +1582,47 @@ function Run-MainRepoWindowsBuild {
         "CompilerPath=$compilerPath" | Tee-Object -FilePath $script:MainBuildLogFile -Append
         "CompilerLastWriteTimeUtc=$([DateTime]::SpecifyKind($compilerInfo.LastWriteTimeUtc, [DateTimeKind]::Utc).ToString('o'))" | Tee-Object -FilePath $script:MainBuildLogFile -Append
 
-        Push-Location $helloDir
+        $compileChecksDir = Join-Path $helloDir 'CompileChecks'
+        Push-Location $compileChecksDir
         try {
-            'COMMAND_LABEL=hello-cursive' | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            'COMMAND_LABEL=hello-cursive-compilechecks-build' | Tee-Object -FilePath $script:MainBuildLogFile -Append
             "HelloCursiveCompilerPath=$compilerPath" | Tee-Object -FilePath $script:MainBuildLogFile -Append
             $previousEap = $ErrorActionPreference
             $ErrorActionPreference = 'Continue'
             try {
-                $null = & $powershellCmd.Source -NoProfile -ExecutionPolicy Bypass -File (Join-Path $helloDir 'RunHelloCursive.ps1') -CompilerPath $compilerPath 2>&1 |
+                $null = & $compilerPath --incremental off --diag-json --quiet Main.cursive 2>&1 |
                     Tee-Object -FilePath $script:MainBuildLogFile -Append
-                $helloExitCode = $LASTEXITCODE
+                $helloBuildExitCode = $LASTEXITCODE
             } finally {
                 $ErrorActionPreference = $previousEap
             }
+            "COMMAND_EXIT=$helloBuildExitCode" | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            if ($helloBuildExitCode -ne 0) {
+                'FAILED_COMMAND_LABEL=hello-cursive-compilechecks-build' | Tee-Object -FilePath $script:MainBuildLogFile -Append
+                return $false
+            }
+
+            'COMMAND_LABEL=hello-cursive-compilechecks-run' | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            $compileChecksExe = Join-Path $compileChecksDir 'build\compilechecks\bin\compilechecks.exe'
+            if (-not (Test-Path -LiteralPath $compileChecksExe)) {
+                'FAILED_COMMAND_LABEL=hello-cursive-compilechecks-exe' | Tee-Object -FilePath $script:MainBuildLogFile -Append
+                return $false
+            }
+            $previousCompilerUnderTest = $env:CURSIVE_COMPILER_UNDER_TEST
+            $env:CURSIVE_COMPILER_UNDER_TEST = $compilerPath
+            try {
+                $null = & $compileChecksExe 2>&1 | Tee-Object -FilePath $script:MainBuildLogFile -Append
+                $helloExitCode = $LASTEXITCODE
+            } finally {
+                if ($null -eq $previousCompilerUnderTest) {
+                    Remove-Item Env:CURSIVE_COMPILER_UNDER_TEST -ErrorAction SilentlyContinue
+                } else {
+                    $env:CURSIVE_COMPILER_UNDER_TEST = $previousCompilerUnderTest
+                }
+            }
             "COMMAND_EXIT=$helloExitCode" | Tee-Object -FilePath $script:MainBuildLogFile -Append
             if ($helloExitCode -ne 0) {
-                'FAILED_COMMAND_LABEL=hello-cursive' | Tee-Object -FilePath $script:MainBuildLogFile -Append
+                'FAILED_COMMAND_LABEL=hello-cursive-compilechecks-run' | Tee-Object -FilePath $script:MainBuildLogFile -Append
                 return $false
             }
         } finally {
@@ -1668,7 +1693,7 @@ function Integrate-VerifiedCommitIntoMainRepo {
 
     Add-Content -LiteralPath $script:CommitMessageFile -Value ''
     Add-Content -LiteralPath $script:CommitMessageFile -Value ("Tested: cmake --build --preset $($script:WindowsPreset) --target $($script:WindowsTarget)")
-    Add-Content -LiteralPath $script:CommitMessageFile -Value ("Tested: HelloCursive/RunHelloCursive.ps1 -CompilerPath $($script:VerifiedCompilerPath)")
+    Add-Content -LiteralPath $script:CommitMessageFile -Value ("Tested: HelloCursive/CompileChecks compilechecks.exe -CompilerPath $($script:VerifiedCompilerPath)")
 
     Update-ClaimLedgerStage 'staging' 'staging verified main-repo changes'
     try {

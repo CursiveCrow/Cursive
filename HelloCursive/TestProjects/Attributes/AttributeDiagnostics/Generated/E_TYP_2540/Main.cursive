@@ -1,0 +1,12 @@
+public class DynBase {
+    procedure only_static<T>(~, value: T) -> T {
+        return value
+    }
+}
+procedure CallOnDynamic(target: $DynBase) -> i32 {
+    return target~>only_static(9)
+}
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

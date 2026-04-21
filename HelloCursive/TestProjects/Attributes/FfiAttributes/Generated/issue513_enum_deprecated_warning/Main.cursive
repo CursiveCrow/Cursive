@@ -1,0 +1,12 @@
+[[deprecated("use ReplacementEnum")]]
+enum Issue513DeprecatedEnumProbe {
+    Value
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let probe = Issue513DeprecatedEnumProbe::Value
+    return if probe is {
+        Issue513DeprecatedEnumProbe::Value { 1 }
+    }
+}

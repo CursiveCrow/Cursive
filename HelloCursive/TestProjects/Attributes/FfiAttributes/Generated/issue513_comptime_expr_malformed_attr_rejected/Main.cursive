@@ -1,0 +1,5 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let value: i32 = [[files("unexpected")]] comptime { 1 }
+    return value
+}

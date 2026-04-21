@@ -33,6 +33,7 @@
 
 #include "00_core/assert_spec.h"
 #include "00_core/diagnostic_messages.h"
+#include "04_analysis/composite/classes.h"
 #include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/type_equiv.h"
@@ -474,6 +475,15 @@ bool CheckClassBound(
 
   if (!type || class_path.empty()) {
     return false;
+  }
+
+  ast::ClassPath syntax_class_path;
+  syntax_class_path.reserve(class_path.size());
+  for (const auto& seg : class_path) {
+    syntax_class_path.push_back(seg);
+  }
+  if (TypeImplementsClass(ctx, type, syntax_class_path)) {
+    return true;
   }
 
   // Look up the type declaration

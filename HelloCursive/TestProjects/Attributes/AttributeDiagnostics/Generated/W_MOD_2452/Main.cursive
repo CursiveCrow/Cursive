@@ -1,0 +1,12 @@
+[[inline(always)]]
+public procedure RecursiveAlwaysInline(value: i32) -> i32 {
+    if (value <= 0) {
+        return 0
+    }
+    let next = value - 1
+    return RecursiveAlwaysInline(next)
+}
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return RecursiveAlwaysInline(1)
+}

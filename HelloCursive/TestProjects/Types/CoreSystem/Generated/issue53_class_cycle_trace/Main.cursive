@@ -1,0 +1,10 @@
+class A <: B {
+}
+
+class B <: A {
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

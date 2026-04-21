@@ -1,0 +1,9 @@
+[[ffi_pass_by_value]]
+procedure wrong_target_attr() -> i32 {
+    return 0
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return wrong_target_attr()
+}

@@ -259,10 +259,14 @@ ParseElemResult<ExprPtr> ParseParallelExpr(Parser parser) {
   Advance(next);
 
   // Parse domain expression.
-  ParseElemResult<ExprPtr> domain = ParseExprNoBrace(next);
+  Parser domain_start = next;
+  domain_start.stop_before_parallel_options = true;
+  ParseElemResult<ExprPtr> domain = ParseExprNoBrace(domain_start);
+  Parser after_domain = domain.parser;
+  after_domain.stop_before_parallel_options = false;
 
   ParseElemResult<std::vector<ParallelOption>> opts =
-      ParseParallelOptsOpt(domain.parser);
+      ParseParallelOptsOpt(after_domain);
 
   // Parse block body
   ParseElemResult<std::shared_ptr<Block>> body = ParseBlock(opts.parser);

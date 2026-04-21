@@ -1,0 +1,9 @@
+procedure id<T>(value: T) -> T {
+    return value
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let out: i32 = id<i32>(7)
+    return out
+}

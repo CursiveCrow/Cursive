@@ -1,0 +1,9 @@
+public procedure DynClauseDirect(x: i32) -> i32
+    |: [[dynamic]] (x == x)
+{
+    return x
+}
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return DynClauseDirect(1)
+}

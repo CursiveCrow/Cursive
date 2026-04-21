@@ -26,6 +26,7 @@
 
 #include "00_core/spec_trace.h"
 #include "00_core/symbols.h"
+#include "04_analysis/typing/type_predicates.h"
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/checks/checks.h"
 #include "05_codegen/layout/layout.h"
@@ -38,6 +39,8 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/IRBuilder.h"
+
+#include <iostream>
 #include "llvm/IR/Instructions.h"
 
 #include <algorithm>
@@ -555,6 +558,67 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
     return 0;
   };
 
+  auto materialize_array_slice_storage =
+      [&](llvm::Value* array_storage, llvm::Type* slice_ty) -> llvm::Value* {
+    auto* slice_struct_ty = llvm::dyn_cast<llvm::StructType>(slice_ty);
+    if (!slice_struct_ty || slice_struct_ty->getNumElements() != 2 ||
+        !slice_struct_ty->getElementType(0)->isPointerTy() ||
+        !slice_struct_ty->getElementType(1)->isIntegerTy()) {
+      return nullptr;
+    }
+
+    llvm::Type* array_ty = nullptr;
+    if (auto* alloca = llvm::dyn_cast<llvm::AllocaInst>(array_storage)) {
+      array_ty = alloca->getAllocatedType();
+    } else if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(array_storage)) {
+      array_ty = global->getValueType();
+    }
+
+    auto* arr_ty = llvm::dyn_cast_or_null<llvm::ArrayType>(array_ty);
+    if (!arr_ty) {
+      return nullptr;
+    }
+
+    const unsigned ordinal =
+        next_scratch_ordinal(slice_ty, "array_to_slice_arg");
+    llvm::AllocaInst* slot =
+        AcquireReusableEntryAlloca(func, slice_ty, "array_to_slice_arg", ordinal);
+    if (!slot) {
+      return nullptr;
+    }
+
+    llvm::Type* ptr_field_ty = slice_struct_ty->getElementType(0);
+    llvm::Type* len_field_ty = slice_struct_ty->getElementType(1);
+    llvm::Value* data_ptr = nullptr;
+    if (arr_ty->getNumElements() == 0) {
+      data_ptr = llvm::ConstantPointerNull::get(
+          llvm::cast<llvm::PointerType>(ptr_field_ty));
+    } else {
+      llvm::Type* array_ptr_ty = llvm::PointerType::get(arr_ty, 0);
+      llvm::Value* typed_array_storage = array_storage;
+      if (typed_array_storage->getType() != array_ptr_ty) {
+        typed_array_storage = CoerceValue(builder, typed_array_storage, array_ptr_ty);
+      }
+      llvm::Value* zero = llvm::ConstantInt::get(
+          llvm::Type::getInt64Ty(builder->getContext()), 0);
+      llvm::Value* elem_ptr =
+          builder->CreateGEP(arr_ty, typed_array_storage, {zero, zero});
+      data_ptr = CoerceValue(builder, elem_ptr, ptr_field_ty);
+    }
+    if (!data_ptr) {
+      data_ptr = llvm::ConstantPointerNull::get(
+          llvm::cast<llvm::PointerType>(ptr_field_ty));
+    }
+
+    llvm::Value* len_val =
+        llvm::ConstantInt::get(len_field_ty, arr_ty->getNumElements());
+    llvm::Value* slice_val = llvm::Constant::getNullValue(slice_struct_ty);
+    slice_val = builder->CreateInsertValue(slice_val, data_ptr, {0u});
+    slice_val = builder->CreateInsertValue(slice_val, len_val, {1u});
+    builder->CreateStore(slice_val, slot);
+    return slot;
+  };
+
   if (result_storage_out) {
     *result_storage_out = nullptr;
   }
@@ -569,6 +633,10 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
       return nullptr;
     }
     if (elem_ty) {
+      if (llvm::Value* slice_storage =
+              materialize_array_slice_storage(storage, elem_ty)) {
+        return slice_storage;
+      }
       llvm::Type* target_ptr_ty = llvm::PointerType::get(elem_ty, 0);
       if (storage->getType() != target_ptr_ty) {
         storage = CoerceValue(builder, storage, target_ptr_ty);
@@ -577,8 +645,36 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
     return storage;
   };
 
-  auto report_codegen_failure = [&]() -> void {
+  auto report_codegen_failure = [&](std::string_view reason,
+                                    std::size_t param_index =
+                                        static_cast<std::size_t>(-1),
+                                    llvm::Value* value = nullptr) -> void {
     if (LowerCtx* ctx = emitter.GetCurrentCtx()) {
+      std::cerr << "[cursive] call ABI materialization failed"
+                << " reason=" << reason;
+      if (param_index != static_cast<std::size_t>(-1)) {
+        std::cerr << " param_index=" << param_index;
+        if (param_index < params.size()) {
+          std::cerr << " param_name=" << params[param_index].name;
+        }
+      }
+      if (callee) {
+        if (auto* fn = llvm::dyn_cast<llvm::Function>(callee)) {
+          std::cerr << " callee=" << fn->getName().str();
+        } else if (auto* gv = llvm::dyn_cast<llvm::GlobalValue>(callee)) {
+          std::cerr << " callee=" << gv->getName().str();
+        }
+      }
+      if (func) {
+        std::cerr << " function=" << func->getName().str();
+      }
+      if (value && value->getType()) {
+        std::string type_text;
+        llvm::raw_string_ostream os(type_text);
+        value->getType()->print(os);
+        std::cerr << " value_type=" << os.str();
+      }
+      std::cerr << "\n";
       ctx->ReportCodegenFailure();
     }
   };
@@ -606,6 +702,67 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
       storage = CoerceValue(builder, storage, target_ty);
     }
     return storage;
+  };
+
+  auto is_slice_param_type = [](analysis::TypeRef type) -> bool {
+    type = analysis::StripPerm(type);
+    return type && std::holds_alternative<analysis::TypeSlice>(type->node);
+  };
+
+  auto source_arg_slice_type = [&](std::size_t index) -> analysis::TypeRef {
+    if (!source_args || index >= source_args->size()) {
+      return nullptr;
+    }
+    LowerCtx* ctx = emitter.GetCurrentCtx();
+    if (!ctx) {
+      return nullptr;
+    }
+    analysis::TypeRef type = analysis::StripPerm(
+        ctx->LookupValueType((*source_args)[index]));
+    if (!type) {
+      return nullptr;
+    }
+    if (const auto* ptr = std::get_if<analysis::TypePtr>(&type->node)) {
+      analysis::TypeRef element = analysis::StripPerm(ptr->element);
+      if (element && std::holds_alternative<analysis::TypeSlice>(element->node)) {
+        return element;
+      }
+    }
+    if (std::holds_alternative<analysis::TypeSlice>(type->node)) {
+      return type;
+    }
+    return nullptr;
+  };
+
+  auto materialize_slice_arg =
+      [&](std::size_t index,
+          const analysis::TypeRef& slice_arg_type,
+          llvm::Type* target_ty,
+          bool prefer_storage,
+          llvm::Value* fallback_arg = nullptr) -> llvm::Value* {
+    if (!slice_arg_type) {
+      return nullptr;
+    }
+    llvm::Type* slice_ty = emitter.GetLLVMType(slice_arg_type);
+    if (!slice_ty) {
+      return nullptr;
+    }
+    llvm::Value* storage = existing_arg_storage(index, slice_ty);
+    if (!storage && fallback_arg && fallback_arg->getType()->isPointerTy()) {
+      storage = materialize_array_slice_storage(fallback_arg, slice_ty);
+    }
+    if (!storage) {
+      return nullptr;
+    }
+    if (prefer_storage || (target_ty && target_ty->isPointerTy())) {
+      return storage;
+    }
+    if (!storage->getType()->isPointerTy()) {
+      return storage;
+    }
+    llvm::LoadInst* loaded = builder->CreateLoad(slice_ty, storage);
+    loaded->setAlignment(llvm::Align(1));
+    return loaded;
   };
 
   // Handle sret parameter
@@ -659,6 +816,18 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
     if (abi.param_kinds[i] == PassKind::ByRef) {
       // Need to pass by reference - create temporary if not already a pointer
       llvm::Type* elem_ty = emitter.GetLLVMType(params[i].type);
+      if (analysis::TypeRef slice_arg_type = is_slice_param_type(params[i].type)
+                                                ? params[i].type
+                                                : source_arg_slice_type(i)) {
+        if (llvm::Value* slice_storage =
+                materialize_slice_arg(i,
+                                      slice_arg_type,
+                                      abi.param_types[idx],
+                                      /*prefer_storage=*/true,
+                                      arg)) {
+          arg = slice_storage;
+        }
+      }
       if (!arg->getType()->isPointerTy() || is_null_pointer_arg(arg)) {
         llvm::Value* storage = existing_arg_storage(i, elem_ty);
         if (storage) {
@@ -666,7 +835,7 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
           continue;
         }
         if (arg->getType()->isPointerTy()) {
-          report_codegen_failure();
+          report_codegen_failure("byref-null-pointer", i, arg);
           continue;
         }
         const unsigned ordinal = next_scratch_ordinal(elem_ty, "byref_arg");
@@ -677,7 +846,7 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
           builder->CreateStore(stored, slot);
           call_args[idx] = slot;
         } else {
-          report_codegen_failure();
+          report_codegen_failure("byref-scratch-allocation", i, arg);
         }
         continue;
       }
@@ -692,11 +861,23 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
     if (carrier == ABIArgCarrierKind::Indirect) {
       llvm::Type* elem_ty = emitter.GetLLVMType(params[i].type);
       llvm::Value* ptr_arg = arg;
+      if (analysis::TypeRef slice_arg_type = is_slice_param_type(params[i].type)
+                                                ? params[i].type
+                                                : source_arg_slice_type(i)) {
+        if (llvm::Value* slice_storage =
+                materialize_slice_arg(i,
+                                      slice_arg_type,
+                                      abi.param_types[idx],
+                                      /*prefer_storage=*/true,
+                                      arg)) {
+          ptr_arg = slice_storage;
+        }
+      }
       if (!ptr_arg->getType()->isPointerTy() || is_null_pointer_arg(ptr_arg)) {
         if (llvm::Value* storage = existing_arg_storage(i, elem_ty)) {
           ptr_arg = storage;
         } else if (ptr_arg->getType()->isPointerTy()) {
-          report_codegen_failure();
+          report_codegen_failure("indirect-null-pointer", i, ptr_arg);
           continue;
         } else {
           const unsigned ordinal = next_scratch_ordinal(elem_ty, "indirect_arg");
@@ -707,7 +888,7 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
             builder->CreateStore(stored, slot);
             ptr_arg = slot;
           } else {
-            report_codegen_failure();
+            report_codegen_failure("indirect-scratch-allocation", i, arg);
             continue;
           }
         }
@@ -722,11 +903,25 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
 
     // By value
     llvm::Type* target_ty = abi.param_types[idx];
+    analysis::TypeRef slice_arg_type = nullptr;
+    if (is_slice_param_type(params[i].type)) {
+      slice_arg_type = params[i].type;
+    } else {
+      slice_arg_type = source_arg_slice_type(i);
+    }
+    if (llvm::Value* slice_arg =
+            materialize_slice_arg(i,
+                                  slice_arg_type,
+                                  target_ty,
+                                  /*prefer_storage=*/false,
+                                  arg)) {
+      arg = slice_arg;
+    }
     if (IsValidPtrType(params[i].type) && is_null_pointer_arg(arg)) {
       if (llvm::Value* recovered = recover_pointer_value_arg(i, target_ty)) {
         arg = recovered;
       } else {
-        report_codegen_failure();
+        report_codegen_failure("valid-pointer-null-value", i, arg);
         continue;
       }
     }
@@ -740,7 +935,7 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
   // still missing here, the lowered call signature is undefined.
   for (std::size_t i = 0; i < call_args.size(); ++i) {
     if (!call_args[i]) {
-      report_codegen_failure();
+      report_codegen_failure("missing-call-arg", i);
       return nullptr;
     }
   }

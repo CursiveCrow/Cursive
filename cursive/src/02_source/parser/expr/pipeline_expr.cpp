@@ -41,6 +41,11 @@ ParseElemResult<ExprPtr> ParseBasePostfix(Parser parser, bool allow_brace,
 ParseElemResult<ExprPtr> ParsePipelineTail(Parser parser, ExprPtr lhs,
                                            bool allow_brace,
                                            bool allow_bracket) {
+  if (parser.stop_before_contract_arrow && IsOp(parser, "=>")) {
+    SPEC_RULE("Parse-PipelineTail-Stop");
+    return {parser, lhs};
+  }
+
   if (!IsOp(parser, "=>")) {
     SPEC_RULE("Parse-PipelineTail-Stop");
     return {parser, lhs};

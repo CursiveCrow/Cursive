@@ -1,0 +1,15 @@
+[[layout(packed)]]
+record PackedBox {
+    value: i32
+}
+
+procedure read_ref(value: i32) -> i32 {
+    return value
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let box = PackedBox{ value: 7 }
+    let out: i32 = read_ref(box.value)
+    return out
+}

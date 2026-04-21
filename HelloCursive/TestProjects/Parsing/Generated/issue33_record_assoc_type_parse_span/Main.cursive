@@ -1,0 +1,15 @@
+public class AssocSurface {
+    type Output = i32
+}
+
+public record ScalarSurface <: AssocSurface {
+    public value: i32
+    type Output = i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let value: ScalarSurface = ScalarSurface { value: 7 }
+    let _ = value
+    return 0
+}

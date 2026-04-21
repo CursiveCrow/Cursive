@@ -26,6 +26,102 @@
 
 namespace cursive::codegen {
 
+namespace {
+
+LowerResult LowerLocalIdentifierRead(const ast::Expr& expr,
+                                     const BindingState& binding,
+                                     const std::string& ir_name,
+                                     LowerCtx& ctx) {
+    IRReadVar read;
+    read.name = ir_name;
+
+    IRValue value;
+    value.kind = IRValue::Kind::Local;
+    value.name = ir_name;
+    if (binding.type) {
+        ctx.RegisterValueType(value, binding.type);
+    } else if (ctx.expr_type) {
+        ctx.RegisterValueType(value, ctx.expr_type(expr));
+    }
+
+    IRPtr key_ir = LowerImplicitKeyAccess(expr, ast::KeyMode::Read, ctx);
+    return LowerResult{SeqIR({key_ir, MakeIR(std::move(read))}), value};
+}
+
+LowerResult LowerCaptureIdentifierRead(const ast::Expr& expr,
+                                       const CaptureAccess& capture,
+                                       LowerCtx& ctx) {
+    IRPtr ir = EmptyIR();
+
+    IRValue field_ptr = ctx.CaptureFieldPtr(capture);
+    IRValue value = ctx.FreshTempValue("capture_val");
+
+    if (capture.by_ref) {
+        IRValue captured_ptr = ctx.FreshTempValue("capture_ptr");
+
+        IRReadPtr load_ptr;
+        load_ptr.ptr = field_ptr;
+        load_ptr.result = captured_ptr;
+        ctx.RegisterValueType(captured_ptr, capture.field_type);
+
+        IRReadPtr load_val;
+        load_val.ptr = captured_ptr;
+        load_val.result = value;
+
+        ir = SeqIR({MakeIR(std::move(load_ptr)), MakeIR(std::move(load_val))});
+    } else {
+        IRReadPtr load_val;
+        load_val.ptr = field_ptr;
+        load_val.result = value;
+
+        ir = MakeIR(std::move(load_val));
+    }
+
+    if (ctx.expr_type) {
+        ctx.RegisterValueType(value, ctx.expr_type(expr));
+    } else {
+        ctx.RegisterValueType(value, capture.value_type);
+    }
+
+    IRPtr key_ir = LowerImplicitKeyAccess(expr, ast::KeyMode::Read, ctx);
+    return LowerResult{SeqIR({key_ir, ir}), value};
+}
+
+LowerResult LowerStaticIdentifierRead(const ast::Expr& expr,
+                                      std::vector<std::string> full,
+                                      const std::string& resolved_name,
+                                      LowerCtx& ctx) {
+    IRReadPath read;
+    read.path = full;
+    read.name = resolved_name;
+
+    IRValue value;
+    value.kind = IRValue::Kind::Symbol;
+    value.name = resolved_name;
+
+    if (!full.empty()) {
+        const std::string qualified = full.back() + "::" + resolved_name;
+        if (const std::string builtin = BuiltinSym(qualified); !builtin.empty()) {
+            value.name = builtin;
+        }
+    }
+
+    if (full.empty()) {
+        if (const std::string builtin = BuiltinSym(resolved_name); !builtin.empty()) {
+            value.name = builtin;
+        }
+    }
+
+    if (ctx.expr_type) {
+        ctx.RegisterValueType(value, ctx.expr_type(expr));
+    }
+
+    IRPtr key_ir = LowerImplicitKeyAccess(expr, ast::KeyMode::Read, ctx);
+    return LowerResult{SeqIR({key_ir, MakeIR(std::move(read))}), value};
+}
+
+}  // namespace
+
 // =============================================================================
 // LowerIdentifier - Lower an identifier expression to IR
 // =============================================================================
@@ -72,73 +168,46 @@ LowerResult LowerIdentifier(const ast::Expr& expr,
         }
     }
 
+    if (auto alias = ctx.LookupLocalAddrAlias(name)) {
+        switch (alias->kind) {
+            case LocalAddrAlias::Kind::Binding: {
+                const BindingState* binding =
+                    ctx.GetBindingStateById(alias->binding_name, alias->binding_id);
+                if (!binding) {
+                    ctx.ReportCodegenFailure();
+                    return LowerResult{EmptyIR(), IRValue{}};
+                }
+                const std::string ir_name =
+                    alias->stable_name.empty() ? alias->binding_name
+                                               : alias->stable_name;
+                return LowerLocalIdentifierRead(expr, *binding, ir_name, ctx);
+            }
+            case LocalAddrAlias::Kind::Capture: {
+                const auto* capture = ctx.LookupCapture(alias->capture_name);
+                if (!capture) {
+                    ctx.ReportCodegenFailure();
+                    return LowerResult{EmptyIR(), IRValue{}};
+                }
+                return LowerCaptureIdentifierRead(expr, *capture, ctx);
+            }
+            case LocalAddrAlias::Kind::Static:
+                return LowerStaticIdentifierRead(expr,
+                                                 alias->static_path,
+                                                 alias->static_name,
+                                                 ctx);
+        }
+    }
+
     // Case 1: Local binding - check if binding exists in scope
     if (const BindingState* binding = ctx.GetBindingState(name)) {
         SPEC_RULE("Lower-Expr-Ident-Local");
-
-        // Emit IRReadVar to read the local binding
-        IRReadVar read;
-        read.name = name;
-
-        // Create local IRValue referencing the binding
-        IRValue value;
-        value.kind = IRValue::Kind::Local;
-        value.name = name;
-        if (binding->type) {
-            ctx.RegisterValueType(value, binding->type);
-        } else if (ctx.expr_type) {
-            ctx.RegisterValueType(value, ctx.expr_type(expr));
-        }
-        IRPtr key_ir = LowerImplicitKeyAccess(expr, ast::KeyMode::Read, ctx);
-        return LowerResult{SeqIR({key_ir, MakeIR(std::move(read))}), value};
+        return LowerLocalIdentifierRead(expr, *binding, name, ctx);
     }
 
     // Case 2: Capture - check if identifier is captured in spawn/dispatch body
     if (const auto* capture = ctx.LookupCapture(name)) {
         SPEC_RULE("Lower-Expr-Ident-Capture");
-
-        IRPtr ir = EmptyIR();
-
-        // Get pointer to the capture field in the environment
-        IRValue field_ptr = ctx.CaptureFieldPtr(*capture);
-
-        // Create temporary for the loaded value
-        IRValue value = ctx.FreshTempValue("capture_val");
-
-        if (capture->by_ref) {
-            // Capture by reference: double indirection
-            // First load the pointer from the capture field
-            IRValue captured_ptr = ctx.FreshTempValue("capture_ptr");
-
-            IRReadPtr load_ptr;
-            load_ptr.ptr = field_ptr;
-            load_ptr.result = captured_ptr;
-            ctx.RegisterValueType(captured_ptr, capture->field_type);
-
-            // Then load the value through the pointer
-            IRReadPtr load_val;
-            load_val.ptr = captured_ptr;
-            load_val.result = value;
-
-            ir = SeqIR({MakeIR(std::move(load_ptr)), MakeIR(std::move(load_val))});
-        } else {
-            // Capture by value: single load
-            IRReadPtr load_val;
-            load_val.ptr = field_ptr;
-            load_val.result = value;
-
-            ir = MakeIR(std::move(load_val));
-        }
-
-        // Register the value type
-        if (ctx.expr_type) {
-            ctx.RegisterValueType(value, ctx.expr_type(expr));
-        } else {
-            ctx.RegisterValueType(value, capture->value_type);
-        }
-
-        IRPtr key_ir = LowerImplicitKeyAccess(expr, ast::KeyMode::Read, ctx);
-        return LowerResult{SeqIR({key_ir, ir}), value};
+        return LowerCaptureIdentifierRead(expr, *capture, ctx);
     }
 
     // Case 3: Path/global - resolve name to module path
@@ -174,39 +243,7 @@ LowerResult LowerIdentifier(const ast::Expr& expr,
         }
     }
 
-    // Emit IRReadPath for the global/static access
-    IRReadPath read;
-    read.path = full;
-    read.name = resolved_name;
-
-    // Create symbol IRValue
-    IRValue value;
-    value.kind = IRValue::Kind::Symbol;
-    value.name = resolved_name;
-
-    // Builtin path references (for example imported string::length) lower to
-    // runtime builtin symbols rather than user-scope path symbols.
-    if (!full.empty()) {
-        const std::string qualified = full.back() + "::" + resolved_name;
-        if (const std::string builtin = BuiltinSym(qualified); !builtin.empty()) {
-            value.name = builtin;
-        }
-    }
-
-    // Unqualified builtins are represented as a single-segment resolved
-    // path in codegen callbacks, so full becomes empty after SplitLast.
-    if (full.empty()) {
-        if (const std::string builtin = BuiltinSym(resolved_name); !builtin.empty()) {
-            value.name = builtin;
-        }
-    }
-
-    if (ctx.expr_type) {
-        ctx.RegisterValueType(value, ctx.expr_type(expr));
-    }
-
-    IRPtr key_ir = LowerImplicitKeyAccess(expr, ast::KeyMode::Read, ctx);
-    return LowerResult{SeqIR({key_ir, MakeIR(std::move(read))}), value};
+    return LowerStaticIdentifierRead(expr, std::move(full), resolved_name, ctx);
 }
 
 }  // namespace cursive::codegen

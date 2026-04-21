@@ -1,0 +1,7 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let value: bool = true
+    let bad: string@View = value as string@View
+    let _ = bad
+    return 0
+}

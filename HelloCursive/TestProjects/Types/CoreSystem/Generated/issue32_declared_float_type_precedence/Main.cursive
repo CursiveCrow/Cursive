@@ -1,0 +1,11 @@
+procedure takes_f64(value: f64) -> f64 {
+    return value
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let declared: f64 = 1.25
+    let checked: f64 = takes_f64(declared)
+    let _ = checked
+    return 0
+}

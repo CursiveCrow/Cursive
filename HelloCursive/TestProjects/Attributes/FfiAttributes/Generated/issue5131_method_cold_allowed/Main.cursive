@@ -1,0 +1,12 @@
+record Issue5131MethodColdProbe {
+    [[cold]]
+    procedure ping(~) -> i32 {
+        return 7
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let probe: Issue5131MethodColdProbe = Issue5131MethodColdProbe()
+    return probe~>ping()
+}

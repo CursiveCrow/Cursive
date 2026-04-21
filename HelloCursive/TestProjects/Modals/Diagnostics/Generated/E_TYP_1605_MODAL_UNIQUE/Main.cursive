@@ -1,0 +1,13 @@
+public modal M {
+    @S {
+        public procedure need_unique(~!) -> i32 {
+            return 1
+        }
+    }
+}
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let m: const M@S = M@S { }
+    let _ = m~>need_unique()
+    return 0
+}

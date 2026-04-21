@@ -1,0 +1,14 @@
+[toolchain]
+target_profile = "x86_64-win64"
+
+[[assembly]]
+name = "compilechecks"
+kind = "executable"
+root = "."
+out_dir = "build/compilechecks"
+
+[[assembly]]
+name = "testsupport"
+kind = "dependency"
+root = "./TestSupport"
+out_dir = "build/testsupport"

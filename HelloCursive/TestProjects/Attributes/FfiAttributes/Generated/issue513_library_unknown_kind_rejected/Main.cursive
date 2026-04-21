@@ -1,0 +1,9 @@
+[[library(name: "ssl", kind: "mystery")]]
+extern "C" {
+    procedure unknown_library_kind() -> i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

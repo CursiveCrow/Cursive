@@ -1,0 +1,6 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let duplicate_name: i32 = 1
+    let duplicate_name: i32 = 2
+    return 0
+}

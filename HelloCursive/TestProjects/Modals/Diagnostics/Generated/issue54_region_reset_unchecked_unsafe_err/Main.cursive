@@ -1,0 +1,8 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let opts: RegionOptions =
+        RegionOptions { stack_size: 0usize, name: "issue54-reset-unsafe" }
+    var r: unique Region@Active = Region::new_scoped(opts)
+    let _: Region@Active = r~>reset_unchecked()
+    return 0
+}

@@ -1,0 +1,234 @@
+
+procedure run_issue5131_attr_spec_trailing_comma_multiline(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Parsing\\Generated\\issue5131_attr_spec_trailing_comma_multiline\\Main.cursive > build\\main\\logs\\compile_checks\\issue5131_attr_spec_trailing_comma_multiline.json 2> build\\main\\logs\\compile_checks\\issue5131_attr_spec_trailing_comma_multiline.stderr & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue5131_attr_spec_trailing_comma_multiline")
+}
+
+procedure run_issue5131_attr_spec_trailing_comma_single_line(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Parsing\\Generated\\issue5131_attr_spec_trailing_comma_single_line\\Main.cursive > build\\main\\logs\\compile_checks\\issue5131_attr_spec_trailing_comma_single_line.json 2> build\\main\\logs\\compile_checks\\issue5131_attr_spec_trailing_comma_single_line.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SRC-0521\\\"\" build\\main\\logs\\compile_checks\\issue5131_attr_spec_trailing_comma_single_line.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue5131_attr_spec_trailing_comma_single_line")
+}
+
+procedure run_issue5131_attr_trailing_comma_single_line(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Parsing\\Generated\\issue5131_attr_trailing_comma_single_line\\Main.cursive > build\\main\\logs\\compile_checks\\issue5131_attr_trailing_comma_single_line.json 2> build\\main\\logs\\compile_checks\\issue5131_attr_trailing_comma_single_line.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SRC-0521\\\"\" build\\main\\logs\\compile_checks\\issue5131_attr_trailing_comma_single_line.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue5131_attr_trailing_comma_single_line")
+}
+
+procedure run_issue51_extern_proc_terminator_required(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Parsing\\Generated\\issue51_extern_proc_terminator_required\\Main.cursive > build\\main\\logs\\compile_checks\\issue51_extern_proc_terminator_required.json 2> build\\main\\logs\\compile_checks\\issue51_extern_proc_terminator_required.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SRC-0510\\\"\" build\\main\\logs\\compile_checks\\issue51_extern_proc_terminator_required.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue51_extern_proc_terminator_required")
+}
+
+procedure run_issue51_public_extern_block_visibility_parse(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Parsing\\Generated\\issue51_public_extern_block_visibility_parse\\Main.cursive > build\\main\\logs\\compile_checks\\issue51_public_extern_block_visibility_parse.json 2> build\\main\\logs\\compile_checks\\issue51_public_extern_block_visibility_parse.stderr & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue51_public_extern_block_visibility_parse")
+}
+
+procedure run_issue33_qualified_name_resolution_pipeline_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue33_qualified_name_resolution_pipeline.log ..\\TestProjects\\Parsing\\Generated\\issue33_qualified_name_resolution_pipeline_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_qualified_name_resolution_pipeline_trace.json 2> build\\main\\logs\\compile_checks\\issue33_qualified_name_resolution_pipeline_trace.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue33_qualified_name_resolution_pipeline_trace")
+}
+
+procedure run_issue51_using_item_parse_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue51_using_item_parse_trace.log ..\\TestProjects\\Parsing\\Generated\\issue51_using_item_parse_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue51_using_item_parse_trace.json 2> build\\main\\logs\\compile_checks\\issue51_using_item_parse_trace.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue51_using_item_parse_trace")
+}
+
+procedure run_issue51_using_list_parse_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue51_using_list_parse_trace.log ..\\TestProjects\\Parsing\\Generated\\issue51_using_list_parse_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue51_using_list_parse_trace.json 2> build\\main\\logs\\compile_checks\\issue51_using_list_parse_trace.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue51_using_list_parse_trace")
+}
+
+procedure run_issue33_record_assoc_type_parse_span(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue33_record_assoc_type_parse_span.log ..\\TestProjects\\Parsing\\Generated\\issue33_record_assoc_type_parse_span\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_record_assoc_type_parse_span.json 2> build\\main\\logs\\compile_checks\\issue33_record_assoc_type_parse_span.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue33_record_assoc_type_parse_span")
+}
+
+procedure run_issue544_extern_item_list_parse_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue544_extern_item_list_parse_trace.log ..\\TestProjects\\Parsing\\Generated\\issue544_extern_item_list_parse_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue544_extern_item_list_parse_trace.json 2> build\\main\\logs\\compile_checks\\issue544_extern_item_list_parse_trace.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue544_extern_item_list_parse_trace")
+}
+
+procedure run_issue618_parse_items_cons_trace_conformance(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue618_parse_items_cons_trace_conformance.log ..\\TestProjects\\Parsing\\Generated\\issue618_parse_items_cons_trace_conformance\\Main.cursive > build\\main\\logs\\compile_checks\\issue618_parse_items_cons_trace_conformance.json 2> build\\main\\logs\\compile_checks\\issue618_parse_items_cons_trace_conformance.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue618_parse_items_cons_trace_conformance")
+}
+
+procedure run_issue620_quote_probe_parse_syntax_err_conformance(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue620_quote_probe_parse_syntax_err_conformance.log ..\\TestProjects\\Parsing\\Generated\\issue620_quote_probe_parse_syntax_err_conformance\\Main.cursive > build\\main\\logs\\compile_checks\\issue620_quote_probe_parse_syntax_err_conformance.json 2> build\\main\\logs\\compile_checks\\issue620_quote_probe_parse_syntax_err_conformance.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue620_quote_probe_parse_syntax_err_conformance")
+}
+
+procedure run_issue5131_attr_spec_trailing_comma_multiline_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue5131_attr_spec_trailing_comma_multiline_trace.log ..\\TestProjects\\Parsing\\Generated\\issue5131_attr_spec_trailing_comma_multiline_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue5131_attr_spec_trailing_comma_multiline_trace.json 2> build\\main\\logs\\compile_checks\\issue5131_attr_spec_trailing_comma_multiline_trace.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue5131_attr_spec_trailing_comma_multiline_trace")
+}
+
+procedure run_issue5131_attr_spec_trailing_comma_single_line_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue5131_attr_spec_trailing_comma_single_line_trace.log ..\\TestProjects\\Parsing\\Generated\\issue5131_attr_spec_trailing_comma_single_line_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue5131_attr_spec_trailing_comma_single_line_trace.json 2> build\\main\\logs\\compile_checks\\issue5131_attr_spec_trailing_comma_single_line_trace.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue5131_attr_spec_trailing_comma_single_line_trace")
+}
+
+procedure run_Invoke_Issue621ReservedKeywordIdentifierConformanceCase(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Parsing\\Generated\\Invoke_Issue621ReservedKeywordIdentifierConformanceCase\\Main.cursive > build\\main\\logs\\compile_checks\\Invoke_Issue621ReservedKeywordIdentifierConformanceCase.json 2> build\\main\\logs\\compile_checks\\Invoke_Issue621ReservedKeywordIdentifierConformanceCase.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "Invoke-Issue621ReservedKeywordIdentifierConformanceCase")
+}
+
+procedure run_issue60_type_annot_opt_parse_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue60_type_annot_opt_parse_trace.log ..\\TestProjects\\Parsing\\Generated\\issue60_type_annot_opt_parse_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue60_type_annot_opt_parse_trace.json 2> build\\main\\logs\\compile_checks\\issue60_type_annot_opt_parse_trace.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue60_type_annot_opt_parse_trace")
+}
+
+procedure run_issue514_list_small_step_parse_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue514_list_small_step_parse_trace.log ..\\TestProjects\\Parsing\\Generated\\issue514_list_small_step_parse_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue514_list_small_step_parse_trace.json 2> build\\main\\logs\\compile_checks\\issue514_list_small_step_parse_trace.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue514_list_small_step_parse_trace")
+}
+
+procedure run_issue514_trailing_comma_end_set_conformance(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue514_trailing_comma_end_set_conformance.log ..\\TestProjects\\Parsing\\Generated\\issue514_trailing_comma_end_set_conformance\\Main.cursive > build\\main\\logs\\compile_checks\\issue514_trailing_comma_end_set_conformance.json 2> build\\main\\logs\\compile_checks\\issue514_trailing_comma_end_set_conformance.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue514_trailing_comma_end_set_conformance")
+}
+
+procedure run_issue514_trailing_comma_err_conformance(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue514_trailing_comma_err_conformance.log ..\\TestProjects\\Parsing\\Generated\\issue514_trailing_comma_err_conformance\\Main.cursive > build\\main\\logs\\compile_checks\\issue514_trailing_comma_err_conformance.json 2> build\\main\\logs\\compile_checks\\issue514_trailing_comma_err_conformance.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue514_trailing_comma_err_conformance")
+}
+
+procedure run_issue514_tuple_literal_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue514_tuple_literal_trace.log ..\\TestProjects\\Parsing\\Generated\\issue514_tuple_literal_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue514_tuple_literal_trace.json 2> build\\main\\logs\\compile_checks\\issue514_tuple_literal_trace.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue514_tuple_literal_trace")
+}
+
+procedure run_issue514_tuple_expr_singleton_comma_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue514_tuple_expr_singleton_comma_rejected.log ..\\TestProjects\\Parsing\\Generated\\issue514_tuple_expr_singleton_comma_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue514_tuple_expr_singleton_comma_rejected.json 2> build\\main\\logs\\compile_checks\\issue514_tuple_expr_singleton_comma_rejected.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue514_tuple_expr_singleton_comma_rejected")
+}
+
+procedure run_issue514_tuple_scan_close_paren_depth_one(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue514_tuple_scan_close_paren_depth_one.log ..\\TestProjects\\Parsing\\Generated\\issue514_tuple_scan_close_paren_depth_one\\Main.cursive > build\\main\\logs\\compile_checks\\issue514_tuple_scan_close_paren_depth_one.json 2> build\\main\\logs\\compile_checks\\issue514_tuple_scan_close_paren_depth_one.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue514_tuple_scan_close_paren_depth_one")
+}
+
+procedure run_issue514_tuple_scan_singleton_comma_newline_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue514_tuple_scan_singleton_comma_newline_rejected.log ..\\TestProjects\\Parsing\\Generated\\issue514_tuple_scan_singleton_comma_newline_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue514_tuple_scan_singleton_comma_newline_rejected.json 2> build\\main\\logs\\compile_checks\\issue514_tuple_scan_singleton_comma_newline_rejected.stderr & if errorlevel 2 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue514_tuple_scan_singleton_comma_newline_rejected")
+}
+
+public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
+    let status_run_issue5131_attr_spec_trailing_comma_multiline: i32 = run_issue5131_attr_spec_trailing_comma_multiline(ctx)
+    if (status_run_issue5131_attr_spec_trailing_comma_multiline != 0) {
+        return status_run_issue5131_attr_spec_trailing_comma_multiline
+    }
+
+    let status_run_issue5131_attr_spec_trailing_comma_single_line: i32 = run_issue5131_attr_spec_trailing_comma_single_line(ctx)
+    if (status_run_issue5131_attr_spec_trailing_comma_single_line != 0) {
+        return status_run_issue5131_attr_spec_trailing_comma_single_line
+    }
+
+    let status_run_issue5131_attr_trailing_comma_single_line: i32 = run_issue5131_attr_trailing_comma_single_line(ctx)
+    if (status_run_issue5131_attr_trailing_comma_single_line != 0) {
+        return status_run_issue5131_attr_trailing_comma_single_line
+    }
+
+    let status_run_issue51_extern_proc_terminator_required: i32 = run_issue51_extern_proc_terminator_required(ctx)
+    if (status_run_issue51_extern_proc_terminator_required != 0) {
+        return status_run_issue51_extern_proc_terminator_required
+    }
+
+    let status_run_issue51_public_extern_block_visibility_parse: i32 = run_issue51_public_extern_block_visibility_parse(ctx)
+    if (status_run_issue51_public_extern_block_visibility_parse != 0) {
+        return status_run_issue51_public_extern_block_visibility_parse
+    }
+
+    let status_issue33_qualified_name_resolution_pipeline_trace: i32 = run_issue33_qualified_name_resolution_pipeline_trace(ctx)
+    if (status_issue33_qualified_name_resolution_pipeline_trace != 0) {
+        return status_issue33_qualified_name_resolution_pipeline_trace
+    }
+
+    let status_issue51_using_item_parse_trace: i32 = run_issue51_using_item_parse_trace(ctx)
+    if (status_issue51_using_item_parse_trace != 0) {
+        return status_issue51_using_item_parse_trace
+    }
+
+    let status_issue51_using_list_parse_trace: i32 = run_issue51_using_list_parse_trace(ctx)
+    if (status_issue51_using_list_parse_trace != 0) {
+        return status_issue51_using_list_parse_trace
+    }
+
+    let status_issue33_record_assoc_type_parse_span: i32 = run_issue33_record_assoc_type_parse_span(ctx)
+    if (status_issue33_record_assoc_type_parse_span != 0) {
+        return status_issue33_record_assoc_type_parse_span
+    }
+
+    let status_issue544_extern_item_list_parse_trace: i32 = run_issue544_extern_item_list_parse_trace(ctx)
+    if (status_issue544_extern_item_list_parse_trace != 0) {
+        return status_issue544_extern_item_list_parse_trace
+    }
+
+    let status_issue618_parse_items_cons_trace_conformance: i32 = run_issue618_parse_items_cons_trace_conformance(ctx)
+    if (status_issue618_parse_items_cons_trace_conformance != 0) {
+        return status_issue618_parse_items_cons_trace_conformance
+    }
+
+    let status_issue620_quote_probe_parse_syntax_err_conformance: i32 = run_issue620_quote_probe_parse_syntax_err_conformance(ctx)
+    if (status_issue620_quote_probe_parse_syntax_err_conformance != 0) {
+        return status_issue620_quote_probe_parse_syntax_err_conformance
+    }
+
+    let status_issue5131_attr_spec_trailing_comma_multiline_trace: i32 = run_issue5131_attr_spec_trailing_comma_multiline_trace(ctx)
+    if (status_issue5131_attr_spec_trailing_comma_multiline_trace != 0) {
+        return status_issue5131_attr_spec_trailing_comma_multiline_trace
+    }
+
+    let status_issue5131_attr_spec_trailing_comma_single_line_trace: i32 = run_issue5131_attr_spec_trailing_comma_single_line_trace(ctx)
+    if (status_issue5131_attr_spec_trailing_comma_single_line_trace != 0) {
+        return status_issue5131_attr_spec_trailing_comma_single_line_trace
+    }
+
+    let status_Invoke_Issue621ReservedKeywordIdentifierConformanceCase: i32 = run_Invoke_Issue621ReservedKeywordIdentifierConformanceCase(ctx)
+    if (status_Invoke_Issue621ReservedKeywordIdentifierConformanceCase != 0) {
+        return status_Invoke_Issue621ReservedKeywordIdentifierConformanceCase
+    }
+
+    let status_issue60_type_annot_opt_parse_trace: i32 = run_issue60_type_annot_opt_parse_trace(ctx)
+    if (status_issue60_type_annot_opt_parse_trace != 0) {
+        return status_issue60_type_annot_opt_parse_trace
+    }
+
+    let status_issue514_list_small_step_parse_trace: i32 = run_issue514_list_small_step_parse_trace(ctx)
+    if (status_issue514_list_small_step_parse_trace != 0) {
+        return status_issue514_list_small_step_parse_trace
+    }
+
+    let status_issue514_trailing_comma_end_set_conformance: i32 = run_issue514_trailing_comma_end_set_conformance(ctx)
+    if (status_issue514_trailing_comma_end_set_conformance != 0) {
+        return status_issue514_trailing_comma_end_set_conformance
+    }
+
+    let status_issue514_trailing_comma_err_conformance: i32 = run_issue514_trailing_comma_err_conformance(ctx)
+    if (status_issue514_trailing_comma_err_conformance != 0) {
+        return status_issue514_trailing_comma_err_conformance
+    }
+
+    let status_issue514_tuple_literal_trace: i32 = run_issue514_tuple_literal_trace(ctx)
+    if (status_issue514_tuple_literal_trace != 0) {
+        return status_issue514_tuple_literal_trace
+    }
+
+    let status_issue514_tuple_expr_singleton_comma_rejected: i32 = run_issue514_tuple_expr_singleton_comma_rejected(ctx)
+    if (status_issue514_tuple_expr_singleton_comma_rejected != 0) {
+        return status_issue514_tuple_expr_singleton_comma_rejected
+    }
+
+    let status_issue514_tuple_scan_close_paren_depth_one: i32 = run_issue514_tuple_scan_close_paren_depth_one(ctx)
+    if (status_issue514_tuple_scan_close_paren_depth_one != 0) {
+        return status_issue514_tuple_scan_close_paren_depth_one
+    }
+
+    let status_issue514_tuple_scan_singleton_comma_newline_rejected: i32 = run_issue514_tuple_scan_singleton_comma_newline_rejected(ctx)
+    if (status_issue514_tuple_scan_singleton_comma_newline_rejected != 0) {
+        return status_issue514_tuple_scan_singleton_comma_newline_rejected
+    }
+
+    return 0
+}

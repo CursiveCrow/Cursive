@@ -33,6 +33,8 @@ struct Parser {
   std::size_t doc_index = 0;
   std::size_t depth = 0;
   bool quote_mode = false;
+  bool stop_before_parallel_options = false;
+  bool stop_before_contract_arrow = false;
   core::DiagnosticStream diags;
 };
 

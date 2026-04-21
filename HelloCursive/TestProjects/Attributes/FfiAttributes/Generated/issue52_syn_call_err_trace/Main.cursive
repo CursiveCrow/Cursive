@@ -1,0 +1,6 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let not_callable = 7
+    let _ = not_callable()
+    return 0
+}

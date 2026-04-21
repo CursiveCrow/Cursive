@@ -1,0 +1,10 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let number: i32 = 1
+    let value = if (number == 1) { 10 } else { 20 }
+    let output = if number is {
+        0 { 0 }
+        _: i32 { value }
+    }
+    return output
+}

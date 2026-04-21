@@ -1,0 +1,7 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let values: [i32; 3] = [1, 2, 3]
+    let idx: usize = 1usize
+    let observed: i32 = values[idx]
+    return observed
+}

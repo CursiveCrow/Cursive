@@ -1,0 +1,13 @@
+modal M {
+    @S {
+        procedure f(~) -> i32 {
+            return 0
+        }
+        procedure f(~) -> i32 {
+            return 1
+        }
+    }
+}
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

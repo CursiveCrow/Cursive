@@ -26,12 +26,33 @@ inline std::optional<std::string_view> LegacyTypecheckRuleDiagCode(
   if (diag_id == "Main-Signature-Err") {
     return "E-MOD-2431";
   }
-  if (diag_id == "Call-Arg-NotPlace") {
-    return "E-TYP-1603";
+	  if (diag_id == "Call-Arg-NotPlace") {
+	    return "E-TYP-1603";
+	  }
+  if (diag_id == "Assign-NotPlace") {
+    return "E-SEM-3131";
   }
-  if (diag_id == "Call-ArgCount-Err" ||
-      diag_id == "Generic-Call-ArgCount-Err") {
-    return "E-SEM-2532";
+  if (diag_id == "Assign-Const-Err") {
+    return "E-SEM-3132";
+  }
+  if (diag_id == "Assign-Type-Err") {
+    return "E-SEM-3133";
+  }
+  if (diag_id == "Assign-Immutable-Err") {
+    return "E-MOD-2401";
+  }
+  if (diag_id == "B-Place-Unique-Err") {
+    return "E-TYP-1602";
+  }
+  if (diag_id == "MethodCall-RecvPerm-Err") {
+    return "E-TYP-1605";
+  }
+  if (diag_id == "GpuIntrinsic-Outside-Err") {
+    return "E-CON-0154";
+  }
+	  if (diag_id == "Call-ArgCount-Err" ||
+	      diag_id == "Generic-Call-ArgCount-Err") {
+	    return "E-SEM-2532";
   }
   if (diag_id == "Call-ArgType-Err") {
     return "E-SEM-2533";

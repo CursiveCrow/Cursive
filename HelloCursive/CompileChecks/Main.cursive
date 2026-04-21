@@ -1,0 +1,70 @@
+import Project
+import Source
+import Parsing
+import Diagnostics
+import Backend
+import Types::CoreSystem
+import Attributes::FfiAttributes
+import Attributes::AttributeDiagnostics
+import Operations
+import Modals::Diagnostics as ModalDiagnostics
+import testsupport
+
+public procedure main(move ctx: Context) -> i32 {
+    let status_integrity: i32 = testsupport::runSuiteIntegrityChecks(ctx)
+    if (status_integrity != 0) {
+        return 9
+    }
+
+    let status_project: i32 = Project::run(ctx)
+    if (status_project != 0) {
+        return 10
+    }
+
+    let status_source: i32 = Source::run(ctx)
+    if (status_source != 0) {
+        return 11
+    }
+
+    let status_parsing: i32 = Parsing::run(ctx)
+    if (status_parsing != 0) {
+        return 12
+    }
+
+    let status_diagnostics: i32 = Diagnostics::run(ctx)
+    if (status_diagnostics != 0) {
+        return 13
+    }
+
+    let status_backend: i32 = Backend::run(ctx)
+    if (status_backend != 0) {
+        return 14
+    }
+
+    let status_types: i32 = CoreSystem::run(ctx)
+    if (status_types != 0) {
+        return 15
+    }
+
+    let status_ffi_attributes: i32 = FfiAttributes::run(ctx)
+    if (status_ffi_attributes != 0) {
+        return 16
+    }
+
+    let status_attribute_diagnostics: i32 = AttributeDiagnostics::run(ctx)
+    if (status_attribute_diagnostics != 0) {
+        return 17
+    }
+
+    let status_operations: i32 = Operations::run(ctx)
+    if (status_operations != 0) {
+        return 18
+    }
+
+    let status_modals: i32 = ModalDiagnostics::run(ctx)
+    if (status_modals != 0) {
+        return 19
+    }
+
+    return 0
+}

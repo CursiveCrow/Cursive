@@ -1,0 +1,15 @@
+enum DuplicateEnumProbe {
+    A
+    B
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let value: DuplicateEnumProbe = DuplicateEnumProbe::A
+    let observed: i32 = if value is {
+        DuplicateEnumProbe::A { 1 }
+        DuplicateEnumProbe::A { 2 }
+        DuplicateEnumProbe::B { 3 }
+    }
+    return observed
+}

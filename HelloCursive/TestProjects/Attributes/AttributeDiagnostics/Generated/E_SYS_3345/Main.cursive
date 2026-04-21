@@ -1,0 +1,4 @@
+[[library(name: "kernel32", kind: "dylib")]]
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

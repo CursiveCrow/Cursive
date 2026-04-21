@@ -1,0 +1,10 @@
+procedure defaulted<T; U = i32>(first: T, second: U) -> U {
+    let _ = first
+    return second
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let out: i32 = defaulted<bool>(true, 7)
+    return out
+}

@@ -1,0 +1,9 @@
+[[log(expected: 0)]]
+procedure NeverProc() -> ! {
+    loop {
+    }
+}
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

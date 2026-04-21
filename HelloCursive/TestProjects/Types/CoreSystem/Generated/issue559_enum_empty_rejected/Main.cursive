@@ -1,0 +1,11 @@
+public enum Issue559NonEmpty {
+    A
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let value: Issue559NonEmpty = Issue559NonEmpty::A
+    return if value is {
+        Issue559NonEmpty::A { 0 }
+    }
+}

@@ -1,0 +1,5 @@
+public procedure main(move ctx: Context) -> i32 {
+    let handle: Spawned<i32>@Ready = Spawned<i32>@Ready { value: 1 }
+    let _ = handle
+    return 0
+}

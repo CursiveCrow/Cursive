@@ -1,0 +1,11 @@
+modal M {
+    @S {
+        x: i32
+        transition x() -> @S {
+            return M@S { x: 0 }
+        }
+    }
+}
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

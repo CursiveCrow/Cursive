@@ -1,0 +1,19 @@
+[[library(name: "ssl")]]
+extern "C" {
+    procedure import_default_dylib() -> i32
+}
+
+[[library(name: "crypto", kind: "static")]]
+extern "C" {
+    procedure import_static() -> i32
+}
+
+[[library(name: "kernel32", kind: "raw-dylib")]]
+extern "C" {
+    procedure import_raw_dylib() -> i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

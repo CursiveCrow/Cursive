@@ -1,0 +1,7 @@
+modal M {
+    @M {
+    }
+}
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

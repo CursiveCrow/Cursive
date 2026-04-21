@@ -23,7 +23,7 @@ public procedure RunContractInheritanceConsistency(ctx: Context) -> i32 {
     let _ = ctx
     [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
 
-    let model: ContractInheritanceModel = ContractInheritanceModel { }
+    let model: ContractInheritanceModel = ContractInheritanceModel()
     let observed_value: i32 = model~>Measure(4)
     let observed_value_log: i32 =
         [[log(label: "observed-contracts-contract-inheritance-consistency-value", expected: 7)]]

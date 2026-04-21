@@ -32,6 +32,12 @@ enum class BindingProvenanceSeedKind {
   Param,
 };
 
+enum class ParallelContextKind {
+  Cpu,
+  Gpu,
+  Inline,
+};
+
 struct TypeBinding {
   struct ClosureCaptureInfo {
     bool captures_any = false;
@@ -52,15 +58,10 @@ struct TypeBinding {
   bool derived_from_shared = false;
   bool stale_ok = false;
   bool stale_after_release = false;
+  std::optional<ParallelContextKind> parallel_context_kind;
   BindingProvenanceSeedKind provenance_kind =
       BindingProvenanceSeedKind::Stack;
   std::optional<IdKey> provenance_region;
-};
-
-enum class ParallelContextKind {
-  Cpu,
-  Gpu,
-  Inline,
 };
 
 BindingProvenanceSeedKind NormalizeBindingProvenanceSeed(

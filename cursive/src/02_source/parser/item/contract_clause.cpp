@@ -146,9 +146,12 @@ namespace cursive::ast
     }
 
     // Parse precondition
-    ParseElemResult<ExprPtr> pre = ParsePredicateExpr(next);
+    Parser pre_parser = next;
+    pre_parser.stop_before_contract_arrow = true;
+    ParseElemResult<ExprPtr> pre = ParsePredicateExpr(pre_parser);
     clause.precondition = pre.elem;
     next = pre.parser;
+    next.stop_before_contract_arrow = false;
 
     // Check for => postcondition
     if (IsOp(next, "=>"))

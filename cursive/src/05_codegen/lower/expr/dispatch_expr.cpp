@@ -694,6 +694,8 @@ LowerResult LowerDispatchExpr(const ast::DispatchExpr& node, LowerCtx& ctx) {
     bind_result.name = result_name;
     bind_result.value = uninit;
     bind_result.type = body_type;
+    ctx.RegisterVar(result_name, body_type, false, false);
+    bind_result.stable_name = ctx.StableBindingName(result_name);
     env_parts.push_back(MakeIR(std::move(bind_result)));
 
     DerivedValueInfo res_addr;
@@ -912,9 +914,13 @@ LowerResult LowerDispatchExpr(const ast::DispatchExpr& node, LowerCtx& ctx) {
 
     ctx.PushScope(false, false);
     ctx.RegisterVar(elem_param.name, elem_param.type, false, false);
+    proc.params[1].stable_name = ctx.StableBindingName(elem_param.name);
     ctx.RegisterVar(env_param.name, env_param.type, false, false);
+    proc.params[2].stable_name = ctx.StableBindingName(env_param.name);
     ctx.RegisterVar(result_param.name, result_param.type, false, false);
+    proc.params[3].stable_name = ctx.StableBindingName(result_param.name);
     ctx.RegisterVar(panic_param.name, panic_param.type, true, false);
+    proc.params[4].stable_name = ctx.StableBindingName(panic_param.name);
 
     IRValue env_param_val;
     env_param_val.kind = IRValue::Kind::Local;

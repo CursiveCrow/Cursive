@@ -1,0 +1,9 @@
+public record RecordWithoutLayout {
+    value: i32
+}
+extern "C" {
+    procedure TakeRecord(value: RecordWithoutLayout) -> i32
+}
+public procedure main(move ctx: Context) -> i32 {
+    return 0
+}

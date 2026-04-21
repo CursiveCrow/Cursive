@@ -1,0 +1,10 @@
+record Item {
+    value: i32
+}
+
+using probe::{self, Item as probe}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

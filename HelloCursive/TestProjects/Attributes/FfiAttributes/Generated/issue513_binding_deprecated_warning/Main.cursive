@@ -1,0 +1,7 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    [[deprecated("prefer replacement binding")]]
+    let old_value: i32 = 7
+    let copied: i32 = old_value
+    return copied
+}

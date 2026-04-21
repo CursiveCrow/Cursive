@@ -191,6 +191,8 @@ IRPtr LowerLetStmt(const ast::LetStmt& stmt, LowerCtx& ctx) {
           info.kind = DerivedValueInfo::Kind::DynLit;
           info.base = pack.data_ptr;
           info.vtable_sym = pack.vtable_sym;
+          info.dyn_impl_type = stripped_expr;
+          info.dyn_class_path = dyn.path;
           ctx.RegisterDerivedValue(dyn_value, info);
           init_result = LowerResult{SeqIR({init_result.ir, pack.ir}), dyn_value};
         }

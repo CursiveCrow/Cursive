@@ -74,7 +74,8 @@ public procedure runCancelTokenGrandchildExercise(ctx: Context) -> i32 {
     let root_owner: unique (CancelToken@Active;) = (CancelToken::new();)
     let root: shared CancelToken@Active = move root_owner.0
 
-    let child: CancelToken@Active = root~>child()
+    let child_owner: unique (CancelToken@Active;) = (root~>child();)
+    let child: shared CancelToken@Active = move child_owner.0
     let grandchild: CancelToken@Active = child~>child()
 
     let gc_before: bool = grandchild~>is_cancelled()
@@ -104,7 +105,8 @@ public procedure runCancelTokenChildCancelDoesNotReachAncestorExercise(ctx: Cont
     let root_owner: unique (CancelToken@Active;) = (CancelToken::new();)
     let root: shared CancelToken@Active = move root_owner.0
 
-    let child: CancelToken@Active = root~>child()
+    let child_owner: unique (CancelToken@Active;) = (root~>child();)
+    let child: shared CancelToken@Active = move child_owner.0
     let grandchild: CancelToken@Active = child~>child()
 
     child~>cancel()

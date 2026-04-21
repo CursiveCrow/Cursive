@@ -1,0 +1,5 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let out: i32 = unsafe { transmute<i32, i32>(1) }
+    return out
+}

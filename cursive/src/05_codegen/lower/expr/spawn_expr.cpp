@@ -815,8 +815,11 @@ LowerResult LowerSpawnExpr(const ast::Expr& expr,
 
     ctx.PushScope(false, false);
     ctx.RegisterVar(env_param.name, env_ptr_type, false, false);
+    proc.params[1].stable_name = ctx.StableBindingName(env_param.name);
     ctx.RegisterVar(result_param.name, result_ptr_type, false, false);
+    proc.params[2].stable_name = ctx.StableBindingName(result_param.name);
     ctx.RegisterVar(panic_param.name, panic_param.type, true, false);
+    proc.params[3].stable_name = ctx.StableBindingName(panic_param.name);
 
     IRValue env_param_val;
     env_param_val.kind = IRValue::Kind::Local;

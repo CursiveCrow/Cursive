@@ -31,7 +31,7 @@ public procedure RunDynamicOverrideAndCallBoundary(ctx: Context) -> i32 {
     let _ = ctx
     [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
 
-    let impl: AttributeDynamicDispatchImpl = AttributeDynamicDispatchImpl { }
+    let impl: AttributeDynamicDispatchImpl = AttributeDynamicDispatchImpl()
     let value: i32 = impl~>evaluate(6)
     let boundary_value: i32 = AttributeDynamicBoundaryCaller(6)
     let value_log: i32 = [[log(label: "observed-attributes-dynamic-override-boundary", expected: 10)]] value
@@ -61,4 +61,3 @@ public procedure RunDynamicOverrideAndCallBoundary(ctx: Context) -> i32 {
     [[log(label: "attributes-log-item_success", expected: "success")]] "success"
     return 0
 }
-

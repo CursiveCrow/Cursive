@@ -1,0 +1,9 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    region as r {
+        r~>freeze()
+        let bad: i32 = r ^ 1
+        let _ = bad
+    }
+    return 0
+}

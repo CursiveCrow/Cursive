@@ -37,6 +37,7 @@ namespace cursive::ast
   // Forward declarations for helper functions
   bool IsOp(const Parser &parser, std::string_view op);
   bool IsPunc(const Parser &parser, std::string_view p);
+  void SkipNewlines(Parser& parser);
 
   // Forward declaration for predicate parsing
   ParseElemResult<ExprPtr> ParsePredicateExpr(Parser parser);
@@ -122,6 +123,7 @@ namespace cursive::ast
     ParseElemResult<ForeignContractClause> ParseForeignContractClause(
         Parser parser)
     {
+      SkipNewlines(parser);
       Parser start = parser;
       ForeignContractClause clause;
 
@@ -207,7 +209,9 @@ namespace cursive::ast
     ParseForeignContractClauseListTail(Parser parser,
                                       std::vector<ForeignContractClause> xs)
     {
-      if (!IsForeignContractStart(parser))
+      Parser probe = parser;
+      SkipNewlines(probe);
+      if (!IsForeignContractStart(probe))
       {
         SPEC_RULE("Parse-ForeignContractClauseListTail-End");
         return {parser, xs};
@@ -215,7 +219,7 @@ namespace cursive::ast
 
       SPEC_RULE("Parse-ForeignContractClauseListTail-Cons");
       ParseElemResult<ForeignContractClause> clause =
-          ParseForeignContractClause(parser);
+          ParseForeignContractClause(probe);
       xs.push_back(std::move(clause.elem));
       return ParseForeignContractClauseListTail(clause.parser, std::move(xs));
     }
@@ -235,7 +239,9 @@ namespace cursive::ast
   ParseElemResult<std::optional<std::vector<ForeignContractClause>>>
   ParseForeignContractClauseListOpt(Parser parser)
   {
-    if (!IsForeignContractStart(parser))
+    Parser probe = parser;
+    SkipNewlines(probe);
+    if (!IsForeignContractStart(probe))
     {
       SPEC_RULE("Parse-ForeignContractClauseListOpt-None");
       return {parser, std::nullopt};
@@ -243,7 +249,7 @@ namespace cursive::ast
 
     SPEC_RULE("Parse-ForeignContractClauseListOpt-Yes");
     ParseElemResult<std::vector<ForeignContractClause>> clauses =
-        ParseForeignContractClauseList(parser);
+        ParseForeignContractClauseList(probe);
     return {clauses.parser, std::move(clauses.elem)};
   }
 

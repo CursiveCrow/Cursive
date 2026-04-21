@@ -37,7 +37,7 @@ extern "C" {
 
 extern "C" {
     procedure hc_ffi_exercise_foreign_read(buf: *mut u8, len: usize) -> i32
-        |: @foreign_assumes(buf != null, len > 0)
+        |: @foreign_assumes((buf != null) && (len > 0))
         |: @foreign_ensures(@result >= 0)
         |: @foreign_ensures(@error: @result < 0)
 }

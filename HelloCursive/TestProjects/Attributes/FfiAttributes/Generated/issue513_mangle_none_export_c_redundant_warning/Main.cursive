@@ -1,0 +1,9 @@
+[[mangle(none), export("C")]]
+public procedure redundant_mangle_warning() -> i32 {
+    return 0
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

@@ -1,0 +1,10 @@
+modal M {
+    @S {
+        value: i32
+    }
+} where { @result >= 0 }
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

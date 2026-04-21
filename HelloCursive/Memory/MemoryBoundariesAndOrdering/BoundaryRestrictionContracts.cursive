@@ -44,18 +44,18 @@ public procedure RunBoundaryRestrictionContracts(ctx: Context) -> i32 {
         (cpu_metric_log == 6) && (inline_metric_log == 7)
 
     let gpu_domain = ctx~>gpu()
-    let gpu_metric: i128 = parallel gpu_domain { 9i128 }
-    let gpu_metric_surface_ok: bool = gpu_metric == 9i128
+    let gpu_metric: i64 = parallel gpu_domain { 9i64 }
+    let gpu_metric_surface_ok: bool = gpu_metric == 9i64
     let gpu_metric_surface_observed_log: bool =
         [[log(label: "observed-memory-boundary-gpu-metric", expected: true)]]
         gpu_metric_surface_ok
     let gpu_domain_surface_ok: bool = gpu_metric_surface_observed_log == true
 
-    let gpu_capture_seed: i128 = 11i128
-    let gpu_capture_metric: i128 = parallel gpu_domain {
-        gpu_capture_seed + 2i128
+    let gpu_capture_seed: i64 = 11i64
+    let gpu_capture_metric: i64 = parallel gpu_domain {
+        gpu_capture_seed + 2i64
     }
-    let gpu_capture_surface_value_ok: bool = gpu_capture_metric == 13i128
+    let gpu_capture_surface_value_ok: bool = gpu_capture_metric == 13i64
     let gpu_capture_surface_observed_log: bool =
         [[log(label: "observed-memory-boundary-gpu-capture-metric", expected: true)]]
         gpu_capture_surface_value_ok

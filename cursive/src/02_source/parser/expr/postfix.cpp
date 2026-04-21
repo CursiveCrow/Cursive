@@ -62,6 +62,35 @@ ParseElemResult<ExprPtr> ParsePipeline(Parser parser, bool allow_brace,
 bool CallTypeArgsStart(Parser parser);
 ParseElemResult<ExprPtr> ParseCallTypeArgsStep(Parser parser, ExprPtr expr);
 
+namespace {
+
+bool IsParallelOptionName(const Token& tok) {
+  if (tok.kind != TokenKind::Identifier && tok.kind != TokenKind::Keyword) {
+    return false;
+  }
+  return tok.lexeme == "cancel" || tok.lexeme == "name" ||
+         tok.lexeme == "workgroup" || tok.lexeme == "workgroups";
+}
+
+bool IsParallelOptionListStart(Parser parser) {
+  if (!IsPunc(parser, "[")) {
+    return false;
+  }
+
+  Advance(parser);
+  SkipNewlines(parser);
+
+  const Token* opt_name = Tok(parser);
+  if (!opt_name || !IsParallelOptionName(*opt_name)) {
+    return false;
+  }
+
+  Advance(parser);
+  return IsPunc(parser, ":");
+}
+
+}  // namespace
+
 // Forward declarations from individual postfix modules
 std::optional<ParseElemResult<ExprPtr>> TryParseFieldAccess(Parser parser,
                                                              ExprPtr base);
@@ -225,6 +254,10 @@ ParseElemResult<ExprPtr> ParsePostfixTail(Parser parser, ExprPtr expr,
                              (tok && IsPostfixStart(*tok));
   // Stop if no token or not a postfix start
   if (!postfix_start) {
+    SPEC_RULE("Parse-PostfixTail-Stop");
+    return {parser, expr};
+  }
+  if (parser.stop_before_parallel_options && IsParallelOptionListStart(parser)) {
     SPEC_RULE("Parse-PostfixTail-Stop");
     return {parser, expr};
   }

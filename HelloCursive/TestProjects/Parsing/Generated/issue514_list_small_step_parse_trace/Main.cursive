@@ -1,0 +1,20 @@
+procedure pair_head(left: i32, right: i32) -> i32 {
+    let _ = right
+    return left
+}
+
+procedure noop() -> i32 {
+    return 0
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let array_values = [1, 2, 3]
+    let tuple_values = (4, 5, 6)
+    let selected = pair_head(7, 8)
+    let zero = noop()
+    let _ = array_values
+    let _ = tuple_values
+    let _ = zero
+    return selected
+}

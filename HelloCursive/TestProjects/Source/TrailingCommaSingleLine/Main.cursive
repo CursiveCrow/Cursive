@@ -1,0 +1,5 @@
+public procedure main(move ctx: Context) -> i32 {
+    let point: (i32, i32) = (1, 2,)
+    let _ = point
+    return 0
+}

@@ -1,0 +1,5 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let bad: i32 = 1.25
+    return bad
+}

@@ -8,6 +8,7 @@
 #include "04_analysis/typing/expr/call.h"
 
 #include <chrono>
+#include <cctype>
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -416,7 +417,7 @@ static std::optional<std::string_view> CheckSharedArgWriteRequirement(
 
     const auto covering_mode = CoveringKeyMode(type_ctx, built.path);
     if (!covering_mode.has_value()) {
-      return "E-CON-0001";
+      continue;
     }
     if (*covering_mode != ast::KeyMode::Write) {
       return "E-CON-0005";
@@ -1905,7 +1906,117 @@ static const ast::ExprPtr* FindBindingReplacement(
   return nullptr;
 }
 
+static ast::ExprPtr FindModuleConstLiteralReplacement(
+    const ScopeContext& ctx,
+    std::string_view ident) {
+  for (const auto& mod : ctx.sigma.mods) {
+    for (const auto& item : mod.items) {
+      const auto* decl = std::get_if<ast::StaticDecl>(&item);
+      if (!decl || decl->mut != ast::Mutability::Let) {
+        continue;
+      }
+      const auto* ident_pat = decl->binding.pat
+                                  ? std::get_if<ast::IdentifierPattern>(
+                                        &decl->binding.pat->node)
+                                  : nullptr;
+      if (!ident_pat || !IdEq(ident_pat->name, ident)) {
+        continue;
+      }
+      if (decl->binding.init &&
+          std::holds_alternative<ast::LiteralExpr>(decl->binding.init->node)) {
+        return decl->binding.init;
+      }
+    }
+  }
+  return nullptr;
+}
+
+static std::optional<long long> ParseSimpleIntLiteral(std::string_view text) {
+  std::string digits;
+  digits.reserve(text.size());
+  std::size_t i = 0;
+  if (i < text.size() && text[i] == '-') {
+    digits.push_back('-');
+    ++i;
+  }
+  for (; i < text.size(); ++i) {
+    const unsigned char ch = static_cast<unsigned char>(text[i]);
+    if (!std::isdigit(ch)) {
+      break;
+    }
+    digits.push_back(static_cast<char>(ch));
+  }
+  if (digits.empty() || digits == "-") {
+    return std::nullopt;
+  }
+  try {
+    return std::stoll(digits);
+  } catch (...) {
+    return std::nullopt;
+  }
+}
+
+static std::optional<long long> ConstIntValue(const ScopeContext& ctx,
+                                              const ast::ExprPtr& expr) {
+  if (!expr) {
+    return std::nullopt;
+  }
+  if (const auto* lit = std::get_if<ast::LiteralExpr>(&expr->node)) {
+    if (lit->literal.kind == lexer::TokenKind::IntLiteral) {
+      return ParseSimpleIntLiteral(lit->literal.lexeme);
+    }
+  }
+  auto lookup_static = [&](std::string_view name) -> std::optional<long long> {
+    if (auto replacement = FindModuleConstLiteralReplacement(ctx, name)) {
+      return ConstIntValue(ctx, replacement);
+    }
+    return std::nullopt;
+  };
+  if (const auto* ident = std::get_if<ast::IdentifierExpr>(&expr->node)) {
+    return lookup_static(ident->name);
+  }
+  if (const auto* path = std::get_if<ast::PathExpr>(&expr->node)) {
+    return lookup_static(path->name);
+  }
+  if (const auto* qualified = std::get_if<ast::QualifiedNameExpr>(&expr->node)) {
+    return lookup_static(qualified->name);
+  }
+  return std::nullopt;
+}
+
+static std::optional<bool> ProveSimplePredicate(const ScopeContext& ctx,
+                                                const ast::ExprPtr& expr) {
+  if (!expr) {
+    return std::nullopt;
+  }
+  const auto* binary = std::get_if<ast::BinaryExpr>(&expr->node);
+  if (!binary) {
+    return std::nullopt;
+  }
+  if (binary->op == "&&") {
+    const auto left = ProveSimplePredicate(ctx, binary->lhs);
+    const auto right = ProveSimplePredicate(ctx, binary->rhs);
+    if (left.has_value() && right.has_value()) {
+      return *left && *right;
+    }
+    return std::nullopt;
+  }
+  const auto left = ConstIntValue(ctx, binary->lhs);
+  const auto right = ConstIntValue(ctx, binary->rhs);
+  if (!left.has_value() || !right.has_value()) {
+    return std::nullopt;
+  }
+  if (binary->op == ">=") return *left >= *right;
+  if (binary->op == ">") return *left > *right;
+  if (binary->op == "<=") return *left <= *right;
+  if (binary->op == "<") return *left < *right;
+  if (binary->op == "==") return *left == *right;
+  if (binary->op == "!=") return *left != *right;
+  return std::nullopt;
+}
+
 static ast::ExprPtr SubstituteForeignPredicate(
+    const ScopeContext& ctx,
     const ast::ExprPtr& expr,
     const std::vector<std::pair<std::string, ast::ExprPtr>>& bindings) {
   if (!expr) {
@@ -1915,6 +2026,30 @@ static ast::ExprPtr SubstituteForeignPredicate(
     if (const auto* replacement = FindBindingReplacement(ident->name, bindings)) {
       return *replacement;
     }
+    if (auto static_replacement =
+            FindModuleConstLiteralReplacement(ctx, ident->name)) {
+      return static_replacement;
+    }
+    return expr;
+  }
+  if (const auto* path = std::get_if<ast::PathExpr>(&expr->node)) {
+    if (const auto* replacement = FindBindingReplacement(path->name, bindings)) {
+      return *replacement;
+    }
+    if (auto static_replacement =
+            FindModuleConstLiteralReplacement(ctx, path->name)) {
+      return static_replacement;
+    }
+    return expr;
+  }
+  if (const auto* qualified = std::get_if<ast::QualifiedNameExpr>(&expr->node)) {
+    if (const auto* replacement = FindBindingReplacement(qualified->name, bindings)) {
+      return *replacement;
+    }
+    if (auto static_replacement =
+            FindModuleConstLiteralReplacement(ctx, qualified->name)) {
+      return static_replacement;
+    }
     return expr;
   }
   return std::visit(
@@ -1922,31 +2057,31 @@ static ast::ExprPtr SubstituteForeignPredicate(
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, ast::BinaryExpr>) {
           auto out = node;
-          out.lhs = SubstituteForeignPredicate(node.lhs, bindings);
-          out.rhs = SubstituteForeignPredicate(node.rhs, bindings);
+          out.lhs = SubstituteForeignPredicate(ctx, node.lhs, bindings);
+          out.rhs = SubstituteForeignPredicate(ctx, node.rhs, bindings);
           return MakeExprNode(expr->span, out);
         } else if constexpr (std::is_same_v<T, ast::UnaryExpr>) {
           auto out = node;
-          out.value = SubstituteForeignPredicate(node.value, bindings);
+          out.value = SubstituteForeignPredicate(ctx, node.value, bindings);
           return MakeExprNode(expr->span, out);
         } else if constexpr (std::is_same_v<T, ast::FieldAccessExpr>) {
           auto out = node;
-          out.base = SubstituteForeignPredicate(node.base, bindings);
+          out.base = SubstituteForeignPredicate(ctx, node.base, bindings);
           return MakeExprNode(expr->span, out);
         } else if constexpr (std::is_same_v<T, ast::TupleAccessExpr>) {
           auto out = node;
-          out.base = SubstituteForeignPredicate(node.base, bindings);
+          out.base = SubstituteForeignPredicate(ctx, node.base, bindings);
           return MakeExprNode(expr->span, out);
         } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {
           auto out = node;
-          out.base = SubstituteForeignPredicate(node.base, bindings);
-          out.index = SubstituteForeignPredicate(node.index, bindings);
+          out.base = SubstituteForeignPredicate(ctx, node.base, bindings);
+          out.index = SubstituteForeignPredicate(ctx, node.index, bindings);
           return MakeExprNode(expr->span, out);
         } else if constexpr (std::is_same_v<T, ast::CallExpr>) {
           auto out = node;
-          out.callee = SubstituteForeignPredicate(node.callee, bindings);
+          out.callee = SubstituteForeignPredicate(ctx, node.callee, bindings);
           for (auto& arg : out.args) {
-            arg.value = SubstituteForeignPredicate(arg.value, bindings);
+            arg.value = SubstituteForeignPredicate(ctx, arg.value, bindings);
           }
           return MakeExprNode(expr->span, out);
         } else if constexpr (std::is_same_v<T, ast::QualifiedApplyExpr>) {
@@ -1954,36 +2089,36 @@ static ast::ExprPtr SubstituteForeignPredicate(
           if (std::holds_alternative<ast::ParenArgs>(node.args)) {
             auto paren = std::get<ast::ParenArgs>(node.args);
             for (auto& arg : paren.args) {
-              arg.value = SubstituteForeignPredicate(arg.value, bindings);
+              arg.value = SubstituteForeignPredicate(ctx, arg.value, bindings);
             }
             out.args = paren;
           } else {
             auto brace = std::get<ast::BraceArgs>(node.args);
             for (auto& field : brace.fields) {
-              field.value = SubstituteForeignPredicate(field.value, bindings);
+              field.value = SubstituteForeignPredicate(ctx, field.value, bindings);
             }
             out.args = brace;
           }
           return MakeExprNode(expr->span, out);
         } else if constexpr (std::is_same_v<T, ast::MethodCallExpr>) {
           auto out = node;
-          out.receiver = SubstituteForeignPredicate(node.receiver, bindings);
+          out.receiver = SubstituteForeignPredicate(ctx, node.receiver, bindings);
           for (auto& arg : out.args) {
-            arg.value = SubstituteForeignPredicate(arg.value, bindings);
+            arg.value = SubstituteForeignPredicate(ctx, arg.value, bindings);
           }
           return MakeExprNode(expr->span, out);
         } else if constexpr (std::is_same_v<T, ast::CastExpr>) {
           auto out = node;
-          out.value = SubstituteForeignPredicate(node.value, bindings);
+          out.value = SubstituteForeignPredicate(ctx, node.value, bindings);
           return MakeExprNode(expr->span, out);
         } else if constexpr (std::is_same_v<T, ast::RangeExpr>) {
           auto out = node;
-          out.lhs = SubstituteForeignPredicate(node.lhs, bindings);
-          out.rhs = SubstituteForeignPredicate(node.rhs, bindings);
+          out.lhs = SubstituteForeignPredicate(ctx, node.lhs, bindings);
+          out.rhs = SubstituteForeignPredicate(ctx, node.rhs, bindings);
           return MakeExprNode(expr->span, out);
         } else if constexpr (std::is_same_v<T, ast::EntryExpr>) {
           auto out = node;
-          out.expr = SubstituteForeignPredicate(node.expr, bindings);
+          out.expr = SubstituteForeignPredicate(ctx, node.expr, bindings);
           return MakeExprNode(expr->span, out);
         } else {
           return expr;
@@ -2167,7 +2302,7 @@ static std::optional<std::string_view> CheckForeignStaticAssumes(
       if (!pred) {
         continue;
       }
-      const auto substituted = SubstituteForeignPredicate(pred, bindings);
+      const auto substituted = SubstituteForeignPredicate(ctx, pred, bindings);
       StaticProofContext proof_ctx;
       if (type_ctx.proof_ctx) {
         proof_ctx = *type_ctx.proof_ctx;
@@ -2180,6 +2315,10 @@ static std::optional<std::string_view> CheckForeignStaticAssumes(
                       : (substituted ? substituted->span : core::Span{});
       const auto proof = StaticProofAt(proof_ctx, proof_location, substituted);
       if (!proof.provable) {
+        if (const auto simple = ProveSimplePredicate(ctx, substituted);
+            simple.has_value() && *simple) {
+          continue;
+        }
         SPEC_RULE("Foreign-Assumes-Static-Proof-Err");
         return std::optional<std::string_view>{"E-SEM-2850"};
       }
@@ -2212,7 +2351,7 @@ static std::optional<std::string_view> CheckCallSitePrecondition(
   }
 
   const auto pre_subst =
-      SubstituteForeignPredicate(lookup->proc->contract->precondition, bindings);
+      SubstituteForeignPredicate(ctx, lookup->proc->contract->precondition, bindings);
   StaticProofContext proof_ctx;
   if (type_ctx.proof_ctx) {
     proof_ctx = *type_ctx.proof_ctx;

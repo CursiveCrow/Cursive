@@ -1,0 +1,20 @@
+public modal TransitionBindProbe {
+    @Cold {
+        value: i32
+
+        public transition warm(step: i32) -> @Warm {
+            return TransitionBindProbe@Warm { value: self.value + step }
+        }
+    }
+
+    @Warm {
+        value: i32
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let idle: TransitionBindProbe@Cold = TransitionBindProbe@Cold { value: 3 }
+    let _ = idle
+    return 0
+}

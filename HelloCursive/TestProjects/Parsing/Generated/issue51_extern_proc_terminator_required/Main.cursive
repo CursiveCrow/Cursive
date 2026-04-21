@@ -1,0 +1,8 @@
+extern "C" {
+    procedure foo() -> i32 procedure bar() -> i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

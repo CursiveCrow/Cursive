@@ -758,7 +758,6 @@ StmtTypeResult TypeAssignStmt(const ScopeContext& ctx,
         if (covering_mode.has_value()) {
           return {false, "E-CON-0005", {}, {}};
         }
-        return {false, "E-CON-0001", {}, {}};
       }
       shared_write_with_key = true;
     }

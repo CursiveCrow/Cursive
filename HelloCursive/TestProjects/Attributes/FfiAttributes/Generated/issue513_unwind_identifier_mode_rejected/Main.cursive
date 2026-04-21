@@ -1,0 +1,9 @@
+[[export("C-unwind"), unwind(catch)]]
+public procedure unwind_identifier_mode() -> i32 {
+    return 0
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

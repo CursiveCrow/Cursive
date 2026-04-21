@@ -1,0 +1,7 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let pair: (i32, (i32, i32)) = (1, (2, 3))
+    let left: i32 = pair.1.0
+    let right: i32 = pair.1.1
+    return left + right
+}

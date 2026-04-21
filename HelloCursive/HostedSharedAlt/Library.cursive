@@ -1,0 +1,18 @@
+record HostedFsContext {
+    fs: $FileSystem
+}
+
+var alt_counter: i32 = 0
+
+public procedure run(ctx: Context) -> i32 {
+    let _ = ctx
+    alt_counter = 0
+    return 0
+}
+
+[[host_export("C-unwind"), unwind("catch"), mangle("hc_hosted_alt_session_next")]]
+public procedure host_alt_session_next(ctx: HostedFsContext) -> i32 {
+    let _ = ctx.fs
+    alt_counter = alt_counter + 1
+    return 900 + alt_counter
+}

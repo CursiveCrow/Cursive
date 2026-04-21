@@ -22,6 +22,7 @@
 #include "02_source/ast/ast.h"
 #include "04_analysis/modal/modal_transitions.h"
 #include "04_analysis/resolve/scopes.h"
+#include "04_analysis/typing/expr/path.h"
 #include "04_analysis/typing/type_expr.h"
 
 namespace cursive::analysis {
@@ -175,6 +176,83 @@ static bool UpdateBindingType(TypeEnv& env,
   return false;
 }
 
+static void MergeFlowInfo(FlowInfo& dst, const FlowInfo& src) {
+  dst.results.insert(dst.results.end(), src.results.begin(), src.results.end());
+  dst.breaks.insert(dst.breaks.end(), src.breaks.begin(), src.breaks.end());
+  dst.break_void = dst.break_void || src.break_void;
+}
+
+static FlowInfo CollectExprStmtFlow(const ScopeContext& ctx,
+                                    const StmtTypeContext& type_ctx,
+                                    const TypeEnv& env,
+                                    const ExprTypeFn& type_expr,
+                                    const ast::ExprPtr& expr);
+
+static FlowInfo CollectBlockExprFlow(const ScopeContext& ctx,
+                                     const StmtTypeContext& type_ctx,
+                                     const TypeEnv& env,
+                                     const ast::Block& block) {
+  FlowInfo flow;
+  ExprTypeFn nested_type_expr = [&](const ast::ExprPtr& inner) {
+    return TypeExpr(ctx, type_ctx, inner, env);
+  };
+  IdentTypeFn nested_type_ident = [&](std::string_view name) -> ExprTypeResult {
+    return TypeIdentifierExpr(ctx, ast::IdentifierExpr{std::string(name)}, env);
+  };
+  PlaceTypeFn nested_type_place = [&](const ast::ExprPtr& inner) {
+    return TypePlace(ctx, type_ctx, inner, env);
+  };
+
+  if (const auto info = TypeBlockInfo(ctx,
+                                      type_ctx,
+                                      block,
+                                      env,
+                                      nested_type_expr,
+                                      nested_type_ident,
+                                      nested_type_place);
+      info.ok) {
+    flow.breaks = info.breaks;
+    flow.break_void = info.break_void;
+  }
+  return flow;
+}
+
+static FlowInfo CollectExprStmtFlow(const ScopeContext& ctx,
+                                    const StmtTypeContext& type_ctx,
+                                    const TypeEnv& env,
+                                    const ExprTypeFn& type_expr,
+                                    const ast::ExprPtr& expr) {
+  FlowInfo flow;
+  if (!expr) {
+    return flow;
+  }
+
+  return std::visit(
+      [&](const auto& node) -> FlowInfo {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
+          return CollectExprStmtFlow(ctx, type_ctx, env, type_expr, node.expr);
+        } else if constexpr (std::is_same_v<T, ast::BlockExpr>) {
+          if (!node.block) {
+            return {};
+          }
+          return CollectBlockExprFlow(ctx, type_ctx, env, *node.block);
+        } else if constexpr (std::is_same_v<T, ast::IfExpr>) {
+          FlowInfo out;
+          MergeFlowInfo(out,
+                        CollectExprStmtFlow(ctx, type_ctx, env, type_expr,
+                                            node.then_expr));
+          MergeFlowInfo(out,
+                        CollectExprStmtFlow(ctx, type_ctx, env, type_expr,
+                                            node.else_expr));
+          return out;
+        } else {
+          return {};
+        }
+      },
+      expr->node);
+}
+
 }  // namespace
 
 StmtTypeResult TypeExprStmt(const ScopeContext& ctx,
@@ -237,7 +315,9 @@ StmtTypeResult TypeExprStmt(const ScopeContext& ctx,
   // Expression statement executes for side effects only
   // The result value is discarded
   SPEC_RULE("T-ExprStmt");
-  return {true, std::nullopt, out_env, {}};
+  StmtTypeResult result{true, std::nullopt, out_env, {}};
+  result.flow = CollectExprStmtFlow(ctx, type_ctx, out_env, type_expr, node.value);
+  return result;
 }
 
 }  // namespace cursive::analysis

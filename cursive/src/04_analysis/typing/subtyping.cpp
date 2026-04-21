@@ -588,7 +588,9 @@ static AliasExpandResult NormalizeAliasDeep(const ScopeContext& ctx,
   return out;
 }
 
-static SubtypingResult Member(const TypeRef& type, const TypeUnion& uni) {
+static SubtypingResult Member(const ScopeContext& ctx,
+                              const TypeRef& type,
+                              const TypeUnion& uni) {
   SpecDefsSubtyping();
   for (const auto& member : uni.members) {
     const auto res = TypeEquiv(type, member);
@@ -596,6 +598,20 @@ static SubtypingResult Member(const TypeRef& type, const TypeUnion& uni) {
       return {false, res.diag_id, false};
     }
     if (res.equiv) {
+      return {true, std::nullopt, true};
+    }
+    const auto forward = Subtyping(ctx, type, member);
+    if (!forward.ok) {
+      return {false, forward.diag_id, false};
+    }
+    if (!forward.subtype) {
+      continue;
+    }
+    const auto reverse = Subtyping(ctx, member, type);
+    if (!reverse.ok) {
+      return {false, reverse.diag_id, false};
+    }
+    if (reverse.subtype) {
       return {true, std::nullopt, true};
     }
   }
@@ -913,6 +929,10 @@ SubtypingResult Subtyping(const ScopeContext& ctx,
   }
 
   if (const auto* larray = std::get_if<TypeArray>(&lhs->node)) {
+    if (const auto* rslice = std::get_if<TypeSlice>(&rhs->node)) {
+      SPEC_RULE("Coerce-Array-Slice");
+      return Subtyping(ctx, larray->element, rslice->element);
+    }
     if (const auto* rarray = std::get_if<TypeArray>(&rhs->node)) {
       SPEC_RULE("Sub-Array");
       if (larray->length != rarray->length) {
@@ -1117,7 +1137,7 @@ SubtypingResult Subtyping(const ScopeContext& ctx,
     if (const auto* runion = std::get_if<TypeUnion>(&rhs->node)) {
       SPEC_RULE("Sub-Union-Width");
       for (const auto& member : lunion->members) {
-        const auto res = Member(member, *runion);
+        const auto res = Member(ctx, member, *runion);
         if (!res.ok || !res.subtype) {
           return res.ok ? SubtypingResult{true, std::nullopt, false} : res;
         }
@@ -1128,7 +1148,7 @@ SubtypingResult Subtyping(const ScopeContext& ctx,
 
   if (const auto* runion = std::get_if<TypeUnion>(&rhs->node)) {
     SPEC_RULE("Sub-Member-Union");
-    return Member(lhs, *runion);
+    return Member(ctx, lhs, *runion);
   }
 
   return {true, std::nullopt, false};

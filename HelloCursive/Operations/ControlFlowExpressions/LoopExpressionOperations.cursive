@@ -70,19 +70,22 @@ procedure VerifyLoopExpressionOperationsItem(ctx: Context, scope: string@View, m
         break (conditional_counter, 4)
     }
     let loop_static_metric: i32 = if conditional_pair_or_unit is {
-        (left, right) { left + right }
+        pair: (i32, i32) { pair.0 + pair.1 }
         _: () { 0 }
     }
     [[log(label: "operations-log-transition_move")]]
     [[log(label: "operations-log-transition_move")]]
     let iter_values: [i32; 3] = [1, 2, 3]
-    let iter_pair: (i32, i32) = loop value in iter_values {
+    let iter_pair_or_unit: (i32, i32) | () = loop value in iter_values {
         iter_sum = iter_sum + value
         if (value == 2) {
             break (iter_sum, 7)
         }
     }
-    let loop_runtime_metric: i32 = iter_pair.0 + iter_pair.1
+    let loop_runtime_metric: i32 = if iter_pair_or_unit is {
+        pair: (i32, i32) { pair.0 + pair.1 }
+        _: () { 0 }
+    }
     [[log(label: "operations-log-transition_move")]]
     let syntax_passed: bool = loop_syntax_metric == 7
     let static_passed: bool = loop_static_metric == 4

@@ -1,0 +1,6 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    [[log(label: "issue513-standalone-stmt", expected: 0)]]
+    let value: i32 = 4
+    return value
+}

@@ -1,0 +1,18 @@
+record Issue61KeyPathProbe {
+    leaf: i32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    var gate: shared Issue61KeyPathProbe = Issue61KeyPathProbe{ leaf: 4 }
+    var slots: shared [i32; 2] = [7, 9]
+
+    # gate.leaf read {
+        let _ = gate.leaf
+    }
+
+    # slots[1usize] read {
+        let _ = slots[1usize]
+    }
+    return 0
+}

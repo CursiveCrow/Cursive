@@ -76,6 +76,7 @@ IRPtr SnapshotReturnValueForPostcondition(IRValue& return_value,
                   false,
                   true,
                   analysis::ProvenanceKind::Bottom);
+  bind.stable_name = ctx.StableBindingName(snapshot_name);
 
   IRValue snapshot_value;
   snapshot_value.kind = IRValue::Kind::Local;

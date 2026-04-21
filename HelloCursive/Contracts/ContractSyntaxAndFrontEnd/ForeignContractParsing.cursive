@@ -10,7 +10,7 @@ public procedure ContractsForeignParseEnsuresImpl(value: i32) -> i32 {
 
 extern "C" {
     procedure hc_contracts_foreign_parse_assumes_impl(value: i32) -> i32
-        |: @foreign_assumes(value >= 0, value <= 100)
+        |: @foreign_assumes((value >= 0) && (value <= 100))
 
     procedure hc_contracts_foreign_parse_ensures_impl(value: i32) -> i32
         |: @foreign_ensures(@result >= 0)

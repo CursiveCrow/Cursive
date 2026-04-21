@@ -22,7 +22,7 @@ public procedure RunLiskovPostconditionStrengthening(ctx: Context) -> i32 {
     let _ = ctx
     [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
 
-    let model: LiskovPostconditionModel = LiskovPostconditionModel { }
+    let model: LiskovPostconditionModel = LiskovPostconditionModel()
     let observed_value: i32 = model~>Evaluate(5)
     let observed_value_log: i32 =
         [[log(label: "observed-contracts-liskov-postcondition-value", expected: 7)]]

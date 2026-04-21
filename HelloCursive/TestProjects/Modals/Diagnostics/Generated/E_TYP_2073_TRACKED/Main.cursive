@@ -1,0 +1,6 @@
+public procedure main(move ctx: Context) -> i32 {
+    let handle: Tracked<i32, IoError>@Ready =
+        Tracked<i32, IoError>@Ready { value: IoError::IoFailure }
+    let _ = handle
+    return 0
+}

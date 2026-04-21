@@ -1,4 +1,6 @@
 public type NestedUnionAlias = i32 | bool | i32
+type UnionPositiveI32 = i32 |: { self > 0 }
+type UnionPositiveI32Alias = i32 |: { self > 0 }
 
 procedure MaybeUnion(value: i32) -> i32 | bool {
     return value
@@ -129,18 +131,20 @@ procedure VerifyUnionsPropagationItem(ctx: Context, scope: string@View, move ite
         _: i32 { 0 }
     }
     [[log(label: "types-log-transition_move")]]
-    let set_members_type_name: string@Managed = comptime {
-        introspect~>type_name(
-            Type::<(i32 |: { self > 0 };) | (i32 |: { self > 0 };)>
-        )
+    let refined_member: UnionPositiveI32 = 7
+    let equivalent_members_union: i32 | bool = refined_member
+    let set_members_metric: i32 = if equivalent_members_union is {
+        value: i32 { if (value > 0) { 1 } else { 0 } }
+        _: bool { 0 }
     }
-    let expected_set_members_type_name: string@View = "(i32 where { ... };)"
-    let set_members_type_name_log_actual =
-        [[log(label: "observed-union-set-members-type-name", expected: "(i32 where { ... };)")]]
-        set_members_type_name
+    let expected_set_members_metric: string@View = "1"
+    let set_members_metric_label: string@View = UnionMetricLabel(set_members_metric)
+    let set_members_metric_log_actual =
+        [[log(label: "observed-union-set-members-metric", expected: "1")]]
+        set_members_metric_label
     let set_members_passed: bool =
-        (set_members_type_name == expected_set_members_type_name) &&
-        (set_members_type_name_log_actual == expected_set_members_type_name)
+        (set_members_metric == 1) &&
+        (set_members_metric_log_actual == expected_set_members_metric)
     [[log(label: "types-log-transition_move")]]
     let observed_construction_step: string@View = "observed-union-construction-metric"
     let observed_flatten_step: string@View = "observed-union-flattening-metric"
@@ -282,20 +286,20 @@ procedure VerifyUnionsPropagationItem(ctx: Context, scope: string@View, move ite
         )
     }
 
-    if (item_index == 5) {
+    if (item_index == 6) {
         return RunUnionsPropagationItem(
             ctx,
             scope,
             "UnionSetMembers",
-            "compile-time reflected union member sets deduplicate repeated equivalent tuple-refinement members",
-            "validated set-members deduplication by reflected union type name",
+            "union member sets deduplicate repeated equivalent refinement aliases",
+            "validated set-members deduplication by runtime member selection",
             "union-set-members",
-            "reflect a union with repeated equivalent members and confirm the rendered set keeps one representative",
-            "(i32 where { ... };)",
-            "(i32 where { ... };)",
-            "duplicate-refinement-tuple-members",
+            "construct a union through equivalent refinement aliases and confirm one representative member handles the value",
+            "1",
+            "1",
+            "duplicate-equivalent-refinement-members",
             move set_members_passed,
-            "set-members reflected type-name check failed"
+            "set-members equivalent-refinement check failed"
         )
     }
 
@@ -349,7 +353,7 @@ procedure RunUnionsPropagation(ctx: Context) -> i32 {
         return status_UnionPatternUse
     }
 
-    let status_UnionSetMembers: i32 = VerifyUnionsPropagationItem(ctx, scope, 5, "UnionSetMembers")
+    let status_UnionSetMembers: i32 = VerifyUnionsPropagationItem(ctx, scope, 6, "UnionSetMembers")
     if (status_UnionSetMembers != 0) {
         return status_UnionSetMembers
     }

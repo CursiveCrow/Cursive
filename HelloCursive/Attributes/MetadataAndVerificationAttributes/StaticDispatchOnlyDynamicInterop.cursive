@@ -29,7 +29,7 @@ public procedure RunStaticDispatchOnlyDynamicInterop(ctx: Context) -> i32 {
     let _ = ctx
     [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
 
-    let impl: AttributeStaticDispatchImpl = AttributeStaticDispatchImpl { }
+    let impl: AttributeStaticDispatchImpl = AttributeStaticDispatchImpl()
     let value: i32 = impl~>static_only(8)
     let dynamic_value: i32 = impl~>dynamic_ok(8)
     let value_log: i32 = [[log(label: "observed-attributes-static-dispatch-only-runtime", expected: 11)]] value
@@ -61,4 +61,3 @@ public procedure RunStaticDispatchOnlyDynamicInterop(ctx: Context) -> i32 {
     [[log(label: "attributes-log-item_success", expected: "success")]] "success"
     return 0
 }
-

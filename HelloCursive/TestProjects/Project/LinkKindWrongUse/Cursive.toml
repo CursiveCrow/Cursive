@@ -1,0 +1,9 @@
+[toolchain]
+target_profile = "x86_64-win64"
+
+[[assembly]]
+name = "probe"
+kind = "executable"
+root = "."
+out_dir = "build/probe"
+link_kind = "static"

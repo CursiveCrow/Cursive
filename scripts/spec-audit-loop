@@ -643,7 +643,7 @@ Iteration instruction:
 - All changes for this row are isolated in the assigned worktree above.
 - The launcher is the sole owner of validation after your row-item commit is created.
 - Do not run any build, configure, test, package, bootstrap, or verification command from the assigned worktree.
-- Do not run `cmake`, `ctest`, `ninja`, `make`, `gmake`, `msbuild`, `scripts/build_cursive_all.sh`, `RunCompilerStaticConformance.ps1`, `RunHelloCursive*.ps1`, `setup_extern.ps1`, or any equivalent command from the worktree.
+- Do not run `cmake`, `ctest`, `ninja`, `make`, `gmake`, `msbuild`, `scripts/build_cursive_all.sh`, `CompileChecks/Main.cursive`, `CompileChecks/build/compilechecks/bin/compilechecks.exe`, `setup_extern.ps1`, or any equivalent command from the worktree.
 - Do not create or rely on worktree-local `build/`, `extern/`, or other generated validation artifacts.
 - If you invoke Python from a shell command, use `python3`; this environment does not guarantee a `python` alias.
 - Create exactly one commit for this worker turn in that worktree, then end. The initial turn creates the row commit; each launcher verification retry may create exactly one follow-up commit.
@@ -1419,17 +1419,36 @@ if (-not (Test-Path -LiteralPath \$compilerPath)) {
 \$compilerInfo = Get-Item -LiteralPath \$compilerPath
 Write-Host \"CompilerPath=\$compilerPath\"
 Write-Host \"CompilerLastWriteTimeUtc=\$([DateTime]::SpecifyKind(\$compilerInfo.LastWriteTimeUtc, [DateTimeKind]::Utc).ToString('o'))\"
-Set-Location '$(escape_powershell_literal "$hello_dir_windows")'
-\$helloScript = Join-Path '$(escape_powershell_literal "$hello_dir_windows")' 'RunHelloCursive.ps1'
-Write-Host \"COMMAND_LABEL=hello-cursive\"
-Write-Host \"HelloCursiveCompilerPath=\$compilerPath\"
-& \$powershell.Source -NoProfile -ExecutionPolicy Bypass -File \$helloScript -CompilerPath \$compilerPath
-\$helloExit = \$LASTEXITCODE
-Write-Host \"COMMAND_EXIT=\$helloExit\"
+Set-Location (Join-Path '$(escape_powershell_literal "$hello_dir_windows")' 'CompileChecks')
+\$compileChecksDir = (Get-Location).Path
+Write-Host "COMMAND_LABEL=hello-cursive-compilechecks-build"
+Write-Host "HelloCursiveCompilerPath=\$compilerPath"
+& \$compilerPath --incremental off --diag-json --quiet Main.cursive
+\$helloBuildExit = \$LASTEXITCODE
+Write-Host "COMMAND_EXIT=\$helloBuildExit"
+if (\$helloBuildExit -ne 0) {
+    Write-Host 'FAILED_COMMAND_LABEL=hello-cursive-compilechecks-build'
+    exit \$helloBuildExit
+}
+Write-Host "COMMAND_LABEL=hello-cursive-compilechecks-run"
+\$compileChecksExe = Join-Path \$compileChecksDir 'build\compilechecks\bin\compilechecks.exe'
+\$previousCompilerUnderTest = \$env:CURSIVE_COMPILER_UNDER_TEST
+\$env:CURSIVE_COMPILER_UNDER_TEST = \$compilerPath
+try {
+    & \$compileChecksExe
+    \$helloExit = \$LASTEXITCODE
+} finally {
+    if (\$null -eq \$previousCompilerUnderTest) {
+        Remove-Item Env:CURSIVE_COMPILER_UNDER_TEST -ErrorAction SilentlyContinue
+    } else {
+        \$env:CURSIVE_COMPILER_UNDER_TEST = \$previousCompilerUnderTest
+    }
+}
+Write-Host "COMMAND_EXIT=\$helloExit"
 if (\$helloExit -ne 0) {
-    Write-Host 'FAILED_COMMAND_LABEL=hello-cursive'
+    Write-Host 'FAILED_COMMAND_LABEL=hello-cursive-compilechecks-run'
     exit \$helloExit
-}"
+}
 
   log "Verifying main-repo Windows build and HelloCursive with configured preset: $WINDOWS_PRESET"
   : > "$main_build_log_file"
@@ -1488,7 +1507,7 @@ integrate_verified_commit_into_main_repo() {
 
   {
     printf '\nTested: cmake --build --preset %s --target %s\n' "$WINDOWS_PRESET" "$WINDOWS_TARGET"
-    printf 'Tested: HelloCursive/RunHelloCursive.ps1 -CompilerPath %s\n' "$VERIFIED_COMPILER_PATH"
+    printf 'Tested: HelloCursive/CompileChecks compilechecks.exe -CompilerPath %s\n' "$VERIFIED_COMPILER_PATH"
   } >> "$commit_message_file"
 
   update_claim_ledger_stage "staging" "staging verified main-repo changes"

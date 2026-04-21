@@ -1,0 +1,16 @@
+procedure YieldFromKeyChild() -> Async<i32, (), i32, !> {
+    let _: () = yield 1
+    return 7
+}
+procedure YieldFromKeyViolation() -> Async<i32, (), i32, !> {
+    var gate: i32 = 0
+    # gate write {
+        let _: i32 = yield from YieldFromKeyChild()
+    }
+    return 0
+}
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let _ = YieldFromKeyViolation()
+    return 0
+}

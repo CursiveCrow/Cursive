@@ -1,0 +1,10 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    region as r {
+        let implicit_value: i32 = ^2
+        let explicit_value: i32 = r ^ 5
+        let _ = implicit_value
+        let _ = explicit_value
+    }
+    return 0
+}

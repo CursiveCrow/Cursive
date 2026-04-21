@@ -1,0 +1,7 @@
+import testsupport
+
+public procedure runCompileChecks(ctx: Context) -> i32 {
+    let command: string@View =
+        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --diag-json --quiet ..\\TestProjects\\Backend\\DependencyNoLink\\Library.cursive > build\\main\\logs\\compile_checks\\backend_dependency_no_link.json 2> build\\main\\logs\\compile_checks\\backend_dependency_no_link.stderr & if errorlevel 1 exit /b 1 & if exist ..\\TestProjects\\Backend\\DependencyNoLink\\build\\probe\\bin\\probe.exe exit /b 1 & exit /b 0"
+    return testsupport::runCompileCheckCommand(ctx, command, "backend/dependency_no_link")
+}
