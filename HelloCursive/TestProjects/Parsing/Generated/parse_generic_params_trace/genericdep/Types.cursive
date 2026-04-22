@@ -1,0 +1,4 @@
+public record ParseGenericParamsExternal<T; U> {
+    public left: T
+    public right: U
+}

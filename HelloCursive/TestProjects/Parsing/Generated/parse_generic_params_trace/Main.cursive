@@ -1,0 +1,49 @@
+record ParseGenericParamsPlain {
+    value: i32
+}
+
+record ParseGenericParamsBox<T> {
+    value: T
+}
+
+record ParseGenericParamsPair<T; U> {
+    left: T
+    right: U
+}
+
+enum ParseGenericParamsChoice<T; U> {
+    Left(T)
+    Right(U)
+}
+
+modal ParseGenericParamsModal<T; U> {
+    @Ready {
+        left: T
+        right: U
+    }
+}
+
+class ParseGenericParamsClass<T; U> {
+    procedure choose(~, left: T, right: U) -> T
+}
+
+type ParseGenericParamsAlias<T; U = i32> = (T, U)
+type ParseGenericParamsNestedDefault<T = ParseGenericParamsBox<i32>> = T
+type ParseGenericParamsExternalAlias<T; U> = probe::genericdep::ParseGenericParamsExternal<T, U>
+
+procedure parseGenericParamsIdentity<T>(value: T) -> T {
+    return value
+}
+
+procedure parseGenericParamsSwap<T; U>(left: T, right: U) -> (U, T) {
+    return (right, left)
+}
+
+extern "C" {
+    procedure parse_generic_params_foreign<T; U>(left: T, right: U) -> T
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
