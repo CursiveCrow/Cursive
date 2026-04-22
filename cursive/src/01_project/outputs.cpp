@@ -1088,6 +1088,103 @@ std::optional<Project> AssemblyProjectView(const Project& base_project,
   return std::nullopt;
 }
 
+std::vector<std::string> ReverseDependentAssemblies(
+    std::string_view assembly_name,
+    const AssemblyImportGraph& graph) {
+  std::unordered_map<std::string, std::vector<std::string>> reverse_imports;
+  reverse_imports.reserve(graph.imports.size());
+  for (const auto& [importer_name, deps] : graph.imports) {
+    for (const auto& dep_name : deps) {
+      reverse_imports[dep_name].push_back(importer_name);
+    }
+  }
+  for (auto& [_, importers] : reverse_imports) {
+    std::stable_sort(importers.begin(), importers.end(),
+                     [](const std::string& lhs, const std::string& rhs) {
+                       return Utf8LexLess(lhs, rhs);
+                     });
+    importers.erase(std::unique(importers.begin(), importers.end()),
+                    importers.end());
+  }
+
+  std::vector<std::string> discovered;
+  std::unordered_set<std::string> seen;
+  std::vector<std::string> pending = {std::string(assembly_name)};
+  seen.insert(std::string(assembly_name));
+
+  for (std::size_t i = 0; i < pending.size(); ++i) {
+    const auto reverse_it = reverse_imports.find(pending[i]);
+    if (reverse_it == reverse_imports.end()) {
+      continue;
+    }
+    for (const auto& importer_name : reverse_it->second) {
+      if (!seen.insert(importer_name).second) {
+        continue;
+      }
+      discovered.push_back(importer_name);
+      pending.push_back(importer_name);
+    }
+  }
+
+  std::stable_sort(discovered.begin(), discovered.end(),
+                   [](const std::string& lhs, const std::string& rhs) {
+                     return Utf8LexLess(lhs, rhs);
+                   });
+  discovered.erase(std::unique(discovered.begin(), discovered.end()),
+                   discovered.end());
+  return discovered;
+}
+
+bool RestageSharedLibraryForExistingConsumers(
+    const Project& root_project,
+    const AssemblyImportGraph& graph,
+    const Project& provider_project,
+    const OutputArtifacts& provider_artifacts,
+    TargetProfile target_profile,
+    core::DiagnosticStream& diags) {
+  if (!IsSharedLibrary(provider_project) ||
+      !provider_artifacts.primary_artifact.has_value()) {
+    return true;
+  }
+
+  const auto reverse_dependents =
+      ReverseDependentAssemblies(provider_project.assembly.name, graph);
+  if (reverse_dependents.empty()) {
+    return true;
+  }
+
+  const std::vector<std::filesystem::path> provider_runtime_artifacts = {
+      *provider_artifacts.primary_artifact};
+  for (const auto& consumer_name : reverse_dependents) {
+    const auto consumer_project =
+        AssemblyProjectView(root_project, consumer_name);
+    if (!consumer_project.has_value() ||
+        !IsLinkable(consumer_project->assembly) ||
+        !UsesBinDir(*consumer_project, target_profile)) {
+      continue;
+    }
+
+    std::error_code ec;
+    if (!std::filesystem::exists(consumer_project->outputs.bin_dir, ec) || ec) {
+      continue;
+    }
+
+    if (!CopyImportedSharedLibraryArtifacts(consumer_project->outputs.bin_dir,
+                                            provider_runtime_artifacts,
+                                            target_profile,
+                                            diags)) {
+      EmitInternalDiagnostic(
+          diags,
+          "Failed to restage shared library `" +
+              provider_artifacts.primary_artifact->generic_string() + "` into `" +
+              consumer_project->outputs.bin_dir.generic_string() + "`");
+      return false;
+    }
+  }
+
+  return true;
+}
+
 bool LoadAstForAssembly(const Project& base_project,
                         std::string_view assembly_name,
                         OutputCoordinatorState& state,
@@ -2133,6 +2230,14 @@ OutputPipelineResult OutputPipeline(const Project& project,
     }
     state.built_artifacts[output_project->assembly.name] =
         *assembly_result.artifacts;
+    if (!RestageSharedLibraryForExistingConsumers(project,
+                                                  *state.graph,
+                                                  *output_project,
+                                                  *assembly_result.artifacts,
+                                                  state.target_profile,
+                                                  result.diags)) {
+      return result;
+    }
     if (output_project->assembly.name == project.assembly.name) {
       result.artifacts = assembly_result.artifacts;
     }
