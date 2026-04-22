@@ -308,8 +308,12 @@ static std::optional<TypeRef> ModalFieldType(const ast::ModalDecl& decl,
                                               const std::vector<TypeRef>& modal_args) {
   const auto state_key = IdKeyOf(state);
   TypeSubst modal_subst;
-  if (decl.generic_params.has_value() && !modal_args.empty()) {
-    modal_subst = BuildSubstitution(decl.generic_params->params, modal_args);
+  if (decl.generic_params.has_value()) {
+    if (modal_args.size() > decl.generic_params->params.size()) {
+      return std::nullopt;
+    }
+    modal_subst =
+        BuildModalRefSubstitution(decl.generic_params->params, modal_args);
   }
   for (const auto& block : decl.states) {
     if (IdKeyOf(block.name) != state_key) {
@@ -328,9 +332,7 @@ static std::optional<TypeRef> ModalFieldType(const ast::ModalDecl& decl,
         return std::nullopt;
       }
       TypeRef field_type = lowered.type;
-      if (!modal_subst.empty()) {
-        field_type = InstantiateType(field_type, modal_subst);
-      }
+      field_type = InstantiateType(field_type, modal_subst);
       return field_type;
     }
   }

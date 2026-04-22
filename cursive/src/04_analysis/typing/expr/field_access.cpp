@@ -260,9 +260,9 @@ struct ModalFieldLookupResult {
 static std::optional<ModalFieldLookupResult> LookupModalField(
     const ScopeContext& ctx,
     const TypePath& path,
+    const std::vector<TypeRef>& generic_args,
     std::string_view state,
     std::string_view field_name) {
-  (void)ctx;
   PathKey key;
   for (const auto& seg : path) {
     key.push_back(seg);
@@ -279,6 +279,15 @@ static std::optional<ModalFieldLookupResult> LookupModalField(
     return std::nullopt;
   }
 
+  TypeSubst modal_subst;
+  if (modal->generic_params.has_value()) {
+    if (generic_args.size() > modal->generic_params->params.size()) {
+      return std::nullopt;
+    }
+    modal_subst =
+        BuildModalRefSubstitution(modal->generic_params->params, generic_args);
+  }
+
   // Find the state
   for (const auto& state_decl : modal->states) {
     if (IdEq(state_decl.name, std::string(state))) {
@@ -288,7 +297,8 @@ static std::optional<ModalFieldLookupResult> LookupModalField(
           if (IdEq(field->name, std::string(field_name))) {
             const auto result = LowerType(ctx, field->type);
             if (result.ok) {
-              return ModalFieldLookupResult{result.type, field};
+              return ModalFieldLookupResult{
+                  InstantiateType(result.type, modal_subst), field};
             }
             return std::nullopt;
           }
@@ -407,6 +417,7 @@ ExprTypeResult TypeFieldAccessExprImpl(const ScopeContext& ctx,
   // Handle modal state types
   if (const auto* modal = std::get_if<TypeModalState>(&stripped_base->node)) {
     const auto field_lookup = LookupModalField(ctx, modal->path,
+                                               modal->generic_args,
                                                modal->state, expr.name);
     if (!field_lookup.has_value()) {
       SPEC_RULE("Modal-Field-Missing");

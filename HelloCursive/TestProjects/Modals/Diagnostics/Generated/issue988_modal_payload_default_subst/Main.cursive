@@ -1,0 +1,44 @@
+public modal Issue988ModalPayloadDefaultProbe<T = i32; U = T> {
+    @Ready {
+        left: T
+        right: U
+    }
+    @Done {
+        flag: bool
+    }
+}
+
+procedure ready_metric(value: Issue988ModalPayloadDefaultProbe@Ready) -> i32 {
+    return value.left + value.right
+}
+
+procedure general_metric(value: Issue988ModalPayloadDefaultProbe) -> i32 {
+    return if value is {
+        @Ready { left: left_value, right: right_value } {
+            left_value + right_value
+        }
+        @Done { flag: flag_value } {
+            if (flag_value == true) { 1 } else { 0 }
+        }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let default_ready: Issue988ModalPayloadDefaultProbe@Ready =
+        Issue988ModalPayloadDefaultProbe@Ready { left: 12, right: 13 }
+    let explicit_ready: Issue988ModalPayloadDefaultProbe<i32, i32>@Ready =
+        Issue988ModalPayloadDefaultProbe<i32, i32>@Ready { left: 2, right: 3 }
+    let default_ready_metric: i32 = ready_metric(default_ready)
+    let explicit_ready_metric: i32 = explicit_ready.left + explicit_ready.right
+    let default_general: Issue988ModalPayloadDefaultProbe = widen(default_ready)
+
+    let total: i32 =
+        default_ready_metric +
+        explicit_ready_metric +
+        general_metric(default_general)
+    if (total != 55) {
+        return 1
+    }
+    return 0
+}

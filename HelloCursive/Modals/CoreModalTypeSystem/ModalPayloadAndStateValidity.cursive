@@ -12,6 +12,20 @@ modal ModalPayloadValidityProbe {
     }
 }
 
+modal ModalPayloadDefaultSubstProbe<T = i32; U = T> {
+    @Ready {
+        primary: T
+        mirror: U
+    }
+    @Flag {
+        flag: bool
+    }
+}
+
+procedure ModalPayloadDefaultSubstReadyMetric(value: ModalPayloadDefaultSubstProbe@Ready) -> i32 {
+    return value.primary + value.mirror
+}
+
 procedure ModalPayloadAndStateValidityMetricLabel(value: i32) -> string@View {
     if (value == 31) {
         return "31"
@@ -37,6 +51,23 @@ public procedure RunModalPayloadAndStateValidity(ctx: Context) -> i32 {
         @Running { id: id_value, step: step_value } { id_value + step_value }
         @Finished { id: id_value } { id_value }
     }
+    let default_subst_ready: ModalPayloadDefaultSubstProbe@Ready =
+        ModalPayloadDefaultSubstProbe@Ready { primary: 10, mirror: 11 }
+    let explicit_subst_ready: ModalPayloadDefaultSubstProbe<i32, i32>@Ready =
+        ModalPayloadDefaultSubstProbe<i32, i32>@Ready { primary: 3, mirror: 4 }
+    let default_subst_field_metric: i32 =
+        ModalPayloadDefaultSubstReadyMetric(default_subst_ready)
+    let default_subst_general: ModalPayloadDefaultSubstProbe = widen(default_subst_ready)
+    let default_subst_metric: i32 = if default_subst_general is {
+        @Ready { primary: primary_value, mirror: mirror_value } {
+            primary_value + mirror_value
+        }
+        @Flag { flag: flag_value } {
+            if (flag_value == true) { 1 } else { 0 }
+        }
+    }
+    let explicit_subst_metric: i32 =
+        explicit_subst_ready.primary + explicit_subst_ready.mirror
 
     let payload_metric_log: i32 =
         [[log(label: "observed-modals-modal-payload-validity", expected: 16)]]
@@ -44,6 +75,15 @@ public procedure RunModalPayloadAndStateValidity(ctx: Context) -> i32 {
     let state_metric_log: i32 =
         [[log(label: "observed-modals-modal-state-validity", expected: 10)]]
         state_metric
+    let default_subst_metric_log: i32 =
+        [[log(label: "observed-modals-modal-payload-default-subst-pattern", expected: 21)]]
+        default_subst_metric
+    let default_subst_field_metric_log: i32 =
+        [[log(label: "observed-modals-modal-payload-default-subst-field", expected: 21)]]
+        default_subst_field_metric
+    let explicit_subst_metric_log: i32 =
+        [[log(label: "observed-modals-modal-payload-explicit-subst-field", expected: 7)]]
+        explicit_subst_metric
 
     let diag_no_states: string@View = "E-TYP-2050"
     let diag_dup_state: string@View = "E-TYP-2051"
@@ -74,6 +114,9 @@ public procedure RunModalPayloadAndStateValidity(ctx: Context) -> i32 {
     let runtime_ok: bool =
         (payload_metric_log == 16) &&
         (state_metric_log == 10) &&
+        (default_subst_metric_log == 21) &&
+        (default_subst_field_metric_log == 21) &&
+        (explicit_subst_metric_log == 7) &&
         (diag_no_states_log == "E-TYP-2050") &&
         (diag_dup_state_log == "E-TYP-2051") &&
         (diag_state_name_log == "E-TYP-2054") &&

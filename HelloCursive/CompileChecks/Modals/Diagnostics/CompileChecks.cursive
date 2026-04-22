@@ -31,6 +31,17 @@ public procedure runCompileChecks(ctx: Context) -> i32 {
         return modal_ref_subst_default_status
     }
 
+    let modal_payload_default_subst_command: string@View =
+        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue988_modal_payload_default_subst.log ..\\TestProjects\\Modals\\Diagnostics\\Generated\\issue988_modal_payload_default_subst\\Main.cursive > build\\main\\logs\\compile_checks\\issue988_modal_payload_default_subst.json 2> build\\main\\logs\\compile_checks\\issue988_modal_payload_default_subst.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"ModalPayload\" ..\\TestProjects\\Modals\\Diagnostics\\Generated\\issue988_modal_payload_default_subst\\build\\probe\\logs\\conformance\\issue988_modal_payload_default_subst.log >nul"
+    let modal_payload_default_subst_status: i32 = testsupport::runCompileCheckCommand(
+        ctx,
+        modal_payload_default_subst_command,
+        "modals/diagnostics/issue988_modal_payload_default_subst"
+    )
+    if (modal_payload_default_subst_status != 0) {
+        return modal_payload_default_subst_status
+    }
+
     let modal_decl_of_command: string@View =
         "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue986_modal_decl_of_direct.log ..\\TestProjects\\Modals\\Diagnostics\\Generated\\issue986_modal_decl_of_direct\\Main.cursive > build\\main\\logs\\compile_checks\\issue986_modal_decl_of_direct.json 2> build\\main\\logs\\compile_checks\\issue986_modal_decl_of_direct.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"ModalDeclOf\" ..\\TestProjects\\Modals\\Diagnostics\\Generated\\issue986_modal_decl_of_direct\\build\\probe\\logs\\conformance\\issue986_modal_decl_of_direct.log >nul"
     return testsupport::runCompileCheckCommand(
