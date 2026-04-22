@@ -36,6 +36,7 @@ static inline void SpecDefsRecordLiteral() {
   SPEC_DEF("WF-ModalState", "5.4");
   SPEC_DEF("WF-ModalState-ArgCount-Err", "13.1.4");
   SPEC_DEF("ModalRefSubst", "13.1.3");
+  SPEC_DEF("ModalPayload", "13.1.3");
   SPEC_DEF("State-Specific-WF", "5.4");
   SPEC_DEF("Record-FieldInit-Dup", "5.2.12");
   SPEC_DEF("Record-Field-Unknown", "5.2.12");
@@ -125,6 +126,7 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
       result.diag_id = "E-TYP-2303";
       return result;
     }
+    SPEC_RULE("ModalPayload");
 
     // Check for duplicate field initializers
     std::unordered_set<IdKey> seen;
@@ -176,9 +178,9 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
         result.diag_id = lowered.diag_id;
         return result;
       }
-      TypeRef field_type = lowered.type;
-      if (!modal_subst.empty()) {
-        field_type = InstantiateType(field_type, modal_subst);
+      TypeRef field_type = InstantiateType(lowered.type, modal_subst);
+      if (!field_type) {
+        return result;
       }
       const auto check =
           CheckExprAgainst(ctx, type_ctx, field_init.value, field_type, env);

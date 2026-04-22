@@ -1,0 +1,34 @@
+public modal Issue988ModalPayloadProbe<T = i32; U = T> {
+    @Ready {
+        value: T
+        mirror: U
+    }
+    @Flagged {
+        value: T
+        flag: bool
+    }
+}
+
+public modal Issue988ModalPayloadPlainProbe {
+    @Ready {
+        value: i32
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let plain: Issue988ModalPayloadPlainProbe@Ready =
+        Issue988ModalPayloadPlainProbe@Ready { value: 5 }
+    let ready: Issue988ModalPayloadProbe@Ready =
+        Issue988ModalPayloadProbe@Ready { value: 7, mirror: 8 }
+    let dependent_default: Issue988ModalPayloadProbe<i32>@Ready =
+        Issue988ModalPayloadProbe<i32>@Ready { value: 1, mirror: 2 }
+    let explicit_override: Issue988ModalPayloadProbe<i32, bool>@Flagged =
+        Issue988ModalPayloadProbe<i32, bool>@Flagged { value: 3, flag: true }
+    let _ = plain
+    let _ = ready
+    let _ = dependent_default
+    let _ = explicit_override
+
+    return 0
+}

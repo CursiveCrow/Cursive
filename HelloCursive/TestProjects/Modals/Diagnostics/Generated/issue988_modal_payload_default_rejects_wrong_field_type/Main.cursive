@@ -1,0 +1,13 @@
+public modal Issue988ModalPayloadRejectProbe<T = i32> {
+    @Ready {
+        value: T
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let ready: Issue988ModalPayloadRejectProbe@Ready =
+        Issue988ModalPayloadRejectProbe@Ready { value: true }
+    let _ = ready
+    return 0
+}

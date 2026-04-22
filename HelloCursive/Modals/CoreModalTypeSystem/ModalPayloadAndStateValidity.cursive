@@ -12,6 +12,16 @@ modal ModalPayloadValidityProbe {
     }
 }
 
+modal ModalPayloadDefaultInstantiationProbe<T = i32; U = T> {
+    @Pair {
+        primary: T
+        mirrored: U
+    }
+    @Box {
+        payload: U
+    }
+}
+
 procedure ModalPayloadAndStateValidityMetricLabel(value: i32) -> string@View {
     if (value == 31) {
         return "31"
@@ -30,6 +40,18 @@ public procedure RunModalPayloadAndStateValidity(ctx: Context) -> i32 {
     let finished: ModalPayloadValidityProbe@Finished =
         ModalPayloadValidityProbe@Finished { id: running.id }
     let finished_general: ModalPayloadValidityProbe = widen(finished)
+    let default_pair: ModalPayloadDefaultInstantiationProbe@Pair =
+        ModalPayloadDefaultInstantiationProbe@Pair { primary: 21, mirrored: 22 }
+    let dependent_box: ModalPayloadDefaultInstantiationProbe<i32>@Box =
+        ModalPayloadDefaultInstantiationProbe<i32>@Box { payload: 9 }
+    let explicit_override_pair: ModalPayloadDefaultInstantiationProbe<i32, bool>@Pair =
+        ModalPayloadDefaultInstantiationProbe<i32, bool>@Pair {
+            primary: 5,
+            mirrored: true
+        }
+    let _ = default_pair
+    let _ = dependent_box
+    let _ = explicit_override_pair
 
     let payload_metric: i32 = queued.id + queued.weight + running.step
     let state_metric: i32 = if finished_general is {
@@ -37,6 +59,7 @@ public procedure RunModalPayloadAndStateValidity(ctx: Context) -> i32 {
         @Running { id: id_value, step: step_value } { id_value + step_value }
         @Finished { id: id_value } { id_value }
     }
+    let default_payload_constructed: bool = true
 
     let payload_metric_log: i32 =
         [[log(label: "observed-modals-modal-payload-validity", expected: 16)]]
@@ -44,6 +67,9 @@ public procedure RunModalPayloadAndStateValidity(ctx: Context) -> i32 {
     let state_metric_log: i32 =
         [[log(label: "observed-modals-modal-state-validity", expected: 10)]]
         state_metric
+    let default_payload_constructed_log: bool =
+        [[log(label: "observed-modals-modal-payload-default-instantiation", expected: true)]]
+        default_payload_constructed
 
     let diag_no_states: string@View = "E-TYP-2050"
     let diag_dup_state: string@View = "E-TYP-2051"
@@ -74,6 +100,7 @@ public procedure RunModalPayloadAndStateValidity(ctx: Context) -> i32 {
     let runtime_ok: bool =
         (payload_metric_log == 16) &&
         (state_metric_log == 10) &&
+        (default_payload_constructed_log == true) &&
         (diag_no_states_log == "E-TYP-2050") &&
         (diag_dup_state_log == "E-TYP-2051") &&
         (diag_state_name_log == "E-TYP-2054") &&
