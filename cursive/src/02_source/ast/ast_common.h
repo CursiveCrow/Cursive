@@ -209,6 +209,7 @@ inline const std::vector<TypePtr>& ModalRefArgs(const ModalRef& modal_ref) {
       [&](const auto& node) -> const std::vector<TypePtr>& {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, TypePath>) {
+          SPEC_RULE("ModalRefArgs(TypePath(_))");
           return kEmptyArgs;
         } else {
           return node.generic_args;

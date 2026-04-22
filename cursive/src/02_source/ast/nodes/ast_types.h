@@ -221,6 +221,7 @@ inline const std::vector<std::shared_ptr<Type>>& TypeModalRefArgs(
             using T = std::decay_t<decltype(node)>;
             if constexpr (std::is_same_v<T, TypePathType>) {
                 if (node.generic_args.empty()) {
+                    SPEC_RULE("ModalRefArgs(TypePath(_))");
                     return kEmptyArgs;
                 }
                 return node.generic_args;
