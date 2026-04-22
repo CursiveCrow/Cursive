@@ -1321,6 +1321,7 @@ static const StaticRuleMeta kStaticRules[] = {
     {"ModalDeclOf", "DeclJudg", std::nullopt, "04_analysis/modal/modal.cpp", std::nullopt},
     {"ModalFieldType", "PatternLowerJudg", std::nullopt, "05_codegen/lower/pattern/pattern_common.cpp", std::nullopt},
     {"ModalPayload", "ExprJudg", std::nullopt, "04_analysis/typing/expr/record_literal.cpp", std::nullopt},
+    {"ModalPayloadMap", "ExprJudg", std::nullopt, "04_analysis/typing/expr/record_literal.cpp", std::nullopt},
     {"ModalRefArgs(TypeApply(_, args))", "ParseJudgment", std::nullopt, "02_source/ast/ast_common.h", std::nullopt},
     {"ModalRefArgs(TypePath(_))", "ParseJudgment", std::nullopt, "02_source/ast/ast_common.h", std::nullopt},
     {"ModalRefPath(TypeApply(p, _))", "ParseJudgment", std::nullopt, "02_source/ast/ast_common.h", std::nullopt},

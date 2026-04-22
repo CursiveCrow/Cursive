@@ -37,6 +37,7 @@ static inline void SpecDefsRecordLiteral() {
   SPEC_DEF("WF-ModalState-ArgCount-Err", "13.1.4");
   SPEC_DEF("ModalRefSubst", "13.1.3");
   SPEC_DEF("ModalPayload", "13.1.3");
+  SPEC_DEF("ModalPayloadMap", "13.1.3");
   SPEC_DEF("State-Specific-WF", "5.4");
   SPEC_DEF("Record-FieldInit-Dup", "5.2.12");
   SPEC_DEF("Record-Field-Unknown", "5.2.12");
@@ -139,6 +140,7 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
     }
 
     // Build a map of payload fields from state
+    SPEC_RULE("ModalPayloadMap");
     std::unordered_map<IdKey, const ast::StateFieldDecl*> payload_fields;
     for (const auto& member : state->members) {
       if (const auto* field = std::get_if<ast::StateFieldDecl>(&member)) {
