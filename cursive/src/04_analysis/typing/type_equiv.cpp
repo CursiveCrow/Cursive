@@ -346,26 +346,47 @@ TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
             }
           }
           return {true, std::nullopt, true};
-        } else if constexpr (std::is_same_v<T, TypePathType>) {
-          const auto* other = std::get_if<TypePathType>(&rhs->node);
-          if (!other) {
-            return {true, std::nullopt, false};
-          }
-          SPEC_RULE("T-Equiv-Path");
-          if (!TypePathEq(node.path, other->path)) {
-            return {true, std::nullopt, false};
-          }
-          if (node.generic_args.size() != other->generic_args.size()) {
-            return {true, std::nullopt, false};
-          }
-          for (std::size_t i = 0; i < node.generic_args.size(); ++i) {
-            const auto res = TypeEquiv(node.generic_args[i], other->generic_args[i]);
-            if (!res.ok || !res.equiv) {
-              return res.ok ? TypeEquivResult{true, std::nullopt, false} : res;
+          } else if constexpr (std::is_same_v<T, TypePathType>) {
+            const auto* other_path = AppliedTypePath(*rhs);
+            const auto* other_args = AppliedTypeArgs(*rhs);
+            if (!other_path || !other_args) {
+              return {true, std::nullopt, false};
             }
-          }
-          return {true, std::nullopt, true};
-        } else if constexpr (std::is_same_v<T, TypeModalState>) {
+            SPEC_RULE("T-Equiv-Path");
+            if (!TypePathEq(node.path, *other_path)) {
+              return {true, std::nullopt, false};
+            }
+            if (node.generic_args.size() != other_args->size()) {
+              return {true, std::nullopt, false};
+            }
+            for (std::size_t i = 0; i < node.generic_args.size(); ++i) {
+              const auto res = TypeEquiv(node.generic_args[i], (*other_args)[i]);
+              if (!res.ok || !res.equiv) {
+                return res.ok ? TypeEquivResult{true, std::nullopt, false} : res;
+              }
+            }
+            return {true, std::nullopt, true};
+          } else if constexpr (std::is_same_v<T, TypeApply>) {
+            const auto* other_path = AppliedTypePath(*rhs);
+            const auto* other_args = AppliedTypeArgs(*rhs);
+            if (!other_path || !other_args) {
+              return {true, std::nullopt, false};
+            }
+            SPEC_RULE("T-Equiv-Apply");
+            if (!TypePathEq(node.path, *other_path)) {
+              return {true, std::nullopt, false};
+            }
+            if (node.args.size() != other_args->size()) {
+              return {true, std::nullopt, false};
+            }
+            for (std::size_t i = 0; i < node.args.size(); ++i) {
+              const auto res = TypeEquiv(node.args[i], (*other_args)[i]);
+              if (!res.ok || !res.equiv) {
+                return res.ok ? TypeEquivResult{true, std::nullopt, false} : res;
+              }
+            }
+            return {true, std::nullopt, true};
+          } else if constexpr (std::is_same_v<T, TypeModalState>) {
           const auto* other = std::get_if<TypeModalState>(&rhs->node);
           if (!other) {
             return {true, std::nullopt, false};

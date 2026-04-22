@@ -262,8 +262,8 @@ static TypeWfResult TypeWFImpl(const ScopeContext& ctx, const TypeRef& type) {
           }
           SPEC_RULE("WF-Func");
           return {true, std::nullopt};
-        } else if constexpr (std::is_same_v<T, TypePathType>) {
-          if (IsAsyncPathType(node.path)) {
+          } else if constexpr (std::is_same_v<T, TypePathType>) {
+            if (IsAsyncPathType(node.path)) {
             if (node.generic_args.size() != 4) {
               SPEC_RULE("WF-Async-ArgCount-Err");
               return {false, "WF-Async-ArgCount-Err"};
@@ -293,10 +293,37 @@ static TypeWfResult TypeWFImpl(const ScopeContext& ctx, const TypeRef& type) {
           }
           if (ctx.sigma.types.find(PathKeyOf(ast_path)) == ctx.sigma.types.end()) {
             return {};
-          }
-          SPEC_RULE("WF-Path");
-          return {true, std::nullopt};
-        } else if constexpr (std::is_same_v<T, TypeDynamic>) {
+            }
+            SPEC_RULE("WF-Path");
+            return {true, std::nullopt};
+          } else if constexpr (std::is_same_v<T, TypeApply>) {
+            if (IsAsyncPathType(node.path)) {
+              if (node.args.size() != 4) {
+                SPEC_RULE("WF-Async-ArgCount-Err");
+                return {false, "WF-Async-ArgCount-Err"};
+              }
+            }
+            for (const auto& arg : node.args) {
+              const auto wf = TypeWFImpl(ctx, arg);
+              if (!wf.ok) {
+                if (IsAsyncPathType(node.path)) {
+                  SPEC_RULE("WF-Async-Arg-WF-Err");
+                  return {false, "WF-Async-Arg-WF-Err"};
+                }
+                return wf;
+              }
+            }
+            ast::TypePath ast_path;
+            ast_path.reserve(node.path.size());
+            for (const auto& comp : node.path) {
+              ast_path.push_back(comp);
+            }
+            if (ctx.sigma.types.find(PathKeyOf(ast_path)) == ctx.sigma.types.end()) {
+              return {};
+            }
+            SPEC_RULE("WF-Apply");
+            return {true, std::nullopt};
+          } else if constexpr (std::is_same_v<T, TypeDynamic>) {
           if (IsBuiltinCapClassPath(node.path)) {
             SPEC_RULE("WF-Dynamic");
             return {true, std::nullopt};

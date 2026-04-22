@@ -510,8 +510,8 @@ TypeRef InstantiateType(const TypeRef& type, const TypeSubst& subst) {
       [&](const auto& node) -> TypeRef {
         using T = std::decay_t<decltype(node)>;
 
-        if constexpr (std::is_same_v<T, TypePathType>) {
-          // Check if this is a type parameter
+          if constexpr (std::is_same_v<T, TypePathType>) {
+            // Check if this is a type parameter
           if (node.path.size() == 1) {
             auto it = subst.find(node.path[0]);
             if (it != subst.end()) {
@@ -530,11 +530,19 @@ TypeRef InstantiateType(const TypeRef& type, const TypeSubst& subst) {
             new_args.push_back(InstantiateType(arg, subst));
           }
 
-          TypePathType new_node = node;
-          new_node.generic_args = std::move(new_args);
-          return MakeType(new_node);
-        }
-        else if constexpr (std::is_same_v<T, TypePerm>) {
+            TypePathType new_node = node;
+            new_node.generic_args = std::move(new_args);
+            return MakeType(new_node);
+          }
+          else if constexpr (std::is_same_v<T, TypeApply>) {
+            std::vector<TypeRef> new_args;
+            new_args.reserve(node.args.size());
+            for (const auto& arg : node.args) {
+              new_args.push_back(InstantiateType(arg, subst));
+            }
+            return MakeTypeApply(node.path, std::move(new_args));
+          }
+          else if constexpr (std::is_same_v<T, TypePerm>) {
           return MakeTypePerm(node.perm, InstantiateType(node.base, subst));
         }
         else if constexpr (std::is_same_v<T, TypeTuple>) {

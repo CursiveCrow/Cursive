@@ -230,11 +230,12 @@ static AliasExpandResult NormalizeAliasTopLevel(const ScopeContext& ctx,
     if (!out.type) {
       return out;
     }
-    const auto* path = std::get_if<TypePathType>(&out.type->node);
-    if (!path) {
-      return out;
-    }
-    const auto expanded = ExpandTypeAliasApply(ctx, *path);
+	    const auto* path = AppliedTypePath(*out.type);
+	    const auto* args = AppliedTypeArgs(*out.type);
+	    if (!path || !args) {
+	      return out;
+	    }
+	    const auto expanded = ExpandTypeAliasApply(ctx, TypePathType{*path, *args});
     if (!expanded.ok) {
       out.ok = false;
       out.diag_id = expanded.diag_id;
@@ -1118,18 +1119,18 @@ ExprTypeResult TypeIfCaseExpr(const ScopeContext& ctx,
   const bool requires_exhaustive = !has_else;
 
   const auto* union_type = std::get_if<TypeUnion>(&scrutinee_base->node);
-  const auto* path_type = std::get_if<TypePathType>(&scrutinee_base->node);
-  const ast::EnumDecl* enum_decl = nullptr;
-  const ast::ModalDecl* modal_decl = nullptr;
-  if (path_type) {
-    enum_decl = LookupEnumDecl(ctx, path_type->path);
-    if (!enum_decl) {
-      ast::TypePath ast_path;
-      ast_path.reserve(path_type->path.size());
-      for (const auto& comp : path_type->path) {
-        ast_path.push_back(comp);
-      }
-      modal_decl = LookupModalDecl(ctx, ast_path);
+    const auto* path_type = AppliedTypePath(*scrutinee_base);
+    const ast::EnumDecl* enum_decl = nullptr;
+    const ast::ModalDecl* modal_decl = nullptr;
+    if (path_type) {
+      enum_decl = LookupEnumDecl(ctx, *path_type);
+      if (!enum_decl) {
+        ast::TypePath ast_path;
+        ast_path.reserve(path_type->size());
+        for (const auto& comp : *path_type) {
+          ast_path.push_back(comp);
+        }
+        modal_decl = LookupModalDecl(ctx, ast_path);
     }
   }
 
@@ -1188,7 +1189,7 @@ ExprTypeResult TypeIfCaseExpr(const ScopeContext& ctx,
   }
 
   if (enum_decl) {
-    const auto arm_variants = ArmVariants(expr.cases, path_type->path);
+    const auto arm_variants = ArmVariants(expr.cases, *path_type);
     const auto decl_variants = VariantNames(*enum_decl);
     if (requires_exhaustive &&
         !HasIrrefutableArm(ctx, expr.cases, scrutinee_match_type) &&
@@ -1272,18 +1273,18 @@ CheckResult CheckIfCaseExpr(const ScopeContext& ctx,
   const bool requires_exhaustive = !has_else;
 
   const auto* union_type = std::get_if<TypeUnion>(&scrutinee_base->node);
-  const auto* path_type = std::get_if<TypePathType>(&scrutinee_base->node);
-  const ast::EnumDecl* enum_decl = nullptr;
-  const ast::ModalDecl* modal_decl = nullptr;
-  if (path_type) {
-    enum_decl = LookupEnumDecl(ctx, path_type->path);
-    if (!enum_decl) {
-      ast::TypePath ast_path;
-      ast_path.reserve(path_type->path.size());
-      for (const auto& comp : path_type->path) {
-        ast_path.push_back(comp);
-      }
-      modal_decl = LookupModalDecl(ctx, ast_path);
+    const auto* path_type = AppliedTypePath(*scrutinee_base);
+    const ast::EnumDecl* enum_decl = nullptr;
+    const ast::ModalDecl* modal_decl = nullptr;
+    if (path_type) {
+      enum_decl = LookupEnumDecl(ctx, *path_type);
+      if (!enum_decl) {
+        ast::TypePath ast_path;
+        ast_path.reserve(path_type->size());
+        for (const auto& comp : *path_type) {
+          ast_path.push_back(comp);
+        }
+        modal_decl = LookupModalDecl(ctx, ast_path);
     }
   }
 
@@ -1329,7 +1330,7 @@ CheckResult CheckIfCaseExpr(const ScopeContext& ctx,
   }
 
   if (enum_decl) {
-    const auto arm_variants = ArmVariants(expr.cases, path_type->path);
+    const auto arm_variants = ArmVariants(expr.cases, *path_type);
     const auto decl_variants = VariantNames(*enum_decl);
     if (requires_exhaustive &&
         !HasIrrefutableArm(ctx, expr.cases, scrutinee_match_type) &&

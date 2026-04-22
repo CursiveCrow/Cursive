@@ -428,17 +428,17 @@ static PatternTypeResult TypePatternAgainstTypeImpl(const ScopeContext& ctx,
             // x: M@S is accepted when expected type is modal ref M.
             if (const auto* lowered_modal =
                     std::get_if<TypeModalState>(&lowered.type->node)) {
-              if (const auto* expected_path =
-                      std::get_if<TypePathType>(&expected->node)) {
-                if (lowered_modal->path == expected_path->path &&
-                    lowered_modal->generic_args.size() ==
-                        expected_path->generic_args.size()) {
-                  bool args_ok = true;
-                  for (std::size_t i = 0;
-                       i < lowered_modal->generic_args.size(); ++i) {
-                    const auto arg_equiv = TypeEquiv(
-                        lowered_modal->generic_args[i],
-                        expected_path->generic_args[i]);
+                const auto* expected_path = AppliedTypePath(*expected);
+                const auto* expected_args = AppliedTypeArgs(*expected);
+                if (expected_path && expected_args) {
+                  if (lowered_modal->path == *expected_path &&
+                      lowered_modal->generic_args.size() == expected_args->size()) {
+                    bool args_ok = true;
+                    for (std::size_t i = 0;
+                         i < lowered_modal->generic_args.size(); ++i) {
+                      const auto arg_equiv = TypeEquiv(
+                          lowered_modal->generic_args[i],
+                          (*expected_args)[i]);
                     if (!arg_equiv.ok) {
                       return {false, arg_equiv.diag_id, {}};
                     }
@@ -635,19 +635,22 @@ static PatternTypeResult TypePatternAgainstTypeImpl(const ScopeContext& ctx,
           return {true, std::nullopt, std::move(binds)};
         }
 
-        // Modal Pattern
-        else if constexpr (std::is_same_v<T, ast::ModalPattern>) {
-          const auto* path_type = std::get_if<TypePathType>(&expected->node);
-          const auto* modal_state = std::get_if<TypeModalState>(&expected->node);
-          const ast::ModalDecl* decl = nullptr;
-          std::vector<TypeRef> modal_args;
-          std::string_view state = node.state;
-          if (path_type) {
-            decl = LookupModalDecl(ctx, path_type->path);
-            if (!decl || !HasState(*decl, state)) {
-              return {false, std::nullopt, {}};
-            }
-            modal_args = path_type->generic_args;
+          // Modal Pattern
+          else if constexpr (std::is_same_v<T, ast::ModalPattern>) {
+            const auto* path_type = AppliedTypePath(*expected);
+            const auto* path_args = AppliedTypeArgs(*expected);
+            const auto* modal_state = std::get_if<TypeModalState>(&expected->node);
+            const ast::ModalDecl* decl = nullptr;
+            std::vector<TypeRef> modal_args;
+            std::string_view state = node.state;
+            if (path_type) {
+              decl = LookupModalDecl(ctx, *path_type);
+              if (!decl || !HasState(*decl, state)) {
+                return {false, std::nullopt, {}};
+              }
+              if (path_args) {
+                modal_args = *path_args;
+              }
           } else if (modal_state) {
             if (!IdEq(modal_state->state, state)) {
               return {false, std::nullopt, {}};

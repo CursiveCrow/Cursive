@@ -1,0 +1,22 @@
+public modal ModalRefApplyProbe<T> {
+    @Full {
+        value: T
+    }
+
+    @Empty {
+    }
+}
+
+procedure read_widened(value: ModalRefApplyProbe<i32>) -> i32 {
+    return if value is {
+        @Full { value: item } { item }
+        @Empty { 0 }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let full: ModalRefApplyProbe<i32>@Full = ModalRefApplyProbe<i32>@Full { value: 41 }
+    let widened: ModalRefApplyProbe<i32> = widen(full)
+    return read_widened(widened) - 41
+}

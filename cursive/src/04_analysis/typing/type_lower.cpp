@@ -272,10 +272,8 @@ LowerTypeResult LowerType(const ScopeContext& ctx,
               }
               lowered_args.push_back(lower_result.type);
             }
-            TypePathType result_type;
-            result_type.path = node.path;
-            result_type.generic_args = std::move(lowered_args);
-            return {true, std::nullopt, MakeType(result_type)};
+            return {true, std::nullopt,
+                    MakeTypeApply(node.path, std::move(lowered_args))};
           }
           return {true, std::nullopt, MakeTypePath(node.path)};
         } else if constexpr (std::is_same_v<T, ast::TypeApply>) {
@@ -289,10 +287,8 @@ LowerTypeResult LowerType(const ScopeContext& ctx,
             }
             lowered_args.push_back(lower_result.type);
           }
-          TypePathType result_type;
-          result_type.path = node.path;
-          result_type.generic_args = std::move(lowered_args);
-          return {true, std::nullopt, MakeType(result_type)};
+          return {true, std::nullopt,
+                  MakeTypeApply(node.path, std::move(lowered_args))};
         } else if constexpr (std::is_same_v<T, ast::TypeRange>) {
           const auto base = LowerType(ctx, node.base);
           if (!base.ok) {

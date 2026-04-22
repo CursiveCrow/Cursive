@@ -1060,14 +1060,21 @@ static bool ContainsTypeParamForCall(
             }
           }
           return ContainsTypeParamForCall(params, node.ret);
-        } else if constexpr (std::is_same_v<T, TypePathType>) {
-          for (const auto& arg : node.generic_args) {
-            if (ContainsTypeParamForCall(params, arg)) {
-              return true;
+          } else if constexpr (std::is_same_v<T, TypePathType>) {
+            for (const auto& arg : node.generic_args) {
+              if (ContainsTypeParamForCall(params, arg)) {
+                return true;
+              }
             }
-          }
-          return false;
-        } else if constexpr (std::is_same_v<T, TypeModalState>) {
+            return false;
+          } else if constexpr (std::is_same_v<T, TypeApply>) {
+            for (const auto& arg : node.args) {
+              if (ContainsTypeParamForCall(params, arg)) {
+                return true;
+              }
+            }
+            return false;
+          } else if constexpr (std::is_same_v<T, TypeModalState>) {
           for (const auto& arg : node.generic_args) {
             if (ContainsTypeParamForCall(params, arg)) {
               return true;
@@ -1176,20 +1183,37 @@ static bool BindTypeParamsForCall(
             }
           }
           return BindTypeParamsForCall(params, node.ret, other->ret, bindings);
-        } else if constexpr (std::is_same_v<T, TypePathType>) {
-          const auto* other = std::get_if<TypePathType>(&actual->node);
-          if (!other || !TypePathEqLocal(node.path, other->path) ||
-              node.generic_args.size() != other->generic_args.size()) {
-            return false;
-          }
-          for (std::size_t i = 0; i < node.generic_args.size(); ++i) {
-            if (!BindTypeParamsForCall(params, node.generic_args[i],
-                                       other->generic_args[i], bindings)) {
+          } else if constexpr (std::is_same_v<T, TypePathType>) {
+            const auto* other_path = AppliedTypePath(*actual);
+            const auto* other_args = AppliedTypeArgs(*actual);
+            if (!other_path || !other_args ||
+                !TypePathEqLocal(node.path, *other_path) ||
+                node.generic_args.size() != other_args->size()) {
               return false;
             }
-          }
-          return true;
-        } else if constexpr (std::is_same_v<T, TypeModalState>) {
+            for (std::size_t i = 0; i < node.generic_args.size(); ++i) {
+              if (!BindTypeParamsForCall(params, node.generic_args[i],
+                                         (*other_args)[i], bindings)) {
+                return false;
+              }
+            }
+            return true;
+          } else if constexpr (std::is_same_v<T, TypeApply>) {
+            const auto* other_path = AppliedTypePath(*actual);
+            const auto* other_args = AppliedTypeArgs(*actual);
+            if (!other_path || !other_args ||
+                !TypePathEqLocal(node.path, *other_path) ||
+                node.args.size() != other_args->size()) {
+              return false;
+            }
+            for (std::size_t i = 0; i < node.args.size(); ++i) {
+              if (!BindTypeParamsForCall(params, node.args[i], (*other_args)[i],
+                                         bindings)) {
+                return false;
+              }
+            }
+            return true;
+          } else if constexpr (std::is_same_v<T, TypeModalState>) {
           const auto* other = std::get_if<TypeModalState>(&actual->node);
           if (!other || !TypePathEqLocal(node.path, other->path) ||
               !IdEq(node.state, other->state) ||
@@ -2768,7 +2792,7 @@ ExprTypeResult TypeCallExprImpl(const ScopeContext& ctx,
     SPEC_RULE("T-Generic-Call");
     return r;
   }
-	
+
   // Non-generic call path
   const auto call =
       TypeCall(ctx, node.callee, node.args, type_expr, &type_place, &check_expr);

@@ -3830,11 +3830,13 @@ static AliasExpandResult NormalizeAliasTypeLocal(const ScopeContext& ctx,
     if (!out.type) {
       return out;
     }
-    const auto* path = std::get_if<TypePathType>(&out.type->node);
-    if (!path) {
-      return out;
-    }
-    const auto expanded = ExpandTypeAliasApplyLocal(ctx, *path);
+      const auto* path = AppliedTypePath(*out.type);
+      const auto* args = AppliedTypeArgs(*out.type);
+      if (!path || !args) {
+        return out;
+      }
+      const auto expanded =
+          ExpandTypeAliasApplyLocal(ctx, TypePathType{*path, *args});
     if (!expanded.ok) {
       out.ok = false;
       out.diag_id = expanded.diag_id;

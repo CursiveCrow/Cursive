@@ -630,13 +630,11 @@ static bool IsUnitType(const TypeRef& type) {
 }
 
 static bool HasCloneMethod(const ScopeContext& ctx, const TypeRef& stripped_type) {
-  const auto* path = stripped_type
-                         ? std::get_if<TypePathType>(&stripped_type->node)
-                         : nullptr;
-  if (!path) {
-    return false;
-  }
-  const auto* record = LookupRecordDecl(ctx, path->path);
+    const auto* path = stripped_type ? AppliedTypePath(*stripped_type) : nullptr;
+    if (!path) {
+      return false;
+    }
+    const auto* record = LookupRecordDecl(ctx, *path);
   if (!record) {
     return false;
   }
@@ -671,13 +669,11 @@ static bool HasCloneMethod(const ScopeContext& ctx, const TypeRef& stripped_type
 }
 
 static bool HasDropMethod(const ScopeContext& ctx, const TypeRef& stripped_type) {
-  const auto* path = stripped_type
-                         ? std::get_if<TypePathType>(&stripped_type->node)
-                         : nullptr;
-  if (!path) {
-    return false;
-  }
-  const auto* record = LookupRecordDecl(ctx, path->path);
+    const auto* path = stripped_type ? AppliedTypePath(*stripped_type) : nullptr;
+    if (!path) {
+      return false;
+    }
+    const auto* record = LookupRecordDecl(ctx, *path);
   if (!record) {
     return false;
   }
@@ -1119,14 +1115,25 @@ static std::optional<std::string_view> FfiSafeDiagForTypeImpl(
           }
           return FfiSafeDiagForTypeImpl(ctx, current_module, node.ret,
                                         active_paths);
-        } else if constexpr (std::is_same_v<T, TypePathType>) {
-          if (node.path.size() == 1 && IdEq(node.path[0], "Context")) {
+        } else if constexpr (std::is_same_v<T, TypePathType> ||
+                             std::is_same_v<T, TypeApply>) {
+          const TypePath& applied_path = node.path;
+          const std::vector<TypeRef>& applied_args =
+              [&]() -> const std::vector<TypeRef>& {
+            if constexpr (std::is_same_v<T, TypePathType>) {
+              return node.generic_args;
+            } else {
+              return node.args;
+            }
+          }();
+
+          if (applied_path.size() == 1 && IdEq(applied_path[0], "Context")) {
             return std::optional<std::string_view>{"E-TYP-2623"};
           }
 
           ast::Path resolved_path;
           const TypeDecl* decl =
-              ResolveNominalTypeDeclForFfi(ctx, current_module, node.path,
+              ResolveNominalTypeDeclForFfi(ctx, current_module, applied_path,
                                            &resolved_path);
           if (!decl) {
             return std::optional<std::string_view>{"E-TYP-2628"};
@@ -1144,7 +1151,7 @@ static std::optional<std::string_view> FfiSafeDiagForTypeImpl(
                 using D = std::decay_t<decltype(resolved_decl)>;
                 if constexpr (std::is_same_v<D, ast::RecordDecl>) {
                   const auto args = ResolveDeclGenericArgs(
-                      ctx, resolved_decl.generic_params, node.generic_args);
+                      ctx, resolved_decl.generic_params, applied_args);
                   if (!args.has_value()) {
                     return std::optional<std::string_view>{"E-TYP-2628"};
                   }
@@ -1152,7 +1159,7 @@ static std::optional<std::string_view> FfiSafeDiagForTypeImpl(
                                            active_paths);
                 } else if constexpr (std::is_same_v<D, ast::EnumDecl>) {
                   const auto args = ResolveDeclGenericArgs(
-                      ctx, resolved_decl.generic_params, node.generic_args);
+                      ctx, resolved_decl.generic_params, applied_args);
                   if (!args.has_value()) {
                     return std::optional<std::string_view>{"E-TYP-2628"};
                   }
@@ -1163,7 +1170,7 @@ static std::optional<std::string_view> FfiSafeDiagForTypeImpl(
                     return std::optional<std::string_view>{"E-TYP-2628"};
                   }
                   const auto args = ResolveDeclGenericArgs(
-                      ctx, resolved_decl.generic_params, node.generic_args);
+                      ctx, resolved_decl.generic_params, applied_args);
                   if (!args.has_value()) {
                     return std::optional<std::string_view>{"E-TYP-2628"};
                   }

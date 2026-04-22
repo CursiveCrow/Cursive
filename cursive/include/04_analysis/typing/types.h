@@ -220,6 +220,7 @@ using TypeNode = std::variant<TypePrim,
                               TypeBytes,
                               TypeDynamic,
                               TypeModalState,
+                              TypeApply,
                               TypePathType,
                               TypeOpaque,
                               TypeRefine,
@@ -234,6 +235,26 @@ using TypeNode = std::variant<TypePrim,
 struct Type {
   TypeNode node;
 };
+
+inline const TypePath* AppliedTypePath(const Type& type) {
+  if (const auto* path = std::get_if<TypePathType>(&type.node)) {
+    return &path->path;
+  }
+  if (const auto* apply = std::get_if<TypeApply>(&type.node)) {
+    return &apply->path;
+  }
+  return nullptr;
+}
+
+inline const std::vector<TypeRef>* AppliedTypeArgs(const Type& type) {
+  if (const auto* path = std::get_if<TypePathType>(&type.node)) {
+    return &path->generic_args;
+  }
+  if (const auto* apply = std::get_if<TypeApply>(&type.node)) {
+    return &apply->args;
+  }
+  return nullptr;
+}
 
 TypeRef MakeType(TypeNode node);
 TypeRef MakeTypePrim(std::string name);
@@ -263,6 +284,7 @@ TypeRef MakeTypeModalState(TypePath path,
                            std::vector<TypeRef> generic_args = {});
 TypeRef MakeTypePath(TypePath path);
 TypeRef MakeTypePath(TypePath path, std::vector<TypeRef> generic_args);
+TypeRef MakeTypeApply(TypePath path, std::vector<TypeRef> args);
 TypeRef MakeTypeOpaque(TypePath class_path,
                        const ast::Type* origin,
                        const core::Span& origin_span);

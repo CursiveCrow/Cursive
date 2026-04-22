@@ -209,9 +209,16 @@ TypeRef ApplyGenericSubstitution(
           new_args.reserve(node.generic_args.size());
           for (const auto& arg : node.generic_args) {
             new_args.push_back(ApplyGenericSubstitution(arg, param_names, args));
-          }
-          return MakeTypePath(node.path, new_args);
-        } else if constexpr (std::is_same_v<T, TypePerm>) {
+            }
+            return MakeTypePath(node.path, new_args);
+          } else if constexpr (std::is_same_v<T, TypeApply>) {
+            std::vector<TypeRef> new_args;
+            new_args.reserve(node.args.size());
+            for (const auto& arg : node.args) {
+              new_args.push_back(ApplyGenericSubstitution(arg, param_names, args));
+            }
+            return MakeTypeApply(node.path, new_args);
+          } else if constexpr (std::is_same_v<T, TypePerm>) {
           auto new_base = ApplyGenericSubstitution(node.base, param_names, args);
           return MakeTypePerm(node.perm, new_base);
         } else if constexpr (std::is_same_v<T, TypeUnion>) {

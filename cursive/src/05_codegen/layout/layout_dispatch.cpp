@@ -695,8 +695,8 @@ std::optional<cursive::analysis::TypeRef> LowerTypeForLayout(
           }
           return cursive::analysis::MakeTypeModalState(node.path, node.state,
                                                        std::move(args));
-        } else if constexpr (std::is_same_v<T,
-                                           cursive::ast::TypePathType>) {
+          } else if constexpr (std::is_same_v<T,
+                                             cursive::ast::TypePathType>) {
           // Preserve generic arguments when lowering path types
           if (!node.generic_args.empty()) {
             std::vector<cursive::analysis::TypeRef> args;
@@ -709,11 +709,22 @@ std::optional<cursive::analysis::TypeRef> LowerTypeForLayout(
               args.push_back(*lowered);
             }
             return cursive::analysis::MakeTypePath(node.path, std::move(args));
+            }
+            return cursive::analysis::MakeTypePath(node.path);
+          } else if constexpr (std::is_same_v<T, cursive::ast::TypeApply>) {
+            std::vector<cursive::analysis::TypeRef> args;
+            args.reserve(node.args.size());
+            for (const auto& arg : node.args) {
+              const auto lowered = LowerTypeForLayout(ctx, arg);
+              if (!lowered.has_value()) {
+                return std::nullopt;
+              }
+              args.push_back(*lowered);
+            }
+            return cursive::analysis::MakeTypeApply(node.path, std::move(args));
+          } else {
+            return std::nullopt;
           }
-          return cursive::analysis::MakeTypePath(node.path);
-        } else {
-          return std::nullopt;
-        }
       },
       type->node);
   MaybeTrimLowerTypeCache(cache);
@@ -903,20 +914,23 @@ std::optional<Layout> LayoutOf(const cursive::analysis::ScopeContext& ctx,
     return std::nullopt;
   }
 
-  if (const auto* path = std::get_if<cursive::analysis::TypePathType>(&type->node)) {
-    if (IsRuntimeHandleModalPath(path->path)) {
-      return Layout{kPtrSize, kPtrAlign};
-    }
-    if (const auto builtin_layout =
-            cursive::analysis::LookupBuiltinModalLayout(path->path)) {
-      return Layout{builtin_layout->size, builtin_layout->align};
-    }
-    const auto it = ctx.sigma.types.find(path->path);
-    if (it == ctx.sigma.types.end()) {
-      return std::nullopt;
-    }
-    if (const auto* record = std::get_if<cursive::ast::RecordDecl>(&it->second)) {
-      const auto subst = BuildDeclSubstitution(record->generic_params, path->generic_args);
+    if (const auto* path = cursive::analysis::AppliedTypePath(*type)) {
+      const auto* generic_args = cursive::analysis::AppliedTypeArgs(*type);
+      const std::vector<cursive::analysis::TypeRef> empty_args;
+      const auto& args = generic_args ? *generic_args : empty_args;
+      if (IsRuntimeHandleModalPath(*path)) {
+        return Layout{kPtrSize, kPtrAlign};
+      }
+      if (const auto builtin_layout =
+              cursive::analysis::LookupBuiltinModalLayout(*path)) {
+        return Layout{builtin_layout->size, builtin_layout->align};
+      }
+      const auto it = ctx.sigma.types.find(*path);
+      if (it == ctx.sigma.types.end()) {
+        return std::nullopt;
+      }
+      if (const auto* record = std::get_if<cursive::ast::RecordDecl>(&it->second)) {
+        const auto subst = BuildDeclSubstitution(record->generic_params, args);
       if (!subst.has_value()) {
         return std::nullopt;
       }
@@ -947,25 +961,25 @@ std::optional<Layout> LayoutOf(const cursive::analysis::ScopeContext& ctx,
       }
       SPEC_RULE("Layout-Enum");
       return layout->layout;
-    }
-    if (const auto* modal_decl = std::get_if<cursive::ast::ModalDecl>(&it->second)) {
-      const auto layout = ModalLayoutOf(ctx, *modal_decl, path->generic_args);
+      }
+      if (const auto* modal_decl = std::get_if<cursive::ast::ModalDecl>(&it->second)) {
+        const auto layout = ModalLayoutOf(ctx, *modal_decl, args);
       if (!layout.has_value()) {
         return std::nullopt;
       }
       SPEC_RULE("Layout-Modal");
       return layout->layout;
     }
-    if (const auto* alias = std::get_if<cursive::ast::TypeAliasDecl>(&it->second)) {
+      if (const auto* alias = std::get_if<cursive::ast::TypeAliasDecl>(&it->second)) {
       const auto lowered = LowerTypeForLayout(ctx, alias->type);
       if (!lowered.has_value()) {
         return std::nullopt;
       }
       cursive::analysis::TypeRef inst = *lowered;
-      if (alias->generic_params &&
-          !alias->generic_params->params.empty()) {
-        SPEC_RULE("Layout-Alias");
-        const auto subst = BuildDeclSubstitution(alias->generic_params, path->generic_args);
+        if (alias->generic_params &&
+            !alias->generic_params->params.empty()) {
+          SPEC_RULE("Layout-Alias");
+          const auto subst = BuildDeclSubstitution(alias->generic_params, args);
         if (!subst.has_value()) {
           return std::nullopt;
         }

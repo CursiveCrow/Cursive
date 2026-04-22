@@ -30,36 +30,38 @@ std::optional<TypeRef> ExtractWaitSpawnedInner(const TypeRef& type) {
   if (!type) {
     return std::nullopt;
   }
-  const auto* path = std::get_if<TypePathType>(&type->node);
-  if (!path) {
-    return std::nullopt;
+    const auto* path = AppliedTypePath(*type);
+    const auto* args = AppliedTypeArgs(*type);
+    if (!path || !args) {
+      return std::nullopt;
+    }
+    if (!IsSpawnedTypePath(*path)) {
+      return std::nullopt;
+    }
+    if (args->size() != 1) {
+      return std::nullopt;
+    }
+    return (*args)[0];
   }
-  if (!IsSpawnedTypePath(path->path)) {
-    return std::nullopt;
-  }
-  if (path->generic_args.size() != 1) {
-    return std::nullopt;
-  }
-  return path->generic_args[0];
-}
 
 std::optional<std::pair<TypeRef, TypeRef>> ExtractWaitTrackedArgs(
     const TypeRef& type) {
   if (!type) {
     return std::nullopt;
   }
-  const auto* path = std::get_if<TypePathType>(&type->node);
-  if (!path) {
-    return std::nullopt;
+    const auto* path = AppliedTypePath(*type);
+    const auto* args = AppliedTypeArgs(*type);
+    if (!path || !args) {
+      return std::nullopt;
+    }
+    if (!IsTrackedTypePath(*path)) {
+      return std::nullopt;
+    }
+    if (args->size() != 2) {
+      return std::nullopt;
+    }
+    return std::make_pair((*args)[0], (*args)[1]);
   }
-  if (!IsTrackedTypePath(path->path)) {
-    return std::nullopt;
-  }
-  if (path->generic_args.size() != 2) {
-    return std::nullopt;
-  }
-  return std::make_pair(path->generic_args[0], path->generic_args[1]);
-}
 
 }  // namespace
 

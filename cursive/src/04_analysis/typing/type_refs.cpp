@@ -259,6 +259,8 @@ static std::uint64_t TagKeyOf(const TypeNode& node) {
           return 4;
         } else if constexpr (std::is_same_v<T, TypePathType>) {
           return 5;
+        } else if constexpr (std::is_same_v<T, TypeApply>) {
+          return 5;
         } else if constexpr (std::is_same_v<T, TypeModalState>) {
           return 6;
         } else if constexpr (std::is_same_v<T, TypeString>) {
@@ -579,7 +581,11 @@ TypeRef ModalRefType(const ModalRef& modal_ref) {
           return MakeTypePath(node);
         } else {
           SPEC_RULE("ModalRefType(TypeApply(p, args))");
-          return MakeTypePath(node.path, node.args);
+          if (core::Conformance::Enabled()) {
+            core::Conformance::Record("ModalRefType(TypeApply(p, args))",
+                                      std::nullopt, "result=TypeApply");
+          }
+          return MakeTypeApply(node.path, node.args);
         }
       },
       modal_ref);
@@ -767,6 +773,12 @@ TypeRef MakeTypePath(TypePath path) {
 TypeRef MakeTypePath(TypePath path, std::vector<TypeRef> generic_args) {
   SpecDefsTypeRepr();
   return MakeType(TypePathType{std::move(path), std::move(generic_args)});
+}
+
+TypeRef MakeTypeApply(TypePath path, std::vector<TypeRef> args) {
+  SpecDefsTypeRepr();
+  SPEC_RULE("TypeRef-TypeApply");
+  return MakeType(TypeApply{std::move(path), std::move(args)});
 }
 
 TypeRef MakeTypeOpaque(TypePath class_path,
@@ -958,6 +970,9 @@ static void AppendTypeString(std::string& out, const Type& type) {
         } else if constexpr (std::is_same_v<T, TypePathType>) {
           out.append(PathToString(node.path));
           append_generic_args(node.generic_args);
+        } else if constexpr (std::is_same_v<T, TypeApply>) {
+          out.append(PathToString(node.path));
+          append_generic_args(node.args);
         }
       },
       type.node);
@@ -1096,6 +1111,17 @@ TypeKey TypeKeyOf(const Type& type) {
             }
             key.atoms.push_back(KeyAtom::KeyList(MakeKeyList(arg_keys)));
           }
+          return key;
+        } else if constexpr (std::is_same_v<T, TypeApply>) {
+          key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
+          key.atoms.push_back(
+              KeyAtom::Key(std::make_shared<TypeKey>(PathOrderKey(node.path))));
+          std::vector<TypeKey> arg_keys;
+          arg_keys.reserve(node.args.size());
+          for (const auto& arg : node.args) {
+            arg_keys.push_back(TypeKeyOf(*arg));
+          }
+          key.atoms.push_back(KeyAtom::KeyList(MakeKeyList(arg_keys)));
           return key;
         } else if constexpr (std::is_same_v<T, TypeModalState>) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
@@ -1313,6 +1339,11 @@ static void CollectTypePaths(const Type& type, std::vector<TypePath>& out) {
         } else if constexpr (std::is_same_v<T, TypePathType>) {
           out.push_back(node.path);
           for (const auto& arg : node.generic_args) {
+            CollectTypePaths(*arg, out);
+          }
+        } else if constexpr (std::is_same_v<T, TypeApply>) {
+          out.push_back(node.path);
+          for (const auto& arg : node.args) {
             CollectTypePaths(*arg, out);
           }
         } else if constexpr (std::is_same_v<T, TypeClosure>) {
@@ -1545,6 +1576,11 @@ std::optional<AsyncSig> GetAsyncSig(const TypeRef& type) {
             return AsyncSigFromBuiltinName(node.path.back(), node.generic_args);
           }
           return std::nullopt;
+        } else if constexpr (std::is_same_v<T, TypeApply>) {
+          if (IsAsyncModalPath(node.path) || IsAsyncAliasPath(node.path)) {
+            return AsyncSigFromBuiltinName(node.path.back(), node.args);
+          }
+          return std::nullopt;
         } else if constexpr (std::is_same_v<T, TypeModalState>) {
           // Async@Suspended, Async@Completed, Async@Failed
           if (IsAsyncModalPath(ModalRefPath(node.modal_ref))) {
@@ -1567,12 +1603,8 @@ std::optional<AsyncSig> AsyncSigOf(const ScopeContext& ctx, const TypeRef& type)
     return std::nullopt;
   }
 
-  const TypePath* path_name = nullptr;
-  const std::vector<TypeRef>* path_args = nullptr;
-  if (const auto* path = std::get_if<TypePathType>(&type->node)) {
-    path_name = &path->path;
-    path_args = &path->generic_args;
-  }
+  const TypePath* path_name = AppliedTypePath(*type);
+  const std::vector<TypeRef>* path_args = AppliedTypeArgs(*type);
 
   if (!path_name || path_name->empty()) {
     return std::nullopt;

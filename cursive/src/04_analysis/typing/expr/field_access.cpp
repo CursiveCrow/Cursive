@@ -173,11 +173,12 @@ static AliasExpandResult NormalizeFieldBaseType(const ScopeContext& ctx,
     if (!out.type) {
       return out;
     }
-    const auto* path = std::get_if<TypePathType>(&out.type->node);
-    if (!path) {
-      return out;
-    }
-    const auto expanded = ExpandTypeAliasApply(ctx, *path);
+	    const auto* path = AppliedTypePath(*out.type);
+	    const auto* args = AppliedTypeArgs(*out.type);
+	    if (!path || !args) {
+	      return out;
+	    }
+	    const auto expanded = ExpandTypeAliasApply(ctx, TypePathType{*path, *args});
     if (!expanded.ok) {
       out.ok = false;
       out.diag_id = expanded.diag_id;
@@ -357,27 +358,27 @@ ExprTypeResult TypeFieldAccessExprImpl(const ScopeContext& ctx,
     return result;
   }
 
-  // Handle record path types
-  if (const auto* path_type = std::get_if<TypePathType>(&stripped_base->node)) {
-    if (LookupEnumDeclByPath(ctx, path_type->path) != nullptr) {
-      SPEC_RULE("FieldAccess-Enum");
-      result.diag_id = "FieldAccess-Unknown";
-      return result;
-    }
-    if (LookupModalDeclByPath(ctx, path_type->path) != nullptr) {
-      SPEC_RULE("Modal-Field-General-Err");
-      result.diag_id = "Modal-Field-General-Err";
-      return result;
-    }
+    // Handle record path and type-application forms.
+    if (const auto* path = AppliedTypePath(*stripped_base)) {
+      if (LookupEnumDeclByPath(ctx, *path) != nullptr) {
+        SPEC_RULE("FieldAccess-Enum");
+        result.diag_id = "FieldAccess-Unknown";
+        return result;
+      }
+      if (LookupModalDeclByPath(ctx, *path) != nullptr) {
+        SPEC_RULE("Modal-Field-General-Err");
+        result.diag_id = "Modal-Field-General-Err";
+        return result;
+      }
 
-    const auto field_lookup = LookupRecordField(ctx, path_type->path, expr.name);
-    if (!field_lookup.has_value()) {
-      SPEC_RULE("FieldAccess-Unknown");
-      result.diag_id = "FieldAccess-Unknown";
-      return result;
-    }
-    if (const auto* record = LookupRecordDecl(ctx, path_type->path);
-        record && !FieldVisible(ctx, *record, expr.name, path_type->path)) {
+      const auto field_lookup = LookupRecordField(ctx, *path, expr.name);
+      if (!field_lookup.has_value()) {
+        SPEC_RULE("FieldAccess-Unknown");
+        result.diag_id = "FieldAccess-Unknown";
+        return result;
+      }
+      if (const auto* record = LookupRecordDecl(ctx, *path);
+          record && !FieldVisible(ctx, *record, expr.name, *path)) {
       SPEC_RULE("FieldAccess-NotVisible");
       result.diag_id = "FieldAccess-NotVisible";
       return result;
@@ -475,4 +476,3 @@ PlaceTypeResult TypeFieldAccessPlaceImpl(const ScopeContext& ctx,
 }
 
 }  // namespace cursive::analysis::expr
-

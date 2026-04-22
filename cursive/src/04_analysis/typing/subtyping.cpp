@@ -144,11 +144,14 @@ static std::optional<AppliedTypeView> GetAppliedTypeView(const TypeRef& type) {
   if (!type) {
     return std::nullopt;
   }
-  if (const auto* path = std::get_if<TypePathType>(&type->node)) {
-    return AppliedTypeView{&path->path, &path->generic_args};
+    if (const auto* path = std::get_if<TypePathType>(&type->node)) {
+      return AppliedTypeView{&path->path, &path->generic_args};
+    }
+    if (const auto* apply = std::get_if<TypeApply>(&type->node)) {
+      return AppliedTypeView{&apply->path, &apply->args};
+    }
+    return std::nullopt;
   }
-  return std::nullopt;
-}
 
 static TypePathType ToTypePathType(const AppliedTypeView& view) {
   TypePathType out;
@@ -353,11 +356,12 @@ static AliasExpandResult NormalizeAliasTopLevel(const ScopeContext& ctx,
     if (!out.type) {
       return out;
     }
-    const auto* path = std::get_if<TypePathType>(&out.type->node);
-    if (!path) {
-      return out;
-    }
-    const auto expanded = ExpandTypeAliasApply(ctx, *path);
+	    const auto* path = AppliedTypePath(*out.type);
+	    const auto* args = AppliedTypeArgs(*out.type);
+	    if (!path || !args) {
+	      return out;
+	    }
+	    const auto expanded = ExpandTypeAliasApply(ctx, TypePathType{*path, *args});
     if (!expanded.ok) {
       out.ok = false;
       out.diag_id = expanded.diag_id;
@@ -533,8 +537,8 @@ static AliasExpandResult NormalizeAliasDeep(const ScopeContext& ctx,
     return out;
   }
 
-  if (const auto* path = std::get_if<TypePathType>(&cur->node)) {
-    bool arg_changed = false;
+    if (const auto* path = std::get_if<TypePathType>(&cur->node)) {
+      bool arg_changed = false;
     std::vector<TypeRef> args;
     args.reserve(path->generic_args.size());
     for (const auto& arg : path->generic_args) {
@@ -548,9 +552,28 @@ static AliasExpandResult NormalizeAliasDeep(const ScopeContext& ctx,
     out.type = (changed || arg_changed)
                    ? MakeTypePath(path->path, std::move(args))
                    : cur;
-    out.expanded = changed || arg_changed;
-    return out;
-  }
+      out.expanded = changed || arg_changed;
+      return out;
+    }
+
+    if (const auto* apply = std::get_if<TypeApply>(&cur->node)) {
+      bool arg_changed = false;
+      std::vector<TypeRef> args;
+      args.reserve(apply->args.size());
+      for (const auto& arg : apply->args) {
+        const auto normalized = NormalizeAliasDeep(ctx, arg, depth + 1);
+        if (!normalized.ok) {
+          return normalized;
+        }
+        arg_changed = arg_changed || normalized.expanded;
+        args.push_back(normalized.type);
+      }
+      out.type = (changed || arg_changed)
+                     ? MakeTypeApply(apply->path, std::move(args))
+                     : cur;
+      out.expanded = changed || arg_changed;
+      return out;
+    }
 
   if (const auto* refine = std::get_if<TypeRefine>(&cur->node)) {
     const auto base = NormalizeAliasDeep(ctx, refine->base, depth + 1);
@@ -891,27 +914,26 @@ SubtypingResult Subtyping(const ScopeContext& ctx,
     if (!PermSub(lhs_perm, rhs_perm)) {
       return {true, std::nullopt, false};
     }
-    if (lhs_perm == Permission::Const && rhs_perm == Permission::Const) {
-      if (const auto* lpath = std::get_if<TypePathType>(&lhs_base->node)) {
-        if (const auto* rpath = std::get_if<TypePathType>(&rhs_base->node)) {
-          if (TypePathEq(lpath->path, rpath->path) &&
-              lpath->generic_args.size() == rpath->generic_args.size()) {
-            SPEC_RULE("Sub-Perm-Const-Covariant");
-            for (std::size_t i = 0; i < lpath->generic_args.size(); ++i) {
-              const auto sub =
-                  Subtyping(ctx, lpath->generic_args[i], rpath->generic_args[i]);
-              if (!sub.ok) {
-                return {false, sub.diag_id, false};
-              }
-              if (!sub.subtype) {
-                return {true, std::nullopt, false};
-              }
-            }
-            return {true, std::nullopt, true};
-          }
-        }
-      }
-    }
+	    if (lhs_perm == Permission::Const && rhs_perm == Permission::Const) {
+	      const auto* lpath = AppliedTypePath(*lhs_base);
+	      const auto* largs = AppliedTypeArgs(*lhs_base);
+	      const auto* rpath = AppliedTypePath(*rhs_base);
+	      const auto* rargs = AppliedTypeArgs(*rhs_base);
+	      if (lpath && largs && rpath && rargs && TypePathEq(*lpath, *rpath) &&
+	          largs->size() == rargs->size()) {
+	        SPEC_RULE("Sub-Perm-Const-Covariant");
+	        for (std::size_t i = 0; i < largs->size(); ++i) {
+	          const auto sub = Subtyping(ctx, (*largs)[i], (*rargs)[i]);
+	          if (!sub.ok) {
+	            return {false, sub.diag_id, false};
+	          }
+	          if (!sub.subtype) {
+	            return {true, std::nullopt, false};
+	          }
+	        }
+	        return {true, std::nullopt, true};
+	      }
+	    }
     return Subtyping(ctx, lhs_base, rhs_base);
   }
 

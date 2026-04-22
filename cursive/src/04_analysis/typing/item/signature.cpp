@@ -108,9 +108,16 @@ TypeRef SubstSelfType(const TypeRef& self_type,
           new_args.reserve(node.generic_args.size());
           for (const auto& arg : node.generic_args) {
             new_args.push_back(SubstSelfType(self_type, arg, assoc_subst));
-          }
-          return MakeTypePath(node.path, new_args);
-        } else if constexpr (std::is_same_v<T, TypePerm>) {
+            }
+            return MakeTypePath(node.path, new_args);
+          } else if constexpr (std::is_same_v<T, TypeApply>) {
+            std::vector<TypeRef> new_args;
+            new_args.reserve(node.args.size());
+            for (const auto& arg : node.args) {
+              new_args.push_back(SubstSelfType(self_type, arg, assoc_subst));
+            }
+            return MakeTypeApply(node.path, new_args);
+          } else if constexpr (std::is_same_v<T, TypePerm>) {
           auto new_base = SubstSelfType(self_type, node.base, assoc_subst);
           return MakeTypePerm(node.perm, new_base);
         } else if constexpr (std::is_same_v<T, TypeUnion>) {

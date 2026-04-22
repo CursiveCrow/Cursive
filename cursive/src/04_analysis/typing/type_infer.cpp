@@ -595,14 +595,18 @@ static bool ModalNonNiche(const ScopeContext& ctx,
   if (!stripped_source || !stripped_target) {
     return false;
   }
-  const auto* modal = std::get_if<TypeModalState>(&stripped_source->node);
-  const auto* path = std::get_if<TypePathType>(&stripped_target->node);
-  if (!modal || !path) {
-    return false;
-  }
-  if (!TypePathEq(modal->path, path->path)) {
-    return false;
-  }
+    const auto* modal = std::get_if<TypeModalState>(&stripped_source->node);
+    const auto* target_path = AppliedTypePath(*stripped_target);
+    const auto* target_args = AppliedTypeArgs(*stripped_target);
+    if (!modal || !target_path || !target_args) {
+      return false;
+    }
+    if (!TypePathEq(modal->path, *target_path)) {
+      return false;
+    }
+    if (modal->generic_args.size() != target_args->size()) {
+      return false;
+    }
   const auto* decl = LookupModalDecl(ctx, modal->path);
   if (!decl) {
     return false;
@@ -869,21 +873,37 @@ static bool UnifyEq(const ScopeContext& ctx,
     }
     return UnifyEq(ctx, lfunc->ret, rfunc->ret, subst, diag_id);
   }
-  if (const auto* lpath = std::get_if<TypePathType>(&lhs->node)) {
-    const auto* rpath = std::get_if<TypePathType>(&rhs->node);
-    if (!rpath || !TypePathEq(lpath->path, rpath->path) ||
-        lpath->generic_args.size() != rpath->generic_args.size()) {
-      diag_id = "Syn-Call-Err";
-      return false;
-    }
-    for (std::size_t i = 0; i < lpath->generic_args.size(); ++i) {
-      if (!UnifyEq(ctx, lpath->generic_args[i], rpath->generic_args[i], subst,
-                   diag_id)) {
+    if (const auto* lpath = std::get_if<TypePathType>(&lhs->node)) {
+      const auto* rpath = AppliedTypePath(*rhs);
+      const auto* rargs = AppliedTypeArgs(*rhs);
+      if (!rpath || !rargs || !TypePathEq(lpath->path, *rpath) ||
+          lpath->generic_args.size() != rargs->size()) {
+        diag_id = "Syn-Call-Err";
         return false;
       }
+      for (std::size_t i = 0; i < lpath->generic_args.size(); ++i) {
+        if (!UnifyEq(ctx, lpath->generic_args[i], (*rargs)[i], subst,
+                     diag_id)) {
+          return false;
+        }
+      }
+      return true;
     }
-    return true;
-  }
+    if (const auto* lapply = std::get_if<TypeApply>(&lhs->node)) {
+      const auto* rpath = AppliedTypePath(*rhs);
+      const auto* rargs = AppliedTypeArgs(*rhs);
+      if (!rpath || !rargs || !TypePathEq(lapply->path, *rpath) ||
+          lapply->args.size() != rargs->size()) {
+        diag_id = "Syn-Call-Err";
+        return false;
+      }
+      for (std::size_t i = 0; i < lapply->args.size(); ++i) {
+        if (!UnifyEq(ctx, lapply->args[i], (*rargs)[i], subst, diag_id)) {
+          return false;
+        }
+      }
+      return true;
+    }
   if (const auto* lmodal = std::get_if<TypeModalState>(&lhs->node)) {
     const auto* rmodal = std::get_if<TypeModalState>(&rhs->node);
     if (!rmodal || !TypePathEq(lmodal->path, rmodal->path) ||
@@ -1048,17 +1068,27 @@ static TypeRef ApplySubstitutionImpl(const TypeRef& type,
                              std::is_same_v<T, TypeOpaque> ||
                              std::is_same_v<T, TypeRangeFull>) {
           return type;
-        } else if constexpr (std::is_same_v<T, TypePathType>) {
-          std::vector<TypeRef> args;
+          } else if constexpr (std::is_same_v<T, TypePathType>) {
+            std::vector<TypeRef> args;
           args.reserve(node.generic_args.size());
           bool changed = false;
           for (const auto& arg : node.generic_args) {
             const auto applied = ApplySubstitutionImpl(arg, subst, active);
             changed = changed || (applied != arg);
             args.push_back(applied);
-          }
-          return changed ? MakeTypePath(node.path, std::move(args)) : type;
-        } else if constexpr (std::is_same_v<T, TypeModalState>) {
+            }
+            return changed ? MakeTypePath(node.path, std::move(args)) : type;
+          } else if constexpr (std::is_same_v<T, TypeApply>) {
+            std::vector<TypeRef> args;
+            args.reserve(node.args.size());
+            bool changed = false;
+            for (const auto& arg : node.args) {
+              const auto applied = ApplySubstitutionImpl(arg, subst, active);
+              changed = changed || (applied != arg);
+              args.push_back(applied);
+            }
+            return changed ? MakeTypeApply(node.path, std::move(args)) : type;
+          } else if constexpr (std::is_same_v<T, TypeModalState>) {
           std::vector<TypeRef> args;
           args.reserve(node.generic_args.size());
           bool changed = false;

@@ -105,10 +105,10 @@ ExprTypeResult TypeUnaryExprImpl(const ScopeContext& ctx,
     }
 
     // Check if already a general modal (error)
-    if (const auto* path = std::get_if<TypePathType>(&stripped->node)) {
-      if (LookupModalDecl(ctx, path->path)) {
-        SPEC_RULE("Widen-AlreadyGeneral");
-        result.diag_id = "Widen-AlreadyGeneral";
+      if (const auto* path = AppliedTypePath(*stripped)) {
+        if (LookupModalDecl(ctx, *path)) {
+          SPEC_RULE("Widen-AlreadyGeneral");
+          result.diag_id = "Widen-AlreadyGeneral";
         return result;
       }
     }

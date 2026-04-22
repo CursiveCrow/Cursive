@@ -483,83 +483,86 @@ static std::optional<std::pair<std::uint64_t, std::uint64_t>> LayoutOf(
     }
     return ModalStateLayout(ctx, *decl, modal->state, modal->generic_args);
   }
-  if (const auto* path = std::get_if<TypePathType>(&type->node)) {
-    const std::string& type_name = path->path.empty() ? "" : path->path.back();
+    if (const auto* path = AppliedTypePath(*type)) {
+      const auto* generic_args = AppliedTypeArgs(*type);
+      const std::string& type_name = path->empty() ? "" : path->back();
 
-    // Check for Async<Out, In, Result, E>
-    if (IdEq(type_name, "Async") && !path->generic_args.empty()) {
-      return ComputeAsyncLayout(ctx, path->generic_args);
-    }
-    // Future<T; E = !> = Async<(), (), T, E>
-    if (IdEq(type_name, "Future") && !path->generic_args.empty()) {
-      auto unit_type = MakeTypePrim("()");
-      auto never_type = MakeTypePrim("!");
-      std::vector<TypeRef> async_args = {
-          unit_type,
-          unit_type,
-          path->generic_args[0],
-          path->generic_args.size() > 1 ? path->generic_args[1] : never_type
+      // Check for Async<Out, In, Result, E>
+      if (IdEq(type_name, "Async") && generic_args && !generic_args->empty()) {
+        return ComputeAsyncLayout(ctx, *generic_args);
+      }
+      // Future<T; E = !> = Async<(), (), T, E>
+      if (IdEq(type_name, "Future") && generic_args && !generic_args->empty()) {
+        auto unit_type = MakeTypePrim("()");
+        auto never_type = MakeTypePrim("!");
+        std::vector<TypeRef> async_args = {
+            unit_type,
+            unit_type,
+            (*generic_args)[0],
+            generic_args->size() > 1 ? (*generic_args)[1] : never_type
+        };
+        return ComputeAsyncLayout(ctx, async_args);
+      }
+      // Sequence<T> = Async<T, (), (), !>
+      if (IdEq(type_name, "Sequence") && generic_args && !generic_args->empty()) {
+        auto unit_type = MakeTypePrim("()");
+        auto never_type = MakeTypePrim("!");
+        std::vector<TypeRef> async_args = {
+            (*generic_args)[0],
+            unit_type,
+            unit_type,
+            never_type
       };
       return ComputeAsyncLayout(ctx, async_args);
-    }
-    // Sequence<T> = Async<T, (), (), !>
-    if (IdEq(type_name, "Sequence") && !path->generic_args.empty()) {
-      auto unit_type = MakeTypePrim("()");
-      auto never_type = MakeTypePrim("!");
-      std::vector<TypeRef> async_args = {
-          path->generic_args[0],
-          unit_type,
-          unit_type,
-          never_type
-      };
-      return ComputeAsyncLayout(ctx, async_args);
-    }
-    // Stream<T; E> = Async<T, (), (), E>
-    if (IdEq(type_name, "Stream") && path->generic_args.size() >= 2) {
-      auto unit_type = MakeTypePrim("()");
-      std::vector<TypeRef> async_args = {
-          path->generic_args[0],
-          unit_type,
-          unit_type,
-          path->generic_args[1]
-      };
-      return ComputeAsyncLayout(ctx, async_args);
-    }
-    // Pipe<In; Out> = Async<Out, In, (), !>
-    if (IdEq(type_name, "Pipe") && path->generic_args.size() >= 2) {
-      auto unit_type = MakeTypePrim("()");
-      auto never_type = MakeTypePrim("!");
-      std::vector<TypeRef> async_args = {
-          path->generic_args[1],
-          path->generic_args[0],
-          unit_type,
-          never_type
-      };
-      return ComputeAsyncLayout(ctx, async_args);
-    }
-    // Exchange<T> = Async<T, T, T, !>
-    if (IdEq(type_name, "Exchange") && !path->generic_args.empty()) {
-      auto never_type = MakeTypePrim("!");
-      std::vector<TypeRef> async_args = {
-          path->generic_args[0],
-          path->generic_args[0],
-          path->generic_args[0],
-          never_type
-      };
-      return ComputeAsyncLayout(ctx, async_args);
-    }
-
-    ast::Path syntax_path;
-    syntax_path.reserve(path->path.size());
-    for (const auto& comp : path->path) {
-      syntax_path.push_back(comp);
-    }
+      }
+      // Stream<T; E> = Async<T, (), (), E>
+      if (IdEq(type_name, "Stream") && generic_args && generic_args->size() >= 2) {
+        auto unit_type = MakeTypePrim("()");
+        std::vector<TypeRef> async_args = {
+            (*generic_args)[0],
+            unit_type,
+            unit_type,
+            (*generic_args)[1]
+        };
+        return ComputeAsyncLayout(ctx, async_args);
+      }
+      // Pipe<In; Out> = Async<Out, In, (), !>
+      if (IdEq(type_name, "Pipe") && generic_args && generic_args->size() >= 2) {
+        auto unit_type = MakeTypePrim("()");
+        auto never_type = MakeTypePrim("!");
+        std::vector<TypeRef> async_args = {
+            (*generic_args)[1],
+            (*generic_args)[0],
+            unit_type,
+            never_type
+        };
+        return ComputeAsyncLayout(ctx, async_args);
+      }
+      // Exchange<T> = Async<T, T, T, !>
+      if (IdEq(type_name, "Exchange") && generic_args && !generic_args->empty()) {
+        auto never_type = MakeTypePrim("!");
+        std::vector<TypeRef> async_args = {
+            (*generic_args)[0],
+            (*generic_args)[0],
+            (*generic_args)[0],
+            never_type
+        };
+        return ComputeAsyncLayout(ctx, async_args);
+      }
+      ast::Path syntax_path;
+      syntax_path.reserve(path->size());
+      for (const auto& comp : *path) {
+        syntax_path.push_back(comp);
+      }
     const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
     if (it == ctx.sigma.types.end()) {
       return std::nullopt;
-    }
-    if (const auto* record = std::get_if<ast::RecordDecl>(&it->second)) {
-      const auto subst = BuildDeclSubstitution(record->generic_params, path->generic_args);
+      }
+      if (const auto* record = std::get_if<ast::RecordDecl>(&it->second)) {
+        const auto subst =
+            BuildDeclSubstitution(record->generic_params,
+                                  generic_args ? *generic_args
+                                               : std::vector<TypeRef>{});
       if (!subst.has_value()) {
         return std::nullopt;
       }
@@ -579,20 +582,25 @@ static std::optional<std::pair<std::uint64_t, std::uint64_t>> LayoutOf(
       }
       return LayoutOfSeq(ctx, fields);
     }
-    if (const auto* enum_decl = std::get_if<ast::EnumDecl>(&it->second)) {
-      return EnumDeclLayout(ctx, *enum_decl);
-    }
-    if (const auto* modal_decl = std::get_if<ast::ModalDecl>(&it->second)) {
-      return ModalDeclLayout(ctx, *modal_decl, path->generic_args);
-    }
-    if (const auto* alias = std::get_if<ast::TypeAliasDecl>(&it->second)) {
+      if (const auto* enum_decl = std::get_if<ast::EnumDecl>(&it->second)) {
+        return EnumDeclLayout(ctx, *enum_decl);
+      }
+      if (const auto* modal_decl = std::get_if<ast::ModalDecl>(&it->second)) {
+        return ModalDeclLayout(ctx, *modal_decl,
+                               generic_args ? *generic_args
+                                            : std::vector<TypeRef>{});
+      }
+      if (const auto* alias = std::get_if<ast::TypeAliasDecl>(&it->second)) {
       const auto lowered = LowerType(ctx, alias->type);
       if (!lowered.ok) {
         return std::nullopt;
       }
-      TypeRef inst = lowered.type;
-      if (alias->generic_params && !alias->generic_params->params.empty()) {
-        const auto subst = BuildDeclSubstitution(alias->generic_params, path->generic_args);
+        TypeRef inst = lowered.type;
+        if (alias->generic_params && !alias->generic_params->params.empty()) {
+          const auto subst =
+              BuildDeclSubstitution(alias->generic_params,
+                                    generic_args ? *generic_args
+                                                 : std::vector<TypeRef>{});
         if (!subst.has_value()) {
           return std::nullopt;
         }
