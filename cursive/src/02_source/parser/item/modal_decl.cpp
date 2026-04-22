@@ -188,13 +188,6 @@ ParseElemResult<StateFieldDecl> ParseStateFieldDecl(Parser start, Parser parser,
   }
 
   ParseElemResult<std::shared_ptr<Type>> ty = ParseType(name.parser);
-  Parser after_type = ty.parser;
-
-  const Token* tok = Tok(after_type);
-  if (tok && (tok->kind == TokenKind::Newline ||
-              (tok->kind == TokenKind::Punctuator && tok->lexeme == ";"))) {
-    Advance(after_type);
-  }
 
   StateFieldDecl field;
   field.attrs = attrs_list;
@@ -202,10 +195,10 @@ ParseElemResult<StateFieldDecl> ParseStateFieldDecl(Parser start, Parser parser,
   field.key_boundary = boundary.elem;
   field.name = name.elem;
   field.type = ty.elem;
-  field.span = SpanBetween(start, after_type);
+  field.span = SpanBetween(start, ty.parser);
   field.doc_opt = std::nullopt;
 
-  return {after_type, field};
+  return {ty.parser, field};
 }
 
 }  // namespace
@@ -216,7 +209,9 @@ ParseElemResult<StateFieldDecl> ParseStateFieldDecl(Parser start, Parser parser,
 
 ParseElemResult<StateMember> ParseStateMember(Parser parser) {
   ParseElemResult<AttrOpt> attrs = ParseAttributeListOpt(parser);
-  ParseElemResult<Visibility> vis = ParseVis(attrs.parser);
+  Parser after_attrs = attrs.parser;
+  SkipNewlines(after_attrs);
+  ParseElemResult<Visibility> vis = ParseVis(after_attrs);
   Parser cur = vis.parser;
   AttributeList attrs_list = attrs.elem.value_or(AttributeList{});
 

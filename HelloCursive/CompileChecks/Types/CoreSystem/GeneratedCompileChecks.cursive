@@ -144,6 +144,16 @@ procedure run_issue966_type_ref_modal_state_ref(ctx: Context) -> i32 {
     return testsupport::runCompileCheckCommand(ctx, command, "issue966_type_ref_modal_state_ref")
 }
 
+procedure run_issue992_state_field_p4_conformance(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --phase1-only --diag-json --quiet --conformance issue992_state_field_p4_conformance.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\issue992_state_field_p4_conformance\\Main.cursive > build\\main\\logs\\compile_checks\\issue992_state_field_p4_conformance.json 2> build\\main\\logs\\compile_checks\\issue992_state_field_p4_conformance.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-StateMember-Field\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\issue992_state_field_p4_conformance\\build\\probe\\logs\\conformance\\issue992_state_field_p4_conformance.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-KeyBoundaryOpt-Yes\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\issue992_state_field_p4_conformance\\build\\probe\\logs\\conformance\\issue992_state_field_p4_conformance.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-AttrListOpt-Yes\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\issue992_state_field_p4_conformance\\build\\probe\\logs\\conformance\\issue992_state_field_p4_conformance.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-Vis-Opt\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\issue992_state_field_p4_conformance\\build\\probe\\logs\\conformance\\issue992_state_field_p4_conformance.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-Vis-Default\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\issue992_state_field_p4_conformance\\build\\probe\\logs\\conformance\\issue992_state_field_p4_conformance.log >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue992_state_field_p4_conformance")
+}
+
+procedure run_issue992_state_field_semicolon_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --phase1-only --diag-json --quiet ..\\TestProjects\\Types\\CoreSystem\\Generated\\issue992_state_field_semicolon_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue992_state_field_semicolon_rejected.json 2> build\\main\\logs\\compile_checks\\issue992_state_field_semicolon_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SRC-0520\\\"\" build\\main\\logs\\compile_checks\\issue992_state_field_semicolon_rejected.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue992_state_field_semicolon_rejected")
+}
+
 public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_run_issue32_decimal_to_int_rejected: i32 = run_issue32_decimal_to_int_rejected(ctx)
     if (status_run_issue32_decimal_to_int_rejected != 0) {
@@ -288,6 +298,16 @@ public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_issue966_type_ref_modal_state_ref: i32 = run_issue966_type_ref_modal_state_ref(ctx)
     if (status_issue966_type_ref_modal_state_ref != 0) {
         return status_issue966_type_ref_modal_state_ref
+    }
+
+    let status_issue992_state_field_p4_conformance: i32 = run_issue992_state_field_p4_conformance(ctx)
+    if (status_issue992_state_field_p4_conformance != 0) {
+        return status_issue992_state_field_p4_conformance
+    }
+
+    let status_issue992_state_field_semicolon_rejected: i32 = run_issue992_state_field_semicolon_rejected(ctx)
+    if (status_issue992_state_field_semicolon_rejected != 0) {
+        return status_issue992_state_field_semicolon_rejected
     }
 
     return 0
