@@ -205,6 +205,8 @@ inline const TypePath& TypeModalRefPath(const TypeModalRef& modal_ref) {
                 if (node.generic_args.empty()) {
                     SPEC_RULE("ModalRefPath(TypePath(p))");
                 }
+            } else {
+                SPEC_RULE("ModalRefPath(TypeApply(p, _))");
             }
             return node.path;
         },

@@ -545,6 +545,7 @@ const TypePath& ModalRefPath(const ModalRef& modal_ref) {
           SPEC_RULE("ModalRefPath(TypePath(p))");
           return node;
         } else {
+          SPEC_RULE("ModalRefPath(TypeApply(p, _))");
           return node.path;
         }
       },
