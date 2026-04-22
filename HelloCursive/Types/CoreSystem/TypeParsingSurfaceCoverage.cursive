@@ -2,6 +2,8 @@ record TypeParsingPathProbe {
     value: i32
 }
 
+type TypeParsingGenericPair<T> = (T, T)
+
 type ParseTypePermConst = const i32
 type ParseTypePermUnique = unique i32
 type ParseTypePermShared = shared i32
@@ -15,6 +17,8 @@ type ParseTypeRaw = *imm i32
 type ParseTypeString = string@View
 type ParseTypeDynamic = $HeapAllocator
 type ParseTypePath = TypeParsingPathProbe
+type ParseTypeGenericPair = TypeParsingGenericPair<i32>
+type ParseTypeGenericNested = TypeParsingGenericPair<TypeParsingGenericPair<i32>>
 type ParseTypeRefine = i32 |: { self >= 0 }
 
 procedure TypeParsingSurfaceAdd(move left: i32, right: i32) -> i32 {
@@ -41,6 +45,13 @@ procedure RunTypeParsingSurfaceCoverage(ctx: Context) -> i32 {
     let fn_value: ParseTypeFn = TypeParsingSurfaceAdd
     let text_value: ParseTypeString = "parse"
     let path_value: ParseTypePath = TypeParsingPathProbe { value: 9 }
+    let generic_left_metric: i32 = 12
+    let generic_right_metric: i32 = 13
+    let generic_nested_metric: i32 = 14
+    let generic_pair_value: ParseTypeGenericPair = (generic_left_metric, generic_right_metric)
+    let generic_nested_value: ParseTypeGenericNested = ((generic_nested_metric, 0), (0, 0))
+    let _ = generic_pair_value
+    let _ = generic_nested_value
     let refine_value: ParseTypeRefine = 5
 
     let const_source: unique i32 = 10
@@ -77,6 +88,14 @@ procedure RunTypeParsingSurfaceCoverage(ctx: Context) -> i32 {
     let generic_args_opt_yes_runtime_log: bool =
         [[log(label: "types-core-parse-generic-args-opt-yes-runtime", expected: true)]]
         generic_args_opt_yes_runtime_ok
+    let generic_type_apply_metric: i32 =
+        generic_left_metric +
+        generic_right_metric +
+        generic_nested_metric
+    let generic_type_apply_ok: bool = generic_type_apply_metric == 39
+    let generic_type_apply_log: bool =
+        [[log(label: "types-core-parse-generic-args-opt-yes-type-apply-runtime", expected: true)]]
+        generic_type_apply_ok
     let refine_metric: i32 = refine_value
     let permission_metric: i32 = const_value + shared_value
     let dynamic_metric: i32 = 1
@@ -107,6 +126,8 @@ procedure RunTypeParsingSurfaceCoverage(ctx: Context) -> i32 {
         (generic_args_opt_none_runtime_log == true) &&
         generic_args_opt_yes_runtime_ok &&
         (generic_args_opt_yes_runtime_log == true) &&
+        generic_type_apply_ok &&
+        (generic_type_apply_log == true) &&
         (slice_coercion_ok_log == true)
     let parse_surface_ok_log: bool =
         [[log(label: "types-core-type-parsing-surface", expected: true)]]

@@ -6,10 +6,17 @@ record ParseGenericArgsOptBox<T> {
     value: T
 }
 
+record ParseGenericArgsOptPair<T; U> {
+    left: T
+    right: U
+}
+
 type ParseGenericArgsOptPlainAlias = ParseGenericArgsOptPlain
 type ParseGenericArgsOptTupleAlias = (ParseGenericArgsOptPlain, i32)
 type ParseGenericArgsOptApplyAlias = ParseGenericArgsOptBox<ParseGenericArgsOptPlain>
 type ParseGenericArgsOptNestedApplyAlias = ParseGenericArgsOptBox<ParseGenericArgsOptBox<ParseGenericArgsOptPlain>>
+type ParseGenericArgsOptPairAlias = ParseGenericArgsOptPair<ParseGenericArgsOptPlain, ParseGenericArgsOptBox<ParseGenericArgsOptPlain>>
+type ParseGenericArgsOptQualifiedAlias = probe::parsingdep::ParseGenericArgsOptExternalBox<ParseGenericArgsOptPlain>
 
 procedure parseGenericArgsOptAccept(value: ParseGenericArgsOptPlain) -> ParseGenericArgsOptPlain {
     return value

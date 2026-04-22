@@ -229,7 +229,7 @@ ParseElemResult<ExprPtr> ParseRecordLiteral(Parser parser, bool allow_brace) {
   Parser start = parser;
 
   ParseElemResult<TypePath> path = ParseTypePath(parser);
-  ParseGenericArgsResult gen = ParseGenericTypeArgs(path.parser);
+  ParseGenericArgsResult gen = ParseGenericArgsOpt(path.parser);
   std::vector<std::shared_ptr<Type>> generic_args =
       gen.args.has_value()
           ? std::move(*gen.args)

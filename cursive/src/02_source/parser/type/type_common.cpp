@@ -346,7 +346,7 @@ ParseElemResult<std::shared_ptr<Type>> ParseNonPermType(Parser parser) {
     }
 
     // Parse optional generic args
-    ParseGenericArgsResult gen = ParseGenericTypeArgs(path.parser);
+    ParseGenericArgsResult gen = ParseGenericArgsOpt(path.parser);
     std::vector<std::shared_ptr<Type>> generic_args =
         gen.args.has_value()
             ? std::move(*gen.args)

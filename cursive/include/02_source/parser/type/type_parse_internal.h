@@ -185,8 +185,12 @@ struct ParseGenericArgsResult {
   std::optional<std::vector<std::shared_ptr<Type>>> args;
 };
 
+// Parse required generic type arguments <T, U>
+ParseElemResult<std::vector<std::shared_ptr<Type>>> ParseGenericArgs(
+    Parser parser);
+
 // Parse optional generic type arguments <T, U>
-ParseGenericArgsResult ParseGenericTypeArgs(Parser parser);
+ParseGenericArgsResult ParseGenericArgsOpt(Parser parser);
 
 // Parse type path with optional generics (returns TypePathType or TypeApply)
 ParseElemResult<std::shared_ptr<Type>> ParseTypePathType(

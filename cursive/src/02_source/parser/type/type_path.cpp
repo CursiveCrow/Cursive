@@ -13,6 +13,8 @@
 
 #include "02_source/parser/type/type_parse_internal.h"
 
+#include <string>
+
 #include "00_core/assert_spec.h"
 #include "00_core/diagnostic_messages.h"
 
@@ -49,22 +51,40 @@ void ValidateGpuPtrArgs(Parser parser,
 
 }  // namespace
 
-// =============================================================================
-// ParseGenericTypeArgs - Parse Optional Generic Type Arguments <T, U>
-// =============================================================================
-// SPEC: Generic arguments use commas to separate types.
-// Returns the parser positioned after '>' and the vector of type arguments.
-// If no '<' is present, returns nullopt and leaves the parser unchanged.
+namespace {
 
-ParseGenericArgsResult ParseGenericTypeArgs(Parser parser) {
-  const Token* tok = Tok(parser);
-  if (!tok || !IsOpTok(*tok, "<")) {
-    SPEC_RULE("Parse-GenericArgsOpt-None");
-    return {parser, std::nullopt};
+std::string GenericArgsPayload(std::string_view args_opt,
+                               std::size_t arg_count) {
+  std::string payload;
+  payload.reserve(args_opt.size() + 48);
+  payload += "args_opt=";
+  payload += args_opt;
+  payload += ";arg_count=";
+  payload += std::to_string(arg_count);
+  return payload;
+}
+
+void RecordGenericArgsRule(std::string_view rule_id,
+                           const core::Span& span,
+                           std::string_view args_opt,
+                           std::size_t arg_count) {
+  if (!core::Conformance::Enabled()) {
+    return;
   }
+  core::Conformance::Record(rule_id, span,
+                            GenericArgsPayload(args_opt, arg_count));
+}
 
-  SPEC_RULE("Parse-GenericArgsOpt-Yes");
-  SPEC_RULE("Parse-GenericArgs");
+}  // namespace
+
+// =============================================================================
+// ParseGenericArgs - Parse Required Generic Type Arguments <T, U>
+// =============================================================================
+// SPEC: Parse-GenericArgs. Generic arguments use commas to separate types.
+// Returns the parser positioned after the closing '>' and the argument vector.
+
+ParseElemResult<std::vector<std::shared_ptr<Type>>> ParseGenericArgs(
+    Parser parser) {
   Parser after_lt = parser;
   Advance(after_lt);  // consume '<'
 
@@ -89,7 +109,31 @@ ParseGenericArgsResult ParseGenericTypeArgs(Parser parser) {
     Advance(cur);
   }
 
-  return {cur, args};
+  RecordGenericArgsRule("Parse-GenericArgs", SpanBetween(parser, cur),
+                        "required", args.size());
+  return {cur, std::move(args)};
+}
+
+// =============================================================================
+// ParseGenericArgsOpt - Parse Optional Generic Type Arguments <T, U>
+// =============================================================================
+// SPEC: Parse-GenericArgsOpt-None and Parse-GenericArgsOpt-Yes.
+// Returns nullopt without consuming input when '<' is absent.
+
+ParseGenericArgsResult ParseGenericArgsOpt(Parser parser) {
+  const Token* tok = Tok(parser);
+  if (!tok || !IsOpTok(*tok, "<")) {
+    RecordGenericArgsRule("Parse-GenericArgsOpt-None", TokSpan(parser),
+                          "none", 0);
+    return {parser, std::nullopt};
+  }
+
+  ParseElemResult<std::vector<std::shared_ptr<Type>>> parsed =
+      ParseGenericArgs(parser);
+  RecordGenericArgsRule("Parse-GenericArgsOpt-Yes",
+                        SpanBetween(parser, parsed.parser), "some",
+                        parsed.elem.size());
+  return {parsed.parser, std::move(parsed.elem)};
 }
 
 // =============================================================================
@@ -104,7 +148,7 @@ ParseElemResult<std::shared_ptr<Type>> ParseTypePathType(
     const Parser& start,
     TypePath path) {
   // Parse optional generic arguments
-  ParseGenericArgsResult gen = ParseGenericTypeArgs(parser);
+  ParseGenericArgsResult gen = ParseGenericArgsOpt(parser);
   if (gen.args.has_value()) {
     std::vector<std::shared_ptr<Type>> args = std::move(*gen.args);
     ValidateGpuPtrArgs(gen.parser, path, args);

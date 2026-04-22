@@ -2035,10 +2035,10 @@ Phase 1 - Parse and Aggregate,complete,Parse-GenericArgsOpt-None,"**(Parse-Gener
 ? IsOp(Tok(P), ""<"")
 ??????????????????????????????????????????????
 ? ? ParseGenericArgsOpt(P) ? (P, ?)",CursiveSpecification.md:12060-12063,"/mnt/c/dev/cursive/cursive/src/02_source/parser/type/type_path.cpp:59-64 and /mnt/c/dev/cursive/cursive/include/02_source/parser/type/type_parse_internal.h:183-186; `ParseGenericTypeArgs` now emits `Parse-GenericArgsOpt-None` and returns an unchanged parser with `std::nullopt`, so absence is no longer conflated with a present empty argument vector."
-Phase 1 - Parse and Aggregate,incomplete,Parse-GenericArgsOpt-Yes,"**(Parse-GenericArgsOpt-Yes)**
+Phase 1 - Parse and Aggregate,complete,Parse-GenericArgsOpt-Yes,"**(Parse-GenericArgsOpt-Yes)**
 ? ? ParseGenericArgs(P) ? (P_1, args)
 ??????????????????????????????????????????????
-? ? ParseGenericArgsOpt(P) ? (P_1, args)",CursiveSpecification.md:12065-12068,"/mnt/c/dev/cursive/cursive/src/02_source/parser/type/type_path.cpp:31-60; present generic arguments are parsed by ParseGenericTypeArgs, but there is no distinct `ParseGenericArgsOpt` judgment returning an optional payload as specified."
+? ? ParseGenericArgsOpt(P) ? (P_1, args)",CursiveSpecification.md:12065-12068,"/mnt/c/dev/cursive/cursive/include/02_source/parser/type/type_parse_internal.h:183-193 and /mnt/c/dev/cursive/cursive/src/02_source/parser/type/type_path.cpp:86-136; `ParseGenericArgsOpt` now delegates present `<...>` payloads to distinct required `ParseGenericArgs`, returns `std::optional` args with `some`/`none` conformance payloads, and consumers in type and record-literal parsing call the optional judgment directly."
 Phase 1 - Parse and Aggregate,complete,Parse-GenericParamsOpt-None,"**(Parse-GenericParamsOpt-None)**
 ? IsOp(Tok(P), ""<"")
 ??????????????????????????????????????????????
