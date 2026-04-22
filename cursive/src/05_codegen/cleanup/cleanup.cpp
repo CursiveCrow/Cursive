@@ -1209,7 +1209,17 @@ static IRPtr EmitDropImpl(const analysis::TypeRef& type,
       if (!lowered.has_value()) {
         return EmptyIR();
       }
-      return EmitDropImpl(*lowered, value, ctx, allow_drop_glue, panic_out);
+      analysis::TypeRef instantiated = *lowered;
+      if (alias->generic_params && !alias->generic_params->params.empty()) {
+        if (type_path.generic_args.size() > alias->generic_params->params.size()) {
+          return EmptyIR();
+        }
+        const auto subst = analysis::BuildSubstitution(
+            alias->generic_params->params,
+            type_path.generic_args);
+        instantiated = analysis::InstantiateType(instantiated, subst);
+      }
+      return EmitDropImpl(instantiated, value, ctx, allow_drop_glue, panic_out);
     }
 
     if (allow_drop_glue) {

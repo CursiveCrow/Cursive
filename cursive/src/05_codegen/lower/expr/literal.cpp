@@ -228,7 +228,7 @@ LowerResult LowerLiteral(const ast::Expr& expr,
     IRValue value;
     value.kind = IRValue::Kind::Immediate;
     value.name = lit.literal.lexeme;
-    value.literal_id = ++ctx.temp_counter;
+    value.literal_id = ++(*ctx.temp_counter);
 
     // String literals: decode escape sequences to UTF-8 bytes
     if (lit.literal.kind == lexer::TokenKind::StringLiteral) {

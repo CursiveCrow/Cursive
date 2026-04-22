@@ -1,0 +1,22 @@
+[toolchain]
+target_profile = "x86_64-win64"
+
+[[assembly]]
+name = "repro"
+kind = "executable"
+root = "."
+out_dir = "build"
+emit_ir = "ll"
+
+[[assembly]]
+name = "hostedshareddep"
+kind = "dependency"
+root = "./HostedSharedDep"
+out_dir = "build/hostedshareddep"
+
+[[assembly]]
+name = "hostedshared"
+kind = "library"
+root = "./HostedShared"
+out_dir = "build/hostedshared"
+emit_ir = "ll"

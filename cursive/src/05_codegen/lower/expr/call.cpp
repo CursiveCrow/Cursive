@@ -1118,7 +1118,9 @@ std::pair<IRPtr, std::vector<IRValue>> LowerArgs(
 // -----------------------------------------------------------------------------------------
 // Gamma |- LowerExpr(Call(callee, args)) => <SeqIR(IR_c, IR_a, CallIR(v_c, vec_v)), v_call>
 
-LowerResult LowerCallExpr(const ast::CallExpr& expr, LowerCtx& ctx) {
+LowerResult LowerCallExpr(const ast::Expr& expr_wrapper,
+                          const ast::CallExpr& expr,
+                          LowerCtx& ctx) {
   SPEC_RULE("Lower-Expr-Call-PanicOut");
   SPEC_RULE("Lower-Expr-Call-NoPanicOut");
 
@@ -1354,12 +1356,11 @@ LowerResult LowerCallExpr(const ast::CallExpr& expr, LowerCtx& ctx) {
     }
   }
 
-  analysis::TypeRef result_type;
+  analysis::TypeRef contextual_result_type;
   if (ctx.expr_type) {
-    ast::Expr call_expr_wrapper;
-    call_expr_wrapper.node = expr;
-    result_type = ctx.expr_type(call_expr_wrapper);
+    contextual_result_type = ctx.expr_type(expr_wrapper);
   }
+  analysis::TypeRef result_type;
 
   // Extract parameter modes from the callee type if available
   ParamModeList param_modes;
@@ -1381,9 +1382,7 @@ LowerResult LowerCallExpr(const ast::CallExpr& expr, LowerCtx& ctx) {
           param_modes.push_back(param.mode);
           param_types.push_back(param.type);
         }
-        if (!result_type) {
-          result_type = func->ret;
-        }
+        result_type = func->ret;
       } else if (const auto* closure = std::get_if<analysis::TypeClosure>(&stripped->node)) {
         param_modes.reserve(closure->params.size());
         param_types.reserve(closure->params.size());
@@ -1393,26 +1392,33 @@ LowerResult LowerCallExpr(const ast::CallExpr& expr, LowerCtx& ctx) {
                           : std::nullopt);
           param_types.push_back(param.second);
         }
-        if (!result_type) {
-          result_type = closure->ret;
-        }
+        result_type = closure->ret;
       }
     }
   }
 
-  // Fallback: if type query did not provide parameter modes, recover them
-  // from registered procedure signatures when the callee resolves to a symbol.
-  if (param_modes.empty() && callee_result.value.kind == IRValue::Kind::Symbol) {
-    if (const auto* sig = ctx.LookupProcSig(callee_lookup_symbol)) {
+  // Concrete procedure symbols have a canonical registered signature in the
+  // lowering context. Use it as the source of truth for parameter and return
+  // types, excluding the hidden panic-out parameter from source-argument
+  // matching.
+  if (callee_result.value.kind == IRValue::Kind::Symbol) {
+    const LowerCtx::ProcSigInfo* sig = ctx.LookupProcSig(callee_lookup_symbol);
+    if (!sig) {
+      sig = ctx.LookupProcSig(callee_result.value.name);
+    }
+    if (sig) {
+      param_modes.clear();
+      param_types.clear();
       param_modes.reserve(sig->params.size());
       param_types.reserve(sig->params.size());
       for (const auto& param : sig->params) {
+        if (param.name == std::string(kPanicOutName)) {
+          continue;
+        }
         param_modes.push_back(param.mode);
         param_types.push_back(param.type);
       }
-      if (!result_type) {
-        result_type = sig->ret;
-      }
+      result_type = sig->ret;
     }
   }
 
@@ -1431,10 +1437,11 @@ LowerResult LowerCallExpr(const ast::CallExpr& expr, LowerCtx& ctx) {
         param_modes.push_back(analysis::ParamMode::Move);
         param_types.push_back(param.type);
       }
-      if (!result_type) {
-        result_type = sig->ret;
-      }
+      result_type = sig->ret;
     }
+  }
+  if (!result_type) {
+    result_type = contextual_result_type;
   }
 
   // Lower arguments

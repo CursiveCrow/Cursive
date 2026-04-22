@@ -140,6 +140,9 @@ struct OutputPipelineDeps {
                      const std::vector<std::filesystem::path>& inputs,
                      const std::filesystem::path& output)>
       invoke_archiver;
+  std::function<std::optional<std::reference_wrapper<const std::vector<ast::ASTModule>>>(
+      const Project& project)>
+      resolve_project_ast_modules;
   std::function<frontend::ParseModulesResult(const Project& project)>
       resolve_ast_modules;
   std::function<std::optional<SharedLibraryExports>(const Project& project)>

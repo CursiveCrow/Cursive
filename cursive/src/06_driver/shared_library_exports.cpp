@@ -42,8 +42,22 @@ std::vector<std::string> ComputeSharedLibraryExportSymbols(
 
   std::unordered_set<std::string> exported_symbols;
   std::unordered_set<std::string> hosted_internal_symbols;
-  hosted_internal_symbols.reserve(cache.ctx.hosted_exports.size());
-  for (const auto& hosted : cache.ctx.hosted_exports) {
+  std::vector<codegen::LowerCtx::HostedExportInfo> hosted_exports;
+  hosted_exports.reserve(cache.all_hosted_exports.size());
+  for (const auto& hosted : cache.all_hosted_exports) {
+    const auto* owner = cache.ctx.LookupProcModule(hosted.internal_symbol);
+    if (!owner || owner->empty()) {
+      continue;
+    }
+    if (project_modules.find(core::StringOfPath(*owner)) ==
+        project_modules.end()) {
+      continue;
+    }
+    hosted_exports.push_back(hosted);
+  }
+
+  hosted_internal_symbols.reserve(hosted_exports.size());
+  for (const auto& hosted : hosted_exports) {
     hosted_internal_symbols.insert(hosted.internal_symbol);
   }
   for (const auto& [symbol, linkage] : cache.ctx.AllProcLinkages()) {
@@ -85,11 +99,11 @@ std::vector<std::string> ComputeSharedLibraryExportSymbols(
     }
   }
 
-  for (const auto& hosted : cache.ctx.hosted_exports) {
+  for (const auto& hosted : hosted_exports) {
     exported_symbols.insert(hosted.thunk_symbol);
   }
 
-  if (cache.ctx.hosted_library && !cache.ctx.hosted_exports.empty()) {
+  if (cache.ctx.hosted_library && !hosted_exports.empty()) {
     exported_symbols.insert("__cursive_host_abi_version");
     exported_symbols.insert("__cursive_host_session_create");
     exported_symbols.insert("__cursive_host_session_destroy");
@@ -171,6 +185,7 @@ bool PrepareSharedLibraryCodegenContext(
     const project::Project& project,
     CodegenCache& cache,
     const project::SharedLibraryExports& exports) {
+  ConfigureCodegenContextForProject(cache, project);
   if (!IsSharedLibraryOutput(project)) {
     cache.ctx.shared_library_export_symbols.clear();
     return true;

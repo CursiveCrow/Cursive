@@ -153,7 +153,7 @@ void MergeLowerCtxTemps(LowerCtx& base, const LowerCtx& branch) {
       base.drop_glue_types.emplace(name, type);
     }
   }
-  base.temp_counter = std::max(base.temp_counter, branch.temp_counter);
+  *base.temp_counter = std::max(*base.temp_counter, *branch.temp_counter);
 }
 
 // ---------------------------------------------------------------------------
@@ -273,7 +273,7 @@ LowerResult LowerIfExpr(const ast::Expr& expr,
 
   // Lower else branch (if present)
   LowerCtx else_ctx = MakeBranchCtx(ctx);
-  else_ctx.temp_counter = std::max(else_ctx.temp_counter, then_ctx.temp_counter);
+  *else_ctx.temp_counter = std::max(*else_ctx.temp_counter, *then_ctx.temp_counter);
   LowerResult else_result;
   if (if_expr.else_expr) {
     std::vector<TempValue> else_temps;
@@ -288,7 +288,7 @@ LowerResult LowerIfExpr(const ast::Expr& expr,
     }
   } else {
     else_result.ir = EmptyIR();
-    else_result.value = IRValue{IRValue::Kind::Opaque, "unit", {}};
+    else_result.value = ctx.FreshTempValue("unit");
   }
 
   MergeLowerCtxTemps(ctx, then_ctx);

@@ -314,7 +314,7 @@ void ResetLowerContextForModule(codegen::LowerCtx& ctx,
   ctx.value_types.clear();
   ctx.value_type_insert_sink = nullptr;
   ctx.derived_values.clear();
-  ctx.temp_counter = 0;
+  ctx.temp_counter = std::make_shared<std::uint64_t>(0);
   ctx.scope_stack.clear();
   ctx.binding_states.clear();
   ctx.temp_sink = nullptr;
@@ -371,6 +371,75 @@ std::optional<std::string> SelectProjectEntryModule(
   }
 
   return std::nullopt;
+}
+
+void FilterHostedExportsForProject(
+    codegen::LowerCtx& ctx,
+    const std::unordered_set<std::string>& project_modules);
+void FilterInitPlanForProject(
+    codegen::LowerCtx& ctx,
+    const analysis::InitPlan& init_plan,
+    const std::unordered_set<std::string>& project_modules);
+
+void ConfigureCodegenContextForProjectImpl(CodegenCache& cache,
+                                           const project::Project& project) {
+  const std::string context_key =
+      project.assembly.name + "|" + project.assembly.kind + "|" +
+      project.assembly.link_kind.value_or("none");
+  const bool context_changed = cache.active_project_context_key != context_key;
+  if (context_changed) {
+    cache.active_project_context_key = context_key;
+    cache.emit_context_epoch += 1;
+    cache.modules.clear();
+    cache.index.clear();
+    cache.module_entries.clear();
+    cache.module_states.clear();
+    cache.lowered_proc_symbols.clear();
+    cache.hosted_state_templates.clear();
+    cache.ctx.shared_library_export_symbols.clear();
+  }
+  const auto project_modules = BuildProjectModuleKeySet(project);
+
+  cache.ctx.executable_project = project.assembly.kind == "executable";
+  cache.ctx.shared_library_project =
+      project.assembly.kind == "library" &&
+      project.assembly.link_kind.value_or("shared") == "shared";
+  cache.ctx.hosted_library = project.assembly.kind == "library";
+  cache.ctx.project_entry_module = SelectProjectEntryModule(project);
+
+  cache.ctx.dependency_assembly_names.clear();
+  cache.ctx.library_assembly_names.clear();
+  for (const auto& assembly : project.assemblies) {
+    if (assembly.kind == "dependency") {
+      cache.ctx.dependency_assembly_names.insert(assembly.name);
+    } else if (assembly.kind == "library") {
+      cache.ctx.library_assembly_names.insert(assembly.name);
+    }
+  }
+
+  cache.hosted_project_modules.clear();
+  cache.hosted_project_modules.reserve(project.modules.size());
+  for (const auto& module : project.modules) {
+    cache.hosted_project_modules.push_back(module.path);
+  }
+  cache.ctx.hosted_project_modules = cache.hosted_project_modules;
+
+  cache.ctx.hosted_exports = cache.all_hosted_exports;
+  FilterHostedExportsForProject(cache.ctx, project_modules);
+  cache.ctx.hosted_library =
+      cache.ctx.hosted_library && !cache.ctx.hosted_exports.empty();
+
+  if (cache.full_init_plan.has_value()) {
+    FilterInitPlanForProject(cache.ctx, *cache.full_init_plan, project_modules);
+  } else {
+    cache.ctx.init_order.clear();
+    cache.ctx.init_modules.clear();
+    cache.ctx.init_eager_edges.clear();
+  }
+
+  if (!cache.ctx.shared_library_project) {
+    cache.ctx.shared_library_export_symbols.clear();
+  }
 }
 
 void FilterHostedExportsForProject(
@@ -488,7 +557,7 @@ std::optional<ModuleCodegen> LowerCodegenModule(codegen::LowerCtx& ctx,
   entry.proc_sigs = ctx.proc_sigs;
   entry.proc_linkages = ctx.proc_linkages;
   entry.async_procs = ctx.async_procs;
-  entry.temp_counter = ctx.temp_counter;
+  entry.temp_counter = ctx.temp_counter ? *ctx.temp_counter : 0;
   entry.drop_glue_types = std::move(ctx.drop_glue_types);
   entry.main_symbol = ctx.main_symbol;
 
@@ -504,8 +573,10 @@ std::optional<ModuleCodegen> LowerCodegenModule(codegen::LowerCtx& ctx,
   return entry;
 }
 
-void DeduplicateProcDecls(codegen::IRDecls& decls,
-                          std::unordered_set<std::string>& seen_proc_symbols) {
+void DeduplicateProcDecls(
+    codegen::IRDecls& decls,
+    const std::unordered_map<std::string, codegen::LinkageKind>& proc_linkages,
+    std::unordered_set<std::string>& seen_proc_symbols) {
   if (decls.empty()) {
     return;
   }
@@ -514,7 +585,13 @@ void DeduplicateProcDecls(codegen::IRDecls& decls,
   filtered.reserve(decls.size());
   for (auto& decl : decls) {
     if (auto* proc = std::get_if<codegen::ProcIR>(&decl)) {
-      if (!seen_proc_symbols.emplace(proc->symbol).second) {
+      const auto linkage_it = proc_linkages.find(proc->symbol);
+      const auto linkage =
+          linkage_it == proc_linkages.end()
+              ? codegen::LinkageKind::Internal
+              : linkage_it->second;
+      if (linkage != codegen::LinkageKind::Internal &&
+          !seen_proc_symbols.emplace(proc->symbol).second) {
         continue;
       }
     }
@@ -527,6 +604,11 @@ struct LLVMModuleBundle {
   std::unique_ptr<llvm::LLVMContext> ctx;
   std::unique_ptr<llvm::Module> module;
   bool codegen_failed = false;
+};
+
+struct CachedLLVMArtifacts {
+  std::optional<LLVMModuleBundle> bundle;
+  std::optional<std::string> ir_text;
 };
 
 codegen::LowerCtx& AcquireThreadLocalLowerCtx(const CodegenCache& cache) {
@@ -557,6 +639,23 @@ codegen::LowerCtx& AcquireThreadLocalEmitCtx(const CodegenCache& cache) {
   return state.ctx;
 }
 
+struct ThreadLocalEmitArtifactState {
+  const CodegenCache* cache = nullptr;
+  std::uint64_t epoch = 0;
+  std::unordered_map<std::string, CachedLLVMArtifacts> artifacts;
+};
+
+ThreadLocalEmitArtifactState& AcquireThreadLocalEmitArtifacts(
+    const CodegenCache& cache) {
+  thread_local ThreadLocalEmitArtifactState state;
+  if (state.cache != &cache || state.epoch != cache.emit_context_epoch) {
+    state.cache = &cache;
+    state.epoch = cache.emit_context_epoch;
+    state.artifacts.clear();
+  }
+  return state;
+}
+
 std::optional<LLVMModuleBundle> EmitLLVMModule(
     const CodegenCache& cache,
     const ModuleCodegen& module,
@@ -569,7 +668,7 @@ std::optional<LLVMModuleBundle> EmitLLVMModule(
   emit_ctx.proc_sigs = module.proc_sigs;
   emit_ctx.proc_linkages = module.proc_linkages;
   emit_ctx.async_procs = module.async_procs;
-  emit_ctx.temp_counter = module.temp_counter;
+  emit_ctx.temp_counter = std::make_shared<std::uint64_t>(module.temp_counter);
   emit_ctx.drop_glue_types = module.drop_glue_types;
   emit_ctx.shared_library_project = cache.ctx.shared_library_project;
   emit_ctx.hosted_library = cache.ctx.hosted_library;
@@ -599,6 +698,38 @@ std::optional<LLVMModuleBundle> EmitLLVMModule(
     return std::nullopt;
   }
   return bundle;
+}
+
+std::optional<CachedLLVMArtifacts*> MaterializeCachedLLVMArtifacts(
+    const CodegenCache& cache,
+    const ModuleCodegen& module,
+    const project::Project& project,
+    project::TargetProfile target_profile,
+    bool need_ir_text) {
+  auto& artifact_state = AcquireThreadLocalEmitArtifacts(cache);
+  auto& entry = artifact_state.artifacts[module.path_key];
+  if (!entry.bundle.has_value()) {
+    auto bundle = EmitLLVMModule(cache, module, project, target_profile);
+    if (!bundle) {
+      return std::nullopt;
+    }
+    entry.bundle = std::move(*bundle);
+  }
+
+  if (need_ir_text && !entry.ir_text.has_value()) {
+    const auto assembler = project::ResolveTool(project, "llvm-as");
+    if (!assembler.has_value()) {
+      return std::nullopt;
+    }
+    const std::string module_name = ModuleNameForLog(module);
+    auto text = RenderLLVMText(*entry.bundle->module, *assembler, module_name);
+    if (!text.has_value()) {
+      return std::nullopt;
+    }
+    entry.ir_text = std::move(*text);
+  }
+
+  return &entry;
 }
 
 std::optional<LLVMModuleBundle> EmitLLVMModule(
@@ -680,27 +811,28 @@ std::optional<std::string> EmitIRForModule(
     project::TargetProfile target_profile) {
   const std::string module_name = ModuleNameForLog(module);
   LogCodegenProgress("emit-ir-start module=" + module_name);
-  auto bundle = EmitLLVMModule(cache, module, project);
-  if (!bundle) {
+  auto cached = MaterializeCachedLLVMArtifacts(cache,
+                                               module,
+                                               project,
+                                               target_profile,
+                                               true);
+  if (!cached.has_value()) {
     LogCodegenProgress("emit-ir-error module=" + module_name +
                        " stage=lower-ir");
     return std::nullopt;
   }
-
-  const auto assembler = project::ResolveTool(project, "llvm-as");
-  if (!assembler.has_value()) {
+  auto& entry = **cached;
+  if (!entry.ir_text.has_value()) {
     LogCodegenProgress("emit-ir-error module=" + module_name +
-                       " stage=resolve-llvm-as");
+                       " stage=render-ir");
     return std::nullopt;
   }
-
-  auto out = RenderLLVMText(*bundle->module, *assembler, module_name);
-  if (!out.has_value()) {
-    return std::nullopt;
-  }
+  std::string out = *entry.ir_text;
+  entry.bundle.reset();
+  entry.ir_text.reset();
 
   LogCodegenProgress("emit-ir-finish module=" + module_name +
-                     " bytes=" + std::to_string(out->size()));
+                     " bytes=" + std::to_string(out.size()));
   return out;
 }
 
@@ -716,8 +848,14 @@ std::optional<std::string> EmitObjForModule(
   const bool verify_llvm_module =
       debug_obj || core::IsDebugEnabled("pipeline") ||
       core::IsDebugEnabled("codegen");
-  auto bundle = EmitLLVMModule(cache, module, project, target_profile);
-  if (!bundle) {
+  const bool need_ir_text =
+      project.assembly.emit_ir.has_value() && *project.assembly.emit_ir != "none";
+  auto cached = MaterializeCachedLLVMArtifacts(cache,
+                                               module,
+                                               project,
+                                               target_profile,
+                                               need_ir_text);
+  if (!cached.has_value()) {
     LogCodegenProgress("emit-obj-error module=" + module_name +
                        " stage=emit-llvm");
     std::cerr << "[cursive] EmitObjForModule: module="
@@ -726,27 +864,29 @@ std::optional<std::string> EmitObjForModule(
     SPEC_RULE("EmitObj-Err");
     return std::nullopt;
   }
+  auto& entry = **cached;
+  auto& bundle = *entry.bundle;
   if (verify_llvm_module) {
     std::string verify_err;
     llvm::raw_string_ostream verify_os(verify_err);
-    if (llvm::verifyModule(*bundle->module, &verify_os)) {
+    if (llvm::verifyModule(*bundle.module, &verify_os)) {
       LogCodegenProgress("emit-obj-error module=" + module_name +
                          " stage=verify");
       std::cerr << "[cursive] EmitObjForModule: LLVM module verification failed:\n"
                 << verify_os.str() << "\n";
       if (debug_obj) {
-        bundle->module->print(llvm::errs(), nullptr);
+        bundle.module->print(llvm::errs(), nullptr);
         std::cerr << "\n";
       }
       SPEC_RULE("EmitObj-Err");
       return std::nullopt;
     }
   }
-  llvm::Triple triple = bundle->module->getTargetTriple();
+  llvm::Triple triple = bundle.module->getTargetTriple();
   if (triple.getTriple().empty()) {
     triple = llvm::Triple(
         std::string(project::LLVMTripleOf(target_profile)));
-    bundle->module->setTargetTriple(triple);
+    bundle.module->setTargetTriple(triple);
   }
 
   std::string err;
@@ -761,8 +901,8 @@ std::optional<std::string> EmitObjForModule(
     return std::nullopt;
   }
 
-  if (bundle->module->getDataLayout().isDefault()) {
-    bundle->module->setDataLayout(machine->createDataLayout());
+  if (bundle.module->getDataLayout().isDefault()) {
+    bundle.module->setDataLayout(machine->createDataLayout());
   }
 
   llvm::SmallVector<char, 0> buffer;
@@ -778,9 +918,15 @@ std::optional<std::string> EmitObjForModule(
   }
   LogCodegenProgress("emit-obj-run module=" + module_name +
                      " stage=pass-run");
-  pass.run(*bundle->module);
+  pass.run(*bundle.module);
   SPEC_RULE("EmitObj-Ok");
   std::string object_bytes(buffer.begin(), buffer.end());
+  if (entry.ir_text.has_value()) {
+    entry.bundle.reset();
+  } else {
+    entry.bundle.reset();
+    entry.ir_text.reset();
+  }
   LogCodegenProgress("emit-obj-finish module=" + module_name +
                      " bytes=" + std::to_string(object_bytes.size()));
   return object_bytes;
@@ -832,22 +978,8 @@ std::shared_ptr<CodegenCache> BuildCodegenCache(
     const analysis::NameMapBuildResult& name_maps,
     const analysis::TypecheckResult& typechecked) {
   auto cache = std::make_shared<CodegenCache>();
-  const auto project_modules = BuildProjectModuleKeySet(project);
   cache->ctx.sigma = &sema_ctx.sigma;
   cache->name_maps = &name_maps;
-  cache->ctx.executable_project = project.assembly.kind == "executable";
-  cache->ctx.shared_library_project =
-      project.assembly.kind == "library" &&
-      project.assembly.link_kind.value_or("shared") == "shared";
-  cache->ctx.hosted_library = project.assembly.kind == "library";
-  cache->ctx.project_entry_module = SelectProjectEntryModule(project);
-  for (const auto& assembly : project.assemblies) {
-    if (assembly.kind == "dependency") {
-      cache->ctx.dependency_assembly_names.insert(assembly.name);
-    } else if (assembly.kind == "library") {
-      cache->ctx.library_assembly_names.insert(assembly.name);
-    }
-  }
   LogCodegenProgress("cache-build-start modules=" +
                      std::to_string(sema_ctx.sigma.mods.size()));
 
@@ -871,10 +1003,7 @@ std::shared_ptr<CodegenCache> BuildCodegenCache(
 
   ConfigureResolveCallbacks(cache->ctx, name_maps);
 
-  if (typechecked.init_plan.has_value()) {
-    FilterInitPlanForProject(cache->ctx, *typechecked.init_plan,
-                             project_modules);
-  }
+  cache->full_init_plan = typechecked.init_plan;
 
   cache->modules.reserve(sema_ctx.sigma.mods.size());
   cache->index.reserve(sema_ctx.sigma.mods.size());
@@ -938,7 +1067,6 @@ std::shared_ptr<CodegenCache> BuildCodegenCache(
   }
 
   for (const auto& module : project.modules) {
-    cache->hosted_project_modules.push_back(module.path);
     if (cache->ast_modules.find(module.path) == cache->ast_modules.end()) {
       LogCodegenProgress("cache-build-error stage=module-coverage missing=" +
                          module.path);
@@ -954,10 +1082,8 @@ std::shared_ptr<CodegenCache> BuildCodegenCache(
                      " lowered=" + std::to_string(cache->modules.size()) +
                      " known=" + std::to_string(cache->ast_modules.size()));
 
-  FilterHostedExportsForProject(cache->ctx, project_modules);
-  cache->ctx.hosted_library =
-      cache->ctx.hosted_library && !cache->ctx.hosted_exports.empty();
-  cache->ctx.hosted_project_modules = cache->hosted_project_modules;
+  cache->all_hosted_exports = cache->ctx.hosted_exports;
+  ConfigureCodegenContextForProjectImpl(*cache, project);
 
   return cache;
 }
@@ -972,6 +1098,11 @@ bool PopulateCodegenModules(CodegenCache& cache, const project::Project& project
     }
   }
   return cache.ok.load();
+}
+
+void ConfigureCodegenContextForProject(CodegenCache& cache,
+                                       const project::Project& project) {
+  ConfigureCodegenContextForProjectImpl(cache, project);
 }
 
 std::optional<std::size_t> EnsureCodegenModule(CodegenCache& cache,
@@ -1098,7 +1229,9 @@ std::optional<std::size_t> EnsureCodegenModule(CodegenCache& cache,
       cache.ctx.static_modules[symbol] = owner_module;
     }
 
-    DeduplicateProcDecls(module_entry->decls, cache.lowered_proc_symbols);
+    DeduplicateProcDecls(module_entry->decls,
+                        module_entry->proc_linkages,
+                        cache.lowered_proc_symbols);
     if (cache.ctx.hosted_library) {
       CollectHostedStateTemplates(cache, *module_entry);
     }

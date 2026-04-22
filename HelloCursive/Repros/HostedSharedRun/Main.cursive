@@ -1,0 +1,140 @@
+import hostedshared
+
+[[layout(C)]]
+record HostedSharedAggregateResult {
+    first: i32
+    second: i32
+    third: i32
+}
+
+[[layout(C), ffi_pass_by_value]]
+record HostedSharedReadBodyCmd {
+    world: u64
+    body: u64
+}
+
+[[layout(C)]]
+record HostedSharedBodyState {
+    status: u32
+    handle: u64
+    motion: u32
+}
+
+extern "C" {
+    procedure __cursive_host_abi_version() -> u32
+    procedure __cursive_host_session_create() -> usize
+    procedure __cursive_host_session_destroy(handle: usize) -> u32
+}
+
+extern "C-unwind" {
+    procedure hc_hosted_session_next(handle: usize) -> i32
+    procedure hc_hosted_fail_zero(handle: usize) -> i32
+    procedure hc_hosted_aggregate_result(handle: usize) -> HostedSharedAggregateResult
+    procedure hc_hosted_aggregate_fail_zero(handle: usize) -> HostedSharedAggregateResult
+    procedure hc_hosted_read_body_state(handle: usize, move read_cmd: HostedSharedReadBodyCmd, move out_state: *mut HostedSharedBodyState) -> u32
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let status_run: i32 = hostedshared::run(ctx)
+    if (status_run != 0) {
+        return status_run
+    }
+
+    let ordinary_followup: i32 = hostedshared::ordinary_followup_value()
+    if (ordinary_followup != 303) {
+        return ordinary_followup
+    }
+
+    let hosted_abi_version: u32 = unsafe { __cursive_host_abi_version() }
+    if (hosted_abi_version != 1u32) {
+        return 11
+    }
+
+    let hosted_session_a: usize = unsafe { __cursive_host_session_create() }
+    if (hosted_session_a == 0usize) {
+        return 12
+    }
+
+    let hosted_session_next: i32 = unsafe { hc_hosted_session_next(hosted_session_a) }
+    if (hosted_session_next != 101) {
+        return hosted_session_next
+    }
+
+    let hosted_fail_zero: i32 = unsafe { hc_hosted_fail_zero(hosted_session_a) }
+    if (hosted_fail_zero != 0) {
+        return hosted_fail_zero
+    }
+
+    let hosted_aggregate_result: HostedSharedAggregateResult =
+        unsafe { hc_hosted_aggregate_result(hosted_session_a) }
+    let hosted_aggregate_fail_zero: HostedSharedAggregateResult =
+        unsafe { hc_hosted_aggregate_fail_zero(hosted_session_a) }
+
+    let hosted_aggregate_result_ok: bool =
+        (hosted_aggregate_result.first == 11) &&
+        (hosted_aggregate_result.second == 22) &&
+        (hosted_aggregate_result.third == 33)
+    if (hosted_aggregate_result_ok != true) {
+        return 13
+    }
+
+    let hosted_aggregate_fail_zero_ok: bool =
+        (hosted_aggregate_fail_zero.first == 0) &&
+        (hosted_aggregate_fail_zero.second == 0) &&
+        (hosted_aggregate_fail_zero.third == 0)
+    if (hosted_aggregate_fail_zero_ok != true) {
+        return 14
+    }
+
+    var hosted_read_state: HostedSharedBodyState =
+        HostedSharedBodyState { status: 99u32, handle: 0u64, motion: 0u32 }
+    let hosted_read_state_ptr: Ptr<HostedSharedBodyState>@Valid = &hosted_read_state
+    var hosted_read_state_raw: *mut HostedSharedBodyState =
+        unsafe { transmute<Ptr<HostedSharedBodyState>@Valid, *mut HostedSharedBodyState>(hosted_read_state_ptr) }
+    let hosted_read_cmd: HostedSharedReadBodyCmd =
+        HostedSharedReadBodyCmd { world: 1u64, body: 1u64 }
+    let hosted_read_status: u32 =
+        unsafe { hc_hosted_read_body_state(hosted_session_a, move hosted_read_cmd, move hosted_read_state_raw) }
+    if (hosted_read_status != 0u32) {
+        return 15
+    }
+    let hosted_read_state_ok: bool =
+        (hosted_read_state.status == 0u32) &&
+        (hosted_read_state.handle == 1u64) &&
+        (hosted_read_state.motion == 2u32)
+    if (hosted_read_state_ok != true) {
+        return 16
+    }
+
+    let hosted_destroy_a: u32 = unsafe { __cursive_host_session_destroy(hosted_session_a) }
+    if (hosted_destroy_a != 1u32) {
+        return 17
+    }
+
+    let hosted_destroy_a_second: u32 = unsafe { __cursive_host_session_destroy(hosted_session_a) }
+    if (hosted_destroy_a_second != 0u32) {
+        return 18
+    }
+
+    let hosted_session_b: usize = unsafe { __cursive_host_session_create() }
+    if ((hosted_session_b == 0usize) || (hosted_session_b == hosted_session_a)) {
+        return 19
+    }
+
+    let hosted_session_b_next: i32 = unsafe { hc_hosted_session_next(hosted_session_b) }
+    if (hosted_session_b_next != 101) {
+        return 20
+    }
+
+    let hosted_destroy_b: u32 = unsafe { __cursive_host_session_destroy(hosted_session_b) }
+    if (hosted_destroy_b != 1u32) {
+        return 21
+    }
+
+    let ordinary_post_host: i32 = hostedshared::ordinary_followup_value()
+    if (ordinary_post_host != 404) {
+        return ordinary_post_host
+    }
+
+    return 0
+}

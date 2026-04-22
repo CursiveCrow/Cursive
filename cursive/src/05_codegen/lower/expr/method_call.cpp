@@ -241,6 +241,154 @@ std::optional<std::string> AsyncCombinatorRuntimeSymbol(std::string_view name) {
         name);
 }
 
+analysis::TypeRef InferAsyncCombinatorResultType(
+    std::string_view name,
+    const analysis::ScopeContext& scope,
+    const analysis::TypeRef& receiver_type,
+    const std::vector<ast::Arg>& args,
+    const LowerCtx& ctx) {
+    const auto source_sig = analysis::AsyncSigOf(scope, receiver_type);
+    if (!source_sig.has_value()) {
+        return nullptr;
+    }
+
+    if (analysis::IdEq(name, "filter") || analysis::IdEq(name, "take")) {
+        return receiver_type;
+    }
+
+    if (analysis::IdEq(name, "fold")) {
+        if (args.empty() || !args[0].value) {
+            return nullptr;
+        }
+        analysis::TypeRef acc_type;
+        if (ctx.expr_type) {
+            acc_type = ctx.expr_type(*args[0].value);
+        }
+        if (!acc_type) {
+            return nullptr;
+        }
+        return analysis::MakeTypePath(
+            {"Async"},
+            {analysis::MakeTypePrim("()"),
+             analysis::MakeTypePrim("()"),
+             acc_type,
+             source_sig->err});
+    }
+
+    if ((analysis::IdEq(name, "map") || analysis::IdEq(name, "chain")) &&
+        !args.empty() && args[0].value) {
+        analysis::TypeRef fn_type;
+        if (ctx.expr_type) {
+            fn_type = ctx.expr_type(*args[0].value);
+        }
+        fn_type = analysis::StripPerm(fn_type);
+        if (!fn_type) {
+            return nullptr;
+        }
+
+        if (const auto* func = std::get_if<analysis::TypeFunc>(&fn_type->node)) {
+            if (analysis::IdEq(name, "map")) {
+                return analysis::MakeTypePath(
+                    {"Async"},
+                    {func->ret, source_sig->in, source_sig->result, source_sig->err});
+            }
+            return func->ret;
+        }
+
+        if (const auto* closure = std::get_if<analysis::TypeClosure>(&fn_type->node)) {
+            if (analysis::IdEq(name, "map")) {
+                return analysis::MakeTypePath(
+                    {"Async"},
+                    {closure->ret, source_sig->in, source_sig->result, source_sig->err});
+            }
+            return closure->ret;
+        }
+    }
+
+    return nullptr;
+}
+
+const ast::Expr* UnwrapRegionReceiverExpr(const ast::ExprPtr& expr) {
+    const ast::Expr* current = expr.get();
+    while (current) {
+        if (const auto* attr = std::get_if<ast::AttributedExpr>(&current->node)) {
+            current = attr->expr.get();
+            continue;
+        }
+        if (const auto* move_expr = std::get_if<ast::MoveExpr>(&current->node)) {
+            current = move_expr->place.get();
+            continue;
+        }
+        break;
+    }
+    return current;
+}
+
+std::optional<std::string> RegionReceiverRootName(const ast::ExprPtr& receiver) {
+    const ast::Expr* unwrapped = UnwrapRegionReceiverExpr(receiver);
+    if (!unwrapped) {
+        return std::nullopt;
+    }
+    if (const auto* ident = std::get_if<ast::IdentifierExpr>(&unwrapped->node)) {
+        return ident->name;
+    }
+    return std::nullopt;
+}
+
+bool IsRegionModalState(const analysis::TypeRef& type, std::string_view state_name) {
+    analysis::TypeRef stripped = analysis::StripPerm(type);
+    if (!stripped) {
+        return false;
+    }
+    const auto* modal = std::get_if<analysis::TypeModalState>(&stripped->node);
+    if (!modal || modal->state != state_name) {
+        return false;
+    }
+    return modal->path.size() == 1 && modal->path.front() == "Region";
+}
+
+bool IsRegionModalStateAny(const analysis::TypeRef& type) {
+    analysis::TypeRef stripped = analysis::StripPerm(type);
+    if (!stripped) {
+        return false;
+    }
+    const auto* modal = std::get_if<analysis::TypeModalState>(&stripped->node);
+    return modal && modal->path.size() == 1 && modal->path.front() == "Region";
+}
+
+void RemoveActiveRegionAlias(LowerCtx& ctx, const std::string& name) {
+    for (auto it = ctx.active_region_aliases.rbegin();
+         it != ctx.active_region_aliases.rend();
+         ++it) {
+        if (*it != name) {
+            continue;
+        }
+        ctx.active_region_aliases.erase(std::next(it).base());
+        return;
+    }
+}
+
+void SyncRegionAliasForMethodResult(const ast::MethodCallExpr& expr,
+                                    const analysis::TypeRef& result_type,
+                                    LowerCtx& ctx) {
+    if (!IsRegionModalStateAny(result_type)) {
+        return;
+    }
+    const auto root = RegionReceiverRootName(expr.receiver);
+    if (!root.has_value()) {
+        return;
+    }
+    if (IsRegionModalState(result_type, "Active")) {
+        if (std::find(ctx.active_region_aliases.begin(),
+                      ctx.active_region_aliases.end(),
+                      *root) == ctx.active_region_aliases.end()) {
+            ctx.active_region_aliases.push_back(*root);
+        }
+        return;
+    }
+    RemoveActiveRegionAlias(ctx, *root);
+}
+
 }  // namespace
 
 // =============================================================================
@@ -260,7 +408,9 @@ std::optional<std::string> AsyncCombinatorRuntimeSymbol(std::string_view name) {
 // 4. Modal methods: methods on modal types in specific states
 // =============================================================================
 
-LowerResult LowerMethodCall(const ast::MethodCallExpr& expr, LowerCtx& ctx) {
+LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
+                            const ast::MethodCallExpr& expr,
+                            LowerCtx& ctx) {
     SPEC_RULE("Lower-Expr-MethodCall");
 
     // Get receiver type for dispatch determination
@@ -315,7 +465,9 @@ LowerResult LowerMethodCall(const ast::MethodCallExpr& expr, LowerCtx& ctx) {
         pred_arg.value = recv_ident_ptr;
         pred_arg.moved = false;
         pred_call_expr.args.push_back(std::move(pred_arg));
-        auto pred_result = LowerCallExpr(pred_call_expr, ctx);
+        ast::Expr pred_call_wrapper;
+        pred_call_wrapper.node = pred_call_expr;
+        auto pred_result = LowerCallExpr(pred_call_wrapper, pred_call_expr, ctx);
 
         ast::CallExpr action_call_expr;
         action_call_expr.callee = expr.args[1].value;
@@ -323,12 +475,12 @@ LowerResult LowerMethodCall(const ast::MethodCallExpr& expr, LowerCtx& ctx) {
         action_arg.value = recv_ident_ptr;
         action_arg.moved = false;
         action_call_expr.args.push_back(std::move(action_arg));
-        auto action_result = LowerCallExpr(action_call_expr, ctx);
+        ast::Expr action_call_wrapper;
+        action_call_wrapper.node = action_call_expr;
+        auto action_result = LowerCallExpr(action_call_wrapper, action_call_expr, ctx);
 
         analysis::TypeRef action_result_type = ctx.LookupValueType(action_result.value);
         if (!action_result_type && ctx.expr_type) {
-            ast::Expr action_call_wrapper;
-            action_call_wrapper.node = action_call_expr;
             action_result_type = ctx.expr_type(action_call_wrapper);
         }
         if (!action_result_type && ctx.expr_type) {
@@ -380,15 +532,33 @@ LowerResult LowerMethodCall(const ast::MethodCallExpr& expr, LowerCtx& ctx) {
     // Async combinators are lowered to pseudo-calls that are interpreted
     // directly by LLVM emission. This preserves combinator semantics instead
     // of the old receiver-preserving fallback behavior.
+    const analysis::ScopeContext& scope = ScopeForLowering(ctx);
     const auto async_combinator_symbol = AsyncCombinatorRuntimeSymbol(expr.name);
-    const auto* async_path =
-        stripped ? std::get_if<analysis::TypePathType>(&stripped->node) : nullptr;
-    if (stripped &&
-        async_path &&
-        analysis::IsAsyncType(stripped) &&
+    analysis::TypeRef method_expr_type;
+    if (ctx.expr_type) {
+        method_expr_type = ctx.expr_type(expr_wrapper);
+    }
+    if (((stripped && analysis::AsyncSigOf(scope, stripped).has_value()) ||
+         (method_expr_type && analysis::AsyncSigOf(scope, method_expr_type).has_value())) &&
         async_combinator_symbol.has_value()) {
         SPEC_RULE("Lower-MethodCall-AsyncCombinator");
         auto recv_result = LowerExpr(*expr.receiver, ctx);
+        analysis::TypeRef recv_result_type = recv_type;
+        if (ctx.expr_type && expr.receiver) {
+            if (analysis::TypeRef recv_expr_type = ctx.expr_type(*expr.receiver)) {
+                recv_result_type = recv_expr_type;
+            }
+        }
+        if (!recv_result_type) {
+            recv_result_type = ctx.LookupValueType(recv_result.value);
+        }
+        if (recv_result_type) {
+            ctx.RegisterValueType(recv_result.value, recv_result_type);
+        }
+        if (!method_expr_type && recv_result_type) {
+            method_expr_type = InferAsyncCombinatorResultType(
+                expr.name, scope, recv_result_type, expr.args, ctx);
+        }
         ParamModeList param_modes;
         // Preserve callable/function arguments as direct values for combinator
         // emission; address-of lowering here turns procedure identifiers into
@@ -410,13 +580,8 @@ LowerResult LowerMethodCall(const ast::MethodCallExpr& expr, LowerCtx& ctx) {
         comb_call.result = ctx.FreshTempValue("async_comb");
         IRValue comb_result = comb_call.result;
 
-        if (ctx.expr_type) {
-            ast::Expr wrapper;
-            wrapper.span = expr.receiver ? expr.receiver->span : core::Span{};
-            wrapper.node = expr;
-            if (auto result_type = ctx.expr_type(wrapper)) {
-                ctx.RegisterValueType(comb_call.result, result_type);
-            }
+        if (method_expr_type) {
+            ctx.RegisterValueType(comb_call.result, method_expr_type);
         }
 
         return LowerResult{
@@ -465,7 +630,6 @@ LowerResult LowerMethodCall(const ast::MethodCallExpr& expr, LowerCtx& ctx) {
     ParamModeList param_modes;
     bool move_receiver = false;
     ast::KeyMode receiver_key_mode = ast::KeyMode::Read;
-    const analysis::ScopeContext& scope = ScopeForLowering(ctx);
     auto lower_type = [&](const std::shared_ptr<ast::Type>& type)
         -> analysis::LowerTypeResult {
         return analysis::LowerType(scope, type);
@@ -750,6 +914,14 @@ LowerResult LowerMethodCall(const ast::MethodCallExpr& expr, LowerCtx& ctx) {
     }
 
     IRValue result_value = ctx.FreshTempValue("method_call");
+    analysis::TypeRef method_result_type;
+    if (ctx.expr_type) {
+        if (analysis::TypeRef result_type = ctx.expr_type(expr_wrapper)) {
+            method_result_type = result_type;
+            ctx.RegisterValueType(result_value, result_type);
+        }
+    }
+    SyncRegionAliasForMethodResult(expr, method_result_type, ctx);
 
     if (callee_sym == BuiltinSymCancelTokenActiveIsCancelled()) {
         IRCancelCheck check;

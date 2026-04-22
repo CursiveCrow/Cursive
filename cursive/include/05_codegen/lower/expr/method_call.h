@@ -4,6 +4,8 @@
 
 namespace cursive::codegen {
 
-LowerResult LowerMethodCall(const ast::MethodCallExpr& expr, LowerCtx& ctx);
+LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
+                            const ast::MethodCallExpr& expr,
+                            LowerCtx& ctx);
 
 }  // namespace cursive::codegen

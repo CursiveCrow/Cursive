@@ -176,8 +176,7 @@ LowerResult LowerBlock(const ast::Block& block, LowerCtx& ctx) {
   } else {
     SPEC_RULE("Lower-Block-Unit");
     // No tail expression - block produces unit
-    result_value.kind = IRValue::Kind::Opaque;
-    result_value.name = "unit";
+    result_value = ctx.FreshTempValue("unit");
   }
 
   // Section 6.8: Emit cleanup for variables in this scope

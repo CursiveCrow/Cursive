@@ -788,9 +788,7 @@ LowerResult LowerClosureExpr(
         ret.value = body_result.value;
         parts.push_back(MakeIR(std::move(ret)));
       } else {
-        IRValue unit_ret;
-        unit_ret.kind = IRValue::Kind::Opaque;
-        unit_ret.name = "unit";
+        IRValue unit_ret = ctx.FreshTempValue("unit");
         IRReturn ret;
         ret.value = unit_ret;
         parts.push_back(MakeIR(std::move(ret)));
@@ -1058,9 +1056,7 @@ LowerResult LowerClosureExpr(
       ret.value = body_result.value;
       parts.push_back(MakeIR(std::move(ret)));
     } else {
-      IRValue unit_ret;
-      unit_ret.kind = IRValue::Kind::Opaque;
-      unit_ret.name = "unit";
+      IRValue unit_ret = ctx.FreshTempValue("unit");
       IRReturn ret;
       ret.value = unit_ret;
       parts.push_back(MakeIR(std::move(ret)));

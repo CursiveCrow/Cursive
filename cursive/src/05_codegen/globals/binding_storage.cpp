@@ -52,9 +52,41 @@
 
 #include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/lower/lower_expr.h"
+#include "04_analysis/typing/type_predicates.h"
 #include "00_core/assert_spec.h"
 
 namespace cursive::codegen {
+
+namespace {
+
+bool IsRegionHandleType(const analysis::TypeRef& type) {
+  analysis::TypeRef stripped = analysis::StripPerm(type);
+  if (!stripped) {
+    stripped = type;
+  }
+  while (stripped) {
+    if (const auto* refine = std::get_if<analysis::TypeRefine>(&stripped->node)) {
+      stripped = analysis::StripPerm(refine->base);
+      if (!stripped) {
+        stripped = refine->base;
+      }
+      continue;
+    }
+    break;
+  }
+  if (!stripped) {
+    return false;
+  }
+  if (const auto* modal = std::get_if<analysis::TypeModalState>(&stripped->node)) {
+    return modal->path.size() == 1 && modal->path.front() == "Region";
+  }
+  if (const auto* path = std::get_if<analysis::TypePathType>(&stripped->node)) {
+    return path->path.size() == 1 && path->path.front() == "Region";
+  }
+  return false;
+}
+
+}  // namespace
 
 // ============================================================================
 // Section 6.12.10 Validity Tracking Functions
@@ -109,18 +141,20 @@ std::optional<BindSlot> ResolveBindSlot(const IRBindVar& bind,
     bind_type = state->type;
   }
 
-  if (auto region = ResolveBindRegionTarget(bind, ctx)) {
-    if (!bind_type) {
-      SPEC_RULE("BindSlot-Err");
-      return std::nullopt;
+  if (!IsRegionHandleType(bind_type)) {
+    if (auto region = ResolveBindRegionTarget(bind, ctx)) {
+      if (!bind_type) {
+        SPEC_RULE("BindSlot-Err");
+        return std::nullopt;
+      }
+      SPEC_RULE("BindSlot-Region");
+      BindSlot slot;
+      slot.kind = BindSlot::Kind::RegionSlot;
+      slot.name = bind.name;
+      slot.region = *region;
+      slot.type = bind_type;
+      return slot;
     }
-    SPEC_RULE("BindSlot-Region");
-    BindSlot slot;
-    slot.kind = BindSlot::Kind::RegionSlot;
-    slot.name = bind.name;
-    slot.region = *region;
-    slot.type = bind_type;
-    return slot;
   }
 
   if (!bind_type) {

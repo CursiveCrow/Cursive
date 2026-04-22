@@ -188,33 +188,35 @@ static FlowInfo CollectExprStmtFlow(const ScopeContext& ctx,
                                     const ExprTypeFn& type_expr,
                                     const ast::ExprPtr& expr);
 
+static FlowInfo CollectStmtFlow(const ScopeContext& ctx,
+                                const StmtTypeContext& type_ctx,
+                                const TypeEnv& env,
+                                const ExprTypeFn& type_expr,
+                                const ast::Stmt& stmt);
+
+static FlowInfo CollectBlockFlow(const ScopeContext& ctx,
+                                 const StmtTypeContext& type_ctx,
+                                 const TypeEnv& env,
+                                 const ExprTypeFn& type_expr,
+                                 const ast::Block& block);
+
 static FlowInfo CollectBlockExprFlow(const ScopeContext& ctx,
                                      const StmtTypeContext& type_ctx,
                                      const TypeEnv& env,
+                                     const ExprTypeFn& type_expr,
                                      const ast::Block& block) {
-  FlowInfo flow;
-  ExprTypeFn nested_type_expr = [&](const ast::ExprPtr& inner) {
-    return TypeExpr(ctx, type_ctx, inner, env);
-  };
-  IdentTypeFn nested_type_ident = [&](std::string_view name) -> ExprTypeResult {
-    return TypeIdentifierExpr(ctx, ast::IdentifierExpr{std::string(name)}, env);
-  };
-  PlaceTypeFn nested_type_place = [&](const ast::ExprPtr& inner) {
-    return TypePlace(ctx, type_ctx, inner, env);
-  };
+  return CollectBlockFlow(ctx, type_ctx, env, type_expr, block);
+}
 
-  if (const auto info = TypeBlockInfo(ctx,
-                                      type_ctx,
-                                      block,
-                                      env,
-                                      nested_type_expr,
-                                      nested_type_ident,
-                                      nested_type_place);
-      info.ok) {
-    flow.breaks = info.breaks;
-    flow.break_void = info.break_void;
+static FlowInfo CollectBlockExprFlow(const ScopeContext& ctx,
+                                     const StmtTypeContext& type_ctx,
+                                     const TypeEnv& env,
+                                     const ExprTypeFn& type_expr,
+                                     const ast::BlockPtr& block) {
+  if (!block) {
+    return {};
   }
-  return flow;
+  return CollectBlockExprFlow(ctx, type_ctx, env, type_expr, *block);
 }
 
 static FlowInfo CollectExprStmtFlow(const ScopeContext& ctx,
@@ -232,11 +234,10 @@ static FlowInfo CollectExprStmtFlow(const ScopeContext& ctx,
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
           return CollectExprStmtFlow(ctx, type_ctx, env, type_expr, node.expr);
-        } else if constexpr (std::is_same_v<T, ast::BlockExpr>) {
-          if (!node.block) {
-            return {};
-          }
-          return CollectBlockExprFlow(ctx, type_ctx, env, *node.block);
+        } else if constexpr (std::is_same_v<T, ast::BlockExpr> ||
+                             std::is_same_v<T, ast::UnsafeBlockExpr>) {
+          return CollectBlockExprFlow(ctx, type_ctx, env, type_expr,
+                                      node.block);
         } else if constexpr (std::is_same_v<T, ast::IfExpr>) {
           FlowInfo out;
           MergeFlowInfo(out,
@@ -246,11 +247,93 @@ static FlowInfo CollectExprStmtFlow(const ScopeContext& ctx,
                         CollectExprStmtFlow(ctx, type_ctx, env, type_expr,
                                             node.else_expr));
           return out;
+        } else if constexpr (std::is_same_v<T, ast::IfIsExpr>) {
+          FlowInfo out;
+          MergeFlowInfo(out,
+                        CollectExprStmtFlow(ctx, type_ctx, env, type_expr,
+                                            node.then_expr));
+          MergeFlowInfo(out,
+                        CollectExprStmtFlow(ctx, type_ctx, env, type_expr,
+                                            node.else_expr));
+          return out;
+        } else if constexpr (std::is_same_v<T, ast::IfCaseExpr>) {
+          FlowInfo out;
+          for (const auto& case_clause : node.cases) {
+            MergeFlowInfo(out,
+                          CollectExprStmtFlow(ctx, type_ctx, env, type_expr,
+                                              case_clause.body));
+          }
+          MergeFlowInfo(out,
+                        CollectExprStmtFlow(ctx, type_ctx, env, type_expr,
+                                            node.else_expr));
+          return out;
         } else {
           return {};
         }
       },
       expr->node);
+}
+
+static FlowInfo CollectBreakFlow(const ScopeContext& ctx,
+                                 const StmtTypeContext& type_ctx,
+                                 const TypeEnv& env,
+                                 const ExprTypeFn& type_expr,
+                                 const ast::BreakStmt& stmt) {
+  FlowInfo flow;
+  if (!stmt.value_opt) {
+    flow.break_void = true;
+    return flow;
+  }
+
+  const auto typed =
+      TypeExprWithCurrentEnv(ctx, type_ctx, env, type_expr, stmt.value_opt);
+  if (typed.ok) {
+    flow.breaks.push_back(typed.type);
+  }
+  return flow;
+}
+
+static FlowInfo CollectBlockFlow(const ScopeContext& ctx,
+                                 const StmtTypeContext& type_ctx,
+                                 const TypeEnv& env,
+                                 const ExprTypeFn& type_expr,
+                                 const ast::Block& block) {
+  FlowInfo out;
+  for (const auto& stmt : block.stmts) {
+    MergeFlowInfo(out, CollectStmtFlow(ctx, type_ctx, env, type_expr, stmt));
+  }
+  MergeFlowInfo(out,
+                CollectExprStmtFlow(ctx, type_ctx, env, type_expr,
+                                    block.tail_opt));
+  return out;
+}
+
+static FlowInfo CollectStmtFlow(const ScopeContext& ctx,
+                                const StmtTypeContext& type_ctx,
+                                const TypeEnv& env,
+                                const ExprTypeFn& type_expr,
+                                const ast::Stmt& stmt) {
+  return std::visit(
+      [&](const auto& node) -> FlowInfo {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::BreakStmt>) {
+          return CollectBreakFlow(ctx, type_ctx, env, type_expr, node);
+        } else if constexpr (std::is_same_v<T, ast::ExprStmt>) {
+          return CollectExprStmtFlow(ctx, type_ctx, env, type_expr,
+                                     node.value);
+        } else if constexpr (std::is_same_v<T, ast::UnsafeBlockStmt> ||
+                             std::is_same_v<T, ast::RegionStmt> ||
+                             std::is_same_v<T, ast::FrameStmt> ||
+                             std::is_same_v<T, ast::KeyBlockStmt>) {
+          if (!node.body) {
+            return {};
+          }
+          return CollectBlockFlow(ctx, type_ctx, env, type_expr, *node.body);
+        } else {
+          return {};
+        }
+      },
+      stmt);
 }
 
 }  // namespace

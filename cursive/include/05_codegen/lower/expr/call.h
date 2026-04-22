@@ -42,7 +42,9 @@ struct LowerResult;
 // not NeedsPanicOut(callee)
 // => <SeqIR(IR_c, IR_a, CallIR(v_c, vec_v)), v_call>
 
-LowerResult LowerCallExpr(const ast::CallExpr& expr, LowerCtx& ctx);
+LowerResult LowerCallExpr(const ast::Expr& expr_wrapper,
+                          const ast::CallExpr& expr,
+                          LowerCtx& ctx);
 
 // =============================================================================
 // Anchor function for SPEC_RULE markers

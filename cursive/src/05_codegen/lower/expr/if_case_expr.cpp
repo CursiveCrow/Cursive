@@ -312,7 +312,7 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
     MergeLowerCtxTemps(ctx, arm_ctx);
 
     // Update temp counter to the maximum across all arms
-    ctx.temp_counter = std::max(ctx.temp_counter, arm_ctx.temp_counter);
+    *ctx.temp_counter = std::max(*ctx.temp_counter, *arm_ctx.temp_counter);
 
     // Build the IR case clause.
     IRIfCaseClause ir_arm;
@@ -335,7 +335,7 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
     }
 
     MergeLowerCtxTemps(ctx, else_ctx);
-    ctx.temp_counter = std::max(ctx.temp_counter, else_ctx.temp_counter);
+    *ctx.temp_counter = std::max(*ctx.temp_counter, *else_ctx.temp_counter);
 
     auto fallback_pattern = std::make_shared<ast::Pattern>();
     fallback_pattern->span = else_expr ? else_expr->span : scrutinee.span;

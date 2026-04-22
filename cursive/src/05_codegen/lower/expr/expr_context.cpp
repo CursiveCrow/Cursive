@@ -558,6 +558,12 @@ LoweredCaptureEnv LowerCtx::LowerParallelCaptureEnv(
   alloc_env.value = env_zero;
   alloc_env.result = env_ptr;
   alloc_env.type = env_type;
+  if (!active_region_aliases.empty()) {
+    IRValue region_local;
+    region_local.kind = IRValue::Kind::Local;
+    region_local.name = active_region_aliases.back();
+    alloc_env.region = region_local;
+  }
   lowered.ir_parts.push_back(MakeIR(std::move(alloc_env)));
 
   for (std::size_t i = 0; i < captures.size(); ++i) {
@@ -641,7 +647,13 @@ IRValue LowerCtx::CaptureFieldPtr(const CaptureAccess& access) {
 IRValue LowerCtx::FreshTempValue(std::string_view prefix) {
   IRValue value;
   value.kind = IRValue::Kind::Opaque;
-  value.name = std::string(prefix) + "_" + std::to_string(temp_counter++);
+  const std::uint64_t next_id = (*temp_counter)++;
+  if (current_proc_symbol.has_value() && !current_proc_symbol->empty()) {
+    value.name = *current_proc_symbol + "$tmp$" + std::string(prefix) + "_" +
+                 std::to_string(next_id);
+  } else {
+    value.name = std::string(prefix) + "_" + std::to_string(next_id);
+  }
   return value;
 }
 
@@ -688,7 +700,9 @@ void LowerCtx::ReportCodegenFailure(std::source_location loc) {
             << loc.line() << "\n";
 }
 
-void LowerCtx::RegisterValueType(const IRValue& value, analysis::TypeRef type) {
+void LowerCtx::RegisterValueType(const IRValue& value,
+                                 analysis::TypeRef type,
+                                 std::source_location loc) {
   if (!type) {
     return;
   }

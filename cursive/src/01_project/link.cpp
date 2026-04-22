@@ -411,7 +411,8 @@ bool IsElfBytes(std::string_view bytes) {
 
 bool ParseCoffSymbols(std::string_view bytes,
                       std::vector<std::string>& symbols,
-                      bool defined_external_only) {
+                      bool defined_external_only,
+                      bool ignore_comdat_externals = false) {
   if (bytes.size() < 20) {
     return false;
   }
@@ -424,8 +425,28 @@ bool ParseCoffSymbols(std::string_view bytes,
   }
   const uint32_t sym_table = ReadU32(data + 8);
   const uint32_t sym_count = ReadU32(data + 12);
+  const uint16_t section_count = ReadU16(data + 2);
+  const uint16_t optional_header_size = ReadU16(data + 16);
   if (sym_table == 0 || sym_count == 0) {
     return true;
+  }
+  constexpr uint32_t kImageScnLnkComdat = 0x00001000u;
+  std::vector<bool> comdat_sections(section_count + 1, false);
+  const std::size_t section_table_offset =
+      20 + static_cast<std::size_t>(optional_header_size);
+  const std::size_t section_header_size = 40;
+  if (section_table_offset +
+          static_cast<std::size_t>(section_count) * section_header_size >
+      bytes.size()) {
+    return false;
+  }
+  for (std::size_t i = 0; i < section_count; ++i) {
+    const std::size_t header_offset =
+        section_table_offset + i * section_header_size;
+    const uint32_t characteristics = ReadU32(
+        reinterpret_cast<const unsigned char*>(bytes.data() + header_offset +
+                                               36));
+    comdat_sections[i + 1] = (characteristics & kImageScnLnkComdat) != 0;
   }
   const std::size_t sym_table_end =
       sym_table + static_cast<std::size_t>(sym_count) * 18;
@@ -453,7 +474,13 @@ bool ParseCoffSymbols(std::string_view bytes,
     const bool is_defined = section > 0 || section == static_cast<int16_t>(-1);
     const bool include_symbol =
         !defined_external_only || storage_class == kCoffStorageClassExternal;
-    if (is_defined && include_symbol) {
+    const bool is_comdat_external =
+        ignore_comdat_externals &&
+        storage_class == kCoffStorageClassExternal &&
+        section > 0 &&
+        static_cast<std::size_t>(section) < comdat_sections.size() &&
+        comdat_sections[static_cast<std::size_t>(section)];
+    if (is_defined && include_symbol && !is_comdat_external) {
       const auto name = CoffSymbolName(bytes, entry_offset, string_table_offset,
                                        string_table_size);
       if (name.has_value()) {
@@ -569,11 +596,15 @@ bool ParseElfSymbols(std::string_view bytes,
 
 bool ParseObjectSymbols(std::string_view bytes,
                         std::vector<std::string>& symbols,
-                        bool defined_external_only) {
+                        bool defined_external_only,
+                        bool ignore_comdat_externals = false) {
   if (IsElfBytes(bytes)) {
     return ParseElfSymbols(bytes, symbols, defined_external_only);
   }
-  return ParseCoffSymbols(bytes, symbols, defined_external_only);
+  return ParseCoffSymbols(bytes,
+                          symbols,
+                          defined_external_only,
+                          ignore_comdat_externals);
 }
 
 bool ParseArchiveSymbols(std::string_view bytes,
@@ -736,7 +767,7 @@ std::optional<std::vector<std::string>> DuplicateDefinedExternalSymbolsForObject
     }
 
     std::vector<std::string> symbols;
-    if (!ParseObjectSymbols(*bytes, symbols, true)) {
+    if (!ParseObjectSymbols(*bytes, symbols, true, true)) {
       return std::nullopt;
     }
     for (const auto& sym : symbols) {

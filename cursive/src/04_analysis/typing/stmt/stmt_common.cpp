@@ -690,6 +690,141 @@ static FlowTypingFns MakeFlowTypingFns(const ScopeContext& ctx,
   return fns;
 }
 
+static void MergeBreakFlow(FlowInfo& dst, const FlowInfo& src) {
+  dst.breaks.insert(dst.breaks.end(), src.breaks.begin(), src.breaks.end());
+  dst.break_void = dst.break_void || src.break_void;
+}
+
+static FlowInfo CollectNestedBreakFlowFromExpr(const ScopeContext& ctx,
+                                               const StmtTypeContext& type_ctx,
+                                               const TypeEnv& env,
+                                               const ExprTypeFn& type_expr,
+                                               const ast::ExprPtr& expr);
+
+static FlowInfo CollectNestedBreakFlowFromStmt(const ScopeContext& ctx,
+                                               const StmtTypeContext& type_ctx,
+                                               const TypeEnv& env,
+                                               const ExprTypeFn& type_expr,
+                                               const ast::Stmt& stmt);
+
+static FlowInfo CollectNestedBreakFlowFromBlock(const ScopeContext& ctx,
+                                                const StmtTypeContext& type_ctx,
+                                                const TypeEnv& env,
+                                                const ExprTypeFn& type_expr,
+                                                const ast::Block& block) {
+  FlowInfo flow;
+  for (const auto& stmt : block.stmts) {
+    MergeBreakFlow(flow, CollectNestedBreakFlowFromStmt(
+                             ctx, type_ctx, env, type_expr, stmt));
+  }
+  MergeBreakFlow(flow, CollectNestedBreakFlowFromExpr(
+                           ctx, type_ctx, env, type_expr, block.tail_opt));
+  return flow;
+}
+
+static FlowInfo CollectNestedBreakFlowFromBlock(const ScopeContext& ctx,
+                                                const StmtTypeContext& type_ctx,
+                                                const TypeEnv& env,
+                                                const ExprTypeFn& type_expr,
+                                                const ast::BlockPtr& block) {
+  if (!block) {
+    return {};
+  }
+  return CollectNestedBreakFlowFromBlock(ctx, type_ctx, env, type_expr, *block);
+}
+
+static FlowInfo CollectNestedBreakFlowFromBreak(const ScopeContext& ctx,
+                                                const StmtTypeContext& type_ctx,
+                                                const TypeEnv& env,
+                                                const ExprTypeFn& type_expr,
+                                                const ast::BreakStmt& stmt) {
+  FlowInfo flow;
+  if (!stmt.value_opt) {
+    flow.break_void = true;
+    return flow;
+  }
+  const auto typed =
+      TypeExprWithEnv(ctx, type_ctx, env, type_expr, stmt.value_opt);
+  if (typed.ok) {
+    flow.breaks.push_back(typed.type);
+  }
+  return flow;
+}
+
+static FlowInfo CollectNestedBreakFlowFromStmt(const ScopeContext& ctx,
+                                               const StmtTypeContext& type_ctx,
+                                               const TypeEnv& env,
+                                               const ExprTypeFn& type_expr,
+                                               const ast::Stmt& stmt) {
+  return std::visit(
+      [&](const auto& node) -> FlowInfo {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::BreakStmt>) {
+          return CollectNestedBreakFlowFromBreak(ctx, type_ctx, env, type_expr, node);
+        } else if constexpr (std::is_same_v<T, ast::ExprStmt>) {
+          return CollectNestedBreakFlowFromExpr(ctx, type_ctx, env, type_expr,
+                                                node.value);
+        } else if constexpr (std::is_same_v<T, ast::UnsafeBlockStmt> ||
+                             std::is_same_v<T, ast::RegionStmt> ||
+                             std::is_same_v<T, ast::FrameStmt> ||
+                             std::is_same_v<T, ast::KeyBlockStmt>) {
+          return CollectNestedBreakFlowFromBlock(ctx, type_ctx, env, type_expr,
+                                                 node.body);
+        } else {
+          return {};
+        }
+      },
+      stmt);
+}
+
+static FlowInfo CollectNestedBreakFlowFromExpr(const ScopeContext& ctx,
+                                               const StmtTypeContext& type_ctx,
+                                               const TypeEnv& env,
+                                               const ExprTypeFn& type_expr,
+                                               const ast::ExprPtr& expr) {
+  if (!expr) {
+    return {};
+  }
+  return std::visit(
+      [&](const auto& node) -> FlowInfo {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
+          return CollectNestedBreakFlowFromExpr(ctx, type_ctx, env, type_expr,
+                                                node.expr);
+        } else if constexpr (std::is_same_v<T, ast::BlockExpr> ||
+                             std::is_same_v<T, ast::UnsafeBlockExpr>) {
+          return CollectNestedBreakFlowFromBlock(ctx, type_ctx, env, type_expr,
+                                                 node.block);
+        } else if constexpr (std::is_same_v<T, ast::IfExpr>) {
+          FlowInfo out;
+          MergeBreakFlow(out, CollectNestedBreakFlowFromExpr(
+                                  ctx, type_ctx, env, type_expr, node.then_expr));
+          MergeBreakFlow(out, CollectNestedBreakFlowFromExpr(
+                                  ctx, type_ctx, env, type_expr, node.else_expr));
+          return out;
+        } else if constexpr (std::is_same_v<T, ast::IfIsExpr>) {
+          FlowInfo out;
+          MergeBreakFlow(out, CollectNestedBreakFlowFromExpr(
+                                  ctx, type_ctx, env, type_expr, node.then_expr));
+          MergeBreakFlow(out, CollectNestedBreakFlowFromExpr(
+                                  ctx, type_ctx, env, type_expr, node.else_expr));
+          return out;
+        } else if constexpr (std::is_same_v<T, ast::IfCaseExpr>) {
+          FlowInfo out;
+          for (const auto& clause : node.cases) {
+            MergeBreakFlow(out, CollectNestedBreakFlowFromExpr(
+                                    ctx, type_ctx, env, type_expr, clause.body));
+          }
+          MergeBreakFlow(out, CollectNestedBreakFlowFromExpr(
+                                  ctx, type_ctx, env, type_expr, node.else_expr));
+          return out;
+        } else {
+          return {};
+        }
+      },
+      expr->node);
+}
+
 static IdentTypeFn IdentTypeFnWithEnv(const ScopeContext& ctx,
                                       const TypeEnv& env,
                                       const IdentTypeFn& type_ident) {
@@ -2349,6 +2484,17 @@ BlockInfoResult TypeBlockInfo(const ScopeContext& ctx,
     return result;
   }
 
+  FlowInfo block_break_flow;
+  block_break_flow.breaks = stmts_typed.flow.breaks;
+  block_break_flow.break_void = stmts_typed.flow.break_void;
+  MergeBreakFlow(block_break_flow,
+                 CollectNestedBreakFlowFromBlock(ctx, type_ctx, stmts_typed.env,
+                                                 type_expr, block));
+  auto apply_break_flow = [&]() {
+    result.breaks = block_break_flow.breaks;
+    result.break_void = block_break_flow.break_void;
+  };
+
   const auto res_type = ResType(ctx, stmts_typed.flow.results);
   std::optional<ExprTypeResult> tail_type;
   if (block.tail_opt) {
@@ -2378,8 +2524,7 @@ BlockInfoResult TypeBlockInfo(const ScopeContext& ctx,
     SPEC_RULE("BlockInfo-Res");
     result.ok = true;
     result.type = *res_type;
-    result.breaks = std::move(stmts_typed.flow.breaks);
-    result.break_void = stmts_typed.flow.break_void;
+    apply_break_flow();
     return result;
   }
 
@@ -2408,8 +2553,7 @@ BlockInfoResult TypeBlockInfo(const ScopeContext& ctx,
     SPEC_RULE("BlockInfo-Tail");
     result.ok = true;
     result.type = tail_type->type;
-    result.breaks = std::move(stmts_typed.flow.breaks);
-    result.break_void = stmts_typed.flow.break_void;
+    apply_break_flow();
     return result;
   }
 
@@ -2419,16 +2563,14 @@ BlockInfoResult TypeBlockInfo(const ScopeContext& ctx,
     SPEC_RULE("BlockInfo-ReturnTail");
     result.ok = true;
     result.type = MakeTypePrim("!");
-    result.breaks = std::move(stmts_typed.flow.breaks);
-    result.break_void = stmts_typed.flow.break_void;
+    apply_break_flow();
     return result;
   }
 
   SPEC_RULE("BlockInfo-Unit");
   result.ok = true;
   result.type = MakeTypePrim("()");
-  result.breaks = std::move(stmts_typed.flow.breaks);
-  result.break_void = stmts_typed.flow.break_void;
+  apply_break_flow();
   return result;
 }
 

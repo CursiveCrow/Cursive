@@ -207,7 +207,7 @@ LowerResult LowerRaceExpr(const ast::RaceExpr& expr, LowerCtx& ctx) {
         }
 
         // Sync temp counter
-        ctx.temp_counter = std::max(ctx.temp_counter, arm_ctx.temp_counter);
+        *ctx.temp_counter = std::max(*ctx.temp_counter, *arm_ctx.temp_counter);
 
         ir_arms.push_back(std::move(ir_arm));
         arm_ctxs.push_back(std::move(arm_ctx));

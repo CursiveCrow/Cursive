@@ -130,8 +130,7 @@ LowerResult LowerParallelExpr(const ast::ParallelExpr& node, LowerCtx& ctx) {
   if (explicit_result) {
     result_value = body_result.value;
   } else if (collected.empty()) {
-    result_value.kind = IRValue::Kind::Opaque;
-    result_value.name = "unit";
+    result_value = ctx.FreshTempValue("unit");
   } else {
     std::vector<IRPtr> body_parts;
     if (body_result.ir &&

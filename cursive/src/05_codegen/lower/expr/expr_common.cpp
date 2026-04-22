@@ -13,7 +13,9 @@
 #include "04_analysis/attributes/attribute_registry.h"
 #include "04_analysis/contracts/verification.h"
 #include "04_analysis/keys/key_paths.h"
+#include "04_analysis/memory/regions.h"
 #include "04_analysis/typing/type_expr.h"
+#include "05_codegen/intrinsics/builtins.h"
 #include "05_codegen/layout/layout.h"
 #include "05_codegen/intrinsics/intrinsics_interface.h"
 #include "05_codegen/lower/expr/addr_of.h"
@@ -195,9 +197,9 @@ LowerResult LowerExprImpl(const ast::Expr& expr, LowerCtx& ctx) {
         } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {
           return LowerIndexAccess(node, ctx);
         } else if constexpr (std::is_same_v<T, ast::CallExpr>) {
-          return LowerCallExpr(node, ctx);
+          return LowerCallExpr(expr, node, ctx);
         } else if constexpr (std::is_same_v<T, ast::MethodCallExpr>) {
-          return LowerMethodCall(node, ctx);
+          return LowerMethodCall(expr, node, ctx);
         } else if constexpr (std::is_same_v<T, ast::UnaryExpr>) {
           return LowerUnaryExpr(node, ctx);
         } else if constexpr (std::is_same_v<T, ast::BinaryExpr>) {
@@ -680,6 +682,49 @@ std::string EncodeRuntimeSharedAccessPath(const ast::Expr& expr) {
 }
 
 }  // namespace
+
+IRPtr EnterSyntheticProcedureRegion(LowerCtx& ctx) {
+  ast::ExprPtr region_opts = analysis::MakeDefaultRegionOptionsExpr();
+  LowerResult opts_res = LowerExpr(*region_opts, ctx);
+
+  const std::string region_alias = ctx.FreshRegionAlias();
+  const analysis::TypeRef region_type = analysis::RegionActiveTypeRef();
+  ctx.RegisterVar(region_alias,
+                  region_type,
+                  /*has_responsibility=*/false,
+                  /*is_immovable=*/true,
+                  analysis::ProvenanceKind::Region,
+                  region_alias,
+                  /*preserve_addr_provenance=*/false,
+                  region_alias);
+  ctx.RegisterRegionRelease(region_alias);
+  ctx.active_region_aliases.push_back(region_alias);
+
+  IRValue region_value = ctx.FreshTempValue("synthetic_proc_region");
+  ctx.RegisterValueType(region_value, region_type);
+
+  IRCall region_new;
+  region_new.callee.kind = IRValue::Kind::Symbol;
+  region_new.callee.name = BuiltinModalSymRegionNewScoped();
+  region_new.args.push_back(opts_res.value);
+  region_new.result = region_value;
+
+  IRBindVar region_bind;
+  region_bind.name = region_alias;
+  region_bind.value = region_value;
+  region_bind.type = region_type;
+  region_bind.prov = analysis::ProvenanceKind::Region;
+  region_bind.prov_region = region_alias;
+  region_bind.prov_region_tag = region_alias;
+
+  std::vector<IRPtr> parts;
+  if (opts_res.ir && !std::holds_alternative<IROpaque>(opts_res.ir->node)) {
+    parts.push_back(opts_res.ir);
+  }
+  parts.push_back(MakeIR(std::move(region_new)));
+  parts.push_back(MakeIR(std::move(region_bind)));
+  return SeqIR(std::move(parts));
+}
 
 ast::ExprPtr AliasExprPtr(const ast::Expr& expr) {
   return ast::ExprPtr(const_cast<ast::Expr*>(&expr), [](ast::Expr*) {});

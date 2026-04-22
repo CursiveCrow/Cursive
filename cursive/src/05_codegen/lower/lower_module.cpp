@@ -380,10 +380,11 @@ analysis::TypeRef LowerReturnType(const analysis::ScopeContext& scope,
   if (!ret_opt) {
     return analysis::MakeTypePrim("()");
   }
-  if (auto lowered = LowerTypeForLayout(scope, ret_opt)) {
-    return SubstSelfType(self_type, *lowered);
+  const auto lowered = analysis::LowerType(scope, ret_opt);
+  if (lowered.ok && lowered.type) {
+    return SubstSelfType(self_type, lowered.type);
   }
-  return analysis::MakeTypePrim("()");
+  return nullptr;
 }
 
 IRParam LowerParam(const ast::Param& param,
@@ -395,8 +396,9 @@ IRParam LowerParam(const ast::Param& param,
   out.name = param.name;
   out.stable_name = out.name;
   if (param.type) {
-    if (auto lowered = LowerTypeForLayout(scope, param.type)) {
-      out.type = SubstSelfType(self_type, *lowered);
+    const auto lowered = analysis::LowerType(scope, param.type);
+    if (lowered.ok && lowered.type) {
+      out.type = SubstSelfType(self_type, lowered.type);
     }
   }
   return out;
@@ -1159,6 +1161,9 @@ IRDecls LowerModule(const ast::ASTModule& module, LowerCtx& ctx) {
               SPEC_RULE("CG-Item-Procedure");
             }
             auto proc = LowerProc(node, module.path, ctx);
+            if (ctx.resolve_failed || ctx.codegen_failed) {
+              return;
+            }
             const LinkageKind proc_linkage =
                 LinkageOf(node);
             register_proc(proc, true, proc_linkage);

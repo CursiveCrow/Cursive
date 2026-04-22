@@ -213,8 +213,7 @@ IRPtr LowerFrameStmt(const ast::FrameStmt& stmt, LowerCtx& ctx) {
     result_value = tail_result.value;
   } else {
     SPEC_RULE("Lower-Block-Unit");
-    result_value.kind = IRValue::Kind::Opaque;
-    result_value.name = "unit";
+    result_value = ctx.FreshTempValue("unit");
   }
 
   // Compute cleanup for this scope

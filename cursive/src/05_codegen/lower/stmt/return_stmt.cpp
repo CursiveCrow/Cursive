@@ -156,7 +156,7 @@ IRPtr LowerReturnStmt(const ast::ReturnStmt& stmt,
     }
   } else {
     SPEC_RULE("Lower-Stmt-Return-Unit");
-    return_value = IRValue{IRValue::Kind::Opaque, "unit", {}};
+    return_value = ctx.FreshTempValue("unit");
     value_type = analysis::MakeTypePrim("()");
   }
 

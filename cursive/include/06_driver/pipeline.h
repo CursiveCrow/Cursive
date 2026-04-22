@@ -54,6 +54,8 @@ struct CodegenCache {
   const analysis::NameMapBuildResult* name_maps = nullptr;
   std::unordered_map<std::string, codegen::LowerCtx::HostedStateTemplate>
       hosted_state_templates;
+  std::vector<codegen::LowerCtx::HostedExportInfo> all_hosted_exports;
+  std::optional<analysis::InitPlan> full_init_plan;
   std::vector<std::string> hosted_project_modules;
   std::vector<std::shared_ptr<ModuleCodegen>> modules;
   std::unordered_map<std::string, std::size_t> index;
@@ -63,6 +65,8 @@ struct CodegenCache {
       module_entries;
   std::unordered_map<std::string, ModuleState> module_states;
   std::unordered_set<std::string> lowered_proc_symbols;
+  std::string active_project_context_key;
+  std::uint64_t emit_context_epoch = 0;
   mutable std::mutex module_mu;
   std::condition_variable module_cv;
   std::atomic<bool> ok{true};
@@ -125,6 +129,8 @@ std::optional<std::size_t> EnsureCodegenModule(CodegenCache& cache,
 std::shared_ptr<const ModuleCodegen> EnsureCodegenModuleEntry(
     CodegenCache& cache, std::string_view module_path);
 bool PopulateCodegenModules(CodegenCache& cache, const project::Project& project);
+void ConfigureCodegenContextForProject(CodegenCache& cache,
+                                       const project::Project& project);
 
 // Diagnostic helpers
 void AppendDiags(core::DiagnosticStream& out, const core::DiagnosticStream& add);

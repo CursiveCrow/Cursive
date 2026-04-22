@@ -64,6 +64,7 @@
 
 #include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/attributes/attribute_registry.h"
+#include "04_analysis/typing/type_lower.h"
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/checks/checks.h"
 #include "05_codegen/cleanup/cleanup.h"
@@ -632,9 +633,10 @@ bool CollectUsesAfterSuspension(IRPtr& ir,
           node.state_index = info.next_state++;
           return true;
         } else if constexpr (std::is_same_v<T, IRYieldFrom>) {
-          if (seen_suspension) {
-            AddLocalUse(node.source, uses);
-          }
+          // The delegated async state must survive the suspension created by
+          // this yield-from itself so the resume path continues the same inner
+          // async value instead of recreating it.
+          AddLocalUse(node.source, uses);
           node.state_index = info.next_state++;
           return true;
         } else if constexpr (std::is_same_v<T, IRSeq>) {
@@ -1076,11 +1078,12 @@ ProcIR LowerProc(const ProcedureDecl& decl,
   for (const auto& param : decl.params) {
     IRParam p;
     p.mode = param.mode.has_value() ? std::optional<analysis::ParamMode>(analysis::ParamMode::Move)
-                                   : std::nullopt;
+                                    : std::nullopt;
     p.name = param.name;
     if (param.type && ctx.sigma) {
-      if (const auto lowered = LowerTypeForLayout(scope, param.type)) {
-        p.type = *lowered;
+      const auto lowered = analysis::LowerType(scope, param.type);
+      if (lowered.ok && lowered.type) {
+        p.type = lowered.type;
       }
     }
     const bool has_resp = param.mode.has_value();
@@ -1094,12 +1097,14 @@ ProcIR LowerProc(const ProcedureDecl& decl,
   }
   // Lower return type
   if (decl.return_type_opt && ctx.sigma) {
-    if (const auto lowered = LowerTypeForLayout(scope, decl.return_type_opt)) {
-      ir.ret = *lowered;
+    const auto lowered = analysis::LowerType(scope, decl.return_type_opt);
+    if (lowered.ok && lowered.type) {
+      ir.ret = lowered.type;
     }
   }
   if (!ir.ret) {
-    ir.ret = analysis::MakeTypePrim("()");
+    ctx.ReportCodegenFailure();
+    return ir;
   }
   log_stage("signature-ready");
   // Set proc_ret_type for async procedure detection in return statement lowering

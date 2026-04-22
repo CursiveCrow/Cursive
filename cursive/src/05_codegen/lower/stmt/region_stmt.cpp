@@ -14,6 +14,7 @@
 
 #include "05_codegen/lower/stmt/region_stmt.h"
 
+#include <iterator>
 #include <string>
 #include <variant>
 
@@ -25,6 +26,22 @@
 #include "05_codegen/lower/lower_stmt.h"
 
 namespace cursive::codegen {
+
+namespace {
+
+void RemoveActiveRegionAlias(LowerCtx& ctx, const std::string& alias) {
+  for (auto it = ctx.active_region_aliases.rbegin();
+       it != ctx.active_region_aliases.rend();
+       ++it) {
+    if (*it != alias) {
+      continue;
+    }
+    ctx.active_region_aliases.erase(std::next(it).base());
+    return;
+  }
+}
+
+}  // namespace
 
 // ============================================================================
 // Lower-Stmt-Region
@@ -94,8 +111,9 @@ IRPtr LowerRegionStmt(const ast::RegionStmt& stmt, LowerCtx& ctx) {
   // Lower the body block
   auto body_result = LowerBlock(*stmt.body, ctx);
 
-  // Remove from active region tracking
-  ctx.active_region_aliases.pop_back();
+  // The body may transition this region through freeze/thaw/free. Remove this
+  // lexical region by alias instead of assuming it is still stack-top.
+  RemoveActiveRegionAlias(ctx, runtime_alias);
 
   // Pop the scope
   ctx.PopScope();

@@ -34,6 +34,7 @@
 
 #include "05_codegen/lower/lower_expr.h"
 #include "05_codegen/lower/lower_proc.h"
+#include "05_codegen/lower/expr/expr_common.h"
 #include "05_codegen/ir/ir_model.h"
 #include "05_codegen/layout/layout.h"
 #include "05_codegen/abi/abi.h"
@@ -821,6 +822,8 @@ LowerResult LowerSpawnExpr(const ast::Expr& expr,
     ctx.RegisterVar(panic_param.name, panic_param.type, true, false);
     proc.params[3].stable_name = ctx.StableBindingName(panic_param.name);
 
+    IRPtr proc_region_ir = EnterSyntheticProcedureRegion(ctx);
+
     IRValue env_param_val;
     env_param_val.kind = IRValue::Kind::Local;
     env_param_val.name = env_param.name;
@@ -831,11 +834,10 @@ LowerResult LowerSpawnExpr(const ast::Expr& expr,
     if (node.body) {
       body_result = LowerBlock(*node.body, ctx);
     } else {
-      IRValue unit;
-      unit.kind = IRValue::Kind::Opaque;
-      unit.name = "unit";
+      IRValue unit = ctx.FreshTempValue("unit");
       body_result = LowerResult{EmptyIR(), unit};
     }
+    ctx.active_region_aliases.pop_back();
 
     // Store result if not unit type
     IRPtr store_ir = EmptyIR();
@@ -855,14 +857,15 @@ LowerResult LowerSpawnExpr(const ast::Expr& expr,
     ctx.PopScope();
 
     // Return unit
-    IRValue unit_ret;
-    unit_ret.kind = IRValue::Kind::Opaque;
-    unit_ret.name = "unit";
+    IRValue unit_ret = ctx.FreshTempValue("unit");
     IRReturn ret;
     ret.value = unit_ret;
 
     std::vector<IRPtr> parts;
     parts.push_back(MakeIR(IRCancelSuppress{}));
+    if (proc_region_ir && !std::holds_alternative<IROpaque>(proc_region_ir->node)) {
+      parts.push_back(proc_region_ir);
+    }
     if (body_result.ir) {
       parts.push_back(body_result.ir);
     }
@@ -883,9 +886,7 @@ LowerResult LowerSpawnExpr(const ast::Expr& expr,
   // Step 7: Create IRSpawn
   IRSpawn spawn;
   spawn.body = EmptyIR();
-  IRValue unit_body;
-  unit_body.kind = IRValue::Kind::Opaque;
-  unit_body.name = "unit";
+  IRValue unit_body = ctx.FreshTempValue("unit");
   spawn.body_result = unit_body;
   spawn.env_ptr = env_ptr;
   spawn.env_size = env_size;

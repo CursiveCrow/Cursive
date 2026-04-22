@@ -460,16 +460,17 @@ llvm::Value* GetPoisonFlagPtr(LLVMEmitter& emitter,
     return nullptr;
   }
 
+  llvm::Value* global_flag = GetOrCreatePoisonFlag(emitter, module_path);
   if (emitter.IsHostedLibraryBuild()) {
     std::vector<std::string> full = {"cursive", "runtime", "poison"};
     full.insert(full.end(), module_path.begin(), module_path.end());
     const std::string sym = core::Mangle(core::StringOfPath(full));
-    if (llvm::Value* ptr = emitter.GetHostedStatePtr(sym, bool_ty)) {
+    if (llvm::Value* ptr = emitter.GetHostedStatePtr(sym, bool_ty, global_flag)) {
       return ptr;
     }
   }
 
-  return GetOrCreatePoisonFlag(emitter, module_path);
+  return global_flag;
 }
 
 std::vector<std::string> PoisonSetForInit(const LowerCtx& ctx) {

@@ -375,6 +375,7 @@ bool IsBuiltinCapClass(const analysis::TypePath& class_path) {
   return analysis::IsFileSystemClassPath(cap_class) ||
          analysis::IsNetworkClassPath(cap_class) ||
          analysis::IsHeapAllocatorClassPath(cap_class) ||
+         analysis::IsExecutionDomainClassPath(cap_class) ||
          analysis::IsReactorClassPath(cap_class);
 }
 
@@ -541,7 +542,11 @@ std::optional<LowerCallResult> LowerMethodCall(
   method_call.name = std::string(name);
   method_call.args = args;
 
-  const auto lowered = codegen::LowerMethodCall(method_call, lower_ctx);
+  ast::Expr method_call_expr;
+  method_call_expr.node = method_call;
+
+  const auto lowered =
+      codegen::LowerMethodCall(method_call_expr, method_call, lower_ctx);
   if (lower_ctx.resolve_failed || lower_ctx.codegen_failed) {
     return std::nullopt;
   }

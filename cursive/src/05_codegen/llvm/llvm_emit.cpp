@@ -2568,7 +2568,63 @@ namespace cursive::codegen
         }
         return "<no-func>";
       };
+      analysis::TypeRef stripped_source = ResolveAliasType(ctx, source_type);
       analysis::TypeRef stripped_target = ResolveAliasType(ctx, target_type);
+
+      const auto *source_array =
+          stripped_source ? std::get_if<analysis::TypeArray>(&stripped_source->node) : nullptr;
+      const auto *target_array =
+          stripped_target ? std::get_if<analysis::TypeArray>(&stripped_target->node) : nullptr;
+      if (source_array && target_array &&
+          source_array->length == target_array->length)
+      {
+        auto *target_array_ty = llvm::dyn_cast<llvm::ArrayType>(target_ty);
+        llvm::Value *array_value = value;
+        if (array_value && array_value->getType()->isPointerTy())
+        {
+          llvm::Type *source_array_ty = emitter.GetLLVMType(stripped_source);
+          if (source_array_ty)
+          {
+            llvm::Value *typed_ptr = array_value;
+            llvm::Type *source_ptr_ty = llvm::PointerType::get(source_array_ty, 0);
+            if (typed_ptr->getType() != source_ptr_ty)
+            {
+              typed_ptr = builder->CreateBitCast(typed_ptr, source_ptr_ty);
+            }
+            array_value = builder->CreateLoad(source_array_ty, typed_ptr);
+          }
+        }
+        if (target_array_ty && array_value && array_value->getType()->isArrayTy() &&
+            llvm::cast<llvm::ArrayType>(array_value->getType())->getNumElements() ==
+                target_array_ty->getNumElements())
+        {
+          llvm::Value *out = llvm::UndefValue::get(target_array_ty);
+          llvm::Type *target_elem_ty = target_array_ty->getElementType();
+          for (std::uint64_t i = 0; i < target_array->length; ++i)
+          {
+            llvm::Value *elem =
+                builder->CreateExtractValue(array_value, {static_cast<unsigned>(i)});
+            llvm::Value *coerced = CoerceToTyped(
+                emitter,
+                builder,
+                elem,
+                target_elem_ty,
+                source_array->element,
+                target_array->element);
+            if (!coerced)
+            {
+              coerced = CoerceTo(builder, elem, target_elem_ty);
+            }
+            if (!coerced)
+            {
+              coerced = llvm::Constant::getNullValue(target_elem_ty);
+            }
+            out = builder->CreateInsertValue(out, coerced, {static_cast<unsigned>(i)});
+          }
+          return out;
+        }
+      }
+
       const auto *target_union =
           stripped_target ? std::get_if<analysis::TypeUnion>(&stripped_target->node) : nullptr;
       if (!target_union)
@@ -2576,7 +2632,6 @@ namespace cursive::codegen
         return CoerceTo(builder, value, target_ty);
       }
 
-      analysis::TypeRef stripped_source = ResolveAliasType(ctx, source_type);
       if (UnionDebugEnabled())
       {
         const std::string source_text =
@@ -9138,9 +9193,24 @@ namespace cursive::codegen
 
         if (call.callee.kind == IRValue::Kind::Symbol)
         {
-          if (const auto comb_kind = AsyncCombinatorKindFromSymbol(call.callee.name))
+          const LowerCtx *comb_ctx = emitter.GetCurrentCtx();
+          analysis::TypeRef comb_source_async_type =
+              (comb_ctx && !call.args.empty())
+                  ? comb_ctx->LookupValueType(call.args[0])
+                  : nullptr;
+          const analysis::ScopeContext &comb_scope = BuildScope(comb_ctx);
+          const auto comb_source_sig =
+              analysis::AsyncSigOf(comb_scope, comb_source_async_type);
+
+          std::optional<AsyncCombinatorKind> comb_kind =
+              AsyncCombinatorKindFromSymbol(call.callee.name);
+          if (!comb_kind.has_value() && comb_source_sig.has_value())
           {
-            const LowerCtx *comb_ctx = emitter.GetCurrentCtx();
+            comb_kind = analysis::LookupBuiltinAsyncCombinator(call.callee.name);
+          }
+
+          if (comb_kind.has_value())
+          {
             if (args.empty() || call.args.empty())
             {
               emitter.SetTempValue(call.result, DefaultFor(call.result));
@@ -9188,11 +9258,11 @@ namespace cursive::codegen
             };
 
             analysis::TypeRef source_async_type =
-                comb_ctx ? comb_ctx->LookupValueType(call.args[0]) : nullptr;
+                comb_source_async_type;
             analysis::TypeRef result_async_type =
                 comb_ctx ? comb_ctx->LookupValueType(call.result) : nullptr;
 
-            const auto source_sig = analysis::GetAsyncSig(source_async_type);
+            const auto source_sig = comb_source_sig;
             if (!result_async_type && source_sig)
             {
               if (*comb_kind == AsyncCombinatorKind::Map && call.args.size() >= 2)
@@ -9238,12 +9308,12 @@ namespace cursive::codegen
               result_async_type = source_async_type;
             }
 
-            const auto result_sig = analysis::GetAsyncSig(result_async_type);
+            const auto result_sig = analysis::AsyncSigOf(comb_scope, result_async_type);
             llvm::Value *source_async = args[0];
             auto *async_struct =
                 llvm::dyn_cast_or_null<llvm::StructType>(
                     source_async ? source_async->getType() : nullptr);
-            if (!source_sig || !result_sig || !source_async || !async_struct ||
+            if (!comb_source_sig || !result_sig || !source_async || !async_struct ||
                 async_struct->getNumElements() < 1 ||
                 !async_struct->getElementType(0)->isIntegerTy())
             {
@@ -9455,6 +9525,22 @@ namespace cursive::codegen
               const analysis::TypeRef callable_ret_type = infer_callable_ret_type(callee);
               (*this)(inner);
               llvm::Value *out = emitter.EvaluateIRValue(inner.result);
+              if (!out && callable_ret_type)
+              {
+                if (llvm::Value *storage = emitter.GetTempStorage(inner.result))
+                {
+                  if (llvm::Type *ret_ty = emitter.GetLLVMType(callable_ret_type))
+                  {
+                    llvm::Value *typed_ptr = storage;
+                    llvm::Type *expected_ptr_ty = llvm::PointerType::get(ret_ty, 0);
+                    if (typed_ptr->getType() != expected_ptr_ty)
+                    {
+                      typed_ptr = builder.CreateBitCast(typed_ptr, expected_ptr_ty);
+                    }
+                    out = builder.CreateLoad(ret_ty, typed_ptr);
+                  }
+                }
+              }
               if (!out)
               {
                 llvm::Type *fallback_ty =
@@ -9605,9 +9691,8 @@ namespace cursive::codegen
               return emitter.EvaluateIRValue(fail.result);
             };
 
-            const analysis::ScopeContext &scope = BuildScope(comb_ctx);
             const AsyncStateDiscs source_discs =
-                LoweredAsyncStateDiscs(scope, *source_sig);
+                LoweredAsyncStateDiscs(comb_scope, *source_sig);
             const std::uint64_t suspended_disc = source_discs.suspended;
             const std::uint64_t completed_disc = source_discs.completed;
             const std::optional<std::uint64_t> failed_disc = source_discs.failed;
@@ -10677,8 +10762,9 @@ namespace cursive::codegen
         analysis::TypeRef call_result_type =
             active_ctx ? active_ctx->LookupValueType(call.result) : nullptr;
 
-        if (call_result && (callee_symbol == BuiltinSymAsyncResume() ||
-                            is_async_resume_runtime_symbol))
+        if ((call_result || call_result_storage) &&
+            (callee_symbol == BuiltinSymAsyncResume() ||
+             is_async_resume_runtime_symbol))
         {
           auto repack_async_resume_union =
               [&](llvm::Value *raw_result,
@@ -10842,8 +10928,14 @@ namespace cursive::codegen
               return raw_result;
             }
 
+            analysis::TypeRef async_runtime_type = nullptr;
+            if (async_path.has_value())
+            {
+              async_runtime_type =
+                  analysis::MakeTypePath(*async_path, async_args);
+            }
             const AsyncStateDiscs async_discs =
-                LoweredAsyncStateDiscs(scope, stripped_target);
+                LoweredAsyncStateDiscs(scope, async_runtime_type);
             const std::uint64_t suspended_disc = async_discs.suspended;
             const std::uint64_t completed_disc = async_discs.completed;
             const std::optional<std::uint64_t> failed_disc = async_discs.failed;
@@ -10892,7 +10984,34 @@ namespace cursive::codegen
             return mapped;
           };
 
-          call_result = repack_async_resume_union(call_result, call_result_type);
+          llvm::Value *raw_async_result = call_result;
+          if (!raw_async_result && call_result_storage && sig && sig->ret)
+          {
+            if (llvm::Type *raw_ty = emitter.GetLLVMType(sig->ret))
+            {
+              raw_async_result = builder.CreateLoad(raw_ty, call_result_storage);
+            }
+          }
+          llvm::Value *repacked =
+              repack_async_resume_union(raw_async_result, call_result_type);
+          if (repacked && repacked != raw_async_result && call_result_storage)
+          {
+            llvm::Type *target_ty = ExpectedLLVMType(call.result);
+            if (!target_ty && call_result_type)
+            {
+              target_ty = emitter.GetLLVMType(call_result_type);
+            }
+            if (target_ty)
+            {
+              llvm::Value *store_value = CoerceTo(&builder, repacked, target_ty);
+              if (!store_value)
+              {
+                store_value = repacked;
+              }
+              builder.CreateStore(store_value, call_result_storage);
+            }
+          }
+          call_result = repacked;
         }
 
         bool never_call = false;
@@ -24300,7 +24419,13 @@ namespace cursive::codegen
               continue;
             }
             llvm::Value *elem = EvaluateIRValue(field.value);
-            elem = CoerceTo(builder, elem, field_ll);
+            analysis::TypeRef source_type = lookup_value_type(field.value);
+            elem = CoerceToTyped(*this,
+                                 builder,
+                                 elem,
+                                 field_ll,
+                                 source_type,
+                                 field.field_type);
             if (!elem)
             {
               elem = llvm::Constant::getNullValue(field_ll);

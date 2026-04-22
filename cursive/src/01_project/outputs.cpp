@@ -1059,46 +1059,16 @@ std::vector<std::filesystem::path> AppendUniquePaths(
 struct OutputCoordinatorState {
   TargetProfile target_profile;
   const OutputPipelineDeps& deps;
+  const std::vector<ast::ASTModule>* project_ast_modules = nullptr;
+  std::optional<std::vector<ast::ASTModule>> owned_project_ast_modules;
   std::unordered_map<std::string, std::vector<ast::ASTModule>> ast_by_assembly;
   std::unordered_map<std::string, OutputArtifacts> built_artifacts;
   std::optional<AssemblyImportGraph> graph;
 };
 
-OutputPipelineResult OutputPipelineRecursive(const Project& project,
-                                             OutputCoordinatorState& state);
-
-std::optional<std::vector<std::filesystem::path>> LibraryArtifactInputs(
-    const Project& project,
-    OutputCoordinatorState& state,
-    core::DiagnosticStream& diags) {
-  if (!state.graph.has_value()) {
-    return std::nullopt;
-  }
-
-  std::vector<std::filesystem::path> library_inputs;
-  const auto imported_libraries =
-      ImportedLibraries(project.assembly.name, *state.graph);
-  library_inputs.reserve(imported_libraries.size());
-
-  for (const auto& assembly_name : imported_libraries) {
-    const auto dep_project =
-        BuildOutputProjectForAssembly(project, *state.graph, assembly_name);
-    if (!dep_project.has_value()) {
-      continue;
-    }
-    auto dep_result = OutputPipelineRecursive(*dep_project, state);
-    for (const auto& diag : dep_result.diags) {
-      core::Emit(diags, diag);
-    }
-    if (!dep_result.artifacts.has_value() ||
-        !dep_result.artifacts->primary_artifact.has_value()) {
-      return std::nullopt;
-    }
-    library_inputs.push_back(*dep_result.artifacts->primary_artifact);
-  }
-
-  return library_inputs;
-}
+struct ArtifactBuildPlan {
+  std::vector<std::string> assembly_order;
+};
 
 OutputPipelineResult OutputPipelineSingleAssembly(
     const Project& project,
@@ -1126,6 +1096,21 @@ bool LoadAstForAssembly(const Project& base_project,
       state.ast_by_assembly.end()) {
     return true;
   }
+
+  if (state.project_ast_modules != nullptr) {
+    const auto assembly_project = AssemblyProjectView(base_project, assembly_name);
+    if (!assembly_project.has_value()) {
+      return false;
+    }
+    const auto filtered =
+        FilterAstModulesForProject(*assembly_project, *state.project_ast_modules, diags);
+    if (!filtered.has_value()) {
+      return false;
+    }
+    state.ast_by_assembly.emplace(std::string(assembly_name), *filtered);
+    return true;
+  }
+
   const auto assembly_project = AssemblyProjectView(base_project, assembly_name);
   if (!assembly_project.has_value()) {
     return false;
@@ -1180,80 +1165,52 @@ bool EnsureAssemblyGraphLoaded(const Project& project,
     return true;
   }
 
-  std::vector<ast::ASTModule> all_modules;
-  for (const auto& assembly : project.assemblies) {
-    if (!LoadAstForAssembly(project, assembly.name, state, diags)) {
-      return false;
-    }
-    const auto ast_it = state.ast_by_assembly.find(assembly.name);
-    if (ast_it != state.ast_by_assembly.end()) {
-      all_modules.insert(all_modules.end(), ast_it->second.begin(),
-                         ast_it->second.end());
+  if (state.project_ast_modules == nullptr &&
+      state.deps.resolve_project_ast_modules) {
+    auto full_modules = state.deps.resolve_project_ast_modules(project);
+    if (full_modules.has_value()) {
+      state.project_ast_modules = &full_modules->get();
     }
   }
 
-  state.graph = BuildAssemblyImportGraph(project, all_modules);
+  if (state.project_ast_modules == nullptr) {
+    std::vector<ast::ASTModule> all_modules;
+    for (const auto& assembly : project.assemblies) {
+      if (!LoadAstForAssembly(project, assembly.name, state, diags)) {
+        return false;
+      }
+      const auto ast_it = state.ast_by_assembly.find(assembly.name);
+      if (ast_it != state.ast_by_assembly.end()) {
+        all_modules.insert(all_modules.end(), ast_it->second.begin(),
+                           ast_it->second.end());
+      }
+    }
+    state.owned_project_ast_modules = std::move(all_modules);
+    state.project_ast_modules = &*state.owned_project_ast_modules;
+  }
+
+  state.graph = BuildAssemblyImportGraph(project, *state.project_ast_modules);
   if (!ValidateAssemblyImportGraphStructure(project, *state.graph, diags)) {
     return false;
   }
-  if (!ValidateHostedLibraryImportGraph(project, *state.graph, all_modules,
+  if (!ValidateHostedLibraryImportGraph(project, *state.graph, *state.project_ast_modules,
                                         diags)) {
     return false;
   }
   return true;
 }
 
-OutputPipelineResult OutputPipelineRecursive(const Project& project,
-                                             OutputCoordinatorState& state) {
-  OutputPipelineResult result;
-  if (!EnsureAssemblyGraphLoaded(project, state, result.diags)) {
-    return result;
+ArtifactBuildPlan BuildArtifactBuildPlan(
+    const Project& project,
+    const AssemblyImportGraph& graph) {
+  ArtifactBuildPlan plan;
+  const auto libraries = ImportedLibraries(project.assembly.name, graph);
+  plan.assembly_order.reserve(libraries.size() + 1);
+  for (const auto& assembly_name : libraries) {
+    plan.assembly_order.push_back(assembly_name);
   }
-
-  const auto built_it = state.built_artifacts.find(project.assembly.name);
-  if (built_it != state.built_artifacts.end()) {
-    result.artifacts = built_it->second;
-    return result;
-  }
-
-  if (!LoadAstForAssembly(project, project.assembly.name, state, result.diags)) {
-    return result;
-  }
-  std::vector<ast::ASTModule> all_ast_modules;
-  for (const auto& [assembly_name, modules] : state.ast_by_assembly) {
-    (void)assembly_name;
-    all_ast_modules.insert(all_ast_modules.end(), modules.begin(), modules.end());
-  }
-  const auto ast_modules =
-      FilterAstModulesForProject(project, all_ast_modules, result.diags);
-  if (!ast_modules.has_value()) {
-    return result;
-  }
-
-  const auto library_artifact_inputs =
-      LibraryArtifactInputs(project, state, result.diags);
-  if (!library_artifact_inputs.has_value()) {
-    return result;
-  }
-
-  const auto extern_specs = CollectExternLibrarySpecs(*ast_modules);
-  const auto extern_inputs =
-      ResolveExternLibraryInputs(extern_specs, state.target_profile);
-  const auto extra_inputs =
-      AppendUniquePaths(*library_artifact_inputs, extern_inputs);
-  const LinkPlan link_plan =
-      BuildOutputLinkPlan(project, state.target_profile, *ast_modules,
-                          state.deps, result.diags);
-  if (core::HasError(result.diags)) {
-    return result;
-  }
-
-  result = OutputPipelineSingleAssembly(project, state.target_profile,
-                                        state.deps, extra_inputs, link_plan);
-  if (result.artifacts.has_value()) {
-    state.built_artifacts[project.assembly.name] = *result.artifacts;
-  }
-  return result;
+  plan.assembly_order.push_back(project.assembly.name);
+  return plan;
 }
 
 OutputPipelineResult OutputPipelineSingleAssembly(
@@ -1321,6 +1278,22 @@ OutputPipelineResult OutputPipelineSingleAssembly(
       oss << " ir=" << project.outputs.ir_dir.generic_string();
     }
     LogBuildProgress(oss.str());
+  }
+
+  if (deps.prepare_codegen_context) {
+    SharedLibraryExports exports;
+    exports.export_symbols = link_plan.export_symbols;
+    exports.data_export_symbols = link_plan.data_export_symbols;
+    if (!deps.prepare_codegen_context(project, exports)) {
+      if (show_build_progress) {
+        LogBuildProgress("codegen-context-error");
+      }
+      core::Diagnostic diag;
+      diag.severity = core::Severity::Error;
+      diag.message = "project codegen context preparation failed";
+      core::Emit(result.diags, diag);
+      return result;
+    }
   }
 
   const bool has_incremental_callbacks =
@@ -2091,15 +2064,80 @@ OutputPipelineResult OutputPipeline(const Project& project,
   if (!EnsureAssemblyGraphLoaded(project, state, result.diags)) {
     return result;
   }
-  const auto root_project =
-      BuildOutputProjectForAssembly(project, *state.graph, project.assembly.name);
-  if (!root_project.has_value()) {
-    EmitInternalDiagnostic(result.diags,
-                           "Unable to build root output project for `" +
-                               project.assembly.name + "`");
-    return result;
+  const ArtifactBuildPlan plan = BuildArtifactBuildPlan(project, *state.graph);
+  for (const auto& assembly_name : plan.assembly_order) {
+    if (!LoadAstForAssembly(project, assembly_name, state, result.diags)) {
+      return result;
+    }
+
+    const auto output_project =
+        BuildOutputProjectForAssembly(project, *state.graph, assembly_name);
+    if (!output_project.has_value()) {
+      EmitInternalDiagnostic(result.diags,
+                             "Unable to build output project for `" +
+                                 assembly_name + "`");
+      return result;
+    }
+
+    if (state.project_ast_modules == nullptr) {
+      EmitInternalDiagnostic(result.diags,
+                             "Assembly graph loaded without project AST modules");
+      return result;
+    }
+    const auto ast_modules =
+        FilterAstModulesForProject(*output_project,
+                                   *state.project_ast_modules,
+                                   result.diags);
+    if (!ast_modules.has_value()) {
+      return result;
+    }
+
+    std::vector<std::filesystem::path> library_inputs;
+    const auto imported_libraries =
+        ImportedLibraries(output_project->assembly.name, *state.graph);
+    library_inputs.reserve(imported_libraries.size());
+    for (const auto& lib_name : imported_libraries) {
+      const auto built_it = state.built_artifacts.find(lib_name);
+      if (built_it == state.built_artifacts.end() ||
+          !built_it->second.primary_artifact.has_value()) {
+        EmitInternalDiagnostic(result.diags,
+                               "Missing built library artifact for `" +
+                                   lib_name + "`");
+        return result;
+      }
+      library_inputs.push_back(*built_it->second.primary_artifact);
+    }
+
+    const auto extern_specs = CollectExternLibrarySpecs(*ast_modules);
+    const auto extern_inputs =
+        ResolveExternLibraryInputs(extern_specs, state.target_profile);
+    const auto extra_inputs =
+        AppendUniquePaths(library_inputs, extern_inputs);
+    const LinkPlan link_plan =
+        BuildOutputLinkPlan(*output_project, state.target_profile, *ast_modules,
+                            state.deps, result.diags);
+    if (core::HasError(result.diags)) {
+      return result;
+    }
+
+    auto assembly_result = OutputPipelineSingleAssembly(*output_project,
+                                                        state.target_profile,
+                                                        state.deps,
+                                                        extra_inputs,
+                                                        link_plan);
+    for (const auto& diag : assembly_result.diags) {
+      core::Emit(result.diags, diag);
+    }
+    if (!assembly_result.artifacts.has_value()) {
+      return result;
+    }
+    state.built_artifacts[output_project->assembly.name] =
+        *assembly_result.artifacts;
+    if (output_project->assembly.name == project.assembly.name) {
+      result.artifacts = assembly_result.artifacts;
+    }
   }
-  return OutputPipelineRecursive(*root_project, state);
+  return result;
 }
 
 

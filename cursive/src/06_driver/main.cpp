@@ -1083,6 +1083,139 @@ struct IncrementalNoopCheckResult {
   std::string reason;
 };
 
+struct FullProjectNoopCheckResult {
+  bool reusable = false;
+  std::size_t assemblies = 0;
+  std::size_t modules = 0;
+  std::string reason;
+};
+
+std::unordered_map<std::string, cursive::project::ModuleInfo>
+BuildModuleInfoMapForAssemblies(
+    const std::vector<cursive::project::Assembly>& assemblies) {
+  std::unordered_map<std::string, cursive::project::ModuleInfo> modules;
+  for (const auto& assembly : assemblies) {
+    for (const auto& module : assembly.modules) {
+      modules.emplace(module.path, module);
+    }
+  }
+  return modules;
+}
+
+bool LinkableArtifactExists(const cursive::project::Project& project,
+                            cursive::project::TargetProfile target_profile) {
+  std::error_code ec;
+  const auto primary =
+      cursive::project::PrimaryArtifactPath(project, target_profile);
+  if (!primary.has_value() ||
+      !std::filesystem::exists(*primary, ec) || ec) {
+    return false;
+  }
+  if (const auto import_lib =
+          cursive::project::ImportLibPath(project, target_profile);
+      import_lib.has_value()) {
+    ec.clear();
+    if (!std::filesystem::exists(*import_lib, ec) || ec) {
+      return false;
+    }
+  }
+  if (const auto map_path = cursive::project::MapPath(project, target_profile);
+      map_path.has_value()) {
+    ec.clear();
+    if (!std::filesystem::exists(*map_path, ec) || ec) {
+      return false;
+    }
+  }
+  return true;
+}
+
+FullProjectNoopCheckResult CheckWholeProjectNoopReuse(
+    const cursive::project::Project& project,
+    cursive::project::TargetProfile target_profile,
+    const cursive::driver::CliOptions& opts,
+    cursive::core::DiagnosticStream& diags) {
+  FullProjectNoopCheckResult result;
+
+  if (!IncrementalEnabled()) {
+    result.reason = "disabled";
+    return result;
+  }
+  if (opts.phase1_only) {
+    result.reason = "phase1-only";
+    return result;
+  }
+  if (opts.check_only) {
+    result.reason = "check-only";
+    return result;
+  }
+  if (opts.emit_ir) {
+    result.reason = "emit-ir-cli";
+    return result;
+  }
+  if (opts.no_output) {
+    result.reason = "no-output";
+    return result;
+  }
+
+  const auto module_info_by_path =
+      BuildModuleInfoMapForAssemblies(project.assemblies);
+
+  for (const auto& assembly : project.assemblies) {
+    const auto assembly_project = cursive::project::AssemblyProject(project, assembly);
+    const auto manifest_path = IncrementalManifestPath(assembly_project);
+    const auto manifest = LoadIncrementalManifest(manifest_path);
+    if (!manifest.has_value()) {
+      result.reason = "manifest-missing:" + assembly.name;
+      return result;
+    }
+
+    const std::string build_key =
+        BuildIncrementalBuildKey(assembly_project, target_profile, opts);
+    const std::string emit_ir = EffectiveEmitIR(assembly_project);
+    const bool compatible =
+        manifest->format == "1" &&
+        manifest->assembly == assembly_project.assembly.name &&
+        manifest->kind == assembly_project.assembly.kind &&
+        manifest->emit_ir == emit_ir &&
+        manifest->build_key == build_key;
+    if (!compatible) {
+      result.reason = "manifest-incompatible:" + assembly.name;
+      return result;
+    }
+
+    for (const auto& [module_path, module_state] : manifest->modules) {
+      const auto module_it = module_info_by_path.find(module_path);
+      if (module_it == module_info_by_path.end()) {
+        result.reason = "module-missing:" + module_path;
+        return result;
+      }
+      const auto current_hash =
+          ComputeModuleSourceHash(module_it->second, diags);
+      if (!current_hash.has_value()) {
+        result.reason = "source-hash-failed:" + module_path;
+        return result;
+      }
+      if (*current_hash != module_state.info.source_hash) {
+        result.reason = "source-changed:" + module_path;
+        return result;
+      }
+      result.modules += 1;
+    }
+
+    if (cursive::project::IsLinkable(assembly_project.assembly) &&
+        !LinkableArtifactExists(assembly_project, target_profile)) {
+      result.reason = "artifact-missing:" + assembly.name;
+      return result;
+    }
+
+    result.assemblies += 1;
+  }
+
+  result.reusable = true;
+  result.reason = "full-project-unchanged";
+  return result;
+}
+
 IncrementalNoopCheckResult CheckIncrementalNoopReuse(
     const cursive::project::Project& project,
     cursive::project::TargetProfile target_profile,
@@ -1103,11 +1236,6 @@ IncrementalNoopCheckResult CheckIncrementalNoopReuse(
     result.reason = "empty-module-set";
     return result;
   }
-  if (project.modules.size() != project.assembly.modules.size()) {
-    result.reason = "multi-assembly-graph";
-    return result;
-  }
-
   const auto manifest_path = IncrementalManifestPath(project);
   const auto manifest = LoadIncrementalManifest(manifest_path);
   if (!manifest.has_value()) {
@@ -1567,16 +1695,43 @@ int main(int argc, char** argv) {
       selected_target_profile.has_value()) {
     const auto& proj = *project_result.project;
     const auto target_profile = *selected_target_profile;
-    progress("Loading",
-             project_root.filename().string() + " (" +
-                 std::to_string(proj.modules.size()) + " modules)");
-    if (is_verbose) {
-      for (const auto& module : proj.modules) {
-        std::cerr << "       module: " << module.path << "\n";
+    if (!opts->phase1_only && !opts->check_only && !opts->emit_ir &&
+        !opts->no_output) {
+      const auto global_noop =
+          CheckWholeProjectNoopReuse(proj, target_profile, *opts, diags);
+      log_machine("phase=incremental-global reusable=" +
+                  std::string(global_noop.reusable ? "true" : "false") +
+                  " reason=" + global_noop.reason +
+                  " assemblies=" + std::to_string(global_noop.assemblies) +
+                  " modules=" + std::to_string(global_noop.modules));
+      if (is_verbose) {
+        if (global_noop.reusable) {
+          std::cerr << "  incremental: full-project cache hit (no changes)\n";
+        } else {
+          std::cerr << "  incremental: full-project rebuild required ("
+                    << global_noop.reason << ")\n";
+        }
+        std::cerr.flush();
       }
-      std::cerr.flush();
+      if (global_noop.reusable) {
+        resolve_ok = true;
+        typecheck_ok = true;
+        phase4_ok = true;
+        incremental_noop_reused = true;
+      }
     }
-    EnsureRuntimeLogDirectory(proj, *opts);
+
+    if (!incremental_noop_reused) {
+      progress("Loading",
+               project_root.filename().string() + " (" +
+                   std::to_string(proj.modules.size()) + " modules)");
+      if (is_verbose) {
+        for (const auto& module : proj.modules) {
+          std::cerr << "       module: " << module.path << "\n";
+        }
+        std::cerr.flush();
+      }
+      EnsureRuntimeLogDirectory(proj, *opts);
 
     frontend::ParseModuleDeps deps;
     deps.compilation_unit = project::CompilationUnit;
@@ -2269,12 +2424,11 @@ int main(int argc, char** argv) {
                 const auto trace_min_level = lower_ctx.trace_min_level;
                 const std::string trace_root = lower_ctx.trace_root;
                 const std::string log_file_path = lower_ctx.log_file_path;
-                auto lazy_caches = std::make_shared<std::unordered_map<
-                    std::string, std::shared_ptr<CodegenCache>>>();
-                auto lazy_cache_mu = std::make_shared<std::mutex>();
+                auto shared_cache = std::make_shared<std::shared_ptr<CodegenCache>>();
+                auto shared_cache_mu = std::make_shared<std::mutex>();
                 auto ensure_cache =
-                    [lazy_caches,
-                     lazy_cache_mu,
+                    [shared_cache,
+                     shared_cache_mu,
                      ctx_ptr,
                      name_maps_ptr,
                      typechecked_ptr,
@@ -2286,21 +2440,20 @@ int main(int argc, char** argv) {
                      trace_min_level,
                      trace_root,
                      log_file_path,
+                     &sema_project,
                      &log_machine](
                         const project::Project& p)
                         -> std::shared_ptr<CodegenCache> {
-                  const std::string cache_key =
-                      p.assembly.name + "|" + p.assembly.kind + "|" +
-                      p.assembly.link_kind.value_or("none");
                   {
-                    std::lock_guard<std::mutex> lock(*lazy_cache_mu);
-                    auto cache_it = lazy_caches->find(cache_key);
-                    if (cache_it == lazy_caches->end()) {
+                    std::lock_guard<std::mutex> lock(*shared_cache_mu);
+                    if (!*shared_cache) {
                       const auto cache_start = std::chrono::steady_clock::now();
+                      const std::string cache_key =
+                          "global|" + sema_project.assembly.name;
                       log_machine("phase=codegen cache=build-start key=" +
                                   cache_key + " modules=" +
-                                  std::to_string(p.modules.size()));
-                      auto cache = BuildCodegenCache(p,
+                                  std::to_string(sema_project.modules.size()));
+                      auto cache = BuildCodegenCache(sema_project,
                                                      *ctx_ptr,
                                                      *name_maps_ptr,
                                                      *typechecked_ptr);
@@ -2314,7 +2467,7 @@ int main(int argc, char** argv) {
                         cache->ctx.trace_root = trace_root;
                         cache->ctx.log_file_path = log_file_path;
                       }
-                      (*lazy_caches)[cache_key] = cache;
+                      *shared_cache = cache;
                       const auto elapsed =
                           std::chrono::duration_cast<std::chrono::milliseconds>(
                               std::chrono::steady_clock::now() - cache_start)
@@ -2330,7 +2483,7 @@ int main(int argc, char** argv) {
                                   " elapsed_ms=" + std::to_string(elapsed));
                     }
                   }
-                  return (*lazy_caches)[cache_key];
+                  return *shared_cache;
                 };
 
                 if (IncrementalEnabled()) {
@@ -2447,12 +2600,22 @@ int main(int argc, char** argv) {
                   out_deps.linker_syms = project::LinkerSyms;
                   out_deps.archive_members = project::ArchiveMembers;
                   out_deps.invoke_archiver = project::InvokeArchiver;
+                  const auto* front_end_ast_modules =
+                      parsed_project_module_set.has_value()
+                          ? &*parsed_project_module_set
+                          : &ctx.sigma.mods;
+                  out_deps.resolve_project_ast_modules =
+                      [front_end_ast_modules](const project::Project&)
+                          -> std::optional<std::reference_wrapper<
+                              const std::vector<ast::ASTModule>>> {
+                    return std::cref(*front_end_ast_modules);
+                  };
                   out_deps.resolve_ast_modules =
-                      [&ctx](const project::Project& p)
+                      [front_end_ast_modules](const project::Project& p)
                           -> frontend::ParseModulesResult {
                     frontend::ParseModulesResult parsed;
                     parsed.modules =
-                        FilterAstModulesForProject(ctx.sigma.mods, p);
+                        FilterAstModulesForProject(*front_end_ast_modules, p);
                     return parsed;
                   };
                   out_deps.resolve_shared_library_exports =
@@ -2462,6 +2625,7 @@ int main(int argc, char** argv) {
                     if (!cache || !cache->ok.load()) {
                       return std::nullopt;
                     }
+                    ConfigureCodegenContextForProject(*cache, p);
                     if (!PopulateCodegenModules(*cache, p)) {
                       return std::nullopt;
                     }
@@ -2510,20 +2674,12 @@ int main(int argc, char** argv) {
                             output_project.assembly.name);
                     phase4_ok = false;
                   } else {
-                    if (!PopulateCodegenModules(*codegen_cache, output_project)) {
-                      EmitInternalDiagnostic(
-                          diags, core::Severity::Error, std::nullopt,
-                          "Failed to lower complete module set for assembly: " +
-                              output_project.assembly.name);
-                      phase4_ok = false;
-                    } else {
-                      auto output =
-                          project::OutputPipeline(output_project,
-                                                  target_profile,
-                                                  out_deps);
-                      AppendDiags(diags, output.diags);
-                      phase4_ok = output.artifacts.has_value();
-                    }
+                    auto output =
+                        project::OutputPipeline(output_project,
+                                                target_profile,
+                                                out_deps);
+                    AppendDiags(diags, output.diags);
+                    phase4_ok = output.artifacts.has_value();
                   }
                 }
               }
@@ -2536,6 +2692,7 @@ int main(int argc, char** argv) {
         }
       }
     }
+  }
   }
 
   // ========================================================================

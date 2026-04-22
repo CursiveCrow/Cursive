@@ -29,6 +29,7 @@
 #include "05_codegen/checks/checks.h"
 #include "05_codegen/ir/ir_model.h"
 #include "05_codegen/layout/layout.h"
+#include "05_codegen/lower/expr/expr_common.h"
 #include "05_codegen/lower/lower_expr.h"
 #include "05_codegen/lower/lower_pat.h"
 #include "05_codegen/lower/lower_proc.h"
@@ -843,9 +844,7 @@ LowerResult LowerDispatchExpr(const ast::DispatchExpr& node, LowerCtx& ctx) {
       }
       ctx.PopScope();
 
-      IRValue unit_ret;
-      unit_ret.kind = IRValue::Kind::Opaque;
-      unit_ret.name = "unit";
+      IRValue unit_ret = ctx.FreshTempValue("unit");
       IRReturn ret;
       ret.value = unit_ret;
       parts.push_back(MakeIR(std::move(ret)));
@@ -922,6 +921,8 @@ LowerResult LowerDispatchExpr(const ast::DispatchExpr& node, LowerCtx& ctx) {
     ctx.RegisterVar(panic_param.name, panic_param.type, true, false);
     proc.params[4].stable_name = ctx.StableBindingName(panic_param.name);
 
+    IRPtr proc_region_ir = EnterSyntheticProcedureRegion(ctx);
+
     IRValue env_param_val;
     env_param_val.kind = IRValue::Kind::Local;
     env_param_val.name = env_param.name;
@@ -946,11 +947,10 @@ LowerResult LowerDispatchExpr(const ast::DispatchExpr& node, LowerCtx& ctx) {
     if (node.body) {
       body_result = LowerBlock(*node.body, ctx);
     } else {
-      IRValue unit_val;
-      unit_val.kind = IRValue::Kind::Opaque;
-      unit_val.name = "unit";
+      IRValue unit_val = ctx.FreshTempValue("unit");
       body_result = LowerResult{EmptyIR(), unit_val};
     }
+    ctx.active_region_aliases.pop_back();
 
     IRPtr store_ir = EmptyIR();
     if (!IsUnitType(body_type)) {
@@ -967,14 +967,15 @@ LowerResult LowerDispatchExpr(const ast::DispatchExpr& node, LowerCtx& ctx) {
     IRPtr cleanup_ir = EmitCleanup(cleanup_plan, ctx);
     ctx.PopScope();
 
-    IRValue unit_ret;
-    unit_ret.kind = IRValue::Kind::Opaque;
-    unit_ret.name = "unit";
+    IRValue unit_ret = ctx.FreshTempValue("unit");
     IRReturn ret;
     ret.value = unit_ret;
 
     std::vector<IRPtr> parts;
     parts.push_back(MakeIR(IRCancelSuppress{}));
+    if (proc_region_ir && !std::holds_alternative<IROpaque>(proc_region_ir->node)) {
+      parts.push_back(proc_region_ir);
+    }
     parts.push_back(MakeIR(std::move(read_elem)));
     if (bind_ir && !std::holds_alternative<IROpaque>(bind_ir->node)) {
       parts.push_back(bind_ir);
@@ -1001,9 +1002,7 @@ LowerResult LowerDispatchExpr(const ast::DispatchExpr& node, LowerCtx& ctx) {
   dispatch.pattern = node.pattern;
   dispatch.range = range_result.value;
   dispatch.body = EmptyIR();
-  IRValue unit_body;
-  unit_body.kind = IRValue::Kind::Opaque;
-  unit_body.name = "unit";
+  IRValue unit_body = ctx.FreshTempValue("unit");
   dispatch.body_result = unit_body;
   dispatch.captured_env = SeqIR(std::move(env_parts));
   dispatch.env_ptr = env_ptr;

@@ -424,7 +424,10 @@ struct LowerCtx {
   void ReportCodegenFailure(
       std::source_location loc = std::source_location::current());
 
-  void RegisterValueType(const IRValue& value, analysis::TypeRef type);
+  void RegisterValueType(
+      const IRValue& value,
+      analysis::TypeRef type,
+      std::source_location loc = std::source_location::current());
   analysis::TypeRef LookupValueType(const IRValue& value) const;
   void RegisterStaticType(const std::string& sym, analysis::TypeRef type);
   analysis::TypeRef LookupStaticType(const std::string& sym) const;
@@ -482,7 +485,7 @@ struct LowerCtx {
   std::vector<TempValue>* temp_sink = nullptr;
   int temp_depth = 0;
   std::optional<int> suppress_temp_at_depth;
-  std::uint64_t temp_counter = 0;
+  std::shared_ptr<std::uint64_t> temp_counter = std::make_shared<std::uint64_t>(0);
 
   // Structured concurrency implicit result collection for parallel blocks
   std::vector<ParallelCollectItem>* parallel_collect = nullptr;
@@ -714,7 +717,9 @@ std::pair<IRPtr, std::vector<IRValue>> LowerArgs(
     const ParamTypeList* param_types = nullptr);
 
 // §6.4 LowerMethodCall - lower method call expression
-LowerResult LowerMethodCall(const ast::MethodCallExpr& expr, LowerCtx& ctx);
+LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
+                            const ast::MethodCallExpr& expr,
+                            LowerCtx& ctx);
 
 // ============================================================================
 // §6.4 Control Flow Expression Lowering

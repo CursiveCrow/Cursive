@@ -14,6 +14,7 @@
 
 #include "05_codegen/lower/stmt/expr_stmt.h"
 
+#include <iterator>
 #include <variant>
 
 #include "00_core/assert_spec.h"
@@ -167,6 +168,46 @@ std::optional<ModalTransitionUpdate> DetectModalTransitionUpdate(
   return update;
 }
 
+bool IsRegionModalState(const analysis::TypeRef& type,
+                        std::string_view state_name) {
+  analysis::TypeRef stripped = analysis::StripPerm(type);
+  if (!stripped) {
+    return false;
+  }
+  const auto* modal = std::get_if<analysis::TypeModalState>(&stripped->node);
+  if (!modal || modal->state != state_name) {
+    return false;
+  }
+  return modal->path.size() == 1 && modal->path.front() == "Region";
+}
+
+void RemoveActiveRegionAlias(LowerCtx& ctx, const std::string& name) {
+  for (auto it = ctx.active_region_aliases.rbegin();
+       it != ctx.active_region_aliases.rend();
+       ++it) {
+    if (*it != name) {
+      continue;
+    }
+    ctx.active_region_aliases.erase(std::next(it).base());
+    return;
+  }
+}
+
+void SyncActiveRegionAliasForTransition(const ModalTransitionUpdate& update,
+                                        LowerCtx& ctx) {
+  if (IsRegionModalState(update.target_type, "Active")) {
+    for (const auto& active : ctx.active_region_aliases) {
+      if (active == update.binding_name) {
+        return;
+      }
+    }
+    ctx.active_region_aliases.push_back(update.binding_name);
+    return;
+  }
+
+  RemoveActiveRegionAlias(ctx, update.binding_name);
+}
+
 void ApplyModalTransitionUpdate(const ModalTransitionUpdate& update, LowerCtx& ctx) {
   auto it = ctx.binding_states.find(update.binding_name);
   if (it != ctx.binding_states.end() && !it->second.empty()) {
@@ -180,6 +221,7 @@ void ApplyModalTransitionUpdate(const ModalTransitionUpdate& update, LowerCtx& c
   local.kind = IRValue::Kind::Local;
   local.name = update.binding_name;
   ctx.RegisterValueType(local, update.target_type);
+  SyncActiveRegionAliasForTransition(update, ctx);
 }
 
 // Check if a dispatch expression has a reduce option

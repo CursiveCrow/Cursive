@@ -106,6 +106,12 @@ IRPtr LowerImplicitKeyAccess(const ast::Expr& expr,
                              ast::KeyMode mode,
                              LowerCtx& ctx);
 
+// Establish the procedure-local region used by synthesized callable bodies
+// such as spawn and dispatch wrappers. The caller must have pushed the wrapper
+// root scope before calling this and must pop ctx.active_region_aliases after
+// lowering the body, before computing cleanup for that scope.
+IRPtr EnterSyntheticProcedureRegion(LowerCtx& ctx);
+
 // Check if attributes contain [[log]]
 bool HasLogAttr(const ast::AttributeList& attrs);
 

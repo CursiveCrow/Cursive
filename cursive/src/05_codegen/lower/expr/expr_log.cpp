@@ -1077,7 +1077,7 @@ IRPtr EmitLogAttributeTrace(const ast::AttributeList& attrs,
         "Log-Expr", BuildLogPayloadPrefix(attrs, span, target_kind, "unsupported"),
         actual, observed_type, span, &ctx);
   }
-  expected_imm->literal_id = ++ctx.temp_counter;
+  expected_imm->literal_id = ++(*ctx.temp_counter);
   ctx.RegisterValueType(*expected_imm, observed_type);
 
   auto payload_pass = BuildLogPayloadPrefix(attrs, span, target_kind, "pass");
@@ -1156,7 +1156,7 @@ IRPtr EmitProcLogTraceWithCmp(std::string_view rule_id,
     return EmitRuntimeTraceWithActual(rule_id, std::move(payload_base), actual,
                                       observed_type, span, &ctx);
   }
-  expected_imm->literal_id = ++ctx.temp_counter;
+  expected_imm->literal_id = ++(*ctx.temp_counter);
   ctx.RegisterValueType(*expected_imm, observed_type);
 
   std::string payload_pass = payload_base + ";cmp=pass;actual=";

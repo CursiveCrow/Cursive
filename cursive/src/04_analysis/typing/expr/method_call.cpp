@@ -1003,8 +1003,8 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
     return result;
   }
 
-  if (std::holds_alternative<TypePathType>(lookup_base->node)) {
-    const auto async_sig = GetAsyncSig(lookup_base);
+  {
+    const auto async_sig = AsyncSigOf(ctx, lookup_base);
     if (async_sig.has_value()) {
       // Route Async combinator typing through built-in modal member lookup.
       const TypePath async_modal_path = {"Async"};
@@ -1337,7 +1337,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
         return result;
         }
       }
-    }
+  }
   }
 
   if (const auto builtin_sig =

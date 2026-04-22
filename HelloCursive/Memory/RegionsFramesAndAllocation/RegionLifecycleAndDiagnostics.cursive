@@ -4,6 +4,8 @@ procedure RegionExpiredPointerAcceptance(value: Ptr<i32>@Expired) -> i32 {
 }
 
 procedure RegionStalePointerInvalidationProbe() -> i32 {
+    var result_metric: i32 = 0
+
     region as r {
         let live_value: i32 = r ^ 16
         let live_ptr: Ptr<i32>@Valid = &live_value
@@ -16,16 +18,16 @@ procedure RegionStalePointerInvalidationProbe() -> i32 {
             let stale_accept_metric: i32 =
                 RegionExpiredPointerAcceptance(stale_expired_ptr)
             let stale_shape_metric: bool = stale_expired_ptr == stale_expired_ptr
-            r~>free_unchecked()
 
             if ((live_metric == 16) &&
                 (stale_accept_metric == 1) &&
                 (stale_shape_metric == true)) {
-                return 17
+                result_metric = 17
             }
+            r~>free_unchecked()
         }
     }
-    return 0
+    return result_metric
 }
 
 procedure RegionLifecycleDiagnosticsMetricLabel(value: i32) -> string@View {
@@ -56,7 +58,6 @@ public procedure RunRegionLifecycleAndDiagnostics(ctx: Context) -> i32 {
         unsafe {
             r~>reset_unchecked()
             let alloc_after_reset: i32 = r ^ 6
-            r~>free_unchecked()
 
             let active_state_ok: bool = active_sum == 7
             let freeze_thaw_ok: bool = alloc_after_thaw == 5
@@ -76,6 +77,8 @@ public procedure RunRegionLifecycleAndDiagnostics(ctx: Context) -> i32 {
                 [[log(label: "memory-log-item_fail")]]
                 return 1
             }
+
+            r~>free_unchecked()
         }
     }
 

@@ -94,7 +94,7 @@ void MergeLowerCtxTemps(LowerCtx& base, const LowerCtx& branch) {
       base.drop_glue_types.emplace(name, type);
     }
   }
-  base.temp_counter = std::max(base.temp_counter, branch.temp_counter);
+  *base.temp_counter = std::max(*base.temp_counter, *branch.temp_counter);
 }
 
 // Merge move states from multiple branch contexts into a single base context
