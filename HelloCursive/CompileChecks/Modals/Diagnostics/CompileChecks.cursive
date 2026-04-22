@@ -11,9 +11,20 @@ public procedure runCompileChecks(ctx: Context) -> i32 {
 
     let modal_ref_apply_command: string@View =
         "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance modal_ref_type_apply.log ..\\TestProjects\\Modals\\Diagnostics\\ModalRefTypeApplyConformance\\Main.cursive > build\\main\\logs\\compile_checks\\modal_ref_type_apply.json 2> build\\main\\logs\\compile_checks\\modal_ref_type_apply.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"result\" ..\\TestProjects\\Modals\\Diagnostics\\ModalRefTypeApplyConformance\\build\\probe\\logs\\conformance\\modal_ref_type_apply.log >nul"
-    return testsupport::runCompileCheckCommand(
+    let modal_ref_apply_status: i32 = testsupport::runCompileCheckCommand(
         ctx,
         modal_ref_apply_command,
         "modals/diagnostics/modal_ref_type_apply_conformance"
+    )
+    if (modal_ref_apply_status != 0) {
+        return modal_ref_apply_status
+    }
+
+    let modal_decl_of_command: string@View =
+        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue986_modal_decl_of_direct.log ..\\TestProjects\\Modals\\Diagnostics\\Generated\\issue986_modal_decl_of_direct\\Main.cursive > build\\main\\logs\\compile_checks\\issue986_modal_decl_of_direct.json 2> build\\main\\logs\\compile_checks\\issue986_modal_decl_of_direct.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"ModalDeclOf\" ..\\TestProjects\\Modals\\Diagnostics\\Generated\\issue986_modal_decl_of_direct\\build\\probe\\logs\\conformance\\issue986_modal_decl_of_direct.log >nul"
+    return testsupport::runCompileCheckCommand(
+        ctx,
+        modal_decl_of_command,
+        "modals/diagnostics/issue986_modal_decl_of_direct"
     )
 }

@@ -5,7 +5,7 @@
  *
  * SPEC REFERENCE:
  *   - CursiveSpecification.md, Section 5.4 "Modal Types"
- *   - CursiveSpecification.md, ModalDeclOf(modal_ref) = M (line 12290)
+ *   - CursiveSpecification.md, ModalDeclOf(modal_ref) = M (line 10433)
  *   - CursiveSpecification.md, States(M) (line 12464)
  *   - CursiveSpecification.md, Section 8.7 "E-MOD Errors"
  *
@@ -13,8 +13,8 @@
  *   - cursive-bootstrap/src/03_analysis/modal/modal.cpp (lines 1-60)
  *
  * FUNCTIONS:
- *   - LookupModalDecl(ctx, path) -> ModalDecl*
- *       Find modal declaration by type path in scope context
+ *   - LookupModalDecl(ctx, modal_ref) -> ModalDecl*
+ *       Find modal declaration by ModalRefPath(modal_ref) in Sigma.Types
  *   - LookupModalState(decl, state) -> StateBlock*
  *       Find specific state within a modal declaration
  *   - HasState(decl, state) -> bool
@@ -25,7 +25,7 @@
  * DEPENDENCIES:
  *   - ModalDecl, StateBlock from AST (ast_items.h)
  *   - ScopeContext, TypePath, IdKey from typing/context.h
- *   - Scope lookup utilities from resolve/scopes.h, resolve/scopes_lookup.h
+ *   - Scope lookup utilities from resolve/scopes.h
  *
  * IMPLEMENTATION NOTES:
  *   1. Modal types have states prefixed with @ (e.g., @Connected, @Disconnected)
@@ -47,45 +47,35 @@
 #include <utility>
 
 #include "04_analysis/resolve/scopes.h"
-#include "04_analysis/resolve/scopes_lookup.h"
 
 namespace cursive::analysis {
 
-// SPEC_DEF: ModalDeclOf(modal_ref) = M (CursiveSpecification.md, line 12290)
-// Looks up a modal declaration from a type path, searching the type registry
-// in the scope context's sigma.
 const ast::ModalDecl* LookupModalDecl(const ScopeContext& ctx,
                                        const TypePath& path) {
-  // Convert TypePath (vector<string>) to ast::Path (vector<Identifier>)
+  ModalRef modal_ref = path;
+  return LookupModalDecl(ctx, modal_ref);
+}
+
+// SPEC_DEF: ModalDeclOf(modal_ref) = M (CursiveSpecification.md, line 10433)
+// ModalDeclOf is intentionally a direct Sigma.Types lookup by
+// ModalRefPath(modal_ref). Name resolution belongs to ResolveModalRef before
+// this definition is applied.
+const ast::ModalDecl* LookupModalDecl(const ScopeContext& ctx,
+                                      const ModalRef& modal_ref) {
+  SPEC_RULE("ModalDeclOf");
+  const auto& path = ModalRefPath(modal_ref);
+
   ast::Path ast_path;
   ast_path.reserve(path.size());
   for (const auto& comp : path) {
     ast_path.push_back(comp);
   }
 
-  // First, try direct lookup in the type registry
   const auto it = ctx.sigma.types.find(PathKeyOf(ast_path));
   if (it == ctx.sigma.types.end()) {
-    // If direct lookup fails and path has single component,
-    // try resolving through scope lookup
-    if (path.size() == 1) {
-      const auto ent = ResolveTypeName(ctx, path[0]);
-      if (ent.has_value() && ent->origin_opt.has_value()) {
-        // Construct the full resolved path
-        ast::Path resolved = *ent->origin_opt;
-        resolved.emplace_back(ent->target_opt.value_or(path[0]));
-
-        // Lookup in type registry with resolved path
-        const auto resolved_it = ctx.sigma.types.find(PathKeyOf(resolved));
-        if (resolved_it != ctx.sigma.types.end()) {
-          return std::get_if<ast::ModalDecl>(&resolved_it->second);
-        }
-      }
-    }
     return nullptr;
   }
 
-  // Return the modal declaration if found, nullptr otherwise
   return std::get_if<ast::ModalDecl>(&it->second);
 }
 

@@ -12,6 +12,9 @@ namespace cursive::analysis {
 const ast::ModalDecl* LookupModalDecl(const ScopeContext& ctx,
                                          const TypePath& path);
 
+const ast::ModalDecl* LookupModalDecl(const ScopeContext& ctx,
+                                      const ModalRef& modal_ref);
+
 const ast::StateBlock* LookupModalState(const ast::ModalDecl& decl,
                                            std::string_view state);
 

@@ -400,12 +400,7 @@ static TypeWfResult TypeWFImpl(const ScopeContext& ctx, const TypeRef& type) {
           SPEC_RULE("WF-RawPtr");
           return {true, std::nullopt};
         } else if constexpr (std::is_same_v<T, TypeModalState>) {
-          ast::TypePath ast_path;
-          ast_path.reserve(node.path.size());
-          for (const auto& comp : node.path) {
-            ast_path.push_back(comp);
-          }
-          const auto* decl = LookupModalDecl(ctx, ast_path);
+          const auto* decl = LookupModalDecl(ctx, node.modal_ref);
           if (!decl || !HasState(*decl, node.state)) {
             return {};
           }
