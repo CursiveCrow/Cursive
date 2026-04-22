@@ -1088,4 +1088,3 @@ InferResult InferTypeArguments(
 }
 
 }  // namespace cursive::analysis
-

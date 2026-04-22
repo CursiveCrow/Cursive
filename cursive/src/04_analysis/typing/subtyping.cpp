@@ -135,6 +135,28 @@ static bool TypePathEq(const TypePath& lhs, const TypePath& rhs) {
   return true;
 }
 
+struct AppliedTypeView {
+  const TypePath* path = nullptr;
+  const std::vector<TypeRef>* args = nullptr;
+};
+
+static std::optional<AppliedTypeView> GetAppliedTypeView(const TypeRef& type) {
+  if (!type) {
+    return std::nullopt;
+  }
+  if (const auto* path = std::get_if<TypePathType>(&type->node)) {
+    return AppliedTypeView{&path->path, &path->generic_args};
+  }
+  return std::nullopt;
+}
+
+static TypePathType ToTypePathType(const AppliedTypeView& view) {
+  TypePathType out;
+  out.path = *view.path;
+  out.generic_args = *view.args;
+  return out;
+}
+
 static const TypeDecl* LookupTypeDecl(
     const ScopeContext& ctx,
     const TypePath& path) {
@@ -699,20 +721,20 @@ SubtypingResult Subtyping(const ScopeContext& ctx,
     return {true, std::nullopt, true};
   }
 
-  if (const auto* lpath = std::get_if<TypePathType>(&lhs->node)) {
-    if (const auto* rpath = std::get_if<TypePathType>(&rhs->node)) {
-      if (TypePathEq(lpath->path, rpath->path) &&
-          lpath->generic_args.size() == rpath->generic_args.size()) {
-        const auto variance_info = BuildGenericVarianceInfo(ctx, lpath->path);
+  if (const auto lpath = GetAppliedTypeView(lhs)) {
+    if (const auto rpath = GetAppliedTypeView(rhs)) {
+      if (TypePathEq(*lpath->path, *rpath->path) &&
+          lpath->args->size() == rpath->args->size()) {
+        const auto variance_info = BuildGenericVarianceInfo(ctx, *lpath->path);
         if (!variance_info.ok) {
           return {false, variance_info.diag_id, false};
         }
         if (variance_info.found &&
-            variance_info.params.size() == lpath->generic_args.size()) {
+            variance_info.params.size() == lpath->args->size()) {
           SPEC_RULE("Sub-Generic");
-          for (std::size_t i = 0; i < lpath->generic_args.size(); ++i) {
-            const auto& lhs_arg = lpath->generic_args[i];
-            const auto& rhs_arg = rpath->generic_args[i];
+          for (std::size_t i = 0; i < lpath->args->size(); ++i) {
+            const auto& lhs_arg = (*lpath->args)[i];
+            const auto& rhs_arg = (*rpath->args)[i];
             const auto& param = variance_info.params[i];
             Variance variance = Variance::Invariant;
             if (!variance_info.member_types.empty()) {
@@ -767,8 +789,8 @@ SubtypingResult Subtyping(const ScopeContext& ctx,
     }
   }
 
-  if (const auto* lpath = std::get_if<TypePathType>(&lhs->node)) {
-    const auto expanded = ExpandTypeAliasApply(ctx, *lpath);
+  if (const auto lpath = GetAppliedTypeView(lhs)) {
+    const auto expanded = ExpandTypeAliasApply(ctx, ToTypePathType(*lpath));
     if (!expanded.ok) {
       return {false, expanded.diag_id, false};
     }
@@ -776,8 +798,8 @@ SubtypingResult Subtyping(const ScopeContext& ctx,
       return Subtyping(ctx, expanded.type, rhs);
     }
   }
-  if (const auto* rpath = std::get_if<TypePathType>(&rhs->node)) {
-    const auto expanded = ExpandTypeAliasApply(ctx, *rpath);
+  if (const auto rpath = GetAppliedTypeView(rhs)) {
+    const auto expanded = ExpandTypeAliasApply(ctx, ToTypePathType(*rpath));
     if (!expanded.ok) {
       return {false, expanded.diag_id, false};
     }
@@ -1043,15 +1065,15 @@ SubtypingResult Subtyping(const ScopeContext& ctx,
   }
 
   if (const auto* lmodal = std::get_if<TypeModalState>(&lhs->node)) {
-    if (const auto* rpath = std::get_if<TypePathType>(&rhs->node)) {
-      if (!TypePathEq(lmodal->path, rpath->path)) {
+    if (const auto rpath = GetAppliedTypeView(rhs)) {
+      if (!TypePathEq(lmodal->path, *rpath->path)) {
         return {true, std::nullopt, false};
       }
-      if (lmodal->generic_args.size() != rpath->generic_args.size()) {
+      if (lmodal->generic_args.size() != rpath->args->size()) {
         return {true, std::nullopt, false};
       }
       for (std::size_t i = 0; i < lmodal->generic_args.size(); ++i) {
-        const auto res = TypeEquiv(lmodal->generic_args[i], rpath->generic_args[i]);
+        const auto res = TypeEquiv(lmodal->generic_args[i], (*rpath->args)[i]);
         if (!res.ok) {
           return {false, res.diag_id, false};
         }

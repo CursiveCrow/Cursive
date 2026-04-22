@@ -1322,6 +1322,8 @@ static const StaticRuleMeta kStaticRules[] = {
     {"ModalRefArgs(TypePath(_))", "ParseJudgment", std::nullopt, "02_source/ast/ast_common.h", std::nullopt},
     {"ModalRefPath(TypeApply(p, _))", "ParseJudgment", std::nullopt, "02_source/ast/ast_common.h", std::nullopt},
     {"ModalRefPath(TypePath(p))", "ParseJudgment", std::nullopt, "02_source/ast/ast_common.h", std::nullopt},
+    {"ModalRefType(TypeApply(p, args))", "TypeInfJudg", std::nullopt, "04_analysis/typing/type_refs.cpp", std::nullopt},
+    {"ModalRefType(TypePath(p))", "TypeInfJudg", std::nullopt, "04_analysis/typing/type_refs.cpp", std::nullopt},
     {"Module-Dir", "LinkJudg", std::nullopt, "01_project/module_discovery.cpp", std::string_view("∃ f ∈ Files(d) : FileExt(f) = \".cursive\"")},
     {"Module-Path-Rel", "LinkJudg", std::nullopt, "01_project/module_discovery.cpp", std::string_view("relative(d, S) = c_1 / … / c_n")},
     {"Module-Path-Rel-Fail", "LinkJudg", std::nullopt, "01_project/module_discovery.cpp", std::string_view("relative(d, S) ⇑")},

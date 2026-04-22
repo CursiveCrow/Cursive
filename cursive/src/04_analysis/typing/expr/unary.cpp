@@ -94,14 +94,13 @@ ExprTypeResult TypeUnaryExprImpl(const ScopeContext& ctx,
       if (const auto* perm = std::get_if<TypePerm>(&operand.type->node)) {
         SPEC_RULE("T-Modal-Widen-Perm");
         result.ok = true;
-        result.type = MakeTypePerm(perm->perm,
-                                   MakeTypePath(modal->path, modal->generic_args));
+        result.type = MakeTypePerm(perm->perm, ModalRefType(modal->modal_ref));
         return result;
       }
 
       SPEC_RULE("T-Modal-Widen");
       result.ok = true;
-      result.type = MakeTypePath(modal->path, modal->generic_args);
+      result.type = ModalRefType(modal->modal_ref);
       return result;
     }
 

@@ -571,12 +571,18 @@ const std::vector<TypeRef>& ModalRefArgs(const ModalRef& modal_ref) {
 
 TypeRef ModalRefType(const ModalRef& modal_ref) {
   SpecDefsTypeRepr();
-  const auto& path = ModalRefPath(modal_ref);
-  const auto& args = ModalRefArgs(modal_ref);
-  if (args.empty()) {
-    return MakeTypePath(path);
-  }
-  return MakeTypePath(path, args);
+  return std::visit(
+      [](const auto& node) -> TypeRef {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, TypePath>) {
+          SPEC_RULE("ModalRefType(TypePath(p))");
+          return MakeTypePath(node);
+        } else {
+          SPEC_RULE("ModalRefType(TypeApply(p, args))");
+          return MakeTypePath(node.path, node.args);
+        }
+      },
+      modal_ref);
 }
 
 TypeRef MakeTypePrim(std::string name) {
@@ -1561,12 +1567,18 @@ std::optional<AsyncSig> AsyncSigOf(const ScopeContext& ctx, const TypeRef& type)
     return std::nullopt;
   }
 
-  const auto* path = std::get_if<TypePathType>(&type->node);
-  if (!path || path->path.empty()) {
+  const TypePath* path_name = nullptr;
+  const std::vector<TypeRef>* path_args = nullptr;
+  if (const auto* path = std::get_if<TypePathType>(&type->node)) {
+    path_name = &path->path;
+    path_args = &path->generic_args;
+  }
+
+  if (!path_name || path_name->empty()) {
     return std::nullopt;
   }
 
-  const auto* alias = LookupTypeAliasDecl(ctx, path->path);
+  const auto* alias = LookupTypeAliasDecl(ctx, *path_name);
   if (!alias) {
     return std::nullopt;
   }
@@ -1579,15 +1591,15 @@ std::optional<AsyncSig> AsyncSigOf(const ScopeContext& ctx, const TypeRef& type)
   TypeRef instantiated = lowered.type;
   if (alias->generic_params.has_value()) {
     const auto& params = alias->generic_params->params;
-    if (path->generic_args.size() > params.size()) {
+    if (path_args->size() > params.size()) {
       return std::nullopt;
     }
-    const auto subst = BuildSubstitution(params, path->generic_args);
+    const auto subst = BuildSubstitution(params, *path_args);
     instantiated = InstantiateType(instantiated, subst);
     if (!instantiated) {
       return std::nullopt;
     }
-  } else if (!path->generic_args.empty()) {
+  } else if (!path_args->empty()) {
     return std::nullopt;
   }
 
