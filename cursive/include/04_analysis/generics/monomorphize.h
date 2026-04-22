@@ -70,6 +70,11 @@ TypeSubst BuildSubstitution(
     const std::vector<ast::TypeParam>& params,
     const std::vector<TypeRef>& args);
 
+// Build the substitution defined by ModalRefSubst(modal_ref, M).
+TypeSubst BuildModalRefSubstitution(
+    const std::vector<ast::TypeParam>& params,
+    const std::vector<TypeRef>& args);
+
 // Check if type arguments satisfy bounds
 struct BoundCheckResult {
   bool ok = true;

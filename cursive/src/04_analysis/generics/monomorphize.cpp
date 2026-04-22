@@ -46,6 +46,8 @@ static inline void SpecDefsMonomorphize() {
   SPEC_DEF("InstGraph", "C0X.13.1.4");
   SPEC_DEF("Monomorphize", "C0X.13.1.4");
   SPEC_DEF("TypeSubst", "C0X.13.1.4");
+  SPEC_DEF("DefaultArgs", "14.1.4");
+  SPEC_DEF("ModalRefSubst", "13.1.3");
 }
 
 // Compare type keys for ordering
@@ -898,12 +900,16 @@ TypeSubst BuildSubstitution(
   }
 
   // Fill in defaults for missing args
-  // SPEC: CursiveSpecification.md Section 13.1.3 "Default Type Arguments"
+  // SPEC: CursiveSpecification.md Section 14.1.4 "DefaultArgs"
+  // Each default is substituted through the already-expanded argument prefix:
+  // A_i' = TypeSubst([A_1'/P_1.name, ...], T_i).
   for (std::size_t i = args.size(); i < params.size(); ++i) {
     if (params[i].default_type) {
       const auto default_arg = LowerDefaultType(params[i].default_type);
       if (default_arg.ok && default_arg.type) {
-        subst[params[i].name] = default_arg.type;
+        const auto substituted = InstantiateType(default_arg.type, subst);
+        subst[params[i].name] =
+            substituted ? substituted : MakeTypePrim("!");
       } else {
         // Preserve a concrete substitution entry so failure is not silent.
         // This invalid never-type forces subsequent checks to fail deterministically.
@@ -913,6 +919,15 @@ TypeSubst BuildSubstitution(
   }
 
   return subst;
+}
+
+TypeSubst BuildModalRefSubstitution(
+    const std::vector<ast::TypeParam>& params,
+    const std::vector<TypeRef>& args) {
+  SpecDefsMonomorphize();
+  SPEC_RULE("ModalRefSubst");
+
+  return BuildSubstitution(params, args);
 }
 
 BoundCheckResult CheckBoundsSatisfied(

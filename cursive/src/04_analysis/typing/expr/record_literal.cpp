@@ -13,6 +13,7 @@
 
 #include "00_core/assert_spec.h"
 #include "04_analysis/caps/cap_system.h"
+#include "04_analysis/generics/generic_params.h"
 #include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/modal/builtin_modal_intrinsics.h"
 #include "04_analysis/modal/modal.h"
@@ -33,6 +34,8 @@ static inline void SpecDefsRecordLiteral() {
   SPEC_DEF("T-Record-Literal", "5.2.12");
   SPEC_DEF("T-Modal-State-Intro", "5.4");
   SPEC_DEF("WF-ModalState", "5.4");
+  SPEC_DEF("WF-ModalState-ArgCount-Err", "13.1.4");
+  SPEC_DEF("ModalRefSubst", "13.1.3");
   SPEC_DEF("State-Specific-WF", "5.4");
   SPEC_DEF("Record-FieldInit-Dup", "5.2.12");
   SPEC_DEF("Record-Field-Unknown", "5.2.12");
@@ -106,9 +109,21 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
       lowered_args.push_back(lowered.type);
     }
     TypeSubst modal_subst;
-    if (decl->generic_params.has_value() && !lowered_args.empty()) {
-      modal_subst =
-          BuildSubstitution(decl->generic_params->params, lowered_args);
+    if (decl->generic_params.has_value()) {
+      const auto provided = lowered_args.size();
+      const auto required = RequiredParamCount(decl->generic_params);
+      const auto total = TotalParamCount(decl->generic_params);
+      if (provided < required || provided > total) {
+        SPEC_RULE("WF-ModalState-ArgCount-Err");
+        result.diag_id = "E-TYP-2303";
+        return result;
+      }
+      modal_subst = BuildModalRefSubstitution(
+          decl->generic_params->params, lowered_args);
+    } else if (!lowered_args.empty()) {
+      SPEC_RULE("WF-ModalState-ArgCount-Err");
+      result.diag_id = "E-TYP-2303";
+      return result;
     }
 
     // Check for duplicate field initializers
