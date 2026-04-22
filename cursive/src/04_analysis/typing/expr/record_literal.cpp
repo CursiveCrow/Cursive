@@ -46,6 +46,17 @@ static inline void SpecDefsRecordLiteral() {
   SPEC_DEF("Record-FileDir-Err", "5.2.12");
 }
 
+TypeRef ApplyModalPayloadSubstitution(const TypeRef& field_type,
+                                      const TypeSubst& modal_subst) {
+  // TypeSubst([], T) is T. Preserve the existing type node for the identity
+  // case so non-generic and built-in modal payloads do not get structurally
+  // cloned before later lowering/codegen phases consume them.
+  if (modal_subst.empty()) {
+    return field_type;
+  }
+  return InstantiateType(field_type, modal_subst);
+}
+
 }  // namespace
 
 // §5.2.12 Record Literal Expression Typing
@@ -178,7 +189,8 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
         result.diag_id = lowered.diag_id;
         return result;
       }
-      TypeRef field_type = InstantiateType(lowered.type, modal_subst);
+      TypeRef field_type =
+          ApplyModalPayloadSubstitution(lowered.type, modal_subst);
       if (!field_type) {
         return result;
       }
