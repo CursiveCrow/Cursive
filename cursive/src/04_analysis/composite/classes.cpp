@@ -503,6 +503,7 @@ static TypeRef SubstSelfType(const TypeRef& self, const TypeRef& type) {
           for (const auto& arg : node.generic_args) {
             out.generic_args.push_back(SubstSelfType(self, arg));
           }
+          SyncTypeModalStateFromFields(out);
           return MakeType(out);
         } else {
           return type;

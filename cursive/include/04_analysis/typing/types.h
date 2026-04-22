@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 #include <variant>
 
@@ -142,11 +143,38 @@ struct TypeDynamic {
   TypePath path;
 };
 
+struct TypeApply {
+  TypePath path;
+  std::vector<TypeRef> args;
+};
+
+using ModalRef = std::variant<TypePath, TypeApply>;
+
+ModalRef MakeModalRef(TypePath path, std::vector<TypeRef> args = {});
+const TypePath& ModalRefPath(const ModalRef& modal_ref);
+const std::vector<TypeRef>& ModalRefArgs(const ModalRef& modal_ref);
+TypeRef ModalRefType(const ModalRef& modal_ref);
+
+struct ModalStateRef {
+  ModalRef modal_ref;
+  std::string state;
+};
+
 struct TypeModalState {
+  ModalRef modal_ref;
   TypePath path;
   std::string state;
   std::vector<TypeRef> generic_args;
 };
+
+inline void SyncTypeModalStateFromModalRef(TypeModalState& state) {
+  state.path = ModalRefPath(state.modal_ref);
+  state.generic_args = ModalRefArgs(state.modal_ref);
+}
+
+inline void SyncTypeModalStateFromFields(TypeModalState& state) {
+  state.modal_ref = MakeModalRef(state.path, state.generic_args);
+}
 
 struct TypePathType {
   TypePath path;
@@ -229,6 +257,7 @@ TypeRef MakeTypeRawPtr(RawPtrQual qual, TypeRef element);
 TypeRef MakeTypeString(std::optional<StringState> state);
 TypeRef MakeTypeBytes(std::optional<BytesState> state);
 TypeRef MakeTypeDynamic(TypePath path);
+TypeRef MakeTypeModalState(ModalRef modal_ref, std::string state);
 TypeRef MakeTypeModalState(TypePath path,
                            std::string state,
                            std::vector<TypeRef> generic_args = {});

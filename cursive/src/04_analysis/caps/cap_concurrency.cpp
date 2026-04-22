@@ -340,13 +340,7 @@ TypeRef MakeSpawnedType(const TypeRef& inner_type) {
 TypeRef MakeSpawnedTypeWithState(const TypeRef& inner_type,
                                  std::string_view state) {
   SpecDefsConcurrency();
-  // For modal state types, we need to use TypeModalState
-  // Spawned<T>@State
-  TypeModalState modal;
-  modal.path = {"Spawned"};
-  modal.state = std::string(state);
-  modal.generic_args = {inner_type};
-  return MakeType(modal);
+  return MakeTypeModalState({"Spawned"}, std::string(state), {inner_type});
 }
 
 std::optional<TypeRef> ExtractSpawnedInner(const TypeRef& type) {
@@ -401,11 +395,8 @@ TypeRef MakeTrackedTypeWithState(const TypeRef& value_type,
                                  const TypeRef& err_type,
                                  std::string_view state) {
   SpecDefsConcurrency();
-  TypeModalState modal;
-  modal.path = {"Tracked"};
-  modal.state = std::string(state);
-  modal.generic_args = {value_type, err_type};
-  return MakeType(modal);
+  return MakeTypeModalState({"Tracked"}, std::string(state),
+                            {value_type, err_type});
 }
 
 std::optional<std::pair<TypeRef, TypeRef>> ExtractTrackedArgs(
@@ -520,11 +511,7 @@ TypeRef MakeCancelTokenType() {
 
 TypeRef MakeCancelTokenTypeWithState(std::string_view state) {
   SpecDefsConcurrency();
-  TypeModalState modal;
-  modal.path = {"CancelToken"};
-  modal.state = std::string(state);
-  modal.generic_args = {};
-  return MakeType(modal);
+  return MakeTypeModalState({"CancelToken"}, std::string(state));
 }
 
 // -----------------------------------------------------------------------------

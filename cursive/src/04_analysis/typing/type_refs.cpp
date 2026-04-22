@@ -111,6 +111,8 @@
 
 namespace cursive::analysis {
 
+static void AppendTypeString(std::string& out, const Type& type);
+
 namespace {
 
 static const ast::TypeAliasDecl* LookupTypeAliasDecl(const ScopeContext& ctx,
@@ -201,6 +203,23 @@ static std::string PathToString(const TypePath& path) {
 
 static std::string FoldPath(const TypePath& path) {
   return project::Fold(PathToString(path));
+}
+
+static void AppendModalRefString(std::string& out, const ModalRef& modal_ref) {
+  out.append(PathToString(ModalRefPath(modal_ref)));
+  const auto& args = ModalRefArgs(modal_ref);
+  if (args.empty()) {
+    return;
+  }
+
+  out.push_back('<');
+  for (std::size_t i = 0; i < args.size(); ++i) {
+    if (i != 0) {
+      out.append(", ");
+    }
+    AppendTypeString(out, *args[i]);
+  }
+  out.push_back('>');
 }
 
 static bool PathLess(const TypePath& lhs, const TypePath& rhs) {
@@ -506,6 +525,56 @@ TypeRef MakeType(TypeNode node) {
   return std::make_shared<Type>(Type{std::move(node)});
 }
 
+ModalRef MakeModalRef(TypePath path, std::vector<TypeRef> args) {
+  SpecDefsTypeRepr();
+  if (args.empty()) {
+    SPEC_RULE("TypeRef-TypePath");
+    return ModalRef{std::move(path)};
+  }
+
+  SPEC_RULE("TypeRef-TypeApply");
+  return ModalRef{TypeApply{std::move(path), std::move(args)}};
+}
+
+const TypePath& ModalRefPath(const ModalRef& modal_ref) {
+  SpecDefsTypeRepr();
+  return std::visit(
+      [](const auto& node) -> const TypePath& {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, TypePath>) {
+          return node;
+        } else {
+          return node.path;
+        }
+      },
+      modal_ref);
+}
+
+const std::vector<TypeRef>& ModalRefArgs(const ModalRef& modal_ref) {
+  SpecDefsTypeRepr();
+  static const std::vector<TypeRef> kEmptyArgs;
+  return std::visit(
+      [](const auto& node) -> const std::vector<TypeRef>& {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, TypePath>) {
+          return kEmptyArgs;
+        } else {
+          return node.args;
+        }
+      },
+      modal_ref);
+}
+
+TypeRef ModalRefType(const ModalRef& modal_ref) {
+  SpecDefsTypeRepr();
+  const auto& path = ModalRefPath(modal_ref);
+  const auto& args = ModalRefArgs(modal_ref);
+  if (args.empty()) {
+    return MakeTypePath(path);
+  }
+  return MakeTypePath(path, args);
+}
+
 TypeRef MakeTypePrim(std::string name) {
   SpecDefsTypeRepr();
   return MakeType(TypePrim{std::move(name)});
@@ -662,11 +731,22 @@ TypeRef MakeTypeDynamic(TypePath path) {
   return MakeType(TypeDynamic{std::move(path)});
 }
 
+TypeRef MakeTypeModalState(ModalRef modal_ref, std::string state) {
+  SpecDefsTypeRepr();
+  SPEC_RULE("TypeRef-ModalStateRef");
+  TypeModalState node;
+  node.modal_ref = std::move(modal_ref);
+  node.state = std::move(state);
+  SyncTypeModalStateFromModalRef(node);
+  return MakeType(std::move(node));
+}
+
 TypeRef MakeTypeModalState(TypePath path,
                            std::string state,
                            std::vector<TypeRef> generic_args) {
   SpecDefsTypeRepr();
-  return MakeType(TypeModalState{std::move(path), std::move(state), std::move(generic_args)});
+  return MakeTypeModalState(MakeModalRef(std::move(path), std::move(generic_args)),
+                            std::move(state));
 }
 
 TypeRef MakeTypePath(TypePath path) {
@@ -837,8 +917,7 @@ static void AppendTypeString(std::string& out, const Type& type) {
           out.push_back('$');
           out.append(PathToString(node.path));
         } else if constexpr (std::is_same_v<T, TypeModalState>) {
-          out.append(PathToString(node.path));
-          append_generic_args(node.generic_args);
+          AppendModalRefString(out, node.modal_ref);
           out.push_back('@');
           out.append(node.state);
         } else if constexpr (std::is_same_v<T, TypeOpaque>) {
@@ -1010,12 +1089,14 @@ TypeKey TypeKeyOf(const Type& type) {
           return key;
         } else if constexpr (std::is_same_v<T, TypeModalState>) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
+          const auto& modal_path = ModalRefPath(node.modal_ref);
+          const auto& modal_args = ModalRefArgs(node.modal_ref);
           key.atoms.push_back(
-              KeyAtom::Key(std::make_shared<TypeKey>(PathOrderKey(node.path))));
-          if (!node.generic_args.empty()) {
+              KeyAtom::Key(std::make_shared<TypeKey>(PathOrderKey(modal_path))));
+          if (!modal_args.empty()) {
             std::vector<TypeKey> arg_keys;
-            arg_keys.reserve(node.generic_args.size());
-            for (const auto& arg : node.generic_args) {
+            arg_keys.reserve(modal_args.size());
+            for (const auto& arg : modal_args) {
               arg_keys.push_back(TypeKeyOf(*arg));
             }
             key.atoms.push_back(KeyAtom::KeyList(MakeKeyList(arg_keys)));
@@ -1211,8 +1292,8 @@ static void CollectTypePaths(const Type& type, std::vector<TypePath>& out) {
         } else if constexpr (std::is_same_v<T, TypeDynamic>) {
           out.push_back(node.path);
         } else if constexpr (std::is_same_v<T, TypeModalState>) {
-          out.push_back(node.path);
-          for (const auto& arg : node.generic_args) {
+          out.push_back(ModalRefPath(node.modal_ref));
+          for (const auto& arg : ModalRefArgs(node.modal_ref)) {
             CollectTypePaths(*arg, out);
           }
         } else if constexpr (std::is_same_v<T, TypeOpaque>) {
@@ -1456,8 +1537,8 @@ std::optional<AsyncSig> GetAsyncSig(const TypeRef& type) {
           return std::nullopt;
         } else if constexpr (std::is_same_v<T, TypeModalState>) {
           // Async@Suspended, Async@Completed, Async@Failed
-          if (IsAsyncModalPath(node.path)) {
-            return AsyncSigFromBuiltinName("Async", node.generic_args);
+          if (IsAsyncModalPath(ModalRefPath(node.modal_ref))) {
+            return AsyncSigFromBuiltinName("Async", ModalRefArgs(node.modal_ref));
           }
           return std::nullopt;
         } else {
