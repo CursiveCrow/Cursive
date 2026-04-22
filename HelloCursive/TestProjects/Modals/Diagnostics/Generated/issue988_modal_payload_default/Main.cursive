@@ -1,0 +1,26 @@
+public modal Issue988ModalPayloadDefaultProbe<T = i32> {
+    @Ready {
+        value: T
+    }
+
+    @Empty {
+    }
+}
+
+procedure extract_ready_value(value: Issue988ModalPayloadDefaultProbe) -> i32 {
+    return if value is {
+        @Ready { value: item } {
+            let payload: i32 = item
+            payload
+        }
+        @Empty { 0 }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let ready: Issue988ModalPayloadDefaultProbe@Ready =
+        Issue988ModalPayloadDefaultProbe@Ready { value: 42 }
+    let widened: Issue988ModalPayloadDefaultProbe = widen(ready)
+    return extract_ready_value(widened) - 42
+}

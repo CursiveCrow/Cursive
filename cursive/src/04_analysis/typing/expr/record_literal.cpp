@@ -14,9 +14,9 @@
 #include "00_core/assert_spec.h"
 #include "04_analysis/caps/cap_system.h"
 #include "04_analysis/generics/generic_params.h"
-#include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/modal/builtin_modal_intrinsics.h"
 #include "04_analysis/modal/modal.h"
+#include "04_analysis/modal/modal_fields.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/type_equiv.h"
 #include "04_analysis/typing/type_expr.h"
@@ -36,6 +36,7 @@ static inline void SpecDefsRecordLiteral() {
   SPEC_DEF("WF-ModalState", "5.4");
   SPEC_DEF("WF-ModalState-ArgCount-Err", "13.1.4");
   SPEC_DEF("ModalRefSubst", "13.1.3");
+  SPEC_DEF("ModalPayload", "13.1.3");
   SPEC_DEF("State-Specific-WF", "5.4");
   SPEC_DEF("Record-FieldInit-Dup", "5.2.12");
   SPEC_DEF("Record-Field-Unknown", "5.2.12");
@@ -108,7 +109,6 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
       }
       lowered_args.push_back(lowered.type);
     }
-    TypeSubst modal_subst;
     if (decl->generic_params.has_value()) {
       const auto provided = lowered_args.size();
       const auto required = RequiredParamCount(decl->generic_params);
@@ -118,8 +118,6 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
         result.diag_id = "E-TYP-2303";
         return result;
       }
-      modal_subst = BuildModalRefSubstitution(
-          decl->generic_params->params, lowered_args);
     } else if (!lowered_args.empty()) {
       SPEC_RULE("WF-ModalState-ArgCount-Err");
       result.diag_id = "E-TYP-2303";
@@ -171,17 +169,14 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
       if (it == payload_fields.end() || !it->second) {
         return result;
       }
-      const auto lowered = LowerType(ctx, it->second->type);
-      if (!lowered.ok) {
-        result.diag_id = lowered.diag_id;
+      const auto payload_type = ModalPayloadFieldType(
+          ctx, *decl, modal->state, field_init.name, lowered_args);
+      if (!payload_type.ok) {
+        result.diag_id = payload_type.diag_id;
         return result;
       }
-      TypeRef field_type = lowered.type;
-      if (!modal_subst.empty()) {
-        field_type = InstantiateType(field_type, modal_subst);
-      }
-      const auto check =
-          CheckExprAgainst(ctx, type_ctx, field_init.value, field_type, env);
+      const auto check = CheckExprAgainst(
+          ctx, type_ctx, field_init.value, payload_type.type, env);
       if (!check.ok) {
         result.diag_id = check.diag_id;
         return result;

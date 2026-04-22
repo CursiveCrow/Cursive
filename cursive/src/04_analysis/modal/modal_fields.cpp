@@ -39,7 +39,10 @@
 
 #include "04_analysis/modal/modal_fields.h"
 
+#include "00_core/assert_spec.h"
+#include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/resolve/scopes.h"
+#include "04_analysis/typing/type_lower.h"
 
 namespace cursive::analysis {
 
@@ -71,6 +74,37 @@ const ast::StateFieldDecl* LookupModalFieldDecl(const ast::ModalDecl& decl,
     }
   }
   return nullptr;
+}
+
+ModalPayloadFieldTypeResult ModalPayloadFieldType(
+    const ScopeContext& ctx,
+    const ast::ModalDecl& decl,
+    std::string_view state,
+    std::string_view name,
+    const std::vector<TypeRef>& modal_args) {
+  SPEC_RULE("ModalPayload");
+
+  ModalPayloadFieldTypeResult result;
+  const auto* field = LookupModalFieldDecl(decl, state, name);
+  if (!field) {
+    return result;
+  }
+
+  const auto lowered = LowerType(ctx, field->type);
+  if (!lowered.ok || !lowered.type) {
+    result.diag_id = lowered.diag_id;
+    return result;
+  }
+
+  static const std::vector<ast::TypeParam> kNoTypeParams;
+  const auto& params = decl.generic_params.has_value()
+                           ? decl.generic_params->params
+                           : kNoTypeParams;
+  const TypeSubst modal_subst = BuildModalRefSubstitution(params, modal_args);
+
+  result.type = InstantiateType(lowered.type, modal_subst);
+  result.ok = static_cast<bool>(result.type);
+  return result;
 }
 
 bool ModalFieldVisible(const ScopeContext& ctx, const TypePath& modal_path) {

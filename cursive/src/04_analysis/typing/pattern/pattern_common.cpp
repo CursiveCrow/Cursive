@@ -24,7 +24,7 @@
 #include "00_core/assert_spec.h"
 #include "00_core/int128.h"
 #include "04_analysis/modal/modal.h"
-#include "04_analysis/generics/monomorphize.h"
+#include "04_analysis/modal/modal_fields.h"
 #include "04_analysis/resolve/resolve_items.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/literals.h"
@@ -43,6 +43,7 @@ static inline void SpecDefsTypePattern() {
   SPEC_DEF("StripPerm", "5.2.12");
   SPEC_DEF("ConstPatInt", "5.2.13");
   SPEC_DEF("PatternEffectRules", "5.2.13");
+  SPEC_DEF("ModalPayload", "13.1.3");
 }
 
 // -----------------------------------------------------------------------------
@@ -297,42 +298,6 @@ static std::optional<TypeRef> EnumFieldType(
       return std::nullopt;
     }
     return lowered.type;
-  }
-  return std::nullopt;
-}
-
-static std::optional<TypeRef> ModalFieldType(const ast::ModalDecl& decl,
-                                              std::string_view state,
-                                              const ScopeContext& ctx,
-                                              std::string_view name,
-                                              const std::vector<TypeRef>& modal_args) {
-  const auto state_key = IdKeyOf(state);
-  TypeSubst modal_subst;
-  if (decl.generic_params.has_value() && !modal_args.empty()) {
-    modal_subst = BuildSubstitution(decl.generic_params->params, modal_args);
-  }
-  for (const auto& block : decl.states) {
-    if (IdKeyOf(block.name) != state_key) {
-      continue;
-    }
-    for (const auto& member : block.members) {
-      const auto* field = std::get_if<ast::StateFieldDecl>(&member);
-      if (!field) {
-        continue;
-      }
-      if (IdKeyOf(field->name) != IdKeyOf(name)) {
-        continue;
-      }
-      const auto lowered = LowerType(ctx, field->type);
-      if (!lowered.ok) {
-        return std::nullopt;
-      }
-      TypeRef field_type = lowered.type;
-      if (!modal_subst.empty()) {
-        field_type = InstantiateType(field_type, modal_subst);
-      }
-      return field_type;
-    }
   }
   return std::nullopt;
 }
@@ -672,10 +637,10 @@ static PatternTypeResult TypePatternAgainstTypeImpl(const ScopeContext& ctx,
           }
           std::vector<std::pair<std::string, TypeRef>> binds;
           for (const auto& field : *fields) {
-            const auto field_type = ModalFieldType(*decl, state, ctx, field.name,
-                                                   modal_args);
-            if (!field_type.has_value()) {
-              return {false, std::nullopt, {}};
+            const auto field_type = ModalPayloadFieldType(
+                ctx, *decl, state, field.name, modal_args);
+            if (!field_type.ok) {
+              return {false, field_type.diag_id, {}};
             }
             ast::PatternPtr pat = field.pattern_opt;
             if (!pat) {
@@ -683,7 +648,8 @@ static PatternTypeResult TypePatternAgainstTypeImpl(const ScopeContext& ctx,
               implicit->node = ast::IdentifierPattern{field.name};
               pat = implicit;
             }
-            const auto sub = TypePatternAgainstTypeImpl(ctx, pat, *field_type);
+            const auto sub =
+                TypePatternAgainstTypeImpl(ctx, pat, field_type.type);
             if (!sub.ok) {
               return sub;
             }
@@ -849,10 +815,9 @@ bool IrrefutablePattern(const ScopeContext& ctx,
             fields = &empty;
           }
           for (const auto& field : *fields) {
-            const auto field_type =
-                ModalFieldType(*decl, node.state, ctx, field.name,
-                               modal_state->generic_args);
-            if (!field_type.has_value()) {
+            const auto field_type = ModalPayloadFieldType(
+                ctx, *decl, node.state, field.name, modal_state->generic_args);
+            if (!field_type.ok) {
               return false;
             }
             ast::PatternPtr pat = field.pattern_opt;
@@ -861,7 +826,7 @@ bool IrrefutablePattern(const ScopeContext& ctx,
               implicit->node = ast::IdentifierPattern{field.name};
               pat = implicit;
             }
-            if (!IrrefutablePattern(ctx, pat, *field_type)) {
+            if (!IrrefutablePattern(ctx, pat, field_type.type)) {
               return false;
             }
           }
