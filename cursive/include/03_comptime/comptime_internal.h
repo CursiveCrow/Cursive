@@ -168,6 +168,9 @@ struct ProjectFileSnapshot {
   std::string root_text;
   std::filesystem::path host_root;
   std::unordered_map<std::string, ProjectFileSnapshotEntry> entries;
+  std::uint64_t captured_file_count = 0;
+  std::uint64_t captured_directory_count = 0;
+  std::uint64_t captured_byte_count = 0;
 };
 
 struct CtQuoteCtx {

@@ -64,8 +64,10 @@ std::vector<std::uint8_t> ReadAllBytes(const std::filesystem::path& path,
 }
 
 void PopulateFileEntry(ProjectFileSnapshotEntry& entry,
+                       ProjectFileSnapshot& snapshot,
                        const std::filesystem::path& host_path) {
   entry.kind = ProjectFileSnapshotKind::File;
+  snapshot.captured_file_count += 1;
 
   bool ok = false;
   entry.bytes = ReadAllBytes(host_path, ok);
@@ -75,6 +77,8 @@ void PopulateFileEntry(ProjectFileSnapshotEntry& entry,
     entry.bytes.clear();
     return;
   }
+  snapshot.captured_byte_count +=
+      static_cast<std::uint64_t>(entry.bytes.size());
 
   const core::DecodeResult decoded = core::Decode(entry.bytes);
   if (!decoded.ok) {
@@ -91,6 +95,7 @@ void PopulateDirectoryEntry(ProjectFileSnapshot& snapshot,
                             const std::filesystem::path& host_path,
                             const std::string& canonical_text) {
   entry.kind = ProjectFileSnapshotKind::Directory;
+  snapshot.captured_directory_count += 1;
 
   std::error_code ec;
   std::filesystem::directory_iterator iter(host_path, ec);
@@ -158,7 +163,7 @@ void CapturePathRecursive(ProjectFileSnapshot& snapshot,
   }
 
   if (std::filesystem::is_regular_file(status)) {
-    PopulateFileEntry(entry, host_path);
+    PopulateFileEntry(entry, snapshot, host_path);
     snapshot.entries[canonical_text] = std::move(entry);
     return;
   }

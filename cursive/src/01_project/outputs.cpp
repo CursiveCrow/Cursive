@@ -948,12 +948,7 @@ ParsedAstModulesResult ParseAstModulesForProject(const Project& project,
     return {std::move(parsed.modules), std::move(parsed.diags)};
   }
 
-  auto expanded =
-      frontend::ExecuteComptime(*parsed.modules, project.root, project.source_root);
-  for (const auto& diag : expanded.diags) {
-    core::Emit(parsed.diags, diag);
-  }
-  return {std::move(expanded.modules), std::move(parsed.diags)};
+  return {std::move(parsed.modules), std::move(parsed.diags)};
 }
 
 Project AssemblyProject(const Project& base_project, const Assembly& assembly) {
@@ -963,6 +958,17 @@ Project AssemblyProject(const Project& base_project, const Assembly& assembly) {
   project.outputs = assembly.outputs;
   project.modules = assembly.modules;
   return project;
+}
+
+frontend::ComptimePassOptions BuildComptimeOptions(const Project& project) {
+  frontend::ComptimePassOptions options;
+  options.project_root = project.root;
+  options.fallback_source_root = project.source_root;
+  options.source_roots_by_assembly.reserve(project.assemblies.size());
+  for (const auto& assembly : project.assemblies) {
+    options.source_roots_by_assembly[assembly.name] = assembly.source_root;
+  }
+  return options;
 }
 
 LinkPlan BuildOutputLinkPlan(const Project& project,
@@ -1185,6 +1191,50 @@ bool RestageSharedLibraryForExistingConsumers(
   return true;
 }
 
+bool EnsureProjectAstModulesLoaded(const Project& base_project,
+                                   OutputCoordinatorState& state,
+                                   core::DiagnosticStream& diags) {
+  if (state.project_ast_modules != nullptr) {
+    return true;
+  }
+
+  if (state.deps.resolve_project_ast_modules) {
+    auto full_modules = state.deps.resolve_project_ast_modules(base_project);
+    if (full_modules.has_value()) {
+      state.project_ast_modules = &full_modules->get();
+      return true;
+    }
+  }
+
+  std::vector<ast::ASTModule> phase1_modules;
+  for (const auto& assembly : base_project.assemblies) {
+    const Project assembly_project = AssemblyProject(base_project, assembly);
+    auto parsed = ParseAstModulesForProject(assembly_project, state.deps);
+    for (const auto& diag : parsed.diags) {
+      core::Emit(diags, diag);
+    }
+    if (!parsed.modules.has_value() || core::HasError(parsed.diags)) {
+      return false;
+    }
+    phase1_modules.insert(phase1_modules.end(),
+                          std::make_move_iterator(parsed.modules->begin()),
+                          std::make_move_iterator(parsed.modules->end()));
+  }
+
+  auto expanded =
+      frontend::ExecuteComptime(phase1_modules, BuildComptimeOptions(base_project));
+  for (const auto& diag : expanded.diags) {
+    core::Emit(diags, diag);
+  }
+  if (!expanded.modules.has_value() || core::HasError(expanded.diags)) {
+    return false;
+  }
+
+  state.owned_project_ast_modules = std::move(*expanded.modules);
+  state.project_ast_modules = &*state.owned_project_ast_modules;
+  return true;
+}
+
 bool LoadAstForAssembly(const Project& base_project,
                         std::string_view assembly_name,
                         OutputCoordinatorState& state,
@@ -1194,33 +1244,20 @@ bool LoadAstForAssembly(const Project& base_project,
     return true;
   }
 
-  if (state.project_ast_modules != nullptr) {
-    const auto assembly_project = AssemblyProjectView(base_project, assembly_name);
-    if (!assembly_project.has_value()) {
-      return false;
-    }
-    const auto filtered =
-        FilterAstModulesForProject(*assembly_project, *state.project_ast_modules, diags);
-    if (!filtered.has_value()) {
-      return false;
-    }
-    state.ast_by_assembly.emplace(std::string(assembly_name), *filtered);
-    return true;
-  }
-
   const auto assembly_project = AssemblyProjectView(base_project, assembly_name);
   if (!assembly_project.has_value()) {
     return false;
   }
-  auto parsed = ParseAstModulesForProject(*assembly_project, state.deps);
-  for (const auto& diag : parsed.diags) {
-    core::Emit(diags, diag);
-  }
-  if (!parsed.modules.has_value() || core::HasError(parsed.diags)) {
+  if (!EnsureProjectAstModulesLoaded(base_project, state, diags)) {
     return false;
   }
-  state.ast_by_assembly.emplace(std::string(assembly_name),
-                                std::move(*parsed.modules));
+
+  const auto filtered =
+      FilterAstModulesForProject(*assembly_project, *state.project_ast_modules, diags);
+  if (!filtered.has_value()) {
+    return false;
+  }
+  state.ast_by_assembly.emplace(std::string(assembly_name), *filtered);
   return true;
 }
 

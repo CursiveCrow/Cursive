@@ -78,6 +78,10 @@ CtEnv WithCtCaps(CtEnv env, const AttributeList& attrs, bool derive_body) {
     env.caps.push_back("TypeEmitter");
   }
   if (HasAttribute(attrs, "files")) {
+    if (!env.files) {
+      EmitComptimeDiag(env, "E-CTE-0060", env.current_span);
+      return env;
+    }
     env.values["files"] = MakeCtUnit();
     env.caps.push_back("ProjectFiles");
   }

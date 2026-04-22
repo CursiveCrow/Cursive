@@ -730,6 +730,39 @@ std::vector<cursive::ast::ASTModule> FilterAstModulesForProject(
   return filtered;
 }
 
+std::vector<cursive::ast::ASTModule> FilterAstModulesByModuleInfo(
+    const std::vector<cursive::ast::ASTModule>& modules,
+    const std::vector<cursive::project::ModuleInfo>& selected) {
+  std::unordered_set<std::string> wanted;
+  wanted.reserve(selected.size());
+  for (const auto& module : selected) {
+    wanted.insert(module.path);
+  }
+
+  std::vector<cursive::ast::ASTModule> filtered;
+  filtered.reserve(selected.size());
+  for (const auto& module : modules) {
+    const std::string module_path = cursive::core::StringOfPath(module.path);
+    if (wanted.find(module_path) == wanted.end()) {
+      continue;
+    }
+    filtered.push_back(module);
+  }
+  return filtered;
+}
+
+cursive::frontend::ComptimePassOptions BuildComptimeOptions(
+    const cursive::project::Project& project) {
+  cursive::frontend::ComptimePassOptions options;
+  options.project_root = project.root;
+  options.fallback_source_root = project.source_root;
+  options.source_roots_by_assembly.reserve(project.assemblies.size());
+  for (const auto& assembly : project.assemblies) {
+    options.source_roots_by_assembly[assembly.name] = assembly.source_root;
+  }
+  return options;
+}
+
 
 void EmitExternalCode(cursive::core::DiagnosticStream& diags,
                       std::string_view code,
@@ -1646,6 +1679,7 @@ int main(int argc, char** argv) {
 
   // Per-phase timing (for --verbose)
   long long parse_ms = 0;
+  long long comptime_ms = 0;
   long long check_ms = 0;
   long long codegen_ms = 0;
   long long link_ms = 0;
@@ -1849,38 +1883,6 @@ int main(int argc, char** argv) {
         }
       }
 
-      if (!opts->phase1_only) {
-        core::Conformance::SetPhase("comptime");
-        log_machine("phase=comptime assembly-start name=" + assembly.name +
-                    " modules=" + std::to_string(stage_modules.size()) +
-                    " source_root=" + assembly.source_root.generic_string());
-        auto expanded_chunk =
-            frontend::ExecuteComptime(stage_modules, proj.root, assembly.source_root);
-        for (const auto& diag : expanded_chunk.diags) {
-          core::Emit(comptime_phase_diags, diag);
-        }
-        const bool comptime_chunk_has_errors = core::HasError(expanded_chunk.diags);
-        if (!expanded_chunk.modules.has_value() || comptime_chunk_has_errors) {
-          log_machine("phase=comptime assembly-finish name=" + assembly.name +
-                      " ok=false expanded_modules=" +
-                      std::to_string(expanded_chunk.modules.has_value()
-                                         ? expanded_chunk.modules->size()
-                                         : 0) +
-                      " emitted_diags=" +
-                      std::to_string(expanded_chunk.diags.size()));
-          comptime_ok = false;
-          core::Conformance::SetPhase("parse");
-          break;
-        }
-        log_machine("phase=comptime assembly-finish name=" + assembly.name +
-                    " ok=true expanded_modules=" +
-                    std::to_string(expanded_chunk.modules->size()) +
-                    " emitted_diags=" +
-                    std::to_string(expanded_chunk.diags.size()));
-        stage_modules = std::move(*expanded_chunk.modules);
-        core::Conformance::SetPhase("parse");
-      }
-
       for (auto& module : stage_modules) {
         parsed_modules.push_back(std::move(module));
       }
@@ -1935,49 +1937,55 @@ int main(int argc, char** argv) {
                     std::to_string(stage_modules.size()) +
                     " emitted_diags=" +
                     std::to_string(parsed_chunk.diags.size()));
-        if (!opts->phase1_only) {
-          core::Conformance::SetPhase("comptime");
-          log_machine("phase=comptime assembly-start name=" + assembly.name +
-                      " modules=" + std::to_string(stage_modules.size()) +
-                      " source_root=" + assembly.source_root.generic_string());
-          auto expanded_chunk = frontend::ExecuteComptime(stage_modules, proj.root,
-                                                          assembly.source_root);
-          for (const auto& diag : expanded_chunk.diags) {
-            core::Emit(comptime_phase_diags, diag);
-          }
-          const bool comptime_chunk_has_errors = core::HasError(expanded_chunk.diags);
-          if (!expanded_chunk.modules.has_value() || comptime_chunk_has_errors) {
-            log_machine("phase=comptime assembly-finish name=" + assembly.name +
-                        " ok=false expanded_modules=" +
-                        std::to_string(expanded_chunk.modules.has_value()
-                                           ? expanded_chunk.modules->size()
-                                           : 0) +
-                        " emitted_diags=" +
-                        std::to_string(expanded_chunk.diags.size()));
-            comptime_ok = false;
-            core::Conformance::SetPhase("parse");
-            break;
-          }
-          log_machine("phase=comptime assembly-finish name=" + assembly.name +
-                      " ok=true expanded_modules=" +
-                      std::to_string(expanded_chunk.modules->size()) +
-                      " emitted_diags=" +
-                      std::to_string(expanded_chunk.diags.size()));
-          stage_modules = std::move(*expanded_chunk.modules);
-          core::Conformance::SetPhase("parse");
-        }
-
         for (auto& module : stage_modules) {
           project_modules.push_back(std::move(module));
         }
+      }
+
+      parse_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+          std::chrono::steady_clock::now() - parse_start).count();
+
+      if (parse_ok && !opts->phase1_only) {
+        core::Conformance::SetPhase("comptime");
+        const auto comptime_start = std::chrono::steady_clock::now();
+        log_machine("phase=comptime project-start modules=" +
+                    std::to_string(project_modules.size()));
+        auto expanded_project = frontend::ExecuteComptime(
+            project_modules, BuildComptimeOptions(proj));
+        for (const auto& diag : expanded_project.diags) {
+          core::Emit(comptime_phase_diags, diag);
+        }
+        const bool comptime_has_errors = core::HasError(expanded_project.diags);
+        if (!expanded_project.modules.has_value() || comptime_has_errors) {
+          log_machine("phase=comptime project-finish ok=false expanded_modules=" +
+                      std::to_string(expanded_project.modules.has_value()
+                                         ? expanded_project.modules->size()
+                                         : 0) +
+                      " emitted_diags=" +
+                      std::to_string(expanded_project.diags.size()));
+          comptime_ok = false;
+        } else {
+          project_modules = std::move(*expanded_project.modules);
+          parsed_modules =
+              FilterAstModulesByModuleInfo(project_modules, reachable_modules);
+          log_machine("phase=comptime project-finish ok=true expanded_modules=" +
+                      std::to_string(project_modules.size()) +
+                      " emitted_diags=" +
+                      std::to_string(expanded_project.diags.size()));
+        }
+        comptime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - comptime_start).count();
+        core::Conformance::SetPhase("parse");
       }
       if (parse_ok && comptime_ok) {
         parsed_project_module_set = std::move(project_modules);
       }
     }
 
-    parse_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - parse_start).count();
+    if (parse_ms == 0) {
+      parse_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+          std::chrono::steady_clock::now() - parse_start).count();
+    }
     phase1_ok = parse_ok;
     phase2_ok = parse_ok && comptime_ok;
     const std::size_t parse_phase_error_count =
@@ -2815,6 +2823,7 @@ int main(int argc, char** argv) {
   if (is_verbose && !opts->diag_json) {
     std::cerr << "\n  Phase timing:\n";
     std::cerr << "    parse:   " << parse_ms << "ms\n";
+    std::cerr << "    comptime:" << comptime_ms << "ms\n";
     std::cerr << "    check:   " << check_ms << "ms\n";
     std::cerr << "    codegen: " << codegen_ms << "ms\n";
     std::cerr.flush();
