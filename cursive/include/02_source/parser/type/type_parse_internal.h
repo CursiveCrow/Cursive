@@ -182,7 +182,7 @@ ParseElemResult<std::shared_ptr<Type>> ParseOpaqueType(Parser parser);
 // Result type for generic arguments parsing
 struct ParseGenericArgsResult {
   Parser parser;
-  std::vector<std::shared_ptr<Type>> args;
+  std::optional<std::vector<std::shared_ptr<Type>>> args;
 };
 
 // Parse optional generic type arguments <T, U>

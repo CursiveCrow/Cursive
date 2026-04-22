@@ -138,7 +138,7 @@ std::shared_ptr<Type> BuildBuiltinRangeType(
     const Parser& start,
     const Parser& end,
     const TypePath& path,
-    std::vector<std::shared_ptr<Type>> args) {
+    const std::vector<std::shared_ptr<Type>>& args) {
   if (path.size() != 1) {
     return nullptr;
   }
@@ -347,25 +347,29 @@ ParseElemResult<std::shared_ptr<Type>> ParseNonPermType(Parser parser) {
 
     // Parse optional generic args
     ParseGenericArgsResult gen = ParseGenericTypeArgs(path.parser);
+    std::vector<std::shared_ptr<Type>> generic_args =
+        gen.args.has_value()
+            ? std::move(*gen.args)
+            : std::vector<std::shared_ptr<Type>>{};
 
     // Check for modal state: @StateName
     const Token* after_args = Tok(gen.parser);
     if (after_args && IsOpTok(*after_args, "@")) {
       return ParseModalStateType(gen.parser, start, std::move(path.elem),
-                                 std::move(gen.args));
+                                 std::move(generic_args));
     }
 
     // Builtin range-family constructors are represented as dedicated AST nodes.
     if (auto builtin_range =
-            BuildBuiltinRangeType(start, gen.parser, path.elem, gen.args)) {
+            BuildBuiltinRangeType(start, gen.parser, path.elem, generic_args)) {
       return {gen.parser, builtin_range};
     }
 
-    if (!gen.args.empty()) {
+    if (gen.args.has_value()) {
       SPEC_RULE("Parse-Type-Apply");
       TypeApply apply;
       apply.path = std::move(path.elem);
-      apply.args = std::move(gen.args);
+      apply.args = std::move(generic_args);
       return {gen.parser, MakeTypeNode(SpanBetween(start, gen.parser), apply)};
     }
 

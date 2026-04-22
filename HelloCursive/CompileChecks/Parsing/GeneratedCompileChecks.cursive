@@ -114,6 +114,16 @@ procedure run_issue514_tuple_scan_singleton_comma_newline_rejected(ctx: Context)
     return testsupport::runCompileCheckCommand(ctx, command, "issue514_tuple_scan_singleton_comma_newline_rejected")
 }
 
+procedure run_parse_generic_args_opt_none_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --phase1-only --diag-json --quiet --conformance parse_generic_args_opt_none_trace.log ..\\TestProjects\\Parsing\\Generated\\parse_generic_args_opt_none_trace\\Main.cursive > build\\main\\logs\\compile_checks\\parse_generic_args_opt_none_trace.json 2> build\\main\\logs\\compile_checks\\parse_generic_args_opt_none_trace.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-GenericArgsOpt-None\" ..\\TestProjects\\Parsing\\Generated\\parse_generic_args_opt_none_trace\\build\\probe\\logs\\conformance\\parse_generic_args_opt_none_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-GenericArgsOpt-Yes\" ..\\TestProjects\\Parsing\\Generated\\parse_generic_args_opt_none_trace\\build\\probe\\logs\\conformance\\parse_generic_args_opt_none_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-GenericArgs\" ..\\TestProjects\\Parsing\\Generated\\parse_generic_args_opt_none_trace\\build\\probe\\logs\\conformance\\parse_generic_args_opt_none_trace.log >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "parse_generic_args_opt_none_trace")
+}
+
+procedure run_parse_generic_args_opt_empty_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Parsing\\Generated\\parse_generic_args_opt_empty_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\parse_generic_args_opt_empty_rejected.json 2> build\\main\\logs\\compile_checks\\parse_generic_args_opt_empty_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SRC-0520\\\"\" build\\main\\logs\\compile_checks\\parse_generic_args_opt_empty_rejected.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "parse_generic_args_opt_empty_rejected")
+}
+
 public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_run_issue5131_attr_spec_trailing_comma_multiline: i32 = run_issue5131_attr_spec_trailing_comma_multiline(ctx)
     if (status_run_issue5131_attr_spec_trailing_comma_multiline != 0) {
@@ -228,6 +238,16 @@ public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_issue514_tuple_scan_singleton_comma_newline_rejected: i32 = run_issue514_tuple_scan_singleton_comma_newline_rejected(ctx)
     if (status_issue514_tuple_scan_singleton_comma_newline_rejected != 0) {
         return status_issue514_tuple_scan_singleton_comma_newline_rejected
+    }
+
+    let status_parse_generic_args_opt_none_trace: i32 = run_parse_generic_args_opt_none_trace(ctx)
+    if (status_parse_generic_args_opt_none_trace != 0) {
+        return status_parse_generic_args_opt_none_trace
+    }
+
+    let status_parse_generic_args_opt_empty_rejected: i32 = run_parse_generic_args_opt_empty_rejected(ctx)
+    if (status_parse_generic_args_opt_empty_rejected != 0) {
+        return status_parse_generic_args_opt_empty_rejected
     }
 
     return 0

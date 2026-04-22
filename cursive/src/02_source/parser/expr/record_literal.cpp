@@ -230,11 +230,15 @@ ParseElemResult<ExprPtr> ParseRecordLiteral(Parser parser, bool allow_brace) {
 
   ParseElemResult<TypePath> path = ParseTypePath(parser);
   ParseGenericArgsResult gen = ParseGenericTypeArgs(path.parser);
+  std::vector<std::shared_ptr<Type>> generic_args =
+      gen.args.has_value()
+          ? std::move(*gen.args)
+          : std::vector<std::shared_ptr<Type>>{};
 
   // Modal state record literal: ModalType@State{...}
   if (IsOp(gen.parser, "@")) {
     return ParseModalStateRecordLiteral(gen.parser, start, path.elem,
-                                        std::move(gen.args));
+                                        std::move(generic_args));
   }
 
   if (!allow_brace || !IsPunc(gen.parser, "{")) {
@@ -253,7 +257,7 @@ ParseElemResult<ExprPtr> ParseRecordLiteral(Parser parser, bool allow_brace) {
   }
 
   // Generic args are not part of Parse-Record-Literal (non-modal).
-  if (!gen.args.empty()) {
+  if (gen.args.has_value()) {
     EmitParseSyntaxErr(gen.parser, TokSpan(gen.parser));
     Parser sync = gen.parser;
     SyncStmt(sync);

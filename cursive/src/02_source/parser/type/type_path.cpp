@@ -54,21 +54,22 @@ void ValidateGpuPtrArgs(Parser parser,
 // =============================================================================
 // SPEC: Generic arguments use commas to separate types.
 // Returns the parser positioned after '>' and the vector of type arguments.
-// If no '<' is present, returns empty vector and unchanged parser.
+// If no '<' is present, returns nullopt and leaves the parser unchanged.
 
 ParseGenericArgsResult ParseGenericTypeArgs(Parser parser) {
-  std::vector<std::shared_ptr<Type>> args;
-
   const Token* tok = Tok(parser);
   if (!tok || !IsOpTok(*tok, "<")) {
-    return {parser, args};
+    SPEC_RULE("Parse-GenericArgsOpt-None");
+    return {parser, std::nullopt};
   }
 
-  SPEC_RULE("Parse-Type-Generic-Args");
+  SPEC_RULE("Parse-GenericArgsOpt-Yes");
+  SPEC_RULE("Parse-GenericArgs");
   Parser after_lt = parser;
   Advance(after_lt);  // consume '<'
 
   // Parse first type arg
+  std::vector<std::shared_ptr<Type>> args;
   ParseElemResult<std::shared_ptr<Type>> first_arg = ParseType(after_lt);
   args.push_back(first_arg.elem);
   const EndSetToken end_set[] = {EndOperator(">"), EndOperator(">>")};
@@ -104,12 +105,13 @@ ParseElemResult<std::shared_ptr<Type>> ParseTypePathType(
     TypePath path) {
   // Parse optional generic arguments
   ParseGenericArgsResult gen = ParseGenericTypeArgs(parser);
-  if (!gen.args.empty()) {
-    ValidateGpuPtrArgs(gen.parser, path, gen.args);
+  if (gen.args.has_value()) {
+    std::vector<std::shared_ptr<Type>> args = std::move(*gen.args);
+    ValidateGpuPtrArgs(gen.parser, path, args);
     SPEC_RULE("Parse-Type-Apply");
     TypeApply apply;
     apply.path = std::move(path);
-    apply.args = std::move(gen.args);
+    apply.args = std::move(args);
     return {gen.parser, MakeTypeNode(SpanBetween(start, gen.parser), apply)};
   }
 
